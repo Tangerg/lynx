@@ -6,11 +6,17 @@ import { useMemo } from "react";
 import type {
   ContributedSettingsPane,
   ContributedView,
+  ContextDockDestinationSpec,
   LayoutSlotSpec,
   SettingsPaneSpec,
   WorkspaceViewSpec,
 } from "../types";
-import { LAYOUT_SLOT, SETTINGS_PANE, WORKSPACE_VIEW } from "../kernelPoints";
+import {
+  CONTEXT_DOCK_DESTINATION,
+  LAYOUT_SLOT,
+  SETTINGS_PANE,
+  WORKSPACE_VIEW,
+} from "../kernelPoints";
 import { makeLazyActivator } from "../lazyActivator";
 import { usePluginStore } from "../registry";
 import { runActivator, useDeclaredMerged } from "./_helpers";
@@ -36,6 +42,10 @@ export function useWorkspaceViews(): WorkspaceViewSpec[] {
   const registered = useExtensionPoint(WORKSPACE_VIEW);
   const declared = usePluginStore((s) => s.declaredViews);
   return useDeclaredMerged(registered, declared, declaredToWorkspaceView);
+}
+
+export function useContextDockDestinations(): ContextDockDestinationSpec[] {
+  return useExtensionPoint(CONTEXT_DOCK_DESTINATION);
 }
 
 function declaredToWorkspaceView(d: ContributedView, pluginName: string): WorkspaceViewSpec {

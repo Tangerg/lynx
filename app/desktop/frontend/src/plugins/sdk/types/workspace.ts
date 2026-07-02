@@ -52,6 +52,18 @@ export interface WorkspaceViewSpec {
   component: ComponentType;
 }
 
+export type ContextDockDestinationScope = "workspace" | "session" | "run";
+export type ContextDockDestinationPlacement = "context-dock";
+
+export interface ContextDockDestinationSpec {
+  id: string;
+  title: string;
+  icon?: string;
+  scope: ContextDockDestinationScope;
+  placement: ContextDockDestinationPlacement;
+  order?: number;
+}
+
 /**
  * Plugin-contributed kernel region.
  *

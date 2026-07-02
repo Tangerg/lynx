@@ -52,15 +52,15 @@ Session
 
 协议语义到 UI 区域的映射：
 
-| Protocol | UI Area | Meaning |
-| --- | --- | --- |
-| `Session` | Work Index | 可恢复、可继续、可 fork 的 agent 工作上下文 |
-| `Run` | Agent Narrative | 一次 agent 执行，从用户输入到 outcome |
-| `Item` | Agent Narrative | 消息、reasoning、plan、tool call、question 等 durable 工作单元 |
-| `Session.cwd` | Work Index + Context Dock | 项目身份 + 文件系统工具根 |
-| `Project` | Work Index decoration | 按 `Session.cwd` 派生的分组视图，无 opaque id、无 active 标记 |
-| `workspace.*` | Context Dock | 当前 cwd 的文件、diff、grep、skills、recipes、memory、hooks 等 |
-| `OpenInterrupt` / waiting state | Agent Narrative first, Work Index badge second | agent 等待用户介入 |
+| Protocol                        | UI Area                                        | Meaning                                                        |
+| ------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- |
+| `Session`                       | Work Index                                     | 可恢复、可继续、可 fork 的 agent 工作上下文                    |
+| `Run`                           | Agent Narrative                                | 一次 agent 执行，从用户输入到 outcome                          |
+| `Item`                          | Agent Narrative                                | 消息、reasoning、plan、tool call、question 等 durable 工作单元 |
+| `Session.cwd`                   | Work Index + Context Dock                      | 项目身份 + 文件系统工具根                                      |
+| `Project`                       | Work Index decoration                          | 按 `Session.cwd` 派生的分组视图，无 opaque id、无 active 标记  |
+| `workspace.*`                   | Context Dock                                   | 当前 cwd 的文件、diff、grep、skills、recipes、memory、hooks 等 |
+| `OpenInterrupt` / waiting state | Agent Narrative first, Work Index badge second | agent 等待用户介入                                             |
 
 几个强结论：
 
@@ -195,10 +195,10 @@ Lyra 是桌面工作台，不能像网页后台。判断标准：
 
 三种目标状态：
 
-| Mode | Use Case | Shape |
-| --- | --- | --- |
-| Baseline | 日常对话与轻量代码任务 | Work Index + Agent Narrative + light Context Dock |
-| Collapsed Dock | 用户专注对话 | 右侧只留窄 handle / icon rail，需要时展开 |
+| Mode             | Use Case               | Shape                                              |
+| ---------------- | ---------------------- | -------------------------------------------------- |
+| Baseline         | 日常对话与轻量代码任务 | Work Index + Agent Narrative + light Context Dock  |
+| Collapsed Dock   | 用户专注对话           | 右侧只留窄 handle / icon rail，需要时展开          |
 | Review Workspace | 审查 diff / 多文件改动 | 右侧变重，显示 files + diff + comments / checklist |
 
 默认应偏向 **Baseline + Collapsed Dock**，只有用户或 agent 明确进入 review/diff/file context 时才进入 Review Workspace。
@@ -212,29 +212,25 @@ Lyra 是桌面工作台，不能像网页后台。判断标准：
 ```ts
 type DestinationScope = "global" | "session" | "workspace" | "run";
 type DestinationPlacement =
-  | "work-index"
-  | "attention"
-  | "narrative-action"
-  | "context-dock"
-  | "footer";
+  "work-index" | "attention" | "narrative-action" | "context-dock" | "footer";
 ```
 
 推荐语义：
 
-| Feature | Scope | Placement |
-| --- | --- | --- |
-| New Session | `global` | `work-index` |
-| Cross-session Search | `global` | `work-index` |
-| Scheduled Runs | `global` | `work-index` |
-| Plugins / MCP catalog | `global` | `work-index` or `footer` |
-| Settings | `global` | `footer` |
-| Files / File Tree | `workspace` | `context-dock` |
-| Diff / Review | `workspace` | `context-dock` |
-| Grep / Codebase Search | `workspace` | `context-dock` |
-| Skills / Recipes / Agent Docs | `workspace` | `context-dock` |
-| Memory | `workspace` | `context-dock` |
-| Tool Detail | `run` | `context-dock` |
-| Approval / Question | `run` | `narrative-action` first, `attention` badge second |
+| Feature                       | Scope       | Placement                                          |
+| ----------------------------- | ----------- | -------------------------------------------------- |
+| New Session                   | `global`    | `work-index`                                       |
+| Cross-session Search          | `global`    | `work-index`                                       |
+| Scheduled Runs                | `global`    | `work-index`                                       |
+| Plugins / MCP catalog         | `global`    | `work-index` or `footer`                           |
+| Settings                      | `global`    | `footer`                                           |
+| Files / File Tree             | `workspace` | `context-dock`                                     |
+| Diff / Review                 | `workspace` | `context-dock`                                     |
+| Grep / Codebase Search        | `workspace` | `context-dock`                                     |
+| Skills / Recipes / Agent Docs | `workspace` | `context-dock`                                     |
+| Memory                        | `workspace` | `context-dock`                                     |
+| Tool Detail                   | `run`       | `context-dock`                                     |
+| Approval / Question           | `run`       | `narrative-action` first, `attention` badge second |
 
 规则：
 
@@ -292,13 +288,13 @@ plugins/builtin/workspace/context-dock/
 
 状态按归属拆分：
 
-| State | Owner | Example |
-| --- | --- | --- |
-| App-global chrome | shell / ui store | theme、sidebar collapsed、settings route |
-| Work index read model | navigation application | groups、session rows、attention badges |
-| Agent runtime view | agent context | messages、runs、interrupts、usage |
-| Context dock state | workspace context, scoped by `sessionId` or `cwd` | active dock tab、opened file、selected diff、tool detail |
-| Ephemeral UI state | local component | hover、temporary filter、expanded disclosure |
+| State                 | Owner                                             | Example                                                  |
+| --------------------- | ------------------------------------------------- | -------------------------------------------------------- |
+| App-global chrome     | shell / ui store                                  | theme、sidebar collapsed、settings route                 |
+| Work index read model | navigation application                            | groups、session rows、attention badges                   |
+| Agent runtime view    | agent context                                     | messages、runs、interrupts、usage                        |
+| Context dock state    | workspace context, scoped by `sessionId` or `cwd` | active dock tab、opened file、selected diff、tool detail |
+| Ephemeral UI state    | local component                                   | hover、temporary filter、expanded disclosure             |
 
 Context Dock state 必须能回答：
 
@@ -341,10 +337,7 @@ Context Dock state 必须能回答：
 - 左侧顶级 workspace destinations 已移除。
 - 右侧提供 `context` launcher / handle。
 - Search、active-session destinations、rail context 入口都打开到 Context Dock。
-
-仍待推进：
-
-- 把 context-dock destinations 从静态内置列表演进成 contribution registry。
+- Context Dock destinations 已进入 `lyra.contextDock.destination` contribution registry，首批内置入口由 workspace 插件贡献，launcher 只负责渲染 read model。
 
 验收：
 
@@ -398,12 +391,12 @@ Context Dock state 必须能回答：
 
 判断结果：
 
-| Answer | Placement |
-| --- | --- |
-| global action | Work Index or Footer |
-| session selection / status | Work Index |
-| run blocking action | Agent Narrative + Work Index attention badge |
-| workspace/cwd material | Context Dock |
-| detailed file/diff/tool view | Context Dock |
+| Answer                       | Placement                                    |
+| ---------------------------- | -------------------------------------------- |
+| global action                | Work Index or Footer                         |
+| session selection / status   | Work Index                                   |
+| run blocking action          | Agent Narrative + Work Index attention badge |
+| workspace/cwd material       | Context Dock                                 |
+| detailed file/diff/tool view | Context Dock                                 |
 
 如果判断不清，默认不要放到左侧。
