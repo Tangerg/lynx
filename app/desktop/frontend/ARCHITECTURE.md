@@ -682,23 +682,24 @@ declare module "@/plugins/sdk/types/contentBlock" {
 
 这份清单**有依据**而非 wishlist——每条标"做/不做的理由 + 触发条件"，避免 backlog 变成永不收敛的"理想架构"幻象。
 
-### 12.1 值得做（收益明确、风险可控）
+### 12.1 已落地的改进（现在只随 wire 新形态维护）
 
-#### A. 补全 agent fold 各 handler 的语义测试
+> 这三条曾是 backlog；截至当前 HEAD 都已落地。保留在此是记录「完成态 + 维护触发点」，不是待办 —— 下一轮别再当新活做。
 
-**现状**：`builtin/agent/application/fold/` 已拆成 `handlers`（派发）/ `projections`（纯映射）/ `fold`（有状态折叠），`reducer.*.test.ts` 覆盖 dispatcher + 聚合 + custom + 主要事件路径。此前只被大 fixture 间接覆盖、没有独立语义断言的几条已补齐：subagent run 隔离（`reducer.subagent.test.ts`：`spawnedByItemId` / 错配 envelope runId 的 progress·finished 都不污染根 run）、`run.progress.contextTokens`、reasoning delta 累积（按 `reasoningId` keying）、question interrupt 物化。进一步地，`reducer.handlers.test.ts` 为每个 handler 补了「单事件 → 隔离 delta + isolation」契约，覆盖场景测试没触达的分支：`plan` item 的三个阶段（started/delta/completed）、`item.delta{plan}` 中途整体替换、未知 itemId 的 content/toolOutput delta no-op、`run.started` 的 usage 归零、state.snapshot/delta 只动 `shared`。
-**触发条件**：加新的内置事件类型 / Item 类型时一并补上对应 handler 的语义测试（input→state delta）。
+#### A. agent fold 各 handler 的语义测试（已落地）
 
-#### B. search / webSearch 富结果渲染
+**现状**：`builtin/agent/application/fold/` 拆成 `handlers`（派发）/ `projections`（纯映射）/ `fold`（有状态折叠）；`reducer.*.test.ts` 覆盖 dispatcher + 聚合 + custom + 主要事件路径，`reducer.subagent.test.ts` 覆盖 subagent run 隔离，`reducer.handlers.test.ts` 为每个 handler 钉了「单事件 → 隔离 delta + isolation」契约（`plan` 三阶段 started/delta/completed、`item.delta{plan}` 整体替换、未知 itemId 的 content/toolOutput delta no-op、`run.started` usage 归零、state.snapshot/delta 只动 `shared`）。
+**维护触发**：加新的内置事件类型 / Item 类型时，一并补对应 handler 的语义测试（input→state delta）。
 
-**现状**：后端已发 grep（`search` kind，含 path/line/snippet）与 `webSearch`（含 title/url/snippet/faviconUrl）富结果，但 view 层 ToolCall 目前主要投影计数，preview 还从 workspace query 取数而非 tool 自带 `results`。
-**怎么做**：view ToolCall 增 `results`，投影 `tool.results`，直接渲染（webSearch 带 favicon）。
-**触发条件**：已就绪，属下一波可做的 quick win。
+#### B. search / webSearch 富结果渲染（已落地）
 
-#### C. fileChange diff 直渲
+**现状**：view 层已直接从 tool 自带结果渲染，不再「只投影计数 + 从 workspace 取数」——`webSearch.tsx` 解析 `tool.result` 的 title/url/snippet/favicon；grep preview 优先用 call-scoped `tool.result`（`inlineGrepRows`），workspace.grep query 降为 fallback。
+**维护触发**：wire 出现新的富结果形态（新字段 / 新 tool family）时，扩展 `application/specialisedPreviewData` 的解析 + 补 preview 测试。
 
-**现状**：`fileChange` 当前主要带 `{path, kind}`，DiffPreview 仍用 `useDiff()` workspace query。后端补 `changes[].diff` 后，DiffPreview 应改用 `tool.changes[].diff`。
-**触发条件**：后端开始下发 diff 行。
+#### C. fileChange diff 直渲（已落地）
+
+**现状**：`DiffPreview` 优先用 call-scoped `tool.diff`（`useDiffToolPreview`：`tool.diff ? tool.diff : 整树 diff`），仅在没有 call-scoped diff 时回退 worktree query。
+**维护触发**：后端下发更细的 diff（多文件 `changes[].diff` / 更大 diff 行）时按需扩展投影。
 
 ### 12.2 想做但当前 KISS / YAGNI 不允许
 
@@ -706,7 +707,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 - **把 `lib/agent` 提成独立 `application/` 层**：`lib/` 已是"跨插件共享"的明确语义（`messageContent` 就是被刻意从 plugin 内部移来的），6 个用例 hook 不足以撑起一个独立层 + 一条新 layer-guard。**触发条件**：用例 hook 显著增多、或 UI 开始绕过它们直接编排 rpc。
 - **MessageStream 虚拟化**：长会话（1000+ 消息）目前无人抱怨。**触发条件**：实测 > 500 消息卡顿时引入 `@tanstack/react-virtual`。
 - **monorepo packages**：见 §3.2 的 4 个触发条件，目前一个都没命中。
-- **sidebar 导航深建模**：当前 project/session tree 是旧导航模型。**暂停**——不基于它做 domain 深抽象（不抽 `sidebar/projectTree.ts`、不把 project/session tree 提成 domain）。**触发条件**：新导航模型定案后单独开一轮，那是"重建模型"而非"整理旧树"。
+- **sidebar 导航深建模**：当前 project/session tree 是旧导航模型。**暂停**——不基于它做 domain 深抽象（不抽 `sidebar/projectTree.ts`、不把 project/session tree 提成 domain）。**触发条件**：新导航模型定案后单独开一轮（方向：新建 `navigation` bounded context 产出 `NavigationTree` read model，`sidebar/` 退成纯 UI 消费者——见 `docs/FRONTEND_PLUGIN_CONTEXTS.md §10.6`），那是"重建模型"而非"整理旧树"。
 
 ### 12.3 反向不变量（已知错的方向，别再提）
 
