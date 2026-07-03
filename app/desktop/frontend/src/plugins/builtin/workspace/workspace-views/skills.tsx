@@ -75,7 +75,6 @@ export const skillsView = defineWorkspaceView({
   id: "skills",
   title: "workspace.view.title.skills",
   icon: "sparkle",
-  openByDefault: false,
   order: 45,
   splittable: true,
   component: SkillsTab,

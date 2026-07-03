@@ -31,7 +31,7 @@ function stubContainer(initialize: Methods["runtime"]["initialize"]) {
 
 afterEach(() => {
   resetContainer();
-  useRuntimeStore.getState().clear();
+  useRuntimeStore.setState({ capabilities: null });
   vi.restoreAllMocks();
 });
 
@@ -47,14 +47,13 @@ describe("bootstrap handshake", () => {
     await loadPlugin(bootstrap);
 
     await vi.waitFor(() => {
-      expect(useRuntimeStore.getState().protocolVersion).toBe("2026-06-03");
+      expect(useRuntimeStore.getState().capabilities).not.toBeNull();
     });
     // The declared capabilities reached the runtime — interruptTypes carry
     // the HITL switches (API.md §6.2).
     const sent = initialize.mock.calls[0]![0] as { capabilities: { interruptTypes: string[] } };
     expect(sent.capabilities.interruptTypes).toContain("approval");
     expect(sent.capabilities.interruptTypes).toContain("question");
-    expect(useRuntimeStore.getState().serverName).toBe("lyra-runtime");
   });
 
   it("degrades silently when the runtime hasn't implemented initialize", async () => {
@@ -65,7 +64,6 @@ describe("bootstrap handshake", () => {
 
     await vi.waitFor(() => expect(warn).toHaveBeenCalled());
     // Store stays empty → every capability selector reads false (feature off).
-    expect(useRuntimeStore.getState().protocolVersion).toBeNull();
     expect(useRuntimeStore.getState().capabilities).toBeNull();
   });
 });

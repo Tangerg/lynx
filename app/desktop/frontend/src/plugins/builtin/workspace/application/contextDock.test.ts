@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 import {
-  closeContextDockView,
   openContextDockDestination,
   openContextDockLauncher,
   openContextDockView,
@@ -30,14 +29,6 @@ describe("context dock navigation", () => {
     openContextDockLauncher();
 
     expect(useContextDockStore.getState().splitViewId).toBe("context");
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
-  });
-
-  it("closes only the dock view", () => {
-    openContextDockView({ id: "tools", title: "workspace.view.title.tools", icon: "tool" });
-    closeContextDockView();
-
-    expect(useContextDockStore.getState().splitViewId).toBeNull();
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
   });
 

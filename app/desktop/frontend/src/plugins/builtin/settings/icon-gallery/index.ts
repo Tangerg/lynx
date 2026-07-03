@@ -17,7 +17,6 @@ export default definePlugin({
       id: "icon-gallery",
       title: "workspace.view.title.iconGallery",
       icon: "spark",
-      openByDefault: false,
       order: 60,
       component: IconGallery,
     });

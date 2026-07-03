@@ -59,7 +59,6 @@ export const kernelSettings = definePlugin({
       id: "settings",
       title: "settings.title",
       icon: "settings",
-      openByDefault: false,
       component: SettingsPage,
     });
   },

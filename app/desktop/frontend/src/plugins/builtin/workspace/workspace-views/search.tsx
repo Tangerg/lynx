@@ -118,7 +118,6 @@ export const searchView = defineWorkspaceView({
   id: "search",
   title: "workspace.view.title.search",
   icon: "search",
-  openByDefault: false,
   order: 48,
   splittable: true,
   component: SearchTab,
