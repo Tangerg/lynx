@@ -50,14 +50,9 @@ function cloneSessionScope(scope: ContextDockSessionScope): ContextDockSessionSc
   };
 }
 
-function currentSessionScope(state: ContextDockState): ContextDockSessionScope {
-  return cloneSessionScope(state);
-}
-
 function saveCurrentSessionScope(state: ContextDockState) {
   const scopes = new Map(state.sessionScopes);
-  if (state.activeSessionScopeId)
-    scopes.set(state.activeSessionScopeId, currentSessionScope(state));
+  if (state.activeSessionScopeId) scopes.set(state.activeSessionScopeId, cloneSessionScope(state));
   return scopes;
 }
 
@@ -92,7 +87,7 @@ export const useContextDockStore = create<ContextDockState & ContextDockActions>
       return {
         activeSessionScopeId: sessionId,
         sessionScopes,
-        ...cloneSessionScope(nextScope ?? emptySessionScope()),
+        ...(nextScope ? cloneSessionScope(nextScope) : emptySessionScope()),
       };
     }),
   forgetSessionScopes: (openSessionIds) =>
