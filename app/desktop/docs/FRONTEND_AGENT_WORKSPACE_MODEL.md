@@ -207,37 +207,48 @@ Lyra 是桌面工作台，不能像网页后台。判断标准：
 
 保持插件式架构，但不要让插件直接把任何东西塞到左侧。
 
-插件贡献需要带 scope 与 placement：
+不要再建一套万能 placement 枚举。现在的模型是两套聚焦注册表：
+
+1. **Work Index Item**：左侧 source list / collapsed rail 的贡献点，只表达“找工作”和“切工作”的入口。
+2. **Context Dock Destination**：右侧工作上下文的贡献点，只表达 active session/cwd/run 下可展开的材料。
+
+Work Index 贡献声明 scope 与 variant：
 
 ```ts
-type DestinationScope = "global" | "session" | "workspace" | "run";
-type DestinationPlacement =
-  "work-index" | "attention" | "narrative-action" | "context-dock" | "footer";
+type WorkIndexItemScope = "global" | "session";
+type WorkIndexItemVariant = "expanded" | "rail";
 ```
 
-推荐语义：
+Context Dock 贡献只声明 scope；placement 由 `lyra.contextDock.destination` 这个扩展点身份隐含：
 
-| Feature                       | Scope       | Placement                                          |
-| ----------------------------- | ----------- | -------------------------------------------------- |
-| New Session                   | `global`    | `work-index`                                       |
-| Cross-session Search          | `global`    | `work-index`                                       |
-| Scheduled Runs                | `global`    | `work-index`                                       |
-| Plugins / MCP catalog         | `global`    | `work-index` or `footer`                           |
-| Settings                      | `global`    | `footer`                                           |
-| Files / File Tree             | `workspace` | `context-dock`                                     |
-| Diff / Review                 | `workspace` | `context-dock`                                     |
-| Grep / Codebase Search        | `workspace` | `context-dock`                                     |
-| Skills / Recipes / Agent Docs | `workspace` | `context-dock`                                     |
-| Memory                        | `workspace` | `context-dock`                                     |
-| Tool Detail                   | `run`       | `context-dock`                                     |
-| Approval / Question           | `run`       | `narrative-action` first, `attention` badge second |
+```ts
+type ContextDockDestinationScope = "workspace" | "session" | "run";
+```
+
+推荐归属：
+
+| Feature                       | Registry                   | Scope       | Variant / Placement                            |
+| ----------------------------- | -------------------------- | ----------- | ---------------------------------------------- |
+| New Session                   | `WorkIndexItem`            | `global`    | `expanded` and `rail`                          |
+| Current session list          | `WorkIndexItem`            | `session`   | `expanded` and `rail`                          |
+| Settings                      | `WorkIndexItem`            | `global`    | `rail` utility                                 |
+| Context launcher              | `WorkIndexItem`            | `session`   | `rail` handle into Context Dock                |
+| Files / File Tree             | `ContextDockDestination`   | `workspace` | Context Dock placement is implicit             |
+| Diff / Review                 | `ContextDockDestination`   | `workspace` | Context Dock placement is implicit             |
+| Grep / Codebase Search        | `ContextDockDestination`   | `workspace` | Context Dock placement is implicit             |
+| Skills / Recipes / Agent Docs | `ContextDockDestination`   | `workspace` | Context Dock placement is implicit             |
+| Memory                        | `ContextDockDestination`   | `workspace` | Context Dock placement is implicit             |
+| Tool Detail                   | `ContextDockDestination`   | `run`       | Context Dock placement is implicit             |
+| Timeline / run notes          | `ContextDockDestination`   | `session`   | Context Dock placement is implicit             |
+| Approval / Question           | Agent Narrative projection | `run`       | Narrative first, Work Index attention second   |
 
 规则：
 
-- `work-index` 只接受 global 或 session-list 级贡献。
-- workspace-scoped destination 默认进 Context Dock。
-- run-scoped blocking action 优先在 Narrative 完成，只在左侧显示 attention badge。
-- 插件贡献 UI 可以多样，但 contribution registry 必须表达 scope，不能只表达 slot。
+- Work Index 只接受 `global` 或 `session` scope；workspace/run 级材料不能回到左侧顶级。
+- `expanded` 与 `rail` 是同一 Work Index 的两种呈现，不是两个业务入口；贡献方需要明确自己在哪个 variant 出现。
+- Context Dock destination 不声明 placement；它的 placement 由扩展点身份决定，spec 只负责声明 `workspace / session / run` scope。
+- run-scoped blocking action 优先在 Agent Narrative 完成，只把 attention 投影到 Work Index，避免用户必须去右侧找“为什么停住了”。
+- 插件贡献 UI 可以多样，但 contribution registry 必须表达心智归属，不能只表达 slot。
 
 ## 6. Frontend Architecture Target
 
@@ -380,7 +391,7 @@ Context Dock state 必须能回答：
 - Context Dock 使用一份全局 active file / selected diff，切 session 后互相污染。
 - 把 approval/question 只放右侧，导致用户在主叙事里看不到 agent 正在等什么。
 - 用更多卡片、边框、圆角、hover 来制造“高级感”。
-- 插件只贡献 slot，不声明 scope/placement，导致信息架构再次失控。
+- 插件只贡献 slot，不声明 Work Index / Context Dock / Narrative 这类心智归属，导致信息架构再次失控。
 
 ## 10. Decision Checklist
 
@@ -394,9 +405,9 @@ Context Dock state 必须能回答：
 
 判断结果：
 
-| Answer                       | Placement                                    |
+| Answer                       | Surface                                      |
 | ---------------------------- | -------------------------------------------- |
-| global action                | Work Index or Footer                         |
+| global action                | Work Index                                   |
 | session selection / status   | Work Index                                   |
 | run blocking action          | Agent Narrative + Work Index attention badge |
 | workspace/cwd material       | Context Dock                                 |
