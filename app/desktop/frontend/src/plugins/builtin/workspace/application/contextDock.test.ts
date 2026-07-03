@@ -48,7 +48,6 @@ describe("context dock navigation", () => {
       title: "workspace.view.title.files",
       icon: "filetext",
       scope: "workspace",
-      placement: "context-dock",
     });
 
     expect(useContextDockStore.getState().splitViewId).toBe("files");
@@ -61,7 +60,6 @@ describe("context dock navigation", () => {
         id: "custom",
         title: "Custom",
         scope: "workspace",
-        placement: "context-dock",
       }),
     ).toEqual({
       id: "custom",
