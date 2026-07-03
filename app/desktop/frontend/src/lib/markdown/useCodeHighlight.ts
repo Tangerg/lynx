@@ -6,7 +6,7 @@
 
 import type { Highlighter } from "shiki";
 import { useEffect, useState } from "react";
-import { resolveScheme } from "@/plugins/sdk";
+import { resolveScheme } from "@/plugins/sdk/selectors/theme";
 import { useUiStore } from "@/state/uiStore";
 import { getHighlighter } from "./shiki";
 

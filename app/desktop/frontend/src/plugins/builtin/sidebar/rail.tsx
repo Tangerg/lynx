@@ -5,13 +5,13 @@
 
 import { Icon, IconButton } from "@/components/common";
 import {
+  contributeWorkIndexItem,
   useRecentWorkSessions,
   useWorkIndexActions,
 } from "@/plugins/builtin/navigation/public/workIndex";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
-import { WORK_INDEX_ITEM } from "@/plugins/sdk/kernelPoints";
 
 function NewSessionBtn() {
   const t = useT();
@@ -31,7 +31,7 @@ export const sidebarRailNewSession = definePlugin({
   name: "lyra.builtin.sidebar-rail-new-session",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(WORK_INDEX_ITEM, {
+    contributeWorkIndexItem(host, {
       id: "new-session",
       scope: "global",
       placement: "rail",
@@ -84,7 +84,7 @@ export const sidebarRailSessions = definePlugin({
   name: "lyra.builtin.sidebar-rail-sessions",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(WORK_INDEX_ITEM, {
+    contributeWorkIndexItem(host, {
       id: "rail-sessions",
       scope: "session",
       placement: "rail",
@@ -126,21 +126,21 @@ export const sidebarRailBottom = definePlugin({
   name: "lyra.builtin.sidebar-rail-bottom",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(WORK_INDEX_ITEM, {
+    contributeWorkIndexItem(host, {
       id: "rail-spacer",
       scope: "global",
       placement: "rail",
       order: 800,
       component: RailSpacer,
     });
-    host.extensions.contribute(WORK_INDEX_ITEM, {
+    contributeWorkIndexItem(host, {
       id: "rail-context",
       scope: "session",
       placement: "rail",
       order: 900,
       component: RailContext,
     });
-    host.extensions.contribute(WORK_INDEX_ITEM, {
+    contributeWorkIndexItem(host, {
       id: "rail-settings",
       scope: "global",
       placement: "rail",

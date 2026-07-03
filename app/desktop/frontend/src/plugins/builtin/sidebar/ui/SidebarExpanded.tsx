@@ -4,8 +4,8 @@
 import { Icon, dragClasses, noDragClasses, Panel, ScrollArea } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { useWorkIndexItems } from "@/plugins/builtin/navigation/public/workIndex";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
-import { useWorkIndexItems } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 
 interface Props {

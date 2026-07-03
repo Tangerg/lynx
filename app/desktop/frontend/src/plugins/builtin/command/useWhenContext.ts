@@ -5,7 +5,7 @@
 
 import type { WhenContext } from "@/plugins/sdk";
 import { useMemo } from "react";
-import { resolveScheme } from "@/plugins/sdk";
+import { resolveThemeScheme } from "@/plugins/builtin/theme/public/scheme";
 import { useUiStore } from "@/state/uiStore";
 import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 
@@ -19,7 +19,7 @@ export function useWhenContext(): WhenContext {
       mainViewActive: !!activeMainView,
       mainView: activeMainView ?? "",
       theme,
-      scheme: resolveScheme(theme),
+      scheme: resolveThemeScheme(theme),
       sidebarRail,
     }),
     [activeMainView, theme, sidebarRail],
