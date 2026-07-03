@@ -9,9 +9,9 @@ import type {
   ContextDockDestinationSpec,
   LayoutSlotSpec,
   SettingsPaneSpec,
-  WorkIndexItemPlacement,
   WorkIndexItemScope,
   WorkIndexItemSpec,
+  WorkIndexItemVariant,
   WorkspaceViewSpec,
 } from "../types";
 import {
@@ -53,13 +53,13 @@ export function useContextDockDestinations(): ContextDockDestinationSpec[] {
 }
 
 export function useWorkIndexItems(
-  placement: WorkIndexItemPlacement,
+  variant: WorkIndexItemVariant,
   scope?: WorkIndexItemScope,
 ): WorkIndexItemSpec[] {
   const items = useExtensionPoint(WORK_INDEX_ITEM);
   return useMemo(
-    () => items.filter((item) => item.placement === placement && (!scope || item.scope === scope)),
-    [items, placement, scope],
+    () => items.filter((item) => item.variant === variant && (!scope || item.scope === scope)),
+    [items, variant, scope],
   );
 }
 

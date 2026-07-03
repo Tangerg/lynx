@@ -1,7 +1,7 @@
 import type {
-  WorkIndexItemPlacement,
   WorkIndexItemScope,
   WorkIndexItemSpec,
+  WorkIndexItemVariant,
 } from "@/plugins/sdk/types/navigation";
 import type { Disposable } from "@/plugins/sdk/types/common";
 import type { Host } from "@/plugins/sdk/types/host";
@@ -9,9 +9,9 @@ import { useWorkIndexItems as useSdkWorkIndexItems } from "@/plugins/sdk/selecto
 import { WORK_INDEX_ITEM } from "@/plugins/sdk/kernelPoints";
 
 export type {
-  WorkIndexItemPlacement,
   WorkIndexItemScope,
   WorkIndexItemSpec,
+  WorkIndexItemVariant,
 } from "@/plugins/sdk/types/navigation";
 
 export function contributeWorkIndexItem(host: Host, item: WorkIndexItemSpec): Disposable {
@@ -19,8 +19,8 @@ export function contributeWorkIndexItem(host: Host, item: WorkIndexItemSpec): Di
 }
 
 export function useWorkIndexItems(
-  placement: WorkIndexItemPlacement,
+  variant: WorkIndexItemVariant,
   scope?: WorkIndexItemScope,
 ): WorkIndexItemSpec[] {
-  return useSdkWorkIndexItems(placement, scope);
+  return useSdkWorkIndexItems(variant, scope);
 }
