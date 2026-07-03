@@ -44,7 +44,6 @@ export interface WorkspaceProjectSummary {
   branch: string;
   sessionCount: number;
   cwdMissing?: boolean; // directory gone from disk (relocate/restore to fix)
-  active?: boolean;
 }
 
 export interface FileChange {

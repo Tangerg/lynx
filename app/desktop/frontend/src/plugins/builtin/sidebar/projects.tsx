@@ -11,11 +11,13 @@ import {
 } from "@/plugins/builtin/navigation/public/workIndex";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
-import { sideListClasses } from "./styles";
 
 // Sessions shown per expanded project before the "Show more" fold —
 // keeps a busy project from burying the ones below it (Codex's 展开显示).
 const VISIBLE_CAP = 5;
+
+// Vertical list column — the section list and each project's nested session list.
+const sideListClasses = "flex flex-col gap-0.5";
 
 // Create a session in a chosen directory. Projects are derived from session
 // cwds, so the input asks for the real aggregate identity: the folder path.
@@ -59,7 +61,6 @@ function ProjectGroupNode({
   group,
   activeCwd,
   activeSessionId,
-  forceExpand,
   onNewSession,
   onSelect,
   onRename,
@@ -70,9 +71,6 @@ function ProjectGroupNode({
   group: WorkGroup;
   activeCwd: string | undefined;
   activeSessionId: string;
-  /** While a filter is active: force the group open and show every match
-   *  (ignore the collapse + VISIBLE_CAP fold), so results are never hidden. */
-  forceExpand?: boolean;
   onNewSession: (project: WorkProject) => void;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
@@ -83,24 +81,23 @@ function ProjectGroupNode({
   const t = useT();
   const [open, setOpen] = useState(true);
   const [showAll, setShowAll] = useState(false);
-  const expanded = forceExpand || open;
-  const visible = forceExpand || showAll ? group.sessions : group.sessions.slice(0, VISIBLE_CAP);
+  const visible = showAll ? group.sessions : group.sessions.slice(0, VISIBLE_CAP);
   const hidden = group.sessions.length - visible.length;
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className={sideListClasses}>
       <ProjectRow
         project={group.project}
         // The accent bar marks the group only while it's collapsed — when
         // open, the nested session row carries the active state itself.
-        active={group.project.id === activeCwd && !expanded}
-        open={expanded}
+        active={group.project.id === activeCwd && !open}
+        open={open}
         count={group.sessions.length}
         onToggle={() => setOpen((v) => !v)}
         onNewSession={onNewSession}
       />
-      {expanded && group.sessions.length > 0 && (
-        <div className="flex flex-col gap-0.5 pl-4">
+      {open && group.sessions.length > 0 && (
+        <div className={cn(sideListClasses, "pl-4")}>
           {visible.map((s) => (
             <SessionRow
               key={s.id}

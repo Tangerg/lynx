@@ -80,16 +80,12 @@ describe("buildWorkIndexGroups", () => {
 
     expect(groups).toEqual([
       {
-        project: { id: "", name: "Other", branch: "", sessionCount: 1 },
+        project: { id: "", name: "Other" },
         sessions: [
           {
             id: "chat-only",
             title: "chat-only",
             attention: "none",
-            model: "gpt-test",
-            cwd: undefined,
-            cwdMissing: undefined,
-            usage: undefined,
             favorite: undefined,
             time: "2026-01-01T00:00:00.000Z",
           },
