@@ -10,13 +10,9 @@ import { buildRecentWorkSessions, buildWorkIndexGroups } from "./buildWorkIndex"
 
 interface UseWorkIndexOptions {
   fallbackProjectName: string;
-  recentLimit?: number;
 }
 
-export function useWorkIndex({
-  fallbackProjectName,
-  recentLimit = 5,
-}: UseWorkIndexOptions): WorkIndex {
+export function useWorkIndex({ fallbackProjectName }: UseWorkIndexOptions): WorkIndex {
   const projects = useProjects();
   const sessions = useVisibleAgentSessions();
   const activeSessionId = useActiveSessionId();
@@ -31,14 +27,9 @@ export function useWorkIndex({
       }),
     [projects.data, sessions, fallbackProjectName],
   );
-  const recentSessions = useMemo(
-    () => buildRecentWorkSessions(sessions, recentLimit),
-    [sessions, recentLimit],
-  );
 
   return {
     groups,
-    recentSessions,
     activeSessionId,
     activeCwd,
     isLoading: projects.isLoading && !groups,

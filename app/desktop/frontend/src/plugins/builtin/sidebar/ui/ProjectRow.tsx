@@ -19,7 +19,7 @@ export function ProjectRow({
   open: boolean;
   /** Sessions inside the group — mirrors what expanding will show. */
   count: number;
-  onToggle: (id: string) => void;
+  onToggle: () => void;
   onNewSession: (project: WorkProject) => void;
 }) {
   const t = useT();
@@ -33,7 +33,7 @@ export function ProjectRow({
       >
         <button
           type="button"
-          onClick={() => onToggle(project.id)}
+          onClick={() => onToggle()}
           data-chrome-focus=""
           title={project.id}
           aria-expanded={open}

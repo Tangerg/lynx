@@ -29,10 +29,6 @@ function toWorkSession(session: AgentSessionSummary): WorkSession {
     id: session.id,
     title: session.title,
     attention: toWorkSessionAttention(session),
-    model: session.model,
-    cwd: session.cwd,
-    cwdMissing: session.cwdMissing,
-    usage: session.usage,
     favorite: session.favorite,
     time: session.time,
   };
@@ -42,8 +38,6 @@ function toWorkProject(project: WorkspaceProjectSummary): WorkProject {
   return {
     id: project.id,
     name: project.name,
-    branch: project.branch,
-    sessionCount: project.sessionCount,
     cwdMissing: project.cwdMissing,
   };
 }
@@ -79,8 +73,6 @@ export function buildWorkIndexGroups({
       project: {
         id: cwd,
         name: cwd ? basename(cwd) : fallbackProjectName,
-        branch: "",
-        sessionCount: sessions.length,
       },
       sessions: sessions.map(toWorkSession),
     });

@@ -4,10 +4,6 @@ export interface WorkSession {
   id: string;
   title: string;
   attention: WorkSessionAttention;
-  model: string;
-  cwd?: string;
-  cwdMissing?: boolean;
-  usage?: { inputTokens?: number; outputTokens?: number; costUsd?: number };
   favorite?: boolean;
   time: string;
 }
@@ -15,8 +11,6 @@ export interface WorkSession {
 export interface WorkProject {
   id: string;
   name: string;
-  branch: string;
-  sessionCount: number;
   cwdMissing?: boolean;
 }
 
@@ -27,7 +21,6 @@ export interface WorkGroup {
 
 export interface WorkIndex {
   groups: WorkGroup[] | undefined;
-  recentSessions: WorkSession[];
   activeSessionId: string;
   activeCwd: string | undefined;
   isLoading: boolean;

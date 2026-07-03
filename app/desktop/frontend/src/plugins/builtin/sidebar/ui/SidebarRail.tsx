@@ -2,7 +2,8 @@
 // button + the rail container; every other item is contributed by Work Index
 // plugins.
 //
-// Order convention (loosely enforced by `order` numbers, see types.ts):
+// Order convention (loosely enforced by `order` numbers, see
+// @/plugins/sdk/types/navigation):
 //   - 0..99    : top (new-session)
 //   - 100..899 : middle (sessions stack)
 //   - 900..999 : bottom (context, settings, user)

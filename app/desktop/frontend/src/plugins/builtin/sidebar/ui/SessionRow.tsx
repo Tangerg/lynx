@@ -56,8 +56,8 @@ export function SessionRow({
         ? t("session.status.waiting")
         : formatRelative(session.time);
 
-  const inner = (
-    <>
+  const row = (
+    <div className="relative group select-none">
       <button
         type="button"
         onClick={() => onSelect(session.id)}
@@ -137,10 +137,8 @@ export function SessionRow({
           </>
         )}
       </button>
-    </>
+    </div>
   );
-
-  const row = <div className="relative group select-none">{inner}</div>;
 
   if (!onDelete && !onFork && !onRename && !onToggleFavorite) return row;
   return (
