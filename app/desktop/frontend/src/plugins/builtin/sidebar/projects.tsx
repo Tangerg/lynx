@@ -4,10 +4,13 @@ import { ProjectRow } from "./ui/ProjectRow";
 import { SessionRow } from "./ui/SessionRow";
 import { useT } from "@/lib/i18n";
 import type { WorkGroup, WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
-import { useWorkIndex, useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";
+import {
+  contributeWorkIndexItem,
+  useWorkIndex,
+  useWorkIndexActions,
+} from "@/plugins/builtin/navigation/public/workIndex";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
-import { WORK_INDEX_ITEM } from "@/plugins/sdk/kernelPoints";
 import { sideListClasses } from "./styles";
 
 // Sessions shown per expanded project before the "Show more" fold —
@@ -177,7 +180,7 @@ export const sidebarProjects = definePlugin({
   name: "lyra.builtin.sidebar-projects",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(WORK_INDEX_ITEM, {
+    contributeWorkIndexItem(host, {
       id: "projects",
       scope: "session",
       placement: "expanded",

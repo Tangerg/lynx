@@ -1,4 +1,4 @@
-import { resolveScheme } from "@/plugins/sdk";
+import { resolveThemeScheme } from "@/plugins/builtin/theme/public/scheme";
 import { appearancePreferences, type CustomTheme, type Theme } from "./ports/preferences";
 
 export function useThemePreference() {
@@ -13,7 +13,7 @@ export function useAccentPreference() {
   return {
     accent: appearancePreferences().useAccent(),
     setAccent: appearancePreferences().useSetAccent(),
-    scheme: resolveScheme(theme),
+    scheme: resolveThemeScheme(theme),
   };
 }
 

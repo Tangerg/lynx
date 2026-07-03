@@ -14,8 +14,8 @@
 import { dragClasses, Icon, IconButton, Panel } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { useWorkIndexItems } from "@/plugins/builtin/navigation/public/workIndex";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
-import { useWorkIndexItems } from "@/plugins/sdk";
 
 interface Props {
   onToggleRail: () => void;

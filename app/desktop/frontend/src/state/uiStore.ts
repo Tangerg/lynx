@@ -51,7 +51,7 @@ const uiPersistSchema = z.object({
  *
  * Code that needs the binary dark/light distinction (shiki / mermaid
  * presets, asset selection) should read the active theme's `scheme`
- * via `resolveScheme(themeId)` from `@/plugins/sdk` rather than
+ * through the theme-scheme resolver rather than
  * comparing the id directly — custom themes like "solarized-dark"
  * would otherwise fall through.
  */

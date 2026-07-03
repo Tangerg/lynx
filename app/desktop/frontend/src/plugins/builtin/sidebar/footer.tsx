@@ -5,7 +5,7 @@ import { Icon, noDragClasses } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";
-import { resolveScheme } from "@/plugins/sdk";
+import { isLightTheme } from "@/plugins/builtin/theme/public/scheme";
 import { Slot } from "@/plugins/host/Slot";
 import { definePlugin } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
@@ -15,7 +15,7 @@ const userActionClasses =
 
 function ThemeToggle() {
   const theme = useUiStore((s) => s.theme);
-  const isLight = resolveScheme(theme) === "light";
+  const isLight = isLightTheme(theme);
   return (
     <button
       type="button"
