@@ -147,7 +147,6 @@ export const memoryView = defineWorkspaceView({
   id: "memory",
   title: "workspace.view.title.memory",
   icon: "filetext",
-  openByDefault: false,
   order: 47,
   splittable: true,
   component: MemoryTab,

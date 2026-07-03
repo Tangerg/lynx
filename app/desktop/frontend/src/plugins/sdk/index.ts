@@ -120,7 +120,6 @@ export type {
   CustomEventHandler,
   DataProviderSpec,
   Disposable,
-  DockLocation,
   ExtensionContributionOptions,
   ExtensionKeying,
   ExtensionPoint,

@@ -46,7 +46,6 @@ export const fileView = defineWorkspaceView({
   id: "file",
   title: "workspace.view.title.file",
   icon: "filetext",
-  openByDefault: false,
   order: 1,
   splittable: true,
   component: FileViewTab,

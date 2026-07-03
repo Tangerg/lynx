@@ -66,7 +66,6 @@ export const terminalView = defineWorkspaceView({
   id: "terminal",
   title: "workspace.view.title.terminal",
   icon: "terminal",
-  openByDefault: false,
   order: 10,
   splittable: true,
   component: TerminalTab,

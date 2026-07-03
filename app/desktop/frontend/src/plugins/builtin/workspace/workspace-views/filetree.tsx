@@ -90,7 +90,6 @@ export const fileTreeView = defineWorkspaceView({
   id: "explorer",
   title: "workspace.view.title.filetree",
   icon: "folder",
-  openByDefault: false,
   order: 22,
   splittable: true,
   component: ExplorerView,

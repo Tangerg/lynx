@@ -30,7 +30,6 @@ export const planView = defineWorkspaceView({
   id: "plan",
   title: "workspace.view.title.plan",
   icon: "list",
-  openByDefault: false,
   order: 30,
   splittable: true,
   component: PlanTab,

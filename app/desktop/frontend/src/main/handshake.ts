@@ -51,7 +51,7 @@ export function performHandshake(rpc: RpcClient): Promise<void> {
         clientInfo: CLIENT_INFO,
         capabilities: CLIENT_CAPABILITIES,
       });
-      useRuntimeStore.getState().setHandshake(result);
+      useRuntimeStore.getState().setHandshake(result.capabilities);
     } finally {
       inFlight = null;
     }

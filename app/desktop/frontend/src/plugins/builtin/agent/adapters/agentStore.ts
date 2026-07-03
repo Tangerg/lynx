@@ -44,9 +44,6 @@ export interface FoldEvent {
 interface AgentStore {
   sessions: Record<string, SessionEntry>;
 
-  /** Fold one StreamEvent into the named session's view state. `runId` is the
-   *  wire envelope runId (subagent discrimination); omit for synthetic events. */
-  applyEvent: (sessionId: string, event: StreamEvent, runId?: string) => void;
   /**
    * Fold a batch of {event, runId} into the named session's view state with a
    * single `set()` — used by the per-frame batcher in useAgentSession so a
@@ -149,14 +146,6 @@ function patchSessionState(
 
 export const useAgentStore = create<AgentStore>((set) => ({
   sessions: {},
-  applyEvent: (sessionId, event, runId) =>
-    set((s) => {
-      const prev = s.sessions[sessionId];
-      if (!prev) return s; // session torn down — drop the late event
-      return {
-        sessions: patchSession(s.sessions, sessionId, { view: reduce(prev.view, event, runId) }),
-      };
-    }),
   applyEvents: (sessionId, events) =>
     set((s) => {
       if (events.length === 0) return s;

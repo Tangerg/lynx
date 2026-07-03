@@ -148,7 +148,6 @@ export const timelineView = defineWorkspaceView({
   id: "timeline",
   title: "workspace.view.title.timeline",
   icon: "history",
-  openByDefault: false,
   // Sits between Diff (10) / Files (20) / Plan (30) and Tools (40).
   // Timeline is "what happened" — closer to Plan than Tools.
   order: 35,

@@ -19,7 +19,6 @@ export default definePlugin({
       id: "diagnostics",
       title: "workspace.view.title.diagnostics",
       icon: "spark",
-      openByDefault: false,
       order: 90,
       component: DiagnosticsView,
     });

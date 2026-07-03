@@ -21,9 +21,6 @@ export interface SettingsPaneSpec {
   component: ComponentType;
 }
 
-/** First-launch docking hint. Plain regions only; floating is not exposed. */
-export type DockLocation = "left" | "right" | "main" | "bottom";
-
 /**
  * A plugin-contributed view that participates in the workspace layout.
  * Unlike `LayoutSlotSpec`, a workspace view doesn't pick a position — the
@@ -37,10 +34,6 @@ export interface WorkspaceViewSpec {
   title: string;
   /** Icon name for the tab header. */
   icon?: string;
-  /** First-launch docking hint. Ignored once the user has saved a layout. */
-  defaultLocation?: DockLocation;
-  /** First-launch open by default. Set false for "registered but hidden" views. */
-  openByDefault?: boolean;
   /** Sort hint within the default location. Lower comes first. */
   order?: number;
   /** May this view sit BESIDE the chat stream (resizable split), not just

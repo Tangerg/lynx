@@ -19,7 +19,3 @@ export function openContextDockLauncher(): void {
 export function openContextDockDestination(item: ContextDockLauncherItem): void {
   openContextDockView({ id: item.viewId, title: item.title, icon: item.icon ?? "panel-r" });
 }
-
-export function closeContextDockView(): void {
-  workspaceNavigation().closeSplit();
-}

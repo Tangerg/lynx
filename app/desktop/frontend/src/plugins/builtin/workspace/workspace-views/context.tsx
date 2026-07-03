@@ -62,7 +62,6 @@ export const contextView = defineWorkspaceView({
   id: "context",
   title: "workspace.view.title.context",
   icon: "panel-r",
-  openByDefault: false,
   order: 10,
   splittable: true,
   component: ContextDockView,

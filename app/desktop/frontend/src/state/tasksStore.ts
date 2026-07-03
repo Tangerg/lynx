@@ -1,5 +1,5 @@
 // Long-running task tracker. `host.tasks.start(...)` registers an entry
-// here; the kernel's status bar reads it to show "N running" + the latest
+// here; the Tasks workspace view reads it to show running work + the latest
 // label. Settled tasks linger briefly so the user sees the final state
 // before they vanish.
 
@@ -11,7 +11,6 @@ export type TaskStatus = "running" | "succeeded" | "failed";
 
 export interface TaskEntry {
   id: string;
-  pluginName: string;
   label: string;
   /** 0..1 for determinate progress; null for indeterminate (spinner). */
   progress: number | null;
@@ -80,7 +79,6 @@ export function startTask(pluginName: string, opts: TaskStartOptions): TaskHandl
 
   store.add({
     id,
-    pluginName,
     label: opts.label,
     message: opts.message ?? null,
     progress: opts.progress ?? null,
