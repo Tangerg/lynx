@@ -152,9 +152,9 @@ export type {
   ToolPreviewComponent,
   ToolPreviewProps,
   ToolViewOpenerSpec,
-  WorkIndexItemPlacement,
   WorkIndexItemScope,
   WorkIndexItemSpec,
+  WorkIndexItemVariant,
   WorkspaceViewSpec,
 } from "./types";
 export type { NotificationEntry, NotificationLevel } from "./types";

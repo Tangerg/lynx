@@ -34,7 +34,7 @@ export const sidebarRailNewSession = definePlugin({
     contributeWorkIndexItem(host, {
       id: "new-session",
       scope: "global",
-      placement: "rail",
+      variant: "rail",
       order: 10,
       component: NewSessionBtn,
     });
@@ -87,7 +87,7 @@ export const sidebarRailSessions = definePlugin({
     contributeWorkIndexItem(host, {
       id: "rail-sessions",
       scope: "session",
-      placement: "rail",
+      variant: "rail",
       order: 100,
       component: RailSessions,
     });
@@ -129,21 +129,21 @@ export const sidebarRailBottom = definePlugin({
     contributeWorkIndexItem(host, {
       id: "rail-spacer",
       scope: "global",
-      placement: "rail",
+      variant: "rail",
       order: 800,
       component: RailSpacer,
     });
     contributeWorkIndexItem(host, {
       id: "rail-context",
       scope: "session",
-      placement: "rail",
+      variant: "rail",
       order: 900,
       component: RailContext,
     });
     contributeWorkIndexItem(host, {
       id: "rail-settings",
       scope: "global",
-      placement: "rail",
+      variant: "rail",
       order: 910,
       component: RailSettings,
     });

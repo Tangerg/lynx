@@ -180,7 +180,7 @@ export const sidebarProjects = definePlugin({
     contributeWorkIndexItem(host, {
       id: "projects",
       scope: "session",
-      placement: "expanded",
+      variant: "expanded",
       order: 0,
       component: ProjectsSection,
     });

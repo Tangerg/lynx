@@ -318,7 +318,7 @@ describe("plugin registry", () => {
     host.extensions.contribute(WORK_INDEX_ITEM, {
       id: "bookmarks",
       scope: "session",
-      placement: "expanded",
+      variant: "expanded",
       order: 20,
       component: () => null,
     });
@@ -584,7 +584,7 @@ describe("plugin registry", () => {
     host.extensions.contribute(WORK_INDEX_ITEM, {
       id: "tools",
       scope: "global",
-      placement: "rail",
+      variant: "rail",
       order: 900,
       component: () => null,
     });

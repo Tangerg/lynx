@@ -41,7 +41,7 @@ export const sidebarNewSession = definePlugin({
     contributeWorkIndexItem(host, {
       id: "new-session",
       scope: "global",
-      placement: "expanded",
+      variant: "expanded",
       order: -10,
       component: SidebarNewSession,
     });
