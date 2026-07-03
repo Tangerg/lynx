@@ -53,14 +53,15 @@ export interface WorkspaceViewSpec {
 }
 
 export type ContextDockDestinationScope = "workspace" | "session" | "run";
-export type ContextDockDestinationPlacement = "context-dock";
 
+// Placement is implied by the CONTEXT_DOCK_DESTINATION extension point itself —
+// everything contributed here lands in the Context Dock, so the spec only needs
+// to discriminate `scope`.
 export interface ContextDockDestinationSpec {
   id: string;
   title: string;
   icon?: string;
   scope: ContextDockDestinationScope;
-  placement: ContextDockDestinationPlacement;
   order?: number;
 }
 

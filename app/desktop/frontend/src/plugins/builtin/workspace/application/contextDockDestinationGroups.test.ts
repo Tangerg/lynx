@@ -9,7 +9,6 @@ const destination = (
   id: patch.id,
   scope: patch.scope,
   title: `title.${patch.id}`,
-  placement: "context-dock",
 });
 
 describe("groupContextDockDestinations", () => {
