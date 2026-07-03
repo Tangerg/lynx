@@ -1,7 +1,4 @@
-import {
-  workspaceNavigation,
-  type WorkspaceViewTab,
-} from "@/plugins/builtin/workspace/application/ports/navigationState";
+import { workspaceNavigation, type WorkspaceViewTab } from "./ports/navigationState";
 import type { ContextDockDestinationSpec } from "@/plugins/sdk";
 
 export function contextDockDestinationTab(
@@ -18,12 +15,15 @@ export function openContextDockView(tab: WorkspaceViewTab): void {
   workspaceNavigation().openViewBeside(tab);
 }
 
+// The launcher's reserved view id — the generic "open the dock" entry.
+const CONTEXT_LAUNCHER_TAB: WorkspaceViewTab = {
+  id: "context",
+  title: "workspace.view.title.context",
+  icon: "panel-r",
+};
+
 export function openContextDockLauncher(): void {
-  openContextDockView({
-    id: "context",
-    title: "workspace.view.title.context",
-    icon: "panel-r",
-  });
+  openContextDockView(CONTEXT_LAUNCHER_TAB);
 }
 
 export function openContextDockDestination(destination: ContextDockDestinationSpec): void {

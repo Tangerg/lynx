@@ -23,7 +23,9 @@ export function groupContextDockDestinations(
       ...group,
       destinations: contextDockDestinations
         .filter((destination) => destination.scope === group.id)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
+        .sort(
+          (a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER),
+        ),
     }))
     .filter((group) => group.destinations.length > 0);
 }
