@@ -19,7 +19,7 @@ export interface CreateSessionOptions {
 
 /**
  * Create a fresh backend session as a hidden **draft**, open it as the
- * active tab, and optionally queue its first message. Returns the new id
+ * active session, and optionally queue its first message. Returns the new id
  * (or null if the create failed).
  *
  * A draft is a real session (so runs.start works immediately) that stays
@@ -51,7 +51,7 @@ async function createAndOpen({
     store.markDraftSession(session.id);
     if (firstInput?.parts.length)
       store.setPendingMessage(session.id, { input: firstInput, runOptions: firstRunOptions ?? {} });
-    store.selectSession(session.id); // opens tab + sets active → remounts chat
+    store.selectSession(session.id); // opens + sets active → remounts chat
     // Draft is filtered out of the Work Index; refetch so its graduation
     // (and any backend-assigned title) lands promptly. A cwd create may
     // also have minted a brand-new project.
@@ -65,8 +65,8 @@ async function createAndOpen({
 
 // In-flight latch: every "New" entry point (rail "+", ⌘N, palette command,
 // welcome composer) fires bare, and sessions.create is a full round-trip — a
-// double-click inside that window would otherwise create two backend sessions
-// and two tabs. Re-entrant calls join the pending create instead.
+// double-click inside that window would otherwise create two backend sessions.
+// Re-entrant calls join the pending create instead.
 let inflight: Promise<string | null> | null = null;
 
 function doCreate(opts: CreateSessionOptions): Promise<string | null> {

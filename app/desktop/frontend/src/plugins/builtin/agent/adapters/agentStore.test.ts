@@ -191,10 +191,10 @@ describe("agentStore.resolveInterrupt", () => {
 });
 
 describe("agentStore never resurrects a dropped session", () => {
-  // Closing a tab mid-stream: the prune subscriber drops the slice
+  // Closing a session mid-stream: the prune subscriber drops the slice
   // synchronously, but a late rAF flush / in-flight items.list / the unmount
   // cleanup nulling send-stop all run afterwards. None may re-seed a ghost
-  // entry (prune won't fire again for an id no longer in tabIds → leak).
+  // entry (prune won't fire again for an id no longer in openSessionIds → leak).
   it("applyEvents on an absent session is a no-op (no ghost entry)", () => {
     useAgentStore.getState().dropSession("ses_ghost");
     useAgentStore.getState().applyEvents("ses_ghost", [runStarted("run_x", "ses_ghost")].map(fold));

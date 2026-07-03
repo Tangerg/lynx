@@ -102,6 +102,12 @@ export function updateTool(
   return { ...state, toolCalls: { ...state.toolCalls, [id]: fn(existing) } };
 }
 
+export function markToolRequiresAction(state: AgentViewState, id: string): AgentViewState {
+  return updateTool(state, id, (tool) =>
+    tool.status === "requires-action" ? tool : { ...tool, status: "requires-action" },
+  );
+}
+
 /** Drop every open interrupt and downgrade its still-actionable approval /
  *  question card to `incomplete`. Called on a terminal run end (not an
  *  interrupt): the run that owned the interrupt is finished, so a card left in
@@ -109,6 +115,9 @@ export function updateTool(
  *  nothing is open (a resolved interrupt already emptied the list). */
 export function settleOpenInterrupts(state: AgentViewState): AgentViewState {
   if (state.openInterrupts.length === 0) return state;
+  const interruptItemIds = new Set(
+    state.openInterrupts.flatMap((oi) => oi.interrupts.map((interrupt) => interrupt.itemId)),
+  );
   const actionable = (b: ContentBlock) =>
     (b.kind === "approval" || b.kind === "question") && b.status === "requires-action";
   const messages = state.messages.map((m) =>
@@ -123,7 +132,13 @@ export function settleOpenInterrupts(state: AgentViewState): AgentViewState {
         }
       : m,
   );
-  return { ...state, messages, openInterrupts: [] };
+  let toolCalls = state.toolCalls;
+  for (const id of interruptItemIds) {
+    const tool = toolCalls[id];
+    if (!tool || tool.status !== "requires-action") continue;
+    toolCalls = { ...toolCalls, [id]: { ...tool, status: "err" } };
+  }
+  return { ...state, messages, toolCalls, openInterrupts: [] };
 }
 
 // Per-item folds — shared by item.started (append) and item.completed

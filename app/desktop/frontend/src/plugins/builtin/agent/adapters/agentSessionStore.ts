@@ -1,8 +1,8 @@
-// Agent session UI state: open chat-session tabs, the active chat session,
+// Agent session UI state: open chat sessions, the active chat session,
 // draft-session bookkeeping, and queued first messages.
 //
 // Persistence policy:
-//   - Persisted: activeSessionId + tabIds (continuity across launches).
+//   - Persisted: activeSessionId + openSessionIds (continuity across launches).
 //   - Ephemeral: draftSessionIds, pendingMessages, selectionEpoch.
 
 import { z } from "zod";
@@ -12,10 +12,10 @@ import { disposeOnHmr } from "@/lib/hmr";
 import type { AgentRunStartOptions } from "@/plugins/sdk/types";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
 import {
-  closeSessionTab,
+  closeOpenSession,
   pruneSessionHandoffs,
-  reconcileSessionTabs,
-  selectSessionTab,
+  reconcileOpenSessions,
+  selectOpenSession,
 } from "../application/session/sessionSelectionModel";
 
 // localStorage payload schema. Mirrors `partialize` below — only the
@@ -24,7 +24,7 @@ import {
 // crashing the boot.
 const sessionPersistSchema = z.object({
   activeSessionId: z.string(),
-  tabIds: z.array(z.string()),
+  openSessionIds: z.array(z.string()),
 });
 
 export interface PendingAgentMessage {
@@ -35,13 +35,10 @@ export interface PendingAgentMessage {
 interface AgentSessionState {
   activeSessionId: string;
   selectionEpoch: number;
-  /** The set of sessions currently held open. selectTab opens (adds the id);
-   *  closeTab / useDeleteSession close (removes it). Load-bearing plumbing
-   *  despite the tab-strip UI being gone (Step 2a): it's the "live session"
-   *  signal that drives per-session pruning across stores — agentStore drops
-   *  view state, composerStore drops drafts, and this store's own subscription
-   *  drops draft + pending-message refs for ids no longer in the set. */
-  tabIds: string[];
+  /** The set of sessions currently held open. This is load-bearing lifecycle
+   *  state: agentStore drops view state, composerStore drops drafts, and this
+   *  store drops draft + pending-message refs for ids no longer in the set. */
+  openSessionIds: string[];
 
   /**
    * Draft sessions — real backend sessions (created up front so they can
@@ -60,20 +57,20 @@ interface AgentSessionState {
 }
 
 interface AgentSessionActions {
-  selectTab: (id: string) => void;
-  closeTab: (id: string) => void;
+  selectSession: (id: string) => void;
+  closeSession: (id: string) => void;
 
   /** Mark a session as a hidden draft (just created, no message yet). */
   markDraft: (id: string) => void;
   /** Promote a draft to a real session (first message sent). Idempotent. */
   graduateDraft: (id: string) => void;
-  /** Reconcile persisted tabs against the backend's live session ids (boot):
-   *  drop tab / active refs to sessions the runtime no longer has — deleted
+  /** Reconcile persisted open sessions against the backend's live session ids (boot):
+   *  drop open / active refs to sessions the runtime no longer has — deleted
    *  elsewhere, or the whole db reset (`make fresh`) — so a persisted ghost id
    *  can't strand the user on a dead session that runs.start rejects with
    *  session_not_found. Not-yet-graduated drafts (absent from sessions.list by
    *  design) are kept. */
-  reconcileTabs: (liveIds: string[]) => void;
+  reconcileSessions: (liveIds: string[]) => void;
   /** Queue the first message input for a session id. */
   setPendingMessage: (id: string, message: PendingAgentMessage) => void;
   /** Read + clear the queued first message input for a session id. */
@@ -83,23 +80,23 @@ interface AgentSessionActions {
 export const useAgentSessionStore = create<AgentSessionState & AgentSessionActions>()(
   persist(
     (set, get) => ({
-      // No demo fixtures — open tabs + active session start empty and are
+      // No demo fixtures — open sessions + active session start empty and are
       // driven by the real backend's sessions.list (the sidebar) + user
       // clicks. Ghost ids would make the chat try to load/run a session the
       // runtime doesn't have (session_not_found on boot).
       activeSessionId: "",
       selectionEpoch: 0,
-      tabIds: [],
+      openSessionIds: [],
       draftSessionIds: new Set<string>(),
       pendingMessages: {},
 
-      selectTab: (id) => {
-        const { activeSessionId, tabIds, selectionEpoch } = get();
-        set(selectSessionTab({ activeSessionId, tabIds, selectionEpoch }, id));
+      selectSession: (id) => {
+        const { activeSessionId, openSessionIds, selectionEpoch } = get();
+        set(selectOpenSession({ activeSessionId, openSessionIds, selectionEpoch }, id));
       },
-      closeTab: (id) => {
-        const { tabIds, activeSessionId } = get();
-        set(closeSessionTab({ activeSessionId, tabIds }, id));
+      closeSession: (id) => {
+        const { openSessionIds, activeSessionId } = get();
+        set(closeOpenSession({ activeSessionId, openSessionIds }, id));
       },
       markDraft: (id) => set({ draftSessionIds: new Set(get().draftSessionIds).add(id) }),
       graduateDraft: (id) => {
@@ -109,9 +106,12 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
         next.delete(id);
         set({ draftSessionIds: next });
       },
-      reconcileTabs: (liveIds) => {
-        const { tabIds, activeSessionId, draftSessionIds } = get();
-        const next = reconcileSessionTabs({ activeSessionId, tabIds, draftSessionIds }, liveIds);
+      reconcileSessions: (liveIds) => {
+        const { openSessionIds, activeSessionId, draftSessionIds } = get();
+        const next = reconcileOpenSessions(
+          { activeSessionId, openSessionIds, draftSessionIds },
+          liveIds,
+        );
         if (next) set(next);
       },
       setPendingMessage: (id, message) =>
@@ -133,11 +133,11 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
       // ephemeral because they point at in-memory first-run handoff state.
       partialize: (s) => ({
         activeSessionId: s.activeSessionId,
-        tabIds: s.tabIds,
+        openSessionIds: s.openSessionIds,
       }),
       // Persisted shape is dev-phase only; bump to discard stale payloads
       // rather than migrate (the merge below Zod-validates what survives).
-      version: 4,
+      version: 5,
       merge: (persisted, current) => {
         const parsed = sessionPersistSchema.safeParse(persisted);
         if (!parsed.success) {
@@ -153,16 +153,14 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
   ),
 );
 
-// Prune draft + pending-message refs for sessions whose tab has closed.
+// Prune draft + pending-message refs for sessions no longer held open.
 // Both maps are keyed by session id; without this they grow unbounded (one
-// stale entry per draft tab abandoned before its first message), and a
+// stale entry per draft session abandoned before its first message), and a
 // leftover draft id would make useAgentSession wrongly skip history hydration
-// if that id were ever reopened. A live draft id is always present in tabIds
-// (markDraft is paired with selectTab), so "not in tabIds" ⇒ dead. One
-// subscription catches every removal path (closeTab, close-* helpers,
-// useDeleteSession → closeTab).
+// if that id were ever reopened. A live draft id is always present in
+// openSessionIds (markDraft is paired with selectSession), so "not open" ⇒ dead.
 const unsubPruneSessionRefs = useAgentSessionStore.subscribe((state, prev) => {
-  if (state.tabIds === prev.tabIds) return;
+  if (state.openSessionIds === prev.openSessionIds) return;
   const next = pruneSessionHandoffs(state);
   if (next) useAgentSessionStore.setState(next);
 });

@@ -1,53 +1,57 @@
-export interface AgentSessionTabs {
+export interface AgentOpenSessions {
   activeSessionId: string;
-  tabIds: string[];
+  openSessionIds: string[];
 }
 
-export interface AgentSessionSelection extends AgentSessionTabs {
+export interface AgentSessionSelection extends AgentOpenSessions {
   selectionEpoch: number;
 }
 
-export function selectSessionTab(
+export function selectOpenSession(
   state: AgentSessionSelection,
   sessionId: string,
 ): AgentSessionSelection {
   return {
     activeSessionId: sessionId,
     selectionEpoch: state.selectionEpoch + 1,
-    tabIds: state.tabIds.includes(sessionId) ? state.tabIds : [...state.tabIds, sessionId],
+    openSessionIds: state.openSessionIds.includes(sessionId)
+      ? state.openSessionIds
+      : [...state.openSessionIds, sessionId],
   };
 }
 
-export function closeSessionTab(state: AgentSessionTabs, sessionId: string): AgentSessionTabs {
-  const index = state.tabIds.indexOf(sessionId);
-  const tabIds = state.tabIds.filter((id) => id !== sessionId);
+export function closeOpenSession(state: AgentOpenSessions, sessionId: string): AgentOpenSessions {
+  const index = state.openSessionIds.indexOf(sessionId);
+  const openSessionIds = state.openSessionIds.filter((id) => id !== sessionId);
   const leavingActive = sessionId === state.activeSessionId;
   return {
-    tabIds,
-    activeSessionId: leavingActive ? (tabIds[index] ?? tabIds.at(-1) ?? "") : state.activeSessionId,
+    openSessionIds,
+    activeSessionId: leavingActive
+      ? (openSessionIds[index] ?? openSessionIds.at(-1) ?? "")
+      : state.activeSessionId,
   };
 }
 
-export function reconcileSessionTabs(
-  state: AgentSessionTabs & { draftSessionIds: Set<string> },
+export function reconcileOpenSessions(
+  state: AgentOpenSessions & { draftSessionIds: Set<string> },
   liveIds: string[],
-): AgentSessionTabs | null {
+): AgentOpenSessions | null {
   const known = new Set([...liveIds, ...state.draftSessionIds]);
-  const tabIds = state.tabIds.filter((id) => known.has(id));
+  const openSessionIds = state.openSessionIds.filter((id) => known.has(id));
   const activeAlive = state.activeSessionId === "" || known.has(state.activeSessionId);
-  if (tabIds.length === state.tabIds.length && activeAlive) return null;
+  if (openSessionIds.length === state.openSessionIds.length && activeAlive) return null;
   return {
-    tabIds,
-    activeSessionId: activeAlive ? state.activeSessionId : (tabIds.at(-1) ?? ""),
+    openSessionIds,
+    activeSessionId: activeAlive ? state.activeSessionId : (openSessionIds.at(-1) ?? ""),
   };
 }
 
 export function pruneSessionHandoffs<T>(state: {
-  tabIds: string[];
+  openSessionIds: string[];
   draftSessionIds: Set<string>;
   pendingMessages: Record<string, T>;
 }): { draftSessionIds: Set<string>; pendingMessages: Record<string, T> } | null {
-  const live = new Set(state.tabIds);
+  const live = new Set(state.openSessionIds);
   const draftSessionIds = new Set([...state.draftSessionIds].filter((id) => live.has(id)));
   const pendingMessages = Object.fromEntries(
     Object.entries(state.pendingMessages).filter(([id]) => live.has(id)),

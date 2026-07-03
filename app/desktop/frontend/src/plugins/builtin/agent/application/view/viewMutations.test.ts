@@ -160,6 +160,15 @@ describe("view mutations - interrupts", () => {
     const original = view({
       messages: [message("assistant-1", [approvalBlock("tool_1")])],
       openInterrupts: [openInterrupt([{ itemId: "tool_1", type: "approval" }])],
+      toolCalls: {
+        tool_1: {
+          id: "tool_1",
+          name: "shell",
+          fn: "rm x",
+          args: "",
+          status: "requires-action",
+        },
+      },
     });
 
     const next = resolveInterrupt(original, "tool_1", { decision: "approved" });
@@ -170,6 +179,7 @@ describe("view mutations - interrupts", () => {
       decision: "approved",
     });
     expect(next.openInterrupts).toEqual([]);
+    expect(next.toolCalls.tool_1?.status).toBe("running");
     expect(next.timeline.at(-1)).toMatchObject({
       kind: "approval-result",
       refId: "tool_1",
@@ -199,6 +209,22 @@ describe("view mutations - interrupts", () => {
   it("removes only the resolved interrupt from a shared envelope", () => {
     const original = view({
       messages: [message("assistant-1", [approvalBlock("tool_1"), approvalBlock("tool_2")])],
+      toolCalls: {
+        tool_1: {
+          id: "tool_1",
+          name: "shell",
+          fn: "rm x",
+          args: "",
+          status: "requires-action",
+        },
+        tool_2: {
+          id: "tool_2",
+          name: "shell",
+          fn: "rm y",
+          args: "",
+          status: "requires-action",
+        },
+      },
       openInterrupts: [
         openInterrupt([
           { itemId: "tool_1", type: "approval" },
@@ -218,6 +244,7 @@ describe("view mutations - interrupts", () => {
       status: "complete",
       decision: "declined",
     });
+    expect(next.toolCalls.tool_1?.status).toBe("denied");
     expect(next.messages[0]!.blocks[1]).toMatchObject({
       kind: "approval",
       status: "requires-action",

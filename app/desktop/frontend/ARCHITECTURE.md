@@ -468,7 +468,7 @@ unmount → cancel + 解绑 send/stop/resume（该会话 view state 留在 store
 | Store            | 内容                                                        | 持久化            |
 | ---------------- | ----------------------------------------------------------- | ----------------- |
 | `agentStore`     | 每会话 AgentViewState + send/stop/resume 引用 + applyEvents | ❌ ephemeral      |
-| `sessionStore`   | activeSessionId / tabIds / draft / 选择                     | ✅（部分字段）    |
+| `sessionStore`   | activeSessionId / openSessionIds / draft / 选择             | ✅（部分字段）    |
 | `uiStore`        | theme / accent / 字体 / motion / messageStyle / sidebarRail | ✅                |
 | `runtimeStore`   | 握手协商的 runtime 能力                                     | ❌ 全局 ephemeral |
 | `tasksStore`     | host.tasks 的后台任务                                       | ❌                |

@@ -67,6 +67,7 @@ describe("reducer — HITL resume preserves toolOutput on result", () => {
       } as never),
     );
     expect(s.toolCalls[TOOL]?.result).toBeUndefined();
+    expect(s.toolCalls[TOOL]?.status).toBe("requires-action");
 
     // runs.resume: re-emits the same toolCall id, then streams stdout + settles.
     s = reduce(s, runStarted("run_X_resume"));

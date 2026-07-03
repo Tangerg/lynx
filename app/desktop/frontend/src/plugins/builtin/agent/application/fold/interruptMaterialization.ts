@@ -3,24 +3,25 @@ import type { Interrupt, OpenInterrupt } from "@/rpc";
 import type { AgentViewState, ContentBlock } from "@/plugins/builtin/agent/public/viewState";
 import { appendTimelineEntry } from "@/plugins/sdk";
 import { approvalText, commandString, editableArgs, mapQuestion, toolLabel } from "./projections";
-import { appendToTurn, patchBlock } from "./fold";
+import { appendToTurn, markToolRequiresAction, patchBlock } from "./fold";
 
 export function materializeInterrupt(
   state: AgentViewState,
   it: Interrupt,
   parentRunId: OpenInterrupt["parentRunId"],
 ): AgentViewState {
+  const withToolStatus = markToolRequiresAction(state, it.itemId);
   if (it.type === "approval") {
     // Approval payloads are self-contained ToolInvocation envelopes. Upsert on
     // reconnect/replay so a re-seen interrupt re-affirms the same card.
     const tool = it.payload?.tool;
     if (
-      state.messages.some((m) =>
+      withToolStatus.messages.some((m) =>
         m.blocks.some((b) => b.kind === "approval" && b.itemId === it.itemId),
       )
     ) {
       return patchBlock(
-        state,
+        withToolStatus,
         (b) => b.kind === "approval" && b.itemId === it.itemId,
         (b) => ({ ...b, status: "requires-action", parentRunId }),
       );
@@ -36,7 +37,7 @@ export function materializeInterrupt(
       args: tool ? editableArgs(tool) : undefined,
       risk: it.payload?.risk,
     };
-    const withBlock = appendToTurn(state, it.itemId, block);
+    const withBlock = appendToTurn(withToolStatus, it.itemId, block);
     return appendTimelineEntry({
       kind: "approval-request",
       refId: it.itemId,
@@ -46,17 +47,17 @@ export function materializeInterrupt(
   if (it.type === "question") {
     // The question payload can materialize the card even if item.started was
     // missed while the process was down.
-    const hasBlock = state.messages.some((m) =>
+    const hasBlock = withToolStatus.messages.some((m) =>
       m.blocks.some((b) => b.kind === "question" && b.itemId === it.itemId),
     );
     if (hasBlock) {
       return patchBlock(
-        state,
+        withToolStatus,
         (b) => b.kind === "question" && b.itemId === it.itemId,
         (b) => ({ ...b, status: "requires-action", parentRunId }),
       );
     }
-    return appendToTurn(state, it.itemId, {
+    return appendToTurn(withToolStatus, it.itemId, {
       kind: "question",
       status: "requires-action",
       itemId: it.itemId,
@@ -64,5 +65,5 @@ export function materializeInterrupt(
       questions: mapQuestion(it.payload?.question),
     });
   }
-  return state;
+  return withToolStatus;
 }

@@ -25,7 +25,7 @@ import { useAgentStore } from "./agentStore";
 
 function getLifecycleSnapshot(): AgentSessionLifecycleSnapshot {
   const state = useAgentSessionStore.getState();
-  return { activeSessionId: state.activeSessionId, openSessionIds: state.tabIds };
+  return { activeSessionId: state.activeSessionId, openSessionIds: state.openSessionIds };
 }
 
 function getSelectionSnapshot(): AgentSessionSelectionSnapshot {
@@ -51,11 +51,14 @@ export function installAgentStatePorts(): void {
       return useAgentSessionStore.subscribe((state) => {
         if (
           state.activeSessionId === lastSnapshot.activeSessionId &&
-          state.tabIds === lastSnapshot.openSessionIds
+          state.openSessionIds === lastSnapshot.openSessionIds
         ) {
           return;
         }
-        lastSnapshot = { activeSessionId: state.activeSessionId, openSessionIds: state.tabIds };
+        lastSnapshot = {
+          activeSessionId: state.activeSessionId,
+          openSessionIds: state.openSessionIds,
+        };
         onChange(lastSnapshot);
       });
     },
@@ -76,11 +79,11 @@ export function installAgentStatePorts(): void {
         onChange(lastSnapshot, previous);
       });
     },
-    selectSession: (id) => useAgentSessionStore.getState().selectTab(id),
-    closeSession: (id) => useAgentSessionStore.getState().closeTab(id),
+    selectSession: (id) => useAgentSessionStore.getState().selectSession(id),
+    closeSession: (id) => useAgentSessionStore.getState().closeSession(id),
     useDraftSessionIds: () => useAgentSessionStore((state) => state.draftSessionIds),
-    useSelectSession: () => useAgentSessionStore((state) => state.selectTab),
-    reconcileSessions: (liveIds) => useAgentSessionStore.getState().reconcileTabs(liveIds),
+    useSelectSession: () => useAgentSessionStore((state) => state.selectSession),
+    reconcileSessions: (liveIds) => useAgentSessionStore.getState().reconcileSessions(liveIds),
     markDraftSession: (id) => useAgentSessionStore.getState().markDraft(id),
     graduateDraftSession: (id) => useAgentSessionStore.getState().graduateDraft(id),
     setPendingMessage: (id, message) =>

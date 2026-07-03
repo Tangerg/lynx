@@ -20,18 +20,15 @@ import { ACCENT, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
 import { t } from "@/lib/i18n";
 
-// "Close the currently-focused tab" — if the user is viewing a workspace
-// view in the main area, close that; otherwise close the active chat
-// session.
-function closeFocusedTab(): void {
+// Close the currently focused workspace view; otherwise close the active
+// chat session.
+function closeFocusedSessionOrView(): void {
   if (closeActiveWorkspaceView()) return;
   closeActiveAgentSession();
 }
 
-// "Open a new chat tab" — create a fresh draft session and open it.
-// The previous re-open-untabbed-session approach silently no-opped when
-// none was free, making ⌘N a dead key.
-function openNewChatTab(): void {
+// Create a fresh draft session and make it active.
+function openNewChatSession(): void {
   void createSession();
 }
 
@@ -72,21 +69,21 @@ export const defaultCommands = definePlugin({
       label: t("command.newChat"),
       icon: "plus",
       group: "Chat",
-      keywords: ["session", "tab", "open"],
+      keywords: ["session", "open"],
       order: 0,
       combo: "Mod+N",
-      run: openNewChatTab,
+      run: openNewChatSession,
     });
 
     host.commands.register({
-      id: "chat.close-tab",
-      label: t("command.closeTab"),
+      id: "chat.close-session",
+      label: t("command.closeSession"),
       icon: "x",
       group: "Chat",
       keywords: ["dismiss"],
       order: 1,
       combo: "Mod+W",
-      run: closeFocusedTab,
+      run: closeFocusedSessionOrView,
     });
 
     host.commands.register({

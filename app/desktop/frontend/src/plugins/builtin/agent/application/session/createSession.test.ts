@@ -26,7 +26,7 @@ afterEach(() => {
   resetContainer();
   useAgentSessionStore.setState({
     activeSessionId: "",
-    tabIds: [],
+    openSessionIds: [],
     draftSessionIds: new Set<string>(),
     pendingMessages: {},
   });
@@ -56,7 +56,7 @@ describe("useCreateSession", () => {
     expect(id).toBe("new-1");
     const s = useAgentSessionStore.getState();
     expect(s.activeSessionId).toBe("new-1");
-    expect(s.tabIds).toContain("new-1");
+    expect(s.openSessionIds).toContain("new-1");
     expect(s.draftSessionIds.has("new-1")).toBe(true);
     expect(s.takePendingMessage("new-1")).toEqual({
       input: agentTextInput("first message"),
@@ -98,7 +98,7 @@ describe("useCreateSession", () => {
 
   it("re-entrant calls join the in-flight create (double-click ≠ two sessions)", async () => {
     // sessions.create is a round-trip; a second "New" click inside that
-    // window must not create a second backend session + tab.
+    // window must not create a second backend session + open-session entry.
     let release!: (v: ReturnType<typeof fakeSession>) => void;
     const create = vi.fn(() => new Promise<ReturnType<typeof fakeSession>>((r) => (release = r)));
     stubCreate(create as unknown as Methods["sessions"]["create"]);
@@ -111,6 +111,6 @@ describe("useCreateSession", () => {
     expect(await first).toBe("new-3");
     expect(await second).toBe("new-3");
     expect(create).toHaveBeenCalledTimes(1);
-    expect(useAgentSessionStore.getState().tabIds).toEqual(["new-3"]);
+    expect(useAgentSessionStore.getState().openSessionIds).toEqual(["new-3"]);
   });
 });

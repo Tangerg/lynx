@@ -396,6 +396,7 @@ describe("reducer — HITL interrupt", () => {
     });
     expect(s.openInterrupts).toHaveLength(1);
     expect(s.openInterrupts[0]!.parentRunId).toBe("run_1");
+    expect(s.toolCalls.tool_1?.status).toBe("requires-action");
   });
 
   it("approval payload carries a ToolInvocation: command → cmd line, generic tool → editable args", () => {
@@ -574,6 +575,7 @@ describe("reducer — interrupt idempotency + terminal cleanup", () => {
     s = reduce(s, runFinished({ type: "canceled", result: {} }));
     expect(s.openInterrupts).toHaveLength(0);
     expect(approvalBlocks(s)[0]).toMatchObject({ status: "incomplete" });
+    expect(s.toolCalls.tool_1?.status).toBe("err");
   });
 
   it("an empty completed snapshot does not wipe already-streamed text (B3)", () => {
