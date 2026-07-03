@@ -1,78 +1,22 @@
 import type { ContextDockDestinationSpec } from "@/plugins/sdk";
 
+// Which workspace views appear in the Context Dock, and under which scope.
+// title / icon / component come from each view's own WorkspaceViewSpec (see
+// workspace-views/), joined at launch time — a test guards that every viewId
+// here resolves to a registered view.
 export const builtinContextDockDestinations: ContextDockDestinationSpec[] = [
-  {
-    id: "search",
-    title: "workspace.view.title.search",
-    icon: "search",
-    scope: "workspace",
-    order: 10,
-  },
-  {
-    id: "explorer",
-    title: "workspace.view.title.filetree",
-    icon: "folder",
-    scope: "workspace",
-    order: 20,
-  },
-  {
-    id: "files",
-    title: "workspace.view.title.files",
-    icon: "filetext",
-    scope: "workspace",
-    order: 30,
-  },
-  { id: "diff", title: "workspace.view.title.diff", icon: "diff", scope: "workspace", order: 40 },
-  {
-    id: "codebase",
-    title: "workspace.view.title.codebase",
-    icon: "folder-search",
-    scope: "workspace",
-    order: 50,
-  },
-  { id: "tools", title: "workspace.view.title.tools", icon: "tool", scope: "workspace", order: 60 },
-  {
-    id: "skills",
-    title: "workspace.view.title.skills",
-    icon: "sparkle",
-    scope: "workspace",
-    order: 70,
-  },
-  {
-    id: "recipes",
-    title: "workspace.view.title.recipes",
-    icon: "book",
-    scope: "workspace",
-    order: 80,
-  },
-  {
-    id: "memory",
-    title: "workspace.view.title.memory",
-    icon: "filetext",
-    scope: "workspace",
-    order: 90,
-  },
-  {
-    id: "agent-docs",
-    title: "workspace.view.title.agentDocs",
-    icon: "book",
-    scope: "workspace",
-    order: 100,
-  },
-  { id: "plan", title: "workspace.view.title.plan", icon: "list", scope: "run", order: 110 },
-  { id: "todos", title: "workspace.view.title.todos", icon: "check", scope: "run", order: 120 },
-  {
-    id: "timeline",
-    title: "workspace.view.title.timeline",
-    icon: "history",
-    scope: "session",
-    order: 130,
-  },
-  {
-    id: "terminal",
-    title: "workspace.view.title.terminal",
-    icon: "terminal",
-    scope: "workspace",
-    order: 140,
-  },
+  { viewId: "search", scope: "workspace", order: 10 },
+  { viewId: "explorer", scope: "workspace", order: 20 },
+  { viewId: "files", scope: "workspace", order: 30 },
+  { viewId: "diff", scope: "workspace", order: 40 },
+  { viewId: "codebase", scope: "workspace", order: 50 },
+  { viewId: "tools", scope: "workspace", order: 60 },
+  { viewId: "skills", scope: "workspace", order: 70 },
+  { viewId: "recipes", scope: "workspace", order: 80 },
+  { viewId: "memory", scope: "workspace", order: 90 },
+  { viewId: "agent-docs", scope: "workspace", order: 100 },
+  { viewId: "plan", scope: "run", order: 110 },
+  { viewId: "todos", scope: "run", order: 120 },
+  { viewId: "timeline", scope: "session", order: 130 },
+  { viewId: "terminal", scope: "workspace", order: 140 },
 ];

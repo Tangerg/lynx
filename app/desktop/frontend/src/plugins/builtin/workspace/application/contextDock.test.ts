@@ -3,7 +3,6 @@ import { useContextDockStore } from "@/state/contextDockStore";
 import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 import {
   closeContextDockView,
-  contextDockDestinationTab,
   openContextDockDestination,
   openContextDockLauncher,
   openContextDockView,
@@ -44,7 +43,7 @@ describe("context dock navigation", () => {
 
   it("opens a contributed destination as dock material", () => {
     openContextDockDestination({
-      id: "files",
+      viewId: "files",
       title: "workspace.view.title.files",
       icon: "filetext",
       scope: "workspace",
@@ -52,19 +51,5 @@ describe("context dock navigation", () => {
 
     expect(useContextDockStore.getState().splitViewId).toBe("files");
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
-  });
-
-  it("normalizes destination tabs before opening", () => {
-    expect(
-      contextDockDestinationTab({
-        id: "custom",
-        title: "Custom",
-        scope: "workspace",
-      }),
-    ).toEqual({
-      id: "custom",
-      title: "Custom",
-      icon: "panel-r",
-    });
   });
 });

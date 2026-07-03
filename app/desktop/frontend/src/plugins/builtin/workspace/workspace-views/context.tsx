@@ -31,7 +31,7 @@ function ContextDockView() {
               const icon = destinationIcon(destination.icon);
               return (
                 <button
-                  key={destination.id}
+                  key={destination.viewId}
                   type="button"
                   data-chrome-focus=""
                   onClick={() => openContextDockDestination(destination)}

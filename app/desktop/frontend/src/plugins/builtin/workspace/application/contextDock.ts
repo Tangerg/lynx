@@ -1,15 +1,5 @@
 import { workspaceNavigation, type WorkspaceViewTab } from "./ports/navigationState";
-import type { ContextDockDestinationSpec } from "@/plugins/sdk";
-
-export function contextDockDestinationTab(
-  destination: ContextDockDestinationSpec,
-): WorkspaceViewTab {
-  return {
-    id: destination.id,
-    title: destination.title,
-    icon: destination.icon ?? "panel-r",
-  };
-}
+import type { ContextDockLauncherItem } from "./contextDockDestinationGroups";
 
 export function openContextDockView(tab: WorkspaceViewTab): void {
   workspaceNavigation().openViewBeside(tab);
@@ -26,8 +16,8 @@ export function openContextDockLauncher(): void {
   openContextDockView(CONTEXT_LAUNCHER_TAB);
 }
 
-export function openContextDockDestination(destination: ContextDockDestinationSpec): void {
-  openContextDockView(contextDockDestinationTab(destination));
+export function openContextDockDestination(item: ContextDockLauncherItem): void {
+  openContextDockView({ id: item.viewId, title: item.title, icon: item.icon ?? "panel-r" });
 }
 
 export function closeContextDockView(): void {
