@@ -156,6 +156,7 @@ export const CONTEXT_DOCK_DESTINATION = defineExtensionPoint<ContextDockDestinat
   id: "lyra.contextDock.destination",
   capability: "workspace",
   keying: "single",
+  keyOf: (destination) => destination.viewId,
 });
 
 // ---- multi-handler surfaces (every contribution coexists, runs in order) --
