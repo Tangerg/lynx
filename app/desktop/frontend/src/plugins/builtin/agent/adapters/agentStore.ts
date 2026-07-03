@@ -69,7 +69,7 @@ interface AgentStore {
    *  when the run ended mid-type (run_not_found) and the send falls back to a
    *  fresh turn that mints its own bubble. No-op if the id is gone. */
   dropMessage: (sessionId: string, id: string) => void;
-  /** Remove a session entry entirely (closing the tab — frees view state). */
+  /** Remove a session entry entirely (freeing its view state). */
   dropSession: (sessionId: string) => void;
   /** Bind / unbind the imperative stop action for a session. */
   setStop: (sessionId: string, fn: AgentStopAction) => void;
@@ -114,8 +114,8 @@ const emptyEntry = (): SessionEntry => ({
 // resetSession (run once at mount) is the sole creator, so a write that can't
 // find its session — a late rAF flush, an in-flight items.list resolving, or
 // the unmount cleanup nulling send/stop after the prune subscriber already
-// dropped the tab — must no-op rather than re-seed a ghost entry that prune
-// will never collect again (it only fires on the next tabIds change).
+// dropped the session — must no-op rather than re-seed a ghost entry that prune
+// will never collect again (it only fires on the next openSessionIds change).
 function patchSession(
   sessions: Record<string, SessionEntry>,
   sessionId: string,
@@ -225,12 +225,12 @@ export const useAgentStore = create<AgentStore>((set) => ({
     }),
 }));
 
-// Prune sessions whose tab is closed. The view slice (messages, toolCalls,
+// Prune sessions no longer held open. The view slice (messages, toolCalls,
 // shared, plan) can be megabytes of streamed markdown per session — without
 // this it accumulates forever.
 const unsubPruneSessions = useAgentSessionStore.subscribe((state, prev) => {
-  if (state.tabIds === prev.tabIds) return;
-  const live = new Set(state.tabIds);
+  if (state.openSessionIds === prev.openSessionIds) return;
+  const live = new Set(state.openSessionIds);
   const sessions = useAgentStore.getState().sessions;
   for (const id of Object.keys(sessions)) {
     if (!live.has(id)) useAgentStore.getState().dropSession(id);

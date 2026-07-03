@@ -17,6 +17,19 @@ function matchesInterruptBlock(block: ContentBlock, itemId: string): block is In
   return (block.kind === "approval" || block.kind === "question") && block.itemId === itemId;
 }
 
+function settleInterruptedTool(
+  view: AgentViewState,
+  itemId: string,
+  status: "denied" | "running",
+): AgentViewState {
+  const tool = view.toolCalls[itemId];
+  if (!tool || tool.status !== "requires-action") return view;
+  return {
+    ...view,
+    toolCalls: { ...view.toolCalls, [itemId]: { ...tool, status } },
+  };
+}
+
 export function relabelMessage(view: AgentViewState, fromId: string, toId: string): AgentViewState {
   if (fromId === toId) return view;
   const has = (id: string) => view.messages.some((m) => m.id === id);
@@ -90,6 +103,13 @@ export function resolveInterrupt(
   if (!touchedBlock && !touchedInterrupt) return view;
 
   let next: AgentViewState = { ...view, messages, openInterrupts };
+  if (touchedInterrupt) {
+    next = settleInterruptedTool(
+      next,
+      itemId,
+      touchedApproval && settled.decision === "declined" ? "denied" : "running",
+    );
+  }
   if (settled.decision && touchedApproval) {
     next = appendTimelineEntry({
       kind: "approval-result",

@@ -19,7 +19,7 @@ import { usePaletteStore } from "../paletteStore";
 // (default-commands registers it), so this is just the membership list.
 const GLOBAL_COMMAND_IDS = [
   "chat.new",
-  "chat.close-tab",
+  "chat.close-session",
   "composer.focus",
   "view.toggle-sidebar",
   "settings.toggle-theme",
