@@ -17,14 +17,9 @@ export function SidebarRail({ onToggleRail }: Props) {
       tone="rail"
       className={cn("sidebar rail w-14 items-center gap-1 px-1.5 pb-3", dragClasses)}
     >
-      <IconButton
-        variant="rail"
-        title={t("sidebar.action.expand")}
-        onClick={onToggleRail}
-        className="mt-2"
-      >
-        <Icon name="panel-l" size={16} />
-      </IconButton>
+      {/* Draggable strip clearing the native macOS traffic-light inset — the
+          rail's own controls start below it. */}
+      <div className="h-[38px] shrink-0" aria-hidden />
       {items.map((item) => {
         const Body = item.component;
         return (
@@ -37,6 +32,11 @@ export function SidebarRail({ onToggleRail }: Props) {
           </PluginBoundary>
         );
       })}
+      {/* Expand back to the full sidebar — pinned at the very bottom (Codex
+          rail: the collapse/expand toggle lives with the bottom utilities). */}
+      <IconButton variant="rail" title={t("sidebar.action.expand")} onClick={onToggleRail}>
+        <Icon name="panel-l" size={16} />
+      </IconButton>
     </AgentPane>
   );
 }

@@ -20,7 +20,6 @@ import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
 import {
   closeWorkspaceSplit,
   closeWorkspaceView,
-  openContextDockLauncher,
   openWorkspaceViewBeside,
   promoteWorkspaceSplitToView,
   useActiveWorkspaceViewId,
@@ -44,10 +43,11 @@ interface Props {
   onSend: (input: UserInput) => void;
 }
 
-// The dock's own top bar — the view tabs plus a collapse/launcher toggle at the
-// far right. Lives at the very top of the full-height dock column so the dock
-// runs top-to-bottom independent of the center column's header.
-function DockHeader({ tabs }: { tabs: AgentDockTab[] }) {
+// The dock's own top bar — the view tabs plus the collapse toggle at the far
+// right (the window's top-right corner while the dock is open). Lives at the
+// very top of the full-height dock column so the dock runs top-to-bottom
+// independent of the center column's header.
+function DockHeader({ tabs, onToggle }: { tabs: AgentDockTab[]; onToggle: () => void }) {
   const t = useT();
   return (
     <div className="flex h-[52px] shrink-0 items-center pr-2">
@@ -58,7 +58,7 @@ function DockHeader({ tabs }: { tabs: AgentDockTab[] }) {
         icon="panel-r"
         size="sm"
         aria-label={t("workspace.view.title.context")}
-        onClick={openContextDockLauncher}
+        onClick={onToggle}
       />
     </div>
   );
@@ -69,6 +69,8 @@ export function ChatPanel({ onSend }: Props) {
   const splitViewId = useSplitWorkspaceViewId();
   const splitRatio = useUiStore((s) => s.splitRatio);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const dockCollapsed = useUiStore((s) => s.dockCollapsed);
+  const toggleDock = useUiStore((s) => s.toggleDock);
   const views = useWorkspaceViews();
   const { isLoading } = useSessions();
   const activeSession = useActiveSession();
@@ -113,6 +115,9 @@ export function ChatPanel({ onSend }: Props) {
     active: view.id === dockViewId,
     onSelect: () => openWorkspaceViewBeside({ id: view.id, title: view.title, icon: view.icon }),
   }));
+  // A split view is an explicit open → always shown; otherwise the dock follows
+  // the collapse preference.
+  const showDock = Boolean(splitViewId) || !dockCollapsed;
 
   return (
     <AgentPane tone="main" className="relative">
@@ -158,26 +163,37 @@ export function ChatPanel({ onSend }: Props) {
               >
                 打开位置
               </AgentToolbarButton>
+              {!showDock && (
+                <AgentIconButton
+                  icon="panel-r"
+                  size="sm"
+                  aria-label={t("workspace.view.title.context")}
+                  onClick={toggleDock}
+                  className={noDragClasses}
+                />
+              )}
             </AgentPaneHeader>
             <ChatStream onSend={onSend} />
           </div>
-          {/* Right context dock — a full-height column with its own tab header. */}
-          {splitViewId ? (
-            <>
-              <SplitResizer />
-              <AgentContextDock className="flex-1">
-                <DockHeader tabs={dockTabs} />
-                <ViewPlacementProvider value={placementFor(splitViewId, "split")}>
-                  <WorkspaceViewBody viewId={splitViewId} />
-                </ViewPlacementProvider>
+          {/* Right context dock — a full-height column with its own tab header.
+              Collapsible: the header toggle hides it so the chat spans full width. */}
+          {showDock &&
+            (splitViewId ? (
+              <>
+                <SplitResizer />
+                <AgentContextDock className="flex-1">
+                  <DockHeader tabs={dockTabs} onToggle={toggleDock} />
+                  <ViewPlacementProvider value={placementFor(splitViewId, "split")}>
+                    <WorkspaceViewBody viewId={splitViewId} />
+                  </ViewPlacementProvider>
+                </AgentContextDock>
+              </>
+            ) : (
+              <AgentContextDock className="w-[420px] shrink-0">
+                <DockHeader tabs={dockTabs} onToggle={toggleDock} />
+                <WorkspaceViewBody viewId={dockViewId} />
               </AgentContextDock>
-            </>
-          ) : (
-            <AgentContextDock className="w-[420px] shrink-0">
-              <DockHeader tabs={dockTabs} />
-              <WorkspaceViewBody viewId={dockViewId} />
-            </AgentContextDock>
-          )}
+            ))}
         </div>
       )}
     </AgentPane>
