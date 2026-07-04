@@ -5,9 +5,8 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { Icon, ProviderIcon } from "@/ui";
+import { EmptyState, ProviderIcon, Segmented } from "@/ui";
 import { fmtCost, fmtTokens } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import {
   USAGE_RANGES,
@@ -29,13 +28,13 @@ function BreakdownSection({
 }) {
   if (buckets.length === 0) return null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-fg-faint">{title}</div>
-      <div className="flex flex-col gap-px overflow-hidden rounded-lg">
+    <div className="rounded-[14px] bg-surface p-4">
+      <div className="mb-1.5 text-[12px] font-medium text-fg-muted">{title}</div>
+      <div className="flex flex-col">
         {buckets.map((b) => (
           <div
             key={b.key}
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 bg-canvas px-3 py-2"
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-fg/[0.04]"
           >
             <div className="flex min-w-0 items-center gap-2">
               {icon?.(b.key)}
@@ -65,42 +64,27 @@ export function UsagePane() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Range selector */}
-      <div className="flex items-center gap-1 self-end rounded-full bg-surface-2 p-0.5">
-        {USAGE_RANGES.map((r) => (
-          <button
-            key={r.days}
-            type="button"
-            onClick={() => setSinceDays(r.days)}
-            className={cn(
-              "h-6 rounded-full px-2.5 text-[11.5px] font-medium transition-colors",
-              sinceDays === r.days ? "bg-surface text-fg" : "text-fg-faint hover:text-fg",
-            )}
-          >
-            {t(r.label)}
-          </button>
-        ))}
+      <div className="self-end">
+        <Segmented
+          value={sinceDays}
+          options={USAGE_RANGES.map((r) => ({ value: r.days, label: t(r.label) }))}
+          onChange={setSinceDays}
+          ariaLabel="Usage range"
+        />
       </div>
 
-      {isLoading && <div className="text-[12px] text-fg-faint">{t("usage.loading")}</div>}
+      {isLoading && <div className="text-[12px] text-fg-muted">{t("usage.loading")}</div>}
       {isError && <div className="text-[12px] text-negative">{t("usage.error")}</div>}
 
       {data && !hasSpend && (
-        <div className="flex flex-col items-center gap-2 rounded-lg bg-surface-2 px-4 py-10 text-center">
-          <Icon name="chart" size={22} className="text-fg-faint" />
-          <div className="text-[13px] font-medium text-fg">{t("usage.empty")}</div>
-          <div className="text-[11.5px] text-fg-faint">{t("usage.empty.sub")}</div>
-        </div>
+        <EmptyState icon="chart" title={t("usage.empty")} sub={t("usage.empty.sub")} />
       )}
 
       {data && hasSpend && (
         <>
-          {/* Total card */}
-          <div className="flex flex-col gap-2 rounded-lg bg-surface-2 p-4">
+          <div className="flex flex-col gap-2 rounded-[14px] bg-surface p-4">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[12px] font-semibold uppercase tracking-wide text-fg-faint">
-                {t("usage.total")}
-              </span>
+              <span className="text-[12px] font-medium text-fg-muted">{t("usage.total")}</span>
               <span className="font-mono text-[22px] font-semibold tabular-nums text-fg">
                 {total?.costUsd !== undefined ? fmtCost(total.costUsd) : "—"}
               </span>

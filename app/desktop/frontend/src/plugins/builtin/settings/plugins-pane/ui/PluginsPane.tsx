@@ -74,17 +74,17 @@ export function PluginsPane() {
             <div
               key={spec.name}
               className={cn(
-                "rounded-lg bg-canvas",
-                errCount > 0 && "border-[0.5px] border-negative/35",
+                "rounded-md transition-colors hover:bg-fg/[0.04]",
+                errCount > 0 && "bg-negative/5",
               )}
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2.5 px-3 py-2.5">
                 <div>
-                  <div className="text-[14px] font-semibold text-fg">
+                  <div className="text-[14px] font-medium text-fg">
                     {spec.name}
                     <OriginBadge origin={origin} />
                   </div>
-                  <div className="font-mono text-[12px] text-fg-faint">v{spec.version}</div>
+                  <div className="font-mono text-[12px] text-fg-muted">v{spec.version}</div>
                   {errCount > 0 && (
                     <button
                       type="button"
@@ -189,9 +189,7 @@ function OriginBadge({ origin }: { origin: "builtin" | "sideload" }) {
       }
       className={cn(
         "ml-2 inline-block rounded-full px-1.5 py-px font-mono text-[10px] font-semibold align-middle tracking-normal",
-        origin === "builtin"
-          ? "bg-surface-2 text-fg-muted"
-          : "bg-[rgba(82,157,245,0.14)] text-info",
+        origin === "builtin" ? "bg-surface-2 text-fg-muted" : "bg-info/10 text-info",
       )}
     >
       {origin === "builtin" ? t("plugins.origin.builtin") : t("plugins.origin.sideload")}

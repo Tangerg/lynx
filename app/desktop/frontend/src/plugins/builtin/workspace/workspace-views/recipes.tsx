@@ -46,7 +46,7 @@ function RecipesTab() {
                   )}
                   {/* Layer the recipe came from — "project" (<cwd>/.lyra/recipes)
                       overrides "global" on a name collision. */}
-                  <span className="ml-auto shrink-0 rounded-xs bg-surface-2 px-1.5 py-px font-mono text-[10px] text-fg-faint">
+                  <span className="ml-auto shrink-0 rounded-sm bg-surface-2 px-1.5 py-px font-mono text-[10px] text-fg-faint">
                     {r.scope}
                   </span>
                 </div>

@@ -40,7 +40,7 @@ export function ToolInspector({ tool }: { tool: ToolCall }) {
   const result = useMemo(() => formatBody(tool.result), [tool.result]);
 
   return (
-    <div className="bg-canvas px-3.5 py-2.5">
+    <div className="pt-0.5">
       <InspectorSection title={t("toolInspector.arguments")} body={args} />
       {result.text && <InspectorSection title={t("toolInspector.result")} body={result} />}
       {!result.text && tool.status === "ok" && (
@@ -60,7 +60,7 @@ function InspectorSection({ title, body }: { title: string; body: FormattedBody 
       </div>
       <pre
         className={cn(
-          "max-h-60 overflow-y-auto rounded-sm bg-surface-2 px-2.5 py-2 font-mono text-[11.5px] leading-[1.55] text-fg-soft",
+          "max-h-60 overflow-y-auto rounded-[8px] bg-surface-2 px-3 py-2.5 font-mono text-[11.5px] leading-[1.55] text-fg-soft",
           // JSON shows whitespace-pre to preserve indentation; raw text
           // wraps so long stdout / stderr lines stay readable.
           body.isJson ? "whitespace-pre" : "whitespace-pre-wrap break-all",

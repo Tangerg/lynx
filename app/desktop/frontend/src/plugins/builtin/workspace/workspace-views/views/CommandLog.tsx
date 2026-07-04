@@ -13,9 +13,9 @@ export const CommandLog = memo(function CommandLog({
 }) {
   const t = useT();
   return (
-    <div className="flex flex-col gap-3 px-3 py-3 font-mono text-[12px] leading-relaxed">
+    <div className="flex flex-col gap-2.5 px-3 py-3 font-mono text-[12px] leading-relaxed">
       {commands.map((c) => (
-        <div key={c.id}>
+        <div key={c.id} className="rounded-[10px] bg-surface-2 px-3 py-2.5">
           <div className="flex items-baseline gap-2">
             <span className="shrink-0 text-fg-faint">$</span>
             <span className="min-w-0 truncate text-fg" title={c.command}>
@@ -34,7 +34,7 @@ export const CommandLog = memo(function CommandLog({
             )}
           </div>
           {c.output ? (
-            <pre className="mt-1 whitespace-pre-wrap break-words text-fg-muted">
+            <pre className="mt-1.5 whitespace-pre-wrap break-words text-fg-muted">
               {c.output}
               {c.outputTruncated ? `\n${t("commandLog.truncated")}` : ""}
             </pre>

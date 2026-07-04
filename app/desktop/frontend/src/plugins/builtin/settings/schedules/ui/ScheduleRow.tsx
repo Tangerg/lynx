@@ -41,7 +41,7 @@ function ScheduleActionButton({
       title={title}
       onClick={onClick}
       className={cn(
-        "grid h-7 w-7 place-items-center rounded-md text-fg-faint transition-colors hover:bg-surface-2",
+        "grid h-7 w-7 place-items-center rounded-md text-fg-faint transition-colors hover:bg-fg/[0.06]",
         tone === "accent" && "hover:text-accent",
         tone === "negative" && "hover:text-negative",
         !tone && "hover:text-fg",
@@ -71,19 +71,19 @@ export function ScheduleRow({
   };
 
   return (
-    <div className={cn("rounded-lg bg-canvas px-3 py-2.5", !schedule.enabled && "opacity-60")}>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+    <div className={cn(!schedule.enabled && "opacity-60")}>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-fg/[0.04]">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[14px] font-semibold text-fg">
+            <span className="truncate text-[14px] font-medium text-fg">
               {schedule.title || t("schedules.untitled")}
             </span>
-            <span className="shrink-0 rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-fg-muted">
+            <span className="shrink-0 rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-muted">
               {schedule.cron}
             </span>
           </div>
           <div
-            className="mt-0.5 truncate text-[12px] leading-[1.45] text-fg-muted"
+            className="mt-0.5 truncate font-mono text-[12px] leading-[1.45] text-fg-muted"
             title={schedule.prompt}
           >
             {schedule.prompt}

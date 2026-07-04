@@ -22,42 +22,41 @@ import { cn } from "@/lib/utils";
 function HookRow({ h }: { h: HookConfig }) {
   const t = useT();
   return (
-    <div className={cn("rounded-lg bg-canvas px-3 py-2.5", !h.active && "opacity-55")}>
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-        <Icon
-          name={h.scope === "global" ? "globe" : "folder"}
-          size={14}
-          className="text-fg-faint"
-        />
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-fg-muted">
-            {h.event}
+    <div
+      className={cn(
+        "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-fg/[0.04]",
+        !h.active && "opacity-55",
+      )}
+    >
+      <Icon name={h.scope === "global" ? "globe" : "folder"} size={14} className="text-fg-faint" />
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="shrink-0 rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-medium text-fg-muted">
+          {h.event}
+        </span>
+        {h.matcher && (
+          <span className="shrink-0 font-mono text-[11px] text-accent" title={t("hooks.matcher")}>
+            {h.matcher}
           </span>
-          {h.matcher && (
-            <span className="shrink-0 font-mono text-[11px] text-accent" title={t("hooks.matcher")}>
-              {h.matcher}
-            </span>
-          )}
-          <span
-            className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg"
-            title={h.command || h.inject || h.source}
-          >
-            {h.command ? h.command : <span className="text-fg-muted italic">{h.inject}</span>}
-          </span>
-        </div>
-        {!h.active ? (
-          <span
-            title={t("hooks.inactive.hint")}
-            className="shrink-0 rounded-xs border-[0.5px] border-warning/30 bg-warning/12 px-1.5 py-px text-[10px] font-semibold text-warning"
-          >
-            {t("hooks.inactive")}
-          </span>
-        ) : h.inject ? (
-          <span className="shrink-0 text-[10px] font-semibold text-fg-faint">
-            {t("hooks.kind.inject")}
-          </span>
-        ) : null}
+        )}
+        <span
+          className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg"
+          title={h.command || h.inject || h.source}
+        >
+          {h.command ? h.command : <span className="text-fg-muted italic">{h.inject}</span>}
+        </span>
       </div>
+      {!h.active ? (
+        <span
+          title={t("hooks.inactive.hint")}
+          className="shrink-0 rounded-sm bg-warning/12 px-1.5 py-px text-[10px] font-medium text-warning"
+        >
+          {t("hooks.inactive")}
+        </span>
+      ) : h.inject ? (
+        <span className="shrink-0 text-[10px] font-medium text-fg-faint">
+          {t("hooks.kind.inject")}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -89,17 +88,20 @@ export function HooksPane() {
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <p className="text-[13px] leading-[1.5] text-fg-muted">{t("hooks.intro")}</p>
 
       {projectRoot && data?.hasProjectHooks && (
-        <div className="flex items-center justify-between gap-3 rounded-lg bg-canvas px-3 py-2.5">
+        <div className="flex items-center justify-between gap-3 rounded-[14px] bg-surface p-4">
           <div className="min-w-0">
-            <div className="text-[14px] font-semibold text-fg">{t("hooks.trust")}</div>
+            <div className="text-[14px] font-medium text-fg">{t("hooks.trust")}</div>
             <div className="mt-0.5 text-[12px] leading-[1.45] text-fg-muted">
               {t("hooks.trust.sub")}
             </div>
-            <div className="mt-1 truncate font-mono text-[11px] text-fg-faint" title={projectRoot}>
+            <div
+              className="mt-1.5 truncate font-mono text-[11px] text-fg-faint"
+              title={projectRoot}
+            >
               {projectRoot}
             </div>
           </div>
@@ -119,7 +121,7 @@ export function HooksPane() {
         empty={{ icon: "lightning", title: t("hooks.empty"), sub: t("hooks.empty.sub") }}
       >
         {(rows) => (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-0.5">
             {rows.map((h, i) => (
               <HookRow key={`${h.source}:${h.event}:${i}`} h={h} />
             ))}

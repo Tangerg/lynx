@@ -90,8 +90,8 @@ export function ApprovalArgsEditor({
               onTextChange(e.target.value);
             }}
             className={cn(
-              "w-full resize-y rounded-sm bg-surface px-3 py-2 font-mono text-[12px] text-fg focus:outline-none",
-              invalid ? "border border-negative/60" : "border-[0.5px] border-field",
+              "w-full resize-y rounded-[8px] bg-fg p-3 font-mono text-[12px] text-on-fg focus:outline-none",
+              invalid && "outline outline-1 outline-negative",
             )}
           />
           {invalid && (
@@ -101,7 +101,7 @@ export function ApprovalArgsEditor({
           )}
         </>
       ) : (
-        <pre className="m-0 max-h-32 overflow-auto whitespace-pre-wrap break-all rounded-sm bg-surface px-3 py-2 font-mono text-[12px] text-fg-muted">
+        <pre className="m-0 max-h-32 overflow-auto whitespace-pre-wrap break-all rounded-[8px] bg-fg p-3 font-mono text-[12px] text-on-fg/85">
           {argsText}
         </pre>
       )}

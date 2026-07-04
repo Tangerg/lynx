@@ -27,11 +27,14 @@ function SkillPreview({ tool, onOpenView }: ToolPreviewProps) {
   return (
     <div className={PREVIEW_WRAP}>
       {entries.slice(0, MAX_ROWS).map((s) => (
-        <div key={s.name} className="flex items-baseline gap-2 py-0.5">
-          <code className="shrink-0 rounded-xs bg-surface-2 px-1 text-[11px] text-fg">
+        <div
+          key={s.name}
+          className="flex items-baseline gap-2 rounded-[4px] px-1 py-0.5 hover:bg-fg/[0.04]"
+        >
+          <code className="shrink-0 rounded-[6px] bg-surface-2 px-1.5 py-0.5 text-[11px] text-fg-soft">
             {s.name}
           </code>
-          <span className="truncate text-[11.5px] text-fg-faint">{s.description}</span>
+          <span className="truncate text-[11.5px] text-fg-muted">{s.description}</span>
         </div>
       ))}
       <Overflow count={entries.length - MAX_ROWS} />

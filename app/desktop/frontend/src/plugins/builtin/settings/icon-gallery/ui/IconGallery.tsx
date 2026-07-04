@@ -5,7 +5,8 @@
 // and `antd` — neither of which we ship.
 
 import { useMemo, useState } from "react";
-import { Icon, ScrollArea } from "@/ui";
+import { FIELD_CLASSES, Icon, ScrollArea } from "@/ui";
+import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { IconMap, rawToc } from "./iconMap";
 
@@ -50,12 +51,17 @@ export function IconGallery() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-4 px-5 py-4">
         <div>
-          <div className="text-[17px] font-semibold">@lobehub/icons</div>
+          <div className="text-[15px] font-medium text-fg">@lobehub/icons</div>
           <div className="mt-0.5 text-[13px] text-fg-muted">
             {rawToc.length} icons · brands across LLM models, providers, and apps
           </div>
         </div>
-        <div className="relative flex w-60 items-center gap-1.5 rounded-md border-[0.5px] border-transparent bg-surface-2 px-2.5 py-1 transition-colors duration-150 focus-within:border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-line))]">
+        <div
+          className={cn(
+            FIELD_CLASSES,
+            "flex w-60 items-center gap-1.5 px-2.5 py-1.5 focus-within:border-field-strong",
+          )}
+        >
           <Icon name="search" size={13} className="shrink-0 text-fg-faint" />
           <input
             type="search"
@@ -63,14 +69,14 @@ export function IconGallery() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("iconGallery.filterPlaceholder")}
-            className="flex-1 border-0 bg-transparent text-[12px] text-fg font-inherit outline-none placeholder:text-fg-faint"
+            className="flex-1 border-0 bg-transparent font-inherit text-fg outline-none placeholder:text-fg-faint"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
               title={t("iconGallery.clear")}
-              className="grid h-5.5 w-5.5 place-items-center rounded-xs border-0 bg-transparent p-0 text-fg-faint transition-[background,color,transform] duration-150 hover:bg-surface-3 hover:text-fg active:scale-90"
+              className="grid h-5.5 w-5.5 place-items-center rounded-sm border-0 bg-transparent p-0 text-fg-faint transition-[background,color,transform] duration-150 hover:bg-fg/[0.04] hover:text-fg active:scale-90"
             >
               <Icon name="x" size={11} />
             </button>
@@ -84,9 +90,9 @@ export function IconGallery() {
           if (list.length === 0) return null;
           return (
             <section key={g} className="px-5 pt-4.5 pb-3">
-              <header className="flex items-baseline justify-between pb-2.5 font-mono text-[11px] font-semibold text-fg-faint tracking-normal">
+              <header className="flex items-baseline justify-between pb-2.5 font-mono text-[11px] font-medium tracking-normal text-fg-muted">
                 <span>{GROUP_TITLES[g]}</span>
-                <span className="font-mono text-fg-muted">{list.length}</span>
+                <span className="font-mono text-fg-faint">{list.length}</span>
               </header>
               <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(120px,1fr))]">
                 {list.map((entry) => (
@@ -111,7 +117,7 @@ function IconCard({ entry }: { entry: (typeof rawToc)[number] }) {
   return (
     <div
       title={`${entry.fullTitle} — ${entry.id}`}
-      className="flex flex-col items-center gap-1.5 rounded-lg bg-surface px-2.5 pt-3.5 pb-2.5 cursor-default transition-colors duration-150 hover:bg-surface-2"
+      className="flex cursor-default flex-col items-center gap-1.5 rounded-md bg-surface px-2.5 pb-2.5 pt-3.5 transition-colors duration-150 hover:bg-fg/[0.04]"
     >
       <div className="grid h-11 w-11 place-items-center rounded-md bg-surface-2 text-fg">
         {Component ? <Component size={28} /> : <span className="font-mono text-fg-faint">?</span>}
@@ -122,10 +128,10 @@ function IconCard({ entry }: { entry: (typeof rawToc)[number] }) {
       <div className="flex items-center gap-1.5 text-[10px]">
         <span
           title={entry.color}
-          className="h-2 w-2 rounded-full border-[0.5px] border-[color-mix(in_srgb,var(--color-text)_10%,transparent)]"
+          className="h-2 w-2 rounded-full border-[0.5px] border-field"
           style={{ background: entry.color }}
         />
-        <code className="font-mono text-[10px] text-fg-faint">{entry.id}</code>
+        <code className="font-mono text-[10px] text-fg-muted">{entry.id}</code>
       </div>
     </div>
   );

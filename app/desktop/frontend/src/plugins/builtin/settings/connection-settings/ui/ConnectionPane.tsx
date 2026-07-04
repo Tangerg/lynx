@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button, FIELD_CLASSES, StatusDot } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -38,7 +39,7 @@ export function ConnectionPane() {
         align="start"
       >
         <div className="grid gap-2">
-          <label htmlFor="runtime-base-url" className="text-[12px] font-semibold text-fg-faint">
+          <label htmlFor="runtime-base-url" className="text-[12px] font-medium text-fg-muted">
             {t("settings.connection.url")}
           </label>
           <div className="flex items-center gap-2">
@@ -58,29 +59,31 @@ export function ConnectionPane() {
               }}
               placeholder={RUNTIME_BASE_URL}
               className={cn(
-                "flex-1 h-9 rounded-md border-[0.5px] bg-surface px-3 font-mono text-[13px] text-fg outline-none",
-                error
-                  ? "border-negative focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-negative)_18%,transparent)]"
-                  : "border-field focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]",
+                FIELD_CLASSES,
+                "h-9 flex-1 px-3 text-[13px] text-fg",
+                error && "border-negative focus:border-negative",
               )}
               spellCheck={false}
             />
             {!isDefault && (
-              <button
+              <Button
                 type="button"
+                variant="soft"
+                size="sm"
                 onClick={reset}
-                className="h-9 shrink-0 rounded-md bg-surface-2 px-3 font-sans text-[12.5px] text-fg-muted hover:bg-surface-3 hover:text-fg transition-colors"
+                className="h-9 shrink-0"
               >
                 {t("settings.connection.reset")}
-              </button>
+              </Button>
             )}
           </div>
           {error ? (
-            <div className="text-[11.5px] text-negative">{error}</div>
-          ) : dirty ? (
-            <div className="text-[11.5px] text-fg-faint">
-              {/* Inline hint — applied on blur or Enter. */}↵ to apply · click outside to apply
+            <div className="flex items-center gap-1.5 text-[11.5px] text-negative">
+              <StatusDot tone="err" />
+              <span>{error}</span>
             </div>
+          ) : dirty ? (
+            <div className="text-[11.5px] text-fg-muted">↵ to apply · click outside to apply</div>
           ) : null}
         </div>
       </SettingRow>

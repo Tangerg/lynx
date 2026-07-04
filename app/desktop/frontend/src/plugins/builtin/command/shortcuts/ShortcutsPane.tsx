@@ -4,6 +4,7 @@
 // show up; nothing here knows about specific commands.
 
 import { useMemo, useState } from "react";
+import { Kbd } from "@/ui";
 import { SHORTCUT, useExtensionPoint } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { splitCombo } from "@/lib/combo";
@@ -37,10 +38,10 @@ export function ShortcutsPane() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder={t("shortcuts.filter")}
         aria-label={t("shortcuts.filterAria")}
-        className="w-full rounded-md border-[0.5px] border-field bg-surface-2 px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus-visible:border-field-strong focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
+        className="w-full rounded-md border-[0.5px] border-field bg-surface-2 px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus-visible:border-field-strong"
       />
 
-      <div className="min-h-0 flex-1 overflow-auto rounded-md border-[0.5px] border-field bg-surface">
+      <div className="min-h-0 flex-1 overflow-auto rounded-lg bg-surface">
         {filtered.length === 0 ? (
           <div className="px-3 py-6 text-center text-[13px] text-fg-faint">
             {t("shortcuts.empty")}
@@ -60,12 +61,7 @@ export function ShortcutsPane() {
                   <td className="px-3 py-1.5 text-right">
                     <span className="inline-flex items-center gap-1">
                       {splitCombo(s.key).map((part, i) => (
-                        <kbd
-                          key={i}
-                          className="inline-flex min-w-[20px] items-center justify-center rounded-xs border-[0.5px] border-field bg-surface-2 px-1.5 py-px font-mono text-[11px] font-semibold text-fg-muted"
-                        >
-                          {part}
-                        </kbd>
+                        <Kbd key={i}>{part}</Kbd>
                       ))}
                     </span>
                   </td>

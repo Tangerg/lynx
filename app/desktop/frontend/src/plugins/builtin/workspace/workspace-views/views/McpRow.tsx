@@ -45,7 +45,7 @@ function McpToolList({ server }: { server: string }) {
     <ul className="m-0 list-none px-4 pb-3 pl-[68px]">
       {tools.map((tool) => (
         <li key={tool.name} className="flex items-baseline gap-2 py-0.5">
-          <code className="shrink-0 rounded-xs bg-surface-2 px-1 font-mono text-[11px] text-fg">
+          <code className="shrink-0 rounded-sm bg-surface-2 px-1 font-mono text-[11px] text-fg">
             {tool.name}
           </code>
           <span className="truncate text-[11.5px] text-fg-faint" title={tool.description}>
@@ -89,7 +89,7 @@ export function McpRow({ server }: { server: MCPServerConfig }) {
   const [open, setOpen] = useState(false);
   return (
     <div>
-      <div className="group grid grid-cols-[40px_1fr_auto_auto_auto] items-center gap-3 px-4 py-3 hover:bg-surface">
+      <div className="group grid grid-cols-[40px_1fr_auto_auto_auto] items-center gap-3 px-4 py-3 hover:bg-fg/[0.04]">
         <div
           className={cn(
             "grid h-10 w-10 place-items-center rounded-lg bg-surface-2 text-fg-muted group-hover:bg-surface-3 group-hover:text-fg",
@@ -110,12 +110,12 @@ export function McpRow({ server }: { server: MCPServerConfig }) {
           <div className="text-[14px] font-semibold text-fg truncate">{server.name}</div>
           <div className="mt-0.5 text-[12px] text-fg-faint truncate">{server.desc}</div>
         </button>
-        <div className="rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-faint">
+        <div className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-faint">
           {server.tools} tools
         </div>
         <div
           className={cn(
-            "rounded-xs px-1.5 py-0.5 font-mono text-[11px] font-semibold",
+            "rounded-sm px-1.5 py-0.5 font-mono text-[11px] font-semibold",
             pill.classes,
           )}
           title={server.status === "failed" ? server.errorDetail : undefined}

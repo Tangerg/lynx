@@ -52,8 +52,8 @@ function ThemePreviewStrip() {
 
 function ThemeCodePreview() {
   return (
-    <AgentSurface className="mt-8 grid grid-cols-2 overflow-hidden bg-surface">
-      <div className="border-r-[0.5px] border-field/70 p-5 font-mono text-[12.5px] leading-7 text-fg-muted">
+    <AgentSurface className="mt-8 grid grid-cols-2 overflow-hidden">
+      <div className="p-5 font-mono text-[12.5px] leading-7 text-fg-muted">
         <div>
           <span className="text-[#c084fc]">const</span> theme = {"{"}
         </div>
@@ -65,7 +65,7 @@ function ThemeCodePreview() {
         <div className="mt-2">contrast: 42</div>
         <div>{"};"}</div>
       </div>
-      <div className="p-5 font-mono text-[12.5px] leading-7 text-fg-muted">
+      <div className="bg-surface-2 p-5 font-mono text-[12.5px] leading-7 text-fg-muted">
         <div>
           <span className="text-[#c084fc]">const</span> theme = {"{"}
         </div>
@@ -93,7 +93,7 @@ export function AppearancePane() {
       </header>
       <ThemePreviewStrip />
       <ThemeCodePreview />
-      <AgentSurface className="mt-10 divide-y divide-field/70 overflow-hidden bg-canvas">
+      <AgentSurface className="mt-10 overflow-hidden">
         <ThemeSection />
         <CustomThemeColors />
         <AccentSection />

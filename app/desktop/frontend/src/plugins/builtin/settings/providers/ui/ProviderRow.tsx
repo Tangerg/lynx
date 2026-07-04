@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, INPUT_FOCUS_RING, ProviderIcon } from "@/ui";
+import { Button, FIELD_CLASSES, Icon, ProviderIcon } from "@/ui";
 import {
   type ProviderConfig,
   useConfigureProvider,
@@ -43,20 +43,20 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
   const onTest = () => run(() => test(p.id), t("providers.error.test"));
 
   return (
-    <div className="rounded-lg bg-canvas px-3 py-2.5">
+    <div className="rounded-md px-3 py-3 transition-colors hover:bg-fg/[0.04]">
       <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3">
         <ProviderIcon provider={p.id} size={20} />
         <div className="min-w-0">
-          <div className="truncate text-[14px] font-semibold capitalize text-fg">{p.id}</div>
+          <div className="truncate text-[14px] font-medium capitalize text-fg">{p.id}</div>
         </div>
         <span
           title={fromEnv ? p.apiKeyMasked : undefined}
           className={cn(
-            "rounded-full px-2 py-0.5 text-[11px] font-medium",
+            "rounded-pill px-2 py-0.5 font-mono text-[11px] font-medium",
             fromEnv
-              ? "bg-accent/12 text-accent"
+              ? "bg-info/10 text-info"
               : enabled
-                ? "bg-success/12 text-success"
+                ? "bg-success/10 text-success"
                 : "bg-surface-2 text-fg-faint",
           )}
         >
@@ -81,10 +81,7 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
                 ? t("providers.apiKey.replace")
                 : t("providers.apiKey.placeholder")
           }
-          className={cn(
-            "h-8 rounded-md border-[0.5px] border-field bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
-            INPUT_FOCUS_RING,
-          )}
+          className={cn(FIELD_CLASSES, "h-8 px-2.5 text-fg placeholder:text-fg-faint")}
         />
         <input
           type="text"
@@ -92,43 +89,25 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
           value={draft.baseUrl}
           onChange={(e) => setDraft((value) => ({ ...value, baseUrl: e.target.value }))}
           placeholder={t("providers.baseUrl.placeholder")}
-          className={cn(
-            "h-8 rounded-md border-[0.5px] border-field bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
-            INPUT_FOCUS_RING,
-          )}
+          className={cn(FIELD_CLASSES, "h-8 px-2.5 text-fg placeholder:text-fg-faint")}
         />
       </div>
 
-      <div className="mt-2 flex items-center gap-2">
-        <button
-          type="button"
-          disabled={!dirty || saving}
-          onClick={onSave}
-          className={cn(
-            "h-7 rounded-md px-3 text-[12px] font-semibold transition-colors",
-            !dirty || saving
-              ? "cursor-not-allowed bg-surface-2 text-fg-faint"
-              : "bg-accent text-on-accent hover:opacity-90",
-          )}
-        >
+      <div className="mt-2.5 flex items-center gap-2">
+        <Button variant="primary" size="sm" disabled={!dirty || saving} onClick={onSave}>
           {saving ? t("providers.saving") : t("providers.save")}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           disabled={!enabled || probe.state === "busy"}
           onClick={onTest}
-          className={cn(
-            "h-7 rounded-md border-[0.5px] px-3 text-[12px] font-semibold transition-colors",
-            !enabled || probe.state === "busy"
-              ? "cursor-not-allowed border-field text-fg-faint"
-              : "border-field text-fg-muted hover:bg-surface-2 hover:text-fg",
-          )}
         >
           {probe.state === "busy" ? t("providers.testing") : t("providers.test")}
-        </button>
+        </Button>
 
         {probe.state === "ok" && (
-          <span className="inline-flex items-center gap-1 text-[12px] text-accent">
+          <span className="inline-flex items-center gap-1 text-[12px] text-success">
             <Icon name="check" size={13} /> {t("providers.connectionOk")}
           </span>
         )}

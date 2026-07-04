@@ -22,7 +22,7 @@ function WebSearchPreview({ tool, onOpenView }: ToolPreviewProps) {
     );
   }
   return (
-    <div className="bg-canvas px-3.5 pt-2.5 pb-2">
+    <div className="pt-1">
       <SearchResults results={results.slice(0, MAX_WEB_RESULTS)} />
       <Overflow count={results.length - MAX_WEB_RESULTS} />
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />

@@ -8,7 +8,7 @@ import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { PREVIEW_WRAP } from "./shared";
+import { CODE_PANEL } from "./shared";
 
 const MAX_TERM_LINES = 9;
 
@@ -21,22 +21,24 @@ function ShellPreview({ tool, onOpenView }: ToolPreviewProps) {
   const lines = output ? output.split("\n") : [];
   const hiddenLines = lines.length - MAX_TERM_LINES;
   return (
-    <div className={cn(PREVIEW_WRAP, "whitespace-pre-wrap break-all text-fg-soft")}>
-      {lines.length > 0 ? (
-        lines.slice(0, MAX_TERM_LINES).map((text, i) => (
-          <div key={i}>
-            <LinkedText text={text || " "} />
+    <div>
+      <div className={cn(CODE_PANEL, "whitespace-pre-wrap break-all")}>
+        {lines.length > 0 ? (
+          lines.slice(0, MAX_TERM_LINES).map((text, i) => (
+            <div key={i}>
+              <LinkedText text={text || " "} />
+            </div>
+          ))
+        ) : (
+          <PreviewPlaceholder status={tool.status} pending="Running…" idle="(no output)" />
+        )}
+        {(hiddenLines > 0 || tool.outputTruncated) && (
+          <div className="text-fg-faint">
+            {hiddenLines > 0 && `… ${hiddenLines} more lines`}
+            {tool.outputTruncated && " · output truncated by runtime"}
           </div>
-        ))
-      ) : (
-        <PreviewPlaceholder status={tool.status} pending="Running…" idle="(no output)" />
-      )}
-      {(hiddenLines > 0 || tool.outputTruncated) && (
-        <div className="text-fg-faint">
-          {hiddenLines > 0 && `… ${hiddenLines} more lines`}
-          {tool.outputTruncated && " · output truncated by runtime"}
-        </div>
-      )}
+        )}
+      </div>
       <PreviewFoot label="tools.preview.openTerminal" onClick={onOpenView} />
     </div>
   );

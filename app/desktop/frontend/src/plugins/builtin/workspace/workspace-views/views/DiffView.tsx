@@ -153,7 +153,7 @@ export function DiffView({
 
 function HunkRow({ text }: { text: string }) {
   return (
-    <div className="mx-0 mt-2.5 mb-0 border-0 bg-line px-3 py-1 text-[11px] text-fg-faint">
+    <div className="mx-0 mt-2.5 mb-0 border-0 bg-fg/[0.03] px-3 py-1 text-[11px] text-fg-faint">
       {text}
     </div>
   );
@@ -236,7 +236,7 @@ function DiffSide({
 }) {
   // Absent counterpart — a faint "no line here" fill so the eye reads the row
   // as one-sided rather than as an edit to a blank line.
-  if (!row) return <div className="bg-[rgba(128,128,128,0.045)]" />;
+  if (!row) return <div className="bg-fg/[0.03]" />;
   const style = ROW_STYLE[row.type];
   // deleted lives on the left, added on the right; a context line shows this
   // side's own number. A context row keeps no +/− sign (it's unchanged).

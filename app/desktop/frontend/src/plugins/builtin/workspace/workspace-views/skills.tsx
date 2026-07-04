@@ -52,7 +52,7 @@ function SkillsTab() {
                       overrides "global" (user dir) on name collision, matching
                       the priority the runtime feeds the model. */}
                   {s.source && (
-                    <span className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-[10px] text-fg-faint">
+                    <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-[10px] text-fg-faint">
                       {s.source}
                     </span>
                   )}

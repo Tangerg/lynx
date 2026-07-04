@@ -77,7 +77,7 @@ function SpanRowItem({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex min-h-8 w-full items-center gap-3 bg-transparent px-1 font-mono text-[12px] text-fg hover:bg-surface-2"
+        className="flex min-h-8 w-full items-center gap-3 bg-transparent px-1 font-mono text-[12px] text-fg hover:bg-fg/[0.04]"
       >
         <span className="flex w-4 shrink-0 justify-center">
           <Icon

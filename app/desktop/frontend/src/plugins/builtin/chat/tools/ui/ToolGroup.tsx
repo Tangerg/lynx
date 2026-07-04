@@ -30,32 +30,33 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: 
   const expanded = pinned ?? needsAttention;
 
   return (
-    <div className="my-0.5">
-      {/* Summary row — bare text line, no bg, no border, no surface. */}
+    <div className="my-1">
+      {/* Summary row — a flat header, separated by hover fill not a border. */}
       <button
         type="button"
         onClick={() => setPinned(!expanded)}
         aria-expanded={expanded}
         className={cn(
-          "flex w-full items-center gap-2 px-2 py-0.5 text-left",
-          "focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]",
+          "flex w-full items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-left",
+          "transition-colors duration-100 hover:bg-fg/[0.03]",
+          "focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]",
         )}
       >
+        <Icon name="search" size={14} className="shrink-0 text-fg-muted" />
+        <span className="truncate text-[13px] font-medium text-fg-muted">
+          {summarizeToolGroup(tools)}
+        </span>
+        <span className="ml-auto shrink-0 rounded-pill bg-fg/[0.06] px-2 py-0.5 font-mono text-[11px] font-medium text-fg-muted">
+          {tools.length} calls
+        </span>
         <Icon
           name="chevron-down"
-          size={12}
+          size={14}
           className={cn(
             "shrink-0 text-fg-faint transition-transform duration-150",
             !expanded && "-rotate-90",
           )}
         />
-        <Icon name="search" size={13} className="shrink-0 text-fg-muted" />
-        <span className="truncate text-[13px] font-medium text-fg-muted">
-          {summarizeToolGroup(tools)}
-        </span>
-        <span className="ml-auto shrink-0 font-mono text-[11px] text-fg-faint">
-          {tools.length} calls
-        </span>
       </button>
 
       <Collapsible open={expanded}>

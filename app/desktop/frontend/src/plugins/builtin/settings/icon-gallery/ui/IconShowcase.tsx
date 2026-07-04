@@ -120,9 +120,9 @@ export function IconShowcase() {
 
       {SECTIONS.map((sec) => (
         <section key={sec.title} className="flex flex-col gap-2">
-          <header className="flex items-baseline justify-between font-mono text-[11px] font-semibold text-fg-faint tracking-normal">
+          <header className="flex items-baseline justify-between font-mono text-[11px] font-medium tracking-normal text-fg-muted">
             <span>{sec.title}</span>
-            <span className="font-mono text-fg-muted">{sec.ids.length}</span>
+            <span className="font-mono text-fg-faint">{sec.ids.length}</span>
           </header>
           <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(96px,1fr))]">
             {sec.ids.map((id) => (
@@ -142,7 +142,7 @@ function ShowcaseCard({ id }: { id: string }) {
   return (
     <div
       title={`${title} — ${id}`}
-      className="flex flex-col items-center gap-1.5 rounded-md bg-surface px-2 pt-2.5 pb-2 cursor-default transition-colors duration-150 hover:bg-surface-2"
+      className="flex cursor-default flex-col items-center gap-1.5 rounded-md bg-surface px-2 pb-2 pt-2.5 transition-colors duration-150 hover:bg-fg/[0.04]"
     >
       <div className="grid h-8.5 w-8.5 place-items-center rounded-sm bg-surface-2 text-fg">
         {Glyph ? <Glyph size={22} /> : <span className="font-mono text-fg-faint">?</span>}

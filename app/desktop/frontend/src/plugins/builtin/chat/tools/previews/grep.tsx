@@ -22,12 +22,12 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
         {shown.map((r, i) => (
           <div
             key={i}
-            className="grid grid-cols-[200px_1fr] gap-3 py-0.5 whitespace-nowrap overflow-hidden"
+            className="grid grid-cols-[200px_1fr] gap-3 overflow-hidden rounded-[4px] px-1 py-0.5 whitespace-nowrap hover:bg-fg/[0.04]"
           >
-            <span className="truncate text-[11px] text-fg-faint">
+            <span className="truncate text-[11px] text-fg-muted">
               <LinkedText text={r.loc} />
             </span>
-            <span className="truncate text-fg">{r.text}</span>
+            <span className="truncate text-fg-soft">{r.text}</span>
           </div>
         ))}
         {overflow > 0 && <div className="pt-1 text-fg-faint">… {overflow} more matches</div>}

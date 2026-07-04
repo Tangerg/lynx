@@ -1,14 +1,11 @@
-import { INPUT_FOCUS_RING } from "@/ui";
+import { FIELD_CLASSES } from "@/ui";
 import { cn } from "@/lib/utils";
 
-export const FIELD = cn(
-  "h-8 w-full rounded-md border-[0.5px] border-field bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
-  INPUT_FOCUS_RING,
-);
+export const FIELD = cn(FIELD_CLASSES, "h-8 w-full px-2.5 text-fg placeholder:text-fg-faint");
 
 export const TEXT_AREA = cn(
-  "w-full resize-y rounded-md border-[0.5px] border-field bg-surface px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-fg outline-none placeholder:text-fg-faint",
-  INPUT_FOCUS_RING,
+  FIELD_CLASSES,
+  "w-full resize-y px-2.5 py-1.5 leading-[1.5] text-fg placeholder:text-fg-faint",
 );
 
 interface LinesFieldProps {
@@ -20,8 +17,8 @@ interface LinesFieldProps {
 
 export function LinesField({ label, value, onChange, placeholder }: LinesFieldProps) {
   return (
-    <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
-      {label}
+    <label className="flex flex-col gap-1.5">
+      <span className="text-[13px] font-medium text-fg">{label}</span>
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}

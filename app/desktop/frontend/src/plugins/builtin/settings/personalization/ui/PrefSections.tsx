@@ -40,7 +40,7 @@ export function CompletionSoundSection() {
 
   return (
     <SettingRow label={t("settings.completionSound")} sub={t("settings.completionSound.sub")}>
-      <label htmlFor={id} className="inline-flex items-center gap-1.5 text-[12.5px] text-fg-muted">
+      <label htmlFor={id} className="inline-flex items-center gap-2 text-[13px] text-fg-muted">
         <Checkbox
           id={id}
           checked={completionSound}

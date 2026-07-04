@@ -32,8 +32,8 @@ function TreeNode({ entry, cwd, depth, selectedPath, onSelectFile }: NodeProps) 
       <button
         type="button"
         className={cn(
-          "flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[13px] hover:bg-surface-2",
-          selectedPath === entry.path && !isDir ? "bg-surface-2 text-fg" : "text-fg-muted",
+          "flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[13px] hover:bg-fg/[0.04]",
+          selectedPath === entry.path && !isDir ? "bg-fg/[0.06] text-fg" : "text-fg-soft",
         )}
         style={indent}
         onClick={() => (isDir ? setExpanded((v) => !v) : onSelectFile(entry.path))}

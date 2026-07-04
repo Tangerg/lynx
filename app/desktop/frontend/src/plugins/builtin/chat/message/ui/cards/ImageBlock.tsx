@@ -22,12 +22,12 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
         <button
           type="button"
           aria-label={t("message.image.view")}
-          className="my-1.5 block cursor-zoom-in overflow-hidden rounded-md border-0 bg-transparent p-0 outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]"
+          className="my-1.5 block cursor-zoom-in overflow-hidden rounded-[10px] border-0 bg-transparent p-0 outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]"
         >
           <img
             src={src}
             alt=""
-            className={cn("max-h-64 max-w-full rounded-md object-contain", MEDIA_OUTLINE)}
+            className={cn("max-h-64 max-w-full rounded-[10px] object-contain", MEDIA_OUTLINE)}
           />
         </button>
       }

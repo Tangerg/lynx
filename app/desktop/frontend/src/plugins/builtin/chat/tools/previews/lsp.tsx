@@ -26,15 +26,21 @@ function LspLocationsPreview({ tool, onOpenView }: ToolPreviewProps) {
         const sep = row.lastIndexOf(" — ");
         if (sep === -1) {
           return (
-            <div key={i} className="truncate py-0.5 text-fg-soft">
+            <div
+              key={i}
+              className="truncate rounded-[4px] px-1 py-0.5 text-fg-soft hover:bg-fg/[0.04]"
+            >
               {row}
             </div>
           );
         }
         return (
-          <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 py-0.5">
-            <span className="truncate text-fg">{row.slice(0, sep)}</span>
-            <span className="truncate text-[11px] text-fg-faint">{row.slice(sep + 3)}</span>
+          <div
+            key={i}
+            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-[4px] px-1 py-0.5 hover:bg-fg/[0.04]"
+          >
+            <span className="truncate text-fg-soft">{row.slice(0, sep)}</span>
+            <span className="truncate text-[11px] text-fg-muted">{row.slice(sep + 3)}</span>
           </div>
         );
       })}

@@ -125,23 +125,31 @@ export function ReasoningBlock({ text, status }: Props) {
   const showBottomFade = isOpen && streaming && hasOverflow && !atBottom;
 
   return (
-    <div data-slot="reasoning-root" className="my-1">
+    <div data-slot="reasoning-root" className="my-2 rounded-[14px] bg-surface">
       <button
         type="button"
         onClick={toggle}
         data-slot="reasoning-trigger"
-        className="inline-flex max-w-full items-center gap-2 rounded-md border-0 px-2 py-1 font-mono text-[12px] font-medium text-fg-faint transition-colors duration-150 hover:bg-fg/[0.02] hover:text-fg active:bg-fg/[0.04]"
+        className="flex w-full items-center gap-2 rounded-[14px] border-0 bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-fg/[0.02]"
       >
-        <Icon name="sparkle" size={11} />
-        <span className="shrink-0 [font-feature-settings:'tnum']">{label}</span>
+        <Icon name="sparkle" size={14} className="shrink-0 text-fg-muted" />
+        <span className="shrink-0 text-[13px] font-medium text-fg [font-feature-settings:'tnum']">
+          {label}
+        </span>
         {!isOpen && preview && (
-          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11.5px] font-normal text-fg-faint">
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-normal text-fg-faint">
             {preview}
           </span>
         )}
         {streaming && isOpen && (
           <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_6px_var(--color-accent)] animate-pulse-dot" />
         )}
+        <span className="flex-1" />
+        <Icon
+          name={isOpen ? "chevron-up" : "chevron-down"}
+          size={14}
+          className="shrink-0 text-fg-muted"
+        />
       </button>
       {/* Collapsible (grid-rows), not a height:auto tween — this block lives
           inside the message stream, where FM's auto-measure makes
@@ -152,23 +160,24 @@ export function ReasoningBlock({ text, status }: Props) {
           ref={scrollRef}
           onScroll={handleScroll}
           className={cn(
-            "relative overflow-hidden",
+            "relative overflow-hidden px-3.5 pb-3",
             streaming && isOpen && "max-h-48 overflow-y-auto",
           )}
         >
-          {/* Top fade — visible when scrolled down */}
+          {/* Top fade — visible when scrolled down. Fades into the card's
+              surface, not the canvas, so the mask is invisible against the bg. */}
           <div
             data-slot="reasoning-fade-top"
             className={cn(
               "pointer-events-none absolute inset-x-0 top-0 z-10 h-6",
-              "bg-[linear-gradient(to_bottom,var(--color-bg),transparent)]",
+              "bg-[linear-gradient(to_bottom,var(--color-surface),transparent)]",
               "transition-opacity duration-[var(--dur-fast)]",
               showTopFade ? "opacity-100" : "opacity-0",
             )}
           />
           <div
             ref={contentRef}
-            className="whitespace-pre-wrap px-0 pb-1 pt-1.5 text-[13px] italic leading-[1.6] text-fg-muted"
+            className="whitespace-pre-wrap pl-[26px] text-[13px] leading-[1.6] text-fg-muted"
           >
             <MarkdownMessage text={text} streaming={streaming} />
             {status === "incomplete" && (
@@ -182,7 +191,7 @@ export function ReasoningBlock({ text, status }: Props) {
             data-slot="reasoning-fade-bottom"
             className={cn(
               "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6",
-              "bg-[linear-gradient(to_top,var(--color-bg),transparent)]",
+              "bg-[linear-gradient(to_top,var(--color-surface),transparent)]",
               "transition-opacity duration-[var(--dur-fast)]",
               showBottomFade ? "opacity-100" : "opacity-0",
             )}
