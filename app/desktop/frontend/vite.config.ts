@@ -16,9 +16,9 @@ export default defineConfig({
   // (strict, no fallback drift) + clientPort makes the HMR socket deterministic.
   server: {
     host: "127.0.0.1",
-    port: 5273,
+    port: 5174,
     strictPort: true,
-    hmr: { protocol: "ws", host: "127.0.0.1", clientPort: 5273 },
+    hmr: { protocol: "ws", host: "127.0.0.1", clientPort: 5174 },
   },
   resolve: {
     alias: {

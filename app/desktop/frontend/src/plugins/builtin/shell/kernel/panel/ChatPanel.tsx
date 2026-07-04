@@ -135,10 +135,10 @@ export function ChatPanel({ onSend }: Props) {
             className={cn("relative flex min-h-0 min-w-0 flex-col", !splitViewId && "flex-1")}
             style={splitViewId ? { flexBasis: `${splitRatio * 100}%` } : undefined}
           >
-            {/* When the sidebar is hidden the chat spans to the window's left
-                edge — pad the header past the native macOS traffic-light inset
-                so the toggle clears them. */}
-            <AgentPaneHeader className={cn("px-5", sidebarHidden && "pl-24", dragClasses)}>
+            {/* Header padding (incl. the traffic-light gutter when the sidebar
+                is collapsed) is owned by `.agent-pane-header` in layout.css —
+                a `pl-*` utility here can't win against that unlayered rule. */}
+            <AgentPaneHeader className={dragClasses}>
               <AgentIconButton
                 icon="panel-l"
                 size="sm"
