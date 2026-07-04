@@ -18,7 +18,6 @@ import chatSearch from "./chat/chat-search";
 import commandPalette from "./command/command-palette";
 import {
   composerBootstrap,
-  composerChips,
   composerKeymap,
   composerPlaceholders,
   composerRunOptions,
@@ -183,7 +182,6 @@ const composer: PluginSpec[] = [
   // After slashHints so a user recipe named like a built-in hint wins the
   // shared slash key (it carries a real run handler; the hint is display-only).
   recipesSlash,
-  composerChips,
   composerToolbar,
   composerPlaceholders,
   composerRunOptions,

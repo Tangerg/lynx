@@ -7,7 +7,6 @@ export {
   useActiveRunError,
   useActiveRunPlan,
   useActiveRunTimeline,
-  useActiveRunTokenUsage,
   useActiveRunToolCalls,
   useIsAgentRunning,
   useStopActiveAgentRun,

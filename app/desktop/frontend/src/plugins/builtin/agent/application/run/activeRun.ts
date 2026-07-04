@@ -1,7 +1,6 @@
 import type {
   PlanItem,
   RunError,
-  RunUsage,
   TimelineEntry,
   ToolCall,
 } from "@/plugins/builtin/agent/public/viewState";
@@ -20,11 +19,6 @@ interface AgentRunSettlement {
   sessionId: string;
   needsInput: boolean;
   errorMessage: string | null;
-}
-
-interface ActiveRunTokenUsage {
-  usage: RunUsage;
-  contextTokens: number | undefined;
 }
 
 export function useIsAgentRunning(): boolean {
@@ -49,13 +43,6 @@ export function useActiveRunTimeline(): TimelineEntry[] {
 
 export function useActiveRunError(): RunError | null {
   return agentViewState().useError();
-}
-
-export function useActiveRunTokenUsage(): ActiveRunTokenUsage {
-  return {
-    usage: agentViewState().useUsage(),
-    contextTokens: agentViewState().useContextTokens(),
-  };
 }
 
 export function useStopActiveAgentRun(): (() => void) | null {

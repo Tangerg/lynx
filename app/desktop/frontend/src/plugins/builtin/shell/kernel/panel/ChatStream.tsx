@@ -34,11 +34,7 @@ import {
   useToggleWorkspaceTool,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { useUiStore } from "@/state/uiStore";
-import {
-  Composer,
-  ComposerFooter,
-  SlashSuggestions,
-} from "@/plugins/builtin/chat/composer/public/ui";
+import { Composer, SlashSuggestions } from "@/plugins/builtin/chat/composer/public/ui";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { CwdMissingBanner } from "./CwdMissingBanner";
 import { JumpToBottomButton } from "./JumpToBottomButton";
@@ -118,10 +114,10 @@ export function ChatStream({ onSend }: Props) {
     [plan, toolCalls, selectTool, expandedToolIds, toggleExpandedTool, typewriter],
   );
 
-  // The composer surface (status + slash hints + input + footer) — shared by
-  // the empty-state centered layout and the normal bottom-anchored one.
-  // Context chips (ComposerFooter) are rendered INSIDE the composer container
-  // so the input + pills + toolbar form one unified surface (craft-style).
+  // The composer surface (status + slash hints + input) — shared by the
+  // empty-state centered layout and the normal bottom-anchored one. All
+  // controls live in the composer's own bottom toolbar (attach / approval /
+  // model / send) — no separate telemetry footer row.
   const composer = (
     <>
       <Slot name="chat.status" />
@@ -138,9 +134,7 @@ export function ChatStream({ onSend }: Props) {
         onRemovePaste={removePaste}
         onAddPaste={addPaste}
         acceptsImages={acceptsImages}
-      >
-        <ComposerFooter />
-      </Composer>
+      />
     </>
   );
 

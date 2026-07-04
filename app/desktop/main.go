@@ -26,16 +26,18 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 18, G: 18, B: 18, A: 1},
+		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
-		// macOS: hide the native titlebar but keep the traffic-light controls
-		// (inset over our content). Window stays draggable from the top region.
+		// macOS: hide the native titlebar but keep the native traffic-light
+		// controls (inset over our content) — these are the ONLY window controls;
+		// the app draws none of its own. Window stays draggable from the top
+		// region. Light appearance matches the light-first UI default.
 		Mac: &mac.Options{
 			TitleBar:   mac.TitleBarHiddenInset(),
-			Appearance: mac.NSAppearanceNameDarkAqua,
+			Appearance: mac.NSAppearanceNameAqua,
 		},
-		Bind: []interface{}{
+		Bind: []any{
 			app,
 		},
 	})
