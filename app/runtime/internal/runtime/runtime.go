@@ -49,7 +49,6 @@ import (
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
@@ -512,36 +511,6 @@ func (r *Runtime) ReconnectMCPServer(ctx context.Context, name string) error {
 // sessions. The credentials live for the process only (re-prompt after restart).
 func (r *Runtime) AuthorizeMCPServer(ctx context.Context, name string) error {
 	return r.engine.AuthorizeMCPServer(ctx, name)
-}
-
-// Providers returns the provider registry — the runtime-mutable set of
-// providers + credentials that providers.list / configure / test operate on.
-// Always non-nil.
-func (r *Runtime) Providers() provider.Service { return r.providers }
-
-// ProbeProvider validates a provider's credentials by building its
-// default-model client and issuing one minimal (max_tokens=1) request — the
-// cheapest call that proves the key + endpoint work. Backs providers.test.
-// Lives here, not in the protocol layer, because the runtime owns client
-// construction. Returns the provider error verbatim so the caller can surface
-// it inline.
-func (r *Runtime) ProbeProvider(ctx context.Context, entry provider.Provider) error {
-	client, err := llm.BuildClient(llm.ClientSpec{
-		Provider: llm.Provider(entry.ID),
-		Model:    llm.DefaultModel(llm.Provider(entry.ID)),
-		APIKey:   entry.APIKey,
-		BaseURL:  entry.BaseURL,
-	})
-	if err != nil {
-		return err
-	}
-	maxTokens := int64(1)
-	_, err = client.Chat().
-		WithOptions(&chat.Options{MaxTokens: &maxTokens}).
-		WithUserPrompt("ping").
-		Call().
-		Response(ctx)
-	return err
 }
 
 // DefaultModel is the model a turn runs against when it doesn't pick one

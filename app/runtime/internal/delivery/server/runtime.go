@@ -89,7 +89,9 @@ type scheduleAccess interface {
 }
 
 type providerAccess interface {
-	Providers() providersvc.Service
+	ListRegisteredProviders(ctx context.Context) ([]providersvc.Provider, error)
+	GetRegisteredProvider(ctx context.Context, id string) (providersvc.Provider, bool, error)
+	ConfigureProvider(ctx context.Context, entry providersvc.Provider) error
 	ProbeProvider(ctx context.Context, entry providersvc.Provider) error
 	DefaultProvider() string
 }
