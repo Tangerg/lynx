@@ -1,6 +1,7 @@
 import { t } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
+import { chatSearchShortcut } from "./application/chatSearchShortcut";
 import { openChatSearch } from "./application/openChatSearch";
 import { ChatSearchOverlay } from "./ui/ChatSearchOverlay";
 
@@ -13,15 +14,6 @@ export default definePlugin({
       order: 50,
       component: ChatSearchOverlay,
     });
-    host.extensions.contribute(SHORTCUT, {
-      key: "Mod+F",
-      description: t("chatSearch.shortcutDesc"),
-      // Users usually trigger chat search while focus is still in the composer.
-      allowInInputs: true,
-      handler: (e) => {
-        e.preventDefault();
-        openChatSearch();
-      },
-    });
+    host.extensions.contribute(SHORTCUT, chatSearchShortcut(t, openChatSearch));
   },
 });
