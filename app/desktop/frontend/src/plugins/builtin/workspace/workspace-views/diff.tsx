@@ -34,7 +34,7 @@ function FileSection({
           <span className="truncate">
             {file.previousPath ? `${file.previousPath} → ${file.path}` : file.path}
           </span>
-          {file.added !== undefined && <span className="ml-auto text-accent">+{file.added}</span>}
+          {file.added !== undefined && <span className="ml-auto text-success">+{file.added}</span>}
           {file.removed !== undefined && <span className="text-negative">−{file.removed}</span>}
         </div>
       )}

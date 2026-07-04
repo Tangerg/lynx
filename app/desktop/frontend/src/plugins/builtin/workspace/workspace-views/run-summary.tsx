@@ -22,19 +22,19 @@ function useStatusLabel(): Record<RunDigest["status"], { label: string; cls: str
   return {
     ok: {
       label: t("runSummary.status.done"),
-      cls: "border-success/40 bg-success/12 text-success",
+      cls: "bg-success/12 text-success",
     },
     err: {
       label: t("runSummary.status.errored"),
-      cls: "border-negative/40 bg-negative/15 text-negative",
+      cls: "bg-negative/12 text-negative",
     },
     running: {
       label: t("runSummary.status.running"),
-      cls: "border-accent/40 bg-accent/12 text-accent",
+      cls: "bg-accent/12 text-accent",
     },
     unknown: {
       label: t("runSummary.status.unknown"),
-      cls: "border-transparent bg-surface-2 text-fg-muted",
+      cls: "bg-surface-2 text-fg-muted",
     },
   };
 }
@@ -120,7 +120,7 @@ function RunSummaryTab() {
       <div className="px-4 pb-2 pt-1">
         <span
           className={cn(
-            "inline-flex items-center rounded-sm border-[0.5px] px-1.5 py-px font-mono text-[10.5px] font-semibold",
+            "inline-flex items-center rounded-sm px-1.5 py-px font-mono text-[10.5px] font-semibold",
             status.cls,
           )}
         >
@@ -179,7 +179,7 @@ function RunSummaryTab() {
             <span className="truncate">{a.command || t("runSummary.approval.noCommand")}</span>
             <span
               className={cn(
-                "ml-auto rounded-xs px-1 text-[10px] font-semibold",
+                "ml-auto rounded-sm px-1 text-[10px] font-semibold",
                 a.decision === "approved"
                   ? "text-success"
                   : a.decision === "declined"

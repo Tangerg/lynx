@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { AgentIconButton, AgentToolbarButton } from "@/ui/agent";
-import { DropdownMenu, Icon, ProviderIcon, Tooltip } from "@/ui";
+import { AgentIconButton } from "@/ui/agent";
+import { DropdownMenu, Icon, ProviderIcon, StatusDot, Tooltip } from "@/ui";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { useSelectedModel } from "./public/selectedModel";
 import { useModels } from "@/lib/data/queries";
@@ -26,11 +26,11 @@ function ModelPicker() {
     if (!isLoading) return null;
     return (
       <div
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] pl-1.5 pr-2.5 opacity-60"
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 opacity-60"
         aria-hidden
       >
-        <span className="h-4 w-4 rounded-full bg-surface-2" />
-        <span className="h-3 w-16 rounded bg-surface-2" />
+        <span className="h-1.5 w-1.5 rounded-full bg-surface-2" />
+        <span className="h-3 w-16 rounded-sm bg-surface-2" />
       </div>
     );
   }
@@ -40,16 +40,16 @@ function ModelPicker() {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         render={
-          <AgentToolbarButton
+          <button
             type="button"
             aria-label={t("composer.switchModel")}
-            className="gap-1.5 pl-1.5 pr-2.5 shadow-none"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-sans text-[13px] font-medium text-fg-soft transition-colors hover:bg-fg/[0.05] hover:text-fg data-[popup-open]:bg-fg/[0.05] data-[popup-open]:text-fg"
             data-slot="composer-model"
           >
-            <ProviderIcon provider={selected.provider} size={16} />
-            <span className="font-sans text-[12.5px] font-medium">{selected.label}</span>
-            <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
-          </AgentToolbarButton>
+            <StatusDot tone="idle" />
+            <span className="max-w-[168px] truncate">{selected.label}</span>
+            <Icon name="chevron-down" size={14} className="shrink-0 text-fg-faint" />
+          </button>
         }
       />
       <DropdownMenu.Content align="start" sideOffset={6} className="min-w-[200px]">

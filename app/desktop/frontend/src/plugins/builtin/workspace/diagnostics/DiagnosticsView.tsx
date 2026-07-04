@@ -47,7 +47,7 @@ export function DiagnosticsView() {
           <button
             type="button"
             onClick={clear}
-            className="rounded-md border-[0.5px] border-field bg-surface px-2.5 py-1 text-[12px] text-fg-muted hover:bg-surface-2 hover:text-fg"
+            className="rounded-md border-[0.5px] border-field bg-transparent px-2.5 py-1 text-[12px] text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg"
           >
             Clear
           </button>
@@ -185,7 +185,7 @@ function InstrumentSection({ group }: { group: NameGroup }) {
         </thead>
         <tbody className="font-mono">
           {group.rows.map((r) => (
-            <tr key={r.id} className="hover:bg-surface-2">
+            <tr key={r.id} className="hover:bg-fg/[0.04]">
               <td className="py-0.5 pr-3 text-fg-muted">{formatAttrs(r.attrs)}</td>
               <td className="py-0.5 pr-3 text-right tabular-nums text-fg">{r.count}</td>
               {group.kind === "histogram" && (

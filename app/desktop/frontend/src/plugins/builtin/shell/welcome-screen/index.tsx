@@ -6,7 +6,7 @@
 
 import type { CommandSpec } from "@/plugins/sdk";
 import type { IconName } from "@/ui";
-import { Icon, Tooltip } from "@/ui";
+import { Icon, Kbd, Tooltip } from "@/ui";
 import { useProviders } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCommands } from "@/plugins/sdk";
@@ -63,7 +63,7 @@ function SetupCard() {
     openWorkspaceSettingsPane("providers", t("settings.title"));
   };
   return (
-    <div className="w-full rounded-[8px] bg-surface px-4 py-4 text-left shadow-[var(--shadow-border)]">
+    <div className="w-full rounded-[12px] bg-surface px-4 py-4 text-left">
       <div className="flex items-start gap-3">
         <Icon name="spark" size={16} className="mt-0.5 shrink-0 text-accent" />
         <div className="flex flex-col items-start gap-2">
@@ -101,7 +101,7 @@ function WelcomeScreen() {
   const keyless = providers !== undefined && !providers.some((p) => p.apiKeyMasked !== "");
 
   return (
-    <div className="mx-auto w-full max-w-[760px]">
+    <div className="mx-auto w-full max-w-[var(--content-max)]">
       {keyless ? (
         <SetupCard />
       ) : (
@@ -112,7 +112,7 @@ function WelcomeScreen() {
                 <button
                   type="button"
                   onClick={() => setValue(t(s.promptKey))}
-                  className="inline-flex h-8 items-center gap-2 rounded-full border-0 bg-surface px-3 text-[12.5px] font-medium text-fg-soft shadow-[var(--shadow-border)] transition-[background-color,color,transform] duration-[120ms] hover:bg-surface-2 hover:text-fg active:scale-[0.98]"
+                  className="inline-flex h-8 items-center gap-2 rounded-[12px] border-0 bg-surface px-3 text-[12.5px] font-medium text-fg-soft transition-[background-color,color,transform] duration-[120ms] hover:bg-surface-2 hover:text-fg active:scale-[0.98]"
                 >
                   <Icon name={s.icon} size={14} className="shrink-0 text-fg-muted" />
                   <span>{t(s.labelKey)}</span>
@@ -124,9 +124,7 @@ function WelcomeScreen() {
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 font-mono text-[11px] text-fg-faint">
               {hints.map((c) => (
                 <span key={c.id} className="inline-flex items-center gap-1.5">
-                  <kbd className="rounded border-[0.5px] border-field bg-surface-2 px-1.5 py-0.5 text-[10.5px] not-italic text-fg-muted">
-                    {comboGlyph(c.combo!)}
-                  </kbd>
+                  <Kbd>{comboGlyph(c.combo!)}</Kbd>
                   <span>{c.label}</span>
                 </span>
               ))}

@@ -25,16 +25,16 @@ export function JumpToBottomButton({ visible, onClick }: Props) {
       tabIndex={visible ? 0 : -1}
       className={cn(
         "absolute bottom-20 left-1/2 -translate-x-1/2 z-[3] grid h-8 w-8 place-items-center rounded-full",
-        "bg-surface text-fg border-0",
+        "bg-canvas text-fg-soft border-0",
         "shadow-[var(--shadow-popover)] transition-[opacity,translate,scale,background] duration-[--dur-fast]",
-        "hover:bg-surface-2",
+        "hover:bg-surface-2 hover:text-fg",
         "active:translate-y-0 active:scale-95",
         visible
           ? "opacity-100 translate-y-0 pointer-events-auto"
           : "opacity-0 translate-y-1 pointer-events-none",
       )}
     >
-      <Icon name="arrow-down" size={14} />
+      <Icon name="chevron-down" size={16} />
     </button>
   );
 }

@@ -9,9 +9,11 @@ export function ProvidersPane() {
   const { data, isLoading, isError } = useProviderConfigs();
 
   return (
-    <div className="flex flex-col gap-3">
-      <UtilityModelSection />
-      <EmbeddingModelSection />
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        <UtilityModelSection />
+        <EmbeddingModelSection />
+      </div>
       <DataView
         items={data}
         isLoading={isLoading}
@@ -24,7 +26,7 @@ export function ProvidersPane() {
         }}
       >
         {(rows) => (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1 rounded-[14px] bg-surface p-2">
             {rows.map((p) => (
               <ProviderRow key={p.id} p={p} />
             ))}

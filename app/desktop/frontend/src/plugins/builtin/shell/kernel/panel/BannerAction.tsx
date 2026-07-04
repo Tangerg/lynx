@@ -11,8 +11,8 @@ const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent";
 
 const PRIMARY_TONE: Record<"negative" | "warning", string> = {
-  negative: "border-negative/40 bg-negative/15 text-negative hover:bg-negative/25",
-  warning: "border-warning/40 bg-warning/15 text-warning hover:bg-warning/25",
+  negative: "bg-negative/15 text-negative hover:bg-negative/25",
+  warning: "bg-warning/15 text-warning hover:bg-warning/25",
 };
 
 export function BannerAction({
@@ -38,11 +38,11 @@ export function BannerAction({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "inline-flex h-6 items-center gap-1 rounded-md border-[0.5px] px-2 font-sans text-[11.5px] transition-colors",
+        "inline-flex h-6 items-center gap-1 rounded-md px-2 font-sans text-[11.5px] transition-colors",
         primary
           ? cn("font-semibold", PRIMARY_TONE[tone])
-          : "border-field bg-transparent text-fg-muted hover:bg-surface-2 hover:text-fg",
-        "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
+          : "bg-canvas text-fg-soft hover:bg-surface-2 hover:text-fg",
+        "disabled:cursor-not-allowed disabled:opacity-50",
         FOCUS_RING,
       )}
     >

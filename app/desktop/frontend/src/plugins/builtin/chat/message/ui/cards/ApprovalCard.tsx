@@ -1,6 +1,6 @@
 import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { useEffect, useRef, useState } from "react";
-import { Checkbox, Divider, Icon, Segmented } from "@/ui";
+import { Button, Checkbox, Divider, Icon, Segmented } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import {
@@ -156,7 +156,7 @@ export function ApprovalCard({
       trailing={
         <span
           className={cn(
-            "rounded-sm border-[0.5px] px-1.5 py-px text-[10px] font-medium",
+            "rounded-sm px-1.5 py-px text-[10px] font-medium",
             approvalRiskToneClass(riskView.tone),
           )}
         >
@@ -167,14 +167,14 @@ export function ApprovalCard({
       <div className="mb-1.5 text-[16px] font-semibold leading-[1.4] text-fg">{what}</div>
       {/* Shell-prompt command line — only for command-style approvals. Other
           tools have no `cmd` (their payload is just args), so skip the box
-          instead of rendering a lonely "$". */}
+          instead of rendering a lonely "$". Dark code chip on the light card. */}
       {cmd.trim() && (
-        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-sm bg-warning/10 px-2.5 py-1.5 font-mono text-[13px] text-fg">
+        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-[8px] bg-fg p-3 font-mono text-[12px] text-on-fg">
           $ {cmd}
         </code>
       )}
       {dangers.length > 0 && (
-        <div className="my-1.5 flex items-start gap-2 rounded-sm border-[0.5px] border-negative/50 bg-negative/12 px-2.5 py-1.5 text-[12px] leading-[1.5] text-negative">
+        <div className="my-1.5 flex items-start gap-2 rounded-[8px] bg-negative/10 px-3 py-2 text-[12px] leading-[1.5] text-negative">
           <Icon name="alert" size={13} className="mt-px shrink-0" />
           <span>
             <span className="font-semibold">{t("approval.danger")}</span> {dangers.join(" · ")}
@@ -198,7 +198,7 @@ export function ApprovalCard({
             <span
               key={view.scope}
               className={cn(
-                "inline-flex items-center rounded-xs border-[0.5px] px-1.5 py-px font-mono text-[10.5px] font-semibold",
+                "inline-flex items-center rounded-sm px-1.5 py-px font-mono text-[10.5px] font-semibold",
                 approvalScopeToneClass(view.tone),
               )}
             >
@@ -206,7 +206,7 @@ export function ApprovalCard({
             </span>
           ))}
           {target && (
-            <span className="inline-flex items-center gap-1 rounded-xs bg-surface-2 px-1.5 py-px font-mono text-[11px] text-fg-muted">
+            <span className="inline-flex items-center gap-1 rounded-sm bg-surface-2 px-1.5 py-px font-mono text-[11px] text-fg-muted">
               <Icon name="folder" size={10} className="text-fg-faint" />
               {target}
             </span>
@@ -214,7 +214,7 @@ export function ApprovalCard({
           {reversibilityView && (
             <span
               className={cn(
-                "inline-flex items-center gap-1 rounded-xs border-[0.5px] px-1.5 py-px font-mono text-[10.5px] font-semibold",
+                "inline-flex items-center gap-1 rounded-sm px-1.5 py-px font-mono text-[10.5px] font-semibold",
                 approvalReversibilityToneClass(reversibilityView.tone),
               )}
             >
@@ -225,26 +225,26 @@ export function ApprovalCard({
       )}
       <div className="mb-2 text-[13px] leading-[1.55] text-fg-muted">{reason}</div>
       <div className="flex items-center gap-2">
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="sm"
           data-slot="approval-approve"
           disabled={disabled}
           onClick={onApprove}
-          className="inline-flex items-center gap-1.5 rounded-md bg-fg px-3 py-1.5 text-[13px] font-medium text-on-fg transition-opacity duration-150 ease-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("approval.action.approve")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⌘↵</kbd>}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           data-slot="approval-decline"
           disabled={disabled}
           onClick={onDecline}
-          className="inline-flex items-center gap-1.5 rounded-md bg-transparent px-3 py-1.5 text-[13px] font-medium text-fg transition-colors duration-150 ease-out hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("approval.action.decline")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⇧⌘⌫</kbd>}
-        </button>
+        </Button>
         <label className="ml-auto flex items-center gap-1.5 text-[11.5px] text-fg-muted select-none">
           <Checkbox
             checked={remember}
@@ -274,19 +274,21 @@ export function ApprovalCard({
   );
 }
 
+// Tinted pill fills — no inset ring borders (§ light Geist recipe). Tone rides
+// the semantic bg/text token alone.
 function approvalRiskToneClass(tone: ApprovalTone): string {
-  if (tone === "danger") return "border-negative/40 bg-negative/15 text-negative";
-  if (tone === "warning") return "border-warning/40 bg-warning/15 text-warning";
-  return "border-fg-faint/30 bg-fg-faint/10 text-fg-muted";
+  if (tone === "danger") return "bg-negative/10 text-negative";
+  if (tone === "warning") return "bg-warning/10 text-warning";
+  return "bg-fg/[0.06] text-fg-muted";
 }
 
 function approvalScopeToneClass(tone: ApprovalTone): string {
-  if (tone === "danger") return "border-negative/40 bg-negative/12 text-negative";
-  if (tone === "warning") return "border-warning/30 bg-warning/10 text-warning";
-  return "border-transparent bg-surface-2 text-fg-muted";
+  if (tone === "danger") return "bg-negative/10 text-negative";
+  if (tone === "warning") return "bg-warning/10 text-warning";
+  return "bg-surface-2 text-fg-muted";
 }
 
 function approvalReversibilityToneClass(tone: ApprovalTone): string {
-  if (tone === "danger") return "border-negative/40 bg-negative/12 text-negative";
-  return "border-fg-faint/30 bg-fg-faint/10 text-fg-muted";
+  if (tone === "danger") return "bg-negative/10 text-negative";
+  return "bg-fg/[0.06] text-fg-muted";
 }

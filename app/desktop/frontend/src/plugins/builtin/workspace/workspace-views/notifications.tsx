@@ -2,7 +2,7 @@
 // behind every `host.notify(...)` call.
 
 import { useMemo } from "react";
-import { EmptyState, Icon, IconButton } from "@/ui";
+import { EmptyState, Icon, IconButton, StatusDot } from "@/ui";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
@@ -64,22 +64,22 @@ interface RowProps {
   onDismiss: () => void;
 }
 
-// Level → dot color. Lookup table beats a nested ternary and makes
+// Level → StatusDot tone. Lookup table beats a nested ternary and makes
 // adding a new level (e.g. "success") a one-line edit.
-const DOT_BG_BY_LEVEL: Record<RowProps["level"], string> = {
-  error: "bg-negative",
-  warn: "bg-warning",
-  info: "bg-fg-faint",
+const DOT_TONE_BY_LEVEL: Record<RowProps["level"], "err" | "waiting" | "idle"> = {
+  error: "err",
+  warn: "waiting",
+  info: "idle",
 };
 
 function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismiss }: RowProps) {
   const t = useT();
   return (
     <div className={cn("flex items-start gap-2.5 px-3.5 py-2", dismissed && "opacity-50")}>
-      <div className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", DOT_BG_BY_LEVEL[level])} />
+      <StatusDot tone={DOT_TONE_BY_LEVEL[level]} className="mt-1.5" />
       <div className="min-w-0 flex-1">
-        <div className="whitespace-pre-wrap break-words text-[12px] text-fg">{message}</div>
-        <div className="mt-0.5 text-[10px] text-fg-faint">
+        <div className="whitespace-pre-wrap break-words text-[13px] text-fg-soft">{message}</div>
+        <div className="mt-0.5 text-[11px] text-fg-muted">
           {plugin} · {formatRelative(timestamp)}
         </div>
       </div>

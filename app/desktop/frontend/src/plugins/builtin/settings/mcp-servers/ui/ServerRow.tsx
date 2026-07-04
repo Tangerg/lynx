@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, PillButton, StatusDot, Switch } from "@/ui";
+import { Icon, IconButton, PillButton, StatusDot, Switch } from "@/ui";
 import {
   type MCPServerConfig,
   type MCPServerTransport,
@@ -23,7 +23,7 @@ const STATUS_TONE: Record<
 
 function TransportBadge({ transport }: { transport: MCPServerTransport }) {
   return (
-    <span className="rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-fg-muted">
+    <span className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-muted">
       {transport}
     </span>
   );
@@ -55,23 +55,23 @@ export function ServerRow({ server }: { server: MCPServerConfig }) {
   const active = server.status === "connected";
 
   return (
-    <div className="rounded-lg bg-canvas px-3 py-2.5">
+    <div className="rounded-md px-3 py-2.5 transition-colors hover:bg-fg/[0.04]">
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
         <StatusDot tone={tone} />
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[14px] font-semibold text-fg" title={server.name}>
+          <span className="truncate text-[14px] font-medium text-fg" title={server.name}>
             {server.name}
           </span>
           <TransportBadge transport={server.type} />
           {server.status === "failed" && server.errorDetail && (
-            <span className="truncate text-[11px] text-negative" title={server.errorDetail}>
+            <span className="truncate text-[12px] text-negative" title={server.errorDetail}>
               {server.errorDetail}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2.5">
           {active && (
-            <span className="font-mono text-[11px] tabular-nums text-fg-faint">
+            <span className="font-mono text-[12px] tabular-nums text-fg-muted">
               {t("mcp.toolCount", { count: server.toolCount ?? 0 })}
             </span>
           )}
@@ -85,15 +85,16 @@ export function ServerRow({ server }: { server: MCPServerConfig }) {
             onCheckedChange={(value) => void onToggle(value)}
             ariaLabel={t("mcp.enable.aria", { server: server.name })}
           />
-          <button
-            type="button"
-            aria-label={t("mcp.edit", { server: server.name })}
+          <IconButton
+            variant="ghost"
+            active={editing}
+            title={t("mcp.edit", { server: server.name })}
             aria-expanded={editing}
             onClick={() => setEditing((value) => !value)}
-            className="grid h-7 w-7 place-items-center rounded-md text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg"
+            className="h-7 w-7"
           >
             <Icon name="edit" size={13} />
-          </button>
+          </IconButton>
         </div>
       </div>
 

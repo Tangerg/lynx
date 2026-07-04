@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PillButton } from "@/ui";
+import { FIELD_CLASSES, PillButton } from "@/ui";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import {
   createSchedule,
@@ -17,8 +17,7 @@ import {
   scheduleInputFromDraft,
 } from "../application/scheduleDraft";
 
-const INPUT_CLASS =
-  "w-full rounded-md border-[0.5px] border-field bg-surface px-2.5 py-1.5 text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent";
+const FIELD = cn(FIELD_CLASSES, "w-full px-2.5 py-1.5 text-fg placeholder:text-fg-faint");
 
 interface ScheduleFormProps {
   schedule?: ScheduleConfig;
@@ -56,13 +55,13 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
   };
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-2 p-3">
+    <div className="flex flex-col gap-3 rounded-[14px] bg-surface p-4">
       <input
         value={draft.title}
         onChange={(event) => updateDraft("title", event.target.value)}
         placeholder={t("schedules.form.title")}
         aria-label={t("schedules.form.title")}
-        className={INPUT_CLASS}
+        className={cn(FIELD, "font-sans")}
       />
       <textarea
         value={draft.prompt}
@@ -70,7 +69,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
         rows={4}
         placeholder={t("schedules.form.prompt")}
         aria-label={t("schedules.form.prompt")}
-        className={cn(INPUT_CLASS, "resize-y leading-[1.5]")}
+        className={cn(FIELD, "resize-y font-sans leading-[1.5]")}
       />
       <div className="flex flex-wrap items-center gap-1.5">
         {CRON_PRESETS.map((preset) => (
@@ -79,10 +78,10 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
             type="button"
             onClick={() => updateDraft("cron", preset.cron)}
             className={cn(
-              "rounded-full border-[0.5px] px-2 py-0.5 text-[11px] transition-colors",
+              "rounded-pill px-2.5 py-1 text-[11px] font-medium transition-colors",
               draft.cron === preset.cron
-                ? "border-accent/40 bg-accent/12 text-accent"
-                : "border-field text-fg-muted hover:text-fg",
+                ? "bg-accent/10 text-accent"
+                : "text-fg-muted hover:bg-fg/[0.04] hover:text-fg",
             )}
           >
             {t(preset.key)}
@@ -95,7 +94,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
         spellCheck={false}
         placeholder="0 9 * * 1-5"
         aria-label={t("schedules.form.cron")}
-        className={cn(INPUT_CLASS, "font-mono")}
+        className={FIELD}
       />
       <input
         value={draft.cwd}
@@ -103,7 +102,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
         spellCheck={false}
         placeholder={t("schedules.form.cwd")}
         aria-label={t("schedules.form.cwd")}
-        className={cn(INPUT_CLASS, "font-mono")}
+        className={FIELD}
       />
       <div className="flex items-center gap-2">
         <PillButton

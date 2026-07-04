@@ -75,7 +75,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   };
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-md bg-surface-2 p-3">
+    <div className="flex flex-col gap-3 rounded-[14px] bg-surface p-4">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <input
           type="text"
@@ -155,8 +155,8 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
         </>
       )}
 
-      <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
-        {t("mcp.form.timeout")}
+      <label className="flex flex-col gap-1.5">
+        <span className="text-[13px] font-medium text-fg">{t("mcp.form.timeout")}</span>
         <input
           type="number"
           min={0}
@@ -180,7 +180,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
 
       {server && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] text-fg-muted">{t("mcp.tools.manage")}</span>
+          <span className="text-[13px] font-medium text-fg">{t("mcp.tools.manage")}</span>
           <ToolControls
             server={server.name}
             disabledTools={draft.disabledTools}

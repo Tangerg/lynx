@@ -14,7 +14,7 @@ export function PreviewFoot({ label, onClick }: { label: string; onClick?: () =>
       <button
         type="button"
         onClick={onClick}
-        className="inline-flex items-center gap-1.5 rounded-md bg-transparent px-2.5 py-1 font-sans text-[11px] font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
+        className="inline-flex items-center gap-1.5 rounded-md bg-transparent px-2.5 py-1 font-sans text-[11px] font-medium text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg"
       >
         {t(label)} <Icon name="share" size={11} />
       </button>

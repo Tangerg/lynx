@@ -62,15 +62,17 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
   }
 
   return (
-    <div className="flex h-[52px] shrink-0 items-center gap-2 border-b-[0.5px] border-field/70 px-3.5">
+    // No bottom border — the header separates from the body by whitespace and
+    // the dock/canvas surface delta, not a grey rule (Geist/Codex aesthetic).
+    <div className="flex h-[52px] shrink-0 items-center gap-2 px-3.5">
       <Icon name={icon} size={15} strokeWidth={1.8} className="shrink-0 text-fg-muted" />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span
           className={cn(
-            "min-w-0 truncate text-fg",
-            titleStrong
-              ? "font-sans text-[13.5px] font-semibold"
-              : "font-mono text-[12.5px] font-medium",
+            "min-w-0 truncate text-[13px] font-medium text-fg",
+            // A label title ("Notifications") reads in the UI face; a filename /
+            // process title stays mono so paths and identifiers align.
+            titleStrong ? "font-sans" : "font-mono",
           )}
         >
           {/* A string title is an i18n key (built-in views) or a literal
@@ -83,14 +85,7 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
             <span aria-hidden="true" className="shrink-0 text-[13px] leading-none text-fg-faint">
               ·
             </span>
-            <span
-              className={cn(
-                "min-w-0 truncate text-[11.5px] text-fg-faint",
-                titleStrong ? "font-sans" : "font-mono",
-              )}
-            >
-              {sub}
-            </span>
+            <span className="min-w-0 truncate font-mono text-[12px] text-fg-muted">{sub}</span>
           </>
         )}
       </div>

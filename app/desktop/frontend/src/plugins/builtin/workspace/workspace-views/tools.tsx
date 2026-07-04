@@ -41,7 +41,7 @@ function BuiltinToolsSection() {
           key={tool.name}
           className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-2 px-4 py-1"
         >
-          <code className="rounded-xs bg-surface-2 px-1 font-mono text-[11px] text-fg">
+          <code className="rounded-sm bg-surface-2 px-1 font-mono text-[11px] text-fg">
             {tool.name}
           </code>
           <div className="flex min-w-0 items-baseline gap-2">
@@ -50,7 +50,7 @@ function BuiltinToolsSection() {
             </span>
             {tool.safetyClass && (
               <span
-                className={`shrink-0 rounded-xs px-1.5 py-0.5 font-mono text-[10px] ${SAFETY_PILL[tool.safetyClass] ?? "bg-surface-2 text-fg-muted"}`}
+                className={`shrink-0 rounded-sm px-1.5 py-0.5 font-mono text-[10px] ${SAFETY_PILL[tool.safetyClass] ?? "bg-surface-2 text-fg-muted"}`}
               >
                 {tool.safetyClass}
               </span>

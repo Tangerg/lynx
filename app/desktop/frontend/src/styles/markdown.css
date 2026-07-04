@@ -14,8 +14,8 @@
 
 .md p {
   margin: 12px 0;
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.7;
   color: var(--color-text-soft);
   letter-spacing: 0;
 }
@@ -34,28 +34,27 @@
 .md h4,
 .md h5,
 .md h6 {
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.3;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-display);
   color: var(--color-text);
 }
 .md h1 {
   font-size: 20px;
   margin: 24px 0 12px;
-  letter-spacing: -0.02em;
   line-height: 1.25;
 }
 .md h2 {
-  font-size: 16px;
+  font-size: 17px;
   margin: 20px 0 8px;
-  letter-spacing: -0.02em;
 }
 .md h3 {
-  font-size: 14px;
+  font-size: 15px;
   margin: 16px 0 8px;
 }
 .md h4 {
   font-size: 14px;
+  font-weight: 500;
   margin: 12px 0 6px;
   color: var(--color-text);
 }
@@ -87,7 +86,8 @@
 .md ol {
   margin: 8px 0;
   padding-left: 20px;
-  font-size: 16px;
+  font-size: 15px;
+  line-height: 1.7;
   color: var(--color-text-soft);
 }
 .md ul {
@@ -153,28 +153,27 @@
   background-position: center;
 }
 
-/* Blockquote — neutral bar (no accent tint), muted text. The bar is
-   a quiet structural cue, not a colorful emphasis. */
+/* Blockquote — a semantic left-rule (allowed), muted text. The bar is
+   a quiet structural cue at 20% ink, not a colorful emphasis. */
 .md blockquote {
   margin: 12px 0;
   padding: 0 0 0 12px;
-  border-left: 2px solid var(--color-border);
+  border-left: 2px solid color-mix(in oklab, var(--color-text) 20%, transparent);
   color: var(--color-text-muted);
-  font-style: italic;
 }
 .md blockquote p {
   margin: 4px 0;
 }
 
 .md a {
-  color: var(--color-text);
+  color: var(--color-accent);
   text-decoration: underline;
-  text-decoration-color: var(--color-border);
+  text-decoration-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
   text-underline-offset: 2px;
   transition: text-decoration-color var(--polish-fast);
 }
 .md a:hover {
-  text-decoration-color: var(--color-text);
+  text-decoration-color: var(--color-accent);
 }
 
 .md hr {
@@ -208,7 +207,7 @@
   margin: 10px 0;
   font-size: 13px;
   width: auto;
-  border: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-text) 6%, transparent);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
@@ -216,14 +215,14 @@
 .md table td {
   padding: 6px 10px;
   text-align: left;
-  border-bottom: 1px solid color-mix(in oklab, var(--color-text) 5%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-text) 6%, transparent);
 }
 .md table tr:last-child td {
   border-bottom: 0;
 }
 .md table th {
-  background: color-mix(in oklab, var(--color-text) 4%, transparent);
-  color: var(--color-text-bright);
+  background: var(--color-surface-2);
+  color: var(--color-text);
   font-weight: 600;
   font-size: 11px;
   letter-spacing: 0.02em;
@@ -234,14 +233,14 @@
   background: color-mix(in oklab, var(--color-text) 2%, transparent);
 }
 
-/* Inline code — craft-aligned: very subtle bg (4%), no border, mono
-   at a fixed 13px so it reads as data, not prose. */
+/* Inline code — surface-2 chip, no border, mono at a fixed 13px so it
+   reads as data, not prose. */
 .md code {
   font-family: var(--font-mono);
   font-size: 13px;
-  padding: 1px 3px;
+  padding: 1px 6px;
   background: var(--color-surface-2);
-  border-radius: 2px;
+  border-radius: 5px;
   color: var(--color-text);
   letter-spacing: 0;
 }

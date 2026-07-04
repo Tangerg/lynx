@@ -156,11 +156,11 @@ export function ChatStream({ onSend }: Props) {
         <CwdMissingBanner key={resetKey} />
         <RunErrorBanner />
         <div className="panel-scroll flex flex-1 flex-col items-center justify-center overflow-y-auto px-4">
-          <h1 className="text-balance text-center text-[30px] font-medium tracking-normal text-fg">
+          <h1 className="text-balance text-center text-[28px] font-medium tracking-display text-fg">
             {t("welcome.title")}
           </h1>
-          <div className="mt-8 w-full max-w-[700px]">{composer}</div>
-          <div className="mt-8 w-full max-w-[700px]">
+          <div className="mt-8 w-full max-w-[var(--content-max)]">{composer}</div>
+          <div className="mt-8 w-full max-w-[var(--content-max)]">
             <Slot name="chat.empty" />
           </div>
         </div>
@@ -180,7 +180,7 @@ export function ChatStream({ onSend }: Props) {
           container, not this one). Plan-progress is the only built-in
           contributor today; the slot is open so plugins can stack
           their own "above the stream" banners here. */}
-      <div className="pointer-events-auto mx-auto w-full max-w-[700px] px-5">
+      <div className="pointer-events-auto mx-auto w-full max-w-[var(--content-max)] px-5">
         <Slot name="chat.banner.top" />
       </div>
       <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
@@ -204,7 +204,7 @@ export function ChatStream({ onSend }: Props) {
         />
         {/* px-5 mirrors msg-stream's content padding so the composer's
             outer edge lines up with the message text column above it. */}
-        <div className="pointer-events-auto relative z-[2] mx-auto w-full max-w-[700px] px-5">
+        <div className="pointer-events-auto relative z-[2] mx-auto w-full max-w-[var(--content-max)] px-5">
           {composer}
         </div>
       </div>

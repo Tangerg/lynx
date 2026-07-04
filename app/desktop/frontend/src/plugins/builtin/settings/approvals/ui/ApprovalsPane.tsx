@@ -17,7 +17,7 @@ export function ApprovalsPane() {
     );
   }
   return (
-    <div>
+    <div className="flex flex-col gap-6">
       <ModeRow mode={mode} />
       <RulesRow />
     </div>

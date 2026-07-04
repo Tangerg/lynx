@@ -93,7 +93,7 @@ function CodebaseTab() {
             }}
             placeholder={t("codebase.search.placeholder")}
             aria-label={t("codebase.search.placeholder")}
-            className="w-full rounded-md border-[0.5px] border-field bg-surface px-2.5 py-1.5 text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
+            className="w-full rounded-md border-[0.5px] border-field bg-canvas px-2.5 py-1.5 text-[12px] text-fg outline-none transition-colors placeholder:text-fg-faint focus:border-field-strong"
           />
           <PillButton
             variant="accent"
@@ -108,7 +108,7 @@ function CodebaseTab() {
             aria-label={t("codebase.reindex")}
             title={t("codebase.reindex")}
             onClick={() => void reindex()}
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-fg-faint transition-colors hover:bg-fg/[0.08] hover:text-fg"
           >
             <Icon name="spark" size={13} />
           </button>
@@ -122,7 +122,10 @@ function CodebaseTab() {
 
         <div className="flex flex-col gap-2">
           {(hits ?? []).map((h, i) => (
-            <div key={`${h.path}:${h.startLine}:${i}`} className="rounded-lg bg-canvas px-3 py-2">
+            <div
+              key={`${h.path}:${h.startLine}:${i}`}
+              className="rounded-[10px] bg-surface-2 px-3 py-2"
+            >
               <div className="flex items-center gap-2">
                 <span className="truncate font-mono text-[12px] text-accent">
                   {h.path}:{h.startLine}-{h.endLine}

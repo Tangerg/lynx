@@ -47,8 +47,8 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
         <DropdownMenu.Trigger
           disabled={!customEnabled}
           className={cn(
-            "inline-flex w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-md border-[0.5px] border-field bg-surface px-2.5 py-1.5 text-[13px] text-fg transition-colors hover:bg-surface-2 data-[popup-open]:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-            "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface",
+            "inline-flex w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-md border-[0.5px] border-field bg-surface-2 px-2.5 py-1.5 text-[13px] text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+            "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface-2",
             mono && customEnabled && "font-mono text-[12.5px]",
           )}
           style={customEnabled ? { fontFamily: `"${value}"` } : undefined}

@@ -24,7 +24,7 @@ function Chip({ icon, title, children }: { icon: IconName; title: string; childr
   return (
     <span
       title={title}
-      className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-faint whitespace-nowrap transition-colors hover:text-fg-muted"
+      className="inline-flex items-center gap-1.5 text-[12px] text-fg-faint whitespace-nowrap transition-colors hover:text-fg-muted"
     >
       <Icon name={icon} size={11} className="shrink-0" />
       <span>{children}</span>
@@ -75,7 +75,7 @@ function ApprovalModeChip() {
           <button
             type="button"
             aria-label={t("approvals.mode.aria")}
-            className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-faint whitespace-nowrap transition-colors hover:text-fg-muted data-[popup-open]:text-fg"
+            className="inline-flex items-center gap-1.5 text-[12px] text-fg-faint whitespace-nowrap transition-colors hover:text-fg-muted data-[popup-open]:text-fg"
           >
             <Icon
               name="shield"
@@ -92,7 +92,7 @@ function ApprovalModeChip() {
           <DropdownMenu.Item
             key={m.value}
             onClick={() => void onSelect(m.value)}
-            className="grid grid-cols-[minmax(0,1fr)_14px] items-start gap-2 rounded-sm px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
+            className="grid grid-cols-[minmax(0,1fr)_14px] items-start gap-2 rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-fg/[0.06]"
           >
             <span className="min-w-0">
               <span className="block text-[12.5px] font-semibold text-fg">{t(m.labelKey)}</span>
@@ -124,7 +124,7 @@ function UsageChip() {
   return (
     <span
       title={t("composer.usage.hint")}
-      className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-faint whitespace-nowrap tabular-nums"
+      className="inline-flex items-center gap-1.5 font-mono text-[12px] text-fg-faint whitespace-nowrap tabular-nums"
     >
       <span>↑{fmtTokens(usage.inputTokens)}</span>
       <span>↓{fmtTokens(usage.outputTokens)}</span>

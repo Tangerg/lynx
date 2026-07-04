@@ -14,7 +14,7 @@ import { comboGlyph } from "@/lib/combo";
 import { Command } from "cmdk";
 import { useMemo } from "react";
 import { usePaletteStore } from "../paletteStore";
-import { Icon } from "@/ui";
+import { Icon, Kbd } from "@/ui";
 import { t, useT } from "@/lib/i18n";
 import {
   definePlugin,
@@ -53,16 +53,14 @@ function CommandPalette() {
       label={t("commandPalette.label")}
       className="fixed inset-0 z-50 flex items-start justify-center p-24 [&_[cmdk-overlay]]:fixed [&_[cmdk-overlay]]:inset-0 [&_[cmdk-overlay]]:bg-black/35"
     >
-      <Command className="animate-rise-in relative z-[1] flex w-full max-w-[640px] flex-col overflow-hidden rounded-lg border-[0.5px] border-field bg-surface shadow-[var(--shadow-popover)]">
-        <div className="flex items-center gap-2 px-4 py-3 text-fg-faint">
-          <Icon name="search" size={14} />
+      <Command className="animate-rise-in relative z-[1] flex w-full max-w-[640px] flex-col overflow-hidden rounded-[14px] bg-canvas shadow-[var(--shadow-popover)]">
+        <div className="flex items-center gap-2.5 px-4 py-3 text-fg-muted">
+          <Icon name="search" size={15} />
           <Command.Input
             placeholder={t("commandPalette.placeholder")}
-            className="flex-1 bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-faint"
+            className="flex-1 bg-transparent text-[15px] text-fg outline-none placeholder:text-fg-faint"
           />
-          <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-fg-faint">
-            esc
-          </span>
+          <Kbd>esc</Kbd>
         </div>
         <Command.List className="max-h-[400px] overflow-y-auto p-1.5">
           <Command.Empty className="px-3 py-6 text-center text-[12px] text-fg-faint">
@@ -78,25 +76,19 @@ function CommandPalette() {
                 ...(cmd.keywords ?? []),
               ].join(" ")}
               onSelect={() => run(cmd)}
-              className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] text-fg-muted aria-selected:bg-surface-2 aria-selected:text-fg"
+              className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg-soft hover:bg-fg/[0.06] aria-selected:bg-fg/[0.06] aria-selected:text-fg"
             >
-              {cmd.icon && <Icon name={cmd.icon as IconName} size={14} />}
+              {cmd.icon && (
+                <Icon name={cmd.icon as IconName} size={14} className="shrink-0 text-fg-muted" />
+              )}
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="truncate font-medium">{cmd.label}</div>
                 {cmd.description && (
                   <div className="truncate text-[11.5px] text-fg-faint">{cmd.description}</div>
                 )}
               </div>
-              {cmd.group && (
-                <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-fg-faint">
-                  {cmd.group}
-                </span>
-              )}
-              {cmd.combo && (
-                <span className="ml-1 font-mono text-[11px] text-fg-faint">
-                  {comboGlyph(cmd.combo)}
-                </span>
-              )}
+              {cmd.group && <span className="text-[11px] text-fg-faint">{cmd.group}</span>}
+              {cmd.combo && <Kbd>{comboGlyph(cmd.combo)}</Kbd>}
             </Command.Item>
           ))}
         </Command.List>

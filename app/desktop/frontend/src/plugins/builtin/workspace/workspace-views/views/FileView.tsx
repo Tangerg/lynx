@@ -43,10 +43,7 @@ export function FileView({ content, targetLine }: { content: string; targetLine:
           <div
             key={i}
             ref={isTarget ? targetRef : undefined}
-            className={cn(
-              "grid grid-cols-[44px_1fr] gap-2 px-3",
-              isTarget && "bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)]",
-            )}
+            className={cn("grid grid-cols-[44px_1fr] gap-2 px-3", isTarget && "bg-accent/12")}
           >
             <span className="text-right text-[11px] text-fg-faint select-none">{n}</span>
             {html !== undefined ? (

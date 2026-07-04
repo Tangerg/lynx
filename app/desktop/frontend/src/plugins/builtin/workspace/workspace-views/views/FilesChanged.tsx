@@ -20,8 +20,8 @@ export const FilesChanged = memo(function FilesChanged({ files, activePath, onSe
   const totalRemoved = files.reduce((s, f) => s + (f.removed ?? 0), 0);
 
   return (
-    <div>
-      <div className="flex items-center gap-2 px-2.5 py-2 font-mono text-[11px] font-semibold text-fg-faint">
+    <div className="px-1.5">
+      <div className="flex items-center gap-2 px-2 py-2 font-mono text-[11px] font-semibold text-fg-faint">
         <span>{t("files.changed", { count: files.length })}</span>
         <span className="ml-auto text-success">+{totalAdded}</span>
         <span className="text-negative">−{totalRemoved}</span>
@@ -56,21 +56,21 @@ const FileRow = memo(function FileRow({
       aria-pressed={active}
       onClick={() => onSelect(file.path)}
       className={cn(
-        "flex w-full items-center gap-2 border-0 bg-transparent px-2.5 py-1.5 text-left text-[12px] hover:bg-surface focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--color-accent)]",
-        active ? "bg-surface-2 text-fg" : "text-fg-muted",
+        "flex h-8 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-mono text-[12px] hover:bg-fg/[0.04] focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--color-accent)]",
+        active ? "bg-fg/[0.06] text-fg" : "text-fg-muted",
       )}
     >
-      <Icon name="file" size={12} />
-      <span className={cn("font-mono text-[9px] font-semibold", tagColor)}>{tagLetter}</span>
-      <span className="flex-1 truncate font-mono">{file.path}</span>
+      <Icon name="file" size={12} className="shrink-0" />
+      <span className={cn("shrink-0 text-[9px] font-semibold", tagColor)}>{tagLetter}</span>
+      <span className="flex-1 truncate">{file.path}</span>
       {/* Binary files carry no line counts (AUX_API §2.2) — badge instead of fake ±0. */}
       {file.binary ? (
-        <span className="rounded-xs bg-surface-2 px-1 font-mono text-[9px] text-fg-faint">
+        <span className="rounded-sm bg-surface-2 px-1 text-[9px] text-fg-faint">
           {t("files.binary")}
         </span>
       ) : (
-        <span className="flex gap-1.5 font-mono text-[10px]">
-          <span className="text-accent">+{file.added ?? 0}</span>
+        <span className="flex shrink-0 gap-1.5 text-[10px]">
+          <span className="text-success">+{file.added ?? 0}</span>
           <span className="text-negative">−{file.removed ?? 0}</span>
         </span>
       )}

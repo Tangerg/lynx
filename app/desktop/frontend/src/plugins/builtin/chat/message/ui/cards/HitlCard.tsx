@@ -9,9 +9,12 @@ import { cn } from "@/lib/utils";
 // args; question has per-question selects), so this shell intentionally does
 // NOT try to abstract the bodies.
 
+// Both variants are the same quiet surface card (bg-delta, no grey border).
+// The warning cue lives in the header icon color + a tinted risk badge, not
+// in the container edge.
 const VARIANT_CLASS: Record<string, string> = {
   neutral: "bg-surface",
-  warning: "border-[0.5px] border-warning/30 bg-warning/[0.03]",
+  warning: "bg-surface",
 };
 
 /** Settled "done" row — shared by approval (approved) + question (answered). */
@@ -45,7 +48,7 @@ export function HitlCardShell({
   "data-slot": slot = "hitl-shell",
 }: ShellProps) {
   return (
-    <div data-slot={slot} className={cn("my-2 rounded-md px-4 py-3", VARIANT_CLASS[variant])}>
+    <div data-slot={slot} className={cn("my-2 rounded-[14px] p-4", VARIANT_CLASS[variant])}>
       <div className="mb-2 flex items-center gap-2 text-[13px] font-medium text-fg">
         <Icon name={icon} size={13} className={iconClassName} />
         <span>{label}</span>

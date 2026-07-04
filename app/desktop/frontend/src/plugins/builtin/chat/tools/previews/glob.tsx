@@ -18,7 +18,10 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
         <PreviewPlaceholder status={tool.status} pending="Matching…" idle="(no matches)" />
       )}
       {paths.slice(0, MAX_ROWS).map((p) => (
-        <div key={p} className="truncate py-0.5 text-fg-soft">
+        <div
+          key={p}
+          className="truncate rounded-[4px] px-1 py-0.5 text-fg-muted hover:bg-fg/[0.04]"
+        >
           {p}
         </div>
       ))}

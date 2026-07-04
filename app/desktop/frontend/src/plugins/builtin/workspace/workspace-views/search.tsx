@@ -50,7 +50,7 @@ function SearchTab() {
       scrollClassName="py-1"
     >
       <div className="px-4 pt-1 pb-2">
-        <div className="grid grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-md bg-canvas px-3 py-2 focus-within:ring-1 focus-within:ring-accent/40">
+        <div className="grid grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-md border-[0.5px] border-field bg-canvas px-3 py-2 transition-colors focus-within:border-field-strong">
           <Icon name="search" size={13} className="text-fg-faint" />
           <input
             type="text"

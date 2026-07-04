@@ -43,8 +43,8 @@ export function JsonImport() {
     );
   }
   return (
-    <div className="flex flex-col gap-2 rounded-md bg-surface-2 p-3">
-      <span className="text-[11px] text-fg-muted">{t("mcp.import.hint")}</span>
+    <div className="flex flex-col gap-2.5 rounded-[14px] bg-surface p-4">
+      <span className="text-[12px] text-fg-muted">{t("mcp.import.hint")}</span>
       <textarea
         value={text}
         onChange={(event) => setText(event.target.value)}

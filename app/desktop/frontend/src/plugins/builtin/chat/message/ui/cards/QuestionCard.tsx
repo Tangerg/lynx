@@ -1,6 +1,6 @@
 import type { BlockStatus, QuestionItem } from "@/plugins/builtin/agent/public/viewState";
 import { useMemo, useState } from "react";
-import { Icon } from "@/ui";
+import { Button, Icon } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import { useQuestionAnswer } from "@/plugins/builtin/agent/public/hitl";
@@ -58,7 +58,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
     const shown: QuestionAnswers | undefined = questionSettledAnswers(questions, draft, answers);
     if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
     return (
-      <div className="my-3 flex flex-col gap-2 rounded-md bg-surface px-4 py-3">
+      <div className="my-2 flex flex-col gap-2 rounded-[14px] bg-surface p-4">
         <div className="flex items-center gap-1.5 font-mono text-[10px] font-medium text-fg-faint">
           <Icon name="check" size={11} strokeWidth={3} />
           <span>{t("question.settled.answered")}</span>
@@ -161,15 +161,15 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
       </div>
 
       <div className="mt-3.5 flex items-center gap-2">
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="sm"
           data-slot="question-submit"
           disabled={disabled}
           onClick={() => submit(questionDraftAnswers(questions, draft))}
-          className="inline-flex items-center rounded-md bg-fg px-3 py-1.5 text-[13px] font-medium text-on-fg transition-opacity duration-150 ease-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("question.action.submit")}
-        </button>
+        </Button>
       </div>
     </HitlCardShell>
   );

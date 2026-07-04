@@ -87,7 +87,7 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
           {isUser ? (
             <div className="group flex flex-col items-end" data-slot="message-user">
               <MessageContextMenu msg={msg}>
-                <div className="msg-content min-w-0 max-w-[80%] rounded-[16px] bg-surface-2 px-4 py-2.5 text-left text-[15px] leading-[1.6] text-fg">
+                <div className="msg-content min-w-0 max-w-[80%] rounded-[20px] bg-surface-2 px-4 py-2.5 text-left text-[15px] leading-[1.5] text-fg">
                   {content}
                 </div>
               </MessageContextMenu>
@@ -104,7 +104,7 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
             <div className="group flex" data-slot="message-assistant">
               <div className="min-w-0 flex-1">
                 <MessageContextMenu msg={msg}>
-                  <div className="msg-content max-w-[var(--content-max)] text-pretty text-[15px] leading-[1.8] text-fg">
+                  <div className="msg-content max-w-[var(--content-max)] text-pretty text-[15px] leading-[1.7] text-fg-soft">
                     {content}
                   </div>
                 </MessageContextMenu>
