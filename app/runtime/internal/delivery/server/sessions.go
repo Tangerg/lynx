@@ -79,19 +79,14 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	// checkpoint repo — doing that under a live run orphans its writes and races
 	// its boundary snapshot. Stop the run first (runs.cancel), then delete.
 	// Mirrors the rollback session_busy guard; a parked run (no active pump) is
-	// still deletable — its interrupt is dropped in the cascade.
+	// still deletable — lifecycle tears down its parked turn and interrupt.
 	if s.hasActiveRun(id) {
 		return fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, id)
 	}
-	// Delete the session row + cascade its session-scoped storage (history,
-	// chat-memory, open interrupts, process-local gate) via the lifecycle
-	// coordinator: the cascade runs AFTER the authoritative delete and is
-	// best-effort, so a partial cascade leaves harmless orphans, never a
-	// half-deleted session. (Process snapshots aren't dropped — a finished turn
-	// discards its own at teardown, [chatProcess.Discard]; a still-parked one
-	// rides its interrupt, dropped in the cascade.) File checkpoints (shadow git)
+	// Delete the session row + cascade its session-scoped storage and parked
+	// turn state via the lifecycle coordinator. File checkpoints (shadow git)
 	// are a workspace concern, dropped here after the storage cascade.
-	if err := s.coordinator().DeleteSession(ctx, id); err != nil {
+	if err := s.coordinator().DeleteSession(ctx, s.rt.Chat(), id); err != nil {
 		return wireSessionErr(err)
 	}
 	s.dropCheckpoints(id) // file snapshots (shadow git)

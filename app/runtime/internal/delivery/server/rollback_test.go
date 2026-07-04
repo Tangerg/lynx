@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -103,6 +104,9 @@ func TestRollbackSession_DropAll(t *testing.T) {
 	rt.history[sess.ID] = []chat.Message{chat.NewUserMessage("u1"), chat.NewAssistantMessage("a1")}
 	rt.history[child.ID] = []chat.Message{chat.NewUserMessage("sub")}
 	putRun(t, rt, sess.ID, "run_1", "", 100, 2)
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{ParentRunID: "run_child", SessionID: child.ID, Interrupts: []byte(`[]`)}); err != nil {
+		t.Fatalf("seed child interrupt: %v", err)
+	}
 
 	out, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID})
 	if err != nil {
@@ -120,6 +124,9 @@ func TestRollbackSession_DropAll(t *testing.T) {
 	}
 	if _, ok := rt.history[child.ID]; ok {
 		t.Fatal("subagent child messages must be purged")
+	}
+	if pending, _ := rt.interrupts.List(ctx, child.ID); len(pending) != 0 {
+		t.Fatalf("subagent child interrupts = %+v, want purged", pending)
 	}
 }
 
