@@ -10,7 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
 
 // ResumeRun answers an open interrupt by continuing the parked run as a
@@ -26,14 +26,14 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		return nil, nil, err
 	}
 	// Peek the interrupt to learn its session, then claim the session's
-	// single-writer slot BEFORE consuming the record. Consume removes the only
-	// busy-marker a parked run has (it already left s.runs), so without the claim
-	// a concurrent runs.start could slip into the window between Consume and the
-	// continuation's openSegment. The claim is held through openSegment (released
-	// on return). A concurrent resume of the same interrupt loses the claim and
-	// is reported busy; Consume's atomic read-and-remove is the backstop so the
-	// parked process is never rebuilt twice (the approved, possibly
-	// non-idempotent, tool never re-fires).
+	// single-writer slot BEFORE lifecycle consumes the record. Consume removes
+	// the only busy-marker a parked run has (it already left s.runs), so without
+	// the claim a concurrent runs.start could slip into the window between
+	// Consume and the continuation's openSegment. The claim is held through
+	// openSegment (released on return). A concurrent resume of the same
+	// interrupt loses the claim and is reported busy; Consume's atomic
+	// read-and-remove is the backstop so the parked process is never rebuilt
+	// twice (the approved, possibly non-idempotent, tool never re-fires).
 	peek, found, err := s.rt.Interrupts().Get(ctx, in.ParentRunID)
 	if err != nil {
 		return nil, nil, err
@@ -45,37 +45,19 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, peek.SessionID)
 	}
 	defer s.releaseSession(peek.SessionID)
-	pending, ok, err := s.rt.Interrupts().Consume(ctx, in.ParentRunID)
+	resumed, err := s.coordinator().ResumeClaimedInterrupt(ctx, s.rt.Chat(), in.ParentRunID, resolution)
 	if err != nil {
-		return nil, nil, err
-	}
-	if !ok {
-		return nil, nil, protocol.ErrInterruptNotOpen
-	}
-
-	handle := turn.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
-	if err = s.rt.Chat().Resume(ctx, handle, resolution); err != nil {
-		if errors.Is(err, turn.ErrParkClaimed) {
-			// A concurrent runs.cancel claimed the parked turn and is driving it
-			// to canceled — don't rehydrate (that would resurrect the turn and
-			// fire its pending tool). The interrupt is already consumed above, so
-			// report it as no-longer-open; the cancel wins the race.
+		switch {
+		case errors.Is(err, lifecycle.ErrInterruptNotOpen):
 			return nil, nil, protocol.ErrInterruptNotOpen
-		}
-		if !errors.Is(err, turn.ErrTurnNotFound) {
+		case errors.Is(err, lifecycle.ErrRunNotFound):
+			return nil, nil, protocol.ErrRunNotFound
+		default:
 			return nil, nil, err
 		}
-		// The live turn is gone (the backend restarted). Rebuild the parked
-		// process from its persisted snapshot and resume the continuation on
-		// a fresh turn. Needs a recorded ProcessID + a configured durable
-		// ProcessStore; if either is missing the interrupt is genuinely
-		// unresumable (and already claimed above, so nothing to drop).
-		rebuilt, rerr := s.rehydrate(ctx, pending, resolution.Approved)
-		if rerr != nil {
-			return nil, nil, protocol.ErrRunNotFound
-		}
-		handle = rebuilt
 	}
+	pending := resumed.Pending
+	handle := resumed.Handle
 
 	// Continuation gets a fresh wire runId linked to the parent. handle.TurnID
 	// is the original turn for a same-process resume, or the freshly rebuilt
@@ -95,24 +77,6 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		return nil, nil, err
 	}
 	return out, events, nil
-}
-
-// rehydrate rebuilds a parked turn whose live state was lost on restart,
-// from its persisted process snapshot, and resumes it with the decision.
-// Returns the fresh turn handle the continuation streams on, or an error
-// when the interrupt can't be rebuilt (no recorded ProcessID, no
-// ProcessStore, or a missing / non-deployable snapshot).
-func (s *Server) rehydrate(ctx context.Context, pending interrupts.Pending, approved bool) (turn.TurnHandle, error) {
-	if pending.ProcessID == "" {
-		return turn.TurnHandle{}, errors.New("server: interrupt has no recorded process id")
-	}
-	return s.rt.Chat().Rehydrate(ctx, turn.RehydrateRequest{
-		SessionID: pending.SessionID,
-		ProcessID: pending.ProcessID,
-		Approved:  approved,
-		Provider:  pending.Provider,
-		Model:     pending.Model,
-	})
 }
 
 // resolveResolution maps the wire interrupt responses onto the structured
