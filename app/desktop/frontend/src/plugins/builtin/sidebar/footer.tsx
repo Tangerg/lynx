@@ -47,7 +47,7 @@ function SidebarFooter() {
   const actions = useWorkIndexActions();
 
   return (
-    <div className={cn("border-t-[0.5px] border-field/60 px-3 py-3", noDragClasses)}>
+    <div className={cn("px-3 pb-3 pt-2", noDragClasses)}>
       <div className="flex items-center gap-2.5">
         <button
           type="button"

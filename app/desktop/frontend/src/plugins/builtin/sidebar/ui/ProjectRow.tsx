@@ -33,7 +33,7 @@ export function ProjectRow({
         aria-expanded={open}
         className="pr-[52px] font-normal"
         trailing={
-          <span className="font-mono text-[11.5px] leading-none text-fg-faint tabular-nums">
+          <span className="font-mono text-[11px] leading-none text-fg-faint tabular-nums">
             {count}
           </span>
         }
