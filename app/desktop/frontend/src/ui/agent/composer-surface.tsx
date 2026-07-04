@@ -10,7 +10,7 @@ export function AgentComposerSurface({
     <div
       {...props}
       className={cn(
-        "rounded-[18px] bg-canvas px-6 py-4 shadow-[var(--shadow-composer)]",
+        "rounded-[22px] bg-canvas px-6 py-4 shadow-[var(--shadow-composer)]",
         "transition-[box-shadow] duration-[160ms] ease-out focus-within:shadow-[var(--shadow-popover)]",
         className,
       )}

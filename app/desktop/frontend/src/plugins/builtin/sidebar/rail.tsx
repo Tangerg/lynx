@@ -46,37 +46,31 @@ function RailSessions() {
   const actions = useWorkIndexActions();
 
   return (
-    <>
-      {/* Hairline divider — kept as a tiny inline rule since the surface
-          ladder doesn't carry separation at this 28px width. */}
-      <div className="my-1.5 h-px w-7 bg-line" />
-      <div className="flex w-full flex-col items-center gap-1">
-        {recentSessions.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            title={s.title}
-            onClick={() => actions.selectSession(s.id)}
-            className={cn(
-              "relative grid h-10 w-10 place-items-center rounded-[9px] border-0 font-sans text-[13px] font-medium transition-[background-color,color,scale] duration-[120ms] ease-out active:scale-[0.96]",
-              "text-fg-muted hover:bg-fg/[0.045] hover:text-fg",
-              s.id === activeSessionId &&
-                "bg-fg/[0.075] text-fg before:absolute before:inset-y-1.5 before:left-0 before:w-[2px] before:rounded-full before:bg-accent before:content-['']",
-            )}
-          >
-            <span className="font-sans text-[14px] font-medium">
-              {s.title.slice(0, 1).toUpperCase()}
-            </span>
-            {s.attention === "running" && (
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-accent shadow-[0_0_6px_var(--color-accent)] animate-pulse-dot" />
-            )}
-            {s.attention === "waiting" && (
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-warning shadow-[0_0_6px_var(--color-warning)]" />
-            )}
-          </button>
-        ))}
-      </div>
-    </>
+    // Separation from the top rail actions is whitespace, not a rule — the
+    // Codex rail carries no dividers.
+    <div className="mt-1.5 flex w-full flex-col items-center gap-1">
+      {recentSessions.map((s) => (
+        <button
+          key={s.id}
+          type="button"
+          title={s.title}
+          onClick={() => actions.selectSession(s.id)}
+          className={cn(
+            "relative grid h-10 w-10 place-items-center rounded-[9px] border-0 bg-transparent font-sans text-[14px] font-medium transition-[background-color,color,scale] duration-[120ms] ease-out active:scale-[0.96]",
+            "text-fg-muted hover:bg-fg/[0.045] hover:text-fg",
+            s.id === activeSessionId && "bg-fg/[0.06] text-fg",
+          )}
+        >
+          <span>{s.title.slice(0, 1).toUpperCase()}</span>
+          {s.attention === "running" && (
+            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-accent animate-pulse-dot" />
+          )}
+          {s.attention === "waiting" && (
+            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-warning" />
+          )}
+        </button>
+      ))}
+    </div>
   );
 }
 
