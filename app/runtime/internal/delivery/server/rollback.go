@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
 
 // RollbackSession discards the runs after the kept boundary, truncating the
@@ -61,7 +61,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if err != nil {
 		return nil, err
 	}
-	b, err := transcript.BoundaryAt(nodes, in.ToRunID, true)
+	b, err := lifecycle.ResolveRollbackBoundary(nodes, in.ToRunID)
 	if err != nil {
 		return nil, wireBoundaryErr(err)
 	}
@@ -81,17 +81,11 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 		return &protocol.RollbackSessionResponse{Session: &out, DroppedRuns: []protocol.DroppedRun{}}, nil
 	}
 
-	// The boundary is decided (wire-coupled: it decodes the stored RunRefs); the
-	// destructive write-set is the coordinator's. It truncates the chat-memory
-	// log to the kept watermark + drops each dropped run's items/record + dangling
-	// interrupt as ONE transaction (a failure can't leave a run whose messages
-	// were already truncated away), then purges the subagent subtree those runs
-	// spawned. A -1 KeepMark leaves the log untouched.
-	dropIDs := make([]string, len(b.Dropped))
-	for i, rec := range b.Dropped {
-		dropIDs[i] = rec.ID
-	}
-	if err := s.coordinator().Rollback(ctx, in.SessionID, b.KeepMark, dropIDs, b.BoundaryTime); err != nil {
+	// The destructive write-set truncates the chat-memory log to the kept
+	// watermark + drops each dropped run's items/record + dangling interrupt as
+	// ONE transaction (a failure can't leave a run whose messages were already
+	// truncated away), then purges the subagent subtree those runs spawned.
+	if err := s.coordinator().RollbackResolved(ctx, in.SessionID, b); err != nil {
 		return nil, err
 	}
 
