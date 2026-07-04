@@ -2,16 +2,10 @@ package server
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"time"
+	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/models/catalog"
 )
 
 // ListProviders reports the full supported-provider set (the providers Lyra
@@ -19,36 +13,11 @@ import (
 // key is present (API.md §4.9 / §7.6). The per-provider model list isn't
 // here — it unlocks via models.list.
 func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Provider], error) {
-	configured, err := s.rt.Providers().List(ctx)
+	configured, err := s.rt.ListRegisteredProviders(ctx)
 	if err != nil {
 		return nil, err
 	}
-	byID := make(map[string]provider.Provider, len(configured))
-	for _, p := range configured {
-		byID[p.ID] = p
-	}
-	supported := llm.SupportedProviders()
-	out := make([]protocol.Provider, 0, len(supported))
-	for _, sp := range supported {
-		id := string(sp)
-		out = append(out, providerToWire(id, byID[id])) // zero entry when unconfigured
-	}
-	return protocol.NewPage(out), nil
-}
-
-// providerToWire maps a registry entry onto the wire Provider shape: the key is
-// masked ("" = unconfigured, the enabled signal); requiresBaseURL tells the
-// client to collect a base URL + free-form model id for endpoint-less providers.
-func providerToWire(id string, entry provider.Provider) protocol.Provider {
-	return protocol.Provider{
-		ID:                    id,
-		BaseURL:               entry.BaseURL,
-		APIKeyMasked:          entry.MaskedAPIKey(),
-		KeySource:             string(entry.KeySource),
-		RequiresBaseURL:       llm.RequiresBaseURL(llm.Provider(id)),
-		EmbeddingCapable:      llm.EmbeddingCapable(llm.Provider(id)),
-		DefaultEmbeddingModel: llm.DefaultEmbeddingModel(llm.Provider(id)),
-	}
+	return protocol.NewPage(providerListWire(configured)), nil
 }
 
 // ConfigureProvider upserts a provider's credentials (key + base URL) into
@@ -58,16 +27,19 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 	if !isSupportedProvider(in.Provider) {
 		return nil, protocol.ErrInvalidParams
 	}
-	if err := s.rt.Providers().Configure(ctx, provider.Provider{
+	if err := s.rt.ConfigureProvider(ctx, provider.Provider{
 		ID:      in.Provider,
 		APIKey:  in.APIKey,
 		BaseURL: in.BaseURL,
 	}); err != nil {
 		return nil, err
 	}
-	entry, _, err := s.rt.Providers().Get(ctx, in.Provider)
+	entry, ok, err := s.rt.GetRegisteredProvider(ctx, in.Provider)
 	if err != nil {
 		return nil, err
+	}
+	if !ok {
+		return nil, errors.New("configured provider not found")
 	}
 	out := providerToWire(entry.ID, entry)
 	return &out, nil
@@ -78,7 +50,7 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 // {ok:false, error} on failure rather than erroring the RPC, so the UI can
 // show "test failed: <reason>" inline.
 func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol.ProviderTestResult, error) {
-	entry, ok, err := s.rt.Providers().Get(ctx, providerID)
+	entry, ok, err := s.rt.GetRegisteredProvider(ctx, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -95,195 +67,4 @@ func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol
 		}}, nil
 	}
 	return &protocol.ProviderTestResult{OK: true}, nil
-}
-
-// ListModels enumerates the models a provider offers, from the embedded
-// catalog with full metadata (context window, capabilities, pricing). Served
-// straight from the static catalog — no key required (API.md §7.6).
-func (s *Server) ListModels(_ context.Context, in protocol.ListModelsRequest) (*protocol.Page[protocol.Model], error) {
-	models := catalog.Models(in.Provider)
-	out := make([]protocol.Model, 0, len(models))
-	for _, m := range models {
-		out = append(out, modelToWire(in.Provider, m))
-	}
-	return protocol.NewPage(out), nil
-}
-
-// GetUtilityRole reports the (provider, model) the in-house maintenance
-// services run on — empty model when unset, meaning they run on the main turn
-// model (models.getUtilityRole).
-func (s *Server) GetUtilityRole(_ context.Context) (*protocol.UtilityRole, error) {
-	p, m := s.rt.UtilityRole()
-	return &protocol.UtilityRole{Provider: p, Model: m}, nil
-}
-
-// SetUtilityRole points the maintenance services at a (provider, model),
-// validated by building its client; an empty model clears the role back to the
-// main turn model (models.setUtilityRole). Returns the stored role.
-func (s *Server) SetUtilityRole(ctx context.Context, in protocol.UtilityRole) (*protocol.UtilityRole, error) {
-	if err := s.rt.SetUtilityRole(ctx, in.Provider, in.Model); err != nil {
-		return nil, err
-	}
-	p, m := s.rt.UtilityRole()
-	return &protocol.UtilityRole{Provider: p, Model: m}, nil
-}
-
-// GetEmbeddingRole reports the (provider, model) the @codebase semantic index
-// embeds with — empty model when unset (the feature is off)
-// (models.getEmbeddingRole).
-func (s *Server) GetEmbeddingRole(_ context.Context) (*protocol.EmbeddingRole, error) {
-	p, m := s.rt.EmbeddingRole()
-	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
-}
-
-// SetEmbeddingRole points the index at an (embedding-capable provider, model);
-// an empty model clears it (models.setEmbeddingRole). The user-correctable
-// preconditions are checked here as invalid_params; the runtime then builds the
-// client + persists the role (a failure there is internal_error).
-func (s *Server) SetEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole) (*protocol.EmbeddingRole, error) {
-	if err := s.validateEmbeddingRole(ctx, in); err != nil {
-		return nil, err
-	}
-	if err := s.rt.SetEmbeddingRole(ctx, in.Provider, in.Model); err != nil {
-		return nil, err
-	}
-	p, m := s.rt.EmbeddingRole()
-	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
-}
-
-// validateEmbeddingRole enforces the user-correctable preconditions for
-// models.setEmbeddingRole (mirrors validateScheduleInput): a non-empty model
-// needs an embedding-capable, configured provider — both invalid_params. Clearing
-// the role (empty model) needs no provider. Building the client + persisting are
-// left to the runtime, which classifies its own failures.
-func (s *Server) validateEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole) error {
-	if in.Model == "" {
-		return nil
-	}
-	if !llm.EmbeddingCapable(llm.Provider(in.Provider)) {
-		return fmt.Errorf("%w: provider %q has no embeddings adapter", protocol.ErrInvalidParams, in.Provider)
-	}
-	entry, ok, err := s.rt.Providers().Get(ctx, in.Provider)
-	if err != nil {
-		return err
-	}
-	if !ok || !entry.Enabled() {
-		return fmt.Errorf("%w: provider %q is not configured (set its API key first)", protocol.ErrInvalidParams, in.Provider)
-	}
-	return nil
-}
-
-// modelToWire maps a catalog model onto the wire Model shape (API.md §4.9),
-// surfacing the full capability set the catalog carries — reasoning support +
-// effort levels, the input/output modalities, tool use, structured output — so
-// a model picker can render exactly what each model can do.
-func modelToWire(providerID string, m chat.ModelInfo) protocol.Model {
-	out := protocol.Model{
-		ID:              m.ID,
-		Provider:        providerID,
-		DisplayName:     m.DisplayName,
-		ContextWindow:   int(m.Limits.ContextWindow),
-		MaxInputTokens:  int(m.Limits.MaxInputTokens),
-		MaxOutputTokens: int(m.Limits.MaxOutputTokens),
-		Deprecated:      m.Deprecated,
-		Capabilities: &protocol.ModelCapabilities{
-			Reasoning:             m.Reasoning.Supported,
-			ReasoningLevels:       m.Reasoning.Levels,
-			ReasoningDefaultLevel: m.Reasoning.DefaultLevel,
-			Multimodal:            m.Modalities.AcceptsInput(chat.ModalityImage),
-			InputModalities:       toWireModalities(m.Modalities.Input),
-			OutputModalities:      toWireModalities(m.Modalities.Output),
-			ToolUse:               m.ToolCall,
-			StructuredOutput:      m.StructuredOutput,
-		},
-	}
-	if !m.KnowledgeCutoff.IsZero() {
-		out.KnowledgeCutoff = m.KnowledgeCutoff.Format(time.DateOnly)
-	}
-	if len(m.Pricing) > 0 {
-		p := m.Pricing[0] // base band; banded (threshold) pricing isn't surfaced
-		out.Pricing = &protocol.ModelPricing{
-			InputUsdPerMillionTokens:      p.InputPer1M,
-			OutputUsdPerMillionTokens:     p.OutputPer1M,
-			CacheReadUsdPerMillionTokens:  p.CacheReadPer1M,
-			CacheWriteUsdPerMillionTokens: p.CacheWritePer1M,
-		}
-	}
-	return out
-}
-
-// toWireModalities maps core modalities onto the wire enum (same string values).
-func toWireModalities(in []chat.Modality) []protocol.Modality {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]protocol.Modality, len(in))
-	for i, m := range in {
-		out[i] = protocol.Modality(m)
-	}
-	return out
-}
-
-// isSupportedProvider reports whether id names a provider Lyra has an adapter
-// for — the guard providers.configure uses to reject unknown providers.
-func isSupportedProvider(id string) bool {
-	return llm.IsSupported(llm.Provider(id))
-}
-
-// ListTools surfaces every tool the engine registered — built-in coding
-// tools plus any MCP-server tools dialed at boot (API.md §7.6).
-func (s *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ToolSpec], error) {
-	internal, err := s.rt.Tool().List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]protocol.ToolSpec, 0, len(internal))
-	for _, t := range internal {
-		out = append(out, protocol.ToolSpec{
-			Name:        t.Name,
-			Description: t.Description,
-			Parameters:  parseSchema(t.Schema),
-			SafetyClass: wireSafetyClass(t.SafetyClass),
-		})
-	}
-	return protocol.NewPage(out), nil
-}
-
-// InvokeTool runs one tool directly, outside a run (diagnostics /
-// client-driven workflows, API.md §7.6). Backed by tool.Service.Invoke,
-// whose result is the tool's raw string output.
-func (s *Server) InvokeTool(ctx context.Context, in protocol.InvokeToolRequest) (any, error) {
-	args, err := json.Marshal(in.Arguments)
-	if err != nil {
-		return nil, err
-	}
-	return s.rt.Tool().Invoke(ctx, in.Name, string(args))
-}
-
-// parseSchema decodes a tool's JSON Schema string into a structured
-// object; an empty / unparseable schema becomes an empty object.
-func parseSchema(raw string) map[string]any {
-	if raw == "" {
-		return map[string]any{}
-	}
-	var m map[string]any
-	if json.Unmarshal([]byte(raw), &m) != nil {
-		return map[string]any{}
-	}
-	return m
-}
-
-func wireSafetyClass(c tool.SafetyClass) protocol.SafetyClass {
-	switch c {
-	case tool.SafetyClassSafe:
-		return protocol.SafetyClassSafe
-	case tool.SafetyClassWrite:
-		return protocol.SafetyClassWrite
-	case tool.SafetyClassExec:
-		return protocol.SafetyClassExec
-	case tool.SafetyClassNetwork:
-		return protocol.SafetyClassNetwork
-	default:
-		return protocol.SafetyClassSafe
-	}
 }
