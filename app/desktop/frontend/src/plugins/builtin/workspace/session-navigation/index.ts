@@ -9,28 +9,21 @@ import {
   activateWorkspaceSessionScope,
   forgetWorkspaceSessionScopes,
   selectWorkspaceChat,
-} from "@/plugins/builtin/workspace/application/navigation";
+} from "@/plugins/builtin/workspace/public/navigation";
+import { bindWorkspaceSessionNavigation } from "./application/sessionNavigationSync";
 
 export default definePlugin({
   name: "lyra.builtin.workspace.session-navigation",
   version: "1.0.0",
   setup() {
-    activateWorkspaceSessionScope(getActiveSessionId());
-    forgetWorkspaceSessionScopes(getAgentSessionLifecycleSnapshot().openSessionIds);
-
-    const unsubscribeSelection = subscribeAgentSessionSelection((state, prev) => {
-      if (state.selectionEpoch !== prev.selectionEpoch) selectWorkspaceChat();
-      if (state.activeSessionId !== prev.activeSessionId) {
-        activateWorkspaceSessionScope(state.activeSessionId);
-      }
+    return bindWorkspaceSessionNavigation({
+      activeSessionId: getActiveSessionId,
+      lifecycleSnapshot: getAgentSessionLifecycleSnapshot,
+      subscribeSelection: subscribeAgentSessionSelection,
+      subscribeLifecycle: subscribeAgentSessionLifecycle,
+      activateSessionScope: activateWorkspaceSessionScope,
+      forgetSessionScopes: forgetWorkspaceSessionScopes,
+      selectChat: selectWorkspaceChat,
     });
-    const unsubscribeLifecycle = subscribeAgentSessionLifecycle((state) => {
-      forgetWorkspaceSessionScopes(state.openSessionIds);
-    });
-
-    return () => {
-      unsubscribeSelection();
-      unsubscribeLifecycle();
-    };
   },
 });

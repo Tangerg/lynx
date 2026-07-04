@@ -1,8 +1,10 @@
 export {
+  activateWorkspaceSessionScope,
   closeActiveWorkspaceView,
   closeWorkspaceSplit,
   closeWorkspaceView,
   clearWorkspaceSettingsPaneTarget,
+  forgetWorkspaceSessionScopes,
   getWorkspaceSettingsPaneTarget,
   openWorkspaceDiffForFile,
   openWorkspaceFile,
