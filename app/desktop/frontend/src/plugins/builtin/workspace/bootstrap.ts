@@ -1,5 +1,6 @@
 import { definePlugin } from "@/plugins/sdk";
 import { installCodebaseGateway } from "./adapters/runtimeCodebaseGateway";
+import { installConversationArchiveGateway } from "./adapters/runtimeConversationArchiveGateway";
 import { installWorkspaceMemoryGateway } from "./adapters/runtimeMemoryGateway";
 import { installToolCatalogGateway } from "./adapters/runtimeToolCatalogGateway";
 import { installWorkspaceErrorClassifier } from "./adapters/runtimeWorkspaceErrorClassifier";
@@ -11,6 +12,7 @@ export default definePlugin({
   requires: ["lyra.builtin.bootstrap"],
   setup() {
     installCodebaseGateway();
+    installConversationArchiveGateway();
     installWorkspaceMemoryGateway();
     installToolCatalogGateway();
     installWorkspaceErrorClassifier();
