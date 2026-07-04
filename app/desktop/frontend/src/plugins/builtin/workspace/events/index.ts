@@ -19,14 +19,12 @@ import {
   subscribeWorkspaceCwdInputs,
 } from "./adapters/sessionWorkspaceCwd";
 import { createWorkspaceEventLoop } from "./application/workspaceEventLoop";
+import { startWorkspaceEventSubscription } from "./application/workspaceEventSubscription";
 
 export default definePlugin({
   name: "lyra.builtin.workspace-events",
   version: "1.0.0",
   setup() {
-    const controller = new AbortController();
-    let started = false;
-    let retargetGeneration = 0;
     const loop = createWorkspaceEventLoop({
       subscribe: ({ cwd, signal }) => subscribeRuntimeWorkspaceEvents(cwd, signal),
       handleEvent: invalidateWorkspaceEvent,
@@ -34,29 +32,12 @@ export default definePlugin({
       reportError: (error) => console.warn("[workspace-events] subscribe failed:", error),
     });
 
-    const retargetWatch = (): void => {
-      const generation = ++retargetGeneration;
-      void resolveActiveSessionWorkspaceCwd().then((cwd) => {
-        if (generation !== retargetGeneration || controller.signal.aborted) return;
-        loop.retarget(cwd);
-      });
-    };
-
-    const startIfAdvertised = (): void => {
-      if (started || controller.signal.aborted || !canSubscribeWorkspaceEvents()) return;
-      started = true;
-      loop.start(controller.signal);
-    };
-
-    startIfAdvertised();
-    const unsubRuntime = subscribeRuntimeCapabilities(startIfAdvertised);
-    retargetWatch();
-    const unsubCwd = subscribeWorkspaceCwdInputs(retargetWatch);
-
-    return () => {
-      unsubRuntime();
-      unsubCwd();
-      controller.abort();
-    };
+    return startWorkspaceEventSubscription({
+      canSubscribe: canSubscribeWorkspaceEvents,
+      subscribeCapabilities: subscribeRuntimeCapabilities,
+      resolveWorkspaceCwd: resolveActiveSessionWorkspaceCwd,
+      subscribeWorkspaceCwdInputs,
+      loop,
+    });
   },
 });
