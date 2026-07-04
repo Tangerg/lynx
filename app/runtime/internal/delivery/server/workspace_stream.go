@@ -169,25 +169,24 @@ func (s *Server) sessionCwd(ctx context.Context, sessionID string) string {
 // surface via the .git watch instead.
 var fileMutatingTools = map[string]struct{}{"write": {}, "edit": {}}
 
-// emitToolFileChange publishes a files.changed for a completed, successful
-// file-mutating tool call, scoped to the session cwd (paths are relative to it).
-// No-op for any other event. This is the precise, fd-free half of the watch
-// model: the agent's own edits are known here exactly, so the git watcher only
-// needs to cover out-of-band (git) state changes.
-func (s *Server) emitToolFileChange(cwd string, se protocol.StreamEvent) {
+// toolFileChangedPaths extracts file-change paths from a completed, successful
+// file-mutating tool call. This is the precise, fd-free half of the watch
+// model: the agent's own edits are known exactly from tool arguments, so the
+// git watcher only needs to cover out-of-band (git) state changes.
+func toolFileChangedPaths(se protocol.StreamEvent) []string {
 	if se.Type != protocol.StreamItemCompleted || se.Item == nil {
-		return
+		return nil
 	}
 	it := se.Item
 	if it.Type != protocol.ItemTypeToolCall || it.Status != protocol.ItemStatusCompleted || it.Error != nil || it.Tool == nil {
-		return
+		return nil
 	}
 	if _, ok := fileMutatingTools[strings.ToLower(it.Tool.Name)]; !ok {
-		return
+		return nil
 	}
 	path, _ := it.Tool.Arguments["file_path"].(string)
 	if path == "" {
-		return
+		return nil
 	}
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventFilesChanged, Cwd: cwd, Paths: []string{path}})
+	return []string{path}
 }

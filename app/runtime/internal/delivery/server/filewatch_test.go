@@ -72,10 +72,10 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	}
 }
 
-// TestEmitToolFileChange: a completed write/edit tool call publishes a
-// files.changed naming the exact (cwd-relative) path; shell, errored, and
-// non-tool items publish nothing.
-func TestEmitToolFileChange(t *testing.T) {
+// TestRunSegmentPublishesToolFileChange: a completed write/edit tool call
+// publishes a files.changed naming the exact (cwd-relative) path; shell,
+// errored, and non-tool items publish nothing.
+func TestRunSegmentPublishesToolFileChange(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
 	events, unsub := s.wsHub.subscribe()
 	defer unsub()
@@ -92,7 +92,11 @@ func TestEmitToolFileChange(t *testing.T) {
 	}
 
 	// write → files.changed{cwd, [path]}
-	s.emitToolFileChange("/proj", completed("write", "src/a.go", false))
+	ev := s.sideEffectEvent(
+		"run_1", "ses_1", "", "/proj",
+		completed("write", "src/a.go", false), "", "",
+	)
+	s.runSegmentEffects().AfterLive(context.Background(), ev)
 	select {
 	case ev := <-events:
 		if ev.Type != "files.changed" || ev.Cwd != "/proj" || len(ev.Paths) != 1 || ev.Paths[0] != "src/a.go" {
@@ -103,9 +107,13 @@ func TestEmitToolFileChange(t *testing.T) {
 	}
 
 	// shell, errored write, and a non-tool item → nothing.
-	s.emitToolFileChange("/proj", completed("shell", "whatever", false))
-	s.emitToolFileChange("/proj", completed("write", "src/b.go", true))
-	s.emitToolFileChange("/proj", protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &protocol.Item{Type: protocol.ItemTypeAgentMessage}})
+	for _, ev := range []protocol.StreamEvent{
+		completed("shell", "whatever", false),
+		completed("write", "src/b.go", true),
+		{Type: protocol.StreamItemCompleted, Item: &protocol.Item{Type: protocol.ItemTypeAgentMessage}},
+	} {
+		s.runSegmentEffects().AfterLive(context.Background(), s.sideEffectEvent("run_1", "ses_1", "", "/proj", ev, "", ""))
+	}
 	select {
 	case ev := <-events:
 		t.Fatalf("expected no further events, got %+v", ev)
