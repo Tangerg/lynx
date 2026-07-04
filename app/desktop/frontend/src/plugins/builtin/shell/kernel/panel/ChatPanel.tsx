@@ -11,7 +11,7 @@ import {
   AgentStatusPill,
   AgentToolbarButton,
 } from "@/ui/agent";
-import { dragClasses, Icon, noDragClasses } from "@/ui";
+import { dragClasses, noDragClasses } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/data/queries";
 import { basename } from "@/lib/path";
@@ -68,6 +68,7 @@ export function ChatPanel({ onSend }: Props) {
   const activeMainView = useActiveWorkspaceViewId();
   const splitViewId = useSplitWorkspaceViewId();
   const splitRatio = useUiStore((s) => s.splitRatio);
+  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const views = useWorkspaceViews();
   const { isLoading } = useSessions();
   const activeSession = useActiveSession();
@@ -128,7 +129,13 @@ export function ChatPanel({ onSend }: Props) {
             style={splitViewId ? { flexBasis: `${splitRatio * 100}%` } : undefined}
           >
             <AgentPaneHeader className={cn("px-5", dragClasses)}>
-              <Icon name="panel-l" size={16} strokeWidth={1.8} className="shrink-0 text-fg-muted" />
+              <AgentIconButton
+                icon="panel-l"
+                size="sm"
+                aria-label={t("sidebar.action.collapse")}
+                onClick={toggleSidebar}
+                className={noDragClasses}
+              />
               <span className="font-mono text-[12px] text-fg-faint">
                 {activeSession?.cwd ? basename(activeSession.cwd) : "lynx"}
               </span>
