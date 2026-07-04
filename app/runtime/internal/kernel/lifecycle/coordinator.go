@@ -373,17 +373,21 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 }
 
 // RestoreSession recreates a session under its ORIGINAL id from a decoded
-// artifact: it upserts the session record, replaces any existing history (drop
-// old items/runs + clear the chat log), re-seeds the chat messages, and
-// re-persists the runs + items — all in one transaction. Without the
-// transaction a mid-sequence failure (after the destructive delete/truncate)
-// would leave the session row live but its history half-destroyed.
+// artifact: it upserts the session record, clears old open interrupts, replaces
+// any existing history (drop old items/runs + clear the chat log), re-seeds the
+// chat messages, and re-persists the runs + items — all in one transaction.
+// Without the transaction a mid-sequence failure (after the destructive
+// delete/truncate) would leave the session row live but its history
+// half-destroyed.
 //
 // The caller decodes the wire artifact into these domain values; this method
 // only commits them.
 func (c *Coordinator) RestoreSession(ctx context.Context, ses session.Session, msgs []chat.Message, runs []transcript.Run, items []transcript.Item) error {
 	return c.s.RunInTx(ctx, func(ctx context.Context) error {
 		if err := c.s.Session().Restore(ctx, ses); err != nil {
+			return err
+		}
+		if err := c.deleteInterrupts(ctx, ses.ID); err != nil {
 			return err
 		}
 		if err := c.s.Transcript().DeleteSession(ctx, ses.ID); err != nil {
@@ -448,11 +452,18 @@ func (c *Coordinator) purgeChildrenAfter(ctx context.Context, parentID string, b
 // dropInterrupts removes every open-interrupt record for a session. Best-effort:
 // a failed list or delete leaves a resumable record that a later pass can clear.
 func (c *Coordinator) dropInterrupts(ctx context.Context, sessionID string) {
+	_ = c.deleteInterrupts(ctx, sessionID)
+}
+
+func (c *Coordinator) deleteInterrupts(ctx context.Context, sessionID string) error {
 	pending, err := c.s.Interrupts().List(ctx, sessionID)
 	if err != nil {
-		return
+		return err
 	}
 	for _, p := range pending {
-		_ = c.s.Interrupts().Delete(ctx, p.ParentRunID)
+		if err := c.s.Interrupts().Delete(ctx, p.ParentRunID); err != nil {
+			return err
+		}
 	}
+	return nil
 }

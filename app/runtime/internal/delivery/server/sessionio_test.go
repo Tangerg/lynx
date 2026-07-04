@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -80,6 +82,96 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	}
 	if len(items.Data) != 1 || len(items.Runs) != 1 {
 		t.Errorf("restored items/runs = %d/%d, want 1/1", len(items.Data), len(items.Runs))
+	}
+}
+
+func TestSessionImportRejectsActiveSession(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := context.Background()
+
+	ses, err := rt.sess.Create(ctx, "Live", "/proj")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if !s.claimSession(ses.ID) {
+		t.Fatal("claim session")
+	}
+	t.Cleanup(func() { s.releaseSession(ses.ID) })
+
+	_, err = s.ImportSession(ctx, protocol.ImportSessionRequest{
+		Artifact: protocol.SessionArtifact{
+			Version: protocol.SessionArtifactVersion,
+			Session: protocol.Session{
+				ID:    ses.ID,
+				Title: "Restored",
+				Cwd:   "/restore",
+			},
+		},
+	})
+	if !errors.Is(err, protocol.ErrSessionBusy) {
+		t.Fatalf("import err = %v, want ErrSessionBusy", err)
+	}
+	got, err := rt.sess.Get(ctx, ses.ID)
+	if err != nil {
+		t.Fatalf("get session: %v", err)
+	}
+	if got.Title != "Live" || got.Cwd != "/proj" {
+		t.Fatalf("session mutated under active run: %+v", got)
+	}
+}
+
+func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := context.Background()
+
+	ses, err := rt.sess.Create(ctx, "Parked", "/proj")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{ParentRunID: "run_parked", SessionID: ses.ID}); err != nil {
+		t.Fatalf("seed interrupt: %v", err)
+	}
+
+	_, err = s.ImportSession(ctx, protocol.ImportSessionRequest{
+		Artifact: protocol.SessionArtifact{
+			Version: protocol.SessionArtifactVersion,
+			Session: protocol.Session{
+				ID:    ses.ID,
+				Title: "Restored",
+				Cwd:   "/restore",
+			},
+		},
+	})
+	if !errors.Is(err, protocol.ErrSessionBusy) {
+		t.Fatalf("import err = %v, want ErrSessionBusy", err)
+	}
+}
+
+func TestRestoreSessionClearsOpenInterrupts(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := context.Background()
+
+	ses, err := rt.sess.Create(ctx, "Old", "/proj")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{ParentRunID: "run_old", SessionID: ses.ID}); err != nil {
+		t.Fatalf("seed interrupt: %v", err)
+	}
+
+	if err := s.coordinator().RestoreSession(ctx, session.Session{
+		ID:    ses.ID,
+		Title: "Restored",
+		Cwd:   "/restore",
+	}, nil, nil, nil); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	pending, err := rt.interrupts.List(ctx, ses.ID)
+	if err != nil {
+		t.Fatalf("list interrupts: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("pending interrupts = %+v, want cleared", pending)
 	}
 }
 

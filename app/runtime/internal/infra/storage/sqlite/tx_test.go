@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -26,6 +27,7 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	sess := sqlite.NewSessionStore(db)
 	msg := sqlite.NewMessageStore(db)
+	ints := sqlite.NewInterruptStore(db)
 	ctx := context.Background()
 
 	// A multi-store write-set that fails mid-way must leave NO partial state.
@@ -63,5 +65,28 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 	}
 	if n, _ := msg.Count(ctx, "s2"); n != 1 {
 		t.Errorf("committed messages = %d, want 1", n)
+	}
+
+	if err := sqlite.RunInTx(ctx, db, func(ctx context.Context) error {
+		if err := ints.Put(ctx, interrupts.Pending{ParentRunID: "run_1", SessionID: "s2"}); err != nil {
+			return err
+		}
+		pending, err := ints.List(ctx, "s2")
+		if err != nil {
+			return err
+		}
+		if len(pending) != 1 || pending[0].ParentRunID != "run_1" {
+			t.Fatalf("pending interrupts = %+v, want run_1 inside tx", pending)
+		}
+		return ints.Delete(ctx, "run_1")
+	}); err != nil {
+		t.Fatalf("interrupt store inside tx: %v", err)
+	}
+	pending, err := ints.List(ctx, "s2")
+	if err != nil {
+		t.Fatalf("list interrupts after tx: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("pending interrupts after tx = %+v, want none", pending)
 	}
 }
