@@ -5,6 +5,7 @@
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
 import { installHookTrustGateway } from "./adapters/runtimeHookTrustGateway";
+import { hooksSettingsPane } from "./application/hooksContributions";
 import { HooksPane } from "./ui/HooksPane";
 
 export default definePlugin({
@@ -12,13 +13,6 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     installHookTrustGateway();
-    registerSettingsPane(host, {
-      id: "hooks",
-      label: "settings.pane.hooks",
-      group: "agent",
-      icon: "lightning",
-      order: 57,
-      component: HooksPane,
-    });
+    registerSettingsPane(host, hooksSettingsPane(HooksPane));
   },
 });
