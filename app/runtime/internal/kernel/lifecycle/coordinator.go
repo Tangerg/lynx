@@ -58,6 +58,10 @@ type Coordinator struct {
 // ErrRunNotFound reports that a lifecycle operation targeted no live or parked run.
 var ErrRunNotFound = errors.New("lifecycle: run not found")
 
+// ErrInterruptNotOpen reports that an interrupt resume/cancel target is no
+// longer open.
+var ErrInterruptNotOpen = errors.New("lifecycle: interrupt not open")
+
 // New returns a Coordinator over s.
 func New(s Stores) *Coordinator { return &Coordinator{s: s} }
 
@@ -66,11 +70,24 @@ type TurnCanceler interface {
 	Cancel(context.Context, turn.TurnHandle) error
 }
 
+// TurnResumer is the turn-service slice needed to continue an interrupt.
+type TurnResumer interface {
+	Resume(context.Context, turn.TurnHandle, interrupts.Resolution) error
+	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
+}
+
 // RunTurn binds a protocol run id to the turn handle that owns its process.
 type RunTurn struct {
 	RunID     string
 	SessionID string
 	TurnID    string
+}
+
+// ResumedInterrupt is the claimed interrupt plus the turn handle its
+// continuation should stream from.
+type ResumedInterrupt struct {
+	Pending interrupts.Pending
+	Handle  turn.TurnHandle
 }
 
 // RollbackBoundary is the resolved, domain-level rollback split.
@@ -166,6 +183,48 @@ func (c *Coordinator) CancelParkedRun(ctx context.Context, turns TurnCanceler, r
 func (c *Coordinator) CancelRunTurn(ctx context.Context, turns TurnCanceler, r RunTurn) error {
 	_ = turns.Cancel(ctx, turn.TurnHandle{SessionID: r.SessionID, TurnID: r.TurnID})
 	return c.s.Interrupts().Delete(ctx, r.RunID)
+}
+
+// ResumeClaimedInterrupt consumes an open interrupt and resumes its parked
+// turn. If the live turn disappeared after a backend restart, it rebuilds the
+// process from the durable interrupt snapshot before returning the handle.
+func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, turns TurnResumer, parentRunID string, resolution interrupts.Resolution) (ResumedInterrupt, error) {
+	pending, ok, err := c.s.Interrupts().Consume(ctx, parentRunID)
+	if err != nil {
+		return ResumedInterrupt{}, err
+	}
+	if !ok {
+		return ResumedInterrupt{}, ErrInterruptNotOpen
+	}
+
+	handle := turn.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
+	if err := turns.Resume(ctx, handle, resolution); err != nil {
+		if errors.Is(err, turn.ErrParkClaimed) {
+			return ResumedInterrupt{}, ErrInterruptNotOpen
+		}
+		if !errors.Is(err, turn.ErrTurnNotFound) {
+			return ResumedInterrupt{}, err
+		}
+		handle, err = rehydratePendingTurn(ctx, turns, pending, resolution.Approved)
+		if err != nil {
+			return ResumedInterrupt{}, ErrRunNotFound
+		}
+	}
+
+	return ResumedInterrupt{Pending: pending, Handle: handle}, nil
+}
+
+func rehydratePendingTurn(ctx context.Context, turns TurnResumer, pending interrupts.Pending, approved bool) (turn.TurnHandle, error) {
+	if pending.ProcessID == "" {
+		return turn.TurnHandle{}, errors.New("lifecycle: interrupt has no recorded process id")
+	}
+	return turns.Rehydrate(ctx, turn.RehydrateRequest{
+		SessionID: pending.SessionID,
+		ProcessID: pending.ProcessID,
+		Approved:  approved,
+		Provider:  pending.Provider,
+		Model:     pending.Model,
+	})
 }
 
 // ForkSpec describes where a session fork should branch. Runs are the timeline

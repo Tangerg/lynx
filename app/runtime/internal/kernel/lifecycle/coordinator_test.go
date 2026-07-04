@@ -117,6 +117,86 @@ func TestCancelParkedRunMissing(t *testing.T) {
 	}
 }
 
+func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
+	stores := cancelStores{
+		interrupts: &cancelInterrupts{
+			pending: map[string]interrupts.Pending{
+				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+			},
+		},
+	}
+	resolution := interrupts.Resolution{Approved: true}
+	turns := resumeTurns{onResume: func(h turn.TurnHandle, got interrupts.Resolution) {
+		if h.SessionID != "ses_1" || h.TurnID != "turn_1" {
+			t.Fatalf("handle = %+v, want ses_1/turn_1", h)
+		}
+		if !got.Approved {
+			t.Fatalf("resolution = %+v, want approved", got)
+		}
+	}}
+
+	resumed, err := New(stores).ResumeClaimedInterrupt(context.Background(), turns, "run_1", resolution)
+	if err != nil {
+		t.Fatalf("resume claimed interrupt: %v", err)
+	}
+	if resumed.Pending.ParentRunID != "run_1" || resumed.Handle.TurnID != "turn_1" {
+		t.Fatalf("resumed = %+v", resumed)
+	}
+	if _, ok := stores.interrupts.pending["run_1"]; ok {
+		t.Fatal("interrupt must be consumed")
+	}
+}
+
+func TestResumeClaimedInterruptRehydratesMissingTurn(t *testing.T) {
+	stores := cancelStores{
+		interrupts: &cancelInterrupts{
+			pending: map[string]interrupts.Pending{
+				"run_1": {
+					ParentRunID: "run_1",
+					SessionID:   "ses_1",
+					TurnID:      "turn_1",
+					ProcessID:   "proc_1",
+					Provider:    "anthropic",
+					Model:       "claude",
+				},
+			},
+		},
+	}
+	turns := resumeTurns{
+		resumeErr:       turn.ErrTurnNotFound,
+		rehydrateHandle: turn.TurnHandle{SessionID: "ses_1", TurnID: "turn_rebuilt"},
+		onRehydrate: func(req turn.RehydrateRequest) {
+			if req.SessionID != "ses_1" || req.ProcessID != "proc_1" || !req.Approved || req.Provider != "anthropic" || req.Model != "claude" {
+				t.Fatalf("rehydrate request = %+v", req)
+			}
+		},
+	}
+
+	resumed, err := New(stores).ResumeClaimedInterrupt(context.Background(), turns, "run_1", interrupts.Resolution{Approved: true})
+	if err != nil {
+		t.Fatalf("resume claimed interrupt: %v", err)
+	}
+	if resumed.Handle.TurnID != "turn_rebuilt" {
+		t.Fatalf("handle = %+v, want rebuilt turn", resumed.Handle)
+	}
+}
+
+func TestResumeClaimedInterruptParkClaimed(t *testing.T) {
+	stores := cancelStores{
+		interrupts: &cancelInterrupts{
+			pending: map[string]interrupts.Pending{
+				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+			},
+		},
+	}
+	turns := resumeTurns{resumeErr: turn.ErrParkClaimed}
+
+	_, err := New(stores).ResumeClaimedInterrupt(context.Background(), turns, "run_1", interrupts.Resolution{Approved: true})
+	if !errors.Is(err, ErrInterruptNotOpen) {
+		t.Fatalf("err = %v, want ErrInterruptNotOpen", err)
+	}
+}
+
 type cancelStores struct {
 	interrupts *cancelInterrupts
 }
@@ -185,4 +265,25 @@ func (t cancelTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
 		t.onCancel(h)
 	}
 	return nil
+}
+
+type resumeTurns struct {
+	resumeErr       error
+	rehydrateHandle turn.TurnHandle
+	onResume        func(turn.TurnHandle, interrupts.Resolution)
+	onRehydrate     func(turn.RehydrateRequest)
+}
+
+func (t resumeTurns) Resume(_ context.Context, h turn.TurnHandle, r interrupts.Resolution) error {
+	if t.onResume != nil {
+		t.onResume(h, r)
+	}
+	return t.resumeErr
+}
+
+func (t resumeTurns) Rehydrate(_ context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
+	if t.onRehydrate != nil {
+		t.onRehydrate(req)
+	}
+	return t.rehydrateHandle, nil
 }
