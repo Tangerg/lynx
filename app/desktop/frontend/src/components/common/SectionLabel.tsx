@@ -12,7 +12,7 @@ interface Props {
 export function SectionLabel({ children, trailing, style }: Props) {
   return (
     <div
-      className="flex items-center gap-2 px-3 pb-1 pt-2 font-sans text-[12px] font-medium text-fg-muted tracking-wide"
+      className="flex items-center gap-2 px-2.5 pb-1 pt-3 font-sans text-[11px] font-medium leading-none text-fg-muted"
       style={style}
     >
       <span>{children}</span>

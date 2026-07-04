@@ -124,7 +124,7 @@ export function ChatPanel({ onSend }: Props) {
           {splitViewId && (
             <>
               <SplitResizer />
-              <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+              <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
                 <ViewPlacementProvider value={placementFor(splitViewId, "split")}>
                   <WorkspaceViewBody viewId={splitViewId} />
                 </ViewPlacementProvider>

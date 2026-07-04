@@ -63,29 +63,22 @@
   --color-info: var(--color-info);
   --color-success: var(--color-success);
 
-  /* Borders — DELIBERATELY TRANSPARENT across every theme. Grey hairlines read
-     cheap and, worse, are asymmetric per scheme (a faint white line on dark,
-     an obvious grey rule on light), so a dozen themes meant a dozen different
-     "border personalities". Rather than tune each, the border utilities
-     (`border-line` / `border-line-soft` / `border-divider`) resolve to
-     transparent HERE — decoupled from each theme's `--color-border*` values, so
-     no theme can paint a visible rule. Region + card separation is carried
-     entirely by the surface-ladder background delta + spacing (JetBrains New
-     UI model); shadows are reserved for genuinely-floating elements only.
-     Layout is unaffected (the 1px border box still reserves its space; it's
-     just invisible). Re-point one of these at its `--color-border*` source if a
-     specific hairline ever needs to come back. */
+  /* CTA */
+  --color-cta: var(--color-cta);
+  --color-cta-hover: var(--color-cta-hover);
+  --color-cta-text: var(--color-cta-text);
+
+  /* Large regions keep the JetBrains-style surface ladder: canvas / sidebar /
+     nested rows separate by brightness deltas, not global grey borders. These
+     decorative line utilities stay transparent by default; use field or an
+     explicit structural hairline only when a local control truly needs one. */
   --color-line: transparent;
   --color-line-soft: transparent;
   --color-divider: transparent;
 
-  /* Control edge — the ONE border kind the skill keeps: form-field / select
-     affordances (surfaces.md "Form input outlines (for accessibility)"). Kept
-     visible on purpose (unlike the decorative `--color-line*` above), so text
-     inputs, selects, and search fields read as real, editable surfaces instead
-     of ink floating on a panel. Maps to each theme's `--color-border` (every
-     theme populates it via the kit), so it stays theme-correct with no per-theme
-     work; `-strong` is the focus/hover step. */
+  /* Control edge — form-field / select affordances. Maps to each theme's
+     border tokens so text inputs, selects, and search fields read as editable
+     surfaces. */
   --color-field: var(--color-border);
   --color-field-strong: var(--color-border-soft);
 
@@ -329,22 +322,17 @@
   --polish-med: var(--dur-med) var(--ease-out);
 
   /* -----------------------------------------------------------------------
-   *  Shadow system — DESKTOP_UI_POLISH.md §1 three-layer model: edge ring
-   *  (1px optical boundary, layer 1 — a shadow-ring, not a CSS border) +
-   *  contact + ambient. Reserved for genuinely-floating elements only
-   *  (JetBrains model): tiled/docked regions + in-flow cards separate by the
-   *  surface-ladder background delta, never by shadow — so there is no card
-   *  `surface` shadow, only:
-   *  composer: the input, which floats over the scrolling stream (strong lift)
-   *  popover: dropdown / modal / command palette (standard lift)
-   *  focus: quiet focus ring, no glow halo
-   *  (first-paint defaults; the theme kit re-emits these at runtime.)
+   *  Shadow system — optical 0.5px edge ring + contact + ambient. Mirrors
+   *  DESKTOP_UI_POLISH.md and the AI Agent Kit examples: crisp surface edges
+   *  without grey CSS borders, with the ambient layer kept low enough that
+   *  light UI does not turn foggy.
    * ----------------------------------------------------------------------- */
-  /* Ringless — no 0 0 0 1px box-shadow ring anywhere (reads cheap). Floating
-     surfaces = soft shadow (contact + ambient); where a menu needs a crisp
-     edge it uses a 0.5px CSS border on the element, not a shadow-ring. */
-  --shadow-composer: 0 2px 8px rgb(0 0 0 / 0.35), 0 16px 40px -10px rgb(0 0 0 / 0.55);
-  --shadow-popover: 0 2px 8px rgb(0 0 0 / 0.4), 0 12px 32px -6px rgb(0 0 0 / 0.55);
+  --shadow-composer:
+    0 0 0 0.5px rgb(255 255 255 / 0.12), 0 1px 2px rgb(0 0 0 / 0.35),
+    0 16px 40px -14px rgb(0 0 0 / 0.72);
+  --shadow-popover:
+    0 0 0 0.5px rgb(255 255 255 / 0.13), 0 1px 2px rgb(0 0 0 / 0.34),
+    0 12px 32px -12px rgb(0 0 0 / 0.68);
   --shadow-focus: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 
   /* Content max-width — the centered reading island (REDESIGN.md §3.4). */
@@ -549,8 +537,12 @@ html.theme-light .panel {
 }
 
 html.theme-light {
-  --shadow-composer: 0 2px 8px rgb(15 23 42 / 0.05), 0 12px 32px -8px rgb(15 23 42 / 0.14);
-  --shadow-popover: 0 2px 8px rgb(15 23 42 / 0.08), 0 12px 32px -6px rgb(15 23 42 / 0.14);
+  --shadow-composer:
+    0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05),
+    0 12px 28px -12px rgb(17 17 17 / 0.16);
+  --shadow-popover:
+    0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05),
+    0 16px 34px -14px rgb(17 17 17 / 0.18);
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */

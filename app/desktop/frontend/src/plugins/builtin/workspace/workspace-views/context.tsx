@@ -19,12 +19,12 @@ function ContextDockView() {
       icon="panel-r"
       titleStrong
       title="workspace.view.title.context"
-      scrollClassName="px-3 pb-3"
+      scrollClassName="px-2.5 pb-3"
     >
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-1 gap-4">
         {groups.map((group) => (
           <section key={group.id} className="grid grid-cols-1 gap-1">
-            <div className="px-2 pt-1 pb-0.5 text-[10.5px] font-medium leading-none text-fg-faint">
+            <div className="px-2 pt-1 pb-1 text-[11px] font-medium leading-none text-fg-muted">
               {t(group.title)}
             </div>
             {group.destinations.map((destination) => {
@@ -36,13 +36,13 @@ function ContextDockView() {
                   data-chrome-focus=""
                   onClick={() => openContextDockDestination(destination)}
                   className={cn(
-                    "flex min-h-10 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-2 text-left",
-                    "text-[13px] text-fg-soft transition-[background-color,color,box-shadow] duration-100 ease-out",
-                    "hover:bg-fg/[0.04] hover:text-fg hover:shadow-[inset_0_0_0_0.5px_var(--color-field)]",
+                    "flex min-h-9 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left",
+                    "text-[13px] text-fg-soft transition-[background-color,color] duration-100 ease-out",
+                    "hover:bg-fg/[0.04] hover:text-fg",
                     "focus-visible:bg-fg/[0.055] focus-visible:text-fg focus-visible:shadow-[var(--shadow-focus)] focus-visible:outline-none",
                   )}
                 >
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-sm bg-fg/[0.035] text-fg-muted shadow-[inset_0_0_0_0.5px_var(--color-field)]">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-surface-2 text-fg-muted">
                     <Icon name={icon} size={13} />
                   </span>
                   <span className="min-w-0 flex-1 truncate font-medium">

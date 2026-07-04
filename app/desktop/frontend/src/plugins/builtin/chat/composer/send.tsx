@@ -29,7 +29,7 @@ function SendButton() {
             onClick={() =>
               submitComposer({ value, clear, sendInput: send, images, pastes, recordHistory })
             }
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-accent text-on-accent transition-transform duration-150 active:scale-95"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border-0 bg-cta text-cta-text transition-[background-color,scale] duration-150 hover:bg-cta-hover active:scale-[0.96]"
             data-slot="composer-send"
           >
             <Icon name="arrow-up" size={16} strokeWidth={2.5} />
@@ -43,7 +43,7 @@ function SendButton() {
           type="button"
           disabled={!stop}
           onClick={() => stop?.()}
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-surface-3 text-fg-muted transition-colors duration-150 hover:bg-surface-4 hover:text-fg active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border-0 bg-surface-3 text-fg-muted transition-[background-color,color,scale] duration-150 hover:bg-surface-4 hover:text-fg active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40"
           data-slot="composer-stop"
         >
           <Icon name="stop" size={13} />
@@ -63,10 +63,10 @@ function SendButton() {
         disabled={disabled}
         onClick={onClick}
         className={cn(
-          "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 transition-transform duration-150",
+          "grid h-9 w-9 shrink-0 place-items-center rounded-full border-0 transition-[background-color,color,scale] duration-150",
           disabled
             ? "bg-surface-3 text-fg-faint cursor-not-allowed"
-            : "bg-fg text-on-fg active:scale-95",
+            : "bg-cta text-cta-text hover:bg-cta-hover active:scale-[0.96]",
         )}
         data-slot="composer-send"
       >

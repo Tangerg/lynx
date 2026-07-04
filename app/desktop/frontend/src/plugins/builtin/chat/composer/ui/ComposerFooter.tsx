@@ -24,11 +24,14 @@ export function ComposerFooter() {
   if (items.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center mt-1.5 pt-1" data-slot="composer-chips">
+    <div
+      className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 pt-0.5"
+      data-slot="composer-chips"
+    >
       {items.map((it, i) => (
         <span key={it.id} className="inline-flex items-center">
           {i > 0 && (
-            <span className="mx-1.5 text-fg-faint/30 select-none" aria-hidden>
+            <span className="mr-1.5 text-fg-faint/35 select-none" aria-hidden>
               ·
             </span>
           )}

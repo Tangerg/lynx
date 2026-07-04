@@ -88,7 +88,7 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
           {isUser ? (
             <div className="group flex flex-col items-end" data-slot="message-user">
               <MessageContextMenu msg={msg}>
-                <div className="msg-content min-w-0 max-w-[80%] rounded-lg bg-surface-2 px-4 py-2.5 text-left text-[16px] leading-relaxed text-fg">
+                <div className="msg-content min-w-0 max-w-[80%] rounded-xl bg-surface-2 px-4 py-2.5 text-left text-[15px] leading-[1.6] text-fg">
                   {content}
                 </div>
               </MessageContextMenu>
@@ -106,12 +106,12 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
               {/* Assistant identity marker — a small sparkle avatar peeking
                   left of the prose (DESIGN.md message-body-assistant spec +
                   the Codex reference). Content + actions offset to its right. */}
-              <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface">
+              <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface-2 text-fg-muted shadow-[inset_0_0_0_0.5px_var(--color-field)]">
                 <Icon name="spark" size={14} className="text-fg-muted" />
               </div>
               <div className="min-w-0 flex-1">
                 <MessageContextMenu msg={msg}>
-                  <div className="msg-content max-w-[--content-max] text-pretty text-fg-soft text-[16px] leading-relaxed">
+                  <div className="msg-content max-w-[--content-max] text-pretty text-fg-soft text-[15px] leading-[1.75]">
                     {content}
                   </div>
                 </MessageContextMenu>

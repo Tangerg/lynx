@@ -65,17 +65,17 @@ export function SessionRow({
         aria-current={active ? "page" : undefined}
         aria-label={session.title}
         className={cn(
-          "flex w-full items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 py-2 text-left transition-[background-color] duration-75 hover:bg-fg/[0.04] focus-visible:bg-fg/[0.055] focus-visible:text-fg focus-visible:outline-none",
-          active && "bg-fg/[0.075]",
+          "flex h-7 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left transition-[background-color,color] duration-100 hover:bg-fg/[0.04] focus-visible:bg-fg/[0.055] focus-visible:text-fg focus-visible:outline-none",
+          active && "bg-fg/[0.07]",
         )}
       >
         <div
           className={cn(
-            "shrink-0 flex items-center justify-center h-4 w-4 transition-colors",
+            "shrink-0 flex h-4 w-4 items-center justify-center transition-colors",
             session.favorite ? "text-accent" : active ? "text-fg" : "text-fg-muted",
           )}
         >
-          <Icon name={session.favorite ? "star" : "chat"} size={14} />
+          <Icon name={session.favorite ? "star" : "chat"} size={13} />
         </div>
         {renaming ? (
           <input
@@ -109,7 +109,7 @@ export function SessionRow({
           <>
             <span
               className={cn(
-                "min-w-0 flex-1 truncate text-[13px] font-medium leading-[1.3] transition-colors",
+                "min-w-0 flex-1 truncate text-[13px] font-medium leading-none tracking-[-0.01em] transition-colors",
                 active ? "text-fg" : "text-fg-soft",
               )}
             >
@@ -117,7 +117,7 @@ export function SessionRow({
             </span>
             {session.attention === "none" ? (
               <span
-                className="shrink-0 text-[11.5px] leading-none text-fg-faint tabular-nums"
+                className="shrink-0 font-mono text-[11px] leading-none text-fg-faint tabular-nums"
                 title={session.time}
               >
                 {subText}
