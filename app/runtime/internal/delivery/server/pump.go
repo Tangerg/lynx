@@ -33,6 +33,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	inner, err := s.rt.Chat().Events(runCtx, handle)
 	if err != nil {
 		cancel()
+		_ = s.rt.Chat().Cancel(context.WithoutCancel(reqCtx), handle)
 		return nil, nil, err
 	}
 	// The hub owns the run's event stream for its whole lifetime,
