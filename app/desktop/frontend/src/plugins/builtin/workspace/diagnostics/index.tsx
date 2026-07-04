@@ -9,18 +9,13 @@
 
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+import { diagnosticsWorkspaceView } from "./application/diagnosticsContributions";
 import { DiagnosticsView } from "./DiagnosticsView";
 
 export default definePlugin({
   name: "lyra.builtin.diagnostics",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, {
-      id: "diagnostics",
-      title: "workspace.view.title.diagnostics",
-      icon: "spark",
-      order: 90,
-      component: DiagnosticsView,
-    });
+    host.extensions.contribute(WORKSPACE_VIEW, diagnosticsWorkspaceView(DiagnosticsView));
   },
 });
