@@ -6,11 +6,10 @@
 // mid-sequence failure leaves no half-mutated session.
 //
 // These are use-case orchestration, not protocol adaptation: keeping them here
-// (driven by the protocol adapter, which still owns wire decode, boundary
-// decision, and busy guards) holds the "thin delivery" line and lets the
-// write-sets be tested without standing up the wire. The adapter computes WHAT
-// to mutate (e.g. the rollback boundary, decoded from wire blobs); the
-// Coordinator EXECUTES the multi-domain mutation atomically.
+// (driven by the protocol adapter, which still owns wire decode and busy
+// guards) holds the "thin delivery" line and lets the write-sets be tested
+// without standing up the wire. The adapter lifts wire blobs into domain values;
+// the Coordinator decides and executes the multi-domain mutation atomically.
 package lifecycle
 
 import (
@@ -55,16 +54,41 @@ type Coordinator struct {
 // New returns a Coordinator over s.
 func New(s Stores) *Coordinator { return &Coordinator{s: s} }
 
+// RollbackBoundary is the resolved, domain-level rollback split.
+type RollbackBoundary struct {
+	KeepMark     int
+	Dropped      []transcript.RunNode
+	BoundaryTime time.Time
+	DropRunIDs   []string
+}
+
+// ResolveRollbackBoundary computes the root-run inclusive-keep boundary for a
+// rollback. The protocol adapter owns wire decoding; once it has lifted stored
+// RunRefs into [transcript.RunNode], the decision is a lifecycle use-case, not
+// protocol adaptation.
+func ResolveRollbackBoundary(nodes []transcript.RunNode, toRunID string) (RollbackBoundary, error) {
+	b, err := transcript.BoundaryAt(nodes, toRunID, true)
+	if err != nil {
+		return RollbackBoundary{}, err
+	}
+	dropIDs := make([]string, len(b.Dropped))
+	for i, rec := range b.Dropped {
+		dropIDs[i] = rec.ID
+	}
+	return RollbackBoundary{
+		KeepMark:     b.KeepMark,
+		Dropped:      b.Dropped,
+		BoundaryTime: b.BoundaryTime,
+		DropRunIDs:   dropIDs,
+	}, nil
+}
+
 // Rollback truncates the chat-memory log to keepMark and drops each run's
 // durable items + record + dangling interrupt as ONE transaction, then purges
 // the subagent child sessions spawned at/after purgeAfter. A keepMark < 0
 // (unknown watermark — chain terminal still in-flight / pre-watermark) leaves
 // the log untouched rather than guessing at a boundary that was never recorded.
 // Rolling back over a parked run un-parks it (the interrupt delete).
-//
-// The caller (the protocol adapter) owns the wire-coupled decision — decoding
-// the stored RunRefs, computing the boundary ([transcript.BoundaryAt]), and the
-// session_busy guard — and passes only the resolved boundary here.
 func (c *Coordinator) Rollback(ctx context.Context, sessionID string, keepMark int, dropRunIDs []string, purgeAfter time.Time) error {
 	if err := c.s.RunInTx(ctx, func(ctx context.Context) error {
 		if keepMark >= 0 {
@@ -89,6 +113,14 @@ func (c *Coordinator) Rollback(ctx context.Context, sessionID string, keepMark i
 	}
 	c.purgeChildrenAfter(ctx, sessionID, purgeAfter)
 	return nil
+}
+
+// RollbackResolved executes a previously resolved rollback boundary.
+func (c *Coordinator) RollbackResolved(ctx context.Context, sessionID string, b RollbackBoundary) error {
+	if len(b.Dropped) == 0 {
+		return nil
+	}
+	return c.Rollback(ctx, sessionID, b.KeepMark, b.DropRunIDs, b.BoundaryTime)
 }
 
 // Fork creates a child of parentID, seeds it with the supplied chat-memory
