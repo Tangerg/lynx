@@ -4,9 +4,9 @@
 // contributed preview (or ToolInspector fallback). Selected state drives the
 // inspector pane via the workspace navigation wiring.
 //
-// This replaces the previous card-based ToolCard with a flat activity-row
-// pattern: no border, no surface bg by default, the row sits directly in the
-// message flow like structured text.
+// This replaces the previous card-based ToolCard with a compact activity-row
+// pattern: no enclosing card, just a light row fill that reads as structured
+// activity inside the message flow.
 import * as React from "react";
 import type { IconName } from "@/components/common";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
@@ -51,17 +51,18 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
   const metaItems = toolMetaItems(tool);
 
   return (
-    <div data-slot="tool-card-root" className="group relative my-0.5">
-      {/* Collapsed / expanded row — a single bare text line, no bg, no
-          border, no surface. Reads like a log entry on the canvas. */}
+    <div data-slot="tool-card-root" className="group relative my-1">
+      {/* Collapsed / expanded row — a single compact activity line, not an
+          enclosing card. */}
       <button
         data-slot="tool-card-trigger"
         type="button"
         aria-expanded={expanded}
         onClick={onToggleExpand}
         className={cn(
-          "flex w-full items-center gap-2 px-2 py-0.5 text-left",
-          "focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]",
+          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left",
+          "bg-surface-2/60 transition-[background-color,box-shadow] duration-100 hover:bg-surface-2",
+          "focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]",
         )}
       >
         {/* Chevron — muted, rotates on expand. No chevron-right in the
@@ -126,15 +127,15 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
 
       {/* Inline error reason — shown even when collapsed so failures are visible. */}
       {tool.status === "err" && tool.error && (
-        <div className="pl-7 pr-2 pb-1 font-mono text-[11px] leading-snug text-negative">
+        <div className="pl-7 pr-2 pb-1 pt-1 font-mono text-[11px] leading-snug text-negative">
           {tool.error}
         </div>
       )}
 
       {/* Expanded inline preview — plain text/code under the row, zero
-          chrome (no card, no surface, no action buttons). */}
+          enclosing card chrome. */}
       <Collapsible open={expanded}>
-        <div data-slot="tool-card-content" className="pl-6 pr-2 pb-1">
+        <div data-slot="tool-card-content" className="pl-6 pr-2 pb-1.5 pt-1">
           <ToolPreview tool={tool} onOpenView={onOpenView} />
         </div>
       </Collapsible>
@@ -197,7 +198,7 @@ function StatusIcon({ status, tool }: { status: ToolCall["status"]; tool: ToolCa
 }
 
 const ACTION_BTN =
-  "grid h-5 w-5 shrink-0 place-items-center rounded border-0 bg-transparent text-fg-faint opacity-0 transition-[opacity,color,background] group-hover:opacity-100 hover:text-fg hover:bg-fg/[0.05]";
+  "grid h-5 w-5 shrink-0 place-items-center rounded border-0 bg-transparent text-fg-faint opacity-0 transition-[opacity,color,background-color] group-hover:opacity-100 hover:text-fg hover:bg-fg/[0.05]";
 
 function ToolMeta({ items }: { items: ToolMetaItem[] }) {
   if (items.length === 0) return null;

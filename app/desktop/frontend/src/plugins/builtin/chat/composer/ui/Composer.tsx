@@ -74,7 +74,7 @@ export function Composer({
         e.preventDefault(); // swallow the drop even if the model can't take it
         input.handleDrop(files);
       }}
-      className="relative rounded-lg border-0 bg-surface px-4 py-3 shadow-[var(--shadow-composer)]"
+      className="relative rounded-xl border-0 bg-surface px-5 py-4 shadow-[var(--shadow-composer)]"
       data-slot="composer-root"
     >
       {input.mentions.active && (
@@ -113,13 +113,13 @@ export function Composer({
         /* The `composer-input` class is a DOM-target hook (no styles) so
            the `composer.focus` command in defaults/commands.ts can find
            this textarea without threading a ref through the tree. */
-        className="composer-input max-h-40 min-h-9 w-full resize-none border-0 bg-transparent px-0.5 py-2 font-sans text-[16px] leading-[1.5] text-fg outline-none placeholder:text-fg-faint placeholder:tracking-normal"
+        className="composer-input max-h-40 min-h-10 w-full resize-none border-0 bg-transparent px-0 py-1.5 font-sans text-[15px] leading-[1.55] text-fg outline-none placeholder:text-fg-faint placeholder:tracking-normal"
         data-slot="composer-input"
       />
       {/* Bottom toolbar — ALL controls live below the input so the text area
           above stays pure: attach + model on the left, send on the right. */}
       <div
-        className="flex flex-nowrap items-center gap-1.5 pt-2 min-h-8"
+        className="flex min-h-8 flex-nowrap items-center gap-1.5 pt-2"
         data-slot="composer-toolbar-bottom"
       >
         <Slot name="composer.toolbar.start" />

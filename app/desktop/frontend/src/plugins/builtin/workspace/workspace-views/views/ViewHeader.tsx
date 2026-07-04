@@ -49,7 +49,7 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
   }
 
   return (
-    <div className="grid grid-cols-[28px_1fr_auto] items-center gap-2.5 px-4 py-3.5">
+    <div className="grid min-h-12 grid-cols-[28px_1fr_auto] items-center gap-2.5 px-3.5 py-2.5">
       <div className="grid h-7 w-7 place-items-center rounded-md bg-surface-2 text-fg-muted">
         <Icon name={icon} size={14} />
       </div>
@@ -58,7 +58,7 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
           className={cn(
             "text-fg whitespace-nowrap overflow-hidden text-ellipsis",
             titleStrong
-              ? "font-sans text-[16px] font-semibold tracking-[-0.005em]"
+              ? "font-sans text-[14px] font-semibold tracking-[-0.01em]"
               : "font-mono text-[13px]",
           )}
         >

@@ -15,19 +15,17 @@ function SidebarNewSession() {
 
   return (
     <div className="flex flex-col">
-      {/* Primary action — a prominent outlined button, set apart from the
-          plain nav rows below it (Codex-reference "new" affordance). */}
       <button
         type="button"
         onClick={actions.createSession}
         data-chrome-focus=""
         className={cn(
-          "mb-1.5 flex w-full items-center justify-center gap-2 rounded-lg border-[0.5px] border-field bg-transparent px-3 py-2.5",
-          "font-sans text-[13px] font-medium text-fg transition-[background-color,border-color,transform] duration-100 active:scale-[0.99]",
-          "hover:bg-fg/[0.045] focus-visible:bg-fg/[0.06] focus-visible:outline-none",
+          "mb-1 flex h-8 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2.5 text-left",
+          "font-sans text-[13px] font-medium text-fg-soft transition-[background-color,color,transform] duration-100 active:scale-[0.99]",
+          "hover:bg-fg/[0.04] hover:text-fg focus-visible:bg-fg/[0.055] focus-visible:text-fg focus-visible:outline-none",
         )}
       >
-        <Icon name="plus" size={15} className="shrink-0" />
+        <Icon name="edit" size={15} className="shrink-0 text-fg-muted" />
         <span>{t("sidebar.action.newSession")}</span>
       </button>
     </div>

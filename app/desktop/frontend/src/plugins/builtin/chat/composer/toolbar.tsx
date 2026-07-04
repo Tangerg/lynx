@@ -25,7 +25,7 @@ function ModelPicker() {
     if (!isLoading) return null;
     return (
       <div
-        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full pl-1.5 pr-2.5 opacity-60"
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md pl-1.5 pr-2.5 opacity-60"
         aria-hidden
       >
         <span className="h-4 w-4 rounded-full bg-surface-2" />
@@ -42,11 +42,11 @@ function ModelPicker() {
           <button
             type="button"
             aria-label={t("composer.switchModel")}
-            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border-[0.5px] border-field bg-transparent pl-1.5 pr-2.5 text-[12px] font-medium text-fg whitespace-nowrap transition-colors hover:bg-surface-2 data-[popup-open]:bg-surface-2"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border-0 bg-transparent pl-1.5 pr-2.5 text-[12.5px] font-medium text-fg-muted whitespace-nowrap transition-[background-color,color] duration-100 hover:bg-fg/[0.04] hover:text-fg data-[popup-open]:bg-fg/[0.055] data-[popup-open]:text-fg"
             data-slot="composer-model"
           >
             <ProviderIcon provider={selected.provider} size={16} />
-            <span className="font-sans text-[12px] font-medium">{selected.label}</span>
+            <span className="font-sans text-[12.5px] font-medium">{selected.label}</span>
             <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
           </button>
         }
@@ -99,7 +99,7 @@ function AttachButton() {
           aria-label={t("composer.attachImage")}
           disabled={!canAttach}
           onClick={() => inputRef.current?.click()}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg active:scale-95 disabled:cursor-not-allowed disabled:opacity-25"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-fg-muted transition-[background-color,color,scale] duration-100 hover:bg-fg/[0.04] hover:text-fg active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-25"
           data-slot="composer-attach"
         >
           <Icon name="image" size={15} />

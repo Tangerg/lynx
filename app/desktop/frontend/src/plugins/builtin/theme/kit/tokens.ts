@@ -7,26 +7,27 @@
 import { colord } from "colord";
 import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./types";
 
-// Default shadow + radii ladders
-
-// Elevation shadows are RINGLESS — no `0 0 0 1px` box-shadow ring anywhere (a
-// 1px ring reads as a cheap border). Separation is by shadow + background delta;
-// where a floating menu genuinely needs a crisp edge, it uses a 0.5px CSS border
-// on the element (Menu.tsx), not a shadow-ring. So these tokens are just contact
-// + ambient. Reserved for genuinely-floating elements only (JetBrains model):
-// composer (the input floating over the stream) + popover (dropdowns / palette /
-// dialogs). Tiled/docked regions + in-flow cards separate by background delta.
-// On dark the ambient is near-black (a light ambient can't show on dark).
+// Default shadow + radii ladders.
+//
+// Floating surfaces use the desktop polish model: optical edge ring + contact
+// shadow + ambient shadow. The first layer is a 0.5px shadow ring, not a CSS
+// border, so it gives the crisp Raycast/Geist edge without adding grey layout
+// chrome. Tiled/docked regions still separate by background delta and structural
+// hairlines; these shadows are reserved for composer and transient surfaces.
 export const DARK_SHADOWS: ThemeShadows = {
-  composer: "0 2px 8px rgb(0 0 0 / 0.35), 0 16px 40px -10px rgb(0 0 0 / 0.55)",
-  popover: "0 2px 8px rgb(0 0 0 / 0.4), 0 12px 32px -6px rgb(0 0 0 / 0.55)",
+  composer:
+    "0 0 0 0.5px rgb(255 255 255 / 0.12), 0 1px 2px rgb(0 0 0 / 0.35), 0 16px 40px -14px rgb(0 0 0 / 0.72)",
+  popover:
+    "0 0 0 0.5px rgb(255 255 255 / 0.13), 0 1px 2px rgb(0 0 0 / 0.34), 0 12px 32px -12px rgb(0 0 0 / 0.68)",
   // Geist two-layer focus ring: 2px gap in surface color + 2px accent.
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
 
 export const LIGHT_SHADOWS: ThemeShadows = {
-  composer: "0 2px 8px rgb(15 23 42 / 0.05), 0 12px 32px -8px rgb(15 23 42 / 0.14)",
-  popover: "0 2px 8px rgb(15 23 42 / 0.08), 0 12px 32px -6px rgb(15 23 42 / 0.14)",
+  composer:
+    "0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05), 0 12px 28px -12px rgb(17 17 17 / 0.16)",
+  popover:
+    "0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05), 0 16px 34px -14px rgb(17 17 17 / 0.18)",
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
 

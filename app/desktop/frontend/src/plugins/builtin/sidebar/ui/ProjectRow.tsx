@@ -27,8 +27,8 @@ export function ProjectRow({
     <div className={cn("relative group select-none")}>
       <div
         className={cn(
-          "flex items-center gap-1 rounded-md px-2.5 py-1.5 transition-[background-color] duration-75 hover:bg-fg/[0.04]",
-          active && "bg-fg/[0.075] text-fg",
+          "flex h-7 items-center gap-1 rounded-md px-2 transition-[background-color,color] duration-100 hover:bg-fg/[0.04]",
+          active && "bg-fg/[0.07] text-fg",
         )}
       >
         <button
@@ -49,7 +49,7 @@ export function ProjectRow({
           />
           <span
             className={cn(
-              "shrink-0 flex items-center justify-center h-4.5 w-4.5 text-fg transition-colors",
+              "shrink-0 flex h-4.5 w-4.5 items-center justify-center text-fg-muted transition-colors",
               active && "text-fg",
             )}
           >
@@ -57,7 +57,7 @@ export function ProjectRow({
           </span>
           <span
             className={cn(
-              "flex min-w-0 items-center gap-1.5 text-[13px] font-medium leading-[1.3] transition-colors text-fg",
+              "flex min-w-0 items-center gap-1.5 text-[13px] font-medium leading-none tracking-[-0.01em] text-fg-soft transition-colors",
               active && "text-fg",
             )}
           >
@@ -77,11 +77,11 @@ export function ProjectRow({
           data-chrome-focus=""
           aria-label={t("project.row.newSession", { name: project.name })}
           onClick={() => onNewSession(project)}
-          className="grid h-5 w-5 place-items-center rounded-md border-0 bg-transparent text-fg-faint opacity-0 transition-[opacity,background,color] group-hover:opacity-100 hover:bg-fg/[0.055] hover:text-fg"
+          className="grid h-5 w-5 place-items-center rounded-md border-0 bg-transparent text-fg-faint opacity-0 transition-[opacity,background-color,color] group-hover:opacity-100 hover:bg-fg/[0.055] hover:text-fg"
         >
           <Icon name="plus" size={11} />
         </button>
-        <span className="text-[12px] text-fg-faint tabular-nums">{count}</span>
+        <span className="font-mono text-[11.5px] text-fg-faint tabular-nums">{count}</span>
       </div>
     </div>
   );

@@ -4,11 +4,11 @@
   box-sizing: border-box;
 }
 
-/* Hard minimum viewport: sidebar (264) + a comfortable main column. The
+/* Hard minimum viewport: sidebar (244) + a comfortable main column. The
    flush layout drops the gutters, so the floor is lower than the old
    cards-on-canvas value. Below this the columns squash instead of scrolling. */
 :root {
-  --app-min-width: 968px;
+  --app-min-width: 948px;
   --app-min-height: 720px;
 }
 
@@ -55,7 +55,7 @@ html.theme-light {
 
 .app-main {
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: 244px minmax(0, 1fr);
   /* No gap / padding: the sidebar and main area are flush to the window
       edge, separated by background delta only (surface vs canvas).
       Depth comes from the surface step, not gutters + shadow. */
