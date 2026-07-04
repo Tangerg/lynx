@@ -54,7 +54,13 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// widen it to the whole tree for file restores. (History-only rollback touches
 	// just this session's log, so the per-session guard suffices.)
 	if doFiles {
-		if busy := s.hasActiveRunSharingCwd(fspath.Canonical(ses.Cwd)); busy != "" {
+		restoreCwd := fspath.Canonical(ses.Cwd)
+		treeAdmission, ok := s.claimWorkingTreeMutation(restoreCwd)
+		if !ok {
+			return nil, fmt.Errorf("%w: working tree %q has a run admission in flight", protocol.ErrSessionBusy, ses.Cwd)
+		}
+		defer treeAdmission.Release()
+		if busy := s.hasActiveRunSharingCwd(restoreCwd); busy != "" {
 			return nil, fmt.Errorf("%w: session %q shares this working tree and has a run in flight", protocol.ErrSessionBusy, busy)
 		}
 	}
