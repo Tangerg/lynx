@@ -12,10 +12,13 @@ export function ProgressBar({ value, className, indicatorClassName }: ProgressBa
   return (
     <ProgressPrimitive.Root
       value={bounded}
-      className={cn("h-1 overflow-hidden rounded-full bg-surface-3", className)}
+      className={cn("h-1.5 overflow-hidden rounded-pill bg-surface-2", className)}
     >
       <ProgressPrimitive.Indicator
-        className={cn("h-full bg-accent transition-[width] duration-150", indicatorClassName)}
+        className={cn(
+          "h-full rounded-pill bg-accent transition-[width] duration-150",
+          indicatorClassName,
+        )}
         style={{ width: `${bounded}%` }}
       />
     </ProgressPrimitive.Root>

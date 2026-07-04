@@ -15,9 +15,9 @@ const styles = cva(
   {
     variants: {
       variant: {
-        ghost: "h-8 w-8 rounded-[8px] hover:bg-fg/[0.045]",
-        rail: "h-10 w-10 rounded-[9px] hover:bg-fg/[0.045]",
-        "rail-primary": "h-10 w-10 rounded-[9px] bg-fg/[0.075] text-fg hover:bg-fg/[0.095]",
+        ghost: "h-8 w-8 rounded-md hover:bg-fg/[0.08]",
+        rail: "h-10 w-10 rounded-md hover:bg-fg/[0.08]",
+        "rail-primary": "h-10 w-10 rounded-md bg-fg/[0.06] text-fg hover:bg-fg/[0.09]",
       },
       active: {
         true: "",
@@ -25,9 +25,9 @@ const styles = cva(
       },
     },
     compoundVariants: [
-      // Active state varies per variant — ghost goes accent-colored,
-      // rail variants stay neutral (the user signals active via other UI).
-      { variant: "ghost", active: true, class: "text-accent" },
+      // Active state varies per variant — ghost gets the neutral pressed
+      // fill, rail variants stay flat (the user signals active via other UI).
+      { variant: "ghost", active: true, class: "bg-fg/[0.06] text-fg" },
     ],
     defaultVariants: { variant: "ghost", active: false },
   },

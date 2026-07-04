@@ -4,12 +4,12 @@ import { Icon, type IconName } from "@/ui/icons";
 import { ContextMenuPrimitive, MenuPrimitive } from "@/ui/primitives";
 
 const MENU_CONTENT_CLASSES =
-  "z-50 overflow-hidden rounded-md border-[0.5px] border-field bg-surface p-1 shadow-[var(--shadow-popover)] animate-rise-in";
+  "z-50 overflow-hidden rounded-[12px] bg-canvas p-1 shadow-[var(--shadow-popover)] animate-rise-in";
 
 const MENU_ITEM_CLASSES =
-  "grid items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg";
+  "grid h-8 items-center gap-2 rounded-md px-2.5 text-[13px] text-fg-soft outline-none data-[highlighted]:bg-fg/[0.06] data-[highlighted]:text-fg";
 
-const MENU_SEPARATOR_CLASSES = "mx-1 my-1 h-px bg-line-soft/40";
+const MENU_SEPARATOR_CLASSES = "mx-1 my-1 h-px bg-fg/[0.06]";
 
 type DropdownPositionerProps = ComponentProps<typeof MenuPrimitive.Positioner>;
 type DropdownPopupProps = ComponentProps<typeof MenuPrimitive.Popup>;

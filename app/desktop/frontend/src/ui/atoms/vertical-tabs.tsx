@@ -52,7 +52,7 @@ export function VerticalTabs({
               <TabsPrimitive.Tab
                 key={item.id}
                 value={item.id}
-                className="flex h-8 items-center gap-2.5 rounded-[8px] border-0 bg-transparent px-2.5 text-left font-sans text-[13px] leading-none text-fg-soft transition-[background-color,color] duration-[120ms] ease-out hover:bg-fg/[0.045] hover:text-fg focus-visible:outline-none data-[active]:bg-fg/[0.075] data-[active]:text-fg"
+                className="flex h-8 items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 text-left font-sans text-[13px] leading-none text-fg-muted transition-[background-color,color] duration-[120ms] ease-out hover:bg-fg/[0.04] hover:text-fg focus-visible:outline-none data-[active]:bg-fg/[0.06] data-[active]:text-fg"
               >
                 {item.icon && <Icon name={item.icon} size={15} className="shrink-0" />}
                 <span className="truncate">{item.label}</span>

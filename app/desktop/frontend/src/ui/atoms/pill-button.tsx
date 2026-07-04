@@ -8,16 +8,16 @@ import { ButtonPrimitive, type ButtonPrimitiveProps } from "@/ui/primitives";
 // variants in two sizes. These controls sit inside dense toolbars, so they
 // stay compact while using softer native-pill corners.
 const styles = cva(
-  "inline-flex items-center gap-1.5 rounded-full font-sans font-medium tracking-normal " +
+  "inline-flex items-center gap-1.5 rounded-pill font-sans font-medium tracking-normal " +
     "transition-[background-color,color,scale] duration-150 ease-out active:scale-[0.96] " +
     "disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
-        outlined: "border-[0.5px] border-field bg-surface/70 text-fg hover:bg-surface",
-        solid: "border-[0.5px] border-fg bg-fg text-on-fg",
-        accent: "border-[0.5px] border-accent bg-accent text-on-accent",
-        danger: "bg-transparent text-negative border-[0.5px] border-negative hover:bg-negative/8",
+        outlined: "border-[0.5px] border-field text-fg-soft hover:bg-fg/[0.05] hover:text-fg",
+        solid: "bg-cta text-cta-text hover:bg-cta-hover",
+        accent: "bg-accent text-on-accent",
+        danger: "bg-transparent text-negative border-[0.5px] border-negative hover:bg-negative/10",
       },
       size: {
         sm: "h-6.5 px-3 text-[11px]",

@@ -32,7 +32,7 @@ export function Segmented<T extends string | number>({
         if (opt) onChange(opt.value);
       }}
       className={cn(
-        "inline-flex w-fit items-center gap-0.5 rounded-[8px] bg-surface-2 p-0.5 shadow-[inset_0_0_0_0.5px_var(--color-field)]",
+        "inline-flex w-fit items-center gap-0.5 rounded-md bg-surface-2 p-0.5",
         className,
       )}
     >
@@ -44,7 +44,7 @@ export function Segmented<T extends string | number>({
             className={cn(
               "h-6 rounded-[6px] border-0 bg-transparent px-2.5 text-[12px] font-medium text-fg-muted transition-[background-color,color,box-shadow] duration-[120ms] ease-out hover:text-fg",
               mono && "font-mono",
-              "data-[active]:bg-canvas data-[active]:text-fg data-[active]:shadow-[inset_0_0_0_0.5px_var(--color-field)]",
+              "data-[active]:bg-canvas data-[active]:text-fg data-[active]:shadow-[var(--shadow-control)]",
               "focus-visible:outline-none",
             )}
           >

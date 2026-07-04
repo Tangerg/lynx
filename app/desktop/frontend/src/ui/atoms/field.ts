@@ -7,9 +7,3 @@
 // callsite can opt the edge out with `border-0`.
 export const FIELD_CLASSES =
   "rounded-md border-[0.5px] border-field bg-canvas font-mono text-[12px] outline-none transition-colors focus:border-field-strong";
-
-// Focus treatment for the bordered settings-form text inputs (Providers / MCP /
-// Connection panes): the `border-field` edge quietly strengthens on focus — no
-// accent halo (that bright ring was one of the "cheap" tells). Compose onto the
-// input's own size/padding with cn().
-export const INPUT_FOCUS_RING = "focus:border-field-strong";
