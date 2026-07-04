@@ -138,7 +138,7 @@ export function ChatPanel({ onSend }: Props) {
             {/* When the sidebar is hidden the chat spans to the window's left
                 edge — pad the header past the native macOS traffic-light inset
                 so the toggle clears them. */}
-            <AgentPaneHeader className={cn("px-5", sidebarHidden && "pl-[78px]", dragClasses)}>
+            <AgentPaneHeader className={cn("px-5", sidebarHidden && "pl-24", dragClasses)}>
               <AgentIconButton
                 icon="panel-l"
                 size="sm"
