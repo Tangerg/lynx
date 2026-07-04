@@ -25,26 +25,19 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	// Peek the interrupt to learn its session, then claim the session's
-	// single-writer slot BEFORE lifecycle consumes the record. Consume removes
-	// the only busy-marker a parked run has (it already left s.runs), so without
-	// the claim a concurrent runs.start could slip into the window between
-	// Consume and the continuation's openSegment. The claim is held through
-	// openSegment (released on return). A concurrent resume of the same
-	// interrupt loses the claim and is reported busy; Consume's atomic
-	// read-and-remove is the backstop so the parked process is never rebuilt
-	// twice (the approved, possibly non-idempotent, tool never re-fires).
-	peek, found, err := s.rt.Interrupts().Get(ctx, in.ParentRunID)
+	pending, admission, err := s.coordinator().ClaimResumeSlot(ctx, sessionClaimer{s: s}, in.ParentRunID)
 	if err != nil {
-		return nil, nil, err
+		switch {
+		case errors.Is(err, lifecycle.ErrInterruptNotOpen):
+			return nil, nil, protocol.ErrInterruptNotOpen
+		case errors.Is(err, lifecycle.ErrSessionBusy):
+			return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, pending.SessionID)
+		default:
+			return nil, nil, err
+		}
 	}
-	if !found {
-		return nil, nil, protocol.ErrInterruptNotOpen
-	}
-	if !s.claimSession(peek.SessionID) {
-		return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, peek.SessionID)
-	}
-	defer s.releaseSession(peek.SessionID)
+	defer admission.Release()
+
 	resumed, err := s.coordinator().ResumeClaimedInterrupt(ctx, s.rt.Chat(), in.ParentRunID, resolution)
 	if err != nil {
 		switch {
@@ -56,7 +49,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 			return nil, nil, err
 		}
 	}
-	pending := resumed.Pending
+	pending = resumed.Pending
 	handle := resumed.Handle
 
 	// Continuation gets a fresh wire runId linked to the parent. handle.TurnID

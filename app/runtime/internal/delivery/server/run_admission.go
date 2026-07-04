@@ -23,6 +23,18 @@ func (s *Server) releaseSession(sessionID string) {
 	s.runs.ReleaseSession(sessionID)
 }
 
+type sessionClaimer struct {
+	s *Server
+}
+
+func (c sessionClaimer) ClaimSession(sessionID string) bool {
+	return c.s.claimSession(sessionID)
+}
+
+func (c sessionClaimer) ReleaseSession(sessionID string) {
+	c.s.releaseSession(sessionID)
+}
+
 // hasActiveRunSharingCwd returns the id of an in-flight run's session whose
 // canonical working tree is cwd, or "" when none. The broader busy guard a file
 // restore needs: its `git reset --hard` WRITES the working tree, which a sibling
