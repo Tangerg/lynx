@@ -11,8 +11,6 @@ import { useSendComposerInput } from "@/plugins/builtin/chat/composer/public/sen
 import { useReconcilePersistedAgentSessions } from "@/plugins/builtin/agent/public/session";
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
-import { useUiStore } from "@/state/uiStore";
-import { useSidebarRail } from "@/plugins/builtin/workspace/public/sidebarRail";
 import { useDefaultChatSession } from "@/plugins/builtin/agent/public/defaultSession";
 
 function KernelChat() {
@@ -29,10 +27,7 @@ function KernelChat() {
 }
 
 function KernelSidebar() {
-  const railed = useSidebarRail();
-  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
-
-  return <SidebarPanel rail={railed} onToggleRail={toggleSidebar} />;
+  return <SidebarPanel />;
 }
 
 export const kernelChat = definePlugin({

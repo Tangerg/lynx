@@ -16,7 +16,7 @@ export function AgentAppShell({ rail, sidebar, main, overlay, mode = "work" }: A
       className={cn("agent-app", rail && !single && "agent-app-rail", single && "agent-app-single")}
     >
       <div className="agent-shell-grid">
-        {!single && (
+        {!single && !rail && (
           <aside aria-label="Work index" className="agent-region agent-region-sidebar">
             {sidebar}
           </aside>

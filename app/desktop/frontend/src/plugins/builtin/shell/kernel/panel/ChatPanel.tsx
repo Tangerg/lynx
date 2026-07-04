@@ -26,6 +26,7 @@ import {
   useSplitWorkspaceViewId,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { useWorkspaceViews } from "@/plugins/sdk";
+import { useSidebarRail } from "@/plugins/builtin/workspace/public/sidebarRail";
 import { useUiStore } from "@/state/uiStore";
 import { ChatStream } from "./ChatStream";
 import { SplitResizer } from "./SplitResizer";
@@ -71,6 +72,7 @@ export function ChatPanel({ onSend }: Props) {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const dockCollapsed = useUiStore((s) => s.dockCollapsed);
   const toggleDock = useUiStore((s) => s.toggleDock);
+  const sidebarHidden = useSidebarRail();
   const views = useWorkspaceViews();
   const { isLoading } = useSessions();
   const activeSession = useActiveSession();
@@ -133,11 +135,16 @@ export function ChatPanel({ onSend }: Props) {
             className={cn("relative flex min-h-0 min-w-0 flex-col", !splitViewId && "flex-1")}
             style={splitViewId ? { flexBasis: `${splitRatio * 100}%` } : undefined}
           >
-            <AgentPaneHeader className={cn("px-5", dragClasses)}>
+            {/* When the sidebar is hidden the chat spans to the window's left
+                edge — pad the header past the native macOS traffic-light inset
+                so the toggle clears them. */}
+            <AgentPaneHeader className={cn("px-5", sidebarHidden && "pl-[78px]", dragClasses)}>
               <AgentIconButton
                 icon="panel-l"
                 size="sm"
-                aria-label={t("sidebar.action.collapse")}
+                aria-label={
+                  sidebarHidden ? t("sidebar.action.expand") : t("sidebar.action.collapse")
+                }
                 onClick={toggleSidebar}
                 className={noDragClasses}
               />
