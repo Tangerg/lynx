@@ -7,7 +7,8 @@ import { IconGallery } from "./ui/IconGallery";
 import { IconShowcase } from "./ui/IconShowcase";
 import { definePlugin } from "@/plugins/sdk";
 import { t } from "@/lib/i18n";
-import { SETTINGS_PANE, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+import { registerSettingsPane } from "../public";
 
 export default definePlugin({
   name: "lyra.builtin.icon-gallery",
@@ -21,7 +22,7 @@ export default definePlugin({
       component: IconGallery,
     });
 
-    host.extensions.contribute(SETTINGS_PANE, {
+    registerSettingsPane(host, {
       id: "brand-icons",
       label: t("settings.pane.brandIcons"),
       group: "advanced",

@@ -4,7 +4,7 @@
 // live in sibling files. This file is only the plugin manifest.
 
 import { definePlugin } from "@/plugins/sdk";
-import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { registerSettingsPane } from "../public";
 import { installAppearancePreferencesPort } from "./adapters/uiAppearancePreferences";
 import { AppearancePane } from "./ui/AppearancePane";
 
@@ -13,7 +13,7 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     installAppearancePreferencesPort();
-    host.extensions.contribute(SETTINGS_PANE, {
+    registerSettingsPane(host, {
       id: "appearance",
       label: "settings.pane.appearance",
       group: "general",

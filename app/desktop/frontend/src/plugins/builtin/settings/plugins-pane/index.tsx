@@ -2,14 +2,14 @@
 // ui/PluginsPane.
 
 import { definePlugin } from "@/plugins/sdk";
-import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { registerSettingsPane } from "../public";
 import { PluginsPane } from "./ui/PluginsPane";
 
 export default definePlugin({
   name: "lyra.builtin.plugins-pane",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(SETTINGS_PANE, {
+    registerSettingsPane(host, {
       id: "plugins",
       label: "settings.pane.plugins",
       group: "integrations",

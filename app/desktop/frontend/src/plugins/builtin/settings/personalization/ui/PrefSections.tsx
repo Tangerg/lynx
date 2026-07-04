@@ -1,9 +1,3 @@
-// Personalization preference rows — message style + streaming reveal style +
-// completion sound. Binary picks rendered as a Segmented / Checkbox control.
-// Live here (not in the Appearance plugin) because the Personalization pane is
-// their only consumer; the shared `SettingRow` primitive sits at the
-// settings-domain root.
-
 import { useId } from "react";
 import { Checkbox, Segmented } from "@/ui";
 import { useT } from "@/lib/i18n";
@@ -12,7 +6,7 @@ import {
   useMessageStylePreference,
   useStreamRevealPreference,
 } from "../application/personalizationPreferences";
-import { SettingRow } from "../../SettingRow";
+import { SettingRow } from "../../public";
 
 export function MessageStyleSection() {
   const t = useT();

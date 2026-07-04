@@ -1,5 +1,5 @@
 import { definePlugin } from "@/plugins/sdk";
-import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { registerSettingsPane } from "../public";
 import { installProviderGateway } from "./adapters/runtimeProviderGateway";
 import { ProvidersPane } from "./ui/ProvidersPane";
 
@@ -8,7 +8,7 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     installProviderGateway();
-    host.extensions.contribute(SETTINGS_PANE, {
+    registerSettingsPane(host, {
       id: "providers",
       label: "settings.pane.providers",
       group: "models",

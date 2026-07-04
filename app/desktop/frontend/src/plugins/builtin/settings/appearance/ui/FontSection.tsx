@@ -9,7 +9,7 @@ import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "../application/systemFonts";
 import { cn } from "@/lib/utils";
 import { useFontPreferences } from "../application/appearancePreferences";
-import { SettingRow } from "../../SettingRow";
+import { SettingRow } from "../../public";
 
 interface FontPickerProps {
   label: string;
