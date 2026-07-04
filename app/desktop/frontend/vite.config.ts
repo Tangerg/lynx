@@ -5,6 +5,21 @@ import path from "node:path";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Dedicated dev ports for this app so it never collides with a second
+  // Vite/Wails project on the machine (5173 / 34115 are used elsewhere).
+  //
+  // Wails serves the webview through its OWN dev server (a different port than
+  // Vite), so the page origin is NOT Vite's port. Without `hmr.clientPort` the
+  // Vite HMR client in the WebView would open its WebSocket against the page
+  // origin (the Wails dev-server port) instead of Vite — the handshake fails
+  // silently and updates compile but never reach the window. Pinning the port
+  // (strict, no fallback drift) + clientPort makes the HMR socket deterministic.
+  server: {
+    host: "127.0.0.1",
+    port: 5273,
+    strictPort: true,
+    hmr: { protocol: "ws", host: "127.0.0.1", clientPort: 5273 },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
