@@ -1,7 +1,7 @@
 // Built-in workspace view: "Agent docs" — the AGENTS.md files discovered
 // from the session's cwd upward (workspace.listAgentDocs). Read-only.
 
-import { DataView } from "@/components/common";
+import { DataView } from "@/ui";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useT } from "@/lib/i18n";
 import { defineWorkspaceView } from "./defineWorkspaceView";

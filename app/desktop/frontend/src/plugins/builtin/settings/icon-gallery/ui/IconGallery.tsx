@@ -5,7 +5,7 @@
 // and `antd` — neither of which we ship.
 
 import { useMemo, useState } from "react";
-import { Icon, ScrollArea } from "@/components/common";
+import { Icon, ScrollArea } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { IconMap, rawToc } from "./iconMap";
 

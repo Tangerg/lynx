@@ -5,7 +5,7 @@
 // persists in the timeline regardless.
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Icon } from "@/components/common";
+import { Icon } from "@/ui";
 import { BannerAction } from "./BannerAction";
 import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { getActiveConversationSnapshot } from "@/plugins/builtin/agent/public/conversation";

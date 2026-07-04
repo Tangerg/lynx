@@ -3,7 +3,7 @@
 // vcs_unavailable (an EXPECTED state with its own copy, not the error
 // branch); clean repo → the view's own empty state.
 
-import type { IconName } from "@/components/common";
+import type { IconName } from "@/ui";
 import { t } from "@/lib/i18n";
 export { isVcsUnavailable } from "@/plugins/builtin/workspace/application/vcsAvailability";
 

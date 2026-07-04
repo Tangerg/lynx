@@ -1,7 +1,7 @@
 // Regenerate action (assistant messages only) — replay the preceding user
 // prompt via the shared regenerate message action.
 
-import { Icon, Tooltip } from "@/components/common";
+import { Icon, Tooltip } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";

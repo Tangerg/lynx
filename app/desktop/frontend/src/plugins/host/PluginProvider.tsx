@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { TooltipProvider } from "@/components/common";
+import { TooltipProvider } from "@/ui";
 import { builtinPlugins } from "../builtin";
 import { installHostBridge } from "./hostBridge";
 import { loadPlugins, usePluginStore } from "../sdk";

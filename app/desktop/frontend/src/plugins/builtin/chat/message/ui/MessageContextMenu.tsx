@@ -12,7 +12,7 @@
 
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import type { ReactElement, ReactNode } from "react";
-import { ContextMenu, Icon } from "@/components/common";
+import { ContextMenu, Icon } from "@/ui";
 import {
   editAndRerunMessage,
   editMessageInComposer,

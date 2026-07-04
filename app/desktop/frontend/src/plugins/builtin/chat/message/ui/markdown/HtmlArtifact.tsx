@@ -4,7 +4,7 @@
 // storage, or reach into the parent frame.
 
 import { useState } from "react";
-import { Icon, ShikiCodeBlock } from "@/components/common";
+import { Icon, ShikiCodeBlock } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 

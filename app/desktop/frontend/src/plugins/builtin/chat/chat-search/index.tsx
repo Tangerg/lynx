@@ -7,7 +7,7 @@
 // match scrolls into view; Enter / Shift+Enter cycle through hits.
 
 import { useEffect, useRef, useState } from "react";
-import { Icon, Tooltip } from "@/components/common";
+import { Icon, Tooltip } from "@/ui";
 import { cn } from "@/lib/utils";
 import { t, useT } from "@/lib/i18n";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";

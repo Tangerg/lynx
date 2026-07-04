@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, INPUT_FOCUS_RING, ProviderIcon } from "@/components/common";
+import { Icon, INPUT_FOCUS_RING, ProviderIcon } from "@/ui";
 import {
   type ProviderConfig,
   useConfigureProvider,

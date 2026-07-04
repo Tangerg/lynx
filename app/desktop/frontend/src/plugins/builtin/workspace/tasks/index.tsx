@@ -3,7 +3,7 @@
 // listing each entry when the user clicks.
 
 import type { TaskEntry, TaskStatus } from "@/state/tasksStore";
-import { Icon, Popover, ProgressBar } from "@/components/common";
+import { Icon, Popover, ProgressBar } from "@/ui";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useTasksStore } from "@/state/tasksStore";

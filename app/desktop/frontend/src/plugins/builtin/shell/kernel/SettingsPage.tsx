@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { IconName } from "@/components/common";
-import { VerticalTabs } from "@/components/common";
+import type { IconName } from "@/ui";
+import { VerticalTabs } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import {

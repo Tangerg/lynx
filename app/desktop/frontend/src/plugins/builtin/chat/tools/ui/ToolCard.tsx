@@ -8,9 +8,9 @@
 // pattern: no enclosing card, just a light row fill that reads as structured
 // activity inside the message flow.
 import * as React from "react";
-import type { IconName } from "@/components/common";
+import type { IconName } from "@/ui";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { Collapsible, Icon } from "@/components/common";
+import { Collapsible, Icon } from "@/ui";
 import {
   toolIntent,
   toolMetaItems,

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { AgentIconButton, AgentToolbarButton } from "@/components/agent-studio";
-import { DropdownMenu, Icon, ProviderIcon, Tooltip } from "@/components/common";
+import { AgentIconButton, AgentToolbarButton } from "@/ui/agent";
+import { DropdownMenu, Icon, ProviderIcon, Tooltip } from "@/ui";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { useSelectedModel } from "./public/selectedModel";
 import { useModels } from "@/lib/data/queries";

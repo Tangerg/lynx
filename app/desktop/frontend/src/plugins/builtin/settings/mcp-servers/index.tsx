@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DataView, Icon, PillButton } from "@/components/common";
+import { DataView, Icon, PillButton } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";

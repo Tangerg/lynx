@@ -1,6 +1,6 @@
 import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { useEffect, useRef, useState } from "react";
-import { Checkbox, Divider, Icon, Segmented } from "@/components/common";
+import { Checkbox, Divider, Icon, Segmented } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import {

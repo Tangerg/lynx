@@ -9,7 +9,7 @@
 // hook definitions themselves — those live in hooks.json files the user edits
 // directly; the GUI only audits them and grants/revokes project trust.
 
-import { DataView, EmptyState, Icon, Switch } from "@/components/common";
+import { DataView, EmptyState, Icon, Switch } from "@/ui";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
 import type { HookConfig } from "../application/hookConfig";
 import { useHookConfigs } from "../application/hookConfig";

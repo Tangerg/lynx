@@ -2,7 +2,7 @@
 // workspace.listFileChanges (AUX_API §2.2). Selecting a row updates the
 // shared active-file state and opens the Diff tab.
 
-import { DataView } from "@/components/common";
+import { DataView } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { FilesChanged } from "./views/FilesChanged";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";

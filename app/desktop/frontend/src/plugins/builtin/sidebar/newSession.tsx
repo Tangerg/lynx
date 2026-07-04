@@ -1,6 +1,6 @@
 // Sidebar global actions — the Work Index starts with app-level entry points.
 
-import { AgentKbd, AgentRow } from "@/components/agent-studio";
+import { AgentKbd, AgentRow } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import {
   contributeWorkIndexItem,

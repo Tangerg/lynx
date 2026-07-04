@@ -4,7 +4,7 @@
 // decisions. Re-rating re-submits; the runtime treats each as a new event.
 
 import { useEffect, useState } from "react";
-import { Icon, Tooltip } from "@/components/common";
+import { Icon, Tooltip } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";

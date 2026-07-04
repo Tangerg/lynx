@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, PillButton } from "@/components/common";
+import { Icon, PillButton } from "@/ui";
 import { useConfigureMCPServer } from "../application/mcpServerConfig";
 import { notifyInfo } from "@/lib/notify";
 import { useT } from "@/lib/i18n";

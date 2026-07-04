@@ -1,8 +1,8 @@
 // Sidebar footer — pinned at the bottom of the expanded Work Index so global
 // status and settings stay reachable regardless of list length.
 import { AnimatePresence, motion } from "motion/react";
-import { AgentIconButton } from "@/components/agent-studio";
-import { Icon, noDragClasses } from "@/components/common";
+import { AgentIconButton } from "@/ui/agent";
+import { Icon, noDragClasses } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";

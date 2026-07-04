@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { AgentRow } from "@/components/agent-studio";
-import { ContextMenu } from "@/components/common";
+import { AgentRow } from "@/ui/agent";
+import { ContextMenu } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";

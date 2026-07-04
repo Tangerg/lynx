@@ -6,7 +6,7 @@ const FILES = [
   "src/c/o/m/p/o/s/e/r.ts",
   "src/lib/utils.ts",
   "README.md",
-  "src/components/common/Icon.tsx",
+  "src/ui/icons/icon.tsx",
 ];
 
 describe("fuzzyFile", () => {

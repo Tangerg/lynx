@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { IconName } from "@/components/common";
-import { Divider, Icon } from "@/components/common";
+import type { IconName } from "@/ui";
+import { Divider, Icon } from "@/ui";
 import { cn } from "@/lib/utils";
 
 // Shared chrome for the HITL cards (ApprovalCard / QuestionCard). Only the

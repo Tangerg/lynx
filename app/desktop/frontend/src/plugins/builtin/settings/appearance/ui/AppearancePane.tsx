@@ -1,7 +1,7 @@
 // Composer for the appearance settings pane. The component itself only lays out
 // sections; each section owns its own preference subscription.
 
-import { AgentSurface } from "@/components/agent-studio";
+import { AgentSurface } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { AccentSection } from "./AccentSection";
 import { ContrastSection } from "./ContrastSection";

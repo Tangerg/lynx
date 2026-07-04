@@ -1,4 +1,4 @@
-import { DataView, Icon } from "@/components/common";
+import { DataView, Icon } from "@/ui";
 import {
   forgetApprovalRule,
   forgetApprovalRules,

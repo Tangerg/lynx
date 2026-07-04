@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { AgentRow, AgentSectionLabel } from "@/components/agent-studio";
-import { DataView } from "@/components/common";
+import { AgentRow, AgentSectionLabel } from "@/ui/agent";
+import { DataView } from "@/ui";
 import { ProjectRow } from "./ui/ProjectRow";
 import { SessionRow } from "./ui/SessionRow";
 import { useT } from "@/lib/i18n";

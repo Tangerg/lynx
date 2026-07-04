@@ -11,7 +11,7 @@
 //     `duration-*` utilities collapse via a blanket override in
 //     globals.css.
 
-import { Segmented, type SegmentedOption } from "@/components/common";
+import { Segmented, type SegmentedOption } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useShapeMotionPreferences } from "../application/appearancePreferences";
 import { SettingRow } from "../../SettingRow";

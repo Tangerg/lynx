@@ -3,7 +3,7 @@
 // tools (tools.list — static per runtime build) and the connected MCP
 // servers (workspace.mcp.* — live 5-state lifecycle, expandable rows).
 
-import { DataView, Icon } from "@/components/common";
+import { DataView, Icon } from "@/ui";
 import { McpRow } from "./views/McpRow";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";

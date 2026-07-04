@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDebounce } from "use-debounce";
-import { LightboxDialog } from "@/components/common";
+import { LightboxDialog } from "@/ui";
 import { measureMermaidRender } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";

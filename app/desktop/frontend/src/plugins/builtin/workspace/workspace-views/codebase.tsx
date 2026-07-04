@@ -4,7 +4,7 @@
 // model configured in Settings → Providers (else it points the user there).
 
 import { useState } from "react";
-import { EmptyState, Icon, PillButton } from "@/components/common";
+import { EmptyState, Icon, PillButton } from "@/ui";
 import {
   type CodebaseSearchHit,
   reindexCodebase,

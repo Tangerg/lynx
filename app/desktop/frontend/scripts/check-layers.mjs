@@ -32,6 +32,7 @@ const LAYER_PREFIXES = [
   ["rpc/", "rpc"],
   ["state/", "state"],
   ["lib/", "lib"],
+  ["ui/", "ui"],
   ["components/", "components"],
   ["pages/", "pages"],
 ];
@@ -44,7 +45,7 @@ function layerOf(path) {
 // Per guarded layer: the layers it must NEVER import. The inner three
 // (domain/infra/rpc) are near-total: they're meant to be self-contained
 // or contract-only. The outer guards lock the upward edges.
-const UI = ["components", "pages", "builtin", "plugins-glue"];
+const UI = ["ui", "components", "pages", "builtin", "plugins-glue"];
 const FORBIDDEN = {
   // NOTE: `domain/` + `infra/` hold NO files today — the early clean-arch
   // gateway seam was superseded by the `rpc/` layer + main/container.ts
@@ -61,6 +62,7 @@ const FORBIDDEN = {
     "builtin",
     "plugins-glue",
     "lib",
+    "ui",
     "components",
     "pages",
   ],
@@ -74,6 +76,7 @@ const FORBIDDEN = {
     "builtin",
     "plugins-glue",
     "lib",
+    "ui",
     "components",
     "pages",
   ],
@@ -88,6 +91,7 @@ const FORBIDDEN = {
     "builtin",
     "plugins-glue",
     "lib",
+    "ui",
     "components",
     "pages",
   ],
@@ -101,6 +105,8 @@ const FORBIDDEN = {
   state: [...UI],
   // Utility layer — no UI, no concrete plugins.
   lib: [...UI],
+  // Local design-system layer — presentation only, never backend wiring.
+  ui: ["main", "rpc"],
   // The view layer reaches the backend only through hooks / stores (state,
   // lib/data query hooks, plugin SDK selectors) — never the composition root
   // (`main/container`) or the raw protocol client (`rpc`) directly. Keeps

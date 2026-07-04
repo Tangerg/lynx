@@ -1,7 +1,7 @@
-import type { IconName } from "@/components/common";
+import type { IconName } from "@/ui";
 import type { ApprovalModeValue } from "@/lib/data/queries";
 import type { ReactNode } from "react";
-import { DropdownMenu, Icon } from "@/components/common";
+import { DropdownMenu, Icon } from "@/ui";
 import {
   APPROVAL_MODES,
   DEFAULT_APPROVAL_MODE,

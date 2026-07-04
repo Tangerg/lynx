@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, PillButton, Segmented } from "@/components/common";
+import { Icon, PillButton, Segmented } from "@/ui";
 import {
   type MCPServerConfig,
   type MCPServerTransport,

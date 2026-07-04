@@ -5,7 +5,7 @@
 // settings-domain root.
 
 import { useId } from "react";
-import { Checkbox, Segmented } from "@/components/common";
+import { Checkbox, Segmented } from "@/ui";
 import { useT } from "@/lib/i18n";
 import {
   useCompletionSoundPreference,

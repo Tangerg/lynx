@@ -1,5 +1,5 @@
 import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
-import { Icon } from "@/components/common";
+import { Icon } from "@/ui";
 import { cn } from "@/lib/utils";
 
 export function PlanCheck({ status }: { status: PlanItem["status"] }) {

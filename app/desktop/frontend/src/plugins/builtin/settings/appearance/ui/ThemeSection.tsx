@@ -6,7 +6,7 @@
 
 import type { ReactNode } from "react";
 import type { ThemeSpec } from "@/plugins/sdk";
-import { DropdownMenu, Icon, MEDIA_OUTLINE } from "@/components/common";
+import { DropdownMenu, Icon, MEDIA_OUTLINE } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { THEME, useExtensionPoint } from "@/plugins/sdk";

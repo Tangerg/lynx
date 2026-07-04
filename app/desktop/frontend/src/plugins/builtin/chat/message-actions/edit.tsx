@@ -2,7 +2,7 @@
 // the user can tweak and re-send. Doesn't mutate the original message; sending
 // creates a new user turn.
 
-import { Icon, Tooltip } from "@/components/common";
+import { Icon, Tooltip } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";

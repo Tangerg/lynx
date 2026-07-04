@@ -12,8 +12,8 @@
 
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
-import { AgentIconButton, AgentStatusPill, AgentToolbarButton } from "@/components/agent-studio";
-import { dragClasses, Icon, noDragClasses, Panel } from "@/components/common";
+import { AgentIconButton, AgentStatusPill, AgentToolbarButton } from "@/ui/agent";
+import { dragClasses, Icon, noDragClasses, Panel } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/data/queries";
 import { basename } from "@/lib/path";

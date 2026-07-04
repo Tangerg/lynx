@@ -3,8 +3,8 @@
 // variant; the secondary shape is neutral chrome. `focus-visible` (not
 // `focus`) so mouse clicks don't trigger the keyboard ring.
 
-import type { IconName } from "@/components/common";
-import { Icon } from "@/components/common";
+import type { IconName } from "@/ui";
+import { Icon } from "@/ui";
 import { cn } from "@/lib/utils";
 
 const FOCUS_RING =

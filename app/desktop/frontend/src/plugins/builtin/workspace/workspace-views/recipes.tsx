@@ -3,7 +3,7 @@
 // /<name> slash commands the recipes-slash plugin registers; mirrors the
 // Skills view shape (recipes are skills' user-facing sibling).
 
-import { DataView } from "@/components/common";
+import { DataView } from "@/ui";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";

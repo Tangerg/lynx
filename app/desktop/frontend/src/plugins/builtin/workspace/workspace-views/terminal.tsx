@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { EmptyState } from "@/components/common";
+import { EmptyState } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useActiveRunToolCalls } from "@/plugins/builtin/agent/public/run";
 import { workspaceCommandActivitiesFromAgentTools } from "../application/toolActivity";

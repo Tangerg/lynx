@@ -1,4 +1,4 @@
-import { Segmented } from "@/components/common";
+import { Segmented } from "@/ui";
 import { APPROVAL_MODES, saveApprovalMode, type ApprovalMode } from "../application/approvalConfig";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/lib/notify";

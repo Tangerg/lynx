@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import type { SpanRow } from "@/lib/observability/stores";
 import { useTelemetryStore } from "@/lib/observability/stores";
 import { Fragment, useCallback, useMemo, useState } from "react";
-import { Icon } from "@/components/common";
+import { Icon } from "@/ui";
 import { Cell, Empty, Row, VirtualList } from "./primitives";
 
 export function TracesPanel() {

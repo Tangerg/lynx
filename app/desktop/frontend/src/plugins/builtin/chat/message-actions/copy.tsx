@@ -4,7 +4,7 @@
 // concatenates the fenced code blocks for users who just want the snippets. The
 // Code variant hides when the message has none.
 
-import { DropdownMenu, Icon, Tooltip } from "@/components/common";
+import { DropdownMenu, Icon, Tooltip } from "@/ui";
 import { writeToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
