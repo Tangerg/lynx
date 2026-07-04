@@ -1,6 +1,10 @@
 import { t } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
+import {
+  commandPaletteCommand,
+  commandPaletteShortcut,
+} from "./application/commandPaletteContributions";
 import { openCommandPalette, toggleCommandPalette } from "./application/paletteActions";
 import { CommandPalette } from "./ui/CommandPalette";
 
@@ -14,25 +18,8 @@ export default definePlugin({
       component: CommandPalette,
     });
 
-    host.extensions.contribute(SHORTCUT, {
-      key: "Mod+K",
-      description: "Open the command palette",
-      // Cmd+K is the escape hatch users expect while typing in the composer.
-      allowInInputs: true,
-      handler: (event) => {
-        event.preventDefault();
-        toggleCommandPalette();
-      },
-    });
+    host.extensions.contribute(SHORTCUT, commandPaletteShortcut(toggleCommandPalette));
 
-    host.commands.register({
-      id: "command.open",
-      label: t("command.openPalette"),
-      icon: "command",
-      group: "General",
-      keywords: ["palette", "search", "command"],
-      combo: "Mod+K",
-      run: openCommandPalette,
-    });
+    host.commands.register(commandPaletteCommand(t, openCommandPalette));
   },
 });
