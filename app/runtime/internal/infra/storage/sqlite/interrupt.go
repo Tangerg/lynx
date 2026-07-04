@@ -40,7 +40,7 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 		}
 		drained = string(b)
 	}
-	_, err := s.db.ExecContext(ctx,
+	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO interrupts(parent_run_id, session_id, turn_id, process_id, provider, model, interrupts, drained_tools, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(parent_run_id) DO UPDATE SET
@@ -69,7 +69,7 @@ func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrup
 	}
 	query += ` ORDER BY created_at`
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list interrupts: %w", err)
 	}
@@ -90,7 +90,7 @@ func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrup
 }
 
 func (s *InterruptStore) Get(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error) {
-	row := s.db.QueryRowContext(ctx,
+	row := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT parent_run_id, session_id, turn_id, process_id, provider, model, interrupts, drained_tools, created_at
 		 FROM interrupts WHERE parent_run_id = ?`, parentRunID)
 	p, err := scanPending(row)
@@ -109,7 +109,7 @@ func (s *InterruptStore) Get(ctx context.Context, parentRunID string) (interrupt
 // resumes can't both observe the same open interrupt: one claims it, the other
 // gets ok=false, so a non-idempotent tool never re-fires.
 func (s *InterruptStore) Consume(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error) {
-	row := s.db.QueryRowContext(ctx,
+	row := conn(ctx, s.db).QueryRowContext(ctx,
 		`DELETE FROM interrupts WHERE parent_run_id = ?
 		 RETURNING parent_run_id, session_id, turn_id, process_id, provider, model, interrupts, drained_tools, created_at`,
 		parentRunID)

@@ -113,9 +113,9 @@ func New(cfg Config) (*Server, error) {
 
 // coordinator returns the lifecycle coordinator for the cross-domain atomic
 // write-sets (rollback truncation, session-delete cascade, import/restore,
-// subtree purge, interrupt abandonment). Handlers keep wire decode, busy guards,
-// and streaming registry concerns; lifecycle owns the cross-domain decisions
-// and mutations. The Coordinator is stateless, so it's built on demand from rt —
+// subtree purge, interrupt abandonment). Handlers keep wire decode and
+// streaming registry concerns; lifecycle owns the cross-domain decisions and
+// mutations. The Coordinator is stateless, so it's built on demand from rt —
 // which keeps a bare &Server{rt: …} (tests) fully usable without a separate
 // construction step.
 func (s *Server) coordinator() *lifecycle.Coordinator { return lifecycle.New(s.rt) }

@@ -3,12 +3,14 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -104,14 +106,24 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	}
 
 	id := art.Session.ID
+	admission, err := s.coordinator().ClaimRunSlot(ctx, sessionClaimer{s: s}, id)
+	if err != nil {
+		if errors.Is(err, lifecycle.ErrSessionBusy) {
+			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, id)
+		}
+		return nil, err
+	}
+	defer admission.Release()
+
 	// Map the wire artifact's runs/items into domain records (the wire→domain
 	// decode is the adapter's job), then hand the restore to the lifecycle
 	// coordinator. It commits the whole thing as ONE transaction — upsert the
-	// session row, replace existing history (drop old items/runs + clear the chat
-	// log), re-seed the messages, re-persist runs+items — so a mid-sequence
-	// failure after the destructive delete/truncate can't leave the session row
-	// live but its history half-destroyed (an import-over losing the prior
-	// history with nothing to replace it).
+	// session row, replace existing history (drop old items/runs + clear the
+	// chat log + stale open interrupts), re-seed the messages, re-persist
+	// runs+items — so a mid-sequence failure after the destructive
+	// delete/truncate can't leave the session row live but its history
+	// half-destroyed (an import-over losing the prior history with nothing to
+	// replace it).
 	runs := make([]transcript.Run, 0, len(art.Runs))
 	for _, r := range art.Runs {
 		runs = append(runs, transcript.Run{
