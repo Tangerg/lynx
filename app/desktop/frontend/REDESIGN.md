@@ -1,5 +1,7 @@
 # Frontend Redesign — 执行计划 (v1)
 
+> **⚠️ 已被取代 (SUPERSEDED, 2026-07)。** 本文档记录的是 2026-06 的**深色为主 OpenAI 克制**重构（已完成并落 main）。此后方向整体转向 **浅色为主的 Vercel Geist 语言（OpenAI/ChatGPT/Codex 观感）**：默认浅色、三栏（灰工作索引 │ 白居中对话栏 │ 灰上下文 dock）纯底色差分隔（无线框）、blue-700 accent 仅用于 live/focus、主 CTA 为反相墨色按钮。落地见 commit `b16d7bcb`(token 地基) → `d8c55e78`(atoms) → `7ed2837f`(shell+sidebar) → `bc259f7d`(chat/settings/workspace/shell)。token 值权威在 `src/styles/globals.css` + `src/plugins/builtin/theme/themes/*.ts`。本文件保留作历史，不再作为执行基线。
+>
 > **本文档是 2026-06 启动的「前端整体视觉重构」的执行圣经。** 目的：长任务跨多轮 / 多 agent 不跑偏——每一步做什么、改哪些文件、怎么验证、谁执行、状态如何，全部钉死在此。
 >
 > **三权分立（不要混）**：
