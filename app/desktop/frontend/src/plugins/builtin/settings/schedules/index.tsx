@@ -1,6 +1,7 @@
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
 import { installScheduleGateway } from "./adapters/runtimeScheduleGateway";
+import { schedulesSettingsPane } from "./application/schedulesContributions";
 import { SchedulesPane } from "./ui/SchedulesPane";
 
 export default definePlugin({
@@ -8,13 +9,6 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     installScheduleGateway();
-    registerSettingsPane(host, {
-      id: "schedules",
-      label: "settings.pane.schedules",
-      group: "agent",
-      icon: "command",
-      order: 58,
-      component: SchedulesPane,
-    });
+    registerSettingsPane(host, schedulesSettingsPane(SchedulesPane));
   },
 });

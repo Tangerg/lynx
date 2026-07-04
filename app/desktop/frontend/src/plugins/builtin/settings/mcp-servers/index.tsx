@@ -1,6 +1,7 @@
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
 import { installMCPServerGateway } from "./adapters/runtimeMcpServerGateway";
+import { mcpServersSettingsPane } from "./application/mcpServersContributions";
 import { McpServersPane } from "./ui/McpServersPane";
 
 export default definePlugin({
@@ -8,13 +9,6 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     installMCPServerGateway();
-    registerSettingsPane(host, {
-      id: "mcp-servers",
-      label: "settings.pane.mcpServers",
-      group: "integrations",
-      icon: "tool",
-      order: 56,
-      component: McpServersPane,
-    });
+    registerSettingsPane(host, mcpServersSettingsPane(McpServersPane));
   },
 });
