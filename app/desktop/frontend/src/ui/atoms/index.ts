@@ -13,7 +13,6 @@ export { Kbd } from "./kbd";
 export { LightboxDialog } from "./lightbox-dialog";
 export { MEDIA_OUTLINE } from "./media-outline";
 export { ContextMenu, DropdownMenu } from "./menu";
-export { Panel } from "./panel";
 export { PillButton } from "./pill-button";
 export { Popover } from "./popover";
 export { ProgressBar } from "./progress-bar";

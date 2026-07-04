@@ -1,18 +1,5 @@
-// Collapsed sidebar — slim vertical strip. The kernel owns the expand
-// button + the rail container; every other item is contributed by Work Index
-// plugins.
-//
-// Order convention (loosely enforced by `order` numbers, see
-// @/plugins/sdk/types/navigation):
-//   - 0..99    : top (new-session)
-//   - 100..899 : middle (sessions stack)
-//   - 900..999 : bottom (context, settings, user)
-//
-// Items render strictly in sorted order — anything that wants to "stick
-// to the bottom" should leave a flex spacer or set its own
-// `margin-top: auto`.
-
-import { dragClasses, Icon, IconButton, Panel } from "@/ui";
+import { AgentPane } from "@/ui/agent";
+import { dragClasses, Icon, IconButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useWorkIndexItems } from "@/plugins/builtin/navigation/public/workIndex";
@@ -26,10 +13,16 @@ export function SidebarRail({ onToggleRail }: Props) {
   const t = useT();
   const items = useWorkIndexItems("rail");
   return (
-    // `sidebar` / `rail` classes are kept as DOM hooks for layout.css
-    // (macOS titlebar padding). All visual styling is Tailwind here.
-    <Panel className={cn("sidebar rail w-14 items-center gap-1 px-1.5 pb-3", dragClasses)}>
-      <IconButton variant="rail" title={t("sidebar.action.expand")} onClick={onToggleRail}>
+    <AgentPane
+      tone="rail"
+      className={cn("sidebar rail w-14 items-center gap-1 px-1.5 pb-3", dragClasses)}
+    >
+      <IconButton
+        variant="rail"
+        title={t("sidebar.action.expand")}
+        onClick={onToggleRail}
+        className="mt-2"
+      >
         <Icon name="panel-l" size={16} />
       </IconButton>
       {items.map((item) => {
@@ -44,6 +37,6 @@ export function SidebarRail({ onToggleRail }: Props) {
           </PluginBoundary>
         );
       })}
-    </Panel>
+    </AgentPane>
   );
 }

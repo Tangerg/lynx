@@ -130,6 +130,8 @@ export const zhTW: Record<string, string> = {
   "welcome.suggest.checklist.prompt": "草擬清單: ",
 
   "settings.title": "設定",
+  "settings.backToApp": "返回應用",
+  "settings.searchPlaceholder": "搜尋設定...",
   "settings.pane.appearance": "外觀",
   "settings.pane.plugins": "外掛",
   "settings.pane.language": "語言",

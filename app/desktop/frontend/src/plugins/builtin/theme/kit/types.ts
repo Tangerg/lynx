@@ -31,7 +31,7 @@ export interface ThemeBrand {
 export interface ThemeSurfaces {
   /** Page-level background. */
   bg: string;
-  /** Default lifted surface — Panel, sidebar, message bubble. */
+  /** Default lifted surface — pane, sidebar, message bubble. */
   surface: string;
   /** Optional explicit step 2 — hover/active row, command palette. */
   surface2?: string;

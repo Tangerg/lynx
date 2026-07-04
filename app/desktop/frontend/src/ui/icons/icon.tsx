@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import {
   AlertTriangle,
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   Book,
   Bot,
@@ -130,6 +131,7 @@ export type IconName =
   | "chevron-right"
   | "panel-r"
   | "arrow-down"
+  | "arrow-left"
   | "arrow-up"
   | "trash"
   | "alert"
@@ -201,6 +203,7 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   "chevron-down": ChevronDown,
   "chevron-right": ChevronRight,
   "arrow-down": ArrowDown,
+  "arrow-left": ArrowLeft,
   "arrow-up": ArrowUp,
   trash: Trash2,
   alert: AlertTriangle,

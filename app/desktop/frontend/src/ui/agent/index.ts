@@ -1,5 +1,8 @@
+export { AgentAppShell } from "./app-shell";
 export { AgentComposerSurface } from "./composer-surface";
+export { AgentContextDock, AgentDockTabs, type AgentDockTab } from "./context-dock";
 export { AgentIconButton } from "./icon-button";
+export { AgentPane, AgentPaneHeader } from "./pane";
 export { AgentRow } from "./navigation-row";
 export { AgentStatusPill } from "./status-pill";
 export { AgentSurface } from "./surface";

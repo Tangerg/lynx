@@ -128,6 +128,8 @@ export const ko: Record<string, string> = {
   "welcome.suggest.checklist.prompt": "체크리스트 작성: ",
 
   "settings.title": "설정",
+  "settings.backToApp": "앱으로 돌아가기",
+  "settings.searchPlaceholder": "설정 검색...",
   "settings.pane.appearance": "외관",
   "settings.pane.plugins": "플러그인",
   "settings.pane.language": "언어",

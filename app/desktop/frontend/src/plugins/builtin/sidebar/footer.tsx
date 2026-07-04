@@ -55,7 +55,7 @@ function SidebarFooter() {
           data-chrome-focus=""
           className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[9px] border-0 bg-transparent px-1 py-1 text-left transition-colors hover:bg-fg/[0.045] focus-visible:bg-fg/[0.06] focus-visible:outline-none"
         >
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#d92662] font-sans text-[12px] font-semibold text-white">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-cta font-sans text-[12px] font-semibold text-cta-text">
             TA
           </span>
           <span className="min-w-0 flex-1">

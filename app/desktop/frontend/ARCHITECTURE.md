@@ -128,10 +128,8 @@ src/
 │   ├── contextDockStore.ts       session-scoped split / file / tool material
 │   └── useWhenContext.ts  build context for `when` clauses
 │
-├── components/           纯展示 + 薄 store 接线（经 selector/hook 触业务，不直连 rpc/main）
-│   └── common/           设计系统原子（Icon · Panel · DataView 三态 render-prop · Menu · Tooltip · …）
-│                         业务 UI（消息渲染 / 工具卡 / 侧栏导航）不放这里——已迁入各自限界上下文的
-│                         plugins/builtin/{chat/message,chat/tools,sidebar}/ui/
+├── ui/                   本地 UI kit：primitives(Base UI 防腐层) / atoms / agent 业务原子
+│                         页面只消费 atoms 或 agent 原子，不直连 headless 外部库
 │
 ├── lib/                  共享 hook + 纯函数（跨插件共享，不属于上述任一层）
 │   ├── agent/            会话用例 hook（useChatSend / useApprovalSubmit / useQuestionAnswer /
@@ -250,20 +248,16 @@ App.tsx
 
 ### 4.2 AgentClientPage —— 整个 Kernel
 
-`src/pages/AgentClientPage.tsx` 约 30 行，VS Code 式三区：
+`src/pages/AgentClientPage.tsx` 只把 plugin slots 填进 agent shell：
 
 ```tsx
-<div className={`app ${sidebarRail ? "rail" : ""}`}>
-  <div className="app-main">
-    <aside aria-label="Sidebar" className="contents">
-      <Slot name="app.sidebar" />
-    </aside>
-    <main aria-label="Main" className="contents">
-      <Slot name="app.main" />
-    </main>
-  </div>
-  <Slot name="app.overlay" />
-</div>
+<AgentAppShell
+  rail={sidebarRail}
+  mode={activeViewId === "settings" ? "single" : "work"}
+  sidebar={<Slot name="app.sidebar" />}
+  main={<Slot name="app.main" />}
+  overlay={<Slot name="app.overlay" />}
+/>
 ```
 
 三个 Slot 是 kernel 的全部肉（没有底部状态栏——run telemetry 在 composer footer，全局指示/通知在 sidebar footer）：
@@ -274,7 +268,7 @@ App.tsx
 | `app.main`    | `kernel-chat`（ChatPanel）                  |
 | `app.overlay` | `command-palette` / `toaster` / `shortcuts` |
 
-`aside` / `main` 用 `display: contents` 对外层 grid 透明（landmark role 给读屏用），让每个 Slot 的 Panel 直接做 `.app-main` grid cell 的子元素，正确撑满。
+`AgentAppShell` 拥有窗口外壳、Work Index 区域和 single/settings 模式；插件只贡献 slot 内容，不直接组织顶层 grid。
 
 ---
 
