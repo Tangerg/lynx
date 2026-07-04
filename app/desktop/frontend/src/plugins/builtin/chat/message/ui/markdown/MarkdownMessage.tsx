@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo } from "react";
+import { memo, useDeferredValue, useEffect, useMemo } from "react";
 
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
@@ -17,8 +17,14 @@ import { rehypeCitations } from "@/lib/markdown/rehypeCitations";
 import { rehypeFadeIn } from "@/lib/markdown/rehypeFadeIn";
 import { rehypeFileRefs } from "./rehypeFileRefs";
 import { rehypeStreamCaret } from "@/lib/markdown/rehypeStreamCaret";
-import { useStreamReveal } from "./streamReveal";
+import { normalizeMarkdownMath } from "@/lib/markdown/preprocess";
+import { useCommitThrottle, useStreamReveal } from "./streamReveal";
 import "remark-github-blockquote-alert/alert.css";
+
+// Ceiling on how often the revealed text feeds the markdown re-parse while
+// streaming. ~30fps: imperceptible for a text reveal, but caps a run of tiny
+// tokens at one parse per window instead of one per animation frame.
+const PARSE_COMMIT_MS = 33;
 
 interface Props {
   text: string;
@@ -54,16 +60,32 @@ export function MarkdownMessage({ text, streaming, instant, typewriter }: Props)
   const revealed = useStreamReveal(text, !instant && !!streaming, typewriter);
   const display = instant ? text : revealed;
 
+  // Cap the re-parse frequency during streaming (the reveal ticks ~60×/s but
+  // the eye can't resolve that on a text crawl). Passthrough for instant text.
+  const committed = useCommitThrottle(display, streaming ? PARSE_COMMIT_MS : 0);
+
+  // useDeferredValue lets React re-parse a long body at low priority: scrolling
+  // and typing keep the previous parse on-screen instead of blocking a frame on
+  // the new one. Instant (user-typed, settled) text skips the defer to stay
+  // crisp on first paint — there's no stream to keep responsive.
+  const deferred = useDeferredValue(committed);
+  const source = instant ? committed : deferred;
+
+  // Normalize model-emitted math delimiters + guard currency BEFORE remark-math
+  // parses. Must run on the whole body ahead of block-splitting so a display
+  // math span (`$$...$$`) isn't torn across two blocks.
+  const normalized = useMemo(() => normalizeMarkdownMath(source), [source]);
+
   // remend (auto-close unterminated bold / inline code / fenced blocks)
-  // runs on the *full* display before splitting — block boundaries read
+  // runs on the *full* text before splitting — block boundaries read
   // more reliably on well-formed markdown. Skipped for instant messages.
   const repaired = useMemo(() => {
-    if (instant) return display;
+    if (instant) return normalized;
     const start = performance.now();
-    const out = remend(display);
-    measureMarkdownRepair(performance.now() - start, display.length, !!streaming);
+    const out = remend(normalized);
+    measureMarkdownRepair(performance.now() - start, normalized.length, !!streaming);
     return out;
-  }, [display, streaming, instant]);
+  }, [normalized, streaming, instant]);
 
   const blocks = useMemo(() => parseMarkdownIntoBlocks(repaired), [repaired]);
   const lastIdx = blocks.length - 1;

@@ -8,7 +8,7 @@
 // negative: the session still works, just degraded.
 
 import { useRef, useState } from "react";
-import { FIELD_CLASSES, Icon } from "@/ui";
+import { FIELD_CLASSES, SystemMessage } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useActiveSession, useRelocateSession } from "@/plugins/builtin/agent/public/session";
 import { BannerAction } from "./BannerAction";
@@ -44,11 +44,7 @@ export function CwdMissingBanner() {
   };
 
   return (
-    <div
-      role="alert"
-      className="mx-4 mt-2.5 mb-1 grid grid-cols-[auto_1fr] items-start gap-2.5 rounded-[12px] bg-warning/10 px-4 py-3 font-sans text-fg"
-    >
-      <Icon name="alert" size={14} className="mt-0.5 text-warning" />
+    <SystemMessage variant="warning" className="mx-4 mt-2.5 mb-1 items-start px-4 py-3">
       <div className="min-w-0">
         <div className="mb-0.5 text-[13px] font-semibold text-warning">{t("cwdMissing.title")}</div>
         <div className="text-[13px] text-fg-soft break-words">
@@ -102,6 +98,6 @@ export function CwdMissingBanner() {
           </div>
         )}
       </div>
-    </div>
+    </SystemMessage>
   );
 }

@@ -13,11 +13,29 @@ import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { MessageContext } from "@/plugins/sdk/messageContext";
 import { planRenderUnits } from "@/plugins/builtin/agent/public/messagePresentation";
+import {
+  messageActionsVisibility,
+  messageActionsVisibilityClass,
+} from "@/plugins/builtin/chat/message-actions/public/messageActions";
+import { cn } from "@/lib/utils";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
 import { renderBlock } from "./BlockRenderer";
 
-function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
+function MessageBlockInner({
+  msg,
+  ctx,
+  isLast,
+  isRunning,
+}: {
+  msg: Message;
+  ctx: BlockCtx;
+  /** Last turn in the thread — its action bar stays pinned open. */
+  isLast: boolean;
+  /** A run is streaming — action bars stay hidden until it settles.
+   *  Flips only at run boundaries, so it never churns this memo per token. */
+  isRunning: boolean;
+}) {
   const isUser = msg.role === "user";
 
   // Citation registry — gathered from the MESSAGE_CITATION_SOURCE
@@ -76,6 +94,14 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
     return renderBlock(block, index, blockCtx);
   });
 
+  // Action-bar baseline: hidden while running, pinned on the last turn, else
+  // hover-revealed. Hover itself is CSS (`group-hover`) inside the class, so a
+  // hovering pointer costs no render.
+  const actionsClass = cn(
+    "mt-1 flex transition-opacity duration-[--dur-fast]",
+    messageActionsVisibilityClass(messageActionsVisibility({ isRunning, isLast })),
+  );
+
   return (
     <MessageContext.Provider value={msg}>
       <CitationContext.Provider value={citations}>
@@ -91,12 +117,9 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
                   {content}
                 </div>
               </MessageContextMenu>
-              {/* Hover-reveal action bar — icon-only, rounded-full to match
-                  the bubble language. */}
-              <div
-                className="mt-1 flex opacity-0 transition-opacity duration-[--dur-fast] group-hover:opacity-100 focus-within:opacity-100"
-                data-slot="message-actions"
-              >
+              {/* Action bar — icon-only, rounded-full to match the bubble
+                  language. Visibility follows the state machine above. */}
+              <div className={actionsClass} data-slot="message-actions">
                 <Slot name="message.actions" />
               </div>
             </div>
@@ -108,12 +131,9 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
                     {content}
                   </div>
                 </MessageContextMenu>
-                {/* Hover-reveal action bar — icon-only, rounded-md for quieter
-                    assistant chrome. */}
-                <div
-                  className="mt-1 flex opacity-0 transition-opacity duration-[--dur-fast] group-hover:opacity-100 focus-within:opacity-100"
-                  data-slot="message-actions"
-                >
+                {/* Action bar — icon-only, rounded-md for quieter assistant
+                    chrome. Visibility follows the state machine above. */}
+                <div className={actionsClass} data-slot="message-actions">
                   <Slot name="message.actions" />
                 </div>
               </div>
