@@ -22,10 +22,10 @@ body,
 }
 
 html {
-  color-scheme: dark;
-}
-html.theme-light {
   color-scheme: light;
+}
+html.theme-dark {
+  color-scheme: dark;
 }
 
 .agent-app {
@@ -76,10 +76,12 @@ html.theme-light {
   overflow: hidden;
 }
 
+/* Region separation is pure background delta (JetBrains / Codex model):
+   gray chrome rails flank the white reading column — no grey rules, no
+   inset hairlines. */
 .agent-pane-sidebar,
 .agent-pane-rail {
   background: var(--color-surface);
-  box-shadow: inset -0.5px 0 0 var(--color-border-soft);
 }
 
 .agent-pane-main {
@@ -95,7 +97,6 @@ html.theme-light {
   flex-direction: column;
   overflow: hidden;
   background: var(--color-surface);
-  box-shadow: inset 0.5px 0 0 var(--color-border-soft);
 }
 
 .agent-pane-header {
@@ -104,7 +105,6 @@ html.theme-light {
   flex-shrink: 0;
   align-items: center;
   gap: 8px;
-  border-bottom: 0.5px solid var(--color-border-soft);
   padding: 0 16px;
 }
 
@@ -115,7 +115,6 @@ html.theme-light {
   align-items: stretch;
   gap: 4px;
   overflow-x: auto;
-  border-bottom: 0.5px solid var(--color-border-soft);
   padding: 0 18px;
   scrollbar-width: none;
 }
