@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AgentRow, AgentSectionLabel } from "@/ui/agent";
+import { AgentSectionLabel } from "@/ui/agent";
 import { DataView } from "@/ui";
 import { ProjectRow } from "./ui/ProjectRow";
 import { SessionRow } from "./ui/SessionRow";
@@ -7,11 +7,9 @@ import { useT } from "@/lib/i18n";
 import type { WorkGroup, WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
 import {
   contributeWorkIndexItem,
-  useRecentWorkSessions,
   useWorkIndex,
   useWorkIndexActions,
 } from "@/plugins/builtin/navigation/public/workIndex";
-import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 
 // Sessions shown per expanded project before the "Show more" fold —
@@ -90,41 +88,6 @@ function ProjectGroupNode({
   );
 }
 
-function RecentSection() {
-  const t = useT();
-  const { activeSessionId, recentSessions } = useRecentWorkSessions(4);
-  const actions = useWorkIndexActions();
-  if (recentSessions.length === 0) return null;
-
-  return (
-    <>
-      <AgentSectionLabel>{t("contextDock.group.session")}</AgentSectionLabel>
-      <div className={sideListClasses}>
-        {recentSessions.map((session) => (
-          <AgentRow
-            key={session.id}
-            icon="chat"
-            active={session.id === activeSessionId}
-            onClick={() => actions.selectSession(session.id)}
-            trailing={
-              session.attention === "none" ? null : (
-                <span
-                  className={cn(
-                    "h-1.5 w-1.5 rounded-full",
-                    session.attention === "running" ? "bg-accent animate-pulse-dot" : "bg-warning",
-                  )}
-                />
-              )
-            }
-          >
-            {session.title}
-          </AgentRow>
-        ))}
-      </div>
-    </>
-  );
-}
-
 function ProjectsSection() {
   const t = useT();
   const workIndex = useWorkIndex({ fallbackProjectName: t("projects.fallbackName") });
@@ -168,7 +131,6 @@ function ProjectsSection() {
           </div>
         )}
       </DataView>
-      <RecentSection />
     </>
   );
 }

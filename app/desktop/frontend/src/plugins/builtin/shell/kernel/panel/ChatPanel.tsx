@@ -3,6 +3,7 @@ import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlace
 import type { IconName } from "@/ui";
 import {
   AgentContextDock,
+  type AgentDockTab,
   AgentDockTabs,
   AgentIconButton,
   AgentPane,
@@ -41,6 +42,26 @@ function viewIcon(name: string | undefined): IconName | undefined {
 
 interface Props {
   onSend: (input: UserInput) => void;
+}
+
+// The dock's own top bar — the view tabs plus a collapse/launcher toggle at the
+// far right. Lives at the very top of the full-height dock column so the dock
+// runs top-to-bottom independent of the center column's header.
+function DockHeader({ tabs }: { tabs: AgentDockTab[] }) {
+  const t = useT();
+  return (
+    <div className="flex h-[52px] shrink-0 items-center pr-2">
+      <div className="min-w-0 flex-1">
+        <AgentDockTabs tabs={tabs} />
+      </div>
+      <AgentIconButton
+        icon="panel-r"
+        size="sm"
+        aria-label={t("workspace.view.title.context")}
+        onClick={openContextDockLauncher}
+      />
+    </div>
+  );
 }
 
 export function ChatPanel({ onSend }: Props) {
@@ -99,60 +120,58 @@ export function ChatPanel({ onSend }: Props) {
           <WorkspaceViewBody viewId={activeMainView} />
         </ViewPlacementProvider>
       ) : (
-        <>
-          <AgentPaneHeader className={cn("px-5", dragClasses)}>
-            <Icon name="panel-l" size={16} strokeWidth={1.8} className="shrink-0 text-fg-muted" />
-            <span className="font-mono text-[12px] text-fg-faint">
-              {activeSession?.cwd ? basename(activeSession.cwd) : "lynx"}
-            </span>
-            <span className="text-[13px] text-fg-faint">/</span>
-            <span className="min-w-0 max-w-[320px] truncate text-[14.5px] font-semibold text-fg">
-              {activeSession?.title || t("welcome.title")}
-            </span>
-            {running && <AgentStatusPill tone="running">运行中</AgentStatusPill>}
-            <AgentIconButton
-              icon="more"
-              size="sm"
-              aria-label="更多操作"
-              className={noDragClasses}
-            />
-            <span className="min-w-4 flex-1" />
-            <AgentToolbarButton icon="folder" trailingIcon="chevron-down" className={noDragClasses}>
-              打开位置
-            </AgentToolbarButton>
-            <AgentIconButton
-              icon="panel-r"
-              aria-label={t("workspace.view.title.context")}
-              onClick={openContextDockLauncher}
-              className={noDragClasses}
-            />
-          </AgentPaneHeader>
-          <div className="flex min-h-0 flex-1">
-            <div
-              className={cn("relative flex min-h-0 min-w-0 flex-col", !splitViewId && "flex-1")}
-              style={splitViewId ? { flexBasis: `${splitRatio * 100}%` } : undefined}
-            >
-              <ChatStream onSend={onSend} />
-            </div>
-            {splitViewId && (
-              <>
-                <SplitResizer />
-                <AgentContextDock className="flex-1">
-                  <AgentDockTabs tabs={dockTabs} />
-                  <ViewPlacementProvider value={placementFor(splitViewId, "split")}>
-                    <WorkspaceViewBody viewId={splitViewId} />
-                  </ViewPlacementProvider>
-                </AgentContextDock>
-              </>
-            )}
-            {!splitViewId && (
-              <AgentContextDock className="w-[416px] shrink-0">
-                <AgentDockTabs tabs={dockTabs} />
-                <WorkspaceViewBody viewId={dockViewId} />
-              </AgentContextDock>
-            )}
+        <div className="flex min-h-0 flex-1">
+          {/* Center reading column — its own header sits above the chat stream
+              and spans only this column (the dock runs full-height beside it). */}
+          <div
+            className={cn("relative flex min-h-0 min-w-0 flex-col", !splitViewId && "flex-1")}
+            style={splitViewId ? { flexBasis: `${splitRatio * 100}%` } : undefined}
+          >
+            <AgentPaneHeader className={cn("px-5", dragClasses)}>
+              <Icon name="panel-l" size={16} strokeWidth={1.8} className="shrink-0 text-fg-muted" />
+              <span className="font-mono text-[12px] text-fg-faint">
+                {activeSession?.cwd ? basename(activeSession.cwd) : "lynx"}
+              </span>
+              <span className="text-[13px] text-fg-faint">/</span>
+              <span className="min-w-0 max-w-[320px] truncate text-[14.5px] font-semibold text-fg">
+                {activeSession?.title || t("welcome.title")}
+              </span>
+              {running && <AgentStatusPill tone="running">运行中</AgentStatusPill>}
+              <AgentIconButton
+                icon="more"
+                size="sm"
+                aria-label="更多操作"
+                className={noDragClasses}
+              />
+              <span className="min-w-4 flex-1" />
+              <AgentToolbarButton
+                icon="folder"
+                trailingIcon="chevron-down"
+                className={noDragClasses}
+              >
+                打开位置
+              </AgentToolbarButton>
+            </AgentPaneHeader>
+            <ChatStream onSend={onSend} />
           </div>
-        </>
+          {/* Right context dock — a full-height column with its own tab header. */}
+          {splitViewId ? (
+            <>
+              <SplitResizer />
+              <AgentContextDock className="flex-1">
+                <DockHeader tabs={dockTabs} />
+                <ViewPlacementProvider value={placementFor(splitViewId, "split")}>
+                  <WorkspaceViewBody viewId={splitViewId} />
+                </ViewPlacementProvider>
+              </AgentContextDock>
+            </>
+          ) : (
+            <AgentContextDock className="w-[420px] shrink-0">
+              <DockHeader tabs={dockTabs} />
+              <WorkspaceViewBody viewId={dockViewId} />
+            </AgentContextDock>
+          )}
+        </div>
       )}
     </AgentPane>
   );

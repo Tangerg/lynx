@@ -1,5 +1,4 @@
 export { composerBootstrap } from "./bootstrap";
-export { composerChips } from "./chips";
 export { composerKeymap } from "./keymap";
 export { composerPlaceholders } from "./placeholders";
 export { composerRunOptions } from "./runOptions";

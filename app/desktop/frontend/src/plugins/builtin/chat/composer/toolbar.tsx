@@ -1,10 +1,19 @@
 import { useEffect, useRef } from "react";
+import type { ApprovalModeValue } from "@/lib/data/queries";
 import { AgentIconButton } from "@/ui/agent";
 import { DropdownMenu, Icon, ProviderIcon, StatusDot, Tooltip } from "@/ui";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { useSelectedModel } from "./public/selectedModel";
-import { useModels } from "@/lib/data/queries";
+import { useApprovalMode, useModels } from "@/lib/data/queries";
+import {
+  APPROVAL_MODES,
+  DEFAULT_APPROVAL_MODE,
+  setApprovalMode,
+} from "@/plugins/builtin/agent/public/approvalPolicy";
+import { rpcErrorText } from "@/lib/rpcErrors";
+import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useAddComposerImageFiles } from "./public/attachments";
 import {
@@ -96,7 +105,7 @@ function AttachButton() {
         label={canAttach ? t("composer.attachImage") : t("composer.attachImage.unsupported")}
       >
         <AgentIconButton
-          icon="image"
+          icon="plus"
           aria-label={t("composer.attachImage")}
           disabled={!canAttach}
           onClick={() => inputRef.current?.click()}
@@ -108,19 +117,80 @@ function AttachButton() {
   );
 }
 
+// Approval-mode pill — the composer's primary access control (Codex "完全访问").
+// A ghost pill that turns warning-toned when full access ("yolo") is on.
+function ApprovalModePill() {
+  const t = useT();
+  const { data: mode, isError } = useApprovalMode();
+  if (isError || mode === undefined) return null;
+  const current = APPROVAL_MODES.find((m) => m.value === mode) ?? DEFAULT_APPROVAL_MODE;
+  const full = mode === "yolo";
+  const onSelect = async (next: ApprovalModeValue) => {
+    if (next === mode) return;
+    try {
+      await setApprovalMode(next);
+    } catch (err) {
+      notifyError(rpcErrorText(err) ?? t("approvals.error.mode"));
+    }
+  };
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
+        render={
+          <button
+            type="button"
+            aria-label={t("approvals.mode.aria")}
+            className={cn(
+              "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-sans text-[13px] font-medium transition-colors data-[popup-open]:bg-fg/[0.05]",
+              full
+                ? "text-warning hover:bg-warning/10"
+                : "text-fg-soft hover:bg-fg/[0.05] hover:text-fg",
+            )}
+            data-slot="composer-approval"
+          >
+            <Icon name={full ? "alert" : "shield"} size={14} className="shrink-0" />
+            <span className="max-w-[132px] truncate">{t(current.labelKey)}</span>
+            <Icon name="chevron-down" size={14} className="shrink-0 text-fg-faint" />
+          </button>
+        }
+      />
+      <DropdownMenu.Content align="start" sideOffset={6} className="min-w-[248px]">
+        {APPROVAL_MODES.map((m) => (
+          <DropdownMenu.Item
+            key={m.value}
+            onClick={() => void onSelect(m.value)}
+            className="grid grid-cols-[minmax(0,1fr)_14px] items-start gap-2 rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-fg/[0.06]"
+          >
+            <span className="min-w-0">
+              <span className="block text-[12.5px] font-semibold text-fg">{t(m.labelKey)}</span>
+              <span className="block text-[11.5px] leading-snug text-fg-muted">{t(m.descKey)}</span>
+            </span>
+            {m.value === mode && <Icon name="check" size={12} className="mt-0.5 text-accent" />}
+          </DropdownMenu.Item>
+        ))}
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+  );
+}
+
 export const composerToolbar = definePlugin({
   name: "lyra.builtin.composer-toolbar",
   version: "1.0.0",
   setup({ host }) {
     host.layout.register("composer.toolbar.start", {
-      id: "model",
+      id: "attach",
       order: 0,
-      component: ModelPicker,
+      component: AttachButton,
     });
     host.layout.register("composer.toolbar.start", {
-      id: "attach",
+      id: "approval",
       order: 1,
-      component: AttachButton,
+      component: ApprovalModePill,
+    });
+    host.layout.register("composer.toolbar.start", {
+      id: "model",
+      order: 2,
+      component: ModelPicker,
     });
   },
 });

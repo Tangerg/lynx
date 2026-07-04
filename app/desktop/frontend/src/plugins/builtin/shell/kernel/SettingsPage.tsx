@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import type { IconName } from "@/ui";
 import { Icon, noDragClasses, VerticalTabs } from "@/ui";
-import { AgentWindowControls } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import {
@@ -92,7 +91,8 @@ function SettingsSidebarHeader({
   const t = useT();
   return (
     <div className="pb-4">
-      <AgentWindowControls />
+      {/* Clears the native macOS traffic-light inset (the only window controls). */}
+      <div className="h-[38px]" aria-hidden />
       <button
         type="button"
         data-chrome-focus=""
