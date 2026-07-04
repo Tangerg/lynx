@@ -11,7 +11,7 @@ import (
 // ListTools surfaces every tool the engine registered — built-in coding
 // tools plus any MCP-server tools dialed at boot (API.md §7.6).
 func (s *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ToolSpec], error) {
-	internal, err := s.rt.Tool().List(ctx)
+	internal, err := s.rt.ListRegisteredTools(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (s *Server) InvokeTool(ctx context.Context, in protocol.InvokeToolRequest) 
 	if err != nil {
 		return nil, err
 	}
-	return s.rt.Tool().Invoke(ctx, in.Name, string(args))
+	return s.rt.InvokeRegisteredTool(ctx, in.Name, string(args))
 }
 
 // parseSchema decodes a tool's JSON Schema string into a structured

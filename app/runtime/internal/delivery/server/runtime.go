@@ -73,7 +73,8 @@ type lifecycleStoreAccess interface {
 }
 
 type toolAccess interface {
-	Tool() toolsvc.Service
+	ListRegisteredTools(ctx context.Context) ([]toolsvc.Tool, error)
+	InvokeRegisteredTool(ctx context.Context, name string, arguments string) (string, error)
 }
 
 type knowledgeAccess interface {
