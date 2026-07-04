@@ -40,7 +40,7 @@ function PopoverContent({
         <PopoverPrimitive.Popup
           {...popupProps}
           className={cn(
-            "z-50 overflow-hidden rounded-md border-[0.5px] border-field bg-surface shadow-[var(--shadow-popover)] animate-rise-in",
+            "z-50 overflow-hidden rounded-[12px] bg-canvas shadow-[var(--shadow-popover)] animate-rise-in",
             className,
           )}
         >

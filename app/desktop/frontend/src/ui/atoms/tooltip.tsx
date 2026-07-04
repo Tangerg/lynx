@@ -39,7 +39,7 @@ export function Tooltip({ label, side = "top", sideOffset = 6, delayDuration, ch
       side={side}
       sideOffset={sideOffset}
       delay={delayDuration}
-      className="max-w-[280px] px-2 py-1 font-sans text-[11.5px] leading-snug text-fg-soft"
+      className="max-w-[280px] bg-fg px-2 py-1 font-sans text-[12px] leading-snug text-on-fg"
     >
       {label}
     </RichTooltip>
@@ -61,7 +61,7 @@ export function RichTooltip({
         <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset}>
           <TooltipPrimitive.Popup
             className={cn(
-              "z-50 rounded-md border-[0.5px] border-field bg-surface shadow-[var(--shadow-popover)] animate-rise-in",
+              "z-50 rounded-md bg-canvas text-fg shadow-[var(--shadow-popover)] animate-rise-in",
               className,
             )}
           >

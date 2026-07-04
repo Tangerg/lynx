@@ -7,7 +7,7 @@ export { DataView } from "./data-view";
 export { Divider } from "./divider";
 export { dragClasses, noDragClasses } from "./drag-region";
 export { EmptyState } from "./empty-state";
-export { FIELD_CLASSES, INPUT_FOCUS_RING } from "./field";
+export { FIELD_CLASSES } from "./field";
 export { IconButton } from "./icon-button";
 export { Kbd } from "./kbd";
 export { LightboxDialog } from "./lightbox-dialog";

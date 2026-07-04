@@ -9,8 +9,8 @@ function SkeletonLine({ width = "100%", height = 10 }: { width?: string; height?
   return (
     <span
       className={
-        "inline-block rounded animate-shimmer motion-reduce:animate-none " +
-        "bg-[linear-gradient(90deg,var(--color-surface-2)_0%,color-mix(in_oklab,var(--color-text)_8%,var(--color-surface-2))_50%,var(--color-surface-2)_100%)] " +
+        "inline-block rounded-md animate-shimmer motion-reduce:animate-none " +
+        "bg-[linear-gradient(90deg,var(--color-surface-2)_0%,var(--color-surface)_50%,var(--color-surface-2)_100%)] " +
         "bg-[length:200%_100%]"
       }
       style={{ width, height }}

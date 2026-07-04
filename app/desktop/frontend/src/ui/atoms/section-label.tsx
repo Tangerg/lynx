@@ -5,7 +5,7 @@ export function SectionLabel({ children, className }: { children: ReactNode; cla
   return (
     <div
       className={cn(
-        "px-2.5 pb-1 pt-4 font-sans text-[11px] font-medium leading-none text-fg-faint",
+        "px-2.5 pb-1 pt-4 font-sans text-[12px] font-medium leading-none text-fg-muted",
         className,
       )}
     >
