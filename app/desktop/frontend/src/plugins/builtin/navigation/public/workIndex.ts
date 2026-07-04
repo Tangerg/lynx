@@ -6,7 +6,7 @@ export {
   useWorkIndexItems,
 } from "../application/workIndexContributions";
 export { useWorkIndexActions, type WorkIndexActions } from "../application/workIndexActions";
-export { useRecentWorkSessions, useWorkIndex } from "../application/useWorkIndex";
+export { useWorkIndex } from "../application/useWorkIndex";
 export type {
   WorkGroup,
   WorkIndex,

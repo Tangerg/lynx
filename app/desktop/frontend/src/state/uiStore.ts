@@ -109,7 +109,8 @@ interface UiState {
   /** Chat-vs-side-pane split: the fraction (0.25–0.75) of the main area the
    *  chat stream takes when a `splitViewId` side pane is open. */
   splitRatio: number;
-  /** True = collapsed rail. False = expanded sidebar. */
+  /** True = the work-index sidebar is fully hidden (chat spans to the left
+   *  edge, Codex-style); False = the 244px sidebar is shown. */
   sidebarRail: boolean;
   /** True = the right context dock is collapsed (chat spans full width);
    *  False = the dock is shown. Toggled from the header's dock button. */
@@ -162,7 +163,7 @@ export const useUiStore = create<UiState & UiActions>()(
       messageStyle: "bubble",
       streamReveal: "smooth",
       splitRatio: 0.5,
-      sidebarRail: true,
+      sidebarRail: false,
       dockCollapsed: false,
       completionSound: false,
 

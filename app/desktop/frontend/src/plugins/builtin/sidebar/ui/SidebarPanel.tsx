@@ -1,14 +1,7 @@
 import { SidebarExpanded } from "./SidebarExpanded";
-import { SidebarRail } from "./SidebarRail";
 
-interface Props {
-  rail: boolean;
-  onToggleRail: () => void;
-}
-
-// Top-level sidebar switcher: rail vs. expanded. Each variant is its own
-// component so neither has to know about the other's markup.
-export function SidebarPanel({ rail, onToggleRail }: Props) {
-  if (rail) return <SidebarRail onToggleRail={onToggleRail} />;
+// The work-index sidebar. There is no collapsed "rail" variant — collapsing
+// hides the sidebar entirely (the shell drops the column), Codex-style.
+export function SidebarPanel() {
   return <SidebarExpanded />;
 }
