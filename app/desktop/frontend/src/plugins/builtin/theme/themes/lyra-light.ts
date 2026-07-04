@@ -1,23 +1,18 @@
-// Lyra Light — clean white main area + subtle gray chrome (flush layout).
-// Pure black-on-white CTA, so the blue accent stays reserved for live state.
+// Lyra Light — Agent Studio skin: white canvas, neutral gray chrome, pink CTA.
 
 import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
-  // Geist blue-700 accent (Vercel design.md).
-  accent: "#006bff",
+  accent: "#d92662",
 
-  // Cool-slate surface ladder — pristine white editor canvas, then a SINGLE
-  // hue (262°, the accent's OKLCH family) at a constant low chroma for the
-  // chrome, stepping darker only in lightness (JetBrains New UI model: editor
-  // lightest, chrome + raised states a touch darker + cool). Region + card
-  // separation is this L delta, no lines, no shadows. Chroma is tiny (0.007)
-  // so on near-white it reads as a cool grey, never a tint.
+  // JetBrains-style region split: canvas is white; durable chrome is a neutral
+  // gray ladder. The ladder is deliberately achromatic so the page stops reading
+  // as foggy or tinted while still keeping large areas distinct.
   canvas: "#ffffff",
-  surface1: "oklch(0.967 0.007 262)",
-  surface2: "oklch(0.933 0.007 262)",
-  surface3: "oklch(0.899 0.007 262)",
-  surface4: "oklch(0.865 0.007 262)",
+  surface1: "#f2f2f3",
+  surface2: "#e8e8e9",
+  surface3: "#dededf",
+  surface4: "#d2d2d4",
 
   // Geist gray scale (text/icons): gray-1000 / 900 / 700 / 600.
   inkBright: "#000000",
@@ -68,8 +63,8 @@ export default defineThemePlugin({
     success: "#28a948", // green-700
   },
   cta: {
-    cta: "#171717", // gray-1000 solid fill
-    ctaHover: "#4d4d4d", // gray-900
-    ctaText: "#ffffff", // background-100
+    cta: "#d92662",
+    ctaHover: "#c61f56",
+    ctaText: "#ffffff",
   },
 });

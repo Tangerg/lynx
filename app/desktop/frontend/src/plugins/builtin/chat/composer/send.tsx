@@ -1,4 +1,5 @@
-import { Icon, Tooltip } from "@/components/common";
+import { AgentIconButton } from "@/components/agent-studio";
+import { Tooltip } from "@/components/common";
 import { useSendComposerInput } from "./public/sendToAgent";
 import { useIsAgentRunning, useStopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
@@ -24,30 +25,28 @@ function SendButton() {
     if (value.trim()) {
       return (
         <Tooltip label={t("composer.action.steer")}>
-          <button
-            type="button"
+          <AgentIconButton
+            icon="arrow-up"
+            iconSize={16}
             onClick={() =>
               submitComposer({ value, clear, sendInput: send, images, pastes, recordHistory })
             }
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border-0 bg-cta text-cta-text transition-[background-color,scale] duration-150 hover:bg-cta-hover active:scale-[0.96]"
+            className="h-9 w-9 shrink-0 rounded-full bg-cta text-cta-text hover:bg-cta-hover hover:text-cta-text"
             data-slot="composer-send"
-          >
-            <Icon name="arrow-up" size={16} strokeWidth={2.5} />
-          </button>
+          />
         </Tooltip>
       );
     }
     return (
       <Tooltip label={t("composer.action.stop")}>
-        <button
-          type="button"
+        <AgentIconButton
+          icon="stop"
+          iconSize={13}
           disabled={!stop}
           onClick={() => stop?.()}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border-0 bg-surface-3 text-fg-muted transition-[background-color,color,scale] duration-150 hover:bg-surface-4 hover:text-fg active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-9 w-9 shrink-0 rounded-full bg-surface-2 text-fg-muted hover:bg-surface-3"
           data-slot="composer-stop"
-        >
-          <Icon name="stop" size={13} />
-        </button>
+        />
       </Tooltip>
     );
   }
@@ -58,20 +57,19 @@ function SendButton() {
 
   return (
     <Tooltip label={t("composer.action.send")}>
-      <button
-        type="button"
+      <AgentIconButton
+        icon="arrow-up"
+        iconSize={16}
         disabled={disabled}
         onClick={onClick}
         className={cn(
-          "grid h-9 w-9 shrink-0 place-items-center rounded-full border-0 transition-[background-color,color,scale] duration-150",
+          "h-9 w-9 shrink-0 rounded-full",
           disabled
-            ? "bg-surface-3 text-fg-faint cursor-not-allowed"
-            : "bg-cta text-cta-text hover:bg-cta-hover active:scale-[0.96]",
+            ? "bg-surface-2 text-fg-faint cursor-not-allowed"
+            : "bg-cta text-cta-text hover:bg-cta-hover hover:text-cta-text",
         )}
         data-slot="composer-send"
-      >
-        <Icon name="arrow-up" size={16} strokeWidth={2.5} />
-      </button>
+      />
     </Tooltip>
   );
 }

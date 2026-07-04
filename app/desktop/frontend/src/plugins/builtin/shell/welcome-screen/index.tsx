@@ -4,8 +4,9 @@
 // Lives on the `chat.empty` layout slot so user plugins can replace or
 // supplement it (e.g. add a "Recent files" or "What's new" card).
 
-import type { IconName } from "@/components/common";
 import type { CommandSpec } from "@/plugins/sdk";
+import type { IconName } from "@/components/common";
+import { AgentSurface } from "@/components/agent-studio";
 import { Icon, Tooltip } from "@/components/common";
 import { useProviders } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
@@ -106,21 +107,23 @@ function WelcomeScreen() {
         <SetupCard />
       ) : (
         <>
-          <div className="flex w-full flex-col gap-2.5">
-            {SUGGESTIONS.map((s) => (
+          <div className="grid w-full grid-cols-3 gap-3">
+            {SUGGESTIONS.slice(0, 3).map((s) => (
               <Tooltip key={s.labelKey} label={t(s.promptKey)} side="bottom">
                 <button
                   type="button"
                   onClick={() => setValue(t(s.promptKey))}
-                  className="group flex w-full items-center gap-3 rounded-lg bg-surface px-4 py-3.5 text-left font-sans text-[14px] font-medium text-fg-soft transition-[background-color,transform] duration-150 hover:bg-surface-2 active:scale-[0.99]"
+                  className="group min-h-[76px] rounded-[12px] border-0 bg-transparent p-0 text-left transition-transform duration-150 active:scale-[0.99]"
                 >
-                  <Icon name={s.icon} size={16} className="shrink-0 text-fg-muted" />
-                  <span className="min-w-0 flex-1 truncate">{t(s.labelKey)}</span>
-                  <Icon
-                    name="chevron-right"
-                    size={16}
-                    className="shrink-0 text-fg-faint transition-colors group-hover:text-fg-muted"
-                  />
+                  <AgentSurface className="h-full px-4 py-3 transition-colors group-hover:bg-surface-2">
+                    <Icon name={s.icon} size={16} className="mb-3 shrink-0 text-fg-muted" />
+                    <div className="truncate text-[13px] font-semibold leading-[18px] text-fg">
+                      {t(s.labelKey)}
+                    </div>
+                    <div className="mt-1 truncate text-[12.5px] leading-[17px] text-fg-muted">
+                      {t(s.promptKey)}
+                    </div>
+                  </AgentSurface>
                 </button>
               </Tooltip>
             ))}

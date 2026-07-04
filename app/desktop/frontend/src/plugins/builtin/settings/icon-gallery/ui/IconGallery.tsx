@@ -50,7 +50,7 @@ export function IconGallery() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-4 px-5 py-4">
         <div>
-          <div className="text-[17px] font-semibold tracking-[-0.01em]">@lobehub/icons</div>
+          <div className="text-[17px] font-semibold">@lobehub/icons</div>
           <div className="mt-0.5 text-[13px] text-fg-muted">
             {rawToc.length} icons · brands across LLM models, providers, and apps
           </div>
@@ -125,7 +125,7 @@ function IconCard({ entry }: { entry: (typeof rawToc)[number] }) {
           className="h-2 w-2 rounded-full border-[0.5px] border-[color-mix(in_srgb,var(--color-text)_10%,transparent)]"
           style={{ background: entry.color }}
         />
-        <code className="font-mono text-[10px] text-fg-faint tracking-[-0.005em]">{entry.id}</code>
+        <code className="font-mono text-[10px] text-fg-faint">{entry.id}</code>
       </div>
     </div>
   );

@@ -10,13 +10,13 @@ import { Tooltip } from "./Tooltip";
 //   rail-primary — emphasized rail item (subtle bg in idle state)
 const styles = cva(
   "grid place-items-center text-fg-muted border-0 bg-transparent " +
-    "transition-colors duration-150 ease-out hover:text-fg disabled:cursor-not-allowed disabled:opacity-50",
+    "transition-[background-color,color,scale] duration-[120ms] ease-out hover:text-fg active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
   {
     variants: {
       variant: {
-        ghost: "h-8 w-8 rounded-md hover:bg-fg/[0.04]",
-        rail: "h-10 w-10 rounded-md hover:bg-fg/[0.035]",
-        "rail-primary": "h-10 w-10 rounded-md bg-surface-2 text-fg hover:bg-surface-3",
+        ghost: "h-8 w-8 rounded-[8px] hover:bg-fg/[0.045]",
+        rail: "h-10 w-10 rounded-[9px] hover:bg-fg/[0.045]",
+        "rail-primary": "h-10 w-10 rounded-[9px] bg-fg/[0.075] text-fg hover:bg-fg/[0.095]",
       },
       active: {
         true: "",

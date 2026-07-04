@@ -12,9 +12,13 @@
 
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
-import { dragClasses, Icon, IconButton, noDragClasses, Panel } from "@/components/common";
+import { AgentIconButton, AgentStatusPill, AgentToolbarButton } from "@/components/agent-studio";
+import { dragClasses, Icon, noDragClasses, Panel } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/data/queries";
+import { basename } from "@/lib/path";
+import { useActiveSession } from "@/plugins/builtin/agent/public/session";
+import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
 import {
   closeWorkspaceSplit,
   closeWorkspaceView,
@@ -44,6 +48,8 @@ export function ChatPanel({ onSend }: Props) {
   const splitRatio = useUiStore((s) => s.splitRatio);
   const views = useWorkspaceViews();
   const { isLoading } = useSessions();
+  const activeSession = useActiveSession();
+  const running = useIsAgentRunning();
   const t = useT();
 
   // Suppress the panel only while the FIRST sessions fetch is in flight (and
@@ -75,30 +81,6 @@ export function ChatPanel({ onSend }: Props) {
     // ResizeObserver + scroll-anchor path lost position during streaming and
     // snapped the chat to the top).
     <Panel className="relative">
-      {/* macOS drag region — a TRANSPARENT OVERLAY, not a layout band. The
-          removed tab strip left an empty strip above the main area; overlaying
-          the drag strip lets each view fill to the top edge (workspace views
-          paint their surface right up to it instead of sitting below a canvas
-          gap) while the window stays draggable from the top. The chat branch
-          re-adds the top gap via pt-9 so its stream keeps its breathing room.
-          Interactive children opt out via noDragClasses. */}
-      <div className={cn("absolute inset-x-0 top-0 z-10 h-9", dragClasses)} />
-      {!activeMainView && !splitViewId && (
-        <IconButton
-          variant="ghost"
-          title={t("workspace.view.title.context")}
-          data-chrome-focus=""
-          onClick={openContextDockLauncher}
-          className={cn(
-            "absolute right-3 top-3 z-20 h-8 w-8 rounded-md bg-surface-2 text-fg-muted",
-            "shadow-[inset_0_0_0_0.5px_var(--color-field),var(--shadow-popover)]",
-            "transition-[background-color,color,box-shadow,scale] duration-150 ease-out hover:bg-surface-3 hover:text-fg active:scale-[0.96]",
-            noDragClasses,
-          )}
-        >
-          <Icon name="panel-r" size={14} />
-        </IconButton>
-      )}
       {activeMainView ? (
         <ViewPlacementProvider value={placementFor(activeMainView, "full")}>
           <WorkspaceViewBody viewId={activeMainView} />
@@ -112,26 +94,65 @@ export function ChatPanel({ onSend }: Props) {
         // back down) and threw away any scroll-up position they held. The
         // split layout (chat | resizer | view, G3) is inlined here so the
         // ChatStream element never changes position.
-        <div className="flex min-h-0 flex-1 pt-9">
+        <>
           <div
-            className={cn("relative flex min-h-0 min-w-0 flex-col", !splitViewId && "flex-1")}
-            // flexBasis is the persisted, drag-continuous split ratio (truly
-            // dynamic — the one sanctioned inline style); omitted when full-width.
-            style={splitViewId ? { flexBasis: `${splitRatio * 100}%` } : undefined}
+            className={cn(
+              "flex h-[52px] shrink-0 items-center gap-2 border-b-[0.5px] border-field/70 px-4",
+              dragClasses,
+            )}
           >
-            <ChatStream onSend={onSend} />
+            <Icon name="panel-l" size={16} strokeWidth={1.8} className="shrink-0 text-fg-muted" />
+            <span className="font-mono text-[12px] text-fg-faint">
+              {activeSession?.cwd ? basename(activeSession.cwd) : "lynx"}
+            </span>
+            <span className="text-[13px] text-fg-faint">/</span>
+            <span className="min-w-0 max-w-[320px] truncate text-[14.5px] font-semibold text-fg">
+              {activeSession?.title || t("welcome.title")}
+            </span>
+            {running && <AgentStatusPill tone="running">运行中</AgentStatusPill>}
+            <AgentIconButton
+              icon="more"
+              size="sm"
+              aria-label="更多操作"
+              className={noDragClasses}
+            />
+            <span className="min-w-4 flex-1" />
+            <AgentToolbarButton icon="folder" trailingIcon="chevron-down" className={noDragClasses}>
+              打开位置
+            </AgentToolbarButton>
+            <AgentIconButton
+              icon="panel-r"
+              aria-label={t("workspace.view.title.context")}
+              onClick={openContextDockLauncher}
+              className={noDragClasses}
+            />
           </div>
-          {splitViewId && (
-            <>
-              <SplitResizer />
-              <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
-                <ViewPlacementProvider value={placementFor(splitViewId, "split")}>
-                  <WorkspaceViewBody viewId={splitViewId} />
-                </ViewPlacementProvider>
+          <div className="flex min-h-0 flex-1">
+            <div
+              className={cn("relative flex min-h-0 min-w-0 flex-col", !splitViewId && "flex-1")}
+              // flexBasis is the persisted, drag-continuous split ratio (truly
+              // dynamic — the one sanctioned inline style); omitted when full-width.
+              style={splitViewId ? { flexBasis: `${splitRatio * 100}%` } : undefined}
+            >
+              <ChatStream onSend={onSend} />
+            </div>
+            {splitViewId && (
+              <>
+                <SplitResizer />
+                <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
+                  <ViewPlacementProvider value={placementFor(splitViewId, "split")}>
+                    <WorkspaceViewBody viewId={splitViewId} />
+                  </ViewPlacementProvider>
+                </div>
+              </>
+            )}
+            {!splitViewId && (
+              <div className="relative flex min-h-0 w-[416px] shrink-0 flex-col bg-surface">
+                <WorkspaceViewBody viewId="diff" />
               </div>
-            </>
-          )}
-        </div>
+            )}
+          </div>
+        </>
       )}
     </Panel>
   );

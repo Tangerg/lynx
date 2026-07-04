@@ -18,7 +18,6 @@ export { Popover } from "./Popover";
 export { ProgressBar } from "./ProgressBar";
 export { ProviderIcon } from "./ProviderIcon";
 export { ScrollArea } from "./ScrollArea";
-export { SectionLabel } from "./SectionLabel";
 export { Segmented } from "./Segmented";
 export type { SegmentedOption } from "./Segmented";
 export { ShikiCodeBlock } from "./ShikiCodeBlock";

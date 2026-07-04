@@ -1,7 +1,8 @@
 // Expanded sidebar — slim chrome: collapse button, scroll area of
 // plugin-contributed sections, and plugin-contributed footer.
 
-import { Icon, dragClasses, noDragClasses, Panel, ScrollArea } from "@/components/common";
+import { AgentIconButton, AgentWindowControls } from "@/components/agent-studio";
+import { dragClasses, noDragClasses, Panel, ScrollArea } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useWorkIndexItems } from "@/plugins/builtin/navigation/public/workIndex";
@@ -20,27 +21,22 @@ export function SidebarExpanded({ onToggleRail }: Props) {
     // `sidebar` class is kept as a DOM hook for layout.css (macOS
     // titlebar padding). The entire panel is a drag region; interactive
     // children opt out via `noDragClasses`.
-    <Panel className={cn("sidebar relative gap-2 px-2 pb-3 pt-3", dragClasses)}>
+    <Panel className={cn("sidebar relative", dragClasses)}>
+      <AgentWindowControls />
       {/* Collapse button — pinned at the top-right corner of the
           sidebar, vertically aligned with the macOS traffic-light row. */}
-      <button
-        type="button"
+      <AgentIconButton
+        icon="panel-l"
+        size="sm"
         onClick={onToggleRail}
         data-chrome-focus=""
         title={t("sidebar.action.collapse")}
         aria-label={t("sidebar.action.collapse")}
-        className={cn(
-          "absolute top-2 right-2.5 z-10 grid h-6.5 w-6.5 place-items-center",
-          "rounded-md border-0 bg-transparent text-fg-muted transition-colors",
-          "hover:bg-fg/[0.04] hover:text-fg focus-visible:bg-fg/[0.055] focus-visible:text-fg focus-visible:outline-none",
-          noDragClasses,
-        )}
-      >
-        <Icon name="panel-l" size={14} />
-      </button>
+        className={cn("absolute right-3 top-3 z-10 opacity-55 hover:opacity-100", noDragClasses)}
+      />
 
-      <ScrollArea hideScrollbar style={{ padding: "0 0 8px 0" }}>
-        <div className={noDragClasses}>
+      <ScrollArea hideScrollbar style={{ padding: "6px 10px 14px" }}>
+        <div className={cn("flex flex-col gap-px", noDragClasses)}>
           {items.map((item) => {
             const Body = item.component;
             return (
@@ -56,7 +52,7 @@ export function SidebarExpanded({ onToggleRail }: Props) {
         </div>
       </ScrollArea>
 
-      <div className="mt-auto px-0.5 pt-3">
+      <div className="mt-auto">
         <Slot name="sidebar.footer" />
       </div>
     </Panel>

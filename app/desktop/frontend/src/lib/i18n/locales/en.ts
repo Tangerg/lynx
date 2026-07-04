@@ -17,7 +17,7 @@ export const en: Record<string, string> = {
   "sidebar.action.settings": "Settings",
 
   "composer.input.label": "Message composer",
-  "composer.placeholder.fallback": "Ask, plan, or paste a stack trace…  /  to run a command",
+  "composer.placeholder.fallback": "Type freely",
   "composer.placeholder.steer": "Send a message to steer the running turn…",
   "composer.send": "Send",
   "composer.attachFile": "Attach file",
@@ -126,7 +126,7 @@ export const en: Record<string, string> = {
   "dataView.error.sub": "The runtime didn’t answer this request. Check the connection and retry.",
 
   "welcome.eyebrow": "agent ready",
-  "welcome.title": "What can I help you build today.",
+  "welcome.title": "What should we build in lynx?",
   "welcome.sub": "Start a conversation, paste a stack trace, or pick a suggestion below.",
   "welcome.setup.title": "Connect a model provider",
   "welcome.setup.sub":
@@ -157,6 +157,8 @@ export const en: Record<string, string> = {
   "settings.pane.mcpServers": "MCP servers",
   "settings.pane.hooks": "Hooks",
   "settings.pane.schedules": "Schedules",
+  "settings.appearance.hero":
+    "Themes, contrast, typography, and motion define the working feel of Lynx.",
   "usage.session.label": "Session",
   "usage.session.hint": "This session's cumulative tokens and cost across all its runs",
   "usage.range.all": "All",
@@ -351,6 +353,8 @@ export const en: Record<string, string> = {
   "workspace.view.title.diagnostics": "Diagnostics",
   "settings.theme": "Theme",
   "settings.theme.system": "System",
+  "settings.theme.light": "Light",
+  "settings.theme.dark": "Dark",
   "settings.theme.systemSub": "follows your OS",
   "settings.theme.sub":
     "Pick a color theme. Plugins can register more — they show up here automatically.",

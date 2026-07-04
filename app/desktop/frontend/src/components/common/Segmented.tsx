@@ -1,4 +1,4 @@
-import { Tabs as BaseTabs } from "@base-ui/react/tabs";
+import { StudioTabs } from "@/components/agent-studio";
 import { cn } from "@/lib/utils";
 
 export interface SegmentedOption<T> {
@@ -25,30 +25,33 @@ export function Segmented<T extends string | number>({
   className,
 }: SegmentedProps<T>) {
   return (
-    <BaseTabs.Root
+    <StudioTabs.Root
       value={String(value)}
       onValueChange={(v) => {
         const opt = options.find((o) => String(o.value) === v);
         if (opt) onChange(opt.value);
       }}
-      className={cn("inline-flex w-fit items-center gap-1 rounded-md bg-surface-2 p-1", className)}
+      className={cn(
+        "inline-flex w-fit items-center gap-0.5 rounded-[8px] bg-surface-2 p-0.5 shadow-[inset_0_0_0_0.5px_var(--color-field)]",
+        className,
+      )}
     >
-      <BaseTabs.List aria-label={ariaLabel} className="contents" activateOnFocus>
+      <StudioTabs.List aria-label={ariaLabel} className="contents" activateOnFocus>
         {options.map((opt) => (
-          <BaseTabs.Tab
+          <StudioTabs.Tab
             key={String(opt.value)}
             value={String(opt.value)}
             className={cn(
-              "rounded-sm px-2.5 py-0.5 text-[12px] font-medium text-fg-muted transition-colors duration-150 hover:text-fg",
+              "h-6 rounded-[6px] border-0 bg-transparent px-2.5 text-[12px] font-medium text-fg-muted transition-[background-color,color,box-shadow] duration-[120ms] ease-out hover:text-fg",
               mono && "font-mono",
-              "data-[active]:bg-surface data-[active]:text-fg data-[active]:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
-              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+              "data-[active]:bg-canvas data-[active]:text-fg data-[active]:shadow-[inset_0_0_0_0.5px_var(--color-field)]",
+              "focus-visible:outline-none",
             )}
           >
             {opt.label}
-          </BaseTabs.Tab>
+          </StudioTabs.Tab>
         ))}
-      </BaseTabs.List>
-    </BaseTabs.Root>
+      </StudioTabs.List>
+    </StudioTabs.Root>
   );
 }

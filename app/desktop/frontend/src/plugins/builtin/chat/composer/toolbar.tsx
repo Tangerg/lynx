@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { AgentIconButton, AgentToolbarButton } from "@/components/agent-studio";
 import { DropdownMenu, Icon, ProviderIcon, Tooltip } from "@/components/common";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { useSelectedModel } from "./public/selectedModel";
@@ -25,7 +26,7 @@ function ModelPicker() {
     if (!isLoading) return null;
     return (
       <div
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md pl-1.5 pr-2.5 opacity-60"
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] pl-1.5 pr-2.5 opacity-60"
         aria-hidden
       >
         <span className="h-4 w-4 rounded-full bg-surface-2" />
@@ -39,16 +40,16 @@ function ModelPicker() {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         render={
-          <button
+          <AgentToolbarButton
             type="button"
             aria-label={t("composer.switchModel")}
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border-0 bg-transparent pl-1.5 pr-2.5 text-[12.5px] font-medium text-fg-muted whitespace-nowrap transition-[background-color,color] duration-100 hover:bg-fg/[0.04] hover:text-fg data-[popup-open]:bg-fg/[0.055] data-[popup-open]:text-fg"
+            className="gap-1.5 pl-1.5 pr-2.5 shadow-none"
             data-slot="composer-model"
           >
             <ProviderIcon provider={selected.provider} size={16} />
             <span className="font-sans text-[12.5px] font-medium">{selected.label}</span>
             <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
-          </button>
+          </AgentToolbarButton>
         }
       />
       <DropdownMenu.Content align="start" sideOffset={6} className="min-w-[200px]">
@@ -94,16 +95,14 @@ function AttachButton() {
       <Tooltip
         label={canAttach ? t("composer.attachImage") : t("composer.attachImage.unsupported")}
       >
-        <button
-          type="button"
+        <AgentIconButton
+          icon="image"
           aria-label={t("composer.attachImage")}
           disabled={!canAttach}
           onClick={() => inputRef.current?.click()}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-fg-muted transition-[background-color,color,scale] duration-100 hover:bg-fg/[0.04] hover:text-fg active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-25"
+          className="h-8 w-8 disabled:opacity-25"
           data-slot="composer-attach"
-        >
-          <Icon name="image" size={15} />
-        </button>
+        />
       </Tooltip>
     </>
   );

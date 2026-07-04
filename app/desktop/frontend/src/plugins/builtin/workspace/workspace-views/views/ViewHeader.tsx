@@ -2,7 +2,8 @@
 
 import type { ReactNode } from "react";
 import type { IconName } from "@/components/common";
-import { Icon, IconButton } from "@/components/common";
+import { AgentIconButton } from "@/components/agent-studio";
+import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
@@ -31,57 +32,70 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
     // Promote the side pane to a full-width tab, or close it (chat returns to
     // full width). Promote sits before close to mirror the tab strip's order.
     placementControls = (
-      <div className="flex items-center gap-0.5">
-        <IconButton title={t("workspace.view.promote")} onClick={placement.onPromote}>
-          <Icon name="maximize" size={13} />
-        </IconButton>
-        <IconButton title={t("common.close")} onClick={placement.onClose}>
-          <Icon name="x" size={14} />
-        </IconButton>
+      <div className="flex items-center gap-1">
+        <AgentIconButton
+          icon="maximize"
+          size="sm"
+          title={t("workspace.view.promote")}
+          aria-label={t("workspace.view.promote")}
+          onClick={placement.onPromote}
+        />
+        <AgentIconButton
+          icon="x"
+          size="sm"
+          title={t("common.close")}
+          aria-label={t("common.close")}
+          onClick={placement.onClose}
+        />
       </div>
     );
   } else if (placement?.placement === "full" && placement.splittable) {
     placementControls = (
-      <IconButton title={t("workspace.view.openBeside")} onClick={placement.onSplit}>
-        <Icon name="panel-r" size={14} />
-      </IconButton>
+      <AgentIconButton
+        icon="panel-r"
+        size="sm"
+        title={t("workspace.view.openBeside")}
+        aria-label={t("workspace.view.openBeside")}
+        onClick={placement.onSplit}
+      />
     );
   }
 
   return (
-    <div className="grid min-h-12 grid-cols-[28px_1fr_auto] items-center gap-2.5 px-3.5 py-2.5">
-      <div className="grid h-7 w-7 place-items-center rounded-md bg-surface-2 text-fg-muted">
-        <Icon name={icon} size={14} />
-      </div>
-      <div className="min-w-0">
-        <div
+    <div className="flex h-[52px] shrink-0 items-center gap-2 border-b-[0.5px] border-field/70 px-3.5">
+      <Icon name={icon} size={15} strokeWidth={1.8} className="shrink-0 text-fg-muted" />
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span
           className={cn(
-            "text-fg whitespace-nowrap overflow-hidden text-ellipsis",
+            "min-w-0 truncate text-fg",
             titleStrong
-              ? "font-sans text-[14px] font-semibold tracking-[-0.01em]"
-              : "font-mono text-[13px]",
+              ? "font-sans text-[13.5px] font-semibold"
+              : "font-mono text-[12.5px] font-medium",
           )}
         >
           {/* A string title is an i18n key (built-in views) or a literal
               (filenames, third-party) — t() resolves the former, passes the
               latter through. Non-string titles (ReactNode) render as-is. */}
           {typeof title === "string" ? t(title) : title}
-        </div>
+        </span>
         {sub !== undefined && (
-          // Label views get a sans subtitle (descriptive text); filename /
-          // process views keep mono (the sub is a path / stat there).
-          <div
-            className={cn(
-              "mt-0.5 text-[12px] text-fg-faint",
-              titleStrong ? "font-sans" : "font-mono",
-            )}
-          >
-            {sub}
-          </div>
+          <>
+            <span aria-hidden="true" className="shrink-0 text-[13px] leading-none text-fg-faint">
+              ·
+            </span>
+            <span
+              className={cn(
+                "min-w-0 truncate text-[11.5px] text-fg-faint",
+                titleStrong ? "font-sans" : "font-mono",
+              )}
+            >
+              {sub}
+            </span>
+          </>
         )}
       </div>
       {(actions !== undefined || placementControls) && (
-        <div className="flex gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           {actions}
           {placementControls}
         </div>
