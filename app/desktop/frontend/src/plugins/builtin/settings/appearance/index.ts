@@ -5,6 +5,7 @@
 
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
+import { appearanceSettingsPane } from "./application/appearanceContributions";
 import { installAppearancePreferencesPort } from "./adapters/uiAppearancePreferences";
 import { AppearancePane } from "./ui/AppearancePane";
 
@@ -13,13 +14,6 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     installAppearancePreferencesPort();
-    registerSettingsPane(host, {
-      id: "appearance",
-      label: "settings.pane.appearance",
-      group: "general",
-      icon: "spark",
-      order: 0,
-      component: AppearancePane,
-    });
+    registerSettingsPane(host, appearanceSettingsPane(AppearancePane));
   },
 });
