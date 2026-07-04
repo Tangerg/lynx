@@ -250,6 +250,29 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	if _, ok := history[id]; ok {
 		t.Errorf("chat-memory messages not cascaded: still present")
 	}
+	if s.hasActiveRun(id) {
+		t.Fatal("delete leaked the session mutation claim")
+	}
+}
+
+func TestDeleteSession_RejectsActiveSession(t *testing.T) {
+	s, svc := newSessionServer(t)
+	ctx := context.Background()
+	created, err := svc.Create(ctx, "live", "/w")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if !s.claimSession(created.ID) {
+		t.Fatal("claim session")
+	}
+	t.Cleanup(func() { s.releaseSession(created.ID) })
+
+	if err := s.DeleteSession(ctx, created.ID); !errors.Is(err, protocol.ErrSessionBusy) {
+		t.Fatalf("delete under active claim = %v, want ErrSessionBusy", err)
+	}
+	if _, err := svc.Get(ctx, created.ID); err != nil {
+		t.Fatalf("session mutated under active claim: %v", err)
+	}
 }
 
 func TestDeleteSession_CancelsParkedTurn(t *testing.T) {

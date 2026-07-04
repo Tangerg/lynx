@@ -75,14 +75,17 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 		return protocol.ErrSessionNotFound
 	}
 	// Refuse to delete a session with a run in flight (actively pumping or
-	// mid-admission). The cascade below clears chat-memory and drops the shadow
-	// checkpoint repo — doing that under a live run orphans its writes and races
-	// its boundary snapshot. Stop the run first (runs.cancel), then delete.
-	// Mirrors the rollback session_busy guard; a parked run (no active pump) is
-	// still deletable — lifecycle tears down its parked turn and interrupt.
-	if s.hasActiveRun(id) {
-		return fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, id)
+	// mid-admission) by taking the same single-writer slot as runs.start/resume
+	// and rollback. A parked run is still deletable: lifecycle tears down its
+	// parked turn and interrupt as part of the cascade.
+	admission, err := s.coordinator().ClaimMutationSlot(sessionClaimer{s: s}, id)
+	if err != nil {
+		if errors.Is(err, lifecycle.ErrSessionBusy) {
+			return fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, id)
+		}
+		return err
 	}
+	defer admission.Release()
 	// Delete the session row + cascade its session-scoped storage and parked
 	// turn state via the lifecycle coordinator. File checkpoints (shadow git)
 	// are a workspace concern, dropped here after the storage cascade.
