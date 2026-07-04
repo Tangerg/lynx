@@ -4,10 +4,10 @@
 import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
 import { imageFiles, type UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { useRecordComposerHistory } from "@/plugins/builtin/chat/composer/public/history";
-import type { IconName } from "@/components/common";
+import type { IconName } from "@/ui";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
-import { AgentComposerSurface } from "@/components/agent-studio";
-import { Chip, Icon, MEDIA_OUTLINE, Tooltip } from "@/components/common";
+import { AgentComposerSurface } from "@/ui/agent";
+import { Chip, Icon, MEDIA_OUTLINE, Tooltip } from "@/ui";
 import { cn } from "@/lib/utils";
 import { FileMentionPopup } from "./FileMentionPopup";
 import { useT } from "@/lib/i18n";

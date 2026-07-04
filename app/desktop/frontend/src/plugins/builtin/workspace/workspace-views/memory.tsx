@@ -4,7 +4,7 @@
 // whole-file editor — memory.update writes the full content back.
 
 import { useRef, useState } from "react";
-import { DataView, FIELD_CLASSES, Icon, PillButton } from "@/components/common";
+import { DataView, FIELD_CLASSES, Icon, PillButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";

@@ -3,7 +3,7 @@
 // affects all themes, not just Custom. 0 = flat, 100 = maximum surface
 // separation.
 
-import { Slider } from "@/components/common";
+import { Slider } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useContrastPreference } from "../application/appearancePreferences";
 import { SettingRow } from "../../SettingRow";

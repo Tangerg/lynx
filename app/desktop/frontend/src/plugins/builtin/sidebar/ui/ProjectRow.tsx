@@ -1,5 +1,5 @@
-import { AgentIconButton, AgentRow } from "@/components/agent-studio";
-import { Icon } from "@/components/common";
+import { AgentIconButton, AgentRow } from "@/ui/agent";
+import { Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
 import type { WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
 

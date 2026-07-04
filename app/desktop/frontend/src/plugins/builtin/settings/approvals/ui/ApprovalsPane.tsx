@@ -1,4 +1,4 @@
-import { EmptyState } from "@/components/common";
+import { EmptyState } from "@/ui";
 import { useApprovalModeConfig } from "../application/approvalConfig";
 import { useT } from "@/lib/i18n";
 import { ModeRow } from "./ModeRow";

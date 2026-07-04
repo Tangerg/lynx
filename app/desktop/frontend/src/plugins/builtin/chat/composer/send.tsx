@@ -1,5 +1,5 @@
-import { AgentIconButton } from "@/components/agent-studio";
-import { Tooltip } from "@/components/common";
+import { AgentIconButton } from "@/ui/agent";
+import { Tooltip } from "@/ui";
 import { useSendComposerInput } from "./public/sendToAgent";
 import { useIsAgentRunning, useStopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";

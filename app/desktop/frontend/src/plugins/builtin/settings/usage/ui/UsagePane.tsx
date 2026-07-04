@@ -5,7 +5,7 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { Icon, ProviderIcon } from "@/components/common";
+import { Icon, ProviderIcon } from "@/ui";
 import { fmtCost, fmtTokens } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";

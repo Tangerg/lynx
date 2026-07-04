@@ -10,7 +10,7 @@
 
 import type { PluginError, PluginErrorSource } from "@/plugins/sdk";
 import { useState } from "react";
-import { Icon, IconButton, PillButton } from "@/components/common";
+import { Icon, IconButton, PillButton } from "@/ui";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";

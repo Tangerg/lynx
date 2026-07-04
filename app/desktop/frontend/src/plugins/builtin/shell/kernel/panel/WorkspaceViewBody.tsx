@@ -3,7 +3,7 @@
 // PluginBoundary. Used when the user has promoted a workspace view
 // (Settings, Diff, Files, …) into the chat-area tab strip.
 
-import { EmptyState } from "@/components/common";
+import { EmptyState } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { useWorkspaceViews } from "@/plugins/sdk";

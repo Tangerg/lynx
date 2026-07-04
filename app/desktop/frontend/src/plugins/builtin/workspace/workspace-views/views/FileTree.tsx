@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon } from "@/components/common";
+import { Icon } from "@/ui";
 import { cn } from "@/lib/utils";
 import {
   type WorkspaceFileEntry,

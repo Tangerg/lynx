@@ -3,7 +3,7 @@
 // scopes to that path; otherwise it shows the whole working tree.
 
 import { useEffect, useRef, useState } from "react";
-import { DataView, Segmented } from "@/components/common";
+import { DataView, Segmented } from "@/ui";
 import { useT } from "@/lib/i18n";
 import type { DiffLayout } from "./views/DiffView";
 import { DiffView } from "./views/DiffView";

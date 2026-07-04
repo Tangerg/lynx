@@ -12,7 +12,7 @@
 // to the bottom" should leave a flex spacer or set its own
 // `margin-top: auto`.
 
-import { dragClasses, Icon, IconButton, Panel } from "@/components/common";
+import { dragClasses, Icon, IconButton, Panel } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useWorkIndexItems } from "@/plugins/builtin/navigation/public/workIndex";

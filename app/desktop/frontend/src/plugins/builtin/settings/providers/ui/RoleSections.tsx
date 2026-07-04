@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { DropdownMenu, Icon, ProviderIcon } from "@/components/common";
+import { DropdownMenu, Icon, ProviderIcon } from "@/ui";
 import {
   type ProviderConfig,
   setEmbeddingRole,

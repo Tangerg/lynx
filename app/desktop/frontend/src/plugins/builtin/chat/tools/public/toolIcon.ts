@@ -11,7 +11,7 @@
 // `toolIconFor` fallback indexes it directly so the kernel still renders
 // sensibly with zero plugins loaded. One table, two readers — they can't drift.
 
-import type { IconName } from "@/components/common/Icon";
+import type { IconName } from "@/ui/icons";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { lookupExtensionByKey, TOOL_ICON } from "@/plugins/sdk";
 

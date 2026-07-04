@@ -5,9 +5,9 @@
 // supplement it (e.g. add a "Recent files" or "What's new" card).
 
 import type { CommandSpec } from "@/plugins/sdk";
-import type { IconName } from "@/components/common";
-import { AgentSurface } from "@/components/agent-studio";
-import { Icon, Tooltip } from "@/components/common";
+import type { IconName } from "@/ui";
+import { AgentSurface } from "@/ui/agent";
+import { Icon, Tooltip } from "@/ui";
 import { useProviders } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCommands } from "@/plugins/sdk";

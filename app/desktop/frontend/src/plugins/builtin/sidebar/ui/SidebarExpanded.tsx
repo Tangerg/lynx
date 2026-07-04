@@ -1,8 +1,8 @@
 // Expanded sidebar — slim chrome: collapse button, scroll area of
 // plugin-contributed sections, and plugin-contributed footer.
 
-import { AgentIconButton, AgentWindowControls } from "@/components/agent-studio";
-import { dragClasses, noDragClasses, Panel, ScrollArea } from "@/components/common";
+import { AgentIconButton, AgentWindowControls } from "@/ui/agent";
+import { dragClasses, noDragClasses, Panel, ScrollArea } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useWorkIndexItems } from "@/plugins/builtin/navigation/public/workIndex";

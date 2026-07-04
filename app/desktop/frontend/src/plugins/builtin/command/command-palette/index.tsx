@@ -7,14 +7,14 @@
 //   - the plugin-registry data source (useCommands())
 //   - the error-isolated run() that reports failures into PluginsPane
 
-import type { IconName } from "@/components/common";
+import type { IconName } from "@/ui";
 import type { CommandSpec } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import { comboGlyph } from "@/lib/combo";
 import { Command } from "cmdk";
 import { useMemo } from "react";
 import { usePaletteStore } from "../paletteStore";
-import { Icon } from "@/components/common";
+import { Icon } from "@/ui";
 import { t, useT } from "@/lib/i18n";
 import {
   definePlugin,

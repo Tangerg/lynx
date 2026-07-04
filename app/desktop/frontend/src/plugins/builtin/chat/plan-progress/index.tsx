@@ -25,7 +25,7 @@ import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { PlanCheck } from "@/plugins/builtin/agent/public/planPresentation";
-import { Icon, Tooltip } from "@/components/common";
+import { Icon, Tooltip } from "@/ui";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";

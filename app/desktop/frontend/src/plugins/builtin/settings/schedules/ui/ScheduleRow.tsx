@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, type IconName, Switch } from "@/components/common";
+import { Icon, type IconName, Switch } from "@/ui";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import {
   deleteSchedule,

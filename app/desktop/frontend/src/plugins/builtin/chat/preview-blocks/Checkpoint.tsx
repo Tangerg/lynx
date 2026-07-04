@@ -1,4 +1,4 @@
-import { Divider, Icon } from "@/components/common";
+import { Divider, Icon } from "@/ui";
 
 // Checkpoint — a "milestone reached" marker between message chunks.
 // Thin wrapper around <Divider> with the canonical check glyph.

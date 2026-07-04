@@ -4,7 +4,7 @@
 // one place. Body content (DataView, EmptyState, a raw list…) is the children.
 
 import type { ReactNode, Ref } from "react";
-import { ScrollArea } from "@/components/common";
+import { ScrollArea } from "@/ui";
 import { ViewHeader, type ViewHeaderProps } from "./ViewHeader";
 
 interface Props extends ViewHeaderProps {

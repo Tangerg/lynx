@@ -1,6 +1,6 @@
 import type { BlockStatus, QuestionItem } from "@/plugins/builtin/agent/public/viewState";
 import { useMemo, useState } from "react";
-import { Icon } from "@/components/common";
+import { Icon } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import { useQuestionAnswer } from "@/plugins/builtin/agent/public/hitl";

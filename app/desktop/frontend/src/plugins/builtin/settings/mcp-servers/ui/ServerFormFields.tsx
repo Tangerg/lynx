@@ -1,4 +1,4 @@
-import { INPUT_FOCUS_RING } from "@/components/common";
+import { INPUT_FOCUS_RING } from "@/ui";
 import { cn } from "@/lib/utils";
 
 export const FIELD = cn(

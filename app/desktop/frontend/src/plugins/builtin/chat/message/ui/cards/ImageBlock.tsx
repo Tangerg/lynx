@@ -3,7 +3,7 @@
 // (MULTIMODAL_IMAGE_INPUT, API.md §4.3); the data URL is rebuilt here for <img>.
 
 import { useState } from "react";
-import { LightboxDialog, MEDIA_OUTLINE } from "@/components/common";
+import { LightboxDialog, MEDIA_OUTLINE } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 

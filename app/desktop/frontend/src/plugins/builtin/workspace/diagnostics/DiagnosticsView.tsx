@@ -11,7 +11,7 @@
 import type { MetricRow } from "@/lib/observability/stores";
 import { useTelemetryStore } from "@/lib/observability/stores";
 import { useMemo, useState } from "react";
-import { Segmented } from "@/components/common";
+import { Segmented } from "@/ui";
 import { Cell, Empty, Row, VirtualList } from "./primitives";
 import { TracesPanel } from "./TracesPanel";
 

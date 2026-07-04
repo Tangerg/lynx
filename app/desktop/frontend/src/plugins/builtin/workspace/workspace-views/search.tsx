@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { useDebounce } from "use-debounce";
-import { DataView, Icon } from "@/components/common";
+import { DataView, Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";

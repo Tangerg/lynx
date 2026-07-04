@@ -1,7 +1,7 @@
 import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
-import { Collapsible, Icon } from "@/components/common";
+import { Collapsible, Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 

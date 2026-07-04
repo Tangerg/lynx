@@ -3,7 +3,7 @@
 // `statusNotifications` is the unread-count badge that lives in the
 // sidebar footer (avatar row) and opens the Notifications view on click.
 
-import { Icon, Tooltip } from "@/components/common";
+import { Icon, Tooltip } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { openWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
 import { definePlugin, useNotificationStore } from "@/plugins/sdk";

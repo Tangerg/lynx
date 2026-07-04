@@ -62,7 +62,7 @@ for (const file of files(SRC)) {
   if (
     !isTest &&
     /plugins\/builtin\/.+\/domain\/.+\.(ts|tsx)$/.test(rel) &&
-    /from\s+["'](?:react|zustand(?:\/[^"']*)?|@\/(?:rpc|state|main|components|pages)(?:\/[^"']*)?)["']/.test(
+    /from\s+["'](?:react|zustand(?:\/[^"']*)?|@\/(?:rpc|state|main|ui|components|pages)(?:\/[^"']*)?)["']/.test(
       text,
     )
   ) {
@@ -75,7 +75,7 @@ for (const file of files(SRC)) {
   if (
     !isTest &&
     /plugins\/builtin\/.+\/application\/.+\.(ts|tsx)$/.test(rel) &&
-    /from\s+["']@\/(?:components|pages)(?:\/[^"']*)?["']/.test(text)
+    /from\s+["']@\/(?:ui|components|pages)(?:\/[^"']*)?["']/.test(text)
   ) {
     violations.push({
       file: rel,

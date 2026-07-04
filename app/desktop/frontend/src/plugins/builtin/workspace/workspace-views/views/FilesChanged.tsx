@@ -4,7 +4,7 @@
 // Selecting a row sets the shared activeFile state and opens the Diff view.
 import type { WorkspaceFileChange } from "@/plugins/builtin/workspace/application/workspaceData";
 import { memo } from "react";
-import { Icon } from "@/components/common";
+import { Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 

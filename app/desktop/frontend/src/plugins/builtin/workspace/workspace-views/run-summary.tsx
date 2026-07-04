@@ -9,7 +9,7 @@
 import type { ReactNode } from "react";
 import type { RunDigest } from "@/plugins/builtin/agent/public/runDigest";
 import { useEffect, useRef, useState } from "react";
-import { EmptyState, Icon, IconButton } from "@/components/common";
+import { EmptyState, Icon, IconButton } from "@/ui";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";

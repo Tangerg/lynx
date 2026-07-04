@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, PillButton, StatusDot, Switch } from "@/components/common";
+import { Icon, PillButton, StatusDot, Switch } from "@/ui";
 import {
   type MCPServerConfig,
   type MCPServerTransport,

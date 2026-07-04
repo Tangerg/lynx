@@ -13,7 +13,7 @@
 // when it enforces. The lists are sparse by design — only non-default entries
 // are stored (every tool enabled, none auto-approved unless listed).
 
-import { DataView, Switch } from "@/components/common";
+import { DataView, Switch } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useMCPServerTools } from "../application/mcpServerTools";
 

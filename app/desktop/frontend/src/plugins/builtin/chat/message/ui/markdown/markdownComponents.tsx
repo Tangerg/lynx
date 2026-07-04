@@ -1,6 +1,6 @@
 import type { Components } from "react-markdown";
 import { useEffect, useRef } from "react";
-import { RichTooltip, ShikiCodeBlock } from "@/components/common";
+import { RichTooltip, ShikiCodeBlock } from "@/ui";
 import { useCitations } from "../CitationContext";
 import { FileRefLink } from "@/plugins/builtin/chat/file-references/public/FileRefLink";
 import { HtmlArtifact } from "./HtmlArtifact";

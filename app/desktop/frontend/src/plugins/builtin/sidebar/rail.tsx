@@ -3,7 +3,7 @@
 // rail slot — keeping them in one file because they share no code with
 // the expanded sidebar and only with each other.
 
-import { Icon, IconButton } from "@/components/common";
+import { Icon, IconButton } from "@/ui";
 import {
   contributeWorkIndexItem,
   useRecentWorkSessions,

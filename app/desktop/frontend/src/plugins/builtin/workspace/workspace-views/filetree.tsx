@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DataView, Icon } from "@/components/common";
+import { DataView, Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { isUnsupportedMethod } from "@/lib/rpcErrors";

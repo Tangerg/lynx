@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PillButton } from "@/components/common";
+import { PillButton } from "@/ui";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import {
   createSchedule,

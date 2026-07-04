@@ -8,7 +8,7 @@
 // negative: the session still works, just degraded.
 
 import { useRef, useState } from "react";
-import { FIELD_CLASSES, Icon } from "@/components/common";
+import { FIELD_CLASSES, Icon } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useActiveSession, useRelocateSession } from "@/plugins/builtin/agent/public/session";
 import { BannerAction } from "./BannerAction";

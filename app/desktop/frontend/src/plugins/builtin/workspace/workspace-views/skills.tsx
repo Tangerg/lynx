@@ -2,7 +2,7 @@
 // session's cwd (workspace.listSkills). Read-only catalog; mirrors the
 // Tools (MCP) view shape.
 
-import { DataView } from "@/components/common";
+import { DataView } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";

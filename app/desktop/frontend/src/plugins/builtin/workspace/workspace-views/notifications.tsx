@@ -2,7 +2,7 @@
 // behind every `host.notify(...)` call.
 
 import { useMemo } from "react";
-import { EmptyState, Icon, IconButton } from "@/components/common";
+import { EmptyState, Icon, IconButton } from "@/ui";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";

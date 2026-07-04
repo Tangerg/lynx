@@ -1,4 +1,4 @@
-import { EmptyState } from "@/components/common";
+import { EmptyState } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useWorkspaceTodos } from "@/plugins/builtin/workspace/application/todoViewModel";
 import { TodoList } from "./views/TodoList";

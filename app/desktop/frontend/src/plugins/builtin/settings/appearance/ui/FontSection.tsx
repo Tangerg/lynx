@@ -2,9 +2,9 @@
 // string reverts to the native system stack; numeric `null` reverts
 // size to the inherited 16px baseline.
 //
-import type { SegmentedOption } from "@/components/common";
+import type { SegmentedOption } from "@/ui";
 import { useId } from "react";
-import { Checkbox, DropdownMenu, Icon, Segmented } from "@/components/common";
+import { Checkbox, DropdownMenu, Icon, Segmented } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "../application/systemFonts";
 import { cn } from "@/lib/utils";

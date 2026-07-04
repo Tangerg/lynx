@@ -2,7 +2,7 @@
 // segmented control). The binary preference rows (message / streaming style)
 // live with their only consumer, the Personalization pane.
 
-import { DropdownMenu, Icon } from "@/components/common";
+import { DropdownMenu, Icon } from "@/ui";
 import { setLocale, useLocale, useT } from "@/lib/i18n";
 import { LOCALE, useExtensionPoint } from "@/plugins/sdk";
 import { SettingRow } from "../../SettingRow";
