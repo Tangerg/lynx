@@ -247,7 +247,9 @@ func (c *Coordinator) CancelParkedRun(ctx context.Context, turns TurnCanceler, r
 // interrupt may outlive the in-memory turn, and abandoning the run still means
 // removing the resumable record.
 func (c *Coordinator) CancelRunTurn(ctx context.Context, turns TurnCanceler, r RunTurn) error {
-	_ = turns.Cancel(ctx, turn.TurnHandle{SessionID: r.SessionID, TurnID: r.TurnID})
+	if turns != nil {
+		_ = turns.Cancel(ctx, turn.TurnHandle{SessionID: r.SessionID, TurnID: r.TurnID})
+	}
 	return c.s.Interrupts().Delete(ctx, r.RunID)
 }
 
@@ -356,18 +358,18 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 }
 
 // DeleteSession removes the session row (authoritative) then best-effort
-// cascades the session-scoped storage: durable history, chat-memory, open
-// interrupts, and the process-local resume gate. The cascade runs AFTER the
-// authoritative delete so a partial cascade leaves harmless orphans, never a
-// half-deleted session. File checkpoints (shadow git) are NOT dropped here —
-// that is the adapter's workspace concern, not a storage write-set.
-func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error {
+// cascades the session-scoped storage: durable history, chat-memory, parked
+// turns/open interrupts, and the process-local resume gate. The cascade runs
+// AFTER the authoritative delete so a partial cascade leaves harmless orphans,
+// never a half-deleted session. File checkpoints (shadow git) are NOT dropped
+// here — that is the adapter's workspace concern, not a storage write-set.
+func (c *Coordinator) DeleteSession(ctx context.Context, turns TurnCanceler, sessionID string) error {
 	if err := c.s.Session().Delete(ctx, sessionID); err != nil {
 		return err
 	}
 	_ = c.s.Transcript().DeleteSession(ctx, sessionID) // history runs + items
 	_ = c.s.TruncateMessages(ctx, sessionID, 0)        // chat-memory messages
-	c.dropInterrupts(ctx, sessionID)                   // durable open interrupts
+	c.cancelParkedInterrupts(ctx, turns, sessionID)    // live parked turns + durable interrupts
 	c.s.ForgetSession(sessionID)                       // process-local SessionStart gate
 	return nil
 }
@@ -426,6 +428,7 @@ func (c *Coordinator) PurgeSubtree(ctx context.Context, sessionID string) {
 	}
 	_ = c.s.TruncateMessages(ctx, sessionID, 0)
 	_ = c.s.Transcript().DeleteSession(ctx, sessionID)
+	c.dropInterrupts(ctx, sessionID)
 	_ = c.s.Session().Delete(ctx, sessionID)
 	c.s.ForgetSession(sessionID)
 }
@@ -453,6 +456,20 @@ func (c *Coordinator) purgeChildrenAfter(ctx context.Context, parentID string, b
 // a failed list or delete leaves a resumable record that a later pass can clear.
 func (c *Coordinator) dropInterrupts(ctx context.Context, sessionID string) {
 	_ = c.deleteInterrupts(ctx, sessionID)
+}
+
+func (c *Coordinator) cancelParkedInterrupts(ctx context.Context, turns TurnCanceler, sessionID string) {
+	pending, err := c.s.Interrupts().List(ctx, sessionID)
+	if err != nil {
+		return
+	}
+	for _, p := range pending {
+		_ = c.CancelRunTurn(ctx, turns, RunTurn{
+			RunID:     p.ParentRunID,
+			SessionID: p.SessionID,
+			TurnID:    p.TurnID,
+		})
+	}
 }
 
 func (c *Coordinator) deleteInterrupts(ctx context.Context, sessionID string) error {

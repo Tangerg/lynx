@@ -29,6 +29,7 @@ type stubRuntime struct {
 	history     map[string][]chat.Message // per-session chat history (fork copies it)
 	hist        transcript.Store          // durable Item/run history (rollback/fork read runs)
 	interrupts  interrupts.Store          // open-interrupt registry (rollback clears dropped)
+	chat        turn.Service
 }
 
 func (s stubRuntime) MCPServerStatuses() []kernel.McpServerStatus { return s.mcpStatuses }
@@ -68,7 +69,24 @@ func (s stubRuntime) ReconnectMCPServer(context.Context, string) error { return 
 // turn, so no method is implemented.
 type chatStub struct{ turn.Service }
 
-func (s stubRuntime) Chat() turn.Service { return chatStub{} }
+func (chatStub) Cancel(context.Context, turn.TurnHandle) error { return nil }
+
+type recordingTurns struct {
+	turn.Service
+	canceled []turn.TurnHandle
+}
+
+func (r *recordingTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
+	r.canceled = append(r.canceled, h)
+	return nil
+}
+
+func (s stubRuntime) Chat() turn.Service {
+	if s.chat != nil {
+		return s.chat
+	}
+	return chatStub{}
+}
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call
 // (via the lifecycle coordinator) to release a removed session's process-local
@@ -231,6 +249,45 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	}
 	if _, ok := history[id]; ok {
 		t.Errorf("chat-memory messages not cascaded: still present")
+	}
+}
+
+func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+
+	svc := sqlite.NewSessionStore(db)
+	hist := sqlite.NewTranscriptStore(db)
+	ints := sqlite.NewInterruptStore(db)
+	created, _ := svc.Create(ctx, "parked", "/w")
+	id := created.ID
+	if err := ints.Put(ctx, interrupts.Pending{
+		ParentRunID: "run_parked",
+		SessionID:   id,
+		TurnID:      "turn_parked",
+		Interrupts:  []byte(`[]`),
+	}); err != nil {
+		t.Fatalf("seed interrupt: %v", err)
+	}
+
+	turns := &recordingTurns{}
+	s := &Server{rt: stubRuntime{sess: svc, hist: hist, interrupts: ints, history: map[string][]chat.Message{}, chat: turns}}
+	if err := s.DeleteSession(ctx, id); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	if len(turns.canceled) != 1 {
+		t.Fatalf("canceled = %+v, want one parked turn", turns.canceled)
+	}
+	if got := turns.canceled[0]; got.SessionID != id || got.TurnID != "turn_parked" {
+		t.Fatalf("canceled handle = %+v, want %s/turn_parked", got, id)
+	}
+	if pending, _ := ints.List(ctx, id); len(pending) != 0 {
+		t.Fatalf("pending interrupts = %+v, want cleared", pending)
 	}
 }
 
