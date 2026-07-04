@@ -94,6 +94,47 @@ func TestRollbackSession_DropTail(t *testing.T) {
 	}
 }
 
+func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := context.Background()
+	sess, _ := rt.sess.Create(ctx, "s", "/w")
+
+	rt.history[sess.ID] = []chat.Message{
+		chat.NewUserMessage("u1"), chat.NewAssistantMessage("a1"),
+		chat.NewUserMessage("u2"), chat.NewAssistantMessage("a2"),
+	}
+	putRun(t, rt, sess.ID, "run_1", "", 100, 2)
+	putRun(t, rt, sess.ID, "run_2", "", 200, 4)
+	putUserItem(t, rt, sess.ID, "run_2", "item_u2", "second prompt")
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{
+		ParentRunID: "run_2",
+		SessionID:   sess.ID,
+		TurnID:      "turn_parked",
+		Interrupts:  []byte(`[]`),
+	}); err != nil {
+		t.Fatalf("seed interrupt: %v", err)
+	}
+	turns := &recordingTurns{}
+	rt.chat = turns
+
+	out, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID, ToRunID: "run_1"})
+	if err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	if len(out.DroppedRuns) != 1 || out.DroppedRuns[0].Run.ID != "run_2" {
+		t.Fatalf("droppedRuns = %+v, want [run_2]", out.DroppedRuns)
+	}
+	if len(turns.canceled) != 1 {
+		t.Fatalf("canceled = %+v, want one parked turn", turns.canceled)
+	}
+	if got := turns.canceled[0]; got.SessionID != sess.ID || got.TurnID != "turn_parked" {
+		t.Fatalf("canceled handle = %+v, want %s/turn_parked", got, sess.ID)
+	}
+	if pending, _ := rt.interrupts.List(ctx, sess.ID); len(pending) != 0 {
+		t.Fatalf("pending interrupts = %+v, want cleared", pending)
+	}
+}
+
 // TestRollbackSession_DropAll clears the session (omit toRunId) and purges the
 // subagent child sessions it spawned (boundary zero → all children).
 func TestRollbackSession_DropAll(t *testing.T) {

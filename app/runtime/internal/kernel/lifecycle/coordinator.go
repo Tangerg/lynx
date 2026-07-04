@@ -145,12 +145,16 @@ func ResolveRollbackBoundary(nodes []transcript.RunNode, toRunID string) (Rollba
 }
 
 // Rollback truncates the chat-memory log to keepMark and drops each run's
-// durable items + record + dangling interrupt as ONE transaction, then purges
-// the subagent child sessions spawned at/after purgeAfter. A keepMark < 0
-// (unknown watermark — chain terminal still in-flight / pre-watermark) leaves
-// the log untouched rather than guessing at a boundary that was never recorded.
-// Rolling back over a parked run un-parks it (the interrupt delete).
-func (c *Coordinator) Rollback(ctx context.Context, sessionID string, keepMark int, dropRunIDs []string, purgeAfter time.Time) error {
+// durable items + record + dangling interrupt as ONE transaction, then cancels
+// any in-process parked turns that were abandoned and purges the subagent child
+// sessions spawned at/after purgeAfter. A keepMark < 0 (unknown watermark —
+// chain terminal still in-flight / pre-watermark) leaves the log untouched
+// rather than guessing at a boundary that was never recorded.
+func (c *Coordinator) Rollback(ctx context.Context, turns TurnCanceler, sessionID string, keepMark int, dropRunIDs []string, purgeAfter time.Time) error {
+	parked, err := c.parkedTurns(ctx, dropRunIDs)
+	if err != nil {
+		return err
+	}
 	if err := c.s.RunInTx(ctx, func(ctx context.Context) error {
 		if keepMark >= 0 {
 			if err := c.s.TruncateMessages(ctx, sessionID, keepMark); err != nil {
@@ -172,16 +176,19 @@ func (c *Coordinator) Rollback(ctx context.Context, sessionID string, keepMark i
 	}); err != nil {
 		return err
 	}
+	for _, r := range parked {
+		c.cancelTurn(ctx, turns, r)
+	}
 	c.purgeChildrenAfter(ctx, sessionID, purgeAfter)
 	return nil
 }
 
 // RollbackResolved executes a previously resolved rollback boundary.
-func (c *Coordinator) RollbackResolved(ctx context.Context, sessionID string, b RollbackBoundary) error {
+func (c *Coordinator) RollbackResolved(ctx context.Context, turns TurnCanceler, sessionID string, b RollbackBoundary) error {
 	if len(b.Dropped) == 0 {
 		return nil
 	}
-	return c.Rollback(ctx, sessionID, b.KeepMark, b.DropRunIDs, b.BoundaryTime)
+	return c.Rollback(ctx, turns, sessionID, b.KeepMark, b.DropRunIDs, b.BoundaryTime)
 }
 
 // ClaimRunSlot reserves a session's single-writer slot for a fresh run and
@@ -204,6 +211,20 @@ func (c *Coordinator) ClaimRunSlot(ctx context.Context, claims SessionClaimer, s
 		return RunAdmission{}, ErrSessionBusy
 	}
 	return admission, nil
+}
+
+// ClaimMutationSlot reserves a session's single-writer slot for a destructive
+// session mutation. Unlike [Coordinator.ClaimRunSlot], it does not reject open
+// interrupts: rollback/delete/import decide what to do with parked runs inside
+// their own lifecycle write-set.
+func (c *Coordinator) ClaimMutationSlot(claims SessionClaimer, sessionID string) (RunAdmission, error) {
+	if !claims.ClaimSession(sessionID) {
+		return RunAdmission{}, ErrSessionBusy
+	}
+	return RunAdmission{
+		SessionID: sessionID,
+		release:   func() { claims.ReleaseSession(sessionID) },
+	}, nil
 }
 
 // ClaimResumeSlot peeks an open interrupt to find its session, then reserves
@@ -247,9 +268,7 @@ func (c *Coordinator) CancelParkedRun(ctx context.Context, turns TurnCanceler, r
 // interrupt may outlive the in-memory turn, and abandoning the run still means
 // removing the resumable record.
 func (c *Coordinator) CancelRunTurn(ctx context.Context, turns TurnCanceler, r RunTurn) error {
-	if turns != nil {
-		_ = turns.Cancel(ctx, turn.TurnHandle{SessionID: r.SessionID, TurnID: r.TurnID})
-	}
+	c.cancelTurn(ctx, turns, r)
 	return c.s.Interrupts().Delete(ctx, r.RunID)
 }
 
@@ -469,6 +488,31 @@ func (c *Coordinator) cancelParkedInterrupts(ctx context.Context, turns TurnCanc
 			SessionID: p.SessionID,
 			TurnID:    p.TurnID,
 		})
+	}
+}
+
+func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTurn, error) {
+	out := make([]RunTurn, 0)
+	for _, runID := range runIDs {
+		pending, found, err := c.s.Interrupts().Get(ctx, runID)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			continue
+		}
+		out = append(out, RunTurn{
+			RunID:     pending.ParentRunID,
+			SessionID: pending.SessionID,
+			TurnID:    pending.TurnID,
+		})
+	}
+	return out, nil
+}
+
+func (c *Coordinator) cancelTurn(ctx context.Context, turns TurnCanceler, r RunTurn) {
+	if turns != nil {
+		_ = turns.Cancel(ctx, turn.TurnHandle{SessionID: r.SessionID, TurnID: r.TurnID})
 	}
 }
 

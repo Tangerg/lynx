@@ -176,6 +176,26 @@ func TestClaimRunSlotRejectsActiveClaim(t *testing.T) {
 	}
 }
 
+func TestClaimMutationSlotAllowsOpenInterrupt(t *testing.T) {
+	stores := cancelStores{
+		interrupts: &cancelInterrupts{
+			pending: map[string]interrupts.Pending{
+				"run_1": {ParentRunID: "run_1", SessionID: "ses_1"},
+			},
+		},
+	}
+	claimer := &testClaimer{}
+
+	admission, err := New(stores).ClaimMutationSlot(claimer, "ses_1")
+	if err != nil {
+		t.Fatalf("claim mutation slot: %v", err)
+	}
+	if admission.SessionID != "ses_1" || !claimer.claimed["ses_1"] {
+		t.Fatalf("admission = %+v claimed = %v, want ses_1 claimed", admission, claimer.claimed)
+	}
+	admission.Release()
+}
+
 func TestClaimResumeSlotPeeksAndClaimsInterruptSession(t *testing.T) {
 	stores := cancelStores{
 		interrupts: &cancelInterrupts{
