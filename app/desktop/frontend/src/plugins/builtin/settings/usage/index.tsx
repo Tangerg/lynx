@@ -3,19 +3,13 @@
 
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
+import { usageSettingsPane } from "./application/usageContributions";
 import { UsagePane } from "./ui/UsagePane";
 
 export default definePlugin({
   name: "lyra.builtin.usage-pane",
   version: "1.0.0",
   setup({ host }) {
-    registerSettingsPane(host, {
-      id: "usage",
-      label: "settings.pane.usage",
-      group: "models",
-      icon: "chart",
-      order: 55,
-      component: UsagePane,
-    });
+    registerSettingsPane(host, usageSettingsPane(UsagePane));
   },
 });

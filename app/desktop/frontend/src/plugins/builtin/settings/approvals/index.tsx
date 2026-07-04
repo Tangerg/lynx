@@ -8,19 +8,13 @@
 
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
+import { approvalsSettingsPane } from "./application/approvalsContributions";
 import { ApprovalsPane } from "./ui/ApprovalsPane";
 
 export default definePlugin({
   name: "lyra.builtin.approvals-pane",
   version: "1.0.0",
   setup({ host }) {
-    registerSettingsPane(host, {
-      id: "approvals",
-      label: "settings.pane.approvals",
-      group: "agent",
-      icon: "shield",
-      order: 55,
-      component: ApprovalsPane,
-    });
+    registerSettingsPane(host, approvalsSettingsPane(ApprovalsPane));
   },
 });
