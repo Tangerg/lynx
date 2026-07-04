@@ -99,7 +99,8 @@ type mcpAccess interface {
 	ReconnectMCPServer(ctx context.Context, name string) error
 	AuthorizeMCPServer(ctx context.Context, name string) error
 	MCPTools(ctx context.Context, server string) ([]kernel.McpToolInfo, error)
-	MCPRegistry() mcpserver.Service
+	ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error)
+	GetMCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error)
 	ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) error
 	RemoveMCPServer(ctx context.Context, name string) error
 	SetMCPServerEnabled(ctx context.Context, name string, enabled bool) error

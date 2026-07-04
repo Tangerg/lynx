@@ -3,10 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
 // workspace.mcp.* — MCP is runtime-global, so these take no cwd (API.md §7.5).
@@ -19,61 +17,7 @@ import (
 // reason as Error — alongside the connected ones, instead of the old
 // "everything is connected" assumption.
 func (s *Server) WorkspaceMCPListServers(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServer], error) {
-	statuses := s.rt.MCPServerStatuses()
-	out := make([]protocol.McpServer, 0, len(statuses))
-	for _, st := range statuses {
-		entry := protocol.McpServer{Name: st.Name, Status: protocol.McpStatus(st.Status)}
-		switch st.Status {
-		case "connected":
-			// Inline the tool count so the client needn't ⨝ listTools (AUX_API §5.1).
-			if tools, err := s.rt.MCPTools(ctx, st.Name); err == nil {
-				count := len(tools)
-				entry.ToolCount = &count
-			}
-		case "failed":
-			entry.Error = mcpDialFailedProblem(st.Err)
-		}
-		out = append(out, entry)
-	}
-	return protocol.NewPage(out), nil
-}
-
-// mcpDialFailedProblem renders a failed MCP server's reason for the wire
-// (McpServer.error / mcp.serverChanged error). A nil err yields an empty detail.
-func mcpDialFailedProblem(err error) *protocol.ProblemData {
-	detail := ""
-	if err != nil {
-		detail = err.Error()
-	}
-	// No Channel: an MCP dial failure surfaces via a workspace event, not over
-	// one of the three delivery channels (rpc/run/tool), so it stays
-	// unclassified rather than inventing a 4th ErrorChannel value.
-	return &protocol.ProblemData{Type: "mcp_dial_failed", Detail: detail}
-}
-
-// mcpLiveStatus folds a server's best-effort connection state into the wire triple
-// — its status, the tool count inlined when connected, and the failure reason
-// when failed — matched by name against the live statuses. ok is false when the
-// server has no live entry (the caller then omits status). Shared by the
-// serverChanged event and the registry-config projection.
-func (s *Server) mcpLiveStatus(ctx context.Context, name string) (status protocol.McpStatus, toolCount *int, problem *protocol.ProblemData, ok bool) {
-	for _, st := range s.rt.MCPServerStatuses() {
-		if st.Name != name {
-			continue
-		}
-		status = protocol.McpStatus(st.Status)
-		switch st.Status {
-		case "connected":
-			if tools, err := s.rt.MCPTools(ctx, name); err == nil {
-				count := len(tools)
-				toolCount = &count
-			}
-		case "failed":
-			problem = mcpDialFailedProblem(st.Err)
-		}
-		return status, toolCount, problem, true
-	}
-	return "", nil, nil, false
+	return protocol.NewPage(s.mcpServersWire(ctx)), nil
 }
 
 // WorkspaceMCPListTools lists tools advertised by the connected MCP servers,
@@ -87,12 +31,7 @@ func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListT
 	}
 	out := make([]protocol.McpTool, 0, len(found))
 	for _, t := range found {
-		out = append(out, protocol.McpTool{
-			Server:      t.Server,
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: t.InputSchema,
-		})
+		out = append(out, mcpToolWire(t))
 	}
 	return protocol.NewPage(out), nil
 }
@@ -105,27 +44,7 @@ func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListT
 // (context.WithoutCancel) so a returning RPC doesn't abort it; the terminal
 // frame is published when the dial settles.
 func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error {
-	if server == "" {
-		return protocol.ErrInvalidParams
-	}
-	known := false
-	for _, st := range s.rt.MCPServerStatuses() {
-		if st.Name == server {
-			known = true
-			break
-		}
-	}
-	if !known {
-		return fmt.Errorf("%w: unknown MCP server %q", protocol.ErrInvalidParams, server)
-	}
-
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: server, Status: protocol.McpConnecting})
-	bg := context.WithoutCancel(ctx)
-	go func() {
-		_ = s.rt.ReconnectMCPServer(bg, server) // terminal status is read back below
-		s.PublishWorkspaceEvent(s.mcpServerChangedEvent(bg, server))
-	}()
-	return nil
+	return s.runMCPConnectionAction(ctx, server, s.rt.ReconnectMCPServer)
 }
 
 // WorkspaceMCPAuthorize starts the interactive OAuth sign-in for an HTTP MCP
@@ -136,58 +55,26 @@ func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error
 // flow far outlives one RPC) and the terminal mcp.serverChanged frame is
 // published when it settles.
 func (s *Server) WorkspaceMCPAuthorize(ctx context.Context, server string) error {
-	if server == "" {
-		return protocol.ErrInvalidParams
-	}
-	known := false
-	for _, st := range s.rt.MCPServerStatuses() {
-		if st.Name == server {
-			known = true
-			break
-		}
-	}
-	if !known {
-		return fmt.Errorf("%w: unknown MCP server %q", protocol.ErrInvalidParams, server)
-	}
-
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: server, Status: protocol.McpConnecting})
-	bg := context.WithoutCancel(ctx)
-	go func() {
-		_ = s.rt.AuthorizeMCPServer(bg, server) // terminal status is read back below
-		s.PublishWorkspaceEvent(s.mcpServerChangedEvent(bg, server))
-	}()
-	return nil
-}
-
-// mcpServerChangedEvent builds the terminal mcp.serverChanged frame from a
-// server's current state: connected inlines its tool count, failed carries its
-// reason as Error, and a server that vanished from config omits status (AUX_API
-// §5.2: "status omitted = entry no longer exists").
-func (s *Server) mcpServerChangedEvent(ctx context.Context, server string) protocol.WorkspaceEvent {
-	ev := protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: server}
-	if status, toolCount, problem, ok := s.mcpLiveStatus(ctx, server); ok {
-		ev.Status, ev.ToolCount, ev.Error = status, toolCount, problem
-	}
-	return ev
+	return s.runMCPConnectionAction(ctx, server, s.rt.AuthorizeMCPServer)
 }
 
 // workspace.mcp registry CRUD — the editable configuration the settings pane
-// drives. listConfigs returns the registry (with the bearer token masked and
-// the best-effort live status); configure/remove/setEnabled persist + apply to
-// the live connections (then publish mcp.serverChanged so the status view
-// updates); test probes a candidate config without persisting.
+// drives. listConfigs returns the registry with bearer tokens masked;
+// configure/remove/setEnabled persist + apply to the live connections, then
+// publish mcp.serverChanged so the status view updates; test probes a
+// candidate config without persisting.
 
 // WorkspaceMCPListConfigs returns every registered MCP server's editable
 // configuration (token masked). Live connection state is not included — read it
 // from workspace.mcp.listServers (McpServer), keyed by name.
 func (s *Server) WorkspaceMCPListConfigs(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
-	servers, err := s.rt.MCPRegistry().List(ctx)
+	servers, err := s.rt.ListMCPRegisteredServers(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]protocol.McpServerConfig, 0, len(servers))
 	for _, srv := range servers {
-		out = append(out, s.mcpConfigWire(ctx, srv))
+		out = append(out, mcpConfigWire(srv))
 	}
 	return protocol.NewPage(out), nil
 }
@@ -199,7 +86,10 @@ func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.Configur
 	if in.Name == "" {
 		return nil, protocol.ErrInvalidParams
 	}
-	srv := s.mcpServerFromRequest(ctx, in)
+	srv, err := s.mcpServerFromRequest(ctx, in)
+	if err != nil {
+		return nil, err
+	}
 	if err := srv.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
@@ -207,7 +97,7 @@ func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.Configur
 		return nil, err
 	}
 	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, in.Name))
-	out := s.mcpConfigWire(ctx, srv)
+	out := mcpConfigWire(srv)
 	return &out, nil
 }
 
@@ -241,7 +131,10 @@ func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPE
 // list) without persisting — the connection-test button. A blank Authorization
 // reuses the stored token, so testing an edit needn't re-enter the secret.
 func (s *Server) WorkspaceMCPTest(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpTestResult, error) {
-	srv := s.mcpServerFromRequest(ctx, in)
+	srv, err := s.mcpServerFromRequest(ctx, in)
+	if err != nil {
+		return nil, err
+	}
 	if err := srv.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
@@ -249,54 +142,4 @@ func (s *Server) WorkspaceMCPTest(ctx context.Context, in protocol.ConfigureMCPS
 		return &protocol.McpTestResult{OK: false, Error: mcpDialFailedProblem(err)}, nil
 	}
 	return &protocol.McpTestResult{OK: true}, nil
-}
-
-// mcpServerFromRequest maps a configure/test request to a registry entry,
-// preserving the existing stored token when Authorization is blank.
-func (s *Server) mcpServerFromRequest(ctx context.Context, in protocol.ConfigureMCPServerRequest) mcpserver.Server {
-	auth := in.Authorization
-	if auth == "" {
-		if cur, ok, err := s.rt.MCPRegistry().Get(ctx, in.Name); err == nil && ok {
-			auth = cur.Authorization
-		}
-	}
-	return mcpserver.Server{
-		Name:             in.Name,
-		Transport:        in.Transport,
-		Enabled:          in.Enabled,
-		Description:      in.Description,
-		URL:              in.URL,
-		Authorization:    auth,
-		Headers:          in.Headers,
-		Command:          in.Command,
-		Args:             in.Args,
-		Env:              in.Env,
-		Dir:              in.Dir,
-		Timeout:          time.Duration(in.TimeoutSeconds) * time.Second,
-		DisabledTools:    in.DisabledTools,
-		AutoApproveTools: in.AutoApproveTools,
-	}
-}
-
-// mcpConfigWire projects a registry entry to the wire: the editable config with
-// the bearer token masked. Live connection state is not included — it lives on
-// McpServer (workspace.mcp.listServers), keyed by name.
-func (s *Server) mcpConfigWire(ctx context.Context, srv mcpserver.Server) protocol.McpServerConfig {
-	out := protocol.McpServerConfig{
-		Name:                srv.Name,
-		Transport:           srv.Transport,
-		Enabled:             srv.Enabled,
-		Description:         srv.Description,
-		URL:                 srv.URL,
-		AuthorizationMasked: srv.MaskedAuthorization(),
-		Headers:             srv.Headers,
-		Command:             srv.Command,
-		Args:                srv.Args,
-		Env:                 srv.Env,
-		Dir:                 srv.Dir,
-		TimeoutSeconds:      int(srv.Timeout / time.Second),
-		DisabledTools:       srv.DisabledTools,
-		AutoApproveTools:    srv.AutoApproveTools,
-	}
-	return out
 }

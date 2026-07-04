@@ -17,10 +17,16 @@ import (
 // to the live tool set in one place. The dial-level descriptor (mcp.ServerConfig)
 // and the registry entry (mcpserver.Server) are bridged by the converters here.
 
-// MCPRegistry returns the runtime-mutable MCP-server registry — the persisted
-// set the configure pane lists and edits (distinct from the live connection
-// statuses, which come from MCPServerStatuses).
-func (r *Runtime) MCPRegistry() mcpserver.Service { return r.mcpRegistry }
+// ListMCPRegisteredServers returns the persisted MCP-server registry entries,
+// distinct from the live connection statuses returned by MCPServerStatuses.
+func (r *Runtime) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error) {
+	return r.mcpRegistry.List(ctx)
+}
+
+// GetMCPRegisteredServer returns one persisted MCP-server registry entry.
+func (r *Runtime) GetMCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error) {
+	return r.mcpRegistry.Get(ctx, name)
+}
 
 // ConfigureMCPServer upserts a server in the registry and applies it to the
 // live connections: an enabled server is (re)dialed, a disabled one is dropped
