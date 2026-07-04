@@ -57,7 +57,7 @@ type Server struct {
 	// workingTrees closes the admission gap for destructive working-tree
 	// restores: runs.start/resume hold a short cwd slot until they appear in
 	// runs, while sessions.rollback holds an exclusive cwd slot during restore.
-	workingTrees workingTreeGate
+	workingTrees lifecycle.WorkingTreeGate
 
 	// eventSeq is the server-wide monotonic source for RunEvent ids
 	// (TRANSPORT.md §9.1). A single counter across all runs is strictly
