@@ -467,9 +467,6 @@ func (r *Runtime) ForgetSession(sessionID string) { r.chat.ForgetSession(session
 // Session returns the saved-session CRUD surface (sessions.*).
 func (r *Runtime) Session() sessionsvc.Service { return r.session }
 
-// Tool returns the tool metadata + manual-invocation surface.
-func (r *Runtime) Tool() toolsvc.Service { return r.tool }
-
 // Memory returns the LYRA.md cascade service — the wire/API "memory"
 // surface (memory.get/update/list). Nil when no knowledge service was
 // configured. The accessor keeps the wire term; the field is "knowledge".
