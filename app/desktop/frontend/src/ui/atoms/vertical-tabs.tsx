@@ -21,9 +21,16 @@ interface VerticalTabsProps {
   groups: VerticalTabGroup[];
   value?: string;
   onValueChange: (value: string | undefined) => void;
+  sidebarHeader?: ReactNode;
 }
 
-export function VerticalTabs({ ariaLabel, groups, value, onValueChange }: VerticalTabsProps) {
+export function VerticalTabs({
+  ariaLabel,
+  groups,
+  value,
+  onValueChange,
+  sidebarHeader,
+}: VerticalTabsProps) {
   const items = groups.flatMap((group) => group.items);
   return (
     <TabsPrimitive.Root
@@ -33,10 +40,11 @@ export function VerticalTabs({ ariaLabel, groups, value, onValueChange }: Vertic
       className="grid h-full w-full grid-cols-[260px_1fr] overflow-hidden bg-canvas"
     >
       <TabsPrimitive.List
-        className="flex flex-col gap-px overflow-y-auto bg-surface px-4 py-8 shadow-[inset_-0.5px_0_0_var(--color-field)]"
+        className="flex flex-col gap-px overflow-y-auto bg-surface px-4 pb-8 shadow-[inset_-0.5px_0_0_var(--color-field)]"
         aria-label={ariaLabel}
         activateOnFocus
       >
+        {sidebarHeader}
         {groups.map((group) => (
           <div key={group.id} className="flex flex-col gap-px">
             <SectionLabel className="px-2 pb-1 pt-4">{group.label}</SectionLabel>

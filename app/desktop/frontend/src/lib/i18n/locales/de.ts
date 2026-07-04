@@ -132,6 +132,8 @@ export const de: Record<string, string> = {
   "welcome.suggest.checklist.prompt": "Checkliste erstellen für ",
 
   "settings.title": "Einstellungen",
+  "settings.backToApp": "Zur App",
+  "settings.searchPlaceholder": "Einstellungen suchen...",
   "settings.pane.appearance": "Darstellung",
   "settings.pane.plugins": "Plugins",
   "settings.pane.language": "Sprache",

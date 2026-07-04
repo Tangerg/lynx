@@ -142,6 +142,8 @@ export const en: Record<string, string> = {
   "welcome.suggest.checklist.prompt": "Draft a checklist for ",
 
   "settings.title": "Settings",
+  "settings.backToApp": "Back to app",
+  "settings.searchPlaceholder": "Search settings...",
   "settings.group.general": "General",
   "settings.group.models": "Models",
   "settings.group.agent": "Agent",

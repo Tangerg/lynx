@@ -10,5 +10,5 @@ interface Props {
 // component so neither has to know about the other's markup.
 export function SidebarPanel({ rail, onToggleRail }: Props) {
   if (rail) return <SidebarRail onToggleRail={onToggleRail} />;
-  return <SidebarExpanded onToggleRail={onToggleRail} />;
+  return <SidebarExpanded />;
 }

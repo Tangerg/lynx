@@ -132,9 +132,9 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 ## 4. 现状（重构对象，来自 exp-13 实读）
 
 ### 4.1 app-shell 结构
-- `AgentClientPage.tsx` → `.app-main` CSS grid `248px | minmax(0,1fr)`（rail `56px | 1fr`）。
-- `.panel.sidebar`：`bg: var(--color-surface)` + `border-right: 1px solid var(--color-app-divider)` + macOS titlebar `padding-top: 48px`（rail 36px）。
-- 主区：`ChatPanel.tsx` 编排 `PanelHeader`（渲染 `PanelTabBar`）+ `ChatStream`（+ 可选 `splitViewId` 分屏）。
+- `AgentClientPage.tsx` 只组合 `AgentAppShell`：Work Index / Agent Workspace / overlay 三个 slot。
+- `AgentAppShell` → `.agent-window-grid` CSS grid `244px | minmax(0,1fr)`（rail `56px | 1fr`，settings single mode `1fr`）。
+- 主区：`ChatPanel.tsx` 编排 `AgentPaneHeader` + `ChatStream` + session-scoped `AgentContextDock`。
 
 ### 4.2 侧栏的 11 个具体丑因（重构目标清单）
 1. 48px titlebar 死区（不可见 `DragStrip` 占位，内容 `pt-9` 起）
@@ -159,7 +159,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 - **插件扩展点全保留**：`SIDEBAR_SECTION` / `SIDEBAR_RAIL_ITEM` / `sidebar.search` / `sidebar.footer` / `chat.topbar.actions`（迁移） / `chat.empty` / `message.actions` / `THEME` / `ROUTE` 等。重构是**改组件内部**，不是砍扩展点。
 - **`selectTab(id)` 动作是 canonical session 切换入口**（原子清 session-scoped state）——任何新导航必经它。
 - **`openMainView` / `closeMainView`** 保留；侧栏 nav 仍调它。
-- **`useSidebarRail()`**（`uiStore.sidebarRail` + `splitViewId`）状态链保留；`.app.rail` class 驱动 CSS grid + `SidebarPanel` rail prop。
+- **`useSidebarRail()`**（`uiStore.sidebarRail` + `splitViewId`）状态链保留；`.agent-app-rail` class 驱动 CSS grid + `SidebarPanel` rail prop。
 - **`getContainer().client()` 是唯一 outbound**——重构期绝不绕过（`check:layers` 强制）。
 - **store schema 变更 bump persist version 丢旧数据，不写 migration**（开发期无包袱）。
 

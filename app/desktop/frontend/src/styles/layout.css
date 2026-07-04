@@ -1,13 +1,11 @@
-/* App shell — cards-on-canvas grid + macOS titlebar offset. */
-
 * {
   box-sizing: border-box;
 }
 
-/* Hard minimum viewport: Work Index + Agent Narrative + Context Dock. */
 :root {
   --app-min-width: 1120px;
   --app-min-height: 720px;
+  --app-frame-gutter: 20px;
 }
 
 html,
@@ -15,22 +13,15 @@ body,
 #root {
   height: 100%;
   margin: 0;
-  min-width: var(--app-min-width);
-  min-height: var(--app-min-height);
-  /* Hard-lock the outer scrollers — without this, WKWebView interprets a
-     trackpad pan / click-drag on body content as scroll-the-page, which
-     looks like "the whole UI can be dragged around inside the window".
-     The kernel's min-width/height + Wails' window MinWidth/MinHeight
-     already guarantee panels fit; any internal scrolling happens inside
-     panel-scroll / msg-scroll-frame, not at the document level. */
+  min-width: calc(var(--app-min-width) + var(--app-frame-gutter));
+  min-height: calc(var(--app-min-height) + var(--app-frame-gutter));
   overflow: hidden;
 }
+
 #root {
   height: 100vh;
 }
 
-/* Default colour scheme — switched by uiStore.applyTheme via the
-   .theme-light class. */
 html {
   color-scheme: dark;
 }
@@ -38,51 +29,162 @@ html.theme-light {
   color-scheme: light;
 }
 
-/* Kernel grid — flush, edge-to-edge. .app paints the canvas; the two
-   columns run to the window edge with no gutters. */
-.app {
+.agent-app {
   display: grid;
-  /* Single row: the main area. The overlay Slot's children are
-      position:fixed, so they claim no track. */
-  grid-template-rows: 1fr;
+  place-items: center;
+  width: 100vw;
   height: 100vh;
-  min-width: var(--app-min-width);
-  min-height: var(--app-min-height);
-  background: var(--color-bg);
+  min-width: calc(var(--app-min-width) + var(--app-frame-gutter));
+  min-height: calc(var(--app-min-height) + var(--app-frame-gutter));
+  padding: 10px;
+  background:
+    radial-gradient(
+      circle at 50% -10%,
+      color-mix(in oklab, var(--color-surface) 42%, transparent),
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at 12% 14%,
+      color-mix(in oklab, var(--color-accent) 9%, transparent),
+      transparent 34%
+    ),
+    var(--color-bg);
 }
 
-.app-main {
+.agent-window {
+  display: grid;
+  width: min(1440px, calc(100vw - var(--app-frame-gutter)));
+  height: min(892px, calc(100vh - var(--app-frame-gutter)));
+  min-width: var(--app-min-width);
+  min-height: var(--app-min-height);
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-window);
+}
+
+.agent-window-grid {
   display: grid;
   grid-template-columns: 244px minmax(0, 1fr);
-  /* No gap / padding: the sidebar and main area are flush to the window
-      edge, separated by background delta only (surface vs canvas).
-      Depth comes from the surface step, not gutters + shadow. */
+  width: 100%;
+  height: 100%;
   min-height: 0;
 }
 
-/* Rail covers both the user's collapse preference and an open split view —
-   "open right → collapse left" forces the rail (see useSidebarRail), so a
-   split shares the canvas with a 56px rail rather than a zero-width column. */
-.app.rail .app-main {
+.agent-app-rail .agent-window-grid {
   grid-template-columns: 56px minmax(0, 1fr);
 }
 
-/* Panels — flush, flat regions (no radius, no shadow). The main column
-   paints on the canvas; the sidebar is the one lifted chrome surface. */
-.panel {
-  background: var(--color-bg);
-  overflow: hidden;
+.agent-app-single .agent-window-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.agent-region {
   display: flex;
-  flex-direction: column;
+  min-width: 0;
   min-height: 0;
 }
 
-/* Sidebar — a neutral surface separated from the canvas by a hairline. */
-.panel.sidebar {
-  background: var(--color-surface);
+.agent-region > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
 }
 
-html.theme-light .panel.sidebar {
+.agent-pane {
+  position: relative;
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.agent-pane-sidebar,
+.agent-pane-rail {
+  background: var(--color-surface);
+  box-shadow: inset -0.5px 0 0 var(--color-border-soft);
+}
+
+.agent-pane-main {
+  background: var(--color-bg);
+}
+
+.agent-pane-dock,
+.agent-context-dock {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-surface);
+  box-shadow: inset 0.5px 0 0 var(--color-border-soft);
+}
+
+.agent-pane-header {
+  display: flex;
+  height: 52px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 0.5px solid var(--color-border-soft);
+  padding: 0 16px;
+}
+
+.agent-dock-tabs {
+  display: flex;
+  height: 52px;
+  flex-shrink: 0;
+  align-items: stretch;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 0.5px solid var(--color-border-soft);
+  padding: 0 18px;
+  scrollbar-width: none;
+}
+
+.agent-dock-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.agent-dock-tab {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 160px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 0 9px;
+  color: var(--color-text-muted);
+  font: 600 13px/1 var(--font-sans);
+  outline: none;
+}
+
+.agent-dock-tab:hover,
+.agent-dock-tab:focus-visible {
+  color: var(--color-text);
+}
+
+.agent-dock-tab[data-active] {
+  color: var(--color-text);
+}
+
+.agent-dock-tab[data-active]::after {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  content: "";
+}
+
+.agent-context-dock .workspace-view-layout {
   background: var(--color-surface);
 }
 
@@ -93,13 +195,13 @@ html.theme-light .panel.sidebar {
   overflow-y: auto;
   /* No rubber-band glow / scroll-chaining at the edges — a native pane stops
      dead at its bounds, it doesn't bounce or hand the scroll to a parent.
-     `.panel-scroll` is THE scroller everywhere (panels + the chat's inner
+     `.panel-scroll` is THE scroller everywhere (view panes + the chat's inner
      stick-to-bottom div via scrollClassName), so this covers both. */
   overscroll-behavior: contain;
   /* Intentionally no `overflow-x: hidden` here — adding it broke
       use-stick-to-bottom during streaming (rapid content-height changes
       interacted badly with WebKit's scrollbar-recompute path, causing
-      the chat to snap back to the top). The enclosing `.panel` clips
+      the chat to snap back to the top). The enclosing pane clips
       anything that still escapes. */
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-soft) transparent;
@@ -136,4 +238,24 @@ html.theme-light .panel.sidebar {
 }
 .sidebar.rail {
   padding-top: 0;
+}
+
+@media (max-width: 1160px), (max-height: 760px) {
+  html,
+  body,
+  #root,
+  .agent-app {
+    min-width: var(--app-min-width);
+    min-height: var(--app-min-height);
+  }
+
+  .agent-app {
+    padding: 0;
+  }
+
+  .agent-window {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+  }
 }

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import type { IconName } from "@/ui";
-import { VerticalTabs } from "@/ui";
+import { Icon, noDragClasses, VerticalTabs } from "@/ui";
+import { AgentWindowControls } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import {
   clearWorkspaceSettingsPaneTarget,
   getWorkspaceSettingsPaneTarget,
+  selectWorkspaceChat,
   useWorkspaceSettingsPaneTarget,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { useSettingsPanes } from "@/plugins/sdk";
@@ -26,27 +28,17 @@ export function SettingsPage() {
   const t = useT();
   const panes = useSettingsPanes();
   const targetPane = useWorkspaceSettingsPaneTarget();
-  // `selectedId` is the user's explicit choice. If they haven't picked one (or
-  // their pick has since been unregistered), fall back to the first pane via a
-  // derived value — no useEffect/setState loop. The initial value honors a
-  // one-shot deep-link target (settingsPane, e.g. "providers" from the keyless
-  // first-run onboarding), consumed + cleared on mount.
   const [selectedId, setSelectedId] = useState<string | undefined>(
     () => getWorkspaceSettingsPaneTarget() ?? undefined,
   );
+  const [query, setQuery] = useState("");
   useEffect(() => {
-    // Consume the INITIAL deep-link (read into selectedId above), then keep
-    // following LATER ones while this singleton view stays mounted. Settings is
-    // a singleton workspace tab: a re-target only REFOCUSES Settings, never
-    // remounts it, so a mount-only consume would drop the new target.
     if (!targetPane) return;
     setSelectedId(targetPane);
     clearWorkspaceSettingsPaneTarget();
   }, [targetPane]);
-  const activeId = selectedId && panes.some((p) => p.id === selectedId) ? selectedId : panes[0]?.id;
+  const normalizedQuery = query.trim().toLocaleLowerCase();
 
-  // Bucket panes by group (they arrive order-sorted from the selector, so the
-  // order is preserved within each group).
   const known = new Set(GROUPS.map((g) => g.id));
   const grouped = GROUPS.map((g) => ({
     ...g,
@@ -62,8 +54,14 @@ export function SettingsPage() {
             <p.component />
           </PluginBoundary>
         ),
-      })),
+      }))
+      .filter((item) =>
+        normalizedQuery ? String(item.label).toLocaleLowerCase().includes(normalizedQuery) : true,
+      ),
   })).filter((g) => g.items.length > 0);
+  const visibleItems = grouped.flatMap((group) => group.items);
+  const activeId =
+    selectedId && visibleItems.some((p) => p.id === selectedId) ? selectedId : visibleItems[0]?.id;
 
   return (
     <VerticalTabs
@@ -71,6 +69,54 @@ export function SettingsPage() {
       groups={grouped}
       value={activeId}
       onValueChange={setSelectedId}
+      sidebarHeader={
+        <SettingsSidebarHeader
+          query={query}
+          onQueryChange={setQuery}
+          searchPlaceholder={t("settings.searchPlaceholder")}
+        />
+      }
     />
+  );
+}
+
+function SettingsSidebarHeader({
+  query,
+  onQueryChange,
+  searchPlaceholder,
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  searchPlaceholder: string;
+}) {
+  const t = useT();
+  return (
+    <div className="pb-4">
+      <AgentWindowControls />
+      <button
+        type="button"
+        data-chrome-focus=""
+        onClick={selectWorkspaceChat}
+        className="mb-4 flex h-8 items-center gap-2 rounded-[8px] border-0 bg-transparent px-2 text-[13px] font-medium text-fg-muted transition-[background-color,color] duration-[120ms] hover:bg-fg/[0.045] hover:text-fg focus-visible:bg-fg/[0.06] focus-visible:outline-none"
+      >
+        <Icon name="arrow-left" size={15} strokeWidth={1.8} />
+        <span>{t("settings.backToApp")}</span>
+      </button>
+      <label
+        className={[
+          "flex h-9 items-center gap-2 rounded-[8px] bg-canvas px-2.5 text-fg-muted",
+          "shadow-[var(--shadow-border)] focus-within:text-fg focus-within:shadow-[var(--shadow-focus)]",
+          noDragClasses,
+        ].join(" ")}
+      >
+        <Icon name="search" size={15} strokeWidth={1.8} />
+        <input
+          value={query}
+          onChange={(event) => onQueryChange(event.currentTarget.value)}
+          placeholder={searchPlaceholder}
+          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[13px] text-fg outline-none placeholder:text-fg-faint"
+        />
+      </label>
+    </div>
   );
 }

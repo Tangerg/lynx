@@ -32,7 +32,7 @@ export const sidebarRailNewSession = definePlugin({
   version: "1.0.0",
   setup({ host }) {
     contributeWorkIndexItem(host, {
-      id: "new-session",
+      id: "rail-new-session",
       scope: "global",
       variant: "rail",
       order: 10,

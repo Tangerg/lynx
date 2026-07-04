@@ -6,7 +6,6 @@
 
 import type { CommandSpec } from "@/plugins/sdk";
 import type { IconName } from "@/ui";
-import { AgentSurface } from "@/ui/agent";
 import { Icon, Tooltip } from "@/ui";
 import { useProviders } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
@@ -64,7 +63,7 @@ function SetupCard() {
     openWorkspaceSettingsPane("providers", t("settings.title"));
   };
   return (
-    <div className="w-full rounded-lg bg-surface px-4 py-4 text-left">
+    <div className="w-full rounded-[8px] bg-surface px-4 py-4 text-left shadow-[var(--shadow-border)]">
       <div className="flex items-start gap-3">
         <Icon name="spark" size={16} className="mt-0.5 shrink-0 text-accent" />
         <div className="flex flex-col items-start gap-2">
@@ -107,23 +106,16 @@ function WelcomeScreen() {
         <SetupCard />
       ) : (
         <>
-          <div className="grid w-full grid-cols-3 gap-3">
-            {SUGGESTIONS.slice(0, 3).map((s) => (
+          <div className="flex flex-wrap justify-center gap-2">
+            {SUGGESTIONS.map((s) => (
               <Tooltip key={s.labelKey} label={t(s.promptKey)} side="bottom">
                 <button
                   type="button"
                   onClick={() => setValue(t(s.promptKey))}
-                  className="group min-h-[76px] rounded-[12px] border-0 bg-transparent p-0 text-left transition-transform duration-150 active:scale-[0.99]"
+                  className="inline-flex h-8 items-center gap-2 rounded-full border-0 bg-surface px-3 text-[12.5px] font-medium text-fg-soft shadow-[var(--shadow-border)] transition-[background-color,color,transform] duration-[120ms] hover:bg-surface-2 hover:text-fg active:scale-[0.98]"
                 >
-                  <AgentSurface className="h-full px-4 py-3 transition-colors group-hover:bg-surface-2">
-                    <Icon name={s.icon} size={16} className="mb-3 shrink-0 text-fg-muted" />
-                    <div className="truncate text-[13px] font-semibold leading-[18px] text-fg">
-                      {t(s.labelKey)}
-                    </div>
-                    <div className="mt-1 truncate text-[12.5px] leading-[17px] text-fg-muted">
-                      {t(s.promptKey)}
-                    </div>
-                  </AgentSurface>
+                  <Icon name={s.icon} size={14} className="shrink-0 text-fg-muted" />
+                  <span>{t(s.labelKey)}</span>
                 </button>
               </Tooltip>
             ))}
