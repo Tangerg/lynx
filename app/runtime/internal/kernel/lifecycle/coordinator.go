@@ -14,6 +14,7 @@ package lifecycle
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -21,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
 // Stores is the consumer-defined surface the Coordinator drives — the runtime's
@@ -53,8 +55,23 @@ type Coordinator struct {
 	s Stores
 }
 
+// ErrRunNotFound reports that a lifecycle operation targeted no live or parked run.
+var ErrRunNotFound = errors.New("lifecycle: run not found")
+
 // New returns a Coordinator over s.
 func New(s Stores) *Coordinator { return &Coordinator{s: s} }
+
+// TurnCanceler is the turn-service slice needed to abandon a run.
+type TurnCanceler interface {
+	Cancel(context.Context, turn.TurnHandle) error
+}
+
+// RunTurn binds a protocol run id to the turn handle that owns its process.
+type RunTurn struct {
+	RunID     string
+	SessionID string
+	TurnID    string
+}
 
 // RollbackBoundary is the resolved, domain-level rollback split.
 type RollbackBoundary struct {
@@ -123,6 +140,32 @@ func (c *Coordinator) RollbackResolved(ctx context.Context, sessionID string, b 
 		return nil
 	}
 	return c.Rollback(ctx, sessionID, b.KeepMark, b.DropRunIDs, b.BoundaryTime)
+}
+
+// CancelParkedRun abandons a run that has already left the live run stream and
+// is discoverable only through its open interrupt record.
+func (c *Coordinator) CancelParkedRun(ctx context.Context, turns TurnCanceler, runID string) error {
+	pending, found, err := c.s.Interrupts().Get(ctx, runID)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return ErrRunNotFound
+	}
+	return c.CancelRunTurn(ctx, turns, RunTurn{
+		RunID:     runID,
+		SessionID: pending.SessionID,
+		TurnID:    pending.TurnID,
+	})
+}
+
+// CancelRunTurn tears down the turn before dropping the durable interrupt
+// record. The turn cancel is best-effort: after a backend restart the durable
+// interrupt may outlive the in-memory turn, and abandoning the run still means
+// removing the resumable record.
+func (c *Coordinator) CancelRunTurn(ctx context.Context, turns TurnCanceler, r RunTurn) error {
+	_ = turns.Cancel(ctx, turn.TurnHandle{SessionID: r.SessionID, TurnID: r.TurnID})
+	return c.s.Interrupts().Delete(ctx, r.RunID)
 }
 
 // ForkSpec describes where a session fork should branch. Runs are the timeline
