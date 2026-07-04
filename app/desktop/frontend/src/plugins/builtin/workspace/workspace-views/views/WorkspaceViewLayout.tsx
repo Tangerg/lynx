@@ -18,11 +18,11 @@ interface Props extends ViewHeaderProps {
 
 export function WorkspaceViewLayout({ scrollClassName, scrollRef, children, ...header }: Props) {
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col bg-canvas">
       <ViewHeader {...header} />
       <ScrollArea ref={scrollRef} className={scrollClassName}>
         {children}
       </ScrollArea>
-    </>
+    </div>
   );
 }

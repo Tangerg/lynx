@@ -6,6 +6,7 @@ import { imageFiles, type UserInput } from "@/plugins/builtin/chat/composer/publ
 import { useRecordComposerHistory } from "@/plugins/builtin/chat/composer/public/history";
 import type { IconName } from "@/components/common";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
+import { AgentComposerSurface } from "@/components/agent-studio";
 import { Chip, Icon, MEDIA_OUTLINE, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { FileMentionPopup } from "./FileMentionPopup";
@@ -66,7 +67,7 @@ export function Composer({
   });
 
   return (
-    <div
+    <AgentComposerSurface
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         const files = imageFiles(e.dataTransfer?.files);
@@ -74,7 +75,7 @@ export function Composer({
         e.preventDefault(); // swallow the drop even if the model can't take it
         input.handleDrop(files);
       }}
-      className="relative rounded-xl border-0 bg-surface px-5 py-4 shadow-[var(--shadow-composer)]"
+      className="relative"
       data-slot="composer-root"
     >
       {input.mentions.active && (
@@ -113,13 +114,13 @@ export function Composer({
         /* The `composer-input` class is a DOM-target hook (no styles) so
            the `composer.focus` command in defaults/commands.ts can find
            this textarea without threading a ref through the tree. */
-        className="composer-input max-h-40 min-h-10 w-full resize-none border-0 bg-transparent px-0 py-1.5 font-sans text-[15px] leading-[1.55] text-fg outline-none placeholder:text-fg-faint placeholder:tracking-normal"
+        className="composer-input max-h-40 min-h-11 w-full resize-none border-0 bg-transparent px-0 py-1 font-sans text-[15px] leading-[1.55] text-fg outline-none placeholder:text-fg-faint placeholder:tracking-normal"
         data-slot="composer-input"
       />
       {/* Bottom toolbar — ALL controls live below the input so the text area
           above stays pure: attach + model on the left, send on the right. */}
       <div
-        className="flex min-h-8 flex-nowrap items-center gap-1.5 pt-2"
+        className="flex min-h-9 flex-nowrap items-center gap-1.5 pt-2"
         data-slot="composer-toolbar-bottom"
       >
         <Slot name="composer.toolbar.start" />
@@ -127,7 +128,7 @@ export function Composer({
         <Slot name="composer.toolbar.end" />
       </div>
       {children}
-    </div>
+    </AgentComposerSurface>
   );
 }
 

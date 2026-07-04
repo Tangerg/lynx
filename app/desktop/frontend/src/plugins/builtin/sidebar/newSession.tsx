@@ -1,12 +1,13 @@
-// Sidebar primary action — global new-session affordance above the Work Index.
+// Sidebar global actions — the Work Index starts with app-level entry points.
 
-import { Icon } from "@/components/common";
+import { AgentKbd, AgentRow } from "@/components/agent-studio";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import {
   contributeWorkIndexItem,
   useWorkIndexActions,
 } from "@/plugins/builtin/navigation/public/workIndex";
+import { usePaletteStore } from "@/plugins/builtin/command/paletteStore";
+import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { definePlugin } from "@/plugins/sdk";
 
 function SidebarNewSession() {
@@ -14,20 +15,34 @@ function SidebarNewSession() {
   const actions = useWorkIndexActions();
 
   return (
-    <div className="flex flex-col">
-      <button
-        type="button"
-        onClick={actions.createSession}
-        data-chrome-focus=""
-        className={cn(
-          "mb-1 flex h-8 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2.5 text-left",
-          "font-sans text-[13px] font-medium text-fg-soft transition-[background-color,color,transform] duration-100 active:scale-[0.99]",
-          "hover:bg-fg/[0.04] hover:text-fg focus-visible:bg-fg/[0.055] focus-visible:text-fg focus-visible:outline-none",
-        )}
+    <div className="flex flex-col gap-px">
+      <AgentRow icon="edit" className="font-medium" onClick={actions.createSession}>
+        {t("sidebar.action.newSession")}
+      </AgentRow>
+      <AgentRow
+        icon="search"
+        onClick={() => usePaletteStore.getState().setOpen(true)}
+        trailing={
+          <span className="flex items-center gap-1">
+            <AgentKbd>⌘</AgentKbd>
+            <AgentKbd>K</AgentKbd>
+          </span>
+        }
       >
-        <Icon name="edit" size={15} className="shrink-0 text-fg-muted" />
-        <span>{t("sidebar.action.newSession")}</span>
-      </button>
+        {t("common.search")}
+      </AgentRow>
+      <AgentRow
+        icon="history"
+        onClick={() => openWorkspaceSettingsPane("schedules", t("settings.pane.schedules"))}
+      >
+        {t("settings.pane.schedules")}
+      </AgentRow>
+      <AgentRow
+        icon="sparkle"
+        onClick={() => openWorkspaceSettingsPane("plugins", t("settings.pane.plugins"))}
+      >
+        {t("settings.pane.plugins")}
+      </AgentRow>
     </div>
   );
 }

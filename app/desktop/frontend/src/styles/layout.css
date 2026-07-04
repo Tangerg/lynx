@@ -4,11 +4,9 @@
   box-sizing: border-box;
 }
 
-/* Hard minimum viewport: sidebar (244) + a comfortable main column. The
-   flush layout drops the gutters, so the floor is lower than the old
-   cards-on-canvas value. Below this the columns squash instead of scrolling. */
+/* Hard minimum viewport: Work Index + Agent Narrative + Context Dock. */
 :root {
-  --app-min-width: 948px;
+  --app-min-width: 1120px;
   --app-min-height: 720px;
 }
 
@@ -133,14 +131,9 @@ html.theme-light .panel.sidebar {
   flex-direction: column;
 }
 
-/* macOS titlebar offset — push sidebar header below the traffic-light
-   controls. The drag region is applied to the Panel container itself
-   (see SidebarExpanded / SidebarRail); interactive children opt out
-   via `noDragClasses`. */
 .sidebar {
-  padding-top: 48px;
   position: relative;
 }
 .sidebar.rail {
-  padding-top: 36px;
+  padding-top: 0;
 }

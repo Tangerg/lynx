@@ -19,13 +19,13 @@ export function SettingRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-[140px_1fr] gap-4 py-3",
+        "grid grid-cols-[180px_1fr] gap-5 px-5 py-4",
         align === "start" ? "items-start" : "items-center",
       )}
     >
       <div>
-        <div className="text-[16px] font-semibold text-fg">{label}</div>
-        <div className="mt-0.5 text-[13px] text-fg-muted">{sub}</div>
+        <div className="text-[13.5px] font-semibold text-fg">{label}</div>
+        <div className="mt-1 text-[12.5px] leading-[1.45] text-fg-muted">{sub}</div>
       </div>
       <div>{children}</div>
     </div>

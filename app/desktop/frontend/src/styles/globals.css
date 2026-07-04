@@ -280,8 +280,8 @@
   --fw-medium: 500;
   --fw-semibold: 600;
 
-  --tracking-display: -0.04em;
-  --tracking-display-tight: -0.06em;
+  --tracking-display: 0;
+  --tracking-display-tight: 0;
   --leading-tight: 1.1;
   --leading-snug: 1.35;
   --leading-body: 1.5;

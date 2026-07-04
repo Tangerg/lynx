@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { DataView, FIELD_CLASSES, Icon, SectionLabel } from "@/components/common";
+import { AgentRow, AgentSectionLabel } from "@/components/agent-studio";
+import { DataView } from "@/components/common";
 import { ProjectRow } from "./ui/ProjectRow";
 import { SessionRow } from "./ui/SessionRow";
 import { useT } from "@/lib/i18n";
 import type { WorkGroup, WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
 import {
   contributeWorkIndexItem,
+  useRecentWorkSessions,
   useWorkIndex,
   useWorkIndexActions,
 } from "@/plugins/builtin/navigation/public/workIndex";
@@ -18,43 +20,6 @@ const VISIBLE_CAP = 5;
 
 // Vertical list column — the section list and each project's nested session list.
 const sideListClasses = "flex flex-col gap-0.5";
-
-// Create a session in a chosen directory. Projects are derived from session
-// cwds, so the input asks for the real aggregate identity: the folder path.
-function NewSessionInFolderInline({ onSubmit }: { onSubmit: (cwd: string) => void }) {
-  const t = useT();
-  const [path, setPath] = useState("");
-
-  const submit = (): void => {
-    const cwd = path.trim();
-    if (!cwd) return;
-    setPath("");
-    onSubmit(cwd);
-  };
-
-  return (
-    <div className="px-3 pb-1.5">
-      <div className="flex items-center gap-1.5 rounded-md border-[0.5px] border-field bg-surface-2 px-2 py-1.5">
-        <Icon name="plus" size={12} className="shrink-0 text-fg-faint" />
-        <input
-          type="text"
-          value={path}
-          onChange={(e) => setPath(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submit();
-          }}
-          placeholder={t("sidebar.newSessionInFolder.placeholder")}
-          aria-label={t("sidebar.newSessionInFolder.placeholder")}
-          spellCheck={false}
-          className={cn(
-            FIELD_CLASSES,
-            "h-5 flex-1 border-0 bg-transparent px-0 text-[12px] text-fg",
-          )}
-        />
-      </div>
-    </div>
-  );
-}
 
 // One project node: header + (when open) its capped session list.
 function ProjectGroupNode({
@@ -97,7 +62,7 @@ function ProjectGroupNode({
         onNewSession={onNewSession}
       />
       {open && group.sessions.length > 0 && (
-        <div className={cn(sideListClasses, "pl-4")}>
+        <div className={sideListClasses}>
           {visible.map((s) => (
             <SessionRow
               key={s.id}
@@ -114,7 +79,7 @@ function ProjectGroupNode({
             <button
               type="button"
               onClick={() => setShowAll((v) => !v)}
-              className="rounded-lg border-0 bg-transparent px-2.5 py-1 text-left text-[11.5px] text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg"
+              className="rounded-[7px] border-0 bg-transparent px-7 py-1 text-left text-[11.5px] text-fg-faint transition-colors hover:bg-fg/[0.045] hover:text-fg"
             >
               {hidden > 0 ? t("projects.showMore", { count: hidden }) : t("projects.showLess")}
             </button>
@@ -122,6 +87,41 @@ function ProjectGroupNode({
         </div>
       )}
     </div>
+  );
+}
+
+function RecentSection() {
+  const t = useT();
+  const { activeSessionId, recentSessions } = useRecentWorkSessions(4);
+  const actions = useWorkIndexActions();
+  if (recentSessions.length === 0) return null;
+
+  return (
+    <>
+      <AgentSectionLabel>{t("contextDock.group.session")}</AgentSectionLabel>
+      <div className={sideListClasses}>
+        {recentSessions.map((session) => (
+          <AgentRow
+            key={session.id}
+            icon="chat"
+            active={session.id === activeSessionId}
+            onClick={() => actions.selectSession(session.id)}
+            trailing={
+              session.attention === "none" ? null : (
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    session.attention === "running" ? "bg-accent animate-pulse-dot" : "bg-warning",
+                  )}
+                />
+              )
+            }
+          >
+            {session.title}
+          </AgentRow>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -136,8 +136,7 @@ function ProjectsSection() {
 
   return (
     <>
-      <SectionLabel>{t("workIndex.section.projects")}</SectionLabel>
-      <NewSessionInFolderInline onSubmit={actions.startSessionInFolder} />
+      <AgentSectionLabel>{t("workIndex.section.projects")}</AgentSectionLabel>
       <DataView
         items={workIndex.groups}
         isLoading={workIndex.isLoading}
@@ -169,6 +168,7 @@ function ProjectsSection() {
           </div>
         )}
       </DataView>
+      <RecentSection />
     </>
   );
 }
