@@ -75,6 +75,17 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		}
 	}
 
+	treeAdmission, ok := s.claimWorkingTreeRun(sess.Cwd)
+	if !ok {
+		return nil, nil, fmt.Errorf("%w: working tree %q has a file restore in flight", protocol.ErrSessionBusy, sess.Cwd)
+	}
+	releaseTreeAdmission := true
+	defer func() {
+		if releaseTreeAdmission {
+			treeAdmission.Release()
+		}
+	}()
+
 	handle, err := s.rt.Chat().StartTurn(ctx, turn.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    userMsg,
@@ -105,6 +116,8 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	if err != nil {
 		return nil, nil, err
 	}
+	treeAdmission.Release()
+	releaseTreeAdmission = false
 	// Return the opening userMessage Item id so the client reconciles its
 	// optimistic bubble by exact id (same id the stream + items.list carry).
 	out.UserItemID = userMessageItemID(runID)

@@ -38,6 +38,21 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	}
 	defer admission.Release()
 
+	sess, err := s.rt.Session().Get(ctx, pending.SessionID)
+	if err != nil {
+		return nil, nil, wireSessionErr(err)
+	}
+	treeAdmission, ok := s.claimWorkingTreeRun(sess.Cwd)
+	if !ok {
+		return nil, nil, fmt.Errorf("%w: working tree %q has a file restore in flight", protocol.ErrSessionBusy, sess.Cwd)
+	}
+	releaseTreeAdmission := true
+	defer func() {
+		if releaseTreeAdmission {
+			treeAdmission.Release()
+		}
+	}()
+
 	resumed, err := s.coordinator().ResumeClaimedInterrupt(ctx, s.rt.Chat(), in.ParentRunID, resolution)
 	if err != nil {
 		switch {
@@ -69,6 +84,8 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if err != nil {
 		return nil, nil, err
 	}
+	treeAdmission.Release()
+	releaseTreeAdmission = false
 	return out, events, nil
 }
 
