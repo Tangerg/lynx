@@ -110,6 +110,16 @@ html.theme-dark {
   padding: 0 16px;
 }
 
+/* When the sidebar is collapsed the main pane spans to the window's left edge,
+   so its header would sit under the native macOS traffic lights. Reserve a
+   fixed gutter for them (Codex keeps the same fixed slot whether the sidebar is
+   open or closed). This MUST live here, not as a Tailwind `pl-*` utility on the
+   header: this file is unlayered and `.agent-pane-header { padding }` outranks
+   any `@layer utilities` class, so a utility could never win. */
+.agent-app-rail .agent-region-main .agent-pane-header {
+  padding-left: 96px;
+}
+
 .agent-dock-tabs {
   display: flex;
   height: 52px;
