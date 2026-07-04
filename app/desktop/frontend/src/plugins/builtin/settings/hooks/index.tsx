@@ -3,7 +3,7 @@
 // in application/.
 
 import { definePlugin } from "@/plugins/sdk";
-import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { registerSettingsPane } from "../public";
 import { installHookTrustGateway } from "./adapters/runtimeHookTrustGateway";
 import { HooksPane } from "./ui/HooksPane";
 
@@ -12,13 +12,11 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     installHookTrustGateway();
-    host.extensions.contribute(SETTINGS_PANE, {
+    registerSettingsPane(host, {
       id: "hooks",
       label: "settings.pane.hooks",
       group: "agent",
       icon: "lightning",
-      // After MCP servers (56) — both extend "what runs around the agent";
-      // hooks are the lifecycle-command surface.
       order: 57,
       component: HooksPane,
     });

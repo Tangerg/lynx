@@ -10,7 +10,7 @@ import { DropdownMenu, Icon, MEDIA_OUTLINE } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { THEME, useExtensionPoint } from "@/plugins/sdk";
-import { SettingRow } from "../../SettingRow";
+import { SettingRow } from "../../public";
 import { useThemePreference } from "../application/appearancePreferences";
 
 // Fallback hexes for previewing themes that didn't ship a `tokens` map, and

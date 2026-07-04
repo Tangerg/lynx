@@ -8,7 +8,7 @@ import {
   resetRuntimeBaseUrl,
   RUNTIME_BASE_URL,
 } from "../application/runtimeConnection";
-import { SettingRow } from "../../SettingRow";
+import { SettingRow } from "../../public";
 
 export function ConnectionPane() {
   const t = useT();

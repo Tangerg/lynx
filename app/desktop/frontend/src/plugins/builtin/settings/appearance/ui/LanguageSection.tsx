@@ -5,7 +5,7 @@
 import { DropdownMenu, Icon } from "@/ui";
 import { setLocale, useLocale, useT } from "@/lib/i18n";
 import { LOCALE, useExtensionPoint } from "@/plugins/sdk";
-import { SettingRow } from "../../SettingRow";
+import { SettingRow } from "../../public";
 
 export function LanguageSection() {
   const t = useT();

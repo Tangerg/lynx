@@ -11,7 +11,7 @@ import {
   providerCredentialsInput,
 } from "../application/providerDraft";
 import { useT } from "@/lib/i18n";
-import { useProbe } from "../../useProbe";
+import { useProbe } from "../../public";
 import { cn } from "@/lib/utils";
 
 export function ProviderRow({ p }: { p: ProviderConfig }) {

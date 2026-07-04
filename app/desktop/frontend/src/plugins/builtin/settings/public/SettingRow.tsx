@@ -1,10 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-// Shared two-column row for Appearance settings: a 140px title/subtitle
-// gutter on the left, the control on the right. `align` defaults to
-// centered (single-line controls); pass "start" for multi-line bodies
-// so the title pins to the top.
 export function SettingRow({
   label,
   sub,

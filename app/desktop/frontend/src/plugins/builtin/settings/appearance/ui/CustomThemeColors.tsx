@@ -5,7 +5,7 @@
 
 import { useT } from "@/lib/i18n";
 import { useCustomThemePreference } from "../application/appearancePreferences";
-import { SettingRow } from "../../SettingRow";
+import { SettingRow } from "../../public";
 
 function ColorRow({
   label,

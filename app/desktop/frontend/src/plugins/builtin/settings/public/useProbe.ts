@@ -1,7 +1,5 @@
 import { useRef, useState } from "react";
 
-// Transient state of an async "probe" — a save / test / delete whose result is
-// shown inline (spinner → ok / error) on the control that launched it.
 type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
 
 /**

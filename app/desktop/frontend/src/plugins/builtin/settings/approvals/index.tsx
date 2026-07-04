@@ -7,14 +7,14 @@
 // so the pane degrades to an inert "unavailable" state (handled in ApprovalsPane).
 
 import { definePlugin } from "@/plugins/sdk";
-import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { registerSettingsPane } from "../public";
 import { ApprovalsPane } from "./ui/ApprovalsPane";
 
 export default definePlugin({
   name: "lyra.builtin.approvals-pane",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(SETTINGS_PANE, {
+    registerSettingsPane(host, {
       id: "approvals",
       label: "settings.pane.approvals",
       group: "agent",
