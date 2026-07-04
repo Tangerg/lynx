@@ -1,29 +1,33 @@
-// Lyra Light — Agent Studio skin: white canvas, neutral gray chrome, pink CTA.
+// Lyra Light — the default skin. Vercel Geist design language: white canvas,
+// neutral gray chrome separated by background delta (no rules), Geist ink ramp.
+// Accent (blue-700) is reserved for live / focus / links; the primary CTA is the
+// inverting ink-on-white button (Vercel / ChatGPT signature), so blue stays rare.
 
 import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
-  accent: "#d92662",
+  // Geist blue-700 — the one accent. Live indicators, focus rings, links.
+  accent: "#006bff",
 
-  // JetBrains-style region split: canvas is white; durable chrome is a neutral
-  // gray ladder. The ladder is deliberately achromatic so the page stops reading
-  // as foggy or tinted while still keeping large areas distinct.
-  canvas: "#ffffff",
-  surface1: "#f2f2f3",
-  surface2: "#e8e8e9",
-  surface3: "#dededf",
-  surface4: "#d2d2d4",
+  // JetBrains-style region split: canvas is white; durable chrome (sidebar,
+  // dock, cards) is a neutral achromatic gray ladder. Large regions read
+  // distinct by brightness delta, never by a grey rule.
+  canvas: "#ffffff", // background-100
+  surface1: "#f2f2f2", // gray-100 — sidebar / dock / card chrome
+  surface2: "#e8e8e8", // hover row, user bubble, chip
+  surface3: "#dedede", // active row, dropdown
+  surface4: "#d1d1d1", // deepest lifted
 
   // Geist gray scale (text/icons): gray-1000 / 900 / 700 / 600.
   inkBright: "#000000",
-  ink: "#171717",
-  inkSoft: "#4d4d4d",
-  inkMuted: "#8f8f8f",
-  inkFaint: "#a0a0a0",
+  ink: "#171717", // gray-1000
+  inkSoft: "#4d4d4d", // gray-900 — body / secondary
+  inkMuted: "#8f8f8f", // gray-700 — meta / inactive
+  inkFaint: "#a8a8a8", // gray-600 — footnote / disabled
 
-  // Geist gray-alpha scale (translucent borders/dividers).
+  // Geist gray-alpha scale (translucent borders/dividers/hover fills).
   hairline: "rgb(17 17 17 / 0.08)",
-  hairStrong: "rgb(17 17 17 / 0.16)",
+  hairStrong: "rgb(17 17 17 / 0.14)",
   hairTertiary: "rgb(17 17 17 / 0.05)",
 };
 
@@ -31,7 +35,7 @@ export default defineThemePlugin({
   id: "light",
   label: "Light",
   scheme: "light",
-  order: 1,
+  order: 0,
 
   brand: {
     accent: c.accent,
@@ -62,9 +66,11 @@ export default defineThemePlugin({
     info: "#006bff", // blue-700
     success: "#28a948", // green-700
   },
+  // Primary CTA — inverting ink-on-white (Vercel primary button). Hover goes
+  // pure black (Geist `.press:hover`). Accent stays reserved for "live".
   cta: {
-    cta: "#d92662",
-    ctaHover: "#c61f56",
+    cta: "#171717",
+    ctaHover: "#000000",
     ctaText: "#ffffff",
   },
 });

@@ -179,20 +179,23 @@
  *  at runtime via :root.style. See DESIGN.md for the spec.
  * ========================================================================= */
 :root {
-  /* Accent — restrained, near-monochrome. A calm blue used only for live /
-     CTA / focus (DESIGN.md §9). Themes + the user's accent pick override it. */
+  /* Accent — restrained, near-monochrome. Geist blue-700, used ONLY for live /
+     focus / links (DESIGN.md §9). The primary CTA is the inverting ink button,
+     not the accent. Themes + the user's accent pick override it. */
   --color-accent: #006bff;
-  --color-accent-border: #6a7de8;
-  --color-accent-press: #5a6cd6;
+  --color-accent-border: #0060df;
+  --color-accent-press: #0a53c4;
 
   /* Surface ladder — canvas + surface are manual anchors; -2/-3/-4
      derive via color-mix() so the direction flips automatically per
-     scheme (deeper = lighter on dark, deeper = darker on light).
+     scheme (deeper = darker on light, deeper = lighter on dark).
      Themes can pin surface-2/3/4 explicitly when their canonical
-     palette has a non-linear ladder. */
-  --color-bg: oklch(0.145 0.02 262); /* canvas — cool slate near-black */
-  --color-surface: oklch(0.205 0.02 262); /* lifted chrome — sidebar, cards, bubbles */
-  --depth-step: 5%;
+     palette has a non-linear ladder.
+     Light-first (Vercel Geist): white reading column, gray chrome rails.
+     Regions separate by this brightness delta — never a grey rule. */
+  --color-bg: #ffffff; /* canvas — the centered white reading column */
+  --color-surface: #f2f2f2; /* lifted chrome — sidebar, dock, cards (gray-100) */
+  --depth-step: 4%;
   --color-surface-2: color-mix(
     in oklab,
     var(--color-text) calc(var(--depth-step) * 1),
@@ -209,32 +212,32 @@
     var(--color-surface)
   );
 
-  /* Ink — see DESIGN.md §2 for the role hierarchy. */
-  --color-text: #ececec;
-  --color-text-bright: #ffffff;
-  --color-text-soft: #b8bcc4;
-  --color-text-muted: #8a8f98;
-  --color-text-faint: #5c6068;
-  --color-text-on-accent: #030408;
+  /* Ink — Geist gray ramp (gray-1000 / 900 / 700 / 600). See DESIGN.md §2. */
+  --color-text: #171717;
+  --color-text-bright: #000000;
+  --color-text-soft: #4d4d4d;
+  --color-text-muted: #8f8f8f;
+  --color-text-faint: #a8a8a8;
+  --color-text-on-accent: #ffffff;
   /* Ink on a `bg-fg` fill — the canvas color (inverse of fg). Tracks
      --color-bg so a theme that overrides bg gets the right on-fg for free. */
   --color-text-on-fg: var(--color-bg);
 
-  /* Hairlines — alpha-based on dark so they sit softly; light themes
-     override to literal hex. */
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-border-soft: rgba(255, 255, 255, 0.06);
-  --color-divider: rgba(255, 255, 255, 0.08);
+  /* Hairlines — Geist gray-alpha. These feed --color-field (form-control
+     edges); region separation is background delta, not these. */
+  --color-border: rgba(17, 17, 17, 0.08);
+  --color-border-soft: rgba(17, 17, 17, 0.14);
+  --color-divider: rgba(17, 17, 17, 0.05);
 
   /* Semantic — used sparingly per DESIGN.md §9. Dark-tuned per §2: these are
      the lyra-dark first-paint defaults (the theme re-applies the same values at
      runtime; lyra-light overrides to the saturated web values that read clean
      on white). Desaturated + lifted so they don't vibrate on the near-black
      canvas. */
-  --color-negative: #f85149;
-  --color-warning: #f0a936;
-  --color-info: #58a6ff;
-  --color-success: #3fb950;
+  --color-negative: #ea001d; /* red-800 */
+  --color-warning: #ffa600; /* amber-600 */
+  --color-info: #006bff; /* blue-700 */
+  --color-success: #28a948; /* green-700 */
 
   /* Diff add/delete palette — semantic but theme-INDEPENDENT by design: the
      same vivid green/red reads on both dark and light, so unlike the status
@@ -255,12 +258,12 @@
   --color-diff-deleted-word: rgba(243, 114, 127, 0.3);
   --color-diff-deleted-code: #f5cdd2;
 
-  /* Primary CTA — decoupled from --color-accent so themes can have
-     accent drive "live state" while CTA is something else (e.g. Vercel
-     Light's black-on-white). */
-  --color-cta: var(--color-accent);
-  --color-cta-hover: var(--color-accent-border);
-  --color-cta-text: var(--color-text-on-accent);
+  /* Primary CTA — the inverting ink button (Vercel / ChatGPT): near-black on
+     light, near-white on dark. Decoupled from --color-accent so accent stays
+     reserved for "live state". Themes override per-scheme. */
+  --color-cta: #171717;
+  --color-cta-hover: #000000;
+  --color-cta-text: #ffffff;
 
   /* Type scale (DESIGN.md §3). The px comments are nominal — actual
      value resolves against the root 16px (we DO NOT set <html>
@@ -280,8 +283,9 @@
   --fw-medium: 500;
   --fw-semibold: 600;
 
-  --tracking-display: 0;
-  --tracking-display-tight: 0;
+  /* Geist display tracking — negative on headings, tighter on hero. */
+  --tracking-display: -0.02em;
+  --tracking-display-tight: -0.03em;
   --leading-tight: 1.1;
   --leading-snug: 1.35;
   --leading-body: 1.5;
@@ -327,16 +331,16 @@
    *  without grey CSS borders, with the ambient layer kept low enough that
    *  light UI does not turn foggy.
    * ----------------------------------------------------------------------- */
-  --shadow-border: 0 0 0 0.5px rgb(255 255 255 / 0.12);
+  --shadow-border: 0 0 0 0.5px rgb(17 17 17 / 0.08);
   --shadow-control:
-    0 0 0 0.5px rgb(255 255 255 / 0.11), 0 1px 1px rgb(0 0 0 / 0.22),
-    0 7px 18px -14px rgb(0 0 0 / 0.62);
+    0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 1px rgb(17 17 17 / 0.04),
+    0 4px 10px -4px rgb(17 17 17 / 0.07);
   --shadow-composer:
-    0 0 0 0.5px rgb(255 255 255 / 0.12), 0 1px 2px rgb(0 0 0 / 0.35),
-    0 16px 40px -14px rgb(0 0 0 / 0.72);
+    0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05),
+    0 12px 28px -12px rgb(17 17 17 / 0.16);
   --shadow-popover:
-    0 0 0 0.5px rgb(255 255 255 / 0.13), 0 1px 2px rgb(0 0 0 / 0.34),
-    0 12px 32px -12px rgb(0 0 0 / 0.68);
+    0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05),
+    0 16px 34px -14px rgb(17 17 17 / 0.18);
   --shadow-focus: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 
   /* Content max-width — the centered reading island (REDESIGN.md §3.4). */
@@ -388,11 +392,11 @@ svg {
    image *cards* (ImageBlock) carry their own inset `ring`, which — unlike
    `outline` — follows their rounded corners, so we must not double-edge them. */
 .msg-content img:not([class]) {
-  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline: 1px solid rgba(0, 0, 0, 0.1);
   outline-offset: -1px;
 }
-html.theme-light .msg-content img:not([class]) {
-  outline-color: rgba(0, 0, 0, 0.1);
+html.theme-dark .msg-content img:not([class]) {
+  outline-color: rgba(255, 255, 255, 0.1);
 }
 body {
   font-size: var(--fs-body-md);
@@ -527,24 +531,55 @@ textarea:focus-visible {
  *  utilities can't reach.
  * ========================================================================= */
 html.theme-light,
-html.theme-light body {
-  background: var(--color-bg);
-}
+html.theme-light body,
 html.theme-light .agent-app {
   background: var(--color-bg);
 }
 
-html.theme-light {
-  --shadow-border: 0 0 0 0.5px rgb(17 17 17 / 0.08);
+/* Dark scheme — the light palette above is now the `:root` first-paint
+   default; this block restores the dark palette before JS runs when the
+   persisted theme is dark (runtime applyTheme re-emits these inline anyway).
+   Cool-slate near-black canvas, lifted gray chrome, softened ink. */
+html.theme-dark,
+html.theme-dark body,
+html.theme-dark .agent-app {
+  background: var(--color-bg);
+}
+html.theme-dark {
+  --color-bg: oklch(0.145 0.02 262);
+  --color-surface: oklch(0.205 0.02 262);
+  --depth-step: 5%;
+
+  --color-text: #ececec;
+  --color-text-bright: #ffffff;
+  --color-text-soft: #b8bcc4;
+  --color-text-muted: #8a8f98;
+  --color-text-faint: #5c6068;
+  --color-text-on-accent: #030408;
+
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-border-soft: rgba(255, 255, 255, 0.06);
+  --color-divider: rgba(255, 255, 255, 0.08);
+
+  --color-negative: #f85149;
+  --color-warning: #f0a936;
+  --color-info: #58a6ff;
+  --color-success: #3fb950;
+
+  --color-cta: #ececec;
+  --color-cta-hover: #ffffff;
+  --color-cta-text: #030408;
+
+  --shadow-border: 0 0 0 0.5px rgb(255 255 255 / 0.12);
   --shadow-control:
-    0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.04),
-    0 10px 20px -18px rgb(17 17 17 / 0.24);
+    0 0 0 0.5px rgb(255 255 255 / 0.11), 0 1px 1px rgb(0 0 0 / 0.22),
+    0 7px 18px -14px rgb(0 0 0 / 0.62);
   --shadow-composer:
-    0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05),
-    0 12px 28px -12px rgb(17 17 17 / 0.16);
+    0 0 0 0.5px rgb(255 255 255 / 0.12), 0 1px 2px rgb(0 0 0 / 0.35),
+    0 16px 40px -14px rgb(0 0 0 / 0.72);
   --shadow-popover:
-    0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05),
-    0 16px 34px -14px rgb(17 17 17 / 0.18);
+    0 0 0 0.5px rgb(255 255 255 / 0.13), 0 1px 2px rgb(0 0 0 / 0.34),
+    0 12px 32px -12px rgb(0 0 0 / 0.68);
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */

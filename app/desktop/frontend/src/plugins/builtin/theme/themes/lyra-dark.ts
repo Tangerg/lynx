@@ -69,4 +69,11 @@ export default defineThemePlugin({
     info: "#006bff", // blue-700
     success: "#4ce15e", // green-600
   },
+  // Primary CTA — inverting ink button (near-white fill on dark), mirroring the
+  // light scheme's ink-on-white. Accent (blue) stays reserved for "live".
+  cta: {
+    cta: "#ededed",
+    ctaHover: "#ffffff",
+    ctaText: "#0a0a0a",
+  },
 });
