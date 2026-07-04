@@ -12,6 +12,11 @@ import { useReconcilePersistedAgentSessions } from "@/plugins/builtin/agent/publ
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useDefaultChatSession } from "@/plugins/builtin/agent/public/defaultSession";
+import {
+  kernelChatSlot,
+  kernelSettingsView,
+  kernelSidebarSlot,
+} from "./application/kernelContributions";
 
 function KernelChat() {
   // Drop persisted refs to sessions the backend no longer has BEFORE binding
@@ -34,7 +39,7 @@ export const kernelChat = definePlugin({
   name: "lyra.builtin.kernel-chat",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("app.main", { id: "chat", order: 0, component: KernelChat });
+    host.layout.register("app.main", kernelChatSlot(KernelChat));
   },
 });
 
@@ -42,7 +47,7 @@ export const kernelSidebar = definePlugin({
   name: "lyra.builtin.kernel-sidebar",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("app.sidebar", { id: "sidebar", order: 0, component: KernelSidebar });
+    host.layout.register("app.sidebar", kernelSidebarSlot(KernelSidebar));
   },
 });
 
@@ -50,11 +55,6 @@ export const kernelSettings = definePlugin({
   name: "lyra.builtin.kernel-settings",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, {
-      id: "settings",
-      title: "settings.title",
-      icon: "settings",
-      component: SettingsPage,
-    });
+    host.extensions.contribute(WORKSPACE_VIEW, kernelSettingsView(SettingsPage));
   },
 });
