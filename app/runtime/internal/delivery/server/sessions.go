@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
 
 // wireSessionErr maps the session domain's not-found sentinel onto the wire
@@ -157,44 +158,28 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 // at the boundary contributes only what it has already flushed. Forking deletes
 // nothing, so unlike rollback it needs no session_busy guard.
 func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
-	// Resolve the copy boundary against the parent BEFORE creating the child.
-	// copyN < 0 means "copy the whole history".
-	copyN := -1
+	var nodes []transcript.RunNode
 	if in.FromRunID != "" {
 		_, runs, err := s.rt.Transcript().List(ctx, in.SessionID)
 		if err != nil {
 			return nil, wireSessionErr(err)
 		}
-		nodes, _, err := runBoundaryNodes(runs)
+		nodes, _, err = runBoundaryNodes(runs)
 		if err != nil {
 			return nil, err
 		}
-		// requireRoot=false: fork is lax about the boundary run's kind (the
-		// contract lists only session_not_found / run_not_found).
-		b, err := transcript.BoundaryAt(nodes, in.FromRunID, false)
-		if err != nil {
-			return nil, wireBoundaryErr(err)
+	}
+
+	child, err := s.coordinator().Fork(ctx, lifecycle.ForkSpec{
+		ParentID:  in.SessionID,
+		FromRunID: in.FromRunID,
+		Runs:      nodes,
+		Title:     in.Title,
+	})
+	if err != nil {
+		if in.FromRunID != "" {
+			err = wireBoundaryErr(err)
 		}
-		copyN = b.KeepMark // -1 (unknown watermark) falls back to a full copy below
-	}
-
-	// Read the parent's history and truncate to the resolved boundary — the
-	// wire-coupled half of the fork (boundary off decoded RunRefs). copyN < 0
-	// (no boundary / unknown watermark) copies the whole history.
-	msgs, err := s.rt.ReadHistory(ctx, in.SessionID)
-	if err != nil {
-		return nil, wireSessionErr(err)
-	}
-	if copyN >= 0 && copyN < len(msgs) {
-		msgs = msgs[:copyN]
-	}
-
-	// Atomic write-set: create the child, seed the history prefix, and rename
-	// in one transaction. A failure rolls the fork back entirely — no orphan
-	// cleanup is needed because the write-set commits atomically, unlike the
-	// multi-call sequence (with a compensating purge) it replaces.
-	child, err := s.coordinator().Fork(ctx, in.SessionID, msgs, in.Title)
-	if err != nil {
 		return nil, wireSessionErr(err)
 	}
 	// A freshly forked child has no run of its own yet — idle.

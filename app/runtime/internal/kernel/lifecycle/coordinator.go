@@ -32,10 +32,12 @@ type Stores interface {
 	Session() session.Service
 	Transcript() transcript.Store
 	Interrupts() interrupts.Store
+	// ReadHistory returns the chat-memory log for a session.
+	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
 	// TruncateMessages clamps a session's chat-memory log to keepN messages
 	// (keepN=0 clears it).
 	TruncateMessages(ctx context.Context, sessionID string, keepN int) error
-	// SeedHistory replaces a session's chat-memory log with msgs (import).
+	// SeedHistory replaces a session's chat-memory log with msgs.
 	SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error
 	// ForgetSession releases the turn service's process-local state for a
 	// session that is being removed (the SessionStart gate) — see turn.Service.
@@ -123,28 +125,59 @@ func (c *Coordinator) RollbackResolved(ctx context.Context, sessionID string, b 
 	return c.Rollback(ctx, sessionID, b.KeepMark, b.DropRunIDs, b.BoundaryTime)
 }
 
-// Fork creates a child of parentID, seeds it with the supplied chat-memory
-// prefix, and renames it — as ONE transaction, so a mid-sequence failure rolls
-// the whole fork back rather than leaving an orphaned child the user never saw
-// succeed. The caller owns the wire-coupled half — decoding the stored RunRefs,
-// computing the boundary ([transcript.BoundaryAt]), and reading + truncating the
-// parent's history to that boundary — and passes only the resolved message
-// prefix here. title == "" leaves the default "<parent> (fork)".
-func (c *Coordinator) Fork(ctx context.Context, parentID string, msgs []chat.Message, title string) (session.Session, error) {
+// ForkSpec describes where a session fork should branch. Runs are the timeline
+// nodes for ParentID; empty FromRunID means copy the whole conversation.
+type ForkSpec struct {
+	ParentID  string
+	FromRunID string
+	Runs      []transcript.RunNode
+	Title     string
+}
+
+// ResolveForkHistoryPrefix applies the fork boundary to a parent history. Fork
+// accepts continuation runs (requireRoot=false) and an unknown watermark falls
+// back to a full-history copy, matching the existing snapshot semantics.
+func ResolveForkHistoryPrefix(msgs []chat.Message, nodes []transcript.RunNode, fromRunID string) ([]chat.Message, error) {
+	if fromRunID == "" {
+		return msgs, nil
+	}
+	b, err := transcript.BoundaryAt(nodes, fromRunID, false)
+	if err != nil {
+		return nil, err
+	}
+	if b.KeepMark >= 0 && b.KeepMark < len(msgs) {
+		return msgs[:b.KeepMark], nil
+	}
+	return msgs, nil
+}
+
+// Fork creates a child session, seeds it with the resolved parent history
+// prefix, and renames it as ONE transaction. The protocol adapter owns only
+// wire decoding; the boundary semantics and chat-memory prefix live here.
+func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session, error) {
+	msgs, err := c.s.ReadHistory(ctx, spec.ParentID)
+	if err != nil {
+		return session.Session{}, err
+	}
+	msgs, err = ResolveForkHistoryPrefix(msgs, spec.Runs, spec.FromRunID)
+	if err != nil {
+		return session.Session{}, err
+	}
+
 	var child session.Session
 	if err := c.s.RunInTx(ctx, func(ctx context.Context) error {
-		ch, err := c.s.Session().Fork(ctx, parentID, "")
+		ch, err := c.s.Session().Fork(ctx, spec.ParentID, "")
 		if err != nil {
 			return err
 		}
 		if err := c.s.SeedHistory(ctx, ch.ID, msgs); err != nil {
 			return err
 		}
-		if title != "" {
-			if err := c.s.Session().Rename(ctx, ch.ID, title); err != nil {
+		if spec.Title != "" {
+			if err := c.s.Session().Rename(ctx, ch.ID, spec.Title); err != nil {
 				return err
 			}
-			ch.Title = title
+			ch.Title = spec.Title
 		}
 		child = ch
 		return nil
