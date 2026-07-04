@@ -2,6 +2,7 @@ import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
 import { Collapsible, Icon } from "@/ui";
+import { stopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -126,31 +127,50 @@ export function ReasoningBlock({ text, status }: Props) {
 
   return (
     <div data-slot="reasoning-root" className="my-2 rounded-[14px] bg-surface">
-      <button
-        type="button"
-        onClick={toggle}
-        data-slot="reasoning-trigger"
-        className="flex w-full items-center gap-2 rounded-[14px] border-0 bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-fg/[0.02]"
-      >
-        <Icon name="sparkle" size={14} className="shrink-0 text-fg-muted" />
-        <span className="shrink-0 text-[13px] font-medium text-fg [font-feature-settings:'tnum']">
-          {label}
-        </span>
-        {!isOpen && preview && (
-          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-normal text-fg-faint">
-            {preview}
+      <div className="flex w-full items-center gap-2">
+        <button
+          type="button"
+          onClick={toggle}
+          data-slot="reasoning-trigger"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-[14px] border-0 bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-fg/[0.02]"
+        >
+          <Icon name="sparkle" size={14} className="shrink-0 text-fg-muted" />
+          <span className="shrink-0 text-[13px] font-medium text-fg [font-feature-settings:'tnum']">
+            {label}
           </span>
+          {!isOpen && preview && (
+            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-normal text-fg-faint">
+              {preview}
+            </span>
+          )}
+          {streaming && isOpen && (
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent shadow-[0_0_6px_var(--color-accent)] animate-pulse-dot" />
+          )}
+          <span className="flex-1" />
+          <Icon
+            name={isOpen ? "chevron-up" : "chevron-down"}
+            size={14}
+            className="shrink-0 text-fg-muted"
+          />
+        </button>
+        {/* "Answer now" — interrupt the run so the model skips the rest of its
+            thinking and commits to an answer. Only while streaming; a settled
+            block has nothing to stop. A sibling of the toggle (buttons can't
+            nest) wired to the imperative stop action — a handler read, not a
+            subscription, per §5 effect discipline. */}
+        {streaming && (
+          <button
+            type="button"
+            onClick={() => {
+              stopActiveAgentRun();
+            }}
+            data-slot="reasoning-answer-now"
+            className="mr-3.5 shrink-0 border-b border-dotted border-fg-faint/60 pb-px text-[12px] leading-none text-fg-muted transition-colors hover:border-fg hover:text-fg"
+          >
+            {t("reasoning.answerNow")}
+          </button>
         )}
-        {streaming && isOpen && (
-          <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_6px_var(--color-accent)] animate-pulse-dot" />
-        )}
-        <span className="flex-1" />
-        <Icon
-          name={isOpen ? "chevron-up" : "chevron-down"}
-          size={14}
-          className="shrink-0 text-fg-muted"
-        />
-      </button>
+      </div>
       {/* Collapsible (grid-rows), not a height:auto tween — this block lives
           inside the message stream, where FM's auto-measure makes
           use-stick-to-bottom clamp the chat to the top (see Collapsible). */}

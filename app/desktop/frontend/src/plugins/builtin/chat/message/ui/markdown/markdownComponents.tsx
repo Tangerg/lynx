@@ -6,6 +6,19 @@ import { FileRefLink } from "@/plugins/builtin/chat/file-references/public/FileR
 import { HtmlArtifact } from "./HtmlArtifact";
 import { MermaidBlock } from "./MermaidBlock";
 
+// Local favicon stand-in — a domain-initial tile, mirroring the web-search
+// result card badge. The desktop build must NOT fetch a remote favicon (e.g.
+// google's `s2/favicons` endpoint): that would leak which sources the user is
+// reading to a third party. The glyph is derived from the domain on-device.
+function SourceFavicon({ domain }: { domain: string }) {
+  const letter = (domain.replace(/^www\./, "")[0] ?? "?").toUpperCase();
+  return (
+    <span className="grid h-4 w-4 shrink-0 place-items-center rounded-[4px] bg-surface-3 text-[9px] font-semibold text-fg-muted">
+      {letter}
+    </span>
+  );
+}
+
 // Per-message citation lookup. CitationContext is scoped to the
 // owning message so two messages with [1] markers don't collide.
 function CitationBadge({ n, label }: { n: number; label: string }) {
@@ -27,7 +40,7 @@ function CitationBadge({ n, label }: { n: number; label: string }) {
       delay={200}
       side="top"
       sideOffset={6}
-      className="max-w-[360px] px-3 py-2"
+      className="max-w-[360px] px-3 py-2.5"
       trigger={
         <sup
           className="cite-marker cursor-help rounded-[5px] bg-surface-2 px-1.5 py-px text-[11px] font-medium text-fg-muted transition-colors hover:bg-accent hover:text-on-accent"
@@ -37,8 +50,11 @@ function CitationBadge({ n, label }: { n: number; label: string }) {
         </sup>
       }
     >
-      <div className="text-[11px] font-mono text-fg-faint">{source.domain}</div>
-      <div className="mt-0.5 text-[12.5px] font-semibold text-fg leading-snug">{source.title}</div>
+      <div className="flex items-center gap-1.5">
+        <SourceFavicon domain={source.domain} />
+        <span className="truncate font-mono text-[11px] text-fg-faint">{source.domain}</span>
+      </div>
+      <div className="mt-1.5 text-[12.5px] font-semibold text-fg leading-snug">{source.title}</div>
       <div className="mt-1 text-[11.5px] text-fg-muted leading-snug line-clamp-3">
         {source.snippet}
       </div>

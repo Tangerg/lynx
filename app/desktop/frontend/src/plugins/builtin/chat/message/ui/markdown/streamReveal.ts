@@ -34,6 +34,24 @@ const DRAIN_RATE_PER_CHAR = 8;
 
 const SENTENCE_END_RE = /[。！？…!?.]$/;
 
+// Reduced-motion gate. Progressive reveal is JS-driven (it grows the visible
+// text length over time), so the blanket `prefers-reduced-motion` rule in
+// globals.css — which only tones down CSS transition/animation durations —
+// cannot reach it. We short-circuit here so reduced-motion users get the full
+// text at once, no typewriter / per-word crawl. Honours BOTH the OS media query
+// AND the in-app "Motion: Off" setting (which stamps `data-motion="off"` on
+// :root, the same signal the CSS rule keys on) so the two stay consistent.
+function prefersReducedMotion(): boolean {
+  if (typeof document !== "undefined") {
+    if (document.documentElement.getAttribute("data-motion") === "off") return true;
+  }
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 // Exported so tests can pin the rate selection. Not part of the markdown
 // package surface otherwise.
 export function pickRate(backlog: number, streaming: boolean): number {
@@ -52,7 +70,12 @@ export function pickRate(backlog: number, streaming: boolean): number {
 // sentence pauses (smooth, the default) to raw character-by-character. The rAF
 // loop stays mounted so stream-end transitions drain gracefully.
 export function useStreamReveal(rawText: string, enabled: boolean, typewriter = false): string {
-  const initialLen = enabled ? 0 : rawText.length;
+  // Reduced motion collapses the reveal: start fully revealed, never arm the
+  // rAF loop, and return the full text on every render (see the guards below).
+  const reduce = prefersReducedMotion();
+  const active = enabled && !reduce;
+
+  const initialLen = active ? 0 : rawText.length;
   const [displayLen, setDisplayLen] = useState(initialLen);
 
   // Live state in refs — the rAF tick reads the freshest values without
@@ -68,8 +91,8 @@ export function useStreamReveal(rawText: string, enabled: boolean, typewriter = 
 
   // Mirror the live flags into refs so the rAF closure picks up the latest
   // values without re-subscribing.
-  const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
+  const enabledRef = useRef(active);
+  enabledRef.current = active;
   const typewriterRef = useRef(typewriter);
   typewriterRef.current = typewriter;
 
@@ -185,9 +208,50 @@ export function useStreamReveal(rawText: string, enabled: boolean, typewriter = 
 
   // Re-arm on every text growth (one cheap effect per delta on the single
   // streaming message; settled messages never re-render so never re-run it).
+  // Under reduced motion the loop stays parked — nothing to re-arm.
   useEffect(() => {
+    if (reduce) return;
     armRef.current();
-  }, [rawText]);
+  }, [rawText, reduce]);
 
-  return rawText.slice(0, displayLen);
+  // Reduced motion returns the full text directly, bypassing displayLen (which
+  // is pinned at mount but never advanced, since the loop never arms).
+  return reduce ? rawText : rawText.slice(0, displayLen);
+}
+
+// Commit-throttle ceiling for the markdown re-parse. `useStreamReveal` advances
+// the visible text a few characters per rAF frame, so its output changes
+// ~60×/s; re-parsing + re-rendering the whole markdown block tree that often is
+// work the eye cannot resolve for a text reveal. This coalesces the input to at
+// most one commit per `minMs` (a leading commit, then a trailing one), so a
+// burst of tiny tokens cannot trigger a parse every frame. The trailing edge
+// ALWAYS flushes the latest value, so the final (settled) text is never left as
+// a stale slice. `minMs <= 0` is a passthrough — used once the stream ends (the
+// short drain should land promptly) and for instant/user text.
+export function useCommitThrottle(value: string, minMs: number): string {
+  const [committed, setCommitted] = useState(value);
+  const lastCommitRef = useRef(0);
+
+  useEffect(() => {
+    if (minMs <= 0) {
+      setCommitted(value);
+      return;
+    }
+    const elapsed = performance.now() - lastCommitRef.current;
+    if (elapsed >= minMs) {
+      lastCommitRef.current = performance.now();
+      setCommitted(value);
+      return;
+    }
+    // Inside the window — schedule a trailing commit of this (latest) value.
+    // A newer value re-runs the effect, whose cleanup clears this timer and
+    // schedules one for the newer value, so the trailing edge is always fresh.
+    const id = setTimeout(() => {
+      lastCommitRef.current = performance.now();
+      setCommitted(value);
+    }, minMs - elapsed);
+    return () => clearTimeout(id);
+  }, [value, minMs]);
+
+  return committed;
 }

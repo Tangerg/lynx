@@ -31,6 +31,7 @@ export const en: Record<string, string> = {
   "composer.paste.chars": "Pasted · {{count}} chars",
   "composer.paste.remove": "Remove pasted text",
   "composer.mention.heading": "Files",
+  "composer.drop.images": "Drop images to attach",
   "composer.gitBranch": "Git branch",
   "composer.usage.hint": "Token usage — input ↑ / output ↓ (this run)",
   "composer.usage.context": "Context window used",
@@ -423,6 +424,7 @@ export const en: Record<string, string> = {
   "approval.args.label": "Arguments",
   "approval.args.edit": "Edit",
   "approval.args.invalid": "Invalid JSON — fix or decline",
+  "approval.grants": "Approving allows:",
   "question.required": "Input needed",
   "question.multiSelect": "Multiple choice",
   "question.action.submit": "Submit",
@@ -812,6 +814,7 @@ export const en: Record<string, string> = {
   "reasoning.thoughtFor": "Thought for {{time}}",
   "reasoning.thought": "Thought",
   "reasoning.interrupted": "interrupted",
+  "reasoning.answerNow": "Answer now",
 
   // ── VCS gate ──
   "vcs.gitNotAvailable": "Git not available",

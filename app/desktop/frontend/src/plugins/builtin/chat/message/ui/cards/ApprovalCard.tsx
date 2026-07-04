@@ -192,8 +192,15 @@ export function ApprovalCard({
           }}
         />
       )}
+      {/* Grants summary — spells out what approving actually permits (side-effect
+          categories + target + reversibility) so the decision is informed, not a
+          blind "OK". Presentation-only; the underlying scope/target/reversible
+          fields are the protocol's, untouched. */}
       {(scopeViews.length > 0 || target || reversibilityView) && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <span className="mr-0.5 text-[11px] font-medium text-fg-faint">
+            {t("approval.grants")}
+          </span>
           {scopeViews.map((view) => (
             <span
               key={view.scope}

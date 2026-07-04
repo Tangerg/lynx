@@ -7,6 +7,7 @@ import { enterUp } from "@/lib/motion";
 import { bcp47 } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { basename } from "@/lib/path";
+import { Loader } from "@/ui";
 import { Slot } from "@/plugins/host/Slot";
 import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
 import { useActiveSession } from "@/plugins/builtin/agent/public/session";
@@ -169,11 +170,24 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
                 {...enterUp}
                 className="[content-visibility:auto] [contain-intrinsic-size:auto_220px]"
               >
-                <MessageBlock msg={m} ctx={ctx} />
+                <MessageBlock
+                  msg={m}
+                  ctx={ctx}
+                  isLast={i === messages.length - 1}
+                  isRunning={running}
+                />
               </motion.div>
             </Fragment>
           ))}
         </AnimatePresence>
+        {/* Waiting-for-response indicator — the run is live but the assistant
+            hasn't opened its turn yet (last message is still the user's). Once
+            the assistant message arrives it takes over, so this hides itself. */}
+        {running && messages[messages.length - 1]?.role === "user" && (
+          <div data-slot="assistant-waiting" className="flex">
+            <Loader variant="dots" />
+          </div>
+        )}
       </StickToBottom.Content>
       <ControlsRelay onChange={onControlsChange} />
     </StickToBottom>
