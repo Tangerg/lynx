@@ -133,7 +133,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 ### 4.1 app-shell 结构
 - `AgentClientPage.tsx` 只组合 `AgentAppShell`：Work Index / Agent Workspace / overlay 三个 slot。
-- `AgentAppShell` → `.agent-window-grid` CSS grid `244px | minmax(0,1fr)`（rail `56px | 1fr`，settings single mode `1fr`）。
+- `AgentAppShell` → `.agent-shell-grid` 直接铺满 Wails 页面，CSS grid `244px | minmax(0,1fr)`（rail `56px | 1fr`，settings single mode `1fr`）。不再绘制内嵌假窗口。
 - 主区：`ChatPanel.tsx` 编排 `AgentPaneHeader` + `ChatStream` + session-scoped `AgentContextDock`。
 
 ### 4.2 侧栏的 11 个具体丑因（重构目标清单）

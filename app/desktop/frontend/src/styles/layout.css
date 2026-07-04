@@ -5,7 +5,6 @@
 :root {
   --app-min-width: 1120px;
   --app-min-height: 720px;
-  --app-frame-gutter: 20px;
 }
 
 html,
@@ -13,8 +12,8 @@ body,
 #root {
   height: 100%;
   margin: 0;
-  min-width: calc(var(--app-min-width) + var(--app-frame-gutter));
-  min-height: calc(var(--app-min-height) + var(--app-frame-gutter));
+  min-width: var(--app-min-width);
+  min-height: var(--app-min-height);
   overflow: hidden;
 }
 
@@ -30,40 +29,16 @@ html.theme-light {
 }
 
 .agent-app {
-  display: grid;
-  place-items: center;
+  position: relative;
   width: 100vw;
   height: 100vh;
-  min-width: calc(var(--app-min-width) + var(--app-frame-gutter));
-  min-height: calc(var(--app-min-height) + var(--app-frame-gutter));
-  padding: 10px;
-  background:
-    radial-gradient(
-      circle at 50% -10%,
-      color-mix(in oklab, var(--color-surface) 42%, transparent),
-      transparent 36%
-    ),
-    radial-gradient(
-      circle at 12% 14%,
-      color-mix(in oklab, var(--color-accent) 9%, transparent),
-      transparent 34%
-    ),
-    var(--color-bg);
-}
-
-.agent-window {
-  display: grid;
-  width: min(1440px, calc(100vw - var(--app-frame-gutter)));
-  height: min(892px, calc(100vh - var(--app-frame-gutter)));
   min-width: var(--app-min-width);
   min-height: var(--app-min-height);
   overflow: hidden;
-  border-radius: 14px;
   background: var(--color-bg);
-  box-shadow: var(--shadow-window);
 }
 
-.agent-window-grid {
+.agent-shell-grid {
   display: grid;
   grid-template-columns: 244px minmax(0, 1fr);
   width: 100%;
@@ -71,11 +46,11 @@ html.theme-light {
   min-height: 0;
 }
 
-.agent-app-rail .agent-window-grid {
+.agent-app-rail .agent-shell-grid {
   grid-template-columns: 56px minmax(0, 1fr);
 }
 
-.agent-app-single .agent-window-grid {
+.agent-app-single .agent-shell-grid {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -238,24 +213,4 @@ html.theme-light {
 }
 .sidebar.rail {
   padding-top: 0;
-}
-
-@media (max-width: 1160px), (max-height: 760px) {
-  html,
-  body,
-  #root,
-  .agent-app {
-    min-width: var(--app-min-width);
-    min-height: var(--app-min-height);
-  }
-
-  .agent-app {
-    padding: 0;
-  }
-
-  .agent-window {
-    width: 100vw;
-    height: 100vh;
-    border-radius: 0;
-  }
 }
