@@ -1,6 +1,7 @@
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
 import { installPersonalizationPreferencesPort } from "./adapters/uiPersonalizationPreferences";
+import { personalizationSettingsPane } from "./application/personalizationContributions";
 import { PersonalizationPane } from "./ui/PersonalizationPane";
 
 export default definePlugin({
@@ -8,13 +9,6 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     installPersonalizationPreferencesPort();
-    registerSettingsPane(host, {
-      id: "personalization",
-      label: "settings.pane.personalization",
-      group: "general",
-      icon: "user",
-      order: 1,
-      component: PersonalizationPane,
-    });
+    registerSettingsPane(host, personalizationSettingsPane(PersonalizationPane));
   },
 });
