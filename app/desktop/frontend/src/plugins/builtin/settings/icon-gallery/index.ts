@@ -9,26 +9,17 @@ import { definePlugin } from "@/plugins/sdk";
 import { t } from "@/lib/i18n";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { registerSettingsPane } from "../public";
+import {
+  brandIconsSettingsPane,
+  iconGalleryWorkspaceView,
+} from "./application/iconGalleryContributions";
 
 export default definePlugin({
   name: "lyra.builtin.icon-gallery",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, {
-      id: "icon-gallery",
-      title: "workspace.view.title.iconGallery",
-      icon: "spark",
-      order: 60,
-      component: IconGallery,
-    });
+    host.extensions.contribute(WORKSPACE_VIEW, iconGalleryWorkspaceView(IconGallery));
 
-    registerSettingsPane(host, {
-      id: "brand-icons",
-      label: t("settings.pane.brandIcons"),
-      group: "advanced",
-      icon: "spark",
-      order: 110,
-      component: IconShowcase,
-    });
+    registerSettingsPane(host, brandIconsSettingsPane(t, IconShowcase));
   },
 });
