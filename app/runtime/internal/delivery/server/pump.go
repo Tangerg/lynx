@@ -6,12 +6,10 @@ import (
 	"iter"
 	"time"
 
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -85,17 +83,23 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 	// The session's cwd, resolved once: tool-derived files.changed events carry
 	// it so a workspace subscriber can scope the (cwd-relative) paths.
 	cwd := s.sessionCwd(ctx, handle.SessionID)
+	effects := s.runSegmentEffects()
+	openingText := ""
+	if parentRunID == "" {
+		openingText = userMessageText(userInput)
+	}
 
 	// emit assigns each StreamEvent its eventId, appends it to the hub (live
-	// delivery + in-memory replay backlog), then persists the durable side to
-	// history. Append is non-blocking (it drops on a slow subscriber, never
-	// stalls the run), and it runs BEFORE the durable persist so a slow DB write
-	// (SQLite single-writer contention — e.g. a concurrent compaction holding the
-	// connection) can't delay the terminal run.finished reaching live subscribers
-	// or the pump teardown. Live reconnect replays from the hub backlog, not the
-	// persist; the persist feeds items.list + cross-restart only. Exception: the
-	// interrupt record is written before the append (see below) because a client
-	// can resume the instant it sees run.finished{interrupt}.
+	// delivery + in-memory replay backlog), then hands the durable / workspace
+	// side effects to kernel/runsegment. Append is non-blocking (it drops on a
+	// slow subscriber, never stalls the run), and it runs BEFORE the durable
+	// transcript write so a slow DB write (SQLite single-writer contention —
+	// e.g. a concurrent compaction holding the connection) can't delay the
+	// terminal run.finished reaching live subscribers or the pump teardown. Live
+	// reconnect replays from the hub backlog, not the durable store; the store
+	// feeds items.list + cross-restart only. Exception: the interrupt record is
+	// written before the append because a client can resume the instant it sees
+	// run.finished{interrupt}.
 	emit := func(events []protocol.StreamEvent) {
 		for _, se := range events {
 			re := protocol.RunEvent{
@@ -110,7 +114,6 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 					switch se.Outcome.Type {
 					case protocol.OutcomeInterrupt:
 						parked = true
-						s.recordInterrupt(ctx, runID, handle, se.Outcome.Interrupts, tr.parkDrained)
 					case protocol.OutcomeCanceled:
 						// Flow the runs.cancel reason to the outcome detail (S6)
 						// so the client can tell user-canceled from other stops.
@@ -122,19 +125,30 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 					}
 				}
 			}
+			side := s.sideEffectEvent(runID, handle.SessionID, parentRunID, cwd, se, provider, model)
+			if se.Type == protocol.StreamRunFinished && se.Outcome != nil && se.Outcome.Type == protocol.OutcomeInterrupt {
+				if raw, err := json.Marshal(se.Outcome.Interrupts); err == nil {
+					side.Interrupt = &runsegment.Interrupt{
+						RunID:        runID,
+						Handle:       handle,
+						Provider:     provider,
+						Model:        model,
+						Payload:      raw,
+						DrainedTools: tr.parkDrained,
+					}
+				}
+			}
+			effects.BeforeLive(ctx, side)
 			// Live first: deliver to subscribers + retain in the hub's in-memory
-			// replay backlog. recordInterrupt (the interrupt branch above) already
-			// ran, so a resume triggered by this event finds its record.
+			// replay backlog. BeforeLive already ran, so a resume triggered by an
+			// interrupt terminal event finds its record.
 			hub.Append(re)
 			// Persist off a cancel-decoupled ctx so the durable history (incl.
 			// the terminal run.finished synthesized on a canceled run) lands
 			// regardless of run-ctx cancellation — WithoutCancel keeps the
 			// trace span (full-link), unlike context.Background(). After the
 			// append so the DB never gates live delivery (see emit's doc).
-			s.persistStreamEvent(context.WithoutCancel(ctx), runID, handle.SessionID, parentRunID, se, provider, model)
-			// Tell workspace subscribers a file changed when an agent file tool
-			// completes — precise + fd-free, so the watcher needn't watch the tree.
-			s.emitToolFileChange(cwd, se)
+			effects.AfterLive(context.WithoutCancel(ctx), side)
 		}
 	}
 
@@ -163,20 +177,15 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 				e.Payload.cancel()
 			}
 		}
-		// Anchor the file checkpoint for this run boundary AFTER teardown and
-		// OFF the run.finished path: async + best-effort, so a slow snapshot
-		// (or none, for a non-git dir — gated in workspace.Snapshot) never
-		// holds up the terminal event or the run's teardown. Only on a true
-		// terminal (a parked run is resumable, not a boundary). WithoutCancel
-		// detaches from the run ctx the cancel() above just fired; the Store
-		// serializes per session so it can't race the next run's snapshot.
-		if !parked {
-			go s.snapshotCheckpoint(context.WithoutCancel(ctx), handle.SessionID, runID)
-			// Auto-name an untitled session from its first user message — async +
-			// best-effort off the terminal path, same discipline as the snapshot
-			// above (an LLM call must never hold up the run's teardown).
-			go s.maybeTitleSession(context.WithoutCancel(ctx), handle.SessionID, parentRunID, userInput)
-		}
+		// Terminal maintenance stays off the run.finished path: async +
+		// best-effort, so a slow snapshot or title LLM call never holds up live
+		// delivery or teardown. A parked run is resumable, not a boundary.
+		effects.Finish(ctx, runsegment.Finish{
+			SessionID:       handle.SessionID,
+			RunID:           runID,
+			Parked:          parked,
+			OpeningUserText: openingText,
+		})
 	}()
 
 	for ev := range inner {
@@ -185,48 +194,5 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			// Interrupt segment done; leave the turn parked for resume.
 			return
 		}
-	}
-}
-
-// recordInterrupt persists the open interrupt so runs.listOpenInterrupts
-// can discover it and runs.resume can map it back to the live turn.
-// drained is the backend-private snapshot of tool items open at park
-// time — see [interrupts.Pending.DrainedTools].
-func (s *Server) recordInterrupt(ctx context.Context, runID string, handle turn.TurnHandle, ints []protocol.Interrupt, drained []interrupts.DrainedTool) {
-	raw, err := json.Marshal(ints)
-	if err != nil {
-		return
-	}
-	// Best-effort: persist the interrupt record so the run can be
-	// resumed across restarts. If Put fails, same-process resume still
-	// works (the process is parked in-memory), but cross-restart resume
-	// will not find this interrupt — so record both errors on the run's span
-	// (ctx keeps it, full-link) rather than dropping them silently, mirroring
-	// persistItem / persistRun. A missing ProcessID also makes a later
-	// rehydrate fail far from here, so it's worth the breadcrumb too.
-	processID, perr := s.rt.Chat().ProcessID(ctx, handle)
-	if perr != nil {
-		trace.SpanFromContext(ctx).RecordError(perr)
-	}
-	// Carry the run's per-run model selection onto the interrupt so a
-	// cross-restart rehydrate rebuilds the SAME model client (the live process
-	// holds it in memory; the persisted record is the only place it survives a
-	// restart).
-	var provider, model string
-	if e, ok := s.runs.Get(runID); ok {
-		provider, model = e.Record.Provider, e.Record.Model
-	}
-	if err := s.rt.Interrupts().Put(ctx, interrupts.Pending{
-		ParentRunID:  runID,
-		SessionID:    handle.SessionID,
-		TurnID:       handle.TurnID,
-		ProcessID:    processID,
-		Provider:     provider,
-		Model:        model,
-		Interrupts:   raw,
-		DrainedTools: drained,
-		CreatedAt:    time.Now().UTC(),
-	}); err != nil {
-		trace.SpanFromContext(ctx).RecordError(err)
 	}
 }

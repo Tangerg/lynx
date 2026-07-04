@@ -141,8 +141,9 @@ func TestRollbackSession_Busy(t *testing.T) {
 // persisted CreatedAt as zero (json:"createdAt,omitzero"), which collapsed the
 // rollback boundary time to the zero time → purgeSubtasksAfter then purged EVERY
 // subagent child, including kept runs'. The putRun test helper writes a real
-// CreatedAt and so bypassed the production persist path that exposed this — this
-// drives persistStreamEvent directly.
+// CreatedAt and so bypassed the production stream side-effect path that exposed
+// this — this drives the same side-effect payload the pump hands to
+// kernel/runsegment.
 func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
@@ -151,10 +152,11 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	started := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
 	s.runs.Open(runstate.Record{ID: "run_1", SessionID: sess.ID, CreatedAt: started}, nil)
 
-	s.persistStreamEvent(ctx, "run_1", sess.ID, "", protocol.StreamEvent{
+	ev := s.sideEffectEvent("run_1", sess.ID, "", "", protocol.StreamEvent{
 		Type:    protocol.StreamRunFinished,
 		Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted},
 	}, "", "")
+	s.runSegmentEffects().AfterLive(ctx, ev)
 
 	_, runs, err := rt.hist.List(ctx, sess.ID)
 	if err != nil || len(runs) != 1 {
