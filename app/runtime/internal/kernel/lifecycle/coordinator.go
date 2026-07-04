@@ -6,10 +6,11 @@
 // mid-sequence failure leaves no half-mutated session.
 //
 // These are use-case orchestration, not protocol adaptation: keeping them here
-// (driven by the protocol adapter, which still owns wire decode and busy
-// guards) holds the "thin delivery" line and lets the write-sets be tested
-// without standing up the wire. The adapter lifts wire blobs into domain values;
-// the Coordinator decides and executes the multi-domain mutation atomically.
+// (driven by the protocol adapter, which still owns wire decode and streaming
+// registry concerns) holds the "thin delivery" line and lets the write-sets be
+// tested without standing up the wire. The adapter lifts wire blobs into domain
+// values; the Coordinator decides and executes the multi-domain mutation
+// atomically.
 package lifecycle
 
 import (
@@ -62,12 +63,36 @@ var ErrRunNotFound = errors.New("lifecycle: run not found")
 // longer open.
 var ErrInterruptNotOpen = errors.New("lifecycle: interrupt not open")
 
+// ErrSessionBusy reports that a session already has an active or parked run.
+var ErrSessionBusy = errors.New("lifecycle: session busy")
+
 // New returns a Coordinator over s.
 func New(s Stores) *Coordinator { return &Coordinator{s: s} }
+
+// SessionClaimer is the run-admission slot used to enforce one writer per
+// session across active runs and start/resume races.
+type SessionClaimer interface {
+	ClaimSession(sessionID string) bool
+	ReleaseSession(sessionID string)
+}
 
 // TurnCanceler is the turn-service slice needed to abandon a run.
 type TurnCanceler interface {
 	Cancel(context.Context, turn.TurnHandle) error
+}
+
+// RunAdmission is a held single-writer slot. Release must be called exactly
+// once by the caller after the run segment is registered or admission fails.
+type RunAdmission struct {
+	SessionID string
+	release   func()
+}
+
+// Release drops the held single-writer slot.
+func (a RunAdmission) Release() {
+	if a.release != nil {
+		a.release()
+	}
 }
 
 // TurnResumer is the turn-service slice needed to continue an interrupt.
@@ -157,6 +182,47 @@ func (c *Coordinator) RollbackResolved(ctx context.Context, sessionID string, b 
 		return nil
 	}
 	return c.Rollback(ctx, sessionID, b.KeepMark, b.DropRunIDs, b.BoundaryTime)
+}
+
+// ClaimRunSlot reserves a session's single-writer slot for a fresh run and
+// rejects sessions already parked on an open interrupt.
+func (c *Coordinator) ClaimRunSlot(ctx context.Context, claims SessionClaimer, sessionID string) (RunAdmission, error) {
+	if !claims.ClaimSession(sessionID) {
+		return RunAdmission{}, ErrSessionBusy
+	}
+	admission := RunAdmission{
+		SessionID: sessionID,
+		release:   func() { claims.ReleaseSession(sessionID) },
+	}
+	open, err := c.s.Interrupts().List(ctx, sessionID)
+	if err != nil {
+		admission.Release()
+		return RunAdmission{}, err
+	}
+	if len(open) > 0 {
+		admission.Release()
+		return RunAdmission{}, ErrSessionBusy
+	}
+	return admission, nil
+}
+
+// ClaimResumeSlot peeks an open interrupt to find its session, then reserves
+// that session's single-writer slot before the interrupt is consumed.
+func (c *Coordinator) ClaimResumeSlot(ctx context.Context, claims SessionClaimer, parentRunID string) (interrupts.Pending, RunAdmission, error) {
+	pending, found, err := c.s.Interrupts().Get(ctx, parentRunID)
+	if err != nil {
+		return interrupts.Pending{}, RunAdmission{}, err
+	}
+	if !found {
+		return interrupts.Pending{}, RunAdmission{}, ErrInterruptNotOpen
+	}
+	if !claims.ClaimSession(pending.SessionID) {
+		return pending, RunAdmission{}, ErrSessionBusy
+	}
+	return pending, RunAdmission{
+		SessionID: pending.SessionID,
+		release:   func() { claims.ReleaseSession(pending.SessionID) },
+	}, nil
 }
 
 // CancelParkedRun abandons a run that has already left the live run stream and

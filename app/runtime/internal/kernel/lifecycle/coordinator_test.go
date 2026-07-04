@@ -117,6 +117,105 @@ func TestCancelParkedRunMissing(t *testing.T) {
 	}
 }
 
+func TestClaimRunSlotHoldsAndReleasesSession(t *testing.T) {
+	stores := cancelStores{interrupts: &cancelInterrupts{pending: map[string]interrupts.Pending{}}}
+	claimer := &testClaimer{}
+
+	admission, err := New(stores).ClaimRunSlot(context.Background(), claimer, "ses_1")
+	if err != nil {
+		t.Fatalf("claim run slot: %v", err)
+	}
+	if admission.SessionID != "ses_1" {
+		t.Fatalf("admission session = %q, want ses_1", admission.SessionID)
+	}
+	if !claimer.claimed["ses_1"] {
+		t.Fatal("session should be claimed")
+	}
+
+	admission.Release()
+	if claimer.claimed["ses_1"] {
+		t.Fatal("session should be released")
+	}
+	if len(claimer.released) != 1 || claimer.released[0] != "ses_1" {
+		t.Fatalf("released = %v, want [ses_1]", claimer.released)
+	}
+}
+
+func TestClaimRunSlotRejectsOpenInterrupt(t *testing.T) {
+	stores := cancelStores{
+		interrupts: &cancelInterrupts{
+			pending: map[string]interrupts.Pending{
+				"run_1": {ParentRunID: "run_1", SessionID: "ses_1"},
+			},
+		},
+	}
+	claimer := &testClaimer{}
+
+	_, err := New(stores).ClaimRunSlot(context.Background(), claimer, "ses_1")
+	if !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("err = %v, want ErrSessionBusy", err)
+	}
+	if claimer.claimed["ses_1"] {
+		t.Fatal("failed admission must release its claim")
+	}
+	if len(claimer.released) != 1 || claimer.released[0] != "ses_1" {
+		t.Fatalf("released = %v, want [ses_1]", claimer.released)
+	}
+}
+
+func TestClaimRunSlotRejectsActiveClaim(t *testing.T) {
+	stores := cancelStores{interrupts: &cancelInterrupts{pending: map[string]interrupts.Pending{}}}
+	claimer := &testClaimer{claimed: map[string]bool{"ses_1": true}}
+
+	_, err := New(stores).ClaimRunSlot(context.Background(), claimer, "ses_1")
+	if !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("err = %v, want ErrSessionBusy", err)
+	}
+	if len(claimer.released) != 0 {
+		t.Fatalf("released = %v, want none", claimer.released)
+	}
+}
+
+func TestClaimResumeSlotPeeksAndClaimsInterruptSession(t *testing.T) {
+	stores := cancelStores{
+		interrupts: &cancelInterrupts{
+			pending: map[string]interrupts.Pending{
+				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+			},
+		},
+	}
+	claimer := &testClaimer{}
+
+	pending, admission, err := New(stores).ClaimResumeSlot(context.Background(), claimer, "run_1")
+	if err != nil {
+		t.Fatalf("claim resume slot: %v", err)
+	}
+	if pending.ParentRunID != "run_1" || pending.SessionID != "ses_1" {
+		t.Fatalf("pending = %+v, want run_1/ses_1", pending)
+	}
+	if admission.SessionID != "ses_1" || !claimer.claimed["ses_1"] {
+		t.Fatalf("admission = %+v claimed = %v, want ses_1 claimed", admission, claimer.claimed)
+	}
+
+	admission.Release()
+	if claimer.claimed["ses_1"] {
+		t.Fatal("resume admission should release the session")
+	}
+}
+
+func TestClaimResumeSlotMissingInterrupt(t *testing.T) {
+	stores := cancelStores{interrupts: &cancelInterrupts{pending: map[string]interrupts.Pending{}}}
+	claimer := &testClaimer{}
+
+	_, _, err := New(stores).ClaimResumeSlot(context.Background(), claimer, "missing")
+	if !errors.Is(err, ErrInterruptNotOpen) {
+		t.Fatalf("err = %v, want ErrInterruptNotOpen", err)
+	}
+	if len(claimer.claimed) != 0 {
+		t.Fatalf("claimed = %v, want none", claimer.claimed)
+	}
+}
+
 func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
 	stores := cancelStores{
 		interrupts: &cancelInterrupts{
@@ -230,8 +329,14 @@ func (s *cancelInterrupts) Put(_ context.Context, p interrupts.Pending) error {
 	return nil
 }
 
-func (s *cancelInterrupts) List(context.Context, string) ([]interrupts.Pending, error) {
-	panic("unused")
+func (s *cancelInterrupts) List(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
+	out := make([]interrupts.Pending, 0, len(s.pending))
+	for _, p := range s.pending {
+		if sessionID == "" || p.SessionID == sessionID {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 
 func (s *cancelInterrupts) Get(_ context.Context, parentRunID string) (interrupts.Pending, bool, error) {
@@ -254,6 +359,27 @@ func (s *cancelInterrupts) Delete(_ context.Context, parentRunID string) error {
 	}
 	delete(s.pending, parentRunID)
 	return nil
+}
+
+type testClaimer struct {
+	claimed  map[string]bool
+	released []string
+}
+
+func (c *testClaimer) ClaimSession(sessionID string) bool {
+	if c.claimed == nil {
+		c.claimed = map[string]bool{}
+	}
+	if c.claimed[sessionID] {
+		return false
+	}
+	c.claimed[sessionID] = true
+	return true
+}
+
+func (c *testClaimer) ReleaseSession(sessionID string) {
+	c.released = append(c.released, sessionID)
+	delete(c.claimed, sessionID)
 }
 
 type cancelTurns struct {
