@@ -6,15 +6,12 @@
 
 import { PluginToaster } from "@/plugins/host/PluginToaster";
 import { definePlugin } from "@/plugins/sdk";
+import { toasterOverlaySlot } from "./application/toasterContributions";
 
 export default definePlugin({
   name: "lyra.builtin.toaster",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("app.overlay", {
-      id: "toaster",
-      order: 100, // after the settings modal (order 0)
-      component: PluginToaster,
-    });
+    host.layout.register("app.overlay", toasterOverlaySlot(PluginToaster));
   },
 });
