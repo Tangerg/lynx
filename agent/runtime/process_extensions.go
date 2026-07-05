@@ -1,8 +1,9 @@
 package runtime
 
 import (
+	"reflect"
+
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // platformServices returns the platform's open service registry, or a
@@ -14,11 +15,11 @@ func (p *AgentProcess) platformServices() *core.ServiceProvider {
 	return p.platform.services
 }
 
-// platformChatClient returns the platform's shared [chat.Client], or
+// platformChatClient returns the platform's shared [core.ChatClient], or
 // nil when the platform was constructed without one (or when there's
 // no platform attached — test fixtures). Action code reaches this via
 // ProcessContext.Chat / ChatWithActionTools.
-func (p *AgentProcess) platformChatClient() *chat.Client {
+func (p *AgentProcess) platformChatClient() core.ChatClient {
 	if p.platform == nil {
 		return nil
 	}
@@ -31,14 +32,30 @@ func (p *AgentProcess) platformChatClient() *chat.Client {
 // else the platform's shared client. This is what lets one Platform serve
 // turns against different models without a Platform per model. Mirrors the
 // resolver-first ordering used for tool group resolution.
-func (p *AgentProcess) effectiveChatClient() *chat.Client {
+func (p *AgentProcess) effectiveChatClient() core.ChatClient {
 	providers := collectExtensions[core.ChatClientProvider](p.combinedExtensionsResolverFirst())
 	for _, prov := range providers {
-		if c := prov.ChatClientFor(p); c != nil {
+		if c := normalizeChatClient(prov.ChatClientFor(p)); c != nil {
 			return c
 		}
 	}
 	return p.platformChatClient()
+}
+
+// normalizeChatClient collapses typed nil implementations stored in the
+// interface so provider overrides can still fall back to the platform default.
+func normalizeChatClient(client core.ChatClient) core.ChatClient {
+	if client == nil {
+		return nil
+	}
+	value := reflect.ValueOf(client)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		if value.IsNil() {
+			return nil
+		}
+	}
+	return client
 }
 
 // platformGuardrails returns the platform-level chat guardrails, or

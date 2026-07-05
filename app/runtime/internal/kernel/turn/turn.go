@@ -237,7 +237,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 	// Resolve a per-turn client when the run picked a provider+model and a
 	// resolver is wired; no selection / no resolver runs on the platform's
 	// default client.
-	var client *corechat.Client
+	var client core.ChatClient
 	if req.Provider != "" && req.Model != "" && s.resolver != nil {
 		c, err := s.resolver.ResolveClient(st.ctx, req.Provider, req.Model)
 		if err != nil {

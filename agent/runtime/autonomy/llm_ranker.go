@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/agent/core"
 )
 
 // LLMRanker is a [Ranker] that asks an LLM to score each candidate
@@ -17,7 +17,7 @@ import (
 // misbehaving model fails closed (= "irrelevant") rather than
 // hijacking selection.
 type LLMRanker struct {
-	client *chat.Client
+	client core.ChatClient
 	cfg    LLMRankerConfig
 }
 
@@ -38,9 +38,9 @@ type LLMRankerConfig struct {
 
 // NewLLMRanker constructs a ranker backed by client. Returns an error
 // on a nil client — caller decides whether to surface or panic.
-func NewLLMRanker(client *chat.Client, cfg LLMRankerConfig) (*LLMRanker, error) {
+func NewLLMRanker(client core.ChatClient, cfg LLMRankerConfig) (*LLMRanker, error) {
 	if client == nil {
-		return nil, errors.New("autonomy.NewLLMRanker: chat.Client must not be nil")
+		return nil, errors.New("autonomy.NewLLMRanker: ChatClient must not be nil")
 	}
 	return &LLMRanker{client: client, cfg: cfg}, nil
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // Platform is the agent runtime's top-level container — registers
@@ -39,7 +38,7 @@ type Platform struct {
 
 	events       *event.Multicast      // populated from EventListener extensions
 	services     *core.ServiceProvider // open registry exposed via Platform.Services()
-	chatClient   *chat.Client          // optional shared LLM client
+	chatClient   core.ChatClient       // optional shared LLM client
 	guardrails   *core.Guardrails      // optional global chat middlewares
 	processStore core.ProcessStore     // optional snapshot backend
 	sessionStore core.SessionStore     // optional session persistence
@@ -51,11 +50,11 @@ type Platform struct {
 // framework defaults — UUID id generator, GOAP A* planner factory,
 // in-memory blackboard, no listeners, no tool resolvers.
 type PlatformConfig struct {
-	// ChatClient is the shared [chat.Client] every action body
+	// ChatClient is the shared [core.ChatClient] every action body
 	// reaches via [core.ProcessContext.Chat] /
 	// [core.ProcessContext.ChatWithActionTools]. Optional — agents
 	// that don't talk to an LLM leave it nil.
-	ChatClient *chat.Client
+	ChatClient core.ChatClient
 
 	// Guardrails are platform-wide chat middlewares applied to every
 	// LLM call action bodies issue through [core.ProcessContext.Chat]
@@ -111,7 +110,7 @@ func NewPlatform(config PlatformConfig) *Platform {
 		extensions:   newExtensionRegistry(),
 		events:       event.NewMulticast(),
 		services:     core.NewServiceProvider(),
-		chatClient:   config.ChatClient,
+		chatClient:   normalizeChatClient(config.ChatClient),
 		guardrails:   config.Guardrails,
 		processStore: config.ProcessStore,
 		sessionStore: config.SessionStore,

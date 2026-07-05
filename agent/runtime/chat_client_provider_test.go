@@ -48,11 +48,13 @@ func (m *recordingModel) Stream(ctx context.Context, req *chat.Request) iter.Seq
 // these per turn carrying the run's chosen model).
 type fixedClientProvider struct {
 	name   string
-	client *chat.Client
+	client core.ChatClient
 }
 
-func (f fixedClientProvider) Name() string                            { return f.name }
-func (f fixedClientProvider) ChatClientFor(core.Process) *chat.Client { return f.client }
+func (f fixedClientProvider) Name() string { return f.name }
+func (f fixedClientProvider) ChatClientFor(core.Process) core.ChatClient {
+	return f.client
+}
 
 var _ core.ChatClientProvider = fixedClientProvider{}
 
@@ -144,5 +146,33 @@ func TestChatClientProvider_FallsBackToPlatform(t *testing.T) {
 	}
 	if !platformModel.called {
 		t.Error("platform client was not used as the fallback")
+	}
+}
+
+func TestChatClientProvider_TypedNilFallsBackToPlatform(t *testing.T) {
+	platformModel := newRecordingModel()
+	platformClient, _ := chat.NewClient(platformModel)
+	var typedNil *chat.Client
+
+	a := chatAgent(t)
+	platform := agent.NewPlatform(runtime.PlatformConfig{ChatClient: platformClient})
+	if err := platform.Deploy(a); err != nil {
+		t.Fatalf("Deploy: %v", err)
+	}
+
+	_, err := platform.RunAgent(
+		t.Context(), a,
+		map[string]any{core.DefaultBindingName: callIn{V: 1}},
+		core.ProcessOptions{
+			Extensions: []core.Extension{
+				fixedClientProvider{name: "typed-nil", client: typedNil},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("RunAgent: %v", err)
+	}
+	if !platformModel.called {
+		t.Error("platform client was not used when provider returned a typed nil")
 	}
 }
