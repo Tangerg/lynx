@@ -26,3 +26,12 @@ func wireMaintenancePorts(ecfg *kernel.Config, cfg Config, memStore memory.Store
 		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, resolveUtility)
 	}
 }
+
+// GenerateTitle derives a short session title from a conversation's opening
+// user message — auto-naming an untitled session (the wire Session.title).
+// Best-effort: returns "" (no error) when titling isn't possible. Lives here,
+// like [Runtime.ProbeProvider], because the runtime owns the maintenance LLM
+// client; the delivery layer triggers it off a finished root run.
+func (r *Runtime) GenerateTitle(ctx context.Context, firstMessage string) (string, error) {
+	return r.titler.Generate(ctx, firstMessage)
+}
