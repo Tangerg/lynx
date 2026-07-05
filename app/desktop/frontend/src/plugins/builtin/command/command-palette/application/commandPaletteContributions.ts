@@ -1,7 +1,15 @@
-import type { CommandSpec, ShortcutSpec } from "@/plugins/sdk";
+import type { CommandSpec, LayoutSlotSpec, ShortcutSpec } from "@/plugins/sdk";
 
 export type Translate = (key: string) => string;
 export type CommandRun = CommandSpec["run"];
+
+export function commandPaletteOverlaySlot(component: LayoutSlotSpec["component"]): LayoutSlotSpec {
+  return {
+    id: "command-palette",
+    order: 10,
+    component,
+  };
+}
 
 export function commandPaletteShortcut(togglePalette: () => void): ShortcutSpec {
   return {

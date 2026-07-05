@@ -1,6 +1,14 @@
-import type { ShortcutSpec } from "@/plugins/sdk";
+import type { LayoutSlotSpec, ShortcutSpec } from "@/plugins/sdk";
 
 export type Translate = (key: string) => string;
+
+export function chatSearchOverlaySlot(component: LayoutSlotSpec["component"]): LayoutSlotSpec {
+  return {
+    id: "chat-search",
+    order: 50,
+    component,
+  };
+}
 
 export function chatSearchShortcut(t: Translate, openSearch: () => void): ShortcutSpec {
   return {
