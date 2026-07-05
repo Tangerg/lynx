@@ -9,6 +9,10 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useWorkspaceFileChanges } from "@/plugins/builtin/workspace/application/workspaceData";
 import {
+  fileChangesSubtext,
+  fileChangesViewModel,
+} from "@/plugins/builtin/workspace/application/fileChangesViewModel";
+import {
   openWorkspaceDiffForFile,
   useActiveWorkspaceFile,
 } from "@/plugins/builtin/workspace/public/navigation";
@@ -30,6 +34,7 @@ function FilesView() {
     error,
   } = useWorkspaceFileChanges(gitEnabled ? { cwd } : undefined);
   const items = files ?? [];
+  const view = fileChangesViewModel(items, activeFile);
   const notARepo = isVcsUnavailable(error);
 
   return (
@@ -37,7 +42,7 @@ function FilesView() {
       icon="filetext"
       titleStrong
       title="files.title"
-      sub={`${items.length} files · uncommitted`}
+      sub={fileChangesSubtext(view)}
     >
       <DataView
         items={gitEnabled ? items : []}
@@ -58,7 +63,10 @@ function FilesView() {
         }
       >
         {(rows) => (
-          <FilesChanged files={rows} activePath={activeFile} onSelect={openWorkspaceDiffForFile} />
+          <FilesChanged
+            view={fileChangesViewModel(rows, activeFile)}
+            onSelect={openWorkspaceDiffForFile}
+          />
         )}
       </DataView>
     </WorkspaceViewLayout>
