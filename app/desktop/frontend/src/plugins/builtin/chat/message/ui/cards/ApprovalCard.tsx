@@ -1,27 +1,22 @@
 import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Button, Checkbox, Divider, Icon, Segmented } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
-import {
-  registerApprovalActions,
-  useApprovalSubmit,
-  type ApprovalActions,
-  type ApprovalDecision,
-  type RememberScope,
-} from "@/plugins/builtin/agent/public/hitl";
+import { type ApprovalDecision, type RememberScope } from "@/plugins/builtin/agent/public/hitl";
 import {
   approvalReversibilityView,
   approvalRiskView,
   approvalScopeViews,
   approvalSettledDecision,
-  canSubmitApproval,
   dangerHints,
   type ApprovalRisk,
   type ApprovalTone,
 } from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/utils";
-import { ApprovalArgsEditor, useApprovalArgsEditor } from "./ApprovalArgsEditor";
+import { useApprovalArgsEditor } from "../../application/approvalArgsEditor";
+import { useApprovalCardActions } from "../../application/approvalCardActions";
+import { ApprovalArgsEditor } from "./ApprovalArgsEditor";
 
 interface Props {
   /** Block lifecycle. `"requires-action"` shows the action card with the
@@ -55,8 +50,8 @@ interface Props {
   reversible?: boolean;
 }
 
-// Approval card — pure presentation. HTTP / submitting state lives in
-// useApprovalSubmit; this component renders against `status`:
+// Approval card — presentation shell. Submission coordination lives in
+// useApprovalCardActions; this component renders against `status`:
 //   - "complete"         → settled checkpoint row (decision is authoritative)
 //   - "requires-action"  → action card with Approve / Decline buttons,
 //                           or optimistic checkpoint while a submit is in
@@ -83,47 +78,20 @@ export function ApprovalCard({
   reversible,
 }: Props) {
   const t = useT();
-  const { submit, pending } = useApprovalSubmit(parentRunId, itemId);
 
-  // Editable-args state — delegated to a dedicated hook (SRP: ApprovalCard
-  // renders, useApprovalArgsEditor owns the editing lifecycle + validation).
   const hasArgs = args !== undefined;
   const originalArgs = hasArgs ? JSON.stringify(args, null, 2) : "";
   const argsEditor = useApprovalArgsEditor({ originalArgs });
 
-  // "Don't ask again" + the scope the rule is remembered at (session by default;
-  // project keys it to this cwd, global everywhere). Scope is ignored unless
-  // remember is on.
   const [remember, setRemember] = useState(false);
   const [rememberScope, setRememberScope] = useState<RememberScope>("session");
-  const submitScope = remember ? rememberScope : undefined;
-
-  const onApprove = () => {
-    let editedArgs: Record<string, unknown> | undefined;
-    if (hasArgs) {
-      const result = argsEditor.commit();
-      if (result === null) return; // malformed JSON — block approve
-      editedArgs = result; // undefined = unchanged, object = edited
-    }
-    submit("approved", { editedArgs, rememberScope: submitScope });
-  };
-  const onDecline = () => submit("declined", { rememberScope: submitScope });
-
-  // Bridge the ⌘↩ / ⇧⌘⌫ keyboard path (submitPendingApproval) to THIS card's
-  // submit — so the shortcut applies the edited args + remember exactly like the
-  // buttons. Register a stable thunk that reads the latest handlers via a ref;
-  // only while the card is actionable. (The ref keeps the registration stable
-  // across re-renders while still calling the current closure.)
-  const actionsRef = useRef<ApprovalActions>({ approve: onApprove, decline: onDecline });
-  actionsRef.current = { approve: onApprove, decline: onDecline };
-  const resumable = Boolean(parentRunId && itemId && status === "requires-action");
-  useEffect(() => {
-    if (!resumable || !itemId) return;
-    return registerApprovalActions(itemId, {
-      approve: () => actionsRef.current.approve(),
-      decline: () => actionsRef.current.decline(),
-    });
-  }, [resumable, itemId]);
+  const { pending, disabled, approve, decline } = useApprovalCardActions({
+    parentRunId,
+    itemId,
+    status,
+    argsEditor: hasArgs ? argsEditor : undefined,
+    rememberScope: remember ? rememberScope : undefined,
+  });
 
   const finalised = approvalSettledDecision(status, decision, pending);
   if (finalised === "approved") {
@@ -137,7 +105,6 @@ export function ApprovalCard({
   // while a request is in flight, OR once the interrupt is no longer open:
   // settleOpenInterrupts downgrades an unacted interrupt to `incomplete` on
   // run-end precisely so its buttons can't resume a dead run.
-  const disabled = !canSubmitApproval({ parentRunId, itemId, pending, status });
   const riskView = approvalRiskView(risk);
   const scopeViews = approvalScopeViews(scope);
   const reversibilityView = approvalReversibilityView(reversible);
@@ -237,7 +204,7 @@ export function ApprovalCard({
           size="sm"
           data-slot="approval-approve"
           disabled={disabled}
-          onClick={onApprove}
+          onClick={approve}
         >
           {t("approval.action.approve")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⌘↵</kbd>}
@@ -247,7 +214,7 @@ export function ApprovalCard({
           size="sm"
           data-slot="approval-decline"
           disabled={disabled}
-          onClick={onDecline}
+          onClick={decline}
         >
           {t("approval.action.decline")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⇧⌘⌫</kbd>}

@@ -1,54 +1,6 @@
-import { useState } from "react";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-interface Props {
-  /** Pretty-printed original JSON arguments. */
-  originalArgs: string;
-}
-
-/**
- * Hook that owns the argument-editing lifecycle: edit toggle, text state,
- * JSON validation. The parent (ApprovalCard) calls `commit()` on approve;
- * it returns the edited args only when changed, or undefined if unchanged.
- * Returns null on invalid JSON — the parent should block the action.
- */
-export function useApprovalArgsEditor({ originalArgs }: Props) {
-  const [editing, setEditing] = useState(false);
-  const [argsText, setArgsText] = useState(originalArgs);
-  const [invalid, setInvalid] = useState(false);
-
-  /**
-   * Validate and return edited args. Returns `undefined` when the user
-   * made no changes, `null` when JSON is malformed (block the action),
-   * or the parsed `Record<string, unknown>` when args were changed.
-   */
-  const setText = (text: string) => {
-    setArgsText(text);
-    setInvalid(false); // clear validation error on any edit
-  };
-
-  const commit = (): Record<string, unknown> | undefined | null => {
-    try {
-      const parsed = JSON.parse(argsText) as Record<string, unknown>;
-      if (JSON.stringify(parsed) !== JSON.stringify(JSON.parse(originalArgs))) {
-        return parsed;
-      }
-      return undefined; // unchanged
-    } catch {
-      setInvalid(true);
-      return null; // malformed
-    }
-  };
-
-  return { editing, setEditing, argsText, setArgsText: setText, invalid, commit };
-}
-
-/**
- * Presentation-only: renders the argument textarea + edit toggle.
- * Controlled by the hook above — ApprovalCard composes hook (logic) +
- * this component (presentation), following SRP and Composition.
- */
 export function ApprovalArgsEditor({
   editing,
   argsText,
