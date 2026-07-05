@@ -7,7 +7,7 @@ const MENU_CONTENT_CLASSES =
   "z-50 overflow-hidden rounded-[12px] bg-canvas p-1 shadow-[var(--shadow-popover)] animate-rise-in";
 
 const MENU_ITEM_CLASSES =
-  "grid h-8 items-center gap-2 rounded-md px-2.5 text-[13px] text-fg-soft outline-none data-[highlighted]:bg-fg/[0.06] data-[highlighted]:text-fg";
+  "grid h-8 items-center gap-2 rounded-md px-2.5 text-[13px] text-fg outline-none data-[highlighted]:bg-fg/[0.06]";
 
 const MENU_SEPARATOR_CLASSES = "mx-1 my-1 h-px bg-fg/[0.06]";
 

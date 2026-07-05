@@ -37,12 +37,12 @@ function ContextDockView() {
                   onClick={() => openContextDockDestination(destination)}
                   className={cn(
                     "flex min-h-9 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left",
-                    "text-[13px] text-fg-soft transition-[background-color,color] duration-100 ease-out",
-                    "hover:bg-fg/[0.04] hover:text-fg",
-                    "focus-visible:bg-fg/[0.055] focus-visible:text-fg focus-visible:shadow-[var(--shadow-focus)] focus-visible:outline-none",
+                    "text-[13px] text-fg transition-[background-color] duration-100 ease-out",
+                    "hover:bg-fg/[0.04]",
+                    "focus-visible:bg-fg/[0.055] focus-visible:shadow-[var(--shadow-focus)] focus-visible:outline-none",
                   )}
                 >
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-surface-2 text-fg-muted">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-surface-2 text-fg">
                     <Icon name={icon} size={13} />
                   </span>
                   <span className="min-w-0 flex-1 truncate font-medium">

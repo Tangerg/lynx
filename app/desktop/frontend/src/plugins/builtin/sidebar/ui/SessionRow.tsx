@@ -25,8 +25,7 @@ interface Props {
 // One line (Codex reference): icon · title (fills, truncates) · right-aligned
 // relative time, with a small live dot replacing the time while the session is
 // running (accent) or waiting on input (warning) — accent stays reserved for
-// live state, selection is the soft pill. Subtle fg-opacity tints for
-// hover/active, fast 75 ms transition.
+// live state, selection is the soft pill.
 export function SessionRow({
   session,
   active,

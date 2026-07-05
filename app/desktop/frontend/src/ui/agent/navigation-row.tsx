@@ -31,9 +31,9 @@ export function AgentRow({
       press={false}
       data-active={active ? "" : undefined}
       className={cn(
-        "group h-7 w-full justify-start gap-2 rounded-[7px] text-left text-[13px] text-fg-soft",
-        "transition-[background-color,color] duration-100",
-        "focus-visible:bg-fg/[0.06] focus-visible:text-fg data-[active]:bg-fg/[0.075] data-[active]:text-fg",
+        "group h-7 w-full justify-start gap-2 rounded-[7px] text-left text-[13px] text-fg",
+        "transition-[background-color] duration-100",
+        "hover:bg-fg/[0.045] focus-visible:bg-fg/[0.06] data-[active]:bg-fg/[0.075]",
         indent === "nested" ? "px-2.5 pl-7" : "px-2.5",
         className,
       )}
@@ -43,7 +43,7 @@ export function AgentRow({
           name={icon}
           size={15}
           strokeWidth={1.8}
-          className={cn("shrink-0 text-fg-muted group-data-[active]:text-fg", iconClassName)}
+          className={cn("shrink-0 text-fg", iconClassName)}
         />
       )}
       <span className="min-w-0 flex-1 truncate">{children}</span>

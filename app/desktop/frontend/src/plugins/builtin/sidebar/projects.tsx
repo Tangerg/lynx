@@ -77,7 +77,7 @@ function ProjectGroupNode({
             <button
               type="button"
               onClick={() => setShowAll((v) => !v)}
-              className="rounded-[7px] border-0 bg-transparent px-7 py-1 text-left text-[11.5px] text-fg-faint transition-colors hover:bg-fg/[0.045] hover:text-fg"
+              className="rounded-[7px] border-0 bg-transparent px-7 py-1 text-left text-[11.5px] text-fg transition-colors hover:bg-fg/[0.045]"
             >
               {hidden > 0 ? t("projects.showMore", { count: hidden }) : t("projects.showLess")}
             </button>
