@@ -59,15 +59,6 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		}
 	}()
 
-	// Record the model the run explicitly selected so sessions.list / get
-	// surface the session's current model (Session.model). An unset model
-	// runs the default — sessionToWire fills that from the runtime default.
-	if turnReq.Model != "" {
-		if err := s.rt.SetSessionModel(ctx, sessionID, turnReq.Model); err != nil {
-			return nil, nil, wireSessionErr(err)
-		}
-	}
-
 	handle, err := s.rt.StartTurn(ctx, turnReq)
 	if err != nil {
 		return nil, nil, err

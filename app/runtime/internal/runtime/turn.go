@@ -8,8 +8,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-// StartTurn launches one agent turn through the runtime facade.
+// StartTurn launches one agent turn through the runtime facade. An explicit
+// model selection is recorded on the session before the turn is dispatched, so
+// every caller gets the same session-model invariant.
 func (r *Runtime) StartTurn(ctx context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error) {
+	if req.Model != "" {
+		if err := r.session.SetModel(ctx, req.SessionID, req.Model); err != nil {
+			return turn.TurnHandle{}, err
+		}
+	}
 	return r.chat.StartTurn(ctx, req)
 }
 
