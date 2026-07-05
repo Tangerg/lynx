@@ -79,28 +79,3 @@ func (r *Runtime) UpdateSession(ctx context.Context, id string, patch session.Pa
 	}
 	return updated, nil
 }
-
-// RenameSession changes a session's title.
-func (r *Runtime) RenameSession(ctx context.Context, id, title string) error {
-	return r.session.Rename(ctx, id, title)
-}
-
-// SetSessionModel records the model a session last ran against.
-func (r *Runtime) SetSessionModel(ctx context.Context, id, model string) error {
-	return r.session.SetModel(ctx, id, model)
-}
-
-// SetSessionCwd relocates a session's working-directory identity.
-func (r *Runtime) SetSessionCwd(ctx context.Context, id, cwd string) error {
-	return r.session.SetCwd(ctx, id, cwd)
-}
-
-// SetSessionMetadata full-replaces a session's free-form metadata.
-func (r *Runtime) SetSessionMetadata(ctx context.Context, id string, meta map[string]any) error {
-	return r.session.SetMetadata(ctx, id, meta)
-}
-
-// SetSessionFavorite pins or unpins a session.
-func (r *Runtime) SetSessionFavorite(ctx context.Context, id string, favorite bool) error {
-	return r.session.SetFavorite(ctx, id, favorite)
-}

@@ -95,41 +95,6 @@ func TestRuntimeSessionFacade(t *testing.T) {
 		t.Fatalf("created=%+v title=%q cwd=%q", created, store.createTitle, store.createCwd)
 	}
 
-	if err := rt.RenameSession(ctx, "ses_1", "Renamed"); err != nil {
-		t.Fatalf("rename session: %v", err)
-	}
-	if store.renamed != ([2]string{"ses_1", "Renamed"}) {
-		t.Fatalf("renamed = %v", store.renamed)
-	}
-
-	if err := rt.SetSessionModel(ctx, "ses_1", "claude-opus-4-8"); err != nil {
-		t.Fatalf("set model: %v", err)
-	}
-	if store.model != ([2]string{"ses_1", "claude-opus-4-8"}) {
-		t.Fatalf("model = %v", store.model)
-	}
-
-	if err := rt.SetSessionCwd(ctx, "ses_1", "/new"); err != nil {
-		t.Fatalf("set cwd: %v", err)
-	}
-	if store.cwd != ([2]string{"ses_1", "/new"}) {
-		t.Fatalf("cwd = %v", store.cwd)
-	}
-
-	meta := map[string]any{"pinned": true}
-	if err := rt.SetSessionMetadata(ctx, "ses_1", meta); err != nil {
-		t.Fatalf("set metadata: %v", err)
-	}
-	if store.metadataID != "ses_1" || store.metadata["pinned"] != true {
-		t.Fatalf("metadata id=%q meta=%+v", store.metadataID, store.metadata)
-	}
-
-	if err := rt.SetSessionFavorite(ctx, "ses_1", true); err != nil {
-		t.Fatalf("set favorite: %v", err)
-	}
-	if store.favoriteID != "ses_1" || !store.favoriteValue {
-		t.Fatalf("favorite id=%q value=%v", store.favoriteID, store.favoriteValue)
-	}
 }
 
 func TestRuntimeUpdateSessionAppliesPatch(t *testing.T) {
