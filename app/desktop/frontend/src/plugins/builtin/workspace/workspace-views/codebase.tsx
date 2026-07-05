@@ -11,12 +11,17 @@ import {
   searchCodebase,
   useCodebaseSearchConfig,
 } from "../application/codebaseCommands";
+import {
+  codebaseSearchViewModel,
+  codebaseStatusViewModel,
+  type CodebaseStatusProjection,
+} from "../application/workspaceCatalogViewModel";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
-function statusLabel(state: string | undefined, t: ReturnType<typeof useT>): string {
+function statusLabel(state: CodebaseStatusProjection["state"], t: ReturnType<typeof useT>): string {
   switch (state) {
     case "ready":
       return t("codebase.state.ready");
@@ -36,6 +41,8 @@ function CodebaseTab() {
   const [hits, setHits] = useState<CodebaseSearchHit[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const statusView = codebaseStatusViewModel(status);
+  const resultsView = codebaseSearchViewModel(hits);
 
   const run = async () => {
     if (!query.trim()) return;
@@ -77,9 +84,9 @@ function CodebaseTab() {
       titleStrong
       title="codebase.title"
       sub={t("codebase.status", {
-        state: statusLabel(status?.state, t),
-        files: status?.fileCount ?? 0,
-        chunks: status?.chunkCount ?? 0,
+        state: statusLabel(statusView.state, t),
+        files: statusView.fileCount,
+        chunks: statusView.chunkCount,
       })}
       scrollClassName="py-1"
     >
@@ -116,26 +123,21 @@ function CodebaseTab() {
 
         {error && <p className="text-[12px] leading-snug text-negative">{error}</p>}
 
-        {hits !== null && hits.length === 0 && !error && (
+        {resultsView.isEmpty && !error && (
           <p className="text-[12px] text-fg-muted">{t("codebase.empty")}</p>
         )}
 
         <div className="flex flex-col gap-2">
-          {(hits ?? []).map((h, i) => (
-            <div
-              key={`${h.path}:${h.startLine}:${i}`}
-              className="rounded-[10px] bg-surface-2 px-3 py-2"
-            >
+          {resultsView.rows.map((row) => (
+            <div key={row.id} className="rounded-[10px] bg-surface-2 px-3 py-2">
               <div className="flex items-center gap-2">
-                <span className="truncate font-mono text-[12px] text-accent">
-                  {h.path}:{h.startLine}-{h.endLine}
-                </span>
+                <span className="truncate font-mono text-[12px] text-accent">{row.pathRange}</span>
                 <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-fg-faint">
-                  {h.score.toFixed(2)}
+                  {row.score}
                 </span>
               </div>
               <pre className="mt-1 max-h-44 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.45] text-fg-muted">
-                {h.snippet}
+                {row.snippet}
               </pre>
             </div>
           ))}

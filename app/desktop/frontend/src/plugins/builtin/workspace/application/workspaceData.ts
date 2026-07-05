@@ -4,6 +4,8 @@ import type {
   FileEntryInfo,
   GrepMatch,
   MemoryEntryInfo,
+  WorkspaceAgentDoc as WorkspaceAgentDocInfo,
+  WorkspaceSkill as WorkspaceSkillInfo,
 } from "@/lib/data/queries";
 import {
   useAgentDocs,
@@ -19,6 +21,8 @@ export type WorkspaceDiffRow = DiffRow;
 export type WorkspaceFileChange = FileChange;
 export type WorkspaceFileEntry = FileEntryInfo;
 export type WorkspaceGrepMatch = GrepMatch;
+export type WorkspaceAgentDoc = WorkspaceAgentDocInfo;
+export type WorkspaceSkill = WorkspaceSkillInfo;
 export type WorkspaceScope = MemoryEntryInfo["scope"];
 
 export const useWorkspaceAgentDocs = useAgentDocs;
