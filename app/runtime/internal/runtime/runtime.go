@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
@@ -42,7 +41,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
@@ -422,32 +420,6 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	}, nil
 }
 
-// InspectHooks returns the lifecycle hooks discovered for cwd plus the project's
-// trust status (workspace.hooks.list). Empty when hooks are unconfigured.
-func (r *Runtime) InspectHooks(ctx context.Context, cwd string) hooks.Inspection {
-	return r.hookResolver.Inspect(ctx, cwd)
-}
-
-// SetProjectHookTrust trusts (or revokes) a project's hooks (workspace.hooks.
-// setTrust). No-op when no trust store is wired.
-func (r *Runtime) SetProjectHookTrust(ctx context.Context, projectRoot string, trusted bool) error {
-	if r.hookTrust == nil {
-		return nil
-	}
-	if trusted {
-		return r.hookTrust.Trust(ctx, projectRoot)
-	}
-	return r.hookTrust.Untrust(ctx, projectRoot)
-}
-
-// ListRecipes enumerates the prompt recipes visible from cwd — project recipes
-// (<cwd>/.lyra/recipes) layered over the global directory, project winning on a
-// name collision (workspace.recipes.list). The client expands a chosen recipe's
-// body and sends it as a turn; the runtime only discovers them.
-func (r *Runtime) ListRecipes(ctx context.Context, cwd string) ([]recipes.Recipe, error) {
-	return recipes.List(ctx, recipes.ProjectDir(cwd), r.recipesGlobalDir)
-}
-
 // runClosers runs capability shutdown hooks best-effort — used to release a
 // half-built tool environment when runtime construction fails before the engine
 // (which would otherwise own them) is created.
@@ -461,28 +433,6 @@ func runClosers(closers []func() error) {
 
 func (r *Runtime) forgetSession(sessionID string) { r.chat.ForgetSession(sessionID) }
 
-// MCPServerStatuses returns the per-server connection state of every
-// configured MCP server (connected and boot-failed alike) for
-// workspace.mcp.listServers. Delegates to the engine, which owns the sessions.
-func (r *Runtime) MCPServerStatuses() []kernel.McpServerStatus {
-	return r.engine.MCPServerStatuses()
-}
-
-// ReconnectMCPServer re-dials a configured MCP server and hot-swaps the live
-// tool set (workspace.mcp.reconnect). Delegates to the engine, which owns the
-// sessions + the shared client.
-func (r *Runtime) ReconnectMCPServer(ctx context.Context, name string) error {
-	return r.engine.ReconnectMCPServer(ctx, name)
-}
-
-// AuthorizeMCPServer runs the interactive OAuth sign-in for an HTTP MCP server
-// (workspace.mcp.authorize) — opens the system browser, catches the loopback
-// redirect, and connects on success. Delegates to the engine, which owns the
-// sessions. The credentials live for the process only (re-prompt after restart).
-func (r *Runtime) AuthorizeMCPServer(ctx context.Context, name string) error {
-	return r.engine.AuthorizeMCPServer(ctx, name)
-}
-
 // DefaultModel is the model a turn runs against when it doesn't pick one
 // (the configured Config.Model seed). The session layer uses it to fill
 // Session.model for sessions that never explicitly selected a model, so the
@@ -494,58 +444,8 @@ func (r *Runtime) DefaultModel() string { return r.defaultModel }
 // runs (whose RunRef carries no provider) to the real provider. May be empty.
 func (r *Runtime) DefaultProvider() string { return r.defaultProvider }
 
-// GenerateTitle derives a short session title from a conversation's opening
-// user message — auto-naming an untitled session (the wire Session.title).
-// Best-effort: returns "" (no error) when titling isn't possible. Lives here,
-// like [Runtime.ProbeProvider], because the runtime owns the maintenance LLM
-// client; the delivery layer triggers it off a finished root run.
-func (r *Runtime) GenerateTitle(ctx context.Context, firstMessage string) (string, error) {
-	return r.titler.Generate(ctx, firstMessage)
-}
-
-// ReadHistory returns sessionID's persisted chat history — the
-// messages.list transport surface converts these to wire messages,
-// and ForkSession copies a prefix of them.
-func (r *Runtime) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
-	return r.conversation.Read(ctx, sessionID)
-}
-
-// SeedHistory copies msgs into sessionID's chat history — used by
-// ForkSession to seed a fresh child with the parent's prefix.
-func (r *Runtime) SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error {
-	return r.conversation.Seed(ctx, sessionID, msgs)
-}
-
-// MessageCount returns sessionID's chat-memory message count — the per-run
-// watermark sessions.rollback / fork record.
-func (r *Runtime) MessageCount(ctx context.Context, sessionID string) (int, error) {
-	return r.conversation.Count(ctx, sessionID)
-}
-
-// TruncateMessages keeps the first keepN chat-memory messages of sessionID
-// (sessions.rollback).
-func (r *Runtime) TruncateMessages(ctx context.Context, sessionID string, keepN int) error {
-	return r.conversation.Truncate(ctx, sessionID, keepN)
-}
-
 // ListSkills enumerates the skills visible from cwd (project over global) for
 // workspace.listSkills. Delegates to the engine, which owns skill sourcing.
 func (r *Runtime) ListSkills(ctx context.Context, cwd string) ([]kernel.SkillInfo, error) {
 	return r.engine.ListSkills(ctx, cwd)
-}
-
-// MCPTools lists tools advertised by the connected MCP servers (scoped to
-// server when non-empty) for workspace.mcp.listTools. Delegates to the
-// engine, which holds the dialed sessions.
-func (r *Runtime) MCPTools(ctx context.Context, server string) ([]kernel.McpToolInfo, error) {
-	return r.engine.MCPTools(ctx, server)
-}
-
-// Close releases per-runtime external resources — MCP sessions and
-// any future engine-owned handles. Idempotent.
-func (r *Runtime) Close() error {
-	if r == nil || r.engine == nil {
-		return nil
-	}
-	return r.engine.Close()
 }

@@ -116,6 +116,19 @@ func TestRollback_FilesRequiresToRunID(t *testing.T) {
 	}
 }
 
+func TestRollbackRejectsUnknownRestoreType(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := context.Background()
+	ses, _ := rt.sess.Create(ctx, "t", t.TempDir())
+	_, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{
+		SessionID:   ses.ID,
+		RestoreType: protocol.RestoreType("timeline"),
+	})
+	if !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("err = %v, want ErrInvalidParams", err)
+	}
+}
+
 // TestRollback_NoCheckpointStore maps a files restore with no store onto
 // checkpoint_unavailable (and leaves history untouched).
 func TestRollback_NoCheckpointStore(t *testing.T) {

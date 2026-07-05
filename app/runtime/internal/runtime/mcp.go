@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
 // MCP-server registry orchestration: the runtime owns both the persisted
@@ -23,9 +24,31 @@ func (r *Runtime) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Ser
 	return r.mcpRegistry.List(ctx)
 }
 
+// MCPServerStatuses returns the per-server connection state of every
+// configured MCP server (connected and boot-failed alike) for
+// workspace.mcp.listServers. Delegates to the engine, which owns the sessions.
+func (r *Runtime) MCPServerStatuses() []kernel.McpServerStatus {
+	return r.engine.MCPServerStatuses()
+}
+
 // GetMCPRegisteredServer returns one persisted MCP-server registry entry.
 func (r *Runtime) GetMCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error) {
 	return r.mcpRegistry.Get(ctx, name)
+}
+
+// ReconnectMCPServer re-dials a configured MCP server and hot-swaps the live
+// tool set (workspace.mcp.reconnect). Delegates to the engine, which owns the
+// sessions + the shared client.
+func (r *Runtime) ReconnectMCPServer(ctx context.Context, name string) error {
+	return r.engine.ReconnectMCPServer(ctx, name)
+}
+
+// AuthorizeMCPServer runs the interactive OAuth sign-in for an HTTP MCP server
+// (workspace.mcp.authorize) — opens the system browser, catches the loopback
+// redirect, and connects on success. Delegates to the engine, which owns the
+// sessions. The credentials live for the process only (re-prompt after restart).
+func (r *Runtime) AuthorizeMCPServer(ctx context.Context, name string) error {
+	return r.engine.AuthorizeMCPServer(ctx, name)
 }
 
 // ConfigureMCPServer upserts a server in the registry and applies it to the
@@ -105,6 +128,13 @@ func (r *Runtime) TestMCPServer(ctx context.Context, srv mcpserver.Server) error
 		return err
 	}
 	return r.engine.ProbeMCPServer(ctx, configFromServer(srv))
+}
+
+// MCPTools lists tools advertised by the connected MCP servers (scoped to
+// server when non-empty) for workspace.mcp.listTools. Delegates to the
+// engine, which holds the dialed sessions.
+func (r *Runtime) MCPTools(ctx context.Context, server string) ([]kernel.McpToolInfo, error) {
+	return r.engine.MCPTools(ctx, server)
 }
 
 // applyMCPServer reflects a registry entry into the live connections: enabled →

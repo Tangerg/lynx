@@ -30,21 +30,9 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	}
 	defer admission.Release()
 
-	restoreType := in.RestoreType
-	if restoreType == "" {
-		restoreType = protocol.RestoreHistory
-	}
-	switch restoreType {
-	case protocol.RestoreFiles, protocol.RestoreHistory, protocol.RestoreBoth:
-	default:
-		// An unknown restoreType must be rejected, not silently no-op'd into a
-		// success that restores nothing.
-		return nil, fmt.Errorf("%w: unknown restoreType %q", protocol.ErrInvalidParams, restoreType)
-	}
-	doFiles := restoreType == protocol.RestoreFiles || restoreType == protocol.RestoreBoth
-	doHistory := restoreType == protocol.RestoreHistory || restoreType == protocol.RestoreBoth
-	if doFiles && in.ToRunID == "" {
-		return nil, fmt.Errorf("%w: restoreType %q requires toRunId", protocol.ErrInvalidParams, restoreType)
+	intent, err := rollbackIntentFromWire(in)
+	if err != nil {
+		return nil, err
 	}
 
 	// A file restore's `git reset --hard` writes the working tree, which a sibling
@@ -53,7 +41,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// checkpoint lock. The per-session guard above only covers THIS session, so
 	// widen it to the whole tree for file restores. (History-only rollback touches
 	// just this session's log, so the per-session guard suffices.)
-	if doFiles {
+	if intent.restoreFiles {
 		restoreCwd := fspath.Canonical(ses.Cwd)
 		treeAdmission, ok := s.rt.ClaimWorkingTreeMutation(restoreCwd)
 		if !ok {
@@ -80,13 +68,13 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 
 	// Files first — for "both" this is the atomicity guarantee: if the working
 	// tree can't be restored, return now and leave history untouched.
-	if doFiles {
+	if intent.restoreFiles {
 		if err := s.restoreCheckpoint(ctx, in.SessionID, in.ToRunID); err != nil {
 			return nil, err
 		}
 	}
 
-	if !doHistory || len(b.Dropped) == 0 {
+	if !intent.restoreHistory || len(b.Dropped) == 0 {
 		// History stays (files-only rollback), or ToRunID is already the latest
 		// turn so there's nothing after it to drop.
 		out := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
