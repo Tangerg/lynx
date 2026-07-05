@@ -8,6 +8,7 @@ import { SearchResults } from "@/plugins/builtin/chat/tools/public/previews/Sear
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { webSearchPreviewResults } from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
+import { webSearchToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { Overflow, PREVIEW_WRAP } from "./shared";
 
 const MAX_WEB_RESULTS = 8;
@@ -34,6 +35,8 @@ export const webSearchPreview = definePlugin({
   name: "lyra.builtin.web-search-preview",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(TOOL_PREVIEW, WebSearchPreview, { key: "web_search" });
+    for (const preview of webSearchToolPreview(WebSearchPreview)) {
+      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+    }
   },
 });

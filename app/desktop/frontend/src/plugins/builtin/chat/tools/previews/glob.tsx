@@ -8,6 +8,7 @@ import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { globPreviewData } from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
+import { globToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { MAX_ROWS, Overflow, PREVIEW_WRAP } from "./shared";
 
 function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
@@ -36,6 +37,8 @@ export const globPreview = definePlugin({
   name: "lyra.builtin.glob-preview",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(TOOL_PREVIEW, GlobPreview, { key: "glob" });
+    for (const preview of globToolPreview(GlobPreview)) {
+      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+    }
   },
 });

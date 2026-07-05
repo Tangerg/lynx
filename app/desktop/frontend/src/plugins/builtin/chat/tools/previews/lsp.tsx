@@ -9,6 +9,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { lspPreviewOperation } from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
 import { resultLines } from "@/plugins/builtin/chat/tools/application/toolResultParsing";
+import { lspToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { MAX_ROWS, Overflow, PREVIEW_WRAP } from "./shared";
 
 // Result is one line per hit: `path:line:col` (locations) or
@@ -110,7 +111,8 @@ export const lspPreviews = definePlugin({
   name: "lyra.builtin.lsp-previews",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(TOOL_PREVIEW, LspPreview, { key: "lsp" });
-    host.extensions.contribute(TOOL_PREVIEW, LspDiagnosticsPreview, { key: "lsp_diagnostics" });
+    for (const preview of lspToolPreviews(LspPreview, LspDiagnosticsPreview)) {
+      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+    }
   },
 });

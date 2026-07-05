@@ -8,6 +8,7 @@ import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
+import { shellToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { CODE_PANEL } from "./shared";
 
 const MAX_TERM_LINES = 9;
@@ -50,11 +51,8 @@ export const shellPreview = definePlugin({
   name: "lyra.builtin.shell",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(TOOL_PREVIEW, ShellPreview, { key: "shell" });
-    // Background-shell family: all three return terminal-style plain text
-    // (start ack / incremental output + status line / kill confirmation).
-    host.extensions.contribute(TOOL_PREVIEW, ShellPreview, { key: "run_in_background" });
-    host.extensions.contribute(TOOL_PREVIEW, ShellPreview, { key: "shell_output" });
-    host.extensions.contribute(TOOL_PREVIEW, ShellPreview, { key: "shell_kill" });
+    for (const preview of shellToolPreviews(ShellPreview)) {
+      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+    }
   },
 });
