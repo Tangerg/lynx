@@ -1,10 +1,3 @@
-// MessageBlock — one chat turn.
-//
-// OpenAI-restrained asymmetric layout:
-//   • User = right-aligned bubble (input), no avatar/header chrome.
-//   • Assistant = unboxed prose directly on the canvas, no surface / header.
-
-import type { Citation } from "./CitationContext";
 import type { BlockCtx } from "./BlockRenderer";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { memo, useMemo } from "react";
@@ -12,11 +5,15 @@ import { ToolGroup } from "@/plugins/builtin/chat/tools/public/rendering";
 import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { MessageContext } from "@/plugins/sdk/messageContext";
-import { planRenderUnits } from "@/plugins/builtin/agent/public/messagePresentation";
 import {
   messageActionsVisibility,
   messageActionsVisibilityClass,
 } from "@/plugins/builtin/chat/message-actions/public/messageActions";
+import {
+  messageBlockRenderUnits,
+  messageBlocksRenderInstant,
+  messageCitations,
+} from "../application/messageBlockModel";
 import { cn } from "@/lib/utils";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
@@ -38,19 +35,8 @@ function MessageBlockInner({
 }) {
   const isUser = msg.role === "user";
 
-  // Citation registry — gathered from the MESSAGE_CITATION_SOURCE
-  // contributions (the search-block plugin maps its results in; with no such
-  // plugin the list is empty and `[n]` markers render as plain text). The
-  // kernel owns the 1-indexed continuity across sources. CitationBadge reads
-  // this via context. Memoised on msg.blocks + sources so the array identity
-  // stays stable across re-renders that don't touch citation content — keeps
-  // `<CitationContext.Provider value={citations}>` from churning every render
-  // and re-triggering all CitationBadge consumers downstream.
   const sources = useCitationSources();
-  const citations = useMemo<Citation[]>(
-    () => sources.flatMap((s) => s(msg.blocks)).map((c, i) => ({ ...c, index: i + 1 })),
-    [msg.blocks, sources],
-  );
+  const citations = useMemo(() => messageCitations(msg.blocks, sources), [msg.blocks, sources]);
 
   // System messages (e.g. a compaction boundary) are chrome-less full-width
   // notes — no avatar / name / time / outline / context-menu, just the block(s)
@@ -66,16 +52,9 @@ function MessageBlockInner({
     );
   }
 
-  // Only the last text block keeps `status === "running"` so we don't draw
-  // a caret at the end of every intermediate text block (the reducer
-  // leaves them all running until TEXT_MESSAGE_END).
-  const lastIdx = msg.blocks.length - 1;
+  const blockCtx: BlockCtx = messageBlocksRenderInstant(msg.role) ? { ...ctx, instant: true } : ctx;
 
-  // Skip the stream-reveal + fade-in pipeline for user messages — they
-  // already saw what they typed; replaying it adds latency for no gain.
-  const blockCtx: BlockCtx = isUser ? { ...ctx, instant: true } : ctx;
-
-  const content = planRenderUnits(msg.blocks, blockCtx.toolCalls).map((unit) => {
+  const content = messageBlockRenderUnits(msg.blocks, blockCtx.toolCalls).map((unit) => {
     if (unit.kind === "toolGroup") {
       return (
         <ToolGroup
@@ -88,15 +67,9 @@ function MessageBlockInner({
       );
     }
     const { block, index } = unit;
-    if (block.kind === "text" && block.status === "running" && index !== lastIdx) {
-      return renderBlock({ ...block, status: "complete" }, index, blockCtx);
-    }
     return renderBlock(block, index, blockCtx);
   });
 
-  // Action-bar baseline: hidden while running, pinned on the last turn, else
-  // hover-revealed. Hover itself is CSS (`group-hover`) inside the class, so a
-  // hovering pointer costs no render.
   const actionsClass = cn(
     "mt-1 flex transition-opacity duration-[--dur-fast]",
     messageActionsVisibilityClass(messageActionsVisibility({ isRunning, isLast })),
