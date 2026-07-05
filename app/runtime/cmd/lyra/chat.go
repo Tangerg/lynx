@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -30,7 +29,10 @@ func (a *App) ChatCmd() *cobra.Command {
 			if message == "" {
 				return cmd.Usage()
 			}
-			cwd, _ := os.Getwd()
+			cwd, err := currentDirectory()
+			if err != nil {
+				return a.fatalErr(err)
+			}
 			runner := NewTurnRunner(a, turnOptions{
 				AutoApprove: autoApprove,
 				Verbose:     verbose,
