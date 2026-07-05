@@ -16,7 +16,7 @@
 
 **新叙事**（2026-06）：lynx 在 2026-06 的密集开发窗口中 **关闭了大部分旧 P0/P1 gap**。核心变化来自 tool loop 全面重写——从"递归无界、串行、硬错"升级为 `DefaultMaxIterations=50` + `LoopDetection`（先于 cap 触发的固定点检测）+ `ConcurrentTool` 并行执行（`maxConcurrentToolCalls=8`）+ tool-error 默认恢复（ToolNotFound 合成结果反馈给模型）+ `FeedbackOnEmptyResponse`（opt-in）+ HITL park/resume 透传。同时补齐了 `workflow.Supervisor`（LLM 编排多 agent）、best-of-N 返回最优、OTel metrics、per-call LLM/embedding 事件、`Interrupt[R]` 统一 HITL 模型、以及 `ProcessStore` 可换持久化 SPI。embabel 同期投资在 provider-native 特性上（NativeStructuredOutput、thought signatures、fuzzy ToolNotFound matching、OCI AI starter、REST/SSE 端点）+ Spring Observation 观测迁移 + 模型覆盖 + ArchUnit 升级。
 
-**今天的格局**：lynx 在抽象整洁度上维持领先（Extension 单分发、ISP 拆 Blackboard、HTN/后向 STRIPS/LLMPlanRanker、HITL 单泛型模型），**并在原始能力宽度上大幅追赶**——tool loop 健壮性、并行执行、Supervisor、best-of-N 已从 gap 变成持平甚至反超。embabel 继续在 framework 生态广度（starter/REST/Shell/A2A/RAG ingestion 深度/form 表单层/OperationScheduler/ArchUnit 机器防腐）上占有 library 无法追赶的天然位差。剩下的 lynx 真 gap 多为 by-design 哲学差异（不做 framework、不做表单、不把 A2A/Shell/Skills 放 agent）或内部技术债（`core/` 被 `core/model/chat` 污染、无 `arch_test.go`、`autonomy` stutter）。
+**今天的格局**：lynx 在抽象整洁度上维持领先（Extension 单分发、ISP 拆 Blackboard、HTN/后向 STRIPS/LLMPlanRanker、HITL 单泛型模型），**并在原始能力宽度上大幅追赶**——tool loop 健壮性、并行执行、Supervisor、best-of-N 已从 gap 变成持平甚至反超。embabel 继续在 framework 生态广度（starter/REST/Shell/A2A/RAG ingestion 深度/form 表单层/OperationScheduler/ArchUnit 机器防腐）上占有 library 无法追赶的天然位差。2026-07-05 后，lynx/agent 的机器防腐、Router 命名、concrete chat client 泄漏已收口；剩余 gap 多为 by-design 哲学差异或低优先级能力差。
 
 ### 总评分卡（7 维度 × 两轴：抽象整洁度 / 原始能力）
 
@@ -206,13 +206,13 @@ embabel：统一委派 + 共享黑板，不形式化隔离梯度
 |---|---|---|---|
 | **插槽数** | 12 子接口，1 条 `collectExtensions[T]` 分发 | 30+ 异质 Spring SPI | lynx 更统一（OCP 干净） |
 | **加新能力** | 实现接口 + 注册，不改 dispatch loop | 实现 SPI + `@Bean` 注册 | lynx 更轻 |
-| **机器防腐** | ✗ **无 `arch_test.go`**（ARCHITECTURE_REVIEW P0-1） | ✓ **ArchUnit 1.4.0**（#1670）— 机器强制分层规则 | **embabel 独有，lynx 真债** |
+| **机器防腐** | ✓ `agent/internal/arch/arch_test.go` | ✓ **ArchUnit 1.4.0**（#1670）— 机器强制分层规则 | 双方都有机器防腐，形态不同 |
 | **验证子系统** | 单 `AgentValidator` + deploy 内建 reachability | manager + 分型 validator（structure/path）+ `ValidationPromptGenerator` LLM 校验 | embabel 更层化 |
 | **ChatClientProvider** | ✓ **NEW** — per-process model 覆盖 | ✓ `LlmService`/`AutoLlmSelectionCriteriaResolver` SPI | 对等，形态不同 |
 
 ### 5.3 裁决
 
-lynx 的 Extension 分发模型在 **OCP 清洁度**上继续领先——一个 `collectExtensions[T]` 收掉 embabel 的 30+ 异质 SPI。但 embabel 有一个结构性优势：**ArchUnit 机器防腐**。lynx `core/` 已被 `core/model/chat` 污染（6 个生产文件 import chat infra — ARCHITECTURE_REVIEW 已标记），纯靠约定不够硬。加 `arch_test.go` 是 ARCHITECTURE_REVIEW 的 P0-1，零风险，立即有收益。
+lynx 的 Extension 分发模型在 **OCP 清洁度**上继续领先——一个 `collectExtensions[T]` 收掉 embabel 的 30+ 异质 SPI。机器防腐已经补齐：lynx 用 `agent/internal/arch/arch_test.go` 编码库内依赖规则；embabel 用 ArchUnit 编码 framework 分层规则。lynx 侧 concrete `*chat.Client` 泄漏也已通过 `core.ChatClient` port 收口。
 
 ---
 
@@ -336,9 +336,9 @@ lynx 的 Extension 分发模型在 **OCP 清洁度**上继续领先——一个 
 | `ux/form` 表单层 | ❌ **STILL OPEN** | by-design skip（UX 出 agent scope） | by-design |
 | OperationScheduler | ❌ **STILL OPEN** | by-design skip（lyra 调度） | by-design |
 | A2A server / Shell / Skills / ONNX in agent | ❌ **STILL OPEN** | by-design skip（在 lyra/`agents/` 外模块） | by-design |
-| `core/` 被 `core/model/chat` 污染 | ❌ **STILL OPEN** | `core/process_context.go:11`, `core/guardrails.go:3` 等 6 个生产文件 import chat infra（ARCHITECTURE_REVIEW 已标记） | **real debt** |
-| 无 `arch_test.go` 机器防腐 | ❌ **STILL OPEN** | ARCHITECTURE_REVIEW P0-1 | **real debt** |
-| `autonomy.Autonomy` 命名 stutter | ❌ **STILL OPEN** | `autonomy/autonomy.go:73` — `package autonomy` + `type Autonomy` | **real debt（低优先级）** |
+| concrete `*chat.Client` 泄漏到 agent core | ✅ **CLOSED** | `core.ChatClient` port 已落地；chat request/tool/options 保留为共享协议原语 | 正向收敛 |
+| 无 `arch_test.go` 机器防腐 | ✅ **CLOSED** | `agent/internal/arch/arch_test.go` 已落地 | 防腐闭合 |
+| `autonomy.Autonomy` 命名 stutter | ✅ **CLOSED** | `autonomy.Router` 已落地 | 命名闭合 |
 | ToolInjectionStrategy（Unfolding/Matryoshka） | ❌ **STILL OPEN** | planner 重规划 obviate 大半 — 仅超大 tool 集（>20）场景值 | low priority |
 
 ---
@@ -351,8 +351,8 @@ lynx 的 Extension 分发模型在 **OCP 清洁度**上继续领先——一个 
 
 | # | 项 | 工作量 | 价值 | 来源 |
 |---|---|---|---|---|
-| 1 | **加 `arch_test.go` 机器防腐** | 低 | 立即阻止 `core/` 继续被 chat 污染，机器强制分层规则 | ARCHITECTURE_REVIEW P0-1 |
-| 2 | **清理 `core/` 的 `core/model/chat` 污染** | 中（breaking，需咨询用户） | 定义 `ChatClient` interface，消除 6 个生产文件对 chat infra 的 import — agent 从 B+ → A 的最关键一步 | ARCHITECTURE_REVIEW §2.2 |
+| 1 | **加 `arch_test.go` 机器防腐** | 已完成 | 机器强制分层规则 | ARCHITECTURE_REVIEW P0-1 |
+| 2 | **清理 concrete `*chat.Client` 泄漏** | 已完成 | 定义 `ChatClient` port，runtime/provider 依赖抽象；chat 协议原语保留共享 | ARCHITECTURE_REVIEW §2.2 |
 
 ### P1 — 下一批
 
@@ -360,7 +360,7 @@ lynx 的 Extension 分发模型在 **OCP 清洁度**上继续领先——一个 
 |---|---|---|---|
 | 3 | **artifact-bearing tool**（扩 `chat.Tool.Call` 返回类型） | 中（breaking） | 图像/表格/PDF 工具带外传 typed 对象，不用 base64/副作用 |
 | 4 | **tool-call 级事件**（`ToolCallRequest/Response` 事件类型） | 低-中 | 工具遥测完整性（当前 LLM/embedding 已有，tool 仍缺） |
-| 5 | **`autonomy.Autonomy` → `autonomy.Router`** 改名 | 低（breaking） | 消 stutter（ARCHITECTURE_REVIEW + REFACTORING §1） |
+| 5 | **`autonomy.Autonomy` → `autonomy.Router`** 改名 | 已完成 | 消 stutter（ARCHITECTURE_REVIEW + REFACTORING §1） |
 
 ### P2 — 有真实场景时
 
@@ -387,7 +387,7 @@ lynx 的 Extension 分发模型在 **OCP 清洁度**上继续领先——一个 
 
 ## 10. 一句话定档
 
-**lynx/agent 在 2026-06 窗口完成了从"高保真原型"到"生产就绪库"的关键一跃：tool loop 全面重写（并行+限流+检环+恢复+park/resume）、Supervisor 补齐、best-of-N 修正、metrics + per-call 事件 + 持久化 SPI 三件套落地。旧对比中"embabel 决定性领先"的 ToolLoop 维度已反转；embabel 的优势回归到其 framework 天生态位（生态广度/REST/Shell/A2A/form/RAG ingestion 深度/ArchUnit 机器防腐）。lynx 的剩余真债集中在两处架构卫生项（`core/` chat 污染 + 无 `arch_test.go`）和三处低优先级能力差（artifact 通道 / tool-call 事件 / autonomy stutter）。继续巩固 library-kit 哲学，不追 framework 能力。**
+**lynx/agent 在 2026-06 到 2026-07 窗口完成了从"高保真原型"到"生产就绪库"的关键一跃：tool loop 全面重写（并行+限流+检环+恢复+park/resume）、Supervisor 补齐、best-of-N 修正、metrics + per-call 事件 + 持久化 SPI 三件套落地，并补齐机器防腐、Router 命名、ChatClient port。旧对比中"embabel 决定性领先"的 ToolLoop 维度已反转；embabel 的优势回归到其 framework 天生态位（生态广度/REST/Shell/A2A/form/RAG ingestion 深度）。lynx 的剩余真 gap 集中在低优先级能力差（artifact 通道 / tool-call 事件 / ToolInjectionStrategy 等）。继续巩固 library-kit 哲学，不追 framework 能力。**
 
 ---
 
