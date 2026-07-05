@@ -9,14 +9,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
-import { isLargePaste } from "@/plugins/builtin/chat/composer/public/largePaste";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useFileMentions } from "@/plugins/builtin/chat/composer/public/fileMentions";
 import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
 import { COMPOSER_KEY_BINDING, lookupExtensionByKey, pickComposerPlaceholder } from "@/plugins/sdk";
-import { normalizeCombo } from "@/plugins/sdk/registry";
 import { submitComposer } from "@/plugins/builtin/chat/composer/public/submit";
 import { useT } from "@/lib/i18n";
+import { composerKeyBindingKey, composerPasteIntent } from "../application/composerInputEvents";
 
 interface Args {
   value: string;
@@ -124,15 +123,17 @@ export function useComposerInputController({
 
   const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>): void => {
     const files = imageFiles(event.clipboardData?.files);
-    if (files.length > 0) {
-      event.preventDefault();
-      if (acceptsImages) onAddImages(files);
-      return;
-    }
-    const text = event.clipboardData?.getData("text") ?? "";
-    if (isLargePaste(text)) {
-      event.preventDefault();
-      onAddPaste(text);
+    const text = files.length > 0 ? "" : (event.clipboardData?.getData("text") ?? "");
+    const intent = composerPasteIntent(files, text);
+    switch (intent.kind) {
+      case "images":
+        event.preventDefault();
+        if (acceptsImages) onAddImages(intent.files);
+        break;
+      case "large-text":
+        event.preventDefault();
+        onAddPaste(intent.text);
+        break;
     }
   };
 
@@ -147,12 +148,10 @@ export function useComposerInputController({
       event.preventDefault();
       return;
     }
-    const parts: string[] = [];
-    if (event.metaKey || event.ctrlKey) parts.push("mod");
-    if (event.altKey) parts.push("alt");
-    if (event.shiftKey) parts.push("shift");
-    parts.push(event.key);
-    const binding = lookupExtensionByKey(COMPOSER_KEY_BINDING, normalizeCombo(parts.join("+")));
+    const binding = lookupExtensionByKey(
+      COMPOSER_KEY_BINDING,
+      composerKeyBindingKey(event.nativeEvent),
+    );
     if (!binding) return;
     const handled = binding.handler({
       value,
