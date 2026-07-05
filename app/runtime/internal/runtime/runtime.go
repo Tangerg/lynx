@@ -454,10 +454,6 @@ func runClosers(closers []func() error) {
 	}
 }
 
-// Chat returns the one-turn dispatch surface transport adapters call
-// into for [turn.Service.StartTurn].
-func (r *Runtime) Chat() turn.Service { return r.chat }
-
 // ForgetSession releases the turn service's process-local state for a session
 // being removed (the SessionStart gate). A runtime-level passthrough so the
 // lifecycle coordinator can clear it as part of the delete / purge write-sets

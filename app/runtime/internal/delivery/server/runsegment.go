@@ -8,7 +8,7 @@ import (
 func (s *Server) runSegmentEffects() *runsegment.Effects {
 	var processes runsegment.ProcessLookup
 	if s.rt != nil {
-		processes = s.rt.Chat()
+		processes = s.turns()
 	}
 	return runsegment.New(runsegment.Config{
 		Stores:      s.rt,

@@ -53,7 +53,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		}
 	}()
 
-	resumed, err := s.coordinator().ResumeClaimedInterrupt(ctx, s.rt.Chat(), in.ParentRunID, resolution)
+	resumed, err := s.coordinator().ResumeClaimedInterrupt(ctx, s.turns(), in.ParentRunID, resolution)
 	if err != nil {
 		switch {
 		case errors.Is(err, lifecycle.ErrInterruptNotOpen):

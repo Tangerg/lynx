@@ -50,7 +50,7 @@ func NewTurnRunner(app *App, opts turnOptions) *TurnRunner {
 // and returns the resulting exit code (0 ok / 1 errored).
 //
 // Cancellation: SIGINT during the turn calls
-// [turn.Service.Cancel](handle) so the runtime emits a clean
+// Runtime.CancelTurn(handle) so the runtime emits a clean
 // TurnEnd(Canceled). A second SIGINT escalates to the default
 // kill — for wedged turns.
 func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
@@ -62,7 +62,7 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 		r.app.printErr(err)
 		return 1
 	}
-	handle, err := r.app.rt.Chat().StartTurn(ctx, turn.StartTurnRequest{
+	handle, err := r.app.rt.StartTurn(ctx, turn.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    message,
 		Cwd:        sess.Cwd,
@@ -73,7 +73,7 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 		r.app.printErr(err)
 		return 1
 	}
-	events, err := r.app.rt.Chat().Events(ctx, handle)
+	events, err := r.app.rt.TurnEvents(ctx, handle)
 	if err != nil {
 		r.app.printErr(err)
 		return 1
@@ -94,7 +94,7 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 		select {
 		case <-sigCh:
 			fmt.Fprintln(r.app.Err, "\n[lyra] canceling...")
-			_ = r.app.rt.Chat().Cancel(ctx, handle)
+			_ = r.app.rt.CancelTurn(ctx, handle)
 			signal.Stop(sigCh)
 		case <-sigCtx.Done():
 		}
@@ -142,7 +142,7 @@ func (r *TurnRunner) dispatch(ctx context.Context, handle turn.TurnHandle, ev tu
 
 // handleInterrupt answers a parked turn (HITL R model): it describes the
 // pending request — a gated tool call (prints tool + args) — prompts for
-// approval, and forwards the decision via [turn.Service.Resume]. The
+// approval, and forwards the decision via Runtime.ResumeTurn. The
 // continuation streams onto the same event channel the caller is still
 // draining.
 func (r *TurnRunner) handleInterrupt(ctx context.Context, handle turn.TurnHandle, e turn.TurnInterrupted) {
@@ -154,7 +154,7 @@ func (r *TurnRunner) handleInterrupt(ctx context.Context, handle turn.TurnHandle
 		}
 	}
 	approved := r.decide()
-	if err := r.app.rt.Chat().Resume(ctx, handle, interrupts.Resolution{Approved: approved}); err != nil {
+	if err := r.app.rt.ResumeTurn(ctx, handle, interrupts.Resolution{Approved: approved}); err != nil {
 		fmt.Fprintf(r.app.Err, "[lyra] resume: %s\n", err)
 	}
 	if !approved {

@@ -89,7 +89,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	// Delete the session row + cascade its session-scoped storage and parked
 	// turn state via the lifecycle coordinator. File checkpoints (shadow git)
 	// are a workspace concern, dropped here after the storage cascade.
-	if err := s.coordinator().DeleteSession(ctx, s.rt.Chat(), id); err != nil {
+	if err := s.coordinator().DeleteSession(ctx, s.turns(), id); err != nil {
 		return wireSessionErr(err)
 	}
 	s.dropCheckpoints(id) // file snapshots (shadow git)
