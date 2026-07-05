@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MCPServerConfig } from "./toolCatalog";
 import {
+  builtinToolCatalogViewModel,
   builtinToolSafetyPillClassName,
   toolCatalogSubtext,
   toolCatalogViewModel,
@@ -35,6 +36,32 @@ describe("toolCatalogViewModel", () => {
       activeMcpServerCount: 0,
       configuredMcpServerCount: 0,
     });
+  });
+});
+
+describe("builtinToolCatalogViewModel", () => {
+  it("projects runtime tools into stable rows", () => {
+    expect(
+      builtinToolCatalogViewModel([
+        { name: "read", description: "Read files", safetyClass: "safe" },
+        { name: "think", description: "Think" },
+      ]),
+    ).toEqual({
+      rows: [
+        {
+          id: "read",
+          name: "read",
+          description: "Read files",
+          safety: { label: "safe", className: "bg-accent/12 text-accent" },
+        },
+        { id: "think", name: "think", description: "Think", safety: undefined },
+      ],
+      isEmpty: false,
+    });
+  });
+
+  it("projects an empty runtime tool catalog", () => {
+    expect(builtinToolCatalogViewModel([])).toEqual({ rows: [], isEmpty: true });
   });
 });
 

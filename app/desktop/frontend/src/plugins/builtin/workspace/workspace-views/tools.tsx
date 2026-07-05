@@ -10,7 +10,7 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
-  builtinToolSafetyPillClassName,
+  builtinToolCatalogViewModel,
   toolCatalogSubtext,
   toolCatalogViewModel,
   useBuiltinToolConfigs,
@@ -24,15 +24,16 @@ function SectionHead({ children }: { children: React.ReactNode }) {
 function BuiltinToolsSection() {
   const t = useT();
   const { data, isLoading } = useBuiltinToolConfigs();
+  const view = builtinToolCatalogViewModel(data ?? []);
   // No skeleton/error chrome here — the MCP DataView below owns the tab's
   // loading story; this section just appears once the catalog resolves.
-  if (isLoading || !data?.length) return null;
+  if (isLoading || view.isEmpty) return null;
   return (
     <div className="pb-1.5">
       <SectionHead>{t("tools.builtin")}</SectionHead>
-      {data.map((tool) => (
+      {view.rows.map((tool) => (
         <div
-          key={tool.name}
+          key={tool.id}
           className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-2 px-4 py-1"
         >
           <code className="rounded-sm bg-surface-2 px-1 font-mono text-[11px] text-fg">
@@ -42,11 +43,11 @@ function BuiltinToolsSection() {
             <span className="truncate text-[11.5px] text-fg-faint" title={tool.description}>
               {tool.description}
             </span>
-            {tool.safetyClass && (
+            {tool.safety && (
               <span
-                className={`shrink-0 rounded-sm px-1.5 py-0.5 font-mono text-[10px] ${builtinToolSafetyPillClassName(tool.safetyClass)}`}
+                className={`shrink-0 rounded-sm px-1.5 py-0.5 font-mono text-[10px] ${tool.safety.className}`}
               >
-                {tool.safetyClass}
+                {tool.safety.label}
               </span>
             )}
           </div>
