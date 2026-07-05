@@ -47,28 +47,24 @@ func NewTurnRunner(app *App, opts turnOptions) *TurnRunner {
 }
 
 // Run starts a turn for sessionID + message, drains its events,
-// and returns the resulting exit code (0 ok / 1 errored).
+// and returns the resulting exit code (0 ok / 1 errored). Empty
+// sessionID starts a fresh session in defaultCwd.
 //
 // Cancellation: SIGINT during the turn calls
 // Runtime.CancelTurn(handle) so the runtime emits a clean
 // TurnEnd(Canceled). A second SIGINT escalates to the default
 // kill — for wedged turns.
-func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
-	// Resolve the session's cwd so fs/shell tools run in the session's
-	// project directory rather than the engine default — same contract
-	// as the runs.start wire path.
-	sess, err := r.app.rt.GetSession(ctx, sessionID)
+func (r *TurnRunner) Run(ctx context.Context, sessionID, defaultCwd, message string) int {
+	_, turnReq, err := r.app.rt.PlanTurnStart(ctx, sessionID, defaultCwd, turn.StartTurnRequest{
+		Message:    message,
+		MaxBudget:  r.opts.MaxBudget,
+		MaxCostUSD: r.opts.MaxCostUSD,
+	})
 	if err != nil {
 		r.app.printErr(err)
 		return 1
 	}
-	handle, err := r.app.rt.StartTurn(ctx, turn.StartTurnRequest{
-		SessionID:  sessionID,
-		Message:    message,
-		Cwd:        sess.Cwd,
-		MaxBudget:  r.opts.MaxBudget,
-		MaxCostUSD: r.opts.MaxCostUSD,
-	})
+	handle, err := r.app.rt.StartTurn(ctx, turnReq)
 	if err != nil {
 		r.app.printErr(err)
 		return 1
