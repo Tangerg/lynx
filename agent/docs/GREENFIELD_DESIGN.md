@@ -90,14 +90,14 @@ Tool loop 当前在 `core/model/chat/middleware/tool/`(12 文件,共享 lynx 基
 - agent 的 `core/` 通过 `ChatClient` interface 消费它(`ProcessContext.Chat()` 内部装配 tool middleware),不直接 import `core/model/chat/middleware/tool`。
 - 放共享基础设施层是对的 —— 第三消费者出现时无需搬家。
 
-### 2.3 `runtime/` 53 文件
+### 2.3 `runtime/` state-machine package
 
 **greenfield:保持一个包,不拆。** 理由(与 ARCHITECTURE_REVIEW §2.3 一致):
 
 - `runtime/` 核心 ~15 个文件是**同一个状态机**的不同面(Platform 构造、AgentProcess 状态转移、tick 循环、action 执行、extension dispatch、并发/子进程 spawn)。
 - 拆分会制造跨包子包依赖,增加 import 噪音,且违反"库内部用具体类型" —— 子包之间需要互相 import 具体类型。
-- 53 文件在 Go 大包阈值内(`net/http` 远超此数)。`subagent.go`/`mcp.go`/`publish.go` 关注点不同但紧密依赖 `*Platform`/`*AgentProcess` 具体类型 —— 拆出去增加噪音多于收益。
-- 触发条件(runtime/ 超 60 文件 + 出现第二个外部消费者)满足时才考虑拆。
+- 文件数不是硬阈值；`subagent.go`/`mcp.go`/`publish.go` 关注点不同但紧密依赖 `*Platform`/`*AgentProcess` 具体类型 —— 拆出去增加噪音多于收益。
+- 只有当某块出现独立生命周期、独立测试替身或第二个真实消费者时，才考虑从 runtime 拆出。
 
 ### 2.4 其余包放置
 
@@ -142,11 +142,11 @@ agent/
 │   ├── process.go                     Process interface + Status enum
 │   ├── process_context.go             ProcessContext — action 体的唯一入口
 │   ├── process_options.go             ProcessOptions + Budget + Session
-│   ├── chat.go                  ★NEW  ChatClient/ChatRequest/ChatTool/ChatMiddleware interfaces — core/ 纯度关键
-│   ├── guardrails.go                  Guardrails — chat middleware wrapper(用 core.ChatMiddleware)
+│   ├── chat.go                        ChatClient port(返回共享 chat.ClientRequest)
+│   ├── guardrails.go                  Guardrails — chat middleware wrapper
 │   ├── prompt_runner.go               PromptRunner — action 体 LLM 调用门面(用 core.ChatClient)
 │   ├── extension.go                   Extension marker + 12 capability 子接口
-│   ├── tool_group.go                  ToolGroup + AgentTool(用 core.ChatTool)
+│   ├── tool_group.go                  ToolGroup + AgentTool(共享 chat.Tool)
 │   ├── service_provider.go            ServiceProvider — 开放 service locator
 │   ├── early_termination.go           EarlyTerminationPolicy + BudgetPolicy
 │   ├── process_store.go               ProcessStore SPI + ProcessSnapshot + SnapshotCodec
@@ -205,7 +205,7 @@ agent/
 | **`internal/arch/arch_test.go` — NEW** | 结构 | 机器强制:core ↛ runtime/planning/event/workflow/hitl/toolpolicy;planning/event ↛ runtime。零 API break |
 | **`autonomy/autonomy.go` → `autonomy/router.go` — DONE** | 命名 | `type Autonomy` → `type Router`,消 `autonomy.Autonomy` stutter |
 | **chat client port — DONE** | 结构 | 具体 client 依赖收窄为 `core.ChatClient`；不复制 chat 协议类型 |
-| **`runtime/` 不拆** | 不变 | 53 文件在内聚阈值内;拆了增加跨包具体类型 import |
+| **`runtime/` 不按文件数拆** | 不变 | 状态机包仍内聚；只在真实独立生命周期出现时拆 |
 | **`workflow/` 保持 import `runtime`** | 不变 | 库内部用具体类型;不抽 SubprocessSpawner(YAGNI) |
 | **`planning/` + `event/` + `hitl/` + `toolpolicy/` 不变** | 不变 | 当前放置正确 |
 
@@ -246,7 +246,7 @@ agent/
 
 | # | 改动 | 触发条件 |
 |---|---|---|
-| 4 | `runtime/` 拆 `subagent/` + `mcp/` 子包 | runtime/ 超 60 文件 且 有第二个外部消费者 |
+| 4 | `runtime/` 拆 `subagent/` + `mcp/` 子包 | 出现独立生命周期、独立测试替身或第二个真实消费者 |
 | 5 | `domain/maintenance` 的 `kernel` DTO 移到独立 `kernel/types` | 有第二个 port 实现方需要这些 DTO |
 
 ### 明确不做(YAGNI 戒律)
@@ -258,11 +258,11 @@ agent/
 | `ProcessStore`/`SessionStore` 改名 `Repository` | 存的是快照字节不是领域对象,Store 名实相符 |
 | 给 `workflow/` 抽 `SubprocessSpawner` interface | 库内部单实现,YAGNI 仪式 |
 | `ServiceProvider` 加 typed Register | `map[string]any` 是存储层物理约束,typed Register 零新增安全,cosmetic |
-| 拆 `process_context.go`(388 LOC) | `REFACTORING §8`:大但内聚不拆。3-zone 分区健康 |
+| 拆 `process_context.go` | 已按职责拆到 `process_context*.go`；当前核心上下文仍内聚，不再按行数硬拆 |
 | `AgentTracer()` 抽 interface 解耦 OTel | YAGNI:单 consumer,无痛感 |
 
 ---
 
 ## 一句话收尾
 
-**agent 是库 —— 教科书 Clean Arch 环对它不直接适用,项目哲学的「库内部用具体类型、不叠 DDD 层」对它是对的。充血原语 + Extension 单分发 + planning 策略插件已是教科书级别好设计。真正欠的债是 `core/` 被 chat 污染 + 无机器防腐 —— 加 `arch_test.go` 立即防腐,定义 `ChatClient` interface 让原语层变纯,就到 A。**
+**agent 是库 —— 教科书 Clean Arch 环对它不直接适用,项目哲学的「库内部用具体类型、不叠 DDD 层」对它是对的。充血原语 + Extension 单分发 + planning 策略插件已是教科书级别好设计。机器防腐、Router 命名和 ChatClient port 已收口；后续只挑真实职责混杂或真实能力 gap。**

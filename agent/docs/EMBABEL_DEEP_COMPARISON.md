@@ -1,7 +1,7 @@
 # 深度对比：lynx/agent vs embabel-agent（2026-06 刷新）
 
 > **基线**
-> - **lynx** HEAD `b02185f`（branch `main`，2026-06-18）；`agent/` 子模块 **~13.2k Go LOC / 112 文件 / 18 个内部包**：`core/`（~4.5k）、`runtime/`（~5.3k）+`runtime/autonomy/`（~0.6k）、`planning/`（~0.5k）+`planning/planner/{goap,htn,reactive,utility}`、`event/`（~0.7k）、`hitl/`（~0.3k）、`toolpolicy/`（~0.2k）、`workflow/`（~1.2k）。仅依赖 `core`/`mcp`/`pkg` + `otel`/`uuid`/`go-sdk`。
+> - **lynx** 对比基线 HEAD `b02185f`（branch `main`，2026-06-18）；`agent/` 子模块当时 **~13.2k Go LOC / 112 文件 / 18 个内部包**：`core/`（~4.5k）、`runtime/`（~5.3k）+`runtime/autonomy/`（~0.6k）、`planning/`（~0.5k）+`planning/planner/{goap,htn,reactive,utility}`、`event/`（~0.7k）、`hitl/`（~0.3k）、`toolpolicy/`（~0.2k）、`workflow/`（~1.2k）。2026-07 里程碑后当前代码已补齐机器防腐、Router 命名和 ChatClient port。
 > - **embabel** HEAD `e3392133b`（main，2026-06-18）；~16 Maven module + 21 starter / ~240k LOC（Kotlin 主导），其中 `embabel-agent-api` ~151k LOC。
 >
 > **状态**：本文 **supersedes** 2026-05-29 版（基线 lynx `e480bc7` / embabel `9dc8a897`）。两边均重新通读源码。lynx 侧自旧基线经历 **~85 个 agent 相关 commit**（全仓 ~504），能力轮廓已发生实质变化；embabel 侧 **~26 个 commit**，增量集中在 provider 原生特性与观测迁移。更早的 `EMBABEL_COMPARISON.md`（2026-05-14）已 doubly superseded 并于 2026-06-18 删除，历史见 git。
@@ -26,7 +26,7 @@
 | 2. 核心抽象 | **lynx** | embabel | ISP Blackboard / Process HAS-a / 单泛型 HITL — lynx 维持 |
 | 3. 规划 | **lynx** | **lynx** | HTN + 后向 STRIPS + LLMPlanRanker — lynx 已反超 |
 | 4. 运行时/执行 | **lynx** | **lynx** | 并发动作真并行 + spawn 梯度 + kill-race 全族 + ProcessStore SPI — lynx 补上持久化差距后领先 |
-| 5. Extension/SPI | **lynx** | 各有胜场 | lynx 单分发 + 12 子接口 vs embabel 30+ 异质 SPI + **ArchUnit 机器防腐（lynx 缺）** |
+| 5. Extension/SPI | **lynx** | 各有胜场 | lynx 单分发 + 12 子接口 + Go arch test vs embabel 30+ 异质 SPI + ArchUnit |
 | 6. Tool/ToolLoop | **lynx** | **lynx** | **维度级反转** — lynx 新 tool loop 并行+限流+检环+错误恢复+空回复重试+ParkStore HITL，全面超越 embabel DefaultToolLoop；embabel 仍有 injection strategy 体系 |
 | 7. HITL/Workflow/生态/事件/观测 | **lynx** | embabel | lynx Interrupt[R] + Supervisor + best-of-N 关闭旧 gap；embabel 生态广度 + 观测框架 + form 表单层维持领先 |
 
@@ -181,7 +181,7 @@ embabel：统一委派 + 共享黑板，不形式化隔离梯度
 
 ## 5. Extension / SPI 模型
 
-**Δ since old baseline**：lynx Extension 子接口从 ~10 个增至 **12 个**（新增 `ChatClientProvider` + `BudgetPolicy`）。embabel 侧 ArchUnit 1.3.0 → 1.4.0，**embabel 有机器强制架构测试，lynx 仍没有**。
+**Δ since old baseline**：lynx Extension 子接口从 ~10 个增至 **12 个**（新增 `ChatClientProvider` + `BudgetPolicy`）。embabel 侧 ArchUnit 1.3.0 → 1.4.0；2026-07 后 lynx 也已用 `agent/internal/arch/arch_test.go` 补齐机器防腐，形态不同但目标一致。
 
 ### 5.1 lynx Extension 子接口全集（2026-06）
 

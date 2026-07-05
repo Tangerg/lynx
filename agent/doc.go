@@ -11,5 +11,5 @@
 //	github.com/Tangerg/lynx/agent/event       — event types + listener
 //	github.com/Tangerg/lynx/agent/workflow    — scatter-gather / repeat-until agent builders
 //	github.com/Tangerg/lynx/agent/toolpolicy  — chat-tool decorators (once-only / unlock)
-//	github.com/Tangerg/lynx/agent/hitl        — typed Awaitable / NewConfirmation
+//	github.com/Tangerg/lynx/agent/hitl        — Interrupt[R] + typed Awaitable helpers
 package agent

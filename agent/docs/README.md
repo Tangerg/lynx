@@ -30,11 +30,11 @@ agent/
 ├── agent.go        fluent agent builder (the recommended user API)
 ├── builder.go
 ├── core/           primitives — Action / Goal / Condition / Agent / Blackboard
-├── plan/           WorldState, Plan, PlanningSystem, Planner interface
-│   └── planner/    goap (A* / default), htn, reactive
+├── planning/       WorldState, Plan, PlanningSystem, Planner interface
+│   └── planner/    goap (A* / default), htn, reactive, utility
 ├── runtime/        Platform, AgentProcess, sequential/concurrent tick, retry
 ├── event/          lifecycle event types + multicast listener
-├── hitl/           typed Awaitable / Confirmation / Form requests
+├── hitl/           Interrupt[R] + typed Awaitable helpers
 ├── toolpolicy/     OnceOnly / Unlocked chat-tool decorators
 ├── workflow/       higher-level agent shapes (Loop / Parallel / RepeatUntil / …)
 └── examples/       hello (1 action), blog (3-action GOAP plan), supervisor,
@@ -66,7 +66,7 @@ func main() {
         Goals(agent.GoalProducing[Post](core.Goal{Description: "post produced"})).
         Build()
 
-    p := agent.NewPlatform(&runtime.PlatformConfig{})
+    p := agent.NewPlatform(runtime.PlatformConfig{})
     _ = p.Deploy(a)
     proc, _ := p.RunAgent(context.Background(), a, map[string]any{
         core.DefaultBindingName: Topic{Title: "agents"},

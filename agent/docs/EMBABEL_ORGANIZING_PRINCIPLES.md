@@ -90,7 +90,7 @@
 
 ### lynx:一个类型分发
 
-只有 `core.Extension` marker + `collectExtensions[T any]([]Extension)`(`runtime/`)。7 个能力子接口(`ActionMiddleware` / `ToolDecorator` / `AgentValidator` / `GoalApprover` / `ToolGroupResolver` / `IDGenerator` / `Blackboard`)**全走同一条分发**。加能力 = 实现接口、塞进 `Extensions` 切片,dispatch 自动按类型发现 —— **OCP 靠泛型分发,不改 dispatch loop**。
+只有 `core.Extension` marker + `collectExtensions[T any]([]Extension)`(`runtime/`)。能力子接口(`ActionMiddleware` / `ToolDecorator` / `AgentValidator` / `GoalApprover` / `ChatClientProvider` / `ToolGroupResolver` / `EarlyTerminationPolicy` / `EventListener` / `IDGenerator` / `Blackboard` / `planning.Planner`)**全走同一条分发**。加能力 = 实现接口、塞进 `Extensions` 切片,dispatch 自动按类型发现 —— **OCP 靠泛型分发,不改 dispatch loop**。
 
 ### 裁决
 
@@ -102,7 +102,7 @@
 | 心智负担 | 要知道**哪个** SPI、怎么注册 | 一个模式,类型说话 |
 | 代价 | 细粒度换来表面积大 + Spring 依赖 | 粒度粗;真要细分插槽得加子接口 |
 
-> 这条与既有 DEEP_COMPARISON §5 的"112 文件 SPI vs 10 types"互补:那篇比**数量/能力矩阵**,本篇比**组织形态**——embabel 是"**多机制并列、容器编织**",lynx 是"**单机制、类型编织**"。两者都能扩展;区别是 embabel 的扩展性来自"插槽多",lynx 的来自"分发统一"。
+> 这条与既有 DEEP_COMPARISON §5 的能力矩阵互补:那篇比**数量/能力矩阵**,本篇比**组织形态**——embabel 是"**多机制并列、容器编织**",lynx 是"**单机制、类型编织**"。两者都能扩展;区别是 embabel 的扩展性来自"插槽多",lynx 的来自"分发统一"。
 
 ---
 

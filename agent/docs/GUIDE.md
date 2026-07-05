@@ -26,13 +26,14 @@
 ```
 agent/
 ├── core/             ← 原语：Action / Goal / Condition / Agent / Blackboard / Awaitable / Process
-├── plan/             ← WorldState、Plan、Planner 接口、PlanningSystem
-├── planner/goap/     ← A* GOAP 实现（plan.Planner 的具体实现）
+├── planning/         ← WorldState、Plan、Planner 接口、PlanningSystem
+├── planning/planner/goap/
+│                     ← A* GOAP 实现（planning.Planner 的具体实现）
 ├── runtime/          ← Platform、AgentProcess、OODA tick、in-memory blackboard
 ├── event/            ← 事件类型 + Multicast Listener
-├── dsl/              ← 流式 Builder（用户唯一推荐入口）
-├── hitl/             ← Awaitable 类型化（TypedRequest + NewConfirmation）
-└── examples/         ← hello (1 action) / blog (3 action 链式)
+├── workflow/         ← Sequence / Loop / Parallel / Consensus 等高阶 agent shape
+├── hitl/             ← Interrupt[R] + typed Awaitable
+└── examples/         ← hello / blog / supervisor / mcpagent 等 demo
 
 agent.go              ← 顶层包：再导出 New / NewAction / NewCondition / GoalProducing / NewPlatform
                         + 类型别名 Agent / Goal / Action / Platform / ...
@@ -328,7 +329,7 @@ type ToolGroupResolver interface {
 
 // 自带实现：
 core.NewLazyToolGroup(meta, loadFn)        // first call → loadFn，结果缓存
-core.NewStaticToolGroupResolver()          // map[role]ToolGroup
+core.NewStaticToolGroupResolver("static")  // map[role]ToolGroup
 ```
 
 `TerminationScope` 是 0.4 特性，控制工具失效时的爆炸半径：
@@ -346,12 +347,12 @@ core.NewStaticToolGroupResolver()          // map[role]ToolGroup
 ## III.1 Platform 生命周期
 
 ```go
-p := agent.NewPlatform(&runtime.PlatformConfig{
+p := agent.NewPlatform(runtime.PlatformConfig{
     ChatClient: chatClient,       // optional, 共享 LLM 客户端
     Extensions: []core.Extension{ // 所有 pluggable 都走这里
         toolResolver,             // 实现 core.ToolGroupResolver
         idGen,                    // 实现 core.IDGenerator (默认 UUIDv4)
-        myPlanner,                // 实现 plan.Planner (默认 goap)
+        myPlanner,                // 实现 planning.Planner (默认 goap)
         myBlackboard,             // 实现 core.Blackboard (默认 in-memory)
         debugLogger{},            // 实现 runtime.EventListener
     },
@@ -359,7 +360,6 @@ p := agent.NewPlatform(&runtime.PlatformConfig{
 
 p.Deploy(agent)                  // 校验 + 注册（重复 deploy 同名会替换）
 p.Undeploy(name)
-p.AddListener(l) / p.RemoveListener(l)
 p.RunAgent(ctx, agent, bindings, opts)    // 同步：阻塞到 process 终止
 p.StartAgent(ctx, agent, bindings, opts)  // 异步：返回 (proc, <-chan error)
 p.GetProcess(id) / p.ActiveProcesses()
@@ -436,7 +436,7 @@ func (p *AgentProcess) tickSimple(ctx context.Context, ws core.WorldState) error
 
 ## III.3 GOAP A\* 算法
 
-`agent/planner/goap/astar.go`：
+`agent/planning/planner/goap/astar.go`：
 
 ```
 PlanToGoal(ctx, start, system, goal, opts):
@@ -560,7 +560,7 @@ func main() {
         Goals(agent.GoalProducing[Post](core.Goal{Description: "post produced"})).
         Build()
 
-    p := agent.NewPlatform(&runtime.PlatformConfig{})
+p := agent.NewPlatform(runtime.PlatformConfig{})
     if err := p.Deploy(a); err != nil { panic(err) }
 
     proc, _ := p.RunAgent(context.Background(), a,
@@ -640,9 +640,9 @@ agent.NewAction[Draft, Approved]("review", func(ctx context.Context, pc *core.Pr
     req := hitl.NewConfirmation(d, func(approved bool) core.ResponseImpact {
         if approved {
             pc.Blackboard.Bind(Approved{Text: d.Text})
-            return core.ResponseImpactUpdated
+            return core.ImpactUpdated
         }
-        return core.ResponseImpactUnchanged
+        return core.ImpactUnchanged
     })
     pc.AwaitInput(req)  // → ActionWaiting，process 转 StatusWaiting
     return Approved{}, nil  // 占位返回，blackboard 在 handler 里写
@@ -653,7 +653,7 @@ proc, _ := platform.StartAgent(ctx, agent, bindings, opts)
 // process 跑到 ReviewAction 时变成 Waiting，等待外部输入
 // ... UI 收到用户点击 "approve" ...
 impact, _ := platform.ResumeProcess(proc.ID(), true)
-if impact == core.ResponseImpactUpdated {
+if impact == core.ImpactUpdated {
     // 重新 start agent 让 planner 看到新状态
     platform.StartAgent(ctx, agent, nil, opts)  // 用同一 blackboard
 }
@@ -665,21 +665,28 @@ if impact == core.ResponseImpactUpdated {
 
 ```go
 // 启动时配置 resolver：
-toolResolver := core.NewStaticToolGroupResolver()
-toolResolver.Register("web_search", core.NewLazyToolGroup(meta, func(ctx) ([]core.AgentTool, error) {
-    return []core.AgentTool{
-        {
-            Name: "search",
+toolResolver := core.NewStaticToolGroupResolver("static")
+toolResolver.Register("web_search", core.NewLazyToolGroup(meta, func(ctx context.Context) ([]core.AgentTool, error) {
+    searchTool, err := chat.NewTool(
+        chat.ToolDefinition{
+            Name:        "search",
             Description: "Search the web",
             InputSchema: `{"query": "string"}`,
-            Call: func(ctx, args string) (string, error) {
-                return doSearch(args)
-            },
         },
-    }, nil
+        chat.ToolMetadata{},
+        func(ctx context.Context, args string) (string, error) {
+            return doSearch(args)
+        },
+    )
+    if err != nil {
+        return nil, err
+    }
+    return []core.AgentTool{searchTool}, nil
 }))
 
-p := agent.NewPlatform(&runtime.PlatformConfig{Tools: toolResolver})
+p := agent.NewPlatform(runtime.PlatformConfig{
+    Extensions: []core.Extension{toolResolver},
+})
 
 // 在 action body 中按 role 拉取：
 tools, err := pc.ResolveTools(ctx, "web_search")
@@ -735,20 +742,27 @@ core.ProcessOptions{
 
 ```go
 type debugLogger struct{}
+func (debugLogger) Name() string { return "debug-logger" }
 func (debugLogger) OnEvent(e event.Event) {
     fmt.Printf("[%s] %s\n", e.EventName(), e.ProcessID())
 }
 
-p := agent.NewPlatform(&runtime.PlatformConfig{
-    Listeners: []event.Listener{debugLogger{}},
+p := agent.NewPlatform(runtime.PlatformConfig{
+    Extensions: []core.Extension{debugLogger{}},
 })
 
 // 或者用闭包：
-p.AddListener(event.ListenerFunc(func(e event.Event) {
-    if r, ok := e.(event.ActionExecutionResult); ok && r.Err != nil {
-        metrics.Counter("action.failed").Inc()
-    }
-}))
+type listenerFunc func(event.Event)
+func (f listenerFunc) Name() string { return "debug-listener" }
+func (f listenerFunc) OnEvent(e event.Event) { f(e) }
+
+p2 := agent.NewPlatform(runtime.PlatformConfig{
+    Extensions: []core.Extension{listenerFunc(func(e event.Event) {
+        if r, ok := e.(event.ActionExecutionResult); ok && r.Err != nil {
+            metrics.Counter("action.failed").Inc()
+        }
+    })},
+})
 
 // JSON 序列化（每个 event 实现 json.Marshaler）：
 data, _ := json.Marshal(evt)  // 含 envelope: {"event":"...", "timestamp":..., "payload":{...}}
@@ -760,13 +774,11 @@ data, _ := json.Marshal(evt)  // 含 envelope: {"event":"...", "timestamp":..., 
 
 ```go
 // 启动时：
-svcs := core.NewServiceProvider()
-svcs.Set("chat",     openaiClient)
-svcs.Set("embedder", embeddingClient)
-svcs.Set("rag",      ragPipeline)
-svcs.Set("logger",   slog.Default())
-
-p := agent.NewPlatform(&runtime.PlatformConfig{Services: svcs})
+p := agent.NewPlatform(runtime.PlatformConfig{})
+p.Services().Set("chat",     openaiClient)
+p.Services().Set("embedder", embeddingClient)
+p.Services().Set("rag",      ragPipeline)
+p.Services().Set("logger",   slog.Default())
 
 // 在 action body 中类型安全取：
 chat, ok := core.ServiceOf[*openai.Client](pc.Services, "chat")
@@ -781,9 +793,9 @@ if !ok { return Result{}, errors.New("chat service not configured") }
 
 ```go
 // 注册自定义 planner 和 ID 生成器作为 extension
-p := agent.NewPlatform(&runtime.PlatformConfig{
+p := agent.NewPlatform(runtime.PlatformConfig{
     Extensions: []core.Extension{
-        myCustomPlanner,  // 实现 plan.Planner，Name() 例如 "my-planner"
+        myCustomPlanner,  // 实现 planning.Planner，Name() 例如 "my-planner"
         myCounterGen,     // 实现 core.IDGenerator
     },
 })
@@ -1145,7 +1157,7 @@ core.ResultOfType[T](proc) (T, bool)  // 走 proc.Blackboard
 core.DefaultBindingName    = "it"          // 默认输入名
 core.LastResultBindingName = "lastResult"  // 最近添加对象的别名
 core.Unknown / True / False                 // Determination
-core.ResponseImpactUnchanged / ResponseImpactUpdated
+core.ImpactUnchanged / core.ImpactUpdated
 core.StuckGiveUp / StuckReplan
 core.TerminationScopeAgent / Action / ToolCall
 core.ProcessSequential / ProcessConcurrent
@@ -1169,7 +1181,7 @@ core.And(a, b core.Condition) core.Condition
 core.Or(a, b core.Condition) core.Condition
 core.Not(c core.Condition) core.Condition
 core.NewLazyToolGroup(meta, loadFn)
-core.NewStaticToolGroupResolver()
+core.NewStaticToolGroupResolver("static")
 core.ToolRolesFor("role1", "role2") []core.ToolGroupRequirement
 core.AsReplanRequest(err) *core.ReplanRequest
 core.WithProcess(ctx, p) context.Context

@@ -4,9 +4,9 @@
 //
 // The runtime's only configuration mechanism is the [core.Extension]
 // registry. Every cross-cutting concern — event listeners, action
-// interceptors, tool decorators, agent validators, goal approvers,
-// tool-group resolvers, id generators, blackboard factories, planner
-// factories — is an Extension that the Platform discovers by type
+// middleware, tool decorators, agent validators, goal approvers,
+// tool-group resolvers, id generators, blackboard prototypes, planners
+// — is an Extension that the Platform discovers by type
 // assertion at dispatch time. Per-process Extensions merge with the
 // Platform-scoped set when a process is created, so per-call
 // overrides remain idiomatic.

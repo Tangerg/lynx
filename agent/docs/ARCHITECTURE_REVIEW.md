@@ -58,44 +58,21 @@ planning  ──── 不能 import ────▶  runtime
 event     ──── 不能 import ────▶  runtime
 ```
 
-这条规则捕获"原语层不依赖引擎层"的本质。目前全凭约定维持 —— 而 `core/` 已被 chat 污染，正说明约定不够硬。
+这条规则捕获"原语层不依赖引擎层"的本质。原评审时还主要靠约定维持；现在已由测试固化，后续新增包依赖会先被机器拦住。
 
 **裁决：已落地。** `agent/internal/arch/arch_test.go` 现在编码上述 DAG，作为后续防腐基线。
 
-### 2.2 `core/` import `core/model/chat` —— 混合债（最核心的架构问题）
+### 2.2 ChatClient port —— 已落地的克制边界
 
-现状：6 个 `core/` 生产文件 import `core/model/chat`：
+原问题不是 `core/` 绝对不能知道 chat 协议，而是 `core/` 不该依赖具体 `*chat.Client` 实现。当前实现采用克制版方案 A：
 
-| 文件 | 用途 | 用到的 chat 类型 |
-|---|---|---|
-| `process_context.go:11` | `ProcessContext.Chat()` / `ChatWithActionTools()` | `*chat.Client`, `*chat.ClientRequest`, `chat.Options`, `chat.Tool` |
-| `condition.go:8` | `PromptCondition.Evaluate()` 调 LLM | `*chat.Client` |
-| `prompt_runner.go:10` | `PromptRunner` — action 体内 LLM 调用门面 | `*chat.Client`, `*chat.ClientRequest`, `chat.Options`, `chat.Tool` |
-| `guardrails.go:3` | `Guardrails` — 全局 chat middleware 包装 | `chat.CallMiddleware`, `chat.StreamMiddleware` |
-| `extension.go:6` | `ChatClientProvider` — per-process 选 chat client | `*chat.Client` |
-| `tool_group.go:10` | `AgentTool` 包装 `chat.Tool` | `chat.Tool` |
+- `core.ChatClient` 只定义 `Chat() *chat.ClientRequest`，隔离具体 client lifetime / transport / provider。
+- `ProcessContext` / `PromptCondition` / `ChatClientProvider` / runtime platform 依赖 `core.ChatClient`，不再持有具体 `*chat.Client`。
+- `chat.ClientRequest` / `chat.Tool` / `chat.Options` / middleware 类型仍作为整个 lynx 的共享协议原语保留，不在 agent 内复制一套 adapter 类型。
 
-**问题本质**：chat 是 LLM 基础设施，不是 agent 原语。`Action`/`Goal`/`Condition`/`Determination`/`Blackboard` 是纯 agent 概念，不需要知道 LLM 长什么样。但 `PromptCondition` 需要调 LLM，`ProcessContext.Chat()` 是 action 体调用 LLM 的入口 —— chat 能力确实是普适需求。
+这个边界是有意为之：完全复制 `ChatRequest` / `Tool` / `Options` interface 会制造大块 adapter ceremony，破坏 `core/model/chat.Client` 对 `core.ChatClient` 的隐式满足关系，还会让 action body 失去现有 chat builder 的组合体验。**架构目标是不依赖具体 client，不是追求 `core/` 零 chat import 的形式纯洁。**
 
-按 `DESIGN_PHILOSOPHY §2.5` 判据："**是每个消费者都需要它，还是只有这一个消费方需要？**" —— 每个 action 体都需要调 LLM，`PromptCondition` 是 planner 可推理的原语。**chat 能力是普适的，应作为 interface 沉到 `core/`；具体实现留在外部。** 这是 §2.5 的标准用法：沉接口，不沉实现。
-
-**两种切法：**
-
-**方案 A（推荐）：在 `core/` 定义 `ChatClient` interface，把具体 `*chat.Client` 隔离出去。**
-- `core/` 新增 `chat.go`，定义最小 `ChatClient` / `ChatRequest` / `ChatTool` / `ChatOptions` / `ChatCallResult` / `ChatStreamChunk` interface（不 import `chat` 包）
-- `PromptRunner`/`PromptCondition`/`Guardrails`/`ProcessContext`/`ChatClientProvider`/`AgentTool` 全部依赖 interface 而非 `*chat.Client`
-- `core/model/chat.Client` 隐式满足 `core.ChatClient`
-- `core/` 不再 import `core/model/chat`，纯了
-- **代价**：interface 须覆盖 `chat.Client` 实际使用面（~5-8 方法），中等大小。`ProcessContext.Chat()` 返回类型从 `*chat.ClientRequest` 变 interface —— **破坏性改动，需咨询用户**。
-
-**方案 B：把 chat 相关文件从 `core/` 搬到 `runtime/`（或新建 `agent/llm/`）。**
-- `prompt_runner.go`/`guardrails.go`/`ProcessContext` 的 Chat 方法/`ChatClientProvider`/`PromptCondition` 全搬 runtime 层
-- `core/` 只留纯原语
-- **代价**：`ProcessContext` 被拆成两半（核心在 `core/`，chat 在 `runtime/`），action 体要 import 两个包，API 体验倒退太大。**不推荐。**
-
-**裁决：混合债，推荐方案 A。** 理由：(1) chat 是普适需求，按 §2.5 应沉核（作为 interface）；(2) `core/model/chat` 是整个 lynx 的基础设施包，不属于 agent，`core/` import 它的**具体类型**不对，import **interface**是对的；(3) 方案 B 拆 `ProcessContext` 体验倒退；(4) `PromptCondition` 是 planner 可推理的原语，放 `core/` 是对的，只需把它的 LLM 依赖改成 interface。
-
-### 2.3 `runtime/` god package（53 文件 / ~8200 LOC）—— 混合（多数内聚，不拆）
+### 2.3 `runtime/` state-machine package —— 混合（多数内聚，不按文件数拆）
 
 `runtime/` 职责分布：
 
@@ -112,7 +89,7 @@ event     ──── 不能 import ────▶  runtime
 
 按 `DESIGN_PHILOSOPHY §2.4`「包大 ≠ god package」+ `REFACTORING §8`「大但内聚、单一职责的不拆」—— `runtime/` 核心 ~15 个文件是**同一个状态机**的不同面，拆了反而要加跨包 import，违反 `agent/CLAUDE.md`「库内部用具体类型」。
 
-**裁决：混合，推荐保持为一个包。** `subagent.go`/`mcp.go` 关注点不同，但紧密依赖 `*Platform`/`*AgentProcess` 具体类型 —— 拆出去增加的 import 噪音 > 整洁性收益，且违反「库内部用具体类型」。**等到 agent 有第二个外部消费者时再按实际痛感决定。** 53 文件在阈值内。
+**裁决：混合，推荐保持为一个包。** `subagent.go`/`mcp.go` 关注点不同，但紧密依赖 `*Platform`/`*AgentProcess` 具体类型 —— 拆出去增加的 import 噪音 > 整洁性收益，且违反「库内部用具体类型」。后续是否拆不看裸文件数，而看是否出现独立生命周期、独立测试替身或第二个真实消费者。
 
 ### 2.4 God files —— 内聚大文件，不拆
 
@@ -209,7 +186,7 @@ event     ──── 不能 import ────▶  runtime
         └────────────────────────────────────────────────────┘
 ```
 
-**核心规则：`core/` 不 import `core/model/chat` 的具体类型。** `core/` 只定义 interface。`core/model/chat.Client` 隐式满足 `core.ChatClient`。runtime 装配层持有 `*chat.Client` 并传给 `ProcessContext.Chat()`（返回 interface）。
+**核心规则：`core/` 不依赖具体 `*chat.Client`。** `core/` 定义 `ChatClient` port，`core/model/chat.Client` 隐式满足它；`chat.ClientRequest` / `chat.Tool` / `chat.Options` 作为共享协议原语继续复用，不在 agent 内复制。
 
 ### 3.2 核心纯洁性：ChatClient interface 的归属
 
@@ -238,7 +215,7 @@ event     ──── 不能 import ────▶  runtime
 
 ### 3.7 如何保持 runtime/ 内聚而不变 god package
 
-**关键纪律**：(1) 不在 `runtime/` 加非状态机关注点 —— 新能力若不需访问 `*AgentProcess` 私有字段/锁，放独立包（像 `hitl/`/`toolpolicy/`）；(2) 大类型定义保持一个文件，衍生关注点（metrics/publish/MCP）保持独立文件；(3) 若将来 runtime/ 超 60 文件，考虑把 `subagent.go`+`mcp.go`+`publish.go` 拆到 `runtime/adapters/`。当前 53 文件未到阈值。
+**关键纪律**：(1) 不在 `runtime/` 加非状态机关注点 —— 新能力若不需访问 `*AgentProcess` 私有字段/锁，放独立包（像 `hitl/`/`toolpolicy/`）；(2) 大类型定义保持一个文件，衍生关注点（metrics/publish/MCP）保持独立文件；(3) 只有当某块形成独立生命周期、独立测试替身或第二个真实消费者时，才拆到独立包；不再按裸文件数触发拆分。
 
 ---
 
@@ -257,11 +234,11 @@ agent/
 │   ├── process.go              # Process interface + Status enum
 │   ├── process_context.go      # ProcessContext — action 体的唯一入口
 │   ├── process_options.go      # ProcessOptions + Budget + Session
-│   ├── chat.go                 # ★ NEW: ChatClient/ChatRequest/ChatTool/... interfaces（方案 A）
-│   ├── guardrails.go           # Guardrails — chat middleware wrapper（用 core.ChatMiddleware）
+│   ├── chat.go                 # ChatClient port（返回共享 chat.ClientRequest）
+│   ├── guardrails.go           # Guardrails — chat middleware wrapper
 │   ├── prompt_runner.go        # PromptRunner — action 体 LLM 调用门面（用 core.ChatClient）
-│   ├── extension.go            # Extension marker + 9 capability interfaces
-│   ├── tool_group.go           # ToolGroup + AgentTool（用 core.ChatTool）
+│   ├── extension.go            # Extension marker + capability interfaces
+│   ├── tool_group.go           # ToolGroup + AgentTool（共享 chat.Tool）
 │   ├── service_provider.go     # ServiceProvider — 开放 service locator
 │   ├── early_termination.go    # EarlyTerminationPolicy + BudgetPolicy
 │   ├── process_store.go        # ProcessStore SPI
@@ -311,12 +288,12 @@ agent/
 
 | 改动 | 类型 | 理由 |
 |---|---|---|
-| **`core/chat.go` — NEW** | 结构 | 方案 A：定义 `ChatClient` interface，消除 `core/model/chat` 具体类型 import |
+| **`core/chat.go` — DONE** | 结构 | 定义 `ChatClient` port，消除具体 `*chat.Client` 依赖；保留共享 chat 协议原语 |
 | **`internal/arch/arch_test.go` — NEW** | 结构 | 机器强制 DAG：core→runtime/planning/event/workflow 方向不可逆 |
 | **`autonomy/autonomy.go` → `autonomy/router.go` — DONE** | 命名 | 消除 `autonomy.Autonomy` stutter；`type Autonomy` → `type Router` |
-| **`core/` 6 文件删除 `"core/model/chat"` import** | 结构 | 改 import `core.ChatClient` interface |
+| **concrete `*chat.Client` 依赖删除** | 结构 | `ProcessContext` / `PromptCondition` / `ChatClientProvider` / platform 依赖 `core.ChatClient` |
 | **`workflow/` 保持 import `runtime`** | 不变 | 库内部用具体类型。不抽 `SubprocessSpawner` interface（YAGNI） |
-| **`runtime/` 不拆** | 不变 | 内聚的状态机包。53 文件在阈值内 |
+| **`runtime/` 不按文件数拆** | 不变 | 内聚的状态机包；只在真实独立生命周期出现时再拆 |
 | **`event/` 不拆** | 不变 | 内聚的事件包 |
 | **`planning/` + `planning/planner/*/` 不变** | 不变 | OCP 正确 |
 | **`core/service_provider.go` 不变** | 不变 | 库的 architecture tax，可接受 |
@@ -351,7 +328,7 @@ agent/
 
 | # | 改动 | 触发条件 |
 |---|---|---|
-| **4** | `runtime/subagent/` + `runtime/mcp/` 拆分 | agent 有第二个外部消费者，或 runtime/ 超 60 文件 |
+| **4** | `runtime/subagent/` + `runtime/mcp/` 拆分 | 出现独立生命周期、独立测试替身或第二个真实消费者 |
 | **5** | `ServiceProvider` 改泛型注册 | 痛感积累（当前够用） |
 
 ### 明确不建议做的（YAGNI 戒律）
