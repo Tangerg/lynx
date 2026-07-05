@@ -17,6 +17,12 @@ import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useActiveRunTimeline } from "@/plugins/builtin/agent/public/run";
 import { selectWorkspaceChat } from "@/plugins/builtin/workspace/public/navigation";
+import {
+  timelineGroupKey,
+  timelineSubtext,
+  timelineTimeOfDay,
+  timelineViewModel,
+} from "@/plugins/builtin/workspace/application/timelineViewModel";
 
 // i18n key → icon. Labels are resolved at render via t().
 const KIND_ICON: Record<TimelineEntryKind, IconName> = {
@@ -38,30 +44,6 @@ const KIND_I18N: Record<TimelineEntryKind, string> = {
   "approval-request": "timeline.kind.approvalRequest",
   "approval-result": "timeline.kind.approvalResult",
 };
-
-function timeOfDay(ts: number): string {
-  const d = new Date(ts);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
-}
-
-// Group consecutive entries by runId so the view reads as "this run did
-// X, Y, Z". Entries with the same runId stay together; null runIds
-// (events from before RUN_STARTED, edge case) group on their own.
-function groupByRun(entries: TimelineEntry[]): { runId: string | null; items: TimelineEntry[] }[] {
-  const groups: { runId: string | null; items: TimelineEntry[] }[] = [];
-  for (const entry of entries) {
-    const last = groups.at(-1);
-    if (last && last.runId === entry.runId) {
-      last.items.push(entry);
-    } else {
-      groups.push({ runId: entry.runId, items: [entry] });
-    }
-  }
-  return groups;
-}
 
 const STATUS_DOT: Record<NonNullable<TimelineEntry["status"]>, string> = {
   ok: "bg-success",
@@ -97,7 +79,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
         />
       )}
       <span className="mt-0.5 shrink-0 font-mono text-[10.5px] text-fg-faint">
-        {timeOfDay(entry.ts)}
+        {timelineTimeOfDay(entry.ts)}
       </span>
     </div>
   );
@@ -106,15 +88,14 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
 function TimelineTab() {
   const t = useT();
   const timeline = useActiveRunTimeline();
-  const groups = groupByRun(timeline);
-  const runCount = groups.filter((g) => g.runId !== null).length;
+  const view = timelineViewModel(timeline);
 
   return (
     <WorkspaceViewLayout
       icon="history"
       titleStrong
       title="timeline.title"
-      sub={`${timeline.length} events · ${runCount} run${runCount === 1 ? "" : "s"}`}
+      sub={timelineSubtext(view)}
       scrollClassName="py-1"
       actions={
         <IconButton title={t("timeline.jumpToChat")} onClick={selectWorkspaceChat}>
@@ -122,15 +103,15 @@ function TimelineTab() {
         </IconButton>
       }
     >
-      {timeline.length === 0 ? (
+      {view.eventCount === 0 ? (
         <EmptyState
           icon="history"
           title={t("timeline.empty.title")}
           sub={t("timeline.empty.sub")}
         />
       ) : (
-        groups.map((g, gi) => (
-          <div key={`${g.runId ?? "pre"}:${gi}`} className={cn(gi > 0 && "mt-3 pt-1")}>
+        view.groups.map((g, gi) => (
+          <div key={timelineGroupKey(g, gi)} className={cn(gi > 0 && "mt-3 pt-1")}>
             {g.runId && (
               <div className="px-3.5 pb-1 font-mono text-[10px] text-fg-faint">run {g.runId}</div>
             )}
