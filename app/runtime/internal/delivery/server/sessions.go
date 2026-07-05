@@ -232,7 +232,7 @@ func (s *Server) liveStatus(ctx context.Context, sessionID string) protocol.Sess
 		return protocol.SessionStatusRunning
 	}
 	waiting := false
-	if pending, err := s.rt.Interrupts().List(ctx, sessionID); err == nil {
+	if pending, err := s.rt.ListPendingInterrupts(ctx, sessionID); err == nil {
 		waiting = len(pending) > 0
 	}
 	return sessionStatus(false, waiting)
@@ -248,7 +248,7 @@ func (s *Server) runningSessionSet() map[string]bool {
 // sessions awaiting a HITL answer — the list path's batched form, so per-session
 // status costs no extra query. Empty on error (status degrades to running/idle).
 func (s *Server) waitingSessionSet(ctx context.Context) map[string]bool {
-	pending, err := s.rt.Interrupts().List(ctx, "")
+	pending, err := s.rt.ListPendingInterrupts(ctx, "")
 	if err != nil {
 		return nil
 	}
