@@ -14,7 +14,7 @@ import (
 // out of embeddings while still surfacing them at inference time.
 type SimpleFormatterConfig struct {
 	ExcludedInferenceMetadataKeys []string
-	ExcludedEmbedMetadataKeys []string
+	ExcludedEmbedMetadataKeys     []string
 }
 
 var _ Formatter = (*SimpleFormatter)(nil)

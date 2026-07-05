@@ -28,7 +28,7 @@ type Response struct {
 	// Score is the continuous score, conventionally in [0, 1].
 	Score float64 `json:"score"`
 
-	Feedback string `json:"feedback,omitempty"`
+	Feedback string         `json:"feedback,omitempty"`
 	Metadata map[string]any `json:"metadata,omitzero"`
 }
 

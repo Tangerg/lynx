@@ -22,7 +22,7 @@ const (
 	// among its siblings (counts only emitted, non-empty chunks).
 	MetadataKeyChunkIndex = "chunk_index"
 
-MetadataKeyChunkTotal = "chunk_total"
+	MetadataKeyChunkTotal = "chunk_total"
 )
 
 type SplitterConfig struct {

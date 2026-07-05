@@ -33,9 +33,9 @@ var _ Evaluator = (*FactCheckingEvaluator)(nil)
 // ChatModel is required; PromptTemplate falls back to a scored default;
 // Threshold defaults to [DefaultPassThreshold].
 type FactCheckingEvaluatorConfig struct {
-	ChatModel chat.Model
+	ChatModel      chat.Model
 	PromptTemplate *chat.PromptTemplate
-	Threshold float64
+	Threshold      float64
 }
 
 func (c *FactCheckingEvaluatorConfig) ApplyDefaults() {

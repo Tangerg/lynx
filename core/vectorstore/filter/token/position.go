@@ -10,7 +10,7 @@ var NoPosition = Position{}
 // 1-indexed to match editor conventions and standard error-message
 // formats.
 type Position struct {
-	Line int
+	Line   int
 	Column int
 }
 

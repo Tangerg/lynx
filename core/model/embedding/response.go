@@ -13,7 +13,7 @@ import (
 type ModalityType string
 
 const (
-	Text ModalityType = "text"
+	Text  ModalityType = "text"
 	Image ModalityType = "image"
 	Audio ModalityType = "audio"
 	Video ModalityType = "video"

@@ -9,9 +9,9 @@ import (
 // Token is one lexical unit produced by the lexer: kind, source span,
 // and the original lexeme. The parser consumes a stream of these.
 type Token struct {
-	Kind Kind
-	Start Position
-	End Position
+	Kind    Kind
+	Start   Position
+	End     Position
 	Literal string
 }
 

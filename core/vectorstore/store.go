@@ -58,10 +58,10 @@ const (
 //	req, err := vectorstore.NewRetrievalRequest("hello world")
 //	req.WithTopK(20).WithMinScore(0.7).WithFilter(myFilter)
 type RetrievalRequest struct {
-	Query string `json:"query,omitempty"`
-	TopK int `json:"top_k,omitempty"`
-	MinScore float64 `json:"min_score,omitempty"`
-	Filter ast.Expr `json:"-"`
+	Query    string   `json:"query,omitempty"`
+	TopK     int      `json:"top_k,omitempty"`
+	MinScore float64  `json:"min_score,omitempty"`
+	Filter   ast.Expr `json:"-"`
 }
 
 // NewRetrievalRequest builds a [RetrievalRequest] with default top-k
@@ -242,8 +242,8 @@ type Store interface {
 // gives callers access to provider-specific operations the framework
 // doesn't surface.
 type StoreMetadata struct {
-	NativeClient any `json:"-"`
-	Provider string `json:"provider,omitempty"`
+	NativeClient any    `json:"-"`
+	Provider     string `json:"provider,omitempty"`
 }
 
 type writeFunc func(ctx context.Context, docs []*document.Document) error

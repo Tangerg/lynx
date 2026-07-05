@@ -17,10 +17,10 @@ const (
 
 type TokenCountBatcherConfig struct {
 	TokenCountEstimator tokenizer.Estimator
-	MaxInputTokenCount int
-	ReservePercentage float64
-	Formatter Formatter
-	MetadataMode MetadataMode
+	MaxInputTokenCount  int
+	ReservePercentage   float64
+	Formatter           Formatter
+	MetadataMode        MetadataMode
 }
 
 func (c *TokenCountBatcherConfig) Validate() error {
