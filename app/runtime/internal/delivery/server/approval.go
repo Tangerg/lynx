@@ -11,7 +11,7 @@ import (
 // GetApprovalMode returns the current runtime tool-permission stance
 // (approval.getMode).
 func (s *Server) GetApprovalMode(ctx context.Context) (*protocol.ApprovalModeResult, error) {
-	m, err := s.rt.Approval().GetMode(ctx)
+	m, err := s.rt.GetApprovalMode(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func (s *Server) SetApprovalMode(ctx context.Context, in protocol.SetApprovalMod
 	if !ok {
 		return nil, fmt.Errorf("%w: unknown approval mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
-	if err := s.rt.Approval().SetMode(ctx, mode); err != nil {
+	if err := s.rt.SetApprovalMode(ctx, mode); err != nil {
 		return nil, err
 	}
 	return &protocol.ApprovalModeResult{Mode: in.Mode}, nil
@@ -33,16 +33,10 @@ func (s *Server) SetApprovalMode(ctx context.Context, in protocol.SetApprovalMod
 
 // ListApprovalRules lists the persisted rules visible from a session
 // (approval.listRules) — its session rules, its project's rules, and all
-// global rules. The session id resolves the project directory; an unknown
-// session degrades to session + global only (cwd stays empty).
+// global rules. Runtime resolves the session's project directory; an unknown
+// session degrades to session + global only.
 func (s *Server) ListApprovalRules(ctx context.Context, in protocol.ListApprovalRulesRequest) (*protocol.ListApprovalRulesResult, error) {
-	cwd := ""
-	if in.SessionID != "" {
-		if ses, err := s.rt.Session().Get(ctx, in.SessionID); err == nil {
-			cwd = ses.Cwd
-		}
-	}
-	rules, err := s.rt.Approval().Rules(ctx, in.SessionID, cwd)
+	rules, err := s.rt.ListApprovalRules(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +50,7 @@ func (s *Server) ListApprovalRules(ctx context.Context, in protocol.ListApproval
 // ForgetApprovalRule removes one persisted approval rule by id
 // (approval.forgetRule). A missing id is not an error.
 func (s *Server) ForgetApprovalRule(ctx context.Context, in protocol.ForgetApprovalRuleRequest) error {
-	return s.rt.Approval().Forget(ctx, in.ID)
+	return s.rt.ForgetApprovalRule(ctx, in.ID)
 }
 
 // approvalRuleToWire maps a domain rule to its wire shape. The project
