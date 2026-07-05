@@ -97,7 +97,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// watermark + drops each dropped run's items/record + dangling interrupt as
 	// ONE transaction (a failure can't leave a run whose messages were already
 	// truncated away), then purges the subagent subtree those runs spawned.
-	if err := s.coordinator().RollbackResolved(ctx, s.rt.Chat(), in.SessionID, b); err != nil {
+	if err := s.coordinator().RollbackResolved(ctx, s.turns(), in.SessionID, b); err != nil {
 		return nil, err
 	}
 

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -52,7 +53,14 @@ type RuntimeServices interface {
 }
 
 type turnAccess interface {
-	Chat() turn.Service
+	StartTurn(ctx context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error)
+	TurnEvents(ctx context.Context, handle turn.TurnHandle) (iter.Seq[turn.Event], error)
+	InjectTurnSteering(ctx context.Context, handle turn.TurnHandle, message string) error
+	ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error
+	RehydrateTurn(ctx context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error)
+	CancelTurn(ctx context.Context, handle turn.TurnHandle) error
+	TurnProcessID(ctx context.Context, handle turn.TurnHandle) (string, error)
+	SetTurnInterruptKinds(kinds []string)
 }
 
 type sessionAccess interface {

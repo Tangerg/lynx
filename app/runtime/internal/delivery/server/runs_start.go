@@ -17,7 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-// StartRun translates runs.start into the in-process chat.StartTurn
+// StartRun translates runs.start into the in-process runtime turn
 // path (API.md §7.3). It returns the runId synchronously; events flow
 // out via the returned channel as RunEvents (wrapped by the transport
 // into notifications.run.event). The terminal run.finished rides this
@@ -86,7 +86,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		}
 	}()
 
-	handle, err := s.rt.Chat().StartTurn(ctx, turn.StartTurnRequest{
+	handle, err := s.rt.StartTurn(ctx, turn.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    userMsg,
 		Media:      userMedia,

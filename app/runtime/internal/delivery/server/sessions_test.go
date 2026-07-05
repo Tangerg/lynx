@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -83,8 +84,8 @@ func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) e
 // MCPServerStatuses (above), not from this call's side effects.
 func (s stubRuntime) ReconnectMCPServer(context.Context, string) error { return nil }
 
-// chatStub satisfies turn.Service by embedding it — these tests never drive a
-// turn, so no method is implemented.
+// chatStub satisfies turn.Service by embedding it — most session tests never
+// drive a turn, so no method is implemented unless a specific case needs it.
 type chatStub struct{ turn.Service }
 
 func (chatStub) Cancel(context.Context, turn.TurnHandle) error { return nil }
@@ -99,11 +100,43 @@ func (r *recordingTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
 	return nil
 }
 
-func (s stubRuntime) Chat() turn.Service {
+func (s stubRuntime) turnService() turn.Service {
 	if s.chat != nil {
 		return s.chat
 	}
 	return chatStub{}
+}
+
+func (s stubRuntime) StartTurn(ctx context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error) {
+	return s.turnService().StartTurn(ctx, req)
+}
+
+func (s stubRuntime) TurnEvents(ctx context.Context, handle turn.TurnHandle) (iter.Seq[turn.Event], error) {
+	return s.turnService().Events(ctx, handle)
+}
+
+func (s stubRuntime) InjectTurnSteering(ctx context.Context, handle turn.TurnHandle, message string) error {
+	return s.turnService().InjectSteering(ctx, handle, message)
+}
+
+func (s stubRuntime) ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error {
+	return s.turnService().Resume(ctx, handle, resolution)
+}
+
+func (s stubRuntime) RehydrateTurn(ctx context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
+	return s.turnService().Rehydrate(ctx, req)
+}
+
+func (s stubRuntime) CancelTurn(ctx context.Context, handle turn.TurnHandle) error {
+	return s.turnService().Cancel(ctx, handle)
+}
+
+func (s stubRuntime) TurnProcessID(ctx context.Context, handle turn.TurnHandle) (string, error) {
+	return s.turnService().ProcessID(ctx, handle)
+}
+
+func (s stubRuntime) SetTurnInterruptKinds(kinds []string) {
+	s.turnService().SetInterruptKinds(kinds)
 }
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call
