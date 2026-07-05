@@ -6,6 +6,7 @@ package turn
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"time"
 
@@ -26,6 +27,16 @@ type clientResolver interface {
 	ResolveClient(ctx context.Context, provider, model string) (*corechat.Client, error)
 }
 
+// ErrInputRequired reports that a turn has neither text nor media to send.
+var ErrInputRequired = errors.New("turn: input required")
+
+// ErrIncompleteModelSelection reports a provider/model pair where only one side
+// was supplied. Turn model selection is explicit: both are set, or both empty.
+var ErrIncompleteModelSelection = errors.New("turn: incomplete model selection")
+
+// ErrUnsupportedMedia reports media that the selected model cannot accept.
+var ErrUnsupportedMedia = errors.New("turn: unsupported media")
+
 // StartTurnRequest is the input to [Service.StartTurn]. SessionID
 // binds the turn to its conversation; Message is the user's input.
 type StartTurnRequest struct {
@@ -35,7 +46,7 @@ type StartTurnRequest struct {
 	// Media carries the turn's image attachments (runs.start input image
 	// blocks). Nil for a text-only turn. They ride the user message to the
 	// model as UserMessage.Media; only models whose catalog modalities accept
-	// image input should be sent them (gated at runs.start).
+	// image input should be sent them (gated before StartTurn).
 	Media []*media.Media
 
 	// Cwd is the session's working directory — the project root the turn's

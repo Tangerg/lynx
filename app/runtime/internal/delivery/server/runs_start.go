@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/models/catalog"
 	"github.com/Tangerg/lynx/pkg/mime"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -25,34 +23,22 @@ import (
 // approval, after which the run suspends and the client answers via
 // runs.resume.
 func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
-	sessionID, err := s.resolveSession(ctx, in.SessionID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// The turn's filesystem + shell tools run in the session's project cwd
-	// (API.md §0.2). Resolve it here so the engine anchors them per session
-	// rather than at the single serve-time workdir.
-	sess, err := s.rt.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	userMsg, userMedia, err := collectUserInput(in.Input)
 	if err != nil {
 		return nil, nil, err
 	}
-	if userMsg == "" && len(userMedia) == 0 {
-		return nil, nil, fmt.Errorf("%w: input must contain a user text or image block", protocol.ErrInvalidParams)
+	sess, turnReq, err := s.rt.PlanTurnStart(ctx, in.SessionID, s.serverInfo.Cwd, turn.StartTurnRequest{
+		Message:    userMsg,
+		Media:      userMedia,
+		Provider:   in.Provider,
+		Model:      in.Model,
+		MaxCostUSD: in.MaxBudgetUSD,
+		MaxSteps:   in.MaxSteps,
+	})
+	if err != nil {
+		return nil, nil, wireTurnStartErr(err)
 	}
-
-	// providerId + model are paired: both to pick a model, neither for the
-	// default. One without the other is a self-contradictory request — the
-	// provider is explicit, never inferred (API.md §7.3).
-	if (in.Model == "") != (in.Provider == "") {
-		return nil, nil, protocol.ErrInvalidParams
-	}
-
+	sessionID := sess.ID
 	admission, err := s.rt.ClaimRunSlot(ctx, sessionClaimer{s: s}, sessionID)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
@@ -61,19 +47,6 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, err
 	}
 	defer admission.Release()
-
-	// Image capability gate: when the run names an explicit provider+model,
-	// refuse image input the model can't accept (catalog modalities) so the
-	// user gets a clear error up front instead of a provider 400 mid-stream.
-	// The default model (provider+model empty) is operator-configured and
-	// skipped here; the frontend also gates via the per-model multimodal
-	// capability (models.list). A catalog miss means unknown — let the
-	// provider decide rather than block.
-	if len(userMedia) > 0 && in.Provider != "" && in.Model != "" {
-		if info, ok := catalog.Lookup(in.Provider, in.Model); ok && !info.Modalities.AcceptsInput(chat.ModalityImage) {
-			return nil, nil, fmt.Errorf("%w: model %q (provider %q) does not accept image input", protocol.ErrInvalidParams, in.Model, in.Provider)
-		}
-	}
 
 	treeAdmission, ok := s.claimWorkingTreeRun(sess.Cwd)
 	if !ok {
@@ -86,25 +59,18 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		}
 	}()
 
-	handle, err := s.rt.StartTurn(ctx, turn.StartTurnRequest{
-		SessionID:  sessionID,
-		Message:    userMsg,
-		Media:      userMedia,
-		Cwd:        sess.Cwd,
-		Provider:   in.Provider,
-		Model:      in.Model,
-		MaxCostUSD: in.MaxBudgetUSD,
-		MaxSteps:   in.MaxSteps,
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-
 	// Record the model the run explicitly selected so sessions.list / get
 	// surface the session's current model (Session.model). An unset model
 	// runs the default — sessionToWire fills that from the runtime default.
-	if in.Model != "" {
-		_ = s.rt.SetSessionModel(ctx, sessionID, in.Model)
+	if turnReq.Model != "" {
+		if err := s.rt.SetSessionModel(ctx, sessionID, turnReq.Model); err != nil {
+			return nil, nil, wireSessionErr(err)
+		}
+	}
+
+	handle, err := s.rt.StartTurn(ctx, turnReq)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// runId on the wire == the turn id for the root run. The user's input
@@ -124,23 +90,19 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	return out, events, nil
 }
 
-// resolveSession verifies sessionID exists, or creates a fresh session
-// when empty (zero-friction cold start for in-process callers).
-func (s *Server) resolveSession(ctx context.Context, sessionID string) (string, error) {
-	if sessionID == "" {
-		sess, err := s.rt.CreateSession(ctx, "", s.serverInfo.Cwd)
-		if err != nil {
-			return "", err
-		}
-		return sess.ID, nil
+func wireTurnStartErr(err error) error {
+	switch {
+	case errors.Is(err, turn.ErrInputRequired):
+		return fmt.Errorf("%w: input must contain a user text or image block", protocol.ErrInvalidParams)
+	case errors.Is(err, turn.ErrIncompleteModelSelection):
+		return protocol.ErrInvalidParams
+	case errors.Is(err, turn.ErrUnsupportedMedia):
+		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+	case errors.Is(err, session.ErrNotFound):
+		return protocol.ErrSessionNotFound
+	default:
+		return err
 	}
-	if _, err := s.rt.GetSession(ctx, sessionID); err != nil {
-		if errors.Is(err, session.ErrNotFound) {
-			return "", protocol.ErrSessionNotFound
-		}
-		return "", err
-	}
-	return sessionID, nil
 }
 
 // collectUserInput splits a run's input blocks into the turn's user message:

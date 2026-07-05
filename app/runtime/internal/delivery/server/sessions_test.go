@@ -113,6 +113,31 @@ func (s stubRuntime) StartTurn(ctx context.Context, req turn.StartTurnRequest) (
 	return s.turnService().StartTurn(ctx, req)
 }
 
+func (s stubRuntime) PlanTurnStart(ctx context.Context, sessionID, defaultCwd string, draft turn.StartTurnRequest) (session.Session, turn.StartTurnRequest, error) {
+	if draft.Message == "" && len(draft.Media) == 0 {
+		return session.Session{}, turn.StartTurnRequest{}, turn.ErrInputRequired
+	}
+	if (draft.Model == "") != (draft.Provider == "") {
+		return session.Session{}, turn.StartTurnRequest{}, turn.ErrIncompleteModelSelection
+	}
+	var (
+		sess session.Session
+		err  error
+	)
+	if sessionID == "" {
+		sess, err = s.sess.Create(ctx, "", defaultCwd)
+	} else {
+		sess, err = s.sess.Get(ctx, sessionID)
+	}
+	if err != nil {
+		return session.Session{}, turn.StartTurnRequest{}, err
+	}
+	planned := draft
+	planned.SessionID = sess.ID
+	planned.Cwd = sess.Cwd
+	return sess, planned, nil
+}
+
 func (s stubRuntime) TurnEvents(ctx context.Context, handle turn.TurnHandle) (iter.Seq[turn.Event], error) {
 	return s.turnService().Events(ctx, handle)
 }
