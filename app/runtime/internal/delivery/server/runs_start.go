@@ -33,7 +33,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// The turn's filesystem + shell tools run in the session's project cwd
 	// (API.md §0.2). Resolve it here so the engine anchors them per session
 	// rather than at the single serve-time workdir.
-	sess, err := s.rt.Session().Get(ctx, sessionID)
+	sess, err := s.rt.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -104,7 +104,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// surface the session's current model (Session.model). An unset model
 	// runs the default — sessionToWire fills that from the runtime default.
 	if in.Model != "" {
-		_ = s.rt.Session().SetModel(ctx, sessionID, in.Model)
+		_ = s.rt.SetSessionModel(ctx, sessionID, in.Model)
 	}
 
 	// runId on the wire == the turn id for the root run. The user's input
@@ -128,13 +128,13 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 // when empty (zero-friction cold start for in-process callers).
 func (s *Server) resolveSession(ctx context.Context, sessionID string) (string, error) {
 	if sessionID == "" {
-		sess, err := s.rt.Session().Create(ctx, "", s.serverInfo.Cwd)
+		sess, err := s.rt.CreateSession(ctx, "", s.serverInfo.Cwd)
 		if err != nil {
 			return "", err
 		}
 		return sess.ID, nil
 	}
-	if _, err := s.rt.Session().Get(ctx, sessionID); err != nil {
+	if _, err := s.rt.GetSession(ctx, sessionID); err != nil {
 		if errors.Is(err, session.ErrNotFound) {
 			return "", protocol.ErrSessionNotFound
 		}

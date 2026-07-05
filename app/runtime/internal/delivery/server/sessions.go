@@ -31,7 +31,7 @@ const defaultSessionPageLimit = 100
 // NextCursor is the "has more" signal — never a silent truncation. The
 // store returns the full ordered list; pagination is applied here.
 func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
-	sessions, err := s.rt.Session().List(ctx)
+	sessions, err := s.rt.ListSessions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 }
 
 func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {
-	ses, err := s.rt.Session().Get(ctx, id)
+	ses, err := s.rt.GetSession(ctx, id)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
@@ -61,7 +61,7 @@ func (s *Server) CreateSession(ctx context.Context, in protocol.CreateSessionReq
 	if cwd == "" {
 		cwd = s.serverInfo.Cwd
 	}
-	ses, err := s.rt.Session().Create(ctx, in.Title, cwd)
+	ses, err := s.rt.CreateSession(ctx, in.Title, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -106,12 +106,12 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		if title == "" {
 			return nil, fmt.Errorf("%w: title must not be empty", protocol.ErrInvalidParams)
 		}
-		if err := s.rt.Session().Rename(ctx, in.SessionID, title); err != nil {
+		if err := s.rt.RenameSession(ctx, in.SessionID, title); err != nil {
 			return nil, wireSessionErr(err)
 		}
 	}
 	if in.Model != nil {
-		if err := s.rt.Session().SetModel(ctx, in.SessionID, *in.Model); err != nil {
+		if err := s.rt.SetSessionModel(ctx, in.SessionID, *in.Model); err != nil {
 			return nil, wireSessionErr(err)
 		}
 	}
@@ -122,22 +122,22 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		if err != nil || !info.IsDir() {
 			return nil, fmt.Errorf("%w: %s", protocol.ErrCwdUnavailable, *in.Cwd)
 		}
-		if err := s.rt.Session().SetCwd(ctx, in.SessionID, *in.Cwd); err != nil {
+		if err := s.rt.SetSessionCwd(ctx, in.SessionID, *in.Cwd); err != nil {
 			return nil, wireSessionErr(err)
 		}
 	}
 	if in.Metadata != nil {
-		if err := s.rt.Session().SetMetadata(ctx, in.SessionID, *in.Metadata); err != nil {
+		if err := s.rt.SetSessionMetadata(ctx, in.SessionID, *in.Metadata); err != nil {
 			return nil, wireSessionErr(err)
 		}
 	}
 	if in.Favorite != nil {
-		if err := s.rt.Session().SetFavorite(ctx, in.SessionID, *in.Favorite); err != nil {
+		if err := s.rt.SetSessionFavorite(ctx, in.SessionID, *in.Favorite); err != nil {
 			return nil, wireSessionErr(err)
 		}
 	}
 
-	ses, err := s.rt.Session().Get(ctx, in.SessionID)
+	ses, err := s.rt.GetSession(ctx, in.SessionID)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
