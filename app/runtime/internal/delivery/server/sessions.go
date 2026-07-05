@@ -158,7 +158,7 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
 	var nodes []transcript.RunNode
 	if in.FromRunID != "" {
-		_, runs, err := s.rt.Transcript().List(ctx, in.SessionID)
+		_, runs, err := s.rt.ListTranscript(ctx, in.SessionID)
 		if err != nil {
 			return nil, wireSessionErr(err)
 		}

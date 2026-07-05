@@ -23,11 +23,7 @@ import (
 // SessionUsage returns one session's cumulative token usage + cost, summed over
 // its finished runs (usage.session).
 func (s *Server) SessionUsage(ctx context.Context, sessionID string) (*protocol.Usage, error) {
-	store := s.rt.Transcript()
-	if store == nil {
-		return &protocol.Usage{}, nil
-	}
-	runs, err := store.ListRuns(ctx, sessionID)
+	runs, err := s.rt.ListTranscriptRuns(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -51,10 +47,6 @@ func (s *Server) SessionUsage(ctx context.Context, sessionID string) (*protocol.
 // parent's subtree-aggregated runs aren't double-counted against the children's
 // own run records) and folds each one's finished runs.
 func (s *Server) UsageSummary(ctx context.Context, in protocol.UsageSummaryRequest) (*protocol.UsageSummary, error) {
-	store := s.rt.Transcript()
-	if store == nil {
-		return &protocol.UsageSummary{}, nil
-	}
 	sessions, err := s.rt.Session().List(ctx)
 	if err != nil {
 		return nil, err
@@ -70,7 +62,7 @@ func (s *Server) UsageSummary(ctx context.Context, in protocol.UsageSummaryReque
 	byDay := map[string]*usageAcc{}
 	sessionCount := 0
 	for _, sess := range sessions {
-		runs, lerr := store.ListRuns(ctx, sess.ID)
+		runs, lerr := s.rt.ListTranscriptRuns(ctx, sess.ID)
 		if lerr != nil {
 			return nil, lerr
 		}
