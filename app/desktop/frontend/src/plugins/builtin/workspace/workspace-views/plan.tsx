@@ -1,6 +1,7 @@
 import { EmptyState } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useActiveRunPlan } from "@/plugins/builtin/agent/public/run";
+import { planSubtext, planViewModel } from "@/plugins/builtin/workspace/application/planViewModel";
 import { PlanList } from "./views/PlanList";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -8,19 +9,14 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 function PlanTab() {
   const t = useT();
   const plan = useActiveRunPlan();
-  const done = plan.filter((p) => p.status === "done").length;
+  const view = planViewModel(plan);
 
   return (
-    <WorkspaceViewLayout
-      icon="list"
-      titleStrong
-      title="plan.title"
-      sub={plan.length ? `${done} of ${plan.length} complete` : undefined}
-    >
-      {plan.length === 0 ? (
+    <WorkspaceViewLayout icon="list" titleStrong title="plan.title" sub={planSubtext(view)}>
+      {view.isEmpty ? (
         <EmptyState icon="list" title={t("plan.empty.title")} sub={t("plan.empty.sub")} />
       ) : (
-        <PlanList plan={plan} />
+        <PlanList plan={view.items} />
       )}
     </WorkspaceViewLayout>
   );
