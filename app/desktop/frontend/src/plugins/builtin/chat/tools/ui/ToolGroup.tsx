@@ -1,11 +1,8 @@
 import { useState } from "react";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { Collapsible, Icon } from "@/ui";
-import {
-  summarizeToolGroup,
-  toolGroupNeedsAttention,
-} from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/utils";
+import { toolGroupModel, type ToolGroupPinnedState } from "../application/toolGroupModel";
 import { ToolCard } from "./ToolCard";
 
 interface Props {
@@ -23,19 +20,16 @@ interface Props {
  * a summary row + indented child activity rows, no enclosing card.
  */
 export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: Props) {
-  const needsAttention = toolGroupNeedsAttention(tools);
-  // null = follow `needsAttention` (open while live/errored, closed when done);
-  // a boolean = the user has pinned it that way.
-  const [pinned, setPinned] = useState<boolean | null>(null);
-  const expanded = pinned ?? needsAttention;
+  const [pinned, setPinned] = useState<ToolGroupPinnedState>(null);
+  const model = toolGroupModel(tools, pinned);
 
   return (
     <div className="my-1">
       {/* Summary row — a flat header, separated by hover fill not a border. */}
       <button
         type="button"
-        onClick={() => setPinned(!expanded)}
-        aria-expanded={expanded}
+        onClick={() => setPinned(model.nextPinned)}
+        aria-expanded={model.expanded}
         className={cn(
           "flex w-full items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-left",
           "transition-colors duration-100 hover:bg-fg/[0.03]",
@@ -43,23 +37,21 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: 
         )}
       >
         <Icon name="search" size={14} className="shrink-0 text-fg-muted" />
-        <span className="truncate text-[13px] font-medium text-fg-muted">
-          {summarizeToolGroup(tools)}
-        </span>
+        <span className="truncate text-[13px] font-medium text-fg-muted">{model.summary}</span>
         <span className="ml-auto shrink-0 rounded-pill bg-fg/[0.06] px-2 py-0.5 font-mono text-[11px] font-medium text-fg-muted">
-          {tools.length} calls
+          {model.count} calls
         </span>
         <Icon
           name="chevron-down"
           size={14}
           className={cn(
             "shrink-0 text-fg-faint transition-transform duration-150",
-            !expanded && "-rotate-90",
+            !model.expanded && "-rotate-90",
           )}
         />
       </button>
 
-      <Collapsible open={expanded}>
+      <Collapsible open={model.expanded}>
         <div className="pl-4">
           {tools.map((t) => (
             <ToolCard
