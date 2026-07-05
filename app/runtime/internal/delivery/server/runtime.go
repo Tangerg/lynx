@@ -73,11 +73,7 @@ type sessionAccess interface {
 	GetSession(ctx context.Context, id string) (sessionsvc.Session, error)
 	CreateSession(ctx context.Context, title, cwd string) (sessionsvc.Session, error)
 	DeleteSession(ctx context.Context, id string) error
-	RenameSession(ctx context.Context, id, title string) error
-	SetSessionModel(ctx context.Context, id, model string) error
-	SetSessionCwd(ctx context.Context, id, cwd string) error
-	SetSessionMetadata(ctx context.Context, id string, meta map[string]any) error
-	SetSessionFavorite(ctx context.Context, id string, favorite bool) error
+	UpdateSession(ctx context.Context, id string, patch sessionsvc.Patch) (sessionsvc.Session, error)
 	DefaultModel() string
 }
 

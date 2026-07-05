@@ -6,6 +6,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -26,6 +27,22 @@ const ForkAtMessageIDKey = "fork_at_message_id"
 // [Service.List] hides it so it never clutters the user's session list. The
 // lineage stays queryable via [Service.Get] / [Service.Children].
 const KindSubtask = "subtask"
+
+// ErrTitleRequired reports a session edit with an empty title.
+var ErrTitleRequired = errors.New("session: title required")
+
+// ErrCwdUnavailable reports a session relocation target that is not an existing directory.
+var ErrCwdUnavailable = errors.New("session: cwd unavailable")
+
+// Patch is the editable surface of a user-facing session. Nil fields are
+// ignored; non-nil fields replace the corresponding session value.
+type Patch struct {
+	Title    *string
+	Model    *string
+	Cwd      *string
+	Metadata *map[string]any
+	Favorite *bool
+}
 
 // Session is the persistent identity of a conversation. Lyra tracks
 // every turn (chat exchange) against one Session id; restarting the

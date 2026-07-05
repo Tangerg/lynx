@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -271,20 +273,41 @@ func (s stubRuntime) GetSession(ctx context.Context, id string) (session.Session
 func (s stubRuntime) CreateSession(ctx context.Context, title, cwd string) (session.Session, error) {
 	return s.sess.Create(ctx, title, cwd)
 }
-func (s stubRuntime) RenameSession(ctx context.Context, id, title string) error {
-	return s.sess.Rename(ctx, id, title)
-}
-func (s stubRuntime) SetSessionModel(ctx context.Context, id, model string) error {
-	return s.sess.SetModel(ctx, id, model)
-}
-func (s stubRuntime) SetSessionCwd(ctx context.Context, id, cwd string) error {
-	return s.sess.SetCwd(ctx, id, cwd)
-}
-func (s stubRuntime) SetSessionMetadata(ctx context.Context, id string, meta map[string]any) error {
-	return s.sess.SetMetadata(ctx, id, meta)
-}
-func (s stubRuntime) SetSessionFavorite(ctx context.Context, id string, favorite bool) error {
-	return s.sess.SetFavorite(ctx, id, favorite)
+func (s stubRuntime) UpdateSession(ctx context.Context, id string, patch session.Patch) (session.Session, error) {
+	if patch.Title != nil {
+		title := strings.TrimSpace(*patch.Title)
+		if title == "" {
+			return session.Session{}, session.ErrTitleRequired
+		}
+		if err := s.sess.Rename(ctx, id, title); err != nil {
+			return session.Session{}, err
+		}
+	}
+	if patch.Model != nil {
+		if err := s.sess.SetModel(ctx, id, *patch.Model); err != nil {
+			return session.Session{}, err
+		}
+	}
+	if patch.Cwd != nil {
+		info, err := os.Stat(*patch.Cwd)
+		if err != nil || !info.IsDir() {
+			return session.Session{}, session.ErrCwdUnavailable
+		}
+		if err := s.sess.SetCwd(ctx, id, *patch.Cwd); err != nil {
+			return session.Session{}, err
+		}
+	}
+	if patch.Metadata != nil {
+		if err := s.sess.SetMetadata(ctx, id, *patch.Metadata); err != nil {
+			return session.Session{}, err
+		}
+	}
+	if patch.Favorite != nil {
+		if err := s.sess.SetFavorite(ctx, id, *patch.Favorite); err != nil {
+			return session.Session{}, err
+		}
+	}
+	return s.sess.Get(ctx, id)
 }
 func (s stubRuntime) DefaultModel() string { return s.model }
 func (s stubRuntime) ReadHistory(_ context.Context, id string) ([]chat.Message, error) {

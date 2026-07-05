@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -128,6 +129,83 @@ func TestRuntimeSessionFacade(t *testing.T) {
 	}
 	if store.favoriteID != "ses_1" || !store.favoriteValue {
 		t.Fatalf("favorite id=%q value=%v", store.favoriteID, store.favoriteValue)
+	}
+}
+
+func TestRuntimeUpdateSessionAppliesPatch(t *testing.T) {
+	store := &sessionRuntimeStore{}
+	ranInTx := false
+	rt := &Runtime{
+		session: store,
+		transactor: func(ctx context.Context, fn func(context.Context) error) error {
+			ranInTx = true
+			return fn(ctx)
+		},
+	}
+	ctx := context.Background()
+
+	title := "  Renamed  "
+	model := "claude-opus-4-8"
+	cwd := t.TempDir()
+	meta := map[string]any{"pinned": true}
+	favorite := true
+
+	got, err := rt.UpdateSession(ctx, "ses_1", session.Patch{
+		Title:    &title,
+		Model:    &model,
+		Cwd:      &cwd,
+		Metadata: &meta,
+		Favorite: &favorite,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSession: %v", err)
+	}
+	if !ranInTx {
+		t.Fatal("UpdateSession did not run through transactor")
+	}
+	if got.ID != "ses_1" || store.renamed != ([2]string{"ses_1", "Renamed"}) {
+		t.Fatalf("updated=%+v renamed=%v", got, store.renamed)
+	}
+	if store.model != ([2]string{"ses_1", model}) {
+		t.Fatalf("model = %v", store.model)
+	}
+	if store.cwd != ([2]string{"ses_1", cwd}) {
+		t.Fatalf("cwd = %v", store.cwd)
+	}
+	if store.metadataID != "ses_1" || store.metadata["pinned"] != true {
+		t.Fatalf("metadata id=%q meta=%+v", store.metadataID, store.metadata)
+	}
+	if store.favoriteID != "ses_1" || !store.favoriteValue {
+		t.Fatalf("favorite id=%q value=%v", store.favoriteID, store.favoriteValue)
+	}
+}
+
+func TestRuntimeUpdateSessionRejectsInvalidPatch(t *testing.T) {
+	store := &sessionRuntimeStore{}
+	rt := &Runtime{session: store}
+
+	blank := "  "
+	if _, err := rt.UpdateSession(context.Background(), "ses_1", session.Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {
+		t.Fatalf("blank title err = %v, want ErrTitleRequired", err)
+	}
+	if store.renamed != ([2]string{}) {
+		t.Fatalf("blank title renamed session: %v", store.renamed)
+	}
+
+	ghost := "/no/such/dir"
+	if _, err := rt.UpdateSession(context.Background(), "ses_1", session.Patch{Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
+		t.Fatalf("ghost cwd err = %v, want ErrCwdUnavailable", err)
+	}
+	if store.cwd != ([2]string{}) {
+		t.Fatalf("ghost cwd updated session: %v", store.cwd)
+	}
+
+	title := "Renamed"
+	if _, err := rt.UpdateSession(context.Background(), "ses_1", session.Patch{Title: &title, Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
+		t.Fatalf("mixed patch err = %v, want ErrCwdUnavailable", err)
+	}
+	if store.renamed != ([2]string{}) {
+		t.Fatalf("invalid mixed patch renamed session: %v", store.renamed)
 	}
 }
 
