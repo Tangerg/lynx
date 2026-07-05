@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { askUserPreviewAnswer } from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
+import { askUserToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { PREVIEW_WRAP } from "./shared";
 
 function AskUserPreview({ tool }: ToolPreviewProps) {
@@ -29,6 +30,8 @@ export const askUserPreview = definePlugin({
   name: "lyra.builtin.ask-user-preview",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(TOOL_PREVIEW, AskUserPreview, { key: "ask_user" });
+    for (const preview of askUserToolPreview(AskUserPreview)) {
+      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+    }
   },
 });

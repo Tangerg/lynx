@@ -7,6 +7,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { skillPreviewEntries } from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
 import { resultLines } from "@/plugins/builtin/chat/tools/application/toolResultParsing";
+import { skillToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { MAX_ROWS, Overflow, PREVIEW_WRAP } from "./shared";
 
 function SkillPreview({ tool, onOpenView }: ToolPreviewProps) {
@@ -47,6 +48,8 @@ export const skillPreview = definePlugin({
   name: "lyra.builtin.skill-preview",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(TOOL_PREVIEW, SkillPreview, { key: "skill" });
+    for (const preview of skillToolPreview(SkillPreview)) {
+      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+    }
   },
 });

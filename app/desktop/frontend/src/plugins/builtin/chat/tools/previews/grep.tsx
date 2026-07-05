@@ -9,6 +9,7 @@ import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/Previe
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { useGrepToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewData";
+import { grepToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { PREVIEW_WRAP } from "./shared";
 
 const MAX_GREP_MATCHES = 4;
@@ -42,8 +43,8 @@ export const grep = definePlugin({
   name: "lyra.builtin.grep",
   version: "1.0.0",
   setup({ host }) {
-    // glob gets its own preview (glob.tsx) — a glob pattern is not a
-    // workspace.grep query, and GlobResponse carries the paths inline.
-    host.extensions.contribute(TOOL_PREVIEW, GrepPreview, { key: "grep" });
+    for (const preview of grepToolPreview(GrepPreview)) {
+      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+    }
   },
 });

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { useDiffToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewData";
+import { diffToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { PREVIEW_WRAP } from "./shared";
 
 const MAX_DIFF_ROWS = 8;
@@ -77,7 +78,8 @@ export const diff = definePlugin({
   name: "lyra.builtin.diff",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(TOOL_PREVIEW, DiffPreview, { key: "edit" });
-    host.extensions.contribute(TOOL_PREVIEW, DiffPreview, { key: "write" });
+    for (const preview of diffToolPreviews(DiffPreview)) {
+      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+    }
   },
 });

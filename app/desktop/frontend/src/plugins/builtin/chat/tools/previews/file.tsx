@@ -7,6 +7,7 @@ import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/Previe
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { useFileToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewData";
+import { fileToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { PREVIEW_WRAP } from "./shared";
 
 const MAX_FILE_LINES = 40;
@@ -39,6 +40,8 @@ export const file = definePlugin({
   name: "lyra.builtin.file",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(TOOL_PREVIEW, FilePreview, { key: "read" });
+    for (const preview of fileToolPreview(FilePreview)) {
+      host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
+    }
   },
 });
