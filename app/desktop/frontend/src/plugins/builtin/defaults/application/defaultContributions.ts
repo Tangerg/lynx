@@ -1,6 +1,28 @@
-import type { MessageRoleSpec, ThemeAccentSpec } from "@/plugins/sdk";
+import type {
+  CommandSpec,
+  MessageRoleSpec,
+  ThemeAccentSpec,
+  WorkspaceViewSpec,
+} from "@/plugins/sdk";
 
-export type Translate = (key: string) => string;
+export type Translate = (key: string, values?: Record<string, string>) => string;
+export type CommandRun = CommandSpec["run"];
+
+export interface DefaultCommandRuns {
+  toggleSidebar: CommandRun;
+  toggleTheme: CommandRun;
+  newChat: CommandRun;
+  closeSessionOrView: CommandRun;
+  focusComposer: CommandRun;
+}
+
+export type WorkspaceViewOpener = (view: {
+  id: WorkspaceViewSpec["id"];
+  title: WorkspaceViewSpec["title"];
+  icon: WorkspaceViewSpec["icon"];
+}) => void;
+
+export type AccentSetter = (accent: ThemeAccentSpec["dark"]) => void;
 
 export const DEFAULT_ACCENTS: ThemeAccentSpec[] = [
   {
@@ -54,4 +76,94 @@ export function defaultMessageRoles(t: Translate): MessageRoleSpec[] {
       avatarVariant: "msg-agent",
     },
   ];
+}
+
+export function defaultStaticCommands(t: Translate, runs: DefaultCommandRuns): CommandSpec[] {
+  return [
+    {
+      id: "view.toggle-sidebar",
+      label: t("command.toggleSidebar"),
+      icon: "panel-l",
+      group: "View",
+      keywords: ["collapse", "expand"],
+      order: 0,
+      combo: "Mod+B",
+      run: runs.toggleSidebar,
+    },
+    {
+      id: "settings.toggle-theme",
+      label: t("command.toggleTheme"),
+      icon: "moon",
+      group: "Theme",
+      order: 0,
+      combo: "Mod+Shift+L",
+      run: runs.toggleTheme,
+    },
+    {
+      id: "chat.new",
+      label: t("command.newChat"),
+      icon: "plus",
+      group: "Chat",
+      keywords: ["session", "open"],
+      order: 0,
+      combo: "Mod+N",
+      run: runs.newChat,
+    },
+    {
+      id: "chat.close-session",
+      label: t("command.closeSession"),
+      icon: "x",
+      group: "Chat",
+      keywords: ["dismiss"],
+      order: 1,
+      combo: "Mod+W",
+      run: runs.closeSessionOrView,
+    },
+    {
+      id: "composer.focus",
+      label: t("command.focusComposer"),
+      icon: "edit",
+      group: "Composer",
+      keywords: ["input", "write"],
+      order: 0,
+      combo: "Mod+L",
+      run: runs.focusComposer,
+    },
+  ];
+}
+
+export function defaultWorkspaceViewCommands(
+  t: Translate,
+  views: WorkspaceViewSpec[],
+  openView: WorkspaceViewOpener,
+): CommandSpec[] {
+  return [...views]
+    .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
+    .map((view) => ({
+      id: `view.open.${view.id}`,
+      label: t("command.viewPrefix", { title: t(view.title) }),
+      icon: view.icon,
+      group: "View",
+      order: 10,
+      keywords: ["open", "show", view.id],
+      when: `mainView != "${view.id}"`,
+      run: () => openView({ id: view.id, title: view.title, icon: view.icon }),
+    }));
+}
+
+export function defaultAccentCommands(
+  t: Translate,
+  accents: ThemeAccentSpec[],
+  setAccent: AccentSetter,
+): CommandSpec[] {
+  return [...accents]
+    .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
+    .map((accent) => ({
+      id: `theme.accent.${accent.id}`,
+      label: t("command.accentPrefix", { name: accent.label }),
+      icon: "spark",
+      group: "Theme",
+      order: 10,
+      run: () => setAccent(accent.dark),
+    }));
 }

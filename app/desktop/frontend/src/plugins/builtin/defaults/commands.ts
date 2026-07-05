@@ -19,6 +19,11 @@ import { definePlugin, lookupExtensionPoint, usePluginStore } from "@/plugins/sd
 import { ACCENT, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
 import { t } from "@/lib/i18n";
+import {
+  defaultAccentCommands,
+  defaultStaticCommands,
+  defaultWorkspaceViewCommands,
+} from "./application/defaultContributions";
 
 // Close the currently focused workspace view; otherwise close the active
 // chat session.
@@ -43,59 +48,15 @@ export const defaultCommands = definePlugin({
   name: "lyra.builtin.default-commands",
   version: "1.0.0",
   setup({ host }) {
-    host.commands.register({
-      id: "view.toggle-sidebar",
-      label: t("command.toggleSidebar"),
-      icon: "panel-l",
-      group: "View",
-      keywords: ["collapse", "expand"],
-      order: 0,
-      combo: "Mod+B",
-      run: () => useUiStore.getState().toggleSidebar(),
-    });
-
-    host.commands.register({
-      id: "settings.toggle-theme",
-      label: t("command.toggleTheme"),
-      icon: "moon",
-      group: "Theme",
-      order: 0,
-      combo: "Mod+Shift+L",
-      run: () => useUiStore.getState().toggleTheme(),
-    });
-
-    host.commands.register({
-      id: "chat.new",
-      label: t("command.newChat"),
-      icon: "plus",
-      group: "Chat",
-      keywords: ["session", "open"],
-      order: 0,
-      combo: "Mod+N",
-      run: openNewChatSession,
-    });
-
-    host.commands.register({
-      id: "chat.close-session",
-      label: t("command.closeSession"),
-      icon: "x",
-      group: "Chat",
-      keywords: ["dismiss"],
-      order: 1,
-      combo: "Mod+W",
-      run: closeFocusedSessionOrView,
-    });
-
-    host.commands.register({
-      id: "composer.focus",
-      label: t("command.focusComposer"),
-      icon: "edit",
-      group: "Composer",
-      keywords: ["input", "write"],
-      order: 0,
-      combo: "Mod+L",
-      run: focusComposer,
-    });
+    for (const command of defaultStaticCommands(t, {
+      toggleSidebar: () => useUiStore.getState().toggleSidebar(),
+      toggleTheme: () => useUiStore.getState().toggleTheme(),
+      newChat: openNewChatSession,
+      closeSessionOrView: closeFocusedSessionOrView,
+      focusComposer,
+    })) {
+      host.commands.register(command);
+    }
 
     // Dynamic commands: rebuild from the workspaceViews + accents registry
     // whenever either changes. Each rebuild disposes the previous batch and
@@ -105,32 +66,13 @@ export const defaultCommands = definePlugin({
     const rebuild = (views: WorkspaceViewSpec[], accents: ThemeAccentSpec[]) => {
       for (const d of dynamic) d.dispose();
       dynamic = [];
-      for (const view of [...views].sort((a, b) => (a.order ?? 100) - (b.order ?? 100))) {
-        dynamic.push(
-          host.commands.register({
-            id: `view.open.${view.id}`,
-            label: t("command.viewPrefix", { title: t(view.title) }),
-            icon: view.icon,
-            group: "View",
-            order: 10,
-            keywords: ["open", "show", view.id],
-            // Hide when this view is already the focused main-area tab.
-            when: `mainView != "${view.id}"`,
-            run: () => openWorkspaceView({ id: view.id, title: view.title, icon: view.icon }),
-          }),
-        );
+      for (const command of defaultWorkspaceViewCommands(t, views, openWorkspaceView)) {
+        dynamic.push(host.commands.register(command));
       }
-      for (const accent of [...accents].sort((a, b) => (a.order ?? 100) - (b.order ?? 100))) {
-        dynamic.push(
-          host.commands.register({
-            id: `theme.accent.${accent.id}`,
-            label: t("command.accentPrefix", { name: accent.label }),
-            icon: "spark",
-            group: "Theme",
-            order: 10,
-            run: () => useUiStore.getState().setAccent(accent.dark),
-          }),
-        );
+      for (const command of defaultAccentCommands(t, accents, (accent) =>
+        useUiStore.getState().setAccent(accent),
+      )) {
+        dynamic.push(host.commands.register(command));
       }
     };
 
