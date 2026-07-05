@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -18,6 +16,12 @@ import (
 func wireSessionErr(err error) error {
 	if errors.Is(err, session.ErrNotFound) {
 		return protocol.ErrSessionNotFound
+	}
+	if errors.Is(err, session.ErrTitleRequired) {
+		return fmt.Errorf("%w: title must not be empty", protocol.ErrInvalidParams)
+	}
+	if errors.Is(err, session.ErrCwdUnavailable) {
+		return fmt.Errorf("%w: %v", protocol.ErrCwdUnavailable, err)
 	}
 	return err
 }
@@ -101,43 +105,13 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 // all live. Nil fields are left alone; the updated session is returned. The
 // dispatch layer already rejects an empty SessionID.
 func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
-	if in.Title != nil {
-		title := strings.TrimSpace(*in.Title)
-		if title == "" {
-			return nil, fmt.Errorf("%w: title must not be empty", protocol.ErrInvalidParams)
-		}
-		if err := s.rt.RenameSession(ctx, in.SessionID, title); err != nil {
-			return nil, wireSessionErr(err)
-		}
-	}
-	if in.Model != nil {
-		if err := s.rt.SetSessionModel(ctx, in.SessionID, *in.Model); err != nil {
-			return nil, wireSessionErr(err)
-		}
-	}
-	if in.Cwd != nil {
-		// Relocate to a real, existing directory — a stale path would silently
-		// break every later run's tool/memory resolution, so reject it now.
-		info, err := os.Stat(*in.Cwd)
-		if err != nil || !info.IsDir() {
-			return nil, fmt.Errorf("%w: %s", protocol.ErrCwdUnavailable, *in.Cwd)
-		}
-		if err := s.rt.SetSessionCwd(ctx, in.SessionID, *in.Cwd); err != nil {
-			return nil, wireSessionErr(err)
-		}
-	}
-	if in.Metadata != nil {
-		if err := s.rt.SetSessionMetadata(ctx, in.SessionID, *in.Metadata); err != nil {
-			return nil, wireSessionErr(err)
-		}
-	}
-	if in.Favorite != nil {
-		if err := s.rt.SetSessionFavorite(ctx, in.SessionID, *in.Favorite); err != nil {
-			return nil, wireSessionErr(err)
-		}
-	}
-
-	ses, err := s.rt.GetSession(ctx, in.SessionID)
+	ses, err := s.rt.UpdateSession(ctx, in.SessionID, session.Patch{
+		Title:    in.Title,
+		Model:    in.Model,
+		Cwd:      in.Cwd,
+		Metadata: in.Metadata,
+		Favorite: in.Favorite,
+	})
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
