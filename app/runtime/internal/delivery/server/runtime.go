@@ -79,7 +79,10 @@ type toolAccess interface {
 }
 
 type knowledgeAccess interface {
-	Memory() knowledge.Service
+	HasMemory() bool
+	ListMemoryEntries(ctx context.Context, cwd string) ([]knowledge.Entry, error)
+	GetMemory(ctx context.Context, scope knowledge.Scope, cwd string) (string, error)
+	UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd string, content string) error
 }
 
 type approvalAccess interface {
