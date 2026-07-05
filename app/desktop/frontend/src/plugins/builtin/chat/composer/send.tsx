@@ -7,6 +7,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { useComposerImages, useComposerPastes } from "./public/attachments";
 import { useClearComposerDraft, useComposerText } from "./public/draft";
 import { useRecordComposerHistory } from "./public/history";
+import { composerSendSlot } from "./application/composerContributions";
 import { submitComposer } from "./application/submitComposer";
 
 function SendButton() {
@@ -82,6 +83,6 @@ export const composerSend = definePlugin({
   name: "lyra.builtin.composer-send",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("composer.toolbar.end", { id: "send", order: 100, component: SendButton });
+    host.layout.register("composer.toolbar.end", composerSendSlot(SendButton));
   },
 });
