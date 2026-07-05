@@ -93,11 +93,6 @@ func (r *Runtime) SetEmbeddingRole(ctx context.Context, providerID, model string
 	return nil
 }
 
-// CodebaseIndex is the @codebase semantic-index service (nil when unconfigured).
-func (r *Runtime) CodebaseIndex() codebaseindex.Service {
-	return r.codebaseIndex
-}
-
 // embeddingResolver builds + caches embedding clients from provider-registry
 // credentials, keyed by everything that changes the built client (so a
 // providers.configure is picked up). Mirrors [clientResolver].
