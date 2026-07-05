@@ -29,11 +29,11 @@ func TestSessionEffectiveModel(t *testing.T) {
 func TestSessionFork(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	parent := Session{
-		ID:        "ses_parent",
-		Title:     "research",
-		Cwd:       "/work/proj",
-		Model:     "claude-opus-4-8",
-		Metadata:  map[string]any{"k": "v"},
+		ID:       "ses_parent",
+		Title:    "research",
+		Cwd:      "/work/proj",
+		Model:    "claude-opus-4-8",
+		Metadata: map[string]any{"k": "v"},
 	}
 
 	child := parent.Fork("ses_child", "msg-7", now)

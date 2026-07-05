@@ -26,7 +26,7 @@ import (
 // never this backstop.
 const llmIdleTimeout = 5 * time.Minute
 
-// stallContext derives a context cancelled when no progress is reported for
+// stallContext derives a context canceled when no progress is reported for
 // idle — the silence watchdog behind [llmIdleTimeout]. keepAlive pushes the
 // deadline out: call it on every unit of progress (each streamed chunk). stop
 // releases the timer + context. Cancellation is idempotent, so a fired watchdog

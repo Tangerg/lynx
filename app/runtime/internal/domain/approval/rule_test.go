@@ -28,8 +28,8 @@ func TestSubjectOf(t *testing.T) {
 		{"edit", `{"file_path":"src/a.go","old":"x"}`, "src/a.go"},
 		{"read", `{"file_path":"go.mod"}`, "go.mod"},
 		{"grep", `{"pattern":"foo"}`, ""}, // no per-tool subject → whole-tool
-		{"shell", `not json`, ""},          // unparseable → whole-tool
-		{"shell", `{"timeout":5}`, ""},     // missing field → empty subject
+		{"shell", `not json`, ""},         // unparseable → whole-tool
+		{"shell", `{"timeout":5}`, ""},    // missing field → empty subject
 	}
 	for _, c := range cases {
 		if got := subjectOf(c.tool, c.args); got != c.want {
