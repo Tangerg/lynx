@@ -4,6 +4,23 @@ import { toolCatalogGateway } from "./ports/toolCatalogGateway";
 
 export type MCPServerConfig = MCPServer;
 
+export interface BuiltinToolSafetyPill {
+  label: string;
+  className: string;
+}
+
+export interface BuiltinToolRowViewModel {
+  id: string;
+  name: string;
+  description: string;
+  safety?: BuiltinToolSafetyPill;
+}
+
+export interface BuiltinToolCatalogViewModel {
+  rows: BuiltinToolRowViewModel[];
+  isEmpty: boolean;
+}
+
 export interface ToolCatalogViewModel {
   mcpServers: MCPServerConfig[];
   activeMcpServerCount: number;
@@ -49,6 +66,25 @@ export function toolCatalogViewModel(servers: readonly MCPServerConfig[]): ToolC
     mcpServers: Array.from(servers),
     activeMcpServerCount,
     configuredMcpServerCount: servers.length,
+  };
+}
+
+export function builtinToolCatalogViewModel(
+  tools: readonly BuiltinToolInfo[],
+): BuiltinToolCatalogViewModel {
+  return {
+    rows: tools.map((tool) => ({
+      id: tool.name,
+      name: tool.name,
+      description: tool.description,
+      safety: tool.safetyClass
+        ? {
+            label: tool.safetyClass,
+            className: builtinToolSafetyPillClassName(tool.safetyClass),
+          }
+        : undefined,
+    })),
+    isEmpty: tools.length === 0,
   };
 }
 
