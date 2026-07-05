@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -203,74 +202,5 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 
 	if p.Failure() == nil {
 		p.state.setFailure(actionFailureError(actionName))
-	}
-}
-
-// buildProcessContext assembles a fresh ProcessContext for one tick. The
-// fields all live on AgentProcess; the context is re-created every tick so
-// per-action state (lastErr, etc.) doesn't leak. actionToolGroups is
-// the currently-executing action's declared requirements; threading it
-// in so [core.ProcessContext.ActionTools] can resolve them lazily.
-//
-// The action argument lets the runtime build a ResolveTools closure that
-// runs every registered [core.ToolGroupResolver] in chain and decorates
-// the produced tools with every registered [core.ToolDecorator] —
-// without exposing those types to ProcessContext consumers.
-func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequirement, action core.Action) *core.ProcessContext {
-	config := core.ProcessContextConfig{
-		ProcessState: core.ProcessState{
-			Process:       p,
-			Blackboard:    p.blackboard,
-			Options:       p.options,
-			OutputChannel: p.options.OutputChannel,
-			Services:      p.platformServices(),
-		},
-		PlatformHooks: core.PlatformHooks{
-			ChatClient:     p.effectiveChatClient(),
-			Guardrails:     p.effectiveGuardrails(),
-			Publish:        p.publishAny,
-			ResolveTools:   p.toolResolverFor(action),
-			ToolCallCancel: p.signals.registerToolCallCancel,
-		},
-		ActionToolGroups: actionToolGroups,
-	}
-	return core.NewProcessContext(config)
-}
-
-// toolResolverFor returns the ResolveTools closure used by ProcessContext.
-// nil action is allowed (the resolver still works; ToolDecorators receive
-// nil action — they should treat it as "outside an action body").
-//
-// Resolvers are walked process-first (so a process-scope override beats
-// the platform default); decorators wrap platform-first then
-// process-last (so a process-scope decorator is the outermost wrap and
-// runs after platform decorators).
-func (p *AgentProcess) toolResolverFor(action core.Action) core.ToolResolver {
-	resolvers := collectExtensions[core.ToolGroupResolver](p.combinedExtensionsResolverFirst())
-	decorators := collectExtensions[core.ToolDecorator](p.combinedExtensions())
-	if len(resolvers) == 0 {
-		return nil
-	}
-	return func(ctx context.Context, requirements []core.ToolGroupRequirement) ([]core.AgentTool, error) {
-		var collected []core.AgentTool
-
-		for _, req := range requirements {
-			group, err := runToolGroupResolvers(resolvers, ctx, req)
-			if err != nil {
-				return nil, fmt.Errorf("resolve tools for role %q: %w", req.Role, err)
-			}
-			if group == nil {
-				continue
-			}
-
-			tools, err := group.Tools(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("load tools for role %q: %w", req.Role, err)
-			}
-			for _, tool := range tools {
-				collected = append(collected, runToolDecorators(decorators, p, action, tool))
-			}
-		}
-		return collected, nil
 	}
 }

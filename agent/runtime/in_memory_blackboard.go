@@ -1,8 +1,6 @@
 package runtime
 
 import (
-	"maps"
-	"reflect"
 	"slices"
 	"sync"
 
@@ -63,74 +61,6 @@ func (b *inMemoryBlackboard) Get(key string) (any, bool) {
 
 	v, ok := b.named[key]
 	return v, ok
-}
-
-// Lookup resolves typed lookups:
-//
-//   - variable == "it" / empty: newest object whose stored type matches typeName.
-//   - variable == "last_result":  newest object regardless of type.
-//   - explicit name:             the value stored at that name, only if its type matches.
-func (b *inMemoryBlackboard) Lookup(variable, typeName string) (any, bool) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	switch variable {
-	case "", core.DefaultBindingName:
-		return b.findLatestByType(typeName)
-	case core.LastResultBindingName:
-		return b.findLatestVisible()
-	}
-
-	value, ok := b.named[variable]
-	if !ok {
-		return nil, false
-	}
-	if typeName != "" && !typeMatches(value, typeName) {
-		return nil, false
-	}
-	return value, true
-}
-
-func (b *inMemoryBlackboard) HasValue(variable, typeName string) bool {
-	_, ok := b.Lookup(variable, typeName)
-	return ok
-}
-
-// findLatestByType walks the objects list in reverse, skipping hidden
-// entries, returning the first match.
-func (b *inMemoryBlackboard) findLatestByType(typeName string) (any, bool) {
-	for i := len(b.objects) - 1; i >= 0; i-- {
-		obj := b.objects[i]
-		if b.isHidden(obj) {
-			continue
-		}
-		if typeMatches(obj, typeName) {
-			return obj, true
-		}
-	}
-	return nil, false
-}
-
-// findLatestVisible returns the most-recently-added non-hidden object.
-func (b *inMemoryBlackboard) findLatestVisible() (any, bool) {
-	for i := len(b.objects) - 1; i >= 0; i-- {
-		if !b.isHidden(b.objects[i]) {
-			return b.objects[i], true
-		}
-	}
-	return nil, false
-}
-
-// isHidden does a linear scan via DeepEqual; hidden lists are tiny in
-// practice and DeepEqual is required because Go map keys can't accept
-// unhashable struct types.
-func (b *inMemoryBlackboard) isHidden(v any) bool {
-	for _, h := range b.hidden {
-		if reflect.DeepEqual(h, v) {
-			return true
-		}
-	}
-	return false
 }
 
 func (b *inMemoryBlackboard) AddObject(value any) {
@@ -204,103 +134,6 @@ func (b *inMemoryBlackboard) Condition(key string) (bool, bool) {
 	return value, ok
 }
 
-// Spawn produces a child blackboard inheriting the parent's full state: named
-// keys, protected entries, conditions, the objects list — AND the hidden
-// markers. Copying objects WITHOUT their hidden markers would un-hide them in
-// the child: an object the parent deliberately hid (so actions stop discovering
-// / re-binding it) would reappear via the child's findLatestByType, giving the
-// child a different view of the same data than the parent had. Visibility is
-// part of the inherited state, so it comes along. (Snapshot/Restore drop hidden
-// instead — there it's a transient view filter with no portable wire form.)
-func (b *inMemoryBlackboard) Spawn() core.Blackboard {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	child := newInMemoryBlackboard()
-	maps.Copy(child.named, b.named)
-	maps.Copy(child.protected, b.protected)
-	maps.Copy(child.conditions, b.conditions)
-	child.objects = append(child.objects, b.objects...)
-	child.hidden = append(child.hidden, b.hidden...)
-	return child
-}
-
-// Clear wipes the blackboard while preserving entries marked via
-// BindProtected. Hidden markers and conditions are cleared.
-func (b *inMemoryBlackboard) Clear() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	preserved := make(map[string]any, len(b.protected))
-	for key := range b.protected {
-		if value, ok := b.named[key]; ok {
-			preserved[key] = value
-		}
-	}
-
-	clear(b.named)
-	maps.Copy(b.named, preserved)
-	b.objects = b.objects[:0]
-	b.hidden = b.hidden[:0]
-	clear(b.conditions)
-}
-
 func (b *inMemoryBlackboard) Inspect(verbose bool) string {
 	return core.InspectBlackboard(b, verbose)
-}
-
-// Snapshot implements [BlackboardSnapshotter] — returns shallow copies
-// of the named bindings, conditions, and ordered objects list so the
-// [AgentProcess.Snapshot] helper can persist them. Hidden + protected
-// markers are deliberately omitted: protected re-applies naturally at
-// restore time (a freshly-restored process behaves as though no
-// reset has occurred), and Hide markers are a transient view filter
-// that has no meaning outside the running process.
-func (b *inMemoryBlackboard) Snapshot() (map[string]any, map[string]bool, []any) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	return maps.Clone(b.named), maps.Clone(b.conditions), slices.Clone(b.objects)
-}
-
-// Restore implements [BlackboardRestorer] — fills the blackboard
-// from the values previously returned by [Snapshot]. Existing
-// bindings are cleared first; partial restore is not supported.
-// Protected / hidden markers are reset because they have no
-// portable wire form.
-func (b *inMemoryBlackboard) Restore(named map[string]any, conditions map[string]bool, objects []any) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	clear(b.named)
-	maps.Copy(b.named, named)
-	clear(b.conditions)
-	maps.Copy(b.conditions, conditions)
-	b.objects = slices.Clone(objects)
-	b.hidden = b.hidden[:0]
-	clear(b.protected)
-}
-
-// typeMatches checks whether v matches typeName by walking the same rules
-// IOBinding uses: pointer types unwrap, then the concrete type's full
-// name is compared. Interface hierarchies are not walked — a binding
-// matches the stored value's concrete type only.
-func typeMatches(v any, typeName string) bool {
-	if typeName == "" {
-		return true
-	}
-	if v == nil {
-		return false
-	}
-
-	rt := reflect.TypeOf(v)
-	for rt != nil {
-		if core.TypeFullName(rt) == typeName {
-			return true
-		}
-		if rt.Kind() != reflect.Pointer {
-			break
-		}
-		rt = rt.Elem()
-	}
-	return false
 }
