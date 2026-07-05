@@ -9,5 +9,4 @@
 // GOAP-planned agents — no new runtime concepts; the workflow is
 // expressed via action effects and computed conditions the planner
 // already understands.
-//
 package workflow

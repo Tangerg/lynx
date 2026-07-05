@@ -15,5 +15,4 @@
 //     loops) and the goal is "make progress, then re-evaluate"
 //   - the action space is too large for A* but you still want goal-
 //     directed behavior
-//
 package reactive
