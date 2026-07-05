@@ -1,56 +1,26 @@
-// Generic tool inspector — fallback when a tool fn has no
-// plugin-registered preview. Surfaces the raw `args` + `result` from
-// the StreamEvent so the user can see exactly what the agent passed
-// in and got back, even for tools we've never seen before.
-//
-// It pretty-prints JSON, keeps non-JSON text as-is, and clearly labels
-// the two halves: the inline preview is for "I want a quick visual",
-// this is for "I want the truth".
-
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
-
-interface FormattedBody {
-  text: string;
-  isJson: boolean;
-}
-
-function formatBody(raw: string | undefined): FormattedBody {
-  if (!raw) return { text: "", isJson: false };
-  const trimmed = raw.trim();
-  if (!trimmed) return { text: "", isJson: false };
-  // Only attempt JSON parse if the text looks like a structure; saves
-  // us from parsing a 5KB shell stdout that starts with a `{` and fails
-  // halfway.
-  if (trimmed[0] === "{" || trimmed[0] === "[") {
-    try {
-      return { text: JSON.stringify(JSON.parse(trimmed), null, 2), isJson: true };
-    } catch {
-      /* fall through to raw */
-    }
-  }
-  return { text: raw, isJson: false };
-}
+import { toolInspectorModel, type ToolInspectorBody } from "../application/toolInspectorModel";
 
 export function ToolInspector({ tool }: { tool: ToolCall }) {
   const t = useT();
-  const args = useMemo(() => formatBody(tool.args), [tool.args]);
-  const result = useMemo(() => formatBody(tool.result), [tool.result]);
+  const model = toolInspectorModel(tool);
 
   return (
     <div className="pt-0.5">
-      <InspectorSection title={t("toolInspector.arguments")} body={args} />
-      {result.text && <InspectorSection title={t("toolInspector.result")} body={result} />}
-      {!result.text && tool.status === "ok" && (
+      <InspectorSection title={t("toolInspector.arguments")} body={model.args} />
+      {model.result.text && (
+        <InspectorSection title={t("toolInspector.result")} body={model.result} />
+      )}
+      {model.showNoResult && (
         <div className="font-mono text-[11px] text-fg-faint">{t("toolInspector.noResult")}</div>
       )}
     </div>
   );
 }
 
-function InspectorSection({ title, body }: { title: string; body: FormattedBody }) {
+function InspectorSection({ title, body }: { title: string; body: ToolInspectorBody }) {
   if (!body.text) return null;
   return (
     <div className="mb-2 last:mb-0">
