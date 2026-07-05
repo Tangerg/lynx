@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { LARGE_PASTE_CHARS } from "../domain/largePaste";
-import { composerKeyBindingKey, composerPasteIntent } from "./composerInputEvents";
+import {
+  composerKeyBindingKey,
+  composerPasteIntent,
+  hasComposerImageTransferItems,
+} from "./composerInputEvents";
 
 const image = new File(["image"], "shot.png", { type: "image/png" });
 
@@ -20,6 +24,22 @@ describe("composerPasteIntent", () => {
 
   it("leaves small text to the browser paste path", () => {
     expect(composerPasteIntent([], "small snippet")).toEqual({ kind: "native" });
+  });
+});
+
+describe("hasComposerImageTransferItems", () => {
+  it("detects image file transfer items", () => {
+    expect(
+      hasComposerImageTransferItems([
+        { kind: "string", type: "text/plain" },
+        { kind: "file", type: "image/png" },
+      ]),
+    ).toBe(true);
+  });
+
+  it("ignores non-image file transfer items", () => {
+    expect(hasComposerImageTransferItems([{ kind: "file", type: "text/plain" }])).toBe(false);
+    expect(hasComposerImageTransferItems(null)).toBe(false);
   });
 });
 
