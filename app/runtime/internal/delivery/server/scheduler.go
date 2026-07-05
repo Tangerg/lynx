@@ -9,7 +9,7 @@ import (
 
 // RunScheduler starts the scheduled-run worker until ctx is canceled.
 func (s *Server) RunScheduler(ctx context.Context) {
-	schedule.NewWorker(s.rt.Schedules(), scheduleRunner{s}).Run(ctx)
+	s.rt.RunScheduleWorker(ctx, scheduleRunner{s})
 }
 
 type scheduleRunner struct {
