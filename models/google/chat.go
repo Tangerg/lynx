@@ -76,7 +76,7 @@ func (r *requestHelper) buildParams(mergedOpts *chat.Options, tools []chat.Tool)
 }
 
 func (r *requestHelper) buildSystem(msgs []chat.Message) *genai.Content {
-	systemMsg := chat.MergeSystemMessages(msgs)
+	systemMsg := chat.MessageList(msgs).MergeSystem()
 	if systemMsg == nil || systemMsg.Text == "" {
 		return nil
 	}
@@ -182,7 +182,7 @@ func toolReturnAsObject(result string) map[string]any {
 }
 
 func (r *requestHelper) buildMsgs(msgs []chat.Message) ([]*genai.Content, error) {
-	nonSystem := chat.FilterMessagesByMessageTypes(msgs, chat.MessageTypeUser, chat.MessageTypeAssistant, chat.MessageTypeTool)
+	nonSystem := chat.MessageList(msgs).FilterTypes(chat.MessageTypeUser, chat.MessageTypeAssistant, chat.MessageTypeTool)
 
 	contents := make([]*genai.Content, 0, len(nonSystem))
 	for _, msg := range nonSystem {
@@ -250,7 +250,7 @@ func (r *responseHelper) buildAssistantMsg(candidate *genai.Candidate) *chat.Ass
 		return chat.NewAssistantMessage(msgParams)
 	}
 
-	// Gemini Parts arrive in emission order — map 1:1 into 
+	// Gemini Parts arrive in emission order — map 1:1 into
 	// OutputParts. Thought=true parts route to ReasoningPart;
 	// FunctionCall parts route to ToolCallPart; text parts to TextPart.
 	parts := make([]chat.OutputPart, 0, len(candidate.Content.Parts))

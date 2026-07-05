@@ -48,6 +48,9 @@ type Message interface {
 	// not have to nil-check before reading or writing.
 	Meta() map[string]any
 
+	// Transcript renders the message as a role-prefixed text projection.
+	Transcript() string
+
 	// message keeps the interface sealed.
 	message()
 }

@@ -224,7 +224,7 @@ func (i *invoker) toolErrorResult(name string, err error) string {
 // model always sees the turn's system header first; the memory middleware
 // never stores system messages, so they ride along with each round.
 func systemMessages(msgs []chat.Message) []chat.Message {
-	return chat.FilterMessagesByMessageTypes(msgs, chat.MessageTypeSystem)
+	return chat.MessageList(msgs).FilterTypes(chat.MessageTypeSystem)
 }
 
 // nextRoundRequest assembles the next model request from the turn's system

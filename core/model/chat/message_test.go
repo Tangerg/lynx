@@ -121,42 +121,39 @@ func TestNewToolMessage_RequiresToolReturns(t *testing.T) {
 	}
 }
 
-func TestFilterMessages_PanicsOnNilPredicate(t *testing.T) {
+func TestMessageListFilter_PanicsOnNilPredicate(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("expected panic on nil predicate")
 		}
 	}()
-	_ = chat.FilterMessages([]chat.Message{}, nil)
+	_ = chat.MessageList{}.Filter(nil)
 }
 
-func TestFilterMessagesByMessageTypes(t *testing.T) {
+func TestMessageListFilterTypes(t *testing.T) {
 	user := chat.NewUserMessage("u")
 	sys := chat.NewSystemMessage("s")
 	assistant := chat.NewAssistantMessage("a")
 
-	got := chat.FilterMessagesByMessageTypes(
-		[]chat.Message{user, sys, assistant},
-		chat.MessageTypeUser, chat.MessageTypeAssistant,
-	)
+	got := chat.MessageList{user, sys, assistant}.FilterTypes(chat.MessageTypeUser, chat.MessageTypeAssistant)
 	if len(got) != 2 {
 		t.Fatalf("len = %d, want 2", len(got))
 	}
 }
 
-func TestFilterMessagesByMessageTypes_NoTypesPassthrough(t *testing.T) {
-	in := []chat.Message{chat.NewUserMessage("u")}
-	got := chat.FilterMessagesByMessageTypes(in)
+func TestMessageListFilterTypes_NoTypesPassthrough(t *testing.T) {
+	in := chat.MessageList{chat.NewUserMessage("u")}
+	got := in.FilterTypes()
 	if len(got) != 1 {
 		t.Fatalf("expected passthrough, got len=%d", len(got))
 	}
 }
 
-func TestMergeSystemMessages(t *testing.T) {
+func TestMessageListMergeSystem(t *testing.T) {
 	a := chat.NewSystemMessage("first")
 	b := chat.NewSystemMessage("second")
 
-	merged := chat.MergeSystemMessages([]chat.Message{a, b})
+	merged := chat.MessageList{a, b}.MergeSystem()
 	if merged == nil {
 		t.Fatal("merge returned nil")
 	}
@@ -165,11 +162,11 @@ func TestMergeSystemMessages(t *testing.T) {
 	}
 }
 
-func TestMergeUserMessages_ConcatenatesMediaAndText(t *testing.T) {
+func TestMessageListMergeUser_ConcatenatesMediaAndText(t *testing.T) {
 	a := chat.NewUserMessage("a")
 	b := chat.NewUserMessage("b")
 
-	merged := chat.MergeUserMessages([]chat.Message{a, b})
+	merged := chat.MessageList{a, b}.MergeUser()
 	if merged == nil {
 		t.Fatal("merge returned nil")
 	}
@@ -178,18 +175,18 @@ func TestMergeUserMessages_ConcatenatesMediaAndText(t *testing.T) {
 	}
 }
 
-func TestMergeMessages_AssistantUnsupported(t *testing.T) {
-	if _, err := chat.MergeMessages(nil, chat.MessageTypeAssistant); err == nil {
-		t.Fatal("MergeMessages(assistant) must error")
+func TestMessageListMerge_AssistantUnsupported(t *testing.T) {
+	if _, err := (chat.MessageList{}).Merge(chat.MessageTypeAssistant); err == nil {
+		t.Fatal("Merge(assistant) must error")
 	}
 }
 
-func TestMergeAdjacentSameTypeMessages(t *testing.T) {
+func TestMessageListMergeAdjacentSameType(t *testing.T) {
 	user1 := chat.NewUserMessage("u1")
 	user2 := chat.NewUserMessage("u2")
 	sys := chat.NewSystemMessage("s")
 
-	got := chat.MergeAdjacentSameTypeMessages([]chat.Message{user1, user2, sys})
+	got := chat.MessageList{user1, user2, sys}.MergeAdjacentSameType()
 	if len(got) != 2 {
 		t.Fatalf("len = %d, want 2 (two adjacent users merge into one)", len(got))
 	}
@@ -198,15 +195,15 @@ func TestMergeAdjacentSameTypeMessages(t *testing.T) {
 	}
 }
 
-func TestMergeAdjacentSameTypeMessages_FiltersNil(t *testing.T) {
+func TestMessageListMergeAdjacentSameType_FiltersNil(t *testing.T) {
 	user := chat.NewUserMessage("u")
-	got := chat.MergeAdjacentSameTypeMessages([]chat.Message{nil, user, nil})
+	got := chat.MessageList{nil, user, nil}.MergeAdjacentSameType()
 	if len(got) != 1 {
 		t.Fatalf("len = %d, want 1", len(got))
 	}
 }
 
-func TestMessageToString_AssistantWithToolCalls(t *testing.T) {
+func TestAssistantMessageTranscript_WithToolCalls(t *testing.T) {
 	m := chat.NewAssistantMessage(chat.MessageParams{
 		Parts: []chat.OutputPart{
 			&chat.TextPart{Text: "calling tool"},
@@ -214,7 +211,7 @@ func TestMessageToString_AssistantWithToolCalls(t *testing.T) {
 		},
 	})
 
-	got := chat.MessageToString(m)
+	got := m.Transcript()
 
 	if !strings.HasPrefix(got, "assistant: calling tool") {
 		t.Fatalf("missing prefix in %q", got)
@@ -224,13 +221,13 @@ func TestMessageToString_AssistantWithToolCalls(t *testing.T) {
 	}
 }
 
-func TestMessageToString_Tool(t *testing.T) {
+func TestToolMessageTranscript(t *testing.T) {
 	m, err := chat.NewToolMessage([]*chat.ToolReturn{{ID: "1", Name: "f", Result: "ok"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	got := chat.MessageToString(m)
+	got := m.Transcript()
 	if !strings.HasPrefix(got, "tool: ") {
 		t.Fatalf("got %q", got)
 	}
@@ -317,11 +314,11 @@ func TestRequest_JSONRoundTrip(t *testing.T) {
 	}
 }
 
-func TestMessagesToStrings(t *testing.T) {
-	got := chat.MessagesToStrings([]chat.Message{
+func TestMessageListStrings(t *testing.T) {
+	got := (chat.MessageList{
 		chat.NewUserMessage("u"),
 		chat.NewSystemMessage("s"),
-	})
+	}).Strings()
 	if len(got) != 2 {
 		t.Fatalf("len = %d, want 2", len(got))
 	}

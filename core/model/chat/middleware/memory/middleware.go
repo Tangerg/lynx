@@ -68,8 +68,9 @@ func (m *middleware) splice(ctx context.Context, req *chat.Request, id string) (
 		return nil, nil, err
 	}
 
-	system := chat.FilterMessagesByMessageTypes(req.Messages, chat.MessageTypeSystem)
-	fresh := chat.FilterMessagesByMessageTypes(req.Messages, chat.MessageTypeUser, chat.MessageTypeAssistant, chat.MessageTypeTool)
+	live := chat.MessageList(req.Messages)
+	system := live.FilterTypes(chat.MessageTypeSystem)
+	fresh := live.FilterTypes(chat.MessageTypeUser, chat.MessageTypeAssistant, chat.MessageTypeTool)
 
 	combined := make([]chat.Message, 0, len(system)+len(history)+len(fresh))
 	combined = append(combined, system...)

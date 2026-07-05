@@ -194,9 +194,10 @@ func (r *ClientRequest) resolveMessages() ([]Message, error) {
 	}
 
 	out := make([]Message, 0, len(msgs)+1)
+	list := MessageList(msgs)
 
 	// System message: prefer existing (merged) over template-rendered.
-	if sys := MergeSystemMessages(msgs); sys != nil {
+	if sys := list.MergeSystem(); sys != nil {
 		out = append(out, sys)
 	} else if r.systemPromptTemplate != nil {
 		rendered, err := r.systemPromptTemplate.CreateSystemMessage()
@@ -207,9 +208,9 @@ func (r *ClientRequest) resolveMessages() ([]Message, error) {
 	}
 
 	// Non-system messages keep their original order.
-	out = append(out, FilterMessagesByMessageTypes(msgs, MessageTypeUser, MessageTypeAssistant, MessageTypeTool)...)
+	out = append(out, list.FilterTypes(MessageTypeUser, MessageTypeAssistant, MessageTypeTool)...)
 
-	return MergeAdjacentSameTypeMessages(out), nil
+	return MessageList(out).MergeAdjacentSameType(), nil
 }
 
 // seedMessage produces the first user turn when the caller didn't

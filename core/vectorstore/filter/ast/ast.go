@@ -18,6 +18,9 @@ type Expr interface {
 	// node.
 	End() token.Position
 
+	// Equal reports structural equality between two AST nodes.
+	Equal(other Expr) bool
+
 	expr()
 }
 
@@ -48,6 +51,11 @@ func (i *Ident) atomicExpr() {}
 func (i *Ident) Start() token.Position { return i.Token.Start }
 func (i *Ident) End() token.Position   { return i.Token.End }
 
+func (i *Ident) Equal(other Expr) bool {
+	o, ok := other.(*Ident)
+	return ok && i != nil && o != nil && i.Value == o.Value
+}
+
 // Literal is a constant value: a number, a string, or a boolean.
 type Literal struct {
 	Token token.Token
@@ -59,6 +67,11 @@ func (l *Literal) atomicExpr() {}
 
 func (l *Literal) Start() token.Position { return l.Token.Start }
 func (l *Literal) End() token.Position   { return l.Token.End }
+
+func (l *Literal) Equal(other Expr) bool {
+	o, ok := other.(*Literal)
+	return ok && l != nil && o != nil && l.Token.Kind == o.Token.Kind && l.Value == o.Value
+}
 
 func (l *Literal) IsString() bool { return l.Token.Kind.Is(token.STRING) }
 
@@ -127,6 +140,19 @@ func (l *ListLiteral) atomicExpr() {}
 func (l *ListLiteral) Start() token.Position { return l.Lparen.Start }
 func (l *ListLiteral) End() token.Position   { return l.Rparen.End }
 
+func (l *ListLiteral) Equal(other Expr) bool {
+	o, ok := other.(*ListLiteral)
+	if !ok || l == nil || o == nil || len(l.Values) != len(o.Values) {
+		return false
+	}
+	for i := range l.Values {
+		if !l.Values[i].Equal(o.Values[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 // UnaryExpr is one prefix operator applied to a sub-expression — the
 // only unary operator the filter language supports today is logical
 // NOT.
@@ -140,6 +166,11 @@ func (u *UnaryExpr) computedExpr() {}
 
 func (u *UnaryExpr) Start() token.Position { return u.Op.Start }
 func (u *UnaryExpr) End() token.Position   { return u.Right.End() }
+
+func (u *UnaryExpr) Equal(other Expr) bool {
+	o, ok := other.(*UnaryExpr)
+	return ok && u != nil && o != nil && u.Op.Kind == o.Op.Kind && u.Right.Equal(o.Right)
+}
 
 func (u *UnaryExpr) Precedence() int { return u.Op.Kind.Precedence() }
 
@@ -158,6 +189,12 @@ func (b *BinaryExpr) computedExpr() {}
 func (b *BinaryExpr) Start() token.Position { return b.Left.Start() }
 func (b *BinaryExpr) End() token.Position   { return b.Right.End() }
 
+func (b *BinaryExpr) Equal(other Expr) bool {
+	o, ok := other.(*BinaryExpr)
+	return ok && b != nil && o != nil && b.Op.Kind == o.Op.Kind &&
+		b.Left.Equal(o.Left) && b.Right.Equal(o.Right)
+}
+
 func (b *BinaryExpr) Precedence() int { return b.Op.Kind.Precedence() }
 
 // IndexExpr is an array / map access — arr[0], obj['key'], or nested
@@ -174,3 +211,8 @@ func (i *IndexExpr) computedExpr() {}
 
 func (i *IndexExpr) Start() token.Position { return i.Left.Start() }
 func (i *IndexExpr) End() token.Position   { return i.RBrack.End }
+
+func (i *IndexExpr) Equal(other Expr) bool {
+	o, ok := other.(*IndexExpr)
+	return ok && i != nil && o != nil && i.Left.Equal(o.Left) && i.Index.Equal(o.Index)
+}

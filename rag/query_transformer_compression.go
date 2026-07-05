@@ -132,5 +132,5 @@ func (c *CompressionTransformer) extractHistory(query *Query) string {
 	if !ok {
 		return ""
 	}
-	return strings.Join(chat.MessagesToStrings(messages), "\n\n")
+	return strings.Join(chat.MessageList(messages).Strings(), "\n\n")
 }

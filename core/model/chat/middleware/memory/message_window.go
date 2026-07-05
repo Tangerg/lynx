@@ -88,12 +88,13 @@ func (m *MessageWindowStore) Read(ctx context.Context, conversationID string) ([
 
 func (m *MessageWindowStore) applySlidingWindow(all []chat.Message) []chat.Message {
 	out := make([]chat.Message, 0, m.maximumMessages)
+	list := chat.MessageList(all)
 
-	if sys := chat.MergeSystemMessages(all); sys != nil {
+	if sys := list.MergeSystem(); sys != nil {
 		out = append(out, sys)
 	}
 
-	nonSys := chat.FilterMessagesByMessageTypes(all, chat.MessageTypeUser, chat.MessageTypeAssistant, chat.MessageTypeTool)
+	nonSys := list.FilterTypes(chat.MessageTypeUser, chat.MessageTypeAssistant, chat.MessageTypeTool)
 
 	remaining := m.maximumMessages - len(out)
 	if remaining > 0 && len(nonSys) > 0 {
