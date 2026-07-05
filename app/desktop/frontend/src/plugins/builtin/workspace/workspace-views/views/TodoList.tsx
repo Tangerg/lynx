@@ -11,7 +11,7 @@ const TODO_STATUS = {
   pending: "todo",
 } as const;
 
-export function TodoList({ todos }: { todos: WorkspaceTodo[] }) {
+export function TodoList({ todos }: { todos: readonly WorkspaceTodo[] }) {
   const t = useT();
   return (
     <div className="px-4.5 py-3.5">
