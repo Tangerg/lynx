@@ -108,6 +108,43 @@ func TestBinaryExpr_Precedence(t *testing.T) {
 	}
 }
 
+func TestExpr_Equal(t *testing.T) {
+	ident := func(v string) *ast.Ident {
+		return &ast.Ident{Token: token.OfIdent(v, token.NoPosition, token.NoPosition), Value: v}
+	}
+	eq := token.OfKind(token.EQ, token.NoPosition, token.NoPosition)
+	not := token.OfKind(token.NOT, token.NoPosition, token.NoPosition)
+
+	left := &ast.BinaryExpr{Left: ident("a"), Op: eq, Right: numberLit("1")}
+	same := &ast.BinaryExpr{Left: ident("a"), Op: eq, Right: numberLit("1")}
+	different := &ast.BinaryExpr{Left: ident("a"), Op: eq, Right: numberLit("2")}
+	if !left.Equal(same) {
+		t.Fatal("identical binary expressions must be equal")
+	}
+	if left.Equal(different) {
+		t.Fatal("different binary expressions must not be equal")
+	}
+
+	list := &ast.ListLiteral{
+		Lparen: token.OfKind(token.LPAREN, token.NoPosition, token.NoPosition),
+		Rparen: token.OfKind(token.RPAREN, token.NoPosition, token.NoPosition),
+		Values: []*ast.Literal{stringLit("a"), stringLit("b")},
+	}
+	sameList := &ast.ListLiteral{
+		Lparen: token.OfKind(token.LPAREN, token.NoPosition, token.NoPosition),
+		Rparen: token.OfKind(token.RPAREN, token.NoPosition, token.NoPosition),
+		Values: []*ast.Literal{stringLit("a"), stringLit("b")},
+	}
+	if !list.Equal(sameList) {
+		t.Fatal("identical list literals must be equal")
+	}
+
+	unary := &ast.UnaryExpr{Op: not, Right: left}
+	if !unary.Equal(&ast.UnaryExpr{Op: not, Right: same}) {
+		t.Fatal("identical unary expressions must be equal")
+	}
+}
+
 func TestListLiteral_PositionRange(t *testing.T) {
 	lp := token.Position{Line: 1, Column: 5}
 	rp := token.Position{Line: 1, Column: 10}

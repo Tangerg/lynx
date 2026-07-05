@@ -57,7 +57,7 @@ const ConversationIDKey = "lynx:ai:model:chat:conversation_id"
 //	    chat.NewUserMessage("Hello"),
 //	})
 func NewRequest(messages []Message) (*Request, error) {
-	valid := filterOutNilMessages(messages)
+	valid := MessageList(messages).withoutNil()
 	if len(valid) == 0 {
 		return nil, errors.New("chat.NewRequest: messages must contain at least one non-nil entry")
 	}
@@ -110,13 +110,13 @@ func (r *Request) Set(key string, value any) {
 // from existing content by a double newline. No-op when no user message
 // exists.
 func (r *Request) AppendToLastUserMessage(text string) {
-	appendTextToLastMessageOfType(r.Messages, MessageTypeUser, text)
+	MessageList(r.Messages).appendTextToLastOfType(MessageTypeUser, text)
 }
 
 // ReplaceTextOfLastUserMessage replaces the entire text of the last
 // user message. No-op when no user message exists.
 func (r *Request) ReplaceTextOfLastUserMessage(text string) {
-	replaceTextOfLastMessageOfType(r.Messages, MessageTypeUser, text)
+	MessageList(r.Messages).replaceTextOfLastOfType(MessageTypeUser, text)
 }
 
 // UserMessage returns the most-recent user message in the conversation,
@@ -125,7 +125,7 @@ func (r *Request) UserMessage() *UserMessage {
 	if r == nil {
 		return NewUserMessage("")
 	}
-	idx, last := findLastMessageIndexOfType(r.Messages, MessageTypeUser)
+	idx, last := MessageList(r.Messages).lastOfType(MessageTypeUser)
 	if idx == -1 {
 		return NewUserMessage("")
 	}
@@ -138,7 +138,7 @@ func (r *Request) SystemMessage() *SystemMessage {
 	if r == nil {
 		return NewSystemMessage("")
 	}
-	idx, last := findLastMessageIndexOfType(r.Messages, MessageTypeSystem)
+	idx, last := MessageList(r.Messages).lastOfType(MessageTypeSystem)
 	if idx == -1 {
 		return NewSystemMessage("")
 	}

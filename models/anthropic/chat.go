@@ -53,7 +53,7 @@ func (r *requestHelper) buildToolParams(tools []chat.Tool) ([]anthropicsdk.ToolU
 }
 
 func (r *requestHelper) buildSystem(msgs []chat.Message) []anthropicsdk.TextBlockParam {
-	systemMsg := chat.MergeSystemMessages(msgs)
+	systemMsg := chat.MessageList(msgs).MergeSystem()
 	if systemMsg == nil || systemMsg.Text == "" {
 		return nil
 	}
@@ -201,7 +201,7 @@ func (r *requestHelper) buildMsg(msg chat.Message) anthropicsdk.MessageParam {
 
 func (r *requestHelper) buildMsgs(msgs []chat.Message) []anthropicsdk.MessageParam {
 	// Filter out system messages (handled separately)
-	nonSystem := chat.FilterMessagesByMessageTypes(msgs, chat.MessageTypeUser, chat.MessageTypeAssistant, chat.MessageTypeTool)
+	nonSystem := chat.MessageList(msgs).FilterTypes(chat.MessageTypeUser, chat.MessageTypeAssistant, chat.MessageTypeTool)
 
 	result := make([]anthropicsdk.MessageParam, 0, len(nonSystem))
 	for _, msg := range nonSystem {

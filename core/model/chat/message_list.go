@@ -10,19 +10,22 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 )
 
-// FilterMessages returns messages for which predicate returns true. The
-// original order is preserved. Panics on a nil predicate — that's a
-// programmer error, not a runtime condition.
-func FilterMessages(messages []Message, predicate func(message Message) bool) []Message {
+// MessageList is a conversation slice with protocol-level operations attached.
+type MessageList []Message
+
+// Filter returns messages for which predicate returns true. The original order
+// is preserved. Panics on a nil predicate — that's a programmer error, not a
+// runtime condition.
+func (l MessageList) Filter(predicate func(message Message) bool) MessageList {
 	if predicate == nil {
-		panic("chat.FilterMessages: predicate must not be nil")
+		panic("chat.MessageList.Filter: predicate must not be nil")
 	}
-	if len(messages) == 0 {
+	if len(l) == 0 {
 		return nil
 	}
 
-	out := make([]Message, 0, len(messages))
-	for _, msg := range messages {
+	out := make(MessageList, 0, len(l))
+	for _, msg := range l {
 		if predicate(msg) {
 			out = append(out, msg)
 		}
@@ -30,28 +33,27 @@ func FilterMessages(messages []Message, predicate func(message Message) bool) []
 	return out
 }
 
-// FilterMessagesByMessageTypes returns messages whose type matches any of
-// types. Nil entries are dropped. With no types supplied the input is
-// returned unchanged.
-func FilterMessagesByMessageTypes(messages []Message, types ...MessageType) []Message {
+// FilterTypes returns messages whose type matches any of types. Nil entries are
+// dropped. With no types supplied the input is returned unchanged.
+func (l MessageList) FilterTypes(types ...MessageType) MessageList {
 	if len(types) == 0 {
-		return messages
+		return l
 	}
 
-	return FilterMessages(messages, func(msg Message) bool {
+	return l.Filter(func(msg Message) bool {
 		return msg != nil && slices.Contains(types, msg.Type())
 	})
 }
 
-func filterOutNilMessages(messages []Message) []Message {
-	return FilterMessages(messages, func(msg Message) bool { return msg != nil })
+func (l MessageList) withoutNil() MessageList {
+	return l.Filter(func(msg Message) bool { return msg != nil })
 }
 
-// MergeSystemMessages collapses every [SystemMessage] in messages into
-// one. Text fields concatenate with double-newline separators; metadata
-// merges last-write-wins. Returns nil when no system message exists.
-func MergeSystemMessages(messages []Message) *SystemMessage {
-	systems := FilterMessagesByMessageTypes(messages, MessageTypeSystem)
+// MergeSystem collapses every [SystemMessage] into one. Text fields concatenate
+// with double-newline separators; metadata merges last-write-wins. Returns nil
+// when no system message exists.
+func (l MessageList) MergeSystem() *SystemMessage {
+	systems := l.FilterTypes(MessageTypeSystem)
 
 	if len(systems) == 0 {
 		return nil
@@ -76,8 +78,8 @@ func MergeSystemMessages(messages []Message) *SystemMessage {
 	})
 }
 
-func MergeUserMessages(messages []Message) *UserMessage {
-	users := FilterMessagesByMessageTypes(messages, MessageTypeUser)
+func (l MessageList) MergeUser() *UserMessage {
+	users := l.FilterTypes(MessageTypeUser)
 
 	if len(users) == 0 {
 		return nil
@@ -105,8 +107,8 @@ func MergeUserMessages(messages []Message) *UserMessage {
 	})
 }
 
-func MergeToolMessages(messages []Message) (*ToolMessage, error) {
-	tools := FilterMessagesByMessageTypes(messages, MessageTypeTool)
+func (l MessageList) MergeTool() (*ToolMessage, error) {
+	tools := l.FilterTypes(MessageTypeTool)
 
 	if len(tools) == 0 {
 		return nil, nil
@@ -130,31 +132,31 @@ func MergeToolMessages(messages []Message) (*ToolMessage, error) {
 	})
 }
 
-// MergeMessages dispatches to the right per-type merge helper. Assistant
-// messages cannot be merged — each represents a distinct model turn.
-func MergeMessages(messages []Message, messageType MessageType) (Message, error) {
+// Merge dispatches to the right per-type merge helper. Assistant messages
+// cannot be merged — each represents a distinct model turn.
+func (l MessageList) Merge(messageType MessageType) (Message, error) {
 	switch messageType {
 	case MessageTypeSystem:
-		return MergeSystemMessages(messages), nil
+		return l.MergeSystem(), nil
 	case MessageTypeUser:
-		return MergeUserMessages(messages), nil
+		return l.MergeUser(), nil
 	case MessageTypeTool:
-		return MergeToolMessages(messages)
+		return l.MergeTool()
 	default:
-		return nil, fmt.Errorf("chat.MergeMessages: cannot merge type %q", messageType)
+		return nil, fmt.Errorf("chat.MessageList.Merge: cannot merge type %q", messageType)
 	}
 }
 
-// MergeAdjacentSameTypeMessages folds each run of consecutive same-type
-// messages into one merged message. Non-adjacent runs and runs of size 1
-// are passed through unchanged.
-func MergeAdjacentSameTypeMessages(messages []Message) []Message {
-	source := filterOutNilMessages(messages)
+// MergeAdjacentSameType folds each run of consecutive same-type messages into
+// one merged message. Non-adjacent runs and runs of size 1 are passed through
+// unchanged.
+func (l MessageList) MergeAdjacentSameType() MessageList {
+	source := l.withoutNil()
 	if len(source) <= 1 {
 		return source
 	}
 
-	result := make([]Message, 0, len(source))
+	result := make(MessageList, 0, len(source))
 	groupStart := 0
 	for i := 1; i <= len(source); i++ {
 		if i < len(source) && source[i].Type() == source[groupStart].Type() {
@@ -163,7 +165,7 @@ func MergeAdjacentSameTypeMessages(messages []Message) []Message {
 		group := source[groupStart:i]
 		if len(group) == 1 {
 			result = append(result, group[0])
-		} else if merged, err := MergeMessages(group, group[0].Type()); err == nil {
+		} else if merged, err := group.Merge(group[0].Type()); err == nil {
 			result = append(result, merged)
 		} else {
 			result = append(result, group...)
@@ -173,9 +175,9 @@ func MergeAdjacentSameTypeMessages(messages []Message) []Message {
 	return result
 }
 
-func findLastMessageIndexOfType(messages []Message, targetType MessageType) (int, Message) {
-	for i := len(messages) - 1; i >= 0; i-- {
-		msg := messages[i]
+func (l MessageList) lastOfType(targetType MessageType) (int, Message) {
+	for i := len(l) - 1; i >= 0; i-- {
+		msg := l[i]
 		if msg != nil && msg.Type() == targetType {
 			return i, msg
 		}
@@ -183,23 +185,23 @@ func findLastMessageIndexOfType(messages []Message, targetType MessageType) (int
 	return -1, nil
 }
 
-func augmentLastMessageOfType(messages []Message, targetType MessageType, augmentFunc func(message Message) Message) {
+func (l MessageList) augmentLastOfType(targetType MessageType, augmentFunc func(message Message) Message) {
 	if augmentFunc == nil {
 		return
 	}
 
-	idx, last := findLastMessageIndexOfType(messages, targetType)
+	idx, last := l.lastOfType(targetType)
 	if idx == -1 {
 		return
 	}
 
 	if augmented := augmentFunc(last); augmented != nil {
-		messages[idx] = augmented
+		l[idx] = augmented
 	}
 }
 
-func appendTextToLastMessageOfType(messages []Message, targetType MessageType, text string) {
-	augmentLastMessageOfType(messages, targetType, func(msg Message) Message {
+func (l MessageList) appendTextToLastOfType(targetType MessageType, text string) {
+	l.augmentLastOfType(targetType, func(msg Message) Message {
 		switch typed := msg.(type) {
 		case *UserMessage:
 			typed.Text = typed.Text + "\n\n" + text
@@ -213,8 +215,8 @@ func appendTextToLastMessageOfType(messages []Message, targetType MessageType, t
 	})
 }
 
-func replaceTextOfLastMessageOfType(messages []Message, targetType MessageType, text string) {
-	augmentLastMessageOfType(messages, targetType, func(msg Message) Message {
+func (l MessageList) replaceTextOfLastOfType(targetType MessageType, text string) {
+	l.augmentLastOfType(targetType, func(msg Message) Message {
 		switch typed := msg.(type) {
 		case *UserMessage:
 			typed.Text = text
@@ -228,38 +230,41 @@ func replaceTextOfLastMessageOfType(messages []Message, targetType MessageType, 
 	})
 }
 
-// MessageToString renders one message as "role: payload". For assistant
-// messages, text parts are emitted verbatim followed by any tool calls
-// as compact JSON.
-func MessageToString(message Message) string {
+func (u *UserMessage) Transcript() string {
+	return transcript(MessageTypeUser, u.Text)
+}
+
+func (s *SystemMessage) Transcript() string {
+	return transcript(MessageTypeSystem, s.Text)
+}
+
+func (a *AssistantMessage) Transcript() string {
 	var b strings.Builder
-	b.WriteString(message.Type().String())
+	b.WriteString(MessageTypeAssistant.String())
 	b.WriteString(": ")
-
-	switch typed := message.(type) {
-	case *UserMessage:
-		b.WriteString(typed.Text)
-	case *SystemMessage:
-		b.WriteString(typed.Text)
-	case *AssistantMessage:
-		b.WriteString(typed.JoinedText())
-		if typed.HasToolCalls() {
-			b.WriteByte('\n')
-			calls := typed.CollectToolCalls()
-			data, _ := json.Marshal(calls)
-			b.Write(data)
-		}
-	case *ToolMessage:
-		returns, _ := json.Marshal(typed.ToolReturns)
-		b.Write(returns)
+	b.WriteString(a.JoinedText())
+	if a.HasToolCalls() {
+		b.WriteByte('\n')
+		calls := a.CollectToolCalls()
+		data, _ := json.Marshal(calls)
+		b.Write(data)
 	}
 	return b.String()
 }
 
-func MessagesToStrings(messages []Message) []string {
-	out := make([]string, 0, len(messages))
-	for _, msg := range messages {
-		out = append(out, MessageToString(msg))
+func (t *ToolMessage) Transcript() string {
+	returns, _ := json.Marshal(t.ToolReturns)
+	return transcript(MessageTypeTool, string(returns))
+}
+
+func transcript(messageType MessageType, payload string) string {
+	return messageType.String() + ": " + payload
+}
+
+func (l MessageList) Strings() []string {
+	out := make([]string, 0, len(l))
+	for _, msg := range l {
+		out = append(out, msg.Transcript())
 	}
 	return out
 }

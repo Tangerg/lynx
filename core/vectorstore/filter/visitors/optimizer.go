@@ -77,7 +77,7 @@ func (o *Optimizer) rewriteBinary(b *ast.BinaryExpr) ast.Expr {
 	left := o.rewrite(b.Left)
 	right := o.rewrite(b.Right)
 
-		if exprEqual(left, right) {
+	if left.Equal(right) {
 		return left
 	}
 
@@ -103,39 +103,5 @@ func absorbs(x, outer ast.Expr, op token.Kind) bool {
 	if !ok || !bin.Op.Kind.Is(op) {
 		return false
 	}
-	return exprEqual(x, bin.Left) || exprEqual(x, bin.Right)
-}
-
-func exprEqual(a, b ast.Expr) bool {
-	switch x := a.(type) {
-	case *ast.Ident:
-		y, ok := b.(*ast.Ident)
-		return ok && x.Value == y.Value
-	case *ast.Literal:
-		y, ok := b.(*ast.Literal)
-		return ok && x.Token.Kind == y.Token.Kind && x.Value == y.Value
-	case *ast.ListLiteral:
-		y, ok := b.(*ast.ListLiteral)
-		if !ok || len(x.Values) != len(y.Values) {
-			return false
-		}
-		for i := range x.Values {
-			if !exprEqual(x.Values[i], y.Values[i]) {
-				return false
-			}
-		}
-		return true
-	case *ast.IndexExpr:
-		y, ok := b.(*ast.IndexExpr)
-		return ok && exprEqual(x.Left, y.Left) && exprEqual(x.Index, y.Index)
-	case *ast.UnaryExpr:
-		y, ok := b.(*ast.UnaryExpr)
-		return ok && x.Op.Kind == y.Op.Kind && exprEqual(x.Right, y.Right)
-	case *ast.BinaryExpr:
-		y, ok := b.(*ast.BinaryExpr)
-		return ok && x.Op.Kind == y.Op.Kind &&
-			exprEqual(x.Left, y.Left) && exprEqual(x.Right, y.Right)
-	default:
-		return false
-	}
+	return x.Equal(bin.Left) || x.Equal(bin.Right)
 }
