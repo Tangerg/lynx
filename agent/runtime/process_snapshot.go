@@ -198,23 +198,6 @@ func (p *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options core.P
 	return proc, nil
 }
 
-// BlackboardSnapshotter is the optional capture surface a custom
-// [core.Blackboard] implementation exposes so [AgentProcess.Snapshot] can
-// persist its full state. The three returned values mirror
-// [core.ProcessSnapshot]'s Blackboard / Conditions / Objects fields.
-// Implementations are free to return nil for any value.
-type BlackboardSnapshotter interface {
-	Snapshot() (named map[string]any, conditions map[string]bool, objects []any)
-}
-
-// BlackboardRestorer is the optional restore surface. The runtime
-// passes back whatever [BlackboardSnapshotter.Snapshot] previously
-// produced. Implementations may apply selective filtering (e.g. only
-// restore JSON-friendly types).
-type BlackboardRestorer interface {
-	Restore(named map[string]any, conditions map[string]bool, objects []any)
-}
-
 // parseActionStatus maps the string form back to the enum. Unknown
 // values fall back to [core.ActionFailed] so the runtime treats them
 // conservatively rather than silently downgrading to Succeeded.
