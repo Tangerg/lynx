@@ -102,7 +102,7 @@ go test ./runtime/... -race    # 并发 + child spawn 必跑 race
 
 ## 已经做过的大重构（lyra 重构 session 期）
 
-- ✅ `autonomy.Autonomy` 直接持 `*runtime.Platform`（曾引入包内 `platform` 窄接口 + tripwire 解耦，后判定 SDK 库内单实现依赖无需 ISP、已内联回具体类型）
+- ✅ `autonomy.Router` 直接持 `*runtime.Platform`（曾引入包内 `platform` 窄接口 + tripwire 解耦，后判定 SDK 库内单实现依赖无需 ISP、已内联回具体类型）
 - ✅ `ProcessContextConfig` / `ProcessContext` 字段按 concern 分区（per-process state / platform-wired hooks / per-action state）
 - ✅ `fmt.Errorf("constant")` → `errors.New(...)` 全模块清扫
 - ✅ **委派 spawn 语义修复**（lyra 倒逼）：agent-as-tool（`AsChatTool`/`AsChatToolFromAgent`/`SubagentTools`/`AllAchievableTools`）原用 `SpawnChild` 全继承父 blackboard → `GoalProducing[T]` 子 agent 被预满足、静默不干活。新增 `SpawnChildProtectedOnly`（白板 + 仅保留 `BindProtected` 的 ambient 项，`Spawn()`+`Clear()` 组合，零接口改动）作委派默认，是 `SpawnChild`(全继承)/`SpawnChildFresh`(全空)之间缺的中间档。四个委派构造器改用之。`SpawnChild`(全继承)保留为公开 primitive —— 完整梯度 `SpawnChild`(全)→`SpawnChildProtectedOnly`(仅 ambient)→`SpawnChildFresh`(空),给外部编排留口子。async（`SpawnChildAsync`/`AsBackgroundChatTool`）仍全继承未动

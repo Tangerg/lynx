@@ -37,13 +37,13 @@ type Choice struct {
 
 // Ranker scores how well each Candidate matches userInput. It MUST
 // return one [Choice] per input candidate (positionally aligned;
-// callers may rely on len(out) == len(candidates)). The Autonomy
+// callers may rely on len(out) == len(candidates)). The Router
 // layer sorts and filters; Rankers don't need to.
 type Ranker interface {
 	Rank(ctx context.Context, userInput string, candidates []Candidate) ([]Choice, error)
 }
 
-// ErrNoConfidentChoice is returned by [Autonomy.Choose] / [Autonomy.Run]
+// ErrNoConfidentChoice is returned by [Router.Choose] / [Router.Run]
 // when the highest-scored candidate falls below
 // [Config.GoalConfidenceCutOff]. Callers typically translate
 // this into a "I don't know how to help with that" response or fall
@@ -55,7 +55,7 @@ var ErrNoConfidentChoice = errors.New("autonomy: no candidate cleared the confid
 // filter, no extra approvers.
 type Config struct {
 	// GoalConfidenceCutOff is the minimum Confidence the top choice
-	// must clear; otherwise [Autonomy.Choose] returns
+	// must clear; otherwise [Router.Choose] returns
 	// [ErrNoConfidentChoice]. 0 disables the gate.
 	GoalConfidenceCutOff float64
 
@@ -69,8 +69,8 @@ type Config struct {
 	GoalFilter func(*core.Agent, *core.Goal) bool
 }
 
-// Autonomy is the orchestrator. Construct with [New].
-type Autonomy struct {
+// Router is the orchestrator. Construct with [New].
+type Router struct {
 	platform *runtime.Platform
 	ranker   Ranker
 	cfg      Config
@@ -79,34 +79,34 @@ type Autonomy struct {
 // New returns an orchestrator backed by ranker. Both platform and
 // ranker are required; nil returns an error — caller decides whether
 // to surface or panic.
-func New(p *runtime.Platform, ranker Ranker, cfg Config) (*Autonomy, error) {
+func New(p *runtime.Platform, ranker Ranker, cfg Config) (*Router, error) {
 	if p == nil {
 		return nil, errors.New("autonomy.New: platform must not be nil")
 	}
 	if ranker == nil {
 		return nil, errors.New("autonomy.New: ranker must not be nil")
 	}
-	return &Autonomy{platform: p, ranker: ranker, cfg: cfg}, nil
+	return &Router{platform: p, ranker: ranker, cfg: cfg}, nil
 }
 
 // Candidates enumerates the (agent, goal) pool currently visible to
 // the orchestrator after AgentFilter / GoalFilter have run. Exposed
 // so callers can inspect what the Ranker will see, e.g. for
 // debugging or UI.
-func (a *Autonomy) Candidates() []Candidate {
+func (r *Router) Candidates() []Candidate {
 	var out []Candidate
-	for _, agent := range a.platform.Agents() {
+	for _, agent := range r.platform.Agents() {
 		if agent == nil {
 			continue
 		}
-		if a.cfg.AgentFilter != nil && !a.cfg.AgentFilter(agent) {
+		if r.cfg.AgentFilter != nil && !r.cfg.AgentFilter(agent) {
 			continue
 		}
 		for _, goal := range agent.Goals {
 			if goal == nil {
 				continue
 			}
-			if a.cfg.GoalFilter != nil && !a.cfg.GoalFilter(agent, goal) {
+			if r.cfg.GoalFilter != nil && !r.cfg.GoalFilter(agent, goal) {
 				continue
 			}
 			out = append(out, Candidate{Agent: agent, Goal: goal})
@@ -119,18 +119,18 @@ func (a *Autonomy) Candidates() []Candidate {
 // match, or [ErrNoConfidentChoice] when the top score is below the
 // configured cutoff. Ties (equal Confidence) are broken by the
 // Ranker's input order.
-func (a *Autonomy) Choose(ctx context.Context, userInput string) (Choice, error) {
-	candidates := a.Candidates()
+func (r *Router) Choose(ctx context.Context, userInput string) (Choice, error) {
+	candidates := r.Candidates()
 	if len(candidates) == 0 {
-		return Choice{}, errors.New("autonomy.Autonomy.Choose: no candidates available — deploy at least one agent first")
+		return Choice{}, errors.New("autonomy.Router.Choose: no candidates available — deploy at least one agent first")
 	}
 
-	choices, err := a.ranker.Rank(ctx, userInput, candidates)
+	choices, err := r.ranker.Rank(ctx, userInput, candidates)
 	if err != nil {
-		return Choice{}, fmt.Errorf("autonomy.Autonomy.Choose: %w", err)
+		return Choice{}, fmt.Errorf("autonomy.Router.Choose: %w", err)
 	}
 	if len(choices) == 0 {
-		return Choice{}, errors.New("autonomy.Autonomy.Choose: ranker returned no choices")
+		return Choice{}, errors.New("autonomy.Router.Choose: ranker returned no choices")
 	}
 
 	best := choices[0]
@@ -139,7 +139,7 @@ func (a *Autonomy) Choose(ctx context.Context, userInput string) (Choice, error)
 			best = c
 		}
 	}
-	if best.Confidence < a.cfg.GoalConfidenceCutOff {
+	if best.Confidence < r.cfg.GoalConfidenceCutOff {
 		return best, ErrNoConfidentChoice
 	}
 	return best, nil
@@ -153,13 +153,13 @@ func (a *Autonomy) Choose(ctx context.Context, userInput string) (Choice, error)
 // On [ErrNoConfidentChoice] the returned process is nil; the caller
 // can decide to fall back to a default agent or surface the failure
 // to the user.
-func (a *Autonomy) Run(
+func (r *Router) Run(
 	ctx context.Context,
 	userInput string,
 	bindings map[string]any,
 	options core.ProcessOptions,
 ) (Choice, *runtime.AgentProcess, error) {
-	choice, err := a.Choose(ctx, userInput)
+	choice, err := r.Choose(ctx, userInput)
 	if err != nil {
 		return choice, nil, err
 	}
@@ -169,11 +169,11 @@ func (a *Autonomy) Run(
 		targetGoal: choice.Goal.Name,
 	})
 
-	proc, err := a.platform.RunAgent(ctx, choice.Agent, bindings, options)
+	proc, err := r.platform.RunAgent(ctx, choice.Agent, bindings, options)
 	return choice, proc, err
 }
 
-// targetGoalApprover is the per-process [core.GoalApprover] Autonomy
+// targetGoalApprover is the per-process [core.GoalApprover] Router
 // installs to lock the planner onto the chosen goal. The runtime
 // runs every approver on every goal-selection call; only the
 // target name is approved and everything else is rejected.
