@@ -36,6 +36,12 @@ func (s stubRuntime) MCPServerStatuses() []kernel.McpServerStatus { return s.mcp
 
 func (s stubRuntime) Transcript() transcript.Store { return s.hist }
 func (s stubRuntime) Interrupts() interrupts.Store { return s.interrupts }
+func (s stubRuntime) ListPendingInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
+	if s.interrupts == nil {
+		return nil, nil
+	}
+	return s.interrupts.List(ctx, sessionID)
+}
 
 // MessageCount / TruncateMessages operate on the in-memory history map, mirroring
 // the engine's chat-memory store closely enough for rollback/fork tests.

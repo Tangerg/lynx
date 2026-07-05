@@ -31,9 +31,9 @@ func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*prot
 }
 
 // ListOpenInterrupts returns durable resumable interrupts as a Page
-// (API.md §6.2), read from the pluggable interrupt store.
+// (API.md §6.2).
 func (s *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInterruptsRequest) (*protocol.Page[protocol.OpenInterrupt], error) {
-	pending, err := s.rt.Interrupts().List(ctx, in.SessionID)
+	pending, err := s.rt.ListPendingInterrupts(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}

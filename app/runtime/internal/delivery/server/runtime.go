@@ -37,6 +37,7 @@ type RuntimeServices interface {
 	sessionAccess
 	transcriptAccess
 	lifecycleStoreAccess
+	interruptQueryAccess
 	toolAccess
 	knowledgeAccess
 	approvalAccess
@@ -71,6 +72,10 @@ type lifecycleStoreAccess interface {
 	ForgetSession(sessionID string)
 	RunInTx(ctx context.Context, fn func(context.Context) error) error
 	Interrupts() interrupts.Store
+}
+
+type interruptQueryAccess interface {
+	ListPendingInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
 }
 
 type toolAccess interface {
