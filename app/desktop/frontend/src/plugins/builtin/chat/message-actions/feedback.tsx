@@ -8,6 +8,7 @@ import { Icon, Tooltip } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
+import { messageFeedbackActionSlot } from "./application/messageActionContributions";
 import { messageFeedbackRating, submitMessageFeedback } from "./public/feedback";
 import { installRuntimeFeedbackPort } from "./adapters/runtimeFeedback";
 import { ACTION_BTN_BASE, roleShape } from "./_shared";
@@ -68,10 +69,6 @@ export const messageFeedback = definePlugin({
   version: "1.0.0",
   setup({ host }) {
     installRuntimeFeedbackPort();
-    host.layout.register("message.actions", {
-      id: "feedback",
-      order: 15,
-      component: FeedbackButtons,
-    });
+    host.layout.register("message.actions", messageFeedbackActionSlot(FeedbackButtons));
   },
 });

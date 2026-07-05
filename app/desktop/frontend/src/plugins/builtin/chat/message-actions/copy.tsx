@@ -9,6 +9,7 @@ import { writeToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
+import { messageCopyActionSlot } from "./application/messageActionContributions";
 import { messageCopyPayloads } from "./presentation/copyPayloads";
 import { ACTION_BTN_BASE, roleShape } from "./_shared";
 
@@ -83,10 +84,6 @@ export const messageCopy = definePlugin({
   name: "lyra.builtin.message-copy",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("message.actions", {
-      id: "copy",
-      order: 0,
-      component: CopyButton,
-    });
+    host.layout.register("message.actions", messageCopyActionSlot(CopyButton));
   },
 });
