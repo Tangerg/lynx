@@ -34,7 +34,7 @@ func (a *App) ChatCmd() *cobra.Command {
 			// holds and the chat-memory rows stay attached to a session the
 			// session surface can list / delete.
 			cwd, _ := os.Getwd()
-			sess, err := a.rt.Session().Create(cmd.Context(), "", cwd)
+			sess, err := a.rt.CreateSession(cmd.Context(), "", cwd)
 			if err != nil {
 				return a.fatalErr(err)
 			}

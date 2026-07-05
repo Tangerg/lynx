@@ -55,14 +55,14 @@ func NewReplRunner(app *App, requestedSession string) (*ReplRunner, error) {
 	ctx := context.Background()
 	var sessID string
 	if requestedSession != "" {
-		sess, err := app.rt.Session().Get(ctx, requestedSession)
+		sess, err := app.rt.GetSession(ctx, requestedSession)
 		if err != nil {
 			return nil, fmt.Errorf("lyra.repl: resume session %q: %w", requestedSession, err)
 		}
 		sessID = sess.ID
 	} else {
 		cwd, _ := os.Getwd()
-		sess, err := app.rt.Session().Create(ctx, "", cwd)
+		sess, err := app.rt.CreateSession(ctx, "", cwd)
 		if err != nil {
 			return nil, fmt.Errorf("lyra.repl: create session: %w", err)
 		}
@@ -118,7 +118,7 @@ func (r *ReplRunner) handleSlash(ctx context.Context, line string) (done bool) {
 		fmt.Fprintln(r.app.Err, "[lyra] commands: /exit  /help  /new  /session")
 	case "/new":
 		cwd, _ := os.Getwd()
-		sess, err := r.app.rt.Session().Create(ctx, "", cwd)
+		sess, err := r.app.rt.CreateSession(ctx, "", cwd)
 		if err != nil {
 			fmt.Fprintf(r.app.Err, "[lyra] create session: %s\n", err)
 			return false

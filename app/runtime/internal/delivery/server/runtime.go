@@ -20,6 +20,8 @@ import (
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -37,7 +39,9 @@ type RuntimeServices interface {
 	turnAccess
 	sessionAccess
 	transcriptAccess
-	lifecycleStoreAccess
+	lifecycleAccess
+	runSegmentAccess
+	historyAccess
 	interruptQueryAccess
 	toolAccess
 	knowledgeAccess
@@ -64,10 +68,10 @@ type turnAccess interface {
 }
 
 type sessionAccess interface {
-	Session() sessionsvc.Service
 	ListSessions(ctx context.Context) ([]sessionsvc.Session, error)
 	GetSession(ctx context.Context, id string) (sessionsvc.Session, error)
 	CreateSession(ctx context.Context, title, cwd string) (sessionsvc.Session, error)
+	DeleteSession(ctx context.Context, id string) error
 	RenameSession(ctx context.Context, id, title string) error
 	SetSessionModel(ctx context.Context, id, model string) error
 	SetSessionCwd(ctx context.Context, id, cwd string) error
@@ -77,19 +81,28 @@ type sessionAccess interface {
 }
 
 type transcriptAccess interface {
-	Transcript() transcript.Store
 	ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error)
 	ListTranscriptRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
 }
 
-type lifecycleStoreAccess interface {
+type historyAccess interface {
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
-	SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error
-	MessageCount(ctx context.Context, sessionID string) (int, error)
-	TruncateMessages(ctx context.Context, sessionID string, keepN int) error
-	ForgetSession(sessionID string)
-	RunInTx(ctx context.Context, fn func(context.Context) error) error
-	Interrupts() interrupts.Store
+}
+
+type lifecycleAccess interface {
+	ClaimRunSlot(ctx context.Context, claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error)
+	ClaimMutationSlot(claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error)
+	ClaimResumeSlot(ctx context.Context, claims lifecycle.SessionClaimer, parentRunID string) (interrupts.Pending, lifecycle.RunAdmission, error)
+	CancelParkedRun(ctx context.Context, runID string) error
+	CancelRunTurn(ctx context.Context, run lifecycle.RunTurn) error
+	ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution) (lifecycle.ResumedInterrupt, error)
+	RollbackResolved(ctx context.Context, sessionID string, boundary lifecycle.RollbackBoundary) error
+	ForkSession(ctx context.Context, spec lifecycle.ForkSpec) (sessionsvc.Session, error)
+	RestoreSession(ctx context.Context, ses sessionsvc.Session, msgs []chat.Message, runs []transcript.Run, items []transcript.Item) error
+}
+
+type runSegmentAccess interface {
+	RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects
 }
 
 type interruptQueryAccess interface {

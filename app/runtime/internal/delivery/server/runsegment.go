@@ -6,20 +6,18 @@ import (
 )
 
 func (s *Server) runSegmentEffects() *runsegment.Effects {
-	var processes runsegment.ProcessLookup
-	if s.rt != nil {
-		processes = s.turns()
+	publish := func(cwd string, paths []string) {
+		s.PublishWorkspaceEvent(protocol.WorkspaceEvent{
+			Type:  protocol.WorkspaceEventFilesChanged,
+			Cwd:   cwd,
+			Paths: paths,
+		})
 	}
-	return runsegment.New(runsegment.Config{
-		Stores:      s.rt,
-		Processes:   processes,
-		Checkpoints: s.workspace,
-		PublishFileChanges: func(cwd string, paths []string) {
-			s.PublishWorkspaceEvent(protocol.WorkspaceEvent{
-				Type:  protocol.WorkspaceEventFilesChanged,
-				Cwd:   cwd,
-				Paths: paths,
-			})
-		},
-	})
+	if s.rt == nil {
+		return runsegment.New(runsegment.Config{
+			Checkpoints:        s.workspace,
+			PublishFileChanges: publish,
+		})
+	}
+	return s.rt.RunSegmentEffects(s.workspace, publish)
 }
