@@ -10,23 +10,13 @@ import { DataView, Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useWorkspaceGrep } from "@/plugins/builtin/workspace/application/workspaceData";
 import {
-  type WorkspaceGrepMatch,
-  useWorkspaceGrep,
-} from "@/plugins/builtin/workspace/application/workspaceData";
+  WORKSPACE_SEARCH_MATCH_LIMIT,
+  workspaceSearchSubtext,
+  workspaceSearchViewModel,
+} from "@/plugins/builtin/workspace/application/searchViewModel";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-
-const MAX_MATCHES = 200;
-
-function groupByFile(matches: WorkspaceGrepMatch[]): [string, WorkspaceGrepMatch[]][] {
-  const groups = new Map<string, WorkspaceGrepMatch[]>();
-  for (const m of matches) {
-    const list = groups.get(m.path);
-    if (list) list.push(m);
-    else groups.set(m.path, [m]);
-  }
-  return [...groups];
-}
 
 function SearchTab() {
   const t = useT();
@@ -36,17 +26,16 @@ function SearchTab() {
   // params object is its own react-query cache entry.
   const [query] = useDebounce(input.trim(), 300);
   const { data, isLoading, isError } = useWorkspaceGrep(
-    query ? { query, cwd, limit: MAX_MATCHES } : undefined,
+    query ? { query, cwd, limit: WORKSPACE_SEARCH_MATCH_LIMIT } : undefined,
   );
-  const matches = data?.matches ?? [];
-  const overflow = (data?.total ?? 0) - matches.length;
+  const view = workspaceSearchViewModel(data);
 
   return (
     <WorkspaceViewLayout
       icon="search"
       titleStrong
       title="search.title"
-      sub={data ? `${data.total} matches` : t("search.noMatches")}
+      sub={workspaceSearchSubtext(view) ?? t("search.noMatches")}
       scrollClassName="py-1"
     >
       <div className="px-4 pt-1 pb-2">
@@ -65,7 +54,7 @@ function SearchTab() {
       </div>
       {query === "" ? null : (
         <DataView
-          items={data ? groupByFile(matches) : undefined}
+          items={data ? view.groups : undefined}
           isLoading={isLoading}
           isError={isError}
           skeletonCount={4}
@@ -78,14 +67,14 @@ function SearchTab() {
         >
           {(groups) => (
             <div className="flex flex-col pb-2">
-              {groups.map(([path, rows]) => (
-                <div key={path} className="px-4 py-1.5">
+              {groups.map((group) => (
+                <div key={group.path} className="px-4 py-1.5">
                   <div className="truncate font-mono text-[11.5px] font-semibold text-fg">
-                    {path}
-                    <span className="ml-1.5 font-normal text-fg-faint">{rows.length}</span>
+                    {group.path}
+                    <span className="ml-1.5 font-normal text-fg-faint">{group.matchCount}</span>
                   </div>
                   <div className="mt-0.5 flex flex-col">
-                    {rows.map((m) => (
+                    {group.matches.map((m) => (
                       <div
                         key={m.lineNumber}
                         className="grid grid-cols-[44px_minmax(0,1fr)] gap-2 py-px font-mono text-[12px] leading-[1.5]"
@@ -101,9 +90,9 @@ function SearchTab() {
                   </div>
                 </div>
               ))}
-              {overflow > 0 && (
+              {view.overflowCount > 0 && (
                 <div className="px-4 py-2 text-[11.5px] text-fg-faint">
-                  … {overflow} more matches not shown — narrow the query.
+                  … {view.overflowCount} more matches not shown — narrow the query.
                 </div>
               )}
             </div>
