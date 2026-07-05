@@ -35,6 +35,18 @@ type stubRuntime struct {
 func (s stubRuntime) MCPServerStatuses() []kernel.McpServerStatus { return s.mcpStatuses }
 
 func (s stubRuntime) Transcript() transcript.Store { return s.hist }
+func (s stubRuntime) ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error) {
+	if s.hist == nil {
+		return nil, nil, nil
+	}
+	return s.hist.List(ctx, sessionID)
+}
+func (s stubRuntime) ListTranscriptRuns(ctx context.Context, sessionID string) ([]transcript.Run, error) {
+	if s.hist == nil {
+		return nil, nil
+	}
+	return s.hist.ListRuns(ctx, sessionID)
+}
 func (s stubRuntime) Interrupts() interrupts.Store { return s.interrupts }
 func (s stubRuntime) ListPendingInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
 	if s.interrupts == nil {

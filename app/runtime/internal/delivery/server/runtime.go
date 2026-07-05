@@ -62,6 +62,8 @@ type sessionAccess interface {
 
 type transcriptAccess interface {
 	Transcript() transcript.Store
+	ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error)
+	ListTranscriptRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
 }
 
 type lifecycleStoreAccess interface {

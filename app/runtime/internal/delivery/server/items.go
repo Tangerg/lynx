@@ -21,7 +21,11 @@ import (
 // dependency): the exact Items the runtime streamed (same ids, runId,
 // text, createdAt).
 func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	return s.listItemsFromHistory(ctx, s.rt.Transcript(), in)
+	hItems, hRuns, err := s.rt.ListTranscript(ctx, in.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	return s.listItemsFromHistory(hItems, hRuns, in)
 }
 
 // defaultItemPageLimit caps a single items.list page when the client gives
@@ -56,12 +60,8 @@ func pageByID[T any](elems []T, id func(T) string, cursor string, limit, maxLimi
 	return elems, ""
 }
 
-// listItemsFromHistory serves items.list from the durable Item store.
-func (s *Server) listItemsFromHistory(ctx context.Context, store transcript.Store, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	hItems, hRuns, err := store.List(ctx, in.SessionID)
-	if err != nil {
-		return nil, err
-	}
+// listItemsFromHistory serves items.list from durable Item rows.
+func (s *Server) listItemsFromHistory(hItems []transcript.Item, hRuns []transcript.Run, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
 	// Page first, decode after: pagination is a row-level operation and
 	// the item id is a plain column, so only the returned page's blobs
 	// are unmarshaled (a long session would otherwise decode thousands
