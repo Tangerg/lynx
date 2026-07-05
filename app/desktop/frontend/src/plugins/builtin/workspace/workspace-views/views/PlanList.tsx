@@ -4,7 +4,7 @@ import { useT } from "@/lib/i18n";
 
 // Plan view workspace tab. Same per-item visual as the inline PlanBlock
 // — both share the agent plan presentation contract.
-export function PlanList({ plan }: { plan: PlanItem[] }) {
+export function PlanList({ plan }: { plan: readonly PlanItem[] }) {
   const t = useT();
   return (
     <div className="px-4.5 py-3.5">
