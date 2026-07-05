@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // TestMessageStore_ReplaceIsTransactional pins the retention-safety fix:

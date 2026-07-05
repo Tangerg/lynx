@@ -25,8 +25,8 @@ func TestCanonicalCollapsesSpellings(t *testing.T) {
 
 	for _, spelling := range []string{
 		dir + string(filepath.Separator), // trailing slash
-		filepath.Join(dir, "."),           // inner "." segment
-		filepath.Join(dir, "sub", ".."),   // round-trip through a child
+		filepath.Join(dir, "."),          // inner "." segment
+		filepath.Join(dir, "sub", ".."),  // round-trip through a child
 	} {
 		if got := fspath.Canonical(spelling); got != want {
 			t.Errorf("Canonical(%q) = %q, want %q", spelling, got, want)

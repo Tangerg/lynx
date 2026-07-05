@@ -289,7 +289,7 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 // closing the channel. Cancel cancels the turn ctx before finishTurn emits the
 // terminal, so the event must not be lost to the emit ctx-escape: emit prefers
 // delivery whenever the buffer has room. The turn parks on a balanced-mode
-// approval gate; cancelling it (instead of approving) must surface
+// approval gate; canceling it (instead of approving) must surface
 // TurnEnd{Canceled}.
 func TestService_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())

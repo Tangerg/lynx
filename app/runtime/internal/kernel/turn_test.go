@@ -15,7 +15,7 @@ func TestStallContext_CancelsOnSilence(t *testing.T) {
 	select {
 	case <-ctx.Done(): // idle window elapsed with no keepAlive — correct
 	case <-time.After(time.Second):
-		t.Fatal("stall context not cancelled after the idle window")
+		t.Fatal("stall context not canceled after the idle window")
 	}
 }
 
@@ -27,7 +27,7 @@ func TestStallContext_KeepAliveDefersCancel(t *testing.T) {
 		time.Sleep(30 * time.Millisecond)
 		keepAlive()
 		if ctx.Err() != nil {
-			t.Fatal("cancelled despite keepAlive within the idle window")
+			t.Fatal("canceled despite keepAlive within the idle window")
 		}
 	}
 }
