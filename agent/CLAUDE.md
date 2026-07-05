@@ -19,7 +19,7 @@
   - `Masterminds/semver/v3`
   - `go.opentelemetry.io/otel` —— trace 注入
   - `golang.org/x/sync` —— WaitGroup pattern
-- ~13k LOC / 112 文件 / 18 个子目录（不计 examples）
+- 约 21k Go LOC / 188 个 Go 文件（不计 examples）
 
 ## 核心架构（三大支柱）
 
@@ -47,7 +47,7 @@
 3. **`Process`** —— action 看到的 read surface（ID / Status / Goal / Blackboard / LastWorldState）+ control（TerminateAgent / AwaitInput / RecordUsage）
 4. **`Platform`** —— registry + factory + HITL resume；config-time + per-process Extensions 在 dispatch 期合并
 5. **`Blackboard` (Reader / Writer)** —— 按 `name + type` 查（`"it"` = 最新该类型实例）；`condition` 走 bool；`BindProtected` 跨子进程传递
-6. **`Extension`** —— marker；7 个能力子接口（ActionMiddleware / ToolDecorator / AgentValidator / GoalApprover / ToolGroupResolver / IDGenerator / Blackboard/Planner factory）
+6. **`Extension`** —— marker；能力子接口按一个 `collectExtensions[T]` 分发（ActionMiddleware / ToolDecorator / AgentValidator / GoalApprover / ChatClientProvider / ToolGroupResolver / EarlyTerminationPolicy / EventListener / IDGenerator / Blackboard / Planner）
 7. **`Determination`** —— Unknown / True / False，自带 And / Or / Not，零值是 Unknown（uninit 友好）
 
 ## 强约定

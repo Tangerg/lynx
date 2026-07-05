@@ -15,14 +15,14 @@
 | **生命周期** | platform-scoped（boot 期，永生）+ process-scoped（per-call，自动 GC），无显式 remove |
 | **去重** | 按 `Extension.Name() string` 唯一性约束，重复在 platform 层 panic |
 | **取消的方案** | ❌ functional options ❌ `Use(...)` 链式调用 ❌ `Drop(ext)` ❌ cancel func handle |
-| **现有取代项** | `PlatformConfig.{Listeners, Tools, IDGenerator, Planner, Services, Blackboard}` 全部下沉为 `Extensions` 中的 capability。`*Factory` 包装层全部去除——`plan.Planner` / `core.Blackboard` 自己嵌入 `core.Extension`。 |
+| **现有取代项** | listener / tool resolver / ID generator / planner / blackboard 等可插拔能力下沉为 `Extensions` 中的 capability。`*Factory` 包装层全部去除——`planning.Planner` / `core.Blackboard` 自己嵌入 `core.Extension`。 |
 | **保留独立 API** | HITL `ResumeProcess(id, response any)`（类型化），命令式动作（`Deploy / RunAgent / KillProcess / ContinueProcess` 等），per-agent 策略（`core.Agent.StuckHandler`）|
 
 ---
 
 ## 1. 设计目标
 
-1. **单一注册入口** — 所有可插拔的能力（事件订阅、动作拦截、工具装饰、agent 校验、目标审批、resolver、ID 生成器、planner 工厂、blackboard 工厂）共用同一种注册方式。
+1. **单一注册入口** — 所有可插拔的能力（事件订阅、动作 middleware、工具装饰、agent 校验、目标审批、resolver、ID 生成器、planner、blackboard 原型、chat client provider、提前终止策略）共用同一种注册方式。
 2. **Go 风格** — 不引入 functional options、不引入注解扫描、不引入 DI 容器；仅靠 struct config + interface type assertion 完成。
 3. **类型安全** — 不让用户直接面对 `any`；`Extension` 接口至少提供 `Name() string` 作为身份标识。
 4. **作用域天然** — 平台级扩展终身存活；请求级扩展跟着 `AgentProcess` 走，process 退出自动 GC。
@@ -69,7 +69,7 @@ type Extension interface {
 | 接口 | 触发位置 | 链路语义 |
 |---|---|---|
 | `EventListener` | `event.Multicast.OnEvent` | FIFO，listener panic 隔离 |
-| `ActionInterceptor` | `executeAction` 内，包 `pc.ExecuteSafely` | onion chain，首注册者最外层 |
+| `ActionMiddleware` | `executeAction` 内，包 `pc.ExecuteSafely` | onion chain，首注册者最外层 |
 | `ToolDecorator` | `pc.ActionTools` 解析后 | wrap chain，首注册者最内层 |
 | `AgentValidator` | `Platform.Deploy` 内 | FIFO 串行，第一个 err 立即返回 |
 | `GoalApprover` | `formulatePlan` 前过滤 `system.Goals` | FIFO，AND（任一 false 即否决）|
@@ -79,13 +79,14 @@ type Extension interface {
 | 接口 | 触发位置 | 语义 |
 |---|---|---|
 | `ToolGroupResolver` | `pc.ResolveTools` / `pc.ActionTools` 内部 | 按注册顺序问，首位返回非 nil tool group 的赢 |
+| `ChatClientProvider` | `ProcessContext.Chat` / `ChatWithActionTools` 前 | process-scope 优先，首位返回非 nil client 的赢 |
 
 #### C. Last-wins singleton（最后注册者赢，框架默认 fallback）
 
 | 接口 | 触发位置 | 默认 fallback |
 |---|---|---|
 | `IDGenerator` | `Platform.createProcess` 生成 process id | UUID v4 |
-| `plan.Planner`（按 `AgentConfig.PlannerName` dispatch） | `Platform.createProcess` 挑 planner | goap / reactive 内置 |
+| `planning.Planner`（按 `AgentConfig.PlannerName` dispatch） | `Platform.createProcess` 挑 planner | goap / reactive 内置 |
 | `core.Blackboard`（prototype 模式 + `Spawn()`） | `Platform.createProcess` 生成 blackboard | in-memory |
 
 ### 3.3 完整签名
@@ -107,10 +108,10 @@ type Extension interface {
 
 type EventListener interface {
     Extension
-    OnEvent(e Event)  // event.Event 也搬到 core，或 EventListener 留在 event 包
+    OnEvent(e event.Event) // EventListener lives in runtime to avoid core → event
 }
 
-type ActionInterceptor interface {
+type ActionMiddleware interface {
     Extension
     InterceptAction(
         ctx     context.Context,
@@ -143,7 +144,7 @@ type GoalApprover interface {
 
 type ToolGroupResolver interface {
     Extension
-    ResolveToolGroup(ctx context.Context, requirement ToolGroupRequirement) (ToolGroup, error)
+    Resolve(ctx context.Context, requirement ToolGroupRequirement) (ToolGroup, error)
 }
 
 // --- Last-wins singleton ---
@@ -153,7 +154,7 @@ type IDGenerator interface {
     Next() string
 }
 
-// plan.Planner（在 agent/planning 包）直接嵌入 core.Extension，无需 factory 包装。
+// planning.Planner（在 agent/planning 包）直接嵌入 core.Extension，无需 factory 包装。
 // runtime 按 AgentConfig.PlannerName 匹配 Name() 来挑：
 //
 //   type Planner interface {
@@ -231,7 +232,7 @@ type ProcessOptions struct {
   ```go
   exts := []core.Extension{baseExt}
   if debug { exts = append(exts, debugExt) }
-  platform := agent.NewPlatform(&runtime.PlatformConfig{Extensions: exts})
+  platform := agent.NewPlatform(runtime.PlatformConfig{Extensions: exts})
   ```
 
 ### 4.4 没有 Drop / 移除
@@ -247,14 +248,14 @@ type ProcessOptions struct {
 
 ## 5. Dispatch 语义详解
 
-### 5.1 Onion chain（`ActionInterceptor`）
+### 5.1 Onion chain（`ActionMiddleware`）
 
 ```go
 func (p *Platform) interceptAction(ctx, proc, action, base) core.ActionStatus {
     var run func(i int) core.ActionStatus
     run = func(i int) core.ActionStatus {
         for ; i < len(extensions); i++ {
-            if h, ok := extensions[i].(core.ActionInterceptor); ok {
+            if h, ok := extensions[i].(core.ActionMiddleware); ok {
                 return h.InterceptAction(ctx, proc, action, func() core.ActionStatus {
                     return run(i + 1)
                 })
@@ -320,7 +321,7 @@ return true
 ```go
 for _, ext := range extensions {
     if r, ok := ext.(core.ToolGroupResolver); ok {
-        group, err := r.ResolveToolGroup(ctx, req)
+        group, err := r.Resolve(ctx, req)
         if err != nil { return nil, err }
         if group != nil { return group, nil }
     }
@@ -391,11 +392,11 @@ type ObservabilityExt struct {
 func (*ObservabilityExt) Name() string { return "observability" }
 
 // EventListener
-func (o *ObservabilityExt) OnEvent(e core.Event) {
+func (o *ObservabilityExt) OnEvent(e event.Event) {
     o.logger.Debug("event", "type", e.EventName(), "process", e.ProcessID())
 }
 
-// ActionInterceptor
+// ActionMiddleware
 func (o *ObservabilityExt) InterceptAction(ctx context.Context, p core.Process, a core.Action, next func() core.ActionStatus) core.ActionStatus {
     start := time.Now()
     status := next()
@@ -419,7 +420,7 @@ func (o *ObservabilityExt) DecorateTool(p core.Process, a core.Action, t core.Ag
 }
 
 // 一行注册 → 三种能力同时启用
-platform := agent.NewPlatform(&runtime.PlatformConfig{
+platform := agent.NewPlatform(runtime.PlatformConfig{
     Extensions: []core.Extension{
         &ObservabilityExt{logger: slog.Default(), meter: meter},
     },
@@ -429,10 +430,10 @@ platform := agent.NewPlatform(&runtime.PlatformConfig{
 ### 7.2 多扩展协作
 
 ```go
-platform := agent.NewPlatform(&runtime.PlatformConfig{
+platform := agent.NewPlatform(runtime.PlatformConfig{
     Extensions: []core.Extension{
         &ObservabilityExt{...},          // tracing + metrics + audit
-        &SecurityExt{...},               // ActionInterceptor 包 SecurityContext
+        &SecurityExt{...},               // ActionMiddleware 包 SecurityContext
         &MCPResolver{addr: "..."},       // ToolGroupResolver
         snowflake.New(nodeID),           // IDGenerator (override default UUID)
         &SLAValidator{minTimeout: 10*time.Second}, // AgentValidator
@@ -454,7 +455,7 @@ platform.RunAgent(ctx, myAgent, bindings, core.ProcessOptions{
 ### 7.3 同种扩展多实例（按 Name 区分）
 
 ```go
-platform := agent.NewPlatform(&runtime.PlatformConfig{
+platform := agent.NewPlatform(runtime.PlatformConfig{
     Extensions: []core.Extension{
         NewTimingDecorator("decorator:openai"),     // 一个 ToolDecorator 实例
         NewTimingDecorator("decorator:anthropic"),  // 同 struct，不同 Name → OK
@@ -514,8 +515,8 @@ platform := agent.NewPlatform(&runtime.PlatformConfig{
 | `agent/core/process_options.go` | 新增 `Extensions []Extension` 字段 | +5 |
 | `agent/runtime/platform.go` | 改造 PlatformConfig 缩瘦为 `Extensions []Extension`；新增内部 dispatch helpers (`idGen / plannerFactory / blackboardFactory / interceptAction / decorateTool / resolveToolGroup / validateAgent / approveGoal`) | +120 / -60 |
 | `agent/runtime/extension_dispatch.go` | **新增** — 集中所有 dispatch 链实现 | ~150 |
-| `agent/runtime/execute_action.go` | 接入 ActionInterceptor 链 | +15 |
-| `agent/core/process_context.go` | 接入 ToolDecorator 链 + ResolveToolGroup chain | +25 |
+| `agent/runtime/execute_action.go` | 接入 ActionMiddleware 链 | +15 |
+| `agent/core/process_context.go` | 接入 ToolDecorator 链 + Resolve chain | +25 |
 | `agent/runtime/run.go` | `formulatePlan` 接 GoalApprover 过滤 | +12 |
 | `agent/runtime/extension_test.go` | **新增** — 全面测试 | ~250 |
 | `agent/examples/*` | 更新到新 API | ~20 |
@@ -525,7 +526,7 @@ platform := agent.NewPlatform(&runtime.PlatformConfig{
 - `PlatformConfig.Listeners []event.Listener` → 用 EventListener 扩展替代
 - `PlatformConfig.Tools core.ToolGroupResolver` → 用 ToolGroupResolver 扩展替代
 - `PlatformConfig.IDGenerator core.IDGenerator` → 用 IDGenerator 扩展替代
-- `PlatformConfig.PlannerFactory PlannerFactory` → 直接注册 `plan.Planner` extension，按 name dispatch
+- `PlatformConfig.PlannerFactory PlannerFactory` → 直接注册 `planning.Planner` extension，按 name dispatch
 - `PlatformConfig.Services *core.ServiceProvider` → 内部自建，外露 `Platform.Services()` 直接使用
 - `Platform.AddListener / RemoveListener` → 用 EventListener 扩展替代
 
@@ -550,7 +551,7 @@ platform := agent.NewPlatform(&runtime.PlatformConfig{
 | `Extension` 接口定义在 `core` 还是 `runtime`？ | **`core`** | `agent/core/extension.go` |
 | `Name()` 还是 `ID()`？ | **`Name()`** | `core.Extension.Name() string` |
 | 重复 Name 行为？ | platform 层 **panic**（boot-time fail-fast）；process 层**返回 error**（runtime configurations） | `runtime.extensionRegistry.register` panics; `Platform.createProcess` validates and returns error |
-| `Planner` 怎么避免 core → plan 反向依赖？ | **Planner 接口留在 `plan` 包**，嵌入 `core.Extension`；agent 选 planner 用 `PlannerName string` 而非直接持有 planner 实例 | `agent/plan/planner.go` |
+| `Planner` 怎么避免 core → planning 反向依赖？ | **Planner 接口留在 `planning` 包**，嵌入 `core.Extension`；agent 选 planner 用 `PlannerName string` 而非直接持有 planner 实例 | `agent/planning/planner.go` |
 | EventListener 接口归属？ | **`runtime`**（依赖 `event.Event`；core 不感知 event 包） | `agent/runtime/extension.go`，satisfies `event.Listener` so it slots into `event.Multicast` directly |
 | Per-process EventListener 范围？ | 仅看本 process 的事件（`AgentProcess.processEvents` 多播）；不看跨 process / platform 级事件 | `runtime/agent_process.go::publishEvent` 双写两 multicast |
 | Per-process Singleton（IDGenerator / Planner / Blackboard）？ | **支持** —— 注册到 `ProcessOptions.Extensions` 即 override platform-scope。Planner 还按 Name() 分组（同名 process-scope 胜出） | `Platform.resolvePlanner` / `lastExtension[T]` |
@@ -564,4 +565,4 @@ platform := agent.NewPlatform(&runtime.PlatformConfig{
 - `core.AwaitDecider` —— HITL 自动批准/跳过（embabel `AwaitDecider` 对应物，等真实需求出现再加）
 - `Platform.Extensions() []core.Extension` 内省 API（按 Name 查询）
 - `Extension.Description() string`（可选）让 `/help` 之类的工具能列扩展能力
-- 单元测试中可注入 mock `IDGenerator` / `plan.Planner` 时的便利封装
+- 单元测试中可注入 mock `IDGenerator` / `planning.Planner` 时的便利封装
