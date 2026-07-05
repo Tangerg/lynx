@@ -6,16 +6,15 @@ import { Icon, Tooltip } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
+import { canEditMessage } from "./application/messageActionAvailability";
 import { messageEditActionSlot } from "./application/messageActionContributions";
-import { messageHasDraftContent } from "./application/messageActionContent";
 import { editMessageInComposer } from "./public/messageActions";
 import { ACTION_BTN_BASE, roleShape } from "./_shared";
 
 function EditButton() {
   const t = useT();
   const msg = useCurrentMessage();
-  if (msg.role !== "user") return null;
-  if (!messageHasDraftContent(msg)) return null;
+  if (!canEditMessage(msg)) return null;
 
   return (
     <Tooltip label={t("msgActions.edit")}>

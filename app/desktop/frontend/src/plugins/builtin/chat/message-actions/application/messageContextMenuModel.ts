@@ -1,5 +1,10 @@
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
-import { messageHasDraftContent } from "./messageActionContent";
+import {
+  canCopyMessage,
+  canEditMessage,
+  canRegenerateMessage,
+  canUseMessageRunCheckpoint,
+} from "./messageActionAvailability";
 
 export interface MessageContextMenuCopyState {
   canCopy: boolean;
@@ -37,15 +42,13 @@ export function messageContextMenuModel({
   copy: MessageContextMenuCopyState;
   canRestoreFiles: boolean;
 }): MessageContextMenuModel {
-  const isUser = msg.role === "user";
-  const isAssistant = msg.role === "assistant";
   const hasRun = Boolean(msg.runId);
-  const canEdit = isUser && messageHasDraftContent(msg);
-  const canUseRunCheckpoint = isUser && hasRun;
-  const canRegenerate = isAssistant;
+  const canEdit = canEditMessage(msg);
+  const canUseRunCheckpoint = canUseMessageRunCheckpoint(msg);
+  const canRegenerate = canRegenerateMessage(msg);
 
   return {
-    copyMarkdown: copy.canCopy,
+    copyMarkdown: canCopyMessage(copy),
     copyPlain: Boolean(copy.plain),
     copyCode: Boolean(copy.code),
     user: {
