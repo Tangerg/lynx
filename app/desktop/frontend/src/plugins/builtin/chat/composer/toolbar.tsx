@@ -15,6 +15,11 @@ import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
+import {
+  composerApprovalSlot,
+  composerAttachSlot,
+  composerModelSlot,
+} from "./application/composerContributions";
 import { useAddComposerImageFiles } from "./public/attachments";
 import {
   useComposerModelPreference,
@@ -177,20 +182,8 @@ export const composerToolbar = definePlugin({
   name: "lyra.builtin.composer-toolbar",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("composer.toolbar.start", {
-      id: "attach",
-      order: 0,
-      component: AttachButton,
-    });
-    host.layout.register("composer.toolbar.start", {
-      id: "approval",
-      order: 1,
-      component: ApprovalModePill,
-    });
-    host.layout.register("composer.toolbar.start", {
-      id: "model",
-      order: 2,
-      component: ModelPicker,
-    });
+    host.layout.register("composer.toolbar.start", composerAttachSlot(AttachButton));
+    host.layout.register("composer.toolbar.start", composerApprovalSlot(ApprovalModePill));
+    host.layout.register("composer.toolbar.start", composerModelSlot(ModelPicker));
   },
 });
