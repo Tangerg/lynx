@@ -1,6 +1,9 @@
 import { EmptyState } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { useWorkspaceTodos } from "@/plugins/builtin/workspace/application/todoViewModel";
+import {
+  useWorkspaceTodos,
+  workspaceTodosSubtext,
+} from "@/plugins/builtin/workspace/application/todoViewModel";
 import { TodoList } from "./views/TodoList";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -12,25 +15,25 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 // rather than a perpetually-empty tab.
 function TodosTab() {
   const t = useT();
-  const { done, enabled, todos } = useWorkspaceTodos();
+  const view = useWorkspaceTodos();
 
   return (
     <WorkspaceViewLayout
       icon="check"
       titleStrong
       title="todos.title"
-      sub={todos.length ? `${done} of ${todos.length} done` : undefined}
+      sub={workspaceTodosSubtext(view)}
     >
-      {!enabled ? (
+      {view.state === "unavailable" ? (
         <EmptyState
           icon="check"
           title={t("todos.unavailable.title")}
           sub={t("todos.unavailable.sub")}
         />
-      ) : todos.length === 0 ? (
+      ) : view.state === "empty" ? (
         <EmptyState icon="check" title={t("todos.empty.title")} sub={t("todos.empty.sub")} />
       ) : (
-        <TodoList todos={todos} />
+        <TodoList todos={view.todos} />
       )}
     </WorkspaceViewLayout>
   );
