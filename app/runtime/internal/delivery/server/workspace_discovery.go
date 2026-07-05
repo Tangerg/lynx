@@ -20,7 +20,7 @@ import (
 // first. projectRoot / branch are best-effort decorations left empty
 // until the engine grows a git probe.
 func (s *Server) WorkspaceListProjects(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Project], error) {
-	sessions, err := s.rt.Session().List(ctx)
+	sessions, err := s.rt.ListSessions(ctx)
 	if err != nil {
 		return nil, err
 	}

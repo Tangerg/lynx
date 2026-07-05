@@ -112,7 +112,31 @@ func (s stubRuntime) Chat() turn.Service {
 func (stubRuntime) ForgetSession(string) {}
 
 func (s stubRuntime) Session() session.Service { return s.sess }
-func (s stubRuntime) DefaultModel() string     { return s.model }
+func (s stubRuntime) ListSessions(ctx context.Context) ([]session.Session, error) {
+	return s.sess.List(ctx)
+}
+func (s stubRuntime) GetSession(ctx context.Context, id string) (session.Session, error) {
+	return s.sess.Get(ctx, id)
+}
+func (s stubRuntime) CreateSession(ctx context.Context, title, cwd string) (session.Session, error) {
+	return s.sess.Create(ctx, title, cwd)
+}
+func (s stubRuntime) RenameSession(ctx context.Context, id, title string) error {
+	return s.sess.Rename(ctx, id, title)
+}
+func (s stubRuntime) SetSessionModel(ctx context.Context, id, model string) error {
+	return s.sess.SetModel(ctx, id, model)
+}
+func (s stubRuntime) SetSessionCwd(ctx context.Context, id, cwd string) error {
+	return s.sess.SetCwd(ctx, id, cwd)
+}
+func (s stubRuntime) SetSessionMetadata(ctx context.Context, id string, meta map[string]any) error {
+	return s.sess.SetMetadata(ctx, id, meta)
+}
+func (s stubRuntime) SetSessionFavorite(ctx context.Context, id string, favorite bool) error {
+	return s.sess.SetFavorite(ctx, id, favorite)
+}
+func (s stubRuntime) DefaultModel() string { return s.model }
 func (s stubRuntime) ReadHistory(_ context.Context, id string) ([]chat.Message, error) {
 	return s.history[id], nil
 }

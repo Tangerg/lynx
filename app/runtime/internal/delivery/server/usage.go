@@ -47,7 +47,7 @@ func (s *Server) SessionUsage(ctx context.Context, sessionID string) (*protocol.
 // parent's subtree-aggregated runs aren't double-counted against the children's
 // own run records) and folds each one's finished runs.
 func (s *Server) UsageSummary(ctx context.Context, in protocol.UsageSummaryRequest) (*protocol.UsageSummary, error) {
-	sessions, err := s.rt.Session().List(ctx)
+	sessions, err := s.rt.ListSessions(ctx)
 	if err != nil {
 		return nil, err
 	}

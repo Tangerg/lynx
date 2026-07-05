@@ -21,7 +21,7 @@ import (
 // Returned inline: lyra is a local loopback runtime, so there's no out-of-band
 // file channel nor a giant-payload concern.
 func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
-	ses, err := s.rt.Session().Get(ctx, in.SessionID)
+	ses, err := s.rt.GetSession(ctx, in.SessionID)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
@@ -140,7 +140,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 		return nil, err
 	}
 
-	ses, err := s.rt.Session().Get(ctx, id)
+	ses, err := s.rt.GetSession(ctx, id)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}

@@ -38,7 +38,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	}
 	defer admission.Release()
 
-	sess, err := s.rt.Session().Get(ctx, pending.SessionID)
+	sess, err := s.rt.GetSession(ctx, pending.SessionID)
 	if err != nil {
 		return nil, nil, wireSessionErr(err)
 	}
