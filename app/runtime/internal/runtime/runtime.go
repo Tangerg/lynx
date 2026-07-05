@@ -476,10 +476,6 @@ func (r *Runtime) Memory() knowledge.Service { return r.knowledge }
 // constructs one regardless of cfg.ApprovalMode (defaults to YOLO).
 func (r *Runtime) Approval() approval.Service { return r.approval }
 
-// Schedules returns the scheduled-run registry (schedules.* + the scheduler
-// worker). nil when scheduling is unconfigured.
-func (r *Runtime) Schedules() schedule.Service { return r.schedules }
-
 // Interrupts returns the open-interrupt registry (R-model HITL resume
 // discovery). Always non-nil.
 func (r *Runtime) Interrupts() interrupts.Store { return r.interrupts }

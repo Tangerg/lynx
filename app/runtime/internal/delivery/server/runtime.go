@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
@@ -86,7 +87,13 @@ type approvalAccess interface {
 }
 
 type scheduleAccess interface {
-	Schedules() schedule.Service
+	ListSchedules(ctx context.Context) ([]schedule.Schedule, error)
+	GetSchedule(ctx context.Context, id string) (schedule.Schedule, error)
+	CreateSchedule(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
+	UpdateSchedule(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
+	DeleteSchedule(ctx context.Context, id string) error
+	RecordScheduleRun(ctx context.Context, id string, ranAt time.Time) error
+	RunScheduleWorker(ctx context.Context, runner schedule.Runner)
 }
 
 type providerAccess interface {
