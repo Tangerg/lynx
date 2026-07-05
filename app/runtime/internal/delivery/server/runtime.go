@@ -141,7 +141,10 @@ type modelRoleAccess interface {
 }
 
 type codebaseAccess interface {
-	CodebaseIndex() codebaseindex.Service
+	HasCodebaseIndex() bool
+	SearchCodebase(ctx context.Context, root, query string, limit int) ([]codebaseindex.Hit, error)
+	CodebaseIndexStatus(ctx context.Context, root string) (codebaseindex.Status, error)
+	StartCodebaseReindex(ctx context.Context, root string) error
 }
 
 type maintenanceAccess interface {
