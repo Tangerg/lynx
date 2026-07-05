@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
@@ -78,6 +79,16 @@ func (r *Runtime) ClaimRunSlot(ctx context.Context, claims lifecycle.SessionClai
 // ClaimMutationSlot reserves the single-writer session slot for a destructive mutation.
 func (r *Runtime) ClaimMutationSlot(claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error) {
 	return r.lifecycle().ClaimMutationSlot(claims, sessionID)
+}
+
+// ClaimWorkingTreeRun reserves a working tree while a run segment is being admitted.
+func (r *Runtime) ClaimWorkingTreeRun(cwd string) (lifecycle.WorkingTreeAdmission, bool) {
+	return r.workingTrees.ClaimRun(fspath.Canonical(cwd))
+}
+
+// ClaimWorkingTreeMutation reserves exclusive access for a destructive working-tree mutation.
+func (r *Runtime) ClaimWorkingTreeMutation(cwd string) (lifecycle.WorkingTreeAdmission, bool) {
+	return r.workingTrees.ClaimMutation(fspath.Canonical(cwd))
 }
 
 // ClaimResumeSlot reserves the interrupted session before its interrupt is consumed.

@@ -12,7 +12,7 @@ import (
 func TestOpenSegmentCancelsTurnWhenEventsCannotSubscribe(t *testing.T) {
 	errEvents := errors.New("events failed")
 	turns := &eventsFailingTurns{err: errEvents}
-	s := &Server{rt: stubRuntime{chat: turns}}
+	s := &Server{rt: &stubRuntime{chat: turns}}
 	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: "turn_1"}
 
 	out, events, err := s.openSegment(context.Background(), "run_1", "", handle, "ses_1", nil, nil, "", "")

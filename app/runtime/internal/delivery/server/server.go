@@ -20,7 +20,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
 
 // Config bundles construction inputs.
@@ -53,11 +52,6 @@ type Server struct {
 	// owns the single-writer-per-session invariant; delivery supplies only the
 	// in-process resources needed to stream and cancel live runs.
 	runs runstate.Registry[*runHandle]
-
-	// workingTrees closes the admission gap for destructive working-tree
-	// restores: runs.start/resume hold a short cwd slot until they appear in
-	// runs, while sessions.rollback holds an exclusive cwd slot during restore.
-	workingTrees lifecycle.WorkingTreeGate
 
 	// eventSeq is the server-wide monotonic source for RunEvent ids
 	// (TRANSPORT.md §9.1). A single counter across all runs is strictly
