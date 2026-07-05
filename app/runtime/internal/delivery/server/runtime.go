@@ -83,7 +83,10 @@ type knowledgeAccess interface {
 }
 
 type approvalAccess interface {
-	Approval() approval.Service
+	GetApprovalMode(ctx context.Context) (approval.Mode, error)
+	SetApprovalMode(ctx context.Context, mode approval.Mode) error
+	ListApprovalRules(ctx context.Context, sessionID string) ([]approval.Rule, error)
+	ForgetApprovalRule(ctx context.Context, id string) error
 }
 
 type scheduleAccess interface {
