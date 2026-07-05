@@ -9,7 +9,7 @@ import type { WorkspaceCommandActivity } from "@/plugins/builtin/workspace/appli
 export const CommandLog = memo(function CommandLog({
   commands,
 }: {
-  commands: WorkspaceCommandActivity[];
+  commands: readonly WorkspaceCommandActivity[];
 }) {
   const t = useT();
   return (

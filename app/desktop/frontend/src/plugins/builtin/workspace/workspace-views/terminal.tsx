@@ -3,6 +3,7 @@ import { EmptyState } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useActiveRunToolCalls } from "@/plugins/builtin/agent/public/run";
 import { workspaceCommandActivitiesFromAgentTools } from "../application/toolActivity";
+import { terminalSubtext, terminalViewModel } from "../application/terminalViewModel";
 import { CommandLog } from "./views/CommandLog";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -16,7 +17,10 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 function TerminalTab() {
   const t = useT();
   const toolCalls = useActiveRunToolCalls();
-  const commands = useMemo(() => workspaceCommandActivitiesFromAgentTools(toolCalls), [toolCalls]);
+  const view = useMemo(
+    () => terminalViewModel(workspaceCommandActivitiesFromAgentTools(toolCalls)),
+    [toolCalls],
+  );
 
   // Terminal semantics: open at the bottom (latest command) and tail live
   // output — but only while the user is pinned to the bottom, so scrolling up
@@ -33,30 +37,27 @@ function TerminalTab() {
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
-  // Cheap content signature — grows as commands are added or their output
-  // streams; re-pins to the bottom on each change while the user is pinned.
-  const tail = commands.reduce((n, c) => n + c.output.length, commands.length);
   useEffect(() => {
     if (!pinnedRef.current) return;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [tail]);
+  }, [view.tailSignature]);
 
   return (
     <WorkspaceViewLayout
       icon="terminal"
       title="terminal.title"
-      sub={commands.length ? `${commands.length} commands` : undefined}
+      sub={terminalSubtext(view)}
       scrollRef={scrollRef}
     >
-      {commands.length === 0 ? (
+      {view.isEmpty ? (
         <EmptyState
           icon="terminal"
           title={t("terminal.empty.title")}
           sub={t("terminal.empty.sub")}
         />
       ) : (
-        <CommandLog commands={commands} />
+        <CommandLog commands={view.commands} />
       )}
     </WorkspaceViewLayout>
   );
