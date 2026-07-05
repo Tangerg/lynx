@@ -5,6 +5,7 @@ import { Icon, Tooltip } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
+import { canRegenerateMessage } from "./application/messageActionAvailability";
 import { messageRegenerateActionSlot } from "./application/messageActionContributions";
 import { regenerateMessage } from "./public/messageActions";
 import { ACTION_BTN_BASE, roleShape } from "./_shared";
@@ -12,7 +13,7 @@ import { ACTION_BTN_BASE, roleShape } from "./_shared";
 function RegenerateButton() {
   const t = useT();
   const msg = useCurrentMessage();
-  if (msg.role !== "assistant") return null;
+  if (!canRegenerateMessage(msg)) return null;
 
   return (
     <Tooltip label={t("msgActions.regenerate")}>

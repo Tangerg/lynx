@@ -8,6 +8,7 @@ import { Icon, Tooltip } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
+import { canRateMessage } from "./application/messageActionAvailability";
 import { messageFeedbackActionSlot } from "./application/messageActionContributions";
 import { messageFeedbackRating, submitMessageFeedback } from "./public/feedback";
 import { installRuntimeFeedbackPort } from "./adapters/runtimeFeedback";
@@ -20,7 +21,7 @@ function FeedbackButtons() {
   useEffect(() => {
     setRated(messageFeedbackRating(msg.id));
   }, [msg.id]);
-  if (msg.role !== "assistant") return null;
+  if (!canRateMessage(msg)) return null;
 
   const rate = (rating: "positive" | "negative"): void => {
     if (rated === rating) return;

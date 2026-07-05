@@ -9,6 +9,7 @@ import { writeToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
+import { canCopyMessage } from "./application/messageActionAvailability";
 import { messageCopyActionSlot } from "./application/messageActionContributions";
 import { messageCopyPayloads } from "./presentation/copyPayloads";
 import { ACTION_BTN_BASE, roleShape } from "./_shared";
@@ -17,7 +18,7 @@ function CopyButton() {
   const t = useT();
   const msg = useCurrentMessage();
   const copy = messageCopyPayloads(msg);
-  if (!copy.canCopy) return null;
+  if (!canCopyMessage(copy)) return null;
 
   return (
     <DropdownMenu.Root>
