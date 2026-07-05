@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { commandPaletteCommand, commandPaletteShortcut } from "./commandPaletteContributions";
+import {
+  commandPaletteCommand,
+  commandPaletteOverlaySlot,
+  commandPaletteShortcut,
+} from "./commandPaletteContributions";
 
 describe("commandPaletteShortcut", () => {
   it("binds Mod+K as an input-safe palette toggle", () => {
@@ -21,6 +25,20 @@ describe("commandPaletteShortcut", () => {
 
     expect(event.preventDefault).toHaveBeenCalledOnce();
     expect(togglePalette).toHaveBeenCalledOnce();
+  });
+});
+
+function Component() {
+  return null;
+}
+
+describe("commandPaletteOverlaySlot", () => {
+  it("projects the palette component into the overlay slot spec", () => {
+    expect(commandPaletteOverlaySlot(Component)).toEqual({
+      id: "command-palette",
+      order: 10,
+      component: Component,
+    });
   });
 });
 

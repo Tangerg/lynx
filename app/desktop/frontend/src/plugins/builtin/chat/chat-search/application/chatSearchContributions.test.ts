@@ -1,5 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
-import { chatSearchShortcut } from "./chatSearchShortcut";
+import { chatSearchOverlaySlot, chatSearchShortcut } from "./chatSearchContributions";
+
+function Component() {
+  return null;
+}
+
+describe("chatSearchOverlaySlot", () => {
+  it("projects the chat search component into the overlay slot spec", () => {
+    expect(chatSearchOverlaySlot(Component)).toEqual({
+      id: "chat-search",
+      order: 50,
+      component: Component,
+    });
+  });
+});
 
 describe("chatSearchShortcut", () => {
   it("binds Mod+F as an input-safe chat search shortcut", () => {
