@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
@@ -33,6 +34,7 @@ type stubRuntime struct {
 	hist        transcript.Store          // durable Item/run history (rollback/fork read runs)
 	interrupts  interrupts.Store          // open-interrupt registry (rollback clears dropped)
 	chat        turn.Service
+	workingTree *lifecycle.WorkingTreeGate
 }
 
 func (s stubRuntime) MCPServerStatuses() []kernel.McpServerStatus { return s.mcpStatuses }
@@ -198,6 +200,21 @@ func (s stubRuntime) ClaimMutationSlot(claims lifecycle.SessionClaimer, sessionI
 	return lifecycle.New(s).ClaimMutationSlot(claims, sessionID)
 }
 
+func (s *stubRuntime) ClaimWorkingTreeRun(cwd string) (lifecycle.WorkingTreeAdmission, bool) {
+	return s.workingTreeGate().ClaimRun(fspath.Canonical(cwd))
+}
+
+func (s *stubRuntime) ClaimWorkingTreeMutation(cwd string) (lifecycle.WorkingTreeAdmission, bool) {
+	return s.workingTreeGate().ClaimMutation(fspath.Canonical(cwd))
+}
+
+func (s *stubRuntime) workingTreeGate() *lifecycle.WorkingTreeGate {
+	if s.workingTree == nil {
+		s.workingTree = &lifecycle.WorkingTreeGate{}
+	}
+	return s.workingTree
+}
+
 func (s stubRuntime) ClaimResumeSlot(ctx context.Context, claims lifecycle.SessionClaimer, parentRunID string) (interrupts.Pending, lifecycle.RunAdmission, error) {
 	return lifecycle.New(s).ClaimResumeSlot(ctx, claims, parentRunID)
 }
@@ -311,7 +328,7 @@ func newSessionServer(t *testing.T) (*Server, session.Service) {
 	svc := sqlite.NewSessionStore(db)
 	// Interrupts is always wired in production (runtime composition root) and
 	// the wire status now reads it (liveStatus) — give the stub a real store.
-	return &Server{rt: stubRuntime{sess: svc, model: "default-model", interrupts: sqlite.NewInterruptStore(db)}}, svc
+	return &Server{rt: &stubRuntime{sess: svc, model: "default-model", interrupts: sqlite.NewInterruptStore(db)}}, svc
 }
 
 func TestUpdateSession(t *testing.T) {
@@ -408,7 +425,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	}
 	history := map[string][]chat.Message{id: {chat.NewUserMessage("hi")}}
 
-	s := &Server{rt: stubRuntime{sess: svc, hist: hist, interrupts: ints, history: history}}
+	s := &Server{rt: &stubRuntime{sess: svc, hist: hist, interrupts: ints, history: history}}
 	if err := s.DeleteSession(ctx, id); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -473,7 +490,7 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 	}
 
 	turns := &recordingTurns{}
-	s := &Server{rt: stubRuntime{sess: svc, hist: hist, interrupts: ints, history: map[string][]chat.Message{}, chat: turns}}
+	s := &Server{rt: &stubRuntime{sess: svc, hist: hist, interrupts: ints, history: map[string][]chat.Message{}, chat: turns}}
 	if err := s.DeleteSession(ctx, id); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -503,7 +520,7 @@ func TestForkSession(t *testing.T) {
 	parent, _ := svc.Create(ctx, "research", "/work/proj")
 
 	hist := map[string][]chat.Message{parent.ID: {chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi")}}
-	s := &Server{rt: stubRuntime{sess: svc, history: hist, hist: sqlite.NewTranscriptStore(db)}}
+	s := &Server{rt: &stubRuntime{sess: svc, history: hist, hist: sqlite.NewTranscriptStore(db)}}
 
 	child, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, Title: "branch A"})
 	if err != nil {

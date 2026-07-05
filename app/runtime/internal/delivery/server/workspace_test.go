@@ -131,7 +131,7 @@ func TestWorkspaceListSkills(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
 		serverInfo: protocol.ServerInfo{Cwd: dir},
-		rt: stubRuntime{skills: []kernel.SkillInfo{
+		rt: &stubRuntime{skills: []kernel.SkillInfo{
 			{Name: "pdf", Description: "PDF tools", Scope: "project"},
 			{Name: "web", Description: "web tools", Scope: "global"},
 		}},
@@ -151,7 +151,7 @@ func TestWorkspaceListRecipes(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
 		serverInfo: protocol.ServerInfo{Cwd: dir},
-		rt: stubRuntime{recipes: []recipes.Recipe{
+		rt: &stubRuntime{recipes: []recipes.Recipe{
 			{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: "project", Source: "/p/review.md"},
 			{Name: "commit", Body: "Write a commit", Scope: "global", Source: "/g/commit.md"},
 		}},
@@ -175,7 +175,7 @@ func TestWorkspaceListRecipes(t *testing.T) {
 // a connected server inlines its tool count (so the client needn't ⨝ listTools),
 // a boot-failed server carries its failure reason as Error and no tool count.
 func TestWorkspaceMCPListServers(t *testing.T) {
-	s := &Server{rt: stubRuntime{
+	s := &Server{rt: &stubRuntime{
 		mcpStatuses: []kernel.McpServerStatus{
 			{Name: "fs", Status: "connected"},
 			{Name: "down", Status: "failed", Err: errors.New("connection refused")},
@@ -208,7 +208,7 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 // nothing.
 func TestWorkspaceMCPReconnect(t *testing.T) {
 	s := &Server{
-		rt: stubRuntime{
+		rt: &stubRuntime{
 			mcpStatuses: []kernel.McpServerStatus{{Name: "fs", Status: "connected"}},
 			mcpTools:    []kernel.McpToolInfo{{Server: "fs", Name: "read"}},
 		},
@@ -238,7 +238,7 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 // TestWorkspaceMCPListTools maps engine tool info onto the wire (keeping
 // server + bare name separate) and passes the server scope through.
 func TestWorkspaceMCPListTools(t *testing.T) {
-	s := &Server{rt: stubRuntime{mcpTools: []kernel.McpToolInfo{
+	s := &Server{rt: &stubRuntime{mcpTools: []kernel.McpToolInfo{
 		{Server: "fs", Name: "read", Description: "read a file", InputSchema: map[string]any{"type": "object"}},
 		{Server: "fs", Name: "write"},
 		{Server: "git", Name: "log"},

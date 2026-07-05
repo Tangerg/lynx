@@ -93,6 +93,8 @@ type historyAccess interface {
 type lifecycleAccess interface {
 	ClaimRunSlot(ctx context.Context, claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error)
 	ClaimMutationSlot(claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error)
+	ClaimWorkingTreeRun(cwd string) (lifecycle.WorkingTreeAdmission, bool)
+	ClaimWorkingTreeMutation(cwd string) (lifecycle.WorkingTreeAdmission, bool)
 	ClaimResumeSlot(ctx context.Context, claims lifecycle.SessionClaimer, parentRunID string) (interrupts.Pending, lifecycle.RunAdmission, error)
 	CancelParkedRun(ctx context.Context, runID string) error
 	CancelRunTurn(ctx context.Context, run lifecycle.RunTurn) error

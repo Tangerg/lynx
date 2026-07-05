@@ -50,6 +50,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -176,9 +177,9 @@ type HookResolver interface {
 // pointer across every transport adapter that needs to dispatch
 // turns / sessions / approvals.
 //
-// Concurrency: every accessor returns a Service whose own methods
-// are safe for concurrent use. Runtime itself holds no mutable
-// state after construction.
+// Concurrency: every accessor returns a Service whose own methods are safe for
+// concurrent use. Runtime owns the process-local coordination state that
+// defines application lifecycle invariants across transports.
 type Runtime struct {
 	engine     *kernel.Engine
 	chat       turn.Service
@@ -247,6 +248,10 @@ type Runtime struct {
 	// cross-store operations (sessions.import / rollback) are atomic; nil → run
 	// directly (RunInTx). See [Transactor].
 	transactor Transactor
+
+	// workingTrees coordinates short run admissions with destructive
+	// working-tree mutations for every transport using this runtime.
+	workingTrees lifecycle.WorkingTreeGate
 }
 
 // Transactor runs fn inside a single storage transaction — the seam the
