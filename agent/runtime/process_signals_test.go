@@ -9,9 +9,11 @@ import (
 // stubAwaitable is a minimal core.Awaitable for parking tests.
 type stubAwaitable struct{ id string }
 
-func (s stubAwaitable) ID() string                                     { return s.id }
-func (s stubAwaitable) PromptAny() any                                 { return nil }
-func (s stubAwaitable) OnResponseAny(any) (core.ResponseImpact, error) { return core.ImpactUnchanged, nil }
+func (s stubAwaitable) ID() string     { return s.id }
+func (s stubAwaitable) PromptAny() any { return nil }
+func (s stubAwaitable) OnResponseAny(any) (core.ResponseImpact, error) {
+	return core.ImpactUnchanged, nil
+}
 
 // TestParkAwaitable_RefusesSecondConcurrentPark pins the concurrent-HITL guard:
 // the pending-awaitable slot holds exactly one interrupt, so a second park while

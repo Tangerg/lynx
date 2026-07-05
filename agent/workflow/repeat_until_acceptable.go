@@ -15,7 +15,7 @@ import (
 // for a score 0..1 + rationale.
 type Evaluator[In, Out any] func(ctx context.Context, pc *core.ProcessContext, in In, last Out) (Feedback, error)
 
-// RepeatUntilAcceptableConfig is a thin shim over [RepeatUntilConfig]
+// RepeatUntilAcceptableConfig is a specialized wrapper over [RepeatUntilConfig]
 // that turns the "loop until LLM is satisfied" pattern into a
 // configuration: supply Task + Evaluator + AcceptableScore, and
 // the workflow loops until the evaluator's Score crosses the
