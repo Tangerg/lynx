@@ -57,6 +57,7 @@ type RuntimeServices interface {
 }
 
 type turnAccess interface {
+	PlanTurnStart(ctx context.Context, sessionID, defaultCwd string, draft turn.StartTurnRequest) (sessionsvc.Session, turn.StartTurnRequest, error)
 	StartTurn(ctx context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error)
 	TurnEvents(ctx context.Context, handle turn.TurnHandle) (iter.Seq[turn.Event], error)
 	InjectTurnSteering(ctx context.Context, handle turn.TurnHandle, message string) error
