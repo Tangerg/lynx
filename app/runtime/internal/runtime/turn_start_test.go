@@ -43,6 +43,23 @@ func TestPlanTurnStartBindsExistingSession(t *testing.T) {
 	}
 }
 
+func TestPlanTurnStartOwnsSessionBinding(t *testing.T) {
+	store := &sessionRuntimeStore{}
+	rt := &Runtime{session: store}
+
+	_, req, err := rt.PlanTurnStart(context.Background(), "ses_1", "/ignored", turn.StartTurnRequest{
+		SessionID: "ses_stale",
+		Cwd:       "/stale",
+		Message:   "hello",
+	})
+	if err != nil {
+		t.Fatalf("PlanTurnStart: %v", err)
+	}
+	if req.SessionID != "ses_1" || req.Cwd != "/repo" {
+		t.Fatalf("request = %+v, want runtime-owned session binding", req)
+	}
+}
+
 func TestPlanTurnStartRejectsInvalidDraftBeforeCreatingSession(t *testing.T) {
 	store := &sessionRuntimeStore{}
 	rt := &Runtime{session: store}

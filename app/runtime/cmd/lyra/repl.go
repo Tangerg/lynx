@@ -99,7 +99,7 @@ func (r *ReplRunner) Run(ctx context.Context) error {
 			continue
 		}
 
-		NewTurnRunner(r.app, turnOptions{}).Run(ctx, r.sessionID, line)
+		NewTurnRunner(r.app, turnOptions{}).Run(ctx, r.sessionID, "", line)
 	}
 
 	if err := scanner.Err(); err != nil && err != io.EOF {
