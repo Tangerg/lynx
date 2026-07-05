@@ -36,7 +36,7 @@ func (a *App) sessionListCmd() *cobra.Command {
 			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
-			sessions, err := a.rt.Session().List(cmd.Context())
+			sessions, err := a.rt.ListSessions(cmd.Context())
 			if err != nil {
 				return a.fatalErr(err)
 			}
@@ -67,7 +67,7 @@ func (a *App) sessionShowCmd() *cobra.Command {
 				return a.fatalErr(err)
 			}
 			id := args[0]
-			sess, err := a.rt.Session().Get(cmd.Context(), id)
+			sess, err := a.rt.GetSession(cmd.Context(), id)
 			if err != nil {
 				if errors.Is(err, session.ErrNotFound) {
 					fmt.Fprintf(a.Err, "lyra: session %q not found\n", id)
@@ -91,7 +91,7 @@ func (a *App) sessionDeleteCmd() *cobra.Command {
 			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
-			if err := a.rt.Session().Delete(cmd.Context(), args[0]); err != nil {
+			if err := a.rt.DeleteSession(cmd.Context(), args[0]); err != nil {
 				return a.fatalErr(err)
 			}
 			fmt.Fprintf(a.Err, "[lyra] deleted session %s\n", args[0])

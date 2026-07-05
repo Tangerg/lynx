@@ -53,7 +53,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, protocol.ErrInvalidParams
 	}
 
-	admission, err := s.coordinator().ClaimRunSlot(ctx, sessionClaimer{s: s}, sessionID)
+	admission, err := s.rt.ClaimRunSlot(ctx, sessionClaimer{s: s}, sessionID)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, sessionID)

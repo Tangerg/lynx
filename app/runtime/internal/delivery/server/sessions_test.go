@@ -13,6 +13,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -137,6 +139,79 @@ func (s stubRuntime) TurnProcessID(ctx context.Context, handle turn.TurnHandle) 
 
 func (s stubRuntime) SetTurnInterruptKinds(kinds []string) {
 	s.turnService().SetInterruptKinds(kinds)
+}
+
+type stubLifecycleTurns struct {
+	rt stubRuntime
+}
+
+func (t stubLifecycleTurns) Cancel(ctx context.Context, handle turn.TurnHandle) error {
+	return t.rt.CancelTurn(ctx, handle)
+}
+
+func (t stubLifecycleTurns) Resume(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error {
+	return t.rt.ResumeTurn(ctx, handle, resolution)
+}
+
+func (t stubLifecycleTurns) Rehydrate(ctx context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
+	return t.rt.RehydrateTurn(ctx, req)
+}
+
+type stubRunSegmentProcesses struct {
+	rt stubRuntime
+}
+
+func (p stubRunSegmentProcesses) ProcessID(ctx context.Context, handle turn.TurnHandle) (string, error) {
+	return p.rt.TurnProcessID(ctx, handle)
+}
+
+func (s stubRuntime) ClaimRunSlot(ctx context.Context, claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error) {
+	return lifecycle.New(s).ClaimRunSlot(ctx, claims, sessionID)
+}
+
+func (s stubRuntime) ClaimMutationSlot(claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error) {
+	return lifecycle.New(s).ClaimMutationSlot(claims, sessionID)
+}
+
+func (s stubRuntime) ClaimResumeSlot(ctx context.Context, claims lifecycle.SessionClaimer, parentRunID string) (interrupts.Pending, lifecycle.RunAdmission, error) {
+	return lifecycle.New(s).ClaimResumeSlot(ctx, claims, parentRunID)
+}
+
+func (s stubRuntime) CancelParkedRun(ctx context.Context, runID string) error {
+	return lifecycle.New(s).CancelParkedRun(ctx, stubLifecycleTurns{rt: s}, runID)
+}
+
+func (s stubRuntime) CancelRunTurn(ctx context.Context, run lifecycle.RunTurn) error {
+	return lifecycle.New(s).CancelRunTurn(ctx, stubLifecycleTurns{rt: s}, run)
+}
+
+func (s stubRuntime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution) (lifecycle.ResumedInterrupt, error) {
+	return lifecycle.New(s).ResumeClaimedInterrupt(ctx, stubLifecycleTurns{rt: s}, parentRunID, resolution)
+}
+
+func (s stubRuntime) RollbackResolved(ctx context.Context, sessionID string, boundary lifecycle.RollbackBoundary) error {
+	return lifecycle.New(s).RollbackResolved(ctx, stubLifecycleTurns{rt: s}, sessionID, boundary)
+}
+
+func (s stubRuntime) ForkSession(ctx context.Context, spec lifecycle.ForkSpec) (session.Session, error) {
+	return lifecycle.New(s).Fork(ctx, spec)
+}
+
+func (s stubRuntime) RestoreSession(ctx context.Context, ses session.Session, msgs []chat.Message, runs []transcript.Run, items []transcript.Item) error {
+	return lifecycle.New(s).RestoreSession(ctx, ses, msgs, runs, items)
+}
+
+func (s stubRuntime) DeleteSession(ctx context.Context, id string) error {
+	return lifecycle.New(s).DeleteSession(ctx, stubLifecycleTurns{rt: s}, id)
+}
+
+func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects {
+	return runsegment.New(runsegment.Config{
+		Stores:             s,
+		Processes:          stubRunSegmentProcesses{rt: s},
+		Checkpoints:        checkpoints,
+		PublishFileChanges: publish,
+	})
 }
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call

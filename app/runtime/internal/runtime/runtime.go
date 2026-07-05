@@ -254,11 +254,11 @@ type Runtime struct {
 // coupling it to the sqlite backend.
 type Transactor func(ctx context.Context, fn func(context.Context) error) error
 
-// RunInTx runs fn inside one storage transaction (commit on success, rollback
+// runInTx runs fn inside one storage transaction (commit on success, rollback
 // on error), so a multi-step write-set across the domain services commits
 // atomically. Falls back to running fn directly when no transactor is wired (a
 // non-sqlite / test runtime) — correct but without all-or-nothing.
-func (r *Runtime) RunInTx(ctx context.Context, fn func(context.Context) error) error {
+func (r *Runtime) runInTx(ctx context.Context, fn func(context.Context) error) error {
 	if r == nil || r.transactor == nil {
 		return fn(ctx)
 	}
@@ -454,14 +454,7 @@ func runClosers(closers []func() error) {
 	}
 }
 
-// ForgetSession releases the turn service's process-local state for a session
-// being removed (the SessionStart gate). A runtime-level passthrough so the
-// lifecycle coordinator can clear it as part of the delete / purge write-sets
-// without depending on the whole turn.Service.
-func (r *Runtime) ForgetSession(sessionID string) { r.chat.ForgetSession(sessionID) }
-
-// Session returns the saved-session CRUD surface (sessions.*).
-func (r *Runtime) Session() sessionsvc.Service { return r.session }
+func (r *Runtime) forgetSession(sessionID string) { r.chat.ForgetSession(sessionID) }
 
 // Memory returns the LYRA.md cascade service — the wire/API "memory"
 // surface (memory.get/update/list). Nil when no knowledge service was
@@ -471,14 +464,6 @@ func (r *Runtime) Memory() knowledge.Service { return r.knowledge }
 // Approval returns the ApprovalService. Always non-nil — the runtime
 // constructs one regardless of cfg.ApprovalMode (defaults to YOLO).
 func (r *Runtime) Approval() approval.Service { return r.approval }
-
-// Interrupts returns the open-interrupt registry (R-model HITL resume
-// discovery). Always non-nil.
-func (r *Runtime) Interrupts() interrupts.Store { return r.interrupts }
-
-// Transcript returns the durable Item-history store items.list is served
-// from. Always non-nil — TranscriptStore is a required dependency.
-func (r *Runtime) Transcript() transcript.Store { return r.transcript }
 
 // MCPServerStatuses returns the per-server connection state of every
 // configured MCP server (connected and boot-failed alike) for

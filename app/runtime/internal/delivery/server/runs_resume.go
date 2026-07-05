@@ -25,7 +25,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	pending, admission, err := s.coordinator().ClaimResumeSlot(ctx, sessionClaimer{s: s}, in.ParentRunID)
+	pending, admission, err := s.rt.ClaimResumeSlot(ctx, sessionClaimer{s: s}, in.ParentRunID)
 	if err != nil {
 		switch {
 		case errors.Is(err, lifecycle.ErrInterruptNotOpen):
@@ -53,7 +53,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		}
 	}()
 
-	resumed, err := s.coordinator().ResumeClaimedInterrupt(ctx, s.turns(), in.ParentRunID, resolution)
+	resumed, err := s.rt.ResumeClaimedInterrupt(ctx, in.ParentRunID, resolution)
 	if err != nil {
 		switch {
 		case errors.Is(err, lifecycle.ErrInterruptNotOpen):

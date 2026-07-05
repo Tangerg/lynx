@@ -106,7 +106,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	}
 
 	id := art.Session.ID
-	admission, err := s.coordinator().ClaimRunSlot(ctx, sessionClaimer{s: s}, id)
+	admission, err := s.rt.ClaimRunSlot(ctx, sessionClaimer{s: s}, id)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, id)
@@ -136,7 +136,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 			SessionID: id, RunID: it.RunID, ItemID: it.ItemID, CreatedAt: it.CreatedAt, Blob: it.Item,
 		})
 	}
-	if err := s.coordinator().RestoreSession(ctx, artifactToSession(art.Session), msgs, runs, items); err != nil {
+	if err := s.rt.RestoreSession(ctx, artifactToSession(art.Session), msgs, runs, items); err != nil {
 		return nil, err
 	}
 

@@ -57,7 +57,7 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 	// Resolve the session's cwd so fs/shell tools run in the session's
 	// project directory rather than the engine default — same contract
 	// as the runs.start wire path.
-	sess, err := r.app.rt.Session().Get(ctx, sessionID)
+	sess, err := r.app.rt.GetSession(ctx, sessionID)
 	if err != nil {
 		r.app.printErr(err)
 		return 1

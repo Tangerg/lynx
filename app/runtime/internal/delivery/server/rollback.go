@@ -21,7 +21,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	admission, err := s.coordinator().ClaimMutationSlot(sessionClaimer{s: s}, in.SessionID)
+	admission, err := s.rt.ClaimMutationSlot(sessionClaimer{s: s}, in.SessionID)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, in.SessionID)
@@ -97,7 +97,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// watermark + drops each dropped run's items/record + dangling interrupt as
 	// ONE transaction (a failure can't leave a run whose messages were already
 	// truncated away), then purges the subagent subtree those runs spawned.
-	if err := s.coordinator().RollbackResolved(ctx, s.turns(), in.SessionID, b); err != nil {
+	if err := s.rt.RollbackResolved(ctx, in.SessionID, b); err != nil {
 		return nil, err
 	}
 
