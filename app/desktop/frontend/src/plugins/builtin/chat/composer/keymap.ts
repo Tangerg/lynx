@@ -3,6 +3,7 @@ import { submitPendingApproval } from "@/plugins/builtin/agent/public/hitl";
 import { stopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
 import { definePlugin } from "@/plugins/sdk";
 import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
+import { composerKeyBindings } from "./application/composerContributions";
 import { recallNextComposerHistory, recallPreviousComposerHistory } from "./public/history";
 
 // After a history recall swaps the textarea value, park the caret at the end on
@@ -22,38 +23,20 @@ export const composerKeymap = definePlugin({
   name: "lyra.builtin.composer-keymap",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(COMPOSER_KEY_BINDING, {
-      key: "Enter",
-      description: t("composer.key.sendDesc"),
-      handler: ({ submit, event }) => {
+    for (const binding of composerKeyBindings(t, {
+      send: ({ submit, event }) => {
         if (event.shiftKey) return false;
         submit();
         return true;
       },
-    });
-    host.extensions.contribute(COMPOSER_KEY_BINDING, {
-      key: "Mod+Enter",
-      description: t("composer.key.approveDesc"),
-      handler: ({ submit }) => {
+      approveOrSend: ({ submit }) => {
         if (submitPendingApproval("approved")) return true;
         submit();
         return true;
       },
-    });
-    host.extensions.contribute(COMPOSER_KEY_BINDING, {
-      key: "Mod+Shift+Backspace",
-      description: t("composer.key.declineDesc"),
-      handler: () => submitPendingApproval("declined"),
-    });
-    host.extensions.contribute(COMPOSER_KEY_BINDING, {
-      key: "Escape",
-      description: t("composer.key.stopDesc"),
-      handler: () => stopActiveAgentRun(),
-    });
-    host.extensions.contribute(COMPOSER_KEY_BINDING, {
-      key: "ArrowUp",
-      description: t("composer.key.historyPrevDesc"),
-      handler: ({ event }) => {
+      declineApproval: () => submitPendingApproval("declined"),
+      stopRun: () => stopActiveAgentRun(),
+      historyPrevious: ({ event }) => {
         const ta = targetTextarea(event);
         if (!ta || ta.selectionStart !== ta.selectionEnd) return false;
         if (ta.value.slice(0, ta.selectionStart).includes("\n")) return false;
@@ -61,11 +44,7 @@ export const composerKeymap = definePlugin({
         caretToEnd(ta);
         return true;
       },
-    });
-    host.extensions.contribute(COMPOSER_KEY_BINDING, {
-      key: "ArrowDown",
-      description: t("composer.key.historyNextDesc"),
-      handler: ({ event }) => {
+      historyNext: ({ event }) => {
         const ta = targetTextarea(event);
         if (!ta || ta.selectionStart !== ta.selectionEnd) return false;
         if (ta.value.slice(ta.selectionEnd).includes("\n")) return false;
@@ -73,6 +52,8 @@ export const composerKeymap = definePlugin({
         caretToEnd(ta);
         return true;
       },
-    });
+    })) {
+      host.extensions.contribute(COMPOSER_KEY_BINDING, binding);
+    }
   },
 });
