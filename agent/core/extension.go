@@ -1,10 +1,6 @@
 package core
 
-import (
-	"context"
-
-	"github.com/Tangerg/lynx/core/model/chat"
-)
+import "context"
 
 // Extension is the marker every plug-in capability shares. Name is
 // used for dedup (panic on duplicate within a registration scope),
@@ -70,7 +66,7 @@ type GoalApprover interface {
 	ApproveGoal(process Process, goal *Goal) bool
 }
 
-// ChatClientProvider overrides which [chat.Client] a process's actions use
+// ChatClientProvider overrides which [ChatClient] a process's actions use
 // for their LLM calls (via [ProcessContext.Chat] /
 // [ProcessContext.ChatWithActionTools]), instead of the single client the
 // Platform was constructed with. The runtime consults registered providers
@@ -89,5 +85,5 @@ type ChatClientProvider interface {
 
 	// ChatClientFor returns the client this process should use, or nil to
 	// defer to the next provider / the platform default.
-	ChatClientFor(process Process) *chat.Client
+	ChatClientFor(process Process) ChatClient
 }

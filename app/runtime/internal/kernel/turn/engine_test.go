@@ -94,9 +94,9 @@ type stubEngine struct {
 	restoreResumeErr error // when set, a RestoreChat'd process fails its Resume with it
 
 	mu         sync.Mutex
-	lastClient *corechat.Client // captures RunChatRequest.ChatClient
-	lastCwd    string           // captures RunChatRequest.Cwd
-	lastCtx    context.Context  // captures the ctx the engine runs under
+	lastClient core.ChatClient // captures RunChatRequest.ChatClient
+	lastCwd    string          // captures RunChatRequest.Cwd
+	lastCtx    context.Context // captures the ctx the engine runs under
 
 	lastProc atomic.Pointer[stubChatProcess] // the most recent process StartChat handed back
 }

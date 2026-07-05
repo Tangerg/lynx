@@ -6,7 +6,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // RunChatRequest carries the per-turn parameters for [Engine.StartChat] /
@@ -15,7 +14,7 @@ import (
 // notifications.
 type RunChatRequest struct {
 	// SessionID anchors the turn to a chat-memory conversation. The
-	// runtime stamps it onto each request under [chat.ConversationIDKey],
+	// runtime stamps it onto each request under the chat conversation-id key,
 	// which the memory middleware reads to pull prior history before the
 	// model call and save the new round afterwards. Empty string runs the
 	// turn unattached (the runtime falls back to the process id, so a
@@ -62,7 +61,7 @@ type RunChatRequest struct {
 	// agent runtime uses it instead of the platform's default client. This
 	// is how a per-run model selection reaches the turn (the caller resolves
 	// the right provider+model client). nil uses the platform default.
-	ChatClient *chat.Client
+	ChatClient core.ChatClient
 
 	// Observer receives streaming tool-call + text-delta
 	// notifications. May be nil — the turn still runs.
@@ -121,7 +120,7 @@ func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess 
 // platform default built once in [New]; the runtime stamps each request's
 // conversation id from this Session, so a single shared chain serves both
 // this turn and any subtask it spawns.
-func chatProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client *chat.Client) core.ProcessOptions {
+func chatProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client core.ChatClient) core.ProcessOptions {
 	opts := core.ProcessOptions{}
 	if sessionID != "" {
 		opts.Session = &core.Session{ID: sessionID}
@@ -140,10 +139,12 @@ func chatProcessOptions(sessionID string, observer toolObserver, listener core.E
 
 // perRunChatClient is a [core.ChatClientProvider] carrying one resolved
 // client for a single turn — the seam that lets a run pick its model.
-type perRunChatClient struct{ client *chat.Client }
+type perRunChatClient struct{ client core.ChatClient }
 
-func (perRunChatClient) Name() string                              { return "lyra:per-run-chat-client" }
-func (p perRunChatClient) ChatClientFor(core.Process) *chat.Client { return p.client }
+func (perRunChatClient) Name() string { return "lyra:per-run-chat-client" }
+func (p perRunChatClient) ChatClientFor(core.Process) core.ChatClient {
+	return p.client
+}
 
 // RestoreChatRequest carries the per-process wiring to re-attach to a
 // turn rebuilt from a snapshot — the same Observer + Session a fresh turn
@@ -168,7 +169,7 @@ type RestoreChatRequest struct {
 	// the interrupt's persisted provider+model. nil runs on the platform default
 	// (a run that didn't pick a model, or one whose provider is no longer
 	// configured). Same seam as [RunChatRequest.ChatClient] on a fresh turn.
-	ChatClient *chat.Client
+	ChatClient core.ChatClient
 }
 
 // RestoreChat rebuilds the agent process identified by processID from the

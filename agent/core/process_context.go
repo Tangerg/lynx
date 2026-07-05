@@ -5,8 +5,6 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // agentTracer is the framework-wide OTel tracer. We deliberately don't
@@ -58,7 +56,7 @@ type PlatformHooks struct {
 	// via [ProcessContext.Chat] and [ProcessContext.ChatWithActionTools].
 	// nil when the platform was constructed without one — pc.Chat()
 	// then returns nil and the action body must handle that case.
-	ChatClient *chat.Client
+	ChatClient ChatClient
 
 	// Guardrails carries platform-wide chat middlewares (logger /
 	// safeguard / quota etc.) that wrap every Chat request action
@@ -120,7 +118,7 @@ type ProcessContext struct {
 	// Platform-wired hooks. Private so action bodies go through
 	// the typed methods (Chat / Publish / ResolveTools / ...) instead
 	// of touching the underlying client / closure directly.
-	chatClient     *chat.Client
+	chatClient     ChatClient
 	guardrails     *Guardrails
 	publishEvent   EventPublisher
 	resolveTools   ToolResolver

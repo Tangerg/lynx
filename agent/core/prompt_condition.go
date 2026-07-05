@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // PromptBuilder is the user-supplied function that turns the current
@@ -21,7 +19,7 @@ type PromptBuilder func(ctx context.Context, env *ConditionEnv) string
 type ConditionParser func(text string) Determination
 
 // PromptCondition is the LLM-as-judge variant of [Condition]: each
-// Evaluate call asks an LLM via the supplied [chat.Client] and parses
+// Evaluate call asks an LLM via the supplied [ChatClient] and parses
 // the reply into a Determination. Use for "is this draft acceptable?"
 // / "did the search return a relevant result?" style gates that need
 // natural-language reasoning rather than a pure-function predicate.
@@ -32,7 +30,7 @@ type ConditionParser func(text string) Determination
 type PromptCondition struct {
 	name   string
 	cost   float64
-	client *chat.Client
+	client ChatClient
 	prompt PromptBuilder
 	parser ConditionParser
 }
@@ -41,8 +39,8 @@ type PromptCondition struct {
 //
 // Parameters:
 //   - name: condition key the planner uses (e.g., "draft_acceptable").
-//   - client: the chat client; nil panics — LLM-driven conditions
-//     without a model don't have a meaningful default.
+//   - client: the chat client; nil returns an error — LLM-driven
+//     conditions without a model don't have a meaningful default.
 //   - prompt: builds the user prompt from the live ConditionEnv.
 //   - parser: maps the LLM reply to True/False/Unknown. Pass
 //     [ParseYesNoDetermination] for the common yes/no shape.
@@ -53,7 +51,7 @@ type PromptCondition struct {
 // closed" rather than crashing the tick.
 func NewPromptCondition(
 	name string,
-	client *chat.Client,
+	client ChatClient,
 	prompt PromptBuilder,
 	parser ConditionParser,
 ) (*PromptCondition, error) {

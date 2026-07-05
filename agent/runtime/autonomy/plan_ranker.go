@@ -10,7 +10,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/planning"
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // PlanRanker reorders a slice of [*planning.Plan] by an arbitrary
@@ -21,12 +20,12 @@ type PlanRanker interface {
 	Rank(ctx context.Context, plans []*planning.Plan, ws core.WorldState) ([]*planning.Plan, error)
 }
 
-// LLMPlanRanker is a [PlanRanker] backed by [chat.Client]. The model
+// LLMPlanRanker is a [PlanRanker] backed by [core.ChatClient]. The model
 // sees a one-line summary of each plan (goal name, action sequence,
 // cost, value) and returns a confidence-ordered list; the highest
 // score wins.
 type LLMPlanRanker struct {
-	client *chat.Client
+	client core.ChatClient
 	cfg    LLMPlanRankerConfig
 }
 
@@ -43,9 +42,9 @@ type LLMPlanRankerConfig struct {
 
 // NewLLMPlanRanker constructs a ranker backed by client. Returns an
 // error on a nil client — caller decides whether to surface or panic.
-func NewLLMPlanRanker(client *chat.Client, cfg LLMPlanRankerConfig) (*LLMPlanRanker, error) {
+func NewLLMPlanRanker(client core.ChatClient, cfg LLMPlanRankerConfig) (*LLMPlanRanker, error) {
 	if client == nil {
-		return nil, errors.New("autonomy.NewLLMPlanRanker: chat.Client must not be nil")
+		return nil, errors.New("autonomy.NewLLMPlanRanker: ChatClient must not be nil")
 	}
 	return &LLMPlanRanker{client: client, cfg: cfg}, nil
 }
