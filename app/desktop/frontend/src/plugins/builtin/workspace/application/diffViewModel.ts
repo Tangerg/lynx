@@ -1,4 +1,4 @@
-import type { DiffQuery, FileDiff } from "@/lib/data/queries";
+import type { DiffQuery, FileDiff, WorkspaceDiff } from "@/lib/data/queries";
 import { useDiff } from "@/lib/data/queries";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useActiveWorkspaceFile } from "@/plugins/builtin/workspace/public/navigation";
@@ -8,21 +8,75 @@ import { useWorkspaceCapability } from "./workspaceCapabilities";
 export type WorkspaceDiffMode = NonNullable<DiffQuery["mode"]>;
 export type WorkspaceFileDiff = FileDiff;
 
+export interface WorkspaceDiffSubtext {
+  added: number;
+  removed: number;
+  fileCount: number;
+}
+
+export interface WorkspaceDiffViewModel {
+  files?: WorkspaceFileDiff[];
+  subtext?: WorkspaceDiffSubtext;
+  truncated: boolean;
+  shouldShowFileHeaders: boolean;
+}
+
+export interface WorkspaceDiffFileHeader {
+  displayPath: string;
+  added?: number;
+  removed?: number;
+}
+
 export function useWorkspaceDiffView(mode: WorkspaceDiffMode) {
   const gitEnabled = useWorkspaceCapability("git");
   const cwd = useActiveSessionCwd();
   const activeFile = useActiveWorkspaceFile();
   const query = useDiff(gitEnabled ? { cwd, mode, path: activeFile || undefined } : undefined);
-  const files = query.data?.files;
+  const view = workspaceDiffViewModel(query.data);
   return {
     activeFile,
     data: query.data,
-    files,
+    files: view.files,
     isLoading: query.isLoading,
     isError: query.isError,
     gitEnabled,
     notARepo: isVcsUnavailable(query.error),
-    added: files?.reduce((sum, file) => sum + (file.added ?? 0), 0) ?? 0,
-    removed: files?.reduce((sum, file) => sum + (file.removed ?? 0), 0) ?? 0,
+    view,
+  };
+}
+
+export function workspaceDiffViewModel(data: WorkspaceDiff | undefined): WorkspaceDiffViewModel {
+  const files = data?.files;
+  if (!files) {
+    return {
+      truncated: false,
+      shouldShowFileHeaders: false,
+    };
+  }
+
+  let added = 0;
+  let removed = 0;
+  for (const file of files) {
+    added += file.added ?? 0;
+    removed += file.removed ?? 0;
+  }
+
+  return {
+    files,
+    subtext: {
+      added,
+      removed,
+      fileCount: files.length,
+    },
+    truncated: data.truncated ?? false,
+    shouldShowFileHeaders: files.length > 1,
+  };
+}
+
+export function workspaceDiffFileHeader(file: WorkspaceFileDiff): WorkspaceDiffFileHeader {
+  return {
+    displayPath: file.previousPath ? `${file.previousPath} → ${file.path}` : file.path,
+    added: file.added,
+    removed: file.removed,
   };
 }

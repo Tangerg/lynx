@@ -14,6 +14,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
   type WorkspaceDiffMode,
   type WorkspaceFileDiff,
+  workspaceDiffFileHeader,
   useWorkspaceDiffView,
 } from "@/plugins/builtin/workspace/application/diffViewModel";
 
@@ -27,15 +28,16 @@ function FileSection({
   layout: DiffLayout;
 }) {
   const t = useT();
+  const header = workspaceDiffFileHeader(file);
   return (
     <section>
       {showHeader && (
         <div className="flex items-center gap-2 bg-surface-2 px-3 py-1.5 font-mono text-[11px] text-fg-muted">
-          <span className="truncate">
-            {file.previousPath ? `${file.previousPath} → ${file.path}` : file.path}
-          </span>
-          {file.added !== undefined && <span className="ml-auto text-success">+{file.added}</span>}
-          {file.removed !== undefined && <span className="text-negative">−{file.removed}</span>}
+          <span className="truncate">{header.displayPath}</span>
+          {header.added !== undefined && (
+            <span className="ml-auto text-success">+{header.added}</span>
+          )}
+          {header.removed !== undefined && <span className="text-negative">−{header.removed}</span>}
         </div>
       )}
       {file.binary ? (
@@ -51,7 +53,7 @@ function DiffViewTab() {
   const t = useT();
   const [mode, setMode] = useState<WorkspaceDiffMode>("worktree");
   const [layout, setLayout] = useState<DiffLayout>("unified");
-  const { activeFile, added, data, files, gitEnabled, isError, isLoading, notARepo, removed } =
+  const { activeFile, files, gitEnabled, isError, isLoading, notARepo, view } =
     useWorkspaceDiffView(mode);
 
   // Open the diff at the BOTTOM (latest hunks), not the top. Once per mount,
@@ -68,15 +70,13 @@ function DiffViewTab() {
     anchoredRef.current = true;
   }, [files]);
 
-  // Only show the +/−/files tally once data exists — otherwise the header
-  // would assert "+0 · −0 · 0 files" while the body is still a skeleton.
-  const sub = data ? (
+  const sub = view.subtext ? (
     <>
-      <span className="text-success">+{added}</span>
+      <span className="text-success">+{view.subtext.added}</span>
       <span className="mx-1">·</span>
-      <span className="text-negative">−{removed}</span>
+      <span className="text-negative">−{view.subtext.removed}</span>
       <span className="mx-2">·</span>
-      <span>{files?.length ?? 0} files</span>
+      <span>{view.subtext.fileCount} files</span>
     </>
   ) : undefined;
 
@@ -129,16 +129,16 @@ function DiffViewTab() {
         }}
       >
         {(fileDiffs) => (
-          <div className={cn(data?.truncated && "pb-1")}>
+          <div className={cn(view.truncated && "pb-1")}>
             {fileDiffs.map((f) => (
               <FileSection
                 key={f.path}
                 file={f}
-                showHeader={fileDiffs.length > 1}
+                showHeader={view.shouldShowFileHeaders}
                 layout={layout}
               />
             ))}
-            {data?.truncated && (
+            {view.truncated && (
               <p className="m-0 px-3 py-2 font-mono text-[11px] text-fg-faint">
                 {t("diff.truncated")}
               </p>
