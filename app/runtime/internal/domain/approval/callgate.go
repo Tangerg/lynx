@@ -39,10 +39,10 @@ type ToolCallPlan struct {
 	PromptReason     string
 }
 
-// PlanToolCall applies hook and approval-mode policy to one tool call. It does
-// not read remembered rules and it does not trigger HITL; callers only do those
+// Plan applies hook and approval-mode policy to one tool call. It does not
+// read remembered rules and it does not trigger HITL; callers only do those
 // side effects when the returned plan asks for [GatePrompt].
-func PlanToolCall(in ToolCallInput) ToolCallPlan {
+func (in ToolCallInput) Plan() ToolCallPlan {
 	arguments := in.Arguments
 	override := ""
 	if in.Hook.RewriteArguments != "" {
@@ -80,25 +80,25 @@ func PlanToolCall(in ToolCallInput) ToolCallPlan {
 }
 
 // ResolvePromptShortcuts applies non-HITL prompt short-circuits: remembered
-// rules first, then an explicit auto-approve grant. It is a no-op unless plan
-// is [GatePrompt].
-func ResolvePromptShortcuts(plan ToolCallPlan, standing StandingDecision, autoApproved bool) ToolCallPlan {
-	if plan.Action != GatePrompt {
-		return plan
+// rules first, then an explicit auto-approve grant. It is a no-op unless the
+// plan is [GatePrompt].
+func (p ToolCallPlan) ResolvePromptShortcuts(standing StandingDecision, autoApproved bool) ToolCallPlan {
+	if p.Action != GatePrompt {
+		return p
 	}
 	if standing.Matched {
 		if standing.Decision == Deny {
-			plan.Action = GateDeny
-			plan.DenyReason = "tool call denied by a remembered rule"
-			return plan
+			p.Action = GateDeny
+			p.DenyReason = "tool call denied by a remembered rule"
+			return p
 		}
-		plan.Action = GatePass
-		return plan
+		p.Action = GatePass
+		return p
 	}
 	if autoApproved {
-		plan.Action = GatePass
+		p.Action = GatePass
 	}
-	return plan
+	return p
 }
 
 // ApprovedArguments returns the tool-argument override after a human approval:

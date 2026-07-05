@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// White-box tests: the matching/precedence helpers are the heart of the rule
+// White-box tests: the matching/precedence rules are the heart of the rule
 // engine, so they're exercised directly alongside the Service round-trips.
 
 func TestModeGetSet(t *testing.T) {
@@ -21,7 +21,7 @@ func TestModeGetSet(t *testing.T) {
 	}
 }
 
-func TestSubjectOf(t *testing.T) {
+func TestQuerySubject(t *testing.T) {
 	cases := []struct{ tool, args, want string }{
 		{"shell", `{"command":"npm run build"}`, "npm run build"},
 		{"run_in_background", `{"command":"sleep 1"}`, "sleep 1"},
@@ -32,13 +32,14 @@ func TestSubjectOf(t *testing.T) {
 		{"shell", `{"timeout":5}`, ""},    // missing field → empty subject
 	}
 	for _, c := range cases {
-		if got := subjectOf(c.tool, c.args); got != c.want {
-			t.Errorf("subjectOf(%q,%q) = %q, want %q", c.tool, c.args, got, c.want)
+		q := Query{Tool: c.tool, Arguments: c.args}
+		if got := q.subject(); got != c.want {
+			t.Errorf("Query.subject(%q,%q) = %q, want %q", c.tool, c.args, got, c.want)
 		}
 	}
 }
 
-func TestSubjectMatches(t *testing.T) {
+func TestRuleMatchesSubject(t *testing.T) {
 	cases := []struct {
 		pattern, subject string
 		want             bool
@@ -52,8 +53,8 @@ func TestSubjectMatches(t *testing.T) {
 		{"src/*.go", "src/sub/a.go", false},      // * does not cross /
 	}
 	for _, c := range cases {
-		if got := subjectMatches(c.pattern, c.subject); got != c.want {
-			t.Errorf("subjectMatches(%q,%q) = %v, want %v", c.pattern, c.subject, got, c.want)
+		if got := (Rule{Subject: c.pattern}).matchesSubject(c.subject); got != c.want {
+			t.Errorf("Rule.matchesSubject(%q,%q) = %v, want %v", c.pattern, c.subject, got, c.want)
 		}
 	}
 }
@@ -68,7 +69,7 @@ func TestDecidePrecedence(t *testing.T) {
 		{Scope: ScopeSession, Tool: "shell", Subject: "", Decision: Allow},
 		{Scope: ScopeSession, Tool: "shell", Subject: "rm -rf /", Decision: Deny},
 	}
-	if d, ok := decide(rules, q); !ok || d != Deny {
+	if d, ok := ruleSet(rules).decide(q); !ok || d != Deny {
 		t.Fatalf("exact deny over broad allow = (%v,%v), want (deny,true)", d, ok)
 	}
 
@@ -77,12 +78,12 @@ func TestDecidePrecedence(t *testing.T) {
 		{Scope: ScopeGlobal, Tool: "shell", Subject: "", Decision: Deny},
 		{Scope: ScopeSession, Tool: "shell", Subject: "", Decision: Allow},
 	}
-	if d, ok := decide(rules, q); !ok || d != Allow {
+	if d, ok := ruleSet(rules).decide(q); !ok || d != Allow {
 		t.Fatalf("session allow over global deny = (%v,%v), want (allow,true)", d, ok)
 	}
 
 	// Wrong tool / no rules → miss.
-	if _, ok := decide([]Rule{{Scope: ScopeSession, Tool: "write", Decision: Allow}}, q); ok {
+	if _, ok := (ruleSet{{Scope: ScopeSession, Tool: "write", Decision: Allow}}).decide(q); ok {
 		t.Fatal("a write rule matched a shell call")
 	}
 }
@@ -95,7 +96,7 @@ func TestDecideConflictDeny(t *testing.T) {
 		{Scope: ScopeSession, Tool: "shell", Subject: "", Decision: Allow},
 		{Scope: ScopeSession, Tool: "shell", Subject: "", Decision: Deny},
 	}
-	if d, ok := decide(rules, q); !ok || d != Deny {
+	if d, ok := ruleSet(rules).decide(q); !ok || d != Deny {
 		t.Fatalf("conflict = (%v,%v), want (deny,true)", d, ok)
 	}
 }

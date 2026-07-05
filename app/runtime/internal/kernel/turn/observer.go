@@ -89,13 +89,13 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		}
 	}
 
-	plan := approval.PlanToolCall(approval.ToolCallInput{
+	plan := approval.ToolCallInput{
 		Tool:               toolName,
 		Arguments:          arguments,
 		Mode:               mode,
 		ApprovalConfigured: approvalConfigured,
 		Hook:               hookDecision,
-	})
+	}.Plan()
 	sessionID := t.st.handle.SessionID
 	if plan.Action == approval.GatePrompt {
 		query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: plan.Arguments}
@@ -106,7 +106,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		if t.svc.mcpAutoApprove != nil {
 			_, autoApproved = t.svc.mcpAutoApprove()[toolName]
 		}
-		plan = approval.ResolvePromptShortcuts(plan, approval.StandingDecision{Decision: d, Matched: ok}, autoApproved)
+		plan = plan.ResolvePromptShortcuts(approval.StandingDecision{Decision: d, Matched: ok}, autoApproved)
 	}
 
 	switch plan.Action {

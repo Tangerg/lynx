@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-// failingSessionStore makes linkChildSession fail at Save time so a child
+// failingSessionStore makes child session linking fail at Save time so a child
 // spawn errors AFTER CreateChildProcess has already registered the child.
 type failingSessionStore struct{}
 
@@ -23,14 +23,14 @@ func (failingSessionStore) Load(context.Context, string) (core.Session, error) {
 func (failingSessionStore) Delete(context.Context, string) error   { return nil }
 func (failingSessionStore) List(context.Context) ([]string, error) { return nil, nil }
 
-// TestPrepareChild_UnregistersOnLinkSessionFailure pins the cleanup of a
-// half-created child: linkChildSession runs AFTER CreateChildProcess has
-// already registered the child, so when it fails prepareChild must unregister
-// the child — left behind it leaks at StatusNotStarted, which
+// TestSpawnChild_UnregistersOnLinkSessionFailure pins the cleanup of a
+// half-created child: session linking runs AFTER CreateChildProcess has
+// already registered the child, so a failure must unregister the child — left
+// behind it leaks at StatusNotStarted, which
 // PruneTerminalProcesses never reaps. Spawning directly (not via a planner
 // loop) keeps the failure path isolated. (subInput/parentOutput/childAgent
 // live in subagent_test.go, same package.)
-func TestPrepareChild_UnregistersOnLinkSessionFailure(t *testing.T) {
+func TestSpawnChild_UnregistersOnLinkSessionFailure(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{SessionStore: failingSessionStore{}})
 
 	// A trivial parent that completes in one tick — gives a registered parent
@@ -55,7 +55,7 @@ func TestPrepareChild_UnregistersOnLinkSessionFailure(t *testing.T) {
 
 	before := len(platform.ActiveProcesses())
 
-	// Spawn a child directly: linkChildSession fails at Save, so the child
+	// Spawn a child directly: session linking fails at Save, so the child
 	// CreateChildProcess just registered must be unregistered, not leaked.
 	ctx := core.WithProcess(t.Context(), parent)
 	if _, err := runtime.SpawnChildProtectedOnly(ctx, platform, childAgent(), subInput{Value: 21}); err == nil {
