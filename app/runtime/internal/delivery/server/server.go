@@ -137,7 +137,7 @@ func (s *Server) Capabilities() protocol.ServerCapabilities {
 // return notImpl are advertised false, so the client never calls a
 // method this build silently rejects.
 func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
-	memory := rt != nil && rt.Memory() != nil
+	memory := rt != nil && rt.HasMemory()
 	return protocol.ServerCapabilities{
 		ProtocolVersion: protocol.ProtocolVersion,
 		Events: []protocol.StreamEventType{
