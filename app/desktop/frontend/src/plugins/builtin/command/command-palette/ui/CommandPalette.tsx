@@ -49,14 +49,10 @@ export function CommandPalette() {
                 ...(command.keywords ?? []),
               ].join(" ")}
               onSelect={() => runPaletteCommand(command, () => setOpen(false))}
-              className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg-soft hover:bg-fg/[0.06] aria-selected:bg-fg/[0.06] aria-selected:text-fg"
+              className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg hover:bg-fg/[0.06] aria-selected:bg-fg/[0.06]"
             >
               {command.icon && (
-                <Icon
-                  name={command.icon as IconName}
-                  size={14}
-                  className="shrink-0 text-fg-muted"
-                />
+                <Icon name={command.icon as IconName} size={14} className="shrink-0 text-fg" />
               )}
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="truncate font-medium">{command.label}</div>
