@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -30,7 +29,7 @@ func (a *App) ReplCmd() *cobra.Command {
 			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
-			r, err := NewReplRunner(a, sessionID)
+			r, err := NewReplRunner(cmd.Context(), a, sessionID)
 			if err != nil {
 				return a.fatalErr(err)
 			}
@@ -51,8 +50,7 @@ type ReplRunner struct {
 // NewReplRunner resolves the session (resume given id or create
 // fresh) and returns a ready runner. Errors propagate when
 // resuming a non-existent session.
-func NewReplRunner(app *App, requestedSession string) (*ReplRunner, error) {
-	ctx := context.Background()
+func NewReplRunner(ctx context.Context, app *App, requestedSession string) (*ReplRunner, error) {
 	var sessID string
 	if requestedSession != "" {
 		sess, err := app.rt.GetSession(ctx, requestedSession)
@@ -61,7 +59,10 @@ func NewReplRunner(app *App, requestedSession string) (*ReplRunner, error) {
 		}
 		sessID = sess.ID
 	} else {
-		cwd, _ := os.Getwd()
+		cwd, err := currentDirectory()
+		if err != nil {
+			return nil, err
+		}
 		sess, err := app.rt.CreateSession(ctx, "", cwd)
 		if err != nil {
 			return nil, fmt.Errorf("lyra.repl: create session: %w", err)
@@ -117,7 +118,11 @@ func (r *ReplRunner) handleSlash(ctx context.Context, line string) (done bool) {
 	case "/help":
 		fmt.Fprintln(r.app.Err, "[lyra] commands: /exit  /help  /new  /session")
 	case "/new":
-		cwd, _ := os.Getwd()
+		cwd, err := currentDirectory()
+		if err != nil {
+			fmt.Fprintf(r.app.Err, "[lyra] cwd: %s\n", err)
+			return false
+		}
 		sess, err := r.app.rt.CreateSession(ctx, "", cwd)
 		if err != nil {
 			fmt.Fprintf(r.app.Err, "[lyra] create session: %s\n", err)
