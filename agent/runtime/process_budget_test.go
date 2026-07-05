@@ -8,8 +8,8 @@ import (
 // TestProcessBudget_RemoveChild pins the inverse of addChild used when a child
 // fails to fully spawn (e.g. session link fails) and is unregistered: the
 // parent's children rollup must drop it, with no stale reference left behind.
-// Removing a non-member is a no-op. (prepareChild exercises the integration
-// path; this pins the primitive directly since the leak is otherwise inert —
+// Removing a non-member is a no-op. Child spawn exercises the integration path;
+// this pins the primitive directly since the leak is otherwise inert —
 // a never-started child contributes 0 to usage.)
 func TestProcessBudget_RemoveChild(t *testing.T) {
 	var mu sync.RWMutex

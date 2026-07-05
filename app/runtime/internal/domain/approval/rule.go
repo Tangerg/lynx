@@ -8,21 +8,13 @@ import (
 	"strings"
 )
 
-// Rule matching is a pure function of the candidate rules + the call. Keeping
-// it free of I/O lets the store stay a dumb CRUD SPI and lets the precedence
-// logic be unit-tested directly.
+type ruleSet []Rule
 
-// subjectOf extracts the per-tool "subject" a rule matches against — the part
-// of a call that actually distinguishes one invocation from another. For a
-// shell tool that's the command; for a file tool it's the path. Tools with no
-// natural sub-subject (most) return "" so a rule for them is whole-tool.
-//
-// This is the one spot in the approval domain that knows tool argument shapes;
-// it mirrors the small per-tool maps elsewhere (e.g. the activity-verb map) and
-// stays a closed set — an unknown tool just gets a whole-tool ("") subject.
-func subjectOf(tool, argsJSON string) string {
+// subject extracts the per-tool identity fragment a remembered rule matches:
+// shell command, file path, or whole-tool ("") for tools without a finer key.
+func (q Query) subject() string {
 	var field string
-	switch tool {
+	switch q.Tool {
 	case "shell", "run_in_background":
 		field = "command"
 	case "read", "write", "edit":
@@ -31,7 +23,7 @@ func subjectOf(tool, argsJSON string) string {
 		return ""
 	}
 	var m map[string]any
-	if json.Unmarshal([]byte(argsJSON), &m) != nil {
+	if json.Unmarshal([]byte(q.Arguments), &m) != nil {
 		return ""
 	}
 	s, _ := m[field].(string)
@@ -43,27 +35,27 @@ func hasGlob(pattern string) bool {
 	return strings.ContainsAny(pattern, "*?[")
 }
 
-// subjectMatches reports whether a rule's Subject pattern matches a call's
-// subject. Empty pattern matches anything (a whole-tool rule); a literal
-// pattern matches exactly; a glob pattern matches via path.Match (so `npm run
-// *` or `src/*.go` work — note `*` does NOT cross `/`, and `**` is unsupported).
-func subjectMatches(pattern, subject string) bool {
+func (r Rule) matches(q Query) bool {
+	return r.Tool == q.Tool && r.matchesSubject(q.subject())
+}
+
+// matchesSubject uses path.Match for glob subjects; "*" intentionally does not
+// cross "/" and "**" is not special.
+func (r Rule) matchesSubject(subject string) bool {
 	switch {
-	case pattern == "":
+	case r.Subject == "":
 		return true
-	case !hasGlob(pattern):
-		return pattern == subject
+	case !hasGlob(r.Subject):
+		return r.Subject == subject
 	default:
-		ok, err := path.Match(pattern, subject)
+		ok, err := path.Match(r.Subject, subject)
 		return err == nil && ok
 	}
 }
 
-// specificity scores how narrowly a rule targets a call, so the most specific
-// matching rule wins. Scope dominates (a session rule beats a project rule
-// beats a global one); within a scope an exact subject beats a glob beats a
-// whole-tool ("") rule.
-func specificity(r Rule) int {
+// specificity encodes the conflict policy: narrower scope beats wider scope,
+// then exact subject beats glob, and glob beats whole-tool.
+func (r Rule) specificity() int {
 	score := 0
 	switch r.Scope {
 	case ScopeSession:
@@ -84,21 +76,17 @@ func specificity(r Rule) int {
 	return score
 }
 
-// decide picks the verdict for a call from already scope-filtered candidate
-// rules (the store returns only rules visible from the call's session/project).
-// The most specific matching rule wins; if the top specificity has conflicting
-// decisions, Deny wins (a remembered deny must not be overridden by an
-// equally-specific allow). ok=false when nothing matches.
-func decide(candidates []Rule, q Query) (Decision, bool) {
-	subject := subjectOf(q.Tool, q.Arguments)
+// decide picks the strongest visible rule; equally specific disagreements
+// resolve to Deny so a remembered deny cannot be canceled by a peer allow.
+func (rs ruleSet) decide(q Query) (Decision, bool) {
 	best := -1
 	var verdict Decision
 	conflict := false
-	for _, r := range candidates {
-		if r.Tool != q.Tool || !subjectMatches(r.Subject, subject) {
+	for _, r := range rs {
+		if !r.matches(q) {
 			continue
 		}
-		switch score := specificity(r); {
+		switch score := r.specificity(); {
 		case score > best:
 			best, verdict, conflict = score, r.Decision, false
 		case score == best && r.Decision != verdict:
@@ -114,11 +102,9 @@ func decide(candidates []Rule, q Query) (Decision, bool) {
 	return verdict, true
 }
 
-// scopeKey resolves the storage key for a scope; ok=false when the key would be
-// empty for a scope that needs one (so the caller drops the rule rather than
-// storing an un-keyed session/project rule that would leak across boundaries).
-func scopeKey(scope Scope, sessionID, projectDir string) (string, bool) {
-	switch scope {
+// key refuses empty session/project keys so rules cannot leak across scopes.
+func (s Scope) key(sessionID, projectDir string) (string, bool) {
+	switch s {
 	case ScopeSession:
 		return sessionID, sessionID != ""
 	case ScopeProject:
@@ -130,13 +116,27 @@ func scopeKey(scope Scope, sessionID, projectDir string) (string, bool) {
 	}
 }
 
-// ruleID is a deterministic id over a rule's identity (scope, key, tool,
-// subject) so re-remembering the same rule upserts the same row (only the
-// decision changes) instead of piling duplicates — and the management UI can
-// forget it by a stable id.
-func ruleID(scope Scope, scopeKey, tool, subject string) string {
+func (req RememberRequest) rule() (Rule, bool) {
+	key, ok := req.Scope.key(req.SessionID, req.ProjectDir)
+	if !ok {
+		return Rule{}, false
+	}
+	rule := Rule{
+		Scope:    req.Scope,
+		ScopeKey: key,
+		Tool:     req.Tool,
+		Subject:  Query{Tool: req.Tool, Arguments: req.Arguments}.subject(),
+		Decision: req.Decision,
+	}
+	rule.ID = rule.stableID()
+	return rule, true
+}
+
+// stableID makes re-remembering the same rule an upsert and gives the UI a
+// durable forget handle.
+func (r Rule) stableID() string {
 	h := fnv.New64a()
-	for _, part := range []string{string(scope), scopeKey, tool, subject} {
+	for _, part := range []string{string(r.Scope), r.ScopeKey, r.Tool, r.Subject} {
 		_, _ = h.Write([]byte(part))
 		_, _ = h.Write([]byte{0})
 	}

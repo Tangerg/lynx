@@ -29,7 +29,13 @@ func SpawnChild(
 	agentDef *core.Agent,
 	in any,
 ) (*AgentProcess, error) {
-	return spawnChildOptions(ctx, platform, agentDef, in, core.ProcessOptions{})
+	return childSpawn{
+		ctx:         ctx,
+		platform:    platform,
+		agentDef:    agentDef,
+		input:       in,
+		inheritance: childInheritsAll,
+	}.run()
 }
 
 // SpawnChildProtectedOnly creates and runs a child sub-agent process under
@@ -72,16 +78,13 @@ func SpawnChildProtectedOnly(
 	agentDef *core.Agent,
 	in any,
 ) (*AgentProcess, error) {
-	if platform == nil {
-		return nil, errors.New("spawn child protected only: platform is nil")
-	}
-	parent := core.ProcessFrom(ctx)
-	if parent == nil {
-		return nil, errors.New("spawn child protected only: no parent process in ctx (use core.WithProcess to inject one)")
-	}
-	return spawnChildOptions(ctx, platform, agentDef, in, core.ProcessOptions{
-		Blackboard: protectedOnlyBlackboard(parent.Blackboard()),
-	})
+	return childSpawn{
+		ctx:         ctx,
+		platform:    platform,
+		agentDef:    agentDef,
+		input:       in,
+		inheritance: childInheritsProtectedOnly,
+	}.run()
 }
 
 // protectedOnlyBlackboard returns a child blackboard that keeps only the
@@ -121,11 +124,13 @@ func SpawnChildFresh(
 	agentDef *core.Agent,
 	in any,
 ) (*AgentProcess, error) {
-	if platform == nil {
-		return nil, errors.New("spawn child fresh: platform is nil")
-	}
-	options := core.ProcessOptions{Blackboard: platform.NewBlackboard()}
-	return spawnChildOptions(ctx, platform, agentDef, in, options)
+	return childSpawn{
+		ctx:         ctx,
+		platform:    platform,
+		agentDef:    agentDef,
+		input:       in,
+		inheritance: childInheritsNothing,
+	}.run()
 }
 
 // SpawnChildAsync is the non-blocking spawn: it creates the child, binds
@@ -156,7 +161,14 @@ func SpawnChildAsync(
 	agentDef *core.Agent,
 	in any,
 ) (string, <-chan error, error) {
-	child, err := prepareChild(ctx, platform, agentDef, in, core.ProcessOptions{})
+	spawn := childSpawn{
+		ctx:         ctx,
+		platform:    platform,
+		agentDef:    agentDef,
+		input:       in,
+		inheritance: childInheritsAll,
+	}
+	child, err := spawn.prepare()
 	if err != nil {
 		return "", nil, err
 	}
@@ -220,68 +232,92 @@ func (p *AgentProcess) TerminalError() error {
 	return fmt.Errorf("ended in %s", status)
 }
 
-// prepareChild is the shared prefix of every child-spawn entry point:
-// it validates the inputs, resolves the parent process from ctx,
-// creates the child (joining the parent's budget tree, with the given
-// blackboard options), and binds the typed input — returning a child
-// ready to be driven. The caller picks how: synchronously via
-// [Platform.ContinueProcess] ([SpawnChild] / [SpawnChildProtectedOnly] /
-// [SpawnChildFresh]) or in the background via
-// [Platform.ContinueProcessAsync] ([SpawnChildAsync]).
-// Centralizing the prefix keeps validation and error messages identical
-// across the three.
-func prepareChild(
-	ctx context.Context,
-	platform *Platform,
-	agentDef *core.Agent,
-	in any,
-	options core.ProcessOptions,
-) (*AgentProcess, error) {
-	if platform == nil {
-		return nil, errors.New("spawn child: platform is nil")
+type childBlackboardInheritance int
+
+const (
+	childInheritsAll childBlackboardInheritance = iota
+	childInheritsProtectedOnly
+	childInheritsNothing
+)
+
+type childSpawn struct {
+	ctx         context.Context
+	platform    *Platform
+	agentDef    *core.Agent
+	input       any
+	inheritance childBlackboardInheritance
+}
+
+func (s childSpawn) run() (*AgentProcess, error) {
+	child, err := s.prepare()
+	if err != nil {
+		return nil, err
 	}
-	if agentDef == nil {
-		return nil, errors.New("spawn child: agent is nil")
+	if err := s.platform.ContinueProcess(s.ctx, child.ID()); err != nil {
+		return nil, fmt.Errorf("spawn child %q (process %q): run: %w", s.agentDef.Name, child.ID(), err)
 	}
-	parent := core.ProcessFrom(ctx)
-	if parent == nil {
-		return nil, errors.New("spawn child: no parent process in ctx (use core.WithProcess to inject one)")
-	}
-	parentProc, ok := platform.ProcessByID(parent.ID())
-	if !ok {
-		return nil, fmt.Errorf("spawn child: parent process %q not registered on platform", parent.ID())
+	return child, nil
+}
+
+func (s childSpawn) prepare() (*AgentProcess, error) {
+	parentProc, err := s.parent()
+	if err != nil {
+		return nil, err
 	}
 
-	child, err := platform.CreateChildProcess(agentDef, parentProc, options)
+	child, err := s.platform.CreateChildProcess(s.agentDef, parentProc, s.options(parentProc))
 	if err != nil {
-		return nil, fmt.Errorf("spawn child %q: create: %w", agentDef.Name, err)
+		return nil, fmt.Errorf("spawn child %q: create: %w", s.agentDef.Name, err)
 	}
-	if err := linkChildSession(ctx, platform, child, parentProc, agentDef); err != nil {
+	if err := s.linkSession(child, parentProc); err != nil {
 		// CreateChildProcess registered the child AND joined it to the parent's
 		// budget tree; linking its session failed, so undo BOTH — unregister it
 		// from the platform and drop it from the parent's budget rollup. Either
 		// left behind leaks: a never-started child sits at StatusNotStarted
 		// (which PruneTerminalProcesses skips), and a stale budget child ref
 		// lingers for the parent's whole life.
-		_ = platform.RemoveProcess(child.ID())
+		_ = s.platform.RemoveProcess(child.ID())
 		parentProc.budget.removeChild(child)
-		return nil, fmt.Errorf("spawn child %q: link session: %w", agentDef.Name, err)
+		return nil, fmt.Errorf("spawn child %q: link session: %w", s.agentDef.Name, err)
 	}
-	if in != nil {
-		child.Blackboard().Bind(in)
+	if s.input != nil {
+		child.Blackboard().Bind(s.input)
 	}
 	return child, nil
 }
 
-// linkChildSession gives a spawned child its OWN session, linked to the
-// parent's conversation. The child's session id is its process id — an
-// independent conversation so its chat-memory history is isolated from the
-// parent's — and ParentID records the parent's conversation id so the
-// delegation lineage is preserved. When the platform has a [core.SessionStore]
-// the child session is persisted there too, so consumers (e.g. a session list)
-// can query the delegation tree durably. No-op when the caller pinned a
-// session explicitly, or when the parent has no conversation to link to.
-func linkChildSession(ctx context.Context, platform *Platform, child, parent *AgentProcess, agentDef *core.Agent) error {
+func (s childSpawn) parent() (*AgentProcess, error) {
+	if s.platform == nil {
+		return nil, errors.New("spawn child: platform is nil")
+	}
+	if s.agentDef == nil {
+		return nil, errors.New("spawn child: agent is nil")
+	}
+	parent := core.ProcessFrom(s.ctx)
+	if parent == nil {
+		return nil, errors.New("spawn child: no parent process in ctx (use core.WithProcess to inject one)")
+	}
+	parentProc, ok := s.platform.ProcessByID(parent.ID())
+	if !ok {
+		return nil, fmt.Errorf("spawn child: parent process %q not registered on platform", parent.ID())
+	}
+	return parentProc, nil
+}
+
+func (s childSpawn) options(parent *AgentProcess) core.ProcessOptions {
+	switch s.inheritance {
+	case childInheritsProtectedOnly:
+		return core.ProcessOptions{Blackboard: protectedOnlyBlackboard(parent.Blackboard())}
+	case childInheritsNothing:
+		return core.ProcessOptions{Blackboard: s.platform.NewBlackboard()}
+	default:
+		return core.ProcessOptions{}
+	}
+}
+
+// linkSession gives the child its own conversation while preserving delegation
+// lineage through ParentID. Explicitly pinned sessions are left untouched.
+func (s childSpawn) linkSession(child, parent *AgentProcess) error {
 	if child.options == nil || child.options.Session != nil {
 		return nil
 	}
@@ -289,35 +325,14 @@ func linkChildSession(ctx context.Context, platform *Platform, child, parent *Ag
 	if parentConvID == "" {
 		return nil
 	}
-	session := core.NewSession(child.ID(), parent.userID(), agentDef.Name)
+	session := core.NewSession(child.ID(), parent.userID(), s.agentDef.Name)
 	session.ParentID = parentConvID
 	child.options.Session = &session
 
-	if platform.sessionStore != nil {
-		if err := platform.sessionStore.Save(ctx, session); err != nil {
+	if s.platform.sessionStore != nil {
+		if err := s.platform.sessionStore.Save(s.ctx, session); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-// spawnChildOptions is the synchronous shared core of [SpawnChild],
-// [SpawnChildProtectedOnly] and [SpawnChildFresh] — prepare the child,
-// then drive it to a terminal state in-line. They differ only in the
-// ProcessOptions.Blackboard slot they pass through.
-func spawnChildOptions(
-	ctx context.Context,
-	platform *Platform,
-	agentDef *core.Agent,
-	in any,
-	options core.ProcessOptions,
-) (*AgentProcess, error) {
-	child, err := prepareChild(ctx, platform, agentDef, in, options)
-	if err != nil {
-		return nil, err
-	}
-	if err := platform.ContinueProcess(ctx, child.ID()); err != nil {
-		return nil, fmt.Errorf("spawn child %q (process %q): run: %w", agentDef.Name, child.ID(), err)
-	}
-	return child, nil
 }

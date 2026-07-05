@@ -42,7 +42,7 @@ func (p *policy) Decide(ctx context.Context, q Query) (Decision, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
-	d, ok := decide(candidates, q)
+	d, ok := ruleSet(candidates).decide(q)
 	return d, ok, nil
 }
 
@@ -50,19 +50,11 @@ func (p *policy) Remember(ctx context.Context, req RememberRequest) error {
 	if p.store == nil {
 		return nil
 	}
-	key, ok := scopeKey(req.Scope, req.SessionID, req.ProjectDir)
+	rule, ok := req.rule()
 	if !ok {
 		return nil // can't key this scope (e.g. project rule with no cwd) — drop it
 	}
-	subject := subjectOf(req.Tool, req.Arguments)
-	return p.store.Put(ctx, Rule{
-		ID:       ruleID(req.Scope, key, req.Tool, subject),
-		Scope:    req.Scope,
-		ScopeKey: key,
-		Tool:     req.Tool,
-		Subject:  subject,
-		Decision: req.Decision,
-	})
+	return p.store.Put(ctx, rule)
 }
 
 func (p *policy) Rules(ctx context.Context, sessionID, projectDir string) ([]Rule, error) {
