@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"testing"
 
@@ -146,5 +147,47 @@ func TestRuntimeTurnFacade(t *testing.T) {
 	rt.SetTurnInterruptKinds([]string{"approval", "question"})
 	if len(svc.interruptKinds) != 2 || svc.interruptKinds[0] != "approval" || svc.interruptKinds[1] != "question" {
 		t.Fatalf("interrupt kinds = %+v", svc.interruptKinds)
+	}
+}
+
+func TestRuntimeStartTurnPersistsExplicitModelBeforeDispatch(t *testing.T) {
+	ctx := context.Background()
+	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
+	turns := &turnRuntimeService{startHandle: handle}
+	sessions := &sessionRuntimeStore{}
+	rt := &Runtime{chat: turns, session: sessions}
+
+	gotHandle, err := rt.StartTurn(ctx, turn.StartTurnRequest{
+		SessionID: "ses_1",
+		Message:   "hello",
+		Provider:  "anthropic",
+		Model:     "claude-opus-4-8",
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	if gotHandle != handle {
+		t.Fatalf("handle = %+v, want %+v", gotHandle, handle)
+	}
+	if sessions.model != ([2]string{"ses_1", "claude-opus-4-8"}) {
+		t.Fatalf("session model = %v", sessions.model)
+	}
+	if turns.startReq.Model != "claude-opus-4-8" || turns.startReq.Provider != "anthropic" {
+		t.Fatalf("start req = %+v", turns.startReq)
+	}
+}
+
+func TestRuntimeStartTurnDoesNotDispatchWhenModelPersistenceFails(t *testing.T) {
+	ctx := context.Background()
+	fail := errors.New("store failed")
+	turns := &turnRuntimeService{}
+	sessions := &sessionRuntimeStore{modelErr: fail}
+	rt := &Runtime{chat: turns, session: sessions}
+
+	if _, err := rt.StartTurn(ctx, turn.StartTurnRequest{SessionID: "ses_1", Message: "hello", Model: "claude-opus-4-8"}); !errors.Is(err, fail) {
+		t.Fatalf("StartTurn err = %v, want store failure", err)
+	}
+	if turns.startReq.SessionID != "" {
+		t.Fatalf("turn dispatched despite model persistence failure: %+v", turns.startReq)
 	}
 }

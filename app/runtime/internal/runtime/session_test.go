@@ -15,6 +15,7 @@ type sessionRuntimeStore struct {
 	createCwd     string
 	renamed       [2]string
 	model         [2]string
+	modelErr      error
 	cwd           [2]string
 	metadataID    string
 	metadata      map[string]any
@@ -44,7 +45,7 @@ func (s *sessionRuntimeStore) Rename(_ context.Context, id, title string) error 
 
 func (s *sessionRuntimeStore) SetModel(_ context.Context, id, model string) error {
 	s.model = [2]string{id, model}
-	return nil
+	return s.modelErr
 }
 
 func (s *sessionRuntimeStore) SetCwd(_ context.Context, id, cwd string) error {
