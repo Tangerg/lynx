@@ -456,15 +456,6 @@ func runClosers(closers []func() error) {
 
 func (r *Runtime) forgetSession(sessionID string) { r.chat.ForgetSession(sessionID) }
 
-// Memory returns the LYRA.md cascade service — the wire/API "memory"
-// surface (memory.get/update/list). Nil when no knowledge service was
-// configured. The accessor keeps the wire term; the field is "knowledge".
-func (r *Runtime) Memory() knowledge.Service { return r.knowledge }
-
-// Approval returns the ApprovalService. Always non-nil — the runtime
-// constructs one regardless of cfg.ApprovalMode (defaults to YOLO).
-func (r *Runtime) Approval() approval.Service { return r.approval }
-
 // MCPServerStatuses returns the per-server connection state of every
 // configured MCP server (connected and boot-failed alike) for
 // workspace.mcp.listServers. Delegates to the engine, which owns the sessions.

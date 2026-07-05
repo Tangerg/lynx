@@ -9,11 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 )
 
-// Providers returns the provider registry — the runtime-mutable set of
-// providers + credentials that providers.list / configure / test operate on.
-// Always non-nil.
-func (r *Runtime) Providers() provider.Service { return r.providers }
-
 // ListRegisteredProviders returns the runtime-mutable provider registry.
 func (r *Runtime) ListRegisteredProviders(ctx context.Context) ([]provider.Provider, error) {
 	return r.providers.List(ctx)
