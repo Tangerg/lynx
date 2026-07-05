@@ -10,9 +10,9 @@ import (
 // query, the AI-generated response under review, and the reference
 // documents the response was supposed to draw on.
 type Request struct {
-	Prompt string `json:"prompt,omitempty"`
-	Generation string `json:"generation,omitempty"`
-	Documents []*document.Document `json:"documents,omitzero"`
+	Prompt     string               `json:"prompt,omitempty"`
+	Generation string               `json:"generation,omitempty"`
+	Documents  []*document.Document `json:"documents,omitzero"`
 }
 
 func (r *Request) documentsText() string {

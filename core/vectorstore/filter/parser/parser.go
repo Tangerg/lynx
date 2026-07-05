@@ -12,7 +12,7 @@ import (
 // token so callers can produce position-aware diagnostics.
 type ParseError struct {
 	Message string
-	Token token.Token
+	Token   token.Token
 }
 
 func (e *ParseError) Error() string {

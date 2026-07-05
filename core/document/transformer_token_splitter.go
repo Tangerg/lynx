@@ -22,13 +22,13 @@ const (
 type TokenSplitterConfig struct {
 	Tokenizer tokenizer.Tokenizer
 
-	ChunkSize int
-	MinChunkSize int
+	ChunkSize      int
+	MinChunkSize   int
 	MinEmbedLength int
-	MaxChunkCount int
-	KeepSeparator bool
-	CopyFormatter bool
-	IDGenerator id.Generator
+	MaxChunkCount  int
+	KeepSeparator  bool
+	CopyFormatter  bool
+	IDGenerator    id.Generator
 }
 
 func (c *TokenSplitterConfig) Validate() error {

@@ -24,9 +24,9 @@ const (
 )
 
 type FileWriterConfig struct {
-	Path string
+	Path                string
 	WithDocumentMarkers bool
-	AppendMode bool
+	AppendMode          bool
 }
 
 func (c FileWriterConfig) Validate() error {
