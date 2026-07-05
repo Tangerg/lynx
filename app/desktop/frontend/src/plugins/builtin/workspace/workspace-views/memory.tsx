@@ -11,30 +11,32 @@ import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import { scopeLabel } from "./views/scopeLabel";
 import {
   saveWorkspaceMemory,
-  type WorkspaceMemoryEntry,
   useWorkspaceMemory,
 } from "@/plugins/builtin/workspace/application/memoryConfig";
+import {
+  type WorkspaceMemoryRowViewModel,
+  workspaceMemoryViewModel,
+} from "@/plugins/builtin/workspace/application/workspaceCatalogViewModel";
 import { useWorkspaceCapability } from "@/plugins/builtin/workspace/application/workspaceCapabilities";
 
-function MemoryRow({ entry, cwd }: { entry: WorkspaceMemoryEntry; cwd?: string }) {
+function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: string }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  // null = pristine (textarea shows entry.content); a string = user edits.
+  // null = pristine (textarea shows row.content); a string = user edits.
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Synchronous latch — `saving` state lags a render, so a double-click before
   // the disabled state applies would otherwise fire two memory.update writes.
   const savingRef = useRef(false);
-  const dirty = draft !== null && draft !== entry.content;
+  const dirty = draft !== null && draft !== row.content;
 
   const save = (): void => {
     if (!dirty || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
-    saveWorkspaceMemory({ scope: entry.scope, cwd, content: draft })
+    saveWorkspaceMemory({ scope: row.scope, cwd, content: draft })
       .then(() => {
         setDraft(null);
       })
@@ -63,16 +65,16 @@ function MemoryRow({ entry, cwd }: { entry: WorkspaceMemoryEntry; cwd?: string }
           size={12}
           className={cn("text-fg-faint transition-transform", !open && "-rotate-90")}
         />
-        <span className="truncate font-mono text-[12px] text-fg">{entry.path}</span>
+        <span className="truncate font-mono text-[12px] text-fg">{row.path}</span>
         <span className="rounded-full bg-surface-2 px-1.5 py-px text-[10px] text-fg-muted">
-          {scopeLabel(entry.scope)}
+          {row.scopeLabel}
         </span>
       </button>
       {open && (
         <div className="flex flex-col gap-2 px-4 pb-3 pl-10">
           <textarea
-            aria-label={t("memory.aria", { path: entry.path })}
-            value={draft ?? entry.content}
+            aria-label={t("memory.aria", { path: row.path })}
+            value={draft ?? row.content}
             onChange={(e) => setDraft(e.target.value)}
             spellCheck={false}
             rows={12}
@@ -85,9 +87,9 @@ function MemoryRow({ entry, cwd }: { entry: WorkspaceMemoryEntry; cwd?: string }
             <PillButton size="sm" disabled={!dirty || saving} onClick={() => setDraft(null)}>
               {t("memory.revert")}
             </PillButton>
-            {entry.updatedAt && (
+            {row.updatedAt && (
               <span className="ml-auto text-[10.5px] text-fg-faint">
-                {t("memory.updated")} {new Date(entry.updatedAt).toLocaleString()}
+                {t("memory.updated")} {new Date(row.updatedAt).toLocaleString()}
               </span>
             )}
           </div>
@@ -102,19 +104,19 @@ function MemoryTab() {
   const memoryEnabled = useWorkspaceCapability("memory");
   const cwd = useActiveSessionCwd();
   const { data, isLoading, isError } = useWorkspaceMemory(memoryEnabled, cwd);
-  const entries = data ?? [];
+  const view = workspaceMemoryViewModel(data ?? [], memoryEnabled);
 
   return (
     <WorkspaceViewLayout
       icon="filetext"
       titleStrong
       title="memory.title"
-      sub={memoryEnabled ? t("memory.scopes", { count: entries.length }) : t("memory.off")}
+      sub={view.enabled ? t("memory.scopes", { count: view.count }) : t("memory.off")}
       scrollClassName="py-1"
     >
       <DataView
-        items={memoryEnabled ? entries : []}
-        isLoading={memoryEnabled && isLoading}
+        items={view.rows}
+        isLoading={view.enabled && isLoading}
         isError={isError}
         skeletonCount={2}
         empty={
@@ -134,7 +136,7 @@ function MemoryTab() {
         {(rows) => (
           <div className="flex flex-col">
             {rows.map((m) => (
-              <MemoryRow key={`${m.scope}:${m.path}`} entry={m} cwd={cwd} />
+              <MemoryRow key={m.id} row={m} cwd={cwd} />
             ))}
           </div>
         )}

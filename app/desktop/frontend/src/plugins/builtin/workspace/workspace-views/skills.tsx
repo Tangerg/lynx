@@ -8,24 +8,25 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useWorkspaceSkills } from "@/plugins/builtin/workspace/application/workspaceData";
 import { useWorkspaceCapability } from "@/plugins/builtin/workspace/application/workspaceCapabilities";
+import { workspaceSkillsViewModel } from "@/plugins/builtin/workspace/application/workspaceCatalogViewModel";
 
 function SkillsTab() {
   const t = useT();
   const skillsEnabled = useWorkspaceCapability("skills");
   const { data, isLoading, isError } = useWorkspaceSkills();
-  const skills = data ?? [];
+  const view = workspaceSkillsViewModel(data ?? [], skillsEnabled);
 
   return (
     <WorkspaceViewLayout
       icon="sparkle"
       titleStrong
       title="skills.title"
-      sub={skillsEnabled ? t("skills.available", { count: skills.length }) : t("skills.off")}
+      sub={view.enabled ? t("skills.available", { count: view.count }) : t("skills.off")}
       scrollClassName="py-1"
     >
       <DataView
-        items={skills}
-        isLoading={isLoading}
+        items={view.rows}
+        isLoading={view.enabled && isLoading}
         isError={isError}
         skeletonCount={4}
         empty={
@@ -45,12 +46,9 @@ function SkillsTab() {
         {(rows) => (
           <div className="flex flex-col">
             {rows.map((s) => (
-              <div key={s.name} className="px-4 py-2">
+              <div key={s.id} className="px-4 py-2">
                 <div className="flex items-center gap-2">
                   <div className="text-[13px] font-semibold text-fg truncate">{s.name}</div>
-                  {/* Layer the skill came from — "project" (<cwd>/.lyra/skills)
-                      overrides "global" (user dir) on name collision, matching
-                      the priority the runtime feeds the model. */}
                   {s.source && (
                     <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-[10px] text-fg-faint">
                       {s.source}
