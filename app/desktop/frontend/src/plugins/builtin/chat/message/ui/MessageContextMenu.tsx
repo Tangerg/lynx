@@ -21,6 +21,7 @@ import {
   restoreCheckpoint,
 } from "@/plugins/builtin/chat/message-actions/public/messageActions";
 import { messageCopyPayloads } from "@/plugins/builtin/chat/message-actions/public/copyPayloads";
+import { messageContextMenuModel } from "@/plugins/builtin/chat/message-actions/public/contextMenu";
 import { writeToClipboard } from "@/lib/clipboard";
 import { useT } from "@/lib/i18n";
 import { serverFeature } from "@/state/runtimeStore";
@@ -33,18 +34,16 @@ interface Props {
 export function MessageContextMenu({ msg, children }: Props) {
   const t = useT();
   const copy = messageCopyPayloads(msg);
-
-  const isUser = msg.role === "user";
-  const isAssistant = msg.role === "assistant";
   // Imperative read, not a subscription (see header comment) — capabilities
   // are handshake-time stable and messages can't exist before the handshake.
   const canRestoreFiles = serverFeature("checkpoints");
+  const menu = messageContextMenuModel({ msg, copy, canRestoreFiles });
 
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger render={children as ReactElement} />
       <ContextMenu.Content className="min-w-[180px]">
-        {copy.canCopy && (
+        {menu.copyMarkdown && (
           <ContextMenu.IconItem
             icon="copy"
             onSelect={() =>
@@ -56,7 +55,7 @@ export function MessageContextMenu({ msg, children }: Props) {
             {t("msgActions.copyMarkdown")}
           </ContextMenu.IconItem>
         )}
-        {copy.plain && (
+        {menu.copyPlain && (
           <ContextMenu.IconItem
             icon="copy"
             onSelect={() =>
@@ -66,7 +65,7 @@ export function MessageContextMenu({ msg, children }: Props) {
             {t("msgActions.copyPlain")}
           </ContextMenu.IconItem>
         )}
-        {copy.code && (
+        {menu.copyCode && (
           <ContextMenu.IconItem
             icon="code"
             onSelect={() =>
@@ -76,22 +75,24 @@ export function MessageContextMenu({ msg, children }: Props) {
             {t("msgActions.copyCode")}
           </ContextMenu.IconItem>
         )}
-        {isUser && copy.plain && (
+        {menu.user.visible && (
           <>
             <Separator />
-            <ContextMenu.IconItem icon="edit" onSelect={() => editMessageInComposer(msg)}>
-              {t("msgActions.editInComposer")}
-            </ContextMenu.IconItem>
+            {menu.user.editInComposer && (
+              <ContextMenu.IconItem icon="edit" onSelect={() => editMessageInComposer(msg)}>
+                {t("msgActions.editInComposer")}
+              </ContextMenu.IconItem>
+            )}
             {/* Destructive variant: rewinds history to before this turn
                   (sessions.rollback), then prefills the composer. */}
-            {msg.runId && (
+            {menu.user.editRerun && (
               <ContextMenu.IconItem icon="loop" onSelect={() => editAndRerunMessage(msg)}>
                 {t("msgActions.editRerun")}
               </ContextMenu.IconItem>
             )}
             {/* Same rewind, but also restores the working tree to the
                   pre-turn shadow-git checkpoint (restoreType:"both"). */}
-            {msg.runId && canRestoreFiles && (
+            {menu.user.editRerunRestore && (
               <ContextMenu.IconItem
                 icon="history"
                 onSelect={() => editAndRerunMessage(msg, { restoreFiles: true })}
@@ -102,7 +103,7 @@ export function MessageContextMenu({ msg, children }: Props) {
             {/* Pure restore (no resend, unlike Edit & rerun): rewind to the
                   state BEFORE this turn and stop. Conversation-only always; the
                   file/both variants need the pre-turn shadow-git snapshot. */}
-            {msg.runId && (
+            {menu.user.restore && (
               <ContextMenu.SubmenuRoot>
                 <ContextMenu.SubmenuTrigger className="grid-cols-[14px_minmax(0,1fr)_12px]">
                   <Icon name="history" size={12} />
@@ -122,7 +123,7 @@ export function MessageContextMenu({ msg, children }: Props) {
                   >
                     {t("msgActions.restoreConversation")}
                   </ContextMenu.IconItem>
-                  {canRestoreFiles && (
+                  {menu.user.restoreFiles && (
                     <ContextMenu.IconItem
                       icon="folder"
                       onSelect={() => restoreCheckpoint(msg, "files")}
@@ -130,7 +131,7 @@ export function MessageContextMenu({ msg, children }: Props) {
                       {t("msgActions.restoreFiles")}
                     </ContextMenu.IconItem>
                   )}
-                  {canRestoreFiles && (
+                  {menu.user.restoreBoth && (
                     <ContextMenu.IconItem
                       icon="history"
                       onSelect={() => restoreCheckpoint(msg, "both")}
@@ -143,20 +144,22 @@ export function MessageContextMenu({ msg, children }: Props) {
             )}
             {/* Non-destructive sibling of Edit & rerun: branch a new
                   session that keeps history through this exchange. */}
-            {msg.runId && (
+            {menu.user.fork && (
               <ContextMenu.IconItem icon="branch" onSelect={() => forkFromMessage(msg)}>
                 {t("msgActions.fork")}
               </ContextMenu.IconItem>
             )}
           </>
         )}
-        {isAssistant && (
+        {menu.assistant.visible && (
           <>
             <Separator />
-            <ContextMenu.IconItem icon="loop" onSelect={() => regenerateMessage(msg)}>
-              {t("msgActions.regenerate")}
-            </ContextMenu.IconItem>
-            {canRestoreFiles && (
+            {menu.assistant.regenerate && (
+              <ContextMenu.IconItem icon="loop" onSelect={() => regenerateMessage(msg)}>
+                {t("msgActions.regenerate")}
+              </ContextMenu.IconItem>
+            )}
+            {menu.assistant.regenerateRestore && (
               <ContextMenu.IconItem
                 icon="history"
                 onSelect={() => regenerateMessage(msg, { restoreFiles: true })}

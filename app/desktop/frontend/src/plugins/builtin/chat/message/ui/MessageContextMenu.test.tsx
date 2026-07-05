@@ -86,6 +86,22 @@ describe("messageContextMenu", () => {
     expect(screen.queryByText("Edit in composer")).toBeNull();
   });
 
+  it("shows Edit in composer for image-only user messages", () => {
+    render(
+      <MessageContextMenu
+        msg={buildMessage({
+          role: "user",
+          blocks: [{ kind: "image", mime: "image/png", data: "abc" }],
+        })}
+      >
+        <div>image only</div>
+      </MessageContextMenu>,
+    );
+    openMenu("image only");
+    expect(screen.getByText("Edit in composer")).toBeTruthy();
+    expect(screen.queryByText("Copy plain text")).toBeNull();
+  });
+
   it("Edit in composer loads the message text into composerStore", () => {
     replaceComposerDraft({ text: "", images: [] });
     render(
