@@ -1,22 +1,19 @@
 import type { BlockStatus, QuestionItem } from "@/plugins/builtin/agent/public/viewState";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button, Icon } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
-import { useQuestionAnswer } from "@/plugins/builtin/agent/public/hitl";
 import {
   createQuestionDraft,
   questionAnswerText,
-  questionDraftAnswers,
-  questionDraftComplete,
-  questionSettled,
-  questionSettledAnswers,
   setQuestionText,
   toggleQuestionOption,
-  canSubmitQuestion,
   type QuestionDraft,
-  type QuestionAnswers,
 } from "@/plugins/builtin/agent/public/messagePresentation";
+import {
+  questionCardSettledView,
+  useQuestionCardActions,
+} from "../../application/questionCardModel";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -35,8 +32,8 @@ interface Props {
   answers?: Record<string, string[]>;
 }
 
-// Clarifying-question card — pure presentation. Submitting state lives in
-// useQuestionAnswer; this component owns the local selection draft.
+// Clarifying-question card — presentation shell. Submission coordination lives
+// in useQuestionCardActions; this component owns the local selection draft.
 //
 // HITL flow (R-model, API.md §6; parallels ApprovalCard):
 //   1. Run ends with a question Interrupt → reducer materialises a question
@@ -45,17 +42,20 @@ interface Props {
 //      via runs.resume + optimistically settles the card (resolveInterrupt)
 export function QuestionCard({ status, parentRunId, itemId, questions, answered, answers }: Props) {
   const t = useT();
-  const { submit, pending } = useQuestionAnswer(parentRunId, itemId);
   const [draft, setDraft] = useState<QuestionDraft>(() => createQuestionDraft(questions));
+  const actions = useQuestionCardActions({ parentRunId, itemId, status, questions, draft });
 
-  const settled = questionSettled(status, answered);
-  const allAnswered = useMemo(() => questionDraftComplete(questions, draft), [questions, draft]);
+  const settled = questionCardSettledView({
+    status,
+    answered,
+    pending: actions.pending,
+    questions,
+    draft,
+    answers,
+  });
 
-  if (settled || pending) {
-    // Echo what was answered: the stamped block answers (survive remount) or,
-    // in the brief pre-settle window, the local draft. Replayed-from-history
-    // questions carry neither → a bare "answered" row.
-    const shown: QuestionAnswers | undefined = questionSettledAnswers(questions, draft, answers);
+  if (settled.settled) {
+    const shown = settled.answers;
     if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
     return (
       <div className="my-2 flex flex-col gap-2 rounded-[14px] bg-surface p-4">
@@ -74,16 +74,6 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
       </div>
     );
   }
-
-  // Also disable once the interrupt is no longer open: settleOpenInterrupts
-  // downgrades an unacted question to `incomplete` on run-end so its Submit
-  // can't resume a dead run.
-  const disabled = !canSubmitQuestion({
-    parentRunId,
-    itemId,
-    complete: allAnswered,
-    status,
-  });
 
   return (
     <HitlCardShell
@@ -165,8 +155,8 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
           variant="primary"
           size="sm"
           data-slot="question-submit"
-          disabled={disabled}
-          onClick={() => submit(questionDraftAnswers(questions, draft))}
+          disabled={actions.disabled}
+          onClick={actions.submit}
         >
           {t("question.action.submit")}
         </Button>
