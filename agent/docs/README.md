@@ -19,9 +19,9 @@ real-gap vs by-design-skip vs framework-niche),
 [`EMBABEL_ORGANIZING_PRINCIPLES.md`](./EMBABEL_ORGANIZING_PRINCIPLES.md)
 for the convergent-design organizing-philosophy axis, and
 [`ARCHITECTURE_REVIEW.md`](./ARCHITECTURE_REVIEW.md) for a senior-architect
-architecture health check (clean-arch/DDD verdict for agent-as-library:
-grade B+→A-, real debts = no `arch_test.go` + `core/` polluted by
-`core/model/chat`, with a prioritized landing list).
+architecture health check (clean-arch/DDD verdict for agent-as-library;
+the 2026-07 milestone closed the arch guard, Router naming, and concrete
+chat-client port items).
 
 ## Structure
 

@@ -2,11 +2,12 @@
 
 > **日期**：2026-06-18。**视角**：架构师命题作文 —— "假设从零开始写 agent,系统架构与文件组织怎么设计?"
 > **状态**：**greenfield 重审(非新基准)**。与 [`ARCHITECTURE_REVIEW.md`](ARCHITECTURE_REVIEW.md)(现状体检)的关系:那份回答"现在离健康还差什么",本文回答"如果重来该怎么设计"。两份合起来 = 该长成什么样 + 现在差什么。落地动作只认本文 §6 + ARCHITECTURE_REVIEW 的 P0。
+> **2026-07-05 里程碑更新**：`core.ChatClient` 已落地，但采用了更克制的 port：隔离具体 `*chat.Client`，保留 `chat.ClientRequest` / `chat.Tool` / `chat.Options` 这些共享协议原语。完全复制一套 agent-local chat request/tool 类型会破坏 Go 的隐式满足关系，制造 adapter ceremony；因此当前代码以“不依赖具体 client”为边界。
 > **方法**:第一性推导 + 对照 [`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md)(§2.3 一个扩展机制 / §2.4 包大≠god package / §2.5 具体度向上流动)+ [`../../REFACTORING.md`](../../REFACTORING.md)(§5.1 充血不叠层 / §8 大但内聚不拆)+ [`../CLAUDE.md`](../CLAUDE.md)(库内部用具体类型,不做内部 ISP)。与 embabel 的组织哲学印证见 [`EMBABEL_ORGANIZING_PRINCIPLES.md`](EMBABEL_ORGANIZING_PRINCIPLES.md)。
 >
 > **结论先行**:
 > 1. **agent 是库,不是应用 —— 教科书 Clean Arch 环(delivery/use-case/domain/infra)对它不直接适用。** 库的自然形状是「原语(core)+ 引擎(runtime)+ 策略插件(planning)+ SPI(Extension)」。给库强套应用环 = 得到空壳 + 强行分包的割裂。
-> 2. **当前设计 ~90% 收敛于 greenfield。** 真正欠的债只有两处:`core/` 原语层被 `core/model/chat` 污染(6 文件)+ 无 `arch_test.go` 机器防腐。修这两处,agent 从 B+ → A。
+> 2. **当前设计 ~90% 收敛于 greenfield。** 原先欠的机器防腐、Router 命名、concrete chat client 泄漏已经收口；剩余重点是继续保持 runtime 状态机内聚、只在真实职责混杂处再拆。
 > 3. **"向 DDD 方向"对库的真正含义是:保持原语层纯 + 保持 SPI 干净 + 充血模型 —— 而不是加 repository/use-case/aggregate-root 层。** `REFACTORING §5.1` 明确拒绝叠 DDD 层,对库更是过设计。agent 已有充血模型,不需再加层。
 
 ---
@@ -54,7 +55,7 @@ agent/  (library)
 
 - **内部**:具体类型直接依赖(`workflow/` → `*runtime.Platform`)。不抽窄接口(YAGNI)。
 - **公开 SPI**:`Planner`/`Extension` 子接口/`ProcessStore`/`ChatClientProvider` 等 —— 定义在 `core/`(或 `planning/`),由库外实现。
-- **`ChatClient` interface**:★greenfield 新增,定义在 `core/`(普适需求,见 §2.1),`core/model/chat.Client` 隐式满足。
+- **`ChatClient` interface**:已落地在 `core/`(普适需求,见 §2.1),`core/model/chat.Client` 隐式满足。该 port 隔离具体 client,不复制 chat request/tool/options 共享协议类型。
 
 ---
 
@@ -68,26 +69,18 @@ agent/  (library)
 - `core/model/chat` 是整个 lynx 共享的基础设施,不属于 agent。agent 的 `core/` 应只定义 interface,由库外装配具体实现。
 - 不采用方案 B(把 chat 文件搬出 core/):`ProcessContext.Chat()` 是 action 体的唯一 LLM 入口,拆开会导致 action 体要 import 两个包(体验倒退)。
 
-`core/chat.go` 定义的最小 interface 面:
+当前 `core/chat.go` 定义的最小 interface 面:
 
 ```go
 // core/chat.go
 
-// ChatClient is the minimal LLM interface that core/ primitives depend on.
-// It is satisfied implicitly by core/model/chat.Client.
+// ChatClient is the minimal LLM request factory that core primitives need.
 type ChatClient interface {
-    Call(ctx context.Context, req ChatRequest) (ChatResponse, error)
-    Stream(ctx context.Context, req ChatRequest) iter.Seq2[ChatStreamChunk, error]
+    Chat() *chat.ClientRequest
 }
-
-type ChatRequest struct { /* Messages, Tools, Options — value types, not pointers */ }
-type ChatResponse struct { /* Message, FinishReason, Usage */ }
-type ChatStreamChunk struct { /* Delta, ToolCallDelta, FinishReason */ }
-type ChatTool struct { /* Name, Description, Schema, Call */ }
-type ChatMiddleware func(ChatClient) ChatClient
 ```
 
-现状 6 个生产文件(`process_context.go`/`condition.go`/`prompt_runner.go`/`guardrails.go`/`extension.go`/`tool_group.go`)import `core/model/chat` 具体类型 → greenfield 全部改 import `core.ChatClient` interface。`core/` 变纯。
+这个形态让 `core/model/chat.Client` 隐式满足 `core.ChatClient`，同时避免复制 `ChatRequest` / `ToolDefinition` / `Options` 等共享协议类型。`ProcessContext` / `PromptCondition` / `ChatClientProvider` / runtime platform 不再依赖具体 `*chat.Client`；`PromptRunner`、`Guardrails`、`AgentTool` 仍显式使用 chat 协议原语。
 
 ### 2.2 tool loop 归属
 
@@ -208,10 +201,10 @@ agent/
 
 | 改动 | 类型 | 理由 |
 |---|---|---|
-| **`core/chat.go` — NEW** | 结构 | 定义 `ChatClient` interface,消除 6 文件对 `core/model/chat` 具体类型的 import。`core/` 变纯 |
+| **`core/chat.go` — DONE** | 结构 | 定义 `ChatClient` port,消除 `ProcessContext` / `PromptCondition` / `ChatClientProvider` 对具体 `*chat.Client` 的依赖；chat request/tool/options 保留为共享协议原语 |
 | **`internal/arch/arch_test.go` — NEW** | 结构 | 机器强制:core ↛ runtime/planning/event/workflow/hitl/toolpolicy;planning/event ↛ runtime。零 API break |
-| **`autonomy/autonomy.go` → `autonomy/router.go`** | 命名 | `type Autonomy` → `type Router`,消 `autonomy.Autonomy` stutter |
-| **`core/` 6 文件改 import:`"core/model/chat"` → `core.ChatClient`** | 结构 | 原语层不再 import 具体 chat 实现 |
+| **`autonomy/autonomy.go` → `autonomy/router.go` — DONE** | 命名 | `type Autonomy` → `type Router`,消 `autonomy.Autonomy` stutter |
+| **chat client port — DONE** | 结构 | 具体 client 依赖收窄为 `core.ChatClient`；不复制 chat 协议类型 |
 | **`runtime/` 不拆** | 不变 | 53 文件在内聚阈值内;拆了增加跨包具体类型 import |
 | **`workflow/` 保持 import `runtime`** | 不变 | 库内部用具体类型;不抽 SubprocessSpawner(YAGNI) |
 | **`planning/` + `event/` + `hitl/` + `toolpolicy/` 不变** | 不变 | 当前放置正确 |
@@ -225,7 +218,7 @@ agent/
 | `core` | **core** — 不变 | Go 社区通用,"原语层"语义清楚。`primitives` 太学究,`domain` 是 DDD 术语但 agent 含 SPI/Store 不全是 domain |
 | `runtime` | **runtime** — 不变 | 描述"执行引擎"本质。`engine` 曾用名(已改),`usecase` 是应用术语对库不准 |
 | `planning`/`event`/`hitl`/`toolpolicy`/`workflow` | **全不变** | 名实相符 |
-| `autonomy.Autonomy` | `autonomy.Router` — **改** | 消 stutter;"路由器"准确描述本质(选哪个 agent 处理请求)。破坏性改名,需咨询用户 |
+| `autonomy.Router` | **已落地** | 消 stutter;"路由器"准确描述本质(选哪个 agent 处理请求) |
 | `AgentProcess` vs `Process` | **不变** | HAS-a 关系,命名正确区分(Process 是 core 的 read surface,AgentProcess 是 runtime 的完整状态机) |
 | `Determination`/`Blackboard`/`Goal`/`Action` | **不变** | 准确 |
 | `collectExtensions[T]`/`Extension` marker | **不变** | `http.Pusher` 风格,OCP 干净 |
@@ -241,13 +234,13 @@ agent/
 | # | 改动 | scope | API break? |
 |---|---|---|---|
 | **1** | **加 `internal/arch/arch_test.go`** | ~60 行纯测试 | **零**。编码规则:core ↛ runtime/planning/event/workflow/hitl/toolpolicy;planning/event ↛ runtime。最大杠杆:立即防腐,防未来回归 |
-| **2** | **`autonomy.Autonomy` → `Router`** | 1 文件重命名 + lyra import 点 | 破坏性(类型名变更),需咨询用户。改动小,风险低 |
+| **2** | **`autonomy.Autonomy` → `Router`** | 1 文件重命名 + 调用点 | **已落地** |
 
 ### P1 — 结构性,需咨询用户
 
 | # | 改动 | scope | 价值 |
 |---|---|---|---|
-| **3** | **`core/` 定义 `ChatClient` interface(方案 A)** | `core/chat.go` 新增 + 6 文件改 import + `core/model/chat.Client` 隐式满足 | **agent 从 B+ → A 的那一步**:原语层变纯,所有 chat 依赖走 interface。破坏性(`ProcessContext.Chat()` 返回类型变 interface),需咨询用户 |
+| **3** | **`core/` 定义 `ChatClient` port(方案 A 的克制版)** | `core/chat.go` 新增 + concrete client 依赖改走 `core.ChatClient` | **已落地**：`core/model/chat.Client` 隐式满足；保留 chat request/tool/options 作为共享协议原语 |
 
 ### P2 — 等触发再做
 

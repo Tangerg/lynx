@@ -2,13 +2,14 @@
 
 > **日期**：2026-06-18。**视角**：资深架构师命题作文 —— "以 Linus（反仪式、看代码不看口号）+ Uncle Bob（Clean Arch 依赖规则、ports）的合体视角，评审 agent 现状；如果从零写，系统架构与文件组织怎么设计，向 clean arch + DDD 方向？"
 > **状态**：**批判性评审（review），非新基准**。与 [`GUIDE.md`](GUIDE.md) / [`EXTENSION_DESIGN.md`](EXTENSION_DESIGN.md) 的关系：那两份是"怎么用 / SPI 怎么设计"的指南；本文是"**对现状的一次独立架构体检**" —— 验证库的分层是否健康、指出真债、并裁决"DDD 方向"里哪些是该做的、哪些是仪式。本文不推翻既有设计，~90% 收敛于现状。
+> **2026-07-05 里程碑更新**：本评审列出的 P0/P1 结构项已经落地到代码面：`agent/internal/arch/arch_test.go` 机器防腐已存在，`autonomy.Autonomy` 已改为 `autonomy.Router`，`agent/core.ChatClient` port 已隔离具体 `*chat.Client`。实际实现保留 `core/model/chat` 的 request/tool/options/middleware 作为共享协议原语，避免复制一套 agent-local chat 协议和 adapter ceremony；当前边界是“不依赖具体 chat client”，不是“不引用任何 chat 协议类型”。
 > **方法**：第一手通读 agent 现状（core 原语 / runtime 引擎 / planning 策略 / Extension SPI / 各文件的 chat 依赖）+ 对照 [`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) §2.3（一个扩展机制）+ §2.5（具体度向上流动）与 [`../../REFACTORING.md`](../../REFACTORING.md) §5.1（单后端不叠 DDD 层）+ §8（大但内聚不拆）。与 [`EMBABEL_ORGANIZING_PRINCIPLES.md`](EMBABEL_ORGANIZING_PRINCIPLES.md) 的 convergent-design 印证对齐。
 >
 > **结论先行**：
 > 1. **最关键的认识：`agent` 是 SDK 库，不是应用 —— 这与 `lyra`（应用）正相反。** 教科书 Clean Arch 的环（delivery/use-case/domain/infra）对库**不直接适用**。库的自然形态是「原语（core）+ 执行引擎（runtime）+ 策略插件（planning/workflow）+ SPI（Extension）」，与应用的环不同。项目自己的 `agent/CLAUDE.md` 强约定"库内部用具体类型，不做内部 ISP" + `DESIGN_PHILOSOPHY §2.5` ISP「库 vs 应用」规则 —— **这套反仪式立场对库是对的。**
-> 2. **等级 B+ → A-（差一步到 A）。** 三个真强项：core 的充血领域模型（`Determination` 三值逻辑 / `Blackboard` Reader-Writer ISP / `ActionMetadata` 状态转移）、Extension SPI（`collectExtensions[T]` 单分发，§2.3 教科书落地）、planning 分包（OCP 典范）。三处真债：**无 `arch_test.go` 机器防腐**（lyra 有，agent 全靠约定）、**`core/` 原语层被 `core/model/chat` 污染**（6 个生产文件 import chat infra）、`runtime/` 53 文件偏大（但多数内聚）。
+> 2. **等级 B+ → A-（差一步到 A）。** 三个真强项：core 的充血领域模型（`Determination` 三值逻辑 / `Blackboard` Reader-Writer ISP / `ActionMetadata` 状态转移）、Extension SPI（`collectExtensions[T]` 单分发，§2.3 教科书落地）、planning 分包（OCP 典范）。原评审列出的机器防腐、Router 命名、concrete chat client 泄漏已在 2026-07-05 前后收口；剩余主要是 `runtime/` 偏大但多数内聚，以及少量真实能力 gap。
 > 3. **"向 DDD 方向"对库的真正含义是：保持原语层纯 + 保持 SPI 干净 + 充血模型 —— 而不是加 repository/use-case/aggregate-root 层。** `REFACTORING §5.1` 明确拒绝叠 DDD 层，对库更是过设计。agent 已经做对了充血模型，不需要再加层。
-> 4. **最大杠杆的一步：让 `core/` 原语层变纯** —— 定义 `ChatClient` interface，消除 6 个文件对 `core/model/chat` 具体类型的 import。这是 agent 从 B+ → A 的那一步（破坏性，需咨询用户）。零风险立即能做的：加 `arch_test.go` 机器防腐。
+> 4. **最大杠杆的一步已落地为克制版 ChatClient port** —— 定义 `core.ChatClient`，消除 `core` / runtime 对具体 `*chat.Client` 的依赖；chat request/tool/options 仍作为共享协议原语保留。
 
 ---
 
@@ -16,7 +17,7 @@
 
 - **作者评审视角**：本文是体检报告，定位"现状哪里是经得起推敲的好设计、哪里是真债、哪里是被反仪式立场正确拒绝的仪式"。它**不引入新债、不要求改名**（与 lyra 侧 [`../../lyra/doc/GREENFIELD_ARCHITECTURE.md`](../../lyra/doc/GREENFIELD_ARCHITECTURE.md) §0 同纪律）。
 - **与既有文档的关系**：`GUIDE.md` 是"怎么用"、`EXTENSION_DESIGN.md` 是"SPI 怎么设计"、`EMBABEL_*` 是"与业界对照"；本文是"**架构健康度体检**"。落地动作只认 §5 的 P0/P1。
-- **核实声明**：本文所有 file:line 引用均经第一手核实（非推断）。`core/` 对 `core/model/chat` 的依赖实测 **6 个生产文件**（`extension.go:6` / `condition.go:8` / `tool_group.go:10` / `prompt_runner.go:10` / `process_context.go:11` / `guardrails.go:3`，另 3 个 `_test.go`）；`agent/**/arch_test.go` 实测**不存在**（glob 无结果）；`autonomy.Autonomy` stutter 实测确认（`autonomy/autonomy.go:73`）。
+- **核实声明**：本文原始 file:line 引用来自 2026-06-18 的第一手核实。2026-07-05 里程碑后，`agent/internal/arch/arch_test.go` 已存在，`autonomy.Router` 已落地，concrete `*chat.Client` 依赖已通过 `core.ChatClient` port 收口；文中旧引用只保留为历史评审上下文。
 
 ---
 
@@ -31,15 +32,15 @@
 3. **`planning/` 分包是 OCP 典范** —— `Planner` 接口定义策略（`planning/planner.go`），4 个算法各占一个子包（`goap`/`htn`/`reactive`/`utility`）。加新 planner 放 `planning/planner/<name>/`，不动 runtime。
 4. **HITL first-class** —— `Awaitable[T]` 在 core 是原语，`hitl/` 做 typed 层，状态机支持 `StatusWaiting` 暂停 / `Resume` 恢复。lyra 的整个 turn 中断/恢复建在其上。
 
-### 真正的 3 处债
+### 原评审识别的 3 处债（2026-07-05 已部分收口）
 
-1. **无 `arch_test.go` 机器防腐** —— lyra 用 `go/parser` 解析 import、机器断言依赖方向（`lyra/internal/arch/arch_test.go`）；agent 完全没有，全凭约定。`core/` 已经被 chat 污染，正说明纯约定不够硬。（详见 §2.1）
-2. **`core/` 原语层被 `core/model/chat` 污染** —— 6 个生产文件 import chat infra。chat 是 LLM 基础设施，不是 agent 原语；`Action`/`Goal`/`Condition`/`Determination`/`Blackboard` 这些纯 agent 概念不需要知道 LLM 长什么样。这是本次评审**最核心的架构问题**。（详见 §2.2）
-3. **`runtime/` 53 文件 / ~8200 LOC 偏大** —— 但大部分是内聚的状态机逻辑。是否拆需要谨慎裁决，不能为整洁而拆。（详见 §2.3）
+1. **无 `arch_test.go` 机器防腐** —— 已落地。
+2. **`core/` 原语层被具体 `*chat.Client` 污染** —— 已通过 `core.ChatClient` port 收口；chat request/tool/options 作为共享协议原语保留。
+3. **`runtime/` 文件数偏大** —— 但大部分是内聚的状态机逻辑。是否拆需要谨慎裁决，不能为整洁而拆。（详见 §2.3）
 
 ### 3 处中等债
 
-4. **`autonomy.Autonomy` 命名 stutter**（`autonomy/autonomy.go:73`）—— `package autonomy` + `type Autonomy`，违反 `REFACTORING §1`。
+4. **`autonomy.Autonomy` 命名 stutter** —— 已改为 `autonomy.Router`。
 5. **`workflow/` import `runtime` 并持 `*runtime.Platform`** —— 库内部按约定允许，但意味着 workflow 不能独立于 runtime 测试。当前形态务实。（详见 §2.8）
 6. **`core/service_provider.go` 是 `map[string]any` service locator** —— 类型不安全、依赖隐藏。但这是库的 architecture tax（不能预知用户依赖），可接受。（详见 §2.9）
 
@@ -47,7 +48,7 @@
 
 ## 2. 与教科书 Clean Arch / DDD 的偏差逐条裁决
 
-### 2.1 无 `arch_test.go` —— 债务（中等优先级）
+### 2.1 `arch_test.go` 机器防腐 —— 已落地
 
 lyra 机器强制同心环 DAG；agent 完全没有。但 agent 需要的规则**不同于 lyra 的同心环** —— 对库，应机器强制的是：
 
@@ -59,7 +60,7 @@ event     ──── 不能 import ────▶  runtime
 
 这条规则捕获"原语层不依赖引擎层"的本质。目前全凭约定维持 —— 而 `core/` 已被 chat 污染，正说明约定不够硬。
 
-**裁决：债务。** 修法：加一个 ~60 行的 `agent/internal/arch/arch_test.go`，编码上述 DAG。**纯加测试，零 API break，可随时做。** lyra 已有先例可照搬。
+**裁决：已落地。** `agent/internal/arch/arch_test.go` 现在编码上述 DAG，作为后续防腐基线。
 
 ### 2.2 `core/` import `core/model/chat` —— 混合债（最核心的架构问题）
 
@@ -123,11 +124,11 @@ event     ──── 不能 import ────▶  runtime
 | `execute_action.go` | 276 | action 执行 + retry + middleware + panic recovery。单一职责。不拆 |
 | `condition.go` | 265 | `Condition` + `ComputedCondition` + `PromptCondition` + 组合子（And/Or/Not）。**内聚** —— 就是条件系统。不拆 |
 
-### 2.5 `autonomy.Autonomy` 命名 stutter —— 债务（小修）
+### 2.5 `autonomy.Router` 命名收敛 —— 已落地
 
-`package autonomy` + `type Autonomy` → `autonomy.Autonomy`（`autonomy/autonomy.go:73`）。`REFACTORING §1` 明确禁用 package-name stutter。
+原问题是 `package autonomy` + `type Autonomy` 形成 `autonomy.Autonomy` stutter。`REFACTORING §1` 明确禁用 package-name stutter。
 
-**裁决：债务。** `Autonomy` 的本质：接收 userInput，用 Ranker 在 Candidate 中选最高置信度的 (agent, goal) 对，调 `platform.StartAgent`。它就是**路由器** —— "哪个 agent 处理这个请求？"。**修法：`type Autonomy` → `type Router`**，文件 `autonomy.go` → `router.go`。改动小、风险低（`Autonomy` 不是 core 基础类型，是 runtime 辅助；lyra 消费方改 import 即可）。破坏性改名，需咨询用户。
+**裁决：已落地。** 主类型已改为 `Router`，文件为 `router.go`。这个名字贴合本质：接收 userInput，用 Ranker 在 Candidate 中选最高置信度的 (agent, goal) 对，再把请求路由给对应 agent。
 
 ### 2.6 Extension 系统 —— 真强项，不动
 
@@ -312,7 +313,7 @@ agent/
 |---|---|---|
 | **`core/chat.go` — NEW** | 结构 | 方案 A：定义 `ChatClient` interface，消除 `core/model/chat` 具体类型 import |
 | **`internal/arch/arch_test.go` — NEW** | 结构 | 机器强制 DAG：core→runtime/planning/event/workflow 方向不可逆 |
-| **`autonomy/autonomy.go` → `autonomy/router.go`** | 命名 | 消除 `autonomy.Autonomy` stutter；`type Autonomy` → `type Router` |
+| **`autonomy/autonomy.go` → `autonomy/router.go` — DONE** | 命名 | 消除 `autonomy.Autonomy` stutter；`type Autonomy` → `type Router` |
 | **`core/` 6 文件删除 `"core/model/chat"` import** | 结构 | 改 import `core.ChatClient` interface |
 | **`workflow/` 保持 import `runtime`** | 不变 | 库内部用具体类型。不抽 `SubprocessSpawner` interface（YAGNI） |
 | **`runtime/` 不拆** | 不变 | 内聚的状态机包。53 文件在阈值内 |
@@ -327,7 +328,7 @@ agent/
 | `core` | `primitives` / `domain` | **core** —— Go 社区通用，"原语层"语义清楚。`primitives` 太学究，`domain` 是 DDD 术语但 agent 不全是 DDD domain（含 SPI/Store） |
 | `runtime` | `engine` / `usecase` | **runtime** —— 描述"执行引擎"本质。`engine` 曾用名（已改），`usecase` 是应用层术语，对库不准 |
 | `planning` / `event` / `hitl` / `toolpolicy` / `workflow` | — | 全部保留，名实相符 |
-| `autonomy.Autonomy` | `autonomy.Router` | **Router** —— 消除 stutter，且"路由器"准确描述其本质（选哪个 agent 处理请求） |
+| `autonomy.Router` | **已落地** | **Router** —— 消除 stutter，且"路由器"准确描述其本质（选哪个 agent 处理请求） |
 
 ---
 
@@ -337,14 +338,14 @@ agent/
 
 | # | 改动 | 类型 | scope |
 |---|---|---|---|
-| **1** | **加 `internal/arch/arch_test.go`** | 小重构（纯加测试） | 零 API break，~60 行。编码规则：`core` 不能 import `runtime`/`planning`/`event`/`workflow`/`hitl`/`toolpolicy`；`planning`/`event` 不能 import `runtime`；`workflow` 可 import `runtime`（documented exception）。**最大 leverage —— 立即防腐，防未来回归。lyra 已有先例。** |
-| **2** | **`autonomy.Autonomy` → `Router`** | 小重构（命名） | 破坏性改名。影响：`autonomy.go` → `router.go` + lyra import 点。**需咨询用户**。改动小、风险低，符合 `REFACTORING §1` |
+| **1** | **加 `internal/arch/arch_test.go`** | 小重构（纯加测试） | **已落地**。编码规则：`core` 不能 import `runtime`/`planning`/`event`/`workflow`/`hitl`/`toolpolicy`；`planning`/`event` 不能 import `runtime`；`workflow` 可 import `runtime`（documented exception）。 |
+| **2** | **`autonomy.Autonomy` → `Router`** | 小重构（命名） | **已落地**。`autonomy.go` → `router.go`，公开类型改为 `Router`，消除 stutter。 |
 
 ### P1：值得做，结构性（需咨询用户）
 
 | # | 改动 | 类型 | scope |
 |---|---|---|---|
-| **3** | **方案 A：`core/` 定义 `ChatClient` interface** | 结构性 | 破坏性：`ProcessContext.Chat()` 返回类型变 interface。影响：6 个 `core/` 文件改 import + lyra 消费方。**这是 agent 从 B+ → A 的那一步** —— 原语层变纯，所有 chat 依赖走 interface，与 `core/model/chat` 基础设施形成干净边界。**需咨询用户**（kernel/lyra 公开 API 变更） |
+| **3** | **方案 A：`core/` 定义 `ChatClient` port** | 结构性 | **已落地**。实际实现采用克制版：`core.ChatClient` 隔离具体 `*chat.Client`，`ProcessContext` / `PromptCondition` / `ChatClientProvider` / runtime platform 依赖 port；chat request/tool/options 作为共享协议原语保留。 |
 
 ### P2：设计取向，等触发再做
 
@@ -367,12 +368,12 @@ agent/
 
 ### 最大杠杆的两件事
 
-**1. 加 `arch_test.go`（P0-1）** —— 立即防腐，零风险。`core/` 已被 chat 污染正说明纯约定不够硬。lyra 已有先例可照搬。这是"现在就能做、做了立刻有价值"的事。
+**1. 加 `arch_test.go`（P0-1）** —— 已落地，机器防腐闭合。
 
-**2. 方案 A：`core/` 定义 `ChatClient` interface（P1-3）** —— 让原语层变纯，消除 6 个文件对 `core/model/chat` 具体类型的 import。这是 agent 从 B+ → A 的那一步 —— 所有 chat 依赖走 interface，`core/` 真正成为纯原语层，与 `core/model/chat` 基础设施形成干净的 port/adapter 边界。破坏性，需咨询用户。
+**2. 方案 A：`core/` 定义 `ChatClient` port（P1-3）** —— 已落地为克制版：不再依赖具体 `*chat.Client`，但保留 chat request/tool/options 共享协议原语，避免复制协议类型和 adapter ceremony。
 
 ---
 
 ## 一句话收尾
 
-**`agent` 是库不是应用 —— 教科书 Clean Arch 环对它不直接适用，项目哲学的「库内部用具体类型、不叠 DDD 层」对它是对的。它的充血原语 + Extension 单分发 + planning 策略插件已是教科书级别的好设计。真正欠的债是 `core/` 原语层被 chat 污染 + 无机器防腐 —— 加 `arch_test.go` 立即防腐，定义 `ChatClient` interface 让原语层变纯，就到 A。**
+**`agent` 是库不是应用 —— 教科书 Clean Arch 环对它不直接适用，项目哲学的「库内部用具体类型、不叠 DDD 层」对它是对的。它的充血原语 + Extension 单分发 + planning 策略插件已是教科书级别的好设计。本轮已补齐机器防腐、Router 命名和 ChatClient port；后续再动应只挑真实职责混杂或真实能力 gap。**
