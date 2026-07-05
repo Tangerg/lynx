@@ -10,18 +10,12 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
+  builtinToolSafetyPillClassName,
+  toolCatalogSubtext,
+  toolCatalogViewModel,
   useBuiltinToolConfigs,
   useMCPServerConfigs,
 } from "@/plugins/builtin/workspace/application/toolCatalog";
-
-// Safety class → pill tint. Unknown classes fall back to the neutral pill
-// (forward-compat: the enum is open on the wire).
-const SAFETY_PILL: Record<string, string> = {
-  safe: "bg-accent/12 text-accent",
-  write: "bg-warning/12 text-warning",
-  exec: "bg-negative/12 text-negative",
-  network: "bg-surface-2 text-fg-muted",
-};
 
 function SectionHead({ children }: { children: React.ReactNode }) {
   return <div className="px-4 pt-2 pb-1 text-[10px] font-semibold text-fg-faint">{children}</div>;
@@ -50,7 +44,7 @@ function BuiltinToolsSection() {
             </span>
             {tool.safetyClass && (
               <span
-                className={`shrink-0 rounded-sm px-1.5 py-0.5 font-mono text-[10px] ${SAFETY_PILL[tool.safetyClass] ?? "bg-surface-2 text-fg-muted"}`}
+                className={`shrink-0 rounded-sm px-1.5 py-0.5 font-mono text-[10px] ${builtinToolSafetyPillClassName(tool.safetyClass)}`}
               >
                 {tool.safetyClass}
               </span>
@@ -70,20 +64,19 @@ function openMcpSettings(title: string): void {
 function ToolsTab() {
   const t = useT();
   const { data, isLoading, isError } = useMCPServerConfigs();
-  const servers = data ?? [];
-  const active = servers.filter((s) => s.status === "connected").length;
+  const view = toolCatalogViewModel(data ?? []);
 
   return (
     <WorkspaceViewLayout
       icon="tool"
       titleStrong
       title="tools.title"
-      sub={`${active} MCP active · ${servers.length} configured`}
+      sub={toolCatalogSubtext(view)}
       scrollClassName="py-1"
     >
       <BuiltinToolsSection />
       <DataView
-        items={servers}
+        items={view.mcpServers}
         isLoading={isLoading}
         isError={isError}
         skeletonCount={4}
