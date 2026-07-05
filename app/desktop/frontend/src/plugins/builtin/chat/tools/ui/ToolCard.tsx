@@ -11,11 +11,7 @@
 import type { IconName } from "@/ui";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { Collapsible, Icon, StatusDot } from "@/ui";
-import {
-  toolIntent,
-  toolMetaItems,
-  type ToolMetaItem,
-} from "@/plugins/builtin/agent/public/messagePresentation";
+import { type ToolMetaItem } from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/utils";
 import {
   lookupToolActionOwner,
@@ -25,6 +21,12 @@ import {
   TOOL_VIEW_OPENER,
   useExtensionPoint,
 } from "@/plugins/sdk";
+import {
+  toolCardActions,
+  toolCardModel,
+  toolCardViewOpener,
+  visibleToolMetaItems,
+} from "../application/toolCardModel";
 import { toolIconFor, toolRoutingKey } from "../public/toolIcon";
 import { ToolPreview } from "./ToolPreview";
 
@@ -35,11 +37,11 @@ interface Props {
 }
 
 export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
-  const running = tool.status === "running";
-  const isError = tool.status === "err";
-  const needsAction = tool.status === "requires-action";
-  const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
-  const viewOpener = useExtensionPoint(TOOL_VIEW_OPENER).find((o) => o.predicate(tool));
+  const model = toolCardModel(tool);
+  const allActions = useExtensionPoint(TOOL_ACTION);
+  const allViewOpeners = useExtensionPoint(TOOL_VIEW_OPENER);
+  const actions = toolCardActions(tool, allActions);
+  const viewOpener = toolCardViewOpener(tool, allViewOpeners);
   const onOpenView = viewOpener
     ? () => {
         void Promise.resolve(viewOpener.open(tool)).catch((err) => {
@@ -49,16 +51,10 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
         });
       }
     : undefined;
-  const intent = toolIntent(tool);
-  const metaItems = toolMetaItems(tool);
-
-  // The error message takes over the detail line so a failure stays legible
-  // even while collapsed; otherwise the arg summary (path / command / query).
-  const detail = isError && tool.error ? tool.error : intent.detail;
 
   const actionClass = cn(
     "grid h-6 w-6 shrink-0 place-items-center rounded-md border-0 transition-[opacity,color,background-color]",
-    isError
+    model.isError
       ? "bg-canvas text-fg-muted opacity-100 shadow-[var(--shadow-control)] hover:text-fg"
       : "bg-transparent text-fg-faint opacity-0 group-hover:opacity-100 hover:bg-fg/[0.06] hover:text-fg",
   );
@@ -68,7 +64,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
       <div
         className={cn(
           "overflow-hidden rounded-[12px] transition-colors duration-150",
-          isError ? "bg-negative/10" : needsAction ? "bg-warning/10" : "bg-surface",
+          model.isError ? "bg-negative/10" : model.needsAction ? "bg-warning/10" : "bg-surface",
         )}
       >
         <button
@@ -79,9 +75,9 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
           className={cn(
             "flex w-full items-center gap-3 px-3 py-2.5 text-left",
             "transition-colors duration-100",
-            isError
+            model.isError
               ? "hover:bg-negative/[0.06]"
-              : needsAction
+              : model.needsAction
                 ? "hover:bg-warning/[0.06]"
                 : "hover:bg-fg/[0.03]",
             "focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]",
@@ -93,38 +89,38 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
           {/* Name + mono detail, stacked. */}
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span
-              title={intent.label}
+              title={model.intent.label}
               className={cn(
                 "truncate text-[13px] font-medium leading-[1.3]",
-                isError
+                model.isError
                   ? "text-negative"
-                  : needsAction
+                  : model.needsAction
                     ? "text-warning"
-                    : running
+                    : model.running
                       ? "text-accent"
                       : "text-fg",
               )}
             >
-              {intent.label}
+              {model.intent.label}
             </span>
-            {detail && (
+            {model.detail && (
               <span
-                title={typeof detail === "string" ? detail : undefined}
+                title={model.detail}
                 className={cn(
                   "font-mono text-[12px] leading-[1.4]",
-                  isError ? "break-words text-negative/80" : "truncate text-fg-muted",
+                  model.isError ? "break-words text-negative/80" : "truncate text-fg-muted",
                 )}
               >
-                {detail}
+                {model.detail}
               </span>
             )}
           </div>
 
           {/* Trailing meta pills — inline status counts (+N / -N / matches …). */}
-          <ToolMeta items={metaItems} running={running} />
+          <ToolMeta items={model.metaItems} running={model.running} />
 
           {/* Running indicator — accent pulse dot. */}
-          {running && <StatusDot tone="running" className="ml-0.5" />}
+          {model.running && <StatusDot tone="running" className="ml-0.5" />}
 
           {/* Plugin actions — hover-reveal, or an always-visible retry chip on error. */}
           {actions.map((a) => (
@@ -200,9 +196,7 @@ function IconChip({ status, tool }: { status: ToolCall["status"]; tool: ToolCall
 }
 
 function ToolMeta({ items, running }: { items: ToolMetaItem[]; running: boolean }) {
-  // The running state is carried by the dedicated pulse dot, so the "live"
-  // word would be redundant next to it.
-  const shown = running ? items.filter((item) => item.id !== "live") : items;
+  const shown = visibleToolMetaItems(items, running);
   if (shown.length === 0) return null;
 
   return (
