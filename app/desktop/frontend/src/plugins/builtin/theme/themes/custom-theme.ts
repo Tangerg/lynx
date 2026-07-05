@@ -17,7 +17,7 @@ import { disposeOnHmr } from "@/lib/hmr";
 import { definePlugin } from "@/plugins/sdk";
 import { THEME } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
-import { buildTokenMap } from "../kit/tokens";
+import { themeContribution } from "../kit/themeContributions";
 import type { ThemePluginSpec } from "../kit/types";
 import type { CustomTheme } from "@/state/uiStore";
 
@@ -68,14 +68,14 @@ export default definePlugin({
     const register = () => {
       const { customTheme, accent, contrast } = useUiStore.getState();
       const spec = deriveCustomSpec(customTheme, accent, contrast);
-      host.extensions.contribute(THEME, {
-        id: CUSTOM_THEME_ID,
-        label: spec.label,
-        scheme: spec.scheme,
-        icon: "spark",
-        order: 99, // after the built-in packs, before plugin themes
-        tokens: buildTokenMap(spec),
-      });
+      host.extensions.contribute(
+        THEME,
+        themeContribution({
+          ...spec,
+          icon: "spark",
+          order: 99, // after the built-in packs, before plugin themes
+        }),
+      );
     };
 
     register();

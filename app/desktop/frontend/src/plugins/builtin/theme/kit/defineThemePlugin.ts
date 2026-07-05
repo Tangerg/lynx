@@ -11,7 +11,7 @@
 import type { PluginSpec } from "@/plugins/sdk";
 import { definePlugin } from "@/plugins/sdk";
 import { THEME } from "@/plugins/sdk/kernelPoints";
-import { SCHEME_ICON, buildTokenMap } from "./tokens";
+import { themeContribution } from "./themeContributions";
 import type { ThemePluginSpec } from "./types";
 
 export type {
@@ -27,19 +27,12 @@ export type {
 } from "./types";
 
 export function defineThemePlugin(spec: ThemePluginSpec): PluginSpec {
-  const tokens = buildTokenMap(spec);
+  const theme = themeContribution(spec);
   return definePlugin({
     name: `lyra.builtin.theme-${spec.id}`,
     version: "1.0.0",
     setup({ host }) {
-      host.extensions.contribute(THEME, {
-        id: spec.id,
-        label: spec.label,
-        scheme: spec.scheme,
-        icon: spec.icon ?? SCHEME_ICON[spec.scheme],
-        order: spec.order,
-        tokens,
-      });
+      host.extensions.contribute(THEME, theme);
     },
   });
 }
