@@ -281,7 +281,7 @@ func (s stubRuntime) Session() session.Service { return s.sess }
 func (s stubRuntime) ListSessions(ctx context.Context) ([]session.Session, error) {
 	return s.sess.List(ctx)
 }
-func (s stubRuntime) GetSession(ctx context.Context, id string) (session.Session, error) {
+func (s stubRuntime) SessionByID(ctx context.Context, id string) (session.Session, error) {
 	return s.sess.Get(ctx, id)
 }
 func (s stubRuntime) CreateSession(ctx context.Context, title, cwd string) (session.Session, error) {

@@ -70,7 +70,7 @@ func New(appr approval.Service) chat.Tool {
 			if strings.TrimSpace(in.Plan) == "" {
 				return "", errors.New("exit_plan_mode: plan is required")
 			}
-			mode, err := appr.GetMode(ctx)
+			mode, err := appr.Mode(ctx)
 			if err != nil {
 				return "", err
 			}

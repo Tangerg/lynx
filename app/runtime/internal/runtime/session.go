@@ -14,8 +14,8 @@ func (r *Runtime) ListSessions(ctx context.Context) ([]session.Session, error) {
 	return r.session.List(ctx)
 }
 
-// GetSession returns one saved session by id.
-func (r *Runtime) GetSession(ctx context.Context, id string) (session.Session, error) {
+// SessionByID returns one saved session by id.
+func (r *Runtime) SessionByID(ctx context.Context, id string) (session.Session, error) {
 	return r.session.Get(ctx, id)
 }
 

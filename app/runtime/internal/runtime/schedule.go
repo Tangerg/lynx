@@ -12,8 +12,8 @@ func (r *Runtime) ListSchedules(ctx context.Context) ([]schedule.Schedule, error
 	return r.schedules.List(ctx)
 }
 
-// GetSchedule returns one saved schedule by id.
-func (r *Runtime) GetSchedule(ctx context.Context, id string) (schedule.Schedule, error) {
+// Schedule returns one saved schedule by id.
+func (r *Runtime) Schedule(ctx context.Context, id string) (schedule.Schedule, error) {
 	return r.schedules.Get(ctx, id)
 }
 

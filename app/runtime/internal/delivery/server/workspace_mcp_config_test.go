@@ -24,7 +24,7 @@ func (r *mcpConfigRuntime) ListMCPRegisteredServers(context.Context) ([]mcpserve
 	return out, nil
 }
 
-func (r *mcpConfigRuntime) GetMCPRegisteredServer(_ context.Context, name string) (mcpserver.Server, bool, error) {
+func (r *mcpConfigRuntime) MCPRegisteredServer(_ context.Context, name string) (mcpserver.Server, bool, error) {
 	if r.getErr != nil {
 		return mcpserver.Server{}, false, r.getErr
 	}

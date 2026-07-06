@@ -50,7 +50,7 @@ func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 }
 
 func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {
-	ses, err := s.sessions.GetSession(ctx, id)
+	ses, err := s.sessions.SessionByID(ctx, id)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}

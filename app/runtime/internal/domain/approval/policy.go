@@ -25,7 +25,7 @@ type policy struct {
 
 var _ Service = (*policy)(nil)
 
-func (p *policy) GetMode(_ context.Context) (Mode, error) {
+func (p *policy) Mode(_ context.Context) (Mode, error) {
 	return Mode(p.mode.Load()), nil
 }
 

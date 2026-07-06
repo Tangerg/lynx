@@ -15,8 +15,8 @@ func TestRuntimeMemoryUnavailable(t *testing.T) {
 	if _, err := rt.ListMemoryEntries(ctx, "/repo"); !errors.Is(err, ErrMemoryUnavailable) {
 		t.Fatalf("ListMemoryEntries err = %v, want ErrMemoryUnavailable", err)
 	}
-	if _, err := rt.GetMemory(ctx, knowledge.ScopeProject, "/repo"); !errors.Is(err, ErrMemoryUnavailable) {
-		t.Fatalf("GetMemory err = %v, want ErrMemoryUnavailable", err)
+	if _, err := rt.Memory(ctx, knowledge.ScopeProject, "/repo"); !errors.Is(err, ErrMemoryUnavailable) {
+		t.Fatalf("Memory err = %v, want ErrMemoryUnavailable", err)
 	}
 	if err := rt.UpdateMemory(ctx, knowledge.ScopeUser, "", "prefs"); !errors.Is(err, ErrMemoryUnavailable) {
 		t.Fatalf("UpdateMemory err = %v, want ErrMemoryUnavailable", err)

@@ -33,7 +33,7 @@ type approvalRuleScope struct {
 	projectDir string
 }
 
-func (s *approvalStore) GetMode(context.Context) (approval.Mode, error) {
+func (s *approvalStore) Mode(context.Context) (approval.Mode, error) {
 	return s.mode, nil
 }
 

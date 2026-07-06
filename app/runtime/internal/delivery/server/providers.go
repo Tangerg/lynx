@@ -38,7 +38,7 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 	}); err != nil {
 		return nil, err
 	}
-	entry, ok, err := s.providers.GetRegisteredProvider(ctx, in.Provider)
+	entry, ok, err := s.providers.RegisteredProvider(ctx, in.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 // {ok:false, error} on failure rather than erroring the RPC, so the UI can
 // show "test failed: <reason>" inline.
 func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol.ProviderTestResult, error) {
-	entry, ok, err := s.providers.GetRegisteredProvider(ctx, providerID)
+	entry, ok, err := s.providers.RegisteredProvider(ctx, providerID)
 	if err != nil {
 		return nil, err
 	}

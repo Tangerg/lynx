@@ -107,8 +107,8 @@ type RememberRequest struct {
 // each tool call by the chat engine; mutable at runtime. All methods are safe
 // for concurrent use.
 type Service interface {
-	// GetMode returns the current runtime stance.
-	GetMode(ctx context.Context) (Mode, error)
+	// Mode returns the current runtime stance.
+	Mode(ctx context.Context) (Mode, error)
 
 	// SetMode changes the runtime-wide stance. Future tool calls honor the new
 	// mode; in-flight calls keep their original mode.
