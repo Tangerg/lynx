@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/models/catalog"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 )
 
 // ListModels enumerates the models a provider offers, from the embedded
@@ -70,7 +69,8 @@ func (s *Server) validateEmbeddingRole(ctx context.Context, in protocol.Embeddin
 	if in.Model == "" {
 		return nil
 	}
-	if !llm.EmbeddingCapable(llm.Provider(in.Provider)) {
+	meta, ok := s.providers.ProviderMetadata(in.Provider)
+	if !ok || !meta.EmbeddingCapable {
 		return fmt.Errorf("%w: provider %q has no embeddings adapter", protocol.ErrInvalidParams, in.Provider)
 	}
 	entry, ok, err := s.providers.GetRegisteredProvider(ctx, in.Provider)

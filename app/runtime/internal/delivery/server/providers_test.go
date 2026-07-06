@@ -94,13 +94,13 @@ func TestModelToWire_TextOnly(t *testing.T) {
 // base-URL field off: set for the no-built-in-endpoint providers, clear for
 // the named vendors.
 func TestProviderToWire_RequiresBaseURL(t *testing.T) {
-	if !providerToWire("openai-compatible", provider.Provider{}).RequiresBaseURL {
+	if !providerToWire(provider.Metadata{ID: "openai-compatible", RequiresBaseURL: true}, provider.Provider{}).RequiresBaseURL {
 		t.Error("openai-compatible must require a base URL")
 	}
-	if !providerToWire("azureopenai", provider.Provider{}).RequiresBaseURL {
+	if !providerToWire(provider.Metadata{ID: "azureopenai", RequiresBaseURL: true}, provider.Provider{}).RequiresBaseURL {
 		t.Error("azureopenai must require a base URL")
 	}
-	if providerToWire("anthropic", provider.Provider{}).RequiresBaseURL {
+	if providerToWire(provider.Metadata{ID: "anthropic"}, provider.Provider{}).RequiresBaseURL {
 		t.Error("anthropic must not require a base URL")
 	}
 }

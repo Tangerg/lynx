@@ -24,6 +24,37 @@ func (r *Runtime) ConfigureProvider(ctx context.Context, entry provider.Provider
 	return r.providers.Configure(ctx, entry)
 }
 
+// SupportedProviders returns the provider reference data this runtime build can
+// serve. Configuration state lives in the registry; this is the static adapter
+// catalog projected into domain values for delivery layers.
+func (r *Runtime) SupportedProviders() []provider.Metadata {
+	supported := llm.SupportedProviders()
+	out := make([]provider.Metadata, 0, len(supported))
+	for _, p := range supported {
+		out = append(out, provider.Metadata{
+			ID:                    string(p),
+			RequiresBaseURL:       llm.RequiresBaseURL(p),
+			EmbeddingCapable:      llm.EmbeddingCapable(p),
+			DefaultEmbeddingModel: llm.DefaultEmbeddingModel(p),
+		})
+	}
+	return out
+}
+
+// ProviderMetadata returns the static adapter metadata for id.
+func (r *Runtime) ProviderMetadata(id string) (provider.Metadata, bool) {
+	if !llm.IsSupported(llm.Provider(id)) {
+		return provider.Metadata{}, false
+	}
+	p := llm.Provider(id)
+	return provider.Metadata{
+		ID:                    id,
+		RequiresBaseURL:       llm.RequiresBaseURL(p),
+		EmbeddingCapable:      llm.EmbeddingCapable(p),
+		DefaultEmbeddingModel: llm.DefaultEmbeddingModel(p),
+	}, true
+}
+
 // ProbeProvider validates a provider's credentials by building its
 // default-model client and issuing one minimal (max_tokens=1) request — the
 // cheapest call that proves the key + endpoint work. Backs providers.test.

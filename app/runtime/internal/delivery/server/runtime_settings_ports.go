@@ -45,6 +45,8 @@ type providerAccess interface {
 	GetRegisteredProvider(ctx context.Context, id string) (providersvc.Provider, bool, error)
 	ConfigureProvider(ctx context.Context, entry providersvc.Provider) error
 	ProbeProvider(ctx context.Context, entry providersvc.Provider) error
+	SupportedProviders() []providersvc.Metadata
+	ProviderMetadata(id string) (providersvc.Metadata, bool)
 	DefaultProvider() string
 }
 
