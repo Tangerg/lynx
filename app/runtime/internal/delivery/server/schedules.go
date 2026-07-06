@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // schedules.* (API.md §7.9) — manage the cron-triggered headless runs the
@@ -33,11 +34,15 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 	if err := validateScheduleInput(in.Prompt, in.Cron, in.Provider, in.Model); err != nil {
 		return nil, err
 	}
+	cwd, err := scheduleCwdFromWire(in.Cwd)
+	if err != nil {
+		return nil, err
+	}
 	next, _ := schedule.NextRun(in.Cron, time.Now()) // cron validated above
 	created, err := s.schedules.CreateSchedule(ctx, schedule.Schedule{
 		Title:     in.Title,
 		Prompt:    in.Prompt,
-		Cwd:       in.Cwd,
+		Cwd:       cwd,
 		Provider:  in.Provider,
 		Model:     in.Model,
 		Cron:      in.Cron,
@@ -58,6 +63,10 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 	if err := validateScheduleInput(in.Prompt, in.Cron, in.Provider, in.Model); err != nil {
 		return nil, err
 	}
+	cwd, err := scheduleCwdFromWire(in.Cwd)
+	if err != nil {
+		return nil, err
+	}
 	existing, err := s.schedules.GetSchedule(ctx, in.ID)
 	if err != nil {
 		return nil, mapScheduleErr(err, in.ID)
@@ -70,7 +79,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 		ID:        in.ID,
 		Title:     in.Title,
 		Prompt:    in.Prompt,
-		Cwd:       in.Cwd,
+		Cwd:       cwd,
 		Provider:  in.Provider,
 		Model:     in.Model,
 		Cron:      in.Cron,
@@ -122,6 +131,17 @@ func validateScheduleInput(prompt, cronExpr, provider, model string) error {
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
 	return nil
+}
+
+func scheduleCwdFromWire(cwd string) (string, error) {
+	if cwd == "" {
+		return "", nil
+	}
+	resolved, err := worktree.ResolveExistingDir(cwd)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s: %v", protocol.ErrCwdUnavailable, cwd, err)
+	}
+	return resolved, nil
 }
 
 // mapScheduleErr surfaces an unknown-id as invalid_params (the supplied id
