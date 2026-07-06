@@ -15,11 +15,8 @@ import (
 // session. sessionID selects an existing session; empty creates a new one in
 // defaultCwd. The returned request is ready for StartTurn.
 func (r *Runtime) PlanTurnStart(ctx context.Context, sessionID, defaultCwd string, draft turn.StartTurnRequest) (session.Session, turn.StartTurnRequest, error) {
-	if draft.Message == "" && len(draft.Media) == 0 {
-		return session.Session{}, turn.StartTurnRequest{}, turn.ErrInputRequired
-	}
-	if (draft.Model == "") != (draft.Provider == "") {
-		return session.Session{}, turn.StartTurnRequest{}, turn.ErrIncompleteModelSelection
+	if err := draft.Validate(); err != nil {
+		return session.Session{}, turn.StartTurnRequest{}, err
 	}
 	if len(draft.Media) > 0 && draft.Provider != "" && draft.Model != "" {
 		if info, ok := catalog.Lookup(draft.Provider, draft.Model); ok && !info.Modalities.AcceptsInput(chat.ModalityImage) {

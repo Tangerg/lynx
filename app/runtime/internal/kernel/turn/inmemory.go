@@ -142,8 +142,8 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 	if req.SessionID == "" {
 		return TurnHandle{}, errors.New("turn: SessionID is required")
 	}
-	if req.Message == "" && len(req.Media) == 0 {
-		return TurnHandle{}, errors.New("turn: Message or Media must be present")
+	if err := req.Validate(); err != nil {
+		return TurnHandle{}, err
 	}
 
 	handle := TurnHandle{

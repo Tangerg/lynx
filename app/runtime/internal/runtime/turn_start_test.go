@@ -74,6 +74,20 @@ func TestPlanTurnStartRejectsInvalidDraftBeforeCreatingSession(t *testing.T) {
 	if _, _, err := rt.PlanTurnStart(context.Background(), "", "/repo", turn.StartTurnRequest{Message: "hello", Provider: "anthropic"}); !errors.Is(err, turn.ErrIncompleteModelSelection) {
 		t.Fatalf("partial model err = %v, want ErrIncompleteModelSelection", err)
 	}
+
+	if _, _, err := rt.PlanTurnStart(context.Background(), "", "/repo", turn.StartTurnRequest{Message: "hello", MaxSteps: -1}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
+		t.Fatalf("negative MaxSteps err = %v, want ErrInvalidTurnLimit", err)
+	}
+	if store.createCwd != "" {
+		t.Fatalf("negative MaxSteps created session in %q", store.createCwd)
+	}
+
+	if _, _, err := rt.PlanTurnStart(context.Background(), "", "/repo", turn.StartTurnRequest{Message: "hello", MaxCostUSD: -0.01}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
+		t.Fatalf("negative MaxCostUSD err = %v, want ErrInvalidTurnLimit", err)
+	}
+	if _, _, err := rt.PlanTurnStart(context.Background(), "", "/repo", turn.StartTurnRequest{Message: "hello", MaxBudget: -1}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
+		t.Fatalf("negative MaxBudget err = %v, want ErrInvalidTurnLimit", err)
+	}
 }
 
 func TestPlanTurnStartRejectsUnsupportedMediaForKnownModel(t *testing.T) {

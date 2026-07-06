@@ -87,6 +87,8 @@ func wireTurnStartErr(err error) error {
 		return fmt.Errorf("%w: input must contain a user text or image block", protocol.ErrInvalidParams)
 	case errors.Is(err, turn.ErrIncompleteModelSelection):
 		return protocol.ErrInvalidParams
+	case errors.Is(err, turn.ErrInvalidTurnLimit):
+		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
 	case errors.Is(err, turn.ErrUnsupportedMedia):
 		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
 	case errors.Is(err, session.ErrNotFound):

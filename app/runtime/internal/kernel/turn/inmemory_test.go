@@ -2,6 +2,7 @@ package turn_test
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"strings"
 	"sync"
@@ -401,6 +402,15 @@ func TestService_StartTurn_Validation(t *testing.T) {
 	}
 	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s"}); err == nil {
 		t.Error("missing Message should error")
+	}
+	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", MaxSteps: -1}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
+		t.Fatalf("negative MaxSteps err = %v, want ErrInvalidTurnLimit", err)
+	}
+	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", MaxCostUSD: -0.01}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
+		t.Fatalf("negative MaxCostUSD err = %v, want ErrInvalidTurnLimit", err)
+	}
+	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", MaxBudget: -1}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
+		t.Fatalf("negative MaxBudget err = %v, want ErrInvalidTurnLimit", err)
 	}
 }
 
