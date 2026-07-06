@@ -2,6 +2,8 @@ package kernel
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"iter"
 	"os"
 	"path/filepath"
@@ -10,10 +12,12 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 )
 
 // newHistoryStore re-exports history.NewInMemoryStore under a
@@ -474,6 +478,101 @@ func TestEngine_RunChat_PassesOptions(t *testing.T) {
 	}
 }
 
+func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
+	stub := newOptionToolStub()
+	client, _ := chat.NewClient(stub)
+	store := newJSONProcessStore()
+	built, err := toolset.Build(context.Background(), toolset.BuildConfig{})
+	if err != nil {
+		t.Fatalf("toolset.Build: %v", err)
+	}
+	eng, err := New(context.Background(), Config{
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
+		Tools:        built.Tools,
+		MCP:          built.MCP,
+		Closers:      built.Closers,
+		ProcessStore: store,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer eng.Close()
+	temp := 0.42
+	maxTokens := int64(321)
+	observer := &hitlApprovalObserver{}
+
+	proc := eng.StartChat(context.Background(), RunChatRequest{
+		Message:  "echo lyra",
+		Observer: observer,
+		Options: &chat.Options{
+			Temperature: &temp,
+			MaxTokens:   &maxTokens,
+			Stop:        []string{"END"},
+		},
+	})
+	if err := <-proc.Done(); err != nil {
+		t.Fatalf("initial StartChat: %v", err)
+	}
+	if proc.Status() != core.StatusWaiting {
+		t.Fatalf("initial status = %s, want waiting", proc.Status())
+	}
+
+	eng2, err := New(context.Background(), Config{
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
+		Tools:        built.Tools,
+		MCP:          built.MCP,
+		Closers:      built.Closers,
+		ProcessStore: store,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer eng2.Close()
+
+	restored, err := eng2.RestoreChat(context.Background(), proc.ID(), RestoreChatRequest{
+		Observer: observer,
+	})
+	if err != nil {
+		t.Fatalf("RestoreChat: %v", err)
+	}
+	if restored.Status() != core.StatusWaiting {
+		t.Fatalf("restored status = %s, want waiting", restored.Status())
+	}
+	done, err := restored.Resume(context.Background(), interrupts.Resolution{Approved: true})
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("resumed run: %v", err)
+	}
+	out, err := restored.Output()
+	if err != nil {
+		t.Fatalf("Output: %v", err)
+	}
+	if out.Reply != "restored ok" {
+		t.Fatalf("reply = %q, want restored ok", out.Reply)
+	}
+
+	got := stub.lastCapturedOptions()
+	if got == nil {
+		t.Fatal("model saw nil options after restore")
+	}
+	if got.Model != "stub-options-restore" {
+		t.Fatalf("Model = %q, want stub-options-restore", got.Model)
+	}
+	if got.Temperature == nil || *got.Temperature != temp {
+		t.Fatalf("Temperature = %v, want %v", got.Temperature, temp)
+	}
+	if got.MaxTokens == nil || *got.MaxTokens != maxTokens {
+		t.Fatalf("MaxTokens = %v, want %v", got.MaxTokens, maxTokens)
+	}
+	if len(got.Stop) != 1 || got.Stop[0] != "END" {
+		t.Fatalf("Stop = %v, want END", got.Stop)
+	}
+}
+
 // TestEngine_RunChat_MultiTurnHistory verifies the chat-history
 // middleware loads prior turns before each call. Running two turns
 // against the same SessionID must result in the second Call seeing
@@ -762,6 +861,115 @@ func (r *recordingObserver) deltas() []string {
 	out := make([]string, len(r.deltaList))
 	copy(out, r.deltaList)
 	return out
+}
+
+type hitlApprovalObserver struct {
+	recordingObserver
+}
+
+func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName, arguments string) ToolApprovalVerdict {
+	res, _, err := hitl.Interrupt[interrupts.Resolution](ctx,
+		"kernel-test.approval."+toolName+"."+arguments,
+		map[string]string{"tool": toolName, "arguments": arguments},
+	)
+	if err != nil {
+		return ToolApprovalVerdict{Interrupt: err}
+	}
+	if !res.Approved {
+		return ToolApprovalVerdict{Denied: true, DenyReason: "denied"}
+	}
+	return ToolApprovalVerdict{Arguments: res.Arguments}
+}
+
+type jsonProcessStore struct {
+	mu        sync.Mutex
+	snapshots map[string]json.RawMessage
+}
+
+func newJSONProcessStore() *jsonProcessStore {
+	return &jsonProcessStore{snapshots: map[string]json.RawMessage{}}
+}
+
+func (s *jsonProcessStore) Save(_ context.Context, snapshot core.ProcessSnapshot) error {
+	raw, err := json.Marshal(snapshot)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.snapshots[snapshot.ID] = raw
+	return nil
+}
+
+func (s *jsonProcessStore) Load(_ context.Context, id string) (core.ProcessSnapshot, error) {
+	s.mu.Lock()
+	raw, ok := s.snapshots[id]
+	s.mu.Unlock()
+	if !ok {
+		return core.ProcessSnapshot{}, fmt.Errorf("json process store: load %q: %w", id, core.ErrSnapshotNotFound)
+	}
+	var snapshot core.ProcessSnapshot
+	if err := json.Unmarshal(raw, &snapshot); err != nil {
+		return core.ProcessSnapshot{}, err
+	}
+	return snapshot, nil
+}
+
+func (s *jsonProcessStore) Delete(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.snapshots, id)
+	return nil
+}
+
+func (s *jsonProcessStore) List(context.Context) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ids := make([]string, 0, len(s.snapshots))
+	for id := range s.snapshots {
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+type optionToolStub struct {
+	defaults *chat.Options
+
+	mu          sync.Mutex
+	lastOptions *chat.Options
+}
+
+func newOptionToolStub() *optionToolStub {
+	defaults, _ := chat.NewOptions("stub-options-restore")
+	return &optionToolStub{defaults: defaults}
+}
+
+func (m *optionToolStub) DefaultOptions() chat.Options { return *m.defaults }
+func (m *optionToolStub) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+
+func (m *optionToolStub) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	m.capture(req)
+	if hasToolMessage(req.Messages) {
+		return responseWithText("restored ok")
+	}
+	return responseWithToolCall("shell", `{"command":"echo lyra"}`)
+}
+
+func (m *optionToolStub) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
+}
+
+func (m *optionToolStub) capture(req *chat.Request) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lastOptions = req.Options.Clone()
+}
+
+func (m *optionToolStub) lastCapturedOptions() *chat.Options {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastOptions.Clone()
 }
 
 // namedUsageStub reports a configurable served-model name (and 1/1 usage) in
