@@ -66,7 +66,7 @@
 **为何这是头号**:① 它是纯维护性收益(消除 `items` vs `data` 那类字段名漂移——§14 自己点名的历史 bug);② **它是 §2「领域中立核心」安全的前提**——富 `result` 形状不再被 wire 联合机器保证,唯一能防其前后端无声漂移的就是黄金样本 + 导出 schema。没有它,薄核选择反而是漂移负债。
 
 **已知阻塞 + 务实路径**(memory 记:Go flat-struct 不直接映射到契约的 TS 判别联合):
-- **第一步(低成本、绕开阻塞):黄金样本契约测试**——一组 canonical JSON wire 样本(每方法的请求/响应、每类事件帧),前后端 CI 各自往返校验。**它不需要解决 struct↔union 映射**(只比对 JSON),却能当场抓住 §14 想消除的两类 drift。**先立这层。**
+- **✅ 第一步已落地(`252f462f`)**:黄金样本契约测试——共享 canonical JSON wire 样本在 `app/desktop/frontend/src/rpc/samples/`,Go 侧 `protocol/wire_golden_test.go` unmarshal→remarshal→语义 map 比对、TS 侧 `rpc/samples.test.ts` 用 `satisfies Unbrand<RunEvent>` 结构校验(brand 剥除因 wire id 是裸串)。**它不解决 struct↔union 映射**(只比对 JSON),却当场抓 §14 的两类 drift——已验证:注入 `runId→data` 令两侧同时变红,revert 即绿。首刀覆盖漂移风险最高的 RunEvent 四变体(run.started/item.delta/run.finished/item.completed);后续按方法 + 更多变体扩样本表。
 - **第二步:从 Go SSOT 导出 OpenRPC(方法表)+ JSON Schema(数据类型)**作为非 Go/非 TS 客户端的单一对接物。
 - **第三步(可选):判别联合感知的 TS 生成器**,或把 wire 形状改成生成器友好的表达——这是真正难的一步,但有了第一/二步后不再是漂移风险的关键路径。
 
@@ -103,7 +103,7 @@ Codex 用 `#[experimental("path")]` 在**字段/方法级**门控,client `initia
 
 ## 5. 建议优先级
 
-1. **【高·维护性】§3.1 第一步:立黄金样本契约测试**(前后端 CI 往返校验 canonical JSON 样本)——绕开 struct↔union 映射难题,当场防 wire drift,且是"领域中立核心"安全的前提。**这是唯一头号项。**
+1. **✅【已落地 `252f462f`】§3.1 第一步:黄金样本契约测试**(前后端 pin 同一组 canonical JSON,Go round-trip + TS `satisfies`;已验证能抓 `runId→data` 类 drift)——头号项的第一刀已立;后续扩样本覆盖到全方法 + 更多事件变体。
 2. **【中】§3.1 第二步:从 Go SSOT 导出 OpenRPC + JSON Schema**——非 Go/非 TS 客户端的单一对接物 + 机器可读漂移闸。
 3. **【中·按需】§3.2 `workspace.*` 拆 god-namespace**(codeintel/mcp/hooks/recipes 提顶层)——破坏性命名改动,先咨询;触发条件(子面继续增多)到了再做。
 4. **【低·可选】§3.3 field 级 experimental 门控**(并入 `FeatureFlag` 对象形态);§3.4 readiness 拆分——按需。
