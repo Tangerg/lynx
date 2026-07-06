@@ -90,10 +90,13 @@ func (r *ClientRequest) Clone() *ClientRequest {
 }
 
 func (r *ClientRequest) resolveOptions() *Options {
-	if r.options != nil {
-		return r.options.Clone()
-	}
 	defaults := r.model.DefaultOptions()
+	if r.options != nil {
+		merged, err := MergeOptions(&defaults, r.options)
+		if err == nil {
+			return merged
+		}
+	}
 	return defaults.Clone()
 }
 
