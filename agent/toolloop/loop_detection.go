@@ -23,6 +23,11 @@ const (
 	DefaultLoopNudgeThreshold = 3
 )
 
+// loopNudge is injected once when the loop detector first sees a tool round
+// repeat (same calls AND results) up to the nudge threshold — a chance for the
+// model to break the repetition before the hard halt at the loop threshold.
+const loopNudge = "<system-reminder>You have repeated the same tool call(s) and gotten the same result(s) several times. Repeating it again will not change the outcome. Change your approach — try a different tool, different arguments, or a different strategy — or stop and explain what's blocking you.</system-reminder>"
+
 // LoopDetectionConfig tunes the repeated-tool-round detector. It is
 // enabled by setting [Config.LoopDetection] to a non-nil value; the
 // zero value of the fields below falls back to the package defaults.
