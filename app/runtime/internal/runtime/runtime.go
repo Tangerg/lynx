@@ -180,7 +180,7 @@ type HookResolver interface {
 // defines application lifecycle invariants across transports.
 type Runtime struct {
 	engine     *kernel.Engine
-	chat       turn.Service
+	turnSvc    turn.Service
 	session    sessionsvc.Service
 	tool       toolsvc.Service
 	knowledge  knowledge.Service
@@ -398,7 +398,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 
 	return &Runtime{
 		engine:           eng,
-		chat:             chatSvc,
+		turnSvc:          chatSvc,
 		session:          sessionSvc,
 		tool:             toolSvc,
 		knowledge:        cfg.Engine.Knowledge,
@@ -438,7 +438,7 @@ func runClosers(closers []func() error) {
 	}
 }
 
-func (r *Runtime) forgetSession(sessionID string) { r.chat.ForgetSession(sessionID) }
+func (r *Runtime) forgetSession(sessionID string) { r.turnSvc.ForgetSession(sessionID) }
 
 // DefaultModel is the model a turn runs against when it doesn't pick one
 // (the configured Config.Model seed). The session layer uses it to fill

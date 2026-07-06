@@ -87,7 +87,7 @@ func TestRuntimeTurnFacade(t *testing.T) {
 		rehydrateHandle: turn.TurnHandle{SessionID: "ses_1", TurnID: "run_resumed"},
 		processID:       "proc_1",
 	}
-	rt := &Runtime{chat: svc}
+	rt := &Runtime{turnSvc: svc}
 
 	gotHandle, err := rt.StartTurn(ctx, turn.StartTurnRequest{SessionID: "ses_1", Message: "hello"})
 	if err != nil {
@@ -155,7 +155,7 @@ func TestRuntimeStartTurnPersistsExplicitModelBeforeDispatch(t *testing.T) {
 	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
 	turns := &turnRuntimeService{startHandle: handle}
 	sessions := &sessionRuntimeStore{}
-	rt := &Runtime{chat: turns, session: sessions}
+	rt := &Runtime{turnSvc: turns, session: sessions}
 
 	gotHandle, err := rt.StartTurn(ctx, turn.StartTurnRequest{
 		SessionID: "ses_1",
@@ -182,7 +182,7 @@ func TestRuntimeStartTurnDoesNotDispatchWhenModelPersistenceFails(t *testing.T) 
 	fail := errors.New("store failed")
 	turns := &turnRuntimeService{}
 	sessions := &sessionRuntimeStore{modelErr: fail}
-	rt := &Runtime{chat: turns, session: sessions}
+	rt := &Runtime{turnSvc: turns, session: sessions}
 
 	if _, err := rt.StartTurn(ctx, turn.StartTurnRequest{SessionID: "ses_1", Message: "hello", Model: "claude-opus-4-8"}); !errors.Is(err, fail) {
 		t.Fatalf("StartTurn err = %v, want store failure", err)
