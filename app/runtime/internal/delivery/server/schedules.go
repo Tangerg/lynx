@@ -16,7 +16,7 @@ import (
 
 // ListSchedules returns every schedule, newest-created first (schedules.list).
 func (s *Server) ListSchedules(ctx context.Context) (*protocol.ListSchedulesResult, error) {
-	scheds, err := s.rt.ListSchedules(ctx)
+	scheds, err := s.schedules.ListSchedules(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 		return nil, err
 	}
 	next, _ := schedule.NextRun(in.Cron, time.Now()) // cron validated above
-	created, err := s.rt.CreateSchedule(ctx, schedule.Schedule{
+	created, err := s.schedules.CreateSchedule(ctx, schedule.Schedule{
 		Title:     in.Title,
 		Prompt:    in.Prompt,
 		Cwd:       in.Cwd,
@@ -58,7 +58,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 	if err := validateScheduleInput(in.Prompt, in.Cron, in.Provider, in.Model); err != nil {
 		return nil, err
 	}
-	existing, err := s.rt.GetSchedule(ctx, in.ID)
+	existing, err := s.schedules.GetSchedule(ctx, in.ID)
 	if err != nil {
 		return nil, mapScheduleErr(err, in.ID)
 	}
@@ -66,7 +66,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 	if in.Enabled {
 		next, _ = schedule.NextRun(in.Cron, time.Now())
 	}
-	updated, err := s.rt.UpdateSchedule(ctx, schedule.Schedule{
+	updated, err := s.schedules.UpdateSchedule(ctx, schedule.Schedule{
 		ID:        in.ID,
 		Title:     in.Title,
 		Prompt:    in.Prompt,
@@ -88,21 +88,21 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 
 // DeleteSchedule removes a schedule (schedules.delete). Idempotent.
 func (s *Server) DeleteSchedule(ctx context.Context, in protocol.DeleteScheduleRequest) error {
-	return s.rt.DeleteSchedule(ctx, in.ID)
+	return s.schedules.DeleteSchedule(ctx, in.ID)
 }
 
 // RunScheduleNow fires a schedule immediately (schedules.runNow) — a manual
 // extra run that records the firing without shifting the schedule's next due
 // time.
 func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowRequest) error {
-	sc, err := s.rt.GetSchedule(ctx, in.ID)
+	sc, err := s.schedules.GetSchedule(ctx, in.ID)
 	if err != nil {
 		return mapScheduleErr(err, in.ID)
 	}
 	if _, err := schedule.Fire(ctx, scheduleRunner{s}, sc); err != nil {
 		return err
 	}
-	return s.rt.RecordScheduleRun(ctx, sc.ID, time.Now().UTC())
+	return s.schedules.RecordScheduleRun(ctx, sc.ID, time.Now().UTC())
 }
 
 // validateScheduleInput enforces the create/update preconditions: a prompt and

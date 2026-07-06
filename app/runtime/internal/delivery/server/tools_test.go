@@ -27,7 +27,7 @@ func (r *toolRuntime) InvokeRegisteredTool(_ context.Context, name string, argum
 }
 
 func TestListToolsMapsRegisteredToolsToWire(t *testing.T) {
-	s := &Server{rt: &toolRuntime{tools: []tool.Tool{
+	s := newTestServer(&toolRuntime{tools: []tool.Tool{
 		{
 			Name:        "shell",
 			Description: "run a command",
@@ -40,7 +40,7 @@ func TestListToolsMapsRegisteredToolsToWire(t *testing.T) {
 			Schema:      `{`,
 			SafetyClass: tool.SafetyClassSafe,
 		},
-	}}}
+	}})
 
 	page, err := s.ListTools(context.Background(), protocol.PageQuery{})
 	if err != nil {
@@ -62,7 +62,7 @@ func TestListToolsMapsRegisteredToolsToWire(t *testing.T) {
 
 func TestInvokeToolPassesJSONArgumentsToRuntime(t *testing.T) {
 	rt := &toolRuntime{}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	got, err := s.InvokeTool(context.Background(), protocol.InvokeToolRequest{
 		Name:      "shell",

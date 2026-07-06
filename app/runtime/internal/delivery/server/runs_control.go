@@ -16,7 +16,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	e, ok := s.runs.MarkCancel(in.RunID, in.Reason) // surfaced on the synthesized canceled outcome (S6)
 
 	if !ok {
-		if err := s.rt.CancelParkedRun(ctx, in.RunID); err != nil {
+		if err := s.lifecycle.CancelParkedRun(ctx, in.RunID); err != nil {
 			if errors.Is(err, lifecycle.ErrRunNotFound) {
 				return protocol.ErrRunNotFound
 			}
@@ -28,7 +28,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	if e.Payload != nil && e.Payload.cancel != nil {
 		e.Payload.cancel()
 	}
-	if err := s.rt.CancelRunTurn(ctx, lifecycle.RunTurn{
+	if err := s.lifecycle.CancelRunTurn(ctx, lifecycle.RunTurn{
 		RunID:     in.RunID,
 		SessionID: e.Record.SessionID,
 		TurnID:    e.Record.TurnID,
@@ -53,7 +53,7 @@ func (s *Server) SteerRun(ctx context.Context, in protocol.SteerRunRequest) erro
 	// s.runs while the pump drains). InjectSteering reports both as
 	// ErrTurnNotFound; map it to the wire run_not_found symbol so the client
 	// retries the message as a fresh send rather than seeing it silently dropped.
-	if err := s.rt.InjectTurnSteering(ctx, turn.TurnHandle{SessionID: e.Record.SessionID, TurnID: e.Record.TurnID}, in.Message); err != nil {
+	if err := s.turn.InjectTurnSteering(ctx, turn.TurnHandle{SessionID: e.Record.SessionID, TurnID: e.Record.TurnID}, in.Message); err != nil {
 		if errors.Is(err, turn.ErrTurnNotFound) {
 			return protocol.ErrRunNotFound
 		}

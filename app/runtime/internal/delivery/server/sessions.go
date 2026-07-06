@@ -35,7 +35,7 @@ const defaultSessionPageLimit = 100
 // NextCursor is the "has more" signal — never a silent truncation. The
 // store returns the full ordered list; pagination is applied here.
 func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
-	sessions, err := s.rt.ListSessions(ctx)
+	sessions, err := s.sessions.ListSessions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 }
 
 func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {
-	ses, err := s.rt.GetSession(ctx, id)
+	ses, err := s.sessions.GetSession(ctx, id)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
@@ -65,7 +65,7 @@ func (s *Server) CreateSession(ctx context.Context, in protocol.CreateSessionReq
 	if cwd == "" {
 		cwd = s.serverInfo.Cwd
 	}
-	ses, err := s.rt.CreateSession(ctx, in.Title, cwd)
+	ses, err := s.sessions.CreateSession(ctx, in.Title, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	// mid-admission) by taking the same single-writer slot as runs.start/resume
 	// and rollback. A parked run is still deletable: lifecycle tears down its
 	// parked turn and interrupt as part of the cascade.
-	admission, err := s.rt.ClaimMutationSlot(sessionClaimer{s: s}, id)
+	admission, err := s.lifecycle.ClaimMutationSlot(sessionClaimer{s: s}, id)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, id)
@@ -93,7 +93,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	// Delete the session row + cascade its session-scoped storage and parked
 	// turn state via the lifecycle coordinator. File checkpoints (shadow git)
 	// are a workspace concern, dropped here after the storage cascade.
-	if err := s.rt.DeleteSession(ctx, id); err != nil {
+	if err := s.sessions.DeleteSession(ctx, id); err != nil {
 		return wireSessionErr(err)
 	}
 	s.dropCheckpoints(id) // file snapshots (shadow git)
@@ -105,7 +105,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 // all live. Nil fields are left alone; the updated session is returned. The
 // dispatch layer already rejects an empty SessionID.
 func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
-	ses, err := s.rt.UpdateSession(ctx, in.SessionID, session.Patch{
+	ses, err := s.sessions.UpdateSession(ctx, in.SessionID, session.Patch{
 		Title:    in.Title,
 		Model:    in.Model,
 		Cwd:      in.Cwd,
@@ -132,7 +132,7 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
 	var nodes []transcript.RunNode
 	if in.FromRunID != "" {
-		_, runs, err := s.rt.ListTranscript(ctx, in.SessionID)
+		_, runs, err := s.transcript.ListTranscript(ctx, in.SessionID)
 		if err != nil {
 			return nil, wireSessionErr(err)
 		}
@@ -142,7 +142,7 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 		}
 	}
 
-	child, err := s.rt.ForkSession(ctx, lifecycle.ForkSpec{
+	child, err := s.lifecycle.ForkSession(ctx, lifecycle.ForkSpec{
 		ParentID:  in.SessionID,
 		FromRunID: in.FromRunID,
 		Runs:      nodes,
@@ -174,7 +174,7 @@ func (s *Server) sessionToWire(ses session.Session, status protocol.SessionStatu
 		ID:        ses.ID,
 		Title:     ses.Title,
 		Cwd:       ses.Cwd,
-		Model:     ses.EffectiveModel(s.rt.DefaultModel()),
+		Model:     ses.EffectiveModel(s.sessions.DefaultModel()),
 		Status:    status,
 		CreatedAt: ses.StartedAt,
 		UpdatedAt: ses.UpdatedAt,
@@ -206,7 +206,7 @@ func (s *Server) liveStatus(ctx context.Context, sessionID string) protocol.Sess
 		return protocol.SessionStatusRunning
 	}
 	waiting := false
-	if pending, err := s.rt.ListPendingInterrupts(ctx, sessionID); err == nil {
+	if pending, err := s.interrupts.ListPendingInterrupts(ctx, sessionID); err == nil {
 		waiting = len(pending) > 0
 	}
 	return sessionStatus(false, waiting)
@@ -222,7 +222,7 @@ func (s *Server) runningSessionSet() map[string]bool {
 // sessions awaiting a HITL answer — the list path's batched form, so per-session
 // status costs no extra query. Empty on error (status degrades to running/idle).
 func (s *Server) waitingSessionSet(ctx context.Context) map[string]bool {
-	pending, err := s.rt.ListPendingInterrupts(ctx, "")
+	pending, err := s.interrupts.ListPendingInterrupts(ctx, "")
 	if err != nil {
 		return nil
 	}

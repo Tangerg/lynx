@@ -56,7 +56,7 @@ func TestCodebaseSearchUsesRuntimeFacade(t *testing.T) {
 			Score:     0.9,
 		}},
 	}
-	s := &Server{rt: rt, serverInfo: protocol.ServerInfo{Cwd: root}}
+	s := newTestServerWithInfo(rt, protocol.ServerInfo{Cwd: root})
 
 	got, err := s.CodebaseSearch(context.Background(), protocol.CodebaseSearchRequest{Query: "session", Limit: 3})
 	if err != nil {
@@ -72,14 +72,14 @@ func TestCodebaseSearchUsesRuntimeFacade(t *testing.T) {
 
 func TestCodebaseSearchRequiresIndexAndQuery(t *testing.T) {
 	root := t.TempDir()
-	s := &Server{rt: &codebaseRuntime{}, serverInfo: protocol.ServerInfo{Cwd: root}}
+	s := newTestServerWithInfo(&codebaseRuntime{}, protocol.ServerInfo{Cwd: root})
 
 	_, err := s.CodebaseSearch(context.Background(), protocol.CodebaseSearchRequest{Query: "session"})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("search without index err = %v, want invalid_params", err)
 	}
 
-	s.rt = &codebaseRuntime{enabled: true}
+	s.runtimeBindings = bindRuntime(&codebaseRuntime{enabled: true})
 	_, err = s.CodebaseSearch(context.Background(), protocol.CodebaseSearchRequest{})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("search without query err = %v, want invalid_params", err)
@@ -96,7 +96,7 @@ func TestCodebaseStatusUsesRuntimeFacade(t *testing.T) {
 		ChunkCount: 34,
 		IndexedAt:  indexedAt,
 	}}
-	s := &Server{rt: rt, serverInfo: protocol.ServerInfo{Cwd: root}}
+	s := newTestServerWithInfo(rt, protocol.ServerInfo{Cwd: root})
 
 	got, err := s.CodebaseStatus(context.Background(), protocol.CodebaseStatusRequest{})
 	if err != nil {
@@ -113,7 +113,7 @@ func TestCodebaseStatusUsesRuntimeFacade(t *testing.T) {
 func TestCodebaseReindexUsesRuntimeFacade(t *testing.T) {
 	root := t.TempDir()
 	rt := &codebaseRuntime{}
-	s := &Server{rt: rt, serverInfo: protocol.ServerInfo{Cwd: root}}
+	s := newTestServerWithInfo(rt, protocol.ServerInfo{Cwd: root})
 
 	if err := s.CodebaseReindex(context.Background(), protocol.CodebaseReindexRequest{}); err != nil {
 		t.Fatalf("codebase reindex: %v", err)

@@ -52,7 +52,7 @@ func TestApprovalModeWireRoundTrip(t *testing.T) {
 
 func TestApprovalModeHandlersUseRuntimeFacade(t *testing.T) {
 	rt := &approvalRuntime{mode: approval.ModePlan}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	got, err := s.GetApprovalMode(context.Background())
 	if err != nil {
@@ -83,7 +83,7 @@ func TestListApprovalRulesUsesRuntimeFacade(t *testing.T) {
 		Subject:  "npm test",
 		Decision: approval.Allow,
 	}}}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	got, err := s.ListApprovalRules(context.Background(), protocol.ListApprovalRulesRequest{SessionID: "ses_1"})
 	if err != nil {
@@ -99,7 +99,7 @@ func TestListApprovalRulesUsesRuntimeFacade(t *testing.T) {
 
 func TestForgetApprovalRuleUsesRuntimeFacade(t *testing.T) {
 	rt := &approvalRuntime{}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	if err := s.ForgetApprovalRule(context.Background(), protocol.ForgetApprovalRuleRequest{ID: "rule_1"}); err != nil {
 		t.Fatalf("forget approval rule: %v", err)

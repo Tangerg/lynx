@@ -9,7 +9,7 @@ import (
 
 // RunScheduler starts the scheduled-run worker until ctx is canceled.
 func (s *Server) RunScheduler(ctx context.Context) {
-	s.rt.RunScheduleWorker(ctx, scheduleRunner{s})
+	s.schedules.RunScheduleWorker(ctx, scheduleRunner{s})
 }
 
 type scheduleRunner struct {
@@ -26,7 +26,7 @@ func (r scheduleRunner) StartScheduledRun(ctx context.Context, sc schedule.Sched
 	if title == "" {
 		title = "Scheduled run"
 	}
-	sess, err := s.rt.CreateSession(ctx, title, cwd)
+	sess, err := s.sessions.CreateSession(ctx, title, cwd)
 	if err != nil {
 		return "", err
 	}

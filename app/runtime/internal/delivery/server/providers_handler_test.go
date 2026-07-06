@@ -49,9 +49,9 @@ func (r *providerRuntime) ProbeProvider(_ context.Context, entry provider.Provid
 }
 
 func TestListProvidersMergesSupportedCatalogWithRegistry(t *testing.T) {
-	s := &Server{rt: &providerRuntime{entries: map[string]provider.Provider{
+	s := newTestServer(&providerRuntime{entries: map[string]provider.Provider{
 		"anthropic": {ID: "anthropic", APIKey: "sk-ant-secret", KeySource: provider.KeyStored},
-	}}}
+	}})
 
 	page, err := s.ListProviders(context.Background(), protocol.PageQuery{})
 	if err != nil {
@@ -77,7 +77,7 @@ func TestListProvidersMergesSupportedCatalogWithRegistry(t *testing.T) {
 
 func TestConfigureProviderPersistsThenReturnsStoredEntry(t *testing.T) {
 	rt := &providerRuntime{}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	got, err := s.ConfigureProvider(context.Background(), protocol.ConfigureProviderRequest{
 		Provider: "anthropic",
@@ -100,7 +100,7 @@ func TestConfigureProviderPersistsThenReturnsStoredEntry(t *testing.T) {
 
 func TestConfigureProviderFailsWhenStoredEntryCannotBeReadBack(t *testing.T) {
 	rt := &providerRuntime{dropStored: true}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	_, err := s.ConfigureProvider(context.Background(), protocol.ConfigureProviderRequest{
 		Provider: "anthropic",
@@ -119,7 +119,7 @@ func TestTestProviderUsesConfiguredProvider(t *testing.T) {
 		},
 		probeErr: probeErr,
 	}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	got, err := s.TestProvider(context.Background(), "anthropic")
 	if err != nil {
