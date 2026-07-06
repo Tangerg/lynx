@@ -71,6 +71,34 @@ func TestResolveInRoot(t *testing.T) {
 	}
 }
 
+func TestResolveExistingInRootRejectsSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	escape := filepath.Join(root, "escape.txt")
+	if err := os.Symlink(filepath.Join(outside, "secret.txt"), escape); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	if _, err := resolveExistingInRoot(root, "escape.txt"); !errors.Is(err, protocol.ErrPathOutsideRoot) {
+		t.Fatalf("resolveExistingInRoot(symlink escape) err = %v, want ErrPathOutsideRoot", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(root, "inside.txt"), []byte("inside"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inside := filepath.Join(root, "inside-link.txt")
+	if err := os.Symlink(filepath.Join(root, "inside.txt"), inside); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	got, err := resolveExistingInRoot(root, "inside-link.txt")
+	if err != nil || got != "inside-link.txt" {
+		t.Fatalf("resolveExistingInRoot(inside symlink) = (%q, %v), want inside-link.txt", got, err)
+	}
+}
+
 // TestWorkspaceGetFileHead reads the first N lines of a cwd-relative file,
 // numbers them 1-based, and refuses a path that climbs out of the root.
 func TestWorkspaceGetFileHead(t *testing.T) {
@@ -90,6 +118,22 @@ func TestWorkspaceGetFileHead(t *testing.T) {
 
 	if _, err := s.WorkspaceGetFileHead(context.Background(), protocol.GetFileHeadRequest{Path: "../escape"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
 		t.Errorf("escape path err = %v, want ErrPathOutsideRoot", err)
+	}
+}
+
+func TestWorkspaceReadFileRejectsSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "secret.txt"), filepath.Join(root, "leak.txt")); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	s := &Server{serverInfo: protocol.ServerInfo{Cwd: root}}
+
+	if _, err := s.WorkspaceReadFile(context.Background(), protocol.ReadFileRequest{Path: "leak.txt"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
+		t.Fatalf("read symlink escape err = %v, want ErrPathOutsideRoot", err)
 	}
 }
 

@@ -61,7 +61,7 @@ func (s *Server) WorkspaceGetFileHead(ctx context.Context, in protocol.GetFileHe
 	if err != nil {
 		return nil, err
 	}
-	rel, err := resolveInRoot(root, in.Path)
+	rel, err := resolveExistingInRoot(root, in.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (s *Server) WorkspaceReadFile(ctx context.Context, in protocol.ReadFileRequ
 	if err != nil {
 		return nil, err
 	}
-	rel, err := resolveInRoot(root, in.Path)
+	rel, err := resolveExistingInRoot(root, in.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +150,7 @@ func (s *Server) WorkspaceGrep(ctx context.Context, in protocol.GrepRequest) (*p
 	}
 	searchRoot := root
 	if in.Path != "" {
-		rel, err := resolveInRoot(root, in.Path)
+		rel, err := resolveExistingInRoot(root, in.Path)
 		if err != nil {
 			return nil, err
 		}

@@ -63,7 +63,7 @@
 ## 特殊点
 
 - **沙箱 / 路径隔离**：
-  - `fs.LocalExecutor.Root` —— 相对路径**锚点**（非安全 jail：绝对路径与 `../` 仍可穿透，见 `local.go` 的 `TODO(security)`）；真正隔离靠外层（容器 / ProcessContext）
+  - `fs.LocalExecutor.Root` —— 相对路径**锚点**，不是安全 jail；需要隔离的调用方必须在外层做路径校验（容器 / ProcessContext / 协议边界）
   - `httpreq.Client.AllowedHosts` —— 强制 allowlist（无默认值）
   - `shell.LocalExecutor` —— **无 root 限制**（信任调用方，lyra 通过 `ProcessContext.Workdir` 在外层管）
 - **Glob/Grep 在 SPI 层**：远程 backend 不能每次都往返整个文件系统，所以这两个 bulk 查询直接进 Executor，一次 RPC 而不是多轮 list+read
@@ -77,7 +77,7 @@
 tools/
 ├── shell/               单 shell 工具 + Executor SPI（local.go = LocalExecutor）
 ├── fs/                  5 个文件工具（read/write/edit/glob/grep） + Executor SPI + 本地实现
-│                        - Executor.Root 锚定相对路径（非 jail，见 local.go TODO(security)）
+│                        - Executor.Root 锚定相对路径（非 jail，隔离由调用方边界负责）
 ├── httpreq/             HTTP 请求 + Client + 主机/方法 allowlist（无默认，必显式）
 ├── websearch/
 │   ├── tavily / brave / exa / ...    各 Provider 实现
