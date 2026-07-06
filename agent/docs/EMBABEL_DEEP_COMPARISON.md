@@ -88,10 +88,10 @@
 | 新增 | 文件 | 作用 | embabel 对应 |
 |---|---|---|---|
 | `Interrupt[R any]` | `hitl/interrupt.go:69` | 统一 HITL：`Interrupt[R](ctx, key, value) (R, bool, error)`，idempotency guard 走 `bb.Get(resumeSlotKey(key))` | sealed `AwaitableResponse` 子型层级 + `ux/form` — lynx 更简洁但无表单层 |
-| `InterruptError` | `hitl/interrupt.go:25` | 实现 `chat.ToolHalt`（`Abort()==false`），经 `HandleInterrupt` 一转 → `pc.AwaitInput` | `AwaitableResponseException` + 子型 handler |
+| `InterruptError` | `hitl/interrupt.go:25` | 实现 `toolloop.Halt`（`Abort()==false`）和 `model.ControlFlowError`，经 `HandleInterrupt` 一转 → `pc.AwaitInput` | `AwaitableResponseException` + 子型 handler |
 | `ProcessStore` | `core/process_store.go:152` | 可换持久化 SPI（`Save/Load/Delete/List`），`ProcessSnapshot` 携带 `TaggedValue` 类型保持的黑板+条件+对象+调用历史 | `AgentProcessRepository`（tick-by-tick 更新，比 lynx 更"实时"） |
 | `ChatClientProvider` | `core/extension.go:87` | per-process LLM 覆盖：一个 Platform 服务多模型 | `LlmService` SPI（不同形态） |
-| `ParkStore` | `core/model/chat/middleware/tool/middleware.go:47` | HITL 中断轮次持久化（conversation-id keyed），transparent resume | 无对等独立抽象（HITL park 在 embabel 内化于 `AgentProcess`） |
+| `ParkStore` | `agent/toolloop/park.go` | HITL 中断轮次持久化（conversation-id keyed），transparent resume | 无对等独立抽象（HITL park 在 embabel 内化于 `AgentProcess`） |
 
 ---
 
@@ -324,7 +324,7 @@ lynx 的 Extension 分发模型在 **OCP 清洁度**上继续领先——一个 
 | §8.2 per-call LLM/embedding 事件（无） | ✅ **CLOSED** | `44c4d77` `LLMInvocationRecorded` + `EmbeddingInvocationRecorded` events（`event/invocation.go`） | 能力补齐 |
 | §6.4 内置工具（~zero） | ⚠️ **PARTIALLY** | `e22be69` built-in math + sandboxed file tools — base exists, no full toolbox | 部分补齐 |
 | §4.5/§10.2 持久化 SPI（完全空白） | ⚠️ **PARTIALLY** | `ProcessStore` SPI（`Save/Load/Delete/List`）+ `ProcessSnapshot` type-preserving — swappable backend EXISTS but snapshot-based (not tick-by-tick live) | 部分补齐 |
-| HITL 模型（`TypedRequest[P,R]` + two markers） | ✅ **REWORKED** | `Interrupt[R any]` universal model（`hitl/interrupt.go:69`）+ `InterruptError`（`Abort()==false` satisfies `chat.ToolHalt`） | 架构升级 |
+| HITL 模型（`TypedRequest[P,R]` + two markers） | ✅ **REWORKED** | `Interrupt[R any]` universal model（`hitl/interrupt.go:69`）+ `InterruptError`（`Abort()==false` satisfies `toolloop.Halt`） | 架构升级 |
 | per-process LLM override | 🆕 **NEW capability** | `ChatClientProvider` extension（`core/extension.go:87`） | 新增能力 |
 | GOAP A* | ✅ **REFACTORED** | `13a412c` collapse into search object | 架构改进 |
 | child spawn 梯度 | ✅ **COMPLETE** | `SpawnChild` / `SpawnChildProtectedOnly` / `SpawnChildFresh` / `RunFresh` 4 档 | 反超 |

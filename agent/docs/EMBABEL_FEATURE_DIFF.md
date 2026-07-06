@@ -66,15 +66,15 @@
 | 2 | **后向 STRIPS 相关性剪枝**（不动点回归，A* 搜索**前**剪枝） | `planning/planner/goap/relevance.go` | 仅 post-hoc `prune`（要先跑完整 A*） |
 | 3 | **LLMPlanRanker**（LLM 评估候选 plan） | `runtime/autonomy/plan_ranker.go` | 无任何 plan-ranking |
 | 4 | **reactive 0-progress 守卫**（`progress==0 → continue`） | `planning/planner/reactive/reactive.go:116` | `UtilityPlanner` 无守卫，NIRVANA + 非自禁动作会死循环（其自家注释承认） |
-| 5 | **LoopDetection**（SHA256 round-signature + 滑动窗口，固定点检测，先于 max-iter 触发） | `core/model/chat/middleware/tool/loop_detection.go` | 无 |
-| 6 | **ConcurrentTool 资源键冲突检测**（`ConcurrencyKey` + `segmentEnd` 分组 + `maxConcurrentToolCalls=8`） | `core/model/chat/middleware/tool/concurrency.go:32`/`invoker.go:27` | `ParallelToolLoop` 无资源键（假冲突无法避免） |
-| 7 | **tool-error recovery as framework default**（默认开，不用配） | `core/model/chat/middleware/tool/invoker.go:128-137` | per-SPI policy，要配 |
+| 5 | **LoopDetection**（SHA256 round-signature + 滑动窗口，固定点检测，先于 max-iter 触发） | `agent/toolloop/loop_detection.go` | 无 |
+| 6 | **ConcurrentTool 资源键冲突检测**（`ConcurrencyKey` + `segmentEnd` 分组 + `maxConcurrentToolCalls=8`） | `agent/toolloop/concurrency.go` / `agent/toolloop/invoker.go` | `ParallelToolLoop` 无资源键（假冲突无法避免） |
+| 7 | **tool-error recovery as framework default**（默认开，不用配） | `agent/toolloop/invoker.go` | per-SPI policy，要配 |
 | 8 | **deploy-time 可达性校验**（`ValidateAgent` + `checkGoalsReachable` + `runAgentValidators` 三层） | `runtime/platform_deploy.go` | 裸 map put，STUCK 时才暴露 |
 | 9 | **kill-race invariant 完整族**（first-terminal-wins / idempotent KillProcess / cancel-park race + budget leak / reject concurrent HITL parks / drop leaked child） | commits `a2c17da`/`15490f5`/`50a996f`/`9efee00`/`ce59304` | 基于 `InterruptedException` + `stop()` flag |
 | 10 | **spawn 梯度 4 档**（`SpawnChild`/`SpawnChildProtectedOnly`/`SpawnChildFresh`/`RunFresh`） | `runtime/child.go` | 统一委派 + 共享黑板，不形式化隔离 |
 | 11 | **workflow over sub-agent**（`Sequence`/`Parallel`/`Loop` over sub-agent + 分支隔离） | `workflow/` | `ScatterGather`/`RepeatUntil` 只 over **闭包**，无 over-sub-agent 组合 |
 | 12 | **async/background subagent**（`SpawnChildAsync` + `AsBackgroundChatTool`） | commit `44ce90c` | 无对等 |
-| 13 | **流式 tool loop 自驱**（`executeStreamRecursively` 注入合成 ToolMessage chunk） | `core/model/chat/middleware/tool/` | `LlmMessageStreamer` 文档明说流式下不能自驱、只能观测 |
+| 13 | **流式 tool loop 自驱**（`executeStreamRecursively` 注入合成 ToolMessage chunk） | `agent/toolloop/` | `LlmMessageStreamer` 文档明说流式下不能自驱、只能观测 |
 | 14 | **child EventListener 继承**（child spawn 时继承父 listeners） | commit `8ac8fc9` | 无对等 |
 
 ### B2. 独有抽象形态（更整洁，embabel 无对等形态）

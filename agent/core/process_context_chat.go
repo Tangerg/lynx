@@ -52,7 +52,7 @@ func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.Client
 }
 
 // buildChatRequest composes the per-action chat request. Middleware
-// (tool loop, memory, etc.) comes from [Guardrails] — configured by
+// (tool loop, history, etc.) comes from [Guardrails] — configured by
 // the caller via [ProcessOptions.Guardrails] or the platform default.
 func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientRequest {
 	req := pc.chatClient.Chat()
@@ -71,8 +71,8 @@ func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientReques
 }
 
 // conversationID is this process's chat history conversation key, stamped
-// onto every chat request under chat conversation ID so the memory
-// middleware loads / saves history (and the tool middleware parks
+// onto every chat request under chat conversation ID so the history
+// middleware loads / saves history (and the tool loop parks
 // interrupted rounds) keyed by it. The derivation rule lives in
 // [ConversationID]. Returns "" only when neither a session nor a
 // process is available, leaving the request unstamped.

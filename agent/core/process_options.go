@@ -26,10 +26,8 @@ type ProcessOptions struct {
 	ProcessType ProcessType
 
 	// Session optionally binds this process to a multi-turn
-	// conversation. The caller passes the session id to the memory
-	// middleware constructor (via [Guardrails]), so the middleware
-	// loads + persists history keyed by [Session.ID] without
-	// reading it from request params.
+	// conversation. Guardrails stamp the session id onto chat requests so the
+	// history middleware loads + persists history keyed by [Session.ID].
 	//
 	// Typically set via [Platform.RunInSession]; the runtime fills
 	// the field and refreshes [Session.UpdatedAt] on every dispatch.
@@ -49,7 +47,7 @@ type ProcessOptions struct {
 
 	// Guardrails, when non-nil, overrides the platform-level guardrails
 	// for this process. nil means "use the platform default". Set it to
-	// inject per-process chat middleware (tool loop, memory) so agent/core
+	// inject per-process chat middleware (tool loop, history) so agent/core
 	// doesn't need to import middleware implementations.
 	Guardrails *Guardrails
 }

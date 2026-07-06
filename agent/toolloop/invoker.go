@@ -233,10 +233,10 @@ func systemMessages(msgs []chat.Message) []chat.Message {
 // loop ([invocationResult.buildContinueRequest]) and HITL resume
 // ([middleware.resumeCall] / [middleware.resumeStream]).
 //
-// It deliberately does NOT re-send the prior conversation — the memory
+// It deliberately does NOT re-send the prior conversation — the history
 // middleware below the loop owns the stored history and splices it back in. The
 // assistant tool-call message DOES travel alongside its tool result so the two
-// persist as one atomic exchange (memory skips a lone tool-call assistant, so
+// persist as one atomic exchange (history skips a lone tool-call assistant, so
 // it can never strand an unanswered assistant(tool_calls) if the turn
 // interrupts mid-round). Re-sending the full conversation, by contrast, is the
 // coupling that forced the history layer to de-duplicate.

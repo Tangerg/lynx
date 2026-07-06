@@ -852,13 +852,13 @@ func TestToolLoop_InterruptThenResume(t *testing.T) {
 
 // --- persisted-history validity across multi-round / HITL turns -----------
 
-// TestMemory_SequentialMultiRoundTurn_ValidHistory drives a turn that calls
+// TestHistory_SequentialMultiRoundTurn_ValidHistory drives a turn that calls
 // a DIFFERENT tool each round (alpha, then beta, then answers) through the
-// real memory + tool middlewares, then checks the persisted conversation is
+// real history + tool middlewares, then checks the persisted conversation is
 // a valid provider sequence. Guards the deep pitfall where the accumulator
 // merges all rounds into one assistant + keeps only the last round's tool
 // results, orphaning earlier tool_calls.
-func TestMemory_SequentialMultiRoundTurn_ValidHistory(t *testing.T) {
+func TestHistory_SequentialMultiRoundTurn_ValidHistory(t *testing.T) {
 	model := newFakeChatModel(t)
 	model.streamRespond = func(req *chat.Request) []*chat.Response {
 		switch countToolMsgs(req.Messages) {
@@ -880,9 +880,9 @@ func TestMemory_SequentialMultiRoundTurn_ValidHistory(t *testing.T) {
 	}
 	_, toolStreamMW := NewMiddleware()
 
-	// Tool middleware is OUTERMOST, memory INNERMOST (model-adjacent): the
+	// Tool middleware is OUTERMOST, history INNERMOST (model-adjacent): the
 	// tool loop drives the rounds and hands each round's new messages down
-	// to memory, which loads history, splices, and persists. First in the
+	// to history, which loads, splices, and persists. First in the
 	// slice = outermost.
 	req, _ := chat.NewClientRequest(model)
 	req.WithMiddlewares(toolStreamMW, historyCallMW, historyStreamMW).
