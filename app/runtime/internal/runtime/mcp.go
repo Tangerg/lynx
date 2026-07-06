@@ -199,7 +199,7 @@ func configFromServer(s mcpserver.Server) mcp.ServerConfig {
 		cfg.Transport = mcp.TransportStdio
 		cfg.Command = s.Command
 		cfg.Args = s.Args
-		cfg.Env = envMapToSlice(s.Env)
+		cfg.Env = envMapToSlice(s.SafeEnv())
 		cfg.Dir = s.Dir
 	}
 	return cfg
