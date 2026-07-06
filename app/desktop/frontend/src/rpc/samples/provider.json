@@ -1,0 +1,6 @@
+{
+  "id": "openai",
+  "baseUrl": "https://api.openai.com/v1",
+  "apiKeyMasked": "sk****78",
+  "keySource": "stored"
+}

@@ -1,0 +1,8 @@
+{
+  "type": "maxSteps",
+  "result": {
+    "usage": { "inputTokens": 4200, "outputTokens": 1800, "costUsd": 0.084 },
+    "steps": 8
+  },
+  "detail": "reached step ceiling 8"
+}

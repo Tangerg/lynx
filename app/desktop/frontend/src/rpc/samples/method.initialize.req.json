@@ -1,0 +1,25 @@
+{
+  "protocolVersion": "2026-06-07",
+  "clientInfo": {
+    "name": "lyra-desktop",
+    "version": "0.1.0"
+  },
+  "capabilities": {
+    "events": [
+      "run.started",
+      "run.progress",
+      "run.finished",
+      "item.started",
+      "item.delta",
+      "item.completed",
+      "state.snapshot",
+      "state.delta",
+      "custom"
+    ],
+    "features": {
+      "clientTools": true
+    },
+    "interruptTypes": ["approval", "question", "toolResult"],
+    "optOutNotificationMethods": ["item.delta"]
+  }
+}

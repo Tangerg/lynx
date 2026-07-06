@@ -1,0 +1,7 @@
+{
+  "state": "ready",
+  "modelId": "text-embedding-3-small",
+  "fileCount": 128,
+  "chunkCount": 1024,
+  "indexedAt": "2026-07-07T10:00:00Z"
+}

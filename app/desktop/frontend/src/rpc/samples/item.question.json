@@ -1,0 +1,19 @@
+{
+  "id": "item_13",
+  "runId": "run_01",
+  "status": "running",
+  "createdAt": "2026-07-07T10:00:00Z",
+  "type": "question",
+  "question": {
+    "prompt": "How should I proceed?",
+    "fields": [
+      { "name": "note", "label": "Additional notes", "type": "text" },
+      {
+        "name": "target",
+        "label": "Target environment",
+        "type": "choice",
+        "options": [{ "label": "Staging" }, { "label": "Production" }]
+      }
+    ]
+  }
+}

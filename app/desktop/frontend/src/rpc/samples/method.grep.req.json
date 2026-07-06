@@ -1,0 +1,6 @@
+{
+  "query": "func main",
+  "cwd": "/Users/me/project",
+  "path": "src",
+  "limit": 100
+}

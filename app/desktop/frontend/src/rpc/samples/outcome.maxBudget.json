@@ -1,0 +1,7 @@
+{
+  "type": "maxBudget",
+  "result": {
+    "usage": { "inputTokens": 15200, "outputTokens": 6400, "costUsd": 4.2 }
+  },
+  "detail": "spent $4.20 / cap $4.00"
+}

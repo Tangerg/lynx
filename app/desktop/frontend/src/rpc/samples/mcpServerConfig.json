@@ -1,0 +1,15 @@
+{
+  "name": "filesystem",
+  "type": "stdio",
+  "enabled": true,
+  "description": "Local filesystem MCP server",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/dev/project"],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "dir": "/Users/dev/project",
+  "timeoutSeconds": 30,
+  "disabledTools": ["delete_file"],
+  "autoApproveTools": ["read_file"]
+}

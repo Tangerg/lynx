@@ -1,0 +1,10 @@
+{
+  "itemId": "item_07",
+  "type": "toolResult",
+  "payload": {
+    "tool": {
+      "name": "fetch_url",
+      "arguments": { "url": "https://example.com" }
+    }
+  }
+}

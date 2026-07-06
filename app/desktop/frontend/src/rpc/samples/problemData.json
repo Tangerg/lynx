@@ -1,0 +1,15 @@
+{
+  "type": "invalid_params",
+  "channel": "rpc",
+  "detail": "one or more fields failed validation",
+  "errors": [
+    {
+      "field": "cron",
+      "detail": "must be a 5-field cron expression"
+    },
+    {
+      "field": "prompt",
+      "detail": "must not be empty"
+    }
+  ]
+}

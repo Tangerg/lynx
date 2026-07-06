@@ -1,0 +1,5 @@
+{
+  "name": "pdf-processing",
+  "description": "Extract text and tables from PDF documents.",
+  "source": "global"
+}

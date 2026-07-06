@@ -1,0 +1,7 @@
+{
+  "name": "filesystem",
+  "status": "connected",
+  "toolCount": 8,
+  "authStatus": "none",
+  "description": "Local filesystem access"
+}

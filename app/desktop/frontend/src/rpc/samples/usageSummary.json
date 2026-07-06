@@ -1,0 +1,20 @@
+{
+  "total": {
+    "inputTokens": 125000,
+    "outputTokens": 42000,
+    "cacheReadTokens": 60000,
+    "costUsd": 1.2345
+  },
+  "byModel": [
+    {
+      "key": "anthropic/claude-sonnet-4-5",
+      "inputTokens": 125000,
+      "outputTokens": 42000,
+      "cacheReadTokens": 60000,
+      "costUsd": 1.2345,
+      "runs": 7
+    }
+  ],
+  "sessions": 3,
+  "runs": 7
+}

@@ -1,0 +1,6 @@
+{
+  "path": "src/main.go",
+  "content": "package main\n\nfunc main() {}\n",
+  "encoding": "utf-8",
+  "totalLines": 3
+}

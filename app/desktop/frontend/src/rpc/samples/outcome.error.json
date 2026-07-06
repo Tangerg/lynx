@@ -1,0 +1,9 @@
+{
+  "type": "error",
+  "result": {
+    "error": {
+      "type": "provider_unavailable",
+      "detail": "anthropic returned 503 after 3 attempts"
+    }
+  }
+}
