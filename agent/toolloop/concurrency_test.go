@@ -164,3 +164,29 @@ func TestInvoker_ExclusiveDefaultSerial(t *testing.T) {
 		t.Fatalf("exclusive (default) peak concurrency = %d, want 1 (serial)", got)
 	}
 }
+
+func TestToolWrappers_PreserveDirectAndParallelCapabilities(t *testing.T) {
+	base := mustNewTool(t, "wrapped")
+
+	cases := []struct {
+		name string
+		tool chat.Tool
+	}{
+		{"parallel then direct", ReturnDirect(AsParallelTool(base))},
+		{"direct then parallel", AsParallelTool(ReturnDirect(base))},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !returnsDirect(tc.tool) {
+				t.Fatal("return-direct marker was not preserved")
+			}
+			parallel, ok := tc.tool.(ConcurrentTool)
+			if !ok {
+				t.Fatal("parallel marker was not preserved")
+			}
+			if key, concurrent := parallel.ConcurrencyKey("{}"); key != "" || !concurrent {
+				t.Fatalf("ConcurrencyKey = (%q, %v), want empty key and concurrent", key, concurrent)
+			}
+		})
+	}
+}

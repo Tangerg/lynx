@@ -58,6 +58,15 @@ func (t *onceOnlyTool) ReturnsDirect() bool {
 	return false
 }
 
+func (t *onceOnlyTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+	if c, ok := t.delegate.(interface {
+		ConcurrencyKey(string) (string, bool)
+	}); ok {
+		return c.ConcurrencyKey(arguments)
+	}
+	return "", false
+}
+
 func (t *onceOnlyTool) Call(ctx context.Context, arguments string) (string, error) {
 	name := t.delegate.Definition().Name
 
@@ -124,6 +133,15 @@ func (t *unlockTool) ReturnsDirect() bool {
 		return d.ReturnsDirect()
 	}
 	return false
+}
+
+func (t *unlockTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+	if c, ok := t.delegate.(interface {
+		ConcurrencyKey(string) (string, bool)
+	}); ok {
+		return c.ConcurrencyKey(arguments)
+	}
+	return "", false
 }
 
 func (t *unlockTool) Call(ctx context.Context, arguments string) (string, error) {

@@ -10,11 +10,14 @@ import (
 )
 
 type fakeTool struct {
-	name    string
-	calls   int
-	gotArgs []string
-	resp    string
-	respErr error
+	name       string
+	calls      int
+	gotArgs    []string
+	resp       string
+	respErr    error
+	direct     bool
+	concurrent bool
+	key        string
 }
 
 func (t *fakeTool) Definition() chat.ToolDefinition {
@@ -24,6 +27,10 @@ func (t *fakeTool) Call(_ context.Context, args string) (string, error) {
 	t.calls++
 	t.gotArgs = append(t.gotArgs, args)
 	return t.resp, t.respErr
+}
+func (t *fakeTool) ReturnsDirect() bool { return t.direct }
+func (t *fakeTool) ConcurrencyKey(string) (string, bool) {
+	return t.key, t.concurrent
 }
 
 // ---------- OnceOnly --------------------------------------------------
@@ -87,6 +94,28 @@ func TestOnceOnly_FallbackToProcessWideWithoutScope(t *testing.T) {
 func TestOnceOnly_RejectsNilTool(t *testing.T) {
 	if _, err := toolpolicy.OnceOnly(nil); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestOnceOnly_ForwardsToolCapabilities(t *testing.T) {
+	inner := &fakeTool{name: "notify", direct: true, concurrent: true, key: "resource"}
+	wrapped, err := toolpolicy.OnceOnly(inner)
+	if err != nil {
+		t.Fatalf("OnceOnly: %v", err)
+	}
+
+	direct, ok := wrapped.(interface{ ReturnsDirect() bool })
+	if !ok || !direct.ReturnsDirect() {
+		t.Fatal("return-direct capability was not forwarded")
+	}
+	concurrent, ok := wrapped.(interface {
+		ConcurrencyKey(string) (string, bool)
+	})
+	if !ok {
+		t.Fatal("concurrency capability was not forwarded")
+	}
+	if key, isConcurrent := concurrent.ConcurrencyKey("{}"); key != "resource" || !isConcurrent {
+		t.Fatalf("ConcurrencyKey = (%q, %v), want resource/true", key, isConcurrent)
 	}
 }
 
@@ -160,6 +189,30 @@ func TestUnlocked_RejectsNilArgs(t *testing.T) {
 				t.Fatal("expected error")
 			}
 		})
+	}
+}
+
+func TestUnlocked_ForwardsToolCapabilities(t *testing.T) {
+	inner := &fakeTool{name: "notify", direct: true, concurrent: true, key: "resource"}
+	wrapped, err := toolpolicy.Unlocked(inner, func(context.Context, string) (bool, string) {
+		return true, ""
+	})
+	if err != nil {
+		t.Fatalf("Unlocked: %v", err)
+	}
+
+	direct, ok := wrapped.(interface{ ReturnsDirect() bool })
+	if !ok || !direct.ReturnsDirect() {
+		t.Fatal("return-direct capability was not forwarded")
+	}
+	concurrent, ok := wrapped.(interface {
+		ConcurrencyKey(string) (string, bool)
+	})
+	if !ok {
+		t.Fatal("concurrency capability was not forwarded")
+	}
+	if key, isConcurrent := concurrent.ConcurrencyKey("{}"); key != "resource" || !isConcurrent {
+		t.Fatalf("ConcurrencyKey = (%q, %v), want resource/true", key, isConcurrent)
 	}
 }
 

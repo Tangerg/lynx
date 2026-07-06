@@ -45,3 +45,5 @@ func AsParallelTool(t chat.Tool) chat.Tool {
 type parallelTool struct{ chat.Tool }
 
 func (parallelTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
+
+func (t parallelTool) ReturnsDirect() bool { return returnsDirect(t.Tool) }
