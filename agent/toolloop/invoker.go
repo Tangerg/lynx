@@ -184,10 +184,10 @@ func (i *invoker) buildReturnDirectResponse(msgs []chat.Message) (*chat.Response
 	last, _ := pkgSlices.Last(msgs)
 
 	assistantMsg := chat.NewAssistantMessage(map[string]any{
-		"created_by": chat.FinishReasonReturnDirect.String(),
+		"created_by": FinishReasonReturnDirect.String(),
 	})
 	// shouldReturnDirect already verified the tail is a *chat.ToolMessage.
-	return toolRoundResponse(assistantMsg, last.(*chat.ToolMessage), chat.FinishReasonReturnDirect)
+	return toolRoundResponse(assistantMsg, last.(*chat.ToolMessage), FinishReasonReturnDirect)
 }
 
 // canInvokeToolCalls reports whether the response carries tool calls to run.

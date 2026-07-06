@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -13,13 +14,13 @@ import (
 // instead of a durable store.
 const inflightTailKey = "lyra:hitl:inflight-tail"
 
-// isInterruptResult reports whether a streamed response is the tool
-// loop's FinishReasonInterrupt tail rather than model output. Only
-// reached when no [toolloop.ParkStore] is configured — with a ParkStore
-// the tool middleware saves state internally and never yields these.
+// isInterruptResult reports whether a streamed response is the tool loop's
+// [toolloop.FinishReasonInterrupt] tail rather than model output. Only reached
+// when no [toolloop.ParkStore] is configured — with a ParkStore the tool
+// middleware saves state internally and never yields these.
 func isInterruptResult(resp *chat.Response) bool {
 	return resp != nil && resp.Result != nil && resp.Result.Metadata != nil &&
-		resp.Result.Metadata.FinishReason == chat.FinishReasonInterrupt
+		resp.Result.Metadata.FinishReason == toolloop.FinishReasonInterrupt
 }
 
 type inflightTailStore struct {

@@ -27,17 +27,6 @@ const (
 	// FinishReasonContentFilter — provider-side safety filter blocked the response.
 	FinishReasonContentFilter FinishReason = "content_filter"
 
-	// FinishReasonReturnDirect — internal short-circuit: a tool result is
-	// being returned directly without re-prompting the LLM.
-	FinishReasonReturnDirect FinishReason = "return_direct"
-
-	// FinishReasonInterrupt — internal: the tool loop halted for human input
-	// (HITL). The Result carries the round's assistant tool-call message plus
-	// any partial tool results; the caller parks the run and, on resume, feeds
-	// that tail back so the loop continues AT the pending call (it is not a
-	// final answer). See agent/toolloop.
-	FinishReasonInterrupt FinishReason = "interrupt"
-
 	// FinishReasonOther — provider-specific reason that doesn't fit the
 	// above; inspect [ResultMetadata.Extra] for details.
 	FinishReasonOther FinishReason = "other"
@@ -214,8 +203,7 @@ func (r *Response) ReasoningDelta() string {
 	return r.Result.AssistantMessage.JoinedReasoning()
 }
 
-// IsToolResult reports whether this is the synthetic tool-result chunk the
-// tool-loop middleware (see toolloop.NewMiddleware) yields between LLM rounds:
+// IsToolResult reports whether this is a synthetic tool-result chunk:
 // Result.ToolMessage set, Result.AssistantMessage nil. It marks a round
 // boundary — the prior LLM round is over and its usage is final — which
 // streaming consumers use to commit per-round accounting before the next
@@ -233,8 +221,8 @@ func (r *Response) IsToolResult() bool {
 // result chain. A nil receiver or a response without an assistant message
 // returns false (there was no reply to consider empty).
 //
-// The tool-loop middleware uses it to decide whether to nudge the model
-// with an empty-response follow-up.
+// A driver may use it to decide whether to nudge the model with an
+// empty-response follow-up.
 func (r *Response) IsEmpty() bool {
 	if r == nil || r.Result == nil || r.Result.AssistantMessage == nil {
 		return false

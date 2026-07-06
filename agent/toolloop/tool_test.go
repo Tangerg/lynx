@@ -804,7 +804,7 @@ func TestToolMiddleware_InterruptThenResume(t *testing.T) {
 			break
 		}
 		if resp != nil && resp.Result != nil && resp.Result.Metadata != nil &&
-			resp.Result.Metadata.FinishReason == chat.FinishReasonInterrupt {
+			resp.Result.Metadata.FinishReason == FinishReasonInterrupt {
 			tail = append(tail, resp.Result.AssistantMessage)
 			if resp.Result.ToolMessage != nil {
 				tail = append(tail, resp.Result.ToolMessage)

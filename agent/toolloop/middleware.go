@@ -51,13 +51,13 @@ type Config struct {
 	FeedbackOnEmptyResponse bool
 
 	// ParkStore, when non-nil, persists interrupted tool rounds so the
-	// engine never sees a [chat.FinishReasonInterrupt] chunk — the
-	// middleware saves the park state on interrupt and restores it on
-	// resume, both transparent to the caller. nil (the zero-value
-	// default) selects the conversation-tail design instead:
+	// engine never sees a [FinishReasonInterrupt] chunk — the middleware
+	// saves the park state on interrupt and restores it on resume, both
+	// transparent to the caller. nil (the zero-value default) selects the
+	// conversation-tail design instead:
 	// [buildInterruptResponse] hands the interrupted round back as a
-	// [chat.FinishReasonInterrupt] response whose tail the caller
-	// re-feeds to resume.
+	// [FinishReasonInterrupt] response whose tail the caller re-feeds to
+	// resume.
 	ParkStore ParkStore
 
 	// LoopDetection, when non-nil, enables the repeated-tool-round
@@ -525,7 +525,7 @@ func injectParkTail(ctx context.Context, req *chat.Request, state *ParkState) *c
 // interruptOutcome applies the park-vs-tail policy when a tool round
 // halts for human input: with a ParkStore the round parks (persisted
 // under the request's conversation id) and the returned response is
-// nil; without one it returns the [chat.FinishReasonInterrupt] tail
+// nil; without one it returns the [FinishReasonInterrupt] tail
 // the caller re-feeds to resume (conversation-tail design — see
 // [Config.ParkStore]). The caller pairs the result with the interrupt
 // cause per its own delivery protocol — a single return on the call

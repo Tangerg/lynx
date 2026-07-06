@@ -43,7 +43,7 @@ func stallContext(parent context.Context, idle time.Duration) (ctx context.Conte
 // tool-loop, stream deltas to the observer, record each LLM round into the
 // process budget, and assemble the result. HITL interrupt / resume is
 // handled by the tool middleware's [toolloop.ParkStore]; when none is
-// configured, the engine intercepts [chat.FinishReasonInterrupt] chunks as
+// configured, the engine intercepts tool-loop interrupt chunks as
 // a fallback.
 func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, budget turnBudget) (ChatOutput, error) {
 	// Mid-run steering: stash the turn's SteerSource (attached as a process
@@ -119,7 +119,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provi
 			return ChatOutput{}, streamErr
 		}
 		// Fallback: when no ParkStore is configured, the tool middleware
-		// yields FinishReasonInterrupt chunks. Intercept and save to the
+		// yields interrupt chunks. Intercept and save to the
 		// process blackboard so resume works. With a ParkStore configured
 		// the middleware never yields these — the engine does nothing.
 		if isInterruptResult(chunk) {

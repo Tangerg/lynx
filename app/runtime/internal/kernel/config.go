@@ -96,7 +96,7 @@ type Config struct {
 	SessionStore core.SessionStore
 
 	// ParkStore persists interrupted tool rounds for HITL resume.
-	// When nil the engine intercepts [chat.FinishReasonInterrupt] chunks
+	// When nil the engine intercepts tool-loop interrupt chunks
 	// itself and parks the resumable tail on the process blackboard.
 	ParkStore toolloop.ParkStore
 }

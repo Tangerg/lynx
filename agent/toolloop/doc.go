@@ -24,7 +24,7 @@
 //   - a [Halt] whose Abort() is true — aborts the run (a failure the
 //     model cannot act on);
 //   - a [Halt] whose Abort() is false — parks the run for human input
-//     (HITL). The loop hands back a [chat.FinishReasonInterrupt] response — the
+//     (HITL). The loop hands back a [FinishReasonInterrupt] response — the
 //     resumable tail: the round's assistant tool-call message plus any partial
 //     results — then propagates the cause. The caller parks and, on resume,
 //     feeds that tail back; the loop continues AT the still-pending call (the
