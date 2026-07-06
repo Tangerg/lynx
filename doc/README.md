@@ -15,7 +15,7 @@ lynx/
 ├── tools/           Tool 实现
 ├── mcp/             Model Context Protocol 桥接
 ├── a2a/             Agent-to-Agent 协议桥接
-├── chatmemory/      会话记忆后端
+├── chathistory/      聊天历史后端
 ├── documentreaders/ 文档读取器（html / markdown / pdf）
 ├── skills/          Agent Skills 基础能力（只读 SKILL.md 仓）
 ├── otel/            OpenTelemetry 开发导出器

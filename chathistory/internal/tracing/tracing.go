@@ -18,10 +18,10 @@ const (
 )
 
 // tracerFor returns the per-provider tracer. Names follow
-// `lynx/chatmemory/<system>` so backends that bucket by tracer name
+// `lynx/chathistory/<system>` so backends that bucket by tracer name
 // can distinguish providers without parsing attributes.
 func tracerFor(system string) trace.Tracer {
-	return otel.Tracer("lynx/chatmemory/" + system)
+	return otel.Tracer("lynx/chathistory/" + system)
 }
 
 func start(ctx context.Context, system, op, convID string) (context.Context, trace.Span) {

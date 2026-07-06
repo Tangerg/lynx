@@ -30,7 +30,7 @@
 | **事实提取** | `engine.Extractor` | `maintenance.Extractor` | 外部记忆抽取 |
 | **规划** | `engine.Planner` | `maintenance.Planner` | 外部 planner |
 | **转向注入** | `engine.SteeringSink` | `conversation.Service` | 少见，但可换 |
-| **聊天历史存储** | `memory.Store`（SDK） | `sqlite.MessageStore` | 外部历史后端 |
+| **聊天历史存储** | `history.Store`（SDK） | `sqlite.MessageStore` | 外部历史后端 |
 | **LLM** | `core.ChatClientProvider` + `provider.Service` 注册表 | anthropic/openai/… | 任意 provider |
 | **工具 / MCP / A2A** | `tool.ToolSource` / MCP / A2A 协议 | 内置工具集 | MCP server / A2A agent（天然外部） |
 | **会话 / 时间线 / 中断 / provider 存储** | `session.Service` / `transcript.Store` / `interrupts.Store` / `provider.Service` | sqlite 实现 | 可换后端（语义仍 lyra 专有，主要为测试+后端替换） |
@@ -62,7 +62,7 @@ eng := engine.Config{
 | **transport / dispatch / protocol**（`rpc/*`） | 线本身 + 方法路由；契约是冻结的，不是可替换服务 |
 | **事件投递 hub / pump**（`rpc/server/hub.go`） | per-run 事件扇出，核心机制 |
 | **run / session 生命周期容器**（`rpc/server` 记账） | 哪些 run 在跑/能否取消，核心状态 |
-| **`conversation.Service`** | 只是 `memory.Store` 之上的薄包装——**真正的替换接缝在底下的 `memory.Store`**（已是 SPI），所以这层焊死 |
+| **`conversation.Service`** | 只是 `history.Store` 之上的薄包装——**真正的替换接缝在底下的 `history.Store`**（已是 SPI），所以这层焊死 |
 | **`codeintel.Service`** | 包 LSP client；LSP 是标准协议，无"外部 code-intel provider"场景（要时再议） |
 | **`clientResolver` / toolset 装配** | per-run model 解析 + 工具环境组装，组合根内部逻辑 |
 

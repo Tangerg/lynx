@@ -6,8 +6,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/Tangerg/lynx/chatmemory/postgres"
-	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/chathistory/postgres"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 // stubPool is a sentinel non-nil *pgxpool.Pool used to exercise the
@@ -89,5 +89,5 @@ func TestStoreConfig_AcceptsValidIdentifiers(t *testing.T) {
 // TestStore_ImplementsHistoryStore is a compile-time interface check —
 // fails at build time, not runtime, if the contract drifts.
 func TestStore_ImplementsHistoryStore(t *testing.T) {
-	var _ chathistory.Store = (*postgres.Store)(nil)
+	var _ history.Store = (*postgres.Store)(nil)
 }

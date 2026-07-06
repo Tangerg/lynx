@@ -22,7 +22,7 @@
 | 3 | **ToolLoop inspector/transformer** —— 只读观测 + history 改写（压缩/摘要） | 仅 per-tool OTel span | 低 | 中低优先级 |
 | 4 | **tool-call 级事件**（`ToolCallRequest/Response` 带 correlationId） | 有 LLM/embedding per-call 事件，缺 tool-call 级 | 低-中 | 工具遥测完整性 |
 | 5 | **AgentValidationManager 多层 + ValidationPromptGenerator**（structure/path-to-completion 分型 + LLM 驱动校验 prompt） | 单 `AgentValidator` + 内建 reachability | 中 | deploy 时一次报全问题；LLM 校验是 embabel 独有 |
-| 6 | **ContextRepository**（跨 run 工作记忆持久化 SPI） | 仅 `ProcessStore`（进程快照），跨 run context 靠 `chatmemory` | 低 | `chatmemory` 部分承担 |
+| 6 | **ContextRepository**（跨 run 工作记忆持久化 SPI） | 仅 `ProcessStore`（进程快照），跨 run context 靠 `chathistory` | 低 | `chathistory` 部分承担 |
 | 7 | **GOAP unknown-condition 惰性分支**（1 unknown → True/False variant 各规划 → 评估 → commit） | 全无 | 低 | embabel >1 unknown 也 TODO，实用面窄 |
 | 8 | **ArchUnit 机器强制架构测试**（1.4.0） | 已有 `agent/internal/arch/arch_test.go` | 已完成 | 形态不同：lynx 用 Go 测试编码库内依赖规则，embabel 用 ArchUnit 编码 framework 分层规则 |
 | 9 | **事件可往返**（Jackson 多态 round-trip） | 单向 lossy JSON | 低 | by-design 倾向（往返 = 内存里 type-assert） |

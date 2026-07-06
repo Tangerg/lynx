@@ -31,7 +31,7 @@ type Clearer interface {
 // Lister enumerates the conversations a backend holds. It is an
 // optional, ops-oriented capability deliberately kept OUT of [Store]:
 // the hot read/write path stays partitioned by conversation id (no
-// table scans — see chatmemory/CLAUDE.md), whereas Conversations is an
+// table scans — see chathistory/CLAUDE.md), whereas Conversations is an
 // explicit cross-conversation scan for admin tasks (listing, bulk
 // cleanup, migration, GC of orphaned sessions).
 //

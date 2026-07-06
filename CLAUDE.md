@@ -32,7 +32,7 @@
 
 ## 定位与导览
 
-`lynx` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施：`core` 定协议、`models` 适配 LLM provider、`vectorstores` 适配向量库、`tools` 提供工具集、`agent` 跑 planner 驱动的 runtime、`lyra` 是 in-house backend runtime；其余模块（`pkg` / `rag` / `chatmemory` / `mcp` / `a2a` / `skills` / `documentreaders` / `otel`）各司一域。每个 sub-module 的形态、关键类型、模块特有反向不变量见其自己的 `CLAUDE.md`。所有模块共享下文这套法则。
+`lynx` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施：`core` 定协议、`models` 适配 LLM provider、`vectorstores` 适配向量库、`tools` 提供工具集、`agent` 跑 planner 驱动的 runtime、`lyra` 是 in-house backend runtime；其余模块（`pkg` / `rag` / `chathistory` / `mcp` / `a2a` / `skills` / `documentreaders` / `otel`）各司一域。每个 sub-module 的形态、关键类型、模块特有反向不变量见其自己的 `CLAUDE.md`。所有模块共享下文这套法则。
 
 ---
 

@@ -7,7 +7,7 @@
 
 ## 一句话定位
 
-整个 lynx 生态的"协议定义层"：`Document` / `Message` / `CallHandler` / `Store` / `Tokenizer` 全在这里。**接口在 core，具体实现在外圈模块**（models / chatmemory / vectorstores / documentreaders）。
+整个 lynx 生态的"协议定义层"：`Document` / `Message` / `CallHandler` / `Store` / `Tokenizer` 全在这里。**接口在 core，具体实现在外圈模块**（models / chathistory / vectorstores / documentreaders）。
 
 ## 技术栈
 

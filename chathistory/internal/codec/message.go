@@ -1,5 +1,5 @@
 // Package codec hosts the shared chat.Message JSON envelope used by every
-// chatmemory backend. Each backend stores the canonical MessageParams
+// chathistory backend. Each backend stores the canonical MessageParams
 // shape (emitted by the concrete Message types' MarshalJSON) so a
 // conversation written by one backend can be re-read by another.
 //
@@ -17,7 +17,7 @@ import (
 )
 
 // EncodeMessage marshals msg into the canonical wire JSON every
-// chatmemory backend uses. Each concrete chat.Message type implements
+// chathistory backend uses. Each concrete chat.Message type implements
 // MarshalJSON to emit the MessageParams shape with a Type discriminator;
 // chat.UnmarshalMessage decodes the same shape back.
 //

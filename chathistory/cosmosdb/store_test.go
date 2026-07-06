@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/chatmemory/cosmosdb"
-	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/chathistory/cosmosdb"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 func TestStoreConfig_ContainerRequired(t *testing.T) {
@@ -25,5 +25,5 @@ func TestStoreConfig_NilConfig(t *testing.T) {
 }
 
 func TestStore_ImplementsHistoryStore(t *testing.T) {
-	var _ chathistory.Store = (*cosmosdb.Store)(nil)
+	var _ history.Store = (*cosmosdb.Store)(nil)
 }

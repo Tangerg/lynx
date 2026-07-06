@@ -7,8 +7,8 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/Tangerg/lynx/chatmemory/redis"
-	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/chathistory/redis"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 func stubClient() goredis.UniversalClient {
@@ -48,5 +48,5 @@ func TestStoreConfig_KeyPrefixDefaults(t *testing.T) {
 }
 
 func TestStore_ImplementsHistoryStore(t *testing.T) {
-	var _ chathistory.Store = (*redis.Store)(nil)
+	var _ history.Store = (*redis.Store)(nil)
 }
