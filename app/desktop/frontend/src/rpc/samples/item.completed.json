@@ -1,0 +1,21 @@
+{
+  "runId": "run_01",
+  "eventId": "evt_04",
+  "timestamp": "2026-07-07T10:00:05Z",
+  "event": {
+    "type": "item.completed",
+    "item": {
+      "id": "item_02",
+      "runId": "run_01",
+      "status": "completed",
+      "createdAt": "2026-07-07T10:00:04Z",
+      "type": "toolCall",
+      "tool": {
+        "name": "shell",
+        "arguments": { "command": "ls -la" },
+        "result": { "exitCode": 0, "output": "total 0\n" }
+      },
+      "safetyClass": "exec"
+    }
+  }
+}
