@@ -12,10 +12,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 )
 
-// chatInput is the typed input to the M1 single-turn chat agent. It
+// turnInput is the typed input to the M1 single-turn chat agent. It
 // carries the user's message verbatim; future milestones extend with
 // session context, tool selection hints, etc.
-type chatInput struct {
+type turnInput struct {
 	Message string
 
 	// Provider is the turn's provider id (the per-run selection; empty for a
@@ -43,7 +43,7 @@ type chatInput struct {
 	// may spend across its tool-loop rounds. 0 means unlimited. When
 	// exceeded the action stops cleanly after the current round —
 	// before paying for the next LLM call — and reports the partial
-	// reply with [ChatOutput.StoppedOnBudget] set.
+	// reply with [TurnOutput.StoppedOnBudget] set.
 	MaxBudget int64
 
 	// MaxCostUSD caps the turn's dollar cost the same way MaxBudget caps
@@ -55,7 +55,7 @@ type chatInput struct {
 	// MaxSteps caps the number of tool-call rounds (model turns) the turn may
 	// run. 0 means unlimited (bounded only by the tool loop's own iteration
 	// cap). When reached the action stops cleanly after the round — before the
-	// next LLM call — with [ChatOutput.StoppedOnSteps] set.
+	// next LLM call — with [TurnOutput.StoppedOnSteps] set.
 	MaxSteps int
 
 	// Options carries per-run generation tuning. It deliberately does not carry
@@ -63,13 +63,13 @@ type chatInput struct {
 	Options *chat.Options
 }
 
-// ChatOutput is the typed output of one turn. Reply is the assistant's
+// TurnOutput is the typed output of one turn. Reply is the assistant's
 // final text. Usage / UsageByModel / CostUSD are read back from the
 // process budget — the agent framework's invocation ledger — rather
 // than a hand-rolled tally: the action records each LLM round via
 // [core.ProcessContext.RecordLLMInvocation], and these fields are the
 // rolled-up view.
-type ChatOutput struct {
+type TurnOutput struct {
 	Reply string
 	Usage TokenUsage
 
@@ -85,17 +85,17 @@ type ChatOutput struct {
 	CostUSD float64
 
 	// StoppedOnBudget is true when the turn ended because it hit
-	// [chatInput.MaxBudget] rather than the model finishing. Reply
+	// [turnInput.MaxBudget] rather than the model finishing. Reply
 	// holds whatever text accumulated up to the stop.
 	StoppedOnBudget bool
 
 	// StoppedOnSteps is true when the turn ended because it hit
-	// [chatInput.MaxSteps] (the tool-call-round cap) rather than the model
+	// [turnInput.MaxSteps] (the tool-call-round cap) rather than the model
 	// finishing. Reply holds whatever text accumulated up to the stop.
 	StoppedOnSteps bool
 }
 
-// buildChatAgent constructs the chat agent owned by this Engine.
+// buildTurnAgent constructs the chat agent owned by this Engine.
 // The Action's closure captures `e` so it can reach the engine's
 // memory service for system-prompt composition without an extra
 // parameter passed through every turn.
@@ -113,11 +113,11 @@ type ChatOutput struct {
 // MessageDelta. Tool-call rounds still go through the same tool loop; tool
 // events surface via the tool-decorator path independently of the text-delta
 // path.
-func (e *Engine) buildChatAgent() *core.Agent {
+func (e *Engine) buildTurnAgent() *core.Agent {
 	return agent.New("chat-agent").
 		Description("single-turn LLM chat with the default coding tool set").
 		Actions(agent.NewAction("chat",
-			func(ctx context.Context, pc *core.ProcessContext, in chatInput) (ChatOutput, error) {
+			func(ctx context.Context, pc *core.ProcessContext, in turnInput) (TurnOutput, error) {
 				if in.Cwd != "" {
 					// Protected so it rides Blackboard.Spawn down to `task`
 					// sub-agents and survives the typed-action
@@ -129,18 +129,18 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					// guards read it back via turnSession.
 					pc.Blackboard.BindProtected(turnctx.SessionBindingKey, in.SessionID)
 				}
-				out, err := e.runChatTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
+				out, err := e.runTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
 				if err != nil {
 					// HITL interrupt (R model): a gated tool returned an
 					// agent/hitl.InterruptError that the chat tool loop
 					// propagated unchanged. Park on the carried awaitable
 					// (→ StatusWaiting); the client answers via a continuation
-					// run. On resume the turn RE-RUNS (runChatTurn skips
+					// run. On resume the turn RE-RUNS (runTurn skips
 					// re-adding the user message — the history layer replays the
 					// stored conversation), the model regenerates the interrupted
 					// tool call, and the gate now observes the recorded verdict.
 					if _, parked := hitl.HandleInterrupt(pc, err); parked {
-						return ChatOutput{}, nil
+						return TurnOutput{}, nil
 					}
 					return out, err
 				}
@@ -157,7 +157,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 				QoS: core.ActionQoS{MaxAttempts: 1},
 			},
 		)).
-		Goals(agent.GoalProducing[ChatOutput](core.Goal{
+		Goals(agent.GoalProducing[TurnOutput](core.Goal{
 			Description: "single-turn reply produced",
 		})).
 		Build()
@@ -180,7 +180,7 @@ type taskInput struct {
 // derived tool is `task`; (2) declares [ToolRoleSubtask] — the coding
 // tools WITHOUT `task`, so a subtask can't recurse into another
 // delegation; (3) its goal produces just the reply string, so the tool
-// result handed to the parent model is the answer text, not a ChatOutput
+// result handed to the parent model is the answer text, not a TurnOutput
 // blob. Its LLM rounds still record into the process budget, which
 // aggregates up the subtree into the parent turn's usage roll-up.
 func (e *Engine) buildSubtaskAgent() *core.Agent {
@@ -202,7 +202,7 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 				// Subtask runs against the default provider/model (no per-run
 				// selection), so pass "" — invocationFrom falls back to the engine
 				// default for pricing.
-				out, err := e.runChatTurn(ctx, pc, "", in.Prompt, nil, nil, turnBudget{})
+				out, err := e.runTurn(ctx, pc, "", in.Prompt, nil, nil, turnBudget{})
 				if err != nil {
 					return "", err
 				}

@@ -138,7 +138,7 @@ func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 
 	// Inject steering before consuming events so the service has
 	// time to land it on the turn state. Drain the channel before
-	// starting turn 2 — the steering flushes after RunChat returns.
+	// starting turn 2 — the steering flushes after RunTurn returns.
 	if err := svc.InjectSteering(context.Background(), handle, "also keep responses short"); err != nil {
 		t.Fatalf("InjectSteering: %v", err)
 	}

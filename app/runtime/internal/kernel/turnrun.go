@@ -9,11 +9,11 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// RunChatRequest carries the per-turn parameters for [Engine.StartChat] /
-// [Engine.RunChat]. SessionID is non-empty to bind the turn to a
+// RunTurnRequest carries the per-turn parameters for [Engine.StartTurn] /
+// [Engine.RunTurn]. SessionID is non-empty to bind the turn to a
 // chat history keyed conversation; Observer is non-nil to receive streaming
 // notifications.
-type RunChatRequest struct {
+type RunTurnRequest struct {
 	// SessionID anchors the turn to a chat history conversation. The
 	// runtime stamps it onto each request under the chat conversation-id key,
 	// which the history middleware reads to pull prior history before the
@@ -46,15 +46,15 @@ type RunChatRequest struct {
 
 	// MaxBudget caps the total tokens (prompt + completion) the turn
 	// may spend across its tool-loop rounds. 0 means unlimited. See
-	// [chatInput.MaxBudget] for the stop semantics.
+	// [turnInput.MaxBudget] for the stop semantics.
 	MaxBudget int64
 
 	// MaxCostUSD caps the turn's dollar cost (0 = no cap). See
-	// [chatInput.MaxCostUSD] — requires a [Config.Pricing] hook.
+	// [turnInput.MaxCostUSD] — requires a [Config.Pricing] hook.
 	MaxCostUSD float64
 
 	// MaxSteps caps the turn's tool-call rounds (0 = no cap). See
-	// [chatInput.MaxSteps]; surfaces as the maxSteps run outcome.
+	// [turnInput.MaxSteps]; surfaces as the maxSteps run outcome.
 	MaxSteps int
 
 	// Options carries per-run generation tuning (temperature, max tokens, stop
@@ -93,23 +93,23 @@ type RunChatRequest struct {
 	EventListener core.Extension
 }
 
-// StartChat dispatches a chat turn as an async agent process and
-// returns the [ChatProcess] handle the caller drives. The lifecycle
+// StartTurn dispatches a turn as an async agent process and
+// returns the [TurnProcess] handle the caller drives. The lifecycle
 // — cancel, status, awaiting completion, output extraction — runs
 // against the agent runtime's [runtime.AgentProcess] rather than a
 // bare goroutine, so HITL integration (plan approval, tool approval)
 // drops in on the same Process via [runtime.Platform.ResumeProcess].
 //
-// Observer / SessionID wiring matches [Engine.RunChat]: Observer
+// Observer / SessionID wiring matches [Engine.RunTurn]: Observer
 // attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat history middleware's keyed conversation.
-func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
-	in := chatInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps, Options: req.Options.Clone()}
+func (e *Engine) StartTurn(ctx context.Context, req RunTurnRequest) TurnProcess {
+	in := turnInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps, Options: req.Options.Clone()}
 
-	opts := chatProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient)
+	opts := turnProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient)
 	if req.Steer != nil {
 		// Carried as a process-scope extension (not the serializable blackboard
-		// — it's a live func): runChatTurn resolves it and stashes it on the
+		// — it's a live func): runTurn resolves it and stashes it on the
 		// per-round context for the tool loop's BeforeRound hook.
 		opts.Extensions = append(opts.Extensions, steerExtension{source: req.Steer})
 	}
@@ -117,16 +117,16 @@ func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess 
 		map[string]any{core.DefaultBindingName: in},
 		opts,
 	)
-	return &chatProcess{proc: proc, done: done, platform: e.platform}
+	return &turnProcess{proc: proc, done: done, platform: e.platform}
 }
 
-// chatProcessOptions assembles per-process wiring: the chat history Session
+// turnProcessOptions assembles per-process wiring: the chat history Session
 // binding, the observer decorator, lifecycle listener, and per-run model
 // client. The chat middleware chain itself (tool loop + memory) is the
 // platform default built once in [New]; the runtime stamps each request's
 // conversation id from this Session, so a single shared chain serves both
 // this turn and any subtask it spawns.
-func chatProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client core.ChatClient) core.ProcessOptions {
+func turnProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client core.ChatClient) core.ProcessOptions {
 	opts := core.ProcessOptions{}
 	if sessionID != "" {
 		opts.Session = &core.Session{ID: sessionID}
@@ -152,11 +152,11 @@ func (p perRunChatClient) ChatClientFor(core.Process) core.ChatClient {
 	return p.client
 }
 
-// RestoreChatRequest carries the per-process wiring to re-attach to a
+// RestoreTurnRequest carries the per-process wiring to re-attach to a
 // turn rebuilt from a snapshot — the same Observer + Session a fresh turn
-// gets from [Engine.StartChat], so the resumed continuation streams and
+// gets from [Engine.StartTurn], so the resumed continuation streams and
 // keys chat history to the right conversation.
-type RestoreChatRequest struct {
+type RestoreTurnRequest struct {
 	// SessionID rebinds the restored process to its chat history
 	// conversation (so the continuation's LLM round loads + saves the
 	// right history). Empty runs unattached.
@@ -174,28 +174,28 @@ type RestoreChatRequest struct {
 	// runs against — the per-run model the parked turn used, re-resolved from
 	// the interrupt's persisted provider+model. nil runs on the platform default
 	// (a run that didn't pick a model, or one whose provider is no longer
-	// configured). Same seam as [RunChatRequest.ChatClient] on a fresh turn.
+	// configured). Same seam as [RunTurnRequest.ChatClient] on a fresh turn.
 	ChatClient core.ChatClient
 }
 
-// RestoreChat rebuilds the agent process identified by processID from the
+// RestoreTurn rebuilds the agent process identified by processID from the
 // configured ProcessStore snapshot and re-parks it, ready for Resume. It
 // performs the first two steps of the restore-resume protocol (see
 // [runtime.RestoreProcess]): RestoreProcess with the supplied wiring, then
 // one ContinueProcess re-tick so the idempotent awaiting action re-issues
 // AwaitInput against the restored blackboard (the handler closure does not
-// round-trip). The returned [ChatProcess] is StatusWaiting with
+// round-trip). The returned [TurnProcess] is StatusWaiting with
 // PendingAwaitable populated; the caller drives Resume(approved) to deliver
 // the decision and run the continuation to terminal.
 //
 // Errors when no ProcessStore is configured, the snapshot is missing, the
 // agent is not deployed under the snapshot's name, or the re-tick fails.
-func (e *Engine) RestoreChat(ctx context.Context, processID string, req RestoreChatRequest) (ChatProcess, error) {
+func (e *Engine) RestoreTurn(ctx context.Context, processID string, req RestoreTurnRequest) (TurnProcess, error) {
 	// The restored continuation runs against req.ChatClient — the per-run model
 	// re-resolved from the interrupt's persisted provider+model — so a restart
 	// mid-run keeps the model the turn parked on. nil (no selection / provider
 	// gone) falls back to the platform default.
-	opts := chatProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient)
+	opts := turnProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient)
 	proc, err := e.platform.RestoreProcess(ctx, processID, opts)
 	if err != nil {
 		return nil, fmt.Errorf("engine: restore chat: %w", err)
@@ -206,16 +206,16 @@ func (e *Engine) RestoreChat(ctx context.Context, processID string, req RestoreC
 	if err := e.platform.ContinueProcess(ctx, proc.ID()); err != nil {
 		return nil, fmt.Errorf("engine: restore chat re-tick: %w", err)
 	}
-	return &chatProcess{proc: proc, platform: e.platform}, nil
+	return &turnProcess{proc: proc, platform: e.platform}, nil
 }
 
-// RunChat is the synchronous wrapper kept for callers that don't
-// need the [ChatProcess] handle (engine tests, CLI smoke runs).
-// Newer call sites should use [Engine.StartChat] directly.
-func (e *Engine) RunChat(ctx context.Context, req RunChatRequest) (ChatOutput, error) {
-	cp := e.StartChat(ctx, req)
+// RunTurn is the synchronous wrapper kept for callers that don't
+// need the [TurnProcess] handle (engine tests, CLI smoke runs).
+// Newer call sites should use [Engine.StartTurn] directly.
+func (e *Engine) RunTurn(ctx context.Context, req RunTurnRequest) (TurnOutput, error) {
+	cp := e.StartTurn(ctx, req)
 	if err := <-cp.Done(); err != nil {
-		return ChatOutput{}, fmt.Errorf("engine: run chat: %w", err)
+		return TurnOutput{}, fmt.Errorf("engine: run turn: %w", err)
 	}
 	return cp.Output()
 }

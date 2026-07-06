@@ -514,7 +514,7 @@ func (s *inMemory) ProcessID(_ context.Context, handle TurnHandle) (string, erro
 // Rehydrate rebuilds a turn from a persisted process snapshot and resumes
 // it — the cross-restart counterpart to [Resume]. It registers a fresh
 // turn (new handle), restores + re-parks the agent process via
-// [kernel.RestoreChat] with a fresh observer + lifecycle listener, then
+// [kernel.RestoreTurn] with a fresh observer + lifecycle listener, then
 // delivers the decision and drives the continuation onto the new turn's
 // event channel. The caller subscribes via [Events] on the returned handle.
 func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHandle, error) {
@@ -543,7 +543,7 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	observer := &turnObserver{svc: s, st: state}
 	state.lifecycle = &turnLifecycle{}
 
-	proc, err := s.engine.RestoreChat(state.ctx, req.ProcessID, kernel.RestoreChatRequest{
+	proc, err := s.engine.RestoreTurn(state.ctx, req.ProcessID, kernel.RestoreTurnRequest{
 		SessionID:     req.SessionID,
 		Observer:      observer,
 		EventListener: state.lifecycle.listener(handle.TurnID),
@@ -560,7 +560,7 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	s.turns[handle.TurnID] = state
 	s.mu.Unlock()
 
-	// The restored process is re-parked (RestoreChat re-ticked it). Deliver the
+	// The restored process is re-parked (RestoreTurn re-ticked it). Deliver the
 	// decision and drive the continuation. On a resume error resumeAndDrive has
 	// already torn the turn down (finishTurn), so there is no live turn for the
 	// caller to subscribe to — return the error rather than a handle to a dead

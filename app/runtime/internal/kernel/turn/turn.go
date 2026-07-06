@@ -84,7 +84,7 @@ type turnState struct {
 	// proc is the agent process backing this turn, set once setProc dispatches
 	// it. [Service.Cancel] / [Service.Resume] / [Service.ProcessID] read it
 	// via process() from other goroutines.
-	proc kernel.ChatProcess
+	proc kernel.TurnProcess
 
 	// parked is true while the turn is suspended on a HITL interrupt
 	// (StatusWaiting) awaiting [Service.Resume]. A parked turn stays
@@ -109,7 +109,7 @@ type turnState struct {
 // setProc records the agent process backing this turn. runTurn / Rehydrate
 // write it once they have dispatched one; process() then hands it to the
 // caller goroutines.
-func (st *turnState) setProc(p kernel.ChatProcess) {
+func (st *turnState) setProc(p kernel.TurnProcess) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	st.proc = p
@@ -118,7 +118,7 @@ func (st *turnState) setProc(p kernel.ChatProcess) {
 // process returns the backing agent process, or nil before the turn has
 // dispatched one. The value is stable after the single setProc, so callers
 // may invoke its methods after process() returns.
-func (st *turnState) process() kernel.ChatProcess {
+func (st *turnState) process() kernel.TurnProcess {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	return st.proc
@@ -250,7 +250,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 
 	observer := &turnObserver{svc: s, st: st}
 	st.lifecycle = &turnLifecycle{}
-	proc := s.engine.StartChat(st.ctx, kernel.RunChatRequest{
+	proc := s.engine.StartTurn(st.ctx, kernel.RunTurnRequest{
 		SessionID:     req.SessionID,
 		Message:       req.Message,
 		Provider:      req.Provider,
@@ -310,7 +310,7 @@ func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
 // Otherwise the client could never answer it, so rather than leave a
 // deadlocked interrupt (API.md §6.2) the turn auto-denies (via the shared
 // [inMemory.resumeAndDrive]) and the continuation runs to a real terminal.
-func (s *inMemory) handleWaiting(st *turnState, proc kernel.ChatProcess) {
+func (s *inMemory) handleWaiting(st *turnState, proc kernel.TurnProcess) {
 	// Canceled while the process was parking: Cancel cancels st.ctx but skips
 	// killing a process that still read Running, so a turn that parks just
 	// afterwards lands here with a dead ctx. Don't surface an interrupt nobody
@@ -335,7 +335,7 @@ func (s *inMemory) handleWaiting(st *turnState, proc kernel.ChatProcess) {
 // emitInterrupt marks the turn parked and surfaces the pending HITL
 // request as a [TurnInterrupted] event. The turn stays registered with
 // its events channel open; [inMemory.Resume] drives the next segment.
-func (s *inMemory) emitInterrupt(st *turnState, proc kernel.ChatProcess) {
+func (s *inMemory) emitInterrupt(st *turnState, proc kernel.TurnProcess) {
 	aw := proc.PendingAwaitable()
 	if !st.parkIfLive() {
 		// Canceled between handleWaiting's top ctx check and here: don't surface
@@ -434,7 +434,7 @@ func (s *inMemory) finishTurn(st *turnState, reason TurnEndReason) {
 // The runErr / ctxErr / status fallback covers stub tests where no
 // listener fired and any race where Done() returned before the
 // platform multicast delivered the terminal event.
-func (s *inMemory) emitTurnEnd(st *turnState, proc kernel.ChatProcess, terminal event.Event, runErr error, duration time.Duration, ctxErr error) {
+func (s *inMemory) emitTurnEnd(st *turnState, proc kernel.TurnProcess, terminal event.Event, runErr error, duration time.Duration, ctxErr error) {
 	out, _ := proc.Output()
 	plan := planTurnEnd(terminal, out, runErr, ctxErr, proc.Status())
 
@@ -485,7 +485,7 @@ type turnEndPlan struct {
 // fallback for stub tests where no listener fired and the race where Done()
 // returned before the platform multicast delivered the event. completedPlan /
 // fallbackPlan are the per-branch builders it delegates to.
-func planTurnEnd(terminal event.Event, out kernel.ChatOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
+func planTurnEnd(terminal event.Event, out kernel.TurnOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
 	switch t := terminal.(type) {
 	case event.ProcessCompleted:
 		return completedPlan(out)
@@ -508,7 +508,7 @@ func planTurnEnd(terminal event.Event, out kernel.ChatOutput, runErr, ctxErr err
 // budget stop is its own reason, otherwise a plain completion. Shared by
 // the ProcessCompleted case and the fallback so the mapping lives in one
 // place.
-func completedPlan(out kernel.ChatOutput) turnEndPlan {
+func completedPlan(out kernel.TurnOutput) turnEndPlan {
 	switch {
 	case out.StoppedOnSteps:
 		return turnEndPlan{reason: TurnEndStepsExceeded, withUsage: true}
@@ -523,7 +523,7 @@ func completedPlan(out kernel.ChatOutput) turnEndPlan {
 // terminal event was captured: a run error is a cancellation (ctx
 // canceled / killed) or an engine error; no error falls back to the
 // same completion mapping the happy path uses.
-func fallbackPlan(out kernel.ChatOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
+func fallbackPlan(out kernel.TurnOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
 	if runErr != nil {
 		if status == core.StatusKilled || errors.Is(ctxErr, context.Canceled) {
 			return turnEndPlan{reason: TurnEndCanceled}

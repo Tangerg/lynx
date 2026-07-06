@@ -32,7 +32,7 @@ func newHistoryStore() history.Store { return history.NewInMemoryStore() }
 // be the stub's FinalText.
 //
 // This is the M2-readiness gate: it proves the chain
-// engine.RunChat → lynx Platform → tool loop → tool decorator
+// engine.RunTurn → lynx Platform → tool loop → tool decorator
 // → observedTool → toolObserver is wired end-to-end without any
 // real LLM in the loop.
 func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
@@ -46,12 +46,12 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 	defer eng.Close()
 
 	rec := &recordingObserver{}
-	out, err := eng.RunChat(context.Background(), RunChatRequest{
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{
 		Message:  "say lyra via shell",
 		Observer: rec,
 	})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 
 	if out.Reply != "I ran echo and got lyra." {
@@ -95,9 +95,9 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go"})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 	if out.Reply != "done" {
 		t.Errorf("reply = %q, want %q", out.Reply, "done")
@@ -110,16 +110,16 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 // and the model recovers on the next round instead of the turn
 // aborting. Exercises the ActionConfig.ToolLoop → ProcessContext →
 // chat tool-middleware wiring end-to-end. Without the opt-in this
-// RunChat would return a "tool not registered" error.
+// RunTurn would return a "tool not registered" error.
 func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 	stub := newStubModel("frobnicate", `{}`, "recovered: used a real approach")
 	client, _ := chat.NewClient(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go"})
 	if err != nil {
-		t.Fatalf("RunChat aborted on unknown tool (recovery not wired?): %v", err)
+		t.Fatalf("RunTurn aborted on unknown tool (recovery not wired?): %v", err)
 	}
 	if out.Reply != "recovered: used a real approach" {
 		t.Errorf("reply = %q, want the round-2 recovery text", out.Reply)
@@ -139,9 +139,9 @@ func TestEngine_RunChat_TaskDelegation(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "delegate this"})
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "delegate this"})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 	// Round 2 only fires if the task tool returned successfully — i.e.
 	// the sub-agent spawned, ran, and produced an answer.
@@ -166,12 +166,12 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 	defer eng.Close()
 
 	rec := &recordingObserver{}
-	if _, err := eng.RunChat(context.Background(), RunChatRequest{
+	if _, err := eng.RunTurn(context.Background(), RunTurnRequest{
 		Message:  "list the dir",
 		Cwd:      dir,
 		Observer: rec,
 	}); err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 
 	ends := rec.ends()
@@ -196,12 +196,12 @@ func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.RunChat(context.Background(), RunChatRequest{
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{
 		Message: "delegate this",
 		Cwd:     dir,
 	})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 	if out.Reply != "main: subtask done" {
 		t.Fatalf("reply = %q, want the post-delegation answer", out.Reply)
@@ -226,12 +226,12 @@ func TestEngine_RunChat_SubtaskKeepsHistoryAcrossRounds(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.RunChat(context.Background(), RunChatRequest{
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{
 		Message: "delegate this",
 		Cwd:     t.TempDir(),
 	})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 	if strings.Contains(out.Reply, subtaskContextLost) {
 		t.Fatalf("subtask lost its round-1 context across tool rounds — per-process chat-history keying regressed; reply = %q", out.Reply)
@@ -257,9 +257,9 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go"})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 	got := out.Usage
 	want := TokenUsage{PromptTokens: 30, CompletionTokens: 12, ReasoningTokens: 3}
@@ -290,9 +290,9 @@ func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
+	_, err = eng.RunTurn(context.Background(), RunTurnRequest{Message: "go"})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 
 	ids, err := store.List(context.Background())
@@ -313,7 +313,7 @@ func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
 
 // TestEngine_RunChat_PricingFillsCost verifies the cost conduit: with a
 // Pricing hook configured, each round's cost is recorded on its
-// invocation and rolls up to ChatOutput.CostUSD + per-model cost. The
+// invocation and rolls up to TurnOutput.CostUSD + per-model cost. The
 // rate table itself is the caller's; here a stub rate of $1/token makes
 // cost == total prompt+completion tokens (30 + 12 = 42).
 func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
@@ -331,9 +331,9 @@ func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go"})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 	if out.CostUSD != 42 {
 		t.Errorf("CostUSD = %v, want 42", out.CostUSD)
@@ -359,9 +359,9 @@ func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go", MaxBudget: 10})
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go", MaxBudget: 10})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 	if !out.StoppedOnBudget {
 		t.Error("expected StoppedOnBudget=true after exceeding MaxBudget")
@@ -389,9 +389,9 @@ func TestEngine_RunChat_StopsOnCostBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go", MaxCostUSD: 10})
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go", MaxCostUSD: 10})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 	if !out.StoppedOnBudget {
 		t.Error("expected StoppedOnBudget=true after exceeding MaxCostUSD")
@@ -414,12 +414,12 @@ func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 	}
 
 	rec := &recordingObserver{}
-	out, err := eng.RunChat(context.Background(), RunChatRequest{
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{
 		Message:  "go",
 		Observer: rec,
 	})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 	if out.Reply != "Hello, world! (lyra)" {
 		t.Errorf("reply = %q, want %q", out.Reply, "Hello, world! (lyra)")
@@ -447,7 +447,7 @@ func TestEngine_RunChat_PassesOptions(t *testing.T) {
 	temp := 0.7
 	maxTokens := int64(256)
 
-	if _, err := eng.RunChat(context.Background(), RunChatRequest{
+	if _, err := eng.RunTurn(context.Background(), RunTurnRequest{
 		Message: "go",
 		Options: &chat.Options{
 			Temperature: &temp,
@@ -455,7 +455,7 @@ func TestEngine_RunChat_PassesOptions(t *testing.T) {
 			Stop:        []string{"END"},
 		},
 	}); err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 
 	stub.mu.Lock()
@@ -502,7 +502,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	maxTokens := int64(321)
 	observer := &hitlApprovalObserver{}
 
-	proc := eng.StartChat(context.Background(), RunChatRequest{
+	proc := eng.StartTurn(context.Background(), RunTurnRequest{
 		Message:  "echo lyra",
 		Observer: observer,
 		Options: &chat.Options{
@@ -512,7 +512,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		},
 	})
 	if err := <-proc.Done(); err != nil {
-		t.Fatalf("initial StartChat: %v", err)
+		t.Fatalf("initial StartTurn: %v", err)
 	}
 	if proc.Status() != core.StatusWaiting {
 		t.Fatalf("initial status = %s, want waiting", proc.Status())
@@ -531,11 +531,11 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	}
 	defer eng2.Close()
 
-	restored, err := eng2.RestoreChat(context.Background(), proc.ID(), RestoreChatRequest{
+	restored, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
 		Observer: observer,
 	})
 	if err != nil {
-		t.Fatalf("RestoreChat: %v", err)
+		t.Fatalf("RestoreTurn: %v", err)
 	}
 	if restored.Status() != core.StatusWaiting {
 		t.Fatalf("restored status = %s, want waiting", restored.Status())
@@ -588,13 +588,13 @@ func TestEngine_RunChat_MultiTurnHistory(t *testing.T) {
 
 	const sessionID = "sess-memory"
 
-	if _, err := eng.RunChat(context.Background(), RunChatRequest{
+	if _, err := eng.RunTurn(context.Background(), RunTurnRequest{
 		SessionID: sessionID,
 		Message:   "hello",
 	}); err != nil {
 		t.Fatalf("turn 1: %v", err)
 	}
-	if _, err := eng.RunChat(context.Background(), RunChatRequest{
+	if _, err := eng.RunTurn(context.Background(), RunTurnRequest{
 		SessionID: sessionID,
 		Message:   "again",
 	}); err != nil {
@@ -621,7 +621,7 @@ func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 	eng1, _ := New(context.Background(), Config{ChatClient: cli1, HistoryStore: shared})
 
 	const sessionID = "shared-sess"
-	if _, err := eng1.RunChat(context.Background(), RunChatRequest{
+	if _, err := eng1.RunTurn(context.Background(), RunTurnRequest{
 		SessionID: sessionID, Message: "first",
 	}); err != nil {
 		t.Fatal(err)
@@ -632,7 +632,7 @@ func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 	cli2, _ := chat.NewClient(stub2)
 	eng2, _ := New(context.Background(), Config{ChatClient: cli2, HistoryStore: shared})
 
-	if _, err := eng2.RunChat(context.Background(), RunChatRequest{
+	if _, err := eng2.RunTurn(context.Background(), RunTurnRequest{
 		SessionID: sessionID, Message: "second",
 	}); err != nil {
 		t.Fatal(err)
@@ -659,7 +659,7 @@ func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
 	}
 
 	for i := range 2 {
-		if _, err := eng.RunChat(context.Background(), RunChatRequest{
+		if _, err := eng.RunTurn(context.Background(), RunTurnRequest{
 			Message: "hello",
 		}); err != nil {
 			t.Fatalf("turn %d: %v", i, err)
@@ -1007,7 +1007,7 @@ func (m *namedUsageStub) Stream(ctx context.Context, req *chat.Request) iter.Seq
 	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
 }
 
-// TestEngine_RunChat_PerRunClientOverride verifies RunChatRequest.ChatClient
+// TestEngine_RunChat_PerRunClientOverride verifies RunTurnRequest.ChatClient
 // actually drives the turn's LLM call (via the ChatClientProvider seam),
 // not the platform's default client.
 func TestEngine_RunChat_PerRunClientOverride(t *testing.T) {
@@ -1017,9 +1017,9 @@ func TestEngine_RunChat_PerRunClientOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go", ChatClient: ovrClient})
+	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go", ChatClient: ovrClient})
 	if err != nil {
-		t.Fatalf("RunChat: %v", err)
+		t.Fatalf("RunTurn: %v", err)
 	}
 	if len(out.UsageByModel) != 1 || out.UsageByModel[0].Model != "override-model" {
 		t.Fatalf("UsageByModel = %+v, want served model override-model", out.UsageByModel)

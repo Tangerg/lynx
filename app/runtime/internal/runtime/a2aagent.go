@@ -12,7 +12,7 @@ import (
 // just the one-shot turn. Defined here (consumer side) so the adapter doesn't
 // pin the whole engine; *kernel.Engine satisfies it structurally.
 type chatRunner interface {
-	RunChat(ctx context.Context, req kernel.RunChatRequest) (kernel.ChatOutput, error)
+	RunTurn(ctx context.Context, req kernel.RunTurnRequest) (kernel.TurnOutput, error)
 }
 
 // a2aAgent adapts the engine's one-shot chat turn to the [a2a.Agent] the
@@ -23,7 +23,7 @@ type chatRunner interface {
 //
 // One-shot (yield once) rather than token-streaming: the executor maps the
 // chunk(s) onto the A2A task lifecycle either way, and the engine's blocking
-// RunChat is the simplest faithful bridge. Token-level streaming would adapt
+// RunTurn is the simplest faithful bridge. Token-level streaming would adapt
 // the engine's observer and is a follow-up.
 type a2aAgent struct {
 	engine chatRunner
@@ -33,7 +33,7 @@ var _ a2a.Agent = a2aAgent{}
 
 func (a a2aAgent) Run(ctx context.Context, input string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		out, err := a.engine.RunChat(ctx, kernel.RunChatRequest{Message: input})
+		out, err := a.engine.RunTurn(ctx, kernel.RunTurnRequest{Message: input})
 		if err != nil {
 			yield("", err)
 			return

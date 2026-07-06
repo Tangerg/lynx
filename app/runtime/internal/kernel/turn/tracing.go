@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// turnTracer emits the business-level span for one chat turn — the
+// turnTracer emits the business-level span for one turn — the
 // boundary every lower-layer span (agent runtime tick / action, core
 // gen_ai LLM call, MCP tool) nests under once the turn's lifetime ctx
 // carries the entry trace (see newTurnState's WithoutCancel derivation).
@@ -18,7 +18,7 @@ import (
 var turnTracer = otel.Tracer("lynx/lyra/chat")
 
 // Span / metric attribute keys. OTel GenAI semconv where one exists
-// (a chat turn is the spec's `invoke_agent` operation over a keyed
+// (a turn is the spec's `invoke_agent` operation over a keyed
 // conversation), bare `run.*` domain for the lyra-runtime concepts the
 // semconv has no key for. No brand prefixes — see doc/OBSERVABILITY.md.
 const (
