@@ -2,11 +2,11 @@ package kernel
 
 import (
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/history"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // Config is the engine construction-time bundle. ChatClient is the
@@ -98,5 +98,5 @@ type Config struct {
 	// ParkStore persists interrupted tool rounds for HITL resume.
 	// When nil the engine intercepts [chat.FinishReasonInterrupt] chunks
 	// itself and parks the resumable tail on the process blackboard.
-	ParkStore tool.ParkStore
+	ParkStore toolloop.ParkStore
 }

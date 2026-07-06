@@ -26,12 +26,17 @@ import (
 // gen_ai.operation namespace they instrument.
 var chatTracer = otel.Tracer("lynx/gen_ai/chat")
 
-// isHITLInterrupt reports whether err is a HITL interrupt — a [ToolHalt] whose
-// Abort() is false (suspension for human input, not a fatal abort). The chat
-// client span uses it to treat an interrupt as normal control flow rather than
-// a failure, so production error-rate alerts don't fire on every approval.
+type haltError interface {
+	error
+	Abort() bool
+}
+
+// isHITLInterrupt reports whether err is a HITL interrupt — a halt-style error
+// whose Abort() is false (suspension for human input, not a fatal abort). The
+// chat client span uses it to treat an interrupt as normal control flow rather
+// than a failure, so production error-rate alerts don't fire on every approval.
 func isHITLInterrupt(err error) bool {
-	h, ok := errors.AsType[ToolHalt](err)
+	h, ok := errors.AsType[haltError](err)
 	return ok && !h.Abort()
 }
 

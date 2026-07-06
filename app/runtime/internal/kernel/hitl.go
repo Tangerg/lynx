@@ -8,14 +8,14 @@ import (
 )
 
 // inflightTailKey holds, on the process blackboard, the resumable tail a
-// HITL interrupt parks. Used only when no [tool.ParkStore] is configured —
+// HITL interrupt parks. Used only when no [toolloop.ParkStore] is configured —
 // the nil-ParkStore design keeps the tail on the conversation's blackboard
 // instead of a durable store.
 const inflightTailKey = "lyra:hitl:inflight-tail"
 
 // isInterruptResult reports whether a streamed response is the tool
 // loop's FinishReasonInterrupt tail rather than model output. Only
-// reached when no [tool.ParkStore] is configured — with a ParkStore
+// reached when no [toolloop.ParkStore] is configured — with a ParkStore
 // the tool middleware saves state internally and never yields these.
 func isInterruptResult(resp *chat.Response) bool {
 	return resp != nil && resp.Result != nil && resp.Result.Metadata != nil &&

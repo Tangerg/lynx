@@ -1,4 +1,4 @@
-// Package tool turns a chat [chat.Model] into a self-driving tool-calling
+// Package toolloop turns a chat [chat.Model] into a self-driving tool-calling
 // loop. When the model emits tool calls, the loop executes the registered
 // tools and re-prompts the model with the results, repeating until the model
 // returns a regular reply (or every tool is return-direct, or the iteration
@@ -21,9 +21,9 @@
 // each propagates UNCHANGED so an outer layer can act on it:
 //
 //   - context cancellation / deadline — the run is being torn down;
-//   - a [chat.ToolHalt] whose Abort() is true — aborts the run (a failure the
+//   - a [Halt] whose Abort() is true — aborts the run (a failure the
 //     model cannot act on);
-//   - a [chat.ToolHalt] whose Abort() is false — parks the run for human input
+//   - a [Halt] whose Abort() is false — parks the run for human input
 //     (HITL). The loop hands back a [chat.FinishReasonInterrupt] response — the
 //     resumable tail: the round's assistant tool-call message plus any partial
 //     results — then propagates the cause. The caller parks and, on resume,
@@ -36,4 +36,4 @@
 // author chooses where an operational failure surfaces — return an ordinary
 // error and let the loop fold it in, or fold it into the result string for
 // control over the wording. Both reach the model.
-package tool
+package toolloop

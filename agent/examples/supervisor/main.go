@@ -11,11 +11,11 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/model/chat"
 	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 	historymw "github.com/Tangerg/lynx/core/model/chat/middleware/history"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // Domain types
@@ -82,7 +82,7 @@ func main() {
 				// downstream; an inner history layer reconstructs the
 				// conversation. Standalone here, so pair with an ephemeral
 				// in-process store scoped to this call.
-				callMW, streamMW := tool.NewMiddleware()
+				callMW, streamMW := toolloop.NewMiddleware()
 				historyCallMW, historyStreamMW, _ := historymw.NewMiddleware(history.NewInMemoryStore())
 				req := pc.Chat().
 					WithMiddlewares(callMW, streamMW, historyCallMW, historyStreamMW).

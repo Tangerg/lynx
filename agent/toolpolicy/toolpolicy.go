@@ -29,7 +29,7 @@ var ErrToolLocked = errors.New("toolpolicy: tool is locked by an unlock conditio
 // tool. Each unique scope (see [LoopScope]) maintains its own
 // already-called set.
 //
-// Default scope is per-[tool.NewMiddleware]-loop: callers wrap
+// Default scope is per-[toolloop.NewMiddleware]-loop: callers wrap
 // the action ctx with [LoopScope] before driving the tool loop;
 // each tool's first call within that scope succeeds, subsequent
 // calls reject. Returns an error when tool is nil.

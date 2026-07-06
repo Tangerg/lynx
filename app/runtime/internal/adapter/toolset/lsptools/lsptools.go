@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	toolloop "github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/model/chat"
-	chattool "github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
@@ -30,8 +30,8 @@ func Build(ci *codeintel.Service, defaultWorkdir string) []chat.Tool {
 	// built via chat.NewTool and can't declare the concurrency contract on
 	// their own type, so wrap with AsParallelTool.
 	return []chat.Tool{
-		chattool.AsParallelTool(newLSPTool(ci, defaultWorkdir)),
-		chattool.AsParallelTool(newDiagnosticsTool(ci, defaultWorkdir)),
+		toolloop.AsParallelTool(newLSPTool(ci, defaultWorkdir)),
+		toolloop.AsParallelTool(newDiagnosticsTool(ci, defaultWorkdir)),
 	}
 }
 

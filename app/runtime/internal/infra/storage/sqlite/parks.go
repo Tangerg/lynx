@@ -8,29 +8,29 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
+	"github.com/Tangerg/lynx/agent/toolloop"
 )
 
-// parkStore persists [tool.ParkState] in SQLite — the tool_parks table
+// parkStore persists [toolloop.ParkState] in SQLite — the tool_parks table
 // created by [Open]'s migration, like every other table in this package.
 type parkStore struct {
 	db *sql.DB
 }
 
-var _ tool.ParkStore = (*parkStore)(nil)
+var _ toolloop.ParkStore = (*parkStore)(nil)
 
-// NewParkStore returns a [tool.ParkStore] backed by db. db must have
+// NewParkStore returns a [toolloop.ParkStore] backed by db. db must have
 // been opened via [Open] so the migration ran.
-func NewParkStore(db *sql.DB) tool.ParkStore {
+func NewParkStore(db *sql.DB) toolloop.ParkStore {
 	return &parkStore{db: db}
 }
 
 // Consume atomically reads AND deletes the parked round for a conversation
 // (a single DELETE ... RETURNING), or returns (nil, nil) when nothing is
-// parked — the [tool.ParkConsumer] contract. One statement means there is no
+// parked — the [toolloop.ParkConsumer] contract. One statement means there is no
 // read-succeeds-then-delete-fails window that could leave a stale round to
 // hijack a later turn.
-func (s *parkStore) Consume(ctx context.Context, conversationID string) (*tool.ParkState, error) {
+func (s *parkStore) Consume(ctx context.Context, conversationID string) (*toolloop.ParkState, error) {
 	var assistant, done sql.NullString
 	err := s.db.QueryRowContext(ctx,
 		`DELETE FROM tool_parks WHERE conversation_id = ? RETURNING assistant, done`,
@@ -42,7 +42,7 @@ func (s *parkStore) Consume(ctx context.Context, conversationID string) (*tool.P
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: consume tool park: %w", err)
 	}
-	state := &tool.ParkState{}
+	state := &toolloop.ParkState{}
 	if err := json.Unmarshal([]byte(assistant.String), &state.Assistant); err != nil {
 		return nil, fmt.Errorf("sqlite: decode parked assistant: %w", err)
 	}
@@ -54,7 +54,7 @@ func (s *parkStore) Consume(ctx context.Context, conversationID string) (*tool.P
 	return state, nil
 }
 
-func (s *parkStore) Write(ctx context.Context, conversationID string, state *tool.ParkState) error {
+func (s *parkStore) Write(ctx context.Context, conversationID string, state *toolloop.ParkState) error {
 	b, err := json.Marshal(state.Assistant)
 	if err != nil {
 		return fmt.Errorf("sqlite: encode parked assistant: %w", err)

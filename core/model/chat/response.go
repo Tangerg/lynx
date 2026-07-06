@@ -35,7 +35,7 @@ const (
 	// (HITL). The Result carries the round's assistant tool-call message plus
 	// any partial tool results; the caller parks the run and, on resume, feeds
 	// that tail back so the loop continues AT the pending call (it is not a
-	// final answer). See core/model/chat/middleware/tool.
+	// final answer). See agent/toolloop.
 	FinishReasonInterrupt FinishReason = "interrupt"
 
 	// FinishReasonOther — provider-specific reason that doesn't fit the
@@ -215,7 +215,7 @@ func (r *Response) ReasoningDelta() string {
 }
 
 // IsToolResult reports whether this is the synthetic tool-result chunk the
-// tool-loop middleware (see tool.NewMiddleware) yields between LLM rounds:
+// tool-loop middleware (see toolloop.NewMiddleware) yields between LLM rounds:
 // Result.ToolMessage set, Result.AssistantMessage nil. It marks a round
 // boundary — the prior LLM round is over and its usage is final — which
 // streaming consumers use to commit per-round accounting before the next

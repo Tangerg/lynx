@@ -1,4 +1,4 @@
-package tool
+package toolloop
 
 import (
 	"context"
@@ -284,14 +284,14 @@ func continuationToolResult(t *testing.T, result *invocationResult) string {
 	return b.String()
 }
 
-// abortErr is a fatal control-flow error — a [chat.ToolHalt] whose Abort() is
+// abortErr is a fatal control-flow error — a [Halt] whose Abort() is
 // true. The loop must propagate it (stop the run), not feed it back.
 type abortErr struct{}
 
 func (abortErr) Error() string { return "abort: fatal" }
 func (abortErr) Abort() bool   { return true }
 
-// interruptErr is a HITL interrupt — a [chat.ToolHalt] whose Abort() is false,
+// interruptErr is a HITL interrupt — a [Halt] whose Abort() is false,
 // the way agent/hitl.InterruptError signals one (duck-typed, no import). The
 // loop exits and propagates it so the caller can park the run.
 type interruptErr struct{}
@@ -758,7 +758,7 @@ func TestToolMiddleware_EmptyResponseNudgeIsOneShot(t *testing.T) {
 // TestToolMiddleware_InterruptThenResume is the headline R-model test: a gated
 // tool halts a round mid-way; the loop yields a FinishReasonInterrupt response
 // carrying the resumable tail (this round's assistant tool-call message + the
-// result of the call that already ran) and propagates the tool's chat.ToolHalt
+// result of the call that already ran) and propagates the tool's Halt
 // cause. Feeding that tail back resumes the turn — executing ONLY the
 // still-pending (now-approved) call, NEVER re-invoking the model for the
 // completed round and NEVER re-running the call that already ran.

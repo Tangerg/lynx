@@ -31,7 +31,7 @@ type toolObserver interface {
 	// is denied (short-circuited to a recoverable result), or must pause
 	// the process for user approval (HITL R model, API.md §6): a non-nil
 	// Verdict.Interrupt makes the call return that error (a
-	// [hitl.InterruptError], which satisfies [chat.ToolHalt]), suspending the
+	// [hitl.InterruptError], which satisfies [toolloop.Halt]), suspending the
 	// run at [core.StatusWaiting]; the client answers via a continuation run.
 	//
 	// The decider MUST be non-blocking — it records pending / decided

@@ -98,7 +98,7 @@ type ChatOutput struct {
 // The Action declares [ToolRoleCoding] so the runtime resolves the
 // coding tool group at dispatch time; the body calls
 // [core.ProcessContext.ChatWithActionTools] which composes the
-// tool.NewMiddleware tool-loop on top of platform guardrails.
+// toolloop.NewMiddleware tool-loop on top of platform guardrails.
 // The model can therefore call read / write / edit / glob / grep /
 // shell freely within one turn.
 //
