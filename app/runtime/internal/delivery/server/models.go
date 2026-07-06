@@ -35,6 +35,9 @@ func (s *Server) GetUtilityRole(_ context.Context) (*protocol.UtilityRole, error
 // validated by building its client; an empty model clears the role back to the
 // main turn model (models.setUtilityRole). Returns the stored role.
 func (s *Server) SetUtilityRole(ctx context.Context, in protocol.UtilityRole) (*protocol.UtilityRole, error) {
+	if err := s.validateUtilityRole(ctx, in); err != nil {
+		return nil, err
+	}
 	if err := s.modelRoles.SetUtilityRole(ctx, in.Provider, in.Model); err != nil {
 		return nil, err
 	}
@@ -65,6 +68,16 @@ func (s *Server) SetEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole
 	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
 }
 
+func (s *Server) validateUtilityRole(ctx context.Context, in protocol.UtilityRole) error {
+	if in.Model == "" {
+		return nil
+	}
+	if _, ok := s.providers.ProviderMetadata(in.Provider); !ok {
+		return fmt.Errorf("%w: provider %q is not supported", protocol.ErrInvalidParams, in.Provider)
+	}
+	return s.requireConfiguredProvider(ctx, in.Provider)
+}
+
 func (s *Server) validateEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole) error {
 	if in.Model == "" {
 		return nil
@@ -73,12 +86,16 @@ func (s *Server) validateEmbeddingRole(ctx context.Context, in protocol.Embeddin
 	if !ok || !meta.EmbeddingCapable {
 		return fmt.Errorf("%w: provider %q has no embeddings adapter", protocol.ErrInvalidParams, in.Provider)
 	}
-	entry, ok, err := s.providers.GetRegisteredProvider(ctx, in.Provider)
+	return s.requireConfiguredProvider(ctx, in.Provider)
+}
+
+func (s *Server) requireConfiguredProvider(ctx context.Context, providerID string) error {
+	entry, ok, err := s.providers.GetRegisteredProvider(ctx, providerID)
 	if err != nil {
 		return err
 	}
 	if !ok || !entry.Enabled() {
-		return fmt.Errorf("%w: provider %q is not configured (set its API key first)", protocol.ErrInvalidParams, in.Provider)
+		return fmt.Errorf("%w: provider %q is not configured (set its API key first)", protocol.ErrInvalidParams, providerID)
 	}
 	return nil
 }
