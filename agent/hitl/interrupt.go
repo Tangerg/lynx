@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/toolloop"
+	coremodel "github.com/Tangerg/lynx/core/model"
 )
 
 // InterruptError is the guard error any step returns to suspend the run for
@@ -14,11 +15,12 @@ import (
 // interrupt's identity, stable across the resuming re-run) and a
 // user-facing Value (the payload surfaced to the client). It satisfies
 // [toolloop.Halt] with Abort() == false, so the tool loop exits immediately
-// on it and propagates it (rather than feeding it back); the agent action
-// parks the run on Awaitable and surfaces Value. On resume the
-// awaitable's handler records the human's response on
-// the process blackboard, and [Interrupt] returns it at the original call
-// site.
+// on it and propagates it (rather than feeding it back). It also satisfies
+// [coremodel.ControlFlowError], so shared observability treats the pause as
+// expected control flow rather than a failed model operation. The agent action
+// parks the run on Awaitable and surfaces Value. On resume the awaitable's
+// handler records the human's response on the process blackboard, and
+// [Interrupt] returns it at the original call site.
 //
 // This is the ONE mental model for every HITL flavor: tool-call approval
 // (Interrupt[bool]), asking the user a question (Interrupt[string]), or any
@@ -36,6 +38,7 @@ type InterruptError struct {
 }
 
 var _ toolloop.Halt = (*InterruptError)(nil)
+var _ coremodel.ControlFlowError = (*InterruptError)(nil)
 
 func (e *InterruptError) Error() string {
 	return fmt.Sprintf("hitl.InterruptError: run interrupted for input (key %q)", e.Key)
@@ -46,6 +49,10 @@ func (e *InterruptError) Error() string {
 // and Abort() == false marks it a HITL suspension — the run is expected to
 // resume, not fail.
 func (e *InterruptError) Abort() bool { return false }
+
+// ControlFlow marks this interrupt as expected suspension rather than a failed
+// model operation for shared observability.
+func (e *InterruptError) ControlFlow() bool { return true }
 
 // Awaitable returns the parkable awaitable whose handler records the resume
 // response on the blackboard. The action parks the process on it (see

@@ -34,6 +34,8 @@ func TestRecordOperationMetrics(t *testing.T) {
 	model.RecordOperationMetrics(context.Background(), dims,
 		&model.Usage{PromptTokens: 10, CompletionTokens: 5}, 1500*time.Millisecond, nil)
 	model.RecordOperationMetrics(context.Background(), dims,
+		&model.Usage{PromptTokens: 2, CompletionTokens: 1}, 100*time.Millisecond, controlFlowErr(true))
+	model.RecordOperationMetrics(context.Background(), dims,
 		nil, 250*time.Millisecond, errors.New("boom"))
 
 	var rm metricdata.ResourceMetrics
@@ -44,17 +46,18 @@ func TestRecordOperationMetrics(t *testing.T) {
 	tokens := findHistogramInt64(t, &rm, model.MetricGenAIClientTokenUsage)
 	duration := findHistogramFloat64(t, &rm, model.MetricGenAIClientOperationDuration)
 
-	// Token usage: one input datapoint (10) and one output datapoint (5),
-	// only from the successful record.
-	if got := histInt64Sum(tokens, "gen_ai.token.type", "input"); got != 10 {
-		t.Fatalf("input token sum = %d, want 10", got)
+	// Token usage comes from the successful record plus expected control flow;
+	// the failed record contributes duration only.
+	if got := histInt64Sum(tokens, "gen_ai.token.type", "input"); got != 12 {
+		t.Fatalf("input token sum = %d, want 12", got)
 	}
-	if got := histInt64Sum(tokens, "gen_ai.token.type", "output"); got != 5 {
-		t.Fatalf("output token sum = %d, want 5", got)
+	if got := histInt64Sum(tokens, "gen_ai.token.type", "output"); got != 6 {
+		t.Fatalf("output token sum = %d, want 6", got)
 	}
 
 	// Duration: a success datapoint (no error.type) and an error
-	// datapoint (error.type set). Sum across both ≈ 1.75s.
+	// datapoint (error.type set). Control flow contributes duration without
+	// an error.type tag. Sum across all three ≈ 1.85s.
 	var total float64
 	var sawError bool
 	for _, dp := range duration.DataPoints {
@@ -63,16 +66,16 @@ func TestRecordOperationMetrics(t *testing.T) {
 			sawError = true
 		}
 	}
-	if total < 1.74 || total > 1.76 {
-		t.Fatalf("duration sum = %v, want ≈1.75", total)
+	if total < 1.84 || total > 1.86 {
+		t.Fatalf("duration sum = %v, want ≈1.85", total)
 	}
 	if !sawError {
 		t.Fatal("expected an error.type-tagged duration datapoint")
 	}
 
 	// The provider/model tags must be present (low-cardinality dims).
-	if got := histInt64Sum(tokens, "gen_ai.system", "openai"); got != 15 {
-		t.Fatalf("openai-tagged token sum = %d, want 15 (10 input + 5 output)", got)
+	if got := histInt64Sum(tokens, "gen_ai.system", "openai"); got != 18 {
+		t.Fatalf("openai-tagged token sum = %d, want 18 (12 input + 6 output)", got)
 	}
 }
 

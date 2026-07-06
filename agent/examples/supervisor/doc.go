@@ -11,8 +11,8 @@
 //     gets {Summary: "..."}
 //  3. finally emits the JSON Brief.
 //
-// chat.ToolMiddleware drives the LLM-tool loop; runtime.AsChatTool
-// runs each sub-agent synchronously inside the parent process.
+// toolloop.NewMiddleware drives the LLM-tool loop; runtime.AsChatTool runs
+// each sub-agent synchronously inside the parent process.
 // Budget aggregation is automatic — the parent's Usage() sums the
 // whole delegation tree.
 //

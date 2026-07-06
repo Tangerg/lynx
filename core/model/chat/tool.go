@@ -40,7 +40,7 @@ type Tool interface {
 	// to it is decided by whatever DRIVES the call, not by this interface: a
 	// loop driver feeds an ordinary error back to the model as a result so it can
 	// recover, and STOPS the loop only on its own control-flow signals (for
-	// example context cancellation/deadline or agent/toolloop.Halt). A tool
+	// example context cancellation/deadline or driver-specific halt errors). A tool
 	// author who wants control over the wording can fold an operational failure
 	// (file not found, wrong credentials, a non-zero exit, an HTTP 4xx) into the
 	// result string instead of returning an error; both reach the model.
@@ -70,9 +70,8 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 //
 // To gate execution on human approval or to delegate execution to an
 // external system, have the tool (or a decorator around it) return the
-// control-flow error understood by your loop driver (agent/toolloop.Halt in the
-// bundled agent runtime). The chat layer itself always treats a registered tool
-// as runnable.
+// control-flow error understood by your loop driver. The chat layer itself
+// always treats a registered tool as runnable.
 //
 // Example:
 //

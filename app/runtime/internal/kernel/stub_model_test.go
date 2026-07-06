@@ -205,8 +205,8 @@ func toolResult(msgs []chat.Message, name string) string {
 //     against ToolName with ToolArgs.
 //   - Round 2 (tool message present): emit the configured FinalText.
 //
-// Two-round behavior is enough to exercise the ToolMiddleware tool
-// loop end-to-end (tool dispatch → result feedback → final reply)
+// Two-round behavior is enough to exercise the tool loop end-to-end
+// (tool dispatch → result feedback → final reply)
 // while staying fully offline.
 type stubModel struct {
 	ToolName  string // tool the stub asks for in round 1

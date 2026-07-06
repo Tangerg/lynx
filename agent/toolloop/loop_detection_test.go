@@ -155,10 +155,10 @@ func TestRoundSignature_NoToolsIsEmpty(t *testing.T) {
 
 // --- integration: through the middleware -----------------------------------
 
-// TestToolMiddleware_LoopDetectionHalts verifies a genuinely stuck model
+// TestToolLoop_LoopDetectionHalts verifies a genuinely stuck model
 // (same tool + args, constant result) is halted with a LoopDetectedError on
 // the 6th identical round — well before the iteration cap.
-func TestToolMiddleware_LoopDetectionHalts(t *testing.T) {
+func TestToolLoop_LoopDetectionHalts(t *testing.T) {
 	model := newFakeChatModel(t)
 	calls := 0
 	model.respond = func(*chat.Request) (*chat.Response, error) {
@@ -190,10 +190,10 @@ func TestToolMiddleware_LoopDetectionHalts(t *testing.T) {
 	}
 }
 
-// TestToolMiddleware_LoopDetectionOptIn confirms the feature is off by
+// TestToolLoop_LoopDetectionOptIn confirms the feature is off by
 // default: the same stuck model runs to the iteration cap (no
 // LoopDetectedError) when LoopDetection is unset.
-func TestToolMiddleware_LoopDetectionOptIn(t *testing.T) {
+func TestToolLoop_LoopDetectionOptIn(t *testing.T) {
 	model := newFakeChatModel(t)
 	model.respond = func(*chat.Request) (*chat.Response, error) {
 		return responseWithToolCall(t, "echo", `{"x":1}`), nil
