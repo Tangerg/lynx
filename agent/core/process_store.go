@@ -45,6 +45,11 @@ type ProcessSnapshot struct {
 	// child processes created via Platform.CreateChildProcess.
 	ParentID string `json:"parent_id,omitempty"`
 
+	// Depth is the process's delegation depth: 0 for a top-level process,
+	// parent+1 for a child. Preserved across restore so a resumed sub-agent
+	// keeps enforcing the spawn-depth backstop from its true level.
+	Depth int `json:"depth,omitempty"`
+
 	// AgentName identifies the agent definition the runtime
 	// re-binds the snapshot to. Restore fails when no agent with
 	// this name is deployed.

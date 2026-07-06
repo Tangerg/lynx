@@ -84,6 +84,7 @@ func (p *Platform) CreateChildProcess(
 		return nil, err
 	}
 	child.parentID = parent.id
+	child.depth = parent.depth + 1
 	parent.budget.addChild(child)
 	return child, nil
 }
