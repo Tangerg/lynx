@@ -137,6 +137,54 @@ func TestWorkspaceReadFileRejectsSymlinkEscape(t *testing.T) {
 	}
 }
 
+func TestWorkspaceReadFileWindowAndMaxBytes(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("a\nb\nc\nd\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "long.txt"), []byte("abcdef"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
+
+	got, err := s.WorkspaceReadFile(context.Background(), protocol.ReadFileRequest{Path: "f.txt", StartLine: 2, EndLine: 3})
+	if err != nil {
+		t.Fatalf("read window: %v", err)
+	}
+	if got.Content != "b\nc" || got.StartLine != 2 || got.EndLine != 3 || !got.Truncated {
+		t.Fatalf("window = %+v, want lines 2..3 with truncated=true", got)
+	}
+
+	capped, err := s.WorkspaceReadFile(context.Background(), protocol.ReadFileRequest{Path: "long.txt", MaxBytes: 3})
+	if err != nil {
+		t.Fatalf("read capped: %v", err)
+	}
+	if capped.Content != "abc" || !capped.Truncated {
+		t.Fatalf("capped = %+v, want abc with truncated=true", capped)
+	}
+}
+
+func TestWorkspaceReadFileRejectsInvalidRange(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("a\nb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
+
+	cases := []protocol.ReadFileRequest{
+		{Path: "f.txt", StartLine: -1},
+		{Path: "f.txt", EndLine: -1},
+		{Path: "f.txt", MaxBytes: -1},
+		{Path: "f.txt", EndLine: 2},
+		{Path: "f.txt", StartLine: 3, EndLine: 2},
+	}
+	for _, tc := range cases {
+		if _, err := s.WorkspaceReadFile(context.Background(), tc); !errors.Is(err, protocol.ErrInvalidParams) {
+			t.Fatalf("WorkspaceReadFile(%+v) err = %v, want ErrInvalidParams", tc, err)
+		}
+	}
+}
+
 // TestWorkspaceGrep searches the workspace root, requires a query, and jails
 // the optional sub-path. Depends on rg or grep being on PATH (skips if not).
 func TestWorkspaceGrep(t *testing.T) {

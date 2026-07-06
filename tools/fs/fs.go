@@ -18,9 +18,10 @@ type Executor interface {
 // ReadInput is line-based. The executor handles binary detection and
 // line windowing — the tool only forwards what the LLM asked for.
 type ReadInput struct {
-	Path   string
-	Offset int // 0-based line offset; negative is clamped to 0
-	Limit  int // 0 = read to end of file
+	Path     string
+	Offset   int // 0-based line offset; negative is clamped to 0
+	Limit    int // 0 = read to end of file
+	MaxBytes int // 0 = no byte cap after line windowing
 }
 
 type ReadOutput struct {
