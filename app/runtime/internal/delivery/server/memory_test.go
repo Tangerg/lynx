@@ -3,11 +3,13 @@ package server
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 type memoryRuntime struct {
@@ -74,6 +76,7 @@ func TestMemoryHandlersReturnCapabilityErrorWithoutStore(t *testing.T) {
 
 func TestListMemoryMapsEntriesToWire(t *testing.T) {
 	captured := time.Date(2026, 7, 5, 9, 0, 0, 0, time.UTC)
+	repo := t.TempDir()
 	rt := &memoryRuntime{
 		enabled: true,
 		entries: []knowledge.Entry{{
@@ -85,13 +88,13 @@ func TestListMemoryMapsEntriesToWire(t *testing.T) {
 	s := newTestServer(rt)
 
 	got, err := s.ListMemory(context.Background(), protocol.WorkspaceListQuery{
-		WorkspaceQuery: protocol.WorkspaceQuery{Cwd: "/repo"},
+		WorkspaceQuery: protocol.WorkspaceQuery{Cwd: repo},
 	})
 	if err != nil {
 		t.Fatalf("list memory: %v", err)
 	}
-	if rt.listCwd != "/repo" {
-		t.Fatalf("cwd = %q, want /repo", rt.listCwd)
+	if rt.listCwd != worktree.CanonicalCwd(repo) {
+		t.Fatalf("cwd = %q, want %q", rt.listCwd, worktree.CanonicalCwd(repo))
 	}
 	if len(got.Data) != 1 || got.Data[0].Scope != protocol.MemoryScopeHome || got.Data[0].UpdatedAt != captured {
 		t.Fatalf("wire memory = %+v", got.Data)
@@ -101,12 +104,13 @@ func TestListMemoryMapsEntriesToWire(t *testing.T) {
 func TestGetAndUpdateMemoryMapScopeToRuntime(t *testing.T) {
 	rt := &memoryRuntime{enabled: true, getContent: "project notes"}
 	s := newTestServer(rt)
+	repo := t.TempDir()
 
-	got, err := s.GetMemory(context.Background(), protocol.GetMemoryRequest{Scope: protocol.MemoryScopeProjectRoot, Cwd: "/repo"})
+	got, err := s.GetMemory(context.Background(), protocol.GetMemoryRequest{Scope: protocol.MemoryScopeProjectRoot, Cwd: repo})
 	if err != nil {
 		t.Fatalf("get memory: %v", err)
 	}
-	if got.Content != "project notes" || rt.getScope != knowledge.ScopeProject || rt.getCwd != "/repo" {
+	if got.Content != "project notes" || rt.getScope != knowledge.ScopeProject || rt.getCwd != worktree.CanonicalCwd(repo) {
 		t.Fatalf("get wire=%+v scope=%v cwd=%q", got, rt.getScope, rt.getCwd)
 	}
 
@@ -118,7 +122,27 @@ func TestGetAndUpdateMemoryMapScopeToRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update memory: %v", err)
 	}
-	if rt.updateScope != knowledge.ScopeUser || rt.updateCwd != "/ignored" || rt.updateContent != "global prefs" {
+	if rt.updateScope != knowledge.ScopeUser || rt.updateCwd != "" || rt.updateContent != "global prefs" {
 		t.Fatalf("update scope=%v cwd=%q content=%q", rt.updateScope, rt.updateCwd, rt.updateContent)
+	}
+}
+
+func TestProjectMemoryRejectsUnavailableCwd(t *testing.T) {
+	rt := &memoryRuntime{enabled: true}
+	s := newTestServer(rt)
+	missing := filepath.Join(t.TempDir(), "missing")
+
+	if _, err := s.GetMemory(context.Background(), protocol.GetMemoryRequest{
+		Scope: protocol.MemoryScopeCwd,
+		Cwd:   missing,
+	}); !errors.Is(err, protocol.ErrCwdUnavailable) {
+		t.Fatalf("get memory err = %v, want ErrCwdUnavailable", err)
+	}
+	if err := s.UpdateMemory(context.Background(), protocol.UpdateMemoryRequest{
+		Scope:   protocol.MemoryScopeProjectRoot,
+		Cwd:     missing,
+		Content: "notes",
+	}); !errors.Is(err, protocol.ErrCwdUnavailable) {
+		t.Fatalf("update memory err = %v, want ErrCwdUnavailable", err)
 	}
 }

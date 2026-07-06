@@ -14,10 +14,11 @@ func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery)
 	if !s.knowledge.HasMemory() {
 		return protocol.NewPage([]protocol.MemoryEntry{}), nil
 	}
-	// in.Cwd scopes the project entry to that directory's LYRA.md;
-	// empty keeps the workspace convention "default = serve directory"
-	// (the memory service's default dir).
-	entries, err := s.knowledge.ListMemoryEntries(ctx, in.Cwd)
+	root, err := s.workspaceRoot(in.Cwd)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := s.knowledge.ListMemoryEntries(ctx, root)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +39,11 @@ func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*
 	if !s.knowledge.HasMemory() {
 		return nil, notImpl("memory.get")
 	}
-	content, err := s.knowledge.GetMemory(ctx, memScopeFromWire(in.Scope), in.Cwd)
+	scope, cwd, err := s.memoryTargetFromWire(in.Scope, in.Cwd)
+	if err != nil {
+		return nil, err
+	}
+	content, err := s.knowledge.GetMemory(ctx, scope, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +54,11 @@ func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryReque
 	if !s.knowledge.HasMemory() {
 		return notImpl("memory.update")
 	}
-	return s.knowledge.UpdateMemory(ctx, memScopeFromWire(in.Scope), in.Cwd, in.Content)
+	scope, cwd, err := s.memoryTargetFromWire(in.Scope, in.Cwd)
+	if err != nil {
+		return err
+	}
+	return s.knowledge.UpdateMemory(ctx, scope, cwd, in.Content)
 }
 
 // memScopeToWire / memScopeFromWire bridge the protocol string enum and
@@ -68,4 +77,16 @@ func memScopeFromWire(s protocol.MemoryScope) knowledge.Scope {
 		return knowledge.ScopeUser
 	}
 	return knowledge.ScopeProject
+}
+
+func (s *Server) memoryTargetFromWire(scope protocol.MemoryScope, cwd string) (knowledge.Scope, string, error) {
+	target := memScopeFromWire(scope)
+	if target == knowledge.ScopeUser {
+		return target, "", nil
+	}
+	root, err := s.workspaceRoot(cwd)
+	if err != nil {
+		return target, "", err
+	}
+	return target, root, nil
 }
