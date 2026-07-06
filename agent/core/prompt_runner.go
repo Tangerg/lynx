@@ -17,7 +17,7 @@ import (
 //     ([ProcessContext.ActionTools]),
 //   - an optional system prompt and chat options.
 //
-// Middleware (tool loop, memory, ...) comes from the configured
+// Middleware (tool loop, history, ...) comes from the configured
 // [Guardrails], same as [ProcessContext.ChatWithActionTools] — the
 // runner does not construct middleware itself, so a platform whose
 // guardrails lack the tool loop will declare tools without driving
@@ -135,7 +135,7 @@ func (pr *PromptRunner) resolveTools(ctx context.Context) ([]chat.Tool, error) {
 
 // Generate runs a synchronous completion with userPrompt as the user
 // message and returns the assistant's plain text. Tools (action +
-// WithTools) are auto-driven by the tool middleware until the LLM
+// WithTools) are auto-driven by the tool loop until the LLM
 // produces a non-tool reply.
 func (pr *PromptRunner) Generate(ctx context.Context, userPrompt string) (string, error) {
 	req, err := pr.buildClientRequest(ctx)

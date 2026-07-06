@@ -338,7 +338,7 @@ core.NewStaticToolGroupResolver("static")  // map[role]ToolGroup
 |---|---|
 | `TerminationScopeAgent` | 整个 process 终止 |
 | `TerminationScopeAction` | 跳过当前 action，重新规划 |
-| `TerminationScopeToolCall` | 取消 in-flight tool 调用，action body 继续（tool loop 已实现于 `core/model/chat/middleware/tool/`，含 max-iter / loop-detection / 并行 / 错误恢复，详见 [`EMBABEL_DEEP_COMPARISON.md`](./EMBABEL_DEEP_COMPARISON.md) §6） |
+| `TerminationScopeToolCall` | 取消 in-flight tool 调用，action body 继续（tool loop 已实现于 `agent/toolloop/`，含 max-iter / loop-detection / 并行 / 错误恢复，详见 [`EMBABEL_DEEP_COMPARISON.md`](./EMBABEL_DEEP_COMPARISON.md) §6） |
 
 ---
 

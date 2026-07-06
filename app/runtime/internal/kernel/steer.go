@@ -13,7 +13,7 @@ import (
 //	StartChat → steerExtension (process-scope, not the serializable blackboard,
 //	            since it's a live func) → runChatTurn resolves it via steerFrom
 //	            → stashes it on the per-round context (withSteerSource) → the
-//	            tool middleware's BeforeRound reads steerSourceFrom and drains it
+//	            tool loop's BeforeRound reads steerSourceFrom and drains it
 //	            before each continuation round.
 //
 // The context hop (rather than relying on the platform to propagate the

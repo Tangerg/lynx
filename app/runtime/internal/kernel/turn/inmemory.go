@@ -367,7 +367,7 @@ func coalesceTextDeltas(head Event, ch <-chan Event, spill *Event) Event {
 // Steering you send while the model is mid-tool-loop affects the
 // next turn, not the current one. Documented limitation; doing
 // real mid-stream injection would require intercepting between
-// rounds of the chat tool middleware.
+// rounds of the chat tool loop.
 //
 // Returns [ErrTurnNotFound] when the turn has already ended (its
 // runTurn deleted itself from the map on exit). Empty messages
