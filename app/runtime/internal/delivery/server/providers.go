@@ -28,6 +28,9 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 	if !ok {
 		return nil, protocol.ErrInvalidParams
 	}
+	if meta.RequiresBaseURL && in.BaseURL == "" {
+		return nil, protocol.ErrInvalidParams
+	}
 	if err := s.providers.ConfigureProvider(ctx, provider.Provider{
 		ID:      in.Provider,
 		APIKey:  in.APIKey,
