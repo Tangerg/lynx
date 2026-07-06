@@ -132,7 +132,7 @@ lyra/
 │       │   └── sqlite/
 │       └── git/ lsp/ checkpoint/ exec/ mcp/ a2a/   git / LSP client / 影子 git / 进程执行 / MCP / A2A
 │
-└── doc/                            GREENFIELD_ARCHITECTURE.md（架构基准）/ EXTENSIBILITY.md / ARCHITECTURE_REVIEW.md / GREENFIELD_DESIGN.md
+└── doc/                            GREENFIELD_ARCHITECTURE.md（架构基准）/ EXTENSIBILITY.md / ARCHITECTURE_REVIEW.md / GREENFIELD_DESIGN.md / PRIOR_ART.md（业界横向对照）
 ```
 
 ## 常用命令
