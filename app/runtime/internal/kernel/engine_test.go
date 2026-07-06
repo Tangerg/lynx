@@ -433,6 +433,47 @@ func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 	}
 }
 
+func TestEngine_RunChat_PassesOptions(t *testing.T) {
+	stub := newStreamingStubModel("ok")
+	client, _ := chat.NewClient(stub)
+	eng, err := New(context.Background(), Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	temp := 0.7
+	maxTokens := int64(256)
+
+	if _, err := eng.RunChat(context.Background(), RunChatRequest{
+		Message: "go",
+		Options: &chat.Options{
+			Temperature: &temp,
+			MaxTokens:   &maxTokens,
+			Stop:        []string{"END"},
+		},
+	}); err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+
+	stub.mu.Lock()
+	got := stub.lastOptions
+	stub.mu.Unlock()
+	if got == nil {
+		t.Fatal("model saw nil options")
+	}
+	if got.Model != "stub-model-streaming" {
+		t.Fatalf("Model = %q, want default stub-model-streaming", got.Model)
+	}
+	if got.Temperature == nil || *got.Temperature != 0.7 {
+		t.Fatalf("Temperature = %v, want 0.7", got.Temperature)
+	}
+	if got.MaxTokens == nil || *got.MaxTokens != 256 {
+		t.Fatalf("MaxTokens = %v, want 256", got.MaxTokens)
+	}
+	if len(got.Stop) != 1 || got.Stop[0] != "END" {
+		t.Fatalf("Stop = %v, want END", got.Stop)
+	}
+}
+
 // TestEngine_RunChat_MultiTurnHistory verifies the chat-history
 // middleware loads prior turns before each call. Running two turns
 // against the same SessionID must result in the second Call seeing

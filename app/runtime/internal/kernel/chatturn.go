@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // RunChatRequest carries the per-turn parameters for [Engine.StartChat] /
@@ -56,6 +57,11 @@ type RunChatRequest struct {
 	// [chatInput.MaxSteps]; surfaces as the maxSteps run outcome.
 	MaxSteps int
 
+	// Options carries per-run generation tuning (temperature, max tokens, stop
+	// sequences). Model selection stays on Provider/ChatClient; these options
+	// are merged over the selected client's model defaults.
+	Options *chat.Options
+
 	// ChatClient, when non-nil, overrides the model this turn runs against
 	// — registered as a [core.ChatClientProvider] on the process so the
 	// agent runtime uses it instead of the platform's default client. This
@@ -98,7 +104,7 @@ type RunChatRequest struct {
 // attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat history middleware's keyed conversation.
 func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
-	in := chatInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps}
+	in := chatInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps, Options: req.Options.Clone()}
 
 	opts := chatProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient)
 	if req.Steer != nil {

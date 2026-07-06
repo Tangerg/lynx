@@ -4,6 +4,7 @@ import (
 	"context"
 	"iter"
 	"strings"
+	"sync"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -248,8 +249,10 @@ func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 // configured Chunks one at a time so streaming-path tests can
 // assert that each chunk lands on OnMessageDelta independently.
 type streamingStubModel struct {
-	Chunks   []string
-	defaults *chat.Options
+	Chunks      []string
+	defaults    *chat.Options
+	mu          sync.Mutex
+	lastOptions *chat.Options
 }
 
 func newStreamingStubModel(chunks ...string) *streamingStubModel {
@@ -265,7 +268,8 @@ func (m *streamingStubModel) Metadata() chat.ModelMetadata {
 // Call concatenates the chunks into one response — used when a non-
 // stream caller asks for the full reply (the engine doesn't, but
 // chat.Model requires both methods).
-func (m *streamingStubModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
+func (m *streamingStubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	m.captureOptions(req)
 	all := ""
 	for _, c := range m.Chunks {
 		all += c
@@ -273,7 +277,8 @@ func (m *streamingStubModel) Call(_ context.Context, _ *chat.Request) (*chat.Res
 	return responseWithText(all)
 }
 
-func (m *streamingStubModel) Stream(_ context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
+func (m *streamingStubModel) Stream(_ context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	m.captureOptions(req)
 	return func(yield func(*chat.Response, error) bool) {
 		for _, chunk := range m.Chunks {
 			resp, err := responseWithText(chunk)
@@ -282,6 +287,12 @@ func (m *streamingStubModel) Stream(_ context.Context, _ *chat.Request) iter.Seq
 			}
 		}
 	}
+}
+
+func (m *streamingStubModel) captureOptions(req *chat.Request) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lastOptions = req.Options.Clone()
 }
 
 // historyAwareStub remembers how many messages it saw on each Call.

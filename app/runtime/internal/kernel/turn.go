@@ -45,7 +45,7 @@ func stallContext(parent context.Context, idle time.Duration) (ctx context.Conte
 // handled by the tool middleware's [toolloop.ParkStore]; when none is
 // configured, the engine intercepts tool-loop interrupt chunks as
 // a fallback.
-func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, budget turnBudget) (ChatOutput, error) {
+func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget turnBudget) (ChatOutput, error) {
 	// Mid-run steering: stash the turn's SteerSource (attached as a process
 	// extension by StartChat) on the context the stream runs under, so the tool
 	// loop's BeforeRound hook can drain it between rounds. Owning the context
@@ -63,6 +63,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provi
 	if err != nil {
 		return ChatOutput{}, err
 	}
+	req = req.WithOptions(options)
 
 	observer := observerFrom(pc.Options)
 	sysPrompt := e.SystemPrompt(ctx)
