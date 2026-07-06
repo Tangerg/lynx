@@ -2,9 +2,11 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // WorkspaceListHooks reports the lifecycle hooks discovered for a cwd — global
@@ -43,5 +45,9 @@ func (s *Server) WorkspaceSetHookTrust(ctx context.Context, in protocol.SetHookT
 	if in.ProjectRoot == "" {
 		return protocol.ErrInvalidParams
 	}
-	return s.hooks.SetProjectHookTrust(ctx, in.ProjectRoot, in.Trusted)
+	root, err := worktree.ResolveExistingDir(in.ProjectRoot)
+	if err != nil {
+		return fmt.Errorf("%w: %s: %v", protocol.ErrCwdUnavailable, in.ProjectRoot, err)
+	}
+	return s.hooks.SetProjectHookTrust(ctx, root, in.Trusted)
 }
