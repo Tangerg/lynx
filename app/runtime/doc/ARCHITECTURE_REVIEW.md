@@ -7,7 +7,14 @@
 > **结论先行**：
 > 1. **Lyra 已经是机器强制的 Clean Arch + 六边形，不是"要往那个方向走"的项目。** `internal/arch/arch_test.go` 用 `go/parser` 解析 import、机器断言依赖方向 —— 这比任何文档/review 规范都硬。等级 **B+ → A-（差一步到 A）**。
 > 2. **"向 DDD 方向"的真正问题不是"怎么走过去"，而是教科书 DDD 的哪些部分对这个系统是对的、哪些是仪式。** 项目自己的 `DESIGN_PHILOSOPHY §2.5` + `REFACTORING §5.1` 已回答过 —— 明确反对为单后端叠 DDD 层（repository / application-service / 聚合根 / domain-events 框架），视为 YAGNI 仪式。**资深架构师的诚实裁决：这套反仪式立场对这个系统是对的。**
-> 3. **真正欠的债只有一处：`delivery/server` 里藏了 use-case 编排（`pump.go` + `rollback.go`）。** "协议层薄"的口号（见 [`../CLAUDE.md`](../CLAUDE.md) 一句话定位）在这两个文件上不成立。把那两块的多服务协调搬进 kernel，就到 A。
+> 3. **（本文写作时）真正欠的债只有一处：`delivery/server` 里藏了 use-case 编排（`pump.go` + `rollback.go`）。** "协议层薄"的口号（见 [`../CLAUDE.md`](../CLAUDE.md) 一句话定位）在这两个文件上不成立。把那两块的多服务协调搬进 kernel，就到 A。
+>
+> ---
+>
+> **状态更新（2026-07-06，`codex/runtime-architecture-refactor` 分支）—— 结论 #3 的两处债已全部落地，架构到 A：**
+> - **rollback（原 P0-1）✅**：跨服务写集已下沉 `internal/kernel/lifecycle` 的 `Coordinator.Rollback` / `RollbackResolved`（`TruncateMessages` + `DeleteRun` + `Interrupts.Delete` + 子树 purge 在一个 `RunInTx` 里）。`delivery/server/rollback.go`（今 101 LOC，非 216）只剩 wire 解码 → 抬升 `RunNode` → 调 `ResolveRollbackBoundary`/`RollbackResolved` → workspace checkpoint 恢复（刻意留适配器侧，见 coordinator 包 doc）→ 拼响应，**零 inline 写集**。
+> - **pump（原 P0-2）✅**：多服务协调已下沉 `internal/kernel/runsegment` 的 effects（`BeforeLive`/`AfterLive`/`Finish` 做持久化 + 中断登记 + 文件变更通知 + snapshot）。`pump.go` 只剩 `translator → 分配 eventId → hub.Append → 调 effects`。
+> - 下文 §2.5 / §3.2 / §4 差异②③ / §5 P0 描述的是**落地前**的现状，保留作评审考古；其 actionable P0 现已 DONE。
 
 ---
 
@@ -32,7 +39,7 @@
 
 ### 真正的 3 处债
 
-1. **`delivery/server` 里藏了非 delivery 的编排逻辑** —— `pump.go:pumpRun` 协调 turn 事件 → translator → persist → hub → snapshot 五个服务跨层编排；`rollback.go:RollbackSession` 编排 transcript + conversation + workspace + interrupts + subtask purge。**"协议层薄"不成立。**（详见 §2.5、§5 P0）
+1. ~~**`delivery/server` 里藏了非 delivery 的编排逻辑** —— `pump.go:pumpRun` 协调 turn 事件 → translator → persist → hub → snapshot 五个服务跨层编排；`rollback.go:RollbackSession` 编排 transcript + conversation + workspace + interrupts + subtask purge。**"协议层薄"不成立。**~~（详见 §2.5、§5 P0）**✅ 已于 2026-07-06 落地，见顶部状态更新** —— pump 编排 → `kernel/runsegment` effects，rollback 编排 → `kernel/lifecycle.Coordinator`。
 2. **`domain/workspace` 和 `domain/codeintel` 是 domain facade 盖在 infra 上** —— 它们 import `infra/git` / `infra/lsp` / `infra/checkpoint`，本质是"领域化适配器"，叫 `domain` 名实不符。（详见 §2.1）
 3. **个别 domain 包是纯贫血数据袋 + Store interface**（`provider` / `interrupts` / `knowledge`）—— 但这些领域本质就是 CRUD / 注册表，**贫血是对的，不是债**。（详见 §2.4）
 
@@ -99,6 +106,8 @@
 **`rollback.go:RollbackSession`**（`internal/delivery/server/rollback.go:79`）做的事：串联 `Session.Get` → `Transcript.List` → `transcript.BoundaryAt`（领域算法）→ `restoreCheckpoint`（workspace）→ `TruncateMessages`（conversation）→ `DeleteRun` + `Interrupts.Delete` → `purgeSubtasksAfter`（级联 purge 子会话）。**这是横跨 6 个 domain 服务的 use-case，不是协议适配。**
 
 **裁决**：**结构性债**。修法见 §5 P0 —— 不是把 pump/rollback 整体搬走（translator / hub / wire helpers 是 delivery 的），而是把其中的**多服务协调**抽到 kernel 层的编排器，delivery 只剩 decode → 调编排器 → present。
+
+> **✅ 已落地（2026-07-06，见顶部状态更新）**：rollback 的多服务协调在 `internal/kernel/lifecycle.Coordinator`（`Rollback`/`RollbackResolved`），pump 的在 `internal/kernel/runsegment` effects（`BeforeLive`/`AfterLive`/`Finish`）。delivery 侧两文件现只剩 wire 翻译 + workspace 适配 + 调用编排器 —— 裁决预期的形态已达成。
 
 ### 2.6 `adapter/toolset/build.go` god 构造器 —— 正当（不是债）
 
@@ -280,12 +289,12 @@ lyra/
 
 ## 5. 落地建议（按 impact/risk 排序）
 
-### P0：现在做，低风险，高收益（做了 B+ → A）
+### P0：现在做，低风险，高收益（做了 B+ → A）—— ✅ 两项均已于 2026-07-06 落地（见顶部状态更新）
 
 | # | 改动 | 类型 | scope |
 |---|---|---|---|
-| **1** | **搬 rollback 编排 → kernel** | 结构性重构 | `delivery/server/rollback.go:RollbackSession` 的编排序列（Transcript.List → BoundaryAt → restoreCheckpoint → TruncateMessages → DeleteRun/Delete → purgeSubtasks）→ `kernel`（新包或 `kernel/turn/`）。delivery 只做 decode → 调 kernel 编排器 → present；wire helper（`runNodes` / `wireBoundaryErr` / `openingUserInput` / `sessionToWire`）留 delivery。**需咨询用户**（kernel 公开 API 变更）。 |
-| **2** | **抽离 pump 的多服务协调 → kernel** | 结构性重构 | `delivery/server/pump.go:emit` 闭包里的 `persistStreamEvent` + `recordInterrupt` + `emitToolFileChange` + `snapshotCheckpoint` → kernel 层编排器（如 `RunSegmentCoordinator`）。pump 保留为 delivery 的流式管道（translator → hub.Append + eventId）。不改 pump 对外行为，只改内部调用链。**需咨询用户**（kernel 新接口）。 |
+| **1** | **✅ DONE — 搬 rollback 编排 → kernel** | 结构性重构 | `delivery/server/rollback.go:RollbackSession` 的编排序列（Transcript.List → BoundaryAt → restoreCheckpoint → TruncateMessages → DeleteRun/Delete → purgeSubtasks）→ `kernel`（新包或 `kernel/turn/`）。delivery 只做 decode → 调 kernel 编排器 → present；wire helper（`runNodes` / `wireBoundaryErr` / `openingUserInput` / `sessionToWire`）留 delivery。**需咨询用户**（kernel 公开 API 变更）。 |
+| **2** | **✅ DONE — 抽离 pump 的多服务协调 → kernel** | 结构性重构 | `delivery/server/pump.go:emit` 闭包里的 `persistStreamEvent` + `recordInterrupt` + `emitToolFileChange` + `snapshotCheckpoint` → kernel 层编排器（如 `RunSegmentCoordinator`）。pump 保留为 delivery 的流式管道（translator → hub.Append + eventId）。不改 pump 对外行为，只改内部调用链。**需咨询用户**（kernel 新接口）。 |
 
 ### P1：值得做，中等风险
 
@@ -319,10 +328,10 @@ lyra/
 
 **2. 抽离 pump 的多服务协调 → kernel（P0-2）**：`pump.go:emit` 闭包里做了 persist + recordInterrupt + emitToolFileChange + snapshotCheckpoint，这些不是 delivery 的事。把它们抽成一个 kernel 层编排器，pump 只负责"事件 → translator → hub.Append"。
 
-这两件事做了，`delivery/server` 就从"里面有 use-case"变成真正的"协议层薄"。架构等级从 B+ 进到 A。
+这两件事做了，`delivery/server` 就从"里面有 use-case"变成真正的"协议层薄"。架构等级从 B+ 进到 A。**✅ 二者均已于 2026-07-06 落地（rollback → `kernel/lifecycle.Coordinator`，pump → `kernel/runsegment` effects）。**
 
 ---
 
 ## 一句话收尾
 
-**Lyra 的架构骨骼是教科书级别对的，别被"要往 DDD 走"的冲动带去加层 —— 项目哲学的反仪式立场（`DESIGN_PHILOSOPHY §2.5` + `REFACTORING §5.1`）对这个系统是对的。真正欠的债只有一处：`delivery/server` 里藏了 use-case 编排（pump + rollback）。把那两块搬进 kernel，就到 A。**
+**Lyra 的架构骨骼是教科书级别对的，别被"要往 DDD 走"的冲动带去加层 —— 项目哲学的反仪式立场（`DESIGN_PHILOSOPHY §2.5` + `REFACTORING §5.1`）对这个系统是对的。真正欠的债只有一处：`delivery/server` 里藏了 use-case 编排（pump + rollback）。~~把那两块搬进 kernel，就到 A。~~ ✅ 已于 2026-07-06 落地（rollback → `kernel/lifecycle.Coordinator`，pump → `kernel/runsegment` effects），现已到 A。**
