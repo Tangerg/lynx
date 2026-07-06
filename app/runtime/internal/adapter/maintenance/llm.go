@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -55,7 +56,13 @@ func askDirect(ctx context.Context, client *chat.Client, systemPrompt, userPromp
 // transcript a summariser / extractor can read. Lossy by design — tool-call
 // arguments and parts are flattened to their text bodies; what we
 // need is gist, not fidelity.
-func renderTranscript(msgs []chat.Message) string {
+//
+// toolResultCap > 0 truncates each tool-result body to that many chars (head +
+// tail, with the elision marked); 0 leaves bodies intact. The summariser passes
+// a cap so a few large tool outputs (the very thing the token trigger fires on)
+// don't dominate its own input; the trigger estimate and the fact extractor
+// pass 0 because they must see the real footprint / full content.
+func renderTranscript(msgs []chat.Message, toolResultCap int) string {
 	var b strings.Builder
 	for _, msg := range msgs {
 		if msg == nil {
@@ -75,7 +82,7 @@ func renderTranscript(msgs []chat.Message) string {
 			b.WriteString("[tool] ")
 			for _, r := range m.ToolReturns {
 				if r != nil {
-					b.WriteString(r.Result)
+					b.WriteString(capText(r.Result, toolResultCap))
 					b.WriteString(" ")
 				}
 			}
@@ -85,4 +92,21 @@ func renderTranscript(msgs []chat.Message) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// capText bounds an oversized body to max chars — head (¾) + tail (¼) with the
+// elided middle marked — trimming to rune boundaries so the cut never splits a
+// multibyte rune. max <= 0 or an already-small body is returned unchanged.
+func capText(s string, max int) string {
+	if max <= 0 || len(s) <= max {
+		return s
+	}
+	head, tailStart := max*3/4, len(s)-max/4
+	for head > 0 && !utf8.RuneStart(s[head]) {
+		head--
+	}
+	for tailStart < len(s) && !utf8.RuneStart(s[tailStart]) {
+		tailStart++
+	}
+	return s[:head] + fmt.Sprintf("\n…[%d chars elided for summary]…\n", tailStart-head) + s[tailStart:]
 }
