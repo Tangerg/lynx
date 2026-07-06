@@ -13,10 +13,10 @@ import (
 	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
-const Provider = "CosmosDBChatMemory"
+const Provider = "CosmosDBChatHistory"
 
 // StoreConfig configures [NewStore]. Only [StoreConfig.Container] is
 // required.
@@ -34,11 +34,11 @@ func (c StoreConfig) Validate() error {
 }
 
 var (
-	_ memory.Store  = (*Store)(nil)
-	_ memory.Lister = (*Store)(nil)
+	_ history.Store  = (*Store)(nil)
+	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a Cosmos DB-backed [memory.Store]. Construct via
+// Store is a Cosmos DB-backed [history.Store]. Construct via
 // [NewStore].
 type Store struct {
 	container *azcosmos.ContainerClient
@@ -67,7 +67,7 @@ type document struct {
 // (seqBase = call-time UnixNano, +1 per message). A retried Write
 // recomputes seqBase, so re-runs append fresh documents — they are
 // NOT idempotent. Two writers calling in the same nanosecond would
-// collide ids and silently upsert over each other; chat memory has a
+// collide ids and silently upsert over each other; chat history has a
 // single writer per conversation, so that stays theoretical.
 func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
@@ -188,7 +188,7 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 
 // Clear deletes every document for conversationID. Cosmos has no
 // bulk-delete for a partition, so each id is enumerated and
-// deleted individually — fine for chat-memory sizes.
+// deleted individually — fine for chat history sizes.
 func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err

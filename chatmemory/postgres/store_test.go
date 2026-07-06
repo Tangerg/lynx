@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Tangerg/lynx/chatmemory/postgres"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 // stubPool is a sentinel non-nil *pgxpool.Pool used to exercise the
@@ -48,7 +48,7 @@ func TestStoreConfig_RejectsBadIdentifier(t *testing.T) {
 		},
 		{
 			name: "table with hyphen",
-			cfg:  postgres.StoreConfig{Pool: stubPool(), TableName: "chat-memory"},
+			cfg:  postgres.StoreConfig{Pool: stubPool(), TableName: "chat history"},
 		},
 		{
 			name: "index starting with digit",
@@ -56,7 +56,7 @@ func TestStoreConfig_RejectsBadIdentifier(t *testing.T) {
 		},
 		{
 			name: "table with space",
-			cfg:  postgres.StoreConfig{Pool: stubPool(), TableName: "chat memory"},
+			cfg:  postgres.StoreConfig{Pool: stubPool(), TableName: "chat history"},
 		},
 	}
 	for _, tc := range cases {
@@ -86,8 +86,8 @@ func TestStoreConfig_AcceptsValidIdentifiers(t *testing.T) {
 	}
 }
 
-// TestStore_ImplementsMemoryStore is a compile-time interface check —
+// TestStore_ImplementsHistoryStore is a compile-time interface check —
 // fails at build time, not runtime, if the contract drifts.
-func TestStore_ImplementsMemoryStore(t *testing.T) {
-	var _ chatmem.Store = (*postgres.Store)(nil)
+func TestStore_ImplementsHistoryStore(t *testing.T) {
+	var _ chathistory.Store = (*postgres.Store)(nil)
 }

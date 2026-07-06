@@ -112,7 +112,7 @@ func (p *AgentProcess) Snapshot() core.ProcessSnapshot {
 // listener / tool decorators) and the [core.ProcessOptions.Session]
 // binding. A restored process re-enters the tick loop with the same
 // observability + session context a fresh one gets from
-// [Platform.StartAgent], so the continuation streams and keys chat-memory
+// [Platform.StartAgent], so the continuation streams and keys chat history
 // correctly. Pass the zero value to restore read-only (audit / inspect).
 func (p *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options core.ProcessOptions) (*AgentProcess, error) {
 	if p == nil {

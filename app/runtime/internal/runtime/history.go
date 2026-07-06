@@ -19,13 +19,13 @@ func (r *Runtime) SeedHistory(ctx context.Context, sessionID string, msgs []chat
 	return r.conversation.Seed(ctx, sessionID, msgs)
 }
 
-// MessageCount returns sessionID's chat-memory message count — the per-run
+// MessageCount returns sessionID's chat history message count — the per-run
 // watermark sessions.rollback / fork record.
 func (r *Runtime) MessageCount(ctx context.Context, sessionID string) (int, error) {
 	return r.conversation.Count(ctx, sessionID)
 }
 
-// TruncateMessages keeps the first keepN chat-memory messages of sessionID
+// TruncateMessages keeps the first keepN chat history messages of sessionID
 // (sessions.rollback).
 func (r *Runtime) TruncateMessages(ctx context.Context, sessionID string, keepN int) error {
 	return r.conversation.Truncate(ctx, sessionID, keepN)

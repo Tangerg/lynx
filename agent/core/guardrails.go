@@ -11,7 +11,7 @@ import "github.com/Tangerg/lynx/core/model/chat"
 // The values are plain [chat.CallMiddleware] / [chat.StreamMiddleware]
 // — typically constructed via the per-concern helpers under
 // `core/model/chat/middleware` (e.g. logger.NewMiddleware,
-// safeguard.NewMiddleware, memory.NewMiddleware, tool.NewMiddleware) but any
+// safeguard.NewMiddleware, middleware/history.NewMiddleware, tool.NewMiddleware) but any
 // user-supplied middleware satisfies the slot. Order is outer-first: the first entry
 // sees a request earliest and a response latest, mirroring how the
 // onion of middleware is composed at the chat client.

@@ -12,7 +12,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
+	historymw "github.com/Tangerg/lynx/core/model/chat/middleware/history"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
@@ -38,7 +39,7 @@ type Engine struct {
 	platform agentRuntime
 	agent    *core.Agent
 
-	// Context inputs (read at SystemPrompt + chat-memory time).
+	// Context inputs (read at SystemPrompt + chat-history time).
 	tools           []chat.Tool
 	steering        SteeringSink // turn-end steering inject; nil → steering drops
 	knowledge       knowledge.Service
@@ -91,18 +92,18 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		resolver = &emptyToolResolver{}
 	}
 
-	memStore := cfg.MemoryStore
-	if memStore == nil {
-		memStore = memory.NewInMemoryStore()
+	historyStore := cfg.HistoryStore
+	if historyStore == nil {
+		historyStore = history.NewInMemoryStore()
 	}
-	callMW, streamMW, err := memory.NewMiddleware(memStore)
+	callMW, streamMW, err := historymw.NewMiddleware(historyStore)
 	if err != nil {
-		return nil, fmt.Errorf("engine: build memory middleware: %w", err)
+		return nil, fmt.Errorf("engine: build history middleware: %w", err)
 	}
-	// One tool + memory middleware chain serves every process — top-level
+	// One tool + history middleware chain serves every process — top-level
 	// turns and spawned subtasks alike. Each request carries its own
-	// conversation id (the agent runtime stamps [chat.ConversationIDKey]
-	// from the process's Session), so a single shared chain keys memory and
+	// conversation id (the agent runtime stamps chat conversation ID
+	// from the process's Session), so a single shared chain keys history and
 	// park state per-process without per-turn reconstruction.
 	toolCallMW, toolStreamMW := tool.NewMiddleware(tool.Config{
 		FeedbackOnEmptyResponse: true,
@@ -190,7 +191,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 // message counts (so callers can surface an observable boundary).
 //
 // No-op (returns a zero CompactionResult) when:
-//   - sessionID is empty (single-turn / no chat-memory path)
+//   - sessionID is empty (single-turn / no chat-history path)
 //   - the configured Compaction.MaxMessages is negative (disabled)
 //   - the current history is shorter than the threshold
 func (e *Engine) MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (CompactionResult, error) {

@@ -1,4 +1,4 @@
-// Package neo4j is a [memory.Store] backed by Neo4j via the official
+// Package neo4j is a [history.Store] backed by Neo4j via the official
 // Go driver (v5).
 //
 // Storage model:

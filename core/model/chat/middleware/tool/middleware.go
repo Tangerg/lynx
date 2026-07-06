@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
 )
 
 // DefaultMaxIterations bounds the self-driving tool loop. A model that
@@ -465,7 +466,7 @@ func newToolMessageResponse(tm *chat.ToolMessage) (*chat.Response, error) {
 // surfacing the error. Returns the request unchanged when no ParkStore is
 // configured or nothing is parked.
 func (m *middleware) restorePark(ctx context.Context, req *chat.Request) (*chat.Request, error) {
-	parkID, err := req.ConversationID()
+	parkID, err := chatconversation.ID(req)
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +487,7 @@ func (m *middleware) restorePark(ctx context.Context, req *chat.Request) (*chat.
 // (assistant + Done tool returns) onto the request's messages
 // so [parseResumePoint] detects it and resumes at the pending call.
 // The engine always adds a user message on every turn — on resume
-// the memory middleware replays the full history, so the trailing
+// the history middleware replays the full history, so the trailing
 // user message is stripped and replaced with the tail.
 //
 // Failures degrade gracefully (the Done returns are dropped / the
@@ -562,7 +563,7 @@ func (m *middleware) savePark(ctx context.Context, req *chat.Request, assistant 
 	}
 	// A malformed id was already rejected at the handler entry, so an
 	// error here degrades to "no park id" (no persistence).
-	id, _ := req.ConversationID()
+	id, _ := chatconversation.ID(req)
 	if id == "" {
 		return
 	}

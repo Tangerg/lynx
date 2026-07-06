@@ -93,7 +93,7 @@ type turnState struct {
 	parked bool
 
 	// steering is the queue of mid-turn user messages injected via
-	// [Service.InjectSteering]. The runtime flushes it to the chat-memory
+	// [Service.InjectSteering]. The runtime flushes it to the chat history
 	// store after the turn ends so the messages land in conversation
 	// history for the next turn.
 	steering []string
@@ -533,7 +533,7 @@ func fallbackPlan(out kernel.ChatOutput, runErr, ctxErr error, status core.Agent
 }
 
 // flushSteering writes the turn's queued steering messages to the
-// chat-memory store so the next turn picks them up as conversation
+// chat history store so the next turn picks them up as conversation
 // history. No-op when there's no session or no queued steering.
 // Errors surface through an ErrorEvent but don't abort the turn —
 // dropping steering is preferable to wrecking an otherwise

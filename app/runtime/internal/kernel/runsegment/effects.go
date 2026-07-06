@@ -18,7 +18,7 @@ import (
 
 // Stores is the consumer-defined surface the Effects coordinator drives. It is
 // intentionally narrower than the runtime bundle: this use-case needs only
-// durable transcript/interrupt/session stores, chat-memory count, and title
+// durable transcript/interrupt/session stores, chat history count, and title
 // generation.
 type Stores interface {
 	Interrupts() interrupts.Store
@@ -93,7 +93,7 @@ type Interrupt struct {
 	DrainedTools []interrupts.DrainedTool
 }
 
-// RunRecord is a transcript run upsert. Terminal records get their chat-memory
+// RunRecord is a transcript run upsert. Terminal records get their chat history
 // watermark resolved by Effects immediately before PutRun.
 type RunRecord struct {
 	Run      transcript.Run

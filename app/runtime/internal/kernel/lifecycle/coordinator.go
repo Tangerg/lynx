@@ -1,7 +1,7 @@
 // Package lifecycle owns the cross-domain atomic write-sets behind a few
 // session/run lifecycle use-cases — rollback truncation, the session-delete
 // cascade, the import/restore sequence, and the subagent subtree purge. Each
-// spans several domain stores (the session row, the transcript, the chat-memory
+// spans several domain stores (the session row, the transcript, the chat history
 // log, open interrupts) and several commit as ONE transaction via RunInTx, so a
 // mid-sequence failure leaves no half-mutated session.
 //
@@ -27,7 +27,7 @@ import (
 )
 
 // Stores is the consumer-defined surface the Coordinator drives — the runtime's
-// session-scoped stores plus the chat-memory log, the process-local resume
+// session-scoped stores plus the chat history log, the process-local resume
 // gate (ForgetSession), and the transactional seam (RunInTx). The composition
 // root's runtime bundle satisfies it; defined here so the Coordinator depends
 // only on what it calls, not the whole runtime.
@@ -35,12 +35,12 @@ type Stores interface {
 	Session() session.Service
 	Transcript() transcript.Store
 	Interrupts() interrupts.Store
-	// ReadHistory returns the chat-memory log for a session.
+	// ReadHistory returns the chat history log for a session.
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
-	// TruncateMessages clamps a session's chat-memory log to keepN messages
+	// TruncateMessages clamps a session's chat history log to keepN messages
 	// (keepN=0 clears it).
 	TruncateMessages(ctx context.Context, sessionID string, keepN int) error
-	// SeedHistory replaces a session's chat-memory log with msgs.
+	// SeedHistory replaces a session's chat history log with msgs.
 	SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error
 	// ForgetSession releases the turn service's process-local state for a
 	// session that is being removed (the SessionStart gate) — see turn.Service.
@@ -144,7 +144,7 @@ func ResolveRollbackBoundary(nodes []transcript.RunNode, toRunID string) (Rollba
 	}, nil
 }
 
-// Rollback truncates the chat-memory log to keepMark and drops each run's
+// Rollback truncates the chat history log to keepMark and drops each run's
 // durable items + record + dangling interrupt as ONE transaction, then cancels
 // any in-process parked turns that were abandoned and purges the subagent child
 // sessions spawned at/after purgeAfter. A keepMark < 0 (unknown watermark —
@@ -342,7 +342,7 @@ func ResolveForkHistoryPrefix(msgs []chat.Message, nodes []transcript.RunNode, f
 
 // Fork creates a child session, seeds it with the resolved parent history
 // prefix, and renames it as ONE transaction. The protocol adapter owns only
-// wire decoding; the boundary semantics and chat-memory prefix live here.
+// wire decoding; the boundary semantics and chat history prefix live here.
 func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session, error) {
 	msgs, err := c.s.ReadHistory(ctx, spec.ParentID)
 	if err != nil {
@@ -377,7 +377,7 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 }
 
 // DeleteSession removes the session row (authoritative) then best-effort
-// cascades the session-scoped storage: durable history, chat-memory, parked
+// cascades the session-scoped storage: durable history, chat history, parked
 // turns/open interrupts, and the process-local resume gate. The cascade runs
 // AFTER the authoritative delete so a partial cascade leaves harmless orphans,
 // never a half-deleted session. File checkpoints (shadow git) are NOT dropped
@@ -387,7 +387,7 @@ func (c *Coordinator) DeleteSession(ctx context.Context, turns TurnCanceler, ses
 		return err
 	}
 	_ = c.s.Transcript().DeleteSession(ctx, sessionID) // history runs + items
-	_ = c.s.TruncateMessages(ctx, sessionID, 0)        // chat-memory messages
+	_ = c.s.TruncateMessages(ctx, sessionID, 0)        // chat history messages
 	c.cancelParkedInterrupts(ctx, turns, sessionID)    // live parked turns + durable interrupts
 	c.s.ForgetSession(sessionID)                       // process-local SessionStart gate
 	return nil
@@ -435,7 +435,7 @@ func (c *Coordinator) RestoreSession(ctx context.Context, ses session.Session, m
 }
 
 // PurgeSubtree deletes a session and its whole descendant subtree depth-first:
-// chat-memory messages, durable history (items + runs), the session row, and
+// chat history messages, durable history (items + runs), the session row, and
 // the process-local resume gate. Best-effort — a partial failure still removes
 // the leaves it reached. Used to drop a failed-fork orphan and (via
 // purgeChildrenAfter) the subagent children a rollback discards.

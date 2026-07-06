@@ -7,11 +7,11 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
-// MessageStore implements the lynx-core chat-memory [memory.Store] against
-// SQLite — the per-conversation chat history the memory middleware loads
+// MessageStore implements the lynx-core chat history [history.Store] against
+// SQLite — the per-conversation chat history the history middleware loads
 // before each turn and appends to after. One append-only table keyed by
 // conversation, ordered by an autoincrement seq; each [chat.Message] is
 // stored as opaque JSON (round-tripped via [chat.UnmarshalMessage]).
@@ -23,19 +23,19 @@ type MessageStore struct {
 }
 
 var (
-	_ memory.Store    = (*MessageStore)(nil)
-	_ memory.Replacer = (*MessageStore)(nil)
-	_ memory.Counter  = (*MessageStore)(nil)
+	_ history.Store    = (*MessageStore)(nil)
+	_ history.Replacer = (*MessageStore)(nil)
+	_ history.Counter  = (*MessageStore)(nil)
 )
 
-// NewMessageStore binds the chat-memory store to db. db must have been
+// NewMessageStore binds the chat history store to db. db must have been
 // opened via [Open] so the migration ran.
 func NewMessageStore(db *sql.DB) *MessageStore {
 	return &MessageStore{db: db}
 }
 
 // Read returns every message for conversationID in write order. Unknown
-// conversation → empty slice (matches memory.InMemoryStore). Malformed rows
+// conversation → empty slice (matches history.InMemoryStore). Malformed rows
 // are skipped rather than failing the read, so one bad write can't poison
 // the whole conversation.
 func (s *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
@@ -103,7 +103,7 @@ func (s *MessageStore) Write(ctx context.Context, conversationID string, message
 // Replace atomically sets conversationID's history to exactly messages — a
 // single transaction that DELETEs the existing rows then INSERTs the new ones,
 // so a failed rewrite rolls back and leaves the prior history intact (the
-// [memory.Replacer] contract). Empty messages clears the conversation.
+// [history.Replacer] contract). Empty messages clears the conversation.
 // Retention (truncate / compaction) uses this instead of Clear+Write, which
 // would lose the conversation if the Write failed after the Clear committed.
 func (s *MessageStore) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
@@ -137,7 +137,7 @@ func (s *MessageStore) Replace(ctx context.Context, conversationID string, messa
 }
 
 // Count returns conversationID's message count via a COUNT(*) query — the
-// [memory.Counter] capability — so a watermark read (sessions.rollback /
+// [history.Counter] capability — so a watermark read (sessions.rollback /
 // fork{fromRunId}) doesn't load and unmarshal the whole history just to take
 // its length. Unknown conversation → 0. COUNT(*) tallies stored rows; Read
 // skips any that fail to unmarshal, but Write only persists marshalable
@@ -156,7 +156,7 @@ func (s *MessageStore) Count(ctx context.Context, conversationID string) (int, e
 }
 
 // Clear drops every message for conversationID. Idempotent — unknown id is
-// not an error (matches memory.InMemoryStore).
+// not an error (matches history.InMemoryStore).
 func (s *MessageStore) Clear(ctx context.Context, conversationID string) error {
 	if conversationID == "" {
 		return fmt.Errorf("sqlite: invalid conversation id %q", conversationID)

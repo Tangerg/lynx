@@ -6,9 +6,9 @@ import (
 )
 
 // Session models a multi-turn conversation against an agent. The
-// session id doubles as the chat-memory conversation id so the
+// session id doubles as the chat history conversation id so the
 // per-turn message history is automatically loaded + persisted by
-// [memory.Middleware] (in `core/model/chat/memory`) — no extra
+// history middleware — no extra
 // wiring needed beyond installing the middleware on the chat client.
 //
 // Sessions carry identity + audit metadata; the message history lives
@@ -20,7 +20,7 @@ import (
 // / mongo / ...) under the same interface.
 type Session struct {
 	// ID uniquely identifies the conversation. Doubles as the
-	// chat-memory conversation id so message
+	// chat history conversation id so message
 	// history flows through without separate plumbing.
 	ID string
 
@@ -73,10 +73,10 @@ func NewSession(id, userID, agentName string) Session {
 	}
 }
 
-// ConversationID derives a process's chat-memory conversation key: the
+// ConversationID derives a process's chat history conversation key: the
 // multi-turn [Session.ID] when the process runs under a session,
 // otherwise the process id. The fallback matters because the tool loop
-// is delta-driven — each round hands the memory layer only the new
+// is delta-driven — each round hands the history layer only the new
 // messages and relies on it to reconstruct the conversation from the
 // store, so without an id a multi-round turn would lose context across
 // rounds. A child agent (e.g. a subtask delegation) runs under its own

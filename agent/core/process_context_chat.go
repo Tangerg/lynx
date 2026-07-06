@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
 )
 
 // Chat returns a fresh [chat.ClientRequest] cloned from the platform's
@@ -20,7 +21,7 @@ import (
 //
 // The process's conversation id ([Session.ID], falling back to the
 // process id) is stamped onto the request params under
-// [chat.ConversationIDKey] so the memory middleware auto-loads /
+// chat conversation ID so the history middleware auto-loads /
 // persists the conversation history — see [conversationID].
 func (pc *ProcessContext) Chat() *chat.ClientRequest {
 	if pc.chatClient == nil {
@@ -31,7 +32,7 @@ func (pc *ProcessContext) Chat() *chat.ClientRequest {
 
 // ChatWithActionTools is the "ask the LLM with my action's tools"
 // shortcut: a [chat.ClientRequest] pre-loaded with the action's
-// resolved tools. Middleware (tool loop, memory, etc.) comes from
+// resolved tools. Middleware (tool loop, history, etc.) comes from
 // [Guardrails] — configured by the caller via [ProcessOptions].
 //
 // When the action declares no ToolGroups, the request still carries
@@ -64,13 +65,13 @@ func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientReques
 		req = req.WithTools(tools...)
 	}
 	if id := pc.conversationID(); id != "" {
-		req = req.WithParams(map[string]any{chat.ConversationIDKey: id})
+		req = req.WithParams(map[string]any{chatconversation.IDKey: id})
 	}
 	return req
 }
 
-// conversationID is this process's chat-memory conversation key, stamped
-// onto every chat request under [chat.ConversationIDKey] so the memory
+// conversationID is this process's chat history conversation key, stamped
+// onto every chat request under chat conversation ID so the memory
 // middleware loads / saves history (and the tool middleware parks
 // interrupted rounds) keyed by it. The derivation rule lives in
 // [ConversationID]. Returns "" only when neither a session nor a

@@ -91,7 +91,7 @@ type TurnHandle struct {
 // RehydrateRequest carries the inputs to rebuild a turn from a persisted
 // process snapshot and resume it after a restart. ProcessID is the
 // agent-process snapshot key (recorded on the open interrupt); SessionID
-// rebinds chat-memory; Approved is the human decision delivered to the
+// rebinds chat history; Approved is the human decision delivered to the
 // re-parked process.
 type RehydrateRequest struct {
 	SessionID string

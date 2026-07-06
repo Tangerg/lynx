@@ -7,7 +7,7 @@ import (
 	"github.com/gocql/gocql"
 
 	"github.com/Tangerg/lynx/chatmemory/cassandra"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 func stubSession() *gocql.Session { return new(gocql.Session) }
@@ -56,6 +56,6 @@ func TestStoreConfig_AcceptsValidIdentifiers(t *testing.T) {
 	}
 }
 
-func TestStore_ImplementsMemoryStore(t *testing.T) {
-	var _ chatmem.Store = (*cassandra.Store)(nil)
+func TestStore_ImplementsHistoryStore(t *testing.T) {
+	var _ chathistory.Store = (*cassandra.Store)(nil)
 }

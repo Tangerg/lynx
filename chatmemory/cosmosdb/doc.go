@@ -1,4 +1,4 @@
-// Package cosmosdb is a [memory.Store] backed by Azure Cosmos DB
+// Package cosmosdb is a [history.Store] backed by Azure Cosmos DB
 // (NoSQL API) via the official Azure SDK.
 //
 // Each message is stored as a document keyed by a synthesized
@@ -20,6 +20,6 @@
 // Example:
 //
 //	cosmos, _ := azcosmos.NewClient(endpoint, cred, nil)
-//	container, _ := cosmos.NewContainer("lynx", "chat_memory")
+//	container, _ := cosmos.NewContainer("lynx", "chat_history")
 //	store, _ := cosmosdb.NewStore(cosmosdb.StoreConfig{Container: container})
 package cosmosdb

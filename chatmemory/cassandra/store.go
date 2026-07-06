@@ -11,14 +11,14 @@ import (
 	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
-const Provider = "CassandraChatMemory"
+const Provider = "CassandraChatHistory"
 
 const (
 	DefaultKeyspace  = "lynx"
-	DefaultTableName = "chat_memory"
+	DefaultTableName = "chat_history"
 )
 
 // identPattern matches valid Cassandra unquoted-identifier shape.
@@ -42,7 +42,7 @@ type StoreConfig struct {
 	Keyspace string
 
 	// TableName is the CQL table. Optional: defaults to
-	// [DefaultTableName] ("chat_memory").
+	// [DefaultTableName] ("chat_history").
 	TableName string
 
 	// InitializeSchema, when true, creates the table if it doesn't
@@ -78,11 +78,11 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ memory.Store  = (*Store)(nil)
-	_ memory.Lister = (*Store)(nil)
+	_ history.Store  = (*Store)(nil)
+	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a Cassandra-backed [memory.Store]. Construct via [NewStore].
+// Store is a Cassandra-backed [history.Store]. Construct via [NewStore].
 type Store struct {
 	session *gocql.Session
 

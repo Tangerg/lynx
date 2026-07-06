@@ -28,7 +28,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
@@ -291,19 +291,19 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 
 	// Microkernel port wiring: the runtime is the composition root that builds
 	// the capability implementations and injects them into the engine core
-	// (which depends only on the port interfaces). All share one chat-memory
-	// store so the engine's chat-memory middleware and these ports agree.
-	memStore := cfg.Engine.MemoryStore
-	if memStore == nil {
-		memStore = memory.NewInMemoryStore()
-		ecfg.MemoryStore = memStore
+	// (which depends only on the port interfaces). All share one chat-history
+	// store so the engine's chat-history middleware and these ports agree.
+	historyStore := cfg.Engine.HistoryStore
+	if historyStore == nil {
+		historyStore = history.NewInMemoryStore()
+		ecfg.HistoryStore = historyStore
 	}
 	// conv is the message-history service. The engine gets it ONLY as the
 	// turn-end steering sink (engine.InjectUserMessage); the runtime holds it
 	// directly for the non-turn history operations (read/seed/count/truncate,
 	// for fork / rollback / messages.list) rather than proxying them through the
 	// engine. See doc/GREENFIELD_ARCHITECTURE.md.
-	conv := conversation.New(memStore)
+	conv := conversation.New(historyStore)
 
 	// Capability ports are SPIs: the engine consumes interfaces (Steering /
 	// Compactor / Extractor; Knowledge above). The runtime supplies the
@@ -330,7 +330,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	if ecfg.Steering == nil {
 		ecfg.Steering = conv
 	}
-	wireMaintenancePorts(&ecfg, cfg, memStore, utilityEnv.resolve)
+	wireMaintenancePorts(&ecfg, cfg, historyStore, utilityEnv.resolve)
 	// Todo list: same nil-default contract — honor a pre-injected engine
 	// Todos (an external task store), else use the runtime-supplied one.
 	if ecfg.Todos == nil {

@@ -221,7 +221,7 @@ func (i *invoker) toolErrorResult(name string, err error) string {
 
 // systemMessages returns the system messages of msgs (zero or one in
 // practice). The tool loop forwards them on every downstream request so the
-// model always sees the turn's system header first; the memory middleware
+// model always sees the turn's system header first; the history middleware
 // never stores system messages, so they ride along with each round.
 func systemMessages(msgs []chat.Message) []chat.Message {
 	return chat.MessageList(msgs).FilterTypes(chat.MessageTypeSystem)
@@ -239,7 +239,7 @@ func systemMessages(msgs []chat.Message) []chat.Message {
 // persist as one atomic exchange (memory skips a lone tool-call assistant, so
 // it can never strand an unanswered assistant(tool_calls) if the turn
 // interrupts mid-round). Re-sending the full conversation, by contrast, is the
-// coupling that forced the memory layer to de-duplicate.
+// coupling that forced the history layer to de-duplicate.
 func nextRoundRequest(req *chat.Request, assistant *chat.AssistantMessage, toolMsg *chat.ToolMessage) (*chat.Request, error) {
 	msgs := append(systemMessages(req.Messages), assistant, toolMsg)
 	next, err := chat.NewRequest(msgs)

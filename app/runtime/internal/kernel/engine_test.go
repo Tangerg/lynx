@@ -11,15 +11,15 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 )
 
-// memoryNewInMemoryStore re-exports memory.NewInMemoryStore under a
+// newHistoryStore re-exports history.NewInMemoryStore under a
 // shorter test-only name so the persistent-store test reads as
-// "shared store" rather than spelling out the lynx package twice.
-func memoryNewInMemoryStore() memory.Store { return memory.NewInMemoryStore() }
+// "shared history store".
+func newHistoryStore() history.Store { return history.NewInMemoryStore() }
 
 // TestEngine_RunChat_ToolCallObserved drives the engine with a stub
 // model that asks for a `shell` tool call (echo lyra), then returns a
@@ -207,16 +207,16 @@ func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 	}
 }
 
-// TestEngine_RunChat_SubtaskKeepsMemoryAcrossRounds is the regression guard
-// for subtask chat-memory continuity. A subtask runs its own multi-round
+// TestEngine_RunChat_SubtaskKeepsHistoryAcrossRounds is the regression guard
+// for subtask chat-history continuity. A subtask runs its own multi-round
 // tool loop with no externally-supplied session; the tool loop strips the
 // original prompt between rounds, so round 2 only sees it if the child's
-// memory middleware reconstructs it — which requires the runtime to stamp a
+// history middleware reconstructs it — which requires the runtime to stamp a
 // conversation id (here the child's process id) onto every request. The
 // subtask is told a secret on round 1 and must echo it on round 2; if the
 // per-process keying regresses, the subtask reports subtaskContextLost and
 // the main turn surfaces it.
-func TestEngine_RunChat_SubtaskKeepsMemoryAcrossRounds(t *testing.T) {
+func TestEngine_RunChat_SubtaskKeepsHistoryAcrossRounds(t *testing.T) {
 	stub := newSubtaskMemoryStub()
 	client, _ := chat.NewClient(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
@@ -230,7 +230,7 @@ func TestEngine_RunChat_SubtaskKeepsMemoryAcrossRounds(t *testing.T) {
 		t.Fatalf("RunChat: %v", err)
 	}
 	if strings.Contains(out.Reply, subtaskContextLost) {
-		t.Fatalf("subtask lost its round-1 context across tool rounds — per-process chat-memory keying regressed; reply = %q", out.Reply)
+		t.Fatalf("subtask lost its round-1 context across tool rounds — per-process chat-history keying regressed; reply = %q", out.Reply)
 	}
 	if !strings.Contains(out.Reply, subtaskSecret) {
 		t.Errorf("reply = %q, want it to carry the subtask's secret %q (proof round-2 saw round-1's prompt)", out.Reply, subtaskSecret)
@@ -433,12 +433,12 @@ func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 	}
 }
 
-// TestEngine_RunChat_MultiTurnMemory verifies the chat-memory
+// TestEngine_RunChat_MultiTurnHistory verifies the chat-history
 // middleware loads prior turns before each call. Running two turns
 // against the same SessionID must result in the second Call seeing
 // strictly more messages than the first (history of turn 1 + new
 // user message of turn 2).
-func TestEngine_RunChat_MultiTurnMemory(t *testing.T) {
+func TestEngine_RunChat_MultiTurnHistory(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chat.NewClient(stub)
 	eng, err := New(context.Background(), Config{ChatClient: client})
@@ -469,16 +469,16 @@ func TestEngine_RunChat_MultiTurnMemory(t *testing.T) {
 	}
 }
 
-// TestEngine_RunChat_PersistentMemoryStoreRoundTrip verifies that a
-// caller-supplied [memory.Store] survives engine reconstruction —
+// TestEngine_RunChat_PersistentHistoryStoreRoundTrip verifies that a
+// caller-supplied [history.Store] survives engine reconstruction —
 // the use case for the sqlite MessageStore + cross-process
 // session resume. Two engines built on the same store + same
 // SessionID must see history accumulate across instances.
-func TestEngine_RunChat_PersistentMemoryStoreRoundTrip(t *testing.T) {
-	shared := memoryNewInMemoryStore() // built-in store; durability proxy
+func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
+	shared := newHistoryStore() // built-in store; durability proxy
 	stub1 := newHistoryAwareStub()
 	cli1, _ := chat.NewClient(stub1)
-	eng1, _ := New(context.Background(), Config{ChatClient: cli1, MemoryStore: shared})
+	eng1, _ := New(context.Background(), Config{ChatClient: cli1, HistoryStore: shared})
 
 	const sessionID = "shared-sess"
 	if _, err := eng1.RunChat(context.Background(), RunChatRequest{
@@ -490,7 +490,7 @@ func TestEngine_RunChat_PersistentMemoryStoreRoundTrip(t *testing.T) {
 	// Simulate process restart: brand-new engine, same store.
 	stub2 := newHistoryAwareStub()
 	cli2, _ := chat.NewClient(stub2)
-	eng2, _ := New(context.Background(), Config{ChatClient: cli2, MemoryStore: shared})
+	eng2, _ := New(context.Background(), Config{ChatClient: cli2, HistoryStore: shared})
 
 	if _, err := eng2.RunChat(context.Background(), RunChatRequest{
 		SessionID: sessionID, Message: "second",

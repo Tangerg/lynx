@@ -5,7 +5,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
@@ -34,11 +34,11 @@ type Config struct {
 	// appears when a project directory exists, and is absent when neither does.
 	SkillsGlobalDir string
 
-	// MemoryStore optionally supplies a persistent chat-memory
+	// HistoryStore optionally supplies a persistent chat-history
 	// backend (the sqlite MessageStore, redis-backed, ...). When nil the
-	// engine falls back to lynx's in-process [memory.InMemoryStore]
+	// engine falls back to lynx's in-process [history.InMemoryStore]
 	// — fine for tests but loses history on restart.
-	MemoryStore memory.Store
+	HistoryStore history.Store
 
 	// Knowledge optionally supplies the LYRA.md cascade reader the agent
 	// injects into every system prompt. nil disables the injection — the

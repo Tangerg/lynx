@@ -153,7 +153,7 @@ func buildLineageParentAgent(platform *runtime.Platform, childAgent *core.Agent)
 
 // TestSpawnChild_LinksChildSessionToParent pins the session-lineage
 // contract: a spawned child runs under its OWN session (independent
-// conversation id, so its chat-memory history is isolated) whose ParentID
+// conversation id, so its chat history history is isolated) whose ParentID
 // records the parent's conversation id.
 func TestSpawnChild_LinksChildSessionToParent(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})

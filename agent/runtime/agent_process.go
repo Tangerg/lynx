@@ -115,7 +115,7 @@ func (p *AgentProcess) StartedAt() time.Time          { return p.startedAt }
 func (p *AgentProcess) Blackboard() core.Blackboard   { return p.blackboard }
 func (p *AgentProcess) Options() *core.ProcessOptions { return p.options }
 
-// conversationID returns the chat-memory conversation id for this
+// conversationID returns the chat history conversation id for this
 // process; the derivation rule (session id when under a session, else
 // process id) lives in [core.ConversationID].
 func (p *AgentProcess) conversationID() string {

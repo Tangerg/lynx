@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 
@@ -25,15 +25,15 @@ import (
 // already been compacted; skipping the extraction is preferable
 // to undoing a successful compaction.
 type Extractor struct {
-	store   memory.Store
+	store   history.Store
 	memSvc  knowledge.Service
 	client  ClientFunc
 	minMsgs int
 }
 
-// NewExtractor builds an Extractor over the chat-memory store, the
+// NewExtractor builds an Extractor over the chat history store, the
 // long-term LYRA.md service, and a per-call chat-client resolver.
-func NewExtractor(store memory.Store, memSvc knowledge.Service, client ClientFunc) *Extractor {
+func NewExtractor(store history.Store, memSvc knowledge.Service, client ClientFunc) *Extractor {
 	return &Extractor{
 		store:   store,
 		memSvc:  memSvc,
@@ -81,7 +81,7 @@ func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (ke
 }
 
 // askForFacts queries the LLM directly (no middleware → no
-// recursion into the chat-memory layer). Returns "" when the LLM
+// recursion into the chat history layer). Returns "" when the LLM
 // explicitly says nothing is worth recording.
 func (e *Extractor) askForFacts(ctx context.Context, msgs []chat.Message) (string, error) {
 	transcript := renderTranscript(msgs)

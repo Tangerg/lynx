@@ -77,7 +77,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provi
 		// Images attach to the user message via a prompt template (the
 		// text-only path keeps the plain WithUserPrompt). The template
 		// renders the text and carries the media into UserMessage.Media,
-		// which the memory middleware persists and the provider adapter
+		// which the history middleware persists and the provider adapter
 		// lowers to image content blocks.
 		if len(images) > 0 {
 			req = req.WithUserPromptTemplate(chat.NewPromptTemplate(message).WithMedia(images...))

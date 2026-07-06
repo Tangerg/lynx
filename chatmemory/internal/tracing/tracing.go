@@ -13,8 +13,8 @@ const (
 	attrDBSystem        = "db.system"
 	attrDBOperationName = "db.operation.name"
 	attrConvID          = "gen_ai.conversation.id"
-	attrMsgCount        = "chat_memory.msg_count"
-	attrConvCount       = "chat_memory.conv_count"
+	attrMsgCount        = "chat_history.msg_count"
+	attrConvCount       = "chat_history.conv_count"
 )
 
 // tracerFor returns the per-provider tracer. Names follow
@@ -32,18 +32,18 @@ func start(ctx context.Context, system, op, convID string) (context.Context, tra
 	if convID != "" {
 		attrs = append(attrs, attribute.String(attrConvID, convID))
 	}
-	return tracerFor(system).Start(ctx, "chat.memory."+op+" "+system,
+	return tracerFor(system).Start(ctx, "chat.history."+op+" "+system,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attrs...),
 	)
 }
 
-// StartRead opens a span for [memory.Store.Read].
+// StartRead opens a span for [history.Store.Read].
 func StartRead(ctx context.Context, system, convID string) (context.Context, trace.Span) {
 	return start(ctx, system, "read", convID)
 }
 
-// StartWrite opens a span for [memory.Store.Write]. msgCount records
+// StartWrite opens a span for [history.Store.Write]. msgCount records
 // the number of messages being appended.
 func StartWrite(ctx context.Context, system, convID string, msgCount int) (context.Context, trace.Span) {
 	ctx, span := start(ctx, system, "write", convID)
@@ -53,12 +53,12 @@ func StartWrite(ctx context.Context, system, convID string, msgCount int) (conte
 	return ctx, span
 }
 
-// StartClear opens a span for [memory.Store.Clear].
+// StartClear opens a span for [history.Store.Clear].
 func StartClear(ctx context.Context, system, convID string) (context.Context, trace.Span) {
 	return start(ctx, system, "clear", convID)
 }
 
-// StartList opens a span for [memory.Lister.Conversations] — a
+// StartList opens a span for [history.Lister.Conversations] — a
 // deliberate cross-conversation scan, so it carries no convID attribute.
 func StartList(ctx context.Context, system string) (context.Context, trace.Span) {
 	return start(ctx, system, "list", "")

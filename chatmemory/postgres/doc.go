@@ -1,4 +1,4 @@
-// Package postgres is a [memory.Store] backed by PostgreSQL via pgx.
+// Package postgres is a [history.Store] backed by PostgreSQL via pgx.
 //
 // Each conversation's messages live in a single table; messages are
 // serialized to JSONB via the canonical [chat.Message] JSON shape and
@@ -15,9 +15,9 @@
 //	})
 //	defer pool.Close()
 //
-//	chatMW, _, _ := memory.NewMiddleware(store)
+//	chatMW, _, _ := historymw.NewMiddleware(store)
 //	resp, _ := client.Chat().
-//	    WithParams(map[string]any{chat.ConversationIDKey: "u-42"}).
+//	    WithParams(map[string]any{conversation.IDKey: "u-42"}).
 //	    WithMiddlewares(chatMW).
 //	    WithUserPrompt("hi").
 //	    Call().Response(ctx)

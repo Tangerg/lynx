@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	chatmodel "github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -235,8 +235,8 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	model := &countingStubModel{}
 	model.defaults, _ = chatmodel.NewOptions("stub-counting")
 	client, _ := chatmodel.NewClient(model)
-	store := memory.NewInMemoryStore()
-	eng := buildEngine(t, kernel.Config{ChatClient: client, MemoryStore: store})
+	store := history.NewInMemoryStore()
+	eng := buildEngine(t, kernel.Config{ChatClient: client, HistoryStore: store})
 	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil)) // shell → gate
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{

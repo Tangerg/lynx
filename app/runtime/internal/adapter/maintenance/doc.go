@@ -2,7 +2,7 @@
 // history compaction, long-term fact extraction, and session titling.
 //
 // These workers operate OUTSIDE the normal conversation flow — they call the
-// chat client directly (via askDirect), bypassing the chat-memory /
+// chat client directly (via askDirect), bypassing the chat history /
 // tool / guardrail middleware so their own LLM calls never pollute the
 // conversation history. They share the transcript-rendering and
 // direct-call helpers in llm.go; each is otherwise an independent,
