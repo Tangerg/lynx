@@ -1,4 +1,4 @@
-package tool
+package toolloop
 
 import (
 	"context"
@@ -46,7 +46,7 @@ type invocationResult struct {
 
 // roundInterrupt is the partial result of a tool round that halted for human
 // input: the results already produced this invocation (done, in call order)
-// and the interrupt cause (a [chat.ToolHalt]). The still-pending calls are
+// and the interrupt cause (a [Halt]). The still-pending calls are
 // derived from the assistant message at resume time, so they are not carried
 // here.
 type roundInterrupt struct {
@@ -69,7 +69,7 @@ func (r *invocationResult) shouldReturn() bool { return !r.shouldContinue() }
 // to [nextRoundRequest].
 func (r *invocationResult) buildContinueRequest() (*chat.Request, error) {
 	if !r.shouldContinue() {
-		return nil, errors.New("tool.invocationResult.buildContinueRequest: result is in return-direct state")
+		return nil, errors.New("toolloop.invocationResult.buildContinueRequest: result is in return-direct state")
 	}
 	if err := r.validate(); err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func (r *invocationResult) buildContinueRequest() (*chat.Request, error) {
 
 	result := r.response.Result
 	if result == nil || !result.AssistantMessage.HasToolCalls() {
-		return nil, errors.New("tool.invocationResult.buildContinueRequest: response has no tool calls")
+		return nil, errors.New("toolloop.invocationResult.buildContinueRequest: response has no tool calls")
 	}
 	return nextRoundRequest(r.request, result.AssistantMessage, r.toolMessage)
 }
@@ -86,20 +86,20 @@ func (r *invocationResult) buildContinueRequest() (*chat.Request, error) {
 // LLM round is needed — every internal tool was return-direct.
 func (r *invocationResult) buildReturnResponse() (*chat.Response, error) {
 	if !r.shouldReturn() {
-		return nil, errors.New("tool.invocationResult.buildReturnResponse: result is in continue state")
+		return nil, errors.New("toolloop.invocationResult.buildReturnResponse: result is in continue state")
 	}
 	if r.response == nil {
-		return nil, errors.New("tool.invocationResult.buildReturnResponse: LLM response is missing")
+		return nil, errors.New("toolloop.invocationResult.buildReturnResponse: LLM response is missing")
 	}
 
 	withCalls := r.response.Result
 	if withCalls == nil || !withCalls.AssistantMessage.HasToolCalls() {
-		return nil, errors.New("tool.invocationResult.buildReturnResponse: response has no tool calls")
+		return nil, errors.New("toolloop.invocationResult.buildReturnResponse: response has no tool calls")
 	}
 
 	result, err := chat.NewResult(withCalls.AssistantMessage, withCalls.Metadata)
 	if err != nil {
-		return nil, fmt.Errorf("tool.invocationResult.buildReturnResponse: %w", err)
+		return nil, fmt.Errorf("toolloop.invocationResult.buildReturnResponse: %w", err)
 	}
 	result.ToolMessage = r.toolMessage
 
@@ -108,13 +108,13 @@ func (r *invocationResult) buildReturnResponse() (*chat.Response, error) {
 
 func (r *invocationResult) validate() error {
 	if r.request == nil {
-		return errors.New("tool.invocationResult: original request is missing")
+		return errors.New("toolloop.invocationResult: original request is missing")
 	}
 	if r.response == nil {
-		return errors.New("tool.invocationResult: LLM response is missing")
+		return errors.New("toolloop.invocationResult: LLM response is missing")
 	}
 	if r.toolMessage == nil {
-		return errors.New("tool.invocationResult: internal-tools message is required")
+		return errors.New("toolloop.invocationResult: internal-tools message is required")
 	}
 	return nil
 }
@@ -126,7 +126,7 @@ func (r *invocationResult) validate() error {
 //
 // Error policy (no knobs — this is the framework default): a tool failure is
 // recoverable UNLESS it's a control-flow signal. A control-flow error
-// ([abortsToolLoop]: context cancel/deadline or a chat.ToolHalt with Abort()==true, and
+// ([abortsToolLoop]: context cancel/deadline or a Halt with Abort()==true, and
 // [interruptsToolLoop]: a HITL interrupt) propagates and stops the loop;
 // EVERYTHING else — file-not-found, wrong credentials, a non-zero exit a tool
 // chose to surface as an error, an unregistered tool — is turned into a tool
@@ -179,7 +179,7 @@ func (i *invoker) shouldReturnDirect(msgs []chat.Message) bool {
 // [invoker.shouldReturnDirect] would return false.
 func (i *invoker) buildReturnDirectResponse(msgs []chat.Message) (*chat.Response, error) {
 	if !i.shouldReturnDirect(msgs) {
-		return nil, errors.New("tool.invoker.buildReturnDirectResponse: conditions for return-direct are not met")
+		return nil, errors.New("toolloop.invoker.buildReturnDirectResponse: conditions for return-direct are not met")
 	}
 	last, _ := pkgSlices.Last(msgs)
 
@@ -255,8 +255,8 @@ func nextRoundRequest(req *chat.Request, assistant *chat.AssistantMessage, toolM
 // abortsToolLoop reports whether a tool error must PROPAGATE (abort the loop)
 // instead of being fed back to the model as a recoverable result. Two cases:
 // context cancellation / deadline (the run is being torn down), and a
-// [chat.ToolHalt] whose Abort() is true — a fatal failure the model can't fix.
-// (A ToolHalt whose Abort() is false is a HITL interrupt — see
+// [Halt] whose Abort() is true — a fatal failure the model can't fix.
+// (A Halt whose Abort() is false is a HITL interrupt — see
 // [invoker.interruptsToolLoop] — which also propagates but parks rather
 // than fails.) Together with interruptsToolLoop it is the invoker's tool-error
 // classification policy; stateless but owned by the invoker that applies it.
@@ -264,19 +264,19 @@ func (i *invoker) abortsToolLoop(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
-	h, ok := errors.AsType[chat.ToolHalt](err)
+	h, ok := errors.AsType[Halt](err)
 	return ok && h.Abort()
 }
 
 // interruptsToolLoop reports whether a tool error is a human-in-the-loop
-// INTERRUPT — a [chat.ToolHalt] whose Abort() is false. The loop stops and
+// INTERRUPT — a [Halt] whose Abort() is false. The loop stops and
 // propagates it unchanged (no feedback to the model) so an outer layer can
 // park the run and gather input; on resume the parked tail is fed back and the
 // loop continues AT the still-pending call (the model is not re-invoked for
 // that round). agent/hitl.InterruptError is the reference implementation; the
 // contract is duck-typed so this package never imports agent.
 func (i *invoker) interruptsToolLoop(err error) bool {
-	h, ok := errors.AsType[chat.ToolHalt](err)
+	h, ok := errors.AsType[Halt](err)
 	return ok && !h.Abort()
 }
 
@@ -326,7 +326,7 @@ func (i *invoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCallPar
 	}
 	toolMsg, err := chat.NewToolMessage(returns)
 	if err != nil {
-		return nil, fmt.Errorf("tool.invoker.invokeToolCalls: %w", err)
+		return nil, fmt.Errorf("toolloop.invoker.invokeToolCalls: %w", err)
 	}
 	return &invocationResult{
 		toolMessage:     toolMsg,
@@ -437,7 +437,7 @@ func (i *invoker) runSegment(ctx context.Context, calls []*chat.ToolCallPart, st
 		switch {
 		case err == nil:
 		case i.abortsToolLoop(err):
-			return nil, fmt.Errorf("tool.invoker.invokeToolCalls: tool %q failed: %w", calls[start+off].Name, err)
+			return nil, fmt.Errorf("toolloop.invoker.invokeToolCalls: tool %q failed: %w", calls[start+off].Name, err)
 		case interrupt == nil:
 			interrupt = err
 		}
@@ -457,7 +457,7 @@ type toolOutcome struct {
 // ret is set: a normal result, a recoverable-failure result (fed back so the
 // model adapts), or the unknown-tool result. A non-nil error is a control-flow
 // signal the caller classifies — a HITL interrupt ([invoker.interruptsToolLoop])
-// or an abort ([invoker.abortsToolLoop], context cancel / ToolHalt-abort).
+// or an abort ([invoker.abortsToolLoop], context cancel / Halt-abort).
 func (i *invoker) runOne(ctx context.Context, call *chat.ToolCallPart) (toolOutcome, error) {
 	t, exists := i.registry.find(call.Name)
 	if !exists {
@@ -499,7 +499,7 @@ func filledReturns(returns []*chat.ToolReturn) []*chat.ToolReturn {
 // this package spawns — an escaping panic there has no ancestor recover on its
 // stack and would crash the whole process. So the panic is contained HERE, at
 // the tool boundary: the full stack lands on the span, and the loop receives a
-// concise error. A panic is neither a [chat.ToolHalt] nor a context error, so
+// concise error. A panic is neither a [Halt] nor a context error, so
 // it flows back as an ordinary recoverable failure (folded into the tool result
 // and fed to the model) — the loop's default for any non-control-flow error.
 func (i *invoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.ToolCallPart) (content string, err error) {
@@ -538,7 +538,7 @@ func (i *invoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.ToolCal
 
 func (i *invoker) invoke(ctx context.Context, req *chat.Request, resp *chat.Response) (*invocationResult, error) {
 	if !i.canInvokeToolCalls(resp) {
-		return nil, errors.New("tool.invoker.invoke: response has no valid tool calls")
+		return nil, errors.New("toolloop.invoker.invoke: response has no valid tool calls")
 	}
 
 	result, err := i.invokeToolCalls(ctx, resp.Result.AssistantMessage.CollectToolCalls())

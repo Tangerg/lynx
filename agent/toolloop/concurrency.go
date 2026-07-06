@@ -1,4 +1,4 @@
-package tool
+package toolloop
 
 import "github.com/Tangerg/lynx/core/model/chat"
 

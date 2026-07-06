@@ -6,9 +6,8 @@ import (
 	"hash/fnv"
 	"strconv"
 
-	corechat "github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/agent/hitl"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
@@ -173,11 +172,11 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 }
 
 func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, err error) {
-	// HITL interrupt (chat.ToolHalt with Abort()==false): the tool
+	// HITL interrupt (toolloop.Halt with Abort()==false): the tool
 	// paused for human input. Not a failure — skip the ToolCallEnd
 	// event. The turn-park handler drains the in-flight tool item
 	// and creates the appropriate interrupt card.
-	if h, ok := errors.AsType[corechat.ToolHalt](err); ok && !h.Abort() {
+	if h, ok := errors.AsType[toolloop.Halt](err); ok && !h.Abort() {
 		return
 	}
 	end := ToolCallEnd{CallID: callID, Output: output}

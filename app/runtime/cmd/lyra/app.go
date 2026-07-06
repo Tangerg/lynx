@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	adapterhooks "github.com/Tangerg/lynx/app/runtime/internal/adapter/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -36,7 +37,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // App is the top-level CLI object. It owns the IO streams every
@@ -312,7 +312,7 @@ type Stores struct {
 	Provider      providersvc.Service
 	MCPServers    mcpserversvc.Service
 	ChatHistory   chathistory.Store
-	Park          tool.ParkStore
+	Park          toolloop.ParkStore
 	Todos         todosvc.Service
 	ApprovalRules approval.RuleStore
 	UtilityRole   lyraruntime.UtilityRoleStore

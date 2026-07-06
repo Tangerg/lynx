@@ -61,7 +61,7 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 
 // WithMiddlewares replaces the entire middleware chain with the given
 // values. Pass call middlewares, stream middlewares, or both halves of
-// a pair like the one tool.NewMiddleware returns.
+// a pair like the one toolloop.NewMiddleware returns.
 func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	if len(middlewares) > 0 {
 		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
@@ -273,7 +273,7 @@ type ClientStreamer struct {
 
 // stream feeds the request through the middleware chain into the model.
 // Tool execution is NOT auto-injected — register the middleware pair
-// from tool.NewMiddleware via WithMiddlewares if you need that.
+// from toolloop.NewMiddleware via WithMiddlewares if you need that.
 //
 // One OTel span is started per stream call, following the GenAI
 // semconv: request-side attributes (model, options) are stamped up
@@ -371,7 +371,7 @@ type ClientCaller struct {
 
 // call feeds the request through the middleware chain into the model.
 // Tool execution is NOT auto-injected — register the middleware pair
-// from tool.NewMiddleware via WithMiddlewares if you need that.
+// from toolloop.NewMiddleware via WithMiddlewares if you need that.
 //
 // One OTel span is started per call, following the GenAI semconv —
 // see [startChatSpan] / [finishChatSpan] for the attribute set. When

@@ -9,12 +9,12 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 	historymw "github.com/Tangerg/lynx/core/model/chat/middleware/history"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // Engine is the microkernel core: it drives the agent loop and depends on
@@ -48,7 +48,7 @@ type Engine struct {
 	skillsGlobalDir string       // captured from Config.SkillsGlobalDir for workspace.listSkills
 	pricing         Pricing      // optional per-round cost hook; nil → cost stays zero
 	defaultProvider string       // default provider id; pricing fallback for a default/subtask turn
-	parkStore       tool.ParkStore
+	parkStore       toolloop.ParkStore
 
 	// Maintenance ports (turn-boundary autonomous ops) — injected by the
 	// composition root; nil when not wired (every use is nil-guarded).
@@ -105,7 +105,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// conversation id (the agent runtime stamps chat conversation ID
 	// from the process's Session), so a single shared chain keys history and
 	// park state per-process without per-turn reconstruction.
-	toolCallMW, toolStreamMW := tool.NewMiddleware(tool.Config{
+	toolCallMW, toolStreamMW := toolloop.NewMiddleware(toolloop.Config{
 		FeedbackOnEmptyResponse: true,
 		ParkStore:               cfg.ParkStore,
 		// Halt a stuck agent (same tool + args + result repeating) before it
@@ -113,7 +113,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		// a corrective <system-reminder> is injected once at the 3rd identical
 		// round (a chance to break out), and six byte-identical rounds is a fixed
 		// point that hard-stops.
-		LoopDetection: &tool.LoopDetectionConfig{},
+		LoopDetection: &toolloop.LoopDetectionConfig{},
 		// Mid-run steering: drain the active turn's SteerSource (stashed on the
 		// context by runChatTurn) before each continuation round, injecting any
 		// queued user messages into the loop. nil source → no-op.

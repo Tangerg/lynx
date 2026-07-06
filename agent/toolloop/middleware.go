@@ -1,4 +1,4 @@
-package tool
+package toolloop
 
 import (
 	"context"
@@ -32,7 +32,7 @@ const loopNudge = "<system-reminder>You have repeated the same tool call(s) and 
 // value yields the default loop (cap = [DefaultMaxIterations]).
 //
 // Tool-failure handling is NOT configurable: a tool error that isn't a
-// control-flow signal (ctx cancel / a chat.ToolHalt (abort or HITL interrupt)) is
+// control-flow signal (ctx cancel / a Halt (abort or HITL interrupt)) is
 // always fed back to the model as a tool result so it can recover, and an
 // unregistered tool is always answered with an error result rather than
 // aborting the run. That recovery is the framework default; a tool author
@@ -100,7 +100,7 @@ func (e *MaxIterationsError) Error() string {
 //
 // Example:
 //
-//	callMW, streamMW := tool.NewMiddleware()
+//	callMW, streamMW := toolloop.NewMiddleware()
 //	resp, err := client.Chat().
 //	    WithMiddlewares(callMW, streamMW).
 //	    WithTools(myTool).

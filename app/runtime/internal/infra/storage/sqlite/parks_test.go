@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // TestParkStore_ConsumeIsAtomic pins the HITL-resume idempotency fix: Consume
@@ -29,7 +29,7 @@ func TestParkStore_ConsumeIsAtomic(t *testing.T) {
 		t.Fatalf("Consume(empty) = (%v, %v), want (nil, nil)", st, err)
 	}
 
-	if err := store.Write(ctx, "conv-1", &tool.ParkState{
+	if err := store.Write(ctx, "conv-1", &toolloop.ParkState{
 		Assistant: chat.NewAssistantMessage("parked round"),
 	}); err != nil {
 		t.Fatalf("Write: %v", err)
