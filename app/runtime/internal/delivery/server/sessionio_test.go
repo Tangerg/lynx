@@ -195,6 +195,20 @@ func TestSessionExport_Markdown(t *testing.T) {
 	}
 }
 
+func TestSessionExportRejectsUnknownFormat(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := context.Background()
+	ses, err := rt.sess.Create(ctx, "Doc", "/proj")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	_, err = s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID, Format: "yaml"})
+	if !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("export err = %v, want ErrInvalidParams", err)
+	}
+}
+
 // TestSessionImport_VersionMismatch rejects an unrecognized artifact version.
 func TestSessionImport_VersionMismatch(t *testing.T) {
 	s, _ := rollbackHarness(t)
