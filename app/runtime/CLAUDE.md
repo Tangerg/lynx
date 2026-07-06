@@ -52,7 +52,7 @@
 
 ## 持久化后端
 
-**dev 阶段单一后端：SQLite**（`modernc.org/sqlite` 纯 Go 无 CGO），`$LYRA_HOME/lyra.db` 一个 *sql.DB 跨表持久化 **session / process-snapshot / interrupt / history / provider / message（chat-memory）**。没有 `LYRA_STORAGE` 开关、没有 file/in-memory 并行实现（已删）。
+**dev 阶段单一后端：SQLite**（`modernc.org/sqlite` 纯 Go 无 CGO），`$LYRA_HOME/lyra.db` 一个 *sql.DB 跨表持久化 **session / process-snapshot / interrupt / history / provider / conversation message**。没有 `LYRA_STORAGE` 开关、没有 file/in-memory 并行实现（已删）。
 
 **唯一例外仍是文件**（"用户可编辑" 是它存在的意义）：
 - **knowledge**：`internal/infra/storage/FileKnowledgeService`（`<会话 cwd>/LYRA.md` + `~/.lyra/LYRA.md`，用户可 `cat`/编辑；实现 `domain/knowledge.Service`，project scope 按每次调用传入的 dir 寻址——一个 service 服务所有项目，空 dir 回退构造时的进程 cwd）。

@@ -113,7 +113,7 @@ func TestResponseAccumulator_NilChunkSafe(t *testing.T) {
 
 // TestResponseAccumulator_SharedChunksNoAliasing pins the bug where two
 // accumulators fed the SAME chunk objects (as happens when the tool-loop
-// and memory stream middlewares both accumulate one provider stream)
+// and history stream middlewares both accumulate one provider stream)
 // double-counted every delta: the inner accumulator's in-place merge
 // mutated the delta part the outer accumulator still held, so a "pong"
 // reply persisted as "pongong". add() must adopt a clone, never the

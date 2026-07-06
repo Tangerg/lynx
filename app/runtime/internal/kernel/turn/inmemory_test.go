@@ -126,7 +126,7 @@ func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chatmodel.NewClient(stub)
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	svc := mustChat(turn.New(eng, nil, nil, nil, nil, nil))
+	svc := mustChat(turn.New(turn.Dependencies{Engine: eng}))
 
 	// Turn 1.
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
@@ -185,7 +185,7 @@ func TestService_InjectSteering_UnknownTurn(t *testing.T) {
 func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil)) // shell → gate
+	svc := mustChat(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)})) // shell → gate
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-approve",
@@ -237,7 +237,7 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	client, _ := chatmodel.NewClient(model)
 	store := history.NewInMemoryStore()
 	eng := buildEngine(t, kernel.Config{ChatClient: client, HistoryStore: store})
-	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil)) // shell → gate
+	svc := mustChat(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)})) // shell → gate
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-rmodel",
@@ -294,7 +294,7 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 func TestService_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil))
+	svc := mustChat(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)}))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-cancel-parked",
@@ -337,7 +337,7 @@ func TestService_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 func TestService_ApprovalGate_Deny(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil))
+	svc := mustChat(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)}))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-deny",
@@ -377,7 +377,7 @@ func TestService_ApprovalGate_Deny(t *testing.T) {
 func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	svc := mustChat(turn.New(eng, approval.New(approval.ModeYolo, nil), nil, nil, nil, nil))
+	svc := mustChat(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeYolo, nil)}))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-yolo",
@@ -416,7 +416,7 @@ func buildService(t *testing.T) (turn.Service, *kernel.Engine) {
 		t.Fatalf("chat client: %v", err)
 	}
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	return mustChat(turn.New(eng, nil, nil, nil, nil, nil)), eng
+	return mustChat(turn.New(turn.Dependencies{Engine: eng})), eng
 }
 
 func buildEngine(t *testing.T, cfg kernel.Config) *kernel.Engine {

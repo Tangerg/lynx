@@ -63,7 +63,7 @@ func (s stubRuntime) ListPendingInterrupts(ctx context.Context, sessionID string
 }
 
 // MessageCount / TruncateMessages operate on the in-memory history map, mirroring
-// the engine's chat-memory store closely enough for rollback/fork tests.
+// the engine's conversation-history store closely enough for rollback/fork tests.
 func (s stubRuntime) MessageCount(_ context.Context, id string) (int, error) {
 	return len(s.history[id]), nil
 }
@@ -418,7 +418,7 @@ func TestUpdateSession(t *testing.T) {
 }
 
 // TestDeleteSession_Cascade verifies a deleted session takes its session-scoped
-// data with it: transcript runs+items, chat-memory messages, and open
+// data with it: transcript runs+items, conversation messages, and open
 // interrupts. Without the cascade the sessions row vanishes but those rows
 // orphan (the bug: items.list / runs.listOpenInterrupts kept resolving a
 // deleted session).
@@ -463,7 +463,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 		t.Errorf("interrupts not cascaded: %d left", len(pending))
 	}
 	if _, ok := history[id]; ok {
-		t.Errorf("chat-memory messages not cascaded: still present")
+		t.Errorf("conversation messages not cascaded: still present")
 	}
 	if s.hasActiveRun(id) {
 		t.Fatal("delete leaked the session mutation claim")

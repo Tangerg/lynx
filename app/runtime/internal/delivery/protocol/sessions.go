@@ -187,7 +187,7 @@ type SessionArtifact struct {
 type ArtifactRun struct {
 	RunID       string          `json:"runId"`
 	UpdatedAt   time.Time       `json:"updatedAt"`
-	MessageMark int             `json:"messageMark"` // chat-memory message watermark for rollback/fork boundaries (-1 = unknown)
+	MessageMark int             `json:"messageMark"` // conversation message watermark for rollback/fork boundaries (-1 = unknown)
 	Run         json.RawMessage `json:"run"`         // protocol.RunRef blob
 }
 

@@ -34,13 +34,41 @@ const turnIDPrefix = "run_"
 
 func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 
+type hookResolver interface {
+	For(ctx context.Context, cwd string) *hooks.Bound
+}
+
+// Dependencies names the collaborators needed by the in-process [Service].
+// Engine is required; every other field is optional and has a nil-default
+// behavior documented on the field.
+type Dependencies struct {
+	// Engine dispatches the underlying agent process. Required.
+	Engine engineDep
+
+	// Approval gates tool calls. nil auto-approves every tool, useful for tests
+	// and smoke runs.
+	Approval approval.Service
+
+	// ClientResolver resolves an explicit per-turn provider/model client. nil
+	// keeps every turn on the platform default client.
+	ClientResolver clientResolver
+
+	// Todos reads the session's todo list for state.snapshot projection after a
+	// todo_write. nil disables the projection.
+	Todos todoLister
+
+	// MCPAutoApprove returns the model-facing MCP tool names
+	// ("<server>_<tool>") whose calls skip the approval prompt. nil disables
+	// MCP-specific auto-approval.
+	MCPAutoApprove func() map[string]struct{}
+
+	// Hooks resolves lifecycle hooks for a turn's cwd. nil disables hooks.
+	Hooks hookResolver
+}
+
 // New returns the [Service] implementation. The implementation is
 // single-process — it holds in-memory state about live turns and
 // fans events out to subscribers via per-turn channels.
-//
-// approvalSvc is optional. When non-nil the turn impl reads its mode
-// at each tool call to decide run / deny / pause-for-approval; on nil
-// every call passes (auto-approve, useful for tests / smoke runs).
 //
 // The implementation is split across files by concern:
 //   - inmemory.go  — Service surface + live-turn registry (this file)
@@ -50,32 +78,17 @@ func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 //
 // The Service interface is stable, so transport adapters don't care
 // which impl they talk to.
-// resolver is optional. When non-nil and a turn carries a Model, the impl
-// resolves a per-turn client for that model; nil (or an empty Model) runs
-// every turn on the platform's default client.
-//
-// mcpAutoApprove is optional. When non-nil it returns the model-facing MCP tool
-// names ("<server>_<tool>") whose calls skip the approval prompt — a per-server
-// whitelist the runtime recomputes on every MCP registry change. nil disables
-// it (no MCP tool auto-approves).
-// hookResolver resolves the lifecycle hooks bound to a working directory. Nil
-// disables hooks. Narrow consumer view so the turn doesn't depend on resolver
-// construction.
-type hookResolver interface {
-	For(ctx context.Context, cwd string) *hooks.Bound
-}
-
-func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver, todos todoLister, mcpAutoApprove func() map[string]struct{}, hr hookResolver) (Service, error) {
-	if eng == nil {
+func New(deps Dependencies) (Service, error) {
+	if deps.Engine == nil {
 		return nil, errors.New("turn: engine is required")
 	}
 	return &inMemory{
-		engine:         eng,
-		approval:       approvalSvc,
-		resolver:       resolver,
-		todos:          todos,
-		mcpAutoApprove: mcpAutoApprove,
-		hooks:          hr,
+		engine:         deps.Engine,
+		approval:       deps.Approval,
+		resolver:       deps.ClientResolver,
+		todos:          deps.Todos,
+		mcpAutoApprove: deps.MCPAutoApprove,
+		hooks:          deps.Hooks,
 		turns:          map[string]*turnState{},
 		seenSessions:   map[string]struct{}{},
 	}, nil

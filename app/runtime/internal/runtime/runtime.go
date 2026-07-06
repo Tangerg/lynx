@@ -378,7 +378,14 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	sessionSvc := cfg.SessionService
 	interruptStore := cfg.InterruptStore
 
-	chatSvc, err := turn.New(eng, approvalSvc, resolver, ecfg.Todos, mcpEnv.autoApprove, cfg.HooksResolver)
+	chatSvc, err := turn.New(turn.Dependencies{
+		Engine:         eng,
+		Approval:       approvalSvc,
+		ClientResolver: resolver,
+		Todos:          ecfg.Todos,
+		MCPAutoApprove: mcpEnv.autoApprove,
+		Hooks:          cfg.HooksResolver,
+	})
 	if err != nil {
 		_ = eng.Close()
 		return nil, fmt.Errorf("runtime: chat service: %w", err)

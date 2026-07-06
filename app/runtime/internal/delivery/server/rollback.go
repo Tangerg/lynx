@@ -12,7 +12,7 @@ import (
 
 // RollbackSession discards the runs after the kept boundary, truncating the
 // session in place at a run granularity (AUX_API §4.1). Destructive: it
-// truncates the chat-memory log to the kept watermark, deletes the dropped
+// truncates the conversation message log to the kept watermark, deletes the dropped
 // runs' durable items + records, clears their dangling interrupts, and purges
 // the subagent child sessions they spawned. ToRunID is inclusive-keep (omit =
 // clear to empty). Rejected with session_busy while a run is in flight.
@@ -81,7 +81,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 		return &protocol.RollbackSessionResponse{Session: &out, DroppedRuns: []protocol.DroppedRun{}}, nil
 	}
 
-	// The destructive write-set truncates the chat-memory log to the kept
+	// The destructive write-set truncates the conversation message log to the kept
 	// watermark + drops each dropped run's items/record + dangling interrupt as
 	// ONE transaction (a failure can't leave a run whose messages were already
 	// truncated away), then purges the subagent subtree those runs spawned.

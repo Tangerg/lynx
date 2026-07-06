@@ -239,7 +239,7 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 	}
 }
 
-// TestMessageStore_RoundTrip exercises the chat-memory store: append-order
+// TestMessageStore_RoundTrip exercises the conversation message store: append-order
 // reads, per-conversation scoping, and Clear. Empty conversation reads as
 // an empty slice; Clear is idempotent.
 func TestMessageStore_RoundTrip(t *testing.T) {
