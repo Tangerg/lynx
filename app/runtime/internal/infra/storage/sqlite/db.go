@@ -103,7 +103,7 @@ func migrate(db *sql.DB) error {
 			session_id   TEXT    NOT NULL,
 			updated_at   INTEGER NOT NULL,
 			run          TEXT    NOT NULL,
-			-- message_mark is the chat-memory message count captured when the run
+			-- message_mark is the conversation message count captured when the run
 			-- finished (post-compaction) — the per-run watermark sessions.rollback
 			-- / fork{fromRunId} truncate to. -1 = unknown / still in-flight (B4).
 			message_mark INTEGER NOT NULL DEFAULT -1

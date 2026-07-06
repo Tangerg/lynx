@@ -50,9 +50,9 @@ type Lister interface {
 }
 
 // Store is the union of [Reader], [Writer], and [Clearer]. It is the
-// surface every memory backend implements; the framework treats it as
-// "conversation context manager" rather than "complete chat history",
-// so implementations are free to apply any retention strategy.
+// surface every conversation-history backend implements; the framework treats
+// it as "conversation context manager" rather than "complete chat history", so
+// implementations are free to apply any retention strategy.
 //
 // Enumeration is intentionally not part of Store — see [Lister].
 type Store interface {

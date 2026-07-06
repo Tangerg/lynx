@@ -16,7 +16,7 @@ import (
 )
 
 // rollbackHarness wires a Server over a sqlite-backed stub: a real session
-// service + history + interrupt store, plus the in-memory chat-memory map.
+// service + history + interrupt store, plus the in-memory conversation map.
 func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 	t.Helper()
 	db, err := sqlite.Open(":memory:")

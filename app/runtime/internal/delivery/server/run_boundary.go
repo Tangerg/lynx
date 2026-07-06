@@ -12,7 +12,7 @@ import (
 // sessions.rollback truncates a session's history at a run boundary in place;
 // sessions.fork{fromRunId} truncate-copies it into a child. Both reason over
 // the per-run message watermark (transcript.Run.Mark, recorded at run.finished
-// — see transcript.go) to map a run boundary onto a chat-memory message count,
+// — see transcript.go) to map a run boundary onto a conversation message count,
 // since the message log itself carries no run markers.
 
 // runBoundaryNodes lifts the structured timeline fields out of each persisted run's

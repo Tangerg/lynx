@@ -111,7 +111,7 @@ type partAccumulator struct {
 // later same-type deltas merge in-place into the running part, and we
 // must not mutate a part the caller still holds. This is load-bearing
 // when one chunk stream feeds two accumulators (e.g. the tool-loop and
-// memory stream middlewares) — without the clone the inner accumulator's
+// history stream middlewares) — without the clone the inner accumulator's
 // in-place merge would corrupt the part the outer one accumulates,
 // double-counting every delta.
 func (a *partAccumulator) add(delta OutputPart) {
