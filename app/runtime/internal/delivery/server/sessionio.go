@@ -35,11 +35,15 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 		format = protocol.ExportFormatJSON
 	}
 
-	if format == protocol.ExportFormatMarkdown {
+	switch format {
+	case protocol.ExportFormatMarkdown:
 		return &protocol.ExportSessionResponse{
 			Format:   format,
 			Markdown: renderSessionMarkdown(s.sessionToWire(ses, s.liveStatus(ctx, ses.ID)), items),
 		}, nil
+	case protocol.ExportFormatJSON:
+	default:
+		return nil, fmt.Errorf("%w: unsupported export format %q", protocol.ErrInvalidParams, format)
 	}
 
 	msgs, err := s.history.ReadHistory(ctx, in.SessionID)
