@@ -7,6 +7,7 @@ package turn
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"time"
 
@@ -36,6 +37,10 @@ var ErrIncompleteModelSelection = errors.New("turn: incomplete model selection")
 
 // ErrUnsupportedMedia reports media that the selected model cannot accept.
 var ErrUnsupportedMedia = errors.New("turn: unsupported media")
+
+// ErrInvalidTurnLimit reports a negative turn budget / step cap. Limits use
+// zero as "unlimited", so negative values have no domain meaning.
+var ErrInvalidTurnLimit = errors.New("turn: invalid limit")
 
 // StartTurnRequest is the input to [Service.StartTurn]. SessionID
 // binds the turn to its conversation; Message is the user's input.
@@ -78,6 +83,27 @@ type StartTurnRequest struct {
 	// On overrun the turn stops cleanly after the round with
 	// Reason=[TurnEndStepsExceeded] (distinct from the token/cost budget).
 	MaxSteps int
+}
+
+// Validate rejects malformed turn drafts before they bind to a session or
+// launch an agent process.
+func (r StartTurnRequest) Validate() error {
+	if r.Message == "" && len(r.Media) == 0 {
+		return ErrInputRequired
+	}
+	if (r.Model == "") != (r.Provider == "") {
+		return ErrIncompleteModelSelection
+	}
+	if r.MaxBudget < 0 {
+		return fmt.Errorf("%w: MaxBudget must be non-negative", ErrInvalidTurnLimit)
+	}
+	if r.MaxCostUSD < 0 {
+		return fmt.Errorf("%w: MaxCostUSD must be non-negative", ErrInvalidTurnLimit)
+	}
+	if r.MaxSteps < 0 {
+		return fmt.Errorf("%w: MaxSteps must be non-negative", ErrInvalidTurnLimit)
+	}
+	return nil
 }
 
 // TurnHandle uniquely identifies an in-flight turn. Returned by

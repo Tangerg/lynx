@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
 // TestSubscribeRun_StreamsLiveRunFromHub verifies the streamable-HTTP
@@ -105,6 +106,13 @@ func TestCollectUserInput(t *testing.T) {
 		{Type: protocol.ContentBlockImage, Mime: "image/png", Data: ""},
 	}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("empty data: err = %v, want ErrInvalidParams", err)
+	}
+}
+
+func TestWireTurnStartErrMapsInvalidTurnLimit(t *testing.T) {
+	err := wireTurnStartErr(turn.ErrInvalidTurnLimit)
+	if !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("err = %v, want ErrInvalidParams", err)
 	}
 }
 
