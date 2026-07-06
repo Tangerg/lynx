@@ -46,7 +46,7 @@ func (r *memoryRuntime) UpdateMemory(_ context.Context, scope knowledge.Scope, c
 }
 
 func TestListMemoryWithoutStoreReturnsEmptyPage(t *testing.T) {
-	s := &Server{rt: &memoryRuntime{}}
+	s := newTestServer(&memoryRuntime{})
 
 	got, err := s.ListMemory(context.Background(), protocol.WorkspaceListQuery{
 		WorkspaceQuery: protocol.WorkspaceQuery{Cwd: "/repo"},
@@ -60,7 +60,7 @@ func TestListMemoryWithoutStoreReturnsEmptyPage(t *testing.T) {
 }
 
 func TestMemoryHandlersReturnCapabilityErrorWithoutStore(t *testing.T) {
-	s := &Server{rt: &memoryRuntime{}}
+	s := newTestServer(&memoryRuntime{})
 
 	_, err := s.GetMemory(context.Background(), protocol.GetMemoryRequest{Scope: protocol.MemoryScopeHome})
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
@@ -82,7 +82,7 @@ func TestListMemoryMapsEntriesToWire(t *testing.T) {
 			CapturedAt: captured,
 		}},
 	}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	got, err := s.ListMemory(context.Background(), protocol.WorkspaceListQuery{
 		WorkspaceQuery: protocol.WorkspaceQuery{Cwd: "/repo"},
@@ -100,7 +100,7 @@ func TestListMemoryMapsEntriesToWire(t *testing.T) {
 
 func TestGetAndUpdateMemoryMapScopeToRuntime(t *testing.T) {
 	rt := &memoryRuntime{enabled: true, getContent: "project notes"}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	got, err := s.GetMemory(context.Background(), protocol.GetMemoryRequest{Scope: protocol.MemoryScopeProjectRoot, Cwd: "/repo"})
 	if err != nil {

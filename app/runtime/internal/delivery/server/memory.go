@@ -11,13 +11,13 @@ import (
 // Empty (not an error) when no memory service is configured, so the UI
 // renders an empty state rather than a banner.
 func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
-	if !s.rt.HasMemory() {
+	if !s.knowledge.HasMemory() {
 		return protocol.NewPage([]protocol.MemoryEntry{}), nil
 	}
 	// in.Cwd scopes the project entry to that directory's LYRA.md;
 	// empty keeps the workspace convention "default = serve directory"
 	// (the memory service's default dir).
-	entries, err := s.rt.ListMemoryEntries(ctx, in.Cwd)
+	entries, err := s.knowledge.ListMemoryEntries(ctx, in.Cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -35,10 +35,10 @@ func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery)
 // GetMemory returns one scope's LYRA.md content. Dispatch has already
 // validated the scope (MemoryScope.Valid).
 func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*protocol.MemoryEntry, error) {
-	if !s.rt.HasMemory() {
+	if !s.knowledge.HasMemory() {
 		return nil, notImpl("memory.get")
 	}
-	content, err := s.rt.GetMemory(ctx, memScopeFromWire(in.Scope), in.Cwd)
+	content, err := s.knowledge.GetMemory(ctx, memScopeFromWire(in.Scope), in.Cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -46,10 +46,10 @@ func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*
 }
 
 func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryRequest) error {
-	if !s.rt.HasMemory() {
+	if !s.knowledge.HasMemory() {
 		return notImpl("memory.update")
 	}
-	return s.rt.UpdateMemory(ctx, memScopeFromWire(in.Scope), in.Cwd, in.Content)
+	return s.knowledge.UpdateMemory(ctx, memScopeFromWire(in.Scope), in.Cwd, in.Content)
 }
 
 // memScopeToWire / memScopeFromWire bridge the protocol string enum and

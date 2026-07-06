@@ -36,7 +36,7 @@ func TestListOpenInterruptsUsesRuntimeFacade(t *testing.T) {
 			CreatedAt:   created,
 		},
 	}}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	got, err := s.ListOpenInterrupts(context.Background(), protocol.ListOpenInterruptsRequest{SessionID: "ses_1"})
 	if err != nil {

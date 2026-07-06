@@ -13,7 +13,7 @@ import (
 // key is present (API.md §4.9 / §7.6). The per-provider model list isn't
 // here — it unlocks via models.list.
 func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Provider], error) {
-	configured, err := s.rt.ListRegisteredProviders(ctx)
+	configured, err := s.providers.ListRegisteredProviders(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -27,14 +27,14 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 	if !isSupportedProvider(in.Provider) {
 		return nil, protocol.ErrInvalidParams
 	}
-	if err := s.rt.ConfigureProvider(ctx, provider.Provider{
+	if err := s.providers.ConfigureProvider(ctx, provider.Provider{
 		ID:      in.Provider,
 		APIKey:  in.APIKey,
 		BaseURL: in.BaseURL,
 	}); err != nil {
 		return nil, err
 	}
-	entry, ok, err := s.rt.GetRegisteredProvider(ctx, in.Provider)
+	entry, ok, err := s.providers.GetRegisteredProvider(ctx, in.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 // {ok:false, error} on failure rather than erroring the RPC, so the UI can
 // show "test failed: <reason>" inline.
 func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol.ProviderTestResult, error) {
-	entry, ok, err := s.rt.GetRegisteredProvider(ctx, providerID)
+	entry, ok, err := s.providers.GetRegisteredProvider(ctx, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol
 	}
 	// The build-client + ping lives on the runtime, which owns client
 	// construction (clientResolver); this layer just maps the verdict to wire.
-	if err := s.rt.ProbeProvider(ctx, entry); err != nil {
+	if err := s.providers.ProbeProvider(ctx, entry); err != nil {
 		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
 			Type: "provider_test_failed", Detail: err.Error(),
 		}}, nil

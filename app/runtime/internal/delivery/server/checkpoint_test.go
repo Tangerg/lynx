@@ -14,8 +14,8 @@ import (
 
 // checkpointHarness extends the rollback harness with a real shadow-git
 // checkpoint store and a session whose cwd is a populated temp dir. It returns
-// the server, the session id, and the cwd so a test can mutate + snapshot.
-func checkpointHarness(t *testing.T) (*Server, string, string) {
+// the server, runtime stub, session id, and cwd so a test can mutate + snapshot.
+func checkpointHarness(t *testing.T) (*Server, *stubRuntime, string, string) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed; skipping checkpoint rollback test")
@@ -34,7 +34,7 @@ func checkpointHarness(t *testing.T) (*Server, string, string) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	return s, ses.ID, cwd
+	return s, rt, ses.ID, cwd
 }
 
 func writeFile(t *testing.T, cwd, name, body string) {
@@ -47,9 +47,8 @@ func writeFile(t *testing.T, cwd, name, body string) {
 // TestRollback_RestoreBoth restores files AND truncates history: rolling back
 // to run1 reverts the working tree to run1's snapshot and drops run2.
 func TestRollback_RestoreBoth(t *testing.T) {
-	s, sid, cwd := checkpointHarness(t)
+	s, rt, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
-	rt := s.rt.(*stubRuntime)
 
 	writeFile(t, cwd, "a.txt", "v1")
 	if err := s.workspace.Snapshot(ctx, sid, cwd, "run1"); err != nil {
@@ -80,9 +79,8 @@ func TestRollback_RestoreBoth(t *testing.T) {
 // TestRollback_RestoreFilesKeepsHistory reverts the working tree but drops no
 // runs (restoreType=files).
 func TestRollback_RestoreFilesKeepsHistory(t *testing.T) {
-	s, sid, cwd := checkpointHarness(t)
+	s, rt, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
-	rt := s.rt.(*stubRuntime)
 
 	writeFile(t, cwd, "a.txt", "v1")
 	s.workspace.Snapshot(ctx, sid, cwd, "run1")
@@ -107,7 +105,7 @@ func TestRollback_RestoreFilesKeepsHistory(t *testing.T) {
 
 // TestRollback_FilesRequiresToRunID rejects a files restore with no target.
 func TestRollback_FilesRequiresToRunID(t *testing.T) {
-	s, sid, _ := checkpointHarness(t)
+	s, _, sid, _ := checkpointHarness(t)
 	_, err := s.RollbackSession(context.Background(), protocol.RollbackSessionRequest{
 		SessionID: sid, RestoreType: protocol.RestoreFiles,
 	})

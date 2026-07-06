@@ -16,7 +16,7 @@ func (s *Server) WorkspaceListHooks(ctx context.Context, in protocol.ListHooksRe
 	if err != nil {
 		return nil, err
 	}
-	insp := s.rt.InspectHooks(ctx, root)
+	insp := s.hooks.InspectHooks(ctx, root)
 	out := &protocol.HooksListResult{
 		ProjectRoot:    insp.ProjectRoot,
 		ProjectTrusted: insp.ProjectTrusted,
@@ -43,5 +43,5 @@ func (s *Server) WorkspaceSetHookTrust(ctx context.Context, in protocol.SetHookT
 	if in.ProjectRoot == "" {
 		return protocol.ErrInvalidParams
 	}
-	return s.rt.SetProjectHookTrust(ctx, in.ProjectRoot, in.Trusted)
+	return s.hooks.SetProjectHookTrust(ctx, in.ProjectRoot, in.Trusted)
 }

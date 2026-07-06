@@ -13,11 +13,11 @@ func (s *Server) runSegmentEffects() *runsegment.Effects {
 			Paths: paths,
 		})
 	}
-	if s.rt == nil {
+	if s.runSegments == nil {
 		return runsegment.New(runsegment.Config{
 			Checkpoints:        s.workspace,
 			PublishFileChanges: publish,
 		})
 	}
-	return s.rt.RunSegmentEffects(s.workspace, publish)
+	return s.runSegments.RunSegmentEffects(s.workspace, publish)
 }

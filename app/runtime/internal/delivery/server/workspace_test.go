@@ -130,11 +130,11 @@ func TestWorkspaceGrep(t *testing.T) {
 func TestWorkspaceListSkills(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
-		serverInfo: protocol.ServerInfo{Cwd: dir},
-		rt: &stubRuntime{skills: []kernel.SkillInfo{
+		runtimeBindings: bindRuntime(&stubRuntime{skills: []kernel.SkillInfo{
 			{Name: "pdf", Description: "PDF tools", Scope: "project"},
 			{Name: "web", Description: "web tools", Scope: "global"},
-		}},
+		}}),
+		serverInfo: protocol.ServerInfo{Cwd: dir},
 	}
 	got, err := s.WorkspaceListSkills(context.Background(), protocol.WorkspaceListQuery{})
 	if err != nil {
@@ -150,11 +150,11 @@ func TestWorkspaceListSkills(t *testing.T) {
 func TestWorkspaceListRecipes(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
-		serverInfo: protocol.ServerInfo{Cwd: dir},
-		rt: &stubRuntime{recipes: []recipes.Recipe{
+		runtimeBindings: bindRuntime(&stubRuntime{recipes: []recipes.Recipe{
 			{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: "project", Source: "/p/review.md"},
 			{Name: "commit", Body: "Write a commit", Scope: "global", Source: "/g/commit.md"},
-		}},
+		}}),
+		serverInfo: protocol.ServerInfo{Cwd: dir},
 	}
 	got, err := s.WorkspaceListRecipes(context.Background(), protocol.WorkspaceListQuery{})
 	if err != nil {
@@ -175,7 +175,7 @@ func TestWorkspaceListRecipes(t *testing.T) {
 // a connected server inlines its tool count (so the client needn't ⨝ listTools),
 // a boot-failed server carries its failure reason as Error and no tool count.
 func TestWorkspaceMCPListServers(t *testing.T) {
-	s := &Server{rt: &stubRuntime{
+	s := newTestServer(&stubRuntime{
 		mcpStatuses: []kernel.McpServerStatus{
 			{Name: "fs", Status: "connected"},
 			{Name: "down", Status: "failed", Err: errors.New("connection refused")},
@@ -183,7 +183,7 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 		mcpTools: []kernel.McpToolInfo{
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
 		},
-	}}
+	})
 	page, err := s.WorkspaceMCPListServers(context.Background(), protocol.PageQuery{})
 	if err != nil {
 		t.Fatalf("listServers: %v", err)
@@ -208,10 +208,10 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 // nothing.
 func TestWorkspaceMCPReconnect(t *testing.T) {
 	s := &Server{
-		rt: &stubRuntime{
+		runtimeBindings: bindRuntime(&stubRuntime{
 			mcpStatuses: []kernel.McpServerStatus{{Name: "fs", Status: "connected"}},
 			mcpTools:    []kernel.McpToolInfo{{Server: "fs", Name: "read"}},
-		},
+		}),
 		wsHub: newWorkspaceHub(),
 	}
 	events, unsub := s.wsHub.subscribe()
@@ -238,11 +238,11 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 // TestWorkspaceMCPListTools maps engine tool info onto the wire (keeping
 // server + bare name separate) and passes the server scope through.
 func TestWorkspaceMCPListTools(t *testing.T) {
-	s := &Server{rt: &stubRuntime{mcpTools: []kernel.McpToolInfo{
+	s := newTestServer(&stubRuntime{mcpTools: []kernel.McpToolInfo{
 		{Server: "fs", Name: "read", Description: "read a file", InputSchema: map[string]any{"type": "object"}},
 		{Server: "fs", Name: "write"},
 		{Server: "git", Name: "log"},
-	}}}
+	}})
 
 	all, err := s.WorkspaceMCPListTools(context.Background(), protocol.MCPListToolsRequest{})
 	if err != nil {

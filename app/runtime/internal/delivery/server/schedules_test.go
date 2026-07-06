@@ -63,7 +63,7 @@ func (r *scheduleRuntime) RunScheduleWorker(_ context.Context, runner schedule.R
 
 func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 	rt := &scheduleRuntime{}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	got, err := s.CreateSchedule(context.Background(), protocol.CreateScheduleRequest{
 		Title:  "Morning",
@@ -95,7 +95,7 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 	rt := &scheduleRuntime{byID: map[string]schedule.Schedule{
 		"sch_1": {ID: "sch_1", LastRunAt: last, CreatedAt: createdAt, NextRunAt: last.Add(time.Hour)},
 	}}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	got, err := s.UpdateSchedule(context.Background(), protocol.UpdateScheduleRequest{
 		ID:      "sch_1",
@@ -123,7 +123,7 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 }
 
 func TestUpdateScheduleUnknownIDIsInvalidParams(t *testing.T) {
-	s := &Server{rt: &scheduleRuntime{}}
+	s := newTestServer(&scheduleRuntime{})
 
 	_, err := s.UpdateSchedule(context.Background(), protocol.UpdateScheduleRequest{
 		ID:      "missing",
@@ -138,7 +138,7 @@ func TestUpdateScheduleUnknownIDIsInvalidParams(t *testing.T) {
 
 func TestRunSchedulerDelegatesWorkerToRuntime(t *testing.T) {
 	rt := &scheduleRuntime{}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	s.RunScheduler(context.Background())
 

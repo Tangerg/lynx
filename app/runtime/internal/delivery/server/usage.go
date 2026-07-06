@@ -23,14 +23,14 @@ import (
 // SessionUsage returns one session's cumulative token usage + cost, summed over
 // its finished runs (usage.session).
 func (s *Server) SessionUsage(ctx context.Context, sessionID string) (*protocol.Usage, error) {
-	runs, err := s.rt.ListTranscriptRuns(ctx, sessionID)
+	runs, err := s.transcript.ListTranscriptRuns(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
 	total := usageAcc{}
 	byModel := map[string]*usageAcc{}
 	for _, r := range runs {
-		foldRunUsage(r.Blob, time.Time{}, s.rt.DefaultProvider(), s.rt.DefaultModel(), &total, nil, byModel, nil)
+		foldRunUsage(r.Blob, time.Time{}, s.providers.DefaultProvider(), s.sessions.DefaultModel(), &total, nil, byModel, nil)
 	}
 	out := &protocol.Usage{ModelUsage: total.modelUsage()}
 	if len(byModel) > 0 {
@@ -47,7 +47,7 @@ func (s *Server) SessionUsage(ctx context.Context, sessionID string) (*protocol.
 // parent's subtree-aggregated runs aren't double-counted against the children's
 // own run records) and folds each one's finished runs.
 func (s *Server) UsageSummary(ctx context.Context, in protocol.UsageSummaryRequest) (*protocol.UsageSummary, error) {
-	sessions, err := s.rt.ListSessions(ctx)
+	sessions, err := s.sessions.ListSessions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -62,13 +62,13 @@ func (s *Server) UsageSummary(ctx context.Context, in protocol.UsageSummaryReque
 	byDay := map[string]*usageAcc{}
 	sessionCount := 0
 	for _, sess := range sessions {
-		runs, lerr := s.rt.ListTranscriptRuns(ctx, sess.ID)
+		runs, lerr := s.transcript.ListTranscriptRuns(ctx, sess.ID)
 		if lerr != nil {
 			return nil, lerr
 		}
 		before := total.runs
 		for _, r := range runs {
-			foldRunUsage(r.Blob, since, s.rt.DefaultProvider(), s.rt.DefaultModel(), &total, byProvider, byModel, byDay)
+			foldRunUsage(r.Blob, since, s.providers.DefaultProvider(), s.sessions.DefaultModel(), &total, byProvider, byModel, byDay)
 		}
 		if total.runs > before {
 			sessionCount++

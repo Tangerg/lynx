@@ -20,7 +20,7 @@ import (
 // first. projectRoot / branch are best-effort decorations left empty
 // until the engine grows a git probe.
 func (s *Server) WorkspaceListProjects(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Project], error) {
-	sessions, err := s.rt.ListSessions(ctx)
+	sessions, err := s.sessions.ListSessions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceL
 	if err != nil {
 		return nil, err
 	}
-	found, err := s.rt.ListSkills(ctx, root)
+	found, err := s.workspaceCatalog.ListSkills(ctx, root)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (s *Server) WorkspaceListRecipes(ctx context.Context, in protocol.Workspace
 	if err != nil {
 		return nil, err
 	}
-	found, err := s.rt.ListRecipes(ctx, root)
+	found, err := s.workspaceCatalog.ListRecipes(ctx, root)
 	if err != nil {
 		return nil, err
 	}

@@ -39,6 +39,16 @@ type stubRuntime struct {
 	workingTree *lifecycle.WorkingTreeGate
 }
 
+func newTestServer(rt RuntimeServices) *Server {
+	return &Server{runtimeBindings: bindRuntime(rt)}
+}
+
+func newTestServerWithInfo(rt RuntimeServices, info protocol.ServerInfo) *Server {
+	s := newTestServer(rt)
+	s.serverInfo = info
+	return s
+}
+
 func (s stubRuntime) MCPServerStatuses() []kernel.McpServerStatus { return s.mcpStatuses }
 
 func (s stubRuntime) Transcript() transcript.Store { return s.hist }
@@ -351,7 +361,7 @@ func newSessionServer(t *testing.T) (*Server, session.Service) {
 	svc := sqlite.NewSessionStore(db)
 	// Interrupts is always wired in production (runtime composition root) and
 	// the wire status now reads it (liveStatus) — give the stub a real store.
-	return &Server{rt: &stubRuntime{sess: svc, model: "default-model", interrupts: sqlite.NewInterruptStore(db)}}, svc
+	return newTestServer(&stubRuntime{sess: svc, model: "default-model", interrupts: sqlite.NewInterruptStore(db)}), svc
 }
 
 func TestUpdateSession(t *testing.T) {
@@ -448,7 +458,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	}
 	history := map[string][]chat.Message{id: {chat.NewUserMessage("hi")}}
 
-	s := &Server{rt: &stubRuntime{sess: svc, hist: hist, interrupts: ints, history: history}}
+	s := newTestServer(&stubRuntime{sess: svc, hist: hist, interrupts: ints, history: history})
 	if err := s.DeleteSession(ctx, id); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -513,7 +523,7 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 	}
 
 	turns := &recordingTurns{}
-	s := &Server{rt: &stubRuntime{sess: svc, hist: hist, interrupts: ints, history: map[string][]chat.Message{}, chat: turns}}
+	s := newTestServer(&stubRuntime{sess: svc, hist: hist, interrupts: ints, history: map[string][]chat.Message{}, chat: turns})
 	if err := s.DeleteSession(ctx, id); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -543,7 +553,7 @@ func TestForkSession(t *testing.T) {
 	parent, _ := svc.Create(ctx, "research", "/work/proj")
 
 	hist := map[string][]chat.Message{parent.ID: {chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi")}}
-	s := &Server{rt: &stubRuntime{sess: svc, history: hist, hist: sqlite.NewTranscriptStore(db)}}
+	s := newTestServer(&stubRuntime{sess: svc, history: hist, hist: sqlite.NewTranscriptStore(db)})
 
 	child, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, Title: "branch A"})
 	if err != nil {

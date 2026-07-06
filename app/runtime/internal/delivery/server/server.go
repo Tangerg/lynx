@@ -45,7 +45,7 @@ type Config struct {
 // interface is protocol.Runtime so callers can't reach past the typed
 // surface.
 type Server struct {
-	rt         RuntimeServices
+	runtimeBindings
 	serverInfo protocol.ServerInfo
 
 	// runs tracks active run segments and admission claims. The domain registry
@@ -103,10 +103,10 @@ func New(cfg Config) (*Server, error) {
 		ws = workspace.New("") // disabled service: VCS reads still work, checkpoints off
 	}
 	return &Server{
-		rt:         cfg.Runtime,
-		serverInfo: cfg.ServerInfo,
-		wsHub:      newWorkspaceHub(),
-		workspace:  ws,
+		runtimeBindings: bindRuntime(cfg.Runtime),
+		serverInfo:      cfg.ServerInfo,
+		wsHub:           newWorkspaceHub(),
+		workspace:       ws,
 	}, nil
 }
 
@@ -114,11 +114,57 @@ func New(cfg Config) (*Server, error) {
 // delegating to the package-level [Capabilities] so the /v2/info
 // sidecar can build the same snapshot without a constructed Server.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return Capabilities(s.rt)
+	return Capabilities(s.capabilities)
 }
 
 type capabilityAccess interface {
 	HasMemory() bool
+}
+
+type runtimeBindings struct {
+	turn             turnAccess
+	sessions         sessionAccess
+	transcript       transcriptAccess
+	lifecycle        lifecycleAccess
+	runSegments      runSegmentAccess
+	history          historyAccess
+	interrupts       interruptQueryAccess
+	tools            toolAccess
+	knowledge        knowledgeAccess
+	approvals        approvalAccess
+	schedules        scheduleAccess
+	providers        providerAccess
+	mcp              mcpAccess
+	workspaceCatalog workspaceCatalogAccess
+	hooks            hookAccess
+	modelRoles       modelRoleAccess
+	codebase         codebaseAccess
+	maintenance      maintenanceAccess
+	capabilities     capabilityAccess
+}
+
+func bindRuntime(rt RuntimeServices) runtimeBindings {
+	return runtimeBindings{
+		turn:             rt,
+		sessions:         rt,
+		transcript:       rt,
+		lifecycle:        rt,
+		runSegments:      rt,
+		history:          rt,
+		interrupts:       rt,
+		tools:            rt,
+		knowledge:        rt,
+		approvals:        rt,
+		schedules:        rt,
+		providers:        rt,
+		mcp:              rt,
+		workspaceCatalog: rt,
+		hooks:            rt,
+		modelRoles:       rt,
+		codebase:         rt,
+		maintenance:      rt,
+		capabilities:     rt,
+	}
 }
 
 // Capabilities builds the capability snapshot a Runtime advertises

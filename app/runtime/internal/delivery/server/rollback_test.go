@@ -31,7 +31,7 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 		hist:       sqlite.NewTranscriptStore(db),
 		interrupts: sqlite.NewInterruptStore(db),
 	}
-	return &Server{rt: rt}, rt
+	return newTestServer(rt), rt
 }
 
 func putRun(t *testing.T, rt *stubRuntime, sessionID, runID, parentRunID string, atUnix int64, mark int) {

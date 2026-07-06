@@ -46,7 +46,7 @@ func TestWorkspaceMCPConfigurePreservesStoredAuthorization(t *testing.T) {
 			Authorization: "Bearer stored-token",
 		},
 	}}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	got, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:      "linear",
@@ -71,7 +71,7 @@ func TestWorkspaceMCPConfigurePreservesStoredAuthorization(t *testing.T) {
 func TestWorkspaceMCPConfigurePropagatesAuthorizationLookupError(t *testing.T) {
 	lookupErr := errors.New("registry unavailable")
 	rt := &mcpConfigRuntime{servers: map[string]mcpserver.Server{}, getErr: lookupErr}
-	s := &Server{rt: rt}
+	s := newTestServer(rt)
 
 	_, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:      "linear",
