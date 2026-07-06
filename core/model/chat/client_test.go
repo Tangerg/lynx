@@ -116,6 +116,23 @@ func TestClientRequest_WithMessagesPassesThrough(t *testing.T) {
 	}
 }
 
+func TestClientRequest_WithOptionsMergesModelDefaults(t *testing.T) {
+	model := newFakeChatModel(t)
+	req, _ := chat.NewClientRequest(model)
+	temp := 0.7
+	req.WithOptions(&chat.Options{Temperature: &temp}).WithUserPrompt("hi")
+
+	if _, err := req.Call().Response(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if model.lastReq.Options.Model != "fake-model" {
+		t.Fatalf("Model = %q, want default fake-model", model.lastReq.Options.Model)
+	}
+	if model.lastReq.Options.Temperature == nil || *model.lastReq.Options.Temperature != 0.7 {
+		t.Fatalf("Temperature = %v, want 0.7", model.lastReq.Options.Temperature)
+	}
+}
+
 func TestClientRequest_WithSystemPrompt_PrependsSystemMessage(t *testing.T) {
 	model := newFakeChatModel(t)
 	req, _ := chat.NewClientRequest(model)

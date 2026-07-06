@@ -412,6 +412,14 @@ func TestService_StartTurn_Validation(t *testing.T) {
 	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", MaxBudget: -1}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
 		t.Fatalf("negative MaxBudget err = %v, want ErrInvalidTurnLimit", err)
 	}
+	opts, _ := chatmodel.NewOptions("should-not-select-model-here")
+	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", Options: opts}); !errors.Is(err, turn.ErrInvalidTurnOptions) {
+		t.Fatalf("Options.Model err = %v, want ErrInvalidTurnOptions", err)
+	}
+	maxTokens := int64(0)
+	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", Options: &chatmodel.Options{MaxTokens: &maxTokens}}); !errors.Is(err, turn.ErrInvalidTurnOptions) {
+		t.Fatalf("MaxTokens=0 err = %v, want ErrInvalidTurnOptions", err)
+	}
 }
 
 // ------------------------------------------------------------------

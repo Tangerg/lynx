@@ -42,6 +42,9 @@ var ErrUnsupportedMedia = errors.New("turn: unsupported media")
 // zero as "unlimited", so negative values have no domain meaning.
 var ErrInvalidTurnLimit = errors.New("turn: invalid limit")
 
+// ErrInvalidTurnOptions reports malformed per-run generation tuning.
+var ErrInvalidTurnOptions = errors.New("turn: invalid options")
+
 // StartTurnRequest is the input to [Service.StartTurn]. SessionID
 // binds the turn to its conversation; Message is the user's input.
 type StartTurnRequest struct {
@@ -83,6 +86,11 @@ type StartTurnRequest struct {
 	// On overrun the turn stops cleanly after the round with
 	// Reason=[TurnEndStepsExceeded] (distinct from the token/cost budget).
 	MaxSteps int
+
+	// Options carries per-run generation tuning. The turn keeps model
+	// selection explicit on Provider/Model; Options.Model is therefore invalid
+	// here and must stay empty.
+	Options *corechat.Options
 }
 
 // Validate rejects malformed turn drafts before they bind to a session or
@@ -102,6 +110,33 @@ func (r StartTurnRequest) Validate() error {
 	}
 	if r.MaxSteps < 0 {
 		return fmt.Errorf("%w: MaxSteps must be non-negative", ErrInvalidTurnLimit)
+	}
+	if err := validateOptions(r.Options); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateOptions(options *corechat.Options) error {
+	if options == nil {
+		return nil
+	}
+	if options.Model != "" {
+		return fmt.Errorf("%w: Options.Model must stay empty; use Provider and Model", ErrInvalidTurnOptions)
+	}
+	if options.MaxTokens != nil && *options.MaxTokens <= 0 {
+		return fmt.Errorf("%w: MaxTokens must be positive", ErrInvalidTurnOptions)
+	}
+	if options.Temperature != nil && (*options.Temperature < 0 || *options.Temperature > 2) {
+		return fmt.Errorf("%w: Temperature must be between 0 and 2", ErrInvalidTurnOptions)
+	}
+	if options.TopP != nil && (*options.TopP < 0 || *options.TopP > 1) {
+		return fmt.Errorf("%w: TopP must be between 0 and 1", ErrInvalidTurnOptions)
+	}
+	for _, stop := range options.Stop {
+		if stop == "" {
+			return fmt.Errorf("%w: Stop must not contain empty strings", ErrInvalidTurnOptions)
+		}
 	}
 	return nil
 }

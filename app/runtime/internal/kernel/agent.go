@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 )
@@ -56,6 +57,10 @@ type chatInput struct {
 	// cap). When reached the action stops cleanly after the round — before the
 	// next LLM call — with [ChatOutput.StoppedOnSteps] set.
 	MaxSteps int
+
+	// Options carries per-run generation tuning. It deliberately does not carry
+	// model selection; Provider / per-run ChatClient own that boundary.
+	Options *chat.Options
 }
 
 // ChatOutput is the typed output of one turn. Reply is the assistant's
@@ -124,7 +129,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					// guards read it back via turnSession.
 					pc.Blackboard.BindProtected(turnctx.SessionBindingKey, in.SessionID)
 				}
-				out, err := e.runChatTurn(ctx, pc, in.Provider, in.Message, in.Media, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
+				out, err := e.runChatTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
 				if err != nil {
 					// HITL interrupt (R model): a gated tool returned an
 					// agent/hitl.InterruptError that the chat tool loop
@@ -197,7 +202,7 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 				// Subtask runs against the default provider/model (no per-run
 				// selection), so pass "" — invocationFrom falls back to the engine
 				// default for pricing.
-				out, err := e.runChatTurn(ctx, pc, "", in.Prompt, nil, turnBudget{})
+				out, err := e.runChatTurn(ctx, pc, "", in.Prompt, nil, nil, turnBudget{})
 				if err != nil {
 					return "", err
 				}

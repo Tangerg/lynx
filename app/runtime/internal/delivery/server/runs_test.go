@@ -116,6 +116,40 @@ func TestWireTurnStartErrMapsInvalidTurnLimit(t *testing.T) {
 	}
 }
 
+func TestGenerationOptionsFromWire(t *testing.T) {
+	temp := 0.7
+	maxTokens := int64(1024)
+	topP := 0.9
+	params := &protocol.GenerationParams{
+		Temperature: &temp,
+		MaxTokens:   &maxTokens,
+		TopP:        &topP,
+		Stop:        []string{"END"},
+	}
+	opts := generationOptionsFromWire(params)
+	params.Stop[0] = "mutated"
+
+	if opts == nil || opts.Temperature == nil || *opts.Temperature != 0.7 {
+		t.Fatalf("Temperature = %v, want 0.7", opts)
+	}
+	if opts.MaxTokens == nil || *opts.MaxTokens != 1024 {
+		t.Fatalf("MaxTokens = %v, want 1024", opts.MaxTokens)
+	}
+	if opts.TopP == nil || *opts.TopP != 0.9 {
+		t.Fatalf("TopP = %v, want 0.9", opts.TopP)
+	}
+	if len(opts.Stop) != 1 || opts.Stop[0] != "END" {
+		t.Fatalf("Stop = %v, want cloned END", opts.Stop)
+	}
+}
+
+func TestWireTurnStartErrMapsInvalidTurnOptions(t *testing.T) {
+	err := wireTurnStartErr(turn.ErrInvalidTurnOptions)
+	if !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("err = %v, want ErrInvalidParams", err)
+	}
+}
+
 // TestResolveResolution covers the approval-response → InterruptResolution
 // mapping the resume path depends on (B5): approve/deny, editedArgs marshaled
 // into the one-shot Arguments override, and remember{scope} honored only for

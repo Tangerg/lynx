@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/pkg/mime"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
@@ -87,6 +88,11 @@ func TestPlanTurnStartRejectsInvalidDraftBeforeCreatingSession(t *testing.T) {
 	}
 	if _, _, err := rt.PlanTurnStart(context.Background(), "", "/repo", turn.StartTurnRequest{Message: "hello", MaxBudget: -1}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
 		t.Fatalf("negative MaxBudget err = %v, want ErrInvalidTurnLimit", err)
+	}
+
+	badMaxTokens := int64(0)
+	if _, _, err := rt.PlanTurnStart(context.Background(), "", "/repo", turn.StartTurnRequest{Message: "hello", Options: &chat.Options{MaxTokens: &badMaxTokens}}); !errors.Is(err, turn.ErrInvalidTurnOptions) {
+		t.Fatalf("bad options err = %v, want ErrInvalidTurnOptions", err)
 	}
 }
 

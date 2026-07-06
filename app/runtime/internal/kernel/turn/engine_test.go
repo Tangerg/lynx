@@ -93,10 +93,11 @@ type stubEngine struct {
 	stopOnBudget     bool  // when true the produced ChatOutput sets StoppedOnBudget
 	restoreResumeErr error // when set, a RestoreChat'd process fails its Resume with it
 
-	mu         sync.Mutex
-	lastClient core.ChatClient // captures RunChatRequest.ChatClient
-	lastCwd    string          // captures RunChatRequest.Cwd
-	lastCtx    context.Context // captures the ctx the engine runs under
+	mu          sync.Mutex
+	lastClient  core.ChatClient // captures RunChatRequest.ChatClient
+	lastCwd     string          // captures RunChatRequest.Cwd
+	lastCtx     context.Context // captures the ctx the engine runs under
+	lastOptions *corechat.Options
 
 	lastProc atomic.Pointer[stubChatProcess] // the most recent process StartChat handed back
 }
@@ -107,6 +108,7 @@ func (s *stubEngine) StartChat(ctx context.Context, req kernel.RunChatRequest) k
 	s.lastClient = req.ChatClient
 	s.lastCwd = req.Cwd
 	s.lastCtx = ctx
+	s.lastOptions = req.Options.Clone()
 	s.mu.Unlock()
 	if req.Observer != nil {
 		req.Observer.OnMessageDelta(s.runReply)
@@ -458,6 +460,33 @@ func TestStartTurn_PassesCwd(t *testing.T) {
 	stub.mu.Unlock()
 	if got != "/work/project-a" {
 		t.Errorf("engine received Cwd %q, want %q", got, "/work/project-a")
+	}
+}
+
+func TestStartTurn_PassesOptions(t *testing.T) {
+	stub := &stubEngine{runReply: "ok"}
+	temp := 0.7
+
+	svc := mustChat(turn.New(turn.Dependencies{Engine: stub}))
+	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
+		SessionID: "s",
+		Message:   "hi",
+		Options:   &corechat.Options{Temperature: &temp},
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	events, _ := svc.Events(ctx, handle)
+	for range events { // drain to TurnEnd
+	}
+
+	stub.mu.Lock()
+	got := stub.lastOptions
+	stub.mu.Unlock()
+	if got == nil || got.Temperature == nil || *got.Temperature != 0.7 {
+		t.Fatalf("engine options = %+v, want temperature 0.7", got)
 	}
 }
 

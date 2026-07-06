@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/media"
+	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/pkg/mime"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -23,6 +25,7 @@ import (
 // approval, after which the run suspends and the client answers via
 // runs.resume.
 func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+	options := generationOptionsFromWire(in.Params)
 	userMsg, userMedia, err := collectUserInput(in.Input)
 	if err != nil {
 		return nil, nil, err
@@ -34,6 +37,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		Model:      in.Model,
 		MaxCostUSD: in.MaxBudgetUSD,
 		MaxSteps:   in.MaxSteps,
+		Options:    options,
 	})
 	if err != nil {
 		return nil, nil, wireTurnStartErr(err)
@@ -89,12 +93,26 @@ func wireTurnStartErr(err error) error {
 		return protocol.ErrInvalidParams
 	case errors.Is(err, turn.ErrInvalidTurnLimit):
 		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+	case errors.Is(err, turn.ErrInvalidTurnOptions):
+		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
 	case errors.Is(err, turn.ErrUnsupportedMedia):
 		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
 	case errors.Is(err, session.ErrNotFound):
 		return protocol.ErrSessionNotFound
 	default:
 		return err
+	}
+}
+
+func generationOptionsFromWire(in *protocol.GenerationParams) *corechat.Options {
+	if in == nil {
+		return nil
+	}
+	return &corechat.Options{
+		Temperature: in.Temperature,
+		MaxTokens:   in.MaxTokens,
+		TopP:        in.TopP,
+		Stop:        slices.Clone(in.Stop),
 	}
 }
 
