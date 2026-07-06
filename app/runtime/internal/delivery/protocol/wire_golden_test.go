@@ -16,13 +16,17 @@ import (
 const samplesDir = "../../../../desktop/frontend/src/rpc/samples"
 
 // wireSamples pins each canonical sample to the protocol type it must
-// round-trip through. Extend this table as coverage grows (methods, more event
-// variants); today it covers the highest-drift surface — the RunEvent /
-// StreamEvent flat-struct union.
+// round-trip through. It covers the whole API.md §4 data catalog + §5 streaming:
+// every discriminated-union variant (StreamEvent / Item / ItemDelta / RunOutcome
+// / Interrupt / WorkspaceEvent / DiffRow) plus the core shapes and method
+// request/response envelopes. A few pins are deliberately asymmetric with the TS
+// side (documented in API.md §14): resume reuses StartRunResponse; list methods
+// return the generic Page[T].
 var wireSamples = []struct {
 	file   string
 	target func() any
 }{
+	// §5 streaming — RunEvent envelope over every StreamEvent variant.
 	{"run.started.json", func() any { return new(RunEvent) }},
 	{"run.progress.json", func() any { return new(RunEvent) }},
 	{"run.finished.json", func() any { return new(RunEvent) }},
@@ -32,6 +36,94 @@ var wireSamples = []struct {
 	{"state.snapshot.json", func() any { return new(RunEvent) }},
 	{"state.delta.json", func() any { return new(RunEvent) }},
 	{"custom.json", func() any { return new(RunEvent) }},
+
+	// §4.3 Item union (bare) + ContentBlock.
+	{"item.userMessage.json", func() any { return new(Item) }},
+	{"item.reasoning.json", func() any { return new(Item) }},
+	{"item.plan.json", func() any { return new(Item) }},
+	{"item.question.json", func() any { return new(Item) }},
+	{"item.compaction.json", func() any { return new(Item) }},
+	{"content.image.json", func() any { return new(ContentBlock) }},
+
+	// §5.1 ItemDelta union (bare).
+	{"delta.reasoning.json", func() any { return new(ItemDelta) }},
+	{"delta.toolArguments.json", func() any { return new(ItemDelta) }},
+	{"delta.toolOutput.json", func() any { return new(ItemDelta) }},
+	{"delta.plan.json", func() any { return new(ItemDelta) }},
+
+	// §4.2 Run — RunOutcome union, RunRef, Interrupt union, method envelopes.
+	{"outcome.error.json", func() any { return new(RunOutcome) }},
+	{"outcome.maxSteps.json", func() any { return new(RunOutcome) }},
+	{"outcome.maxBudget.json", func() any { return new(RunOutcome) }},
+	{"outcome.canceled.json", func() any { return new(RunOutcome) }},
+	{"outcome.interrupt.json", func() any { return new(RunOutcome) }},
+	{"runref.full.json", func() any { return new(RunRef) }},
+	{"interrupt.approval.json", func() any { return new(Interrupt) }},
+	{"interrupt.question.json", func() any { return new(Interrupt) }},
+	{"interrupt.toolResult.json", func() any { return new(Interrupt) }},
+	{"method.runs.start.req.json", func() any { return new(StartRunRequest) }},
+	{"method.runs.start.resp.json", func() any { return new(StartRunResponse) }},
+	{"method.runs.resume.req.json", func() any { return new(ResumeRunRequest) }},
+	// Go has no ResumeRunResponse — ResumeRun returns *StartRunResponse; {runId}
+	// round-trips identically (TS pins it as ResumeRunResponse).
+	{"method.runs.resume.resp.json", func() any { return new(StartRunResponse) }},
+
+	// §4.1 Session — Session/Project + method envelopes.
+	{"session.json", func() any { return new(Session) }},
+	{"project.json", func() any { return new(Project) }},
+	{"method.sessions.create.req.json", func() any { return new(CreateSessionRequest) }},
+	{"method.sessions.list.resp.json", func() any { return new(Page[Session]) }},
+	{"method.sessions.rollback.req.json", func() any { return new(RollbackSessionRequest) }},
+	{"method.sessions.rollback.resp.json", func() any { return new(RollbackSessionResponse) }},
+	{"method.sessions.fork.req.json", func() any { return new(ForkSessionRequest) }},
+	{"method.sessions.export.resp.json", func() any { return new(ExportSessionResponse) }},
+	{"session.artifact.json", func() any { return new(SessionArtifact) }},
+
+	// §4.5 Workspace — WorkspaceEvent union, Diff/DiffRow, file shapes, methods.
+	{"wsevent.files-changed.json", func() any { return new(WorkspaceEvent) }},
+	{"wsevent.skills-changed.json", func() any { return new(WorkspaceEvent) }},
+	{"wsevent.mcp-serverChanged.json", func() any { return new(WorkspaceEvent) }},
+	{"wsevent.schedules-fired.json", func() any { return new(WorkspaceEvent) }},
+	{"wsevent.resync.json", func() any { return new(WorkspaceEvent) }},
+	{"ws.diff.json", func() any { return new(Diff) }},
+	{"ws.fileChange.json", func() any { return new(WorkspaceFileChange) }},
+	{"ws.fileHead.json", func() any { return new(FileHead) }},
+	{"ws.grepResult.json", func() any { return new(GrepResult) }},
+	{"ws.searchHit.json", func() any { return new(SearchHit) }},
+	{"ws.fileContent.json", func() any { return new(FileContent) }},
+	{"method.getDiff.req.json", func() any { return new(GetDiffRequest) }},
+	{"method.listFileChanges.req.json", func() any { return new(WorkspaceListQuery) }},
+	{"method.listFileChanges.resp.json", func() any { return new(Page[WorkspaceFileChange]) }},
+	{"method.grep.req.json", func() any { return new(GrepRequest) }},
+
+	// §4.6 Approval + §4.9 providers/models/usage/codebase.
+	{"approvalRule.json", func() any { return new(ApprovalRule) }},
+	{"approvalMode.resp.json", func() any { return new(ApprovalModeResult) }},
+	{"approvalRules.resp.json", func() any { return new(ListApprovalRulesResult) }},
+	{"provider.json", func() any { return new(Provider) }},
+	{"providers.list.resp.json", func() any { return new(Page[Provider]) }},
+	{"model.json", func() any { return new(Model) }},
+	{"models.list.resp.json", func() any { return new(Page[Model]) }},
+	{"utilityRole.json", func() any { return new(UtilityRole) }},
+	{"embeddingRole.json", func() any { return new(EmbeddingRole) }},
+	{"usageSummary.json", func() any { return new(UsageSummary) }},
+	{"codebaseStatus.json", func() any { return new(CodebaseStatus) }},
+	{"codebaseHit.json", func() any { return new(CodebaseHit) }},
+	{"codebaseSearch.resp.json", func() any { return new(CodebaseSearchResult) }},
+
+	// §3/§9 handshake + §4.10 config surfaces.
+	{"method.initialize.req.json", func() any { return new(InitializeRequest) }},
+	{"method.initialize.resp.json", func() any { return new(InitializeResponse) }},
+	{"schedule.json", func() any { return new(Schedule) }},
+	{"recipe.json", func() any { return new(Recipe) }},
+	{"skill.json", func() any { return new(Skill) }},
+	{"agentDoc.json", func() any { return new(AgentDoc) }},
+	{"mcpServer.json", func() any { return new(McpServer) }},
+	{"mcpServerConfig.json", func() any { return new(McpServerConfig) }},
+	{"hooksList.json", func() any { return new(HooksListResult) }},
+	{"memoryEntry.json", func() any { return new(MemoryEntry) }},
+	{"problemData.json", func() any { return new(ProblemData) }},
+	{"feedback.req.json", func() any { return new(FeedbackRequest) }},
 }
 
 // TestWireGoldenRoundTrip is the Go half of the §14 drift gate: every canonical

@@ -1,0 +1,7 @@
+{
+  "cwd": "/Users/me/project",
+  "path": "src/main.go",
+  "mode": "worktree",
+  "format": "rows",
+  "limit": 500
+}

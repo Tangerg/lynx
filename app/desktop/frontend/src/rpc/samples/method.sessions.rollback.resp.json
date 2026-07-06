@@ -1,0 +1,26 @@
+{
+  "session": {
+    "id": "ses_01",
+    "title": "Refactor the runtime protocol",
+    "status": "idle",
+    "model": "claude-opus-4-8",
+    "cwd": "/Users/dev/project",
+    "createdAt": "2026-07-07T10:00:00Z",
+    "updatedAt": "2026-07-07T10:05:00Z",
+    "metadata": {}
+  },
+  "droppedRuns": [
+    {
+      "run": {
+        "id": "run_01",
+        "sessionId": "ses_01",
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "status": "finished",
+        "createdAt": "2026-07-07T10:00:00Z",
+        "finishedAt": "2026-07-07T10:00:20Z"
+      },
+      "userInput": [{ "type": "text", "text": "Add a rollback test" }]
+    }
+  ]
+}

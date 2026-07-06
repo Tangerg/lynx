@@ -1,0 +1,9 @@
+{
+  "parentRunId": "run_01",
+  "responses": [
+    {
+      "itemId": "item_05",
+      "response": { "type": "approval", "decision": "approve" }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "item_12",
+  "runId": "run_01",
+  "status": "running",
+  "createdAt": "2026-07-07T10:00:00Z",
+  "type": "plan",
+  "steps": [
+    { "id": "step_1", "title": "Read the config", "status": "completed" },
+    { "id": "step_2", "title": "Apply the fix", "status": "running" }
+  ]
+}

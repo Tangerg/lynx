@@ -1,0 +1,7 @@
+{
+  "type": "plan",
+  "steps": [
+    { "id": "step_1", "title": "Read the config", "status": "completed" },
+    { "id": "step_2", "title": "Apply the fix", "status": "running" }
+  ]
+}

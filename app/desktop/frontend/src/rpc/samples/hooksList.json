@@ -1,0 +1,21 @@
+{
+  "projectRoot": "/Users/dev/project",
+  "projectTrusted": true,
+  "hooks": [
+    {
+      "event": "PreToolUse",
+      "matcher": "shell",
+      "command": "./.lyra/hooks/guard.sh",
+      "scope": "project",
+      "source": "/Users/dev/project/.lyra/hooks.json",
+      "active": true
+    },
+    {
+      "event": "SessionStart",
+      "inject": "You are working in the acme monorepo.",
+      "scope": "global",
+      "source": "/Users/dev/.lyra/hooks.json",
+      "active": true
+    }
+  ]
+}

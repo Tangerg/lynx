@@ -1,0 +1,19 @@
+{
+  "id": "run_02",
+  "sessionId": "ses_01",
+  "spawnedByItemId": "item_03",
+  "parentRunId": "run_01",
+  "model": "claude-opus-4-8",
+  "provider": "anthropic",
+  "status": "finished",
+  "createdAt": "2026-07-07T10:00:00Z",
+  "finishedAt": "2026-07-07T10:00:12Z",
+  "outcome": {
+    "type": "completed",
+    "result": {
+      "usage": { "inputTokens": 1200, "outputTokens": 340, "costUsd": 0.021 },
+      "steps": 3,
+      "durationMs": 12400
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "id": "ses_01",
+      "title": "Refactor the runtime protocol",
+      "status": "idle",
+      "model": "claude-opus-4-8",
+      "cwd": "/Users/dev/project",
+      "projectRoot": "/Users/dev/project",
+      "createdAt": "2026-07-07T10:00:00Z",
+      "updatedAt": "2026-07-07T10:05:00Z",
+      "metadata": {}
+    }
+  ],
+  "nextCursor": "eyJvIjoyMH0"
+}

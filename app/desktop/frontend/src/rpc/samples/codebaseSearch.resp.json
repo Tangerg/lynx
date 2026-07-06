@@ -1,0 +1,11 @@
+{
+  "hits": [
+    {
+      "path": "internal/kernel/turn/loop.go",
+      "startLine": 42,
+      "endLine": 68,
+      "snippet": "func (e *Engine) runTurn(ctx context.Context) error {",
+      "score": 0.87
+    }
+  ]
+}

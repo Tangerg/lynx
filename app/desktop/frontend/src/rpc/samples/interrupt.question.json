@@ -1,0 +1,17 @@
+{
+  "itemId": "item_06",
+  "type": "question",
+  "payload": {
+    "question": {
+      "prompt": "Which environment should I deploy to?",
+      "fields": [
+        {
+          "name": "environment",
+          "label": "Environment",
+          "type": "choice",
+          "options": [{ "label": "staging" }, { "label": "production" }]
+        }
+      ]
+    }
+  }
+}

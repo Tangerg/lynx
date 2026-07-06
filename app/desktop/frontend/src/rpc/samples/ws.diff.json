@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "path": "src/main.go",
+      "status": "modified",
+      "added": 1,
+      "removed": 1,
+      "rows": [
+        { "type": "hunk", "text": "@@ -10,6 +10,7 @@ func main() {" },
+        {
+          "type": "context",
+          "leftLine": 10,
+          "rightLine": 10,
+          "code": "    fmt.Println(\"start\")"
+        },
+        { "type": "deleted", "leftLine": 11, "code": "    x := 1" },
+        { "type": "added", "rightLine": 11, "code": "    x := 2" }
+      ]
+    }
+  ]
+}

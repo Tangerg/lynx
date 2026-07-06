@@ -1,0 +1,8 @@
+{
+  "type": "canceled",
+  "result": {
+    "usage": { "inputTokens": 800, "outputTokens": 120, "costUsd": 0.012 },
+    "durationMs": 5300
+  },
+  "detail": "user canceled"
+}

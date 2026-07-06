@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "path": "src/main.go", "status": "modified", "added": 12, "removed": 3 },
+    { "path": "docs/old.md", "status": "deleted" },
+    { "path": "assets/logo.png", "status": "added", "binary": true }
+  ]
+}

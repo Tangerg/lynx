@@ -1,0 +1,8 @@
+{
+  "name": "review",
+  "description": "Review the current diff for a given focus area",
+  "argumentHint": "[focus area]",
+  "body": "Review the current diff, focusing on $ARGUMENTS.",
+  "scope": "project",
+  "source": "/Users/dev/project/.lyra/recipes/review.md"
+}
