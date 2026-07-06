@@ -92,7 +92,7 @@ type Config struct {
 	// persists a sub-agent's session when it spawns one (the `task`
 	// delegation). The engine doesn't touch sessions itself — it only forwards
 	// this to [agent/runtime.PlatformConfig] — keeping session CRUD out of the
-	// chat-execution layer. nil = delegation lineage stays in-process only.
+	// turn-execution layer. nil = delegation lineage stays in-process only.
 	SessionStore core.SessionStore
 
 	// ParkStore persists interrupted tool rounds for HITL resume.

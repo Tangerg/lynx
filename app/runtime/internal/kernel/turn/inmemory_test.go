@@ -127,7 +127,7 @@ func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chatmodel.NewClient(stub)
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	svc := mustChat(turn.New(turn.Dependencies{Engine: eng}))
+	svc := mustTurn(turn.New(turn.Dependencies{Engine: eng}))
 
 	// Turn 1.
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
@@ -186,7 +186,7 @@ func TestService_InjectSteering_UnknownTurn(t *testing.T) {
 func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	svc := mustChat(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)})) // shell → gate
+	svc := mustTurn(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)})) // shell → gate
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-approve",
@@ -238,7 +238,7 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	client, _ := chatmodel.NewClient(model)
 	store := history.NewInMemoryStore()
 	eng := buildEngine(t, kernel.Config{ChatClient: client, HistoryStore: store})
-	svc := mustChat(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)})) // shell → gate
+	svc := mustTurn(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)})) // shell → gate
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-rmodel",
@@ -295,7 +295,7 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 func TestService_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	svc := mustChat(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)}))
+	svc := mustTurn(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)}))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-cancel-parked",
@@ -338,7 +338,7 @@ func TestService_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 func TestService_ApprovalGate_Deny(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	svc := mustChat(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)}))
+	svc := mustTurn(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)}))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-deny",
@@ -378,7 +378,7 @@ func TestService_ApprovalGate_Deny(t *testing.T) {
 func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	svc := mustChat(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeYolo, nil)}))
+	svc := mustTurn(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeYolo, nil)}))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-yolo",
@@ -434,7 +434,7 @@ func buildService(t *testing.T) (turn.Service, *kernel.Engine) {
 		t.Fatalf("chat client: %v", err)
 	}
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	return mustChat(turn.New(turn.Dependencies{Engine: eng})), eng
+	return mustTurn(turn.New(turn.Dependencies{Engine: eng})), eng
 }
 
 func buildEngine(t *testing.T, cfg kernel.Config) *kernel.Engine {
@@ -637,10 +637,10 @@ func (m *historyAwareStub) Stream(ctx context.Context, req *chatmodel.Request) i
 	return func(yield func(*chatmodel.Response, error) bool) { yield(resp, err) }
 }
 
-// mustChat unwraps turn.New in test wiring — construction only fails on a
+// mustTurn unwraps turn.New in test wiring — construction only fails on a
 // nil engine, which tests never pass. Takes (svc, err) directly so call
 // sites can splice turn.New's multi-value return straight in.
-func mustChat(svc turn.Service, err error) turn.Service {
+func mustTurn(svc turn.Service, err error) turn.Service {
 	if err != nil {
 		panic(err)
 	}

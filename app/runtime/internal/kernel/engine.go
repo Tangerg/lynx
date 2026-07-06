@@ -32,7 +32,7 @@ import (
 // constructs no capability. The chat service's own (unexported) engine
 // interface narrows this surface to exactly the operations it needs.
 type Engine struct {
-	// Chat execution.
+	// Turn execution.
 	platform agentRuntime
 	agent    *core.Agent
 
@@ -194,7 +194,7 @@ func (e *Engine) Close() error {
 	return e.closeErr
 }
 
-// InjectUserMessage delivers mid-turn steering: chat.Service flushes a queued
+// InjectUserMessage delivers mid-turn steering: turn.Service flushes a queued
 // steering message through here once the current turn ends, so the next
 // StartTurn (or post-turn maintenance) sees it as part of the conversation.
 // This is the engine's ONE message-history touchpoint — it's a turn-lifecycle

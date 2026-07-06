@@ -11,10 +11,10 @@ import (
 
 // TurnProcess is the handle [Engine.StartTurn] returns. It exposes
 // the underlying [runtime.AgentProcess] lifecycle (status, failure,
-// cancellation) plus a typed result extractor — chat.Service drives
+// cancellation) plus a typed result extractor — turn.Service drives
 // the turn off Done() and queries Status() to decide TurnEnd reason.
 //
-// The interface lives in this package (not in the chat service) so
+// The interface lives in this package (not in the turn service) so
 // test stubs can substitute a fake without standing up a full platform.
 type TurnProcess interface {
 	// ID is the underlying agent process id — surfaces to clients as
