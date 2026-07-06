@@ -115,6 +115,22 @@ func TestConfigureProviderPersistsThenReturnsStoredEntry(t *testing.T) {
 	}
 }
 
+func TestConfigureProviderRequiresBaseURLWhenMetadataRequiresIt(t *testing.T) {
+	rt := &providerRuntime{supported: []provider.Metadata{{ID: "openai-compatible", RequiresBaseURL: true}}}
+	s := newTestServer(rt)
+
+	_, err := s.ConfigureProvider(context.Background(), protocol.ConfigureProviderRequest{
+		Provider: "openai-compatible",
+		APIKey:   "sk-secret",
+	})
+	if !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("configure err = %v, want ErrInvalidParams", err)
+	}
+	if len(rt.configured) != 0 {
+		t.Fatalf("configured %d provider(s), want none", len(rt.configured))
+	}
+}
+
 func TestConfigureProviderFailsWhenStoredEntryCannotBeReadBack(t *testing.T) {
 	rt := &providerRuntime{dropStored: true}
 	s := newTestServer(rt)
