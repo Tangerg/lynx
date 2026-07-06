@@ -1,4 +1,4 @@
-package memory
+package history
 
 import (
 	"context"
@@ -8,9 +8,11 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
+	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
 )
 
-// middleware is the conversation-memory layer. It owns exactly one job:
+// middleware is the conversation-history layer. It owns exactly one job:
 // on the way down it loads the stored history and splices it in front of
 // the request's new messages; on the way up it persists the new messages
 // plus the model's reply. It knows nothing about tool loops — each model
@@ -20,7 +22,7 @@ import (
 // `next` is the model handler, so the only reply it ever sees is one
 // assistant message. The outer tool-calling middleware drives the loop and
 // feeds each round's new messages (the user turn, then each tool result)
-// down through here, so memory always receives genuinely-new messages and
+// down through here, so history always receives genuinely-new messages and
 // never needs de-duplication.
 //
 // Two invariants govern persistence and ordering:
@@ -31,26 +33,26 @@ import (
 //     The spliced order is: system (from the live request) → stored
 //     history → the request's new non-system messages.
 type middleware struct {
-	store Store
+	store chathistory.Store
 }
 
-// NewMiddleware constructs a memory-management middleware backed by
+// NewMiddleware constructs a history-management middleware backed by
 // store. Returns the call/stream middleware pair plus an error when
 // store is nil.
 //
 // Example:
 //
-//	store := memory.NewInMemoryStore()
-//	callMW, streamMW, err := memory.NewMiddleware(store)
+//	store := chathistory.NewInMemoryStore()
+//	callMW, streamMW, err := history.NewMiddleware(store)
 //	if err != nil { return err }
 //	resp, err := client.Chat().
-//	    WithParams(map[string]any{chat.ConversationIDKey: "user-1"}).
+//	    WithParams(map[string]any{conversation.IDKey: "user-1"}).
 //	    WithMiddlewares(callMW, streamMW).
 //	    WithUserPrompt("hi").
 //	    Call().Response(ctx)
-func NewMiddleware(store Store) (chat.CallMiddleware, chat.StreamMiddleware, error) {
+func NewMiddleware(store chathistory.Store) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if store == nil {
-		return nil, nil, errors.New("memory.NewMiddleware: store must not be nil")
+		return nil, nil, errors.New("history.NewMiddleware: store must not be nil")
 	}
 	mw := &middleware{store: store}
 	return mw.wrapCallHandler, mw.wrapStreamHandler, nil
@@ -116,7 +118,7 @@ func (m *middleware) persist(ctx context.Context, id string, toPersist []chat.Me
 }
 
 func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
-	id, err := req.ConversationID()
+	id, err := chatconversation.ID(req)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +152,7 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 // what the model actually said.
 func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		id, err := req.ConversationID()
+		id, err := chatconversation.ID(req)
 		if err != nil {
 			yield(nil, err)
 			return

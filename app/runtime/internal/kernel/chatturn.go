@@ -10,12 +10,12 @@ import (
 
 // RunChatRequest carries the per-turn parameters for [Engine.StartChat] /
 // [Engine.RunChat]. SessionID is non-empty to bind the turn to a
-// chat-memory keyed conversation; Observer is non-nil to receive streaming
+// chat history keyed conversation; Observer is non-nil to receive streaming
 // notifications.
 type RunChatRequest struct {
-	// SessionID anchors the turn to a chat-memory conversation. The
+	// SessionID anchors the turn to a chat history conversation. The
 	// runtime stamps it onto each request under the chat conversation-id key,
-	// which the memory middleware reads to pull prior history before the
+	// which the history middleware reads to pull prior history before the
 	// model call and save the new round afterwards. Empty string runs the
 	// turn unattached (the runtime falls back to the process id, so a
 	// single multi-round turn still keeps context, but nothing persists
@@ -96,7 +96,7 @@ type RunChatRequest struct {
 //
 // Observer / SessionID wiring matches [Engine.RunChat]: Observer
 // attaches a process-scope [core.ToolDecorator]; SessionID binds the
-// turn to the chat-memory middleware's keyed conversation.
+// turn to the chat history middleware's keyed conversation.
 func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
 	in := chatInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps}
 
@@ -114,7 +114,7 @@ func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess 
 	return &chatProcess{proc: proc, done: done, platform: e.platform}
 }
 
-// chatProcessOptions assembles per-process wiring: the chat-memory Session
+// chatProcessOptions assembles per-process wiring: the chat history Session
 // binding, the observer decorator, lifecycle listener, and per-run model
 // client. The chat middleware chain itself (tool loop + memory) is the
 // platform default built once in [New]; the runtime stamps each request's
@@ -149,9 +149,9 @@ func (p perRunChatClient) ChatClientFor(core.Process) core.ChatClient {
 // RestoreChatRequest carries the per-process wiring to re-attach to a
 // turn rebuilt from a snapshot — the same Observer + Session a fresh turn
 // gets from [Engine.StartChat], so the resumed continuation streams and
-// keys chat-memory to the right conversation.
+// keys chat history to the right conversation.
 type RestoreChatRequest struct {
-	// SessionID rebinds the restored process to its chat-memory
+	// SessionID rebinds the restored process to its chat history
 	// conversation (so the continuation's LLM round loads + saves the
 	// right history). Empty runs unattached.
 	SessionID string

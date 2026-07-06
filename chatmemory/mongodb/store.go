@@ -13,10 +13,10 @@ import (
 	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
-const Provider = "MongoDBChatMemory"
+const Provider = "MongoDBChatHistory"
 
 const (
 	fieldID             = "_id"
@@ -58,11 +58,11 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ memory.Store  = (*Store)(nil)
-	_ memory.Lister = (*Store)(nil)
+	_ history.Store  = (*Store)(nil)
+	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a MongoDB-backed [memory.Store]. Construct via [NewStore].
+// Store is a MongoDB-backed [history.Store]. Construct via [NewStore].
 type Store struct {
 	collection *mongo.Collection
 }

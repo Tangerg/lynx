@@ -131,7 +131,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					// propagated unchanged. Park on the carried awaitable
 					// (→ StatusWaiting); the client answers via a continuation
 					// run. On resume the turn RE-RUNS (runChatTurn skips
-					// re-adding the user message — the memory layer replays the
+					// re-adding the user message — the history layer replays the
 					// stored conversation), the model regenerates the interrupted
 					// tool call, and the gate now observes the recorded verdict.
 					if _, parked := hitl.HandleInterrupt(pc, err); parked {

@@ -1,4 +1,4 @@
-package memory
+package history
 
 import (
 	"context"
@@ -20,7 +20,7 @@ const (
 
 // ErrListingUnsupported is returned by [MessageWindowStore.Conversations]
 // when the wrapped store cannot enumerate conversations.
-var ErrListingUnsupported = errors.New("memory: underlying store does not support conversation listing")
+var ErrListingUnsupported = errors.New("history: underlying store does not support conversation listing")
 
 var (
 	_ Store  = (*MessageWindowStore)(nil)
@@ -43,11 +43,11 @@ type MessageWindowStore struct {
 //
 // Example:
 //
-//	base := memory.NewInMemoryStore()
-//	windowed, err := memory.NewMessageWindowStore(base, 20)
+//	base := history.NewInMemoryStore()
+//	windowed, err := history.NewMessageWindowStore(base, 20)
 func NewMessageWindowStore(storage Store, limit ...int) (*MessageWindowStore, error) {
 	if storage == nil {
-		return nil, errors.New("memory.NewMessageWindowStore: storage must not be nil")
+		return nil, errors.New("history.NewMessageWindowStore: storage must not be nil")
 	}
 
 	// Don't double-wrap.

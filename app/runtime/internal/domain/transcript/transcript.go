@@ -40,7 +40,7 @@ type Run struct {
 	RunID     string
 	UpdatedAt time.Time
 	Blob      json.RawMessage
-	// Mark is the per-run chat-memory message watermark — the message count
+	// Mark is the per-run chat history message watermark — the message count
 	// captured when the run finished (post-compaction). sessions.rollback /
 	// fork{fromRunId} truncate the message log to it. -1 means unknown: a run
 	// still in flight, or one persisted before this field existed.
@@ -106,7 +106,7 @@ type RunNode struct {
 	ParentRunID     string    // non-empty: a resume continuation
 	SpawnedByItemID string    // non-empty: a subagent run
 	CreatedAt       time.Time // wall-clock turn order
-	Mark            int       // chat-memory message watermark; -1 when unknown
+	Mark            int       // chat history message watermark; -1 when unknown
 }
 
 // IsRoot reports whether the run opens a turn (a runs.start) rather than a

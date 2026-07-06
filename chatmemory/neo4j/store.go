@@ -12,10 +12,10 @@ import (
 	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
-const Provider = "Neo4jChatMemory"
+const Provider = "Neo4jChatHistory"
 
 const (
 	DefaultDatabase = "neo4j"
@@ -76,11 +76,11 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ memory.Store  = (*Store)(nil)
-	_ memory.Lister = (*Store)(nil)
+	_ history.Store  = (*Store)(nil)
+	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a Neo4j-backed [memory.Store]. Construct via [NewStore].
+// Store is a Neo4j-backed [history.Store]. Construct via [NewStore].
 type Store struct {
 	driver   neo4j.DriverWithContext
 	database string

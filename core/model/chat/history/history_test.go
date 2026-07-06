@@ -1,15 +1,15 @@
-package memory_test
+package history_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 func TestInMemoryStore_WriteRead(t *testing.T) {
-	store := memory.NewInMemoryStore()
+	store := history.NewInMemoryStore()
 	ctx := context.Background()
 
 	if err := store.Write(ctx, "c1", chat.NewUserMessage("hi")); err != nil {
@@ -25,7 +25,7 @@ func TestInMemoryStore_WriteRead(t *testing.T) {
 }
 
 func TestInMemoryStore_Read_UnknownIDReturnsEmptySlice(t *testing.T) {
-	store := memory.NewInMemoryStore()
+	store := history.NewInMemoryStore()
 	got, err := store.Read(context.Background(), "missing")
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestInMemoryStore_Read_UnknownIDReturnsEmptySlice(t *testing.T) {
 }
 
 func TestInMemoryStore_Read_ReturnsCopy(t *testing.T) {
-	store := memory.NewInMemoryStore()
+	store := history.NewInMemoryStore()
 	ctx := context.Background()
 	_ = store.Write(ctx, "c", chat.NewUserMessage("hi"))
 
@@ -53,7 +53,7 @@ func TestInMemoryStore_Read_ReturnsCopy(t *testing.T) {
 }
 
 func TestInMemoryStore_Clear(t *testing.T) {
-	store := memory.NewInMemoryStore()
+	store := history.NewInMemoryStore()
 	ctx := context.Background()
 	_ = store.Write(ctx, "c", chat.NewUserMessage("hi"))
 
@@ -67,7 +67,7 @@ func TestInMemoryStore_Clear(t *testing.T) {
 }
 
 func TestInMemoryStore_RespectsCancelledContext(t *testing.T) {
-	store := memory.NewInMemoryStore()
+	store := history.NewInMemoryStore()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -83,16 +83,16 @@ func TestInMemoryStore_RespectsCancelledContext(t *testing.T) {
 }
 
 func TestNewMessageWindowStore_RejectsNilStorage(t *testing.T) {
-	if _, err := memory.NewMessageWindowStore(nil); err == nil {
+	if _, err := history.NewMessageWindowStore(nil); err == nil {
 		t.Fatal("nil storage must error")
 	}
 }
 
 func TestNewMessageWindowStore_AvoidsDoubleWrap(t *testing.T) {
-	store := memory.NewInMemoryStore()
-	wrapped, _ := memory.NewMessageWindowStore(store, 20)
+	store := history.NewInMemoryStore()
+	wrapped, _ := history.NewMessageWindowStore(store, 20)
 
-	again, err := memory.NewMessageWindowStore(wrapped)
+	again, err := history.NewMessageWindowStore(wrapped)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,8 +102,8 @@ func TestNewMessageWindowStore_AvoidsDoubleWrap(t *testing.T) {
 }
 
 func TestMessageWindowStore_Read_KeepsRecentNonSystem(t *testing.T) {
-	base := memory.NewInMemoryStore()
-	windowed, _ := memory.NewMessageWindowStore(base, 10)
+	base := history.NewInMemoryStore()
+	windowed, _ := history.NewMessageWindowStore(base, 10)
 	ctx := context.Background()
 
 	// Write 15 user messages — only the most-recent 10 should come back.
@@ -120,8 +120,8 @@ func TestMessageWindowStore_Read_KeepsRecentNonSystem(t *testing.T) {
 }
 
 func TestMessageWindowStore_Read_PrependsMergedSystemMessage(t *testing.T) {
-	base := memory.NewInMemoryStore()
-	windowed, _ := memory.NewMessageWindowStore(base, 10)
+	base := history.NewInMemoryStore()
+	windowed, _ := history.NewMessageWindowStore(base, 10)
 	ctx := context.Background()
 
 	_ = base.Write(ctx, "c",
@@ -136,14 +136,8 @@ func TestMessageWindowStore_Read_PrependsMergedSystemMessage(t *testing.T) {
 	}
 }
 
-func TestMemoryMiddleware_RejectsNilStore(t *testing.T) {
-	if _, _, err := memory.NewMiddleware(nil); err == nil {
-		t.Fatal("nil store must error")
-	}
-}
-
 func TestInMemoryStore_Conversations(t *testing.T) {
-	store := memory.NewInMemoryStore()
+	store := history.NewInMemoryStore()
 	ctx := context.Background()
 
 	if ids, err := store.Conversations(ctx); err != nil || len(ids) != 0 {
@@ -173,8 +167,8 @@ func TestInMemoryStore_Conversations(t *testing.T) {
 }
 
 func TestMessageWindowStore_ConversationsForwards(t *testing.T) {
-	base := memory.NewInMemoryStore()
-	windowed, _ := memory.NewMessageWindowStore(base, 10)
+	base := history.NewInMemoryStore()
+	windowed, _ := history.NewMessageWindowStore(base, 10)
 	ctx := context.Background()
 
 	_ = base.Write(ctx, "c", chat.NewUserMessage("hi"))

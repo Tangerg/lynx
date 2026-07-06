@@ -35,7 +35,7 @@ import (
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
@@ -174,7 +174,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 			// User-scope Agent Skills live under the storage home; per-session
 			// project skills (<cwd>/.lyra/skills) layer on top of these.
 			SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
-			MemoryStore:     stores.ChatMem,
+			HistoryStore:    stores.ChatHistory,
 			Knowledge:       stores.Memory,
 			// ProcessStore auto-snapshots every agent process so a parked
 			// turn survives a restart (cross-restart HITL resume);
@@ -244,7 +244,7 @@ func (a *App) runtime() *lyraruntime.Runtime { return a.rt }
 func (a *App) config() config.Config { return a.cfg }
 
 // buildStores wires the persistence backends. Everything durable —
-// session / process-snapshot / interrupt / history / provider / chat-memory
+// session / process-snapshot / interrupt / history / provider / chat-history
 // messages — shares one SQLite *sql.DB at $LYRA_HOME/lyra.db. The one
 // exception is the LYRA.md memory cascade: it stays a user-editable file
 // (the whole point of it is that the user can `cat` / edit it), so it
@@ -283,7 +283,7 @@ func buildStores() (*Stores, error) {
 		Transcript:    sqlitestore.NewTranscriptStore(db),
 		Provider:      sqlitestore.NewProviderStore(db),
 		MCPServers:    sqlitestore.NewMCPServerStore(db),
-		ChatMem:       sqlitestore.NewMessageStore(db),
+		ChatHistory:   sqlitestore.NewMessageStore(db),
 		Park:          sqlitestore.NewParkStore(db),
 		Todos:         sqlitestore.NewTodoStore(db),
 		ApprovalRules: sqlitestore.NewApprovalRuleStore(db),
@@ -311,7 +311,7 @@ type Stores struct {
 	Transcript    transcript.Store
 	Provider      providersvc.Service
 	MCPServers    mcpserversvc.Service
-	ChatMem       chatmem.Store
+	ChatHistory   chathistory.Store
 	Park          tool.ParkStore
 	Todos         todosvc.Service
 	ApprovalRules approval.RuleStore

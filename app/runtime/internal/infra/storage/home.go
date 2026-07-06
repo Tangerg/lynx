@@ -1,5 +1,5 @@
 // Package storage implements Lyra's on-disk persistence: session
-// metadata and chat-memory messages. Every
+// metadata and chat history messages. Every
 // concrete type targets a directory rooted at [Home] — usually
 // ~/.lyra — so a single LYRA_HOME environment variable relocates
 // every artifact.

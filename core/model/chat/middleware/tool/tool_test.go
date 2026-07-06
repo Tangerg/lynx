@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
+	"github.com/Tangerg/lynx/core/model/chat/history"
+	historymw "github.com/Tangerg/lynx/core/model/chat/middleware/history"
 )
 
 // --- duplicated shared helpers (copies of chat_test equivalents) ----------
@@ -356,8 +358,8 @@ func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
 	}
 	// New contract: the continuation carries the turn's system header (none in
 	// this request) + this round's assistant tool-call message + its tool
-	// result — the atomic exchange the memory layer persists together. It does
-	// NOT carry the prior conversation (the memory middleware owns stored
+	// result — the atomic exchange the history layer persists together. It does
+	// NOT carry the prior conversation (the history middleware owns stored
 	// history and splices it back in). So here: [assistant(tool_calls), tool].
 	if got := len(cont.Messages); got != 2 {
 		t.Fatalf("continuation has %d messages, want 2 (assistant tool-call + tool result)", got)
@@ -870,8 +872,8 @@ func TestMemory_SequentialMultiRoundTurn_ValidHistory(t *testing.T) {
 	alpha := mustNewCallable(t, "alpha", false, func(context.Context, string) (string, error) { return "a-ok", nil })
 	beta := mustNewCallable(t, "beta", false, func(context.Context, string) (string, error) { return "b-ok", nil })
 
-	store := memory.NewInMemoryStore()
-	memCallMW, memStreamMW, err := memory.NewMiddleware(store)
+	store := history.NewInMemoryStore()
+	historyCallMW, historyStreamMW, err := historymw.NewMiddleware(store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -882,8 +884,8 @@ func TestMemory_SequentialMultiRoundTurn_ValidHistory(t *testing.T) {
 	// to memory, which loads history, splices, and persists. First in the
 	// slice = outermost.
 	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(toolStreamMW, memCallMW, memStreamMW).
-		WithParams(map[string]any{chat.ConversationIDKey: "c1"}).
+	req.WithMiddlewares(toolStreamMW, historyCallMW, historyStreamMW).
+		WithParams(map[string]any{chatconversation.IDKey: "c1"}).
 		WithSystemPrompt("sys").
 		WithUserPrompt("go").
 		WithTools(alpha, beta)

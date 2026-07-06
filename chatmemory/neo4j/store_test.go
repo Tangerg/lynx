@@ -7,7 +7,7 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	neo4jmem "github.com/Tangerg/lynx/chatmemory/neo4j"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 // stubDriver is a non-nil but never-used DriverWithContext for tests
@@ -50,6 +50,6 @@ func TestStoreConfig_AcceptsDefaults(t *testing.T) {
 	}
 }
 
-func TestStore_ImplementsMemoryStore(t *testing.T) {
-	var _ chatmem.Store = (*neo4jmem.Store)(nil)
+func TestStore_ImplementsHistoryStore(t *testing.T) {
+	var _ chathistory.Store = (*neo4jmem.Store)(nil)
 }

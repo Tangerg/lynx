@@ -120,10 +120,10 @@ const (
 	subtaskContextLost = "subtask: context lost"
 )
 
-// subtaskMemoryStub proves a spawned subtask keeps chat-memory context
+// subtaskMemoryStub proves a spawned subtask keeps chat history context
 // across its OWN tool-loop rounds. The tool loop hands the model only each
 // round's new (assistant, tool result) delta — the original user prompt is
-// reconstructed by the memory middleware, which only fires when the request
+// reconstructed by the history middleware, which only fires when the request
 // carries a conversation id. A subtask runs without an externally-supplied
 // session, so this exercises the runtime's process-id fallback: without it
 // the subtask's round 2 loses the secret and reports subtaskContextLost.
@@ -150,7 +150,7 @@ func (m *subtaskMemoryStub) Call(_ context.Context, req *chat.Request) (*chat.Re
 		return responseWithText("main: " + toolResult(req.Messages, "task"))
 	case hasToolCall(req.Messages, "shell"):
 		// Sub-agent turn, round 2: the secret is only visible if the child's
-		// memory middleware spliced round 1's prompt back in.
+		// history middleware spliced round 1's prompt back in.
 		if userMessagesContain(req.Messages, subtaskSecret) {
 			return responseWithText("subtask: " + subtaskSecret)
 		}
@@ -285,7 +285,7 @@ func (m *streamingStubModel) Stream(_ context.Context, _ *chat.Request) iter.Seq
 }
 
 // historyAwareStub remembers how many messages it saw on each Call.
-// Used by multi-turn tests to confirm chat-memory loads prior turns
+// Used by multi-turn tests to confirm chat history loads prior turns
 // before passing the request to the model.
 type historyAwareStub struct {
 	defaults    *chat.Options

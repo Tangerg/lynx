@@ -1,4 +1,4 @@
-// Package cassandra is a [memory.Store] backed by Apache Cassandra
+// Package cassandra is a [history.Store] backed by Apache Cassandra
 // via gocql.
 //
 // Schema (created by InitializeSchema=true):

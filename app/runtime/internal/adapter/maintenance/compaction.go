@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
@@ -66,17 +66,17 @@ type CompactionConfig struct {
 // unless compaction is disabled (negative MaxMessages); a nil
 // Compactor makes [Compactor.MaybeCompact] a silent no-op.
 type Compactor struct {
-	store       memory.Store
+	store       history.Store
 	client      ClientFunc
 	maxMessages int
 	maxTokens   int
 	keepRecent  int
 }
 
-// NewCompactor builds a Compactor over the chat-memory store and a
+// NewCompactor builds a Compactor over the chat history store and a
 // per-call chat-client resolver. Zero / out-of-range config fields fall back
 // to the package defaults.
-func NewCompactor(store memory.Store, client ClientFunc, cfg CompactionConfig) *Compactor {
+func NewCompactor(store history.Store, client ClientFunc, cfg CompactionConfig) *Compactor {
 	maxMessages := cfg.MaxMessages
 	if maxMessages <= 0 {
 		maxMessages = defaultCompactMaxMessages
@@ -122,7 +122,7 @@ func NewCompactor(store memory.Store, client ClientFunc, cfg CompactionConfig) *
 // empty sessionID.
 //
 // Important: the summary call goes through chat.Client directly
-// (no middleware), so it does NOT enter the chat-memory middleware
+// (no middleware), so it does NOT enter the chat history middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
 func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (kernel.CompactionResult, error) {
@@ -185,10 +185,10 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompa
 	rewritten := make([]chat.Message, 0, 1+len(recent))
 	rewritten = append(rewritten, summary)
 	rewritten = append(rewritten, recent...)
-	// Atomically swap the history for [summary, ...recent] via memory.Replace —
+	// Atomically swap the history for [summary, ...recent] via history.Replace —
 	// a transactional backend rolls back on a failed rewrite, so a crash can't
 	// leave the conversation cleared-but-not-rewritten (losing `recent` too).
-	if err := memory.Replace(ctx, c.store, sessionID, rewritten...); err != nil {
+	if err := history.Replace(ctx, c.store, sessionID, rewritten...); err != nil {
 		return kernel.CompactionResult{}, fmt.Errorf("compactor: replace: %w", err)
 	}
 	return kernel.CompactionResult{

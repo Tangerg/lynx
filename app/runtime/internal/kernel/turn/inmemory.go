@@ -358,10 +358,10 @@ func coalesceTextDeltas(head Event, ch <-chan Event, spill *Event) Event {
 }
 
 // InjectSteering queues message onto the active turn's pending
-// steering buffer. The runtime flushes the queue to the chat-memory
+// steering buffer. The runtime flushes the queue to the chat history
 // store after the turn ends — every queued message becomes a
 // user-role entry in the conversation history that the next turn's
-// chat-memory middleware loads on the next StartTurn.
+// chat history middleware loads on the next StartTurn.
 //
 // This is "next-turn" semantics — not true mid-stream injection.
 // Steering you send while the model is mid-tool-loop affects the

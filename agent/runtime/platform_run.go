@@ -51,7 +51,7 @@ func (p *Platform) RunAgent(
 
 // RunInSession runs the agent under a multi-turn session context.
 // The session is stamped onto [ProcessOptions.Session] so action
-// bodies' chat calls flow through chat-memory keyed by [Session.ID].
+// bodies' chat calls flow through chat history keyed by [Session.ID].
 // When a [SessionStore] is configured on the platform the session is
 // saved before dispatch (so a concurrent reader sees the active
 // turn) and re-saved with refreshed [Session.UpdatedAt] after the

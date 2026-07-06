@@ -1,4 +1,4 @@
-package memory
+package history
 
 import (
 	"context"
@@ -39,7 +39,7 @@ type Clearer interface {
 // via a type assertion, so a backend that cannot (or should not) scan
 // still satisfies [Store]:
 //
-//	if lister, ok := store.(memory.Lister); ok {
+//	if lister, ok := store.(history.Lister); ok {
 //	    ids, err := lister.Conversations(ctx)
 //	}
 type Lister interface {

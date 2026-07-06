@@ -13,17 +13,17 @@ import (
 	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 // Provider names the backend for observability layers that branch
 // on store identity.
-const Provider = "PostgresChatMemory"
+const Provider = "PostgresChatHistory"
 
 // Default identifiers used when [StoreConfig] leaves them blank.
 const (
 	DefaultSchemaName  = "public"
-	DefaultTableName   = "chat_memory"
+	DefaultTableName   = "chat_history"
 	DefaultIndexSuffix = "_conversation_idx"
 )
 
@@ -46,12 +46,12 @@ type StoreConfig struct {
 	// take ownership — callers close the pool themselves.
 	Pool *pgxpool.Pool
 
-	// SchemaName is the PostgreSQL schema that holds the chat-memory
+	// SchemaName is the PostgreSQL schema that holds the chat history
 	// table. Optional: defaults to [DefaultSchemaName] ("public").
 	SchemaName string
 
 	// TableName is the table that stores serialized messages.
-	// Optional: defaults to [DefaultTableName] ("chat_memory").
+	// Optional: defaults to [DefaultTableName] ("chat_history").
 	TableName string
 
 	// IndexName overrides the conversation-id index name generated
@@ -97,11 +97,11 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ memory.Store  = (*Store)(nil)
-	_ memory.Lister = (*Store)(nil)
+	_ history.Store  = (*Store)(nil)
+	_ history.Lister = (*Store)(nil)
 )
 
-// Store is a PostgreSQL-backed [memory.Store]. Construct via
+// Store is a PostgreSQL-backed [history.Store]. Construct via
 // [NewStore].
 //
 // Schema (created when [StoreConfig.InitializeSchema] is true):

@@ -1,6 +1,6 @@
 // Package conversation is the LLM message-context domain: the
 // chat.Message[] history fed to the model each turn, keyed by session.
-// It wraps the chat-memory store (the same store the chat-memory
+// It wraps the chat history store (the same store the chat history
 // middleware loads/saves) and owns the operations that read, seed,
 // count, truncate, and inject into that history.
 //
@@ -15,24 +15,24 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
-// Service owns a session's LLM message history over a chat-memory store.
+// Service owns a session's LLM message history over a chat history store.
 type Service struct {
-	store memory.Store
+	store history.Store
 }
 
-// New builds the service over store — the chat-memory backend (sqlite
-// MessageStore in production, in-memory for tests). The chat-memory
+// New builds the service over store — the chat history backend (sqlite
+// MessageStore in production, in-memory for tests). The chat history
 // middleware loads/saves the same store during a turn; this service is the
 // out-of-turn read/edit surface (fork, rollback, steering, messages.list).
-func New(store memory.Store) *Service {
+func New(store history.Store) *Service {
 	return &Service{store: store}
 }
 
 // Read returns sessionID's persisted message history — the same messages the
-// chat-memory middleware loads at the start of each turn. Empty (nil, nil) for
+// chat history middleware loads at the start of each turn. Empty (nil, nil) for
 // an unknown / never-used session.
 func (s *Service) Read(ctx context.Context, sessionID string) ([]chat.Message, error) {
 	if sessionID == "" {
@@ -63,17 +63,17 @@ func (s *Service) Count(ctx context.Context, sessionID string) (int, error) {
 	if sessionID == "" {
 		return 0, errors.New("conversation: sessionID is required")
 	}
-	// memory.Count uses the store's Counter capability (SQLite: SELECT COUNT(*))
+	// history.Count uses the store's Counter capability (SQLite: SELECT COUNT(*))
 	// when present, so this hot run.finished watermark read doesn't load and
 	// unmarshal the entire history just to count it; it falls back to len(Read)
 	// for backends that can't count cheaply.
-	return memory.Count(ctx, s.store, sessionID)
+	return history.Count(ctx, s.store, sessionID)
 }
 
 // Truncate keeps the first keepN messages of sessionID and drops the rest
 // (sessions.rollback). keepN >= current count is a no-op; keepN <= 0 clears the
 // session. Store-agnostic — read the prefix, then atomically replace the
-// history with it via [memory.Replace], so a transactional backend can't be
+// history with it via [history.Replace], so a transactional backend can't be
 // left wiped if the rewrite fails (the seq renumbering on re-write is
 // immaterial; rollback doesn't depend on stable seqs).
 func (s *Service) Truncate(ctx context.Context, sessionID string, keepN int) error {
@@ -88,11 +88,11 @@ func (s *Service) Truncate(ctx context.Context, sessionID string, keepN int) err
 		return nil
 	}
 	// keepN <= 0 replaces with nothing, which clears the session.
-	return memory.Replace(ctx, s.store, sessionID, msgs[:max(keepN, 0)]...)
+	return history.Replace(ctx, s.store, sessionID, msgs[:max(keepN, 0)]...)
 }
 
 // InjectUser appends a synthetic user message to sessionID's history — it
-// becomes part of the conversation the chat-memory middleware loads at the
+// becomes part of the conversation the chat history middleware loads at the
 // start of the next turn. chat.Service uses this to deliver mid-turn steering
 // once the current turn ends. Errors on an empty sessionID or text.
 func (s *Service) InjectUser(ctx context.Context, sessionID, text string) error {

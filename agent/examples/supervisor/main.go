@@ -12,7 +12,9 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
+	"github.com/Tangerg/lynx/core/model/chat/history"
+	historymw "github.com/Tangerg/lynx/core/model/chat/middleware/history"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
@@ -77,14 +79,14 @@ func main() {
 				summarizeTool, _ := runtime.AsChatTool[Sources, Summary](platform, "summarize-agent")
 
 				// The tool loop carries only each round's new tool message
-				// downstream; an inner memory layer reconstructs the
+				// downstream; an inner history layer reconstructs the
 				// conversation. Standalone here, so pair with an ephemeral
 				// in-process store scoped to this call.
 				callMW, streamMW := tool.NewMiddleware()
-				memCallMW, memStreamMW, _ := memory.NewMiddleware(memory.NewInMemoryStore())
+				historyCallMW, historyStreamMW, _ := historymw.NewMiddleware(history.NewInMemoryStore())
 				req := pc.Chat().
-					WithMiddlewares(callMW, streamMW, memCallMW, memStreamMW).
-					WithParams(map[string]any{chat.ConversationIDKey: "example:supervisor"}).
+					WithMiddlewares(callMW, streamMW, historyCallMW, historyStreamMW).
+					WithParams(map[string]any{chatconversation.IDKey: "example:supervisor"}).
 					WithTools(researchTool, summarizeTool)
 
 				prompt := fmt.Sprintf(

@@ -1,4 +1,4 @@
-package memory_test
+package history_test
 
 import (
 	"context"
@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
+	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/history"
 )
 
 // recordingHandler captures the messages of the last request it received
@@ -33,16 +35,22 @@ func messageTypes(msgs []chat.Message) string {
 	return strings.Join(parts, " → ")
 }
 
-// TestMemoryMiddleware_SystemFirstAndNeverPersisted locks the two memory
+func TestHistoryMiddleware_RejectsNilStore(t *testing.T) {
+	if _, _, err := history.NewMiddleware(nil); err == nil {
+		t.Fatal("nil store must error")
+	}
+}
+
+// TestHistoryMiddleware_SystemFirstAndNeverPersisted locks the two history
 // invariants across two turns of the same conversation:
 //   - the system message is regenerated each turn, never persisted, and
 //     always the first message the model sees;
 //   - stored history is loaded and spliced in front of the turn's new
 //     non-system messages (load → splice → save), with no de-duplication
 //     state involved.
-func TestMemoryMiddleware_SystemFirstAndNeverPersisted(t *testing.T) {
-	store := memory.NewInMemoryStore()
-	callMW, _, err := memory.NewMiddleware(store)
+func TestHistoryMiddleware_SystemFirstAndNeverPersisted(t *testing.T) {
+	store := chathistory.NewInMemoryStore()
+	callMW, _, err := history.NewMiddleware(store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +63,7 @@ func TestMemoryMiddleware_SystemFirstAndNeverPersisted(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		req.Set(chat.ConversationIDKey, "c1")
+		req.Set(chatconversation.IDKey, "c1")
 		if _, err := handler.Call(ctx, req); err != nil {
 			t.Fatal(err)
 		}
@@ -102,11 +110,11 @@ func TestMemoryMiddleware_SystemFirstAndNeverPersisted(t *testing.T) {
 	}
 }
 
-// TestMemoryMiddleware_NoConversationIDPassesThrough verifies the middleware
+// TestHistoryMiddleware_NoConversationIDPassesThrough verifies the middleware
 // is a no-op (no load, no save) when no conversation id is set.
-func TestMemoryMiddleware_NoConversationIDPassesThrough(t *testing.T) {
-	store := memory.NewInMemoryStore()
-	callMW, _, err := memory.NewMiddleware(store)
+func TestHistoryMiddleware_NoConversationIDPassesThrough(t *testing.T) {
+	store := chathistory.NewInMemoryStore()
+	callMW, _, err := history.NewMiddleware(store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,25 +147,25 @@ func (h toolCallHandler) Call(_ context.Context, _ *chat.Request) (*chat.Respons
 	return chat.NewResponse(res, &chat.ResponseMetadata{})
 }
 
-// TestMemoryMiddleware_SkipsUnpairedToolCallAssistant pins the fix for the
+// TestHistoryMiddleware_SkipsUnpairedToolCallAssistant pins the fix for the
 // dangling-tool_call bug: a model reply that REQUESTS tools is not persisted on
 // its own (it has no answering tool message yet), so an interrupt or abort
 // mid-round can never strand an unanswered assistant(tool_calls) in the store.
 // The (assistant, tool) pair is written only when the tool-calling middleware
 // re-presents them together as the next round's input.
-func TestMemoryMiddleware_SkipsUnpairedToolCallAssistant(t *testing.T) {
-	store := memory.NewInMemoryStore()
-	callMW, _, err := memory.NewMiddleware(store)
+func TestHistoryMiddleware_SkipsUnpairedToolCallAssistant(t *testing.T) {
+	store := chathistory.NewInMemoryStore()
+	callMW, _, err := history.NewMiddleware(store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
 
-	// Round 1: model asks for a tool. Memory must persist the user input but
+	// Round 1: model asks for a tool. history must persist the user input but
 	// NOT the unpaired tool-call assistant.
 	h1 := callMW(chat.CallHandlerFunc(toolCallHandler{id: "call_1", name: "x"}.Call))
 	req1, _ := chat.NewRequest([]chat.Message{chat.NewUserMessage("do it")})
-	req1.Set(chat.ConversationIDKey, "c1")
+	req1.Set(chatconversation.IDKey, "c1")
 	if _, err := h1.Call(ctx, req1); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +180,7 @@ func TestMemoryMiddleware_SkipsUnpairedToolCallAssistant(t *testing.T) {
 	toolMsg, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: "call_1", Name: "x", Result: "ok"}})
 	h2 := callMW(chat.CallHandlerFunc((&recordingHandler{text: "done"}).Call))
 	req2, _ := chat.NewRequest([]chat.Message{assistant, toolMsg})
-	req2.Set(chat.ConversationIDKey, "c1")
+	req2.Set(chatconversation.IDKey, "c1")
 	if _, err := h2.Call(ctx, req2); err != nil {
 		t.Fatal(err)
 	}

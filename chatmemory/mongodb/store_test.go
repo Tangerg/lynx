@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/chatmemory/mongodb"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 func TestStoreConfig_CollectionRequired(t *testing.T) {
@@ -24,6 +24,6 @@ func TestStoreConfig_NilConfig(t *testing.T) {
 	}
 }
 
-func TestStore_ImplementsMemoryStore(t *testing.T) {
-	var _ chatmem.Store = (*mongodb.Store)(nil)
+func TestStore_ImplementsHistoryStore(t *testing.T) {
+	var _ chathistory.Store = (*mongodb.Store)(nil)
 }

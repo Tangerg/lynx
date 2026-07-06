@@ -1,4 +1,4 @@
-// Package mongodb is a [memory.Store] backed by MongoDB via the
+// Package mongodb is a [history.Store] backed by MongoDB via the
 // official mongo-driver v2.
 //
 // Each message is a document in the configured collection:
@@ -16,7 +16,7 @@
 //
 // Example:
 //
-//	col := client.Database("lynx").Collection("chat_memory")
+//	col := client.Database("lynx").Collection("chat_history")
 //	store, _ := mongodb.NewStore(mongodb.StoreConfig{
 //	    Collection:       col,
 //	    InitializeSchema: true, // create the conversation_id index

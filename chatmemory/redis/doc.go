@@ -1,7 +1,7 @@
-// Package redis is a [memory.Store] backed by Redis via go-redis.
+// Package redis is a [history.Store] backed by Redis via go-redis.
 //
 // Each conversation maps to a Redis list keyed by
-// `<KeyPrefix><conversationID>` (default prefix `chat:memory:`).
+// `<KeyPrefix><conversationID>` (default prefix `chat:history:`).
 // Messages are RPUSH'd as canonical [chat.Message] JSON, so a
 // LRANGE 0 -1 read recovers the conversation in chronological order.
 //
@@ -10,9 +10,9 @@
 //	client := goredis.NewUniversalClient(&goredis.UniversalOptions{...})
 //	store, _ := redis.NewStore(redis.StoreConfig{Client: client})
 //
-//	chatMW, _, _ := memory.NewMiddleware(store)
+//	chatMW, _, _ := historymw.NewMiddleware(store)
 //	resp, _ := client.Chat().
-//	    WithParams(map[string]any{chat.ConversationIDKey: "u-42"}).
+//	    WithParams(map[string]any{conversation.IDKey: "u-42"}).
 //	    WithMiddlewares(chatMW).
 //	    WithUserPrompt("hi").
 //	    Call().Response(ctx)

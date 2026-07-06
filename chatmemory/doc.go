@@ -1,8 +1,8 @@
 // Package chatmemory hosts persistent backends for the
-// [github.com/Tangerg/lynx/core/model/chat/memory.Store] interface.
+// [github.com/Tangerg/lynx/core/model/chat/history.Store] interface.
 //
 // The abstraction itself, plus the zero-dependency [InMemoryStore] and
-// [MessageWindowStore] defaults, lives in core/model/chat/memory and
+// [MessageWindowStore] defaults, lives in core/model/chat/history and
 // does not move. This module exists so each persistent backend can
 // pull in its own database driver (pgx, go-redis, mongo-driver, …)
 // without polluting core/go.mod.
@@ -10,7 +10,7 @@
 // The topology mirrors vectorstores/: core/ has the interface,
 // chatmemory/ siblings have the implementations.
 //
-//	core/model/chat/memory/  — Store / Reader / Writer / Clearer
+//	core/model/chat/history/  — Store / Reader / Writer / Clearer
 //	                           + InMemoryStore + MessageWindowStore (default)
 //	chatmemory/postgres/     — PostgreSQL (pgx + JSONB)
 //	chatmemory/redis/        — Redis (RPUSH / LRANGE lists)

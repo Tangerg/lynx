@@ -211,7 +211,7 @@ func (a *AssistantMessage) HasReasoning() bool {
 
 // IsBlank reports whether this assistant message carries neither tool
 // calls nor non-whitespace text — a round boundary with nothing to persist
-// (memory middleware) or re-prompt (tool middleware). A nil receiver
+// (history middleware) or re-prompt (tool middleware). A nil receiver
 // returns true (the message is absent, so it has no content).
 func (a *AssistantMessage) IsBlank() bool {
 	if a == nil {
