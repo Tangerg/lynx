@@ -75,6 +75,24 @@ func TestLocalExecutor_Read_LineRange(t *testing.T) {
 	}
 }
 
+func TestLocalExecutor_Read_MaxBytes(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTemp(t, dir, "a.txt", "ab你cd")
+	out, err := NewLocalExecutor("").Read(t.Context(), ReadInput{
+		Path:     path,
+		MaxBytes: 4,
+	})
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if out.Content != "ab" {
+		t.Errorf("Content = %q, want %q", out.Content, "ab")
+	}
+	if !out.Truncated {
+		t.Error("Truncated = false, want true")
+	}
+}
+
 func TestLocalExecutor_Read_BinaryRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "bin", "hello\x00world")

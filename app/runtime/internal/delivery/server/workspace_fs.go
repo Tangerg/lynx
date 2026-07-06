@@ -82,6 +82,9 @@ func (s *Server) WorkspaceGetFileHead(ctx context.Context, in protocol.GetFileHe
 // Binary files surface fs.ErrBinaryFile. Not gated — a basic read like
 // getFileHead.
 func (s *Server) WorkspaceReadFile(ctx context.Context, in protocol.ReadFileRequest) (*protocol.FileContent, error) {
+	if err := validateReadFileRequest(in); err != nil {
+		return nil, err
+	}
 	root, err := s.workspaceRoot(in.Cwd)
 	if err != nil {
 		return nil, err
@@ -90,7 +93,7 @@ func (s *Server) WorkspaceReadFile(ctx context.Context, in protocol.ReadFileRequ
 	if err != nil {
 		return nil, err
 	}
-	read := fs.ReadInput{Path: rel}
+	read := fs.ReadInput{Path: rel, MaxBytes: in.MaxBytes}
 	windowed := in.StartLine > 0
 	if windowed {
 		read.Offset = in.StartLine - 1
@@ -111,9 +114,25 @@ func (s *Server) WorkspaceReadFile(ctx context.Context, in protocol.ReadFileRequ
 	}
 	if windowed {
 		fc.StartLine = out.StartLine + 1 // ReadOutput line indices are 0-based
-		fc.EndLine = out.EndLine + 1
+		fc.EndLine = out.EndLine
 	}
 	return fc, nil
+}
+
+func validateReadFileRequest(in protocol.ReadFileRequest) error {
+	if in.StartLine < 0 || in.EndLine < 0 {
+		return fmt.Errorf("%w: startLine and endLine must be non-negative", protocol.ErrInvalidParams)
+	}
+	if in.MaxBytes < 0 {
+		return fmt.Errorf("%w: maxBytes must be non-negative", protocol.ErrInvalidParams)
+	}
+	if in.EndLine > 0 && in.StartLine == 0 {
+		return fmt.Errorf("%w: endLine requires startLine", protocol.ErrInvalidParams)
+	}
+	if in.StartLine > 0 && in.EndLine > 0 && in.EndLine < in.StartLine {
+		return fmt.Errorf("%w: endLine must be greater than or equal to startLine", protocol.ErrInvalidParams)
+	}
+	return nil
 }
 
 // fileLines splits a Read result into numbered preview lines. StartLine is

@@ -142,13 +142,18 @@ func (l *LocalExecutor) Read(_ context.Context, in ReadInput) (ReadOutput, error
 	if in.Limit > 0 {
 		end = min(start+in.Limit, total)
 	}
+	readContent := strings.Join(lines[start:end], "\n")
+	byteTruncated := false
+	if in.MaxBytes > 0 {
+		readContent, byteTruncated = truncateTextBytes(readContent, in.MaxBytes)
+	}
 
 	return ReadOutput{
-		Content:    strings.Join(lines[start:end], "\n"),
+		Content:    readContent,
 		StartLine:  start,
 		EndLine:    end,
 		TotalLines: total,
-		Truncated:  end < total,
+		Truncated:  end < total || byteTruncated,
 	}, nil
 }
 
@@ -542,6 +547,20 @@ func looksBinary(data []byte) bool {
 		sniff = sniff[:binarySniffLen]
 	}
 	return bytes.IndexByte(sniff, 0) >= 0
+}
+
+func truncateTextBytes(text string, maxBytes int) (string, bool) {
+	if maxBytes <= 0 || len(text) <= maxBytes {
+		return text, false
+	}
+	end := 0
+	for i := range text {
+		if i > maxBytes {
+			break
+		}
+		end = i
+	}
+	return text[:end], true
 }
 
 func splitLines(out []byte) []string {
