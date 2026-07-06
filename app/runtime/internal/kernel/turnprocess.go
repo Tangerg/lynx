@@ -9,14 +9,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 )
 
-// ChatProcess is the handle [Engine.StartChat] returns. It exposes
+// TurnProcess is the handle [Engine.StartTurn] returns. It exposes
 // the underlying [runtime.AgentProcess] lifecycle (status, failure,
 // cancellation) plus a typed result extractor — chat.Service drives
 // the turn off Done() and queries Status() to decide TurnEnd reason.
 //
 // The interface lives in this package (not in the chat service) so
 // test stubs can substitute a fake without standing up a full platform.
-type ChatProcess interface {
+type TurnProcess interface {
 	// ID is the underlying agent process id — surfaces to clients as
 	// the turn handle so cancellation / resume requests route through
 	// the runtime by process id.
@@ -32,10 +32,10 @@ type ChatProcess interface {
 	// the goroutine has already finished.
 	Done() <-chan error
 
-	// Output extracts the typed [ChatOutput] from the process
+	// Output extracts the typed [TurnOutput] from the process
 	// blackboard. Returns an error when the run produced no output
 	// (status reflects the terminal cause).
-	Output() (ChatOutput, error)
+	Output() (TurnOutput, error)
 
 	// Cancel marks the process [core.StatusKilled] via the platform.
 	// The ongoing tick observes the status flip at its next checkpoint
@@ -68,32 +68,32 @@ type ChatProcess interface {
 	Discard(ctx context.Context)
 }
 
-// chatProcess is the canonical [ChatProcess] backed by a real
+// turnProcess is the canonical [TurnProcess] backed by a real
 // [runtime.AgentProcess]. processControl is held so lifecycle commands stay
 // behind the engine boundary instead of leaking the full agent platform.
-type chatProcess struct {
+type turnProcess struct {
 	proc     *runtime.AgentProcess
 	done     <-chan error
 	platform processControl
 }
 
-func (cp *chatProcess) ID() string                      { return cp.proc.ID() }
-func (cp *chatProcess) Status() core.AgentProcessStatus { return cp.proc.Status() }
-func (cp *chatProcess) Done() <-chan error              { return cp.done }
-func (cp *chatProcess) Cancel() error {
+func (cp *turnProcess) ID() string                      { return cp.proc.ID() }
+func (cp *turnProcess) Status() core.AgentProcessStatus { return cp.proc.Status() }
+func (cp *turnProcess) Done() <-chan error              { return cp.done }
+func (cp *turnProcess) Cancel() error {
 	return cp.platform.KillProcess(cp.proc.ID())
 }
 
-func (cp *chatProcess) Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error) {
+func (cp *turnProcess) Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error) {
 	if _, err := cp.platform.ResumeProcess(cp.proc.ID(), resolution); err != nil {
 		return nil, err
 	}
 	return cp.platform.ContinueProcessAsync(ctx, cp.proc.ID()), nil
 }
 
-func (cp *chatProcess) PendingAwaitable() core.Awaitable { return cp.proc.PendingAwaitable() }
+func (cp *turnProcess) PendingAwaitable() core.Awaitable { return cp.proc.PendingAwaitable() }
 
-func (cp *chatProcess) Discard(ctx context.Context) {
+func (cp *turnProcess) Discard(ctx context.Context) {
 	id := cp.proc.ID()
 	_ = cp.platform.RemoveProcess(id) // free the in-memory registry entry
 	if store := cp.platform.ProcessStore(); store != nil {
@@ -101,15 +101,15 @@ func (cp *chatProcess) Discard(ctx context.Context) {
 	}
 }
 
-func (cp *chatProcess) Output() (ChatOutput, error) {
-	out, ok := core.ResultOfType[ChatOutput](cp.proc)
+func (cp *turnProcess) Output() (TurnOutput, error) {
+	out, ok := core.ResultOfType[TurnOutput](cp.proc)
 	if ok {
 		return out, nil
 	}
 	// Preserve the process failure's error chain when there is one (%w);
 	// a bare %w on a nil failure would format as "%!w(<nil>)".
 	if failure := cp.proc.Failure(); failure != nil {
-		return ChatOutput{}, fmt.Errorf("engine: no ChatOutput produced (status=%s): %w", cp.proc.Status(), failure)
+		return TurnOutput{}, fmt.Errorf("engine: no TurnOutput produced (status=%s): %w", cp.proc.Status(), failure)
 	}
-	return ChatOutput{}, fmt.Errorf("engine: no ChatOutput produced (status=%s)", cp.proc.Status())
+	return TurnOutput{}, fmt.Errorf("engine: no TurnOutput produced (status=%s)", cp.proc.Status())
 }

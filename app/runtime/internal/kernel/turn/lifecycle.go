@@ -8,7 +8,7 @@ import (
 
 // turnLifecycle captures the first terminal process event the agent
 // runtime publishes for a turn's ROOT process. The lifecycle listener
-// wires into [kernel.RunChatRequest.EventListener] so the runtime fans
+// wires into [kernel.RunTurnRequest.EventListener] so the runtime fans
 // every event for the turn through capture; runTurn reads the captured
 // event after proc.Done() to decide the TurnEnd reason.
 //
@@ -31,7 +31,7 @@ type turnLifecycle struct {
 	terminal event.Event
 }
 
-// setRoot records the turn's root process id once StartChat returns it,
+// setRoot records the turn's root process id once StartTurn returns it,
 // so the listener can tell the root's terminal apart from a subtask's.
 // Called before the root reaches any terminal state, so no terminal is
 // missed by the gate.
@@ -51,7 +51,7 @@ func (l *turnLifecycle) listener(turnID string) *event.NamedListener {
 			event.ProcessStuck:
 			l.mu.Lock()
 			// Only the root process's terminal decides TurnEnd. rootID == ""
-			// (StartChat hasn't returned, or stub tests that never set it)
+			// (StartTurn hasn't returned, or stub tests that never set it)
 			// falls back to accepting any, preserving prior behavior.
 			if l.terminal == nil && (l.rootID == "" || e.ProcessID() == l.rootID) {
 				l.terminal = e

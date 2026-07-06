@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// llmIdleTimeout is the silence window of a chat turn's hang backstop (see
+// llmIdleTimeout is the silence window of a turn's hang backstop (see
 // [stallContext]): as long as the stream keeps producing — reasoning tokens,
 // tool rounds — the turn runs; only a provider gone SILENT this long (a real
 // hang: no response, or an unparseable stream like the error body a no-access
@@ -38,16 +38,16 @@ func stallContext(parent context.Context, idle time.Duration) (ctx context.Conte
 	return ctx, func() { t.Reset(idle) }, func() { t.Stop(); cancel() }
 }
 
-// runChatTurn drives one streaming chat turn end-to-end: compose the
+// runTurn drives one streaming turn end-to-end: compose the
 // system prompt + user message (with any image attachments), run the
 // tool-loop, stream deltas to the observer, record each LLM round into the
 // process budget, and assemble the result. HITL interrupt / resume is
 // handled by the tool middleware's [toolloop.ParkStore]; when none is
 // configured, the engine intercepts tool-loop interrupt chunks as
 // a fallback.
-func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget turnBudget) (ChatOutput, error) {
+func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget turnBudget) (TurnOutput, error) {
 	// Mid-run steering: stash the turn's SteerSource (attached as a process
-	// extension by StartChat) on the context the stream runs under, so the tool
+	// extension by StartTurn) on the context the stream runs under, so the tool
 	// loop's BeforeRound hook can drain it between rounds. Owning the context
 	// here makes the handoff a guarantee, not a bet on platform propagation.
 	if steer := steerFrom(pc.Options); steer != nil {
@@ -61,7 +61,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provi
 
 	req, err := pc.ChatWithActionTools(ctx)
 	if err != nil {
-		return ChatOutput{}, err
+		return TurnOutput{}, err
 	}
 	req = req.WithOptions(options)
 
@@ -102,7 +102,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provi
 		}
 		inv := e.invocationFrom(provider, roundModel, roundUsage)
 		pc.RecordLLMInvocation(inv)
-		// Fold into the running roll-up the same way chatOutput sums the ledger,
+		// Fold into the running roll-up the same way turnOutput sums the ledger,
 		// so the mid-run readout matches the final TurnEnd total exactly.
 		cumulative.add(inv)
 		cumulativeCost += inv.CostUSD
@@ -117,7 +117,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provi
 		keepAlive() // progress — push the silence deadline out
 		if streamErr != nil {
 			recordRound()
-			return ChatOutput{}, streamErr
+			return TurnOutput{}, streamErr
 		}
 		// Fallback: when no ParkStore is configured, the tool middleware
 		// yields interrupt chunks. Intercept and save to the
@@ -131,13 +131,13 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provi
 		if chunk.IsToolResult() {
 			recordRound()
 			if budget.exceeded(pc) {
-				return chatOutput(pc, accumulated.String(), true), nil
+				return turnOutput(pc, accumulated.String(), true), nil
 			}
 			// Per-run step cap: stop cleanly once MaxSteps tool-call rounds have
 			// run — before paying for the next LLM call. Distinct from the token
 			// / cost budget; surfaces as the maxSteps run outcome.
 			if steps++; budget.MaxSteps > 0 && steps >= budget.MaxSteps {
-				out := chatOutput(pc, accumulated.String(), false)
+				out := turnOutput(pc, accumulated.String(), false)
 				out.StoppedOnSteps = true
 				return out, nil
 			}
@@ -165,5 +165,5 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provi
 		}
 	}
 	recordRound()
-	return chatOutput(pc, accumulated.String(), false), nil
+	return turnOutput(pc, accumulated.String(), false), nil
 }

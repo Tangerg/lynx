@@ -18,9 +18,9 @@ import (
 // injected ports for the capabilities it consumes (doc/GREENFIELD_ARCHITECTURE.md §5.1). It
 // composes three concerns:
 //
-//   - chat execution: platform + agent drive [Engine.StartChat]
-//     (async; returns a [ChatProcess] handle backed by a real
-//     [runtime.AgentProcess]) and [Engine.RunChat] (sync wrapper) —
+//   - turn execution: platform + agent drive [Engine.StartTurn]
+//     (async; returns a [TurnProcess] handle backed by a real
+//     [runtime.AgentProcess]) and [Engine.RunTurn] (sync wrapper) —
 //     see chatturn.go / chatprocess.go
 //   - maintenance:    the injected Compactor / Extractor ports power
 //     [Engine.MaybeCompact] / [Engine.MaybeExtract]
@@ -124,7 +124,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// platform to spawn the sub-agent, so the engine builds + injects it).
 	e.tools = append(append([]chat.Tool{}, cfg.Tools...), taskTool)
 
-	e.agent = e.buildChatAgent()
+	e.agent = e.buildTurnAgent()
 	if err := platform.Deploy(e.agent); err != nil {
 		return nil, fmt.Errorf("engine: deploy chat agent: %w", err)
 	}

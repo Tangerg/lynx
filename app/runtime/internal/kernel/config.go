@@ -71,7 +71,7 @@ type Config struct {
 	// Pricing optionally computes per-round USD cost from the round's
 	// provider + served model + token usage. nil leaves cost at zero (the chat
 	// path gets no dollar figure from providers). Supply a rate table to surface
-	// CostUSD on ChatOutput / TurnEnd. See [Pricing].
+	// CostUSD on TurnOutput / TurnEnd. See [Pricing].
 	Pricing Pricing
 
 	// Provider is the runtime's DEFAULT provider id — the provider a turn runs
@@ -85,7 +85,7 @@ type Config struct {
 	// foundation for resuming a paused turn across restart). nil = no
 	// persistence (no per-tick disk churn). The snapshot is process-level
 	// (status / blackboard / history / budget), so for a single-action
-	// chat turn it captures the turn boundary, not mid-LLM-loop state.
+	// turn it captures the turn boundary, not mid-LLM-loop state.
 	ProcessStore core.ProcessStore
 
 	// SessionStore, when non-nil, is handed to the platform so the runtime

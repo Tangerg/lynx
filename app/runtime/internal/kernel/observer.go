@@ -22,7 +22,7 @@ var ErrToolDenied = errors.New("engine.ErrToolDenied: tool call denied by user")
 // the same opaque CallID; the assistant text arrives in zero or
 // more OnMessageDelta calls between (and around) tool calls.
 //
-// Implementations must be safe for concurrent calls — a chat turn
+// Implementations must be safe for concurrent calls — a turn
 // may dispatch multiple tools simultaneously when the model emits
 // parallel tool_calls.
 type toolObserver interface {
@@ -93,7 +93,7 @@ type ToolApprovalVerdict struct {
 }
 
 // observerFrom extracts the [toolObserver] the engine attached to
-// opts via [Engine.RunChat]. Returns nil when no observer is
+// opts via [Engine.RunTurn]. Returns nil when no observer is
 // registered — Action bodies treat that as "no streaming hook
 // wired" and skip the per-chunk callback.
 //
@@ -112,7 +112,7 @@ func observerFrom(opts *core.ProcessOptions) toolObserver {
 }
 
 // toolObserverDecorator is the process-scope [core.ToolDecorator]
-// the engine attaches when [RunChat] is called with an observer.
+// the engine attaches when [RunTurn] is called with an observer.
 // It wraps every resolved [core.AgentTool] with [observedTool] so
 // invocations land on the observer without changing the underlying
 // tool implementation.

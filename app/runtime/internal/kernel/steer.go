@@ -7,18 +7,18 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// Mid-run steering plumbing. A turn supplies a SteerSource on RunChatRequest;
+// Mid-run steering plumbing. A turn supplies a SteerSource on RunTurnRequest;
 // it travels two hops to reach the tool loop's BeforeRound hook:
 //
-//	StartChat → steerExtension (process-scope, not the serializable blackboard,
-//	            since it's a live func) → runChatTurn resolves it via steerFrom
+//	StartTurn → steerExtension (process-scope, not the serializable blackboard,
+//	            since it's a live func) → runTurn resolves it via steerFrom
 //	            → stashes it on the per-round context (withSteerSource) → the
 //	            tool loop's BeforeRound reads steerSourceFrom and drains it
 //	            before each continuation round.
 //
 // The context hop (rather than relying on the platform to propagate the
-// StartChat context's values into the action) makes the handoff a guarantee:
-// runChatTurn owns the context it hands the stream.
+// StartTurn context's values into the action) makes the handoff a guarantee:
+// runTurn owns the context it hands the stream.
 
 // SteerSource yields user messages to inject into a running tool loop before
 // the next model round. Returns nil when nothing is queued. Must not block.
@@ -32,7 +32,7 @@ type steerExtension struct{ source SteerSource }
 // Name implements [core.Extension]; unique across the process extension slice.
 func (steerExtension) Name() string { return "lyra:steer-source" }
 
-// steerFrom extracts the SteerSource a turn attached via StartChat, or nil.
+// steerFrom extracts the SteerSource a turn attached via StartTurn, or nil.
 func steerFrom(opts *core.ProcessOptions) SteerSource {
 	if opts == nil {
 		return nil

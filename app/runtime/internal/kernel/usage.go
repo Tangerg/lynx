@@ -47,7 +47,7 @@ type ModelUsage struct {
 // provider is required because a model id is not unique across providers (e.g.
 // gpt-4o is priced differently by openai vs azureopenai) — pricing by model id
 // alone mis-attributes the rate. Supply via [Config.Pricing] to populate cost on
-// invocations / ChatOutput / TurnEnd; nil leaves cost at zero. The rate table
+// invocations / TurnOutput / TurnEnd; nil leaves cost at zero. The rate table
 // lives in the model adapters' pricing catalog — the engine never invents cost.
 type Pricing func(provider, model string, usage *chat.Usage) float64
 
@@ -103,12 +103,12 @@ func (e *Engine) invocationFrom(provider, model string, u *chat.Usage) core.LLMI
 	return inv
 }
 
-// chatOutput assembles the turn result from the process budget's
+// turnOutput assembles the turn result from the process budget's
 // invocation ledger: the total roll-up plus a per-model breakdown
 // (insertion order preserved). Reading from the ledger — rather than a
 // local tally — is the point: lyra uses the framework's accounting.
-func chatOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) ChatOutput {
-	out := ChatOutput{Reply: reply, StoppedOnBudget: stoppedOnBudget}
+func turnOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) TurnOutput {
+	out := TurnOutput{Reply: reply, StoppedOnBudget: stoppedOnBudget}
 	byModel := map[string]*ModelUsage{}
 	var order []string
 	for _, inv := range pc.Process.LLMInvocations() {
