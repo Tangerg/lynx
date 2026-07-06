@@ -57,8 +57,6 @@ func (t *Tool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *Tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
 	_ = ctx
 	var req Request

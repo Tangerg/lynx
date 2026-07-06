@@ -26,7 +26,6 @@ type concTool struct {
 func (c *concTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{Name: c.name, Description: "stub", InputSchema: "{}"}
 }
-func (c *concTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
 
 // ConcurrencyKey is the [ConcurrentTool] opt-in: (key, concurrent).
 func (c *concTool) ConcurrencyKey(string) (string, bool) { return c.key, c.concurrent }
@@ -117,7 +116,6 @@ type panicTool struct{ name string }
 func (p *panicTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{Name: p.name, Description: "stub", InputSchema: "{}"}
 }
-func (p *panicTool) Metadata() chat.ToolMetadata          { return chat.ToolMetadata{} }
 func (p *panicTool) ConcurrencyKey(string) (string, bool) { return "", true }
 func (p *panicTool) Call(context.Context, string) (string, error) {
 	panic("boom")

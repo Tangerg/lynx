@@ -69,7 +69,6 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 				"A command still running after auto_background_after seconds (default 60) is moved to the background and its shell id returned; read the rest of its output with shell_output and stop it with shell_kill. Set run_in_background to background it immediately.",
 			InputSchema: shellSchema,
 		},
-		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
 			var a shellArgs
 			if err := json.Unmarshal([]byte(arguments), &a); err != nil {
@@ -133,7 +132,6 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 			Description: "Read new output from a background shell (only output since the last read). Reports whether it is still running or has exited. With block, waits until the shell exits (or timeout ms) — wait for a backgrounded command without a sleep poll loop.",
 			InputSchema: shellOutputSchema,
 		},
-		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
 			var a shellOutputArgs
 			if err := json.Unmarshal([]byte(arguments), &a); err != nil {
@@ -172,7 +170,6 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 			Description: "Stop a background shell.",
 			InputSchema: bgShellIDSchema,
 		},
-		chat.ToolMetadata{},
 		func(_ context.Context, arguments string) (string, error) {
 			id, err := bgShellID(arguments, "shell_kill")
 			if err != nil {

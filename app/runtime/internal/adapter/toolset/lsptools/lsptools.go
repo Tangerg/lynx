@@ -60,7 +60,6 @@ const lspDesc = "Query the language server (LSP) about code at a position or acr
 func newLSPTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
 	t, _ := chat.NewTool(
 		chat.ToolDefinition{Name: "lsp", Description: lspDesc, InputSchema: lspSchema},
-		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
 			var in lspInput
 			if err := json.Unmarshal([]byte(arguments), &in); err != nil {
@@ -123,7 +122,6 @@ func newDiagnosticsTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool 
 			Description: "Get the language server's current problems (compile errors, warnings) for a file.",
 			InputSchema: lspDiagnosticsSchema,
 		},
-		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
 			var in lspDiagnosticsInput
 			if err := json.Unmarshal([]byte(arguments), &in); err != nil {

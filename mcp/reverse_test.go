@@ -30,8 +30,6 @@ func (t *progressTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *progressTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 func (t *progressTool) Call(ctx context.Context, _ string) (string, error) {
 	if mcp.ServerSessionFromContext(ctx) == nil {
 		return "", errors.New("expected server session in ctx")

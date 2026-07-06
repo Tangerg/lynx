@@ -163,8 +163,6 @@ func (t *Tool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *Tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 func (t *Tool) Call(_ context.Context, arguments string) (string, error) {
 	t.log("raw_request", arguments)
 

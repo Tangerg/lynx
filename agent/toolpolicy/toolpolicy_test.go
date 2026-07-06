@@ -20,7 +20,6 @@ type fakeTool struct {
 func (t *fakeTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{Name: t.name, InputSchema: `{"type":"object"}`}
 }
-func (t *fakeTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
 func (t *fakeTool) Call(_ context.Context, args string) (string, error) {
 	t.calls++
 	t.gotArgs = append(t.gotArgs, args)

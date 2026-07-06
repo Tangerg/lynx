@@ -452,7 +452,6 @@ func newTestTool(t *testing.T) chat.Tool {
 			Description: "look up weather",
 			InputSchema: `{"type":"object","properties":{"city":{"type":"string"}}}`,
 		},
-		chat.ToolMetadata{},
 		func(context.Context, string) (string, error) { return "sunny", nil },
 	)
 	if err != nil {

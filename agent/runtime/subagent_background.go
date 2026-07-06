@@ -43,7 +43,6 @@ func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent)
 			Description: "Start " + agentDef.Name + " as a background task. Returns a task_id immediately; collect its result later with " + agentDef.Name + "_collect.",
 			InputSchema: pkgjson.MustStringDefSchemaOf(inSample),
 		},
-		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
 			var in In
 			if arguments != "" {
@@ -68,7 +67,6 @@ func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent)
 			Description: "Collect a background " + agentDef.Name + " task by task_id. Reports status running|waiting|done|failed, with the result when done.",
 			InputSchema: pkgjson.MustStringDefSchemaOf(collectTaskInput{}),
 		},
-		chat.ToolMetadata{},
 		func(_ context.Context, arguments string) (string, error) {
 			var args collectTaskInput
 			if parseErr := json.Unmarshal([]byte(arguments), &args); parseErr != nil {

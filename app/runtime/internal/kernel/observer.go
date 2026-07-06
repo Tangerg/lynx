@@ -142,7 +142,6 @@ type observedTool struct {
 }
 
 func (o *observedTool) Definition() chat.ToolDefinition { return o.inner.Definition() }
-func (o *observedTool) Metadata() chat.ToolMetadata     { return o.inner.Metadata() }
 
 // ConcurrencyKey forwards the wrapped tool's concurrency declaration (the tool
 // loop's optional ConcurrentTool contract), matched structurally so the kernel
@@ -159,6 +158,16 @@ func (o *observedTool) ConcurrencyKey(arguments string) (key string, concurrent 
 		return c.ConcurrencyKey(arguments)
 	}
 	return "", false
+}
+
+// ReturnsDirect forwards the wrapped tool's return-direct declaration. This
+// decorator wraps every resolved tool, so dropping the marker would turn
+// return-direct tools into regular continuation tools.
+func (o *observedTool) ReturnsDirect() bool {
+	if direct, ok := o.inner.(interface{ ReturnsDirect() bool }); ok {
+		return direct.ReturnsDirect()
+	}
+	return false
 }
 
 func (o *observedTool) Call(ctx context.Context, arguments string) (string, error) {

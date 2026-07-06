@@ -5,10 +5,10 @@
 //
 // A Provider aggregates one or more *sdkmcp.ClientSession sources, fans
 // listTools across them, and exposes the result as a list of chat.Tool. Each
-// remote tool is wrapped in a Tool, which implements chat.Tool;
-// the ToolMiddleware can therefore drive an MCP tool exactly like any
-// local tool. The cache is invalidated automatically when a server delivers
-// a tools/list_changed notification, provided the caller wires
+// remote tool is wrapped in a Tool, which implements chat.Tool; any tool-loop
+// driver can therefore drive an MCP tool exactly like a local tool. The cache
+// is invalidated automatically when a server delivers a tools/list_changed
+// notification, provided the caller wires
 // (*Provider).OnToolListChanged into sdkmcp.ClientOptions.
 //
 // # Server side

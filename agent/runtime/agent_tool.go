@@ -38,7 +38,6 @@ type agentTool struct {
 }
 
 func (t *agentTool) Definition() chat.ToolDefinition { return t.def }
-func (t *agentTool) Metadata() chat.ToolMetadata     { return chat.ToolMetadata{} }
 
 // ConcurrencyKey opts an agent-as-tool into parallel execution (the tool loop's
 // optional concurrency contract): each call spawns an ISOLATED child process

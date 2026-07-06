@@ -50,8 +50,6 @@ func (t *WriteTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *WriteTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 // ConcurrencyKey opts write into concurrent execution keyed on its target file
 // (the tool loop's optional concurrency contract): distinct-file writes run in
 // parallel, same-file writes serialize. An unparseable / empty path yields no

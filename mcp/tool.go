@@ -15,17 +15,15 @@ import (
 
 // Tool wraps a single remote MCP tool as a chat.Tool. Each Call
 // dials the bound *sdkmcp.ClientSession's tools/call RPC, translates the
-// result, and returns a (string, error) pair compatible with
-// chat.ToolMiddleware. A remote IsError result is mapped to
-// *ToolCallError; use errors.As to distinguish it from transport or
-// protocol failures.
+// result, and returns a (string, error) pair compatible with chat.Tool. A
+// remote IsError result is mapped to *ToolCallError; use errors.As to
+// distinguish it from transport or protocol failures.
 //
 // The wrapper is immutable after construction.
 type Tool struct {
 	session    *sdkmcp.ClientSession
 	descriptor *sdkmcp.Tool
 	definition chat.ToolDefinition
-	metadata   chat.ToolMetadata
 	metaFunc   MetaFunc
 }
 
@@ -43,10 +41,6 @@ type ToolConfig struct {
 	// PrefixedName overrides the public name reported into the tool
 	// registry. Empty defaults to Descriptor.Name.
 	PrefixedName string
-
-	// Metadata is the chat.ToolMetadata reported by the wrapper. The
-	// zero value is fine for most cases.
-	Metadata chat.ToolMetadata
 
 	// MetaFunc produces the _meta map carried on each CallTool RPC. Nil
 	// forwards no metadata.
@@ -97,13 +91,11 @@ func NewTool(cfg ToolConfig) (*Tool, error) {
 			Description: cfg.Descriptor.Description,
 			InputSchema: schema,
 		},
-		metadata: cfg.Metadata,
 		metaFunc: cfg.MetaFunc,
 	}, nil
 }
 
 func (t *Tool) Definition() chat.ToolDefinition { return t.definition }
-func (t *Tool) Metadata() chat.ToolMetadata     { return t.metadata }
 
 // Descriptor returns the underlying MCP tool descriptor for callers
 // that need fields beyond name/description/schema (annotations, output

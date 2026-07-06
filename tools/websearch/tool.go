@@ -58,8 +58,6 @@ Search hygiene:
 - For official docs, restrict with allowed_domains (e.g. ["nodejs.org"]) — far less noise than open web
 - If the first query returns weak hits, refine keywords and search again rather than guessing`
 
-func (t *Tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 // ConcurrencyKey opts web_search into parallel execution — a read-only search
 // has no local resource conflict (the tool loop's optional concurrency
 // contract), so the loop runs several searches at once.

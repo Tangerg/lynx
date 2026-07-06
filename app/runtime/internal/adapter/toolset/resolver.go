@@ -29,26 +29,23 @@ import (
 // prompt composition all read it inward without coupling to each other.
 
 // wrapTool returns a Tool that runs call while preserving inner's Definition
-// and Metadata — the shared spine of the tool decorators (read/edit guards,
-// post-edit diagnostics). It also forwards inner's concurrency declaration (the
-// tool loop's optional ConcurrencyKey contract) so a keyed file tool's per-path
-// conflict class survives the whole decorator stack — the loop still serializes
-// same-path writes while parallelizing distinct-path ones.
+// — the shared spine of the tool decorators (read/edit guards, post-edit
+// diagnostics). It also forwards inner's optional tool-loop declarations so a
+// keyed file tool's per-path conflict class and return-direct policy survive
+// the whole decorator stack.
 func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) (string, error)) chat.Tool {
 	return &decoratedTool{inner: inner, call: call}
 }
 
 // decoratedTool is the backing type for [wrapTool]: it overrides Call while
-// delegating Definition / Metadata / ConcurrencyKey to the wrapped tool, so a
-// stack of decorators preserves the inner tool's full contract — including its
-// per-call concurrency declaration.
+// delegating Definition plus optional tool-loop declarations to the wrapped
+// tool, so a stack of decorators preserves the inner tool's full contract.
 type decoratedTool struct {
 	inner chat.Tool
 	call  func(ctx context.Context, arguments string) (string, error)
 }
 
 func (d *decoratedTool) Definition() chat.ToolDefinition { return d.inner.Definition() }
-func (d *decoratedTool) Metadata() chat.ToolMetadata     { return d.inner.Metadata() }
 
 func (d *decoratedTool) Call(ctx context.Context, arguments string) (string, error) {
 	return d.call(ctx, arguments)
@@ -65,6 +62,13 @@ func (d *decoratedTool) ConcurrencyKey(arguments string) (key string, concurrent
 		return c.ConcurrencyKey(arguments)
 	}
 	return "", false
+}
+
+func (d *decoratedTool) ReturnsDirect() bool {
+	if direct, ok := d.inner.(interface{ ReturnsDirect() bool }); ok {
+		return direct.ReturnsDirect()
+	}
+	return false
 }
 
 // BuildWorkdirTools instantiates the working-directory-bound filesystem tools,

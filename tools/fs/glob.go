@@ -51,8 +51,6 @@ func (t *GlobTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *GlobTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 // ConcurrencyKey opts glob into parallel execution — a read-only filename
 // search has no conflict (the tool loop's optional concurrency contract).
 func (t *GlobTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }

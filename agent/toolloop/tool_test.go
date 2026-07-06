@@ -92,7 +92,6 @@ func mustNewTool(t *testing.T, name string) chat.Tool {
 	t.Helper()
 	tl, err := chat.NewTool(
 		chat.ToolDefinition{Name: name, InputSchema: `{"type":"object"}`},
-		chat.ToolMetadata{},
 		func(context.Context, string) (string, error) { return "", nil },
 	)
 	if err != nil {
@@ -110,11 +109,13 @@ func mustNewCallable(t *testing.T, name string, returnDirect bool, fn func(conte
 	}
 	tl, err := chat.NewTool(
 		chat.ToolDefinition{Name: name, InputSchema: `{"type":"object"}`},
-		chat.ToolMetadata{ReturnDirect: returnDirect},
 		fn,
 	)
 	if err != nil {
 		t.Fatalf("NewTool: %v", err)
+	}
+	if returnDirect {
+		return ReturnDirect(tl)
 	}
 	return tl
 }
@@ -350,7 +351,7 @@ func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !result.shouldContinue() {
-		t.Fatal("internal tool with ReturnDirect=false should request continuation")
+		t.Fatal("regular tool should request continuation")
 	}
 	cont, err := result.buildContinueRequest()
 	if err != nil {
@@ -373,7 +374,7 @@ func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
 }
 
 // TestToolSupport_InvokeToolCalls_ReturnDirectShortCircuits checks the
-// other branch: a tool with ReturnDirect=true should not trigger an
+// other branch: a return-direct tool should not trigger an
 // LLM follow-up.
 func TestToolSupport_InvokeToolCalls_ReturnDirectShortCircuits(t *testing.T) {
 	inv := newInvoker()
@@ -389,7 +390,7 @@ func TestToolSupport_InvokeToolCalls_ReturnDirectShortCircuits(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result.shouldContinue() {
-		t.Fatal("ReturnDirect=true must not request continuation")
+		t.Fatal("return-direct tool must not request continuation")
 	}
 	final, err := result.buildReturnResponse()
 	if err != nil {
@@ -530,7 +531,7 @@ func TestToolMiddleware_RecursiveLoop(t *testing.T) {
 }
 
 // TestToolMiddleware_DirectReturn confirms the short-circuit path:
-// when every called tool is ReturnDirect the middleware skips the
+// when every called tool is return-direct the middleware skips the
 // follow-up LLM call and returns the tool result wrapped as a response.
 func TestToolMiddleware_DirectReturn(t *testing.T) {
 	model := newFakeChatModel(t)

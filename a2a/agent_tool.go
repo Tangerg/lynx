@@ -31,7 +31,6 @@ const agentToolInputSchema = `{"type":"object","properties":{"message":{"type":"
 type AgentTool struct {
 	client     *a2aclient.Client
 	definition chat.ToolDefinition
-	metadata   chat.ToolMetadata
 }
 
 // AgentToolConfig configures an [AgentTool]. Client and Card are required.
@@ -46,9 +45,6 @@ type AgentToolConfig struct {
 	// Name overrides the tool name. Empty defaults to a sanitized form
 	// of the card's Name.
 	Name string
-
-	// Metadata is the chat.ToolMetadata reported by the wrapper. Zero is fine.
-	Metadata chat.ToolMetadata
 }
 
 // Validate reports whether the config has the required fields. Run
@@ -88,12 +84,10 @@ func NewAgentTool(cfg AgentToolConfig) (*AgentTool, error) {
 			Description: describeAgent(cfg.Card),
 			InputSchema: agentToolInputSchema,
 		},
-		metadata: cfg.Metadata,
 	}, nil
 }
 
 func (t *AgentTool) Definition() chat.ToolDefinition { return t.definition }
-func (t *AgentTool) Metadata() chat.ToolMetadata     { return t.metadata }
 
 // Call implements [chat.Tool]: it sends the request text to the remote agent
 // and returns its reply. One `a2a.agent.call <name>` span per call

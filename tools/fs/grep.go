@@ -73,8 +73,6 @@ func (t *GrepTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *GrepTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 // ConcurrencyKey opts grep into parallel execution — a read-only content
 // search has no conflict (the tool loop's optional concurrency contract).
 func (t *GrepTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
