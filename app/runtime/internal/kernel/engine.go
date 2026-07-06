@@ -6,15 +6,12 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
-	historymw "github.com/Tangerg/lynx/core/model/chat/middleware/history"
 )
 
 // Engine is the microkernel core: it drives the agent loop and depends on
@@ -85,60 +82,11 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// core therefore constructs no capability and imports no infra/service for
 	// them — it only drives the resolver + appends the two engine-owned tools
 	// (task / ask_user) below.
-	resolver := cfg.ToolResolver
-	if resolver == nil {
-		// A bare engine (unit tests that drive only the loop) gets an empty
-		// resolver — no tools, but the loop still runs.
-		resolver = &emptyToolResolver{}
-	}
-
-	historyStore := cfg.HistoryStore
-	if historyStore == nil {
-		historyStore = history.NewInMemoryStore()
-	}
-	callMW, streamMW, err := historymw.NewMiddleware(historyStore)
+	resolver := toolResolverOrEmpty(cfg.ToolResolver)
+	platform, err := newAgentPlatform(cfg, resolver)
 	if err != nil {
-		return nil, fmt.Errorf("engine: build history middleware: %w", err)
+		return nil, err
 	}
-	// One tool + history middleware chain serves every process — top-level
-	// turns and spawned subtasks alike. Each request carries its own
-	// conversation id (the agent runtime stamps chat conversation ID
-	// from the process's Session), so a single shared chain keys history and
-	// park state per-process without per-turn reconstruction.
-	toolCallMW, toolStreamMW := toolloop.NewMiddleware(toolloop.Config{
-		FeedbackOnEmptyResponse: true,
-		ParkStore:               cfg.ParkStore,
-		// Halt a stuck agent (same tool + args + result repeating) before it
-		// burns the full iteration cap. Defaults (window 10, nudge 3, halt >5):
-		// a corrective <system-reminder> is injected once at the 3rd identical
-		// round (a chance to break out), and six byte-identical rounds is a fixed
-		// point that hard-stops.
-		LoopDetection: &toolloop.LoopDetectionConfig{},
-		// Mid-run steering: drain the active turn's SteerSource (stashed on the
-		// context by runChatTurn) before each continuation round, injecting any
-		// queued user messages into the loop. nil source → no-op.
-		BeforeRound: func(ctx context.Context) []chat.Message {
-			if s := steerSourceFrom(ctx); s != nil {
-				return s()
-			}
-			return nil
-		},
-	})
-	platform := agent.NewPlatform(runtime.PlatformConfig{
-		ChatClient: cfg.ChatClient,
-		Extensions: []core.Extension{resolver},
-		Guardrails: &core.Guardrails{
-			CallMiddlewares:   []chat.CallMiddleware{toolCallMW, callMW},
-			StreamMiddlewares: []chat.StreamMiddleware{toolStreamMW, streamMW},
-		},
-		// Auto-snapshot only when a store is configured — no store, no
-		// per-tick disk churn.
-		ProcessStore: cfg.ProcessStore,
-		AutoSnapshot: cfg.ProcessStore != nil,
-		// Persist sub-agent (subtask) sessions so the delegation lineage is
-		// durably recorded; the engine just forwards the store.
-		SessionStore: cfg.SessionStore,
-	})
 
 	// Build the engine value first so the agent's Action closure can
 	// capture *Engine (and therefore reach e.SystemPrompt) instead
