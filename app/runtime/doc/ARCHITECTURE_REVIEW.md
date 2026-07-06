@@ -82,7 +82,7 @@
 | `knowledge` | ❌ 纯 `Service` interface + file/sqlite 实现 | 数据就该是数据 —— 正确 |
 | `provider` | ❌ 纯注册表 CRUD | 注册表 —— 正确 |
 | `interrupts` | ❌ 纯 `Store` CRUD | 持久化记录 —— 正确 |
-| `approval` | ❌ `Service` 只在 mode 之间切换 | 够薄，不需要更多 |
+| `approval` | ✅ `ToolCallInput.Plan` / `GateFor`·`RiskFor` / `ruleSet.decide`（specificity 排序） | 充血（审批策略模型；本文写作后长出，已非"只切 mode"的贫血） |
 | `workspace` | ❌ 基本是 git/checkpoint 的 pass-through | 见 §2.1 |
 | `agentdoc` | ❌ 发现 + 渲染，基本无状态 | 正确 —— 这是算法，不是实体 |
 
@@ -300,8 +300,8 @@ lyra/
 
 | # | 改动 | 类型 | scope |
 |---|---|---|---|
-| **3** | **`workspace` / `codeintel` 移出 domain** | 结构性重构 | 移到 `internal/adapter/`（新环）。大量 import 路径重写，零行为变化。**需咨询用户**。 |
-| **4** | **给纯贫血 domain 包加 package doc** | 文档改进 | `provider` / `interrupts` / `knowledge` / `approval` 加 package doc 标明"本包是 port 定义 + DTO，无领域行为（按 REFACTORING §5.1，数据就该是数据）"。零代码改动，消除"这是不是贫血债"的误读。 |
+| **3** | **✅ DONE — `workspace` / `codeintel` 移出 domain** | 结构性重构 | 已移到 `internal/adapter/`；`domain ↛ infra` 规则现已打开且通过。 |
+| **4** | **✅ DONE — 给纯贫血 domain 包加 package doc** | 文档改进 | `provider` / `interrupts` / `knowledge` / `run` 已加 package doc 标明形态。`approval` 从此列移除 —— 已长成充血策略模型（见 §2.4），不在贫血之列。 |
 
 ### P2：设计取向，等触发再做
 
