@@ -117,11 +117,15 @@ func (s *Server) Capabilities() protocol.ServerCapabilities {
 	return Capabilities(s.rt)
 }
 
+type capabilityAccess interface {
+	HasMemory() bool
+}
+
 // Capabilities builds the capability snapshot a Runtime advertises
 // (API.md §9). It reflects actual wiring — features whose methods would
 // return notImpl are advertised false, so the client never calls a
 // method this build silently rejects.
-func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
+func Capabilities(rt capabilityAccess) protocol.ServerCapabilities {
 	memory := rt != nil && rt.HasMemory()
 	return protocol.ServerCapabilities{
 		ProtocolVersion: protocol.ProtocolVersion,
