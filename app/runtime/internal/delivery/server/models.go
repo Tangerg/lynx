@@ -90,7 +90,7 @@ func (s *Server) validateEmbeddingRole(ctx context.Context, in protocol.Embeddin
 }
 
 func (s *Server) requireConfiguredProvider(ctx context.Context, providerID string) error {
-	entry, ok, err := s.providers.GetRegisteredProvider(ctx, providerID)
+	entry, ok, err := s.providers.RegisteredProvider(ctx, providerID)
 	if err != nil {
 		return err
 	}

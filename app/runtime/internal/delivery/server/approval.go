@@ -11,7 +11,7 @@ import (
 // GetApprovalMode returns the current runtime tool-permission stance
 // (approval.getMode).
 func (s *Server) GetApprovalMode(ctx context.Context) (*protocol.ApprovalModeResult, error) {
-	m, err := s.approvals.GetApprovalMode(ctx)
+	m, err := s.approvals.ApprovalMode(ctx)
 	if err != nil {
 		return nil, err
 	}

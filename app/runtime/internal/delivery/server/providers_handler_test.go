@@ -43,7 +43,7 @@ func (r *providerRuntime) ListRegisteredProviders(context.Context) ([]provider.P
 	return out, nil
 }
 
-func (r *providerRuntime) GetRegisteredProvider(_ context.Context, id string) (provider.Provider, bool, error) {
+func (r *providerRuntime) RegisteredProvider(_ context.Context, id string) (provider.Provider, bool, error) {
 	entry, ok := r.entries[id]
 	return entry, ok, nil
 }

@@ -25,7 +25,7 @@ func (r *modelRoleRuntime) ProviderMetadata(id string) (provider.Metadata, bool)
 	return provider.Metadata{}, false
 }
 
-func (r *modelRoleRuntime) GetRegisteredProvider(_ context.Context, id string) (provider.Provider, bool, error) {
+func (r *modelRoleRuntime) RegisteredProvider(_ context.Context, id string) (provider.Provider, bool, error) {
 	entry, ok := r.entries[id]
 	return entry, ok, nil
 }

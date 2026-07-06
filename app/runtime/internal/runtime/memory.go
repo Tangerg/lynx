@@ -24,8 +24,8 @@ func (r *Runtime) ListMemoryEntries(ctx context.Context, cwd string) ([]knowledg
 	return r.knowledge.List(ctx, cwd)
 }
 
-// GetMemory returns the LYRA.md content for one scope.
-func (r *Runtime) GetMemory(ctx context.Context, scope knowledge.Scope, cwd string) (string, error) {
+// Memory returns the LYRA.md content for one scope.
+func (r *Runtime) Memory(ctx context.Context, scope knowledge.Scope, cwd string) (string, error) {
 	if r.knowledge == nil {
 		return "", ErrMemoryUnavailable
 	}

@@ -17,7 +17,7 @@ type approvalRuntime struct {
 	forgottenRuleIDs []string
 }
 
-func (r *approvalRuntime) GetApprovalMode(context.Context) (approval.Mode, error) {
+func (r *approvalRuntime) ApprovalMode(context.Context) (approval.Mode, error) {
 	return r.mode, nil
 }
 

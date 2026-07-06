@@ -25,7 +25,7 @@ func (r *scheduleRuntime) ListSchedules(context.Context) ([]schedule.Schedule, e
 	return r.listed, nil
 }
 
-func (r *scheduleRuntime) GetSchedule(_ context.Context, id string) (schedule.Schedule, error) {
+func (r *scheduleRuntime) Schedule(_ context.Context, id string) (schedule.Schedule, error) {
 	sc, ok := r.byID[id]
 	if !ok {
 		return schedule.Schedule{}, schedule.ErrNotFound

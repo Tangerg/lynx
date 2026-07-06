@@ -151,7 +151,7 @@ func readMemoryBody(from string, stdin io.Reader) ([]byte, error) {
 // under a markdown heading. Errors print to stderr but don't
 // abort the show command — partial output is still useful.
 func (a *App) printScope(ctx context.Context, scope knowledge.Scope, label string) {
-	content, err := a.rt.GetMemory(ctx, scope, "")
+	content, err := a.rt.Memory(ctx, scope, "")
 	if err != nil {
 		fmt.Fprintf(a.Err, "[lyra] %s scope read error: %s\n", label, err)
 		return

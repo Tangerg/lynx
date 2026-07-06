@@ -67,7 +67,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 	if err != nil {
 		return nil, err
 	}
-	existing, err := s.schedules.GetSchedule(ctx, in.ID)
+	existing, err := s.schedules.Schedule(ctx, in.ID)
 	if err != nil {
 		return nil, mapScheduleErr(err, in.ID)
 	}
@@ -104,7 +104,7 @@ func (s *Server) DeleteSchedule(ctx context.Context, in protocol.DeleteScheduleR
 // extra run that records the firing without shifting the schedule's next due
 // time.
 func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowRequest) error {
-	sc, err := s.schedules.GetSchedule(ctx, in.ID)
+	sc, err := s.schedules.Schedule(ctx, in.ID)
 	if err != nil {
 		return mapScheduleErr(err, in.ID)
 	}

@@ -43,7 +43,7 @@ func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	content, err := s.knowledge.GetMemory(ctx, scope, cwd)
+	content, err := s.knowledge.Memory(ctx, scope, cwd)
 	if err != nil {
 		return nil, err
 	}

@@ -82,7 +82,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		approvalConfigured = false
 	} else {
 		var err error
-		mode, err = t.svc.approval.GetMode(ctx)
+		mode, err = t.svc.approval.Mode(ctx)
 		if err != nil {
 			return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable"}
 		}

@@ -67,7 +67,7 @@ func (a *App) sessionShowCmd() *cobra.Command {
 				return a.fatalErr(err)
 			}
 			id := args[0]
-			sess, err := a.rt.GetSession(cmd.Context(), id)
+			sess, err := a.rt.SessionByID(cmd.Context(), id)
 			if err != nil {
 				if errors.Is(err, session.ErrNotFound) {
 					fmt.Fprintf(a.Err, "lyra: session %q not found\n", id)

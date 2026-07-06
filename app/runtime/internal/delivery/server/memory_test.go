@@ -34,7 +34,7 @@ func (r *memoryRuntime) ListMemoryEntries(_ context.Context, cwd string) ([]know
 	return r.entries, nil
 }
 
-func (r *memoryRuntime) GetMemory(_ context.Context, scope knowledge.Scope, cwd string) (string, error) {
+func (r *memoryRuntime) Memory(_ context.Context, scope knowledge.Scope, cwd string) (string, error) {
 	r.getScope = scope
 	r.getCwd = cwd
 	return r.getContent, nil

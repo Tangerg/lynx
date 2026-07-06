@@ -81,7 +81,7 @@ func TestRuntimeSessionFacade(t *testing.T) {
 		t.Fatalf("listed = %+v", listed)
 	}
 
-	got, err := rt.GetSession(ctx, "ses_2")
+	got, err := rt.SessionByID(ctx, "ses_2")
 	if err != nil {
 		t.Fatalf("get session: %v", err)
 	}

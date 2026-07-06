@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// GetApprovalMode returns the current runtime tool-permission stance.
-func (r *Runtime) GetApprovalMode(ctx context.Context) (approval.Mode, error) {
-	return r.approval.GetMode(ctx)
+// ApprovalMode returns the current runtime tool-permission stance.
+func (r *Runtime) ApprovalMode(ctx context.Context) (approval.Mode, error) {
+	return r.approval.Mode(ctx)
 }
 
 // SetApprovalMode changes the runtime tool-permission stance.

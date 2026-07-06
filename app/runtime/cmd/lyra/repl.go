@@ -53,7 +53,7 @@ type ReplRunner struct {
 func NewReplRunner(ctx context.Context, app *App, requestedSession string) (*ReplRunner, error) {
 	var sessID string
 	if requestedSession != "" {
-		sess, err := app.rt.GetSession(ctx, requestedSession)
+		sess, err := app.rt.SessionByID(ctx, requestedSession)
 		if err != nil {
 			return nil, fmt.Errorf("lyra.repl: resume session %q: %w", requestedSession, err)
 		}

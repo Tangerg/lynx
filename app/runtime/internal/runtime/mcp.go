@@ -31,8 +31,8 @@ func (r *Runtime) MCPServerStatuses() []kernel.McpServerStatus {
 	return r.engine.MCPServerStatuses()
 }
 
-// GetMCPRegisteredServer returns one persisted MCP-server registry entry.
-func (r *Runtime) GetMCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error) {
+// MCPRegisteredServer returns one persisted MCP-server registry entry.
+func (r *Runtime) MCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error) {
 	return r.mcpRegistry.Get(ctx, name)
 }
 

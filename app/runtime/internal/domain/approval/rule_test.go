@@ -10,13 +10,13 @@ import (
 
 func TestModeGetSet(t *testing.T) {
 	svc := New(ModeYolo, nil)
-	if m, _ := svc.GetMode(context.Background()); m != ModeYolo {
+	if m, _ := svc.Mode(context.Background()); m != ModeYolo {
 		t.Fatalf("initial mode = %v, want Yolo", m)
 	}
 	if err := svc.SetMode(context.Background(), ModeBalanced); err != nil {
 		t.Fatalf("SetMode: %v", err)
 	}
-	if m, _ := svc.GetMode(context.Background()); m != ModeBalanced {
+	if m, _ := svc.Mode(context.Background()); m != ModeBalanced {
 		t.Fatalf("mode after set = %v, want Balanced", m)
 	}
 }

@@ -14,8 +14,8 @@ func (r *Runtime) ListRegisteredProviders(ctx context.Context) ([]provider.Provi
 	return r.providers.List(ctx)
 }
 
-// GetRegisteredProvider returns one provider registry entry by provider id.
-func (r *Runtime) GetRegisteredProvider(ctx context.Context, id string) (provider.Provider, bool, error) {
+// RegisteredProvider returns one provider registry entry by provider id.
+func (r *Runtime) RegisteredProvider(ctx context.Context, id string) (provider.Provider, bool, error) {
 	return r.providers.Get(ctx, id)
 }
 
