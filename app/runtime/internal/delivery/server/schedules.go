@@ -31,24 +31,24 @@ func (s *Server) ListSchedules(ctx context.Context) (*protocol.ListSchedulesResu
 // CreateSchedule adds an enabled schedule (schedules.create), computing its
 // first due time from the cron.
 func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleRequest) (*protocol.Schedule, error) {
-	if err := validateScheduleInput(in.Prompt, in.Cron, in.Provider, in.Model); err != nil {
-		return nil, err
+	sc := schedule.Schedule{
+		Title:    in.Title,
+		Prompt:   in.Prompt,
+		Provider: in.Provider,
+		Model:    in.Model,
+		Cron:     in.Cron,
+		Enabled:  true,
+	}
+	if err := sc.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
 	cwd, err := scheduleCwdFromWire(in.Cwd)
 	if err != nil {
 		return nil, err
 	}
-	next, _ := schedule.NextRun(in.Cron, time.Now()) // cron validated above
-	created, err := s.schedules.CreateSchedule(ctx, schedule.Schedule{
-		Title:     in.Title,
-		Prompt:    in.Prompt,
-		Cwd:       cwd,
-		Provider:  in.Provider,
-		Model:     in.Model,
-		Cron:      in.Cron,
-		Enabled:   true,
-		NextRunAt: next,
-	})
+	sc.Cwd = cwd
+	sc.NextRunAt, _ = schedule.NextRun(in.Cron, time.Now()) // cron validated above
+	created, err := s.schedules.CreateSchedule(ctx, sc)
 	if err != nil {
 		return nil, err
 	}
@@ -60,8 +60,17 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 // due time from the (new) cron — cleared when disabled so the worker skips it
 // (schedules.update).
 func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleRequest) (*protocol.Schedule, error) {
-	if err := validateScheduleInput(in.Prompt, in.Cron, in.Provider, in.Model); err != nil {
-		return nil, err
+	sc := schedule.Schedule{
+		ID:       in.ID,
+		Title:    in.Title,
+		Prompt:   in.Prompt,
+		Provider: in.Provider,
+		Model:    in.Model,
+		Cron:     in.Cron,
+		Enabled:  in.Enabled,
+	}
+	if err := sc.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
 	cwd, err := scheduleCwdFromWire(in.Cwd)
 	if err != nil {
@@ -71,23 +80,13 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 	if err != nil {
 		return nil, mapScheduleErr(err, in.ID)
 	}
-	next := time.Time{}
+	sc.Cwd = cwd
 	if in.Enabled {
-		next, _ = schedule.NextRun(in.Cron, time.Now())
+		sc.NextRunAt, _ = schedule.NextRun(in.Cron, time.Now())
 	}
-	updated, err := s.schedules.UpdateSchedule(ctx, schedule.Schedule{
-		ID:        in.ID,
-		Title:     in.Title,
-		Prompt:    in.Prompt,
-		Cwd:       cwd,
-		Provider:  in.Provider,
-		Model:     in.Model,
-		Cron:      in.Cron,
-		Enabled:   in.Enabled,
-		LastRunAt: existing.LastRunAt,
-		NextRunAt: next,
-		CreatedAt: existing.CreatedAt,
-	})
+	sc.LastRunAt = existing.LastRunAt
+	sc.CreatedAt = existing.CreatedAt
+	updated, err := s.schedules.UpdateSchedule(ctx, sc)
 	if err != nil {
 		return nil, mapScheduleErr(err, in.ID)
 	}
@@ -112,25 +111,6 @@ func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowR
 		return err
 	}
 	return s.schedules.RecordScheduleRun(ctx, sc.ID, time.Now().UTC())
-}
-
-// validateScheduleInput enforces the create/update preconditions: a prompt and
-// a parseable cron are required, and provider/model are paired (the same rule
-// runs.start applies — both to pick a model, neither for the default).
-func validateScheduleInput(prompt, cronExpr, provider, model string) error {
-	if prompt == "" {
-		return fmt.Errorf("%w: prompt is required", protocol.ErrInvalidParams)
-	}
-	if cronExpr == "" {
-		return fmt.Errorf("%w: cron is required", protocol.ErrInvalidParams)
-	}
-	if (provider == "") != (model == "") {
-		return fmt.Errorf("%w: provider and model must be set together", protocol.ErrInvalidParams)
-	}
-	if err := schedule.ValidateCron(cronExpr); err != nil {
-		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
-	}
-	return nil
 }
 
 func scheduleCwdFromWire(cwd string) (string, error) {

@@ -24,6 +24,19 @@ const IDPrefix = "sch_"
 // ErrNotFound is returned by [Service.Get] / [Service.Update] for an unknown id.
 var ErrNotFound = errors.New("schedule: not found")
 
+// Validation sentinels returned by [Schedule.Validate]; the delivery adapter
+// maps them to the protocol's invalid_params.
+var (
+	// ErrPromptRequired — a schedule with no prompt has nothing to fire.
+	ErrPromptRequired = errors.New("schedule: prompt is required")
+	// ErrCronRequired — a schedule with no cron has no trigger.
+	ErrCronRequired = errors.New("schedule: cron is required")
+	// ErrIncompleteModelSelection — provider and model must be set together
+	// (both to pin a model, neither for the runtime default — the same rule
+	// runs.start applies; provider is never inferred from model).
+	ErrIncompleteModelSelection = errors.New("schedule: provider and model must be set together")
+)
+
 // Schedule is a saved prompt fired on a cron trigger. Cwd anchors the headless
 // run's tools (empty → the serve directory); Provider/Model are optional (empty
 // → the runtime default, paired — both or neither).
@@ -39,6 +52,23 @@ type Schedule struct {
 	LastRunAt time.Time // zero ⇒ never fired
 	NextRunAt time.Time // next due time, computed from Cron; zero ⇒ not scheduled (disabled)
 	CreatedAt time.Time
+}
+
+// Validate checks a schedule draft before it is persisted: a prompt and a
+// parseable cron are required, and provider/model are paired. Returns one of the
+// package's validation sentinels (or a [ValidateCron] error). Create/update call
+// it so the rule lives on the entity, not in the protocol adapter.
+func (s Schedule) Validate() error {
+	if s.Prompt == "" {
+		return ErrPromptRequired
+	}
+	if s.Cron == "" {
+		return ErrCronRequired
+	}
+	if (s.Provider == "") != (s.Model == "") {
+		return ErrIncompleteModelSelection
+	}
+	return ValidateCron(s.Cron)
 }
 
 // ValidateCron reports whether spec is a parseable 5-field cron expression
