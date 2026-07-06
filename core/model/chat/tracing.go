@@ -2,7 +2,6 @@ package chat
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -25,20 +24,6 @@ import (
 // instrumentation libraries SHOULD name their tracer after the
 // gen_ai.operation namespace they instrument.
 var chatTracer = otel.Tracer("lynx/gen_ai/chat")
-
-type haltError interface {
-	error
-	Abort() bool
-}
-
-// isHITLInterrupt reports whether err is a HITL interrupt — a halt-style error
-// whose Abort() is false (suspension for human input, not a fatal abort). The
-// chat client span uses it to treat an interrupt as normal control flow rather
-// than a failure, so production error-rate alerts don't fire on every approval.
-func isHITLInterrupt(err error) bool {
-	h, ok := errors.AsType[haltError](err)
-	return ok && !h.Abort()
-}
 
 // OpenTelemetry GenAI semantic-convention attribute keys. The values
 // these spans carry MUST match the spec under
@@ -131,12 +116,8 @@ func startChatSpan(ctx context.Context, model Model, req *Request, operation str
 // RecordError event before ending.
 func finishChatSpan(span trace.Span, resp *Response, err error) {
 	if err != nil {
-		if isHITLInterrupt(err) {
-			// A HITL interrupt is normal control flow (the run paused for
-			// human input), NOT a failure — record it as an event but leave
-			// the span status unset so production error-rate alerts don't
-			// fire on every approval.
-			span.AddEvent("tool_loop.interrupted")
+		if model.IsControlFlowError(err) {
+			span.AddEvent("gen_ai.operation.control_flow")
 			span.End()
 			return
 		}

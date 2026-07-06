@@ -28,7 +28,7 @@ func newHistoryStore() history.Store { return history.NewInMemoryStore() }
 // be the stub's FinalText.
 //
 // This is the M2-readiness gate: it proves the chain
-// engine.RunChat → lynx Platform → ToolMiddleware → ToolDecorator
+// engine.RunChat → lynx Platform → tool loop → tool decorator
 // → observedTool → toolObserver is wired end-to-end without any
 // real LLM in the loop.
 func TestEngine_RunChat_ToolCallObserved(t *testing.T) {

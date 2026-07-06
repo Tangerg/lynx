@@ -4,7 +4,9 @@ package toolloop
 //
 // When a tool returns an error implementing Halt, the loop stops and propagates
 // the error unchanged instead of feeding it back to the model as a recoverable
-// tool result. Ordinary errors remain recoverable.
+// tool result. Ordinary errors remain recoverable. Observability classification
+// is separate: a suspension that should not count as a failed model operation
+// can also implement the shared control-flow marker from core/model.
 type Halt interface {
 	error
 

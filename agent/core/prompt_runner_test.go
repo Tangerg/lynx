@@ -119,10 +119,10 @@ func TestPromptRunner_GenerateObject_NilRunnerErrors(t *testing.T) {
 	}
 }
 
-// TestPromptRunner_WithTools_ToolMiddlewareEngaged verifies that
-// when explicit tools are supplied via WithTools, the chat tool
-// middleware is installed and the tool is reachable through it.
-func TestPromptRunner_WithTools_ToolMiddlewareEngaged(t *testing.T) {
+// TestPromptRunner_WithTools_ToolLoopEngaged verifies that
+// when explicit tools are supplied via WithTools, the tool loop is
+// installed and the tool is reachable through it.
+func TestPromptRunner_WithTools_ToolLoopEngaged(t *testing.T) {
 	// Stub model replies "ok" without invoking the tool — we just
 	// verify the runner accepts WithTools and the call succeeds with
 	// the middleware in place.

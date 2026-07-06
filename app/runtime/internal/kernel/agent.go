@@ -104,10 +104,10 @@ type ChatOutput struct {
 //
 // The body uses Stream rather than Call so each text chunk surfaces
 // to [toolObserver.OnMessageDelta] as it arrives — transport
-// adapters get a real streaming experience instead of one
-// pre-buffered MessageDelta. Tool-call rounds still go through the
-// same ToolMiddleware loop; tool events surface via the
-// ToolDecorator path independently of the text-delta path.
+// adapters get a real streaming experience instead of one pre-buffered
+// MessageDelta. Tool-call rounds still go through the same tool loop; tool
+// events surface via the tool-decorator path independently of the text-delta
+// path.
 func (e *Engine) buildChatAgent() *core.Agent {
 	return agent.New("chat-agent").
 		Description("single-turn LLM chat with the default coding tool set").

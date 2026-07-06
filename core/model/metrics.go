@@ -112,11 +112,12 @@ func (d OperationMetrics) baseAttrs() []attribute.KeyValue {
 // metric companion to the per-call span: call it once per operation,
 // after the model returns.
 //
-// Duration is always recorded (success and failure, with an error.type
-// tag on failure). Token usage is recorded only on success and only for
-// the dimensions the provider surfaced — a nil usage or a zero count for
-// a given direction is skipped. Until a MeterProvider is configured every
-// Record is a no-op, so this is zero-cost by default.
+// Duration is always recorded (success, failure, and expected control flow,
+// with an error.type tag only on failure). Token usage is recorded for success
+// and expected control flow, and only for the dimensions the provider surfaced
+// — a nil usage or a zero count for a given direction is skipped. Until a
+// MeterProvider is configured every Record is a no-op, so this is zero-cost by
+// default.
 func RecordOperationMetrics(ctx context.Context, dims OperationMetrics, usage *Usage, elapsed time.Duration, err error) {
 	base := dims.baseAttrs()
 	// withAttr returns base plus one extra tag, copied into a fresh
@@ -132,7 +133,10 @@ func RecordOperationMetrics(ctx context.Context, dims OperationMetrics, usage *U
 	}
 	operationDurationHistogram.Record(ctx, elapsed.Seconds(), metric.WithAttributes(durationAttrs...))
 
-	if err != nil || usage == nil {
+	if err != nil && !IsControlFlowError(err) {
+		return
+	}
+	if usage == nil {
 		return
 	}
 	if usage.PromptTokens > 0 {
@@ -148,9 +152,12 @@ func RecordOperationMetrics(ctx context.Context, dims OperationMetrics, usage *U
 // errorTypeName returns a bounded label for the error.type metric tag —
 // the concrete Go type of the error (e.g. "*fmt.wrapError",
 // "*tool.MaxIterationsError"). Error types are a bounded set, so this
-// stays low-cardinality. Returns "" for a nil error.
+// stays low-cardinality. Returns "" for nil and expected control-flow errors.
 func errorTypeName(err error) string {
 	if err == nil {
+		return ""
+	}
+	if IsControlFlowError(err) {
 		return ""
 	}
 	return fmt.Sprintf("%T", err)

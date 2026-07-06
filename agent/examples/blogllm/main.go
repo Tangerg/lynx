@@ -130,7 +130,7 @@ func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Pr
 // Call walks the conversation and decides:
 //
 //   - first turn (only user message): emit a tool call so the
-//     ToolMiddleware will execute the search tool;
+//     tool loop will execute the search tool;
 //   - second turn (tool result is in history): emit the final JSON
 //     brief.
 func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {

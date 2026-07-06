@@ -7,10 +7,10 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// TestToolMiddleware_BeforeRoundInjects proves the BeforeRound hook appends its
+// TestToolLoop_BeforeRoundInjects proves the BeforeRound hook appends its
 // messages to the CONTINUATION round (after the tool result), never before the
 // first round — the seam for mid-run steering.
-func TestToolMiddleware_BeforeRoundInjects(t *testing.T) {
+func TestToolLoop_BeforeRoundInjects(t *testing.T) {
 	model := newFakeChatModel(t)
 	var round2 []chat.Message
 	calls := 0
@@ -55,9 +55,9 @@ func TestToolMiddleware_BeforeRoundInjects(t *testing.T) {
 	}
 }
 
-// TestToolMiddleware_BeforeRoundNilDefault confirms a nil hook (the default)
+// TestToolLoop_BeforeRoundNilDefault confirms a nil hook (the default)
 // leaves the loop untouched — no extra messages, no calls.
-func TestToolMiddleware_BeforeRoundNilDefault(t *testing.T) {
+func TestToolLoop_BeforeRoundNilDefault(t *testing.T) {
 	model := newFakeChatModel(t)
 	calls := 0
 	model.respond = func(req *chat.Request) (*chat.Response, error) {

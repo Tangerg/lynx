@@ -489,13 +489,13 @@ func TestToolSupport_InvokeToolCalls_AbortErrorPropagates(t *testing.T) {
 
 // --- tool-loop middleware --------------------------------------------------
 
-// TestToolMiddleware_RecursiveLoop checks the headline behavior:
+// TestToolLoop_RecursiveLoop checks the headline behavior:
 //  1. model returns a tool-call response,
 //  2. middleware executes the tool,
 //  3. middleware re-prompts the model with the tool result,
 //  4. the second model invocation returns a regular reply,
 //  5. middleware returns that reply to the caller.
-func TestToolMiddleware_RecursiveLoop(t *testing.T) {
+func TestToolLoop_RecursiveLoop(t *testing.T) {
 	model := newFakeChatModel(t)
 
 	calls := 0
@@ -530,10 +530,10 @@ func TestToolMiddleware_RecursiveLoop(t *testing.T) {
 	}
 }
 
-// TestToolMiddleware_DirectReturn confirms the short-circuit path:
+// TestToolLoop_DirectReturn confirms the short-circuit path:
 // when every called tool is return-direct the middleware skips the
 // follow-up LLM call and returns the tool result wrapped as a response.
-func TestToolMiddleware_DirectReturn(t *testing.T) {
+func TestToolLoop_DirectReturn(t *testing.T) {
 	model := newFakeChatModel(t)
 
 	calls := 0
@@ -565,13 +565,13 @@ func TestToolMiddleware_DirectReturn(t *testing.T) {
 	}
 }
 
-// TestToolMiddleware_StreamEmitsToolMessageBetweenTurns checks the
+// TestToolLoop_StreamEmitsToolMessageBetweenTurns checks the
 // streaming-path invariant from MESSAGE_PARTS_DESIGN §8.4: the
 // runtime-injected ToolMessage MUST be yielded to the external
 // consumer as its own delta between assistant turns, so the
 // downstream timeline matches the message history fed to the next
 // model call.
-func TestToolMiddleware_StreamEmitsToolMessageBetweenTurns(t *testing.T) {
+func TestToolLoop_StreamEmitsToolMessageBetweenTurns(t *testing.T) {
 	model := newFakeChatModel(t)
 
 	streamCalls := 0
@@ -627,10 +627,10 @@ func TestToolMiddleware_StreamEmitsToolMessageBetweenTurns(t *testing.T) {
 	}
 }
 
-// TestToolMiddleware_MaxIterationsCap verifies the loop aborts with a
+// TestToolLoop_MaxIterationsCap verifies the loop aborts with a
 // MaxIterationsError instead of recursing forever when the model keeps
 // requesting tools and the tool result never satisfies it.
-func TestToolMiddleware_MaxIterationsCap(t *testing.T) {
+func TestToolLoop_MaxIterationsCap(t *testing.T) {
 	model := newFakeChatModel(t)
 
 	calls := 0
@@ -664,10 +664,10 @@ func TestToolMiddleware_MaxIterationsCap(t *testing.T) {
 	}
 }
 
-// TestToolMiddleware_UnknownToolFeedback verifies that by default the loop
+// TestToolLoop_UnknownToolFeedback verifies that by default the loop
 // hands the model an error result for the missing tool (so it can
 // recover) and continues, rather than aborting.
-func TestToolMiddleware_UnknownToolFeedback(t *testing.T) {
+func TestToolLoop_UnknownToolFeedback(t *testing.T) {
 	model := newFakeChatModel(t)
 
 	calls := 0
@@ -700,9 +700,9 @@ func TestToolMiddleware_UnknownToolFeedback(t *testing.T) {
 	}
 }
 
-// TestToolMiddleware_EmptyResponseFeedback verifies the one-shot nudge: an
+// TestToolLoop_EmptyResponseFeedback verifies the one-shot nudge: an
 // empty reply triggers a single re-prompt when the policy is enabled.
-func TestToolMiddleware_EmptyResponseFeedback(t *testing.T) {
+func TestToolLoop_EmptyResponseFeedback(t *testing.T) {
 	model := newFakeChatModel(t)
 
 	calls := 0
@@ -730,10 +730,10 @@ func TestToolMiddleware_EmptyResponseFeedback(t *testing.T) {
 	}
 }
 
-// TestToolMiddleware_EmptyResponseNudgeIsOneShot confirms the nudge fires at
+// TestToolLoop_EmptyResponseNudgeIsOneShot confirms the nudge fires at
 // most once: a persistently empty model returns the empty reply rather than
 // looping.
-func TestToolMiddleware_EmptyResponseNudgeIsOneShot(t *testing.T) {
+func TestToolLoop_EmptyResponseNudgeIsOneShot(t *testing.T) {
 	model := newFakeChatModel(t)
 
 	calls := 0
@@ -756,14 +756,14 @@ func TestToolMiddleware_EmptyResponseNudgeIsOneShot(t *testing.T) {
 
 // --- HITL interrupt: yield resumable tail, resume AT the pending call ------
 
-// TestToolMiddleware_InterruptThenResume is the headline R-model test: a gated
+// TestToolLoop_InterruptThenResume is the headline R-model test: a gated
 // tool halts a round mid-way; the loop yields a FinishReasonInterrupt response
 // carrying the resumable tail (this round's assistant tool-call message + the
 // result of the call that already ran) and propagates the tool's Halt
 // cause. Feeding that tail back resumes the turn — executing ONLY the
 // still-pending (now-approved) call, NEVER re-invoking the model for the
 // completed round and NEVER re-running the call that already ran.
-func TestToolMiddleware_InterruptThenResume(t *testing.T) {
+func TestToolLoop_InterruptThenResume(t *testing.T) {
 	model := newFakeChatModel(t)
 	modelCalls := 0
 	model.streamRespond = func(*chat.Request) []*chat.Response {
@@ -901,9 +901,9 @@ func TestMemory_SequentialMultiRoundTurn_ValidHistory(t *testing.T) {
 	assertValidToolHistory(t, stored)
 }
 
-// TestToolMiddleware_PassthroughWithoutToolCalls verifies the middleware
+// TestToolLoop_PassthroughWithoutToolCalls verifies the middleware
 // is invisible when the LLM doesn't request any tools.
-func TestToolMiddleware_PassthroughWithoutToolCalls(t *testing.T) {
+func TestToolLoop_PassthroughWithoutToolCalls(t *testing.T) {
 	model := newFakeChatModel(t)
 	model.respond = func(*chat.Request) (*chat.Response, error) {
 		return responseWithText("plain reply"), nil
