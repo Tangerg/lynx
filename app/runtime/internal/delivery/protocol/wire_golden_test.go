@@ -24,9 +24,14 @@ var wireSamples = []struct {
 	target func() any
 }{
 	{"run.started.json", func() any { return new(RunEvent) }},
-	{"item.delta.json", func() any { return new(RunEvent) }},
+	{"run.progress.json", func() any { return new(RunEvent) }},
 	{"run.finished.json", func() any { return new(RunEvent) }},
+	{"item.started.json", func() any { return new(RunEvent) }},
+	{"item.delta.json", func() any { return new(RunEvent) }},
 	{"item.completed.json", func() any { return new(RunEvent) }},
+	{"state.snapshot.json", func() any { return new(RunEvent) }},
+	{"state.delta.json", func() any { return new(RunEvent) }},
+	{"custom.json", func() any { return new(RunEvent) }},
 }
 
 // TestWireGoldenRoundTrip is the Go half of the §14 drift gate: every canonical

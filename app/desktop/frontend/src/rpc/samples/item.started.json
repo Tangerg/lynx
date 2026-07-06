@@ -1,0 +1,16 @@
+{
+  "runId": "run_01",
+  "eventId": "evt_05",
+  "timestamp": "2026-07-07T10:00:02Z",
+  "event": {
+    "type": "item.started",
+    "item": {
+      "id": "item_03",
+      "runId": "run_01",
+      "status": "running",
+      "createdAt": "2026-07-07T10:00:02Z",
+      "type": "agentMessage",
+      "content": [{ "type": "text", "text": "Working on it…" }]
+    }
+  }
+}

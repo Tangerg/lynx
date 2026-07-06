@@ -1,0 +1,11 @@
+{
+  "runId": "run_01",
+  "eventId": "evt_09",
+  "timestamp": "2026-07-07T10:00:06Z",
+  "event": {
+    "type": "custom",
+    "name": "acme:progress",
+    "durable": true,
+    "payload": { "percent": 42 }
+  }
+}
