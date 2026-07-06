@@ -28,7 +28,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // ErrUnavailable means there is no snapshot to restore for the requested run
@@ -59,7 +59,7 @@ func NewStore(dir string) *Store { return &Store{root: dir} }
 // lockFor returns the mutex serializing git ops on one working tree (keyed by
 // the canonical cwd, the shared resource — see [Store]).
 func (s *Store) lockFor(cwd string) *sync.Mutex {
-	mu, _ := s.locks.LoadOrStore(fspath.Canonical(cwd), &sync.Mutex{})
+	mu, _ := s.locks.LoadOrStore(worktree.CanonicalCwd(cwd), &sync.Mutex{})
 	return mu.(*sync.Mutex)
 }
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
@@ -45,7 +45,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// guard (a file rollback) uses to find sibling sessions sharing the tree.
 	// Resolved here so the guard never does a session lookup under the registry
 	// lock.
-	cwd := fspath.Canonical(s.sessionCwd(reqCtx, sessionID))
+	cwd := worktree.CanonicalCwd(s.sessionCwd(reqCtx, sessionID))
 	s.runs.Open(runstate.Record{
 		ID:          runID,
 		SessionID:   sessionID,

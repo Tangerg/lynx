@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
 
@@ -42,7 +42,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// widen it to the whole tree for file restores. (History-only rollback touches
 	// just this session's log, so the per-session guard suffices.)
 	if intent.restoreFiles {
-		restoreCwd := fspath.Canonical(ses.Cwd)
+		restoreCwd := worktree.CanonicalCwd(ses.Cwd)
 		treeAdmission, ok := s.lifecycle.ClaimWorkingTreeMutation(restoreCwd)
 		if !ok {
 			return nil, fmt.Errorf("%w: working tree %q has a run admission in flight", protocol.ErrSessionBusy, ses.Cwd)

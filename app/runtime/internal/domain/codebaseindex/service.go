@@ -5,10 +5,11 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"path/filepath"
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // rescanDebounce bounds how long a freshly-reconciled corpus is trusted before
@@ -73,7 +74,7 @@ func (ix *Indexer) Search(ctx context.Context, cwd, query string, topK int) ([]H
 	if topK <= 0 {
 		topK = defaultTopK
 	}
-	cwd = canonicalCwd(cwd)
+	cwd = worktree.CanonicalCwd(cwd)
 	if err := ix.EnsureIndexed(ctx, cwd); err != nil {
 		return nil, err
 	}
@@ -105,7 +106,7 @@ func (ix *Indexer) EnsureIndexed(ctx context.Context, cwd string) error {
 	if err != nil {
 		return err
 	}
-	cwd = canonicalCwd(cwd)
+	cwd = worktree.CanonicalCwd(cwd)
 	modelID := emb.ID()
 	if ix.fresh(cwd, modelID) {
 		return nil
@@ -126,7 +127,7 @@ func (ix *Indexer) Reindex(ctx context.Context, cwd string) error {
 	if err != nil {
 		return err
 	}
-	cwd = canonicalCwd(cwd)
+	cwd = worktree.CanonicalCwd(cwd)
 	lock := ix.cwdLock(cwd)
 	lock.Lock()
 	defer lock.Unlock()
@@ -136,7 +137,7 @@ func (ix *Indexer) Reindex(ctx context.Context, cwd string) error {
 // Status reports cwd's current index state — the live in-memory status, falling
 // back to the persisted meta on a cold process.
 func (ix *Indexer) Status(ctx context.Context, cwd string) (Status, error) {
-	cwd = canonicalCwd(cwd)
+	cwd = worktree.CanonicalCwd(cwd)
 	ix.mu.Lock()
 	s, ok := ix.status[cwd]
 	ix.mu.Unlock()
@@ -248,20 +249,6 @@ func (ix *Indexer) reconcile(ctx context.Context, cwd string, emb Embedder, mode
 	ix.status[cwd] = Status{State: StateReady, ModelID: modelID, FileCount: len(current), ChunkCount: len(all), IndexedAt: now, Truncated: truncated}
 	ix.mu.Unlock()
 	return nil
-}
-
-func canonicalCwd(path string) string {
-	if path == "" {
-		return ""
-	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return filepath.Clean(path)
-	}
-	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
-		return resolved
-	}
-	return abs
 }
 
 // embedChunks fills each chunk's Embedding, batching the embedding calls.
