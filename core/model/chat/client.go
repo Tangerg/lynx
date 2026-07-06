@@ -18,13 +18,13 @@ type (
 	StreamHandlerFunc = model.StreamHandlerFunc[*Request, *Response]
 	CallMiddleware    = model.CallMiddleware[*Request, *Response]
 	StreamMiddleware  = model.StreamMiddleware[*Request, *Response]
-	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
+	MiddlewareChain   = model.MiddlewareChain[*Request, *Response]
 )
 
-// NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
+// NewMiddlewareChain returns an empty [MiddlewareChain] keyed to
 // chat's *Request / *Response pair.
-func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewMiddlewareManager[*Request, *Response]()
+func NewMiddlewareChain() MiddlewareChain {
+	return model.NewMiddlewareChain[*Request, *Response]()
 }
 
 // ClientRequest is the fluent builder that turns a [Model] plus a
@@ -35,7 +35,7 @@ func NewMiddlewareManager() *MiddlewareManager {
 // for streaming.
 type ClientRequest struct {
 	model                Model
-	middlewareManager    *MiddlewareManager
+	middlewares          MiddlewareChain
 	options              *Options
 	userPromptTemplate   *PromptTemplate
 	systemPromptTemplate *PromptTemplate
@@ -52,20 +52,28 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 	}
 
 	return &ClientRequest{
-		model:             model,
-		middlewareManager: NewMiddlewareManager(),
-		params:            make(map[string]any),
-		tools:             make([]Tool, 0),
+		model:       model,
+		middlewares: NewMiddlewareChain(),
+		params:      make(map[string]any),
+		tools:       make([]Tool, 0),
 	}, nil
 }
 
-// WithMiddlewares replaces the entire middleware chain with the given
-// values. Pass call middlewares, stream middlewares, or both halves of
-// a paired call/stream middleware.
-func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
-	if len(middlewares) > 0 {
-		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
-	}
+// WithMiddlewareChain replaces the full middleware chain.
+func (r *ClientRequest) WithMiddlewareChain(chain MiddlewareChain) *ClientRequest {
+	r.middlewares = chain.Clone()
+	return r
+}
+
+// WithCallMiddlewares replaces the call-side middleware chain.
+func (r *ClientRequest) WithCallMiddlewares(middlewares ...CallMiddleware) *ClientRequest {
+	r.middlewares = r.middlewares.WithCall(middlewares...)
+	return r
+}
+
+// WithStreamMiddlewares replaces the stream-side middleware chain.
+func (r *ClientRequest) WithStreamMiddlewares(middlewares ...StreamMiddleware) *ClientRequest {
+	r.middlewares = r.middlewares.WithStream(middlewares...)
 	return r
 }
 
@@ -144,13 +152,9 @@ func (r *ClientRequest) WithTools(tools ...Tool) *ClientRequest {
 	return r
 }
 
-// MiddlewareManager returns the active manager, lazily allocating one
-// if [WithMiddlewares] has not run yet.
-func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
-	if r.middlewareManager == nil {
-		r.middlewareManager = NewMiddlewareManager()
-	}
-	return r.middlewareManager
+// MiddlewareChain returns a defensive copy of the active chain.
+func (r *ClientRequest) MiddlewareChain() MiddlewareChain {
+	return r.middlewares.Clone()
 }
 
 // Clone returns a deep copy of the request — middleware chain, options,
@@ -159,7 +163,7 @@ func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 func (r *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
 		model:                r.model,
-		middlewareManager:    r.middlewareManager.Clone(),
+		middlewares:          r.middlewares.Clone(),
 		options:              r.options.Clone(),
 		userPromptTemplate:   r.userPromptTemplate.Clone(),
 		systemPromptTemplate: r.systemPromptTemplate.Clone(),
@@ -272,8 +276,9 @@ type ClientStreamer struct {
 }
 
 // stream feeds the request through the middleware chain into the model.
-// Tool execution is NOT auto-injected — register the middleware pair
-// for your loop driver via WithMiddlewares if you need that.
+// Tool execution is NOT auto-injected — register the call/stream middleware
+// pair for your loop driver via WithCallMiddlewares and WithStreamMiddlewares
+// if you need that.
 //
 // One OTel span is started per stream call, following the GenAI
 // semconv: request-side attributes (model, options) are stamped up
@@ -283,7 +288,7 @@ type ClientStreamer struct {
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
 	start := time.Now()
 	spanCtx, span := startChatSpan(ctx, s.request.model, req, "chat")
-	handler := s.request.MiddlewareManager().BuildStreamHandler(s.request.model)
+	handler := s.request.MiddlewareChain().BuildStreamHandler(s.request.model)
 	inner := handler.Stream(spanCtx, req)
 
 	return func(yield func(*Response, error) bool) {
@@ -370,8 +375,9 @@ type ClientCaller struct {
 }
 
 // call feeds the request through the middleware chain into the model.
-// Tool execution is NOT auto-injected — register the middleware pair
-// for your loop driver via WithMiddlewares if you need that.
+// Tool execution is NOT auto-injected — register the call/stream middleware
+// pair for your loop driver via WithCallMiddlewares and WithStreamMiddlewares
+// if you need that.
 //
 // One OTel span is started per call, following the GenAI semconv —
 // see [startChatSpan] / [finishChatSpan] for the attribute set. When
@@ -380,7 +386,7 @@ type ClientCaller struct {
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
 	start := time.Now()
 	ctx, span := startChatSpan(ctx, c.request.model, req, "chat")
-	handler := c.request.MiddlewareManager().BuildCallHandler(c.request.model)
+	handler := c.request.MiddlewareChain().BuildCallHandler(c.request.model)
 	resp, err := handler.Call(ctx, req)
 	finishChatSpan(span, resp, err)
 	recordChatMetrics(ctx, c.request.model, req, resp, err, start)

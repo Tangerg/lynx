@@ -175,7 +175,7 @@ func TestToolLoop_LoopDetectionHalts(t *testing.T) {
 		LoopDetection: &LoopDetectionConfig{},
 	})
 	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(echoTool)
+	req.WithCallMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(echoTool)
 
 	_, err := req.Call().Response(context.Background())
 	loopErr, ok := errors.AsType[*LoopDetectedError](err)
@@ -204,7 +204,7 @@ func TestToolLoop_LoopDetectionOptIn(t *testing.T) {
 
 	callMW, _ := NewMiddleware(Config{MaxIterations: 3}) // no LoopDetection
 	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(echoTool)
+	req.WithCallMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(echoTool)
 
 	_, err := req.Call().Response(context.Background())
 	if _, ok := errors.AsType[*LoopDetectedError](err); ok {

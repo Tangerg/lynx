@@ -41,7 +41,8 @@ type pipelineMiddleware struct {
 //	    QueryAugmenter:     contextual,
 //	})
 //	resp, err := client.Chat().
-//	    WithMiddlewares(callMW, streamMW).
+//	    WithCallMiddlewares(callMW).
+//	    WithStreamMiddlewares(streamMW).
 //	    WithText("hi").
 //	    Call().Response(ctx)
 func NewPipelineMiddleware(config PipelineConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {

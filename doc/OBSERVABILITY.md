@@ -135,7 +135,7 @@ func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error
     )
     defer span.End()
 
-    res, err := c.request.MiddlewareManager().BuildCallHandler(c.request.model).Call(ctx, req)
+    res, err := c.request.MiddlewareChain().BuildCallHandler(c.request.model).Call(ctx, req)
     if err != nil {
         span.RecordError(err)
         span.SetStatus(codes.Error, err.Error())

@@ -115,7 +115,8 @@ func Supervisor[In, Out any](platform *runtime.Platform, cfg SupervisorConfig[In
 			}
 
 			text, _, err := req.
-				WithMiddlewares(callMW, streamMW, historyCallMW, historyStreamMW).
+				WithCallMiddlewares(callMW, historyCallMW).
+				WithStreamMiddlewares(streamMW, historyStreamMW).
 				WithParams(map[string]any{chatconversation.IDKey: "workflow:supervisor"}).
 				WithTools(tools...).
 				WithSystemPrompt(cfg.Instructions).

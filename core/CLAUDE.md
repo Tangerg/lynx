@@ -24,7 +24,7 @@
 6 个一级包：
 
 1. **`document`** —— `Document{id, text, media, metadata, formatter}` + `Reader/Writer/Transformer/Batcher/Formatter` 流水线接口
-2. **`model`** —— `CallHandler[Req, Resp]` / `StreamHandler[Req, Resp]` 泛型 + `MiddlewareManager`（call / stream 两条链）
+2. **`model`** —— `CallHandler[Req, Resp]` / `StreamHandler[Req, Resp]` 泛型 + `MiddlewareChain`（call / stream 两条链）
 3. **`model/{chat,embedding,image,audio,moderation}`** —— 各模态的 Request/Response + 客户端
 4. **`tokenizer`** —— `Encoder` / `Decoder` / `Tokenizer` + `TextEstimator` / `MediaEstimator`
 5. **`vectorstore`** —— `Creator` / `Retriever` / `Deleter` / `Store` + filter mini-language（parser → AST → analyzer）
@@ -38,7 +38,7 @@
 4. **`vectorstore.Store` = Creator + Retriever + Deleter + Metadata** —— 责任分离
 5. **`Evaluator`** —— 给一个 request + response 打分（RAG feedback loop）
 6. **`document.Reader / Writer / Transformer / Batcher`** —— 可组合的 pipeline stage
-7. **`model.MiddlewareManager[Req, Resp]`** —— `CallMiddleware` 和 `StreamMiddleware` 各一条链
+7. **`model.MiddlewareChain[Req, Resp]`** —— `CallMiddleware` 和 `StreamMiddleware` 各一条链
 
 ## 强约定
 
@@ -49,7 +49,7 @@
 - **Streaming 用 `iter.Seq2`**，不自定义 iterator
 - **Metadata = `map[string]any`**：`Document` / `Message` 都用，lazy alloc via `.Meta()`
 - **Options 字段 = pointer**：`chat.Options.Temperature *float32` —— nil 表示"用 provider 默认值"
-- **`MiddlewareManager.UseMiddlewares(...any)`**：接 any，运行时 type-assert 到 `CallMiddleware` / `StreamMiddleware`，允许一个 fn 同时实现两条链
+- **middleware 显式分流**：call / stream middleware 走 typed chain，不用 `any` 路由，传错类型在编译期暴露
 
 ## 强反向不变量
 
@@ -63,7 +63,7 @@
 core/
 ├── document/          Document + Reader/Writer/Transformer/Batcher/Formatter
 │   └── id/            ID 生成（SHA256 / UUID）
-├── model/             CallHandler/StreamHandler + MiddlewareManager
+├── model/             CallHandler/StreamHandler + MiddlewareChain
 │   ├── chat/          Message（sealed） + Request / Response + Client
 │   ├── embedding/     Embedding Req/Resp + Client
 │   ├── image/         图像生成

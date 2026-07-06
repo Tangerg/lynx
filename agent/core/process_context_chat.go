@@ -57,9 +57,8 @@ func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.Client
 func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientRequest {
 	req := pc.chatClient.Chat()
 
-	mws := pc.guardrails.MiddlewareValues()
-	if len(mws) > 0 {
-		req = req.WithMiddlewares(mws...)
+	if !pc.guardrails.Empty() {
+		req = req.WithMiddlewareChain(pc.guardrails.MiddlewareChain())
 	}
 	if len(tools) > 0 {
 		req = req.WithTools(tools...)

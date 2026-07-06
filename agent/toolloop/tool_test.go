@@ -514,7 +514,7 @@ func TestToolLoop_RecursiveLoop(t *testing.T) {
 	callMW, _ := NewMiddleware()
 	req, _ := chat.NewClientRequest(model)
 	req.
-		WithMiddlewares(callMW).
+		WithCallMiddlewares(callMW).
 		WithMessages(chat.NewUserMessage("seed")).
 		WithTools(echoTool)
 
@@ -549,7 +549,7 @@ func TestToolLoop_DirectReturn(t *testing.T) {
 	callMW, _ := NewMiddleware()
 	req, _ := chat.NewClientRequest(model)
 	req.
-		WithMiddlewares(callMW).
+		WithCallMiddlewares(callMW).
 		WithMessages(chat.NewUserMessage("seed")).
 		WithTools(notify)
 
@@ -590,7 +590,7 @@ func TestToolLoop_StreamEmitsToolMessageBetweenTurns(t *testing.T) {
 	_, streamMW := NewMiddleware()
 	req, _ := chat.NewClientRequest(model)
 	req.
-		WithMiddlewares(streamMW).
+		WithStreamMiddlewares(streamMW).
 		WithMessages(chat.NewUserMessage("seed")).
 		WithTools(echoTool)
 
@@ -647,7 +647,7 @@ func TestToolLoop_MaxIterationsCap(t *testing.T) {
 	callMW, _ := NewMiddleware(Config{MaxIterations: 3})
 	req, _ := chat.NewClientRequest(model)
 	req.
-		WithMiddlewares(callMW).
+		WithCallMiddlewares(callMW).
 		WithMessages(chat.NewUserMessage("seed")).
 		WithTools(echoTool)
 
@@ -686,7 +686,7 @@ func TestToolLoop_UnknownToolFeedback(t *testing.T) {
 	// Unknown-tool recovery is the unconditional default now — no config knob.
 	callMW, _ := NewMiddleware()
 	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(real)
+	req.WithCallMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(real)
 
 	resp, err := req.Call().Response(context.Background())
 	if err != nil {
@@ -716,7 +716,7 @@ func TestToolLoop_EmptyResponseFeedback(t *testing.T) {
 
 	callMW, _ := NewMiddleware(Config{FeedbackOnEmptyResponse: true})
 	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
+	req.WithCallMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
 
 	resp, err := req.Call().Response(context.Background())
 	if err != nil {
@@ -744,7 +744,7 @@ func TestToolLoop_EmptyResponseNudgeIsOneShot(t *testing.T) {
 
 	callMW, _ := NewMiddleware(Config{FeedbackOnEmptyResponse: true})
 	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
+	req.WithCallMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
 
 	if _, err := req.Call().Response(context.Background()); err != nil {
 		t.Fatal(err)
@@ -793,7 +793,7 @@ func TestToolLoop_InterruptThenResume(t *testing.T) {
 	// --- First run: free runs, gated halts. The loop yields a
 	//     FinishReasonInterrupt response (the tail) then the interruptErr. ---
 	req1, _ := chat.NewClientRequest(model)
-	req1.WithMiddlewares(streamMW).WithMessages(chat.NewUserMessage("seed")).WithTools(freeTool, gatedTool)
+	req1.WithStreamMiddlewares(streamMW).WithMessages(chat.NewUserMessage("seed")).WithTools(freeTool, gatedTool)
 
 	var (
 		tail     []chat.Message
@@ -830,7 +830,7 @@ func TestToolLoop_InterruptThenResume(t *testing.T) {
 	//     NOT re-invoked for round 1. ---
 	approved = true
 	req2, _ := chat.NewClientRequest(model)
-	req2.WithMiddlewares(streamMW).WithMessages(tail...).WithTools(freeTool, gatedTool)
+	req2.WithStreamMiddlewares(streamMW).WithMessages(tail...).WithTools(freeTool, gatedTool)
 
 	_, finalText, err := collectStream(req2.Stream().Response(context.Background()))
 	if err != nil {
@@ -885,7 +885,8 @@ func TestHistory_SequentialMultiRoundTurn_ValidHistory(t *testing.T) {
 	// to history, which loads, splices, and persists. First in the
 	// slice = outermost.
 	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(toolStreamMW, historyCallMW, historyStreamMW).
+	req.WithCallMiddlewares(historyCallMW).
+		WithStreamMiddlewares(toolStreamMW, historyStreamMW).
 		WithParams(map[string]any{chatconversation.IDKey: "c1"}).
 		WithSystemPrompt("sys").
 		WithUserPrompt("go").
@@ -912,7 +913,7 @@ func TestToolLoop_PassthroughWithoutToolCalls(t *testing.T) {
 	callMW, _ := NewMiddleware()
 	req, _ := chat.NewClientRequest(model)
 	req.
-		WithMiddlewares(callMW).
+		WithCallMiddlewares(callMW).
 		WithMessages(chat.NewUserMessage("hi"))
 
 	resp, err := req.Call().Response(context.Background())

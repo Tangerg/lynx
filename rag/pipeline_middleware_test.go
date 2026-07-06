@@ -78,7 +78,7 @@ func TestPipelineMiddleware_AugmentsRequestAndAttachesDocs(t *testing.T) {
 	client, _ := chat.NewClient(model)
 
 	resp, err := client.Chat().
-		WithMiddlewares(callMW).
+		WithCallMiddlewares(callMW).
 		WithMessages(chat.NewUserMessage("what is RAG?")).
 		Call().
 		Response(context.Background())
@@ -116,7 +116,7 @@ func TestPipelineMiddleware_PropagatesPipelineError(t *testing.T) {
 	client, _ := chat.NewClient(model)
 
 	_, err = client.Chat().
-		WithMiddlewares(callMW).
+		WithCallMiddlewares(callMW).
 		WithMessages(chat.NewUserMessage("hi")).
 		Call().
 		Response(context.Background())
@@ -156,7 +156,7 @@ func TestPipelineMiddleware_DoesNotMutateCallerMessages(t *testing.T) {
 
 	userMsg := chat.NewUserMessage("what is RAG?")
 	if _, err := client.Chat().
-		WithMiddlewares(callMW).
+		WithCallMiddlewares(callMW).
 		WithMessages(userMsg).
 		Call().
 		Response(context.Background()); err != nil {

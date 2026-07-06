@@ -32,21 +32,24 @@ func TestGuardrails_Empty(t *testing.T) {
 	}
 }
 
-func TestGuardrails_MiddlewareValues(t *testing.T) {
-	if v := (*core.Guardrails)(nil).MiddlewareValues(); v != nil {
-		t.Errorf("nil Guardrails: want nil values, got %v", v)
+func TestGuardrails_MiddlewareChain(t *testing.T) {
+	if chain := (*core.Guardrails)(nil).MiddlewareChain(); len(chain.CallMiddlewares()) != 0 || len(chain.StreamMiddlewares()) != 0 {
+		t.Errorf("nil Guardrails: want empty chain, got call=%d stream=%d", len(chain.CallMiddlewares()), len(chain.StreamMiddlewares()))
 	}
-	if v := (&core.Guardrails{}).MiddlewareValues(); v != nil {
-		t.Errorf("zero-value: want nil values, got %v", v)
+	if chain := (&core.Guardrails{}).MiddlewareChain(); len(chain.CallMiddlewares()) != 0 || len(chain.StreamMiddlewares()) != 0 {
+		t.Errorf("zero-value: want empty chain, got call=%d stream=%d", len(chain.CallMiddlewares()), len(chain.StreamMiddlewares()))
 	}
 
 	g := &core.Guardrails{
 		CallMiddlewares:   []chat.CallMiddleware{passthroughCall, passthroughCall},
 		StreamMiddlewares: []chat.StreamMiddleware{passthroughStream},
 	}
-	values := g.MiddlewareValues()
-	if len(values) != 3 {
-		t.Fatalf("interleaved values: want 3, got %d", len(values))
+	chain := g.MiddlewareChain()
+	if got := len(chain.CallMiddlewares()); got != 2 {
+		t.Fatalf("call middlewares: want 2, got %d", got)
+	}
+	if got := len(chain.StreamMiddlewares()); got != 1 {
+		t.Fatalf("stream middlewares: want 1, got %d", got)
 	}
 }
 

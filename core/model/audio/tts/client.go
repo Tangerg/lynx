@@ -16,22 +16,22 @@ type (
 	StreamHandlerFunc = model.StreamHandlerFunc[*Request, *Response]
 	CallMiddleware    = model.CallMiddleware[*Request, *Response]
 	StreamMiddleware  = model.StreamMiddleware[*Request, *Response]
-	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
+	MiddlewareChain   = model.MiddlewareChain[*Request, *Response]
 )
 
-func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewMiddlewareManager[*Request, *Response]()
+func NewMiddlewareChain() MiddlewareChain {
+	return model.NewMiddlewareChain[*Request, *Response]()
 }
 
 // ClientRequest is the fluent builder that turns a [Model] plus text and
 // options into a TTS call. Use [ClientRequest.Call] for synchronous
 // generation or [ClientRequest.Stream] for chunked output.
 type ClientRequest struct {
-	model             Model
-	middlewareManager *MiddlewareManager
-	options           *Options
-	text              string
-	params            map[string]any
+	model       Model
+	middlewares MiddlewareChain
+	options     *Options
+	text        string
+	params      map[string]any
 }
 
 // NewClientRequest builds a [ClientRequest] for model. Returns an error
@@ -43,13 +43,21 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 	return &ClientRequest{model: model}, nil
 }
 
-// WithMiddlewares replaces the entire middleware chain. Accepts both
-// call and stream middlewares — type assertion routes each to the
-// matching chain.
-func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
-	if len(middlewares) > 0 {
-		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
-	}
+// WithMiddlewareChain replaces the full middleware chain.
+func (r *ClientRequest) WithMiddlewareChain(chain MiddlewareChain) *ClientRequest {
+	r.middlewares = chain.Clone()
+	return r
+}
+
+// WithCallMiddlewares replaces the call-side middleware chain.
+func (r *ClientRequest) WithCallMiddlewares(middlewares ...CallMiddleware) *ClientRequest {
+	r.middlewares = r.middlewares.WithCall(middlewares...)
+	return r
+}
+
+// WithStreamMiddlewares replaces the stream-side middleware chain.
+func (r *ClientRequest) WithStreamMiddlewares(middlewares ...StreamMiddleware) *ClientRequest {
+	r.middlewares = r.middlewares.WithStream(middlewares...)
 	return r
 }
 
@@ -78,20 +86,17 @@ func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	return r
 }
 
-func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
-	if r.middlewareManager == nil {
-		r.middlewareManager = NewMiddlewareManager()
-	}
-	return r.middlewareManager
+func (r *ClientRequest) MiddlewareChain() MiddlewareChain {
+	return r.middlewares.Clone()
 }
 
 func (r *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
-		model:             r.model,
-		middlewareManager: r.middlewareManager.Clone(),
-		options:           r.options.Clone(),
-		text:              r.text,
-		params:            maps.Clone(r.params),
+		model:       r.model,
+		middlewares: r.middlewares.Clone(),
+		options:     r.options.Clone(),
+		text:        r.text,
+		params:      maps.Clone(r.params),
 	}
 }
 
@@ -144,7 +149,7 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 		return nil, err
 	}
 	return c.request.
-		MiddlewareManager().
+		MiddlewareChain().
 		BuildCallHandler(c.request.model).
 		Call(ctx, req)
 }
@@ -163,7 +168,7 @@ type ClientStreamer struct {
 
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
 	return s.request.
-		MiddlewareManager().
+		MiddlewareChain().
 		BuildStreamHandler(s.request.model).
 		Stream(ctx, req)
 }

@@ -35,7 +35,7 @@ func TestToolLoop_BeforeRoundInjects(t *testing.T) {
 		},
 	})
 	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(echoTool)
+	req.WithCallMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(echoTool)
 	if _, err := req.Call().Response(context.Background()); err != nil {
 		t.Fatalf("call: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestToolLoop_BeforeRoundNilDefault(t *testing.T) {
 	})
 	callMW, _ := NewMiddleware(Config{MaxIterations: 5}) // BeforeRound unset
 	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(echoTool)
+	req.WithCallMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(echoTool)
 	if _, err := req.Call().Response(context.Background()); err != nil {
 		t.Fatalf("call: %v", err)
 	}

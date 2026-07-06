@@ -18,7 +18,7 @@
 //	chatMW, _, _ := historymw.NewMiddleware(store)
 //	resp, _ := client.Chat().
 //	    WithParams(map[string]any{conversation.IDKey: "u-42"}).
-//	    WithMiddlewares(chatMW).
+//	    WithCallMiddlewares(chatMW).
 //	    WithUserPrompt("hi").
 //	    Call().Response(ctx)
 package postgres
