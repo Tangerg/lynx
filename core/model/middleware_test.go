@@ -29,7 +29,7 @@ func (r *recorder) snapshot() []string {
 	return append([]string(nil), r.log...)
 }
 
-func TestMiddlewareManager_BuildCallHandlerOrdering(t *testing.T) {
+func TestMiddlewareChain_BuildCallHandlerOrdering(t *testing.T) {
 	rec := &recorder{}
 	mw := func(label string) model.CallMiddleware[*fakeRequest, *fakeResponse] {
 		return func(next model.CallHandler[*fakeRequest, *fakeResponse]) model.CallHandler[*fakeRequest, *fakeResponse] {
@@ -51,10 +51,10 @@ func TestMiddlewareManager_BuildCallHandlerOrdering(t *testing.T) {
 		},
 	)
 
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
-	mm.UseCallMiddlewares(mw("outer"), mw("inner"))
+	chain := model.NewMiddlewareChain[*fakeRequest, *fakeResponse]().
+		WithCall(mw("outer"), mw("inner"))
 
-	wrapped := mm.BuildCallHandler(endpoint)
+	wrapped := chain.BuildCallHandler(endpoint)
 	if _, err := wrapped.Call(context.Background(), &fakeRequest{}); err != nil {
 		t.Fatalf("Call returned error: %v", err)
 	}
@@ -72,15 +72,15 @@ func TestMiddlewareManager_BuildCallHandlerOrdering(t *testing.T) {
 	}
 }
 
-func TestMiddlewareManager_BuildCallHandler_NoMiddlewaresReturnsEndpoint(t *testing.T) {
+func TestMiddlewareChain_BuildCallHandler_NoMiddlewaresReturnsEndpoint(t *testing.T) {
 	endpoint := model.CallHandlerFunc[*fakeRequest, *fakeResponse](
 		func(ctx context.Context, req *fakeRequest) (*fakeResponse, error) {
 			return &fakeResponse{A: req.Q}, nil
 		},
 	)
 
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
-	wrapped := mm.BuildCallHandler(endpoint)
+	chain := model.NewMiddlewareChain[*fakeRequest, *fakeResponse]()
+	wrapped := chain.BuildCallHandler(endpoint)
 
 	got, err := wrapped.Call(context.Background(), &fakeRequest{Q: "echo"})
 	if err != nil {
@@ -91,27 +91,27 @@ func TestMiddlewareManager_BuildCallHandler_NoMiddlewaresReturnsEndpoint(t *test
 	}
 }
 
-func TestMiddlewareManager_UseCallMiddlewaresIgnoresNil(t *testing.T) {
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
+func TestMiddlewareChain_WithCallIgnoresNil(t *testing.T) {
 	mw := model.CallMiddleware[*fakeRequest, *fakeResponse](
 		func(next model.CallHandler[*fakeRequest, *fakeResponse]) model.CallHandler[*fakeRequest, *fakeResponse] {
 			return next
 		},
 	)
 
-	mm.UseCallMiddlewares(nil, mw, nil)
+	chain := model.NewMiddlewareChain[*fakeRequest, *fakeResponse]().
+		WithCall(nil, mw, nil)
 
 	endpoint := model.CallHandlerFunc[*fakeRequest, *fakeResponse](
 		func(ctx context.Context, req *fakeRequest) (*fakeResponse, error) {
 			return &fakeResponse{A: "ok"}, nil
 		},
 	)
-	if _, err := mm.BuildCallHandler(endpoint).Call(context.Background(), &fakeRequest{}); err != nil {
+	if _, err := chain.BuildCallHandler(endpoint).Call(context.Background(), &fakeRequest{}); err != nil {
 		t.Fatalf("Call returned error: %v", err)
 	}
 }
 
-func TestMiddlewareManager_BuildStreamHandlerOrdering(t *testing.T) {
+func TestMiddlewareChain_BuildStreamHandlerOrdering(t *testing.T) {
 	rec := &recorder{}
 	streamMW := func(label string) model.StreamMiddleware[*fakeRequest, *fakeResponse] {
 		return func(next model.StreamHandler[*fakeRequest, *fakeResponse]) model.StreamHandler[*fakeRequest, *fakeResponse] {
@@ -141,10 +141,10 @@ func TestMiddlewareManager_BuildStreamHandlerOrdering(t *testing.T) {
 		},
 	)
 
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
-	mm.UseStreamMiddlewares(streamMW("outer"), streamMW("inner"))
+	chain := model.NewMiddlewareChain[*fakeRequest, *fakeResponse]().
+		WithStream(streamMW("outer"), streamMW("inner"))
 
-	for chunk, err := range mm.BuildStreamHandler(endpoint).Stream(context.Background(), &fakeRequest{}) {
+	for chunk, err := range chain.BuildStreamHandler(endpoint).Stream(context.Background(), &fakeRequest{}) {
 		if err != nil {
 			t.Fatalf("yielded error: %v", err)
 		}
@@ -158,7 +158,7 @@ func TestMiddlewareManager_BuildStreamHandlerOrdering(t *testing.T) {
 	}
 }
 
-func TestMiddlewareManager_UseMiddlewaresRoutesByType(t *testing.T) {
+func TestMiddlewareChain_CallAndStreamAreTypedSeparately(t *testing.T) {
 	callRan, streamRan := false, false
 
 	callMW := model.CallMiddleware[*fakeRequest, *fakeResponse](
@@ -182,15 +182,16 @@ func TestMiddlewareManager_UseMiddlewaresRoutesByType(t *testing.T) {
 		},
 	)
 
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
-	mm.UseMiddlewares(callMW, streamMW, nil, "garbage value")
+	chain := model.NewMiddlewareChain[*fakeRequest, *fakeResponse]().
+		WithCall(callMW).
+		WithStream(streamMW)
 
 	callEndpoint := model.CallHandlerFunc[*fakeRequest, *fakeResponse](
 		func(ctx context.Context, req *fakeRequest) (*fakeResponse, error) {
 			return &fakeResponse{}, nil
 		},
 	)
-	if _, err := mm.BuildCallHandler(callEndpoint).Call(context.Background(), &fakeRequest{}); err != nil {
+	if _, err := chain.BuildCallHandler(callEndpoint).Call(context.Background(), &fakeRequest{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -199,7 +200,7 @@ func TestMiddlewareManager_UseMiddlewaresRoutesByType(t *testing.T) {
 			return func(yield func(*fakeResponse, error) bool) {}
 		},
 	)
-	for range mm.BuildStreamHandler(streamEndpoint).Stream(context.Background(), &fakeRequest{}) {
+	for range chain.BuildStreamHandler(streamEndpoint).Stream(context.Background(), &fakeRequest{}) {
 	}
 
 	if !callRan {
@@ -210,17 +211,20 @@ func TestMiddlewareManager_UseMiddlewaresRoutesByType(t *testing.T) {
 	}
 }
 
-func TestMiddlewareManager_CloneIsolation(t *testing.T) {
-	original := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
-	original.UseCallMiddlewares(passThroughCallMW())
+func TestMiddlewareChain_CloneIsolation(t *testing.T) {
+	original := model.NewMiddlewareChain[*fakeRequest, *fakeResponse]().
+		WithCall(passThroughCallMW())
 
 	clone := original.Clone()
-	if clone == nil {
-		t.Fatal("Clone returned nil")
-	}
 
 	// Mutating one must not affect the other.
-	original.UseCallMiddlewares(passThroughCallMW())
+	original = original.WithCall(passThroughCallMW(), passThroughCallMW())
+	if got := len(clone.CallMiddlewares()); got != 1 {
+		t.Fatalf("clone call middlewares = %d, want 1", got)
+	}
+	if got := len(original.CallMiddlewares()); got != 2 {
+		t.Fatalf("original call middlewares = %d, want 2", got)
+	}
 
 	endpoint := model.CallHandlerFunc[*fakeRequest, *fakeResponse](
 		func(ctx context.Context, req *fakeRequest) (*fakeResponse, error) {
@@ -234,14 +238,7 @@ func TestMiddlewareManager_CloneIsolation(t *testing.T) {
 	}
 }
 
-func TestMiddlewareManager_CloneNil(t *testing.T) {
-	var mm *model.MiddlewareManager[*fakeRequest, *fakeResponse]
-	if got := mm.Clone(); got != nil {
-		t.Fatalf("nil receiver Clone = %v, want nil", got)
-	}
-}
-
-func TestMiddlewareManager_PropagatesEndpointError(t *testing.T) {
+func TestMiddlewareChain_PropagatesEndpointError(t *testing.T) {
 	wantErr := errors.New("endpoint failed")
 	endpoint := model.CallHandlerFunc[*fakeRequest, *fakeResponse](
 		func(ctx context.Context, req *fakeRequest) (*fakeResponse, error) {
@@ -249,10 +246,10 @@ func TestMiddlewareManager_PropagatesEndpointError(t *testing.T) {
 		},
 	)
 
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
-	mm.UseCallMiddlewares(passThroughCallMW())
+	chain := model.NewMiddlewareChain[*fakeRequest, *fakeResponse]().
+		WithCall(passThroughCallMW())
 
-	_, err := mm.BuildCallHandler(endpoint).Call(context.Background(), &fakeRequest{})
+	_, err := chain.BuildCallHandler(endpoint).Call(context.Background(), &fakeRequest{})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("err = %v, want %v", err, wantErr)
 	}

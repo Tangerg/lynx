@@ -45,7 +45,8 @@ type Logger interface {
 //	    logger.NewSlogLogger(slog.Default()),
 //	)
 //	resp, err := client.Chat().
-//	    WithMiddlewares(callMW, streamMW).
+//	    WithCallMiddlewares(callMW).
+//	    WithStreamMiddlewares(streamMW).
 //	    WithUserPrompt("hi").
 //	    Call().Response(ctx)
 //

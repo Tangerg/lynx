@@ -221,7 +221,8 @@ func main() {
     text, _, err := chatClient.
         ChatWithPrompt("What's the weather like in Tokyo today?").
         WithTools(tools...).
-        WithMiddlewares(callMW, streamMW).
+        WithCallMiddlewares(callMW).
+        WithStreamMiddlewares(streamMW).
         Call().
         Text(ctx)
     if err != nil {

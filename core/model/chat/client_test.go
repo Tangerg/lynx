@@ -139,7 +139,7 @@ func TestClientRequest_WithSystemPrompt_PrependsSystemMessage(t *testing.T) {
 	}
 }
 
-func TestClientRequest_WithMiddlewares_AppliesToCall(t *testing.T) {
+func TestClientRequest_WithCallMiddlewares_AppliesToCall(t *testing.T) {
 	model := newFakeChatModel(t)
 	req, _ := chat.NewClientRequest(model)
 
@@ -150,7 +150,7 @@ func TestClientRequest_WithMiddlewares_AppliesToCall(t *testing.T) {
 			return next.Call(ctx, r)
 		})
 	})
-	req.WithMiddlewares(mw).WithMessages(chat.NewUserMessage("hi"))
+	req.WithCallMiddlewares(mw).WithMessages(chat.NewUserMessage("hi"))
 
 	if _, err := req.Call().Response(context.Background()); err != nil {
 		t.Fatal(err)

@@ -85,7 +85,8 @@ func main() {
 				callMW, streamMW := toolloop.NewMiddleware()
 				historyCallMW, historyStreamMW, _ := historymw.NewMiddleware(history.NewInMemoryStore())
 				req := pc.Chat().
-					WithMiddlewares(callMW, streamMW, historyCallMW, historyStreamMW).
+					WithCallMiddlewares(callMW, historyCallMW).
+					WithStreamMiddlewares(streamMW, historyStreamMW).
 					WithParams(map[string]any{chatconversation.IDKey: "example:supervisor"}).
 					WithTools(researchTool, summarizeTool)
 

@@ -102,7 +102,8 @@ func (e *MaxIterationsError) Error() string {
 //
 //	callMW, streamMW := toolloop.NewMiddleware()
 //	resp, err := client.Chat().
-//	    WithMiddlewares(callMW, streamMW).
+//	    WithCallMiddlewares(callMW).
+//	    WithStreamMiddlewares(streamMW).
 //	    WithTools(myTool).
 //	    Call().Response(ctx)
 type middleware struct {

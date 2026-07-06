@@ -35,20 +35,12 @@ func (g *Guardrails) Empty() bool {
 	return len(g.CallMiddlewares) == 0 && len(g.StreamMiddlewares) == 0
 }
 
-// MiddlewareValues returns the call + stream middlewares interleaved
-// into the loose `[]any` slot that [chat.ClientRequest.WithMiddlewares]
-// accepts. Returns nil when [Guardrails.Empty] is true so callers can
-// pass the result through unconditionally.
-func (g *Guardrails) MiddlewareValues() []any {
+// MiddlewareChain returns the guardrails as a typed chat middleware chain.
+func (g *Guardrails) MiddlewareChain() chat.MiddlewareChain {
 	if g.Empty() {
-		return nil
+		return chat.NewMiddlewareChain()
 	}
-	out := make([]any, 0, len(g.CallMiddlewares)+len(g.StreamMiddlewares))
-	for _, mw := range g.CallMiddlewares {
-		out = append(out, mw)
-	}
-	for _, mw := range g.StreamMiddlewares {
-		out = append(out, mw)
-	}
-	return out
+	return chat.NewMiddlewareChain().
+		WithCall(g.CallMiddlewares...).
+		WithStream(g.StreamMiddlewares...)
 }

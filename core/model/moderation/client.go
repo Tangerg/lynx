@@ -10,17 +10,17 @@ import (
 )
 
 type (
-	Handler           = model.CallHandler[*Request, *Response]
-	HandlerFunc       = model.CallHandlerFunc[*Request, *Response]
-	Middleware        = model.CallMiddleware[*Request, *Response]
-	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
+	Handler         = model.CallHandler[*Request, *Response]
+	HandlerFunc     = model.CallHandlerFunc[*Request, *Response]
+	Middleware      = model.CallMiddleware[*Request, *Response]
+	MiddlewareChain = model.MiddlewareChain[*Request, *Response]
 )
 
-// NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
+// NewMiddlewareChain returns an empty [MiddlewareChain] keyed to
 // moderation's *Request / *Response pair. The stream side is unused
 // (moderation has no stream endpoint).
-func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewMiddlewareManager[*Request, *Response]()
+func NewMiddlewareChain() MiddlewareChain {
+	return model.NewMiddlewareChain[*Request, *Response]()
 }
 
 // ClientRequest is the fluent builder that turns a [Model] plus inputs
@@ -28,11 +28,11 @@ func NewMiddlewareManager() *MiddlewareManager {
 // [NewClientRequest] (or [Client.Moderate] which clones the client's
 // default), chain WithXxx, then finish with [ClientRequest.Call].
 type ClientRequest struct {
-	model             Model
-	middlewareManager *MiddlewareManager
-	options           *Options
-	texts             []string
-	params            map[string]any
+	model       Model
+	middlewares MiddlewareChain
+	options     *Options
+	texts       []string
+	params      map[string]any
 }
 
 // NewClientRequest builds a [ClientRequest] for model. Returns an error
@@ -46,7 +46,7 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 
 func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientRequest {
 	if len(middlewares) > 0 {
-		r.middlewareManager = NewMiddlewareManager().UseCallMiddlewares(middlewares...)
+		r.middlewares = NewMiddlewareChain().WithCall(middlewares...)
 	}
 	return r
 }
@@ -77,20 +77,17 @@ func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	return r
 }
 
-func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
-	if r.middlewareManager == nil {
-		r.middlewareManager = NewMiddlewareManager()
-	}
-	return r.middlewareManager
+func (r *ClientRequest) MiddlewareChain() MiddlewareChain {
+	return r.middlewares.Clone()
 }
 
 func (r *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
-		model:             r.model,
-		middlewareManager: r.middlewareManager.Clone(),
-		options:           r.options.Clone(),
-		texts:             slices.Clone(r.texts),
-		params:            maps.Clone(r.params),
+		model:       r.model,
+		middlewares: r.middlewares.Clone(),
+		options:     r.options.Clone(),
+		texts:       slices.Clone(r.texts),
+		params:      maps.Clone(r.params),
 	}
 }
 
@@ -131,7 +128,7 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 		return nil, err
 	}
 	return c.request.
-		MiddlewareManager().
+		MiddlewareChain().
 		BuildCallHandler(c.request.model).
 		Call(ctx, req)
 }
