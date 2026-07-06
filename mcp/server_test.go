@@ -26,7 +26,6 @@ func newEchoTool(t *testing.T) chat.Tool {
 			Description: "echo the input",
 			InputSchema: lynxEchoSchema,
 		},
-		chat.ToolMetadata{},
 		func(ctx context.Context, args string) (string, error) {
 			var p struct {
 				Text string `json:"text"`
@@ -101,7 +100,6 @@ func TestRegisterTools_ErrorBecomesIsError(t *testing.T) {
 			Description: "always fails",
 			InputSchema: `{"type":"object"}`,
 		},
-		chat.ToolMetadata{},
 		func(ctx context.Context, args string) (string, error) {
 			return "", errors.New("kaboom from lynx tool")
 		},
@@ -137,7 +135,6 @@ func TestRegisterTools_RejectsInvalidSchema(t *testing.T) {
 			Description: "",
 			InputSchema: "{not-json",
 		},
-		chat.ToolMetadata{},
 		func(ctx context.Context, args string) (string, error) { return "", nil },
 	)
 	require.NoError(t, err)

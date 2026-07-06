@@ -45,8 +45,6 @@ const description = `Execute a single HTTP request and return the response.
 - For body with JSON content, pass a JSON-encoded string as "body" and set Content-Type via "headers".
 - Use this for arbitrary REST/JSON APIs. Prefer the dedicated web_search / web_fetch tools for general web pages.`
 
-func (t *Tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
 	_ = ctx
 	var req Request

@@ -49,7 +49,6 @@ func runStdioMCPServer() {
 			Description: "responds with pong",
 			InputSchema: `{"type":"object"}`,
 		},
-		chat.ToolMetadata{},
 		func(ctx context.Context, args string) (string, error) { return "pong", nil },
 	)
 	if err != nil {
@@ -80,7 +79,6 @@ func TestEngine_DialMCPServer(t *testing.T) {
 			Description: "responds with pong",
 			InputSchema: `{"type":"object"}`,
 		},
-		chat.ToolMetadata{},
 		func(ctx context.Context, args string) (string, error) {
 			return "pong", nil
 		},

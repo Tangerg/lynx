@@ -53,8 +53,6 @@ func (t *EditTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *EditTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 // ConcurrencyKey opts edit into concurrent execution keyed on its target file
 // — the tool loop's optional concurrency contract (a tool reports per call
 // whether it may overlap others and the resource it conflicts on). The loop

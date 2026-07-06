@@ -23,7 +23,6 @@ func main() {
 			Description: "echo the input text",
 			InputSchema: `{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`,
 		},
-		chat.ToolMetadata{},
 		func(_ context.Context, arguments string) (string, error) {
 			var p struct {
 				Text string `json:"text"`

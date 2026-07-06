@@ -57,8 +57,6 @@ func (t *ReadTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *ReadTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 // ConcurrencyKey opts read into parallel execution — a pure read has no
 // resource conflict (the tool loop's optional concurrency contract), so the
 // loop runs several reads (and reads alongside other parallel tools) at once.

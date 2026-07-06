@@ -27,7 +27,6 @@ type keyedTool struct{ key string }
 func (keyedTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{Name: "keyed", InputSchema: "{}"}
 }
-func (keyedTool) Metadata() chat.ToolMetadata                  { return chat.ToolMetadata{} }
 func (keyedTool) Call(context.Context, string) (string, error) { return "", nil }
 func (k keyedTool) ConcurrencyKey(string) (string, bool)       { return k.key, true }
 
@@ -37,7 +36,6 @@ type plainTool struct{}
 func (plainTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{Name: "plain", InputSchema: "{}"}
 }
-func (plainTool) Metadata() chat.ToolMetadata                  { return chat.ToolMetadata{} }
 func (plainTool) Call(context.Context, string) (string, error) { return "", nil }
 
 // TestObservedToolForwardsConcurrencyKey pins that the tool-observer decorator,

@@ -170,7 +170,7 @@ func priorModelRounds(msgs []chat.Message) int {
 func (i *invoker) allReturnDirect(returns []*chat.ToolReturn) bool {
 	for _, ret := range returns {
 		t, exists := i.registry.find(ret.Name)
-		if !exists || !t.Metadata().ReturnDirect {
+		if !exists || !returnsDirect(t) {
 			return false
 		}
 	}

@@ -58,8 +58,6 @@ Usage notes:
 - For GitHub URLs, prefer shell + the gh CLI (gh pr view / gh issue view / gh api) — it handles auth and pagination properly
 - If you get a redirect or 4xx error, the URL is likely wrong, gated, or expired — don't retry blindly`
 
-func (t *Tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 // ConcurrencyKey opts web_fetch into parallel execution — a read-only network
 // fetch has no local resource conflict (the tool loop's optional concurrency
 // contract), so the loop fetches several URLs at once.

@@ -151,7 +151,7 @@ func (i *invoker) register(tools ...chat.Tool) {
 // when:
 //   - the last message is a [*chat.ToolMessage], AND
 //   - every tool referenced in that message is registered, AND
-//   - every such tool has ReturnDirect = true.
+//   - every such tool is marked with [ReturnDirect].
 func (i *invoker) shouldReturnDirect(msgs []chat.Message) bool {
 	last, ok := pkgSlices.Last(msgs)
 	if !ok {
@@ -167,7 +167,7 @@ func (i *invoker) shouldReturnDirect(msgs []chat.Message) bool {
 		if !exists {
 			return false
 		}
-		if !t.Metadata().ReturnDirect {
+		if !returnsDirect(t) {
 			return false
 		}
 	}
@@ -474,7 +474,7 @@ func (i *invoker) runOne(ctx context.Context, call *chat.ToolCallPart) (toolOutc
 		// Also recorded out-of-band on the tool-call item (the tool observer).
 		return toolOutcome{ret: &chat.ToolReturn{ID: call.ID, Name: call.Name, Result: i.toolErrorResult(call.Name, err)}}, nil
 	}
-	return toolOutcome{ret: &chat.ToolReturn{ID: call.ID, Name: call.Name, Result: content}, direct: t.Metadata().ReturnDirect}, nil
+	return toolOutcome{ret: &chat.ToolReturn{ID: call.ID, Name: call.Name, Result: content}, direct: returnsDirect(t)}, nil
 }
 
 // filledReturns drops the nil holes a parked round leaves in the indexed

@@ -11,8 +11,8 @@ import (
 
 // ErrToolAlreadyCalled is returned by a [OnceOnly]-wrapped tool
 // when the LLM tries to invoke it twice within the same scope. The
-// error is informative — the chat ToolMiddleware feeds it back to
-// the LLM, which is supposed to pick a different tool next turn.
+// error is informative — a tool-loop driver can feed it back to the
+// LLM, which is supposed to pick a different tool next turn.
 //
 // Use errors.Is to detect this case in callers that want to swap a
 // tool retry for a different recovery strategy.
@@ -50,7 +50,13 @@ type onceOnlyTool struct {
 }
 
 func (t *onceOnlyTool) Definition() chat.ToolDefinition { return t.delegate.Definition() }
-func (t *onceOnlyTool) Metadata() chat.ToolMetadata     { return t.delegate.Metadata() }
+
+func (t *onceOnlyTool) ReturnsDirect() bool {
+	if d, ok := t.delegate.(interface{ ReturnsDirect() bool }); ok {
+		return d.ReturnsDirect()
+	}
+	return false
+}
 
 func (t *onceOnlyTool) Call(ctx context.Context, arguments string) (string, error) {
 	name := t.delegate.Definition().Name
@@ -112,7 +118,13 @@ type unlockTool struct {
 }
 
 func (t *unlockTool) Definition() chat.ToolDefinition { return t.delegate.Definition() }
-func (t *unlockTool) Metadata() chat.ToolMetadata     { return t.delegate.Metadata() }
+
+func (t *unlockTool) ReturnsDirect() bool {
+	if d, ok := t.delegate.(interface{ ReturnsDirect() bool }); ok {
+		return d.ReturnsDirect()
+	}
+	return false
+}
 
 func (t *unlockTool) Call(ctx context.Context, arguments string) (string, error) {
 	allowed, reason := t.condition(ctx, arguments)

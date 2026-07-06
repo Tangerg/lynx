@@ -10,17 +10,17 @@ import (
 func TestNewTool_RequiresNameSchemaAndExec(t *testing.T) {
 	nop := func(context.Context, string) (string, error) { return "", nil }
 
-	_, err := chat.NewTool(chat.ToolDefinition{}, chat.ToolMetadata{}, nop)
+	_, err := chat.NewTool(chat.ToolDefinition{}, nop)
 	if err == nil {
 		t.Fatal("missing name must error")
 	}
 
-	_, err = chat.NewTool(chat.ToolDefinition{Name: "search"}, chat.ToolMetadata{}, nop)
+	_, err = chat.NewTool(chat.ToolDefinition{Name: "search"}, nop)
 	if err == nil {
 		t.Fatal("missing schema must error")
 	}
 
-	_, err = chat.NewTool(chat.ToolDefinition{Name: "search", InputSchema: "{}"}, chat.ToolMetadata{}, nil)
+	_, err = chat.NewTool(chat.ToolDefinition{Name: "search", InputSchema: "{}"}, nil)
 	if err == nil {
 		t.Fatal("nil execFunc must error")
 	}
@@ -29,7 +29,6 @@ func TestNewTool_RequiresNameSchemaAndExec(t *testing.T) {
 func TestNewTool_RunsExecFunc(t *testing.T) {
 	tool, err := chat.NewTool(
 		chat.ToolDefinition{Name: "echo", InputSchema: "{}"},
-		chat.ToolMetadata{},
 		func(_ context.Context, args string) (string, error) { return args, nil },
 	)
 	if err != nil {

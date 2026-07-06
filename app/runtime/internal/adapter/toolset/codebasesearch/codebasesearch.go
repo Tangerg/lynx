@@ -61,8 +61,6 @@ func (t *tool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	var req request
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {

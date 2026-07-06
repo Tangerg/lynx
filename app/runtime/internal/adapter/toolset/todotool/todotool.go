@@ -70,7 +70,6 @@ func New(svc todo.Service) chat.Tool {
 	}
 	t, _ := chat.NewTool(
 		chat.ToolDefinition{Name: "todo_write", Description: description, InputSchema: inputSchema},
-		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
 			var a writeArgs
 			if err := json.Unmarshal([]byte(arguments), &a); err != nil {

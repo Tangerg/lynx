@@ -32,7 +32,6 @@ func TestWithEditDiagnostics_AppendsProblems(t *testing.T) {
 	// real fs write tool — we're testing the decorator, not fs).
 	inner, _ := chat.NewTool(
 		chat.ToolDefinition{Name: "write", Description: "stub", InputSchema: `{"type":"object"}`},
-		chat.ToolMetadata{},
 		func(_ context.Context, arguments string) (string, error) {
 			var a struct {
 				FilePath string `json:"file_path"`

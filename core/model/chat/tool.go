@@ -20,44 +20,8 @@ type ToolDefinition struct {
 	InputSchema string
 }
 
-// ToolMetadata describes a tool's framework-facing behavior: the
-// meta-parameters a tool-loop driver reads to decide how to treat the
-// tool, independent of what the tool computes. It is a static descriptor
-// returned by [Tool.Metadata] — NOT the tool's result.
-type ToolMetadata struct {
-	// ReturnDirect routes the tool result straight back to the caller
-	// without re-prompting the LLM. Useful for UI affordances and
-	// notifications. False (the default) sends the result back to the
-	// LLM for integration into the next reply.
-	ReturnDirect bool
-
-	// Extra carries driver- or provider-specific meta-parameters that
-	// don't warrant a typed field. Access via [ToolMetadata.Get] /
-	// [ToolMetadata.Set].
-	Extra map[string]any
-}
-
-func (m *ToolMetadata) ensureExtra() {
-	if m.Extra == nil {
-		m.Extra = make(map[string]any)
-	}
-}
-
-func (m *ToolMetadata) Get(key string) (any, bool) {
-	if m == nil || m.Extra == nil {
-		return nil, false
-	}
-	value, exists := m.Extra[key]
-	return value, exists
-}
-
-func (m *ToolMetadata) Set(key string, value any) {
-	m.ensureExtra()
-	m.Extra[key] = value
-}
-
 // Tool is the executable contract every tool exposes — describable to
-// the LLM (Definition / Metadata) and runnable by the framework (Call).
+// the LLM ([Tool.Definition]) and runnable by the framework ([Tool.Call]).
 //
 // Tools that cannot run in-process — human approval gates, frontend
 // delegation, async dispatch — are not modeled as a separate type.
@@ -68,13 +32,9 @@ type Tool interface {
 	// Definition returns the static description shown to the LLM.
 	Definition() ToolDefinition
 
-	// Metadata returns the tool's framework-facing meta-parameters
-	// (return-direct, ...).
-	Metadata() ToolMetadata
-
 	// Call runs the tool's body. arguments is the JSON-encoded payload the
-	// LLM produced. The string result is the tool's output — fed back to the
-	// LLM, or returned to the caller when ReturnDirect is true.
+	// LLM produced. The string result is the tool's output; the driver decides
+	// whether to feed it back to the LLM or return it directly to the caller.
 	//
 	// A non-nil error means the tool could not produce a result. What happens
 	// to it is decided by whatever DRIVES the call, not by this interface: a
@@ -95,12 +55,10 @@ type Tool interface {
 // tool is the concrete backing for tools built via [NewTool].
 type tool struct {
 	definition ToolDefinition
-	metadata   ToolMetadata
 	execFunc   func(ctx context.Context, arguments string) (string, error)
 }
 
 func (t *tool) Definition() ToolDefinition { return t.definition }
-func (t *tool) Metadata() ToolMetadata     { return t.metadata }
 
 func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	return t.execFunc(ctx, arguments)
@@ -120,10 +78,9 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 //
 //	tool, err := chat.NewTool(
 //	    chat.ToolDefinition{Name: "add", InputSchema: addSchema},
-//	    chat.ToolMetadata{},
 //	    func(ctx context.Context, args string) (string, error) { ... },
 //	)
-func NewTool(definition ToolDefinition, metadata ToolMetadata, execFunc func(ctx context.Context, arguments string) (string, error)) (Tool, error) {
+func NewTool(definition ToolDefinition, execFunc func(ctx context.Context, arguments string) (string, error)) (Tool, error) {
 	if definition.Name == "" {
 		return nil, errors.New("chat.NewTool: definition.Name must not be empty")
 	}
@@ -136,7 +93,6 @@ func NewTool(definition ToolDefinition, metadata ToolMetadata, execFunc func(ctx
 
 	return &tool{
 		definition: definition,
-		metadata:   metadata,
 		execFunc:   execFunc,
 	}, nil
 }

@@ -71,7 +71,6 @@ func New() chat.Tool {
 			Description: "Ask the user a question and wait for their answer. Use when you need a decision, clarification, or information only the user can provide — not for routine progress updates. Give 2-4 `options` for a multiple-choice question (put the recommended one first), or omit `options` for a free-text answer; set `multi_select` when more than one option may apply.",
 			InputSchema: schema,
 		},
-		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
 			var a askUserArgs
 			if err := json.Unmarshal([]byte(arguments), &a); err != nil {

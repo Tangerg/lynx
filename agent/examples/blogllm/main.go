@@ -194,7 +194,6 @@ func newResearchToolGroup() *researchToolGroup {
 			Description: "search the public web for sources on a topic",
 			InputSchema: `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`,
 		},
-		chat.ToolMetadata{},
 		func(_ context.Context, arguments string) (string, error) {
 			// Stub: pretend to search and return canned sources.
 			return `[{"url":"https://example.com/agents-2026","title":"Agents in 2026"}]`, nil

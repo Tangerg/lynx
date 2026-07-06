@@ -62,7 +62,6 @@ func New(appr approval.Service) chat.Tool {
 			Description: "Present your plan for approval and leave plan mode. Call this ONLY in plan mode (the read-only stance) once you've investigated and drafted a plan. On approval, plan mode exits and all tools are enabled so you can execute the plan; on rejection you stay in plan mode with the user's feedback. Provide alternative approaches in options when the user should choose between them.",
 			InputSchema: schema,
 		},
-		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
 			var in exitPlanArgs
 			if err := json.Unmarshal([]byte(arguments), &in); err != nil {

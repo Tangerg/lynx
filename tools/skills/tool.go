@@ -58,8 +58,6 @@ func (t *Tool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *Tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
-
 // Call dispatches on Op. Source errors already carry a "skills:" prefix and
 // the failing skill/path, so they pass through unwrapped — only the
 // tool-specific argument parse is wrapped here.

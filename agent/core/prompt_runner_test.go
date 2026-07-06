@@ -131,7 +131,6 @@ func TestPromptRunner_WithTools_ToolMiddlewareEngaged(t *testing.T) {
 
 	tool, err := chat.NewTool(
 		chat.ToolDefinition{Name: "stub_tool", InputSchema: `{"type":"object"}`},
-		chat.ToolMetadata{},
 		func(context.Context, string) (string, error) { return "", nil },
 	)
 	if err != nil {

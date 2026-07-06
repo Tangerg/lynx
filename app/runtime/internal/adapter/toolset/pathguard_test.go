@@ -16,7 +16,6 @@ func TestWithPathGuard(t *testing.T) {
 	called := false
 	inner, _ := chat.NewTool(
 		chat.ToolDefinition{Name: "write", Description: "stub", InputSchema: `{"type":"object"}`},
-		chat.ToolMetadata{},
 		func(context.Context, string) (string, error) {
 			called = true
 			return "wrote", nil

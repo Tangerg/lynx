@@ -19,7 +19,6 @@ func privilegedWebGroup(t *testing.T) *core.StaticToolGroupResolver {
 
 	tool, err := chat.NewTool(
 		chat.ToolDefinition{Name: "web_search", InputSchema: `{"type":"object"}`},
-		chat.ToolMetadata{},
 		func(context.Context, string) (string, error) { return "", nil },
 	)
 	if err != nil {
