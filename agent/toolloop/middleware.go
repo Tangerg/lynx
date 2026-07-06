@@ -4,13 +4,8 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"maps"
-	"slices"
-
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
 )
 
 // DefaultMaxIterations bounds the self-driving tool loop. A model that
@@ -18,15 +13,6 @@ import (
 // a call — would otherwise spin forever; the cap turns that into a
 // [MaxIterationsError] instead.
 const DefaultMaxIterations = 50
-
-// emptyResponseNudge is the follow-up prompt sent when a model returns an
-// empty reply and [Config.FeedbackOnEmptyResponse] is enabled.
-const emptyResponseNudge = "Your previous reply was empty. Please provide a complete answer, or call one of the available tools."
-
-// loopNudge is injected once when the loop detector first sees a tool round
-// repeat (same calls AND results) up to the nudge threshold — a chance for the
-// model to break the repetition before the hard halt at the loop threshold.
-const loopNudge = "<system-reminder>You have repeated the same tool call(s) and gotten the same result(s) several times. Repeating it again will not change the outcome. Change your approach — try a different tool, different arguments, or a different strategy — or stop and explain what's blocking you.</system-reminder>"
 
 // Config tunes [NewMiddleware]. Every field is optional; the zero
 // value yields the default loop (cap = [DefaultMaxIterations]).
@@ -135,21 +121,6 @@ func NewMiddleware(config ...Config) (chat.CallMiddleware, chat.StreamMiddleware
 		beforeRound:   cfg.BeforeRound,
 	}
 	return mw.wrapCallHandler, mw.wrapStreamHandler
-}
-
-// applyBeforeRound appends any messages the BeforeRound hook supplies to a
-// continuation request (after the tool result that round carries) — the seam
-// for injecting a turn into a running loop. A nil hook or empty return leaves
-// the request untouched. Options / Tools / Params are carried over unchanged.
-func (m *middleware) applyBeforeRound(ctx context.Context, next *chat.Request) (*chat.Request, error) {
-	if m.beforeRound == nil {
-		return next, nil
-	}
-	extra := m.beforeRound(ctx)
-	if len(extra) == 0 {
-		return next, nil
-	}
-	return continueRequest(next, extra...)
 }
 
 // loopState carries the per-loop bookkeeping threaded through the
@@ -412,164 +383,4 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 		return
 	}
 	m.executeStreamRecursively(ctx, nextReq, next, inv, det, yield, state.next())
-}
-
-// maybeNudgeEmpty decides whether to re-prompt after an empty model reply.
-// It returns (nextRequest, true, nil) when the empty-response feedback is
-// enabled, hasn't been spent yet, and the response is genuinely empty;
-// (nil, false, nil) otherwise.
-func (m *middleware) maybeNudgeEmpty(req *chat.Request, resp *chat.Response, state loopState) (*chat.Request, bool, error) {
-	if !m.feedbackEmpty || state.emptyRetried || !resp.IsEmpty() {
-		return nil, false, nil
-	}
-	next, err := continueRequest(req, resp.Result.AssistantMessage, chat.NewUserMessage(emptyResponseNudge))
-	if err != nil {
-		return nil, false, err
-	}
-	return next, true, nil
-}
-
-// continueRequest assembles a follow-up request carrying the live request's
-// messages plus any extra messages appended, with options / tools / params
-// cloned from the original.
-func continueRequest(req *chat.Request, extra ...chat.Message) (*chat.Request, error) {
-	msgs := append(slices.Clone(req.Messages), extra...)
-	next, err := chat.NewRequest(msgs)
-	if err != nil {
-		return nil, err
-	}
-	next.Options = req.Options.Clone()
-	next.Tools = slices.Clone(req.Tools)
-	next.Params = maps.Clone(req.Params)
-	return next, nil
-}
-
-// newToolMessageResponse wraps a [*chat.ToolMessage] in a [*chat.Response] whose
-// Result.ToolMessage is set and Result.AssistantMessage is nil — the
-// discriminator that distinguishes tool-injection deltas from model
-// output deltas on the stream.
-func newToolMessageResponse(tm *chat.ToolMessage) (*chat.Response, error) {
-	result := &chat.Result{
-		ToolMessage: tm,
-		Metadata:    &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-	}
-	return chat.NewResponse(result, &chat.ResponseMetadata{})
-}
-
-// restorePark atomically consumes any parked round for the request's
-// conversation and injects its tail so [parseResumePoint] detects it and
-// resumes at the pending call. Consume reads AND removes in one operation, so
-// the round can never linger to hijack a later fresh turn on this
-// conversation (the bug a read-then-best-effort-clear had when the clear
-// failed). A malformed conversation id, or a consume failure, fails the
-// request — parked rounds are keyed by the id, so guessing would resume the
-// wrong conversation, and resuming onto a half-consumed tail is worse than
-// surfacing the error. Returns the request unchanged when no ParkStore is
-// configured or nothing is parked.
-func (m *middleware) restorePark(ctx context.Context, req *chat.Request) (*chat.Request, error) {
-	parkID, err := chatconversation.ID(req)
-	if err != nil {
-		return nil, err
-	}
-	if parkID == "" || m.parkStore == nil {
-		return req, nil
-	}
-	state, err := m.parkStore.Consume(ctx, parkID)
-	if err != nil {
-		return nil, fmt.Errorf("tool: consume parked round: %w", err)
-	}
-	if state != nil {
-		req = injectParkTail(ctx, req, state)
-	}
-	return req, nil
-}
-
-// injectParkTail appends the parked round's conversation tail
-// (assistant + Done tool returns) onto the request's messages
-// so [parseResumePoint] detects it and resumes at the pending call.
-// The engine always adds a user message on every turn — on resume
-// the history middleware replays the full history, so the trailing
-// user message is stripped and replaced with the tail.
-//
-// Failures degrade gracefully (the Done returns are dropped / the
-// original request is kept — the run proceeds, only re-running work),
-// but they mean park state silently evaporated, so each is recorded
-// on the ambient span to stay diagnosable.
-func injectParkTail(ctx context.Context, req *chat.Request, state *ParkState) *chat.Request {
-	span := trace.SpanFromContext(ctx)
-	msgs := req.Messages
-	// Strip the trailing user message the engine always adds.
-	if len(msgs) > 0 {
-		if _, ok := msgs[len(msgs)-1].(*chat.UserMessage); ok {
-			msgs = msgs[:len(msgs)-1]
-		}
-	}
-	msgs = append(msgs, state.Assistant)
-	if len(state.Done) > 0 {
-		if tm, err := chat.NewToolMessage(state.Done); err == nil {
-			msgs = append(msgs, tm)
-		} else {
-			span.RecordError(fmt.Errorf("tool: park-tail injection dropped done results: %w", err))
-		}
-	}
-	next, err := chat.NewRequest(msgs)
-	if err != nil {
-		span.RecordError(fmt.Errorf("tool: park-tail injection kept original request: %w", err))
-		return req
-	}
-	next.Options = req.Options.Clone()
-	next.Tools = slices.Clone(req.Tools)
-	next.Params = maps.Clone(req.Params)
-	return next
-}
-
-// interruptOutcome applies the park-vs-tail policy when a tool round
-// halts for human input: with a ParkStore the round parks (persisted
-// under the request's conversation id) and the returned response is
-// nil; without one it returns the [FinishReasonInterrupt] tail
-// the caller re-feeds to resume (conversation-tail design — see
-// [Config.ParkStore]). The caller pairs the result with the interrupt
-// cause per its own delivery protocol — a single return on the call
-// path, the two-yield sequence on the stream path ([yieldInterrupt]).
-func (m *middleware) interruptOutcome(ctx context.Context, req *chat.Request, assistant *chat.AssistantMessage, done []*chat.ToolReturn) (*chat.Response, error) {
-	if m.parkStore != nil {
-		m.savePark(ctx, req, assistant, done)
-		return nil, nil
-	}
-	return buildInterruptResponse(assistant, done)
-}
-
-// yieldInterrupt delivers an interrupt outcome on the stream path:
-// the tail chunk first (when the round didn't park), then the cause —
-// skipping the cause when the consumer already walked away.
-func (m *middleware) yieldInterrupt(ctx context.Context, req *chat.Request, assistant *chat.AssistantMessage, ri *roundInterrupt, yield func(*chat.Response, error) bool) {
-	tail, err := m.interruptOutcome(ctx, req, assistant, ri.done)
-	switch {
-	case err != nil:
-		yield(nil, err)
-	case tail == nil:
-		yield(nil, ri.cause)
-	default:
-		if yield(tail, nil) {
-			yield(nil, ri.cause)
-		}
-	}
-}
-
-// savePark persists an interrupted round so it can be resumed later.
-// No-op when no ParkStore is configured or no park id is on the request.
-func (m *middleware) savePark(ctx context.Context, req *chat.Request, assistant *chat.AssistantMessage, done []*chat.ToolReturn) {
-	if m.parkStore == nil {
-		return
-	}
-	// A malformed id was already rejected at the handler entry, so an
-	// error here degrades to "no park id" (no persistence).
-	id, _ := chatconversation.ID(req)
-	if id == "" {
-		return
-	}
-	_ = m.parkStore.Write(ctx, id, &ParkState{
-		Assistant: assistant,
-		Done:      done,
-	})
 }
