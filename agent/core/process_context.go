@@ -35,11 +35,11 @@ type EventPublisher func(event any)
 // the parent ctx unchanged.
 type ToolCallCancelFunc func(cancel context.CancelFunc) (release func())
 
-// ProcessState bundles the per-process fields — constant across
+// ProcessScope bundles the per-process fields — constant across
 // every tick of the same process. The runtime carries one of these
 // per AgentProcess and threads it into the ProcessContext built at
 // each tick.
-type ProcessState struct {
+type ProcessScope struct {
 	Process       Process
 	Blackboard    Blackboard
 	Options       *ProcessOptions
@@ -86,12 +86,12 @@ type PlatformHooks struct {
 //
 // Three concerns physically split via embedded sub-structs:
 //
-//   - [ProcessState]   — constant across a process's lifetime
+//   - [ProcessScope]   — constant across a process's lifetime
 //   - [PlatformHooks]  — constant across the Platform's lifetime
 //   - ActionToolGroups — refreshed every tick from the
 //     currently-executing action's declared requirements
 type ProcessContextConfig struct {
-	ProcessState
+	ProcessScope
 	PlatformHooks
 
 	// ActionToolGroups carries the currently-executing action's declared

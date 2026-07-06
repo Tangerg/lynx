@@ -9,7 +9,7 @@ import "github.com/Tangerg/lynx/agent/core"
 // [core.ProcessContext.ActionTools] resolve them lazily.
 func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequirement, action core.Action) *core.ProcessContext {
 	config := core.ProcessContextConfig{
-		ProcessState: core.ProcessState{
+		ProcessScope: core.ProcessScope{
 			Process:       p,
 			Blackboard:    p.blackboard,
 			Options:       p.options,
