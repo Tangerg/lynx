@@ -17,14 +17,15 @@ func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*prot
 	if err != nil {
 		return nil, err
 	}
-	return protocol.NewPage(providerListWire(configured)), nil
+	return protocol.NewPage(providerListWire(configured, s.providers.SupportedProviders())), nil
 }
 
 // ConfigureProvider upserts a provider's credentials (key + base URL) into
 // the registry and returns the masked result (API.md §7.6). The provider
 // must be one Lyra supports.
 func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
-	if !isSupportedProvider(in.Provider) {
+	meta, ok := s.providers.ProviderMetadata(in.Provider)
+	if !ok {
 		return nil, protocol.ErrInvalidParams
 	}
 	if err := s.providers.ConfigureProvider(ctx, provider.Provider{
@@ -41,7 +42,7 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 	if !ok {
 		return nil, errors.New("configured provider not found")
 	}
-	out := providerToWire(entry.ID, entry)
+	out := providerToWire(meta, entry)
 	return &out, nil
 }
 

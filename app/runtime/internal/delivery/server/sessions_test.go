@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -50,6 +51,10 @@ func newTestServerWithInfo(rt RuntimeServices, info protocol.ServerInfo) *Server
 }
 
 func (s stubRuntime) MCPServerStatuses() []kernel.McpServerStatus { return s.mcpStatuses }
+func (stubRuntime) SupportedProviders() []provider.Metadata       { return nil }
+func (stubRuntime) ProviderMetadata(string) (provider.Metadata, bool) {
+	return provider.Metadata{}, false
+}
 
 func (s stubRuntime) Transcript() transcript.Store { return s.hist }
 func (s stubRuntime) ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error) {

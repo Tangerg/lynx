@@ -12,10 +12,27 @@ import (
 type providerRuntime struct {
 	stubRuntime
 	entries    map[string]provider.Provider
+	supported  []provider.Metadata
 	configured []provider.Provider
 	probeErr   error
 	probed     []provider.Provider
 	dropStored bool
+}
+
+func (r *providerRuntime) SupportedProviders() []provider.Metadata {
+	if r.supported != nil {
+		return r.supported
+	}
+	return []provider.Metadata{{ID: "anthropic"}}
+}
+
+func (r *providerRuntime) ProviderMetadata(id string) (provider.Metadata, bool) {
+	for _, meta := range r.SupportedProviders() {
+		if meta.ID == id {
+			return meta, true
+		}
+	}
+	return provider.Metadata{}, false
 }
 
 func (r *providerRuntime) ListRegisteredProviders(context.Context) ([]provider.Provider, error) {

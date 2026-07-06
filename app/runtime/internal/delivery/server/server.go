@@ -18,8 +18,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 )
 
 // Config bundles construction inputs.
@@ -114,11 +114,23 @@ func New(cfg Config) (*Server, error) {
 // delegating to the package-level [Capabilities] so the /v2/info
 // sidecar can build the same snapshot without a constructed Server.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return Capabilities(s.capabilities)
+	return Capabilities(s.runtimeBindings)
 }
 
 type capabilityAccess interface {
 	HasMemory() bool
+	SupportedProviders() []providersvc.Metadata
+}
+
+func (b runtimeBindings) HasMemory() bool {
+	return b.capabilities != nil && b.capabilities.HasMemory()
+}
+
+func (b runtimeBindings) SupportedProviders() []providersvc.Metadata {
+	if b.providers == nil {
+		return nil
+	}
+	return b.providers.SupportedProviders()
 }
 
 type runtimeBindings struct {
@@ -207,20 +219,15 @@ func Capabilities(rt capabilityAccess) protocol.ServerCapabilities {
 			"subagents":   false,
 			"clientTools": false,
 		},
-		Providers: supportedProviderIDs(),
+		Providers: providerIDs(rt.SupportedProviders()),
 		Limits:    protocol.RuntimeLimits{MaxConcurrentRuns: 8},
 	}
 }
 
-// supportedProviderIDs returns the provider types this build can serve.
-// Called from [Capabilities] to advertise the runtime's provider support.
-// Per-provider configured/key status is providers.list's job, not the
-// capability snapshot.
-func supportedProviderIDs() []string {
-	supported := llm.SupportedProviders()
+func providerIDs(supported []providersvc.Metadata) []string {
 	out := make([]string, 0, len(supported))
-	for _, p := range supported {
-		out = append(out, string(p))
+	for _, meta := range supported {
+		out = append(out, meta.ID)
 	}
 	return out
 }
