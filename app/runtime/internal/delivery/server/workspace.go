@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // workspace.* (API.md §7.5) is split across files by the source each read draws
@@ -37,11 +38,8 @@ func (s *Server) workspaceRoot(cwd string) (string, error) {
 }
 
 // resolveInRoot lexically confines a client-supplied path to root and returns
-// it relative to root (the form fs.LocalExecutor wants). It is the path-jail
-// fs.LocalExecutor itself doesn't enforce (its Root only anchors; "../" and
-// absolute paths escape — see tools/fs local.go TODO(security)). Absolute
-// paths are accepted only when already inside root; anything climbing out
-// (or "..") is rejected as path_outside_root (API.md §7.5).
+// it relative to root. Absolute paths are accepted only when already inside
+// root; anything climbing out is rejected as path_outside_root (API.md §7.5).
 func resolveInRoot(root, p string) (rel string, err error) {
 	if p == "" {
 		return "", fmt.Errorf("%w: path required", protocol.ErrInvalidParams)
@@ -56,4 +54,28 @@ func resolveInRoot(root, p string) (rel string, err error) {
 		return "", protocol.ErrPathOutsideRoot
 	}
 	return rel, nil
+}
+
+// resolveExistingInRoot applies the lexical jail and then resolves symlinks for
+// paths that exist, so filesystem reads cannot escape through a symlink rooted
+// inside the workspace. Missing paths are left to the caller's backend error.
+func resolveExistingInRoot(root, p string) (string, error) {
+	rel, err := resolveInRoot(root, p)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(filepath.Join(root, rel))
+	if err != nil {
+		return rel, nil
+	}
+	resolved = worktree.CanonicalCwd(resolved)
+	if !pathInside(worktree.CanonicalCwd(root), resolved) {
+		return "", protocol.ErrPathOutsideRoot
+	}
+	return rel, nil
+}
+
+func pathInside(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

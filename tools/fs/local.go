@@ -36,8 +36,9 @@ const (
 //   - Read normalises CRLF→LF and strips UTF-8 BOM; Write and Edit
 //     restore both when the existing file uses them.
 type LocalExecutor struct {
-	// Root, if set, anchors relative paths. "" = no confinement;
-	// the executor trusts the caller. TODO(security): path-jail.
+	// Root, if set, anchors relative paths. "" = no confinement.
+	// This is not a security jail; callers that need confinement validate
+	// paths before invoking the executor.
 	Root string
 
 	pathLocksMu sync.Mutex
