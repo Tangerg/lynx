@@ -6,7 +6,7 @@
 >
 > **结论先行**：
 > 1. **lyra 在这 16 个里属第一梯队** —— 自有 loop（非借框架）、无 god-file（`arch_test` 强制）、有硬成本预算（16 个里只有 Dify 和我们）、loop 检测已达并略超金标准。业界那份 "if building today" 清单，我们做对了大半。
-> 2. **真正的 headroom：一处便宜、一处中型**。便宜 = 上下文压缩从「单步有损」升级到「先无损后有损 + 结构化摘要 + 压缩留痕」(B1)。prompt-cache (B2) 深读后**改判非便宜** —— Anthropic 缓存已接线且 todo 确实击穿缓存，但适配层把 system 消息合并成一块、且除 system 外消息皆被 history 中间件持久化，干净解需新增「ephemeral 上下文消息」原语（中型，跨 core/agent/lyra），见 §3 B2。
+> 2. **深读后的真实 headroom 比初判小**。上下文压缩 (B1) 大部分**已在**（结构化摘要模板 + 压缩标记 + 隐式迭代 refine 都在），只补了「巨型 tool 输出喂爆摘要调用」一处（已做 `80ac015e`）。prompt-cache (B2) **改判非便宜** —— Anthropic 缓存已接线且 todo 确实击穿缓存，但适配层合并 system 块、且除 system 外消息皆被 history 中间件持久化，干净解需新增「ephemeral 上下文消息」原语（中型，跨 core/agent/lyra），见 §3 B2。
 > 3. **沙箱是威胁模型的取舍，不是缺陷**：lyra 是本地单用户、OS 信任、无鉴权（有意）。值得加一片薄的（macOS seatbelt-for-bash + 子进程 env 黑名单，防「模型误伤 / 被投毒的 MCP·hook 配置」），**不值得**抄 Codex 的三 OS 堡垒 / MITM proxy / 可插拔 inspector 管线 —— 那是给「不可信 / 多租户」威胁模型的，我们没有。
 > 4. **多代理唯一被验证的收益是「并行文件编辑靠 git worktree 隔离」**（业界拆解自己的 takeaway）；其余多代理编排大多是「找问题的解法」。这一条恰好契合我们已有的 `worktree` domain。
 
@@ -20,7 +20,7 @@
 | god-file | 10/12 有 loop 的项目有 1.4K–9K 行巨石（Cline `Task` 3756、Hermes `run_agent.py` 9000、Codex `codex.rs` 7786）。只有 DeerFlow / Goose 靠结构避开 | Clean Arch + `internal/arch/arch_test.go` 机器强制；最大文件 ~627 行 | **领先** |
 | 成本预算 | 16 个里**只有 Dify** 有硬上限（500 步/1200s）；其余全「信任模型自停」（业界点名 anti-pattern） | `kernel/agent.go`：`MaxBudget`(token)/`MaxCostUSD`/`MaxSteps` + `StoppedOnBudget/Steps` | **领先** |
 | loop / stuck 检测 | 金标准 = 调用签名 hash（order-independent）、window≈20、warn@3 / kill@5（DeerFlow）；OpenHands 487 行 StuckDetector 做恢复 | `agent/toolloop/loop_detection.go`：签名=**调用+结果**、window=10、nudge@3（软提醒）→ halt@5 | **达标/略超**（键控「结果」比 DeerFlow 只键「调用」更准） |
-| 上下文管理 | 谱系：单策略 → 多策略 → **级联**（Claude Code 4 层「先无损后有损」、OpenHands 10-condenser 管线、Hermes 5 步结构化） | `adapter/maintenance/compaction.go` `MaybeCompact`：**单步有损**（保留最近 N，把更老的一刀 LLM 摘成 1 条），仅 tail 保护 | **gap（最大）** |
+| 上下文管理 | 谱系：单策略 → 多策略 → **级联**（Claude Code 4 层、OpenHands 10-condenser、Hermes 5 步结构化） | `compaction.go` `MaybeCompact`：已是**结构化多字段摘要**（Goal/Progress/…）+ 压缩标记 + tail 保护 + 隐式迭代 refine；摘要输入现按 `summaryToolResultCap` 截断巨型 tool 输出 | **达标（近多策略；深读后从「大 gap」修正，见 §3 B1）** |
 | prompt-cache | Hermes 把 memory 在会话开始 freeze 进 system prompt，之后写盘不改运行提示 → 保住 prefix cache | `kernel/prompt.go`：前缀（base+LYRA.md+AGENTS.md）稳定 ✓，但 `appendTodos` 把**易变 todo 拼进 system 块** → 每次 `todo_write` 击穿最贵的 system 缓存 | **gap（中型：需 ephemeral 消息原语，见 §3 B2）** |
 | 沙箱 / containment | Codex：seatbelt(SBPL)/Landlock+bwrap+seccomp/Windows 受限令牌（17K 行，3 OS）；Claude Code：macOS `sandbox-exec` | shell/hook/MCP 子进程**无 OS 沙箱**（grep 确认无 seatbelt/landlock）。安全=policy（approval）+recovery（shadow-git 回滚），**无围栏层** | **gap（威胁模型取舍）** |
 | 子进程 env 硬化 | Goose 对 extension 声明的 env 挡 **31 个危险键**（`LD_PRELOAD`/`DYLD_INSERT_LIBRARIES`/`APPINIT_DLLS`…）防注入 | shell(`infra/exec/exec.go`)/hook(`adapter/hooks/shell.go`)/MCP stdio 均**无 env 黑名单**，透传父环境 | **gap（最高性价比）** |
@@ -29,7 +29,7 @@
 | MCP / provider | Goose MCP 6 flavor 统一 `McpClientTrait`；声明式 provider JSON | 已有 MCP 配置子系统 + 数据驱动 provider 表 | **达标** |
 | 记忆存储 | 反面：flat-file 并发损坏（DeerFlow mtime JSON）；正解：SQLite | 单 SQLite（消息/会话/中断）+ LYRA.md（唯一文件，用户可编辑） | **达标** |
 
-**一句话**：11 个维度里 6 个领先/达标、2 个便宜 gap、2 个 gap（沙箱=取舍、worktree=提案）、1 个大 gap（上下文压缩）。
+**一句话**：11 个维度里多数领先/达标；上下文压缩深读后**近达标**（结构化 + 标记 + 迭代已在，只补了摘要输入截断）；仍开着的是取舍/提案（沙箱、worktree）+ 中型的 prompt-cache(B2)。
 
 ---
 
@@ -48,12 +48,14 @@
 
 > 判据继承根 CLAUDE.md：治本、反仪式、不为不存在的威胁模型加层。每条 = 现状(lyra file) → 样板 → 具体最小改动 → 裁决。
 
-### B1 上下文压缩升级 —— **该做（最高价值，我们最大的 gap）**
-现状 `adapter/maintenance/compaction.go` `MaybeCompact` 直接把更老的一刀 LLM 摘成 1 条自由文本，只保 tail。**四个 in-place 小改，不引入已 defer 的 pluggable Strategy 层**：
-1. **先无损预剪**（Hermes①/Claude Code L1）：summarize 前把 older 片里的 `tool_result` 载荷换占位符 —— 无 LLM、很便宜，很多轮直接省掉整次摘要调用。
-2. **head 保护**（Hermes②）：keep-first-1（首个任务框定轮）与已有 keep-last-N 并存，别把它折进摘要。
-3. **结构化摘要模板**（Hermes④/OpenHands `StructuredSummaryCondenser`）：把 `summarize` 的 prompt 从自由文本改成固定字段 **Goal / Progress / Decisions / Files / Next** —— 纯 prompt 改动，信息密度↑、幻觉↓。
-4. **压缩留痕 + 迭代 refine**（Hermes⑤ + `SUMMARY_PREFIX`）：给摘要消息加固定 marker 前缀（本地化的「早期上下文已压缩」），治「模型不知道自己忘了 → 自信答错」；marker 同时让下次压缩能找到上次摘要并**更新**而非重摘。
+### B1 上下文压缩升级 —— **深读改判：多数已在，只补一处（已做 `80ac015e`）**
+读 `adapter/maintenance/compaction.go` 后，本项初判（依赖「lyra 只做自由文本单摘要」的判断）**大部分不成立** —— compactor 已经相当好，四个初拟改动里三个已在：
+1. **先无损预剪** —— 初判「省掉整次摘要」在 lyra 不成立（older 恒被整段摘成 1 条），但**真正的价值在 token 触发那条**：触发正是「几个巨型 tool 输出」，而它们被**原样喂给摘要 LLM**（最贵、且逼近摘要模型自身 window）。**✅ 已做**：`renderTranscript(msgs, cap)` 加 `toolResultCap`，摘要输入按 `summaryToolResultCap`(4000 字符, head+tail 留痕、rune-safe) 截断每条 tool 结果；触发估算与事实提取传 0（须见真实 footprint）。存储历史不动，只 bound 摘要**调用**的输入。
+2. **head 保护** —— **考虑后不做**：`## Goal` 段已「引用原始诉求」保留了目标；把首个 user 消息保原文会打乱 stored-history 里 system 摘要的合并/顺序（`MergeSystem` 会把摘要 hoist 进 system 块），风险 > 收益。
+3. **结构化摘要模板** —— **已在**：`summarize` 的 prompt 早已是固定字段 `## Goal / Progress / Current state / Decisions & constraints / Next steps`（compaction.go:227–253）。初判「自由文本」是误读。
+4. **压缩留痕 + 迭代 refine** —— **已在**：摘要带 `[Earlier conversation summary]` 前缀标记；迭代 refine 隐式发生（上次摘要作为 `older[0]` 被重新喂入下次摘要）。强化 marker 措辞是边际 gilding，未做。
+
+**净结论**：B1 的大头（结构化模板 + 标记 + 迭代）本就在；真正开着的只有「巨型 tool 输出喂爆摘要调用」，已补。
 
 ### B2 prompt-cache：todo 移出被缓存前缀 —— **取向-中型（深读改判，非便宜）**
 Anthropic 缓存**已接线**（`models/anthropic/chat.go applyPromptCaching`：在 tools+system 前缀尾 + 会话末各下一个 ephemeral breakpoint，注释明写前缀须「byte-identical on every call」）。所以 `kernel/prompt.go appendTodos` 把易变 todo 拼进 system 块**确实**击穿缓存 —— 且 system 在 byte 0，一变把下游 history 缓存一并冲掉。**问题在于干净解比初判贵**：
