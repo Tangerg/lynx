@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -30,11 +29,11 @@ func (s *Server) workspaceRoot(cwd string) (string, error) {
 	if root == "" {
 		root = s.serverInfo.Cwd
 	}
-	info, err := os.Stat(root)
-	if err != nil || !info.IsDir() {
-		return "", fmt.Errorf("%w: %s", protocol.ErrCwdUnavailable, root)
+	resolved, err := worktree.ResolveExistingDir(root)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s: %v", protocol.ErrCwdUnavailable, root, err)
 	}
-	return root, nil
+	return resolved, nil
 }
 
 // resolveInRoot lexically confines a client-supplied path to root and returns

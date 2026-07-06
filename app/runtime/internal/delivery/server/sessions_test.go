@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"iter"
-	"os"
 	"strings"
 	"testing"
 
@@ -304,11 +303,11 @@ func (s stubRuntime) UpdateSession(ctx context.Context, id string, patch session
 		}
 	}
 	if patch.Cwd != nil {
-		info, err := os.Stat(*patch.Cwd)
-		if err != nil || !info.IsDir() {
-			return session.Session{}, session.ErrCwdUnavailable
+		cwd, err := worktree.ResolveExistingDir(*patch.Cwd)
+		if err != nil {
+			return session.Session{}, errors.Join(session.ErrCwdUnavailable, err)
 		}
-		if err := s.sess.SetCwd(ctx, id, *patch.Cwd); err != nil {
+		if err := s.sess.SetCwd(ctx, id, cwd); err != nil {
 			return session.Session{}, err
 		}
 	}
@@ -417,8 +416,8 @@ func TestUpdateSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("relocate: %v", err)
 	}
-	if out.Cwd != newCwd {
-		t.Errorf("Cwd = %q, want relocated %q", out.Cwd, newCwd)
+	if out.Cwd != worktree.CanonicalCwd(newCwd) {
+		t.Errorf("Cwd = %q, want relocated %q", out.Cwd, worktree.CanonicalCwd(newCwd))
 	}
 
 	// metadata is full-replaced and round-trips arbitrary JSON values
