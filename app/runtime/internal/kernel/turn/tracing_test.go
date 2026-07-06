@@ -32,7 +32,7 @@ func TestStartTurn_PropagatesEntryTrace(t *testing.T) {
 	wantTrace := entry.SpanContext().TraceID()
 
 	stub := &stubEngine{runReply: "ok"}
-	svc := mustChat(turn.New(turn.Dependencies{Engine: stub}))
+	svc := mustTurn(turn.New(turn.Dependencies{Engine: stub}))
 	handle, err := svc.StartTurn(entryCtx, turn.StartTurnRequest{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)

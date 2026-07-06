@@ -38,7 +38,7 @@ func newTurnMetrics() *turnMetrics {
 	// safe to drop — recording stays a no-op rather than panicking on a
 	// misconfigured provider.
 	duration, _ := m.Float64Histogram(metricTurnDuration,
-		metric.WithDescription("Chat turn wall-clock time, by outcome and model."),
+		metric.WithDescription("Turn wall-clock time, by outcome and model."),
 		metric.WithUnit("ms"))
 	interrupts, _ := m.Int64Counter(metricTurnInterrupts,
 		metric.WithDescription("HITL interrupts a turn parked on, by kind."))
