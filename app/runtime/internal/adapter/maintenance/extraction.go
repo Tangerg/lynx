@@ -84,7 +84,7 @@ func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (ke
 // recursion into the chat history layer). Returns "" when the LLM
 // explicitly says nothing is worth recording.
 func (e *Extractor) askForFacts(ctx context.Context, msgs []chat.Message) (string, error) {
-	transcript := renderTranscript(msgs, 0)
+	transcript := renderTranscript(msgs, uncappedToolResults)
 	const prompt = `You are mining a coding-agent conversation for facts worth
 adding to a project's persistent memory file (LYRA.md). Output
 short markdown bullets — each one a stand-alone, self-explanatory
