@@ -3,9 +3,11 @@ package runtime
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 type sessionRuntimeStore struct {
@@ -87,11 +89,12 @@ func TestRuntimeSessionFacade(t *testing.T) {
 		t.Fatalf("getID=%q got=%+v", store.getID, got)
 	}
 
-	created, err := rt.CreateSession(ctx, "New", "/repo")
+	createCwd := t.TempDir()
+	created, err := rt.CreateSession(ctx, "New", filepath.Join(createCwd, "."))
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if created.ID != "ses_created" || store.createTitle != "New" || store.createCwd != "/repo" {
+	if created.ID != "ses_created" || store.createTitle != "New" || store.createCwd != worktree.CanonicalCwd(createCwd) {
 		t.Fatalf("created=%+v title=%q cwd=%q", created, store.createTitle, store.createCwd)
 	}
 
@@ -134,7 +137,7 @@ func TestRuntimeUpdateSessionAppliesPatch(t *testing.T) {
 	if store.model != ([2]string{"ses_1", model}) {
 		t.Fatalf("model = %v", store.model)
 	}
-	if store.cwd != ([2]string{"ses_1", cwd}) {
+	if store.cwd != ([2]string{"ses_1", worktree.CanonicalCwd(cwd)}) {
 		t.Fatalf("cwd = %v", store.cwd)
 	}
 	if store.metadataID != "ses_1" || store.metadata["pinned"] != true {
@@ -171,6 +174,14 @@ func TestRuntimeUpdateSessionRejectsInvalidPatch(t *testing.T) {
 	}
 	if store.renamed != ([2]string{}) {
 		t.Fatalf("invalid mixed patch renamed session: %v", store.renamed)
+	}
+
+	missing := filepath.Join(t.TempDir(), "missing")
+	if _, err := rt.CreateSession(context.Background(), "New", missing); !errors.Is(err, session.ErrCwdUnavailable) {
+		t.Fatalf("missing create cwd err = %v, want ErrCwdUnavailable", err)
+	}
+	if store.createCwd != "" {
+		t.Fatalf("missing create cwd wrote session: %q", store.createCwd)
 	}
 }
 

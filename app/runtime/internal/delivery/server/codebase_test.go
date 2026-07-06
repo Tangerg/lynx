@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 type codebaseRuntime struct {
@@ -62,7 +63,7 @@ func TestCodebaseSearchUsesRuntimeFacade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codebase search: %v", err)
 	}
-	if rt.searchRoot != root || rt.searchQuery != "session" || rt.searchLimit != 3 {
+	if rt.searchRoot != worktree.CanonicalCwd(root) || rt.searchQuery != "session" || rt.searchLimit != 3 {
 		t.Fatalf("search root=%q query=%q limit=%d", rt.searchRoot, rt.searchQuery, rt.searchLimit)
 	}
 	if len(got.Hits) != 1 || got.Hits[0].Path != "runtime/session.go" || got.Hits[0].Score != 0.9 {
@@ -102,8 +103,8 @@ func TestCodebaseStatusUsesRuntimeFacade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codebase status: %v", err)
 	}
-	if rt.statusRoot != root {
-		t.Fatalf("status root = %q, want %q", rt.statusRoot, root)
+	if rt.statusRoot != worktree.CanonicalCwd(root) {
+		t.Fatalf("status root = %q, want %q", rt.statusRoot, worktree.CanonicalCwd(root))
 	}
 	if got.State != protocol.CodebaseStateReady || got.IndexedAt != indexedAt.Format(time.RFC3339) {
 		t.Fatalf("status = %+v", got)
@@ -118,8 +119,8 @@ func TestCodebaseReindexUsesRuntimeFacade(t *testing.T) {
 	if err := s.CodebaseReindex(context.Background(), protocol.CodebaseReindexRequest{}); err != nil {
 		t.Fatalf("codebase reindex: %v", err)
 	}
-	if rt.reindexRoot != root {
-		t.Fatalf("reindex root = %q, want %q", rt.reindexRoot, root)
+	if rt.reindexRoot != worktree.CanonicalCwd(root) {
+		t.Fatalf("reindex root = %q, want %q", rt.reindexRoot, worktree.CanonicalCwd(root))
 	}
 
 	rt.reindexErr = codebaseindex.ErrNoEmbeddingModel

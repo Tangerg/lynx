@@ -3,10 +3,10 @@ package runtime
 import (
 	"context"
 	"errors"
-	"os"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // ListSessions returns every user-facing session, newest-updated first.
@@ -21,6 +21,10 @@ func (r *Runtime) GetSession(ctx context.Context, id string) (session.Session, e
 
 // CreateSession starts a fresh session in cwd.
 func (r *Runtime) CreateSession(ctx context.Context, title, cwd string) (session.Session, error) {
+	cwd, err := resolveSessionCwd(cwd)
+	if err != nil {
+		return session.Session{}, err
+	}
 	return r.session.Create(ctx, title, cwd)
 }
 
@@ -34,13 +38,11 @@ func (r *Runtime) UpdateSession(ctx context.Context, id string, patch session.Pa
 		patch.Title = &title
 	}
 	if patch.Cwd != nil {
-		info, err := os.Stat(*patch.Cwd)
+		cwd, err := resolveSessionCwd(*patch.Cwd)
 		if err != nil {
-			return session.Session{}, errors.Join(session.ErrCwdUnavailable, err)
+			return session.Session{}, err
 		}
-		if !info.IsDir() {
-			return session.Session{}, session.ErrCwdUnavailable
-		}
+		patch.Cwd = &cwd
 	}
 
 	var updated session.Session
@@ -78,4 +80,12 @@ func (r *Runtime) UpdateSession(ctx context.Context, id string, patch session.Pa
 		return session.Session{}, err
 	}
 	return updated, nil
+}
+
+func resolveSessionCwd(cwd string) (string, error) {
+	resolved, err := worktree.ResolveExistingDir(cwd)
+	if err != nil {
+		return "", errors.Join(session.ErrCwdUnavailable, err)
+	}
+	return resolved, nil
 }

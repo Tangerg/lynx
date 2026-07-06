@@ -1,6 +1,7 @@
 package worktree_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -41,5 +42,28 @@ func TestCanonicalCwdCollapsesSpellings(t *testing.T) {
 func TestCanonicalCwdEmpty(t *testing.T) {
 	if got := worktree.CanonicalCwd(""); got != "" {
 		t.Errorf("CanonicalCwd(\"\") = %q, want empty", got)
+	}
+}
+
+func TestResolveExistingDir(t *testing.T) {
+	dir := t.TempDir()
+	got, err := worktree.ResolveExistingDir(filepath.Join(dir, "."))
+	if err != nil {
+		t.Fatalf("ResolveExistingDir: %v", err)
+	}
+	if got != worktree.CanonicalCwd(dir) {
+		t.Fatalf("ResolveExistingDir = %q, want canonical %q", got, worktree.CanonicalCwd(dir))
+	}
+
+	file := filepath.Join(dir, "file.txt")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := worktree.ResolveExistingDir(file); !errors.Is(err, worktree.ErrNotDirectory) {
+		t.Fatalf("ResolveExistingDir(file) err = %v, want ErrNotDirectory", err)
+	}
+
+	if _, err := worktree.ResolveExistingDir(filepath.Join(dir, "missing")); err == nil {
+		t.Fatal("ResolveExistingDir(missing) err = nil, want error")
 	}
 }
