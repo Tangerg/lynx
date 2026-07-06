@@ -413,3 +413,15 @@ func TestAgentDocScope(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkspaceListAgentDocsRejectsUnavailableCwd(t *testing.T) {
+	s := &Server{serverInfo: protocol.ServerInfo{Cwd: t.TempDir()}}
+	missing := filepath.Join(t.TempDir(), "missing")
+
+	_, err := s.WorkspaceListAgentDocs(context.Background(), protocol.WorkspaceListQuery{
+		WorkspaceQuery: protocol.WorkspaceQuery{Cwd: missing},
+	})
+	if !errors.Is(err, protocol.ErrCwdUnavailable) {
+		t.Fatalf("listAgentDocs err = %v, want ErrCwdUnavailable", err)
+	}
+}

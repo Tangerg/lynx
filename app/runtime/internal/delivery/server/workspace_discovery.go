@@ -110,18 +110,18 @@ func (s *Server) WorkspaceListRecipes(ctx context.Context, in protocol.Workspace
 // (or the serve cwd) up to home — the same cascade the engine injects
 // into the system prompt (API.md §7.5).
 func (s *Server) WorkspaceListAgentDocs(ctx context.Context, q protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
-	cwd := q.Cwd
-	if cwd == "" {
-		cwd = s.serverInfo.Cwd
+	root, err := s.workspaceRoot(q.Cwd)
+	if err != nil {
+		return nil, err
 	}
 	home := s.serverInfo.Home
-	files, err := agentdoc.Discover(ctx, cwd, home)
+	files, err := agentdoc.Discover(ctx, root, home)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]protocol.AgentDoc, 0, len(files))
 	for _, f := range files {
-		out = append(out, protocol.AgentDoc{Path: f.Path, Scope: protocol.AgentDocScope(agentDocScope(f.Path, cwd, home))})
+		out = append(out, protocol.AgentDoc{Path: f.Path, Scope: protocol.AgentDocScope(agentDocScope(f.Path, root, home))})
 	}
 	return protocol.NewPage(out), nil
 }
