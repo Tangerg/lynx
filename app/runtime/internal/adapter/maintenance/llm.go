@@ -52,6 +52,11 @@ func askDirect(ctx context.Context, client *chat.Client, systemPrompt, userPromp
 	return text, err
 }
 
+// uncappedToolResults is the [renderTranscript] toolResultCap that leaves tool
+// bodies intact — used by the trigger estimate and the fact extractor, which
+// must see the real footprint / full content (only the summariser caps).
+const uncappedToolResults = 0
+
 // renderTranscript flattens messages into a plain-text role-tagged
 // transcript a summariser / extractor can read. Lossy by design — tool-call
 // arguments and parts are flattened to their text bodies; what we
@@ -94,14 +99,14 @@ func renderTranscript(msgs []chat.Message, toolResultCap int) string {
 	return b.String()
 }
 
-// capText bounds an oversized body to max chars — head (¾) + tail (¼) with the
+// capText bounds an oversized body to limit chars — head (¾) + tail (¼) with the
 // elided middle marked — trimming to rune boundaries so the cut never splits a
-// multibyte rune. max <= 0 or an already-small body is returned unchanged.
-func capText(s string, max int) string {
-	if max <= 0 || len(s) <= max {
+// multibyte rune. limit <= 0 or an already-small body is returned unchanged.
+func capText(s string, limit int) string {
+	if limit <= 0 || len(s) <= limit {
 		return s
 	}
-	head, tailStart := max*3/4, len(s)-max/4
+	head, tailStart := limit*3/4, len(s)-limit/4
 	for head > 0 && !utf8.RuneStart(s[head]) {
 		head--
 	}

@@ -223,7 +223,7 @@ func (c *Compactor) shouldCompact(msgs []chat.Message) bool {
 // [renderTranscript] so tool-result bodies (the bulk of a coding
 // conversation) are counted, not just chat text.
 func estimateTokens(msgs []chat.Message) int {
-	return len(renderTranscript(msgs, 0)) / charsPerToken
+	return len(renderTranscript(msgs, uncappedToolResults)) / charsPerToken
 }
 
 // summarize asks the LLM to fold the older messages into a single
