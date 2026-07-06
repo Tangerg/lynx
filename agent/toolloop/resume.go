@@ -42,7 +42,7 @@ func buildInterruptResponse(assistant *chat.AssistantMessage, done []*chat.ToolR
 			toolMsg = tm
 		}
 	}
-	return toolRoundResponse(assistant, toolMsg, chat.FinishReasonInterrupt)
+	return toolRoundResponse(assistant, toolMsg, FinishReasonInterrupt)
 }
 
 // resumePoint is a parsed HITL resume tail: the round's assistant tool-call
@@ -204,7 +204,7 @@ func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, point *r
 		return nil, err
 	}
 	if inv.allReturnDirect(full) {
-		return toolRoundResponse(point.assistant, toolMsg, chat.FinishReasonReturnDirect)
+		return toolRoundResponse(point.assistant, toolMsg, FinishReasonReturnDirect)
 	}
 	nextReq, err := nextRoundRequest(req, point.assistant, toolMsg)
 	if err != nil {
@@ -243,7 +243,7 @@ func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, point 
 		return
 	}
 	if inv.allReturnDirect(full) {
-		yield(toolRoundResponse(point.assistant, toolMsg, chat.FinishReasonReturnDirect))
+		yield(toolRoundResponse(point.assistant, toolMsg, FinishReasonReturnDirect))
 		return
 	}
 	nextReq, err := nextRoundRequest(req, point.assistant, toolMsg)
