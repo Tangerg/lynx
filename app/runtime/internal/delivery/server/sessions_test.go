@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
@@ -218,11 +218,11 @@ func (s stubRuntime) ClaimMutationSlot(claims lifecycle.SessionClaimer, sessionI
 }
 
 func (s *stubRuntime) ClaimWorkingTreeRun(cwd string) (lifecycle.WorkingTreeAdmission, bool) {
-	return s.workingTreeGate().ClaimRun(fspath.Canonical(cwd))
+	return s.workingTreeGate().ClaimRun(worktree.CanonicalCwd(cwd))
 }
 
 func (s *stubRuntime) ClaimWorkingTreeMutation(cwd string) (lifecycle.WorkingTreeAdmission, bool) {
-	return s.workingTreeGate().ClaimMutation(fspath.Canonical(cwd))
+	return s.workingTreeGate().ClaimMutation(worktree.CanonicalCwd(cwd))
 }
 
 func (s *stubRuntime) workingTreeGate() *lifecycle.WorkingTreeGate {
