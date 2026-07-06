@@ -171,7 +171,7 @@ Clean Arch 教科书会引诱你建 `internal/domain/entities`。**不做。** s
 ### 5.4 SPI vs 焊死，判据只有一句："外部会不会真的来实现它？"
 
 - **会** → 抽接口（SPI）：knowledge（mem0）、compaction、extraction、planning、LLM provider、chat 历史存储、工具/MCP/A2A、会话/时间线/中断/provider 存储（后端可换）。
-- **不会** → 焊死成具体类型：agent loop、turn 状态机、transport/dispatch/protocol、事件 hub、run/session 生命周期容器、`conversation.Service`（真正的接缝在底下的 `memory.Store`）、`clientResolver`/toolset 装配。
+- **不会** → 焊死成具体类型：agent loop、turn 状态机、transport/dispatch/protocol、事件 hub、run/session 生命周期容器、`conversation.Service`（真正的接缝在底下的 `history.Store`）、`clientResolver`/toolset 装配。
 - **两头都是错**：过度抽象（给焊死核心套没人实现的接口）和抽象不足（把可替换服务焊死）一样糟。
 
 ### 5.5 Ubiquitous language 从第一天就对齐

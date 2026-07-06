@@ -11,8 +11,8 @@ import (
 // history middleware — no extra
 // wiring needed beyond installing the middleware on the chat client.
 //
-// Sessions carry identity + audit metadata; the message history lives
-// under chatmemory, keeping the session struct thin.
+// Sessions carry identity + audit metadata; message history stays behind
+// the chat history Store abstraction, keeping the session struct thin.
 //
 // Sessions are persisted via [SessionStore]; the in-memory reference
 // implementation ([NewInMemorySessionStore]) ships in this package.

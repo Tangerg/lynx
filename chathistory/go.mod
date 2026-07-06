@@ -1,4 +1,4 @@
-module github.com/Tangerg/lynx/chatmemory
+module github.com/Tangerg/lynx/chathistory
 
 go 1.26.4
 

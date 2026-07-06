@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
-	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
+	conversationhistory "github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 // middleware is the conversation-history layer. It owns exactly one job:
@@ -33,7 +33,7 @@ import (
 //     The spliced order is: system (from the live request) → stored
 //     history → the request's new non-system messages.
 type middleware struct {
-	store chathistory.Store
+	store conversationhistory.Store
 }
 
 // NewMiddleware constructs a history-management middleware backed by
@@ -42,7 +42,7 @@ type middleware struct {
 //
 // Example:
 //
-//	store := chathistory.NewInMemoryStore()
+//	store := conversationhistory.NewInMemoryStore()
 //	callMW, streamMW, err := history.NewMiddleware(store)
 //	if err != nil { return err }
 //	resp, err := client.Chat().
@@ -50,7 +50,7 @@ type middleware struct {
 //	    WithMiddlewares(callMW, streamMW).
 //	    WithUserPrompt("hi").
 //	    Call().Response(ctx)
-func NewMiddleware(store chathistory.Store) (chat.CallMiddleware, chat.StreamMiddleware, error) {
+func NewMiddleware(store conversationhistory.Store) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if store == nil {
 		return nil, nil, errors.New("history.NewMiddleware: store must not be nil")
 	}

@@ -2,7 +2,7 @@
 
 > Lynx **直接使用 OpenTelemetry API**，不自造观测抽象。OTel 本身就是厂商中立层，再加一层是重复建设。
 >
-> **当前状态（2026-06-05 更新）**：可观测性三驾马车（**Traces / Metrics / Logs**）都是 OTel 信号，dev 统一 sink 到 `log/slog`、生产换 OTLP（vendor-neutral）。`otel/slog` 含三个 exporter——`NewSpanExporter`(span) + `NewMetricExporter`(metric) + `NewLogExporter`(OTel log record→slog)；log 的 `slog.Handler` 用 contrib `otelslog` bridge（→ LoggerProvider → LogExporter）。lyra startup（`cmd/lyra/observability.go::setupObservability`）一次性绑全局 provider。**埋点原则：观测靠 span + metric,不在业务代码撒 `slog`**——span 经 sink 渲染即"日志"。**全模块埋点已落地**——chat（`Call`+`Stream`）、embedding、tool、RAG 五阶段、MCP client+server、agent runtime（tick/action/plan metrics + planner span）、24 个 vectorstore、6 个 chatmemory provider 按 GenAI/DB semconv;lyra 业务层 chat turn `invoke_agent` span + `run.*` metrics + 各层 span（session/tool/mcp 经 RPC/dial span 覆盖）。**所有 attr key 已去品牌**（见 §3）。
+> **当前状态（2026-06-05 更新）**：可观测性三驾马车（**Traces / Metrics / Logs**）都是 OTel 信号，dev 统一 sink 到 `log/slog`、生产换 OTLP（vendor-neutral）。`otel/slog` 含三个 exporter——`NewSpanExporter`(span) + `NewMetricExporter`(metric) + `NewLogExporter`(OTel log record→slog)；log 的 `slog.Handler` 用 contrib `otelslog` bridge（→ LoggerProvider → LogExporter）。lyra startup（`cmd/lyra/observability.go::setupObservability`）一次性绑全局 provider。**埋点原则：观测靠 span + metric,不在业务代码撒 `slog`**——span 经 sink 渲染即"日志"。**全模块埋点已落地**——chat（`Call`+`Stream`）、embedding、tool、RAG 五阶段、MCP client+server、agent runtime（tick/action/plan metrics + planner span）、24 个 vectorstore、6 个 chathistory provider 按 GenAI/DB semconv;lyra 业务层 chat turn `invoke_agent` span + `run.*` metrics + 各层 span（session/tool/mcp 经 RPC/dial span 覆盖）。**所有 attr key 已去品牌**（见 §3）。
 
 ---
 
@@ -449,12 +449,12 @@ otel.SetTracerProvider(tp)
 - [x] `vectorstores/{pgvector,qdrant,milvus,pinecone,weaviate,chroma,redis,mongodb,cassandra,neo4j,couchbase,typesense,vespa,vectara,bedrockkb,s3vectors,azureaisearch,azurecosmos,mariadb,oracle,tidb,clickhouse,opensearch,elasticsearch,inmemory}` 共 24 个 provider 统一加 `db.vector.*` 埋点（cockroachdb/supabase 通过 pgvector 类型别名继承）
 - [x] `mcp/tool.go::Tool.Call` + `mcp/server.go::makeServerHandler` 加 `mcp.tool.call` / `mcp.tool.serve` span
 - [x] `agent/runtime/` tick / action / plan 全套埋点：span（含 HTN / Reactive / GOAP planner）+ metrics（`agent.ticks` / `agent.action.executions` / `agent.action.duration` / `agent.plan.duration` / `agent.process.exits`）
-- [x] `chatmemory/{postgres,redis,mongodb,cassandra,neo4j,cosmosdb}` 6 个 provider Read/Write/Clear 加 DB-semconv span
+- [x] `chathistory/{postgres,redis,mongodb,cassandra,neo4j,cosmosdb}` 6 个 provider Read/Write/Clear 加 DB-semconv span
 - [x] **lyra 业务层**：chat turn `invoke_agent <model>` span（全链路父 span）+ `run.duration` / `run.interrupts` metrics；MCP dial（`mcp.dial_servers`）、直调 tool（`execute_tool`）span；session/run 生命周期由 RPC server span + turn span 覆盖（**不撒 slog**——见 §1.2 P6）
 
 ### 8.3 待动工
 
-- [ ] vectorstore + chatmemory 的端到端 span 行为单测（chat tracing_test + lyra chat tracing_test 已覆盖各自一例）
+- [ ] vectorstore + chathistory 的端到端 span 行为单测（chat tracing_test + lyra chat tracing_test 已覆盖各自一例）
 
 ### 8.4 不做的事
 

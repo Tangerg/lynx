@@ -10,8 +10,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	"github.com/Tangerg/lynx/chatmemory/internal/codec"
-	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
+	"github.com/Tangerg/lynx/chathistory/internal/codec"
+	"github.com/Tangerg/lynx/chathistory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 )

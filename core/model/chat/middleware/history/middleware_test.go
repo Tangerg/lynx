@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
-	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
+	conversationhistory "github.com/Tangerg/lynx/core/model/chat/history"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/history"
 )
 
@@ -49,7 +49,7 @@ func TestHistoryMiddleware_RejectsNilStore(t *testing.T) {
 //     non-system messages (load → splice → save), with no de-duplication
 //     state involved.
 func TestHistoryMiddleware_SystemFirstAndNeverPersisted(t *testing.T) {
-	store := chathistory.NewInMemoryStore()
+	store := conversationhistory.NewInMemoryStore()
 	callMW, _, err := history.NewMiddleware(store)
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +113,7 @@ func TestHistoryMiddleware_SystemFirstAndNeverPersisted(t *testing.T) {
 // TestHistoryMiddleware_NoConversationIDPassesThrough verifies the middleware
 // is a no-op (no load, no save) when no conversation id is set.
 func TestHistoryMiddleware_NoConversationIDPassesThrough(t *testing.T) {
-	store := chathistory.NewInMemoryStore()
+	store := conversationhistory.NewInMemoryStore()
 	callMW, _, err := history.NewMiddleware(store)
 	if err != nil {
 		t.Fatal(err)
@@ -154,7 +154,7 @@ func (h toolCallHandler) Call(_ context.Context, _ *chat.Request) (*chat.Respons
 // The (assistant, tool) pair is written only when the tool-calling middleware
 // re-presents them together as the next round's input.
 func TestHistoryMiddleware_SkipsUnpairedToolCallAssistant(t *testing.T) {
-	store := chathistory.NewInMemoryStore()
+	store := conversationhistory.NewInMemoryStore()
 	callMW, _, err := history.NewMiddleware(store)
 	if err != nil {
 		t.Fatal(err)

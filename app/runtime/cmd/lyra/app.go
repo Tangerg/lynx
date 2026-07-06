@@ -36,7 +36,7 @@ import (
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
-	chathistory "github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 // App is the top-level CLI object. It owns the IO streams every
@@ -311,7 +311,7 @@ type Stores struct {
 	Transcript    transcript.Store
 	Provider      providersvc.Service
 	MCPServers    mcpserversvc.Service
-	ChatHistory   chathistory.Store
+	ChatHistory   history.Store
 	Park          toolloop.ParkStore
 	Todos         todosvc.Service
 	ApprovalRules approval.RuleStore
