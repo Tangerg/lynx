@@ -25,7 +25,7 @@
 | 沙箱 / containment | Codex：seatbelt(SBPL)/Landlock+bwrap+seccomp/Windows 受限令牌（17K 行，3 OS）；Claude Code：macOS `sandbox-exec` | shell/hook/MCP 子进程**无 OS 沙箱**（grep 确认无 seatbelt/landlock）。安全=policy（approval）+recovery（shadow-git 回滚），**无围栏层** | **gap（威胁模型取舍）** |
 | 子进程 env 硬化 | Goose 对 extension 声明的 env 挡 **31 个危险键**（`LD_PRELOAD`/`DYLD_INSERT_LIBRARIES`/`APPINIT_DLLS`…）防注入 | shell(`infra/exec/exec.go`)/hook(`adapter/hooks/shell.go`)/MCP stdio 均**无 env 黑名单**，透传父环境 | **gap（最高性价比）** |
 | 工具并发 | Claude Code RWLock：只读并行、写独占 | `chat.Tool.ConcurrencyKey`（并行读 / 独占写），装饰器强制转发 | **达标** |
-| 子代理隔离 | oh-my-codex：**git worktree per agent**，~30 个并行零文件冲突（业界唯一被验证的多代理收益）；语料几乎都 cap 深度=1 | 并行子代理**共享 cwd**，靠 `kernel/lifecycle` working-tree admission **串行化**避冲突；有 `worktree` domain；**无深度上限** | **gap（真提案）** |
+| 子代理隔离 | oh-my-codex：**git worktree per agent**，~30 个并行零文件冲突（业界唯一被验证的多代理收益）；语料几乎都 cap 深度=1 | 并行子代理**共享 cwd**，靠 `kernel/lifecycle` working-tree admission **串行化**避冲突；有 `worktree` domain；**深度上限已加**（`maxSpawnDepth` 结构性 backstop，`66dd466a`） | **部分（深度已保险；worktree 并行仍是提案）** |
 | MCP / provider | Goose MCP 6 flavor 统一 `McpClientTrait`；声明式 provider JSON | 已有 MCP 配置子系统 + 数据驱动 provider 表 | **达标** |
 | 记忆存储 | 反面：flat-file 并发损坏（DeerFlow mtime JSON）；正解：SQLite | 单 SQLite（消息/会话/中断）+ LYRA.md（唯一文件，用户可编辑） | **达标** |
 
@@ -71,7 +71,7 @@ Anthropic 缓存**已接线**（`models/anthropic/chat.go applyPromptCaching`：
 
 ### B4 并行子代理隔离 + 深度上限 —— **取向 + 一个廉价该做**
 - **worktree per 并行子代理 —— 取向（真提案）**：基于已有 `worktree` domain，给每个并行子代理独立 git worktree（分支 → 完成时 merge/commit 回收），解除 `kernel/lifecycle` working-tree admission 的**串行化**，让并行子代理真正并行。业界唯一被验证的多代理收益（oh-my-codex）。权衡：每 worktree 磁盘成本 + fold-in 时的 merge 步；admission-slot 退化为非-git workspace 的 fallback。
-- **子代理深度上限 —— 该做（廉价保险）**：现状 `agent/runtime/child.go` 的 spawn 梯度无 depth cap。加一个可配置小上限（默认 1–2）—— spawn 路径上一个计数器。全局 `MaxBudget/MaxSteps` 已把 runaway 成本兜底（≈ OpenHands 的全局迭代预算），depth cap 补一个**结构性**快速失败，防病态递归在烧完预算前就止损。语料除 Dify(5) 全 cap 在 1。lyra 的 `SpawnChildProtectedOnly`（仅 ambient 继承）已经站在「限制继承、不粗暴禁工具」这一侧（OpenHands 立场，优于 Hermes 的禁工具清单）。
+- **✅ DONE — 子代理深度上限**（`66dd466a`）：`AgentProcess` 带 delegation depth（顶层 0、child=parent+1，`CreateChildProcess` 设置、snapshot/restore 保留）；单一 spawn choke point `childSpawn.prepare`（四种 spawn 共用）在超过 `maxSpawnDepth`(8) 时**创建 child 前**以 `ErrMaxSpawnDepth` 快速失败，agent-as-tool wrapper 把它当可恢复 tool error 返回给模型。全局 `MaxBudget/MaxSteps` 只兜住成本；depth cap 补一个**结构性**快速失败（budget 未设时也有界）。刻意用 const 不做 config（YAGNI，需要调再提升）；8 足够深、不碰正当嵌套，仍保留业界多数禁止的 depth>1。lyra 的 `SpawnChildProtectedOnly`（仅 ambient 继承）本就站在「限制继承、不粗暴禁工具」这一侧。
 - **model 路由（cheap→expensive）—— 别做/YAGNI**：OMC 的 role→tier（critic 用便宜、reviewer 用贵，省 30–50% token）。lyra 的 per-run model 已是人手的升级杠杆；只有当我们真的大量 spawn 廉价子代理时才值得自动化便宜端 —— 否则是 KISS 退步。
 
 ### 明确 validation（不动，写下防再议）
