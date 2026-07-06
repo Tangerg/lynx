@@ -31,6 +31,7 @@ import (
 type AgentProcess struct {
 	id        string
 	parentID  string
+	depth     int // delegation depth: 0 at top level, parent+1 for a child
 	agent     *core.Agent
 	options   *core.ProcessOptions
 	startedAt time.Time

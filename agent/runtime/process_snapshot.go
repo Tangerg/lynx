@@ -26,6 +26,7 @@ func (p *AgentProcess) Snapshot() core.ProcessSnapshot {
 	snap := core.ProcessSnapshot{
 		ID:                   p.ID(),
 		ParentID:             p.ParentID(),
+		Depth:                p.depth,
 		StartedAt:            p.StartedAt(),
 		CapturedAt:           core.Now(),
 		Status:               p.Status(),
@@ -148,6 +149,7 @@ func (p *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options core.P
 	// Extensions (observer / listener) attach here too.
 	proc.wireRuntimeDeps(options.Extensions)
 	proc.parentID = snap.ParentID
+	proc.depth = snap.Depth
 	proc.startedAt = snap.StartedAt
 
 	// Re-populate state.

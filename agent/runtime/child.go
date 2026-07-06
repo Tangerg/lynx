@@ -8,6 +8,21 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
+// maxSpawnDepth is the hard backstop on sub-agent delegation depth (a top-level
+// process is depth 0, its child 1, and so on). A spawn that would exceed it
+// fails fast with [ErrMaxSpawnDepth] BEFORE the child process is created —
+// structural insurance against pathological recursive delegation (an agent that
+// keeps delegating to itself) that holds even when no token / step budget is
+// set. Generous on purpose: real recursive task decomposition nests only a few
+// levels, so this never trips legitimate use — it only stops runaways.
+const maxSpawnDepth = 8
+
+// ErrMaxSpawnDepth reports that a sub-agent spawn was refused because it would
+// exceed [maxSpawnDepth]. All spawn entry points fail with it before creating a
+// child; the agent-as-tool wrapper returns it as a tool error, so the
+// delegating model re-plans instead of recursing without bound.
+var ErrMaxSpawnDepth = errors.New("spawn child: max delegation depth exceeded")
+
 // SpawnChild creates and runs a child sub-agent under the parent process
 // attached to ctx via [core.WithProcess]. The child inherits the FULL
 // parent blackboard via [core.Blackboard.Spawn] (CreateChildProcess's
@@ -263,6 +278,11 @@ func (s childSpawn) prepare() (*AgentProcess, error) {
 	parentProc, err := s.parent()
 	if err != nil {
 		return nil, err
+	}
+	// Structural backstop: refuse before creating the child, so a runaway
+	// delegation chain fails fast instead of burning budget spawning deeper.
+	if parentProc.depth+1 > maxSpawnDepth {
+		return nil, fmt.Errorf("spawn child %q: %w (depth %d > max %d)", s.agentDef.Name, ErrMaxSpawnDepth, parentProc.depth+1, maxSpawnDepth)
 	}
 
 	child, err := s.platform.CreateChildProcess(s.agentDef, parentProc, s.options(parentProc))
