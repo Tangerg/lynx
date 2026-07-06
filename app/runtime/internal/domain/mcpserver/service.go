@@ -97,6 +97,9 @@ func (s Server) Validate() error {
 	if s.Name == "" {
 		return errors.New("mcpserver: Name is required")
 	}
+	if s.Timeout < 0 {
+		return fmt.Errorf("mcpserver %q: Timeout must be non-negative", s.Name)
+	}
 	switch s.Transport {
 	case TransportStreamableHTTP:
 		if s.URL == "" {

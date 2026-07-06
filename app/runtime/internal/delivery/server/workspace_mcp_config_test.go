@@ -86,3 +86,21 @@ func TestWorkspaceMCPConfigurePropagatesAuthorizationLookupError(t *testing.T) {
 		t.Fatalf("configured %d server(s), want none after lookup failure", len(rt.configured))
 	}
 }
+
+func TestWorkspaceMCPConfigureRejectsNegativeTimeout(t *testing.T) {
+	rt := &mcpConfigRuntime{}
+	s := newTestServer(rt)
+
+	_, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
+		Name:           "linear",
+		Transport:      mcpserver.TransportStreamableHTTP,
+		URL:            "https://mcp.linear.app/mcp",
+		TimeoutSeconds: -1,
+	})
+	if !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("configure err = %v, want ErrInvalidParams", err)
+	}
+	if len(rt.configured) != 0 {
+		t.Fatalf("configured %d server(s), want none", len(rt.configured))
+	}
+}
