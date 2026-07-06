@@ -1,0 +1,10 @@
+{
+  "runId": "run_01",
+  "eventId": "evt_02",
+  "timestamp": "2026-07-07T10:00:01Z",
+  "event": {
+    "type": "item.delta",
+    "itemId": "item_01",
+    "delta": { "type": "content", "text": "Hello, world" }
+  }
+}

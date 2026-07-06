@@ -1,0 +1,16 @@
+{
+  "runId": "run_01",
+  "eventId": "evt_03",
+  "timestamp": "2026-07-07T10:00:12Z",
+  "event": {
+    "type": "run.finished",
+    "outcome": {
+      "type": "completed",
+      "result": {
+        "usage": { "inputTokens": 1200, "outputTokens": 340, "costUsd": 0.021 },
+        "steps": 3,
+        "durationMs": 12400
+      }
+    }
+  }
+}
