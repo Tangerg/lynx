@@ -1,0 +1,11 @@
+{
+  "runId": "run_01",
+  "eventId": "evt_07",
+  "timestamp": "2026-07-07T10:00:03Z",
+  "event": {
+    "type": "state.snapshot",
+    "state": {
+      "todos": [{ "id": "1", "text": "read the file", "status": "in_progress" }]
+    }
+  }
+}

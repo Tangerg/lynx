@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import type { RunEvent } from "./shapes";
 
+import custom from "./samples/custom.json";
 import itemCompleted from "./samples/item.completed.json";
 import itemDelta from "./samples/item.delta.json";
+import itemStarted from "./samples/item.started.json";
 import runFinished from "./samples/run.finished.json";
+import runProgress from "./samples/run.progress.json";
 import runStarted from "./samples/run.started.json";
+import stateDelta from "./samples/state.delta.json";
+import stateSnapshot from "./samples/state.snapshot.json";
 
 // Strip the phantom id brands. RunId / SessionId / ItemId are `string & {brand}`
 // (ids.ts) — a compile-time-only nominal tag that does NOT exist on the wire —
@@ -25,7 +30,17 @@ type Unbrand<T> = T extends string
 // `check` gate). The Go side (protocol/wire_golden_test.go) round-trips the SAME
 // files against the SSOT structs, so the two pin one contract — replacing the
 // old "keep in sync by review" with a machine check.
-const samples = [runStarted, itemDelta, runFinished, itemCompleted] satisfies Unbrand<RunEvent>[];
+const samples = [
+  runStarted,
+  runProgress,
+  runFinished,
+  itemStarted,
+  itemDelta,
+  itemCompleted,
+  stateSnapshot,
+  stateDelta,
+  custom,
+] satisfies Unbrand<RunEvent>[];
 
 describe("wire golden samples", () => {
   it("carry the RunEvent envelope + a StreamEvent discriminator", () => {
