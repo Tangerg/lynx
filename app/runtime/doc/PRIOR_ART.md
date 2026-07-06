@@ -6,7 +6,7 @@
 >
 > **结论先行**：
 > 1. **lyra 在这 16 个里属第一梯队** —— 自有 loop（非借框架）、无 god-file（`arch_test` 强制）、有硬成本预算（16 个里只有 Dify 和我们）、loop 检测已达并略超金标准。业界那份 "if building today" 清单，我们做对了大半。
-> 2. **真正的 headroom 只有两处、且都便宜**：上下文压缩从「单步有损」升级到「先无损后有损 + 结构化摘要 + 压缩留痕」；prompt-cache 把易变的 todo 移出被缓存的 system 前缀。
+> 2. **真正的 headroom：一处便宜、一处中型**。便宜 = 上下文压缩从「单步有损」升级到「先无损后有损 + 结构化摘要 + 压缩留痕」(B1)。prompt-cache (B2) 深读后**改判非便宜** —— Anthropic 缓存已接线且 todo 确实击穿缓存，但适配层把 system 消息合并成一块、且除 system 外消息皆被 history 中间件持久化，干净解需新增「ephemeral 上下文消息」原语（中型，跨 core/agent/lyra），见 §3 B2。
 > 3. **沙箱是威胁模型的取舍，不是缺陷**：lyra 是本地单用户、OS 信任、无鉴权（有意）。值得加一片薄的（macOS seatbelt-for-bash + 子进程 env 黑名单，防「模型误伤 / 被投毒的 MCP·hook 配置」），**不值得**抄 Codex 的三 OS 堡垒 / MITM proxy / 可插拔 inspector 管线 —— 那是给「不可信 / 多租户」威胁模型的，我们没有。
 > 4. **多代理唯一被验证的收益是「并行文件编辑靠 git worktree 隔离」**（业界拆解自己的 takeaway）；其余多代理编排大多是「找问题的解法」。这一条恰好契合我们已有的 `worktree` domain。
 
@@ -21,7 +21,7 @@
 | 成本预算 | 16 个里**只有 Dify** 有硬上限（500 步/1200s）；其余全「信任模型自停」（业界点名 anti-pattern） | `kernel/agent.go`：`MaxBudget`(token)/`MaxCostUSD`/`MaxSteps` + `StoppedOnBudget/Steps` | **领先** |
 | loop / stuck 检测 | 金标准 = 调用签名 hash（order-independent）、window≈20、warn@3 / kill@5（DeerFlow）；OpenHands 487 行 StuckDetector 做恢复 | `agent/toolloop/loop_detection.go`：签名=**调用+结果**、window=10、nudge@3（软提醒）→ halt@5 | **达标/略超**（键控「结果」比 DeerFlow 只键「调用」更准） |
 | 上下文管理 | 谱系：单策略 → 多策略 → **级联**（Claude Code 4 层「先无损后有损」、OpenHands 10-condenser 管线、Hermes 5 步结构化） | `adapter/maintenance/compaction.go` `MaybeCompact`：**单步有损**（保留最近 N，把更老的一刀 LLM 摘成 1 条），仅 tail 保护 | **gap（最大）** |
-| prompt-cache | Hermes 把 memory 在会话开始 freeze 进 system prompt，之后写盘不改运行提示 → 保住 prefix cache | `kernel/prompt.go`：前缀（base+LYRA.md+AGENTS.md）稳定 ✓，但 `appendTodos` 把**易变 todo 拼进 system 块** → 每次 `todo_write` 击穿最贵的 system 缓存 | **gap（便宜）** |
+| prompt-cache | Hermes 把 memory 在会话开始 freeze 进 system prompt，之后写盘不改运行提示 → 保住 prefix cache | `kernel/prompt.go`：前缀（base+LYRA.md+AGENTS.md）稳定 ✓，但 `appendTodos` 把**易变 todo 拼进 system 块** → 每次 `todo_write` 击穿最贵的 system 缓存 | **gap（中型：需 ephemeral 消息原语，见 §3 B2）** |
 | 沙箱 / containment | Codex：seatbelt(SBPL)/Landlock+bwrap+seccomp/Windows 受限令牌（17K 行，3 OS）；Claude Code：macOS `sandbox-exec` | shell/hook/MCP 子进程**无 OS 沙箱**（grep 确认无 seatbelt/landlock）。安全=policy（approval）+recovery（shadow-git 回滚），**无围栏层** | **gap（威胁模型取舍）** |
 | 子进程 env 硬化 | Goose 对 extension 声明的 env 挡 **31 个危险键**（`LD_PRELOAD`/`DYLD_INSERT_LIBRARIES`/`APPINIT_DLLS`…）防注入 | shell(`infra/exec/exec.go`)/hook(`adapter/hooks/shell.go`)/MCP stdio 均**无 env 黑名单**，透传父环境 | **gap（最高性价比）** |
 | 工具并发 | Claude Code RWLock：只读并行、写独占 | `chat.Tool.ConcurrencyKey`（并行读 / 独占写），装饰器强制转发 | **达标** |
@@ -55,11 +55,16 @@
 3. **结构化摘要模板**（Hermes④/OpenHands `StructuredSummaryCondenser`）：把 `summarize` 的 prompt 从自由文本改成固定字段 **Goal / Progress / Decisions / Files / Next** —— 纯 prompt 改动，信息密度↑、幻觉↓。
 4. **压缩留痕 + 迭代 refine**（Hermes⑤ + `SUMMARY_PREFIX`）：给摘要消息加固定 marker 前缀（本地化的「早期上下文已压缩」），治「模型不知道自己忘了 → 自信答错」；marker 同时让下次压缩能找到上次摘要并**更新**而非重摘。
 
-### B2 prompt-cache：todo 移出被缓存前缀 —— **该做（便宜的真金白银）**
-现状 `kernel/prompt.go` 前缀稳定、但 `appendTodos` 把易变 todo 拼进 system 块 → 每次 `todo_write` 击穿最贵的 system 缓存。todo 会话内**确实在变**（不能像 LYRA.md 那样 freeze），正解是**搬位置不是冻结**：`composePrompt` 保持 LYRA.md/AGENTS.md 为可缓存的冻结前缀，todo 改成 system 块**之后**的一条 trailing 上下文消息（cache breakpoint 之后）。模型仍看到当前 todo，缓存只在便宜的尾部失效。
+### B2 prompt-cache：todo 移出被缓存前缀 —— **取向-中型（深读改判，非便宜）**
+Anthropic 缓存**已接线**（`models/anthropic/chat.go applyPromptCaching`：在 tools+system 前缀尾 + 会话末各下一个 ephemeral breakpoint，注释明写前缀须「byte-identical on every call」）。所以 `kernel/prompt.go appendTodos` 把易变 todo 拼进 system 块**确实**击穿缓存 —— 且 system 在 byte 0，一变把下游 history 缓存一并冲掉。**问题在于干净解比初判贵**：
+- 适配层 `buildSystem` 用 `MergeSystem()` 把**所有 system 消息合并成一块** → 无法把 todo 拆成「稳定 system 段（缓存）+ todo 段（不缓存）」两个 system 块。
+- history 中间件**只对 system 消息不持久化**；任何非-system 消息（把 todo 挪去当普通消息）都会被逐轮持久化 → 历史里堆积每轮 stale todo 快照（噪声 + 膨胀），比缓存成本更糟。
+- 故干净解需要**新增「ephemeral 上下文消息」原语**（core `chat` 加 transient 标记 + history mw 跳过持久化 + 适配层把它放在 rolling breakpoint 之后）—— 一个跨 core/agent/lyra 的中型特性，不是单文件便宜改。
+
+**改判**：B2 从「便宜该做」降为「中型取向」。要么当我们**通用地**引入 ephemeral system-reminder 机制时让 todo 顺这条 seam（那时才做），要么维持现状（缓存成本仅限 todo-active 会话的 todo-变更轮，范围有限）。**不 hack** —— 挪成持久化消息是负收益。
 
 ### B3 沙箱 + 子进程硬化 —— **分档**
-- **B3a env 黑名单 —— 该做（最高性价比）**：一个共享 `scrubEnv([]string) []string`（`slices.DeleteFunc` over ~15–31 键黑名单）用在三处 `exec.Command*`（`infra/exec/exec.go` shell、`adapter/hooks/shell.go`、`infra/mcp` stdio）。~30–50 行、零新依赖、无 API 改动。价值集中在 **MCP·hook 这类配置驱动、可被投毒的面**（防被注入的 MCP 配置 / hook 设 `LD_PRELOAD` 劫持子进程运行时）；shell 面偏保险（模型本就有 `/bin/sh`），但一个共享 scrubber 全量用是 KISS。
+- **✅ DONE — B3a env 黑名单**（`dad8ba7e`）：落地为 `mcpserver.Server.SafeEnv()` —— 实体丢弃无正当用途的 linker/loader 注入键（`LD_*`/`DYLD_*`，大小写不敏感），在 dial 边界 `internal/runtime/mcp.go configFromServer` 应用。**收窄了初始设想**：只做 MCP config env（真正配置驱动、可被投毒的面）；shell/hook 继承操作者自己的 `os.Environ()`（无配置来源，本地信任下 scrub 属仪式），故不在范围。`PATH`/`NODE_OPTIONS`/`PYTHONPATH` 刻意保留（server 可能正当设置）。
 - **B3b macOS seatbelt-for-bash —— 取向（值这一薄片）**：给 shell 的 `exec.CommandContext` 包 `/usr/bin/sandbox-exec -p <SBPL>`（硬编码路径防注入）+ workspace 写白名单 + 默认拒网络。对齐 Claude Code。**明确不做**：Codex 的 Windows 受限令牌/ACL 堡垒 + MITM proxy —— 那是给「不可信/多租户」威胁模型的，lyra 本地单用户、OS 信任、无鉴权（有意），操作者本就有 shell，沙箱只防「模型误伤 / 注入的 tool 输出」，不防敌意用户。Linux Landlock 可作 phase-2。
 
 ### B4 并行子代理隔离 + 深度上限 —— **取向 + 一个廉价该做**
