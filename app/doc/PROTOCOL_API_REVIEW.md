@@ -4,7 +4,7 @@
 >
 > **方法**：三方协议**源码/规范级**第一手核对——lynx 看 `docs/protocol/{API,AUX_API,TRANSPORT}.md` + `internal/delivery/protocol` + `rpc/methods.ts`;**Codex** 看 `~/Desktop/codex/codex-rs/app-server-protocol`(Rust app-server);**opencode** 看 `~/Desktop/opencode/packages/{server,sdk}`(Effect/OpenAPI)。基线 **2026-06-23**。
 >
-> **一句话元结论**：lynx 协议已相当成熟,且在 **type-唯一判别 / durable-ephemeral 不变量 / 领域中立核心+三扩展缝 / HITL R 模型 / 开放 features 协商 / plugin 命名空间 / 核心-旁路分离** 这几条上**比两家更有原则**,不要动。**唯一显著的可维护性缺口**:`API.md §14` 自己定的 **codegen + 黄金样本漂移闸只立了规范、没落地**(现 Go↔TS 靠人工 review 同步),而 Codex(Rust→ts-rs 生成)、opencode(Zod→OpenAPI→生成 SDK)都是 schema-first 自动生成——**而这层闸恰恰是 lynx"领域中立核心"安全的前提**,是头号该补的。
+> **一句话元结论**：lynx 协议已相当成熟,且在 **type-唯一判别 / durable-ephemeral 不变量 / 领域中立核心+三扩展缝 / HITL R 模型 / 开放 features 协商 / plugin 命名空间 / 核心-旁路分离** 这几条上**比两家更有原则**,不要动。曾经**唯一显著的可维护性缺口**——`API.md §14` 的漂移闸只立规范未落地——现已补上:**黄金样本契约闸已落地并覆盖整个 §4 数据模型 + §5 流(81 样本,Go round-trip + TS `wire<T>` 双侧 pin,`252f462f`→`da934b05`)**,手写两份 wire 类型的字段名/形状 drift 从此由机器抓、不再纯靠 review。剩余是**增量收尾**:从 Go SSOT 导出 OpenRPC + JSON Schema(给非 Go/非 TS 客户端;§3.1 第二步),以及可选的判别联合 codegen(第三步,难且已非漂移风险关键路径)。
 
 ---
 
@@ -35,7 +35,7 @@
 | 错误模型 | JSON-RPC code + `CodexErrorInfo` 业务枚举 | HTTP status + 命名 error 类型 | JSON-RPC `code` + `error.data.type` 符号名(对标 RFC 9457 ProblemData),**不映射 HTTP status** |
 | 版本与协商 | v1/v2 共存 + experimental 门控 | ❌ URL 无版本(仅 identifier tag) | ✅ HTTP `/v2/` epoch + 日期 `protocolVersion` 协商(两层不重复) |
 | 核心 / 旁路分离 | ❌ 全在 app-server | ❌ 全在 REST | ✅ **core(sessions/runs/items)与旁路 AUX(workspace.* / sidecar)显式分文档分面** |
-| **schema codegen / 漂移闸** | ★✅ Rust→ts-rs 生成 + 导出 | ★✅ Zod→OpenAPI→生成 SDK | ❌ **手写两份、review 同步(§14 立了规范未落地)** —— 真 gap |
+| **schema codegen / 漂移闸** | ★✅ Rust→ts-rs 生成 + 导出 | ★✅ Zod→OpenAPI→生成 SDK | 🟡 手写两份,但**黄金样本闸已落地覆盖全 §4**(81 样本双侧 pin,`da934b05`);codegen/schema 导出待收尾 |
 | sidecar | ❌(initialize 即握手) | 🟡 `/api/health` + `/api/location` | ✅ `/v2/info` + `/v2/health`(flat、no-auth、不走 envelope) |
 
 ---
@@ -66,7 +66,7 @@
 **为何这是头号**:① 它是纯维护性收益(消除 `items` vs `data` 那类字段名漂移——§14 自己点名的历史 bug);② **它是 §2「领域中立核心」安全的前提**——富 `result` 形状不再被 wire 联合机器保证,唯一能防其前后端无声漂移的就是黄金样本 + 导出 schema。没有它,薄核选择反而是漂移负债。
 
 **已知阻塞 + 务实路径**(memory 记:Go flat-struct 不直接映射到契约的 TS 判别联合):
-- **✅ 第一步已落地(`252f462f`)**:黄金样本契约测试——共享 canonical JSON wire 样本在 `app/desktop/frontend/src/rpc/samples/`,Go 侧 `protocol/wire_golden_test.go` unmarshal→remarshal→语义 map 比对、TS 侧 `rpc/samples.test.ts` 用 `satisfies Unbrand<RunEvent>` 结构校验(brand 剥除因 wire id 是裸串)。**它不解决 struct↔union 映射**(只比对 JSON),却当场抓 §14 的两类 drift——已验证:注入 `runId→data` 令两侧同时变红,revert 即绿。首刀覆盖漂移风险最高的 RunEvent 四变体(run.started/item.delta/run.finished/item.completed);后续按方法 + 更多变体扩样本表。
+- **✅ 第一步已落地并覆盖全 §4 目录(`252f462f`→`e104245f`→`da934b05`)**:黄金样本契约测试——共享 canonical JSON wire 样本在 `app/desktop/frontend/src/rpc/samples/`,Go 侧 `protocol/wire_golden_test.go` unmarshal→remarshal→语义 map 比对、TS 侧 `rpc/samples.test.ts` 用 `wire<T>(sample)`(每样本 pin 一个类型,`Unbrand<T>` 剥 brand + 把字面量 widen 成 primitive,对齐 `resolveJsonModule` 的 widening,保持闸是**结构性**校验)。**它不解决 struct↔union 映射**(只比对 JSON),却当场抓 §14 的字段名/形状 drift——已验证:注入 `runId→data`(信封)与 `Session.status→state`(裸类型)均令两侧同时变红,revert 即绿。**里程碑**:81 个样本已覆盖**整个 §4 数据模型 + §5 流**——每个判别联合变体(StreamEvent/Item/ItemDelta/RunOutcome/Interrupt/WorkspaceEvent)、核心 shape、以及方法 req/resp 信封。闸同时把三处有意的 Go↔TS 非对称固化下来:resume 复用 `StartRunResponse`(TS 有独立 `ResumeRunResponse`)、list 方法返回泛型 `Page[T]`、`ServerFeatures` 是 Go 开放 map vs TS 13 个具名 bool。
 - **第二步:从 Go SSOT 导出 OpenRPC(方法表)+ JSON Schema(数据类型)**作为非 Go/非 TS 客户端的单一对接物。
 - **第三步(可选):判别联合感知的 TS 生成器**,或把 wire 形状改成生成器友好的表达——这是真正难的一步,但有了第一/二步后不再是漂移风险的关键路径。
 
@@ -103,7 +103,7 @@ Codex 用 `#[experimental("path")]` 在**字段/方法级**门控,client `initia
 
 ## 5. 建议优先级
 
-1. **✅【已落地 `252f462f`】§3.1 第一步:黄金样本契约测试**(前后端 pin 同一组 canonical JSON,Go round-trip + TS `satisfies`;已验证能抓 `runId→data` 类 drift)——头号项的第一刀已立;后续扩样本覆盖到全方法 + 更多事件变体。
+1. **✅【已落地 · 全 §4 覆盖 `252f462f`→`da934b05`】§3.1 第一步:黄金样本契约测试**(前后端 pin 同一组 canonical JSON,Go round-trip + TS `wire<T>`;已验证能抓信封与裸类型两类 drift)——头号项已落到里程碑:81 样本覆盖整个 §4 数据模型 + §5 流 + 方法 req/resp。**手写两份 wire 类型的 drift 从此有机器闸,不再纯靠 review。**
 2. **【中】§3.1 第二步:从 Go SSOT 导出 OpenRPC + JSON Schema**——非 Go/非 TS 客户端的单一对接物 + 机器可读漂移闸。
 3. **【中·按需】§3.2 `workspace.*` 拆 god-namespace**(codeintel/mcp/hooks/recipes 提顶层)——破坏性命名改动,先咨询;触发条件(子面继续增多)到了再做。
 4. **【低·可选】§3.3 field 级 experimental 门控**(并入 `FeatureFlag` 对象形态);§3.4 readiness 拆分——按需。
