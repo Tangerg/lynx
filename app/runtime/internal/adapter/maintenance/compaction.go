@@ -41,6 +41,14 @@ const (
 	// decision with a similar cheap heuristic rather than
 	// paying for real tokenization every turn boundary.
 	charsPerToken = 4
+
+	// summaryToolResultCap bounds each tool-result body in the summariser's
+	// INPUT — not the stored history, not the trigger estimate. The token
+	// trigger fires precisely on conversations a few large tool outputs
+	// dominate; feeding those raw to the summary call costs the most and risks
+	// the summary model's own context window. The summary needs each result's
+	// gist, not its full body. Generous — smaller results pass through untouched.
+	summaryToolResultCap = 4000
 )
 
 // CompactionConfig tunes the auto-compaction heuristic.
@@ -215,7 +223,7 @@ func (c *Compactor) shouldCompact(msgs []chat.Message) bool {
 // [renderTranscript] so tool-result bodies (the bulk of a coding
 // conversation) are counted, not just chat text.
 func estimateTokens(msgs []chat.Message) int {
-	return len(renderTranscript(msgs)) / charsPerToken
+	return len(renderTranscript(msgs, 0)) / charsPerToken
 }
 
 // summarize asks the LLM to fold the older messages into a single
@@ -223,7 +231,7 @@ func estimateTokens(msgs []chat.Message) int {
 // keeping the existing history is always preferable to losing it
 // behind a bad summary.
 func (c *Compactor) summarize(ctx context.Context, msgs []chat.Message) (chat.Message, error) {
-	transcript := renderTranscript(msgs)
+	transcript := renderTranscript(msgs, summaryToolResultCap)
 	const prompt = `You are compacting the earlier portion of a long coding-agent
 conversation into a faithful, STRUCTURED summary the agent will read as part of
 its system prompt to continue WITHOUT losing key context. Be specific; quote
