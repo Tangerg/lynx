@@ -1,3 +1,13 @@
+// Package run is the process-local registry of LIVE run segments and their
+// admission slots — the in-memory truth of "what is running right now" (the
+// durable run history lives in transcript). It is a domain type with a real
+// concurrency invariant, not a data bag: [Registry] enforces one writer per
+// session — either one open run or one in-progress admission claim, never both —
+// so run start / resume / destructive session mutation can't race.
+//
+// [Registry] is generic over the payload P the adapter attaches per entry (the
+// run's cancel func + event hub), keeping the admission invariant in the domain
+// without pulling delivery/kernel types up into it.
 package run
 
 import (
