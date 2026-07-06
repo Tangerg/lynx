@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 type scheduleRuntime struct {
@@ -64,11 +65,12 @@ func (r *scheduleRuntime) RunScheduleWorker(_ context.Context, runner schedule.R
 func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 	rt := &scheduleRuntime{}
 	s := newTestServer(rt)
+	cwd := t.TempDir()
 
 	got, err := s.CreateSchedule(context.Background(), protocol.CreateScheduleRequest{
 		Title:  "Morning",
 		Prompt: "Summarize the repo",
-		Cwd:    "/repo",
+		Cwd:    cwd,
 		Cron:   "@daily",
 	})
 	if err != nil {
@@ -78,7 +80,7 @@ func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 		t.Fatalf("created %d schedule(s), want 1", len(rt.created))
 	}
 	created := rt.created[0]
-	if !created.Enabled || created.Prompt != "Summarize the repo" || created.Cwd != "/repo" || created.Cron != "@daily" {
+	if !created.Enabled || created.Prompt != "Summarize the repo" || created.Cwd != worktree.CanonicalCwd(cwd) || created.Cron != "@daily" {
 		t.Fatalf("created = %+v", created)
 	}
 	if created.NextRunAt.IsZero() {
@@ -89,6 +91,23 @@ func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 	}
 }
 
+func TestCreateScheduleRejectsUnavailableCwd(t *testing.T) {
+	rt := &scheduleRuntime{}
+	s := newTestServer(rt)
+
+	_, err := s.CreateSchedule(context.Background(), protocol.CreateScheduleRequest{
+		Prompt: "Summarize the repo",
+		Cwd:    t.TempDir() + "/missing",
+		Cron:   "@daily",
+	})
+	if !errors.Is(err, protocol.ErrCwdUnavailable) {
+		t.Fatalf("create schedule cwd err = %v, want ErrCwdUnavailable", err)
+	}
+	if len(rt.created) != 0 {
+		t.Fatalf("created %d schedule(s), want 0", len(rt.created))
+	}
+}
+
 func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 	last := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
 	createdAt := time.Date(2026, 7, 1, 9, 0, 0, 0, time.UTC)
@@ -96,11 +115,13 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 		"sch_1": {ID: "sch_1", LastRunAt: last, CreatedAt: createdAt, NextRunAt: last.Add(time.Hour)},
 	}}
 	s := newTestServer(rt)
+	cwd := t.TempDir()
 
 	got, err := s.UpdateSchedule(context.Background(), protocol.UpdateScheduleRequest{
 		ID:      "sch_1",
 		Title:   "Disabled",
 		Prompt:  "Stand down",
+		Cwd:     cwd,
 		Cron:    "@daily",
 		Enabled: false,
 	})
@@ -116,6 +137,9 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 	}
 	if !updated.NextRunAt.IsZero() {
 		t.Fatalf("updated.NextRunAt = %v, want zero when disabled", updated.NextRunAt)
+	}
+	if updated.Cwd != worktree.CanonicalCwd(cwd) {
+		t.Fatalf("updated.Cwd = %q, want %q", updated.Cwd, worktree.CanonicalCwd(cwd))
 	}
 	if got.NextRunAt != nil || got.LastRunAt == nil {
 		t.Fatalf("wire schedule = %+v, want omitted nextRunAt and present lastRunAt", got)
