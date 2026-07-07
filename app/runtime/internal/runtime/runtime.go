@@ -188,10 +188,10 @@ type Runtime struct {
 	interrupts interrupts.Store
 	transcript transcript.Store
 
-	// conversation is the message-history service the non-turn history ops
+	// conversation is the message history the non-turn history ops
 	// (ReadHistory/SeedHistory/MessageCount/TruncateMessages) delegate to
 	// directly — not via the engine (it owns only the steering touchpoint).
-	conversation *conversation.Service
+	conversation *conversation.Messages
 
 	providers   provider.Service
 	mcpRegistry mcpserver.Service
@@ -298,12 +298,12 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		historyStore = history.NewInMemoryStore()
 		ecfg.HistoryStore = historyStore
 	}
-	// conv is the message-history service. The engine gets it ONLY as the
+	// conv is the message history. The engine gets it ONLY as the
 	// turn-end steering sink (engine.InjectUserMessage); the runtime holds it
 	// directly for the non-turn history operations (read/seed/count/truncate,
 	// for fork / rollback / messages.list) rather than proxying them through the
 	// engine. See doc/GREENFIELD_ARCHITECTURE.md.
-	conv := conversation.New(historyStore)
+	conv := conversation.NewMessages(historyStore)
 
 	// Capability ports are SPIs: the engine consumes interfaces (Steering /
 	// Compactor / Extractor; Knowledge above). The runtime supplies the
