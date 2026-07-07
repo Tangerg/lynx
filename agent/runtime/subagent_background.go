@@ -44,11 +44,9 @@ func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent)
 			InputSchema: pkgjson.MustStringDefSchemaOf(inSample),
 		},
 		func(ctx context.Context, arguments string) (string, error) {
-			var in In
-			if arguments != "" {
-				if parseErr := json.Unmarshal([]byte(arguments), &in); parseErr != nil {
-					return "", fmt.Errorf("background spawn %q: parse input: %w", agentDef.Name, parseErr)
-				}
+			in, parseErr := decodeToolArguments[In](agentDef.Name, "background spawn", arguments)
+			if parseErr != nil {
+				return "", fmt.Errorf("background spawn %q: %w", agentDef.Name, parseErr)
 			}
 			taskID, _, spawnErr := SpawnChildAsync(ctx, platform, agentDef, in)
 			if spawnErr != nil {
@@ -68,9 +66,9 @@ func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent)
 			InputSchema: pkgjson.MustStringDefSchemaOf(collectTaskInput{}),
 		},
 		func(_ context.Context, arguments string) (string, error) {
-			var args collectTaskInput
-			if parseErr := json.Unmarshal([]byte(arguments), &args); parseErr != nil {
-				return "", fmt.Errorf("background collect %q: parse input: %w", agentDef.Name, parseErr)
+			args, parseErr := decodeToolArguments[collectTaskInput](agentDef.Name, "background collect", arguments)
+			if parseErr != nil {
+				return "", fmt.Errorf("background collect %q: %w", agentDef.Name, parseErr)
 			}
 			if args.TaskID == "" {
 				return "", fmt.Errorf("background collect %q: task_id is required", agentDef.Name)

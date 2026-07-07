@@ -58,31 +58,8 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 		return "", fmt.Errorf("%s %q: %w", t.label, t.agent.Name, err)
 	}
 
-	// Waiting is special — surface as JSON tool result instead of an
-	// error so the calling LLM can decide to drop the path or re-plan.
-	// All other non-Completed statuses bubble up via TerminalError.
-	if proc.Status() == core.StatusWaiting {
-		// Parked for HITL: the host resumes it via the returned process_id, so
-		// its snapshot MUST survive — do NOT discard here.
-		return waitingResultText(t.agent.Name, proc), nil
-	}
-	// Terminal from here on: the child is dead weight once its result is read,
-	// so release it (registry + persisted snapshot). Registered after the
-	// Waiting check so a parked child is never discarded.
 	defer t.discard(ctx, proc)
-	if err = proc.TerminalError(); err != nil {
-		return "", fmt.Errorf("%s %q (process %q): %w", t.label, t.agent.Name, proc.ID(), err)
-	}
-
-	out, err := t.extract(proc)
-	if err != nil {
-		return "", fmt.Errorf("%s %q: %w", t.label, t.agent.Name, err)
-	}
-	encoded, err := json.Marshal(out)
-	if err != nil {
-		return "", fmt.Errorf("%s %q: marshal output: %w", t.label, t.agent.Name, err)
-	}
-	return string(encoded), nil
+	return materializeToolResult(t.label, t.agent.Name, proc, t.extract)
 }
 
 // discard releases a TERMINATED child: drop it from the platform registry and

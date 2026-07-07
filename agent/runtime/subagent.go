@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -160,11 +159,8 @@ func newTypedAgentTool[In, Out any](
 		label: label,
 		agent: agentDef,
 		decode: func(arguments string) (any, error) {
-			var in In
-			if arguments == "" {
-				return in, nil
-			}
-			if err := json.Unmarshal([]byte(arguments), &in); err != nil {
+			in, err := decodeToolArguments[In](agentDef.Name, "subagent", arguments)
+			if err != nil {
 				return nil, fmt.Errorf("parse input: %w", err)
 			}
 			return in, nil
