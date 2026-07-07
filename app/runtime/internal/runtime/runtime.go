@@ -32,7 +32,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
@@ -74,7 +73,7 @@ type Config struct {
 	// environment via toolset.Build and inject it into the engine core (which
 	// constructs no capability itself). Workdir / SkillsGlobalDir come from
 	// Engine (the engine also needs them for the prompt cascade / listSkills).
-	Online     toolset.OnlineConfig   // network-tool credentials
+	Online     OnlineConfig           // network-tool credentials
 	A2AAgents  []a2a.ClientConfig     // remote A2A agents to dial
 	LSPServers []codeintel.ServerSpec // language-server table (nil → defaults)
 
@@ -157,6 +156,14 @@ type Config struct {
 	// non-sqlite / test runtimes working. The composition root wires the
 	// sqlite-backed transactor.
 	Transactor Transactor
+}
+
+// OnlineConfig holds credentials for optional network-reaching tools. Empty
+// fields leave the corresponding tool disabled.
+type OnlineConfig struct {
+	JinaAPIKey       string
+	TavilyAPIKey     string
+	HTTPAllowedHosts []string
 }
 
 // HookTrustStore mutates project hook trust for the workspace.hooks.setTrust
