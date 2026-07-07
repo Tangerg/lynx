@@ -25,30 +25,3 @@ func (pc *ProcessContext) AwaitInput(req Awaitable) ActionStatus {
 // uses it to translate "fn called AwaitInput" into ActionWaiting; the
 // flag is per-invocation (ProcessContext is built fresh each tick).
 func (pc *ProcessContext) InputAwaited() bool { return pc.inputAwaited }
-
-// RecordUsage attributes an LLM call's cost / tokens to the running
-// process. No-op when no Process is wired.
-func (pc *ProcessContext) RecordUsage(cost float64, tokens int) {
-	if pc.Process == nil {
-		return
-	}
-	pc.Process.RecordUsage(cost, tokens)
-}
-
-// RecordLLMInvocation forwards a per-call LLM invocation record to
-// the running process. No-op when no Process is wired.
-func (pc *ProcessContext) RecordLLMInvocation(inv LLMInvocation) {
-	if pc.Process == nil {
-		return
-	}
-	pc.Process.RecordLLMInvocation(inv)
-}
-
-// RecordEmbeddingInvocation forwards a per-call embedding invocation
-// record to the running process. No-op when no Process is wired.
-func (pc *ProcessContext) RecordEmbeddingInvocation(inv EmbeddingInvocation) {
-	if pc.Process == nil {
-		return
-	}
-	pc.Process.RecordEmbeddingInvocation(inv)
-}

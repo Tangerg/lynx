@@ -41,11 +41,11 @@ func TestRecordInvocation_PublishesEvents(t *testing.T) {
 	a := agent.New("usage").
 		Actions(agent.NewAction("spend",
 			func(_ context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-				pc.Process.RecordLLMInvocation(core.LLMInvocation{
+				pc.RecordLLMInvocation(core.LLMInvocation{
 					Model: "claude-x", Provider: "anthropic",
 					CostUSD: 0.01, PromptTokens: 100, CompletionTokens: 20,
 				})
-				pc.Process.RecordEmbeddingInvocation(core.EmbeddingInvocation{
+				pc.RecordEmbeddingInvocation(core.EmbeddingInvocation{
 					Model: "embed-x", CostUSD: 0.001, InputTokens: 50, InputCount: 2,
 				})
 				return wordCount{Count: len(in.Text)}, nil
