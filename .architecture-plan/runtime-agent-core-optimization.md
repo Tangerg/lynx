@@ -206,6 +206,10 @@ app/runtime -> agent -> core
   - `agent/event/multicast.go`：修正 panic observability 注释断句。
   - `agent/runtime`、`agent/runtime/autonomy`、`agent/workflow`：`helpers_test.go` 改名为 `deploy_support_test.go`，去掉泛文件名与旧文件名注释。
   - `core/model/chat/middleware`：测试夹具从 `fakeHandler` / `recordingHandler` / `toolCallHandler` 改为模型语义命名，避免泛 Handler 测试名继续扩散。
+- 已完成第四轮目标模块结构清理：
+  - `core/vectorstore`：包文档不再锚定仓库内具体 provider adapter 路径，只说明 concrete provider implementations 位于接口包之外，避免 `core` 文档层知道上层模块布局。
+  - `app/runtime/internal/infra/mcp`：将原单体 `mcp.go` 拆为 `doc.go`、`config.go`、`status.go`、`tools.go`、`probe.go`、`connections.go`，按包文档、配置别名、状态模型、工具投影、探测、连接生命周期分责，保持 public/internal API 不变。
+  - `app/runtime/internal/kernel/turn`：按既有文件职责清单继续拆分，将事件订阅 + delta coalescing 移入 `event_stream.go`，pre-turn lifecycle hooks 移入 `prompt_hooks.go`，`newTurnState` 贴近 `turnState` 定义。
 - 已按用户要求撤回越界的 `models` 改动；本计划后续只记录 `core`、`agent`、`app/runtime`。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
@@ -218,22 +222,25 @@ app/runtime -> agent -> core
   - `go test ./event`（`agent`）通过。
   - `go test ./runtime ./runtime/autonomy ./workflow`（`agent`）通过。
   - `go test ./model/chat/middleware/logger ./model/chat/middleware/history ./model/chat/middleware/safeguard`（`core`）通过。
+  - `go test ./internal/infra/mcp`（`app/runtime`）通过。
+  - `go test ./internal/kernel/turn`（`app/runtime`）通过。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过。
-  - `go test ./...`（`agent`）通过。
-  - `go test ./...`（`app/runtime`）通过。
-  - `go vet ./...`（`core`）通过。
-  - `go vet ./...`（`agent`）通过。
-  - `go vet ./...`（`app/runtime`）通过。
-  - `go build ./...`（`core`）通过。
-  - `go build ./...`（`agent`）通过。
-  - `go build ./...`（`app/runtime`）通过。
+  - `go test ./...`（`core`）通过（第四轮后复跑）。
+  - `go test ./...`（`agent`）通过（第四轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第四轮后复跑）。
+  - `go vet ./...`（`core`）通过（第四轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第四轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第四轮后复跑）。
+  - `go build ./...`（`core`）通过（第四轮后复跑）。
+  - `go build ./...`（`agent`）通过（第四轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第四轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
   - `McpToolInfo` / `McpServerStatus` / `notImpl` 未命中。
   - `helpers_test.go` / 泛测试文件名未命中。
-  - `core` / `agent` Go 文件未命中 `Lyra`、`app/runtime`、`workspace.*` 等上层应用语义。
+  - `core` Go 文件未命中 `Lyra`、`app/runtime`、`vectorstores`、`workspace.*` 等上层 / sibling 模块语义。
+  - `agent` Go 文件除架构测试自身的禁止规则外，未命中 `Lyra`、`app/runtime`、`workspace.*` 等上层应用语义。
 - 已运行 `git diff --check`，未发现 whitespace/error marker 问题。
 
 ### 5.2 未完成

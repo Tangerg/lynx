@@ -3,8 +3,6 @@ package turn
 import (
 	"context"
 	"errors"
-	"fmt"
-	"iter"
 	"sync"
 	"time"
 
@@ -70,10 +68,12 @@ type Dependencies struct {
 // fans events out to subscribers via per-turn channels.
 //
 // The implementation is split across files by concern:
-//   - inmemory.go  — Dispatcher surface + live-turn registry (this file)
-//   - turn.go      — per-turn state + the runTurn execution loop
-//   - lifecycle.go — terminal-event capture from the agent runtime
-//   - observer.go  — engine tool-observer → turn.Event translation
+//   - inmemory.go       — Dispatcher surface + live-turn registry (this file)
+//   - turn.go           — per-turn state + the runTurn execution loop
+//   - event_stream.go   — event subscription + transient delta coalescing
+//   - prompt_hooks.go   — pre-turn lifecycle hooks
+//   - lifecycle.go      — terminal-event capture from the agent runtime
+//   - observer.go       — engine tool-observer → turn.Event translation
 //
 // The Dispatcher interface is stable, so transport adapters don't care
 // which impl they talk to.
@@ -183,63 +183,6 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 	return handle, nil
 }
 
-// runPromptHooks fires SessionStart (once per session per process) + the
-// UserPromptSubmit hook before a turn starts. It returns the (possibly
-// context-prefixed) message, or an error wrapping [ErrPromptBlocked] when a hook
-// blocked the prompt.
-func (s *inMemory) runPromptHooks(ctx context.Context, req StartTurnRequest, st *turnState) (string, error) {
-	var blocked bool
-	var reason, inject string
-	add := func(d hooks.Decision) {
-		if d.Block && !blocked {
-			blocked, reason = true, d.Reason
-		}
-		if d.InjectContext != "" {
-			if inject != "" {
-				inject += "\n"
-			}
-			inject += d.InjectContext
-		}
-	}
-	if s.firstTurnForSession(req.SessionID) {
-		add(st.hooks.Run(ctx, hooks.Input{Event: hooks.SessionStart, SessionID: req.SessionID, Cwd: req.Cwd}))
-	}
-	add(st.hooks.Run(ctx, hooks.Input{
-		Event: hooks.UserPromptSubmit, SessionID: req.SessionID, Cwd: req.Cwd, Prompt: req.Message,
-	}))
-	if blocked {
-		if reason == "" {
-			reason = "blocked by a hook"
-		}
-		return "", fmt.Errorf("%w: %s", ErrPromptBlocked, reason)
-	}
-	if inject != "" {
-		return "<hook-context>\n" + inject + "\n</hook-context>\n\n" + req.Message, nil
-	}
-	return req.Message, nil
-}
-
-// firstTurnForSession reports whether this is the first turn the process has
-// opened for sessionID (and records it) — the SessionStart fire-once gate.
-func (s *inMemory) firstTurnForSession(sessionID string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.seenSessions[sessionID]; ok {
-		return false
-	}
-	s.seenSessions[sessionID] = struct{}{}
-	return true
-}
-
-// ForgetSession drops sessionID's SessionStart fire-once marker on session
-// delete, so the gate set doesn't leak one entry per session over the process
-// lifetime. See [Dispatcher.ForgetSession].
-func (s *inMemory) ForgetSession(sessionID string) {
-	s.mu.Lock()
-	delete(s.seenSessions, sessionID)
-	s.mu.Unlock()
-}
-
 // modelOr returns the model name for display / observability, falling
 // back to "default" when the turn didn't pick one.
 func modelOr(model string) string {
@@ -247,24 +190,6 @@ func modelOr(model string) string {
 		return "default"
 	}
 	return model
-}
-
-// newTurnState builds a fresh per-turn state. Its lifetime ctx derives
-// from the entry ctx via context.WithoutCancel: the caller's ctx ending
-// (e.g. the StartTurn RPC returning) doesn't kill the in-flight turn —
-// only [Dispatcher.Cancel] (st.cancel) does — yet the entry trace span is
-// preserved, so the engine's spans chain onto the same trace. The turn
-// span is layered on in StartTurn / Rehydrate. Shared by both entry
-// points so they produce an identically-initialized turn.
-func newTurnState(ctx context.Context, handle TurnHandle) *turnState {
-	lifeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	return &turnState{
-		handle:    handle,
-		events:    make(chan Event, 32),
-		cancel:    cancel,
-		ctx:       lifeCtx,
-		startedAt: time.Now(),
-	}
 }
 
 // findTurn looks up the per-turn state by id under the impl's
@@ -280,93 +205,6 @@ func (s *inMemory) findTurn(id string) (*turnState, error) {
 		return nil, ErrTurnNotFound
 	}
 	return state, nil
-}
-
-func (s *inMemory) Events(ctx context.Context, handle TurnHandle) (iter.Seq[Event], error) {
-	state, err := s.findTurn(handle.TurnID)
-	if err != nil {
-		return nil, err
-	}
-	// Single-consumer pull stream. The internal select multiplexes the
-	// turn's event channel against ctx so the iterator stops promptly
-	// when the caller stops listening — even while parked waiting for
-	// the next event. runTurn closes state.events on turn end, which
-	// terminates the range cleanly (ok == false).
-	//
-	// Consecutive text deltas (MessageDelta / ReasoningDelta) already buffered
-	// on the channel are coalesced into one event before yielding. Under load —
-	// the per-token LLM stream running ahead of the SSE consumer — this collapses
-	// the 1-token-1-frame volume, cutting the hub's live-event drop rate
-	// (hub.go), without touching the durable transcript (item.completed still
-	// carries the full text) or adding latency: the drain is non-blocking, so a
-	// trickling stream still yields each token the moment it arrives.
-	return func(yield func(Event) bool) {
-		var spill Event // a different-kind event pulled off mid-coalesce, yielded next
-		recv := func() (Event, bool) {
-			if spill != nil {
-				ev := spill
-				spill = nil
-				return ev, true
-			}
-			select {
-			case ev, ok := <-state.events:
-				return ev, ok
-			case <-ctx.Done():
-				return nil, false
-			}
-		}
-		for {
-			ev, ok := recv()
-			if !ok || !yield(coalesceTextDeltas(ev, state.events, &spill)) {
-				return
-			}
-		}
-	}, nil
-}
-
-// coalesceTextDeltas merges a run of same-kind text deltas (MessageDelta /
-// ReasoningDelta) already buffered on ch into head, draining without blocking
-// (the default branch = nothing more queued → stop). A different-kind event
-// pulled off mid-drain is parked in *spill for the caller to yield next, so
-// ordering is preserved. The merged event keeps head's BaseEvent — deltas are
-// ephemeral (no SSE id, §5.2), so a merged delta's seq is immaterial.
-func coalesceTextDeltas(head Event, ch <-chan Event, spill *Event) Event {
-	switch h := head.(type) {
-	case MessageDelta:
-		for {
-			select {
-			case ev, ok := <-ch:
-				if !ok {
-					return h // channel closed; recv() sees the close next and stops
-				}
-				if d, same := ev.(MessageDelta); same {
-					h.Text += d.Text
-					continue
-				}
-				*spill = ev
-			default:
-			}
-			return h
-		}
-	case ReasoningDelta:
-		for {
-			select {
-			case ev, ok := <-ch:
-				if !ok {
-					return h
-				}
-				if d, same := ev.(ReasoningDelta); same {
-					h.Text += d.Text
-					continue
-				}
-				*spill = ev
-			default:
-			}
-			return h
-		}
-	default:
-		return head
-	}
 }
 
 // InjectSteering queues message onto the active turn's pending
