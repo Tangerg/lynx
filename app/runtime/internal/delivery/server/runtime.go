@@ -44,7 +44,9 @@ type RuntimePort interface {
 	mcpStatusAccess
 	mcpToolCatalogAccess
 	mcpConnectionAccess
-	mcpRegistryAccess
+	mcpRegistryCatalogAccess
+	mcpRegistryMutationAccess
+	mcpRegistryProbeAccess
 	skillCatalogAccess
 	recipeCatalogAccess
 	hookInspectionAccess

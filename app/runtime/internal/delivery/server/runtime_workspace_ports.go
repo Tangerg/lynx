@@ -23,12 +23,18 @@ type mcpConnectionAccess interface {
 	AuthorizeMCPServer(ctx context.Context, name string) error
 }
 
-type mcpRegistryAccess interface {
+type mcpRegistryCatalogAccess interface {
 	ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error)
 	MCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error)
+}
+
+type mcpRegistryMutationAccess interface {
 	ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) error
 	RemoveMCPServer(ctx context.Context, name string) error
 	SetMCPServerEnabled(ctx context.Context, name string, enabled bool) error
+}
+
+type mcpRegistryProbeAccess interface {
 	TestMCPServer(ctx context.Context, srv mcpserver.Server) error
 }
 
