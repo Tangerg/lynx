@@ -10,7 +10,7 @@ import (
 )
 
 type codebaseIndex struct {
-	codebaseindex.Service
+	codebaseindex.Index
 	available bool
 	reindexed chan codebaseReindexCall
 }

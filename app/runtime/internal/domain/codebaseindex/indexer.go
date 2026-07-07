@@ -30,7 +30,7 @@ type loaded struct {
 	modelID   string
 }
 
-// Indexer is the in-process [Service]: it owns per-cwd build serialization, an
+// Indexer is the in-process [Index]: it owns per-cwd build serialization, an
 // in-memory corpus cache, and the discover→embed→store→search flow.
 type Indexer struct {
 	store   Store
@@ -43,7 +43,7 @@ type Indexer struct {
 	status map[string]Status      // cwd → last known status
 }
 
-var _ Service = (*Indexer)(nil)
+var _ Index = (*Indexer)(nil)
 
 // New builds an Indexer over the given store, embedding-model resolver, and
 // project source. The resolver returns [ErrNoEmbeddingModel] when none is

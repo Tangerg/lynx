@@ -43,12 +43,12 @@ type request struct {
 }
 
 type tool struct {
-	svc codebaseindex.Service
+	index codebaseindex.Index
 }
 
-// New builds the codebase_search tool over the given index service.
-func New(svc codebaseindex.Service) chat.Tool {
-	return &tool{svc: svc}
+// New builds the codebase_search tool over the given index.
+func New(index codebaseindex.Index) chat.Tool {
+	return &tool{index: index}
 }
 
 func (t *tool) Definition() chat.ToolDefinition {
@@ -69,7 +69,7 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	if strings.TrimSpace(req.Query) == "" {
 		return "", errors.New("codebase_search: query is required")
 	}
-	hits, err := t.svc.Search(ctx, turnctx.TurnCwd(ctx, ""), req.Query, req.Limit)
+	hits, err := t.index.Search(ctx, turnctx.TurnCwd(ctx, ""), req.Query, req.Limit)
 	if err != nil {
 		if errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 			return "", errors.New("codebase_search: no embedding model is configured — set one in Settings → Models (an embedding-capable provider like OpenAI, or a local Ollama)")
