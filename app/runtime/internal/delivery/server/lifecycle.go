@@ -15,8 +15,8 @@ func (s *Server) Initialize(_ context.Context, in protocol.InitializeRequest) (*
 	// against a minimum-supported constant and return
 	// protocol.ErrInvalidProtocolVersion when too old.
 	//
-	// Record the HITL kinds the client declared it can answer so the chat
-	// service auto-denies any interrupt the client couldn't resolve rather
+	// Record the HITL kinds the client declared it can answer so the turn
+	// dispatcher auto-denies any interrupt the client couldn't resolve rather
 	// than parking into a deadlock (API.md §6.2). An empty / absent list is
 	// treated permissively (surface all) so CLI / in-process callers that
 	// don't negotiate keep working.
