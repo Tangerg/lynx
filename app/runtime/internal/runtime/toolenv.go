@@ -8,7 +8,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
@@ -19,7 +18,7 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 		Online:          toolset.OnlineConfig(cfg.Online),
 		LSPServers:      codeintelServerSpecs(cfg.LSPServers),
 		MCPServers:      mcpEnv.configs,
-		A2AAgents:       a2aClientConfigs(cfg.A2AAgents),
+		A2AAgents:       toolsetA2AAgentConfigs(cfg.A2AAgents),
 		Todos:           ecfg.Todos,
 		Approval:        approvalPolicy,
 		MCPDisabled:     mcpEnv.disabled,
@@ -31,13 +30,13 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 	return built, nil
 }
 
-func a2aClientConfigs(in []A2AAgentConfig) []a2a.ClientConfig {
+func toolsetA2AAgentConfigs(in []A2AAgentConfig) []toolset.A2AAgentConfig {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]a2a.ClientConfig, len(in))
+	out := make([]toolset.A2AAgentConfig, len(in))
 	for i, agent := range in {
-		out[i] = a2a.ClientConfig{
+		out[i] = toolset.A2AAgentConfig{
 			Name:    agent.Name,
 			CardURL: agent.CardURL,
 		}
