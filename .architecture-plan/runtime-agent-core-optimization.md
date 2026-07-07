@@ -226,6 +226,12 @@ app/runtime -> agent -> core
   - `event.go` 承接 turn event sealed sum、`BaseEvent`、事件 stamp 实现、`TurnEndReason` 与 usage alias。
   - 同步更新 `inmemory.go` 的包内职责清单，避免结构注释滞后。
   - 导出的类型名、错误值、接口方法和调用行为保持不变；本轮无公共 API 破坏性调整。
+- 已完成第八轮目标模块结构清理：
+  - `app/runtime/internal/kernel/turn`：继续收敛 `turn.go`，将 per-turn 状态对象与并发不变量移入 `state.go`。
+  - 将 mid-run steering source 与 terminal steering flush 移入 `steering.go`，让 steering 队列的两条消费路径相邻。
+  - 将 terminal event 映射、teardown、`turnEndPlan` / fallback planning 移入 `terminal.go`。
+  - `turn.go` 现在聚焦 run/drive/interrupt 主生命周期和 post-turn maintenance；同步更新 `inmemory.go` 的包内职责清单。
+  - 导出的类型名、错误值、接口方法和调用行为保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -243,16 +249,17 @@ app/runtime -> agent -> core
   - `go test ./model/chat`（`core`）通过。
   - `go test ./internal/kernel/turn ./internal/runtime ./internal/delivery/server`（`app/runtime`）通过。
   - `go test ./internal/kernel/...`（`app/runtime`）通过。
+  - `go test ./internal/kernel/turn ./internal/kernel/... ./internal/runtime ./internal/delivery/server`（`app/runtime`）通过。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第七轮后复跑）。
-  - `go test ./...`（`agent`）通过（第七轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第七轮后复跑）。
-  - `go vet ./...`（`core`）通过（第七轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第七轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第七轮后复跑）。
-  - `go build ./...`（`core`）通过（第七轮后复跑）。
-  - `go build ./...`（`agent`）通过（第七轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第七轮后复跑）。
+  - `go test ./...`（`core`）通过（第八轮后复跑）。
+  - `go test ./...`（`agent`）通过（第八轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第八轮后复跑）。
+  - `go vet ./...`（`core`）通过（第八轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第八轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第八轮后复跑）。
+  - `go build ./...`（`core`）通过（第八轮后复跑）。
+  - `go build ./...`（`agent`）通过（第八轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第八轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。

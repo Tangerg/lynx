@@ -72,7 +72,10 @@ type Dependencies struct {
 //   - request.go        — Start/Rehydrate request shapes + validation
 //   - event.go          — turn event model + terminal reason vocabulary
 //   - inmemory.go       — Dispatcher implementation + live-turn registry
-//   - turn.go           — per-turn state + run/drive lifecycle
+//   - state.go          — per-turn state + cross-goroutine invariants
+//   - turn.go           — run/drive/interrupt lifecycle
+//   - terminal.go       — terminal event mapping + teardown
+//   - steering.go       — mid-run steering source + final history flush
 //   - event_stream.go   — event subscription + transient delta coalescing
 //   - prompt_hooks.go   — pre-turn lifecycle hooks
 //   - lifecycle.go      — terminal-event capture from the agent runtime
