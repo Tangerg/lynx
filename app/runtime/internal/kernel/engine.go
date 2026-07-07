@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/core/model/chat"
+	history "github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 // Engine is the microkernel core: it drives the agent loop and depends on
@@ -37,6 +38,7 @@ type Engine struct {
 	agent    *core.Agent
 
 	// Context inputs (read at SystemPrompt + chat-history time).
+	historyStore    history.Store
 	tools           []chat.Tool
 	steering        SteeringSink // turn-end steering inject; nil → steering drops
 	knowledge       knowledge.Store
@@ -74,6 +76,9 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	if cfg.ChatClient == nil {
 		return nil, errors.New("engine: ChatClient is required")
 	}
+	if cfg.HistoryStore == nil {
+		cfg.HistoryStore = history.NewInMemoryStore()
+	}
 
 	// The tool environment (capability adapters + per-role/per-cwd resolver +
 	// canonical tool list) is assembled OUTSIDE the core, in the adapter layer,
@@ -97,6 +102,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		compactor:       cfg.Compactor,
 		extractor:       cfg.Extractor,
 		knowledge:       cfg.Knowledge,
+		historyStore:    cfg.HistoryStore,
 		todos:           cfg.Todos,
 		workdir:         cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
