@@ -81,6 +81,7 @@ app/runtime -> agent -> core
 - 不为了省事而进行粗暴破坏。
 - 避免应用层语义污染底层模块。
 - 公共 API 的破坏性调整先确认 scope、影响面和备选方案。
+- 目标已更新：开发阶段不为了旧接口留兼容 shim；后续发现公开 API 本身不合理时，倾向直接改到正确形态，但具体破坏性 scope 仍需先咨询并记录。
 - 每轮关键修改后进行验证，并记录无法验证的原因。
 
 ---
@@ -589,6 +590,11 @@ app/runtime -> agent -> core
   - `agent/core` 继续不扩宽 `Process` 接口，而是通过可选 context-aware awaiter 能力下传 ctx，避免让外部 `core.Process` 实现者被迫适配。
   - 新增 runtime 集成测试覆盖：action 内旧入口 `pc.AwaitInput(...)` 触发的 `ProcessWaiting` listener panic span 必须保持在 `RunAgent` 的 parent trace 内。
   - 本轮是兼容性 API 增量，不改变既有 `AwaitInput(req)` 或 `core.Process` 接口；无公共 API 破坏性调整。
+- 已完成第六十轮目标模块生产代码卫生治理：
+  - `agent/core`：统一 `ProcessContext` 工具相关入口的 nil ctx 语义，`PublishContext`、`ResolveTools`、`ActionTools`、`ToolCallContext` 均先归一到 `context.Background()`。
+  - 修复 `ToolCallContext(nil)` 直接 panic 的 API 易误用点；resolver 也不再收到 nil ctx，避免把框架入口的不稳定状态透传给下游工具解析器。
+  - 新增 `agent/core` 单元测试覆盖 nil ctx 下的 tool resolver 调用、action tool resolver 调用、tool-call cancel/release 行为。
+  - 本轮不新增兼容旧接口层，不改变公开签名；属于现有 API 语义收紧和难误用治理。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -659,6 +665,8 @@ app/runtime -> agent -> core
   - `go test ./internal/kernel`（`app/runtime`）通过（第五十八轮后复跑）。
   - `go test ./core ./event ./runtime`（`agent`）通过（第五十九轮后复跑）。
   - `go test ./runtime -run 'TestProcessContextAwaitInputKeepsActionTrace|TestTypedActionAwaitInputSuspendsAndResumes'`（`agent`）通过（第五十九轮后复跑）。
+  - `go test ./core -run 'TestProcessContextTool'`（`agent`）通过（第六十轮后复跑）。
+  - `go test ./core`（`agent`）通过（第六十轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -795,6 +803,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第五十九轮后复跑）。
   - `go build ./...`（`agent`）通过（第五十九轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第五十九轮后复跑）。
+  - `go test ./...`（`core`）通过（第六十轮后复跑）。
+  - `go test ./...`（`agent`）通过（第六十轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第六十轮后复跑）。
+  - `go vet ./...`（`core`）通过（第六十轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第六十轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第六十轮后复跑）。
+  - `go build ./...`（`core`）通过（第六十轮后复跑）。
+  - `go build ./...`（`agent`）通过（第六十轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第六十轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -806,7 +823,7 @@ app/runtime -> agent -> core
 
 ### 5.2 未完成
 
-- 本批未做破坏性公共 API 重构；如后续继续收敛 exported shape，需要先确认 scope、影响面和备选方案。
+- 本批未做破坏性公共 API 重构；目标已更新为不保留旧接口兼容层，如后续继续收敛 exported shape，需要先确认 scope、影响面和备选方案后直接改到正确形态。
 - 本批只处理 `core`、`agent`、`app/runtime`；前端和其他模块不纳入本轮质量结论。
 
 ### 5.3 暂不处理的问题
@@ -817,7 +834,7 @@ app/runtime -> agent -> core
 
 ### 5.4 风险与注意事项
 
-- 本任务允许破坏性调整，但公共 API 破坏性修改仍需先确认 scope、影响面和备选方案。
+- 本任务允许破坏性调整，且目标已更新为不为旧接口留兼容 shim；公共 API 破坏性修改仍需先确认 scope、影响面和备选方案。
 - `agent` 和 `app/runtime` 体量较大，需要分批推进，避免无目标重写。
 - 多模块 workspace 中的模块版本引用可能由 `go.work` 覆盖，依赖治理需要同时看 `go.mod` 和实际 import。
 - `core` 与 `agent` 均依赖 `pkg` 工具模块；后续只治理有明确收益、能减少真实耦合的用法，不为了“依赖更少”而机械复制 helper。
