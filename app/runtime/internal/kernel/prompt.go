@@ -43,9 +43,9 @@ task is ambiguous, ask one focused question rather than guess.`
 // project A briefs the model about project A regardless of where
 // `lyra serve` was started.
 //
-// knowledge.Service is Lyra's writable surface (`lyra memory edit`);
+// knowledge.Store is Lyra's writable surface (`lyra memory edit`);
 // agentdoc is the read-only cross-tool AGENTS.md convention. Engines
-// built without a memory service simply yield the base prompt +
+// built without a memory store simply yield the base prompt +
 // discovered files.
 func (e *Engine) SystemPrompt(ctx context.Context) string {
 	prompt := composePrompt(ctx, e.knowledge, turnctx.TurnCwd(ctx, e.workdir))
@@ -74,10 +74,9 @@ func appendTodos(ctx context.Context, prompt string, todos todo.Store) string {
 }
 
 // composePrompt is the pure form behind [Engine.SystemPrompt],
-// exposed unexported so the unit tests (which build stub memory
-// services without a full Engine) can exercise the cascade
-// directly.
-func composePrompt(ctx context.Context, mem knowledge.Service, cwd string) string {
+// exposed unexported so the unit tests (which build stub memory stores without
+// a full Engine) can exercise the cascade directly.
+func composePrompt(ctx context.Context, mem knowledge.Store, cwd string) string {
 	var b strings.Builder
 	b.WriteString(basePrompt)
 

@@ -8,7 +8,7 @@ import (
 )
 
 // ListMemory enumerates LYRA.md entries across scopes (API.md §7.7).
-// Empty (not an error) when no memory service is configured, so the UI
+// Empty (not an error) when no memory store is configured, so the UI
 // renders an empty state rather than a banner.
 func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
 	if !s.knowledge.HasMemory() {
@@ -62,7 +62,7 @@ func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryReque
 }
 
 // memScopeToWire / memScopeFromWire bridge the protocol string enum and
-// the memory service's int Scope. The wire's cwd + projectRoot both
+// the memory store's int Scope. The wire's cwd + projectRoot both
 // fold into the project scope (addressed by the request's cwd);
 // home maps to the user scope.
 func memScopeToWire(s knowledge.Scope) protocol.MemoryScope {

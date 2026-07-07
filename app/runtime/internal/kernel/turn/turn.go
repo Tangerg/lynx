@@ -36,7 +36,7 @@ type turnState struct {
 	// cwd is the session working directory the turn ran in — threaded
 	// to post-turn maintenance so extracted facts land in THAT
 	// project's LYRA.md. Empty for turns without a session cwd (the
-	// memory service then falls back to its default dir) and for
+	// memory store then falls back to its default dir) and for
 	// rehydrated turns (the snapshot predates the live request).
 	cwd string
 

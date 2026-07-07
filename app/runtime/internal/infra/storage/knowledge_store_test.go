@@ -109,7 +109,7 @@ func TestFileMemoryService_ProjectScopeUsesCwd(t *testing.T) {
 }
 
 // TestFileMemoryService_ProjectScopeFollowsDir — the project scope is
-// addressed by the per-call dir, so one service serves every project;
+// addressed by the per-call dir, so one store serves every project;
 // empty dir falls back to the construction-time default.
 func TestFileMemoryService_ProjectScopeFollowsDir(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())

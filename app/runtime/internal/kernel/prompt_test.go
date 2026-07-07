@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 )
 
-// TestComposeSystemPrompt_BaseOnly verifies a nil memory service
+// TestComposeSystemPrompt_BaseOnly verifies a nil memory store
 // yields the base prompt verbatim (no markdown headers).
 func TestComposeSystemPrompt_BaseOnly(t *testing.T) {
 	got := composePrompt(context.Background(), nil, "")
