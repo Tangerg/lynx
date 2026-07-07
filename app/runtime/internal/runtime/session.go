@@ -89,3 +89,5 @@ func resolveSessionCwd(cwd string) (string, error) {
 	}
 	return resolved, nil
 }
+
+func (r *Runtime) forgetSession(sessionID string) { r.turns.ForgetSession(sessionID) }
