@@ -108,7 +108,7 @@ lyra/
 │
 ├── internal/
 │   ├── config/                         纯数据
-│   │   └── config.go                   LYRA_* env vars + Config struct + BuildChatClient
+│   │   └── config.go                   LYRA_* env vars + Config struct
 │   │
 │   ├── runtime/                        组合根
 │   │   └── runtime.go                  装配各环 + nil-default SPI 注入(绑进 delivery/server.Server)

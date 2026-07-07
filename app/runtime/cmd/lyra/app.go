@@ -112,7 +112,12 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	// The default client is the configured provider+model — the one a turn
 	// runs against when it doesn't pick a model. Per-run model selection
 	// builds other clients on demand from the provider registry.
-	client, err := config.BuildChatClient(cfg)
+	client, err := llm.BuildClient(llm.ClientSpec{
+		Provider: cfg.Provider,
+		Model:    cfg.Model,
+		APIKey:   cfg.APIKey,
+		BaseURL:  cfg.BaseURL,
+	})
 	if err != nil {
 		return err
 	}
