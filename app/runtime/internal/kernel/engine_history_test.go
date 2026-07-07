@@ -22,9 +22,9 @@ func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = eng.runTurnSync(context.Background(), RunTurnRequest{Message: "go"})
+	_, err = eng.runTurnSync(context.Background(), TurnRequest{Message: "go"})
 	if err != nil {
-		t.Fatalf("RunTurn: %v", err)
+		t.Fatalf("runTurnSync: %v", err)
 	}
 
 	ids, err := store.List(context.Background())
@@ -58,13 +58,13 @@ func TestEngine_RunChat_MultiTurnHistory(t *testing.T) {
 
 	const sessionID = "sess-memory"
 
-	if _, err := eng.runTurnSync(context.Background(), RunTurnRequest{
+	if _, err := eng.runTurnSync(context.Background(), TurnRequest{
 		SessionID: sessionID,
 		Message:   "hello",
 	}); err != nil {
 		t.Fatalf("turn 1: %v", err)
 	}
-	if _, err := eng.runTurnSync(context.Background(), RunTurnRequest{
+	if _, err := eng.runTurnSync(context.Background(), TurnRequest{
 		SessionID: sessionID,
 		Message:   "again",
 	}); err != nil {
@@ -91,7 +91,7 @@ func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 	eng1, _ := New(context.Background(), Config{ChatClient: cli1, HistoryStore: shared})
 
 	const sessionID = "shared-sess"
-	if _, err := eng1.runTurnSync(context.Background(), RunTurnRequest{
+	if _, err := eng1.runTurnSync(context.Background(), TurnRequest{
 		SessionID: sessionID, Message: "first",
 	}); err != nil {
 		t.Fatal(err)
@@ -101,7 +101,7 @@ func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 	cli2, _ := chat.NewClient(stub2)
 	eng2, _ := New(context.Background(), Config{ChatClient: cli2, HistoryStore: shared})
 
-	if _, err := eng2.runTurnSync(context.Background(), RunTurnRequest{
+	if _, err := eng2.runTurnSync(context.Background(), TurnRequest{
 		SessionID: sessionID, Message: "second",
 	}); err != nil {
 		t.Fatal(err)
@@ -127,7 +127,7 @@ func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
 	}
 
 	for i := range 2 {
-		if _, err := eng.runTurnSync(context.Background(), RunTurnRequest{
+		if _, err := eng.runTurnSync(context.Background(), TurnRequest{
 			Message: "hello",
 		}); err != nil {
 			t.Fatalf("turn %d: %v", i, err)

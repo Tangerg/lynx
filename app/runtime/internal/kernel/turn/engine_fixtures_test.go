@@ -88,7 +88,7 @@ type stubEngine struct {
 	lastProc atomic.Pointer[stubTurnProcess]
 }
 
-func (s *stubEngine) StartTurn(ctx context.Context, req kernel.RunTurnRequest) kernel.TurnProcess {
+func (s *stubEngine) StartTurn(ctx context.Context, req kernel.TurnRequest) kernel.TurnProcess {
 	s.runTurnCalls.Add(1)
 	s.mu.Lock()
 	s.lastClient = req.ChatClient
@@ -131,7 +131,7 @@ func (s *stubEngine) MaybeExtract(_ context.Context, _, _ string) (kernel.Extrac
 // ever returning normally.
 type slowStubEngine struct{ stubEngine }
 
-func (s *slowStubEngine) StartTurn(ctx context.Context, _ kernel.RunTurnRequest) kernel.TurnProcess {
+func (s *slowStubEngine) StartTurn(ctx context.Context, _ kernel.TurnRequest) kernel.TurnProcess {
 	cp := &stubTurnProcess{
 		id:   "slow-stub-proc",
 		done: make(chan error, 1),

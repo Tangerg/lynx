@@ -600,6 +600,10 @@ app/runtime -> agent -> core
   - `internal/runtime` 的 A2A adapter 改为直接使用 `StartTurn`，等待 `TurnProcess.Done()` 后读取 `TurnProcess.Output()`；不为旧同步入口保留兼容层。
   - `kernel` 包测试迁移到 test-only `runTurnSync` helper，测试仍覆盖同步等待语义，但生产 API 不再暴露重复入口。
   - 清理 `Engine.RunTurn` 相关注释，避免文档继续指向已删除接口。
+- 已完成第六十二轮 `app/runtime` internal 命名与执行模型收敛：
+  - `kernel.RunTurnRequest` 直接重命名为 `kernel.TurnRequest`，与已删除的 `Engine.RunTurn` 脱钩，不保留 type alias。
+  - 同步迁移 `kernel.Engine.StartTurn`、turn dispatcher、A2A adapter、kernel tests 和相关注释。
+  - 清理测试错误信息中的旧 `RunTurn` 文案；剩余 `RunTurn` 命中均属于 `kernel/lifecycle.RunTurn` 领域类型或 `CancelRunTurn` 用例，不是旧同步 wrapper。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -675,6 +679,7 @@ app/runtime -> agent -> core
   - `go test ./internal/kernel`（`app/runtime`）通过（第六十一轮后复跑）。
   - `go test ./internal/runtime`（`app/runtime`）通过（第六十一轮后复跑）。
   - `go test ./internal/runtime -run TestA2AAgent_RunYieldsReply`（`app/runtime`）通过（第六十一轮后复跑）。
+  - `go test ./internal/kernel ./internal/kernel/turn ./internal/runtime`（`app/runtime`）通过（第六十二轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -829,6 +834,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第六十一轮后复跑）。
   - `go build ./...`（`agent`）通过（第六十一轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第六十一轮后复跑）。
+  - `go test ./...`（`core`）通过（第六十二轮后复跑）。
+  - `go test ./...`（`agent`）通过（第六十二轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第六十二轮后复跑）。
+  - `go vet ./...`（`core`）通过（第六十二轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第六十二轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第六十二轮后复跑）。
+  - `go build ./...`（`core`）通过（第六十二轮后复跑）。
+  - `go build ./...`（`agent`）通过（第六十二轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第六十二轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -894,3 +908,15 @@ app/runtime -> agent -> core
 - 已完成适配：A2A adapter 已迁移到 `StartTurn`；kernel 测试改用 `runTurnSync` helper。
 - 验证结果：`go test ./internal/kernel`、`go test ./internal/runtime`、`go test ./internal/runtime -run TestA2AAgent_RunYieldsReply` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险；若后续有新的同步调用需求，应在调用方显式等待 `TurnProcess`，不要恢复生产 wrapper。
+
+第六十二轮包含 `app/runtime/internal/kernel` 的 internal 破坏性重命名：
+
+- 调整对象：`kernel.RunTurnRequest`。
+- 调整前问题：`Engine.RunTurn` 删除后，核心 turn 请求类型仍保留旧同步入口命名，概念上继续暗示不存在的生产 API。
+- 破坏性原因：目标已更新为不保留旧接口兼容层；该类型位于 `app/runtime/internal`，直接改名比保留 alias 更能避免历史包袱。
+- 新设计：统一使用 `kernel.TurnRequest` 表达 Engine turn 输入；`turn.StartTurnRequest` 继续作为 dispatcher/protocol-adjacent 的入口请求。
+- 架构收益：kernel 层类型命名回到领域对象本身，不再绑定旧方法名；StartTurn/TurnProcess 成为唯一生产执行模型。
+- 影响范围：`app/runtime/internal/kernel`、`app/runtime/internal/kernel/turn`、`app/runtime/internal/runtime` 内部调用点和测试。
+- 已完成适配：所有 `RunTurnRequest` 调用点已迁移；未保留 type alias。
+- 验证结果：`go test ./internal/kernel ./internal/kernel/turn ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险；若后续暴露外部 API，应避免把方法名编码进可复用领域类型。

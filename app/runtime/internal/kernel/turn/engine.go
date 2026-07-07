@@ -23,12 +23,12 @@ import (
 // implicitly, so nothing names it (tests pass a stub the same way).
 //
 // The shared parameter/result types live in package kernel — its I/O schema
-// (RunTurnRequest, TurnOutput, TurnProcess) and the maintenance port results
+// (TurnRequest, TurnOutput, TurnProcess) and the maintenance port results
 // (CompactionResult, ExtractionResult). Importing them carries no concrete-type
 // coupling; what we shed is the *kernel.Engine dependency, so turn can be
 // unit-tested and the layering matches the architecture.
 type engineDep interface {
-	StartTurn(ctx context.Context, req kernel.RunTurnRequest) kernel.TurnProcess
+	StartTurn(ctx context.Context, req kernel.TurnRequest) kernel.TurnProcess
 	// RestoreTurn rebuilds a turn's agent process from a persisted
 	// snapshot and re-parks it for Resume — the cross-restart resume seam
 	// (the live process is gone after a backend restart). Returns a

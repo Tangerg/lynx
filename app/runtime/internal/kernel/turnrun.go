@@ -14,10 +14,10 @@ import (
 // associated with the currently running turn.
 type SteerSource func() []chat.Message
 
-// RunTurnRequest carries the per-turn parameters for [Engine.StartTurn].
+// TurnRequest carries the per-turn parameters for [Engine.StartTurn].
 // SessionID is non-empty to bind the turn to a chat history keyed conversation;
 // Observer is non-nil to receive streaming notifications.
-type RunTurnRequest struct {
+type TurnRequest struct {
 	// SessionID anchors the turn to a chat history conversation. The
 	// runtime stamps it onto each request under the chat conversation-id key,
 	// which the history middleware reads to pull prior history before the
@@ -106,7 +106,7 @@ type RunTurnRequest struct {
 //
 // Observer attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat history middleware's keyed conversation.
-func (e *Engine) StartTurn(ctx context.Context, req RunTurnRequest) TurnProcess {
+func (e *Engine) StartTurn(ctx context.Context, req TurnRequest) TurnProcess {
 	in := turnInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps, Options: req.Options.Clone()}
 
 	opts := turnProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient, e.steeringGuardrails(req.Steer))
@@ -194,7 +194,7 @@ type RestoreTurnRequest struct {
 	// runs against — the per-run model the parked turn used, re-resolved from
 	// the interrupt's persisted provider+model. nil runs on the platform default
 	// (a run that didn't pick a model, or one whose provider is no longer
-	// configured). Same seam as [RunTurnRequest.ChatClient] on a fresh turn.
+	// configured). Same seam as [TurnRequest.ChatClient] on a fresh turn.
 	ChatClient core.ChatClient
 }
 
