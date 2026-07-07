@@ -2,17 +2,18 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 	"iter"
 
 	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
-// chatRunner is the narrow slice of *kernel.Engine the A2A adapter needs —
-// just the one-shot turn. Defined here (consumer side) so the adapter doesn't
-// pin the whole engine; *kernel.Engine satisfies it structurally.
+// chatRunner is the narrow slice of *kernel.Engine the A2A adapter needs.
+// Defined here (consumer side) so the adapter doesn't pin the whole engine;
+// *kernel.Engine satisfies it structurally.
 type chatRunner interface {
-	RunTurn(ctx context.Context, req kernel.RunTurnRequest) (kernel.TurnOutput, error)
+	StartTurn(ctx context.Context, req kernel.RunTurnRequest) kernel.TurnProcess
 }
 
 // a2aAgent adapts the engine's one-shot chat turn to the [a2a.Agent] the
@@ -22,9 +23,8 @@ type chatRunner interface {
 // so a remote caller gets a clean turn against the engine's default workdir.
 //
 // One-shot (yield once) rather than token-streaming: the executor maps the
-// chunk(s) onto the A2A task lifecycle either way, and the engine's blocking
-// RunTurn is the simplest faithful bridge. Token-level streaming would adapt
-// the engine's observer and is a follow-up.
+// chunk(s) onto the A2A task lifecycle either way. Token-level streaming would
+// adapt the engine's observer and is a follow-up.
 type a2aAgent struct {
 	engine chatRunner
 }
@@ -33,7 +33,12 @@ var _ a2a.Agent = a2aAgent{}
 
 func (a a2aAgent) Run(ctx context.Context, input string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		out, err := a.engine.RunTurn(ctx, kernel.RunTurnRequest{Message: input})
+		proc := a.engine.StartTurn(ctx, kernel.RunTurnRequest{Message: input})
+		if err := <-proc.Done(); err != nil {
+			yield("", fmt.Errorf("a2a: run turn: %w", err))
+			return
+		}
+		out, err := proc.Output()
 		if err != nil {
 			yield("", err)
 			return

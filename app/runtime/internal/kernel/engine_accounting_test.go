@@ -23,7 +23,7 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go"})
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "go"})
 	if err != nil {
 		t.Fatalf("RunTurn: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go"})
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "go"})
 	if err != nil {
 		t.Fatalf("RunTurn: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go", MaxBudget: 10})
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "go", MaxBudget: 10})
 	if err != nil {
 		t.Fatalf("RunTurn: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestEngine_RunChat_StopsOnCostBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go", MaxCostUSD: 10})
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "go", MaxCostUSD: 10})
 	if err != nil {
 		t.Fatalf("RunTurn: %v", err)
 	}
