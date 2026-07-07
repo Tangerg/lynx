@@ -4,7 +4,7 @@
 //
 //  1. Built-in defaults
 //  2. config/config.yaml (or $HOME/.lyra/config.yaml) — viper
-//  3. Environment variables (LYRA_* + provider {NAME}_API_KEY)
+//  3. Environment variables (LYRA_*)
 //  4. CLI flags (resolved by cmd/lyra; e.g. serve --listen)
 //
 // The yaml file is where the API key lives in dev; it is gitignored.
@@ -19,8 +19,6 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 )
 
 // ServerConfig holds the `lyra serve` HTTP transport settings. CLI
@@ -83,7 +81,7 @@ type A2AAgentConfig struct {
 
 // Config is the loaded runtime configuration.
 type Config struct {
-	Provider llm.Provider
+	Provider string
 	Model    string
 	APIKey   string
 
@@ -125,9 +123,11 @@ type Config struct {
 	Server ServerConfig
 }
 
-// Load resolves configuration from yaml + env + defaults. A missing
-// config file is fine (defaults + env only). The returned config is
-// ready to hand to engine + transport wiring.
+// Load resolves configuration from yaml + env + defaults. A missing config
+// file is fine (defaults + env only). Provider catalog validation, default
+// model selection, and provider-specific API-key env fallback live in the
+// composition root because they depend on the LLM adapter catalog, not on
+// config-source parsing.
 func Load() (Config, error) {
 	v := viper.New()
 	v.SetConfigName("config")
@@ -152,30 +152,16 @@ func Load() (Config, error) {
 		// No config file — defaults + env only.
 	}
 
-	provider := llm.Provider(v.GetString("provider"))
+	provider := v.GetString("provider")
 	if provider == "" {
 		return Config{}, errors.New("config: provider is required — set `provider:` in config/config.yaml or LYRA_PROVIDER (see providers.list for the supported set)")
 	}
-	if !llm.IsSupported(provider) {
-		return Config{}, fmt.Errorf("config: unknown provider %q (see providers.list for the supported set)", provider)
-	}
 
 	model := v.GetString("model")
-	if model == "" {
-		model = llm.DefaultModel(provider)
-	}
 
-	// API key: yaml `apiKey`, overridden by the provider's native env var
-	// (e.g. ANTHROPIC_API_KEY / OPENAI_API_KEY — see llm.APIKeyEnv) so the
-	// env workflow still works.
+	// API key: yaml `apiKey`, optionally overridden later by the composition
+	// root with the provider's native env var (e.g. ANTHROPIC_API_KEY).
 	apiKey := v.GetString("apiKey")
-	apiKeyEnv := llm.APIKeyEnv(provider)
-	if envKey := os.Getenv(apiKeyEnv); envKey != "" {
-		apiKey = envKey
-	}
-	if apiKey == "" {
-		return Config{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + apiKeyEnv)
-	}
 
 	servers, err := parseMCPServers(os.Getenv("LYRA_MCP_SERVERS"))
 	if err != nil {
