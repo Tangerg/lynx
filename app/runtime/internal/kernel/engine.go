@@ -82,7 +82,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// core therefore constructs no capability and imports no infra/service for
 	// them — it only drives the resolver + appends the two engine-owned tools
 	// (task / ask_user) below.
-	resolver := toolResolverOrEmpty(cfg.ToolResolver)
+	resolver := cfg.ToolResolver
 	platform, err := newAgentPlatform(cfg, resolver)
 	if err != nil {
 		return nil, err
@@ -116,7 +116,9 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("engine: build task tool: %w", err)
 	}
-	resolver.SetTask(taskTool)
+	if resolver != nil {
+		resolver.SetTask(taskTool)
+	}
 
 	// e.tools is the canonical coding tool set for tool.Registry.List — the
 	// toolset-assembled list (working-directory-independent metadata, which now
