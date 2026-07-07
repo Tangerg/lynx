@@ -12,8 +12,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	pkgSafe "github.com/Tangerg/lynx/pkg/safe"
-	pkgSync "github.com/Tangerg/lynx/pkg/sync"
 )
 
 // maxConcurrentToolCalls bounds how many concurrency-safe tool calls run at
@@ -21,6 +19,25 @@ import (
 // handful of parallelizable calls; the cap keeps a model that fans out wide
 // (many `task` sub-agents, many reads) from stampeding provider rate limits.
 const maxConcurrentToolCalls = 8
+
+type limiter struct {
+	slots chan struct{}
+}
+
+func newLimiter(cap int) *limiter {
+	if cap <= 0 {
+		panic("toolloop: concurrent tool call limit must be > 0")
+	}
+	return &limiter{slots: make(chan struct{}, cap)}
+}
+
+func (l *limiter) Acquire() {
+	l.slots <- struct{}{}
+}
+
+func (l *limiter) Release() {
+	<-l.slots
+}
 
 // invoker drives the tool-calling loop's per-round work for both the
 // call and stream paths: it owns the loop's tool [registry], decides
@@ -191,7 +208,7 @@ func (i *invoker) runSegment(ctx context.Context, calls []*chat.ToolCallPart, st
 		// done-set.
 		bctx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		lim := pkgSync.NewLimiter(maxConcurrentToolCalls)
+		lim := newLimiter(maxConcurrentToolCalls)
 		var wg sync.WaitGroup
 		for idx := start; idx < end; idx++ {
 			lim.Acquire()
@@ -292,7 +309,7 @@ func (i *invoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.ToolCal
 	// Runs before span.End (defers are LIFO) so the outcome lands on the span.
 	defer func() {
 		if r := recover(); r != nil {
-			span.RecordError(pkgSafe.NewPanicError(r, debug.Stack()))
+			span.RecordError(fmt.Errorf("toolloop.invoker.invokeOne: panic: %v\nstack:\n%s", r, debug.Stack()))
 			span.SetStatus(codes.Error, "tool panicked")
 			err = fmt.Errorf("panic: %v", r)
 			return
