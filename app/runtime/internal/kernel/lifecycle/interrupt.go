@@ -47,18 +47,18 @@ func (c *Coordinator) CancelParkedRun(ctx context.Context, turns TurnCanceler, r
 	if !found {
 		return ErrRunNotFound
 	}
-	return c.CancelRunTurn(ctx, turns, RunTurnBinding{
+	return c.CancelRunBinding(ctx, turns, RunTurnBinding{
 		RunID:     runID,
 		SessionID: pending.SessionID,
 		TurnID:    pending.TurnID,
 	})
 }
 
-// CancelRunTurn tears down the turn before dropping the durable interrupt
+// CancelRunBinding tears down the bound turn before dropping the durable interrupt
 // record. The turn cancel is best-effort: after a backend restart the durable
 // interrupt may outlive the in-memory turn, and abandoning the run still means
 // removing the resumable record.
-func (c *Coordinator) CancelRunTurn(ctx context.Context, turns TurnCanceler, r RunTurnBinding) error {
+func (c *Coordinator) CancelRunBinding(ctx context.Context, turns TurnCanceler, r RunTurnBinding) error {
 	c.cancelTurn(ctx, turns, r)
 	return c.s.Interrupts().Delete(ctx, r.RunID)
 }
@@ -111,7 +111,7 @@ func (c *Coordinator) cancelParkedInterrupts(ctx context.Context, turns TurnCanc
 		return
 	}
 	for _, p := range pending {
-		_ = c.CancelRunTurn(ctx, turns, RunTurnBinding{
+		_ = c.CancelRunBinding(ctx, turns, RunTurnBinding{
 			RunID:     p.ParentRunID,
 			SessionID: p.SessionID,
 			TurnID:    p.TurnID,

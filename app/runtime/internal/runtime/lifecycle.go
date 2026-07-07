@@ -101,9 +101,9 @@ func (r *Runtime) CancelParkedRun(ctx context.Context, runID string) error {
 	return r.lifecycle().CancelParkedRun(ctx, lifecycleTurns{rt: r}, runID)
 }
 
-// CancelRunTurn tears down a live turn and drops any durable interrupt record.
-func (r *Runtime) CancelRunTurn(ctx context.Context, run lifecycle.RunTurnBinding) error {
-	return r.lifecycle().CancelRunTurn(ctx, lifecycleTurns{rt: r}, run)
+// CancelRunBinding tears down the turn bound to a run and drops any durable interrupt record.
+func (r *Runtime) CancelRunBinding(ctx context.Context, run lifecycle.RunTurnBinding) error {
+	return r.lifecycle().CancelRunBinding(ctx, lifecycleTurns{rt: r}, run)
 }
 
 // ResumeClaimedInterrupt consumes an open interrupt and resumes or rehydrates its turn.

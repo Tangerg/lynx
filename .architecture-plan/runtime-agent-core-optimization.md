@@ -603,11 +603,15 @@ app/runtime -> agent -> core
 - 已完成第六十二轮 `app/runtime` internal 命名与执行模型收敛：
   - `kernel.RunTurnRequest` 直接重命名为 `kernel.TurnRequest`，与已删除的 `Engine.RunTurn` 脱钩，不保留 type alias。
   - 同步迁移 `kernel.Engine.StartTurn`、turn dispatcher、A2A adapter、kernel tests 和相关注释。
-  - 清理测试错误信息中的旧 `RunTurn` 文案；剩余 `RunTurn` 命中均属于 `kernel/lifecycle.RunTurn` 领域类型或 `CancelRunTurn` 用例，不是旧同步 wrapper。
+  - 清理测试错误信息中的旧 `RunTurn` 文案；后续第六十三、六十四轮已继续收敛 lifecycle 领域类型和取消用例命名。
 - 已完成第六十三轮 `app/runtime` lifecycle 领域命名收敛：
   - `lifecycle.RunTurn` 直接重命名为 `RunTurnBinding`，表达它是 protocol run id 与 turn handle 的绑定，而不是执行动作或旧同步入口。
   - `RunTurnBinding` 增加内部 `handle()` 转换方法，取消逻辑通过绑定对象生成 `turn.TurnHandle`，减少跨函数重复组装。
   - 同步迁移 runtime/server/lifecycle 调用点和测试，不保留旧类型别名。
+- 已完成第六十四轮 `app/runtime` lifecycle 用例命名收敛：
+  - `CancelRunTurn` 直接重命名为 `CancelRunBinding`，与 `RunTurnBinding` 的领域对象对齐，不再把取消用例命名成旧 `RunTurn` 动作。
+  - 同步迁移 lifecycle coordinator、runtime facade、server lifecycle port 和测试 fixture，不保留旧方法别名。
+  - 该调整仍位于 `app/runtime/internal`，不影响跨模块公开 API。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -685,6 +689,7 @@ app/runtime -> agent -> core
   - `go test ./internal/runtime -run TestA2AAgent_RunYieldsReply`（`app/runtime`）通过（第六十一轮后复跑）。
   - `go test ./internal/kernel ./internal/kernel/turn ./internal/runtime`（`app/runtime`）通过（第六十二轮后复跑）。
   - `go test ./internal/kernel/lifecycle ./internal/runtime ./internal/delivery/server`（`app/runtime`）通过（第六十三轮后复跑）。
+  - `go test ./internal/kernel/lifecycle ./internal/runtime ./internal/delivery/server`（`app/runtime`）通过（第六十四轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -857,6 +862,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第六十三轮后复跑）。
   - `go build ./...`（`agent`）通过（第六十三轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第六十三轮后复跑）。
+  - `go test ./...`（`core`）通过（第六十四轮后复跑）。
+  - `go test ./...`（`agent`）通过（第六十四轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第六十四轮后复跑）。
+  - `go vet ./...`（`core`）通过（第六十四轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第六十四轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第六十四轮后复跑）。
+  - `go build ./...`（`core`）通过（第六十四轮后复跑）。
+  - `go build ./...`（`agent`）通过（第六十四轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第六十四轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -869,6 +883,7 @@ app/runtime -> agent -> core
 ### 5.2 未完成
 
 - 本批未做破坏性公共 API 重构；目标已更新为不保留旧接口兼容层，如后续继续收敛 exported shape，需要先确认 scope、影响面和备选方案后直接改到正确形态。
+- 已识别 `agent` 公开 API 中前序 context-aware companion 入口仍保留旧入口（如 event/process context/invocation/await 路径）；若按最新目标移除旧入口，将是跨模块公开 API 破坏性调整，需要先确认影响面和迁移方案。
 - 本批只处理 `core`、`agent`、`app/runtime`；前端和其他模块不纳入本轮质量结论。
 
 ### 5.3 暂不处理的问题
@@ -945,4 +960,16 @@ app/runtime -> agent -> core
 - 影响范围：`app/runtime/internal/kernel/lifecycle`、`app/runtime/internal/runtime`、`app/runtime/internal/delivery/server` 内部调用点和测试。
 - 已完成适配：所有 `RunTurn` 类型引用已迁移；未保留 type alias。
 - 验证结果：`go test ./internal/kernel/lifecycle ./internal/runtime ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
-- 后续风险：无跨模块公开 API 风险；若后续还看到 `RunTurn` 命中，应区分 `CancelRunTurn` 用例名与执行入口，不恢复旧类型名。
+- 后续风险：无跨模块公开 API 风险；后续若还看到 `RunTurn` 命中，应优先判断是否仍在表达旧执行入口，不恢复旧类型名。
+
+第六十四轮包含 `app/runtime/internal/kernel/lifecycle` 的 internal 破坏性方法重命名：
+
+- 调整对象：`lifecycle.Coordinator.CancelRunTurn` 及 runtime/server 内部端口同名方法。
+- 调整前问题：第六十三轮已将数据对象收敛为 `RunTurnBinding`，但取消用例仍叫 `CancelRunTurn`，容易继续把 run/turn 绑定误读为旧执行入口动作。
+- 破坏性原因：目标已更新为不保留旧接口兼容层；该方法链全部位于 `app/runtime/internal`，直接重命名比保留旧方法更符合领域语言闭环。
+- 新设计：使用 `CancelRunBinding` 表达“取消某个 run/turn 绑定所指向的 turn，并删除对应 durable interrupt record”。
+- 架构收益：lifecycle coordinator、runtime facade、server port 的用例语言与领域对象一致，旧 `RunTurn` 动作名不再残留在 internal API 上。
+- 影响范围：`app/runtime/internal/kernel/lifecycle`、`app/runtime/internal/runtime`、`app/runtime/internal/delivery/server` 内部调用点和测试 fixture。
+- 已完成适配：所有 `CancelRunTurn` 调用点已迁移；未保留旧方法别名。
+- 验证结果：`go test ./internal/kernel/lifecycle ./internal/runtime ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险；后续若继续处理 `agent` context-aware companion API，需要先按公共 API 破坏性调整确认 scope。

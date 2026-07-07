@@ -33,7 +33,7 @@ type lifecycleAccess interface {
 	ClaimWorkingTreeMutation(cwd string) (lifecycle.WorkingTreeAdmission, bool)
 	ClaimResumeSlot(ctx context.Context, claims lifecycle.SessionClaimer, parentRunID string) (interrupts.Pending, lifecycle.RunAdmission, error)
 	CancelParkedRun(ctx context.Context, runID string) error
-	CancelRunTurn(ctx context.Context, run lifecycle.RunTurnBinding) error
+	CancelRunBinding(ctx context.Context, run lifecycle.RunTurnBinding) error
 	ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution) (lifecycle.ResumedInterrupt, error)
 	RollbackResolved(ctx context.Context, sessionID string, boundary lifecycle.RollbackBoundary) error
 	ForkSession(ctx context.Context, spec lifecycle.ForkSpec) (sessionsvc.Session, error)
