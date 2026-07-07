@@ -14,7 +14,7 @@ import (
 // TestSnapshot_SkipsNonGitDir is the regression guard for the run-teardown hang:
 // a session opened on a non-git directory (e.g. the home dir) must NOT be
 // snapshotted — a whole-tree `git add` there would stage the entire tree and
-// block. The gate (workspace.Snapshot → git.IsRepo) makes it a silent no-op, so
+// block. The gate (Checkpoints.Snapshot → git.IsRepo) makes it a silent no-op, so
 // no shadow repo is ever created.
 func TestSnapshot_SkipsNonGitDir(t *testing.T) {
 	if !git.Available() {
@@ -22,7 +22,7 @@ func TestSnapshot_SkipsNonGitDir(t *testing.T) {
 	}
 	root := t.TempDir() // shadow-repo store root
 	cwd := t.TempDir()  // a plain dir — NOT a git repo
-	svc := workspace.New(root)
+	svc := workspace.NewCheckpoints(root)
 
 	if err := svc.Snapshot(context.Background(), "ses1", cwd, "run1"); err != nil {
 		t.Fatalf("Snapshot on a non-git dir should no-op, got: %v", err)
@@ -47,7 +47,7 @@ func TestSnapshot_RunsInGitRepo(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(cwd, "a.txt"), []byte("hi"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	svc := workspace.New(root)
+	svc := workspace.NewCheckpoints(root)
 
 	if err := svc.Snapshot(context.Background(), "ses1", cwd, "run1"); err != nil {
 		t.Fatalf("Snapshot in a git repo: %v", err)

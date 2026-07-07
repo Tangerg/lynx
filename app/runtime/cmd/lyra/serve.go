@@ -141,17 +141,16 @@ func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyra
 	}
 
 	// File checkpoints live in a shadow git repo per session under the lyra
-	// home; the workspace service enables them only when git is present
-	// (features.checkpoints mirrors this).
+	// home; the checkpoint adapter enables them only when git is present.
 	var checkpointDir string
 	if home, err := storage.Home(); err == nil {
 		checkpointDir = filepath.Join(home, "checkpoints")
 	}
 
 	api, err := server.New(server.Config{
-		Runtime:    a.runtime(),
-		ServerInfo: info,
-		Workspace:  workspace.New(checkpointDir),
+		Runtime:     a.runtime(),
+		ServerInfo:  info,
+		Checkpoints: workspace.NewCheckpoints(checkpointDir),
 	})
 	if err != nil {
 		return nil, nil, err

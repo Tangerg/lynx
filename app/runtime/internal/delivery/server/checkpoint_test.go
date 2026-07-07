@@ -21,9 +21,9 @@ func checkpointHarness(t *testing.T) (*Server, *stubRuntime, string, string) {
 		t.Skip("git not installed; skipping checkpoint rollback test")
 	}
 	s, rt := rollbackHarness(t)
-	s.workspace = workspace.New(t.TempDir())
+	s.checkpoints = workspace.NewCheckpoints(t.TempDir())
 	cwd := t.TempDir()
-	// Checkpoints only fire in a real git repo now (workspace.Snapshot's gate,
+	// Checkpoints only fire in a real git repo now (Checkpoints.Snapshot's gate,
 	// mirroring opencode): a repo's .gitignore is what bounds the whole-tree
 	// stage, so a non-repo dir is never snapshotted. Make cwd a repo so the
 	// rollback path is exercised.
@@ -51,13 +51,13 @@ func TestRollback_RestoreBoth(t *testing.T) {
 	ctx := context.Background()
 
 	writeFile(t, cwd, "a.txt", "v1")
-	if err := s.workspace.Snapshot(ctx, sid, cwd, "run1"); err != nil {
+	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
 	putRun(t, rt, sid, "run1", "", 1, 1)
 
 	writeFile(t, cwd, "a.txt", "v2")
-	if err := s.workspace.Snapshot(ctx, sid, cwd, "run2"); err != nil {
+	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}
 	putRun(t, rt, sid, "run2", "", 2, 2)
@@ -83,10 +83,10 @@ func TestRollback_RestoreFilesKeepsHistory(t *testing.T) {
 	ctx := context.Background()
 
 	writeFile(t, cwd, "a.txt", "v1")
-	s.workspace.Snapshot(ctx, sid, cwd, "run1")
+	s.checkpoints.Snapshot(ctx, sid, cwd, "run1")
 	putRun(t, rt, sid, "run1", "", 1, 1)
 	writeFile(t, cwd, "a.txt", "v2")
-	s.workspace.Snapshot(ctx, sid, cwd, "run2")
+	s.checkpoints.Snapshot(ctx, sid, cwd, "run2")
 	putRun(t, rt, sid, "run2", "", 2, 2)
 
 	resp, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{

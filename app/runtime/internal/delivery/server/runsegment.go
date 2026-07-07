@@ -15,9 +15,9 @@ func (s *Server) runSegmentEffects() *runsegment.Effects {
 	}
 	if s.runSegments == nil {
 		return runsegment.New(runsegment.Config{
-			Checkpoints:        s.workspace,
+			Checkpoints:        s.checkpoints,
 			PublishFileChanges: publish,
 		})
 	}
-	return s.runSegments.RunSegmentEffects(s.workspace, publish)
+	return s.runSegments.RunSegmentEffects(s.checkpoints, publish)
 }
