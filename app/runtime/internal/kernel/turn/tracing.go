@@ -15,7 +15,9 @@ import (
 // carries the entry trace (see newTurnState's WithoutCancel derivation).
 // Name follows the `lynx/lyra/...` instrumentation-scope convention;
 // no-op until a TracerProvider is installed.
-var turnTracer = otel.Tracer("lynx/lyra/chat")
+const turnTracerName = "lynx/lyra/turn"
+
+var turnTracer = otel.Tracer(turnTracerName)
 
 // Span / metric attribute keys. OTel GenAI semconv where one exists
 // (a turn is the spec's `invoke_agent` operation over a keyed
