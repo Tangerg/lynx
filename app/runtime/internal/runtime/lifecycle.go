@@ -102,7 +102,7 @@ func (r *Runtime) CancelParkedRun(ctx context.Context, runID string) error {
 }
 
 // CancelRunTurn tears down a live turn and drops any durable interrupt record.
-func (r *Runtime) CancelRunTurn(ctx context.Context, run lifecycle.RunTurn) error {
+func (r *Runtime) CancelRunTurn(ctx context.Context, run lifecycle.RunTurnBinding) error {
 	return r.lifecycle().CancelRunTurn(ctx, lifecycleTurns{rt: r}, run)
 }
 

@@ -28,7 +28,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	if e.Payload != nil && e.Payload.cancel != nil {
 		e.Payload.cancel()
 	}
-	if err := s.lifecycle.CancelRunTurn(ctx, lifecycle.RunTurn{
+	if err := s.lifecycle.CancelRunTurn(ctx, lifecycle.RunTurnBinding{
 		RunID:     in.RunID,
 		SessionID: e.Record.SessionID,
 		TurnID:    e.Record.TurnID,
