@@ -620,6 +620,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的胖 `providerAccess` 拆为 `providerRegistryAccess`、`providerCatalogAccess`、`providerDefaultAccess`。
   - providers handler 依赖 registry/catalog，models role validation 依赖 registry/catalog，usage aggregation 只依赖 default provider。
   - 同步迁移 runtime binding 与模型角色测试 fixture，不保留旧 `providerAccess` 聚合字段。
+- 已完成第六十七轮 `app/runtime` server session 端口 ISP 收敛：
+  - 将 delivery/server 的胖 `sessionAccess` 拆为 `sessionCatalogAccess`、`sessionMutationAccess`、`sessionDefaultModelAccess`。
+  - session read/export/rollback/resume/workspace discovery 依赖 catalog，create/update/delete/scheduler 依赖 mutation，session wire/usage 默认模型归因只依赖 default model。
+  - 同步迁移 runtime binding 和所有 server handler 调用点，不保留旧 `sessionAccess` 聚合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -700,6 +704,7 @@ app/runtime -> agent -> core
   - `go test ./internal/kernel/lifecycle ./internal/runtime ./internal/delivery/server`（`app/runtime`）通过（第六十四轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十五轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十六轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十七轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -899,6 +904,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第六十六轮后复跑）。
   - `go build ./...`（`agent`）通过（第六十六轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第六十六轮后复跑）。
+  - `go test ./...`（`core`）通过（第六十七轮后复跑）。
+  - `go test ./...`（`agent`）通过（第六十七轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第六十七轮后复跑）。
+  - `go vet ./...`（`core`）通过（第六十七轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第六十七轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第六十七轮后复跑）。
+  - `go build ./...`（`core`）通过（第六十七轮后复跑）。
+  - `go build ./...`（`agent`）通过（第六十七轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第六十七轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1025,3 +1039,15 @@ app/runtime -> agent -> core
 - 已完成适配：所有 `s.providers` 调用已迁移到更窄字段；未保留旧 `providerAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险；后续可继续按同一标准评估 schedule/session 等端口是否真的过宽。
+
+第六十七轮包含 `app/runtime/internal/delivery/server` 的 internal session 端口破坏性拆分：
+
+- 调整对象：`sessionAccess` 与 `runtimeBindings.sessions`。
+- 调整前问题：单个 `sessionAccess` 同时承载 session list/read、create/update/delete 和 default model lookup，usage/session projection/workspace discovery/scheduler 都通过同一个胖字段访问无关能力。
+- 破坏性原因：该端口位于 `app/runtime/internal/delivery/server`，按消费语义拆分可以消除默认模型归因、session 查询和 session 变更之间的无意义耦合。
+- 新设计：使用 `sessionCatalogAccess`、`sessionMutationAccess`、`sessionDefaultModelAccess` 三个窄端口，`RuntimePort` 只组合这些能力。
+- 架构收益：session read/export/rollback/resume/workspace discovery、session mutation/scheduler、usage/session wire default-model projection 各自依赖最小能力，server binding 更贴近用例边界。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、session/usage/scheduler/rollback/resume/workspace/sessionio handlers。
+- 已完成适配：所有 `s.sessions` 调用已迁移到更窄字段；未保留旧 `sessionAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险；后续若继续拆 transcript/schedule 端口，应以真实 handler 消费差异为依据。

@@ -9,12 +9,18 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-type sessionAccess interface {
+type sessionCatalogAccess interface {
 	ListSessions(ctx context.Context) ([]sessionsvc.Session, error)
 	SessionByID(ctx context.Context, id string) (sessionsvc.Session, error)
+}
+
+type sessionMutationAccess interface {
 	CreateSession(ctx context.Context, title, cwd string) (sessionsvc.Session, error)
 	DeleteSession(ctx context.Context, id string) error
 	UpdateSession(ctx context.Context, id string, patch sessionsvc.Patch) (sessionsvc.Session, error)
+}
+
+type sessionDefaultModelAccess interface {
 	DefaultModel() string
 }
 
