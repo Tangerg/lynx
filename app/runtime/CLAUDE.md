@@ -95,7 +95,7 @@ lyra/
 │   └── runner.go                   main() 入口
 │
 ├── internal/                       Clean Arch 同心环（依赖向内,arch_test 强制；见 doc/GREENFIELD_ARCHITECTURE.md）
-│   ├── config/                     组合根：LYRA_* env vars + Config struct + BuildChatClient
+│   ├── config/                     纯配置加载：LYRA_* env vars + Config struct
 │   ├── runtime/                    组合根：装配各环 + nil-default 注入 SPI（绑进 delivery/server.Server）
 │   ├── delivery/                   交付 / 接口适配器（原 rpc/）
 │   │   ├── protocol/               接口定义（Runtime + 子接口）+ wire types
