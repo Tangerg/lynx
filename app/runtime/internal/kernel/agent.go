@@ -97,7 +97,7 @@ type TurnOutput struct {
 
 // buildTurnAgent constructs the chat agent owned by this Engine.
 // The Action's closure captures `e` so it can reach the engine's
-// memory service for system-prompt composition without an extra
+// memory store for system-prompt composition without an extra
 // parameter passed through every turn.
 //
 // The Action declares [ToolRoleCoding] so the runtime resolves the

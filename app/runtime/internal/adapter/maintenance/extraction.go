@@ -26,17 +26,17 @@ import (
 // to undoing a successful compaction.
 type Extractor struct {
 	store   history.Store
-	memSvc  knowledge.Service
+	mem     knowledge.Store
 	client  ClientFunc
 	minMsgs int
 }
 
 // NewExtractor builds an Extractor over the chat history store, the
-// long-term LYRA.md service, and a per-call chat-client resolver.
-func NewExtractor(store history.Store, memSvc knowledge.Service, client ClientFunc) *Extractor {
+// long-term LYRA.md store, and a per-call chat-client resolver.
+func NewExtractor(store history.Store, mem knowledge.Store, client ClientFunc) *Extractor {
 	return &Extractor{
 		store:   store,
-		memSvc:  memSvc,
+		mem:     mem,
 		client:  client,
 		minMsgs: 4, // at least 2 exchanges before extracting
 	}
@@ -46,7 +46,7 @@ func NewExtractor(store history.Store, memSvc knowledge.Service, client ClientFu
 // what's worth keeping long-term, and appends the result to the
 // project-scope LYRA.md of cwd — the session's working directory, so
 // facts land in the project the conversation was about (empty cwd
-// falls back to the memory service's default dir). Returns the zero
+// falls back to the memory store's default dir). Returns the zero
 // result on a nil receiver (LYRA.md disabled) or when the conversation
 // is still too short to be worth mining.
 func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (kernel.ExtractionResult, error) {
@@ -69,12 +69,12 @@ func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (ke
 		return kernel.ExtractionResult{}, nil
 	}
 
-	existing, err := e.memSvc.Get(ctx, knowledge.ScopeProject, cwd)
+	existing, err := e.mem.Get(ctx, knowledge.ScopeProject, cwd)
 	if err != nil {
 		return kernel.ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
 	}
 	updated := mergeMemory(existing, facts)
-	if err := e.memSvc.Update(ctx, knowledge.ScopeProject, cwd, updated); err != nil {
+	if err := e.mem.Update(ctx, knowledge.ScopeProject, cwd, updated); err != nil {
 		return kernel.ExtractionResult{}, err
 	}
 	return kernel.ExtractionResult{Extracted: true, Facts: facts}, nil

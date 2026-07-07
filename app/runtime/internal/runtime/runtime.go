@@ -184,7 +184,7 @@ type Runtime struct {
 	turnSvc    turn.Service
 	session    sessionsvc.Store
 	tool       toolsvc.Service
-	knowledge  knowledge.Service
+	knowledge  knowledge.Store
 	approval   approval.Service
 	interrupts interrupts.Store
 	transcript transcript.Store

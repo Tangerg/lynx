@@ -305,7 +305,7 @@ type Stores struct {
 	// Transactor.
 	Tx            func(context.Context, func(context.Context) error) error
 	Session       sessionsvc.Store
-	Memory        knowledge.Service
+	Memory        knowledge.Store
 	Process       core.ProcessStore
 	Interrupt     interrupts.Store
 	Transcript    transcript.Store

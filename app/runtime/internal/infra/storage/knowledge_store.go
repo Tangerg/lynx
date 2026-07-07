@@ -12,15 +12,14 @@ import (
 )
 
 // memoryFileName is the on-disk file name for both scopes.
-// "LYRA.md" on disk; rendered through the knowledge service as a markdown
+// "LYRA.md" on disk; rendered through the knowledge store as a markdown
 // blob the agent reads as project / user knowledge.
 const memoryFileName = "LYRA.md"
 
-// FileKnowledgeStore persists [knowledge.Service] state to markdown
-// files:
+// FileKnowledgeStore persists [knowledge.Store] state to markdown files:
 //
 //   - <dir>/LYRA.md    — project scope (per-repo knowledge); dir is
-//     supplied per call (a session's cwd), so one service serves
+//     supplied per call (a session's cwd), so one store serves
 //     every project
 //   - <home>/LYRA.md   — user scope    (cross-project preferences)
 //
@@ -35,8 +34,8 @@ type FileKnowledgeStore struct {
 }
 
 // Compile-time tripwire: NewFileKnowledgeStore returns the concrete type,
-// so nothing checks knowledge.Service conformance until this assertion.
-var _ knowledge.Service = (*FileKnowledgeStore)(nil)
+// so nothing checks knowledge.Store conformance until this assertion.
+var _ knowledge.Store = (*FileKnowledgeStore)(nil)
 
 // NewFileKnowledgeStore captures the process working directory (the
 // per-call fallback project dir) and the storage home. Callers with a
@@ -75,7 +74,7 @@ func (s *FileKnowledgeStore) pathFor(scope knowledge.Scope, dir string) string {
 }
 
 // ------------------------------------------------------------------
-// knowledge.Service
+// knowledge.Store
 // ------------------------------------------------------------------
 
 func (s *FileKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {

@@ -1,7 +1,7 @@
 // Package server realizes protocol.Runtime on top of Lyra's internal
 // kernel + domain layer (API.md §0 model: Session → Run → Item). It's
 // the single place where the JSON-RPC method table (delivery/dispatch) and
-// the runtime's chat / session / tool / memory services meet.
+// the runtime's chat / session / tool / memory stores meet.
 //
 // Methods with an in-process equivalent (sessions, runs, items, tools,
 // memory) are wired through; the rest return protocol.ErrCapabilityNotNeg,

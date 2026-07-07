@@ -39,7 +39,7 @@ type Engine struct {
 	// Context inputs (read at SystemPrompt + chat-history time).
 	tools           []chat.Tool
 	steering        SteeringSink // turn-end steering inject; nil → steering drops
-	knowledge       knowledge.Service
+	knowledge       knowledge.Store
 	todos           todo.Store // per-session task list; nil → todo_write absent + no prompt injection
 	workdir         string     // captured from Config.Workdir for the AGENTS.md cascade
 	skillsGlobalDir string     // captured from Config.SkillsGlobalDir for workspace.listSkills
@@ -90,7 +90,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 
 	// Build the engine value first so the agent's Action closure can
 	// capture *Engine (and therefore reach e.SystemPrompt) instead
-	// of dragging a memory service through the constructor.
+	// of dragging a memory store through the constructor.
 	e := &Engine{
 		platform:        platform,
 		steering:        cfg.Steering,
@@ -155,10 +155,10 @@ func (e *Engine) MaybeCompact(ctx context.Context, sessionID string, preCompact 
 // [ExtractionResult] reports whether anything was written and the
 // facts themselves, so callers can surface a memory-updated event.
 //
-// No-op (zero ExtractionResult) when the engine has no knowledge service
+// No-op (zero ExtractionResult) when the engine has no knowledge store
 // or the conversation is too short.
 // cwd is the session's working directory — facts extract into THAT
-// project's LYRA.md; empty falls back to the memory service default.
+// project's LYRA.md; empty falls back to the memory store default.
 func (e *Engine) MaybeExtract(ctx context.Context, sessionID, cwd string) (ExtractionResult, error) {
 	if e.extractor == nil {
 		return ExtractionResult{}, nil

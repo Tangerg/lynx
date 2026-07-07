@@ -43,7 +43,7 @@ type Config struct {
 	// Knowledge optionally supplies the LYRA.md cascade reader the agent
 	// injects into every system prompt. nil disables the injection — the
 	// base prompt is used verbatim. (Wire/API calls this "memory".)
-	Knowledge knowledge.Service
+	Knowledge knowledge.Store
 
 	// Todos optionally supplies the per-session task list backing the
 	// todo_write tool: when set, the tool is registered and the session's
