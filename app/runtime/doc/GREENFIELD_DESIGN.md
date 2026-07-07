@@ -52,7 +52,7 @@ lyra/internal/
 
 ### 1.3 接口放置规则(§2.5 的应用)
 
-- **lyra 内部**:消费方定义窄接口(`delivery/server` 的 `RuntimeServices`、`kernel/turn` 的 `engineDep`、`kernel` 的 `agentRuntime` / `processControl`)。
+- **lyra 内部**:消费方定义窄接口(`delivery/server` 的 `RuntimePort`、`kernel/turn` 的 `engineDep`、`kernel` 的 `agentRuntime` / `processControl`)。
 - **跨模块边界**:lyra 消费 agent 走 lyra 定义的窄接口,字段不直接持有 `*runtime.Platform`(§4.1)。
 - **kernel port**:`kernel/port.go` 定义窄 port(`Compactor`/`Extractor`/`SteeringSink`),由 domain/infra 实现 —— 正确的六边形方向。
 
@@ -124,7 +124,7 @@ lyra/
 │   │   │   ├── pump.go          ★KEPT but THINNER 事件泵:translator → hub.Append + eventId(调 kernel 编排器)
 │   │   │   ├── sessions.go / runs.go / items.go / memory.go / ...
 │   │   │   │                         每个协议方法组一个文件,纯 decode → call → present
-│   │   │   └── runtimeservices.go     RuntimeServices 窄接口(消费方定义)
+│   │   │   └── runtime.go         RuntimePort 窄接口(消费方定义)
 │   │   ├── dispatch/                  JSON-RPC 方法路由(表驱动)
 │   │   └── transport/                 envelope I/O
 │   │       ├── transport.go           Transport 接口 + Message 类型别名

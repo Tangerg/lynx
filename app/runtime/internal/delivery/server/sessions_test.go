@@ -22,10 +22,10 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// stubRuntime satisfies RuntimeServices by embedding it (unstubbed methods
+// stubRuntime satisfies RuntimePort by embedding it (unstubbed methods
 // panic if ever called) and overriding only what the session handlers touch.
 type stubRuntime struct {
-	RuntimeServices
+	RuntimePort
 	sess        session.Store
 	model       string
 	skills      []kernel.SkillInfo
@@ -35,15 +35,15 @@ type stubRuntime struct {
 	history     map[string][]chat.Message // per-session chat history (fork copies it)
 	hist        transcript.Store          // durable Item/run history (rollback/fork read runs)
 	interrupts  interrupts.Store          // open-interrupt registry (rollback clears dropped)
-	chat        turn.Dispatcher
+	turns       turn.Dispatcher
 	workingTree *lifecycle.WorkingTreeGate
 }
 
-func newTestServer(rt RuntimeServices) *Server {
+func newTestServer(rt RuntimePort) *Server {
 	return &Server{runtimeBindings: bindRuntime(rt)}
 }
 
-func newTestServerWithInfo(rt RuntimeServices, info protocol.ServerInfo) *Server {
+func newTestServerWithInfo(rt RuntimePort, info protocol.ServerInfo) *Server {
 	s := newTestServer(rt)
 	s.serverInfo = info
 	return s
@@ -104,11 +104,11 @@ func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) e
 // MCPServerStatuses (above), not from this call's side effects.
 func (s stubRuntime) ReconnectMCPServer(context.Context, string) error { return nil }
 
-// chatStub satisfies turn.Dispatcher by embedding it — most session tests never
+// turnStub satisfies turn.Dispatcher by embedding it — most session tests never
 // drive a turn, so no method is implemented unless a specific case needs it.
-type chatStub struct{ turn.Dispatcher }
+type turnStub struct{ turn.Dispatcher }
 
-func (chatStub) Cancel(context.Context, turn.TurnHandle) error { return nil }
+func (turnStub) Cancel(context.Context, turn.TurnHandle) error { return nil }
 
 type recordingTurns struct {
 	turn.Dispatcher
@@ -120,15 +120,15 @@ func (r *recordingTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
 	return nil
 }
 
-func (s stubRuntime) turnService() turn.Dispatcher {
-	if s.chat != nil {
-		return s.chat
+func (s stubRuntime) turnDispatcher() turn.Dispatcher {
+	if s.turns != nil {
+		return s.turns
 	}
-	return chatStub{}
+	return turnStub{}
 }
 
 func (s stubRuntime) StartTurn(ctx context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error) {
-	return s.turnService().StartTurn(ctx, req)
+	return s.turnDispatcher().StartTurn(ctx, req)
 }
 
 func (s stubRuntime) PlanTurnStart(ctx context.Context, sessionID, defaultCwd string, draft turn.StartTurnRequest) (session.Session, turn.StartTurnRequest, error) {
@@ -157,31 +157,31 @@ func (s stubRuntime) PlanTurnStart(ctx context.Context, sessionID, defaultCwd st
 }
 
 func (s stubRuntime) TurnEvents(ctx context.Context, handle turn.TurnHandle) (iter.Seq[turn.Event], error) {
-	return s.turnService().Events(ctx, handle)
+	return s.turnDispatcher().Events(ctx, handle)
 }
 
 func (s stubRuntime) InjectTurnSteering(ctx context.Context, handle turn.TurnHandle, message string) error {
-	return s.turnService().InjectSteering(ctx, handle, message)
+	return s.turnDispatcher().InjectSteering(ctx, handle, message)
 }
 
 func (s stubRuntime) ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error {
-	return s.turnService().Resume(ctx, handle, resolution)
+	return s.turnDispatcher().Resume(ctx, handle, resolution)
 }
 
 func (s stubRuntime) RehydrateTurn(ctx context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
-	return s.turnService().Rehydrate(ctx, req)
+	return s.turnDispatcher().Rehydrate(ctx, req)
 }
 
 func (s stubRuntime) CancelTurn(ctx context.Context, handle turn.TurnHandle) error {
-	return s.turnService().Cancel(ctx, handle)
+	return s.turnDispatcher().Cancel(ctx, handle)
 }
 
 func (s stubRuntime) TurnProcessID(ctx context.Context, handle turn.TurnHandle) (string, error) {
-	return s.turnService().ProcessID(ctx, handle)
+	return s.turnDispatcher().ProcessID(ctx, handle)
 }
 
 func (s stubRuntime) SetTurnInterruptKinds(kinds []string) {
-	s.turnService().SetInterruptKinds(kinds)
+	s.turnDispatcher().SetInterruptKinds(kinds)
 }
 
 type stubLifecycleTurns struct {
@@ -527,7 +527,7 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 	}
 
 	turns := &recordingTurns{}
-	s := newTestServer(&stubRuntime{sess: svc, hist: hist, interrupts: ints, history: map[string][]chat.Message{}, chat: turns})
+	s := newTestServer(&stubRuntime{sess: svc, hist: hist, interrupts: ints, history: map[string][]chat.Message{}, turns: turns})
 	if err := s.DeleteSession(ctx, id); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
