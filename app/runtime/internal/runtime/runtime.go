@@ -138,10 +138,11 @@ type Config struct {
 	// Empty → only project recipes are listed. The composition root sets it.
 	RecipesGlobalDir string
 
-	// ScheduleStore persists scheduled runs (schedules.*) and is the registry the
-	// scheduler worker fires from. nil disables scheduling — schedules.* fails and
-	// the worker no-ops. The composition root injects the sqlite-backed store.
-	ScheduleStore schedule.Service
+	// ScheduleRegistry persists scheduled runs (schedules.*) and is the registry
+	// the scheduler worker fires from. nil disables scheduling — schedules.*
+	// fails and the worker no-ops. The composition root injects the sqlite-backed
+	// store.
+	ScheduleRegistry schedule.Registry
 
 	// EmbeddingRoleStore persists the embedding-model role the @codebase index
 	// uses (models.setEmbeddingRole). nil disables persistence. CodebaseStore
@@ -231,7 +232,7 @@ type Runtime struct {
 
 	// schedules is the scheduled-run registry (schedules.* + the scheduler
 	// worker). nil when scheduling is unconfigured.
-	schedules schedule.Service
+	schedules schedule.Registry
 
 	// @codebase semantic index: embeddingCell holds the live embedding role,
 	// embeddings builds+caches embedders from it, embeddingStore persists it, and
@@ -418,7 +419,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		hookResolver:     cfg.HooksResolver,
 		hookTrust:        cfg.HookTrustStore,
 		recipesGlobalDir: cfg.RecipesGlobalDir,
-		schedules:        cfg.ScheduleStore,
+		schedules:        cfg.ScheduleRegistry,
 		embeddingCell:    embeddingEnv.cell,
 		embeddings:       embeddingEnv.resolver,
 		embeddingStore:   cfg.EmbeddingRoleStore,

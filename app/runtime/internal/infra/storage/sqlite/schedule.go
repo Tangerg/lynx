@@ -12,16 +12,16 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
-// ScheduleStore implements schedule.Service against SQLite — the persistent home
+// ScheduleStore implements schedule.Registry against SQLite — the persistent home
 // for scheduled runs. The DB must have been opened via [Open] so the schedules
 // table exists.
 type ScheduleStore struct {
 	db *sql.DB
 }
 
-var _ schedule.Service = (*ScheduleStore)(nil)
+var _ schedule.Registry = (*ScheduleStore)(nil)
 
-// NewScheduleStore wires the given *sql.DB to the schedule.Service surface.
+// NewScheduleStore wires the given *sql.DB to the schedule.Registry surface.
 func NewScheduleStore(db *sql.DB) *ScheduleStore {
 	return &ScheduleStore{db: db}
 }
@@ -104,7 +104,7 @@ func (s *ScheduleStore) MarkFired(ctx context.Context, id string, ranAt, prevNex
 }
 
 // RecordRun moves only last_run_at; next_run_at is left as-is so a manual
-// run-now never rewinds the cron cursor (see [schedule.Service.RecordRun]).
+// run-now never rewinds the cron cursor (see [schedule.Registry.RecordRun]).
 func (s *ScheduleStore) RecordRun(ctx context.Context, id string, ranAt time.Time) error {
 	if _, err := s.db.ExecContext(ctx,
 		`UPDATE schedules SET last_run_at = ? WHERE id = ?`,

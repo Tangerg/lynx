@@ -209,7 +209,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// recipes (<cwd>/.lyra/recipes) layer on top of these.
 		RecipesGlobalDir: filepath.Join(stores.Home, "recipes"),
 		// Scheduled runs (schedules.*) the scheduler worker fires while serving.
-		ScheduleStore: stores.Schedules,
+		ScheduleRegistry: stores.Schedules,
 		// @codebase semantic index: the embedding-model role + the persisted
 		// vector index (codebase_search tool + codebase.* RPC).
 		EmbeddingRoleStore: stores.EmbeddingRole,
