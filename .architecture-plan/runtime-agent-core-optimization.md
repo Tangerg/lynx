@@ -213,6 +213,12 @@ app/runtime -> agent -> core
 - 已完成第五轮目标模块结构清理：
   - `app/runtime/internal/runtime`：将包级架构说明移入 `doc.go`，将 `Config` 及 construction-time 端口/输入类型移入 `config.go`，让 `runtime.go` 聚焦 Runtime 聚合结构、构造流程和基础 accessor，保持类型名与构造签名不变。
 - 已按用户要求撤回越界的 `models` 改动；本计划后续只记录 `core`、`agent`、`app/runtime`。
+- 已完成第六轮目标模块结构清理：
+  - `core/model/chat`：将原 `client.go` 拆为门面入口、`client_request.go`、`client_call.go`、`client_stream.go`，让 `client.go` 只保留 handler alias、middleware chain constructor 与 `Client` sticky default 门面。
+  - `ClientRequest` 负责请求状态、clone、消息/options 归一化与最终 `Request` 构造。
+  - `ClientCaller` 负责同步调用路径、structured parser 注入与响应文本解析。
+  - `ClientStreamer` 负责流式调用路径、stream span/metrics 生命周期与文本 delta 投影。
+  - 导出的类型名、构造函数、方法签名和调用行为保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -227,16 +233,17 @@ app/runtime -> agent -> core
   - `go test ./internal/infra/mcp`（`app/runtime`）通过。
   - `go test ./internal/kernel/turn`（`app/runtime`）通过。
   - `go test ./internal/runtime`（`app/runtime`）通过。
+  - `go test ./model/chat`（`core`）通过。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第五轮后复跑）。
-  - `go test ./...`（`agent`）通过（第五轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第五轮后复跑）。
-  - `go vet ./...`（`core`）通过（第五轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第五轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第五轮后复跑）。
-  - `go build ./...`（`core`）通过（第五轮后复跑）。
-  - `go build ./...`（`agent`）通过（第五轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第五轮后复跑）。
+  - `go test ./...`（`core`）通过（第六轮后复跑）。
+  - `go test ./...`（`agent`）通过（第六轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第六轮后复跑）。
+  - `go vet ./...`（`core`）通过（第六轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第六轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第六轮后复跑）。
+  - `go build ./...`（`core`）通过（第六轮后复跑）。
+  - `go build ./...`（`agent`）通过（第六轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第六轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
