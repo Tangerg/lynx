@@ -1,6 +1,6 @@
 export interface WorkspaceViewTab {
   id: string;
-  title: string;
+  title?: string;
   icon?: string;
 }
 

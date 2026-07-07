@@ -61,7 +61,7 @@ export function WelcomeScreen() {
 function SetupCard() {
   const t = useT();
   const onConfigure = () => {
-    openWorkspaceSettingsPane("providers", t("settings.title"));
+    openWorkspaceSettingsPane("providers");
   };
 
   return (

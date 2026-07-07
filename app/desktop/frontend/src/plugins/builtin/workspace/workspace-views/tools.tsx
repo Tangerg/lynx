@@ -58,8 +58,8 @@ function BuiltinToolsSection() {
   );
 }
 
-function openMcpSettings(title: string): void {
-  openWorkspaceSettingsPane("mcp-servers", title);
+function openMcpSettings(): void {
+  openWorkspaceSettingsPane("mcp-servers");
 }
 
 function ToolsTab() {
@@ -94,7 +94,7 @@ function ToolsTab() {
             ))}
             <button
               type="button"
-              onClick={() => openMcpSettings(t("settings.title"))}
+              onClick={openMcpSettings}
               className="m-0 flex items-center gap-1.5 px-4 pt-3.5 pb-4.5 text-[11px] leading-[1.5] text-fg-muted hover:text-fg"
             >
               <Icon name="settings" size={12} />

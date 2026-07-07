@@ -16,11 +16,7 @@ export interface DefaultCommandRuns {
   focusComposer: CommandRun;
 }
 
-export type WorkspaceViewOpener = (view: {
-  id: WorkspaceViewSpec["id"];
-  title: WorkspaceViewSpec["title"];
-  icon: WorkspaceViewSpec["icon"];
-}) => void;
+export type WorkspaceViewOpener = (id: WorkspaceViewSpec["id"]) => void;
 
 export type AccentSetter = (accent: ThemeAccentSpec["dark"]) => void;
 
@@ -147,7 +143,7 @@ export function defaultWorkspaceViewCommands(
       order: 10,
       keywords: ["open", "show", view.id],
       when: `mainView != "${view.id}"`,
-      run: () => openView({ id: view.id, title: view.title, icon: view.icon }),
+      run: () => openView(view.id),
     }));
 }
 

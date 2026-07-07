@@ -17,5 +17,5 @@ export function openContextDockLauncher(): void {
 }
 
 export function openContextDockDestination(item: ContextDockLauncherItem): void {
-  openContextDockView({ id: item.viewId, title: item.title, icon: item.icon ?? "panel-r" });
+  openContextDockView({ id: item.viewId });
 }

@@ -64,7 +64,7 @@ function McpToolList({ server }: { server: string }) {
 function McpAuthGuide({ server }: { server: string }) {
   const t = useT();
   const openConfig = () => {
-    openWorkspaceSettingsPane("mcp-servers", t("settings.title"));
+    openWorkspaceSettingsPane("mcp-servers");
   };
   return (
     <div className="flex items-center gap-2 px-4 pb-3 pl-[68px]">

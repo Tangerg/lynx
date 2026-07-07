@@ -54,7 +54,7 @@ export function useWorkIndexActions(): WorkIndexActions {
       },
       openContextDock: openContextDockLauncher,
       openSettings: () => {
-        openWorkspaceView({ id: "settings", title: "settings.title", icon: "settings" });
+        openWorkspaceView("settings");
       },
     }),
     [create, fork, remove, rename, toggleFavorite],

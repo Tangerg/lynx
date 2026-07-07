@@ -40,12 +40,12 @@ export function selectWorkspaceChat(): void {
   workspaceNavigation().selectChat();
 }
 
-export function openWorkspaceView(tab: WorkspaceViewTab): void {
-  workspaceNavigation().openView(tab);
+export function openWorkspaceView(tab: string | WorkspaceViewTab): void {
+  workspaceNavigation().openView(typeof tab === "string" ? { id: tab } : tab);
 }
 
-export function openWorkspaceViewBeside(tab: WorkspaceViewTab): void {
-  workspaceNavigation().openViewBeside(tab);
+export function openWorkspaceViewBeside(tab: string | WorkspaceViewTab): void {
+  workspaceNavigation().openViewBeside(typeof tab === "string" ? { id: tab } : tab);
 }
 
 export function closeWorkspaceView(id: string): void {
@@ -67,9 +67,9 @@ export function promoteWorkspaceSplitToView(): void {
   workspaceNavigation().promoteSplitToView();
 }
 
-export function openWorkspaceSettingsPane(pane: string, title: string): void {
+export function openWorkspaceSettingsPane(pane: string): void {
   workspaceNavigation().setSettingsPane(pane);
-  workspaceNavigation().openView({ id: "settings", title, icon: "settings" });
+  workspaceNavigation().openView({ id: "settings" });
 }
 
 export function getWorkspaceSettingsPaneTarget(): string | null {
@@ -82,7 +82,7 @@ export function clearWorkspaceSettingsPaneTarget(): void {
 
 export function openWorkspaceDiffForFile(path: string): void {
   workspaceNavigation().setActiveFile(path);
-  workspaceNavigation().openView({ id: "diff", title: "workspace.view.title.diff", icon: "diff" });
+  workspaceNavigation().openView({ id: "diff" });
 }
 
 export function focusWorkspaceFile(path: string): void {

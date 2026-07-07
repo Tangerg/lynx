@@ -13,11 +13,7 @@ export function NotificationsBadge() {
   const badgeText = notificationBadgeText(unread);
 
   const onClick = () => {
-    openWorkspaceView({
-      id: "notifications",
-      title: "workspace.view.title.notifications",
-      icon: "chat",
-    });
+    openWorkspaceView("notifications");
   };
 
   return (
