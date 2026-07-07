@@ -240,8 +240,8 @@ func (s stubRuntime) CancelParkedRun(ctx context.Context, runID string) error {
 	return lifecycle.New(s).CancelParkedRun(ctx, stubLifecycleTurns{rt: s}, runID)
 }
 
-func (s stubRuntime) CancelRunTurn(ctx context.Context, run lifecycle.RunTurnBinding) error {
-	return lifecycle.New(s).CancelRunTurn(ctx, stubLifecycleTurns{rt: s}, run)
+func (s stubRuntime) CancelRunBinding(ctx context.Context, run lifecycle.RunTurnBinding) error {
+	return lifecycle.New(s).CancelRunBinding(ctx, stubLifecycleTurns{rt: s}, run)
 }
 
 func (s stubRuntime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution) (lifecycle.ResumedInterrupt, error) {
