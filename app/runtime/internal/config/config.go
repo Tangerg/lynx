@@ -21,7 +21,6 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/Tangerg/lynx/a2a"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/lsp"
 	"github.com/Tangerg/lynx/mcp"
@@ -41,6 +40,14 @@ type ServerConfig struct {
 	// coding agent (filesystem + shell tools). Separate listener: the A2A
 	// protocol is distinct from the Lyra Runtime Protocol on Listen.
 	A2AListen string
+}
+
+// OnlineConfig holds credentials for optional network-reaching tools. Empty
+// fields leave the corresponding tool disabled.
+type OnlineConfig struct {
+	JinaAPIKey       string
+	TavilyAPIKey     string
+	HTTPAllowedHosts []string
 }
 
 // Config is the loaded runtime configuration.
@@ -66,7 +73,7 @@ type Config struct {
 	UtilityModel string
 
 	// Online optionally enables provider-backed tools.
-	Online toolset.OnlineConfig
+	Online OnlineConfig
 
 	// MCPServers is the parsed list of external MCP servers dialed at
 	// startup. First cut: sourced from LYRA_MCP_SERVERS env (yaml
@@ -177,14 +184,14 @@ func Load() (Config, error) {
 // loadOnline reads the optional provider-tool credentials. yaml under
 // `online:`; the LYRA_* env vars take precedence over yaml, matching
 // the overall source ordering (env over file).
-func loadOnline(v *viper.Viper) toolset.OnlineConfig {
+func loadOnline(v *viper.Viper) OnlineConfig {
 	jina := cmp.Or(os.Getenv("LYRA_JINA_API_KEY"), v.GetString("online.jinaApiKey"))
 	tavily := cmp.Or(os.Getenv("LYRA_TAVILY_API_KEY"), v.GetString("online.tavilyApiKey"))
 	hosts := v.GetStringSlice("online.httpAllowedHosts")
 	if env := os.Getenv("LYRA_HTTP_ALLOWED_HOSTS"); env != "" {
 		hosts = splitHosts(env)
 	}
-	return toolset.OnlineConfig{
+	return OnlineConfig{
 		JinaAPIKey:       jina,
 		TavilyAPIKey:     tavily,
 		HTTPAllowedHosts: hosts,

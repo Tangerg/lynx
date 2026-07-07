@@ -106,8 +106,7 @@ func BuildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguar
 // OnlineConfig groups the credentials network-reaching tools need (webfetch /
 // websearch / httpreq). Empty fields disable the corresponding tool — no tool
 // is registered without explicit opt-in, so an offline-only install makes no
-// surprise outbound calls. The config layer stores it directly (no bridge
-// mapping); engine.Config aliases it.
+// surprise outbound calls.
 type OnlineConfig struct {
 	// JinaAPIKey enables the webfetch tool backed by Jina Reader.
 	JinaAPIKey string

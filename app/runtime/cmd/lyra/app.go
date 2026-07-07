@@ -193,7 +193,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		UtilityRoleStore: stores.UtilityRole,
 		// Tool-environment inputs — the runtime assembles the tool environment
 		// (toolset.Build) from these and injects it into the engine core.
-		Online:       cfg.Online,
+		Online:       lyraruntime.OnlineConfig(cfg.Online),
 		MCPRegistry:  stores.MCPServers,
 		A2AAgents:    cfg.A2AAgents,
 		LSPServers:   cfg.LSPServers, // nil means the built-in LSP server table

@@ -14,7 +14,7 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 	built, err := toolset.Build(ctx, toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.Engine.SkillsGlobalDir,
-		Online:          cfg.Online,
+		Online:          toolset.OnlineConfig(cfg.Online),
 		LSPServers:      cfg.LSPServers,
 		MCPServers:      mcpEnv.configs,
 		A2AAgents:       cfg.A2AAgents,
