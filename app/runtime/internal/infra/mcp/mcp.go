@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
@@ -78,15 +79,6 @@ type ServerStatus struct {
 	Name   string
 	Status string
 	Err    error
-}
-
-// QualifiedToolName is the model-facing name an MCP tool is exposed under —
-// "<server>_<tool>". It delegates to the lynx mcp provider's DefaultNaming (the
-// one lyra always dials with — sourceTools builds providers without a custom
-// Naming), so the per-server tool-gating sets the runtime keys on this name
-// can never drift from the names the model actually emits.
-func QualifiedToolName(server, tool string) string {
-	return lynxmcp.DefaultNaming(server, &sdkmcp.Tool{Name: tool})
 }
 
 // server is the live state of one configured MCP server. Mutated only by
@@ -574,11 +566,15 @@ func (c *Connections) Close() error {
 	return errors.Join(errs...)
 }
 
-// sourceTools lists one MCP source's model-facing tools (prefixed
-// "<server>_<tool>" via the provider's default naming). Isolated per source so
+// sourceTools lists one MCP source's model-facing tools. Isolated per source so
 // a single server's tools/list failure stays its own.
 func sourceTools(ctx context.Context, src lynxmcp.Source) ([]chat.Tool, error) {
-	provider, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{Sources: []lynxmcp.Source{src}})
+	provider, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
+		Sources: []lynxmcp.Source{src},
+		Naming: func(server string, tool *sdkmcp.Tool) string {
+			return mcpserver.ToolName(server, tool.Name)
+		},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("mcp: build provider for %q: %w", src.Name, err)
 	}

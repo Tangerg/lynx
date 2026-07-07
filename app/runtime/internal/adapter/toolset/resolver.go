@@ -220,8 +220,8 @@ type Resolver struct {
 	// currently-connected servers' tools, even mid-session.
 	mcp atomic.Pointer[[]chat.Tool]
 
-	// mcpDisabled returns the model-facing names ("<server>_<tool>") the
-	// configured servers hide from the model — a per-server blacklist the
+	// mcpDisabled returns the model-facing MCP tool names the configured servers
+	// hide from the model — a per-server blacklist the
 	// runtime recomputes on every registry change. Read per resolution (not
 	// folded into SetMCPTools) so it stays correct under the two independent
 	// hot-swaps: the live tool set (reconnect) and the disabled set (configure).
