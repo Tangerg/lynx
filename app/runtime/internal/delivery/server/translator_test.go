@@ -53,9 +53,9 @@ func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 	if again := tr.open(); len(again) != 1 || again[0].Type != protocol.StreamRunStarted {
 		t.Fatalf("second open() re-emitted the user message: %+v", again)
 	}
-	// The chat-level TurnStart is a no-op (run.started comes from open()).
+	// The turn-level TurnStart is a no-op (run.started comes from open()).
 	if ts := tr.translate(turn.TurnStart{Model: "deepseek-v4-flash"}); ts != nil {
-		t.Fatalf("chat TurnStart should be a no-op, got %+v", ts)
+		t.Fatalf("turn TurnStart should be a no-op, got %+v", ts)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestTranslator_EditedArgsReusesProposalItem(t *testing.T) {
 
 // TestTranslator_NoUserMessageOnContinuation verifies a continuation run
 // (runs.resume, nil input) opens with run.started alone — no synthetic user
-// turn, and no chat TurnStart needed (continuations emit none).
+// turn, and no turn TurnStart needed (continuations emit none).
 func TestTranslator_NoUserMessageOnContinuation(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, nil, "", "")
 	out := tr.open()
@@ -290,7 +290,7 @@ func TestClassifyRunError(t *testing.T) {
 		{"provider 5xx", `POST "https://api.x": 503 Service Unavailable`, "provider_unavailable", true, "api.x"},
 		{"timeout", `Post "https://api.x": context deadline exceeded`, "timeout", true, "api.x"},
 		{"bad request", `POST "https://api.x": 400 Bad Request invalid_request_error`, "provider_rejected", false, "api.x"},
-		{"genuine internal", `engine: deploy chat agent: blackboard nil pointer`, "internal_error", false, ""},
+		{"genuine internal", `engine: deploy turn agent: blackboard nil pointer`, "internal_error", false, ""},
 		{"empty", ``, "internal_error", false, ""},
 	}
 	for _, c := range cases {

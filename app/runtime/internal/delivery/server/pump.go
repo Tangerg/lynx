@@ -14,7 +14,7 @@ import (
 )
 
 // The run pump: one goroutine per run segment that subscribes to the
-// turn's chat events, translates them to wire RunEvents, persists the
+// turn's events, translates them to wire RunEvents, persists the
 // durable side, and feeds the run's hub. Lifecycle bookkeeping
 // (s.runs) starts in openSegment and ends in pumpRun's teardown.
 
@@ -67,7 +67,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	return &protocol.StartRunResponse{RunID: runID}, events, nil
 }
 
-// pumpRun translates the turn's chat events to RunEvents under runID.
+// pumpRun translates the turn's events to RunEvents under runID.
 // A run segment ends one of two ways:
 //
 //   - interrupt: the turn parked for HITL approval. The pump records an
@@ -154,7 +154,7 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 	}
 
 	// run.started leads every segment (root + continuation), independent of
-	// any chat-level TurnStart — continuation runs (runs.resume) carry none,
+	// any turn-level TurnStart — continuation runs (runs.resume) carry none,
 	// so emitting here is what gives them a run boundary + parentRunId, and
 	// closes any question item the parked run left open.
 	emit(tr.open())
