@@ -23,7 +23,13 @@ func (p *AgentProcess) Usage() (cost float64, tokens int, actions int) {
 // LLM-client adapter that knows the per-model rate. The framework
 // itself never invents numbers here.
 func (p *AgentProcess) RecordUsage(cost float64, tokens int) {
-	p.RecordLLMInvocation(core.LLMInvocation{CostUSD: cost, PromptTokens: int64(tokens)})
+	p.RecordUsageContext(context.Background(), cost, tokens)
+}
+
+// RecordUsageContext is the context-aware companion to [AgentProcess.RecordUsage].
+// It preserves the caller's trace when publishing the invocation event.
+func (p *AgentProcess) RecordUsageContext(ctx context.Context, cost float64, tokens int) {
+	p.RecordLLMInvocationContext(ctx, core.LLMInvocation{CostUSD: cost, PromptTokens: int64(tokens)})
 }
 
 // RecordLLMInvocation appends a fully-attributed LLM call to this
@@ -32,11 +38,21 @@ func (p *AgentProcess) RecordUsage(cost float64, tokens int) {
 // It also publishes an [event.LLMInvocationRecorded] so listeners can
 // audit per-call cost/tokens off the event stream.
 func (p *AgentProcess) RecordLLMInvocation(inv core.LLMInvocation) {
+	p.RecordLLMInvocationContext(context.Background(), inv)
+}
+
+// RecordLLMInvocationContext is the context-aware companion to
+// [AgentProcess.RecordLLMInvocation]. Integration code should prefer it when
+// the invocation is recorded from a request, run, action, or tool-call context.
+func (p *AgentProcess) RecordLLMInvocationContext(ctx context.Context, inv core.LLMInvocation) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if inv.Timestamp.IsZero() {
 		inv.Timestamp = core.Now()
 	}
 	p.budget.recordLLMInvocation(inv)
-	p.publishEvent(context.Background(), event.LLMInvocationRecorded{
+	p.publishEvent(ctx, event.LLMInvocationRecorded{
 		BaseEvent:  p.baseEvent(),
 		Invocation: inv,
 	})
@@ -46,11 +62,20 @@ func (p *AgentProcess) RecordLLMInvocation(inv core.LLMInvocation) {
 // call. Mirrors RecordLLMInvocation for the embeddings path, including
 // the [event.EmbeddingInvocationRecorded] publish.
 func (p *AgentProcess) RecordEmbeddingInvocation(inv core.EmbeddingInvocation) {
+	p.RecordEmbeddingInvocationContext(context.Background(), inv)
+}
+
+// RecordEmbeddingInvocationContext is the context-aware companion to
+// [AgentProcess.RecordEmbeddingInvocation].
+func (p *AgentProcess) RecordEmbeddingInvocationContext(ctx context.Context, inv core.EmbeddingInvocation) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if inv.Timestamp.IsZero() {
 		inv.Timestamp = core.Now()
 	}
 	p.budget.recordEmbeddingInvocation(inv)
-	p.publishEvent(context.Background(), event.EmbeddingInvocationRecorded{
+	p.publishEvent(ctx, event.EmbeddingInvocationRecorded{
 		BaseEvent:  p.baseEvent(),
 		Invocation: inv,
 	})

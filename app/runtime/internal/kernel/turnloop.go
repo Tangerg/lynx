@@ -93,7 +93,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 			return
 		}
 		inv := e.invocationFrom(provider, roundModel, roundUsage)
-		pc.RecordLLMInvocation(inv)
+		pc.RecordLLMInvocationContext(ctx, inv)
 		// Fold into the running roll-up the same way turnOutput sums the ledger,
 		// so the mid-run readout matches the final TurnEnd total exactly.
 		cumulative.add(inv)

@@ -58,6 +58,19 @@ func (l *customPanicListener) OnEvent(e event.Event) {
 	}
 }
 
+type invocationPanicListener struct {
+	done atomic.Bool
+}
+
+func (*invocationPanicListener) Name() string { return "invocation-panic-listener" }
+
+func (l *invocationPanicListener) OnEvent(e event.Event) {
+	ev, ok := e.(event.LLMInvocationRecorded)
+	if ok && ev.Invocation.Model == "ctx-model" && l.done.CompareAndSwap(false, true) {
+		panic("invocation listener failed")
+	}
+}
+
 func TestRuntimeEventPanicSpanKeepsRunTrace(t *testing.T) {
 	exp := installRuntimeTraceCapture(t)
 
@@ -73,6 +86,49 @@ func TestRuntimeEventPanicSpanKeepsRunTrace(t *testing.T) {
 
 	platform := agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{&readyPanicListener{}},
+	})
+	mustDeploy(t, platform, a)
+
+	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
+	parentTrace := parent.SpanContext().TraceID()
+	_, err := platform.RunAgent(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	parent.End()
+	if err != nil {
+		t.Fatalf("RunAgent: %v", err)
+	}
+
+	for _, span := range exp.GetSpans() {
+		if span.Name != "agent.listener.panic" {
+			continue
+		}
+		if span.SpanContext.TraceID() != parentTrace {
+			t.Fatalf("panic span trace = %s, want run trace %s", span.SpanContext.TraceID(), parentTrace)
+		}
+		return
+	}
+	t.Fatal("missing agent.listener.panic span")
+}
+
+func TestProcessContextRecordInvocationKeepsActionTrace(t *testing.T) {
+	exp := installRuntimeTraceCapture(t)
+
+	a := agent.New("invocation-event-trace").
+		Actions(agent.NewAction("record",
+			func(_ context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+				pc.RecordLLMInvocation(core.LLMInvocation{
+					Model:        "ctx-model",
+					Provider:     "test",
+					PromptTokens: int64(len(in.Text)),
+				})
+				return wordCount{Count: len(in.Text)}, nil
+			},
+			core.ActionConfig{},
+		)).
+		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "counted"})).
+		Build()
+
+	platform := agent.NewPlatform(runtime.PlatformConfig{
+		Extensions: []core.Extension{&invocationPanicListener{}},
 	})
 	mustDeploy(t, platform, a)
 
