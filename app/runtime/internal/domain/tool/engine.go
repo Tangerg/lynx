@@ -21,7 +21,7 @@ var toolTracer = otel.Tracer("lynx/lyra/tool")
 
 const attrGenAIToolName = "gen_ai.tool.name"
 
-// source is the narrow surface tool.Service consumes: just a
+// source is the narrow surface the registry consumes: just a
 // snapshot of the currently-registered chat tools. *kernel.Engine
 // satisfies it implicitly via its Tools() accessor; tests pass a
 // stub that returns a fixed slice without needing a real platform.
@@ -29,26 +29,25 @@ type source interface {
 	Tools() []chat.Tool
 }
 
-// New returns the [Service] implementation backed by src. List
+// New returns the [Registry] implementation backed by src. List
 // snapshots the registered tools; Invoke routes by tool name to
 // the registered tool's Call method (no agent loop involved —
 // direct synchronous invocation).
-func New(src source) (Service, error) {
+func New(src source) (Registry, error) {
 	if src == nil {
 		return nil, errors.New("tool: source is required")
 	}
-	return &engineBacked{src: src}, nil
+	return &registry{src: src}, nil
 }
 
-// engineBacked is the single Service implementation today. The
-// "engine-backed" label is descriptive — the source is typically
-// the engine but could be any source (tests, mocks).
-type engineBacked struct {
+// registry is the engine-backed registered-tool directory. The source is
+// typically the engine but can be any tool snapshot provider in tests.
+type registry struct {
 	src source
 }
 
-func (s *engineBacked) List(_ context.Context) ([]Tool, error) {
-	chatTools := s.src.Tools()
+func (r *registry) List(_ context.Context) ([]Tool, error) {
+	chatTools := r.src.Tools()
 	out := make([]Tool, 0, len(chatTools))
 	for _, t := range chatTools {
 		def := t.Definition()
@@ -62,7 +61,7 @@ func (s *engineBacked) List(_ context.Context) ([]Tool, error) {
 	return out, nil
 }
 
-func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string) (string, error) {
+func (r *registry) Invoke(ctx context.Context, name string, arguments string) (string, error) {
 	if name == "" {
 		return "", errors.New("tool: name must not be empty")
 	}
@@ -71,7 +70,7 @@ func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string
 		trace.WithAttributes(attribute.String(attrGenAIToolName, name)))
 	defer span.End()
 
-	for _, t := range s.src.Tools() {
+	for _, t := range r.src.Tools() {
 		if t.Definition().Name == name {
 			out, err := t.Call(ctx, arguments)
 			if err != nil {

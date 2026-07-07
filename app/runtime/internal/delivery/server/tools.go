@@ -28,7 +28,7 @@ func (s *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol
 }
 
 // InvokeTool runs one tool directly, outside a run (diagnostics /
-// client-driven workflows, API.md §7.6). Backed by tool.Service.Invoke,
+// client-driven workflows, API.md §7.6). Backed by tool.Invoker.Invoke,
 // whose result is the tool's raw string output.
 func (s *Server) InvokeTool(ctx context.Context, in protocol.InvokeToolRequest) (any, error) {
 	args, err := json.Marshal(in.Arguments)
