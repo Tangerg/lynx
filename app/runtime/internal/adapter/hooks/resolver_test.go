@@ -19,7 +19,7 @@ func TestResolver_ForRechecksTrust(t *testing.T) {
 	writeHooks(t, cwd, `{"hooks":[{"event":"SessionStart","inject":"project"}]}`)
 
 	trusted := false
-	resolver := NewResolver(home, func(projectRoot string) bool {
+	resolver := NewResolver(home, func(_ context.Context, projectRoot string) bool {
 		return projectRoot == cwd && trusted
 	}, nil)
 
@@ -32,5 +32,25 @@ func TestResolver_ForRechecksTrust(t *testing.T) {
 	after := resolver.For(context.Background(), cwd).Run(context.Background(), domainhooks.Input{Event: domainhooks.SessionStart})
 	if after.InjectContext != "global\nproject" {
 		t.Fatalf("InjectContext after trust = %q, want global and project", after.InjectContext)
+	}
+}
+
+func TestResolver_TrustUsesCallContext(t *testing.T) {
+	home := t.TempDir()
+	cwd := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(cwd, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeHooks(t, cwd, `{"hooks":[{"event":"SessionStart","inject":"project"}]}`)
+
+	type key struct{}
+	ctx := context.WithValue(context.Background(), key{}, "turn")
+	resolver := NewResolver(home, func(ctx context.Context, projectRoot string) bool {
+		return projectRoot == cwd && ctx.Value(key{}) == "turn"
+	}, nil)
+
+	got := resolver.For(ctx, cwd).Run(context.Background(), domainhooks.Input{Event: domainhooks.SessionStart})
+	if got.InjectContext != "project" {
+		t.Fatalf("InjectContext = %q, want project hook trusted by call context", got.InjectContext)
 	}
 }

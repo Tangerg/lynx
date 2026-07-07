@@ -14,7 +14,7 @@ type Resolver struct {
 	home string
 	// trusted reports whether a project root's project-scope hooks may run.
 	// nil means project hooks are never trusted.
-	trusted func(projectRoot string) bool
+	trusted func(context.Context, string) bool
 	runner  *domainhooks.Runner
 
 	mu    sync.Mutex
@@ -23,7 +23,7 @@ type Resolver struct {
 
 // NewResolver builds a Resolver. home is the user's home dir for the global
 // hooks.json; trusted gates project hooks; onError reports broken commands.
-func NewResolver(home string, trusted func(projectRoot string) bool, onError func(ctx context.Context, source string, err error)) *Resolver {
+func NewResolver(home string, trusted func(context.Context, string) bool, onError func(ctx context.Context, source string, err error)) *Resolver {
 	return &Resolver{
 		home:    home,
 		trusted: trusted,
@@ -39,7 +39,7 @@ func (r *Resolver) For(ctx context.Context, cwd string) *domainhooks.Bound {
 		return nil
 	}
 	all := r.load(ctx, cwd)
-	projectTrusted := r.trusted != nil && r.trusted(ProjectRoot(cwd))
+	projectTrusted := r.trusted != nil && r.trusted(ctx, ProjectRoot(cwd))
 	kept := all[:0:0]
 	for _, h := range all {
 		if h.Scope == domainhooks.ScopeProject && !projectTrusted {
@@ -59,7 +59,7 @@ func (r *Resolver) Inspect(ctx context.Context, cwd string) domainhooks.Inspecti
 	root := ProjectRoot(cwd)
 	return domainhooks.Inspection{
 		ProjectRoot:    root,
-		ProjectTrusted: r.trusted != nil && r.trusted(root),
+		ProjectTrusted: r.trusted != nil && r.trusted(ctx, root),
 		Hooks:          r.load(ctx, cwd),
 	}
 }

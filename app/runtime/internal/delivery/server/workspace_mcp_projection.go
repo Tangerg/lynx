@@ -18,7 +18,7 @@ func (s *Server) mcpServersWire(ctx context.Context) []protocol.McpServer {
 	return out
 }
 
-func (s *Server) mcpServerWire(ctx context.Context, st kernel.McpServerStatus) protocol.McpServer {
+func (s *Server) mcpServerWire(ctx context.Context, st kernel.MCPServerStatus) protocol.McpServer {
 	entry := protocol.McpServer{Name: st.Name, Status: protocol.McpStatus(st.Status)}
 	switch st.Status {
 	case "connected":
@@ -38,13 +38,13 @@ func (s *Server) mcpLiveStatus(ctx context.Context, name string) (protocol.McpSt
 	return wire.Status, wire.ToolCount, wire.Error, true
 }
 
-func (s *Server) mcpStatusByName(name string) (kernel.McpServerStatus, bool) {
+func (s *Server) mcpStatusByName(name string) (kernel.MCPServerStatus, bool) {
 	for _, st := range s.mcp.MCPServerStatuses() {
 		if st.Name == name {
 			return st, true
 		}
 	}
-	return kernel.McpServerStatus{}, false
+	return kernel.MCPServerStatus{}, false
 }
 
 func (s *Server) mcpToolCount(ctx context.Context, server string) *int {
@@ -64,7 +64,7 @@ func mcpDialFailedProblem(err error) *protocol.ProblemData {
 	return &protocol.ProblemData{Type: "mcp_dial_failed", Detail: detail}
 }
 
-func mcpToolWire(t kernel.McpToolInfo) protocol.McpTool {
+func mcpToolWire(t kernel.MCPToolInfo) protocol.McpTool {
 	return protocol.McpTool{
 		Server:      t.Server,
 		Name:        t.Name,

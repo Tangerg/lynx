@@ -17,8 +17,6 @@ type (
 	MCPTransport    = toolport.MCPTransport
 	MCPToolInfo     = toolport.MCPToolInfo
 	MCPServerStatus = toolport.MCPServerStatus
-	McpToolInfo     = toolport.McpToolInfo
-	McpServerStatus = toolport.McpServerStatus
 	MCPServerConfig = toolport.MCPServerConfig
 	MCPControl      = toolport.MCPControl
 )

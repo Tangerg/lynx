@@ -11,10 +11,10 @@ import (
 )
 
 type mcpAccess interface {
-	MCPServerStatuses() []kernel.McpServerStatus
+	MCPServerStatuses() []kernel.MCPServerStatus
 	ReconnectMCPServer(ctx context.Context, name string) error
 	AuthorizeMCPServer(ctx context.Context, name string) error
-	MCPTools(ctx context.Context, server string) ([]kernel.McpToolInfo, error)
+	MCPTools(ctx context.Context, server string) ([]kernel.MCPToolInfo, error)
 	ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error)
 	MCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error)
 	ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) error

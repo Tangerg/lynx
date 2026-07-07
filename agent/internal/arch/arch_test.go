@@ -29,7 +29,8 @@ import (
 //	strategy     planning/, event/,        策略/原语 plug-ins that depend on core but never on the engine
 //	             hitl/, toolpolicy/
 //	engine       runtime/, runtime/autonomy/   the state machine + dispatch; consumes core + strategy
-//	combinator   workflow/                 high-level builders that produce *core.Agent; consume core + engine
+//	combinator   ./, workflow/             public convenience surface and high-level builders
+//	                                      that produce *core.Agent; consume core + engine
 //
 // Forbidden edges (an inner rung learning about an outer one):
 //
@@ -82,7 +83,7 @@ func TestDependencyRule(t *testing.T) {
 		}
 		for _, imp := range f.Imports {
 			ip := strings.Trim(imp.Path.Value, `"`)
-			rest, ok := strings.CutPrefix(ip, modulePath+"/")
+			rest, ok := moduleImportRel(ip, modulePath)
 			if !ok {
 				continue
 			}
@@ -102,6 +103,49 @@ func TestDependencyRule(t *testing.T) {
 	}
 }
 
+func TestAgentDoesNotImportApplicationModules(t *testing.T) {
+	const appPrefix = "github.com/Tangerg/lynx/app/"
+	root := moduleRoot(t)
+	fset := token.NewFileSet()
+
+	violations := 0
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			name := d.Name()
+			if name == "vendor" || name == "examples" || (strings.HasPrefix(name, ".") && path != root) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imp := range f.Imports {
+			ip := strings.Trim(imp.Path.Value, `"`)
+			if strings.HasPrefix(ip, appPrefix) {
+				violations++
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("agent must not import application module %q: %s", ip, rel)
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk agent: %v", walkErr)
+	}
+	if violations == 0 {
+		t.Log("agent import boundary holds: no app/* imports found")
+	}
+}
+
 const (
 	rungCore       = "core"
 	rungStrategy   = "strategy"
@@ -112,6 +156,9 @@ const (
 // layerOf classifies a module-relative package dir (e.g. "planning/planner/goap")
 // into its rung, or "" when the path is outside the rungs under test.
 func layerOf(rel string) string {
+	if rel == "." {
+		return rungCombinator
+	}
 	first, _, _ := strings.Cut(rel, "/")
 	switch first {
 	case "core":
@@ -125,6 +172,13 @@ func layerOf(rel string) string {
 	default:
 		return ""
 	}
+}
+
+func moduleImportRel(importPath, modulePath string) (string, bool) {
+	if importPath == modulePath {
+		return ".", true
+	}
+	return strings.CutPrefix(importPath, modulePath+"/")
 }
 
 // forbidden reports whether a package on rung "from" may NOT import one on "to".

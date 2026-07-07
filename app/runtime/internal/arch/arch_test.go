@@ -151,15 +151,15 @@ func layerOf(rel string) string {
 	switch {
 	case rel == "internal/runtime" || rel == "internal/config" || strings.HasPrefix(rel, "cmd/"):
 		return ringComposition
-	case strings.HasPrefix(rel, "internal/delivery/"):
+	case rel == "internal/delivery" || strings.HasPrefix(rel, "internal/delivery/"):
 		return ringDelivery
-	case strings.HasPrefix(rel, "internal/adapter/"):
+	case rel == "internal/adapter" || strings.HasPrefix(rel, "internal/adapter/"):
 		return ringAdapter
 	case rel == "internal/kernel" || strings.HasPrefix(rel, "internal/kernel/"):
 		return ringOrchestration
-	case strings.HasPrefix(rel, "internal/domain/"):
+	case rel == "internal/domain" || strings.HasPrefix(rel, "internal/domain/"):
 		return ringDomain
-	case strings.HasPrefix(rel, "internal/infra/"):
+	case rel == "internal/infra" || strings.HasPrefix(rel, "internal/infra/"):
 		return ringInfra
 	default:
 		return ""

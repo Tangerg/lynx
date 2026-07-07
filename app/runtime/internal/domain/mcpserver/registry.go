@@ -23,7 +23,7 @@ import (
 // (the ubiquitous config map every client pastes — Cline / Cursor / Claude
 // Desktop). The values match that format verbatim so a config copies straight
 // in; lyra supports the two transports the mcp module dials: a local subprocess
-// (stdio) and Streamable HTTP. Legacy two-endpoint SSE is not supported (the
+// (stdio) and Streamable HTTP. Two-endpoint SSE is not supported (the
 // import maps an "sse"/"http" entry onto streamableHttp).
 const (
 	TransportStdio          = "stdio"

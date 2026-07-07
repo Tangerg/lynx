@@ -44,8 +44,7 @@ func (m *recordingModel) Stream(ctx context.Context, req *chat.Request) iter.Seq
 }
 
 // fixedClientProvider is a ChatClientProvider that always hands back one
-// preset client — the per-process override shape (lyra registers one of
-// these per turn carrying the run's chosen model).
+// preset client for per-process overrides selected by the caller.
 type fixedClientProvider struct {
 	name   string
 	client core.ChatClient

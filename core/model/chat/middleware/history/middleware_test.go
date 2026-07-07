@@ -11,14 +11,14 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/history"
 )
 
-// recordingHandler captures the messages of the last request it received
+// recordingModel captures the messages of the last request it received
 // (what the model would actually see) and returns a fixed assistant reply.
-type recordingHandler struct {
+type recordingModel struct {
 	seen []chat.Message
 	text string
 }
 
-func (h *recordingHandler) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+func (h *recordingModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	h.seen = req.Messages
 	res, err := chat.NewResult(chat.NewAssistantMessage(h.text), &chat.ResultMetadata{FinishReason: chat.FinishReasonStop})
 	if err != nil {
@@ -57,7 +57,7 @@ func TestHistoryMiddleware_SystemFirstAndNeverPersisted(t *testing.T) {
 	ctx := context.Background()
 
 	turn := func(system, user, reply string) []chat.Message {
-		h := &recordingHandler{text: reply}
+		h := &recordingModel{text: reply}
 		handler := callMW(chat.CallHandlerFunc(h.Call))
 		req, err := chat.NewRequest([]chat.Message{chat.NewSystemMessage(system), chat.NewUserMessage(user)})
 		if err != nil {
@@ -119,7 +119,7 @@ func TestHistoryMiddleware_NoConversationIDPassesThrough(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := &recordingHandler{text: "ok"}
+	h := &recordingModel{text: "ok"}
 	handler := callMW(chat.CallHandlerFunc(h.Call))
 	req, err := chat.NewRequest([]chat.Message{chat.NewUserMessage("hi")})
 	if err != nil {
@@ -135,10 +135,10 @@ func TestHistoryMiddleware_NoConversationIDPassesThrough(t *testing.T) {
 	}
 }
 
-// toolCallHandler returns an assistant message carrying a single tool call.
-type toolCallHandler struct{ id, name string }
+// toolCallModel returns an assistant message carrying a single tool call.
+type toolCallModel struct{ id, name string }
 
-func (h toolCallHandler) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
+func (h toolCallModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
 	am := chat.NewAssistantMessage([]*chat.ToolCallPart{{ID: h.id, Name: h.name, Arguments: "{}"}})
 	res, err := chat.NewResult(am, &chat.ResultMetadata{FinishReason: chat.FinishReasonStop})
 	if err != nil {
@@ -163,7 +163,7 @@ func TestHistoryMiddleware_SkipsUnpairedToolCallAssistant(t *testing.T) {
 
 	// Round 1: model asks for a tool. history must persist the user input but
 	// NOT the unpaired tool-call assistant.
-	h1 := callMW(chat.CallHandlerFunc(toolCallHandler{id: "call_1", name: "x"}.Call))
+	h1 := callMW(chat.CallHandlerFunc(toolCallModel{id: "call_1", name: "x"}.Call))
 	req1, _ := chat.NewRequest([]chat.Message{chat.NewUserMessage("do it")})
 	req1.Set(chatconversation.IDKey, "c1")
 	if _, err := h1.Call(ctx, req1); err != nil {
@@ -178,7 +178,7 @@ func TestHistoryMiddleware_SkipsUnpairedToolCallAssistant(t *testing.T) {
 	// input; the model now gives a final answer. The pair lands atomically.
 	assistant := chat.NewAssistantMessage([]*chat.ToolCallPart{{ID: "call_1", Name: "x", Arguments: "{}"}})
 	toolMsg, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: "call_1", Name: "x", Result: "ok"}})
-	h2 := callMW(chat.CallHandlerFunc((&recordingHandler{text: "done"}).Call))
+	h2 := callMW(chat.CallHandlerFunc((&recordingModel{text: "done"}).Call))
 	req2, _ := chat.NewRequest([]chat.Message{assistant, toolMsg})
 	req2.Set(chatconversation.IDKey, "c1")
 	if _, err := h2.Call(ctx, req2); err != nil {

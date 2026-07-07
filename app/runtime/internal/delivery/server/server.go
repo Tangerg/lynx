@@ -178,7 +178,7 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 
 // Capabilities builds the capability snapshot a Runtime advertises
 // (API.md §9). It reflects actual wiring — features whose methods would
-// return notImpl are advertised false, so the client never calls a
+// return capability_not_negotiated are advertised false, so the client never calls a
 // method this build silently rejects.
 func Capabilities(rt capabilityAccess) protocol.ServerCapabilities {
 	memory := rt != nil && rt.HasMemory()
@@ -231,9 +231,9 @@ func providerIDs(supported []providersvc.Metadata) []string {
 
 // ─── helpers ────────────────────────────────────────────────────────
 
-// notImpl marks a protocol method that exists in the contract but isn't
-// backed on this build. Maps to capability_not_negotiated (API.md §8.2)
+// capabilityNotNegotiated marks a protocol method that exists in the contract
+// but isn't backed on this build. Maps to capability_not_negotiated (API.md §8.2)
 // — consistent with the feature flag advertised at initialize.
-func notImpl(method string) error {
+func capabilityNotNegotiated(method string) error {
 	return fmt.Errorf("%w: %s", protocol.ErrCapabilityNotNeg, method)
 }

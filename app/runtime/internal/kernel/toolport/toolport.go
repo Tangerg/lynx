@@ -42,11 +42,6 @@ type MCPServerStatus struct {
 	Err    error
 }
 
-type (
-	McpToolInfo     = MCPToolInfo
-	McpServerStatus = MCPServerStatus
-)
-
 // MCPTransport names the live MCP connection transport at the kernel port.
 type MCPTransport string
 
