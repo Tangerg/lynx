@@ -13,14 +13,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
-	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/model/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 )
@@ -80,7 +78,7 @@ func New(appr approval.Policy) chat.Tool {
 
 			// Present the plan as a choice: Approve / (alternatives) / Reject.
 			// Reject keeps plan mode; anything else approves and names the chosen
-			// approach. Reuses the structured-question HITL path (same as ask_user).
+			// approach. Reuses the shared runtime question interrupt path.
 			opts := []interrupts.Option{{Label: approveLabel, Description: "Proceed with this plan"}}
 			for _, o := range in.Options {
 				opts = append(opts, o.toInterrupt())
@@ -118,9 +116,5 @@ func New(appr approval.Policy) chat.Tool {
 // key is the interrupt key for one exit_plan_mode call — keyed by arguments so
 // the parked plan re-presents at the same call site on resume (mirrors ask_user).
 func key(arguments string) string {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(toolName))
-	_, _ = h.Write([]byte{0})
-	_, _ = h.Write([]byte(arguments))
-	return toolName + "." + strconv.FormatUint(h.Sum64(), 16)
+	return hitl.Key("exit_plan_mode", toolName, arguments)
 }

@@ -1,12 +1,12 @@
 // Package askuser provides the ask_user tool — the model's channel to ask the
-// human a question mid-turn. It rides the SAME HITL interrupt model as tool
-// approval and plan review (one mental model, three flavors): the call parks
-// the run via [hitl.Interrupt], the question surfaces to the client, and on
-// resume the human's answer returns as the tool result so the model continues.
+// human a question mid-turn. It uses the same runtime interrupt model as tool
+// approval and plan review (one shared flow): the call parks via the runtime
+// interrupt abstraction, the question surfaces to the client, and on resume the
+// human's answer returns as the tool result so the model continues.
 //
-// One tool, one package — it depends only on the SDK HITL mechanism and the
-// shared [interrupts.Resolution] vocabulary, so it is a plain build-time tool
-// (assembled in toolset.Build, not injected by the engine).
+// One tool, one package — it depends only on the runtime interrupt abstraction
+// and the shared [interrupts.Resolution] vocabulary, so it is a plain
+// build-time tool (assembled in toolset.Build, not injected by the engine).
 package askuser
 
 import (
@@ -14,14 +14,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
-	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/model/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 )
 
@@ -96,11 +94,7 @@ func New() chat.Tool {
 // recorded answer matches the same call site when the parked question is
 // re-presented on resume (mirrors the approval gate's key).
 func key(arguments string) string {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(toolName))
-	_, _ = h.Write([]byte{0})
-	_, _ = h.Write([]byte(arguments))
-	return toolName + "." + strconv.FormatUint(h.Sum64(), 16)
+	return hitl.Key("ask_user", toolName, arguments)
 }
 
 // answerText renders the human's answers as the tool's result text, pairing
