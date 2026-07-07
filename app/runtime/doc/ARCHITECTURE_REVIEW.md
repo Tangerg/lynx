@@ -33,7 +33,7 @@
 ### 做得好的 4 件事
 
 1. **`arch_test.go` 就是防腐层本体**（`internal/arch/arch_test.go`）—— 用 `go/parser` 解析 import、机器断言依赖方向。Go 没有强制分层，这个测试就是答案。比任何文档、任何 code review 规范都硬。
-2. **`turn.Service` 是 use-case 接口的正确抽象级别**（`internal/kernel/turn/service.go`）—— "跑一个 turn"的状态机 / 事件流 / 中断恢复 / 取消 / steering 全在一个接口里，消费方（`delivery/server`）只依赖它。这是 exact right level of abstraction。
+2. **`turn.Dispatcher` 是 use-case 接口的正确抽象级别**（`internal/kernel/turn/dispatcher.go`）—— "跑一个 turn"的状态机 / 事件流 / 中断恢复 / 取消 / steering 全在一个接口里，消费方（`delivery/server`）只依赖它。这是 exact right level of abstraction。
 3. **`translator` 把 wire↔domain 翻译集中在一处**（`internal/delivery/server/translator.go`）—— 一个 run 一个 translator，持有 open item 的状态机，把 `turn.Event` 的 delta 流转成 `protocol.StreamEvent`。翻译逻辑不在 pump、不在 runs.go、不在各 handler 里撒。干净。
 4. **`transcript.BoundaryAt` 是纯领域不变量**（`internal/domain/transcript/transcript.go`）—— rollback/fork 的"在哪条 run 边界切开时间线"是纯领域算法，不依赖 SQL、不依赖 wire、不依赖 session。零 I/O 可单测。这正是 `REFACTORING §5.1` 要的"充血"。
 
@@ -49,7 +49,7 @@
 
 ### 2.1 `domain/workspace` & `domain/codeintel` import infra 直接 —— 混合债（结构性）
 
-现状（`internal/domain/workspace/workspace.go`）import `infra/git` + `infra/checkpoint`；`domain/codeintel` import `infra/lsp`。这是文档化的设计选择（GREENFIELD §5 放行：`domain → infra` 是"domain service wraps an infra capability"）。动机是让 delivery 不直接 import infra —— delivery 通过 `workspace.Service` 间接用 git。依赖方向合规：`delivery → domain → infra`。
+现状已收敛到 `internal/adapter/workspace` import `infra/git` + `infra/checkpoint`，`internal/adapter/codeintel` import `infra/lsp`。这是文档化的设计选择：adapter wraps an infra capability。动机是让 delivery 不直接 import infra —— delivery 通过 `workspace` package functions / `workspace.Checkpoints` 间接用 git。依赖方向合规：`delivery → adapter → infra`。
 
 **但问题是**：如果 `workspace` 叫 `domain`，那它不能同时 import `infra` 又保持 "domain" 语义。Clean Architecture 中 domain 层应零外部依赖（只依赖语言标准库 + 核心抽象）。`workspace` 的正确归属是 **adapter 环**，不是 domain 环 —— 它是 git/checkpoint 的领域化包装，位于 domain 和 infra 之间的灰色地带。
 
@@ -63,7 +63,7 @@
 
 ### 2.3 `kernel` 在 delivery 和 domain 之间作为独立环 —— 正当，命名准确
 
-`kernel` 的角色：定义 port（`kernel/port.go`）→ 消费 domain 实现 → 被 delivery 驱动。在 Clean Architecture 中这就是 use-case 层的角色。`kernel/turn.Service` IS the use-case 接口。GREENFIELD §5.3 明确不做独立 application-service 环，理由正确：单交付运行时下，独立 app 环是 `delivery/server` 的 1:1 影子，YAGNI。
+`kernel` 的角色：定义 port（`kernel/port.go`）→ 消费 domain 实现 → 被 delivery 驱动。在 Clean Architecture 中这就是 use-case 层的角色。`kernel/turn.Dispatcher` IS the use-case 接口。GREENFIELD §5.3 明确不做独立 application-service 环，理由正确：单交付运行时下，独立 app 环是 `delivery/server` 的 1:1 影子，YAGNI。
 
 **裁决**：**正当**。`kernel` 这个名字比 `usecase` 好 —— 它描述"这是一个微内核，定义 port、驱动 agent loop"，而不是空洞的"这里是 use case"。`REFACTORING §1` 要求名字符合本质，`kernel` 符合。
 
@@ -77,9 +77,9 @@
 | `transcript` | ✅ `BoundaryAt()` / `RunNode.IsRoot()` | 充血 |
 | `todo` | ✅ `Validate()` / `Status.Valid()` / `Render()` | 充血（对小领域足够） |
 | `editguard` | ✅ `Tracker.Record/Check/Refresh` / `Result.Message()` | 充血（模范） |
-| `conversation` | ✅ `Service.InjectUser` 封装 session 键控 + 原子截断 | 正确（薄但非贫血） |
+| `conversation` | ✅ `Messages.InjectUser` 封装 session 键控 + 原子截断 | 正确（薄但非贫血） |
 | `maintenance` | ✅ `Compactor.MaybeCompact` 有触发阈值 + LLM 决策 | 充血 |
-| `knowledge` | ❌ 纯 `Service` interface + file/sqlite 实现 | 数据就该是数据 —— 正确 |
+| `knowledge` | ❌ 纯 `Store` interface + file-backed 实现 | 数据就该是数据 —— 正确 |
 | `provider` | ❌ 纯注册表 CRUD | 注册表 —— 正确 |
 | `interrupts` | ❌ 纯 `Store` CRUD | 持久化记录 —— 正确 |
 | `approval` | ✅ `ToolCallInput.Plan` / `GateFor`·`RiskFor` / `ruleSet.decide`（specificity 排序） | 充血（审批策略模型；本文写作后长出，已非"只切 mode"的贫血） |
@@ -143,14 +143,14 @@ cmd/lyra (组合根最外壳)
        ├─ delivery/  协议适配器：wire decode → 调内核 → wire present
        ├─ kernel/    微内核：定义 port + 驱动 agent loop + "跑一个 turn" 用例
        ├─ domain/    限界上下文：实体 + 领域规则 + 持久化 port（Store interface）
-       └─ infra/     技术适配器：实现 domain 的 Store/Service port
+       └─ infra/     技术适配器：实现 domain 的 Store/Registry/Policy port
 ```
 
 依赖方向：`delivery → kernel → domain → infra`（一律向内），`delivery` 也可直接依赖 `domain`（读 session、查 transcript）。**与 GREENFIELD 几乎无差异。**
 
 ### 3.2 Use Case / Application Service 层 —— 不需要独立环
 
-**不需要独立的 use-case 环。** `kernel/turn.Service` IS the use-case 接口，`kernel.Engine` IS the use-case 实现的门面。理由同 GREENFIELD §5.3：单交付运行时下，独立 app 环是 `delivery/server` 的 1:1 影子，YAGNI。
+**不需要独立的 use-case 环。** `kernel/turn.Dispatcher` IS the use-case 接口，`kernel.Engine` IS the use-case 实现的门面。理由同 GREENFIELD §5.3：单交付运行时下，独立 app 环是 `delivery/server` 的 1:1 影子，YAGNI。
 
 **但从零会做得更硬的一件事**：从第一天起，任何多服务协调逻辑（pump 编排、rollback 编排）**一开始就放 kernel，不许进 delivery**。这是 GREENFIELD §6② 说的"adapter 里只准有 wire↔domain 翻译 + 编排调用"，现状没做到是因为 pump 和 rollback 是后来长出来的。
 
@@ -160,17 +160,17 @@ cmd/lyra (组合根最外壳)
 
 ### 3.4 Repository 模式 —— 不引入 "Repository" 命名
 
-**不需要引入 "Repository" 命名。** 现状的 `Store` / `Service` interface 就是 Repository，只是名字更短、更诚实：
+**不需要引入 "Repository" 命名。** 现状的 `Store` / `Registry` interface 就是 Repository，只是名字更短、更诚实：
 
 | 现状名 | 等价 Repository | 为什么不改名 |
 |---|---|---|
 | `transcript.Store` | `TranscriptRepository` | Store = 存储，比 Repository 短 4 字符，含义相同 |
 | `interrupts.Store` | `InterruptRepository` | 同上 |
-| `session.Service` | `SessionRepository` | Service 包含 Create/Get/List/Delete，确是 CRUD 服务 |
-| `provider.Service` | `ProviderRepository` | 同上 |
-| `todo.Service` | `TodoRepository` | 只有 List+Replace，用 Service 没问题 |
+| `session.Store` | `SessionRepository` | Store 包含 Create/Get/List/Delete，确是会话持久化 |
+| `provider.Registry` | `ProviderRepository` | Registry 描述运行态 provider 目录，比 Repository 更具体 |
+| `todo.Store` | `TodoRepository` | 只有 List+Replace，Store 名实相符 |
 
-`REFACTORING §1` 要求名字符合本质。`Store` 描述"持久化存储"，`Service` 描述"提供领域操作的服务"。`Repository` 是 DDD 术语，对单团队项目不增加信息量。**不发生改名。**
+`REFACTORING §1` 要求名字符合本质。`Store` 描述"持久化存储"，`Registry` 描述"运行态目录"，`Policy` 描述"决策规则"。`Repository` 是 DDD 术语，对单团队项目不增加信息量。**不发生改名。**
 
 ### 3.5 Domain Events —— 永不
 
@@ -225,7 +225,7 @@ lyra/
 │   │   └── codeintel/                ← 从 domain/codeintel 移来
 │   │
 │   └── infra/                        技术设施（零领域，不依赖上层）
-│       ├── storage/{sqlite, FileKnowledgeService}
+│       ├── storage/{sqlite, FileKnowledgeStore}
 │       └── {git,lsp,checkpoint,exec,mcp,a2a}/
 │
 └── doc/                              GREENFIELD_ARCHITECTURE.md（架构基准）
@@ -314,8 +314,8 @@ lyra/
 
 | 不建议做 | 理由 |
 |---|---|
-| 加 Repository 接口层 | 现状 `Store`/`Service` interface 就是 Repository。改名为 Repository 是加字符的仪式 |
-| 建独立的 Application Service 层 | `kernel/turn.Service` + `kernel.Engine` 就是应用层。再加一层是 1:1 影子 |
+| 加 Repository 接口层 | 现状 `Store`/`Registry` interface 已表达持久化/目录语义。改名为 Repository 是加字符的仪式 |
+| 建独立的 Application Service 层 | `kernel/turn.Dispatcher` + `kernel.Engine` 就是应用层。再加一层是 1:1 影子 |
 | 建 Domain Events 总线 | 单进程无异步 side-effect 需求。post-turn maintenance 的显式编排比事件总线清晰 10 倍 |
 | 拆 `delivery/server` 的 protocol 方法（sessions.go / runs.go...） | 方法数 = 协议方法数，1:1 绑定是健康的。拆散才是低内聚 |
 | 给 `toolset/build.go` 拆构造器 | 单一装配点是优点，不是缺点 |

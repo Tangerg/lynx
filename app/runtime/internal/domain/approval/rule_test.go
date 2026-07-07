@@ -6,7 +6,7 @@ import (
 )
 
 // White-box tests: the matching/precedence rules are the heart of the rule
-// engine, so they're exercised directly alongside the Service round-trips.
+// engine, so they're exercised directly alongside the policy round-trips.
 
 func TestModeGetSet(t *testing.T) {
 	svc := New(ModeYolo, nil)
