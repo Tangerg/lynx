@@ -387,6 +387,13 @@ app/runtime -> agent -> core
   - `mcp_gating.go` 承接 `mcpGating` / `mcpEnvironment`、startup gating load、enabled-server tool gating projection 和 runtime registry mutation 后的 atomic refresh。
   - `mcp_seed.go` 承接 env-sourced MCP server first-run seeding，保持 persisted runtime edits 优先。
   - Registry API、live connection apply order, disabled/auto-approve gating semantics, boot-time enabled configs, env flattening order and seed behavior 保持不变；本轮无公共 API 破坏性调整。
+- 已完成第二十八轮目标模块结构清理：
+  - `app/runtime/internal/infra/git`：将原 `diff.go` 中混杂的 diff public API、tracked source collection、base branch resolution、untracked-file all-added diff projection 和 unified diff parser 拆开。
+  - `diff.go` 现在只保留 diff mode/data model、`Diff` 和 `RawDiff` 入口。
+  - `diff_source.go` 承接 tracked `git diff` argument construction、repo/git availability checks、base-mode merge-base/default branch resolution 和 fresh-repo empty diff fallback。
+  - `diff_untracked.go` 承接 `status --porcelain` untracked path collection、relPath scoping、binary heuristic 和 all-added untracked `DiffFile` projection。
+  - `diff_parse.go` 承接 unified patch → structured `DiffFile` / `Row` parsing、hunk line-number extraction 和 added/removed counters。
+  - Worktree/base diff semantics, ErrUnavailable/ErrNotRepo/ErrNoBase mapping, untracked raw/parsed projection, binary detection, rename/path parsing and row line numbers 保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -423,16 +430,17 @@ app/runtime -> agent -> core
   - `go test ./internal/infra/checkpoint`（`app/runtime`）通过。
   - `go test ./internal/domain/codebaseindex`（`app/runtime`）通过。
   - `go test ./internal/runtime`（`app/runtime`）通过（第二十七轮后复跑）。
+  - `go test ./internal/infra/git`（`app/runtime`）通过（第二十八轮后复跑）。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第二十七轮后复跑）。
-  - `go test ./...`（`agent`）通过（第二十七轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第二十七轮后复跑）。
-  - `go vet ./...`（`core`）通过（第二十七轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第二十七轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第二十七轮后复跑）。
-  - `go build ./...`（`core`）通过（第二十七轮后复跑）。
-  - `go build ./...`（`agent`）通过（第二十七轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第二十七轮后复跑）。
+  - `go test ./...`（`core`）通过（第二十八轮后复跑）。
+  - `go test ./...`（`agent`）通过（第二十八轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第二十八轮后复跑）。
+  - `go vet ./...`（`core`）通过（第二十八轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第二十八轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第二十八轮后复跑）。
+  - `go build ./...`（`core`）通过（第二十八轮后复跑）。
+  - `go build ./...`（`agent`）通过（第二十八轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第二十八轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
