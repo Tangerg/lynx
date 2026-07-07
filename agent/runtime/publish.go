@@ -2,9 +2,7 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -116,7 +114,7 @@ func newDynamicAgentTool(
 		label: "publish goal",
 		agent: agentDef,
 		decode: func(arguments string) (any, error) {
-			return decodeDynamicInput(inputType, arguments)
+			return decodeToolArgumentsForType(agentDef.Name, "publish", inputType, arguments)
 		},
 		run: func(ctx context.Context, in any) (*AgentProcess, error) {
 			return start(ctx, platform, agentDef, in)
@@ -129,32 +127,4 @@ func newDynamicAgentTool(
 			return out, nil
 		},
 	}
-}
-
-// decodeDynamicInput unmarshals arguments into a fresh value of
-// inputType (when known) so the agent's first action receives a
-// properly-typed binding. Empty arguments yield the zero value of the
-// type (or nil when no type is known). Without a registered
-// inputType, falls back to a generic [json.Unmarshal] into [any] —
-// callers SHOULD provide a non-zero InputSample via
-// [core.GoalExportFor] for typed dispatch.
-func decodeDynamicInput(inputType reflect.Type, arguments string) (any, error) {
-	if inputType == nil {
-		if arguments == "" {
-			return nil, nil
-		}
-		var raw any
-		if err := json.Unmarshal([]byte(arguments), &raw); err != nil {
-			return nil, fmt.Errorf("parse input: %w", err)
-		}
-		return raw, nil
-	}
-
-	ptr := reflect.New(inputType)
-	if arguments != "" {
-		if err := json.Unmarshal([]byte(arguments), ptr.Interface()); err != nil {
-			return nil, fmt.Errorf("parse input as %s: %w", inputType.String(), err)
-		}
-	}
-	return ptr.Elem().Interface(), nil
 }
