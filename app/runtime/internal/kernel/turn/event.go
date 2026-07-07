@@ -1,0 +1,275 @@
+package turn
+
+import (
+	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+)
+
+// Event is the sealed sum type emitted on a turn's event channel.
+// Concrete event types implement this marker so callers can type-switch.
+//
+// All events carry [BaseEvent] for routing — SessionID + TurnID + Seq
+// + Timestamp. Seq is a gapless per-turn counter assigned atomically at
+// emit — but it is NOT an arrival-order guarantee: parallel tool calls emit
+// from concurrent goroutines, so two can take Seq n and n+1 and then send in
+// either order. The durable, arrival-ordered identity is the wire eventId the
+// single-consumer pump assigns (the Last-Event-Id / gap-detection authority);
+// Seq is for intra-turn correlation, not for detecting gaps across reordered
+// arrivals.
+//
+// Concrete event types implement [stamp] so the runtime replaces
+// the full BaseEvent header in one call. Call sites construct
+// events with their type-specific fields only — the dispatcher
+// (emit, in inmemory.go) fills the four routing fields uniformly.
+// Adding a new event = adding the struct + one stamp method, nothing else.
+type Event interface {
+	isLyraEvent()
+	stamp(b BaseEvent) Event
+}
+
+// BaseEvent is the common header on every event. Embedded by all
+// concrete event types so the type switch sees them as Events but
+// also gives uniform access to routing metadata.
+type BaseEvent struct {
+	SessionID string
+	TurnID    string
+	Seq       uint64
+	Timestamp time.Time
+}
+
+func (BaseEvent) isLyraEvent() {}
+
+// TurnStart fires once at the very beginning of a turn. Carries the
+// resolved model name and any system-prompt summary the client wants
+// to display.
+type TurnStart struct {
+	BaseEvent
+	Model string
+}
+
+// MessageDelta is one streaming chunk of assistant text. Clients
+// concatenate Text values in arrival order.
+type MessageDelta struct {
+	BaseEvent
+	Text string
+}
+
+// ReasoningDelta is one streaming chunk of extended-thinking
+// (reasoning) text — Claude's <thinking> blocks, OpenAI o-series
+// reasoning summaries, DeepSeek-R1 chain-of-thought. Distinct
+// from [MessageDelta] so transports can render reasoning
+// separately (collapsed by default, dimmed, behind a toggle).
+type ReasoningDelta struct {
+	BaseEvent
+	Text string
+}
+
+// ToolCallStart fires when the model invokes a tool. Arguments is
+// the raw JSON the model emitted.
+type ToolCallStart struct {
+	BaseEvent
+	CallID    string
+	ToolName  string
+	Arguments string
+	// SafetyClass is the tool's wire safety class ("safe"|"write"|"exec"),
+	// stamped on the live toolCall Item so a client shows its risk class
+	// without joining tools.list.
+	SafetyClass string
+}
+
+// ToolCallEnd fires when the tool finishes. Output is the tool's
+// returned text; Err is non-empty when the tool failed.
+type ToolCallEnd struct {
+	BaseEvent
+	CallID string
+	Output string
+	Err    string
+	// Denied is true when the call ended because the approval verdict
+	// denied it (not an execution failure). The wire layer renders a
+	// distinct "denied" terminal — see [kernel.ErrToolDenied].
+	Denied bool
+}
+
+// CompactBoundary fires when the runtime auto-compacts the
+// conversation after a turn — the older messages were folded into a
+// single summary so context stays within bounds. Surfacing it lets
+// clients show "context compacted (120 → 40 messages)" instead of
+// silently dropping history. Mirrors the SDK's
+// SDKCompactBoundaryMessage. Fires before [TurnEnd].
+type CompactBoundary struct {
+	BaseEvent
+	MessagesBefore int
+	MessagesAfter  int
+}
+
+// MemoryUpdated fires when the runtime mines durable facts out of the
+// finished turn and appends them to project memory (LYRA.md). Facts
+// is the markdown the runtime saved; clients can surface "saved notes
+// to memory". Only fires when extraction actually wrote something,
+// and always after a [CompactBoundary] (extraction is gated on
+// compaction). Mirrors the spirit of the SDK's memory events.
+type MemoryUpdated struct {
+	BaseEvent
+	Facts string
+}
+
+// TurnInterrupted fires when the turn parks for human input (HITL R
+// model): a gated tool call needs approval, or a tool (ask_user /
+// exit_plan_mode) asks the user a question. The turn does NOT end — it
+// suspends at [core.StatusWaiting]; the client answers via
+// [Dispatcher.Resume], which continues the same turn (its events resume on
+// the same channel). Carries the pending interrupt(s).
+type TurnInterrupted struct {
+	BaseEvent
+	Interrupts []Interrupt
+}
+
+// Interrupt is one pending HITL request surfaced by [TurnInterrupted].
+// Kind is the wire interrupt kind (API.md §6: "approval" | "question" |
+// "toolResult") so it lines up with what the client negotiates in
+// ClientCapabilities.InterruptKinds. Payload is the awaitable's prompt —
+// an [ApprovalPrompt] for a gated tool call ("approval"), or a question
+// prompt for a tool asking the user ("question").
+type Interrupt struct {
+	Kind    string // "approval" | "question"
+	Payload any
+}
+
+// TurnEnd fires once at the end of a turn. Reason explains why the
+// turn ended; TokenUsage / CostUSD are the rolled-up totals for the
+// turn (sum across every LLM call inside it).
+type TurnEnd struct {
+	BaseEvent
+	Reason       TurnEndReason
+	TokenUsage   TokenUsage
+	UsageByModel []ModelUsage // per-model breakdown; one entry for a single-model turn
+	CostUSD      float64      // turn cost; zero unless a pricing hook is configured (engine.Config.Pricing)
+	Duration     time.Duration
+	// MaxBudget / MaxCostUSD / MaxSteps echo the turn's configured caps so a
+	// Reason=TurnEndBudgetExceeded / TurnEndStepsExceeded terminal can be
+	// described precisely ("spent $4.20 of $4.00 budget" / "reached the
+	// 8000-token budget" / "reached the 8-step limit"). Zero when uncapped.
+	MaxBudget  int64
+	MaxCostUSD float64
+	MaxSteps   int
+}
+
+// ErrorEvent fires when an unrecoverable error aborts the turn. The
+// turn channel still closes after this event so receivers don't need
+// to special-case the end.
+type ErrorEvent struct {
+	BaseEvent
+	Message string
+	Code    string // stable error code; see errors.go
+}
+
+// UsageReported fires once per completed LLM round with the turn's
+// cumulative token roll-up + cost so far — the mid-run "tokens / cost spent"
+// readout (the live preview whose authoritative final lands on [TurnEnd]).
+// Ephemeral by nature; transport maps it to a run.progress usage preview.
+// CostUSD is zero unless a pricing hook is configured.
+type UsageReported struct {
+	BaseEvent
+	TokenUsage TokenUsage
+	CostUSD    float64
+	// ContextTokens is this round's prompt-token count — the live context-window
+	// occupancy (not the cumulative roll-up in TokenUsage). Transport maps it to
+	// run.progress.contextTokens for the client's occupancy gauge.
+	ContextTokens int64
+}
+
+// TodosUpdated fires after the model rewrites its task list (the todo_write
+// tool) with the full new list, so transport can project it to a
+// state.snapshot{todos} and a client renders the task panel — the model's
+// checklist becomes a first-class surface, not a model-only side effect.
+type TodosUpdated struct {
+	BaseEvent
+	Todos []todo.Item
+}
+
+// SteerMessage fires when a mid-run steering message (injected via
+// [Dispatcher.InjectSteering] while the turn was looping) is consumed into the
+// running loop — between the round that just finished and the next one. The
+// transport surfaces it as a userMessage Item so the steered turn shows on the
+// timeline and lands in the durable transcript, exactly like the opening user
+// turn (it's also already in the model's context, injected into the loop).
+type SteerMessage struct {
+	BaseEvent
+	Text string
+}
+
+// stamp implementations — concrete events return themselves with
+// the BaseEvent header replaced wholesale. Value-typed events are
+// the right idiom here: the dispatcher (emit, in inmemory.go) takes
+// ownership of a copy so concurrent receivers can't observe a
+// half-stamped header. Each method is one assignment because the new BaseEvent
+// already carries every routing field — emit builds it once per
+// call.
+
+func (e TurnStart) stamp(b BaseEvent) Event       { e.BaseEvent = b; return e }
+func (e MessageDelta) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
+func (e ReasoningDelta) stamp(b BaseEvent) Event  { e.BaseEvent = b; return e }
+func (e ToolCallStart) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
+func (e ToolCallEnd) stamp(b BaseEvent) Event     { e.BaseEvent = b; return e }
+func (e CompactBoundary) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
+func (e MemoryUpdated) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
+func (e TurnInterrupted) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
+func (e TurnEnd) stamp(b BaseEvent) Event         { e.BaseEvent = b; return e }
+func (e ErrorEvent) stamp(b BaseEvent) Event      { e.BaseEvent = b; return e }
+func (e UsageReported) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
+func (e SteerMessage) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
+func (e TodosUpdated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
+
+// TurnEndReason enumerates why a turn ended.
+type TurnEndReason int
+
+const (
+	// TurnEndCompleted — the model returned a stop-marker normally.
+	TurnEndCompleted TurnEndReason = iota
+	// TurnEndCanceled — the client called [Dispatcher.Cancel] or ctx was
+	// canceled.
+	TurnEndCanceled
+	// TurnEndErrored — the turn aborted on error. An [ErrorEvent]
+	// fires before [TurnEnd] in this case.
+	TurnEndErrored
+	// TurnEndBudgetExceeded — the turn hit [StartTurnRequest.MaxBudget]
+	// and stopped cleanly after the current round. Not an error: the
+	// partial reply already streamed; TokenUsage reflects what was
+	// spent.
+	TurnEndBudgetExceeded
+	// TurnEndStepsExceeded — the turn hit [StartTurnRequest.MaxSteps] (the
+	// tool-call-round cap) and stopped cleanly after the round. Not an error;
+	// distinct from the token/cost budget so the wire can surface the dedicated
+	// maxSteps outcome.
+	TurnEndStepsExceeded
+)
+
+func (r TurnEndReason) String() string {
+	switch r {
+	case TurnEndCompleted:
+		return "completed"
+	case TurnEndCanceled:
+		return "canceled"
+	case TurnEndErrored:
+		return "errored"
+	case TurnEndBudgetExceeded:
+		return "budget_exceeded"
+	case TurnEndStepsExceeded:
+		return "steps_exceeded"
+	default:
+		return "unknown"
+	}
+}
+
+// TokenUsage is the per-turn token roll-up. Alias for
+// [kernel.TokenUsage] — the engine owns the canonical shape and
+// the turn package re-exports it so transport adapters can stay
+// scoped to one import.
+type TokenUsage = kernel.TokenUsage
+
+// ModelUsage is the per-model token breakdown re-exported from the
+// engine, so transport adapters consuming [TurnEnd.UsageByModel] stay
+// scoped to one import.
+type ModelUsage = kernel.ModelUsage

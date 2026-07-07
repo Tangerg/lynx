@@ -219,6 +219,13 @@ app/runtime -> agent -> core
   - `ClientCaller` 负责同步调用路径、structured parser 注入与响应文本解析。
   - `ClientStreamer` 负责流式调用路径、stream span/metrics 生命周期与文本 delta 投影。
   - 导出的类型名、构造函数、方法签名和调用行为保持不变；本轮无公共 API 破坏性调整。
+- 已完成第七轮目标模块结构清理：
+  - `app/runtime/internal/kernel/turn`：将原 `dispatcher.go` 中混在一起的请求校验、Dispatcher contract、事件模型拆为 `request.go`、`dispatcher.go`、`event.go`。
+  - `request.go` 承接 `StartTurnRequest` / `RehydrateRequest`、请求级 sentinel errors 与 options 校验。
+  - `dispatcher.go` 回到包入口、per-turn client resolver seam 与 `Dispatcher` 接口契约。
+  - `event.go` 承接 turn event sealed sum、`BaseEvent`、事件 stamp 实现、`TurnEndReason` 与 usage alias。
+  - 同步更新 `inmemory.go` 的包内职责清单，避免结构注释滞后。
+  - 导出的类型名、错误值、接口方法和调用行为保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -234,16 +241,18 @@ app/runtime -> agent -> core
   - `go test ./internal/kernel/turn`（`app/runtime`）通过。
   - `go test ./internal/runtime`（`app/runtime`）通过。
   - `go test ./model/chat`（`core`）通过。
+  - `go test ./internal/kernel/turn ./internal/runtime ./internal/delivery/server`（`app/runtime`）通过。
+  - `go test ./internal/kernel/...`（`app/runtime`）通过。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第六轮后复跑）。
-  - `go test ./...`（`agent`）通过（第六轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第六轮后复跑）。
-  - `go vet ./...`（`core`）通过（第六轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第六轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第六轮后复跑）。
-  - `go build ./...`（`core`）通过（第六轮后复跑）。
-  - `go build ./...`（`agent`）通过（第六轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第六轮后复跑）。
+  - `go test ./...`（`core`）通过（第七轮后复跑）。
+  - `go test ./...`（`agent`）通过（第七轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第七轮后复跑）。
+  - `go vet ./...`（`core`）通过（第七轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第七轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第七轮后复跑）。
+  - `go build ./...`（`core`）通过（第七轮后复跑）。
+  - `go build ./...`（`agent`）通过（第七轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第七轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
