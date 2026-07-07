@@ -20,7 +20,7 @@ import (
 )
 
 // todoLister reads a session's current todo list — narrow consumer view of the
-// todo service (the turn only reads, never writes). The turn projects the list
+// todo store (the turn only reads, never writes). The turn projects the list
 // to state.snapshot{todos} after a todo_write so a client renders the task
 // panel. nil disables the projection.
 type todoLister interface {

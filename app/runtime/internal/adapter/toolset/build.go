@@ -39,7 +39,7 @@ type BuildConfig struct {
 	LSPServers      []codeintel.ServerSpec
 	MCPServers      []toolport.MCPServerConfig
 	A2AAgents       []a2a.ClientConfig
-	Todos           todo.Service     // backs todo_write; nil → the tool is omitted
+	Todos           todo.Store       // backs todo_write; nil → the tool is omitted
 	Approval        approval.Service // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an

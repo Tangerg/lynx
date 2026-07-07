@@ -40,11 +40,11 @@ type Engine struct {
 	tools           []chat.Tool
 	steering        SteeringSink // turn-end steering inject; nil → steering drops
 	knowledge       knowledge.Service
-	todos           todo.Service // per-session task list; nil → todo_write absent + no prompt injection
-	workdir         string       // captured from Config.Workdir for the AGENTS.md cascade
-	skillsGlobalDir string       // captured from Config.SkillsGlobalDir for workspace.listSkills
-	pricing         Pricing      // optional per-round cost hook; nil → cost stays zero
-	defaultProvider string       // default provider id; pricing fallback for a default/subtask turn
+	todos           todo.Store // per-session task list; nil → todo_write absent + no prompt injection
+	workdir         string     // captured from Config.Workdir for the AGENTS.md cascade
+	skillsGlobalDir string     // captured from Config.SkillsGlobalDir for workspace.listSkills
+	pricing         Pricing    // optional per-round cost hook; nil → cost stays zero
+	defaultProvider string     // default provider id; pricing fallback for a default/subtask turn
 	parkStore       toolloop.ParkStore
 
 	// Maintenance ports (turn-boundary autonomous ops) — injected by the

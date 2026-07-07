@@ -198,7 +198,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		InterruptStore:   stores.Interrupt,
 		TranscriptStore:  stores.Transcript,
 		ProviderRegistry: providers,
-		TodoService:      stores.Todos,
+		TodoStore:        stores.Todos,
 		// Default provider+model a turn runs against when it picks no model.
 		Provider: string(cfg.Provider),
 		Model:    cfg.Model,
@@ -313,7 +313,7 @@ type Stores struct {
 	MCPServers    mcpserversvc.Registry
 	ChatHistory   history.Store
 	Park          toolloop.ParkStore
-	Todos         todosvc.Service
+	Todos         todosvc.Store
 	ApprovalRules approval.RuleStore
 	UtilityRole   lyraruntime.UtilityRoleStore
 	Trust         *sqlitestore.TrustStore

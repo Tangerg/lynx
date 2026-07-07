@@ -16,7 +16,7 @@ func (s *stubStore) Replace(_ context.Context, _ string, items []todo.Item) erro
 	return nil
 }
 
-func TestNew_NilServiceOmitted(t *testing.T) {
+func TestNew_NilStoreOmitted(t *testing.T) {
 	if New(nil) != nil {
 		t.Fatal("New(nil) should return nil so the caller omits the tool (feature disabled)")
 	}
@@ -25,7 +25,7 @@ func TestNew_NilServiceOmitted(t *testing.T) {
 func TestTodoWrite_Definition(t *testing.T) {
 	tool := New(&stubStore{})
 	if tool == nil {
-		t.Fatal("New(svc) returned nil")
+		t.Fatal("New(store) returned nil")
 	}
 	if got := tool.Definition().Name; got != "todo_write" {
 		t.Fatalf("tool name = %q, want todo_write", got)

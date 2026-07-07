@@ -53,12 +53,12 @@ func (e *Engine) SystemPrompt(ctx context.Context) string {
 }
 
 // appendTodos appends the turn's session todo list to prompt when a todo
-// service is wired and the session has items. Best-effort: a missing session
+// store is wired and the session has items. Best-effort: a missing session
 // id or a store error silently skips — the list is a convenience for the
 // model, never a correctness input, so it must never derail prompt assembly.
 // Kept off composePrompt so that function stays focused on the knowledge /
 // AGENTS.md cascade (and its direct unit tests need no todo stub).
-func appendTodos(ctx context.Context, prompt string, todos todo.Service) string {
+func appendTodos(ctx context.Context, prompt string, todos todo.Store) string {
 	if todos == nil {
 		return prompt
 	}
