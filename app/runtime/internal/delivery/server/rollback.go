@@ -53,7 +53,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 		}
 	}
 
-	items, runs, err := s.transcript.ListTranscript(ctx, in.SessionID)
+	items, runs, err := s.transcriptContent.ListTranscript(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}

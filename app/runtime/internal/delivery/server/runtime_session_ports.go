@@ -24,8 +24,11 @@ type sessionDefaultModelAccess interface {
 	DefaultModel() string
 }
 
-type transcriptAccess interface {
+type transcriptContentAccess interface {
 	ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error)
+}
+
+type transcriptRunAccess interface {
 	ListTranscriptRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
 }
 
