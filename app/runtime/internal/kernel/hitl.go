@@ -1,10 +1,14 @@
 package kernel
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"hash/fnv"
+	"strconv"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/toolloop"
 	coremodel "github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -19,6 +23,28 @@ const inflightTailKey = "lyra:hitl:inflight-tail"
 type resumableInterrupt interface {
 	coremodel.Halt
 	Awaitable() core.Awaitable
+}
+
+// Interrupt delegates to [agent/hitl.Interrupt] so runtime outer layers can
+// park on human-in-the-loop awaitables without importing the hitl package
+// directly.
+func Interrupt[R any](ctx context.Context, key string, value any) (R, bool, error) {
+	return hitl.Interrupt[R](ctx, key, value)
+}
+
+// InterruptKey is the stable hash input for HITL keys:
+// kind/tool/args, with a separator.
+//
+// This keeps all resumable-key derivation in one place and guarantees the same
+// digest shape across approval and question-style interrupts.
+func InterruptKey(kind, toolName, arguments string) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(kind))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(toolName))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(arguments))
+	return kind + "." + strconv.FormatUint(h.Sum64(), 16)
 }
 
 // IsInterrupt reports whether err is a resumable HITL-like halt (non-aborting

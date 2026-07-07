@@ -3,10 +3,7 @@ package turn
 import (
 	"context"
 	"errors"
-	"hash/fnv"
-	"strconv"
 
-	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
@@ -44,7 +41,7 @@ type ApprovalPrompt struct {
 //
 //   - auto-pass mode → run the tool.
 //   - deny stance (read-only) → recoverable denial, the model adapts.
-//   - prompt stance → [hitl.Interrupt]: the first pass returns an
+//   - prompt stance → runtime interrupt: the first pass returns an
 //     InterruptError (the tool loop exits, the action parks at
 //     StatusWaiting, the client answers via runs.resume); on resume the gate
 //     is consulted again at the same pending call and Interrupt returns the
@@ -117,8 +114,8 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// interrupt for human approval (R model). First pass bubbles the
 	// InterruptError up to park; resume delivers the resolution here. The
 	// prompt carries the gated tool's risk so the approval card shows it.
-	res, _, err := hitl.Interrupt[interrupts.Resolution](ctx,
-		approvalKey(toolName, plan.Arguments),
+	res, _, err := kernel.Interrupt[interrupts.Resolution](ctx,
+		kernel.InterruptKey("approval", toolName, plan.Arguments),
 		ApprovalPrompt{
 			CallID: callID, ToolName: toolName, Arguments: plan.Arguments,
 			SafetyClass: tool.ClassName(plan.SafetyClass), Risk: plan.Risk, Reason: plan.PromptReason,
@@ -147,18 +144,6 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// The human's edited args win over a hook rewrite; fall back to the rewrite
 	// when they approved without editing.
 	return kernel.ToolApprovalVerdict{Arguments: plan.ApprovedArguments(res.Arguments)}
-}
-
-// approvalKey is the interrupt key for one gated tool call. Keyed by tool
-// name + arguments (NOT the per-invocation callID, which is fresh on every
-// Call): resume feeds the same parked tool call back unchanged, so keying on
-// its name + arguments matches the recorded resolution.
-func approvalKey(toolName, arguments string) string {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(toolName))
-	_, _ = h.Write([]byte{0})
-	_, _ = h.Write([]byte(arguments))
-	return "approval." + strconv.FormatUint(h.Sum64(), 16)
 }
 
 func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {

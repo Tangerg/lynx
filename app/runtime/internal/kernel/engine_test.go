@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 
@@ -906,7 +905,7 @@ type hitlApprovalObserver struct {
 }
 
 func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName, arguments string) ToolApprovalVerdict {
-	res, _, err := hitl.Interrupt[interrupts.Resolution](ctx,
+	res, _, err := Interrupt[interrupts.Resolution](ctx,
 		"kernel-test.approval."+toolName+"."+arguments,
 		map[string]string{"tool": toolName, "arguments": arguments},
 	)
