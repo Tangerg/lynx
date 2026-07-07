@@ -19,11 +19,15 @@ type TurnResumer interface {
 	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
 }
 
-// RunTurn binds a protocol run id to the turn handle that owns its process.
-type RunTurn struct {
+// RunTurnBinding binds a protocol run id to the turn handle that owns its process.
+type RunTurnBinding struct {
 	RunID     string
 	SessionID string
 	TurnID    string
+}
+
+func (r RunTurnBinding) handle() turn.TurnHandle {
+	return turn.TurnHandle{SessionID: r.SessionID, TurnID: r.TurnID}
 }
 
 // ResumedInterrupt is the claimed interrupt plus the turn handle its
@@ -43,7 +47,7 @@ func (c *Coordinator) CancelParkedRun(ctx context.Context, turns TurnCanceler, r
 	if !found {
 		return ErrRunNotFound
 	}
-	return c.CancelRunTurn(ctx, turns, RunTurn{
+	return c.CancelRunTurn(ctx, turns, RunTurnBinding{
 		RunID:     runID,
 		SessionID: pending.SessionID,
 		TurnID:    pending.TurnID,
@@ -54,7 +58,7 @@ func (c *Coordinator) CancelParkedRun(ctx context.Context, turns TurnCanceler, r
 // record. The turn cancel is best-effort: after a backend restart the durable
 // interrupt may outlive the in-memory turn, and abandoning the run still means
 // removing the resumable record.
-func (c *Coordinator) CancelRunTurn(ctx context.Context, turns TurnCanceler, r RunTurn) error {
+func (c *Coordinator) CancelRunTurn(ctx context.Context, turns TurnCanceler, r RunTurnBinding) error {
 	c.cancelTurn(ctx, turns, r)
 	return c.s.Interrupts().Delete(ctx, r.RunID)
 }
@@ -107,7 +111,7 @@ func (c *Coordinator) cancelParkedInterrupts(ctx context.Context, turns TurnCanc
 		return
 	}
 	for _, p := range pending {
-		_ = c.CancelRunTurn(ctx, turns, RunTurn{
+		_ = c.CancelRunTurn(ctx, turns, RunTurnBinding{
 			RunID:     p.ParentRunID,
 			SessionID: p.SessionID,
 			TurnID:    p.TurnID,
@@ -115,8 +119,8 @@ func (c *Coordinator) cancelParkedInterrupts(ctx context.Context, turns TurnCanc
 	}
 }
 
-func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTurn, error) {
-	out := make([]RunTurn, 0)
+func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTurnBinding, error) {
+	out := make([]RunTurnBinding, 0)
 	for _, runID := range runIDs {
 		pending, found, err := c.s.Interrupts().Get(ctx, runID)
 		if err != nil {
@@ -125,7 +129,7 @@ func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTu
 		if !found {
 			continue
 		}
-		out = append(out, RunTurn{
+		out = append(out, RunTurnBinding{
 			RunID:     pending.ParentRunID,
 			SessionID: pending.SessionID,
 			TurnID:    pending.TurnID,
@@ -134,8 +138,8 @@ func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTu
 	return out, nil
 }
 
-func (c *Coordinator) cancelTurn(ctx context.Context, turns TurnCanceler, r RunTurn) {
+func (c *Coordinator) cancelTurn(ctx context.Context, turns TurnCanceler, r RunTurnBinding) {
 	if turns != nil {
-		_ = turns.Cancel(ctx, turn.TurnHandle{SessionID: r.SessionID, TurnID: r.TurnID})
+		_ = turns.Cancel(ctx, r.handle())
 	}
 }
