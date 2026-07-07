@@ -269,6 +269,12 @@ app/runtime -> agent -> core
   - `reply.go` 承接 response/error/streaming result 构造与 handler 共享 reply spine。
   - `dispatch.go` 回到 per-connection handshake state、入口 envelope 校验、initialize gate 与 request dispatch 主流程。
   - 导出的类型名、方法名、JSON-RPC method table、错误映射和 stream 语义保持不变；本轮无公共 API 破坏性调整。
+- 已完成第十四轮目标模块结构清理：
+  - `core/model/chat`：将原 `message.go` 中混杂的消息协议根、assistant 投影视图/构造、system/user/tool 具体消息构造拆开。
+  - `message.go` 现在只保留 `MessageType`、sealed `Message`、`ToolReturn`、`MessageParams` 与 `NewMessage` 分发。
+  - `message_assistant.go` 承接 `AssistantMessage`、part iterator、flat view helper、blank/tool/reasoning 判断与 assistant 构造输入归一化。
+  - `message_roles.go` 承接 `SystemMessage`、`UserMessage`、`ToolMessage` 及对应构造器。
+  - 导出的类型名、构造函数、JSON wire shape 和 message 行为保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -292,15 +298,15 @@ app/runtime -> agent -> core
   - `go test ./internal/adapter/toolset/...`（`app/runtime`）通过。
   - `go test ./internal/delivery/dispatch`（`app/runtime`）通过（包内无测试文件，编译通过）。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第十三轮后复跑）。
-  - `go test ./...`（`agent`）通过（第十三轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第十三轮后复跑）。
-  - `go vet ./...`（`core`）通过（第十三轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第十三轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第十三轮后复跑）。
-  - `go build ./...`（`core`）通过（第十三轮后复跑）。
-  - `go build ./...`（`agent`）通过（第十三轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第十三轮后复跑）。
+  - `go test ./...`（`core`）通过（第十四轮后复跑）。
+  - `go test ./...`（`agent`）通过（第十四轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第十四轮后复跑）。
+  - `go vet ./...`（`core`）通过（第十四轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第十四轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第十四轮后复跑）。
+  - `go build ./...`（`core`）通过（第十四轮后复跑）。
+  - `go build ./...`（`agent`）通过（第十四轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第十四轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
