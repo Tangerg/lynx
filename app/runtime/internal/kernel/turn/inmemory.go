@@ -68,8 +68,11 @@ type Dependencies struct {
 // fans events out to subscribers via per-turn channels.
 //
 // The implementation is split across files by concern:
-//   - inmemory.go       — Dispatcher surface + live-turn registry (this file)
-//   - turn.go           — per-turn state + the runTurn execution loop
+//   - dispatcher.go     — Dispatcher interface + package entry points
+//   - request.go        — Start/Rehydrate request shapes + validation
+//   - event.go          — turn event model + terminal reason vocabulary
+//   - inmemory.go       — Dispatcher implementation + live-turn registry
+//   - turn.go           — per-turn state + run/drive lifecycle
 //   - event_stream.go   — event subscription + transient delta coalescing
 //   - prompt_hooks.go   — pre-turn lifecycle hooks
 //   - lifecycle.go      — terminal-event capture from the agent runtime
