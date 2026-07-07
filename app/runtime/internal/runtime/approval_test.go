@@ -10,7 +10,7 @@ import (
 )
 
 type approvalSessionStore struct {
-	session.Service
+	session.Store
 	sess session.Session
 	err  error
 }

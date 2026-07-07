@@ -30,7 +30,7 @@ func wireSessionErr(err error) error {
 // gives no (or an over-large) limit.
 const defaultSessionPageLimit = 100
 
-// ListSessions paginates over the in-process session.Service with the
+// ListSessions paginates over the in-process session.Store with the
 // same opaque-cursor mechanics as items.list (see pageByID): a non-empty
 // NextCursor is the "has more" signal — never a silent truncation. The
 // store returns the full ordered list; pagination is applied here.

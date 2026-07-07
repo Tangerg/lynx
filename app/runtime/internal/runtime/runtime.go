@@ -58,9 +58,9 @@ import (
 // composition root (the sqlite-backed stores marked "Required" below).
 type Config struct {
 	// Engine is the engine's construction config. The runtime fills its
-	// SessionStore (derived from SessionService) and the tool-environment
-	// fields (ToolResolver/Tools/MCP/Closers) from [toolset.Build] below;
-	// Engine.ChatClient is required.
+	// SessionStore (adapted from the Lyra session store) and the
+	// tool-environment fields (ToolResolver/Tools/MCP/Closers) from
+	// [toolset.Build] below; Engine.ChatClient is required.
 	Engine kernel.Config
 
 	// UtilityRoleStore persists the global utility-model role — the (provider,
@@ -84,17 +84,17 @@ type Config struct {
 	// workspace.mcp.configure / remove / setEnabled. Required.
 	MCPRegistry mcpserver.Registry
 
-	// SessionService persists Lyra sessions. Required — the composition
-	// root injects the sqlite-backed service (tests use a sqlite :memory: DB).
-	SessionService sessionsvc.Service
+	// SessionStore persists Lyra sessions. Required — the composition root
+	// injects the sqlite-backed store (tests use a sqlite :memory: DB).
+	SessionStore sessionsvc.Store
 
 	// InterruptStore records open HITL interrupts (R-model resume
-	// discovery). Required — injected sqlite-backed, same as SessionService.
+	// discovery). Required — injected sqlite-backed, same as SessionStore.
 	InterruptStore interrupts.Store
 
 	// TranscriptStore persists the durable Item history that items.list is
 	// served from (authoritative completed Items + their RunRefs).
-	// Required — injected sqlite-backed, same as SessionService.
+	// Required — injected sqlite-backed, same as SessionStore.
 	TranscriptStore transcript.Store
 
 	// ProviderRegistry is the runtime-mutable provider registry (per-provider
@@ -182,7 +182,7 @@ type HookResolver interface {
 type Runtime struct {
 	engine     *kernel.Engine
 	turnSvc    turn.Service
-	session    sessionsvc.Service
+	session    sessionsvc.Store
 	tool       toolsvc.Service
 	knowledge  knowledge.Service
 	approval   approval.Service
@@ -284,7 +284,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// ports. SessionStore: a spawned sub-agent (the `task` delegation) gets its
 	// session recorded so the parent→child lineage is durably queryable.
 	ecfg := cfg.Engine
-	ecfg.SessionStore = newChildSessionStore(cfg.SessionService)
+	ecfg.SessionStore = newChildSessionStore(cfg.SessionStore)
 	// The default provider id — the engine's pricing fallback for a default /
 	// subtask turn that names no provider (so its cost attributes to the right
 	// provider rather than an alphabetical catalog guess).
@@ -373,10 +373,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// construction failure tears down via eng.Close.
 
 	// session / interrupt / provider are required and injected by the
-	// composition root (cmd/lyra wires sqlite-backed services; tests wire a
+	// composition root (cmd/lyra wires sqlite-backed stores; tests wire a
 	// sqlite :memory: DB). The runtime keeps no in-memory fallback — there's
 	// a single storage backend now.
-	sessionSvc := cfg.SessionService
+	sessionSvc := cfg.SessionStore
 	interruptStore := cfg.InterruptStore
 
 	chatSvc, err := turn.New(turn.Dependencies{

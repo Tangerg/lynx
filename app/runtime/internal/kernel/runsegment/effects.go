@@ -22,7 +22,7 @@ import (
 // generation.
 type Stores interface {
 	Interrupts() interrupts.Store
-	Session() session.Service
+	Session() session.Store
 	Transcript() transcript.Store
 	MessageCount(ctx context.Context, sessionID string) (int, error)
 	GenerateTitle(ctx context.Context, firstMessage string) (string, error)

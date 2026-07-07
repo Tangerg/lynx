@@ -26,7 +26,7 @@ import (
 // panic if ever called) and overriding only what the session handlers touch.
 type stubRuntime struct {
 	RuntimeServices
-	sess        session.Service
+	sess        session.Store
 	model       string
 	skills      []kernel.SkillInfo
 	recipes     []recipes.Recipe
@@ -277,7 +277,7 @@ func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publi
 // gate — these tests have no live turn state to forget.
 func (stubRuntime) ForgetSession(string) {}
 
-func (s stubRuntime) Session() session.Service { return s.sess }
+func (s stubRuntime) Session() session.Store { return s.sess }
 func (s stubRuntime) ListSessions(ctx context.Context) ([]session.Session, error) {
 	return s.sess.List(ctx)
 }
@@ -355,7 +355,7 @@ func (s stubRuntime) MCPTools(_ context.Context, server string) ([]kernel.McpToo
 	return out, nil
 }
 
-func newSessionServer(t *testing.T) (*Server, session.Service) {
+func newSessionServer(t *testing.T) (*Server, session.Store) {
 	t.Helper()
 	db, err := sqlite.Open(":memory:")
 	if err != nil {

@@ -25,7 +25,7 @@ func newTempDB(t *testing.T) *sqlite.SessionStore {
 	return sqlite.NewSessionStore(db)
 }
 
-// TestSessionCRUD exercises the full mutate / read cycle of session.Service
+// TestSessionCRUD exercises the full mutate / read cycle of session.Store
 // against the SQLite backend.
 func TestSessionCRUD(t *testing.T) {
 	ctx := context.Background()

@@ -21,7 +21,7 @@ type runtimeStores struct {
 	rt *Runtime
 }
 
-func (s runtimeStores) Session() session.Service { return s.rt.session }
+func (s runtimeStores) Session() session.Store { return s.rt.session }
 
 func (s runtimeStores) Transcript() transcript.Store { return s.rt.transcript }
 
