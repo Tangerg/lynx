@@ -3,146 +3,12 @@ package turn_test
 import (
 	"context"
 	"errors"
-	"iter"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 )
-
-// stubTurnProcess fakes the [kernel.TurnProcess] handle without
-// touching the real platform. The done channel is pre-fired so
-// runTurn receives immediately; status / output / cancel return
-// the values the test wired.
-type stubTurnProcess struct {
-	id        string
-	status    atomic.Int32 // core.AgentProcessStatus
-	failure   error
-	output    kernel.TurnOutput
-	done      chan error
-	onCancel  func()
-	resumeErr error       // when set, Resume fails with it (covers the resume-error path)
-	discarded atomic.Bool // set by Discard — asserts terminal snapshot cleanup
-}
-
-func newStubTurnProcess(id string, output kernel.TurnOutput) *stubTurnProcess {
-	cp := &stubTurnProcess{
-		id:     id,
-		output: output,
-		done:   make(chan error, 1),
-	}
-	cp.status.Store(int32(core.StatusCompleted))
-	cp.done <- nil
-	close(cp.done)
-	return cp
-}
-
-func (cp *stubTurnProcess) ID() string { return cp.id }
-func (cp *stubTurnProcess) Status() core.AgentProcessStatus {
-	return core.AgentProcessStatus(cp.status.Load())
-}
-func (cp *stubTurnProcess) Failure() error     { return cp.failure }
-func (cp *stubTurnProcess) Done() <-chan error { return cp.done }
-func (cp *stubTurnProcess) Output() (kernel.TurnOutput, error) {
-	return cp.output, nil
-}
-func (cp *stubTurnProcess) Cancel() error {
-	cp.status.Store(int32(core.StatusKilled))
-	if cp.onCancel != nil {
-		cp.onCancel()
-	}
-	return nil
-}
-
-// Resume exists to satisfy engine.TurnProcess. Stubs never park on plan
-// approval (Status stays Completed), so runTurn's resume loop doesn't
-// call this — the real plan-mode path is covered by real-engine tests. Returns
-// an already-fired done for safety.
-func (cp *stubTurnProcess) Resume(_ context.Context, _ interrupts.Resolution) (<-chan error, error) {
-	if cp.resumeErr != nil {
-		return nil, cp.resumeErr
-	}
-	ch := make(chan error, 1)
-	ch <- nil
-	close(ch)
-	return ch, nil
-}
-
-// PendingAwaitable satisfies engine.TurnProcess. Stubs never park, so
-// nothing is ever pending.
-func (cp *stubTurnProcess) PendingAwaitable() core.Awaitable { return nil }
-
-// Discard satisfies engine.TurnProcess. The stub holds no platform /
-// snapshot; it just records that terminal cleanup ran.
-func (cp *stubTurnProcess) Discard(_ context.Context) { cp.discarded.Store(true) }
-
-// stubEngine satisfies the turn dispatcher's (unexported) engine
-// dependency without touching the real platform / conversation history / MCP
-// wiring. Existence proves the turn dispatcher does not depend on
-// *kernel.Engine directly — only on the narrow interface.
-type stubEngine struct {
-	runTurnCalls     atomic.Int32
-	restoreCalls     atomic.Int32
-	runReply         string
-	stopOnBudget     bool  // when true the produced TurnOutput sets StoppedOnBudget
-	restoreResumeErr error // when set, a RestoreTurn'd process fails its Resume with it
-
-	mu          sync.Mutex
-	lastClient  core.ChatClient // captures RunTurnRequest.ChatClient
-	lastCwd     string          // captures RunTurnRequest.Cwd
-	lastCtx     context.Context // captures the ctx the engine runs under
-	lastOptions *corechat.Options
-
-	lastProc atomic.Pointer[stubTurnProcess] // the most recent process StartTurn handed back
-}
-
-func (s *stubEngine) StartTurn(ctx context.Context, req kernel.RunTurnRequest) kernel.TurnProcess {
-	s.runTurnCalls.Add(1)
-	s.mu.Lock()
-	s.lastClient = req.ChatClient
-	s.lastCwd = req.Cwd
-	s.lastCtx = ctx
-	s.lastOptions = req.Options.Clone()
-	s.mu.Unlock()
-	if req.Observer != nil {
-		req.Observer.OnMessageDelta(s.runReply)
-	}
-	proc := newStubTurnProcess("stub-proc-"+req.SessionID, kernel.TurnOutput{
-		Reply:           s.runReply,
-		StoppedOnBudget: s.stopOnBudget,
-	})
-	s.lastProc.Store(proc)
-	return proc
-}
-
-// RestoreTurn simulates rebuilding a parked turn from a snapshot: it
-// streams the continuation reply through the observer and returns a
-// completed process, so Rehydrate's Resume → drive reaches TurnEnd.
-func (s *stubEngine) RestoreTurn(_ context.Context, processID string, req kernel.RestoreTurnRequest) (kernel.TurnProcess, error) {
-	s.restoreCalls.Add(1)
-	if req.Observer != nil {
-		req.Observer.OnMessageDelta(s.runReply)
-	}
-	cp := newStubTurnProcess(processID, kernel.TurnOutput{Reply: s.runReply})
-	cp.resumeErr = s.restoreResumeErr
-	return cp, nil
-}
-
-func (s *stubEngine) InjectUserMessage(_ context.Context, _, _ string) error { return nil }
-
-func (s *stubEngine) MaybeCompact(_ context.Context, _ string, _ func(context.Context) bool) (kernel.CompactionResult, error) {
-	return kernel.CompactionResult{}, nil
-}
-
-func (s *stubEngine) MaybeExtract(_ context.Context, _, _ string) (kernel.ExtractionResult, error) {
-	return kernel.ExtractionResult{}, nil
-}
 
 // TestStubEngineDrivesTurn — confirms the turn dispatcher runs a full
 // turn against a stub engine, no real platform involved. If turn
@@ -354,51 +220,6 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	}
 }
 
-// slowStubEngine simulates an engine that respects ctx cancellation
-// without ever returning normally — the stub TurnProcess holds a
-// done channel that fires only when ctx is canceled, mirroring how
-// the real platform reacts to KillProcess / ctx cancel.
-type slowStubEngine struct{ stubEngine }
-
-func (s *slowStubEngine) StartTurn(ctx context.Context, _ kernel.RunTurnRequest) kernel.TurnProcess {
-	cp := &stubTurnProcess{
-		id:   "slow-stub-proc",
-		done: make(chan error, 1),
-	}
-	cp.status.Store(int32(core.StatusRunning))
-	cp.onCancel = func() {
-		select {
-		case cp.done <- errors.New("canceled"):
-		default:
-		}
-	}
-	go func() {
-		<-ctx.Done()
-		select {
-		case cp.done <- errors.New("canceled"):
-		default:
-		}
-	}()
-	return cp
-}
-
-// fakeResolver returns a preset client, recording the (provider, model) it
-// was asked to resolve.
-type fakeResolver struct {
-	client      *corechat.Client
-	gotProvider string
-	gotModel    string
-	resolveErr  error
-}
-
-func (r *fakeResolver) ResolveClient(_ context.Context, provider, model string) (*corechat.Client, error) {
-	r.gotProvider, r.gotModel = provider, model
-	if r.resolveErr != nil {
-		return nil, r.resolveErr
-	}
-	return r.client, nil
-}
-
 // TestStartTurn_ResolvesPerRunClient verifies a turn carrying a Model passes
 // the resolver's client through to the engine's RunTurnRequest.ChatClient —
 // the turn-dispatcher half of per-run model selection.
@@ -488,26 +309,4 @@ func TestStartTurn_PassesOptions(t *testing.T) {
 	if got == nil || got.Temperature == nil || *got.Temperature != 0.7 {
 		t.Fatalf("engine options = %+v, want temperature 0.7", got)
 	}
-}
-
-// capturingModel is a minimal chat.Model for building a sentinel client.
-type capturingModel struct{ defaults *corechat.Options }
-
-func newCapturingModel() *capturingModel {
-	opts, _ := corechat.NewOptions("sentinel-model")
-	return &capturingModel{defaults: opts}
-}
-func (m *capturingModel) DefaultOptions() corechat.Options { return *m.defaults }
-func (m *capturingModel) Metadata() corechat.ModelMetadata {
-	return corechat.ModelMetadata{Provider: "stub"}
-}
-func (m *capturingModel) Call(_ context.Context, _ *corechat.Request) (*corechat.Response, error) {
-	return corechat.NewResponse(&corechat.Result{
-		AssistantMessage: corechat.NewAssistantMessage("ok"),
-		Metadata:         &corechat.ResultMetadata{FinishReason: corechat.FinishReasonStop},
-	}, &corechat.ResponseMetadata{})
-}
-func (m *capturingModel) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	resp, err := m.Call(ctx, req)
-	return func(yield func(*corechat.Response, error) bool) { yield(resp, err) }
 }
