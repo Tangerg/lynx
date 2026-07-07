@@ -35,7 +35,7 @@ type embeddingEnvironment struct {
 	index    codebaseindex.Service
 }
 
-func buildEmbeddingEnvironment(ctx context.Context, cfg Config, providers provider.Service) (embeddingEnvironment, error) {
+func buildEmbeddingEnvironment(ctx context.Context, cfg Config, providers provider.Registry) (embeddingEnvironment, error) {
 	resolver := newEmbeddingResolver(providers)
 	cell := &atomic.Pointer[embeddingRole]{}
 	var role embeddingRole
@@ -97,12 +97,12 @@ func (r *Runtime) SetEmbeddingRole(ctx context.Context, providerID, model string
 // credentials, keyed by everything that changes the built client (so a
 // providers.configure is picked up). Mirrors [clientResolver].
 type embeddingResolver struct {
-	providers provider.Service
+	providers provider.Registry
 	mu        sync.Mutex
 	cache     map[string]codebaseindex.Embedder
 }
 
-func newEmbeddingResolver(providers provider.Service) *embeddingResolver {
+func newEmbeddingResolver(providers provider.Registry) *embeddingResolver {
 	return &embeddingResolver{providers: providers, cache: map[string]codebaseindex.Embedder{}}
 }
 

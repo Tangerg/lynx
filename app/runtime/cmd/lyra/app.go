@@ -126,14 +126,14 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	// OPENAI_API_KEY, …), so a developer with keys in their shell gets those
 	// providers enabled out of the box. Read once — the environment is static for
 	// the process. Everything downstream (resolver, providers.list, test) goes
-	// through this wrapped service, so they share one stored>env truth.
-	providerSvc := providersvc.WithEnvKeys(stores.Provider, llm.EnvKeys())
+	// through this wrapped registry, so they share one stored>env truth.
+	providers := providersvc.WithEnvKeys(stores.Provider, llm.EnvKeys())
 	// Seed the registry with the configured provider's credentials (if not
 	// already enabled), so the default provider works out of the box. Seeding
-	// through the wrapped service means an env-sourced default isn't redundantly
+	// through the wrapped registry means an env-sourced default isn't redundantly
 	// persisted — it stays surfaced as "from env" rather than copied to "stored".
 	// Other supported providers stay unconfigured until the user sets their keys.
-	if err = seedConfiguredProvider(ctx, providerSvc, cfg); err != nil {
+	if err = seedConfiguredProvider(ctx, providers, cfg); err != nil {
 		return err
 	}
 	// Seed the config-file utility model into its store on first run, so the
@@ -195,10 +195,10 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		SessionService: stores.Session,
 		// InterruptStore persists the open-interrupt registry that
 		// runs.resume looks up — the other half of cross-restart resume.
-		InterruptStore:  stores.Interrupt,
-		TranscriptStore: stores.Transcript,
-		ProviderService: providerSvc,
-		TodoService:     stores.Todos,
+		InterruptStore:   stores.Interrupt,
+		TranscriptStore:  stores.Transcript,
+		ProviderRegistry: providers,
+		TodoService:      stores.Todos,
 		// Default provider+model a turn runs against when it picks no model.
 		Provider: string(cfg.Provider),
 		Model:    cfg.Model,
@@ -309,7 +309,7 @@ type Stores struct {
 	Process       core.ProcessStore
 	Interrupt     interrupts.Store
 	Transcript    transcript.Store
-	Provider      providersvc.Service
+	Provider      providersvc.Registry
 	MCPServers    mcpserversvc.Registry
 	ChatHistory   history.Store
 	Park          toolloop.ParkStore
@@ -326,7 +326,7 @@ type Stores struct {
 // registry with its key, so the default provider is enabled on first run. A
 // provider already enabled in the registry (a persisted providers.configure)
 // is left untouched — runtime edits win over the config file.
-func seedConfiguredProvider(ctx context.Context, svc providersvc.Service, cfg config.Config) error {
+func seedConfiguredProvider(ctx context.Context, svc providersvc.Registry, cfg config.Config) error {
 	id := string(cfg.Provider)
 	if existing, ok, err := svc.Get(ctx, id); err != nil {
 		return err

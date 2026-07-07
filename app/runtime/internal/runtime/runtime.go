@@ -97,10 +97,10 @@ type Config struct {
 	// Required — injected sqlite-backed, same as SessionService.
 	TranscriptStore transcript.Store
 
-	// ProviderService is the runtime-mutable provider registry (per-provider
+	// ProviderRegistry is the runtime-mutable provider registry (per-provider
 	// credentials, persisted). Required — the composition root injects the
 	// sqlite-backed registry and seeds the configured provider into it.
-	ProviderService provider.Service
+	ProviderRegistry provider.Registry
 
 	// TodoService persists per-session todo lists for the todo_write tool.
 	// Optional — nil disables the feature (no tool, no prompt injection). The
@@ -193,7 +193,7 @@ type Runtime struct {
 	// directly — not via the engine (it owns only the steering touchpoint).
 	conversation *conversation.Messages
 
-	providers   provider.Service
+	providers   provider.Registry
 	mcpRegistry mcpserver.Registry
 
 	// mcpGating holds the current per-call MCP tool gating (disabled / auto-
@@ -315,14 +315,14 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// from that provider's registry credentials, caching by the credential
 	// tuple. A turn uses it to honor a per-run model; the maintenance services
 	// below use it to honor the utility-model role.
-	providerSvc := cfg.ProviderService
-	resolver := newClientResolver(providerSvc)
+	providers := cfg.ProviderRegistry
+	resolver := newClientResolver(providers)
 
 	utilityEnv, err := buildUtilityEnvironment(ctx, cfg, resolver)
 	if err != nil {
 		return nil, err
 	}
-	embeddingEnv, err := buildEmbeddingEnvironment(ctx, cfg, providerSvc)
+	embeddingEnv, err := buildEmbeddingEnvironment(ctx, cfg, providers)
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +406,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		interrupts:       interruptStore,
 		transcript:       cfg.TranscriptStore,
 		conversation:     conv,
-		providers:        providerSvc,
+		providers:        providers,
 		mcpRegistry:      cfg.MCPRegistry,
 		mcpGating:        mcpEnv.gate,
 		defaultProvider:  cfg.Provider,

@@ -83,8 +83,8 @@ func (p Provider) Enabled() bool { return p.APIKey != "" }
 // Stringer so lyra has a single masking rule shared with every log/JSON site.
 func (p Provider) MaskedAPIKey() string { return model.NewAPIKey(p.APIKey).String() }
 
-// Service is the provider registry. All methods are safe for concurrent use.
-type Service interface {
+// Registry is the provider registry. All methods are safe for concurrent use.
+type Registry interface {
 	// List returns every known provider (the seeded supported set plus any
 	// configured at runtime), enabled or not, sorted by ID.
 	List(ctx context.Context) ([]Provider, error)

@@ -16,13 +16,13 @@ import (
 // carries it; it's never inferred from the model id); the resolver pulls that
 // provider's credentials from the registry, then builds and caches the client.
 type clientResolver struct {
-	providers provider.Service
+	providers provider.Registry
 
 	mu    sync.Mutex
 	cache map[string]*chat.Client
 }
 
-func newClientResolver(providers provider.Service) *clientResolver {
+func newClientResolver(providers provider.Registry) *clientResolver {
 	return &clientResolver{
 		providers: providers,
 		cache:     map[string]*chat.Client{},

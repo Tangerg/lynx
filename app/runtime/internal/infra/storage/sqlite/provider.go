@@ -9,16 +9,16 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-// ProviderStore implements provider.Service against a SQLite database.
+// ProviderStore implements provider.Registry against a SQLite database.
 // One row per provider id; Configure is an upsert. The DB must have been
 // opened via [Open] so the providers table exists.
 type ProviderStore struct {
 	db *sql.DB
 }
 
-var _ provider.Service = (*ProviderStore)(nil)
+var _ provider.Registry = (*ProviderStore)(nil)
 
-// NewProviderStore wires the given *sql.DB to the provider.Service surface.
+// NewProviderStore wires the given *sql.DB to the provider.Registry surface.
 func NewProviderStore(db *sql.DB) *ProviderStore {
 	return &ProviderStore{db: db}
 }
