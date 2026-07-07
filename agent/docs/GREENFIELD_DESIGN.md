@@ -63,24 +63,24 @@ agent/  (library)
 
 ### 2.1 `core/` 纯洁性(最核心的架构问题)
 
-**greenfield 采用方案 A:在 `core/` 定义 `ChatClient` interface。** 理由:
+**greenfield 已收敛为方案 A 的增强版: 在 `core/` 定义 `ChatClient` 别名到 `*chat.Client`。** 理由:
 
-- chat 是普适需求:每个 action 体都要调 LLM,`PromptCondition` 需要 LLM 评估条件,`Guardrails` 是 chat middleware 包装。按 `DESIGN_PHILOSOPHY §2.5`:普适需求 → 沉核(作为 interface)。
-- `core/model/chat` 是整个 lynx 共享的基础设施,不属于 agent。agent 的 `core/` 应只定义 interface,由库外装配具体实现。
+- chat 是普适需求:每个 action 体都要调 LLM,`PromptCondition` 需要 LLM 评估条件,`Guardrails` 是 chat middleware 包装。按 `DESIGN_PHILOSOPHY §2.5`:普适需求要沉核，但当前不存在可替换实现并存景，也无需为“未来替代”保留接口。
+- `core/model/chat` 是整个 lynx 共享的基础设施,不属于 agent。`core` 直接持有 `*chat.Client` 别名让运行时语义更直接，仍由应用层装配具体实现配置。
 - 不采用方案 B(把 chat 文件搬出 core/):`ProcessContext.Chat()` 是 action 体的唯一 LLM 入口,拆开会导致 action 体要 import 两个包(体验倒退)。
 
-当前 `core/chat.go` 定义的最小 interface 面:
+当前 `core/chat.go` 定义的形态:
 
 ```go
 // core/chat.go
 
-// ChatClient is the minimal LLM request factory that core primitives need.
-type ChatClient interface {
-    Chat() *chat.ClientRequest
-}
+// ChatClient is the concrete LLM client handle used by core actions.
+// The type alias keeps the boundary honest while avoiding
+// extra abstraction layers.
+type ChatClient = *chat.Client
 ```
 
-这个形态让 `core/model/chat.Client` 隐式满足 `core.ChatClient`，同时避免复制 `ChatRequest` / `ToolDefinition` / `Options` 等共享协议类型。`ProcessContext` / `PromptCondition` / `ChatClientProvider` / runtime platform 不再依赖具体 `*chat.Client`；`PromptRunner`、`Guardrails`、`AgentTool` 仍显式使用 chat 协议原语。
+这个形态让 `core.ChatClient` 与 `core/model/chat.Client` 在语义上零成本对齐，避免了不必要接口抽象的额外维护点，同时仍保持 `ProcessContext` / `PromptCondition` / `ChatClientProvider` / runtime platform 的清晰边界。
 
 ### 2.2 tool loop 归属
 

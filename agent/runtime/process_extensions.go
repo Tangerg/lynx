@@ -1,10 +1,6 @@
 package runtime
 
-import (
-	"reflect"
-
-	"github.com/Tangerg/lynx/agent/core"
-)
+import "github.com/Tangerg/lynx/agent/core"
 
 // platformServices returns the platform's open service registry, or a
 // fresh empty one when there's no platform attached (test fixtures).
@@ -35,27 +31,11 @@ func (p *AgentProcess) platformChatClient() core.ChatClient {
 func (p *AgentProcess) effectiveChatClient() core.ChatClient {
 	providers := collectExtensions[core.ChatClientProvider](p.combinedExtensionsResolverFirst())
 	for _, prov := range providers {
-		if c := normalizeChatClient(prov.ChatClientFor(p)); c != nil {
+		if c := prov.ChatClientFor(p); c != nil {
 			return c
 		}
 	}
 	return p.platformChatClient()
-}
-
-// normalizeChatClient collapses typed nil implementations stored in the
-// interface so provider overrides can still fall back to the platform default.
-func normalizeChatClient(client core.ChatClient) core.ChatClient {
-	if client == nil {
-		return nil
-	}
-	value := reflect.ValueOf(client)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		if value.IsNil() {
-			return nil
-		}
-	}
-	return client
 }
 
 // platformGuardrails returns the platform-level chat guardrails, or
