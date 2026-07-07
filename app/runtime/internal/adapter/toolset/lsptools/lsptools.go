@@ -14,18 +14,18 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 )
 
-// Build exposes the code-intelligence service as the agent's language tools: a
+// Build exposes the code-intelligence analyzer as the agent's language tools: a
 // single `lsp` tool whose `operation` selects the query, plus a separate
 // `lsp_diagnostics` (a whole-file problem list — a different interaction that
 // benefits from a distinct tool).
 //
-// The service is working-directory independent — it keys servers by workspace
+// The analyzer is working-directory independent — it keys servers by workspace
 // root internally — so these tools are built ONCE and read the turn's cwd off
 // the process blackboard at call time (the per-session-cwd seam shared with
 // fs / shell). Positions are 1-based at the tool boundary (what a human/LLM reads
-// off a file); the service converts to the LSP 0-based wire form and folds an
+// off a file); the analyzer converts to the LSP 0-based wire form and folds an
 // unsupported file type into a plain reply.
-func Build(ci *codeintel.Service, defaultWorkdir string) []chat.Tool {
+func Build(ci *codeintel.Analyzer, defaultWorkdir string) []chat.Tool {
 	// LSP queries are read-only, so opt them into parallel execution. They're
 	// built via chat.NewTool and can't declare the concurrency contract on
 	// their own type, so wrap with AsParallelTool.
@@ -57,7 +57,7 @@ const lspDesc = "Query the language server (LSP) about code at a position or acr
 	"Position operations need file_path + line + character (1-based); document_symbols needs file_path; workspace_symbols needs query. " +
 	"(For a file's compile errors / warnings use lsp_diagnostics.)"
 
-func newLSPTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
+func newLSPTool(ci *codeintel.Analyzer, defaultWorkdir string) chat.Tool {
 	t, _ := chat.NewTool(
 		chat.ToolDefinition{Name: "lsp", Description: lspDesc, InputSchema: lspSchema},
 		func(ctx context.Context, arguments string) (string, error) {
@@ -115,7 +115,7 @@ type lspDiagnosticsInput struct {
 
 var lspDiagnosticsSchema = pkgjson.MustStringDefSchemaOf(lspDiagnosticsInput{})
 
-func newDiagnosticsTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
+func newDiagnosticsTool(ci *codeintel.Analyzer, defaultWorkdir string) chat.Tool {
 	t, _ := chat.NewTool(
 		chat.ToolDefinition{
 			Name:        "lsp_diagnostics",

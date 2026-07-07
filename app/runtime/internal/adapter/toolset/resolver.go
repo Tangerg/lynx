@@ -79,9 +79,9 @@ func (d *decoratedTool) ReturnsDirect() bool {
 // shell.Build, not here — it reads cwd per call like shell_output.)
 //
 // write and edit are wrapped so a successful edit is type-checked by the
-// code-intelligence service and any new problems are folded into the tool
+// code-intelligence analyzer and any new problems are folded into the tool
 // result (see withEditDiagnostics). ci may be nil — the wrap is then a no-op.
-func BuildWorkdirTools(workdir string, ci *codeintel.Service, tracker *editguard.Tracker) []chat.Tool {
+func BuildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguard.Tracker) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
 
 	// write/edit guard stack, innermost → outermost: diagnostics (type-check
@@ -197,17 +197,17 @@ func appendIfBuilt(tools []chat.Tool, cond bool, label string, build func() (cha
 // per-session engine.
 type Resolver struct {
 	defaultWorkdir  string
-	skillsGlobalDir string             // user-scope skills dir; merged under each turn's project skills
-	online          []chat.Tool        // working-directory-independent network tools
-	a2a             []chat.Tool        // working-directory-independent remote A2A agents
-	lsp             []chat.Tool        // code-intelligence tools; cwd read per-call (service keys servers by root)
-	codeIntel       *codeintel.Service // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
-	readTracker     *editguard.Tracker // backs the read-before-edit + stale guards on read/edit/write
-	shell           []chat.Tool        // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
-	task            chat.Tool          // delegation tool; coding role only, nil until set
-	askUser         chat.Tool          // ask_user HITL tool; coding role only (askuser.New, via Deps)
-	exitPlan        chat.Tool          // exit_plan_mode HITL tool; coding role only (exitplan.New, via Deps); nil when no approval svc
-	todo            chat.Tool          // todo_write task-list tool; both roles, nil when no todo store
+	skillsGlobalDir string              // user-scope skills dir; merged under each turn's project skills
+	online          []chat.Tool         // working-directory-independent network tools
+	a2a             []chat.Tool         // working-directory-independent remote A2A agents
+	lsp             []chat.Tool         // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
+	codeIntel       *codeintel.Analyzer // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
+	readTracker     *editguard.Tracker  // backs the read-before-edit + stale guards on read/edit/write
+	shell           []chat.Tool         // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
+	task            chat.Tool           // delegation tool; coding role only, nil until set
+	askUser         chat.Tool           // ask_user HITL tool; coding role only (askuser.New, via Deps)
+	exitPlan        chat.Tool           // exit_plan_mode HITL tool; coding role only (exitplan.New, via Deps); nil when no approval svc
+	todo            chat.Tool           // todo_write task-list tool; both roles, nil when no todo store
 
 	// codebaseIndex backs codebase_search (both roles). Held as the service (not
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
@@ -234,7 +234,7 @@ type Resolver struct {
 // Deps bundles the working-directory-independent inputs the resolver captures
 // at construction. The fs/shell/lsp/skill tools are rebuilt per resolution
 // against the turn's cwd; the online / A2A sets and the code-intelligence
-// service are built once and held.
+// analyzer are built once and held.
 type Deps struct {
 	DefaultWorkdir  string
 	SkillsGlobalDir string
@@ -245,7 +245,7 @@ type Deps struct {
 	AskUser         chat.Tool             // ask_user HITL tool (coding role only)
 	ExitPlan        chat.Tool             // exit_plan_mode HITL tool (coding role only); nil → omitted
 	Todo            chat.Tool             // todo_write task-list tool (both roles); nil → omitted
-	CodeIntel       *codeintel.Service    // backs the post-edit diagnostics wrap
+	CodeIntel       *codeintel.Analyzer   // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker    // backs the read/edit/write guards
 	CodebaseIndex   codebaseindex.Service // backs codebase_search (both roles); nil → omitted
 

@@ -10,7 +10,7 @@ import (
 )
 
 // lspTool returns the combined `lsp` tool from a fresh Build.
-func lspTool(t *testing.T, ci *codeintel.Service) chat.Tool {
+func lspTool(t *testing.T, ci *codeintel.Analyzer) chat.Tool {
 	t.Helper()
 	for _, tool := range Build(ci, t.TempDir()) {
 		if tool.Definition().Name == "lsp" {

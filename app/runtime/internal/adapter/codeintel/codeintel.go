@@ -3,8 +3,8 @@
 // messages for unsupported file types; and new-problems-after-edit diagnostics.
 //
 // It is the single owner of the LSP protocol types at the tool adapter boundary:
-// tool assembly builds lsp_* tools and edit diagnostics over this service rather
-// than importing infra/lsp directly.
+// tool assembly builds lsp_* tools and edit diagnostics over this analyzer
+// rather than importing infra/lsp directly.
 package codeintel
 
 import (
@@ -24,47 +24,47 @@ type ServerSpec = lsp.ServerSpec
 // instead of halting the tool loop.
 const noServerMsg = "No language server is available for that file type."
 
-// Service wraps language-server connections as the code-intelligence adapter
+// Analyzer wraps language-server connections as the code-intelligence adapter
 // surface. Servers launch lazily per (workspace root, language); Close shuts
 // them all down.
-type Service struct {
+type Analyzer struct {
 	servers *lsp.Servers
 }
 
-// New builds a Service over the given language-server table. An empty table
+// New builds an Analyzer over the given language-server table. An empty table
 // falls back to the built-in LSP server table.
-func New(servers []ServerSpec) *Service {
+func New(servers []ServerSpec) *Analyzer {
 	if len(servers) == 0 {
 		servers = lsp.DefaultServers()
 	}
-	return &Service{servers: lsp.NewServers(servers)}
+	return &Analyzer{servers: lsp.NewServers(servers)}
 }
 
 // Close shuts down every launched language server. Safe on a nil receiver
 // / nil server set (a no-op).
-func (s *Service) Close() error {
-	if s == nil || s.servers == nil {
+func (a *Analyzer) Close() error {
+	if a == nil || a.servers == nil {
 		return nil
 	}
-	return s.servers.Close()
+	return a.servers.Close()
 }
 
 // Supported reports whether a configured language server handles file's
 // type. False on a nil receiver.
-func (s *Service) Supported(file string) bool {
-	if s == nil || s.servers == nil {
+func (a *Analyzer) Supported(file string) bool {
+	if a == nil || a.servers == nil {
 		return false
 	}
-	return s.servers.Supported(file)
+	return a.servers.Supported(file)
 }
 
 // Definition returns the declaration location(s) of the symbol at the
 // 1-based (line, column) in file, as root-relative file:line:col lines.
-func (s *Service) Definition(ctx context.Context, root, file string, line, column int) (string, error) {
-	if s == nil {
+func (a *Analyzer) Definition(ctx context.Context, root, file string, line, column int) (string, error) {
+	if a == nil {
 		return noServerMsg, nil
 	}
-	locs, err := s.servers.Definition(ctx, root, file, toPosition(line, column))
+	locs, err := a.servers.Definition(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -76,11 +76,11 @@ func (s *Service) Definition(ctx context.Context, root, file string, line, colum
 
 // References returns every reference (including the declaration) to the
 // symbol at the 1-based (line, column) in file, as root-relative locations.
-func (s *Service) References(ctx context.Context, root, file string, line, column int) (string, error) {
-	if s == nil {
+func (a *Analyzer) References(ctx context.Context, root, file string, line, column int) (string, error) {
+	if a == nil {
 		return noServerMsg, nil
 	}
-	locs, err := s.servers.References(ctx, root, file, toPosition(line, column))
+	locs, err := a.servers.References(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -93,11 +93,11 @@ func (s *Service) References(ctx context.Context, root, file string, line, colum
 // Implementation returns the concrete implementation site(s) of the interface
 // or abstract method at the 1-based (line, column) in file — e.g. every type
 // that implements the interface method under the cursor.
-func (s *Service) Implementation(ctx context.Context, root, file string, line, column int) (string, error) {
-	if s == nil {
+func (a *Analyzer) Implementation(ctx context.Context, root, file string, line, column int) (string, error) {
+	if a == nil {
 		return noServerMsg, nil
 	}
-	locs, err := s.servers.Implementation(ctx, root, file, toPosition(line, column))
+	locs, err := a.servers.Implementation(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -109,11 +109,11 @@ func (s *Service) Implementation(ctx context.Context, root, file string, line, c
 
 // IncomingCalls lists the callers of the function/method at the 1-based
 // (line, column) in file (who calls it). OutgoingCalls lists its callees.
-func (s *Service) IncomingCalls(ctx context.Context, root, file string, line, column int) (string, error) {
-	if s == nil {
+func (a *Analyzer) IncomingCalls(ctx context.Context, root, file string, line, column int) (string, error) {
+	if a == nil {
 		return noServerMsg, nil
 	}
-	syms, err := s.servers.IncomingCalls(ctx, root, file, toPosition(line, column))
+	syms, err := a.servers.IncomingCalls(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -123,11 +123,11 @@ func (s *Service) IncomingCalls(ctx context.Context, root, file string, line, co
 	return formatCalls(root, syms, "incoming calls"), nil
 }
 
-func (s *Service) OutgoingCalls(ctx context.Context, root, file string, line, column int) (string, error) {
-	if s == nil {
+func (a *Analyzer) OutgoingCalls(ctx context.Context, root, file string, line, column int) (string, error) {
+	if a == nil {
 		return noServerMsg, nil
 	}
-	syms, err := s.servers.OutgoingCalls(ctx, root, file, toPosition(line, column))
+	syms, err := a.servers.OutgoingCalls(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -139,11 +139,11 @@ func (s *Service) OutgoingCalls(ctx context.Context, root, file string, line, co
 
 // Hover returns the hover text (type signature, documentation) for the
 // symbol at the 1-based (line, column) in file.
-func (s *Service) Hover(ctx context.Context, root, file string, line, column int) (string, error) {
-	if s == nil {
+func (a *Analyzer) Hover(ctx context.Context, root, file string, line, column int) (string, error) {
+	if a == nil {
 		return noServerMsg, nil
 	}
-	text, err := s.servers.Hover(ctx, root, file, toPosition(line, column))
+	text, err := a.servers.Hover(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -157,11 +157,11 @@ func (s *Service) Hover(ctx context.Context, root, file string, line, column int
 }
 
 // DocumentSymbols lists the symbols declared in file (root-relative).
-func (s *Service) DocumentSymbols(ctx context.Context, root, file string) (string, error) {
-	if s == nil {
+func (a *Analyzer) DocumentSymbols(ctx context.Context, root, file string) (string, error) {
+	if a == nil {
 		return noServerMsg, nil
 	}
-	syms, err := s.servers.DocumentSymbols(ctx, root, file)
+	syms, err := a.servers.DocumentSymbols(ctx, root, file)
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -172,11 +172,11 @@ func (s *Service) DocumentSymbols(ctx context.Context, root, file string) (strin
 }
 
 // WorkspaceSymbols searches the whole workspace for symbols matching query.
-func (s *Service) WorkspaceSymbols(ctx context.Context, root, query string) (string, error) {
-	if s == nil {
+func (a *Analyzer) WorkspaceSymbols(ctx context.Context, root, query string) (string, error) {
+	if a == nil {
 		return noServerMsg, nil
 	}
-	syms, err := s.servers.WorkspaceSymbols(ctx, root, query)
+	syms, err := a.servers.WorkspaceSymbols(ctx, root, query)
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -187,11 +187,11 @@ func (s *Service) WorkspaceSymbols(ctx context.Context, root, query string) (str
 }
 
 // Diagnostics returns the language server's current problems for file.
-func (s *Service) Diagnostics(ctx context.Context, root, file string) (string, error) {
-	if s == nil {
+func (a *Analyzer) Diagnostics(ctx context.Context, root, file string) (string, error) {
+	if a == nil {
 		return noServerMsg, nil
 	}
-	diags, err := s.servers.Diagnostics(ctx, root, file)
+	diags, err := a.servers.Diagnostics(ctx, root, file)
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -215,13 +215,13 @@ func (s *Service) Diagnostics(ctx context.Context, root, file string) (string, e
 // Best-effort throughout: an empty / unsupported path, an apply error, or
 // any language-server trouble passes apply's result through untouched — an
 // edit never fails because of code intelligence. Nil receiver → apply only.
-func (s *Service) DiagnoseEdit(ctx context.Context, root, file string, apply func() (string, error)) (string, error) {
-	check := s != nil && file != "" && s.Supported(file)
+func (a *Analyzer) DiagnoseEdit(ctx context.Context, root, file string, apply func() (string, error)) (string, error) {
+	check := a != nil && file != "" && a.Supported(file)
 
 	// Baseline BEFORE the edit (best effort: a brand-new file has none).
 	var baseline []lsp.Diagnostic
 	if check {
-		baseline, _ = s.servers.Diagnostics(ctx, root, file)
+		baseline, _ = a.servers.Diagnostics(ctx, root, file)
 	}
 
 	out, err := apply()
@@ -229,7 +229,7 @@ func (s *Service) DiagnoseEdit(ctx context.Context, root, file string, apply fun
 		return out, err // edit failed (nothing to diagnose) or unsupported
 	}
 
-	after, derr := s.servers.Diagnostics(ctx, root, file)
+	after, derr := a.servers.Diagnostics(ctx, root, file)
 	if derr != nil {
 		return out, nil // never fail an edit on language-server trouble
 	}

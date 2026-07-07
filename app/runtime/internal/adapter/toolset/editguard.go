@@ -103,15 +103,15 @@ func withWriteGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat
 }
 
 // withEditDiagnostics wraps a file-mutating tool (write / edit) so a successful
-// edit is immediately type-checked: the code-intelligence service re-analyzes the
+// edit is immediately type-checked: the code-intelligence analyzer re-analyzes the
 // file and appends any problems the edit INTRODUCED to the tool result, so the
 // model sees the breakage it just caused without a separate lsp_diagnostics call.
 // The baseline-diff, staleness guard, and best-effort semantics live in
-// [codeintel.Service.DiagnoseEdit]; here we only feed it the edit closure. root is
+// [codeintel.Analyzer.DiagnoseEdit]; here we only feed it the edit closure. root is
 // the resolved workspace directory for this resolution; the wrapped tool's path
 // argument is relative to it. A fs-edit decorator (sibling to the read/edit/write
 // guards), not an lsp query tool — hence it lives here, not in the lsptools package.
-func withEditDiagnostics(inner chat.Tool, ci *codeintel.Service, root string) chat.Tool {
+func withEditDiagnostics(inner chat.Tool, ci *codeintel.Analyzer, root string) chat.Tool {
 	if ci == nil {
 		return inner
 	}

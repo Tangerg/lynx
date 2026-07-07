@@ -75,9 +75,9 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		return Built{}, err
 	}
 
-	// Code intelligence: one service wrapping LSP clients; servers launch
+	// Code intelligence: one analyzer wrapping LSP clients; servers launch
 	// lazily per (workspace root, language). Tools are cwd-independent (the
-	// service keys by root, read per call off the blackboard).
+	// analyzer keys by root, read per call off the blackboard).
 	codeIntel := codeintel.New(cfg.LSPServers)
 	lspTools := lsptools.Build(codeIntel, cfg.Workdir)
 
