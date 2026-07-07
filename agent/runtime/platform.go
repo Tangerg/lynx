@@ -110,7 +110,7 @@ func NewPlatform(config PlatformConfig) *Platform {
 		extensions:   newExtensionRegistry(),
 		events:       event.NewMulticast(),
 		services:     core.NewServiceProvider(),
-		chatClient:   normalizeChatClient(config.ChatClient),
+		chatClient:   config.ChatClient,
 		guardrails:   config.Guardrails,
 		processStore: config.ProcessStore,
 		sessionStore: config.SessionStore,

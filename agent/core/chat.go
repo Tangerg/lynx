@@ -2,12 +2,9 @@ package core
 
 import "github.com/Tangerg/lynx/core/model/chat"
 
-// ChatClient is the minimal LLM request factory the agent core needs.
+// ChatClient is the LLM client handle the runtime uses for action bodies.
 //
-// The returned request is the shared chat protocol builder, not a concrete
-// transport. Keeping the port this narrow lets runtimes choose the client per
-// process while preserving the existing chat tool/options/middleware surface
-// action bodies already compose with.
-type ChatClient interface {
-	Chat() *chat.ClientRequest
-}
+// It is intentionally concrete: the domain uses one stable chat protocol type today,
+// and narrowing the abstraction here reduces accidental complexity while preserving
+// behavior. A nil value means no chat transport is configured for the process.
+type ChatClient = *chat.Client
