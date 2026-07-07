@@ -10,11 +10,20 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
-type mcpAccess interface {
+type mcpStatusAccess interface {
 	MCPServerStatuses() []kernel.MCPServerStatus
+}
+
+type mcpToolCatalogAccess interface {
+	MCPTools(ctx context.Context, server string) ([]kernel.MCPToolInfo, error)
+}
+
+type mcpConnectionAccess interface {
 	ReconnectMCPServer(ctx context.Context, name string) error
 	AuthorizeMCPServer(ctx context.Context, name string) error
-	MCPTools(ctx context.Context, server string) ([]kernel.MCPToolInfo, error)
+}
+
+type mcpRegistryAccess interface {
 	ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error)
 	MCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error)
 	ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) error
