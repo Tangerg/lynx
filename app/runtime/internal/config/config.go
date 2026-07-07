@@ -20,7 +20,6 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/mcp"
 )
@@ -60,6 +59,12 @@ type LSPServerConfig struct {
 	RootMarkers []string
 }
 
+// A2AAgentConfig is one remote Agent-to-Agent endpoint loaded from config.
+type A2AAgentConfig struct {
+	Name    string
+	CardURL string
+}
+
 // Config is the loaded runtime configuration.
 type Config struct {
 	Provider llm.Provider
@@ -93,7 +98,7 @@ type Config struct {
 	// A2AAgents is the parsed list of remote A2A agents dialed at startup.
 	// Sourced from LYRA_A2A_AGENTS env (same name=value shape as
 	// LYRA_MCP_SERVERS; yaml support is a later addition).
-	A2AAgents []a2a.ClientConfig
+	A2AAgents []A2AAgentConfig
 
 	// LSPServers is the optional language-server table from yaml `lsp.servers`.
 	// Empty leaves the engine on its built-in defaults (gopls + typescript);
@@ -265,12 +270,12 @@ func parseMCPServers(raw string) ([]mcp.ServerConfig, error) {
 // AgentCard is resolved from. Empty input yields nil. The name becomes the
 // delegation tool's name; the first '=' separates it from the URL, so query
 // strings in the URL are preserved.
-func parseA2AAgents(raw string) ([]a2a.ClientConfig, error) {
+func parseA2AAgents(raw string) ([]A2AAgentConfig, error) {
 	if raw == "" {
 		return nil, nil
 	}
 	parts := strings.Split(raw, ",")
-	out := make([]a2a.ClientConfig, 0, len(parts))
+	out := make([]A2AAgentConfig, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
 		if p == "" {
@@ -285,7 +290,7 @@ func parseA2AAgents(raw string) ([]a2a.ClientConfig, error) {
 		if name == "" || url == "" {
 			return nil, fmt.Errorf("entry %q: name and cardURL must be non-empty", p)
 		}
-		out = append(out, a2a.ClientConfig{Name: name, CardURL: url})
+		out = append(out, A2AAgentConfig{Name: name, CardURL: url})
 	}
 	if len(out) == 0 {
 		return nil, nil
