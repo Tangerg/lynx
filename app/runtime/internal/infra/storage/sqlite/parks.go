@@ -27,7 +27,7 @@ func NewParkStore(db *sql.DB) toolloop.ParkStore {
 
 // Consume atomically reads AND deletes the parked round for a conversation
 // (a single DELETE ... RETURNING), or returns (nil, nil) when nothing is
-// parked — the [toolloop.ParkConsumer] contract. One statement means there is no
+// parked — the [toolloop.ParkStore] contract. One statement means there is no
 // read-succeeds-then-delete-fails window that could leave a stale round to
 // hijack a later turn.
 func (s *parkStore) Consume(ctx context.Context, conversationID string) (*toolloop.ParkState, error) {
