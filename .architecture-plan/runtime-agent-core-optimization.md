@@ -583,6 +583,12 @@ app/runtime -> agent -> core
   - `app/runtime/internal/kernel`：turn loop 记录每轮 LLM usage 时改用 `pc.RecordLLMInvocationContext(ctx, inv)`，继续保持应用层只依赖 `ProcessContext` 编排入口。
   - 新增 runtime 集成测试覆盖：action 内 `pc.RecordLLMInvocation(...)` 触发的 invocation listener panic span 必须保持在 `RunAgent` 的 parent trace 内。
   - 本轮是兼容性 API 增量，不改变既有 `RecordUsage`、`RecordLLMInvocation`、`RecordEmbeddingInvocation` 或 `core.Process` 接口；无公共 API 破坏性调整。
+- 已完成第五十九轮目标模块生产代码边界清理：
+  - `agent/runtime`：为 `AgentProcess.AwaitInput` 增加 context-aware companion 方法，旧 `AwaitInput(req)` 保持兼容并委托到 `context.Background()` 路径。
+  - `agent/core`：`ProcessContext.AwaitInput(req)` 自动使用当前 action ctx，并新增显式 `AwaitInputContext(ctx, req)` 给拥有更精确 ctx 的调用方。
+  - `agent/core` 继续不扩宽 `Process` 接口，而是通过可选 context-aware awaiter 能力下传 ctx，避免让外部 `core.Process` 实现者被迫适配。
+  - 新增 runtime 集成测试覆盖：action 内旧入口 `pc.AwaitInput(...)` 触发的 `ProcessWaiting` listener panic span 必须保持在 `RunAgent` 的 parent trace 内。
+  - 本轮是兼容性 API 增量，不改变既有 `AwaitInput(req)` 或 `core.Process` 接口；无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -651,6 +657,8 @@ app/runtime -> agent -> core
   - `go test ./core ./event ./runtime`（`agent`）通过（第五十七轮后复跑）。
   - `go test ./core ./event ./runtime`（`agent`）通过（第五十八轮后复跑）。
   - `go test ./internal/kernel`（`app/runtime`）通过（第五十八轮后复跑）。
+  - `go test ./core ./event ./runtime`（`agent`）通过（第五十九轮后复跑）。
+  - `go test ./runtime -run 'TestProcessContextAwaitInputKeepsActionTrace|TestTypedActionAwaitInputSuspendsAndResumes'`（`agent`）通过（第五十九轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -778,6 +786,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第五十八轮后复跑）。
   - `go build ./...`（`agent`）通过（第五十八轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第五十八轮后复跑）。
+  - `go test ./...`（`core`）通过（第五十九轮后复跑）。
+  - `go test ./...`（`agent`）通过（第五十九轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第五十九轮后复跑）。
+  - `go vet ./...`（`core`）通过（第五十九轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第五十九轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第五十九轮后复跑）。
+  - `go build ./...`（`core`）通过（第五十九轮后复跑）。
+  - `go build ./...`（`agent`）通过（第五十九轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第五十九轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。

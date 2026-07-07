@@ -1,5 +1,11 @@
 package core
 
+import "context"
+
+type contextAwaiter interface {
+	AwaitInputContext(context.Context, Awaitable) ActionStatus
+}
+
 // AwaitInput delegates to [Process.AwaitInput] — convenience because
 // action code already has pc.
 //
@@ -10,10 +16,20 @@ package core
 // reports ActionWaiting instead of writing the (unproduced) output.
 // Untyped actions return this status directly and don't need the flag.
 func (pc *ProcessContext) AwaitInput(req Awaitable) ActionStatus {
+	return pc.AwaitInputContext(pc.eventContext, req)
+}
+
+// AwaitInputContext is the context-aware companion to [ProcessContext.AwaitInput].
+func (pc *ProcessContext) AwaitInputContext(ctx context.Context, req Awaitable) ActionStatus {
 	if pc.Process == nil {
 		return ActionFailed
 	}
-	status := pc.Process.AwaitInput(req)
+	var status ActionStatus
+	if awaiter, ok := pc.Process.(contextAwaiter); ok {
+		status = awaiter.AwaitInputContext(ctx, req)
+	} else {
+		status = pc.Process.AwaitInput(req)
+	}
 	if status == ActionWaiting {
 		pc.inputAwaited = true
 	}

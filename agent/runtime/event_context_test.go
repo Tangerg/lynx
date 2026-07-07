@@ -71,6 +71,26 @@ func (l *invocationPanicListener) OnEvent(e event.Event) {
 	}
 }
 
+type waitingPanicListener struct {
+	done atomic.Bool
+}
+
+func (*waitingPanicListener) Name() string { return "waiting-panic-listener" }
+
+func (l *waitingPanicListener) OnEvent(e event.Event) {
+	if _, ok := e.(event.ProcessWaiting); ok && l.done.CompareAndSwap(false, true) {
+		panic("waiting listener failed")
+	}
+}
+
+type traceAwaitable struct{ id string }
+
+func (a traceAwaitable) ID() string     { return a.id }
+func (a traceAwaitable) PromptAny() any { return "continue?" }
+func (a traceAwaitable) OnResponseAny(any) (core.ResponseImpact, error) {
+	return core.ImpactUnchanged, nil
+}
+
 func TestRuntimeEventPanicSpanKeepsRunTrace(t *testing.T) {
 	exp := installRuntimeTraceCapture(t)
 
@@ -95,6 +115,48 @@ func TestRuntimeEventPanicSpanKeepsRunTrace(t *testing.T) {
 	parent.End()
 	if err != nil {
 		t.Fatalf("RunAgent: %v", err)
+	}
+
+	for _, span := range exp.GetSpans() {
+		if span.Name != "agent.listener.panic" {
+			continue
+		}
+		if span.SpanContext.TraceID() != parentTrace {
+			t.Fatalf("panic span trace = %s, want run trace %s", span.SpanContext.TraceID(), parentTrace)
+		}
+		return
+	}
+	t.Fatal("missing agent.listener.panic span")
+}
+
+func TestProcessContextAwaitInputKeepsActionTrace(t *testing.T) {
+	exp := installRuntimeTraceCapture(t)
+
+	a := agent.New("await-event-trace").
+		Actions(agent.NewAction("wait",
+			func(_ context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+				pc.AwaitInput(traceAwaitable{id: "wait"})
+				return wordCount{Count: len(in.Text)}, nil
+			},
+			core.ActionConfig{},
+		)).
+		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "counted"})).
+		Build()
+
+	platform := agent.NewPlatform(runtime.PlatformConfig{
+		Extensions: []core.Extension{&waitingPanicListener{}},
+	})
+	mustDeploy(t, platform, a)
+
+	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
+	parentTrace := parent.SpanContext().TraceID()
+	proc, err := platform.RunAgent(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	parent.End()
+	if err != nil {
+		t.Fatalf("RunAgent: %v", err)
+	}
+	if proc.Status() != core.StatusWaiting {
+		t.Fatalf("process status = %s, want %s", proc.Status(), core.StatusWaiting)
 	}
 
 	for _, span := range exp.GetSpans() {
