@@ -14,7 +14,7 @@ import (
 )
 
 // guardTools builds the read/edit/write tools wrapped with the read-tracker
-// guards over dir. The tests pass no code-intelligence service, so the
+// guards over dir. The tests pass no code-intelligence analyzer, so the
 // diagnostics wrap is a no-op. They drive the tools with a plain context, so
 // turnSession resolves to "" and every call shares one session bucket.
 func guardTools(dir string) (read, edit, write chat.Tool, tr *editguard.Tracker) {
