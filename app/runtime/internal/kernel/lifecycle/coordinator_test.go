@@ -4,84 +4,15 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
-
-	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-func TestResolveRollbackBoundary(t *testing.T) {
-	t0 := time.Unix(10, 0)
-	nodes := []transcript.RunNode{
-		{ID: "run_3", CreatedAt: t0.Add(3 * time.Second), Mark: 9},
-		{ID: "run_1", CreatedAt: t0, Mark: 3},
-		{ID: "run_2", CreatedAt: t0.Add(time.Second), Mark: 6},
-		{ID: "run_2_resume", ParentRunID: "run_2", CreatedAt: t0.Add(2 * time.Second), Mark: 7},
-	}
-
-	b, err := ResolveRollbackBoundary(nodes, "run_1")
-	if err != nil {
-		t.Fatalf("resolve rollback boundary: %v", err)
-	}
-	if b.KeepMark != 3 {
-		t.Fatalf("KeepMark = %d, want 3", b.KeepMark)
-	}
-	wantDrop := []string{"run_2", "run_2_resume", "run_3"}
-	if len(b.DropRunIDs) != len(wantDrop) {
-		t.Fatalf("DropRunIDs = %v, want %v", b.DropRunIDs, wantDrop)
-	}
-	for i, want := range wantDrop {
-		if b.DropRunIDs[i] != want {
-			t.Fatalf("DropRunIDs = %v, want %v", b.DropRunIDs, wantDrop)
-		}
-	}
-	if !b.BoundaryTime.Equal(t0.Add(time.Second)) {
-		t.Fatalf("BoundaryTime = %v, want first dropped root time", b.BoundaryTime)
-	}
-}
-
-func TestResolveForkHistoryPrefix(t *testing.T) {
-	msgs := []chat.Message{
-		chat.NewUserMessage("one"),
-		chat.NewAssistantMessage("two"),
-		chat.NewUserMessage("three"),
-	}
-	nodes := []transcript.RunNode{
-		{ID: "run_1", CreatedAt: time.Unix(1, 0), Mark: 1},
-		{ID: "run_1_resume", ParentRunID: "run_1", CreatedAt: time.Unix(2, 0), Mark: 2},
-		{ID: "run_2", CreatedAt: time.Unix(3, 0), Mark: 3},
-	}
-
-	got, err := ResolveForkHistoryPrefix(msgs, nodes, "run_1_resume")
-	if err != nil {
-		t.Fatalf("resolve fork prefix: %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("prefix len = %d, want 2", len(got))
-	}
-}
-
-func TestResolveForkHistoryPrefixKeepsFullHistoryOnUnknownMark(t *testing.T) {
-	msgs := []chat.Message{chat.NewUserMessage("one"), chat.NewAssistantMessage("two")}
-	nodes := []transcript.RunNode{{ID: "run_1", CreatedAt: time.Unix(1, 0), Mark: -1}}
-
-	got, err := ResolveForkHistoryPrefix(msgs, nodes, "run_1")
-	if err != nil {
-		t.Fatalf("resolve fork prefix: %v", err)
-	}
-	if len(got) != len(msgs) {
-		t.Fatalf("prefix len = %d, want full history %d", len(got), len(msgs))
-	}
-}
-
 func TestCancelParkedRunCancelsTurnBeforeDeletingInterrupt(t *testing.T) {
 	var order []string
-	stores := cancelStores{
-		interrupts: &cancelInterrupts{
+	stores := coordinatorStores{
+		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
 				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 			},
@@ -107,7 +38,7 @@ func TestCancelParkedRunCancelsTurnBeforeDeletingInterrupt(t *testing.T) {
 }
 
 func TestCancelParkedRunMissing(t *testing.T) {
-	stores := cancelStores{interrupts: &cancelInterrupts{pending: map[string]interrupts.Pending{}}}
+	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
 	err := New(stores).CancelParkedRun(context.Background(), cancelTurns{}, "missing")
 	if !errors.Is(err, ErrRunNotFound) {
 		t.Fatalf("err = %v, want ErrRunNotFound", err)
@@ -118,7 +49,7 @@ func TestCancelParkedRunMissing(t *testing.T) {
 }
 
 func TestClaimRunSlotHoldsAndReleasesSession(t *testing.T) {
-	stores := cancelStores{interrupts: &cancelInterrupts{pending: map[string]interrupts.Pending{}}}
+	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
 	claimer := &testClaimer{}
 
 	admission, err := New(stores).ClaimRunSlot(context.Background(), claimer, "ses_1")
@@ -142,8 +73,8 @@ func TestClaimRunSlotHoldsAndReleasesSession(t *testing.T) {
 }
 
 func TestClaimRunSlotRejectsOpenInterrupt(t *testing.T) {
-	stores := cancelStores{
-		interrupts: &cancelInterrupts{
+	stores := coordinatorStores{
+		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
 				"run_1": {ParentRunID: "run_1", SessionID: "ses_1"},
 			},
@@ -164,7 +95,7 @@ func TestClaimRunSlotRejectsOpenInterrupt(t *testing.T) {
 }
 
 func TestClaimRunSlotRejectsActiveClaim(t *testing.T) {
-	stores := cancelStores{interrupts: &cancelInterrupts{pending: map[string]interrupts.Pending{}}}
+	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
 	claimer := &testClaimer{claimed: map[string]bool{"ses_1": true}}
 
 	_, err := New(stores).ClaimRunSlot(context.Background(), claimer, "ses_1")
@@ -177,8 +108,8 @@ func TestClaimRunSlotRejectsActiveClaim(t *testing.T) {
 }
 
 func TestClaimMutationSlotAllowsOpenInterrupt(t *testing.T) {
-	stores := cancelStores{
-		interrupts: &cancelInterrupts{
+	stores := coordinatorStores{
+		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
 				"run_1": {ParentRunID: "run_1", SessionID: "ses_1"},
 			},
@@ -197,8 +128,8 @@ func TestClaimMutationSlotAllowsOpenInterrupt(t *testing.T) {
 }
 
 func TestClaimResumeSlotPeeksAndClaimsInterruptSession(t *testing.T) {
-	stores := cancelStores{
-		interrupts: &cancelInterrupts{
+	stores := coordinatorStores{
+		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
 				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 			},
@@ -224,7 +155,7 @@ func TestClaimResumeSlotPeeksAndClaimsInterruptSession(t *testing.T) {
 }
 
 func TestClaimResumeSlotMissingInterrupt(t *testing.T) {
-	stores := cancelStores{interrupts: &cancelInterrupts{pending: map[string]interrupts.Pending{}}}
+	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
 	claimer := &testClaimer{}
 
 	_, _, err := New(stores).ClaimResumeSlot(context.Background(), claimer, "missing")
@@ -237,8 +168,8 @@ func TestClaimResumeSlotMissingInterrupt(t *testing.T) {
 }
 
 func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
-	stores := cancelStores{
-		interrupts: &cancelInterrupts{
+	stores := coordinatorStores{
+		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
 				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 			},
@@ -267,8 +198,8 @@ func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
 }
 
 func TestResumeClaimedInterruptRehydratesMissingTurn(t *testing.T) {
-	stores := cancelStores{
-		interrupts: &cancelInterrupts{
+	stores := coordinatorStores{
+		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
 				"run_1": {
 					ParentRunID: "run_1",
@@ -301,8 +232,8 @@ func TestResumeClaimedInterruptRehydratesMissingTurn(t *testing.T) {
 }
 
 func TestResumeClaimedInterruptParkClaimed(t *testing.T) {
-	stores := cancelStores{
-		interrupts: &cancelInterrupts{
+	stores := coordinatorStores{
+		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
 				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 			},
@@ -314,122 +245,4 @@ func TestResumeClaimedInterruptParkClaimed(t *testing.T) {
 	if !errors.Is(err, ErrInterruptNotOpen) {
 		t.Fatalf("err = %v, want ErrInterruptNotOpen", err)
 	}
-}
-
-type cancelStores struct {
-	interrupts *cancelInterrupts
-}
-
-func (s cancelStores) Session() session.Store       { panic("unused") }
-func (s cancelStores) Transcript() transcript.Store { panic("unused") }
-func (s cancelStores) Interrupts() interrupts.Store { return s.interrupts }
-func (s cancelStores) ReadHistory(context.Context, string) ([]chat.Message, error) {
-	panic("unused")
-}
-func (s cancelStores) TruncateMessages(context.Context, string, int) error { panic("unused") }
-func (s cancelStores) SeedHistory(context.Context, string, []chat.Message) error {
-	panic("unused")
-}
-func (s cancelStores) ForgetSession(string) {}
-func (s cancelStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
-	return fn(ctx)
-}
-
-type cancelInterrupts struct {
-	pending  map[string]interrupts.Pending
-	deleted  []string
-	onDelete func(string)
-}
-
-func (s *cancelInterrupts) Put(_ context.Context, p interrupts.Pending) error {
-	if s.pending == nil {
-		s.pending = map[string]interrupts.Pending{}
-	}
-	s.pending[p.ParentRunID] = p
-	return nil
-}
-
-func (s *cancelInterrupts) List(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
-	out := make([]interrupts.Pending, 0, len(s.pending))
-	for _, p := range s.pending {
-		if sessionID == "" || p.SessionID == sessionID {
-			out = append(out, p)
-		}
-	}
-	return out, nil
-}
-
-func (s *cancelInterrupts) Get(_ context.Context, parentRunID string) (interrupts.Pending, bool, error) {
-	p, ok := s.pending[parentRunID]
-	return p, ok, nil
-}
-
-func (s *cancelInterrupts) Consume(_ context.Context, parentRunID string) (interrupts.Pending, bool, error) {
-	p, ok := s.pending[parentRunID]
-	if ok {
-		delete(s.pending, parentRunID)
-	}
-	return p, ok, nil
-}
-
-func (s *cancelInterrupts) Delete(_ context.Context, parentRunID string) error {
-	s.deleted = append(s.deleted, parentRunID)
-	if s.onDelete != nil {
-		s.onDelete(parentRunID)
-	}
-	delete(s.pending, parentRunID)
-	return nil
-}
-
-type testClaimer struct {
-	claimed  map[string]bool
-	released []string
-}
-
-func (c *testClaimer) ClaimSession(sessionID string) bool {
-	if c.claimed == nil {
-		c.claimed = map[string]bool{}
-	}
-	if c.claimed[sessionID] {
-		return false
-	}
-	c.claimed[sessionID] = true
-	return true
-}
-
-func (c *testClaimer) ReleaseSession(sessionID string) {
-	c.released = append(c.released, sessionID)
-	delete(c.claimed, sessionID)
-}
-
-type cancelTurns struct {
-	onCancel func(turn.TurnHandle)
-}
-
-func (t cancelTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
-	if t.onCancel != nil {
-		t.onCancel(h)
-	}
-	return nil
-}
-
-type resumeTurns struct {
-	resumeErr       error
-	rehydrateHandle turn.TurnHandle
-	onResume        func(turn.TurnHandle, interrupts.Resolution)
-	onRehydrate     func(turn.RehydrateRequest)
-}
-
-func (t resumeTurns) Resume(_ context.Context, h turn.TurnHandle, r interrupts.Resolution) error {
-	if t.onResume != nil {
-		t.onResume(h, r)
-	}
-	return t.resumeErr
-}
-
-func (t resumeTurns) Rehydrate(_ context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
-	if t.onRehydrate != nil {
-		t.onRehydrate(req)
-	}
-	return t.rehydrateHandle, nil
 }
