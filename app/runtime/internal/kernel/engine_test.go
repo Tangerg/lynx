@@ -710,6 +710,44 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	}
 }
 
+func TestEngine_New_WithoutResolverDoesNotInjectTask(t *testing.T) {
+	t.Parallel()
+
+	stub := newStubModel("shell", `{}`, "")
+	client, _ := chat.NewClient(stub)
+	customTool, err := chat.NewTool(
+		chat.ToolDefinition{
+			Name:        "noop",
+			Description: "noop tool",
+			InputSchema: `{"type":"object","properties":{}}`,
+		},
+		func(_ context.Context, _ string) (string, error) {
+			return "noop", nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("chat.NewTool: %v", err)
+	}
+
+	eng, err := New(context.Background(), Config{
+		ChatClient: client,
+		Tools:      []chat.Tool{customTool},
+	})
+	if err != nil {
+		t.Fatalf("engine.New: %v", err)
+	}
+	defer eng.Close()
+
+	tools := eng.Tools()
+	names := toolNames(tools)
+	if _, ok := names["task"]; ok {
+		t.Fatalf("unexpected task tool without resolver: %v", names)
+	}
+	if _, ok := names["noop"]; !ok {
+		t.Fatalf("custom tool should be preserved, names=%v", names)
+	}
+}
+
 // mustEngineWith builds an engine over a tool environment assembled by
 // toolset.Build (the production path: capabilities + resolver constructed
 // outside the core, injected in) — for tests that exercise the assembled tool
