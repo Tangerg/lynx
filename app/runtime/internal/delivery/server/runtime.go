@@ -24,7 +24,9 @@ type RuntimePort interface {
 	sessionMutationAdmissionAccess
 	runResumeAccess
 	runCancellationAccess
-	sessionLifecycleMutationAccess
+	sessionRollbackAccess
+	sessionForkAccess
+	sessionRestoreAccess
 	runSegmentAccess
 	historyAccess
 	interruptQueryAccess

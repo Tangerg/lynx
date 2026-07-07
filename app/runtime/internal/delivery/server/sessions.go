@@ -142,7 +142,7 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 		}
 	}
 
-	child, err := s.sessionLifecycle.ForkSession(ctx, lifecycle.ForkSpec{
+	child, err := s.sessionFork.ForkSession(ctx, lifecycle.ForkSpec{
 		ParentID:  in.SessionID,
 		FromRunID: in.FromRunID,
 		Runs:      nodes,
