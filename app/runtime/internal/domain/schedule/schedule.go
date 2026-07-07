@@ -1,7 +1,7 @@
 // Package schedule is the scheduled-run domain: a Schedule fires a saved prompt
 // on a cron trigger as a headless run (no client present). The worker ticks,
-// asks [Service.Due] for the schedules whose time has come, starts a run through
-// a [Runner] port, and records the firing via [Service.MarkFired].
+// asks [Registry.Due] for the schedules whose time has come, starts a run through
+// a [Runner] port, and records the firing via [Registry.MarkFired].
 //
 // A Schedule stores the final PROMPT text, not a recipe reference — the
 // scheduler is deliberately decoupled from recipes (a client may pre-fill the
@@ -21,7 +21,7 @@ import (
 // run id convention).
 const IDPrefix = "sch_"
 
-// ErrNotFound is returned by [Service.Get] / [Service.Update] for an unknown id.
+// ErrNotFound is returned by [Registry.Get] / [Registry.Update] for an unknown id.
 var ErrNotFound = errors.New("schedule: not found")
 
 // Validation sentinels returned by [Schedule.Validate]; the delivery adapter
@@ -93,9 +93,9 @@ func NextRun(spec string, after time.Time) (time.Time, error) {
 	return sched.Next(after), nil
 }
 
-// Service is the schedule persistence + due-query contract. All methods are
+// Registry is the schedule persistence + due-query contract. All methods are
 // safe for concurrent use; the sqlite-backed implementation satisfies it.
-type Service interface {
+type Registry interface {
 	// List returns every schedule, newest-created first.
 	List(ctx context.Context) ([]Schedule, error)
 	// Get returns one schedule by id, or [ErrNotFound].
@@ -114,11 +114,11 @@ type Service interface {
 	// MarkFired records a scheduled firing: the run time (LastRunAt) and the
 	// advanced next due time. Only the worker calls it. prevNextRunAt is the
 	// NextRunAt the worker saw when it picked this schedule as due — the cursor is
-	// advanced only if it still holds, so a concurrent [Service.Update] that
+	// advanced only if it still holds, so a concurrent [Registry.Update] that
 	// rescheduled (new cron → new NextRunAt) between that read and now wins instead
 	// of being clobbered with a value computed from the stale cron. If the guard
 	// misses, the firing is still recorded (LastRunAt) without rewinding the
-	// cursor. A manual run-now uses [Service.RecordRun] instead, so the two never
+	// cursor. A manual run-now uses [Registry.RecordRun] instead, so the two never
 	// write NextRunAt with conflicting intent.
 	MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error
 	// RecordRun records an off-cycle run (schedules.runNow): it updates LastRunAt

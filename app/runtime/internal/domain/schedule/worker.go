@@ -23,12 +23,12 @@ type Runner interface {
 
 // Worker scans due schedules and advances their cron cursor after each firing.
 type Worker struct {
-	schedules Service
+	schedules Registry
 	runner    Runner
 }
 
 // NewWorker wires a scheduled-run worker.
-func NewWorker(schedules Service, runner Runner) Worker {
+func NewWorker(schedules Registry, runner Runner) Worker {
 	return Worker{schedules: schedules, runner: runner}
 }
 
