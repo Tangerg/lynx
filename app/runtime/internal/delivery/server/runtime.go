@@ -23,7 +23,10 @@ type RuntimePort interface {
 	approvalAccess
 	scheduleAccess
 	providerAccess
-	mcpAccess
+	mcpStatusAccess
+	mcpToolCatalogAccess
+	mcpConnectionAccess
+	mcpRegistryAccess
 	workspaceCatalogAccess
 	hookAccess
 	modelRoleAccess

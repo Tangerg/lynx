@@ -612,6 +612,10 @@ app/runtime -> agent -> core
   - `CancelRunTurn` 直接重命名为 `CancelRunBinding`，与 `RunTurnBinding` 的领域对象对齐，不再把取消用例命名成旧 `RunTurn` 动作。
   - 同步迁移 lifecycle coordinator、runtime facade、server lifecycle port 和测试 fixture，不保留旧方法别名。
   - 该调整仍位于 `app/runtime/internal`，不影响跨模块公开 API。
+- 已完成第六十五轮 `app/runtime` server MCP 端口 ISP 收敛：
+  - 将 delivery/server 的胖 `mcpAccess` 拆为 `mcpStatusAccess`、`mcpToolCatalogAccess`、`mcpConnectionAccess`、`mcpRegistryAccess`。
+  - `RuntimePort` 仍是组合口，但 `runtimeBindings` 按 status/tools/connections/registry 保存最小能力，MCP handler 只依赖各自实际用到的端口字段。
+  - 同步迁移 workspace MCP status/tool/config/reconnect request helpers；不保留旧 `mcpAccess` 聚合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -690,6 +694,7 @@ app/runtime -> agent -> core
   - `go test ./internal/kernel ./internal/kernel/turn ./internal/runtime`（`app/runtime`）通过（第六十二轮后复跑）。
   - `go test ./internal/kernel/lifecycle ./internal/runtime ./internal/delivery/server`（`app/runtime`）通过（第六十三轮后复跑）。
   - `go test ./internal/kernel/lifecycle ./internal/runtime ./internal/delivery/server`（`app/runtime`）通过（第六十四轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十五轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -871,6 +876,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第六十四轮后复跑）。
   - `go build ./...`（`agent`）通过（第六十四轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第六十四轮后复跑）。
+  - `go test ./...`（`core`）通过（第六十五轮后复跑）。
+  - `go test ./...`（`agent`）通过（第六十五轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第六十五轮后复跑）。
+  - `go vet ./...`（`core`）通过（第六十五轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第六十五轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第六十五轮后复跑）。
+  - `go build ./...`（`core`）通过（第六十五轮后复跑）。
+  - `go build ./...`（`agent`）通过（第六十五轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第六十五轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -973,3 +987,15 @@ app/runtime -> agent -> core
 - 已完成适配：所有 `CancelRunTurn` 调用点已迁移；未保留旧方法别名。
 - 验证结果：`go test ./internal/kernel/lifecycle ./internal/runtime ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险；后续若继续处理 `agent` context-aware companion API，需要先按公共 API 破坏性调整确认 scope。
+
+第六十五轮包含 `app/runtime/internal/delivery/server` 的 internal 端口破坏性拆分：
+
+- 调整对象：`mcpAccess` 与 `runtimeBindings.mcp`。
+- 调整前问题：单个 `mcpAccess` 同时承载 live status、tool catalog、connection action、registry CRUD/probe，MCP handlers 通过一个胖字段访问所有能力，不符合 consumer-side ISP。
+- 破坏性原因：该端口位于 `app/runtime/internal/delivery/server`，直接拆分比保留聚合口更能减少 handler 对无关 MCP 能力的认知耦合。
+- 新设计：按用例切成 `mcpStatusAccess`、`mcpToolCatalogAccess`、`mcpConnectionAccess`、`mcpRegistryAccess`，`RuntimePort` 只负责组合这些小端口。
+- 架构收益：workspace MCP status/projection、tool listing、reconnect/authorize、config CRUD/probe 分别依赖最小端口，server runtime binding 更贴近实际用例边界。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、workspace MCP handlers/projection/request helpers。
+- 已完成适配：所有 `s.mcp` 调用已迁移到更窄字段；未保留旧 `mcpAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险；如后续继续拆其他 server 端口，应优先按 handler 实际消费语义拆，不按文件名机械拆。

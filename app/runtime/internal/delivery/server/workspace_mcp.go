@@ -25,7 +25,7 @@ func (s *Server) WorkspaceMCPListServers(ctx context.Context, _ protocol.PageQue
 // server it belongs to are kept separate on the wire (the model sees them as
 // "<server>_<name>").
 func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
-	found, err := s.mcp.MCPTools(ctx, in.Server)
+	found, err := s.mcpTools.MCPTools(ctx, in.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListT
 // (context.WithoutCancel) so a returning RPC doesn't abort it; the terminal
 // frame is published when the dial settles.
 func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error {
-	return s.runMCPConnectionAction(ctx, server, s.mcp.ReconnectMCPServer)
+	return s.runMCPConnectionAction(ctx, server, s.mcpConnections.ReconnectMCPServer)
 }
 
 // WorkspaceMCPAuthorize starts the interactive OAuth sign-in for an HTTP MCP
@@ -55,7 +55,7 @@ func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error
 // flow far outlives one RPC) and the terminal mcp.serverChanged frame is
 // published when it settles.
 func (s *Server) WorkspaceMCPAuthorize(ctx context.Context, server string) error {
-	return s.runMCPConnectionAction(ctx, server, s.mcp.AuthorizeMCPServer)
+	return s.runMCPConnectionAction(ctx, server, s.mcpConnections.AuthorizeMCPServer)
 }
 
 // workspace.mcp registry CRUD — the editable configuration the settings pane
@@ -68,7 +68,7 @@ func (s *Server) WorkspaceMCPAuthorize(ctx context.Context, server string) error
 // configuration (token masked). Live connection state is not included — read it
 // from workspace.mcp.listServers (McpServer), keyed by name.
 func (s *Server) WorkspaceMCPListConfigs(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
-	servers, err := s.mcp.ListMCPRegisteredServers(ctx)
+	servers, err := s.mcpRegistry.ListMCPRegisteredServers(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.Configur
 	if err := srv.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
-	if err := s.mcp.ConfigureMCPServer(ctx, srv); err != nil {
+	if err := s.mcpRegistry.ConfigureMCPServer(ctx, srv); err != nil {
 		return nil, err
 	}
 	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, in.Name))
@@ -107,7 +107,7 @@ func (s *Server) WorkspaceMCPRemove(ctx context.Context, name string) error {
 	if name == "" {
 		return protocol.ErrInvalidParams
 	}
-	if err := s.mcp.RemoveMCPServer(ctx, name); err != nil {
+	if err := s.mcpRegistry.RemoveMCPServer(ctx, name); err != nil {
 		return err
 	}
 	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, name))
@@ -120,7 +120,7 @@ func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPE
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
 	}
-	if err := s.mcp.SetMCPServerEnabled(ctx, in.Name, in.Enabled); err != nil {
+	if err := s.mcpRegistry.SetMCPServerEnabled(ctx, in.Name, in.Enabled); err != nil {
 		return err
 	}
 	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, in.Name))
@@ -138,7 +138,7 @@ func (s *Server) WorkspaceMCPTest(ctx context.Context, in protocol.ConfigureMCPS
 	if err := srv.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
-	if err := s.mcp.TestMCPServer(ctx, srv); err != nil {
+	if err := s.mcpRegistry.TestMCPServer(ctx, srv); err != nil {
 		return &protocol.McpTestResult{OK: false, Error: mcpDialFailedProblem(err)}, nil
 	}
 	return &protocol.McpTestResult{OK: true}, nil

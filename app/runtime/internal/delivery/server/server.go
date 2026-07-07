@@ -143,7 +143,10 @@ type runtimeBindings struct {
 	approvals        approvalAccess
 	schedules        scheduleAccess
 	providers        providerAccess
-	mcp              mcpAccess
+	mcpStatus        mcpStatusAccess
+	mcpTools         mcpToolCatalogAccess
+	mcpConnections   mcpConnectionAccess
+	mcpRegistry      mcpRegistryAccess
 	workspaceCatalog workspaceCatalogAccess
 	hooks            hookAccess
 	modelRoles       modelRoleAccess
@@ -166,7 +169,10 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		approvals:        rt,
 		schedules:        rt,
 		providers:        rt,
-		mcp:              rt,
+		mcpStatus:        rt,
+		mcpTools:         rt,
+		mcpConnections:   rt,
+		mcpRegistry:      rt,
 		workspaceCatalog: rt,
 		hooks:            rt,
 		modelRoles:       rt,
