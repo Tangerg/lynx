@@ -1,18 +1,20 @@
 package runtime
 
 import (
+	"context"
+
 	"github.com/Tangerg/lynx/agent/event"
 )
 
 // publishEvent dispatches via the platform's multicast listener and
 // the per-process multicast (populated from process-scope EventListener
 // extensions). Either may be nil — the function tolerates that.
-func (p *AgentProcess) publishEvent(e event.Event) {
+func (p *AgentProcess) publishEvent(ctx context.Context, e event.Event) {
 	if p.platform != nil {
-		p.platform.publish(e)
+		p.platform.publishContext(ctx, e)
 	}
 	if p.processEvents != nil && e != nil {
-		p.processEvents.OnEvent(e)
+		p.processEvents.OnEventContext(ctx, e)
 	}
 }
 
@@ -29,5 +31,5 @@ func (p *AgentProcess) publishAny(e any) {
 	if !ok {
 		return
 	}
-	p.publishEvent(ev)
+	p.publishEvent(context.Background(), ev)
 }

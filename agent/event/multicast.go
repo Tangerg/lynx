@@ -68,13 +68,25 @@ func (m *Multicast) Remove(l Listener) {
 // under the lock and then invoked outside it, so a slow listener can't
 // block concurrent Add / Remove calls.
 func (m *Multicast) OnEvent(e Event) {
+	m.OnEventContext(context.Background(), e)
+}
+
+// OnEventContext is the context-aware delivery path used by runtimes that
+// already have a request / run context. Listener implementations remain the
+// same narrow surface; the context is for the multicast's own observability
+// spans, especially panic reporting.
+func (m *Multicast) OnEventContext(ctx context.Context, e Event) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	m.mu.RLock()
 	listeners := make([]Listener, len(m.listeners))
 	copy(listeners, m.listeners)
 	m.mu.RUnlock()
 
 	for _, listener := range listeners {
-		safeDeliver(listener, e)
+		safeDeliver(ctx, listener, e)
 	}
 }
 
@@ -83,15 +95,13 @@ func (m *Multicast) OnEvent(e Event) {
 // down the whole process — delivery to the remaining listeners continues.
 // The panic is not silent: it surfaces as a short error span so the failure is
 // observable through the standard OTel pipeline.
-func safeDeliver(l Listener, e Event) {
+func safeDeliver(ctx context.Context, l Listener, e Event) {
 	defer func() {
 		r := recover()
 		if r == nil {
 			return
 		}
-		// Cheap, non-blocking observability: a zero-duration span that
-		// only exists to carry the error + identity of the offender.
-		_, span := core.AgentTracer().Start(context.Background(), "agent.listener.panic",
+		_, span := core.AgentTracer().Start(ctx, "agent.listener.panic",
 			trace.WithSpanKind(trace.SpanKindInternal),
 			trace.WithAttributes(
 				attribute.String("agent.listener", fmt.Sprintf("%T", l)),

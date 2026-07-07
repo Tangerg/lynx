@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"context"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 )
@@ -34,7 +36,7 @@ func (p *AgentProcess) RecordLLMInvocation(inv core.LLMInvocation) {
 		inv.Timestamp = core.Now()
 	}
 	p.budget.recordLLMInvocation(inv)
-	p.publishEvent(event.LLMInvocationRecorded{
+	p.publishEvent(context.Background(), event.LLMInvocationRecorded{
 		BaseEvent:  p.baseEvent(),
 		Invocation: inv,
 	})
@@ -48,7 +50,7 @@ func (p *AgentProcess) RecordEmbeddingInvocation(inv core.EmbeddingInvocation) {
 		inv.Timestamp = core.Now()
 	}
 	p.budget.recordEmbeddingInvocation(inv)
-	p.publishEvent(event.EmbeddingInvocationRecorded{
+	p.publishEvent(context.Background(), event.EmbeddingInvocationRecorded{
 		BaseEvent:  p.baseEvent(),
 		Invocation: inv,
 	})

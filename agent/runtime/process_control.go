@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -46,7 +47,7 @@ func (p *AgentProcess) PendingAwaitable() core.Awaitable {
 func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
 	status := p.signals.parkAwaitable(req)
 	if status == core.ActionWaiting {
-		p.publishEvent(event.ProcessWaiting{BaseEvent: p.baseEvent(), Awaitable: req})
+		p.publishEvent(context.Background(), event.ProcessWaiting{BaseEvent: p.baseEvent(), Awaitable: req})
 		return status
 	}
 	if req != nil {

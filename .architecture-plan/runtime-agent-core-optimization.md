@@ -564,6 +564,12 @@ app/runtime -> agent -> core
   - `coordinator_history_test.go` 承接 rollback boundary and fork history prefix resolver tests。
   - `coordinator_fixtures_test.go` 承接 coordinator store, interrupt store, session claimer, cancel turns and resume turns fixtures；fixture 命名从 cancel-specific 收敛到 coordinator 语义。
   - 测试断言、session claim/release semantics, interrupt consume/delete behavior, resume rehydrate fallback and history boundary/prefix behavior 保持不变；本轮无公共 API 或生产行为调整。
+- 已完成第五十六轮目标模块生产代码边界清理：
+  - `agent/event`：为 `Multicast` 增加 `OnEventContext(ctx, e)`，旧 `OnEvent(e)` 保持为兼容入口并委托到 context-aware 路径。
+  - `agent/runtime`：将 run/tick/action/terminal 等内部事件发布路径改为携带当前运行 ctx，使 listener panic span 能继承当前 trace，而不是从 `context.Background()` 断链。
+  - 对确实没有调用 ctx 的公开方法（如 action 内 `ProcessContext.Publish`、`RecordLLMInvocation`、`AwaitInput`）保留旧路径，避免为了观测性强行破坏公开 API；后续如要进一步收敛，可单独评估带 ctx 的公开 surface。
+  - 新增 `runtime` 集成测试覆盖：带 parent span 的 `RunAgent` 中，panic listener 产生的 `agent.listener.panic` span 必须保持在同一 trace。
+  - 事件 listener 接口、已有 `OnEvent(e)` 调用方、事件类型和 runtime 行为保持兼容；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -628,6 +634,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第五十三轮后复跑）。
   - `go test ./toolloop`（`agent`）通过（第五十四轮后复跑）。
   - `go test ./internal/kernel/lifecycle`（`app/runtime`）通过（第五十五轮后复跑）。
+  - `go test ./event ./runtime`（`agent`）通过（第五十六轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -728,6 +735,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第五十五轮后复跑）。
   - `go build ./...`（`agent`）通过（第五十五轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第五十五轮后复跑）。
+  - `go test ./...`（`core`）通过（第五十六轮后复跑）。
+  - `go test ./...`（`agent`）通过（第五十六轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第五十六轮后复跑）。
+  - `go vet ./...`（`core`）通过（第五十六轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第五十六轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第五十六轮后复跑）。
+  - `go build ./...`（`core`）通过（第五十六轮后复跑）。
+  - `go build ./...`（`agent`）通过（第五十六轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第五十六轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -747,7 +763,6 @@ app/runtime -> agent -> core
 - `agent/runtime/mcp.go` 直接承载 MCP 便利集成：已有 agent 架构评审明确裁决为“关注点不同但紧密依赖 `*Platform`/`*AgentProcess`，当前保持在 runtime 包内”。本轮不拆。
 - `agent/core.ServiceProvider` 是开放 service locator：已有 agent 架构评审裁决为 SDK 库的 architecture tax，可接受。本轮不改。
 - `app/runtime` 的 `delivery/server` 总 LOC 较大：已有文档裁决协议方法 1:1 绑定是健康的，且原 use-case 泄漏 P0 已落地。本轮不按文件数拆。
-- `agent/event.Multicast` 的 listener panic span 目前没有 caller context 可用；根治需要给 `Listener.OnEvent` 引入 context 或新增带 context 的 delivery surface，属于公共 API 破坏性调整。本轮只记录，不在未确认 scope 前直接修改。
 
 ### 5.4 风险与注意事项
 

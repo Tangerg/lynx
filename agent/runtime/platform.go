@@ -225,10 +225,14 @@ func (p *Platform) RestoreProcess(ctx context.Context, processID string, options
 // publish is the runtime's event entry point. Used by AgentProcess
 // and executeAction.
 func (p *Platform) publish(e event.Event) {
+	p.publishContext(context.Background(), e)
+}
+
+func (p *Platform) publishContext(ctx context.Context, e event.Event) {
 	if e == nil {
 		return
 	}
-	p.events.OnEvent(e)
+	p.events.OnEventContext(ctx, e)
 }
 
 func normalizeContext(ctx context.Context) context.Context {
