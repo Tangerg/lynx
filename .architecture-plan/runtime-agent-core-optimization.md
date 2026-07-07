@@ -660,6 +660,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的 `mcpRegistryAccess` 拆为 `mcpRegistryCatalogAccess`、`mcpRegistryMutationAccess` 与 `mcpRegistryProbeAccess`。
   - MCP config list/request authorization preservation、configure/remove/setEnabled、test probe 各依赖自己的最小 registry 能力。
   - 同步迁移 runtime binding、workspace MCP config handlers 和 request helper，不保留旧 `mcpRegistryAccess` 聚合字段。
+- 已完成第七十七轮 `app/runtime` server provider registry 端口 ISP 收敛：
+  - 将 delivery/server 的 `providerRegistryAccess` 拆为 `providerRegistryCatalogAccess`、`providerRegistryMutationAccess` 与 `providerRegistryProbeAccess`。
+  - providers list/configure/test 与 model role configured-provider validation 各依赖自己的最小 provider registry 能力。
+  - 同步迁移 runtime binding、providers handler、models role validation 和测试 fixture，不保留旧 `providerRegistryAccess` 聚合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -750,6 +754,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十四轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十五轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十六轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十七轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -1039,6 +1044,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第七十六轮后复跑）。
   - `go build ./...`（`agent`）通过（第七十六轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第七十六轮后复跑）。
+  - `go test ./...`（`core`）通过（第七十七轮后复跑）。
+  - `go test ./...`（`agent`）通过（第七十七轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第七十七轮后复跑）。
+  - `go vet ./...`（`core`）通过（第七十七轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第七十七轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第七十七轮后复跑）。
+  - `go build ./...`（`core`）通过（第七十七轮后复跑）。
+  - `go build ./...`（`agent`）通过（第七十七轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第七十七轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1283,5 +1297,17 @@ app/runtime -> agent -> core
 - 架构收益：workspace.mcp.listConfigs/request authorization preservation、configure/remove/setEnabled、test 各自依赖最小能力，server binding 对 registry read/write/probe 边界表达更清楚。
 - 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、workspace MCP config handler 和 request helper。
 - 已完成适配：所有 `s.mcpRegistry` 调用已迁移到更窄字段；未保留旧 `mcpRegistryAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险。
+
+第七十七轮包含 `app/runtime/internal/delivery/server` 的 internal provider registry 端口破坏性拆分：
+
+- 调整对象：`providerRegistryAccess` 与 `runtimeBindings.providerRegistry`。
+- 调整前问题：单个端口同时承载 provider registry read、credential mutation 和 provider probe；models role validation 只需要确认 provider 已配置，却被绑到 configure/probe 能力所在的聚合字段上。
+- 破坏性原因：该端口位于 `app/runtime/internal/delivery/server`，按 handler 实际消费语义拆分能删除旧聚合字段，不需要为旧 internal port 留兼容层。
+- 新设计：使用 `providerRegistryCatalogAccess` / `providerRegistryMutationAccess` / `providerRegistryProbeAccess` 分离 provider registry list/get、configure、probe。
+- 架构收益：providers.list/configure/test 与 models.get/set role validation 各自依赖最小能力，server binding 对 provider registry read/write/probe 边界表达更清楚。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、providers handler、models handler 和相关测试 fixture。
+- 已完成适配：所有 `s.providerRegistry` 调用已迁移到更窄字段；未保留旧 `providerRegistryAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险。
