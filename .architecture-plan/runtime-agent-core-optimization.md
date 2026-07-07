@@ -640,6 +640,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的 `toolAccess` 拆为 `toolCatalogAccess` 与 `toolInvocationAccess`。
   - 将 delivery/server 的 `approvalAccess` 拆为 `approvalModeAccess` 与 `approvalRuleAccess`。
   - tools list 只依赖工具目录，direct invoke 只依赖工具调用；approval mode endpoints 与 persisted rule endpoints 各依赖自己的最小端口。
+- 已完成第七十二轮 `app/runtime` server lifecycle 端口 ISP 收敛：
+  - 将 delivery/server 的 `lifecycleAccess` 拆为 `runAdmissionAccess`、`sessionMutationAdmissionAccess`、`runResumeAccess`、`runCancellationAccess` 与 `sessionLifecycleMutationAccess`。
+  - runs.start/resume 的 run admission、rollback/delete 的 mutation admission、runs.cancel、runs.resume continuation、session rollback/fork/import 各依赖自己的生命周期用例端口。
+  - 同步迁移 runtime binding、run/session handlers 和测试调用点，不保留旧 `lifecycleAccess` 聚合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -725,6 +729,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十九轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十一轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十二轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -969,6 +974,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第七十一轮后复跑）。
   - `go build ./...`（`agent`）通过（第七十一轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第七十一轮后复跑）。
+  - `go test ./...`（`core`）通过（第七十二轮后复跑）。
+  - `go test ./...`（`agent`）通过（第七十二轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第七十二轮后复跑）。
+  - `go vet ./...`（`core`）通过（第七十二轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第七十二轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第七十二轮后复跑）。
+  - `go build ./...`（`core`）通过（第七十二轮后复跑）。
+  - `go build ./...`（`agent`）通过（第七十二轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第七十二轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1153,5 +1167,17 @@ app/runtime -> agent -> core
 - 架构收益：tools.list、tools.invoke、approval.get/setMode、approval.list/forgetRules 各自依赖最小能力，server binding 对读目录、执行动作、策略状态和规则存储的边界表达更清楚。
 - 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、tools handler 和 approval handler。
 - 已完成适配：所有 `s.tools` 与 `s.approvals` 调用已迁移到更窄字段；未保留旧 `toolAccess` / `approvalAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险。
+
+第七十二轮包含 `app/runtime/internal/delivery/server` 的 internal lifecycle 端口破坏性拆分：
+
+- 调整对象：`lifecycleAccess` 与 `runtimeBindings.lifecycle`。
+- 调整前问题：单个 `lifecycleAccess` 同时承载 run admission、working-tree admission、resume claim/continue、run cancel、rollback/fork/import write-set，run handlers 和 session handlers 通过同一个字段访问不同生命周期用例。
+- 破坏性原因：该端口位于 `app/runtime/internal/delivery/server`，按用例边界拆分能删除旧聚合字段，避免 delivery handler 对无关 lifecycle 能力形成认知耦合。
+- 新设计：使用 `runAdmissionAccess`、`sessionMutationAdmissionAccess`、`runResumeAccess`、`runCancellationAccess`、`sessionLifecycleMutationAccess` 分别表达 run admission、destructive mutation admission、resume continuation、cancel/abandon、session history lifecycle mutation。
+- 架构收益：runs.start/resume、runs.cancel、sessions.rollback/delete、sessions.fork/import 各自依赖最小生命周期能力，server binding 对运行中 run 与 destructive session mutation 的边界表达更清楚。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、runs start/resume/control handlers、rollback/sessionio/sessions handlers 和相关测试调用点。
+- 已完成适配：所有 `s.lifecycle` 调用已迁移到更窄字段；未保留旧 `lifecycleAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险。
