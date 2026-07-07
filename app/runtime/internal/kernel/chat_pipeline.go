@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
+	history "github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 func newAgentPlatform(cfg Config, resolver ToolResolver) (*agentruntime.Platform, error) {
@@ -35,18 +36,19 @@ func newAgentPlatform(cfg Config, resolver ToolResolver) (*agentruntime.Platform
 // stays model-adjacent, so each loop round persists only the genuinely-new
 // messages for that conversation id.
 func newChatGuardrails(cfg Config) (*core.Guardrails, error) {
-	return newChatGuardrailsWithBeforeRound(cfg, nil)
+	return newChatGuardrailsWithBeforeRound(cfg.HistoryStore, cfg.ParkStore, nil)
 }
 
 func newChatGuardrailsWithBeforeRound(
-	cfg Config,
+	historyStore history.Store,
+	parkStore ParkStore,
 	beforeRound func(context.Context) []chat.Message,
 ) (*core.Guardrails, error) {
 	return agentruntime.BuildChatGuardrails(agentruntime.ChatGuardrailsConfig{
-		HistoryStore: cfg.HistoryStore,
+		HistoryStore: historyStore,
 		ToolLoop: agentruntime.ToolLoopPolicy{
 			FeedbackOnEmptyResponse: true,
-			ParkStore:               cfg.ParkStore,
+			ParkStore:               asToolloopParkStore(parkStore),
 			BeforeRound:             beforeRound,
 		},
 	})
