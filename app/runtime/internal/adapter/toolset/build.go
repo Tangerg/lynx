@@ -102,7 +102,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	// (keys off the session id), so built once and given to both roles.
 	todoTool := todotool.New(cfg.Todos)
 
-	mcpConns, mcpTools, err := mcp.Dial(ctx, cfg.MCPServers)
+	mcpConns, mcpTools, err := mcp.Dial(ctx, infraMCPServerConfigs(cfg.MCPServers))
 	if err != nil {
 		return Built{}, err
 	}
