@@ -1,7 +1,19 @@
 import { useUiStore } from "@/state/uiStore";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
+import { WORKSPACE_VIEW, lookupExtensionByKey } from "@/plugins/sdk";
 import { configureWorkspaceNavigationPort } from "../application/ports/navigationState";
+import type { WorkspaceViewTab } from "../application/ports/navigationState";
+import type { WorkspaceSurfaceTab } from "@/state/workspaceSurfaceStore";
+
+function withWorkspaceViewMetadata(tab: WorkspaceViewTab): WorkspaceSurfaceTab {
+  const view = lookupExtensionByKey(WORKSPACE_VIEW, tab.id);
+  return {
+    id: tab.id,
+    title: tab.title ?? view?.title ?? tab.id,
+    icon: tab.icon ?? view?.icon,
+  };
+}
 
 export function installWorkspaceNavigationPort(): void {
   configureWorkspaceNavigationPort({
@@ -20,11 +32,11 @@ export function installWorkspaceNavigationPort(): void {
     },
     selectChat: () => useWorkspaceSurfaceStore.getState().selectChat(),
     openView: (tab) => {
-      useWorkspaceSurfaceStore.getState().openMainView(tab);
+      useWorkspaceSurfaceStore.getState().openMainView(withWorkspaceViewMetadata(tab));
       useContextDockStore.getState().closeSplit();
     },
     openViewBeside: (tab) => {
-      useWorkspaceSurfaceStore.getState().ensureMainViewTab(tab);
+      useWorkspaceSurfaceStore.getState().ensureMainViewTab(withWorkspaceViewMetadata(tab));
       useWorkspaceSurfaceStore.getState().selectChat();
       useContextDockStore.getState().openSplit(tab.id);
     },
@@ -47,9 +59,7 @@ export function installWorkspaceNavigationPort(): void {
     settingsPaneTarget: () => useWorkspaceSurfaceStore.getState().settingsPane,
     setActiveFile: (path) => useContextDockStore.getState().setActiveFile(path),
     openFile: (path, line) => {
-      useWorkspaceSurfaceStore
-        .getState()
-        .openMainView({ id: "file", title: "workspace.view.title.file", icon: "filetext" });
+      useWorkspaceSurfaceStore.getState().openMainView(withWorkspaceViewMetadata({ id: "file" }));
       useContextDockStore.getState().closeSplit();
       useContextDockStore.getState().setFileViewer(path, line);
     },

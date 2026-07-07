@@ -115,7 +115,7 @@ export function ChatPanel({ onSend }: Props) {
     title: typeof view.title === "string" ? t(view.title) : view.title,
     icon: viewIcon(view.icon),
     active: view.id === dockViewId,
-    onSelect: () => openWorkspaceViewBeside({ id: view.id, title: view.title, icon: view.icon }),
+    onSelect: () => openWorkspaceViewBeside(view.id),
   }));
   // A split view is an explicit open → always shown; otherwise the dock follows
   // the collapse preference.

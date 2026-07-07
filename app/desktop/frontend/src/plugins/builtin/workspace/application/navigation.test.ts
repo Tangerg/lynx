@@ -34,7 +34,7 @@ describe("workspace navigation port", () => {
   beforeEach(reset);
 
   it("promoteWorkspaceSplitToView moves the split view to a full tab and clears the split", () => {
-    openWorkspaceViewBeside({ id: "v2", title: "View 2" });
+    openWorkspaceViewBeside("v2");
     expect(useContextDockStore.getState().splitViewId).toBe("v2");
 
     promoteWorkspaceSplitToView();
@@ -58,10 +58,10 @@ describe("workspace navigation port", () => {
   });
 
   it("openWorkspaceViewBeside and openWorkspaceView are mutually exclusive", () => {
-    openWorkspaceViewBeside({ id: "v1", title: "View 1" });
+    openWorkspaceViewBeside("v1");
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
 
-    openWorkspaceView({ id: "v1", title: "View 1" });
+    openWorkspaceView("v1");
 
     expect(useContextDockStore.getState().splitViewId).toBeNull();
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBe("v1");

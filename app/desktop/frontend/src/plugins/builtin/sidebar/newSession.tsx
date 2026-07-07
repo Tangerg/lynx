@@ -31,16 +31,10 @@ function SidebarNewSession() {
       >
         {t("common.search")}
       </AgentRow>
-      <AgentRow
-        icon="history"
-        onClick={() => openWorkspaceSettingsPane("schedules", t("settings.pane.schedules"))}
-      >
+      <AgentRow icon="history" onClick={() => openWorkspaceSettingsPane("schedules")}>
         {t("settings.pane.schedules")}
       </AgentRow>
-      <AgentRow
-        icon="sparkle"
-        onClick={() => openWorkspaceSettingsPane("plugins", t("settings.pane.plugins"))}
-      >
+      <AgentRow icon="sparkle" onClick={() => openWorkspaceSettingsPane("plugins")}>
         {t("settings.pane.plugins")}
       </AgentRow>
     </div>

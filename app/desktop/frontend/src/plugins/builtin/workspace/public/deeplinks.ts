@@ -6,17 +6,9 @@
 import { openWorkspaceView } from "../application/navigation";
 
 export function openTimelineView(): void {
-  openWorkspaceView({
-    id: "timeline",
-    title: "workspace.view.title.timeline",
-    icon: "history",
-  });
+  openWorkspaceView("timeline");
 }
 
 export function openDiagnosticsView(): void {
-  openWorkspaceView({
-    id: "diagnostics",
-    title: "workspace.view.title.diagnostics",
-    icon: "spark",
-  });
+  openWorkspaceView("diagnostics");
 }

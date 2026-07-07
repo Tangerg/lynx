@@ -110,7 +110,7 @@ describe("defaultWorkspaceViewCommands", () => {
 
     void commands[0]!.run();
 
-    expect(opened).toEqual([{ id: "early", title: "Early", icon: "spark" }]);
+    expect(opened).toEqual(["early"]);
   });
 });
 
