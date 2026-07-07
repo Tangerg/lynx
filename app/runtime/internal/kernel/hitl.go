@@ -2,9 +2,11 @@ package kernel
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/toolloop"
+	coremodel "github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -13,6 +15,31 @@ import (
 // the nil-ParkStore design keeps the tail on the conversation's blackboard
 // instead of a durable store.
 const inflightTailKey = "lyra:hitl:inflight-tail"
+
+type resumableInterrupt interface {
+	coremodel.Halt
+	Awaitable() core.Awaitable
+}
+
+// IsInterrupt reports whether err is a resumable HITL-like halt (non-aborting
+// and carrying an awaitable payload).
+func IsInterrupt(err error) bool {
+	h, ok := errors.AsType[resumableInterrupt](err)
+	return ok && !h.Abort()
+}
+
+// HandleInterrupt parks the process for a resumable hitl-like halt.
+//
+// This is intentionally generic and stays in runtime: the engine only cares
+// about the control-flow contract (non-aborting + awaitable), not the concrete
+// hitl package type.
+func HandleInterrupt(pc *core.ProcessContext, err error) (core.ActionStatus, bool) {
+	h, ok := errors.AsType[resumableInterrupt](err)
+	if !ok || h.Abort() {
+		return 0, false
+	}
+	return pc.AwaitInput(h.Awaitable()), true
+}
 
 // isInterruptResult reports whether a streamed response is the tool loop's
 // interrupt tail rather than model output. Only reached

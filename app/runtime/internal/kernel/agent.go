@@ -5,7 +5,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
 
@@ -131,15 +130,15 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 				}
 				out, err := e.runTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
 				if err != nil {
-					// HITL interrupt (R model): a gated tool returned an
-					// agent/hitl.InterruptError that the chat tool loop
+					// HITL interrupt (R model): a gated tool returned a
+					// resumable interrupt error that the chat tool loop
 					// propagated unchanged. Park on the carried awaitable
 					// (→ StatusWaiting); the client answers via a continuation
 					// run. On resume the turn RE-RUNS (runTurn skips
 					// re-adding the user message — the history layer replays the
 					// stored conversation), the model regenerates the interrupted
 					// tool call, and the gate now observes the recorded verdict.
-					if _, parked := hitl.HandleInterrupt(pc, err); parked {
+					if _, parked := HandleInterrupt(pc, err); parked {
 						return TurnOutput{}, nil
 					}
 					return out, err

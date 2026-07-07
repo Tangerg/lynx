@@ -175,7 +175,7 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, err error)
 	// paused for human input. Not a failure — skip the ToolCallEnd
 	// event. The turn-park handler drains the in-flight tool item
 	// and creates the appropriate interrupt card.
-	if hitl.IsInterrupt(err) {
+	if kernel.IsInterrupt(err) {
 		return
 	}
 	end := ToolCallEnd{CallID: callID, Output: output}
