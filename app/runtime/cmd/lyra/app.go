@@ -170,7 +170,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 			ChatClient: client,
 			// Catalog-driven cost: price each round by its served model across
 			// every provider, so turns on any provider+model report CostUSD.
-			Pricing: config.CatalogPricing(),
+			Pricing: lyraruntime.CatalogPricing(),
 			// User-scope Agent Skills live under the storage home; per-session
 			// project skills (<cwd>/.lyra/skills) layer on top of these.
 			SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
