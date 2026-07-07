@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/toolloop"
 	coremodel "github.com/Tangerg/lynx/core/model"
 )
 
@@ -14,7 +13,7 @@ import (
 // human input — the Go-ecosystem interrupt model. It carries a stable Key (the
 // interrupt's identity, stable across the resuming re-run) and a
 // user-facing Value (the payload surfaced to the client). It satisfies
-// [toolloop.Halt] with Abort() == false, so the tool loop exits immediately
+// the [Halt] contract with Abort() == false, so the tool loop exits immediately
 // on it and propagates it (rather than feeding it back). It also satisfies
 // [coremodel.ControlFlowError], so shared observability treats the pause as
 // expected control flow rather than a failed model operation. The agent action
@@ -37,18 +36,34 @@ type InterruptError struct {
 	awaitable core.Awaitable
 }
 
-var _ toolloop.Halt = (*InterruptError)(nil)
+// Halt is the minimal loop-control contract shared by pause/abort errors.
+//
+// It is intentionally tiny and duck-typed: any error with Abort() bool can
+// act as a halt signal without forcing a compile-time dependency on a concrete
+// loop package.
+type Halt interface {
+	error
+	Abort() bool
+}
+
 var _ coremodel.ControlFlowError = (*InterruptError)(nil)
 
 func (e *InterruptError) Error() string {
 	return fmt.Sprintf("hitl.InterruptError: run interrupted for input (key %q)", e.Key)
 }
 
-// Abort implements [toolloop.Halt]: an InterruptError HALTS the tool loop
+// Abort implements [Halt]: an InterruptError HALTS the tool loop
 // (propagated unchanged, never fed back to the model as a recoverable result),
 // and Abort() == false marks it a HITL suspension — the run is expected to
 // resume, not fail.
 func (e *InterruptError) Abort() bool { return false }
+
+// IsInterrupt reports whether err is a resumeable HITL halt (i.e. a loop halt
+// with Abort()==false).
+func IsInterrupt(err error) bool {
+	h, ok := errors.AsType[Halt](err)
+	return ok && !h.Abort()
+}
 
 // ControlFlow marks this interrupt as expected suspension rather than a failed
 // model operation for shared observability.
