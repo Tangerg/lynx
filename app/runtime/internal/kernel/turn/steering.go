@@ -7,6 +7,32 @@ import (
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 )
 
+// InjectSteering queues message onto the active turn's pending steering buffer.
+// The runtime flushes the queue to the chat history store after the turn ends —
+// every queued message becomes a user-role entry in the conversation history
+// that the next turn's chat history middleware loads on the next StartTurn.
+//
+// This is "next-turn" semantics — not true mid-stream injection. Steering you
+// send while the model is mid-tool-loop affects the next turn, not the current
+// one. Documented limitation; doing real mid-stream injection would require
+// intercepting between rounds of the chat tool loop.
+//
+// Returns [ErrTurnNotFound] when the turn has already ended (its runTurn deleted
+// itself from the map on exit). Empty messages are silently dropped.
+func (s *inMemory) InjectSteering(_ context.Context, handle TurnHandle, message string) error {
+	if message == "" {
+		return nil
+	}
+	state, err := s.findTurn(handle.TurnID)
+	if err != nil {
+		return err
+	}
+	// Rejects with ErrTurnNotFound if the turn has closed its steering queue
+	// (terminating) — same signal as a vanished turn, so SteerRun maps both to
+	// run_not_found and the client retries as a fresh send.
+	return state.appendSteering(message)
+}
+
 // steerSource builds the SteerSource the engine's tool loop drains before each
 // continuation round (mid-run steering): it pops the pending queue, surfaces
 // each message as a [SteerMessage] event (so the steered turn shows on the

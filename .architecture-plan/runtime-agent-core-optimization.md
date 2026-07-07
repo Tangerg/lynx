@@ -318,6 +318,16 @@ app/runtime -> agent -> core
   - `stores.go` 承接 SQLite/file storage backend wiring 和 `Stores` bundle。
   - `seeds.go` 承接 configured provider 与 utility model first-run seeding。
   - CLI command API、lazy runtime behavior、storage backends、runtime wiring 和 cobra error behavior 保持不变；本轮无公共 API 破坏性调整。
+- 已完成第二十轮目标模块结构清理：
+  - `app/runtime/internal/kernel/turn`：继续收敛 `inmemory.go`，将 in-process dispatcher 的构造/共享状态与各类 public method 路径拆开。
+  - `inmemory.go` 现在只保留 `Dependencies`、`New`、`inMemory` 状态模型和包内文件职责索引。
+  - `turn_start.go` 承接 `StartTurn` admission、turn id/span 初始化和 prompt hook 前置执行。
+  - `turn_control.go` 承接 `Cancel` / `Resume` / `resumeAndDrive` 的 same-process interrupt 控制路径。
+  - `rehydrate.go` 承接 persisted process snapshot 的 cross-restart resume 路径。
+  - `live_registry.go` 承接 live turn lookup、interrupt kind negotiation gate 与 `ProcessID` snapshot key lookup。
+  - `event_emit.go` 承接 stamped event delivery 与 backpressure/cancellation 语义。
+  - `steering.go` 同步收纳 `InjectSteering` 入口，让 steering 队列写入、mid-run drain 和 terminal flush 相邻。
+  - 导出的 `Dispatcher` 行为、错误值、turn id 语义、event ordering/backpressure 和 rehydrate/resume 行为保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -345,16 +355,17 @@ app/runtime -> agent -> core
   - `go test ./vectorstore/filter/parser ./vectorstore/filter/...`（`core`）通过。
   - `go test ./vectorstore/filter/lexer ./vectorstore/filter/...`（`core`）通过。
   - `go test ./cmd/lyra`（`app/runtime`）通过。
+  - `go test ./internal/kernel/turn`（`app/runtime`）通过。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第十九轮后复跑）。
-  - `go test ./...`（`agent`）通过（第十九轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第十九轮后复跑）。
-  - `go vet ./...`（`core`）通过（第十九轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第十九轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第十九轮后复跑）。
-  - `go build ./...`（`core`）通过（第十九轮后复跑）。
-  - `go build ./...`（`agent`）通过（第十九轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第十九轮后复跑）。
+  - `go test ./...`（`core`）通过（第二十轮后复跑）。
+  - `go test ./...`（`agent`）通过（第二十轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第二十轮后复跑）。
+  - `go vet ./...`（`core`）通过（第二十轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第二十轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第二十轮后复跑）。
+  - `go build ./...`（`core`）通过（第二十轮后复跑）。
+  - `go build ./...`（`agent`）通过（第二十轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第二十轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
