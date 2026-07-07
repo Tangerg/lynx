@@ -50,9 +50,9 @@ func (o optionArg) toInterrupt() interrupts.Option {
 	return interrupts.Option{Label: o.Label, Description: o.Description}
 }
 
-// New builds the exit_plan_mode tool over the approval service (it flips the
-// stance to execute on approval). A nil service yields a nil tool (omitted).
-func New(appr approval.Service) chat.Tool {
+// New builds the exit_plan_mode tool over the approval policy (it flips the
+// stance to execute on approval). A nil policy yields a nil tool (omitted).
+func New(appr approval.Policy) chat.Tool {
 	if appr == nil {
 		return nil
 	}

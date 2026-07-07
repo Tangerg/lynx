@@ -20,7 +20,7 @@ func (s approvalSessionStore) Get(context.Context, string) (session.Session, err
 }
 
 type approvalStore struct {
-	approval.Service
+	approval.Policy
 	mode       approval.Mode
 	set        []approval.Mode
 	rules      []approval.Rule

@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 )
 
-// TestNew_NilApproval: no approval service → no tool (omitted).
+// TestNew_NilApproval: no approval policy → no tool (omitted).
 func TestNew_NilApproval(t *testing.T) {
 	if New(nil) != nil {
 		t.Error("New(nil) should yield a nil tool")
