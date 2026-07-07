@@ -23,11 +23,11 @@ func TestComposeSystemPrompt_BaseOnly(t *testing.T) {
 // TestComposeSystemPrompt_WithMemory verifies the cascade — user
 // then project — appears under stable headers.
 func TestComposeSystemPrompt_WithMemory(t *testing.T) {
-	svc := &stubMemoryService{
+	store := &stubKnowledgeStore{
 		user:    "prefer terse output",
 		project: "build with `make test`",
 	}
-	got := composePrompt(context.Background(), svc, "")
+	got := composePrompt(context.Background(), store, "")
 	if !strings.Contains(got, "## User preferences") {
 		t.Error("user section missing")
 	}
@@ -45,8 +45,8 @@ func TestComposeSystemPrompt_WithMemory(t *testing.T) {
 // TestComposeSystemPrompt_SkipsEmptyScopes verifies absent scopes
 // don't produce empty markdown headers.
 func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
-	svc := &stubMemoryService{project: "only project"}
-	got := composePrompt(context.Background(), svc, "")
+	store := &stubKnowledgeStore{project: "only project"}
+	got := composePrompt(context.Background(), store, "")
 	if strings.Contains(got, "## User preferences") {
 		t.Error("empty user scope should be skipped")
 	}
@@ -59,10 +59,10 @@ func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
 // read the LYRA.md of the TURN's working directory (the per-session
 // cwd), not a directory fixed at construction time.
 func TestComposePrompt_ProjectMemoryFollowsCwd(t *testing.T) {
-	svc := &stubMemoryService{project: "project body"}
-	composePrompt(context.Background(), svc, "/projects/alpha")
-	if svc.projectDir != "/projects/alpha" {
-		t.Fatalf("project memory read dir = %q, want /projects/alpha", svc.projectDir)
+	store := &stubKnowledgeStore{project: "project body"}
+	composePrompt(context.Background(), store, "/projects/alpha")
+	if store.projectDir != "/projects/alpha" {
+		t.Fatalf("project memory read dir = %q, want /projects/alpha", store.projectDir)
 	}
 }
 
@@ -70,7 +70,7 @@ func TestComposePrompt_ProjectMemoryFollowsCwd(t *testing.T) {
 // helpers
 // ------------------------------------------------------------------
 
-type stubMemoryService struct {
+type stubKnowledgeStore struct {
 	user    string
 	project string
 
@@ -79,14 +79,14 @@ type stubMemoryService struct {
 	projectDir string
 }
 
-func (s *stubMemoryService) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {
+func (s *stubKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {
 	if scope == knowledge.ScopeProject {
 		s.projectDir = dir
 	}
 	return s.get(scope)
 }
 
-func (s *stubMemoryService) get(scope knowledge.Scope) (string, error) {
+func (s *stubKnowledgeStore) get(scope knowledge.Scope) (string, error) {
 	switch scope {
 	case knowledge.ScopeUser:
 		return s.user, nil
@@ -96,7 +96,7 @@ func (s *stubMemoryService) get(scope knowledge.Scope) (string, error) {
 	return "", nil
 }
 
-func (s *stubMemoryService) Update(_ context.Context, scope knowledge.Scope, _ string, content string) error {
+func (s *stubKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, _ string, content string) error {
 	switch scope {
 	case knowledge.ScopeUser:
 		s.user = content
@@ -106,6 +106,6 @@ func (s *stubMemoryService) Update(_ context.Context, scope knowledge.Scope, _ s
 	return nil
 }
 
-func (s *stubMemoryService) List(_ context.Context, _ string) ([]knowledge.Entry, error) {
+func (s *stubKnowledgeStore) List(_ context.Context, _ string) ([]knowledge.Entry, error) {
 	return nil, nil
 }

@@ -81,7 +81,7 @@ loop 检测（已达/略超金标准，键控「调用+结果」）、成本/步
 
 ## 4. 反仪式护栏（明确别抄）
 
-- **Goose 5-inspector 可插拔管线 / Codex Guardian-as-security**：我们 approval 是**有意焊死的单 Service**（Mode + Rules + `SafetyClass` gate）—— 本地单用户下，可插拔 inspector 框架是纯仪式。`SafetyClass` 已≈把 Goose 的 inspector 裁决收成一个分类器、Mode 已≈ Codex 的 `AskForApproval` 层级。唯一能**加性**接上而不破坏单-Service 的是「Guardian 式 LLM 风险分作为 `ModeBalanced` 下的一个可选放行来源，减审批疲劳」—— 那是 **UX 改进不是安全边界**（fail-open、判断与模型相关），只作 opt-in 便利，绝不当 containment。
+- **Goose 5-inspector 可插拔管线 / Codex Guardian-as-security**：我们 approval 是**有意焊死的单 Policy**（Mode + Rules + `SafetyClass` gate）—— 本地单用户下，可插拔 inspector 框架是纯仪式。`SafetyClass` 已≈把 Goose 的 inspector 裁决收成一个分类器、Mode 已≈ Codex 的 `AskForApproval` 层级。唯一能**加性**接上而不破坏单 Policy 的是「Guardian 式 LLM 风险分作为 `ModeBalanced` 下的一个可选放行来源，减审批疲劳」—— 那是 **UX 改进不是安全边界**（fail-open、判断与模型相关），只作 opt-in 便利，绝不当 containment。
 - **Codex 三 OS 堡垒 / MITM proxy / Windows ACL**：威胁模型不匹配（见 B3b），别抄。
 - **多代理编排本身**：业界拆解自己的 takeaway —— 「多代理是找问题的解法，除了并行文件编辑」。除 B4 的 worktree 并行，别为「planning/review/critic agent」建多代理，那些是单 agent 的顺序工具调用。
 - **middleware 拓扑排序 / Dify 7 容器 / LangGraph 借核**：我们 typed 小链 + 单 binary + 自有 loop，都不适用。

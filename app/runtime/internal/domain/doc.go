@@ -19,8 +19,9 @@
 //   - todo/         — model-facing task list
 //   - agentdoc/     — AGENTS.md cascade discovery + render
 //
-// A bounded context that needs replaceable storage (session, knowledge,
-// transcript, provider, interrupts, …) defines a consumer-side Service/Store
-// interface and an implementation named for its essence (sqlite-backed,
-// file-backed, engine-backed). See lyra/doc/GREENFIELD_ARCHITECTURE.md.
+// A bounded context that needs replaceable storage or policy evaluation
+// (session, knowledge, transcript, provider, interrupts, approval, …) defines a
+// consumer-side Store / Registry / Policy interface and an implementation named
+// for its essence (sqlite-backed, file-backed, engine-backed). See
+// lyra/doc/GREENFIELD_ARCHITECTURE.md.
 package domain

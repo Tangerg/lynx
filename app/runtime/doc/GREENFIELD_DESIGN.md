@@ -64,7 +64,7 @@ lyra/internal/
 
 **greenfield:pump/rollback 编排搬进 `kernel/turn/`,不建独立 `application/` 环。**
 
-- **为什么是 `kernel/` 而不是新环**:`kernel/` 本身就是微内核 + use-case 编排层。`kernel/turn.Service` IS the use-case 接口。"跑一个 turn" 和"回滚一个 run"是同层用例。加独立 `application/` 环是 `delivery/server` 的 1:1 影子(YAGNI —— GREENFIELD_ARCHITECTURE §5.3 正确裁决过)。
+- **为什么是 `kernel/` 而不是新环**:`kernel/` 本身就是微内核 + use-case 编排层。`kernel/turn.Dispatcher` IS the use-case 接口。"跑一个 turn" 和"回滚一个 run"是同层用例。加独立 `application/` 环是 `delivery/server` 的 1:1 影子(YAGNI —— GREENFIELD_ARCHITECTURE §5.3 正确裁决过)。
 - **为什么不放 `domain/`**:pump 的 persist+interrupt+snapshot 是多 domain service 的协调,是 use-case 编排,不是领域规则。`domain/` 放单一限界上下文的实体+规则,不放跨域编排。
 - **拆法**(不整体搬 pump.go):
   - pump 里的 `translator`(产出 `protocol.StreamEvent`)+ `hub`(推送 per-run hub)留在 `delivery/server` —— 这是真正的协议适配。
@@ -91,7 +91,7 @@ lyra/internal/
 
 ### 2.5 `kernel/turn` use-case 粒度 + `adapter/toolset/build.go`
 
-- **`kernel/turn` 粒度正确,不变。** `turn.Service` 接口定义"跑一个 turn"的完整生命周期(start/resume/cancel/steering/events)。exact right level of abstraction —— 消费方(delivery)只依赖这一个接口。greenfield 把 rollback 用例也放 `kernel/turn/` 旁边(同为 kernel 层 use-case 编排)。
+- **`kernel/turn` 粒度正确,不变。** `turn.Dispatcher` 接口定义"跑一个 turn"的完整生命周期(start/resume/cancel/steering/events)。exact right level of abstraction —— 消费方(delivery)只依赖这一个接口。greenfield 把 rollback 用例也放 `kernel/turn/` 旁边(同为 kernel 层 use-case 编排)。
 - **`adapter/toolset/build.go` 单一装配点保持。** 这是 toolset 的组合根 —— 所有工具能力在一个地方初始化,依赖关系一目了然。拆成多个构造器散落装配逻辑。ARCHITECTURE_REVIEW §2.6 正确裁决。
 
 ---
@@ -142,7 +142,7 @@ lyra/
 │   │   ├── mcp.go / skills.go          MCP 集成 / skill 取用
 │   │   ├── observer.go / usage.go      事件观察 / usage 追踪
 │   │   ├── turn/                       "跑一个 turn" 用例
-│   │   │   ├── service.go             turn.Service interface — use-case 入口
+│   │   │   ├── dispatcher.go          turn.Dispatcher interface — use-case 入口
 │   │   │   ├── turn.go                turn 状态机 + lifecycle
 │   │   │   ├── engine.go              engineDep 窄接口(turn→Engine)
 │   │   │   ├── policy.go / observer.go / metrics.go / tracing.go
@@ -153,7 +153,7 @@ lyra/
 │   │   ├── session/                    会话聚合根(Fork/NewSubtask/EffectiveModel/rollback 不变量)
 │   │   ├── transcript/                 items+runs 时间线(BoundaryAt 领域算法 + RunNode)
 │   │   ├── conversation/               喂 LLM 的消息上下文(InjectUser/TruncateMessages)
-│   │   ├── knowledge/                  LYRA.md 长期知识(Service interface,用户可编辑)
+│   │   ├── knowledge/                  LYRA.md 长期知识(Store interface,用户可编辑)
 │   │   ├── approval/                   运行态审批 stance(Mode)
 │   │   ├── tool/                       工具注册 + 直接调用
 │   │   ├── editguard/                  read-before-edit + stale 不变量
@@ -310,7 +310,7 @@ lyra/kernel/:
 | `protocol.Runtime`(11 子接口 union) | **不变** | 唯一全量消费方是 transport dispatch。子接口 ISP 已满足测试需求 |
 | `translator`/`hub`/`pump` | **不变** | 名实相符 |
 | `ProcessStore`/`SessionStore` | **不变**(不改 Repository) | 存的不是领域对象,Store 比 Repository 准确。`REFACTORING §1` 裁决已确认 |
-| `Service`/`Store`(各 domain interface) | **按本质保留** | 需要 I/O 用 Service,纯持久化用 Store。不用 Repository(YAGNI 仪式) |
+| `Store`/`Registry`/`Policy`(各 domain interface) | **按本质保留** | 持久化用 Store,运行态目录用 Registry,决策用 Policy。不用 Repository(YAGNI 仪式) |
 
 ---
 
@@ -339,7 +339,7 @@ lyra/kernel/:
 
 | 不做 | 理由 |
 |---|---|
-| lyra 建独立 `application/` 环 | `kernel/turn.Service` + `kernel.Engine` 就是应用层。加一层是 1:1 影子 |
+| lyra 建独立 `application/` 环 | `kernel/turn.Dispatcher` + `kernel.Engine` 就是应用层。加一层是 1:1 影子 |
 | `kernel` 改名 `usecase` | `kernel` 更准确(描述微内核本质)。改名降准确度。GREENFIELD_ARCHITECTURE §5.3 已裁决 |
 | 给 lyra 加 Domain Events 总线 | 单进程无异步 side-effect 需求。显式编排比事件总线清晰 10 倍。ARCHITECTURE_REVIEW §3.5 正确裁决 |
 | `ProcessStore`/`SessionStore` 改名 `Repository` | 存的是快照字节不是领域对象,Store 名实相符 |
