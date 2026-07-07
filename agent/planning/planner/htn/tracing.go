@@ -1,0 +1,9 @@
+package htn
+
+import "go.opentelemetry.io/otel"
+
+// plannerTracer is the package-level tracer for the HTN planner.
+// Tracer name follows the `lynx/agent/planner` namespace shared with
+// the GOAP A* planner — backends can distinguish algorithms by the
+// span name (`htn.plan` vs `goap.astar`).
+var plannerTracer = otel.Tracer("lynx/agent/planner")
