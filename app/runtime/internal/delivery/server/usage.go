@@ -30,7 +30,7 @@ func (s *Server) SessionUsage(ctx context.Context, sessionID string) (*protocol.
 	total := usageAcc{}
 	byModel := map[string]*usageAcc{}
 	for _, r := range runs {
-		foldRunUsage(r.Blob, time.Time{}, s.providers.DefaultProvider(), s.sessions.DefaultModel(), &total, nil, byModel, nil)
+		foldRunUsage(r.Blob, time.Time{}, s.providerDefaults.DefaultProvider(), s.sessions.DefaultModel(), &total, nil, byModel, nil)
 	}
 	out := &protocol.Usage{ModelUsage: total.modelUsage()}
 	if len(byModel) > 0 {
@@ -68,7 +68,7 @@ func (s *Server) UsageSummary(ctx context.Context, in protocol.UsageSummaryReque
 		}
 		before := total.runs
 		for _, r := range runs {
-			foldRunUsage(r.Blob, since, s.providers.DefaultProvider(), s.sessions.DefaultModel(), &total, byProvider, byModel, byDay)
+			foldRunUsage(r.Blob, since, s.providerDefaults.DefaultProvider(), s.sessions.DefaultModel(), &total, byProvider, byModel, byDay)
 		}
 		if total.runs > before {
 			sessionCount++

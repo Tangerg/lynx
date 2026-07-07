@@ -22,7 +22,9 @@ type RuntimePort interface {
 	knowledgeAccess
 	approvalAccess
 	scheduleAccess
-	providerAccess
+	providerRegistryAccess
+	providerCatalogAccess
+	providerDefaultAccess
 	mcpStatusAccess
 	mcpToolCatalogAccess
 	mcpConnectionAccess

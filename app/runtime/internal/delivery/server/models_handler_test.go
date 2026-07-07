@@ -50,7 +50,7 @@ func (r *modelRoleRuntime) SetEmbeddingRole(context.Context, string, string) err
 
 func TestSetUtilityRoleRequiresConfiguredProvider(t *testing.T) {
 	rt := &modelRoleRuntime{entries: map[string]provider.Provider{}}
-	s := &Server{runtimeBindings: runtimeBindings{providers: rt, modelRoles: rt}}
+	s := &Server{runtimeBindings: runtimeBindings{providerRegistry: rt, providerCatalog: rt, modelRoles: rt}}
 
 	_, err := s.SetUtilityRole(context.Background(), protocol.UtilityRole{
 		Provider: "anthropic",
@@ -68,7 +68,7 @@ func TestSetUtilityRoleStoresConfiguredProvider(t *testing.T) {
 	rt := &modelRoleRuntime{entries: map[string]provider.Provider{
 		"anthropic": {ID: "anthropic", APIKey: "sk-secret"},
 	}}
-	s := &Server{runtimeBindings: runtimeBindings{providers: rt, modelRoles: rt}}
+	s := &Server{runtimeBindings: runtimeBindings{providerRegistry: rt, providerCatalog: rt, modelRoles: rt}}
 
 	got, err := s.SetUtilityRole(context.Background(), protocol.UtilityRole{
 		Provider: "anthropic",
