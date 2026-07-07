@@ -131,7 +131,10 @@ func (b runtimeBindings) SupportedProviders() []providersvc.Metadata {
 }
 
 type runtimeBindings struct {
-	turn               turnAccess
+	turnStarts         turnStartAccess
+	turnStreams        turnStreamAccess
+	turnSteering       turnSteeringAccess
+	turnInterrupts     turnInterruptPolicyAccess
 	sessionCatalog     sessionCatalogAccess
 	sessionMutations   sessionMutationAccess
 	sessionDefaults    sessionDefaultModelAccess
@@ -171,7 +174,10 @@ type runtimeBindings struct {
 
 func bindRuntime(rt RuntimePort) runtimeBindings {
 	return runtimeBindings{
-		turn:               rt,
+		turnStarts:         rt,
+		turnStreams:        rt,
+		turnSteering:       rt,
+		turnInterrupts:     rt,
 		sessionCatalog:     rt,
 		sessionMutations:   rt,
 		sessionDefaults:    rt,

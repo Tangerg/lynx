@@ -53,7 +53,7 @@ func (s *Server) SteerRun(ctx context.Context, in protocol.SteerRunRequest) erro
 	// s.runs while the pump drains). InjectSteering reports both as
 	// ErrTurnNotFound; map it to the wire run_not_found symbol so the client
 	// retries the message as a fresh send rather than seeing it silently dropped.
-	if err := s.turn.InjectTurnSteering(ctx, turn.TurnHandle{SessionID: e.Record.SessionID, TurnID: e.Record.TurnID}, in.Message); err != nil {
+	if err := s.turnSteering.InjectTurnSteering(ctx, turn.TurnHandle{SessionID: e.Record.SessionID, TurnID: e.Record.TurnID}, in.Message); err != nil {
 		if errors.Is(err, turn.ErrTurnNotFound) {
 			return protocol.ErrRunNotFound
 		}
