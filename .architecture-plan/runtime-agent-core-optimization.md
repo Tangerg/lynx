@@ -302,6 +302,14 @@ app/runtime -> agent -> core
   - `atom.go` 承接 identifier/literal/grouping/list literal 解析。
   - `operators.go` 承接 unary/binary、`NOT IN`、`IS [NOT] NULL`、index expression 解析。
   - 导出的 `ParseError`、`Parser`、`NewParser`、`Parse`、filter AST shape 和语法行为保持不变；本轮无公共 API 破坏性调整。
+- 已完成第十八轮目标模块结构清理：
+  - `core/vectorstore/filter/lexer`：将原 `lexer.go` 中混杂的 lexer 状态/构造、token emission、cursor reader、literal scanning、operator dispatch 和 public token APIs 拆开。
+  - `lexer.go` 现在保留 `Lexer` 状态模型、`NewLexer`、`Scan` / `Token` / `Tokens` / `Reset` 公开 API。
+  - `emit.go` 承接 token start marking、EOF/error/illegal/kind/literal/ident token emission。
+  - `cursor.go` 承接 rune peek/consume、cursor position advance、buffer append、expected-rune consumption 与 whitespace skip。
+  - `literals.go` 承接 string escape、string literal、number/negative number、identifier/keyword scanning。
+  - `dispatch.go` 承接 one/two-character operator scanning 与 current-rune token dispatch。
+  - 导出的 `Lexer`、`NewLexer`、`Scan`/`Token`/`Tokens`/`Reset` 和 token stream 行为保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -327,16 +335,17 @@ app/runtime -> agent -> core
   - `go test ./internal/infra/lsp`（`app/runtime`）通过。
   - `go test ./toolloop`（`agent`）通过。
   - `go test ./vectorstore/filter/parser ./vectorstore/filter/...`（`core`）通过。
+  - `go test ./vectorstore/filter/lexer ./vectorstore/filter/...`（`core`）通过。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第十七轮后复跑）。
-  - `go test ./...`（`agent`）通过（第十七轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第十七轮后复跑）。
-  - `go vet ./...`（`core`）通过（第十七轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第十七轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第十七轮后复跑）。
-  - `go build ./...`（`core`）通过（第十七轮后复跑）。
-  - `go build ./...`（`agent`）通过（第十七轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第十七轮后复跑）。
+  - `go test ./...`（`core`）通过（第十八轮后复跑）。
+  - `go test ./...`（`agent`）通过（第十八轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第十八轮后复跑）。
+  - `go vet ./...`（`core`）通过（第十八轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第十八轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第十八轮后复跑）。
+  - `go build ./...`（`core`）通过（第十八轮后复跑）。
+  - `go build ./...`（`agent`）通过（第十八轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第十八轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
