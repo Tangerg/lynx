@@ -12,7 +12,9 @@ package server
 // expected.
 type RuntimePort interface {
 	turnAccess
-	sessionAccess
+	sessionCatalogAccess
+	sessionMutationAccess
+	sessionDefaultModelAccess
 	transcriptAccess
 	lifecycleAccess
 	runSegmentAccess
