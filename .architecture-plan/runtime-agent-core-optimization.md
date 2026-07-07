@@ -394,6 +394,13 @@ app/runtime -> agent -> core
   - `diff_untracked.go` 承接 `status --porcelain` untracked path collection、relPath scoping、binary heuristic 和 all-added untracked `DiffFile` projection。
   - `diff_parse.go` 承接 unified patch → structured `DiffFile` / `Row` parsing、hunk line-number extraction 和 added/removed counters。
   - Worktree/base diff semantics, ErrUnavailable/ErrNotRepo/ErrNoBase mapping, untracked raw/parsed projection, binary detection, rename/path parsing and row line numbers 保持不变；本轮无公共 API 破坏性调整。
+- 已完成第二十九轮目标模块结构清理：
+  - `app/runtime/internal/adapter/maintenance`：将原 `compaction.go` 中混杂的 compaction worker 主流程、配置默认值、token-footprint trigger 和 summary LLM prompt/call 拆开。
+  - `compaction.go` 现在只保留 `Compactor` 状态、constructor 和 `MaybeCompact` 的 read/guard/cutoff/summarize/replace 生命周期。
+  - `compaction_config.go` 承接 `CompactionConfig`、message/token/recent defaults、context-window-relative trigger defaults 和 summary tool result cap。
+  - `compaction_trigger.go` 承接 message-count/token-footprint compaction predicate、chars→tokens heuristic 和 transcript-based estimate。
+  - `compaction_summary.go` 承接 summary prompt、direct client resolution、`askDirect` 调用和 summary system-message construction。
+  - MaxMessages/MaxTokens/KeepRecent defaults, context-window-relative trigger, pre-compact veto timing, user-boundary cutoff, short-history skip, summary prompt, history.Replace rewrite and result counters 保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -431,16 +438,17 @@ app/runtime -> agent -> core
   - `go test ./internal/domain/codebaseindex`（`app/runtime`）通过。
   - `go test ./internal/runtime`（`app/runtime`）通过（第二十七轮后复跑）。
   - `go test ./internal/infra/git`（`app/runtime`）通过（第二十八轮后复跑）。
+  - `go test ./internal/adapter/maintenance`（`app/runtime`）通过（第二十九轮后复跑）。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第二十八轮后复跑）。
-  - `go test ./...`（`agent`）通过（第二十八轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第二十八轮后复跑）。
-  - `go vet ./...`（`core`）通过（第二十八轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第二十八轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第二十八轮后复跑）。
-  - `go build ./...`（`core`）通过（第二十八轮后复跑）。
-  - `go build ./...`（`agent`）通过（第二十八轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第二十八轮后复跑）。
+  - `go test ./...`（`core`）通过（第二十九轮后复跑）。
+  - `go test ./...`（`agent`）通过（第二十九轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第二十九轮后复跑）。
+  - `go vet ./...`（`core`）通过（第二十九轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第二十九轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第二十九轮后复跑）。
+  - `go build ./...`（`core`）通过（第二十九轮后复跑）。
+  - `go build ./...`（`agent`）通过（第二十九轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第二十九轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -460,6 +468,7 @@ app/runtime -> agent -> core
 - `agent/runtime/mcp.go` 直接承载 MCP 便利集成：已有 agent 架构评审明确裁决为“关注点不同但紧密依赖 `*Platform`/`*AgentProcess`，当前保持在 runtime 包内”。本轮不拆。
 - `agent/core.ServiceProvider` 是开放 service locator：已有 agent 架构评审裁决为 SDK 库的 architecture tax，可接受。本轮不改。
 - `app/runtime` 的 `delivery/server` 总 LOC 较大：已有文档裁决协议方法 1:1 绑定是健康的，且原 use-case 泄漏 P0 已落地。本轮不按文件数拆。
+- `agent/event.Multicast` 的 listener panic span 目前没有 caller context 可用；根治需要给 `Listener.OnEvent` 引入 context 或新增带 context 的 delivery surface，属于公共 API 破坏性调整。本轮只记录，不在未确认 scope 前直接修改。
 
 ### 5.4 风险与注意事项
 
