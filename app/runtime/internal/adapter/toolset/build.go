@@ -75,7 +75,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		return Built{}, err
 	}
 
-	// Code intelligence: one service wrapping the LSP manager; servers launch
+	// Code intelligence: one service wrapping LSP clients; servers launch
 	// lazily per (workspace root, language). Tools are cwd-independent (the
 	// service keys by root, read per call off the blackboard).
 	codeIntel := codeintel.New(cfg.LSPServers)
@@ -83,8 +83,8 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 
 	tracker := editguard.NewTracker()
 
-	bg := exec.NewManager()
-	shellTools := shell.Build(bg, cfg.Workdir)
+	shells := exec.NewShells()
+	shellTools := shell.Build(shells, cfg.Workdir)
 
 	// ask_user is self-contained (SDK HITL + interrupts.Resolution), so it's a
 	// plain build-time tool here, not engine-injected. Coding role only — the
@@ -162,7 +162,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		MCP:      &mcpControl{inner: mcpConns},
 		Closers: []func() error{
 			codeIntel.Close,
-			func() error { bg.KillAll(); return nil },
+			func() error { shells.KillAll(); return nil },
 			mcpConns.Close,
 			a2aConns.Close,
 		},

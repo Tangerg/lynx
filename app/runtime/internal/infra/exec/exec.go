@@ -5,7 +5,7 @@
 //
 // Every command the engine's shell tool runs starts here as a detached job:
 // the foreground path races the command's completion ([Shell.Done]) against an
-// auto-background window, removing the job ([Manager.Remove]) if it finishes in
+// auto-background window, removing the job ([Shells.Remove]) if it finishes in
 // time and otherwise leaving it running and addressable by its shell id. So one
 // mechanism backs both the synchronous shell result and the shell_output /
 // shell_kill tools — the auto-background design.
@@ -29,24 +29,24 @@ import (
 // oldest bytes are dropped (a poll that fell behind is told output was lost).
 const maxBuffer = 256 * 1024
 
-// Manager runs shell commands in the background and lets callers poll their
-// output and stop them — the long-running-command counterpart to a synchronous
-// shell executor. The process handles + output buffers live here. The zero
-// value is not usable; build one with [NewManager].
-type Manager struct {
+// Shells owns background shell commands and lets callers poll their output or
+// stop them. The process handles and output buffers live here. The zero value is
+// not usable; build one with [NewShells].
+type Shells struct {
 	mu     sync.Mutex
 	nextID int
 	shells map[string]*Shell
 }
 
-func NewManager() *Manager {
-	return &Manager{shells: map[string]*Shell{}}
+// NewShells creates an empty background-shell set.
+func NewShells() *Shells {
+	return &Shells{shells: map[string]*Shell{}}
 }
 
 // Shell is one background process: its handle, the tail of its combined
 // stdout+stderr (capped), and its completion state. Read its output with
 // [Shell.Read], wait for it with [Shell.Done], inspect its terminal state with
-// [Shell.Status] / [Shell.Outcome]; the [Manager] owns its lifecycle.
+// [Shell.Status] / [Shell.Outcome]; the [Shells] set owns its lifecycle.
 type Shell struct {
 	cancel  context.CancelFunc
 	cmd     *exec.Cmd
@@ -71,7 +71,7 @@ type Shell struct {
 // rather than being severed by a bare context.Background(). A positive timeout
 // hard-kills the command when it elapses (0 = no hard timeout; the command
 // runs until it exits or is killed).
-func (m *Manager) Launch(ctx context.Context, cwd, command string, timeout time.Duration) string {
+func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.Duration) string {
 	base := context.WithoutCancel(ctx)
 	runCtx, cancel := context.WithCancel(base)
 	if timeout > 0 {
@@ -87,11 +87,11 @@ func (m *Manager) Launch(ctx context.Context, cwd, command string, timeout time.
 	cmd.Stdout = sh
 	cmd.Stderr = sh
 
-	m.mu.Lock()
-	m.nextID++
-	id := "bg_" + strconv.Itoa(m.nextID)
-	m.shells[id] = sh
-	m.mu.Unlock()
+	s.mu.Lock()
+	s.nextID++
+	id := "bg_" + strconv.Itoa(s.nextID)
+	s.shells[id] = sh
+	s.mu.Unlock()
 
 	if err := cmd.Start(); err != nil {
 		sh.finish("start failed: "+err.Error(), -1, false)
@@ -116,17 +116,17 @@ func (m *Manager) Launch(ctx context.Context, cwd, command string, timeout time.
 }
 
 // Get returns the shell with id and whether it exists.
-func (m *Manager) Get(id string) (*Shell, bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	sh, ok := m.shells[id]
+func (s *Shells) Get(id string) (*Shell, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sh, ok := s.shells[id]
 	return sh, ok
 }
 
 // Kill stops a background shell; reports whether it was still running and
 // whether it existed.
-func (m *Manager) Kill(id string) (running, ok bool) {
-	sh, ok := m.Get(id)
+func (s *Shells) Kill(id string) (running, ok bool) {
+	sh, ok := s.Get(id)
 	if !ok {
 		return false, false
 	}
@@ -140,22 +140,22 @@ func (m *Manager) Kill(id string) (running, ok bool) {
 	return running, true
 }
 
-// Remove drops a shell from the manager without killing it. The foreground
+// Remove drops a shell from the set without killing it. The foreground
 // shell race calls it once a command completes within the auto-background
 // window, so a finished command isn't left behind as a phantom background job.
 // Killing instead would cancel the already-exited process context needlessly.
-func (m *Manager) Remove(id string) {
-	m.mu.Lock()
-	delete(m.shells, id)
-	m.mu.Unlock()
+func (s *Shells) Remove(id string) {
+	s.mu.Lock()
+	delete(s.shells, id)
+	s.mu.Unlock()
 }
 
 // KillAll stops every background shell — called on engine shutdown.
-func (m *Manager) KillAll() {
-	m.mu.Lock()
-	shells := m.shells
-	m.shells = map[string]*Shell{}
-	m.mu.Unlock()
+func (s *Shells) KillAll() {
+	s.mu.Lock()
+	shells := s.shells
+	s.shells = map[string]*Shell{}
+	s.mu.Unlock()
 	for _, sh := range shells {
 		sh.cancel()
 		if sh.cmd.Process != nil {

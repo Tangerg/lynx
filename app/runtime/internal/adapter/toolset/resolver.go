@@ -75,7 +75,7 @@ func (d *decoratedTool) ReturnsDirect() bool {
 // all anchored at workdir. These are the only tools whose behavior depends on
 // the working directory, so they are rebuilt per resolution (cheap structs)
 // rather than captured once. No credentials needed; safe to build
-// unconditionally. (the shell tool is built over the shared exec.Manager in
+// unconditionally. (the shell tool is built over the shared exec.Shells in
 // shell.Build, not here — it reads cwd per call like shell_output.)
 //
 // write and edit are wrapped so a successful edit is type-checked by the
@@ -203,7 +203,7 @@ type Resolver struct {
 	lsp             []chat.Tool        // code-intelligence tools; cwd read per-call (service keys servers by root)
 	codeIntel       *codeintel.Service // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
 	readTracker     *editguard.Tracker // backs the read-before-edit + stale guards on read/edit/write
-	shell           []chat.Tool        // shell tools (shell / shell_output / shell_kill) over the exec.Manager; cwd read per-call
+	shell           []chat.Tool        // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
 	task            chat.Tool          // delegation tool; coding role only, nil until set
 	askUser         chat.Tool          // ask_user HITL tool; coding role only (askuser.New, via Deps)
 	exitPlan        chat.Tool          // exit_plan_mode HITL tool; coding role only (exitplan.New, via Deps); nil when no approval svc
@@ -264,11 +264,11 @@ func NewResolver(d Deps) *Resolver {
 	shellTools := d.Shell
 	if shellTools == nil {
 		// Bare resolver (a unit-test engine with no injected tool environment):
-		// own a private exec.Manager so the shell tool and its background companions are
+		// own a private exec.Shells so the shell tool and its background companions are
 		// still available. The production path injects shell tools built over the
-		// shared manager whose KillAll is a shutdown closer (toolset.Build); this
-		// private manager has no closer, fine for a process-lifetime test engine.
-		shellTools = shell.Build(exec.NewManager(), d.DefaultWorkdir)
+		// shared shell set whose KillAll is a shutdown closer (toolset.Build); this
+		// private shell set has no closer, fine for a process-lifetime test engine.
+		shellTools = shell.Build(exec.NewShells(), d.DefaultWorkdir)
 	}
 	return &Resolver{
 		defaultWorkdir:  d.DefaultWorkdir,
