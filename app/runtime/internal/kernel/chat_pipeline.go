@@ -2,15 +2,11 @@ package kernel
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
-	historymw "github.com/Tangerg/lynx/core/model/chat/middleware/history"
 )
 
 func newAgentPlatform(cfg Config, resolver ToolResolver) (*agentruntime.Platform, error) {
@@ -39,33 +35,14 @@ func newAgentPlatform(cfg Config, resolver ToolResolver) (*agentruntime.Platform
 // stays model-adjacent, so each loop round persists only the genuinely-new
 // messages for that conversation id.
 func newChatGuardrails(cfg Config) (*core.Guardrails, error) {
-	historyStore := cfg.HistoryStore
-	if historyStore == nil {
-		historyStore = history.NewInMemoryStore()
-	}
-	historyCallMW, historyStreamMW, err := historymw.NewMiddleware(historyStore)
-	if err != nil {
-		return nil, fmt.Errorf("engine: build history middleware: %w", err)
-	}
-
-	toolCallMW, toolStreamMW := toolloop.NewMiddleware(toolLoopConfig(cfg))
-	return &core.Guardrails{
-		CallMiddlewares:   []chat.CallMiddleware{toolCallMW, historyCallMW},
-		StreamMiddlewares: []chat.StreamMiddleware{toolStreamMW, historyStreamMW},
-	}, nil
-}
-
-// toolLoopConfig captures Lyra's agent-loop policy: retry an empty model reply
-// once, park HITL tool interrupts when a store exists, stop fixed-point tool
-// repetition before the iteration cap, and drain mid-run steering before each
-// continuation round.
-func toolLoopConfig(cfg Config) toolloop.Config {
-	return toolloop.Config{
-		FeedbackOnEmptyResponse: true,
-		ParkStore:               cfg.ParkStore,
-		LoopDetection:           &toolloop.LoopDetectionConfig{},
-		BeforeRound:             drainSteeringBeforeRound,
-	}
+	return agentruntime.BuildChatGuardrails(agentruntime.ChatGuardrailsConfig{
+		HistoryStore: cfg.HistoryStore,
+		ToolLoop: agentruntime.ToolLoopPolicy{
+			FeedbackOnEmptyResponse: true,
+			ParkStore:               cfg.ParkStore,
+			BeforeRound:             drainSteeringBeforeRound,
+		},
+	})
 }
 
 func drainSteeringBeforeRound(ctx context.Context) []chat.Message {
