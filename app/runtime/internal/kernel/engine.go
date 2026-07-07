@@ -19,9 +19,8 @@ import (
 // composes three concerns:
 //
 //   - turn execution: platform + agent drive [Engine.StartTurn]
-//     (async; returns a [TurnProcess] handle backed by a real
-//     [runtime.AgentProcess]) and [Engine.RunTurn] (sync wrapper) —
-//     see turnrun.go / turnprocess.go
+//     (returns a [TurnProcess] handle backed by a real
+//     [runtime.AgentProcess]) — see turnrun.go / turnprocess.go
 //   - maintenance:    the injected Compactor / Extractor ports power
 //     [Engine.MaybeCompact] / [Engine.MaybeExtract]
 //   - context:        knowledge / workdir feed the system prompt; the Steering

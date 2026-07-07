@@ -595,6 +595,11 @@ app/runtime -> agent -> core
   - 修复 `ToolCallContext(nil)` 直接 panic 的 API 易误用点；resolver 也不再收到 nil ctx，避免把框架入口的不稳定状态透传给下游工具解析器。
   - 新增 `agent/core` 单元测试覆盖 nil ctx 下的 tool resolver 调用、action tool resolver 调用、tool-call cancel/release 行为。
   - 本轮不新增兼容旧接口层，不改变公开签名；属于现有 API 语义收紧和难误用治理。
+- 已完成第六十一轮 `app/runtime` internal API 收敛：
+  - 删除 `kernel.Engine.RunTurn` 同步 wrapper，生产 turn 执行入口收敛为 `StartTurn(ctx, req) -> TurnProcess`。
+  - `internal/runtime` 的 A2A adapter 改为直接使用 `StartTurn`，等待 `TurnProcess.Done()` 后读取 `TurnProcess.Output()`；不为旧同步入口保留兼容层。
+  - `kernel` 包测试迁移到 test-only `runTurnSync` helper，测试仍覆盖同步等待语义，但生产 API 不再暴露重复入口。
+  - 清理 `Engine.RunTurn` 相关注释，避免文档继续指向已删除接口。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -667,6 +672,9 @@ app/runtime -> agent -> core
   - `go test ./runtime -run 'TestProcessContextAwaitInputKeepsActionTrace|TestTypedActionAwaitInputSuspendsAndResumes'`（`agent`）通过（第五十九轮后复跑）。
   - `go test ./core -run 'TestProcessContextTool'`（`agent`）通过（第六十轮后复跑）。
   - `go test ./core`（`agent`）通过（第六十轮后复跑）。
+  - `go test ./internal/kernel`（`app/runtime`）通过（第六十一轮后复跑）。
+  - `go test ./internal/runtime`（`app/runtime`）通过（第六十一轮后复跑）。
+  - `go test ./internal/runtime -run TestA2AAgent_RunYieldsReply`（`app/runtime`）通过（第六十一轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -812,6 +820,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第六十轮后复跑）。
   - `go build ./...`（`agent`）通过（第六十轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第六十轮后复跑）。
+  - `go test ./...`（`core`）通过（第六十一轮后复跑）。
+  - `go test ./...`（`agent`）通过（第六十一轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第六十一轮后复跑）。
+  - `go vet ./...`（`core`）通过（第六十一轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第六十一轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第六十一轮后复跑）。
+  - `go build ./...`（`core`）通过（第六十一轮后复跑）。
+  - `go build ./...`（`agent`）通过（第六十一轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第六十一轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -866,4 +883,14 @@ app/runtime -> agent -> core
 
 ### 7.2 本轮记录
 
-暂无破坏性调整。
+第六十一轮包含 `app/runtime/internal/kernel.Engine` 的 internal 破坏性调整：
+
+- 调整对象：`kernel.Engine.RunTurn`。
+- 调整前问题：`Engine` 同时暴露 `StartTurn` 与 `RunTurn` 两条 turn 执行入口，后者只是同步 wrapper，生产侧 A2A 与测试继续依赖它，导致应用层编排 API 重复。
+- 破坏性原因：目标已更新为不保留旧接口兼容层；`RunTurn` 是 internal 包 API，不是跨模块公开 API，直接删除比继续维护 wrapper 更符合单一入口和低耦合。
+- 新设计：生产代码统一使用 `StartTurn` 返回的 `TurnProcess`；同步等待仅在测试中通过 test-only helper 表达。
+- 架构收益：turn 生命周期控制（cancel/resume/status/output）只通过 `TurnProcess` 暴露，A2A、turn dispatcher、runtime 共享同一执行模型。
+- 影响范围：`app/runtime/internal/runtime/a2aagent.go` 与 `app/runtime/internal/kernel` 包测试。
+- 已完成适配：A2A adapter 已迁移到 `StartTurn`；kernel 测试改用 `runTurnSync` helper。
+- 验证结果：`go test ./internal/kernel`、`go test ./internal/runtime`、`go test ./internal/runtime -run TestA2AAgent_RunYieldsReply` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险；若后续有新的同步调用需求，应在调用方显式等待 `TurnProcess`，不要恢复生产 wrapper。

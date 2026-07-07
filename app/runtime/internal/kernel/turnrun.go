@@ -14,10 +14,9 @@ import (
 // associated with the currently running turn.
 type SteerSource func() []chat.Message
 
-// RunTurnRequest carries the per-turn parameters for [Engine.StartTurn] /
-// [Engine.RunTurn]. SessionID is non-empty to bind the turn to a
-// chat history keyed conversation; Observer is non-nil to receive streaming
-// notifications.
+// RunTurnRequest carries the per-turn parameters for [Engine.StartTurn].
+// SessionID is non-empty to bind the turn to a chat history keyed conversation;
+// Observer is non-nil to receive streaming notifications.
 type RunTurnRequest struct {
 	// SessionID anchors the turn to a chat history conversation. The
 	// runtime stamps it onto each request under the chat conversation-id key,
@@ -105,8 +104,7 @@ type RunTurnRequest struct {
 // bare goroutine, so HITL integration (plan approval, tool approval)
 // drops in on the same Process via [runtime.Platform.ResumeProcess].
 //
-// Observer / SessionID wiring matches [Engine.RunTurn]: Observer
-// attaches a process-scope [core.ToolDecorator]; SessionID binds the
+// Observer attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat history middleware's keyed conversation.
 func (e *Engine) StartTurn(ctx context.Context, req RunTurnRequest) TurnProcess {
 	in := turnInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps, Options: req.Options.Clone()}
@@ -229,15 +227,4 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, req RestoreT
 		return nil, fmt.Errorf("engine: restore chat re-tick: %w", err)
 	}
 	return &turnProcess{proc: proc, platform: e.platform}, nil
-}
-
-// RunTurn is the synchronous wrapper kept for callers that don't
-// need the [TurnProcess] handle (engine tests, CLI smoke runs).
-// Newer call sites should use [Engine.StartTurn] directly.
-func (e *Engine) RunTurn(ctx context.Context, req RunTurnRequest) (TurnOutput, error) {
-	cp := e.StartTurn(ctx, req)
-	if err := <-cp.Done(); err != nil {
-		return TurnOutput{}, fmt.Errorf("engine: run turn: %w", err)
-	}
-	return cp.Output()
 }

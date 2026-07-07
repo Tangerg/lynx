@@ -97,7 +97,7 @@ type ToolApprovalVerdict struct {
 }
 
 // observerFrom extracts the [toolObserver] the engine attached to
-// opts via [Engine.RunTurn]. Returns nil when no observer is
+// opts via [Engine.StartTurn]. Returns nil when no observer is
 // registered — Action bodies treat that as "no streaming hook
 // wired" and skip the per-chunk callback.
 //
@@ -116,7 +116,7 @@ func observerFrom(opts *core.ProcessOptions) toolObserver {
 }
 
 // toolObserverDecorator is the process-scope [core.ToolDecorator]
-// the engine attaches when [RunTurn] is called with an observer.
+// the engine attaches when [StartTurn] is called with an observer.
 // It wraps every resolved [core.AgentTool] with [observedTool] so
 // invocations land on the observer without changing the underlying
 // tool implementation.

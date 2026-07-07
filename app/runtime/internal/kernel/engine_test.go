@@ -21,7 +21,7 @@ import (
 // be the stub's FinalText.
 //
 // This is the M2-readiness gate: it proves the chain
-// engine.RunTurn → lynx Platform → tool loop → tool decorator
+// engine.StartTurn → lynx Platform → tool loop → tool decorator
 // → observedTool → toolObserver is wired end-to-end without any
 // real LLM in the loop.
 func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
@@ -35,7 +35,7 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 	defer eng.Close()
 
 	rec := &recordingObserver{}
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{
 		Message:  "say lyra via shell",
 		Observer: rec,
 	})
@@ -84,7 +84,7 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go"})
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "go"})
 	if err != nil {
 		t.Fatalf("RunTurn: %v", err)
 	}
@@ -99,14 +99,14 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 // and the model recovers on the next round instead of the turn
 // aborting. Exercises the ActionConfig.ToolLoop → ProcessContext →
 // chat tool-middleware wiring end-to-end. Without the opt-in this
-// RunTurn would return a "tool not registered" error.
+// The turn would return a "tool not registered" error.
 func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 	stub := newStubModel("frobnicate", `{}`, "recovered: used a real approach")
 	client, _ := chat.NewClient(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go"})
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "go"})
 	if err != nil {
 		t.Fatalf("RunTurn aborted on unknown tool (recovery not wired?): %v", err)
 	}
@@ -128,7 +128,7 @@ func TestEngine_RunChat_TaskDelegation(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "delegate this"})
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "delegate this"})
 	if err != nil {
 		t.Fatalf("RunTurn: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 	defer eng.Close()
 
 	rec := &recordingObserver{}
-	if _, err := eng.RunTurn(context.Background(), RunTurnRequest{
+	if _, err := eng.runTurnSync(context.Background(), RunTurnRequest{
 		Message:  "list the dir",
 		Cwd:      dir,
 		Observer: rec,
@@ -185,7 +185,7 @@ func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{
 		Message: "delegate this",
 		Cwd:     dir,
 	})
@@ -215,7 +215,7 @@ func TestEngine_RunChat_SubtaskKeepsHistoryAcrossRounds(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{
 		Message: "delegate this",
 		Cwd:     t.TempDir(),
 	})
@@ -243,7 +243,7 @@ func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 	}
 
 	rec := &recordingObserver{}
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{
 		Message:  "go",
 		Observer: rec,
 	})
@@ -276,7 +276,7 @@ func TestEngine_RunChat_PassesOptions(t *testing.T) {
 	temp := 0.7
 	maxTokens := int64(256)
 
-	if _, err := eng.RunTurn(context.Background(), RunTurnRequest{
+	if _, err := eng.runTurnSync(context.Background(), RunTurnRequest{
 		Message: "go",
 		Options: &chat.Options{
 			Temperature: &temp,
@@ -412,7 +412,7 @@ func TestEngine_RunChat_PerRunClientOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := eng.RunTurn(context.Background(), RunTurnRequest{Message: "go", ChatClient: ovrClient})
+	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "go", ChatClient: ovrClient})
 	if err != nil {
 		t.Fatalf("RunTurn: %v", err)
 	}

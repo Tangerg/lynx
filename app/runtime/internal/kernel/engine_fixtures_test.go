@@ -44,6 +44,14 @@ func mustEngineWith(t *testing.T, client *chat.Client, bc toolset.BuildConfig) *
 	return eng
 }
 
+func (e *Engine) runTurnSync(ctx context.Context, req RunTurnRequest) (TurnOutput, error) {
+	proc := e.StartTurn(ctx, req)
+	if err := <-proc.Done(); err != nil {
+		return TurnOutput{}, fmt.Errorf("engine: run turn: %w", err)
+	}
+	return proc.Output()
+}
+
 type startCall struct {
 	callID    string
 	toolName  string
