@@ -425,6 +425,16 @@ app/runtime -> agent -> core
   - `syntax_logic.go` 承接 `And` / `Or` / `Not` factories。
   - `syntax_index.go` 承接 nested index expression factory。
   - Exported constructors, generic constraints, synthetic token positions, literal formatting, list conversion, builder shared helpers, comparison/logical/index AST shape and panic-on-impossible-constraint-violation behavior 保持不变；本轮无公共 API 破坏性调整。
+- 已完成第三十三轮目标模块结构清理：
+  - `core/vectorstore`：将原 `store.go` 中混杂的 request validation sentinels、retrieval request/port、create request/port、delete request/ports、store metadata 和 document writer adapter 拆开。
+  - `errors.go` 承接 request-shape validator sentinel errors。
+  - `retrieval.go` 承接 similarity defaults、`RetrievalRequest`、top-k/min-score/filter options、validation 和 `Retriever` port。
+  - `create.go` 承接 `CreateRequest` validation 和 `Creator` port。
+  - `delete.go` 承接 `DeleteRequest` validation、metadata-filter `Deleter` port 和 optional `IDDeleter` capability。
+  - `store.go` 现在只保留 `Store` composition and `StoreMetadata` identity surface。
+  - `document_writer.go` 承接 `Creator` → `document.Writer` adapter。
+  - 同步去掉 `Store` godoc 中对 sibling provider module path 的锚定，改为“interface package 之外”的基础层表述。
+  - Exported API, JSON tags, validation errors, filter analysis, similarity defaults, document writer behavior and Store composition 保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -466,16 +476,17 @@ app/runtime -> agent -> core
   - `go test ./model/chat/middleware/safeguard`（`core`）通过（第三十轮后复跑）。
   - `go test ./planning/planner/htn`（`agent`）通过（第三十一轮后复跑）。
   - `go test ./vectorstore/filter/...`（`core`）通过（第三十二轮后复跑）。
+  - `go test ./vectorstore`（`core`）通过（第三十三轮后复跑）。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第三十二轮后复跑）。
-  - `go test ./...`（`agent`）通过（第三十二轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第三十二轮后复跑）。
-  - `go vet ./...`（`core`）通过（第三十二轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第三十二轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第三十二轮后复跑）。
-  - `go build ./...`（`core`）通过（第三十二轮后复跑）。
-  - `go build ./...`（`agent`）通过（第三十二轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第三十二轮后复跑）。
+  - `go test ./...`（`core`）通过（第三十三轮后复跑）。
+  - `go test ./...`（`agent`）通过（第三十三轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第三十三轮后复跑）。
+  - `go vet ./...`（`core`）通过（第三十三轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第三十三轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第三十三轮后复跑）。
+  - `go build ./...`（`core`）通过（第三十三轮后复跑）。
+  - `go build ./...`（`agent`）通过（第三十三轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第三十三轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
