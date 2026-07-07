@@ -141,10 +141,12 @@ type runtimeBindings struct {
 	runSegments        runSegmentAccess
 	history            historyAccess
 	interrupts         interruptQueryAccess
-	tools              toolAccess
+	toolCatalog        toolCatalogAccess
+	toolInvocations    toolInvocationAccess
 	memoryAvailability memoryAvailabilityAccess
 	memoryStore        memoryStoreAccess
-	approvals          approvalAccess
+	approvalModes      approvalModeAccess
+	approvalRules      approvalRuleAccess
 	scheduleCatalog    scheduleCatalogAccess
 	scheduleMutations  scheduleMutationAccess
 	scheduleRuns       scheduleRunRecorderAccess
@@ -175,10 +177,12 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		runSegments:        rt,
 		history:            rt,
 		interrupts:         rt,
-		tools:              rt,
+		toolCatalog:        rt,
+		toolInvocations:    rt,
 		memoryAvailability: rt,
 		memoryStore:        rt,
-		approvals:          rt,
+		approvalModes:      rt,
+		approvalRules:      rt,
 		scheduleCatalog:    rt,
 		scheduleMutations:  rt,
 		scheduleRuns:       rt,

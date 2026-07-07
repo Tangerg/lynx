@@ -11,8 +11,11 @@ import (
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-type toolAccess interface {
+type toolCatalogAccess interface {
 	ListRegisteredTools(ctx context.Context) ([]toolsvc.Tool, error)
+}
+
+type toolInvocationAccess interface {
 	InvokeRegisteredTool(ctx context.Context, name string, arguments string) (string, error)
 }
 
@@ -26,9 +29,12 @@ type memoryStoreAccess interface {
 	UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd string, content string) error
 }
 
-type approvalAccess interface {
+type approvalModeAccess interface {
 	ApprovalMode(ctx context.Context) (approval.Mode, error)
 	SetApprovalMode(ctx context.Context, mode approval.Mode) error
+}
+
+type approvalRuleAccess interface {
 	ListApprovalRules(ctx context.Context, sessionID string) ([]approval.Rule, error)
 	ForgetApprovalRule(ctx context.Context, id string) error
 }

@@ -21,10 +21,12 @@ type RuntimePort interface {
 	runSegmentAccess
 	historyAccess
 	interruptQueryAccess
-	toolAccess
+	toolCatalogAccess
+	toolInvocationAccess
 	memoryAvailabilityAccess
 	memoryStoreAccess
-	approvalAccess
+	approvalModeAccess
+	approvalRuleAccess
 	scheduleCatalogAccess
 	scheduleMutationAccess
 	scheduleRunRecorderAccess

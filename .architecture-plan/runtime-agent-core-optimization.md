@@ -636,6 +636,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的 `transcriptAccess` 拆为 `transcriptContentAccess` 与 `transcriptRunAccess`。
   - session export/items/rollback/fork 依赖完整 transcript content，usage aggregation 只依赖 run 列表。
   - 同步迁移 runtime binding 和 server handler 调用点，不保留旧 `transcriptAccess` 聚合字段。
+- 已完成第七十一轮 `app/runtime` server settings 端口 ISP 收敛：
+  - 将 delivery/server 的 `toolAccess` 拆为 `toolCatalogAccess` 与 `toolInvocationAccess`。
+  - 将 delivery/server 的 `approvalAccess` 拆为 `approvalModeAccess` 与 `approvalRuleAccess`。
+  - tools list 只依赖工具目录，direct invoke 只依赖工具调用；approval mode endpoints 与 persisted rule endpoints 各依赖自己的最小端口。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -720,6 +724,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十八轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十九轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十一轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -955,6 +960,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第七十轮后复跑）。
   - `go build ./...`（`agent`）通过（第七十轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第七十轮后复跑）。
+  - `go test ./...`（`core`）通过（第七十一轮后复跑）。
+  - `go test ./...`（`agent`）通过（第七十一轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第七十一轮后复跑）。
+  - `go vet ./...`（`core`）通过（第七十一轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第七十一轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第七十一轮后复跑）。
+  - `go build ./...`（`core`）通过（第七十一轮后复跑）。
+  - `go build ./...`（`agent`）通过（第七十一轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第七十一轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1127,5 +1141,17 @@ app/runtime -> agent -> core
 - 架构收益：session export/items/rollback/fork 与 usage aggregation 各自依赖最小能力，server binding 对 transcript content 和 run accounting 的边界表达更清楚。
 - 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、items/rollback/sessionio/sessions/usage handlers。
 - 已完成适配：所有 `s.transcript` 调用已迁移到更窄字段；未保留旧 `transcriptAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险。
+
+第七十一轮包含 `app/runtime/internal/delivery/server` 的 internal settings 端口破坏性拆分：
+
+- 调整对象：`toolAccess`、`approvalAccess`、`runtimeBindings.tools` 与 `runtimeBindings.approvals`。
+- 调整前问题：`toolAccess` 同时承载工具目录读取和直接工具执行；`approvalAccess` 同时承载 runtime approval mode 与 persisted approval rule 管理，handler 通过聚合字段访问不同用例的能力。
+- 破坏性原因：这些端口位于 `app/runtime/internal/delivery/server`，按实际 use case 拆分能直接消除聚合字段，不需要为旧 internal port 留兼容层。
+- 新设计：使用 `toolCatalogAccess` / `toolInvocationAccess` 分离工具目录与直接调用；使用 `approvalModeAccess` / `approvalRuleAccess` 分离全局执行姿态和 remembered rule 管理。
+- 架构收益：tools.list、tools.invoke、approval.get/setMode、approval.list/forgetRules 各自依赖最小能力，server binding 对读目录、执行动作、策略状态和规则存储的边界表达更清楚。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、tools handler 和 approval handler。
+- 已完成适配：所有 `s.tools` 与 `s.approvals` 调用已迁移到更窄字段；未保留旧 `toolAccess` / `approvalAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险。
