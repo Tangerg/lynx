@@ -40,8 +40,11 @@ type recipeCatalogAccess interface {
 	ListRecipes(ctx context.Context, cwd string) ([]recipes.Recipe, error)
 }
 
-type hookAccess interface {
+type hookInspectionAccess interface {
 	InspectHooks(ctx context.Context, cwd string) hooks.Inspection
+}
+
+type hookTrustAccess interface {
 	SetProjectHookTrust(ctx context.Context, projectRoot string, trusted bool) error
 }
 

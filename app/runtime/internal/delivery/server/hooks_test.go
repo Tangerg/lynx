@@ -30,7 +30,7 @@ func (r *hookTrustRuntime) SetProjectHookTrust(_ context.Context, projectRoot st
 
 func TestWorkspaceSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
 	rt := &hookTrustRuntime{}
-	s := &Server{runtimeBindings: runtimeBindings{hooks: rt}}
+	s := &Server{runtimeBindings: runtimeBindings{hookTrust: rt}}
 	projectRoot := t.TempDir()
 
 	err := s.WorkspaceSetHookTrust(context.Background(), protocol.SetHookTrustRequest{
@@ -47,7 +47,7 @@ func TestWorkspaceSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
 
 func TestWorkspaceSetHookTrustRejectsUnavailableProjectRoot(t *testing.T) {
 	rt := &hookTrustRuntime{}
-	s := &Server{runtimeBindings: runtimeBindings{hooks: rt}}
+	s := &Server{runtimeBindings: runtimeBindings{hookTrust: rt}}
 	missing := filepath.Join(t.TempDir(), "missing")
 
 	err := s.WorkspaceSetHookTrust(context.Background(), protocol.SetHookTrustRequest{
