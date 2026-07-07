@@ -200,7 +200,7 @@ func (e *Engine) Close() error {
 // This is the engine's ONE message-history touchpoint — it's a turn-lifecycle
 // concern, so it stays on the loop driver; the rest of history management
 // (read/seed/count/truncate for fork/rollback/messages.list) is driven off
-// [conversation.Service] directly by the runtime, never proxied through here.
+// [conversation.Messages] directly by the runtime, never proxied through here.
 func (e *Engine) InjectUserMessage(ctx context.Context, sessionID, text string) error {
 	if e.steering == nil {
 		return errors.New("engine: no steering port wired")
