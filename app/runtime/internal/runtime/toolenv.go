@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
@@ -18,7 +19,7 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 		Online:          toolset.OnlineConfig(cfg.Online),
 		LSPServers:      codeintelServerSpecs(cfg.LSPServers),
 		MCPServers:      mcpEnv.configs,
-		A2AAgents:       cfg.A2AAgents,
+		A2AAgents:       a2aClientConfigs(cfg.A2AAgents),
 		Todos:           ecfg.Todos,
 		Approval:        approvalPolicy,
 		MCPDisabled:     mcpEnv.disabled,
@@ -28,6 +29,20 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 		return toolset.Built{}, fmt.Errorf("runtime: build tools: %w", err)
 	}
 	return built, nil
+}
+
+func a2aClientConfigs(in []A2AAgentConfig) []a2a.ClientConfig {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]a2a.ClientConfig, len(in))
+	for i, agent := range in {
+		out[i] = a2a.ClientConfig{
+			Name:    agent.Name,
+			CardURL: agent.CardURL,
+		}
+	}
+	return out
 }
 
 func codeintelServerSpecs(in []LSPServerConfig) []codeintel.ServerSpec {

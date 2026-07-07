@@ -44,7 +44,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
@@ -72,9 +71,9 @@ type Config struct {
 	// environment via toolset.Build and inject it into the engine core (which
 	// constructs no capability itself). Workdir / SkillsGlobalDir come from
 	// Engine (the engine also needs them for the prompt cascade / listSkills).
-	Online     OnlineConfig       // network-tool credentials
-	A2AAgents  []a2a.ClientConfig // remote A2A agents to dial
-	LSPServers []LSPServerConfig  // language-server table (nil → defaults)
+	Online     OnlineConfig      // network-tool credentials
+	A2AAgents  []A2AAgentConfig  // remote A2A agents to dial
+	LSPServers []LSPServerConfig // language-server table (nil → defaults)
 
 	// MCPRegistry is the runtime-mutable MCP-server registry. The enabled
 	// entries are dialed at boot (the env seed lands here first, in the
@@ -163,6 +162,13 @@ type OnlineConfig struct {
 	JinaAPIKey       string
 	TavilyAPIKey     string
 	HTTPAllowedHosts []string
+}
+
+// A2AAgentConfig identifies one remote Agent-to-Agent endpoint the runtime
+// should expose as a delegation tool.
+type A2AAgentConfig struct {
+	Name    string
+	CardURL string
 }
 
 // LSPServerConfig is one optional language-server table entry. Empty

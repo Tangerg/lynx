@@ -195,7 +195,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// (toolset.Build) from these and injects it into the engine core.
 		Online:       lyraruntime.OnlineConfig(cfg.Online),
 		MCPRegistry:  stores.MCPServers,
-		A2AAgents:    cfg.A2AAgents,
+		A2AAgents:    runtimeA2AAgents(cfg.A2AAgents),
 		LSPServers:   runtimeLSPServers(cfg.LSPServers), // nil means the built-in LSP server table
 		SessionStore: stores.Session,
 		// InterruptStore persists the open-interrupt registry that
@@ -238,6 +238,20 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	a.rt = rt
 	a.cfg = cfg
 	return nil
+}
+
+func runtimeA2AAgents(in []config.A2AAgentConfig) []lyraruntime.A2AAgentConfig {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]lyraruntime.A2AAgentConfig, len(in))
+	for i, agent := range in {
+		out[i] = lyraruntime.A2AAgentConfig{
+			Name:    agent.Name,
+			CardURL: agent.CardURL,
+		}
+	}
+	return out
 }
 
 func runtimeLSPServers(in []config.LSPServerConfig) []lyraruntime.LSPServerConfig {
