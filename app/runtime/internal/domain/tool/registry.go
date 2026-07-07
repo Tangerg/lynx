@@ -1,6 +1,6 @@
-// Package tool defines the ToolService — Lyra's tool registry surface.
-// Clients enumerate available tools and (for diagnostics) invoke them
-// directly without going through a chat turn.
+// Package tool defines Lyra's registered-tool catalog and direct invocation
+// surface. Clients enumerate available tools and, for diagnostics, may invoke
+// one directly without going through a chat turn.
 package tool
 
 import "context"
@@ -35,16 +35,24 @@ const (
 	SafetyClassNetwork
 )
 
-// Service is the ToolService contract. The in-package New(eng)
-// constructor returns an engine-backed implementation — list +
-// invoke route through the engine's registered tool set.
-type Service interface {
+// Catalog lists the registered model-facing tools.
+type Catalog interface {
 	// List returns every registered tool. Empty result is valid (no
 	// tools registered).
 	List(ctx context.Context) ([]Tool, error)
+}
 
+// Invoker runs registered tools directly, outside an agent turn.
+type Invoker interface {
 	// Invoke runs a tool directly outside a chat turn. Useful for
 	// diagnostics and for clients that want to drive workflows
 	// without the LLM in the loop. Returns the tool's raw output.
 	Invoke(ctx context.Context, name string, arguments string) (string, error)
+}
+
+// Registry is the full registered-tool surface the runtime owns. Consumers
+// should depend on [Catalog] or [Invoker] when they need only one side.
+type Registry interface {
+	Catalog
+	Invoker
 }

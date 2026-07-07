@@ -9,10 +9,10 @@ import (
 // ListRegisteredTools returns every tool the runtime exposes for direct
 // diagnostic invocation.
 func (r *Runtime) ListRegisteredTools(ctx context.Context) ([]tool.Tool, error) {
-	return r.tool.List(ctx)
+	return r.tools.List(ctx)
 }
 
 // InvokeRegisteredTool runs one registered tool directly outside a chat turn.
 func (r *Runtime) InvokeRegisteredTool(ctx context.Context, name string, arguments string) (string, error) {
-	return r.tool.Invoke(ctx, name, arguments)
+	return r.tools.Invoke(ctx, name, arguments)
 }

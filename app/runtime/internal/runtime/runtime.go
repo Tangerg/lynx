@@ -183,7 +183,7 @@ type Runtime struct {
 	engine     *kernel.Engine
 	turnSvc    turn.Service
 	session    sessionsvc.Store
-	tool       toolsvc.Service
+	tools      toolsvc.Registry
 	knowledge  knowledge.Store
 	approval   approval.Policy
 	interrupts interrupts.Store
@@ -391,17 +391,17 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		_ = eng.Close()
 		return nil, fmt.Errorf("runtime: chat service: %w", err)
 	}
-	toolSvc, err := toolsvc.New(eng)
+	toolRegistry, err := toolsvc.New(eng)
 	if err != nil {
 		_ = eng.Close()
-		return nil, fmt.Errorf("runtime: tool service: %w", err)
+		return nil, fmt.Errorf("runtime: tool registry: %w", err)
 	}
 
 	return &Runtime{
 		engine:           eng,
 		turnSvc:          chatSvc,
 		session:          sessionSvc,
-		tool:             toolSvc,
+		tools:            toolRegistry,
 		knowledge:        cfg.Engine.Knowledge,
 		approval:         approvalPolicy,
 		interrupts:       interruptStore,

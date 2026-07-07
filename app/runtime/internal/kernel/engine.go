@@ -118,7 +118,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	}
 	resolver.SetTask(taskTool)
 
-	// e.tools is the canonical coding tool set for ToolService.List — the
+	// e.tools is the canonical coding tool set for tool.Registry.List — the
 	// toolset-assembled list (working-directory-independent metadata, which now
 	// includes ask_user) plus the one engine-owned tool, `task` (it needs the
 	// platform to spawn the sub-agent, so the engine builds + injects it).
@@ -166,9 +166,8 @@ func (e *Engine) MaybeExtract(ctx context.Context, sessionID, cwd string) (Extra
 	return e.extractor.MaybeExtract(ctx, sessionID, cwd)
 }
 
-// Tools returns the registered coding tool set — used by
-// ToolService.List to surface tool metadata to clients without
-// re-running the construction.
+// Tools returns the registered coding tool set — used by the tool registry to
+// surface metadata to clients without re-running construction.
 func (e *Engine) Tools() []chat.Tool { return e.tools }
 
 // Close releases the per-engine external resources the toolset assembly opened

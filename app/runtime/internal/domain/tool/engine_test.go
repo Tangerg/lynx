@@ -13,12 +13,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
-// TestService_List enumerates the coding tool set and verifies the
+// TestRegistry_List enumerates the coding tool set and verifies the
 // SafetyClass mapping matches the documented defaults.
-func TestService_List(t *testing.T) {
-	svc := buildService(t)
+func TestRegistry_List(t *testing.T) {
+	reg := buildRegistry(t)
 
-	tools, err := svc.List(context.Background())
+	tools, err := reg.List(context.Background())
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -50,12 +50,12 @@ func TestService_List(t *testing.T) {
 	}
 }
 
-// TestService_Invoke_Shell runs `shell` directly (no agent loop) and
+// TestRegistry_Invoke_Shell runs `shell` directly (no agent loop) and
 // asserts the output reflects the command we asked for. Useful as a
 // smoke test of the headless-invocation path.
-func TestService_Invoke_Shell(t *testing.T) {
-	svc := buildService(t)
-	out, err := svc.Invoke(context.Background(), "shell", `{"command":"echo lyra"}`)
+func TestRegistry_Invoke_Shell(t *testing.T) {
+	reg := buildRegistry(t)
+	out, err := reg.Invoke(context.Background(), "shell", `{"command":"echo lyra"}`)
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -64,11 +64,11 @@ func TestService_Invoke_Shell(t *testing.T) {
 	}
 }
 
-// TestService_Invoke_UnknownTool rejects with a clear error so
+// TestRegistry_Invoke_UnknownTool rejects with a clear error so
 // callers (and transport adapters) can present it intact.
-func TestService_Invoke_UnknownTool(t *testing.T) {
-	svc := buildService(t)
-	if _, err := svc.Invoke(context.Background(), "no-such-tool", "{}"); err == nil {
+func TestRegistry_Invoke_UnknownTool(t *testing.T) {
+	reg := buildRegistry(t)
+	if _, err := reg.Invoke(context.Background(), "no-such-tool", "{}"); err == nil {
 		t.Fatal("expected error for unknown tool")
 	}
 }
@@ -77,7 +77,7 @@ func TestService_Invoke_UnknownTool(t *testing.T) {
 // Helpers
 // ------------------------------------------------------------------
 
-func buildService(t *testing.T) tool.Service {
+func buildRegistry(t *testing.T) tool.Registry {
 	t.Helper()
 	client, err := chatmodel.NewClient(newStubModel())
 	if err != nil {
