@@ -16,8 +16,11 @@ type toolAccess interface {
 	InvokeRegisteredTool(ctx context.Context, name string, arguments string) (string, error)
 }
 
-type knowledgeAccess interface {
+type memoryAvailabilityAccess interface {
 	HasMemory() bool
+}
+
+type memoryStoreAccess interface {
 	ListMemoryEntries(ctx context.Context, cwd string) ([]knowledge.Entry, error)
 	Memory(ctx context.Context, scope knowledge.Scope, cwd string) (string, error)
 	UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd string, content string) error

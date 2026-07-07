@@ -628,6 +628,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的胖 `scheduleAccess` 拆为 `scheduleCatalogAccess`、`scheduleMutationAccess`、`scheduleRunRecorderAccess`、`scheduleWorkerAccess`。
   - schedule CRUD handlers 依赖 catalog/mutation，manual run 只额外依赖 run recorder，background scheduler entry 只依赖 worker。
   - 同步迁移 runtime binding、schedules handler 和 scheduler entry，不保留旧 `scheduleAccess` 聚合字段。
+- 已完成第六十九轮 `app/runtime` server memory 端口 ISP 收敛：
+  - 将 delivery/server 的 `knowledgeAccess` 拆为 `memoryAvailabilityAccess` 与 `memoryStoreAccess`。
+  - memory handlers 使用 availability 作为 feature gate，读写路径只依赖 store；capability snapshot 不再通过 `runtimeBindings.capabilities` 聚合字段回到胖口。
+  - 同步迁移 runtime binding 和 memory handler，不保留旧 `knowledgeAccess` 聚合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -710,6 +714,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十六轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十七轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十八轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十九轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -927,6 +932,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第六十八轮后复跑）。
   - `go build ./...`（`agent`）通过（第六十八轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第六十八轮后复跑）。
+  - `go test ./...`（`core`）通过（第六十九轮后复跑）。
+  - `go test ./...`（`agent`）通过（第六十九轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第六十九轮后复跑）。
+  - `go vet ./...`（`core`）通过（第六十九轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第六十九轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第六十九轮后复跑）。
+  - `go build ./...`（`core`）通过（第六十九轮后复跑）。
+  - `go build ./...`（`agent`）通过（第六十九轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第六十九轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1077,3 +1091,15 @@ app/runtime -> agent -> core
 - 已完成适配：所有 `s.schedules` 调用已迁移到更窄字段；未保留旧 `scheduleAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险；后续如果拆 tool/knowledge/approval 端口，应继续要求有明确消费差异，不做纯形式拆分。
+
+第六十九轮包含 `app/runtime/internal/delivery/server` 的 internal memory 端口破坏性拆分：
+
+- 调整对象：`knowledgeAccess`、`runtimeBindings.knowledge` 与 `runtimeBindings.capabilities`。
+- 调整前问题：`knowledgeAccess` 同时承载 memory feature availability 和 memory store 读写；`runtimeBindings.capabilities` 又把 memory/provider capability 聚回一个聚合字段。
+- 破坏性原因：该端口位于 `app/runtime/internal/delivery/server`，按 feature gate 与 store operation 拆分能避免 capability snapshot 和 memory CRUD 共享胖口。
+- 新设计：使用 `memoryAvailabilityAccess` 表达 feature gate，使用 `memoryStoreAccess` 表达 list/get/update；`runtimeBindings.HasMemory` 直接读取 availability 端口，provider capability 继续读取 `providerCatalogAccess`。
+- 架构收益：memory feature flag、memory handler gating、memory store operation 的依赖边界更清晰，同时删除了额外的 `runtimeBindings.capabilities` 聚合层。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、memory handlers 和 capability snapshot。
+- 已完成适配：所有 `s.knowledge` 调用已迁移到更窄字段；未保留旧 `knowledgeAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险；memory handler 仍显式保留无 store 时 list 返回空页、get/update 返回 capability_not_negotiated 的既有行为。
