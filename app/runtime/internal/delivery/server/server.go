@@ -137,7 +137,11 @@ type runtimeBindings struct {
 	sessionDefaults    sessionDefaultModelAccess
 	transcriptContent  transcriptContentAccess
 	transcriptRuns     transcriptRunAccess
-	lifecycle          lifecycleAccess
+	runAdmissions      runAdmissionAccess
+	mutationAdmissions sessionMutationAdmissionAccess
+	runResumes         runResumeAccess
+	runCancellations   runCancellationAccess
+	sessionLifecycle   sessionLifecycleMutationAccess
 	runSegments        runSegmentAccess
 	history            historyAccess
 	interrupts         interruptQueryAccess
@@ -173,7 +177,11 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		sessionDefaults:    rt,
 		transcriptContent:  rt,
 		transcriptRuns:     rt,
-		lifecycle:          rt,
+		runAdmissions:      rt,
+		mutationAdmissions: rt,
+		runResumes:         rt,
+		runCancellations:   rt,
+		sessionLifecycle:   rt,
 		runSegments:        rt,
 		history:            rt,
 		interrupts:         rt,

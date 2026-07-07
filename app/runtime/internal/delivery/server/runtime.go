@@ -17,7 +17,11 @@ type RuntimePort interface {
 	sessionDefaultModelAccess
 	transcriptContentAccess
 	transcriptRunAccess
-	lifecycleAccess
+	runAdmissionAccess
+	sessionMutationAdmissionAccess
+	runResumeAccess
+	runCancellationAccess
+	sessionLifecycleMutationAccess
 	runSegmentAccess
 	historyAccess
 	interruptQueryAccess

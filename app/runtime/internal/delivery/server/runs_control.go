@@ -16,7 +16,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	e, ok := s.runs.MarkCancel(in.RunID, in.Reason) // surfaced on the synthesized canceled outcome (S6)
 
 	if !ok {
-		if err := s.lifecycle.CancelParkedRun(ctx, in.RunID); err != nil {
+		if err := s.runCancellations.CancelParkedRun(ctx, in.RunID); err != nil {
 			if errors.Is(err, lifecycle.ErrRunNotFound) {
 				return protocol.ErrRunNotFound
 			}
@@ -28,7 +28,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	if e.Payload != nil && e.Payload.cancel != nil {
 		e.Payload.cancel()
 	}
-	if err := s.lifecycle.CancelRunBinding(ctx, lifecycle.RunTurnBinding{
+	if err := s.runCancellations.CancelRunBinding(ctx, lifecycle.RunTurnBinding{
 		RunID:     in.RunID,
 		SessionID: e.Record.SessionID,
 		TurnID:    e.Record.TurnID,
