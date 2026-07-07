@@ -326,12 +326,12 @@ func (r *Resolver) SetMCPTools(tools []chat.Tool) {
 
 func (*Resolver) Name() string { return "coding-tools" }
 
-func (r *Resolver) Resolve(_ context.Context, req core.ToolGroupRequirement) (core.ToolGroup, error) {
+func (r *Resolver) Resolve(_ context.Context, req core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
 	switch req.Role {
 	case toolport.ToolRoleCoding, toolport.ToolRoleSubtask:
-		return &toolGroup{resolver: r, role: req.Role}, nil
+		return &toolGroup{resolver: r, role: req.Role}, true, nil
 	default:
-		return nil, nil // unknown role — the runtime skips to the next resolver
+		return nil, false, nil // unknown role — the runtime skips to the next resolver
 	}
 }
 

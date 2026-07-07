@@ -183,7 +183,7 @@ func (l *LazyToolGroup) Tools(ctx context.Context) ([]AgentTool, error) {
 type ToolGroupResolver interface {
 	Extension
 
-	Resolve(ctx context.Context, req ToolGroupRequirement) (ToolGroup, error)
+	Resolve(ctx context.Context, req ToolGroupRequirement) (ToolGroup, bool, error)
 }
 
 // StaticToolGroupResolver is the in-process default — a map of role →
@@ -215,12 +215,14 @@ func (r *StaticToolGroupResolver) Register(role string, group ToolGroup) {
 	r.groups[role] = group
 }
 
-// Resolve returns nil group, nil error when the role is unknown — callers
-// distinguish "missing" from "errored" by checking the returned group.
-func (r *StaticToolGroupResolver) Resolve(_ context.Context, req ToolGroupRequirement) (ToolGroup, error) {
+// Resolve returns (group, true, nil) for a known role.
+// (nil group, false, nil) reports a miss so the caller can continue to
+// the next resolver.
+func (r *StaticToolGroupResolver) Resolve(_ context.Context, req ToolGroupRequirement) (ToolGroup, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.groups[req.Role], nil
+	group, ok := r.groups[req.Role]
+	return group, ok, nil
 }
 
 // SimpleToolGroupMetadata is the minimal metadata struct — used by

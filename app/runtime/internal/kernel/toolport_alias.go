@@ -33,8 +33,8 @@ type emptyToolResolver struct{}
 
 func (*emptyToolResolver) Name() string { return "empty-tool-resolver" }
 
-func (*emptyToolResolver) Resolve(context.Context, core.ToolGroupRequirement) (core.ToolGroup, error) {
-	return nil, nil
+func (*emptyToolResolver) Resolve(context.Context, core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
+	return nil, false, nil
 }
 
 func (*emptyToolResolver) SetTask(chat.Tool) {}

@@ -133,8 +133,8 @@ func runGoalApprovers(approvers []core.GoalApprover, process core.Process, goal 
 	return true
 }
 
-// runToolGroupResolvers walks resolvers in order; the first non-nil
-// group wins. A resolver returning (nil, nil) means "I don't know
+// runToolGroupResolvers walks resolvers in order; the first resolver
+// reporting ok=true wins. A resolver returning (ok=false) means "I don't know
 // this role, ask the next one"; any error short-circuits.
 //
 // Resolved groups are rejected when their declared permissions exceed
@@ -146,11 +146,11 @@ func runToolGroupResolvers(
 	requirement core.ToolGroupRequirement,
 ) (core.ToolGroup, error) {
 	for _, r := range resolvers {
-		group, err := r.Resolve(ctx, requirement)
+		group, ok, err := r.Resolve(ctx, requirement)
 		if err != nil {
 			return nil, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: %w", r.Name(), err)
 		}
-		if group == nil {
+		if !ok {
 			continue
 		}
 		granted := group.Metadata().Permissions()
