@@ -552,6 +552,12 @@ app/runtime -> agent -> core
   - `workspace_mcp_status_test.go` 承接 MCP server status projection, reconnect event ordering and MCP tool listing tests。
   - `workspace_vcs_test.go` 承接 VCS unavailable handling and git diff/file-change wire mapping tests。
   - 测试断言、MCP event ordering, tool-count projection, git status/diff mapping and workspace path/file behavior 保持不变；本轮无公共 API 或生产行为调整。
+- 已完成第五十四轮目标模块测试结构清理：
+  - `agent/toolloop`：将 `tool_test.go` 中的 interrupt/resume behavior test 与 persisted-history validity test 拆出。
+  - `tool_test.go` 继续聚焦 recursive loop, direct return, streaming tool-message yield, max-iteration cap, unknown-tool feedback, empty-response feedback and no-tool passthrough behavior。
+  - `tool_resume_test.go` 承接 interrupted tool round tail projection, pending-call resume and completed-call non-reexecution test。
+  - `tool_history_test.go` 承接 multi-round tool loop plus history middleware persisted provider-sequence validity test。
+  - 测试断言、resume tail shape, model re-entry count, completed/pending tool execution counts and persisted tool-history validity 保持不变；本轮无公共 API 或生产行为调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -614,6 +620,7 @@ app/runtime -> agent -> core
   - `go test ./internal/kernel/turn`（`app/runtime`）通过（第五十一轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第五十二轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第五十三轮后复跑）。
+  - `go test ./toolloop`（`agent`）通过（第五十四轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -696,6 +703,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第五十三轮后复跑）。
   - `go build ./...`（`agent`）通过（第五十三轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第五十三轮后复跑）。
+  - `go test ./...`（`core`）通过（第五十四轮后复跑）。
+  - `go test ./...`（`agent`）通过（第五十四轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第五十四轮后复跑）。
+  - `go vet ./...`（`core`）通过（第五十四轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第五十四轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第五十四轮后复跑）。
+  - `go build ./...`（`core`）通过（第五十四轮后复跑）。
+  - `go build ./...`（`agent`）通过（第五十四轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第五十四轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
