@@ -57,9 +57,8 @@ type Dependencies struct {
 	// todo_write. nil disables the projection.
 	Todos todoLister
 
-	// MCPAutoApprove returns the model-facing MCP tool names
-	// ("<server>_<tool>") whose calls skip the approval prompt. nil disables
-	// MCP-specific auto-approval.
+	// MCPAutoApprove returns the model-facing MCP tool names whose calls skip
+	// the approval prompt. nil disables MCP-specific auto-approval.
 	MCPAutoApprove func() map[string]struct{}
 
 	// Hooks resolves lifecycle hooks for a turn's cwd. nil disables hooks.

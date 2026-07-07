@@ -103,7 +103,7 @@ func TestEngine_DialMCPServer(t *testing.T) {
 	defer eng.Close()
 
 	// 3. The remote tool must appear in the merged list under its
-	// prefixed name (DefaultNaming → "<source>_<tool>").
+	// model-facing MCP port name.
 	want := "test_ping"
 	found := false
 	for _, tool := range eng.Tools() {

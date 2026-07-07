@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
@@ -206,7 +205,7 @@ func configFromServer(s mcpserver.Server) kernel.MCPServerConfig {
 }
 
 // mcpGating is the per-call MCP tool gating derived from the registry's enabled
-// servers, both keyed on the model-facing qualified name "<server>_<tool>":
+// servers, both keyed on the model-facing name published by the MCP tool port:
 // disabled tools are hidden from the model (resolver filter) and auto-approved
 // tools skip the approval prompt (turn gate). Held behind an atomic pointer the
 // runtime swaps on every registry change; the resolver and the gate read it via
@@ -266,10 +265,10 @@ func buildMCPGating(ctx context.Context, svc mcpserver.Registry) (*mcpGating, er
 			continue
 		}
 		for _, tool := range s.DisabledTools {
-			g.disabled[mcp.QualifiedToolName(s.Name, tool)] = struct{}{}
+			g.disabled[mcpserver.ToolName(s.Name, tool)] = struct{}{}
 		}
 		for _, tool := range s.AutoApproveTools {
-			g.autoApprove[mcp.QualifiedToolName(s.Name, tool)] = struct{}{}
+			g.autoApprove[mcpserver.ToolName(s.Name, tool)] = struct{}{}
 		}
 	}
 	return g, nil
