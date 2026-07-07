@@ -1,6 +1,6 @@
-// Package codeintel adapts the LSP manager (infra/lsp) into model-facing code
-// intelligence: root-relative, 1-based locations; plain messages for unsupported
-// file types; and new-problems-after-edit diagnostics.
+// Package codeintel adapts language-server connections (infra/lsp) into
+// model-facing code intelligence: root-relative, 1-based locations; plain
+// messages for unsupported file types; and new-problems-after-edit diagnostics.
 //
 // It is the single owner of the LSP protocol types at the tool adapter boundary:
 // tool assembly builds lsp_* tools and edit diagnostics over this service rather
@@ -24,11 +24,11 @@ type ServerSpec = lsp.ServerSpec
 // instead of halting the tool loop.
 const noServerMsg = "No language server is available for that file type."
 
-// Service wraps the LSP manager as the code-intelligence adapter surface.
-// Servers launch lazily per (workspace root, language) inside the manager;
-// Close shuts them all down.
+// Service wraps language-server connections as the code-intelligence adapter
+// surface. Servers launch lazily per (workspace root, language); Close shuts
+// them all down.
 type Service struct {
-	mgr *lsp.Manager
+	servers *lsp.Servers
 }
 
 // New builds a Service over the given language-server table. An empty table
@@ -37,25 +37,25 @@ func New(servers []ServerSpec) *Service {
 	if len(servers) == 0 {
 		servers = lsp.DefaultServers()
 	}
-	return &Service{mgr: lsp.NewManager(servers)}
+	return &Service{servers: lsp.NewServers(servers)}
 }
 
 // Close shuts down every launched language server. Safe on a nil receiver
-// / nil manager (a no-op).
+// / nil server set (a no-op).
 func (s *Service) Close() error {
-	if s == nil || s.mgr == nil {
+	if s == nil || s.servers == nil {
 		return nil
 	}
-	return s.mgr.Close()
+	return s.servers.Close()
 }
 
 // Supported reports whether a configured language server handles file's
 // type. False on a nil receiver.
 func (s *Service) Supported(file string) bool {
-	if s == nil || s.mgr == nil {
+	if s == nil || s.servers == nil {
 		return false
 	}
-	return s.mgr.Supported(file)
+	return s.servers.Supported(file)
 }
 
 // Definition returns the declaration location(s) of the symbol at the
@@ -64,7 +64,7 @@ func (s *Service) Definition(ctx context.Context, root, file string, line, colum
 	if s == nil {
 		return noServerMsg, nil
 	}
-	locs, err := s.mgr.Definition(ctx, root, file, toPosition(line, column))
+	locs, err := s.servers.Definition(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -80,7 +80,7 @@ func (s *Service) References(ctx context.Context, root, file string, line, colum
 	if s == nil {
 		return noServerMsg, nil
 	}
-	locs, err := s.mgr.References(ctx, root, file, toPosition(line, column))
+	locs, err := s.servers.References(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -97,7 +97,7 @@ func (s *Service) Implementation(ctx context.Context, root, file string, line, c
 	if s == nil {
 		return noServerMsg, nil
 	}
-	locs, err := s.mgr.Implementation(ctx, root, file, toPosition(line, column))
+	locs, err := s.servers.Implementation(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -113,7 +113,7 @@ func (s *Service) IncomingCalls(ctx context.Context, root, file string, line, co
 	if s == nil {
 		return noServerMsg, nil
 	}
-	syms, err := s.mgr.IncomingCalls(ctx, root, file, toPosition(line, column))
+	syms, err := s.servers.IncomingCalls(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -127,7 +127,7 @@ func (s *Service) OutgoingCalls(ctx context.Context, root, file string, line, co
 	if s == nil {
 		return noServerMsg, nil
 	}
-	syms, err := s.mgr.OutgoingCalls(ctx, root, file, toPosition(line, column))
+	syms, err := s.servers.OutgoingCalls(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -143,7 +143,7 @@ func (s *Service) Hover(ctx context.Context, root, file string, line, column int
 	if s == nil {
 		return noServerMsg, nil
 	}
-	text, err := s.mgr.Hover(ctx, root, file, toPosition(line, column))
+	text, err := s.servers.Hover(ctx, root, file, toPosition(line, column))
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -161,7 +161,7 @@ func (s *Service) DocumentSymbols(ctx context.Context, root, file string) (strin
 	if s == nil {
 		return noServerMsg, nil
 	}
-	syms, err := s.mgr.DocumentSymbols(ctx, root, file)
+	syms, err := s.servers.DocumentSymbols(ctx, root, file)
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -176,7 +176,7 @@ func (s *Service) WorkspaceSymbols(ctx context.Context, root, query string) (str
 	if s == nil {
 		return noServerMsg, nil
 	}
-	syms, err := s.mgr.WorkspaceSymbols(ctx, root, query)
+	syms, err := s.servers.WorkspaceSymbols(ctx, root, query)
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -191,7 +191,7 @@ func (s *Service) Diagnostics(ctx context.Context, root, file string) (string, e
 	if s == nil {
 		return noServerMsg, nil
 	}
-	diags, err := s.mgr.Diagnostics(ctx, root, file)
+	diags, err := s.servers.Diagnostics(ctx, root, file)
 	if msg, handled := foldNoServer(err); handled {
 		return msg, nil
 	}
@@ -221,7 +221,7 @@ func (s *Service) DiagnoseEdit(ctx context.Context, root, file string, apply fun
 	// Baseline BEFORE the edit (best effort: a brand-new file has none).
 	var baseline []lsp.Diagnostic
 	if check {
-		baseline, _ = s.mgr.Diagnostics(ctx, root, file)
+		baseline, _ = s.servers.Diagnostics(ctx, root, file)
 	}
 
 	out, err := apply()
@@ -229,7 +229,7 @@ func (s *Service) DiagnoseEdit(ctx context.Context, root, file string, apply fun
 		return out, err // edit failed (nothing to diagnose) or unsupported
 	}
 
-	after, derr := s.mgr.Diagnostics(ctx, root, file)
+	after, derr := s.servers.Diagnostics(ctx, root, file)
 	if derr != nil {
 		return out, nil // never fail an edit on language-server trouble
 	}

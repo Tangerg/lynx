@@ -403,7 +403,7 @@ func (c *Connections) dialAndSwap(ctx context.Context, ms *server, cfg ServerCon
 		// Close ran while we were dialing outside the lock: it niled c.servers
 		// (so this ms is detached) and closed every session. Storing the fresh
 		// session here would strand it past Close's sweep — a connection leak.
-		// Drop it instead. Mirrors lsp.Manager.clientFor's closed re-check.
+		// Drop it instead. Mirrors lsp.Servers.clientFor's closed re-check.
 		c.mu.Unlock()
 		if session != nil {
 			_ = session.Close()

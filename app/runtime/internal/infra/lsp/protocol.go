@@ -63,7 +63,7 @@ func (d Diagnostic) SeverityName() string {
 }
 
 // Symbol is the normalized form of both LSP symbol shapes
-// (SymbolInformation, hierarchical DocumentSymbol) the manager returns to the
+// (SymbolInformation, hierarchical DocumentSymbol) the server set returns to the
 // tool layer. Kind is the raw LSP SymbolKind number; Container is the
 // enclosing scope when the server reports one.
 type Symbol struct {

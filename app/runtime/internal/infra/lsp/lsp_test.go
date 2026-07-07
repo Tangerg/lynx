@@ -37,24 +37,24 @@ func writeModule(t *testing.T) string {
 }
 
 // gopls is at minimum 3s of cold start; give the whole suite generous slack.
-func newTestManager(t *testing.T) *Manager {
+func newTestServers(t *testing.T) *Servers {
 	t.Helper()
 	if _, err := exec.LookPath("gopls"); err != nil {
 		t.Skip("gopls not installed; skipping LSP integration test")
 	}
-	mgr := NewManager(DefaultServers())
-	t.Cleanup(func() { _ = mgr.Close() })
-	return mgr
+	servers := NewServers(DefaultServers())
+	t.Cleanup(func() { _ = servers.Close() })
+	return servers
 }
 
-func TestManager_DefinitionAndHover(t *testing.T) {
-	mgr := newTestManager(t)
+func TestServers_DefinitionAndHover(t *testing.T) {
+	servers := newTestServers(t)
 	root := writeModule(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// Definition of Greet at its use site (main.go:7:5) → its declaration (line 2).
-	locs, err := mgr.Definition(ctx, root, "main.go", Position{Line: 7, Character: 5})
+	locs, err := servers.Definition(ctx, root, "main.go", Position{Line: 7, Character: 5})
 	if err != nil {
 		t.Fatalf("Definition: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestManager_DefinitionAndHover(t *testing.T) {
 	}
 
 	// Hover at the same spot mentions the function.
-	hov, err := mgr.Hover(ctx, root, "main.go", Position{Line: 7, Character: 5})
+	hov, err := servers.Hover(ctx, root, "main.go", Position{Line: 7, Character: 5})
 	if err != nil {
 		t.Fatalf("Hover: %v", err)
 	}
@@ -78,14 +78,14 @@ func TestManager_DefinitionAndHover(t *testing.T) {
 	}
 }
 
-func TestManager_ReferencesAndSymbols(t *testing.T) {
-	mgr := newTestManager(t)
+func TestServers_ReferencesAndSymbols(t *testing.T) {
+	servers := newTestServers(t)
 	root := writeModule(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// References to Greet (declaration at main.go:2:5) → declaration + the call.
-	refs, err := mgr.References(ctx, root, "main.go", Position{Line: 2, Character: 5})
+	refs, err := servers.References(ctx, root, "main.go", Position{Line: 2, Character: 5})
 	if err != nil {
 		t.Fatalf("References: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestManager_ReferencesAndSymbols(t *testing.T) {
 	}
 
 	// Document symbols include both functions.
-	syms, err := mgr.DocumentSymbols(ctx, root, "main.go")
+	syms, err := servers.DocumentSymbols(ctx, root, "main.go")
 	if err != nil {
 		t.Fatalf("DocumentSymbols: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestManager_ReferencesAndSymbols(t *testing.T) {
 	}
 
 	// Workspace symbol search finds Greet across the module.
-	ws, err := mgr.WorkspaceSymbols(ctx, root, "Greet")
+	ws, err := servers.WorkspaceSymbols(ctx, root, "Greet")
 	if err != nil {
 		t.Fatalf("WorkspaceSymbols: %v", err)
 	}
@@ -112,8 +112,8 @@ func TestManager_ReferencesAndSymbols(t *testing.T) {
 	}
 }
 
-func TestManager_Diagnostics(t *testing.T) {
-	mgr := newTestManager(t)
+func TestServers_Diagnostics(t *testing.T) {
+	servers := newTestServers(t)
 	root := writeModule(t)
 
 	// Cold gopls can take longer than one settle window to first analyze; poll.
@@ -121,7 +121,7 @@ func TestManager_Diagnostics(t *testing.T) {
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		d, err := mgr.Diagnostics(ctx, root, "bad.go")
+		d, err := servers.Diagnostics(ctx, root, "bad.go")
 		cancel()
 		if err != nil {
 			t.Fatalf("Diagnostics: %v", err)
@@ -139,16 +139,16 @@ func TestManager_Diagnostics(t *testing.T) {
 	}
 }
 
-func TestManager_UnsupportedFile(t *testing.T) {
-	mgr := NewManager(DefaultServers())
-	t.Cleanup(func() { _ = mgr.Close() })
-	if mgr.Supported("notes.txt") {
+func TestServers_UnsupportedFile(t *testing.T) {
+	servers := NewServers(DefaultServers())
+	t.Cleanup(func() { _ = servers.Close() })
+	if servers.Supported("notes.txt") {
 		t.Error("Supported(.txt) = true, want false")
 	}
-	if mgr.Supported("main.go") != true {
+	if servers.Supported("main.go") != true {
 		t.Error("Supported(.go) = false, want true")
 	}
-	_, err := mgr.Definition(context.Background(), t.TempDir(), "notes.txt", Position{})
+	_, err := servers.Definition(context.Background(), t.TempDir(), "notes.txt", Position{})
 	if err == nil {
 		t.Fatal("Definition on unsupported file should error")
 	}

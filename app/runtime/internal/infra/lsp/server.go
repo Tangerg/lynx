@@ -9,7 +9,7 @@ import (
 // ServerSpec describes how to launch and address one language server.
 //
 // Adding support for a new language is exactly this: append one ServerSpec to
-// the table — no other code changes. The client, manager, and tools are all
+// the table — no other code changes. The client, server set, and tools are all
 // language-agnostic; they drive whatever specs they're handed.
 type ServerSpec struct {
 	// Name identifies the server (gopls, typescript-language-server). It keys
@@ -58,7 +58,7 @@ func DefaultServers() []ServerSpec {
 	}
 }
 
-// serverTable indexes a set of specs for the two routing questions the manager
+// serverTable indexes a set of specs for the two routing questions the server set
 // asks: which server handles this file, and which servers apply to this root.
 type serverTable struct {
 	specs []ServerSpec
