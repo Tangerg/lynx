@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// SessionStore implements session.Service against a SQLite database.
+// SessionStore implements session.Store against a SQLite database.
 // Mutations are single-row INSERT / UPDATE / DELETE, so each operation is
 // atomic on its own — no multi-step rollback handling needed.
 //
@@ -23,9 +23,9 @@ type SessionStore struct {
 	db *sql.DB
 }
 
-var _ session.Service = (*SessionStore)(nil)
+var _ session.Store = (*SessionStore)(nil)
 
-// NewSessionStore wires the given *sql.DB to the session.Service surface.
+// NewSessionStore wires the given *sql.DB to the session.Store surface.
 // The DB must have been opened via [Open] so the migration ran.
 func NewSessionStore(db *sql.DB) *SessionStore {
 	return &SessionStore{db: db}
@@ -76,7 +76,7 @@ func encodeMetadata(m map[string]any) (string, error) {
 const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, metadata, model, kind, favorite`
 
 // ------------------------------------------------------------------
-// session.Service
+// session.Store
 // ------------------------------------------------------------------
 
 // List returns user-facing sessions (roots and forks), newest-updated first.
@@ -136,7 +136,7 @@ func (s *SessionStore) Create(ctx context.Context, title, cwd string) (session.S
 // Restore upserts a session row verbatim (INSERT OR REPLACE) — the write side
 // of sessions.import. It preserves the supplied id and all fields, overwriting
 // any existing row with that id (restore semantics). See
-// [session.Service.Restore].
+// [session.Store.Restore].
 func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error {
 	metaJSON, err := encodeMetadata(sess.Metadata)
 	if err != nil {
@@ -244,7 +244,7 @@ func (s *SessionStore) Children(ctx context.Context, parentID string) ([]session
 }
 
 // Delete is idempotent — deleting an unknown id is not an error
-// (matches session.Service contract).
+// (matches session.Store contract).
 func (s *SessionStore) Delete(ctx context.Context, id string) error {
 	if _, err := s.db.ExecContext(ctx,
 		`DELETE FROM sessions WHERE id = ?`, id,
@@ -255,7 +255,7 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 }
 
 // SetModel records the session's current model + refreshes UpdatedAt in a
-// single UPDATE (see [session.Service.SetModel]). ErrNotFound for unknown id.
+// single UPDATE (see [session.Store.SetModel]). ErrNotFound for unknown id.
 func (s *SessionStore) SetModel(ctx context.Context, id, model string) error {
 	return s.updateByID(ctx, "set session model",
 		`UPDATE sessions SET model = ?, updated_at = ? WHERE id = ?`,
@@ -263,7 +263,7 @@ func (s *SessionStore) SetModel(ctx context.Context, id, model string) error {
 }
 
 // Rename updates the session's title + refreshes UpdatedAt in a single UPDATE
-// (see [session.Service.Rename]). ErrNotFound for unknown id.
+// (see [session.Store.Rename]). ErrNotFound for unknown id.
 func (s *SessionStore) Rename(ctx context.Context, id, title string) error {
 	return s.updateByID(ctx, "rename session",
 		`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?`,
@@ -271,7 +271,7 @@ func (s *SessionStore) Rename(ctx context.Context, id, title string) error {
 }
 
 // RenameIfUntitled sets the title only on a session that has none, atomically
-// (see [session.Service.RenameIfUntitled]). The WHERE guard collapses the
+// (see [session.Store.RenameIfUntitled]). The WHERE guard collapses the
 // titler's check-and-set into one statement so a concurrent user rename can't be
 // clobbered across the async title generation. 0 rows affected (already titled
 // or unknown id) is a no-op success, NOT ErrNotFound — so it can't use
@@ -286,7 +286,7 @@ func (s *SessionStore) RenameIfUntitled(ctx context.Context, id, title string) e
 	return nil
 }
 
-// SetCwd relocates the session (see [session.Service.SetCwd]) + refreshes
+// SetCwd relocates the session (see [session.Store.SetCwd]) + refreshes
 // UpdatedAt in a single UPDATE. ErrNotFound for unknown id.
 func (s *SessionStore) SetCwd(ctx context.Context, id, cwd string) error {
 	return s.updateByID(ctx, "relocate session",
@@ -295,7 +295,7 @@ func (s *SessionStore) SetCwd(ctx context.Context, id, cwd string) error {
 }
 
 // SetMetadata full-replaces the session's metadata (see
-// [session.Service.SetMetadata]) + refreshes UpdatedAt. ErrNotFound for
+// [session.Store.SetMetadata]) + refreshes UpdatedAt. ErrNotFound for
 // unknown id.
 func (s *SessionStore) SetMetadata(ctx context.Context, id string, meta map[string]any) error {
 	metaJSON, err := encodeMetadata(meta)
@@ -307,7 +307,7 @@ func (s *SessionStore) SetMetadata(ctx context.Context, id string, meta map[stri
 		metaJSON, time.Now().UTC().UnixNano(), id)
 }
 
-// SetFavorite pins / unpins the session (see [session.Service.SetFavorite]) +
+// SetFavorite pins / unpins the session (see [session.Store.SetFavorite]) +
 // refreshes UpdatedAt. ErrNotFound for unknown id.
 func (s *SessionStore) SetFavorite(ctx context.Context, id string, favorite bool) error {
 	return s.updateByID(ctx, "set session favorite",

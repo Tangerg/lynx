@@ -11,7 +11,7 @@ import (
 )
 
 type sessionRuntimeStore struct {
-	session.Service
+	session.Store
 	sessions      []session.Session
 	getID         string
 	createTitle   string

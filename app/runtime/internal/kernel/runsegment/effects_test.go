@@ -121,7 +121,7 @@ type fakeStores struct {
 }
 
 func (s *fakeStores) Interrupts() interrupts.Store                      { return s.interrupts }
-func (s *fakeStores) Session() session.Service                          { return s.session }
+func (s *fakeStores) Session() session.Store                            { return s.session }
 func (s *fakeStores) Transcript() transcript.Store                      { return s.transcript }
 func (s *fakeStores) MessageCount(context.Context, string) (int, error) { return s.mark, nil }
 func (s *fakeStores) GenerateTitle(context.Context, string) (string, error) {

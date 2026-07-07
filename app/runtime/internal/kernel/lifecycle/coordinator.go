@@ -32,7 +32,7 @@ import (
 // root's runtime bundle satisfies it; defined here so the Coordinator depends
 // only on what it calls, not the whole runtime.
 type Stores interface {
-	Session() session.Service
+	Session() session.Store
 	Transcript() transcript.Store
 	Interrupts() interrupts.Store
 	// ReadHistory returns the chat history log for a session.

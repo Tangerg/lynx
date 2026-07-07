@@ -1,6 +1,6 @@
-// Package session defines the SessionService — Lyra's conversation
+// Package session defines the Session store — Lyra's conversation
 // lifecycle surface. Every multi-turn interaction lives under a Session;
-// the service exposes the operations a client needs to find, resume,
+// the store exposes the operations a client needs to find, resume,
 // branch, or discard those conversations.
 package session
 
@@ -24,8 +24,8 @@ const ForkAtMessageIDKey = "fork_at_message_id"
 // KindSubtask marks a session created for a sub-agent delegation (the `task`
 // tool). Such a session has its OWN conversation history (isolated from the
 // parent) and records the parent via [Session.ParentID], but it is internal:
-// [Service.List] hides it so it never clutters the user's session list. The
-// lineage stays queryable via [Service.Get] / [Service.Children].
+// [Store.List] hides it so it never clutters the user's session list. The
+// lineage stays queryable via [Store.Get] / [Store.Children].
 const KindSubtask = "subtask"
 
 // ErrTitleRequired reports a session edit with an empty title.
@@ -128,12 +128,12 @@ func (s Session) NewSubtask(id string, now time.Time) Session {
 	}
 }
 
-// Service is the SessionService contract.
+// Store is the session persistence contract.
 //
 // All methods are safe for concurrent use. Implementations are
 // transport-agnostic — HTTP/gRPC/IPC adapters wrap this surface
 // without changing its shape.
-type Service interface {
+type Store interface {
 	// List returns every known session, newest-updated first. The full
 	// list comes back in one call; the wire layer paginates on top.
 	List(ctx context.Context) ([]Session, error)

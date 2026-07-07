@@ -320,7 +320,7 @@ type cancelStores struct {
 	interrupts *cancelInterrupts
 }
 
-func (s cancelStores) Session() session.Service     { panic("unused") }
+func (s cancelStores) Session() session.Store       { panic("unused") }
 func (s cancelStores) Transcript() transcript.Store { panic("unused") }
 func (s cancelStores) Interrupts() interrupts.Store { return s.interrupts }
 func (s cancelStores) ReadHistory(context.Context, string) ([]chat.Message, error) {

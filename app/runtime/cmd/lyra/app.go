@@ -188,11 +188,11 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		UtilityRoleStore: stores.UtilityRole,
 		// Tool-environment inputs — the runtime assembles the tool environment
 		// (toolset.Build) from these and injects it into the engine core.
-		Online:         cfg.Online,
-		MCPRegistry:    stores.MCPServers,
-		A2AAgents:      cfg.A2AAgents,
-		LSPServers:     cfg.LSPServers, // nil means the built-in LSP server table
-		SessionService: stores.Session,
+		Online:       cfg.Online,
+		MCPRegistry:  stores.MCPServers,
+		A2AAgents:    cfg.A2AAgents,
+		LSPServers:   cfg.LSPServers, // nil means the built-in LSP server table
+		SessionStore: stores.Session,
 		// InterruptStore persists the open-interrupt registry that
 		// runs.resume looks up — the other half of cross-restart resume.
 		InterruptStore:   stores.Interrupt,
@@ -304,7 +304,7 @@ type Stores struct {
 	// (sessions.import / rollback atomicity). Wired into the Runtime as its
 	// Transactor.
 	Tx            func(context.Context, func(context.Context) error) error
-	Session       sessionsvc.Service
+	Session       sessionsvc.Store
 	Memory        knowledge.Service
 	Process       core.ProcessStore
 	Interrupt     interrupts.Store

@@ -8,7 +8,7 @@ import (
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// childSessionStore adapts lyra's [sessionsvc.Service] to the agent runtime's
+// childSessionStore adapts lyra's [sessionsvc.Store] to the agent runtime's
 // [core.SessionStore] SPI. Wiring it into the platform makes the runtime
 // persist a sub-agent's session when it spawns one (the `task` delegation), so
 // the parent→child lineage is durably queryable on the lyra side rather than
@@ -20,12 +20,12 @@ import (
 // CreateSubtask — an independent conversation (its own history) carrying the
 // parent id, hidden from the user-facing session list.
 type childSessionStore struct {
-	sessions sessionsvc.Service
+	sessions sessionsvc.Store
 }
 
 var _ core.SessionStore = (*childSessionStore)(nil)
 
-func newChildSessionStore(sessions sessionsvc.Service) *childSessionStore {
+func newChildSessionStore(sessions sessionsvc.Store) *childSessionStore {
 	return &childSessionStore{sessions: sessions}
 }
 
