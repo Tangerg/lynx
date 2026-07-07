@@ -7,12 +7,12 @@ import (
 )
 
 // engineDep is the narrow behavioral surface turn depends on. It
-// captures exactly the engine operations the turn service drives
+// captures exactly the engine operations the turn dispatcher drives
 // — async turn dispatch (plan mode included), steering, post-turn
 // maintenance — and nothing more.
 //
 // StartTurn returns an [kernel.TurnProcess] that wraps the running
-// [runtime.AgentProcess]; the service drives the turn off that
+// [runtime.AgentProcess]; the dispatcher drives the turn off that
 // handle (Done channel for completion, Status / Failure for
 // terminal cause, Cancel for kill, Output for typed result) rather
 // than a bare goroutine. This is the lyra-as-agent-best-practice

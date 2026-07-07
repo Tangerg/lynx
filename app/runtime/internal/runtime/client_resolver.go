@@ -11,7 +11,7 @@ import (
 )
 
 // clientResolver resolves a per-turn [chat.Client] for an explicit
-// (provider, model) — it satisfies the chat service's own (unexported)
+// (provider, model) — it satisfies the turn dispatcher's own (unexported)
 // client-resolver seam the multi-provider runtime plugs in. The provider is taken as given (the wire
 // carries it; it's never inferred from the model id); the resolver pulls that
 // provider's credentials from the registry, then builds and caches the client.

@@ -62,8 +62,8 @@ func (cp *stubTurnProcess) Cancel() error {
 
 // Resume exists to satisfy engine.TurnProcess. Stubs never park on plan
 // approval (Status stays Completed), so runTurn's resume loop doesn't
-// call this — the real plan-mode path is covered by buildPlanService's
-// real-engine tests. Returns an already-fired done for safety.
+// call this — the real plan-mode path is covered by real-engine tests. Returns
+// an already-fired done for safety.
 func (cp *stubTurnProcess) Resume(_ context.Context, _ interrupts.Resolution) (<-chan error, error) {
 	if cp.resumeErr != nil {
 		return nil, cp.resumeErr
@@ -82,9 +82,9 @@ func (cp *stubTurnProcess) PendingAwaitable() core.Awaitable { return nil }
 // snapshot; it just records that terminal cleanup ran.
 func (cp *stubTurnProcess) Discard(_ context.Context) { cp.discarded.Store(true) }
 
-// stubEngine satisfies the turn service's (unexported) engine
+// stubEngine satisfies the turn dispatcher's (unexported) engine
 // dependency without touching the real platform / conversation history / MCP
-// wiring. Existence proves the turn service does not depend on
+// wiring. Existence proves the turn dispatcher does not depend on
 // *kernel.Engine directly — only on the narrow interface.
 type stubEngine struct {
 	runTurnCalls     atomic.Int32
@@ -144,7 +144,7 @@ func (s *stubEngine) MaybeExtract(_ context.Context, _, _ string) (kernel.Extrac
 	return kernel.ExtractionResult{}, nil
 }
 
-// TestStubEngineDrivesTurn — confirms the turn service runs a full
+// TestStubEngineDrivesTurn — confirms the turn dispatcher runs a full
 // turn against a stub engine, no real platform involved. If turn
 // ever regrows a hard *kernel.Engine dependency, this test stops
 // compiling.
@@ -188,12 +188,12 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 	}
 }
 
-// TestService_DiscardsProcessOnTerminal verifies the turn discards its backing
+// TestDispatcher_DiscardsProcessOnTerminal verifies the turn discards its backing
 // process at terminal teardown (endTurn → TurnProcess.Discard) — the seam that
 // deletes the auto-snapshot. Without it every run leaks one process_snapshot
 // row. The events channel closes only after endTurn runs, so reading the flag
 // after the drain loop is race-free.
-func TestService_DiscardsProcessOnTerminal(t *testing.T) {
+func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 	stub := &stubEngine{runReply: "done"}
 	svc := mustTurn(turn.New(turn.Dependencies{Engine: stub}))
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "hi"})
@@ -401,7 +401,7 @@ func (r *fakeResolver) ResolveClient(_ context.Context, provider, model string) 
 
 // TestStartTurn_ResolvesPerRunClient verifies a turn carrying a Model passes
 // the resolver's client through to the engine's RunTurnRequest.ChatClient —
-// the turn-service half of per-run model selection.
+// the turn-dispatcher half of per-run model selection.
 func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 	sentinel, _ := corechat.NewClient(newCapturingModel())
@@ -436,7 +436,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 
 // TestStartTurn_PassesCwd verifies the session's working directory flows
 // from StartTurnRequest.Cwd through to the engine's RunTurnRequest.Cwd —
-// the turn-service half of per-session tool working directories.
+// the turn-dispatcher half of per-session tool working directories.
 func TestStartTurn_PassesCwd(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 

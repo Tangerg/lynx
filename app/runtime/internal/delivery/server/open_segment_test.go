@@ -31,7 +31,7 @@ func TestOpenSegmentCancelsTurnWhenEventsCannotSubscribe(t *testing.T) {
 }
 
 type eventsFailingTurns struct {
-	turn.Service
+	turn.Dispatcher
 	err      error
 	canceled []turn.TurnHandle
 }

@@ -42,8 +42,8 @@ type Stores interface {
 	TruncateMessages(ctx context.Context, sessionID string, keepN int) error
 	// SeedHistory replaces a session's chat history log with msgs.
 	SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error
-	// ForgetSession releases the turn service's process-local state for a
-	// session that is being removed (the SessionStart gate) — see turn.Service.
+	// ForgetSession releases the turn dispatcher's process-local state for a
+	// session that is being removed (the SessionStart gate) — see turn.Dispatcher.
 	ForgetSession(sessionID string)
 	// RunInTx runs fn inside one storage transaction; the store calls the
 	// closure makes join it through the context.
@@ -76,7 +76,7 @@ type SessionClaimer interface {
 	ReleaseSession(sessionID string)
 }
 
-// TurnCanceler is the turn-service slice needed to abandon a run.
+// TurnCanceler is the turn dispatcher slice needed to abandon a run.
 type TurnCanceler interface {
 	Cancel(context.Context, turn.TurnHandle) error
 }
@@ -95,7 +95,7 @@ func (a RunAdmission) Release() {
 	}
 }
 
-// TurnResumer is the turn-service slice needed to continue an interrupt.
+// TurnResumer is the turn dispatcher slice needed to continue an interrupt.
 type TurnResumer interface {
 	Resume(context.Context, turn.TurnHandle, interrupts.Resolution) error
 	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)

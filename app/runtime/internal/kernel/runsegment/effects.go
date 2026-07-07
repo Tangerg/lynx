@@ -29,7 +29,7 @@ type Stores interface {
 }
 
 // ProcessLookup resolves the agent process backing a live turn. The full
-// turn.Service has many operations; runsegment needs only this one.
+// turn.Dispatcher has many operations; runsegment needs only this one.
 type ProcessLookup interface {
 	ProcessID(ctx context.Context, handle turn.TurnHandle) (string, error)
 }

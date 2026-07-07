@@ -1,8 +1,8 @@
 // Package runtime is Lyra's core-runtime façade — one struct that
 // bundles the kernel + every domain service a transport adapter
 // might need. The architecture goal documented in GREENFIELD_ARCHITECTURE.md is
-// "transport-agnostic Service interface": Runtime is that interface,
-// realized in code.
+// a transport-agnostic application boundary: Runtime realizes that boundary in
+// code.
 //
 // Decoupling boundary:
 //
@@ -176,12 +176,12 @@ type HookResolver interface {
 // pointer across every transport adapter that needs to dispatch
 // turns / sessions / approvals.
 //
-// Concurrency: every accessor returns a Service whose own methods are safe for
-// concurrent use. Runtime owns the process-local coordination state that
-// defines application lifecycle invariants across transports.
+// Concurrency: every dependency Runtime exposes owns its own synchronization.
+// Runtime owns the process-local coordination state that defines application
+// lifecycle invariants across transports.
 type Runtime struct {
 	engine     *kernel.Engine
-	turnSvc    turn.Service
+	turns      turn.Dispatcher
 	session    sessionsvc.Store
 	tools      toolsvc.Registry
 	knowledge  knowledge.Store
@@ -379,7 +379,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	sessionSvc := cfg.SessionStore
 	interruptStore := cfg.InterruptStore
 
-	chatSvc, err := turn.New(turn.Dependencies{
+	turnDispatcher, err := turn.New(turn.Dependencies{
 		Engine:         eng,
 		Approval:       approvalPolicy,
 		ClientResolver: resolver,
@@ -389,7 +389,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	})
 	if err != nil {
 		_ = eng.Close()
-		return nil, fmt.Errorf("runtime: chat service: %w", err)
+		return nil, fmt.Errorf("runtime: turn dispatcher: %w", err)
 	}
 	toolRegistry, err := toolsvc.New(eng)
 	if err != nil {
@@ -399,7 +399,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 
 	return &Runtime{
 		engine:           eng,
-		turnSvc:          chatSvc,
+		turns:            turnDispatcher,
 		session:          sessionSvc,
 		tools:            toolRegistry,
 		knowledge:        cfg.Engine.Knowledge,
@@ -439,7 +439,7 @@ func runClosers(closers []func() error) {
 	}
 }
 
-func (r *Runtime) forgetSession(sessionID string) { r.turnSvc.ForgetSession(sessionID) }
+func (r *Runtime) forgetSession(sessionID string) { r.turns.ForgetSession(sessionID) }
 
 // DefaultModel is the model a turn runs against when it doesn't pick one
 // (the configured Config.Model seed). The session layer uses it to fill

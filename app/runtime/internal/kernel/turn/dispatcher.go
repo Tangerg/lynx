@@ -1,4 +1,4 @@
-// Package turn defines the turn-dispatch Service — Lyra's one-turn
+// Package turn defines the turn dispatcher — Lyra's one-turn
 // surface. A turn is the unit of interaction: client sends one
 // message, runtime drives one (possibly multi-tool) round, runtime
 // streams events back, turn ends with a [TurnEnd] event.
@@ -45,7 +45,7 @@ var ErrInvalidTurnLimit = errors.New("turn: invalid limit")
 // ErrInvalidTurnOptions reports malformed per-run generation tuning.
 var ErrInvalidTurnOptions = errors.New("turn: invalid options")
 
-// StartTurnRequest is the input to [Service.StartTurn]. SessionID
+// StartTurnRequest is the input to [Dispatcher.StartTurn]. SessionID
 // binds the turn to its conversation; Message is the user's input.
 type StartTurnRequest struct {
 	SessionID string
@@ -142,7 +142,7 @@ func validateOptions(options *corechat.Options) error {
 }
 
 // TurnHandle uniquely identifies an in-flight turn. Returned by
-// [Service.StartTurn] and used to address subsequent operations
+// [Dispatcher.StartTurn] and used to address subsequent operations
 // (steering injection, cancellation).
 type TurnHandle struct {
 	SessionID string
@@ -167,7 +167,7 @@ type RehydrateRequest struct {
 	Model    string
 }
 
-// Service is the turn-dispatch contract.
+// Dispatcher is the live-turn dispatch contract.
 //
 // A typical interaction:
 //
@@ -188,9 +188,9 @@ type RehydrateRequest struct {
 // A turn outlives the ctx that started it: StartTurn derives the turn's
 // own context from a background root so the caller's ctx ending (e.g. the
 // StartTurn RPC returning) does not kill the in-flight turn. To stop a
-// turn, call [Service.Cancel] — closing the ctx you passed in has no
+// turn, call [Dispatcher.Cancel] — closing the ctx you passed in has no
 // effect on a running turn.
-type Service interface {
+type Dispatcher interface {
 	// StartTurn launches a new turn against the given session. Returns
 	// a handle the caller uses to subscribe to events. The method
 	// returns as soon as the turn is scheduled — actual LLM work
@@ -202,7 +202,7 @@ type Service interface {
 	// It is single-consumer — one drain loop per turn. ctx bounds how
 	// long the caller listens: when ctx is done the iterator stops
 	// yielding, but the turn keeps running on its own lifetime (use
-	// [Service.Cancel] to stop the turn itself). Returns [ErrTurnNotFound]
+	// [Dispatcher.Cancel] to stop the turn itself). Returns [ErrTurnNotFound]
 	// once the turn has ended.
 	Events(ctx context.Context, handle TurnHandle) (iter.Seq[Event], error)
 
@@ -249,7 +249,7 @@ type Service interface {
 	// calling it leaves the permissive default (surface all kinds).
 	SetInterruptKinds(kinds []string)
 
-	// ForgetSession releases the process-local state the service keeps keyed by
+	// ForgetSession releases the process-local state the dispatcher keeps keyed by
 	// a session — currently the SessionStart fire-once gate. Call it when a
 	// session is deleted: its id (a UUID) never returns, so the gate entry is
 	// dead weight, and without eviction the set grows by one entry per session
@@ -373,7 +373,7 @@ type MemoryUpdated struct {
 // model): a gated tool call needs approval, or a tool (ask_user /
 // exit_plan_mode) asks the user a question. The turn does NOT end — it
 // suspends at [core.StatusWaiting]; the client answers via
-// [Service.Resume], which continues the same turn (its events resume on
+// [Dispatcher.Resume], which continues the same turn (its events resume on
 // the same channel). Carries the pending interrupt(s).
 type TurnInterrupted struct {
 	BaseEvent
@@ -444,7 +444,7 @@ type TodosUpdated struct {
 }
 
 // SteerMessage fires when a mid-run steering message (injected via
-// [Service.InjectSteering] while the turn was looping) is consumed into the
+// [Dispatcher.InjectSteering] while the turn was looping) is consumed into the
 // running loop — between the round that just finished and the next one. The
 // transport surfaces it as a userMessage Item so the steered turn shows on the
 // timeline and lands in the durable transcript, exactly like the opening user
@@ -482,7 +482,7 @@ type TurnEndReason int
 const (
 	// TurnEndCompleted — the model returned a stop-marker normally.
 	TurnEndCompleted TurnEndReason = iota
-	// TurnEndCanceled — the client called [Service.Cancel] or ctx was
+	// TurnEndCanceled — the client called [Dispatcher.Cancel] or ctx was
 	// canceled.
 	TurnEndCanceled
 	// TurnEndErrored — the turn aborted on error. An [ErrorEvent]
