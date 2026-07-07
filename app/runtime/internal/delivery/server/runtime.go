@@ -23,7 +23,10 @@ type RuntimePort interface {
 	toolAccess
 	knowledgeAccess
 	approvalAccess
-	scheduleAccess
+	scheduleCatalogAccess
+	scheduleMutationAccess
+	scheduleRunRecorderAccess
+	scheduleWorkerAccess
 	providerRegistryAccess
 	providerCatalogAccess
 	providerDefaultAccess

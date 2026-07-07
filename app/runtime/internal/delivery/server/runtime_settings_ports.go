@@ -30,13 +30,22 @@ type approvalAccess interface {
 	ForgetApprovalRule(ctx context.Context, id string) error
 }
 
-type scheduleAccess interface {
+type scheduleCatalogAccess interface {
 	ListSchedules(ctx context.Context) ([]schedule.Schedule, error)
 	Schedule(ctx context.Context, id string) (schedule.Schedule, error)
+}
+
+type scheduleMutationAccess interface {
 	CreateSchedule(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
 	UpdateSchedule(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
 	DeleteSchedule(ctx context.Context, id string) error
+}
+
+type scheduleRunRecorderAccess interface {
 	RecordScheduleRun(ctx context.Context, id string, ranAt time.Time) error
+}
+
+type scheduleWorkerAccess interface {
 	RunScheduleWorker(ctx context.Context, runner schedule.Runner)
 }
 
