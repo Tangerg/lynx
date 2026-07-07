@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/toolloop"
 	coremodel "github.com/Tangerg/lynx/core/model"
 )
 
@@ -14,7 +13,7 @@ import (
 // human input — the Go-ecosystem interrupt model. It carries a stable Key (the
 // interrupt's identity, stable across the resuming re-run) and a
 // user-facing Value (the payload surfaced to the client). It satisfies
-// the [toolloop.Halt] contract with Abort() == false, so the tool loop exits
+// the [coremodel.Halt] contract with Abort() == false, so the tool loop exits
 // immediately
 // on it and propagates it (rather than feeding it back). It also satisfies
 // [coremodel.ControlFlowError], so shared observability treats the pause as
@@ -39,13 +38,13 @@ type InterruptError struct {
 }
 
 var _ coremodel.ControlFlowError = (*InterruptError)(nil)
-var _ toolloop.Halt = (*InterruptError)(nil)
+var _ coremodel.Halt = (*InterruptError)(nil)
 
 func (e *InterruptError) Error() string {
 	return fmt.Sprintf("hitl.InterruptError: run interrupted for input (key %q)", e.Key)
 }
 
-// Abort implements [toolloop.Halt]: an InterruptError HALTS the tool loop
+// Abort implements [coremodel.Halt]: an InterruptError HALTS the tool loop
 // (propagated unchanged, never fed back to the model as a recoverable result),
 // and Abort() == false marks it a HITL suspension — the run is expected to
 // resume, not fail.
@@ -54,7 +53,7 @@ func (e *InterruptError) Abort() bool { return false }
 // IsInterrupt reports whether err is a resumeable HITL halt (i.e. a loop halt
 // with Abort()==false).
 func IsInterrupt(err error) bool {
-	h, ok := errors.AsType[toolloop.Halt](err)
+	h, ok := errors.AsType[coremodel.Halt](err)
 	return ok && !h.Abort()
 }
 

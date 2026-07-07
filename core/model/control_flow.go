@@ -14,6 +14,21 @@ type ControlFlowError interface {
 	ControlFlow() bool
 }
 
+// Halt marks an error that should stop the current loop immediately.
+//
+// Implementations choose the continuation policy through Abort():
+//   - true  means the run cannot continue and should fail.
+//   - false means the run is suspended for human input and is expected to
+//     resume.
+type Halt interface {
+	error
+
+	// Abort reports the halt's intent. It is intentionally tiny so callers can
+	// recognize control-flow signals without pulling in a loop-specific
+	// package.
+	Abort() bool
+}
+
 // IsControlFlowError reports whether err or one of its wrapped causes marks
 // itself as expected control flow.
 func IsControlFlowError(err error) bool {
