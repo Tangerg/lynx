@@ -346,6 +346,15 @@ app/runtime -> agent -> core
   - `mcp_env.go` 承接 `LYRA_MCP_SERVERS` descriptor parsing、stdio/http dispatch、per-server token env normalization。
   - `a2a_env.go` 承接 `LYRA_A2A_AGENTS` descriptor parsing。
   - 导出的 config shape、`Load()` 行为、source precedence、env var names、MCP/A2A/LSP parsing errors 和 default server settings 保持不变；本轮无公共 API 破坏性调整。
+- 已完成第二十三轮目标模块结构清理：
+  - `app/runtime/internal/delivery/protocol`：将原 `workspace.go` 中混杂的 workspace method group、workspace event stream、file/read/grep DTO、diff/change DTO、catalog DTO 和 MCP registry/status DTO 拆开。
+  - `workspace.go` 现在只保留 `Workspace` method group interface。
+  - `workspace_events.go` 承接 `workspace.subscribe` request/ack、watch spec 和 `WorkspaceEvent` union。
+  - `workspace_files.go` 承接 common `WorkspaceQuery`、file head、grep、list/read file request/result DTO。
+  - `workspace_diff.go` 承接 diff mode/format、`GetDiffRequest`、`Diff`、`FileStatus`、`FileDiff`、`WorkspaceFileChange`。
+  - `workspace_catalog.go` 承接 workspace catalog shapes：`Skill` / `SkillSource`、`AgentDoc` / `AgentDocScope`。
+  - `workspace_mcp.go` 承接 MCP status/auth/tool/config/test request/result shapes。
+  - JSON wire tags、method signatures、golden protocol shapes、workspace event union 和 MCP editable-vs-observed shape 分离保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -376,16 +385,18 @@ app/runtime -> agent -> core
   - `go test ./internal/kernel/turn`（`app/runtime`）通过。
   - `go test ./runtime`（`agent`）通过。
   - `go test ./internal/config`（`app/runtime`）通过。
+  - `go test ./internal/delivery/protocol`（`app/runtime`）通过。
+  - `go test ./internal/delivery/dispatch ./internal/delivery/server`（`app/runtime`）通过。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第二十二轮后复跑）。
-  - `go test ./...`（`agent`）通过（第二十二轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第二十二轮后复跑）。
-  - `go vet ./...`（`core`）通过（第二十二轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第二十二轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第二十二轮后复跑）。
-  - `go build ./...`（`core`）通过（第二十二轮后复跑）。
-  - `go build ./...`（`agent`）通过（第二十二轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第二十二轮后复跑）。
+  - `go test ./...`（`core`）通过（第二十三轮后复跑）。
+  - `go test ./...`（`agent`）通过（第二十三轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第二十三轮后复跑）。
+  - `go vet ./...`（`core`）通过（第二十三轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第二十三轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第二十三轮后复跑）。
+  - `go build ./...`（`core`）通过（第二十三轮后复跑）。
+  - `go build ./...`（`agent`）通过（第二十三轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第二十三轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
