@@ -109,11 +109,15 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	cfg, err = resolveProviderConfig(cfg)
+	if err != nil {
+		return err
+	}
 	// The default client is the configured provider+model — the one a turn
 	// runs against when it doesn't pick a model. Per-run model selection
 	// builds other clients on demand from the provider registry.
 	client, err := llm.BuildClient(llm.ClientSpec{
-		Provider: cfg.Provider,
+		Provider: llm.Provider(cfg.Provider),
 		Model:    cfg.Model,
 		APIKey:   cfg.APIKey,
 		BaseURL:  cfg.BaseURL,
@@ -205,7 +209,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		ProviderRegistry: providers,
 		TodoStore:        stores.Todos,
 		// Default provider+model a turn runs against when it picks no model.
-		Provider: string(cfg.Provider),
+		Provider: cfg.Provider,
 		Model:    cfg.Model,
 		// User lifecycle hooks (global + trusted-project), resolved per turn cwd.
 		HooksResolver:  hookResolver,
@@ -238,6 +242,24 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	a.rt = rt
 	a.cfg = cfg
 	return nil
+}
+
+func resolveProviderConfig(cfg config.Config) (config.Config, error) {
+	provider := llm.Provider(cfg.Provider)
+	if !llm.IsSupported(provider) {
+		return config.Config{}, fmt.Errorf("config: unknown provider %q (see providers.list for the supported set)", cfg.Provider)
+	}
+	if cfg.Model == "" {
+		cfg.Model = llm.DefaultModel(provider)
+	}
+	apiKeyEnv := llm.APIKeyEnv(provider)
+	if envKey := os.Getenv(apiKeyEnv); envKey != "" {
+		cfg.APIKey = envKey
+	}
+	if cfg.APIKey == "" {
+		return config.Config{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + apiKeyEnv)
+	}
+	return cfg, nil
 }
 
 func runtimeMCPServers(in []config.MCPServerConfig) []mcpserversvc.Server {
@@ -394,7 +416,7 @@ type Stores struct {
 // provider already enabled in the registry (a persisted providers.configure)
 // is left untouched — runtime edits win over the config file.
 func seedConfiguredProvider(ctx context.Context, svc providersvc.Registry, cfg config.Config) error {
-	id := string(cfg.Provider)
+	id := cfg.Provider
 	if existing, ok, err := svc.Get(ctx, id); err != nil {
 		return err
 	} else if ok && existing.Enabled() {
@@ -421,7 +443,7 @@ func seedUtilityRole(ctx context.Context, store lyraruntime.UtilityRoleStore, cf
 	if cfg.UtilityModel == "" || cfg.UtilityModel == cfg.Model {
 		return nil
 	}
-	return store.SaveUtilityRole(ctx, string(cfg.Provider), cfg.UtilityModel)
+	return store.SaveUtilityRole(ctx, cfg.Provider, cfg.UtilityModel)
 }
 
 // printErr writes the standard "lyra: <err>" user-facing error line to Err.
