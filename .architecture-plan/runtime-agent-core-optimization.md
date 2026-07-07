@@ -372,6 +372,14 @@ app/runtime -> agent -> core
   - `repo.go` 承接 lazy shadow repo initialization、real-repo seeding、common excludes、tag sanitization 和 repo existence check。
   - `git.go` 承接 shadow git invocation、real-repo git query、file existence and copy helpers。
   - Shadow repo layout、per-worktree serialization、common excludes、2 MiB staging cap、tag naming, git identity/config isolation, seed-from-real-repo best effort behavior and restore reversibility 保持不变；本轮无公共 API 破坏性调整。
+- 已完成第二十六轮目标模块结构清理：
+  - `app/runtime/internal/domain/codebaseindex`：将原 `indexer.go` 中混杂的 `Indexer` state/constructor、availability/search/status、reconcile build pass、embedding batching 和 cosine ranking 拆开。
+  - `indexer.go` 现在只保留 `Indexer` 状态、constructor、cache/build constants、loaded corpus 状态和 per-cwd build lock helper。
+  - `search.go` 承接 `Available`、`Search`、`Status` 和 freshness debounce check。
+  - `reconcile.go` 承接 `EnsureIndexed`、`Reindex`、incremental rebuild、removed-file cleanup、meta persistence、status transitions。
+  - `embedding.go` 承接 chunk batch embedding 和 vector-count validation。
+  - `scoring.go` 承接 top-k cosine similarity ranking。
+  - `Index` behavior、per-cwd serialization、debounce semantics、incremental hash reuse、embedding batch size、status/error transitions 和 top-k ordering 保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -406,16 +414,17 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/dispatch ./internal/delivery/server`（`app/runtime`）通过。
   - `go test ./internal/infra/storage/sqlite`（`app/runtime`）通过。
   - `go test ./internal/infra/checkpoint`（`app/runtime`）通过。
+  - `go test ./internal/domain/codebaseindex`（`app/runtime`）通过。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第二十五轮后复跑）。
-  - `go test ./...`（`agent`）通过（第二十五轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第二十五轮后复跑）。
-  - `go vet ./...`（`core`）通过（第二十五轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第二十五轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第二十五轮后复跑）。
-  - `go build ./...`（`core`）通过（第二十五轮后复跑）。
-  - `go build ./...`（`agent`）通过（第二十五轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第二十五轮后复跑）。
+  - `go test ./...`（`core`）通过（第二十六轮后复跑）。
+  - `go test ./...`（`agent`）通过（第二十六轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第二十六轮后复跑）。
+  - `go vet ./...`（`core`）通过（第二十六轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第二十六轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第二十六轮后复跑）。
+  - `go build ./...`（`core`）通过（第二十六轮后复跑）。
+  - `go build ./...`（`agent`）通过（第二十六轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第二十六轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
