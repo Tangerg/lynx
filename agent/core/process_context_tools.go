@@ -13,9 +13,7 @@ func (pc *ProcessContext) Publish(event any) {
 // context. Prefer it when publishing from goroutines or helper flows that own a
 // more precise context than the current action call.
 func (pc *ProcessContext) PublishContext(ctx context.Context, event any) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = contextOrBackground(ctx)
 	if pc.publishContext != nil {
 		pc.publishContext(ctx, event)
 		return
@@ -39,7 +37,7 @@ func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]
 	if pc.resolveTools == nil {
 		return nil, nil
 	}
-	return pc.resolveTools(ctx, ToolRolesFor(roles...))
+	return pc.resolveTools(contextOrBackground(ctx), ToolRolesFor(roles...))
 }
 
 // ActionTools resolves the tools declared on the currently-executing
@@ -49,7 +47,7 @@ func (pc *ProcessContext) ActionTools(ctx context.Context) ([]AgentTool, error) 
 	if pc.resolveTools == nil || len(pc.actionToolGroups) == 0 {
 		return nil, nil
 	}
-	return pc.resolveTools(ctx, pc.actionToolGroups)
+	return pc.resolveTools(contextOrBackground(ctx), pc.actionToolGroups)
 }
 
 // ToolCallContext derives a child context the runtime can cancel via
@@ -59,7 +57,7 @@ func (pc *ProcessContext) ActionTools(ctx context.Context) ([]AgentTool, error) 
 // Without a registered canceller, behavior falls back to plain
 // [context.WithCancel] (TerminateToolCall becomes a no-op).
 func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(parent)
+	ctx, cancel := context.WithCancel(contextOrBackground(parent))
 	if pc.toolCallCancel == nil {
 		return ctx, cancel
 	}
@@ -70,4 +68,11 @@ func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Conte
 			release()
 		}
 	}
+}
+
+func contextOrBackground(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
 }

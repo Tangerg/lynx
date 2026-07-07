@@ -1,0 +1,57 @@
+package core
+
+import (
+	"context"
+	"testing"
+)
+
+func TestProcessContextToolMethodsNormalizeNilContext(t *testing.T) {
+	var calls int
+	pc := &ProcessContext{
+		resolveTools: func(ctx context.Context, requirements []ToolGroupRequirement) ([]AgentTool, error) {
+			if ctx == nil {
+				t.Fatal("resolver received nil context")
+			}
+			calls++
+			return nil, nil
+		},
+		actionToolGroups: []ToolGroupRequirement{{Role: "action-tools"}},
+	}
+
+	if _, err := pc.ResolveTools(nil, "manual-tools"); err != nil {
+		t.Fatalf("ResolveTools: %v", err)
+	}
+	if _, err := pc.ActionTools(nil); err != nil {
+		t.Fatalf("ActionTools: %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("resolver calls = %d, want 2", calls)
+	}
+}
+
+func TestProcessContextToolCallContextNormalizesNilParent(t *testing.T) {
+	var released bool
+	pc := &ProcessContext{
+		toolCallCancel: func(cancel context.CancelFunc) func() {
+			if cancel == nil {
+				t.Fatal("registered nil cancel func")
+			}
+			return func() { released = true }
+		},
+	}
+
+	ctx, cancel := pc.ToolCallContext(nil)
+	if ctx == nil {
+		t.Fatal("ToolCallContext returned nil context")
+	}
+	cancel()
+
+	select {
+	case <-ctx.Done():
+	default:
+		t.Fatal("ToolCallContext cancel did not cancel child context")
+	}
+	if !released {
+		t.Fatal("ToolCallContext cancel did not release runtime registration")
+	}
+}
