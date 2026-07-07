@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
@@ -41,6 +42,7 @@ type BuildConfig struct {
 	A2AAgents       []A2AAgentConfig
 	Todos           todo.Store      // backs todo_write; nil → the tool is omitted
 	Approval        approval.Policy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
+	Interruption    interrupts.Interruption
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
 	// index with no embedding model configured — omits the tool.
@@ -86,16 +88,18 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	shells := exec.NewShells()
 	shellTools := shell.Build(shells, cfg.Workdir)
 
-	// ask_user is self-contained (SDK HITL + interrupts.Resolution), so it's a
-	// plain build-time tool here, not engine-injected. Coding role only — the
-	// resolver gates it (sub-agents don't supervise sub-process interrupts).
-	askUserTool := askuser.New()
+	interrupt := cfg.Interruption
+	if interrupt == nil {
+		interrupt = interrupts.NoInterruption
+	}
+
+	// ask_user is build-time tool here, not engine-injected. Coding role only.
+	askUserTool := askuser.New(interrupt)
 
 	// exit_plan_mode leaves the read-only plan stance: it presents the model's
 	// plan for approval and, on approval, flips the approval stance to execute.
-	// Self-contained (SDK HITL + the approval policy), coding role only. nil
-	// approval policy → nil tool, simply omitted.
-	exitPlanTool := exitplan.New(cfg.Approval)
+	// Nil approval policy → nil tool, simply omitted.
+	exitPlanTool := exitplan.New(cfg.Approval, interrupt)
 
 	// todo_write maintains the per-session task list. nil cfg.Todos yields a nil
 	// tool that's simply omitted (feature off). Working-directory independent

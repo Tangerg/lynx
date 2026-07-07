@@ -15,12 +15,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/core/model/chat"
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 const (
@@ -50,7 +48,13 @@ func (o optionArg) toInterrupt() interrupts.Option {
 
 // New builds the exit_plan_mode tool over the approval policy (it flips the
 // stance to execute on approval). A nil policy yields a nil tool (omitted).
-func New(appr approval.Policy) chat.Tool {
+//
+// The toolset composes the interrupt awaitable contract from the composition
+// root.
+func New(appr approval.Policy, interrupt interrupts.Interruption) chat.Tool {
+	if interrupt == nil {
+		interrupt = interrupts.NoInterruption
+	}
 	if appr == nil {
 		return nil
 	}
@@ -90,7 +94,7 @@ func New(appr approval.Policy) chat.Tool {
 				Options:  opts,
 			}}}
 
-			res, _, err := hitl.Interrupt[interrupts.Resolution](ctx, key(arguments), prompt)
+			res, _, err := interrupt(ctx, key(arguments), prompt)
 			if err != nil {
 				return "", err
 			}
@@ -116,5 +120,5 @@ func New(appr approval.Policy) chat.Tool {
 // key is the interrupt key for one exit_plan_mode call — keyed by arguments so
 // the parked plan re-presents at the same call site on resume (mirrors ask_user).
 func key(arguments string) string {
-	return hitl.Key("exit_plan_mode", toolName, arguments)
+	return interrupts.InterruptKey("exit_plan_mode", toolName, arguments)
 }

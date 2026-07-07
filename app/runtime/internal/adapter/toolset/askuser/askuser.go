@@ -16,11 +16,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/core/model/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/hitl"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 )
 
 const toolName = "ask_user"
@@ -62,7 +60,10 @@ func (a askUserArgs) toPrompt() interrupts.QuestionPrompt {
 }
 
 // New builds the ask_user tool.
-func New() chat.Tool {
+func New(interrupt interrupts.Interruption) chat.Tool {
+	if interrupt == nil {
+		interrupt = interrupts.NoInterruption
+	}
 	t, _ := chat.NewTool(
 		chat.ToolDefinition{
 			Name:        toolName,
@@ -80,7 +81,7 @@ func New() chat.Tool {
 			in := a.toPrompt()
 			// First pass interrupts (bubbles up, parks); resume returns the
 			// human's structured answers at this same call site.
-			res, _, err := hitl.Interrupt[interrupts.Resolution](ctx, key(arguments), in)
+			res, _, err := interrupt(ctx, key(arguments), in)
 			if err != nil {
 				return "", err
 			}
@@ -94,7 +95,7 @@ func New() chat.Tool {
 // recorded answer matches the same call site when the parked question is
 // re-presented on resume (mirrors the approval gate's key).
 func key(arguments string) string {
-	return hitl.Key("ask_user", toolName, arguments)
+	return interrupts.InterruptKey("ask_user", toolName, arguments)
 }
 
 // answerText renders the human's answers as the tool's result text, pairing
