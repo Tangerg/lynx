@@ -22,7 +22,6 @@ import (
 
 	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/lsp"
 	"github.com/Tangerg/lynx/mcp"
 )
 
@@ -48,6 +47,17 @@ type OnlineConfig struct {
 	JinaAPIKey       string
 	TavilyAPIKey     string
 	HTTPAllowedHosts []string
+}
+
+// LSPServerConfig is one optional language-server table entry loaded from
+// yaml. Empty LSPServers means the runtime falls back to its built-in table.
+type LSPServerConfig struct {
+	Name        string
+	Command     string
+	Args        []string
+	LanguageID  string
+	Extensions  []string
+	RootMarkers []string
 }
 
 // Config is the loaded runtime configuration.
@@ -88,7 +98,7 @@ type Config struct {
 	// LSPServers is the optional language-server table from yaml `lsp.servers`.
 	// Empty leaves the engine on its built-in defaults (gopls + typescript);
 	// when set it replaces them wholesale.
-	LSPServers []lsp.ServerSpec
+	LSPServers []LSPServerConfig
 
 	// Server holds the HTTP serve settings.
 	Server ServerConfig
@@ -202,8 +212,8 @@ func loadOnline(v *viper.Viper) OnlineConfig {
 // `lsp.servers`. Absent → nil (the engine falls back to lsp.DefaultServers()).
 // mapstructure matches keys case-insensitively, so the yaml keys are
 // name/command/args/languageId/extensions/rootMarkers.
-func loadLSPServers(v *viper.Viper) ([]lsp.ServerSpec, error) {
-	var servers []lsp.ServerSpec
+func loadLSPServers(v *viper.Viper) ([]LSPServerConfig, error) {
+	var servers []LSPServerConfig
 	if err := v.UnmarshalKey("lsp.servers", &servers); err != nil {
 		return nil, fmt.Errorf("config: lsp.servers: %w", err)
 	}

@@ -30,7 +30,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat/history"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
@@ -73,9 +72,9 @@ type Config struct {
 	// environment via toolset.Build and inject it into the engine core (which
 	// constructs no capability itself). Workdir / SkillsGlobalDir come from
 	// Engine (the engine also needs them for the prompt cascade / listSkills).
-	Online     OnlineConfig           // network-tool credentials
-	A2AAgents  []a2a.ClientConfig     // remote A2A agents to dial
-	LSPServers []codeintel.ServerSpec // language-server table (nil → defaults)
+	Online     OnlineConfig       // network-tool credentials
+	A2AAgents  []a2a.ClientConfig // remote A2A agents to dial
+	LSPServers []LSPServerConfig  // language-server table (nil → defaults)
 
 	// MCPRegistry is the runtime-mutable MCP-server registry. The enabled
 	// entries are dialed at boot (the env seed lands here first, in the
@@ -164,6 +163,17 @@ type OnlineConfig struct {
 	JinaAPIKey       string
 	TavilyAPIKey     string
 	HTTPAllowedHosts []string
+}
+
+// LSPServerConfig is one optional language-server table entry. Empty
+// LSPServers means the runtime falls back to its built-in table.
+type LSPServerConfig struct {
+	Name        string
+	Command     string
+	Args        []string
+	LanguageID  string
+	Extensions  []string
+	RootMarkers []string
 }
 
 // HookTrustStore mutates project hook trust for the workspace.hooks.setTrust

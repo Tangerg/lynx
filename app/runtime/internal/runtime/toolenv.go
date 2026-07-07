@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
@@ -15,7 +16,7 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.Engine.SkillsGlobalDir,
 		Online:          toolset.OnlineConfig(cfg.Online),
-		LSPServers:      cfg.LSPServers,
+		LSPServers:      codeintelServerSpecs(cfg.LSPServers),
 		MCPServers:      mcpEnv.configs,
 		A2AAgents:       cfg.A2AAgents,
 		Todos:           ecfg.Todos,
@@ -27,4 +28,22 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 		return toolset.Built{}, fmt.Errorf("runtime: build tools: %w", err)
 	}
 	return built, nil
+}
+
+func codeintelServerSpecs(in []LSPServerConfig) []codeintel.ServerSpec {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]codeintel.ServerSpec, len(in))
+	for i, server := range in {
+		out[i] = codeintel.ServerSpec{
+			Name:        server.Name,
+			Command:     server.Command,
+			Args:        server.Args,
+			LanguageID:  server.LanguageID,
+			Extensions:  server.Extensions,
+			RootMarkers: server.RootMarkers,
+		}
+	}
+	return out
 }
