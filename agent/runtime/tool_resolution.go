@@ -25,11 +25,11 @@ func (p *AgentProcess) toolResolverFor(action core.Action) core.ToolResolver {
 		var collected []core.AgentTool
 
 		for _, req := range requirements {
-			group, err := runToolGroupResolvers(resolvers, ctx, req)
+			group, found, err := runToolGroupResolvers(resolvers, ctx, req)
 			if err != nil {
 				return nil, fmt.Errorf("resolve tools for role %q: %w", req.Role, err)
 			}
-			if group == nil {
+			if !found {
 				continue
 			}
 

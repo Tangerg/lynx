@@ -324,7 +324,7 @@ type ToolGroup interface {
 }
 
 type ToolGroupResolver interface {
-    Resolve(ctx, req ToolGroupRequirement) (ToolGroup, error)
+    Resolve(ctx, req ToolGroupRequirement) (ToolGroup, bool, error)
 }
 
 // 自带实现：

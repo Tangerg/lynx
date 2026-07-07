@@ -321,12 +321,12 @@ return true
 ```go
 for _, ext := range extensions {
     if r, ok := ext.(core.ToolGroupResolver); ok {
-        group, err := r.Resolve(ctx, req)
-        if err != nil { return nil, err }
-        if group != nil { return group, nil }
+        group, ok, err := r.Resolve(ctx, req)
+        if err != nil { return nil, false, err }
+        if ok { return group, true, nil }
     }
 }
-return nil, nil
+return nil, false, nil
 ```
 
 ### 5.6 Last-wins singleton（`IDGenerator` 等）

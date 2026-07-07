@@ -99,3 +99,13 @@ func TestActionTools_PrivilegedGroupRejectedWithoutOptIn(t *testing.T) {
 		t.Fatalf("error = %v, want permission-exceeded rejection", err)
 	}
 }
+
+func TestActionTools_MissingRoleFallsThrough(t *testing.T) {
+	tools, err := runActionTools(t, core.ToolGroupRequirement{Role: "no-such-role"})
+	if err != nil {
+		t.Fatalf("runActionTools: %v", err)
+	}
+	if len(tools) != 0 {
+		t.Fatalf("resolved tools = %v, want none for missing role", tools)
+	}
+}
