@@ -144,7 +144,9 @@ type runtimeBindings struct {
 	mutationAdmissions        sessionMutationAdmissionAccess
 	runResumes                runResumeAccess
 	runCancellations          runCancellationAccess
-	sessionLifecycle          sessionLifecycleMutationAccess
+	sessionRollback           sessionRollbackAccess
+	sessionFork               sessionForkAccess
+	sessionRestore            sessionRestoreAccess
 	runSegments               runSegmentAccess
 	history                   historyAccess
 	interrupts                interruptQueryAccess
@@ -197,7 +199,9 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		mutationAdmissions:        rt,
 		runResumes:                rt,
 		runCancellations:          rt,
-		sessionLifecycle:          rt,
+		sessionRollback:           rt,
+		sessionFork:               rt,
+		sessionRestore:            rt,
 		runSegments:               rt,
 		history:                   rt,
 		interrupts:                rt,

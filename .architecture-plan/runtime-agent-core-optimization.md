@@ -664,6 +664,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的 `providerRegistryAccess` 拆为 `providerRegistryCatalogAccess`、`providerRegistryMutationAccess` 与 `providerRegistryProbeAccess`。
   - providers list/configure/test 与 model role configured-provider validation 各依赖自己的最小 provider registry 能力。
   - 同步迁移 runtime binding、providers handler、models role validation 和测试 fixture，不保留旧 `providerRegistryAccess` 聚合字段。
+- 已完成第七十八轮 `app/runtime` server session lifecycle 端口 ISP 收敛：
+  - 将 delivery/server 的 `sessionLifecycleMutationAccess` 拆为 `sessionRollbackAccess`、`sessionForkAccess` 与 `sessionRestoreAccess`。
+  - rollback、fork、import restore 三条 session lifecycle 写用例各依赖自己的最小能力。
+  - 同步迁移 runtime binding、rollback/session/session import handlers 和 restore 测试，不保留旧 `sessionLifecycleMutationAccess` 聚合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -755,6 +759,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十五轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十六轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十七轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十八轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -1053,6 +1058,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第七十七轮后复跑）。
   - `go build ./...`（`agent`）通过（第七十七轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第七十七轮后复跑）。
+  - `go test ./...`（`core`）通过（第七十八轮后复跑）。
+  - `go test ./...`（`agent`）通过（第七十八轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第七十八轮后复跑）。
+  - `go vet ./...`（`core`）通过（第七十八轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第七十八轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第七十八轮后复跑）。
+  - `go build ./...`（`core`）通过（第七十八轮后复跑）。
+  - `go build ./...`（`agent`）通过（第七十八轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第七十八轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1309,5 +1323,17 @@ app/runtime -> agent -> core
 - 架构收益：providers.list/configure/test 与 models.get/set role validation 各自依赖最小能力，server binding 对 provider registry read/write/probe 边界表达更清楚。
 - 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、providers handler、models handler 和相关测试 fixture。
 - 已完成适配：所有 `s.providerRegistry` 调用已迁移到更窄字段；未保留旧 `providerRegistryAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险。
+
+第七十八轮包含 `app/runtime/internal/delivery/server` 的 internal session lifecycle 端口破坏性拆分：
+
+- 调整对象：`sessionLifecycleMutationAccess` 与 `runtimeBindings.sessionLifecycle`。
+- 调整前问题：单个端口同时承载 rollback、fork 和 import restore 三条 session lifecycle 写用例；rollback handler 会通过聚合字段获得 fork/restore 能力，import restore 也被绑到 rollback/fork 能力上。
+- 破坏性原因：该端口位于 `app/runtime/internal/delivery/server`，按 handler 实际消费语义拆分能删除旧聚合字段，不需要为旧 internal port 留兼容层。
+- 新设计：使用 `sessionRollbackAccess` / `sessionForkAccess` / `sessionRestoreAccess` 分离 rollback resolved write-set、fork creation、artifact restore。
+- 架构收益：sessions.rollback、sessions.fork、sessions.import 各自依赖最小 lifecycle mutation 能力，server binding 对 destructive history rewrite、branch creation 和 artifact restore 的边界表达更清楚。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、rollback handler、sessions fork handler、session import handler 和 restore 测试。
+- 已完成适配：所有 `s.sessionLifecycle` 调用已迁移到更窄字段；未保留旧 `sessionLifecycleMutationAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险。

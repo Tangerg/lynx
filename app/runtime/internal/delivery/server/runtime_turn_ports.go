@@ -52,9 +52,15 @@ type runCancellationAccess interface {
 	CancelRunBinding(ctx context.Context, run lifecycle.RunTurnBinding) error
 }
 
-type sessionLifecycleMutationAccess interface {
+type sessionRollbackAccess interface {
 	RollbackResolved(ctx context.Context, sessionID string, boundary lifecycle.RollbackBoundary) error
+}
+
+type sessionForkAccess interface {
 	ForkSession(ctx context.Context, spec lifecycle.ForkSpec) (sessionsvc.Session, error)
+}
+
+type sessionRestoreAccess interface {
 	RestoreSession(ctx context.Context, ses sessionsvc.Session, msgs []chat.Message, runs []transcript.Run, items []transcript.Item) error
 }
 

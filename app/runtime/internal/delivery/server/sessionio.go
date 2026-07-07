@@ -140,7 +140,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 			SessionID: id, RunID: it.RunID, ItemID: it.ItemID, CreatedAt: it.CreatedAt, Blob: it.Item,
 		})
 	}
-	if err := s.sessionLifecycle.RestoreSession(ctx, artifactToSession(art.Session), msgs, runs, items); err != nil {
+	if err := s.sessionRestore.RestoreSession(ctx, artifactToSession(art.Session), msgs, runs, items); err != nil {
 		return nil, err
 	}
 
