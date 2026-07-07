@@ -20,7 +20,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/toolloop"
 	adapterhooks "github.com/Tangerg/lynx/app/runtime/internal/adapter/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -373,7 +372,7 @@ func buildStores() (*Stores, error) {
 		Provider:      sqlitestore.NewProviderStore(db),
 		MCPServers:    sqlitestore.NewMCPServerStore(db),
 		ChatHistory:   sqlitestore.NewMessageStore(db),
-		Park:          sqlitestore.NewParkStore(db),
+		Park:          kernel.AsParkStore(sqlitestore.NewParkStore(db)),
 		Todos:         sqlitestore.NewTodoStore(db),
 		ApprovalRules: sqlitestore.NewApprovalRuleStore(db),
 		UtilityRole:   sqlitestore.NewUtilityRoleStore(db),
@@ -401,7 +400,7 @@ type Stores struct {
 	Provider      providersvc.Registry
 	MCPServers    mcpserversvc.Registry
 	ChatHistory   history.Store
-	Park          toolloop.ParkStore
+	Park          kernel.ParkStore
 	Todos         todosvc.Store
 	ApprovalRules approval.RuleStore
 	UtilityRole   lyraruntime.UtilityRoleStore

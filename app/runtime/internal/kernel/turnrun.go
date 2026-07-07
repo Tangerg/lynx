@@ -152,12 +152,13 @@ func (e *Engine) steeringGuardrails(steer SteerSource) *core.Guardrails {
 		return nil
 	}
 
-	guardrails, err := newChatGuardrailsWithBeforeRound(Config{
-		HistoryStore: e.historyStore,
-		ParkStore:    e.parkStore,
-	}, func(_ context.Context) []chat.Message {
-		return steer()
-	})
+	guardrails, err := newChatGuardrailsWithBeforeRound(
+		e.historyStore,
+		e.parkStore,
+		func(_ context.Context) []chat.Message {
+			return steer()
+		},
+	)
 	if err != nil {
 		return nil
 	}

@@ -42,7 +42,7 @@ func stallContext(parent context.Context, idle time.Duration) (ctx context.Conte
 // system prompt + user message (with any image attachments), run the
 // tool-loop, stream deltas to the observer, record each LLM round into the
 // process budget, and assemble the result. HITL interrupt / resume is
-// handled by the tool middleware's [toolloop.ParkStore]; when none is
+// handled by the tool middleware's ParkStore; when none is
 // configured, the engine intercepts tool-loop interrupt chunks as
 // a fallback.
 func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget turnBudget) (TurnOutput, error) {
