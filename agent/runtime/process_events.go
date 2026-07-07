@@ -27,9 +27,13 @@ func (p *AgentProcess) baseEvent() event.BaseEvent {
 
 // publishAny accepts the type-erased event used by ProcessContext.Publish.
 func (p *AgentProcess) publishAny(e any) {
+	p.publishAnyContext(context.Background(), e)
+}
+
+func (p *AgentProcess) publishAnyContext(ctx context.Context, e any) {
 	ev, ok := e.(event.Event)
 	if !ok {
 		return
 	}
-	p.publishEvent(context.Background(), ev)
+	p.publishEvent(ctx, ev)
 }

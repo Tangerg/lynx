@@ -567,9 +567,15 @@ app/runtime -> agent -> core
 - 已完成第五十六轮目标模块生产代码边界清理：
   - `agent/event`：为 `Multicast` 增加 `OnEventContext(ctx, e)`，旧 `OnEvent(e)` 保持为兼容入口并委托到 context-aware 路径。
   - `agent/runtime`：将 run/tick/action/terminal 等内部事件发布路径改为携带当前运行 ctx，使 listener panic span 能继承当前 trace，而不是从 `context.Background()` 断链。
-  - 对确实没有调用 ctx 的公开方法（如 action 内 `ProcessContext.Publish`、`RecordLLMInvocation`、`AwaitInput`）保留旧路径，避免为了观测性强行破坏公开 API；后续如要进一步收敛，可单独评估带 ctx 的公开 surface。
+  - 对确实没有调用 ctx 的公开方法（如 `RecordLLMInvocation`、`AwaitInput`）保留旧路径，避免为了观测性强行破坏公开 API；action 内 `ProcessContext.Publish` 已在第五十七轮以兼容方式接入当前 action ctx。
   - 新增 `runtime` 集成测试覆盖：带 parent span 的 `RunAgent` 中，panic listener 产生的 `agent.listener.panic` span 必须保持在同一 trace。
   - 事件 listener 接口、已有 `OnEvent(e)` 调用方、事件类型和 runtime 行为保持兼容；本轮无公共 API 破坏性调整。
+- 已完成第五十七轮目标模块生产代码边界清理：
+  - `agent/core`：新增 `ContextEventPublisher` 与 `ProcessContext.PublishContext(ctx, event)`，保留旧 `EventPublisher` 与 `ProcessContext.Publish(event)` 入口。
+  - `ProcessContext.ExecuteSafely` 在 action 执行期间记录当前 action ctx，旧 `ProcessContext.Publish(event)` 会自动使用该 ctx；action 不需要改调用代码即可保留 trace 链路。
+  - `agent/runtime`：`buildProcessContext` 同时注入旧 publisher 与 context-aware publisher；`publishAnyContext` 将 action-emitted event 接入 `AgentProcess.publishEvent(ctx, e)`。
+  - 新增 runtime 集成测试覆盖：action 内 `pc.Publish(event)` 触发的 listener panic span 必须保持在 `RunAgent` 的 parent trace 内；测试使用单次安装的 OTel exporter，避免全局 tracer provider 反复替换导致假阴性。
+  - 本轮是兼容性 API 增量，不改变既有 `Publish(event)`、`EventPublisher`、listener 接口或事件类型；无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -635,6 +641,7 @@ app/runtime -> agent -> core
   - `go test ./toolloop`（`agent`）通过（第五十四轮后复跑）。
   - `go test ./internal/kernel/lifecycle`（`app/runtime`）通过（第五十五轮后复跑）。
   - `go test ./event ./runtime`（`agent`）通过（第五十六轮后复跑）。
+  - `go test ./core ./event ./runtime`（`agent`）通过（第五十七轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -744,6 +751,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第五十六轮后复跑）。
   - `go build ./...`（`agent`）通过（第五十六轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第五十六轮后复跑）。
+  - `go test ./...`（`core`）通过（第五十七轮后复跑）。
+  - `go test ./...`（`agent`）通过（第五十七轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第五十七轮后复跑）。
+  - `go vet ./...`（`core`）通过（第五十七轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第五十七轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第五十七轮后复跑）。
+  - `go build ./...`（`core`）通过（第五十七轮后复跑）。
+  - `go build ./...`（`agent`）通过（第五十七轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第五十七轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。

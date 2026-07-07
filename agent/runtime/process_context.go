@@ -20,6 +20,7 @@ func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequ
 			ChatClient:     p.effectiveChatClient(),
 			Guardrails:     p.effectiveGuardrails(),
 			Publish:        p.publishAny,
+			PublishContext: p.publishAnyContext,
 			ResolveTools:   p.toolResolverFor(action),
 			ToolCallCancel: p.signals.registerToolCallCancel,
 		},
