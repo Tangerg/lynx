@@ -15,6 +15,26 @@ import (
 // error mapping or the reply envelope touches one place, and no handler
 // can forget to run [errorToRPC] or pick the wrong error code.
 
+func responseResult(id transport.ID, result any) HandleResult {
+	resp, err := transport.NewResponseResult(id, result)
+	if err != nil {
+		return responseError(id, problemError(protocol.CodeInternalError, protocol.ProblemInternalError, err.Error()))
+	}
+	return HandleResult{Response: resp}
+}
+
+func responseError(id transport.ID, rpcErr *transport.Error) HandleResult {
+	return HandleResult{Response: transport.NewResponseError(id, rpcErr)}
+}
+
+// streamingResult attaches the frame channel onto the synchronous reply;
+// the transport streams it as the call's own response (streamable HTTP).
+func streamingResult(id transport.ID, result any, events <-chan StreamFrame) HandleResult {
+	res := responseResult(id, result)
+	res.EventStream = events
+	return res
+}
+
 // decode unmarshals the typed request params. Empty params yield the zero
 // value (valid for methods whose fields are all optional); malformed
 // params map to invalid_params. The returned *transport.Error is nil on

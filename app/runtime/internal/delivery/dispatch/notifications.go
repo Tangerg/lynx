@@ -1,6 +1,8 @@
 package dispatch
 
 import (
+	"context"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 )
@@ -24,6 +26,39 @@ func EncodeWorkspaceEvent(ev protocol.WorkspaceEvent) (transport.Message, error)
 	return transport.NewNotification(NotificationWorkspaceEvent, struct {
 		Event protocol.WorkspaceEvent `json:"event"`
 	}{Event: ev})
+}
+
+// handleNotification dispatches the no-response methods. Errors are not
+// surfaced over the wire (JSON-RPC notifications are fire-and-forget).
+//
+// notifications.canceled aborts an in-flight JSON-RPC request (matched
+// by the carried envelope id); the transport layer owns request
+// lifecycle and intercepts it upstream of Handle. We accept it here for
+// protocol completeness.
+func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Request) {
+	switch msg.Method {
+	case MethodShutdown:
+		var in protocol.ShutdownRequest
+		_ = unmarshal(msg.Params, &in)
+		_ = d.api.Shutdown(ctx, in)
+	case NotificationCanceled:
+		// no-op at this layer (see method doc)
+	}
+}
+
+// runEventToFrame encodes a RunEvent into a notifications.run.event frame.
+// Only durable events carry an SSE id: (TRANSPORT §9.3 / API §5.2) — replay
+// must resume from a replayable event, never an ephemeral delta.
+func runEventToFrame(ev protocol.RunEvent) (StreamFrame, bool) {
+	notif, err := EncodeRunEvent(ev)
+	if err != nil {
+		return StreamFrame{}, false
+	}
+	sseID := ""
+	if ev.Event.IsDurable() {
+		sseID = ev.EventID
+	}
+	return StreamFrame{Notif: notif, SSEID: sseID}, true
 }
 
 // workspaceEventToFrame encodes a WorkspaceEvent into an ephemeral StreamFrame
