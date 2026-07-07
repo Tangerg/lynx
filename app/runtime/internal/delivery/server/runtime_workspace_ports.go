@@ -32,8 +32,11 @@ type mcpRegistryAccess interface {
 	TestMCPServer(ctx context.Context, srv mcpserver.Server) error
 }
 
-type workspaceCatalogAccess interface {
+type skillCatalogAccess interface {
 	ListSkills(ctx context.Context, cwd string) ([]kernel.SkillInfo, error)
+}
+
+type recipeCatalogAccess interface {
 	ListRecipes(ctx context.Context, cwd string) ([]recipes.Recipe, error)
 }
 
@@ -42,9 +45,18 @@ type hookAccess interface {
 	SetProjectHookTrust(ctx context.Context, projectRoot string, trusted bool) error
 }
 
-type codebaseAccess interface {
+type codebaseAvailabilityAccess interface {
 	HasCodebaseIndex() bool
+}
+
+type codebaseSearchAccess interface {
 	SearchCodebase(ctx context.Context, root, query string, limit int) ([]codebaseindex.Hit, error)
+}
+
+type codebaseStatusAccess interface {
 	CodebaseIndexStatus(ctx context.Context, root string) (codebaseindex.Status, error)
+}
+
+type codebaseReindexAccess interface {
 	StartCodebaseReindex(ctx context.Context, root string) error
 }

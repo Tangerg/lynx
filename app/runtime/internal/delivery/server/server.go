@@ -165,10 +165,14 @@ type runtimeBindings struct {
 	mcpTools           mcpToolCatalogAccess
 	mcpConnections     mcpConnectionAccess
 	mcpRegistry        mcpRegistryAccess
-	workspaceCatalog   workspaceCatalogAccess
+	skillCatalog       skillCatalogAccess
+	recipeCatalog      recipeCatalogAccess
 	hooks              hookAccess
 	modelRoles         modelRoleAccess
-	codebase           codebaseAccess
+	codebaseAvailable  codebaseAvailabilityAccess
+	codebaseSearch     codebaseSearchAccess
+	codebaseStatus     codebaseStatusAccess
+	codebaseReindex    codebaseReindexAccess
 	maintenance        maintenanceAccess
 }
 
@@ -208,10 +212,14 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		mcpTools:           rt,
 		mcpConnections:     rt,
 		mcpRegistry:        rt,
-		workspaceCatalog:   rt,
+		skillCatalog:       rt,
+		recipeCatalog:      rt,
 		hooks:              rt,
 		modelRoles:         rt,
-		codebase:           rt,
+		codebaseAvailable:  rt,
+		codebaseSearch:     rt,
+		codebaseStatus:     rt,
+		codebaseReindex:    rt,
 		maintenance:        rt,
 	}
 }

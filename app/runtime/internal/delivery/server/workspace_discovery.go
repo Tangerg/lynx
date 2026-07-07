@@ -67,7 +67,7 @@ func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceL
 	if err != nil {
 		return nil, err
 	}
-	found, err := s.workspaceCatalog.ListSkills(ctx, root)
+	found, err := s.skillCatalog.ListSkills(ctx, root)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (s *Server) WorkspaceListRecipes(ctx context.Context, in protocol.Workspace
 	if err != nil {
 		return nil, err
 	}
-	found, err := s.workspaceCatalog.ListRecipes(ctx, root)
+	found, err := s.recipeCatalog.ListRecipes(ctx, root)
 	if err != nil {
 		return nil, err
 	}
