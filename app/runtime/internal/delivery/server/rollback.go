@@ -21,7 +21,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	admission, err := s.mutationAdmissions.ClaimMutationSlot(sessionClaimer{s: s}, in.SessionID)
+	admission, err := s.mutationSlots.ClaimMutationSlot(sessionClaimer{s: s}, in.SessionID)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, in.SessionID)
@@ -43,7 +43,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// just this session's log, so the per-session guard suffices.)
 	if intent.restoreFiles {
 		restoreCwd := worktree.CanonicalCwd(ses.Cwd)
-		treeAdmission, ok := s.mutationAdmissions.ClaimWorkingTreeMutation(restoreCwd)
+		treeAdmission, ok := s.workingTreeMutations.ClaimWorkingTreeMutation(restoreCwd)
 		if !ok {
 			return nil, fmt.Errorf("%w: working tree %q has a run admission in flight", protocol.ErrSessionBusy, ses.Cwd)
 		}

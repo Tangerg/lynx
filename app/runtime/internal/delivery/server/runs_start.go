@@ -43,7 +43,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, wireTurnStartErr(err)
 	}
 	sessionID := sess.ID
-	admission, err := s.runAdmissions.ClaimRunSlot(ctx, sessionClaimer{s: s}, sessionID)
+	admission, err := s.runSlots.ClaimRunSlot(ctx, sessionClaimer{s: s}, sessionID)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, sessionID)
@@ -52,7 +52,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	}
 	defer admission.Release()
 
-	treeAdmission, ok := s.runAdmissions.ClaimWorkingTreeRun(sess.Cwd)
+	treeAdmission, ok := s.workingTreeRuns.ClaimWorkingTreeRun(sess.Cwd)
 	if !ok {
 		return nil, nil, fmt.Errorf("%w: working tree %q has a file restore in flight", protocol.ErrSessionBusy, sess.Cwd)
 	}

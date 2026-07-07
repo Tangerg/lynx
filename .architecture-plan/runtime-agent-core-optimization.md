@@ -668,6 +668,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的 `sessionLifecycleMutationAccess` 拆为 `sessionRollbackAccess`、`sessionForkAccess` 与 `sessionRestoreAccess`。
   - rollback、fork、import restore 三条 session lifecycle 写用例各依赖自己的最小能力。
   - 同步迁移 runtime binding、rollback/session/session import handlers 和 restore 测试，不保留旧 `sessionLifecycleMutationAccess` 聚合字段。
+- 已完成第七十九轮 `app/runtime` server admission 端口 ISP 收敛：
+  - 将 delivery/server 的 `runAdmissionAccess` 拆为 `runSlotAdmissionAccess` 与 `workingTreeRunAdmissionAccess`。
+  - 将 delivery/server 的 `sessionMutationAdmissionAccess` 拆为 `sessionMutationSlotAccess` 与 `workingTreeMutationAccess`。
+  - runs.start/sessions.import、runs.resume、sessions.delete/rollback、file-restore rollback 各依赖自己的最小 admission 能力，不保留旧 admission 聚合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -760,6 +764,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十六轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十七轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十八轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十九轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -1067,6 +1072,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第七十八轮后复跑）。
   - `go build ./...`（`agent`）通过（第七十八轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第七十八轮后复跑）。
+  - `go test ./...`（`core`）通过（第七十九轮后复跑）。
+  - `go test ./...`（`agent`）通过（第七十九轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第七十九轮后复跑）。
+  - `go vet ./...`（`core`）通过（第七十九轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第七十九轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第七十九轮后复跑）。
+  - `go build ./...`（`core`）通过（第七十九轮后复跑）。
+  - `go build ./...`（`agent`）通过（第七十九轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第七十九轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1335,5 +1349,17 @@ app/runtime -> agent -> core
 - 架构收益：sessions.rollback、sessions.fork、sessions.import 各自依赖最小 lifecycle mutation 能力，server binding 对 destructive history rewrite、branch creation 和 artifact restore 的边界表达更清楚。
 - 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、rollback handler、sessions fork handler、session import handler 和 restore 测试。
 - 已完成适配：所有 `s.sessionLifecycle` 调用已迁移到更窄字段；未保留旧 `sessionLifecycleMutationAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险。
+
+第七十九轮包含 `app/runtime/internal/delivery/server` 的 internal admission 端口破坏性拆分：
+
+- 调整对象：`runAdmissionAccess`、`sessionMutationAdmissionAccess`、`runtimeBindings.runAdmissions` 与 `runtimeBindings.mutationAdmissions`。
+- 调整前问题：run admission 将 session run slot 与 working-tree run lock 绑在一起；mutation admission 将 session mutation slot 与 working-tree mutation lock 绑在一起。sessions.import 只需要 session run slot，runs.resume 只需要 working-tree run lock，sessions.delete 只需要 session mutation slot，却都通过聚合字段看到无关能力。
+- 破坏性原因：这些端口位于 `app/runtime/internal/delivery/server`，按 admission 资源类型拆分能删除旧聚合字段，不需要为旧 internal port 留兼容层。
+- 新设计：使用 `runSlotAdmissionAccess` / `workingTreeRunAdmissionAccess` / `sessionMutationSlotAccess` / `workingTreeMutationAccess` 分别表达 session run slot、working-tree run lock、session mutation slot、working-tree mutation lock。
+- 架构收益：runs.start、runs.resume、sessions.import、sessions.delete、file-restore rollback 各自依赖自己实际需要的 admission 能力，server binding 对 session 单写入与 working-tree 写入互斥边界表达更清楚。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、runs.start、runs.resume、sessions.import、sessions.delete 和 rollback handler。
+- 已完成适配：所有 `s.runAdmissions` 与 `s.mutationAdmissions` 调用已迁移到更窄字段；未保留旧 `runAdmissionAccess` / `sessionMutationAdmissionAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险。

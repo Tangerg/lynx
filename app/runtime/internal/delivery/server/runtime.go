@@ -20,8 +20,10 @@ type RuntimePort interface {
 	sessionDefaultModelAccess
 	transcriptContentAccess
 	transcriptRunAccess
-	runAdmissionAccess
-	sessionMutationAdmissionAccess
+	runSlotAdmissionAccess
+	workingTreeRunAdmissionAccess
+	sessionMutationSlotAccess
+	workingTreeMutationAccess
 	runResumeAccess
 	runCancellationAccess
 	sessionRollbackAccess

@@ -32,13 +32,19 @@ type turnInterruptPolicyAccess interface {
 	SetTurnInterruptKinds(kinds []string)
 }
 
-type runAdmissionAccess interface {
+type runSlotAdmissionAccess interface {
 	ClaimRunSlot(ctx context.Context, claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error)
+}
+
+type workingTreeRunAdmissionAccess interface {
 	ClaimWorkingTreeRun(cwd string) (lifecycle.WorkingTreeAdmission, bool)
 }
 
-type sessionMutationAdmissionAccess interface {
+type sessionMutationSlotAccess interface {
 	ClaimMutationSlot(claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error)
+}
+
+type workingTreeMutationAccess interface {
 	ClaimWorkingTreeMutation(cwd string) (lifecycle.WorkingTreeAdmission, bool)
 }
 

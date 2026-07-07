@@ -42,7 +42,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if err != nil {
 		return nil, nil, wireSessionErr(err)
 	}
-	treeAdmission, ok := s.runAdmissions.ClaimWorkingTreeRun(sess.Cwd)
+	treeAdmission, ok := s.workingTreeRuns.ClaimWorkingTreeRun(sess.Cwd)
 	if !ok {
 		return nil, nil, fmt.Errorf("%w: working tree %q has a file restore in flight", protocol.ErrSessionBusy, sess.Cwd)
 	}
