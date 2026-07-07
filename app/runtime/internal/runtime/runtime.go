@@ -82,7 +82,7 @@ type Config struct {
 	// entries are dialed at boot (the env seed lands here first, in the
 	// composition root) and the registry is the source for runtime
 	// workspace.mcp.configure / remove / setEnabled. Required.
-	MCPRegistry mcpserver.Service
+	MCPRegistry mcpserver.Registry
 
 	// SessionService persists Lyra sessions. Required — the composition
 	// root injects the sqlite-backed service (tests use a sqlite :memory: DB).
@@ -194,7 +194,7 @@ type Runtime struct {
 	conversation *conversation.Messages
 
 	providers   provider.Service
-	mcpRegistry mcpserver.Service
+	mcpRegistry mcpserver.Registry
 
 	// mcpGating holds the current per-call MCP tool gating (disabled / auto-
 	// approve sets), recomputed on every registry change. The resolver (disabled

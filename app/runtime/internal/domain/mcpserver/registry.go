@@ -137,8 +137,8 @@ func (s Server) MaskedAuthorization() string {
 	return model.NewAPIKey(s.Authorization).String()
 }
 
-// Service is the MCP-server registry. All methods are safe for concurrent use.
-type Service interface {
+// Registry is the MCP-server registry. All methods are safe for concurrent use.
+type Registry interface {
 	// List returns every registered server, enabled or not, sorted by Name.
 	List(ctx context.Context) ([]Server, error)
 

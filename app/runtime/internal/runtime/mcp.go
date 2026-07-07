@@ -13,7 +13,7 @@ import (
 )
 
 // MCP-server registry orchestration: the runtime owns both the persisted
-// registry (mcpserver.Service) and the live connections (via the engine's
+// registry (mcpserver.Registry) and the live connections (via the engine's
 // MCPControl facade), so a configure/remove/enable both persists and applies
 // to the live tool set in one place. The dial-level descriptor (mcp.ServerConfig)
 // and the registry entry (mcpserver.Server) are bridged by the converters here.
@@ -150,7 +150,7 @@ func (r *Runtime) applyMCPServer(ctx context.Context, srv mcpserver.Server) {
 
 // enabledConfigs reads the registry and returns the dial descriptors for the
 // enabled servers — the boot-time MCP set handed to toolset.Build.
-func enabledConfigs(ctx context.Context, svc mcpserver.Service) ([]mcp.ServerConfig, error) {
+func enabledConfigs(ctx context.Context, svc mcpserver.Registry) ([]mcp.ServerConfig, error) {
 	servers, err := svc.List(ctx)
 	if err != nil {
 		return nil, err
@@ -168,7 +168,7 @@ func enabledConfigs(ctx context.Context, svc mcpserver.Service) ([]mcp.ServerCon
 // registry that aren't already present, mirroring seedConfiguredProvider: the
 // env is a first-run seed, runtime edits (a persisted configure) win and are
 // left untouched.
-func SeedMCPServers(ctx context.Context, svc mcpserver.Service, env []mcp.ServerConfig) error {
+func SeedMCPServers(ctx context.Context, svc mcpserver.Registry, env []mcp.ServerConfig) error {
 	for _, cfg := range env {
 		if _, ok, err := svc.Get(ctx, cfg.Name); err != nil {
 			return err
@@ -223,7 +223,7 @@ type mcpEnvironment struct {
 	configs     []mcp.ServerConfig
 }
 
-func buildMCPEnvironment(ctx context.Context, registry mcpserver.Service) (mcpEnvironment, error) {
+func buildMCPEnvironment(ctx context.Context, registry mcpserver.Registry) (mcpEnvironment, error) {
 	gate := &atomic.Pointer[mcpGating]{}
 	g0, err := buildMCPGating(ctx, registry)
 	if err != nil {
@@ -255,7 +255,7 @@ func buildMCPEnvironment(ctx context.Context, registry mcpserver.Service) (mcpEn
 // buildMCPGating reads the registry and projects its ENABLED servers' per-tool
 // gating lists into the two qualified-name sets. Disabled servers contribute
 // nothing — their tools aren't in the live set anyway.
-func buildMCPGating(ctx context.Context, svc mcpserver.Service) (*mcpGating, error) {
+func buildMCPGating(ctx context.Context, svc mcpserver.Registry) (*mcpGating, error) {
 	servers, err := svc.List(ctx)
 	if err != nil {
 		return nil, err
