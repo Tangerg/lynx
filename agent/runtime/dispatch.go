@@ -144,23 +144,23 @@ func runToolGroupResolvers(
 	resolvers []core.ToolGroupResolver,
 	ctx context.Context,
 	requirement core.ToolGroupRequirement,
-) (core.ToolGroup, error) {
+) (core.ToolGroup, bool, error) {
 	for _, r := range resolvers {
 		group, ok, err := r.Resolve(ctx, requirement)
 		if err != nil {
-			return nil, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: %w", r.Name(), err)
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: %w", r.Name(), err)
 		}
 		if !ok {
 			continue
 		}
 		granted := group.Metadata().Permissions()
 		if !core.PermissionsSatisfy(requirement.Permissions, granted) {
-			return nil, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: tool group %q grants permissions %v exceeding requirement %v",
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: tool group %q grants permissions %v exceeding requirement %v",
 				r.Name(), group.Metadata().Role(), granted, requirement.Permissions)
 		}
-		return group, nil
+		return group, true, nil
 	}
-	return nil, nil
+	return nil, false, nil
 }
 
 // addEventListenerExtensions adds every extension implementing
