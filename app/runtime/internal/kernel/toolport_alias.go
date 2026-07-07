@@ -1,11 +1,7 @@
 package kernel
 
 import (
-	"context"
-
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 const (
@@ -28,13 +24,3 @@ type (
 )
 
 var ErrUnknownMCPServer = toolport.ErrUnknownMCPServer
-
-type emptyToolResolver struct{}
-
-func (*emptyToolResolver) Name() string { return "empty-tool-resolver" }
-
-func (*emptyToolResolver) Resolve(context.Context, core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
-	return nil, false, nil
-}
-
-func (*emptyToolResolver) SetTask(chat.Tool) {}

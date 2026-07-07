@@ -13,22 +13,20 @@ import (
 	historymw "github.com/Tangerg/lynx/core/model/chat/middleware/history"
 )
 
-func toolResolverOrEmpty(resolver ToolResolver) ToolResolver {
-	if resolver != nil {
-		return resolver
-	}
-	return &emptyToolResolver{}
-}
-
 func newAgentPlatform(cfg Config, resolver ToolResolver) (*agentruntime.Platform, error) {
 	guardrails, err := newChatGuardrails(cfg)
 	if err != nil {
 		return nil, err
 	}
 
+	extensions := make([]core.Extension, 0, 1)
+	if resolver != nil {
+		extensions = append(extensions, resolver)
+	}
+
 	return agent.NewPlatform(agentruntime.PlatformConfig{
 		ChatClient:   cfg.ChatClient,
-		Extensions:   []core.Extension{resolver},
+		Extensions:   extensions,
 		Guardrails:   guardrails,
 		ProcessStore: cfg.ProcessStore,
 		AutoSnapshot: cfg.ProcessStore != nil,
