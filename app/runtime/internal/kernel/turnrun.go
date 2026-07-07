@@ -9,6 +9,11 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
+// SteerSource yields user messages queued for mid-run injection. It is
+// called only on continuation rounds; each call drains any pending queue
+// associated with the currently running turn.
+type SteerSource func() []chat.Message
+
 // RunTurnRequest carries the per-turn parameters for [Engine.StartTurn] /
 // [Engine.RunTurn]. SessionID is non-empty to bind the turn to a
 // chat history keyed conversation; Observer is non-nil to receive streaming
@@ -73,10 +78,10 @@ type RunTurnRequest struct {
 	// notifications. May be nil — the turn still runs.
 	Observer toolObserver
 
-	// Steer, when non-nil, is drained before each continuation tool round and
-	// its messages injected into the running loop (mid-run steering, API.md §6)
-	// — so a user message sent while the turn is mid-tool-loop reaches the model
-	// on the next round, not the next turn. nil disables mid-run injection.
+	// Steer, when non-nil, provides user messages injected into the running
+	// loop during continuation rounds (mid-run steering, API.md §6). Messages
+	// flow on the next tool loop round only, so the current assistant/tool
+	// state remains the decision point. nil disables mid-run injection.
 	Steer SteerSource
 
 	// EventListener, when non-nil, is registered as a process-scope
@@ -106,13 +111,7 @@ type RunTurnRequest struct {
 func (e *Engine) StartTurn(ctx context.Context, req RunTurnRequest) TurnProcess {
 	in := turnInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps, Options: req.Options.Clone()}
 
-	opts := turnProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient)
-	if req.Steer != nil {
-		// Carried as a process-scope extension (not the serializable blackboard
-		// — it's a live func): runTurn resolves it and stashes it on the
-		// per-round context for the tool loop's BeforeRound hook.
-		opts.Extensions = append(opts.Extensions, steerExtension{source: req.Steer})
-	}
+	opts := turnProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient, e.steeringGuardrails(req.Steer))
 	proc, done := e.platform.StartAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},
 		opts,
@@ -123,10 +122,12 @@ func (e *Engine) StartTurn(ctx context.Context, req RunTurnRequest) TurnProcess 
 // turnProcessOptions assembles per-process wiring: the chat history Session
 // binding, the observer decorator, lifecycle listener, and per-run model
 // client. The chat middleware chain itself (tool loop + memory) is the
-// platform default built once in [New]; the runtime stamps each request's
-// conversation id from this Session, so a single shared chain serves both
-// this turn and any subtask it spawns.
-func turnProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client core.ChatClient) core.ProcessOptions {
+// platform default built once in [New]; the chat middleware chain can be
+// overridden per turn by supplying [core.ProcessOptions.Guardrails] when
+// mid-run steering is enabled. The runtime stamps each request's conversation
+// id from this Session, so one shared chain can still serve both this turn and
+// any spawned subtask unless explicitly overridden.
+func turnProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client core.ChatClient, guardrails *core.Guardrails) core.ProcessOptions {
 	opts := core.ProcessOptions{}
 	if sessionID != "" {
 		opts.Session = &core.Session{ID: sessionID}
@@ -140,7 +141,27 @@ func turnProcessOptions(sessionID string, observer toolObserver, listener core.E
 	if client != nil {
 		opts.Extensions = append(opts.Extensions, perRunChatClient{client: client})
 	}
+	if guardrails != nil {
+		opts.Guardrails = guardrails
+	}
 	return opts
+}
+
+func (e *Engine) steeringGuardrails(steer SteerSource) *core.Guardrails {
+	if steer == nil {
+		return nil
+	}
+
+	guardrails, err := newChatGuardrailsWithBeforeRound(Config{
+		HistoryStore: e.historyStore,
+		ParkStore:    e.parkStore,
+	}, func(_ context.Context) []chat.Message {
+		return steer()
+	})
+	if err != nil {
+		return nil
+	}
+	return guardrails
 }
 
 // perRunChatClient is a [core.ChatClientProvider] carrying one resolved
@@ -195,7 +216,7 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, req RestoreT
 	// re-resolved from the interrupt's persisted provider+model — so a restart
 	// mid-run keeps the model the turn parked on. nil (no selection / provider
 	// gone) falls back to the platform default.
-	opts := turnProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient)
+	opts := turnProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient, nil)
 	proc, err := e.platform.RestoreProcess(ctx, processID, opts)
 	if err != nil {
 		return nil, fmt.Errorf("engine: restore chat: %w", err)

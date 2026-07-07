@@ -35,19 +35,19 @@ func newAgentPlatform(cfg Config, resolver ToolResolver) (*agentruntime.Platform
 // stays model-adjacent, so each loop round persists only the genuinely-new
 // messages for that conversation id.
 func newChatGuardrails(cfg Config) (*core.Guardrails, error) {
+	return newChatGuardrailsWithBeforeRound(cfg, nil)
+}
+
+func newChatGuardrailsWithBeforeRound(
+	cfg Config,
+	beforeRound func(context.Context) []chat.Message,
+) (*core.Guardrails, error) {
 	return agentruntime.BuildChatGuardrails(agentruntime.ChatGuardrailsConfig{
 		HistoryStore: cfg.HistoryStore,
 		ToolLoop: agentruntime.ToolLoopPolicy{
 			FeedbackOnEmptyResponse: true,
 			ParkStore:               cfg.ParkStore,
-			BeforeRound:             drainSteeringBeforeRound,
+			BeforeRound:             beforeRound,
 		},
 	})
-}
-
-func drainSteeringBeforeRound(ctx context.Context) []chat.Message {
-	if s := steerSourceFrom(ctx); s != nil {
-		return s()
-	}
-	return nil
 }
