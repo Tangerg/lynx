@@ -241,6 +241,13 @@ app/runtime -> agent -> core
   - `fork.go` 承接 fork boundary 与 fork write-set。
   - `session_mutation.go` 承接 delete/restore/subtree purge 与 interrupt cleanup。
   - 导出的类型名、错误值、接口方法和调用行为保持不变；本轮无公共 API 破坏性调整。
+- 已完成第十轮目标模块结构清理：
+  - `app/runtime/internal/infra/mcp`：将原 `connections.go` 中混杂的启动拨号、运行时重连/授权、registry 查询、工具刷新和关闭逻辑按连接生命周期拆开。
+  - `connections.go` 现在只保留 live server state、`Connections` 聚合状态、tool sink、shared client 和 locked lookup。
+  - `dial.go` 承接 boot-time `Dial` 与拨号 observability。
+  - `reconnect.go` 承接 `Reconnect` / `Configure` / `Authorize` 以及 shared `dialAndSwap` 和 status 写回。
+  - `registry.go` 承接 `Statuses` / `Tools` / `Remove` / `refreshTools` / `Close`。
+  - 导出的类型名、错误值、接口方法和调用行为保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -260,16 +267,17 @@ app/runtime -> agent -> core
   - `go test ./internal/kernel/...`（`app/runtime`）通过。
   - `go test ./internal/kernel/turn ./internal/kernel/... ./internal/runtime ./internal/delivery/server`（`app/runtime`）通过。
   - `go test ./internal/kernel/lifecycle ./internal/kernel/... ./internal/runtime ./internal/delivery/server`（`app/runtime`）通过。
+  - `go test ./internal/infra/mcp ./internal/infra/... ./internal/runtime ./internal/adapter/toolset/... ./internal/delivery/server`（`app/runtime`）通过。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第九轮后复跑）。
-  - `go test ./...`（`agent`）通过（第九轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第九轮后复跑）。
-  - `go vet ./...`（`core`）通过（第九轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第九轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第九轮后复跑）。
-  - `go build ./...`（`core`）通过（第九轮后复跑）。
-  - `go build ./...`（`agent`）通过（第九轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第九轮后复跑）。
+  - `go test ./...`（`core`）通过（第十轮后复跑）。
+  - `go test ./...`（`agent`）通过（第十轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第十轮后复跑）。
+  - `go vet ./...`（`core`）通过（第十轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第十轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第十轮后复跑）。
+  - `go build ./...`（`core`）通过（第十轮后复跑）。
+  - `go build ./...`（`agent`）通过（第十轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第十轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
