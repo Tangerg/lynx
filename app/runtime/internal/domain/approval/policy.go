@@ -1,72 +1,135 @@
+// Package approval defines the runtime tool-call approval policy. Two concerns
+// live here:
+//
+//   - Mode: the runtime-wide stance (plan / safe / balanced / yolo) the chat
+//     engine reads at each tool call to decide whether a call runs, is denied,
+//     or must pause for approval. The HITL pause/resume is the R model (the
+//     agent runtime parks on AwaitInput, the client answers via runs.resume) —
+//     see internal/kernel/turn + internal/domain/interrupts.
+//   - Rules: persistent, fine-grained "remember this decision" rules. A rule
+//     gates a (tool, subject) pair under a scope (session / project / global),
+//     so the user can approve once and not be re-asked for matching calls. The
+//     subject is the per-tool part that actually matters — a shell command, an
+//     edited file's path — so a rule is "allow `npm run *` in this project",
+//     not the blunt "allow every shell call ever".
 package approval
 
-import (
-	"context"
-	"sync/atomic"
+import "context"
+
+// Mode is the runtime-wide permission stance. Set via config or the
+// approval.setMode method; read at each tool call by the chat
+// engine's approval gate.
+//
+// Strictness gradient (strictest → loosest):
+//
+//	ModePlan      read-only: deny every write / exec / network tool (no prompt)
+//	ModeSafe      prompt on every write / exec / network tool
+//	ModeBalanced  auto-allow write/network; prompt only on exec
+//	ModeYolo      auto-allow everything
+//
+// The const VALUES are not in strictness order — ModePlan is appended
+// (value 3) so the existing zero value (ModeSafe) is unchanged. Order
+// code against the named constants, never the ints.
+type Mode int
+
+const (
+	// ModeSafe — every Exec/Write/Network tool prompts.
+	ModeSafe Mode = iota
+	// ModeBalanced — Write/Network auto-allow; Exec prompts.
+	ModeBalanced
+	// ModeYolo — auto-allow everything (use at your own risk).
+	ModeYolo
+	// ModePlan — the read-only planning stance: every write / exec /
+	// network tool is denied outright (no prompt) so the agent can only
+	// investigate and draft a plan; the model sees the refusal as a tool
+	// error and adapts. The exit_plan_mode tool presents the plan for
+	// approval and flips the stance back to execute (ModeBalanced).
+	ModePlan
 )
 
-// New returns the runtime approval [Service]: a mutable mode (lock-free
-// atomic) plus a persistent rule store. Pass [ModeYolo] for environments where
-// every tool call auto-passes (CI, smoke tests). store may be nil — then no
-// rules are remembered (Decide never matches, Remember is a no-op), which is
-// the right shape for tests that exercise only mode gating.
-func New(mode Mode, store RuleStore) Service {
-	p := &policy{store: store}
-	p.mode.Store(int32(mode))
-	return p
+// Scope is how far a remembered rule reaches.
+type Scope string
+
+const (
+	// ScopeSession — the rule lives only for one session (keyed by session id).
+	ScopeSession Scope = "session"
+	// ScopeProject — the rule applies to every session opened in one project
+	// directory (keyed by that cwd).
+	ScopeProject Scope = "project"
+	// ScopeGlobal — the rule applies everywhere (no key).
+	ScopeGlobal Scope = "global"
+)
+
+// Decision is a rule's standing verdict.
+type Decision string
+
+const (
+	Allow Decision = "allow"
+	Deny  Decision = "deny"
+)
+
+// Rule is one standing approval decision. A rule matches a tool call when the
+// call's scope key matches (same session / same project dir / always for
+// global), the tool name matches, and the call's per-tool subject matches the
+// Subject glob (empty Subject = any arguments for that tool).
+type Rule struct {
+	ID       string   // deterministic over (Scope, ScopeKey, Tool, Subject)
+	Scope    Scope    // session | project | global
+	ScopeKey string   // session id | project dir | "" for global
+	Tool     string   // tool name, e.g. "shell"
+	Subject  string   // glob over the call's subject (command / path); "" = any
+	Decision Decision // allow | deny
 }
 
-// policy is the approval stance: an atomic mode + a rule store. The mode is
-// read once per gated call (write-rare); rules go through the injected store.
-type policy struct {
-	mode  atomic.Int32
-	store RuleStore
+// Query identifies one gated tool call for [Policy.Decide]. ProjectDir is the
+// call's working directory (the project scope key); empty for sessions without
+// a cwd. Arguments is the raw tool-call JSON — the subject is extracted from it.
+type Query struct {
+	SessionID  string
+	ProjectDir string
+	Tool       string
+	Arguments  string
 }
 
-var _ Service = (*policy)(nil)
-
-func (p *policy) Mode(_ context.Context) (Mode, error) {
-	return Mode(p.mode.Load()), nil
+// RememberRequest persists a rule from a user's "approve/deny + remember{scope}"
+// choice. The subject is extracted from Arguments per the tool, so the rule
+// matches future calls like this one — not the blunt whole-tool grant.
+type RememberRequest struct {
+	Scope      Scope
+	SessionID  string
+	ProjectDir string
+	Tool       string
+	Arguments  string
+	Decision   Decision
 }
 
-func (p *policy) SetMode(_ context.Context, mode Mode) error {
-	p.mode.Store(int32(mode))
-	return nil
-}
+// Policy is the runtime approval stance + the persistent rule store. Read at
+// each tool call by the chat engine; mutable at runtime. All methods are safe
+// for concurrent use.
+type Policy interface {
+	// Mode returns the current runtime stance.
+	Mode(ctx context.Context) (Mode, error)
 
-func (p *policy) Decide(ctx context.Context, q Query) (Decision, bool, error) {
-	if p.store == nil {
-		return "", false, nil
-	}
-	candidates, err := p.store.Visible(ctx, q.SessionID, q.ProjectDir)
-	if err != nil {
-		return "", false, err
-	}
-	d, ok := ruleSet(candidates).decide(q)
-	return d, ok, nil
-}
+	// SetMode changes the runtime-wide stance. Future tool calls honor the new
+	// mode; in-flight calls keep their original mode.
+	SetMode(ctx context.Context, mode Mode) error
 
-func (p *policy) Remember(ctx context.Context, req RememberRequest) error {
-	if p.store == nil {
-		return nil
-	}
-	rule, ok := req.rule()
-	if !ok {
-		return nil // can't key this scope (e.g. project rule with no cwd) — drop it
-	}
-	return p.store.Put(ctx, rule)
-}
+	// Decide resolves a gated tool call against the stored rules. ok=false when
+	// no rule matches (the gate then prompts the user). When several rules
+	// match, the most specific wins (session > project > global, then exact
+	// subject > glob > any); a tie between conflicting decisions resolves to
+	// Deny (the conservative choice).
+	Decide(ctx context.Context, q Query) (decision Decision, ok bool, err error)
 
-func (p *policy) Rules(ctx context.Context, sessionID, projectDir string) ([]Rule, error) {
-	if p.store == nil {
-		return nil, nil
-	}
-	return p.store.Visible(ctx, sessionID, projectDir)
-}
+	// Remember persists a rule from an approve/deny + remember choice. A project
+	// rule with no ProjectDir, or a session rule with no SessionID, is dropped
+	// rather than stored under an empty key.
+	Remember(ctx context.Context, req RememberRequest) error
 
-func (p *policy) Forget(ctx context.Context, id string) error {
-	if p.store == nil {
-		return nil
-	}
-	return p.store.Delete(ctx, id)
+	// Rules lists every rule visible from a session — its session rules, its
+	// project's rules, and all global rules — for the management UI.
+	Rules(ctx context.Context, sessionID, projectDir string) ([]Rule, error)
+
+	// Forget removes one rule by id.
+	Forget(ctx context.Context, id string) error
 }

@@ -39,8 +39,8 @@ type BuildConfig struct {
 	LSPServers      []codeintel.ServerSpec
 	MCPServers      []toolport.MCPServerConfig
 	A2AAgents       []a2a.ClientConfig
-	Todos           todo.Store       // backs todo_write; nil → the tool is omitted
-	Approval        approval.Service // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
+	Todos           todo.Store      // backs todo_write; nil → the tool is omitted
+	Approval        approval.Policy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
 	// index with no embedding model configured — omits the tool.
@@ -93,8 +93,8 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 
 	// exit_plan_mode leaves the read-only plan stance: it presents the model's
 	// plan for approval and, on approval, flips the approval stance to execute.
-	// Self-contained (SDK HITL + the approval service), coding role only. nil
-	// approval service → nil tool, simply omitted.
+	// Self-contained (SDK HITL + the approval policy), coding role only. nil
+	// approval policy → nil tool, simply omitted.
 	exitPlanTool := exitplan.New(cfg.Approval)
 
 	// todo_write maintains the per-session task list. nil cfg.Todos yields a nil

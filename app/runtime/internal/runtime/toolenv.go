@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
-func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, approvalSvc approval.Service, mcpEnv mcpEnvironment, codebaseIdx codebaseindex.Index) (toolset.Built, error) {
+func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, approvalPolicy approval.Policy, mcpEnv mcpEnvironment, codebaseIdx codebaseindex.Index) (toolset.Built, error) {
 	built, err := toolset.Build(ctx, toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.Engine.SkillsGlobalDir,
@@ -19,7 +19,7 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 		MCPServers:      mcpEnv.configs,
 		A2AAgents:       cfg.A2AAgents,
 		Todos:           ecfg.Todos,
-		Approval:        approvalSvc,
+		Approval:        approvalPolicy,
 		MCPDisabled:     mcpEnv.disabled,
 		CodebaseIndex:   codebaseIdx,
 	})

@@ -7,7 +7,7 @@ import "context"
 
 // Tool is the metadata of one registered tool. Schema is the JSON Schema
 // the model is shown; SafetyClass drives the default approval flow
-// (see approval.Service).
+// (see approval.Policy).
 type Tool struct {
 	Name        string
 	Description string

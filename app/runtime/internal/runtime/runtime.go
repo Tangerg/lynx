@@ -185,7 +185,7 @@ type Runtime struct {
 	session    sessionsvc.Store
 	tool       toolsvc.Service
 	knowledge  knowledge.Store
-	approval   approval.Service
+	approval   approval.Policy
 	interrupts interrupts.Store
 	transcript transcript.Store
 
@@ -345,14 +345,14 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// Approval stance is built early: the toolset's exit_plan_mode tool needs it
 	// (it flips the stance to execute when a plan is approved), and the turn gate
 	// reads it per tool call.
-	approvalSvc := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore)
+	approvalPolicy := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore)
 
 	mcpEnv, err := buildMCPEnvironment(ctx, cfg.MCPRegistry)
 	if err != nil {
 		return nil, err
 	}
 
-	built, err := buildToolEnvironment(ctx, cfg, ecfg, approvalSvc, mcpEnv, embeddingEnv.index)
+	built, err := buildToolEnvironment(ctx, cfg, ecfg, approvalPolicy, mcpEnv, embeddingEnv.index)
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +381,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 
 	chatSvc, err := turn.New(turn.Dependencies{
 		Engine:         eng,
-		Approval:       approvalSvc,
+		Approval:       approvalPolicy,
 		ClientResolver: resolver,
 		Todos:          ecfg.Todos,
 		MCPAutoApprove: mcpEnv.autoApprove,
@@ -403,7 +403,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		session:          sessionSvc,
 		tool:             toolSvc,
 		knowledge:        cfg.Engine.Knowledge,
-		approval:         approvalSvc,
+		approval:         approvalPolicy,
 		interrupts:       interruptStore,
 		transcript:       cfg.TranscriptStore,
 		conversation:     conv,

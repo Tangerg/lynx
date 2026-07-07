@@ -47,7 +47,7 @@ type Dependencies struct {
 
 	// Approval gates tool calls. nil auto-approves every tool, useful for tests
 	// and smoke runs.
-	Approval approval.Service
+	Approval approval.Policy
 
 	// ClientResolver resolves an explicit per-turn provider/model client. nil
 	// keeps every turn on the platform default client.
@@ -99,9 +99,9 @@ func New(deps Dependencies) (Service, error) {
 // process memory and does not survive restart.
 type inMemory struct {
 	engine   engineDep
-	approval approval.Service // optional — nil = auto-approve every tool
-	resolver clientResolver   // optional — nil = always use the default model
-	todos    todoLister       // optional — nil = no state.snapshot{todos} projection
+	approval approval.Policy // optional — nil = auto-approve every tool
+	resolver clientResolver  // optional — nil = always use the default model
+	todos    todoLister      // optional — nil = no state.snapshot{todos} projection
 
 	// mcpAutoApprove returns the model-facing MCP tool names whose calls skip the
 	// approval prompt — a per-server whitelist the runtime recomputes on every
