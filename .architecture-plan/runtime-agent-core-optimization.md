@@ -632,6 +632,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的 `knowledgeAccess` 拆为 `memoryAvailabilityAccess` 与 `memoryStoreAccess`。
   - memory handlers 使用 availability 作为 feature gate，读写路径只依赖 store；capability snapshot 不再通过 `runtimeBindings.capabilities` 聚合字段回到胖口。
   - 同步迁移 runtime binding 和 memory handler，不保留旧 `knowledgeAccess` 聚合字段。
+- 已完成第七十轮 `app/runtime` server transcript 端口 ISP 收敛：
+  - 将 delivery/server 的 `transcriptAccess` 拆为 `transcriptContentAccess` 与 `transcriptRunAccess`。
+  - session export/items/rollback/fork 依赖完整 transcript content，usage aggregation 只依赖 run 列表。
+  - 同步迁移 runtime binding 和 server handler 调用点，不保留旧 `transcriptAccess` 聚合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -715,6 +719,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十七轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十八轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第六十九轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -941,6 +946,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第六十九轮后复跑）。
   - `go build ./...`（`agent`）通过（第六十九轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第六十九轮后复跑）。
+  - `go test ./...`（`core`）通过（第七十轮后复跑）。
+  - `go test ./...`（`agent`）通过（第七十轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第七十轮后复跑）。
+  - `go vet ./...`（`core`）通过（第七十轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第七十轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第七十轮后复跑）。
+  - `go build ./...`（`core`）通过（第七十轮后复跑）。
+  - `go build ./...`（`agent`）通过（第七十轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第七十轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1103,3 +1117,15 @@ app/runtime -> agent -> core
 - 已完成适配：所有 `s.knowledge` 调用已迁移到更窄字段；未保留旧 `knowledgeAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险；memory handler 仍显式保留无 store 时 list 返回空页、get/update 返回 capability_not_negotiated 的既有行为。
+
+第七十轮包含 `app/runtime/internal/delivery/server` 的 internal transcript 端口破坏性拆分：
+
+- 调整对象：`transcriptAccess` 与 `runtimeBindings.transcript`。
+- 调整前问题：单个端口同时承载完整 transcript item/run projection 和 run-only usage aggregation，usage 读取路径被迫依赖更宽的 transcript content surface。
+- 破坏性原因：该端口位于 `app/runtime/internal/delivery/server`，直接拆分可以避免为旧聚合字段留下 internal 兼容层。
+- 新设计：使用 `transcriptContentAccess` 提供 `ListTranscript`，使用 `transcriptRunAccess` 提供 `ListTranscriptRuns`。
+- 架构收益：session export/items/rollback/fork 与 usage aggregation 各自依赖最小能力，server binding 对 transcript content 和 run accounting 的边界表达更清楚。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、items/rollback/sessionio/sessions/usage handlers。
+- 已完成适配：所有 `s.transcript` 调用已迁移到更窄字段；未保留旧 `transcriptAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险。

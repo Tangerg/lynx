@@ -23,7 +23,7 @@ import (
 // SessionUsage returns one session's cumulative token usage + cost, summed over
 // its finished runs (usage.session).
 func (s *Server) SessionUsage(ctx context.Context, sessionID string) (*protocol.Usage, error) {
-	runs, err := s.transcript.ListTranscriptRuns(ctx, sessionID)
+	runs, err := s.transcriptRuns.ListTranscriptRuns(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (s *Server) UsageSummary(ctx context.Context, in protocol.UsageSummaryReque
 	byDay := map[string]*usageAcc{}
 	sessionCount := 0
 	for _, sess := range sessions {
-		runs, lerr := s.transcript.ListTranscriptRuns(ctx, sess.ID)
+		runs, lerr := s.transcriptRuns.ListTranscriptRuns(ctx, sess.ID)
 		if lerr != nil {
 			return nil, lerr
 		}

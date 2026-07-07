@@ -15,7 +15,8 @@ type RuntimePort interface {
 	sessionCatalogAccess
 	sessionMutationAccess
 	sessionDefaultModelAccess
-	transcriptAccess
+	transcriptContentAccess
+	transcriptRunAccess
 	lifecycleAccess
 	runSegmentAccess
 	historyAccess

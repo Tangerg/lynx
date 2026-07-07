@@ -135,7 +135,8 @@ type runtimeBindings struct {
 	sessionCatalog     sessionCatalogAccess
 	sessionMutations   sessionMutationAccess
 	sessionDefaults    sessionDefaultModelAccess
-	transcript         transcriptAccess
+	transcriptContent  transcriptContentAccess
+	transcriptRuns     transcriptRunAccess
 	lifecycle          lifecycleAccess
 	runSegments        runSegmentAccess
 	history            historyAccess
@@ -168,7 +169,8 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		sessionCatalog:     rt,
 		sessionMutations:   rt,
 		sessionDefaults:    rt,
-		transcript:         rt,
+		transcriptContent:  rt,
+		transcriptRuns:     rt,
 		lifecycle:          rt,
 		runSegments:        rt,
 		history:            rt,
