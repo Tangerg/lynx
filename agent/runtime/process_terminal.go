@@ -34,10 +34,10 @@ func (p *AgentProcess) failProcess(err error) {
 // only if it won the terminal transition — an external KillProcess racing the
 // ctx-cancel path must not double-publish (setStatus is the first-terminal-wins
 // gate).
-func (p *AgentProcess) markCancelled(err error) {
+func (p *AgentProcess) markCancelled(ctx context.Context, err error) {
 	p.state.setFailure(err)
 	if p.state.setStatus(core.StatusKilled) {
-		p.publishEvent(event.ProcessKilled{
+		p.publishEvent(ctx, event.ProcessKilled{
 			BaseEvent: p.baseEvent(),
 			Reason:    err.Error(),
 		})
@@ -49,7 +49,7 @@ func (p *AgentProcess) markCancelled(err error) {
 // registered at platform or process scope — and terminates the
 // process at the first "yes". Returns true when the run loop should
 // exit.
-func (p *AgentProcess) checkEarlyTermination() bool {
+func (p *AgentProcess) checkEarlyTermination(ctx context.Context) bool {
 	policies := append(
 		[]core.EarlyTerminationPolicy{core.BudgetPolicy{Budget: p.options.Budget}},
 		collectExtensions[core.EarlyTerminationPolicy](p.combinedExtensions())...,
@@ -60,7 +60,7 @@ func (p *AgentProcess) checkEarlyTermination() bool {
 			continue
 		}
 		if p.state.setStatus(core.StatusTerminated) {
-			p.publishEvent(event.ProcessTerminated{
+			p.publishEvent(ctx, event.ProcessTerminated{
 				BaseEvent: p.baseEvent(),
 				Reason:    reason,
 			})
@@ -72,15 +72,15 @@ func (p *AgentProcess) checkEarlyTermination() bool {
 
 // publishTerminalEvent dispatches the terminal-state event matching the
 // current status.
-func (p *AgentProcess) publishTerminalEvent() {
+func (p *AgentProcess) publishTerminalEvent(ctx context.Context) {
 	switch p.Status() {
 	case core.StatusCompleted:
-		p.publishEvent(event.ProcessCompleted{
+		p.publishEvent(ctx, event.ProcessCompleted{
 			BaseEvent: p.baseEvent(),
 			Goal:      p.Goal(),
 		})
 	case core.StatusFailed:
-		p.publishEvent(event.ProcessFailed{
+		p.publishEvent(ctx, event.ProcessFailed{
 			BaseEvent: p.baseEvent(),
 			Err:       p.Failure(),
 		})
@@ -91,12 +91,12 @@ func (p *AgentProcess) publishTerminalEvent() {
 // achievement event. A no-op when a racing kill already terminated the process
 // — first terminal wins, so the run loop can't clobber a Killed back to
 // Completed (which would also double-publish a terminal at the loop's exit).
-func (p *AgentProcess) completeForGoal(g *core.Goal) {
+func (p *AgentProcess) completeForGoal(ctx context.Context, g *core.Goal) {
 	if !p.state.setStatus(core.StatusCompleted) {
 		return
 	}
 	p.state.setGoal(g)
-	p.publishEvent(event.GoalAchieved{
+	p.publishEvent(ctx, event.GoalAchieved{
 		BaseEvent: p.baseEvent(),
 		Goal:      g,
 	})
@@ -143,7 +143,7 @@ func (p *AgentProcess) handleStuck(ctx context.Context, worldState core.WorldSta
 	}
 
 	if p.state.setStatus(core.StatusStuck) {
-		p.publishEvent(event.ProcessStuck{
+		p.publishEvent(ctx, event.ProcessStuck{
 			BaseEvent: p.baseEvent(),
 			LastWorld: worldState,
 		})

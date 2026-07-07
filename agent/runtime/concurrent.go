@@ -26,11 +26,11 @@ func (p *AgentProcess) tickConcurrent(ctx context.Context, worldState core.World
 
 	results, replans := p.runActionsInParallel(ctx, achievable)
 	if err := ctx.Err(); err != nil {
-		p.markCancelled(err)
+		p.markCancelled(ctx, err)
 		return nil
 	}
 
-	if p.applyReplansFromParallel(achievable, replans) {
+	if p.applyReplansFromParallel(ctx, achievable, replans) {
 		return nil
 	}
 
@@ -67,7 +67,7 @@ func (p *AgentProcess) runActionsInParallel(ctx context.Context, actions []core.
 // applyReplansFromParallel processes any replan requests returned by the
 // parallel actions. Returns true when at least one was applied (caller
 // should keep the process Running and re-plan next tick).
-func (p *AgentProcess) applyReplansFromParallel(actions []core.Action, replans []*core.ReplanRequest) bool {
+func (p *AgentProcess) applyReplansFromParallel(ctx context.Context, actions []core.Action, replans []*core.ReplanRequest) bool {
 	hasReplan := false
 	for index, replan := range replans {
 		if replan == nil {
@@ -75,7 +75,7 @@ func (p *AgentProcess) applyReplansFromParallel(actions []core.Action, replans [
 		}
 
 		hasReplan = true
-		p.applyReplan(actions[index], replan)
+		p.applyReplan(ctx, actions[index], replan)
 	}
 	return hasReplan
 }

@@ -34,7 +34,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	meta := action.Metadata()
 	startedAt := core.Now()
 
-	p.publishEvent(event.ActionExecutionStart{
+	p.publishEvent(ctx, event.ActionExecutionStart{
 		BaseEvent: p.baseEvent(),
 		Action:    action,
 		StartedAt: startedAt,
@@ -85,7 +85,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	)
 	finishSpanWithError(span, lastErr)
 
-	p.publishEvent(event.ActionExecutionResult{
+	p.publishEvent(ctx, event.ActionExecutionResult{
 		BaseEvent: p.baseEvent(),
 		Action:    action,
 		Status:    status,

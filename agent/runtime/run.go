@@ -25,17 +25,17 @@ func (p *AgentProcess) run(ctx context.Context) error {
 
 	if err := p.validateAgentForRun(); err != nil {
 		p.failProcess(err)
-		p.publishTerminalEvent()
+		p.publishTerminalEvent(ctx)
 		return err
 	}
 
 	for {
 		if err := ctx.Err(); err != nil {
-			p.markCancelled(err)
+			p.markCancelled(ctx, err)
 			return err
 		}
 
-		if p.checkEarlyTermination() {
+		if p.checkEarlyTermination(ctx) {
 			p.maybeAutoSnapshot(ctx)
 			p.recordRunExitMetric(ctx)
 			return nil
@@ -54,7 +54,7 @@ func (p *AgentProcess) run(ctx context.Context) error {
 		// terminal all release the loop so the host (HITL resume,
 		// stuck-handler, terminal cleanup) can drive next.
 		if p.Status() != core.StatusRunning {
-			p.publishTerminalEvent()
+			p.publishTerminalEvent(ctx)
 			p.recordRunExitMetric(ctx)
 			return nil
 		}
@@ -76,7 +76,7 @@ func (p *AgentProcess) tick(ctx context.Context) error {
 	ctx = core.WithProcess(ctx, p)
 
 	if signal := p.signals.drainTerminate(); signal != nil {
-		return p.handleTerminationSignal(*signal)
+		return p.handleTerminationSignal(ctx, *signal)
 	}
 
 	ctx, span := p.startTickSpan(ctx, spanTick)
@@ -96,7 +96,7 @@ func (p *AgentProcess) observe(ctx context.Context, span trace.Span) core.WorldS
 	worldState := p.determiner.determineWorldState(ctx)
 	p.state.setLastWorld(worldState)
 
-	p.publishEvent(event.ReadyToPlan{
+	p.publishEvent(ctx, event.ReadyToPlan{
 		BaseEvent: p.baseEvent(),
 		World:     worldState,
 	})
@@ -107,11 +107,11 @@ func (p *AgentProcess) observe(ctx context.Context, span trace.Span) core.WorldS
 // handleTerminationSignal processes a queued termination request. AGENT-
 // scope signals stop the process; ACTION-scope signals trigger a re-plan
 // without running an action this tick.
-func (p *AgentProcess) handleTerminationSignal(sig core.TerminationSignal) error {
+func (p *AgentProcess) handleTerminationSignal(ctx context.Context, sig core.TerminationSignal) error {
 	switch sig.Scope {
 	case core.TerminationScopeAgent:
 		if p.state.setStatus(core.StatusTerminated) {
-			p.publishEvent(event.ProcessTerminated{
+			p.publishEvent(ctx, event.ProcessTerminated{
 				BaseEvent: p.baseEvent(),
 				Reason:    sig.Reason,
 				Scope:     core.TerminationScopeAgent,
@@ -119,7 +119,7 @@ func (p *AgentProcess) handleTerminationSignal(sig core.TerminationSignal) error
 		}
 
 	case core.TerminationScopeAction:
-		p.publishEvent(event.ReplanRequested{
+		p.publishEvent(ctx, event.ReplanRequested{
 			BaseEvent: p.baseEvent(),
 			Reason:    sig.Reason,
 		})
@@ -137,11 +137,11 @@ func (p *AgentProcess) tickSimple(ctx context.Context, worldState core.WorldStat
 	action := planResult.Actions[0]
 	status, replan := p.executeAction(ctx, action)
 	if err := ctx.Err(); err != nil {
-		p.markCancelled(err)
+		p.markCancelled(ctx, err)
 		return nil
 	}
 	if replan != nil {
-		p.applyReplan(action, replan)
+		p.applyReplan(ctx, action, replan)
 		return nil
 	}
 
@@ -174,12 +174,12 @@ func (p *AgentProcess) planForTick(ctx context.Context, worldState core.WorldSta
 		return nil, true, p.handleStuck(ctx, worldState)
 	}
 	if planResult.IsComplete() {
-		p.completeForGoal(planResult.Goal)
+		p.completeForGoal(ctx, planResult.Goal)
 		return nil, true, nil
 	}
 
 	p.state.setGoal(planResult.Goal)
-	p.publishEvent(event.PlanFormulated{
+	p.publishEvent(ctx, event.PlanFormulated{
 		BaseEvent: p.baseEvent(),
 		Plan:      planResult,
 	})
@@ -220,12 +220,12 @@ func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldS
 // applyReplan applies an action's replan request: stage its blackboard
 // update, exclude the action, publish the event. Status stays Running so
 // the next tick reformulates the plan.
-func (p *AgentProcess) applyReplan(action core.Action, request *core.ReplanRequest) {
+func (p *AgentProcess) applyReplan(ctx context.Context, action core.Action, request *core.ReplanRequest) {
 	p.state.excludeAction(action.Metadata().Name)
 	if request.Update != nil {
 		request.Update(p.blackboard)
 	}
-	p.publishEvent(event.ReplanRequested{
+	p.publishEvent(ctx, event.ReplanRequested{
 		BaseEvent: p.baseEvent(),
 		Action:    action.Metadata().Name,
 		Reason:    request.Reason,
