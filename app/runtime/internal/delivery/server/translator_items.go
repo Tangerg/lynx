@@ -238,7 +238,7 @@ func (t *translator) turnEnd(e turn.TurnEnd) []protocol.StreamEvent {
 }
 
 // finish builds a terminal run.finished for paths that never observe a
-// chat.TurnEnd (e.g. run cancellation drained the iterator). Closes
+// turn.TurnEnd (e.g. run cancellation drained the iterator). Closes
 // open items, then emits run.finished with the given outcome type.
 func (t *translator) finish(outcomeType protocol.RunOutcomeType) []protocol.StreamEvent {
 	out := t.closeReasoning()

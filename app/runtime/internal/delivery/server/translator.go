@@ -104,15 +104,15 @@ func questionFromPayload(payload map[string]any) *protocol.Question {
 //
 // State machine:
 //
-//	chat.TurnStart      → run.started
-//	chat.MessageDelta   → close reasoning + item.started(agentMessage,lazy) + item.delta(content)
-//	chat.ReasoningDelta → close text + item.started(reasoning,lazy) + item.delta(reasoning)
-//	chat.ToolCallStart  → close text+reasoning + item.started(toolCall) + item.delta(toolArguments)
-//	chat.ToolCallEnd    → item.completed(toolCall)
-//	chat.TurnEnd        → close open items + run.finished(outcome)
-//	chat.TurnInterrupted → close open items + interrupt Item(s) + run.finished(outcome:interrupt)
-//	chat.ErrorEvent     → captured, surfaced in run.finished(outcome:error)
-//	chat.CompactBoundary → compaction Item (item.started + item.completed)
+//	turn.TurnStart       → run.started
+//	turn.MessageDelta    → close reasoning + item.started(agentMessage,lazy) + item.delta(content)
+//	turn.ReasoningDelta  → close text + item.started(reasoning,lazy) + item.delta(reasoning)
+//	turn.ToolCallStart   → close text+reasoning + item.started(toolCall) + item.delta(toolArguments)
+//	turn.ToolCallEnd     → item.completed(toolCall)
+//	turn.TurnEnd         → close open items + run.finished(outcome)
+//	turn.TurnInterrupted → close open items + interrupt Item(s) + run.finished(outcome:interrupt)
+//	turn.ErrorEvent      → captured, surfaced in run.finished(outcome:error)
+//	turn.CompactBoundary → compaction Item (item.started + item.completed)
 //
 // MemoryUpdated is not surfaced here: extracted long-term memory is internal
 // housekeeping with no client-facing surface (nothing folds a memory event).
@@ -266,7 +266,7 @@ func userMessageItemID(runID string) string {
 // client's run boundary; continuation runs carry parentRunId), then the
 // root's opening userMessage Item and, for a resumed run, the terminal
 // item.completed for any question the parked run left open. Driven by
-// pumpRun before any chat event, so it never depends on a chat-level
+// pumpRun before any turn event, so it never depends on a turn-level
 // TurnStart (which continuations don't emit).
 func (t *translator) open() []protocol.StreamEvent {
 	out := []protocol.StreamEvent{{
@@ -285,13 +285,13 @@ func (t *translator) open() []protocol.StreamEvent {
 	return append(out, t.resumeQuestionCompletions()...)
 }
 
-// translate maps one Lyra chat event to zero or more StreamEvents.
+// translate maps one Lyra turn event to zero or more StreamEvents.
 func (t *translator) translate(ev turn.Event) []protocol.StreamEvent {
 	switch e := ev.(type) {
 	case turn.TurnStart:
 		// run.started is emitted by open() at the start of every run segment
-		// (so continuation runs get it too — they carry no chat.TurnStart),
-		// not here. Nothing to do for the chat-level TurnStart.
+		// (so continuation runs get it too — they carry no turn.TurnStart),
+		// not here. Nothing to do for the turn-level TurnStart.
 		return nil
 	case turn.MessageDelta:
 		// Close any open reasoning before emitting text — reasoning and

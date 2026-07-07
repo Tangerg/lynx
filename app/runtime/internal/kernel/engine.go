@@ -21,7 +21,7 @@ import (
 //   - turn execution: platform + agent drive [Engine.StartTurn]
 //     (async; returns a [TurnProcess] handle backed by a real
 //     [runtime.AgentProcess]) and [Engine.RunTurn] (sync wrapper) —
-//     see chatturn.go / chatprocess.go
+//     see turnrun.go / turnprocess.go
 //   - maintenance:    the injected Compactor / Extractor ports power
 //     [Engine.MaybeCompact] / [Engine.MaybeExtract]
 //   - context:        knowledge / workdir feed the system prompt; the Steering
@@ -126,7 +126,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 
 	e.agent = e.buildTurnAgent()
 	if err := platform.Deploy(e.agent); err != nil {
-		return nil, fmt.Errorf("engine: deploy chat agent: %w", err)
+		return nil, fmt.Errorf("engine: deploy turn agent: %w", err)
 	}
 	return e, nil
 }
