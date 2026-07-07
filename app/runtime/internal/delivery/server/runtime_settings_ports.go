@@ -58,10 +58,16 @@ type scheduleWorkerAccess interface {
 	RunScheduleWorker(ctx context.Context, runner schedule.Runner)
 }
 
-type providerRegistryAccess interface {
+type providerRegistryCatalogAccess interface {
 	ListRegisteredProviders(ctx context.Context) ([]providersvc.Provider, error)
 	RegisteredProvider(ctx context.Context, id string) (providersvc.Provider, bool, error)
+}
+
+type providerRegistryMutationAccess interface {
 	ConfigureProvider(ctx context.Context, entry providersvc.Provider) error
+}
+
+type providerRegistryProbeAccess interface {
 	ProbeProvider(ctx context.Context, entry providersvc.Provider) error
 }
 
