@@ -11,7 +11,10 @@ package server
 // root (cmd/lyra) passes the concrete value where a RuntimePort is
 // expected.
 type RuntimePort interface {
-	turnAccess
+	turnStartAccess
+	turnStreamAccess
+	turnSteeringAccess
+	turnInterruptPolicyAccess
 	sessionCatalogAccess
 	sessionMutationAccess
 	sessionDefaultModelAccess

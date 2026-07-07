@@ -14,15 +14,21 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-type turnAccess interface {
+type turnStartAccess interface {
 	PlanTurnStart(ctx context.Context, sessionID, defaultCwd string, draft turn.StartTurnRequest) (sessionsvc.Session, turn.StartTurnRequest, error)
 	StartTurn(ctx context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error)
+}
+
+type turnStreamAccess interface {
 	TurnEvents(ctx context.Context, handle turn.TurnHandle) (iter.Seq[turn.Event], error)
-	InjectTurnSteering(ctx context.Context, handle turn.TurnHandle, message string) error
-	ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error
-	RehydrateTurn(ctx context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error)
 	CancelTurn(ctx context.Context, handle turn.TurnHandle) error
-	TurnProcessID(ctx context.Context, handle turn.TurnHandle) (string, error)
+}
+
+type turnSteeringAccess interface {
+	InjectTurnSteering(ctx context.Context, handle turn.TurnHandle, message string) error
+}
+
+type turnInterruptPolicyAccess interface {
 	SetTurnInterruptKinds(kinds []string)
 }
 
