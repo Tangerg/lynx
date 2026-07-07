@@ -248,6 +248,11 @@ app/runtime -> agent -> core
   - `reconnect.go` 承接 `Reconnect` / `Configure` / `Authorize` 以及 shared `dialAndSwap` 和 status 写回。
   - `registry.go` 承接 `Statuses` / `Tools` / `Remove` / `refreshTools` / `Close`。
   - 导出的类型名、错误值、接口方法和调用行为保持不变；本轮无公共 API 破坏性调整。
+- 已完成第十一轮目标模块结构清理：
+  - `app/runtime/internal/delivery/server`：将 stream translator 的 resume 绑定、问题完成与 item id 复用逻辑移入 `translator_resume.go`。
+  - `translator_simple_items.go` 承接 opening user message、mid-run steer、todo snapshot、compaction 这类内容一次性完整可知的 item 投影。
+  - `translator.go` 回到 translator 状态、item id 生成、run segment open 与 turn event dispatch，不再混放 resume bookkeeping 和简单 item 构造细节。
+  - 导出的类型名、错误值、接口方法和调用行为保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -269,15 +274,15 @@ app/runtime -> agent -> core
   - `go test ./internal/kernel/lifecycle ./internal/kernel/... ./internal/runtime ./internal/delivery/server`（`app/runtime`）通过。
   - `go test ./internal/infra/mcp ./internal/infra/... ./internal/runtime ./internal/adapter/toolset/... ./internal/delivery/server`（`app/runtime`）通过。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第十轮后复跑）。
-  - `go test ./...`（`agent`）通过（第十轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第十轮后复跑）。
-  - `go vet ./...`（`core`）通过（第十轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第十轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第十轮后复跑）。
-  - `go build ./...`（`core`）通过（第十轮后复跑）。
-  - `go build ./...`（`agent`）通过（第十轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第十轮后复跑）。
+  - `go test ./...`（`core`）通过（第十一轮后复跑）。
+  - `go test ./...`（`agent`）通过（第十一轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第十一轮后复跑）。
+  - `go vet ./...`（`core`）通过（第十一轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第十一轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第十一轮后复跑）。
+  - `go build ./...`（`core`）通过（第十一轮后复跑）。
+  - `go build ./...`（`agent`）通过（第十一轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第十一轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
