@@ -74,9 +74,12 @@ type providerDefaultAccess interface {
 	DefaultProvider() string
 }
 
-type modelRoleAccess interface {
+type utilityRoleAccess interface {
 	UtilityRole() (provider, model string)
 	SetUtilityRole(ctx context.Context, provider, model string) error
+}
+
+type embeddingRoleAccess interface {
 	EmbeddingRole() (provider, model string)
 	SetEmbeddingRole(ctx context.Context, provider, model string) error
 }

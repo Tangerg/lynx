@@ -47,8 +47,10 @@ type RuntimePort interface {
 	mcpRegistryAccess
 	skillCatalogAccess
 	recipeCatalogAccess
-	hookAccess
-	modelRoleAccess
+	hookInspectionAccess
+	hookTrustAccess
+	utilityRoleAccess
+	embeddingRoleAccess
 	codebaseAvailabilityAccess
 	codebaseSearchAccess
 	codebaseStatusAccess
