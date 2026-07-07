@@ -60,9 +60,10 @@ type Config struct {
 
 	// Tool environment — assembled outside the core by the tool adapter and
 	// injected by the composition root. The engine registers ToolResolver on
-	// the platform, exposes MCP as its workspace.mcp.* facade, surfaces Tools
-	// (plus the engine-built task/ask_user) via tools.list, and runs Closers at
-	// shutdown. A nil ToolResolver yields an empty (no-tool) environment.
+	// the platform, exposes MCP as its workspace.mcp.* facade, surfaces tools
+	// via tools.list, and runs Closers at shutdown. A resolver also receives the
+	// engine-built `task` delegation tool; without a resolver, task is not
+	// available (the env can still pass only static tools like ask_user).
 	ToolResolver ToolResolver
 	Tools        []chat.Tool    // canonical tool list (without task)
 	MCP          MCPControl     // live-MCP-connections facade

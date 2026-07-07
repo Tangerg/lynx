@@ -112,19 +112,22 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// resolver, which folds it into the ToolRoleCoding set only.
 	// AsChatToolFromAgent needs no separate deploy — child processes land
 	// on the platform when spawned.
-	taskTool, err := runtime.AsChatToolFromAgent[taskInput, string](platform, e.buildSubtaskAgent())
-	if err != nil {
-		return nil, fmt.Errorf("engine: build task tool: %w", err)
-	}
+	tools := append([]chat.Tool{}, cfg.Tools...)
 	if resolver != nil {
+		taskTool, err := runtime.AsChatToolFromAgent[taskInput, string](platform, e.buildSubtaskAgent())
+		if err != nil {
+			return nil, fmt.Errorf("engine: build task tool: %w", err)
+		}
 		resolver.SetTask(taskTool)
+		tools = append(tools, taskTool)
 	}
 
 	// e.tools is the canonical coding tool set for tool.Registry.List — the
 	// toolset-assembled list (working-directory-independent metadata, which now
-	// includes ask_user) plus the one engine-owned tool, `task` (it needs the
-	// platform to spawn the sub-agent, so the engine builds + injects it).
-	e.tools = append(append([]chat.Tool{}, cfg.Tools...), taskTool)
+	// includes ask_user) plus engine-owned `task` when resolver wiring is present
+	// (it needs the platform to spawn the sub-agent, so the engine builds + injects
+	// it only in that mode).
+	e.tools = tools
 
 	e.agent = e.buildTurnAgent()
 	if err := platform.Deploy(e.agent); err != nil {
