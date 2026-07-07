@@ -37,7 +37,7 @@ func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery)
 // validated the scope (MemoryScope.Valid).
 func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*protocol.MemoryEntry, error) {
 	if !s.knowledge.HasMemory() {
-		return nil, notImpl("memory.get")
+		return nil, capabilityNotNegotiated("memory.get")
 	}
 	scope, cwd, err := s.memoryTargetFromWire(in.Scope, in.Cwd)
 	if err != nil {
@@ -52,7 +52,7 @@ func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*
 
 func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryRequest) error {
 	if !s.knowledge.HasMemory() {
-		return notImpl("memory.update")
+		return capabilityNotNegotiated("memory.update")
 	}
 	scope, cwd, err := s.memoryTargetFromWire(in.Scope, in.Cwd)
 	if err != nil {

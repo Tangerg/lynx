@@ -25,7 +25,7 @@ func (r *Runtime) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Ser
 // MCPServerStatuses returns the per-server connection state of every
 // configured MCP server (connected and boot-failed alike) for
 // workspace.mcp.listServers. Delegates to the engine, which owns the sessions.
-func (r *Runtime) MCPServerStatuses() []kernel.McpServerStatus {
+func (r *Runtime) MCPServerStatuses() []kernel.MCPServerStatus {
 	return r.engine.MCPServerStatuses()
 }
 
@@ -131,7 +131,7 @@ func (r *Runtime) TestMCPServer(ctx context.Context, srv mcpserver.Server) error
 // MCPTools lists tools advertised by the connected MCP servers (scoped to
 // server when non-empty) for workspace.mcp.listTools. Delegates to the
 // engine, which holds the dialed sessions.
-func (r *Runtime) MCPTools(ctx context.Context, server string) ([]kernel.McpToolInfo, error) {
+func (r *Runtime) MCPTools(ctx context.Context, server string) ([]kernel.MCPToolInfo, error) {
 	return r.engine.MCPTools(ctx, server)
 }
 

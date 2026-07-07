@@ -162,8 +162,8 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	// the turn span. userHome "" (rare) → global hooks just won't be found.
 	userHome, _ := os.UserHomeDir()
 	hookResolver := adapterhooks.NewResolver(userHome,
-		func(projectRoot string) bool {
-			ok, _ := stores.Trust.IsTrusted(context.Background(), projectRoot)
+		func(hctx context.Context, projectRoot string) bool {
+			ok, _ := stores.Trust.IsTrusted(hctx, projectRoot)
 			return ok
 		},
 		func(hctx context.Context, source string, herr error) {

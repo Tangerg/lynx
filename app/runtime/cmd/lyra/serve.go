@@ -55,7 +55,7 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 			// one slog stream) before anything else, so startup itself is
 			// traced and every module's spans/logs are correlated.
 			shutdownObs := setupObservability(version)
-			defer shutdownObs(context.Background())
+			defer func() { shutdownObs(context.WithoutCancel(cmd.Context())) }()
 
 			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
@@ -254,7 +254,7 @@ func (a *App) runServer(ctx context.Context, httpServer *lyrahttp.Server, api *s
 		fmt.Fprintln(a.Err, "[lyra] shutdown requested, draining...")
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	if a2aServer != nil {
 		_ = a2aServer.Shutdown(shutdownCtx)

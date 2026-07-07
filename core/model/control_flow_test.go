@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -22,7 +23,7 @@ func TestIsControlFlowError(t *testing.T) {
 	if !model.IsControlFlowError(fmt.Errorf("wrapped: %w", controlFlowErr(true))) {
 		t.Fatal("wrapped marker must be detected")
 	}
-	if model.IsControlFlowError(fmt.Errorf("ordinary")) {
+	if model.IsControlFlowError(errors.New("ordinary")) {
 		t.Fatal("ordinary errors must not be control flow")
 	}
 }

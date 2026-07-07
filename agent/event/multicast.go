@@ -81,7 +81,7 @@ func (m *Multicast) OnEvent(e Event) {
 // safeDeliver invokes the listener with a panic guard. Panicking
 // listeners are a bug, but a single panicking listener must not take
 // down the whole process — delivery to the remaining listeners continues.
-// is not silent: it surfaces as a short error span so the failure is
+// The panic is not silent: it surfaces as a short error span so the failure is
 // observable through the standard OTel pipeline.
 func safeDeliver(l Listener, e Event) {
 	defer func() {

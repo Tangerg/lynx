@@ -11,19 +11,19 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/safeguard"
 )
 
-// fakeHandler is a minimal CallHandler + StreamHandler the tests use to drive
+// scriptedModel is a minimal CallHandler + StreamHandler the tests use to drive
 // the middleware deterministically.
-type fakeHandler struct {
+type scriptedModel struct {
 	callResponse *chat.Response
 	callErr      error
 	streamChunks []*chat.Response
 }
 
-func (f *fakeHandler) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
+func (f *scriptedModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
 	return f.callResponse, f.callErr
 }
 
-func (f *fakeHandler) Stream(_ context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
+func (f *scriptedModel) Stream(_ context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
 		for _, c := range f.streamChunks {
 			if !yield(c, nil) {
@@ -64,7 +64,7 @@ func TestSafeguardMiddleware_BlocksInput(t *testing.T) {
 		Scope: safeguard.ScopeInput,
 	})
 
-	handler := callMW(&fakeHandler{
+	handler := callMW(&scriptedModel{
 		callResponse: newSuccessResponse(t, "should not see this"),
 	})
 
@@ -86,7 +86,7 @@ func TestSafeguardMiddleware_BlocksOutput(t *testing.T) {
 		Scope: safeguard.ScopeOutput,
 	})
 
-	handler := callMW(&fakeHandler{
+	handler := callMW(&scriptedModel{
 		callResponse: newSuccessResponse(t, "this contains badword in output"),
 	})
 
@@ -105,7 +105,7 @@ func TestSafeguardMiddleware_HideMatch(t *testing.T) {
 		Scope: safeguard.ScopeInput,
 	})
 
-	handler := callMW(&fakeHandler{callResponse: newSuccessResponse(t, "n/a")})
+	handler := callMW(&scriptedModel{callResponse: newSuccessResponse(t, "n/a")})
 	_, err := handler.Call(context.Background(), newRequest(t, "x", "looking for top-secret data"))
 	if !errors.Is(err, safeguard.ErrUnsafeContent) {
 		t.Fatal("expected block")
@@ -130,7 +130,7 @@ func TestSafeguardMiddleware_OnBlockCallback(t *testing.T) {
 		},
 	})
 
-	handler := callMW(&fakeHandler{callResponse: newSuccessResponse(t, "irrelevant")})
+	handler := callMW(&scriptedModel{callResponse: newSuccessResponse(t, "irrelevant")})
 	_, _ = handler.Call(context.Background(), newRequest(t, "x", "very HOT topic"))
 
 	if gotScope != safeguard.ScopeInput {
@@ -143,7 +143,7 @@ func TestSafeguardMiddleware_OnBlockCallback(t *testing.T) {
 
 func TestSafeguardMiddleware_NilMatcherPassthrough(t *testing.T) {
 	callMW, _ := safeguard.NewMiddleware(nil, safeguard.Options{})
-	handler := callMW(&fakeHandler{callResponse: newSuccessResponse(t, "anything")})
+	handler := callMW(&scriptedModel{callResponse: newSuccessResponse(t, "anything")})
 	if _, err := handler.Call(context.Background(), newRequest(t, "x", "anything goes")); err != nil {
 		t.Fatal(err)
 	}

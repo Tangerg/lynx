@@ -15,7 +15,7 @@ import (
 // repeat kill is a no-op. The check-and-set is atomic (markKilled), so the
 // primitive is safe for any caller — not just KillChildren, which used to be
 // the only guarded path. (buildSnapshotAgent/ssWord live in
-// process_snapshot_test.go, mustDeploy in helpers_test.go — same package.)
+// process_snapshot_test.go, mustDeploy in deploy_support_test.go.)
 func TestKillProcess_IdempotentNoClobber(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, buildSnapshotAgent())

@@ -14,19 +14,19 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/logger"
 )
 
-// fakeHandler is a minimal CallHandler + StreamHandler the tests use
+// scriptedModel is a minimal CallHandler + StreamHandler the tests use
 // to drive the middleware deterministically.
-type fakeHandler struct {
+type scriptedModel struct {
 	callResponse *chat.Response
 	callErr      error
 	streamChunks []*chat.Response
 }
 
-func (f *fakeHandler) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
+func (f *scriptedModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
 	return f.callResponse, f.callErr
 }
 
-func (f *fakeHandler) Stream(_ context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
+func (f *scriptedModel) Stream(_ context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
 		for _, c := range f.streamChunks {
 			if !yield(c, nil) {
@@ -66,7 +66,7 @@ func TestLoggerMiddleware_Call_Success(t *testing.T) {
 	sl := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	callMW, _ := logger.NewMiddleware(logger.NewSlogLogger(sl))
-	handler := callMW(&fakeHandler{callResponse: newSuccessResponse(t, "hello")})
+	handler := callMW(&scriptedModel{callResponse: newSuccessResponse(t, "hello")})
 
 	resp, err := handler.Call(context.Background(), newRequest(t, "gpt-x", "hi"))
 	if err != nil {
@@ -96,7 +96,7 @@ func TestLoggerMiddleware_Call_Error(t *testing.T) {
 	sl := slog.New(slog.NewJSONHandler(&buf, nil))
 
 	callMW, _ := logger.NewMiddleware(logger.NewSlogLogger(sl))
-	handler := callMW(&fakeHandler{callErr: errors.New("boom")})
+	handler := callMW(&scriptedModel{callErr: errors.New("boom")})
 
 	_, err := handler.Call(context.Background(), newRequest(t, "gpt-x", "hi"))
 	if err == nil || err.Error() != "boom" {
@@ -117,7 +117,7 @@ func TestLoggerMiddleware_Call_Error(t *testing.T) {
 
 func TestLoggerMiddleware_NilLoggerIsSafe(t *testing.T) {
 	callMW, _ := logger.NewMiddleware(nil) // nopLogger fallback
-	handler := callMW(&fakeHandler{callResponse: newSuccessResponse(t, "ok")})
+	handler := callMW(&scriptedModel{callResponse: newSuccessResponse(t, "ok")})
 	if _, err := handler.Call(context.Background(), newRequest(t, "m", "p")); err != nil {
 		t.Fatal(err)
 	}

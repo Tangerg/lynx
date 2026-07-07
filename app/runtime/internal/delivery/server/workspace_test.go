@@ -268,11 +268,11 @@ func TestWorkspaceListRecipes(t *testing.T) {
 // a boot-failed server carries its failure reason as Error and no tool count.
 func TestWorkspaceMCPListServers(t *testing.T) {
 	s := newTestServer(&stubRuntime{
-		mcpStatuses: []kernel.McpServerStatus{
+		mcpStatuses: []kernel.MCPServerStatus{
 			{Name: "fs", Status: "connected"},
 			{Name: "down", Status: "failed", Err: errors.New("connection refused")},
 		},
-		mcpTools: []kernel.McpToolInfo{
+		mcpTools: []kernel.MCPToolInfo{
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
 		},
 	})
@@ -301,8 +301,8 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 func TestWorkspaceMCPReconnect(t *testing.T) {
 	s := &Server{
 		runtimeBindings: bindRuntime(&stubRuntime{
-			mcpStatuses: []kernel.McpServerStatus{{Name: "fs", Status: "connected"}},
-			mcpTools:    []kernel.McpToolInfo{{Server: "fs", Name: "read"}},
+			mcpStatuses: []kernel.MCPServerStatus{{Name: "fs", Status: "connected"}},
+			mcpTools:    []kernel.MCPToolInfo{{Server: "fs", Name: "read"}},
 		}),
 		wsHub: newWorkspaceHub(),
 	}
@@ -330,7 +330,7 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 // TestWorkspaceMCPListTools maps engine tool info onto the wire (keeping
 // server + bare name separate) and passes the server scope through.
 func TestWorkspaceMCPListTools(t *testing.T) {
-	s := newTestServer(&stubRuntime{mcpTools: []kernel.McpToolInfo{
+	s := newTestServer(&stubRuntime{mcpTools: []kernel.MCPToolInfo{
 		{Server: "fs", Name: "read", Description: "read a file", InputSchema: map[string]any{"type": "object"}},
 		{Server: "fs", Name: "write"},
 		{Server: "git", Name: "log"},
