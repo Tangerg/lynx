@@ -82,7 +82,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	// mid-admission) by taking the same single-writer slot as runs.start/resume
 	// and rollback. A parked run is still deletable: lifecycle tears down its
 	// parked turn and interrupt as part of the cascade.
-	admission, err := s.mutationAdmissions.ClaimMutationSlot(sessionClaimer{s: s}, id)
+	admission, err := s.mutationSlots.ClaimMutationSlot(sessionClaimer{s: s}, id)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, id)

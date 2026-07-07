@@ -140,8 +140,10 @@ type runtimeBindings struct {
 	sessionDefaults           sessionDefaultModelAccess
 	transcriptContent         transcriptContentAccess
 	transcriptRuns            transcriptRunAccess
-	runAdmissions             runAdmissionAccess
-	mutationAdmissions        sessionMutationAdmissionAccess
+	runSlots                  runSlotAdmissionAccess
+	workingTreeRuns           workingTreeRunAdmissionAccess
+	mutationSlots             sessionMutationSlotAccess
+	workingTreeMutations      workingTreeMutationAccess
 	runResumes                runResumeAccess
 	runCancellations          runCancellationAccess
 	sessionRollback           sessionRollbackAccess
@@ -195,8 +197,10 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		sessionDefaults:           rt,
 		transcriptContent:         rt,
 		transcriptRuns:            rt,
-		runAdmissions:             rt,
-		mutationAdmissions:        rt,
+		runSlots:                  rt,
+		workingTreeRuns:           rt,
+		mutationSlots:             rt,
+		workingTreeMutations:      rt,
 		runResumes:                rt,
 		runCancellations:          rt,
 		sessionRollback:           rt,
