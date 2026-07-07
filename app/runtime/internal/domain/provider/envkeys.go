@@ -6,13 +6,13 @@ import (
 	"slices"
 )
 
-// envKeyService decorates a registry so a provider with no stored key falls
+// envKeyRegistry decorates a registry so a provider with no stored key falls
 // back to its environment-variable key. Precedence is stored > env: a key set
 // via providers.configure always wins over the environment. The decorator is
 // the single authority on [Provider.KeySource] — it's the only layer that knows
 // whether the effective key is stored or env-sourced.
-type envKeyService struct {
-	inner   Service
+type envKeyRegistry struct {
+	inner   Registry
 	envKeys map[string]string // provider id -> env key value (non-empty)
 }
 
@@ -21,17 +21,17 @@ type envKeyService struct {
 // in envKeys, with [Provider.KeySource] set to [KeyEnv]. envKeys (from
 // llm.EnvKeys, read once at startup) is treated as immutable. An empty map makes
 // this a transparent pass-through, so the decorator is free to apply always.
-func WithEnvKeys(inner Service, envKeys map[string]string) Service {
+func WithEnvKeys(inner Registry, envKeys map[string]string) Registry {
 	if len(envKeys) == 0 {
 		return inner
 	}
-	return &envKeyService{inner: inner, envKeys: envKeys}
+	return &envKeyRegistry{inner: inner, envKeys: envKeys}
 }
 
 // resolve stamps KeySource and overlays the env key when there's no stored one.
 // found mirrors the inner Get's ok — but an env-only provider (no stored row)
 // still resolves as found, since an env key makes it usable.
-func (s *envKeyService) resolve(p Provider, found bool, id string) (Provider, bool) {
+func (s *envKeyRegistry) resolve(p Provider, found bool, id string) (Provider, bool) {
 	if found && p.APIKey != "" {
 		p.KeySource = KeyStored
 		return p, true
@@ -51,7 +51,7 @@ func (s *envKeyService) resolve(p Provider, found bool, id string) (Provider, bo
 	return Provider{}, false
 }
 
-func (s *envKeyService) Get(ctx context.Context, id string) (Provider, bool, error) {
+func (s *envKeyRegistry) Get(ctx context.Context, id string) (Provider, bool, error) {
 	p, ok, err := s.inner.Get(ctx, id)
 	if err != nil {
 		return Provider{}, false, err
@@ -60,7 +60,7 @@ func (s *envKeyService) Get(ctx context.Context, id string) (Provider, bool, err
 	return rp, rok, nil
 }
 
-func (s *envKeyService) List(ctx context.Context) ([]Provider, error) {
+func (s *envKeyRegistry) List(ctx context.Context) ([]Provider, error) {
 	stored, err := s.inner.List(ctx)
 	if err != nil {
 		return nil, err
@@ -85,6 +85,6 @@ func (s *envKeyService) List(ctx context.Context) ([]Provider, error) {
 
 // Configure passes through: env keys are read-only, never persisted. A stored
 // key written here takes precedence over the environment on subsequent reads.
-func (s *envKeyService) Configure(ctx context.Context, p Provider) error {
+func (s *envKeyRegistry) Configure(ctx context.Context, p Provider) error {
 	return s.inner.Configure(ctx, p)
 }

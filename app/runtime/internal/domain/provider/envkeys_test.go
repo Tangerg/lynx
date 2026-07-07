@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// fakeRegistry is an in-memory provider.Service for exercising the env decorator.
+// fakeRegistry is an in-memory provider.Registry for exercising the env decorator.
 type fakeRegistry struct {
 	stored map[string]Provider
 }
@@ -121,7 +121,7 @@ func TestWithEnvKeys_ListMergesEnvOnlyAndSorts(t *testing.T) {
 
 func TestWithEnvKeys_EmptyMapIsPassThrough(t *testing.T) {
 	inner := &fakeRegistry{stored: map[string]Provider{}}
-	if got := WithEnvKeys(inner, nil); got != Service(inner) {
+	if got := WithEnvKeys(inner, nil); got != Registry(inner) {
 		t.Error("empty env map should return inner unchanged")
 	}
 }
