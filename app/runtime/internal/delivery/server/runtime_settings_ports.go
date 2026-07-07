@@ -40,13 +40,19 @@ type scheduleAccess interface {
 	RunScheduleWorker(ctx context.Context, runner schedule.Runner)
 }
 
-type providerAccess interface {
+type providerRegistryAccess interface {
 	ListRegisteredProviders(ctx context.Context) ([]providersvc.Provider, error)
 	RegisteredProvider(ctx context.Context, id string) (providersvc.Provider, bool, error)
 	ConfigureProvider(ctx context.Context, entry providersvc.Provider) error
 	ProbeProvider(ctx context.Context, entry providersvc.Provider) error
+}
+
+type providerCatalogAccess interface {
 	SupportedProviders() []providersvc.Metadata
 	ProviderMetadata(id string) (providersvc.Metadata, bool)
+}
+
+type providerDefaultAccess interface {
 	DefaultProvider() string
 }
 

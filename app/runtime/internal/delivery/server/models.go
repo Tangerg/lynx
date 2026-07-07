@@ -72,7 +72,7 @@ func (s *Server) validateUtilityRole(ctx context.Context, in protocol.UtilityRol
 	if in.Model == "" {
 		return nil
 	}
-	if _, ok := s.providers.ProviderMetadata(in.Provider); !ok {
+	if _, ok := s.providerCatalog.ProviderMetadata(in.Provider); !ok {
 		return fmt.Errorf("%w: provider %q is not supported", protocol.ErrInvalidParams, in.Provider)
 	}
 	return s.requireConfiguredProvider(ctx, in.Provider)
@@ -82,7 +82,7 @@ func (s *Server) validateEmbeddingRole(ctx context.Context, in protocol.Embeddin
 	if in.Model == "" {
 		return nil
 	}
-	meta, ok := s.providers.ProviderMetadata(in.Provider)
+	meta, ok := s.providerCatalog.ProviderMetadata(in.Provider)
 	if !ok || !meta.EmbeddingCapable {
 		return fmt.Errorf("%w: provider %q has no embeddings adapter", protocol.ErrInvalidParams, in.Provider)
 	}
@@ -90,7 +90,7 @@ func (s *Server) validateEmbeddingRole(ctx context.Context, in protocol.Embeddin
 }
 
 func (s *Server) requireConfiguredProvider(ctx context.Context, providerID string) error {
-	entry, ok, err := s.providers.RegisteredProvider(ctx, providerID)
+	entry, ok, err := s.providerRegistry.RegisteredProvider(ctx, providerID)
 	if err != nil {
 		return err
 	}
