@@ -202,7 +202,7 @@ lyra/
 │   │   │   ├── hub.go                per-run event hub（streamable HTTP）
 │   │   │   ├── sessions.go / runs.go / items.go / memory.go / ...
 │   │   │   │                         每个协议方法组一个文件，纯 decode → call → present
-│   │   │   └── runtime.go            RuntimeServices 窄接口（消费方定义）
+│   │   │   └── runtime.go            RuntimePort 窄接口（消费方定义）
 │   │   ├── dispatch/                 JSON-RPC 方法路由（表驱动）
 │   │   └── transport/{http,inprocess}/
 │   │
@@ -268,7 +268,7 @@ lyra/
 | `delivery/dispatch/` | 同 | 表驱动路由 |
 | `delivery/transport/` | 同 | HTTP/inprocess 双 transport |
 | `delivery/server/translator.go` | 同 | wire↔domain 翻译层 |
-| `delivery/server/runtime.go`（RuntimeServices） | 同 | 消费方定义窄接口 |
+| `delivery/server/runtime.go`（RuntimePort） | 同 | 消费方定义窄接口 |
 | `internal/runtime/` | 同 | 组合根 |
 | `domain/session` / `transcript` / `editguard` / `todo` | 同 | 充血模型正确 |
 | 所有 `infra/` 包 | 同 | 技术设施位置正确 |

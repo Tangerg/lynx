@@ -25,9 +25,8 @@ import (
 // Config bundles construction inputs.
 type Config struct {
 	// Runtime is the in-process runtime bundle. Required. Typed as the
-	// narrow RuntimeServices accessor surface (the concrete
-	// *internal/runtime.Runtime satisfies it).
-	Runtime RuntimeServices
+	// narrow RuntimePort (the concrete *internal/runtime.Runtime satisfies it).
+	Runtime RuntimePort
 
 	// ServerInfo identifies this process on the wire. Defaults to
 	// {Name: "runtime", Version: "0.0.0-dev"} when zero — a vendor-neutral
@@ -153,7 +152,7 @@ type runtimeBindings struct {
 	capabilities     capabilityAccess
 }
 
-func bindRuntime(rt RuntimeServices) runtimeBindings {
+func bindRuntime(rt RuntimePort) runtimeBindings {
 	return runtimeBindings{
 		turn:             rt,
 		sessions:         rt,

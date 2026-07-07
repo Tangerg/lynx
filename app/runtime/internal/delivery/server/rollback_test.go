@@ -115,7 +115,7 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	turns := &recordingTurns{}
-	rt.chat = turns
+	rt.turns = turns
 
 	out, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID, ToRunID: "run_1"})
 	if err != nil {
