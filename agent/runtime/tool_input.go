@@ -3,6 +3,7 @@ package runtime
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 )
 
 // decodeToolArguments decodes a tool argument payload into the generic type.
@@ -19,4 +20,27 @@ func decodeToolArguments[T any](agentName, operation, arguments string) (T, erro
 	}
 
 	return args, nil
+}
+
+// decodeToolArgumentsForType decodes a tool argument payload into a
+// newly allocated value of inputType and returns it as [any].
+//
+// Empty payloads yield the zero value for the target type. When
+// inputType is nil, decoding targets [any] and follows the same empty-input
+// behavior as [decodeToolArguments].
+func decodeToolArgumentsForType(agentName, operation string, inputType reflect.Type, arguments string) (any, error) {
+	if inputType == nil {
+		return decodeToolArguments[any](agentName, operation, arguments)
+	}
+
+	value := reflect.New(inputType)
+	if arguments == "" {
+		return value.Elem().Interface(), nil
+	}
+
+	if err := json.Unmarshal([]byte(arguments), value.Interface()); err != nil {
+		return nil, fmt.Errorf("%s: parse input as %s for %s: %w", agentName, inputType.String(), operation, err)
+	}
+
+	return value.Elem().Interface(), nil
 }
