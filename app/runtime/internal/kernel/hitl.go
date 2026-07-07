@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"hash/fnv"
-	"strconv"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/toolloop"
 	coremodel "github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 )
 
 // inflightTailKey holds, on the process blackboard, the resumable tail a
@@ -38,13 +37,7 @@ func Interrupt[R any](ctx context.Context, key string, value any) (R, bool, erro
 // This keeps all resumable-key derivation in one place and guarantees the same
 // digest shape across approval and question-style interrupts.
 func InterruptKey(kind, toolName, arguments string) string {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(kind))
-	_, _ = h.Write([]byte{0})
-	_, _ = h.Write([]byte(toolName))
-	_, _ = h.Write([]byte{0})
-	_, _ = h.Write([]byte(arguments))
-	return kind + "." + strconv.FormatUint(h.Sum64(), 16)
+	return interrupts.InterruptKey(kind, toolName, arguments)
 }
 
 // IsInterrupt reports whether err is a resumable HITL-like halt (non-aborting

@@ -25,9 +25,10 @@ type ToolDefinition struct {
 //
 // Tools that cannot run in-process — human approval gates, frontend
 // delegation, async dispatch — are not modeled as a separate type.
-// Instead, layers above (agent middleware, tool decorators) wrap a Tool
+// Instead, higher layers (tool middleware, decorators) wrap a Tool
 // and surface control-flow signals via sentinel errors. See
-// agent/hitl and agent/toolpolicy for production examples.
+// production examples in the application runtime for HITL and policy-gated
+// tooling.
 type Tool interface {
 	// Definition returns the static description shown to the LLM.
 	Definition() ToolDefinition

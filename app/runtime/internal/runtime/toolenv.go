@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
@@ -21,6 +22,7 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 		A2AAgents:       toolsetA2AAgentConfigs(cfg.A2AAgents),
 		Todos:           ecfg.Todos,
 		Approval:        approvalPolicy,
+		Interruption:    kernel.Interrupt[interrupts.Resolution],
 		MCPDisabled:     mcpEnv.disabled,
 		CodebaseIndex:   codebaseIdx,
 	})

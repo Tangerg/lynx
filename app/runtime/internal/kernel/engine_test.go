@@ -906,7 +906,7 @@ type hitlApprovalObserver struct {
 
 func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName, arguments string) ToolApprovalVerdict {
 	res, _, err := Interrupt[interrupts.Resolution](ctx,
-		"kernel-test.approval."+toolName+"."+arguments,
+		interrupts.InterruptKey("kernel-test.approval", toolName, arguments),
 		map[string]string{"tool": toolName, "arguments": arguments},
 	)
 	if err != nil {
