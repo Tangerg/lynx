@@ -1,19 +1,9 @@
-// Package mcp is the MCP-connection infra: it dials configured MCP servers,
-// holds their live sessions, lists their tools, and reconnects them — the
-// external-system adapter the engine builds its MCP tool set over. Pure infra
-// (over the lynx mcp module + the go-sdk client); zero domain knowledge.
-//
-// A degraded boot is tolerated: a server that can't be reached is recorded
-// "failed" and skipped, so one unreachable server never fails startup; only a
-// config mistake (duplicate name / invalid entry) is fatal.
 package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -23,63 +13,14 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
-)
-
-// ServerConfig is the MCP server descriptor, re-exported so callers configure
-// connections without importing the lynx mcp module directly.
-type ServerConfig = lynxmcp.ServerConfig
-
-// Transport and its values are re-exported alongside ServerConfig so the
-// composition layer builds configs without importing the lynx mcp module.
-type Transport = lynxmcp.Transport
-
-const (
-	TransportHTTP  = lynxmcp.TransportHTTP
-	TransportStdio = lynxmcp.TransportStdio
-)
-
-// ErrUnknownServer is returned by [Connections.Reconnect] for a name that was
-// never configured — the delivery layer maps it to invalid_params.
-var ErrUnknownServer = errors.New("mcp: unknown server")
-
-// Connection status (wire vocabulary, AUX_API §5.1). "connecting" is the
-// transient reconnect state; "needsAuth" is produced when a dial fails with an
-// auth-distinguishable error (a 401 / Unauthorized), so the client can prompt
-// for credentials rather than treat it as a generic "failed".
-const (
-	statusConnected  = "connected"
-	statusConnecting = "connecting"
-	statusFailed     = "failed"
-	statusNeedsAuth  = "needsAuth"
 )
 
 // tracer emits the MCP dial / reconnect spans the lower layers don't (per-call
 // MCP tool spans come from the mcp module itself). No-op until a provider is
 // installed.
 var tracer = otel.Tracer("lynx/lyra/infra/mcp")
-
-// ToolInfo is one tool advertised by a connected server — the client-facing
-// projection (workspace.mcp.listTools) of a remote tool descriptor. Name is the
-// bare (un-prefixed) tool name; Server is the source. Tools reach the model
-// under "<server>_<name>", but the wire view keeps the two fields separate.
-type ToolInfo struct {
-	Server      string
-	Name        string
-	Description string
-	InputSchema map[string]any
-}
-
-// ServerStatus is the per-server connection state exposed to
-// workspace.mcp.listServers. Err is the dial / tools-list failure reason, set
-// only when Status is "failed".
-type ServerStatus struct {
-	Name   string
-	Status string
-	Err    error
-}
 
 // server is the live state of one configured MCP server. Mutated only by
 // [Connections.Reconnect] after boot; access guarded by Connections.mu.
@@ -456,48 +397,6 @@ func (c *Connections) Remove(ctx context.Context, name string) {
 	c.refreshTools(ctx)
 }
 
-// Probe tests cfg with a throwaway client (workspace.mcp.test). It reuses an
-// active OAuth sign-in for the same-named server this session, because an
-// anonymous probe of an OAuth-protected server would always 401 even though the
-// live connection is authorized — the probe must carry the session's token to
-// reflect reality. Falls back to a stateless (anonymous / bearer / headers)
-// probe when there's no live handler. Nil receiver is supported (no live set).
-func (c *Connections) Probe(ctx context.Context, cfg ServerConfig) error {
-	if cfg.OAuthHandler == nil && c != nil {
-		c.mu.Lock()
-		if ms := c.find(cfg.Name); ms != nil {
-			cfg.OAuthHandler = ms.oauth
-		}
-		c.mu.Unlock()
-	}
-	return probe(ctx, cfg)
-}
-
-// probe dials cfg with a throwaway client, proves its tools are listable, and
-// closes the session — a connection test that touches no live state. Honors any
-// cfg.OAuthHandler so a probe can be authorized. Returns nil on success.
-func probe(ctx context.Context, cfg ServerConfig) error {
-	if err := cfg.Validate(); err != nil {
-		return err
-	}
-	ctx, span := tracer.Start(ctx, "mcp.probe",
-		trace.WithAttributes(attribute.String("mcp.server.name", cfg.Name)))
-	defer span.End()
-
-	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "runtime-probe", Version: "v0.1.0"}, nil)
-	session, err := lynxmcp.Dial(ctx, client, cfg)
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return err
-	}
-	defer session.Close()
-	if _, err := sourceTools(ctx, lynxmcp.Source{Name: cfg.Name, Session: session}); err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return err
-	}
-	return nil
-}
-
 // newClient builds the shared MCP client identity used for every server's
 // session (and re-dials). No per-server handlers are needed, so one suffices.
 func newClient() *sdkmcp.Client {
@@ -564,60 +463,4 @@ func (c *Connections) Close() error {
 	}
 	c.servers = nil
 	return errors.Join(errs...)
-}
-
-// sourceTools lists one MCP source's model-facing tools. Isolated per source so
-// a single server's tools/list failure stays its own.
-func sourceTools(ctx context.Context, src lynxmcp.Source) ([]chat.Tool, error) {
-	provider, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
-		Sources: []lynxmcp.Source{src},
-		Naming: func(server string, tool *sdkmcp.Tool) string {
-			return mcpserver.ToolName(server, tool.Name)
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("mcp: build provider for %q: %w", src.Name, err)
-	}
-	return provider.Tools(ctx)
-}
-
-// dialStatus maps a dial error to the connection status: an
-// auth-distinguishable failure becomes "needsAuth" (so the client can prompt
-// for credentials), otherwise "failed".
-func dialStatus(err error) string {
-	if isAuthError(err) {
-		return statusNeedsAuth
-	}
-	return statusFailed
-}
-
-// isAuthError reports whether err looks like an MCP server rejecting the
-// connection for missing / invalid credentials (HTTP 401 Unauthorized). The
-// go-sdk surfaces the transport failure as a wrapped error, so detection is a
-// heuristic string match; a false negative just yields the generic "failed"
-// status, never a wrong success.
-func isAuthError(err error) bool {
-	if err == nil {
-		return false
-	}
-	s := strings.ToLower(err.Error())
-	return strings.Contains(s, "401") || strings.Contains(s, "unauthorized")
-}
-
-// schemaToMap renders an MCP tool's input schema as a generic object for the
-// wire. A nil schema or a marshal failure yields nil rather than erroring a
-// whole listing over one odd schema.
-func schemaToMap(schema any) map[string]any {
-	if schema == nil {
-		return nil
-	}
-	data, err := json.Marshal(schema)
-	if err != nil {
-		return nil
-	}
-	var m map[string]any
-	if json.Unmarshal(data, &m) != nil {
-		return nil
-	}
-	return m
 }

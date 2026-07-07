@@ -106,6 +106,24 @@ type turnState struct {
 	flushed bool
 }
 
+// newTurnState builds a fresh per-turn state. Its lifetime ctx derives from the
+// entry ctx via context.WithoutCancel: the caller's ctx ending (e.g. the
+// StartTurn RPC returning) doesn't kill the in-flight turn; only
+// [Dispatcher.Cancel] (st.cancel) does; yet the entry trace span is preserved,
+// so the engine's spans chain onto the same trace. The turn span is layered on
+// in StartTurn / Rehydrate. Shared by both entry points so they produce an
+// identically-initialized turn.
+func newTurnState(ctx context.Context, handle TurnHandle) *turnState {
+	lifeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	return &turnState{
+		handle:    handle,
+		events:    make(chan Event, 32),
+		cancel:    cancel,
+		ctx:       lifeCtx,
+		startedAt: time.Now(),
+	}
+}
+
 // setProc records the agent process backing this turn. runTurn / Rehydrate
 // write it once they have dispatched one; process() then hands it to the
 // caller goroutines.
