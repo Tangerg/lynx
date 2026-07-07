@@ -310,7 +310,7 @@ type Stores struct {
 	Interrupt     interrupts.Store
 	Transcript    transcript.Store
 	Provider      providersvc.Service
-	MCPServers    mcpserversvc.Service
+	MCPServers    mcpserversvc.Registry
 	ChatHistory   history.Store
 	Park          toolloop.ParkStore
 	Todos         todosvc.Service
