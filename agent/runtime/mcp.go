@@ -46,13 +46,13 @@ func NewMCPResolver(role string, provider *mcp.Provider) (*MCPResolver, error) {
 
 func (r *MCPResolver) Name() string { return r.name }
 
-// Resolve returns a lazy [core.ToolGroup] for matching roles, or
-// (nil, nil) — the runtime then falls through to the next registered
-// resolver. The lazy group's first Tools() call drives
+// Resolve returns a lazy [core.ToolGroup] for matching roles.
+// For unmatched roles it returns ok=false so the runtime falls through to
+// the next registered resolver. The lazy group's first Tools() call drives
 // [mcp.Provider.Tools]; subsequent calls hit the provider's cache.
-func (r *MCPResolver) Resolve(_ context.Context, req core.ToolGroupRequirement) (core.ToolGroup, error) {
+func (r *MCPResolver) Resolve(_ context.Context, req core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
 	if req.Role != r.role {
-		return nil, nil
+		return nil, false, nil
 	}
-	return core.NewLazyToolGroup(r.metadata, r.provider.Tools), nil
+	return core.NewLazyToolGroup(r.metadata, r.provider.Tools), true, nil
 }
