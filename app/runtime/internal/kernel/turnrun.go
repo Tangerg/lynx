@@ -84,7 +84,7 @@ type RunTurnRequest struct {
 	// have OnEvent) receive every agent runtime event for this turn
 	// — process lifecycle (Created / Completed / Failed / Killed /
 	// Stuck / Terminated), action execution, ready-to-plan, etc.
-	// The canonical wrapper is [event.NamedListener]; turn.Service
+	// The canonical wrapper is [event.NamedListener]; turn.Dispatcher
 	// uses one to map process terminal events onto TurnEnd reasons
 	// without re-deriving status from the run loop's error.
 	//

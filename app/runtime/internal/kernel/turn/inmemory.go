@@ -38,7 +38,7 @@ type hookResolver interface {
 	For(ctx context.Context, cwd string) *hooks.Bound
 }
 
-// Dependencies names the collaborators needed by the in-process [Service].
+// Dependencies names the collaborators needed by the in-process [Dispatcher].
 // Engine is required; every other field is optional and has a nil-default
 // behavior documented on the field.
 type Dependencies struct {
@@ -66,19 +66,19 @@ type Dependencies struct {
 	Hooks hookResolver
 }
 
-// New returns the [Service] implementation. The implementation is
+// New returns the [Dispatcher] implementation. The implementation is
 // single-process — it holds in-memory state about live turns and
 // fans events out to subscribers via per-turn channels.
 //
 // The implementation is split across files by concern:
-//   - inmemory.go  — Service surface + live-turn registry (this file)
+//   - inmemory.go  — Dispatcher surface + live-turn registry (this file)
 //   - turn.go      — per-turn state + the runTurn execution loop
 //   - lifecycle.go — terminal-event capture from the agent runtime
 //   - observer.go  — engine tool-observer → turn.Event translation
 //
-// The Service interface is stable, so transport adapters don't care
+// The Dispatcher interface is stable, so transport adapters don't care
 // which impl they talk to.
-func New(deps Dependencies) (Service, error) {
+func New(deps Dependencies) (Dispatcher, error) {
 	if deps.Engine == nil {
 		return nil, errors.New("turn: engine is required")
 	}
@@ -94,7 +94,7 @@ func New(deps Dependencies) (Service, error) {
 	}, nil
 }
 
-// inMemory is the single-process [Service] implementation. It
+// inMemory is the single-process [Dispatcher] implementation. It
 // tracks live turns in a map keyed by turn id; state lives in
 // process memory and does not survive restart.
 type inMemory struct {
@@ -135,7 +135,7 @@ type inMemory struct {
 }
 
 // ------------------------------------------------------------------
-// Service implementation
+// Dispatcher implementation
 // ------------------------------------------------------------------
 
 func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle, error) {
@@ -234,7 +234,7 @@ func (s *inMemory) firstTurnForSession(sessionID string) bool {
 
 // ForgetSession drops sessionID's SessionStart fire-once marker on session
 // delete, so the gate set doesn't leak one entry per session over the process
-// lifetime. See [Service.ForgetSession].
+// lifetime. See [Dispatcher.ForgetSession].
 func (s *inMemory) ForgetSession(sessionID string) {
 	s.mu.Lock()
 	delete(s.seenSessions, sessionID)
@@ -253,7 +253,7 @@ func modelOr(model string) string {
 // newTurnState builds a fresh per-turn state. Its lifetime ctx derives
 // from the entry ctx via context.WithoutCancel: the caller's ctx ending
 // (e.g. the StartTurn RPC returning) doesn't kill the in-flight turn —
-// only [Service.Cancel] (st.cancel) does — yet the entry trace span is
+// only [Dispatcher.Cancel] (st.cancel) does — yet the entry trace span is
 // preserved, so the engine's spans chain onto the same trace. The turn
 // span is layered on in StartTurn / Rehydrate. Shared by both entry
 // points so they produce an identically-initialized turn.

@@ -35,7 +35,7 @@ type stubRuntime struct {
 	history     map[string][]chat.Message // per-session chat history (fork copies it)
 	hist        transcript.Store          // durable Item/run history (rollback/fork read runs)
 	interrupts  interrupts.Store          // open-interrupt registry (rollback clears dropped)
-	chat        turn.Service
+	chat        turn.Dispatcher
 	workingTree *lifecycle.WorkingTreeGate
 }
 
@@ -104,14 +104,14 @@ func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) e
 // MCPServerStatuses (above), not from this call's side effects.
 func (s stubRuntime) ReconnectMCPServer(context.Context, string) error { return nil }
 
-// chatStub satisfies turn.Service by embedding it — most session tests never
+// chatStub satisfies turn.Dispatcher by embedding it — most session tests never
 // drive a turn, so no method is implemented unless a specific case needs it.
-type chatStub struct{ turn.Service }
+type chatStub struct{ turn.Dispatcher }
 
 func (chatStub) Cancel(context.Context, turn.TurnHandle) error { return nil }
 
 type recordingTurns struct {
-	turn.Service
+	turn.Dispatcher
 	canceled []turn.TurnHandle
 }
 
@@ -120,7 +120,7 @@ func (r *recordingTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
 	return nil
 }
 
-func (s stubRuntime) turnService() turn.Service {
+func (s stubRuntime) turnService() turn.Dispatcher {
 	if s.chat != nil {
 		return s.chat
 	}

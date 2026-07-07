@@ -19,12 +19,12 @@ import (
 
 // turnState holds the per-turn bookkeeping the implementation needs:
 // the event channel subscribers read from, the cancel func that fires
-// when [Service.Cancel] is called, and a monotone sequence number stamped
+// when [Dispatcher.Cancel] is called, and a monotone sequence number stamped
 // onto every emitted event.
 //
 // The turn owns its own synchronization: mu guards the cross-goroutine
 // mutable state (the backing process, the parked flag, the steering queue),
-// reached only through the methods below, so the service mutex is left to
+// reached only through the methods below, so the dispatcher mutex is left to
 // guard just the live-turn registry. The remaining fields are set once at
 // the entry point and read without locking thereafter.
 type turnState struct {
@@ -50,7 +50,7 @@ type turnState struct {
 	// StartTurn caller's cancellation yet KEEPS the entry trace span, then
 	// wrapped with the turn span so the engine's LLM / tool / agent spans
 	// nest under one trace (full-link). It bounds the run, the resume
-	// continuation, and post-turn maintenance; canceled by [Service.Cancel].
+	// continuation, and post-turn maintenance; canceled by [Dispatcher.Cancel].
 	// Set once at the entry point (StartTurn / Rehydrate).
 	ctx context.Context
 
@@ -82,18 +82,18 @@ type turnState struct {
 	mu sync.Mutex
 
 	// proc is the agent process backing this turn, set once setProc dispatches
-	// it. [Service.Cancel] / [Service.Resume] / [Service.ProcessID] read it
+	// it. [Dispatcher.Cancel] / [Dispatcher.Resume] / [Dispatcher.ProcessID] read it
 	// via process() from other goroutines.
 	proc kernel.TurnProcess
 
 	// parked is true while the turn is suspended on a HITL interrupt
-	// (StatusWaiting) awaiting [Service.Resume]. A parked turn stays
+	// (StatusWaiting) awaiting [Dispatcher.Resume]. A parked turn stays
 	// registered (events channel open) until claimPark drives it to a
 	// terminal state.
 	parked bool
 
 	// steering is the queue of mid-turn user messages injected via
-	// [Service.InjectSteering]. The runtime flushes it to the chat history
+	// [Dispatcher.InjectSteering]. The runtime flushes it to the chat history
 	// store after the turn ends so the messages land in conversation
 	// history for the next turn.
 	steering []string
@@ -145,7 +145,7 @@ func (st *turnState) parkIfLive() bool {
 }
 
 // claimPark atomically tests-and-clears the parked flag, reporting whether
-// THIS caller claimed the suspended turn. [Service.Resume] and [Service.Cancel]
+// THIS caller claimed the suspended turn. [Dispatcher.Resume] and [Dispatcher.Cancel]
 // both race to act on a parked turn; whoever flips the flag false wins and owns
 // driving it to a terminal state, so the loser is a no-op. Returns false for a
 // turn that isn't parked (never suspended, or already claimed).
@@ -415,7 +415,7 @@ func (s *inMemory) endTurn(st *turnState) {
 
 // finishTurn emits the terminal [TurnEnd] (stamping the elapsed duration)
 // and tears the turn down. It serves the emergency-teardown paths —
-// [Service.Cancel] and a failed [Service.Resume] — where no drive
+// [Dispatcher.Cancel] and a failed [Dispatcher.Resume] — where no drive
 // goroutine will run [emitTurnEnd]. The clean path goes through
 // emitTurnEnd (which carries usage) followed by endTurn in [drive].
 func (s *inMemory) finishTurn(st *turnState, reason TurnEndReason) {

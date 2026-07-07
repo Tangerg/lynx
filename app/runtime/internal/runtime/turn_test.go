@@ -10,8 +10,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-type turnRuntimeService struct {
-	turn.Service
+type turnRuntimeDispatcher struct {
+	turn.Dispatcher
 
 	startReq    turn.StartTurnRequest
 	startHandle turn.TurnHandle
@@ -36,44 +36,44 @@ type turnRuntimeService struct {
 	interruptKinds []string
 }
 
-func (s *turnRuntimeService) StartTurn(_ context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error) {
+func (s *turnRuntimeDispatcher) StartTurn(_ context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error) {
 	s.startReq = req
 	return s.startHandle, nil
 }
 
-func (s *turnRuntimeService) Events(_ context.Context, handle turn.TurnHandle) (iter.Seq[turn.Event], error) {
+func (s *turnRuntimeDispatcher) Events(_ context.Context, handle turn.TurnHandle) (iter.Seq[turn.Event], error) {
 	s.eventsHandle = handle
 	return s.events, nil
 }
 
-func (s *turnRuntimeService) InjectSteering(_ context.Context, handle turn.TurnHandle, message string) error {
+func (s *turnRuntimeDispatcher) InjectSteering(_ context.Context, handle turn.TurnHandle, message string) error {
 	s.steeringHandle = handle
 	s.steeringMessage = message
 	return nil
 }
 
-func (s *turnRuntimeService) Resume(_ context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error {
+func (s *turnRuntimeDispatcher) Resume(_ context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error {
 	s.resumeHandle = handle
 	s.resumeResolution = resolution
 	return nil
 }
 
-func (s *turnRuntimeService) Rehydrate(_ context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
+func (s *turnRuntimeDispatcher) Rehydrate(_ context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
 	s.rehydrateReq = req
 	return s.rehydrateHandle, nil
 }
 
-func (s *turnRuntimeService) Cancel(_ context.Context, handle turn.TurnHandle) error {
+func (s *turnRuntimeDispatcher) Cancel(_ context.Context, handle turn.TurnHandle) error {
 	s.cancelHandle = handle
 	return nil
 }
 
-func (s *turnRuntimeService) ProcessID(_ context.Context, handle turn.TurnHandle) (string, error) {
+func (s *turnRuntimeDispatcher) ProcessID(_ context.Context, handle turn.TurnHandle) (string, error) {
 	s.processHandle = handle
 	return s.processID, nil
 }
 
-func (s *turnRuntimeService) SetInterruptKinds(kinds []string) {
+func (s *turnRuntimeDispatcher) SetInterruptKinds(kinds []string) {
 	s.interruptKinds = append([]string(nil), kinds...)
 }
 
@@ -81,13 +81,13 @@ func TestRuntimeTurnFacade(t *testing.T) {
 	ctx := context.Background()
 	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
 	events := func(yield func(turn.Event) bool) {}
-	svc := &turnRuntimeService{
+	svc := &turnRuntimeDispatcher{
 		startHandle:     handle,
 		events:          events,
 		rehydrateHandle: turn.TurnHandle{SessionID: "ses_1", TurnID: "run_resumed"},
 		processID:       "proc_1",
 	}
-	rt := &Runtime{turnSvc: svc}
+	rt := &Runtime{turns: svc}
 
 	gotHandle, err := rt.StartTurn(ctx, turn.StartTurnRequest{SessionID: "ses_1", Message: "hello"})
 	if err != nil {
@@ -153,9 +153,9 @@ func TestRuntimeTurnFacade(t *testing.T) {
 func TestRuntimeStartTurnPersistsExplicitModelBeforeDispatch(t *testing.T) {
 	ctx := context.Background()
 	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
-	turns := &turnRuntimeService{startHandle: handle}
+	turns := &turnRuntimeDispatcher{startHandle: handle}
 	sessions := &sessionRuntimeStore{}
-	rt := &Runtime{turnSvc: turns, session: sessions}
+	rt := &Runtime{turns: turns, session: sessions}
 
 	gotHandle, err := rt.StartTurn(ctx, turn.StartTurnRequest{
 		SessionID: "ses_1",
@@ -180,9 +180,9 @@ func TestRuntimeStartTurnPersistsExplicitModelBeforeDispatch(t *testing.T) {
 func TestRuntimeStartTurnDoesNotDispatchWhenModelPersistenceFails(t *testing.T) {
 	ctx := context.Background()
 	fail := errors.New("store failed")
-	turns := &turnRuntimeService{}
+	turns := &turnRuntimeDispatcher{}
 	sessions := &sessionRuntimeStore{modelErr: fail}
-	rt := &Runtime{turnSvc: turns, session: sessions}
+	rt := &Runtime{turns: turns, session: sessions}
 
 	if _, err := rt.StartTurn(ctx, turn.StartTurnRequest{SessionID: "ses_1", Message: "hello", Model: "claude-opus-4-8"}); !errors.Is(err, fail) {
 		t.Fatalf("StartTurn err = %v, want store failure", err)

@@ -61,7 +61,7 @@ func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	// A remembered DENY on the same tool wins — the whitelist is consulted only
 	// AFTER rules, so an explicit deny is never silently overridden. (A
 	// non-whitelisted tool still gates; that prompt path needs real HITL
-	// plumbing and is covered by the TestService_ApprovalGate_* integration
+	// plumbing and is covered by the TestDispatcher_ApprovalGate_* integration
 	// tests, not this bare-construction unit test.)
 	_ = appr.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeSession, SessionID: "s1", Tool: "srv_read", Arguments: "{}", Decision: approval.Deny,

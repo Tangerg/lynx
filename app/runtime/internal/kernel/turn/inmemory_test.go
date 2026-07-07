@@ -19,8 +19,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-// TestService_StartTurn_EmitsExpectedEvents drives a full turn
-// against a stub LLM that asks for `shell` (echo lyra). The service
+// TestDispatcher_StartTurn_EmitsExpectedEvents drives a full turn
+// against a stub LLM that asks for `shell` (echo lyra). The dispatcher
 // must emit the canonical sequence:
 //
 //	TurnStart → ToolCallStart → ToolCallEnd → MessageDelta → TurnEnd
@@ -28,8 +28,8 @@ import (
 // and the channel must close cleanly. This is the M1+M2 contract:
 // transport adapters built later only need to forward whatever this
 // channel yields.
-func TestService_StartTurn_EmitsExpectedEvents(t *testing.T) {
-	svc, _ := buildService(t)
+func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
+	svc, _ := buildDispatcher(t)
 
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-1",
@@ -96,11 +96,11 @@ func TestService_StartTurn_EmitsExpectedEvents(t *testing.T) {
 	}
 }
 
-// TestService_SeqMonotone verifies every event in a turn carries a
+// TestDispatcher_SeqMonotone verifies every event in a turn carries a
 // strictly increasing Seq starting at 1 — transport adapters rely
 // on monotonicity for resume-from-seq semantics.
-func TestService_SeqMonotone(t *testing.T) {
-	svc, _ := buildService(t)
+func TestDispatcher_SeqMonotone(t *testing.T) {
+	svc, _ := buildDispatcher(t)
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s", Message: "hi",
 	})
@@ -117,13 +117,13 @@ func TestService_SeqMonotone(t *testing.T) {
 	}
 }
 
-// TestService_InjectSteering_LandsInNextTurn verifies the "next-turn"
+// TestDispatcher_InjectSteering_LandsInNextTurn verifies the "next-turn"
 // semantics: a steering message injected during turn 1 must be
 // visible to the model as a history user message at the start of
 // turn 2. The history-aware stub counts messages per Call, so the
 // second turn must see strictly more messages than turn 1's
 // initial new-message count.
-func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
+func TestDispatcher_InjectSteering_LandsInNextTurn(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chatmodel.NewClient(stub)
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
@@ -136,7 +136,7 @@ func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 	})
 	events, _ := svc.Events(context.Background(), handle)
 
-	// Inject steering before consuming events so the service has
+	// Inject steering before consuming events so the dispatcher has
 	// time to land it on the turn state. Drain the channel before
 	// starting turn 2 — the steering flushes after RunTurn returns.
 	if err := svc.InjectSteering(context.Background(), handle, "also keep responses short"); err != nil {
@@ -167,23 +167,23 @@ func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 	}
 }
 
-// TestService_InjectSteering_UnknownTurn returns ErrTurnNotFound
-// for handles the service doesn't recognize — completed turns are
+// TestDispatcher_InjectSteering_UnknownTurn returns ErrTurnNotFound
+// for handles the dispatcher doesn't recognize — completed turns are
 // pruned from the in-memory map.
-func TestService_InjectSteering_UnknownTurn(t *testing.T) {
-	svc, _ := buildService(t)
+func TestDispatcher_InjectSteering_UnknownTurn(t *testing.T) {
+	svc, _ := buildDispatcher(t)
 	err := svc.InjectSteering(context.Background(), turn.TurnHandle{TurnID: "no-such"}, "msg")
 	if err == nil {
 		t.Error("steering on unknown handle should error")
 	}
 }
 
-// TestService_ApprovalGate_AllowOnce verifies the gate parks the turn
+// TestDispatcher_ApprovalGate_AllowOnce verifies the gate parks the turn
 // on a TurnInterrupted{approval} when the configured mode requires
 // consent (R model), and that approving via Resume lets the tool
 // proceed — the continuation streams on the same channel and the turn
 // completes normally.
-func TestService_ApprovalGate_AllowOnce(t *testing.T) {
+func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
 	svc := mustTurn(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)})) // shell → gate
@@ -222,7 +222,7 @@ func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	}
 }
 
-// TestService_ApprovalGate_ResumeAtPendingCall pins the R-model: approving a
+// TestDispatcher_ApprovalGate_ResumeAtPendingCall pins the R-model: approving a
 // gated tool RESUMES the turn AT the pending call — the loop feeds back the
 // parked tail (the interrupting round's assistant tool-call message) and runs
 // the now-approved tool, then the model replies. So the model is invoked
@@ -232,7 +232,7 @@ func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 // user → assistant(tool_call) → tool → assistant sequence (no duplicate user
 // message: it was persisted on the first run and the resume sends only the
 // system header + the fed-back tail).
-func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
+func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	model := &countingStubModel{}
 	model.defaults, _ = chatmodel.NewOptions("stub-counting")
 	client, _ := chatmodel.NewClient(model)
@@ -285,14 +285,14 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	}
 }
 
-// TestService_Cancel_ParkedTurn_DeliversTurnEnd verifies a canceled turn
+// TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd verifies a canceled turn
 // emits its terminal TurnEnd to a still-draining consumer rather than only
 // closing the channel. Cancel cancels the turn ctx before finishTurn emits the
 // terminal, so the event must not be lost to the emit ctx-escape: emit prefers
 // delivery whenever the buffer has room. The turn parks on a balanced-mode
 // approval gate; canceling it (instead of approving) must surface
 // TurnEnd{Canceled}.
-func TestService_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
+func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
 	svc := mustTurn(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)}))
@@ -331,11 +331,11 @@ func TestService_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	}
 }
 
-// TestService_ApprovalGate_Deny — denying via Resume(false) makes the
+// TestDispatcher_ApprovalGate_Deny — denying via Resume(false) makes the
 // tool short-circuit with the denial fed back to the model as a
 // recoverable result; the model emits its final reply and the turn
 // still completes.
-func TestService_ApprovalGate_Deny(t *testing.T) {
+func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
 	svc := mustTurn(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeBalanced, nil)}))
@@ -372,10 +372,10 @@ func TestService_ApprovalGate_Deny(t *testing.T) {
 	}
 }
 
-// TestService_ApprovalGate_YoloSkipsEvent makes sure the gate is
+// TestDispatcher_ApprovalGate_YoloSkipsEvent makes sure the gate is
 // invisible under ModeYolo — the turn never parks (no TurnInterrupted),
 // the tool runs as if no gate were wired.
-func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
+func TestDispatcher_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
 	svc := mustTurn(turn.New(turn.Dependencies{Engine: eng, Approval: approval.New(approval.ModeYolo, nil)}))
@@ -393,9 +393,9 @@ func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	}
 }
 
-// TestService_StartTurn_Validation rejects empty SessionID / Message.
-func TestService_StartTurn_Validation(t *testing.T) {
-	svc, _ := buildService(t)
+// TestDispatcher_StartTurn_Validation rejects empty SessionID / Message.
+func TestDispatcher_StartTurn_Validation(t *testing.T) {
+	svc, _ := buildDispatcher(t)
 
 	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{Message: "x"}); err == nil {
 		t.Error("missing SessionID should error")
@@ -426,7 +426,7 @@ func TestService_StartTurn_Validation(t *testing.T) {
 // Helpers
 // ------------------------------------------------------------------
 
-func buildService(t *testing.T) (turn.Service, *kernel.Engine) {
+func buildDispatcher(t *testing.T) (turn.Dispatcher, *kernel.Engine) {
 	t.Helper()
 
 	client, err := chatmodel.NewClient(newStubChatModel())
@@ -638,11 +638,11 @@ func (m *historyAwareStub) Stream(ctx context.Context, req *chatmodel.Request) i
 }
 
 // mustTurn unwraps turn.New in test wiring — construction only fails on a
-// nil engine, which tests never pass. Takes (svc, err) directly so call
+// nil engine, which tests never pass. Takes (dispatcher, err) directly so call
 // sites can splice turn.New's multi-value return straight in.
-func mustTurn(svc turn.Service, err error) turn.Service {
+func mustTurn(dispatcher turn.Dispatcher, err error) turn.Dispatcher {
 	if err != nil {
 		panic(err)
 	}
-	return svc
+	return dispatcher
 }
