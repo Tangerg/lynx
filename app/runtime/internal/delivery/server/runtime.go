@@ -21,7 +21,8 @@ type RuntimePort interface {
 	historyAccess
 	interruptQueryAccess
 	toolAccess
-	knowledgeAccess
+	memoryAvailabilityAccess
+	memoryStoreAccess
 	approvalAccess
 	scheduleCatalogAccess
 	scheduleMutationAccess
