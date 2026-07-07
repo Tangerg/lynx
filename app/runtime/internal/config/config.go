@@ -21,7 +21,6 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
-	"github.com/Tangerg/lynx/mcp"
 )
 
 // ServerConfig holds the `lyra serve` HTTP transport settings. CLI
@@ -46,6 +45,23 @@ type OnlineConfig struct {
 	JinaAPIKey       string
 	TavilyAPIKey     string
 	HTTPAllowedHosts []string
+}
+
+// MCP transport names emitted by the config parser.
+const (
+	MCPTransportStdio          = "stdio"
+	MCPTransportStreamableHTTP = "streamableHttp"
+)
+
+// MCPServerConfig is one env-sourced MCP server entry. It is the config
+// package's source DTO; runtime maps it into its MCP-server registry model.
+type MCPServerConfig struct {
+	Name          string
+	Transport     string
+	Endpoint      string
+	Command       string
+	Args          []string
+	Authorization string
 }
 
 // LSPServerConfig is one optional language-server table entry loaded from
@@ -93,7 +109,7 @@ type Config struct {
 	// MCPServers is the parsed list of external MCP servers dialed at
 	// startup. First cut: sourced from LYRA_MCP_SERVERS env (yaml
 	// support is a later addition).
-	MCPServers []mcp.ServerConfig
+	MCPServers []MCPServerConfig
 
 	// A2AAgents is the parsed list of remote A2A agents dialed at startup.
 	// Sourced from LYRA_A2A_AGENTS env (same name=value shape as
@@ -232,12 +248,12 @@ func loadLSPServers(v *viper.Viper) ([]LSPServerConfig, error) {
 //
 //	HTTP:  name=https://mcp.example.com/   (or http://)
 //	stdio: name=stdio:command arg1 arg2    (whitespace-split argv)
-func parseMCPServers(raw string) ([]mcp.ServerConfig, error) {
+func parseMCPServers(raw string) ([]MCPServerConfig, error) {
 	if raw == "" {
 		return nil, nil
 	}
 	parts := strings.Split(raw, ",")
-	out := make([]mcp.ServerConfig, 0, len(parts))
+	out := make([]MCPServerConfig, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
 		if p == "" {
@@ -300,26 +316,26 @@ func parseA2AAgents(raw string) ([]A2AAgentConfig, error) {
 
 // parseMCPServerValue dispatches by prefix. `stdio:` is a Lyra
 // convention — anything else must look like an HTTP(S) URL.
-func parseMCPServerValue(name, value string) (mcp.ServerConfig, error) {
+func parseMCPServerValue(name, value string) (MCPServerConfig, error) {
 	if rest, ok := strings.CutPrefix(value, "stdio:"); ok {
 		rest = strings.TrimSpace(rest)
 		if rest == "" {
-			return mcp.ServerConfig{}, errors.New("stdio: command is empty")
+			return MCPServerConfig{}, errors.New("stdio: command is empty")
 		}
 		fields := strings.Fields(rest)
-		return mcp.ServerConfig{
+		return MCPServerConfig{
 			Name:      name,
-			Transport: mcp.TransportStdio,
+			Transport: MCPTransportStdio,
 			Command:   fields[0],
 			Args:      fields[1:],
 		}, nil
 	}
 	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
-		return mcp.ServerConfig{}, fmt.Errorf("expected http(s):// URL or stdio: prefix, got %q", value)
+		return MCPServerConfig{}, fmt.Errorf("expected http(s):// URL or stdio: prefix, got %q", value)
 	}
-	return mcp.ServerConfig{
+	return MCPServerConfig{
 		Name:      name,
-		Transport: mcp.TransportHTTP,
+		Transport: MCPTransportStreamableHTTP,
 		Endpoint:  value,
 		// Optional bearer token from a per-server env, kept out of the
 		// server-list string so the secret isn't co-located with the URL.
