@@ -442,6 +442,13 @@ app/runtime -> agent -> core
   - `model_capabilities.go` 承接 `Reasoning`、`Limits`、`Modality` 和 `Modalities` capability surface。
   - `message_transcript.go` 承接 message transcript projection 与 `MessageList.Strings`，让 `message_list.go` 聚焦 list filtering、merge 和 request augmentation helpers。
   - Exported API, JSON tags, pricing semantics, modality helpers, transcript output and MessageList merge behavior 保持不变；本轮无公共 API 破坏性调整。
+- 已完成第三十五轮目标模块结构清理：
+  - `core/model/audio/tts`：将原 `client.go` 中混杂的 middleware aliases、fluent request builder、synchronous call path、streaming path 和 sticky client facade 拆开。
+  - `client.go` 现在只保留 handler/middleware aliases、`NewMiddlewareChain` 和 `Client` sticky facade。
+  - `client_request.go` 承接 `ClientRequest`、request options/text/params builder、clone、request assembly 和 `Call` / `Stream` entrypoints。
+  - `client_call.go` 承接 `ClientCaller.Response` 和 `ClientCaller.Speech`。
+  - `client_stream.go` 承接 `ClientStreamer.Response` 和 `ClientStreamer.Speech`。
+  - Exported API, middleware chain behavior, option merge semantics, params cloning, stream error propagation and speech bytes projection 保持不变；本轮无公共 API 破坏性调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -485,16 +492,17 @@ app/runtime -> agent -> core
   - `go test ./vectorstore/filter/...`（`core`）通过（第三十二轮后复跑）。
   - `go test ./vectorstore`（`core`）通过（第三十三轮后复跑）。
   - `go test ./model/chat`（`core`）通过（第三十四轮后复跑）。
+  - `go test ./model/audio/tts`（`core`）通过（第三十五轮后复跑）。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第三十四轮后复跑）。
-  - `go test ./...`（`agent`）通过（第三十四轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第三十四轮后复跑）。
-  - `go vet ./...`（`core`）通过（第三十四轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第三十四轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第三十四轮后复跑）。
-  - `go build ./...`（`core`）通过（第三十四轮后复跑）。
-  - `go build ./...`（`agent`）通过（第三十四轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第三十四轮后复跑）。
+  - `go test ./...`（`core`）通过（第三十五轮后复跑）。
+  - `go test ./...`（`agent`）通过（第三十五轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第三十五轮后复跑）。
+  - `go vet ./...`（`core`）通过（第三十五轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第三十五轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第三十五轮后复跑）。
+  - `go build ./...`（`core`）通过（第三十五轮后复跑）。
+  - `go build ./...`（`agent`）通过（第三十五轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第三十五轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
