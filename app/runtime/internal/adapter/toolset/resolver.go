@@ -209,10 +209,10 @@ type Resolver struct {
 	exitPlan        chat.Tool           // exit_plan_mode HITL tool; coding role only (exitplan.New, via Deps); nil when no approval svc
 	todo            chat.Tool           // todo_write task-list tool; both roles, nil when no todo store
 
-	// codebaseIndex backs codebase_search (both roles). Held as the service (not
+	// codebaseIndex backs codebase_search (both roles). Held as the index (not
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
 	// the embedding model can be configured after construction. nil → no tool.
-	codebaseIndex codebaseindex.Service
+	codebaseIndex codebaseindex.Index
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -238,16 +238,16 @@ type Resolver struct {
 type Deps struct {
 	DefaultWorkdir  string
 	SkillsGlobalDir string
-	Online          []chat.Tool           // network tools (webfetch/websearch/httpreq)
-	A2A             []chat.Tool           // remote A2A delegation tools
-	LSP             []chat.Tool           // code-intelligence tools
-	Shell           []chat.Tool           // shell tools (shell / shell_output / shell_kill)
-	AskUser         chat.Tool             // ask_user HITL tool (coding role only)
-	ExitPlan        chat.Tool             // exit_plan_mode HITL tool (coding role only); nil → omitted
-	Todo            chat.Tool             // todo_write task-list tool (both roles); nil → omitted
-	CodeIntel       *codeintel.Analyzer   // backs the post-edit diagnostics wrap
-	ReadTracker     *editguard.Tracker    // backs the read/edit/write guards
-	CodebaseIndex   codebaseindex.Service // backs codebase_search (both roles); nil → omitted
+	Online          []chat.Tool         // network tools (webfetch/websearch/httpreq)
+	A2A             []chat.Tool         // remote A2A delegation tools
+	LSP             []chat.Tool         // code-intelligence tools
+	Shell           []chat.Tool         // shell tools (shell / shell_output / shell_kill)
+	AskUser         chat.Tool           // ask_user HITL tool (coding role only)
+	ExitPlan        chat.Tool           // exit_plan_mode HITL tool (coding role only); nil → omitted
+	Todo            chat.Tool           // todo_write task-list tool (both roles); nil → omitted
+	CodeIntel       *codeintel.Analyzer // backs the post-edit diagnostics wrap
+	ReadTracker     *editguard.Tracker  // backs the read/edit/write guards
+	CodebaseIndex   codebaseindex.Index // backs codebase_search (both roles); nil → omitted
 
 	// MCPDisabled returns the model-facing MCP tool names the configured servers
 	// hide from the model (per-server blacklist; nil → no filtering). Read per
@@ -377,8 +377,8 @@ func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	// codebase_search (both roles): semantic code search over the turn's cwd.
 	// Offered only when an embedding model is configured (Available reads the
 	// live embedding role), so it appears once the user sets one — no restart.
-	if svc := g.resolver.codebaseIndex; svc != nil && svc.Available(ctx) {
-		tools = append(tools, codebasesearch.New(svc))
+	if index := g.resolver.codebaseIndex; index != nil && index.Available(ctx) {
+		tools = append(tools, codebasesearch.New(index))
 	}
 	if g.role == toolport.ToolRoleCoding {
 		// Coding role only: the `task` delegation tool (no recursion) and

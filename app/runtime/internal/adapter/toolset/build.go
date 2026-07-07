@@ -42,9 +42,9 @@ type BuildConfig struct {
 	Todos           todo.Service     // backs todo_write; nil → the tool is omitted
 	Approval        approval.Service // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
 
-	// CodebaseIndex backs codebase_search (semantic code search). nil — or a
-	// service with no embedding model configured — omits the tool.
-	CodebaseIndex codebaseindex.Service
+	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
+	// index with no embedding model configured — omits the tool.
+	CodebaseIndex codebaseindex.Index
 
 	// MCPDisabled returns the model-facing MCP tool names the configured servers
 	// hide from the model (per-server blacklist; nil → no filtering). The runtime

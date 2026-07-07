@@ -32,7 +32,7 @@ type EmbeddingRoleStore interface {
 type embeddingEnvironment struct {
 	cell     *atomic.Pointer[embeddingRole]
 	resolver *embeddingResolver
-	index    codebaseindex.Service
+	index    codebaseindex.Index
 }
 
 func buildEmbeddingEnvironment(ctx context.Context, cfg Config, providers provider.Registry) (embeddingEnvironment, error) {
@@ -54,7 +54,7 @@ func buildEmbeddingEnvironment(ctx context.Context, cfg Config, providers provid
 		}
 		return resolver.resolve(ctx, role.provider, role.model)
 	}
-	var index codebaseindex.Service
+	var index codebaseindex.Index
 	if cfg.CodebaseStore != nil {
 		index = codebaseindex.New(cfg.CodebaseStore, resolveEmbedder, codebaseindexadapter.Source{})
 	}

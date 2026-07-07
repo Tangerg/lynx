@@ -109,8 +109,8 @@ type Source interface {
 	Chunks(cwd, path string) (chunks []Chunk, hash string, ok bool)
 }
 
-// Service is the index surface the tool / RPC / file-change hook consume.
-type Service interface {
+// Index is the semantic-index surface consumed by the tool, RPC, and file-change hook.
+type Index interface {
 	// Search returns the topK most similar chunks to query in cwd, building or
 	// refreshing the index first when needed. ErrNoEmbeddingModel when off.
 	Search(ctx context.Context, cwd, query string, topK int) ([]Hit, error)

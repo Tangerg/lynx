@@ -235,12 +235,12 @@ type Runtime struct {
 
 	// @codebase semantic index: embeddingCell holds the live embedding role,
 	// embeddings builds+caches embedders from it, embeddingStore persists it, and
-	// codebaseIndex is the index service (nil when no CodebaseStore). See
+	// codebaseIndex is the index (nil when no CodebaseStore). See
 	// embedding.go.
 	embeddingCell  *atomic.Pointer[embeddingRole]
 	embeddings     *embeddingResolver
 	embeddingStore EmbeddingRoleStore
-	codebaseIndex  codebaseindex.Service
+	codebaseIndex  codebaseindex.Index
 
 	// transactor runs a write-set inside one storage transaction so the
 	// cross-store operations (sessions.import / rollback) are atomic; nil → run
