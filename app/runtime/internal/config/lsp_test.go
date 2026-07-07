@@ -8,7 +8,7 @@ import (
 )
 
 // TestLoadLSPServers_FromYAML verifies the yaml `lsp.servers` table unmarshals
-// into ServerSpec (case-insensitive keys: languageId → LanguageID, etc.).
+// into LSPServerConfig (case-insensitive keys: languageId → LanguageID, etc.).
 func TestLoadLSPServers_FromYAML(t *testing.T) {
 	const yaml = `
 lsp:

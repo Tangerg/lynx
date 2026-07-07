@@ -196,7 +196,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		Online:       lyraruntime.OnlineConfig(cfg.Online),
 		MCPRegistry:  stores.MCPServers,
 		A2AAgents:    cfg.A2AAgents,
-		LSPServers:   cfg.LSPServers, // nil means the built-in LSP server table
+		LSPServers:   runtimeLSPServers(cfg.LSPServers), // nil means the built-in LSP server table
 		SessionStore: stores.Session,
 		// InterruptStore persists the open-interrupt registry that
 		// runs.resume looks up — the other half of cross-restart resume.
@@ -238,6 +238,24 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	a.rt = rt
 	a.cfg = cfg
 	return nil
+}
+
+func runtimeLSPServers(in []config.LSPServerConfig) []lyraruntime.LSPServerConfig {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]lyraruntime.LSPServerConfig, len(in))
+	for i, server := range in {
+		out[i] = lyraruntime.LSPServerConfig{
+			Name:        server.Name,
+			Command:     server.Command,
+			Args:        server.Args,
+			LanguageID:  server.LanguageID,
+			Extensions:  server.Extensions,
+			RootMarkers: server.RootMarkers,
+		}
+	}
+	return out
 }
 
 // runtime returns the runtime bundle; subcommands call this after
