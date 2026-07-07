@@ -35,10 +35,9 @@ type Config struct {
 	// rpc/protocol package is the codegen SSOT for other languages.
 	ServerInfo protocol.ServerInfo
 
-	// Workspace backs the git-backed VCS views and sessions.rollback's file
-	// restore (restoreType). nil defaults to a disabled service —
-	// features.{git,checkpoints} then reflect git availability.
-	Workspace *workspace.Service
+	// Checkpoints backs run-boundary snapshots and sessions.rollback file
+	// restore (restoreType). nil defaults to a disabled checkpoint adapter.
+	Checkpoints *workspace.Checkpoints
 }
 
 // Server is the Runtime implementation. Exposed via [New]; the returned
@@ -65,11 +64,10 @@ type Server struct {
 	// scoped — distinct from the durable per-run hubs.
 	wsHub *workspaceHub
 
-	// workspace owns the VCS views + per-session file checkpoints (snapshot at
-	// each run boundary so sessions.rollback can restore files). Always
-	// non-nil; checkpoints disabled (git unavailable) → features.checkpoints
-	// reads false.
-	workspace *workspace.Service
+	// checkpoints owns per-session file snapshots: snapshot at each run boundary
+	// so sessions.rollback can restore files. VCS reads stay stateless package
+	// functions in adapter/workspace.
+	checkpoints *workspace.Checkpoints
 }
 
 // nextEventID returns the next globally-monotonic RunEvent id, formatted
@@ -98,15 +96,15 @@ func New(cfg Config) (*Server, error) {
 	if cfg.ServerInfo.Version == "" {
 		cfg.ServerInfo.Version = "0.0.0-dev"
 	}
-	ws := cfg.Workspace
-	if ws == nil {
-		ws = workspace.New("") // disabled service: VCS reads still work, checkpoints off
+	checkpoints := cfg.Checkpoints
+	if checkpoints == nil {
+		checkpoints = workspace.NewCheckpoints("") // disabled: VCS reads still work, checkpoints off
 	}
 	return &Server{
 		runtimeBindings: bindRuntime(cfg.Runtime),
 		serverInfo:      cfg.ServerInfo,
 		wsHub:           newWorkspaceHub(),
-		workspace:       ws,
+		checkpoints:     checkpoints,
 	}, nil
 }
 

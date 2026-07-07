@@ -1,13 +1,12 @@
 // Package workspace adapts git-backed workspace operations: the VCS view of a project's
 // working tree (git-backed diff / status) and per-session file checkpoints
 // (shadow-git snapshot / restore). It is the single owner of the git and
-// checkpoint infra adapters here: delivery drives workspace
-// operations through here and never imports infra/git or infra/checkpoint
-// directly.
+// checkpoint infra adapters here: delivery drives workspace operations through
+// here and never imports infra/git or infra/checkpoint directly.
 //
 // VCS reads are stateless package functions (a git working tree is addressed
 // purely by its root path); checkpoint lifecycle is stateful and lives on
-// [Service], which holds the shadow-repo store.
+// [Checkpoints], which holds the shadow-repo store.
 package workspace
 
 import (
@@ -69,35 +68,35 @@ func diffMode(base bool) git.Mode {
 	return git.Worktree
 }
 
-// Service owns the per-session file-checkpoint lifecycle over a shadow-git
-// store. A nil Service (or one built with checkpoints disabled) reports
+// Checkpoints owns the per-session file-checkpoint lifecycle over a shadow-git
+// store. A nil Checkpoints (or one built with checkpoints disabled) reports
 // CheckpointsEnabled false and treats every operation as the unavailable path.
-type Service struct {
-	checkpoints *checkpoint.Store // nil when git is unavailable / no dir
+type Checkpoints struct {
+	store *checkpoint.Store // nil when git is unavailable / no dir
 }
 
-// New builds the workspace service. File checkpoints are enabled only when the
-// git binary is present and checkpointDir is non-empty; otherwise the store is
-// nil and snapshot/restore degrade to the unavailable path.
-func New(checkpointDir string) *Service {
+// NewCheckpoints builds the checkpoint adapter. File checkpoints are enabled
+// only when the git binary is present and checkpointDir is non-empty; otherwise
+// the store is nil and snapshot/restore degrade to the unavailable path.
+func NewCheckpoints(checkpointDir string) *Checkpoints {
 	var store *checkpoint.Store
 	if checkpointDir != "" && git.Available() {
 		store = checkpoint.NewStore(checkpointDir)
 	}
-	return &Service{checkpoints: store}
+	return &Checkpoints{store: store}
 }
 
 // CheckpointsEnabled reports whether file checkpoints are available — backs
 // the features.checkpoints flag. Nil-safe.
-func (s *Service) CheckpointsEnabled() bool {
-	return s != nil && s.checkpoints != nil
+func (c *Checkpoints) CheckpointsEnabled() bool {
+	return c != nil && c.store != nil
 }
 
 // Snapshot anchors sessionID's working tree (at cwd) under runID so a later
 // Restore can revert to it. Best-effort: a disabled store is a silent no-op,
 // so the caller never fails a run on snapshot trouble. Nil-safe.
-func (s *Service) Snapshot(ctx context.Context, sessionID, cwd, runID string) error {
-	if !s.CheckpointsEnabled() {
+func (c *Checkpoints) Snapshot(ctx context.Context, sessionID, cwd, runID string) error {
+	if !c.CheckpointsEnabled() {
 		return nil
 	}
 	// Only checkpoint a real git repo — state tracking requires git.
@@ -110,24 +109,24 @@ func (s *Service) Snapshot(ctx context.Context, sessionID, cwd, runID string) er
 	if !git.IsRepo(ctx, cwd) {
 		return nil
 	}
-	return s.checkpoints.Snapshot(ctx, sessionID, cwd, runID)
+	return c.store.Snapshot(ctx, sessionID, cwd, runID)
 }
 
 // Restore resets sessionID's working tree (at cwd) to the runID snapshot. A
 // disabled store or missing snapshot surfaces as [ErrCheckpointUnavailable].
 // Nil-safe.
-func (s *Service) Restore(ctx context.Context, sessionID, cwd, runID string) error {
-	if !s.CheckpointsEnabled() {
+func (c *Checkpoints) Restore(ctx context.Context, sessionID, cwd, runID string) error {
+	if !c.CheckpointsEnabled() {
 		return ErrCheckpointUnavailable
 	}
-	return s.checkpoints.Restore(ctx, sessionID, cwd, runID)
+	return c.store.Restore(ctx, sessionID, cwd, runID)
 }
 
 // DropSession removes a session's shadow repo (on session delete).
 // Best-effort, nil-safe no-op when checkpoints are disabled.
-func (s *Service) DropSession(sessionID string) error {
-	if !s.CheckpointsEnabled() {
+func (c *Checkpoints) DropSession(sessionID string) error {
+	if !c.CheckpointsEnabled() {
 		return nil
 	}
-	return s.checkpoints.DropSession(sessionID)
+	return c.store.DropSession(sessionID)
 }

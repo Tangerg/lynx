@@ -17,7 +17,7 @@ func (s *Server) restoreCheckpoint(ctx context.Context, sessionID, runID string)
 	if cwd == "" {
 		return protocol.ErrCheckpointUnavailable
 	}
-	if err := s.workspace.Restore(ctx, sessionID, cwd, runID); err != nil {
+	if err := s.checkpoints.Restore(ctx, sessionID, cwd, runID); err != nil {
 		if errors.Is(err, workspace.ErrCheckpointUnavailable) {
 			return protocol.ErrCheckpointUnavailable
 		}
@@ -28,5 +28,5 @@ func (s *Server) restoreCheckpoint(ctx context.Context, sessionID, runID string)
 
 // dropCheckpoints removes a session's shadow repo (on session delete).
 func (s *Server) dropCheckpoints(sessionID string) {
-	_ = s.workspace.DropSession(sessionID)
+	_ = s.checkpoints.DropSession(sessionID)
 }
