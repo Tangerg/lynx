@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -15,8 +14,8 @@ import (
 // MCP-server registry orchestration: the runtime owns both the persisted
 // registry (mcpserver.Registry) and the live connections (via the engine's
 // MCPControl facade), so a configure/remove/enable both persists and applies
-// to the live tool set in one place. The dial-level descriptor (mcp.ServerConfig)
-// and the registry entry (mcpserver.Server) are bridged by the converters here.
+// to the live tool set in one place. Registry entries are projected to
+// dial-level descriptors only at the live-connection boundary.
 
 // ListMCPRegisteredServers returns the persisted MCP-server registry entries,
 // distinct from the live connection statuses returned by MCPServerStatuses.
@@ -168,14 +167,14 @@ func enabledConfigs(ctx context.Context, svc mcpserver.Registry) ([]mcp.ServerCo
 // registry that aren't already present, mirroring seedConfiguredProvider: the
 // env is a first-run seed, runtime edits (a persisted configure) win and are
 // left untouched.
-func SeedMCPServers(ctx context.Context, svc mcpserver.Registry, env []mcp.ServerConfig) error {
-	for _, cfg := range env {
-		if _, ok, err := svc.Get(ctx, cfg.Name); err != nil {
+func SeedMCPServers(ctx context.Context, svc mcpserver.Registry, servers []mcpserver.Server) error {
+	for _, srv := range servers {
+		if _, ok, err := svc.Get(ctx, srv.Name); err != nil {
 			return err
 		} else if ok {
 			continue
 		}
-		if err := svc.Configure(ctx, serverFromConfig(cfg)); err != nil {
+		if err := svc.Configure(ctx, srv); err != nil {
 			return err
 		}
 	}
@@ -287,27 +286,6 @@ func (r *Runtime) refreshMCPGating(ctx context.Context) error {
 	return nil
 }
 
-// serverFromConfig maps an env-sourced dial descriptor to a registry entry
-// (enabled, no tool-level gating) for first-run seeding. Env is parsed from the
-// dial layer's "KEY=value" slice back to the registry's KEY→value map.
-func serverFromConfig(c mcp.ServerConfig) mcpserver.Server {
-	s := mcpserver.Server{Name: c.Name, Enabled: true, Timeout: c.Timeout}
-	switch c.Transport {
-	case mcp.TransportHTTP:
-		s.Transport = mcpserver.TransportStreamableHTTP
-		s.URL = c.Endpoint
-		s.Authorization = c.Authorization
-		s.Headers = c.Headers
-	case mcp.TransportStdio:
-		s.Transport = mcpserver.TransportStdio
-		s.Command = c.Command
-		s.Args = c.Args
-		s.Env = envSliceToMap(c.Env)
-		s.Dir = c.Dir
-	}
-	return s
-}
-
 // envMapToSlice flattens a KEY→value map to the "KEY=value" slice exec wants,
 // sorted by key so the dialed env is deterministic (stable across restarts and
 // in tests). nil/empty yields nil.
@@ -321,19 +299,4 @@ func envMapToSlice(m map[string]string) []string {
 	}
 	slices.Sort(out)
 	return out
-}
-
-// envSliceToMap parses "KEY=value" entries back into a map, splitting on the
-// FIRST '=' so a value may itself contain '='. An entry with no '=' becomes a
-// bare key with an empty value. nil/empty yields nil.
-func envSliceToMap(s []string) map[string]string {
-	if len(s) == 0 {
-		return nil
-	}
-	m := make(map[string]string, len(s))
-	for _, kv := range s {
-		k, v, _ := strings.Cut(kv, "=")
-		m[k] = v
-	}
-	return m
 }

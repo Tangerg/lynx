@@ -3,8 +3,6 @@ package config
 import (
 	"reflect"
 	"testing"
-
-	"github.com/Tangerg/lynx/mcp"
 )
 
 // TestParseMCPServers covers the env-var parser across both HTTP
@@ -13,7 +11,7 @@ func TestParseMCPServers(t *testing.T) {
 	cases := []struct {
 		name    string
 		in      string
-		want    []mcp.ServerConfig
+		want    []MCPServerConfig
 		wantErr bool
 	}{
 		{
@@ -24,18 +22,18 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "single http entry",
 			in:   "github=https://mcp.github.com/",
-			want: []mcp.ServerConfig{{
+			want: []MCPServerConfig{{
 				Name:      "github",
-				Transport: mcp.TransportHTTP,
+				Transport: MCPTransportStreamableHTTP,
 				Endpoint:  "https://mcp.github.com/",
 			}},
 		},
 		{
 			name: "single stdio entry",
 			in:   "fs=stdio:npx -y @modelcontextprotocol/server-filesystem /workspace",
-			want: []mcp.ServerConfig{{
+			want: []MCPServerConfig{{
 				Name:      "fs",
-				Transport: mcp.TransportStdio,
+				Transport: MCPTransportStdio,
 				Command:   "npx",
 				Args:      []string{"-y", "@modelcontextprotocol/server-filesystem", "/workspace"},
 			}},
@@ -43,9 +41,9 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "stdio with single-word command",
 			in:   "time=stdio:mcp-server-time",
-			want: []mcp.ServerConfig{{
+			want: []MCPServerConfig{{
 				Name:      "time",
-				Transport: mcp.TransportStdio,
+				Transport: MCPTransportStdio,
 				Command:   "mcp-server-time",
 				Args:      []string{},
 			}},
@@ -53,9 +51,9 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "mixed http + stdio with whitespace",
 			in:   " github = https://mcp.github.com/ , fs = stdio:npx mcp-server-fs ",
-			want: []mcp.ServerConfig{
-				{Name: "github", Transport: mcp.TransportHTTP, Endpoint: "https://mcp.github.com/"},
-				{Name: "fs", Transport: mcp.TransportStdio, Command: "npx", Args: []string{"mcp-server-fs"}},
+			want: []MCPServerConfig{
+				{Name: "github", Transport: MCPTransportStreamableHTTP, Endpoint: "https://mcp.github.com/"},
+				{Name: "fs", Transport: MCPTransportStdio, Command: "npx", Args: []string{"mcp-server-fs"}},
 			},
 		},
 		{
@@ -116,7 +114,7 @@ func TestParseMCPServers_AuthFromEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	byName := map[string]mcp.ServerConfig{}
+	byName := map[string]MCPServerConfig{}
 	for _, s := range got {
 		byName[s.Name] = s
 	}

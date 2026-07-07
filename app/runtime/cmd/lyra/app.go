@@ -149,7 +149,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	}
 	// Seed env-sourced MCP servers (LYRA_MCP_SERVERS) into the registry on
 	// first run; a persisted workspace.mcp.configure for the same name wins.
-	if err = lyraruntime.SeedMCPServers(ctx, stores.MCPServers, cfg.MCPServers); err != nil {
+	if err = lyraruntime.SeedMCPServers(ctx, stores.MCPServers, runtimeMCPServers(cfg.MCPServers)); err != nil {
 		return err
 	}
 
@@ -238,6 +238,36 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	a.rt = rt
 	a.cfg = cfg
 	return nil
+}
+
+func runtimeMCPServers(in []config.MCPServerConfig) []mcpserversvc.Server {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]mcpserversvc.Server, len(in))
+	for i, server := range in {
+		out[i] = mcpserversvc.Server{
+			Name:          server.Name,
+			Transport:     runtimeMCPTransport(server.Transport),
+			Enabled:       true,
+			URL:           server.Endpoint,
+			Authorization: server.Authorization,
+			Command:       server.Command,
+			Args:          append([]string(nil), server.Args...),
+		}
+	}
+	return out
+}
+
+func runtimeMCPTransport(transport string) string {
+	switch transport {
+	case config.MCPTransportStreamableHTTP:
+		return mcpserversvc.TransportStreamableHTTP
+	case config.MCPTransportStdio:
+		return mcpserversvc.TransportStdio
+	default:
+		return transport
+	}
 }
 
 func runtimeA2AAgents(in []config.A2AAgentConfig) []lyraruntime.A2AAgentConfig {
