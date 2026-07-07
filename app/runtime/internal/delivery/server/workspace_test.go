@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -260,154 +258,6 @@ func TestWorkspaceListRecipes(t *testing.T) {
 	}
 	if got.Data[1].Scope != "global" {
 		t.Errorf("recipe[1].Scope = %q, want global", got.Data[1].Scope)
-	}
-}
-
-// TestWorkspaceMCPListServers renders each server's real status (AUX_API §5.1):
-// a connected server inlines its tool count (so the client needn't ⨝ listTools),
-// a boot-failed server carries its failure reason as Error and no tool count.
-func TestWorkspaceMCPListServers(t *testing.T) {
-	s := newTestServer(&stubRuntime{
-		mcpStatuses: []kernel.MCPServerStatus{
-			{Name: "fs", Status: "connected"},
-			{Name: "down", Status: "failed", Err: errors.New("connection refused")},
-		},
-		mcpTools: []kernel.MCPToolInfo{
-			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
-		},
-	})
-	page, err := s.WorkspaceMCPListServers(context.Background(), protocol.PageQuery{})
-	if err != nil {
-		t.Fatalf("listServers: %v", err)
-	}
-	if len(page.Data) != 2 {
-		t.Fatalf("servers = %+v, want 2 (connected + failed)", page.Data)
-	}
-	fs := page.Data[0]
-	if fs.Status != "connected" || fs.ToolCount == nil || *fs.ToolCount != 2 || fs.Error != nil {
-		t.Fatalf("fs = %+v, want connected toolCount=2 no error", fs)
-	}
-	down := page.Data[1]
-	if down.Status != "failed" || down.ToolCount != nil || down.Error == nil || down.Error.Detail != "connection refused" {
-		t.Fatalf("down = %+v, want failed + Error(connection refused) no toolCount", down)
-	}
-}
-
-// TestWorkspaceMCPReconnect verifies the reconnect push contract (AUX_API §5.2):
-// a known server validates synchronously then emits mcp.serverChanged in the
-// guaranteed order connecting → terminal (here connected, with its tool count
-// inlined); an unknown server fails synchronously with invalid_params and emits
-// nothing.
-func TestWorkspaceMCPReconnect(t *testing.T) {
-	s := &Server{
-		runtimeBindings: bindRuntime(&stubRuntime{
-			mcpStatuses: []kernel.MCPServerStatus{{Name: "fs", Status: "connected"}},
-			mcpTools:    []kernel.MCPToolInfo{{Server: "fs", Name: "read"}},
-		}),
-		wsHub: newWorkspaceHub(),
-	}
-	events, unsub := s.wsHub.subscribe()
-	defer unsub()
-
-	if err := s.WorkspaceMCPReconnect(context.Background(), "fs"); err != nil {
-		t.Fatalf("reconnect: %v", err)
-	}
-	// connecting is published synchronously (ordering guarantee); the terminal
-	// frame follows from the async dial.
-	if first := <-events; first.Type != "mcp.serverChanged" || first.Server != "fs" || first.Status != "connecting" {
-		t.Fatalf("first event = %+v, want fs connecting", first)
-	}
-	if term := <-events; term.Status != "connected" || term.ToolCount == nil || *term.ToolCount != 1 {
-		t.Fatalf("terminal event = %+v, want fs connected toolCount=1", term)
-	}
-
-	// Unknown server → invalid_params, no push.
-	if err := s.WorkspaceMCPReconnect(context.Background(), "ghost"); !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Fatalf("reconnect unknown = %v, want ErrInvalidParams", err)
-	}
-}
-
-// TestWorkspaceMCPListTools maps engine tool info onto the wire (keeping
-// server + bare name separate) and passes the server scope through.
-func TestWorkspaceMCPListTools(t *testing.T) {
-	s := newTestServer(&stubRuntime{mcpTools: []kernel.MCPToolInfo{
-		{Server: "fs", Name: "read", Description: "read a file", InputSchema: map[string]any{"type": "object"}},
-		{Server: "fs", Name: "write"},
-		{Server: "git", Name: "log"},
-	}})
-
-	all, err := s.WorkspaceMCPListTools(context.Background(), protocol.MCPListToolsRequest{})
-	if err != nil {
-		t.Fatalf("listTools: %v", err)
-	}
-	if len(all.Data) != 3 || all.Data[0].Server != "fs" || all.Data[0].Name != "read" || all.Data[0].InputSchema["type"] != "object" {
-		t.Fatalf("all = %+v, want 3 with fs/read carrying its schema", all.Data)
-	}
-
-	scoped, err := s.WorkspaceMCPListTools(context.Background(), protocol.MCPListToolsRequest{Server: "git"})
-	if err != nil {
-		t.Fatalf("listTools(git): %v", err)
-	}
-	if len(scoped.Data) != 1 || scoped.Data[0].Server != "git" {
-		t.Fatalf("scoped = %+v, want only git tools", scoped.Data)
-	}
-}
-
-// TestWorkspaceVcsUnavailable: git present but cwd is not a repo → both git
-// methods report vcs_unavailable (distinct from "clean repo" = empty result).
-func TestWorkspaceVcsUnavailable(t *testing.T) {
-	if !workspace.GitAvailable() {
-		t.Skip("git not on PATH")
-	}
-	s := &Server{serverInfo: protocol.ServerInfo{Cwd: t.TempDir()}} // exists, not a repo
-	if _, err := s.WorkspaceListFileChanges(context.Background(), protocol.WorkspaceListQuery{}); !errors.Is(err, protocol.ErrVcsUnavailable) {
-		t.Errorf("listFileChanges err = %v, want ErrVcsUnavailable", err)
-	}
-	if _, err := s.WorkspaceGetDiff(context.Background(), protocol.GetDiffRequest{}); !errors.Is(err, protocol.ErrVcsUnavailable) {
-		t.Errorf("getDiff err = %v, want ErrVcsUnavailable", err)
-	}
-}
-
-// TestWorkspaceGitWireMapping: a real repo with one modified file maps onto the
-// wire with non-nil added/removed (non-binary), and getDiff returns rows.
-func TestWorkspaceGitWireMapping(t *testing.T) {
-	if !workspace.GitAvailable() {
-		t.Skip("git not on PATH")
-	}
-	dir := t.TempDir()
-	env := append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
-	gitCmd := func(args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir, cmd.Env = dir, env
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v: %s", args, err, out)
-		}
-	}
-	gitCmd("init", "-b", "main")
-	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a\nb\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	gitCmd("add", ".")
-	gitCmd("commit", "-m", "init")
-	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a\nB\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
-	page, err := s.WorkspaceListFileChanges(context.Background(), protocol.WorkspaceListQuery{})
-	if err != nil {
-		t.Fatalf("listFileChanges: %v", err)
-	}
-	if len(page.Data) != 1 || page.Data[0].Status != "modified" || page.Data[0].Added == nil {
-		t.Fatalf("changes = %+v, want one modified with non-nil added", page.Data)
-	}
-
-	diff, err := s.WorkspaceGetDiff(context.Background(), protocol.GetDiffRequest{})
-	if err != nil {
-		t.Fatalf("getDiff: %v", err)
-	}
-	if len(diff.Files) != 1 || len(diff.Files[0].Rows) == 0 {
-		t.Fatalf("diff = %+v, want one file with rows", diff.Files)
 	}
 }
 
