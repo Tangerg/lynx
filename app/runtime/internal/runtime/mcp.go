@@ -147,14 +147,15 @@ func (r *Runtime) applyMCPServer(ctx context.Context, srv mcpserver.Server) {
 	r.engine.RemoveMCPServer(ctx, srv.Name)
 }
 
-// enabledConfigs reads the registry and returns the dial descriptors for the
-// enabled servers — the boot-time MCP set handed to toolset.Build.
-func enabledConfigs(ctx context.Context, svc mcpserver.Registry) ([]mcp.ServerConfig, error) {
+// enabledConfigs reads the registry and returns the live-connection port
+// descriptors for the enabled servers — the boot-time MCP set handed to
+// toolset.Build.
+func enabledConfigs(ctx context.Context, svc mcpserver.Registry) ([]kernel.MCPServerConfig, error) {
 	servers, err := svc.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []mcp.ServerConfig
+	var out []kernel.MCPServerConfig
 	for _, s := range servers {
 		if s.Enabled {
 			out = append(out, configFromServer(s))
@@ -181,21 +182,21 @@ func SeedMCPServers(ctx context.Context, svc mcpserver.Registry, servers []mcpse
 	return nil
 }
 
-// configFromServer maps a registry entry to a dial descriptor. Tool-level
-// gating (DisabledTools / AutoApproveTools) is applied at toolset build /
-// approval, not at dial, so it has no place here. Env is flattened from the
-// registry's KEY→value map to the dial layer's "KEY=value" slice (Go exec's
-// native shape).
-func configFromServer(s mcpserver.Server) mcp.ServerConfig {
-	cfg := mcp.ServerConfig{Name: s.Name, Timeout: s.Timeout}
+// configFromServer maps a registry entry to the kernel's live MCP port
+// descriptor. Tool-level gating (DisabledTools / AutoApproveTools) is applied
+// at toolset build / approval, not at connection setup, so it has no place
+// here. Env is flattened from the registry's KEY→value map to the "KEY=value"
+// slice the stdio adapter consumes.
+func configFromServer(s mcpserver.Server) kernel.MCPServerConfig {
+	cfg := kernel.MCPServerConfig{Name: s.Name, Timeout: s.Timeout}
 	switch s.Transport {
 	case mcpserver.TransportStreamableHTTP:
-		cfg.Transport = mcp.TransportHTTP
+		cfg.Transport = kernel.MCPTransportHTTP
 		cfg.Endpoint = s.URL
 		cfg.Authorization = s.Authorization
 		cfg.Headers = s.Headers
 	case mcpserver.TransportStdio:
-		cfg.Transport = mcp.TransportStdio
+		cfg.Transport = kernel.MCPTransportStdio
 		cfg.Command = s.Command
 		cfg.Args = s.Args
 		cfg.Env = envMapToSlice(s.SafeEnv())
@@ -219,7 +220,7 @@ type mcpEnvironment struct {
 	gate        *atomic.Pointer[mcpGating]
 	disabled    func() map[string]struct{}
 	autoApprove func() map[string]struct{}
-	configs     []mcp.ServerConfig
+	configs     []kernel.MCPServerConfig
 }
 
 func buildMCPEnvironment(ctx context.Context, registry mcpserver.Registry) (mcpEnvironment, error) {

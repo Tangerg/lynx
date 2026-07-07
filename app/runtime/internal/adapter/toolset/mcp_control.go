@@ -55,11 +55,11 @@ func (c *mcpControl) Authorize(ctx context.Context, name string) error {
 }
 
 func (c *mcpControl) Probe(ctx context.Context, cfg toolport.MCPServerConfig) error {
-	return mapMCPError(c.inner.Probe(ctx, cfg))
+	return mapMCPError(c.inner.Probe(ctx, infraMCPServerConfig(cfg)))
 }
 
 func (c *mcpControl) Configure(ctx context.Context, cfg toolport.MCPServerConfig) error {
-	return mapMCPError(c.inner.Configure(ctx, cfg))
+	return mapMCPError(c.inner.Configure(ctx, infraMCPServerConfig(cfg)))
 }
 
 func (c *mcpControl) Remove(ctx context.Context, name string) {

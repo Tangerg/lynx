@@ -3,10 +3,10 @@ package toolport
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
 const (
@@ -47,8 +47,29 @@ type (
 	McpServerStatus = MCPServerStatus
 )
 
-// MCPServerConfig is the dial descriptor for a live MCP server.
-type MCPServerConfig = lynxmcp.ServerConfig
+// MCPTransport names the live MCP connection transport at the kernel port.
+type MCPTransport string
+
+const (
+	MCPTransportHTTP  MCPTransport = "http"
+	MCPTransportStdio MCPTransport = "stdio"
+)
+
+// MCPServerConfig is the live MCP server descriptor accepted by the kernel
+// port. The concrete MCP adapter maps it to its own dial config at the infra
+// boundary.
+type MCPServerConfig struct {
+	Name          string
+	Transport     MCPTransport
+	Endpoint      string
+	Command       string
+	Args          []string
+	Env           []string
+	Dir           string
+	Authorization string
+	Headers       map[string]string
+	Timeout       time.Duration
+}
 
 // ErrUnknownMCPServer is returned when a live MCP operation addresses a server
 // that was never configured.
