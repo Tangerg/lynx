@@ -2,7 +2,6 @@ package toolset
 
 import (
 	"context"
-	"fmt"
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -16,174 +15,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/tools/fs"
-	"github.com/Tangerg/lynx/tools/httpreq"
-	"github.com/Tangerg/lynx/tools/webfetch"
-	"github.com/Tangerg/lynx/tools/webfetch/jina"
-	"github.com/Tangerg/lynx/tools/websearch"
-	"github.com/Tangerg/lynx/tools/websearch/tavily"
 )
 
 // The per-turn blackboard seam (cwd / session / chat-mode keys + readers) lives
 // in package turnctx — the resolver, the per-tool packages, and the engine's
 // prompt composition all read it inward without coupling to each other.
-
-// wrapTool returns a Tool that runs call while preserving inner's Definition
-// — the shared spine of the tool decorators (read/edit guards, post-edit
-// diagnostics). It also forwards inner's optional tool-loop declarations so a
-// keyed file tool's per-path conflict class and return-direct policy survive
-// the whole decorator stack.
-func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) (string, error)) chat.Tool {
-	return &decoratedTool{inner: inner, call: call}
-}
-
-// decoratedTool is the backing type for [wrapTool]: it overrides Call while
-// delegating Definition plus optional tool-loop declarations to the wrapped
-// tool, so a stack of decorators preserves the inner tool's full contract.
-type decoratedTool struct {
-	inner chat.Tool
-	call  func(ctx context.Context, arguments string) (string, error)
-}
-
-func (d *decoratedTool) Definition() chat.ToolDefinition { return d.inner.Definition() }
-
-func (d *decoratedTool) Call(ctx context.Context, arguments string) (string, error) {
-	return d.call(ctx, arguments)
-}
-
-// ConcurrencyKey forwards the wrapped tool's concurrency declaration (matched
-// structurally so this package needn't import the loop driver), so a keyed file
-// tool keeps its per-path key through the decorator stack. A wrapped tool that
-// declares nothing is exclusive (concurrent=false).
-func (d *decoratedTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
-	if c, ok := d.inner.(interface {
-		ConcurrencyKey(string) (string, bool)
-	}); ok {
-		return c.ConcurrencyKey(arguments)
-	}
-	return "", false
-}
-
-func (d *decoratedTool) ReturnsDirect() bool {
-	if direct, ok := d.inner.(interface{ ReturnsDirect() bool }); ok {
-		return direct.ReturnsDirect()
-	}
-	return false
-}
-
-// BuildWorkdirTools instantiates the working-directory-bound filesystem tools,
-// all anchored at workdir. These are the only tools whose behavior depends on
-// the working directory, so they are rebuilt per resolution (cheap structs)
-// rather than captured once. No credentials needed; safe to build
-// unconditionally. (the shell tool is built over the shared exec.Shells in
-// shell.Build, not here — it reads cwd per call like shell_output.)
-//
-// write and edit are wrapped so a successful edit is type-checked by the
-// code-intelligence analyzer and any new problems are folded into the tool
-// result (see withEditDiagnostics). ci may be nil — the wrap is then a no-op.
-func BuildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguard.Tracker) []chat.Tool {
-	fsExec := fs.NewLocalExecutor(workdir)
-
-	// write/edit guard stack, innermost → outermost: diagnostics (type-check
-	// the applied change) → read/staleness guard (gate before the change,
-	// refresh the read stamp after) → per-path lock (serialize concurrent
-	// writes to the same file; read-before + write stay atomic) → path guard
-	// (refuse writes into protected dirs like .git — checked first). One locker
-	// is shared by write + edit so they serialize against each other per path.
-	locker := newPathLocker()
-	write := withPathGuard(withPathLock(withWriteGuard(withEditDiagnostics(fs.NewWriteTool(fsExec), ci, workdir), tracker, workdir), locker, workdir), workdir)
-	edit := withPathGuard(withPathLock(withEditGuard(withEditDiagnostics(fs.NewEditTool(fsExec), ci, workdir), tracker, workdir), locker, workdir), workdir)
-
-	return []chat.Tool{
-		withReadTracking(fs.NewReadTool(fsExec), tracker, workdir),
-		write,
-		edit,
-		fs.NewGlobTool(fsExec),
-		fs.NewGrepTool(fsExec),
-	}
-}
-
-// OnlineConfig groups the credentials network-reaching tools need (webfetch /
-// websearch / httpreq). Empty fields disable the corresponding tool — no tool
-// is registered without explicit opt-in, so an offline-only install makes no
-// surprise outbound calls.
-type OnlineConfig struct {
-	// JinaAPIKey enables the webfetch tool backed by Jina Reader.
-	JinaAPIKey string
-
-	// TavilyAPIKey enables the websearch tool backed by Tavily.
-	TavilyAPIKey string
-
-	// HTTPAllowedHosts enables the httpreq tool. Pass an explicit allowlist
-	// (e.g. ["api.github.com", "*.openai.com"]) — empty keeps the tool disabled
-	// so the LLM can't reach arbitrary internal endpoints.
-	HTTPAllowedHosts []string
-}
-
-// BuildOnlineTools instantiates each network-reaching tool whose
-// credentials are present in online. These are working-directory
-// independent, so they are built once and shared across all resolutions.
-// Missing credentials silently skip the corresponding tool — explicit
-// opt-in is the safety model. Returns an error only when a configured
-// provider fails to build (e.g. invalid HTTP allowlist).
-func BuildOnlineTools(online OnlineConfig) ([]chat.Tool, error) {
-	var (
-		out []chat.Tool
-		err error
-	)
-
-	out, err = appendIfBuilt(out, online.JinaAPIKey != "", "webfetch (jina)", func() (chat.Tool, error) {
-		client, clientErr := jina.NewClient(&jina.Config{APIKey: online.JinaAPIKey})
-		if clientErr != nil {
-			return nil, clientErr
-		}
-		return webfetch.NewTool(client)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	out, err = appendIfBuilt(out, online.TavilyAPIKey != "", "websearch (tavily)", func() (chat.Tool, error) {
-		client, clientErr := tavily.NewClient(&tavily.Config{APIKey: online.TavilyAPIKey})
-		if clientErr != nil {
-			return nil, clientErr
-		}
-		return websearch.NewTool(client)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	out, err = appendIfBuilt(out, len(online.HTTPAllowedHosts) > 0, "httpreq", func() (chat.Tool, error) {
-		client, clientErr := httpreq.NewClient(httpreq.Config{AllowedHosts: online.HTTPAllowedHosts})
-		if clientErr != nil {
-			return nil, clientErr
-		}
-		return httpreq.NewTool(client)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return out, nil
-}
-
-// appendIfBuilt is the conditional-tool-registration helper. When
-// cond is false it returns tools unchanged (the credentials weren't
-// supplied so the tool stays disabled — explicit opt-in is the
-// safety model). When cond is true it runs build(); a non-nil
-// error is wrapped with the label so the caller can tell which
-// provider mis-configured.
-func appendIfBuilt(tools []chat.Tool, cond bool, label string, build func() (chat.Tool, error)) ([]chat.Tool, error) {
-	if !cond {
-		return tools, nil
-	}
-	tool, err := build()
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", label, err)
-	}
-	return append(tools, tool), nil
-}
 
 // Resolver is the platform-scope [core.ToolGroupResolver] for the
 // coding + subtask roles. The working-directory-independent tools (online
