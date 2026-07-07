@@ -481,6 +481,11 @@ app/runtime -> agent -> core
   - `parser_json.go` 承接 schema-backed generic JSON parser。
   - `parser_any.go` 承接 type-erased parser adapter。
   - Exported parser API, instruction text, markdown fence cleanup, JSON schema generation, parse error context and type-erased delegation behavior 保持不变；本轮无公共 API 破坏性调整。
+- 已完成第四十一轮目标模块测试结构清理：
+  - `app/runtime/internal/kernel`：将 `engine_test.go` 中混杂的 engine 行为用例和测试夹具拆开。
+  - `engine_test.go` 现在聚焦 engine turn execution、tool registration、history、budget、restore/options 等行为用例。
+  - `engine_fixtures_test.go` 承接 shared history store factory、assembled engine factory、recording observer、approval observer、JSON process store、option restore stub 和 per-run client override stub。
+  - 测试断言、stub behavior、observer behavior、process snapshot round-trip behavior and toolset assembly path 保持不变；本轮无公共 API 或生产行为调整。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -530,16 +535,17 @@ app/runtime -> agent -> core
   - `go test ./model/audio/transcription`（`core`）通过（第三十八轮后复跑）。
   - `go test ./model/image`（`core`）通过（第三十九轮后复跑）。
   - `go test ./model/chat`（`core`）通过（第四十轮后复跑）。
+  - `go test ./internal/kernel`（`app/runtime`）通过（第四十一轮后复跑）。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第四十轮后复跑）。
-  - `go test ./...`（`agent`）通过（第四十轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第四十轮后复跑）。
-  - `go vet ./...`（`core`）通过（第四十轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第四十轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第四十轮后复跑）。
-  - `go build ./...`（`core`）通过（第四十轮后复跑）。
-  - `go build ./...`（`agent`）通过（第四十轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第四十轮后复跑）。
+  - `go test ./...`（`core`）通过（第四十一轮后复跑）。
+  - `go test ./...`（`agent`）通过（第四十一轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第四十一轮后复跑）。
+  - `go vet ./...`（`core`）通过（第四十一轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第四十一轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第四十一轮后复跑）。
+  - `go build ./...`（`core`）通过（第四十一轮后复跑）。
+  - `go build ./...`（`agent`）通过（第四十一轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第四十一轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
