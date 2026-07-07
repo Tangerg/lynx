@@ -74,6 +74,10 @@ type toolObserver interface {
 	OnUsage(usage TokenUsage, costUSD float64, contextTokens int64)
 }
 
+type toolObserverExtension interface {
+	ToolObserver() toolObserver
+}
+
 // ToolApprovalVerdict is the decorator's instruction for one gated tool
 // call (API.md §6 HITL). Exactly one outcome applies:
 //
@@ -104,8 +108,8 @@ func observerFrom(opts *core.ProcessOptions) toolObserver {
 		return nil
 	}
 	for _, ext := range opts.Extensions {
-		if d, ok := ext.(*toolObserverDecorator); ok {
-			return d.observer
+		if w, ok := ext.(toolObserverExtension); ok {
+			return w.ToolObserver()
 		}
 	}
 	return nil
@@ -119,6 +123,8 @@ func observerFrom(opts *core.ProcessOptions) toolObserver {
 type toolObserverDecorator struct {
 	observer toolObserver
 }
+
+func (d *toolObserverDecorator) ToolObserver() toolObserver { return d.observer }
 
 // Name implements [core.Extension]. The constant string is fine —
 // process-scope extensions allow name collisions with platform
