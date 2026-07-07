@@ -210,6 +210,8 @@ app/runtime -> agent -> core
   - `core/vectorstore`：包文档不再锚定仓库内具体 provider adapter 路径，只说明 concrete provider implementations 位于接口包之外，避免 `core` 文档层知道上层模块布局。
   - `app/runtime/internal/infra/mcp`：将原单体 `mcp.go` 拆为 `doc.go`、`config.go`、`status.go`、`tools.go`、`probe.go`、`connections.go`，按包文档、配置别名、状态模型、工具投影、探测、连接生命周期分责，保持 public/internal API 不变。
   - `app/runtime/internal/kernel/turn`：按既有文件职责清单继续拆分，将事件订阅 + delta coalescing 移入 `event_stream.go`，pre-turn lifecycle hooks 移入 `prompt_hooks.go`，`newTurnState` 贴近 `turnState` 定义。
+- 已完成第五轮目标模块结构清理：
+  - `app/runtime/internal/runtime`：将包级架构说明移入 `doc.go`，将 `Config` 及 construction-time 端口/输入类型移入 `config.go`，让 `runtime.go` 聚焦 Runtime 聚合结构、构造流程和基础 accessor，保持类型名与构造签名不变。
 - 已按用户要求撤回越界的 `models` 改动；本计划后续只记录 `core`、`agent`、`app/runtime`。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
@@ -224,16 +226,17 @@ app/runtime -> agent -> core
   - `go test ./model/chat/middleware/logger ./model/chat/middleware/history ./model/chat/middleware/safeguard`（`core`）通过。
   - `go test ./internal/infra/mcp`（`app/runtime`）通过。
   - `go test ./internal/kernel/turn`（`app/runtime`）通过。
+  - `go test ./internal/runtime`（`app/runtime`）通过。
 - 已完成三模块回归验证：
-  - `go test ./...`（`core`）通过（第四轮后复跑）。
-  - `go test ./...`（`agent`）通过（第四轮后复跑）。
-  - `go test ./...`（`app/runtime`）通过（第四轮后复跑）。
-  - `go vet ./...`（`core`）通过（第四轮后复跑）。
-  - `go vet ./...`（`agent`）通过（第四轮后复跑）。
-  - `go vet ./...`（`app/runtime`）通过（第四轮后复跑）。
-  - `go build ./...`（`core`）通过（第四轮后复跑）。
-  - `go build ./...`（`agent`）通过（第四轮后复跑）。
-  - `go build ./...`（`app/runtime`）通过（第四轮后复跑）。
+  - `go test ./...`（`core`）通过（第五轮后复跑）。
+  - `go test ./...`（`agent`）通过（第五轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第五轮后复跑）。
+  - `go vet ./...`（`core`）通过（第五轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第五轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第五轮后复跑）。
+  - `go build ./...`（`core`）通过（第五轮后复跑）。
+  - `go build ./...`（`agent`）通过（第五轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第五轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
