@@ -102,10 +102,10 @@ type Config struct {
 	// sqlite-backed registry and seeds the configured provider into it.
 	ProviderRegistry provider.Registry
 
-	// TodoService persists per-session todo lists for the todo_write tool.
+	// TodoStore persists per-session todo lists for the todo_write tool.
 	// Optional — nil disables the feature (no tool, no prompt injection). The
-	// composition root injects the sqlite-backed service.
-	TodoService todo.Service
+	// composition root injects the sqlite-backed store.
+	TodoStore todo.Store
 
 	// ApprovalMode sets the initial runtime approval stance. The
 	// service is always constructed; mode defaults to [approval.ModeYolo]
@@ -335,7 +335,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// Todo list: same nil-default contract — honor a pre-injected engine
 	// Todos (an external task store), else use the runtime-supplied one.
 	if ecfg.Todos == nil {
-		ecfg.Todos = cfg.TodoService
+		ecfg.Todos = cfg.TodoStore
 	}
 
 	// Tool environment: assembled outside the core (constructs the code-intel /

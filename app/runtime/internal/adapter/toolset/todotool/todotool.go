@@ -1,11 +1,11 @@
 // Package todotool exposes the model-facing todo_write tool over a
-// [todo.Service]. It is named todotool (not todo) to avoid colliding with the
+// [todo.Store]. It is named todotool (not todo) to avoid colliding with the
 // domain/todo domain package it builds on — the same disambiguation the
 // lsptools package uses for the codeintel adapter.
 //
 // The tool is the LLM-facing presentation of the todo domain: it parses the
 // model's full-list replacement, runs the domain's progress-integrity check
-// ([todo.Validate]), and persists via the service — keeping the rules in the
+// ([todo.Validate]), and persists via the store — keeping the rules in the
 // domain and only the wire shape + recovery messaging here (the same split as
 // the editguard tool wrappers).
 package todotool
@@ -60,12 +60,12 @@ func (a writeArgs) items() []todo.Item {
 	return out
 }
 
-// New builds the todo_write tool over svc. It returns nil when svc is nil so
+// New builds the todo_write tool over store. It returns nil when store is nil so
 // the caller can simply omit the tool — the feature is disabled, not a broken
 // tool. The session id is read per-call off the turn's blackboard
 // ([turnctx.TurnSession]), so one tool instance serves every session.
-func New(svc todo.Service) chat.Tool {
-	if svc == nil {
+func New(store todo.Store) chat.Tool {
+	if store == nil {
 		return nil
 	}
 	t, _ := chat.NewTool(
@@ -80,7 +80,7 @@ func New(svc todo.Service) chat.Tool {
 				return "error: no active session — cannot maintain a todo list", nil
 			}
 			items := a.items()
-			prev, err := svc.List(ctx, sessionID)
+			prev, err := store.List(ctx, sessionID)
 			if err != nil {
 				return "", err
 			}
@@ -92,7 +92,7 @@ func New(svc todo.Service) chat.Tool {
 				}
 				return "", err
 			}
-			if err := svc.Replace(ctx, sessionID, items); err != nil {
+			if err := store.Replace(ctx, sessionID, items); err != nil {
 				return "", err
 			}
 			if rendered := todo.Render(items); rendered != "" {
