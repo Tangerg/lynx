@@ -14,11 +14,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 )
 
-// Shell tools over a shared [exec.Manager]: the primary `shell` tool plus
+// Shell tools over a shared [exec.Shells]: the primary `shell` tool plus
 // `shell_output` / `shell_kill` for the jobs it leaves running.
 //
 // Every command — foreground or explicitly backgrounded — starts as a detached
-// job on the manager. A foreground command races its completion against an
+// job in that shell set. A foreground command races its completion against an
 // auto-background window: finishing in time yields its output inline and the
 // job is removed; outliving the window leaves it running, addressable by the
 // same shell id, so shell_output / shell_kill work on it unchanged. This is the
@@ -59,7 +59,7 @@ var (
 	bgShellIDSchema   = pkgjson.MustStringDefSchemaOf(shellIDArgs{})
 )
 
-func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
+func Build(shells *exec.Shells, defaultWorkdir string) []chat.Tool {
 	shell, _ := chat.NewTool(
 		chat.ToolDefinition{
 			Name: "shell",
@@ -78,12 +78,12 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 				return "", errors.New("shell: command is required")
 			}
 
-			id := mgr.Launch(ctx, turnctx.TurnCwd(ctx, defaultWorkdir), a.Command, time.Duration(a.Timeout)*time.Millisecond)
+			id := shells.Launch(ctx, turnctx.TurnCwd(ctx, defaultWorkdir), a.Command, time.Duration(a.Timeout)*time.Millisecond)
 			if a.RunInBackground {
 				return backgroundedJSON(id), nil
 			}
 
-			sh, ok := mgr.Get(id)
+			sh, ok := shells.Get(id)
 			if !ok { // just launched — unreachable
 				return "", fmt.Errorf("shell: background shell %s vanished", id)
 			}
@@ -99,7 +99,7 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 				// drains the whole retained output. Remove it — not a background job.
 				out, dropped := sh.Read()
 				code, killed, dur := sh.Outcome()
-				mgr.Remove(id)
+				shells.Remove(id)
 				return completedJSON(out, dropped, code, killed, dur), nil
 			case <-timer.C:
 				return backgroundedJSON(id), nil // still running — leave it
@@ -111,16 +111,16 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 				case <-sh.Done():
 					out, dropped := sh.Read()
 					code, killed, dur := sh.Outcome()
-					mgr.Remove(id)
+					shells.Remove(id)
 					return completedJSON(out, dropped, code, killed, dur), nil
 				default:
 					// Canceled mid-run: kill AND remove. A killed-and-discarded
 					// foreground command is not a background job the model will
-					// query later, so leaving it in the manager map (as the other
+					// query later, so leaving it in the shell set (as the other
 					// terminal paths Remove theirs) just leaks a dead entry until
 					// engine shutdown.
-					mgr.Kill(id)
-					mgr.Remove(id)
+					shells.Kill(id)
+					shells.Remove(id)
 					return "", ctx.Err()
 				}
 			}
@@ -141,7 +141,7 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 				return "", errors.New("shell_output: shell_id is required")
 			}
 			id := a.ShellID
-			sh, ok := mgr.Get(id)
+			sh, ok := shells.Get(id)
 			if !ok {
 				return fmt.Sprintf("No background shell %s.", id), nil
 			}
@@ -175,7 +175,7 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 			if err != nil {
 				return "", err
 			}
-			running, ok := mgr.Kill(id)
+			running, ok := shells.Kill(id)
 			switch {
 			case !ok:
 				return fmt.Sprintf("No background shell %s.", id), nil
