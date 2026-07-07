@@ -36,7 +36,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 
 	observer := &turnObserver{svc: s, st: st}
 	st.lifecycle = &turnLifecycle{}
-	proc := s.engine.StartTurn(st.ctx, kernel.RunTurnRequest{
+	proc := s.engine.StartTurn(st.ctx, kernel.TurnRequest{
 		SessionID:     req.SessionID,
 		Message:       req.Message,
 		Provider:      req.Provider,

@@ -134,7 +134,7 @@ func TestDispatcher_InjectSteering_LandsInNextTurn(t *testing.T) {
 
 	// Inject steering before consuming events so the dispatcher has
 	// time to land it on the turn state. Drain the channel before
-	// starting turn 2 — the steering flushes after RunTurn returns.
+	// starting turn 2 — the steering flushes after the turn returns.
 	if err := svc.InjectSteering(context.Background(), handle, "also keep responses short"); err != nil {
 		t.Fatalf("InjectSteering: %v", err)
 	}

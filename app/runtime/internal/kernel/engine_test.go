@@ -35,12 +35,12 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 	defer eng.Close()
 
 	rec := &recordingObserver{}
-	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{
 		Message:  "say lyra via shell",
 		Observer: rec,
 	})
 	if err != nil {
-		t.Fatalf("RunTurn: %v", err)
+		t.Fatalf("runTurnSync: %v", err)
 	}
 
 	if out.Reply != "I ran echo and got lyra." {
@@ -84,9 +84,9 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "go"})
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{Message: "go"})
 	if err != nil {
-		t.Fatalf("RunTurn: %v", err)
+		t.Fatalf("runTurnSync: %v", err)
 	}
 	if out.Reply != "done" {
 		t.Errorf("reply = %q, want %q", out.Reply, "done")
@@ -106,9 +106,9 @@ func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "go"})
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{Message: "go"})
 	if err != nil {
-		t.Fatalf("RunTurn aborted on unknown tool (recovery not wired?): %v", err)
+		t.Fatalf("runTurnSync aborted on unknown tool (recovery not wired?): %v", err)
 	}
 	if out.Reply != "recovered: used a real approach" {
 		t.Errorf("reply = %q, want the round-2 recovery text", out.Reply)
@@ -128,9 +128,9 @@ func TestEngine_RunChat_TaskDelegation(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "delegate this"})
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{Message: "delegate this"})
 	if err != nil {
-		t.Fatalf("RunTurn: %v", err)
+		t.Fatalf("runTurnSync: %v", err)
 	}
 	// Round 2 only fires if the task tool returned successfully — i.e.
 	// the sub-agent spawned, ran, and produced an answer.
@@ -155,12 +155,12 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 	defer eng.Close()
 
 	rec := &recordingObserver{}
-	if _, err := eng.runTurnSync(context.Background(), RunTurnRequest{
+	if _, err := eng.runTurnSync(context.Background(), TurnRequest{
 		Message:  "list the dir",
 		Cwd:      dir,
 		Observer: rec,
 	}); err != nil {
-		t.Fatalf("RunTurn: %v", err)
+		t.Fatalf("runTurnSync: %v", err)
 	}
 
 	ends := rec.ends()
@@ -185,12 +185,12 @@ func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{
 		Message: "delegate this",
 		Cwd:     dir,
 	})
 	if err != nil {
-		t.Fatalf("RunTurn: %v", err)
+		t.Fatalf("runTurnSync: %v", err)
 	}
 	if out.Reply != "main: subtask done" {
 		t.Fatalf("reply = %q, want the post-delegation answer", out.Reply)
@@ -215,12 +215,12 @@ func TestEngine_RunChat_SubtaskKeepsHistoryAcrossRounds(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{
 		Message: "delegate this",
 		Cwd:     t.TempDir(),
 	})
 	if err != nil {
-		t.Fatalf("RunTurn: %v", err)
+		t.Fatalf("runTurnSync: %v", err)
 	}
 	if strings.Contains(out.Reply, subtaskContextLost) {
 		t.Fatalf("subtask lost its round-1 context across tool rounds — per-process chat-history keying regressed; reply = %q", out.Reply)
@@ -243,12 +243,12 @@ func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 	}
 
 	rec := &recordingObserver{}
-	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{
 		Message:  "go",
 		Observer: rec,
 	})
 	if err != nil {
-		t.Fatalf("RunTurn: %v", err)
+		t.Fatalf("runTurnSync: %v", err)
 	}
 	if out.Reply != "Hello, world! (lyra)" {
 		t.Errorf("reply = %q, want %q", out.Reply, "Hello, world! (lyra)")
@@ -276,7 +276,7 @@ func TestEngine_RunChat_PassesOptions(t *testing.T) {
 	temp := 0.7
 	maxTokens := int64(256)
 
-	if _, err := eng.runTurnSync(context.Background(), RunTurnRequest{
+	if _, err := eng.runTurnSync(context.Background(), TurnRequest{
 		Message: "go",
 		Options: &chat.Options{
 			Temperature: &temp,
@@ -284,7 +284,7 @@ func TestEngine_RunChat_PassesOptions(t *testing.T) {
 			Stop:        []string{"END"},
 		},
 	}); err != nil {
-		t.Fatalf("RunTurn: %v", err)
+		t.Fatalf("runTurnSync: %v", err)
 	}
 
 	stub.mu.Lock()
@@ -331,7 +331,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	maxTokens := int64(321)
 	observer := &hitlApprovalObserver{}
 
-	proc := eng.StartTurn(context.Background(), RunTurnRequest{
+	proc := eng.StartTurn(context.Background(), TurnRequest{
 		Message:  "echo lyra",
 		Observer: observer,
 		Options: &chat.Options{
@@ -402,7 +402,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	}
 }
 
-// TestEngine_RunChat_PerRunClientOverride verifies RunTurnRequest.ChatClient
+// TestEngine_RunChat_PerRunClientOverride verifies TurnRequest.ChatClient
 // actually drives the turn's LLM call (via the ChatClientProvider seam),
 // not the platform's default client.
 func TestEngine_RunChat_PerRunClientOverride(t *testing.T) {
@@ -412,9 +412,9 @@ func TestEngine_RunChat_PerRunClientOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := eng.runTurnSync(context.Background(), RunTurnRequest{Message: "go", ChatClient: ovrClient})
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{Message: "go", ChatClient: ovrClient})
 	if err != nil {
-		t.Fatalf("RunTurn: %v", err)
+		t.Fatalf("runTurnSync: %v", err)
 	}
 	if len(out.UsageByModel) != 1 || out.UsageByModel[0].Model != "override-model" {
 		t.Fatalf("UsageByModel = %+v, want served model override-model", out.UsageByModel)

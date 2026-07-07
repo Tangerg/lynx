@@ -13,7 +13,7 @@ import (
 // Defined here (consumer side) so the adapter doesn't pin the whole engine;
 // *kernel.Engine satisfies it structurally.
 type chatRunner interface {
-	StartTurn(ctx context.Context, req kernel.RunTurnRequest) kernel.TurnProcess
+	StartTurn(ctx context.Context, req kernel.TurnRequest) kernel.TurnProcess
 }
 
 // a2aAgent adapts the engine's one-shot chat turn to the [a2a.Agent] the
@@ -33,7 +33,7 @@ var _ a2a.Agent = a2aAgent{}
 
 func (a a2aAgent) Run(ctx context.Context, input string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		proc := a.engine.StartTurn(ctx, kernel.RunTurnRequest{Message: input})
+		proc := a.engine.StartTurn(ctx, kernel.TurnRequest{Message: input})
 		if err := <-proc.Done(); err != nil {
 			yield("", fmt.Errorf("a2a: run turn: %w", err))
 			return

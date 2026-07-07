@@ -50,7 +50,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 		t.Errorf("expected at least one MessageDelta event")
 	}
 	if got := stub.runTurnCalls.Load(); got != 1 {
-		t.Errorf("RunTurn called %d times, want 1", got)
+		t.Errorf("StartTurn called %d times, want 1", got)
 	}
 }
 
@@ -221,7 +221,7 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 }
 
 // TestStartTurn_ResolvesPerRunClient verifies a turn carrying a Model passes
-// the resolver's client through to the engine's RunTurnRequest.ChatClient —
+// the resolver's client through to the engine's TurnRequest.ChatClient —
 // the turn-dispatcher half of per-run model selection.
 func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
@@ -256,7 +256,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 }
 
 // TestStartTurn_PassesCwd verifies the session's working directory flows
-// from StartTurnRequest.Cwd through to the engine's RunTurnRequest.Cwd —
+// from StartTurnRequest.Cwd through to the engine's TurnRequest.Cwd —
 // the turn-dispatcher half of per-session tool working directories.
 func TestStartTurn_PassesCwd(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
