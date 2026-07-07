@@ -38,7 +38,7 @@ type BuildConfig struct {
 	Online          OnlineConfig
 	LSPServers      []codeintel.ServerSpec
 	MCPServers      []toolport.MCPServerConfig
-	A2AAgents       []a2a.ClientConfig
+	A2AAgents       []A2AAgentConfig
 	Todos           todo.Store      // backs todo_write; nil → the tool is omitted
 	Approval        approval.Policy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
 
@@ -107,7 +107,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		return Built{}, err
 	}
 
-	a2aConns, a2aTools, err := a2a.Dial(ctx, cfg.A2AAgents)
+	a2aConns, a2aTools, err := a2a.Dial(ctx, infraA2AClientConfigs(cfg.A2AAgents))
 	if err != nil {
 		_ = mcpConns.Close()
 		return Built{}, err
