@@ -66,6 +66,10 @@ type Runtime struct {
 	mcpRegistryConfigure mcpServerConfigure
 	mcpRegistryRemove    mcpServerRemove
 	mcpRegistryEnable    mcpServerEnable
+	mcpLiveStatus        mcpLiveStatusReader
+	mcpLiveTools         mcpLiveToolCatalog
+	mcpLiveConnections   mcpLiveConnectionCommands
+	mcpLiveRegistry      mcpLiveRegistryCommands
 
 	// mcpGating holds the current per-call MCP tool gating (disabled / auto-
 	// approve sets), recomputed on every registry change. The resolver (disabled
