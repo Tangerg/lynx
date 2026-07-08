@@ -44,8 +44,11 @@ type RuntimePort interface {
 	approvalModeMutationAccess
 	approvalRuleCatalogAccess
 	approvalRuleMutationAccess
-	scheduleCatalogAccess
-	scheduleMutationAccess
+	scheduleListAccess
+	scheduleReadAccess
+	scheduleCreationAccess
+	scheduleUpdateAccess
+	scheduleDeletionAccess
 	scheduleRunRecorderAccess
 	scheduleWorkerAccess
 	providerRegistryCatalogAccess

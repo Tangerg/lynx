@@ -164,8 +164,11 @@ type runtimeBindings struct {
 	approvalModeMutations     approvalModeMutationAccess
 	approvalRuleCatalog       approvalRuleCatalogAccess
 	approvalRuleMutations     approvalRuleMutationAccess
-	scheduleCatalog           scheduleCatalogAccess
-	scheduleMutations         scheduleMutationAccess
+	scheduleList              scheduleListAccess
+	scheduleRead              scheduleReadAccess
+	scheduleCreation          scheduleCreationAccess
+	scheduleUpdates           scheduleUpdateAccess
+	scheduleDeletion          scheduleDeletionAccess
 	scheduleRuns              scheduleRunRecorderAccess
 	scheduleWorker            scheduleWorkerAccess
 	providerRegistryCatalog   providerRegistryCatalogAccess
@@ -228,8 +231,11 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		approvalModeMutations:     rt,
 		approvalRuleCatalog:       rt,
 		approvalRuleMutations:     rt,
-		scheduleCatalog:           rt,
-		scheduleMutations:         rt,
+		scheduleList:              rt,
+		scheduleRead:              rt,
+		scheduleCreation:          rt,
+		scheduleUpdates:           rt,
+		scheduleDeletion:          rt,
 		scheduleRuns:              rt,
 		scheduleWorker:            rt,
 		providerRegistryCatalog:   rt,

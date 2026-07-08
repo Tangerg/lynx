@@ -17,7 +17,7 @@ import (
 
 // ListSchedules returns every schedule, newest-created first (schedules.list).
 func (s *Server) ListSchedules(ctx context.Context) (*protocol.ListSchedulesResult, error) {
-	scheds, err := s.scheduleCatalog.ListSchedules(ctx)
+	scheds, err := s.scheduleList.ListSchedules(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 	}
 	sc.Cwd = cwd
 	sc.NextRunAt, _ = schedule.NextRun(in.Cron, time.Now()) // cron validated above
-	created, err := s.scheduleMutations.CreateSchedule(ctx, sc)
+	created, err := s.scheduleCreation.CreateSchedule(ctx, sc)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 	if err != nil {
 		return nil, err
 	}
-	existing, err := s.scheduleCatalog.Schedule(ctx, in.ID)
+	existing, err := s.scheduleRead.Schedule(ctx, in.ID)
 	if err != nil {
 		return nil, mapScheduleErr(err, in.ID)
 	}
@@ -86,7 +86,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 	}
 	sc.LastRunAt = existing.LastRunAt
 	sc.CreatedAt = existing.CreatedAt
-	updated, err := s.scheduleMutations.UpdateSchedule(ctx, sc)
+	updated, err := s.scheduleUpdates.UpdateSchedule(ctx, sc)
 	if err != nil {
 		return nil, mapScheduleErr(err, in.ID)
 	}
@@ -96,14 +96,14 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 
 // DeleteSchedule removes a schedule (schedules.delete). Idempotent.
 func (s *Server) DeleteSchedule(ctx context.Context, in protocol.DeleteScheduleRequest) error {
-	return s.scheduleMutations.DeleteSchedule(ctx, in.ID)
+	return s.scheduleDeletion.DeleteSchedule(ctx, in.ID)
 }
 
 // RunScheduleNow fires a schedule immediately (schedules.runNow) — a manual
 // extra run that records the firing without shifting the schedule's next due
 // time.
 func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowRequest) error {
-	sc, err := s.scheduleCatalog.Schedule(ctx, in.ID)
+	sc, err := s.scheduleRead.Schedule(ctx, in.ID)
 	if err != nil {
 		return mapScheduleErr(err, in.ID)
 	}
