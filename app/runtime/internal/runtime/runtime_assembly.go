@@ -104,7 +104,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	}
 	ecfg.ToolResolver = built.Resolver
 	ecfg.Tools = built.Tools
-	ecfg.MCP = built.MCP
+	ecfg.MCPStatusReader = built.MCPStatusReader
+	ecfg.MCPToolCatalog = built.MCPToolCatalog
+	ecfg.MCPConnectionCommands = built.MCPConnectionCommands
+	ecfg.MCPRegistryCommands = built.MCPRegistryCommands
 	ecfg.Closers = built.Closers
 
 	eng, err := kernel.New(ctx, ecfg)

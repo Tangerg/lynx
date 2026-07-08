@@ -32,11 +32,14 @@ func mustEngineWith(t *testing.T, client *chat.Client, bc toolset.BuildConfig) *
 		t.Fatalf("toolset.Build: %v", err)
 	}
 	eng, err := New(context.Background(), Config{
-		ChatClient:   client,
-		ToolResolver: built.Resolver,
-		Tools:        built.Tools,
-		MCP:          built.MCP,
-		Closers:      built.Closers,
+		ChatClient:            client,
+		ToolResolver:          built.Resolver,
+		Tools:                 built.Tools,
+		MCPStatusReader:       built.MCPStatusReader,
+		MCPToolCatalog:        built.MCPToolCatalog,
+		MCPConnectionCommands: built.MCPConnectionCommands,
+		MCPRegistryCommands:   built.MCPRegistryCommands,
+		Closers:               built.Closers,
 	})
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)

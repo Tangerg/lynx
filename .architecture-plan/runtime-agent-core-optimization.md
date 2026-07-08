@@ -1669,3 +1669,15 @@ app/runtime -> agent -> core
 - 已完成适配：runtime 装配迁移到四个字段；turn dispatcher 调用点分别使用 `starter`、`restorer`、`steering`、`maintenance`；turn tests 使用 `turnDeps` helper 组装 stub ports；未保留旧 `Engine` 字段或 `engineDep`。
 - 验证结果：`go test ./internal/kernel/turn ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第九十四轮包含 `app/runtime/internal/kernel` live MCP 控制端口的内部破坏性拆分：
+
+- 调整对象：`toolport.MCPControl`、`kernel.Config.MCP`、`Engine.mcp` 与 `toolset.Built.MCP`。
+- 调整前问题：workspace.mcp 的 server status 读取、tool catalog 查询、reconnect/authorize 连接命令、probe/configure/remove registry 命令共享一个 `MCPControl` 聚合口。纯读取路径可以看见写命令，连接 lifecycle 命令也和 registry apply/probe 命令绑在一起，`Engine` 对 live MCP 的依赖边界被建模成一个万能 facade。
+- 破坏性原因：这些端口位于 `app/runtime/internal/kernel` 与 `adapter/toolset` 的内部装配边界；继续保留旧 `MCPControl` 会让后续 workspace.mcp 用例默认依赖宽口，不符合 consumer-side port 和 ISP 的目标。
+- 新设计：删除 `MCPControl`；新增 `MCPStatusReader`、`MCPToolCatalog`、`MCPConnectionCommands`、`MCPRegistryCommands` 四个窄端口。`toolset.Built` 和 `kernel.Config` 分别暴露四个字段，`Engine` 按具体 workspace.mcp 方法调用对应端口；`mcpControl` 作为 adapter 实现四个端口并用编译期断言固定契约。
+- 架构收益：workspace.mcp read model、tool catalog、live connection command、registry command 的依赖边界在类型上分开；kernel 不再持有 live MCP 万能控制面；装配层仍可复用同一个 infra adapter，但不会把 adapter 的完整能力泄漏给所有消费者。
+- 影响范围：`app/runtime/internal/kernel/toolport`、`kernel.Config`、`Engine` 的 MCP 方法、`adapter/toolset.Built`、runtime 组合根和相关测试 fixture。
+- 已完成适配：所有 `built.MCP` / `cfg.MCP` / `Engine.mcp` 调用已迁移到四个窄端口；未保留旧 `MCPControl` alias 或兼容字段。
+- 验证结果：`go test ./internal/kernel ./internal/kernel/turn ./internal/adapter/toolset ./internal/runtime ./internal/domain/tool` 通过。
+- 后续风险：无跨模块公开 API 风险。

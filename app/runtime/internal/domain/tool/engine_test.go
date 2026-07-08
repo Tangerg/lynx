@@ -88,11 +88,14 @@ func buildRegistry(t *testing.T) tool.Registry {
 		t.Fatal(err)
 	}
 	eng, err := kernel.New(context.Background(), kernel.Config{
-		ChatClient:   client,
-		ToolResolver: built.Resolver,
-		Tools:        built.Tools,
-		MCP:          built.MCP,
-		Closers:      built.Closers,
+		ChatClient:            client,
+		ToolResolver:          built.Resolver,
+		Tools:                 built.Tools,
+		MCPStatusReader:       built.MCPStatusReader,
+		MCPToolCatalog:        built.MCPToolCatalog,
+		MCPConnectionCommands: built.MCPConnectionCommands,
+		MCPRegistryCommands:   built.MCPRegistryCommands,
+		Closers:               built.Closers,
 	})
 	if err != nil {
 		t.Fatal(err)

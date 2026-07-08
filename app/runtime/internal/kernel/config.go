@@ -79,14 +79,18 @@ type Config struct {
 
 	// Tool environment — assembled outside the core by the tool adapter and
 	// injected by the composition root. The engine registers ToolResolver on
-	// the platform, exposes MCP as its workspace.mcp.* facade, surfaces tools
-	// via tools.list, and runs Closers at shutdown. A resolver also receives the
-	// engine-built `task` delegation tool; without a resolver, task is not
-	// available (the env can still pass only static tools like ask_user).
-	ToolResolver ToolResolver
-	Tools        []chat.Tool    // canonical tool list (without task)
-	MCP          MCPControl     // live-MCP-connections facade
-	Closers      []func() error // capability shutdown hooks
+	// the platform, surfaces tools via tools.list, exposes MCP workspace actions
+	// through narrow live-connection ports, and runs Closers at shutdown. A
+	// resolver also receives the engine-built `task` delegation tool; without a
+	// resolver, task is not available (the env can still pass only static tools
+	// like ask_user).
+	ToolResolver          ToolResolver
+	Tools                 []chat.Tool           // canonical tool list (without task)
+	MCPStatusReader       MCPStatusReader       // live MCP server status read model
+	MCPToolCatalog        MCPToolCatalog        // live MCP tool read model
+	MCPConnectionCommands MCPConnectionCommands // reconnect / authorize configured servers
+	MCPRegistryCommands   MCPRegistryCommands   // probe / configure / remove live servers
+	Closers               []func() error        // capability shutdown hooks
 
 	// Pricing optionally computes per-round USD cost from the round's
 	// provider + served model + token usage. nil leaves cost at zero (the chat

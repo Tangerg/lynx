@@ -57,13 +57,16 @@ type BuildConfig struct {
 
 // Built is the assembled tool environment handed to the engine core: the
 // platform-scope resolver, the canonical tool list (for tools.list — without
-// the engine-built task/ask_user), the MCP control surface, and the capability
+// the engine-built task/ask_user), the live MCP ports, and the capability
 // closers the engine runs at shutdown.
 type Built struct {
-	Resolver *Resolver
-	Tools    []chat.Tool
-	MCP      toolport.MCPControl
-	Closers  []func() error
+	Resolver              *Resolver
+	Tools                 []chat.Tool
+	MCPStatusReader       toolport.MCPStatusReader
+	MCPToolCatalog        toolport.MCPToolCatalog
+	MCPConnectionCommands toolport.MCPConnectionCommands
+	MCPRegistryCommands   toolport.MCPRegistryCommands
+	Closers               []func() error
 }
 
 // Build constructs every capability adapter, assembles the resolver, and
@@ -160,10 +163,15 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		tools = append(tools, codebasesearch.New(cfg.CodebaseIndex))
 	}
 
+	mcpControl := &mcpControl{inner: mcpConns}
+
 	return Built{
-		Resolver: resolver,
-		Tools:    tools,
-		MCP:      &mcpControl{inner: mcpConns},
+		Resolver:              resolver,
+		Tools:                 tools,
+		MCPStatusReader:       mcpControl,
+		MCPToolCatalog:        mcpControl,
+		MCPConnectionCommands: mcpControl,
+		MCPRegistryCommands:   mcpControl,
 		Closers: []func() error{
 			codeIntel.Close,
 			func() error { shells.KillAll(); return nil },

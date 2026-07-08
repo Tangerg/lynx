@@ -9,8 +9,8 @@ import (
 
 // MCP-server registry orchestration: the runtime owns both the persisted
 // registry (mcpserver.Registry) and the live connections (via the engine's
-// MCPControl facade), so a configure/remove/enable both persists and applies
-// to the live tool set in one place. Registry entries are projected to
+// MCP registry command port), so a configure/remove/enable both persists and
+// applies to the live tool set in one place. Registry entries are projected to
 // dial-level descriptors only at the live-connection boundary.
 
 // ListMCPRegisteredServers returns the persisted MCP-server registry entries,

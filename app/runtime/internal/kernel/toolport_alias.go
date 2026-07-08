@@ -18,7 +18,11 @@ type (
 	MCPToolInfo     = toolport.MCPToolInfo
 	MCPServerStatus = toolport.MCPServerStatus
 	MCPServerConfig = toolport.MCPServerConfig
-	MCPControl      = toolport.MCPControl
+	MCPStatusReader = toolport.MCPStatusReader
+	MCPToolCatalog  = toolport.MCPToolCatalog
+
+	MCPConnectionCommands = toolport.MCPConnectionCommands
+	MCPRegistryCommands   = toolport.MCPRegistryCommands
 )
 
 var ErrUnknownMCPServer = toolport.ErrUnknownMCPServer
