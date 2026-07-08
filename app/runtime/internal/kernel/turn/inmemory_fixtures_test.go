@@ -22,7 +22,7 @@ func buildDispatcher(t *testing.T) (turn.Dispatcher, *kernel.Engine) {
 		t.Fatalf("chat client: %v", err)
 	}
 	eng := buildEngine(t, kernel.Config{ChatClient: client})
-	return mustTurn(turn.New(turn.Dependencies{Engine: eng})), eng
+	return mustTurn(turn.New(turnDeps(eng))), eng
 }
 
 func buildEngine(t *testing.T, cfg kernel.Config) *kernel.Engine {

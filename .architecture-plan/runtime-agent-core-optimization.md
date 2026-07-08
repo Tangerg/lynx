@@ -1657,3 +1657,15 @@ app/runtime -> agent -> core
 - 已完成适配：production runtime 与 delivery/server fixture 均迁移到 transcript/interrupt 用例专属 store adapter；runsegment fake transcript/interrupt 只保留实际调用的方法。
 - 验证结果：`go test ./internal/kernel/lifecycle ./internal/kernel/runsegment ./internal/runtime ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第九十三轮包含 `app/runtime/internal/kernel/turn` 对 engine 用例依赖口的内部破坏性拆分：
+
+- 调整对象：`turn.Dependencies.Engine`、`engineDep`、`inMemory.engine`。
+- 调整前问题：turn dispatcher 的 fresh start、cross-restart restore、steering flush、post-turn maintenance 四条路径共享一个 `engineDep` 聚合口。任一子流程都能看见完整 engine surface，`Dependencies.Engine` 也把构造意图表达成“注入整台 engine”，而不是注入 turn dispatcher 真正消费的用例能力。
+- 破坏性原因：该接口位于 `app/runtime/internal/kernel/turn`，属于内部应用层用例端口；删除旧 `Engine` 聚合字段可以避免继续把宽口作为默认注入方式。
+- 新设计：删除 `engineDep` 与 `Dependencies.Engine`；新增 `turnStarter`、`turnRestorer`、`steeringSink`、`maintenanceRunner` 四个 consumer-side port。`Dependencies` 分别要求 `Starter`、`Restorer`、`Steering`、`Maintenance`；`inMemory` 按路径持有对应字段。
+- 架构收益：fresh turn、rehydrate、steering flush、maintenance 的依赖边界在类型上分开；runtime 装配仍可把同一个 `*kernel.Engine` 作为实现注入，但 turn dispatcher 不再把它建模成一个单体 engine dependency；测试 helper 也明确表达 stub 同时满足四个端口。
+- 影响范围：`app/runtime/internal/kernel/turn`、`app/runtime/internal/runtime/runtime_assembly.go`、turn package tests。
+- 已完成适配：runtime 装配迁移到四个字段；turn dispatcher 调用点分别使用 `starter`、`restorer`、`steering`、`maintenance`；turn tests 使用 `turnDeps` helper 组装 stub ports；未保留旧 `Engine` 字段或 `engineDep`。
+- 验证结果：`go test ./internal/kernel/turn ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

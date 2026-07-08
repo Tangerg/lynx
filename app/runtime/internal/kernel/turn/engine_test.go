@@ -17,7 +17,7 @@ import (
 func TestStubEngineDrivesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "hello from stub"}
 
-	svc := mustTurn(turn.New(turn.Dependencies{Engine: stub}))
+	svc := mustTurn(turn.New(turnDeps(stub)))
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-1",
 		Message:   "hi",
@@ -61,7 +61,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 // after the drain loop is race-free.
 func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 	stub := &stubEngine{runReply: "done"}
-	svc := mustTurn(turn.New(turn.Dependencies{Engine: stub}))
+	svc := mustTurn(turn.New(turnDeps(stub)))
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -86,7 +86,7 @@ func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 // "model finished".
 func TestStubEngineBudgetStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopOnBudget: true}
-	svc := mustTurn(turn.New(turn.Dependencies{Engine: stub}))
+	svc := mustTurn(turn.New(turnDeps(stub)))
 
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
@@ -115,7 +115,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 // turn without needing a real engine.
 func TestStubEngineCancelsCleanly(t *testing.T) {
 	stub := &slowStubEngine{}
-	svc := mustTurn(turn.New(turn.Dependencies{Engine: stub}))
+	svc := mustTurn(turn.New(turnDeps(stub)))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
@@ -152,7 +152,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 // streams the continuation (delta + TurnEnd) on a fresh handle.
 func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply"}
-	svc := mustTurn(turn.New(turn.Dependencies{Engine: stub}))
+	svc := mustTurn(turn.New(turnDeps(stub)))
 
 	handle, err := svc.Rehydrate(context.Background(), turn.RehydrateRequest{
 		SessionID: "sess-restored",
@@ -201,7 +201,7 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 // caller's openSegment leaking ErrTurnNotFound instead of a clean run_not_found).
 func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	stub := &stubEngine{runReply: "x", restoreResumeErr: errors.New("resume boom")}
-	svc := mustTurn(turn.New(turn.Dependencies{Engine: stub}))
+	svc := mustTurn(turn.New(turnDeps(stub)))
 
 	handle, err := svc.Rehydrate(context.Background(), turn.RehydrateRequest{
 		SessionID: "sess-restored",
@@ -228,7 +228,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	sentinel, _ := corechat.NewClient(newCapturingModel())
 	resolver := &fakeResolver{client: sentinel}
 
-	svc := mustTurn(turn.New(turn.Dependencies{Engine: stub, ClientResolver: resolver}))
+	svc := mustTurn(turn.New(turnDeps(stub, withClientResolver(resolver))))
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",
@@ -261,7 +261,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 func TestStartTurn_PassesCwd(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 
-	svc := mustTurn(turn.New(turn.Dependencies{Engine: stub}))
+	svc := mustTurn(turn.New(turnDeps(stub)))
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",
@@ -288,7 +288,7 @@ func TestStartTurn_PassesOptions(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 	temp := 0.7
 
-	svc := mustTurn(turn.New(turn.Dependencies{Engine: stub}))
+	svc := mustTurn(turn.New(turnDeps(stub)))
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",

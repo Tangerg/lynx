@@ -41,7 +41,7 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	observer := &turnObserver{svc: s, st: state}
 	state.lifecycle = &turnLifecycle{}
 
-	proc, err := s.engine.RestoreTurn(state.ctx, req.ProcessID, kernel.RestoreTurnRequest{
+	proc, err := s.restorer.RestoreTurn(state.ctx, req.ProcessID, kernel.RestoreTurnRequest{
 		SessionID:     req.SessionID,
 		Observer:      observer,
 		EventListener: state.lifecycle.listener(handle.TurnID),
