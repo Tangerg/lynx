@@ -35,7 +35,7 @@ const defaultSessionPageLimit = 100
 // NextCursor is the "has more" signal — never a silent truncation. The
 // store returns the full ordered list; pagination is applied here.
 func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
-	sessions, err := s.sessionCatalog.ListSessions(ctx)
+	sessions, err := s.sessionList.ListSessions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 }
 
 func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {
-	ses, err := s.sessionCatalog.SessionByID(ctx, id)
+	ses, err := s.sessionRead.SessionByID(ctx, id)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}

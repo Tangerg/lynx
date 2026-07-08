@@ -9,8 +9,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-type sessionCatalogAccess interface {
+type sessionListAccess interface {
 	ListSessions(ctx context.Context) ([]sessionsvc.Session, error)
+}
+
+type sessionReadAccess interface {
 	SessionByID(ctx context.Context, id string) (sessionsvc.Session, error)
 }
 
