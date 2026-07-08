@@ -215,9 +215,9 @@ type stubLifecycleStores struct {
 
 func (s stubLifecycleStores) Session() lifecycle.SessionStore { return s.rt.sess }
 
-func (s stubLifecycleStores) Transcript() transcript.Store { return s.rt.hist }
+func (s stubLifecycleStores) Transcript() lifecycle.TranscriptStore { return s.rt.hist }
 
-func (s stubLifecycleStores) Interrupts() interrupts.Store { return s.rt.interrupts }
+func (s stubLifecycleStores) Interrupts() lifecycle.InterruptStore { return s.rt.interrupts }
 
 func (s stubLifecycleStores) ReadHistory(ctx context.Context, id string) ([]chat.Message, error) {
 	return s.rt.ReadHistory(ctx, id)
@@ -241,11 +241,11 @@ type stubRunSegmentStores struct {
 	rt stubRuntime
 }
 
-func (s stubRunSegmentStores) Interrupts() interrupts.Store { return s.rt.interrupts }
+func (s stubRunSegmentStores) Interrupts() runsegment.InterruptStore { return s.rt.interrupts }
 
 func (s stubRunSegmentStores) Session() runsegment.SessionStore { return s.rt.sess }
 
-func (s stubRunSegmentStores) Transcript() transcript.Store { return s.rt.hist }
+func (s stubRunSegmentStores) Transcript() runsegment.TranscriptStore { return s.rt.hist }
 
 func (s stubRunSegmentStores) MessageCount(ctx context.Context, id string) (int, error) {
 	return s.rt.MessageCount(ctx, id)

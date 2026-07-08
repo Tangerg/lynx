@@ -1645,3 +1645,15 @@ app/runtime -> agent -> core
 - 已完成适配：production runtime 和 delivery/server fixture 均迁移到用例专属 store adapter；旧 `runtimeStores` 不再作为 lifecycle/runsegment 共享 adapter；runsegment fake session 只保留 `Get` 与 `RenameIfUntitled`。
 - 验证结果：`go test ./internal/kernel/lifecycle ./internal/kernel/runsegment ./internal/runtime ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第九十二轮包含 `app/runtime/internal/kernel/lifecycle` 与 `runsegment` 的 transcript / interrupt 持久化依赖口收窄：
+
+- 调整对象：`lifecycle.Stores.Transcript()`、`lifecycle.Stores.Interrupts()`、`runsegment.Stores.Transcript()`、`runsegment.Stores.Interrupts()`、runtime adapter、delivery/server session fixture、runsegment 测试 fake。
+- 调整前问题：上一轮收窄 session 之后，lifecycle/runsegment 仍通过完整 `transcript.Store` 与 `interrupts.Store` 访问持久化层。runsegment 只追加 item / upsert run / put interrupt，却理论上可读 transcript、删 run、claim/delete interrupt；测试 fake 也被迫实现 `List` / `ListRuns` / `DeleteRun` / `DeleteSession` / `Get` / `Consume` / `Delete` 等 unused 方法。
+- 破坏性原因：这些接口位于 `app/runtime/internal/kernel` 与测试 fixture，属于内部用例端口；按写集/claim 语义收窄能删除旧宽接口，不需要为旧 internal shape 留兼容层。
+- 新设计：`lifecycle` 定义 `TranscriptStore`（`AppendItem` / `PutRun` / `DeleteRun` / `DeleteSession`）与 `InterruptStore`（`List` / `Get` / `Consume` / `Delete`）；`runsegment` 定义 `TranscriptStore`（`AppendItem` / `PutRun`）与 `InterruptStore`（`Put`）。runtime adapter 和 server fixture 返回对应用例口。
+- 架构收益：runsegment 只拥有“记录直播流副作用”的写能力，不再看见 rollback/import/resume 的读删能力；lifecycle 只拥有 claim/delete 与 transcript write-set 能力，不再看见 interrupt creation 或 transcript read projections；fake store 删除 unused 方法后测试替身更贴近真实依赖。
+- 影响范围：`app/runtime/internal/kernel/lifecycle`、`app/runtime/internal/kernel/runsegment`、`app/runtime/internal/runtime`、`app/runtime/internal/delivery/server` 测试 fixture。
+- 已完成适配：production runtime 与 delivery/server fixture 均迁移到 transcript/interrupt 用例专属 store adapter；runsegment fake transcript/interrupt 只保留实际调用的方法。
+- 验证结果：`go test ./internal/kernel/lifecycle ./internal/kernel/runsegment ./internal/runtime ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

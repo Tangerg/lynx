@@ -119,9 +119,9 @@ type fakeStores struct {
 	title      string
 }
 
-func (s *fakeStores) Interrupts() interrupts.Store                      { return s.interrupts }
+func (s *fakeStores) Interrupts() InterruptStore                        { return s.interrupts }
 func (s *fakeStores) Session() SessionStore                             { return s.session }
-func (s *fakeStores) Transcript() transcript.Store                      { return s.transcript }
+func (s *fakeStores) Transcript() TranscriptStore                       { return s.transcript }
 func (s *fakeStores) MessageCount(context.Context, string) (int, error) { return s.mark, nil }
 func (s *fakeStores) GenerateTitle(context.Context, string) (string, error) {
 	return s.title, nil
@@ -151,17 +151,6 @@ func (s *fakeTranscript) PutRun(_ context.Context, r transcript.Run) error {
 	return nil
 }
 
-func (s *fakeTranscript) List(context.Context, string) ([]transcript.Item, []transcript.Run, error) {
-	return s.items, s.runs, nil
-}
-
-func (s *fakeTranscript) ListRuns(context.Context, string) ([]transcript.Run, error) {
-	return s.runs, nil
-}
-
-func (s *fakeTranscript) DeleteRun(context.Context, string, string) error { return nil }
-func (s *fakeTranscript) DeleteSession(context.Context, string) error     { return nil }
-
 type fakeInterrupts struct {
 	pending interrupts.Pending
 }
@@ -170,20 +159,6 @@ func (s *fakeInterrupts) Put(_ context.Context, p interrupts.Pending) error {
 	s.pending = p
 	return nil
 }
-
-func (s *fakeInterrupts) List(context.Context, string) ([]interrupts.Pending, error) {
-	return nil, nil
-}
-
-func (s *fakeInterrupts) Get(context.Context, string) (interrupts.Pending, bool, error) {
-	return interrupts.Pending{}, false, nil
-}
-
-func (s *fakeInterrupts) Consume(context.Context, string) (interrupts.Pending, bool, error) {
-	return interrupts.Pending{}, false, nil
-}
-
-func (s *fakeInterrupts) Delete(context.Context, string) error { return nil }
 
 type fakeSession struct {
 	sess    session.Session

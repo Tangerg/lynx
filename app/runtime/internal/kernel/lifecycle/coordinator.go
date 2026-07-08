@@ -36,6 +36,25 @@ type SessionStore interface {
 	Delete(ctx context.Context, id string) error
 }
 
+// TranscriptStore is the lifecycle coordinator's write-set view of the durable
+// transcript. Lifecycle operations import, rollback, and purge transcript
+// records; they do not read transcript projections.
+type TranscriptStore interface {
+	AppendItem(ctx context.Context, it transcript.Item) error
+	PutRun(ctx context.Context, r transcript.Run) error
+	DeleteRun(ctx context.Context, sessionID, runID string) error
+	DeleteSession(ctx context.Context, sessionID string) error
+}
+
+// InterruptStore is the lifecycle coordinator's view of open HITL interrupts.
+// It can claim, inspect, and delete open records, but cannot create new ones.
+type InterruptStore interface {
+	List(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
+	Get(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error)
+	Consume(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error)
+	Delete(ctx context.Context, parentRunID string) error
+}
+
 // Stores is the consumer-defined surface the Coordinator drives — the runtime's
 // session-scoped stores plus the chat history log, the process-local resume
 // gate (ForgetSession), and the transactional seam (RunInTx). The composition
@@ -43,8 +62,8 @@ type SessionStore interface {
 // not the whole runtime.
 type Stores interface {
 	Session() SessionStore
-	Transcript() transcript.Store
-	Interrupts() interrupts.Store
+	Transcript() TranscriptStore
+	Interrupts() InterruptStore
 	// ReadHistory returns the chat history log for a session.
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
 	// TruncateMessages clamps a session's chat history log to keepN messages

@@ -24,14 +24,28 @@ type SessionStore interface {
 	RenameIfUntitled(ctx context.Context, id, title string) error
 }
 
+// InterruptStore is the run-segment write side of the open-interrupt registry.
+// A stream segment only records newly-opened interrupts; claim/resume/delete
+// belongs to lifecycle.
+type InterruptStore interface {
+	Put(ctx context.Context, p interrupts.Pending) error
+}
+
+// TranscriptStore is the run-segment append/upsert side of durable transcript
+// persistence. Reading and destructive deletion belong to other use-cases.
+type TranscriptStore interface {
+	AppendItem(ctx context.Context, it transcript.Item) error
+	PutRun(ctx context.Context, r transcript.Run) error
+}
+
 // Stores is the consumer-defined surface the Effects coordinator drives. It is
 // intentionally narrower than the runtime bundle: this use-case needs only
 // durable transcript/interrupt stores, a tiny session view, chat history count,
 // and title generation.
 type Stores interface {
-	Interrupts() interrupts.Store
+	Interrupts() InterruptStore
 	Session() SessionStore
-	Transcript() transcript.Store
+	Transcript() TranscriptStore
 	MessageCount(ctx context.Context, sessionID string) (int, error)
 	GenerateTitle(ctx context.Context, firstMessage string) (string, error)
 }
