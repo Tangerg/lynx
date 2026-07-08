@@ -1693,3 +1693,15 @@ app/runtime -> agent -> core
 - 已完成适配：runtime assembly 继续把同一个 provider registry 作为 `providerCredentialLookup` 注入，但 resolver 类型边界已收窄；新增 required dependency table test；同步修正 `Config.Engine` 注释里的 live-MCP 字段描述。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险；内部测试若构造 `Runtime.New` 时漏传 required dependency 会收到更早、更明确的错误。
+
+第九十六轮包含 `app/runtime/internal/runtime` MCP registry 用例端口收窄：
+
+- 调整对象：`Runtime.mcpRegistry`、`buildMCPEnvironment`、`enabledConfigs`、`buildMCPGating` 与 `refreshMCPGating`。
+- 调整前问题：runtime bundle 持有一个完整 `mcpserver.Registry` 字段，workspace.mcp 的 list/read/configure/remove/setEnabled 以及 boot/gating 投影都通过同一个字段访问，导致只读路径和 gating projection 理论上可见 configure/remove/enable 等写能力。
+- 破坏性原因：这些字段和 helper 位于 `app/runtime/internal/runtime`，属于应用层内部装配边界；按 MCP registry 用例拆分字段能直接删除旧总口，不需要为内部旧 shape 留兼容层。
+- 新设计：新增 `mcpServerList`、`mcpServerRead`、`mcpServerConfigure`、`mcpServerRemove`、`mcpServerEnable` 五个 consumer-side port；`Runtime` 分别持有对应字段，boot/gating/refresh 只依赖 `mcpServerList`，workspace.mcp 方法按用例调用对应端口。
+- 架构收益：MCP registry 的 read model、single lookup、upsert、remove、enable toggle 在 runtime 内部类型边界上分开；gating 和 enabled config projection 不再耦合 registry mutation 能力；完整 registry 只在 composition root 注入时出现。
+- 影响范围：`app/runtime/internal/runtime` 的 MCP runtime facade、MCP gating/config helpers、Runtime struct 和 runtime assembly。
+- 已完成适配：runtime assembly 继续把同一个 `cfg.MCPRegistry` 注入到五个窄口字段；所有 `r.mcpRegistry.*` 调用已迁移到对应端口；未保留旧 `Runtime.mcpRegistry` 字段。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

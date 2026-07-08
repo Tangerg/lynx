@@ -11,7 +11,7 @@ import (
 // enabledConfigs reads the registry and returns the live-connection port
 // descriptors for the enabled servers — the boot-time MCP set handed to
 // toolset.Build.
-func enabledConfigs(ctx context.Context, svc mcpserver.Registry) ([]kernel.MCPServerConfig, error) {
+func enabledConfigs(ctx context.Context, svc mcpServerList) ([]kernel.MCPServerConfig, error) {
 	servers, err := svc.List(ctx)
 	if err != nil {
 		return nil, err

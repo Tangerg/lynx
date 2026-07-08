@@ -27,7 +27,7 @@ type mcpEnvironment struct {
 	configs     []kernel.MCPServerConfig
 }
 
-func buildMCPEnvironment(ctx context.Context, registry mcpserver.Registry) (mcpEnvironment, error) {
+func buildMCPEnvironment(ctx context.Context, registry mcpServerList) (mcpEnvironment, error) {
 	gate := &atomic.Pointer[mcpGating]{}
 	g0, err := buildMCPGating(ctx, registry)
 	if err != nil {
@@ -59,7 +59,7 @@ func buildMCPEnvironment(ctx context.Context, registry mcpserver.Registry) (mcpE
 // buildMCPGating reads the registry and projects its ENABLED servers' per-tool
 // gating lists into the two qualified-name sets. Disabled servers contribute
 // nothing — their tools aren't in the live set anyway.
-func buildMCPGating(ctx context.Context, svc mcpserver.Registry) (*mcpGating, error) {
+func buildMCPGating(ctx context.Context, svc mcpServerList) (*mcpGating, error) {
 	servers, err := svc.List(ctx)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func buildMCPGating(ctx context.Context, svc mcpserver.Registry) (*mcpGating, er
 // and swaps them in atomically, so a configure/remove/enable takes effect for
 // the next tool resolution and the next approval gate without a restart.
 func (r *Runtime) refreshMCPGating(ctx context.Context) error {
-	g, err := buildMCPGating(ctx, r.mcpRegistry)
+	g, err := buildMCPGating(ctx, r.mcpRegistryList)
 	if err != nil {
 		return err
 	}
