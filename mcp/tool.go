@@ -13,24 +13,24 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// Tool wraps a single remote MCP tool as a chat.Tool. Each Call
+// tool wraps a single remote MCP tool as a chat.Tool. Each Call
 // dials the bound *sdkmcp.ClientSession's tools/call RPC, translates the
 // result, and returns a (string, error) pair compatible with chat.Tool. A
 // remote IsError result is mapped to *ToolCallError; use errors.As to
 // distinguish it from transport or protocol failures.
 //
 // The wrapper is immutable after construction.
-type Tool struct {
+type tool struct {
 	session    *sdkmcp.ClientSession
 	descriptor *sdkmcp.Tool
 	definition chat.ToolDefinition
 	metaFunc   MetaFunc
 }
 
-// ToolConfig configures a [Tool]. Session and Descriptor are required;
+// toolConfig configures a [tool]. Session and Descriptor are required;
 // everything else has a zero-value default.
-type ToolConfig struct {
-	// Session is the live, initialized client session. The Tool does not
+type toolConfig struct {
+	// Session is the live, initialized client session. The tool does not
 	// own the session; callers are responsible for closing it.
 	Session *sdkmcp.ClientSession
 
@@ -47,43 +47,43 @@ type ToolConfig struct {
 	MetaFunc MetaFunc
 }
 
-func (c *ToolConfig) Validate() error {
+func (c *toolConfig) validate() error {
 	if c.Session == nil {
 		return ErrNilSession
 	}
 	if c.Descriptor == nil {
-		return ErrNilDescriptor
+		return errNilDescriptor
 	}
 	if c.Descriptor.Name == "" {
-		return errors.New("mcp.ToolConfig: descriptor has empty name")
+		return errors.New("mcp.toolConfig: descriptor has empty name")
+	}
+	if c.PrefixedName == "" {
+		return errors.New("mcp.toolConfig: public name must not be empty")
 	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields. PrefixedName defaults to the
-// descriptor's name. Nil Descriptor is left alone — Validate surfaces
-// it as an error.
-func (c *ToolConfig) ApplyDefaults() {
+func (c *toolConfig) applyDefaults() {
 	if c.PrefixedName == "" && c.Descriptor != nil {
 		c.PrefixedName = c.Descriptor.Name
 	}
 }
 
-// NewTool builds a [chat.Tool] from cfg. cfg.Session must be
+// newTool builds a [chat.Tool] from cfg. cfg.Session must be
 // initialized (returned from (*sdkmcp.Client).Connect) and must outlive
-// the returned Tool.
-func NewTool(cfg ToolConfig) (*Tool, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
+// the returned tool.
+func newTool(cfg toolConfig) (*tool, error) {
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
 	schema, err := schemaToString(cfg.Descriptor.InputSchema)
 	if err != nil {
-		return nil, fmt.Errorf("mcp.NewTool: convert input schema for tool %q: %w", cfg.Descriptor.Name, err)
+		return nil, fmt.Errorf("mcp.newTool: convert input schema for tool %q: %w", cfg.Descriptor.Name, err)
 	}
 
-	return &Tool{
+	return &tool{
 		session:    cfg.Session,
 		descriptor: cfg.Descriptor,
 		definition: chat.ToolDefinition{
@@ -95,12 +95,7 @@ func NewTool(cfg ToolConfig) (*Tool, error) {
 	}, nil
 }
 
-func (t *Tool) Definition() chat.ToolDefinition { return t.definition }
-
-// Descriptor returns the underlying MCP tool descriptor for callers
-// that need fields beyond name/description/schema (annotations, output
-// schema, icons, …).
-func (t *Tool) Descriptor() *sdkmcp.Tool { return t.descriptor }
+func (t *tool) Definition() chat.ToolDefinition { return t.definition }
 
 // Call implements [chat.Tool]. IsError=true on the remote
 // result is mapped to [*ToolCallError] so a tool failure is not
@@ -110,7 +105,7 @@ func (t *Tool) Descriptor() *sdkmcp.Tool { return t.descriptor }
 // `gen_ai.tool.name`; a failed call records the error and sets the span
 // status to Error (no separate bool attribute). No-op overhead when no
 // TracerProvider is configured.
-func (t *Tool) Call(ctx context.Context, arguments string) (out string, err error) {
+func (t *tool) Call(ctx context.Context, arguments string) (out string, err error) {
 	ctx, span := mcpTracer.Start(ctx, "mcp.tool.call "+t.descriptor.Name,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String(attrToolName, t.descriptor.Name)),
@@ -125,7 +120,7 @@ func (t *Tool) Call(ctx context.Context, arguments string) (out string, err erro
 
 	args, err := decodeArguments(arguments)
 	if err != nil {
-		return "", fmt.Errorf("mcp.Tool.Call: decode arguments for %q: %w", t.descriptor.Name, err)
+		return "", fmt.Errorf("mcp.tool.Call: decode arguments for %q: %w", t.descriptor.Name, err)
 	}
 
 	params := &sdkmcp.CallToolParams{
@@ -140,7 +135,10 @@ func (t *Tool) Call(ctx context.Context, arguments string) (out string, err erro
 
 	res, err := t.session.CallTool(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("mcp.Tool.Call: %q: %w", t.descriptor.Name, err)
+		return "", fmt.Errorf("mcp.tool.Call: %q: %w", t.descriptor.Name, err)
+	}
+	if res == nil {
+		return "", fmt.Errorf("mcp.tool.Call: %q: nil CallToolResult", t.descriptor.Name)
 	}
 	if res.IsError {
 		err = &ToolCallError{

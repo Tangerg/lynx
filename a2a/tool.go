@@ -3,6 +3,7 @@ package a2a
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -15,100 +16,91 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// agentToolInputSchema is the JSON Schema reported for an [AgentTool]: a
-// single free-form natural-language request forwarded to the remote agent.
+var (
+	errNilClient     = errors.New("a2a: client must not be nil")
+	errEmptyToolName = errors.New("a2a: tool name must not be empty")
+)
+
+// inputSchema is the JSON Schema reported for each wrapped remote agent: a
+// single free-form natural-language request.
 // A2A's surface is a message, not a typed call, so the tool shape is
 // deliberately uniform across every remote agent.
-const agentToolInputSchema = `{"type":"object","properties":{"message":{"type":"string","description":"The natural-language request to send to the remote agent."}},"required":["message"]}`
+const inputSchema = `{"type":"object","properties":{"message":{"type":"string","description":"The natural-language request to send to the remote agent."}},"required":["message"]}`
 
-// AgentTool wraps a remote A2A agent as a [chat.Tool]. Each Call sends the
+// tool wraps a remote A2A agent as a [chat.Tool]. Each Call sends the
 // argument text as an A2A message and returns the agent's reply, so an
 // agent can delegate to a remote agent through the ordinary tool-calling
 // loop. A non-successful terminal task is mapped to [*RemoteAgentError] (use
 // errors.As) so a remote failure is not fed back as a successful result.
 //
 // The wrapper is immutable after construction and does not own the client.
-type AgentTool struct {
+type tool struct {
 	client     *a2aclient.Client
 	definition chat.ToolDefinition
 }
 
-// AgentToolConfig configures an [AgentTool]. Client and Card are required.
-type AgentToolConfig struct {
-	// Client is a live client opened against the remote agent (see [Dial]).
+type toolConfig struct {
 	Client *a2aclient.Client
-
-	// Card is the remote AgentCard; its Name/Description seed the tool
-	// definition and its skills enrich the description.
-	Card *sdka2a.AgentCard
-
-	// Name overrides the tool name. Empty defaults to a sanitized form
-	// of the card's Name.
-	Name string
+	Card   *sdka2a.AgentCard
+	Name   string
 }
 
-// Validate reports whether the config has the required fields. Run
-// [AgentToolConfig.ApplyDefaults] first — Name is checked post-default,
-// so a card whose name sanitizes to nothing fails loudly here instead
-// of registering a tool with an empty name.
-func (c *AgentToolConfig) Validate() error {
+func (c *toolConfig) validate() error {
 	if c.Client == nil {
-		return ErrNilClient
+		return errNilClient
 	}
 	if c.Card == nil {
 		return ErrNilCard
 	}
 	if c.Name == "" {
-		return ErrEmptyToolName
+		return errEmptyToolName
 	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields: Name defaults to a sanitized form of the
-// card's Name. A nil Card is left alone — Validate surfaces it as an error.
-func (c *AgentToolConfig) ApplyDefaults() {
+func (c *toolConfig) applyDefaults() {
 	if c.Name == "" && c.Card != nil {
 		c.Name = sanitizeToolName(c.Card.Name)
 	}
 }
 
-func NewAgentTool(cfg AgentToolConfig) (*AgentTool, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
+func newTool(cfg toolConfig) (*tool, error) {
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	return &AgentTool{
+	return &tool{
 		client: cfg.Client,
 		definition: chat.ToolDefinition{
 			Name:        cfg.Name,
 			Description: describeAgent(cfg.Card),
-			InputSchema: agentToolInputSchema,
+			InputSchema: inputSchema,
 		},
 	}, nil
 }
 
-func (t *AgentTool) Definition() chat.ToolDefinition { return t.definition }
+func (t *tool) Definition() chat.ToolDefinition { return t.definition }
 
 // Call implements [chat.Tool]: it sends the request text to the remote agent
 // and returns its reply. One `a2a.agent.call <name>` span per call
 // (kind=Client) carrying gen_ai.agent.name; a remote failure records the
 // error and sets the span status to Error.
-func (t *AgentTool) Call(ctx context.Context, arguments string) (string, error) {
+func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	ctx, span := a2aTracer.Start(ctx, "a2a.agent.call "+t.definition.Name,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String(attrAgentName, t.definition.Name)),
 	)
 	defer span.End()
 
-	req := &sdka2a.SendMessageRequest{Message: userMessage(promptText(arguments))}
+	req := &sdka2a.SendMessageRequest{Message: UserMessage(promptText(arguments))}
 	result, err := t.client.SendMessage(ctx, req)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return "", fmt.Errorf("a2a.AgentTool.Call %q: %w", t.definition.Name, err)
+		return "", fmt.Errorf("a2a.tool.Call %q: %w", t.definition.Name, err)
 	}
 
-	text, err := resultText(result)
+	text, err := TextOfResult(result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

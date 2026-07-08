@@ -33,12 +33,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Boot the in-memory MCP server (acts as the "remote") and connect a
-	// client. The provider variable is captured by the ToolListChangedHandler
-	// closure below; it's set after Connect because ClientOptions must be
-	// supplied at NewClient time.
-	var provider *lynxmcp.Provider
-
 	srvT, cliT := sdkmcp.NewInMemoryTransports()
 	srv := buildMCPServer()
 	srvSession, err := srv.Connect(ctx, srvT, nil)
@@ -58,12 +52,6 @@ func main() {
 			// createMessage. This particular example doesn't exercise it,
 			// but the wiring is part of a complete client.
 			CreateMessageHandler: samplingHandler,
-			// list_changed: server-driven cache invalidation.
-			ToolListChangedHandler: func(ctx context.Context, req *sdkmcp.ToolListChangedRequest) {
-				if provider != nil {
-					provider.OnToolListChanged(ctx, req)
-				}
-			},
 		},
 	)
 	cliSession, err := cli.Connect(ctx, cliT, nil)
@@ -72,14 +60,10 @@ func main() {
 	}
 	defer cliSession.Close()
 
-	// Provider aggregates one or more sessions. MetaFunc=MetaFromContext
-	// pulls per-request metadata installed via mcp.WithMeta.
-	provider, err = lynxmcp.NewProvider(lynxmcp.ProviderConfig{
-		Sources:  []lynxmcp.Source{{Name: "research", Session: cliSession}},
-		MetaFunc: lynxmcp.MetaFromContext,
-	})
-	if err != nil {
-		log.Fatal(err)
+	tools := func(ctx context.Context) ([]chat.Tool, error) {
+		return lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "research", Session: cliSession}}, lynxmcp.ToolOptions{
+			MetaFunc: lynxmcp.MetaFromContext,
+		})
 	}
 
 	a := agent.New("BriefingAgent").
@@ -140,7 +124,7 @@ func main() {
 		Goals(agent.GoalProducing[Brief](core.Goal{Description: "topic brief produced"})).
 		Build()
 
-	resolver, err := runtime.NewMCPResolver("research", provider)
+	resolver, err := runtime.NewMCPResolver("research", tools)
 	if err != nil {
 		log.Fatal(err)
 	}

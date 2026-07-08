@@ -30,7 +30,7 @@ Query variants:`
 // [MultiQueryExpanderConfig.NumberOfQueries] is unset.
 const defaultMultiQueryCount = 3
 
-// MultiQueryExpanderConfig configures a [MultiQueryExpander].
+// MultiQueryExpanderConfig configures [NewMultiQueryExpander].
 type MultiQueryExpanderConfig struct {
 	// ChatModel produces the variants. Required.
 	ChatModel chat.Model
@@ -49,13 +49,12 @@ type MultiQueryExpanderConfig struct {
 	PromptTemplate *chat.PromptTemplate
 }
 
-// Validate rejects invalid configs.
-func (c *MultiQueryExpanderConfig) Validate() error {
+func (c *MultiQueryExpanderConfig) validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.MultiQueryExpanderConfig: ChatModel is required")
 	}
 	if c.NumberOfQueries < 0 {
-		return errors.New("rag.MultiQueryExpanderConfig: NumberOfQueries must be ≥ 0")
+		return errors.New("rag.MultiQueryExpanderConfig: NumberOfQueries must be >= 0")
 	}
 	if c.PromptTemplate != nil {
 		return c.PromptTemplate.RequireVariables("Number", "Query")
@@ -63,10 +62,7 @@ func (c *MultiQueryExpanderConfig) Validate() error {
 	return nil
 }
 
-// ApplyDefaults fills zero fields. NumberOfQueries defaults to
-// [defaultMultiQueryCount] and PromptTemplate defaults to
-// [multiExpanderDefaultTemplate].
-func (c *MultiQueryExpanderConfig) ApplyDefaults() {
+func (c *MultiQueryExpanderConfig) applyDefaults() {
 	if c.NumberOfQueries == 0 {
 		c.NumberOfQueries = defaultMultiQueryCount
 	}
@@ -75,32 +71,20 @@ func (c *MultiQueryExpanderConfig) ApplyDefaults() {
 	}
 }
 
-var _ QueryExpander = (*MultiQueryExpander)(nil)
+var _ Expander = (*multiQueryExpander)(nil)
 
-// MultiQueryExpander asks an LLM to rephrase the user's query into N
-// semantically diverse variants — useful when the original query is
-// narrow, ambiguous, or might miss relevant documents under different
-// phrasings.
-//
-// Example:
-//
-//	exp, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
-//	    ChatModel: model, NumberOfQueries: 5,
-//	})
-//	queries, err := exp.Expand(ctx, q)
-type MultiQueryExpander struct {
+type multiQueryExpander struct {
 	chatClient      *chat.Client
 	promptTemplate  *chat.PromptTemplate
 	includeOriginal bool
 	numberOfQueries int
 }
 
-// NewMultiQueryExpander builds a [MultiQueryExpander]. Returns an error
-// when the configuration fails validation or the chat client cannot be
-// constructed.
-func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
+// NewMultiQueryExpander returns an [Expander] that asks an LLM for alternate
+// query phrasings.
+func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (Expander, error) {
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
@@ -109,7 +93,7 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, e
 		return nil, err
 	}
 
-	return &MultiQueryExpander{
+	return &multiQueryExpander{
 		chatClient:      client,
 		promptTemplate:  cfg.PromptTemplate,
 		includeOriginal: cfg.IncludeOriginal,
@@ -121,7 +105,7 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, e
 // per non-empty line. When the model returns nothing usable the
 // original query is returned, ensuring downstream retrieval always
 // has at least one query to run.
-func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query, error) {
+func (m *multiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query, error) {
 	if query == nil {
 		return nil, ErrNilQuery
 	}

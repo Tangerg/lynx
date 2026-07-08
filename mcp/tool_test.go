@@ -47,11 +47,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 	cs, cleanup := startServerWithFailing(t, ctx)
 	defer cleanup()
 
-	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
-		Sources: []lynxmcp.Source{{Name: "s", Session: cs}},
-	})
-	require.NoError(t, err)
-	tools, err := p.Tools(ctx)
+	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolOptions{})
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 
@@ -72,15 +68,12 @@ func TestTool_RPCErrorIsNotToolCallError(t *testing.T) {
 	// which must NOT be classified as *ToolCallError.
 	ctx := context.Background()
 	cs, cleanup := startServerWithFailing(t, ctx)
+	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolOptions{})
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
 	cleanup() // close immediately
 
-	tool, err := lynxmcp.NewTool(lynxmcp.ToolConfig{
-		Session:    cs,
-		Descriptor: &sdkmcp.Tool{Name: "boom", InputSchema: json.RawMessage(`{"type":"object"}`)},
-	})
-	require.NoError(t, err)
-
-	_, callErr := tool.Call(ctx, "{}")
+	_, callErr := tools[0].Call(ctx, "{}")
 	require.Error(t, callErr)
 	_, ok := errors.AsType[*lynxmcp.ToolCallError](callErr)
 	assert.False(t, ok, "transport errors must not unwrap into *ToolCallError")
@@ -91,11 +84,7 @@ func TestTool_EmptyArgumentsTreatedAsEmptyObject(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
-		Sources: []lynxmcp.Source{{Name: "s", Session: cs}},
-	})
-	require.NoError(t, err)
-	tools, err := p.Tools(ctx)
+	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "s", Session: cs}}, lynxmcp.ToolOptions{})
 	require.NoError(t, err)
 
 	callable := tools[0]
@@ -128,12 +117,9 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	require.NoError(t, err)
 	defer cs.Close()
 
-	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
-		Sources:  []lynxmcp.Source{{Name: "src", Session: cs}},
+	tools, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "src", Session: cs}}, lynxmcp.ToolOptions{
 		MetaFunc: lynxmcp.MetaFromContext,
 	})
-	require.NoError(t, err)
-	tools, err := p.Tools(ctx)
 	require.NoError(t, err)
 
 	callCtx := lynxmcp.WithMeta(ctx, sdkmcp.Meta{"userId": "u-42", "trace": "tx-99"})
@@ -144,44 +130,4 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	got := <-receivedMeta
 	assert.Equal(t, "u-42", got["userId"])
 	assert.Equal(t, "tx-99", got["trace"])
-}
-
-func TestNewTool_RejectsBadInputs(t *testing.T) {
-	cases := []struct {
-		name string
-		cfg  lynxmcp.ToolConfig
-		want string
-	}{
-		{
-			name: "nil session",
-			cfg:  lynxmcp.ToolConfig{Descriptor: &sdkmcp.Tool{Name: "x"}},
-			want: "session must not be nil",
-		},
-		{
-			name: "nil descriptor",
-			cfg:  lynxmcp.ToolConfig{Session: &sdkmcp.ClientSession{}},
-			want: "descriptor must not be nil",
-		},
-		{
-			name: "empty name",
-			cfg:  lynxmcp.ToolConfig{Session: &sdkmcp.ClientSession{}, Descriptor: &sdkmcp.Tool{}},
-			want: "empty name",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := lynxmcp.NewTool(tc.cfg)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.want)
-		})
-	}
-}
-
-func TestNewTool_DefaultsPrefixedNameToDescriptorName(t *testing.T) {
-	tool, err := lynxmcp.NewTool(lynxmcp.ToolConfig{
-		Session:    &sdkmcp.ClientSession{},
-		Descriptor: &sdkmcp.Tool{Name: "calc"},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "calc", tool.Definition().Name)
 }

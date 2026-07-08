@@ -8,6 +8,6 @@
 //	go run ./agent/examples/mcpbridge
 //
 // The example uses an in-memory transport pair so it runs offline;
-// for real deployments swap to mcp.StdioTransport{} (or a Streamable
-// HTTP handler via mcp.NewStreamableHTTPHandler) — see lynx/mcp/DESIGN.md §5.
+// for real deployments swap to sdkmcp.StdioTransport{} (or the SDK's
+// Streamable HTTP handler) — see lynx/mcp/DESIGN.md §5.
 package main

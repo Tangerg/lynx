@@ -20,7 +20,7 @@ import (
 
 // ClientConfig is the remote-agent descriptor, re-exported so callers
 // configure connections without importing the lynx a2a module directly.
-type ClientConfig = lynxa2a.ClientConfig
+type ClientConfig = lynxa2a.Endpoint
 
 var tracer = otel.Tracer("lynx/lyra/infra/a2a")
 
@@ -53,7 +53,7 @@ func Dial(ctx context.Context, agents []ClientConfig) (*Connections, []chat.Tool
 		span.End()
 	}()
 
-	tools, clients, derr := lynxa2a.DialAll(ctx, agents...)
+	tools, clients, derr := lynxa2a.Tools(ctx, agents...)
 	if derr != nil {
 		err = fmt.Errorf("a2a: dial agents: %w", derr)
 		return nil, nil, err

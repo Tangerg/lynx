@@ -50,10 +50,9 @@ func NewExecutor(agent Agent) (a2asrv.AgentExecutor, error) {
 // status carrying the error message if the agent errors mid-stream.
 func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext) iter.Seq2[sdka2a.Event, error] {
 	return func(yield func(sdka2a.Event, error) bool) {
-		// One server span per task execution — the inbound mirror of the
-		// client span in [AgentTool.Call]. Opened when the SDK drains the
-		// sequence, closed at the terminal event; a mid-stream agent error
-		// is recorded before the Failed terminal goes out.
+		// One server span per task execution. Opened when the SDK drains the
+		// sequence, closed at the terminal event; a mid-stream agent error is
+		// recorded before the Failed terminal goes out.
 		ctx, span := a2aTracer.Start(ctx, "a2a.agent.serve",
 			trace.WithSpanKind(trace.SpanKindServer),
 			trace.WithAttributes(
@@ -65,7 +64,7 @@ func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext)
 
 		input := ""
 		if execCtx.Message != nil {
-			input = flattenParts(execCtx.Message.Parts)
+			input = TextOfParts(execCtx.Message.Parts)
 		}
 
 		// The task must exist before any status/artifact event, then move to

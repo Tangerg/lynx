@@ -40,13 +40,13 @@ func probe(ctx context.Context, cfg ServerConfig) error {
 	defer span.End()
 
 	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "runtime-probe", Version: "v0.1.0"}, nil)
-	session, err := lynxmcp.Dial(ctx, client, cfg)
+	session, err := dial(ctx, client, cfg)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	defer session.Close()
-	if _, err := sourceTools(ctx, lynxmcp.Source{Name: cfg.Name, Session: session}); err != nil {
+	if _, err := sourceTools(ctx, lynxmcp.ToolSource{Name: cfg.Name, Session: session}); err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}

@@ -31,6 +31,17 @@ func withProgressToken(ctx context.Context, req *sdkmcp.CallToolRequest) context
 	return context.WithValue(ctx, progressTokenKey{}, tok)
 }
 
+// WithToolCall returns a context carrying the server session and progress
+// token from req. Tool dispatchers call it before invoking user code so the
+// reverse-capability helpers can find the active MCP session.
+func WithToolCall(ctx context.Context, req *sdkmcp.CallToolRequest) context.Context {
+	if req == nil {
+		return ctx
+	}
+	ctx = WithServerSession(ctx, req.Session)
+	return withProgressToken(ctx, req)
+}
+
 // progressTokenFromContext returns the progress token associated with
 // the current MCP tool invocation, or nil when the client did not
 // request progress reporting (or when ctx was not produced by the

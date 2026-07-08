@@ -54,21 +54,21 @@ func (m *echoChatModel) Stream(_ context.Context, _ *chat.Request) iter.Seq2[*ch
 	return func(yield func(*chat.Response, error) bool) {}
 }
 
-func TestNewPipelineMiddleware_RejectsInvalidConfig(t *testing.T) {
-	if _, _, err := rag.NewPipelineMiddleware(rag.PipelineConfig{}); err == nil {
+func TestNewMiddlewareRejectsInvalidConfig(t *testing.T) {
+	if _, _, err := rag.NewMiddleware(rag.MiddlewareConfig{}); err == nil {
 		t.Fatal("missing retrievers must error")
 	}
 }
 
-func TestPipelineMiddleware_AugmentsRequestAndAttachesDocs(t *testing.T) {
+func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
 	retriever := &stubRetriever{docs: []*document.Document{doc}}
 
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 
-	callMW, _, err := rag.NewPipelineMiddleware(rag.PipelineConfig{
-		DocumentRetrievers: []rag.DocumentRetriever{retriever},
-		QueryAugmenter:     aug,
+	callMW, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
+		Retriever: retriever,
+		Augmenter: aug,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -101,12 +101,12 @@ func TestPipelineMiddleware_AugmentsRequestAndAttachesDocs(t *testing.T) {
 	}
 }
 
-func TestPipelineMiddleware_PropagatesPipelineError(t *testing.T) {
+func TestMiddlewarePropagatesRetrieverError(t *testing.T) {
 	want := errors.New("boom")
 	failingRetriever := &errorRetriever{err: want}
 
-	callMW, _, err := rag.NewPipelineMiddleware(rag.PipelineConfig{
-		DocumentRetrievers: []rag.DocumentRetriever{failingRetriever},
+	callMW, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
+		Retriever: failingRetriever,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -133,19 +133,19 @@ func (r *errorRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]*document.
 	return nil, r.err
 }
 
-// TestPipelineMiddleware_DoesNotMutateCallerMessages verifies the
+// TestMiddlewareDoesNotMutateCallerMessages verifies the
 // middleware augments a COPY: the caller's original *chat.UserMessage
 // text must survive the call unchanged (buildRequest shares message
 // pointers with the ClientRequest, so an in-place edit would corrupt
 // reuse / re-consumed streams).
-func TestPipelineMiddleware_DoesNotMutateCallerMessages(t *testing.T) {
+func TestMiddlewareDoesNotMutateCallerMessages(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
 	retriever := &stubRetriever{docs: []*document.Document{doc}}
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 
-	callMW, _, err := rag.NewPipelineMiddleware(rag.PipelineConfig{
-		DocumentRetrievers: []rag.DocumentRetriever{retriever},
-		QueryAugmenter:     aug,
+	callMW, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
+		Retriever: retriever,
+		Augmenter: aug,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -12,7 +13,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/mcp"
+	lynxmcp "github.com/Tangerg/lynx/mcp"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
@@ -55,7 +56,7 @@ func runStdioMCPServer() {
 	if err != nil {
 		log.Fatalf("build tool: %v", err)
 	}
-	if err := mcp.RegisterTools(srv, ping); err != nil {
+	if err := lynxmcp.Register(srv, ping); err != nil {
 		log.Fatalf("register tools: %v", err)
 	}
 	transport := &sdkmcp.StdioTransport{}
@@ -87,12 +88,15 @@ func TestEngine_DialMCPServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build tool: %v", err)
 	}
-	err = mcp.RegisterTools(mcpServer, ping)
+	err = lynxmcp.Register(mcpServer, ping)
 	if err != nil {
 		t.Fatalf("register tools: %v", err)
 	}
 
-	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(mcpServer, mcp.HTTPServerOptions{}))
+	httpServer := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(
+		func(*http.Request) *sdkmcp.Server { return mcpServer },
+		nil,
+	))
 	defer httpServer.Close()
 
 	// 2. Construct the engine pointing at the http MCP endpoint.

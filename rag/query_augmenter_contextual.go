@@ -34,8 +34,7 @@ Answer:`
 const contextualEmptyContextTemplate = `The user query is outside your knowledge base.
 Politely inform the user that you can't answer it.`
 
-// ContextualAugmenterConfig configures a
-// [ContextualAugmenter].
+// ContextualAugmenterConfig configures [NewContextualAugmenter].
 type ContextualAugmenterConfig struct {
 	// PromptTemplate is the augmentation template. Defaults to
 	// [contextualDefaultTemplate]. Custom templates must declare
@@ -53,8 +52,7 @@ type ContextualAugmenterConfig struct {
 	AllowEmptyContext bool
 }
 
-// ApplyDefaults fills nil template fields with package defaults.
-func (c *ContextualAugmenterConfig) ApplyDefaults() {
+func (c *ContextualAugmenterConfig) applyDefaults() {
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(contextualDefaultTemplate)
 	}
@@ -63,42 +61,29 @@ func (c *ContextualAugmenterConfig) ApplyDefaults() {
 	}
 }
 
-// Validate rejects invalid configs. Pure check — pair with
-// [ContextualAugmenterConfig.ApplyDefaults].
-func (c *ContextualAugmenterConfig) Validate() error {
+func (c *ContextualAugmenterConfig) validate() error {
 	if c.PromptTemplate == nil {
 		return nil
 	}
 	return c.PromptTemplate.RequireVariables("Context", "Query")
 }
 
-var _ QueryAugmenter = (*ContextualAugmenter)(nil)
+var _ Augmenter = (*contextualAugmenter)(nil)
 
-// ContextualAugmenter folds retrieved documents into the user's
-// query as a "context" block, producing a grounded prompt that
-// reduces hallucinations. Empty contexts are handled either by
-// returning the original query (AllowEmptyContext=true) or by
-// synthesizing a polite refusal (AllowEmptyContext=false, the
-// default).
-//
-// Example:
-//
-//	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
-//	finalQ, err := aug.Augment(ctx, q, retrievedDocs)
-type ContextualAugmenter struct {
+type contextualAugmenter struct {
 	promptTemplate             *chat.PromptTemplate
 	emptyContextPromptTemplate *chat.PromptTemplate
 	allowEmptyContext          bool
 }
 
-// NewContextualAugmenter builds a [ContextualAugmenter] from
-// cfg. Returns an error when the configuration fails validation.
-func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
+// NewContextualAugmenter returns an [Augmenter] that folds retrieved
+// documents into the query text as a context block.
+func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	return &ContextualAugmenter{
+	return &contextualAugmenter{
 		promptTemplate:             cfg.PromptTemplate,
 		emptyContextPromptTemplate: cfg.EmptyContextPromptTemplate,
 		allowEmptyContext:          cfg.AllowEmptyContext,
@@ -107,9 +92,9 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter
 
 // Augment renders the prompt template with the documents joined as
 // context. When documents is empty, falls back to
-// [ContextualAugmenter.handleEmptyContext]. Honors ctx
+// [contextualAugmenter.handleEmptyContext]. Honors ctx
 // cancellation.
-func (c *ContextualAugmenter) Augment(ctx context.Context, query *Query, documents []*document.Document) (*Query, error) {
+func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documents []*document.Document) (*Query, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -139,7 +124,7 @@ func (c *ContextualAugmenter) Augment(ctx context.Context, query *Query, documen
 // handleEmptyContext implements the no-docs branch: pass through the
 // original query (AllowEmptyContext=true) or render the empty-context
 // refusal template.
-func (c *ContextualAugmenter) handleEmptyContext(query *Query) (*Query, error) {
+func (c *contextualAugmenter) handleEmptyContext(query *Query) (*Query, error) {
 	if c.allowEmptyContext {
 		return query, nil
 	}

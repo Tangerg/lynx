@@ -48,7 +48,7 @@ func connectPair(t *testing.T, ctx context.Context, tools ...chat.Tool) (*sdkmcp
 	srvT, cliT := sdkmcp.NewInMemoryTransports()
 
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "lynx-srv", Version: "v0.1.0"}, nil)
-	require.NoError(t, lynxmcp.RegisterTools(srv, tools...))
+	require.NoError(t, lynxmcp.Register(srv, tools...))
 
 	ss, err := srv.Connect(ctx, srvT, nil)
 	require.NoError(t, err)
@@ -63,7 +63,7 @@ func connectPair(t *testing.T, ctx context.Context, tools ...chat.Tool) (*sdkmcp
 	}
 }
 
-func TestRegisterTools_RoundTrip(t *testing.T) {
+func TestRegister_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	cs, cleanup := connectPair(t, ctx, newEchoTool(t))
 	defer cleanup()
@@ -91,7 +91,7 @@ func TestRegisterTools_RoundTrip(t *testing.T) {
 	assert.Equal(t, "round trip", tc.Text)
 }
 
-func TestRegisterTools_ErrorBecomesIsError(t *testing.T) {
+func TestRegister_ErrorBecomesIsError(t *testing.T) {
 	ctx := context.Background()
 
 	failing, err := chat.NewTool(
@@ -119,15 +119,15 @@ func TestRegisterTools_ErrorBecomesIsError(t *testing.T) {
 	assert.Contains(t, tc.Text, "kaboom from lynx tool")
 }
 
-func TestRegisterTools_RejectsNilArgs(t *testing.T) {
+func TestRegister_RejectsNilArgs(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
-	require.Error(t, lynxmcp.RegisterTools(nil, newEchoTool(t)))
+	require.Error(t, lynxmcp.Register(nil, newEchoTool(t)))
 
-	err := lynxmcp.RegisterTools(srv, nil)
+	err := lynxmcp.Register(srv, nil)
 	require.Error(t, err)
 }
 
-func TestRegisterTools_RejectsInvalidSchema(t *testing.T) {
+func TestRegister_RejectsInvalidSchema(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
 	bad, err := chat.NewTool(
 		chat.ToolDefinition{
@@ -139,6 +139,6 @@ func TestRegisterTools_RejectsInvalidSchema(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	err = lynxmcp.RegisterTools(srv, bad)
+	err = lynxmcp.Register(srv, bad)
 	require.Error(t, err)
 }

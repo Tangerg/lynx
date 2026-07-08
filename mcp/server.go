@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// RegisterTools installs every [chat.Tool] in tools onto server using
+// Register installs every [chat.Tool] in tools onto server using
 // the low-level [(*sdkmcp.Server).AddTool] API.
 //
 // Registration is all-or-nothing: every tool is validated and built
@@ -25,7 +25,7 @@ import (
 // tools already supply a hand-authored JSON schema, and the
 // generic API would otherwise reflect over a Go In type and overwrite
 // it.
-func RegisterTools(server *sdkmcp.Server, tools ...chat.Tool) error {
+func Register(server *sdkmcp.Server, tools ...chat.Tool) error {
 	if server == nil {
 		return ErrNilServer
 	}
@@ -33,7 +33,7 @@ func RegisterTools(server *sdkmcp.Server, tools ...chat.Tool) error {
 	prepared := make([]preparedTool, 0, len(tools))
 	for i, tool := range tools {
 		if tool == nil {
-			return fmt.Errorf("mcp.RegisterTools: tools[%d] must not be nil", i)
+			return fmt.Errorf("mcp.Register: tools[%d] must not be nil", i)
 		}
 		pt, err := prepareOne(tool)
 		if err != nil {
@@ -48,7 +48,7 @@ func RegisterTools(server *sdkmcp.Server, tools ...chat.Tool) error {
 }
 
 // preparedTool is one validated, ready-to-add registration — the unit
-// RegisterTools builds in its first pass.
+// Register builds in its first pass.
 type preparedTool struct {
 	tool    *sdkmcp.Tool
 	handler sdkmcp.ToolHandler
@@ -57,12 +57,12 @@ type preparedTool struct {
 func prepareOne(tool chat.Tool) (preparedTool, error) {
 	def := tool.Definition()
 	if def.Name == "" {
-		return preparedTool{}, errors.New("mcp.RegisterTools: tool has empty name")
+		return preparedTool{}, errors.New("mcp.Register: tool has empty name")
 	}
 
 	schema, err := stringSchemaToAny(def.InputSchema)
 	if err != nil {
-		return preparedTool{}, fmt.Errorf("mcp.RegisterTools: convert input schema for tool %q: %w", def.Name, err)
+		return preparedTool{}, fmt.Errorf("mcp.Register: convert input schema for tool %q: %w", def.Name, err)
 	}
 
 	return preparedTool{
@@ -96,14 +96,12 @@ func serverHandler(tool chat.Tool) sdkmcp.ToolHandler {
 
 		// The SDK doesn't guarantee a non-nil request / params — guard like
 		// withProgressToken does rather than dereferencing raw.
+		ctx = WithToolCall(ctx, req)
+
 		var rawArgs string
-		if req != nil {
-			ctx = WithServerSession(ctx, req.Session)
-			if req.Params != nil {
-				rawArgs = string(req.Params.Arguments)
-			}
+		if req != nil && req.Params != nil {
+			rawArgs = string(req.Params.Arguments)
 		}
-		ctx = withProgressToken(ctx, req)
 
 		args := cmp.Or(rawArgs, "{}")
 		out, err := tool.Call(ctx, args)

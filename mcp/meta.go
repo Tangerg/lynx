@@ -8,7 +8,7 @@ import (
 
 // MetaFunc produces the _meta map carried on outbound MCP requests
 // (CallTool today; extend to other RPCs as the package grows). It is the
-// seam through which a caller forwards ambient identifiers (userId,
+// hook through which a caller forwards ambient identifiers (userId,
 // traceId, sessionId, …) from the caller-side context to the remote
 // server.
 //
@@ -30,7 +30,7 @@ func WithMeta(ctx context.Context, meta sdkmcp.Meta) context.Context {
 // MetaFromContext returns metadata stored by [WithMeta], or nil. Its
 // signature matches [MetaFunc] so it can be assigned directly:
 //
-//	cfg := mcp.ProviderConfig{MetaFunc: mcp.MetaFromContext}
+//	opts := mcp.ToolOptions{MetaFunc: mcp.MetaFromContext}
 func MetaFromContext(ctx context.Context) sdkmcp.Meta {
 	meta, _ := ctx.Value(metaContextKey{}).(sdkmcp.Meta)
 	return meta

@@ -32,8 +32,7 @@ type ServerConfig struct {
 	HandlerOptions []a2asrv.RequestHandlerOption
 }
 
-// Validate reports whether the config has the required fields.
-func (c *ServerConfig) Validate() error {
+func (c *ServerConfig) validate() error {
 	if c.Agent == nil {
 		return ErrNilAgent
 	}
@@ -43,8 +42,7 @@ func (c *ServerConfig) Validate() error {
 	return nil
 }
 
-// ApplyDefaults fills zero fields: RPCPattern defaults to [DefaultRPCPattern].
-func (c *ServerConfig) ApplyDefaults() {
+func (c *ServerConfig) applyDefaults() {
 	if c.RPCPattern == "" {
 		c.RPCPattern = DefaultRPCPattern
 	}
@@ -58,8 +56,8 @@ func (c *ServerConfig) ApplyDefaults() {
 // The transport is JSON-RPC over HTTP. Callers needing REST or gRPC can use
 // [NewExecutor] with the SDK's other transport handlers directly.
 func NewHTTPHandler(cfg ServerConfig) (http.Handler, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 

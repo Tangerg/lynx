@@ -6,46 +6,75 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 )
 
-// The five stage interfaces below are declared in pipeline order
-// (transform → expand → retrieve → refine → augment). The [Pipeline]
-// glue lives in pipeline.go, concrete implementations alongside
-// (query_*.go, document_*.go); the package overview is in doc.go.
-
-// QueryTransformer rewrites a query to be more retrieval-friendly —
-// translation, compression, ambiguity resolution, vocabulary
-// normalization. Transformations chain in [Pipeline].
-type QueryTransformer interface {
+// Transformer rewrites a query to be more retrieval-friendly — translation,
+// compression, ambiguity resolution, vocabulary normalization.
+type Transformer interface {
 	// Transform returns the rewritten query.
 	Transform(ctx context.Context, query *Query) (*Query, error)
 }
 
-// QueryExpander turns one query into many — useful for poorly formed
-// inputs (alternative phrasings) or complex problems (decompose into
-// sub-queries the retriever can answer in parallel).
-type QueryExpander interface {
+// TransformerFunc adapts a function to [Transformer].
+type TransformerFunc func(context.Context, *Query) (*Query, error)
+
+// Transform calls f(ctx, query).
+func (f TransformerFunc) Transform(ctx context.Context, query *Query) (*Query, error) {
+	return f(ctx, query)
+}
+
+// Expander turns one query into many — useful for poorly formed inputs
+// (alternative phrasings) or complex problems (decompose into sub-queries).
+type Expander interface {
 	// Expand returns one or more queries derived from the input.
 	Expand(ctx context.Context, query *Query) ([]*Query, error)
 }
 
-// DocumentRetriever pulls candidate documents from a knowledge source
-// (vector store, search engine, database, knowledge graph).
-type DocumentRetriever interface {
+// ExpanderFunc adapts a function to [Expander].
+type ExpanderFunc func(context.Context, *Query) ([]*Query, error)
+
+// Expand calls f(ctx, query).
+func (f ExpanderFunc) Expand(ctx context.Context, query *Query) ([]*Query, error) {
+	return f(ctx, query)
+}
+
+// Retriever pulls candidate documents from a knowledge source.
+type Retriever interface {
 	// Retrieve returns documents relevant to the query.
 	Retrieve(ctx context.Context, query *Query) ([]*document.Document, error)
 }
 
-// DocumentRefiner narrows a candidate document list down to what the
-// LLM should actually see — re-rank by relevance, drop near-duplicates,
-// trim to fit the prompt budget. Addresses the "lost in the middle"
-// problem and reduces noise before the LLM sees the context.
-type DocumentRefiner interface {
+// RetrieverFunc adapts a function to [Retriever].
+type RetrieverFunc func(context.Context, *Query) ([]*document.Document, error)
+
+// Retrieve calls f(ctx, query).
+func (f RetrieverFunc) Retrieve(ctx context.Context, query *Query) ([]*document.Document, error) {
+	return f(ctx, query)
+}
+
+// Refiner narrows candidate documents down to what the LLM should see.
+type Refiner interface {
 	// Refine returns the trimmed/re-ranked document list.
 	Refine(ctx context.Context, query *Query, documents []*document.Document) ([]*document.Document, error)
 }
 
-// QueryAugmenter folds retrieved documents into the query so the LLM
-// has the right context to answer.
-type QueryAugmenter interface {
+// RefinerFunc adapts a function to [Refiner].
+type RefinerFunc func(context.Context, *Query, []*document.Document) ([]*document.Document, error)
+
+// Refine calls f(ctx, query, documents).
+func (f RefinerFunc) Refine(ctx context.Context, query *Query, documents []*document.Document) ([]*document.Document, error) {
+	return f(ctx, query, documents)
+}
+
+// Augmenter folds retrieved documents into the query so the LLM has the right
+// context to answer.
+type Augmenter interface {
 	// Augment returns a new query enriched with documents.
 	Augment(ctx context.Context, query *Query, documents []*document.Document) (*Query, error)
+}
+
+// AugmenterFunc adapts a function to [Augmenter].
+type AugmenterFunc func(context.Context, *Query, []*document.Document) (*Query, error)
+
+// Augment calls f(ctx, query, documents).
+func (f AugmenterFunc) Augment(ctx context.Context, query *Query, documents []*document.Document) (*Query, error) {
+	return f(ctx, query, documents)
 }

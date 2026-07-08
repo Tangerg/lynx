@@ -24,7 +24,7 @@ func (echoAgent) Run(_ context.Context, input string) iter.Seq2[string, error] {
 }
 
 // TestRoundTrip wires the server side (echoAgent → NewHTTPHandler) behind an
-// httptest server, then drives the client side (DialAll → AgentTool.Call)
+// httptest server, then drives the client side (a2a.Tools → Tool.Call)
 // against it — proving the full A2A loop: tool call → JSON-RPC → executor →
 // task lifecycle → reply text, with the AgentCard resolved over the wire.
 func TestRoundTrip(t *testing.T) {
@@ -59,14 +59,14 @@ func TestRoundTrip(t *testing.T) {
 	delegate = handler
 
 	// Client side: resolve the card and wrap the remote agent as a tool.
-	tools, clients, err := a2a.DialAll(ctx, a2a.ClientConfig{CardURL: ts.URL})
+	tools, clients, err := a2a.Tools(ctx, a2a.Endpoint{CardURL: ts.URL})
 	if err != nil {
-		t.Fatalf("DialAll: %v", err)
+		t.Fatalf("Dial: %v", err)
 	}
 	defer a2a.CloseClients(clients)
 
 	if len(tools) != 1 {
-		t.Fatalf("DialAll returned %d tools, want 1", len(tools))
+		t.Fatalf("Dial returned %d tools, want 1", len(tools))
 	}
 	tool := tools[0]
 

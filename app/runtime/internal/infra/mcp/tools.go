@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -25,17 +24,12 @@ type ToolInfo struct {
 
 // sourceTools lists one MCP source's model-facing tools. Isolated per source so
 // a single server's tools/list failure stays its own.
-func sourceTools(ctx context.Context, src lynxmcp.Source) ([]chat.Tool, error) {
-	provider, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
-		Sources: []lynxmcp.Source{src},
+func sourceTools(ctx context.Context, src lynxmcp.ToolSource) ([]chat.Tool, error) {
+	return lynxmcp.Tools(ctx, []lynxmcp.ToolSource{src}, lynxmcp.ToolOptions{
 		Naming: func(server string, tool *sdkmcp.Tool) string {
 			return mcpserver.ToolName(server, tool.Name)
 		},
 	})
-	if err != nil {
-		return nil, fmt.Errorf("mcp: build provider for %q: %w", src.Name, err)
-	}
-	return provider.Tools(ctx)
 }
 
 // schemaToMap renders an MCP tool's input schema as a generic object for the

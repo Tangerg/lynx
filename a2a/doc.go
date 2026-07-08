@@ -2,13 +2,11 @@
 // agent framework, wrapping the official SDK
 // github.com/a2aproject/a2a-go/v2 ([sdka2a]/[a2asrv]/[a2aclient]).
 //
-// It has two sides, mirroring the mcp package:
+// It has two sides:
 //
-//   - CLIENT — consume a remote A2A agent AS a lynx tool. [Dial] resolves a
-//     remote AgentCard and opens a client; [NewAgentTool] wraps it as a
-//     [chat.Tool] so an agent can delegate to it through the ordinary
-//     tool-calling loop. [DialAll] does both for a set of agents at once,
-//     returning the []chat.Tool plus the clients to close on shutdown.
+//   - CLIENT — [Dial] resolves a remote AgentCard and opens a client. The
+//     client is a protocol client; [Tools] wraps remote agents as ordinary
+//     chat tools.
 //
 //   - SERVER — expose a capability AS an A2A endpoint. Implement the
 //     narrow [Agent] interface (text in, streamed text out); [NewExecutor]

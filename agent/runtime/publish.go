@@ -43,11 +43,11 @@ func AllAchievableTools(platform *Platform) []chat.Tool {
 // [core.Goal.Export.Remote] is true. Each Call spawns a fresh
 // [Platform.RunAgent] invocation.
 //
-// Compose with [github.com/Tangerg/lynx/mcp].RegisterTools to
+// Compose with [github.com/Tangerg/lynx/mcp].Register to
 // fan-publish every Export.Remote goal to an MCP server in one shot:
 //
 //	tools := runtime.PublishAll(platform)
-//	mcp.RegisterTools(server, tools...)
+//	lynxmcp.Register(server, tools...)
 //
 // Output extraction is dynamic (most-recent blackboard object) — see
 // [AllAchievableTools] for the type erasure caveat.

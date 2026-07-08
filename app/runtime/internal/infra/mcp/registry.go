@@ -116,7 +116,7 @@ func (c *Connections) refreshTools(ctx context.Context) {
 
 	var tools []chat.Tool
 	for _, t := range targets {
-		srcTools, err := sourceTools(ctx, lynxmcp.Source{Name: t.name, Session: t.session})
+		srcTools, err := sourceTools(ctx, lynxmcp.ToolSource{Name: t.name, Session: t.session})
 		if err != nil {
 			continue // already-failed server; skip its tools
 		}

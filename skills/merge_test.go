@@ -69,10 +69,10 @@ func TestListMissingDir(t *testing.T) {
 	}
 }
 
-// TestMergeLoadResource proves LoadResource is served from the first source
+// TestMergeReadResource proves resources are served from the first source
 // that can satisfy it: the project copy of a shared skill wins, and a
 // global-only skill's resource is still reachable through the merge.
-func TestMergeLoadResource(t *testing.T) {
+func TestMergeReadResource(t *testing.T) {
 	project := NewFS(fstest.MapFS{
 		"shared/SKILL.md":           skillFile("shared", "project shared", "x"),
 		"shared/references/note.md": {Data: []byte("PROJECT note")},
@@ -85,17 +85,17 @@ func TestMergeLoadResource(t *testing.T) {
 	})
 	src := Merge(project, global)
 
-	note, err := src.LoadResource(context.Background(), "shared", "references/note.md")
+	note, err := ReadResource(context.Background(), src, "shared", "references/note.md")
 	if err != nil {
-		t.Fatalf("LoadResource shared: %v", err)
+		t.Fatalf("ReadResource shared: %v", err)
 	}
 	if string(note) != "PROJECT note" {
 		t.Errorf("shared resource = %q, want the project copy (precedence)", note)
 	}
 
-	asset, err := src.LoadResource(context.Background(), "glob-only", "assets/data.txt")
+	asset, err := ReadResource(context.Background(), src, "glob-only", "assets/data.txt")
 	if err != nil {
-		t.Fatalf("LoadResource glob-only: %v", err)
+		t.Fatalf("ReadResource glob-only: %v", err)
 	}
 	if string(asset) != "global asset" {
 		t.Errorf("glob-only resource = %q, want the global copy", asset)

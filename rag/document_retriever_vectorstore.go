@@ -6,25 +6,23 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/vectorstore"
+	corevs "github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 )
 
-// FilterExprKey is the [Query.Extra] metadata key under which a caller
+// VectorStoreFilterKey is the [Query.Extra] metadata key under which a caller
 // may stash a per-call filter expression — either as a parsed
 // [ast.Expr] or as a raw filter-DSL string. The retriever consults
 // this slot before falling back to the configured FilterFunc.
-const FilterExprKey = "lynx:ai:rag:retriever:filter_expr"
+const VectorStoreFilterKey = "lynx:ai:rag:retriever:filter_expr"
 
-// VectorStoreRetrieverConfig configures a
-// [VectorStoreRetriever].
-type VectorStoreRetrieverConfig struct {
+type VectorStoreConfig struct {
 	// VectorStore performs the actual similarity search. Required.
-	VectorStore vectorstore.Retriever
+	VectorStore corevs.Retriever
 
 	// TopK caps the number of returned documents. Non-positive values
-	// fall back to [vectorstore.DefaultTopK].
+	// fall back to [corevs.DefaultTopK].
 	TopK int
 
 	// MinScore filters out matches below this similarity threshold.
@@ -32,65 +30,50 @@ type VectorStoreRetrieverConfig struct {
 	MinScore float64
 
 	// FilterFunc dynamically builds a metadata filter from the query's
-	// Extra map. Optional; when both [FilterExprKey] is set on the
+	// Extra map. Optional; when both [VectorStoreFilterKey] is set on the
 	// query and FilterFunc is provided, the per-query filter wins.
 	FilterFunc func(ctx context.Context, params map[string]any) (ast.Expr, error)
 }
 
-// Validate rejects invalid configurations.
-func (c *VectorStoreRetrieverConfig) Validate() error {
+func (c *VectorStoreConfig) validate() error {
 	if c.VectorStore == nil {
-		return errors.New("rag.VectorStoreRetrieverConfig: VectorStore is required")
+		return errors.New("rag.VectorStoreConfig: VectorStore is required")
 	}
 	if c.TopK < 0 {
-		return errors.New("rag.VectorStoreRetrieverConfig: TopK must be ≥ 0")
+		return errors.New("rag.VectorStoreConfig: TopK must be >= 0")
 	}
-	if c.MinScore < vectorstore.MinSimilarityScore || c.MinScore > vectorstore.MaxSimilarityScore {
-		return fmt.Errorf("rag.VectorStoreRetrieverConfig: MinScore must be in [%.1f, %.1f]",
-			vectorstore.MinSimilarityScore, vectorstore.MaxSimilarityScore)
+	if c.MinScore < corevs.MinSimilarityScore || c.MinScore > corevs.MaxSimilarityScore {
+		return fmt.Errorf("rag.VectorStoreConfig: MinScore must be in [%.1f, %.1f]",
+			corevs.MinSimilarityScore, corevs.MaxSimilarityScore)
 	}
 	return nil
 }
 
-// ApplyDefaults fills zero fields. TopK defaults to
-// [vectorstore.DefaultTopK].
-func (c *VectorStoreRetrieverConfig) ApplyDefaults() {
+func (c *VectorStoreConfig) applyDefaults() {
 	if c.TopK == 0 {
-		c.TopK = vectorstore.DefaultTopK
+		c.TopK = corevs.DefaultTopK
 	}
 }
 
-var _ DocumentRetriever = (*VectorStoreRetriever)(nil)
+var _ Retriever = (*vectorStoreRetriever)(nil)
 
-// VectorStoreRetriever bridges the RAG retrieval interface and
-// a [vectorstore.Retriever]. It supports per-call metadata filters
-// (either parsed expressions stashed under [FilterExprKey] or built
-// dynamically via FilterFunc), top-K capping, and similarity
-// thresholds.
-//
-// Example:
-//
-//	r, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
-//	    VectorStore: store,
-//	    TopK:        10,
-//	    MinScore:    0.7,
-//	})
-type VectorStoreRetriever struct {
-	vectorStore vectorstore.Retriever
+type vectorStoreRetriever struct {
+	vectorStore corevs.Retriever
 	topK        int
 	minScore    float64
 	filterFunc  func(ctx context.Context, params map[string]any) (ast.Expr, error)
 }
 
-// NewVectorStoreRetriever builds a
-// [VectorStoreRetriever]. Returns an error when the
-// configuration fails [VectorStoreRetrieverConfig.Validate].
-func NewVectorStoreRetriever(cfg VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
+// NewVectorStoreRetriever returns a [Retriever] backed by a core vector store.
+// It supports per-query metadata filters via [VectorStoreFilterKey],
+// configured filters via [VectorStoreConfig.FilterFunc], top-K capping, and
+// similarity thresholds.
+func NewVectorStoreRetriever(cfg VectorStoreConfig) (Retriever, error) {
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	return &VectorStoreRetriever{
+	return &vectorStoreRetriever{
 		vectorStore: cfg.VectorStore,
 		topK:        cfg.TopK,
 		minScore:    cfg.MinScore,
@@ -99,12 +82,12 @@ func NewVectorStoreRetriever(cfg VectorStoreRetrieverConfig) (*VectorStoreRetrie
 }
 
 // Retrieve issues a similarity search via the underlying vector store.
-func (v *VectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]*document.Document, error) {
+func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]*document.Document, error) {
 	if query == nil {
 		return nil, ErrNilQuery
 	}
 
-	request, err := vectorstore.NewRetrievalRequest(query.Text)
+	request, err := corevs.NewRetrievalRequest(query.Text)
 	if err != nil {
 		return nil, err
 	}
@@ -120,10 +103,10 @@ func (v *VectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]*d
 }
 
 // resolveFilter picks the filter expression to use for this call,
-// preferring the per-query [FilterExprKey] slot over the configured
+// preferring the per-query [VectorStoreFilterKey] slot over the configured
 // FilterFunc. Returns nil, nil when no filter applies.
-func (v *VectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) (ast.Expr, error) {
-	if value, exists := query.Get(FilterExprKey); exists {
+func (v *vectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) (ast.Expr, error) {
+	if value, exists := query.Get(VectorStoreFilterKey); exists {
 		switch typed := value.(type) {
 		case string:
 			return filter.Parse(typed)
@@ -133,7 +116,7 @@ func (v *VectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) 
 	}
 
 	if v.filterFunc != nil {
-		return v.filterFunc(ctx, query.Extra)
+		return v.filterFunc(ctx, query.Extra())
 	}
 	return nil, nil
 }

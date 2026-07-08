@@ -43,22 +43,26 @@ func TestQuery_Clone_Independence(t *testing.T) {
 	}
 }
 
-// fakeRetriever mocks DocumentRetriever for pipeline tests.
+// fakeRetriever mocks Retriever for composition tests.
 type fakeRetriever struct {
 	docs []*document.Document
 	err  error
 	hits int
+	got  string
 }
 
-func (r *fakeRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]*document.Document, error) {
+func (r *fakeRetriever) Retrieve(_ context.Context, q *rag.Query) ([]*document.Document, error) {
 	r.hits++
+	if q != nil {
+		r.got = q.Text
+	}
 	if r.err != nil {
 		return nil, r.err
 	}
 	return r.docs, nil
 }
 
-// fakeTransformer mocks QueryTransformer.
+// fakeTransformer mocks Transformer.
 type fakeTransformer struct {
 	suffix string
 	err    error
@@ -73,38 +77,17 @@ func (t *fakeTransformer) Transform(_ context.Context, q *rag.Query) (*rag.Query
 	return out, nil
 }
 
-func TestPipeline_RequiresAtLeastOneRetriever(t *testing.T) {
-	if _, err := rag.NewPipeline(rag.PipelineConfig{}); err == nil {
-		t.Fatal("missing retrievers must error")
-	}
-}
-
-func TestPipeline_RejectsNilConfig(t *testing.T) {
-	if _, err := rag.NewPipeline(rag.PipelineConfig{}); err == nil {
-		t.Fatal("nil config must error")
-	}
-}
-
-func TestPipeline_HappyPath(t *testing.T) {
+func TestWithTransformersFeedsTransformedQueryToRetriever(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved-doc", nil)
 	retriever := &fakeRetriever{docs: []*document.Document{doc}}
 
-	pipe, err := rag.NewPipeline(rag.PipelineConfig{
-		QueryTransformers:  []rag.QueryTransformer{&fakeTransformer{suffix: "?"}},
-		DocumentRetrievers: []rag.DocumentRetriever{retriever},
-	})
+	r := rag.WithTransformers(retriever, &fakeTransformer{suffix: "?"})
+	docs, err := r.Retrieve(context.Background(), mustQuery(t, "hi"))
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	q, docs, err := pipe.Execute(context.Background(), mustQuery(t, "hi"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Augment receives the ORIGINAL (untransformed) query — transforms
-	// only feed retrieval, not the final answer the LLM sees.
-	if q.Text != "hi" {
-		t.Fatalf("Text = %q, want hi", q.Text)
+	if retriever.got != "hi?" {
+		t.Fatalf("retriever query = %q, want hi?", retriever.got)
 	}
 	if len(docs) != 1 || docs[0] != doc {
 		t.Fatalf("docs = %v", docs)
@@ -114,16 +97,12 @@ func TestPipeline_HappyPath(t *testing.T) {
 	}
 }
 
-func TestPipeline_TransformerErrorShortCircuits(t *testing.T) {
+func TestWithTransformersErrorShortCircuits(t *testing.T) {
 	want := errors.New("boom")
 	retriever := &fakeRetriever{}
 
-	pipe, _ := rag.NewPipeline(rag.PipelineConfig{
-		QueryTransformers:  []rag.QueryTransformer{&fakeTransformer{err: want}},
-		DocumentRetrievers: []rag.DocumentRetriever{retriever},
-	})
-
-	if _, _, err := pipe.Execute(context.Background(), mustQuery(t, "hi")); !errors.Is(err, want) {
+	r := rag.WithTransformers(retriever, &fakeTransformer{err: want})
+	if _, err := r.Retrieve(context.Background(), mustQuery(t, "hi")); !errors.Is(err, want) {
 		t.Fatalf("err = %v", err)
 	}
 	if retriever.hits != 0 {
@@ -131,17 +110,13 @@ func TestPipeline_TransformerErrorShortCircuits(t *testing.T) {
 	}
 }
 
-func TestPipeline_RetrieverFanInUnionsResults(t *testing.T) {
+func TestMultiUnionsResults(t *testing.T) {
 	docA, _ := document.NewDocument("a", nil)
 	docB, _ := document.NewDocument("b", nil)
 	r1 := &fakeRetriever{docs: []*document.Document{docA}}
 	r2 := &fakeRetriever{docs: []*document.Document{docB}}
 
-	pipe, _ := rag.NewPipeline(rag.PipelineConfig{
-		DocumentRetrievers: []rag.DocumentRetriever{r1, r2},
-	})
-
-	_, docs, err := pipe.Execute(context.Background(), mustQuery(t, "hi"))
+	docs, err := rag.Multi(r1, r2).Retrieve(context.Background(), mustQuery(t, "hi"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,41 +125,36 @@ func TestPipeline_RetrieverFanInUnionsResults(t *testing.T) {
 	}
 }
 
-func TestPipeline_PartialRetrieverFailureReturnsAvailableDocs(t *testing.T) {
+func TestMultiPartialFailureReturnsAvailableDocs(t *testing.T) {
 	docA, _ := document.NewDocument("a", nil)
 	r1 := &fakeRetriever{docs: []*document.Document{docA}}
 	r2 := &fakeRetriever{err: errors.New("retriever 2 broken")}
 
-	pipe, _ := rag.NewPipeline(rag.PipelineConfig{
-		DocumentRetrievers: []rag.DocumentRetriever{r1, r2},
-	})
-
-	_, docs, err := pipe.Execute(context.Background(), mustQuery(t, "hi"))
+	docs, err := rag.Multi(r1, r2).Retrieve(context.Background(), mustQuery(t, "hi"))
 	if err != nil {
-		t.Fatalf("partial failure should not fail the whole pipeline: %v", err)
+		t.Fatalf("partial failure should not fail the whole retrieval: %v", err)
 	}
 	if len(docs) != 1 {
 		t.Fatalf("got %d docs, want 1 (the surviving retriever)", len(docs))
 	}
 }
 
-func TestNop_CoversAllInterfaces(t *testing.T) {
-	n := rag.NewNop()
+func TestIdentityDefaults(t *testing.T) {
 	q, _ := rag.NewQuery("hi")
 
-	if got, _ := n.Expand(context.Background(), q); len(got) != 1 || got[0] != q {
+	if got, _ := rag.IdentityExpander().Expand(context.Background(), q); len(got) != 1 || got[0] != q {
 		t.Fatal("Expand should pass through")
 	}
-	if got, _ := n.Transform(context.Background(), q); got != q {
+	if got, _ := rag.IdentityTransformer().Transform(context.Background(), q); got != q {
 		t.Fatal("Transform should pass through")
 	}
-	if got, _ := n.Augment(context.Background(), q, nil); got != q {
+	if got, _ := rag.IdentityAugmenter().Augment(context.Background(), q, nil); got != q {
 		t.Fatal("Augment should pass through")
 	}
-	if got, _ := n.Retrieve(context.Background(), q); got != nil {
+	if got, _ := rag.NoopRetriever().Retrieve(context.Background(), q); got != nil {
 		t.Fatal("Retrieve should return nil")
 	}
-	if got, _ := n.Refine(context.Background(), q, nil); got != nil {
+	if got, _ := rag.IdentityRefiner().Refine(context.Background(), q, nil); got != nil {
 		t.Fatal("Refine should pass through nil")
 	}
 }

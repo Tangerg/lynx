@@ -38,12 +38,12 @@ var _ chat.Tool = (*Tool)(nil)
 // Tool is the LLM-callable adapter over a [skillsrc.Source]. It is a thin
 // wrapper: all parsing, validation, and IO live in the source.
 type Tool struct {
-	source skillsrc.Source
+	source skillsrc.ResourceSource
 }
 
 // NewTool builds a [Tool] over source. Unlike the local-by-default file tools,
 // a source has no sensible default — passing nil returns [ErrNilSource].
-func NewTool(source skillsrc.Source) (*Tool, error) {
+func NewTool(source skillsrc.ResourceSource) (*Tool, error) {
 	if source == nil {
 		return nil, ErrNilSource
 	}
@@ -89,7 +89,7 @@ func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
 		if req.Path == "" {
 			return "", ErrPathRequired
 		}
-		data, err := t.source.LoadResource(ctx, req.Name, req.Path)
+		data, err := skillsrc.ReadResource(ctx, t.source, req.Name, req.Path)
 		if err != nil {
 			return "", err
 		}

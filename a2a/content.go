@@ -8,16 +8,17 @@ import (
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
 )
 
-func userMessage(text string) *sdka2a.Message {
+// UserMessage returns a user-role A2A message containing one text part.
+func UserMessage(text string) *sdka2a.Message {
 	return sdka2a.NewMessage(sdka2a.MessageRoleUser, sdka2a.NewTextPart(text))
 }
 
-// flattenParts renders A2A content parts to a single string: text parts are
+// TextOfParts renders A2A content parts to a single string: text parts are
 // concatenated verbatim, structured data parts are JSON-encoded, and other
 // kinds (raw bytes, file URLs) are described compactly. tools and the
 // chat loop are text-first, so this is the lossy-but-faithful projection —
 // the analog of mcp.flattenContent.
-func flattenParts(parts sdka2a.ContentParts) string {
+func TextOfParts(parts sdka2a.ContentParts) string {
 	if len(parts) == 0 {
 		return ""
 	}
@@ -47,15 +48,21 @@ func flattenParts(parts sdka2a.ContentParts) string {
 	return b.String()
 }
 
-// resultText extracts the reply text from a SendMessageResult and reports a
+// TextOfResult extracts the reply text from a SendMessageResult and reports a
 // *RemoteAgentError when the remote ended the task in a non-successful
 // terminal state. A direct Message reply yields its parts; a Task reply
 // prefers its artifacts, falling back to the status message.
-func resultText(result sdka2a.SendMessageResult) (string, error) {
+func TextOfResult(result sdka2a.SendMessageResult) (string, error) {
 	switch r := result.(type) {
 	case *sdka2a.Message:
-		return flattenParts(r.Parts), nil
+		if r == nil {
+			return "", nil
+		}
+		return TextOfParts(r.Parts), nil
 	case *sdka2a.Task:
+		if r == nil {
+			return "", nil
+		}
 		switch r.Status.State {
 		case sdka2a.TaskStateFailed, sdka2a.TaskStateRejected, sdka2a.TaskStateCanceled:
 			return "", &RemoteAgentError{State: r.Status.State, Detail: statusDetail(r)}
@@ -69,10 +76,13 @@ func resultText(result sdka2a.SendMessageResult) (string, error) {
 // taskText concatenates a task's artifact parts, falling back to its status
 // message when no artifacts are present.
 func taskText(task *sdka2a.Task) string {
+	if task == nil {
+		return ""
+	}
 	var b strings.Builder
 	for _, artifact := range task.Artifacts {
 		if artifact != nil {
-			b.WriteString(flattenParts(artifact.Parts))
+			b.WriteString(TextOfParts(artifact.Parts))
 		}
 	}
 	if b.Len() == 0 {
@@ -82,8 +92,11 @@ func taskText(task *sdka2a.Task) string {
 }
 
 func statusDetail(task *sdka2a.Task) string {
+	if task == nil {
+		return ""
+	}
 	if task.Status.Message == nil {
 		return ""
 	}
-	return flattenParts(task.Status.Message.Parts)
+	return TextOfParts(task.Status.Message.Parts)
 }

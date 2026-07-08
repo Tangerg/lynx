@@ -7,33 +7,21 @@ import (
 	"github.com/Tangerg/lynx/pkg/sets"
 )
 
-var _ DocumentRefiner = (*DeduplicationRefiner)(nil)
+var _ Refiner = deduper{}
 
-// DeduplicationRefiner drops duplicate documents from the
-// retrieval candidate list, keying on [document.Document.ID] and
-// preserving first-occurrence order. Useful when multiple retrievers
-// surface overlapping results.
-//
-// Example:
-//
-//	pipe, _ := rag.NewPipeline(rag.PipelineConfig{
-//	    DocumentRetrievers: []rag.DocumentRetriever{r1, r2},
-//	    DocumentRefiners: []rag.DocumentRefiner{
-//	        rag.NewDeduplicationRefiner(),
-//	        rag.NewRankRefiner(5),
-//	    },
-//	})
-type DeduplicationRefiner struct{}
+// deduper drops duplicate documents by [document.Document.ID], preserving
+// first-occurrence order.
+type deduper struct{}
 
-// NewDeduplicationRefiner returns a stateless refiner — the
-// struct has no fields; sharing one across goroutines is fine.
-func NewDeduplicationRefiner() *DeduplicationRefiner {
-	return &DeduplicationRefiner{}
+// Dedup returns a [Refiner] that drops duplicate documents by
+// [document.Document.ID], preserving first-occurrence order.
+func Dedup() Refiner {
+	return deduper{}
 }
 
 // Refine returns documents with duplicate IDs removed, keeping the
 // first occurrence in input order. Honors ctx cancellation.
-func (d *DeduplicationRefiner) Refine(ctx context.Context, _ *Query, documents []*document.Document) ([]*document.Document, error) {
+func (d deduper) Refine(ctx context.Context, _ *Query, documents []*document.Document) ([]*document.Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

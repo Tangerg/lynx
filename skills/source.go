@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -15,13 +16,12 @@ import (
 // directory.
 const SkillFile = "SKILL.md"
 
-// Source is the read-only repository the skill tool reads from. Its three
-// operations mirror the spec's progressive-disclosure levels, so a consumer
+// Source is the read-only repository that lists and loads skills. Its two
+// operations mirror the first progressive-disclosure levels, so a consumer
 // pulls in only as much as a task needs:
 //
 //   - List         — name + description for every skill (level 1)
 //   - Load         — one skill's full instructions (level 2)
-//   - LoadResource — a bundled file under the skill, on demand (level 3)
 //
 // The interface lives here (consumer side) so callers depend on the
 // capability, not on a filesystem layout: a real directory, an embedded FS, a
@@ -29,24 +29,35 @@ const SkillFile = "SKILL.md"
 type Source interface {
 	List(ctx context.Context) ([]Summary, error)
 	Load(ctx context.Context, name string) (*Skill, error)
-	LoadResource(ctx context.Context, name, resource string) ([]byte, error)
 }
 
-var _ Source = (*FS)(nil)
+// ResourceSource is a [Source] that can also open bundled files under a skill
+// directory. Consumers that only need progressive-disclosure levels 1 and 2
+// depend on [Source]; consumers that need references/assets/scripts ask for
+// this narrower extension.
+type ResourceSource interface {
+	Source
+	OpenResource(ctx context.Context, name, resource string) (fs.File, error)
+}
 
-// FS implements [Source] over any fs.FS whose top-level entries are skill
+var _ Source = (*fsSource)(nil)
+var _ ResourceSource = (*fsSource)(nil)
+
+// fsSource implements [Source] over any fs.FS whose top-level entries are skill
 // directories (each holding a SKILL.md). Reads are lazy and per-call, so
 // edits on the backing filesystem are picked up without a refresh step.
-type FS struct {
+type fsSource struct {
 	fsys fs.FS
 }
 
-func NewFS(fsys fs.FS) *FS {
-	return &FS{fsys: fsys}
+// NewFS returns a [ResourceSource] backed by fsys.
+func NewFS(fsys fs.FS) ResourceSource {
+	return &fsSource{fsys: fsys}
 }
 
-func Dir(root string) *FS {
-	return &FS{fsys: os.DirFS(root)}
+// Dir returns a [ResourceSource] backed by the directory rooted at root.
+func Dir(root string) ResourceSource {
+	return &fsSource{fsys: os.DirFS(root)}
 }
 
 // List returns a summary for every valid skill directory, sorted by name.
@@ -54,7 +65,7 @@ func Dir(root string) *FS {
 // skipped rather than failing the whole listing. A missing root directory is
 // not an error — it just means there are no skills yet (so a source pointed at
 // a not-yet-created ~/.lyra/skills lists empty rather than failing).
-func (f *FS) List(_ context.Context) ([]Summary, error) {
+func (f *fsSource) List(_ context.Context) ([]Summary, error) {
 	entries, err := fs.ReadDir(f.fsys, ".")
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -80,11 +91,11 @@ func (f *FS) List(_ context.Context) ([]Summary, error) {
 }
 
 // Load reads, parses, and validates one skill by directory name.
-func (f *FS) Load(_ context.Context, name string) (*Skill, error) {
+func (f *fsSource) Load(_ context.Context, name string) (*Skill, error) {
 	return f.load(name)
 }
 
-func (f *FS) load(name string) (*Skill, error) {
+func (f *fsSource) load(name string) (*Skill, error) {
 	if err := validName(name); err != nil {
 		return nil, err
 	}
@@ -105,11 +116,11 @@ func (f *FS) load(name string) (*Skill, error) {
 	return &Skill{Frontmatter: fm, Body: body}, nil
 }
 
-// LoadResource returns the contents of a file bundled under a skill (e.g.
+// OpenResource opens a file bundled under a skill (e.g.
 // references/REFERENCE.md, scripts/run.py). The resource path is resolved
 // relative to the skill directory and must stay within it; traversal out of
 // the directory is rejected with [ErrResourcePath].
-func (f *FS) LoadResource(_ context.Context, name, resource string) ([]byte, error) {
+func (f *fsSource) OpenResource(_ context.Context, name, resource string) (fs.File, error) {
 	if err := validName(name); err != nil {
 		return nil, err
 	}
@@ -117,9 +128,26 @@ func (f *FS) LoadResource(_ context.Context, name, resource string) ([]byte, err
 	if full == name || !strings.HasPrefix(full, name+"/") || !fs.ValidPath(full) {
 		return nil, fmt.Errorf("%w: %q", ErrResourcePath, resource)
 	}
-	data, err := fs.ReadFile(f.fsys, full)
+	file, err := f.fsys.Open(full)
 	if err != nil {
-		return nil, fmt.Errorf("skills: load resource %q/%q: %w", name, resource, err)
+		return nil, fmt.Errorf("skills: open resource %q/%q: %w", name, resource, err)
+	}
+	return file, nil
+}
+
+// ReadResource reads and closes a bundled skill resource from src.
+func ReadResource(ctx context.Context, src ResourceSource, name, resource string) ([]byte, error) {
+	file, err := src.OpenResource(ctx, name, resource)
+	if err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(file)
+	closeErr := file.Close()
+	if err != nil {
+		return nil, fmt.Errorf("skills: read resource %q/%q: %w", name, resource, err)
+	}
+	if closeErr != nil {
+		return nil, fmt.Errorf("skills: close resource %q/%q: %w", name, resource, closeErr)
 	}
 	return data, nil
 }

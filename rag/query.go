@@ -5,27 +5,32 @@ import (
 	"maps"
 )
 
-// Sentinel errors for the rag stages. Callers can match these with
+// Sentinel errors for the rag contracts. Callers can match these with
 // [errors.Is] to distinguish caller-side input errors (nil query)
 // from store/model failures returned by downstream retrievers,
 // transformers, augmenters.
 var (
-	// ErrNilQuery is returned by every pipeline stage on a nil
-	// [*Query] argument — pipeline.Execute validates this once at
-	// the top, so individual stage errors normally don't surface.
+	// ErrNilQuery is returned when a nil [*Query] reaches a RAG
+	// operation.
 	ErrNilQuery = errors.New("rag: query must not be nil")
+
+	// ErrNilRetriever is returned when a nil [Retriever] is passed to
+	// a helper that requires one.
+	ErrNilRetriever = errors.New("rag: retriever must not be nil")
 )
 
-// Query is the canonical user-input shape that flows through the RAG
-// pipeline. [Query.Text] is required; [Query.Extra] holds per-call
-// metadata that pipeline stages may read or write (filters, user ids,
-// language tags, ...).
+// ChatHistoryKey is the [Query.Extra] key used by [NewMiddleware] and
+// [NewCompressionTransformer] to pass chat history through the RAG boundary.
+const ChatHistoryKey = "lynx:ai:rag:chat_history"
+
+// Query is the canonical user-input shape passed through RAG components.
+// [Query.Text] is required; [Query.Extra] exposes per-call metadata that
+// components may read or write (filters, user ids, language tags, ...).
 type Query struct {
 	// Text is the natural-language query body.
 	Text string
 
-	// Extra carries free-form per-call metadata.
-	Extra map[string]any
+	extra map[string]any
 }
 
 // NewQuery builds a [Query]. Returns an error when text is empty.
@@ -37,30 +42,36 @@ func NewQuery(text string) (*Query, error) {
 }
 
 func (q *Query) ensureExtra() {
-	if q.Extra == nil {
-		q.Extra = make(map[string]any)
+	if q.extra == nil {
+		q.extra = make(map[string]any)
 	}
 }
 
 // Get returns the Extra value for key plus an existence flag. Safe to
 // call concurrently with other Get calls; concurrent with Set is not.
 func (q *Query) Get(key string) (any, bool) {
-	if q.Extra == nil {
+	if q.extra == nil {
 		return nil, false
 	}
-	value, exists := q.Extra[key]
+	value, exists := q.extra[key]
 	return value, exists
 }
 
+// Set stores value under key, allocating the metadata map when needed.
 func (q *Query) Set(key string, value any) {
 	q.ensureExtra()
-	q.Extra[key] = value
+	q.extra[key] = value
 }
 
-// Clone returns a deep copy with an independent Extra map.
+// Extra returns a shallow copy of the query metadata.
+func (q *Query) Extra() map[string]any {
+	return maps.Clone(q.extra)
+}
+
+// Clone returns a copy with an independent metadata map.
 func (q *Query) Clone() *Query {
 	return &Query{
 		Text:  q.Text,
-		Extra: maps.Clone(q.Extra),
+		extra: maps.Clone(q.extra),
 	}
 }
