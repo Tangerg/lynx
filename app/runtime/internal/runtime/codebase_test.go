@@ -10,9 +10,15 @@ import (
 )
 
 type codebaseIndex struct {
-	codebaseindex.Index
 	available bool
 	reindexed chan codebaseReindexCall
+	hits      []codebaseindex.Hit
+	status    codebaseindex.Status
+
+	searchRoot  string
+	searchQuery string
+	searchLimit int
+	statusRoot  string
 }
 
 type codebaseReindexCall struct {
@@ -29,6 +35,18 @@ func (i *codebaseIndex) Reindex(ctx context.Context, root string) error {
 	return nil
 }
 
+func (i *codebaseIndex) Search(_ context.Context, root, query string, limit int) ([]codebaseindex.Hit, error) {
+	i.searchRoot = root
+	i.searchQuery = query
+	i.searchLimit = limit
+	return i.hits, nil
+}
+
+func (i *codebaseIndex) Status(_ context.Context, root string) (codebaseindex.Status, error) {
+	i.statusRoot = root
+	return i.status, nil
+}
+
 func TestRuntimeCodebaseStatusReturnsNoneWhenUnconfigured(t *testing.T) {
 	rt := &Runtime{}
 
@@ -41,13 +59,49 @@ func TestRuntimeCodebaseStatusReturnsNoneWhenUnconfigured(t *testing.T) {
 	}
 }
 
+func TestRuntimeCodebaseSearchUsesSearchPort(t *testing.T) {
+	idx := &codebaseIndex{hits: []codebaseindex.Hit{{
+		Path:  "runtime/codebase.go",
+		Score: 0.95,
+	}}}
+	rt := &Runtime{codebaseSearch: idx}
+
+	got, err := rt.SearchCodebase(context.Background(), "/repo", "runtime facade", 4)
+	if err != nil {
+		t.Fatalf("SearchCodebase err = %v", err)
+	}
+	if len(got) != 1 || got[0].Path != "runtime/codebase.go" {
+		t.Fatalf("SearchCodebase = %+v", got)
+	}
+	if idx.searchRoot != "/repo" || idx.searchQuery != "runtime facade" || idx.searchLimit != 4 {
+		t.Fatalf("search root=%q query=%q limit=%d", idx.searchRoot, idx.searchQuery, idx.searchLimit)
+	}
+}
+
+func TestRuntimeCodebaseStatusUsesStatusPort(t *testing.T) {
+	idx := &codebaseIndex{status: codebaseindex.Status{
+		State: codebaseindex.StateReady,
+	}}
+	rt := &Runtime{codebaseStatus: idx}
+
+	got, err := rt.CodebaseIndexStatus(context.Background(), "/repo")
+	if err != nil {
+		t.Fatalf("CodebaseIndexStatus err = %v", err)
+	}
+	if got.State != codebaseindex.StateReady || idx.statusRoot != "/repo" {
+		t.Fatalf("status = %+v, root = %q", got, idx.statusRoot)
+	}
+}
+
 func TestRuntimeStartCodebaseReindexRequiresAvailableIndex(t *testing.T) {
 	rt := &Runtime{}
 	if err := rt.StartCodebaseReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 		t.Fatalf("start reindex without index err = %v, want ErrNoEmbeddingModel", err)
 	}
 
-	rt.codebaseIndex = &codebaseIndex{}
+	idx := &codebaseIndex{}
+	rt.codebaseAvailability = idx
+	rt.codebaseReindex = idx
 	if err := rt.StartCodebaseReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 		t.Fatalf("start reindex unavailable err = %v, want ErrNoEmbeddingModel", err)
 	}
@@ -55,7 +109,10 @@ func TestRuntimeStartCodebaseReindexRequiresAvailableIndex(t *testing.T) {
 
 func TestRuntimeStartCodebaseReindexDetachesFromRequestCancel(t *testing.T) {
 	idx := &codebaseIndex{available: true, reindexed: make(chan codebaseReindexCall, 1)}
-	rt := &Runtime{codebaseIndex: idx}
+	rt := &Runtime{
+		codebaseAvailability: idx,
+		codebaseReindex:      idx,
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 

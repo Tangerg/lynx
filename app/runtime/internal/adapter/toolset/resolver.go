@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
@@ -47,7 +46,7 @@ type Resolver struct {
 	// codebaseIndex backs codebase_search (both roles). Held as the index (not
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
 	// the embedding model can be configured after construction. nil → no tool.
-	codebaseIndex codebaseindex.Index
+	codebaseIndex CodebaseIndex
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -82,7 +81,7 @@ type Deps struct {
 	Todo            chat.Tool           // todo_write task-list tool (both roles); nil → omitted
 	CodeIntel       *codeintel.Analyzer // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker  // backs the read/edit/write guards
-	CodebaseIndex   codebaseindex.Index // backs codebase_search (both roles); nil → omitted
+	CodebaseIndex   CodebaseIndex       // backs codebase_search (both roles); nil → omitted
 
 	// MCPDisabled returns the model-facing MCP tool names the configured servers
 	// hide from the model (per-server blacklist; nil → no filtering). Read per

@@ -42,12 +42,17 @@ type request struct {
 	Limit int    `json:"limit"`
 }
 
+// SearchIndex is the codebase semantic-search capability this tool consumes.
+type SearchIndex interface {
+	Search(ctx context.Context, cwd, query string, topK int) ([]codebaseindex.Hit, error)
+}
+
 type tool struct {
-	index codebaseindex.Index
+	index SearchIndex
 }
 
 // New builds the codebase_search tool over the given index.
-func New(index codebaseindex.Index) chat.Tool {
+func New(index SearchIndex) chat.Tool {
 	return &tool{index: index}
 }
 

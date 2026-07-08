@@ -1789,3 +1789,15 @@ app/runtime -> agent -> core
 - 已完成适配：runtime assembly 继续把同一个 `cfg.Engine.Knowledge` 注入到三个窄口字段；所有 `r.knowledge.*` memory facade 调用已迁移到对应端口；focused test 覆盖 unavailable 与 list/read/write 转发；未保留旧 `Runtime.knowledge` 字段。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百零四轮包含 `app/runtime` codebase index tool/management 端口收窄：
+
+- 调整对象：`Runtime.codebaseIndex`、codebase runtime facade、toolset `CodebaseIndex` 装配口、`codebasesearch.New` 和 focused codebase tests。
+- 调整前问题：`codebaseindex.Index` 同时包含 search、ensure/reconcile、forced reindex、status、availability。Runtime 的 UI/RPC facade 只需要 search/status/reindex/availability，`codebase_search` 工具只需要 search，但它们都持有完整 `Index`，理论上可见 `EnsureIndexed` 等内部生命周期能力。
+- 破坏性原因：这些字段和构造参数位于 `app/runtime/internal`，属于应用层内部装配边界；按实际消费路径拆掉完整 `Index` 依赖可以删除旧总口形状，不需要为内部旧 API 留兼容层。
+- 新设计：Runtime 新增 `codebaseIndexAvailability`、`codebaseIndexSearch`、`codebaseIndexStatus`、`codebaseIndexReindex` 四个 consumer-side port；toolset 新增只组合 search + availability 的 `CodebaseIndex` 端口；`codebasesearch.New` 只接收 search 端口。domain `codebaseindex.Index` 仍保留为 `Indexer` 自身的完整实现契约。
+- 架构收益：codebase semantic search、status projection、manual reindex 和 tool availability gate 在类型边界上分开；`EnsureIndexed` 不再泄漏给 Runtime management facade 或 tool adapter，完整 index 只在 composition root 注入时出现。
+- 影响范围：`app/runtime/internal/runtime`、`app/runtime/internal/adapter/toolset`、`app/runtime/internal/adapter/toolset/codebasesearch` 和 focused runtime tests。
+- 已完成适配：runtime assembly 继续把同一个 `embeddingEnv.index` 注入到四个 Runtime 窄口字段；toolset build/resolver 改为依赖 search+availability 组合口；`codebasesearch.New` 改为只接收 search 端口；focused tests 删除完整 `codebaseindex.Index` 嵌入 fake 并覆盖 search/status/reindex 转发。
+- 验证结果：`go test ./internal/runtime ./internal/adapter/toolset ./internal/adapter/toolset/codebasesearch` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

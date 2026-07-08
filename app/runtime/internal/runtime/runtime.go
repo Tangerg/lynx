@@ -4,7 +4,6 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -112,12 +111,15 @@ type Runtime struct {
 
 	// @codebase semantic index: embeddingCell holds the live embedding role,
 	// embeddings builds+caches embedders from it, embeddingStore persists it, and
-	// codebaseIndex is the index (nil when no CodebaseStore). See
-	// embedding.go.
-	embeddingCell  *atomic.Pointer[embeddingRole]
-	embeddings     *embeddingResolver
-	embeddingStore EmbeddingRoleStore
-	codebaseIndex  codebaseindex.Index
+	// codebase* ports expose the management/search surface (nil when no
+	// CodebaseStore). See embedding.go.
+	embeddingCell        *atomic.Pointer[embeddingRole]
+	embeddings           *embeddingResolver
+	embeddingStore       EmbeddingRoleStore
+	codebaseAvailability codebaseIndexAvailability
+	codebaseSearch       codebaseIndexSearch
+	codebaseStatus       codebaseIndexStatus
+	codebaseReindex      codebaseIndexReindex
 
 	// transactor runs a write-set inside one storage transaction so the
 	// cross-store operations (sessions.import / rollback) are atomic; nil → run

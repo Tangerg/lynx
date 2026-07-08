@@ -7,12 +7,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
-func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, approvalPolicy approval.Policy, mcpEnv mcpEnvironment, codebaseIdx codebaseindex.Index) (toolset.Built, error) {
+func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, approvalPolicy approval.Policy, mcpEnv mcpEnvironment, codebaseIdx toolset.CodebaseIndex) (toolset.Built, error) {
 	built, err := toolset.Build(ctx, toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.Engine.SkillsGlobalDir,

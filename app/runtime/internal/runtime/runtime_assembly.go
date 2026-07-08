@@ -217,7 +217,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		embeddingCell:             embeddingEnv.cell,
 		embeddings:                embeddingEnv.resolver,
 		embeddingStore:            cfg.EmbeddingRoleStore,
-		codebaseIndex:             embeddingEnv.index,
+		codebaseAvailability:      embeddingEnv.index,
+		codebaseSearch:            embeddingEnv.index,
+		codebaseStatus:            embeddingEnv.index,
+		codebaseReindex:           embeddingEnv.index,
 		transactor:                cfg.Transactor,
 	}, nil
 }
