@@ -11,7 +11,7 @@ import (
 // GetApprovalMode returns the current runtime tool-permission stance
 // (approval.getMode).
 func (s *Server) GetApprovalMode(ctx context.Context) (*protocol.ApprovalModeResult, error) {
-	m, err := s.approvalModes.ApprovalMode(ctx)
+	m, err := s.approvalModeRead.ApprovalMode(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func (s *Server) SetApprovalMode(ctx context.Context, in protocol.SetApprovalMod
 	if !ok {
 		return nil, fmt.Errorf("%w: unknown approval mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
-	if err := s.approvalModes.SetApprovalMode(ctx, mode); err != nil {
+	if err := s.approvalModeMutations.SetApprovalMode(ctx, mode); err != nil {
 		return nil, err
 	}
 	return &protocol.ApprovalModeResult{Mode: in.Mode}, nil
@@ -36,7 +36,7 @@ func (s *Server) SetApprovalMode(ctx context.Context, in protocol.SetApprovalMod
 // global rules. Runtime resolves the session's project directory; an unknown
 // session degrades to session + global only.
 func (s *Server) ListApprovalRules(ctx context.Context, in protocol.ListApprovalRulesRequest) (*protocol.ListApprovalRulesResult, error) {
-	rules, err := s.approvalRules.ListApprovalRules(ctx, in.SessionID)
+	rules, err := s.approvalRuleCatalog.ListApprovalRules(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (s *Server) ListApprovalRules(ctx context.Context, in protocol.ListApproval
 // ForgetApprovalRule removes one persisted approval rule by id
 // (approval.forgetRule). A missing id is not an error.
 func (s *Server) ForgetApprovalRule(ctx context.Context, in protocol.ForgetApprovalRuleRequest) error {
-	return s.approvalRules.ForgetApprovalRule(ctx, in.ID)
+	return s.approvalRuleMutations.ForgetApprovalRule(ctx, in.ID)
 }
 
 // approvalRuleToWire maps a domain rule to its wire shape. The project

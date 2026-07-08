@@ -160,8 +160,10 @@ type runtimeBindings struct {
 	memoryList                memoryListAccess
 	memoryRead                memoryReadAccess
 	memoryWrite               memoryWriteAccess
-	approvalModes             approvalModeAccess
-	approvalRules             approvalRuleAccess
+	approvalModeRead          approvalModeReadAccess
+	approvalModeMutations     approvalModeMutationAccess
+	approvalRuleCatalog       approvalRuleCatalogAccess
+	approvalRuleMutations     approvalRuleMutationAccess
 	scheduleCatalog           scheduleCatalogAccess
 	scheduleMutations         scheduleMutationAccess
 	scheduleRuns              scheduleRunRecorderAccess
@@ -221,8 +223,10 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		memoryList:                rt,
 		memoryRead:                rt,
 		memoryWrite:               rt,
-		approvalModes:             rt,
-		approvalRules:             rt,
+		approvalModeRead:          rt,
+		approvalModeMutations:     rt,
+		approvalRuleCatalog:       rt,
+		approvalRuleMutations:     rt,
 		scheduleCatalog:           rt,
 		scheduleMutations:         rt,
 		scheduleRuns:              rt,
