@@ -70,11 +70,11 @@ func TestSchemaToString_Variants(t *testing.T) {
 		in   any
 		want string
 	}{
-		{"nil", nil, `{"type":"object"}`},
-		{"empty string", "", `{"type":"object"}`},
+		{"nil", nil, emptyObjectSchema},
+		{"empty string", "", emptyObjectSchema},
 		{"string passthrough", `{"type":"object","x":1}`, `{"type":"object","x":1}`},
 		{"raw message", json.RawMessage(`{"type":"object"}`), `{"type":"object"}`},
-		{"empty raw", json.RawMessage(``), `{"type":"object"}`},
+		{"empty raw", json.RawMessage(``), emptyObjectSchema},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

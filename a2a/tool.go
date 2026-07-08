@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 var (
@@ -21,11 +22,11 @@ var (
 	errEmptyToolName = errors.New("a2a: tool name must not be empty")
 )
 
-// inputSchema is the JSON Schema reported for each wrapped remote agent: a
-// single free-form natural-language request.
-// A2A's surface is a message, not a typed call, so the tool shape is
-// deliberately uniform across every remote agent.
-const inputSchema = `{"type":"object","properties":{"message":{"type":"string","description":"The natural-language request to send to the remote agent."}},"required":["message"]}`
+type toolRequest struct {
+	Message string `json:"message" jsonschema:"required" jsonschema_description:"The natural-language request to send to the remote agent."`
+}
+
+var inputSchema, _ = pkgjson.StringDefSchemaOf(toolRequest{})
 
 // tool wraps a remote A2A agent as a [chat.Tool]. Each Call sends the
 // argument text as an A2A message and returns the agent's reply, so an
@@ -118,9 +119,7 @@ func promptText(arguments string) string {
 	if trimmed == "" {
 		return ""
 	}
-	var obj struct {
-		Message string `json:"message"`
-	}
+	var obj toolRequest
 	if err := json.Unmarshal([]byte(trimmed), &obj); err == nil && obj.Message != "" {
 		return obj.Message
 	}

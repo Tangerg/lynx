@@ -10,7 +10,14 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
+
+type echoInput struct {
+	Text string `json:"text" jsonschema:"required"`
+}
+
+var echoSchema, _ = pkgjson.StringDefSchemaOf(echoInput{})
 
 func main() {
 	ctx := context.Background()
@@ -21,12 +28,10 @@ func main() {
 		chat.ToolDefinition{
 			Name:        "echo",
 			Description: "echo the input text",
-			InputSchema: `{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`,
+			InputSchema: echoSchema,
 		},
 		func(_ context.Context, arguments string) (string, error) {
-			var p struct {
-				Text string `json:"text"`
-			}
+			var p echoInput
 			if err := json.Unmarshal([]byte(arguments), &p); err != nil {
 				return "", err
 			}
