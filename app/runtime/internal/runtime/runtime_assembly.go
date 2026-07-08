@@ -163,8 +163,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	}
 
 	return &Runtime{
-		engine:                    eng,
 		turns:                     turnDispatcher,
+		closer:                    eng,
+		skillCatalog:              eng,
+		a2aChats:                  eng,
 		toolCatalog:               toolRegistry,
 		toolInvocations:           toolRegistry,
 		memoryList:                cfg.Engine.Knowledge,

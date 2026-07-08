@@ -53,7 +53,7 @@ func TestA2AAgent_RunYieldsReply(t *testing.T) {
 	}
 	defer eng.Close()
 
-	agent := a2aAgent{engine: eng}
+	agent := a2aAgent{chat: eng}
 
 	var chunks []string
 	for chunk, err := range agent.Run(context.Background(), "build the thing") {
