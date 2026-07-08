@@ -1741,3 +1741,15 @@ app/runtime -> agent -> core
 - 已完成适配：runtime assembly 继续把同一个 `cfg.SessionStore` 注入到各窄口字段；所有 `r.session.*` 调用已迁移到对应端口；测试 fixture 删除了嵌入完整 `session.Store` 的宽 fake；未保留旧 `Runtime.session` 字段。
 - 验证结果：`go test ./internal/runtime` 与 `go test ./internal/runtime ./internal/kernel/lifecycle ./internal/kernel/runsegment` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百轮包含 `app/runtime/internal/runtime` transcript / interrupt store 用例端口收窄：
+
+- 调整对象：`Runtime.interrupts`、`Runtime.transcript`、pending interrupt / transcript runtime facade、lifecycle/runsegment store adapter 和 focused runtime tests。
+- 调整前问题：kernel 的 lifecycle/runsegment 已在第九十二轮拆出了各自的 transcript/interrupt consumer-side port，但 Runtime 组合层仍持有完整 `interrupts.Store` 与 `transcript.Store` 字段，再分发给 pending interrupt list、items/runs read projection、lifecycle 写集和 runsegment 写集；读投影路径理论上可见 put/consume/delete 等写能力，runsegment 写入路径理论上可见读取和删除投影能力。
+- 破坏性原因：这些字段和 adapter 位于 `app/runtime/internal/runtime`，属于应用层内部装配边界；按 read projection 与写集用例拆分能删除旧总口，不需要为内部旧 shape 留兼容层。
+- 新设计：新增 runtime 内部 `interruptList`、`transcriptContent`、`transcriptRuns` 读投影端口，并让 lifecycle/runsegment 分别持有自己的 `lifecycle.InterruptStore` / `lifecycle.TranscriptStore` 与 `runsegment.InterruptStore` / `runsegment.TranscriptStore` 字段；`ListTranscript` / `ListTranscriptRuns` 不再保留 nil-store 空结果分支，依赖 `Runtime.New` 的 required store 契约。
+- 架构收益：pending interrupt listing、items.list 内容投影、runs-only 投影、lifecycle resume/delete/rollback 写集、runsegment stream side effects 在类型边界上分开；完整 domain stores 只在 composition root 注入时出现，Runtime 不再把 transcript/interrupt 万能 store 作为默认 state 字段穿透。
+- 影响范围：`app/runtime/internal/runtime` 的 Runtime struct、interrupt/transcript facade、runtime assembly、lifecycle/runsegment adapters 和 focused runtime tests。
+- 已完成适配：runtime assembly 继续把同一个 `cfg.InterruptStore` / `cfg.TranscriptStore` 注入到对应窄口字段；所有 `r.interrupts.*` 与 `r.transcript.*` 调用已迁移到对应端口；测试 fixture 删除了嵌入完整 store 的宽 fake；未保留旧 `Runtime.interrupts` / `Runtime.transcript` 字段。
+- 验证结果：`go test ./internal/runtime ./internal/kernel/lifecycle ./internal/kernel/runsegment` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

@@ -23,9 +23,9 @@ type lifecycleStores struct {
 
 func (s lifecycleStores) Session() lifecycle.SessionStore { return s.rt.sessionLifecycle }
 
-func (s lifecycleStores) Transcript() lifecycle.TranscriptStore { return s.rt.transcript }
+func (s lifecycleStores) Transcript() lifecycle.TranscriptStore { return s.rt.transcriptLifecycle }
 
-func (s lifecycleStores) Interrupts() lifecycle.InterruptStore { return s.rt.interrupts }
+func (s lifecycleStores) Interrupts() lifecycle.InterruptStore { return s.rt.interruptLifecycle }
 
 func (s lifecycleStores) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
 	return s.rt.ReadHistory(ctx, sessionID)

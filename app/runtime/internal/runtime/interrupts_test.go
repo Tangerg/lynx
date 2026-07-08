@@ -8,7 +8,6 @@ import (
 )
 
 type interruptStore struct {
-	interrupts.Store
 	sessionID string
 	pending   []interrupts.Pending
 }
@@ -20,7 +19,7 @@ func (s *interruptStore) List(_ context.Context, sessionID string) ([]interrupts
 
 func TestRuntimeListPendingInterrupts(t *testing.T) {
 	store := &interruptStore{pending: []interrupts.Pending{{ParentRunID: "run_waiting"}}}
-	rt := &Runtime{interrupts: store}
+	rt := &Runtime{interruptList: store}
 
 	got, err := rt.ListPendingInterrupts(context.Background(), "ses_1")
 	if err != nil {

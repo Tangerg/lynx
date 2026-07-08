@@ -7,11 +7,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
@@ -26,13 +24,11 @@ import (
 // Runtime owns the process-local coordination state that defines application
 // lifecycle invariants across transports.
 type Runtime struct {
-	engine     *kernel.Engine
-	turns      turn.Dispatcher
-	tools      toolsvc.Registry
-	knowledge  knowledge.Store
-	approval   approval.Policy
-	interrupts interrupts.Store
-	transcript transcript.Store
+	engine    *kernel.Engine
+	turns     turn.Dispatcher
+	tools     toolsvc.Registry
+	knowledge knowledge.Store
+	approval  approval.Policy
 
 	sessionList       sessionList
 	sessionRead       sessionRead
@@ -41,6 +37,15 @@ type Runtime struct {
 	sessionModel      sessionModelWriter
 	sessionLifecycle  lifecycle.SessionStore
 	sessionRunSegment runsegment.SessionStore
+
+	interruptList       interruptList
+	interruptLifecycle  lifecycle.InterruptStore
+	interruptRunSegment runsegment.InterruptStore
+
+	transcriptContent    transcriptContent
+	transcriptRuns       transcriptRuns
+	transcriptLifecycle  lifecycle.TranscriptStore
+	transcriptRunSegment runsegment.TranscriptStore
 
 	// conversation is the message history the non-turn history ops
 	// (ReadHistory/SeedHistory/MessageCount/TruncateMessages) delegate to

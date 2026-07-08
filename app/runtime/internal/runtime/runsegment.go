@@ -19,11 +19,11 @@ type runSegmentStores struct {
 	rt *Runtime
 }
 
-func (s runSegmentStores) Interrupts() runsegment.InterruptStore { return s.rt.interrupts }
+func (s runSegmentStores) Interrupts() runsegment.InterruptStore { return s.rt.interruptRunSegment }
 
 func (s runSegmentStores) Session() runsegment.SessionStore { return s.rt.sessionRunSegment }
 
-func (s runSegmentStores) Transcript() runsegment.TranscriptStore { return s.rt.transcript }
+func (s runSegmentStores) Transcript() runsegment.TranscriptStore { return s.rt.transcriptRunSegment }
 
 func (s runSegmentStores) MessageCount(ctx context.Context, sessionID string) (int, error) {
 	return s.rt.MessageCount(ctx, sessionID)
