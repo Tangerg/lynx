@@ -1,0 +1,127 @@
+package runtime
+
+import (
+	"context"
+	"sync/atomic"
+	"testing"
+
+	"github.com/Tangerg/lynx/core/model/chat"
+)
+
+func TestBuildUtilityEnvironmentUsesLoaderPort(t *testing.T) {
+	client, err := chat.NewClient(newReplyStub("ok"))
+	if err != nil {
+		t.Fatalf("chat client: %v", err)
+	}
+	loader := &fakeUtilityRoleLoader{provider: "anthropic", model: "claude-haiku"}
+
+	env, err := buildUtilityEnvironment(context.Background(), client, loader, nil)
+	if err != nil {
+		t.Fatalf("buildUtilityEnvironment err = %v", err)
+	}
+
+	role := env.cell.Load()
+	if loader.calls != 1 || role == nil || role.provider != "anthropic" || role.model != "claude-haiku" {
+		t.Fatalf("loaded calls=%d role=%+v", loader.calls, role)
+	}
+}
+
+func TestRuntimeSetUtilityRoleUsesSaverPort(t *testing.T) {
+	cell := &atomic.Pointer[utilityRole]{}
+	cell.Store(&utilityRole{provider: "anthropic", model: "claude-haiku"})
+	saver := &fakeUtilityRoleSaver{}
+	rt := &Runtime{utility: cell, utilStore: saver}
+
+	if err := rt.SetUtilityRole(context.Background(), "anthropic", ""); err != nil {
+		t.Fatalf("SetUtilityRole err = %v", err)
+	}
+
+	role := cell.Load()
+	if saver.calls != 1 || saver.provider != "" || saver.model != "" {
+		t.Fatalf("saved calls=%d provider=%q model=%q", saver.calls, saver.provider, saver.model)
+	}
+	if role == nil || role.provider != "" || role.model != "" {
+		t.Fatalf("role = %+v, want cleared", role)
+	}
+}
+
+func TestBuildEmbeddingEnvironmentUsesLoaderPort(t *testing.T) {
+	loader := &fakeEmbeddingRoleLoader{provider: "openai", model: "text-embedding-3-small"}
+
+	env, err := buildEmbeddingEnvironment(context.Background(), loader, nil, nil)
+	if err != nil {
+		t.Fatalf("buildEmbeddingEnvironment err = %v", err)
+	}
+
+	role := env.cell.Load()
+	if loader.calls != 1 || role == nil || role.provider != "openai" || role.model != "text-embedding-3-small" {
+		t.Fatalf("loaded calls=%d role=%+v", loader.calls, role)
+	}
+}
+
+func TestRuntimeSetEmbeddingRoleUsesSaverPort(t *testing.T) {
+	cell := &atomic.Pointer[embeddingRole]{}
+	cell.Store(&embeddingRole{provider: "openai", model: "text-embedding-3-small"})
+	saver := &fakeEmbeddingRoleSaver{}
+	rt := &Runtime{embeddingCell: cell, embeddingStore: saver}
+
+	if err := rt.SetEmbeddingRole(context.Background(), "openai", ""); err != nil {
+		t.Fatalf("SetEmbeddingRole err = %v", err)
+	}
+
+	role := cell.Load()
+	if saver.calls != 1 || saver.provider != "" || saver.model != "" {
+		t.Fatalf("saved calls=%d provider=%q model=%q", saver.calls, saver.provider, saver.model)
+	}
+	if role == nil || role.provider != "" || role.model != "" {
+		t.Fatalf("role = %+v, want cleared", role)
+	}
+}
+
+type fakeUtilityRoleLoader struct {
+	provider string
+	model    string
+	calls    int
+}
+
+func (s *fakeUtilityRoleLoader) LoadUtilityRole(context.Context) (string, string, error) {
+	s.calls++
+	return s.provider, s.model, nil
+}
+
+type fakeUtilityRoleSaver struct {
+	provider string
+	model    string
+	calls    int
+}
+
+func (s *fakeUtilityRoleSaver) SaveUtilityRole(_ context.Context, provider, model string) error {
+	s.calls++
+	s.provider = provider
+	s.model = model
+	return nil
+}
+
+type fakeEmbeddingRoleLoader struct {
+	provider string
+	model    string
+	calls    int
+}
+
+func (s *fakeEmbeddingRoleLoader) LoadEmbeddingRole(context.Context) (string, string, error) {
+	s.calls++
+	return s.provider, s.model, nil
+}
+
+type fakeEmbeddingRoleSaver struct {
+	provider string
+	model    string
+	calls    int
+}
+
+func (s *fakeEmbeddingRoleSaver) SaveEmbeddingRole(_ context.Context, provider, model string) error {
+	s.calls++
+	s.provider = provider
+	s.model = model
+	return nil
+}

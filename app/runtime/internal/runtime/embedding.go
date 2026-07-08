@@ -24,7 +24,15 @@ type embeddingRole struct {
 // here (consumer side); the composition root injects the sqlite-backed impl. A
 // nil store disables persistence — the role stays whatever was last set in-proc.
 type EmbeddingRoleStore interface {
+	embeddingRoleLoader
+	embeddingRoleSaver
+}
+
+type embeddingRoleLoader interface {
 	LoadEmbeddingRole(ctx context.Context) (provider, model string, err error)
+}
+
+type embeddingRoleSaver interface {
 	SaveEmbeddingRole(ctx context.Context, provider, model string) error
 }
 
@@ -34,12 +42,12 @@ type embeddingEnvironment struct {
 	index    codebaseindex.Index
 }
 
-func buildEmbeddingEnvironment(ctx context.Context, cfg Config, providers providerCredentialLookup) (embeddingEnvironment, error) {
+func buildEmbeddingEnvironment(ctx context.Context, roleStore embeddingRoleLoader, indexStore codebaseindex.Store, providers providerCredentialLookup) (embeddingEnvironment, error) {
 	resolver := newEmbeddingResolver(providers)
 	cell := &atomic.Pointer[embeddingRole]{}
 	var role embeddingRole
-	if cfg.EmbeddingRoleStore != nil {
-		p, m, err := cfg.EmbeddingRoleStore.LoadEmbeddingRole(ctx)
+	if roleStore != nil {
+		p, m, err := roleStore.LoadEmbeddingRole(ctx)
 		if err != nil {
 			return embeddingEnvironment{}, fmt.Errorf("runtime: load embedding role: %w", err)
 		}
@@ -54,8 +62,8 @@ func buildEmbeddingEnvironment(ctx context.Context, cfg Config, providers provid
 		return resolver.resolve(ctx, role.provider, role.model)
 	}
 	var index codebaseindex.Index
-	if cfg.CodebaseStore != nil {
-		index = codebaseindex.New(cfg.CodebaseStore, resolveEmbedder, codebaseindexadapter.Source{})
+	if indexStore != nil {
+		index = codebaseindex.New(indexStore, resolveEmbedder, codebaseindexadapter.Source{})
 	}
 	return embeddingEnvironment{cell: cell, resolver: resolver, index: index}, nil
 }
