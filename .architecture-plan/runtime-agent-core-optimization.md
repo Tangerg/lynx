@@ -684,6 +684,9 @@ app/runtime -> agent -> core
   - 将 delivery/server 的 `approvalModeAccess` 拆为 `approvalModeReadAccess` 与 `approvalModeMutationAccess`。
   - 将 delivery/server 的 `approvalRuleAccess` 拆为 `approvalRuleCatalogAccess` 与 `approvalRuleMutationAccess`。
   - approval.getMode、approval.setMode、approval.listRules、approval.forgetRule 各依赖自己的最小端口，不保留旧 approval 聚合字段。
+- 已完成第八十三轮 `app/runtime` server MCP connection 命令端口 ISP 收敛：
+  - 将 delivery/server 的 `mcpConnectionAccess` 拆为 `mcpReconnectAccess` 与 `mcpAuthorizationAccess`。
+  - workspace.mcp.reconnect 与 workspace.mcp.authorize 共享状态事件 helper，但各自依赖自己的 runtime 命令能力，不再通过同一个连接聚合字段互相可见。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -780,6 +783,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十一轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十二轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十三轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -1123,6 +1127,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第八十二轮后复跑）。
   - `go build ./...`（`agent`）通过（第八十二轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第八十二轮后复跑）。
+  - `go test ./...`（`core`）通过（第八十三轮后复跑）。
+  - `go test ./...`（`agent`）通过（第八十三轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第八十三轮后复跑）。
+  - `go vet ./...`（`core`）通过（第八十三轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第八十三轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第八十三轮后复跑）。
+  - `go build ./...`（`core`）通过（第八十三轮后复跑）。
+  - `go build ./...`（`agent`）通过（第八十三轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第八十三轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1439,5 +1452,17 @@ app/runtime -> agent -> core
 - 架构收益：四个 approval handler 各自依赖最小能力，server binding 对执行姿态状态和 remembered rule 存储的读写边界表达更清楚。
 - 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding 和 approval handler。
 - 已完成适配：所有 `s.approvalModes` 与 `s.approvalRules` 调用已迁移到更窄字段；未保留旧 `approvalModeAccess` / `approvalRuleAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险。
+
+第八十三轮包含 `app/runtime/internal/delivery/server` 的 internal MCP connection 命令端口破坏性拆分：
+
+- 调整对象：`mcpConnectionAccess` 与 `runtimeBindings.mcpConnections`。
+- 调整前问题：workspace.mcp.reconnect 的普通重拨命令和 workspace.mcp.authorize 的 OAuth 人工授权命令共享同一个 runtime capability 字段；两个 handler 虽然共用状态事件发布 helper，但不应因此互相看到对方命令能力。
+- 破坏性原因：该端口位于 `app/runtime/internal/delivery/server`，按命令语义拆分能删除旧聚合字段，不需要为旧 internal port 留兼容层。
+- 新设计：使用 `mcpReconnectAccess` 承载 `ReconnectMCPServer`，使用 `mcpAuthorizationAccess` 承载 `AuthorizeMCPServer`；`runMCPConnectionAction` 继续作为 delivery 层状态事件模板方法复用。
+- 架构收益：reconnect 和 authorize 两条 workspace MCP command path 各自依赖最小 runtime 能力，避免“共享事件模板”被误建模成“共享业务端口”。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding 和 workspace MCP command handlers。
+- 已完成适配：所有 `s.mcpConnections` 调用已迁移到更窄字段；未保留旧 `mcpConnectionAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险。

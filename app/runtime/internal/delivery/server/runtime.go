@@ -55,7 +55,8 @@ type RuntimePort interface {
 	providerDefaultAccess
 	mcpStatusAccess
 	mcpToolCatalogAccess
-	mcpConnectionAccess
+	mcpReconnectAccess
+	mcpAuthorizationAccess
 	mcpRegistryCatalogAccess
 	mcpRegistryMutationAccess
 	mcpRegistryProbeAccess

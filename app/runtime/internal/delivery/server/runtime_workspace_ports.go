@@ -18,8 +18,11 @@ type mcpToolCatalogAccess interface {
 	MCPTools(ctx context.Context, server string) ([]kernel.MCPToolInfo, error)
 }
 
-type mcpConnectionAccess interface {
+type mcpReconnectAccess interface {
 	ReconnectMCPServer(ctx context.Context, name string) error
+}
+
+type mcpAuthorizationAccess interface {
 	AuthorizeMCPServer(ctx context.Context, name string) error
 }
 
