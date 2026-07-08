@@ -5,18 +5,18 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 // enabledConfigs reads the registry and returns the live-connection port
 // descriptors for the enabled servers — the boot-time MCP set handed to
 // toolset.Build.
-func enabledConfigs(ctx context.Context, svc mcpServerList) ([]kernel.MCPServerConfig, error) {
+func enabledConfigs(ctx context.Context, svc mcpServerList) ([]toolport.MCPServerConfig, error) {
 	servers, err := svc.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []kernel.MCPServerConfig
+	var out []toolport.MCPServerConfig
 	for _, s := range servers {
 		if s.Enabled {
 			out = append(out, configFromServer(s))
@@ -30,16 +30,16 @@ func enabledConfigs(ctx context.Context, svc mcpServerList) ([]kernel.MCPServerC
 // at toolset build / approval, not at connection setup, so it has no place
 // here. Env is flattened from the registry's KEY→value map to the "KEY=value"
 // slice the stdio adapter consumes.
-func configFromServer(s mcpserver.Server) kernel.MCPServerConfig {
-	cfg := kernel.MCPServerConfig{Name: s.Name, Timeout: s.Timeout}
+func configFromServer(s mcpserver.Server) toolport.MCPServerConfig {
+	cfg := toolport.MCPServerConfig{Name: s.Name, Timeout: s.Timeout}
 	switch s.Transport {
 	case mcpserver.TransportStreamableHTTP:
-		cfg.Transport = kernel.MCPTransportHTTP
+		cfg.Transport = toolport.MCPTransportHTTP
 		cfg.Endpoint = s.URL
 		cfg.Authorization = s.Authorization
 		cfg.Headers = s.Headers
 	case mcpserver.TransportStdio:
-		cfg.Transport = kernel.MCPTransportStdio
+		cfg.Transport = toolport.MCPTransportStdio
 		cfg.Command = s.Command
 		cfg.Args = s.Args
 		cfg.Env = envMapToSlice(s.SafeEnv())

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 // MCP-server registry orchestration: the runtime owns both the persisted
@@ -34,11 +34,11 @@ type mcpServerEnable interface {
 }
 
 type mcpLiveStatusReader interface {
-	MCPServerStatuses() []kernel.MCPServerStatus
+	MCPServerStatuses() []toolport.MCPServerStatus
 }
 
 type mcpLiveToolCatalog interface {
-	MCPTools(ctx context.Context, server string) ([]kernel.MCPToolInfo, error)
+	MCPTools(ctx context.Context, server string) ([]toolport.MCPToolInfo, error)
 }
 
 type mcpLiveConnectionCommands interface {
@@ -47,8 +47,8 @@ type mcpLiveConnectionCommands interface {
 }
 
 type mcpLiveRegistryCommands interface {
-	ProbeMCPServer(ctx context.Context, cfg kernel.MCPServerConfig) error
-	ConfigureMCPServer(ctx context.Context, cfg kernel.MCPServerConfig) error
+	ProbeMCPServer(ctx context.Context, cfg toolport.MCPServerConfig) error
+	ConfigureMCPServer(ctx context.Context, cfg toolport.MCPServerConfig) error
 	RemoveMCPServer(ctx context.Context, name string)
 }
 
@@ -61,7 +61,7 @@ func (r *Runtime) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Ser
 // MCPServerStatuses returns the per-server connection state of every
 // configured MCP server (connected and boot-failed alike) for
 // workspace.mcp.listServers. Delegates to the live MCP status port.
-func (r *Runtime) MCPServerStatuses() []kernel.MCPServerStatus {
+func (r *Runtime) MCPServerStatuses() []toolport.MCPServerStatus {
 	if r.mcpLiveStatus == nil {
 		return nil
 	}
@@ -77,7 +77,7 @@ func (r *Runtime) MCPRegisteredServer(ctx context.Context, name string) (mcpserv
 // tool set (workspace.mcp.reconnect). Delegates to the live MCP connection port.
 func (r *Runtime) ReconnectMCPServer(ctx context.Context, name string) error {
 	if r.mcpLiveConnections == nil {
-		return kernel.ErrUnknownMCPServer
+		return toolport.ErrUnknownMCPServer
 	}
 	return r.mcpLiveConnections.ReconnectMCPServer(ctx, name)
 }
@@ -88,7 +88,7 @@ func (r *Runtime) ReconnectMCPServer(ctx context.Context, name string) error {
 // The credentials live for the process only (re-prompt after restart).
 func (r *Runtime) AuthorizeMCPServer(ctx context.Context, name string) error {
 	if r.mcpLiveConnections == nil {
-		return kernel.ErrUnknownMCPServer
+		return toolport.ErrUnknownMCPServer
 	}
 	return r.mcpLiveConnections.AuthorizeMCPServer(ctx, name)
 }
@@ -172,7 +172,7 @@ func (r *Runtime) TestMCPServer(ctx context.Context, srv mcpserver.Server) error
 		return err
 	}
 	if r.mcpLiveRegistry == nil {
-		return kernel.ErrUnknownMCPServer
+		return toolport.ErrUnknownMCPServer
 	}
 	return r.mcpLiveRegistry.ProbeMCPServer(ctx, configFromServer(srv))
 }
@@ -180,7 +180,7 @@ func (r *Runtime) TestMCPServer(ctx context.Context, srv mcpserver.Server) error
 // MCPTools lists tools advertised by the connected MCP servers (scoped to
 // server when non-empty) for workspace.mcp.listTools. Delegates to the live MCP
 // tool catalog port.
-func (r *Runtime) MCPTools(ctx context.Context, server string) ([]kernel.MCPToolInfo, error) {
+func (r *Runtime) MCPTools(ctx context.Context, server string) ([]toolport.MCPToolInfo, error) {
 	if r.mcpLiveTools == nil {
 		return nil, nil
 	}

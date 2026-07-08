@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -30,8 +31,8 @@ type stubRuntime struct {
 	model       string
 	skills      []kernel.SkillInfo
 	recipes     []recipes.Recipe
-	mcpTools    []kernel.MCPToolInfo
-	mcpStatuses []kernel.MCPServerStatus
+	mcpTools    []toolport.MCPToolInfo
+	mcpStatuses []toolport.MCPServerStatus
 	history     map[string][]chat.Message // per-session chat history (fork copies it)
 	hist        transcript.Store          // durable Item/run history (rollback/fork read runs)
 	interrupts  interrupts.Store          // open-interrupt registry (rollback clears dropped)
@@ -49,8 +50,8 @@ func newTestServerWithInfo(rt RuntimePort, info protocol.ServerInfo) *Server {
 	return s
 }
 
-func (s stubRuntime) MCPServerStatuses() []kernel.MCPServerStatus { return s.mcpStatuses }
-func (stubRuntime) SupportedProviders() []provider.Metadata       { return nil }
+func (s stubRuntime) MCPServerStatuses() []toolport.MCPServerStatus { return s.mcpStatuses }
+func (stubRuntime) SupportedProviders() []provider.Metadata         { return nil }
 func (stubRuntime) ProviderMetadata(string) (provider.Metadata, bool) {
 	return provider.Metadata{}, false
 }
@@ -388,11 +389,11 @@ func (s stubRuntime) ListRecipes(context.Context, string) ([]recipes.Recipe, err
 
 // MCPTools echoes the canned set, applying the same server filter the real
 // engine does, so the handler test exercises the scoping passthrough.
-func (s stubRuntime) MCPTools(_ context.Context, server string) ([]kernel.MCPToolInfo, error) {
+func (s stubRuntime) MCPTools(_ context.Context, server string) ([]toolport.MCPToolInfo, error) {
 	if server == "" {
 		return s.mcpTools, nil
 	}
-	var out []kernel.MCPToolInfo
+	var out []toolport.MCPToolInfo
 	for _, t := range s.mcpTools {
 		if t.Server == server {
 			out = append(out, t)

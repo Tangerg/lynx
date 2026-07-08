@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 // mcpGating is the per-call MCP tool gating derived from the registry's enabled
@@ -24,7 +24,7 @@ type mcpEnvironment struct {
 	gate        *atomic.Pointer[mcpGating]
 	disabled    func() map[string]struct{}
 	autoApprove func() map[string]struct{}
-	configs     []kernel.MCPServerConfig
+	configs     []toolport.MCPServerConfig
 }
 
 func buildMCPEnvironment(ctx context.Context, registry mcpServerList) (mcpEnvironment, error) {

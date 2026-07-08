@@ -8,14 +8,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 type mcpStatusAccess interface {
-	MCPServerStatuses() []kernel.MCPServerStatus
+	MCPServerStatuses() []toolport.MCPServerStatus
 }
 
 type mcpToolCatalogAccess interface {
-	MCPTools(ctx context.Context, server string) ([]kernel.MCPToolInfo, error)
+	MCPTools(ctx context.Context, server string) ([]toolport.MCPToolInfo, error)
 }
 
 type mcpReconnectAccess interface {

@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 )
@@ -84,13 +85,13 @@ type Config struct {
 	// resolver also receives the engine-built `task` delegation tool; without a
 	// resolver, task is not available (the env can still pass only static tools
 	// like ask_user).
-	ToolResolver          ToolResolver
-	Tools                 []chat.Tool           // canonical tool list (without task)
-	MCPStatusReader       MCPStatusReader       // live MCP server status read model
-	MCPToolCatalog        MCPToolCatalog        // live MCP tool read model
-	MCPConnectionCommands MCPConnectionCommands // reconnect / authorize configured servers
-	MCPRegistryCommands   MCPRegistryCommands   // probe / configure / remove live servers
-	Closers               []func() error        // capability shutdown hooks
+	ToolResolver          toolport.ToolResolver
+	Tools                 []chat.Tool                    // canonical tool list (without task)
+	MCPStatusReader       toolport.MCPStatusReader       // live MCP server status read model
+	MCPToolCatalog        toolport.MCPToolCatalog        // live MCP tool read model
+	MCPConnectionCommands toolport.MCPConnectionCommands // reconnect / authorize configured servers
+	MCPRegistryCommands   toolport.MCPRegistryCommands   // probe / configure / remove live servers
+	Closers               []func() error                 // capability shutdown hooks
 
 	// Pricing optionally computes per-round USD cost from the round's
 	// provider + served model + token usage. nil leaves cost at zero (the chat

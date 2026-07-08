@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/core/model/chat"
 	history "github.com/Tangerg/lynx/core/model/chat/history"
 )
@@ -59,10 +60,10 @@ type Engine struct {
 	// Nil ports mean MCP is not wired. closers are the capability shutdown hooks
 	// (code-intel servers, background processes, MCP/A2A sessions) the tool
 	// adapter handed over, run in [Engine.Close].
-	mcpStatusReader       MCPStatusReader
-	mcpToolCatalog        MCPToolCatalog
-	mcpConnectionCommands MCPConnectionCommands
-	mcpRegistryCommands   MCPRegistryCommands
+	mcpStatusReader       toolport.MCPStatusReader
+	mcpToolCatalog        toolport.MCPToolCatalog
+	mcpConnectionCommands toolport.MCPConnectionCommands
+	mcpRegistryCommands   toolport.MCPRegistryCommands
 	closers               []func() error
 
 	// closeOnce guards Close so concurrent / repeated calls run the closers
@@ -122,8 +123,8 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares
-	// ToolRoleSubtask → no `task` → no recursion). Hand it to the
-	// resolver, which folds it into the ToolRoleCoding set only.
+	// toolport.ToolRoleSubtask → no `task` → no recursion). Hand it to the
+	// resolver, which folds it into the toolport.ToolRoleCoding set only.
 	// AsChatToolFromAgent needs no separate deploy — child processes land
 	// on the platform when spawned.
 	tools := append([]chat.Tool{}, cfg.Tools...)

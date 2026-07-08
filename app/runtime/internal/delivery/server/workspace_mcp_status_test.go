@@ -6,16 +6,16 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 func TestWorkspaceMCPListServers(t *testing.T) {
 	s := newTestServer(&stubRuntime{
-		mcpStatuses: []kernel.MCPServerStatus{
+		mcpStatuses: []toolport.MCPServerStatus{
 			{Name: "fs", Status: "connected"},
 			{Name: "down", Status: "failed", Err: errors.New("connection refused")},
 		},
-		mcpTools: []kernel.MCPToolInfo{
+		mcpTools: []toolport.MCPToolInfo{
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
 		},
 	})
@@ -39,8 +39,8 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 func TestWorkspaceMCPReconnect(t *testing.T) {
 	s := &Server{
 		runtimeBindings: bindRuntime(&stubRuntime{
-			mcpStatuses: []kernel.MCPServerStatus{{Name: "fs", Status: "connected"}},
-			mcpTools:    []kernel.MCPToolInfo{{Server: "fs", Name: "read"}},
+			mcpStatuses: []toolport.MCPServerStatus{{Name: "fs", Status: "connected"}},
+			mcpTools:    []toolport.MCPToolInfo{{Server: "fs", Name: "read"}},
 		}),
 		wsHub: newWorkspaceHub(),
 	}
@@ -63,7 +63,7 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 }
 
 func TestWorkspaceMCPListTools(t *testing.T) {
-	s := newTestServer(&stubRuntime{mcpTools: []kernel.MCPToolInfo{
+	s := newTestServer(&stubRuntime{mcpTools: []toolport.MCPToolInfo{
 		{Server: "fs", Name: "read", Description: "read a file", InputSchema: map[string]any{"type": "object"}},
 		{Server: "fs", Name: "write"},
 		{Server: "git", Name: "log"},
