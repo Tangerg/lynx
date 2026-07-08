@@ -124,10 +124,10 @@ func (b runtimeBindings) HasMemory() bool {
 }
 
 func (b runtimeBindings) SupportedProviders() []providersvc.Metadata {
-	if b.providerCatalog == nil {
+	if b.providerSupportCatalog == nil {
 		return nil
 	}
-	return b.providerCatalog.SupportedProviders()
+	return b.providerSupportCatalog.SupportedProviders()
 }
 
 type runtimeBindings struct {
@@ -171,10 +171,12 @@ type runtimeBindings struct {
 	scheduleDeletion          scheduleDeletionAccess
 	scheduleRuns              scheduleRunRecorderAccess
 	scheduleWorker            scheduleWorkerAccess
-	providerRegistryCatalog   providerRegistryCatalogAccess
+	providerRegistryList      providerRegistryListAccess
+	providerRegistryRead      providerRegistryReadAccess
 	providerRegistryMutations providerRegistryMutationAccess
 	providerRegistryProbe     providerRegistryProbeAccess
-	providerCatalog           providerCatalogAccess
+	providerSupportCatalog    providerSupportCatalogAccess
+	providerMetadata          providerMetadataAccess
 	providerDefaults          providerDefaultAccess
 	mcpStatus                 mcpStatusAccess
 	mcpTools                  mcpToolCatalogAccess
@@ -238,10 +240,12 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		scheduleDeletion:          rt,
 		scheduleRuns:              rt,
 		scheduleWorker:            rt,
-		providerRegistryCatalog:   rt,
+		providerRegistryList:      rt,
+		providerRegistryRead:      rt,
 		providerRegistryMutations: rt,
 		providerRegistryProbe:     rt,
-		providerCatalog:           rt,
+		providerSupportCatalog:    rt,
+		providerMetadata:          rt,
 		providerDefaults:          rt,
 		mcpStatus:                 rt,
 		mcpTools:                  rt,

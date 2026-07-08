@@ -13,18 +13,18 @@ import (
 // key is present (API.md §4.9 / §7.6). The per-provider model list isn't
 // here — it unlocks via models.list.
 func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Provider], error) {
-	configured, err := s.providerRegistryCatalog.ListRegisteredProviders(ctx)
+	configured, err := s.providerRegistryList.ListRegisteredProviders(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return protocol.NewPage(providerListWire(configured, s.providerCatalog.SupportedProviders())), nil
+	return protocol.NewPage(providerListWire(configured, s.providerSupportCatalog.SupportedProviders())), nil
 }
 
 // ConfigureProvider upserts a provider's credentials (key + base URL) into
 // the registry and returns the masked result (API.md §7.6). The provider
 // must be one Lyra supports.
 func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
-	meta, ok := s.providerCatalog.ProviderMetadata(in.Provider)
+	meta, ok := s.providerMetadata.ProviderMetadata(in.Provider)
 	if !ok {
 		return nil, protocol.ErrInvalidParams
 	}
@@ -38,7 +38,7 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 	}); err != nil {
 		return nil, err
 	}
-	entry, ok, err := s.providerRegistryCatalog.RegisteredProvider(ctx, in.Provider)
+	entry, ok, err := s.providerRegistryRead.RegisteredProvider(ctx, in.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 // {ok:false, error} on failure rather than erroring the RPC, so the UI can
 // show "test failed: <reason>" inline.
 func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol.ProviderTestResult, error) {
-	entry, ok, err := s.providerRegistryCatalog.RegisteredProvider(ctx, providerID)
+	entry, ok, err := s.providerRegistryRead.RegisteredProvider(ctx, providerID)
 	if err != nil {
 		return nil, err
 	}
