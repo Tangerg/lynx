@@ -12,12 +12,7 @@ func TestRuntimeHistoryPorts(t *testing.T) {
 		messages: []chat.Message{chat.NewUserMessage("hello")},
 		count:    3,
 	}
-	rt := &Runtime{
-		historyRead:     store,
-		historySeed:     store,
-		historyCount:    store,
-		historyTruncate: store,
-	}
+	rt := &Runtime{history: store}
 
 	msgs, err := rt.ReadHistory(context.Background(), "ses_1")
 	if err != nil {

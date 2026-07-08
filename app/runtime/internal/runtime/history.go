@@ -6,19 +6,15 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-type historyReader interface {
+// historyStore is the Runtime's consumer-side view of the chat-history service
+// (one backing conversation.Messages). It is one cohesive interface, not
+// per-verb sub-interfaces: the Runtime is the sole consumer and each method
+// backs exactly one of the four history entry points below. It deliberately
+// excludes the steering InjectUser path, which the turn dispatcher owns.
+type historyStore interface {
 	Read(ctx context.Context, sessionID string) ([]chat.Message, error)
-}
-
-type historySeeder interface {
 	Seed(ctx context.Context, sessionID string, msgs []chat.Message) error
-}
-
-type historyCounter interface {
 	Count(ctx context.Context, sessionID string) (int, error)
-}
-
-type historyTruncator interface {
 	Truncate(ctx context.Context, sessionID string, keepN int) error
 }
 
@@ -26,23 +22,23 @@ type historyTruncator interface {
 // messages.list transport surface converts these to wire messages,
 // and ForkSession copies a prefix of them.
 func (r *Runtime) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
-	return r.historyRead.Read(ctx, sessionID)
+	return r.history.Read(ctx, sessionID)
 }
 
 // SeedHistory copies msgs into sessionID's chat history — used by
 // ForkSession to seed a fresh child with the parent's prefix.
 func (r *Runtime) SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error {
-	return r.historySeed.Seed(ctx, sessionID, msgs)
+	return r.history.Seed(ctx, sessionID, msgs)
 }
 
 // MessageCount returns sessionID's chat history message count — the per-run
 // watermark sessions.rollback / fork record.
 func (r *Runtime) MessageCount(ctx context.Context, sessionID string) (int, error) {
-	return r.historyCount.Count(ctx, sessionID)
+	return r.history.Count(ctx, sessionID)
 }
 
 // TruncateMessages keeps the first keepN chat history messages of sessionID
 // (sessions.rollback).
 func (r *Runtime) TruncateMessages(ctx context.Context, sessionID string, keepN int) error {
-	return r.historyTruncate.Truncate(ctx, sessionID, keepN)
+	return r.history.Truncate(ctx, sessionID, keepN)
 }
