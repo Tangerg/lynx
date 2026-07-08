@@ -51,14 +51,23 @@ type approvalRuleMutationAccess interface {
 	ForgetApprovalRule(ctx context.Context, id string) error
 }
 
-type scheduleCatalogAccess interface {
+type scheduleListAccess interface {
 	ListSchedules(ctx context.Context) ([]schedule.Schedule, error)
+}
+
+type scheduleReadAccess interface {
 	Schedule(ctx context.Context, id string) (schedule.Schedule, error)
 }
 
-type scheduleMutationAccess interface {
+type scheduleCreationAccess interface {
 	CreateSchedule(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
+}
+
+type scheduleUpdateAccess interface {
 	UpdateSchedule(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
+}
+
+type scheduleDeletionAccess interface {
 	DeleteSchedule(ctx context.Context, id string) error
 }
 
