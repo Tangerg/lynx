@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 // SubagentTools builds supervisor-flow [chat.Tool]s for the named deployed
@@ -38,7 +37,11 @@ func SubagentTools(platform *Platform, names ...string) ([]chat.Tool, error) {
 			if goal == nil || goal.Export == nil {
 				continue
 			}
-			out = append(out, newDynamicAgentTool(platform, agentDef, goal, SpawnChildProtectedOnly))
+			tool, err := newDynamicAgentTool(platform, agentDef, goal, SpawnChildProtectedOnly)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, tool)
 		}
 		if len(out) == before {
 			return nil, fmt.Errorf("runtime.SubagentTools: agent %q exposes no exported goal (set Goal.Export)", name)
@@ -81,7 +84,7 @@ func AsChatTool[In, Out any](platform *Platform, agentName string) (chat.Tool, e
 	if err != nil {
 		return nil, err
 	}
-	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChildProtectedOnly), nil
+	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChildProtectedOnly)
 }
 
 // AsChatToolFromAgent is the [AsChatTool] sibling that takes a
@@ -98,7 +101,7 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 	if err := platform.validateAgent("AsChatToolFromAgent", agentDef); err != nil {
 		return nil, err
 	}
-	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChildProtectedOnly), nil
+	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChildProtectedOnly)
 }
 
 // AsMCPTool is the top-level companion to [AsChatTool]: it wraps a
@@ -123,7 +126,7 @@ func AsMCPTool[In, Out any](platform *Platform, agentName string) (chat.Tool, er
 	if err != nil {
 		return nil, err
 	}
-	return newTypedAgentTool[In, Out]("publish agent", platform, agentDef, RunFresh), nil
+	return newTypedAgentTool[In, Out]("publish agent", platform, agentDef, RunFresh)
 }
 
 // processStarter is the shape [SpawnChild], [SpawnChildProtectedOnly],
@@ -147,14 +150,18 @@ func newTypedAgentTool[In, Out any](
 	platform *Platform,
 	agentDef *core.Agent,
 	start processStarter,
-) chat.Tool {
+) (chat.Tool, error) {
 	var inSample In
+	inputSchema, err := schemaFor(inSample)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.newTypedAgentTool: agent %q: %w", agentDef.Name, err)
+	}
 	return &agentTool{
 		platform: platform,
 		def: chat.ToolDefinition{
 			Name:        agentDef.Name,
 			Description: agentDef.Description,
-			InputSchema: pkgjson.MustStringDefSchemaOf(inSample),
+			InputSchema: inputSchema,
 		},
 		label: label,
 		agent: agentDef,
@@ -176,5 +183,5 @@ func newTypedAgentTool[In, Out any](
 			}
 			return out, nil
 		},
-	}
+	}, nil
 }

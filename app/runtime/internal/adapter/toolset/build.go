@@ -2,6 +2,7 @@ package toolset
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
@@ -165,7 +166,11 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	// would both miss a model configured after startup and resolve an embedding
 	// client at construction.
 	if cfg.CodebaseIndex != nil {
-		tools = append(tools, codebasesearch.New(cfg.CodebaseIndex))
+		codebaseSearch, err := codebasesearch.New(cfg.CodebaseIndex)
+		if err != nil {
+			return Built{}, fmt.Errorf("toolset: build codebase_search: %w", err)
+		}
+		tools = append(tools, codebaseSearch)
 	}
 
 	mcpControl := &mcpControl{inner: mcpConns}

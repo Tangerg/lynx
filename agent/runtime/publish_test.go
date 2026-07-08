@@ -61,11 +61,32 @@ func makeInternalAgent() *core.Agent {
 		Build()
 }
 
+func makeBadExportAgent() *core.Agent {
+	return agent.New("bad-export").
+		Actions(agent.NewAction("brief",
+			func(_ context.Context, _ *core.ProcessContext, t pubTopic) (pubBrief, error) {
+				return pubBrief{Topic: t.Title}, nil
+			},
+			core.ActionConfig{},
+		)).
+		Goals(agent.GoalProducing[pubBrief](core.Goal{
+			Name:        "bad-goal",
+			Description: "bad export",
+			Export: &core.GoalExport{
+				Remote: true,
+			},
+		})).
+		Build()
+}
+
 func TestPublishAll_ReturnsTypedSchemaForRemoteGoals(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, makeBriefingAgent(true), makeInternalAgent())
 
-	tools := runtime.PublishAll(platform)
+	tools, err := runtime.PublishAll(platform)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(tools) != 1 {
 		t.Fatalf("PublishAll returned %d tools, want 1 (only briefing has Remote=true Export)", len(tools))
 	}
@@ -85,7 +106,10 @@ func TestPublishAll_RunsAgentEndToEnd(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, makeBriefingAgent(true))
 
-	tools := runtime.PublishAll(platform)
+	tools, err := runtime.PublishAll(platform)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(tools) != 1 {
 		t.Fatalf("PublishAll returned %d tools, want 1", len(tools))
 	}
@@ -115,7 +139,10 @@ func TestPublishAll_ExcludesNonRemoteGoals(t *testing.T) {
 		makeInternalAgent(),      // no Export
 	)
 
-	tools := runtime.PublishAll(platform)
+	tools, err := runtime.PublishAll(platform)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(tools) != 0 {
 		t.Fatalf("PublishAll returned %d tools, want 0 (no Remote=true)", len(tools))
 	}
@@ -128,7 +155,10 @@ func TestAllAchievableTools_IncludesAllExportedRegardlessOfRemote(t *testing.T) 
 		makeInternalAgent(),      // Export=nil
 	)
 
-	tools := runtime.AllAchievableTools(platform)
+	tools, err := runtime.AllAchievableTools(platform)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(tools) != 1 {
 		t.Fatalf("AllAchievableTools returned %d tools, want 1 (only goals with Export!=nil)", len(tools))
 	}
@@ -141,14 +171,17 @@ func TestAllAchievableTools_RequiresParentInCtx(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, makeBriefingAgent(true))
 
-	tools := runtime.AllAchievableTools(platform)
+	tools, err := runtime.AllAchievableTools(platform)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(tools) != 1 {
 		t.Fatalf("expected 1 tool")
 	}
 
 	args, _ := json.Marshal(pubTopic{Title: "x"})
 	// No parent process in ctx → expect supervisor flow to error.
-	_, err := tools[0].Call(t.Context(), string(args))
+	_, err = tools[0].Call(t.Context(), string(args))
 	if err == nil {
 		t.Fatal("expected error: supervisor flow needs parent in ctx")
 	}
@@ -158,11 +191,24 @@ func TestAllAchievableTools_RequiresParentInCtx(t *testing.T) {
 }
 
 func TestPublishAll_NilPlatformReturnsNil(t *testing.T) {
-	if got := runtime.PublishAll(nil); got != nil {
+	if got, err := runtime.PublishAll(nil); err != nil || got != nil {
 		t.Fatalf("PublishAll(nil) = %v, want nil", got)
 	}
-	if got := runtime.AllAchievableTools(nil); got != nil {
+	if got, err := runtime.AllAchievableTools(nil); err != nil || got != nil {
 		t.Fatalf("AllAchievableTools(nil) = %v, want nil", got)
+	}
+}
+
+func TestPublishAll_ReturnsSchemaErrorForBadExport(t *testing.T) {
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	mustDeploy(t, platform, makeBadExportAgent())
+
+	_, err := runtime.PublishAll(platform)
+	if err == nil {
+		t.Fatal("expected schema error")
+	}
+	if !strings.Contains(err.Error(), "input sample must not be nil") {
+		t.Fatalf("error = %v, want input sample failure", err)
 	}
 }
 

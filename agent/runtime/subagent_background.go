@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 // AsBackgroundChatTool exposes an agent as a PAIR of [chat.Tool]s
@@ -37,11 +36,20 @@ func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent)
 	}
 
 	var inSample In
+	spawnSchema, err := schemaFor(inSample)
+	if err != nil {
+		return nil, nil, fmt.Errorf("runtime.AsBackgroundChatTool: spawn schema: %w", err)
+	}
+	collectSchema, err := schemaFor(collectTaskInput{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("runtime.AsBackgroundChatTool: collect schema: %w", err)
+	}
+
 	spawn, err = chat.NewTool(
 		chat.ToolDefinition{
 			Name:        agentDef.Name + "_spawn",
 			Description: "Start " + agentDef.Name + " as a background task. Returns a task_id immediately; collect its result later with " + agentDef.Name + "_collect.",
-			InputSchema: pkgjson.MustStringDefSchemaOf(inSample),
+			InputSchema: spawnSchema,
 		},
 		func(ctx context.Context, arguments string) (string, error) {
 			in, parseErr := decodeToolArguments[In](agentDef.Name, "background spawn", arguments)
@@ -63,7 +71,7 @@ func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent)
 		chat.ToolDefinition{
 			Name:        agentDef.Name + "_collect",
 			Description: "Collect a background " + agentDef.Name + " task by task_id. Reports status running|waiting|done|failed, with the result when done.",
-			InputSchema: pkgjson.MustStringDefSchemaOf(collectTaskInput{}),
+			InputSchema: collectSchema,
 		},
 		func(_ context.Context, arguments string) (string, error) {
 			args, parseErr := decodeToolArguments[collectTaskInput](agentDef.Name, "background collect", arguments)
