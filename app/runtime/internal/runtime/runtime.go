@@ -3,7 +3,6 @@ package runtime
 import (
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
@@ -52,10 +51,12 @@ type Runtime struct {
 	transcriptLifecycle  lifecycle.TranscriptStore
 	transcriptRunSegment runsegment.TranscriptStore
 
-	// conversation is the message history the non-turn history ops
-	// (ReadHistory/SeedHistory/MessageCount/TruncateMessages) delegate to
-	// directly — not via the engine (it owns only the steering touchpoint).
-	conversation *conversation.Messages
+	// history* ports expose the message history operations used outside the
+	// turn loop — not via the engine (it owns only the steering touchpoint).
+	historyRead     historyReader
+	historySeed     historySeeder
+	historyCount    historyCounter
+	historyTruncate historyTruncator
 
 	providerRegistryList      providerRegistryList
 	providerRegistryRead      providerRegistryRead
