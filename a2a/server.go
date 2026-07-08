@@ -53,15 +53,14 @@ func (c *ServerConfig) applyDefaults() {
 // [a2asrv.WellKnownAgentCardPath]. Mount it on a server, or compose it into
 // a larger mux.
 //
-// The transport is JSON-RPC over HTTP. Callers needing REST or gRPC can use
-// [NewExecutor] with the SDK's other transport handlers directly.
+// The transport is JSON-RPC over HTTP.
 func NewHTTPHandler(cfg ServerConfig) (http.Handler, error) {
 	cfg.applyDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
-	exec, err := NewExecutor(cfg.Agent)
+	exec, err := newExecutor(cfg.Agent)
 	if err != nil {
 		return nil, err
 	}

@@ -15,7 +15,7 @@ var (
 	// ErrNilAgent is returned when a server is built without an Agent.
 	ErrNilAgent = errors.New("a2a: agent must not be nil")
 
-	// ErrEmptyCardURL is returned by Dial when no card URL is supplied.
+	// ErrEmptyCardURL is returned when no card URL is supplied.
 	ErrEmptyCardURL = errors.New("a2a: card URL must not be empty")
 )
 

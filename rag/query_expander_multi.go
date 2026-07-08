@@ -3,7 +3,6 @@ package rag
 import (
 	"context"
 	"errors"
-	"slices"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -126,21 +125,28 @@ func (m *multiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 		return []*Query{query}, nil
 	}
 
-	variants := slices.DeleteFunc(strings.Split(expanded, "\n"), func(s string) bool {
-		return strings.TrimSpace(s) == ""
-	})
-
-	queries := make([]*Query, 0, len(variants)+1)
+	lines := strings.Split(expanded, "\n")
+	queries := make([]*Query, 0, len(lines)+1)
 	if m.includeOriginal {
 		queries = append(queries, query)
 	}
+	limit := m.numberOfQueries
+	if m.includeOriginal {
+		limit++
+	}
 
-	for i, text := range variants {
-		if i >= m.numberOfQueries {
+	for _, line := range lines {
+		if len(queries) >= limit {
 			break
 		}
-		clone := query.Clone()
-		clone.Text = text
+		text := strings.TrimSpace(line)
+		if text == "" {
+			continue
+		}
+		clone, err := query.withText(text)
+		if err != nil {
+			return nil, err
+		}
 		queries = append(queries, clone)
 	}
 

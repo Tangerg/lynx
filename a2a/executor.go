@@ -34,10 +34,7 @@ type executor struct {
 
 var _ a2asrv.AgentExecutor = (*executor)(nil)
 
-// NewExecutor adapts a [Agent] to an [a2asrv.AgentExecutor], the
-// dependency [a2asrv.NewHandler] requires. Use it when wiring the server
-// onto a custom mux or transport; [NewHTTPHandler] does this for you.
-func NewExecutor(agent Agent) (a2asrv.AgentExecutor, error) {
+func newExecutor(agent Agent) (a2asrv.AgentExecutor, error) {
 	if agent == nil {
 		return nil, ErrNilAgent
 	}
@@ -64,7 +61,7 @@ func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext)
 
 		input := ""
 		if execCtx.Message != nil {
-			input = TextOfParts(execCtx.Message.Parts)
+			input = textOfParts(execCtx.Message.Parts)
 		}
 
 		// The task must exist before any status/artifact event, then move to

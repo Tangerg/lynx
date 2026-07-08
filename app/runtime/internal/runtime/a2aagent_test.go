@@ -41,7 +41,7 @@ func (m *replyStub) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 
 // TestA2AAgent_RunYieldsReply proves the A2A server adapter maps an inbound
 // message onto a one-shot engine turn and yields the assistant's reply as a
-// single chunk — the bridge a2a.NewExecutor drives onto the task lifecycle.
+// single chunk that the A2A handler drives onto the task lifecycle.
 func TestA2AAgent_RunYieldsReply(t *testing.T) {
 	client, err := chat.NewClient(newReplyStub("done: built the thing"))
 	if err != nil {

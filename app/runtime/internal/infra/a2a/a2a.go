@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/a2aproject/a2a-go/v2/a2aclient"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -24,10 +23,9 @@ type ClientConfig = lynxa2a.Endpoint
 
 var tracer = otel.Tracer("lynx/lyra/infra/a2a")
 
-// Connections holds the open remote-agent clients so the caller can close them
-// at shutdown.
+// Connections owns the remote-agent connection cleanup for shutdown.
 type Connections struct {
-	clients []*a2aclient.Client
+	close func() error
 }
 
 // Dial resolves and connects every configured remote A2A agent, returning the
@@ -53,20 +51,20 @@ func Dial(ctx context.Context, agents []ClientConfig) (*Connections, []chat.Tool
 		span.End()
 	}()
 
-	tools, clients, derr := lynxa2a.Tools(ctx, agents...)
+	tools, closeTools, derr := lynxa2a.Tools(ctx, agents...)
 	if derr != nil {
 		err = fmt.Errorf("a2a: dial agents: %w", derr)
 		return nil, nil, err
 	}
 
 	span.SetAttributes(attribute.Int("a2a.tool.count", len(tools)))
-	return &Connections{clients: clients}, tools, nil
+	return &Connections{close: closeTools}, tools, nil
 }
 
 // Close closes every open remote-agent client. Nil-safe; errors are joined.
 func (c *Connections) Close() error {
-	if c == nil {
+	if c == nil || c.close == nil {
 		return nil
 	}
-	return lynxa2a.CloseClients(c.clients)
+	return c.close()
 }

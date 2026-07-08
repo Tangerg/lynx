@@ -79,6 +79,25 @@ func TestContextualAugmenter_RendersDocsAsContext(t *testing.T) {
 	}
 }
 
+func TestContextualAugmenter_PreservesQueryExtra(t *testing.T) {
+	aug, err := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	q, _ := rag.NewQuery("what is GOAP?")
+	q.Set("route", "docs")
+	doc, _ := document.NewDocument("GOAP is goal-oriented action planning.", nil)
+
+	got, err := aug.Augment(context.Background(), q, []*document.Document{doc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := got.Get("route"); v != "docs" {
+		t.Fatalf("query metadata was not preserved: route=%v", v)
+	}
+}
+
 func TestContextualAugmenter_EmptyDocs_DefaultRefusal(t *testing.T) {
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 
@@ -117,7 +136,7 @@ func TestContextualAugmenter_NilQuery(t *testing.T) {
 // --- MultiQueryExpander -------------------------------------------------
 
 func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
-	model := newFakeChatModel(t, "variant 1\nvariant 2\nvariant 3")
+	model := newFakeChatModel(t, " variant 1 \n\nvariant 2\nvariant 3")
 	exp, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
 		ChatModel:       model,
 		NumberOfQueries: 3,
@@ -127,6 +146,7 @@ func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
 	}
 
 	q, _ := rag.NewQuery("hi")
+	q.Set("route", "docs")
 	got, err := exp.Expand(context.Background(), q)
 	if err != nil {
 		t.Fatal(err)
@@ -136,6 +156,9 @@ func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
 	}
 	if got[0].Text != "variant 1" {
 		t.Fatalf("first variant = %q", got[0].Text)
+	}
+	if v, _ := got[0].Get("route"); v != "docs" {
+		t.Fatalf("variant metadata was not preserved: route=%v", v)
 	}
 }
 

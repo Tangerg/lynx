@@ -102,9 +102,5 @@ func (t *translationTransformer) Transform(ctx context.Context, query *Query) (*
 		return nil, err
 	}
 
-	clone := query.Clone()
-	if translated != "" {
-		clone.Text = translated
-	}
-	return clone, nil
+	return query.withModelText(translated), nil
 }

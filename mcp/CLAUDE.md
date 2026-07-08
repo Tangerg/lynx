@@ -17,7 +17,7 @@
 ## 核心架构
 
 - `meta.go`：`WithMeta` / `MetaFromContext`
-- `session.go`：`WithToolCall` / `ServerSessionFromContext`
+- `session.go`：dispatcher 内部 call context / `WithServerSession` / `ServerSessionFromContext`
 - `reverse.go`：`ReportProgress` / `ElicitFromClient` / `LogToClient`
 - `tools.go`：`ToolSource` / `ToolOptions` / `Tools`
 - `tool.go`：内部 wrapper，远端 MCP tool → `chat.Tool`

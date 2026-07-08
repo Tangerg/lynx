@@ -75,3 +75,21 @@ func (q *Query) Clone() *Query {
 		extra: maps.Clone(q.extra),
 	}
 }
+
+func (q *Query) withText(text string) (*Query, error) {
+	if text == "" {
+		return nil, errors.New("rag.Query: text must not be empty")
+	}
+	clone := q.Clone()
+	clone.Text = text
+	return clone, nil
+}
+
+func (q *Query) withModelText(text string) *Query {
+	if text == "" {
+		return q.Clone()
+	}
+	clone := q.Clone()
+	clone.Text = text
+	return clone
+}

@@ -4,14 +4,14 @@
 //
 // It has two sides:
 //
-//   - CLIENT — [Dial] resolves a remote AgentCard and opens a client. The
-//     client is a protocol client; [Tools] wraps remote agents as ordinary
-//     chat tools.
+//   - CLIENT — [Tools] resolves remote AgentCards and wraps the resulting
+//     agents as ordinary chat tools. It returns a close function for the
+//     opened protocol clients.
 //
 //   - SERVER — expose a capability AS an A2A endpoint. Implement the
-//     narrow [Agent] interface (text in, streamed text out); [NewExecutor]
-//     adapts it to the SDK's [a2asrv.AgentExecutor] and [NewHTTPHandler]
-//     mounts the JSON-RPC method endpoint plus the well-known AgentCard.
+//     narrow [Agent] interface (text in, streamed text out); [NewHTTPHandler]
+//     adapts it to the SDK and mounts the JSON-RPC method endpoint plus the
+//     well-known AgentCard.
 //
 // The transport default is JSON-RPC over HTTP, matching the rest of the
 // stack; the SDK's REST/gRPC bindings are not precluded but are not wired
