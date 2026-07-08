@@ -1753,3 +1753,15 @@ app/runtime -> agent -> core
 - 已完成适配：runtime assembly 继续把同一个 `cfg.InterruptStore` / `cfg.TranscriptStore` 注入到对应窄口字段；所有 `r.interrupts.*` 与 `r.transcript.*` 调用已迁移到对应端口；测试 fixture 删除了嵌入完整 store 的宽 fake；未保留旧 `Runtime.interrupts` / `Runtime.transcript` 字段。
 - 验证结果：`go test ./internal/runtime ./internal/kernel/lifecycle ./internal/kernel/runsegment` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百零一轮包含 `app/runtime/internal/runtime` registered-tool catalog / invocation 端口收窄：
+
+- 调整对象：`Runtime.tools`、registered-tool list/invoke runtime facade、runtime assembly 和 focused runtime tests。
+- 调整前问题：`domain/tool` 已经提供 `Catalog` / `Invoker` 窄接口，但 Runtime 仍持有完整 `tool.Registry` 字段；`ListRegisteredTools` 理论上可见 direct invoke 能力，`InvokeRegisteredTool` 也通过同一字段可见 catalog list 能力，组合层没有延续 domain 已经设计好的读/命令分离。
+- 破坏性原因：这些字段位于 `app/runtime/internal/runtime`，属于应用层内部装配边界；直接删除旧总口字段并使用已有窄接口，不需要为内部旧 shape 留兼容层。
+- 新设计：`Runtime` 改为分别持有 `toolsvc.Catalog` 与 `toolsvc.Invoker`；runtime assembly 继续把同一个 engine-backed registry 注入到两个字段；list 和 direct invoke facade 分别调用自己的端口。
+- 架构收益：registered-tool catalog projection 与 out-of-turn diagnostic invocation 在 Runtime 类型边界上分开；组合层复用 domain/tool 既有接口设计，避免把完整 registry 作为默认 runtime state 字段穿透。
+- 影响范围：`app/runtime/internal/runtime` 的 Runtime struct、tool facade、runtime assembly 和 focused tool facade tests。
+- 已完成适配：所有 `r.tools.*` 调用已迁移到 `r.toolCatalog` 或 `r.toolInvocations`；新增 focused tests 锁住两个 facade 只需各自端口；未保留旧 `Runtime.tools` 字段。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

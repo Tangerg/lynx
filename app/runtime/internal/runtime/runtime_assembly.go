@@ -165,7 +165,8 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	return &Runtime{
 		engine:                    eng,
 		turns:                     turnDispatcher,
-		tools:                     toolRegistry,
+		toolCatalog:               toolRegistry,
+		toolInvocations:           toolRegistry,
 		knowledge:                 cfg.Engine.Knowledge,
 		approval:                  approvalPolicy,
 		conversation:              conv,
