@@ -24,6 +24,9 @@ const IDPrefix = "sch_"
 // ErrNotFound is returned by [Registry.Get] / [Registry.Update] for an unknown id.
 var ErrNotFound = errors.New("schedule: not found")
 
+// ErrUnavailable is returned when scheduling is disabled for this runtime.
+var ErrUnavailable = errors.New("schedule: unavailable")
+
 // Validation sentinels returned by [Schedule.Validate]; the delivery adapter
 // maps them to the protocol's invalid_params.
 var (

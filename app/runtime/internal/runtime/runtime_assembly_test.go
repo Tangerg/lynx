@@ -1,10 +1,13 @@
 package runtime
 
 import (
+	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -71,6 +74,27 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewDisablesSchedulesWhenRegistryMissing(t *testing.T) {
+	cfg := runtimeConfigWithRequiredDeps(t)
+	cfg.ScheduleRegistry = nil
+
+	rt, err := New(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if _, err := rt.ListSchedules(context.Background()); !errors.Is(err, schedule.ErrUnavailable) {
+		t.Fatalf("ListSchedules err = %v, want ErrUnavailable", err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		rt.RunScheduleWorker(context.Background(), nil)
+		close(done)
+	}()
+	<-done
 }
 
 func runtimeConfigWithRequiredDeps(t *testing.T) Config {

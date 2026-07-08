@@ -31,6 +31,40 @@ type scheduleRunRecorder interface {
 	RecordRun(ctx context.Context, id string, ranAt time.Time) error
 }
 
+type disabledScheduleRegistry struct{}
+
+func (disabledScheduleRegistry) List(context.Context) ([]schedule.Schedule, error) {
+	return nil, schedule.ErrUnavailable
+}
+
+func (disabledScheduleRegistry) Get(context.Context, string) (schedule.Schedule, error) {
+	return schedule.Schedule{}, schedule.ErrUnavailable
+}
+
+func (disabledScheduleRegistry) Create(context.Context, schedule.Schedule) (schedule.Schedule, error) {
+	return schedule.Schedule{}, schedule.ErrUnavailable
+}
+
+func (disabledScheduleRegistry) Update(context.Context, schedule.Schedule) (schedule.Schedule, error) {
+	return schedule.Schedule{}, schedule.ErrUnavailable
+}
+
+func (disabledScheduleRegistry) Delete(context.Context, string) error {
+	return schedule.ErrUnavailable
+}
+
+func (disabledScheduleRegistry) Due(context.Context, time.Time) ([]schedule.Schedule, error) {
+	return nil, nil
+}
+
+func (disabledScheduleRegistry) MarkFired(context.Context, string, time.Time, time.Time, time.Time) error {
+	return schedule.ErrUnavailable
+}
+
+func (disabledScheduleRegistry) RecordRun(context.Context, string, time.Time) error {
+	return schedule.ErrUnavailable
+}
+
 // ListSchedules returns every saved schedule, newest-created first.
 func (r *Runtime) ListSchedules(ctx context.Context) ([]schedule.Schedule, error) {
 	return r.scheduleList.List(ctx)
@@ -64,5 +98,8 @@ func (r *Runtime) RecordScheduleRun(ctx context.Context, id string, ranAt time.T
 
 // RunScheduleWorker starts the due-schedule scanner until ctx is canceled.
 func (r *Runtime) RunScheduleWorker(ctx context.Context, runner schedule.Runner) {
+	if r.scheduleWorker == nil {
+		return
+	}
 	schedule.NewWorker(r.scheduleWorker, runner).Run(ctx)
 }

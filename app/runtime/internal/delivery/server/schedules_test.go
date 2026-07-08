@@ -14,6 +14,7 @@ import (
 type scheduleRuntime struct {
 	stubRuntime
 	listed       []schedule.Schedule
+	listErr      error
 	byID         map[string]schedule.Schedule
 	created      []schedule.Schedule
 	updated      []schedule.Schedule
@@ -22,7 +23,7 @@ type scheduleRuntime struct {
 }
 
 func (r *scheduleRuntime) ListSchedules(context.Context) ([]schedule.Schedule, error) {
-	return r.listed, nil
+	return r.listed, r.listErr
 }
 
 func (r *scheduleRuntime) Schedule(_ context.Context, id string) (schedule.Schedule, error) {
@@ -157,6 +158,16 @@ func TestUpdateScheduleUnknownIDIsInvalidParams(t *testing.T) {
 	})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("update missing err = %v, want ErrInvalidParams", err)
+	}
+}
+
+func TestScheduleUnavailableIsCapabilityNotNegotiated(t *testing.T) {
+	rt := &scheduleRuntime{listErr: schedule.ErrUnavailable}
+	s := newTestServer(rt)
+
+	_, err := s.ListSchedules(context.Background())
+	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
+		t.Fatalf("list unavailable err = %v, want capability_not_negotiated", err)
 	}
 }
 
