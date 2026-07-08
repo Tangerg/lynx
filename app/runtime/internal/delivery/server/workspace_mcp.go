@@ -68,7 +68,7 @@ func (s *Server) WorkspaceMCPAuthorize(ctx context.Context, server string) error
 // configuration (token masked). Live connection state is not included — read it
 // from workspace.mcp.listServers (McpServer), keyed by name.
 func (s *Server) WorkspaceMCPListConfigs(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
-	servers, err := s.mcpRegistryCatalog.ListMCPRegisteredServers(ctx)
+	servers, err := s.mcpRegistryList.ListMCPRegisteredServers(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.Configur
 	if err := srv.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
-	if err := s.mcpRegistryMutations.ConfigureMCPServer(ctx, srv); err != nil {
+	if err := s.mcpRegistryConfigure.ConfigureMCPServer(ctx, srv); err != nil {
 		return nil, err
 	}
 	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, in.Name))
@@ -107,7 +107,7 @@ func (s *Server) WorkspaceMCPRemove(ctx context.Context, name string) error {
 	if name == "" {
 		return protocol.ErrInvalidParams
 	}
-	if err := s.mcpRegistryMutations.RemoveMCPServer(ctx, name); err != nil {
+	if err := s.mcpRegistryRemove.RemoveMCPServer(ctx, name); err != nil {
 		return err
 	}
 	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, name))
@@ -120,7 +120,7 @@ func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPE
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
 	}
-	if err := s.mcpRegistryMutations.SetMCPServerEnabled(ctx, in.Name, in.Enabled); err != nil {
+	if err := s.mcpRegistryEnable.SetMCPServerEnabled(ctx, in.Name, in.Enabled); err != nil {
 		return err
 	}
 	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, in.Name))

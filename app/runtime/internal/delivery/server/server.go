@@ -182,8 +182,11 @@ type runtimeBindings struct {
 	mcpTools                  mcpToolCatalogAccess
 	mcpReconnect              mcpReconnectAccess
 	mcpAuthorizations         mcpAuthorizationAccess
-	mcpRegistryCatalog        mcpRegistryCatalogAccess
-	mcpRegistryMutations      mcpRegistryMutationAccess
+	mcpRegistryList           mcpRegistryListAccess
+	mcpRegistryRead           mcpRegistryReadAccess
+	mcpRegistryConfigure      mcpRegistryConfigureAccess
+	mcpRegistryRemove         mcpRegistryRemoveAccess
+	mcpRegistryEnable         mcpRegistryEnableAccess
 	mcpRegistryProbe          mcpRegistryProbeAccess
 	skillCatalog              skillCatalogAccess
 	recipeCatalog             recipeCatalogAccess
@@ -251,8 +254,11 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		mcpTools:                  rt,
 		mcpReconnect:              rt,
 		mcpAuthorizations:         rt,
-		mcpRegistryCatalog:        rt,
-		mcpRegistryMutations:      rt,
+		mcpRegistryList:           rt,
+		mcpRegistryRead:           rt,
+		mcpRegistryConfigure:      rt,
+		mcpRegistryRemove:         rt,
+		mcpRegistryEnable:         rt,
 		mcpRegistryProbe:          rt,
 		skillCatalog:              rt,
 		recipeCatalog:             rt,
