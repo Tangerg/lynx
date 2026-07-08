@@ -61,14 +61,14 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []chat.Too
 	failures := 0
 	for _, srv := range servers {
 		ms := &server{config: srv}
-		session, derr := lynxmcp.Dial(ctx, client, srv)
+		session, derr := dial(ctx, client, srv)
 		if derr != nil {
 			ms.status, ms.lastErr = dialStatus(derr), derr
 			failures++
 			c.servers = append(c.servers, ms)
 			continue
 		}
-		srcTools, terr := sourceTools(ctx, lynxmcp.Source{Name: srv.Name, Session: session})
+		srcTools, terr := sourceTools(ctx, lynxmcp.ToolSource{Name: srv.Name, Session: session})
 		if terr != nil {
 			_ = session.Close() // half-open: drop it rather than keep a session whose tools we can't read
 			ms.status, ms.lastErr = statusFailed, terr

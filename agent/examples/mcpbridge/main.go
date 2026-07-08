@@ -16,7 +16,7 @@ func main() {
 	ctx := context.Background()
 
 	// 1. Build a chat.Tool — same shape an action body would
-	// register and the same shape RegisterTools accepts.
+	// register and the same shape lynxmcp.Register accepts.
 	echo, err := chat.NewTool(
 		chat.ToolDefinition{
 			Name:        "echo",
@@ -42,7 +42,7 @@ func main() {
 		&sdkmcp.Implementation{Name: "lynx-bridge", Version: "v0.1.0"},
 		nil,
 	)
-	if err := lynxmcp.RegisterTools(server, echo); err != nil {
+	if err := lynxmcp.Register(server, echo); err != nil {
 		log.Fatal(err)
 	}
 

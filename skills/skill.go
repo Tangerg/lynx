@@ -2,7 +2,7 @@ package skills
 
 // Skill is a fully loaded skill: its frontmatter metadata plus the Markdown
 // instruction body. Bundled resource files (references/, assets/, scripts/)
-// are not loaded here — they are read on demand via [Source.LoadResource],
+// are not loaded here — they are opened on demand via [ResourceSource],
 // the third level of progressive disclosure.
 type Skill struct {
 	Frontmatter

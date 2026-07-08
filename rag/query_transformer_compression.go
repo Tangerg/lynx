@@ -23,8 +23,7 @@ Follow-up query:
 
 Standalone query:`
 
-// CompressionTransformerConfig configures a
-// [CompressionTransformer].
+// CompressionTransformerConfig configures [NewCompressionTransformer].
 type CompressionTransformerConfig struct {
 	// ChatModel performs the compression. Required.
 	ChatModel chat.Model
@@ -35,8 +34,7 @@ type CompressionTransformerConfig struct {
 	PromptTemplate *chat.PromptTemplate
 }
 
-// Validate rejects invalid configs.
-func (c *CompressionTransformerConfig) Validate() error {
+func (c *CompressionTransformerConfig) validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.CompressionTransformerConfig: ChatModel is required")
 	}
@@ -46,36 +44,25 @@ func (c *CompressionTransformerConfig) Validate() error {
 	return nil
 }
 
-// ApplyDefaults fills zero fields. PromptTemplate defaults to
-// [compressionDefaultTemplate].
-func (c *CompressionTransformerConfig) ApplyDefaults() {
+func (c *CompressionTransformerConfig) applyDefaults() {
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(compressionDefaultTemplate)
 	}
 }
 
-var _ QueryTransformer = (*CompressionTransformer)(nil)
+var _ Transformer = (*compressionTransformer)(nil)
 
-// CompressionTransformer collapses a chat history plus a follow-up
-// query into a single self-contained query. Reach for it when the
-// conversation context is long and a downstream retriever needs to
-// understand the question without re-reading the full transcript.
-//
-// The transformer reads chat history from [Query.Extra] under
-// [ChatHistoryKey] — populated by [NewPipelineMiddleware] when the
-// pipeline runs as chat middleware.
-type CompressionTransformer struct {
+type compressionTransformer struct {
 	chatClient     *chat.Client
 	promptTemplate *chat.PromptTemplate
 }
 
-// NewCompressionTransformer builds a
-// [CompressionTransformer]. Returns an error when the
-// configuration fails validation or the chat client cannot be
-// constructed.
-func NewCompressionTransformer(cfg CompressionTransformerConfig) (*CompressionTransformer, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
+// NewCompressionTransformer returns a [Transformer] that collapses chat history
+// plus a follow-up question into a single self-contained query. It reads chat
+// history from [Query.Extra] under [ChatHistoryKey].
+func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, error) {
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
@@ -84,7 +71,7 @@ func NewCompressionTransformer(cfg CompressionTransformerConfig) (*CompressionTr
 		return nil, err
 	}
 
-	return &CompressionTransformer{
+	return &compressionTransformer{
 		chatClient:     client,
 		promptTemplate: cfg.PromptTemplate,
 	}, nil
@@ -93,7 +80,7 @@ func NewCompressionTransformer(cfg CompressionTransformerConfig) (*CompressionTr
 // Transform asks the LLM for a self-contained version of the query.
 // Returns a clone of the input with Text replaced by the LLM output;
 // when the LLM returns empty text the original Text is preserved.
-func (c *CompressionTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
+func (c *compressionTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if query == nil {
 		return nil, ErrNilQuery
 	}
@@ -122,7 +109,7 @@ func (c *CompressionTransformer) Transform(ctx context.Context, query *Query) (*
 // extractHistory pulls the conversation messages out of the query's
 // Extra map under [ChatHistoryKey] and renders them as one string.
 // Returns "" when the slot is missing or holds the wrong type.
-func (c *CompressionTransformer) extractHistory(query *Query) string {
+func (c *compressionTransformer) extractHistory(query *Query) string {
 	value, exists := query.Get(ChatHistoryKey)
 	if !exists {
 		return ""

@@ -23,7 +23,7 @@ Step 1. Use the extract script.
 See references/REFERENCE.md for details.
 `
 
-func newTestFS() *FS {
+func newTestFS() ResourceSource {
 	return NewFS(fstest.MapFS{
 		"pdf-processing/SKILL.md":                {Data: []byte(pdfSkill)},
 		"pdf-processing/references/REFERENCE.md": {Data: []byte("# Reference\nDetailed notes.")},
@@ -112,19 +112,19 @@ func TestLoad(t *testing.T) {
 	}
 }
 
-func TestLoadResource(t *testing.T) {
+func TestReadResource(t *testing.T) {
 	fsrc := newTestFS()
 
-	data, err := fsrc.LoadResource(context.Background(), "pdf-processing", "references/REFERENCE.md")
+	data, err := ReadResource(context.Background(), fsrc, "pdf-processing", "references/REFERENCE.md")
 	if err != nil {
-		t.Fatalf("LoadResource: %v", err)
+		t.Fatalf("ReadResource: %v", err)
 	}
 	if len(data) == 0 {
 		t.Error("resource content is empty")
 	}
 
 	// Traversal out of the skill directory must be rejected.
-	if _, err := fsrc.LoadResource(context.Background(), "pdf-processing", "../data-analysis/SKILL.md"); !errors.Is(err, ErrResourcePath) {
+	if _, err := ReadResource(context.Background(), fsrc, "pdf-processing", "../data-analysis/SKILL.md"); !errors.Is(err, ErrResourcePath) {
 		t.Errorf("traversal err = %v, want ErrResourcePath", err)
 	}
 }

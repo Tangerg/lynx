@@ -22,8 +22,7 @@ Rewritten query:`
 // [RewriteTransformerConfig.TargetSearchSystem] is unset.
 const defaultRewriteTarget = "vector store"
 
-// RewriteTransformerConfig configures a
-// [RewriteTransformer].
+// RewriteTransformerConfig configures [NewRewriteTransformer].
 type RewriteTransformerConfig struct {
 	// ChatModel performs the rewrite. Required.
 	ChatModel chat.Model
@@ -39,8 +38,7 @@ type RewriteTransformerConfig struct {
 	PromptTemplate *chat.PromptTemplate
 }
 
-// Validate rejects invalid configs.
-func (c *RewriteTransformerConfig) Validate() error {
+func (c *RewriteTransformerConfig) validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.RewriteTransformerConfig: ChatModel is required")
 	}
@@ -50,10 +48,7 @@ func (c *RewriteTransformerConfig) Validate() error {
 	return nil
 }
 
-// ApplyDefaults fills zero fields. TargetSearchSystem defaults to
-// [defaultRewriteTarget]; PromptTemplate defaults to
-// [rewriteDefaultTemplate].
-func (c *RewriteTransformerConfig) ApplyDefaults() {
+func (c *RewriteTransformerConfig) applyDefaults() {
 	if c.TargetSearchSystem == "" {
 		c.TargetSearchSystem = defaultRewriteTarget
 	}
@@ -62,25 +57,19 @@ func (c *RewriteTransformerConfig) ApplyDefaults() {
 	}
 }
 
-var _ QueryTransformer = (*RewriteTransformer)(nil)
+var _ Transformer = (*rewriteTransformer)(nil)
 
-// RewriteTransformer asks an LLM to tighten a verbose or
-// ambiguous user query into a form better suited to the configured
-// search target. Useful when the chat front-end accepts free-form
-// text that retrieval engines handle poorly (rambling questions,
-// implicit context, ...).
-type RewriteTransformer struct {
+type rewriteTransformer struct {
 	chatClient         *chat.Client
 	targetSearchSystem string
 	promptTemplate     *chat.PromptTemplate
 }
 
-// NewRewriteTransformer builds a [RewriteTransformer].
-// Returns an error when the configuration fails validation or the
-// chat client cannot be constructed.
-func NewRewriteTransformer(cfg RewriteTransformerConfig) (*RewriteTransformer, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
+// NewRewriteTransformer returns a [Transformer] that tightens a verbose or
+// ambiguous user query for a configured search target.
+func NewRewriteTransformer(cfg RewriteTransformerConfig) (Transformer, error) {
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
@@ -89,7 +78,7 @@ func NewRewriteTransformer(cfg RewriteTransformerConfig) (*RewriteTransformer, e
 		return nil, err
 	}
 
-	return &RewriteTransformer{
+	return &rewriteTransformer{
 		chatClient:         client,
 		targetSearchSystem: cfg.TargetSearchSystem,
 		promptTemplate:     cfg.PromptTemplate,
@@ -99,7 +88,7 @@ func NewRewriteTransformer(cfg RewriteTransformerConfig) (*RewriteTransformer, e
 // Transform asks the LLM to rewrite the query. Returns a clone with
 // Text replaced by the LLM output; an empty LLM response leaves Text
 // unchanged.
-func (r *RewriteTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
+func (r *rewriteTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if query == nil {
 		return nil, ErrNilQuery
 	}

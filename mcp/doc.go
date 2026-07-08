@@ -1,23 +1,11 @@
-// Package mcp bridges the Model Context Protocol (https://modelcontextprotocol.io/)
-// into the chat tool system in both directions.
+// Package mcp provides lynx helpers around the Model Context Protocol
+// (https://modelcontextprotocol.io/).
 //
-// # Client side
-//
-// A Provider aggregates one or more *sdkmcp.ClientSession sources, fans
-// listTools across them, and exposes the result as a list of chat.Tool. Each
-// remote tool is wrapped in a Tool, which implements chat.Tool; any tool-loop
-// driver can therefore drive an MCP tool exactly like a local tool. The cache
-// is invalidated automatically when a server delivers a tools/list_changed
-// notification, provided the caller wires
-// (*Provider).OnToolListChanged into sdkmcp.ClientOptions.
-//
-// # Server side
-//
-// RegisterTools installs chat.Tool implementations onto an
-// *sdkmcp.Server using the low-level AddTool API. The handler converts a
-// (string, error) result into the CallToolResult shape mandated by the
-// protocol: a successful tool call yields a TextContent body; a failing
-// tool yields IsError=true, never a JSON-RPC protocol error.
+// Use the official Go SDK package (github.com/modelcontextprotocol/go-sdk/mcp)
+// for protocol clients, servers, sessions, and transports. The root lynx
+// package keeps the small adapters lynx needs around those SDK primitives:
+// context metadata, reverse-capability helpers, chat.Tool wrapping, tool
+// registration, sampling, and prompt conversion.
 //
 // # Naming
 //
@@ -27,7 +15,7 @@
 //
 //	import (
 //	    lynxmcp "github.com/Tangerg/lynx/mcp"
-//	    "github.com/modelcontextprotocol/go-sdk/mcp"
+//	    sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 //	)
 //
 // Inside this package the SDK is imported under the alias sdkmcp.

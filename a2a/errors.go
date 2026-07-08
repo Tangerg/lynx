@@ -9,10 +9,7 @@ import (
 
 // Input-validation sentinels. Use errors.Is to detect them.
 var (
-	// ErrNilClient is returned when an AgentTool is built without a client.
-	ErrNilClient = errors.New("a2a: client must not be nil")
-
-	// ErrNilCard is returned when an AgentTool is built without an AgentCard.
+	// ErrNilCard is returned when a server or adapter is built without an AgentCard.
 	ErrNilCard = errors.New("a2a: agent card must not be nil")
 
 	// ErrNilAgent is returned when a server is built without an Agent.
@@ -20,11 +17,6 @@ var (
 
 	// ErrEmptyCardURL is returned by Dial when no card URL is supplied.
 	ErrEmptyCardURL = errors.New("a2a: card URL must not be empty")
-
-	// ErrEmptyToolName is returned when an AgentTool ends up with an empty
-	// tool name — the card's Name contains no sanitizable characters (e.g.
-	// fully non-ASCII) and no explicit Name override was supplied.
-	ErrEmptyToolName = errors.New("a2a: tool name must not be empty; set AgentToolConfig.Name when the card name does not sanitize")
 )
 
 // RemoteAgentError reports that a remote A2A agent ended a task in a

@@ -20,8 +20,7 @@ Original query: {{.Query}}
 
 Translated query:`
 
-// TranslationTransformerConfig configures a
-// [TranslationTransformer].
+// TranslationTransformerConfig configures [NewTranslationTransformer].
 type TranslationTransformerConfig struct {
 	// ChatModel performs the translation. Required.
 	ChatModel chat.Model
@@ -36,8 +35,7 @@ type TranslationTransformerConfig struct {
 	PromptTemplate *chat.PromptTemplate
 }
 
-// Validate rejects invalid configs.
-func (c *TranslationTransformerConfig) Validate() error {
+func (c *TranslationTransformerConfig) validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.TranslationTransformerConfig: ChatModel is required")
 	}
@@ -50,34 +48,25 @@ func (c *TranslationTransformerConfig) Validate() error {
 	return nil
 }
 
-// ApplyDefaults fills zero fields. PromptTemplate defaults to
-// [translationDefaultTemplate].
-func (c *TranslationTransformerConfig) ApplyDefaults() {
+func (c *TranslationTransformerConfig) applyDefaults() {
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(translationDefaultTemplate)
 	}
 }
 
-var _ QueryTransformer = (*TranslationTransformer)(nil)
+var _ Transformer = (*translationTransformer)(nil)
 
-// TranslationTransformer asks an LLM to translate the query into
-// the language the downstream embedding model is tuned for. Queries
-// already in the target language pass through unchanged. Useful for
-// multilingual front-ends backed by an embedding model trained on a
-// single language.
-type TranslationTransformer struct {
+type translationTransformer struct {
 	chatClient     *chat.Client
 	targetLanguage string
 	promptTemplate *chat.PromptTemplate
 }
 
-// NewTranslationTransformer builds a
-// [TranslationTransformer]. Returns an error when the
-// configuration fails validation or the chat client cannot be
-// constructed.
-func NewTranslationTransformer(cfg TranslationTransformerConfig) (*TranslationTransformer, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
+// NewTranslationTransformer returns a [Transformer] that translates queries
+// into the target language expected by downstream retrieval.
+func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, error) {
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
@@ -86,7 +75,7 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (*TranslationTr
 		return nil, err
 	}
 
-	return &TranslationTransformer{
+	return &translationTransformer{
 		chatClient:     client,
 		targetLanguage: cfg.TargetLanguage,
 		promptTemplate: cfg.PromptTemplate,
@@ -96,7 +85,7 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (*TranslationTr
 // Transform asks the LLM to translate the query. Returns a clone with
 // Text replaced by the LLM output; an empty LLM response leaves Text
 // unchanged.
-func (t *TranslationTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
+func (t *translationTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if query == nil {
 		return nil, ErrNilQuery
 	}

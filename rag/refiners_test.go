@@ -8,8 +8,8 @@ import (
 	"github.com/Tangerg/lynx/rag"
 )
 
-func TestDeduplicationRefiner_DropsDuplicateIDs(t *testing.T) {
-	r := rag.NewDeduplicationRefiner()
+func TestDedupDropsDuplicateIDs(t *testing.T) {
+	r := rag.Dedup()
 
 	a, _ := document.NewDocument("a", nil)
 	a.ID = "1"
@@ -30,8 +30,8 @@ func TestDeduplicationRefiner_DropsDuplicateIDs(t *testing.T) {
 	}
 }
 
-func TestDeduplicationRefiner_HonorsContextCancel(t *testing.T) {
-	r := rag.NewDeduplicationRefiner()
+func TestDedupHonorsContextCancel(t *testing.T) {
+	r := rag.Dedup()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -40,8 +40,8 @@ func TestDeduplicationRefiner_HonorsContextCancel(t *testing.T) {
 	}
 }
 
-func TestRankRefiner_SortsAndCaps(t *testing.T) {
-	r := rag.NewRankRefiner(2)
+func TestTopKSortsAndCaps(t *testing.T) {
+	r := rag.TopK(2)
 
 	a, _ := document.NewDocument("a", nil)
 	a.Score = 0.3
@@ -62,9 +62,9 @@ func TestRankRefiner_SortsAndCaps(t *testing.T) {
 	}
 }
 
-func TestNewRankRefiner_NormalizesNonPositiveTopK(t *testing.T) {
+func TestTopKNormalizesNonPositiveLimit(t *testing.T) {
 	// topK 0 / negative should fall back to 1, not panic / not return empty.
-	r := rag.NewRankRefiner(0)
+	r := rag.TopK(0)
 	a, _ := document.NewDocument("a", nil)
 	got, err := r.Refine(context.Background(), nil, []*document.Document{a})
 	if err != nil {
@@ -75,8 +75,8 @@ func TestNewRankRefiner_NormalizesNonPositiveTopK(t *testing.T) {
 	}
 }
 
-func TestRankRefiner_DoesNotMutateInput(t *testing.T) {
-	r := rag.NewRankRefiner(10)
+func TestTopKDoesNotMutateInput(t *testing.T) {
+	r := rag.TopK(10)
 
 	a, _ := document.NewDocument("a", nil)
 	a.Score = 0.1

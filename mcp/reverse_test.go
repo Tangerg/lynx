@@ -57,7 +57,7 @@ func TestNotifyHelpers_ProgressAndLog(t *testing.T) {
 	)
 
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-srv", Version: "v0.1.0"}, nil)
-	require.NoError(t, mcp.RegisterTools(server, &progressTool{calls: &atomicInt{}}))
+	require.NoError(t, mcp.Register(server, &progressTool{calls: &atomicInt{}}))
 
 	cli := sdkmcp.NewClient(
 		&sdkmcp.Implementation{Name: "test-cli", Version: "v0.1.0"},

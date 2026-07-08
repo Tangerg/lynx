@@ -38,10 +38,10 @@ type Info struct {
 // neither directory exists, so a session that ships no skills gets no skill
 // tool at all rather than one that always lists nothing.
 //
-// Building a [sdk.FS] just wraps an os.DirFS, so this is cheap enough to call
-// per tool resolution (the engine rebuilds the skill tool per turn cwd).
-func MergedSource(projectDir, globalDir string) sdk.Source {
-	var sources []sdk.Source
+// Building a source just wraps an os.DirFS, so this is cheap enough to call per
+// tool resolution (the engine rebuilds the skill tool per turn cwd).
+func MergedSource(projectDir, globalDir string) sdk.ResourceSource {
+	var sources []sdk.ResourceSource
 	if dirExists(projectDir) {
 		sources = append(sources, sdk.Dir(projectDir))
 	}

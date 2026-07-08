@@ -5,23 +5,20 @@ import (
 	"fmt"
 )
 
-// Sentinel errors for the input-shape validators. Callers can match
-// these with [errors.Is] to distinguish caller-side input errors from
-// transport, protocol, or remote-tool failures.
+// Sentinel errors for public input-shape validators. Callers can match these
+// with [errors.Is] to distinguish caller-side input errors from transport,
+// protocol, or remote-tool failures.
 var (
-	// ErrNilServer is returned by [RegisterTools] when server is nil.
+	// ErrNilServer is returned by [Register] when server is nil.
 	ErrNilServer = errors.New("mcp: server must not be nil")
 
-	// ErrNilSession is returned when a [Source] or [ToolConfig]
-	// supplies a nil session.
+	// ErrNilSession is returned when a [ToolSource] supplies a nil session.
 	ErrNilSession = errors.New("mcp: session must not be nil")
-
-	// ErrNilDescriptor is returned when [ToolConfig] supplies a nil
-	// tool descriptor.
-	ErrNilDescriptor = errors.New("mcp: descriptor must not be nil")
 )
 
-// ToolCallError is returned by [Tool.Call] when a remote MCP tool
+var errNilDescriptor = errors.New("mcp: descriptor must not be nil")
+
+// ToolCallError is returned by tools produced by [Tools] when a remote MCP tool
 // reports IsError=true. Use [errors.As] to distinguish a tool-side
 // failure from transport, protocol, or argument-decoding errors:
 //

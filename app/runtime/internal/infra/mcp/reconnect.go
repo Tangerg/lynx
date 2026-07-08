@@ -139,10 +139,10 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 // just-authorized handler for this session's later reconnects; the plain dials
 // reuse an existing one and pass false).
 func (c *Connections) dialAndSwap(ctx context.Context, ms *server, cfg ServerConfig, keepHandler bool) error {
-	session, err := lynxmcp.Dial(ctx, c.client, cfg)
+	session, err := dial(ctx, c.client, cfg)
 	if err == nil {
 		// Prove the session is usable before publishing it as connected.
-		if _, terr := sourceTools(ctx, lynxmcp.Source{Name: cfg.Name, Session: session}); terr != nil {
+		if _, terr := sourceTools(ctx, lynxmcp.ToolSource{Name: cfg.Name, Session: session}); terr != nil {
 			_ = session.Close()
 			err, session = terr, nil
 		}

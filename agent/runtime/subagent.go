@@ -107,10 +107,10 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 // a *fresh* process per call (no parent context required) so it's
 // suitable for the "agent.action(input) → output" RPC pattern.
 //
-// Compose with [github.com/Tangerg/lynx/mcp].RegisterTools:
+// Compose with [github.com/Tangerg/lynx/mcp].Register:
 //
 //	server := sdkmcp.NewServer(impl, nil)
-//	mcp.RegisterTools(server, runtime.AsMCPTool[Topic, Brief](platform, "BriefingAgent"))
+//	lynxmcp.Register(server, runtime.AsMCPTool[Topic, Brief](platform, "BriefingAgent"))
 //
 // Target per-call form is ergonomic enough on its own without a
 // separate batch helper.

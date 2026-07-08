@@ -9,8 +9,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// ragTracer is the package-level tracer for RAG pipeline span
-// emission. Tracer name follows the `lynx/<subsystem>` convention.
+// ragTracer is the package-level tracer for RAG span emission.
+// Tracer name follows the `lynx/<subsystem>` convention.
 // No-op overhead when no TracerProvider is installed — see
 // doc/OBSERVABILITY.md §5.
 var ragTracer = otel.Tracer("lynx/rag")
@@ -24,7 +24,7 @@ const (
 	attrDocCount   = "rag.doc_count"
 )
 
-// startStageSpan opens a child span for one RAG pipeline stage. The
+// startStageSpan opens a child span for one RAG operation. The
 // span name is `rag.<stage>` (e.g. `rag.transform`) and the stage is
 // also stamped onto the `rag.stage` attribute so backends that surface
 // attribute-based filtering can pivot on it.

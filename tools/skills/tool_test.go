@@ -10,7 +10,7 @@ import (
 	skillsrc "github.com/Tangerg/lynx/skills"
 )
 
-func newToolFS() skillsrc.Source {
+func newToolFS() skillsrc.ResourceSource {
 	return skillsrc.NewFS(fstest.MapFS{
 		"pdf-processing/SKILL.md":                {Data: []byte("---\nname: pdf-processing\ndescription: Handle PDFs.\n---\n# PDF\nDo the thing. See references/REFERENCE.md.")},
 		"pdf-processing/references/REFERENCE.md": {Data: []byte("detailed reference")},

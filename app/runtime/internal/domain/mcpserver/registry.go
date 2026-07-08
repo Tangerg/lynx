@@ -92,7 +92,8 @@ type Server struct {
 
 // Validate reports whether the server is well-formed for its transport: the
 // chosen transport's required field is set and the other transport's fields
-// are blank, mirroring [mcp.ServerConfig.Validate] at the registry boundary.
+// are blank at the registry boundary, before runtime-specific dial state is
+// attached.
 func (s Server) Validate() error {
 	if s.Name == "" {
 		return errors.New("mcpserver: Name is required")

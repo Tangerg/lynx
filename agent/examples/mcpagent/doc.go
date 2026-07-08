@@ -1,9 +1,8 @@
 // Command mcpagent shows the complete client-side MCP integration
 // in one file:
 //
-//   - mcp.Provider over an in-memory MCP server (one tool + one prompt)
+//   - lynx/mcp tool listing over an in-memory MCP server (one tool + one prompt)
 //   - sampling.CreateMessageHandler wired to the platform's chat.Client
-//   - tools/list_changed handler invalidating the Provider cache
 //   - request-level metadata (process_id) forwarded via mcp.WithMeta
 //   - action body that fetches a remote system prompt, then runs an
 //     LLM tool loop where the LLM picks a tool exposed by the MCP server
