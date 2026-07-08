@@ -1705,3 +1705,15 @@ app/runtime -> agent -> core
 - 已完成适配：runtime assembly 继续把同一个 `cfg.MCPRegistry` 注入到五个窄口字段；所有 `r.mcpRegistry.*` 调用已迁移到对应端口；未保留旧 `Runtime.mcpRegistry` 字段。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第九十七轮包含 `app/runtime/internal/runtime` provider registry 用例端口收窄：
+
+- 调整对象：`Runtime.providers` 与 provider runtime facade 的 list/read/configure 调用。
+- 调整前问题：runtime bundle 持有一个完整 `provider.Registry` 字段，providers.list、providers.configure 读回、models role validation、provider credential resolver 等不同路径容易共享同一个 registry 总口。第九十五轮已把模型 client resolver 收窄到 credential lookup，但 `Runtime` 自身仍通过一个字段暴露 list/get/configure 全部能力。
+- 破坏性原因：这些字段和 helper 位于 `app/runtime/internal/runtime`，属于应用层内部装配边界；按 provider registry 用例拆分字段能直接删除旧总口，不需要为内部旧 shape 留兼容层。
+- 新设计：新增 `providerRegistryList`、`providerRegistryRead`、`providerRegistryConfigure` 三个 consumer-side port；`Runtime` 分别持有对应字段，`ListRegisteredProviders`、`RegisteredProvider`、`ConfigureProvider` 只调用各自端口。模型 client 构建继续使用独立的 `providerCredentialLookup`。
+- 架构收益：provider registry 的列表 read model、单条 lookup、credential configure 在 runtime 内部类型边界上分开；完整 registry 只在 composition root 注入时出现，provider CRUD 不再作为默认 runtime state 字段穿透。
+- 影响范围：`app/runtime/internal/runtime` 的 provider runtime facade、Runtime struct 和 runtime assembly。
+- 已完成适配：runtime assembly 继续把同一个 `cfg.ProviderRegistry` 注入到三个窄口字段；所有 `r.providers.*` runtime facade 调用已迁移到对应端口；未保留旧 `Runtime.providers` 字段。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

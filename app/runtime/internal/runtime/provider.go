@@ -9,19 +9,31 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 )
 
+type providerRegistryList interface {
+	List(ctx context.Context) ([]provider.Provider, error)
+}
+
+type providerRegistryRead interface {
+	Get(ctx context.Context, id string) (provider.Provider, bool, error)
+}
+
+type providerRegistryConfigure interface {
+	Configure(ctx context.Context, entry provider.Provider) error
+}
+
 // ListRegisteredProviders returns the runtime-mutable provider registry.
 func (r *Runtime) ListRegisteredProviders(ctx context.Context) ([]provider.Provider, error) {
-	return r.providers.List(ctx)
+	return r.providerRegistryList.List(ctx)
 }
 
 // RegisteredProvider returns one provider registry entry by provider id.
 func (r *Runtime) RegisteredProvider(ctx context.Context, id string) (provider.Provider, bool, error) {
-	return r.providers.Get(ctx, id)
+	return r.providerRegistryRead.Get(ctx, id)
 }
 
 // ConfigureProvider upserts a provider's credentials into the registry.
 func (r *Runtime) ConfigureProvider(ctx context.Context, entry provider.Provider) error {
-	return r.providers.Configure(ctx, entry)
+	return r.providerRegistryConfigure.Configure(ctx, entry)
 }
 
 // SupportedProviders returns the provider reference data this runtime build can
