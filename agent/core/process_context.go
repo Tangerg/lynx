@@ -25,12 +25,7 @@ type ToolResolver func(ctx context.Context, requirements []ToolGroupRequirement)
 
 // EventPublisher is the callable the runtime installs for actions to push
 // custom events through the multicast listener.
-type EventPublisher func(event any)
-
-// ContextEventPublisher is the context-aware event publishing hook. Runtimes
-// use it to preserve the current action / run trace when an action calls
-// [ProcessContext.Publish] or [ProcessContext.PublishContext].
-type ContextEventPublisher func(ctx context.Context, event any)
+type EventPublisher func(ctx context.Context, event any)
 
 // ToolCallCancelFunc is the runtime's hook for [ProcessContext.ToolCallContext].
 // It hands the runtime a cancel func tied to the in-flight tool call (so
@@ -68,16 +63,10 @@ type PlatformHooks struct {
 	// bodies make. nil or empty means "no global middleware".
 	Guardrails *Guardrails
 
-	// Publish is invoked by [ProcessContext.Publish]; nil makes Publish
-	// a no-op. The runtime supplies a closure that fans the event out
-	// to the platform's multicast listener.
+	// Publish is invoked by [ProcessContext.Publish]; nil makes Publish a
+	// no-op. The runtime supplies a closure that fans the event out to the
+	// platform's multicast listener.
 	Publish EventPublisher
-
-	// PublishContext is the context-aware companion to Publish. When set,
-	// [ProcessContext.Publish] uses the current action ctx captured by
-	// [ProcessContext.ExecuteSafely], and [ProcessContext.PublishContext]
-	// forwards the caller-supplied ctx.
-	PublishContext ContextEventPublisher
 
 	// ResolveTools is invoked by [ProcessContext.ResolveTools]; nil
 	// makes ResolveTools return (nil, nil). The runtime supplies a
@@ -132,7 +121,6 @@ type ProcessContext struct {
 	chatClient     ChatClient
 	guardrails     *Guardrails
 	publishEvent   EventPublisher
-	publishContext ContextEventPublisher
 	resolveTools   ToolResolver
 	toolCallCancel ToolCallCancelFunc
 
@@ -151,11 +139,6 @@ type ProcessContext struct {
 	// preserves that invariant by handing each branch its own copy via
 	// [ProcessContext.ForParallelBranch] rather than sharing one.
 	lastErr error
-
-	// eventContext is the current action ctx captured during ExecuteSafely.
-	// Publish uses it so action-emitted events inherit the same trace as the
-	// action body without changing existing action code.
-	eventContext context.Context
 }
 
 // NewProcessContext assembles a ProcessContext from config. Used by the
@@ -171,7 +154,6 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 		guardrails:       config.Guardrails,
 		actionToolGroups: config.ActionToolGroups,
 		publishEvent:     config.Publish,
-		publishContext:   config.PublishContext,
 		resolveTools:     config.ResolveTools,
 		toolCallCancel:   config.ToolCallCancel,
 	}

@@ -1,6 +1,7 @@
 package event_test
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -9,7 +10,7 @@ import (
 
 func TestNamedListener_NameAndOnEvent(t *testing.T) {
 	var got []string
-	listener := event.NewNamedListener("collector", func(e event.Event) {
+	listener := event.NewNamedListener("collector", func(_ context.Context, e event.Event) {
 		got = append(got, e.EventName())
 	})
 
@@ -19,8 +20,8 @@ func TestNamedListener_NameAndOnEvent(t *testing.T) {
 
 	mc := event.NewMulticast()
 	mc.Add(listener)
-	mc.OnEvent(event.AgentDeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
-	mc.OnEvent(event.AgentUndeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
+	mc.OnEvent(context.Background(), event.AgentDeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
+	mc.OnEvent(context.Background(), event.AgentUndeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
 
 	if len(got) != 2 {
 		t.Fatalf("captured %d events, want 2: %v", len(got), got)
@@ -34,7 +35,7 @@ func TestNamedListener_NilFnIsNop(t *testing.T) {
 	listener := event.NewNamedListener("nop", nil)
 
 	// Should not panic.
-	listener.OnEvent(event.AgentDeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
+	listener.OnEvent(context.Background(), event.AgentDeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
 }
 
 func TestNamedListener_ConcurrentDelivery(t *testing.T) {
@@ -46,7 +47,7 @@ func TestNamedListener_ConcurrentDelivery(t *testing.T) {
 		mu    sync.Mutex
 		count int
 	)
-	listener := event.NewNamedListener("counter", func(_ event.Event) {
+	listener := event.NewNamedListener("counter", func(context.Context, event.Event) {
 		mu.Lock()
 		count++
 		mu.Unlock()
@@ -59,7 +60,7 @@ func TestNamedListener_ConcurrentDelivery(t *testing.T) {
 	var wg sync.WaitGroup
 	for range N {
 		wg.Go(func() {
-			mc.OnEvent(event.AgentDeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
+			mc.OnEvent(context.Background(), event.AgentDeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
 		})
 	}
 	wg.Wait()

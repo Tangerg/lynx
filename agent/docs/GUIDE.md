@@ -256,8 +256,8 @@ type Process interface {
     TerminateAgent(reason)
     TerminateAction(reason)
     TerminateToolCall(reason)
-    AwaitInput(req Awaitable) ActionStatus
-    RecordUsage(cost, tokens)
+    AwaitInput(ctx context.Context, req Awaitable) ActionStatus
+    RecordUsage(ctx context.Context, cost float64, tokens int)
     Usage() (cost, tokens, actions)  // 子树聚合
 }
 ```
@@ -284,11 +284,11 @@ type ProcessContext struct {
 }
 
 // 主要方法：
-pc.Publish(event)                  // 走 multicast
+pc.Publish(ctx, event)             // 走 multicast
 pc.ResolveTools(ctx, "search")     // 通过 ToolGroupResolver
 pc.ToolCallContext(parent)         // 返回 (ctx, cleanup)，TerminateToolCall 触发 cancel
-pc.AwaitInput(req)                 // 委托给 Process
-pc.RecordUsage(cost, tokens)       // 委托给 Process
+pc.AwaitInput(ctx, req)            // 委托给 Process
+pc.RecordUsage(ctx, cost, tokens)  // 委托给 Process
 ```
 
 构造通过 `ProcessContextConfig`（runtime 填好后调 `core.NewProcessContext(deps)`）——这避免在公共 API 上散布 setter。
@@ -506,7 +506,7 @@ func (p *AgentProcess) Usage() (cost float64, tokens int, actions int) {
 ## III.7 事件多播 — Snapshot 模式
 
 ```go
-func (m *Multicast) OnEvent(e Event) {
+func (m *Multicast) OnEvent(ctx context.Context, e Event) {
     m.mu.RLock()
     listeners := make([]Listener, len(m.listeners))
     copy(listeners, m.listeners)  // 在锁内 snapshot
@@ -644,7 +644,7 @@ agent.NewAction[Draft, Approved]("review", func(ctx context.Context, pc *core.Pr
         }
         return core.ImpactUnchanged
     })
-    pc.AwaitInput(req)  // → ActionWaiting，process 转 StatusWaiting
+    pc.AwaitInput(ctx, req)  // → ActionWaiting，process 转 StatusWaiting
     return Approved{}, nil  // 占位返回，blackboard 在 handler 里写
 }, core.ActionConfig{})
 
@@ -743,7 +743,7 @@ core.ProcessOptions{
 ```go
 type debugLogger struct{}
 func (debugLogger) Name() string { return "debug-logger" }
-func (debugLogger) OnEvent(e event.Event) {
+func (debugLogger) OnEvent(ctx context.Context, e event.Event) {
     fmt.Printf("[%s] %s\n", e.EventName(), e.ProcessID())
 }
 
@@ -752,12 +752,12 @@ p := agent.NewPlatform(runtime.PlatformConfig{
 })
 
 // 或者用闭包：
-type listenerFunc func(event.Event)
+type listenerFunc func(context.Context, event.Event)
 func (f listenerFunc) Name() string { return "debug-listener" }
-func (f listenerFunc) OnEvent(e event.Event) { f(e) }
+func (f listenerFunc) OnEvent(ctx context.Context, e event.Event) { f(ctx, e) }
 
 p2 := agent.NewPlatform(runtime.PlatformConfig{
-    Extensions: []core.Extension{listenerFunc(func(e event.Event) {
+    Extensions: []core.Extension{listenerFunc(func(ctx context.Context, e event.Event) {
         if r, ok := e.(event.ActionExecutionResult); ok && r.Err != nil {
             metrics.Counter("action.failed").Inc()
         }
@@ -899,7 +899,7 @@ func LLMAction[Out any](name, system string, schema string) core.Action {
             if err != nil { return *new(Out), err }
             
             // 上报 usage 给 budget tracker
-            pc.RecordUsage(resp.Cost, resp.Tokens)
+            pc.RecordUsage(ctx, resp.Cost, resp.Tokens)
             
             var out Out
             if err := json.Unmarshal([]byte(resp.Content), &out); err != nil {
@@ -1007,7 +1007,7 @@ type EventRecorder struct {
     mu     sync.Mutex
     events []event.Event
 }
-func (r *EventRecorder) OnEvent(e event.Event) {
+func (r *EventRecorder) OnEvent(ctx context.Context, e event.Event) {
     r.mu.Lock(); defer r.mu.Unlock()
     r.events = append(r.events, e)
 }
@@ -1056,7 +1056,7 @@ mcpServer.Listen(":3000")
 | 在 Listener 里调 `Platform.RunAgent`（同步） | 死锁（事件分发线程阻塞） | Listener 内只做记录；要重启 process 在外面调 |
 | 把 LLM 客户端塞 `ProcessOptions.Services` | 每个 process 有自己实例，浪费连接 | 在 `PlatformConfig.Services` 一次注册，所有 process 共享 |
 | 多个 Action 都写同名 condition / binding | 后写覆盖前写，planner 行为不可预测 | 命名规范化（用 type 派生 / 加前缀） |
-| 忘记 `pc.RecordUsage(cost, tokens)` | `BudgetPolicy` 永远不触发 | LLM 调用后必须上报 |
+| 忘记 `pc.RecordUsage(ctx, cost, tokens)` | `BudgetPolicy` 永远不触发 | LLM 调用后必须上报 |
 
 ---
 

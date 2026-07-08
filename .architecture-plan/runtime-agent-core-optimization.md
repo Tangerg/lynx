@@ -699,6 +699,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的 `mcpRegistryCatalogAccess` 拆为 `mcpRegistryListAccess` 与 `mcpRegistryReadAccess`。
   - 将 delivery/server 的 `mcpRegistryMutationAccess` 拆为 `mcpRegistryConfigureAccess`、`mcpRegistryRemoveAccess` 与 `mcpRegistryEnableAccess`。
   - workspace.mcp.listConfigs、configure、remove、setEnabled、test-token-preservation 各自依赖自己的最小 registry 能力，不保留旧 MCP registry 聚合字段。
+- 已完成第八十七轮 `agent` context-first 公开 API 破坏性收敛：
+  - 用户确认方案 A 后，将 event listener、`core.Process`、`core.ProcessContext` 与 `runtime.AgentProcess` 的 publish / await / invocation 记录入口统一为显式 `context.Context` first。
+  - 删除前序兼容期的 `PublishContext`、`AwaitInputContext`、`Record*Context`、`OnEventContext` companion 公开入口和无 ctx wrapper；不再通过 `ProcessContext` 隐式保存 action ctx。
+  - 同步迁移 `app/runtime/internal/kernel` HITL / turn loop 调用、agent runtime tests、examples 和 agent docs，避免公开文档继续指向旧 API。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -799,6 +803,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十四轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十五轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十六轮后复跑）。
+  - `go test ./...`（`agent`）通过（第八十七轮 public API 迁移后先跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -1178,6 +1183,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第八十六轮后复跑）。
   - `go build ./...`（`agent`）通过（第八十六轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第八十六轮后复跑）。
+  - `go test ./...`（`core`）通过（第八十七轮后复跑）。
+  - `go test ./...`（`agent`）通过（第八十七轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第八十七轮后复跑）。
+  - `go vet ./...`（`core`）通过（第八十七轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第八十七轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第八十七轮后复跑）。
+  - `go build ./...`（`core`）通过（第八十七轮后复跑）。
+  - `go build ./...`（`agent`）通过（第八十七轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第八十七轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1189,8 +1203,7 @@ app/runtime -> agent -> core
 
 ### 5.2 未完成
 
-- 本批未做破坏性公共 API 重构；目标已更新为不保留旧接口兼容层，如后续继续收敛 exported shape，需要先确认 scope、影响面和备选方案后直接改到正确形态。
-- 已识别 `agent` 公开 API 中前序 context-aware companion 入口仍保留旧入口（如 event/process context/invocation/await 路径）；若按最新目标移除旧入口，将是跨模块公开 API 破坏性调整，需要先确认影响面和迁移方案。
+- 第八十七轮已完成 `agent` 前序 context-aware companion 公开入口清理；后续若继续调整其他 exported shape，仍需先确认 scope、影响面和备选方案。
 - 本批只处理 `core`、`agent`、`app/runtime`；前端和其他模块不纳入本轮质量结论。
 
 ### 5.3 暂不处理的问题
@@ -1201,7 +1214,7 @@ app/runtime -> agent -> core
 
 ### 5.4 风险与注意事项
 
-- 本任务允许破坏性调整，且目标已更新为不为旧接口留兼容 shim；公共 API 破坏性修改仍需先确认 scope、影响面和备选方案。
+- 本任务允许破坏性调整，且目标已更新为不为旧接口留兼容 shim；第八十七轮公共 API 调整已按用户确认的 A 方案执行，后续其他公共 API 破坏性修改仍需先确认 scope、影响面和备选方案。
 - `agent` 和 `app/runtime` 体量较大，需要分批推进，避免无目标重写。
 - 多模块 workspace 中的模块版本引用可能由 `go.work` 覆盖，依赖治理需要同时看 `go.mod` 和实际 import。
 - `core` 与 `agent` 均依赖 `pkg` 工具模块；后续只治理有明确收益、能减少真实耦合的用法，不为了“依赖更少”而机械复制 helper。
@@ -1544,3 +1557,15 @@ app/runtime -> agent -> core
 - 已完成适配：所有 `s.mcpRegistryCatalog` 与 `s.mcpRegistryMutations` 调用已迁移到更窄字段；未保留旧 `mcpRegistryCatalogAccess` / `mcpRegistryMutationAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第八十七轮包含 `agent` context-first 公开 API 破坏性收敛：
+
+- 调整对象：`agent/event.Listener`、`agent/event.ListenerFunc`、`agent/event.NamedListener`、`agent/event.Multicast.OnEvent`、`agent/runtime.EventListener`、`agent/core.EventPublisher`、`agent/core.PlatformHooks.Publish`、`agent/core.Process` 的 await / invocation 记录方法、`agent/core.ProcessContext` 的 publish / await / invocation 记录方法、`agent/runtime.AgentProcess` 对应实现，以及 `agent/hitl.HandleInterrupt` / `app/runtime/internal/kernel.HandleInterrupt`。
+- 调整前问题：第五十六至五十九轮为兼容保留了无 ctx 入口与 `*Context` companion 入口两套公开语义；`ProcessContext` 还需要隐式保存 action ctx 来让旧调用继承 trace。公开 API 同时表达“调用方显式传 ctx”和“框架替调用方找 ctx”，容易误用，也让 runtime/observability contract 变宽。
+- 破坏性原因：用户已确认方案 A；继续保留旧入口会形成长期兼容 shim，违背本任务“不为旧接口留兼容债”的目标。ctx 是 blocking / observable operation 的调用上下文，应该在公开签名中显式出现，而不是藏在 `ProcessContext` 内部状态或 companion fallback。
+- 新设计：保留一套 context-first 入口：listener 使用 `OnEvent(ctx, event)`；`EventPublisher` 使用 `func(ctx, event)`；`ProcessContext.Publish/AwaitInput/RecordUsage/RecordLLMInvocation/RecordEmbeddingInvocation` 与 `core.Process` / `AgentProcess` 对应方法均以 `context.Context` 为第一参数；删除 `PublishContext`、`AwaitInputContext`、`Record*Context`、`OnEventContext` 以及无 ctx wrapper。
+- 架构收益：公开 API 的 ctx 传递方向单一、可见且难误用；`ProcessContext` 不再承担“缓存当前 action ctx”的隐式状态职责；agent runtime 的 event / await / invocation observability 都由调用点明确传递上下文，降低框架内部隐式耦合。
+- 影响范围：`agent/core`、`agent/event`、`agent/runtime`、`agent/hitl` 的公开签名；`app/runtime/internal/kernel` 的 turn loop / HITL parking 调用；agent runtime tests、examples 与 agent docs。
+- 已完成适配：目标仓库内所有旧 `OnEventContext`、`PublishContext`、`AwaitInputContext`、`Record*Context`、无 ctx `pc.Publish` / `pc.AwaitInput` / `pc.Record*` 调用均已迁移；agent docs 和 examples 已同步更新。
+- 验证结果：`go test ./...`（`core` / `agent` / `app/runtime`）、`go vet ./...`（`core` / `agent` / `app/runtime`）、`go build ./...`（`core` / `agent` / `app/runtime`）均通过。
+- 后续风险：存在面向仓库外调用方的编译期迁移成本；迁移方式明确为在 action / request / listener 调用点传入已有 `ctx`。仓库内未保留兼容 alias 或 wrapper。

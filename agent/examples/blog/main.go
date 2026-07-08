@@ -31,7 +31,7 @@ type (
 type stubLogger struct{}
 
 func (stubLogger) Name() string { return "stub-logger" }
-func (stubLogger) OnEvent(e event.Event) {
+func (stubLogger) OnEvent(_ context.Context, e event.Event) {
 	fmt.Printf("event: %-26s %s\n", e.EventName(), e.ProcessID())
 }
 

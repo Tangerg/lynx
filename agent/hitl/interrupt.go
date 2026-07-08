@@ -109,10 +109,10 @@ func Interrupt[R any](ctx context.Context, key string, value any) (resp R, resum
 // When found it calls pc.AwaitInput and returns (ActionWaiting, true); the
 // action body returns that status immediately. Otherwise returns (_, false)
 // and the caller still handles err.
-func HandleInterrupt(pc *core.ProcessContext, err error) (core.ActionStatus, bool) {
+func HandleInterrupt(ctx context.Context, pc *core.ProcessContext, err error) (core.ActionStatus, bool) {
 	ie, ok := errors.AsType[*InterruptError](err)
 	if !ok {
 		return 0, false
 	}
-	return pc.AwaitInput(ie.awaitable), true
+	return pc.AwaitInput(ctx, ie.awaitable), true
 }

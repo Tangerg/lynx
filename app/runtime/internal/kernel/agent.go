@@ -138,7 +138,7 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 					// re-adding the user message — the history layer replays the
 					// stored conversation), the model regenerates the interrupted
 					// tool call, and the gate now observes the recorded verdict.
-					if _, parked := HandleInterrupt(pc, err); parked {
+					if _, parked := HandleInterrupt(ctx, pc, err); parked {
 						return TurnOutput{}, nil
 					}
 					return out, err

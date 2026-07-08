@@ -18,13 +18,13 @@ import (
 // listener doesn't block concurrent Add / Remove — but a slow listener
 // still delays subsequent listeners on the same OnEvent call.
 type Listener interface {
-	OnEvent(e Event)
+	OnEvent(ctx context.Context, e Event)
 }
 
 // ListenerFunc adapts a plain function into Listener.
-type ListenerFunc func(e Event)
+type ListenerFunc func(context.Context, Event)
 
-func (f ListenerFunc) OnEvent(e Event) { f(e) }
+func (f ListenerFunc) OnEvent(ctx context.Context, e Event) { f(ctx, e) }
 
 // Multicast is the concurrent-safe fan-out. Add/Remove may run while
 // OnEvent is delivering — listeners are snapshotted under the lock and
@@ -67,15 +67,7 @@ func (m *Multicast) Remove(l Listener) {
 // panicking listener doesn't take down the rest. Listeners are snapshotted
 // under the lock and then invoked outside it, so a slow listener can't
 // block concurrent Add / Remove calls.
-func (m *Multicast) OnEvent(e Event) {
-	m.OnEventContext(context.Background(), e)
-}
-
-// OnEventContext is the context-aware delivery path used by runtimes that
-// already have a request / run context. Listener implementations remain the
-// same narrow surface; the context is for the multicast's own observability
-// spans, especially panic reporting.
-func (m *Multicast) OnEventContext(ctx context.Context, e Event) {
+func (m *Multicast) OnEvent(ctx context.Context, e Event) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -113,5 +105,5 @@ func safeDeliver(ctx context.Context, l Listener, e Event) {
 		span.SetStatus(codes.Error, err.Error())
 		span.End()
 	}()
-	l.OnEvent(e)
+	l.OnEvent(ctx, e)
 }

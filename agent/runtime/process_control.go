@@ -44,13 +44,7 @@ func (p *AgentProcess) PendingAwaitable() core.Awaitable {
 // [Platform.ResumeProcess], which routes the response through
 // awaitable.OnResponseAny — typically mutating the blackboard so the
 // next planning tick sees fresh state.
-func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
-	return p.AwaitInputContext(context.Background(), req)
-}
-
-// AwaitInputContext is the context-aware companion to [AgentProcess.AwaitInput].
-// It preserves the caller's trace when publishing the waiting event.
-func (p *AgentProcess) AwaitInputContext(ctx context.Context, req core.Awaitable) core.ActionStatus {
+func (p *AgentProcess) AwaitInput(ctx context.Context, req core.Awaitable) core.ActionStatus {
 	if ctx == nil {
 		ctx = context.Background()
 	}

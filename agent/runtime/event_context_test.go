@@ -39,7 +39,7 @@ type readyPanicListener struct {
 
 func (*readyPanicListener) Name() string { return "ready-panic-listener" }
 
-func (l *readyPanicListener) OnEvent(e event.Event) {
+func (l *readyPanicListener) OnEvent(_ context.Context, e event.Event) {
 	if _, ok := e.(event.ReadyToPlan); ok && l.done.CompareAndSwap(false, true) {
 		panic("ready listener failed")
 	}
@@ -51,7 +51,7 @@ type customPanicListener struct {
 
 func (*customPanicListener) Name() string { return "custom-panic-listener" }
 
-func (l *customPanicListener) OnEvent(e event.Event) {
+func (l *customPanicListener) OnEvent(_ context.Context, e event.Event) {
 	ev, ok := e.(event.ReplanRequested)
 	if ok && ev.Reason == "custom" && l.done.CompareAndSwap(false, true) {
 		panic("custom listener failed")
@@ -64,7 +64,7 @@ type invocationPanicListener struct {
 
 func (*invocationPanicListener) Name() string { return "invocation-panic-listener" }
 
-func (l *invocationPanicListener) OnEvent(e event.Event) {
+func (l *invocationPanicListener) OnEvent(_ context.Context, e event.Event) {
 	ev, ok := e.(event.LLMInvocationRecorded)
 	if ok && ev.Invocation.Model == "ctx-model" && l.done.CompareAndSwap(false, true) {
 		panic("invocation listener failed")
@@ -77,7 +77,7 @@ type waitingPanicListener struct {
 
 func (*waitingPanicListener) Name() string { return "waiting-panic-listener" }
 
-func (l *waitingPanicListener) OnEvent(e event.Event) {
+func (l *waitingPanicListener) OnEvent(_ context.Context, e event.Event) {
 	if _, ok := e.(event.ProcessWaiting); ok && l.done.CompareAndSwap(false, true) {
 		panic("waiting listener failed")
 	}
@@ -134,8 +134,8 @@ func TestProcessContextAwaitInputKeepsActionTrace(t *testing.T) {
 
 	a := agent.New("await-event-trace").
 		Actions(agent.NewAction("wait",
-			func(_ context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-				pc.AwaitInput(traceAwaitable{id: "wait"})
+			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+				pc.AwaitInput(ctx, traceAwaitable{id: "wait"})
 				return wordCount{Count: len(in.Text)}, nil
 			},
 			core.ActionConfig{},
@@ -176,8 +176,8 @@ func TestProcessContextRecordInvocationKeepsActionTrace(t *testing.T) {
 
 	a := agent.New("invocation-event-trace").
 		Actions(agent.NewAction("record",
-			func(_ context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-				pc.RecordLLMInvocation(core.LLMInvocation{
+			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+				pc.RecordLLMInvocation(ctx, core.LLMInvocation{
 					Model:        "ctx-model",
 					Provider:     "test",
 					PromptTokens: int64(len(in.Text)),
@@ -219,8 +219,8 @@ func TestProcessContextPublishKeepsActionTrace(t *testing.T) {
 
 	a := agent.New("action-event-trace").
 		Actions(agent.NewAction("publish",
-			func(_ context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-				pc.Publish(event.ReplanRequested{
+			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+				pc.Publish(ctx, event.ReplanRequested{
 					BaseEvent: event.NewBaseEvent("manual"),
 					Reason:    "custom",
 				})

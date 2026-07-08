@@ -22,7 +22,7 @@ type pidCapture struct {
 
 func (*pidCapture) Name() string { return "pid-capture" }
 
-func (c *pidCapture) OnEvent(e event.Event) {
+func (c *pidCapture) OnEvent(_ context.Context, e event.Event) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.ids == nil {

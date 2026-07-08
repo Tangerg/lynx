@@ -20,7 +20,7 @@ type wordCount struct{ Count int }
 type stuckCounter struct{ count *int }
 
 func (stuckCounter) Name() string { return "stuck-counter" }
-func (s stuckCounter) OnEvent(e event.Event) {
+func (s stuckCounter) OnEvent(_ context.Context, e event.Event) {
 	if _, ok := e.(event.ProcessStuck); ok {
 		*s.count++
 	}

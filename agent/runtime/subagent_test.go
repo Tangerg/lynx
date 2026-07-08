@@ -344,9 +344,9 @@ func (awaitForConfirmAction) Metadata() core.ActionMetadata {
 	}
 }
 
-func (awaitForConfirmAction) Execute(_ context.Context, pc *core.ProcessContext) core.ActionStatus {
+func (awaitForConfirmAction) Execute(ctx context.Context, pc *core.ProcessContext) core.ActionStatus {
 	req := hitl.NewConfirmation("approve doubling?", func(bool) core.ResponseImpact {
 		return core.ImpactUnchanged
 	})
-	return pc.AwaitInput(req)
+	return pc.AwaitInput(ctx, req)
 }

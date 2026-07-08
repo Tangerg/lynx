@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/toolloop"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	coremodel "github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 )
 
 // inflightTailKey holds, on the process blackboard, the resumable tail a
@@ -52,12 +52,12 @@ func IsInterrupt(err error) bool {
 // This is intentionally generic and stays in runtime: the engine only cares
 // about the control-flow contract (non-aborting + awaitable), not the concrete
 // hitl package type.
-func HandleInterrupt(pc *core.ProcessContext, err error) (core.ActionStatus, bool) {
+func HandleInterrupt(ctx context.Context, pc *core.ProcessContext, err error) (core.ActionStatus, bool) {
 	h, ok := errors.AsType[resumableInterrupt](err)
 	if !ok || h.Abort() {
 		return 0, false
 	}
-	return pc.AwaitInput(h.Awaitable()), true
+	return pc.AwaitInput(ctx, h.Awaitable()), true
 }
 
 // isInterruptResult reports whether a streamed response is the tool loop's

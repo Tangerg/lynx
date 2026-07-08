@@ -43,7 +43,7 @@ type Process interface {
 	// AwaitInput suspends the action until external input arrives. The
 	// runtime stores the Awaitable on the blackboard, transitions to
 	// StatusWaiting, and returns ActionWaiting.
-	AwaitInput(req Awaitable) ActionStatus
+	AwaitInput(ctx context.Context, req Awaitable) ActionStatus
 
 	// RecordUsage attributes a flat (cost, tokens) pair to this
 	// process for callers that don't care about per-invocation
@@ -52,18 +52,18 @@ type Process interface {
 	// PromptTokens (PromptTokens stands in for the lumped token
 	// count). Prefer the typed Record* methods when per-call audit
 	// is required.
-	RecordUsage(cost float64, tokens int)
+	RecordUsage(ctx context.Context, cost float64, tokens int)
 
 	// RecordLLMInvocation appends an LLM call to this process's
 	// invocation history and contributes to subtree budget
 	// aggregation. Integration code (chat middleware, per-vendor
 	// adapter) calls this once per LLM response.
-	RecordLLMInvocation(invocation LLMInvocation)
+	RecordLLMInvocation(ctx context.Context, invocation LLMInvocation)
 
 	// RecordEmbeddingInvocation appends an embedding call to this
 	// process's history. Mirrors RecordLLMInvocation for the
 	// embeddings path.
-	RecordEmbeddingInvocation(invocation EmbeddingInvocation)
+	RecordEmbeddingInvocation(ctx context.Context, invocation EmbeddingInvocation)
 
 	// Usage returns the subtree-aggregated cost / token / action totals.
 	// Cost and tokens come from RecordUsage / RecordLLMInvocation /
