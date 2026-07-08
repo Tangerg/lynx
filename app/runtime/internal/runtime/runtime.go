@@ -51,12 +51,9 @@ type Runtime struct {
 	transcriptLifecycle  lifecycle.TranscriptStore
 	transcriptRunSegment runsegment.TranscriptStore
 
-	// history* ports expose the message history operations used outside the
-	// turn loop — not via the engine (it owns only the steering touchpoint).
-	historyRead     historyReader
-	historySeed     historySeeder
-	historyCount    historyCounter
-	historyTruncate historyTruncator
+	// history exposes the message-history operations used outside the turn loop
+	// — not via the engine (it owns only the steering touchpoint).
+	history historyStore
 
 	providerRegistryList      providerRegistryList
 	providerRegistryRead      providerRegistryRead
