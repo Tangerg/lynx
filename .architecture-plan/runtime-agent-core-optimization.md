@@ -1813,3 +1813,15 @@ app/runtime -> agent -> core
 - 已完成适配：`buildUtilityEnvironment` / `buildEmbeddingEnvironment` 参数收窄到各自 loader；`Runtime.utilStore` / `Runtime.embeddingStore` 收窄到 saver；runtime assembly 继续把同一个组合根 store 分别注入到构造读口和运行期写口；新增 focused tests 覆盖 loader 初始化与 saver 写入。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百零六轮包含 `app/runtime/internal/runtime` hook inspection 端口收窄：
+
+- 调整对象：`Runtime.hookResolver`、workspace hooks inspection facade、runtime assembly 和 focused hooks tests。
+- 调整前问题：hook resolver 同时包含 turn 执行所需的 `For` 和 workspace 管理面所需的 `Inspect`；turn dispatcher 已只依赖 `For`，但 Runtime state 仍保存完整 `HookResolver`，使 `workspace.hooks.list` 管理 facade 理论上可见执行绑定能力。
+- 破坏性原因：这些字段位于 `app/runtime/internal/runtime`，属于应用层内部装配边界；按执行面与管理面消费路径拆分字段能删除运行期总口，不需要为内部旧 shape 留兼容层。
+- 新设计：新增 runtime 内部 `hookInspector` consumer-side port；Runtime 只保存 `hookInspection` 并在 `InspectHooks` 中 nil-safe 返回空 inspection。Config 仍接受组合根提供的完整 resolver，assembly 分别把它交给 turn dispatcher 的 `For` 口和 Runtime 的 `Inspect` 口。
+- 架构收益：lifecycle hook execution binding 与 workspace hook review/projection 在 Runtime 类型边界上分离；管理面不再携带执行 hook binding capability，未配置 hooks 时 facade 也符合注释语义返回空结果。
+- 影响范围：`app/runtime/internal/runtime` 的 hook facade、Runtime struct、runtime assembly 和 focused runtime hooks tests。
+- 已完成适配：`Runtime.hookResolver` 替换为 `hookInspection hookInspector`；runtime assembly 继续把同一个 `cfg.HooksResolver` 注入给 turn dispatcher 和 Runtime inspection 口；`InspectHooks` 增加 nil-safe 空结果；focused tests 用只实现 `Inspect` 的 fake 锁住管理面窄口。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

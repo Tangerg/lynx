@@ -6,10 +6,17 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
+type hookInspector interface {
+	Inspect(ctx context.Context, cwd string) hooks.Inspection
+}
+
 // InspectHooks returns the lifecycle hooks discovered for cwd plus the project's
 // trust status (workspace.hooks.list). Empty when hooks are unconfigured.
 func (r *Runtime) InspectHooks(ctx context.Context, cwd string) hooks.Inspection {
-	return r.hookResolver.Inspect(ctx, cwd)
+	if r.hookInspection == nil {
+		return hooks.Inspection{}
+	}
+	return r.hookInspection.Inspect(ctx, cwd)
 }
 
 // SetProjectHookTrust trusts (or revokes) a project's hooks (workspace.hooks.

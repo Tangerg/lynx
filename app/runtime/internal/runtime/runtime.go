@@ -90,11 +90,11 @@ type Runtime struct {
 	resolver  *clientResolver
 	utilStore utilityRoleSaver
 
-	// hookResolver inspects lifecycle hooks for a cwd (workspace.hooks.list);
+	// hookInspection inspects lifecycle hooks for a cwd (workspace.hooks.list);
 	// hookTrust mutates project trust (workspace.hooks.setTrust). Both nil when
 	// hooks are unconfigured.
-	hookResolver HookResolver
-	hookTrust    HookTrustStore
+	hookInspection hookInspector
+	hookTrust      HookTrustStore
 
 	// recipesGlobalDir is the global recipes directory the workspace.recipes.list
 	// discovery layers under a project's .lyra/recipes. Empty → project-only.
