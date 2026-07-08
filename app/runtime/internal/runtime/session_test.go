@@ -11,7 +11,6 @@ import (
 )
 
 type sessionRuntimeStore struct {
-	session.Store
 	sessions      []session.Session
 	getID         string
 	createTitle   string
@@ -68,9 +67,19 @@ func (s *sessionRuntimeStore) SetFavorite(_ context.Context, id string, favorite
 	return nil
 }
 
+func runtimeWithSessionStore(store *sessionRuntimeStore) *Runtime {
+	return &Runtime{
+		sessionList:     store,
+		sessionRead:     store,
+		sessionCreation: store,
+		sessionPatch:    store,
+		sessionModel:    store,
+	}
+}
+
 func TestRuntimeSessionFacade(t *testing.T) {
 	store := &sessionRuntimeStore{sessions: []session.Session{{ID: "ses_1"}}}
-	rt := &Runtime{session: store}
+	rt := runtimeWithSessionStore(store)
 	ctx := context.Background()
 
 	listed, err := rt.ListSessions(ctx)
@@ -103,12 +112,10 @@ func TestRuntimeSessionFacade(t *testing.T) {
 func TestRuntimeUpdateSessionAppliesPatch(t *testing.T) {
 	store := &sessionRuntimeStore{}
 	ranInTx := false
-	rt := &Runtime{
-		session: store,
-		transactor: func(ctx context.Context, fn func(context.Context) error) error {
-			ranInTx = true
-			return fn(ctx)
-		},
+	rt := runtimeWithSessionStore(store)
+	rt.transactor = func(ctx context.Context, fn func(context.Context) error) error {
+		ranInTx = true
+		return fn(ctx)
 	}
 	ctx := context.Background()
 
@@ -150,7 +157,7 @@ func TestRuntimeUpdateSessionAppliesPatch(t *testing.T) {
 
 func TestRuntimeUpdateSessionRejectsInvalidPatch(t *testing.T) {
 	store := &sessionRuntimeStore{}
-	rt := &Runtime{session: store}
+	rt := runtimeWithSessionStore(store)
 
 	blank := "  "
 	if _, err := rt.UpdateSession(context.Background(), "ses_1", session.Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {

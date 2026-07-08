@@ -14,7 +14,7 @@ import (
 
 func TestPlanTurnStartCreatesSessionForColdStart(t *testing.T) {
 	store := &sessionRuntimeStore{}
-	rt := &Runtime{session: store}
+	rt := runtimeWithSessionStore(store)
 
 	sess, req, err := rt.PlanTurnStart(context.Background(), "", "/repo", turn.StartTurnRequest{Message: "hello", MaxSteps: 3})
 	if err != nil {
@@ -30,7 +30,7 @@ func TestPlanTurnStartCreatesSessionForColdStart(t *testing.T) {
 
 func TestPlanTurnStartBindsExistingSession(t *testing.T) {
 	store := &sessionRuntimeStore{}
-	rt := &Runtime{session: store}
+	rt := runtimeWithSessionStore(store)
 
 	sess, req, err := rt.PlanTurnStart(context.Background(), "ses_1", "/ignored", turn.StartTurnRequest{Message: "hello"})
 	if err != nil {
@@ -46,7 +46,7 @@ func TestPlanTurnStartBindsExistingSession(t *testing.T) {
 
 func TestPlanTurnStartOwnsSessionBinding(t *testing.T) {
 	store := &sessionRuntimeStore{}
-	rt := &Runtime{session: store}
+	rt := runtimeWithSessionStore(store)
 
 	_, req, err := rt.PlanTurnStart(context.Background(), "ses_1", "/ignored", turn.StartTurnRequest{
 		SessionID: "ses_stale",
@@ -63,7 +63,7 @@ func TestPlanTurnStartOwnsSessionBinding(t *testing.T) {
 
 func TestPlanTurnStartRejectsInvalidDraftBeforeCreatingSession(t *testing.T) {
 	store := &sessionRuntimeStore{}
-	rt := &Runtime{session: store}
+	rt := runtimeWithSessionStore(store)
 
 	if _, _, err := rt.PlanTurnStart(context.Background(), "", "/repo", turn.StartTurnRequest{}); !errors.Is(err, turn.ErrInputRequired) {
 		t.Fatalf("empty input err = %v, want ErrInputRequired", err)
@@ -98,7 +98,7 @@ func TestPlanTurnStartRejectsInvalidDraftBeforeCreatingSession(t *testing.T) {
 
 func TestPlanTurnStartRejectsUnsupportedMediaForKnownModel(t *testing.T) {
 	store := &sessionRuntimeStore{}
-	rt := &Runtime{session: store}
+	rt := runtimeWithSessionStore(store)
 	img := testImage(t)
 
 	_, _, err := rt.PlanTurnStart(context.Background(), "ses_1", "/repo", turn.StartTurnRequest{

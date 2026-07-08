@@ -1729,3 +1729,15 @@ app/runtime -> agent -> core
 - 已完成适配：runtime assembly 继续把同一个 `cfg.ScheduleRegistry` 注入到各窄口字段；所有 `r.schedules.*` runtime facade 调用已迁移到对应端口；`schedule.NewWorker` 调用迁移到 `scheduleWorker` 端口；未保留旧 `Runtime.schedules` 字段。
 - 验证结果：`go test ./internal/domain/schedule ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第九十九轮包含 `app/runtime/internal/runtime` session store 用例端口收窄与子会话 adapter 依赖收窄：
+
+- 调整对象：`Runtime.session`、session runtime facade 的 list/read/create/update/start-turn/approval lookup 调用、lifecycle/runsegment store adapter，以及 `childSessionStore` 的构造契约。
+- 调整前问题：runtime bundle 持有一个完整 `session.Store` 字段，用户 session CRUD、turn 启动绑定、显式模型写入、approval rule cwd lookup、lifecycle 写集、runsegment 终端维护和 agent 子会话适配都通过同一个总口访问；纯读取和单字段写入路径理论上可见 fork/restore/delete/subtask 等无关能力，测试 fake 也通过嵌入完整 store 掩盖真实依赖。
+- 破坏性原因：这些字段和 adapter 位于 `app/runtime/internal/runtime`，属于应用层内部装配边界；按 consumer-side port 收窄能删除旧总口，不需要为内部旧 shape 留兼容层。
+- 新设计：新增 runtime 内部 `sessionList`、`sessionRead`、`sessionCreate`、`sessionPatchWriter`、`sessionModelWriter` 端口，并让 lifecycle/runsegment 分别持有它们自己的 `lifecycle.SessionStore` / `runsegment.SessionStore` 字段；`childSessionStore` 改为依赖只含 `List` / `Get` / `CreateSubtask` / `Delete` 的子会话持久化端口。
+- 架构收益：用户 session read/write、turn model persistence、approval cwd lookup、跨域 lifecycle 写集、runsegment maintenance 和 agent 子会话 SPI 在类型边界上分开；完整 `domain/session.Store` 只在 composition root 注入时出现，Runtime 不再把 session 万能 store 作为默认 state 字段穿透。
+- 影响范围：`app/runtime/internal/runtime` 的 Runtime struct、session/turn/approval facade、runtime assembly、lifecycle/runsegment adapters、child session adapter 和 focused runtime tests。
+- 已完成适配：runtime assembly 继续把同一个 `cfg.SessionStore` 注入到各窄口字段；所有 `r.session.*` 调用已迁移到对应端口；测试 fixture 删除了嵌入完整 `session.Store` 的宽 fake；未保留旧 `Runtime.session` 字段。
+- 验证结果：`go test ./internal/runtime` 与 `go test ./internal/runtime ./internal/kernel/lifecycle ./internal/kernel/runsegment` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

@@ -10,7 +10,6 @@ import (
 )
 
 type approvalSessionStore struct {
-	session.Store
 	sess session.Session
 	err  error
 }
@@ -55,8 +54,8 @@ func (s *approvalStore) Forget(_ context.Context, id string) error {
 func TestRuntimeListApprovalRulesResolvesSessionProject(t *testing.T) {
 	approvals := &approvalStore{}
 	rt := &Runtime{
-		session:  approvalSessionStore{sess: session.Session{ID: "ses_1", Cwd: "/repo"}},
-		approval: approvals,
+		sessionRead: approvalSessionStore{sess: session.Session{ID: "ses_1", Cwd: "/repo"}},
+		approval:    approvals,
 	}
 
 	if _, err := rt.ListApprovalRules(context.Background(), "ses_1"); err != nil {
@@ -74,8 +73,8 @@ func TestRuntimeListApprovalRulesResolvesSessionProject(t *testing.T) {
 func TestRuntimeListApprovalRulesUnknownSessionUsesEmptyProject(t *testing.T) {
 	approvals := &approvalStore{}
 	rt := &Runtime{
-		session:  approvalSessionStore{err: session.ErrNotFound},
-		approval: approvals,
+		sessionRead: approvalSessionStore{err: session.ErrNotFound},
+		approval:    approvals,
 	}
 
 	if _, err := rt.ListApprovalRules(context.Background(), "missing"); err != nil {
@@ -90,8 +89,8 @@ func TestRuntimeListApprovalRulesReturnsSessionStoreFailure(t *testing.T) {
 	storeErr := errors.New("store unavailable")
 	approvals := &approvalStore{}
 	rt := &Runtime{
-		session:  approvalSessionStore{err: storeErr},
-		approval: approvals,
+		sessionRead: approvalSessionStore{err: storeErr},
+		approval:    approvals,
 	}
 
 	_, err := rt.ListApprovalRules(context.Background(), "ses_1")

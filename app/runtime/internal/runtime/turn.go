@@ -13,7 +13,7 @@ import (
 // every caller gets the same session-model invariant.
 func (r *Runtime) StartTurn(ctx context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error) {
 	if req.Model != "" {
-		if err := r.session.SetModel(ctx, req.SessionID, req.Model); err != nil {
+		if err := r.sessionModel.SetModel(ctx, req.SessionID, req.Model); err != nil {
 			return turn.TurnHandle{}, err
 		}
 	}
