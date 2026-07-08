@@ -19,7 +19,6 @@ func (s approvalSessionStore) Get(context.Context, string) (session.Session, err
 }
 
 type approvalStore struct {
-	approval.Policy
 	mode       approval.Mode
 	set        []approval.Mode
 	rules      []approval.Rule
@@ -51,12 +50,39 @@ func (s *approvalStore) Forget(_ context.Context, id string) error {
 	return nil
 }
 
+func runtimeWithApprovalStore(store *approvalStore) *Runtime {
+	return &Runtime{
+		approvalModeRead:     store,
+		approvalModeMutation: store,
+		approvalRuleList:     store,
+		approvalRuleDeletion: store,
+	}
+}
+
+func TestRuntimeApprovalModeFacadeUsesModePorts(t *testing.T) {
+	approvals := &approvalStore{mode: approval.ModeBalanced}
+	rt := runtimeWithApprovalStore(approvals)
+
+	got, err := rt.ApprovalMode(context.Background())
+	if err != nil {
+		t.Fatalf("ApprovalMode: %v", err)
+	}
+	if got != approval.ModeBalanced {
+		t.Fatalf("mode = %v, want balanced", got)
+	}
+
+	if err := rt.SetApprovalMode(context.Background(), approval.ModeYolo); err != nil {
+		t.Fatalf("SetApprovalMode: %v", err)
+	}
+	if len(approvals.set) != 1 || approvals.set[0] != approval.ModeYolo {
+		t.Fatalf("set calls = %+v, want yolo", approvals.set)
+	}
+}
+
 func TestRuntimeListApprovalRulesResolvesSessionProject(t *testing.T) {
 	approvals := &approvalStore{}
-	rt := &Runtime{
-		sessionRead: approvalSessionStore{sess: session.Session{ID: "ses_1", Cwd: "/repo"}},
-		approval:    approvals,
-	}
+	rt := runtimeWithApprovalStore(approvals)
+	rt.sessionRead = approvalSessionStore{sess: session.Session{ID: "ses_1", Cwd: "/repo"}}
 
 	if _, err := rt.ListApprovalRules(context.Background(), "ses_1"); err != nil {
 		t.Fatalf("list approval rules: %v", err)
@@ -72,10 +98,8 @@ func TestRuntimeListApprovalRulesResolvesSessionProject(t *testing.T) {
 
 func TestRuntimeListApprovalRulesUnknownSessionUsesEmptyProject(t *testing.T) {
 	approvals := &approvalStore{}
-	rt := &Runtime{
-		sessionRead: approvalSessionStore{err: session.ErrNotFound},
-		approval:    approvals,
-	}
+	rt := runtimeWithApprovalStore(approvals)
+	rt.sessionRead = approvalSessionStore{err: session.ErrNotFound}
 
 	if _, err := rt.ListApprovalRules(context.Background(), "missing"); err != nil {
 		t.Fatalf("list approval rules: %v", err)
@@ -88,10 +112,8 @@ func TestRuntimeListApprovalRulesUnknownSessionUsesEmptyProject(t *testing.T) {
 func TestRuntimeListApprovalRulesReturnsSessionStoreFailure(t *testing.T) {
 	storeErr := errors.New("store unavailable")
 	approvals := &approvalStore{}
-	rt := &Runtime{
-		sessionRead: approvalSessionStore{err: storeErr},
-		approval:    approvals,
-	}
+	rt := runtimeWithApprovalStore(approvals)
+	rt.sessionRead = approvalSessionStore{err: storeErr}
 
 	_, err := rt.ListApprovalRules(context.Background(), "ses_1")
 	if !errors.Is(err, storeErr) {
@@ -99,5 +121,17 @@ func TestRuntimeListApprovalRulesReturnsSessionStoreFailure(t *testing.T) {
 	}
 	if len(approvals.ruleScopes) != 0 {
 		t.Fatalf("approval rules called after session failure: %+v", approvals.ruleScopes)
+	}
+}
+
+func TestRuntimeForgetApprovalRuleUsesDeletionPort(t *testing.T) {
+	approvals := &approvalStore{}
+	rt := runtimeWithApprovalStore(approvals)
+
+	if err := rt.ForgetApprovalRule(context.Background(), "rule_1"); err != nil {
+		t.Fatalf("ForgetApprovalRule: %v", err)
+	}
+	if len(approvals.forgotten) != 1 || approvals.forgotten[0] != "rule_1" {
+		t.Fatalf("forgotten = %+v, want rule_1", approvals.forgotten)
 	}
 }
