@@ -81,6 +81,14 @@ func TestNewJSONTool_RejectsManualSchemaAndNilExec(t *testing.T) {
 	}
 
 	_, err := chat.NewJSONTool[input](
+		chat.ToolDefinition{},
+		func(context.Context, input) (string, error) { return "", nil },
+	)
+	if err == nil {
+		t.Fatal("missing name must error")
+	}
+
+	_, err = chat.NewJSONTool[input](
 		chat.ToolDefinition{Name: "echo", InputSchema: "{}"},
 		func(context.Context, input) (string, error) { return "", nil },
 	)

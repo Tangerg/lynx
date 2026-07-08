@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
@@ -32,9 +31,6 @@ import (
 // auto_background_after.
 const defaultAutoBackgroundSeconds = 60
 
-// The argument shapes double as the JSON schema source (via [pkgjson]) and the
-// unmarshal target in each handler, so the parsed struct and the advertised
-// schema can't drift.
 type shellArgs struct {
 	Command             string `json:"command" jsonschema:"required" jsonschema_description:"Shell command line, run by /bin/sh -c. Each call starts a fresh shell — cd, exported vars, and shell options do not persist between calls."`
 	Description         string `json:"description,omitempty" jsonschema_description:"Short (5-10 word) active-voice summary of what this command does, shown in the UI. E.g. \"Run the test suite\", \"Install dependencies\"."`
@@ -43,150 +39,186 @@ type shellArgs struct {
 	AutoBackgroundAfter int    `json:"auto_background_after,omitempty" jsonschema_description:"Seconds a foreground command may run before it is automatically moved to the background and its shell id returned (default 60). Read the rest of its output with shell_output."`
 }
 
+func (a shellArgs) validate() error {
+	if a.Command == "" {
+		return errors.New("shell: command is required")
+	}
+	return nil
+}
+
+func (a shellArgs) timeout() time.Duration {
+	return time.Duration(a.Timeout) * time.Millisecond
+}
+
+func (a shellArgs) autoBackgroundAfter() time.Duration {
+	after := a.AutoBackgroundAfter
+	if after <= 0 {
+		after = defaultAutoBackgroundSeconds
+	}
+	return time.Duration(after) * time.Second
+}
+
 type shellOutputArgs struct {
 	ShellID string `json:"shell_id" jsonschema:"required" jsonschema_description:"Background shell id returned by shell when a long-running command was moved to the background."`
 	Block   bool   `json:"block,omitempty" jsonschema_description:"Block until the shell exits (or timeout elapses) before returning, instead of reading whatever output is available right now. Use to wait for a backgrounded command to finish — event-driven, so prefer it over a 'sleep' poll loop. Don't block on a process that never exits (e.g. a dev server) without a timeout."`
 	Timeout int    `json:"timeout,omitempty" jsonschema_description:"With block, the longest to wait in milliseconds before returning the current output with a still-running status. Omit (or 0) to block until the command exits. Ignored without block."`
 }
 
+func (a shellOutputArgs) validate() error {
+	if a.ShellID == "" {
+		return errors.New("shell_output: shell_id is required")
+	}
+	return nil
+}
+
 type shellIDArgs struct {
 	ShellID string `json:"shell_id" jsonschema:"required" jsonschema_description:"Background shell id returned by shell when a long-running command was moved to the background."`
 }
 
-var (
-	shellSchema       = pkgjson.MustStringDefSchemaOf(shellArgs{})
-	shellOutputSchema = pkgjson.MustStringDefSchemaOf(shellOutputArgs{})
-	bgShellIDSchema   = pkgjson.MustStringDefSchemaOf(shellIDArgs{})
-)
+func (a shellIDArgs) validate() error {
+	if a.ShellID == "" {
+		return errors.New("shell_kill: shell_id is required")
+	}
+	return nil
+}
 
-func Build(shells *exec.Shells, defaultWorkdir string) []chat.Tool {
-	shell, _ := chat.NewTool(
+type tools struct {
+	shells         *exec.Shells
+	defaultWorkdir string
+}
+
+func Build(shells *exec.Shells, defaultWorkdir string) ([]chat.Tool, error) {
+	if shells == nil {
+		return nil, errors.New("shell: shells is nil")
+	}
+	t := &tools{shells: shells, defaultWorkdir: defaultWorkdir}
+
+	shellTool, err := chat.NewJSONTool[shellArgs](
 		chat.ToolDefinition{
 			Name: "shell",
 			Description: "Execute a shell command via /bin/sh -c. Returns stdout/stderr, exit code, and duration. " +
 				"Avoid `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk` here — use the dedicated `glob`, `grep`, `read`, `edit` tools instead; reserve `shell` for operations that genuinely need a shell (build commands, git, package managers, etc.). " +
 				"Each invocation starts a fresh shell — `cd`, exported variables, and shell options do not persist between calls. " +
 				"A command still running after auto_background_after seconds (default 60) is moved to the background and its shell id returned; read the rest of its output with shell_output and stop it with shell_kill. Set run_in_background to background it immediately.",
-			InputSchema: shellSchema,
 		},
-		func(ctx context.Context, arguments string) (string, error) {
-			var a shellArgs
-			if err := json.Unmarshal([]byte(arguments), &a); err != nil {
-				return "", fmt.Errorf("shell: invalid arguments: %w", err)
-			}
-			if a.Command == "" {
-				return "", errors.New("shell: command is required")
-			}
-
-			id := shells.Launch(ctx, turnctx.TurnCwd(ctx, defaultWorkdir), a.Command, time.Duration(a.Timeout)*time.Millisecond)
-			if a.RunInBackground {
-				return backgroundedJSON(id), nil
-			}
-
-			sh, ok := shells.Get(id)
-			if !ok { // just launched — unreachable
-				return "", fmt.Errorf("shell: background shell %s vanished", id)
-			}
-			after := a.AutoBackgroundAfter
-			if after <= 0 {
-				after = defaultAutoBackgroundSeconds
-			}
-			timer := time.NewTimer(time.Duration(after) * time.Second)
-			defer timer.Stop()
-			select {
-			case <-sh.Done():
-				// Completed within the window: readPos is still 0, so one Read
-				// drains the whole retained output. Remove it — not a background job.
-				out, dropped := sh.Read()
-				code, killed, dur := sh.Outcome()
-				shells.Remove(id)
-				return completedJSON(out, dropped, code, killed, dur), nil
-			case <-timer.C:
-				return backgroundedJSON(id), nil // still running — leave it
-			case <-ctx.Done():
-				// The command may have finished in the same instant the turn was
-				// canceled; select picks a ready case at random, so check Done()
-				// before discarding a completed result the user can still use.
-				select {
-				case <-sh.Done():
-					out, dropped := sh.Read()
-					code, killed, dur := sh.Outcome()
-					shells.Remove(id)
-					return completedJSON(out, dropped, code, killed, dur), nil
-				default:
-					// Canceled mid-run: kill AND remove. A killed-and-discarded
-					// foreground command is not a background job the model will
-					// query later, so leaving it in the shell set (as the other
-					// terminal paths Remove theirs) just leaks a dead entry until
-					// engine shutdown.
-					shells.Kill(id)
-					shells.Remove(id)
-					return "", ctx.Err()
-				}
-			}
-		},
+		t.run,
 	)
-	output, _ := chat.NewTool(
+	if err != nil {
+		return nil, fmt.Errorf("shell: build shell tool: %w", err)
+	}
+	outputTool, err := chat.NewJSONTool[shellOutputArgs](
 		chat.ToolDefinition{
 			Name:        "shell_output",
 			Description: "Read new output from a background shell (only output since the last read). Reports whether it is still running or has exited. With block, waits until the shell exits (or timeout ms) — wait for a backgrounded command without a sleep poll loop.",
-			InputSchema: shellOutputSchema,
 		},
-		func(ctx context.Context, arguments string) (string, error) {
-			var a shellOutputArgs
-			if err := json.Unmarshal([]byte(arguments), &a); err != nil {
-				return "", fmt.Errorf("shell_output: invalid arguments: %w", err)
-			}
-			if a.ShellID == "" {
-				return "", errors.New("shell_output: shell_id is required")
-			}
-			id := a.ShellID
-			sh, ok := shells.Get(id)
-			if !ok {
-				return fmt.Sprintf("No background shell %s.", id), nil
-			}
-			if a.Block {
-				if err := waitForShell(ctx, sh, a.Timeout); err != nil {
-					return "", err
-				}
-			}
-			out, dropped := sh.Read()
-			done, info := sh.Status()
-			state := "still running"
-			if done {
-				state = "finished (" + info + ")"
-			}
-			var b []byte
-			if dropped {
-				b = append(b, "[earlier output dropped — buffer overflowed]\n"...)
-			}
-			b = append(b, out...)
-			return fmt.Sprintf("Shell %s %s.\n%s", id, state, string(b)), nil
-		},
+		t.output,
 	)
-	kill, _ := chat.NewTool(
+	if err != nil {
+		return nil, fmt.Errorf("shell: build shell_output tool: %w", err)
+	}
+	killTool, err := chat.NewJSONTool[shellIDArgs](
 		chat.ToolDefinition{
 			Name:        "shell_kill",
 			Description: "Stop a background shell.",
-			InputSchema: bgShellIDSchema,
 		},
-		func(_ context.Context, arguments string) (string, error) {
-			id, err := bgShellID(arguments, "shell_kill")
-			if err != nil {
-				return "", err
-			}
-			running, ok := shells.Kill(id)
-			switch {
-			case !ok:
-				return fmt.Sprintf("No background shell %s.", id), nil
-			case running:
-				return fmt.Sprintf("Killed background shell %s.", id), nil
-			default:
-				return fmt.Sprintf("Background shell %s had already exited.", id), nil
-			}
-		},
+		t.kill,
 	)
-	return []chat.Tool{shell, output, kill}
+	if err != nil {
+		return nil, fmt.Errorf("shell: build shell_kill tool: %w", err)
+	}
+	return []chat.Tool{shellTool, outputTool, killTool}, nil
+}
+
+func (t *tools) run(ctx context.Context, a shellArgs) (string, error) {
+	if err := a.validate(); err != nil {
+		return "", err
+	}
+
+	id := t.shells.Launch(ctx, turnctx.TurnCwd(ctx, t.defaultWorkdir), a.Command, a.timeout())
+	if a.RunInBackground {
+		return backgroundedJSON(id), nil
+	}
+
+	sh, ok := t.shells.Get(id)
+	if !ok { // just launched — unreachable
+		return "", fmt.Errorf("shell: background shell %s vanished", id)
+	}
+	timer := time.NewTimer(a.autoBackgroundAfter())
+	defer timer.Stop()
+	select {
+	case <-sh.Done():
+		return t.completed(id, sh), nil
+	case <-timer.C:
+		return backgroundedJSON(id), nil // still running — leave it
+	case <-ctx.Done():
+		return t.cancelForeground(ctx, id, sh)
+	}
+}
+
+func (t *tools) completed(id string, sh *exec.Shell) string {
+	out, dropped := sh.Read()
+	code, killed, dur := sh.Outcome()
+	t.shells.Remove(id)
+	return completedJSON(out, dropped, code, killed, dur)
+}
+
+func (t *tools) cancelForeground(ctx context.Context, id string, sh *exec.Shell) (string, error) {
+	// The command may have finished in the same instant the turn was canceled;
+	// select picks a ready case at random, so check Done() before discarding a
+	// completed result the user can still use.
+	select {
+	case <-sh.Done():
+		return t.completed(id, sh), nil
+	default:
+		// Canceled mid-run: kill AND remove. A killed-and-discarded foreground
+		// command is not a background job the model will query later, so leaving
+		// it in the shell set just leaks a dead entry until engine shutdown.
+		t.shells.Kill(id)
+		t.shells.Remove(id)
+		return "", ctx.Err()
+	}
+}
+
+func (t *tools) output(ctx context.Context, a shellOutputArgs) (string, error) {
+	if err := a.validate(); err != nil {
+		return "", err
+	}
+	sh, ok := t.shells.Get(a.ShellID)
+	if !ok {
+		return fmt.Sprintf("No background shell %s.", a.ShellID), nil
+	}
+	if a.Block {
+		if err := waitForShell(ctx, sh, a.Timeout); err != nil {
+			return "", err
+		}
+	}
+	out, dropped := sh.Read()
+	done, info := sh.Status()
+	state := "still running"
+	if done {
+		state = "finished (" + info + ")"
+	}
+	var b []byte
+	if dropped {
+		b = append(b, "[earlier output dropped — buffer overflowed]\n"...)
+	}
+	b = append(b, out...)
+	return fmt.Sprintf("Shell %s %s.\n%s", a.ShellID, state, string(b)), nil
+}
+
+func (t *tools) kill(_ context.Context, a shellIDArgs) (string, error) {
+	if err := a.validate(); err != nil {
+		return "", err
+	}
+	running, ok := t.shells.Kill(a.ShellID)
+	switch {
+	case !ok:
+		return fmt.Sprintf("No background shell %s.", a.ShellID), nil
+	case running:
+		return fmt.Sprintf("Killed background shell %s.", a.ShellID), nil
+	default:
+		return fmt.Sprintf("Background shell %s had already exited.", a.ShellID), nil
+	}
 }
 
 // completedJSON shapes a finished foreground command's result. The combined
@@ -217,19 +249,6 @@ func backgroundedJSON(id string) string {
 		"Command running in background as shell %s. Read its output with shell_output {\"shell_id\":%q} and stop it with shell_kill.",
 		id, id)})
 	return string(b)
-}
-
-func bgShellID(arguments, tool string) (string, error) {
-	var a struct {
-		ShellID string `json:"shell_id"`
-	}
-	if err := json.Unmarshal([]byte(arguments), &a); err != nil {
-		return "", fmt.Errorf("%s: invalid arguments: %w", tool, err)
-	}
-	if a.ShellID == "" {
-		return "", fmt.Errorf("%s: shell_id is required", tool)
-	}
-	return a.ShellID, nil
 }
 
 // waitForShell blocks until sh exits, ctx is canceled, or — when timeoutMs > 0

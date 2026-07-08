@@ -12,7 +12,11 @@ import (
 // lspTool returns the combined `lsp` tool from a fresh Build.
 func lspTool(t *testing.T, ci *codeintel.Analyzer) chat.Tool {
 	t.Helper()
-	for _, tool := range Build(ci, t.TempDir()) {
+	tools, err := Build(ci, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range tools {
 		if tool.Definition().Name == "lsp" {
 			return tool
 		}

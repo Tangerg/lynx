@@ -2,13 +2,11 @@ package lsptools
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
 	toolloop "github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/model/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
@@ -25,20 +23,31 @@ import (
 // fs / shell). Positions are 1-based at the tool boundary (what a human/LLM reads
 // off a file); the analyzer converts to the LSP 0-based wire form and folds an
 // unsupported file type into a plain reply.
-func Build(ci *codeintel.Analyzer, defaultWorkdir string) []chat.Tool {
-	// LSP queries are read-only, so opt them into parallel execution. They're
-	// built via chat.NewTool and can't declare the concurrency contract on
-	// their own type, so wrap with AsParallelTool.
-	return []chat.Tool{
-		toolloop.AsParallelTool(newLSPTool(ci, defaultWorkdir)),
-		toolloop.AsParallelTool(newDiagnosticsTool(ci, defaultWorkdir)),
+func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]chat.Tool, error) {
+	if ci == nil {
+		return nil, errors.New("lsptools: analyzer is nil")
 	}
+	// LSP queries are read-only, so opt them into parallel execution. They're
+	// built via chat.NewJSONTool and can't declare the concurrency contract on
+	// their own type, so wrap with AsParallelTool.
+	lsp, err := newLSPTool(ci, defaultWorkdir)
+	if err != nil {
+		return nil, err
+	}
+	diagnostics, err := newDiagnosticsTool(ci, defaultWorkdir)
+	if err != nil {
+		return nil, err
+	}
+	return []chat.Tool{
+		toolloop.AsParallelTool(lsp),
+		toolloop.AsParallelTool(diagnostics),
+	}, nil
 }
 
-// lspInput is the model-facing argument shape; it also drives the JSON schema
-// ([lspSchema]) so the parsed struct and the advertised schema can't drift.
-// Only `operation` is structurally required — which operand each operation
-// needs is validated per-operation in the handler.
+// lspInput is the model-facing argument shape; [chat.NewJSONTool] derives the
+// JSON schema from it and decodes calls back into it, so the advertised schema
+// and parsed value cannot drift. Only `operation` is structurally required —
+// which operand each operation needs is validated per-operation in the handler.
 type lspInput struct {
 	Operation string `json:"operation" jsonschema:"required,enum=definition,enum=references,enum=implementation,enum=hover,enum=incoming_calls,enum=outgoing_calls,enum=document_symbols,enum=workspace_symbols" jsonschema_description:"Which language-server query to run."`
 	FilePath  string `json:"file_path,omitempty" jsonschema_description:"File path, relative to the workspace root (or absolute). Required for every operation except workspace_symbols."`
@@ -47,7 +56,22 @@ type lspInput struct {
 	Query     string `json:"query,omitempty" jsonschema_description:"Symbol name or substring to search for. Required for workspace_symbols."`
 }
 
-var lspSchema = pkgjson.MustStringDefSchemaOf(lspInput{})
+func (in lspInput) validate() error {
+	switch in.Operation {
+	case "definition", "references", "implementation", "hover",
+		"incoming_calls", "outgoing_calls", "document_symbols":
+		if in.FilePath == "" {
+			return fmt.Errorf("lsp %s: file_path is required", in.Operation)
+		}
+	case "workspace_symbols":
+		if in.Query == "" {
+			return errors.New("lsp workspace_symbols: query is required")
+		}
+	default:
+		return fmt.Errorf("lsp: unknown operation %q", in.Operation)
+	}
+	return nil
+}
 
 const lspDesc = "Query the language server (LSP) about code at a position or across the workspace. " +
 	"operation selects: definition (where a symbol is declared) · references (all use sites) · " +
@@ -57,52 +81,42 @@ const lspDesc = "Query the language server (LSP) about code at a position or acr
 	"Position operations need file_path + line + character (1-based); document_symbols needs file_path; workspace_symbols needs query. " +
 	"(For a file's compile errors / warnings use lsp_diagnostics.)"
 
-func newLSPTool(ci *codeintel.Analyzer, defaultWorkdir string) chat.Tool {
-	t, _ := chat.NewTool(
-		chat.ToolDefinition{Name: "lsp", Description: lspDesc, InputSchema: lspSchema},
-		func(ctx context.Context, arguments string) (string, error) {
-			var in lspInput
-			if err := json.Unmarshal([]byte(arguments), &in); err != nil {
-				return "", fmt.Errorf("lsp: invalid arguments: %w", err)
-			}
+type lspRunner struct {
+	analyzer       *codeintel.Analyzer
+	defaultWorkdir string
+}
 
-			// Validate the operand each operation needs before dispatch.
-			switch in.Operation {
-			case "definition", "references", "implementation", "hover",
-				"incoming_calls", "outgoing_calls", "document_symbols":
-				if in.FilePath == "" {
-					return "", fmt.Errorf("lsp %s: file_path is required", in.Operation)
-				}
-			case "workspace_symbols":
-				if in.Query == "" {
-					return "", errors.New("lsp workspace_symbols: query is required")
-				}
-			default:
-				return "", fmt.Errorf("lsp: unknown operation %q", in.Operation)
-			}
-
-			root := turnctx.TurnCwd(ctx, defaultWorkdir)
-			switch in.Operation {
-			case "definition":
-				return ci.Definition(ctx, root, in.FilePath, in.Line, in.Character)
-			case "references":
-				return ci.References(ctx, root, in.FilePath, in.Line, in.Character)
-			case "implementation":
-				return ci.Implementation(ctx, root, in.FilePath, in.Line, in.Character)
-			case "hover":
-				return ci.Hover(ctx, root, in.FilePath, in.Line, in.Character)
-			case "incoming_calls":
-				return ci.IncomingCalls(ctx, root, in.FilePath, in.Line, in.Character)
-			case "outgoing_calls":
-				return ci.OutgoingCalls(ctx, root, in.FilePath, in.Line, in.Character)
-			case "document_symbols":
-				return ci.DocumentSymbols(ctx, root, in.FilePath)
-			default: // workspace_symbols (validated above)
-				return ci.WorkspaceSymbols(ctx, root, in.Query)
-			}
-		},
+func newLSPTool(ci *codeintel.Analyzer, defaultWorkdir string) (chat.Tool, error) {
+	t := &lspRunner{analyzer: ci, defaultWorkdir: defaultWorkdir}
+	return chat.NewJSONTool[lspInput](
+		chat.ToolDefinition{Name: "lsp", Description: lspDesc},
+		t.query,
 	)
-	return t
+}
+
+func (t *lspRunner) query(ctx context.Context, in lspInput) (string, error) {
+	if err := in.validate(); err != nil {
+		return "", err
+	}
+	root := turnctx.TurnCwd(ctx, t.defaultWorkdir)
+	switch in.Operation {
+	case "definition":
+		return t.analyzer.Definition(ctx, root, in.FilePath, in.Line, in.Character)
+	case "references":
+		return t.analyzer.References(ctx, root, in.FilePath, in.Line, in.Character)
+	case "implementation":
+		return t.analyzer.Implementation(ctx, root, in.FilePath, in.Line, in.Character)
+	case "hover":
+		return t.analyzer.Hover(ctx, root, in.FilePath, in.Line, in.Character)
+	case "incoming_calls":
+		return t.analyzer.IncomingCalls(ctx, root, in.FilePath, in.Line, in.Character)
+	case "outgoing_calls":
+		return t.analyzer.OutgoingCalls(ctx, root, in.FilePath, in.Line, in.Character)
+	case "document_symbols":
+		return t.analyzer.DocumentSymbols(ctx, root, in.FilePath)
+	default:
+		return t.analyzer.WorkspaceSymbols(ctx, root, in.Query)
+	}
 }
 
 // newDiagnosticsTool exposes lsp_diagnostics — a file's current problems. Kept
@@ -113,25 +127,32 @@ type lspDiagnosticsInput struct {
 	FilePath string `json:"file_path" jsonschema:"required" jsonschema_description:"Path to the file, relative to the workspace root (or absolute)."`
 }
 
-var lspDiagnosticsSchema = pkgjson.MustStringDefSchemaOf(lspDiagnosticsInput{})
+func (in lspDiagnosticsInput) validate() error {
+	if in.FilePath == "" {
+		return errors.New("lsp_diagnostics: file_path is required")
+	}
+	return nil
+}
 
-func newDiagnosticsTool(ci *codeintel.Analyzer, defaultWorkdir string) chat.Tool {
-	t, _ := chat.NewTool(
+type diagnosticsTool struct {
+	analyzer       *codeintel.Analyzer
+	defaultWorkdir string
+}
+
+func newDiagnosticsTool(ci *codeintel.Analyzer, defaultWorkdir string) (chat.Tool, error) {
+	t := &diagnosticsTool{analyzer: ci, defaultWorkdir: defaultWorkdir}
+	return chat.NewJSONTool[lspDiagnosticsInput](
 		chat.ToolDefinition{
 			Name:        "lsp_diagnostics",
 			Description: "Get the language server's current problems (compile errors, warnings) for a file.",
-			InputSchema: lspDiagnosticsSchema,
 		},
-		func(ctx context.Context, arguments string) (string, error) {
-			var in lspDiagnosticsInput
-			if err := json.Unmarshal([]byte(arguments), &in); err != nil {
-				return "", fmt.Errorf("lsp_diagnostics: invalid arguments: %w", err)
-			}
-			if in.FilePath == "" {
-				return "", errors.New("lsp_diagnostics: file_path is required")
-			}
-			return ci.Diagnostics(ctx, turnctx.TurnCwd(ctx, defaultWorkdir), in.FilePath)
-		},
+		t.diagnostics,
 	)
-	return t
+}
+
+func (t *diagnosticsTool) diagnostics(ctx context.Context, in lspDiagnosticsInput) (string, error) {
+	if err := in.validate(); err != nil {
+		return "", err
+	}
+	return t.analyzer.Diagnostics(ctx, turnctx.TurnCwd(ctx, t.defaultWorkdir), in.FilePath)
 }

@@ -11,7 +11,10 @@ import (
 // TestAskUser_Validation: malformed args and an empty questions list are
 // model-facing errors raised before the call parks (no HITL context needed).
 func TestAskUser_Validation(t *testing.T) {
-	tool := New(nil)
+	tool, err := New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := tool.Call(context.Background(), `not json`); err == nil {
 		t.Error("invalid JSON must error")
 	}

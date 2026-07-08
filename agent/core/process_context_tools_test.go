@@ -18,10 +18,10 @@ func TestProcessContextToolMethodsNormalizeNilContext(t *testing.T) {
 		actionToolGroups: []ToolGroupRequirement{{Role: "action-tools"}},
 	}
 
-	if _, err := pc.ResolveTools(nil, "manual-tools"); err != nil {
+	if _, err := pc.ResolveTools(nil, "manual-tools"); err != nil { //nolint:staticcheck // Intentionally exercises nil context normalization.
 		t.Fatalf("ResolveTools: %v", err)
 	}
-	if _, err := pc.ActionTools(nil); err != nil {
+	if _, err := pc.ActionTools(nil); err != nil { //nolint:staticcheck // Intentionally exercises nil context normalization.
 		t.Fatalf("ActionTools: %v", err)
 	}
 	if calls != 2 {
@@ -40,7 +40,7 @@ func TestProcessContextToolCallContextNormalizesNilParent(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := pc.ToolCallContext(nil)
+	ctx, cancel := pc.ToolCallContext(nil) //nolint:staticcheck // Intentionally exercises nil context normalization.
 	if ctx == nil {
 		t.Fatal("ToolCallContext returned nil context")
 	}

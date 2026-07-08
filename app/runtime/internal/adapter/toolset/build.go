@@ -90,12 +90,18 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	// lazily per (workspace root, language). Tools are cwd-independent (the
 	// analyzer keys by root, read per call off the blackboard).
 	codeIntel := codeintel.New(cfg.LSPServers)
-	lspTools := lsptools.Build(codeIntel, cfg.Workdir)
+	lspTools, err := lsptools.Build(codeIntel, cfg.Workdir)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build lsp tools: %w", err)
+	}
 
 	tracker := editguard.NewTracker()
 
 	shells := exec.NewShells()
-	shellTools := shell.Build(shells, cfg.Workdir)
+	shellTools, err := shell.Build(shells, cfg.Workdir)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build shell tools: %w", err)
+	}
 
 	interrupt := cfg.Interruption
 	if interrupt == nil {
@@ -103,17 +109,26 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	}
 
 	// ask_user is build-time tool here, not engine-injected. Coding role only.
-	askUserTool := askuser.New(interrupt)
+	askUserTool, err := askuser.New(interrupt)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build ask_user: %w", err)
+	}
 
 	// exit_plan_mode leaves the read-only plan stance: it presents the model's
 	// plan for approval and, on approval, flips the approval stance to execute.
 	// Nil approval policy → nil tool, simply omitted.
-	exitPlanTool := exitplan.New(cfg.Approval, interrupt)
+	exitPlanTool, err := exitplan.New(cfg.Approval, interrupt)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build exit_plan_mode: %w", err)
+	}
 
 	// todo_write maintains the per-session task list. nil cfg.Todos yields a nil
 	// tool that's simply omitted (feature off). Working-directory independent
 	// (keys off the session id), so built once and given to both roles.
-	todoTool := todotool.New(cfg.Todos)
+	todoTool, err := todotool.New(cfg.Todos)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build todo_write: %w", err)
+	}
 
 	mcpConns, mcpTools, err := mcp.Dial(ctx, infraMCPServerConfigs(cfg.MCPServers))
 	if err != nil {
@@ -126,7 +141,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		return Built{}, err
 	}
 
-	resolver := NewResolver(Deps{
+	resolver, err := NewResolver(Deps{
 		DefaultWorkdir:  cfg.Workdir,
 		SkillsGlobalDir: cfg.SkillsGlobalDir,
 		Online:          online,
@@ -141,6 +156,11 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		MCPDisabled:     cfg.MCPDisabled,
 		CodebaseIndex:   cfg.CodebaseIndex,
 	})
+	if err != nil {
+		_ = mcpConns.Close()
+		_ = a2aConns.Close()
+		return Built{}, fmt.Errorf("toolset: build resolver: %w", err)
+	}
 	resolver.SetMCPTools(mcpTools)             // seed the hot-swappable MCP set
 	mcpConns.SetToolSink(resolver.SetMCPTools) // reconnect hot-swaps the refreshed set in
 

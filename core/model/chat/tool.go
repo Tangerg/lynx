@@ -71,6 +71,16 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	return t.execFunc(ctx, arguments)
 }
 
+func validateToolDefinition(caller string, definition ToolDefinition, requireSchema bool) error {
+	if definition.Name == "" {
+		return fmt.Errorf("%s: definition.Name must not be empty", caller)
+	}
+	if requireSchema && definition.InputSchema == "" {
+		return fmt.Errorf("%s: definition.InputSchema must not be empty", caller)
+	}
+	return nil
+}
+
 // NewTool builds a [Tool] backed by execFunc. All three components are
 // required: an empty name, an empty input schema, or a nil exec function
 // will return an error.
@@ -87,11 +97,8 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 //	    func(ctx context.Context, args string) (string, error) { ... },
 //	)
 func NewTool(definition ToolDefinition, execFunc func(ctx context.Context, arguments string) (string, error)) (Tool, error) {
-	if definition.Name == "" {
-		return nil, errors.New("chat.NewTool: definition.Name must not be empty")
-	}
-	if definition.InputSchema == "" {
-		return nil, errors.New("chat.NewTool: definition.InputSchema must not be empty")
+	if err := validateToolDefinition("chat.NewTool", definition, true); err != nil {
+		return nil, err
 	}
 	if execFunc == nil {
 		return nil, errors.New("chat.NewTool: execFunc must not be nil")
@@ -103,6 +110,21 @@ func NewTool(definition ToolDefinition, execFunc func(ctx context.Context, argum
 	}, nil
 }
 
+type jsonTool[In any] struct {
+	definition ToolDefinition
+	execFunc   func(ctx context.Context, in In) (string, error)
+}
+
+func (t *jsonTool[In]) Definition() ToolDefinition { return t.definition }
+
+func (t *jsonTool[In]) Call(ctx context.Context, arguments string) (string, error) {
+	var in In
+	if err := json.Unmarshal([]byte(arguments), &in); err != nil {
+		return "", fmt.Errorf("chat.NewJSONTool: decode arguments: %w", err)
+	}
+	return t.execFunc(ctx, in)
+}
+
 // NewJSONTool builds a [Tool] whose argument schema and decoder both come from
 // In. It is the typed counterpart to [NewTool]: callers provide only the tool
 // name/description and the executable behavior; the InputSchema field must be
@@ -111,6 +133,9 @@ func NewJSONTool[In any](
 	definition ToolDefinition,
 	execFunc func(ctx context.Context, in In) (string, error),
 ) (Tool, error) {
+	if err := validateToolDefinition("chat.NewJSONTool", definition, false); err != nil {
+		return nil, err
+	}
 	if definition.InputSchema != "" {
 		return nil, errors.New("chat.NewJSONTool: definition.InputSchema must be empty")
 	}
@@ -125,11 +150,8 @@ func NewJSONTool[In any](
 	}
 	definition.InputSchema = schema
 
-	return NewTool(definition, func(ctx context.Context, arguments string) (string, error) {
-		var in In
-		if err := json.Unmarshal([]byte(arguments), &in); err != nil {
-			return "", fmt.Errorf("chat.NewJSONTool: decode arguments: %w", err)
-		}
-		return execFunc(ctx, in)
-	})
+	return &jsonTool[In]{
+		definition: definition,
+		execFunc:   execFunc,
+	}, nil
 }

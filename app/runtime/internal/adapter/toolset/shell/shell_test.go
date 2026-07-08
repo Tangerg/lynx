@@ -14,7 +14,11 @@ import (
 // shellTool returns the named tool from a freshly-built shell tool set.
 func shellTool(t *testing.T, shells *exec.Shells, name string) chat.Tool {
 	t.Helper()
-	for _, tl := range Build(shells, t.TempDir()) {
+	tools, err := Build(shells, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tl := range tools {
 		if tl.Definition().Name == name {
 			return tl
 		}
