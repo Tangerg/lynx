@@ -1,7 +1,7 @@
 // Package schedule is the scheduled-run domain: a Schedule fires a saved prompt
 // on a cron trigger as a headless run (no client present). The worker ticks,
-// asks [Registry.Due] for the schedules whose time has come, starts a run through
-// a [Runner] port, and records the firing via [Registry.MarkFired].
+// asks [WorkerStore.Due] for the schedules whose time has come, starts a run
+// through a [Runner] port, and records the firing via [WorkerStore.MarkFired].
 //
 // A Schedule stores the final PROMPT text, not a recipe reference — the
 // scheduler is deliberately decoupled from recipes (a client may pre-fill the

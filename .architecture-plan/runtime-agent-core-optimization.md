@@ -1717,3 +1717,15 @@ app/runtime -> agent -> core
 - 已完成适配：runtime assembly 继续把同一个 `cfg.ProviderRegistry` 注入到三个窄口字段；所有 `r.providers.*` runtime facade 调用已迁移到对应端口；未保留旧 `Runtime.providers` 字段。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第九十八轮包含 `app/runtime/internal/runtime` schedule registry 用例端口收窄与 worker 依赖收窄：
+
+- 调整对象：`Runtime.schedules`、schedule runtime facade 的 list/read/create/update/delete/runNow/worker 调用，以及 `schedule.NewWorker` 的 registry 参数。
+- 调整前问题：runtime bundle 持有一个完整 `schedule.Registry` 字段，schedules.list/get/create/update/delete/runNow 和 scheduler worker 都通过同一个总口访问；更深一层，schedule worker 自身只需要 due query 与 guarded cursor advance，却要求完整 Registry，理论上可见管理 CRUD 和 manual run recording。
+- 破坏性原因：这些类型位于 `app/runtime/internal/runtime` 与 internal domain `schedule`，属于应用层内部装配/用例边界；按 consumer-side port 收窄能删除旧总口，不需要为内部旧 shape 留兼容层。
+- 新设计：新增 runtime 内部 `scheduleList`、`scheduleRead`、`scheduleCreate`、`scheduleUpdate`、`scheduleDelete`、`scheduleRunRecorder` 六个端口，并让 `Runtime` 分别持有对应字段；新增 domain `schedule.WorkerStore`（`Due` / `MarkFired`），`schedule.NewWorker` 只接受 worker 所需能力。
+- 架构收益：schedule management read/write、manual run-now 记录、scheduler worker cursor advance 在类型边界上分开；worker 不再依赖完整 Registry，Runtime 也不再把 schedule CRUD 总口作为默认 state 字段穿透。
+- 影响范围：`app/runtime/internal/domain/schedule` 的 worker 构造契约，`app/runtime/internal/runtime` 的 schedule facade、Runtime struct 和 runtime assembly。
+- 已完成适配：runtime assembly 继续把同一个 `cfg.ScheduleRegistry` 注入到各窄口字段；所有 `r.schedules.*` runtime facade 调用已迁移到对应端口；`schedule.NewWorker` 调用迁移到 `scheduleWorker` 端口；未保留旧 `Runtime.schedules` 字段。
+- 验证结果：`go test ./internal/domain/schedule ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。
