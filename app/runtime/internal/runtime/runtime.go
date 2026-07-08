@@ -24,11 +24,12 @@ import (
 // Runtime owns the process-local coordination state that defines application
 // lifecycle invariants across transports.
 type Runtime struct {
-	engine    *kernel.Engine
-	turns     turn.Dispatcher
-	tools     toolsvc.Registry
-	knowledge knowledge.Store
-	approval  approval.Policy
+	engine          *kernel.Engine
+	turns           turn.Dispatcher
+	toolCatalog     toolsvc.Catalog
+	toolInvocations toolsvc.Invoker
+	knowledge       knowledge.Store
+	approval        approval.Policy
 
 	sessionList       sessionList
 	sessionRead       sessionRead
