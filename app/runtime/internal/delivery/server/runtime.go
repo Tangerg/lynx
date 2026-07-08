@@ -16,7 +16,9 @@ type RuntimePort interface {
 	turnSteeringAccess
 	turnInterruptPolicyAccess
 	sessionCatalogAccess
-	sessionMutationAccess
+	sessionCreationAccess
+	sessionDeletionAccess
+	sessionUpdateAccess
 	sessionDefaultModelAccess
 	transcriptContentAccess
 	transcriptRunAccess

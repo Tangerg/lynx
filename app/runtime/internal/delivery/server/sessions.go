@@ -65,7 +65,7 @@ func (s *Server) CreateSession(ctx context.Context, in protocol.CreateSessionReq
 	if cwd == "" {
 		cwd = s.serverInfo.Cwd
 	}
-	ses, err := s.sessionMutations.CreateSession(ctx, in.Title, cwd)
+	ses, err := s.sessionCreation.CreateSession(ctx, in.Title, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	// Delete the session row + cascade its session-scoped storage and parked
 	// turn state via the lifecycle coordinator. File checkpoints (shadow git)
 	// are a workspace concern, dropped here after the storage cascade.
-	if err := s.sessionMutations.DeleteSession(ctx, id); err != nil {
+	if err := s.sessionDeletion.DeleteSession(ctx, id); err != nil {
 		return wireSessionErr(err)
 	}
 	s.dropCheckpoints(id) // file snapshots (shadow git)
@@ -105,7 +105,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 // all live. Nil fields are left alone; the updated session is returned. The
 // dispatch layer already rejects an empty SessionID.
 func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
-	ses, err := s.sessionMutations.UpdateSession(ctx, in.SessionID, session.Patch{
+	ses, err := s.sessionUpdates.UpdateSession(ctx, in.SessionID, session.Patch{
 		Title:    in.Title,
 		Model:    in.Model,
 		Cwd:      in.Cwd,

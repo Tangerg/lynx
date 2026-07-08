@@ -136,7 +136,9 @@ type runtimeBindings struct {
 	turnSteering              turnSteeringAccess
 	turnInterrupts            turnInterruptPolicyAccess
 	sessionCatalog            sessionCatalogAccess
-	sessionMutations          sessionMutationAccess
+	sessionCreation           sessionCreationAccess
+	sessionDeletion           sessionDeletionAccess
+	sessionUpdates            sessionUpdateAccess
 	sessionDefaults           sessionDefaultModelAccess
 	transcriptContent         transcriptContentAccess
 	transcriptRuns            transcriptRunAccess
@@ -193,7 +195,9 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		turnSteering:              rt,
 		turnInterrupts:            rt,
 		sessionCatalog:            rt,
-		sessionMutations:          rt,
+		sessionCreation:           rt,
+		sessionDeletion:           rt,
+		sessionUpdates:            rt,
 		sessionDefaults:           rt,
 		transcriptContent:         rt,
 		transcriptRuns:            rt,

@@ -14,9 +14,15 @@ type sessionCatalogAccess interface {
 	SessionByID(ctx context.Context, id string) (sessionsvc.Session, error)
 }
 
-type sessionMutationAccess interface {
+type sessionCreationAccess interface {
 	CreateSession(ctx context.Context, title, cwd string) (sessionsvc.Session, error)
+}
+
+type sessionDeletionAccess interface {
 	DeleteSession(ctx context.Context, id string) error
+}
+
+type sessionUpdateAccess interface {
 	UpdateSession(ctx context.Context, id string, patch sessionsvc.Patch) (sessionsvc.Session, error)
 }
 
