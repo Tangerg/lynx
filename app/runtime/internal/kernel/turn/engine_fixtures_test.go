@@ -8,10 +8,47 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 )
+
+type testEngine interface {
+	StartTurn(ctx context.Context, req kernel.TurnRequest) kernel.TurnProcess
+	RestoreTurn(ctx context.Context, processID string, req kernel.RestoreTurnRequest) (kernel.TurnProcess, error)
+	InjectUserMessage(ctx context.Context, sessionID, text string) error
+	MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (kernel.CompactionResult, error)
+	MaybeExtract(ctx context.Context, sessionID, cwd string) (kernel.ExtractionResult, error)
+}
+
+func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependencies {
+	deps := turn.Dependencies{
+		Starter:     engine,
+		Restorer:    engine,
+		Steering:    engine,
+		Maintenance: engine,
+	}
+	for _, opt := range opts {
+		opt(&deps)
+	}
+	return deps
+}
+
+func withApproval(policy approval.Policy) func(*turn.Dependencies) {
+	return func(deps *turn.Dependencies) {
+		deps.Approval = policy
+	}
+}
+
+func withClientResolver(resolver interface {
+	ResolveClient(ctx context.Context, provider, model string) (*corechat.Client, error)
+}) func(*turn.Dependencies) {
+	return func(deps *turn.Dependencies) {
+		deps.ClientResolver = resolver
+	}
+}
 
 // stubTurnProcess fakes the kernel.TurnProcess handle without touching the real
 // platform. The done channel is pre-fired so runTurn receives immediately;

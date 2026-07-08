@@ -36,7 +36,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 
 	observer := &turnObserver{svc: s, st: st}
 	st.lifecycle = &turnLifecycle{}
-	proc := s.engine.StartTurn(st.ctx, kernel.TurnRequest{
+	proc := s.starter.StartTurn(st.ctx, kernel.TurnRequest{
 		SessionID:     req.SessionID,
 		Message:       req.Message,
 		Provider:      req.Provider,
@@ -193,7 +193,7 @@ func (s *inMemory) postTurnMaintenance(ctx context.Context, st *turnState, sessi
 		dec := st.hooks.Run(hctx, hooks.Input{Event: hooks.PreCompact, SessionID: sessionID, Cwd: st.cwd})
 		return !dec.Block
 	}
-	compaction, err := s.engine.MaybeCompact(ctx, sessionID, preCompact)
+	compaction, err := s.maintenance.MaybeCompact(ctx, sessionID, preCompact)
 	if err != nil {
 		s.emit(st, ErrorEvent{
 			Message: "auto-compaction failed: " + err.Error(),
@@ -209,7 +209,7 @@ func (s *inMemory) postTurnMaintenance(ctx context.Context, st *turnState, sessi
 		MessagesAfter:  compaction.MessagesAfter,
 	})
 
-	extraction, err := s.engine.MaybeExtract(ctx, sessionID, st.cwd)
+	extraction, err := s.maintenance.MaybeExtract(ctx, sessionID, st.cwd)
 	if err != nil {
 		s.emit(st, ErrorEvent{
 			Message: "memory extraction failed: " + err.Error(),
