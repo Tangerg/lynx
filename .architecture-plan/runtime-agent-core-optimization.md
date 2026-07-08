@@ -703,6 +703,10 @@ app/runtime -> agent -> core
   - 用户确认方案 A 后，将 event listener、`core.Process`、`core.ProcessContext` 与 `runtime.AgentProcess` 的 publish / await / invocation 记录入口统一为显式 `context.Context` first。
   - 删除前序兼容期的 `PublishContext`、`AwaitInputContext`、`Record*Context`、`OnEventContext` companion 公开入口和无 ctx wrapper；不再通过 `ProcessContext` 隐式保存 action ctx。
   - 同步迁移 `app/runtime/internal/kernel` HITL / turn loop 调用、agent runtime tests、examples 和 agent docs，避免公开文档继续指向旧 API。
+- 已完成第八十八轮 `app/runtime` server session catalog 端口 ISP 收敛：
+  - 将 delivery/server 的 `sessionCatalogAccess` 拆为 `sessionListAccess` 与 `sessionReadAccess`。
+  - sessions.list、usage.summary、workspace.projects 只依赖 session list read model；sessions.get/export/import/rollback/resume/workspace stream 只依赖 single-session lookup。
+  - 同步迁移 runtime binding 和 handler 调用，不保留旧 `sessionCatalogAccess` 聚合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -804,6 +808,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十五轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十六轮后复跑）。
   - `go test ./...`（`agent`）通过（第八十七轮 public API 迁移后先跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十八轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -1192,6 +1197,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第八十七轮后复跑）。
   - `go build ./...`（`agent`）通过（第八十七轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第八十七轮后复跑）。
+  - `go test ./...`（`core`）通过（第八十八轮后复跑）。
+  - `go test ./...`（`agent`）通过（第八十八轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第八十八轮后复跑）。
+  - `go vet ./...`（`core`）通过（第八十八轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第八十八轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第八十八轮后复跑）。
+  - `go build ./...`（`core`）通过（第八十八轮后复跑）。
+  - `go build ./...`（`agent`）通过（第八十八轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第八十八轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1569,3 +1583,15 @@ app/runtime -> agent -> core
 - 已完成适配：目标仓库内所有旧 `OnEventContext`、`PublishContext`、`AwaitInputContext`、`Record*Context`、无 ctx `pc.Publish` / `pc.AwaitInput` / `pc.Record*` 调用均已迁移；agent docs 和 examples 已同步更新。
 - 验证结果：`go test ./...`（`core` / `agent` / `app/runtime`）、`go vet ./...`（`core` / `agent` / `app/runtime`）、`go build ./...`（`core` / `agent` / `app/runtime`）均通过。
 - 后续风险：存在面向仓库外调用方的编译期迁移成本；迁移方式明确为在 action / request / listener 调用点传入已有 `ctx`。仓库内未保留兼容 alias 或 wrapper。
+
+第八十八轮包含 `app/runtime/internal/delivery/server` 的 internal session catalog 端口破坏性拆分：
+
+- 调整对象：`sessionCatalogAccess` 与 `runtimeBindings.sessionCatalog`。
+- 调整前问题：sessions.list / usage.summary / workspace.projects 需要的是 session list read model；sessions.get、export/import、rollback、resume、workspace stream 需要的是 single-session lookup。旧 `sessionCatalogAccess` 将两个 read concern 聚合在同一个字段，列表消费者被迫依赖单会话 lookup，lookup 消费者也被迫依赖列表能力。
+- 破坏性原因：该端口位于 `app/runtime/internal/delivery/server`，按 handler 实际消费语义拆分能直接删除旧聚合字段，不需要为旧 internal port 留兼容层。
+- 新设计：使用 `sessionListAccess` 承载 `ListSessions`，使用 `sessionReadAccess` 承载 `SessionByID`；`runtimeBindings` 分别持有 `sessionList` 与 `sessionRead`。
+- 架构收益：session 列表 read model 与单会话 lookup 的依赖边界清晰分离，delivery handler 不再通过同一个 catalog 字段互相可见无关能力。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、sessions、usage、workspace discovery、session import/export、rollback、resume 和 workspace stream handler。
+- 已完成适配：所有 `s.sessionCatalog` 调用已迁移到 `s.sessionList` 或 `s.sessionRead`；未保留旧 `sessionCatalogAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险。

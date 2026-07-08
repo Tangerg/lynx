@@ -17,7 +17,7 @@ import (
 // the subagent child sessions they spawned. ToRunID is inclusive-keep (omit =
 // clear to empty). Rejected with session_busy while a run is in flight.
 func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
-	ses, err := s.sessionCatalog.SessionByID(ctx, in.SessionID)
+	ses, err := s.sessionRead.SessionByID(ctx, in.SessionID)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
