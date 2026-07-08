@@ -2,7 +2,6 @@ package runsegment
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -121,7 +120,7 @@ type fakeStores struct {
 }
 
 func (s *fakeStores) Interrupts() interrupts.Store                      { return s.interrupts }
-func (s *fakeStores) Session() session.Store                            { return s.session }
+func (s *fakeStores) Session() SessionStore                             { return s.session }
 func (s *fakeStores) Transcript() transcript.Store                      { return s.transcript }
 func (s *fakeStores) MessageCount(context.Context, string) (int, error) { return s.mark, nil }
 func (s *fakeStores) GenerateTitle(context.Context, string) (string, error) {
@@ -200,28 +199,6 @@ func (s *fakeSession) Get(_ context.Context, id string) (session.Session, error)
 	return s.sess, nil
 }
 
-func (s *fakeSession) Create(context.Context, string, string) (session.Session, error) {
-	return session.Session{}, errors.New("unused")
-}
-
-func (s *fakeSession) Restore(context.Context, session.Session) error { return nil }
-
-func (s *fakeSession) Fork(context.Context, string, string) (session.Session, error) {
-	return session.Session{}, errors.New("unused")
-}
-
-func (s *fakeSession) CreateSubtask(context.Context, string, string) (session.Session, error) {
-	return session.Session{}, errors.New("unused")
-}
-
-func (s *fakeSession) Children(context.Context, string) ([]session.Session, error) {
-	return nil, nil
-}
-
-func (s *fakeSession) Delete(context.Context, string) error           { return nil }
-func (s *fakeSession) SetModel(context.Context, string, string) error { return nil }
-func (s *fakeSession) Rename(context.Context, string, string) error   { return nil }
-
 func (s *fakeSession) RenameIfUntitled(_ context.Context, id, title string) error {
 	if id != s.sess.ID {
 		return session.ErrNotFound
@@ -229,12 +206,6 @@ func (s *fakeSession) RenameIfUntitled(_ context.Context, id, title string) erro
 	s.renamed <- title
 	return nil
 }
-
-func (s *fakeSession) SetCwd(context.Context, string, string) error { return nil }
-func (s *fakeSession) SetMetadata(context.Context, string, map[string]any) error {
-	return nil
-}
-func (s *fakeSession) SetFavorite(context.Context, string, bool) error { return nil }
 
 type fakeCheckpoints struct {
 	snapshotted chan<- string

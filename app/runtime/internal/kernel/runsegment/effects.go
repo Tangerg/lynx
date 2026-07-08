@@ -16,13 +16,21 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
+// SessionStore is the run-segment side-effect view of session persistence.
+// Terminal maintenance only needs the session's cwd/title and the atomic
+// untitled-title update; it should not depend on the full domain Store.
+type SessionStore interface {
+	Get(ctx context.Context, id string) (session.Session, error)
+	RenameIfUntitled(ctx context.Context, id, title string) error
+}
+
 // Stores is the consumer-defined surface the Effects coordinator drives. It is
 // intentionally narrower than the runtime bundle: this use-case needs only
-// durable transcript/interrupt/session stores, chat history count, and title
-// generation.
+// durable transcript/interrupt stores, a tiny session view, chat history count,
+// and title generation.
 type Stores interface {
 	Interrupts() interrupts.Store
-	Session() session.Store
+	Session() SessionStore
 	Transcript() transcript.Store
 	MessageCount(ctx context.Context, sessionID string) (int, error)
 	GenerateTitle(ctx context.Context, firstMessage string) (string, error)

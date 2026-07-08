@@ -14,44 +14,36 @@ import (
 )
 
 func (r *Runtime) lifecycle() *lifecycle.Coordinator {
-	return lifecycle.New(runtimeStores{rt: r})
+	return lifecycle.New(lifecycleStores{rt: r})
 }
 
-type runtimeStores struct {
+type lifecycleStores struct {
 	rt *Runtime
 }
 
-func (s runtimeStores) Session() session.Store { return s.rt.session }
+func (s lifecycleStores) Session() lifecycle.SessionStore { return s.rt.session }
 
-func (s runtimeStores) Transcript() transcript.Store { return s.rt.transcript }
+func (s lifecycleStores) Transcript() transcript.Store { return s.rt.transcript }
 
-func (s runtimeStores) Interrupts() interrupts.Store { return s.rt.interrupts }
+func (s lifecycleStores) Interrupts() interrupts.Store { return s.rt.interrupts }
 
-func (s runtimeStores) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
+func (s lifecycleStores) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
 	return s.rt.ReadHistory(ctx, sessionID)
 }
 
-func (s runtimeStores) TruncateMessages(ctx context.Context, sessionID string, keepN int) error {
+func (s lifecycleStores) TruncateMessages(ctx context.Context, sessionID string, keepN int) error {
 	return s.rt.TruncateMessages(ctx, sessionID, keepN)
 }
 
-func (s runtimeStores) SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error {
+func (s lifecycleStores) SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error {
 	return s.rt.SeedHistory(ctx, sessionID, msgs)
 }
 
-func (s runtimeStores) MessageCount(ctx context.Context, sessionID string) (int, error) {
-	return s.rt.MessageCount(ctx, sessionID)
-}
-
-func (s runtimeStores) GenerateTitle(ctx context.Context, firstMessage string) (string, error) {
-	return s.rt.GenerateTitle(ctx, firstMessage)
-}
-
-func (s runtimeStores) ForgetSession(sessionID string) {
+func (s lifecycleStores) ForgetSession(sessionID string) {
 	s.rt.forgetSession(sessionID)
 }
 
-func (s runtimeStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
+func (s lifecycleStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
 	return s.rt.runInTx(ctx, fn)
 }
 

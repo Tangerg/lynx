@@ -6,7 +6,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
@@ -15,7 +14,7 @@ type coordinatorStores struct {
 	interrupts *coordinatorInterrupts
 }
 
-func (s coordinatorStores) Session() session.Store       { panic("unused") }
+func (s coordinatorStores) Session() SessionStore        { panic("unused") }
 func (s coordinatorStores) Transcript() transcript.Store { panic("unused") }
 func (s coordinatorStores) Interrupts() interrupts.Store { return s.interrupts }
 func (s coordinatorStores) ReadHistory(context.Context, string) ([]chat.Message, error) {
