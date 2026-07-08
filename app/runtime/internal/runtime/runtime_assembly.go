@@ -77,11 +77,11 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	providers := cfg.ProviderRegistry
 	resolver := newClientResolver(providers)
 
-	utilityEnv, err := buildUtilityEnvironment(ctx, cfg, resolver)
+	utilityEnv, err := buildUtilityEnvironment(ctx, cfg.Engine.ChatClient, cfg.UtilityRoleStore, resolver)
 	if err != nil {
 		return nil, err
 	}
-	embeddingEnv, err := buildEmbeddingEnvironment(ctx, cfg, providers)
+	embeddingEnv, err := buildEmbeddingEnvironment(ctx, cfg.EmbeddingRoleStore, cfg.CodebaseStore, providers)
 	if err != nil {
 		return nil, err
 	}

@@ -84,11 +84,11 @@ type Runtime struct {
 
 	// utility holds the live utility-model role (provider, model) the
 	// maintenance services resolve against; SetUtilityRole repoints it. resolver
-	// builds + caches the client for a (provider, model); utilStore persists the
+	// builds + caches the client for a (provider, model); utilStore saves the
 	// role across restarts. See utility.go.
 	utility   *atomic.Pointer[utilityRole]
 	resolver  *clientResolver
-	utilStore UtilityRoleStore
+	utilStore utilityRoleSaver
 
 	// hookResolver inspects lifecycle hooks for a cwd (workspace.hooks.list);
 	// hookTrust mutates project trust (workspace.hooks.setTrust). Both nil when
@@ -110,12 +110,12 @@ type Runtime struct {
 	scheduleWorker   schedule.WorkerStore
 
 	// @codebase semantic index: embeddingCell holds the live embedding role,
-	// embeddings builds+caches embedders from it, embeddingStore persists it, and
+	// embeddings builds+caches embedders from it, embeddingStore saves it, and
 	// codebase* ports expose the management/search surface (nil when no
 	// CodebaseStore). See embedding.go.
 	embeddingCell        *atomic.Pointer[embeddingRole]
 	embeddings           *embeddingResolver
-	embeddingStore       EmbeddingRoleStore
+	embeddingStore       embeddingRoleSaver
 	codebaseAvailability codebaseIndexAvailability
 	codebaseSearch       codebaseIndexSearch
 	codebaseStatus       codebaseIndexStatus

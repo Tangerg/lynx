@@ -20,7 +20,15 @@ type utilityRole struct {
 // Defined here (consumer side); the composition root injects the sqlite-backed
 // implementation. A nil store disables persistence — the role stays unset.
 type UtilityRoleStore interface {
+	utilityRoleLoader
+	utilityRoleSaver
+}
+
+type utilityRoleLoader interface {
 	LoadUtilityRole(ctx context.Context) (provider, model string, err error)
+}
+
+type utilityRoleSaver interface {
 	SaveUtilityRole(ctx context.Context, provider, model string) error
 }
 
@@ -29,10 +37,10 @@ type utilityEnvironment struct {
 	resolve func(context.Context) *chat.Client
 }
 
-func buildUtilityEnvironment(ctx context.Context, cfg Config, resolver *clientResolver) (utilityEnvironment, error) {
+func buildUtilityEnvironment(ctx context.Context, mainClient *chat.Client, loader utilityRoleLoader, resolver *clientResolver) (utilityEnvironment, error) {
 	var role utilityRole
-	if cfg.UtilityRoleStore != nil {
-		p, m, err := cfg.UtilityRoleStore.LoadUtilityRole(ctx)
+	if loader != nil {
+		p, m, err := loader.LoadUtilityRole(ctx)
 		if err != nil {
 			return utilityEnvironment{}, fmt.Errorf("runtime: load utility role: %w", err)
 		}
@@ -40,7 +48,6 @@ func buildUtilityEnvironment(ctx context.Context, cfg Config, resolver *clientRe
 	}
 	cell := &atomic.Pointer[utilityRole]{}
 	cell.Store(&role)
-	mainClient := cfg.Engine.ChatClient
 	resolve := func(ctx context.Context) *chat.Client {
 		role := cell.Load()
 		if role == nil || role.model == "" {

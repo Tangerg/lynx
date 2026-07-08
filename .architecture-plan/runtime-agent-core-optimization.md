@@ -1801,3 +1801,15 @@ app/runtime -> agent -> core
 - 已完成适配：runtime assembly 继续把同一个 `embeddingEnv.index` 注入到四个 Runtime 窄口字段；toolset build/resolver 改为依赖 search+availability 组合口；`codebasesearch.New` 改为只接收 search 端口；focused tests 删除完整 `codebaseindex.Index` 嵌入 fake 并覆盖 search/status/reindex 转发。
 - 验证结果：`go test ./internal/runtime ./internal/adapter/toolset ./internal/adapter/toolset/codebasesearch` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百零五轮包含 `app/runtime/internal/runtime` utility / embedding role persistence 读写端口收窄：
+
+- 调整对象：`UtilityRoleStore`、`EmbeddingRoleStore`、`Runtime.utilStore`、`Runtime.embeddingStore`、role environment builders 和 focused runtime tests。
+- 调整前问题：utility / embedding role 持久化接口同时包含 load 与 save；构造期只需要 load 以初始化 live role cell，运行期 `models.set*Role` 只需要 save，但 `Runtime` 字段持有完整读写 store，setter 理论上可见不需要的 load 能力。
+- 破坏性原因：这些接口和字段位于 `app/runtime/internal/runtime`，属于应用层内部装配边界；按构造读口与运行期写口拆分能删除运行期总口字段，不需要为内部旧 shape 留兼容层。
+- 新设计：新增 `utilityRoleLoader` / `utilityRoleSaver` 与 `embeddingRoleLoader` / `embeddingRoleSaver` 四个 consumer-side port；Config 仍接受组合根提供的完整 store，build environment 只消费 loader，Runtime state 只保存 saver。
+- 架构收益：模型角色启动加载、运行期持久化写入和 live role cell 读面在类型边界上分离；运行期 setter 不再携带 load capability，focused tests 也不再通过嵌入完整 role store 掩盖真实依赖。
+- 影响范围：`app/runtime/internal/runtime` 的 utility / embedding role code、Runtime struct、runtime assembly 和 focused tests。
+- 已完成适配：`buildUtilityEnvironment` / `buildEmbeddingEnvironment` 参数收窄到各自 loader；`Runtime.utilStore` / `Runtime.embeddingStore` 收窄到 saver；runtime assembly 继续把同一个组合根 store 分别注入到构造读口和运行期写口；新增 focused tests 覆盖 loader 初始化与 saver 写入。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。
