@@ -3,7 +3,6 @@ package runtime
 import (
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -82,10 +81,10 @@ type Runtime struct {
 	defaultProvider string
 	defaultModel    string
 
-	// titler auto-names an untitled session from its first user message — a
+	// titles auto-names an untitled session from its first user message — a
 	// turn-boundary maintenance op (like the Compactor) on the utility model,
 	// triggered by the delivery layer off a finished root run.
-	titler *maintenance.Titler
+	titles titleGenerator
 
 	// utility holds the live utility-model role (provider, model) the
 	// maintenance services resolve against; SetUtilityRole repoints it. resolver

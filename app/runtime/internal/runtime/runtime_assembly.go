@@ -206,7 +206,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		mcpGating:                 mcpEnv.gate,
 		defaultProvider:           cfg.Provider,
 		defaultModel:              cfg.Model,
-		titler:                    maintenance.NewTitler(utilityEnv.resolve),
+		titles:                    maintenance.NewTitler(utilityEnv.resolve),
 		utility:                   utilityEnv.cell,
 		resolver:                  resolver,
 		utilStore:                 cfg.UtilityRoleStore,

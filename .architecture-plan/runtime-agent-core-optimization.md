@@ -1849,3 +1849,15 @@ app/runtime -> agent -> core
 - 已完成适配：删除 `Runtime.engine` 字段；`Close`、`ListSkills`、`A2AAgent` 已迁移到对应窄口；focused tests 用只实现 closer/skills/chat-runner 的 fake 锁住端口依赖。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百零九轮包含 `app/runtime/internal/runtime` maintenance title adapter state 收窄：
+
+- 调整对象：`Runtime.titler`、`Runtime.GenerateTitle`、runtime assembly 和 focused maintenance title tests。
+- 调整前问题：`Runtime` struct 直接持有具体 `*maintenance.Titler`，使应用层 runtime bundle 的 state 边界依赖 adapter 层具体类型；而 Runtime facade 和 runsegment side effects 只需要“给首条用户消息生成标题”的单方法能力。
+- 破坏性原因：该字段位于 `app/runtime/internal/runtime` 内部装配边界；删除具体 adapter 字段并改为 consumer-side title port 能减少 adapter 类型穿透，不需要保留旧字段名或兼容 shape。
+- 新设计：新增 `titleGenerator` 端口（仅 `Generate`）；`Runtime` 保存 `titles titleGenerator`，`GenerateTitle` 通过端口调用，并在未配置时保持 best-effort 空标题；runtime assembly 继续用 `maintenance.NewTitler` 作为实现注入。
+- 架构收益：具体 maintenance adapter 只出现在 composition/wiring 层；Runtime state 和 runsegment title side effect 只依赖标题生成用例能力，应用层 bundle 与 adapter 实现进一步解耦。
+- 影响范围：`app/runtime/internal/runtime` 的 Runtime struct、maintenance facade、runtime assembly 和 focused maintenance tests。
+- 已完成适配：`Runtime.titler` 替换为 `titles titleGenerator`；`GenerateTitle` 迁移到端口并补充 nil-safe best-effort 分支；focused tests 用只实现 `Generate` 的 fake 锁住端口依赖。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

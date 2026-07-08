@@ -11,6 +11,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
+type titleGenerator interface {
+	Generate(ctx context.Context, firstMessage string) (string, error)
+}
+
 func wireMaintenancePorts(ecfg *kernel.Config, cfg Config, historyStore history.Store, resolveUtility func(context.Context) *chat.Client) {
 	if ecfg.Compactor == nil {
 		// Window-relative compaction trigger: resolve the default turn model's
@@ -33,5 +37,8 @@ func wireMaintenancePorts(ecfg *kernel.Config, cfg Config, historyStore history.
 // like [Runtime.ProbeProvider], because the runtime owns the maintenance LLM
 // client; the delivery layer triggers it off a finished root run.
 func (r *Runtime) GenerateTitle(ctx context.Context, firstMessage string) (string, error) {
-	return r.titler.Generate(ctx, firstMessage)
+	if r.titles == nil {
+		return "", nil
+	}
+	return r.titles.Generate(ctx, firstMessage)
 }
