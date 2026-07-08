@@ -32,20 +32,12 @@ type hookResolver interface {
 }
 
 // Dependencies names the collaborators needed by the in-process [Dispatcher].
-// Starter, Restorer, Steering, and Maintenance are required; every other field
-// is optional and has a nil-default behavior documented on the field.
+// Engine is required; every other field is optional and has a nil-default
+// behavior documented on the field.
 type Dependencies struct {
-	// Starter dispatches the underlying agent process for a fresh turn. Required.
-	Starter turnStarter
-
-	// Restorer rebuilds a parked turn after a backend restart. Required.
-	Restorer turnRestorer
-
-	// Steering persists queued steering messages once a turn ends. Required.
-	Steering steeringSink
-
-	// Maintenance runs post-turn compaction/extraction. Required.
-	Maintenance maintenanceRunner
+	// Engine drives the turn: start / restore / steer / post-turn maintenance.
+	// Required.
+	Engine engineDep
 
 	// Approval gates tool calls. nil auto-approves every tool, useful for tests
 	// and smoke runs.
@@ -93,23 +85,11 @@ type Dependencies struct {
 // The Dispatcher interface is stable, so transport adapters don't care
 // which impl they talk to.
 func New(deps Dependencies) (Dispatcher, error) {
-	if deps.Starter == nil {
-		return nil, errors.New("turn: starter is required")
-	}
-	if deps.Restorer == nil {
-		return nil, errors.New("turn: restorer is required")
-	}
-	if deps.Steering == nil {
-		return nil, errors.New("turn: steering is required")
-	}
-	if deps.Maintenance == nil {
-		return nil, errors.New("turn: maintenance is required")
+	if deps.Engine == nil {
+		return nil, errors.New("turn: engine is required")
 	}
 	return &inMemory{
-		starter:        deps.Starter,
-		restorer:       deps.Restorer,
-		steering:       deps.Steering,
-		maintenance:    deps.Maintenance,
+		engine:         deps.Engine,
 		approval:       deps.Approval,
 		resolver:       deps.ClientResolver,
 		todos:          deps.Todos,
@@ -124,13 +104,10 @@ func New(deps Dependencies) (Dispatcher, error) {
 // tracks live turns in a map keyed by turn id; state lives in
 // process memory and does not survive restart.
 type inMemory struct {
-	starter     turnStarter
-	restorer    turnRestorer
-	steering    steeringSink
-	maintenance maintenanceRunner
-	approval    approval.Policy // optional — nil = auto-approve every tool
-	resolver    clientResolver  // optional — nil = always use the default model
-	todos       todoLister      // optional — nil = no state.snapshot{todos} projection
+	engine   engineDep
+	approval approval.Policy // optional — nil = auto-approve every tool
+	resolver clientResolver  // optional — nil = always use the default model
+	todos    todoLister      // optional — nil = no state.snapshot{todos} projection
 
 	// mcpAutoApprove returns the model-facing MCP tool names whose calls skip the
 	// approval prompt — a per-server whitelist the runtime recomputes on every

@@ -146,10 +146,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	}
 
 	turnDispatcher, err := turn.New(turn.Dependencies{
-		Starter:        eng,
-		Restorer:       eng,
-		Steering:       eng,
-		Maintenance:    eng,
+		Engine:         eng,
 		Approval:       approvalPolicy,
 		ClientResolver: resolver,
 		Todos:          ecfg.Todos,
