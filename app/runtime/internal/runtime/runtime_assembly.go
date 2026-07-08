@@ -138,7 +138,8 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// sqlite :memory: DB). The runtime keeps no in-memory fallback; there's
 	// a single storage backend now.
 	sessions := cfg.SessionStore
-	interruptStore := cfg.InterruptStore
+	interrupts := cfg.InterruptStore
+	transcripts := cfg.TranscriptStore
 
 	turnDispatcher, err := turn.New(turn.Dependencies{
 		Starter:        eng,
@@ -167,8 +168,6 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		tools:                     toolRegistry,
 		knowledge:                 cfg.Engine.Knowledge,
 		approval:                  approvalPolicy,
-		interrupts:                interruptStore,
-		transcript:                cfg.TranscriptStore,
 		conversation:              conv,
 		sessionList:               sessions,
 		sessionRead:               sessions,
@@ -177,6 +176,13 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		sessionModel:              sessions,
 		sessionLifecycle:          sessions,
 		sessionRunSegment:         sessions,
+		interruptList:             interrupts,
+		interruptLifecycle:        interrupts,
+		interruptRunSegment:       interrupts,
+		transcriptContent:         transcripts,
+		transcriptRuns:            transcripts,
+		transcriptLifecycle:       transcripts,
+		transcriptRunSegment:      transcripts,
 		providerRegistryList:      providers,
 		providerRegistryRead:      providers,
 		providerRegistryConfigure: providers,

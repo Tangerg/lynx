@@ -8,7 +8,6 @@ import (
 )
 
 type transcriptStore struct {
-	transcript.Store
 	listSessionID string
 	runsSessionID string
 	items         []transcript.Item
@@ -30,7 +29,7 @@ func TestRuntimeListTranscript(t *testing.T) {
 		items: []transcript.Item{{ItemID: "item_1"}},
 		runs:  []transcript.Run{{RunID: "run_1"}},
 	}
-	rt := &Runtime{transcript: store}
+	rt := &Runtime{transcriptContent: store}
 
 	items, runs, err := rt.ListTranscript(context.Background(), "ses_1")
 	if err != nil {
@@ -46,7 +45,7 @@ func TestRuntimeListTranscript(t *testing.T) {
 
 func TestRuntimeListTranscriptRuns(t *testing.T) {
 	store := &transcriptStore{runs: []transcript.Run{{RunID: "run_1"}}}
-	rt := &Runtime{transcript: store}
+	rt := &Runtime{transcriptRuns: store}
 
 	runs, err := rt.ListTranscriptRuns(context.Background(), "ses_1")
 	if err != nil {
@@ -57,25 +56,5 @@ func TestRuntimeListTranscriptRuns(t *testing.T) {
 	}
 	if len(runs) != 1 || runs[0].RunID != "run_1" {
 		t.Fatalf("runs = %+v", runs)
-	}
-}
-
-func TestRuntimeListTranscriptWithoutStoreIsEmpty(t *testing.T) {
-	rt := &Runtime{}
-
-	items, runs, err := rt.ListTranscript(context.Background(), "ses_1")
-	if err != nil {
-		t.Fatalf("list transcript: %v", err)
-	}
-	if len(items) != 0 || len(runs) != 0 {
-		t.Fatalf("items=%+v runs=%+v, want empty", items, runs)
-	}
-
-	runs, err = rt.ListTranscriptRuns(context.Background(), "ses_1")
-	if err != nil {
-		t.Fatalf("list transcript runs: %v", err)
-	}
-	if len(runs) != 0 {
-		t.Fatalf("runs=%+v, want empty", runs)
 	}
 }
