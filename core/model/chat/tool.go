@@ -2,7 +2,11 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 // ToolDefinition is the static description of a tool that LLMs see when
@@ -16,7 +20,9 @@ type ToolDefinition struct {
 	Description string
 
 	// InputSchema is a JSON Schema describing the argument shape.
-	// Required so the LLM can format arguments correctly.
+	// Required by NewTool so the LLM can format arguments correctly.
+	// Leave it empty when using NewJSONTool; the schema is derived from
+	// the generic input type.
 	InputSchema string
 }
 
@@ -95,4 +101,35 @@ func NewTool(definition ToolDefinition, execFunc func(ctx context.Context, argum
 		definition: definition,
 		execFunc:   execFunc,
 	}, nil
+}
+
+// NewJSONTool builds a [Tool] whose argument schema and decoder both come from
+// In. It is the typed counterpart to [NewTool]: callers provide only the tool
+// name/description and the executable behavior; the InputSchema field must be
+// left empty and is derived from In.
+func NewJSONTool[In any](
+	definition ToolDefinition,
+	execFunc func(ctx context.Context, in In) (string, error),
+) (Tool, error) {
+	if definition.InputSchema != "" {
+		return nil, errors.New("chat.NewJSONTool: definition.InputSchema must be empty")
+	}
+	if execFunc == nil {
+		return nil, errors.New("chat.NewJSONTool: execFunc must not be nil")
+	}
+
+	var zero In
+	schema, err := pkgjson.StringDefSchemaOf(zero)
+	if err != nil {
+		return nil, fmt.Errorf("chat.NewJSONTool: derive input schema: %w", err)
+	}
+	definition.InputSchema = schema
+
+	return NewTool(definition, func(ctx context.Context, arguments string) (string, error) {
+		var in In
+		if err := json.Unmarshal([]byte(arguments), &in); err != nil {
+			return "", fmt.Errorf("chat.NewJSONTool: decode arguments: %w", err)
+		}
+		return execFunc(ctx, in)
+	})
 }

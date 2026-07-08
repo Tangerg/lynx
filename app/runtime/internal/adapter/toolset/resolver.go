@@ -2,6 +2,7 @@ package toolset
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -212,7 +213,11 @@ func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	// Offered only when an embedding model is configured (Available reads the
 	// live embedding role), so it appears once the user sets one — no restart.
 	if index := g.resolver.codebaseIndex; index != nil && index.Available(ctx) {
-		tools = append(tools, codebasesearch.New(index))
+		codebaseSearch, err := codebasesearch.New(index)
+		if err != nil {
+			return nil, fmt.Errorf("toolset: resolve codebase_search: %w", err)
+		}
+		tools = append(tools, codebaseSearch)
 	}
 	if g.role == toolport.ToolRoleCoding {
 		// Coding role only: the `task` delegation tool (no recursion) and
