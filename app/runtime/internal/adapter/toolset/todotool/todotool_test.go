@@ -17,13 +17,20 @@ func (s *stubStore) Replace(_ context.Context, _ string, items []todo.Item) erro
 }
 
 func TestNew_NilStoreOmitted(t *testing.T) {
-	if New(nil) != nil {
+	tool, err := New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tool != nil {
 		t.Fatal("New(nil) should return nil so the caller omits the tool (feature disabled)")
 	}
 }
 
 func TestTodoWrite_Definition(t *testing.T) {
-	tool := New(&stubStore{})
+	tool, err := New(&stubStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if tool == nil {
 		t.Fatal("New(store) returned nil")
 	}
@@ -39,7 +46,10 @@ func TestTodoWrite_Definition(t *testing.T) {
 // own tests; injecting a session here would need full process/blackboard
 // plumbing no other toolset test sets up.
 func TestTodoWrite_NoSession(t *testing.T) {
-	tool := New(&stubStore{})
+	tool, err := New(&stubStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	out, err := tool.Call(context.Background(), `{"todos":[{"content":"a","status":"pending"}]}`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -50,12 +60,11 @@ func TestTodoWrite_NoSession(t *testing.T) {
 }
 
 func TestTodoWrite_BadArguments(t *testing.T) {
-	tool := New(&stubStore{})
-	out, err := tool.Call(context.Background(), `{not json`)
+	tool, err := New(&stubStore{})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatal(err)
 	}
-	if !strings.Contains(out, "invalid arguments") {
-		t.Fatalf("output = %q, want an invalid-arguments message", out)
+	if _, err := tool.Call(context.Background(), `{not json`); err == nil {
+		t.Fatal("invalid arguments must error")
 	}
 }

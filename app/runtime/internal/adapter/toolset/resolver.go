@@ -2,6 +2,7 @@ package toolset
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
 
@@ -91,11 +92,10 @@ type Deps struct {
 }
 
 // NewResolver builds the platform-scope tool resolver from its
-// working-directory-independent inputs. The `task` (delegation) and `ask_user`
-// (HITL) tools are injected afterward via [Resolver.SetTask] / [Resolver.
-// SetAskUser] (they need the platform / the engine's HITL contract); the MCP
-// tool set is seeded + hot-swapped via [Resolver.SetMCPTools].
-func NewResolver(d Deps) *Resolver {
+// working-directory-independent inputs. The `task` delegation tool is injected
+// afterward via [Resolver.SetTask] because it needs the platform; the MCP tool
+// set is seeded + hot-swapped via [Resolver.SetMCPTools].
+func NewResolver(d Deps) (*Resolver, error) {
 	shellTools := d.Shell
 	if shellTools == nil {
 		// Bare resolver (a unit-test engine with no injected tool environment):
@@ -103,7 +103,17 @@ func NewResolver(d Deps) *Resolver {
 		// still available. The production path injects shell tools built over the
 		// shared shell set whose KillAll is a shutdown closer (toolset.Build); this
 		// private shell set has no closer, fine for a process-lifetime test engine.
-		shellTools = shell.Build(exec.NewShells(), d.DefaultWorkdir)
+		var err error
+		shellTools, err = shell.Build(exec.NewShells(), d.DefaultWorkdir)
+		if err != nil {
+			return nil, fmt.Errorf("toolset.NewResolver: build fallback shell tools: %w", err)
+		}
+	}
+	if d.CodeIntel == nil {
+		return nil, errors.New("toolset.NewResolver: CodeIntel is nil")
+	}
+	if d.ReadTracker == nil {
+		return nil, errors.New("toolset.NewResolver: ReadTracker is nil")
 	}
 	return &Resolver{
 		defaultWorkdir:  d.DefaultWorkdir,
@@ -119,7 +129,7 @@ func NewResolver(d Deps) *Resolver {
 		readTracker:     d.ReadTracker,
 		codebaseIndex:   d.CodebaseIndex,
 		mcpDisabled:     d.MCPDisabled,
-	}
+	}, nil
 }
 
 // SetTask injects the `task` delegation tool (coding role only) — the engine
@@ -220,10 +230,10 @@ func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 		tools = append(tools, codebaseSearch)
 	}
 	if g.role == toolport.ToolRoleCoding {
-		// Coding role only: the `task` delegation tool (no recursion) and
-		// ask_user (HITL question). Both are injected by the engine (they need
-		// the platform / the HITL contract). Sub-agents (ToolRoleSubtask) get
-		// neither — no nested delegation, no sub-process interrupts to supervise.
+		// Coding role only: the `task` delegation tool (no recursion), ask_user
+		// (HITL question), and exit_plan_mode. Sub-agents (ToolRoleSubtask) get
+		// none of them — no nested delegation, no sub-process interrupts to
+		// supervise.
 		if g.resolver.task != nil {
 			tools = append(tools, g.resolver.task)
 		}

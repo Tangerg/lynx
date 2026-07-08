@@ -35,63 +35,54 @@ func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent)
 		return nil, nil, err
 	}
 
-	var inSample In
-	spawnSchema, err := schemaFor(inSample)
-	if err != nil {
-		return nil, nil, fmt.Errorf("runtime.AsBackgroundChatTool: spawn schema: %w", err)
-	}
-	collectSchema, err := schemaFor(collectTaskInput{})
-	if err != nil {
-		return nil, nil, fmt.Errorf("runtime.AsBackgroundChatTool: collect schema: %w", err)
-	}
+	tools := &backgroundTools[In, Out]{platform: platform, agent: agentDef}
 
-	spawn, err = chat.NewTool(
+	spawn, err = chat.NewJSONTool[In](
 		chat.ToolDefinition{
 			Name:        agentDef.Name + "_spawn",
 			Description: "Start " + agentDef.Name + " as a background task. Returns a task_id immediately; collect its result later with " + agentDef.Name + "_collect.",
-			InputSchema: spawnSchema,
 		},
-		func(ctx context.Context, arguments string) (string, error) {
-			in, parseErr := decodeToolArguments[In](agentDef.Name, "background spawn", arguments)
-			if parseErr != nil {
-				return "", fmt.Errorf("background spawn %q: %w", agentDef.Name, parseErr)
-			}
-			taskID, _, spawnErr := SpawnChildAsync(ctx, platform, agentDef, in)
-			if spawnErr != nil {
-				return "", fmt.Errorf("background spawn %q: %w", agentDef.Name, spawnErr)
-			}
-			return marshalTaskResult(taskResult{TaskID: taskID, Status: taskStatusRunning})
-		},
+		tools.spawn,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("runtime.AsBackgroundChatTool: spawn tool: %w", err)
 	}
 
-	collect, err = chat.NewTool(
+	collect, err = chat.NewJSONTool[collectTaskInput](
 		chat.ToolDefinition{
 			Name:        agentDef.Name + "_collect",
 			Description: "Collect a background " + agentDef.Name + " task by task_id. Reports status running|waiting|done|failed, with the result when done.",
-			InputSchema: collectSchema,
 		},
-		func(_ context.Context, arguments string) (string, error) {
-			args, parseErr := decodeToolArguments[collectTaskInput](agentDef.Name, "background collect", arguments)
-			if parseErr != nil {
-				return "", fmt.Errorf("background collect %q: %w", agentDef.Name, parseErr)
-			}
-			if args.TaskID == "" {
-				return "", fmt.Errorf("background collect %q: task_id is required", agentDef.Name)
-			}
-			child, ok := platform.ProcessByID(args.TaskID)
-			if !ok {
-				return "", fmt.Errorf("background collect %q: unknown task_id %q", agentDef.Name, args.TaskID)
-			}
-			return collectResult[Out](agentDef.Name, child)
-		},
+		tools.collect,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("runtime.AsBackgroundChatTool: collect tool: %w", err)
 	}
 	return spawn, collect, nil
+}
+
+type backgroundTools[In, Out any] struct {
+	platform *Platform
+	agent    *core.Agent
+}
+
+func (t *backgroundTools[In, Out]) spawn(ctx context.Context, in In) (string, error) {
+	taskID, _, err := SpawnChildAsync(ctx, t.platform, t.agent, in)
+	if err != nil {
+		return "", fmt.Errorf("background spawn %q: %w", t.agent.Name, err)
+	}
+	return marshalTaskResult(taskResult{TaskID: taskID, Status: taskStatusRunning})
+}
+
+func (t *backgroundTools[In, Out]) collect(_ context.Context, args collectTaskInput) (string, error) {
+	if args.TaskID == "" {
+		return "", fmt.Errorf("background collect %q: task_id is required", t.agent.Name)
+	}
+	child, ok := t.platform.ProcessByID(args.TaskID)
+	if !ok {
+		return "", fmt.Errorf("background collect %q: unknown task_id %q", t.agent.Name, args.TaskID)
+	}
+	return collectResult[Out](t.agent.Name, child)
 }
 
 // collectTaskInput is the argument shape of the collect tool half of

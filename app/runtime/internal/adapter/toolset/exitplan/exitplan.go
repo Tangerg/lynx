@@ -18,7 +18,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/core/model/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 const (
@@ -27,9 +26,10 @@ const (
 	rejectLabel  = "Reject"
 )
 
-// exitPlanArgs is the model-facing argument shape; it drives the JSON schema
-// ([schema]) so the parsed struct and the advertised schema can't drift. The
-// options mirror [interrupts.Option] with the LLM-facing copy kept here.
+// exitPlanArgs is the model-facing argument shape; [chat.NewJSONTool] derives
+// the JSON schema from it and decodes calls back into it, so the advertised
+// schema and parsed value cannot drift. The options mirror [interrupts.Option]
+// with the LLM-facing copy kept here.
 type exitPlanArgs struct {
 	Plan    string      `json:"plan" jsonschema:"required" jsonschema_description:"The plan to present for approval — a concise, ordered list of the steps you intend to take. Markdown is fine."`
 	Options []optionArg `json:"options,omitempty" jsonschema_description:"Optional alternative approaches (2-3) for the user to choose among. The chosen one is returned to you on approval."`
@@ -40,10 +40,41 @@ type optionArg struct {
 	Description string `json:"description,omitempty" jsonschema_description:"Optional one-line explanation of the approach."`
 }
 
-var schema = pkgjson.MustStringDefSchemaOf(exitPlanArgs{})
+func (a exitPlanArgs) validate() error {
+	if strings.TrimSpace(a.Plan) == "" {
+		return errors.New("plan is required")
+	}
+	return nil
+}
+
+func (a exitPlanArgs) prompt() interrupts.QuestionPrompt {
+	opts := []interrupts.Option{{Label: approveLabel, Description: "Proceed with this plan"}}
+	for _, o := range a.Options {
+		opts = append(opts, o.toInterrupt())
+	}
+	opts = append(opts, interrupts.Option{Label: rejectLabel, Description: "Don't proceed; refine the plan"})
+	return interrupts.QuestionPrompt{Questions: []interrupts.Question{{
+		Question: a.Plan,
+		Header:   "Plan",
+		Options:  opts,
+	}}}
+}
+
+func (a exitPlanArgs) key() (string, error) {
+	b, err := json.Marshal(a)
+	if err != nil {
+		return "", fmt.Errorf("exit_plan_mode: encode interrupt key: %w", err)
+	}
+	return interrupts.InterruptKey("exit_plan_mode", toolName, string(b)), nil
+}
 
 func (o optionArg) toInterrupt() interrupts.Option {
 	return interrupts.Option{Label: o.Label, Description: o.Description}
+}
+
+type tool struct {
+	approval  approval.Policy
+	interrupt interrupts.Interruption
 }
 
 // New builds the exit_plan_mode tool over the approval policy (it flips the
@@ -51,74 +82,62 @@ func (o optionArg) toInterrupt() interrupts.Option {
 //
 // The toolset composes the interrupt awaitable contract from the composition
 // root.
-func New(appr approval.Policy, interrupt interrupts.Interruption) chat.Tool {
+func New(appr approval.Policy, interrupt interrupts.Interruption) (chat.Tool, error) {
 	if interrupt == nil {
 		interrupt = interrupts.NoInterruption
 	}
 	if appr == nil {
-		return nil
+		return nil, nil
 	}
-	t, _ := chat.NewTool(
+	t := &tool{approval: appr, interrupt: interrupt}
+	return chat.NewJSONTool[exitPlanArgs](
 		chat.ToolDefinition{
 			Name:        toolName,
 			Description: "Present your plan for approval and leave plan mode. Call this ONLY in plan mode (the read-only stance) once you've investigated and drafted a plan. On approval, plan mode exits and all tools are enabled so you can execute the plan; on rejection you stay in plan mode with the user's feedback. Provide alternative approaches in options when the user should choose between them.",
-			InputSchema: schema,
 		},
-		func(ctx context.Context, arguments string) (string, error) {
-			var in exitPlanArgs
-			if err := json.Unmarshal([]byte(arguments), &in); err != nil {
-				return "", fmt.Errorf("exit_plan_mode: invalid arguments: %w", err)
-			}
-			if strings.TrimSpace(in.Plan) == "" {
-				return "", errors.New("exit_plan_mode: plan is required")
-			}
-			mode, err := appr.Mode(ctx)
-			if err != nil {
-				return "", err
-			}
-			if mode != approval.ModePlan {
-				return "Not in plan mode — nothing to exit. exit_plan_mode only applies in the read-only plan stance.", nil
-			}
-
-			// Present the plan as a choice: Approve / (alternatives) / Reject.
-			// Reject keeps plan mode; anything else approves and names the chosen
-			// approach. Reuses the shared runtime question interrupt path.
-			opts := []interrupts.Option{{Label: approveLabel, Description: "Proceed with this plan"}}
-			for _, o := range in.Options {
-				opts = append(opts, o.toInterrupt())
-			}
-			opts = append(opts, interrupts.Option{Label: rejectLabel, Description: "Don't proceed; refine the plan"})
-			prompt := interrupts.QuestionPrompt{Questions: []interrupts.Question{{
-				Question: in.Plan,
-				Header:   "Plan",
-				Options:  opts,
-			}}}
-
-			res, _, err := interrupt(ctx, key(arguments), prompt)
-			if err != nil {
-				return "", err
-			}
-			choice := ""
-			if v := res.Answer[interrupts.QuestionFieldName(0)]; len(v) > 0 {
-				choice = v[0]
-			}
-			if choice == "" || choice == rejectLabel {
-				return "Plan not approved. Refine it and call exit_plan_mode again, or keep investigating (read-only).", nil
-			}
-			if err := appr.SetMode(ctx, approval.ModeBalanced); err != nil {
-				return "", err
-			}
-			if choice != approveLabel {
-				return "Plan approved — selected approach: " + choice + ". Plan mode exited; all tools are enabled. Execute that approach.", nil
-			}
-			return "Plan approved. Plan mode exited; all tools are enabled. Execute the plan.", nil
-		},
+		t.exit,
 	)
-	return t
 }
 
-// key is the interrupt key for one exit_plan_mode call — keyed by arguments so
-// the parked plan re-presents at the same call site on resume (mirrors ask_user).
-func key(arguments string) string {
-	return interrupts.InterruptKey("exit_plan_mode", toolName, arguments)
+func (t *tool) exit(ctx context.Context, in exitPlanArgs) (string, error) {
+	if err := in.validate(); err != nil {
+		return "", fmt.Errorf("exit_plan_mode: %w", err)
+	}
+	mode, err := t.approval.Mode(ctx)
+	if err != nil {
+		return "", err
+	}
+	if mode != approval.ModePlan {
+		return "Not in plan mode — nothing to exit. exit_plan_mode only applies in the read-only plan stance.", nil
+	}
+
+	key, err := in.key()
+	if err != nil {
+		return "", err
+	}
+	res, _, err := t.interrupt(ctx, key, in.prompt())
+	if err != nil {
+		return "", err
+	}
+	return t.applyChoice(ctx, selectedChoice(res.Answer))
+}
+
+func (t *tool) applyChoice(ctx context.Context, choice string) (string, error) {
+	if choice == "" || choice == rejectLabel {
+		return "Plan not approved. Refine it and call exit_plan_mode again, or keep investigating (read-only).", nil
+	}
+	if err := t.approval.SetMode(ctx, approval.ModeBalanced); err != nil {
+		return "", err
+	}
+	if choice != approveLabel {
+		return "Plan approved — selected approach: " + choice + ". Plan mode exited; all tools are enabled. Execute that approach.", nil
+	}
+	return "Plan approved. Plan mode exited; all tools are enabled. Execute the plan.", nil
+}
+
+func selectedChoice(answer map[string][]string) string {
+	if v := answer[interrupts.QuestionFieldName(0)]; len(v) > 0 {
+		return v[0]
+	}
+	return ""
 }

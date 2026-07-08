@@ -18,16 +18,16 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/core/model/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 const toolName = "ask_user"
 
-// askUserArgs is the model-facing argument shape; it drives the JSON schema
-// ([schema]) so the parsed struct and the advertised schema can't drift. It
-// mirrors [interrupts.QuestionPrompt] with the LLM-facing copy kept here (out
-// of the domain type, which exit_plan_mode reuses with different wording); the
-// handler maps it across via [askUserArgs.toPrompt].
+// askUserArgs is the model-facing argument shape; [chat.NewJSONTool] derives
+// the JSON schema from it and decodes calls back into it, so the advertised
+// schema and parsed value cannot drift. It mirrors [interrupts.QuestionPrompt]
+// with the LLM-facing copy kept here (out of the domain type, which
+// exit_plan_mode reuses with different wording); the handler maps it across via
+// [askUserArgs.toPrompt].
 type askUserArgs struct {
 	Questions []questionArg `json:"questions" jsonschema:"required,minItems=1,maxItems=4" jsonschema_description:"The question(s) to ask the user (1-4)."`
 }
@@ -44,7 +44,12 @@ type optionArg struct {
 	Description string `json:"description,omitempty" jsonschema_description:"Optional one-line explanation of the choice."`
 }
 
-var schema = pkgjson.MustStringDefSchemaOf(askUserArgs{})
+func (a askUserArgs) validate() error {
+	if len(a.Questions) == 0 {
+		return errors.New("at least one question is required")
+	}
+	return nil
+}
 
 // toPrompt maps the parsed args to the domain prompt type.
 func (a askUserArgs) toPrompt() interrupts.QuestionPrompt {
@@ -59,43 +64,49 @@ func (a askUserArgs) toPrompt() interrupts.QuestionPrompt {
 	return interrupts.QuestionPrompt{Questions: qs}
 }
 
+func (a askUserArgs) key() (string, error) {
+	b, err := json.Marshal(a)
+	if err != nil {
+		return "", fmt.Errorf("ask_user: encode interrupt key: %w", err)
+	}
+	return interrupts.InterruptKey("ask_user", toolName, string(b)), nil
+}
+
+type tool struct {
+	interrupt interrupts.Interruption
+}
+
 // New builds the ask_user tool.
-func New(interrupt interrupts.Interruption) chat.Tool {
+func New(interrupt interrupts.Interruption) (chat.Tool, error) {
 	if interrupt == nil {
 		interrupt = interrupts.NoInterruption
 	}
-	t, _ := chat.NewTool(
+	t := &tool{interrupt: interrupt}
+	return chat.NewJSONTool[askUserArgs](
 		chat.ToolDefinition{
 			Name:        toolName,
-			Description: "Ask the user a question and wait for their answer. Use when you need a decision, clarification, or information only the user can provide — not for routine progress updates. Give 2-4 `options` for a multiple-choice question (put the recommended one first), or omit `options` for a free-text answer; set `multi_select` when more than one option may apply.",
-			InputSchema: schema,
+			Description: "Ask the user a question and wait for their answer. Use when you need a decision, clarification, or information only the user can provide - not for routine progress updates. Give 2-4 `options` for a multiple-choice question (put the recommended one first), or omit `options` for a free-text answer; set `multi_select` when more than one option may apply.",
 		},
-		func(ctx context.Context, arguments string) (string, error) {
-			var a askUserArgs
-			if err := json.Unmarshal([]byte(arguments), &a); err != nil {
-				return "", fmt.Errorf("ask_user: invalid arguments: %w", err)
-			}
-			if len(a.Questions) == 0 {
-				return "", errors.New("ask_user: at least one question is required")
-			}
-			in := a.toPrompt()
-			// First pass interrupts (bubbles up, parks); resume returns the
-			// human's structured answers at this same call site.
-			res, _, err := interrupt(ctx, key(arguments), in)
-			if err != nil {
-				return "", err
-			}
-			return answerText(in, res.Answer), nil
-		},
+		t.ask,
 	)
-	return t
 }
 
-// key is the interrupt key for one ask_user call. Keyed by the arguments so the
-// recorded answer matches the same call site when the parked question is
-// re-presented on resume (mirrors the approval gate's key).
-func key(arguments string) string {
-	return interrupts.InterruptKey("ask_user", toolName, arguments)
+func (t *tool) ask(ctx context.Context, a askUserArgs) (string, error) {
+	if err := a.validate(); err != nil {
+		return "", fmt.Errorf("ask_user: %w", err)
+	}
+	key, err := a.key()
+	if err != nil {
+		return "", err
+	}
+	in := a.toPrompt()
+	// First pass interrupts (bubbles up, parks); resume returns the human's
+	// structured answers at this same call site.
+	res, _, err := t.interrupt(ctx, key, in)
+	if err != nil {
+		return "", err
+	}
+	return answerText(in, res.Answer), nil
 }
 
 // answerText renders the human's answers as the tool's result text, pairing

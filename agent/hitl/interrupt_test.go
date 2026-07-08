@@ -7,7 +7,7 @@ type fakeHalt struct {
 }
 
 func (f fakeHalt) Error() string { return "fake halt" }
-func (f fakeHalt) Abort() bool  { return f.abort }
+func (f fakeHalt) Abort() bool   { return f.abort }
 
 func TestIsInterrupt(t *testing.T) {
 	if IsInterrupt(fakeHalt{abort: true}) {
