@@ -32,8 +32,10 @@ import (
 // interface narrows this surface to exactly the operations it needs.
 type Engine struct {
 	// Turn execution.
-	platform agentRuntime
-	agent    *core.Agent
+	turnStarter  processStarter
+	turnRestorer processRestorer
+	turnControl  processControl
+	agent        *core.Agent
 
 	// Context inputs (read at SystemPrompt + chat-history time).
 	historyStore    history.Store
@@ -95,7 +97,9 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// capture *Engine (and therefore reach e.SystemPrompt) instead
 	// of dragging a memory store through the constructor.
 	e := &Engine{
-		platform:        platform,
+		turnStarter:     platform,
+		turnRestorer:    platform,
+		turnControl:     platform,
 		steering:        cfg.Steering,
 		compactor:       cfg.Compactor,
 		extractor:       cfg.Extractor,

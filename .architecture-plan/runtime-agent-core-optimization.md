@@ -1621,3 +1621,15 @@ app/runtime -> agent -> core
 - 已完成适配：所有 `s.utilityRole` 与 `s.embeddingRole` 调用已迁移到 read / mutation 字段；未保留旧 `utilityRoleAccess` / `embeddingRoleAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第九十轮包含 `app/runtime/internal/kernel` 对 agent runtime 依赖口的内部破坏性收窄：
+
+- 调整对象：`agentRuntime`、`processRunner` 与 `Engine.platform`。
+- 调整前问题：`Engine` 持有一个聚合后的 `agentRuntime`，该端口同时包含 agent deploy、turn start、process restore/continue 和 turn lifecycle control。构造期才需要的 `Deploy` 也被保留在 Engine 的运行期字段边界内，导致 turn 启动、恢复和句柄控制共享同一“平台总口”。
+- 破坏性原因：这些接口位于 `app/runtime/internal/kernel`，属于应用层内部端口；删除旧聚合口并按消费语义重建字段，可以避免继续为内部旧 shape 留兼容债。
+- 新设计：删除 `agentRuntime` / `processRunner` 聚合口；使用 `processStarter` 表达 fresh turn start，使用 `processRestorer` 表达 restore + re-tick，使用 `processControl` 表达 `TurnProcess` 的 cancel/resume/discard 生命周期控制。`Deploy` 保持在 `New` 构造流程里直接调用 concrete platform，不再作为运行期 Engine 端口。
+- 架构收益：`Engine.StartTurn`、`Engine.RestoreTurn` 与 `turnProcess` 各自依赖自己实际消费的 agent runtime 能力；构造期部署能力不再泄漏到运行期 Engine state；kernel 与 `agent/runtime.Platform` 的耦合从“平台总口”收窄为用例口。
+- 影响范围：`app/runtime/internal/kernel/agent_runtime.go`、`engine.go`、`turnrun.go`。
+- 已完成适配：`Engine` 字段迁移为 `turnStarter`、`turnRestorer`、`turnControl`；`StartTurn`、`RestoreTurn` 与 `turnProcess` 创建点已迁移到对应窄口；未保留旧 `agentRuntime` / `processRunner`。
+- 验证结果：`go test ./internal/kernel` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。
