@@ -1885,3 +1885,15 @@ app/runtime -> agent -> core
 - 已完成适配：`Runtime.resolver` 替换为 `utilityClients chatClientResolver`；`buildUtilityEnvironment` 参数收窄；`SetUtilityRole` 迁移到端口调用；focused tests 用只实现 `ResolveClient` 的 fake 锁住端口依赖。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百一十二轮包含 `app/runtime/internal/kernel` 顶层 `toolport` alias 删除：
+
+- 调整对象：`app/runtime/internal/kernel/toolport_alias.go`、`kernel.Config` 的 tool/MCP port 字段、`Engine` MCP 方法、turn agent tool role、`internal/runtime` MCP live facade、delivery workspace MCP projection 和相关测试。
+- 调整前问题：`kernel` 顶层 re-export `toolport` 的角色常量、MCP DTO、live MCP port interface 和 sentinel error。第一百零七轮已把 runtime 的 live MCP engine dependency 收窄到四个端口，但别名层仍让 `internal/runtime` / delivery workspace MCP 代码为了端口 DTO 依赖整个 `kernel` facade，制造双入口和历史债务。
+- 破坏性原因：这些类型位于 `app/runtime/internal/kernel` 内部边界；保留 `kernel.MCP*` / `kernel.ToolRole*` alias 会继续弱化 `toolport` 作为工具调用端口与 registry 边界包的语义，不符合“不为旧 shape 留 shim”的原则。
+- 新设计：删除 `toolport_alias.go`；`kernel` 自身、`internal/runtime`、delivery server 和测试均直接引用 `internal/kernel/toolport` 的 role、MCP DTO、port interface 与 sentinel；`kernel.Config` 的 tool/MCP port 字段显式使用 `toolport` 类型。
+- 架构收益：端口类型归属单一，`kernel` 顶层 facade 更聚焦 turn engine 编排；runtime/server 对 workspace.mcp 投影与 live MCP 命令的依赖更窄；后续新增 MCP 端口能力时不会默认挂到 `kernel` 顶层。
+- 影响范围：`app/runtime/internal/kernel`、`app/runtime/internal/runtime`、`app/runtime/internal/delivery/server` 内部调用方和测试。
+- 已完成适配：所有 `kernel.MCP*`、`kernel.ToolRole*`、`kernel.ErrUnknownMCPServer` 内部引用已改为 `toolport.*`；删除 `toolport_alias.go`；未保留兼容 alias。
+- 验证结果：targeted `go test ./internal/kernel/...`、`go test ./internal/runtime ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险；若本模块内部未来再出现 `kernel` 顶层端口 DTO re-export，应优先判断能否直接依赖端口所属窄包。

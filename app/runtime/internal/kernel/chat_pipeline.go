@@ -6,11 +6,12 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/core/model/chat"
 	history "github.com/Tangerg/lynx/core/model/chat/history"
 )
 
-func newAgentPlatform(cfg Config, resolver ToolResolver) (*agentruntime.Platform, error) {
+func newAgentPlatform(cfg Config, resolver toolport.ToolResolver) (*agentruntime.Platform, error) {
 	guardrails, err := newChatGuardrails(cfg)
 	if err != nil {
 		return nil, err

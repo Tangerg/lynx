@@ -120,7 +120,7 @@ func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 // AsChatToolFromAgent + SpawnChild), the sub-agent runs its own chat
 // turn and returns an answer, and the main agent incorporates it into
 // its final reply. Proves the sub-agent delegation path works without a
-// real LLM. (The sub-agent declares ToolRoleSubtask — no `task` — so it
+// real LLM. (The sub-agent declares toolport.ToolRoleSubtask — no `task` — so it
 // can't recurse.)
 func TestEngine_RunChat_TaskDelegation(t *testing.T) {
 	stub := newDelegatingStubModel()

@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
 
@@ -99,7 +100,7 @@ type TurnOutput struct {
 // memory store for system-prompt composition without an extra
 // parameter passed through every turn.
 //
-// The Action declares [ToolRoleCoding] so the runtime resolves the
+// The Action declares [toolport.ToolRoleCoding] so the runtime resolves the
 // coding tool group at dispatch time; the body calls
 // [core.ProcessContext.ChatWithActionTools] which composes the
 // toolloop.NewMiddleware tool-loop on top of platform guardrails.
@@ -146,7 +147,7 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 				return out, nil
 			},
 			core.ActionConfig{
-				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
+				ToolGroups: core.ToolRolesFor(toolport.ToolRoleCoding),
 				// MaxAttempts:1 — don't let the runtime retry an LLM action.
 				// Transient errors are already retried inside the model SDK;
 				// permanent ones (no-access model, bad key, invalid request)
@@ -176,7 +177,7 @@ type taskInput struct {
 
 // buildSubtaskAgent constructs the agent behind the `task` delegation
 // tool. Same chat body as the main agent, but: (1) named "task" so the
-// derived tool is `task`; (2) declares [ToolRoleSubtask] — the coding
+// derived tool is `task`; (2) declares [toolport.ToolRoleSubtask] — the coding
 // tools WITHOUT `task`, so a subtask can't recurse into another
 // delegation; (3) its goal produces just the reply string, so the tool
 // result handed to the parent model is the answer text, not a TurnOutput
@@ -208,7 +209,7 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 				return out.Reply, nil
 			},
 			core.ActionConfig{
-				ToolGroups: core.ToolRolesFor(ToolRoleSubtask),
+				ToolGroups: core.ToolRolesFor(toolport.ToolRoleSubtask),
 				QoS:        core.ActionQoS{MaxAttempts: 1}, // same rationale as the chat action
 			},
 		)).
