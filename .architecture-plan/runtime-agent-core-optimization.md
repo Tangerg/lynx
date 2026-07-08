@@ -1825,3 +1825,15 @@ app/runtime -> agent -> core
 - 已完成适配：`Runtime.hookResolver` 替换为 `hookInspection hookInspector`；runtime assembly 继续把同一个 `cfg.HooksResolver` 注入给 turn dispatcher 和 Runtime inspection 口；`InspectHooks` 增加 nil-safe 空结果；focused tests 用只实现 `Inspect` 的 fake 锁住管理面窄口。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百零七轮包含 `app/runtime/internal/runtime` live MCP engine dependency 端口收窄：
+
+- 调整对象：`Runtime.engine` 在 MCP runtime facade 中的 status/tools/reconnect/authorize/probe/configure/remove 调用、Runtime struct、runtime assembly 和 focused MCP live tests。
+- 调整前问题：MCP registry 持久化面已拆成 list/read/configure/remove/enable 端口，但 live MCP facade 仍通过 `r.engine` 访问整台 kernel engine；`workspace.mcp.*` 管理路径理论上可见 turn execution、skills、close、A2A 等无关 engine 能力。
+- 破坏性原因：这些字段和调用点位于 `app/runtime/internal/runtime`，属于应用层内部装配边界；按 live MCP 消费路径拆掉对完整 engine 的依赖，不需要为内部旧 shape 留兼容层。
+- 新设计：新增 runtime 内部 `mcpLiveStatusReader`、`mcpLiveToolCatalog`、`mcpLiveConnectionCommands`、`mcpLiveRegistryCommands` 四个 consumer-side port；MCP facade 只通过这些端口访问 live MCP 会话，runtime assembly 继续把同一个 `*kernel.Engine` 注入到这些窄口字段。
+- 架构收益：live MCP status projection、tool catalog、connection lifecycle、registry apply/probe 与完整 turn engine 在 Runtime 类型边界上分离；`Runtime.engine` 继续服务 close/skills/A2A 等其他真实用途，但不再是 MCP facade 的默认依赖。
+- 影响范围：`app/runtime/internal/runtime` 的 MCP facade、Runtime struct、runtime assembly 和 focused runtime MCP tests。
+- 已完成适配：所有 MCP live status/tool/reconnect/authorize/probe/configure/remove 调用已迁移到四个窄口字段；runtime assembly 继续把同一个 `*kernel.Engine` 注入到这些端口；focused tests 用只实现 live MCP 端口的 fake 锁住 facade 依赖。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

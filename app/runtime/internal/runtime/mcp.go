@@ -8,10 +8,10 @@ import (
 )
 
 // MCP-server registry orchestration: the runtime owns both the persisted
-// registry (mcpserver.Registry) and the live connections (via the engine's
-// MCP registry command port), so a configure/remove/enable both persists and
-// applies to the live tool set in one place. Registry entries are projected to
-// dial-level descriptors only at the live-connection boundary.
+// registry (mcpserver.Registry) and the live connection ports, so a
+// configure/remove/enable both persists and applies to the live tool set in one
+// place. Registry entries are projected to dial-level descriptors only at the
+// live-connection boundary.
 
 type mcpServerList interface {
 	List(ctx context.Context) ([]mcpserver.Server, error)
@@ -33,6 +33,25 @@ type mcpServerEnable interface {
 	SetEnabled(ctx context.Context, name string, enabled bool) error
 }
 
+type mcpLiveStatusReader interface {
+	MCPServerStatuses() []kernel.MCPServerStatus
+}
+
+type mcpLiveToolCatalog interface {
+	MCPTools(ctx context.Context, server string) ([]kernel.MCPToolInfo, error)
+}
+
+type mcpLiveConnectionCommands interface {
+	ReconnectMCPServer(ctx context.Context, name string) error
+	AuthorizeMCPServer(ctx context.Context, name string) error
+}
+
+type mcpLiveRegistryCommands interface {
+	ProbeMCPServer(ctx context.Context, cfg kernel.MCPServerConfig) error
+	ConfigureMCPServer(ctx context.Context, cfg kernel.MCPServerConfig) error
+	RemoveMCPServer(ctx context.Context, name string)
+}
+
 // ListMCPRegisteredServers returns the persisted MCP-server registry entries,
 // distinct from the live connection statuses returned by MCPServerStatuses.
 func (r *Runtime) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error) {
@@ -41,9 +60,12 @@ func (r *Runtime) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Ser
 
 // MCPServerStatuses returns the per-server connection state of every
 // configured MCP server (connected and boot-failed alike) for
-// workspace.mcp.listServers. Delegates to the engine, which owns the sessions.
+// workspace.mcp.listServers. Delegates to the live MCP status port.
 func (r *Runtime) MCPServerStatuses() []kernel.MCPServerStatus {
-	return r.engine.MCPServerStatuses()
+	if r.mcpLiveStatus == nil {
+		return nil
+	}
+	return r.mcpLiveStatus.MCPServerStatuses()
 }
 
 // MCPRegisteredServer returns one persisted MCP-server registry entry.
@@ -52,18 +74,23 @@ func (r *Runtime) MCPRegisteredServer(ctx context.Context, name string) (mcpserv
 }
 
 // ReconnectMCPServer re-dials a configured MCP server and hot-swaps the live
-// tool set (workspace.mcp.reconnect). Delegates to the engine, which owns the
-// sessions + the shared client.
+// tool set (workspace.mcp.reconnect). Delegates to the live MCP connection port.
 func (r *Runtime) ReconnectMCPServer(ctx context.Context, name string) error {
-	return r.engine.ReconnectMCPServer(ctx, name)
+	if r.mcpLiveConnections == nil {
+		return kernel.ErrUnknownMCPServer
+	}
+	return r.mcpLiveConnections.ReconnectMCPServer(ctx, name)
 }
 
 // AuthorizeMCPServer runs the interactive OAuth sign-in for an HTTP MCP server
 // (workspace.mcp.authorize) — opens the system browser, catches the loopback
-// redirect, and connects on success. Delegates to the engine, which owns the
-// sessions. The credentials live for the process only (re-prompt after restart).
+// redirect, and connects on success. Delegates to the live MCP connection port.
+// The credentials live for the process only (re-prompt after restart).
 func (r *Runtime) AuthorizeMCPServer(ctx context.Context, name string) error {
-	return r.engine.AuthorizeMCPServer(ctx, name)
+	if r.mcpLiveConnections == nil {
+		return kernel.ErrUnknownMCPServer
+	}
+	return r.mcpLiveConnections.AuthorizeMCPServer(ctx, name)
 }
 
 // ConfigureMCPServer upserts a server in the registry and applies it to the
@@ -91,7 +118,9 @@ func (r *Runtime) RemoveMCPServer(ctx context.Context, name string) error {
 	// applyAndGate rule): dropping tools can't expose a hidden one, but
 	// shrinking the gating first would leave the about-to-be-dropped tools
 	// briefly live and ungated.
-	r.engine.RemoveMCPServer(ctx, name)
+	if r.mcpLiveRegistry != nil {
+		r.mcpLiveRegistry.RemoveMCPServer(ctx, name)
+	}
 	return r.refreshMCPGating(ctx)
 }
 
@@ -142,23 +171,32 @@ func (r *Runtime) TestMCPServer(ctx context.Context, srv mcpserver.Server) error
 	if err := srv.Validate(); err != nil {
 		return err
 	}
-	return r.engine.ProbeMCPServer(ctx, configFromServer(srv))
+	if r.mcpLiveRegistry == nil {
+		return kernel.ErrUnknownMCPServer
+	}
+	return r.mcpLiveRegistry.ProbeMCPServer(ctx, configFromServer(srv))
 }
 
 // MCPTools lists tools advertised by the connected MCP servers (scoped to
-// server when non-empty) for workspace.mcp.listTools. Delegates to the
-// engine, which holds the dialed sessions.
+// server when non-empty) for workspace.mcp.listTools. Delegates to the live MCP
+// tool catalog port.
 func (r *Runtime) MCPTools(ctx context.Context, server string) ([]kernel.MCPToolInfo, error) {
-	return r.engine.MCPTools(ctx, server)
+	if r.mcpLiveTools == nil {
+		return nil, nil
+	}
+	return r.mcpLiveTools.MCPTools(ctx, server)
 }
 
 // applyMCPServer reflects a registry entry into the live connections: enabled →
 // (re)dial, disabled → drop. The dial error is intentionally swallowed (status
 // surfaces it); see ConfigureMCPServer.
 func (r *Runtime) applyMCPServer(ctx context.Context, srv mcpserver.Server) {
-	if srv.Enabled {
-		_ = r.engine.ConfigureMCPServer(ctx, configFromServer(srv))
+	if r.mcpLiveRegistry == nil {
 		return
 	}
-	r.engine.RemoveMCPServer(ctx, srv.Name)
+	if srv.Enabled {
+		_ = r.mcpLiveRegistry.ConfigureMCPServer(ctx, configFromServer(srv))
+		return
+	}
+	r.mcpLiveRegistry.RemoveMCPServer(ctx, srv.Name)
 }
