@@ -41,7 +41,7 @@ type stubRuntime struct {
 }
 
 func newTestServer(rt RuntimePort) *Server {
-	return &Server{runtimeBindings: bindRuntime(rt)}
+	return &Server{rt: rt}
 }
 
 func newTestServerWithInfo(rt RuntimePort, info protocol.ServerInfo) *Server {

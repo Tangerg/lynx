@@ -80,7 +80,7 @@ func TestCodebaseSearchRequiresIndexAndQuery(t *testing.T) {
 		t.Fatalf("search without index err = %v, want invalid_params", err)
 	}
 
-	s.runtimeBindings = bindRuntime(&codebaseRuntime{enabled: true})
+	s.rt = &codebaseRuntime{enabled: true}
 	_, err = s.CodebaseSearch(context.Background(), protocol.CodebaseSearchRequest{})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("search without query err = %v, want invalid_params", err)

@@ -13,32 +13,32 @@ import (
 // key is present (API.md §4.9 / §7.6). The per-provider model list isn't
 // here — it unlocks via models.list.
 func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Provider], error) {
-	configured, err := s.providerRegistryList.ListRegisteredProviders(ctx)
+	configured, err := s.rt.ListRegisteredProviders(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return protocol.NewPage(providerListWire(configured, s.providerSupportCatalog.SupportedProviders())), nil
+	return protocol.NewPage(providerListWire(configured, s.rt.SupportedProviders())), nil
 }
 
 // ConfigureProvider upserts a provider's credentials (key + base URL) into
 // the registry and returns the masked result (API.md §7.6). The provider
 // must be one Lyra supports.
 func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
-	meta, ok := s.providerMetadata.ProviderMetadata(in.Provider)
+	meta, ok := s.rt.ProviderMetadata(in.Provider)
 	if !ok {
 		return nil, protocol.ErrInvalidParams
 	}
 	if meta.RequiresBaseURL && in.BaseURL == "" {
 		return nil, protocol.ErrInvalidParams
 	}
-	if err := s.providerRegistryMutations.ConfigureProvider(ctx, provider.Provider{
+	if err := s.rt.ConfigureProvider(ctx, provider.Provider{
 		ID:      in.Provider,
 		APIKey:  in.APIKey,
 		BaseURL: in.BaseURL,
 	}); err != nil {
 		return nil, err
 	}
-	entry, ok, err := s.providerRegistryRead.RegisteredProvider(ctx, in.Provider)
+	entry, ok, err := s.rt.RegisteredProvider(ctx, in.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 // {ok:false, error} on failure rather than erroring the RPC, so the UI can
 // show "test failed: <reason>" inline.
 func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol.ProviderTestResult, error) {
-	entry, ok, err := s.providerRegistryRead.RegisteredProvider(ctx, providerID)
+	entry, ok, err := s.rt.RegisteredProvider(ctx, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol
 	}
 	// The build-client + ping lives on the runtime, which owns client
 	// construction (clientResolver); this layer just maps the verdict to wire.
-	if err := s.providerRegistryProbe.ProbeProvider(ctx, entry); err != nil {
+	if err := s.rt.ProbeProvider(ctx, entry); err != nil {
 		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
 			Type: "provider_test_failed", Detail: err.Error(),
 		}}, nil

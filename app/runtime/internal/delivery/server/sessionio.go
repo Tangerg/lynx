@@ -21,11 +21,11 @@ import (
 // Returned inline: lyra is a local loopback runtime, so there's no out-of-band
 // file channel nor a giant-payload concern.
 func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
-	ses, err := s.sessionRead.SessionByID(ctx, in.SessionID)
+	ses, err := s.rt.SessionByID(ctx, in.SessionID)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	items, runs, err := s.transcriptContent.ListTranscript(ctx, in.SessionID)
+	items, runs, err := s.rt.ListTranscript(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 		return nil, fmt.Errorf("%w: unsupported export format %q", protocol.ErrInvalidParams, format)
 	}
 
-	msgs, err := s.history.ReadHistory(ctx, in.SessionID)
+	msgs, err := s.rt.ReadHistory(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	}
 
 	id := art.Session.ID
-	admission, err := s.runSlots.ClaimRunSlot(ctx, sessionClaimer{s: s}, id)
+	admission, err := s.rt.ClaimRunSlot(ctx, sessionClaimer{s: s}, id)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, id)
@@ -140,11 +140,11 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 			SessionID: id, RunID: it.RunID, ItemID: it.ItemID, CreatedAt: it.CreatedAt, Blob: it.Item,
 		})
 	}
-	if err := s.sessionRestore.RestoreSession(ctx, artifactToSession(art.Session), msgs, runs, items); err != nil {
+	if err := s.rt.RestoreSession(ctx, artifactToSession(art.Session), msgs, runs, items); err != nil {
 		return nil, err
 	}
 
-	ses, err := s.sessionRead.SessionByID(ctx, id)
+	ses, err := s.rt.SessionByID(ctx, id)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}

@@ -21,7 +21,7 @@ import (
 // dependency): the exact Items the runtime streamed (same ids, runId,
 // text, createdAt).
 func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	hItems, hRuns, err := s.transcriptContent.ListTranscript(ctx, in.SessionID)
+	hItems, hRuns, err := s.rt.ListTranscript(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}

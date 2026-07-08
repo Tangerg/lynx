@@ -12,6 +12,7 @@ import (
 )
 
 type hookTrustRuntime struct {
+	RuntimePort // unstubbed methods panic; this fake only serves the hook-trust path
 	projectRoot string
 	trusted     bool
 	calls       int
@@ -30,7 +31,7 @@ func (r *hookTrustRuntime) SetProjectHookTrust(_ context.Context, projectRoot st
 
 func TestWorkspaceSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
 	rt := &hookTrustRuntime{}
-	s := &Server{runtimeBindings: runtimeBindings{hookTrust: rt}}
+	s := &Server{rt: rt}
 	projectRoot := t.TempDir()
 
 	err := s.WorkspaceSetHookTrust(context.Background(), protocol.SetHookTrustRequest{
@@ -47,7 +48,7 @@ func TestWorkspaceSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
 
 func TestWorkspaceSetHookTrustRejectsUnavailableProjectRoot(t *testing.T) {
 	rt := &hookTrustRuntime{}
-	s := &Server{runtimeBindings: runtimeBindings{hookTrust: rt}}
+	s := &Server{rt: rt}
 	missing := filepath.Join(t.TempDir(), "missing")
 
 	err := s.WorkspaceSetHookTrust(context.Background(), protocol.SetHookTrustRequest{

@@ -28,7 +28,7 @@ func (s *Server) Initialize(_ context.Context, in protocol.InitializeRequest) (*
 		for i, t := range in.Capabilities.InterruptTypes {
 			kinds[i] = string(t)
 		}
-		s.turnInterrupts.SetTurnInterruptKinds(kinds)
+		s.rt.SetTurnInterruptKinds(kinds)
 	}
 	return &protocol.InitializeResponse{
 		ProtocolVersion: protocol.ProtocolVersion, // server's truth — client falls back if needed

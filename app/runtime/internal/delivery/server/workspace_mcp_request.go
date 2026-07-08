@@ -12,7 +12,7 @@ import (
 func (s *Server) mcpServerFromRequest(ctx context.Context, in protocol.ConfigureMCPServerRequest) (mcpserver.Server, error) {
 	auth := in.Authorization
 	if auth == "" && in.Name != "" {
-		cur, ok, err := s.mcpRegistryRead.MCPRegisteredServer(ctx, in.Name)
+		cur, ok, err := s.rt.MCPRegisteredServer(ctx, in.Name)
 		if err != nil {
 			return mcpserver.Server{}, fmt.Errorf("load existing MCP server %q: %w", in.Name, err)
 		}
