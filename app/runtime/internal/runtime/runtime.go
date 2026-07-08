@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -41,7 +40,9 @@ type Runtime struct {
 	// directly — not via the engine (it owns only the steering touchpoint).
 	conversation *conversation.Messages
 
-	providers provider.Registry
+	providerRegistryList      providerRegistryList
+	providerRegistryRead      providerRegistryRead
+	providerRegistryConfigure providerRegistryConfigure
 
 	mcpRegistryList      mcpServerList
 	mcpRegistryRead      mcpServerRead
