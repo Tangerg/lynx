@@ -1765,3 +1765,15 @@ app/runtime -> agent -> core
 - 已完成适配：所有 `r.tools.*` 调用已迁移到 `r.toolCatalog` 或 `r.toolInvocations`；新增 focused tests 锁住两个 facade 只需各自端口；未保留旧 `Runtime.tools` 字段。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百零二轮包含 `app/runtime/internal/runtime` approval mode / rule management 端口收窄：
+
+- 调整对象：`Runtime.approval`、approval mode/rule runtime facade、runtime assembly 和 focused runtime tests。
+- 调整前问题：`Runtime` 持有完整 `approval.Policy` 字段，而 runtime facade 只需要 mode read、mode mutation、rule list 和 rule forget；完整 policy 还包含 tool-call gate 的 `Decide` / `Remember`，这属于 turn dispatcher 的真实执行路径，不该暴露给 settings/management facade。
+- 破坏性原因：这些字段位于 `app/runtime/internal/runtime`，属于应用层内部装配边界；按 management 用例拆分能删除旧总口字段，不需要为内部旧 shape 留兼容层。
+- 新设计：新增 runtime 内部 `approvalModeReader`、`approvalModeWriter`、`approvalRuleLister`、`approvalRuleDeleter` 四个端口；runtime assembly 继续把同一个 `approval.Policy` 注入到四个字段；turn dispatcher 和 tool environment 仍接收完整 policy，因为它们确实需要 gate / remember 语义。
+- 架构收益：approval settings facade 不再可见 tool-call decision/remember 能力；mode 读写与 rule catalog/delete 在 Runtime 类型边界上分开，同时保留 turn gate 对完整 policy 的合理依赖。
+- 影响范围：`app/runtime/internal/runtime` 的 Runtime struct、approval facade、runtime assembly 和 focused approval tests。
+- 已完成适配：所有 `r.approval.*` runtime facade 调用已迁移到对应端口；测试 fixture 删除了嵌入完整 `approval.Policy` 的宽 fake；未保留旧 `Runtime.approval` 字段。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

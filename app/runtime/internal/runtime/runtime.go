@@ -4,7 +4,6 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
@@ -29,7 +28,11 @@ type Runtime struct {
 	toolCatalog     toolsvc.Catalog
 	toolInvocations toolsvc.Invoker
 	knowledge       knowledge.Store
-	approval        approval.Policy
+
+	approvalModeRead     approvalModeReader
+	approvalModeMutation approvalModeWriter
+	approvalRuleList     approvalRuleLister
+	approvalRuleDeletion approvalRuleDeleter
 
 	sessionList       sessionList
 	sessionRead       sessionRead
