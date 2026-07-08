@@ -110,11 +110,11 @@ func (e *Engine) StartTurn(ctx context.Context, req TurnRequest) TurnProcess {
 	in := turnInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps, Options: req.Options.Clone()}
 
 	opts := turnProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient, e.steeringGuardrails(req.Steer))
-	proc, done := e.platform.StartAgent(ctx, e.agent,
+	proc, done := e.turnStarter.StartAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},
 		opts,
 	)
-	return &turnProcess{proc: proc, done: done, platform: e.platform}
+	return &turnProcess{proc: proc, done: done, platform: e.turnControl}
 }
 
 // turnProcessOptions assembles per-process wiring: the chat history Session
@@ -216,15 +216,15 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, req RestoreT
 	// mid-run keeps the model the turn parked on. nil (no selection / provider
 	// gone) falls back to the platform default.
 	opts := turnProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient, nil)
-	proc, err := e.platform.RestoreProcess(ctx, processID, opts)
+	proc, err := e.turnRestorer.RestoreProcess(ctx, processID, opts)
 	if err != nil {
 		return nil, fmt.Errorf("engine: restore chat: %w", err)
 	}
 	// Re-tick: the awaitable handler closure didn't survive the snapshot,
 	// so the idempotent gate action re-parks against the restored
 	// blackboard, repopulating PendingAwaitable for the upcoming Resume.
-	if err := e.platform.ContinueProcess(ctx, proc.ID()); err != nil {
+	if err := e.turnRestorer.ContinueProcess(ctx, proc.ID()); err != nil {
 		return nil, fmt.Errorf("engine: restore chat re-tick: %w", err)
 	}
-	return &turnProcess{proc: proc, platform: e.platform}, nil
+	return &turnProcess{proc: proc, platform: e.turnControl}, nil
 }

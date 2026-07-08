@@ -7,17 +7,17 @@ import (
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 )
 
-var _ agentRuntime = (*agentruntime.Platform)(nil)
+var (
+	_ processStarter  = (*agentruntime.Platform)(nil)
+	_ processRestorer = (*agentruntime.Platform)(nil)
+	_ processControl  = (*agentruntime.Platform)(nil)
+)
 
-type agentRuntime interface {
-	processRunner
-	processControl
-
-	Deploy(*core.Agent) error
+type processStarter interface {
+	StartAgent(context.Context, *core.Agent, map[string]any, core.ProcessOptions) (*agentruntime.AgentProcess, <-chan error)
 }
 
-type processRunner interface {
-	StartAgent(context.Context, *core.Agent, map[string]any, core.ProcessOptions) (*agentruntime.AgentProcess, <-chan error)
+type processRestorer interface {
 	RestoreProcess(context.Context, string, core.ProcessOptions) (*agentruntime.AgentProcess, error)
 	ContinueProcess(context.Context, string) error
 }
