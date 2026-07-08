@@ -45,7 +45,7 @@ import (
 | API | 说明 |
 |---|---|
 | `WithMeta` / `MetaFromContext` | 把请求级 `_meta` 放进 context，并由 `Tool` 透传到 `CallToolParams.Meta` |
-| `WithToolCall` | MCP tool dispatcher 调用；把 `ServerSession` 和 progress token 放进 context |
+| `WithServerSession` | 自定义 dispatcher / 测试把当前 `ServerSession` 放进 context |
 | `ServerSessionFromContext` | 从 tool 调用 context 取出当前 `*sdkmcp.ServerSession` |
 | `ReportProgress` | 根据原始 progress token 发送 progress notification |
 | `ElicitFromClient` | tool 执行中向客户端发起 elicitation |

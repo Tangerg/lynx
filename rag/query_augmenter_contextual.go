@@ -118,7 +118,7 @@ func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documen
 	if err != nil {
 		return nil, err
 	}
-	return NewQuery(rendered)
+	return query.withText(rendered)
 }
 
 // handleEmptyContext implements the no-docs branch: pass through the
@@ -133,5 +133,5 @@ func (c *contextualAugmenter) handleEmptyContext(query *Query) (*Query, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewQuery(rendered)
+	return query.withText(rendered)
 }

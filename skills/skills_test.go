@@ -128,3 +128,9 @@ func TestReadResource(t *testing.T) {
 		t.Errorf("traversal err = %v, want ErrResourcePath", err)
 	}
 }
+
+func TestReadResourceRejectsNilSource(t *testing.T) {
+	if _, err := ReadResource(context.Background(), nil, "pdf-processing", "references/REFERENCE.md"); err == nil {
+		t.Fatal("nil source must error")
+	}
+}

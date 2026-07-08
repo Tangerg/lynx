@@ -96,7 +96,7 @@ func serverHandler(tool chat.Tool) sdkmcp.ToolHandler {
 
 		// The SDK doesn't guarantee a non-nil request / params — guard like
 		// withProgressToken does rather than dereferencing raw.
-		ctx = WithToolCall(ctx, req)
+		ctx = withToolCall(ctx, req)
 
 		var rawArgs string
 		if req != nil && req.Params != nil {

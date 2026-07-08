@@ -99,11 +99,7 @@ func (c *compressionTransformer) Transform(ctx context.Context, query *Query) (*
 		return nil, err
 	}
 
-	clone := query.Clone()
-	if compressed != "" {
-		clone.Text = compressed
-	}
-	return clone, nil
+	return query.withModelText(compressed), nil
 }
 
 // extractHistory pulls the conversation messages out of the query's

@@ -92,7 +92,7 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	)
 	defer span.End()
 
-	req := &sdka2a.SendMessageRequest{Message: UserMessage(promptText(arguments))}
+	req := &sdka2a.SendMessageRequest{Message: userMessage(promptText(arguments))}
 	result, err := t.client.SendMessage(ctx, req)
 	if err != nil {
 		span.RecordError(err)
@@ -100,7 +100,7 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 		return "", fmt.Errorf("a2a.tool.Call %q: %w", t.definition.Name, err)
 	}
 
-	text, err := TextOfResult(result)
+	text, err := textOfResult(result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

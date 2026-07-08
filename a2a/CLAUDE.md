@@ -17,11 +17,9 @@
 
 ## 核心架构
 
-- `Dial(ctx, cardURL, DialOptions)`：resolve AgentCard + 打开 `a2aclient.Client`
-- `UserMessage` / `TextOfParts` / `TextOfResult`：A2A 内容到 text-first lynx 语义
-- `Agent` / `NewExecutor` / `NewHTTPHandler`：把 lynx 文本流能力暴露成 A2A endpoint
-- `Tools(ctx, endpoints...)`：批量 resolve + 包装成 tools
-- `CloseClients(clients)`：销毁批量打开的 clients
+- `Tools(ctx, endpoints...)`：批量 resolve AgentCard，包装成 tools，返回 close 函数
+- `content.go`：内部 A2A 内容到 text-first lynx 语义投影
+- `Agent` / `NewHTTPHandler`：把 lynx 文本流能力暴露成 A2A endpoint
 
 ## 强约定
 
@@ -41,5 +39,5 @@ go test ./...
 ## 修改任何东西之前
 
 - **先看官方 a2a-go 接口形状**：本包只做薄适配。
-- **不要新增 Provider/cache/Registry**：批量连接就是普通函数 `Tools`，生命周期由调用方持有 clients。
+- **不要新增 Provider/cache/Registry**：批量连接就是普通函数 `Tools`，生命周期由返回的 close 函数表达，不暴露 SDK client。
 - **多轮 input-required/auth-required** 会改变 `Agent` 形状，必须单独设计。

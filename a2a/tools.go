@@ -19,35 +19,35 @@ type Endpoint struct {
 }
 
 // Tools resolves every endpoint and wraps each remote agent as a chat tool.
-// Callers own the returned clients and should close them with [CloseClients].
-func Tools(ctx context.Context, endpoints ...Endpoint) ([]chat.Tool, []*a2aclient.Client, error) {
+// The returned close function releases all opened agent clients. It is always
+// non-nil and safe to call once startup succeeds.
+func Tools(ctx context.Context, endpoints ...Endpoint) ([]chat.Tool, func() error, error) {
 	clients := make([]*a2aclient.Client, 0, len(endpoints))
 	tools := make([]chat.Tool, 0, len(endpoints))
 	seen := make(map[string]struct{}, len(endpoints))
 	for _, endpoint := range endpoints {
-		client, card, err := Dial(ctx, endpoint.CardURL, DialOptions{HTTPClient: endpoint.HTTPClient})
+		client, card, err := dial(ctx, endpoint.CardURL, dialOptions{HTTPClient: endpoint.HTTPClient})
 		if err != nil {
-			return nil, nil, errors.Join(err, CloseClients(clients))
+			return nil, nil, errors.Join(err, closeClients(clients))
 		}
 		clients = append(clients, client)
 
 		tool, err := newTool(toolConfig{Client: client, Card: card, Name: endpoint.Name})
 		if err != nil {
-			return nil, nil, errors.Join(err, CloseClients(clients))
+			return nil, nil, errors.Join(err, closeClients(clients))
 		}
 		name := tool.Definition().Name
 		if _, dup := seen[name]; dup {
 			err := fmt.Errorf("a2a.Tools: duplicate tool name %q", name)
-			return nil, nil, errors.Join(err, CloseClients(clients))
+			return nil, nil, errors.Join(err, closeClients(clients))
 		}
 		seen[name] = struct{}{}
 		tools = append(tools, tool)
 	}
-	return tools, clients, nil
+	return tools, func() error { return closeClients(clients) }, nil
 }
 
-// CloseClients destroys every client and joins any errors.
-func CloseClients(clients []*a2aclient.Client) error {
+func closeClients(clients []*a2aclient.Client) error {
 	var errs []error
 	for _, client := range clients {
 		if client == nil {

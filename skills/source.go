@@ -43,6 +43,8 @@ type ResourceSource interface {
 var _ Source = (*fsSource)(nil)
 var _ ResourceSource = (*fsSource)(nil)
 
+var errNilSource = errors.New("skills: source must not be nil")
+
 // fsSource implements [Source] over any fs.FS whose top-level entries are skill
 // directories (each holding a SKILL.md). Reads are lazy and per-call, so
 // edits on the backing filesystem are picked up without a refresh step.
@@ -137,6 +139,9 @@ func (f *fsSource) OpenResource(_ context.Context, name, resource string) (fs.Fi
 
 // ReadResource reads and closes a bundled skill resource from src.
 func ReadResource(ctx context.Context, src ResourceSource, name, resource string) ([]byte, error) {
+	if src == nil {
+		return nil, errNilSource
+	}
 	file, err := src.OpenResource(ctx, name, resource)
 	if err != nil {
 		return nil, err

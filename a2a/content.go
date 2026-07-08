@@ -8,17 +8,16 @@ import (
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
 )
 
-// UserMessage returns a user-role A2A message containing one text part.
-func UserMessage(text string) *sdka2a.Message {
+func userMessage(text string) *sdka2a.Message {
 	return sdka2a.NewMessage(sdka2a.MessageRoleUser, sdka2a.NewTextPart(text))
 }
 
-// TextOfParts renders A2A content parts to a single string: text parts are
+// textOfParts renders A2A content parts to a single string: text parts are
 // concatenated verbatim, structured data parts are JSON-encoded, and other
 // kinds (raw bytes, file URLs) are described compactly. tools and the
 // chat loop are text-first, so this is the lossy-but-faithful projection —
 // the analog of mcp.flattenContent.
-func TextOfParts(parts sdka2a.ContentParts) string {
+func textOfParts(parts sdka2a.ContentParts) string {
 	if len(parts) == 0 {
 		return ""
 	}
@@ -48,17 +47,17 @@ func TextOfParts(parts sdka2a.ContentParts) string {
 	return b.String()
 }
 
-// TextOfResult extracts the reply text from a SendMessageResult and reports a
+// textOfResult extracts the reply text from a SendMessageResult and reports a
 // *RemoteAgentError when the remote ended the task in a non-successful
 // terminal state. A direct Message reply yields its parts; a Task reply
 // prefers its artifacts, falling back to the status message.
-func TextOfResult(result sdka2a.SendMessageResult) (string, error) {
+func textOfResult(result sdka2a.SendMessageResult) (string, error) {
 	switch r := result.(type) {
 	case *sdka2a.Message:
 		if r == nil {
 			return "", nil
 		}
-		return TextOfParts(r.Parts), nil
+		return textOfParts(r.Parts), nil
 	case *sdka2a.Task:
 		if r == nil {
 			return "", nil
@@ -82,7 +81,7 @@ func taskText(task *sdka2a.Task) string {
 	var b strings.Builder
 	for _, artifact := range task.Artifacts {
 		if artifact != nil {
-			b.WriteString(TextOfParts(artifact.Parts))
+			b.WriteString(textOfParts(artifact.Parts))
 		}
 	}
 	if b.Len() == 0 {
@@ -98,5 +97,5 @@ func statusDetail(task *sdka2a.Task) string {
 	if task.Status.Message == nil {
 		return ""
 	}
-	return TextOfParts(task.Status.Message.Parts)
+	return textOfParts(task.Status.Message.Parts)
 }

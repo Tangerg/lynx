@@ -105,9 +105,5 @@ func (r *rewriteTransformer) Transform(ctx context.Context, query *Query) (*Quer
 		return nil, err
 	}
 
-	clone := query.Clone()
-	if rewritten != "" {
-		clone.Text = rewritten
-	}
-	return clone, nil
+	return query.withModelText(rewritten), nil
 }
