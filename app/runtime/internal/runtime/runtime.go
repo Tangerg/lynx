@@ -6,7 +6,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
@@ -27,7 +26,10 @@ type Runtime struct {
 	turns           turn.Dispatcher
 	toolCatalog     toolsvc.Catalog
 	toolInvocations toolsvc.Invoker
-	knowledge       knowledge.Store
+
+	memoryList  memoryList
+	memoryRead  memoryRead
+	memoryWrite memoryWrite
 
 	approvalModeRead     approvalModeReader
 	approvalModeMutation approvalModeWriter

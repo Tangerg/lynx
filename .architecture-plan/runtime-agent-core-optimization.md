@@ -1777,3 +1777,15 @@ app/runtime -> agent -> core
 - 已完成适配：所有 `r.approval.*` runtime facade 调用已迁移到对应端口；测试 fixture 删除了嵌入完整 `approval.Policy` 的宽 fake；未保留旧 `Runtime.approval` 字段。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百零三轮包含 `app/runtime/internal/runtime` memory list/read/write 端口收窄：
+
+- 调整对象：`Runtime.knowledge`、memory runtime facade、runtime assembly 和 focused memory tests。
+- 调整前问题：delivery 层已经把 memory 管理面拆成 availability、list、read、write 四个访问口，但 Runtime 内部仍持有完整 `knowledge.Store`；list facade 理论上可见 read/write，read facade 理论上可见 write/list，组合层没有延续消费方端口边界。
+- 破坏性原因：这些字段位于 `app/runtime/internal/runtime`，属于应用层内部装配边界；删除旧 `Runtime.knowledge` 总口可以避免 memory settings/management facade 继续依赖完整知识库存储契约，不需要为内部旧 shape 留兼容层。
+- 新设计：新增 runtime 内部 `memoryList`、`memoryRead`、`memoryWrite` 三个 consumer-side port；`Runtime.HasMemory` 只在三个端口均存在时声明 memory capability 可用；list/read/write facade 分别调用自己的端口。kernel prompt 和 maintenance extraction 仍沿用 `knowledge.Store`，因为它们确实消费长记忆读写语义。
+- 架构收益：memory catalog projection、单 scope 读取、单 scope 更新在 Runtime 类型边界上分开；完整 `knowledge.Store` 只在 composition root 注入时出现，不再作为默认 runtime state 字段穿透到 management facade。
+- 影响范围：`app/runtime/internal/runtime` 的 Runtime struct、memory facade、runtime assembly 和 focused memory tests。
+- 已完成适配：runtime assembly 继续把同一个 `cfg.Engine.Knowledge` 注入到三个窄口字段；所有 `r.knowledge.*` memory facade 调用已迁移到对应端口；focused test 覆盖 unavailable 与 list/read/write 转发；未保留旧 `Runtime.knowledge` 字段。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。
