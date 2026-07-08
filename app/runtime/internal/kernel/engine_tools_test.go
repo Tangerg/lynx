@@ -19,18 +19,18 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	defer eng.Close()
 
 	tools := eng.Tools()
-	// 5 filesystem coding tools + 3 shell tools (shell + its shell_output /
+	// 8 filesystem/download coding tools + 3 shell tools (shell + its shell_output /
 	// shell_kill companions) + 2 always-on LSP tools (the combined `lsp` query
 	// tool + `lsp_diagnostics`) + the `task` delegation tool + the ask_user HITL
 	// tool. (LSP tools advertise unconditionally; they return a no-server message
 	// at call time when no language server applies.)
-	if len(tools) != 12 {
-		t.Fatalf("tool count = %d, want 12 (5 fs + 3 shell + 2 lsp + task + ask_user)", len(tools))
+	if len(tools) != 15 {
+		t.Fatalf("tool count = %d, want 15 (8 fs/download + 3 shell + 2 lsp + task + ask_user)", len(tools))
 	}
 
 	names := toolNames(tools)
 	for _, want := range []string{
-		"read", "write", "edit", "glob", "grep", "shell", "task", "ask_user",
+		"read", "write", "edit", "multiedit", "apply_patch", "download", "glob", "grep", "shell", "task", "ask_user",
 		"lsp", "lsp_diagnostics",
 		"shell_output", "shell_kill",
 	} {
@@ -98,8 +98,8 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 	defer eng.Close()
 
 	tools := eng.Tools()
-	if len(tools) != 15 {
-		t.Fatalf("tool count = %d, want 15 (5 fs + 3 shell + 2 lsp + 3 online + task + ask_user)", len(tools))
+	if len(tools) != 18 {
+		t.Fatalf("tool count = %d, want 18 (8 fs/download + 3 shell + 2 lsp + 3 online + task + ask_user)", len(tools))
 	}
 	names := toolNames(tools)
 	for _, want := range []string{"web_fetch", "web_search", "http_request"} {
@@ -117,8 +117,8 @@ func TestEngine_Tools_PartialOnline(t *testing.T) {
 	client, _ := chat.NewClient(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
-	if len(eng.Tools()) != 13 {
-		t.Fatalf("tool count = %d, want 13 (5 fs + 3 shell + 2 lsp + jina + task + ask_user)", len(eng.Tools()))
+	if len(eng.Tools()) != 16 {
+		t.Fatalf("tool count = %d, want 16 (8 fs/download + 3 shell + 2 lsp + jina + task + ask_user)", len(eng.Tools()))
 	}
 }
 

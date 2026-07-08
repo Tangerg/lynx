@@ -19,9 +19,11 @@ type ServerConfig struct {
 // OnlineConfig holds credentials for optional network-reaching tools. Empty
 // fields leave the corresponding tool disabled.
 type OnlineConfig struct {
-	JinaAPIKey       string
-	TavilyAPIKey     string
-	HTTPAllowedHosts []string
+	JinaAPIKey          string
+	TavilyAPIKey        string
+	HTTPAllowedHosts    []string
+	SourcegraphEndpoint string
+	SourcegraphToken    string
 }
 
 // MCP transport names emitted by the config parser.

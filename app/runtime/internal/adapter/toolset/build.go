@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
@@ -49,6 +50,7 @@ type BuildConfig struct {
 	Todos           todo.Store      // backs todo_write; nil → the tool is omitted
 	Approval        approval.Policy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
 	Interruption    interrupts.Interruption
+	Schedules       schedule.Registry // backs schedule_* tools; nil → omitted
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
 	// index with no embedding model configured — omits the tool.
@@ -129,6 +131,10 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build todo_write: %w", err)
 	}
+	scheduleTools, err := newScheduleTools(cfg.Schedules)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build schedule tools: %w", err)
+	}
 
 	mcpConns, mcpTools, err := mcp.Dial(ctx, infraMCPServerConfigs(cfg.MCPServers))
 	if err != nil {
@@ -151,6 +157,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		AskUser:         askUserTool,
 		ExitPlan:        exitPlanTool,
 		Todo:            todoTool,
+		Schedules:       scheduleTools,
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
 		MCPDisabled:     cfg.MCPDisabled,
@@ -179,6 +186,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	if todoTool != nil {
 		tools = append(tools, todoTool)
 	}
+	tools = append(tools, scheduleTools...)
 	// codebase_search is in the catalog whenever the index is wired — the tool's
 	// metadata is meaningful regardless of the live embedding model, and the
 	// per-turn resolver is the single live gate (it omits the tool until an

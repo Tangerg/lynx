@@ -20,21 +20,63 @@ import (
 func BuildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguard.Tracker) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
 
-	// write/edit guard stack, innermost → outermost: diagnostics (type-check
-	// the applied change) → read/staleness guard (gate before the change,
-	// refresh the read stamp after) → per-path lock (serialize concurrent
-	// writes to the same file; read-before + write stay atomic) → path guard
-	// (refuse writes into protected dirs like .git — checked first). One locker
-	// is shared by write + edit so they serialize against each other per path.
+	// Mutation guard stack, innermost → outermost: auto-format the applied
+	// change; diagnostics type-check it; read/staleness guard gates before the
+	// change and refreshes the read stamp after; per-path lock serializes
+	// concurrent writes to the same file; path guard refuses protected dirs.
 	locker := newPathLocker()
-	write := withPathGuard(withPathLock(withWriteGuard(withEditDiagnostics(fs.NewWriteTool(fsExec), ci, workdir), tracker, workdir), locker, workdir), workdir)
-	edit := withPathGuard(withPathLock(withEditGuard(withEditDiagnostics(fs.NewEditTool(fsExec), ci, workdir), tracker, workdir), locker, workdir), workdir)
+	write := writeMutationTool(fs.NewWriteTool(fsExec), ci, tracker, locker, workdir)
+	edit := editMutationTool(fs.NewEditTool(fsExec), ci, tracker, locker, workdir)
+	multiEdit := editMutationTool(fs.NewMultiEditTool(fsExec), ci, tracker, locker, workdir)
+	applyPatch := editMutationTool(fs.NewApplyPatchTool(fsExec), ci, tracker, locker, workdir)
+	download := withPathGuard(withPathLock(newDownloadTool(workdir), locker, workdir), workdir)
 
 	return []chat.Tool{
 		withReadTracking(fs.NewReadTool(fsExec), tracker, workdir),
 		write,
 		edit,
+		multiEdit,
+		applyPatch,
+		download,
 		fs.NewGlobTool(fsExec),
 		fs.NewGrepTool(fsExec),
 	}
+}
+
+func writeMutationTool(tool chat.Tool, ci *codeintel.Analyzer, tracker *editguard.Tracker, locker *pathLocker, workdir string) chat.Tool {
+	return withPathGuard(
+		withPathLock(
+			withWriteGuard(
+				withEditDiagnostics(
+					withAutoFormat(tool, workdir),
+					ci,
+					workdir,
+				),
+				tracker,
+				workdir,
+			),
+			locker,
+			workdir,
+		),
+		workdir,
+	)
+}
+
+func editMutationTool(tool chat.Tool, ci *codeintel.Analyzer, tracker *editguard.Tracker, locker *pathLocker, workdir string) chat.Tool {
+	return withPathGuard(
+		withPathLock(
+			withEditGuard(
+				withEditDiagnostics(
+					withAutoFormat(tool, workdir),
+					ci,
+					workdir,
+				),
+				tracker,
+				workdir,
+			),
+			locker,
+			workdir,
+		),
+		workdir,
+	)
 }

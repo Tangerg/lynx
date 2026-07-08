@@ -39,7 +39,7 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	}
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 	observer := &turnObserver{svc: s, st: state}
-	state.lifecycle = &turnLifecycle{}
+	state.lifecycle = &turnLifecycle{sessionID: state.handle.SessionID}
 
 	proc, err := s.engine.RestoreTurn(state.ctx, req.ProcessID, kernel.RestoreTurnRequest{
 		SessionID:     req.SessionID,

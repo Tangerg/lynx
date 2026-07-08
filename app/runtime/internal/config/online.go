@@ -14,14 +14,18 @@ import (
 func loadOnline(v *viper.Viper) OnlineConfig {
 	jina := cmp.Or(os.Getenv("LYRA_JINA_API_KEY"), v.GetString("online.jinaApiKey"))
 	tavily := cmp.Or(os.Getenv("LYRA_TAVILY_API_KEY"), v.GetString("online.tavilyApiKey"))
+	sourcegraphEndpoint := cmp.Or(os.Getenv("LYRA_SOURCEGRAPH_ENDPOINT"), v.GetString("online.sourcegraphEndpoint"))
+	sourcegraphToken := cmp.Or(os.Getenv("LYRA_SOURCEGRAPH_TOKEN"), v.GetString("online.sourcegraphToken"))
 	hosts := v.GetStringSlice("online.httpAllowedHosts")
 	if env := os.Getenv("LYRA_HTTP_ALLOWED_HOSTS"); env != "" {
 		hosts = splitHosts(env)
 	}
 	return OnlineConfig{
-		JinaAPIKey:       jina,
-		TavilyAPIKey:     tavily,
-		HTTPAllowedHosts: hosts,
+		JinaAPIKey:          jina,
+		TavilyAPIKey:        tavily,
+		HTTPAllowedHosts:    hosts,
+		SourcegraphEndpoint: sourcegraphEndpoint,
+		SourcegraphToken:    sourcegraphToken,
 	}
 }
 

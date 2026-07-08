@@ -22,6 +22,7 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 		Todos:           ecfg.Todos,
 		Approval:        approvalPolicy,
 		Interruption:    kernel.Interrupt[interrupts.Resolution],
+		Schedules:       cfg.ScheduleRegistry,
 		MCPDisabled:     mcpEnv.disabled,
 		CodebaseIndex:   codebaseIdx,
 	})

@@ -211,9 +211,6 @@ func (l *LocalExecutor) Write(_ context.Context, in WriteInput) (WriteOutput, er
 // ---------------------------------------------------------------- Edit
 
 func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error) {
-	if in.OldString == "" {
-		return EditOutput{}, errors.New("fs.LocalExecutor.Edit: old_string must not be empty")
-	}
 	path, err := l.resolve(in.Path)
 	if err != nil {
 		return EditOutput{}, err
@@ -231,35 +228,13 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 	}
 
 	content, hadBOM, hadCRLF := normalizeText(data)
-	occurrences := strings.Count(content, in.OldString)
-
-	var updated string
-	replacements := 1
-	switch {
-	case occurrences == 0:
-		// Exact match failed — fall back to a whitespace-tolerant match so a
-		// snippet that drifted on indentation / trailing whitespace still edits,
-		// but ONLY when it's unambiguous: a near-match that hits several regions
-		// is refused, never guessed (a wrong edit is worse than a clear failure).
-		start, end, matches := fuzzyEditRegion(content, in.OldString)
-		switch matches {
-		case 0:
-			return EditOutput{}, fmt.Errorf("fs.LocalExecutor.Edit: old_string not found in %s", in.Path)
-		case 1:
-			updated = content[:start] + in.NewString + content[end:]
-		default:
-			return EditOutput{}, fmt.Errorf("fs.LocalExecutor.Edit: old_string not found exactly in %s; %d regions match apart from whitespace — copy it verbatim (or add surrounding lines to disambiguate)", in.Path, matches)
-		}
-	case occurrences > 1 && !in.ReplaceAll:
-		return EditOutput{}, fmt.Errorf("fs.LocalExecutor.Edit: old_string matches %d times in %s — set replace_all=true to confirm", occurrences, in.Path)
-	default:
-		// strings.Replace with n=-1 is ReplaceAll; n=1 is single-shot.
-		n := 1
-		if in.ReplaceAll {
-			n = -1
-			replacements = occurrences
-		}
-		updated = strings.Replace(content, in.OldString, in.NewString, n)
+	updated, replacements, err := replaceInContent(content, in.Path, EditOperation{
+		OldString:  in.OldString,
+		NewString:  in.NewString,
+		ReplaceAll: in.ReplaceAll,
+	})
+	if err != nil {
+		return EditOutput{}, err
 	}
 
 	mode := os.FileMode(0o644)
@@ -272,6 +247,83 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 		return EditOutput{}, err
 	}
 	return EditOutput{Replacements: replacements}, nil
+}
+
+func (l *LocalExecutor) MultiEdit(_ context.Context, in MultiEditInput) (MultiEditOutput, error) {
+	if len(in.Edits) == 0 {
+		return MultiEditOutput{}, errors.New("fs.LocalExecutor.MultiEdit: edits must not be empty")
+	}
+	path, err := l.resolve(in.Path)
+	if err != nil {
+		return MultiEditOutput{}, err
+	}
+
+	unlock := l.lockPath(path)
+	defer unlock()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return MultiEditOutput{}, err
+	}
+	if looksBinary(data) {
+		return MultiEditOutput{}, ErrBinaryFile
+	}
+
+	content, hadBOM, hadCRLF := normalizeText(data)
+	replacements := 0
+	for i, op := range in.Edits {
+		var n int
+		content, n, err = replaceInContent(content, in.Path, op)
+		if err != nil {
+			return MultiEditOutput{}, fmt.Errorf("fs.LocalExecutor.MultiEdit: edit %d: %w", i+1, err)
+		}
+		replacements += n
+	}
+
+	mode := os.FileMode(0o644)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
+	out := restoreFormat(content, hadBOM, hadCRLF)
+	if err := atomicWriteFile(path, out, mode); err != nil {
+		return MultiEditOutput{}, err
+	}
+	return MultiEditOutput{Edits: len(in.Edits), Replacements: replacements}, nil
+}
+
+func replaceInContent(content, path string, op EditOperation) (string, int, error) {
+	if op.OldString == "" {
+		return "", 0, errors.New("old_string must not be empty")
+	}
+	occurrences := strings.Count(content, op.OldString)
+	switch {
+	case occurrences == 0:
+		// Exact match failed — fall back to a whitespace-tolerant match so a
+		// snippet that drifted on indentation / trailing whitespace still edits,
+		// but ONLY when it's unambiguous: a near-match that hits several regions
+		// is refused, never guessed (a wrong edit is worse than a clear failure).
+		start, end, matches := fuzzyEditRegion(content, op.OldString)
+		switch matches {
+		case 0:
+			return "", 0, fmt.Errorf("old_string not found in %s", path)
+		case 1:
+			return content[:start] + op.NewString + content[end:], 1, nil
+		default:
+			return "", 0, fmt.Errorf("old_string not found exactly in %s; %d regions match apart from whitespace — copy it verbatim (or add surrounding lines to disambiguate)", path, matches)
+		}
+	case occurrences > 1 && !op.ReplaceAll:
+		return "", 0, fmt.Errorf("old_string matches %d times in %s — set replace_all=true to confirm", occurrences, path)
+	default:
+		n := 1
+		if op.ReplaceAll {
+			n = -1
+		}
+		replacements := occurrences
+		if !op.ReplaceAll {
+			replacements = 1
+		}
+		return strings.Replace(content, op.OldString, op.NewString, n), replacements, nil
+	}
 }
 
 // ---------------------------------------------------------------- Glob

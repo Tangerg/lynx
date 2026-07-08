@@ -39,6 +39,11 @@ const (
 	// SessionStart fires on the first turn of a session — a hook may inject
 	// session-scoped context.
 	SessionStart Event = "SessionStart"
+	// SubagentStart fires when a delegated sub-agent process starts.
+	SubagentStart Event = "SubagentStart"
+	// SubagentStop fires when a delegated sub-agent process reaches a terminal
+	// state. Reason carries the agent runtime terminal event name.
+	SubagentStop Event = "SubagentStop"
 	// PreCompact fires before turn-boundary compaction — a hook may inject
 	// guidance or veto the compaction.
 	PreCompact Event = "PreCompact"
@@ -78,11 +83,12 @@ type Hook struct {
 
 // Input is the event payload handed to a hook on stdin (JSON).
 type Input struct {
-	Event     Event      `json:"event"`
-	SessionID string     `json:"sessionId,omitempty"`
-	Cwd       string     `json:"cwd,omitempty"`
-	Tool      *ToolInput `json:"tool,omitempty"`
-	Prompt    string     `json:"prompt,omitempty"`
+	Event     Event          `json:"event"`
+	SessionID string         `json:"sessionId,omitempty"`
+	Cwd       string         `json:"cwd,omitempty"`
+	Tool      *ToolInput     `json:"tool,omitempty"`
+	Subagent  *SubagentInput `json:"subagent,omitempty"`
+	Prompt    string         `json:"prompt,omitempty"`
 	// Reason carries a human-readable note for the observe-only events (the Stop
 	// terminal detail, the Notification reason).
 	Reason string `json:"reason,omitempty"`
@@ -93,6 +99,11 @@ type ToolInput struct {
 	Name      string `json:"name"`
 	Arguments string `json:"arguments,omitempty"` // raw JSON args (PreToolUse)
 	Result    string `json:"result,omitempty"`    // tool output (PostToolUse)
+}
+
+// SubagentInput is the sub-agent slice of an Input for SubagentStart/Stop.
+type SubagentInput struct {
+	ProcessID string `json:"processId"`
 }
 
 // Decision is the combined verdict of every hook that fired for one event.

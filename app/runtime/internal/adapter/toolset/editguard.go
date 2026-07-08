@@ -50,21 +50,22 @@ func withEditGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.
 		return inner
 	}
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		var a struct {
-			Path string `json:"file_path"`
-		}
-		_ = json.Unmarshal([]byte(arguments), &a)
-		if a.Path != "" {
-			if msg := tr.Check(turnctx.TurnSession(ctx), resolveAbs(workdir, a.Path), false).Message(a.Path, "editing"); msg != "" {
-				return msg, nil // recoverable: the model reads, then retries
+		paths := mutatedPaths(inner, arguments)
+		for _, path := range paths {
+			abs := resolveAbs(workdir, path)
+			if !isExistingFile(abs) {
+				continue
+			}
+			if msg := tr.Check(turnctx.TurnSession(ctx), abs, false).Message(path, "editing"); msg != "" {
+				return msg, nil
 			}
 		}
 		out, err := inner.Call(ctx, arguments)
 		if err != nil {
 			return out, err
 		}
-		if a.Path != "" {
-			tr.Refresh(turnctx.TurnSession(ctx), resolveAbs(workdir, a.Path))
+		for _, path := range paths {
+			tr.Refresh(turnctx.TurnSession(ctx), resolveAbs(workdir, path))
 		}
 		return out, nil
 	})
@@ -116,11 +117,12 @@ func withEditDiagnostics(inner chat.Tool, ci *codeintel.Analyzer, root string) c
 		return inner
 	}
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		var a struct {
-			Path string `json:"file_path"`
+		paths := mutatedPaths(inner, arguments)
+		path := ""
+		if len(paths) == 1 {
+			path = paths[0]
 		}
-		_ = json.Unmarshal([]byte(arguments), &a)
-		return ci.DiagnoseEdit(ctx, root, a.Path, func() (string, error) {
+		return ci.DiagnoseEdit(ctx, root, path, func() (string, error) {
 			return inner.Call(ctx, arguments)
 		})
 	})
