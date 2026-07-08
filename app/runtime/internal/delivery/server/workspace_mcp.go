@@ -44,7 +44,7 @@ func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListT
 // (context.WithoutCancel) so a returning RPC doesn't abort it; the terminal
 // frame is published when the dial settles.
 func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error {
-	return s.runMCPConnectionAction(ctx, server, s.mcpConnections.ReconnectMCPServer)
+	return s.runMCPConnectionAction(ctx, server, s.mcpReconnect.ReconnectMCPServer)
 }
 
 // WorkspaceMCPAuthorize starts the interactive OAuth sign-in for an HTTP MCP
@@ -55,7 +55,7 @@ func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error
 // flow far outlives one RPC) and the terminal mcp.serverChanged frame is
 // published when it settles.
 func (s *Server) WorkspaceMCPAuthorize(ctx context.Context, server string) error {
-	return s.runMCPConnectionAction(ctx, server, s.mcpConnections.AuthorizeMCPServer)
+	return s.runMCPConnectionAction(ctx, server, s.mcpAuthorizations.AuthorizeMCPServer)
 }
 
 // workspace.mcp registry CRUD — the editable configuration the settings pane

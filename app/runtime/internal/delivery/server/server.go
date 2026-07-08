@@ -175,7 +175,8 @@ type runtimeBindings struct {
 	providerDefaults          providerDefaultAccess
 	mcpStatus                 mcpStatusAccess
 	mcpTools                  mcpToolCatalogAccess
-	mcpConnections            mcpConnectionAccess
+	mcpReconnect              mcpReconnectAccess
+	mcpAuthorizations         mcpAuthorizationAccess
 	mcpRegistryCatalog        mcpRegistryCatalogAccess
 	mcpRegistryMutations      mcpRegistryMutationAccess
 	mcpRegistryProbe          mcpRegistryProbeAccess
@@ -238,7 +239,8 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		providerDefaults:          rt,
 		mcpStatus:                 rt,
 		mcpTools:                  rt,
-		mcpConnections:            rt,
+		mcpReconnect:              rt,
+		mcpAuthorizations:         rt,
 		mcpRegistryCatalog:        rt,
 		mcpRegistryMutations:      rt,
 		mcpRegistryProbe:          rt,
