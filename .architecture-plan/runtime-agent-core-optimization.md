@@ -1873,3 +1873,15 @@ app/runtime -> agent -> core
 - 已完成适配：删除 `Runtime.conversation` 字段；所有 history facade 调用已迁移到对应窄口；focused tests 用只实现四个 history 端口的 fake 锁住依赖。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百一十一轮包含 `app/runtime/internal/runtime` utility chat client resolver state 收窄：
+
+- 调整对象：`Runtime.resolver`、`buildUtilityEnvironment` 参数、`SetUtilityRole` validation 路径、runtime assembly 和 focused role persistence tests。
+- 调整前问题：`Runtime` state 持有具体 `*clientResolver`，但运行期 utility role 设置只需要“按 provider/model 解析 chat client”这一项能力；构造期 utility environment 也只需要同一个 `ResolveClient` 方法。具体 resolver 的 provider credential/cache 实现不该成为 Runtime bundle 的默认 state shape。
+- 破坏性原因：该字段和 helper 位于 `app/runtime/internal/runtime` 内部装配边界；将具体字段替换为 consumer-side port 可以删除旧字段名和具体实现依赖，不需要保留兼容层。
+- 新设计：新增 `chatClientResolver` 端口（仅 `ResolveClient`）；`buildUtilityEnvironment` 接受该端口，`Runtime` 保存 `utilityClients chatClientResolver`，`SetUtilityRole` 通过端口验证新角色。runtime assembly 继续创建一个 `clientResolver` 并同时注入 turn dispatcher、utility environment 和 Runtime utility validation 口。
+- 架构收益：utility role management 只依赖 chat-client resolution 能力，具体 `clientResolver` 的 provider lookup/cache 实现留在 composition root 与 turn dispatcher 装配处；Runtime state 不再暴露具体 resolver 实现。
+- 影响范围：`app/runtime/internal/runtime` 的 Runtime struct、utility role code、runtime assembly 和 focused role persistence tests。
+- 已完成适配：`Runtime.resolver` 替换为 `utilityClients chatClientResolver`；`buildUtilityEnvironment` 参数收窄；`SetUtilityRole` 迁移到端口调用；focused tests 用只实现 `ResolveClient` 的 fake 锁住端口依赖。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

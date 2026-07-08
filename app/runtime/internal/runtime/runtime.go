@@ -88,12 +88,12 @@ type Runtime struct {
 	titles titleGenerator
 
 	// utility holds the live utility-model role (provider, model) the
-	// maintenance services resolve against; SetUtilityRole repoints it. resolver
-	// builds + caches the client for a (provider, model); utilStore saves the
-	// role across restarts. See utility.go.
-	utility   *atomic.Pointer[utilityRole]
-	resolver  *clientResolver
-	utilStore utilityRoleSaver
+	// maintenance services resolve against; SetUtilityRole repoints it.
+	// utilityClients validates/builds utility clients; utilStore saves the role
+	// across restarts. See utility.go.
+	utility        *atomic.Pointer[utilityRole]
+	utilityClients chatClientResolver
+	utilStore      utilityRoleSaver
 
 	// hookInspection inspects lifecycle hooks for a cwd (workspace.hooks.list);
 	// hookTrust mutates project trust (workspace.hooks.setTrust). Both nil when

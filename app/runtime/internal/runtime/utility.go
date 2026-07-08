@@ -32,12 +32,16 @@ type utilityRoleSaver interface {
 	SaveUtilityRole(ctx context.Context, provider, model string) error
 }
 
+type chatClientResolver interface {
+	ResolveClient(ctx context.Context, providerID, model string) (*chat.Client, error)
+}
+
 type utilityEnvironment struct {
 	cell    *atomic.Pointer[utilityRole]
 	resolve func(context.Context) *chat.Client
 }
 
-func buildUtilityEnvironment(ctx context.Context, mainClient *chat.Client, loader utilityRoleLoader, resolver *clientResolver) (utilityEnvironment, error) {
+func buildUtilityEnvironment(ctx context.Context, mainClient *chat.Client, loader utilityRoleLoader, resolver chatClientResolver) (utilityEnvironment, error) {
 	var role utilityRole
 	if loader != nil {
 		p, m, err := loader.LoadUtilityRole(ctx)
@@ -50,7 +54,7 @@ func buildUtilityEnvironment(ctx context.Context, mainClient *chat.Client, loade
 	cell.Store(&role)
 	resolve := func(ctx context.Context) *chat.Client {
 		role := cell.Load()
-		if role == nil || role.model == "" {
+		if role == nil || role.model == "" || resolver == nil {
 			return mainClient
 		}
 		c, err := resolver.ResolveClient(ctx, role.provider, role.model)
@@ -81,7 +85,7 @@ func (r *Runtime) UtilityRole() (provider, model string) {
 func (r *Runtime) SetUtilityRole(ctx context.Context, provider, model string) error {
 	if model == "" {
 		provider = "" // a cleared role carries no provider
-	} else if _, err := r.resolver.ResolveClient(ctx, provider, model); err != nil {
+	} else if _, err := r.utilityClients.ResolveClient(ctx, provider, model); err != nil {
 		return fmt.Errorf("runtime: utility model %q on %q: %w", model, provider, err)
 	}
 	if r.utilStore != nil {
