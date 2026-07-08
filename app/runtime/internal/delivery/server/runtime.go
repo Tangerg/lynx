@@ -73,8 +73,10 @@ type RuntimePort interface {
 	recipeCatalogAccess
 	hookInspectionAccess
 	hookTrustAccess
-	utilityRoleAccess
-	embeddingRoleAccess
+	utilityRoleReadAccess
+	utilityRoleMutationAccess
+	embeddingRoleReadAccess
+	embeddingRoleMutationAccess
 	codebaseAvailabilityAccess
 	codebaseSearchAccess
 	codebaseStatusAccess

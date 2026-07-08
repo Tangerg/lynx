@@ -193,8 +193,10 @@ type runtimeBindings struct {
 	recipeCatalog             recipeCatalogAccess
 	hookInspection            hookInspectionAccess
 	hookTrust                 hookTrustAccess
-	utilityRole               utilityRoleAccess
-	embeddingRole             embeddingRoleAccess
+	utilityRoleRead           utilityRoleReadAccess
+	utilityRoleMutations      utilityRoleMutationAccess
+	embeddingRoleRead         embeddingRoleReadAccess
+	embeddingRoleMutations    embeddingRoleMutationAccess
 	codebaseAvailable         codebaseAvailabilityAccess
 	codebaseSearch            codebaseSearchAccess
 	codebaseStatus            codebaseStatusAccess
@@ -266,8 +268,10 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		recipeCatalog:             rt,
 		hookInspection:            rt,
 		hookTrust:                 rt,
-		utilityRole:               rt,
-		embeddingRole:             rt,
+		utilityRoleRead:           rt,
+		utilityRoleMutations:      rt,
+		embeddingRoleRead:         rt,
+		embeddingRoleMutations:    rt,
 		codebaseAvailable:         rt,
 		codebaseSearch:            rt,
 		codebaseStatus:            rt,
