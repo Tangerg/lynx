@@ -209,12 +209,58 @@ func (p stubRunSegmentProcesses) ProcessID(ctx context.Context, handle turn.Turn
 	return p.rt.TurnProcessID(ctx, handle)
 }
 
+type stubLifecycleStores struct {
+	rt stubRuntime
+}
+
+func (s stubLifecycleStores) Session() lifecycle.SessionStore { return s.rt.sess }
+
+func (s stubLifecycleStores) Transcript() transcript.Store { return s.rt.hist }
+
+func (s stubLifecycleStores) Interrupts() interrupts.Store { return s.rt.interrupts }
+
+func (s stubLifecycleStores) ReadHistory(ctx context.Context, id string) ([]chat.Message, error) {
+	return s.rt.ReadHistory(ctx, id)
+}
+
+func (s stubLifecycleStores) TruncateMessages(ctx context.Context, id string, keepN int) error {
+	return s.rt.TruncateMessages(ctx, id, keepN)
+}
+
+func (s stubLifecycleStores) SeedHistory(ctx context.Context, id string, msgs []chat.Message) error {
+	return s.rt.SeedHistory(ctx, id, msgs)
+}
+
+func (s stubLifecycleStores) ForgetSession(id string) { s.rt.ForgetSession(id) }
+
+func (s stubLifecycleStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
+	return s.rt.RunInTx(ctx, fn)
+}
+
+type stubRunSegmentStores struct {
+	rt stubRuntime
+}
+
+func (s stubRunSegmentStores) Interrupts() interrupts.Store { return s.rt.interrupts }
+
+func (s stubRunSegmentStores) Session() runsegment.SessionStore { return s.rt.sess }
+
+func (s stubRunSegmentStores) Transcript() transcript.Store { return s.rt.hist }
+
+func (s stubRunSegmentStores) MessageCount(ctx context.Context, id string) (int, error) {
+	return s.rt.MessageCount(ctx, id)
+}
+
+func (s stubRunSegmentStores) GenerateTitle(context.Context, string) (string, error) {
+	return "", nil
+}
+
 func (s stubRuntime) ClaimRunSlot(ctx context.Context, claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error) {
-	return lifecycle.New(s).ClaimRunSlot(ctx, claims, sessionID)
+	return lifecycle.New(stubLifecycleStores{rt: s}).ClaimRunSlot(ctx, claims, sessionID)
 }
 
 func (s stubRuntime) ClaimMutationSlot(claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error) {
-	return lifecycle.New(s).ClaimMutationSlot(claims, sessionID)
+	return lifecycle.New(stubLifecycleStores{rt: s}).ClaimMutationSlot(claims, sessionID)
 }
 
 func (s *stubRuntime) ClaimWorkingTreeRun(cwd string) (lifecycle.WorkingTreeAdmission, bool) {
@@ -233,40 +279,40 @@ func (s *stubRuntime) workingTreeGate() *lifecycle.WorkingTreeGate {
 }
 
 func (s stubRuntime) ClaimResumeSlot(ctx context.Context, claims lifecycle.SessionClaimer, parentRunID string) (interrupts.Pending, lifecycle.RunAdmission, error) {
-	return lifecycle.New(s).ClaimResumeSlot(ctx, claims, parentRunID)
+	return lifecycle.New(stubLifecycleStores{rt: s}).ClaimResumeSlot(ctx, claims, parentRunID)
 }
 
 func (s stubRuntime) CancelParkedRun(ctx context.Context, runID string) error {
-	return lifecycle.New(s).CancelParkedRun(ctx, stubLifecycleTurns{rt: s}, runID)
+	return lifecycle.New(stubLifecycleStores{rt: s}).CancelParkedRun(ctx, stubLifecycleTurns{rt: s}, runID)
 }
 
 func (s stubRuntime) CancelRunBinding(ctx context.Context, run lifecycle.RunTurnBinding) error {
-	return lifecycle.New(s).CancelRunBinding(ctx, stubLifecycleTurns{rt: s}, run)
+	return lifecycle.New(stubLifecycleStores{rt: s}).CancelRunBinding(ctx, stubLifecycleTurns{rt: s}, run)
 }
 
 func (s stubRuntime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution) (lifecycle.ResumedInterrupt, error) {
-	return lifecycle.New(s).ResumeClaimedInterrupt(ctx, stubLifecycleTurns{rt: s}, parentRunID, resolution)
+	return lifecycle.New(stubLifecycleStores{rt: s}).ResumeClaimedInterrupt(ctx, stubLifecycleTurns{rt: s}, parentRunID, resolution)
 }
 
 func (s stubRuntime) RollbackResolved(ctx context.Context, sessionID string, boundary lifecycle.RollbackBoundary) error {
-	return lifecycle.New(s).RollbackResolved(ctx, stubLifecycleTurns{rt: s}, sessionID, boundary)
+	return lifecycle.New(stubLifecycleStores{rt: s}).RollbackResolved(ctx, stubLifecycleTurns{rt: s}, sessionID, boundary)
 }
 
 func (s stubRuntime) ForkSession(ctx context.Context, spec lifecycle.ForkSpec) (session.Session, error) {
-	return lifecycle.New(s).Fork(ctx, spec)
+	return lifecycle.New(stubLifecycleStores{rt: s}).Fork(ctx, spec)
 }
 
 func (s stubRuntime) RestoreSession(ctx context.Context, ses session.Session, msgs []chat.Message, runs []transcript.Run, items []transcript.Item) error {
-	return lifecycle.New(s).RestoreSession(ctx, ses, msgs, runs, items)
+	return lifecycle.New(stubLifecycleStores{rt: s}).RestoreSession(ctx, ses, msgs, runs, items)
 }
 
 func (s stubRuntime) DeleteSession(ctx context.Context, id string) error {
-	return lifecycle.New(s).DeleteSession(ctx, stubLifecycleTurns{rt: s}, id)
+	return lifecycle.New(stubLifecycleStores{rt: s}).DeleteSession(ctx, stubLifecycleTurns{rt: s}, id)
 }
 
 func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects {
 	return runsegment.New(runsegment.Config{
-		Stores:             s,
+		Stores:             stubRunSegmentStores{rt: s},
 		Processes:          stubRunSegmentProcesses{rt: s},
 		Checkpoints:        checkpoints,
 		PublishFileChanges: publish,
@@ -278,7 +324,6 @@ func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publi
 // gate; these tests have no live turn state to forget.
 func (stubRuntime) ForgetSession(string) {}
 
-func (s stubRuntime) Session() session.Store { return s.sess }
 func (s stubRuntime) ListSessions(ctx context.Context) ([]session.Session, error) {
 	return s.sess.List(ctx)
 }

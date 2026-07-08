@@ -1633,3 +1633,15 @@ app/runtime -> agent -> core
 - 已完成适配：`Engine` 字段迁移为 `turnStarter`、`turnRestorer`、`turnControl`；`StartTurn`、`RestoreTurn` 与 `turnProcess` 创建点已迁移到对应窄口；未保留旧 `agentRuntime` / `processRunner`。
 - 验证结果：`go test ./internal/kernel` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第九十一轮包含 `app/runtime/internal/kernel/lifecycle` 与 `runsegment` 的 session 持久化依赖口收窄：
+
+- 调整对象：`lifecycle.Stores.Session()`、`runsegment.Stores.Session()`、`app/runtime/internal/runtime` 的 store adapter，以及 delivery/server session 测试 fixture。
+- 调整前问题：`lifecycle.Coordinator` 与 `runsegment.Effects` 都通过 `Session() session.Store` 拿到完整 domain session store；但 lifecycle 只需要 fork/rename/restore/delete/children，runsegment 只需要 get/rename-if-untitled。完整 Store 穿透到用例层导致 coordinator/effects 理论上可访问无关 session CRUD，测试 fake 也被迫实现一串 unused 方法。
+- 破坏性原因：这些接口位于 `app/runtime/internal/kernel` 与测试 fixture，属于内部用例端口；按 consumer-side port 收窄能删除旧宽接口，不需要为旧 internal shape 留兼容层。
+- 新设计：`lifecycle` 定义自己的 `SessionStore`（`Fork` / `Rename` / `Restore` / `Children` / `Delete`）；`runsegment` 定义自己的 `SessionStore`（`Get` / `RenameIfUntitled`）。runtime 侧拆分为 `lifecycleStores` 与 `runSegmentStores` 两个 adapter；server 测试 fixture 同样拆为 `stubLifecycleStores` 与 `stubRunSegmentStores`。
+- 架构收益：完整 `domain/session.Store` 留在 runtime 组合层，kernel 用例只看见自己真实消费的 session 能力；lifecycle 和 runsegment 不再共享一个万能 store adapter；runsegment 测试 fake 删除了全部 unused session methods，测试替身更能反映真实依赖。
+- 影响范围：`app/runtime/internal/kernel/lifecycle`、`app/runtime/internal/kernel/runsegment`、`app/runtime/internal/runtime`、`app/runtime/internal/delivery/server` 测试 fixture。
+- 已完成适配：production runtime 和 delivery/server fixture 均迁移到用例专属 store adapter；旧 `runtimeStores` 不再作为 lifecycle/runsegment 共享 adapter；runsegment fake session 只保留 `Get` 与 `RenameIfUntitled`。
+- 验证结果：`go test ./internal/kernel/lifecycle ./internal/kernel/runsegment ./internal/runtime ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

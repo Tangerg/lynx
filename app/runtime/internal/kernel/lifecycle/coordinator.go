@@ -24,13 +24,25 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
+// SessionStore is the lifecycle coordinator's consumer view of session
+// persistence. It intentionally excludes unrelated read/update operations from
+// domain/session.Store: lifecycle write-sets only need branch, restore, delete,
+// child traversal, and post-fork rename.
+type SessionStore interface {
+	Fork(ctx context.Context, parentID, atMessageID string) (session.Session, error)
+	Rename(ctx context.Context, id, title string) error
+	Restore(ctx context.Context, sess session.Session) error
+	Children(ctx context.Context, parentID string) ([]session.Session, error)
+	Delete(ctx context.Context, id string) error
+}
+
 // Stores is the consumer-defined surface the Coordinator drives — the runtime's
 // session-scoped stores plus the chat history log, the process-local resume
 // gate (ForgetSession), and the transactional seam (RunInTx). The composition
-// root's runtime bundle satisfies it; defined here so the Coordinator depends
-// only on what it calls, not the whole runtime.
+// root supplies an adapter so the Coordinator depends only on what it calls,
+// not the whole runtime.
 type Stores interface {
-	Session() session.Store
+	Session() SessionStore
 	Transcript() transcript.Store
 	Interrupts() interrupts.Store
 	// ReadHistory returns the chat history log for a session.
