@@ -1,5 +1,7 @@
 package event
 
+import "context"
+
 // NamedListener wraps a function as a [runtime.EventListener] — i.e.,
 // a [core.Extension] (it has Name) that observes every Event published
 // through the multicast.
@@ -13,7 +15,7 @@ package event
 // Example — channel-backed streaming:
 //
 //	ch := make(chan event.Event, 64)
-//	listener := event.NewNamedListener("sse-stream", func(e event.Event) {
+//	listener := event.NewNamedListener("sse-stream", func(_ context.Context, e event.Event) {
 //	    select {
 //	    case ch <- e:
 //	    default:
@@ -34,14 +36,14 @@ package event
 // but did nothing".
 type NamedListener struct {
 	name string
-	fn   func(Event)
+	fn   func(context.Context, Event)
 }
 
 // NewNamedListener returns a NamedListener with the given name and
 // callback. name should be non-empty and unique within the slice
 // passed to the platform — the runtime panics on duplicate or empty
 // extension names at registration time.
-func NewNamedListener(name string, fn func(Event)) *NamedListener {
+func NewNamedListener(name string, fn func(context.Context, Event)) *NamedListener {
 	return &NamedListener{name: name, fn: fn}
 }
 
@@ -49,8 +51,8 @@ func NewNamedListener(name string, fn func(Event)) *NamedListener {
 func (l *NamedListener) Name() string { return l.name }
 
 // OnEvent invokes fn; nil fn is a no-op.
-func (l *NamedListener) OnEvent(e Event) {
+func (l *NamedListener) OnEvent(ctx context.Context, e Event) {
 	if l.fn != nil {
-		l.fn(e)
+		l.fn(ctx, e)
 	}
 }

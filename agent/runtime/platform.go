@@ -232,7 +232,7 @@ func (p *Platform) publishContext(ctx context.Context, e event.Event) {
 	if e == nil {
 		return
 	}
-	p.events.OnEventContext(ctx, e)
+	p.events.OnEvent(ctx, e)
 }
 
 func normalizeContext(ctx context.Context) context.Context {

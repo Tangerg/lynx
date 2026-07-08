@@ -17,10 +17,7 @@ func (pc *ProcessContext) ExecuteSafely(ctx context.Context, a Action) (status A
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	previousEventContext := pc.eventContext
-	pc.eventContext = ctx
 	defer func() {
-		pc.eventContext = previousEventContext
 		if r := recover(); r != nil {
 			pc.recordPanic(r)
 			status = ActionFailed

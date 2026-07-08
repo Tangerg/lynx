@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"context"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 )
@@ -18,5 +20,5 @@ import (
 type EventListener interface {
 	core.Extension
 
-	OnEvent(e event.Event)
+	OnEvent(ctx context.Context, e event.Event)
 }

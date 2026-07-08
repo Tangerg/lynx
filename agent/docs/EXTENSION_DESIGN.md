@@ -108,7 +108,7 @@ type Extension interface {
 
 type EventListener interface {
     Extension
-    OnEvent(e event.Event) // EventListener lives in runtime to avoid core → event
+    OnEvent(ctx context.Context, e event.Event) // EventListener lives in runtime to avoid core → event
 }
 
 type ActionMiddleware interface {
@@ -392,7 +392,7 @@ type ObservabilityExt struct {
 func (*ObservabilityExt) Name() string { return "observability" }
 
 // EventListener
-func (o *ObservabilityExt) OnEvent(e event.Event) {
+func (o *ObservabilityExt) OnEvent(ctx context.Context, e event.Event) {
     o.logger.Debug("event", "type", e.EventName(), "process", e.ProcessID())
 }
 

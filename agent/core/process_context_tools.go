@@ -2,24 +2,11 @@ package core
 
 import "context"
 
-// Publish delivers an event to the runtime's listeners, using the current
-// action context when called from inside [ProcessContext.ExecuteSafely]. The
-// `any`-typed signature avoids a hard dependency on the event package from core.
-func (pc *ProcessContext) Publish(event any) {
-	pc.PublishContext(pc.eventContext, event)
-}
-
-// PublishContext delivers an event to the runtime's listeners with an explicit
-// context. Prefer it when publishing from goroutines or helper flows that own a
-// more precise context than the current action call.
-func (pc *ProcessContext) PublishContext(ctx context.Context, event any) {
-	ctx = contextOrBackground(ctx)
-	if pc.publishContext != nil {
-		pc.publishContext(ctx, event)
-		return
-	}
+// Publish delivers an event to the runtime's listeners. The `any`-typed
+// signature avoids a hard dependency on the event package from core.
+func (pc *ProcessContext) Publish(ctx context.Context, event any) {
 	if pc.publishEvent != nil {
-		pc.publishEvent(event)
+		pc.publishEvent(contextOrBackground(ctx), event)
 	}
 }
 

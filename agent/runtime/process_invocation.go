@@ -18,18 +18,12 @@ func (p *AgentProcess) Usage() (cost float64, tokens int, actions int) {
 	return p.budget.usage(p.state.historyLen())
 }
 
-// RecordUsage adds a single LLM call's cost (USD) and token count to
-// this process's running totals. Integration code calls this from an
-// LLM-client adapter that knows the per-model rate. The framework
-// itself never invents numbers here.
-func (p *AgentProcess) RecordUsage(cost float64, tokens int) {
-	p.RecordUsageContext(context.Background(), cost, tokens)
-}
-
-// RecordUsageContext is the context-aware companion to [AgentProcess.RecordUsage].
-// It preserves the caller's trace when publishing the invocation event.
-func (p *AgentProcess) RecordUsageContext(ctx context.Context, cost float64, tokens int) {
-	p.RecordLLMInvocationContext(ctx, core.LLMInvocation{CostUSD: cost, PromptTokens: int64(tokens)})
+// RecordUsage adds a single LLM call's cost (USD) and token count to this
+// process's running totals. Integration code calls this from an LLM-client
+// adapter that knows the per-model rate. The framework itself never invents
+// numbers here.
+func (p *AgentProcess) RecordUsage(ctx context.Context, cost float64, tokens int) {
+	p.RecordLLMInvocation(ctx, core.LLMInvocation{CostUSD: cost, PromptTokens: int64(tokens)})
 }
 
 // RecordLLMInvocation appends a fully-attributed LLM call to this
@@ -37,14 +31,7 @@ func (p *AgentProcess) RecordUsageContext(ctx context.Context, cost float64, tok
 // response with the model id, provider, cost, and token breakdown.
 // It also publishes an [event.LLMInvocationRecorded] so listeners can
 // audit per-call cost/tokens off the event stream.
-func (p *AgentProcess) RecordLLMInvocation(inv core.LLMInvocation) {
-	p.RecordLLMInvocationContext(context.Background(), inv)
-}
-
-// RecordLLMInvocationContext is the context-aware companion to
-// [AgentProcess.RecordLLMInvocation]. Integration code should prefer it when
-// the invocation is recorded from a request, run, action, or tool-call context.
-func (p *AgentProcess) RecordLLMInvocationContext(ctx context.Context, inv core.LLMInvocation) {
+func (p *AgentProcess) RecordLLMInvocation(ctx context.Context, inv core.LLMInvocation) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -61,13 +48,7 @@ func (p *AgentProcess) RecordLLMInvocationContext(ctx context.Context, inv core.
 // RecordEmbeddingInvocation appends a fully-attributed embedding
 // call. Mirrors RecordLLMInvocation for the embeddings path, including
 // the [event.EmbeddingInvocationRecorded] publish.
-func (p *AgentProcess) RecordEmbeddingInvocation(inv core.EmbeddingInvocation) {
-	p.RecordEmbeddingInvocationContext(context.Background(), inv)
-}
-
-// RecordEmbeddingInvocationContext is the context-aware companion to
-// [AgentProcess.RecordEmbeddingInvocation].
-func (p *AgentProcess) RecordEmbeddingInvocationContext(ctx context.Context, inv core.EmbeddingInvocation) {
+func (p *AgentProcess) RecordEmbeddingInvocation(ctx context.Context, inv core.EmbeddingInvocation) {
 	if ctx == nil {
 		ctx = context.Background()
 	}

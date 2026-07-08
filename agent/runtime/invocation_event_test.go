@@ -21,7 +21,7 @@ type invocationCapture struct {
 
 func (*invocationCapture) Name() string { return "invocation-capture" }
 
-func (c *invocationCapture) OnEvent(e event.Event) {
+func (c *invocationCapture) OnEvent(_ context.Context, e event.Event) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	switch ev := e.(type) {
@@ -40,12 +40,12 @@ func TestRecordInvocation_PublishesEvents(t *testing.T) {
 
 	a := agent.New("usage").
 		Actions(agent.NewAction("spend",
-			func(_ context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-				pc.RecordLLMInvocation(core.LLMInvocation{
+			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+				pc.RecordLLMInvocation(ctx, core.LLMInvocation{
 					Model: "claude-x", Provider: "anthropic",
 					CostUSD: 0.01, PromptTokens: 100, CompletionTokens: 20,
 				})
-				pc.RecordEmbeddingInvocation(core.EmbeddingInvocation{
+				pc.RecordEmbeddingInvocation(ctx, core.EmbeddingInvocation{
 					Model: "embed-x", CostUSD: 0.001, InputTokens: 50, InputCount: 2,
 				})
 				return wordCount{Count: len(in.Text)}, nil

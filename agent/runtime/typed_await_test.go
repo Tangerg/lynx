@@ -28,7 +28,7 @@ func TestTypedActionAwaitInputSuspendsAndResumes(t *testing.T) {
 	gate := agent.New("typed-gate").
 		Description("typed action that awaits a decision, then completes").
 		Actions(agent.NewAction("gate",
-			func(_ context.Context, pc *core.ProcessContext, _ subInput) (subOutput, error) {
+			func(ctx context.Context, pc *core.ProcessContext, _ subInput) (subOutput, error) {
 				if v, ok := pc.Blackboard.Condition(approvedKey); ok {
 					if !v {
 						return subOutput{Doubled: -1}, nil // rejected
@@ -39,7 +39,7 @@ func TestTypedActionAwaitInputSuspendsAndResumes(t *testing.T) {
 					pc.Blackboard.SetCondition(approvedKey, approved)
 					return core.ImpactUpdated
 				})
-				pc.AwaitInput(req)
+				pc.AwaitInput(ctx, req)
 				return subOutput{}, nil // suspends: typed wrapper sees InputAwaited
 			},
 			core.ActionConfig{},

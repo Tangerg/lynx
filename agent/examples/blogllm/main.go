@@ -233,6 +233,6 @@ func extractJSON(text string) string {
 type eventLogger struct{}
 
 func (eventLogger) Name() string { return "event-logger" }
-func (eventLogger) OnEvent(e event.Event) {
+func (eventLogger) OnEvent(_ context.Context, e event.Event) {
 	fmt.Printf("event: %-26s %s\n", e.EventName(), e.ProcessID())
 }

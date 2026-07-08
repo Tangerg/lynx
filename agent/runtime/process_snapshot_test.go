@@ -128,14 +128,14 @@ func TestPlatform_RestoreWaitingProcess_ResumesToCompletion(t *testing.T) {
 	buildGate := func() *core.Agent {
 		return agent.New("waiting-gate").
 			Actions(agent.NewAction("gate",
-				func(_ context.Context, pc *core.ProcessContext, _ ssWord) (ssWordCount, error) {
+				func(ctx context.Context, pc *core.ProcessContext, _ ssWord) (ssWordCount, error) {
 					if v, ok := pc.Blackboard.Condition(approvedKey); ok {
 						if !v {
 							return ssWordCount{Count: -1}, nil // rejected
 						}
 						return ssWordCount{Count: 42}, nil // approved
 					}
-					pc.AwaitInput(hitl.NewConfirmation("approve?", func(approved bool) core.ResponseImpact {
+					pc.AwaitInput(ctx, hitl.NewConfirmation("approve?", func(approved bool) core.ResponseImpact {
 						pc.Blackboard.SetCondition(approvedKey, approved)
 						return core.ImpactUpdated
 					}))

@@ -301,7 +301,7 @@ type processOnlyListener struct {
 }
 
 func (l processOnlyListener) Name() string { return l.name }
-func (l processOnlyListener) OnEvent(e event.Event) {
+func (l processOnlyListener) OnEvent(_ context.Context, e event.Event) {
 	if e.ProcessID() != "" {
 		*l.count++
 	}

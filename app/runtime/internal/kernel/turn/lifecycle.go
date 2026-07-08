@@ -1,6 +1,7 @@
 package turn
 
 import (
+	"context"
 	"sync"
 
 	"github.com/Tangerg/lynx/agent/event"
@@ -42,7 +43,7 @@ func (l *turnLifecycle) setRoot(id string) {
 }
 
 func (l *turnLifecycle) listener(turnID string) *event.NamedListener {
-	return event.NewNamedListener("turn-lifecycle-"+turnID, func(e event.Event) {
+	return event.NewNamedListener("turn-lifecycle-"+turnID, func(_ context.Context, e event.Event) {
 		switch e.(type) {
 		case event.ProcessCompleted,
 			event.ProcessKilled,
