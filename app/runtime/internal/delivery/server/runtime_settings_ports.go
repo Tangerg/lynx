@@ -79,8 +79,11 @@ type scheduleWorkerAccess interface {
 	RunScheduleWorker(ctx context.Context, runner schedule.Runner)
 }
 
-type providerRegistryCatalogAccess interface {
+type providerRegistryListAccess interface {
 	ListRegisteredProviders(ctx context.Context) ([]providersvc.Provider, error)
+}
+
+type providerRegistryReadAccess interface {
 	RegisteredProvider(ctx context.Context, id string) (providersvc.Provider, bool, error)
 }
 
@@ -92,8 +95,11 @@ type providerRegistryProbeAccess interface {
 	ProbeProvider(ctx context.Context, entry providersvc.Provider) error
 }
 
-type providerCatalogAccess interface {
+type providerSupportCatalogAccess interface {
 	SupportedProviders() []providersvc.Metadata
+}
+
+type providerMetadataAccess interface {
 	ProviderMetadata(id string) (providersvc.Metadata, bool)
 }
 

@@ -691,6 +691,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的 `scheduleCatalogAccess` 拆为 `scheduleListAccess` 与 `scheduleReadAccess`。
   - 将 delivery/server 的 `scheduleMutationAccess` 拆为 `scheduleCreationAccess`、`scheduleUpdateAccess` 与 `scheduleDeletionAccess`。
   - schedules.list、create、update、delete、runNow 各自依赖自己的最小 schedule 用例能力，不保留旧 schedule 聚合字段。
+- 已完成第八十五轮 `app/runtime` server provider registry/catalog 端口 ISP 收敛：
+  - 将 delivery/server 的 `providerRegistryCatalogAccess` 拆为 `providerRegistryListAccess` 与 `providerRegistryReadAccess`。
+  - 将 delivery/server 的 `providerCatalogAccess` 拆为 `providerSupportCatalogAccess` 与 `providerMetadataAccess`。
+  - providers.list、providers.configure/test、model role validation 各自依赖自己的 provider registry/catalog read 能力，不保留旧 provider 聚合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -789,6 +793,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十二轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十三轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十四轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十五轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -1150,6 +1155,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第八十四轮后复跑）。
   - `go build ./...`（`agent`）通过（第八十四轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第八十四轮后复跑）。
+  - `go test ./...`（`core`）通过（第八十五轮后复跑）。
+  - `go test ./...`（`agent`）通过（第八十五轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第八十五轮后复跑）。
+  - `go vet ./...`（`core`）通过（第八十五轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第八十五轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第八十五轮后复跑）。
+  - `go build ./...`（`core`）通过（第八十五轮后复跑）。
+  - `go build ./...`（`agent`）通过（第八十五轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第八十五轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1490,5 +1504,17 @@ app/runtime -> agent -> core
 - 架构收益：schedules.list、create、update、delete、runNow 各自依赖最小 runtime 能力，避免 CRUD 聚合端口掩盖 create/update/delete 的不同业务语义。
 - 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding 和 schedules handler。
 - 已完成适配：所有 `s.scheduleCatalog` 与 `s.scheduleMutations` 调用已迁移到更窄字段；未保留旧 `scheduleCatalogAccess` / `scheduleMutationAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险。
+
+第八十五轮包含 `app/runtime/internal/delivery/server` 的 internal provider registry/catalog 端口破坏性拆分：
+
+- 调整对象：`providerRegistryCatalogAccess`、`providerCatalogAccess`、`runtimeBindings.providerRegistryCatalog` 与 `runtimeBindings.providerCatalog`。
+- 调整前问题：provider registry list 和 single-entry lookup 聚合在同一个端口；静态 supported-provider list 和 per-provider metadata lookup 也聚合在同一个端口。providers.list 需要列表 read model，providers.configure/test 与 model-role validation 需要单条 lookup/metadata，却通过同一字段互相暴露能力。
+- 破坏性原因：这些端口位于 `app/runtime/internal/delivery/server`，按 read model 与 validation lookup 拆分能直接删除旧聚合字段，不需要为旧 internal port 留兼容层。
+- 新设计：使用 `providerRegistryListAccess` / `providerRegistryReadAccess` 分离 runtime registry list 与 single provider lookup；使用 `providerSupportCatalogAccess` / `providerMetadataAccess` 分离 supported-provider list 和 per-provider metadata lookup。
+- 架构收益：providers.list、providers.configure、providers.test、models.setUtilityRole、models.setEmbeddingRole 各自依赖最小 provider registry/catalog 能力，避免列表展示能力与配置/校验能力串联。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、providers handler、models role validation 和相关测试 fixture。
+- 已完成适配：所有 `s.providerRegistryCatalog` 与 `s.providerCatalog` 调用已迁移到更窄字段；未保留旧 `providerRegistryCatalogAccess` / `providerCatalogAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险。

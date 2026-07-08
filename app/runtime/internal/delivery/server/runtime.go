@@ -51,10 +51,12 @@ type RuntimePort interface {
 	scheduleDeletionAccess
 	scheduleRunRecorderAccess
 	scheduleWorkerAccess
-	providerRegistryCatalogAccess
+	providerRegistryListAccess
+	providerRegistryReadAccess
 	providerRegistryMutationAccess
 	providerRegistryProbeAccess
-	providerCatalogAccess
+	providerSupportCatalogAccess
+	providerMetadataAccess
 	providerDefaultAccess
 	mcpStatusAccess
 	mcpToolCatalogAccess
