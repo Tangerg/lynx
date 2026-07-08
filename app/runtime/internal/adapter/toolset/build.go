@@ -14,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
@@ -31,6 +30,12 @@ import (
 // composition root (runtime). This is the "tools assembled outside the core
 // loop" shape the convergent microkernel design uses (doc/GREENFIELD_ARCHITECTURE.md §5.1).
 
+// CodebaseIndex is the live @codebase capability the tool resolver consumes.
+type CodebaseIndex interface {
+	codebasesearch.SearchIndex
+	Available(ctx context.Context) bool
+}
+
 // BuildConfig is the tool-environment construction input (the working-directory
 // scope + the capability tables). Driven by the runtime config.
 type BuildConfig struct {
@@ -46,7 +51,7 @@ type BuildConfig struct {
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
 	// index with no embedding model configured — omits the tool.
-	CodebaseIndex codebaseindex.Index
+	CodebaseIndex CodebaseIndex
 
 	// MCPDisabled returns the model-facing MCP tool names the configured servers
 	// hide from the model (per-server blacklist; nil → no filtering). The runtime
