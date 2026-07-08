@@ -211,7 +211,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		defaultModel:              cfg.Model,
 		titles:                    maintenance.NewTitler(utilityEnv.resolve),
 		utility:                   utilityEnv.cell,
-		resolver:                  resolver,
+		utilityClients:            resolver,
 		utilStore:                 cfg.UtilityRoleStore,
 		hookInspection:            cfg.HooksResolver,
 		hookTrust:                 cfg.HookTrustStore,

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 
@@ -42,6 +43,36 @@ func TestRuntimeSetUtilityRoleUsesSaverPort(t *testing.T) {
 	}
 	if role == nil || role.provider != "" || role.model != "" {
 		t.Fatalf("role = %+v, want cleared", role)
+	}
+}
+
+func TestRuntimeSetUtilityRoleUsesClientResolverPort(t *testing.T) {
+	cell := &atomic.Pointer[utilityRole]{}
+	cell.Store(&utilityRole{})
+	saver := &fakeUtilityRoleSaver{}
+	resolver := &fakeChatClientResolver{}
+	rt := &Runtime{utility: cell, utilityClients: resolver, utilStore: saver}
+
+	if err := rt.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); err != nil {
+		t.Fatalf("SetUtilityRole err = %v", err)
+	}
+
+	if resolver.provider != "anthropic" || resolver.model != "claude-haiku" {
+		t.Fatalf("resolver provider=%q model=%q", resolver.provider, resolver.model)
+	}
+	if saver.provider != "anthropic" || saver.model != "claude-haiku" {
+		t.Fatalf("saved provider=%q model=%q", saver.provider, saver.model)
+	}
+}
+
+func TestRuntimeSetUtilityRoleReturnsClientResolverError(t *testing.T) {
+	fail := errors.New("build client")
+	cell := &atomic.Pointer[utilityRole]{}
+	cell.Store(&utilityRole{})
+	rt := &Runtime{utility: cell, utilityClients: &fakeChatClientResolver{err: fail}}
+
+	if err := rt.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); !errors.Is(err, fail) {
+		t.Fatalf("SetUtilityRole err = %v, want %v", err, fail)
 	}
 }
 
@@ -100,6 +131,21 @@ func (s *fakeUtilityRoleSaver) SaveUtilityRole(_ context.Context, provider, mode
 	s.provider = provider
 	s.model = model
 	return nil
+}
+
+type fakeChatClientResolver struct {
+	provider string
+	model    string
+	err      error
+}
+
+func (r *fakeChatClientResolver) ResolveClient(_ context.Context, provider, model string) (*chat.Client, error) {
+	r.provider = provider
+	r.model = model
+	if r.err != nil {
+		return nil, r.err
+	}
+	return nil, nil
 }
 
 type fakeEmbeddingRoleLoader struct {
