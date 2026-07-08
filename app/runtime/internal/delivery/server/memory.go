@@ -18,7 +18,7 @@ func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := s.memoryStore.ListMemoryEntries(ctx, root)
+	entries, err := s.memoryList.ListMemoryEntries(ctx, root)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	content, err := s.memoryStore.Memory(ctx, scope, cwd)
+	content, err := s.memoryRead.Memory(ctx, scope, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryReque
 	if err != nil {
 		return err
 	}
-	return s.memoryStore.UpdateMemory(ctx, scope, cwd, in.Content)
+	return s.memoryWrite.UpdateMemory(ctx, scope, cwd, in.Content)
 }
 
 // memScopeToWire / memScopeFromWire bridge the protocol string enum and

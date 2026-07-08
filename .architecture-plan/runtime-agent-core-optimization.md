@@ -676,6 +676,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的 `sessionMutationAccess` 拆为 `sessionCreationAccess`、`sessionDeletionAccess` 与 `sessionUpdateAccess`。
   - schedule runner 与 sessions.create 只依赖创建能力，sessions.delete 只依赖 deletion cascade，sessions.update 只依赖 patch update。
   - 同步迁移 runtime binding、scheduler 和 sessions handler，不保留旧 `sessionMutationAccess` 聚合字段。
+- 已完成第八十一轮 `app/runtime` server memory store 端口 ISP 收敛：
+  - 将 delivery/server 的 `memoryStoreAccess` 拆为 `memoryListAccess`、`memoryReadAccess` 与 `memoryWriteAccess`。
+  - memory.list、memory.get、memory.update 各依赖自己的最小 memory store 能力。
+  - 同步迁移 runtime binding 和 memory handler，不保留旧 `memoryStoreAccess` 聚合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -770,6 +774,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十八轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第七十九轮后复跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十一轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -1095,6 +1100,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第八十轮后复跑）。
   - `go build ./...`（`agent`）通过（第八十轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第八十轮后复跑）。
+  - `go test ./...`（`core`）通过（第八十一轮后复跑）。
+  - `go test ./...`（`agent`）通过（第八十一轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第八十一轮后复跑）。
+  - `go vet ./...`（`core`）通过（第八十一轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第八十一轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第八十一轮后复跑）。
+  - `go build ./...`（`core`）通过（第八十一轮后复跑）。
+  - `go build ./...`（`agent`）通过（第八十一轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第八十一轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1387,5 +1401,17 @@ app/runtime -> agent -> core
 - 架构收益：schedule runner、sessions.create、sessions.delete、sessions.update 各自依赖最小 session mutation 能力，server binding 对普通会话变更和 destructive lifecycle deletion 的边界表达更清楚。
 - 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、scheduler 和 sessions handler。
 - 已完成适配：所有 `s.sessionMutations` 调用已迁移到更窄字段；未保留旧 `sessionMutationAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险。
+
+第八十一轮包含 `app/runtime/internal/delivery/server` 的 internal memory store 端口破坏性拆分：
+
+- 调整对象：`memoryStoreAccess` 与 `runtimeBindings.memoryStore`。
+- 调整前问题：单个端口同时承载 memory entry 列表、单 scope 内容读取和内容写入；memory.list、memory.get、memory.update 三个 handler 通过聚合字段看到无关 store 能力。
+- 破坏性原因：该端口位于 `app/runtime/internal/delivery/server`，按 handler 实际消费语义拆分能删除旧聚合字段，不需要为旧 internal port 留兼容层。
+- 新设计：使用 `memoryListAccess` / `memoryReadAccess` / `memoryWriteAccess` 分离 memory entries listing、scope content read、scope content update。
+- 架构收益：memory.list、memory.get、memory.update 各自依赖最小 memory store 能力，server binding 对 read model、content read 和 write mutation 的边界表达更清楚。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding 和 memory handler。
+- 已完成适配：所有 `s.memoryStore` 调用已迁移到更窄字段；未保留旧 `memoryStoreAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险。

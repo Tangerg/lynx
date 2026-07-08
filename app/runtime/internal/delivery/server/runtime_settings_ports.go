@@ -23,9 +23,15 @@ type memoryAvailabilityAccess interface {
 	HasMemory() bool
 }
 
-type memoryStoreAccess interface {
+type memoryListAccess interface {
 	ListMemoryEntries(ctx context.Context, cwd string) ([]knowledge.Entry, error)
+}
+
+type memoryReadAccess interface {
 	Memory(ctx context.Context, scope knowledge.Scope, cwd string) (string, error)
+}
+
+type memoryWriteAccess interface {
 	UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd string, content string) error
 }
 

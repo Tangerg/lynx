@@ -37,7 +37,9 @@ type RuntimePort interface {
 	toolCatalogAccess
 	toolInvocationAccess
 	memoryAvailabilityAccess
-	memoryStoreAccess
+	memoryListAccess
+	memoryReadAccess
+	memoryWriteAccess
 	approvalModeAccess
 	approvalRuleAccess
 	scheduleCatalogAccess

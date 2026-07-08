@@ -157,7 +157,9 @@ type runtimeBindings struct {
 	toolCatalog               toolCatalogAccess
 	toolInvocations           toolInvocationAccess
 	memoryAvailability        memoryAvailabilityAccess
-	memoryStore               memoryStoreAccess
+	memoryList                memoryListAccess
+	memoryRead                memoryReadAccess
+	memoryWrite               memoryWriteAccess
 	approvalModes             approvalModeAccess
 	approvalRules             approvalRuleAccess
 	scheduleCatalog           scheduleCatalogAccess
@@ -216,7 +218,9 @@ func bindRuntime(rt RuntimePort) runtimeBindings {
 		toolCatalog:               rt,
 		toolInvocations:           rt,
 		memoryAvailability:        rt,
-		memoryStore:               rt,
+		memoryList:                rt,
+		memoryRead:                rt,
+		memoryWrite:               rt,
 		approvalModes:             rt,
 		approvalRules:             rt,
 		scheduleCatalog:           rt,
