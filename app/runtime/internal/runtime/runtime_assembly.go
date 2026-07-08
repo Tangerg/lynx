@@ -204,7 +204,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		utility:                   utilityEnv.cell,
 		resolver:                  resolver,
 		utilStore:                 cfg.UtilityRoleStore,
-		hookResolver:              cfg.HooksResolver,
+		hookInspection:            cfg.HooksResolver,
 		hookTrust:                 cfg.HookTrustStore,
 		recipesGlobalDir:          cfg.RecipesGlobalDir,
 		scheduleList:              cfg.ScheduleRegistry,
