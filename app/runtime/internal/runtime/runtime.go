@@ -10,11 +10,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -28,12 +28,19 @@ import (
 type Runtime struct {
 	engine     *kernel.Engine
 	turns      turn.Dispatcher
-	session    sessionsvc.Store
 	tools      toolsvc.Registry
 	knowledge  knowledge.Store
 	approval   approval.Policy
 	interrupts interrupts.Store
 	transcript transcript.Store
+
+	sessionList       sessionList
+	sessionRead       sessionRead
+	sessionCreation   sessionCreate
+	sessionPatch      sessionPatchWriter
+	sessionModel      sessionModelWriter
+	sessionLifecycle  lifecycle.SessionStore
+	sessionRunSegment runsegment.SessionStore
 
 	// conversation is the message history the non-turn history ops
 	// (ReadHistory/SeedHistory/MessageCount/TruncateMessages) delegate to

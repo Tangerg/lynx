@@ -23,7 +23,7 @@ func (r *Runtime) SetApprovalMode(ctx context.Context, mode approval.Mode) error
 func (r *Runtime) ListApprovalRules(ctx context.Context, sessionID string) ([]approval.Rule, error) {
 	cwd := ""
 	if sessionID != "" {
-		sess, err := r.session.Get(ctx, sessionID)
+		sess, err := r.sessionRead.Get(ctx, sessionID)
 		if err != nil {
 			if !errors.Is(err, session.ErrNotFound) {
 				return nil, err

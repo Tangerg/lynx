@@ -137,7 +137,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// composition root (cmd/lyra wires sqlite-backed stores; tests wire a
 	// sqlite :memory: DB). The runtime keeps no in-memory fallback; there's
 	// a single storage backend now.
-	sessionSvc := cfg.SessionStore
+	sessions := cfg.SessionStore
 	interruptStore := cfg.InterruptStore
 
 	turnDispatcher, err := turn.New(turn.Dependencies{
@@ -164,13 +164,19 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	return &Runtime{
 		engine:                    eng,
 		turns:                     turnDispatcher,
-		session:                   sessionSvc,
 		tools:                     toolRegistry,
 		knowledge:                 cfg.Engine.Knowledge,
 		approval:                  approvalPolicy,
 		interrupts:                interruptStore,
 		transcript:                cfg.TranscriptStore,
 		conversation:              conv,
+		sessionList:               sessions,
+		sessionRead:               sessions,
+		sessionCreation:           sessions,
+		sessionPatch:              sessions,
+		sessionModel:              sessions,
+		sessionLifecycle:          sessions,
+		sessionRunSegment:         sessions,
 		providerRegistryList:      providers,
 		providerRegistryRead:      providers,
 		providerRegistryConfigure: providers,

@@ -21,7 +21,7 @@ type runSegmentStores struct {
 
 func (s runSegmentStores) Interrupts() runsegment.InterruptStore { return s.rt.interrupts }
 
-func (s runSegmentStores) Session() runsegment.SessionStore { return s.rt.session }
+func (s runSegmentStores) Session() runsegment.SessionStore { return s.rt.sessionRunSegment }
 
 func (s runSegmentStores) Transcript() runsegment.TranscriptStore { return s.rt.transcript }
 

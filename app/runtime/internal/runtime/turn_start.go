@@ -36,7 +36,7 @@ func (r *Runtime) PlanTurnStart(ctx context.Context, sessionID, defaultCwd strin
 
 func (r *Runtime) resolveTurnSession(ctx context.Context, sessionID, defaultCwd string) (session.Session, error) {
 	if sessionID == "" {
-		return r.session.Create(ctx, "", defaultCwd)
+		return r.sessionCreation.Create(ctx, "", defaultCwd)
 	}
-	return r.session.Get(ctx, sessionID)
+	return r.sessionRead.Get(ctx, sessionID)
 }

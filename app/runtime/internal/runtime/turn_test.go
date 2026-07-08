@@ -155,7 +155,7 @@ func TestRuntimeStartTurnPersistsExplicitModelBeforeDispatch(t *testing.T) {
 	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
 	turns := &turnRuntimeDispatcher{startHandle: handle}
 	sessions := &sessionRuntimeStore{}
-	rt := &Runtime{turns: turns, session: sessions}
+	rt := &Runtime{turns: turns, sessionModel: sessions}
 
 	gotHandle, err := rt.StartTurn(ctx, turn.StartTurnRequest{
 		SessionID: "ses_1",
@@ -182,7 +182,7 @@ func TestRuntimeStartTurnDoesNotDispatchWhenModelPersistenceFails(t *testing.T) 
 	fail := errors.New("store failed")
 	turns := &turnRuntimeDispatcher{}
 	sessions := &sessionRuntimeStore{modelErr: fail}
-	rt := &Runtime{turns: turns, session: sessions}
+	rt := &Runtime{turns: turns, sessionModel: sessions}
 
 	if _, err := rt.StartTurn(ctx, turn.StartTurnRequest{SessionID: "ses_1", Message: "hello", Model: "claude-opus-4-8"}); !errors.Is(err, fail) {
 		t.Fatalf("StartTurn err = %v, want store failure", err)

@@ -21,7 +21,7 @@ type lifecycleStores struct {
 	rt *Runtime
 }
 
-func (s lifecycleStores) Session() lifecycle.SessionStore { return s.rt.session }
+func (s lifecycleStores) Session() lifecycle.SessionStore { return s.rt.sessionLifecycle }
 
 func (s lifecycleStores) Transcript() lifecycle.TranscriptStore { return s.rt.transcript }
 
