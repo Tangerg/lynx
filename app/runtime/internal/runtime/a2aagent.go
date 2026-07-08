@@ -26,14 +26,14 @@ type chatRunner interface {
 // chunk(s) onto the A2A task lifecycle either way. Token-level streaming would
 // adapt the engine's observer and is a follow-up.
 type a2aAgent struct {
-	engine chatRunner
+	chat chatRunner
 }
 
 var _ a2a.Agent = a2aAgent{}
 
 func (a a2aAgent) Run(ctx context.Context, input string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		proc := a.engine.StartTurn(ctx, kernel.TurnRequest{Message: input})
+		proc := a.chat.StartTurn(ctx, kernel.TurnRequest{Message: input})
 		if err := <-proc.Done(); err != nil {
 			yield("", fmt.Errorf("a2a: run turn: %w", err))
 			return
@@ -50,4 +50,4 @@ func (a a2aAgent) Run(ctx context.Context, input string) iter.Seq2[string, error
 // A2AAgent exposes this runtime as an [a2a.Agent] so a transport can serve
 // it over the A2A protocol (see [a2a.NewHTTPHandler]). The returned adapter
 // runs each inbound message as an independent, sessionless chat turn.
-func (r *Runtime) A2AAgent() a2a.Agent { return a2aAgent{engine: r.engine} }
+func (r *Runtime) A2AAgent() a2a.Agent { return a2aAgent{chat: r.a2aChats} }

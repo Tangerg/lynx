@@ -1837,3 +1837,15 @@ app/runtime -> agent -> core
 - 已完成适配：所有 MCP live status/tool/reconnect/authorize/probe/configure/remove 调用已迁移到四个窄口字段；runtime assembly 继续把同一个 `*kernel.Engine` 注入到这些端口；focused tests 用只实现 live MCP 端口的 fake 锁住 facade 依赖。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百零八轮包含 `app/runtime/internal/runtime` 剩余 full engine state 字段移除：
+
+- 调整对象：`Runtime.engine` 对 close、workspace.listSkills、A2A adapter 的剩余用途，Runtime struct、runtime assembly 和 focused runtime port tests。
+- 调整前问题：第一百零七轮后 MCP facade 已不再依赖完整 engine，但 `Runtime` 本体仍持有 `*kernel.Engine` 字段；Close、ListSkills、A2AAgent 三条路径理论上都能借这个字段看见 turn execution、MCP live registry、tools 等不属于各自 facade 的能力，Runtime state 仍把完整 engine 当作默认共享依赖。
+- 破坏性原因：`Runtime.engine` 是 `app/runtime/internal/runtime` 内部装配字段；删除它并按消费路径注入窄口能直接消除最后的 full-engine state 持有点，不需要保留旧字段或兼容 shim。
+- 新设计：新增 `runtimeCloser`、`skillCatalog` 和既有 `chatRunner` 三个 consumer-side port；`Runtime.Close`、`Runtime.ListSkills`、`Runtime.A2AAgent` 分别只使用对应端口。runtime assembly 继续把同一个 `*kernel.Engine` 注入给这些端口，但 Runtime 类型边界不再保存完整 engine。
+- 架构收益：Runtime bundle 从“持有整台 kernel engine”改为“按用例持有关闭、技能目录、A2A chat runner 能力”；管理面/协议 adapter 不再默认携带 turn engine 的完整 surface，composition root 仍保持单一 engine 实例和资源所有权。
+- 影响范围：`app/runtime/internal/runtime` 的 Runtime struct、close/skills/A2A facade、runtime assembly 和 focused runtime tests。
+- 已完成适配：删除 `Runtime.engine` 字段；`Close`、`ListSkills`、`A2AAgent` 已迁移到对应窄口；focused tests 用只实现 closer/skills/chat-runner 的 fake 锁住端口依赖。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。

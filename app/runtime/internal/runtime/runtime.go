@@ -7,7 +7,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
@@ -21,8 +20,10 @@ import (
 // Runtime owns the process-local coordination state that defines application
 // lifecycle invariants across transports.
 type Runtime struct {
-	engine          *kernel.Engine
 	turns           turn.Dispatcher
+	closer          runtimeCloser
+	skillCatalog    skillCatalog
+	a2aChats        chatRunner
 	toolCatalog     toolsvc.Catalog
 	toolInvocations toolsvc.Invoker
 

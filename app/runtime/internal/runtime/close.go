@@ -1,10 +1,14 @@
 package runtime
 
+type runtimeCloser interface {
+	Close() error
+}
+
 // Close releases per-runtime external resources — MCP sessions and
-// any future engine-owned handles. Idempotent.
+// any future closer-owned handles. Idempotent.
 func (r *Runtime) Close() error {
-	if r == nil || r.engine == nil {
+	if r == nil || r.closer == nil {
 		return nil
 	}
-	return r.engine.Close()
+	return r.closer.Close()
 }
