@@ -13,10 +13,30 @@ import (
 // applies to the live tool set in one place. Registry entries are projected to
 // dial-level descriptors only at the live-connection boundary.
 
+type mcpServerList interface {
+	List(ctx context.Context) ([]mcpserver.Server, error)
+}
+
+type mcpServerRead interface {
+	Get(ctx context.Context, name string) (mcpserver.Server, bool, error)
+}
+
+type mcpServerConfigure interface {
+	Configure(ctx context.Context, srv mcpserver.Server) error
+}
+
+type mcpServerRemove interface {
+	Remove(ctx context.Context, name string) error
+}
+
+type mcpServerEnable interface {
+	SetEnabled(ctx context.Context, name string, enabled bool) error
+}
+
 // ListMCPRegisteredServers returns the persisted MCP-server registry entries,
 // distinct from the live connection statuses returned by MCPServerStatuses.
 func (r *Runtime) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error) {
-	return r.mcpRegistry.List(ctx)
+	return r.mcpRegistryList.List(ctx)
 }
 
 // MCPServerStatuses returns the per-server connection state of every
@@ -28,7 +48,7 @@ func (r *Runtime) MCPServerStatuses() []kernel.MCPServerStatus {
 
 // MCPRegisteredServer returns one persisted MCP-server registry entry.
 func (r *Runtime) MCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error) {
-	return r.mcpRegistry.Get(ctx, name)
+	return r.mcpRegistryRead.Get(ctx, name)
 }
 
 // ReconnectMCPServer re-dials a configured MCP server and hot-swaps the live
@@ -55,7 +75,7 @@ func (r *Runtime) ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) 
 	if err := srv.Validate(); err != nil {
 		return err
 	}
-	if err := r.mcpRegistry.Configure(ctx, srv); err != nil {
+	if err := r.mcpRegistryConfigure.Configure(ctx, srv); err != nil {
 		return err
 	}
 	return r.applyAndGate(ctx, srv)
@@ -64,7 +84,7 @@ func (r *Runtime) ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) 
 // RemoveMCPServer deletes a server from the registry and drops it from the live
 // connections.
 func (r *Runtime) RemoveMCPServer(ctx context.Context, name string) error {
-	if err := r.mcpRegistry.Remove(ctx, name); err != nil {
+	if err := r.mcpRegistryRemove.Remove(ctx, name); err != nil {
 		return err
 	}
 	// Shrink the live set before the gating (the disable direction of the
@@ -78,10 +98,10 @@ func (r *Runtime) RemoveMCPServer(ctx context.Context, name string) error {
 // SetMCPServerEnabled flips a server's enablement in the registry and applies
 // it to the live connections (enable → dial, disable → drop).
 func (r *Runtime) SetMCPServerEnabled(ctx context.Context, name string, enabled bool) error {
-	if err := r.mcpRegistry.SetEnabled(ctx, name, enabled); err != nil {
+	if err := r.mcpRegistryEnable.SetEnabled(ctx, name, enabled); err != nil {
 		return err
 	}
-	srv, ok, err := r.mcpRegistry.Get(ctx, name)
+	srv, ok, err := r.mcpRegistryRead.Get(ctx, name)
 	if err != nil || !ok {
 		return err
 	}

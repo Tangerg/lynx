@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -42,8 +41,13 @@ type Runtime struct {
 	// directly — not via the engine (it owns only the steering touchpoint).
 	conversation *conversation.Messages
 
-	providers   provider.Registry
-	mcpRegistry mcpserver.Registry
+	providers provider.Registry
+
+	mcpRegistryList      mcpServerList
+	mcpRegistryRead      mcpServerRead
+	mcpRegistryConfigure mcpServerConfigure
+	mcpRegistryRemove    mcpServerRemove
+	mcpRegistryEnable    mcpServerEnable
 
 	// mcpGating holds the current per-call MCP tool gating (disabled / auto-
 	// approve sets), recomputed on every registry change. The resolver (disabled
