@@ -21,14 +21,22 @@ type Runner interface {
 	StartScheduledRun(ctx context.Context, sc Schedule) (string, error)
 }
 
+// WorkerStore is the schedule persistence slice the worker owns. Management
+// CRUD stays on [Registry]; the worker only needs the due query and guarded
+// cursor advance.
+type WorkerStore interface {
+	Due(ctx context.Context, now time.Time) ([]Schedule, error)
+	MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error
+}
+
 // Worker scans due schedules and advances their cron cursor after each firing.
 type Worker struct {
-	schedules Registry
+	schedules WorkerStore
 	runner    Runner
 }
 
 // NewWorker wires a scheduled-run worker.
-func NewWorker(schedules Registry, runner Runner) Worker {
+func NewWorker(schedules WorkerStore, runner Runner) Worker {
 	return Worker{schedules: schedules, runner: runner}
 }
 

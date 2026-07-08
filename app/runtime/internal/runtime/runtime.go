@@ -83,9 +83,14 @@ type Runtime struct {
 	// discovery layers under a project's .lyra/recipes. Empty → project-only.
 	recipesGlobalDir string
 
-	// schedules is the scheduled-run registry (schedules.* + the scheduler
-	// worker). nil when scheduling is unconfigured.
-	schedules schedule.Registry
+	// schedules.* ports. nil when scheduling is unconfigured.
+	scheduleList     scheduleList
+	scheduleRead     scheduleRead
+	scheduleCreation scheduleCreate
+	scheduleUpdates  scheduleUpdate
+	scheduleDeletion scheduleDelete
+	scheduleRuns     scheduleRunRecorder
+	scheduleWorker   schedule.WorkerStore
 
 	// @codebase semantic index: embeddingCell holds the live embedding role,
 	// embeddings builds+caches embedders from it, embeddingStore persists it, and
