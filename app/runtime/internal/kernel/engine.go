@@ -26,9 +26,9 @@ import (
 //   - context:        knowledge / workdir feed the system prompt; the Steering
 //     port flushes a queued steering message into history at turn-end
 //
-// The tool environment (resolver + tools + MCP facade + closers) is assembled
-// outside the core by the tool adapter and injected via [Config]; the core
-// constructs no capability. The turn dispatcher's own (unexported) engine
+// The tool environment (resolver + tools + live MCP ports + closers) is
+// assembled outside the core by the tool adapter and injected via [Config]; the
+// core constructs no capability. The turn dispatcher's own (unexported) engine
 // interface narrows this surface to exactly the operations it needs.
 type Engine struct {
 	// Turn execution.
@@ -54,13 +54,16 @@ type Engine struct {
 	compactor Compactor
 	extractor Extractor
 
-	// mcp is the live-MCP-connections facade port (workspace.mcp.* views +
-	// reconnect), assembled in the tool adapter and injected; nil when no MCP
-	// servers are wired. closers are the capability shutdown hooks (code-intel
-	// servers, background processes, MCP/A2A sessions) the tool adapter
-	// handed over, run in [Engine.Close].
-	mcp     MCPControl
-	closers []func() error
+	// Live MCP ports are assembled in the tool adapter and injected separately
+	// so workspace.mcp reads and commands do not share one broad dependency.
+	// Nil ports mean MCP is not wired. closers are the capability shutdown hooks
+	// (code-intel servers, background processes, MCP/A2A sessions) the tool
+	// adapter handed over, run in [Engine.Close].
+	mcpStatusReader       MCPStatusReader
+	mcpToolCatalog        MCPToolCatalog
+	mcpConnectionCommands MCPConnectionCommands
+	mcpRegistryCommands   MCPRegistryCommands
+	closers               []func() error
 
 	// closeOnce guards Close so concurrent / repeated calls run the closers
 	// exactly once (a non-idempotent closer — e.g. closing an MCP session —
@@ -82,7 +85,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 
 	// The tool environment (capability adapters + per-role/per-cwd resolver +
 	// canonical tool list) is assembled OUTSIDE the core, in the adapter layer,
-	// and injected via [Config.ToolResolver] / [Config.Tools] / [Config.MCP] /
+	// and injected via [Config.ToolResolver] / [Config.Tools] / live MCP ports /
 	// [Config.Closers] (the composition root calls [toolset.Build]). The engine
 	// core therefore constructs no capability and imports no infra/service for
 	// them — it only drives the resolver + appends the two engine-owned tools
@@ -97,22 +100,25 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// capture *Engine (and therefore reach e.SystemPrompt) instead
 	// of dragging a memory store through the constructor.
 	e := &Engine{
-		turnStarter:     platform,
-		turnRestorer:    platform,
-		turnControl:     platform,
-		steering:        cfg.Steering,
-		compactor:       cfg.Compactor,
-		extractor:       cfg.Extractor,
-		knowledge:       cfg.Knowledge,
-		historyStore:    cfg.HistoryStore,
-		todos:           cfg.Todos,
-		workdir:         cfg.Workdir,
-		skillsGlobalDir: cfg.SkillsGlobalDir,
-		pricing:         cfg.Pricing,
-		defaultProvider: cfg.Provider,
-		parkStore:       cfg.ParkStore,
-		mcp:             cfg.MCP,
-		closers:         cfg.Closers,
+		turnStarter:           platform,
+		turnRestorer:          platform,
+		turnControl:           platform,
+		steering:              cfg.Steering,
+		compactor:             cfg.Compactor,
+		extractor:             cfg.Extractor,
+		knowledge:             cfg.Knowledge,
+		historyStore:          cfg.HistoryStore,
+		todos:                 cfg.Todos,
+		workdir:               cfg.Workdir,
+		skillsGlobalDir:       cfg.SkillsGlobalDir,
+		pricing:               cfg.Pricing,
+		defaultProvider:       cfg.Provider,
+		parkStore:             cfg.ParkStore,
+		mcpStatusReader:       cfg.MCPStatusReader,
+		mcpToolCatalog:        cfg.MCPToolCatalog,
+		mcpConnectionCommands: cfg.MCPConnectionCommands,
+		mcpRegistryCommands:   cfg.MCPRegistryCommands,
+		closers:               cfg.Closers,
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares

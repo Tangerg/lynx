@@ -70,13 +70,25 @@ type MCPServerConfig struct {
 // that was never configured.
 var ErrUnknownMCPServer = errors.New("mcp: unknown server")
 
-// MCPControl is the live-MCP-connections surface the engine exposes to
-// workspace.mcp.* through the runtime.
-type MCPControl interface {
+// MCPStatusReader reads live status for configured MCP servers.
+type MCPStatusReader interface {
 	Statuses() []MCPServerStatus
+}
+
+// MCPToolCatalog lists tools advertised by live MCP server connections.
+type MCPToolCatalog interface {
 	Tools(ctx context.Context, server string) ([]MCPToolInfo, error)
+}
+
+// MCPConnectionCommands operates on an already configured MCP server's live
+// connection.
+type MCPConnectionCommands interface {
 	Reconnect(ctx context.Context, name string) error
 	Authorize(ctx context.Context, name string) error
+}
+
+// MCPRegistryCommands probes and applies live MCP server registry changes.
+type MCPRegistryCommands interface {
 	Probe(ctx context.Context, cfg MCPServerConfig) error
 	Configure(ctx context.Context, cfg MCPServerConfig) error
 	Remove(ctx context.Context, name string)

@@ -37,7 +37,10 @@ func buildEngine(t *testing.T, cfg kernel.Config) *kernel.Engine {
 	}
 	cfg.ToolResolver = built.Resolver
 	cfg.Tools = built.Tools
-	cfg.MCP = built.MCP
+	cfg.MCPStatusReader = built.MCPStatusReader
+	cfg.MCPToolCatalog = built.MCPToolCatalog
+	cfg.MCPConnectionCommands = built.MCPConnectionCommands
+	cfg.MCPRegistryCommands = built.MCPRegistryCommands
 	cfg.Closers = built.Closers
 	eng, err := kernel.New(context.Background(), cfg)
 	if err != nil {

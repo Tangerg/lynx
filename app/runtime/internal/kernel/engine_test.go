@@ -316,12 +316,15 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		t.Fatalf("toolset.Build: %v", err)
 	}
 	eng, err := New(context.Background(), Config{
-		ChatClient:   client,
-		ToolResolver: built.Resolver,
-		Tools:        built.Tools,
-		MCP:          built.MCP,
-		Closers:      built.Closers,
-		ProcessStore: store,
+		ChatClient:            client,
+		ToolResolver:          built.Resolver,
+		Tools:                 built.Tools,
+		MCPStatusReader:       built.MCPStatusReader,
+		MCPToolCatalog:        built.MCPToolCatalog,
+		MCPConnectionCommands: built.MCPConnectionCommands,
+		MCPRegistryCommands:   built.MCPRegistryCommands,
+		Closers:               built.Closers,
+		ProcessStore:          store,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -348,12 +351,15 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	}
 
 	eng2, err := New(context.Background(), Config{
-		ChatClient:   client,
-		ToolResolver: built.Resolver,
-		Tools:        built.Tools,
-		MCP:          built.MCP,
-		Closers:      built.Closers,
-		ProcessStore: store,
+		ChatClient:            client,
+		ToolResolver:          built.Resolver,
+		Tools:                 built.Tools,
+		MCPStatusReader:       built.MCPStatusReader,
+		MCPToolCatalog:        built.MCPToolCatalog,
+		MCPConnectionCommands: built.MCPConnectionCommands,
+		MCPRegistryCommands:   built.MCPRegistryCommands,
+		Closers:               built.Closers,
+		ProcessStore:          store,
 	})
 	if err != nil {
 		t.Fatal(err)

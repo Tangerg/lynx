@@ -13,6 +13,13 @@ type mcpControl struct {
 	inner *mcp.Connections
 }
 
+var (
+	_ toolport.MCPStatusReader       = (*mcpControl)(nil)
+	_ toolport.MCPToolCatalog        = (*mcpControl)(nil)
+	_ toolport.MCPConnectionCommands = (*mcpControl)(nil)
+	_ toolport.MCPRegistryCommands   = (*mcpControl)(nil)
+)
+
 func (c *mcpControl) Statuses() []toolport.MCPServerStatus {
 	if c == nil || c.inner == nil {
 		return nil
