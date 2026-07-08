@@ -2,7 +2,6 @@ package toolset
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -28,13 +27,10 @@ var protectedDirs = []string{".git"}
 // the OUTERMOST wrap so the check gates before any staleness/diagnostics work.
 func withPathGuard(inner chat.Tool, workdir string) chat.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		var a struct {
-			Path string `json:"file_path"`
-		}
-		_ = json.Unmarshal([]byte(arguments), &a)
-		if a.Path != "" {
-			if dir := protectedDirHit(resolveAbs(workdir, a.Path)); dir != "" {
-				return fmt.Sprintf("Refused: %q is inside the protected %q directory, which is read-only to the agent. Use the shell/git tooling if you need to change version-control state.", a.Path, dir), nil
+		paths := mutatedPaths(inner, arguments)
+		for _, path := range paths {
+			if dir := protectedDirHit(resolveAbs(workdir, path)); dir != "" {
+				return fmt.Sprintf("Refused: %q is inside the protected %q directory, which is read-only to the agent. Use the shell/git tooling if you need to change version-control state.", path, dir), nil
 			}
 		}
 		return inner.Call(ctx, arguments)

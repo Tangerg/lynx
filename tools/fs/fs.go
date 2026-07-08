@@ -9,6 +9,8 @@ type Executor interface {
 	Read(ctx context.Context, in ReadInput) (ReadOutput, error)
 	Write(ctx context.Context, in WriteInput) (WriteOutput, error)
 	Edit(ctx context.Context, in EditInput) (EditOutput, error)
+	MultiEdit(ctx context.Context, in MultiEditInput) (MultiEditOutput, error)
+	ApplyPatch(ctx context.Context, in ApplyPatchInput) (ApplyPatchOutput, error)
 	Glob(ctx context.Context, in GlobInput) (GlobOutput, error)
 	Grep(ctx context.Context, in GrepInput) (GrepOutput, error)
 }
@@ -60,6 +62,48 @@ type EditInput struct {
 
 type EditOutput struct {
 	Replacements int
+}
+
+// ---------------------------------------------------------------- MultiEdit
+
+// MultiEditInput applies a sequence of exact-string replacements to one file,
+// reading once and writing once. Operations are applied in order; if any
+// operation fails, the file is left unchanged.
+type MultiEditInput struct {
+	Path  string
+	Edits []EditOperation
+}
+
+// EditOperation is one replacement in a [MultiEditInput].
+type EditOperation struct {
+	OldString  string
+	NewString  string
+	ReplaceAll bool
+}
+
+type MultiEditOutput struct {
+	Edits        int
+	Replacements int
+}
+
+// ---------------------------------------------------------------- ApplyPatch
+
+// ApplyPatchInput applies a standard unified diff. The local executor supports
+// create, modify, and delete hunks; renames are intentionally rejected.
+type ApplyPatchInput struct {
+	Patch string
+}
+
+type ApplyPatchOutput struct {
+	Files []PatchFileOutput
+	Hunks int
+}
+
+type PatchFileOutput struct {
+	Path    string
+	Hunks   int
+	Created bool
+	Deleted bool
 }
 
 // ---------------------------------------------------------------- Glob

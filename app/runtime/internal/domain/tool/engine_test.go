@@ -24,12 +24,15 @@ func TestRegistry_List(t *testing.T) {
 	}
 
 	wantClasses := map[string]tool.SafetyClass{
-		"read":  tool.SafetyClassSafe,
-		"glob":  tool.SafetyClassSafe,
-		"grep":  tool.SafetyClassSafe,
-		"write": tool.SafetyClassWrite,
-		"edit":  tool.SafetyClassWrite,
-		"shell": tool.SafetyClassExec,
+		"read":        tool.SafetyClassSafe,
+		"glob":        tool.SafetyClassSafe,
+		"grep":        tool.SafetyClassSafe,
+		"write":       tool.SafetyClassWrite,
+		"edit":        tool.SafetyClassWrite,
+		"multiedit":   tool.SafetyClassWrite,
+		"apply_patch": tool.SafetyClassWrite,
+		"download":    tool.SafetyClassWrite,
+		"shell":       tool.SafetyClassExec,
 	}
 
 	got := map[string]tool.SafetyClass{}

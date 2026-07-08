@@ -48,3 +48,10 @@ func (d *decoratedTool) ReturnsDirect() bool {
 	}
 	return false
 }
+
+func (d *decoratedTool) MutatedPaths(arguments string) ([]string, error) {
+	if paths, ok := d.inner.(mutatedPathReporter); ok {
+		return paths.MutatedPaths(arguments)
+	}
+	return nil, nil
+}

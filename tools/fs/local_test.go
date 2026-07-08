@@ -311,6 +311,142 @@ func TestLocalExecutor_Edit_BinaryRejected(t *testing.T) {
 	}
 }
 
+func TestLocalExecutor_MultiEdit_WritesOnce(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTemp(t, dir, "a.txt", "alpha beta gamma beta\n")
+	out, err := NewLocalExecutor("").MultiEdit(t.Context(), MultiEditInput{
+		Path: path,
+		Edits: []EditOperation{
+			{OldString: "alpha", NewString: "ALPHA"},
+			{OldString: "beta", NewString: "BETA", ReplaceAll: true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("MultiEdit: %v", err)
+	}
+	if out.Edits != 2 || out.Replacements != 3 {
+		t.Fatalf("MultiEdit output = %+v, want 2 edits / 3 replacements", out)
+	}
+	got, _ := os.ReadFile(path)
+	if string(got) != "ALPHA BETA gamma BETA\n" {
+		t.Fatalf("content = %q", got)
+	}
+}
+
+func TestLocalExecutor_MultiEdit_FailureLeavesFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTemp(t, dir, "a.txt", "alpha beta\n")
+	_, err := NewLocalExecutor("").MultiEdit(t.Context(), MultiEditInput{
+		Path: path,
+		Edits: []EditOperation{
+			{OldString: "alpha", NewString: "ALPHA"},
+			{OldString: "missing", NewString: "MISSING"},
+		},
+	})
+	if err == nil {
+		t.Fatal("MultiEdit with failing edit: want error")
+	}
+	got, _ := os.ReadFile(path)
+	if string(got) != "alpha beta\n" {
+		t.Fatalf("content changed despite failed multiedit: %q", got)
+	}
+}
+
+// ---------------------------------------------------------------- ApplyPatch
+
+func TestLocalExecutor_ApplyPatch_ModifyCreateDelete(t *testing.T) {
+	dir := t.TempDir()
+	writeTemp(t, dir, "a.txt", "one\ntwo\nthree\n")
+	writeTemp(t, dir, "gone.txt", "remove me\n")
+	patch := `diff --git a/a.txt b/a.txt
+--- a/a.txt
++++ b/a.txt
+@@ -1,3 +1,3 @@
+ one
+-two
++TWO
+ three
+diff --git a/new.txt b/new.txt
+--- /dev/null
++++ b/new.txt
+@@ -0,0 +1,2 @@
++hello
++world
+diff --git a/gone.txt b/gone.txt
+--- a/gone.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-remove me
+`
+	out, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchInput{Patch: patch})
+	if err != nil {
+		t.Fatalf("ApplyPatch: %v", err)
+	}
+	if out.Hunks != 3 || len(out.Files) != 3 {
+		t.Fatalf("ApplyPatch output = %+v, want 3 hunks / files", out)
+	}
+	a, _ := os.ReadFile(filepath.Join(dir, "a.txt"))
+	if string(a) != "one\nTWO\nthree\n" {
+		t.Fatalf("a.txt = %q", a)
+	}
+	newFile, _ := os.ReadFile(filepath.Join(dir, "new.txt"))
+	if string(newFile) != "hello\nworld\n" {
+		t.Fatalf("new.txt = %q", newFile)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "gone.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("gone.txt still exists: %v", err)
+	}
+}
+
+func TestLocalExecutor_ApplyPatch_MismatchLeavesFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTemp(t, dir, "a.txt", "one\ntwo\n")
+	patch := `--- a/a.txt
++++ b/a.txt
+@@ -1,2 +1,2 @@
+ one
+-missing
++MISSING
+`
+	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchInput{Patch: patch})
+	if err == nil {
+		t.Fatal("ApplyPatch mismatch: want error")
+	}
+	got, _ := os.ReadFile(path)
+	if string(got) != "one\ntwo\n" {
+		t.Fatalf("content changed despite failed patch: %q", got)
+	}
+}
+
+func TestLocalExecutor_ApplyPatch_SecondFileMismatchLeavesFirstUntouched(t *testing.T) {
+	dir := t.TempDir()
+	first := writeTemp(t, dir, "first.txt", "one\ntwo\n")
+	second := writeTemp(t, dir, "second.txt", "alpha\nbeta\n")
+	patch := `--- a/first.txt
++++ b/first.txt
+@@ -1,2 +1,2 @@
+ one
+-two
++TWO
+--- a/second.txt
++++ b/second.txt
+@@ -1,2 +1,2 @@
+ alpha
+-missing
++MISSING
+`
+	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchInput{Patch: patch})
+	if err == nil {
+		t.Fatal("ApplyPatch second-file mismatch: want error")
+	}
+	if got, _ := os.ReadFile(first); string(got) != "one\ntwo\n" {
+		t.Fatalf("first file changed despite patch failure: %q", got)
+	}
+	if got, _ := os.ReadFile(second); string(got) != "alpha\nbeta\n" {
+		t.Fatalf("second file changed despite patch failure: %q", got)
+	}
+}
+
 // ---------------------------------------------------------------- Glob
 
 func TestLocalExecutor_Glob_BasicAndDoublestar(t *testing.T) {

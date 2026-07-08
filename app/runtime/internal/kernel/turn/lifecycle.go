@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
 // turnLifecycle captures the first terminal process event the agent
@@ -27,9 +28,12 @@ import (
 // terminals: a race between e.g. ProcessKilled (from KillProcess) and
 // the run loop's exit ProcessFailed yields whichever arrived first.
 type turnLifecycle struct {
-	mu       sync.Mutex
-	rootID   string // turn's root process id; empty until setRoot
-	terminal event.Event
+	mu        sync.Mutex
+	rootID    string // turn's root process id; empty until setRoot
+	terminal  event.Event
+	sessionID string
+	cwd       string
+	hooks     *hooks.Bound
 }
 
 // setRoot records the turn's root process id once StartTurn returns it,
@@ -43,7 +47,8 @@ func (l *turnLifecycle) setRoot(id string) {
 }
 
 func (l *turnLifecycle) listener(turnID string) *event.NamedListener {
-	return event.NewNamedListener("turn-lifecycle-"+turnID, func(_ context.Context, e event.Event) {
+	return event.NewNamedListener("turn-lifecycle-"+turnID, func(ctx context.Context, e event.Event) {
+		l.fireSubagentHook(ctx, e)
 		switch e.(type) {
 		case event.ProcessCompleted,
 			event.ProcessKilled,
@@ -60,6 +65,39 @@ func (l *turnLifecycle) listener(turnID string) *event.NamedListener {
 			l.mu.Unlock()
 		}
 	})
+}
+
+func (l *turnLifecycle) fireSubagentHook(ctx context.Context, e event.Event) {
+	if l.hooks.Empty() {
+		return
+	}
+	l.mu.Lock()
+	rootID := l.rootID
+	l.mu.Unlock()
+	if rootID == "" || e.ProcessID() == rootID {
+		return
+	}
+	switch e.(type) {
+	case event.ProcessCreated:
+		_ = l.hooks.Run(ctx, hooks.Input{
+			Event:     hooks.SubagentStart,
+			SessionID: l.sessionID,
+			Cwd:       l.cwd,
+			Subagent:  &hooks.SubagentInput{ProcessID: e.ProcessID()},
+		})
+	case event.ProcessCompleted,
+		event.ProcessKilled,
+		event.ProcessFailed,
+		event.ProcessTerminated,
+		event.ProcessStuck:
+		_ = l.hooks.Run(ctx, hooks.Input{
+			Event:     hooks.SubagentStop,
+			SessionID: l.sessionID,
+			Cwd:       l.cwd,
+			Subagent:  &hooks.SubagentInput{ProcessID: e.ProcessID()},
+			Reason:    e.EventName(),
+		})
+	}
 }
 
 func (l *turnLifecycle) get() event.Event {

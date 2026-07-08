@@ -2,7 +2,6 @@ package toolset
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -58,15 +57,19 @@ func withPathLock(inner chat.Tool, locker *pathLocker, workdir string) chat.Tool
 		return inner
 	}
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		var a struct {
-			Path string `json:"file_path"`
-		}
-		_ = json.Unmarshal([]byte(arguments), &a)
-		if a.Path == "" {
+		paths := resolvedMutatedPaths(inner, arguments, workdir)
+		if len(paths) == 0 {
 			return inner.Call(ctx, arguments)
 		}
-		release := locker.acquire(resolveAbs(workdir, a.Path))
-		defer release()
+		releases := make([]func(), 0, len(paths))
+		for _, path := range paths {
+			releases = append(releases, locker.acquire(path))
+		}
+		defer func() {
+			for i := len(releases) - 1; i >= 0; i-- {
+				releases[i]()
+			}
+		}()
 		return inner.Call(ctx, arguments)
 	})
 }

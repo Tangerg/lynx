@@ -44,6 +44,7 @@ type Resolver struct {
 	askUser         chat.Tool           // ask_user HITL tool; coding role only (askuser.New, via Deps)
 	exitPlan        chat.Tool           // exit_plan_mode HITL tool; coding role only (exitplan.New, via Deps); nil when no approval svc
 	todo            chat.Tool           // todo_write task-list tool; both roles, nil when no todo store
+	schedules       []chat.Tool         // schedule_* management tools; coding role only
 
 	// codebaseIndex backs codebase_search (both roles). Held as the index (not
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
@@ -81,6 +82,7 @@ type Deps struct {
 	AskUser         chat.Tool           // ask_user HITL tool (coding role only)
 	ExitPlan        chat.Tool           // exit_plan_mode HITL tool (coding role only); nil → omitted
 	Todo            chat.Tool           // todo_write task-list tool (both roles); nil → omitted
+	Schedules       []chat.Tool         // schedule_* management tools (coding role only)
 	CodeIntel       *codeintel.Analyzer // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker  // backs the read/edit/write guards
 	CodebaseIndex   CodebaseIndex       // backs codebase_search (both roles); nil → omitted
@@ -125,6 +127,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 		askUser:         d.AskUser,
 		exitPlan:        d.ExitPlan,
 		todo:            d.Todo,
+		schedules:       d.Schedules,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
 		codebaseIndex:   d.CodebaseIndex,
@@ -243,6 +246,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 		if g.resolver.exitPlan != nil {
 			tools = append(tools, g.resolver.exitPlan)
 		}
+		tools = append(tools, g.resolver.schedules...)
 	}
 	return tools, nil
 }
