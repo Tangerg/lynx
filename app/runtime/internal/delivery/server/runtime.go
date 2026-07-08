@@ -62,8 +62,11 @@ type RuntimePort interface {
 	mcpToolCatalogAccess
 	mcpReconnectAccess
 	mcpAuthorizationAccess
-	mcpRegistryCatalogAccess
-	mcpRegistryMutationAccess
+	mcpRegistryListAccess
+	mcpRegistryReadAccess
+	mcpRegistryConfigureAccess
+	mcpRegistryRemoveAccess
+	mcpRegistryEnableAccess
 	mcpRegistryProbeAccess
 	skillCatalogAccess
 	recipeCatalogAccess

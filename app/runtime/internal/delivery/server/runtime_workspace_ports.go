@@ -26,14 +26,23 @@ type mcpAuthorizationAccess interface {
 	AuthorizeMCPServer(ctx context.Context, name string) error
 }
 
-type mcpRegistryCatalogAccess interface {
+type mcpRegistryListAccess interface {
 	ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error)
+}
+
+type mcpRegistryReadAccess interface {
 	MCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error)
 }
 
-type mcpRegistryMutationAccess interface {
+type mcpRegistryConfigureAccess interface {
 	ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) error
+}
+
+type mcpRegistryRemoveAccess interface {
 	RemoveMCPServer(ctx context.Context, name string) error
+}
+
+type mcpRegistryEnableAccess interface {
 	SetMCPServerEnabled(ctx context.Context, name string, enabled bool) error
 }
 
