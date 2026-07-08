@@ -3,8 +3,6 @@ package runtime
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
@@ -21,11 +19,11 @@ type runSegmentStores struct {
 	rt *Runtime
 }
 
-func (s runSegmentStores) Interrupts() interrupts.Store { return s.rt.interrupts }
+func (s runSegmentStores) Interrupts() runsegment.InterruptStore { return s.rt.interrupts }
 
 func (s runSegmentStores) Session() runsegment.SessionStore { return s.rt.session }
 
-func (s runSegmentStores) Transcript() transcript.Store { return s.rt.transcript }
+func (s runSegmentStores) Transcript() runsegment.TranscriptStore { return s.rt.transcript }
 
 func (s runSegmentStores) MessageCount(ctx context.Context, sessionID string) (int, error) {
 	return s.rt.MessageCount(ctx, sessionID)
