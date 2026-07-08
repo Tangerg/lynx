@@ -40,8 +40,10 @@ type RuntimePort interface {
 	memoryListAccess
 	memoryReadAccess
 	memoryWriteAccess
-	approvalModeAccess
-	approvalRuleAccess
+	approvalModeReadAccess
+	approvalModeMutationAccess
+	approvalRuleCatalogAccess
+	approvalRuleMutationAccess
 	scheduleCatalogAccess
 	scheduleMutationAccess
 	scheduleRunRecorderAccess

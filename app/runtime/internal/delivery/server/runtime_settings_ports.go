@@ -35,13 +35,19 @@ type memoryWriteAccess interface {
 	UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd string, content string) error
 }
 
-type approvalModeAccess interface {
+type approvalModeReadAccess interface {
 	ApprovalMode(ctx context.Context) (approval.Mode, error)
+}
+
+type approvalModeMutationAccess interface {
 	SetApprovalMode(ctx context.Context, mode approval.Mode) error
 }
 
-type approvalRuleAccess interface {
+type approvalRuleCatalogAccess interface {
 	ListApprovalRules(ctx context.Context, sessionID string) ([]approval.Rule, error)
+}
+
+type approvalRuleMutationAccess interface {
 	ForgetApprovalRule(ctx context.Context, id string) error
 }
 
