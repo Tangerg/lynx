@@ -10,7 +10,6 @@ import (
 
 	codebaseindexadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 )
 
@@ -35,7 +34,7 @@ type embeddingEnvironment struct {
 	index    codebaseindex.Index
 }
 
-func buildEmbeddingEnvironment(ctx context.Context, cfg Config, providers provider.Registry) (embeddingEnvironment, error) {
+func buildEmbeddingEnvironment(ctx context.Context, cfg Config, providers providerCredentialLookup) (embeddingEnvironment, error) {
 	resolver := newEmbeddingResolver(providers)
 	cell := &atomic.Pointer[embeddingRole]{}
 	var role embeddingRole
@@ -97,12 +96,12 @@ func (r *Runtime) SetEmbeddingRole(ctx context.Context, providerID, model string
 // credentials, keyed by everything that changes the built client (so a
 // providers.configure is picked up). Mirrors [clientResolver].
 type embeddingResolver struct {
-	providers provider.Registry
+	providers providerCredentialLookup
 	mu        sync.Mutex
 	cache     map[string]codebaseindex.Embedder
 }
 
-func newEmbeddingResolver(providers provider.Registry) *embeddingResolver {
+func newEmbeddingResolver(providers providerCredentialLookup) *embeddingResolver {
 	return &embeddingResolver{providers: providers, cache: map[string]codebaseindex.Embedder{}}
 }
 
