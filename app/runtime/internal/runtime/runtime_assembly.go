@@ -140,6 +140,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	sessions := cfg.SessionStore
 	interrupts := cfg.InterruptStore
 	transcripts := cfg.TranscriptStore
+	schedules := cfg.ScheduleRegistry
+	if schedules == nil {
+		schedules = disabledScheduleRegistry{}
+	}
 
 	turnDispatcher, err := turn.New(turn.Dependencies{
 		Starter:        eng,
@@ -216,12 +220,12 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		hookInspection:            cfg.HooksResolver,
 		hookTrust:                 cfg.HookTrustStore,
 		recipesGlobalDir:          cfg.RecipesGlobalDir,
-		scheduleList:              cfg.ScheduleRegistry,
-		scheduleRead:              cfg.ScheduleRegistry,
-		scheduleCreation:          cfg.ScheduleRegistry,
-		scheduleUpdates:           cfg.ScheduleRegistry,
-		scheduleDeletion:          cfg.ScheduleRegistry,
-		scheduleRuns:              cfg.ScheduleRegistry,
+		scheduleList:              schedules,
+		scheduleRead:              schedules,
+		scheduleCreation:          schedules,
+		scheduleUpdates:           schedules,
+		scheduleDeletion:          schedules,
+		scheduleRuns:              schedules,
 		scheduleWorker:            cfg.ScheduleRegistry,
 		embeddingCell:             embeddingEnv.cell,
 		embeddings:                embeddingEnv.resolver,
