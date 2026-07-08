@@ -1861,3 +1861,15 @@ app/runtime -> agent -> core
 - 已完成适配：`Runtime.titler` 替换为 `titles titleGenerator`；`GenerateTitle` 迁移到端口并补充 nil-safe best-effort 分支；focused tests 用只实现 `Generate` 的 fake 锁住端口依赖。
 - 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第一百一十轮包含 `app/runtime/internal/runtime` conversation history 用例端口收窄：
+
+- 调整对象：`Runtime.conversation`、history runtime facade、runtime assembly 和 focused history tests。
+- 调整前问题：`Runtime` struct 直接持有完整 `*conversation.Messages`，而 runtime facade / lifecycle / runsegment 实际消费的是 read、seed、count、truncate 四条不同 message-history 用例；完整 domain service 还包含 turn steering 注入能力，管理面读取和生命周期写集不应默认携带整个 conversation service surface。
+- 破坏性原因：该字段位于 `app/runtime/internal/runtime` 内部装配边界；删除完整 service state 并按用例拆成端口可以直接消除宽依赖，不需要保留旧字段或兼容层。
+- 新设计：新增 `historyReader`、`historySeeder`、`historyCounter`、`historyTruncator` 四个 consumer-side port；`Runtime.ReadHistory`、`SeedHistory`、`MessageCount`、`TruncateMessages` 分别调用对应端口。runtime assembly 继续创建同一个 `conversation.Messages` 并注入到四个端口字段。
+- 架构收益：conversation read projection、fork/restore seed、run watermark count、rollback truncate 在 Runtime 类型边界上分开；`conversation.Messages.InjectUser` 仍只作为 kernel steering port 注入 engine，不再随完整 conversation service 暴露给 Runtime management facade。
+- 影响范围：`app/runtime/internal/runtime` 的 Runtime struct、history facade、runtime assembly 和 focused history tests。
+- 已完成适配：删除 `Runtime.conversation` 字段；所有 history facade 调用已迁移到对应窄口；focused tests 用只实现四个 history 端口的 fake 锁住依赖。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险。
