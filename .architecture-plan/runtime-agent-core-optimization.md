@@ -707,6 +707,10 @@ app/runtime -> agent -> core
   - 将 delivery/server 的 `sessionCatalogAccess` 拆为 `sessionListAccess` 与 `sessionReadAccess`。
   - sessions.list、usage.summary、workspace.projects 只依赖 session list read model；sessions.get/export/import/rollback/resume/workspace stream 只依赖 single-session lookup。
   - 同步迁移 runtime binding 和 handler 调用，不保留旧 `sessionCatalogAccess` 聚合字段。
+- 已完成第八十九轮 `app/runtime` server model role 端口读写分离：
+  - 将 delivery/server 的 `utilityRoleAccess` 拆为 `utilityRoleReadAccess` 与 `utilityRoleMutationAccess`。
+  - 将 delivery/server 的 `embeddingRoleAccess` 拆为 `embeddingRoleReadAccess` 与 `embeddingRoleMutationAccess`。
+  - models.get*Role 只依赖 read 端口；models.set*Role 依赖 mutation 写入后再通过 read 端口读回 stored role，不保留旧读写混合字段。
 - 已完成定向验证：
   - `go test ./internal/arch`（`core`）通过。
   - `go test ./internal/arch`（`agent`）通过。
@@ -809,6 +813,7 @@ app/runtime -> agent -> core
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十六轮后复跑）。
   - `go test ./...`（`agent`）通过（第八十七轮 public API 迁移后先跑）。
   - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十八轮后复跑）。
+  - `go test ./internal/delivery/server`（`app/runtime`）通过（第八十九轮后复跑）。
 - 已完成三模块回归验证：
   - `go test ./...`（`core`）通过（第四十五轮后复跑）。
   - `go test ./...`（`agent`）通过（第四十五轮后复跑）。
@@ -1206,6 +1211,15 @@ app/runtime -> agent -> core
   - `go build ./...`（`core`）通过（第八十八轮后复跑）。
   - `go build ./...`（`agent`）通过（第八十八轮后复跑）。
   - `go build ./...`（`app/runtime`）通过（第八十八轮后复跑）。
+  - `go test ./...`（`core`）通过（第八十九轮后复跑）。
+  - `go test ./...`（`agent`）通过（第八十九轮后复跑）。
+  - `go test ./...`（`app/runtime`）通过（第八十九轮后复跑）。
+  - `go vet ./...`（`core`）通过（第八十九轮后复跑）。
+  - `go vet ./...`（`agent`）通过（第八十九轮后复跑）。
+  - `go vet ./...`（`app/runtime`）通过（第八十九轮后复跑）。
+  - `go build ./...`（`core`）通过（第八十九轮后复跑）。
+  - `go build ./...`（`agent`）通过（第八十九轮后复跑）。
+  - `go build ./...`（`app/runtime`）通过（第八十九轮后复跑）。
 - 已完成目标模块低误伤异味扫描：
   - 常量 `fmt.Errorf("...")` 未命中。
   - `TODO` / `FIXME` / `HACK` 未命中。
@@ -1593,5 +1607,17 @@ app/runtime -> agent -> core
 - 架构收益：session 列表 read model 与单会话 lookup 的依赖边界清晰分离，delivery handler 不再通过同一个 catalog 字段互相可见无关能力。
 - 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、sessions、usage、workspace discovery、session import/export、rollback、resume 和 workspace stream handler。
 - 已完成适配：所有 `s.sessionCatalog` 调用已迁移到 `s.sessionList` 或 `s.sessionRead`；未保留旧 `sessionCatalogAccess` 聚合字段。
+- 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
+- 后续风险：无跨模块公开 API 风险。
+
+第八十九轮包含 `app/runtime/internal/delivery/server` 的 internal model role 读写端口破坏性拆分：
+
+- 调整对象：`utilityRoleAccess`、`embeddingRoleAccess`、`runtimeBindings.utilityRole` 与 `runtimeBindings.embeddingRole`。
+- 调整前问题：models.getUtilityRole / models.getEmbeddingRole 只需要读取当前 role；models.setUtilityRole / models.setEmbeddingRole 需要写入 role，并在写入后读回 stored role。旧端口把 read 和 mutation 聚合在同一字段中，纯读取 handler 也依赖写能力。
+- 破坏性原因：这些端口位于 `app/runtime/internal/delivery/server`，按 read/mutation 语义拆分能删除旧聚合字段，不需要为旧 internal port 留兼容层。
+- 新设计：使用 `utilityRoleReadAccess` / `utilityRoleMutationAccess` 分离 utility model role 读取与写入；使用 `embeddingRoleReadAccess` / `embeddingRoleMutationAccess` 分离 embedding model role 读取与写入。
+- 架构收益：models.get*Role 与 models.set*Role 各自依赖自己真实需要的 role 能力；server binding 对配置读取和配置变更的边界表达更清楚。
+- 影响范围：`app/runtime/internal/delivery/server` 的 runtime port、runtime binding、models handler 和 model role handler tests。
+- 已完成适配：所有 `s.utilityRole` 与 `s.embeddingRole` 调用已迁移到 read / mutation 字段；未保留旧 `utilityRoleAccess` / `embeddingRoleAccess` 聚合字段。
 - 验证结果：`go test ./internal/delivery/server` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过。
 - 后续风险：无跨模块公开 API 风险。
