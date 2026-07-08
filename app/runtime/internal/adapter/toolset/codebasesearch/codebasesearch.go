@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
@@ -22,25 +23,12 @@ import (
 // to judge relevance; the agent reads the file for full context.
 const maxSnippetLines = 12
 
-const inputSchema = `{
-  "type": "object",
-  "properties": {
-    "query": {
-      "type": "string",
-      "description": "A natural-language description of the code you're looking for — a concept, behavior, or where something is implemented (e.g. \"where retries are configured\", \"the websocket reconnect logic\"). For an exact string or symbol, use grep instead."
-    },
-    "limit": {
-      "type": "integer",
-      "description": "Maximum number of results to return (default 8)."
-    }
-  },
-  "required": ["query"]
-}`
-
 type request struct {
-	Query string `json:"query"`
-	Limit int    `json:"limit"`
+	Query string `json:"query" jsonschema:"required" jsonschema_description:"A natural-language description of the code you're looking for — a concept, behavior, or where something is implemented (e.g. \"where retries are configured\", \"the websocket reconnect logic\"). For an exact string or symbol, use grep instead."`
+	Limit int    `json:"limit,omitempty" jsonschema_description:"Maximum number of results to return (default 8)."`
 }
+
+var inputSchema, _ = pkgjson.StringDefSchemaOf(request{})
 
 // SearchIndex is the codebase semantic-search capability this tool consumes.
 type SearchIndex interface {

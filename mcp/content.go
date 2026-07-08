@@ -9,11 +9,12 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 // emptyObjectSchema is the canonical "accepts an empty JSON object"
 // schema — the fallback whenever a tool advertises no input schema.
-const emptyObjectSchema = `{"type":"object"}`
+var emptyObjectSchema, _ = pkgjson.StringDefSchemaOf(struct{}{})
 
 func textOfContent(c sdkmcp.Content) string {
 	if t, ok := c.(*sdkmcp.TextContent); ok {
