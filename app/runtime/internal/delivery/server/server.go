@@ -43,7 +43,10 @@ type Config struct {
 // interface is protocol.Runtime so callers can't reach past the typed
 // surface.
 type Server struct {
-	runtimeBindings
+	// rt is the inbound adapter's single seam into the runtime application
+	// boundary (see [RuntimePort]) — the composition root passes the concrete
+	// *internal/runtime.Runtime here.
+	rt         RuntimePort
 	serverInfo protocol.ServerInfo
 
 	// runs tracks active run segments and admission claims. The domain registry
@@ -100,10 +103,10 @@ func New(cfg Config) (*Server, error) {
 		checkpoints = workspace.NewCheckpoints("") // disabled: VCS reads still work, checkpoints off
 	}
 	return &Server{
-		runtimeBindings: bindRuntime(cfg.Runtime),
-		serverInfo:      cfg.ServerInfo,
-		wsHub:           newWorkspaceHub(),
-		checkpoints:     checkpoints,
+		rt:          cfg.Runtime,
+		serverInfo:  cfg.ServerInfo,
+		wsHub:       newWorkspaceHub(),
+		checkpoints: checkpoints,
 	}, nil
 }
 
@@ -111,173 +114,14 @@ func New(cfg Config) (*Server, error) {
 // delegating to the package-level [Capabilities] so the /v2/info
 // sidecar can build the same snapshot without a constructed Server.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return Capabilities(s.runtimeBindings)
+	return Capabilities(s.rt)
 }
 
+// capabilityAccess is the slice of the runtime the capability snapshot needs;
+// [RuntimePort] (and any test fake of it) satisfies it directly.
 type capabilityAccess interface {
 	HasMemory() bool
 	SupportedProviders() []providersvc.Metadata
-}
-
-func (b runtimeBindings) HasMemory() bool {
-	return b.memoryAvailability != nil && b.memoryAvailability.HasMemory()
-}
-
-func (b runtimeBindings) SupportedProviders() []providersvc.Metadata {
-	if b.providerSupportCatalog == nil {
-		return nil
-	}
-	return b.providerSupportCatalog.SupportedProviders()
-}
-
-type runtimeBindings struct {
-	turnStarts                turnStartAccess
-	turnStreams               turnStreamAccess
-	turnSteering              turnSteeringAccess
-	turnInterrupts            turnInterruptPolicyAccess
-	sessionList               sessionListAccess
-	sessionRead               sessionReadAccess
-	sessionCreation           sessionCreationAccess
-	sessionDeletion           sessionDeletionAccess
-	sessionUpdates            sessionUpdateAccess
-	sessionDefaults           sessionDefaultModelAccess
-	transcriptContent         transcriptContentAccess
-	transcriptRuns            transcriptRunAccess
-	runSlots                  runSlotAdmissionAccess
-	workingTreeRuns           workingTreeRunAdmissionAccess
-	mutationSlots             sessionMutationSlotAccess
-	workingTreeMutations      workingTreeMutationAccess
-	runResumes                runResumeAccess
-	runCancellations          runCancellationAccess
-	sessionRollback           sessionRollbackAccess
-	sessionFork               sessionForkAccess
-	sessionRestore            sessionRestoreAccess
-	runSegments               runSegmentAccess
-	history                   historyAccess
-	interrupts                interruptQueryAccess
-	toolCatalog               toolCatalogAccess
-	toolInvocations           toolInvocationAccess
-	memoryAvailability        memoryAvailabilityAccess
-	memoryList                memoryListAccess
-	memoryRead                memoryReadAccess
-	memoryWrite               memoryWriteAccess
-	approvalModeRead          approvalModeReadAccess
-	approvalModeMutations     approvalModeMutationAccess
-	approvalRuleCatalog       approvalRuleCatalogAccess
-	approvalRuleMutations     approvalRuleMutationAccess
-	scheduleList              scheduleListAccess
-	scheduleRead              scheduleReadAccess
-	scheduleCreation          scheduleCreationAccess
-	scheduleUpdates           scheduleUpdateAccess
-	scheduleDeletion          scheduleDeletionAccess
-	scheduleRuns              scheduleRunRecorderAccess
-	scheduleWorker            scheduleWorkerAccess
-	providerRegistryList      providerRegistryListAccess
-	providerRegistryRead      providerRegistryReadAccess
-	providerRegistryMutations providerRegistryMutationAccess
-	providerRegistryProbe     providerRegistryProbeAccess
-	providerSupportCatalog    providerSupportCatalogAccess
-	providerMetadata          providerMetadataAccess
-	providerDefaults          providerDefaultAccess
-	mcpStatus                 mcpStatusAccess
-	mcpTools                  mcpToolCatalogAccess
-	mcpReconnect              mcpReconnectAccess
-	mcpAuthorizations         mcpAuthorizationAccess
-	mcpRegistryList           mcpRegistryListAccess
-	mcpRegistryRead           mcpRegistryReadAccess
-	mcpRegistryConfigure      mcpRegistryConfigureAccess
-	mcpRegistryRemove         mcpRegistryRemoveAccess
-	mcpRegistryEnable         mcpRegistryEnableAccess
-	mcpRegistryProbe          mcpRegistryProbeAccess
-	skillCatalog              skillCatalogAccess
-	recipeCatalog             recipeCatalogAccess
-	hookInspection            hookInspectionAccess
-	hookTrust                 hookTrustAccess
-	utilityRoleRead           utilityRoleReadAccess
-	utilityRoleMutations      utilityRoleMutationAccess
-	embeddingRoleRead         embeddingRoleReadAccess
-	embeddingRoleMutations    embeddingRoleMutationAccess
-	codebaseAvailable         codebaseAvailabilityAccess
-	codebaseSearch            codebaseSearchAccess
-	codebaseStatus            codebaseStatusAccess
-	codebaseReindex           codebaseReindexAccess
-	maintenance               maintenanceAccess
-}
-
-func bindRuntime(rt RuntimePort) runtimeBindings {
-	return runtimeBindings{
-		turnStarts:                rt,
-		turnStreams:               rt,
-		turnSteering:              rt,
-		turnInterrupts:            rt,
-		sessionList:               rt,
-		sessionRead:               rt,
-		sessionCreation:           rt,
-		sessionDeletion:           rt,
-		sessionUpdates:            rt,
-		sessionDefaults:           rt,
-		transcriptContent:         rt,
-		transcriptRuns:            rt,
-		runSlots:                  rt,
-		workingTreeRuns:           rt,
-		mutationSlots:             rt,
-		workingTreeMutations:      rt,
-		runResumes:                rt,
-		runCancellations:          rt,
-		sessionRollback:           rt,
-		sessionFork:               rt,
-		sessionRestore:            rt,
-		runSegments:               rt,
-		history:                   rt,
-		interrupts:                rt,
-		toolCatalog:               rt,
-		toolInvocations:           rt,
-		memoryAvailability:        rt,
-		memoryList:                rt,
-		memoryRead:                rt,
-		memoryWrite:               rt,
-		approvalModeRead:          rt,
-		approvalModeMutations:     rt,
-		approvalRuleCatalog:       rt,
-		approvalRuleMutations:     rt,
-		scheduleList:              rt,
-		scheduleRead:              rt,
-		scheduleCreation:          rt,
-		scheduleUpdates:           rt,
-		scheduleDeletion:          rt,
-		scheduleRuns:              rt,
-		scheduleWorker:            rt,
-		providerRegistryList:      rt,
-		providerRegistryRead:      rt,
-		providerRegistryMutations: rt,
-		providerRegistryProbe:     rt,
-		providerSupportCatalog:    rt,
-		providerMetadata:          rt,
-		providerDefaults:          rt,
-		mcpStatus:                 rt,
-		mcpTools:                  rt,
-		mcpReconnect:              rt,
-		mcpAuthorizations:         rt,
-		mcpRegistryList:           rt,
-		mcpRegistryRead:           rt,
-		mcpRegistryConfigure:      rt,
-		mcpRegistryRemove:         rt,
-		mcpRegistryEnable:         rt,
-		mcpRegistryProbe:          rt,
-		skillCatalog:              rt,
-		recipeCatalog:             rt,
-		hookInspection:            rt,
-		hookTrust:                 rt,
-		utilityRoleRead:           rt,
-		utilityRoleMutations:      rt,
-		embeddingRoleRead:         rt,
-		embeddingRoleMutations:    rt,
-		codebaseAvailable:         rt,
-		codebaseSearch:            rt,
-		codebaseStatus:            rt,
-		codebaseReindex:           rt,
-		maintenance:               rt,
-	}
 }
 
 // Capabilities builds the capability snapshot a Runtime advertises

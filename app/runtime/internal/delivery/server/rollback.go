@@ -17,11 +17,11 @@ import (
 // the subagent child sessions they spawned. ToRunID is inclusive-keep (omit =
 // clear to empty). Rejected with session_busy while a run is in flight.
 func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
-	ses, err := s.sessionRead.SessionByID(ctx, in.SessionID)
+	ses, err := s.rt.SessionByID(ctx, in.SessionID)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	admission, err := s.mutationSlots.ClaimMutationSlot(sessionClaimer{s: s}, in.SessionID)
+	admission, err := s.rt.ClaimMutationSlot(sessionClaimer{s: s}, in.SessionID)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, in.SessionID)
@@ -43,7 +43,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// just this session's log, so the per-session guard suffices.)
 	if intent.restoreFiles {
 		restoreCwd := worktree.CanonicalCwd(ses.Cwd)
-		treeAdmission, ok := s.workingTreeMutations.ClaimWorkingTreeMutation(restoreCwd)
+		treeAdmission, ok := s.rt.ClaimWorkingTreeMutation(restoreCwd)
 		if !ok {
 			return nil, fmt.Errorf("%w: working tree %q has a run admission in flight", protocol.ErrSessionBusy, ses.Cwd)
 		}
@@ -53,7 +53,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 		}
 	}
 
-	items, runs, err := s.transcriptContent.ListTranscript(ctx, in.SessionID)
+	items, runs, err := s.rt.ListTranscript(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// watermark + drops each dropped run's items/record + dangling interrupt as
 	// ONE transaction (a failure can't leave a run whose messages were already
 	// truncated away), then purges the subagent subtree those runs spawned.
-	if err := s.sessionRollback.RollbackResolved(ctx, in.SessionID, b); err != nil {
+	if err := s.rt.RollbackResolved(ctx, in.SessionID, b); err != nil {
 		return nil, err
 	}
 

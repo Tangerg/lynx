@@ -30,10 +30,10 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// children of the same trace (full-link), while our own cancel drives
 	// CancelRun. Rooting on context.Background() here would sever the trace.
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
-	inner, err := s.turnStreams.TurnEvents(runCtx, handle)
+	inner, err := s.rt.TurnEvents(runCtx, handle)
 	if err != nil {
 		cancel()
-		_ = s.turnStreams.CancelTurn(context.WithoutCancel(reqCtx), handle)
+		_ = s.rt.CancelTurn(context.WithoutCancel(reqCtx), handle)
 		return nil, nil, err
 	}
 	// The hub owns the run's event stream for its whole lifetime,

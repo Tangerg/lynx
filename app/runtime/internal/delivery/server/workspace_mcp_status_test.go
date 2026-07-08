@@ -38,10 +38,10 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 
 func TestWorkspaceMCPReconnect(t *testing.T) {
 	s := &Server{
-		runtimeBindings: bindRuntime(&stubRuntime{
+		rt: &stubRuntime{
 			mcpStatuses: []toolport.MCPServerStatus{{Name: "fs", Status: "connected"}},
 			mcpTools:    []toolport.MCPToolInfo{{Server: "fs", Name: "read"}},
-		}),
+		},
 		wsHub: newWorkspaceHub(),
 	}
 	events, unsub := s.wsHub.subscribe()

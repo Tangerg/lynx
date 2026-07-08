@@ -220,10 +220,10 @@ func TestWorkspaceGrep(t *testing.T) {
 func TestWorkspaceListSkills(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
-		runtimeBindings: bindRuntime(&stubRuntime{skills: []kernel.SkillInfo{
+		rt: &stubRuntime{skills: []kernel.SkillInfo{
 			{Name: "pdf", Description: "PDF tools", Scope: "project"},
 			{Name: "web", Description: "web tools", Scope: "global"},
-		}}),
+		}},
 		serverInfo: protocol.ServerInfo{Cwd: dir},
 	}
 	got, err := s.WorkspaceListSkills(context.Background(), protocol.WorkspaceListQuery{})
@@ -240,10 +240,10 @@ func TestWorkspaceListSkills(t *testing.T) {
 func TestWorkspaceListRecipes(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
-		runtimeBindings: bindRuntime(&stubRuntime{recipes: []recipes.Recipe{
+		rt: &stubRuntime{recipes: []recipes.Recipe{
 			{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: "project", Source: "/p/review.md"},
 			{Name: "commit", Body: "Write a commit", Scope: "global", Source: "/g/commit.md"},
-		}}),
+		}},
 		serverInfo: protocol.ServerInfo{Cwd: dir},
 	}
 	got, err := s.WorkspaceListRecipes(context.Background(), protocol.WorkspaceListQuery{})
