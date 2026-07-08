@@ -25,10 +25,7 @@ type testEngine interface {
 
 func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependencies {
 	deps := turn.Dependencies{
-		Starter:     engine,
-		Restorer:    engine,
-		Steering:    engine,
-		Maintenance: engine,
+		Engine: engine,
 	}
 	for _, opt := range opts {
 		opt(&deps)

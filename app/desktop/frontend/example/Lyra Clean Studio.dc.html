@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lyra Design Studio - Apple + ChatGPT Minimalist 3-Column</title>
+<style>
+  /* ══ DESIGN SYSTEM & THEMES (APPLE + CHATGPT MINIMALIST 3-COLUMN) ══ */
+  :root {
+    /* Color Palette (Light Mode) */
+    --canvas: #ffffff;
+    --sidebar-bg: #f5f5f7; /* Apple signature light silver */
+    --main-bg: #ffffff;
+    --dock-bg: #f9f9fb;
+    
+    --text-primary: #1d1d1f; /* Apple default text */
+    --text-secondary: #515154;
+    --text-mute: #86868b;
+    --border-hairline: rgba(0, 0, 0, 0.05);
+    
+    /* Code Diff Colors */
+    --diff-add-bg: #e6f6ec;
+    --diff-add-text: #1a7f37;
+    --diff-remove-bg: #ffebe9;
+    --diff-remove-text: #cf222e;
+    
+    /* UI Highlights */
+    --blue-accent: #0071e3;
+    --blue-hover: #0077ed;
+    --gray-alpha-100: rgba(0, 0, 0, 0.03);
+    --gray-alpha-200: rgba(0, 0, 0, 0.06);
+
+    /* Shadow Models */
+    --sh-composer: 0 0 0 1px rgba(0,0,0,0.03), 0 2px 4px rgba(0,0,0,0.01), 0 16px 32px -8px rgba(0,0,0,0.06);
+    --sh-composer-focus: 0 0 0 1px var(--blue-accent), 0 2px 4px rgba(0,0,0,0.01), 0 16px 32px -8px rgba(0,0,0,0.06);
+    --sh-pill: 0 1px 2px rgba(0, 0, 0, 0.05);
+
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", sans-serif;
+    --font-mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
+    --ease-apple: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  [data-theme="dark"] {
+    /* Color Palette (Dark Mode - Apple Pro Space Gray / Obsidian) */
+    --canvas: #161618;
+    --sidebar-bg: #0e0e10;
+    --main-bg: #161618;
+    --dock-bg: #1c1c1e;
+    
+    --text-primary: #f5f5f7;
+    --text-secondary: #a1a1aa;
+    --text-mute: #71717a;
+    --border-hairline: rgba(255, 255, 255, 0.06);
+    
+    --diff-add-bg: rgba(74, 222, 128, 0.12);
+    --diff-add-text: #4ade80;
+    --diff-remove-bg: rgba(248, 113, 113, 0.12);
+    --diff-remove-text: #f87171;
+    
+    --blue-accent: #2997ff;
+    --blue-hover: #47a6ff;
+    --gray-alpha-100: rgba(255, 255, 255, 0.04);
+    --gray-alpha-200: rgba(255, 255, 255, 0.08);
+
+    --sh-composer: 0 0 0 1px rgba(255,255,255,0.06), 0 2px 4px rgba(0,0,0,0.2), 0 16px 32px -8px rgba(0,0,0,0.3);
+    --sh-composer-focus: 0 0 0 1px var(--blue-accent), 0 2px 4px rgba(0,0,0,0.2), 0 16px 32px -8px rgba(0,0,0,0.3);
+    --sh-pill: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  /* ══ CORE LAYOUT ══ */
+  * { box-sizing: border-box; outline: none; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: var(--font-sans);
+    background: radial-gradient(120% 120% at 50% 0%, #ffffff 0%, #e4e4e9 60%, #cfcbd8 100%);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    transition: background 0.3s ease;
+  }
+
+  [data-theme="dark"] body {
+    background: radial-gradient(120% 120% at 50% 0%, #1c1c1f 0%, #0d0d0f 60%, #000000 100%);
+  }
+
+  /* Simulated Application Window */
+  .window-container {
+    width: min(1380px, 98%);
+    height: min(840px, calc(100vh - 40px));
+    border-radius: 16px;
+    background: var(--main-bg);
+    box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.03), 0 32px 72px -20px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: row;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s var(--ease-apple), box-shadow 0.3s var(--ease-apple);
+  }
+
+  [data-theme="dark"] .window-container {
+    box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 2px 8px rgba(0, 0, 0, 0.3), 0 32px 72px -20px rgba(0, 0, 0, 0.5);
+  }
+
+  .scrollable {
+    scrollbar-width: thin;
+    scrollbar-color: var(--gray-alpha-200) transparent;
+  }
+  .scrollable::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  .scrollable::-webkit-scrollbar-thumb {
+    background: var(--gray-alpha-200);
+    border-radius: 3px;
+  }
+
+  /* ══ COLUMN 1: SIDEBAR (CHAT SESSIONS) ══ */
+  .sidebar {
+    width: 250px;
+    flex: 0 0 250px;
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    transition: background 0.3s;
+  }
+
+  .sidebar-header {
+    height: 52px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+  }
+
+  /* macOS Traffic Lights */
+  .traffic-lights {
+    display: flex;
+    gap: 7px;
+  }
+  .traffic-light {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+  .traffic-light.red { background: #ff5f56; }
+  .traffic-light.yellow { background: #ffbd2e; }
+  .traffic-light.green { background: #27c93f; }
+
+  .sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .sidebar-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .sidebar-section-title {
+    font: 600 11px var(--font-sans);
+    color: var(--text-mute);
+    padding: 4px 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .row-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: 400 13px/1.4 var(--font-sans);
+    cursor: default;
+    text-align: left;
+    transition: background 120ms var(--ease-apple), color 120ms var(--ease-apple);
+  }
+  .row-btn:hover {
+    background: var(--gray-alpha-100);
+    color: var(--text-primary);
+  }
+  .row-btn.active {
+    background: var(--gray-alpha-200);
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .sidebar-footer {
+    padding: 12px 14px;
+    border-top: 0.5px solid var(--border-hairline);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+  }
+
+  .profile-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px;
+    border-radius: 8px;
+    background: transparent;
+    cursor: default;
+    flex: 1;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--text-primary);
+    color: var(--canvas);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 600 11px/1 var(--font-sans);
+  }
+
+  .profile-info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+    min-width: 0;
+  }
+  .profile-name {
+    font: 500 13px var(--font-sans);
+    color: var(--text-primary);
+  }
+  .profile-desc {
+    font: 400 11px var(--font-sans);
+    color: var(--text-mute);
+  }
+
+  .theme-toggle-btn {
+    border: 0;
+    background: transparent;
+    color: var(--text-mute);
+    padding: 7px;
+    border-radius: 8px;
+    cursor: default;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 120ms var(--ease-apple), color 120ms var(--ease-apple);
+  }
+  .theme-toggle-btn:hover {
+    background: var(--gray-alpha-100);
+    color: var(--text-primary);
+  }
+
+  /* ══ COLUMN 2: MAIN CHAT CANVAS ══ */
+  .chat-canvas {
+    flex: 1;
+    background: var(--main-bg);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+    transition: background 0.3s ease;
+  }
+
+  .chat-header {
+    height: 52px;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    font: 600 14px var(--font-sans);
+    color: var(--text-primary);
+  }
+
+  .chat-messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .welcome-view {
+    width: 100%;
+    max-width: 580px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    text-align: center;
+    animation: fadeIn 0.4s var(--ease-apple);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .welcome-title {
+    font: 700 36px/1.15 var(--font-sans);
+    letter-spacing: -0.04em;
+    color: var(--text-primary);
+    margin: 0 0 10px;
+  }
+
+  .welcome-subtitle {
+    font: 400 15px var(--font-sans);
+    color: var(--text-mute);
+    margin: 0 0 32px;
+  }
+
+  .conversation-view {
+    width: 100%;
+    max-width: 580px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    padding-bottom: 20px;
+  }
+
+  .message-bubble {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .message-bubble.user {
+    align-items: flex-end;
+  }
+
+  .user-text {
+    max-width: 85%;
+    background: var(--gray-alpha-100);
+    color: var(--text-primary);
+    padding: 12px 18px;
+    border-radius: 18px;
+    font: 400 14.5px/1.5 var(--font-sans);
+    box-shadow: var(--sh-pill);
+  }
+
+  .assistant-text {
+    font: 400 14.5px/1.65 var(--font-sans);
+    color: var(--text-primary);
+  }
+
+  .assistant-text code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--gray-alpha-100);
+    padding: 2px 5px;
+    border-radius: 4px;
+  }
+
+  .assistant-text pre {
+    background: var(--gray-alpha-100);
+    border: 0.5px solid var(--border-hairline);
+    border-radius: 12px;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin: 14px 0;
+  }
+
+  /* Composer (Apple Premium Input Bar) */
+  .composer-wrapper {
+    width: 100%;
+    max-width: 580px;
+    padding: 0 24px 32px;
+    flex: 0 0 auto;
+  }
+
+  .composer {
+    background: var(--main-bg);
+    border-radius: 24px;
+    box-shadow: var(--sh-composer);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 0.5px solid var(--border-hairline);
+    transition: box-shadow 160ms var(--ease-apple), background 0.3s, border-color 0.3s;
+  }
+
+  .composer:focus-within {
+    box-shadow: var(--sh-composer-focus);
+    border-color: rgba(0, 113, 227, 0.3);
+  }
+
+  .composer-textarea {
+    flex: 1;
+    border: 0;
+    resize: none;
+    background: transparent;
+    color: var(--text-primary);
+    font: 400 14.5px/1.4 var(--font-sans);
+    padding: 4px 0;
+    height: 24px;
+    max-height: 180px;
+  }
+
+  .composer-textarea::placeholder {
+    color: var(--text-mute);
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 0;
+    background: transparent;
+    color: var(--text-mute);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    transition: background 120ms var(--ease-apple), color 120ms var(--ease-apple);
+  }
+  .icon-btn:hover {
+    background: var(--gray-alpha-100);
+    color: var(--text-primary);
+  }
+
+  .send-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--text-primary);
+    color: var(--canvas);
+    border: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    transition: transform 120ms var(--ease-apple), background 120ms var(--ease-apple), color 120ms var(--ease-apple);
+  }
+  .send-btn:active {
+    transform: scale(0.92);
+  }
+
+  /* ══ COLUMN 3: CONTEXT PANELS (CODE REVIEW) ══ */
+  .context-panel {
+    width: 380px;
+    flex: 0 0 380px;
+    background: var(--dock-bg);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    transition: background 0.3s;
+  }
+
+  .dock-header {
+    height: 52px;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font: 600 14px var(--font-sans);
+    color: var(--text-primary);
+  }
+
+  .context-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* Clean Code Review Block (No heavy IDE borders or file trees) */
+  .code-review-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .code-review-title {
+    font: 600 13px var(--font-sans);
+    color: var(--text-secondary);
+  }
+
+  .diff-pill-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .diff-pill {
+    border-radius: 12px;
+    padding: 12px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.6;
+    box-shadow: var(--sh-pill);
+    min-height: 140px;
+  }
+
+  .diff-pill.original {
+    background: var(--diff-remove-bg);
+    color: var(--diff-remove-text);
+  }
+
+  .diff-pill.revised {
+    background: var(--diff-add-bg);
+    color: var(--diff-add-text);
+  }
+
+  .diff-header {
+    font: 600 10.5px var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    opacity: 0.7;
+  }
+
+  .action-bar {
+    display: flex;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 14px;
+  }
+
+  .btn-primary {
+    flex: 1;
+    height: 36px;
+    background: var(--text-primary);
+    color: var(--canvas);
+    border-radius: 8px;
+    border: 0;
+    font: 600 13px var(--font-sans);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    transition: background 120ms var(--ease-apple), color 120ms var(--ease-apple);
+  }
+  .btn-primary:active {
+    transform: translateY(0.5px);
+  }
+
+  .btn-secondary {
+    height: 36px;
+    padding: 0 16px;
+    background: var(--canvas);
+    border: 0.5px solid var(--border-hairline);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    font: 600 13px var(--font-sans);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    box-shadow: var(--sh-pill);
+    transition: background 120ms var(--ease-apple), border-color 120ms var(--ease-apple);
+  }
+  .btn-secondary:hover {
+    background: var(--gray-alpha-100);
+    border-color: var(--text-mute);
+  }
+</style>
+</head>
+<body data-theme="light">
+
+<div class="window-container">
+  
+  <!-- ══ COLUMN 1: SIDEBAR (CHAT SESSIONS) ══ -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="traffic-lights">
+        <span class="traffic-light red" title="Close"></span>
+        <span class="traffic-light yellow" title="Minimize"></span>
+        <span class="traffic-light green" title="Maximize"></span>
+      </div>
+    </div>
+    
+    <div class="sidebar-content scrollable">
+      <!-- Session Navigation -->
+      <div class="sidebar-section">
+        <button class="row-btn active" id="new-chat-sidebar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>
+          <span>New Chat</span>
+        </button>
+      </div>
+
+      <!-- Chats List (No file structures/VS Code sidebars) -->
+      <div class="sidebar-section" id="chats-list">
+        <div class="sidebar-section-title">Recents</div>
+        
+        <button class="row-btn chat-item active" data-chat="refactor-api">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Refactoring API Hook</span>
+        </button>
+        
+        <button class="row-btn chat-item" data-chat="db-design">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Database Schema Design</span>
+        </button>
+        
+        <button class="row-btn chat-item" data-chat="ui-library">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">UI Component Library</span>
+        </button>
+      </div>
+    </div>
+    
+    <div class="sidebar-footer">
+      <div class="profile-card">
+        <div class="avatar">SL</div>
+        <div class="profile-info">
+          <span class="profile-name">Sarah L.</span>
+          <span class="profile-desc">Pro Architect</span>
+        </div>
+      </div>
+      <button class="theme-toggle-btn" id="theme-toggle" title="Toggle Light/Dark Mode">
+        <!-- Moon Icon -->
+        <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        <!-- Sun Icon -->
+        <svg id="theme-icon-sun" style="display:none" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/></svg>
+      </button>
+    </div>
+  </aside>
+  
+  <!-- ══ COLUMN 2: MAIN CHAT CANVAS ══ -->
+  <main class="chat-canvas">
+    <div class="chat-header">
+      <span class="chat-header-title" id="current-chat-title">Refactoring API Hook</span>
+      <button class="icon-btn" id="toggle-dock-btn" title="Toggle Code Review Panel">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg>
+      </button>
+    </div>
+
+    <!-- Message Feed -->
+    <div class="chat-messages-container scrollable" id="chat-messages-scroll">
+      
+      <!-- Welcome screen (Hidden initially) -->
+      <div class="welcome-view" id="welcome-view" style="display:none">
+        <h1 class="welcome-title">What should we build today?</h1>
+        <p class="welcome-subtitle">Ask, create, and refine your ideas with AI.</p>
+      </div>
+
+      <!-- Chat thread -->
+      <div class="conversation-view" id="conversation-view">
+        
+        <!-- User Bubble -->
+        <div class="message-bubble user">
+          <div class="user-text">How can I refactor this React hook using TypeScript?</div>
+        </div>
+
+        <!-- Assistant Bubble -->
+        <div class="message-bubble assistant">
+          <div class="assistant-text">
+            Here is a cleaner version of the hook with improved types and readability:
+            
+            <pre><code>// useFetchData.ts
+import { useState, useEffect } from 'react';
+
+type FetchState&lt;T&gt; = {
+  data: T | null;
+  error: Error | null;
+  loading: boolean;
+};
+
+export const useFetchData = &lt;T&gt;(url: string): FetchState&lt;T&gt; =&gt; {
+  const [state, setState] = useState&lt;FetchState&lt;T&gt;&gt;({
+    data: null,
+    error: null,
+    loading: true
+  });
+  
+  // hook logic...
+  return state;
+};</code></pre>
+
+            You can review the specific implementation diffs in the **Code Review** panel on the right.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Floating Composer Bottom -->
+    <div class="composer-wrapper">
+      <div class="composer">
+        <textarea class="composer-textarea" id="chat-input" placeholder="Message AI..."></textarea>
+        <button class="icon-btn" title="Attachment">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <button class="send-btn" id="send-msg-btn" title="Send message">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="19" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+        </button>
+      </div>
+    </div>
+  </main>
+  
+  <!-- ══ COLUMN 3: CONTEXT PANEL (CODE REVIEW) ══ -->
+  <aside class="context-panel" id="context-dock">
+    <div class="dock-header">
+      <span>Code Review</span>
+    </div>
+    
+    <div class="context-content scrollable" id="tab-content-area">
+      <!-- File Review Display -->
+      <div class="code-review-card">
+        <div class="code-review-title">Refactored `fetchUser`</div>
+        
+        <div class="diff-pill-container">
+          <!-- Original Column -->
+          <div class="diff-pill original">
+            <div class="diff-header">Original</div>
+            const [isLoading, setIsLoading] = useState(true);
+            <br><br>
+            fetch(url)
+              .then(res => res.json())
+          </div>
+          <!-- Revised Column -->
+          <div class="diff-pill revised">
+            <div class="diff-header">Revised</div>
+            const { data, loading } = useFetchData(url);
+            <br><br>
+            if (loading) return &lt;div&gt;Loading...&lt;/div&gt;;
+          </div>
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn-secondary" style="flex:1" onclick="alert('Discarded')">Reject</button>
+        <button class="btn-primary" style="flex:2" onclick="alert('Applied successfully!')">Apply Code</button>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- ══ CORE INTERACTION JAVASCRIPT ══ -->
+<script>
+  // Theme Toggle (Sun/Moon Switch)
+  const themeToggleBtn = document.getElementById('theme-toggle');
+  const moonIcon = document.getElementById('theme-icon-moon');
+  const sunIcon = document.getElementById('theme-icon-sun');
+  const body = document.body;
+
+  themeToggleBtn.addEventListener('click', () => {
+    const currentTheme = body.getAttribute('data-theme');
+    if (currentTheme === 'light') {
+      body.setAttribute('data-theme', 'dark');
+      moonIcon.style.display = 'none';
+      sunIcon.style.display = 'block';
+    } else {
+      body.setAttribute('data-theme', 'light');
+      moonIcon.style.display = 'block';
+      sunIcon.style.display = 'none';
+    }
+  });
+
+  // Dock Toggle (Right Panel)
+  const toggleDockBtn = document.getElementById('toggle-dock-btn');
+  const contextDock = document.getElementById('context-dock');
+
+  toggleDockBtn.addEventListener('click', () => {
+    if (contextDock.style.display === 'none') {
+      contextDock.style.display = 'flex';
+      toggleDockBtn.style.color = 'var(--text-primary)';
+    } else {
+      contextDock.style.display = 'none';
+      toggleDockBtn.style.color = 'var(--text-mute)';
+    }
+  });
+
+  // Sidebar Chats Switching
+  const chatItems = document.querySelectorAll('.chat-item');
+  const chatTitle = document.getElementById('current-chat-title');
+  const conversationView = document.getElementById('conversation-view');
+  const welcomeView = document.getElementById('welcome-view');
+
+  chatItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      chatItems.forEach(i => i.classList.remove('active'));
+      
+      const currentActive = e.currentTarget;
+      currentActive.classList.add('active');
+      
+      const title = currentActive.querySelector('span').textContent;
+      chatTitle.textContent = title;
+
+      // Reset conversation view
+      welcomeView.style.display = 'none';
+      conversationView.style.display = 'flex';
+      
+      if (currentActive.getAttribute('data-chat') === 'refactor-api') {
+        renderFuncChat();
+      } else if (currentActive.getAttribute('data-chat') === 'db-design') {
+        renderDBChat();
+      } else {
+        renderUIListChat();
+      }
+    });
+  });
+
+  // New Chat Click
+  const newChatBtn = document.getElementById('new-chat-sidebar');
+  newChatBtn.addEventListener('click', () => {
+    chatItems.forEach(i => i.classList.remove('active'));
+    chatTitle.textContent = 'New Session';
+    welcomeView.style.display = 'flex';
+    conversationView.style.display = 'none';
+  });
+
+  // Render Functions
+  function renderFuncChat() {
+    conversationView.innerHTML = `
+      <div class="message-bubble user">
+        <div class="user-text">How can I refactor this React hook using TypeScript?</div>
+      </div>
+
+      <div class="message-bubble assistant">
+        <div class="assistant-text">
+          Here is a cleaner version of the hook with improved types and readability:
+          
+          <pre><code>// useFetchData.ts
+import { useState, useEffect } from 'react';
+
+type FetchState&lt;T&gt; = {
+  data: T | null;
+  error: Error | null;
+  loading: boolean;
+};
+
+export const useFetchData = &lt;T&gt;(url: string): FetchState&lt;T&gt; =&gt; {
+  const [state, setState] = useState&lt;FetchState&lt;T&gt;&gt;({
+    data: null,
+    error: null,
+    loading: true
+  });
+  
+  // hook logic...
+  return state;
+};</code></pre>
+
+          You can review the specific implementation diffs in the **Code Review** panel on the right.
+        </div>
+      </div>
+    `;
+  }
+
+  function renderDBChat() {
+    conversationView.innerHTML = `
+      <div class="message-bubble user">
+        <div class="user-text">How should we model the database for chat memory?</div>
+      </div>
+
+      <div class="message-bubble assistant">
+        <div class="assistant-text">
+          A relational table structure storing <code>SessionID</code>, <code>Sender</code>, <code>MessageContent</code>, and a timestamp is optimal for retrieval. We can index on session ID.
+        </div>
+      </div>
+    `;
+  }
+
+  function renderUIListChat() {
+    conversationView.innerHTML = `
+      <div class="message-bubble user">
+        <div class="user-text">Can we clean up the component library definitions?</div>
+      </div>
+
+      <div class="message-bubble assistant">
+        <div class="assistant-text">
+          Sure, we can export reusable structural layout boxes and abstract away complex theme styling directly.
+        </div>
+      </div>
+    `;
+  }
+
+  // Handle typing and sending message
+  const chatInput = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('send-msg-btn');
+  
+  function sendUserMsg() {
+    const text = chatInput.value.trim();
+    if (!text) return;
+    
+    // Add user bubble
+    const userBubble = document.createElement('div');
+    userBubble.className = 'message-bubble user';
+    userBubble.innerHTML = `<div class="user-text">${text}</div>`;
+    conversationView.appendChild(userBubble);
+    
+    // Clear input
+    chatInput.value = '';
+    
+    // Scroll to bottom
+    const scrollContainer = document.getElementById('chat-messages-scroll');
+    setTimeout(() => {
+      scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    }, 50);
+
+    // Mock response after 1s
+    setTimeout(() => {
+      const aiBubble = document.createElement('div');
+      aiBubble.className = 'message-bubble assistant';
+      aiBubble.innerHTML = `
+        <div class="assistant-text">
+          Analyzing your request for "${text}". Proposing refactored code modules...
+        </div>
+      `;
+      conversationView.appendChild(aiBubble);
+      scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    }, 1000);
+  }
+
+  sendBtn.addEventListener('click', sendUserMsg);
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendUserMsg();
+    }
+  });
+</script>
+</body>
+</html>
