@@ -1681,3 +1681,15 @@ app/runtime -> agent -> core
 - 已完成适配：所有 `built.MCP` / `cfg.MCP` / `Engine.mcp` 调用已迁移到四个窄端口；未保留旧 `MCPControl` alias 或兼容字段。
 - 验证结果：`go test ./internal/kernel ./internal/kernel/turn ./internal/adapter/toolset ./internal/runtime ./internal/domain/tool` 通过。
 - 后续风险：无跨模块公开 API 风险。
+
+第九十五轮包含 `app/runtime/internal/runtime` provider credential 读口收窄与必填依赖 fail-fast：
+
+- 调整对象：`clientResolver.providers`、`embeddingResolver.providers`、`buildEmbeddingEnvironment` / `newEmbeddingResolver` 参数，以及 `Runtime.New` 的 required dependency 检查。
+- 调整前问题：chat client resolver 与 embedding resolver 只需要按 provider id 读取凭据，却直接依赖完整 `provider.Registry`，从模型解析路径理论上可见 provider list/configure 能力；同时 `Config` 注释标记 `ProviderRegistry`、`MCPRegistry`、`SessionStore`、`InterruptStore`、`TranscriptStore` 为 required，但构造期只显式检查了 `TranscriptStore`，其他 nil 会推迟到后续流程里以更模糊的方式失败。
+- 破坏性原因：这些类型位于 `app/runtime/internal/runtime`，属于应用层内部装配边界；删除 resolver 对完整 registry 的依赖并补齐 required 检查，不需要为内部旧构造 shape 留兼容债。
+- 新设计：新增 consumer-side `providerCredentialLookup`（仅 `Get`）；`clientResolver` 与 `embeddingResolver` 只依赖该读口，完整 `provider.Registry` 只留在 runtime bundle 和 provider 配置用例面。`Runtime.New` 在组装任何子系统前 fail-fast 检查 required dependencies，并用测试锁住错误语义。
+- 架构收益：模型 client 构建路径只拥有 provider credential read capability，不再耦合 provider CRUD；构造契约从注释变成可验证行为，减少 nil 依赖穿透到更深层装配流程的隐式失败。
+- 影响范围：`app/runtime/internal/runtime` 的 resolver、embedding environment、runtime assembly 和 focused constructor tests。
+- 已完成适配：runtime assembly 继续把同一个 provider registry 作为 `providerCredentialLookup` 注入，但 resolver 类型边界已收窄；新增 required dependency table test；同步修正 `Config.Engine` 注释里的 live-MCP 字段描述。
+- 验证结果：`go test ./internal/runtime` 通过；三模块 `go test ./...`、`go vet ./...`、`go build ./...` 均通过；`golangci-lint run`（`app/runtime`）通过；`git diff --check` 通过。
+- 后续风险：无跨模块公开 API 风险；内部测试若构造 `Runtime.New` 时漏传 required dependency 会收到更早、更明确的错误。

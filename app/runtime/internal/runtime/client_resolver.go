@@ -16,13 +16,20 @@ import (
 // carries it; it's never inferred from the model id); the resolver pulls that
 // provider's credentials from the registry, then builds and caches the client.
 type clientResolver struct {
-	providers provider.Registry
+	providers providerCredentialLookup
 
 	mu    sync.Mutex
 	cache map[string]*chat.Client
 }
 
-func newClientResolver(providers provider.Registry) *clientResolver {
+// providerCredentialLookup is the model-client construction view of the
+// provider registry. Resolving a chat or embedding client needs only one
+// provider's credentials, not provider list/configure capabilities.
+type providerCredentialLookup interface {
+	Get(ctx context.Context, id string) (provider.Provider, bool, error)
+}
+
+func newClientResolver(providers providerCredentialLookup) *clientResolver {
 	return &clientResolver{
 		providers: providers,
 		cache:     map[string]*chat.Client{},

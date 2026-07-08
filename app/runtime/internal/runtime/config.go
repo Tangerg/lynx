@@ -23,7 +23,7 @@ import (
 type Config struct {
 	// Engine is the engine's construction config. The runtime fills its
 	// SessionStore (adapted from the Lyra session store) and the
-	// tool-environment fields (ToolResolver/Tools/MCP/Closers) from
+	// tool-environment fields (ToolResolver/Tools/live-MCP ports/Closers) from
 	// [toolset.Build] below; Engine.ChatClient is required.
 	Engine kernel.Config
 

@@ -22,6 +22,18 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	if cfg.Engine.ChatClient == nil {
 		return nil, errors.New("runtime: Engine.ChatClient is required")
 	}
+	if cfg.ProviderRegistry == nil {
+		return nil, errors.New("runtime: ProviderRegistry is required")
+	}
+	if cfg.MCPRegistry == nil {
+		return nil, errors.New("runtime: MCPRegistry is required")
+	}
+	if cfg.SessionStore == nil {
+		return nil, errors.New("runtime: SessionStore is required")
+	}
+	if cfg.InterruptStore == nil {
+		return nil, errors.New("runtime: InterruptStore is required")
+	}
 	if cfg.TranscriptStore == nil {
 		return nil, errors.New("runtime: TranscriptStore is required")
 	}
