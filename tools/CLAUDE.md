@@ -1,107 +1,35 @@
 # CLAUDE.md — tools module
 
-> 给 LLM 调用的具体工具集 —— shell / 文件系统 / HTTP / 网页抓取 / 网页搜索 / 假天气 / skill.
-> 项目级约定见 `../CLAUDE.md`。
+> 给 LLM 调用的具体工具集(shell / 文件系统 / HTTP / 网页抓取 / 网页搜索 / skill 等),都实现 core 的 `chat.Tool`。
+> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。工具名录 / 依赖版本以代码为准 —— 本则只讲宏观。
 
 ---
 
-## 一句话定位
+## 定位
 
-实现 `core/model/chat.Tool` 接口的工具集合。**两层 SPI**：Tool 层做 JSON in/out + schema + LLM 交互；Executor / Provider 层做真正执行（本地 / 远程 / 沙箱后端可换）。
+- **实现 `chat.Tool` 的工具集合**,两层 SPI:**Tool 层**对 LLM(JSON in/out + schema + 交互),**Executor / Provider 层**做真正执行(本地 / 远程 / 沙箱后端可换)。
 
-## 技术栈
+## 架构心智
 
-- Go 1.26.4
-- `github.com/go-resty/resty/v2`（HTTP client）
-- 依赖 `core` / `pkg`，内部 schema 走 `pkg/json.StringDefSchemaOf` 自动生成
-- ~7k LOC / 60 文件 / 21 子目录
-- 无框架，纯接口 + 函数式组装
+- **两层 SPI 是核心**:Tool 层只做 JSON ↔ Go + schema 校验 + LLM 交互;**所有业务逻辑**(行号、binary 检测、写锁、路径锚定 …)都在 Executor 层 —— 这样远程 backend 能独立优化,不必往返整个文件。
+- **手动注册,无全局 registry**:调用方显式把工具注册进自己的 toolset,多 agent / 多进程各管各的。
+- **schema 从 Input struct 自动推导**:写工具不手写 schema 字符串。
+- **Nil-safety 双标**:有本地实现的(shell / fs 等)`New(nil)` 默认本地、开箱即用;必须外部配置的(websearch / webfetch / httpreq)`New(nil)` **返错** —— 没有本地 fallback。
+- **输出超限截断而非报错**:带 truncated 标记,LLM 据此决定下一步。
+- **bulk 查询下沉 Executor**:glob / grep 这类进 SPI 层,远程 backend 一次 RPC 完成,而非多轮 list + read。
+- **Provider 统一 Response 形状**:各家 websearch / webfetch 返回一致结构,LLM 不用适配每家 API。
 
-## 核心架构（两层 SPI）
+## 模块特有反向不变量
 
-**Tool 层**（实现 `chat.Tool`，暴露给 LLM）：
-- `Definition() ToolDefinition` —— Name + Description + InputSchema(JSON)
-- `Metadata() ToolMetadata`
-- `Call(ctx, arguments string) (string, error)` —— JSON in / out
+- ❌ **全局 tool registry** —— 显式注册是有意的,多 agent / 多进程各自管理 toolset。
+- ❌ **在 Tool 层做业务逻辑** —— 业务全在 Executor,Tool 只是 JSON ↔ Go + schema。
+- ❌ **给 shell 加 root 限制** —— 信任调用方,要 jail 在外层(进程上下文 / 容器)。
+- ❌ **httpreq 带默认 allowlist** —— 必须显式配置;"忘配也能跑" 是 SSRF 敞口。
+- ❌ **超限抛错而非截断** —— 截断 + 标记对 LLM 更友好。
 
-**Executor 层**（后端 SPI，可换实现）：
-- `shell.Executor` —— `Run(ctx, RunInput) (RunOutput, error)`
-- `fs.Executor` —— `Read / Write / Edit / Glob / Grep` 五方法
-- `httpreq.Client` —— 配置 AllowedHosts + AllowedMethods，守卫执行
-- `websearch.Provider` / `webfetch.Provider` —— `Name() string` + 动作方法（Search / Fetch）
+## 改动前必看(波及面)
 
-**Registration**：调用方手动 `ToolSupport.Register(tool1, tool2, ...)`，**没有全局 registry**。
-
-## 关键接口/类型
-
-1. **`chat.Tool`** —— Definition / Metadata / Call
-2. **`chat.ToolDefinition`** —— Name（snake_case 唯一）/ Description / InputSchema（JSON Schema 字符串）
-3. **`shell.Executor`** / **`fs.Executor`** —— 后端 SPI
-4. **`httpreq.Client`** —— allowlist-guarded HTTP
-5. **`websearch.Provider` / `webfetch.Provider`** —— 一致 Provider 接口
-
-## 强约定
-
-- **工具名 snake_case 一目了然**：`shell` / `read` / `write` / `edit` / `glob` / `grep` / `http_request` / `web_search` / `web_fetch` / `weather_query` / `skill`
-- **错误处理用包级 sentinel**：`ErrEmptyCommand` / `ErrHostNotAllowed`，调用方 `errors.Is()` 匹配
-- **非零退出码不算错**：`shell` 返回 `RunOutput` 里带 `ExitCode`，调用方决定如何处理
-- **输出 JSON 序列化**：Call 返 JSON string，框架反序列化喂给 LLM
-- **SPI 职责分工**：Tool 只 JSON 序列化 / schema 校验 / LLM 交互；所有业务逻辑（行号 / binary 检测 / 写锁 / path 锚定）都在 Executor → remote backend 可独立优化（不用往返整文件）
-- **Nil-safety 双标**：
-  - `shell` / `fs` / `fakeweather` 的 `NewXxxTool(nil)` 默认 LocalExecutor（开箱即用）
-  - `websearch` / `webfetch` / `httpreq` 的 `NewTool(nil)` **返错**（无本地 fallback，必须显式配置）
-- **输出上限**：shell 默认 30 KiB/stream，httpreq 默认 256 KiB response，**超限截断不报错**（`RunOutput.Killed` / `Response.Truncated` 标记）
-
-## 强反向不变量
-
-- ❌ **全局 tool registry**：当前显式注册有意为之，多 agent / 多 process 各自管自己的 toolset
-- ❌ **Tool 层做业务逻辑**：所有业务在 Executor，Tool 只是 JSON ↔ Go 转换 + schema
-- ❌ **`shell` 加 root 限制**：信任调用方，要 jail 在外层（ProcessContext / 容器）
-- ❌ **httpreq 默认 allowlist**：必须显式 —— LLM 调用任意 URL 是安全敞口，"忘记配 allowlist 也能跑"是反 pattern
-- ❌ **超限抛错而不是截断**：截断 + 标记的设计更友好；LLM 可以根据 truncated 决定下一步
-
-## 特殊点
-
-- **沙箱 / 路径隔离**：
-  - `fs.LocalExecutor.Root` —— 相对路径**锚点**，不是安全 jail；需要隔离的调用方必须在外层做路径校验（容器 / ProcessContext / 协议边界）
-  - `httpreq.Client.AllowedHosts` —— 强制 allowlist（无默认值）
-  - `shell.LocalExecutor` —— **无 root 限制**（信任调用方，lyra 通过 `ProcessContext.Workdir` 在外层管）
-- **Glob/Grep 在 SPI 层**：远程 backend 不能每次都往返整个文件系统，所以这两个 bulk 查询直接进 Executor，一次 RPC 而不是多轮 list+read
-- **Provider 多租户**：websearch / webfetch 各家 Provider 实现同接口，Tool 不关心是 Tavily 还是 Brave —— `NewTool(provider)` 就行
-- **Response shape 一致**：所有 Provider 返回统一 Response（URL + title + snippet + ...），LLM 不用适配各家 API
-- **JSON Schema 自动生成**：通过 `pkg/json.StringDefSchemaOf` 从 Input struct 推 schema，写工具不用手动维护 schema 字符串
-
-## 关键目录
-
-```
-tools/
-├── shell/               单 shell 工具 + Executor SPI（local.go = LocalExecutor）
-├── fs/                  5 个文件工具（read/write/edit/glob/grep） + Executor SPI + 本地实现
-│                        - Executor.Root 锚定相对路径（非 jail，隔离由调用方边界负责）
-├── httpreq/             HTTP 请求 + Client + 主机/方法 allowlist（无默认，必显式）
-├── websearch/
-│   ├── tavily / brave / exa / ...    各 Provider 实现
-│   └── internal/                     共享 utility（query 参数转换）
-├── webfetch/
-│   ├── jina / firecrawl / ...        各 Provider 实现
-│   └── internal/
-├── fakeweather/         演示用虚拟天气（确定性输出，无网络依赖）
-├── skills/              Agent Skills 工具：单 op-多路 tool（list/load/load_resource）
-│                        薄封装顶层 `skills` 模块的 Source（Tool 层 ↔ skills 模块 = backend 层）
-└── docs/                架构文档（待补）
-```
-
-## 常用命令
-
-```bash
-go build ./...
-go test ./...
-go test ./shell/... -v       # 单工具调试
-```
-
-## 修改任何东西之前
-
-- **加新工具**：放新子包 `tools/<name>/`，定义 `Input` struct + `Tool` + `NewTool(executor)`；schema 走 `pkg/json` 自动生成
-- **加新 Executor 后端**（远程沙箱 / 容器化）：实现 SPI 接口（如 `shell.Executor`），在 caller 处 `NewTool(yourExecutor)` 注入
-- **加新 websearch / webfetch Provider**：放 `websearch/<provider>/`，实现 `Provider` 接口；不要改 Tool 层
-- **改 `chat.ToolDefinition`**：是 `core/model/chat` 的契约 —— 改了所有 tools/* + models/* 工具调用都受影响
+- **动 `chat.ToolDefinition`**:是 core 的契约,所有 tools 与 models 的工具调用都受影响。
+- **加新工具**:新起子包,定义 Input struct + Tool + 工厂;schema 自动生成。
+- **加新 Executor 后端**(远程沙箱 / 容器):实现对应 SPI 接口,在调用处注入。
+- **加新 Provider**(websearch / webfetch):实现 Provider 接口,不改 Tool 层。
