@@ -115,13 +115,6 @@ func (*tool[In, Out]) stringifyResult(out Out) (string, error) {
 	return string(b), nil
 }
 
-func validateToolDefinition(caller string, definition ToolDefinition) error {
-	if definition.Name == "" {
-		return fmt.Errorf("%s: definition.Name must not be empty", caller)
-	}
-	return nil
-}
-
 // NewTool builds a [Tool] from a typed function. The argument schema and decoder
 // come from In (a Go struct whose json / jsonschema tags describe the LLM-facing
 // parameters); the return value Out is rendered to the string the model sees —
@@ -144,8 +137,8 @@ func NewTool[In, Out any](
 	definition ToolDefinition,
 	execFunc func(ctx context.Context, in In) (Out, error),
 ) (Tool, error) {
-	if err := validateToolDefinition("chat.NewTool", definition); err != nil {
-		return nil, err
+	if definition.Name == "" {
+		return nil, errors.New("chat.NewTool: definition.Name must not be empty")
 	}
 	if definition.InputSchema != "" {
 		return nil, errors.New("chat.NewTool: definition.InputSchema must be empty (it is derived from In)")
