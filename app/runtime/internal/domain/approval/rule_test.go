@@ -101,69 +101,6 @@ func TestDecideConflictDeny(t *testing.T) {
 	}
 }
 
-// TestServiceRememberDecide: a remembered shell command auto-resolves a matching
-// future call; a different command still misses (subject granularity).
-func TestServiceRememberDecide(t *testing.T) {
-	ctx := context.Background()
-	svc := New(ModeSafe, NewMemoryStore())
-	build := `{"command":"npm run build"}`
-	_ = svc.Remember(ctx, RememberRequest{
-		Scope: ScopeSession, SessionID: "s1", Tool: "shell", Arguments: build, Decision: Allow,
-	})
-
-	if d, ok, _ := svc.Decide(ctx, Query{SessionID: "s1", Tool: "shell", Arguments: build}); !ok || d != Allow {
-		t.Fatalf("matching call = (%v,%v), want (allow,true)", d, ok)
-	}
-	// A different command isn't covered by the remembered one.
-	if _, ok, _ := svc.Decide(ctx, Query{SessionID: "s1", Tool: "shell", Arguments: `{"command":"rm -rf /"}`}); ok {
-		t.Fatal("a remembered `npm run build` rule matched `rm -rf /`")
-	}
-}
-
-// TestServiceScopeVisibilityAndForget: a project rule is invisible from another
-// dir; Forget(id) removes it.
-func TestServiceScopeVisibilityAndForget(t *testing.T) {
-	ctx := context.Background()
-	svc := New(ModeSafe, NewMemoryStore())
-	_ = svc.Remember(ctx, RememberRequest{
-		Scope: ScopeProject, ProjectDir: "/proj/a", Tool: "write", Arguments: `{"file_path":"x"}`, Decision: Allow,
-	})
-
-	q := Query{SessionID: "s1", ProjectDir: "/proj/a", Tool: "write", Arguments: `{"file_path":"x"}`}
-	if _, ok, _ := svc.Decide(ctx, q); !ok {
-		t.Fatal("project rule not visible from its own dir")
-	}
-	other := q
-	other.ProjectDir = "/proj/b"
-	if _, ok, _ := svc.Decide(ctx, other); ok {
-		t.Fatal("project rule leaked to another dir")
-	}
-
-	rules, _ := svc.Rules(ctx, "s1", "/proj/a")
-	if len(rules) != 1 {
-		t.Fatalf("Rules = %d, want 1", len(rules))
-	}
-	if err := svc.Forget(ctx, rules[0].ID); err != nil {
-		t.Fatalf("Forget: %v", err)
-	}
-	if _, ok, _ := svc.Decide(ctx, q); ok {
-		t.Fatal("rule still matched after Forget")
-	}
-}
-
-// TestRememberDropsUnkeyable: a project rule with no cwd can't be keyed, so it
-// is dropped rather than stored under an empty key (which would leak).
-func TestRememberDropsUnkeyable(t *testing.T) {
-	ctx := context.Background()
-	svc := New(ModeSafe, NewMemoryStore())
-	_ = svc.Remember(ctx, RememberRequest{
-		Scope: ScopeProject, ProjectDir: "", Tool: "shell", Arguments: `{}`, Decision: Allow,
-	})
-	if rules, _ := svc.Rules(ctx, "s1", ""); len(rules) != 0 {
-		t.Fatalf("unkeyable project rule stored: %+v", rules)
-	}
-}
-
 // TestNilStore: a service with no store remembers nothing and matches nothing.
 func TestNilStore(t *testing.T) {
 	ctx := context.Background()

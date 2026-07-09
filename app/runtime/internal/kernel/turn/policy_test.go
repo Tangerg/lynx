@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval/approvaltest"
 )
 
 // TestApproveToolCall_RememberedShortCircuit verifies the gate consults a
@@ -13,7 +14,7 @@ import (
 // hitl.Interrupt, so no agent process context is needed.
 func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	ctx := context.Background()
-	appr := approval.New(approval.ModeSafe, approval.NewMemoryStore()) // shell gates → would prompt
+	appr := approval.New(approval.ModeSafe, approvaltest.NewMemoryStore()) // shell gates → would prompt
 	obs := &turnObserver{
 		svc: &inMemory{approval: appr},
 		st:  &turnState{handle: TurnHandle{SessionID: "s1"}},
@@ -43,7 +44,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 // GateDeny is never reached, since that's a separate switch case above).
 func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	ctx := context.Background()
-	appr := approval.New(approval.ModeSafe, approval.NewMemoryStore()) // unknown tool → exec → would prompt
+	appr := approval.New(approval.ModeSafe, approvaltest.NewMemoryStore()) // unknown tool → exec → would prompt
 	autoApprove := map[string]struct{}{"srv_read": {}}
 	obs := &turnObserver{
 		svc: &inMemory{
