@@ -1,81 +1,34 @@
 # CLAUDE.md — skills module
 
-> Read-only repository over **Agent Skills** (https://agentskills.io) — SKILL.md 目录的解析 / 校验 / 取用基础能力。LLM 可调的 `skill` 工具是 `tools/skills` 的薄封装,不在本模块。
-> 项目级约定见 `../CLAUDE.md`。
+> Agent Skills(agentskills.io)的**只读仓库层**:解析 / 校验 / 按需取用 `SKILL.md` 目录(YAML frontmatter + Markdown 指令 + 可选 bundled 资源)。是 tools 两层 SPI 里的 backend 层,与 shell / fs 的 Executor 同位;LLM 可调的 `skill` 工具是 `tools/skills` 的薄封装,不在此。
+> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。规范字段细则以 agentskills.io 为准;具体符号以代码为准 —— 本则只讲宏观。
 
 ---
 
-## 一句话定位
+## 定位
 
-把"一个装着 `SKILL.md`（YAML frontmatter + Markdown 指令）+ 可选 `references/` `assets/` `scripts/` 资源的目录"读出来的**纯基础能力层**。只解析、校验、按需取用内容;**不执行脚本**（agent 用自己的 shell/fs 工具跑），**不认识 `chat` / tool**（工具封装在 `tools/skills`）。是 tools 模块"两层 SPI"里的 backend 层 —— 与 `shell.Executor` / `fs.Executor` 同位。
+- **纯基础能力层**:只把 skill 目录读出来 —— 解析、校验、按需取内容。**不执行脚本**(交给 agent 自己的 shell / fs 工具),**不认识 chat / tool**(工具封装在 tools/skills)。
 
-## 技术栈
+## 架构心智
 
-- Go 1.26.4
-- `gopkg.in/yaml.v3` —— 解析 frontmatter（唯一外部依赖）
-- **零业务依赖**：不 import `core` / `agent` / `lyra`，连 `chat.Tool` 都不碰 —— 渐进披露的三个能力是裸 Go 类型
-- ~0.3k LOC
+- **渐进式披露分三级、拆成两个接口**:列表(name + description,够判断相关性)→ 载入单个 skill 的完整指令 → 按需打开 bundled 资源文件。只用前两级的调用方依赖窄接口,需要资源的依赖扩展接口 —— 这是本模块的 ISP 落点。
+- **零业务依赖**:不 import core / agent / chat,三级披露返回裸 Go 类型 —— 保证它稳居 DAG 底部。
+- **规范即真理**:字段规则、name 必须等于目录名等以 agentskills.io 规范为准,校验一次性汇报全部违规。
+- **只交内容,不执行**:脚本资源只把**内容**交出去,真正运行由 agent 的既有工具负责(KISS + 不重造 shell + 安全)。
+- **路径不可逃逸**:资源打开锚定在 skill 目录内,`..` 穿透被拒 —— 这是信任边界。
+- **坏 skill 不拖垮列表**:列表跳过非法项而不报错(与生态行为一致)。
+- **懒读 per-call**:不缓存、不预扫,外部编辑即时可见;要缓存 / 预载是调用方的事。
 
-## 核心架构
+## 模块特有反向不变量
 
-渐进式披露（progressive disclosure）分成两个接口：
+- ❌ **import core / chat / 任何业务模块** —— 本模块是裸能力层,`chat.Tool` 封装在 tools/skills。
+- ❌ **在本模块执行脚本 / 引沙箱 / Docker** —— 脚本执行是 agent 既有工具的事,不在这里重造。
+- ❌ **强制 allowed-tools** —— 实验字段,只解析,交给愿意自己执行的调用方。
+- ❌ **加缓存 / pubsub / 状态管理** —— YAGNI,本模块只读;有需要在调用方包。
 
-- **`source.go`** —— `Source` / `ResourceSource` 接口（消费方定义）+ 内部 `fs.FS` 实现（懒读，外部改动免刷新）
-  - `List(ctx) []Summary` —— level 1：每个 skill 的 name + description（够 agent 判断相关性）
-  - `Load(ctx, name) *Skill` —— level 2：单个 skill 的完整指令 body
-  - `OpenResource(ctx, name, path) fs.File` —— level 3：skill 目录下的 bundled 文件，按需打开
-  - `ReadResource(ctx, src, name, path)` —— 便利函数：打开并读完 bundled 文件
-- **`frontmatter.go`** —— `Frontmatter` 结构 + `Parse`（拆 `---` 围栏 / body）+ `Validate`（规范规则）
-- **`skill.go`** —— `Skill`（`Frontmatter` + `Body`）/ `Summary` 类型
-- **`errors.go`** —— sentinel（`ErrNoFrontmatter` / `ErrName*` / `ErrResourcePath` …）
+## 改动前必看(波及面)
 
-## 关键接口/类型
-
-- `Source` —— `List` + `Load`，只需要前两级披露的调用方依赖这个窄接口
-- `ResourceSource` —— `Source` + `OpenResource`，需要 references/assets/scripts 的调用方依赖这个扩展接口
-- `NewFS(fsys)` / `Dir(root)` —— 返回 `ResourceSource`，隐藏文件系统实现细节
-- `Frontmatter` —— 规范字段：`name`（必填，须匹配目录名）/ `description`（必填）/ `license` / `compatibility` / `metadata` / `allowed-tools`。`Validate()` join 全部违规一次返回；`AllowedToolList()` 拆空格分隔串
-- `Skill` —— `Frontmatter` 内嵌 + `Body`（Markdown 指令）；`Summary()` 投影成 metadata 视图
-- `Parse([]byte) (Frontmatter, body, error)` —— 只拆不校验（校验单独 `Validate`）
-
-## 强约定
-
-- **规范即真理**：`name` 1-64 小写字母数字 + 单连字符（无首尾/连续连字符，正则 `^[a-z0-9]+(-[a-z0-9]+)*$`）、`description` 1-1024、`compatibility` ≤500、`name` 必须等于目录名（`Load` 强制 `ErrNameMismatch`）
-- **不执行 `scripts/`**：本模块只把脚本**内容**通过 `OpenResource`/`ReadResource` 交出去;真正运行由 agent 的 shell/fs 工具负责（KISS + 不重复造 shell + 安全）
-- **`allowed-tools` 解析不强制**：实验字段,各家都这么处理;`AllowedToolList()` 给愿意自己执行的 caller
-- **路径不可逃逸**：`OpenResource` 用 `path.Join(name, resource)` + 前缀校验,`..` 穿透出 skill 目录 → `ErrResourcePath`;`validName` 挡住 name 里的 `/` `\` `..`
-- **`List` 跳过非法项不报错**：非目录 / 无 `SKILL.md` / 校验失败的目录直接 skip,不让一个坏 skill 拖垮整张列表（同 ecosystem 行为）
-- **懒读 per-call**：不缓存、不预扫;skills 数量少,外部编辑即时可见。要缓存/预载是 caller 的事
-
-## 强反向不变量
-
-- ❌ **import `core` / `chat` / 任何业务模块**：本模块是裸能力层,渐进披露三方法返回裸类型;`chat.Tool` 封装在 `tools/skills`
-- ❌ **在本模块执行脚本 / 引沙箱 / Docker**（embabel 那套）：脚本执行是 agent 既有工具的事,不在这里重造
-- ❌ **强制 `allowed-tools`**：实验字段,只解析
-- ❌ **缓存 / pubsub / 状态管理**（crush Manager 那套）：YAGNI,本模块只读;有需要在 caller 包
-
-## 关键目录
-
-```
-skills/
-├── source.go       Source/ResourceSource 接口 + fs.FS 实现（List/Load/OpenResource）
-├── frontmatter.go  Frontmatter + Parse + Validate
-├── skill.go        Skill / Summary 类型
-├── errors.go       sentinel
-└── doc.go          包说明
-```
-
-## 常用命令
-
-```bash
-go build ./...
-go test ./...   # fstest.MapFS 驱动 List/Load/OpenResource + Parse/Validate + 路径逃逸
-```
-
-## 修改任何东西之前
-
-- **这是基础能力层,不是工具**：要改 LLM 看到的工具形态（op / schema / 渲染）去 `tools/skills`,不在这里
-- **改 `Source` / `ResourceSource` 接口**：是消费方契约,`tools/skills` + 任何自定义实现都受影响
-- **加新 backend**（远程 skill store / embedded FS）：需要工具资源读取时实现 `ResourceSource`，只需要 list/load 时实现 `Source`
-- **规范升级**（agentskills.io 改字段）：动 `Frontmatter` + `Validate`,对照 https://agentskills.io/specification
-```
+- **要改 LLM 看到的工具形态**(op / schema / 渲染):去 tools/skills,不在这里。
+- **动 Source / ResourceSource 接口**:是消费方契约,tools/skills 与任何自定义实现都受影响。
+- **规范升级**(agentskills.io 改字段):动 frontmatter 结构 + 校验,对照官方规范。
+- **加新 backend**(远程 skill store / 嵌入式 FS):需要资源读取实现扩展接口,只需列表 / 载入实现窄接口。

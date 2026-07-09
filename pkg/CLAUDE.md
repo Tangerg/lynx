@@ -1,95 +1,31 @@
 # CLAUDE.md — pkg module
 
-> Shared utility library — generics 集合、并发原语、流式处理、JSON Schema 生成。
-> 项目级约定见 `../CLAUDE.md`。
+> monorepo 的**工具层基础设施**:generics 集合、并发原语、流式处理、JSON Schema 生成等。core / agent / models / vectorstores 都依赖 pkg,**pkg 不依赖任何业务模块** —— 这是 zero-cycle 的关键护栏。
+> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。子包名录 / 调用方数 / 依赖版本以代码为准 —— 本则只讲宏观。
 
 ---
 
-## 一句话定位
+## 定位
 
-整个 monorepo 的"工具层基础设施" —— `core` / `agent` / `models` / `vectorstores` 都依赖 pkg，**pkg 不依赖任何业务模块**（zero-cycle 关键护栏）。
+- **纯工具,零业务**:pkg 是 DAG 的底,只放跨业务模块可复用的通用原语,不 import 任何 `core` / `agent` / `models` / `vectorstores`。
+- **是被整个 monorepo 依赖的基础层**:改它波及面最大,exported API 改动尤其要慎(见下)。
 
-## 技术栈
+## 架构心智
 
-- Go 1.26.4（generics + Go 1.23 range-over-func iterator 全用上）
-- 5 个核心外部依赖：
-  - `gammazero/workerpool` / `panjf2000/ants/v2` —— goroutine pool 两套（按场景选）
-  - `sourcegraph/conc` —— structured concurrency
-  - `invopop/jsonschema` —— JSON Schema 生成
-  - `gabriel-vasile/mimetype` —— MIME 检测
-- ~9.3k LOC，22 个子包，每个一个独立 niche
+- **按职能分组、每子包一个 niche**:集合 / 数据类型 / 并发 / 流式 / 编码 / 基础原语。彼此独立,消费方只拉自己用到的。
+- **generics 强制**:集合与通用 API 用类型参数,公开 API 禁 `any` / `interface{}`。
+- **iterator-first**:优先 range-over-func 而非 `ForEach(func(T))` —— 调用方拿到 break / 提前退出。
+- **流式不缓冲**:增量处理优先;处理不可信输入(LLM 输出、XML / JSON)强制 buffer 上限,防 OOM。
+- **小到不必抽的直接放**:极小 helper 不二次封装 stdlib。
+- **零消费者的子包是有意的工具箱,不是死代码**:pkg 是通用 toolkit,某些导出暂无消费方是备用,不在 dead-code 清扫里删。
 
-## 核心架构
+## 模块特有反向不变量
 
-按职能分 6 组：
+- ❌ **import 任何业务模块** —— 会形成循环,CI 应锁这条。
+- ❌ **加业务概念** —— 只放纯工具;带业务语义的分类(如 retry 的 Transient / NonTransient)已被否(见 root 共用反向不变量)。
 
-- **Collections** —— `maps`（HashMap/LinkedMap/SyncMap 统一接口）/ `sets` / `slices`（边界安全 + 分块）
-- **Data types** —— `result`（Result[T]）/ `dataunit`（typed bytes B/KB/MB...）/ `text`（fluent renderer）
-- **Concurrency** —— `sync`（Future / Pool / Limiter）/ `safe`（goroutine panic recovery）/ `retry`（policy 化重试）
-- **Streaming** —— `stream`（typed pipe + Map/Filter/FlatMap）/ `xml`（LLM-safe element scanner）/ `json`（streaming parser + JSON Schema 生成）
-- **Encoding** —— `strings`（quote / case 转换）/ `mime` / `bufio`（多格式 line scanner）
-- **Primitives** —— `ptr` / `math` / `io` / `assert` / `random` / `system`
+## 改动前必看(波及面)
 
-## 关键接口/类型（按调用方数量排）
-
-| 类型 | 调用方数 | 说明 |
-|---|---|---|
-| `mime.MIME` | 27 | MIME 解析 / 检测 / 通配匹配 |
-| `math.NumericType` 约束 | 24 | 泛型算术约束 |
-| `json.StreamParser` + Schema | 13 | 流式 JSON + schema 推断 |
-| `slices.*` | 12 | 边界安全 / 分块 / 迭代 |
-| `ptr.To / ptr.From` | 8 | 指针字面量 / 安全 deref |
-
-其余（`maps.Map` / `result.Result` / `stream.Stream` / `sets.Set` / `sync.Future` / `retry.Retrier` / `safe.Go`）调用方数均 < 5。
-
-## 强约定
-
-- **零业务依赖**：pkg 不 import 任何 `core/` / `agent/` / `models/` / `vectorstores/`。CI 应该锁这条（否则形成循环）
-- **公开 API 改动须先咨询用户**：dev 阶段允许 breaking change（schema / 签名 / 类型都能换），但 pkg 是被整个 monorepo 依赖的基础层，**任何 exported API 调整先确认 scope + 影响面**。详见 `../CLAUDE.md` 强约定段
-- **Generics 强制**：所有集合用类型参数，公开 API 禁 `interface{}` / `any`
-- **Iterator-first**：Go 1.23 `range-over-func` 优先于 `ForEach(func(T))` —— 调用方拿到 `break` / 提前退出能力
-- **流式不缓冲**：`xml` / `json` / `stream` 优先增量处理；处理不可信输入时强制 buffer cap（防 OOM）
-- **小到不必抽**：`ptr.To` 这种 < 5 行的 helper 直接放，不二次封装 stdlib
-- **`-race` 必跑**：`SyncMap` / `SyncSet` / `sync.Pool` / `safe.Go` 都在 race detector 下测过
-
-## 关键目录
-
-```
-pkg/
-├── maps/         Map interface + Hash/Linked/Sync 实现
-├── sets/         Set interface + Hash/Linked/Sync
-├── slices/       边界安全 / 分块 / 迭代
-├── result/       Result[T] for 错误流水线
-├── dataunit/     typed DataSize (B/KB/MB/GB/TB, IEC 1024)
-├── text/         line align / Renderer
-├── stream/       typed pipe + Map/Filter/FlatMap
-├── xml/          LLM-safe streaming element scanner
-├── json/         StreamParser + Schema 生成
-├── strings/      quote / camelCase ↔ snake_case
-├── mime/         MIME 解析 / 检测 / 通配
-├── bufio/        多格式 line scanner（LF/CR/CRLF）
-├── ptr/          To/From/Clone helpers
-├── math/         NumericType 约束 + overflow-checked 算术
-├── io/           buffered read iterator
-├── assert/       Must/Ensure（只用于不变量）
-├── random/       math/rand/v2 wrappers（非 crypto）
-├── sync/         Future / Pool / Limiter
-├── safe/         goroutine panic recovery
-├── retry/        Do / DoWithResult / Retrier
-└── system/       平台常量
-```
-
-## 常用命令
-
-```bash
-go build ./...
-go test ./...
-go test -race ./...   # 并发结构必跑
-```
-
-## 修改任何东西之前
-
-- **加新子包**：先问"为什么 stdlib 不够"——只在 stdlib 真不够 OR 跨业务模块要复用时才加
-- **改 export API**：考虑兼容性，宁可加新函数也别改老的
-- **加业务概念**：**不行** —— `pkg/retry/Transient` 这种分类已经被否过（见根 `../CLAUDE.md` `❌ retry layer` 共用反向不变量），这里只放纯工具
-- **XML / JSON parser 改 buffer 上限**：跑 fuzz，处理 LLM 输出的恶意 case
+- **加新子包**:先问"stdlib 为什么不够" —— 只在 stdlib 真不够或跨业务模块要复用时才加。
+- **改 exported API**:pkg 被全 monorepo 依赖,宁可加新函数也别改老签名;**任何破坏性改动先咨询 scope + 影响面**(见 root 强约定)。
+- **改 XML / JSON parser 的 buffer 上限**:跑 fuzz,覆盖恶意 LLM 输出。
