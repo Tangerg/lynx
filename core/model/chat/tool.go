@@ -28,10 +28,6 @@ type ToolDefinition struct {
 	InputSchema string
 }
 
-// defaultToolSuccess is what the model sees when a tool succeeds but returns an
-// empty result — an affirmative outcome instead of a blank tool message.
-const defaultToolSuccess = "(tool call succeeded with no output)"
-
 // Tool is the executable contract every tool exposes — describable to
 // the LLM ([Tool.Definition]) and runnable by the framework ([Tool.Call]).
 //
@@ -89,22 +85,26 @@ func (t *tool[In, Out]) Call(ctx context.Context, arguments string) (string, err
 	if err != nil {
 		return "", err
 	}
-	result, err := stringifyToolResult(out)
+	result, err := t.stringifyResult(out)
 	if err != nil {
 		return "", fmt.Errorf("chat.NewTool: encode result: %w", err)
 	}
 	if result == "" {
+		// A successful call with no output still needs an affirmative message.
+		const defaultToolSuccess = "(tool call succeeded with no output)"
 		return defaultToolSuccess, nil
 	}
 	return result, nil
 }
 
-// stringifyToolResult renders a tool's typed output as the string the model
-// sees. Scalars and fmt.Stringer values go through cast so a string (or []byte,
+// stringifyResult renders the tool's typed output as the string the model sees.
+// Scalars and fmt.Stringer values go through cast so a string (or []byte,
 // number, bool, Stringer) renders VERBATIM — unquoted, unlike json.Marshal;
 // composite results (structs, maps, slices) that cast can't render fall back to
-// JSON encoding. Order matters: cast first keeps a string result unquoted.
-func stringifyToolResult[Out any](out Out) (string, error) {
+// JSON encoding. Order matters: cast first keeps a string result unquoted. It is
+// a method so Out comes from the receiver's type parameter, keeping nothing at
+// package scope.
+func (*tool[In, Out]) stringifyResult(out Out) (string, error) {
 	if s, err := cast.ToStringE(out); err == nil {
 		return s, nil
 	}
