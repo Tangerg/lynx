@@ -1,60 +1,28 @@
 # CLAUDE.md — documentreaders module
 
-> Format-agnostic readers that emit `core/document.Document` streams for RAG pipelines.
-> 项目级约定见 `../CLAUDE.md`。
+> 把不同格式(markdown / HTML / PDF …)解析成统一的 `core/document.Document` 流,供 RAG 索引消费。
+> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。具体解析库 / 依赖版本以各 reader 的 go.mod 为准 —— 本则只讲宏观。
 
 ---
 
-## 一句话定位
+## 定位
 
-不同格式（markdown / HTML / PDF）解析成统一的 `document.Document` 流，给 RAG 索引用。每个 reader 是独立子包 + 独立 go.mod，依赖只在用到时拉。
+- **格式各异 → 统一 Document**:每个 reader 把一种格式解析成 core 的 Document,下游 RAG pipeline 只见统一形态。
+- **每 reader 一个独立子包 + 独立 go.mod**:解析器依赖重,隔离后消费方只拉自己用到的格式。
 
-## 技术栈
+## 架构心智
 
-- Go 1.26.4
-- 解析器各管各：`yuin/goldmark`（markdown AST）/ `PuerkitoBio/goquery`（HTML CSS 选择器）/ `ledongthuc/pdf`（PDF 文本提取）
-- 依赖 `core/document` 提供 `Reader` 接口和 `Document` 类型
-- ~700 LOC，3 个 reader 各占一个子包
+- **统一契约**:每个 reader 实现 core 的 `document.Reader`;构造用 functional options 配格式专属行为(如按标题切分)。
+- **元数据 key 带 reader 前缀**:各格式的元数据落在自己的命名空间,跨 reader 不冲突。
+- **全量读进内存,不做流式**:面向小文档;大文档的分块由调用方负责。
+- **结构化格式保留层级**:如标题层级构成路径,给 LLM 提供上下文定位。
 
-## 核心架构
+## 模块特有反向不变量
 
-每个 reader 实现 `document.Reader.Read(ctx) ([]*Document, error)`：
+- ❌ **让所有 reader 共用一个 go.mod** —— 独立 go.mod 是有意的,避免把重解析器依赖强加给不用它的消费方。
+- ❌ **元数据 key 不带前缀** —— 会与其他 reader 撞名,下游按 key 取值会错乱。
 
-- **`markdown/`** — goldmark AST 遍历 + 可选按 heading 切分（`WithHeadingSplit` / `WithSourceName` options）。heading 层级构成 path 栈
-- **`html/`** — goquery 抓正文 + 元数据标记
-- **`pdf/`** — 按页迭代 + page metadata
+## 改动前必看(波及面)
 
-## 关键接口/类型
-
-- `document.Reader`（来自 `core/document`）—— `Read(ctx) ([]*Document, error)`
-- Functional options 模式：`markdown.WithHeadingSplit()` / `WithSourceName(str)`
-- 元数据 key 都按 reader 命名空间：`markdown.heading` / `markdown.heading.level` / `markdown.source` / `html.title` / `pdf.page`
-
-## 强约定
-
-- **全量先读到内存**，不流式（小文档场景；大文档由调用方自己分块）
-- **元数据 key 必须带 reader 前缀**（`markdown.*` / `html.*` / `pdf.*`），跨 reader 不冲突
-- **每个 reader 独立 go.mod**（解析器依赖大，不让消费方拉不用的）
-- markdown heading split 构建路径栈（`"# Intro > ## Architecture"`），给 LLM 看上下文用
-
-## 关键目录
-
-```
-documentreaders/
-├── markdown/    goldmark AST 走 + heading 切分
-├── html/        goquery CSS 选择器
-└── pdf/         ledongthuc/pdf 按页提取
-```
-
-## 常用命令
-
-```bash
-go build ./...
-go test ./...
-go test ./markdown/... -v   # 单 reader
-```
-
-## 修改任何东西之前
-
-- **加新 reader（docx / epub / xlsx）**：新建 `documentreaders/<format>/`，独立 `go.mod`，实现 `document.Reader`。元数据 key 用 `<format>.*` 前缀
-- **改元数据 key 命名**：跨 reader 协调；下游 RAG pipeline 可能直接读这些 key
+- **改元数据 key 命名**:下游 RAG pipeline 可能直接按 key 读,跨 reader 协调后再改。
+- **加新格式**:新建独立子包 + go.mod,实现 `document.Reader`,元数据用本格式前缀。
