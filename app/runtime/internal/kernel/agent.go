@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -71,16 +72,16 @@ type turnInput struct {
 // rolled-up view.
 type TurnOutput struct {
 	Reply string
-	Usage TokenUsage
+	Usage accounting.TokenUsage
 
 	// UsageByModel breaks Usage down per served model — the lynx analog
 	// of the SDK's modelUsage. One entry for a plain single-model turn;
 	// several once a turn spans models (tool rounds routed elsewhere,
 	// sub-agents).
-	UsageByModel []ModelUsage
+	UsageByModel []accounting.ModelUsage
 
 	// CostUSD is the turn's total dollar cost, summed from the recorded
-	// invocations. Zero unless a [Pricing] func is configured (providers
+	// invocations. Zero unless an [accounting.Pricing] func is configured (providers
 	// don't return a dollar figure on the chat path); see [Config.Pricing].
 	CostUSD float64
 

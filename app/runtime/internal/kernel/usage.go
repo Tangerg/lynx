@@ -8,15 +8,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// TokenUsage is the token roll-up used by turn outputs and budget checks.
-type TokenUsage = accounting.TokenUsage
-
-// ModelUsage is one model's contribution to a turn's token and cost usage.
-type ModelUsage = accounting.ModelUsage
-
-// Pricing computes the USD cost of one LLM round.
-type Pricing = accounting.Pricing
-
 // turnBudget caps one turn by tokens, dollars, and/or tool-call rounds. A zero
 // field means no cap on that dimension; the zero value is unbounded.
 type turnBudget struct {
@@ -37,7 +28,7 @@ func (b turnBudget) exceeded(pc *core.ProcessContext) bool {
 
 // invocationFrom maps a streamed round's usage + served model to the
 // framework's [core.LLMInvocation]. Cost is filled from the engine's
-// [Pricing] hook when configured (else zero — the chat layer gets no
+// [accounting.Pricing] hook when configured (else zero — the chat layer gets no
 // dollar figure from the provider). provider is the round's provider (the
 // turn's selection), falling back to the engine default for a default /
 // subtask turn that named none — pricing needs it to disambiguate a model id
@@ -75,14 +66,14 @@ func (e *Engine) invocationFrom(provider, model string, u *chat.Usage) core.LLMI
 // local tally — is the point: lyra uses the framework's accounting.
 func turnOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) TurnOutput {
 	out := TurnOutput{Reply: reply, StoppedOnBudget: stoppedOnBudget}
-	byModel := map[string]*ModelUsage{}
+	byModel := map[string]*accounting.ModelUsage{}
 	var order []string
 	for _, inv := range pc.Process.LLMInvocations() {
 		out.Usage.AddInvocation(inv)
 		out.CostUSD += inv.CostUSD
 		m := byModel[inv.Model]
 		if m == nil {
-			m = &ModelUsage{Model: inv.Model}
+			m = &accounting.ModelUsage{Model: inv.Model}
 			byModel[inv.Model] = m
 			order = append(order, inv.Model)
 		}

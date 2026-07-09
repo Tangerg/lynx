@@ -17,7 +17,7 @@ import (
 
 // runBoundaryNodes lifts the structured timeline fields out of each persisted run's
 // opaque wire blob (a marshaled [protocol.RunRef]) so the domain boundary math
-// ([transcript.BoundaryAt]) stays wire-free. It also returns a by-id index of
+// ([transcript.Timeline.BoundaryAt]) stays wire-free. It also returns a by-id index of
 // the original RunRefs, because the rollback response reports dropped runs as
 // full wire RunRefs.
 func runBoundaryNodes(runs []transcript.Run) ([]transcript.RunNode, map[string]protocol.RunRef, error) {

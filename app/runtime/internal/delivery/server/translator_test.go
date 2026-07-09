@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -235,7 +236,7 @@ func TestTranslator_Compaction(t *testing.T) {
 func TestTranslator_UsageProgress(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
 	out := tr.translate(turn.UsageReported{
-		TokenUsage: turn.TokenUsage{PromptTokens: 1200, CompletionTokens: 80, ReasoningTokens: 30},
+		TokenUsage: accounting.TokenUsage{PromptTokens: 1200, CompletionTokens: 80, ReasoningTokens: 30},
 		CostUSD:    0.0125,
 	})
 	if len(out) != 1 || out[0].Type != protocol.StreamRunProgress {
@@ -254,7 +255,7 @@ func TestTranslator_UsageProgress(t *testing.T) {
 	}
 
 	// No pricing configured (cost 0) → costUsd omitted, never a fabricated $0.
-	free := tr.translate(turn.UsageReported{TokenUsage: turn.TokenUsage{PromptTokens: 10}})
+	free := tr.translate(turn.UsageReported{TokenUsage: accounting.TokenUsage{PromptTokens: 10}})
 	if free[0].Progress.Usage.CostUSD != nil {
 		t.Fatalf("costUsd = %v, want nil when cost is 0", free[0].Progress.Usage.CostUSD)
 	}

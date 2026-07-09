@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 )
 
 // newHistoryStore re-exports history.NewInMemoryStore under a
@@ -108,7 +109,7 @@ func (r *recordingObserver) OnReasoningDelta(_ string) {}
 
 // OnUsage is a no-op here -- the mid-run usage signal is asserted at the
 // transport layer (translator_test.go), not the engine level.
-func (r *recordingObserver) OnUsage(TokenUsage, float64, int64) {}
+func (r *recordingObserver) OnUsage(accounting.TokenUsage, float64, int64) {}
 
 func (r *recordingObserver) starts() []startCall {
 	r.mu.Lock()

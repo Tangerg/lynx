@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -84,7 +85,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 		accumulated    strings.Builder
 		roundUsage     *chat.Usage
 		roundModel     string
-		cumulative     TokenUsage
+		cumulative     accounting.TokenUsage
 		cumulativeCost float64
 		steps          int // tool-call rounds completed, for the MaxSteps cap
 	)

@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 )
 
 // turnObserver bridges the engine's tool observer to the turn's event
@@ -217,7 +218,7 @@ func (t *turnObserver) OnReasoningDelta(text string) {
 // OnUsage forwards the per-round cumulative usage as a [UsageReported] event —
 // the mid-run token / cost readout (transport maps it to run.progress).
 // contextTokens is this round's prompt size (the live context occupancy).
-func (t *turnObserver) OnUsage(usage kernel.TokenUsage, costUSD float64, contextTokens int64) {
+func (t *turnObserver) OnUsage(usage accounting.TokenUsage, costUSD float64, contextTokens int64) {
 	t.svc.emit(t.st, UsageReported{
 		TokenUsage:    usage,
 		CostUSD:       costUSD,

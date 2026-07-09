@@ -35,7 +35,7 @@
 1. **`arch_test.go` 就是防腐层本体**（`internal/arch/arch_test.go`）—— 用 `go/parser` 解析 import、机器断言依赖方向。Go 没有强制分层，这个测试就是答案。比任何文档、任何 code review 规范都硬。
 2. **`turn.Dispatcher` 是 use-case 接口的正确抽象级别**（`internal/kernel/turn/dispatcher.go`）—— "跑一个 turn"的状态机 / 事件流 / 中断恢复 / 取消 / steering 全在一个接口里，消费方（`delivery/server`）只依赖它。这是 exact right level of abstraction。
 3. **`translator` 把 wire↔domain 翻译集中在一处**（`internal/delivery/server/translator.go`）—— 一个 run 一个 translator，持有 open item 的状态机，把 `turn.Event` 的 delta 流转成 `protocol.StreamEvent`。翻译逻辑不在 pump、不在 runs.go、不在各 handler 里撒。干净。
-4. **`transcript.BoundaryAt` 是纯领域不变量**（`internal/domain/transcript/transcript.go`）—— rollback/fork 的"在哪条 run 边界切开时间线"是纯领域算法，不依赖 SQL、不依赖 wire、不依赖 session。零 I/O 可单测。这正是 `REFACTORING §5.1` 要的"充血"。
+4. **`transcript.Timeline.BoundaryAt` 是纯领域不变量**（`internal/domain/transcript/transcript.go`）—— rollback/fork 的"在哪条 run 边界切开时间线"是纯领域算法，不依赖 SQL、不依赖 wire、不依赖 session。零 I/O 可单测。这正是 `REFACTORING §5.1` 要的"充血"。
 
 ### 真正的 3 处债
 
@@ -103,7 +103,7 @@
 | `s.emitToolFileChange(...)`（L113） | 通知 workspace 订阅者 | ⚠️ 编排 |
 | `go s.snapshotCheckpoint(...)`（L154） | run 边界文件快照 | ⚠️ 编排 |
 
-**`rollback.go:RollbackSession`**（`internal/delivery/server/rollback.go:79`）做的事：串联 `Session.Get` → `Transcript.List` → `transcript.BoundaryAt`（领域算法）→ `restoreCheckpoint`（workspace）→ `TruncateMessages`（conversation）→ `DeleteRun` + `Interrupts.Delete` → `purgeSubtasksAfter`（级联 purge 子会话）。**这是横跨 6 个 domain 服务的 use-case，不是协议适配。**
+**`rollback.go:RollbackSession`**（`internal/delivery/server/rollback.go:79`）做的事：串联 `Session.Get` → `Transcript.List` → `transcript.Timeline.BoundaryAt`（领域算法）→ `restoreCheckpoint`（workspace）→ `TruncateMessages`（conversation）→ `DeleteRun` + `Interrupts.Delete` → `purgeSubtasksAfter`（级联 purge 子会话）。**这是横跨 6 个 domain 服务的 use-case，不是协议适配。**
 
 **裁决**：**结构性债**。修法见 §5 P0 —— 不是把 pump/rollback 整体搬走（translator / hub / wire helpers 是 delivery 的），而是把其中的**多服务协调**抽到 kernel 层的编排器，delivery 只剩 decode → 调编排器 → present。
 

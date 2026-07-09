@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 )
 
 // Event is the sealed sum type emitted on a turn's event channel.
@@ -143,9 +143,9 @@ type Interrupt struct {
 type TurnEnd struct {
 	BaseEvent
 	Reason       TurnEndReason
-	TokenUsage   TokenUsage
-	UsageByModel []ModelUsage // per-model breakdown; one entry for a single-model turn
-	CostUSD      float64      // turn cost; zero unless a pricing hook is configured (engine.Config.Pricing)
+	TokenUsage   accounting.TokenUsage
+	UsageByModel []accounting.ModelUsage // per-model breakdown; one entry for a single-model turn
+	CostUSD      float64                 // turn cost; zero unless a pricing hook is configured (engine.Config.Pricing)
 	Duration     time.Duration
 	// MaxBudget / MaxCostUSD / MaxSteps echo the turn's configured caps so a
 	// Reason=TurnEndBudgetExceeded / TurnEndStepsExceeded terminal can be
@@ -172,7 +172,7 @@ type ErrorEvent struct {
 // CostUSD is zero unless a pricing hook is configured.
 type UsageReported struct {
 	BaseEvent
-	TokenUsage TokenUsage
+	TokenUsage accounting.TokenUsage
 	CostUSD    float64
 	// ContextTokens is this round's prompt-token count — the live context-window
 	// occupancy (not the cumulative roll-up in TokenUsage). Transport maps it to
@@ -262,14 +262,3 @@ func (r TurnEndReason) String() string {
 		return "unknown"
 	}
 }
-
-// TokenUsage is the per-turn token roll-up. Alias for
-// [kernel.TokenUsage] — the engine owns the canonical shape and
-// the turn package re-exports it so transport adapters can stay
-// scoped to one import.
-type TokenUsage = kernel.TokenUsage
-
-// ModelUsage is the per-model token breakdown re-exported from the
-// engine, so transport adapters consuming [TurnEnd.UsageByModel] stay
-// scoped to one import.
-type ModelUsage = kernel.ModelUsage

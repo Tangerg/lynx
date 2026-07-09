@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -28,7 +29,7 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 		t.Fatalf("runTurnSync: %v", err)
 	}
 	got := out.Usage
-	want := TokenUsage{PromptTokens: 30, CompletionTokens: 12, ReasoningTokens: 3}
+	want := accounting.TokenUsage{PromptTokens: 30, CompletionTokens: 12, ReasoningTokens: 3}
 	if got != want {
 		t.Errorf("usage = %+v, want %+v", got, want)
 	}

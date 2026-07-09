@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -71,7 +72,7 @@ type toolObserver interface {
 	// right now. It grows across rounds/turns as history accumulates and drops
 	// after a compaction, so the client can render a live context-occupancy
 	// gauge (distinct from the summed usage, which only ever grows).
-	OnUsage(usage TokenUsage, costUSD float64, contextTokens int64)
+	OnUsage(usage accounting.TokenUsage, costUSD float64, contextTokens int64)
 }
 
 type toolObserverExtension interface {
