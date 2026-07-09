@@ -36,6 +36,54 @@ func TestScheduleValidate(t *testing.T) {
 	}
 }
 
+func TestScheduleApplyPatch(t *testing.T) {
+	title := "weekday report"
+	emptyCwd := ""
+	enabled := false
+	sc := Schedule{
+		Title:   "old",
+		Prompt:  "summarize",
+		Cwd:     "/work",
+		Cron:    "@daily",
+		Enabled: true,
+	}
+
+	got := sc.Apply(Patch{
+		Title:   &title,
+		Cwd:     &emptyCwd,
+		Enabled: &enabled,
+	})
+	if got.Title != title || got.Cwd != "" || got.Prompt != sc.Prompt || got.Cron != sc.Cron || got.Enabled {
+		t.Fatalf("patched schedule = %+v", got)
+	}
+}
+
+func TestScheduleScheduledAfter(t *testing.T) {
+	after := time.Date(2026, 6, 17, 10, 0, 0, 0, time.UTC)
+	sc := Schedule{Prompt: "do it", Cron: "0 9 * * 1-5", Enabled: true}
+	got, err := sc.ScheduledAfter(after)
+	if err != nil {
+		t.Fatalf("ScheduledAfter: %v", err)
+	}
+	want := time.Date(2026, 6, 18, 9, 0, 0, 0, time.UTC)
+	if !got.NextRunAt.Equal(want) {
+		t.Fatalf("NextRunAt = %v, want %v", got.NextRunAt, want)
+	}
+
+	got, err = Schedule{
+		Prompt:    "do it",
+		Cron:      "@daily",
+		Enabled:   false,
+		NextRunAt: want,
+	}.ScheduledAfter(after)
+	if err != nil {
+		t.Fatalf("ScheduledAfter disabled: %v", err)
+	}
+	if !got.NextRunAt.IsZero() {
+		t.Fatalf("disabled NextRunAt = %v, want zero", got.NextRunAt)
+	}
+}
+
 func TestValidateCron(t *testing.T) {
 	if err := ValidateCron("0 9 * * 1-5"); err != nil {
 		t.Errorf("valid 5-field cron rejected: %v", err)

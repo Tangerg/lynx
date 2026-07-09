@@ -46,7 +46,7 @@ func (s childSpawn) prepare() (*AgentProcess, error) {
 		return nil, fmt.Errorf("spawn child %q: %w (depth %d > max %d)", s.agentDef.Name, ErrMaxSpawnDepth, parentProc.depth+1, maxSpawnDepth)
 	}
 
-	child, err := s.platform.CreateChildProcess(s.agentDef, parentProc, s.options(parentProc))
+	child, err := s.platform.createChildProcess(s.agentDef, parentProc, s.bindings(), s.options(parentProc))
 	if err != nil {
 		return nil, fmt.Errorf("spawn child %q: create: %w", s.agentDef.Name, err)
 	}
@@ -61,10 +61,14 @@ func (s childSpawn) prepare() (*AgentProcess, error) {
 		parentProc.budget.removeChild(child)
 		return nil, fmt.Errorf("spawn child %q: link session: %w", s.agentDef.Name, err)
 	}
-	if s.input != nil {
-		child.Blackboard().Bind(s.input)
-	}
 	return child, nil
+}
+
+func (s childSpawn) bindings() map[string]any {
+	if s.input == nil {
+		return nil
+	}
+	return map[string]any{core.DefaultBindingName: s.input}
 }
 
 func (s childSpawn) parent() (*AgentProcess, error) {

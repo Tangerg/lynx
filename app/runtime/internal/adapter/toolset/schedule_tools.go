@@ -108,15 +108,9 @@ func newScheduleTools(reg schedule.Registry) ([]chat.Tool, error) {
 				Cron:     in.Cron,
 				Enabled:  enabled,
 			}
-			if err := sc.Validate(); err != nil {
+			sc, err := sc.ScheduledAfter(time.Now())
+			if err != nil {
 				return "", fmt.Errorf("schedule_create: %w", err)
-			}
-			if enabled {
-				next, err := schedule.NextRun(in.Cron, time.Now())
-				if err != nil {
-					return "", fmt.Errorf("schedule_create: %w", err)
-				}
-				sc.NextRunAt = next
 			}
 			created, err := reg.Create(ctx, sc)
 			if err != nil {
@@ -139,18 +133,10 @@ func newScheduleTools(reg schedule.Registry) ([]chat.Tool, error) {
 			if err != nil {
 				return "", fmt.Errorf("schedule_update: %w", err)
 			}
-			applySchedulePatch(&sc, in)
-			if err := sc.Validate(); err != nil {
+			sc = sc.Apply(schedulePatch(in))
+			sc, err = sc.ScheduledAfter(time.Now())
+			if err != nil {
 				return "", fmt.Errorf("schedule_update: %w", err)
-			}
-			if sc.Enabled {
-				next, err := schedule.NextRun(sc.Cron, time.Now())
-				if err != nil {
-					return "", fmt.Errorf("schedule_update: %w", err)
-				}
-				sc.NextRunAt = next
-			} else {
-				sc.NextRunAt = time.Time{}
 			}
 			updated, err := reg.Update(ctx, sc)
 			if err != nil {
@@ -182,27 +168,15 @@ func newScheduleTools(reg schedule.Registry) ([]chat.Tool, error) {
 	return []chat.Tool{list, create, update, deleteTool}, nil
 }
 
-func applySchedulePatch(sc *schedule.Schedule, in scheduleUpdateRequest) {
-	if in.Title != nil {
-		sc.Title = *in.Title
-	}
-	if in.Prompt != nil {
-		sc.Prompt = *in.Prompt
-	}
-	if in.Cwd != nil {
-		sc.Cwd = *in.Cwd
-	}
-	if in.Provider != nil {
-		sc.Provider = *in.Provider
-	}
-	if in.Model != nil {
-		sc.Model = *in.Model
-	}
-	if in.Cron != nil {
-		sc.Cron = *in.Cron
-	}
-	if in.Enabled != nil {
-		sc.Enabled = *in.Enabled
+func schedulePatch(in scheduleUpdateRequest) schedule.Patch {
+	return schedule.Patch{
+		Title:    in.Title,
+		Prompt:   in.Prompt,
+		Cwd:      in.Cwd,
+		Provider: in.Provider,
+		Model:    in.Model,
+		Cron:     in.Cron,
+		Enabled:  in.Enabled,
 	}
 }
 

@@ -15,7 +15,8 @@ func (ProcessCreated) EventName() string { return "process_created" }
 // successfully.
 type ProcessCompleted struct {
 	BaseEvent
-	Goal *core.Goal `json:"-"`
+	Goal   *core.Goal `json:"-"`
+	Result any        `json:"-"`
 }
 
 func (ProcessCompleted) EventName() string { return "process_completed" }

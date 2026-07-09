@@ -35,8 +35,8 @@ func TestTodoStore_RoundTrip(t *testing.T) {
 
 	want := []todo.Item{
 		{Content: "plan", Status: todo.StatusCompleted},
-		{Content: "build", Status: todo.StatusInProgress},
-		{Content: "ship", Status: todo.StatusPending},
+		{Content: "build", Status: todo.StatusInProgress, NextAction: "run focused test"},
+		{Content: "ship", Status: todo.StatusPending, BlockedReason: "waiting on release notes"},
 	}
 	if err := store.Replace(ctx, sess, want); err != nil {
 		t.Fatalf("Replace: %v", err)

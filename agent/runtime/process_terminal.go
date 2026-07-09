@@ -75,9 +75,11 @@ func (p *AgentProcess) checkEarlyTermination(ctx context.Context) bool {
 func (p *AgentProcess) publishTerminalEvent(ctx context.Context) {
 	switch p.Status() {
 	case core.StatusCompleted:
+		result, _ := core.Last[any](p.Blackboard())
 		p.publishEvent(ctx, event.ProcessCompleted{
 			BaseEvent: p.baseEvent(),
 			Goal:      p.Goal(),
+			Result:    result,
 		})
 	case core.StatusFailed:
 		p.publishEvent(ctx, event.ProcessFailed{

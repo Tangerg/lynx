@@ -26,6 +26,14 @@ func guardTools(dir string) (read, edit, write chat.Tool, tr *editguard.Tracker)
 	return read, edit, write, tr
 }
 
+func guardToolsWithFormat(dir string) (read, edit chat.Tool) {
+	tr := editguard.NewTracker()
+	ex := fs.NewLocalExecutor(dir)
+	read = withReadTracking(fs.NewReadTool(ex), tr, dir)
+	edit = withEditGuard(withEditDiagnostics(withAutoFormat(fs.NewEditTool(ex), dir), nil, dir), tr, dir)
+	return read, edit
+}
+
 func TestEditGuard_RequiresReadFirst(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "foo.go")
@@ -72,6 +80,34 @@ func TestEditGuard_ReadThenEdit(t *testing.T) {
 	// A second edit without re-reading works — the stamp was refreshed.
 	if out, err := edit.Call(ctx, `{"file_path":"foo.go","old_string":"Bar","new_string":"Baz"}`); err != nil || strings.Contains(out, "must read") || strings.Contains(out, "changed since") {
 		t.Fatalf("consecutive edit blocked: out=%q err=%v", out, err)
+	}
+}
+
+func TestEditGuard_RefreshesAfterAutoFormat(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "data.json")
+	if err := os.WriteFile(path, []byte(`{"name":"old","count":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	read, edit := guardToolsWithFormat(dir)
+	ctx := context.Background()
+
+	if _, err := read.Call(ctx, `{"file_path":"data.json"}`); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if out, err := edit.Call(ctx, `{"file_path":"data.json","old_string":"old","new_string":"new"}`); err != nil || strings.Contains(out, "changed since") {
+		t.Fatalf("first edit blocked: out=%q err=%v", out, err)
+	}
+	formatted, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if !strings.Contains(string(formatted), "\n  \"name\": \"new\"") {
+		t.Fatalf("json was not formatted after edit: %q", formatted)
+	}
+
+	if out, err := edit.Call(ctx, `{"file_path":"data.json","old_string":"new","new_string":"newer"}`); err != nil || strings.Contains(out, "changed since") {
+		t.Fatalf("second edit after auto-format was blocked: out=%q err=%v", out, err)
 	}
 }
 

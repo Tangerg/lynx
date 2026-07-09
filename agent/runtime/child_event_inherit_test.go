@@ -16,8 +16,10 @@ import (
 // process-scope listener also receives the events of child processes
 // spawned during the run (each tagged with the child's own id).
 type pidCapture struct {
-	mu  sync.Mutex
-	ids map[string]int
+	mu        sync.Mutex
+	ids       map[string]int
+	created   []event.ProcessCreated
+	completed []event.ProcessCompleted
 }
 
 func (*pidCapture) Name() string { return "pid-capture" }
@@ -29,6 +31,12 @@ func (c *pidCapture) OnEvent(_ context.Context, e event.Event) {
 		c.ids = map[string]int{}
 	}
 	c.ids[e.ProcessID()]++
+	switch ev := e.(type) {
+	case event.ProcessCreated:
+		c.created = append(c.created, ev)
+	case event.ProcessCompleted:
+		c.completed = append(c.completed, ev)
+	}
 }
 
 // TestChildEventsReachParentProcessListener verifies the runtime
@@ -99,4 +107,30 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 	if !sawChild {
 		t.Fatalf("process-scope listener saw only the parent (%v); expected child events too", capture.ids)
 	}
+	childID := ""
+	for _, ev := range capture.created {
+		if ev.ProcessID() == proc.ID() {
+			continue
+		}
+		in, ok := ev.Bindings[core.DefaultBindingName].(subInput)
+		if !ok || in.Value != 21 {
+			t.Fatalf("child ProcessCreated bindings = %#v, want subInput{21}", ev.Bindings)
+		}
+		childID = ev.ProcessID()
+		break
+	}
+	if childID == "" {
+		t.Fatal("no child ProcessCreated event captured")
+	}
+	for _, ev := range capture.completed {
+		if ev.ProcessID() != childID {
+			continue
+		}
+		out, ok := ev.Result.(subOutput)
+		if !ok || out.Doubled != 42 {
+			t.Fatalf("child ProcessCompleted result = %#v, want subOutput{42}", ev.Result)
+		}
+		return
+	}
+	t.Fatalf("no child ProcessCompleted event captured for %s", childID)
 }

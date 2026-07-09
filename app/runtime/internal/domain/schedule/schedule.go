@@ -57,6 +57,45 @@ type Schedule struct {
 	CreatedAt time.Time
 }
 
+// Patch is a partial update to a Schedule. Nil fields keep the existing value;
+// non-nil fields replace it, including replacing a string with "".
+type Patch struct {
+	Title    *string
+	Prompt   *string
+	Cwd      *string
+	Provider *string
+	Model    *string
+	Cron     *string
+	Enabled  *bool
+}
+
+// Apply returns s with p applied. It does not validate or recompute NextRunAt;
+// call [Schedule.ScheduledAfter] before persisting.
+func (s Schedule) Apply(p Patch) Schedule {
+	if p.Title != nil {
+		s.Title = *p.Title
+	}
+	if p.Prompt != nil {
+		s.Prompt = *p.Prompt
+	}
+	if p.Cwd != nil {
+		s.Cwd = *p.Cwd
+	}
+	if p.Provider != nil {
+		s.Provider = *p.Provider
+	}
+	if p.Model != nil {
+		s.Model = *p.Model
+	}
+	if p.Cron != nil {
+		s.Cron = *p.Cron
+	}
+	if p.Enabled != nil {
+		s.Enabled = *p.Enabled
+	}
+	return s
+}
+
 // Validate checks a schedule draft before it is persisted: a prompt and a
 // parseable cron are required, and provider/model are paired. Returns one of the
 // package's validation sentinels (or a [ValidateCron] error). Create/update call
@@ -72,6 +111,24 @@ func (s Schedule) Validate() error {
 		return ErrIncompleteModelSelection
 	}
 	return ValidateCron(s.Cron)
+}
+
+// ScheduledAfter validates s and returns a copy with NextRunAt matching its
+// enabled state. Disabled schedules always have a zero NextRunAt.
+func (s Schedule) ScheduledAfter(after time.Time) (Schedule, error) {
+	if err := s.Validate(); err != nil {
+		return Schedule{}, err
+	}
+	if !s.Enabled {
+		s.NextRunAt = time.Time{}
+		return s, nil
+	}
+	next, err := NextRun(s.Cron, after)
+	if err != nil {
+		return Schedule{}, err
+	}
+	s.NextRunAt = next
+	return s, nil
 }
 
 // ValidateCron reports whether spec is a parseable 5-field cron expression

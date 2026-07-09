@@ -1,10 +1,11 @@
 // Package todo is the model-facing task list: the agent's own working
-// checklist for a session. It is a small domain — an ordered list of items,
-// each pending / in_progress / completed — persisted per session so the list
-// survives across turns (and restarts). The model owns the list through the
-// todo_write tool (a full-list replace); this package holds the types, the
-// persistence contract, the progress-integrity rules, and the canonical
-// textual rendering shared by the tool and the system-prompt injection.
+// checklist for a session. It is a small domain: an ordered list of items, each
+// pending / in_progress / completed, with optional blocked reason and next
+// action. The list survives across turns (and restarts). The model owns the list
+// through the todo_write tool (a full-list replace); this package holds the
+// types, the persistence contract, the progress-integrity rules, and the
+// canonical textual rendering shared by the tool and the system-prompt
+// injection.
 package todo
 
 import (
@@ -33,10 +34,12 @@ func (s Status) Valid() bool {
 	}
 }
 
-// Item is one entry: a short imperative description and its current status.
+// Item is one entry in the agent's working checklist.
 type Item struct {
-	Content string `json:"content"`
-	Status  Status `json:"status"`
+	Content       string `json:"content"`
+	Status        Status `json:"status"`
+	BlockedReason string `json:"blocked_reason,omitempty"`
+	NextAction    string `json:"next_action,omitempty"`
 }
 
 // Store persists a session's todo list. The list is always read and written
@@ -60,8 +63,10 @@ var ErrInvalid = errors.New("todo: invalid update")
 // (next) against the current list (prev) — the guardrails that stop a model
 // from faking progress:
 //
+//   - every item must have content;
 //   - every status must be recognized;
 //   - at most ONE item may be in_progress (focus, not "doing everything");
+//   - completed items must not carry blocked_reason or next_action;
 //   - at most ONE item may NEWLY become completed per update — honest
 //     incremental completion: finish and mark one task, then the next,
 //     instead of flipping the whole list to done in a single call.
@@ -73,8 +78,14 @@ var ErrInvalid = errors.New("todo: invalid update")
 func Validate(prev, next []Item) error {
 	inProgress, completedNext := 0, 0
 	for _, it := range next {
+		if strings.TrimSpace(it.Content) == "" {
+			return fmt.Errorf("%w: content is required", ErrInvalid)
+		}
 		if !it.Status.Valid() {
 			return fmt.Errorf("%w: unknown status %q (use pending / in_progress / completed)", ErrInvalid, it.Status)
+		}
+		if it.Status == StatusCompleted && (strings.TrimSpace(it.BlockedReason) != "" || strings.TrimSpace(it.NextAction) != "") {
+			return fmt.Errorf("%w: completed items must not carry blocked_reason or next_action", ErrInvalid)
 		}
 		switch it.Status {
 		case StatusInProgress:
@@ -111,6 +122,16 @@ func Render(items []Item) string {
 		b.WriteByte(' ')
 		b.WriteString(it.Content)
 		b.WriteByte('\n')
+		if it.BlockedReason != "" {
+			b.WriteString("    blocked: ")
+			b.WriteString(it.BlockedReason)
+			b.WriteByte('\n')
+		}
+		if it.NextAction != "" {
+			b.WriteString("    next: ")
+			b.WriteString(it.NextAction)
+			b.WriteByte('\n')
+		}
 	}
 	return b.String()
 }

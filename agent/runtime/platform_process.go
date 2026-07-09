@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -46,7 +47,7 @@ func (p *Platform) createProcess(
 	proc.wireRuntimeDeps(options.Extensions)
 
 	p.procs.register(proc)
-	p.publish(event.ProcessCreated{
+	proc.publishEvent(context.Background(), event.ProcessCreated{
 		BaseEvent: event.NewBaseEvent(id),
 		Bindings:  bindings,
 	})
@@ -60,6 +61,15 @@ func (p *Platform) createProcess(
 func (p *Platform) CreateChildProcess(
 	agentDef *core.Agent,
 	parent *AgentProcess,
+	options core.ProcessOptions,
+) (*AgentProcess, error) {
+	return p.createChildProcess(agentDef, parent, nil, options)
+}
+
+func (p *Platform) createChildProcess(
+	agentDef *core.Agent,
+	parent *AgentProcess,
+	bindings map[string]any,
 	options core.ProcessOptions,
 ) (*AgentProcess, error) {
 	if parent == nil {
@@ -79,7 +89,7 @@ func (p *Platform) CreateChildProcess(
 	// callers that don't observe per-process.
 	options.Extensions = inheritEventListeners(options.Extensions, parent.options)
 
-	child, err := p.createProcess(agentDef, nil, options)
+	child, err := p.createProcess(agentDef, bindings, options)
 	if err != nil {
 		return nil, err
 	}

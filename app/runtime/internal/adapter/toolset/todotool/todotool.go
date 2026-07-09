@@ -29,8 +29,11 @@ new steps, or re-scope.
 Pass the COMPLETE updated list every time — it REPLACES the stored list (it is
 not a delta). Rules, enforced by the runtime:
   - Keep exactly ONE task "in_progress" at a time; the rest "pending" or "completed".
+  - Use blocked_reason when a pending/in_progress task is stuck on a concrete blocker.
+  - Use next_action for the immediate next move on pending/in_progress tasks.
   - Mark a task "completed" ONLY when it is fully done (tests pass, no errors),
     and complete them ONE AT A TIME — do not flip several to completed in one call.
+  - Completed tasks must not carry blocked_reason or next_action.
 Skip this tool for trivial single-step requests; it is for real multi-step work.`
 
 // writeArgs is the model-facing argument shape; [chat.NewJSONTool] derives the
@@ -43,15 +46,22 @@ type writeArgs struct {
 }
 
 type todoItemArg struct {
-	Content string `json:"content" jsonschema:"required" jsonschema_description:"Imperative description of the task (e.g. \"Add the retry guard to fetch()\")."`
-	Status  string `json:"status" jsonschema:"required,enum=pending,enum=in_progress,enum=completed" jsonschema_description:"pending = not started; in_progress = actively working (at most one); completed = fully done."`
+	Content       string `json:"content" jsonschema:"required" jsonschema_description:"Imperative description of the task (e.g. \"Add the retry guard to fetch()\")."`
+	Status        string `json:"status" jsonschema:"required,enum=pending,enum=in_progress,enum=completed" jsonschema_description:"pending = not started; in_progress = actively working (at most one); completed = fully done."`
+	BlockedReason string `json:"blocked_reason,omitempty" jsonschema_description:"Why this pending/in_progress task is blocked. Leave empty when it is not blocked."`
+	NextAction    string `json:"next_action,omitempty" jsonschema_description:"The immediate next action for this pending/in_progress task. Leave empty for completed tasks."`
 }
 
 // items maps the parsed args to the domain type.
 func (a writeArgs) items() []todo.Item {
 	out := make([]todo.Item, len(a.Todos))
 	for i, t := range a.Todos {
-		out[i] = todo.Item{Content: t.Content, Status: todo.Status(t.Status)}
+		out[i] = todo.Item{
+			Content:       t.Content,
+			Status:        todo.Status(t.Status),
+			BlockedReason: t.BlockedReason,
+			NextAction:    t.NextAction,
+		}
 	}
 	return out
 }

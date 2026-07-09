@@ -103,7 +103,13 @@ type ToolInput struct {
 
 // SubagentInput is the sub-agent slice of an Input for SubagentStart/Stop.
 type SubagentInput struct {
-	ProcessID string `json:"processId"`
+	ProcessID       string `json:"processId"`
+	ParentProcessID string `json:"parentProcessId,omitempty"`
+	Description     string `json:"description,omitempty"`
+	Prompt          string `json:"prompt,omitempty"`
+	Status          string `json:"status,omitempty"`
+	Result          string `json:"result,omitempty"`
+	Error           string `json:"error,omitempty"`
 }
 
 // Decision is the combined verdict of every hook that fired for one event.

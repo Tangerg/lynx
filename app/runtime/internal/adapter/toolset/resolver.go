@@ -50,6 +50,7 @@ type Resolver struct {
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
 	// the embedding model can be configured after construction. nil → no tool.
 	codebaseIndex CodebaseIndex
+	sourcegraph   sourcegraphConfig
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -86,6 +87,7 @@ type Deps struct {
 	CodeIntel       *codeintel.Analyzer // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker  // backs the read/edit/write guards
 	CodebaseIndex   CodebaseIndex       // backs codebase_search (both roles); nil → omitted
+	Sourcegraph     sourcegraphConfig   // optional remote search backing code_search
 
 	// MCPDisabled returns the model-facing MCP tool names the configured servers
 	// hide from the model (per-server blacklist; nil → no filtering). Read per
@@ -131,6 +133,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
 		codebaseIndex:   d.CodebaseIndex,
+		sourcegraph:     d.Sourcegraph,
 		mcpDisabled:     d.MCPDisabled,
 	}, nil
 }
@@ -205,6 +208,11 @@ func (g *toolGroup) Metadata() core.ToolGroupMetadata {
 func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	workdir := g.resolver.workdirFor(ctx)
 	tools := BuildWorkdirTools(workdir, g.resolver.codeIntel, g.resolver.readTracker)
+	codeSearch, err := newCodeSearchTool(workdir, g.resolver.codebaseIndex, g.resolver.sourcegraph)
+	if err != nil {
+		return nil, fmt.Errorf("toolset: resolve code_search: %w", err)
+	}
+	tools = append(tools, codeSearch)
 	tools = append(tools, g.resolver.online...)
 	tools = append(tools, g.resolver.mcpTools()...)
 	tools = append(tools, g.resolver.a2a...)

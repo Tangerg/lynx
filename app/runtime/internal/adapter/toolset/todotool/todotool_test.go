@@ -68,3 +68,24 @@ func TestTodoWrite_BadArguments(t *testing.T) {
 		t.Fatal("invalid arguments must error")
 	}
 }
+
+func TestWriteArgs_ItemsCarriesWorkflowFields(t *testing.T) {
+	items := writeArgs{Todos: []todoItemArg{{
+		Content:       "debug failing test",
+		Status:        "in_progress",
+		BlockedReason: "fixture mismatch",
+		NextAction:    "update fake registry",
+	}}}.items()
+	if len(items) != 1 {
+		t.Fatalf("items len = %d, want 1", len(items))
+	}
+	want := todo.Item{
+		Content:       "debug failing test",
+		Status:        todo.StatusInProgress,
+		BlockedReason: "fixture mismatch",
+		NextAction:    "update fake registry",
+	}
+	if items[0] != want {
+		t.Fatalf("item = %+v, want %+v", items[0], want)
+	}
+}
