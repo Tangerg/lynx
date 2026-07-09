@@ -38,13 +38,18 @@
   - 只在发现具体规则外泄时做；当前候选是 `transcript` 的 wire blob 味道和 session/run 边界语义。
   - 需要单独评估 blast radius；本批不强行执行。
 
+- [x] **Batch 4：持久化后端装配移出 CLI**
+  - 把 `cmd/lyra/stores.go` 搬到 `internal/adapter/persistence`，CLI 只调用 `persistence.Open()`。
+  - 预期收益：`cmd/lyra` 不再直接 import SQLite/file storage/各 domain store 类型，外壳更薄。
+
 ## 执行记录
 
 ### 2026-07-09
 
 - [x] 建立本跟踪文档。
-- [x] Batch 1：新增 `cmd/lyra/runtime_config.go`，把 `ensureRuntime` 中的 `lyraruntime.Config` 大字面量抽成 `buildRuntimeConfig`。`runtime_bootstrap.go` 现在保留启动顺序：load config → build client → build stores → seed registries → build hooks → `runtime.New`。
+- [x] Batch 1：新增 `cmd/lyra/runtime_config.go`，把 `ensureRuntime` 中的 `lyraruntime.Config` 大字面量抽成 `buildRuntimeConfig`。`runtime_bootstrap.go` 现在保留启动顺序：load config → build client → open persistence → seed registries → build hooks → `runtime.New`。
 - [x] Batch 2：新增 `internal/runtime/engine_wiring.go` 与 `facade_wiring.go`，把 engine config/message history/tool env 注入、Runtime facade 端口投影从 `New` 的主流程中拿出。`New` 现在只保留装配流程和错误处理。
 - [x] Batch 3：新增 `transcript.Timeline` 值对象，把 rollback/fork 边界算法提升为 `Timeline.BoundaryAt`；保留原 `transcript.BoundaryAt` 函数作为兼容入口。`kernel/lifecycle.ResolveRollbackBoundary` 改为调用领域对象方法。
+- [x] Batch 4：新增 `internal/adapter/persistence.Bundle` / `Open`，删除 `cmd/lyra/stores.go`。`ensureRuntime` 和 `hooks` 命令改为调用 persistence adapter，`buildRuntimeConfig` 接收 persistence bundle。
 - [x] 局部验证：`go test ./internal/domain/transcript ./internal/kernel/lifecycle ./internal/runtime/... ./cmd/lyra` 通过。
 - [x] 全量验证：`go build ./... && go vet ./... && go test ./...` 通过；`golangci-lint run` 通过。

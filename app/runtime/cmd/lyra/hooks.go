@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	adapterhooks "github.com/Tangerg/lynx/app/runtime/internal/adapter/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 )
 
 // HooksCmd is the `lyra hooks` group — manage which projects are trusted to run
@@ -50,7 +51,7 @@ func (a *App) hooksTrustCmd() *cobra.Command {
 			if err != nil {
 				return a.fatalErr(err)
 			}
-			stores, err := buildStores()
+			stores, err := persistence.Open()
 			if err != nil {
 				return a.fatalErr(err)
 			}
@@ -73,7 +74,7 @@ func (a *App) hooksUntrustCmd() *cobra.Command {
 			if err != nil {
 				return a.fatalErr(err)
 			}
-			stores, err := buildStores()
+			stores, err := persistence.Open()
 			if err != nil {
 				return a.fatalErr(err)
 			}
@@ -93,7 +94,7 @@ func (a *App) hooksListCmd() *cobra.Command {
 		Short:   "List trusted projects.",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			stores, err := buildStores()
+			stores, err := persistence.Open()
 			if err != nil {
 				return a.fatalErr(err)
 			}

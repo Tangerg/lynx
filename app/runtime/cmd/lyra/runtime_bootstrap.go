@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	adapterhooks "github.com/Tangerg/lynx/app/runtime/internal/adapter/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
@@ -41,7 +42,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		return err
 	}
 
-	stores, err := buildStores()
+	stores, err := persistence.Open()
 	if err != nil {
 		return err
 	}
