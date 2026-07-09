@@ -162,10 +162,6 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		ReadTracker:     tracker,
 		MCPDisabled:     cfg.MCPDisabled,
 		CodebaseIndex:   cfg.CodebaseIndex,
-		Sourcegraph: sourcegraphConfig{
-			Endpoint: cfg.Online.SourcegraphEndpoint,
-			Token:    cfg.Online.SourcegraphToken,
-		},
 	})
 	if err != nil {
 		_ = mcpConns.Close()
@@ -179,14 +175,6 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	// working-directory independent, so the default-workdir build is faithful.
 	// Only `task` is appended by the engine (it needs the platform).
 	tools := BuildWorkdirTools(cfg.Workdir, codeIntel, tracker)
-	codeSearch, err := newCodeSearchTool(cfg.Workdir, cfg.CodebaseIndex, sourcegraphConfig{
-		Endpoint: cfg.Online.SourcegraphEndpoint,
-		Token:    cfg.Online.SourcegraphToken,
-	})
-	if err != nil {
-		return Built{}, fmt.Errorf("toolset: build code_search: %w", err)
-	}
-	tools = append(tools, codeSearch)
 	tools = append(tools, online...)
 	tools = append(tools, mcpTools...)
 	tools = append(tools, a2aTools...)
