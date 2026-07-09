@@ -291,8 +291,8 @@ func TestTranslator_SteerMessage(t *testing.T) {
 func TestTranslator_TodosSnapshot(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
 	out := tr.translate(turn.TodosUpdated{Todos: []todo.Item{
-		{Content: "write tests", Status: todo.StatusInProgress},
-		{Content: "ship it", Status: todo.StatusPending},
+		{Content: "write tests", Status: todo.StatusInProgress, NextAction: "run focused package"},
+		{Content: "ship it", Status: todo.StatusPending, BlockedReason: "waiting on review"},
 	}})
 	if len(out) != 1 || out[0].Type != protocol.StreamStateSnapshot {
 		t.Fatalf("TodosUpdated → %+v, want one state.snapshot", out)
@@ -301,8 +301,12 @@ func TestTranslator_TodosSnapshot(t *testing.T) {
 	if !ok || len(todos) != 2 {
 		t.Fatalf("state.todos = %+v, want 2 TodoSnapshot", out[0].State["todos"])
 	}
-	if todos[0] != (protocol.TodoSnapshot{ID: "0", Text: "write tests", Status: "in_progress"}) {
-		t.Fatalf("todo[0] = %+v, want {0, write tests, in_progress}", todos[0])
+	want := protocol.TodoSnapshot{ID: "0", Text: "write tests", Status: "in_progress", NextAction: "run focused package"}
+	if todos[0] != want {
+		t.Fatalf("todo[0] = %+v, want %+v", todos[0], want)
+	}
+	if todos[1].BlockedReason != "waiting on review" {
+		t.Fatalf("todo[1].BlockedReason = %q", todos[1].BlockedReason)
 	}
 }
 

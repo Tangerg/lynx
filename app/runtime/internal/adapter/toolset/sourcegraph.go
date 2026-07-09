@@ -57,6 +57,10 @@ type sourcegraphTool struct {
 }
 
 func newSourcegraphTool(cfg sourcegraphConfig) (chat.Tool, error) {
+	return newSourcegraphClient(cfg)
+}
+
+func newSourcegraphClient(cfg sourcegraphConfig) (*sourcegraphTool, error) {
 	streamURL, err := sourcegraphStreamURL(cfg.Endpoint)
 	if err != nil {
 		return nil, err

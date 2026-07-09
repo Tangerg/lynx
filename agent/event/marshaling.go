@@ -33,7 +33,7 @@ func (e ProcessCreated) MarshalJSON() ([]byte, error) {
 }
 
 func (e ProcessCompleted) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"goal": summarizeGoal(e.Goal)})
+	return emit(e, map[string]any{"goal": summarizeGoal(e.Goal), "result": e.Result})
 }
 
 func (e ProcessFailed) MarshalJSON() ([]byte, error) {

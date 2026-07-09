@@ -100,7 +100,13 @@ func (t *translator) steerMessage(e turn.SteerMessage) []protocol.StreamEvent {
 func (t *translator) todosSnapshot(e turn.TodosUpdated) []protocol.StreamEvent {
 	todos := make([]protocol.TodoSnapshot, len(e.Todos))
 	for i, it := range e.Todos {
-		todos[i] = protocol.TodoSnapshot{ID: strconv.Itoa(i), Text: it.Content, Status: string(it.Status)}
+		todos[i] = protocol.TodoSnapshot{
+			ID:            strconv.Itoa(i),
+			Text:          it.Content,
+			Status:        string(it.Status),
+			BlockedReason: it.BlockedReason,
+			NextAction:    it.NextAction,
+		}
 	}
 	return []protocol.StreamEvent{{
 		Type:  protocol.StreamStateSnapshot,

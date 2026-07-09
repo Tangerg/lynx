@@ -2,8 +2,12 @@ package turn
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"reflect"
 	"sync"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
@@ -34,6 +38,7 @@ type turnLifecycle struct {
 	sessionID string
 	cwd       string
 	hooks     *hooks.Bound
+	subagents map[string]hooks.SubagentInput
 }
 
 // setRoot records the turn's root process id once StartTurn returns it,
@@ -77,27 +82,125 @@ func (l *turnLifecycle) fireSubagentHook(ctx context.Context, e event.Event) {
 	if rootID == "" || e.ProcessID() == rootID {
 		return
 	}
-	switch e.(type) {
+	switch ev := e.(type) {
 	case event.ProcessCreated:
+		in := hooks.SubagentInput{ProcessID: e.ProcessID(), ParentProcessID: rootID}
+		in.Description, in.Prompt = subagentTaskInput(ev.Bindings)
+		l.mu.Lock()
+		if l.subagents == nil {
+			l.subagents = map[string]hooks.SubagentInput{}
+		}
+		l.subagents[e.ProcessID()] = in
+		l.mu.Unlock()
 		_ = l.hooks.Run(ctx, hooks.Input{
 			Event:     hooks.SubagentStart,
 			SessionID: l.sessionID,
 			Cwd:       l.cwd,
-			Subagent:  &hooks.SubagentInput{ProcessID: e.ProcessID()},
+			Subagent:  &in,
 		})
-	case event.ProcessCompleted,
-		event.ProcessKilled,
-		event.ProcessFailed,
-		event.ProcessTerminated,
-		event.ProcessStuck:
-		_ = l.hooks.Run(ctx, hooks.Input{
-			Event:     hooks.SubagentStop,
-			SessionID: l.sessionID,
-			Cwd:       l.cwd,
-			Subagent:  &hooks.SubagentInput{ProcessID: e.ProcessID()},
-			Reason:    e.EventName(),
-		})
+	case event.ProcessCompleted:
+		l.runSubagentStopHook(ctx, e, "completed", summarizeHookValue(ev.Result), "")
+	case event.ProcessFailed:
+		l.runSubagentStopHook(ctx, e, "failed", "", errorString(ev.Err))
+	case event.ProcessKilled:
+		l.runSubagentStopHook(ctx, e, "killed", "", ev.Reason)
+	case event.ProcessTerminated:
+		l.runSubagentStopHook(ctx, e, "terminated", "", ev.Reason)
+	case event.ProcessStuck:
+		l.runSubagentStopHook(ctx, e, "stuck", "", "")
 	}
+}
+
+func (l *turnLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, status, result, errText string) {
+	in := hooks.SubagentInput{ProcessID: e.ProcessID()}
+	l.mu.Lock()
+	if l.subagents != nil {
+		if cached, ok := l.subagents[e.ProcessID()]; ok {
+			in = cached
+			delete(l.subagents, e.ProcessID())
+		}
+	}
+	l.mu.Unlock()
+	in.Status = status
+	in.Result = result
+	in.Error = errText
+	_ = l.hooks.Run(ctx, hooks.Input{
+		Event:     hooks.SubagentStop,
+		SessionID: l.sessionID,
+		Cwd:       l.cwd,
+		Subagent:  &in,
+		Reason:    e.EventName(),
+	})
+}
+
+func subagentTaskInput(bindings map[string]any) (description, prompt string) {
+	if len(bindings) == 0 {
+		return "", ""
+	}
+	input, ok := bindings[core.DefaultBindingName]
+	if !ok {
+		for _, value := range bindings {
+			input = value
+			break
+		}
+	}
+	return stringField(input, "Description"), summarizeHookText(stringField(input, "Prompt"))
+}
+
+func stringField(v any, name string) string {
+	if v == nil {
+		return ""
+	}
+	if m, ok := v.(map[string]any); ok {
+		if s, ok := m[name].(string); ok {
+			return s
+		}
+	}
+	rv := reflect.ValueOf(v)
+	for rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return ""
+		}
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return ""
+	}
+	field := rv.FieldByName(name)
+	if !field.IsValid() || field.Kind() != reflect.String {
+		return ""
+	}
+	return field.String()
+}
+
+func summarizeHookValue(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return summarizeHookText(x)
+	default:
+		b, err := json.Marshal(x)
+		if err != nil {
+			return summarizeHookText(fmt.Sprint(x))
+		}
+		return summarizeHookText(string(b))
+	}
+}
+
+func summarizeHookText(s string) string {
+	const maxHookText = 2000
+	if len(s) <= maxHookText {
+		return s
+	}
+	return s[:maxHookText] + "...(truncated)"
+}
+
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func (l *turnLifecycle) get() event.Event {

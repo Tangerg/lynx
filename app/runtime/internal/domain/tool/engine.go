@@ -94,7 +94,7 @@ func (r *registry) Invoke(ctx context.Context, name string, arguments string) (s
 // milestone may let users override per-tool via config.
 func SafetyClassFor(name string) SafetyClass {
 	switch name {
-	case "read", "glob", "grep", "lsp", "lsp_diagnostics", "skill", "ask_user", "exit_plan_mode", "sourcegraph_search", "schedule_list":
+	case "read", "glob", "grep", "lsp", "lsp_diagnostics", "skill", "ask_user", "exit_plan_mode", "code_search", "codebase_search", "sourcegraph_search", "schedule_list":
 		// lsp / lsp_diagnostics are read-only code-intelligence queries — same
 		// class as read/glob/grep. skill only reads skill files. ask_user has no
 		// side effect (it IS a HITL interrupt, so gating it would double-prompt).

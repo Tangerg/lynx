@@ -27,6 +27,7 @@ func TestRegistry_List(t *testing.T) {
 		"read":        tool.SafetyClassSafe,
 		"glob":        tool.SafetyClassSafe,
 		"grep":        tool.SafetyClassSafe,
+		"code_search": tool.SafetyClassSafe,
 		"write":       tool.SafetyClassWrite,
 		"edit":        tool.SafetyClassWrite,
 		"multiedit":   tool.SafetyClassWrite,
