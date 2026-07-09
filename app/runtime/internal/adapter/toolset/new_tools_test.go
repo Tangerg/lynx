@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools/httpreq"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
@@ -26,7 +28,12 @@ func TestDownloadTool_WritesAndRefusesBlindOverwrite(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	tool := newDownloadTool(dir)
+	srvURL, _ := url.Parse(srv.URL)
+	allow, err := httpreq.NewAllowlist([]string{srvURL.Hostname()})
+	if err != nil {
+		t.Fatalf("allowlist: %v", err)
+	}
+	tool := newDownloadTool(dir, allow)
 	body, err := tool.Call(t.Context(), `{"url":"`+srv.URL+`","file_path":"out/hello.txt"}`)
 	if err != nil {
 		t.Fatalf("download: %v", err)

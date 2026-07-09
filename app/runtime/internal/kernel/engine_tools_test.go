@@ -19,18 +19,19 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	defer eng.Close()
 
 	tools := eng.Tools()
-	// 8 filesystem/download coding tools + 3 shell tools (shell + its shell_output /
+	// 7 filesystem coding tools (download is gated on a host allowlist, so it is
+	// absent in this offline build) + 3 shell tools (shell + its shell_output /
 	// shell_kill companions) + 2 always-on LSP tools (the combined `lsp` query
 	// tool + `lsp_diagnostics`) + the `task` delegation tool + the ask_user HITL
 	// tool. (LSP tools advertise unconditionally; they return a no-server message
 	// at call time when no language server applies.)
-	if len(tools) != 15 {
-		t.Fatalf("tool count = %d, want 15 (8 fs/download + 3 shell + 2 lsp + task + ask_user)", len(tools))
+	if len(tools) != 14 {
+		t.Fatalf("tool count = %d, want 14 (7 fs + 3 shell + 2 lsp + task + ask_user)", len(tools))
 	}
 
 	names := toolNames(tools)
 	for _, want := range []string{
-		"read", "write", "edit", "multiedit", "apply_patch", "download", "glob", "grep", "shell", "task", "ask_user",
+		"read", "write", "edit", "multiedit", "apply_patch", "glob", "grep", "shell", "task", "ask_user",
 		"lsp", "lsp_diagnostics",
 		"shell_output", "shell_kill",
 	} {
@@ -38,7 +39,8 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 			t.Errorf("missing tool %q in %v", want, names)
 		}
 	}
-	for _, never := range []string{"web_fetch", "web_search", "http_request"} {
+	// download joins the online tools as allowlist-gated: absent without one.
+	for _, never := range []string{"web_fetch", "web_search", "http_request", "download"} {
 		if names[never] {
 			t.Errorf("unexpected online tool %q in offline build", never)
 		}
@@ -99,10 +101,11 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 
 	tools := eng.Tools()
 	if len(tools) != 18 {
-		t.Fatalf("tool count = %d, want 18 (8 fs/download + 3 shell + 2 lsp + 3 online + task + ask_user)", len(tools))
+		t.Fatalf("tool count = %d, want 18 (7 fs + download + 3 shell + 2 lsp + 3 online + task + ask_user)", len(tools))
 	}
 	names := toolNames(tools)
-	for _, want := range []string{"web_fetch", "web_search", "http_request"} {
+	// HTTPAllowedHosts is set, so download is registered alongside the online tools.
+	for _, want := range []string{"web_fetch", "web_search", "http_request", "download"} {
 		if !names[want] {
 			t.Errorf("expected online tool %q in %v", want, names)
 		}
@@ -117,8 +120,8 @@ func TestEngine_Tools_PartialOnline(t *testing.T) {
 	client, _ := chat.NewClient(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
-	if len(eng.Tools()) != 16 {
-		t.Fatalf("tool count = %d, want 16 (8 fs/download + 3 shell + 2 lsp + jina + task + ask_user)", len(eng.Tools()))
+	if len(eng.Tools()) != 15 {
+		t.Fatalf("tool count = %d, want 15 (7 fs + 3 shell + 2 lsp + jina + task + ask_user; no download without an http allowlist)", len(eng.Tools()))
 	}
 }
 

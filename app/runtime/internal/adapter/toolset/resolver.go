@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools/httpreq"
 )
 
 // The per-turn blackboard seam (cwd / session / chat-mode keys + readers) lives
@@ -50,6 +51,10 @@ type Resolver struct {
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
 	// the embedding model can be configured after construction. nil → no tool.
 	codebaseIndex CodebaseIndex
+
+	// downloadAllow gates + guards the download tool (the same host allowlist as
+	// httpreq). Empty → the tool is omitted from every resolution.
+	downloadAllow httpreq.Allowlist
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -86,6 +91,7 @@ type Deps struct {
 	CodeIntel       *codeintel.Analyzer // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker  // backs the read/edit/write guards
 	CodebaseIndex   CodebaseIndex       // backs codebase_search (both roles); nil → omitted
+	DownloadAllow   httpreq.Allowlist   // host allowlist gating/guarding download; empty → omitted
 
 	// MCPDisabled returns the model-facing MCP tool names the configured servers
 	// hide from the model (per-server blacklist; nil → no filtering). Read per
@@ -131,6 +137,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
 		codebaseIndex:   d.CodebaseIndex,
+		downloadAllow:   d.DownloadAllow,
 		mcpDisabled:     d.MCPDisabled,
 	}, nil
 }
@@ -204,7 +211,7 @@ func (g *toolGroup) Metadata() core.ToolGroupMetadata {
 
 func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	workdir := g.resolver.workdirFor(ctx)
-	tools := BuildWorkdirTools(workdir, g.resolver.codeIntel, g.resolver.readTracker)
+	tools := BuildWorkdirTools(workdir, g.resolver.codeIntel, g.resolver.readTracker, g.resolver.downloadAllow)
 	tools = append(tools, g.resolver.online...)
 	tools = append(tools, g.resolver.mcpTools()...)
 	tools = append(tools, g.resolver.a2a...)

@@ -71,7 +71,7 @@ func (c Config) Validate() error {
 // Client executes HTTP requests through the configured allowlist.
 type Client struct {
 	http             *resty.Client
-	allowedHosts     []hostPattern
+	allowedHosts     Allowlist
 	allowedMethods   map[string]struct{}
 	maxResponseBytes int64
 	defaultTimeout   time.Duration
@@ -82,13 +82,9 @@ func NewClient(cfg Config) (*Client, error) {
 		return nil, err
 	}
 
-	patterns := make([]hostPattern, 0, len(cfg.AllowedHosts))
-	for _, h := range cfg.AllowedHosts {
-		p, err := parseHostPattern(h)
-		if err != nil {
-			return nil, err
-		}
-		patterns = append(patterns, p)
+	allow, err := NewAllowlist(cfg.AllowedHosts)
+	if err != nil {
+		return nil, err
 	}
 
 	methods := cfg.AllowedMethods
@@ -121,7 +117,7 @@ func NewClient(cfg Config) (*Client, error) {
 
 	return &Client{
 		http:             rc,
-		allowedHosts:     patterns,
+		allowedHosts:     allow,
 		allowedMethods:   allowedMethods,
 		maxResponseBytes: maxBytes,
 		defaultTimeout:   timeout,
@@ -180,7 +176,7 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	}
 
 	parsed, _ := url.Parse(req.URL)
-	if !c.hostAllowed(parsed.Hostname()) {
+	if !c.allowedHosts.Allows(parsed.Hostname()) {
 		return nil, fmt.Errorf("%w: %s", ErrHostNotAllowed, parsed.Hostname())
 	}
 
@@ -260,6 +256,44 @@ func flattenHeaders(h http.Header) map[string]string {
 	return out
 }
 
+// Allowlist matches hostnames against a set of exact + leading-wildcard
+// patterns ("api.example.com", "*.example.com"). It is the host half of the
+// tool's network policy, exported so other allowlist-guarded fetchers (e.g. a
+// download-to-file tool) enforce the SAME matching instead of reimplementing
+// it. The zero value allows nothing.
+type Allowlist struct{ patterns []hostPattern }
+
+// NewAllowlist compiles host patterns. Each is an exact host or a single
+// leading-'*.' wildcard; any other '*' is rejected.
+func NewAllowlist(hosts []string) (Allowlist, error) {
+	patterns := make([]hostPattern, 0, len(hosts))
+	for _, h := range hosts {
+		p, err := parseHostPattern(h)
+		if err != nil {
+			return Allowlist{}, err
+		}
+		patterns = append(patterns, p)
+	}
+	return Allowlist{patterns: patterns}, nil
+}
+
+// Empty reports whether the allowlist has no patterns (and so allows nothing).
+func (a Allowlist) Empty() bool { return len(a.patterns) == 0 }
+
+// Allows reports whether host matches any pattern (case-insensitive).
+func (a Allowlist) Allows(host string) bool {
+	host = strings.ToLower(host)
+	for _, p := range a.patterns {
+		if p.exact != "" && p.exact == host {
+			return true
+		}
+		if p.suffix != "" && strings.HasSuffix(host, p.suffix) {
+			return true
+		}
+	}
+	return false
+}
+
 // hostPattern is either an exact host or a leading-wildcard suffix.
 type hostPattern struct {
 	exact  string
@@ -278,17 +312,4 @@ func parseHostPattern(s string) (hostPattern, error) {
 		return hostPattern{}, fmt.Errorf("httpreq: host pattern %q — only leading '*.' wildcard is supported", s)
 	}
 	return hostPattern{exact: h}, nil
-}
-
-func (c *Client) hostAllowed(host string) bool {
-	host = strings.ToLower(host)
-	for _, p := range c.allowedHosts {
-		if p.exact != "" && p.exact == host {
-			return true
-		}
-		if p.suffix != "" && strings.HasSuffix(host, p.suffix) {
-			return true
-		}
-	}
-	return false
 }

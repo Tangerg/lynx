@@ -31,7 +31,6 @@ func TestRegistry_List(t *testing.T) {
 		"edit":        tool.SafetyClassWrite,
 		"multiedit":   tool.SafetyClassWrite,
 		"apply_patch": tool.SafetyClassWrite,
-		"download":    tool.SafetyClassWrite,
 		"shell":       tool.SafetyClassExec,
 	}
 

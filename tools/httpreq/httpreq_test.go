@@ -49,16 +49,16 @@ func TestDo_WildcardHost(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !client.hostAllowed("api.example.com") {
+	if !client.allowedHosts.Allows("api.example.com") {
 		t.Error("api.example.com should match *.example.com")
 	}
-	if !client.hostAllowed("a.b.example.com") {
+	if !client.allowedHosts.Allows("a.b.example.com") {
 		t.Error("a.b.example.com should match *.example.com")
 	}
-	if client.hostAllowed("example.com") {
+	if client.allowedHosts.Allows("example.com") {
 		t.Error("example.com should NOT match *.example.com (suffix-only)")
 	}
-	if client.hostAllowed("evilexample.com") {
+	if client.allowedHosts.Allows("evilexample.com") {
 		t.Error("evilexample.com should NOT match *.example.com")
 	}
 }
