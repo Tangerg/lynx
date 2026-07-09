@@ -1,108 +1,35 @@
 # CLAUDE.md — agent module
 
-> Goal-oriented agent runtime — planner / world-state / blackboard / HITL / 多种 planning 算法.
-> 项目级约定见 `../CLAUDE.md`。
+> Goal-oriented agent runtime:把 agent 定义(goals + actions + conditions)编译成可观察、可暂停、可恢复的运行进程。**Planner-driven,不是 ReAct-loop** —— 每个 tick 让 planner 看世界状态 + goal,产出下一步 action。lyra 后端用它跑 chat turn 的工具循环。
+> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。关键类型 / 文件布局 / 依赖版本以代码与 godoc 为准 —— 本则只讲宏观。
 
 ---
 
-## 一句话定位
+## 定位
 
-把"agent 定义"（goals + actions + conditions）编译成"可观察可暂停可恢复的运行进程"。**Planner-driven 而非 ReAct-loop**：每个 tick 让 planner 看世界状态 + goal，产出下一步 action plan。Lyra 后端用它跑 chat turn 的工具循环。
+- **把声明式 agent 编译成进程**:输入是 goals + actions + conditions,输出是一个有状态机的进程 —— 可观察(event)、可暂停(HITL)、可恢复(resume)、可派生子进程。
+- 是 lyra 的执行内核:一次 chat turn 的工具循环就是一个 agent 进程。
 
-## 技术栈
+## 架构心智(三支柱)
 
-- Go 1.26.4
-- 内部依赖：`core` / `mcp` / `pkg`
-- 外部依赖：
-  - `modelcontextprotocol/go-sdk` —— MCP 集成
-  - `google/uuid`
-  - `Masterminds/semver/v3`
-  - `go.opentelemetry.io/otel` —— trace 注入
-  - `golang.org/x/sync` —— WaitGroup pattern
-- 约 21k Go LOC / 188 个 Go 文件（不计 examples）
+- **原语层**:Action / Agent / Goal / Condition / Blackboard / Process / Extension;条件用**三值逻辑**(True / False / Unknown),"还不知道" 是一等状态,不是 nil bool。
+- **执行引擎**:Platform 管 registry 与进程生命周期;进程是 plan → observe → act 的 tick 状态机,支持并发子进程派生、事件多播、HITL 恢复。**加能力靠类型分发**(一个泛型 collector 按接口收集 Extension),而不是改 dispatch loop —— 这是本模块的 OCP 落点。
+- **service 切片**:planning(Planner 接口 + 各算法各一包)、workflow(高阶 builder,但都**编译回普通 agent**,不是新 runtime)、event、hitl、toolpolicy(chat tool 装饰器)。
+- **Blackboard 是 planner 可见性的枢纽**:action 之间**不直接传值**,一律按 name + type 读写黑板 —— 绕过它调度就坏;读写用分离的 reader / writer 面。
+- **HITL 是 first-class**:等待输入把进程切到 Waiting、状态落黑板,operator 回复后原地重入(不重跑整个 turn)。
+- **委派子进程默认只带 ambient(protected)项**,不全盘继承父黑板 —— 全继承会预满足子 agent 的产出目标、让它静默不干活。三档梯度:全继承 / 仅 ambient / 全空,按编排需要选。
+- **库内部用具体类型**:agent 是 SDK 库,内部包之间直接依赖具体类型;窄接口只留给公开 SPI(Planner / Extension 子接口等)和应用层消费方 —— 库内单实现还抽窄接口是 YAGNI 仪式。
 
-## 核心架构（三大支柱）
+## 模块特有反向不变量
 
-1. **`core/` —— 原语层**
-   - `Action` / `TypedAction[In, Out]`（generics）/ `Agent` / `Goal` / `Condition` / `Blackboard` / `Process` / `Extension`
-   - **`Determination` 三值逻辑**（Unknown / True / False）—— 条件可以是"还不知道"，不是 nil bool
+- ❌ **绕过 Blackboard 让 action 之间直接传值** —— 破坏 planner 可见性,调度会坏。
+- ❌ **用 string-key 注册 Extension** —— 类型分发才能加能力不改 dispatch loop(OCP)。
+- ❌ **库内部为单实现依赖抽消费方窄接口** —— 具体类型即可,窄接口留给公开 SPI 与应用层。
+- ❌ **把 examples/ 当 reference** —— 那是 demo,约定不保证跟主线一致。
 
-2. **`runtime/` —— 执行引擎**
-   - `Platform` —— agent registry + process 生命周期
-   - `AgentProcess` —— 状态机 tick 循环（plan → observe → act）
-   - 并发 child spawn / event multicast / HITL resume API
-   - 通过 `collectExtensions[T any](extensions []Extension)` 做**类型分发** —— 加新能力（middleware / decorator / validator / approver）就实现对应 interface，不改 dispatch loop
+## 改动前必看(波及面)
 
-3. **`service` 切片**
-   - `planning/` —— Planner 接口 + WorldState；具体算法在 `planning/planner/{goap,htn,reactive,utility}` 各包
-   - `workflow/` —— 高阶 builder（Sequence / Loop / Parallel / ScatterGather / RepeatUntil / Consensus）—— 都产出普通 GOAP agent
-   - `event/` —— lifecycle 事件 + 多播 listener
-   - `hitl/` —— typed `Awaitable[T]`，把 process 挂在 StatusWaiting，operator 回复后恢复
-   - `toolpolicy/` —— chat tool 装饰器（OnceOnly / Unlocked 等 policy）
-
-## 关键接口/类型
-
-1. **`Action`** + `NewAction[In, Out](name, fn, config)` —— 最小 planning 单位；框架按 name+type 从 blackboard 自动绑入参，写回 output
-2. **`Agent`** —— deployable bundle（config + lazy condition cache），fluent Builder 构造
-3. **`Process`** —— action 看到的 read surface（ID / Status / Goal / Blackboard / LastWorldState）+ control（TerminateAgent / AwaitInput / RecordUsage）
-4. **`Platform`** —— registry + factory + HITL resume；config-time + per-process Extensions 在 dispatch 期合并
-5. **`Blackboard` (Reader / Writer)** —— 按 `name + type` 查（`"it"` = 最新该类型实例）；`condition` 走 bool；`BindProtected` 跨子进程传递
-6. **`Extension`** —— marker；能力子接口按一个 `collectExtensions[T]` 分发（ActionMiddleware / ToolDecorator / AgentValidator / GoalApprover / ChatClientProvider / ToolGroupResolver / EarlyTerminationPolicy / EventListener / IDGenerator / Blackboard / Planner）
-7. **`Determination`** —— Unknown / True / False，自带 And / Or / Not，零值是 Unknown（uninit 友好）
-
-## 强约定
-
-- **Blackboard 读写边界**：观察方拿 `BlackboardReader`，修改方拿 `BlackboardWriter`，实现自动两者都满足
-- **Typed action 优先**：`NewAction[In, Out]` 一定优先于 untyped Action，框架自动 in/out 绑定
-- **Extension Name 唯一性**：Platform.New 在 nil / empty / 重名时**直接 panic** —— deploy-time 暴露问题
-- **Action QoS retry 在 runtime 层**：`ActionQoS{MaxAttempts, BaseDelay, MaxDelay}` 委托 `pkg/retry`；不要每个 action 自己写重试
-- **HITL 是 first-class**：`AwaitInput` 把进程切 StatusWaiting，状态存 blackboard，`Resume` 拿到回复后重入
-- **Event JSON 单向**：lifecycle event 的 marshal 会把 Action / WorldState 这种接口字段降级成 lossy summary；要 round-trip 在内存里直接 type-assert
-- **库内部用具体类型，不做内部 ISP**：agent 是 SDK 库 —— 内部包之间**直接依赖具体类型**（`autonomy` 直接持 `*runtime.Platform`，不抽窄接口）。消费方窄接口是给**应用层 / 多实现 / 跨模块边界**用的（见 lyra 的 `chat.Engine`）；库内单实现还抽窄接口是 YAGNI 仪式（按 repo 自己的「单实现接口→内联」规则）
-
-## 强反向不变量
-
-- ❌ **绕过 Blackboard 让 action 之间直接传值**：违反 planner 可见性，调度会坏
-- ❌ **Extension 用 string-key 注册（非类型分发）**：`collectExtensions[T]` 现在的 pattern 更好，加新能力时不改 dispatch loop
-- ❌ **库内部为单实现依赖抽消费方窄接口**：agent 内部直接用具体类型（`*runtime.Platform` 等）；窄接口留给公开 SPI（`Planner`/`Ranker`/`Extension` 子接口）和应用层消费方
-- ❌ **examples/ 里的代码当 reference**：那是 demo，约定不一定跟主线一致
-
-## 关键目录
-
-```
-agent/
-├── core/              原语：Action / Agent / Goal / Condition / Blackboard / Process / Extension / Determination
-├── runtime/           Platform + AgentProcess tick 循环 + dispatch
-│   └── autonomy/      Ranker-based goal 选择
-├── planning/          Planner 接口 + WorldState
-│   └── planner/{goap,htn,reactive,utility}/   具体 planning 算法
-├── event/             Lifecycle event + Multicast listener + JSON marshaler
-├── workflow/          高阶 builder（Sequence / Loop / Parallel / Consensus...）
-├── hitl/              Awaitable[T] + 暂停 / 恢复
-├── toolpolicy/        chat tool 装饰器（OnceOnly / Unlocked）
-└── examples/          demo（**不在 production 路径上，refactor 时 ignore**）
-```
-
-## 常用命令
-
-```bash
-go build ./...
-go vet ./...
-go test ./...
-go test ./runtime/... -race    # 并发 + child spawn 必跑 race
-```
-
-## 修改任何东西之前
-
-- **改 `Extension` 子接口签名**：`collectExtensions[T]` 类型分发会断；每个实现方都受影响
-- **改 `Process` 接口**：所有 action 函数都拿它；改了得扫全 agent + lyra 业务代码
-- **改 `Blackboard` 的 name+type 协议**：框架的自动绑入参靠它
-- **加新 planner**：放 `planning/planner/<name>/`，实现 Planner 接口；不要改 runtime
-- **加新 workflow builder**：放 `workflow/<name>.go`，输出普通 GOAP agent
-
-## 已经做过的大重构（lyra 重构 session 期）
-
-- ✅ `autonomy.Router` 直接持 `*runtime.Platform`（曾引入包内 `platform` 窄接口 + tripwire 解耦，后判定 SDK 库内单实现依赖无需 ISP、已内联回具体类型）
-- ✅ `ProcessContextConfig` / `ProcessContext` 字段按 concern 分区（per-process state / platform-wired hooks / per-action state）
-- ✅ `fmt.Errorf("constant")` → `errors.New(...)` 全模块清扫
-- ✅ **委派 spawn 语义修复**（lyra 倒逼）：agent-as-tool（`AsChatTool`/`AsChatToolFromAgent`/`SubagentTools`/`AllAchievableTools`）原用 `SpawnChild` 全继承父 blackboard → `GoalProducing[T]` 子 agent 被预满足、静默不干活。新增 `SpawnChildProtectedOnly`（白板 + 仅保留 `BindProtected` 的 ambient 项，`Spawn()`+`Clear()` 组合，零接口改动）作委派默认，是 `SpawnChild`(全继承)/`SpawnChildFresh`(全空)之间缺的中间档。四个委派构造器改用之。`SpawnChild`(全继承)保留为公开 primitive —— 完整梯度 `SpawnChild`(全)→`SpawnChildProtectedOnly`(仅 ambient)→`SpawnChildFresh`(空),给外部编排留口子。async（`SpawnChildAsync`/`AsBackgroundChatTool`）仍全继承未动
+- **动 Extension 子接口签名**:类型分发的收集会断,每个实现方都受影响。
+- **动 Process 接口**:所有 action 函数都拿它,爆炸半径 = 全 agent + lyra 业务代码。
+- **动 Blackboard 的 name+type 协议**:框架自动绑定入参靠它。
+- **加 planner / workflow builder**:planner 新起一包实现接口、不改 runtime;workflow builder 输出普通 agent。
