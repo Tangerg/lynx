@@ -1,4 +1,4 @@
-package main
+package observability
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-// TestSetupObservability_LogPathEmits drives the REAL setupObservability
+// TestSetupObservability_LogPathEmits drives the REAL setup path
 // end to end with os.Stderr redirected, then emits a business log via the
 // package-level slog.InfoContext under an active span — the exact runtime
 // shape. It guards the whole triad-to-slog log path (slog → minLevelHandler
@@ -23,10 +23,10 @@ func TestSetupObservability_LogPathEmits(t *testing.T) {
 		t.Fatalf("pipe: %v", err)
 	}
 	origStderr := os.Stderr
-	os.Stderr = w // setupObservability captures os.Stderr at call time
+	os.Stderr = w // Setup captures os.Stderr at call time
 
 	prevDefault := stdslog.Default()
-	shutdown := setupObservability("test")
+	shutdown := Setup("test")
 
 	ctx, span := otel.Tracer("test").Start(context.Background(), "req")
 	stdslog.InfoContext(ctx, "session created", "gen_ai.conversation.id", "ses_x")

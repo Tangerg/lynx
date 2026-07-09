@@ -4,52 +4,18 @@ import (
 	"cmp"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// TokenUsage is a token roll-up. ReasoningTokens is the chain-of-thought
-// subset of CompletionTokens (not an addition), so total counts only
-// prompt + completion. CacheReadTokens / CacheWriteTokens are the
-// (non-overlapping-on-the-wire) cache sub-items of PromptTokens — carried so
-// the wire Usage can report a cache breakdown (API.md §4.6), not just totals.
-type TokenUsage struct {
-	PromptTokens     int64
-	CompletionTokens int64
-	ReasoningTokens  int64
-	CacheReadTokens  int64
-	CacheWriteTokens int64
-}
+// TokenUsage is the token roll-up used by turn outputs and budget checks.
+type TokenUsage = accounting.TokenUsage
 
-// total is prompt + completion — the figure a token budget caps.
-func (t TokenUsage) total() int64 {
-	return t.PromptTokens + t.CompletionTokens
-}
+// ModelUsage is one model's contribution to a turn's token and cost usage.
+type ModelUsage = accounting.ModelUsage
 
-// add folds one invocation's token counts into this running roll-up.
-func (t *TokenUsage) add(inv core.LLMInvocation) {
-	t.PromptTokens += inv.PromptTokens
-	t.CompletionTokens += inv.CompletionTokens
-	t.ReasoningTokens += inv.ReasoningTokens
-	t.CacheReadTokens += inv.CacheReadInputTokens
-	t.CacheWriteTokens += inv.CacheWriteInputTokens
-}
-
-// ModelUsage is one model's slice of a turn's tokens + cost — the lynx
-// analog of an SDK modelUsage map entry.
-type ModelUsage struct {
-	Model string
-	TokenUsage
-	CostUSD float64
-}
-
-// Pricing computes the USD cost of one LLM round from the round's PROVIDER +
-// served model and its full token usage (cache breakdown included). The
-// provider is required because a model id is not unique across providers (e.g.
-// gpt-4o is priced differently by openai vs azureopenai) — pricing by model id
-// alone mis-attributes the rate. Supply via [Config.Pricing] to populate cost on
-// invocations / TurnOutput / TurnEnd; nil leaves cost at zero. The rate table
-// lives in the model adapters' pricing catalog — the engine never invents cost.
-type Pricing func(provider, model string, usage *chat.Usage) float64
+// Pricing computes the USD cost of one LLM round.
+type Pricing = accounting.Pricing
 
 // turnBudget caps one turn by tokens, dollars, and/or tool-call rounds. A zero
 // field means no cap on that dimension; the zero value is unbounded.
@@ -112,7 +78,7 @@ func turnOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) Tur
 	byModel := map[string]*ModelUsage{}
 	var order []string
 	for _, inv := range pc.Process.LLMInvocations() {
-		out.Usage.add(inv)
+		out.Usage.AddInvocation(inv)
 		out.CostUSD += inv.CostUSD
 		m := byModel[inv.Model]
 		if m == nil {
@@ -120,7 +86,7 @@ func turnOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) Tur
 			byModel[inv.Model] = m
 			order = append(order, inv.Model)
 		}
-		m.TokenUsage.add(inv)
+		m.TokenUsage.AddInvocation(inv)
 		m.CostUSD += inv.CostUSD
 	}
 	for _, model := range order {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/observability"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
@@ -54,7 +55,7 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 			// Wire the dev observability triad (traces + metrics + logs →
 			// one slog stream) before anything else, so startup itself is
 			// traced and every module's spans/logs are correlated.
-			shutdownObs := setupObservability(version)
+			shutdownObs := observability.Setup(version)
 			defer func() { shutdownObs(context.WithoutCancel(cmd.Context())) }()
 
 			if err := a.ensureRuntime(cmd.Context()); err != nil {

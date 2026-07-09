@@ -97,7 +97,7 @@ func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 	if !out.StoppedOnBudget {
 		t.Error("expected StoppedOnBudget=true after exceeding MaxBudget")
 	}
-	if got := out.Usage.total(); got != 15 {
+	if got := out.Usage.Total(); got != 15 {
 		t.Errorf("usage total = %d, want 15 (round 2 must not run)", got)
 	}
 }
