@@ -58,7 +58,7 @@
 - **knowledge**：`internal/infra/storage/FileKnowledgeService`（`<会话 cwd>/LYRA.md` + `~/.lyra/LYRA.md`，用户可 `cat`/编辑；实现 `domain/knowledge.Service`，project scope 按每次调用传入的 dir 寻址——一个 service 服务所有项目，空 dir 回退构造时的进程 cwd）。
 - （AGENTS.md 是发现，不是 storage。）
 
-装配在 `cmd/lyra/app.go:buildStores()`（恒 sqlite + file LYRA.md memory）。runtime **不再有 in-memory 回退** —— session/interrupt/provider 由 composition root 注入;测试 + 回退用 `sqlite.Open(":memory:" 或 temp file)`。
+持久化 bundle 装配在 `internal/adapter/persistence.Open()`（恒 sqlite + file LYRA.md memory），`cmd/lyra` 只调用它并把 bundle 投影进 `runtime.Config`。runtime **不再有 in-memory 回退** —— session/interrupt/provider 由 composition root 注入;测试 + 回退用 `sqlite.Open(":memory:" 或 temp file)`。
 
 ## Lyra-specific 强约定
 
@@ -87,7 +87,7 @@
 ```
 lyra/
 ├── cmd/lyra/                       Cobra CLI 入口
-│   ├── app.go                      App 装配 + ensureRuntime（buildStores 恒 sqlite + file memory）
+│   ├── app.go                      App 装配 + ensureRuntime（调用 adapter/persistence.Open）
 │   ├── serve.go                    `lyra serve` —— HTTP+SSE 起 server
 │   ├── agents.go                   `lyra agents` —— 看哪些 AGENTS.md 会被加载
 │   ├── repl.go / chat.go / memory.go / session.go / version.go
@@ -124,6 +124,7 @@ lyra/
 │   │   └── agentdoc/               AGENTS.md 级联发现 + render
 │   ├── adapter/                    能力适配器：实现 kernel/domain port，包装外部能力
 │   │   ├── maintenance/            压缩 / 提取 / 标题（kernel maintenance port 实现）
+│   │   ├── persistence/            SQLite + LYRA.md 持久化 bundle 装配
 │   │   ├── toolset/                工具装配层（builders + resolver，loop 之外组好注入）
 │   │   ├── codeintel/ workspace/   代码智能 / VCS 视图 + checkpoint
 │   │   └── hooks/ codebaseindex/   hook 执行适配 / 代码索引适配
