@@ -26,7 +26,7 @@ import (
 //
 // All observability flows through OTel (see ../tracing.go for the shared
 // package tracer); the global TracerProvider + propagator are wired once at
-// process start (cmd/lyra observability bootstrap).
+// process start (adapter/observability bootstrap).
 func (s *Server) observability(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

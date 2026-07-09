@@ -42,6 +42,12 @@
   - 把 `cmd/lyra/stores.go` 搬到 `internal/adapter/persistence`，CLI 只调用 `persistence.Open()`。
   - 预期收益：`cmd/lyra` 不再直接 import SQLite/file storage/各 domain store 类型，外壳更薄。
 
+- [x] **Batch 5：三模块职责归位**
+  - `cmd/lyra`：把 OTel/slog 进程 bootstrap 搬到 `internal/adapter/observability`。
+  - `internal/runtime`：把 catalog-backed pricing port 搬到 `internal/adapter/pricing`。
+  - `internal/kernel`：把 token/cost accounting 值对象抽到 `internal/kernel/accounting`。
+  - 预期收益：三个头部模块各少一块非核心职责，仍保留原有调用链和行为。
+
 ## 执行记录
 
 ### 2026-07-09
@@ -51,5 +57,6 @@
 - [x] Batch 2：新增 `internal/runtime/engine_wiring.go` 与 `facade_wiring.go`，把 engine config/message history/tool env 注入、Runtime facade 端口投影从 `New` 的主流程中拿出。`New` 现在只保留装配流程和错误处理。
 - [x] Batch 3：新增 `transcript.Timeline` 值对象，把 rollback/fork 边界算法提升为 `Timeline.BoundaryAt`；保留原 `transcript.BoundaryAt` 函数作为兼容入口。`kernel/lifecycle.ResolveRollbackBoundary` 改为调用领域对象方法。
 - [x] Batch 4：新增 `internal/adapter/persistence.Bundle` / `Open`，删除 `cmd/lyra/stores.go`。`ensureRuntime` 和 `hooks` 命令改为调用 persistence adapter，`buildRuntimeConfig` 接收 persistence bundle。
+- [x] Batch 5：新增 `internal/adapter/observability.Setup`、`internal/adapter/pricing.Catalog`、`internal/kernel/accounting`。`serve` 调 observability adapter，runtime config 调 pricing adapter，kernel usage 类型改为 accounting alias。
 - [x] 局部验证：`go test ./internal/domain/transcript ./internal/kernel/lifecycle ./internal/runtime/... ./cmd/lyra` 通过。
-- [x] 全量验证：`go build ./... && go vet ./... && go test ./...` 通过；`golangci-lint run` 通过。
+- [x] 全量验证：`go build ./... && go vet ./... && go test ./... && golangci-lint run` 通过；`go test -race ./...` 通过。

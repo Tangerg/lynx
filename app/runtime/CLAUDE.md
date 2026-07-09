@@ -37,6 +37,7 @@
 2. **`internal/kernel/` —— 微内核（装配 + 驱动 agent loop，原 `engine/`）**
    - facade：装配 system prompt（`kernel/prompt.go`）+ 工具集 + model client，驱动 agent SDK 跑一个 turn
    - turn 边界维护由 `internal/adapter/maintenance` 实现 kernel-owned `Compactor` / `Extractor` port；kernel 只编排接口，不依赖具体实现
+   - `internal/kernel/accounting` 承载 token/cost accounting 值对象；engine 只驱动记录和预算判断
    - **`internal/kernel/turn`** —— "跑一个 turn" 用例（状态机 / lifecycle / observer / policy，原 `engine/chat`）。它是编排层（不是 domain service），经包内 `engineDep` 窄接口驱动 `*kernel.Engine`（同层 子包→父包,非反向边）
    - 详见 [`doc/GREENFIELD_ARCHITECTURE.md`](doc/GREENFIELD_ARCHITECTURE.md)：依赖一律向内（`internal/arch/arch_test.go` 机器强制）
 
@@ -45,7 +46,7 @@
    - 每个目录：`service.go`（interface）+ 实现（按本质命名）+ tests
 
 4. **`internal/adapter/*` —— 能力适配器（实现 kernel/domain port，包装外部能力）**
-   - `maintenance`（压缩 / 提取 / 标题）/ `toolset`（工具装配）/ `codeintel` / `workspace` / `hooks` / `codebaseindex`
+   - `maintenance`（压缩 / 提取 / 标题）/ `toolset`（工具装配）/ `codeintel` / `workspace` / `hooks` / `codebaseindex` / `persistence` / `observability` / `pricing`
 
 5. **`internal/infra/*` —— 技术设施（零领域,不依赖任何上层）**
    - `infra/storage`（sqlite + file LYRA.md）/ `infra/git` / `infra/lsp` / `infra/checkpoint` / `infra/exec` / `infra/mcp` / `infra/a2a`
@@ -108,6 +109,7 @@ lyra/
 │   ├── kernel/                     微内核：装配 + 驱动 agent loop（原 engine/；prompt / port / turn 编排）
 │   │   ├── port.go                 核定义的窄 port（model / 工具集 / maintenance / prompt-ctx / conversation）
 │   │   ├── turn/                    "跑一个 turn" 用例（状态机 / lifecycle / observer / policy；经 engineDep 窄接口驱动 kernel.Engine）（原 chat/）
+│   │   ├── accounting/              token/cost usage 值对象
 │   │   ├── toolport/               工具调用端口与 registry 边界
 │   │   ├── turnctx/                turn-scoped 上下文值
 │   │   └── lifecycle/              run admission / lifecycle registry
@@ -125,6 +127,7 @@ lyra/
 │   ├── adapter/                    能力适配器：实现 kernel/domain port，包装外部能力
 │   │   ├── maintenance/            压缩 / 提取 / 标题（kernel maintenance port 实现）
 │   │   ├── persistence/            SQLite + LYRA.md 持久化 bundle 装配
+│   │   ├── observability/ pricing/ OTel 进程 bootstrap / catalog pricing port
 │   │   ├── toolset/                工具装配层（builders + resolver，loop 之外组好注入）
 │   │   ├── codeintel/ workspace/   代码智能 / VCS 视图 + checkpoint
 │   │   └── hooks/ codebaseindex/   hook 执行适配 / 代码索引适配

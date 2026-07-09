@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/pricing"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -17,7 +18,7 @@ func buildRuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *c
 	return lyraruntime.Config{
 		Engine: kernel.Config{
 			ChatClient:      client,
-			Pricing:         lyraruntime.CatalogPricing(),
+			Pricing:         pricing.Catalog(),
 			SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
 			HistoryStore:    stores.ChatHistory,
 			Knowledge:       stores.Memory,
