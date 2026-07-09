@@ -1,6 +1,8 @@
 package event
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -93,4 +95,30 @@ func summarizeAwaitable(a core.Awaitable) *awaitableSummary {
 		return nil
 	}
 	return &awaitableSummary{ID: a.ID(), Prompt: a.PromptAny()}
+}
+
+func summarizeValue(v any) any {
+	if v == nil {
+		return nil
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprint(v)
+	}
+	var out any
+	if err := json.Unmarshal(b, &out); err != nil {
+		return fmt.Sprint(v)
+	}
+	return out
+}
+
+func summarizeMap(m map[string]any) map[string]any {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = summarizeValue(v)
+	}
+	return out
 }

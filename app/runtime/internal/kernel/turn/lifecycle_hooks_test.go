@@ -3,7 +3,9 @@ package turn
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
@@ -59,6 +61,32 @@ func TestTurnLifecycle_SubagentHooks(t *testing.T) {
 type testTaskInput struct {
 	Description string
 	Prompt      string
+}
+
+func (in testTaskInput) SubagentDescription() string { return in.Description }
+
+func (in testTaskInput) SubagentPrompt() string { return in.Prompt }
+
+func TestSubagentTaskInput_MapFallback(t *testing.T) {
+	desc, prompt := subagentTaskInput(map[string]any{
+		core.DefaultBindingName: map[string]any{
+			"description": "inspect auth",
+			"prompt":      "Find where auth failures are handled.",
+		},
+	})
+	if desc != "inspect auth" || prompt != "Find where auth failures are handled." {
+		t.Fatalf("subagentTaskInput = %q, %q", desc, prompt)
+	}
+}
+
+func TestSummarizeHookText_KeepsUTF8Boundary(t *testing.T) {
+	got := summarizeHookText(strings.Repeat("界", 1000))
+	if !strings.HasSuffix(got, "...(truncated)") {
+		t.Fatalf("summary suffix = %q", got[len(got)-20:])
+	}
+	if !utf8.ValidString(got) {
+		t.Fatalf("summary is not valid UTF-8: %q", got)
+	}
 }
 
 type recordHookCommands struct {

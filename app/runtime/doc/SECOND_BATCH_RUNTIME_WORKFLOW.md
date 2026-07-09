@@ -1,7 +1,7 @@
 # Second Batch Runtime Workflow
 
-> 日期: 2026-07-09  
-> 状态: done  
+> 日期: 2026-07-09
+> 状态: done
 > 目标: 把第一批新增的工具原语收束成更可靠的 agent 工作流闭环。  
 > 范围: `app/runtime` 应用侧为主, 必要时触及 `tools/fs` 的库原语边界。
 
@@ -71,3 +71,17 @@
 - 工具能力以组合为主, 不引入框架式统一平台。
 - 接口只在真实消费方定义, 不为单实现制造占位接口。
 - 错误用 `%w` 包装, 可观察事件走既有 hook/event/OTel 机制。
+
+## 质量打磨续批
+
+> 日期: 2026-07-09
+> 状态: done
+> 目标: 在不增加功能面的前提下, 消除上一批实现里的脆弱点。
+
+| 项 | 状态 | 记录 |
+|---|---|---|
+| Subagent hook 输入摘要 | done | 用 `hooks.SubagentTask` 小接口替代反射字段读取, `taskInput` 显式实现 |
+| Hook 文本摘要 | done | 长文本截断保持 UTF-8 边界, 避免切坏多字节字符 |
+| Agent 事件 JSON | done | `ProcessCreated` bindings 和 `ProcessCompleted` result 对不可 JSON 化值降级为字符串 |
+| `code_search` | done | 显式映射 grep 结果, trim glob, 合并重复 suggested reads, Sourcegraph 空白 endpoint 视为未配置 |
+| 验证 | done | 局部测试通过；全量 test/vet/lint/race 在提交前执行 |
