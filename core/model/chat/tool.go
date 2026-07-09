@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
@@ -119,6 +120,13 @@ func (t *jsonTool[In]) Definition() ToolDefinition { return t.definition }
 
 func (t *jsonTool[In]) Call(ctx context.Context, arguments string) (string, error) {
 	var in In
+	// The tool-call contract allows omitted arguments when every field is
+	// optional: some providers emit "" for a parameterless call where others
+	// emit "{}". Treat empty as the empty object so In decodes to its zero value
+	// instead of failing on "unexpected end of JSON input".
+	if strings.TrimSpace(arguments) == "" {
+		arguments = "{}"
+	}
 	if err := json.Unmarshal([]byte(arguments), &in); err != nil {
 		return "", fmt.Errorf("chat.NewJSONTool: decode arguments: %w", err)
 	}

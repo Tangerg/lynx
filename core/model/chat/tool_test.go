@@ -119,3 +119,29 @@ func TestNewJSONTool_InvalidArguments(t *testing.T) {
 		t.Fatal("invalid JSON must error")
 	}
 }
+
+func TestNewJSONTool_EmptyArgumentsDecodeToZeroValue(t *testing.T) {
+	type input struct {
+		Value string `json:"value,omitempty"`
+	}
+
+	tool, err := chat.NewJSONTool[input](
+		chat.ToolDefinition{Name: "opt"},
+		func(_ context.Context, in input) (string, error) { return "value=" + in.Value, nil },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Providers may emit "" (or whitespace) for a parameterless / all-optional
+	// call; it must decode to the zero value, not error.
+	for _, args := range []string{"", "   ", "{}"} {
+		got, err := tool.Call(context.Background(), args)
+		if err != nil {
+			t.Fatalf("Call(%q) errored: %v", args, err)
+		}
+		if got != "value=" {
+			t.Fatalf("Call(%q) = %q, want %q", args, got, "value=")
+		}
+	}
+}
