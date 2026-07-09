@@ -25,11 +25,13 @@ const (
 )
 
 // startStageSpan opens a child span for one RAG operation. The
-// span name is `rag.<stage>` (e.g. `rag.transform`) and the stage is
+// span name is `rag.<stage>` (e.g. `rag.retrieve`) and the stage is
 // also stamped onto the `rag.stage` attribute so backends that surface
 // attribute-based filtering can pivot on it.
 //
-// Stage names: transform / expand / retrieve / refine / augment.
+// Only the retrieve fan-out emits a stage span today; the LLM-backed
+// transform / expand / refine stages are already instrumented by their own
+// model calls, so they don't add a redundant wrapper span.
 func startStageSpan(ctx context.Context, stage string) (context.Context, trace.Span) {
 	return ragTracer.Start(ctx, "rag."+stage,
 		trace.WithSpanKind(trace.SpanKindInternal),
