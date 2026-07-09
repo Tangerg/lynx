@@ -6,20 +6,28 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/go-resty/resty/v2"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	"github.com/Tangerg/lynx/tools/httpreq"
 )
 
-const defaultDownloadMaxBytes = 50 << 20
+const (
+	defaultDownloadMaxBytes = 50 << 20
+	// downloadTimeout bounds the whole GET incl. body read — a hard cap on a
+	// slow or endless transfer (resty sets it on the underlying http.Client).
+	downloadTimeout = 10 * time.Minute
+)
 
 type downloadRequest struct {
-	URL       string `json:"url" jsonschema:"required" jsonschema_description:"HTTP or HTTPS URL to download."`
+	URL       string `json:"url" jsonschema:"required" jsonschema_description:"HTTP or HTTPS URL to download. The host must match the configured download allowlist."`
 	FilePath  string `json:"file_path" jsonschema:"required" jsonschema_description:"Destination path — absolute, or relative to the workspace root. Parent directories are created automatically."`
 	Overwrite bool   `json:"overwrite,omitempty" jsonschema_description:"Overwrite an existing file. Default false."`
 	MaxBytes  int64  `json:"max_bytes,omitempty" jsonschema_description:"Maximum bytes to download. Default 52428800."`
@@ -35,17 +43,23 @@ var downloadSchema, _ = pkgjson.StringDefSchemaOf(downloadRequest{})
 
 type downloadTool struct {
 	workdir string
-	client  *http.Client
+	allow   httpreq.Allowlist
+	client  *resty.Client
 }
 
-func newDownloadTool(workdir string) chat.Tool {
-	return &downloadTool{workdir: workdir, client: http.DefaultClient}
+// newDownloadTool builds the download tool. allow is the SAME host allowlist
+// that gates httpreq (a download is an arbitrary-URL GET that also writes to
+// disk, so it carries the identical SSRF surface); the caller only registers
+// the tool when the allowlist is non-empty.
+func newDownloadTool(workdir string, allow httpreq.Allowlist) chat.Tool {
+	client := resty.New().SetTimeout(downloadTimeout)
+	return &downloadTool{workdir: workdir, allow: allow, client: client}
 }
 
 func (t *downloadTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name:        "download",
-		Description: "Download an HTTP(S) URL to a local file. Parent directories are created. Existing files are not overwritten unless overwrite=true.",
+		Description: "Download an HTTP(S) URL to a local file. The URL host must be in the configured allowlist. Parent directories are created. Existing files are not overwritten unless overwrite=true.",
 		InputSchema: downloadSchema,
 	}
 }
@@ -79,6 +93,10 @@ func (t *downloadTool) Call(ctx context.Context, arguments string) (string, erro
 	if err != nil {
 		return "", err
 	}
+	host := u.Hostname()
+	if !t.allow.Allows(host) {
+		return "", fmt.Errorf("download: host %q is not in the allowlist", host)
+	}
 	maxBytes := req.MaxBytes
 	if maxBytes <= 0 {
 		maxBytes = defaultDownloadMaxBytes
@@ -90,34 +108,31 @@ func (t *downloadTool) Call(ctx context.Context, arguments string) (string, erro
 		}
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return "", fmt.Errorf("download: build request: %w", err)
-	}
-	res, err := t.client.Do(httpReq)
+	resp, err := t.client.R().SetContext(ctx).SetDoNotParseResponse(true).Get(u.String())
 	if err != nil {
 		return "", fmt.Errorf("download: %w", err)
 	}
-	defer res.Body.Close()
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return "", fmt.Errorf("download: GET %s returned %s", u.Redacted(), res.Status)
+	body := resp.RawBody()
+	defer body.Close()
+	if resp.StatusCode() < 200 || resp.StatusCode() >= 300 {
+		return "", fmt.Errorf("download: GET %s returned %s", u.Redacted(), resp.Status())
 	}
-	if res.ContentLength > maxBytes {
-		return "", fmt.Errorf("download: response is %d bytes, over max_bytes=%d", res.ContentLength, maxBytes)
+	if cl := resp.RawResponse.ContentLength; cl > maxBytes {
+		return "", fmt.Errorf("download: response is %d bytes, over max_bytes=%d", cl, maxBytes)
 	}
-	n, err := writeDownloadedFile(path, req.FilePath, res.Body, maxBytes, req.Overwrite)
+	n, err := writeDownloadedFile(path, req.FilePath, body, maxBytes, req.Overwrite)
 	if err != nil {
 		return "", err
 	}
-	body, err := json.Marshal(downloadResponse{
+	out, err := json.Marshal(downloadResponse{
 		FilePath:    req.FilePath,
 		Bytes:       n,
-		ContentType: res.Header.Get("Content-Type"),
+		ContentType: resp.Header().Get("Content-Type"),
 	})
 	if err != nil {
 		return "", fmt.Errorf("download: marshal: %w", err)
 	}
-	return string(body), nil
+	return string(out), nil
 }
 
 func parseDownloadURL(raw string) (*url.URL, error) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools/httpreq"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/askuser"
@@ -88,6 +89,13 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		return Built{}, err
 	}
 
+	// downloadAllow gates + guards the download tool: it shares httpreq's host
+	// allowlist (a download is an arbitrary-URL GET that also writes to disk).
+	downloadAllow, err := httpreq.NewAllowlist(cfg.Online.HTTPAllowedHosts)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: download allowlist: %w", err)
+	}
+
 	// Code intelligence: one analyzer wrapping LSP clients; servers launch
 	// lazily per (workspace root, language). Tools are cwd-independent (the
 	// analyzer keys by root, read per call off the blackboard).
@@ -162,6 +170,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		ReadTracker:     tracker,
 		MCPDisabled:     cfg.MCPDisabled,
 		CodebaseIndex:   cfg.CodebaseIndex,
+		DownloadAllow:   downloadAllow,
 	})
 	if err != nil {
 		_ = mcpConns.Close()
@@ -174,7 +183,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	// Canonical tool list for tools.list — metadata (name/schema) is
 	// working-directory independent, so the default-workdir build is faithful.
 	// Only `task` is appended by the engine (it needs the platform).
-	tools := BuildWorkdirTools(cfg.Workdir, codeIntel, tracker)
+	tools := BuildWorkdirTools(cfg.Workdir, codeIntel, tracker, downloadAllow)
 	tools = append(tools, online...)
 	tools = append(tools, mcpTools...)
 	tools = append(tools, a2aTools...)
