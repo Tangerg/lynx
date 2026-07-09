@@ -68,7 +68,7 @@ func (t *ApplyPatchTool) Call(ctx context.Context, arguments string) (string, er
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("fs.apply_patch: parse arguments: %w", err)
 	}
-	res, err := t.executor.ApplyPatch(ctx, ApplyPatchInput{Patch: req.Patch})
+	res, err := t.executor.ApplyPatch(ctx, ApplyPatchInput(req))
 	if err != nil {
 		return "", fmt.Errorf("fs.apply_patch: %w", err)
 	}

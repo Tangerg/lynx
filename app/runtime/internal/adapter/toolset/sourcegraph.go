@@ -40,12 +40,12 @@ type sourcegraphMatch struct {
 	Path        string                 `json:"path,omitempty"`
 	Commit      string                 `json:"commit,omitempty"`
 	Language    string                 `json:"language,omitempty"`
-	LineMatches []sourcegraphLineMatch `json:"lineMatches,omitempty"`
+	LineMatches []sourcegraphLineMatch `json:"line_matches,omitempty"`
 }
 
 type sourcegraphLineMatch struct {
 	Line       string `json:"line"`
-	LineNumber int    `json:"lineNumber"`
+	LineNumber int    `json:"line_number"`
 }
 
 var sourcegraphSchema, _ = pkgjson.StringDefSchemaOf(sourcegraphRequest{})
@@ -156,9 +156,11 @@ func sourcegraphStreamURL(endpoint string) (string, error) {
 	if u.Host == "" {
 		return "", errors.New("sourcegraph_search: endpoint host must not be empty")
 	}
-	if !strings.HasSuffix(u.Path, "/.api/search/stream") {
-		u.Path = strings.TrimRight(u.Path, "/") + "/.api/search/stream"
+	path := strings.TrimRight(u.Path, "/")
+	if !strings.HasSuffix(path, "/.api/search/stream") {
+		path += "/.api/search/stream"
 	}
+	u.Path = path
 	u.RawQuery = ""
 	return u.String(), nil
 }
@@ -175,9 +177,14 @@ func readSourcegraphStream(r io.Reader) (sourcegraphResponse, error) {
 			if eventName == "done" {
 				break
 			}
-			foldSourcegraphEvent(eventName, data.String(), &out)
+			if err := foldSourcegraphEvent(eventName, data.String(), &out); err != nil {
+				return sourcegraphResponse{}, err
+			}
 			eventName = ""
 			data.Reset()
+			continue
+		}
+		if strings.HasPrefix(line, ":") {
 			continue
 		}
 		if value, ok := strings.CutPrefix(line, "event:"); ok {
@@ -188,49 +195,89 @@ func readSourcegraphStream(r io.Reader) (sourcegraphResponse, error) {
 			if data.Len() > 0 {
 				data.WriteByte('\n')
 			}
-			data.WriteString(strings.TrimSpace(value))
+			data.WriteString(strings.TrimPrefix(value, " "))
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return sourcegraphResponse{}, fmt.Errorf("sourcegraph_search: read stream: %w", err)
 	}
+	if eventName != "" && eventName != "done" {
+		if err := foldSourcegraphEvent(eventName, data.String(), &out); err != nil {
+			return sourcegraphResponse{}, err
+		}
+	}
 	return out, nil
 }
 
-func foldSourcegraphEvent(name, data string, out *sourcegraphResponse) {
+func foldSourcegraphEvent(name, data string, out *sourcegraphResponse) error {
 	if strings.TrimSpace(data) == "" {
-		return
+		return nil
 	}
 	switch name {
 	case "matches":
-		var matches []sourcegraphMatch
-		if json.Unmarshal([]byte(data), &matches) == nil {
-			out.Matches = append(out.Matches, matches...)
+		var matches []sourcegraphRawMatch
+		if err := json.Unmarshal([]byte(data), &matches); err != nil {
+			return fmt.Errorf("sourcegraph_search: parse matches event: %w", err)
+		}
+		for _, match := range matches {
+			out.Matches = append(out.Matches, match.view())
 		}
 	case "progress":
 		var p struct {
 			MatchCount int `json:"matchCount"`
 			DurationMs int `json:"durationMs"`
 		}
-		if json.Unmarshal([]byte(data), &p) == nil {
-			out.MatchCount = p.MatchCount
-			out.DurationMs = p.DurationMs
+		if err := json.Unmarshal([]byte(data), &p); err != nil {
+			return fmt.Errorf("sourcegraph_search: parse progress event: %w", err)
 		}
+		out.MatchCount = p.MatchCount
+		out.DurationMs = p.DurationMs
 	case "alert":
 		var alert struct {
 			Title   string `json:"title"`
 			Message string `json:"message"`
 		}
-		if json.Unmarshal([]byte(data), &alert) == nil {
-			msg := strings.TrimSpace(alert.Message)
-			if title := strings.TrimSpace(alert.Title); title != "" && msg != "" {
-				msg = title + ": " + msg
-			} else if title != "" {
-				msg = title
-			}
-			if msg != "" {
-				out.Alerts = append(out.Alerts, msg)
-			}
+		if err := json.Unmarshal([]byte(data), &alert); err != nil {
+			return fmt.Errorf("sourcegraph_search: parse alert event: %w", err)
 		}
+		msg := strings.TrimSpace(alert.Message)
+		if title := strings.TrimSpace(alert.Title); title != "" && msg != "" {
+			msg = title + ": " + msg
+		} else if title != "" {
+			msg = title
+		}
+		if msg != "" {
+			out.Alerts = append(out.Alerts, msg)
+		}
+	}
+	return nil
+}
+
+type sourcegraphRawMatch struct {
+	Type        string                    `json:"type"`
+	Repository  string                    `json:"repository,omitempty"`
+	Path        string                    `json:"path,omitempty"`
+	Commit      string                    `json:"commit,omitempty"`
+	Language    string                    `json:"language,omitempty"`
+	LineMatches []sourcegraphRawLineMatch `json:"lineMatches,omitempty"`
+}
+
+type sourcegraphRawLineMatch struct {
+	Line       string `json:"line"`
+	LineNumber int    `json:"lineNumber"`
+}
+
+func (m sourcegraphRawMatch) view() sourcegraphMatch {
+	lines := make([]sourcegraphLineMatch, len(m.LineMatches))
+	for i, line := range m.LineMatches {
+		lines[i] = sourcegraphLineMatch(line)
+	}
+	return sourcegraphMatch{
+		Type:        m.Type,
+		Repository:  m.Repository,
+		Path:        m.Path,
+		Commit:      m.Commit,
+		Language:    m.Language,
+		LineMatches: lines,
 	}
 }

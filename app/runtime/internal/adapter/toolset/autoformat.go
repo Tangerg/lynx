@@ -42,7 +42,10 @@ func formatPath(ctx context.Context, path string) error {
 	case ".go":
 		return runFormatter(ctx, "gofmt", "-w", path)
 	case ".json":
-		return formatJSON(path, info.Mode().Perm())
+		if err := formatJSON(path, info.Mode().Perm()); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+		return nil
 	case ".js", ".jsx", ".ts", ".tsx", ".css", ".scss", ".html", ".md", ".yaml", ".yml":
 		if _, err := exec.LookPath("prettier"); err != nil {
 			return nil
@@ -63,7 +66,11 @@ func runFormatter(ctx context.Context, name string, args ...string) error {
 	if msg == "" {
 		msg = err.Error()
 	}
-	return fmt.Errorf("%s: %s", args[len(args)-1], msg)
+	target := name
+	if len(args) > 0 {
+		target = args[len(args)-1]
+	}
+	return fmt.Errorf("%s: %s", target, msg)
 }
 
 func formatJSON(path string, mode os.FileMode) error {
@@ -79,5 +86,38 @@ func formatJSON(path string, mode os.FileMode) error {
 		return nil
 	}
 	buf.WriteByte('\n')
-	return os.WriteFile(path, buf.Bytes(), mode)
+	return writeFormattedFile(path, buf.Bytes(), mode)
+}
+
+func writeFormattedFile(path string, data []byte, mode os.FileMode) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".format-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	closed := false
+	defer func() {
+		if !closed {
+			_ = tmp.Close()
+		}
+		_ = os.Remove(tmpPath)
+	}()
+	if _, err := tmp.Write(data); err != nil {
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		closed = true
+		return err
+	}
+	closed = true
+	if err := os.Chmod(tmpPath, mode); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }

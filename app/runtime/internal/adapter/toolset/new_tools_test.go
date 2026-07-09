@@ -72,6 +72,81 @@ data: {}
 	if got := out.Matches[0].LineMatches[0].LineNumber; got != 12 {
 		t.Fatalf("line number = %d, want 12", got)
 	}
+	body, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("marshal output: %v", err)
+	}
+	if strings.Contains(string(body), "lineMatches") || strings.Contains(string(body), "lineNumber") {
+		t.Fatalf("output kept Sourcegraph camelCase fields: %s", body)
+	}
+	if !strings.Contains(string(body), "line_matches") || !strings.Contains(string(body), "line_number") {
+		t.Fatalf("output missing model-facing line fields: %s", body)
+	}
+}
+
+func TestSourcegraphStream_ReturnsMalformedEventError(t *testing.T) {
+	stream := `event: matches
+data: not-json
+
+`
+	_, err := readSourcegraphStream(strings.NewReader(stream))
+	if err == nil {
+		t.Fatal("malformed Sourcegraph event: want error")
+	}
+	if !strings.Contains(err.Error(), "parse matches event") {
+		t.Fatalf("err = %v, want parse matches event", err)
+	}
+}
+
+func TestSourcegraphStreamURL_NormalizesEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		want     string
+	}{
+		{"host only", "https://sourcegraph.example.com", "https://sourcegraph.example.com/.api/search/stream"},
+		{"stream path", "https://sourcegraph.example.com/.api/search/stream", "https://sourcegraph.example.com/.api/search/stream"},
+		{"stream path trailing slash", "https://sourcegraph.example.com/.api/search/stream/", "https://sourcegraph.example.com/.api/search/stream"},
+		{"mounted path", "https://sourcegraph.example.com/sg", "https://sourcegraph.example.com/sg/.api/search/stream"},
+		{"drops query", "https://sourcegraph.example.com?x=1", "https://sourcegraph.example.com/.api/search/stream"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sourcegraphStreamURL(tt.endpoint)
+			if err != nil {
+				t.Fatalf("sourcegraphStreamURL: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("stream URL = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatJSON_WritesIndentedFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "data.json")
+	if err := os.WriteFile(path, []byte(`{"b":1,"a":2}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := formatJSON(path, 0o600); err != nil {
+		t.Fatalf("formatJSON: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	want := "{\n  \"b\": 1,\n  \"a\": 2\n}\n"
+	if string(got) != want {
+		t.Fatalf("formatted JSON = %q, want %q", got, want)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode = %v, want 0600", info.Mode().Perm())
+	}
 }
 
 func TestScheduleTools_CreateUpdateDelete(t *testing.T) {
@@ -80,19 +155,9 @@ func TestScheduleTools_CreateUpdateDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newScheduleTools: %v", err)
 	}
-	byName := map[string]chat.Tool{}
-	for _, tool := range tools {
-		byName[tool.Definition().Name] = tool
-	}
-	create := byName["schedule_create"].(interface {
-		Call(context.Context, string) (string, error)
-	})
-	update := byName["schedule_update"].(interface {
-		Call(context.Context, string) (string, error)
-	})
-	deleteTool := byName["schedule_delete"].(interface {
-		Call(context.Context, string) (string, error)
-	})
+	create := toolNamed(t, tools, "schedule_create")
+	update := toolNamed(t, tools, "schedule_update")
+	deleteTool := toolNamed(t, tools, "schedule_delete")
 
 	body, err := create.Call(t.Context(), `{"title":"daily","prompt":"summarize","cron":"0 9 * * *"}`)
 	if err != nil {
@@ -120,6 +185,29 @@ func TestScheduleTools_CreateUpdateDelete(t *testing.T) {
 	if _, err := reg.Get(t.Context(), created.Schedule.ID); !errors.Is(err, schedule.ErrNotFound) {
 		t.Fatalf("get deleted err = %v, want ErrNotFound", err)
 	}
+}
+
+func TestScheduleCreate_ValidatesEntityBeforeNextRun(t *testing.T) {
+	reg := newMemoryScheduleRegistry()
+	tools, err := newScheduleTools(reg)
+	if err != nil {
+		t.Fatalf("newScheduleTools: %v", err)
+	}
+	_, err = toolNamed(t, tools, "schedule_create").Call(t.Context(), `{"cron":"not a cron"}`)
+	if !errors.Is(err, schedule.ErrPromptRequired) {
+		t.Fatalf("create err = %v, want ErrPromptRequired", err)
+	}
+}
+
+func toolNamed(t *testing.T, tools []chat.Tool, name string) chat.Tool {
+	t.Helper()
+	for _, tool := range tools {
+		if tool.Definition().Name == name {
+			return tool
+		}
+	}
+	t.Fatalf("tool %q not found", name)
+	return nil
 }
 
 func TestPathGuard_ApplyPatchChecksAllTargets(t *testing.T) {
