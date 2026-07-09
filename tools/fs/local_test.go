@@ -311,47 +311,6 @@ func TestLocalExecutor_Edit_BinaryRejected(t *testing.T) {
 	}
 }
 
-func TestLocalExecutor_MultiEdit_WritesOnce(t *testing.T) {
-	dir := t.TempDir()
-	path := writeTemp(t, dir, "a.txt", "alpha beta gamma beta\n")
-	out, err := NewLocalExecutor("").MultiEdit(t.Context(), MultiEditInput{
-		Path: path,
-		Edits: []EditOperation{
-			{OldString: "alpha", NewString: "ALPHA"},
-			{OldString: "beta", NewString: "BETA", ReplaceAll: true},
-		},
-	})
-	if err != nil {
-		t.Fatalf("MultiEdit: %v", err)
-	}
-	if out.Edits != 2 || out.Replacements != 3 {
-		t.Fatalf("MultiEdit output = %+v, want 2 edits / 3 replacements", out)
-	}
-	got, _ := os.ReadFile(path)
-	if string(got) != "ALPHA BETA gamma BETA\n" {
-		t.Fatalf("content = %q", got)
-	}
-}
-
-func TestLocalExecutor_MultiEdit_FailureLeavesFileUntouched(t *testing.T) {
-	dir := t.TempDir()
-	path := writeTemp(t, dir, "a.txt", "alpha beta\n")
-	_, err := NewLocalExecutor("").MultiEdit(t.Context(), MultiEditInput{
-		Path: path,
-		Edits: []EditOperation{
-			{OldString: "alpha", NewString: "ALPHA"},
-			{OldString: "missing", NewString: "MISSING"},
-		},
-	})
-	if err == nil {
-		t.Fatal("MultiEdit with failing edit: want error")
-	}
-	got, _ := os.ReadFile(path)
-	if string(got) != "alpha beta\n" {
-		t.Fatalf("content changed despite failed multiedit: %q", got)
-	}
-}
-
 // ---------------------------------------------------------------- ApplyPatch
 
 func TestLocalExecutor_ApplyPatch_ModifyCreateDelete(t *testing.T) {

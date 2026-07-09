@@ -249,48 +249,6 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 	return EditOutput{Replacements: replacements}, nil
 }
 
-func (l *LocalExecutor) MultiEdit(_ context.Context, in MultiEditInput) (MultiEditOutput, error) {
-	if len(in.Edits) == 0 {
-		return MultiEditOutput{}, errors.New("fs.LocalExecutor.MultiEdit: edits must not be empty")
-	}
-	path, err := l.resolve(in.Path)
-	if err != nil {
-		return MultiEditOutput{}, err
-	}
-
-	unlock := l.lockPath(path)
-	defer unlock()
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return MultiEditOutput{}, err
-	}
-	if looksBinary(data) {
-		return MultiEditOutput{}, ErrBinaryFile
-	}
-
-	content, hadBOM, hadCRLF := normalizeText(data)
-	replacements := 0
-	for i, op := range in.Edits {
-		var n int
-		content, n, err = replaceInContent(content, in.Path, op)
-		if err != nil {
-			return MultiEditOutput{}, fmt.Errorf("fs.LocalExecutor.MultiEdit: edit %d: %w", i+1, err)
-		}
-		replacements += n
-	}
-
-	mode := os.FileMode(0o644)
-	if info, err := os.Stat(path); err == nil {
-		mode = info.Mode().Perm()
-	}
-	out := restoreFormat(content, hadBOM, hadCRLF)
-	if err := atomicWriteFile(path, out, mode); err != nil {
-		return MultiEditOutput{}, err
-	}
-	return MultiEditOutput{Edits: len(in.Edits), Replacements: replacements}, nil
-}
-
 func replaceInContent(content, path string, op EditOperation) (string, int, error) {
 	if op.OldString == "" {
 		return "", 0, errors.New("old_string must not be empty")

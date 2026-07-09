@@ -20,7 +20,6 @@ func TestTools_Definitions(t *testing.T) {
 		{"read", NewReadTool(nil).Definition().Name},
 		{"write", NewWriteTool(nil).Definition().Name},
 		{"edit", NewEditTool(nil).Definition().Name},
-		{"multiedit", NewMultiEditTool(nil).Definition().Name},
 		{"apply_patch", NewApplyPatchTool(nil).Definition().Name},
 		{"glob", NewGlobTool(nil).Definition().Name},
 		{"grep", NewGrepTool(nil).Definition().Name},
@@ -114,27 +113,6 @@ func TestEditTool_HappyPath(t *testing.T) {
 	}
 	got, _ := os.ReadFile(path)
 	if string(got) != "alpha BETA\n" {
-		t.Errorf("file = %q", got)
-	}
-}
-
-func TestMultiEditTool_HappyPath(t *testing.T) {
-	dir := t.TempDir()
-	path := writeTemp(t, dir, "a.txt", "alpha beta gamma\n")
-	body, err := NewMultiEditTool(nil).Call(t.Context(),
-		`{"file_path":"`+path+`","edits":[{"old_string":"alpha","new_string":"ALPHA"},{"old_string":"gamma","new_string":"GAMMA"}]}`)
-	if err != nil {
-		t.Fatalf("Call: %v", err)
-	}
-	var resp MultiEditResponse
-	if err := json.Unmarshal([]byte(body), &resp); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-	if resp.Edits != 2 || resp.Replacements != 2 {
-		t.Fatalf("response = %+v, want 2 edits / replacements", resp)
-	}
-	got, _ := os.ReadFile(path)
-	if string(got) != "ALPHA beta GAMMA\n" {
 		t.Errorf("file = %q", got)
 	}
 }
@@ -235,7 +213,6 @@ func TestBadJSONArguments(t *testing.T) {
 		{"read", NewReadTool(nil).Call},
 		{"write", NewWriteTool(nil).Call},
 		{"edit", NewEditTool(nil).Call},
-		{"multiedit", NewMultiEditTool(nil).Call},
 		{"apply_patch", NewApplyPatchTool(nil).Call},
 		{"glob", NewGlobTool(nil).Call},
 		{"grep", NewGrepTool(nil).Call},

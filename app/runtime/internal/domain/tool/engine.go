@@ -101,7 +101,7 @@ func SafetyClassFor(name string) SafetyClass {
 		// exit_plan_mode is the way out of the read-only plan stance — it must
 		// stay Safe or the agent would be trapped in plan mode.
 		return SafetyClassSafe
-	case "write", "edit", "multiedit", "apply_patch", "download", "schedule_create", "schedule_update", "schedule_delete":
+	case "write", "edit", "apply_patch", "download", "schedule_create", "schedule_update", "schedule_delete":
 		return SafetyClassWrite
 	default:
 		return SafetyClassExec
