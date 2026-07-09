@@ -156,17 +156,14 @@ func TestFormatJSON_WritesIndentedFile(t *testing.T) {
 	}
 }
 
-func TestScheduleTools_CreateUpdateDelete(t *testing.T) {
+func TestScheduleTool_CreateListUpdateDelete(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
-	tools, err := newScheduleTools(reg)
+	tool, err := newScheduleTool(reg)
 	if err != nil {
-		t.Fatalf("newScheduleTools: %v", err)
+		t.Fatalf("newScheduleTool: %v", err)
 	}
-	create := toolNamed(t, tools, "schedule_create")
-	update := toolNamed(t, tools, "schedule_update")
-	deleteTool := toolNamed(t, tools, "schedule_delete")
 
-	body, err := create.Call(t.Context(), `{"title":"daily","prompt":"summarize","cron":"0 9 * * *"}`)
+	body, err := tool.Call(t.Context(), `{"op":"create","title":"daily","prompt":"summarize","cron":"0 9 * * *"}`)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -178,7 +175,19 @@ func TestScheduleTools_CreateUpdateDelete(t *testing.T) {
 		t.Fatalf("created schedule = %+v", created.Schedule)
 	}
 
-	if _, err := update.Call(t.Context(), `{"id":"`+created.Schedule.ID+`","enabled":false}`); err != nil {
+	listBody, err := tool.Call(t.Context(), `{"op":"list"}`)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var listed scheduleListResponse
+	if err := json.Unmarshal([]byte(listBody), &listed); err != nil {
+		t.Fatalf("unmarshal list: %v", err)
+	}
+	if len(listed.Schedules) != 1 {
+		t.Fatalf("list = %+v, want 1 schedule", listed.Schedules)
+	}
+
+	if _, err := tool.Call(t.Context(), `{"op":"update","id":"`+created.Schedule.ID+`","enabled":false}`); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 	stored, _ := reg.Get(t.Context(), created.Schedule.ID)
@@ -186,7 +195,7 @@ func TestScheduleTools_CreateUpdateDelete(t *testing.T) {
 		t.Fatalf("stored after disable = %+v", stored)
 	}
 
-	if _, err := deleteTool.Call(t.Context(), `{"id":"`+created.Schedule.ID+`"}`); err != nil {
+	if _, err := tool.Call(t.Context(), `{"op":"delete","id":"`+created.Schedule.ID+`"}`); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	if _, err := reg.Get(t.Context(), created.Schedule.ID); !errors.Is(err, schedule.ErrNotFound) {
@@ -194,27 +203,24 @@ func TestScheduleTools_CreateUpdateDelete(t *testing.T) {
 	}
 }
 
-func TestScheduleCreate_ValidatesEntityBeforeNextRun(t *testing.T) {
+func TestScheduleTool_CreateValidatesEntityBeforeNextRun(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
-	tools, err := newScheduleTools(reg)
+	tool, err := newScheduleTool(reg)
 	if err != nil {
-		t.Fatalf("newScheduleTools: %v", err)
+		t.Fatalf("newScheduleTool: %v", err)
 	}
-	_, err = toolNamed(t, tools, "schedule_create").Call(t.Context(), `{"cron":"not a cron"}`)
+	_, err = tool.Call(t.Context(), `{"op":"create","cron":"not a cron"}`)
 	if !errors.Is(err, schedule.ErrPromptRequired) {
 		t.Fatalf("create err = %v, want ErrPromptRequired", err)
 	}
 }
 
-func toolNamed(t *testing.T, tools []chat.Tool, name string) chat.Tool {
-	t.Helper()
-	for _, tool := range tools {
-		if tool.Definition().Name == name {
-			return tool
-		}
+func TestScheduleTool_UnknownOp(t *testing.T) {
+	reg := newMemoryScheduleRegistry()
+	tool, _ := newScheduleTool(reg)
+	if _, err := tool.Call(t.Context(), `{"op":"nope"}`); err == nil {
+		t.Fatal("unknown op: want error")
 	}
-	t.Fatalf("tool %q not found", name)
-	return nil
 }
 
 func TestPathGuard_ApplyPatchChecksAllTargets(t *testing.T) {
