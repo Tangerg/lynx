@@ -447,6 +447,55 @@ func TestLocalExecutor_ApplyPatch_SecondFileMismatchLeavesFirstUntouched(t *test
 	}
 }
 
+func TestLocalExecutor_ApplyPatch_DuplicateFileRejectedLeavesFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTemp(t, dir, "a.txt", "one\ntwo\nthree\n")
+	patch := `--- a/a.txt
++++ b/a.txt
+@@ -1,3 +1,3 @@
+ one
+-two
++TWO
+ three
+--- a/a.txt
++++ b/a.txt
+@@ -1,3 +1,3 @@
+ one
+-two
++SECOND
+ three
+`
+	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchInput{Patch: patch})
+	if err == nil {
+		t.Fatal("ApplyPatch duplicate file section: want error")
+	}
+	if !strings.Contains(err.Error(), "duplicate file patch") {
+		t.Fatalf("err = %v, want duplicate file patch", err)
+	}
+	got, _ := os.ReadFile(path)
+	if string(got) != "one\ntwo\nthree\n" {
+		t.Fatalf("content changed despite duplicate file patch: %q", got)
+	}
+}
+
+func TestLocalExecutor_ApplyPatch_InvalidRangeRejected(t *testing.T) {
+	dir := t.TempDir()
+	writeTemp(t, dir, "a.txt", "one\n")
+	patch := `--- a/a.txt
++++ b/a.txt
+@@ --1,1 +1,1 @@
+-one
++ONE
+`
+	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchInput{Patch: patch})
+	if err == nil {
+		t.Fatal("ApplyPatch invalid range: want error")
+	}
+	if !strings.Contains(err.Error(), "invalid range") {
+		t.Fatalf("err = %v, want invalid range", err)
+	}
+}
+
 // ---------------------------------------------------------------- Glob
 
 func TestLocalExecutor_Glob_BasicAndDoublestar(t *testing.T) {

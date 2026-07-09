@@ -85,11 +85,7 @@ func (t *MultiEditTool) Call(ctx context.Context, arguments string) (string, err
 	}
 	ops := make([]EditOperation, len(req.Changes))
 	for i, edit := range req.Changes {
-		ops[i] = EditOperation{
-			OldString:  edit.OldString,
-			NewString:  edit.NewString,
-			ReplaceAll: edit.ReplaceAll,
-		}
+		ops[i] = EditOperation(edit)
 	}
 	res, err := t.executor.MultiEdit(ctx, MultiEditInput{Path: req.FilePath, Edits: ops})
 	if err != nil {

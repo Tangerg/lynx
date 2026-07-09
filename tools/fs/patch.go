@@ -64,6 +64,9 @@ func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchInput) (Apply
 	if err != nil {
 		return ApplyPatchOutput{}, err
 	}
+	if path := duplicatePatchPath(parsed.files); path != "" {
+		return ApplyPatchOutput{}, fmt.Errorf("fs.ApplyPatch: duplicate file patch for %s", path)
+	}
 
 	resolved := make([]string, len(parsed.files))
 	for i, file := range parsed.files {
@@ -109,10 +112,39 @@ func validatePatchFile(file filePatch) error {
 	if file.oldPath == "" || file.newPath == "" {
 		return errors.New("fs.ApplyPatch: file patch is missing ---/+++ headers")
 	}
+	if file.oldPath != "/dev/null" {
+		if err := validatePatchPath(file.oldPath); err != nil {
+			return err
+		}
+	}
+	if file.newPath != "/dev/null" {
+		if err := validatePatchPath(file.newPath); err != nil {
+			return err
+		}
+	}
 	if file.oldPath != "/dev/null" && file.newPath != "/dev/null" && file.oldPath != file.newPath {
 		return fmt.Errorf("fs.ApplyPatch: %w: %s -> %s", errRenamePatch, file.oldPath, file.newPath)
 	}
 	return nil
+}
+
+func validatePatchPath(path string) error {
+	if path == "" || path == "." || path == string(filepath.Separator) {
+		return fmt.Errorf("fs.ApplyPatch: invalid file path %q", path)
+	}
+	return nil
+}
+
+func duplicatePatchPath(files []filePatch) string {
+	seen := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		path := file.path()
+		if _, ok := seen[path]; ok {
+			return path
+		}
+		seen[path] = struct{}{}
+	}
+	return ""
 }
 
 type preparedPatch struct {
@@ -134,6 +166,8 @@ func (l *LocalExecutor) preparePatch(file filePatch, path string) (preparedPatch
 	if file.created() {
 		if _, err := os.Stat(path); err == nil {
 			return preparedPatch{}, fmt.Errorf("fs.ApplyPatch: create %s: file already exists", file.path())
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return preparedPatch{}, fmt.Errorf("fs.ApplyPatch: create %s: %w", file.path(), err)
 		}
 	}
 
@@ -352,11 +386,17 @@ func parseRange(s string, prefix byte) (start, count int, err error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("invalid range %q", s)
 	}
+	if start < 0 {
+		return 0, 0, fmt.Errorf("invalid range %q", s)
+	}
 	if !found {
 		return start, 1, nil
 	}
 	count, err = strconv.Atoi(countText)
 	if err != nil {
+		return 0, 0, fmt.Errorf("invalid range %q", s)
+	}
+	if count < 0 {
 		return 0, 0, fmt.Errorf("invalid range %q", s)
 	}
 	return start, count, nil

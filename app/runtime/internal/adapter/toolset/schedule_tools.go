@@ -108,15 +108,15 @@ func newScheduleTools(reg schedule.Registry) ([]chat.Tool, error) {
 				Cron:     in.Cron,
 				Enabled:  enabled,
 			}
+			if err := sc.Validate(); err != nil {
+				return "", fmt.Errorf("schedule_create: %w", err)
+			}
 			if enabled {
 				next, err := schedule.NextRun(in.Cron, time.Now())
 				if err != nil {
 					return "", fmt.Errorf("schedule_create: %w", err)
 				}
 				sc.NextRunAt = next
-			}
-			if err := sc.Validate(); err != nil {
-				return "", fmt.Errorf("schedule_create: %w", err)
 			}
 			created, err := reg.Create(ctx, sc)
 			if err != nil {

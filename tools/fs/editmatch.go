@@ -74,4 +74,6 @@ func trimLineEq(a, b string) bool { return strings.TrimSpace(a) == strings.TrimS
 // normWSEq compares two lines ignoring ALL whitespace differences — every run of
 // spaces/tabs collapses to one and the ends are trimmed. Looser than trimLineEq;
 // catches internal spacing changes (e.g. "a  +  b" vs "a + b").
-func normWSEq(a, b string) bool { return strings.Join(strings.Fields(a), " ") == strings.Join(strings.Fields(b), " ") }
+func normWSEq(a, b string) bool {
+	return strings.Join(strings.Fields(a), " ") == strings.Join(strings.Fields(b), " ")
+}

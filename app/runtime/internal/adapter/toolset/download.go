@@ -85,8 +85,8 @@ func (t *downloadTool) Call(ctx context.Context, arguments string) (string, erro
 	}
 	path := resolveAbs(t.workdir, req.FilePath)
 	if !req.Overwrite {
-		if _, err := os.Stat(path); err == nil {
-			return "", fmt.Errorf("download: %s already exists; pass overwrite=true to replace it", req.FilePath)
+		if err := checkDownloadTarget(path, req.FilePath); err != nil {
+			return "", err
 		}
 	}
 
@@ -105,7 +105,7 @@ func (t *downloadTool) Call(ctx context.Context, arguments string) (string, erro
 	if res.ContentLength > maxBytes {
 		return "", fmt.Errorf("download: response is %d bytes, over max_bytes=%d", res.ContentLength, maxBytes)
 	}
-	n, err := writeDownloadedFile(path, res.Body, maxBytes, req.Overwrite)
+	n, err := writeDownloadedFile(path, req.FilePath, res.Body, maxBytes, req.Overwrite)
 	if err != nil {
 		return "", err
 	}
@@ -137,7 +137,16 @@ func parseDownloadURL(raw string) (*url.URL, error) {
 	return u, nil
 }
 
-func writeDownloadedFile(path string, body io.Reader, maxBytes int64, overwrite bool) (int64, error) {
+func checkDownloadTarget(path, displayPath string) error {
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("download: %s already exists; pass overwrite=true to replace it", displayPath)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("download: stat %s: %w", displayPath, err)
+	}
+	return nil
+}
+
+func writeDownloadedFile(path, displayPath string, body io.Reader, maxBytes int64, overwrite bool) (int64, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return 0, fmt.Errorf("download: mkdir: %w", err)
 	}
@@ -176,7 +185,7 @@ func writeDownloadedFile(path string, body io.Reader, maxBytes int64, overwrite 
 	}
 	if err := os.Link(tmpPath, path); err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return 0, fmt.Errorf("download: %s already exists; pass overwrite=true to replace it", filepath.Base(path))
+			return 0, fmt.Errorf("download: %s already exists; pass overwrite=true to replace it", displayPath)
 		}
 		return 0, fmt.Errorf("download: link: %w", err)
 	}
