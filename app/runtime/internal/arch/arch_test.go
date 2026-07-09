@@ -26,8 +26,8 @@ import (
 //	orchestration  internal/kernel/**           use-case core (drives the agent loop; ACL over the agent SDK)
 //	domain         internal/domain/**          bounded contexts: entities + repository ports + domain services
 //	infra          internal/infra/**            sqlite / git / lsp / mcp / exec — driven adapters & frameworks
-//	composition    internal/runtime,            the "main" component that wires everything; exempt as an importer
-//	               internal/config, cmd/**
+//	composition    internal/runtime/**,         the "main" component that wires everything; exempt as an importer
+//	               internal/config, cmd/**       (startup projection lives at internal/runtime/startup)
 //
 // Forbidden edges (an inner ring learning about an outer one, or an adapter
 // reaching across the core):
@@ -35,7 +35,7 @@ import (
 //	infra         ↛ delivery, adapter, orchestration
 //	domain        ↛ delivery, adapter, orchestration, infra
 //	orchestration ↛ delivery, adapter
-//	adapter       ↛ delivery
+//	adapter       ↛ delivery, composition
 //
 // Intentionally NOT forbidden (each is a correct inward / hexagonal edge —
 // documented in GREENFIELD_ARCHITECTURE.md §5):
@@ -149,7 +149,8 @@ const (
 // into its ring, or "" when the path is outside the rings under test.
 func layerOf(rel string) string {
 	switch {
-	case rel == "internal/runtime" || rel == "internal/config" || strings.HasPrefix(rel, "cmd/"):
+	case rel == "internal/runtime" || strings.HasPrefix(rel, "internal/runtime/") ||
+		rel == "internal/config" || strings.HasPrefix(rel, "cmd/"):
 		return ringComposition
 	case rel == "internal/delivery" || strings.HasPrefix(rel, "internal/delivery/"):
 		return ringDelivery
@@ -176,7 +177,11 @@ func forbidden(from, to string) bool {
 	case ringOrchestration:
 		return to == ringDelivery || to == ringAdapter || to == ringInfra
 	case ringAdapter:
-		return to == ringDelivery
+		// Adapters implement kernel/domain ports and wrap infra; they must never
+		// reach up into the composition root (internal/runtime / config / cmd) —
+		// that inversion would let assembly logic hide inside a capability adapter
+		// (the startup-projection edge that prompted this guard).
+		return to == ringDelivery || to == ringComposition
 	default:
 		return false
 	}

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/startup"
+	"github.com/Tangerg/lynx/app/runtime/internal/runtime/startup"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
