@@ -31,14 +31,12 @@ func BuildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguar
 	locker := newPathLocker()
 	write := writeMutationTool(fs.NewWriteTool(fsExec), ci, tracker, locker, workdir)
 	edit := editMutationTool(fs.NewEditTool(fsExec), ci, tracker, locker, workdir)
-	multiEdit := editMutationTool(fs.NewMultiEditTool(fsExec), ci, tracker, locker, workdir)
 	applyPatch := editMutationTool(fs.NewApplyPatchTool(fsExec), ci, tracker, locker, workdir)
 
 	tools := []chat.Tool{
 		withReadTracking(fs.NewReadTool(fsExec), tracker, workdir),
 		write,
 		edit,
-		multiEdit,
 		applyPatch,
 		fs.NewGlobTool(fsExec),
 		fs.NewGrepTool(fsExec),

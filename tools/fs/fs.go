@@ -2,14 +2,13 @@ package fs
 
 import "context"
 
-// Executor is the SPI every backend implements. Five methods, each
-// following the (ctx, Input) (Output, error) shape so a remote
-// adapter can auto-generate transport code.
+// Executor is the SPI every backend implements. Each method follows the
+// (ctx, Input) (Output, error) shape so a remote adapter can auto-generate
+// transport code.
 type Executor interface {
 	Read(ctx context.Context, in ReadInput) (ReadOutput, error)
 	Write(ctx context.Context, in WriteInput) (WriteOutput, error)
 	Edit(ctx context.Context, in EditInput) (EditOutput, error)
-	MultiEdit(ctx context.Context, in MultiEditInput) (MultiEditOutput, error)
 	ApplyPatch(ctx context.Context, in ApplyPatchInput) (ApplyPatchOutput, error)
 	Glob(ctx context.Context, in GlobInput) (GlobOutput, error)
 	Grep(ctx context.Context, in GrepInput) (GrepOutput, error)
@@ -64,26 +63,12 @@ type EditOutput struct {
 	Replacements int
 }
 
-// ---------------------------------------------------------------- MultiEdit
-
-// MultiEditInput applies a sequence of exact-string replacements to one file,
-// reading once and writing once. Operations are applied in order; if any
-// operation fails, the file is left unchanged.
-type MultiEditInput struct {
-	Path  string
-	Edits []EditOperation
-}
-
-// EditOperation is one replacement in a [MultiEditInput].
+// EditOperation is one exact-string replacement — the shared unit Edit and
+// ApplyPatch apply via replaceInContent.
 type EditOperation struct {
 	OldString  string
 	NewString  string
 	ReplaceAll bool
-}
-
-type MultiEditOutput struct {
-	Edits        int
-	Replacements int
 }
 
 // ---------------------------------------------------------------- ApplyPatch

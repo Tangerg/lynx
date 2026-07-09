@@ -17,7 +17,7 @@ func (q Query) subject() string {
 	switch q.Tool {
 	case "shell", "run_in_background":
 		field = "command"
-	case "read", "write", "edit", "multiedit", "download":
+	case "read", "write", "edit", "download":
 		field = "file_path"
 	default:
 		return ""

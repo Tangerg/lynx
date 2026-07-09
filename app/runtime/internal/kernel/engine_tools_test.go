@@ -19,19 +19,19 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	defer eng.Close()
 
 	tools := eng.Tools()
-	// 7 filesystem coding tools (download is gated on a host allowlist, so it is
+	// 6 filesystem coding tools (download is gated on a host allowlist, so it is
 	// absent in this offline build) + 3 shell tools (shell + its shell_output /
 	// shell_kill companions) + 2 always-on LSP tools (the combined `lsp` query
 	// tool + `lsp_diagnostics`) + the `task` delegation tool + the ask_user HITL
 	// tool. (LSP tools advertise unconditionally; they return a no-server message
 	// at call time when no language server applies.)
-	if len(tools) != 14 {
-		t.Fatalf("tool count = %d, want 14 (7 fs + 3 shell + 2 lsp + task + ask_user)", len(tools))
+	if len(tools) != 13 {
+		t.Fatalf("tool count = %d, want 13 (6 fs + 3 shell + 2 lsp + task + ask_user)", len(tools))
 	}
 
 	names := toolNames(tools)
 	for _, want := range []string{
-		"read", "write", "edit", "multiedit", "apply_patch", "glob", "grep", "shell", "task", "ask_user",
+		"read", "write", "edit", "apply_patch", "glob", "grep", "shell", "task", "ask_user",
 		"lsp", "lsp_diagnostics",
 		"shell_output", "shell_kill",
 	} {
@@ -100,8 +100,8 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 	defer eng.Close()
 
 	tools := eng.Tools()
-	if len(tools) != 18 {
-		t.Fatalf("tool count = %d, want 18 (7 fs + download + 3 shell + 2 lsp + 3 online + task + ask_user)", len(tools))
+	if len(tools) != 17 {
+		t.Fatalf("tool count = %d, want 17 (6 fs + download + 3 shell + 2 lsp + 3 online + task + ask_user)", len(tools))
 	}
 	names := toolNames(tools)
 	// HTTPAllowedHosts is set, so download is registered alongside the online tools.
@@ -120,8 +120,8 @@ func TestEngine_Tools_PartialOnline(t *testing.T) {
 	client, _ := chat.NewClient(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
-	if len(eng.Tools()) != 15 {
-		t.Fatalf("tool count = %d, want 15 (7 fs + 3 shell + 2 lsp + jina + task + ask_user; no download without an http allowlist)", len(eng.Tools()))
+	if len(eng.Tools()) != 14 {
+		t.Fatalf("tool count = %d, want 14 (6 fs + 3 shell + 2 lsp + jina + task + ask_user; no download without an http allowlist)", len(eng.Tools()))
 	}
 }
 
