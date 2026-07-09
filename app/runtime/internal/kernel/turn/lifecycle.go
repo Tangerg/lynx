@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -144,33 +143,22 @@ func subagentTaskInput(bindings map[string]any) (description, prompt string) {
 			break
 		}
 	}
-	return stringField(input, "Description"), summarizeHookText(stringField(input, "Prompt"))
-}
-
-func stringField(v any, name string) string {
-	if v == nil {
-		return ""
+	if task, ok := input.(hooks.SubagentTask); ok {
+		return task.SubagentDescription(), summarizeHookText(task.SubagentPrompt())
 	}
-	if m, ok := v.(map[string]any); ok {
-		if s, ok := m[name].(string); ok {
-			return s
-		}
+	m, ok := input.(map[string]any)
+	if !ok {
+		return "", ""
 	}
-	rv := reflect.ValueOf(v)
-	for rv.Kind() == reflect.Pointer {
-		if rv.IsNil() {
-			return ""
-		}
-		rv = rv.Elem()
+	description, _ = m["description"].(string)
+	if description == "" {
+		description, _ = m["Description"].(string)
 	}
-	if rv.Kind() != reflect.Struct {
-		return ""
+	prompt, _ = m["prompt"].(string)
+	if prompt == "" {
+		prompt, _ = m["Prompt"].(string)
 	}
-	field := rv.FieldByName(name)
-	if !field.IsValid() || field.Kind() != reflect.String {
-		return ""
-	}
-	return field.String()
+	return description, summarizeHookText(prompt)
 }
 
 func summarizeHookValue(v any) string {
@@ -193,7 +181,14 @@ func summarizeHookText(s string) string {
 	if len(s) <= maxHookText {
 		return s
 	}
-	return s[:maxHookText] + "...(truncated)"
+	end := 0
+	for i := range s {
+		if i > maxHookText {
+			break
+		}
+		end = i
+	}
+	return s[:end] + "...(truncated)"
 }
 
 func errorString(err error) string {

@@ -81,11 +81,9 @@ func BuildOnlineTools(online OnlineConfig) ([]chat.Tool, error) {
 		return nil, err
 	}
 
-	out, err = appendIfBuilt(out, online.SourcegraphEndpoint != "", "sourcegraph", func() (chat.Tool, error) {
-		return newSourcegraphTool(sourcegraphConfig{
-			Endpoint: online.SourcegraphEndpoint,
-			Token:    online.SourcegraphToken,
-		})
+	sourcegraph := sourcegraphConfig{Endpoint: online.SourcegraphEndpoint, Token: online.SourcegraphToken}
+	out, err = appendIfBuilt(out, sourcegraph.enabled(), "sourcegraph", func() (chat.Tool, error) {
+		return newSourcegraphTool(sourcegraph)
 	})
 	if err != nil {
 		return nil, err

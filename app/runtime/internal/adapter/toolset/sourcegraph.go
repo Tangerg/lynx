@@ -20,6 +20,10 @@ type sourcegraphConfig struct {
 	Token    string
 }
 
+func (cfg sourcegraphConfig) enabled() bool {
+	return strings.TrimSpace(cfg.Endpoint) != ""
+}
+
 type sourcegraphRequest struct {
 	Query        string `json:"query" jsonschema:"required" jsonschema_description:"Sourcegraph search query. Use repo:, file:, lang:, type:, patternType:, count:, etc. as needed."`
 	MaxResults   int    `json:"max_results,omitempty" jsonschema_description:"Maximum matches to return. Default 10, max 50."`

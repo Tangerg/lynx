@@ -29,11 +29,11 @@ func (e AgentUndeployed) MarshalJSON() ([]byte, error) {
 // ------------------------------------------------------------------
 
 func (e ProcessCreated) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"bindings": e.Bindings})
+	return emit(e, map[string]any{"bindings": summarizeMap(e.Bindings)})
 }
 
 func (e ProcessCompleted) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"goal": summarizeGoal(e.Goal), "result": e.Result})
+	return emit(e, map[string]any{"goal": summarizeGoal(e.Goal), "result": summarizeValue(e.Result)})
 }
 
 func (e ProcessFailed) MarshalJSON() ([]byte, error) {

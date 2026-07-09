@@ -175,6 +175,12 @@ type taskInput struct {
 	Prompt      string `json:"prompt" jsonschema_description:"The full, self-contained instructions for the sub-agent — it does not see the main conversation, so include everything it needs."`
 }
 
+// SubagentDescription returns the task label surfaced to lifecycle hooks.
+func (in taskInput) SubagentDescription() string { return in.Description }
+
+// SubagentPrompt returns the task prompt surfaced to lifecycle hooks.
+func (in taskInput) SubagentPrompt() string { return in.Prompt }
+
 // buildSubtaskAgent constructs the agent behind the `task` delegation
 // tool. Same chat body as the main agent, but: (1) named "task" so the
 // derived tool is `task`; (2) declares [toolport.ToolRoleSubtask] — the coding

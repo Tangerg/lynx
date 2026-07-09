@@ -1,6 +1,7 @@
 package toolset
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -64,7 +65,7 @@ type codeSearchTool struct {
 
 func newCodeSearchTool(workdir string, index CodebaseIndex, sourcegraph sourcegraphConfig) (chat.Tool, error) {
 	var sg *sourcegraphTool
-	if sourcegraph.Endpoint != "" {
+	if sourcegraph.enabled() {
 		client, err := newSourcegraphClient(sourcegraph)
 		if err != nil {
 			return nil, err
@@ -107,6 +108,7 @@ func (t *codeSearchTool) Call(ctx context.Context, arguments string) (string, er
 func (r codeSearchRequest) normalize() codeSearchRequest {
 	r.Query = strings.TrimSpace(r.Query)
 	r.Literal = strings.TrimSpace(r.Literal)
+	r.Glob = strings.TrimSpace(r.Glob)
 	r.SourcegraphQuery = strings.TrimSpace(r.SourcegraphQuery)
 	if r.Limit <= 0 {
 		r.Limit = defaultCodeSearchLimit
@@ -189,7 +191,11 @@ func (t *codeSearchTool) local(ctx context.Context, req codeSearchRequest) ([]co
 	}
 	matches := make([]codeSearchLocalMatch, len(out.Matches))
 	for i, match := range out.Matches {
-		matches[i] = codeSearchLocalMatch(match)
+		matches[i] = codeSearchLocalMatch{
+			Path: match.Path,
+			Line: match.Line,
+			Text: match.Text,
+		}
 	}
 	return matches, nil
 }
@@ -212,16 +218,17 @@ func (t *codeSearchTool) remote(ctx context.Context, req codeSearchRequest) ([]s
 
 func suggestedReads(semantic []codeSearchSemanticHit, local []codeSearchLocalMatch) []codeSearchRead {
 	var out []codeSearchRead
-	seen := map[string]struct{}{}
+	seen := map[codeSearchReadKey]int{}
 	add := func(path string, line int, source string) {
 		if path == "" {
 			return
 		}
-		key := fmt.Sprintf("%s:%d:%s", path, line, source)
-		if _, ok := seen[key]; ok {
+		key := codeSearchReadKey{path: path, line: line}
+		if i, ok := seen[key]; ok {
+			out[i].Source = mergeReadSource(out[i].Source, source)
 			return
 		}
-		seen[key] = struct{}{}
+		seen[key] = len(out)
 		out = append(out, codeSearchRead{Path: path, Line: line, Source: source})
 	}
 	for _, hit := range semantic {
@@ -235,11 +242,28 @@ func suggestedReads(semantic []codeSearchSemanticHit, local []codeSearchLocalMat
 			return strings.Compare(a.Path, b.Path)
 		}
 		if a.Line != b.Line {
-			return a.Line - b.Line
+			return cmp.Compare(a.Line, b.Line)
 		}
 		return strings.Compare(a.Source, b.Source)
 	})
 	return out
+}
+
+type codeSearchReadKey struct {
+	path string
+	line int
+}
+
+func mergeReadSource(existing, next string) string {
+	for source := range strings.SplitSeq(existing, ",") {
+		if source == next {
+			return existing
+		}
+	}
+	if existing == "" {
+		return next
+	}
+	return existing + "," + next
 }
 
 func searchSnippet(text string) string {

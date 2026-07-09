@@ -78,7 +78,7 @@ func TestCodeSearchTool_SemanticSearchUsesIndex(t *testing.T) {
 }
 
 func TestCodeSearchTool_SourcegraphNoteWhenUnconfigured(t *testing.T) {
-	tool, err := newCodeSearchTool(t.TempDir(), nil, sourcegraphConfig{})
+	tool, err := newCodeSearchTool(t.TempDir(), nil, sourcegraphConfig{Endpoint: " \t "})
 	if err != nil {
 		t.Fatalf("newCodeSearchTool: %v", err)
 	}
@@ -96,6 +96,19 @@ func TestCodeSearchTool_SourcegraphNoteWhenUnconfigured(t *testing.T) {
 	}
 	if len(out.Notes) != 1 || !strings.Contains(out.Notes[0], "no Sourcegraph endpoint") {
 		t.Fatalf("notes = %+v", out.Notes)
+	}
+}
+
+func TestSuggestedReads_MergesDuplicateSources(t *testing.T) {
+	got := suggestedReads(
+		[]codeSearchSemanticHit{{Path: "a.go", StartLine: 7}},
+		[]codeSearchLocalMatch{{Path: "a.go", Line: 7}},
+	)
+	if len(got) != 1 {
+		t.Fatalf("suggestedReads = %+v, want one merged read", got)
+	}
+	if got[0].Source != "semantic,literal" {
+		t.Fatalf("source = %q, want semantic,literal", got[0].Source)
 	}
 }
 
