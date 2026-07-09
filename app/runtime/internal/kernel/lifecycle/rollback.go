@@ -20,7 +20,7 @@ type RollbackBoundary struct {
 // RunRefs into [transcript.RunNode], the decision is a lifecycle use-case, not
 // protocol adaptation.
 func ResolveRollbackBoundary(nodes []transcript.RunNode, toRunID string) (RollbackBoundary, error) {
-	b, err := transcript.BoundaryAt(nodes, toRunID, true)
+	b, err := transcript.Timeline(nodes).BoundaryAt(toRunID, true)
 	if err != nil {
 		return RollbackBoundary{}, err
 	}
