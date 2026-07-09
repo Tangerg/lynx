@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spf13/cast"
+
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
@@ -98,10 +100,12 @@ func (t *tool[In, Out]) Call(ctx context.Context, arguments string) (string, err
 }
 
 // stringifyToolResult renders a tool's typed output as the string the model
-// sees: a string passes through verbatim (the tool already chose its wording),
-// anything else is JSON-encoded.
+// sees. Scalars and fmt.Stringer values go through cast so a string (or []byte,
+// number, bool, Stringer) renders VERBATIM — unquoted, unlike json.Marshal;
+// composite results (structs, maps, slices) that cast can't render fall back to
+// JSON encoding. Order matters: cast first keeps a string result unquoted.
 func stringifyToolResult[Out any](out Out) (string, error) {
-	if s, ok := any(out).(string); ok {
+	if s, err := cast.ToStringE(out); err == nil {
 		return s, nil
 	}
 	b, err := json.Marshal(out)

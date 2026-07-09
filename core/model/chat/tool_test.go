@@ -74,6 +74,28 @@ func TestNewTool_StringResultPassesThroughVerbatim(t *testing.T) {
 	}
 }
 
+func TestNewTool_StructResultIsJSONEncoded(t *testing.T) {
+	type result struct {
+		OK    bool `json:"ok"`
+		Count int  `json:"count"`
+	}
+	// Out is a struct: cast can't render it, so it falls back to JSON encoding.
+	tool, err := chat.NewTool[struct{}, result](
+		chat.ToolDefinition{Name: "stat"},
+		func(context.Context, struct{}) (result, error) { return result{OK: true, Count: 3}, nil },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := tool.Call(context.Background(), `{}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != `{"ok":true,"count":3}` {
+		t.Fatalf("Call = %q, want JSON-encoded struct", got)
+	}
+}
+
 func TestNewTool_EmptyResultReturnsDefaultSuccess(t *testing.T) {
 	tool, err := chat.NewTool[struct{}, string](
 		chat.ToolDefinition{Name: "noop"},
