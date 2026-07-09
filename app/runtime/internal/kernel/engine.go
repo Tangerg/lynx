@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/core/model/chat"
 	history "github.com/Tangerg/lynx/core/model/chat/history"
@@ -46,8 +47,8 @@ type Engine struct {
 	todos           todo.Store // per-session task list; nil → todo_write absent + no prompt injection
 	workdir         string     // captured from Config.Workdir for the AGENTS.md cascade
 	skillsGlobalDir string     // captured from Config.SkillsGlobalDir for workspace.listSkills
-	pricing         Pricing    // optional per-round cost hook; nil → cost stays zero
-	defaultProvider string     // default provider id; pricing fallback for a default/subtask turn
+	pricing         accounting.Pricing
+	defaultProvider string // default provider id; pricing fallback for a default/subtask turn
 	parkStore       ParkStore
 
 	// Maintenance ports (turn-boundary autonomous ops) — injected by the

@@ -132,7 +132,7 @@ lyra/
 │   │       └── inprocess/             同进程 chan transport
 │   │
 │   ├── kernel/                         微内核(定义 port + 驱动 agent loop + use-case 编排)
-│   │   ├── port.go                     核定义的窄 port + DTO(Compactor/Extractor/SteeringSink/Pricing)
+│   │   ├── port.go                     核定义的窄 port + DTO(Compactor/Extractor/SteeringSink)
 │   │   ├── engine.go                   Engine:装配 prompt/tool/agent,驱动 loop(依赖 agentRuntime 窄接口)
 │   │   ├── agent_runtime.go            lyra 消费 agent 的窄接口(取代字段直接持 *runtime.Platform)
 │   │   ├── config.go                   kernel.Config(SPI 注入点)

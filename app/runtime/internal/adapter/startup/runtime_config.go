@@ -1,4 +1,4 @@
-package main
+package startup
 
 import (
 	"path/filepath"
@@ -14,7 +14,9 @@ import (
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
-func buildRuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.Client, providers providersvc.Registry, hooks lyraruntime.HookResolver) lyraruntime.Config {
+// RuntimeConfig assembles the runtime facade config from already-opened
+// process adapters.
+func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.Client, providers providersvc.Registry, hooks lyraruntime.HookResolver) lyraruntime.Config {
 	return lyraruntime.Config{
 		Engine: kernel.Config{
 			ChatClient:      client,

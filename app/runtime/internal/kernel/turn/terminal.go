@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 )
 
 // endTurn closes the turn's event channel and removes it from the live
@@ -50,7 +51,7 @@ func (s *inMemory) endTurn(st *turnState) {
 // emitTurnEnd (which carries usage) followed by endTurn in [drive].
 func (s *inMemory) finishTurn(st *turnState, reason TurnEndReason) {
 	dur := time.Since(st.startedAt)
-	finishTurnSpan(st.span, reason, TokenUsage{}, false, "")
+	finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
 	recordTurnDuration(st.ctx, reason, st.model, dur)
 	s.emit(st, TurnEnd{Reason: reason, Duration: dur})
 	s.endTurn(st)

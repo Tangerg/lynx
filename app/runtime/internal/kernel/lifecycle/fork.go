@@ -25,7 +25,7 @@ func ResolveForkHistoryPrefix(msgs []chat.Message, nodes []transcript.RunNode, f
 	if fromRunID == "" {
 		return msgs, nil
 	}
-	b, err := transcript.BoundaryAt(nodes, fromRunID, false)
+	b, err := transcript.Timeline(nodes).BoundaryAt(fromRunID, false)
 	if err != nil {
 		return nil, err
 	}

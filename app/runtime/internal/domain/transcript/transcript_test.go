@@ -38,10 +38,11 @@ func TestBoundaryAt(t *testing.T) {
 		root("R2", 3, 6),
 		cont("C1", "R1", 2, 4),
 	}
+	timeline := transcript.Timeline(nodes)
 
 	// Keep through R1 inclusive → keep R1+C1 (watermark 4, the chain terminal),
 	// drop R2+R3, boundary at R2's time.
-	b, err := transcript.BoundaryAt(nodes, "R1", true)
+	b, err := timeline.BoundaryAt("R1", true)
 	if err != nil {
 		t.Fatalf("R1: %v", err)
 	}
@@ -50,30 +51,30 @@ func TestBoundaryAt(t *testing.T) {
 	}
 
 	// Keep through R2 → watermark 6, drop only R3.
-	if b, _ := transcript.BoundaryAt(nodes, "R2", true); b.KeepMark != 6 || len(b.Dropped) != 1 || b.Dropped[0].ID != "R3" {
+	if b, _ := timeline.BoundaryAt("R2", true); b.KeepMark != 6 || len(b.Dropped) != 1 || b.Dropped[0].ID != "R3" {
 		t.Fatalf("R2 split = keep%d drop%v, want keep6 [R3]", b.KeepMark, runIDs(b.Dropped))
 	}
 
 	// Keep through the latest root → nothing to drop.
-	if b, _ := transcript.BoundaryAt(nodes, "R3", true); len(b.Dropped) != 0 {
+	if b, _ := timeline.BoundaryAt("R3", true); len(b.Dropped) != 0 {
 		t.Fatalf("R3 drop = %v, want none", runIDs(b.Dropped))
 	}
 
 	// Drop everything (empty target) → keep 0, drop all.
-	if b, _ := transcript.BoundaryAt(nodes, "", true); b.KeepMark != 0 || len(b.Dropped) != 4 || !b.BoundaryTime.IsZero() {
+	if b, _ := timeline.BoundaryAt("", true); b.KeepMark != 0 || len(b.Dropped) != 4 || !b.BoundaryTime.IsZero() {
 		t.Fatalf("drop-all = keep%d drop%d boundary%v, want keep0 drop4 zero", b.KeepMark, len(b.Dropped), b.BoundaryTime)
 	}
 
 	// A continuation target is not a root → ErrNotRoot (rollback's requireRoot).
-	if _, err := transcript.BoundaryAt(nodes, "C1", true); !errors.Is(err, transcript.ErrNotRoot) {
+	if _, err := timeline.BoundaryAt("C1", true); !errors.Is(err, transcript.ErrNotRoot) {
 		t.Fatalf("C1 err = %v, want ErrNotRoot", err)
 	}
 	// Unknown target → ErrRunNotFound.
-	if _, err := transcript.BoundaryAt(nodes, "ghost", true); !errors.Is(err, transcript.ErrRunNotFound) {
+	if _, err := timeline.BoundaryAt("ghost", true); !errors.Is(err, transcript.ErrRunNotFound) {
 		t.Fatalf("ghost err = %v, want ErrRunNotFound", err)
 	}
 	// Fork is lax: a continuation target is allowed (requireRoot=false).
-	if _, err := transcript.BoundaryAt(nodes, "C1", false); err != nil {
+	if _, err := timeline.BoundaryAt("C1", false); err != nil {
 		t.Fatalf("C1 lax err = %v, want nil", err)
 	}
 

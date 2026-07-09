@@ -1,4 +1,6 @@
-package main
+// Package startup adapts process config and environment state into runtime
+// construction inputs.
+package startup
 
 import (
 	"errors"
@@ -7,11 +9,15 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-func loadRuntimeConfig() (config.Config, error) {
+// LoadConfig loads the app config and resolves provider defaults plus env-key
+// overrides used by the runtime process.
+func LoadConfig() (config.Config, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return config.Config{}, err
@@ -37,7 +43,24 @@ func resolveProviderConfig(cfg config.Config) (config.Config, error) {
 	return cfg, nil
 }
 
-func runtimeMCPServers(in []config.MCPServerConfig) []mcpserversvc.Server {
+// DefaultClient builds the provider/model client used when a turn does not
+// choose a per-run model.
+func DefaultClient(cfg config.Config) (*chat.Client, error) {
+	return llm.BuildClient(llm.ClientSpec{
+		Provider: llm.Provider(cfg.Provider),
+		Model:    cfg.Model,
+		APIKey:   cfg.APIKey,
+		BaseURL:  cfg.BaseURL,
+	})
+}
+
+// ProviderRegistry wraps the durable provider registry with env-key fallback.
+func ProviderRegistry(reg providersvc.Registry) providersvc.Registry {
+	return providersvc.WithEnvKeys(reg, llm.EnvKeys())
+}
+
+// MCPServers projects config-file MCP entries into the runtime registry model.
+func MCPServers(in []config.MCPServerConfig) []mcpserversvc.Server {
 	if len(in) == 0 {
 		return nil
 	}

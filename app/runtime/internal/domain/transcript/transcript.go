@@ -135,17 +135,11 @@ type Boundary struct {
 	BoundaryTime time.Time
 }
 
-// BoundaryAt computes the inclusive-keep split of nodes at runID. nodes need not
-// be pre-sorted — BoundaryAt orders a copy by CreatedAt and leaves the input
-// untouched. runID=="" drops every run (KeepMark 0 — clear to empty).
-// requireRoot rejects a non-root runID with [ErrNotRoot] (rollback addresses
-// root runs only; fork passes false). An unknown runID is [ErrRunNotFound].
-func BoundaryAt(nodes []RunNode, runID string, requireRoot bool) (Boundary, error) {
-	return Timeline(nodes).BoundaryAt(runID, requireRoot)
-}
-
 // BoundaryAt computes the inclusive-keep split of this timeline at runID. It
-// orders a copy by CreatedAt and leaves the timeline untouched.
+// orders a copy by CreatedAt and leaves the timeline untouched. runID==""
+// drops every run (KeepMark 0 — clear to empty). requireRoot rejects a non-root
+// runID with [ErrNotRoot] (rollback addresses root runs only; fork passes
+// false). An unknown runID is [ErrRunNotFound].
 func (tl Timeline) BoundaryAt(runID string, requireRoot bool) (Boundary, error) {
 	t := slices.Clone([]RunNode(tl))
 	slices.SortStableFunc(t, func(a, b RunNode) int { return a.CreatedAt.Compare(b.CreatedAt) })

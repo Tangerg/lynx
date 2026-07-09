@@ -46,7 +46,7 @@
    - 每个目录：`service.go`（interface）+ 实现（按本质命名）+ tests
 
 4. **`internal/adapter/*` —— 能力适配器（实现 kernel/domain port，包装外部能力）**
-   - `maintenance`（压缩 / 提取 / 标题）/ `toolset`（工具装配）/ `codeintel` / `workspace` / `hooks` / `codebaseindex` / `persistence` / `observability` / `pricing`
+   - `maintenance`（压缩 / 提取 / 标题）/ `toolset`（工具装配）/ `codeintel` / `workspace` / `hooks` / `codebaseindex` / `persistence` / `observability` / `pricing` / `startup`
 
 5. **`internal/infra/*` —— 技术设施（零领域,不依赖任何上层）**
    - `infra/storage`（sqlite + file LYRA.md）/ `infra/git` / `infra/lsp` / `infra/checkpoint` / `infra/exec` / `infra/mcp` / `infra/a2a`
@@ -59,7 +59,7 @@
 - **knowledge**：`internal/infra/storage/FileKnowledgeService`（`<会话 cwd>/LYRA.md` + `~/.lyra/LYRA.md`，用户可 `cat`/编辑；实现 `domain/knowledge.Service`，project scope 按每次调用传入的 dir 寻址——一个 service 服务所有项目，空 dir 回退构造时的进程 cwd）。
 - （AGENTS.md 是发现，不是 storage。）
 
-持久化 bundle 装配在 `internal/adapter/persistence.Open()`（恒 sqlite + file LYRA.md memory），`cmd/lyra` 只调用它并把 bundle 投影进 `runtime.Config`。runtime **不再有 in-memory 回退** —— session/interrupt/provider 由 composition root 注入;测试 + 回退用 `sqlite.Open(":memory:" 或 temp file)`。
+持久化 bundle 装配在 `internal/adapter/persistence.Open()`（恒 sqlite + file LYRA.md memory），`cmd/lyra` 只调用它；bundle → `runtime.Config` 的投影在 `internal/adapter/startup.RuntimeConfig()`。runtime **不再有 in-memory 回退** —— session/interrupt/provider 由 composition root 注入;测试 + 回退用 `sqlite.Open(":memory:" 或 temp file)`。
 
 ## Lyra-specific 强约定
 
@@ -88,7 +88,8 @@
 ```
 lyra/
 ├── cmd/lyra/                       Cobra CLI 入口
-│   ├── app.go                      App 装配 + ensureRuntime（调用 adapter/persistence.Open）
+│   ├── app.go                      App 装配
+│   ├── runtime_bootstrap.go        ensureRuntime 启动剧本（调用 adapter/startup + adapter/persistence）
 │   ├── serve.go                    `lyra serve` —— HTTP+SSE 起 server
 │   ├── agents.go                   `lyra agents` —— 看哪些 AGENTS.md 会被加载
 │   ├── repl.go / chat.go / memory.go / session.go / version.go
@@ -127,6 +128,7 @@ lyra/
 │   ├── adapter/                    能力适配器：实现 kernel/domain port，包装外部能力
 │   │   ├── maintenance/            压缩 / 提取 / 标题（kernel maintenance port 实现）
 │   │   ├── persistence/            SQLite + LYRA.md 持久化 bundle 装配
+│   │   ├── startup/                config/env → runtime/domain 投影 + 启动 seed
 │   │   ├── observability/ pricing/ OTel 进程 bootstrap / catalog pricing port
 │   │   ├── toolset/                工具装配层（builders + resolver，loop 之外组好注入）
 │   │   ├── codeintel/ workspace/   代码智能 / VCS 视图 + checkpoint

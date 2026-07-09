@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -14,11 +15,11 @@ type noopObserver struct{}
 func (noopObserver) ApproveToolCall(context.Context, string, string, string) ToolApprovalVerdict {
 	return ToolApprovalVerdict{}
 }
-func (noopObserver) OnToolCallStart(string, string, string)      {}
-func (noopObserver) OnToolCallEnd(string, string, string, error) {}
-func (noopObserver) OnMessageDelta(string)                       {}
-func (noopObserver) OnReasoningDelta(string)                     {}
-func (noopObserver) OnUsage(TokenUsage, float64, int64)          {}
+func (noopObserver) OnToolCallStart(string, string, string)        {}
+func (noopObserver) OnToolCallEnd(string, string, string, error)   {}
+func (noopObserver) OnMessageDelta(string)                         {}
+func (noopObserver) OnReasoningDelta(string)                       {}
+func (noopObserver) OnUsage(accounting.TokenUsage, float64, int64) {}
 
 // keyedTool implements the loop's optional ConcurrencyKey contract as a keyed,
 // concurrent tool (the shape of a per-path file edit).

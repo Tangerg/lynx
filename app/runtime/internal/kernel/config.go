@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/history"
@@ -96,8 +97,8 @@ type Config struct {
 	// Pricing optionally computes per-round USD cost from the round's
 	// provider + served model + token usage. nil leaves cost at zero (the chat
 	// path gets no dollar figure from providers). Supply a rate table to surface
-	// CostUSD on TurnOutput / TurnEnd. See [Pricing].
-	Pricing Pricing
+	// CostUSD on TurnOutput / TurnEnd. See [accounting.Pricing].
+	Pricing accounting.Pricing
 
 	// Provider is the runtime's DEFAULT provider id — the provider a turn runs
 	// against when it names none (default / subtask turns). Pricing uses it to

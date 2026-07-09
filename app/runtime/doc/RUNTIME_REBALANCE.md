@@ -5,7 +5,7 @@
 ## 目标
 
 1. **降低头部清单感**：`cmd/lyra` 与 `internal/runtime` 负责启动和装配，允许重，但不应把大段配置字面量、端口投影和能力接线混在一个函数里。
-2. **保持行为不变**：不改协议、不改 store schema、不改 exported API 形状，不做兼容 shim，也不引入 migration。
+2. **允许破坏式收敛旧入口**：协议 / store schema 仍谨慎，但内部 exported API 可按真实边界重排；不为旧调用点保留兼容 shim。
 3. **继续把规则往正确层收**：领域不变量进 `domain/*`；跨 bounded context 的写集进 `kernel/*`；delivery 只做 wire 翻译和调用 use case。
 4. **不硬造“厚 domain”**：CRUD/registry 型上下文保持轻；只有真实规则和不变量才进入充血模型。
 
@@ -48,6 +48,12 @@
   - `internal/kernel`：把 token/cost accounting 值对象抽到 `internal/kernel/accounting`。
   - 预期收益：三个头部模块各少一块非核心职责，仍保留原有调用链和行为。
 
+- [x] **Batch 6：破坏式删除旧入口 + 启动适配下沉**
+  - 删除 `kernel` / `kernel/turn` 的 accounting re-export alias；调用方直接依赖 `internal/kernel/accounting`。
+  - 删除旧的 `transcript.BoundaryAt` 函数入口；rollback/fork 统一走 `transcript.Timeline.BoundaryAt`。
+  - 把 config/env 投影、默认 client 构建、provider/utility seed、hook resolver 构建从 `cmd/lyra` 搬到 `internal/adapter/startup`。
+  - 预期收益：CLI 外壳只保留启动顺序；kernel/turn 不再假装拥有 accounting 类型；领域对象方法成为唯一入口。
+
 ## 执行记录
 
 ### 2026-07-09
@@ -55,8 +61,11 @@
 - [x] 建立本跟踪文档。
 - [x] Batch 1：新增 `cmd/lyra/runtime_config.go`，把 `ensureRuntime` 中的 `lyraruntime.Config` 大字面量抽成 `buildRuntimeConfig`。`runtime_bootstrap.go` 现在保留启动顺序：load config → build client → open persistence → seed registries → build hooks → `runtime.New`。
 - [x] Batch 2：新增 `internal/runtime/engine_wiring.go` 与 `facade_wiring.go`，把 engine config/message history/tool env 注入、Runtime facade 端口投影从 `New` 的主流程中拿出。`New` 现在只保留装配流程和错误处理。
-- [x] Batch 3：新增 `transcript.Timeline` 值对象，把 rollback/fork 边界算法提升为 `Timeline.BoundaryAt`；保留原 `transcript.BoundaryAt` 函数作为兼容入口。`kernel/lifecycle.ResolveRollbackBoundary` 改为调用领域对象方法。
+- [x] Batch 3：新增 `transcript.Timeline` 值对象，把 rollback/fork 边界算法提升为 `Timeline.BoundaryAt`；删除旧的 `transcript.BoundaryAt` 函数入口，`kernel/lifecycle` 直接调用领域对象方法。
 - [x] Batch 4：新增 `internal/adapter/persistence.Bundle` / `Open`，删除 `cmd/lyra/stores.go`。`ensureRuntime` 和 `hooks` 命令改为调用 persistence adapter，`buildRuntimeConfig` 接收 persistence bundle。
-- [x] Batch 5：新增 `internal/adapter/observability.Setup`、`internal/adapter/pricing.Catalog`、`internal/kernel/accounting`。`serve` 调 observability adapter，runtime config 调 pricing adapter，kernel usage 类型改为 accounting alias。
+- [x] Batch 5：新增 `internal/adapter/observability.Setup`、`internal/adapter/pricing.Catalog`、`internal/kernel/accounting`。`serve` 调 observability adapter，runtime config 调 pricing adapter，kernel / turn 直接使用 accounting 值对象，不再保留 re-export alias。
+- [x] Batch 6：新增 `internal/adapter/startup`，承接 config/env → runtime/domain 的投影、默认 client 构建、provider/utility seed、hook resolver 构建。删除 `cmd/lyra/config_projection.go` / `runtime_config.go` / `seeds.go`，`ensureRuntime` 只保留启动剧本。同步删除 `transcript.BoundaryAt` 函数和 kernel/turn accounting alias。
+- [x] 局部验证：`go test ./cmd/lyra ./internal/adapter/startup ./internal/runtime ./internal/kernel/... ./internal/domain/transcript ./internal/delivery/server ./internal/adapter/pricing` 通过。
 - [x] 局部验证：`go test ./internal/domain/transcript ./internal/kernel/lifecycle ./internal/runtime/... ./cmd/lyra` 通过。
 - [x] 全量验证：`go build ./... && go vet ./... && go test ./... && golangci-lint run` 通过；`go test -race ./...` 通过。
+- [x] Batch 6 全量验证：`go test ./internal/arch && go build ./... && go vet ./... && go test ./... && golangci-lint run` 通过；`go test -race ./...` 通过。
