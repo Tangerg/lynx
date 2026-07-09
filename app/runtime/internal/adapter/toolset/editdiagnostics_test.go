@@ -2,7 +2,6 @@ package toolset
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,14 +29,13 @@ func TestWithEditDiagnostics_AppendsProblems(t *testing.T) {
 
 	// A stub "write" tool that writes path+content under root (stands in for the
 	// real fs write tool — we're testing the decorator, not fs).
-	inner, _ := chat.NewTool(
-		chat.ToolDefinition{Name: "write", Description: "stub", InputSchema: `{"type":"object"}`},
-		func(_ context.Context, arguments string) (string, error) {
-			var a struct {
-				FilePath string `json:"file_path"`
-				Content  string `json:"content"`
-			}
-			_ = json.Unmarshal([]byte(arguments), &a)
+	type writeArgs struct {
+		FilePath string `json:"file_path"`
+		Content  string `json:"content"`
+	}
+	inner, _ := chat.NewTool[writeArgs, string](
+		chat.ToolDefinition{Name: "write", Description: "stub"},
+		func(_ context.Context, a writeArgs) (string, error) {
 			if err := os.WriteFile(filepath.Join(root, a.FilePath), []byte(a.Content), 0o644); err != nil {
 				return "", err
 			}

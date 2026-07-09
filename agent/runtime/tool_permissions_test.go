@@ -17,9 +17,9 @@ import (
 func privilegedWebGroup(t *testing.T) *core.StaticToolGroupResolver {
 	t.Helper()
 
-	tool, err := chat.NewTool(
-		chat.ToolDefinition{Name: "web_search", InputSchema: `{"type":"object"}`},
-		func(context.Context, string) (string, error) { return "", nil },
+	tool, err := chat.NewTool[struct{}, string](
+		chat.ToolDefinition{Name: "web_search"},
+		func(context.Context, struct{}) (string, error) { return "", nil },
 	)
 	if err != nil {
 		t.Fatalf("NewTool: %v", err)

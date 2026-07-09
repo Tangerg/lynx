@@ -28,7 +28,7 @@ func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]chat.Tool, error) {
 		return nil, errors.New("lsptools: analyzer is nil")
 	}
 	// LSP queries are read-only, so opt them into parallel execution. They're
-	// built via chat.NewJSONTool and can't declare the concurrency contract on
+	// built via chat.NewTool and can't declare the concurrency contract on
 	// their own type, so wrap with AsParallelTool.
 	lsp, err := newLSPTool(ci, defaultWorkdir)
 	if err != nil {
@@ -44,7 +44,7 @@ func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]chat.Tool, error) {
 	}, nil
 }
 
-// lspInput is the model-facing argument shape; [chat.NewJSONTool] derives the
+// lspInput is the model-facing argument shape; [chat.NewTool] derives the
 // JSON schema from it and decodes calls back into it, so the advertised schema
 // and parsed value cannot drift. Only `operation` is structurally required —
 // which operand each operation needs is validated per-operation in the handler.
@@ -88,7 +88,7 @@ type lspRunner struct {
 
 func newLSPTool(ci *codeintel.Analyzer, defaultWorkdir string) (chat.Tool, error) {
 	t := &lspRunner{analyzer: ci, defaultWorkdir: defaultWorkdir}
-	return chat.NewJSONTool[lspInput](
+	return chat.NewTool[lspInput, string](
 		chat.ToolDefinition{Name: "lsp", Description: lspDesc},
 		t.query,
 	)
@@ -141,7 +141,7 @@ type diagnosticsTool struct {
 
 func newDiagnosticsTool(ci *codeintel.Analyzer, defaultWorkdir string) (chat.Tool, error) {
 	t := &diagnosticsTool{analyzer: ci, defaultWorkdir: defaultWorkdir}
-	return chat.NewJSONTool[lspDiagnosticsInput](
+	return chat.NewTool[lspDiagnosticsInput, string](
 		chat.ToolDefinition{
 			Name:        "lsp_diagnostics",
 			Description: "Get the language server's current problems (compile errors, warnings) for a file.",

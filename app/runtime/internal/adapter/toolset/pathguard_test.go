@@ -14,9 +14,9 @@ import (
 // ordinary paths — including non-.git dotfiles — pass through untouched.
 func TestWithPathGuard(t *testing.T) {
 	called := false
-	inner, _ := chat.NewTool(
-		chat.ToolDefinition{Name: "write", Description: "stub", InputSchema: `{"type":"object"}`},
-		func(context.Context, string) (string, error) {
+	inner, _ := chat.NewTool[struct{}, string](
+		chat.ToolDefinition{Name: "write", Description: "stub"},
+		func(context.Context, struct{}) (string, error) {
 			called = true
 			return "wrote", nil
 		},

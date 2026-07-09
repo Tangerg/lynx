@@ -2,7 +2,6 @@ package mcp_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 
@@ -15,26 +14,19 @@ import (
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
-const lynxEchoSchema = `{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`
+type echoInput struct {
+	Text string `json:"text"`
+}
 
 // newEchoTool builds a minimal lynx Tool for tests.
 func newEchoTool(t *testing.T) chat.Tool {
 	t.Helper()
-	tool, err := chat.NewTool(
+	tool, err := chat.NewTool[echoInput, string](
 		chat.ToolDefinition{
 			Name:        "echo",
 			Description: "echo the input",
-			InputSchema: lynxEchoSchema,
 		},
-		func(ctx context.Context, args string) (string, error) {
-			var p struct {
-				Text string `json:"text"`
-			}
-			if err := json.Unmarshal([]byte(args), &p); err != nil {
-				return "", err
-			}
-			return p.Text, nil
-		},
+		func(_ context.Context, p echoInput) (string, error) { return p.Text, nil },
 	)
 	require.NoError(t, err)
 	return tool
@@ -94,13 +86,12 @@ func TestRegister_RoundTrip(t *testing.T) {
 func TestRegister_ErrorBecomesIsError(t *testing.T) {
 	ctx := context.Background()
 
-	failing, err := chat.NewTool(
+	failing, err := chat.NewTool[struct{}, string](
 		chat.ToolDefinition{
 			Name:        "boom",
 			Description: "always fails",
-			InputSchema: `{"type":"object"}`,
 		},
-		func(ctx context.Context, args string) (string, error) {
+		func(context.Context, struct{}) (string, error) {
 			return "", errors.New("kaboom from lynx tool")
 		},
 	)
@@ -129,16 +120,17 @@ func TestRegister_RejectsNilArgs(t *testing.T) {
 
 func TestRegister_RejectsInvalidSchema(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
-	bad, err := chat.NewTool(
-		chat.ToolDefinition{
-			Name:        "bad",
-			Description: "",
-			InputSchema: "{not-json",
-		},
-		func(ctx context.Context, args string) (string, error) { return "", nil },
-	)
-	require.NoError(t, err)
-
-	err = lynxmcp.Register(srv, bad)
-	require.Error(t, err)
+	// NewTool always derives a valid schema, so an invalid one can only reach
+	// Register via a hand-rolled Tool — which is exactly what Register must reject.
+	require.Error(t, lynxmcp.Register(srv, badSchemaTool{}))
 }
+
+// badSchemaTool is a chat.Tool whose InputSchema is not valid JSON, used to
+// exercise Register's schema validation.
+type badSchemaTool struct{}
+
+func (badSchemaTool) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{Name: "bad", InputSchema: "{not-json"}
+}
+
+func (badSchemaTool) Call(context.Context, string) (string, error) { return "", nil }

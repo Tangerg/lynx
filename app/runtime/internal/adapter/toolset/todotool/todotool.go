@@ -36,7 +36,7 @@ not a delta). Rules, enforced by the runtime:
   - Completed tasks must not carry blocked_reason or next_action.
 Skip this tool for trivial single-step requests; it is for real multi-step work.`
 
-// writeArgs is the model-facing argument shape; [chat.NewJSONTool] derives the
+// writeArgs is the model-facing argument shape; [chat.NewTool] derives the
 // JSON schema from it and decodes calls back into it, so the advertised schema
 // and parsed value cannot drift. The items mirror [todo.Item] with the
 // LLM-facing descriptions kept here (out of the domain type); the handler maps
@@ -79,7 +79,7 @@ func New(store todo.Store) (chat.Tool, error) {
 	if store == nil {
 		return nil, nil
 	}
-	return chat.NewJSONTool[writeArgs](
+	return chat.NewTool[writeArgs, string](
 		chat.ToolDefinition{Name: "todo_write", Description: description},
 		(&tool{store: store}).write,
 	)

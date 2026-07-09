@@ -129,9 +129,9 @@ func TestPromptRunner_WithTools_ToolLoopEngaged(t *testing.T) {
 	model := newStubModel("ok")
 	pc := newPromptRunnerPC(t, model)
 
-	tool, err := chat.NewTool(
-		chat.ToolDefinition{Name: "stub_tool", InputSchema: `{"type":"object"}`},
-		func(context.Context, string) (string, error) { return "", nil },
+	tool, err := chat.NewTool[struct{}, string](
+		chat.ToolDefinition{Name: "stub_tool"},
+		func(context.Context, struct{}) (string, error) { return "", nil },
 	)
 	if err != nil {
 		t.Fatalf("NewTool: %v", err)

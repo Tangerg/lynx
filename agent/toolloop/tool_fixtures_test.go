@@ -2,6 +2,7 @@ package toolloop
 
 import (
 	"context"
+	"encoding/json"
 	"iter"
 	"strings"
 	"testing"
@@ -77,9 +78,9 @@ func responseWithText(text string) *chat.Response {
 
 func mustNewTool(t *testing.T, name string) chat.Tool {
 	t.Helper()
-	tl, err := chat.NewTool(
-		chat.ToolDefinition{Name: name, InputSchema: `{"type":"object"}`},
-		func(context.Context, string) (string, error) { return "", nil },
+	tl, err := chat.NewTool[struct{}, string](
+		chat.ToolDefinition{Name: name},
+		func(context.Context, struct{}) (string, error) { return "", nil },
 	)
 	if err != nil {
 		t.Fatalf("NewTool: %v", err)
@@ -92,9 +93,11 @@ func mustNewCallable(t *testing.T, name string, returnDirect bool, fn func(conte
 	if fn == nil {
 		fn = func(context.Context, string) (string, error) { return "", nil }
 	}
-	tl, err := chat.NewTool(
-		chat.ToolDefinition{Name: name, InputSchema: `{"type":"object"}`},
-		fn,
+	// In = json.RawMessage hands the callable the raw argument JSON, preserving
+	// the string-in test-fn shape now that NewTool decodes typed inputs.
+	tl, err := chat.NewTool[json.RawMessage, string](
+		chat.ToolDefinition{Name: name},
+		func(ctx context.Context, raw json.RawMessage) (string, error) { return fn(ctx, string(raw)) },
 	)
 	if err != nil {
 		t.Fatalf("NewTool: %v", err)

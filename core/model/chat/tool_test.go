@@ -2,60 +2,39 @@ package chat_test
 
 import (
 	"context"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-func TestNewTool_RequiresNameSchemaAndExec(t *testing.T) {
-	nop := func(context.Context, string) (string, error) { return "", nil }
+func TestNewTool_RequiresNameEmptySchemaAndExec(t *testing.T) {
+	type in struct {
+		Q string `json:"q"`
+	}
+	run := func(context.Context, in) (string, error) { return "", nil }
 
-	_, err := chat.NewTool(chat.ToolDefinition{}, nop)
-	if err == nil {
+	if _, err := chat.NewTool[in, string](chat.ToolDefinition{}, run); err == nil {
 		t.Fatal("missing name must error")
 	}
-
-	_, err = chat.NewTool(chat.ToolDefinition{Name: "search"}, nop)
-	if err == nil {
-		t.Fatal("missing schema must error")
+	if _, err := chat.NewTool[in, string](chat.ToolDefinition{Name: "search", InputSchema: "{}"}, run); err == nil {
+		t.Fatal("non-empty InputSchema must error (it is derived from In)")
 	}
-
-	_, err = chat.NewTool(chat.ToolDefinition{Name: "search", InputSchema: "{}"}, nil)
-	if err == nil {
+	if _, err := chat.NewTool[in, string](chat.ToolDefinition{Name: "search"}, nil); err == nil {
 		t.Fatal("nil execFunc must error")
 	}
 }
 
-func TestNewTool_RunsExecFunc(t *testing.T) {
-	tool, err := chat.NewTool(
-		chat.ToolDefinition{Name: "echo", InputSchema: "{}"},
-		func(_ context.Context, args string) (string, error) { return args, nil },
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := tool.Call(context.Background(), "hi")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "hi" {
-		t.Fatalf("Call = %q, want hi", got)
-	}
-}
-
-func TestNewJSONTool_DerivesSchemaAndDecodesArguments(t *testing.T) {
+func TestNewTool_DerivesSchemaAndDecodesArguments(t *testing.T) {
 	type addInput struct {
 		A int `json:"a" jsonschema:"required"`
 		B int `json:"b" jsonschema:"required"`
 	}
 
-	tool, err := chat.NewJSONTool[addInput](
+	// Out = int: a non-string result is JSON-encoded to the string the model sees.
+	tool, err := chat.NewTool[addInput, int](
 		chat.ToolDefinition{Name: "add", Description: "add two numbers"},
-		func(_ context.Context, in addInput) (string, error) {
-			return strconv.Itoa(in.A + in.B), nil
-		},
+		func(_ context.Context, in addInput) (int, error) { return in.A + in.B, nil },
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -75,57 +54,49 @@ func TestNewJSONTool_DerivesSchemaAndDecodesArguments(t *testing.T) {
 	}
 }
 
-func TestNewJSONTool_RejectsManualSchemaAndNilExec(t *testing.T) {
-	type input struct {
-		Value string `json:"value"`
+func TestNewTool_StringResultPassesThroughVerbatim(t *testing.T) {
+	type in struct {
+		V string `json:"v"`
 	}
-
-	_, err := chat.NewJSONTool[input](
-		chat.ToolDefinition{},
-		func(context.Context, input) (string, error) { return "", nil },
-	)
-	if err == nil {
-		t.Fatal("missing name must error")
-	}
-
-	_, err = chat.NewJSONTool[input](
-		chat.ToolDefinition{Name: "echo", InputSchema: "{}"},
-		func(context.Context, input) (string, error) { return "", nil },
-	)
-	if err == nil {
-		t.Fatal("manual schema must error")
-	}
-
-	_, err = chat.NewJSONTool[input](chat.ToolDefinition{Name: "echo"}, nil)
-	if err == nil {
-		t.Fatal("nil execFunc must error")
-	}
-}
-
-func TestNewJSONTool_InvalidArguments(t *testing.T) {
-	type input struct {
-		Value string `json:"value"`
-	}
-
-	tool, err := chat.NewJSONTool[input](
+	tool, err := chat.NewTool[in, string](
 		chat.ToolDefinition{Name: "echo"},
-		func(_ context.Context, in input) (string, error) { return in.Value, nil },
+		func(_ context.Context, i in) (string, error) { return i.V, nil },
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if _, err := tool.Call(context.Background(), `{`); err == nil {
-		t.Fatal("invalid JSON must error")
+	got, err := tool.Call(context.Background(), `{"v":"hi"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "hi" {
+		t.Fatalf("Call = %q, want hi (string result verbatim, not JSON-quoted)", got)
 	}
 }
 
-func TestNewJSONTool_EmptyArgumentsDecodeToZeroValue(t *testing.T) {
+func TestNewTool_EmptyResultReturnsDefaultSuccess(t *testing.T) {
+	tool, err := chat.NewTool[struct{}, string](
+		chat.ToolDefinition{Name: "noop"},
+		func(context.Context, struct{}) (string, error) { return "", nil },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := tool.Call(context.Background(), ``)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == "" {
+		t.Fatal("an empty result must be replaced with a default success message")
+	}
+}
+
+func TestNewTool_EmptyArgumentsDecodeToZeroValue(t *testing.T) {
 	type input struct {
 		Value string `json:"value,omitempty"`
 	}
 
-	tool, err := chat.NewJSONTool[input](
+	tool, err := chat.NewTool[input, string](
 		chat.ToolDefinition{Name: "opt"},
 		func(_ context.Context, in input) (string, error) { return "value=" + in.Value, nil },
 	)
@@ -143,5 +114,23 @@ func TestNewJSONTool_EmptyArgumentsDecodeToZeroValue(t *testing.T) {
 		if got != "value=" {
 			t.Fatalf("Call(%q) = %q, want %q", args, got, "value=")
 		}
+	}
+}
+
+func TestNewTool_InvalidArguments(t *testing.T) {
+	type input struct {
+		Value string `json:"value"`
+	}
+
+	tool, err := chat.NewTool[input, string](
+		chat.ToolDefinition{Name: "echo"},
+		func(_ context.Context, in input) (string, error) { return in.Value, nil },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := tool.Call(context.Background(), `{`); err == nil {
+		t.Fatal("invalid JSON must error")
 	}
 }

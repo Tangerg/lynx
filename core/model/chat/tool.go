@@ -20,12 +20,15 @@ type ToolDefinition struct {
 	// Description is a human-readable hint shown to the LLM.
 	Description string
 
-	// InputSchema is a JSON Schema describing the argument shape.
-	// Required by NewTool so the LLM can format arguments correctly.
-	// Leave it empty when using NewJSONTool; the schema is derived from
-	// the generic input type.
+	// InputSchema is the JSON Schema describing the argument shape the LLM
+	// formats its call against. Leave it empty: [NewTool] derives it from the
+	// generic input type In.
 	InputSchema string
 }
+
+// defaultToolSuccess is what the model sees when a tool succeeds but returns an
+// empty result — an affirmative outcome instead of a blank tool message.
+const defaultToolSuccess = "(tool call succeeded with no output)"
 
 // Tool is the executable contract every tool exposes — describable to
 // the LLM ([Tool.Definition]) and runnable by the framework ([Tool.Call]).
@@ -61,64 +64,14 @@ type Tool interface {
 }
 
 // tool is the concrete backing for tools built via [NewTool].
-type tool struct {
+type tool[In, Out any] struct {
 	definition ToolDefinition
-	execFunc   func(ctx context.Context, arguments string) (string, error)
+	execFunc   func(ctx context.Context, in In) (Out, error)
 }
 
-func (t *tool) Definition() ToolDefinition { return t.definition }
+func (t *tool[In, Out]) Definition() ToolDefinition { return t.definition }
 
-func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.execFunc(ctx, arguments)
-}
-
-func validateToolDefinition(caller string, definition ToolDefinition, requireSchema bool) error {
-	if definition.Name == "" {
-		return fmt.Errorf("%s: definition.Name must not be empty", caller)
-	}
-	if requireSchema && definition.InputSchema == "" {
-		return fmt.Errorf("%s: definition.InputSchema must not be empty", caller)
-	}
-	return nil
-}
-
-// NewTool builds a [Tool] backed by execFunc. All three components are
-// required: an empty name, an empty input schema, or a nil exec function
-// will return an error.
-//
-// To gate execution on human approval or to delegate execution to an
-// external system, have the tool (or a decorator around it) return the
-// control-flow error understood by your loop driver. The chat layer itself
-// always treats a registered tool as runnable.
-//
-// Example:
-//
-//	tool, err := chat.NewTool(
-//	    chat.ToolDefinition{Name: "add", InputSchema: addSchema},
-//	    func(ctx context.Context, args string) (string, error) { ... },
-//	)
-func NewTool(definition ToolDefinition, execFunc func(ctx context.Context, arguments string) (string, error)) (Tool, error) {
-	if err := validateToolDefinition("chat.NewTool", definition, true); err != nil {
-		return nil, err
-	}
-	if execFunc == nil {
-		return nil, errors.New("chat.NewTool: execFunc must not be nil")
-	}
-
-	return &tool{
-		definition: definition,
-		execFunc:   execFunc,
-	}, nil
-}
-
-type jsonTool[In any] struct {
-	definition ToolDefinition
-	execFunc   func(ctx context.Context, in In) (string, error)
-}
-
-func (t *jsonTool[In]) Definition() ToolDefinition { return t.definition }
-
-func (t *jsonTool[In]) Call(ctx context.Context, arguments string) (string, error) {
+func (t *tool[In, Out]) Call(ctx context.Context, arguments string) (string, error) {
 	var in In
 	// The tool-call contract allows omitted arguments when every field is
 	// optional: some providers emit "" for a parameterless call where others
@@ -128,38 +81,81 @@ func (t *jsonTool[In]) Call(ctx context.Context, arguments string) (string, erro
 		arguments = "{}"
 	}
 	if err := json.Unmarshal([]byte(arguments), &in); err != nil {
-		return "", fmt.Errorf("chat.NewJSONTool: decode arguments: %w", err)
+		return "", fmt.Errorf("chat.NewTool: decode arguments: %w", err)
 	}
-	return t.execFunc(ctx, in)
+	out, err := t.execFunc(ctx, in)
+	if err != nil {
+		return "", err
+	}
+	result, err := stringifyToolResult(out)
+	if err != nil {
+		return "", fmt.Errorf("chat.NewTool: encode result: %w", err)
+	}
+	if result == "" {
+		return defaultToolSuccess, nil
+	}
+	return result, nil
 }
 
-// NewJSONTool builds a [Tool] whose argument schema and decoder both come from
-// In. It is the typed counterpart to [NewTool]: callers provide only the tool
-// name/description and the executable behavior; the InputSchema field must be
-// left empty and is derived from In.
-func NewJSONTool[In any](
+// stringifyToolResult renders a tool's typed output as the string the model
+// sees: a string passes through verbatim (the tool already chose its wording),
+// anything else is JSON-encoded.
+func stringifyToolResult[Out any](out Out) (string, error) {
+	if s, ok := any(out).(string); ok {
+		return s, nil
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func validateToolDefinition(caller string, definition ToolDefinition) error {
+	if definition.Name == "" {
+		return fmt.Errorf("%s: definition.Name must not be empty", caller)
+	}
+	return nil
+}
+
+// NewTool builds a [Tool] from a typed function. The argument schema and decoder
+// come from In (a Go struct whose json / jsonschema tags describe the LLM-facing
+// parameters); the return value Out is rendered to the string the model sees —
+// a string verbatim, anything else JSON-encoded, and an empty result replaced
+// with a default success message. definition.Name is required, definition.
+// InputSchema must be empty (it is derived from In), and execFunc must be
+// non-nil. Use In = struct{} for a parameterless tool.
+//
+// To gate execution on human approval or delegate it elsewhere, have the tool
+// (or a decorator) return the control-flow error your loop driver understands;
+// the chat layer always treats a registered tool as runnable.
+//
+// Example:
+//
+//	tool, err := chat.NewTool[addInput, int](
+//	    chat.ToolDefinition{Name: "add", Description: "add two numbers"},
+//	    func(ctx context.Context, in addInput) (int, error) { return in.A + in.B, nil },
+//	)
+func NewTool[In, Out any](
 	definition ToolDefinition,
-	execFunc func(ctx context.Context, in In) (string, error),
+	execFunc func(ctx context.Context, in In) (Out, error),
 ) (Tool, error) {
-	if err := validateToolDefinition("chat.NewJSONTool", definition, false); err != nil {
+	if err := validateToolDefinition("chat.NewTool", definition); err != nil {
 		return nil, err
 	}
 	if definition.InputSchema != "" {
-		return nil, errors.New("chat.NewJSONTool: definition.InputSchema must be empty")
+		return nil, errors.New("chat.NewTool: definition.InputSchema must be empty (it is derived from In)")
 	}
 	if execFunc == nil {
-		return nil, errors.New("chat.NewJSONTool: execFunc must not be nil")
+		return nil, errors.New("chat.NewTool: execFunc must not be nil")
 	}
 
 	var zero In
 	schema, err := pkgjson.StringDefSchemaOf(zero)
 	if err != nil {
-		return nil, fmt.Errorf("chat.NewJSONTool: derive input schema: %w", err)
+		return nil, fmt.Errorf("chat.NewTool: derive input schema: %w", err)
 	}
 	definition.InputSchema = schema
 
-	return &jsonTool[In]{
-		definition: definition,
-		execFunc:   execFunc,
-	}, nil
+	return &tool[In, Out]{definition: definition, execFunc: execFunc}, nil
 }
