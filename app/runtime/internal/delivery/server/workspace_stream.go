@@ -39,19 +39,6 @@ func (h *workspaceHub) register(ch chan protocol.WorkspaceEvent) func() {
 	}
 }
 
-// subscribe is the broadcast-only convenience: a hub-owned channel + an
-// unsubscribe that unregisters AND closes it. For subscriptions that also run a
-// file watcher, WorkspaceSubscribe owns the channel directly (via register) so
-// it can close it only after stopping the watcher.
-func (h *workspaceHub) subscribe() (<-chan protocol.WorkspaceEvent, func()) {
-	ch := make(chan protocol.WorkspaceEvent, 64)
-	unregister := h.register(ch)
-	return ch, func() {
-		unregister()
-		close(ch)
-	}
-}
-
 // publish fans ev to every subscriber, dropping it for any whose buffer is
 // full (lossy by design — see the type doc).
 func (h *workspaceHub) publish(ev protocol.WorkspaceEvent) {
