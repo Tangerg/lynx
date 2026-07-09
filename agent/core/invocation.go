@@ -76,15 +76,3 @@ type EmbeddingInvocation struct {
 	Duration time.Duration
 	Action   string
 }
-
-// TokenTotals is the aggregated view of an invocation slice. The
-// framework computes these as a convenience for budget policies and
-// UI layers that want one number per dimension.
-type TokenTotals struct {
-	PromptTokens          int64
-	CompletionTokens      int64
-	ReasoningTokens       int64
-	CacheReadInputTokens  int64
-	CacheWriteInputTokens int64
-	InputTokens           int64 // embeddings
-}
