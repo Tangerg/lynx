@@ -5,11 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/model/chat/history"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
@@ -38,31 +34,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, errors.New("runtime: TranscriptStore is required")
 	}
 
-	// The engine config passes through except SessionStore + the microkernel
-	// ports. SessionStore: a spawned sub-agent (the `task` delegation) gets its
-	// session recorded so the parent->child lineage is durably queryable.
-	ecfg := cfg.Engine
-	ecfg.SessionStore = newChildSessionStore(cfg.SessionStore)
-	// The default provider id -- the engine's pricing fallback for a default /
-	// subtask turn that names no provider (so its cost attributes to the right
-	// provider rather than an alphabetical catalog guess).
-	ecfg.Provider = cfg.Provider
-
-	// Microkernel port wiring: the runtime is the composition root that builds
-	// the capability implementations and injects them into the engine core
-	// (which depends only on the port interfaces). All share one chat-history
-	// store so the engine's chat-history middleware and these ports agree.
-	historyStore := cfg.Engine.HistoryStore
-	if historyStore == nil {
-		historyStore = history.NewInMemoryStore()
-		ecfg.HistoryStore = historyStore
-	}
-	// conv is the message history. The engine gets it ONLY as the
-	// turn-end steering sink (engine.InjectUserMessage); the runtime holds it
-	// directly for the non-turn history operations (read/seed/count/truncate,
-	// for fork / rollback / messages.list) rather than proxying them through the
-	// engine. See doc/GREENFIELD_ARCHITECTURE.md.
-	conv := conversation.NewMessages(historyStore)
+	ecfg, messages := prepareEngineConfig(cfg)
 
 	// Capability ports are SPIs: the engine consumes interfaces (Steering /
 	// Compactor / Extractor; Knowledge above). The runtime supplies the
@@ -86,15 +58,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, err
 	}
 
-	if ecfg.Steering == nil {
-		ecfg.Steering = conv
-	}
-	wireMaintenancePorts(&ecfg, cfg, historyStore, utilityEnv.resolve)
-	// Todo list: same nil-default contract -- honor a pre-injected engine
-	// Todos (an external task store), else use the runtime-supplied one.
-	if ecfg.Todos == nil {
-		ecfg.Todos = cfg.TodoStore
-	}
+	wireEnginePorts(&ecfg, cfg, messages, utilityEnv.resolve)
 
 	// Tool environment: assembled outside the core (constructs the code-intel /
 	// exec / MCP / A2A capabilities + the resolver) and injected, so the engine
@@ -114,13 +78,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	ecfg.ToolResolver = built.Resolver
-	ecfg.Tools = built.Tools
-	ecfg.MCPStatusReader = built.MCPStatusReader
-	ecfg.MCPToolCatalog = built.MCPToolCatalog
-	ecfg.MCPConnectionCommands = built.MCPConnectionCommands
-	ecfg.MCPRegistryCommands = built.MCPRegistryCommands
-	ecfg.Closers = built.Closers
+	attachToolEnvironment(&ecfg, built)
 
 	eng, err := kernel.New(ctx, ecfg)
 	if err != nil {
@@ -132,18 +90,6 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	}
 	// From here the engine owns built.Closers (eng.Close runs them), so a later
 	// construction failure tears down via eng.Close.
-
-	// session / interrupt / provider are required and injected by the
-	// composition root (cmd/lyra wires sqlite-backed stores; tests wire a
-	// sqlite :memory: DB). The runtime keeps no in-memory fallback; there's
-	// a single storage backend now.
-	sessions := cfg.SessionStore
-	interrupts := cfg.InterruptStore
-	transcripts := cfg.TranscriptStore
-	schedules := cfg.ScheduleRegistry
-	if schedules == nil {
-		schedules = disabledScheduleRegistry{}
-	}
 
 	turnDispatcher, err := turn.New(turn.Dependencies{
 		Engine:         eng,
@@ -163,73 +109,18 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, fmt.Errorf("runtime: tool registry: %w", err)
 	}
 
-	return &Runtime{
-		turns:                     turnDispatcher,
-		closer:                    eng,
-		skillCatalog:              eng,
-		a2aChats:                  eng,
-		toolCatalog:               toolRegistry,
-		toolInvocations:           toolRegistry,
-		memoryList:                cfg.Engine.Knowledge,
-		memoryRead:                cfg.Engine.Knowledge,
-		memoryWrite:               cfg.Engine.Knowledge,
-		approvalModeRead:          approvalPolicy,
-		approvalModeMutation:      approvalPolicy,
-		approvalRuleList:          approvalPolicy,
-		approvalRuleDeletion:      approvalPolicy,
-		history:                   conv,
-		sessionList:               sessions,
-		sessionRead:               sessions,
-		sessionCreation:           sessions,
-		sessionPatch:              sessions,
-		sessionModel:              sessions,
-		sessionLifecycle:          sessions,
-		sessionRunSegment:         sessions,
-		interruptList:             interrupts,
-		interruptLifecycle:        interrupts,
-		interruptRunSegment:       interrupts,
-		transcriptContent:         transcripts,
-		transcriptRuns:            transcripts,
-		transcriptLifecycle:       transcripts,
-		transcriptRunSegment:      transcripts,
-		providerRegistryList:      providers,
-		providerRegistryRead:      providers,
-		providerRegistryConfigure: providers,
-		mcpRegistryList:           cfg.MCPRegistry,
-		mcpRegistryRead:           cfg.MCPRegistry,
-		mcpRegistryConfigure:      cfg.MCPRegistry,
-		mcpRegistryRemove:         cfg.MCPRegistry,
-		mcpRegistryEnable:         cfg.MCPRegistry,
-		mcpLiveStatus:             eng,
-		mcpLiveTools:              eng,
-		mcpLiveConnections:        eng,
-		mcpLiveRegistry:           eng,
-		mcpGating:                 mcpEnv.gate,
-		defaultProvider:           cfg.Provider,
-		defaultModel:              cfg.Model,
-		titles:                    maintenance.NewTitler(utilityEnv.resolve),
-		utility:                   utilityEnv.cell,
-		utilityClients:            resolver,
-		utilStore:                 cfg.UtilityRoleStore,
-		hookInspection:            cfg.HooksResolver,
-		hookTrust:                 cfg.HookTrustStore,
-		recipesGlobalDir:          cfg.RecipesGlobalDir,
-		scheduleList:              schedules,
-		scheduleRead:              schedules,
-		scheduleCreation:          schedules,
-		scheduleUpdates:           schedules,
-		scheduleDeletion:          schedules,
-		scheduleRuns:              schedules,
-		scheduleWorker:            cfg.ScheduleRegistry,
-		embeddingCell:             embeddingEnv.cell,
-		embeddings:                embeddingEnv.resolver,
-		embeddingStore:            cfg.EmbeddingRoleStore,
-		codebaseAvailability:      embeddingEnv.index,
-		codebaseSearch:            embeddingEnv.index,
-		codebaseStatus:            embeddingEnv.index,
-		codebaseReindex:           embeddingEnv.index,
-		transactor:                cfg.Transactor,
-	}, nil
+	return newRuntimeFacade(runtimeFacadeDeps{
+		cfg:       cfg,
+		engine:    eng,
+		turns:     turnDispatcher,
+		tools:     toolRegistry,
+		approval:  approvalPolicy,
+		messages:  messages,
+		resolver:  resolver,
+		mcp:       mcpEnv,
+		utility:   utilityEnv,
+		embedding: embeddingEnv,
+	}), nil
 }
 
 // runClosers runs capability shutdown hooks best-effort -- used to release a

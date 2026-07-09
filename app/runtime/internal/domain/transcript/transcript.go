@@ -113,6 +113,11 @@ type RunNode struct {
 // continuation (runs.resume) or a subagent run.
 func (n RunNode) IsRoot() bool { return n.ParentRunID == "" && n.SpawnedByItemID == "" }
 
+// Timeline is the domain view of a session's run log. It owns boundary math for
+// fork/rollback: callers lift wire/store records into [RunNode] values, then
+// ask the timeline where the inclusive-keep split lands.
+type Timeline []RunNode
+
 // Boundary is the inclusive-keep split of a timeline at a run:
 //
 //   - KeepMark: the watermark to keep — the Mark of the kept run's chain
@@ -136,7 +141,13 @@ type Boundary struct {
 // requireRoot rejects a non-root runID with [ErrNotRoot] (rollback addresses
 // root runs only; fork passes false). An unknown runID is [ErrRunNotFound].
 func BoundaryAt(nodes []RunNode, runID string, requireRoot bool) (Boundary, error) {
-	t := slices.Clone(nodes)
+	return Timeline(nodes).BoundaryAt(runID, requireRoot)
+}
+
+// BoundaryAt computes the inclusive-keep split of this timeline at runID. It
+// orders a copy by CreatedAt and leaves the timeline untouched.
+func (tl Timeline) BoundaryAt(runID string, requireRoot bool) (Boundary, error) {
+	t := slices.Clone([]RunNode(tl))
 	slices.SortStableFunc(t, func(a, b RunNode) int { return a.CreatedAt.Compare(b.CreatedAt) })
 
 	if runID == "" {
