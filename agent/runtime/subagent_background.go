@@ -37,7 +37,7 @@ func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent)
 
 	tools := &backgroundTools[In, Out]{platform: platform, agent: agentDef}
 
-	spawn, err = chat.NewJSONTool[In](
+	spawn, err = chat.NewTool[In, string](
 		chat.ToolDefinition{
 			Name:        agentDef.Name + "_spawn",
 			Description: "Start " + agentDef.Name + " as a background task. Returns a task_id immediately; collect its result later with " + agentDef.Name + "_collect.",
@@ -48,7 +48,7 @@ func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent)
 		return nil, nil, fmt.Errorf("runtime.AsBackgroundChatTool: spawn tool: %w", err)
 	}
 
-	collect, err = chat.NewJSONTool[collectTaskInput](
+	collect, err = chat.NewTool[collectTaskInput, string](
 		chat.ToolDefinition{
 			Name:        agentDef.Name + "_collect",
 			Description: "Collect a background " + agentDef.Name + " task by task_id. Reports status running|waiting|done|failed, with the result when done.",

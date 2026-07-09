@@ -60,7 +60,7 @@ func newScheduleTool(reg schedule.Registry) (chat.Tool, error) {
 	if reg == nil {
 		return nil, nil
 	}
-	return chat.NewJSONTool[scheduleRequest](
+	return chat.NewTool[scheduleRequest, string](
 		chat.ToolDefinition{
 			Name:        "schedule",
 			Description: "Manage cron schedules for background agent runs. op=list returns all; create needs prompt + cron; update patches by id (omitted fields unchanged); delete removes by id.",

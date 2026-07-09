@@ -52,13 +52,12 @@ func TestEngine_New_WithoutResolverDoesNotInjectTask(t *testing.T) {
 
 	stub := newStubModel("shell", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	customTool, err := chat.NewTool(
+	customTool, err := chat.NewTool[struct{}, string](
 		chat.ToolDefinition{
 			Name:        "noop",
 			Description: "noop tool",
-			InputSchema: `{"type":"object","properties":{}}`,
 		},
-		func(_ context.Context, _ string) (string, error) {
+		func(context.Context, struct{}) (string, error) {
 			return "noop", nil
 		},
 	)

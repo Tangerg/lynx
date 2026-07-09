@@ -45,13 +45,12 @@ func runStdioMCPServer() {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name: "lyra-test-stdio-mcp", Version: "v0.1.0",
 	}, nil)
-	ping, err := chat.NewTool(
+	ping, err := chat.NewTool[struct{}, string](
 		chat.ToolDefinition{
 			Name:        "ping",
 			Description: "responds with pong",
-			InputSchema: `{"type":"object"}`,
 		},
-		func(ctx context.Context, args string) (string, error) { return "pong", nil },
+		func(context.Context, struct{}) (string, error) { return "pong", nil },
 	)
 	if err != nil {
 		log.Fatalf("build tool: %v", err)
@@ -75,13 +74,12 @@ func TestEngine_DialMCPServer(t *testing.T) {
 	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name: "test-srv", Version: "v0.1.0",
 	}, nil)
-	ping, err := chat.NewTool(
+	ping, err := chat.NewTool[struct{}, string](
 		chat.ToolDefinition{
 			Name:        "ping",
 			Description: "responds with pong",
-			InputSchema: `{"type":"object"}`,
 		},
-		func(ctx context.Context, args string) (string, error) {
+		func(context.Context, struct{}) (string, error) {
 			return "pong", nil
 		},
 	)

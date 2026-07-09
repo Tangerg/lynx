@@ -10,33 +10,23 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 type echoInput struct {
 	Text string `json:"text" jsonschema:"required"`
 }
 
-var echoSchema, _ = pkgjson.StringDefSchemaOf(echoInput{})
-
 func main() {
 	ctx := context.Background()
 
 	// 1. Build a chat.Tool — same shape an action body would
 	// register and the same shape lynxmcp.Register accepts.
-	echo, err := chat.NewTool(
+	echo, err := chat.NewTool[echoInput, string](
 		chat.ToolDefinition{
 			Name:        "echo",
 			Description: "echo the input text",
-			InputSchema: echoSchema,
 		},
-		func(_ context.Context, arguments string) (string, error) {
-			var p echoInput
-			if err := json.Unmarshal([]byte(arguments), &p); err != nil {
-				return "", err
-			}
-			return p.Text, nil
-		},
+		func(_ context.Context, p echoInput) (string, error) { return p.Text, nil },
 	)
 	if err != nil {
 		log.Fatal(err)

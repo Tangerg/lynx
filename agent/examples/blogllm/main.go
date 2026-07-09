@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 // Domain types — the agent takes a Topic and produces a Brief by asking
@@ -192,16 +191,13 @@ type researchSearchInput struct {
 	Query string `json:"query" jsonschema:"required"`
 }
 
-var researchSearchSchema, _ = pkgjson.StringDefSchemaOf(researchSearchInput{})
-
 func newResearchToolGroup() *researchToolGroup {
-	tool, err := chat.NewTool(
+	tool, err := chat.NewTool[researchSearchInput, string](
 		chat.ToolDefinition{
 			Name:        "research_search",
 			Description: "search the public web for sources on a topic",
-			InputSchema: researchSearchSchema,
 		},
-		func(_ context.Context, arguments string) (string, error) {
+		func(context.Context, researchSearchInput) (string, error) {
 			// Stub: pretend to search and return canned sources.
 			return `[{"url":"https://example.com/agents-2026","title":"Agents in 2026"}]`, nil
 		},

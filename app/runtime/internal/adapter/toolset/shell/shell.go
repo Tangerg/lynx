@@ -93,7 +93,7 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]chat.Tool, error) {
 	}
 	t := &tools{shells: shells, defaultWorkdir: defaultWorkdir}
 
-	shellTool, err := chat.NewJSONTool[shellArgs](
+	shellTool, err := chat.NewTool[shellArgs, string](
 		chat.ToolDefinition{
 			Name: "shell",
 			Description: "Execute a shell command via /bin/sh -c. Returns stdout/stderr, exit code, and duration. " +
@@ -106,7 +106,7 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]chat.Tool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("shell: build shell tool: %w", err)
 	}
-	outputTool, err := chat.NewJSONTool[shellOutputArgs](
+	outputTool, err := chat.NewTool[shellOutputArgs, string](
 		chat.ToolDefinition{
 			Name:        "shell_output",
 			Description: "Read new output from a background shell (only output since the last read). Reports whether it is still running or has exited. With block, waits until the shell exits (or timeout ms) — wait for a backgrounded command without a sleep poll loop.",
@@ -116,7 +116,7 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]chat.Tool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("shell: build shell_output tool: %w", err)
 	}
-	killTool, err := chat.NewJSONTool[shellIDArgs](
+	killTool, err := chat.NewTool[shellIDArgs, string](
 		chat.ToolDefinition{
 			Name:        "shell_kill",
 			Description: "Stop a background shell.",

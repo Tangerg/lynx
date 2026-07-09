@@ -446,13 +446,15 @@ func TestChatModel_Call_PreservesPreStagedSystemForCaching(t *testing.T) {
 
 func newTestTool(t *testing.T) chat.Tool {
 	t.Helper()
-	tool, err := chat.NewTool(
+	type weatherInput struct {
+		City string `json:"city"`
+	}
+	tool, err := chat.NewTool[weatherInput, string](
 		chat.ToolDefinition{
 			Name:        "weather",
 			Description: "look up weather",
-			InputSchema: `{"type":"object","properties":{"city":{"type":"string"}}}`,
 		},
-		func(context.Context, string) (string, error) { return "sunny", nil },
+		func(context.Context, weatherInput) (string, error) { return "sunny", nil },
 	)
 	if err != nil {
 		t.Fatalf("NewTool: %v", err)

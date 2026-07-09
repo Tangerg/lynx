@@ -52,7 +52,7 @@ func New(index SearchIndex) (chat.Tool, error) {
 	if index == nil {
 		return nil, errors.New("codebase_search: index is nil")
 	}
-	return chat.NewJSONTool[request](definition(), (&tool{index: index}).search)
+	return chat.NewTool[request, string](definition(), (&tool{index: index}).search)
 }
 
 func definition() chat.ToolDefinition {

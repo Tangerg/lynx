@@ -26,7 +26,7 @@ const (
 	rejectLabel  = "Reject"
 )
 
-// exitPlanArgs is the model-facing argument shape; [chat.NewJSONTool] derives
+// exitPlanArgs is the model-facing argument shape; [chat.NewTool] derives
 // the JSON schema from it and decodes calls back into it, so the advertised
 // schema and parsed value cannot drift. The options mirror [interrupts.Option]
 // with the LLM-facing copy kept here.
@@ -90,7 +90,7 @@ func New(appr approval.Policy, interrupt interrupts.Interruption) (chat.Tool, er
 		return nil, nil
 	}
 	t := &tool{approval: appr, interrupt: interrupt}
-	return chat.NewJSONTool[exitPlanArgs](
+	return chat.NewTool[exitPlanArgs, string](
 		chat.ToolDefinition{
 			Name:        toolName,
 			Description: "Present your plan for approval and leave plan mode. Call this ONLY in plan mode (the read-only stance) once you've investigated and drafted a plan. On approval, plan mode exits and all tools are enabled so you can execute the plan; on rejection you stay in plan mode with the user's feedback. Provide alternative approaches in options when the user should choose between them.",
