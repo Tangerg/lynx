@@ -24,10 +24,6 @@ type runtimeFacadeDeps struct {
 }
 
 func newRuntimeFacade(d runtimeFacadeDeps) *Runtime {
-	schedules := d.cfg.ScheduleRegistry
-	if schedules == nil {
-		schedules = disabledScheduleRegistry{}
-	}
 	return &Runtime{
 		turns:              d.turns,
 		closer:             d.engine,
@@ -56,8 +52,6 @@ func newRuntimeFacade(d runtimeFacadeDeps) *Runtime {
 		hookInspection:     d.cfg.HooksResolver,
 		hookTrust:          d.cfg.HookTrustStore,
 		recipesGlobalDir:   d.cfg.RecipesGlobalDir,
-		schedules:          schedules,
-		scheduleWorker:     d.cfg.ScheduleRegistry,
 		embeddingCell:      d.embedding.cell,
 		embeddings:         d.embedding.resolver,
 		embeddingStore:     d.cfg.EmbeddingRoleStore,

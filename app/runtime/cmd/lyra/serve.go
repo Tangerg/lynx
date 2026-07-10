@@ -19,18 +19,17 @@ import (
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
-	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
 func run(ctx context.Context, errw io.Writer) (err error) {
 	shutdownObs := observability.Setup(resolvedVersion())
 	defer func() { err = errors.Join(err, shutdownObs(context.WithoutCancel(ctx))) }()
 
-	rt, cfg, err := bootstrapRuntime(ctx)
+	stack, cfg, err := bootstrapRuntime(ctx)
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, rt.Close()) }()
+	defer func() { err = errors.Join(err, stack.rt.Close()) }()
 	srv := cfg.Server
 	if len(srv.CORSOrigins) == 0 {
 		srv.CORSOrigins = lyrahttp.DefaultCORSOrigins
@@ -52,7 +51,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	if token != nil {
 		tokenValue = token.Value
 	}
-	httpServer, api, err := buildHTTPServer(rt, srv, tokenValue)
+	httpServer, api, err := buildHTTPServer(stack, srv, tokenValue)
 	if err != nil {
 		return err
 	}
@@ -61,7 +60,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 }
 
 // buildHTTPServer assembles the HTTP+SSE server from the resolved settings.
-func buildHTTPServer(rt *lyraruntime.Runtime, srv config.ServerConfig, tokenValue string) (*lyrahttp.Server, *server.Server, error) {
+func buildHTTPServer(stack runtimeStack, srv config.ServerConfig, tokenValue string) (*lyrahttp.Server, *server.Server, error) {
 	info := lyrahttp.ServerInfoOrDefault()
 	info.Version = resolvedVersion()
 	if home, err := os.UserHomeDir(); err == nil {
@@ -77,15 +76,16 @@ func buildHTTPServer(rt *lyraruntime.Runtime, srv config.ServerConfig, tokenValu
 	}
 
 	api, err := server.New(server.Config{
-		Runtime:     rt,
+		Runtime:     stack.rt,
 		ServerInfo:  info,
 		Checkpoints: workspace.NewCheckpoints(checkpointDir),
+		Schedules:   stack.schedules,
 	})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	caps := server.Capabilities(rt)
+	caps := server.Capabilities(stack.rt)
 	httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
 		Runtime:         api,
 		Addr:            srv.Listen,

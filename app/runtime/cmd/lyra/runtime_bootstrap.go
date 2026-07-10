@@ -5,25 +5,35 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/runtime/startup"
 )
 
-// bootstrapRuntime builds the runtime bundle for the server process.
-func bootstrapRuntime(ctx context.Context) (_ *lyraruntime.Runtime, _ config.Config, err error) {
+// runtimeStack is the assembled application the delivery layer runs on: the
+// (shrinking) Runtime facade plus the extracted application coordinators that
+// delivery holds directly. Batch 4 grows this as the facade is dismantled.
+type runtimeStack struct {
+	rt        *lyraruntime.Runtime
+	schedules *schedules.Coordinator
+}
+
+// bootstrapRuntime builds the runtime bundle + application coordinators for the
+// server process.
+func bootstrapRuntime(ctx context.Context) (_ runtimeStack, _ config.Config, err error) {
 	cfg, err := startup.LoadConfig()
 	if err != nil {
-		return nil, config.Config{}, err
+		return runtimeStack{}, config.Config{}, err
 	}
 	client, err := startup.DefaultClient(cfg)
 	if err != nil {
-		return nil, config.Config{}, err
+		return runtimeStack{}, config.Config{}, err
 	}
 
 	stores, err := persistence.Open()
 	if err != nil {
-		return nil, config.Config{}, err
+		return runtimeStack{}, config.Config{}, err
 	}
 	owned := true
 	defer func() {
@@ -31,6 +41,10 @@ func bootstrapRuntime(ctx context.Context) (_ *lyraruntime.Runtime, _ config.Con
 			err = errors.Join(err, stores.Close())
 		}
 	}()
+	// The schedule store is both the CRUD registry and the worker's due-scan
+	// store; the coordinator holds it and the composition transfers store
+	// ownership to the Runtime below (its Close covers the shared bundle).
+	scheduleCoord := schedules.NewCoordinator(stores.Schedules, stores.Schedules)
 	// Provider registry with the stored>env credential fallback: a provider with
 	// no stored key falls back to its environment variable (ANTHROPIC_API_KEY,
 	// OPENAI_API_KEY, …), so a developer with keys in their shell gets those
@@ -44,26 +58,26 @@ func bootstrapRuntime(ctx context.Context) (_ *lyraruntime.Runtime, _ config.Con
 	// persisted — it stays surfaced as "from env" rather than copied to "stored".
 	// Other supported providers stay unconfigured until the user sets their keys.
 	if err = startup.SeedConfiguredProvider(ctx, providers, cfg); err != nil {
-		return nil, config.Config{}, err
+		return runtimeStack{}, config.Config{}, err
 	}
 	// Seed the config-file utility model into its store on first run, so the
 	// cheaper maintenance model is honored out of the box; a persisted
 	// models.setUtilityRole for the same role wins (runtime edits over config).
 	if err = startup.SeedUtilityRole(ctx, stores.UtilityRole, cfg); err != nil {
-		return nil, config.Config{}, err
+		return runtimeStack{}, config.Config{}, err
 	}
 	// Seed env-sourced MCP servers (LYRA_MCP_SERVERS) into the registry on
 	// first run; a persisted workspace.mcp.configure for the same name wins.
 	if err = lyraruntime.SeedMCPServers(ctx, stores.MCPServers, startup.MCPServers(cfg.MCPServers)); err != nil {
-		return nil, config.Config{}, err
+		return runtimeStack{}, config.Config{}, err
 	}
 
 	hookResolver := startup.HookResolver(stores.Trust)
 
 	rt, err := lyraruntime.New(ctx, startup.RuntimeConfig(cfg, stores, client, providers, hookResolver))
 	if err != nil {
-		return nil, config.Config{}, err
+		return runtimeStack{}, config.Config{}, err
 	}
 	owned = false // successful Runtime construction takes ownership of stores
-	return rt, cfg, nil
+	return runtimeStack{rt: rt, schedules: scheduleCoord}, cfg, nil
 }
