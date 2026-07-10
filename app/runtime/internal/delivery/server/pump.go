@@ -9,7 +9,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
@@ -63,7 +62,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// lock.
 	cwd := worktree.CanonicalCwd(s.sessionCwd(reqCtx, sessionID))
 	live := &runHandle{cancel: cancel, owner: taskCtx, hub: hub}
-	s.runs.Open(runstate.Record{
+	s.runs.Open(runs.Record{
 		ID:          runID,
 		SessionID:   sessionID,
 		Cwd:         cwd,
