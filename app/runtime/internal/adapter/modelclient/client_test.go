@@ -1,4 +1,4 @@
-package runtime
+package modelclient
 
 import (
 	"path/filepath"
@@ -18,7 +18,7 @@ func TestClientResolver_RejectsUnconfigured(t *testing.T) {
 		t.Fatal(err)
 	}
 	ps := sqlitestore.NewProviderStore(db) // empty: deepseek not configured
-	r := newClientResolver(ps)
+	r := NewClientResolver(ps)
 
 	_, err = r.ResolveClient(t.Context(), "deepseek", "deepseek-v4-pro")
 	if err == nil {

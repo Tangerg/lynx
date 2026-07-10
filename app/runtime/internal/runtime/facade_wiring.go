@@ -4,6 +4,7 @@ import (
 	"io"
 	"sync/atomic"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
@@ -53,7 +54,7 @@ type Dependencies struct {
 	RecipesGlobalDir string
 
 	EmbeddingCell  *atomic.Pointer[modelrole.Role]
-	Embeddings     *embeddingResolver
+	Embeddings     *modelclient.EmbeddingResolver
 	EmbeddingStore embeddingRoleSaver
 	Codebase       codebaseindex.Index
 
