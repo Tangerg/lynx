@@ -10,6 +10,7 @@ import (
 )
 
 type approvalSessionStore struct {
+	sessionRuntimeStore
 	sess session.Session
 	err  error
 }
@@ -50,12 +51,15 @@ func (s *approvalStore) Forget(_ context.Context, id string) error {
 	return nil
 }
 
+func (*approvalStore) Decide(context.Context, approval.Query) (approval.Decision, bool, error) {
+	return "", false, nil
+}
+
+func (*approvalStore) Remember(context.Context, approval.RememberRequest) error { return nil }
+
 func runtimeWithApprovalStore(store *approvalStore) *Runtime {
 	return &Runtime{
-		approvalModeRead:     store,
-		approvalModeMutation: store,
-		approvalRuleList:     store,
-		approvalRuleDeletion: store,
+		approval: store,
 	}
 }
 
@@ -82,7 +86,7 @@ func TestRuntimeApprovalModeFacadeUsesModePorts(t *testing.T) {
 func TestRuntimeListApprovalRulesResolvesSessionProject(t *testing.T) {
 	approvals := &approvalStore{}
 	rt := runtimeWithApprovalStore(approvals)
-	rt.sessionRead = approvalSessionStore{sess: session.Session{ID: "ses_1", Cwd: "/repo"}}
+	rt.sessions = &approvalSessionStore{sess: session.Session{ID: "ses_1", Cwd: "/repo"}}
 
 	if _, err := rt.ListApprovalRules(context.Background(), "ses_1"); err != nil {
 		t.Fatalf("list approval rules: %v", err)
@@ -99,7 +103,7 @@ func TestRuntimeListApprovalRulesResolvesSessionProject(t *testing.T) {
 func TestRuntimeListApprovalRulesUnknownSessionUsesEmptyProject(t *testing.T) {
 	approvals := &approvalStore{}
 	rt := runtimeWithApprovalStore(approvals)
-	rt.sessionRead = approvalSessionStore{err: session.ErrNotFound}
+	rt.sessions = &approvalSessionStore{err: session.ErrNotFound}
 
 	if _, err := rt.ListApprovalRules(context.Background(), "missing"); err != nil {
 		t.Fatalf("list approval rules: %v", err)
@@ -113,7 +117,7 @@ func TestRuntimeListApprovalRulesReturnsSessionStoreFailure(t *testing.T) {
 	storeErr := errors.New("store unavailable")
 	approvals := &approvalStore{}
 	rt := runtimeWithApprovalStore(approvals)
-	rt.sessionRead = approvalSessionStore{err: storeErr}
+	rt.sessions = &approvalSessionStore{err: storeErr}
 
 	_, err := rt.ListApprovalRules(context.Background(), "ses_1")
 	if !errors.Is(err, storeErr) {

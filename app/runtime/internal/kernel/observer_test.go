@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 

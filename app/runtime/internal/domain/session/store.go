@@ -7,6 +7,7 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -42,6 +43,19 @@ type Patch struct {
 	Cwd      *string
 	Metadata *map[string]any
 	Favorite *bool
+}
+
+// Normalize returns a copy with domain-level text invariants applied.
+func (p Patch) Normalize() (Patch, error) {
+	if p.Title == nil {
+		return p, nil
+	}
+	title := strings.TrimSpace(*p.Title)
+	if title == "" {
+		return Patch{}, ErrTitleRequired
+	}
+	p.Title = &title
+	return p, nil
 }
 
 // Session is the persistent identity of a conversation. Lyra tracks

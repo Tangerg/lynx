@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 )
 
 // turnObserver bridges the engine's tool observer to the turn's event
@@ -99,8 +99,8 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		autoApproved := false
 		// A per-server auto-approve whitelist skips the prompt only after
 		// standing rules, so an explicit remembered deny is never overridden.
-		if t.svc.mcpAutoApprove != nil {
-			_, autoApproved = t.svc.mcpAutoApprove()[toolName]
+		if t.svc.mcpToolAutoApproved != nil {
+			autoApproved = t.svc.mcpToolAutoApproved(toolName)
 		}
 		plan = plan.ResolvePromptShortcuts(approval.StandingDecision{Decision: d, Matched: ok}, autoApproved)
 	}
@@ -116,7 +116,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// InterruptError up to park; resume delivers the resolution here. The
 	// prompt carries the gated tool's risk so the approval card shows it.
 	res, _, err := kernel.Interrupt[interrupts.Resolution](ctx,
-		kernel.InterruptKey("approval", toolName, plan.Arguments),
+		interrupts.InterruptKey("approval", toolName, plan.Arguments),
 		ApprovalPrompt{
 			CallID: callID, ToolName: toolName, Arguments: plan.Arguments,
 			SafetyClass: tool.ClassName(plan.SafetyClass), Risk: plan.Risk, Reason: plan.PromptReason,

@@ -6,6 +6,7 @@
 //
 // Each sub-package owns one bounded context:
 //
+//   - accounting/   — token/cost roll-ups and turn budget rules
 //   - session/      — session lifecycle (list/create/fork/delete/resume)
 //   - knowledge/    — long-term knowledge (LYRA.md cascade)
 //   - transcript/   — items + runs timeline backing items.list
@@ -15,6 +16,8 @@
 //   - editguard/    — read-before-edit + stale invariants
 //   - interrupts/   — HITL interrupt store (park on interrupt, resume)
 //   - provider/     — runtime LLM-provider registry (per-provider key + baseURL)
+//   - modelrole/    — provider/model assignments for specialized roles
+//   - mcpserver/    — MCP registry entries and effective tool policy
 //   - skills/       — skill discovery + retrieval
 //   - todo/         — model-facing task list
 //   - agentdoc/     — AGENTS.md cascade discovery + render

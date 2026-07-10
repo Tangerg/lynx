@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -40,6 +41,7 @@ type Resolver struct {
 	lsp             []chat.Tool         // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
 	codeIntel       *codeintel.Analyzer // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
 	readTracker     *editguard.Tracker  // backs the read-before-edit + stale guards on read/edit/write
+	pathLocker      *pathLocker         // serializes same-path fs calls across every concurrent turn resolution
 	shell           []chat.Tool         // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
 	task            chat.Tool           // delegation tool; coding role only, nil until set
 	askUser         chat.Tool           // ask_user HITL tool; coding role only (askuser.New, via Deps)
@@ -63,14 +65,9 @@ type Resolver struct {
 	// currently-connected servers' tools, even mid-session.
 	mcp atomic.Pointer[[]chat.Tool]
 
-	// mcpDisabled returns the model-facing MCP tool names the configured servers
-	// hide from the model — a per-server blacklist the
-	// runtime recomputes on every registry change. Read per resolution (not
-	// folded into SetMCPTools) so it stays correct under the two independent
-	// hot-swaps: the live tool set (reconnect) and the disabled set (configure).
-	// nil — or an empty set — means no filtering. The set is owned upstream and
-	// only read here, never mutated.
-	mcpDisabled func() map[string]struct{}
+	// mcpToolDisabled reads the current domain policy per resolution so registry
+	// changes and live-tool reconnects remain independent hot swaps.
+	mcpToolDisabled func(string) bool
 }
 
 // Deps bundles the working-directory-independent inputs the resolver captures
@@ -93,10 +90,8 @@ type Deps struct {
 	CodebaseIndex   CodebaseIndex       // backs codebase_search (both roles); nil → omitted
 	DownloadAllow   httpreq.Allowlist   // host allowlist gating/guarding download; empty → omitted
 
-	// MCPDisabled returns the model-facing MCP tool names the configured servers
-	// hide from the model (per-server blacklist; nil → no filtering). Read per
-	// resolution; see [Resolver.mcpDisabled].
-	MCPDisabled func() map[string]struct{}
+	// MCPToolDisabled reports whether a model-facing MCP tool is hidden.
+	MCPToolDisabled func(string) bool
 }
 
 // NewResolver builds the platform-scope tool resolver from its
@@ -126,19 +121,20 @@ func NewResolver(d Deps) (*Resolver, error) {
 	return &Resolver{
 		defaultWorkdir:  d.DefaultWorkdir,
 		skillsGlobalDir: d.SkillsGlobalDir,
-		online:          d.Online,
-		a2a:             d.A2A,
-		lsp:             d.LSP,
-		shell:           shellTools,
+		online:          slices.Clone(d.Online),
+		a2a:             slices.Clone(d.A2A),
+		lsp:             slices.Clone(d.LSP),
+		shell:           slices.Clone(shellTools),
 		askUser:         d.AskUser,
 		exitPlan:        d.ExitPlan,
 		todo:            d.Todo,
 		schedule:        d.Schedule,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
+		pathLocker:      newPathLocker(),
 		codebaseIndex:   d.CodebaseIndex,
 		downloadAllow:   d.DownloadAllow,
-		mcpDisabled:     d.MCPDisabled,
+		mcpToolDisabled: d.MCPToolDisabled,
 	}, nil
 }
 
@@ -158,26 +154,31 @@ func (r *Resolver) mcpTools() []chat.Tool {
 		return nil
 	}
 	tools := *p
-	if r.mcpDisabled == nil {
+	if r.mcpToolDisabled == nil {
 		return tools
 	}
-	disabled := r.mcpDisabled()
-	if len(disabled) == 0 {
-		return tools
-	}
-	out := make([]chat.Tool, 0, len(tools))
-	for _, t := range tools {
-		if _, hide := disabled[t.Definition().Name]; hide {
+	var out []chat.Tool
+	for i, tool := range tools {
+		if r.mcpToolDisabled(tool.Definition().Name) {
+			if out == nil {
+				out = append(make([]chat.Tool, 0, len(tools)-1), tools[:i]...)
+			}
 			continue
 		}
-		out = append(out, t)
+		if out != nil {
+			out = append(out, tool)
+		}
+	}
+	if out == nil {
+		return tools
 	}
 	return out
 }
 
 // SetMCPTools swaps in a freshly-built MCP tool set (boot + each reconnect).
 func (r *Resolver) SetMCPTools(tools []chat.Tool) {
-	r.mcp.Store(&tools)
+	snapshot := slices.Clone(tools)
+	r.mcp.Store(&snapshot)
 }
 
 func (*Resolver) Name() string { return "coding-tools" }
@@ -197,6 +198,10 @@ func (r *Resolver) workdirFor(ctx context.Context) string {
 	return turnctx.TurnCwd(ctx, r.defaultWorkdir)
 }
 
+func (r *Resolver) workdirTools(workdir string) []chat.Tool {
+	return buildWorkdirTools(workdir, r.codeIntel, r.readTracker, r.downloadAllow, r.pathLocker)
+}
+
 // toolGroup resolves its tool slice lazily at Tools() time so it can read
 // the per-process working directory. ToolRoleSubtask omits the `task` tool so
 // a delegated subtask can't recurse into another delegation.
@@ -211,7 +216,7 @@ func (g *toolGroup) Metadata() core.ToolGroupMetadata {
 
 func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	workdir := g.resolver.workdirFor(ctx)
-	tools := BuildWorkdirTools(workdir, g.resolver.codeIntel, g.resolver.readTracker, g.resolver.downloadAllow)
+	tools := g.resolver.workdirTools(workdir)
 	tools = append(tools, g.resolver.online...)
 	tools = append(tools, g.resolver.mcpTools()...)
 	tools = append(tools, g.resolver.a2a...)

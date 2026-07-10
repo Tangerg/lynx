@@ -3,6 +3,8 @@ package lifecycle
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
@@ -15,7 +17,7 @@ type TurnCanceler interface {
 
 // TurnResumer is the turn dispatcher slice needed to continue an interrupt.
 type TurnResumer interface {
-	Resume(context.Context, turn.TurnHandle, interrupts.Resolution) error
+	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error
 	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
 }
 
@@ -66,7 +68,7 @@ func (c *Coordinator) CancelRunBinding(ctx context.Context, turns TurnCanceler, 
 // ResumeClaimedInterrupt consumes an open interrupt and resumes its parked
 // turn. If the live turn disappeared after a backend restart, it rebuilds the
 // process from the durable interrupt snapshot before returning the handle.
-func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, turns TurnResumer, parentRunID string, resolution interrupts.Resolution) (ResumedInterrupt, error) {
+func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, turns TurnResumer, parentRunID string, resolution interrupts.Resolution, interruptKinds []string) (ResumedInterrupt, error) {
 	pending, ok, err := c.s.Interrupts().Consume(ctx, parentRunID)
 	if err != nil {
 		return ResumedInterrupt{}, err
@@ -76,15 +78,23 @@ func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, turns TurnResu
 	}
 
 	handle := turn.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
-	if err := turns.Resume(ctx, handle, resolution); err != nil {
+	if err := turns.Resume(ctx, handle, resolution, interruptKinds); err != nil {
 		if errors.Is(err, turn.ErrParkClaimed) {
 			return ResumedInterrupt{}, ErrInterruptNotOpen
 		}
 		if !errors.Is(err, turn.ErrTurnNotFound) {
 			return ResumedInterrupt{}, err
 		}
-		handle, err = rehydratePendingTurn(ctx, turns, pending, resolution.Approved)
+		handle, err = rehydratePendingTurn(ctx, turns, pending, resolution.Approved, interruptKinds)
 		if err != nil {
+			// Rehydrate errors before the decision reaches a restored process are
+			// uncommitted: put the claim back so a transient resolver/storage failure
+			// does not silently destroy the user's open interrupt. Once the turn layer
+			// marks the failure committed it has already terminalized the process, and
+			// restoring would create a ghost resumable record.
+			if !errors.Is(err, turn.ErrRehydrateCommitted) {
+				return ResumedInterrupt{}, errors.Join(ErrRunNotFound, c.restoreConsumedInterrupt(ctx, pending))
+			}
 			return ResumedInterrupt{}, ErrRunNotFound
 		}
 	}
@@ -92,35 +102,33 @@ func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, turns TurnResu
 	return ResumedInterrupt{Pending: pending, Handle: handle}, nil
 }
 
-func rehydratePendingTurn(ctx context.Context, turns TurnResumer, pending interrupts.Pending, approved bool) (turn.TurnHandle, error) {
+const interruptCompensationTimeout = 2 * time.Second
+
+func (c *Coordinator) restoreConsumedInterrupt(ctx context.Context, pending interrupts.Pending) error {
+	restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), interruptCompensationTimeout)
+	defer cancel()
+	if err := c.s.Interrupts().Put(restoreCtx, pending); err != nil {
+		return fmt.Errorf("lifecycle: restore consumed interrupt: %w", err)
+	}
+	return nil
+}
+
+func rehydratePendingTurn(ctx context.Context, turns TurnResumer, pending interrupts.Pending, approved bool, interruptKinds []string) (turn.TurnHandle, error) {
 	if pending.ProcessID == "" {
 		return turn.TurnHandle{}, errors.New("lifecycle: interrupt has no recorded process id")
 	}
 	return turns.Rehydrate(ctx, turn.RehydrateRequest{
-		SessionID: pending.SessionID,
-		ProcessID: pending.ProcessID,
-		Approved:  approved,
-		Provider:  pending.Provider,
-		Model:     pending.Model,
+		SessionID:      pending.SessionID,
+		ProcessID:      pending.ProcessID,
+		Approved:       approved,
+		Provider:       pending.Provider,
+		Model:          pending.Model,
+		InterruptKinds: interruptKinds,
 	})
 }
 
-func (c *Coordinator) cancelParkedInterrupts(ctx context.Context, turns TurnCanceler, sessionID string) {
-	pending, err := c.s.Interrupts().List(ctx, sessionID)
-	if err != nil {
-		return
-	}
-	for _, p := range pending {
-		_ = c.CancelRunBinding(ctx, turns, RunTurnBinding{
-			RunID:     p.ParentRunID,
-			SessionID: p.SessionID,
-			TurnID:    p.TurnID,
-		})
-	}
-}
-
 func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTurnBinding, error) {
-	out := make([]RunTurnBinding, 0)
+	var out []RunTurnBinding
 	for _, runID := range runIDs {
 		pending, found, err := c.s.Interrupts().Get(ctx, runID)
 		if err != nil {

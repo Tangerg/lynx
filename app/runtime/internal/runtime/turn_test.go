@@ -24,6 +24,7 @@ type turnRuntimeDispatcher struct {
 
 	resumeHandle     turn.TurnHandle
 	resumeResolution interrupts.Resolution
+	resumeKinds      []string
 
 	rehydrateReq    turn.RehydrateRequest
 	rehydrateHandle turn.TurnHandle
@@ -32,8 +33,6 @@ type turnRuntimeDispatcher struct {
 
 	processHandle turn.TurnHandle
 	processID     string
-
-	interruptKinds []string
 }
 
 func (s *turnRuntimeDispatcher) StartTurn(_ context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error) {
@@ -52,9 +51,10 @@ func (s *turnRuntimeDispatcher) InjectSteering(_ context.Context, handle turn.Tu
 	return nil
 }
 
-func (s *turnRuntimeDispatcher) Resume(_ context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error {
+func (s *turnRuntimeDispatcher) Resume(_ context.Context, handle turn.TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
 	s.resumeHandle = handle
 	s.resumeResolution = resolution
+	s.resumeKinds = append([]string(nil), interruptKinds...)
 	return nil
 }
 
@@ -71,10 +71,6 @@ func (s *turnRuntimeDispatcher) Cancel(_ context.Context, handle turn.TurnHandle
 func (s *turnRuntimeDispatcher) ProcessID(_ context.Context, handle turn.TurnHandle) (string, error) {
 	s.processHandle = handle
 	return s.processID, nil
-}
-
-func (s *turnRuntimeDispatcher) SetInterruptKinds(kinds []string) {
-	s.interruptKinds = append([]string(nil), kinds...)
 }
 
 func TestRuntimeTurnFacade(t *testing.T) {
@@ -113,11 +109,11 @@ func TestRuntimeTurnFacade(t *testing.T) {
 	}
 
 	resolution := interrupts.Resolution{Approved: true}
-	if err := rt.ResumeTurn(ctx, handle, resolution); err != nil {
+	if err := rt.ResumeTurn(ctx, handle, resolution, []string{"approval"}); err != nil {
 		t.Fatalf("ResumeTurn: %v", err)
 	}
-	if svc.resumeHandle != handle || !svc.resumeResolution.Approved {
-		t.Fatalf("resume handle=%+v resolution=%+v", svc.resumeHandle, svc.resumeResolution)
+	if svc.resumeHandle != handle || !svc.resumeResolution.Approved || len(svc.resumeKinds) != 1 || svc.resumeKinds[0] != "approval" {
+		t.Fatalf("resume handle=%+v resolution=%+v kinds=%+v", svc.resumeHandle, svc.resumeResolution, svc.resumeKinds)
 	}
 
 	req := turn.RehydrateRequest{SessionID: "ses_1", ProcessID: "proc_1", Approved: true}
@@ -144,10 +140,6 @@ func TestRuntimeTurnFacade(t *testing.T) {
 		t.Fatalf("processID=%q handle=%+v", processID, svc.processHandle)
 	}
 
-	rt.SetTurnInterruptKinds([]string{"approval", "question"})
-	if len(svc.interruptKinds) != 2 || svc.interruptKinds[0] != "approval" || svc.interruptKinds[1] != "question" {
-		t.Fatalf("interrupt kinds = %+v", svc.interruptKinds)
-	}
 }
 
 func TestRuntimeStartTurnPersistsExplicitModelBeforeDispatch(t *testing.T) {
@@ -155,7 +147,7 @@ func TestRuntimeStartTurnPersistsExplicitModelBeforeDispatch(t *testing.T) {
 	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
 	turns := &turnRuntimeDispatcher{startHandle: handle}
 	sessions := &sessionRuntimeStore{}
-	rt := &Runtime{turns: turns, sessionModel: sessions}
+	rt := &Runtime{turns: turns, sessions: sessions}
 
 	gotHandle, err := rt.StartTurn(ctx, turn.StartTurnRequest{
 		SessionID: "ses_1",
@@ -182,7 +174,7 @@ func TestRuntimeStartTurnDoesNotDispatchWhenModelPersistenceFails(t *testing.T) 
 	fail := errors.New("store failed")
 	turns := &turnRuntimeDispatcher{}
 	sessions := &sessionRuntimeStore{modelErr: fail}
-	rt := &Runtime{turns: turns, sessionModel: sessions}
+	rt := &Runtime{turns: turns, sessions: sessions}
 
 	if _, err := rt.StartTurn(ctx, turn.StartTurnRequest{SessionID: "ses_1", Message: "hello", Model: "claude-opus-4-8"}); !errors.Is(err, fail) {
 		t.Fatalf("StartTurn err = %v, want store failure", err)

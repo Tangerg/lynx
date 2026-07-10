@@ -35,11 +35,7 @@ func TestRuntimeMemoryPorts(t *testing.T) {
 		}},
 		content: "project notes",
 	}
-	rt := &Runtime{
-		memoryList:  store,
-		memoryRead:  store,
-		memoryWrite: store,
-	}
+	rt := &Runtime{memory: store}
 
 	if !rt.HasMemory() {
 		t.Fatal("HasMemory = false, want true")

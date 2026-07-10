@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"sync"
 	"time"
 )
 
@@ -41,27 +40,49 @@ const healthBudget = 2 * time.Second
 // timeout and aggregates worst-of. Panics inside a probe map to
 // unhealthy so a misbehaving probe can't crash /v2/health.
 func runHealthProbes(ctx context.Context, probes []HealthProbe) (HealthStatus, map[string]HealthStatus) {
+	return runHealthProbesWithBudget(ctx, probes, healthBudget)
+}
+
+func runHealthProbesWithBudget(
+	ctx context.Context,
+	probes []HealthProbe,
+	budget time.Duration,
+) (HealthStatus, map[string]HealthStatus) {
 	if len(probes) == 0 {
 		return HealthOK, nil
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, healthBudget)
+	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 
+	type probeResult struct {
+		index int
+		check HealthCheck
+	}
+	completed := make(chan probeResult, len(probes))
 	results := make([]HealthCheck, len(probes))
-	var wg sync.WaitGroup
 	for i, p := range probes {
-		wg.Go(func() {
+		go func() {
+			result := HealthCheck{}
 			defer func() {
 				if r := recover(); r != nil {
-					results[i] = HealthCheck{Status: HealthUnhealthy, Detail: "probe panic"}
+					result = HealthCheck{Status: HealthUnhealthy, Detail: "probe panic"}
 				}
+				completed <- probeResult{index: i, check: result}
 			}()
-			results[i] = p.Probe(ctx)
-		})
+			result = p.Probe(ctx)
+		}()
 	}
-	wg.Wait()
+	for range probes {
+		select {
+		case result := <-completed:
+			results[result.index] = result.check
+		case <-ctx.Done():
+			goto aggregate
+		}
+	}
 
+aggregate:
 	checks := make(map[string]HealthStatus, len(probes))
 	overall := HealthOK
 	for i, r := range results {

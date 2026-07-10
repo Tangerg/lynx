@@ -2,7 +2,9 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -24,13 +26,18 @@ var tracer = otel.Tracer("lynx/lyra/infra/mcp")
 //
 // Failure, two tiers: a config mistake (duplicate name / invalid entry) is
 // FATAL (validated before any dial); a reachability failure is TOLERATED
-// (recorded "failed" and skipped). An empty config yields a nil Connections.
+// (recorded "failed" and skipped). An empty config still yields a live,
+// initially-empty Connections so runtime configuration can add servers later.
 func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []chat.Tool, error) {
 	// Always carry a client, even with zero servers: the registry starts empty
 	// and the common path is a 0-server boot followed by a runtime Configure,
 	// which re-dials with this client.
 	if len(servers) == 0 {
 		return &Connections{client: newClient()}, nil, nil
+	}
+	servers = slices.Clone(servers)
+	for i := range servers {
+		servers[i] = cloneServerConfig(servers[i])
 	}
 
 	// Validate config before dialing: duplicate names collide tool prefixes and
@@ -70,7 +77,7 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []chat.Too
 		}
 		srcTools, terr := sourceTools(ctx, lynxmcp.ToolSource{Name: srv.Name, Session: session})
 		if terr != nil {
-			_ = session.Close() // half-open: drop it rather than keep a session whose tools we can't read
+			terr = errors.Join(terr, session.Close()) // half-open: drop an unusable session
 			ms.status, ms.lastErr = statusFailed, terr
 			failures++
 			c.servers = append(c.servers, ms)

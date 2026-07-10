@@ -71,6 +71,11 @@ type StartTurnRequest struct {
 	// selection explicit on Provider/Model; Options.Model is therefore invalid
 	// here and must stay empty.
 	Options *corechat.Options
+
+	// InterruptKinds are the HITL kinds the client starting this turn can
+	// answer. Nil or empty means the turn must not surface any HITL interrupt;
+	// it auto-denies instead of parking on an unanswerable prompt.
+	InterruptKinds []string
 }
 
 // Validate rejects malformed turn drafts before they bind to a session or
@@ -145,4 +150,8 @@ type RehydrateRequest struct {
 	// runs on the platform default. The provider is explicit — never inferred.
 	Provider string
 	Model    string
+
+	// InterruptKinds are the HITL kinds the client resuming this parked turn
+	// can answer after rehydration.
+	InterruptKinds []string
 }

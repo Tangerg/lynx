@@ -71,7 +71,7 @@
 
 ```
 lyra/
-├── cmd/lyra/                       # CLI 入口（组合根的最外壳）
+├── cmd/lyra/                       # runtime server 进程入口（组合根的最外壳）
 │
 ├── internal/
 │   ├── kernel/                     # ◀ 现 engine：微内核 —— "怎么跑一个 turn"

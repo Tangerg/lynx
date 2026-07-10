@@ -61,6 +61,7 @@ func startGitWatcher(gitDirs []string, emit func(protocol.WorkspaceEvent)) (*git
 func (w *gitWatcher) run() {
 	defer close(w.exited)
 	timer := time.NewTimer(gitWatchDebounce)
+	defer timer.Stop()
 	timer.Stop()
 	armed := false
 	for {

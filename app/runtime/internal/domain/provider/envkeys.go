@@ -3,6 +3,7 @@ package provider
 import (
 	"cmp"
 	"context"
+	"maps"
 	"slices"
 )
 
@@ -19,13 +20,14 @@ type envKeyRegistry struct {
 // WithEnvKeys wraps a registry with the stored>env credential fallback: a
 // provider absent or keyless in inner becomes enabled when its id has an entry
 // in envKeys, with [Provider.KeySource] set to [KeyEnv]. envKeys (from
-// llm.EnvKeys, read once at startup) is treated as immutable. An empty map makes
-// this a transparent pass-through, so the decorator is free to apply always.
+// llm.EnvKeys, read once at startup) is copied into an immutable snapshot. An
+// empty map makes this a transparent pass-through, so the decorator is free to
+// apply always.
 func WithEnvKeys(inner Registry, envKeys map[string]string) Registry {
 	if len(envKeys) == 0 {
 		return inner
 	}
-	return &envKeyRegistry{inner: inner, envKeys: envKeys}
+	return &envKeyRegistry{inner: inner, envKeys: maps.Clone(envKeys)}
 }
 
 // resolve stamps KeySource and overlays the env key when there's no stored one.

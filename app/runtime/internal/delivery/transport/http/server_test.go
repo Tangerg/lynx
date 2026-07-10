@@ -70,14 +70,14 @@ func TestSidecarHealth(t *testing.T) {
 	}
 }
 
-// TestInitializeOverRPC confirms POST /v2/rpc/runtime.initialize handles
+// TestDiscoverOverRPC confirms POST /v2/rpc/runtime.discover handles
 // the request and wraps the result in a JSON-RPC envelope.
-func TestInitializeOverRPC(t *testing.T) {
+func TestDiscoverOverRPC(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	reqBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{"protocolVersion":"2026-06-07","clientInfo":{"name":"test","version":"0"},"capabilities":{"events":[]}}}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(reqBody))
+	reqBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(reqBody))
 	if err != nil {
 		t.Fatalf("post rpc: %v", err)
 	}
@@ -110,17 +110,17 @@ func TestURLPathMethodForm(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
-	initResp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
+	discoverBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
+	discoverResp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(discoverBody))
 	if err != nil {
-		t.Fatalf("post initialize: %v", err)
+		t.Fatalf("post discover: %v", err)
 	}
-	initResp.Body.Close()
-	if initResp.StatusCode != 200 {
-		t.Fatalf("initialize status = %d", initResp.StatusCode)
+	discoverResp.Body.Close()
+	if discoverResp.StatusCode != 200 {
+		t.Fatalf("discover status = %d", discoverResp.StatusCode)
 	}
-	if got := initResp.Header.Get("X-Method"); got != "runtime.initialize" {
-		t.Fatalf("X-Method = %q, want runtime.initialize", got)
+	if got := discoverResp.Header.Get("X-Method"); got != "runtime.discover" {
+		t.Fatalf("X-Method = %q, want runtime.discover", got)
 	}
 
 	pingBody := []byte(`{"jsonrpc":"2.0","id":"2","method":"runtime.ping"}`)
@@ -145,7 +145,7 @@ func TestURLBodyMethodMismatch(t *testing.T) {
 	defer ts.Close()
 
 	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.ping"}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(body))
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -165,8 +165,8 @@ func TestUnknownMethodReturns404(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
-	r1, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
+	discoverBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
+	r1, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(discoverBody))
 	r1.Body.Close()
 
 	body := []byte(`{"jsonrpc":"2.0","id":"2","method":"runs.unknownMethod"}`)
@@ -183,20 +183,24 @@ func TestUnknownMethodReturns404(t *testing.T) {
 	}
 }
 
-// TestCapabilityGateBeforeInitialize confirms a business method called
-// before runtime.initialize gets capability_not_negotiated (-32006).
-func TestCapabilityGateBeforeInitialize(t *testing.T) {
-	ts, _ := newTestServer(t)
+// TestBusinessMethodDoesNotRequireDiscover confirms runtime.discover is only a
+// stateless information query; business methods do not require it first.
+func TestBusinessMethodDoesNotRequireDiscover(t *testing.T) {
+	ts, api := newTestServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"sessions.list","params":{}}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/sessions.list", "application/json", bytes.NewReader(body))
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runs.cancel","params":{"runId":"run_before_discover"}}`)
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runs.cancel", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if code := decodeErrorCode(t, resp); code != -32006 {
-		t.Fatalf("expected -32006, got %d", code)
+	if resp.StatusCode != 200 {
+		raw := readBody(resp)
+		t.Fatalf("status = %d, want 200; body = %s", resp.StatusCode, raw)
+	}
+	if len(api.cancelledRuns) != 1 || api.cancelledRuns[0] != "run_before_discover" {
+		t.Fatalf("api.cancelledRuns = %v, want [run_before_discover]", api.cancelledRuns)
 	}
 }
 
@@ -206,7 +210,7 @@ func TestRPCWithoutMethodReturns404(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
 	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
@@ -224,8 +228,8 @@ func TestNonStringIDRejected(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":42,"method":"runtime.initialize","params":{}}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(body))
+	body := []byte(`{"jsonrpc":"2.0","id":42,"method":"runtime.discover","params":{}}`)
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -245,10 +249,10 @@ func TestRunsCancelIsRequest(t *testing.T) {
 	ts, api := newTestServer(t)
 	defer ts.Close()
 
-	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
-	r1, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
+	discoverBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
+	r1, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(discoverBody))
 	if err != nil {
-		t.Fatalf("init: %v", err)
+		t.Fatalf("discover: %v", err)
 	}
 	r1.Body.Close()
 
@@ -290,8 +294,8 @@ func TestNotificationReturns204(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
-	r1, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
+	discoverBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
+	r1, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(discoverBody))
 	r1.Body.Close()
 
 	// notifications.canceled has no id ⇒ it's a Notification; JSON-RPC
@@ -316,7 +320,7 @@ func TestBodyTooLargeReturns413(t *testing.T) {
 	defer ts.Close()
 
 	big := bytes.Repeat([]byte("a"), (4<<20)+1)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(big))
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(big))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -332,8 +336,8 @@ func TestUnsupportedMediaTypeReturns415(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "text/plain", bytes.NewReader(body))
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "text/plain", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}

@@ -35,8 +35,7 @@ import type {
   HooksListResult,
   Hover,
   ImportSessionResponse,
-  InitializeRequest,
-  InitializeResponse,
+  DiscoverResponse,
   CodebaseHit,
   CodebaseStatus,
   EmbeddingRole,
@@ -109,7 +108,7 @@ async function callOrDispose<R>(
 
 export interface Methods {
   runtime: {
-    initialize: (params: InitializeRequest) => Promise<InitializeResponse>;
+    discover: () => Promise<DiscoverResponse>;
     shutdown: (params?: ShutdownRequest) => Promise<void>;
     ping: () => Promise<void>;
     // Cancel an in-flight JSON-RPC Request by envelope id (NOT runs.cancel).
@@ -333,7 +332,7 @@ export interface Methods {
 export function createMethods(client: RpcClient): Methods {
   return {
     runtime: {
-      initialize: (params) => client.call<InitializeResponse>("runtime.initialize", params),
+      discover: () => client.call<DiscoverResponse>("runtime.discover", {}),
       shutdown: (params) => client.notify("runtime.shutdown", params ?? {}),
       ping: () => client.call<void>("runtime.ping"),
       cancel: (params) => client.notify("notifications.canceled", params),

@@ -40,11 +40,10 @@ type clientResolver interface {
 // A turn parked on a HITL interrupt pauses after [TurnInterrupted]; call
 // [Resume] with the user's decision to continue the same turn.
 //
-// A turn outlives the ctx that started it: StartTurn derives the turn's
-// own context from a background root so the caller's ctx ending (e.g. the
-// StartTurn RPC returning) does not kill the in-flight turn. To stop a
-// turn, call [Dispatcher.Cancel] — closing the ctx you passed in has no
-// effect on a running turn.
+// A turn outlives the ctx that started it: StartTurn keeps the caller's values
+// but detaches its cancellation, so an RPC returning does not kill the
+// in-flight turn. Call [Dispatcher.Cancel] to stop one turn or [Dispatcher.Close]
+// to stop the process-scoped dispatcher.
 type Dispatcher interface {
 	// StartTurn launches a new turn against the given session. Returns
 	// a handle the caller uses to subscribe to events. The method
@@ -73,9 +72,10 @@ type Dispatcher interface {
 	// [interrupts.Resolution] carries the decision (approve/deny, with
 	// optionally edited tool arguments) or the question's answer. The
 	// continuation streams onto the SAME turn's event channel — call
-	// [Events] again after Resume to drain it. Returns [ErrTurnNotFound]
+	// [Events] again after Resume to drain it. interruptKinds replaces the
+	// per-turn HITL surface for the continuation. Returns [ErrTurnNotFound]
 	// when the turn isn't parked.
-	Resume(ctx context.Context, handle TurnHandle, resolution interrupts.Resolution) error
+	Resume(ctx context.Context, handle TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error
 
 	// ProcessID returns the agent-process id backing a live (parked) turn
 	// — the snapshot key the runtime records so a restart can rebuild the
@@ -96,13 +96,9 @@ type Dispatcher interface {
 	// safely, and emits a final [TurnEnd] event with Reason=Canceled.
 	Cancel(ctx context.Context, handle TurnHandle) error
 
-	// SetInterruptKinds records the HITL interrupt kinds the connected
-	// client can answer (negotiated at runtime.initialize via
-	// ClientCapabilities.InterruptKinds). A turn about to park on a kind
-	// not in this set is auto-denied instead of left unanswerable
-	// (API.md §6.2 anti-deadlock). An empty set gates every kind; never
-	// calling it leaves the permissive default (surface all kinds).
-	SetInterruptKinds(kinds []string)
+	// Close rejects new turns, cancels every live turn (including parked
+	// interrupts), and waits for their terminal teardown. It is idempotent.
+	Close()
 
 	// ForgetSession releases the process-local state the dispatcher keeps keyed by
 	// a session — currently the SessionStart fire-once gate. Call it when a

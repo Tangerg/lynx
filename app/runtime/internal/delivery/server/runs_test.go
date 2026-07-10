@@ -11,6 +11,21 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
+func TestOpenSegmentAfterServerCloseCancelsCreatedTurn(t *testing.T) {
+	turns := &recordingTurns{}
+	s := newTestServer(&stubRuntime{turns: turns})
+	s.Close()
+	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: "turn_1"}
+
+	_, _, err := s.openSegment(context.Background(), "run_1", "", handle, handle.SessionID, nil, nil, "", "")
+	if !errors.Is(err, errServerClosed) {
+		t.Fatalf("openSegment err = %v, want errServerClosed", err)
+	}
+	if len(turns.canceled) != 1 || turns.canceled[0] != handle {
+		t.Fatalf("canceled turns = %+v, want %+v", turns.canceled, handle)
+	}
+}
+
 // TestSubscribeRun_StreamsLiveRunFromHub verifies the streamable-HTTP
 // subscribe semantics: an actively-streaming run hands back a fresh hub
 // subscription that replays the durable backlog (after Last-Event-Id when

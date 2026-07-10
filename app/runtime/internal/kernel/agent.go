@@ -5,7 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -130,7 +130,7 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 					// guards read it back via turnSession.
 					pc.Blackboard.BindProtected(turnctx.SessionBindingKey, in.SessionID)
 				}
-				out, err := e.runTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
+				out, err := e.runTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, accounting.Budget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
 				if err != nil {
 					// HITL interrupt (R model): a gated tool returned a
 					// resumable interrupt error that the chat tool loop
@@ -209,7 +209,7 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 				// Subtask runs against the default provider/model (no per-run
 				// selection), so pass "" — invocationFrom falls back to the engine
 				// default for pricing.
-				out, err := e.runTurn(ctx, pc, "", in.Prompt, nil, nil, turnBudget{})
+				out, err := e.runTurn(ctx, pc, "", in.Prompt, nil, nil, accounting.Budget{})
 				if err != nil {
 					return "", err
 				}

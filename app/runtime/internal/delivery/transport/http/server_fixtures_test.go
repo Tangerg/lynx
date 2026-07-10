@@ -21,8 +21,8 @@ type fakeRuntime struct {
 	gotLastEventID string
 }
 
-func (f *fakeRuntime) Initialize(_ context.Context, _ protocol.InitializeRequest) (*protocol.InitializeResponse, error) {
-	return &protocol.InitializeResponse{ProtocolVersion: testProtocolVersion}, nil
+func (f *fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error) {
+	return &protocol.DiscoverResponse{ProtocolVersion: testProtocolVersion}, nil
 }
 
 func (f *fakeRuntime) Ping(_ context.Context) error { return nil }

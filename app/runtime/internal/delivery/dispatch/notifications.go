@@ -46,19 +46,26 @@ func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Requ
 	}
 }
 
-// runEventToFrame encodes a RunEvent into a notifications.run.event frame.
-// Only durable events carry an SSE id: (TRANSPORT §9.3 / API §5.2) — replay
-// must resume from a replayable event, never an ephemeral delta.
-func runEventToFrame(ev protocol.RunEvent) (StreamFrame, bool) {
-	notif, err := EncodeRunEvent(ev)
-	if err != nil {
-		return StreamFrame{}, false
+// runEventToFrameFor returns the per-request encoder for RunEvent stream
+// notifications. Client capabilities gate which event types this stream may
+// receive; opt-out only suppresses ephemeral events so final state remains
+// recoverable.
+func runEventToFrameFor(ctx context.Context) func(protocol.RunEvent) (StreamFrame, bool) {
+	filter := streamFilterFrom(ctx)
+	return func(ev protocol.RunEvent) (StreamFrame, bool) {
+		if !filter.allow(ev.Event) {
+			return StreamFrame{}, false
+		}
+		notif, err := EncodeRunEvent(ev)
+		if err != nil {
+			return StreamFrame{}, false
+		}
+		sseID := ""
+		if ev.Event.IsDurable() {
+			sseID = ev.EventID
+		}
+		return StreamFrame{Notif: notif, SSEID: sseID}, true
 	}
-	sseID := ""
-	if ev.Event.IsDurable() {
-		sseID = ev.EventID
-	}
-	return StreamFrame{Notif: notif, SSEID: sseID}, true
 }
 
 // workspaceEventToFrame encodes a WorkspaceEvent into an ephemeral StreamFrame
@@ -69,4 +76,41 @@ func workspaceEventToFrame(ev protocol.WorkspaceEvent) (StreamFrame, bool) {
 		return StreamFrame{}, false
 	}
 	return StreamFrame{Notif: notif}, true
+}
+
+type streamFilter struct {
+	declared map[protocol.StreamEventType]bool
+	optOut   map[protocol.StreamEventType]bool
+}
+
+func streamFilterFrom(ctx context.Context) streamFilter {
+	caps, ok := protocol.ClientCapabilitiesFrom(ctx)
+	if !ok {
+		return streamFilter{}
+	}
+	return streamFilter{
+		declared: eventSet(caps.Events),
+		optOut:   eventSet(caps.OptOutNotificationMethods),
+	}
+}
+
+func eventSet(events []protocol.StreamEventType) map[protocol.StreamEventType]bool {
+	if events == nil {
+		return nil
+	}
+	set := make(map[protocol.StreamEventType]bool, len(events))
+	for _, ev := range events {
+		set[ev] = true
+	}
+	return set
+}
+
+func (f streamFilter) allow(ev protocol.StreamEvent) bool {
+	if f.declared != nil && !f.declared[ev.Type] {
+		return false
+	}
+	if !ev.IsDurable() && f.optOut != nil && f.optOut[ev.Type] {
+		return false
+	}
+	return true
 }

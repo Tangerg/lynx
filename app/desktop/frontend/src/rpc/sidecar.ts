@@ -1,20 +1,19 @@
 // Sidecar HTTP endpoints — flat JSON, **not** JSON-RPC envelope.
-// See TRANSPORT.md §12. Used for liveness probes + version negotiation
-// before the JSON-RPC handshake. No Bearer token, no Last-Event-Id,
-// no envelope — curl-friendly metadata only.
+// See TRANSPORT.md §12. Used for liveness probes + runtime info discovery.
+// No Bearer token, no Last-Event-Id, no envelope — curl-friendly metadata only.
 //
 // These are HTTP-transport-only — InProcess/Wails IPC don't have an
-// equivalent (those cover the same need via runtime.initialize /
-// runtime.ping). `/v2/info` content == the initialize response's flat
-// subset; `/v2/health` == runtime.ping (TRANSPORT.md §12).
+// equivalent (those cover the same need via runtime.discover / runtime.ping).
+// `/v2/info` content == the discover response's flat subset; `/v2/health` ==
+// runtime.ping (TRANSPORT.md §12).
 
 import { RpcTransportError } from "./errors";
 import type { ServerCapabilities, ServerInfo } from "./shapes";
 
 /**
- * Response of `GET /v2/info` — the flat subset of the `runtime.initialize`
- * result, accessible pre-handshake. Backed by the same server state as
- * `runtime.initialize` (TRANSPORT.md §12.2).
+ * Response of `GET /v2/info` — the flat subset of the `runtime.discover`
+ * result. Backed by the same server state as `runtime.discover`
+ * (TRANSPORT.md §12.2).
  */
 export interface RuntimeInfo {
   protocolVersion: string;

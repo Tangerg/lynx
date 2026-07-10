@@ -7,12 +7,6 @@ func (s *Server) isRunLive(runID string) bool {
 	return s.runs.Contains(runID)
 }
 
-// cancelReasonFor returns the runs.cancel reason recorded for a run, or ""
-// when it wasn't canceled with one.
-func (s *Server) cancelReasonFor(runID string) string {
-	return s.runs.CancelReason(runID)
-}
-
 // runCreatedAt returns the run's start time (segment open). The terminal RunRef
 // carries it as CreatedAt so the persisted run keeps its authoritative timeline
 // key — the finish event has no start time of its own, and the synthesized

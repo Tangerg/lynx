@@ -24,12 +24,20 @@ func (s *transcriptStore) ListRuns(_ context.Context, sessionID string) ([]trans
 	return s.runs, nil
 }
 
+func (*transcriptStore) AppendItem(context.Context, transcript.Item) error { return nil }
+
+func (*transcriptStore) PutRun(context.Context, transcript.Run) error { return nil }
+
+func (*transcriptStore) DeleteRun(context.Context, string, string) error { return nil }
+
+func (*transcriptStore) DeleteSession(context.Context, string) error { return nil }
+
 func TestRuntimeListTranscript(t *testing.T) {
 	store := &transcriptStore{
 		items: []transcript.Item{{ItemID: "item_1"}},
 		runs:  []transcript.Run{{RunID: "run_1"}},
 	}
-	rt := &Runtime{transcriptContent: store}
+	rt := &Runtime{transcript: store}
 
 	items, runs, err := rt.ListTranscript(context.Background(), "ses_1")
 	if err != nil {
@@ -45,7 +53,7 @@ func TestRuntimeListTranscript(t *testing.T) {
 
 func TestRuntimeListTranscriptRuns(t *testing.T) {
 	store := &transcriptStore{runs: []transcript.Run{{RunID: "run_1"}}}
-	rt := &Runtime{transcriptRuns: store}
+	rt := &Runtime{transcript: store}
 
 	runs, err := rt.ListTranscriptRuns(context.Background(), "ses_1")
 	if err != nil {

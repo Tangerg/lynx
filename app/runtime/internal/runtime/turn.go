@@ -13,7 +13,7 @@ import (
 // every caller gets the same session-model invariant.
 func (r *Runtime) StartTurn(ctx context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error) {
 	if req.Model != "" {
-		if err := r.sessionModel.SetModel(ctx, req.SessionID, req.Model); err != nil {
+		if err := r.sessions.SetModel(ctx, req.SessionID, req.Model); err != nil {
 			return turn.TurnHandle{}, err
 		}
 	}
@@ -31,8 +31,8 @@ func (r *Runtime) InjectTurnSteering(ctx context.Context, handle turn.TurnHandle
 }
 
 // ResumeTurn answers a parked HITL turn.
-func (r *Runtime) ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error {
-	return r.turns.Resume(ctx, handle, resolution)
+func (r *Runtime) ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
+	return r.turns.Resume(ctx, handle, resolution, interruptKinds)
 }
 
 // RehydrateTurn rebuilds and resumes a parked turn after process-local state was lost.
@@ -48,9 +48,4 @@ func (r *Runtime) CancelTurn(ctx context.Context, handle turn.TurnHandle) error 
 // TurnProcessID returns the persisted agent-process id backing a parked turn.
 func (r *Runtime) TurnProcessID(ctx context.Context, handle turn.TurnHandle) (string, error) {
 	return r.turns.ProcessID(ctx, handle)
-}
-
-// SetTurnInterruptKinds records the HITL interrupt kinds the connected client can answer.
-func (r *Runtime) SetTurnInterruptKinds(kinds []string) {
-	r.turns.SetInterruptKinds(kinds)
 }

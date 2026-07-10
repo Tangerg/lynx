@@ -1,5 +1,5 @@
-// Package accounting holds the token and cost accounting value objects shared
-// by the kernel and turn event layer.
+// Package accounting holds token and cost accounting value objects shared by
+// turn execution, delivery, and pricing adapters.
 package accounting
 
 import (
@@ -31,11 +31,32 @@ func (t *TokenUsage) AddInvocation(inv core.LLMInvocation) {
 	t.CacheWriteTokens += inv.CacheWriteInputTokens
 }
 
-// ModelUsage is one model's slice of a turn's tokens + cost.
+// ModelUsage is one model's slice of a turn's tokens and cost.
 type ModelUsage struct {
 	Model string
 	TokenUsage
 	CostUSD float64
+}
+
+// Budget caps one turn by tokens, cost, and tool-call rounds. A zero field is
+// unbounded on that dimension.
+type Budget struct {
+	MaxTokens  int64
+	MaxCostUSD float64
+	MaxSteps   int
+}
+
+// UsageExceeded reports whether cumulative token or cost usage reached its
+// configured limit.
+func (b Budget) UsageExceeded(tokens int64, costUSD float64) bool {
+	return (b.MaxTokens > 0 && tokens >= b.MaxTokens) ||
+		(b.MaxCostUSD > 0 && costUSD >= b.MaxCostUSD)
+}
+
+// StepsExceeded reports whether completed tool-call rounds reached their
+// configured limit.
+func (b Budget) StepsExceeded(steps int) bool {
+	return b.MaxSteps > 0 && steps >= b.MaxSteps
 }
 
 // Pricing computes the USD cost of one LLM round from the provider, served

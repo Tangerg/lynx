@@ -9,17 +9,9 @@ import (
 
 // ─── Lifecycle ──────────────────────────────────────────────────────
 
-func (d *Dispatcher) handleInitialize(ctx context.Context, msg *transport.Request) HandleResult {
-	in, bad := decode[protocol.InitializeRequest](msg)
-	if bad != nil {
-		return responseError(msg.ID, bad)
-	}
-	out, err := d.api.Initialize(ctx, in)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	d.initialized.Store(true)
-	return responseResult(msg.ID, out)
+func (d *Dispatcher) handleDiscover(ctx context.Context, msg *transport.Request) HandleResult {
+	out, err := d.api.Discover(ctx)
+	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handlePing(ctx context.Context, msg *transport.Request) HandleResult {

@@ -1,12 +1,23 @@
 package runtime
 
 import (
+	"io"
+	"sync"
 	"sync/atomic"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -18,63 +29,40 @@ import (
 // Runtime owns the process-local coordination state that defines application
 // lifecycle invariants across transports.
 type Runtime struct {
-	turns           turn.Dispatcher
-	closer          runtimeCloser
-	skillCatalog    skillCatalog
-	a2aChats        chatRunner
-	toolCatalog     toolsvc.Catalog
-	toolInvocations toolsvc.Invoker
+	tasks taskgroup.Group
 
-	memoryList  memoryList
-	memoryRead  memoryRead
-	memoryWrite memoryWrite
+	turns        turn.Dispatcher
+	closer       io.Closer
+	resources    []io.Closer
+	closeOnce    sync.Once
+	closeErr     error
+	skillCatalog skillCatalog
+	tools        toolsvc.Registry
 
-	approvalModeRead     approvalModeReader
-	approvalModeMutation approvalModeWriter
-	approvalRuleList     approvalRuleLister
-	approvalRuleDeletion approvalRuleDeleter
-
-	sessionList       sessionList
-	sessionRead       sessionRead
-	sessionCreation   sessionCreate
-	sessionPatch      sessionPatchWriter
-	sessionModel      sessionModelWriter
-	sessionLifecycle  lifecycle.SessionStore
-	sessionRunSegment runsegment.SessionStore
-
-	interruptList       interruptList
-	interruptLifecycle  lifecycle.InterruptStore
-	interruptRunSegment runsegment.InterruptStore
-
-	transcriptContent    transcriptContent
-	transcriptRuns       transcriptRuns
-	transcriptLifecycle  lifecycle.TranscriptStore
-	transcriptRunSegment runsegment.TranscriptStore
+	memory     knowledge.Store
+	approval   approval.Policy
+	sessions   sessionsvc.Store
+	interrupts interrupts.Store
+	transcript transcript.Store
 
 	// history exposes the message-history operations used outside the turn loop
 	// — not via the engine (it owns only the steering touchpoint).
 	history historyStore
 
-	providerRegistryList      providerRegistryList
-	providerRegistryRead      providerRegistryRead
-	providerRegistryConfigure providerRegistryConfigure
+	providers          provider.Registry
+	mcpRegistry        mcpserver.Registry
+	mcpLiveStatus      mcpLiveStatusReader
+	mcpLiveTools       mcpLiveToolCatalog
+	mcpLiveConnections mcpLiveConnectionCommands
+	mcpLiveRegistry    mcpLiveRegistryCommands
+	// mcpMutationMu linearizes the multi-step registry -> live connections ->
+	// policy write use case. Locks inside the store and connection adapter cannot
+	// protect this cross-component consistency boundary on their own.
+	mcpMutationMu sync.Mutex
 
-	mcpRegistryList      mcpServerList
-	mcpRegistryRead      mcpServerRead
-	mcpRegistryConfigure mcpServerConfigure
-	mcpRegistryRemove    mcpServerRemove
-	mcpRegistryEnable    mcpServerEnable
-	mcpLiveStatus        mcpLiveStatusReader
-	mcpLiveTools         mcpLiveToolCatalog
-	mcpLiveConnections   mcpLiveConnectionCommands
-	mcpLiveRegistry      mcpLiveRegistryCommands
-
-	// mcpGating holds the current per-call MCP tool gating (disabled / auto-
-	// approve sets), recomputed on every registry change. The resolver (disabled
-	// filter) and the turn gate (auto-approve skip) read it via closures that
-	// close over this same cell, captured at construction before the Runtime
-	// exists — hence a pointer. See [mcpGating] and [Runtime.refreshMCPGating].
-	mcpGating *atomic.Pointer[mcpGating]
+	// mcpPolicy is atomically replaced after registry changes. Tool resolution
+	// and approval read the same immutable domain-policy snapshot.
+	mcpPolicy *atomic.Pointer[mcpserver.ToolPolicy]
 
 	defaultProvider string
 	defaultModel    string
@@ -88,7 +76,7 @@ type Runtime struct {
 	// maintenance services resolve against; SetUtilityRole repoints it.
 	// utilityClients validates/builds utility clients; utilStore saves the role
 	// across restarts. See utility.go.
-	utility        *atomic.Pointer[utilityRole]
+	utility        *atomic.Pointer[modelrole.Role]
 	utilityClients chatClientResolver
 	utilStore      utilityRoleSaver
 
@@ -102,26 +90,19 @@ type Runtime struct {
 	// discovery layers under a project's .lyra/recipes. Empty → project-only.
 	recipesGlobalDir string
 
-	// schedules.* ports. nil when scheduling is unconfigured.
-	scheduleList     scheduleList
-	scheduleRead     scheduleRead
-	scheduleCreation scheduleCreate
-	scheduleUpdates  scheduleUpdate
-	scheduleDeletion scheduleDelete
-	scheduleRuns     scheduleRunRecorder
-	scheduleWorker   schedule.WorkerStore
+	// schedules is the configured registry; when scheduling is unavailable it
+	// is a disabled registry while scheduleWorker remains nil.
+	schedules      schedule.Registry
+	scheduleWorker schedule.WorkerStore
 
 	// @codebase semantic index: embeddingCell holds the live embedding role,
 	// embeddings builds+caches embedders from it, embeddingStore saves it, and
-	// codebase* ports expose the management/search surface (nil when no
-	// CodebaseStore). See embedding.go.
-	embeddingCell        *atomic.Pointer[embeddingRole]
-	embeddings           *embeddingResolver
-	embeddingStore       embeddingRoleSaver
-	codebaseAvailability codebaseIndexAvailability
-	codebaseSearch       codebaseIndexSearch
-	codebaseStatus       codebaseIndexStatus
-	codebaseReindex      codebaseIndexReindex
+	// codebase is the management/search surface (nil when no CodebaseStore).
+	// See embedding.go.
+	embeddingCell  *atomic.Pointer[modelrole.Role]
+	embeddings     *embeddingResolver
+	embeddingStore embeddingRoleSaver
+	codebase       codebaseindex.Index
 
 	// transactor runs a write-set inside one storage transaction so the
 	// cross-store operations (sessions.import / rollback) are atomic; nil → run

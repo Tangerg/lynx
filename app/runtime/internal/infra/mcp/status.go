@@ -9,6 +9,11 @@ import (
 // never configured; the delivery layer maps it to invalid_params.
 var ErrUnknownServer = errors.New("mcp: unknown server")
 
+// ErrConnectionsClosed reports an operation attempted after the connection
+// registry began shutting down. Close is a terminal state: callers must build a
+// new registry instead of reviving sessions behind the component owner's back.
+var ErrConnectionsClosed = errors.New("mcp: connections closed")
+
 // Connection status (wire vocabulary, AUX_API §5.1). "connecting" is the
 // transient reconnect state; "needsAuth" is produced when a dial fails with an
 // auth-distinguishable error (a 401 / Unauthorized), so the client can prompt

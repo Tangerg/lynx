@@ -24,8 +24,8 @@ const memoryFileName = "LYRA.md"
 //   - <home>/LYRA.md   — user scope    (cross-project preferences)
 //
 // Files are created lazily on first Update; Get returns "" until
-// that point. Concurrent writes are serialized so `lyra memory edit`
-// racing with the agent's auto-extract doesn't truncate either side.
+// that point. Concurrent writes are serialized so protocol-level memory
+// updates racing with the agent's auto-extract don't truncate either side.
 type FileKnowledgeStore struct {
 	defaultDir string // fallback project dir for calls without one; empty if unavailable
 	home       string // resolved from storage.Home()

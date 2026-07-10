@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/core/model/chat"
 	history "github.com/Tangerg/lynx/core/model/chat/history"
@@ -120,7 +121,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		mcpToolCatalog:        cfg.MCPToolCatalog,
 		mcpConnectionCommands: cfg.MCPConnectionCommands,
 		mcpRegistryCommands:   cfg.MCPRegistryCommands,
-		closers:               cfg.Closers,
+		closers:               slices.Clone(cfg.Closers),
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares
@@ -189,7 +190,7 @@ func (e *Engine) MaybeExtract(ctx context.Context, sessionID, cwd string) (Extra
 
 // Tools returns the registered coding tool set — used by the tool registry to
 // surface metadata to clients without re-running construction.
-func (e *Engine) Tools() []chat.Tool { return e.tools }
+func (e *Engine) Tools() []chat.Tool { return slices.Clone(e.tools) }
 
 // Close releases the per-engine external resources the toolset assembly opened
 // (code-intelligence servers, background processes, MCP / A2A sessions) by

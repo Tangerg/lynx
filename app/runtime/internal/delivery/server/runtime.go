@@ -1,85 +1,17 @@
 package server
 
 // RuntimePort is the inbound adapter's consumer-side port into the runtime
-// application boundary. Defined here so the server depends on the narrow set of
-// operations it calls, not the concrete *internal/runtime.Runtime — which keeps
-// the protocol layer free of an internal-package import and lets a future
-// remote runtime (or a test fake) satisfy the surface without standing up the
-// real bundle.
+// application boundary. It is composed from the server's four bounded use-case
+// contexts rather than from a list of individual methods. The protocol layer
+// therefore stays free of an internal/runtime import and a future remote
+// runtime (or a test fake) can satisfy the same surface.
 //
 // *internal/runtime.Runtime satisfies this implicitly; the composition
 // root (cmd/lyra) passes the concrete value where a RuntimePort is
 // expected.
 type RuntimePort interface {
-	turnStartAccess
-	turnStreamAccess
-	turnSteeringAccess
-	turnInterruptPolicyAccess
-	sessionListAccess
-	sessionReadAccess
-	sessionCreationAccess
-	sessionDeletionAccess
-	sessionUpdateAccess
-	sessionDefaultModelAccess
-	transcriptContentAccess
-	transcriptRunAccess
-	runSlotAdmissionAccess
-	workingTreeRunAdmissionAccess
-	sessionMutationSlotAccess
-	workingTreeMutationAccess
-	runResumeAccess
-	runCancellationAccess
-	sessionRollbackAccess
-	sessionForkAccess
-	sessionRestoreAccess
-	runSegmentAccess
-	historyAccess
-	interruptQueryAccess
-	toolCatalogAccess
-	toolInvocationAccess
-	memoryAvailabilityAccess
-	memoryListAccess
-	memoryReadAccess
-	memoryWriteAccess
-	approvalModeReadAccess
-	approvalModeMutationAccess
-	approvalRuleCatalogAccess
-	approvalRuleMutationAccess
-	scheduleListAccess
-	scheduleReadAccess
-	scheduleCreationAccess
-	scheduleUpdateAccess
-	scheduleDeletionAccess
-	scheduleRunRecorderAccess
-	scheduleWorkerAccess
-	providerRegistryListAccess
-	providerRegistryReadAccess
-	providerRegistryMutationAccess
-	providerRegistryProbeAccess
-	providerSupportCatalogAccess
-	providerMetadataAccess
-	providerDefaultAccess
-	mcpStatusAccess
-	mcpToolCatalogAccess
-	mcpReconnectAccess
-	mcpAuthorizationAccess
-	mcpRegistryListAccess
-	mcpRegistryReadAccess
-	mcpRegistryConfigureAccess
-	mcpRegistryRemoveAccess
-	mcpRegistryEnableAccess
-	mcpRegistryProbeAccess
-	skillCatalogAccess
-	recipeCatalogAccess
-	hookInspectionAccess
-	hookTrustAccess
-	utilityRoleReadAccess
-	utilityRoleMutationAccess
-	embeddingRoleReadAccess
-	embeddingRoleMutationAccess
-	codebaseAvailabilityAccess
-	codebaseSearchAccess
-	codebaseStatusAccess
-	codebaseReindexAccess
-	maintenanceAccess
+	sessionUseCases
+	turnUseCases
+	settingsUseCases
+	workspaceUseCases
 }

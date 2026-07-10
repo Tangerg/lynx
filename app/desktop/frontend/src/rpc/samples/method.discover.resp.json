@@ -32,10 +32,12 @@
       "sessionExport": true,
       "memory": true,
       "relocate": true,
+      "todos": true,
+      "compaction": true,
       "clientTools": true
     },
     "providers": ["anthropic", "openai", "moonshot", "deepseek"],
-    "streamingMethods": ["runs.start", "runs.resume", "runs.subscribe", "background.subscribe"],
+    "streamingMethods": ["runs.start", "runs.resume", "runs.subscribe", "workspace.subscribe"],
     "limits": {
       "maxConcurrentRuns": 4
     }

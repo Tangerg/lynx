@@ -6,11 +6,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
 
-// Message constructors — the MCP SDK's public `jsonrpc` package
-// doesn't re-export the internal `NewCall` / `NewNotification` /
-// `NewResponse` helpers. We reproduce them here using the public
-// type aliases so callers don't have to construct envelopes by
-// hand or reach into internal/jsonrpc2.
+// Message constructors — the MCP SDK's public `jsonrpc` package doesn't
+// re-export the internal `NewCall` / `NewNotification` / `NewResponse`
+// helpers. We reproduce them here using the public type aliases so callers
+// don't have to construct envelopes by hand or reach into internal/jsonrpc2.
 
 // NewCall builds a Request with the given string ID + marshaled params.
 // API.md §1.1: envelope ids are strings (the dispatcher rejects

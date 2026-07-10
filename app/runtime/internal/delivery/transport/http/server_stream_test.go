@@ -56,8 +56,8 @@ func TestStreamableRunStart(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
-	r0, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
+	discoverBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
+	r0, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(discoverBody))
 	r0.Body.Close()
 
 	body := []byte(`{"jsonrpc":"2.0","id":"2","method":"runs.start","params":{"sessionId":"ses_1","input":[{"type":"text","text":"hi"}]}}`)
@@ -108,8 +108,8 @@ func TestSubscribeCarriesLastEventID(t *testing.T) {
 	ts, api := newTestServer(t)
 	defer ts.Close()
 
-	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
-	r0, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
+	discoverBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
+	r0, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(discoverBody))
 	r0.Body.Close()
 
 	body := []byte(`{"jsonrpc":"2.0","id":"2","method":"runs.subscribe","params":{"runId":"run_1"}}`)

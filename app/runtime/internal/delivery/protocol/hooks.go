@@ -7,7 +7,7 @@ package protocol
 // trusted).
 
 // ListHooksRequest — workspace.hooks.list body. Cwd scopes project discovery
-// (empty = the serve dir); global ~/.lyra hooks are always included.
+// (empty = the runtime server cwd); global ~/.lyra hooks are always included.
 type ListHooksRequest struct {
 	Cwd string `json:"cwd,omitempty"`
 }

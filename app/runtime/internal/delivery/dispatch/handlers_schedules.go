@@ -10,7 +10,7 @@ import (
 // ─── Schedules (API.md §7.9) ────────────────────────────────────────
 //
 // Cron-triggered headless runs of a saved prompt. The scheduler worker fires
-// them while `lyra serve` is up; these methods manage the set.
+// them while the server process is up; these methods manage the set.
 
 func (d *Dispatcher) handleSchedulesList(ctx context.Context, msg *transport.Request) HandleResult {
 	out, err := d.api.ListSchedules(ctx)

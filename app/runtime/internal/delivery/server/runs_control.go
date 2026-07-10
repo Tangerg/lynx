@@ -13,22 +13,46 @@ import (
 // A parked run is also abandoned — its live parked turn is torn down
 // and its open interrupt dropped so it stops surfacing as resumable.
 func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) error {
-	e, ok := s.runs.MarkCancel(in.RunID, in.Reason) // surfaced on the synthesized canceled outcome (S6)
+	e, ok := s.runs.Get(in.RunID)
 
 	if !ok {
-		if err := s.rt.CancelParkedRun(ctx, in.RunID); err != nil {
-			if errors.Is(err, lifecycle.ErrRunNotFound) {
+		// Parked cancel and resume claim the same session admission slot. This
+		// prevents a failed rehydrate's compensating Put from racing a cancel's
+		// Delete and resurrecting an interrupt the user just abandoned.
+		pending, admission, err := s.rt.ClaimResumeSlot(ctx, sessionClaimer{s: s}, in.RunID)
+		if err != nil {
+			switch {
+			case errors.Is(err, lifecycle.ErrInterruptNotOpen):
 				return protocol.ErrRunNotFound
+			case errors.Is(err, lifecycle.ErrSessionBusy):
+				return protocol.ErrSessionBusy
+			default:
+				return err
 			}
-			return err
 		}
-		return nil
+		defer admission.Release()
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
+		defer cancel()
+		return s.rt.CancelRunBinding(cleanupCtx, lifecycle.RunTurnBinding{
+			RunID:     in.RunID,
+			SessionID: pending.SessionID,
+			TurnID:    pending.TurnID,
+		})
 	}
 
-	if e.Payload != nil && e.Payload.cancel != nil {
-		e.Payload.cancel()
+	// Mark the delivery handle before touching the durable binding. The handle's
+	// lock is also held by interrupt commit + publication, so CancelRun cannot
+	// delete an interrupt immediately before the pump recreates it.
+	if e.Payload != nil {
+		e.Payload.requestCancel(in.Reason)
 	}
-	if err := s.rt.CancelRunBinding(ctx, lifecycle.RunTurnBinding{
+	// Keep the domain snapshot useful to concurrent readers. The pump reads the
+	// reason from the handle because it may synthesize canceled before this
+	// registry update runs.
+	_, _ = s.runs.MarkCancel(in.RunID, in.Reason)
+	cleanupCtx, cancel := e.Payload.cleanupContext(ctx)
+	defer cancel()
+	if err := s.rt.CancelRunBinding(cleanupCtx, lifecycle.RunTurnBinding{
 		RunID:     in.RunID,
 		SessionID: e.Record.SessionID,
 		TurnID:    e.Record.TurnID,

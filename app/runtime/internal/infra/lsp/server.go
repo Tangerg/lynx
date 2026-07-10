@@ -3,6 +3,7 @@ package lsp
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -66,6 +67,12 @@ type serverTable struct {
 }
 
 func newServerTable(specs []ServerSpec) *serverTable {
+	specs = slices.Clone(specs)
+	for i := range specs {
+		specs[i].Args = slices.Clone(specs[i].Args)
+		specs[i].Extensions = slices.Clone(specs[i].Extensions)
+		specs[i].RootMarkers = slices.Clone(specs[i].RootMarkers)
+	}
 	byExt := make(map[string]ServerSpec, len(specs))
 	for _, spec := range specs {
 		for _, ext := range spec.Extensions {

@@ -73,5 +73,5 @@ func replyStream[Out any](ctx context.Context, msg *transport.Request, out Out, 
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return streamingResult(msg.ID, out, adaptStream(ctx, events, runEventToFrame))
+	return streamingResult(msg.ID, out, adaptStream(ctx, events, runEventToFrameFor(ctx)))
 }

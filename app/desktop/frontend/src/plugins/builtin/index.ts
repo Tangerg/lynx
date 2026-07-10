@@ -119,11 +119,11 @@ const infrastructure: PluginSpec[] = [
   nativeShell,
   defaultConfig,
   // bootstrap after defaultConfig so api.localToken is set before the
-  // handshake builds the RpcClient (API.md §2 Lifecycle).
+  // Runtime Protocol client is built.
   bootstrap,
   workspaceBootstrap,
   defaultData,
-  // After bootstrap: watches the handshake result and opens the app's one
+  // After bootstrap: watches the discovery result and opens the app's one
   // workspace.subscribe stream (AUX_API §3).
   workspaceEvents,
   workspaceSessionNavigation,

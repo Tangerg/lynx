@@ -3,12 +3,11 @@ package turn
 import (
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 )
 
 // Event is the sealed sum type emitted on a turn's event channel.
-// Concrete event types implement this marker so callers can type-switch.
 //
 // All events carry [BaseEvent] for routing — SessionID + TurnID + Seq
 // + Timestamp. Seq is a gapless per-turn counter assigned atomically at
@@ -24,8 +23,8 @@ import (
 // events with their type-specific fields only — the dispatcher
 // (emit, in inmemory.go) fills the four routing fields uniformly.
 // Adding a new event = adding the struct + one stamp method, nothing else.
+// The unexported stamp method keeps the sum type closed to this package.
 type Event interface {
-	isLyraEvent()
 	stamp(b BaseEvent) Event
 }
 
@@ -38,8 +37,6 @@ type BaseEvent struct {
 	Seq       uint64
 	Timestamp time.Time
 }
-
-func (BaseEvent) isLyraEvent() {}
 
 // TurnStart fires once at the very beginning of a turn. Carries the
 // resolved model name and any system-prompt summary the client wants
@@ -128,8 +125,8 @@ type TurnInterrupted struct {
 
 // Interrupt is one pending HITL request surfaced by [TurnInterrupted].
 // Kind is the wire interrupt kind (API.md §6: "approval" | "question" |
-// "toolResult") so it lines up with what the client negotiates in
-// ClientCapabilities.InterruptKinds. Payload is the awaitable's prompt —
+// "toolResult") so it lines up with what the client declares in
+// ClientCapabilities.interruptTypes. Payload is the awaitable's prompt —
 // an [ApprovalPrompt] for a gated tool call ("approval"), or a question
 // prompt for a tool asking the user ("question").
 type Interrupt struct {

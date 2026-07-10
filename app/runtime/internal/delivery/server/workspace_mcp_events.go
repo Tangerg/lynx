@@ -2,12 +2,15 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
 type mcpConnectionAction func(context.Context, string) error
+
+var errServerClosed = errors.New("server: closed")
 
 func (s *Server) runMCPConnectionAction(ctx context.Context, server string, action mcpConnectionAction) error {
 	if server == "" {
@@ -17,12 +20,13 @@ func (s *Server) runMCPConnectionAction(ctx context.Context, server string, acti
 		return fmt.Errorf("%w: unknown MCP server %q", protocol.ErrInvalidParams, server)
 	}
 
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: server, Status: protocol.McpConnecting})
-	bg := context.WithoutCancel(ctx)
-	go func() {
+	if !s.tasks.Start(ctx, func(bg context.Context) {
+		s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: server, Status: protocol.McpConnecting})
 		_ = action(bg, server)
 		s.PublishWorkspaceEvent(s.mcpServerChangedEvent(bg, server))
-	}()
+	}) {
+		return errServerClosed
+	}
 	return nil
 }
 

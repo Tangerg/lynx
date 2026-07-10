@@ -6,7 +6,7 @@ import {
 } from "@/plugins/builtin/agent/public/statePorts";
 import { startBootstrapLifecycle } from "./application/bootstrapLifecycle";
 import { initFrontendObservability } from "./adapters/frontendObservability";
-import { performRuntimeHandshake } from "./adapters/runtimeHandshake";
+import { performRuntimeDiscovery } from "./adapters/runtimeDiscovery";
 
 export default definePlugin({
   name: "lyra.builtin.bootstrap",
@@ -19,12 +19,12 @@ export default definePlugin({
         installAgentRuntimeGateway();
       },
       initObservability: initFrontendObservability,
-      performHandshake: performRuntimeHandshake,
+      discoverRuntime: performRuntimeDiscovery,
       reportObservabilityFailure: (err) => {
         console.warn("[bootstrap] observability init failed; running without telemetry:", err);
       },
-      reportHandshakeFailure: (err) => {
-        console.warn("[bootstrap] runtime.initialize failed; running degraded:", err);
+      reportDiscoveryFailure: (err) => {
+        console.warn("[bootstrap] runtime discovery failed; running degraded:", err);
       },
     });
   },

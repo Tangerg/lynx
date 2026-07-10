@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"go.opentelemetry.io/otel/trace"
+
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
@@ -20,6 +22,10 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 	defer c.reconnectMu.Unlock()
 
 	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return ErrConnectionsClosed
+	}
 	ms := c.find(name)
 	if ms == nil {
 		c.mu.Unlock()
@@ -35,7 +41,7 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 
 	// Close the old session outside the lock — Close may block on I/O.
 	if old != nil {
-		_ = old.Close()
+		recordCleanupError(ctx, old.Close())
 	}
 
 	return c.dialAndSwap(ctx, ms, cfg, false)
@@ -49,6 +55,7 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 // nil receiver is NOT supported — Configure mutates and a nil here is a wiring
 // bug, so callers hold a real *Connections.
 func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
+	cfg = cloneServerConfig(cfg)
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("mcp: invalid server %q: %w", cfg.Name, err)
 	}
@@ -56,6 +63,10 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 	defer c.reconnectMu.Unlock()
 
 	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return ErrConnectionsClosed
+	}
 	ms := c.find(cfg.Name)
 	if ms == nil {
 		ms = &server{config: cfg}
@@ -70,7 +81,7 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 	c.mu.Unlock()
 
 	if old != nil {
-		_ = old.Close()
+		recordCleanupError(ctx, old.Close())
 	}
 
 	return c.dialAndSwap(ctx, ms, cfg, false)
@@ -89,6 +100,10 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 	defer c.reconnectMu.Unlock()
 
 	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return ErrConnectionsClosed
+	}
 	ms := c.find(name)
 	if ms == nil {
 		c.mu.Unlock()
@@ -106,7 +121,7 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 	c.mu.Unlock()
 
 	if old != nil {
-		_ = old.Close()
+		recordCleanupError(ctx, old.Close())
 	}
 
 	// Bound the human-in-the-loop flow here; clear the per-server handshake
@@ -143,7 +158,7 @@ func (c *Connections) dialAndSwap(ctx context.Context, ms *server, cfg ServerCon
 	if err == nil {
 		// Prove the session is usable before publishing it as connected.
 		if _, terr := sourceTools(ctx, lynxmcp.ToolSource{Name: cfg.Name, Session: session}); terr != nil {
-			_ = session.Close()
+			terr = errors.Join(terr, session.Close())
 			err, session = terr, nil
 		}
 	}
@@ -155,10 +170,11 @@ func (c *Connections) dialAndSwap(ctx context.Context, ms *server, cfg ServerCon
 		// session here would strand it past Close's sweep — a connection leak.
 		// Drop it instead. Mirrors lsp.Servers.clientFor's closed re-check.
 		c.mu.Unlock()
+		var closeErr error
 		if session != nil {
-			_ = session.Close()
+			closeErr = session.Close()
 		}
-		return err
+		return errors.Join(ErrConnectionsClosed, err, closeErr)
 	}
 	if err != nil {
 		ms.session, ms.status, ms.lastErr = nil, dialStatus(err), err
@@ -174,6 +190,12 @@ func (c *Connections) dialAndSwap(ctx context.Context, ms *server, cfg ServerCon
 	// sink. Outside the lock — it runs tools/list RPCs.
 	c.refreshTools(ctx)
 	return err
+}
+
+func recordCleanupError(ctx context.Context, err error) {
+	if err != nil {
+		trace.SpanFromContext(ctx).RecordError(err)
+	}
 }
 
 // setStatus records a terminal dial outcome on one server under the lock — the

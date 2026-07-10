@@ -35,7 +35,7 @@ export function MessageContextMenu({ msg, children }: Props) {
   const t = useT();
   const copy = messageCopyPayloads(msg);
   // Imperative read, not a subscription (see header comment) — capabilities
-  // are handshake-time stable and messages can't exist before the handshake.
+  // are discovery-time stable and messages can't exist before runtime startup.
   const canRestoreFiles = serverFeature("checkpoints");
   const menu = messageContextMenuModel({ msg, copy, canRestoreFiles });
 

@@ -12,6 +12,9 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 	if err := req.Validate(); err != nil {
 		return TurnHandle{}, err
 	}
+	if s.isClosed() {
+		return TurnHandle{}, ErrDispatcherClosed
+	}
 
 	handle := TurnHandle{
 		SessionID: req.SessionID,
@@ -20,6 +23,7 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 	state := newTurnState(ctx, handle)
 	state.model = modelOr(req.Model)
 	state.cwd = req.Cwd
+	state.setInterruptKinds(req.InterruptKinds)
 	// Open the turn span synchronously (before the goroutine launches and
 	// before the handle is returned) so st.ctx carries it for every later
 	// reader — runTurn, drive, resume, Cancel. The entry trace rode in via
@@ -42,9 +46,11 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 		req.Message = msg
 	}
 
-	s.mu.Lock()
-	s.turns[handle.TurnID] = state
-	s.mu.Unlock()
+	if !s.register(state) {
+		state.cancel()
+		state.span.End()
+		return TurnHandle{}, ErrDispatcherClosed
+	}
 
 	go s.runTurn(req, state)
 

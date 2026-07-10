@@ -2,10 +2,12 @@ package toolset
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
@@ -155,5 +157,119 @@ func TestWriteGuard_NewFileExemptOverwriteGuarded(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(existing); string(b) != "original" {
 		t.Fatal("overwrite applied despite the guard")
+	}
+}
+
+func TestEditGuard_ReadStampIsAtomicWithSamePathEdit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "foo.txt")
+	if err := os.WriteFile(path, []byte("before"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tracker := editguard.NewTracker()
+	locker := newPathLocker()
+	executor := fs.NewLocalExecutor(dir)
+	readStarted := make(chan struct{})
+	releaseRead := make(chan struct{})
+	baseRead := fs.NewReadTool(executor)
+	blockingRead := wrapTool(baseRead, func(ctx context.Context, arguments string) (string, error) {
+		out, err := baseRead.Call(ctx, arguments)
+		close(readStarted)
+		<-releaseRead
+		return out, err
+	})
+	read := withPathLock(withReadTracking(blockingRead, tracker, dir), locker, dir)
+	edit := withPathLock(withEditGuard(fs.NewEditTool(executor), tracker, dir), locker, dir)
+
+	readDone := make(chan error, 1)
+	go func() {
+		_, err := read.Call(context.Background(), `{"file_path":"foo.txt"}`)
+		readDone <- err
+	}()
+	<-readStarted
+
+	editDone := make(chan struct {
+		out string
+		err error
+	}, 1)
+	go func() {
+		out, err := edit.Call(context.Background(), `{"file_path":"foo.txt","old_string":"before","new_string":"after"}`)
+		editDone <- struct {
+			out string
+			err error
+		}{out: out, err: err}
+	}()
+	select {
+	case result := <-editDone:
+		t.Fatalf("edit crossed the active read/stamp interval: out=%q err=%v", result.out, result.err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(releaseRead)
+	if err := <-readDone; err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	result := <-editDone
+	if result.err != nil || strings.Contains(result.out, "must read") || strings.Contains(result.out, "changed since") {
+		t.Fatalf("serialized edit was blocked: out=%q err=%v", result.out, result.err)
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != "after" {
+		t.Fatalf("file = %q, err=%v", got, err)
+	}
+}
+
+func TestPathLockWaitHonorsContextCancellation(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "foo.txt")
+	if err := os.WriteFile(path, []byte("before"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	locker := newPathLocker()
+	executor := fs.NewLocalExecutor(dir)
+	readStarted := make(chan struct{})
+	releaseRead := make(chan struct{})
+	baseRead := fs.NewReadTool(executor)
+	blockingRead := wrapTool(baseRead, func(ctx context.Context, arguments string) (string, error) {
+		out, err := baseRead.Call(ctx, arguments)
+		close(readStarted)
+		<-releaseRead
+		return out, err
+	})
+	read := withPathLock(blockingRead, locker, dir)
+	edit := withPathLock(fs.NewEditTool(executor), locker, dir)
+
+	readDone := make(chan error, 1)
+	go func() {
+		_, err := read.Call(context.Background(), `{"file_path":"foo.txt"}`)
+		readDone <- err
+	}()
+	<-readStarted
+
+	ctx, cancel := context.WithCancel(context.Background())
+	editDone := make(chan error, 1)
+	go func() {
+		_, err := edit.Call(ctx, `{"file_path":"foo.txt","old_string":"before","new_string":"after"}`)
+		editDone <- err
+	}()
+	cancel()
+	select {
+	case err := <-editDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("waiting edit err = %v, want context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("canceled edit remained blocked on the path lock")
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != "before" {
+		t.Fatalf("file = %q, err=%v; canceled edit must not run", got, err)
+	}
+
+	close(releaseRead)
+	if err := <-readDone; err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	locker.mu.Lock()
+	defer locker.mu.Unlock()
+	if len(locker.locks) != 0 {
+		t.Fatalf("path lock refs leaked after cancellation: %d", len(locker.locks))
 	}
 }

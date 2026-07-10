@@ -92,6 +92,39 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 	}
 }
 
+func TestDispatcherCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
+	svc := mustTurn(turn.New(turn.Dependencies{Engine: &slowStubEngine{}}))
+	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
+		SessionID: "sess-close",
+		Message:   "wait",
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	events, err := svc.Events(context.Background(), handle)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+
+	svc.Close()
+	var endReason turn.TurnEndReason
+	for ev := range events {
+		if end, ok := ev.(turn.TurnEnd); ok {
+			endReason = end.Reason
+		}
+	}
+	if endReason != turn.TurnEndCanceled {
+		t.Fatalf("TurnEnd reason = %q, want canceled", endReason)
+	}
+	if _, err := svc.Events(context.Background(), handle); !errors.Is(err, turn.ErrTurnNotFound) {
+		t.Fatalf("Events after Close = %v, want ErrTurnNotFound", err)
+	}
+	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "new", Message: "no"}); !errors.Is(err, turn.ErrDispatcherClosed) {
+		t.Fatalf("StartTurn after Close = %v, want ErrDispatcherClosed", err)
+	}
+	svc.Close()
+}
+
 // TestDispatcher_SeqMonotone verifies every event in a turn carries a
 // strictly increasing Seq starting at 1 — transport adapters rely
 // on monotonicity for resume-from-seq semantics.
@@ -185,8 +218,9 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	svc := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil))))) // shell → gate
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
-		SessionID: "sess-approve",
-		Message:   "echo lyra",
+		SessionID:      "sess-approve",
+		Message:        "echo lyra",
+		InterruptKinds: []string{"approval"},
 	})
 	events, _ := svc.Events(context.Background(), handle)
 
@@ -203,7 +237,7 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 			} else if p, ok := e.Interrupts[0].Payload.(turn.ApprovalPrompt); !ok || p.ToolName != "shell" {
 				t.Errorf("approval payload = %+v, want shell ApprovalPrompt", e.Interrupts[0].Payload)
 			}
-			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}); err != nil {
+			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []string{"approval"}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
 		case turn.TurnEnd:
@@ -237,8 +271,9 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	svc := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil))))) // shell → gate
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
-		SessionID: "sess-rmodel",
-		Message:   "echo lyra",
+		SessionID:      "sess-rmodel",
+		Message:        "echo lyra",
+		InterruptKinds: []string{"approval"},
 	})
 	events, _ := svc.Events(context.Background(), handle)
 
@@ -246,7 +281,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	for ev := range events {
 		switch e := ev.(type) {
 		case turn.TurnInterrupted:
-			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}); err != nil {
+			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []string{"approval"}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
 		case turn.TurnEnd:
@@ -294,8 +329,9 @@ func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	svc := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil)))))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
-		SessionID: "sess-cancel-parked",
-		Message:   "echo lyra",
+		SessionID:      "sess-cancel-parked",
+		Message:        "echo lyra",
+		InterruptKinds: []string{"approval"},
 	})
 	events, _ := svc.Events(context.Background(), handle)
 
@@ -337,8 +373,9 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 	svc := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil)))))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
-		SessionID: "sess-deny",
-		Message:   "echo lyra",
+		SessionID:      "sess-deny",
+		Message:        "echo lyra",
+		InterruptKinds: []string{"approval"},
 	})
 	events, _ := svc.Events(context.Background(), handle)
 
@@ -349,7 +386,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 	for ev := range events {
 		switch e := ev.(type) {
 		case turn.TurnInterrupted:
-			_ = svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: false})
+			_ = svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: false}, []string{"approval"})
 		case turn.ToolCallEnd:
 			// Denial flows back as a tool *result* so the model can
 			// recover — Err stays empty, Output carries the reason.

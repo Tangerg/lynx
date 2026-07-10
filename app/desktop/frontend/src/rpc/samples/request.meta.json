@@ -4,7 +4,7 @@
     "name": "lyra-desktop",
     "version": "0.1.0"
   },
-  "capabilities": {
+  "clientCapabilities": {
     "events": [
       "run.started",
       "run.progress",
@@ -17,9 +17,9 @@
       "custom"
     ],
     "features": {
-      "clientTools": true
+      "multimodal": true
     },
-    "interruptTypes": ["approval", "question", "toolResult"],
+    "interruptTypes": ["approval", "question"],
     "optOutNotificationMethods": ["item.delta"]
   }
 }

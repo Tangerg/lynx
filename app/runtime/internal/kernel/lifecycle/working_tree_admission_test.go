@@ -43,3 +43,28 @@ func TestWorkingTreeGateAllowsEmptyCwd(t *testing.T) {
 	mutationAdmission.Release()
 	runAdmission.Release()
 }
+
+func TestWorkingTreeAdmissionReleaseIsIdempotentAcrossCopies(t *testing.T) {
+	var gate WorkingTreeGate
+	const cwd = "/repo"
+	first, ok := gate.ClaimRun(cwd)
+	if !ok {
+		t.Fatal("first run admission rejected")
+	}
+	second, ok := gate.ClaimRun(cwd)
+	if !ok {
+		t.Fatal("second run admission rejected")
+	}
+	copyOfFirst := first
+	first.Release()
+	copyOfFirst.Release()
+	if _, ok := gate.ClaimMutation(cwd); ok {
+		t.Fatal("duplicate release consumed the second run admission")
+	}
+	second.Release()
+	mutation, ok := gate.ClaimMutation(cwd)
+	if !ok {
+		t.Fatal("mutation rejected after both distinct admissions released")
+	}
+	mutation.Release()
+}

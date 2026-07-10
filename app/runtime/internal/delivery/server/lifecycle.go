@@ -6,32 +6,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// Initialize handles runtime.initialize. Version negotiation
-// follows the MCP rules (API.md §2.2): when the client's requested
-// version differs from ours, we return the version WE support and
-// let the client decide whether to fall back / disconnect.
-func (s *Server) Initialize(_ context.Context, in protocol.InitializeRequest) (*protocol.InitializeResponse, error) {
-	// We accept any client version today — future builds may compare
-	// against a minimum-supported constant and return
-	// protocol.ErrInvalidProtocolVersion when too old.
-	//
-	// Record the HITL kinds the client declared it can answer so the turn
-	// dispatcher auto-denies any interrupt the client couldn't resolve rather
-	// than parking into a deadlock (API.md §6.2). An empty / absent list is
-	// treated permissively (surface all) so CLI / in-process callers that
-	// don't negotiate keep working.
-	if len(in.Capabilities.InterruptTypes) > 0 {
-		// The kernel's SetInterruptKinds is wire-agnostic ([]string) — translate
-		// the typed wire enum down at this delivery boundary (kernel never imports
-		// the protocol package).
-		kinds := make([]string, len(in.Capabilities.InterruptTypes))
-		for i, t := range in.Capabilities.InterruptTypes {
-			kinds[i] = string(t)
-		}
-		s.rt.SetTurnInterruptKinds(kinds)
-	}
-	return &protocol.InitializeResponse{
-		ProtocolVersion: protocol.ProtocolVersion, // server's truth — client falls back if needed
+// Discover handles runtime.discover. It is a stateless capability query, not a
+// lifecycle transition; business methods can run without calling it first.
+func (s *Server) Discover(_ context.Context) (*protocol.DiscoverResponse, error) {
+	return &protocol.DiscoverResponse{
+		ProtocolVersion: protocol.ProtocolVersion,
 		ServerInfo:      s.serverInfo,
 		Capabilities:    s.Capabilities(),
 	}, nil

@@ -3,11 +3,10 @@ package runtime
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 
-	agentcore "github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
 func TestRuntimeCloseUsesCloserPort(t *testing.T) {
@@ -22,9 +21,27 @@ func TestRuntimeCloseUsesCloserPort(t *testing.T) {
 	}
 }
 
+func TestRuntimeCloseIsIdempotentAndJoinsResourceErrors(t *testing.T) {
+	engineErr := errors.New("engine close")
+	resourceErr := errors.New("resource close")
+	engine := &fakeRuntimeCloser{err: engineErr}
+	resource := &fakeRuntimeCloser{err: resourceErr}
+	rt := &Runtime{closer: engine, resources: []io.Closer{resource}}
+
+	for range 2 {
+		err := rt.Close()
+		if !errors.Is(err, engineErr) || !errors.Is(err, resourceErr) {
+			t.Fatalf("Close err = %v, want both close errors", err)
+		}
+	}
+	if engine.calls != 1 || resource.calls != 1 {
+		t.Fatalf("close calls = engine:%d resource:%d, want 1 each", engine.calls, resource.calls)
+	}
+}
+
 func TestRuntimeListSkillsUsesCatalogPort(t *testing.T) {
 	catalog := &fakeSkillCatalog{
-		skills: []kernel.SkillInfo{{Name: "lint", Description: "check code", Scope: "project"}},
+		skills: []skills.Info{{Name: "lint", Description: "check code", Scope: "project"}},
 	}
 	rt := &Runtime{skillCatalog: catalog}
 
@@ -40,87 +57,24 @@ func TestRuntimeListSkillsUsesCatalogPort(t *testing.T) {
 	}
 }
 
-func TestRuntimeA2AAgentUsesChatRunnerPort(t *testing.T) {
-	runner := &fakeChatRunner{
-		process: newFakeTurnProcess("done"),
-	}
-	rt := &Runtime{a2aChats: runner}
-
-	var chunks []string
-	for chunk, err := range rt.A2AAgent().Run(context.Background(), "ship it") {
-		if err != nil {
-			t.Fatalf("Run yielded error: %v", err)
-		}
-		chunks = append(chunks, chunk)
-	}
-
-	if runner.message != "ship it" {
-		t.Fatalf("runner message = %q", runner.message)
-	}
-	if len(chunks) != 1 || chunks[0] != "done" {
-		t.Fatalf("chunks = %+v", chunks)
-	}
-}
-
 type fakeRuntimeCloser struct {
 	closed bool
+	calls  int
+	err    error
 }
 
 func (f *fakeRuntimeCloser) Close() error {
 	f.closed = true
-	return nil
+	f.calls++
+	return f.err
 }
 
 type fakeSkillCatalog struct {
 	cwd    string
-	skills []kernel.SkillInfo
+	skills []skills.Info
 }
 
-func (f *fakeSkillCatalog) ListSkills(_ context.Context, cwd string) ([]kernel.SkillInfo, error) {
+func (f *fakeSkillCatalog) ListSkills(_ context.Context, cwd string) ([]skills.Info, error) {
 	f.cwd = cwd
 	return f.skills, nil
 }
-
-type fakeChatRunner struct {
-	message string
-	process kernel.TurnProcess
-}
-
-func (f *fakeChatRunner) StartTurn(_ context.Context, req kernel.TurnRequest) kernel.TurnProcess {
-	f.message = req.Message
-	return f.process
-}
-
-type fakeTurnProcess struct {
-	done   chan error
-	output kernel.TurnOutput
-}
-
-func newFakeTurnProcess(reply string) *fakeTurnProcess {
-	done := make(chan error, 1)
-	done <- nil
-	return &fakeTurnProcess{
-		done:   done,
-		output: kernel.TurnOutput{Reply: reply},
-	}
-}
-
-func (f *fakeTurnProcess) ID() string { return "turn-1" }
-
-func (f *fakeTurnProcess) Status() agentcore.AgentProcessStatus {
-	return agentcore.StatusCompleted
-}
-
-func (f *fakeTurnProcess) Done() <-chan error { return f.done }
-
-func (f *fakeTurnProcess) Output() (kernel.TurnOutput, error) { return f.output, nil }
-
-func (f *fakeTurnProcess) Cancel() error { return errors.New("not implemented") }
-
-func (f *fakeTurnProcess) Resume(context.Context, interrupts.Resolution) (<-chan error, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (f *fakeTurnProcess) PendingAwaitable() agentcore.Awaitable { return nil }
-
-func (f *fakeTurnProcess) Discard(context.Context) {}

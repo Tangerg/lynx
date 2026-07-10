@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -139,4 +140,30 @@ func TestRunHub_CancelDetaches(t *testing.T) {
 	}
 	h.Append(ev(1, true)) // must not panic (sub gone)
 	h.Close()             // must not double-close
+}
+
+func TestDeliverTerminalUsesOneSharedBudget(t *testing.T) {
+	terminal := protocol.RunEvent{Event: protocol.StreamEvent{Type: protocol.StreamRunFinished}}
+	healthy := make(chan protocol.RunEvent, 1)
+	subs := map[int]chan protocol.RunEvent{0: healthy}
+	for i := 1; i <= 3; i++ {
+		blocked := make(chan protocol.RunEvent, 1)
+		blocked <- ev(i, false)
+		subs[i] = blocked
+	}
+
+	started := time.Now()
+	deliverTerminal(subs, terminal, 20*time.Millisecond)
+	elapsed := time.Since(started)
+	if elapsed > 100*time.Millisecond {
+		t.Fatalf("terminal delivery multiplied the budget by subscriber count: %v", elapsed)
+	}
+	select {
+	case got := <-healthy:
+		if got.Event.Type != protocol.StreamRunFinished {
+			t.Fatalf("healthy subscriber got %q", got.Event.Type)
+		}
+	default:
+		t.Fatal("healthy subscriber missed terminal event")
+	}
 }

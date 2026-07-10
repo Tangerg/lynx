@@ -40,20 +40,19 @@ func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListT
 // no synchronous result — the outcome rides notifications.workspace.event as
 // mcp.serverChanged, in the guaranteed order connecting → (connected | failed).
 // The call validates the server name synchronously (unknown → invalid_params),
-// publishes the connecting frame, then runs the dial off the request ctx
-// (context.WithoutCancel) so a returning RPC doesn't abort it; the terminal
-// frame is published when the dial settles.
+// then schedules the connecting frame and dial on the server-owned task group,
+// so a returning RPC does not abort it while server shutdown still can. The
+// terminal frame is published when the dial settles.
 func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error {
 	return s.runMCPConnectionAction(ctx, server, s.rt.ReconnectMCPServer)
 }
 
 // WorkspaceMCPAuthorize starts the interactive OAuth sign-in for an HTTP MCP
 // server (workspace.mcp.authorize). Like reconnect it is fire-and-forget: the
-// name is validated synchronously (unknown → invalid_params), the connecting
-// frame is published, then the flow — open the browser, catch the loopback
-// redirect, exchange the code — runs off the request ctx (the human-in-the-loop
-// flow far outlives one RPC) and the terminal mcp.serverChanged frame is
-// published when it settles.
+// name is validated synchronously (unknown → invalid_params), then the server
+// task group publishes connecting and runs the flow — open the browser, catch
+// the loopback redirect, exchange the code. The flow outlives one RPC but is
+// canceled at server shutdown; its terminal frame is published when it settles.
 func (s *Server) WorkspaceMCPAuthorize(ctx context.Context, server string) error {
 	return s.runMCPConnectionAction(ctx, server, s.rt.AuthorizeMCPServer)
 }

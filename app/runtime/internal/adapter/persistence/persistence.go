@@ -1,12 +1,16 @@
 // Package persistence assembles Lyra's durable storage adapters into one
-// process-lifetime bundle. It is the storage-side capability adapter: the CLI
-// asks for a bundle, while runtime construction decides how to consume it.
+// process-lifetime bundle. It is the storage-side capability adapter: the
+// process composition root opens a bundle, while runtime construction decides
+// how to consume it.
 package persistence
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat/history"
@@ -28,6 +32,10 @@ import (
 // durable stores share one SQLite database at $LYRA_HOME/lyra.db, except
 // Knowledge, which is the user-editable LYRA.md cascade.
 type Bundle struct {
+	db        *sql.DB
+	closeOnce sync.Once
+	closeErr  error
+
 	Home string
 	Tx   func(context.Context, func(context.Context) error) error
 
@@ -49,9 +57,8 @@ type Bundle struct {
 	Codebase      *sqlitestore.CodebaseIndexStore
 }
 
-// Open wires the persistence backends. The SQLite handle is intentionally
-// process-lifetime; add explicit teardown when the runtime grows a shutdown
-// path.
+// Open wires the persistence backends. The returned bundle owns the shared
+// SQLite handle and must be closed when the runtime process stops.
 func Open() (*Bundle, error) {
 	home, err := storage.Home()
 	if err != nil {
@@ -63,10 +70,10 @@ func Open() (*Bundle, error) {
 	}
 	mem, err := storage.NewFileKnowledgeStore()
 	if err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("memory storage: %w", err)
+		return nil, errors.Join(fmt.Errorf("memory storage: %w", err), db.Close())
 	}
 	return &Bundle{
+		db:   db,
 		Home: home,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlitestore.RunInTx(ctx, db, fn)
@@ -88,4 +95,17 @@ func Open() (*Bundle, error) {
 		EmbeddingRole: sqlitestore.NewEmbeddingRoleStore(db),
 		Codebase:      sqlitestore.NewCodebaseIndexStore(db),
 	}, nil
+}
+
+// Close releases the shared SQLite handle. It is safe to call repeatedly.
+func (b *Bundle) Close() error {
+	if b == nil {
+		return nil
+	}
+	b.closeOnce.Do(func() {
+		if b.db != nil {
+			b.closeErr = b.db.Close()
+		}
+	})
+	return b.closeErr
 }

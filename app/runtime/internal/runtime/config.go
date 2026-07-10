@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"io"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
@@ -26,6 +27,11 @@ type Config struct {
 	// tool-environment fields (ToolResolver/Tools/live-MCP ports/Closers) from
 	// [toolset.Build] below; Engine.ChatClient is required.
 	Engine kernel.Config
+
+	// Resources are process adapters whose ownership transfers to Runtime only
+	// when [New] succeeds. Close releases them after background tasks and the
+	// engine have stopped; callers retain ownership when construction fails.
+	Resources []io.Closer
 
 	// UtilityRoleStore persists the global utility-model role; the (provider,
 	// model) the in-house maintenance services (compaction / extraction /

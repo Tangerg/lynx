@@ -79,12 +79,6 @@ func methodNotFound(method string) *transport.Error {
 		fmt.Sprintf("unknown method %q", method))
 }
 
-// notInitialized is returned when a business method is called before
-// runtime.initialize has succeeded (API.md §7.1 handshake gate).
-func notInitialized(detail string) *transport.Error {
-	return problemError(protocol.CodeCapabilityNotNeg, "capability_not_negotiated", detail)
-}
-
 // badEnvelope is returned for malformed JSON-RPC envelopes (non-string
 // id, wrong shape) at the dispatcher boundary.
 func badEnvelope(detail string) *transport.Error {

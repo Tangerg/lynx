@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -46,7 +46,7 @@ func stallContext(parent context.Context, idle time.Duration) (ctx context.Conte
 // handled by the tool middleware's ParkStore; when none is
 // configured, the engine intercepts tool-loop interrupt chunks as
 // a fallback.
-func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget turnBudget) (TurnOutput, error) {
+func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget accounting.Budget) (TurnOutput, error) {
 	// A silent provider ends the turn (llmIdleTimeout); every chunk below calls
 	// keepAlive to push the deadline out, so a healthy long turn never trips it.
 	ctx, keepAlive, stop := stallContext(ctx, llmIdleTimeout)
@@ -123,13 +123,14 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 		}
 		if chunk.IsToolResult() {
 			recordRound()
-			if budget.exceeded(pc) {
+			costUSD, tokens, _ := pc.Process.Usage()
+			if budget.UsageExceeded(int64(tokens), costUSD) {
 				return turnOutput(pc, accumulated.String(), true), nil
 			}
 			// Per-run step cap: stop cleanly once MaxSteps tool-call rounds have
 			// run — before paying for the next LLM call. Distinct from the token
 			// / cost budget; surfaces as the maxSteps run outcome.
-			if steps++; budget.MaxSteps > 0 && steps >= budget.MaxSteps {
+			if steps++; budget.StepsExceeded(steps) {
 				out := turnOutput(pc, accumulated.String(), false)
 				out.StoppedOnSteps = true
 				return out, nil

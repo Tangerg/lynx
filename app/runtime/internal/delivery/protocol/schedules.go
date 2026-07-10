@@ -7,7 +7,7 @@ import (
 
 // Schedules is the schedules.* method group (API.md §7.9) — cron-triggered
 // headless runs of a saved prompt. The runtime's scheduler worker fires them
-// while `lyra serve` is up; a client manages the schedule set here. A schedule
+// while the server process is up; a client manages the schedule set here. A schedule
 // stores the final prompt text (the client may pre-fill it from a recipe), not
 // a recipe reference.
 type Schedules interface {

@@ -21,11 +21,11 @@ type lifecycleStores struct {
 	rt *Runtime
 }
 
-func (s lifecycleStores) Session() lifecycle.SessionStore { return s.rt.sessionLifecycle }
+func (s lifecycleStores) Session() lifecycle.SessionStore { return s.rt.sessions }
 
-func (s lifecycleStores) Transcript() lifecycle.TranscriptStore { return s.rt.transcriptLifecycle }
+func (s lifecycleStores) Transcript() lifecycle.TranscriptStore { return s.rt.transcript }
 
-func (s lifecycleStores) Interrupts() lifecycle.InterruptStore { return s.rt.interruptLifecycle }
+func (s lifecycleStores) Interrupts() lifecycle.InterruptStore { return s.rt.interrupts }
 
 func (s lifecycleStores) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
 	return s.rt.ReadHistory(ctx, sessionID)
@@ -55,8 +55,8 @@ func (t lifecycleTurns) Cancel(ctx context.Context, handle turn.TurnHandle) erro
 	return t.rt.CancelTurn(ctx, handle)
 }
 
-func (t lifecycleTurns) Resume(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error {
-	return t.rt.ResumeTurn(ctx, handle, resolution)
+func (t lifecycleTurns) Resume(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
+	return t.rt.ResumeTurn(ctx, handle, resolution, interruptKinds)
 }
 
 func (t lifecycleTurns) Rehydrate(ctx context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
@@ -99,13 +99,16 @@ func (r *Runtime) CancelRunBinding(ctx context.Context, run lifecycle.RunTurnBin
 }
 
 // ResumeClaimedInterrupt consumes an open interrupt and resumes or rehydrates its turn.
-func (r *Runtime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution) (lifecycle.ResumedInterrupt, error) {
-	return r.lifecycle().ResumeClaimedInterrupt(ctx, lifecycleTurns{rt: r}, parentRunID, resolution)
+func (r *Runtime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution, interruptKinds []string) (lifecycle.ResumedInterrupt, error) {
+	return r.lifecycle().ResumeClaimedInterrupt(ctx, lifecycleTurns{rt: r}, parentRunID, resolution, interruptKinds)
 }
 
 // RollbackResolved executes a resolved rollback write-set.
-func (r *Runtime) RollbackResolved(ctx context.Context, sessionID string, boundary lifecycle.RollbackBoundary) error {
-	return r.lifecycle().RollbackResolved(ctx, lifecycleTurns{rt: r}, sessionID, boundary)
+func (r *Runtime) RollbackResolved(ctx context.Context, sessionID string, boundary transcript.Boundary) error {
+	if len(boundary.Dropped) == 0 {
+		return nil
+	}
+	return r.lifecycle().Rollback(ctx, lifecycleTurns{rt: r}, sessionID, boundary)
 }
 
 // ForkSession creates a child session from a resolved fork boundary.

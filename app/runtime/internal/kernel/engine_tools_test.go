@@ -9,6 +9,22 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 )
 
+func TestEngine_ToolsReturnsSnapshot(t *testing.T) {
+	stub := newStubModel("shell", `{}`, "")
+	client, _ := chat.NewClient(stub)
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
+
+	first := eng.Tools()
+	if len(first) == 0 {
+		t.Fatal("engine has no tools")
+	}
+	first[0] = nil
+	if second := eng.Tools(); second[0] == nil {
+		t.Fatal("Tools exposed the engine's mutable backing slice")
+	}
+}
+
 // TestEngine_Tools_OfflineOnly verifies the engine exposes the
 // always-on coding tool set when no Online credentials are
 // configured. Provider-backed tools must NOT appear.

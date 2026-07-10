@@ -31,13 +31,14 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, err
 	}
 	sess, turnReq, err := s.rt.PlanTurnStart(ctx, in.SessionID, s.serverInfo.Cwd, turn.StartTurnRequest{
-		Message:    userMsg,
-		Media:      userMedia,
-		Provider:   in.Provider,
-		Model:      in.Model,
-		MaxCostUSD: in.MaxBudgetUSD,
-		MaxSteps:   in.MaxSteps,
-		Options:    options,
+		Message:        userMsg,
+		Media:          userMedia,
+		Provider:       in.Provider,
+		Model:          in.Model,
+		MaxCostUSD:     in.MaxBudgetUSD,
+		MaxSteps:       in.MaxSteps,
+		Options:        options,
+		InterruptKinds: interruptKindsFromContext(ctx),
 	})
 	if err != nil {
 		return nil, nil, wireTurnStartErr(err)

@@ -1,28 +1,24 @@
-// The boot handshake plugin negotiates runtime.initialize and stashes the
-// result — but a backend that doesn't implement it yet must NOT break the
-// app (degrade silently). Both paths are locked here.
+// The boot plugin discovers runtime capabilities and stashes the result — but
+// a backend that doesn't implement discovery yet must NOT break the app
+// (degrade silently). Both paths are locked here.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { Container } from "@/main/container";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import type { LyraClient, Methods, ServerCapabilities } from "@/rpc";
 import { useRuntimeStore } from "@/state/runtimeStore";
 import bootstrap from "./index";
 
-const fakeCapabilities = { protocolVersion: "2026-06-03", features: {}, providers: [], events: [] };
+const fakeCapabilities = { protocolVersion: "2026-06-07", features: {}, providers: [], events: [] };
 
-// Bootstrap handshakes via the low-level rpc.call (so the auto-recovery path
-// shares the exact negotiation), so the fake routes runtime.initialize there.
-function stubContainer(initialize: Methods["runtime"]["initialize"]) {
+function stubContainer(discover: Methods["runtime"]["discover"]) {
   setContainer({
-    sidecar: { info: vi.fn().mockResolvedValue({}) } as unknown as Container["sidecar"],
     client: () =>
       ({
         rpc: {
-          call: (method: string, params?: unknown) =>
-            method === "runtime.initialize"
-              ? initialize(params as never)
+          call: (method: string) =>
+            method === "runtime.discover"
+              ? discover()
               : Promise.reject(new Error(`unexpected method ${method}`)),
         },
       }) as unknown as LyraClient,
@@ -35,28 +31,24 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("bootstrap handshake", () => {
-  it("negotiates runtime.initialize and stores the result", async () => {
-    const initialize = vi.fn().mockResolvedValue({
-      protocolVersion: "2026-06-03",
+describe("bootstrap discovery", () => {
+  it("discovers runtime capabilities and stores the result", async () => {
+    const discover = vi.fn().mockResolvedValue({
+      protocolVersion: "2026-06-07",
       serverInfo: { name: "lyra-runtime", version: "1.2.3", cwd: "/w", home: "/h" },
       capabilities: fakeCapabilities as unknown as ServerCapabilities,
     });
-    stubContainer(initialize);
+    stubContainer(discover);
 
     await loadPlugin(bootstrap);
 
     await vi.waitFor(() => {
       expect(useRuntimeStore.getState().capabilities).not.toBeNull();
     });
-    // The declared capabilities reached the runtime — interruptTypes carry
-    // the HITL switches (API.md §6.2).
-    const sent = initialize.mock.calls[0]![0] as { capabilities: { interruptTypes: string[] } };
-    expect(sent.capabilities.interruptTypes).toContain("approval");
-    expect(sent.capabilities.interruptTypes).toContain("question");
+    expect(discover).toHaveBeenCalledOnce();
   });
 
-  it("degrades silently when the runtime hasn't implemented initialize", async () => {
+  it("degrades silently when the runtime hasn't implemented discovery", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     stubContainer(vi.fn().mockRejectedValue(new Error("method not found")));
 

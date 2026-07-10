@@ -7,9 +7,9 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
 )
 
 // endTurn closes the turn's event channel and removes it from the live
@@ -23,9 +23,11 @@ func (s *inMemory) endTurn(st *turnState) {
 	// only matters while a process is PARKED for HITL resume (endTurn never runs
 	// on a parked turn — handleWaiting leaves it registered). Without this every
 	// run leaks one process_snapshot row. Off a cancel-decoupled ctx so the
-	// delete lands even when the turn ctx was canceled, keeping the trace span.
+	// delete gets a short independent deadline even when the turn ctx was
+	// canceled, keeping the trace span without letting best-effort cleanup wedge
+	// terminal delivery or component shutdown.
 	if p := st.process(); p != nil {
-		p.Discard(context.WithoutCancel(st.ctx))
+		discardProcess(st.ctx, p)
 	}
 	if st.span != nil {
 		st.span.End()
@@ -42,6 +44,15 @@ func (s *inMemory) endTurn(st *turnState) {
 	s.mu.Lock()
 	delete(s.turns, st.handle.TurnID)
 	s.mu.Unlock()
+	close(st.done)
+}
+
+const processDiscardTimeout = 2 * time.Second
+
+func discardProcess(ctx context.Context, process kernel.TurnProcess) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), processDiscardTimeout)
+	defer cancel()
+	process.Discard(cleanupCtx)
 }
 
 // finishTurn emits the terminal [TurnEnd] (stamping the elapsed duration)

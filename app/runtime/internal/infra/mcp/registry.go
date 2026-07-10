@@ -79,6 +79,10 @@ func (c *Connections) Remove(ctx context.Context, name string) {
 	defer c.reconnectMu.Unlock()
 
 	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
 	var old *sdkmcp.ClientSession
 	kept := c.servers[:0]
 	for _, ms := range c.servers {
@@ -92,7 +96,7 @@ func (c *Connections) Remove(ctx context.Context, name string) {
 	c.mu.Unlock()
 
 	if old != nil {
-		_ = old.Close()
+		recordCleanupError(ctx, old.Close())
 	}
 	c.refreshTools(ctx)
 }
@@ -112,6 +116,7 @@ func (c *Connections) refreshTools(ctx context.Context) {
 			targets = append(targets, target{ms.name(), ms.session})
 		}
 	}
+	sink := c.onTools
 	c.mu.Unlock()
 
 	var tools []chat.Tool
@@ -122,8 +127,8 @@ func (c *Connections) refreshTools(ctx context.Context) {
 		}
 		tools = append(tools, srcTools...)
 	}
-	if c.onTools != nil {
-		c.onTools(tools)
+	if sink != nil {
+		sink(tools)
 	}
 }
 
@@ -132,19 +137,29 @@ func (c *Connections) Close() error {
 	if c == nil {
 		return nil
 	}
-	var errs []error
+	c.reconnectMu.Lock()
+	defer c.reconnectMu.Unlock()
+
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.closed = true // so a Reconnect dialing outside the lock drops its session
+	if c.closed {
+		c.mu.Unlock()
+		return nil
+	}
+	c.closed = true
+	sessions := make([]*sdkmcp.ClientSession, 0, len(c.servers))
 	for _, ms := range c.servers {
-		if ms.session == nil {
-			continue
+		if ms.session != nil {
+			sessions = append(sessions, ms.session)
 		}
-		if err := ms.session.Close(); err != nil {
-			errs = append(errs, err)
-		}
-		ms.session = nil
 	}
 	c.servers = nil
+	c.mu.Unlock()
+
+	var errs []error
+	for _, session := range sessions {
+		if err := session.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	return errors.Join(errs...)
 }

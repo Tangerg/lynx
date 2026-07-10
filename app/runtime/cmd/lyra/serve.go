@@ -4,14 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 	"time"
-
-	"github.com/spf13/cobra"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/observability"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
@@ -20,122 +19,51 @@ import (
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
+	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
-// ServeCmd is `lyra serve` — boot the JSON-RPC over HTTP transport
-// that the frontend's Lyra Runtime Protocol talks to.
-//
-// Wire endpoints (streamable HTTP — a streaming method's events ride its
-// own POST response as text/event-stream; no separate stream endpoint):
-//
-//	POST /v2/rpc/{method}     JSON-RPC; streaming methods reply text/event-stream
-//	GET  /v2/info             Flat-JSON server metadata (no auth)
-//	GET  /v2/health           Liveness probe
-//
-// See docs/{API,TRANSPORT}.md for the full protocol.
-func (a *App) ServeCmd() *cobra.Command {
-	var (
-		addr           string
-		localTokenPath string
-		noLocalToken   bool
-		corsOrigins    []string
-		a2aListen      string
-	)
-	cmd := &cobra.Command{
-		Use:   "serve",
-		Short: "Run Lyra as a JSON-RPC over HTTP server.",
-		Long: `Boot Lyra as a server. The HTTP transport surfaces the Lyra
-Runtime Protocol on a single ` + "`POST /v2/rpc/{method}`" + ` endpoint
-(streamable HTTP: a streaming method's events ride its own response as
-text/event-stream), with ` + "`/v2/info`" + ` and ` + "`/v2/health`" + `
-sidecars for operations.
+func run(ctx context.Context, errw io.Writer) (err error) {
+	shutdownObs := observability.Setup(resolvedVersion())
+	defer func() { err = errors.Join(err, shutdownObs(context.WithoutCancel(ctx))) }()
 
-Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// Wire the dev observability triad (traces + metrics + logs →
-			// one slog stream) before anything else, so startup itself is
-			// traced and every module's spans/logs are correlated.
-			shutdownObs := observability.Setup(version)
-			defer func() { shutdownObs(context.WithoutCancel(cmd.Context())) }()
-
-			if err := a.ensureRuntime(cmd.Context()); err != nil {
-				return a.fatalErr(err)
-			}
-			// Server settings come from config (config/config.yaml);
-			// CLI flags override per-field when explicitly set.
-			srv := a.config().Server
-			if cmd.Flags().Changed("listen") {
-				srv.Listen = addr
-			}
-			if cmd.Flags().Changed("no-local-token") {
-				srv.NoLocalToken = noLocalToken
-			}
-			if cmd.Flags().Changed("local-token-path") {
-				srv.LocalTokenPath = localTokenPath
-			}
-			if cmd.Flags().Changed("cors-origin") {
-				srv.CORSOrigins = corsOrigins
-			}
-			if cmd.Flags().Changed("a2a-listen") {
-				srv.A2AListen = a2aListen
-			}
-			if len(srv.CORSOrigins) == 0 {
-				srv.CORSOrigins = lyrahttp.DefaultCORSOrigins
-			}
-			if srv.Listen == "" {
-				return a.fatalErr(errors.New("server.listen is empty (set serve --listen or config server.listen)"))
-			}
-
-			var token *lyrahttp.LocalToken
-			if !srv.NoLocalToken {
-				t, err := lyrahttp.IssueLocalToken(srv.LocalTokenPath)
-				if err != nil {
-					return a.fatalErr(err)
-				}
-				token = t
-			}
-
-			tokenValue := ""
-			if token != nil {
-				tokenValue = token.Value
-			}
-			httpServer, api, err := a.buildHTTPServer(srv, tokenValue)
-			if err != nil {
-				return a.fatalErr(err)
-			}
-
-			// Opt-in A2A endpoint on its own listener (separate protocol).
-			var a2aServer *http.Server
-			if srv.A2AListen != "" {
-				a2aServer, err = a.buildA2AServer(srv.A2AListen, lyrahttp.ServerInfoOrDefault())
-				if err != nil {
-					return a.fatalErr(err)
-				}
-			}
-			return a.runServer(cmd.Context(), httpServer, api, srv.Listen, token, a2aServer)
-		},
+	rt, cfg, err := bootstrapRuntime(ctx)
+	if err != nil {
+		return err
 	}
-	cmd.Flags().StringVar(&addr, "listen", "",
-		"HTTP bind address; overrides config server.listen (default 127.0.0.1:17171)")
-	cmd.Flags().StringVar(&localTokenPath, "local-token-path", "",
-		"local-process gate token path; overrides config server.localTokenPath")
-	cmd.Flags().BoolVar(&noLocalToken, "no-local-token", false,
-		"disable the local-process gate; overrides config server.noLocalToken")
-	cmd.Flags().StringSliceVar(&corsOrigins, "cors-origin", nil,
-		"CORS-allowed origin (repeatable); overrides config server.corsOrigins")
-	cmd.Flags().StringVar(&a2aListen, "a2a-listen", "",
-		"bind address for the opt-in A2A endpoint (exposes this agent to other agents); empty disables it")
-	return cmd
+	defer func() { err = errors.Join(err, rt.Close()) }()
+	srv := cfg.Server
+	if len(srv.CORSOrigins) == 0 {
+		srv.CORSOrigins = lyrahttp.DefaultCORSOrigins
+	}
+	if srv.Listen == "" {
+		return errors.New("server.listen is empty (set config server.listen or LYRA_SERVER_LISTEN)")
+	}
+
+	var token *lyrahttp.LocalToken
+	if !srv.NoLocalToken {
+		t, err := lyrahttp.IssueLocalToken(srv.LocalTokenPath)
+		if err != nil {
+			return err
+		}
+		token = t
+	}
+
+	tokenValue := ""
+	if token != nil {
+		tokenValue = token.Value
+	}
+	httpServer, api, err := buildHTTPServer(rt, srv, tokenValue)
+	if err != nil {
+		return err
+	}
+	defer api.Close()
+	return runServer(ctx, errw, httpServer, api, srv.Listen, token)
 }
 
-// buildHTTPServer assembles the HTTP+SSE server from the resolved serve
-// settings: the in-process protocol Runtime, the serve-process directory
-// context the frontend reads on initialize (API.md §7.1 — cwd seeds a new
-// session's default working dir, home anchors ~-scoped lookups; both
-// default to the user's home), and a runtime health probe. tokenValue is
-// the local-process gate token ("" when the gate is disabled).
-func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyrahttp.Server, *server.Server, error) {
+// buildHTTPServer assembles the HTTP+SSE server from the resolved settings.
+func buildHTTPServer(rt *lyraruntime.Runtime, srv config.ServerConfig, tokenValue string) (*lyrahttp.Server, *server.Server, error) {
 	info := lyrahttp.ServerInfoOrDefault()
+	info.Version = resolvedVersion()
 	if home, err := os.UserHomeDir(); err == nil {
 		info.Cwd = home
 		info.Home = home
@@ -149,7 +77,7 @@ func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyra
 	}
 
 	api, err := server.New(server.Config{
-		Runtime:     a.runtime(),
+		Runtime:     rt,
 		ServerInfo:  info,
 		Checkpoints: workspace.NewCheckpoints(checkpointDir),
 	})
@@ -157,7 +85,7 @@ func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyra
 		return nil, nil, err
 	}
 
-	caps := server.Capabilities(a.runtime())
+	caps := server.Capabilities(rt)
 	httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
 		Runtime:         api,
 		Addr:            srv.Listen,
@@ -180,21 +108,27 @@ func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyra
 		AgentDocsLister: agentDocsLister(),
 	})
 	if err != nil {
+		api.Close()
 		return nil, nil, err
 	}
 	return httpServer, api, nil
 }
 
-// agentDocsLister returns an AgentDocsLister wired to the server's
-// working directory (process cwd at construction time, locked once
-// so a later `chdir` doesn't shift discovery to a different tree).
-// Discovery walks the same paths the engine uses, so /v2/info's
-// agentDocs field reflects exactly what the model will see.
+// resolvedVersion keeps HTTP identity and telemetry resource metadata aligned:
+// an explicit link-time version wins, then Go module build info, then "dev".
+func resolvedVersion() string {
+	if version != "" && version != "dev" {
+		return version
+	}
+	return lyrahttp.ServerInfoOrDefault().Version
+}
+
+// agentDocsLister returns an AgentDocsLister wired to the server's working
+// directory (process cwd at construction time, locked once so a later chdir
+// doesn't shift discovery to a different tree).
 func agentDocsLister() lyrahttp.AgentDocsLister {
 	cwd, err := os.Getwd()
 	if err != nil {
-		// No usable cwd ⇒ omit the field entirely. Nil lister tells
-		// the Server to skip rendering the key.
 		return nil
 	}
 	home, _ := os.UserHomeDir()
@@ -214,54 +148,56 @@ func agentDocsLister() lyrahttp.AgentDocsLister {
 	}
 }
 
-// runServer launches the server, blocks until it returns or a
-// shutdown signal arrives, then drains with a 10s budget.
-func (a *App) runServer(ctx context.Context, httpServer *lyrahttp.Server, api *server.Server, addr string, token *lyrahttp.LocalToken, a2aServer *http.Server) error {
+// runServer launches the server, blocks until it returns or a shutdown signal
+// arrives, then drains with a 10s budget.
+func runServer(ctx context.Context, errw io.Writer, httpServer *lyrahttp.Server, api *server.Server, addr string, token *lyrahttp.LocalToken) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
-	// The scheduled-run worker shares the serve lifetime: it fires due schedules
-	// as headless runs and stops when the signal ctx is canceled. No-op when
-	// scheduling is unconfigured.
-	go api.RunScheduler(ctx)
-
-	// Buffered for both listeners so a failing one never blocks on send.
-	errs := make(chan error, 2)
+	// The scheduled-run worker shares the server lifetime: it fires due
+	// schedules as headless runs and is joined before process resources close.
+	schedulerDone := make(chan struct{})
 	go func() {
-		fmt.Fprintf(a.Err, "[lyra] http listening on %s\n", addr)
-		fmt.Fprintf(a.Err, "[lyra]   POST /v2/rpc/{method}     JSON-RPC (streaming methods → text/event-stream)\n")
-		fmt.Fprintf(a.Err, "[lyra]   GET  /v2/info             metadata (no auth)\n")
-		fmt.Fprintf(a.Err, "[lyra]   GET  /v2/health           liveness\n")
+		defer close(schedulerDone)
+		api.RunScheduler(ctx)
+	}()
+	defer func() {
+		stop()
+		<-schedulerDone
+	}()
+
+	errs := make(chan error, 1)
+	go func() {
+		fmt.Fprintf(errw, "[lyra] http listening on %s\n", addr)
+		fmt.Fprintf(errw, "[lyra]   POST /v2/rpc/{method}     JSON-RPC (streaming methods -> text/event-stream)\n")
+		fmt.Fprintf(errw, "[lyra]   GET  /v2/info             metadata (no auth)\n")
+		fmt.Fprintf(errw, "[lyra]   GET  /v2/health           liveness\n")
 		if token != nil {
-			fmt.Fprintf(a.Err, "[lyra] local-token gate active; token at %s\n", token.Path)
+			fmt.Fprintf(errw, "[lyra] local-token gate active; token at %s\n", token.Path)
 		} else {
-			fmt.Fprintln(a.Err, "[lyra] local-token gate disabled (--no-local-token)")
+			fmt.Fprintln(errw, "[lyra] local-token gate disabled")
 		}
 		errs <- httpServer.Start()
 	}()
-
-	if a2aServer != nil {
-		fmt.Fprintf(a.Err, "[lyra] A2A endpoint on %s (POST %s, GET /.well-known/agent-card.json)\n", a2aServer.Addr, a2aRPCPattern)
-		go func() { errs <- a2aServer.ListenAndServe() }()
-	}
 
 	select {
 	case err := <-errs:
 		if errors.Is(err, http.ErrServerClosed) || err == nil {
 			return nil
 		}
-		return a.fatalErr(err)
+		return err
 	case <-ctx.Done():
-		fmt.Fprintln(a.Err, "[lyra] shutdown requested, draining...")
+		fmt.Fprintln(errw, "[lyra] shutdown requested, draining...")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	if a2aServer != nil {
-		_ = a2aServer.Shutdown(shutdownCtx)
+	shutdownErr := httpServer.Shutdown(shutdownCtx)
+	if shutdownErr != nil {
+		shutdownErr = errors.Join(shutdownErr, httpServer.Close())
 	}
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		return a.fatalErr(err)
+	serveErr := <-errs
+	if errors.Is(serveErr, http.ErrServerClosed) {
+		serveErr = nil
 	}
-	return nil
+	return errors.Join(shutdownErr, serveErr)
 }

@@ -19,8 +19,12 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	if req.ProcessID == "" {
 		return TurnHandle{}, errors.New("turn: ProcessID is required")
 	}
+	if s.isClosed() {
+		return TurnHandle{}, ErrDispatcherClosed
+	}
 	handle := TurnHandle{SessionID: req.SessionID, TurnID: newTurnID()}
 	state := newTurnState(ctx, handle)
+	state.setInterruptKinds(req.InterruptKinds)
 	// Re-resolve the parked run's per-run client from the persisted
 	// provider+model so the continuation runs against the SAME model (mirrors
 	// the StartTurn path). No selection / no resolver / a provider since removed
@@ -49,14 +53,19 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	})
 	if err != nil {
 		state.cancel()
+		state.span.End()
 		return TurnHandle{}, err
 	}
 	state.lifecycle.setRoot(proc.ID())
 	state.setProc(proc)
 
-	s.mu.Lock()
-	s.turns[handle.TurnID] = state
-	s.mu.Unlock()
+	if !s.register(state) {
+		_ = proc.Cancel()
+		discardProcess(state.ctx, proc)
+		state.cancel()
+		state.span.End()
+		return TurnHandle{}, ErrDispatcherClosed
+	}
 
 	// The restored process is re-parked (RestoreTurn re-ticked it). Deliver the
 	// decision and drive the continuation. On a resume error resumeAndDrive has
@@ -66,7 +75,7 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	// when its openSegment then can't find the turn). A nil error means the
 	// continuation is driving and the caller subscribes via [Events].
 	if err := s.resumeAndDrive(state, interrupts.Resolution{Approved: req.Approved}); err != nil {
-		return TurnHandle{}, err
+		return TurnHandle{}, errors.Join(ErrRehydrateCommitted, err)
 	}
 	return handle, nil
 }

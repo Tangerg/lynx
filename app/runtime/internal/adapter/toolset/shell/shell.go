@@ -134,7 +134,10 @@ func (t *tools) run(ctx context.Context, a shellArgs) (string, error) {
 		return "", err
 	}
 
-	id := t.shells.Launch(ctx, turnctx.TurnCwd(ctx, t.defaultWorkdir), a.Command, a.timeout())
+	id, err := t.shells.Launch(ctx, turnctx.TurnCwd(ctx, t.defaultWorkdir), a.Command, a.timeout())
+	if err != nil {
+		return "", err
+	}
 	if a.RunInBackground {
 		return backgroundedJSON(id), nil
 	}

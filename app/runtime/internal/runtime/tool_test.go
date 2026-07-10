@@ -7,27 +7,31 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-type toolCatalog struct {
+type toolRegistryFixture struct {
 	tools []tool.Tool
 }
 
-func (c toolCatalog) List(context.Context) ([]tool.Tool, error) {
+func (c toolRegistryFixture) List(context.Context) ([]tool.Tool, error) {
 	return c.tools, nil
 }
 
-type toolInvoker struct {
+func (toolRegistryFixture) Invoke(context.Context, string, string) (string, error) { return "", nil }
+
+type toolRegistryRecorder struct {
 	name      string
 	arguments string
 }
 
-func (i *toolInvoker) Invoke(_ context.Context, name string, arguments string) (string, error) {
+func (i *toolRegistryRecorder) Invoke(_ context.Context, name string, arguments string) (string, error) {
 	i.name = name
 	i.arguments = arguments
 	return "ok", nil
 }
 
-func TestRuntimeListRegisteredToolsUsesCatalogPort(t *testing.T) {
-	rt := &Runtime{toolCatalog: toolCatalog{tools: []tool.Tool{{Name: "read"}}}}
+func (*toolRegistryRecorder) List(context.Context) ([]tool.Tool, error) { return nil, nil }
+
+func TestRuntimeListRegisteredToolsUsesRegistry(t *testing.T) {
+	rt := &Runtime{tools: toolRegistryFixture{tools: []tool.Tool{{Name: "read"}}}}
 
 	got, err := rt.ListRegisteredTools(context.Background())
 	if err != nil {
@@ -38,9 +42,9 @@ func TestRuntimeListRegisteredToolsUsesCatalogPort(t *testing.T) {
 	}
 }
 
-func TestRuntimeInvokeRegisteredToolUsesInvocationPort(t *testing.T) {
-	invoker := &toolInvoker{}
-	rt := &Runtime{toolInvocations: invoker}
+func TestRuntimeInvokeRegisteredToolUsesRegistry(t *testing.T) {
+	invoker := &toolRegistryRecorder{}
+	rt := &Runtime{tools: invoker}
 
 	got, err := rt.InvokeRegisteredTool(context.Background(), "shell", `{"command":"true"}`)
 	if err != nil {

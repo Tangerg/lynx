@@ -97,15 +97,14 @@ func TestAuthGateWrongToken(t *testing.T) {
 }
 
 // TestAuthGateCorrectToken — correct bearer goes through to the
-// dispatcher (which, since we haven't initialize-d, returns protocol
-// violation — but we only care that we cleared the gate).
+// dispatcher. We only care that the token gate was cleared.
 func TestAuthGateCorrectToken(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	// initialize is allowed pre-handshake
-	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
-	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runtime.initialize", bytes.NewReader(body))
+	// discover is an ordinary authenticated RPC method.
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
+	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runtime.discover", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer test-token")
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := netHTTP.DefaultClient.Do(req)
@@ -146,7 +145,7 @@ func TestCORSPreflight(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	req, _ := netHTTP.NewRequest("OPTIONS", ts.URL+"/v2/rpc/runtime.initialize", nil)
+	req, _ := netHTTP.NewRequest("OPTIONS", ts.URL+"/v2/rpc/runtime.discover", nil)
 	req.Header.Set("Origin", "http://app")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	req.Header.Set("Access-Control-Request-Headers", "Authorization, Content-Type")
@@ -175,8 +174,8 @@ func TestCORSAllowedOriginOnPost(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
-	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runtime.initialize", bytes.NewReader(body))
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
+	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runtime.discover", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer test-token")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "http://app")
@@ -206,8 +205,8 @@ func TestCORSDisallowedOrigin(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
-	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runtime.initialize", bytes.NewReader(body))
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
+	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runtime.discover", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer test-token")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "http://evil")

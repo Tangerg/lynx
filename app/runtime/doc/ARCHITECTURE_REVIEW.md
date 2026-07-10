@@ -12,7 +12,7 @@
 > ---
 >
 > **状态更新（2026-07-06，`codex/runtime-architecture-refactor` 分支）—— 结论 #3 的两处债已全部落地，架构到 A：**
-> - **rollback（原 P0-1）✅**：跨服务写集已下沉 `internal/kernel/lifecycle` 的 `Coordinator.Rollback` / `RollbackResolved`（`TruncateMessages` + `DeleteRun` + `Interrupts.Delete` + 子树 purge 在一个 `RunInTx` 里）。`delivery/server/rollback.go`（今 101 LOC，非 216）只剩 wire 解码 → 抬升 `RunNode` → 调 `ResolveRollbackBoundary`/`RollbackResolved` → workspace checkpoint 恢复（刻意留适配器侧，见 coordinator 包 doc）→ 拼响应，**零 inline 写集**。
+> - **rollback（原 P0-1）✅**：跨服务写集已下沉 `internal/kernel/lifecycle` 的 `Coordinator.Rollback` / runtime 的 `RollbackResolved`（`TruncateMessages` + `DeleteRun` + `Interrupts.Delete` + 子树 purge 在一个 `RunInTx` 里）。`delivery/server/rollback.go` 只剩 wire 解码 → 抬升 `RunNode` → `transcript.Timeline.BoundaryAt` → `RollbackResolved` → workspace checkpoint 恢复（刻意留适配器侧，见 coordinator 包 doc）→ 拼响应，**零 inline 写集**。
 > - **pump（原 P0-2）✅**：多服务协调已下沉 `internal/kernel/runsegment` 的 effects（`BeforeLive`/`AfterLive`/`Finish` 做持久化 + 中断登记 + 文件变更通知 + snapshot）。`pump.go` 只剩 `translator → 分配 eventId → hub.Append → 调 effects`。
 > - 下文 §2.5 / §3.2 / §4 差异②③ / §5 P0 描述的是**落地前**的现状，保留作评审考古；其 actionable P0 现已 DONE。
 
@@ -188,7 +188,7 @@ cmd/lyra (组合根最外壳)
 
 ```
 lyra/
-├── cmd/lyra/                         Cobra CLI + main.go（组合根最外壳）
+├── cmd/lyra/                         server-only main.go（组合根最外壳）
 │
 ├── internal/
 │   ├── config/                       纯数据：LYRA_* env + Config struct

@@ -1,29 +1,29 @@
-// Runtime handshake state — the server capabilities negotiated by
-// `runtime.initialize`, so UI can gate optional features behind what the
-// server actually supports.
+// Runtime discovery state — the server capabilities returned by
+// `runtime.discover` or `/v2/info`, so UI can gate optional features behind
+// what the server actually supports.
 //
 // Per docs/protocol/API.md §6.1: "Frontend treats every features.* as false by
-// default" — so when the store is empty (pre-handshake), every capability
+// default" — so when the store is empty (before discovery), every capability
 // selector returns false. UI MUST handle that gracefully (e.g. hide a button
 // instead of crashing).
 //
 // Separate concern from agentStore (per-session view state), uiStore (theme /
-// layout / motion prefs), and agentSessionStore (session tabs). The handshake
+// layout / motion prefs), and agentSessionStore (session tabs). The discovery
 // result is global and runtime-lifetime.
 
 import { create } from "zustand";
 import type { ServerCapabilities } from "@/rpc";
 
 interface RuntimeState {
-  /** What the server can do. Null before handshake. */
+  /** What the server can do. Null before discovery. */
   capabilities: ServerCapabilities | null;
-  /** Mark handshake complete with the negotiated server capabilities. */
-  setHandshake: (capabilities: ServerCapabilities) => void;
+  /** Store discovered server capabilities. */
+  setDiscovery: (capabilities: ServerCapabilities) => void;
 }
 
 export const useRuntimeStore = create<RuntimeState>((set) => ({
   capabilities: null,
-  setHandshake: (capabilities) => set({ capabilities }),
+  setDiscovery: (capabilities) => set({ capabilities }),
 }));
 
 // Selector hooks
@@ -51,7 +51,7 @@ export type ServerFeature =
 
 /**
  * Returns true iff the server has advertised this feature as enabled.
- * Returns false pre-handshake — UI must treat that as "feature off"
+ * Returns false before discovery — UI must treat that as "feature off"
  * (don't show a button users can't actually use).
  */
 export function useServerFeature(feature: ServerFeature): boolean {
@@ -60,7 +60,7 @@ export function useServerFeature(feature: ServerFeature): boolean {
 
 /** Imperative twin of {@link useServerFeature} for non-React call sites
  *  (palette commands, context-menu handlers, module-level wiring). Same
- *  pre-handshake default: false. */
+ *  pre-discovery default: false. */
 export function serverFeature(feature: ServerFeature): boolean {
   return useRuntimeStore.getState().capabilities?.features[feature] === true;
 }

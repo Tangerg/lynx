@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/cors"
 )
 
-// DefaultCORSOrigins is the allowlist baked in for `lyra serve` when
-// the operator hasn't supplied --cors-origin. Covers the Web frontend
+// DefaultCORSOrigins is the allowlist baked in for the runtime HTTP server
+// when the operator hasn't supplied CORS origins. Covers the Web frontend
 // shells we ship with + the dev servers we use day to day.
 var DefaultCORSOrigins = []string{
 	"tauri://localhost",
@@ -38,7 +38,7 @@ func corsMiddleware(origins []string) func(http.Handler) http.Handler {
 		// backend trace. Trace correlation is W3C-only — no X-Trace-Id.
 		// Omitting the trace headers fails the preflight for EVERY method,
 		// since the FE injects traceparent unconditionally.
-		AllowedHeaders:   []string{"Authorization", "Content-Type", "Last-Event-Id", "X-Protocol-Version", "X-Idempotency-Key", "traceparent", "tracestate", "baggage"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "Last-Event-Id", "X-Idempotency-Key", "traceparent", "tracestate", "baggage"},
 		ExposedHeaders:   []string{"X-Server", "X-Method"},
 		AllowCredentials: true,
 		MaxAge:           600,

@@ -100,11 +100,10 @@ lyra/internal/
 
 ```
 lyra/
-├── cmd/lyra/                           CLI 入口
-│   ├── app.go                          App 装配 + ensureRuntime
-│   ├── serve.go / agents.go / repl.go / chat.go / memory.go / session.go / version.go
-│   ├── root.go                         cobra root + subcommand 注册
-│   └── runner.go                       main() 入口
+├── cmd/lyra/                           runtime server 进程入口
+│   ├── main.go                         拒绝子命令，只启动 HTTP runtime server
+│   ├── serve.go                        HTTP transport + scheduler + graceful shutdown
+│   └── runtime_bootstrap.go            load config → stores → seed → runtime.New
 │
 ├── internal/
 │   ├── config/                         纯数据
@@ -129,7 +128,7 @@ lyra/
 │   │   └── transport/                 envelope I/O
 │   │       ├── transport.go           Transport 接口 + Message 类型别名
 │   │       ├── http/                  HTTP+SSE transport
-│   │       └── inprocess/             同进程 chan transport
+│   │       └── inprocess/             同进程 chan transport（未来 CLI/TUI）
 │   │
 │   ├── kernel/                         微内核(定义 port + 驱动 agent loop + use-case 编排)
 │   │   ├── port.go                     核定义的窄 port + DTO(Compactor/Extractor/SteeringSink)

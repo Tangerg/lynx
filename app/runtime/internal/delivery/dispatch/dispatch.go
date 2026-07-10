@@ -3,29 +3,19 @@ package dispatch
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 )
 
 // Dispatcher routes inbound JSON-RPC messages to typed Runtime
-// methods. One instance per connection — it carries the per-conn
-// handshake state (initialized) which the HTTP transport keys by
-// request affinity and the InProcess transport sees as a single
-// long-lived value.
+// methods. It is stateless; request-scoped metadata is carried on ctx.
 type Dispatcher struct {
 	api protocol.Runtime
-
-	// initialized flips once runtime.initialize succeeds. Until then
-	// every business method returns capability_not_negotiated. atomic
-	// so concurrent dispatch goroutines see a consistent view.
-	initialized atomic.Bool
 }
 
 // New builds a Dispatcher bound to the given Runtime. The returned
-// Dispatcher is safe for parallel Handle calls; per-conn state lives on
-// it, so use one Dispatcher per logical connection.
+// Dispatcher is safe for parallel Handle calls.
 func New(api protocol.Runtime) *Dispatcher {
 	return &Dispatcher{api: api}
 }
@@ -70,18 +60,26 @@ func (d *Dispatcher) Handle(ctx context.Context, msg transport.Message, expected
 				fmt.Sprintf("id must be a JSON string, got %T", req.ID.Raw())))
 		}
 	}
+	// Metadata stripping rewrites Params for typed decoding. Work on a shallow
+	// request copy so an in-process caller can safely retain or reuse its message;
+	// Params bytes themselves are read-only and replaced, never mutated in place.
+	requestCopy := *req
+	req = &requestCopy
+
+	var metaErr *transport.Error
+	ctx, metaErr = bindRequestMeta(ctx, req)
+	if metaErr != nil {
+		if !req.IsCall() {
+			return HandleResult{}
+		}
+		return responseError(req.ID, metaErr)
+	}
 
 	// Notifications: no response. We still dispatch so cancel-style
 	// notifications take effect.
 	if !req.IsCall() {
 		d.handleNotification(ctx, req)
 		return HandleResult{}
-	}
-
-	// Gate business methods behind initialize.
-	if !d.initialized.Load() && req.Method != MethodInitialize && req.Method != MethodPing {
-		return responseError(req.ID, notInitialized(
-			"runtime.initialize must succeed before any business method"))
 	}
 
 	return d.dispatchRequest(ctx, req)

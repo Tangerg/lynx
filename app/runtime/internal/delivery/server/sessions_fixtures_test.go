@@ -12,10 +12,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
@@ -29,7 +29,7 @@ type stubRuntime struct {
 	RuntimePort
 	sess        session.Store
 	model       string
-	skills      []kernel.SkillInfo
+	skills      []skills.Info
 	recipes     []recipes.Recipe
 	mcpTools    []toolport.MCPToolInfo
 	mcpStatuses []toolport.MCPServerStatus
@@ -166,8 +166,8 @@ func (s stubRuntime) InjectTurnSteering(ctx context.Context, handle turn.TurnHan
 	return s.turnDispatcher().InjectSteering(ctx, handle, message)
 }
 
-func (s stubRuntime) ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error {
-	return s.turnDispatcher().Resume(ctx, handle, resolution)
+func (s stubRuntime) ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
+	return s.turnDispatcher().Resume(ctx, handle, resolution, interruptKinds)
 }
 
 func (s stubRuntime) RehydrateTurn(ctx context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
@@ -182,10 +182,6 @@ func (s stubRuntime) TurnProcessID(ctx context.Context, handle turn.TurnHandle) 
 	return s.turnDispatcher().ProcessID(ctx, handle)
 }
 
-func (s stubRuntime) SetTurnInterruptKinds(kinds []string) {
-	s.turnDispatcher().SetInterruptKinds(kinds)
-}
-
 type stubLifecycleTurns struct {
 	rt stubRuntime
 }
@@ -194,8 +190,8 @@ func (t stubLifecycleTurns) Cancel(ctx context.Context, handle turn.TurnHandle) 
 	return t.rt.CancelTurn(ctx, handle)
 }
 
-func (t stubLifecycleTurns) Resume(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution) error {
-	return t.rt.ResumeTurn(ctx, handle, resolution)
+func (t stubLifecycleTurns) Resume(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
+	return t.rt.ResumeTurn(ctx, handle, resolution, interruptKinds)
 }
 
 func (t stubLifecycleTurns) Rehydrate(ctx context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
@@ -291,12 +287,15 @@ func (s stubRuntime) CancelRunBinding(ctx context.Context, run lifecycle.RunTurn
 	return lifecycle.New(stubLifecycleStores{rt: s}).CancelRunBinding(ctx, stubLifecycleTurns{rt: s}, run)
 }
 
-func (s stubRuntime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution) (lifecycle.ResumedInterrupt, error) {
-	return lifecycle.New(stubLifecycleStores{rt: s}).ResumeClaimedInterrupt(ctx, stubLifecycleTurns{rt: s}, parentRunID, resolution)
+func (s stubRuntime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution, interruptKinds []string) (lifecycle.ResumedInterrupt, error) {
+	return lifecycle.New(stubLifecycleStores{rt: s}).ResumeClaimedInterrupt(ctx, stubLifecycleTurns{rt: s}, parentRunID, resolution, interruptKinds)
 }
 
-func (s stubRuntime) RollbackResolved(ctx context.Context, sessionID string, boundary lifecycle.RollbackBoundary) error {
-	return lifecycle.New(stubLifecycleStores{rt: s}).RollbackResolved(ctx, stubLifecycleTurns{rt: s}, sessionID, boundary)
+func (s stubRuntime) RollbackResolved(ctx context.Context, sessionID string, boundary transcript.Boundary) error {
+	if len(boundary.Dropped) == 0 {
+		return nil
+	}
+	return lifecycle.New(stubLifecycleStores{rt: s}).Rollback(ctx, stubLifecycleTurns{rt: s}, sessionID, boundary)
 }
 
 func (s stubRuntime) ForkSession(ctx context.Context, spec lifecycle.ForkSpec) (session.Session, error) {
@@ -380,7 +379,7 @@ func (s stubRuntime) SeedHistory(_ context.Context, id string, msgs []chat.Messa
 	}
 	return nil
 }
-func (s stubRuntime) ListSkills(context.Context, string) ([]kernel.SkillInfo, error) {
+func (s stubRuntime) ListSkills(context.Context, string) ([]skills.Info, error) {
 	return s.skills, nil
 }
 func (s stubRuntime) ListRecipes(context.Context, string) ([]recipes.Recipe, error) {

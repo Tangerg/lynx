@@ -211,6 +211,9 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("Rehydrate returned nil error despite a failed resume; want the resume error surfaced")
 	}
+	if !errors.Is(err, turn.ErrRehydrateCommitted) {
+		t.Fatalf("Rehydrate error = %v, want ErrRehydrateCommitted marker", err)
+	}
 	if handle.TurnID != "" {
 		t.Errorf("Rehydrate returned a handle (%q) for a torn-down turn; want the zero handle", handle.TurnID)
 	}

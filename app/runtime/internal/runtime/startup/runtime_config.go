@@ -1,6 +1,7 @@
 package startup
 
 import (
+	"io"
 	"path/filepath"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -18,6 +19,7 @@ import (
 // process adapters.
 func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.Client, providers providersvc.Registry, hooks lyraruntime.HookResolver) lyraruntime.Config {
 	return lyraruntime.Config{
+		Resources: []io.Closer{stores},
 		Engine: kernel.Config{
 			ChatClient:      client,
 			Pricing:         pricing.Catalog(),

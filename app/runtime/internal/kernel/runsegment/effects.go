@@ -5,6 +5,8 @@ package runsegment
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -63,6 +65,11 @@ type Checkpoints interface {
 	Snapshot(ctx context.Context, sessionID, cwd, runID string) error
 }
 
+// TaskLauncher starts request-detached work owned by its component lifecycle.
+type TaskLauncher interface {
+	Start(parent context.Context, task func(context.Context)) bool
+}
+
 // FileChangePublisher nudges live workspace subscribers after a tool-owned file
 // mutation. It is deliberately path-only: the protocol adapter owns the wire
 // WorkspaceEvent shape.
@@ -73,6 +80,7 @@ type Config struct {
 	Stores             Stores
 	Processes          ProcessLookup
 	Checkpoints        Checkpoints
+	Tasks              TaskLauncher
 	PublishFileChanges FileChangePublisher
 }
 
@@ -82,6 +90,7 @@ type Effects struct {
 	stores      Stores
 	processes   ProcessLookup
 	checkpoints Checkpoints
+	tasks       TaskLauncher
 	publish     FileChangePublisher
 }
 
@@ -91,6 +100,7 @@ func New(cfg Config) *Effects {
 		stores:      cfg.Stores,
 		processes:   cfg.Processes,
 		checkpoints: cfg.Checkpoints,
+		tasks:       cfg.Tasks,
 		publish:     cfg.PublishFileChanges,
 	}
 }
@@ -141,10 +151,11 @@ type Finish struct {
 // BeforeLive runs side effects that must complete before the terminal event is
 // visible to subscribers. Today that means only the interrupt record: a client
 // may call runs.resume as soon as it observes run.finished{interrupt}.
-func (e *Effects) BeforeLive(ctx context.Context, ev Event) {
+func (e *Effects) BeforeLive(ctx context.Context, ev Event) error {
 	if ev.Interrupt != nil {
-		e.recordInterrupt(ctx, *ev.Interrupt)
+		return e.recordInterrupt(ctx, *ev.Interrupt)
 	}
+	return nil
 }
 
 // AfterLive runs side effects that must not block live delivery: durable
@@ -168,22 +179,36 @@ func (e *Effects) Finish(ctx context.Context, fin Finish) {
 	if fin.Parked {
 		return
 	}
-	ctx = context.WithoutCancel(ctx)
 	if e.checkpoints != nil {
-		go e.snapshot(ctx, fin.SessionID, fin.RunID)
+		e.startBackground(ctx, func(ctx context.Context) {
+			e.snapshot(ctx, fin.SessionID, fin.RunID)
+		})
 	}
 	if fin.OpeningUserText != "" {
-		go e.title(ctx, fin.SessionID, fin.OpeningUserText)
+		e.startBackground(ctx, func(ctx context.Context) {
+			e.title(ctx, fin.SessionID, fin.OpeningUserText)
+		})
 	}
 }
 
-func (e *Effects) recordInterrupt(ctx context.Context, in Interrupt) {
-	if e.stores == nil || e.stores.Interrupts() == nil || e.processes == nil {
+func (e *Effects) startBackground(ctx context.Context, task func(context.Context)) {
+	if e.tasks != nil {
+		e.tasks.Start(ctx, task)
 		return
+	}
+	task(ctx)
+}
+
+func (e *Effects) recordInterrupt(ctx context.Context, in Interrupt) error {
+	if e.stores == nil || e.stores.Interrupts() == nil || e.processes == nil {
+		return errors.New("runsegment: interrupt persistence is unavailable")
 	}
 	processID, err := e.processes.ProcessID(ctx, in.Handle)
 	if err != nil {
-		trace.SpanFromContext(ctx).RecordError(err)
+		return fmt.Errorf("runsegment: resolve interrupt process: %w", err)
+	}
+	if processID == "" {
+		return errors.New("runsegment: interrupt process id is empty")
 	}
 	if err := e.stores.Interrupts().Put(ctx, interrupts.Pending{
 		ParentRunID:  in.RunID,
@@ -196,8 +221,9 @@ func (e *Effects) recordInterrupt(ctx context.Context, in Interrupt) {
 		DrainedTools: in.DrainedTools,
 		CreatedAt:    time.Now().UTC(),
 	}); err != nil {
-		trace.SpanFromContext(ctx).RecordError(err)
+		return fmt.Errorf("runsegment: persist interrupt: %w", err)
 	}
+	return nil
 }
 
 func (e *Effects) recordItem(ctx context.Context, item transcript.Item) {

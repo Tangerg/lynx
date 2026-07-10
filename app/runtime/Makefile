@@ -37,7 +37,7 @@ start: ## Launch the server in the background (loads ./config/config.yaml)
 	@if [ -f $(PID) ] && kill -0 $$(cat $(PID)) 2>/dev/null; then \
 		echo "[make] already running (pid $$(cat $(PID))) — use 'make restart'"; exit 1; \
 	fi
-	@nohup ./$(BIN) serve > $(LOG) 2>&1 & echo $$! > $(PID)
+	@nohup ./$(BIN) > $(LOG) 2>&1 & echo $$! > $(PID)
 	@echo "[make] started pid $$(cat $(PID)), logging to ./$(LOG)"
 	@$(MAKE) --no-print-directory health
 
@@ -74,7 +74,7 @@ logs: ## Tail the server log
 	@tail -f $(LOG)
 
 run: build ## Build + run in the foreground (Ctrl-C to stop)
-	./$(BIN) serve
+	./$(BIN)
 
 clean: stop ## Stop the server and remove build/runtime artifacts
 	rm -f $(BIN) $(PID) $(LOG)

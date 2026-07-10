@@ -23,7 +23,7 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 		Approval:        approvalPolicy,
 		Interruption:    kernel.Interrupt[interrupts.Resolution],
 		Schedules:       cfg.ScheduleRegistry,
-		MCPDisabled:     mcpEnv.disabled,
+		MCPToolDisabled: mcpEnv.toolDisabled,
 		CodebaseIndex:   codebaseIdx,
 	})
 	if err != nil {
