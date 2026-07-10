@@ -11,11 +11,10 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -49,10 +48,10 @@ type Server struct {
 	rt         RuntimePort
 	serverInfo protocol.ServerInfo
 
-	// runs tracks active run segments and admission claims. The domain registry
-	// owns the single-writer-per-session invariant; delivery supplies only the
-	// in-process resources needed to stream and cancel live runs.
-	runs runs.Registry[*runHandle]
+	// coordinator owns the run lifecycle — admission, the per-run event Journal,
+	// the segment pumps, cancel — the application-side home of what delivery used
+	// to track inline. Built in New (its durable effects close over this Server).
+	coordinator *runs.Coordinator
 
 	// eventSeq is the server-wide monotonic source for RunEvent ids
 	// (TRANSPORT.md §9.1). A single counter across all runs is strictly
@@ -83,92 +82,21 @@ func (s *Server) nextEventID() string {
 	return protocol.IDPrefixEvent + fmt.Sprintf("%011d", s.eventSeq.Add(1))
 }
 
-// Close cancels and joins request-detached delivery work, including run pumps
-// and MCP connection actions. It is safe to call repeatedly.
+// Close cancels and joins request-detached delivery work: the run Coordinator's
+// pumps first, then MCP connection actions. Safe to call repeatedly.
 func (s *Server) Close() {
-	if s != nil {
-		s.tasks.Close()
-	}
-}
-
-// runHandle holds delivery-owned resources for one in-flight run segment.
-type runHandle struct {
-	mu              sync.Mutex
-	cancel          context.CancelFunc
-	owner           context.Context
-	hub             *runs.Journal[protocol.RunEvent]
-	cancelRequested bool
-	cancelReason    string
-}
-
-// requestCancel linearizes cancellation with interrupt publication. Once it
-// returns, no new interrupt can be committed for this run; a commit already in
-// progress has completed before cancellation proceeds to delete its durable
-// record.
-func (h *runHandle) requestCancel(reason string) {
-	if h == nil {
+	if s == nil {
 		return
 	}
-	h.mu.Lock()
-	h.cancelRequested = true
-	h.cancelReason = reason
-	cancel := h.cancel
-	h.mu.Unlock()
-	if cancel != nil {
-		cancel()
+	if s.coordinator != nil {
+		s.coordinator.Close()
 	}
+	s.tasks.Close()
 }
 
-// commitInterrupt runs the durable commit and live publication as one critical
-// section relative to requestCancel. committed=false means cancellation won the
-// race and commit was deliberately not called.
-func (h *runHandle) commitInterrupt(commit func() error) (committed bool, err error) {
-	if h == nil {
-		return false, errors.New("server: missing live run handle")
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.cancelRequested {
-		return false, nil
-	}
-	if err := commit(); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-func (h *runHandle) reason() string {
-	if h == nil {
-		return ""
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.cancelReason
-}
-
-func (h *runHandle) stop() {
-	if h == nil {
-		return
-	}
-	h.mu.Lock()
-	cancel := h.cancel
-	h.mu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-}
-
-func (h *runHandle) cleanupContext(fallback context.Context) (context.Context, context.CancelFunc) {
-	base := context.WithoutCancel(fallback)
-	if h != nil {
-		h.mu.Lock()
-		if h.owner != nil {
-			base = h.owner
-		}
-		h.mu.Unlock()
-	}
-	return context.WithTimeout(base, runCleanupTimeout)
-}
+// runCleanupTimeout bounds the request-detached work that drives a parked run's
+// durable cancel, so a stuck store can't wedge cancellation.
+const runCleanupTimeout = 5 * time.Second
 
 // New builds a Server. Returns an error when Runtime is nil. The concrete
 // *Server is returned (it satisfies [protocol.Runtime]) so the composition root
@@ -187,12 +115,17 @@ func New(cfg Config) (*Server, error) {
 	if checkpoints == nil {
 		checkpoints = workspace.NewCheckpoints("") // disabled: VCS reads still work, checkpoints off
 	}
-	return &Server{
+	srv := &Server{
 		rt:          cfg.Runtime,
 		serverInfo:  cfg.ServerInfo,
 		wsHub:       newWorkspaceHub(),
 		checkpoints: checkpoints,
-	}, nil
+	}
+	// The run Coordinator's durable effects close over srv (workspace publish +
+	// checkpoints), so it is built here, after the Server value exists. evt_
+	// cursor minting stays a delivery concern, injected as the CursorMinter.
+	srv.coordinator = runs.NewCoordinator(srv.rt, srv.runSegmentEffects(), cursorMinter{next: srv.nextEventID})
+	return srv, nil
 }
 
 // Capabilities returns this Server's capability snapshot (API.md §9),

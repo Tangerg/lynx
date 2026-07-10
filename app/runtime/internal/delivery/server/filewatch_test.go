@@ -92,9 +92,9 @@ func TestRunSegmentPublishesToolFileChange(t *testing.T) {
 	}
 
 	// write → files.changed{cwd, [path]}
-	ev := s.sideEffectEvent(
+	ev := sideEffectEvent(
 		"run_1", "ses_1", "", "/proj",
-		completed("write", "src/a.go", false), "", "",
+		completed("write", "src/a.go", false), "", "", time.Time{},
 	)
 	s.runSegmentEffects().AfterLive(context.Background(), ev)
 	select {
@@ -112,7 +112,7 @@ func TestRunSegmentPublishesToolFileChange(t *testing.T) {
 		completed("write", "src/b.go", true),
 		{Type: protocol.StreamItemCompleted, Item: &protocol.Item{Type: protocol.ItemTypeAgentMessage}},
 	} {
-		s.runSegmentEffects().AfterLive(context.Background(), s.sideEffectEvent("run_1", "ses_1", "", "/proj", ev, "", ""))
+		s.runSegmentEffects().AfterLive(context.Background(), sideEffectEvent("run_1", "ses_1", "", "/proj", ev, "", "", time.Time{}))
 	}
 	select {
 	case ev := <-events:

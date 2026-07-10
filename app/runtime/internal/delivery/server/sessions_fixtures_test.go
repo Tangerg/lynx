@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -41,7 +42,11 @@ type stubRuntime struct {
 }
 
 func newTestServer(rt RuntimePort) *Server {
-	return &Server{rt: rt}
+	s := &Server{rt: rt}
+	// Build the run Coordinator like New does, so tests exercise the real
+	// admission / lifecycle seam (its effects come from the stub runtime).
+	s.coordinator = runs.NewCoordinator(rt, s.runSegmentEffects(), cursorMinter{next: s.nextEventID})
+	return s
 }
 
 func newTestServerWithInfo(rt RuntimePort, info protocol.ServerInfo) *Server {

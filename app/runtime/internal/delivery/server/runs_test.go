@@ -3,74 +3,37 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
+	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-// durableRunEvent builds a durable wire RunEvent with a fixed-width eventId, for
-// the SubscribeRun replay test (durability derives from the type — item.completed
-// is durable).
-func durableRunEvent(seq int) protocol.RunEvent {
-	return protocol.RunEvent{
-		EventID: fmt.Sprintf("%s%011d", protocol.IDPrefixEvent, seq),
-		Event:   protocol.StreamEvent{Type: protocol.StreamItemCompleted},
-	}
-}
+// TestSubscribeRun_StreamsLiveRun verifies the streamable-HTTP subscribe
+// semantics: an actively-streaming run hands back a fresh subscription that
+// replays its backlog then tails live; anything else is run_not_found. (Backlog
+// replay / Last-Event-Id windowing is covered by the Journal's own tests.)
+func TestSubscribeRun_StreamsLiveRun(t *testing.T) {
+	s := newTestServer(&blockingRunRuntime{})
+	startLiveRun(t, s, "run_live")
 
-func TestOpenSegmentAfterServerCloseCancelsCreatedTurn(t *testing.T) {
-	turns := &recordingTurns{}
-	s := newTestServer(&stubRuntime{turns: turns})
-	s.Close()
-	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: "turn_1"}
-
-	_, _, err := s.openSegment(context.Background(), "run_1", "", handle, handle.SessionID, nil, nil, "", "")
-	if !errors.Is(err, errServerClosed) {
-		t.Fatalf("openSegment err = %v, want errServerClosed", err)
-	}
-	if len(turns.canceled) != 1 || turns.canceled[0] != handle {
-		t.Fatalf("canceled turns = %+v, want %+v", turns.canceled, handle)
-	}
-}
-
-// TestSubscribeRun_StreamsLiveRunFromHub verifies the streamable-HTTP
-// subscribe semantics: an actively-streaming run hands back a fresh hub
-// subscription that replays the durable backlog (after Last-Event-Id when
-// supplied) then tails live; anything else is run_not_found.
-func TestSubscribeRun_StreamsLiveRunFromHub(t *testing.T) {
-	h := runs.NewJournal[protocol.RunEvent]()
-	h.Append(durableRunEvent(1))
-	h.Append(durableRunEvent(2))
-	s := &Server{}
-	s.runs.Open(runs.Record{ID: "run_live"}, &runHandle{hub: h})
-
-	// From the start: replay the whole durable backlog.
 	out, events, err := s.SubscribeRun(context.Background(), "run_live")
 	if err != nil {
 		t.Fatalf("subscribe live: %v", err)
 	}
-	if out == nil || out.RunID != "run_live" {
-		t.Fatalf("subscribe live: out = %+v, want RunID run_live", out)
+	if out == nil || out.RunID != "run_live" || events == nil {
+		t.Fatalf("subscribe live: out=%+v events=%v", out, events)
 	}
-	if events == nil {
-		t.Fatal("subscribe must return a per-run stream")
-	}
-	if (<-events).EventID != durableRunEvent(1).EventID || (<-events).EventID != durableRunEvent(2).EventID {
-		t.Fatal("subscribe must replay the durable backlog in order")
-	}
-
-	// With Last-Event-Id (via ctx): replay only what's after it.
-	ctx := transport.WithLastEventID(context.Background(), durableRunEvent(1).EventID)
-	_, resumed, err := s.SubscribeRun(ctx, "run_live")
-	if err != nil {
-		t.Fatalf("subscribe resume: %v", err)
-	}
-	if (<-resumed).EventID != durableRunEvent(2).EventID {
-		t.Fatal("resume must replay only events after Last-Event-Id")
+	// The live run's opening run.started is durable, so a fresh subscription
+	// replays it.
+	select {
+	case ev := <-events:
+		if ev.RunID != "run_live" {
+			t.Fatalf("first event runId = %q, want run_live", ev.RunID)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("subscribe must replay the live run's opening event")
 	}
 
 	if _, _, err := s.SubscribeRun(context.Background(), "ghost"); !errors.Is(err, protocol.ErrRunNotFound) {

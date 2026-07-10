@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -176,7 +175,7 @@ func TestRollbackSession_Busy(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
-	s.runs.Open(runs.Record{ID: "run_live", SessionID: sess.ID}, nil)
+	s.claimSession(sess.ID) // simulate a run in flight (admission slot held)
 
 	if _, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID}); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("rollback under live run = %v, want ErrSessionBusy", err)
@@ -198,12 +197,11 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	started := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
-	s.runs.Open(runs.Record{ID: "run_1", SessionID: sess.ID, CreatedAt: started}, nil)
 
-	ev := s.sideEffectEvent("run_1", sess.ID, "", "", protocol.StreamEvent{
+	ev := sideEffectEvent("run_1", sess.ID, "", "", protocol.StreamEvent{
 		Type:    protocol.StreamRunFinished,
 		Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted},
-	}, "", "")
+	}, "", "", started)
 	s.runSegmentEffects().AfterLive(ctx, ev)
 
 	_, runs, err := rt.hist.List(ctx, sess.ID)

@@ -22,7 +22,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	admission, err := s.rt.ClaimMutationSlot(sessionClaimer{s: s}, in.SessionID)
+	admission, err := s.rt.ClaimMutationSlot(s.coordinator, in.SessionID)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, in.SessionID)

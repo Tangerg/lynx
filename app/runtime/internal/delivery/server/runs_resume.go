@@ -8,8 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
 
@@ -25,7 +27,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	pending, admission, err := s.rt.ClaimResumeSlot(ctx, sessionClaimer{s: s}, in.ParentRunID)
+	pending, admission, err := s.rt.ClaimResumeSlot(ctx, s.coordinator, in.ParentRunID)
 	if err != nil {
 		switch {
 		case errors.Is(err, lifecycle.ErrInterruptNotOpen):
@@ -80,13 +82,24 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	// A continuation runs against the parked run's same provider+model — stamp
 	// them so the continuation's RunRef (and its persisted usage) is
 	// self-describing, rather than forcing consumers to chase parentRunId.
-	out, events, err := s.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending), pending.Provider, pending.Model)
+	createdAt := time.Now().UTC()
+	factory := s.segmentProjector(contRunID, in.ParentRunID, pending.SessionID, sess.Cwd, handle, nil, resumeBindingFrom(pending), pending.Provider, pending.Model, createdAt)
+	evCh, err := s.coordinator.Start(ctx, runs.StartSpec{
+		RunID:       contRunID,
+		ParentRunID: in.ParentRunID,
+		SessionID:   pending.SessionID,
+		Cwd:         worktree.CanonicalCwd(sess.Cwd),
+		Handle:      handle,
+		Provider:    pending.Provider,
+		Model:       pending.Model,
+		CreatedAt:   createdAt,
+	}, factory)
 	if err != nil {
 		return nil, nil, err
 	}
 	treeAdmission.Release()
 	releaseTreeAdmission = false
-	return out, events, nil
+	return &protocol.StartRunResponse{RunID: contRunID}, mapRunEvents(evCh), nil
 }
 
 // resolveResolution maps the wire interrupt responses onto the structured

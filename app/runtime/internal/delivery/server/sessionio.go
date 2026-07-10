@@ -110,7 +110,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	}
 
 	id := art.Session.ID
-	admission, err := s.rt.ClaimRunSlot(ctx, sessionClaimer{s: s}, id)
+	admission, err := s.rt.ClaimRunSlot(ctx, s.coordinator, id)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, id)

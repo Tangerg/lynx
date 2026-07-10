@@ -2,11 +2,13 @@ package runs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
@@ -16,6 +18,7 @@ import (
 
 type fakeExecutor struct {
 	events   []turn.Event
+	block    bool // when set, the turn blocks on ctx instead of emitting — a live run
 	mu       sync.Mutex
 	canceled int
 	startErr error
@@ -26,6 +29,10 @@ func (f *fakeExecutor) TurnEvents(ctx context.Context, _ turn.TurnHandle) (iter.
 		return nil, f.startErr
 	}
 	return func(yield func(turn.Event) bool) {
+		if f.block {
+			<-ctx.Done()
+			return
+		}
 		for _, e := range f.events {
 			if ctx.Err() != nil {
 				return
@@ -182,5 +189,120 @@ func TestCoordinatorAdmission(t *testing.T) {
 	c.ReleaseSession("ses_1")
 	if c.ActiveSession("ses_1") {
 		t.Fatal("a released session is no longer active")
+	}
+}
+
+// TestCoordinatorStartAfterClose: once closed, Start admits no new run and tears
+// down the turn that was already created.
+func TestCoordinatorStartAfterClose(t *testing.T) {
+	exec := &fakeExecutor{block: true}
+	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{})
+	c.Close()
+
+	_, err := c.Start(context.Background(),
+		StartSpec{RunID: "run_1", SessionID: "ses_1"},
+		func(SegmentView) Projector { return &fakeProjector{} })
+	if !errors.Is(err, ErrClosed) {
+		t.Fatalf("Start after Close = %v, want ErrClosed", err)
+	}
+	if exec.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1 (created turn torn down)", exec.cancels())
+	}
+}
+
+// TestCoordinatorCloseCancelsAndJoins: Close cancels an in-flight blocking run
+// and joins its pump; the run's stream drains to close.
+func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
+	exec := &fakeExecutor{block: true}
+	proj := &fakeProjector{
+		open:     []ProjectedEvent{{Durable: true, Payload: "started"}},
+		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: "canceled"}},
+	}
+	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{})
+	events, err := c.Start(context.Background(),
+		StartSpec{RunID: "run_1", SessionID: "ses_1"},
+		func(SegmentView) Projector { return proj })
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if e := <-events; e.Payload != "started" { // run is live
+		t.Fatalf("first event = %v, want started", e.Payload)
+	}
+
+	done := make(chan struct{})
+	go func() { c.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close did not cancel + join the blocking run")
+	}
+	for range events { // teardown synthesized the terminal, then closed the stream
+	}
+}
+
+// TestCoordinatorInterruptPersistFailureAborts: when the interrupt's durable
+// commit fails, the pump aborts — it never publishes the interrupt, cancels the
+// turn, and terminalizes as error.
+func TestCoordinatorInterruptPersistFailureAborts(t *testing.T) {
+	exec := &fakeExecutor{events: []turn.Event{turn.TurnStart{}}}
+	eff := &fakeEffects{beforeErr: fmt.Errorf("store down")}
+	proj := &fakeProjector{
+		open:      []ProjectedEvent{{Durable: true, Payload: "started"}},
+		translate: []ProjectedEvent{{Durable: true, Terminal: true, Interrupt: true, Payload: "interrupt"}},
+		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: "error"}},
+	}
+	c := NewCoordinator(exec, eff, &fakeMinter{})
+	events, err := c.Start(context.Background(),
+		StartSpec{RunID: "run_1", SessionID: "ses_1", Handle: turn.TurnHandle{TurnID: "run_1"}},
+		func(SegmentView) Projector { return proj })
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	var payloads []any
+	for e := range events {
+		payloads = append(payloads, e.Payload)
+	}
+	if len(payloads) == 0 || payloads[len(payloads)-1] != "error" {
+		t.Fatalf("payloads = %v, want ending in an error terminal (interrupt never published)", payloads)
+	}
+	if exec.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1 (aborted turn canceled)", exec.cancels())
+	}
+	if proj.aborted == "" {
+		t.Fatal("projector Abort was not called with the commit error")
+	}
+}
+
+// TestCoordinatorBeginCancelCleanupSurvivesRequest: the run outlives the request
+// that started it, so BeginCancel's cleanup context (rooted on the run's owner)
+// stays alive even after the request context is canceled.
+func TestCoordinatorBeginCancelCleanupSurvivesRequest(t *testing.T) {
+	exec := &fakeExecutor{block: true}
+	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{})
+	reqCtx, cancelReq := context.WithCancel(context.Background())
+	events, err := c.Start(reqCtx,
+		StartSpec{RunID: "run_1", SessionID: "ses_1"},
+		func(SegmentView) Projector {
+			return &fakeProjector{open: []ProjectedEvent{{Durable: true, Payload: "started"}}}
+		})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	<-events    // run is live
+	cancelReq() // the request ends; the run must survive it
+
+	binding, cleanupCtx, cancel, ok := c.BeginCancel(context.Background(), "run_1", "stop")
+	if !ok {
+		t.Fatal("BeginCancel must find the live run")
+	}
+	defer cancel()
+	if cleanupCtx.Err() != nil {
+		t.Fatalf("cleanup context canceled despite the run outliving the request: %v", cleanupCtx.Err())
+	}
+	if binding.SessionID != "ses_1" {
+		t.Fatalf("binding = %+v, want SessionID ses_1", binding)
+	}
+	c.Close()
+	for range events {
 	}
 }
