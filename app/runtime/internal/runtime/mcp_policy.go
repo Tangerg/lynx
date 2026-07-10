@@ -32,7 +32,7 @@ func buildMCPEnvironment(ctx context.Context, registry mcpServerList) (mcpEnviro
 		toolAutoApproved: func(toolName string) bool {
 			return policyCell.Load().AutoApproved(toolName)
 		},
-		configs: configsForEnabledServers(servers),
+		configs: toolport.ConfigsForEnabledServers(servers),
 	}, nil
 }
 

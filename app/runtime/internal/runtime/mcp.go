@@ -219,7 +219,7 @@ func (r *Runtime) TestMCPServer(ctx context.Context, srv mcpserver.Server) error
 	if r.mcpLiveRegistry == nil {
 		return toolport.ErrUnknownMCPServer
 	}
-	return r.mcpLiveRegistry.ProbeMCPServer(ctx, configFromServer(srv))
+	return r.mcpLiveRegistry.ProbeMCPServer(ctx, toolport.ConfigFromServer(srv))
 }
 
 // MCPTools lists tools advertised by the connected MCP servers (scoped to
@@ -240,7 +240,7 @@ func (r *Runtime) applyMCPServer(ctx context.Context, srv mcpserver.Server) {
 		return
 	}
 	if srv.Enabled {
-		_ = r.mcpLiveRegistry.ConfigureMCPServer(ctx, configFromServer(srv))
+		_ = r.mcpLiveRegistry.ConfigureMCPServer(ctx, toolport.ConfigFromServer(srv))
 		return
 	}
 	r.mcpLiveRegistry.RemoveMCPServer(ctx, srv.Name)
