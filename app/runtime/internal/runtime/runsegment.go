@@ -3,7 +3,7 @@ package runtime
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 

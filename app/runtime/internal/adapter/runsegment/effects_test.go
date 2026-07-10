@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -99,7 +100,7 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 		Checkpoints: fakeCheckpoints{snapshotted: snapshotted},
 	})
 
-	effects.Finish(context.Background(), Finish{SessionID: "ses_1", RunID: "run_1", OpeningUserText: "hello"})
+	effects.Finish(context.Background(), runs.Finish{SessionID: "ses_1", RunID: "run_1", OpeningUserText: "hello"})
 
 	if got := waitString(t, snapshotted); got != "ses_1:/repo:run_1" {
 		t.Fatalf("snapshot = %q", got)
@@ -108,7 +109,7 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 		t.Fatalf("title = %q", got)
 	}
 
-	effects.Finish(context.Background(), Finish{SessionID: "ses_1", RunID: "run_2", Parked: true, OpeningUserText: "ignored"})
+	effects.Finish(context.Background(), runs.Finish{SessionID: "ses_1", RunID: "run_2", Parked: true, OpeningUserText: "ignored"})
 	select {
 	case got := <-snapshotted:
 		t.Fatalf("parked run must not snapshot, got %q", got)

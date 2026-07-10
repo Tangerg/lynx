@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
@@ -18,7 +19,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 	"github.com/Tangerg/lynx/core/model/chat"

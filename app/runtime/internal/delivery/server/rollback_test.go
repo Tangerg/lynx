@@ -190,7 +190,7 @@ func TestRollbackSession_Busy(t *testing.T) {
 // subagent child, including kept runs'. The putRun test helper writes a real
 // CreatedAt and so bypassed the production stream side-effect path that exposed
 // this — this drives the same side-effect payload the pump hands to
-// kernel/runsegment.
+// adapter/runsegment.
 func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()

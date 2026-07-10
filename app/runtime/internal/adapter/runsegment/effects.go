@@ -1,6 +1,9 @@
-// Package runsegment owns the non-wire side effects of one streamed run
-// segment: durable transcript writes, open-interrupt records, workspace change
-// nudges, and terminal best-effort maintenance.
+// Package runsegment is the driven adapter that executes the non-wire side
+// effects of one streamed run segment — durable transcript writes,
+// open-interrupt records, workspace change nudges, and terminal best-effort
+// maintenance. It implements the application's runs.Effects port: the run pump
+// hands it opaque effect payloads (built elsewhere via this package's [Event])
+// plus the app-owned [runs.Finish] boundary descriptor.
 package runsegment
 
 import (
@@ -12,6 +15,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -139,19 +143,20 @@ type FilesChanged struct {
 	Paths []string
 }
 
-// Finish describes the terminal run-boundary maintenance that is safe to run
-// after the live stream has been closed.
-type Finish struct {
-	SessionID       string
-	RunID           string
-	Parked          bool
-	OpeningUserText string
+// asEvent recovers the concrete side-effect payload the pump shuttles opaquely.
+// The application ring treats an effect as any (mirroring the opaque wire
+// payload), so the only producer — the delivery projector — always builds an
+// [Event]; the zero value legitimately means "nothing to commit".
+func asEvent(effect any) Event {
+	ev, _ := effect.(Event)
+	return ev
 }
 
 // BeforeLive runs side effects that must complete before the terminal event is
 // visible to subscribers. Today that means only the interrupt record: a client
 // may call runs.resume as soon as it observes run.finished{interrupt}.
-func (e *Effects) BeforeLive(ctx context.Context, ev Event) error {
+func (e *Effects) BeforeLive(ctx context.Context, effect any) error {
+	ev := asEvent(effect)
 	if ev.Interrupt != nil {
 		return e.recordInterrupt(ctx, *ev.Interrupt)
 	}
@@ -161,7 +166,8 @@ func (e *Effects) BeforeLive(ctx context.Context, ev Event) error {
 // AfterLive runs side effects that must not block live delivery: durable
 // transcript writes and workspace change nudges. The caller should pass a
 // cancel-decoupled context for terminal events that must survive run cancel.
-func (e *Effects) AfterLive(ctx context.Context, ev Event) {
+func (e *Effects) AfterLive(ctx context.Context, effect any) {
+	ev := asEvent(effect)
 	if ev.Item != nil {
 		e.recordItem(ctx, *ev.Item)
 	}
@@ -175,7 +181,7 @@ func (e *Effects) AfterLive(ctx context.Context, ev Event) {
 
 // Finish starts best-effort terminal maintenance off the live stream path. A
 // parked run is resumable, not a boundary, so it does not snapshot or title.
-func (e *Effects) Finish(ctx context.Context, fin Finish) {
+func (e *Effects) Finish(ctx context.Context, fin runs.Finish) {
 	if fin.Parked {
 		return
 	}

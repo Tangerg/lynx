@@ -5,7 +5,6 @@ import (
 	"iter"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -101,7 +100,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 		}
 		// Terminal boundary maintenance stays off the critical path (async /
 		// best-effort inside Effects). A parked run is resumable, not a boundary.
-		c.effects.Finish(ownerCtx, runsegment.Finish{
+		c.effects.Finish(ownerCtx, Finish{
 			SessionID:       spec.SessionID,
 			RunID:           spec.RunID,
 			Parked:          parked,
