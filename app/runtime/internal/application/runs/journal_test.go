@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// testEvent is a minimal [Event] for exercising the Journal without any wire
+// testEvent is a minimal [Streamable] for exercising the Journal without any wire
 // type. Cursors are fixed-width zero-padded so lexical order == numeric order,
 // matching the contract Event.Cursor documents.
 type testEvent struct {
