@@ -2,39 +2,9 @@ package runtime
 
 import (
 	"context"
-	"fmt"
-	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
-
-type mcpEnvironment struct {
-	policy           *atomic.Pointer[mcpserver.ToolPolicy]
-	toolDisabled     func(string) bool
-	toolAutoApproved func(string) bool
-	configs          []toolport.MCPServerConfig
-}
-
-func buildMCPEnvironment(ctx context.Context, registry mcpServerList) (mcpEnvironment, error) {
-	servers, err := registry.List(ctx)
-	if err != nil {
-		return mcpEnvironment{}, fmt.Errorf("runtime: load mcp registry: %w", err)
-	}
-	policyCell := &atomic.Pointer[mcpserver.ToolPolicy]{}
-	policy := mcpserver.NewToolPolicy(servers)
-	policyCell.Store(&policy)
-	return mcpEnvironment{
-		policy: policyCell,
-		toolDisabled: func(toolName string) bool {
-			return policyCell.Load().Disabled(toolName)
-		},
-		toolAutoApproved: func(toolName string) bool {
-			return policyCell.Load().AutoApproved(toolName)
-		},
-		configs: toolport.ConfigsForEnabledServers(servers),
-	}, nil
-}
 
 func loadMCPToolPolicy(ctx context.Context, registry mcpServerList) (*mcpserver.ToolPolicy, error) {
 	servers, err := registry.List(ctx)

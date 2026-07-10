@@ -1,4 +1,4 @@
-package runtime
+package bootstrap
 
 import (
 	"path/filepath"
@@ -7,53 +7,54 @@ import (
 
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 func TestNewRequiresRuntimeDependencies(t *testing.T) {
 	tests := []struct {
 		name string
-		edit func(*Config)
+		edit func(*lyraruntime.Config)
 		want string
 	}{
 		{
 			name: "chat client",
-			edit: func(cfg *Config) {
+			edit: func(cfg *lyraruntime.Config) {
 				cfg.Engine.ChatClient = nil
 			},
 			want: "runtime: Engine.ChatClient is required",
 		},
 		{
 			name: "provider registry",
-			edit: func(cfg *Config) {
+			edit: func(cfg *lyraruntime.Config) {
 				cfg.ProviderRegistry = nil
 			},
 			want: "runtime: ProviderRegistry is required",
 		},
 		{
 			name: "mcp registry",
-			edit: func(cfg *Config) {
+			edit: func(cfg *lyraruntime.Config) {
 				cfg.MCPRegistry = nil
 			},
 			want: "runtime: MCPRegistry is required",
 		},
 		{
 			name: "session store",
-			edit: func(cfg *Config) {
+			edit: func(cfg *lyraruntime.Config) {
 				cfg.SessionStore = nil
 			},
 			want: "runtime: SessionStore is required",
 		},
 		{
 			name: "interrupt store",
-			edit: func(cfg *Config) {
+			edit: func(cfg *lyraruntime.Config) {
 				cfg.InterruptStore = nil
 			},
 			want: "runtime: InterruptStore is required",
 		},
 		{
 			name: "transcript store",
-			edit: func(cfg *Config) {
+			edit: func(cfg *lyraruntime.Config) {
 				cfg.TranscriptStore = nil
 			},
 			want: "runtime: TranscriptStore is required",
@@ -73,7 +74,7 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 	}
 }
 
-func runtimeConfigWithRequiredDeps(t *testing.T) Config {
+func runtimeConfigWithRequiredDeps(t *testing.T) lyraruntime.Config {
 	t.Helper()
 
 	client, err := chat.NewClient(newReplyStub("ok"))
@@ -86,7 +87,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 		t.Fatalf("open sqlite: %v", err)
 	}
 
-	return Config{
+	return lyraruntime.Config{
 		Engine: kernel.Config{
 			ChatClient: client,
 		},

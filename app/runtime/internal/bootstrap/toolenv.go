@@ -1,4 +1,4 @@
-package runtime
+package bootstrap
 
 import (
 	"context"
@@ -9,9 +9,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
-func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, approvalPolicy approval.Policy, mcpEnv mcpEnvironment, codebaseIdx toolset.CodebaseIndex) (toolset.Built, error) {
+func buildToolEnvironment(ctx context.Context, cfg lyraruntime.Config, ecfg kernel.Config, approvalPolicy approval.Policy, mcpEnv mcpEnvironment, codebaseIdx toolset.CodebaseIndex) (toolset.Built, error) {
 	built, err := toolset.Build(ctx, toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.Engine.SkillsGlobalDir,
@@ -32,7 +33,7 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg kernel.Config, a
 	return built, nil
 }
 
-func toolsetA2AAgentConfigs(in []A2AAgentConfig) []toolset.A2AAgentConfig {
+func toolsetA2AAgentConfigs(in []lyraruntime.A2AAgentConfig) []toolset.A2AAgentConfig {
 	if len(in) == 0 {
 		return nil
 	}
@@ -46,7 +47,7 @@ func toolsetA2AAgentConfigs(in []A2AAgentConfig) []toolset.A2AAgentConfig {
 	return out
 }
 
-func codeintelServerSpecs(in []LSPServerConfig) []codeintel.ServerSpec {
+func codeintelServerSpecs(in []lyraruntime.LSPServerConfig) []codeintel.ServerSpec {
 	if len(in) == 0 {
 		return nil
 	}

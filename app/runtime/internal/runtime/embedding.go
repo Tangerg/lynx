@@ -3,11 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 
-	codebaseindexadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/codebaseindex"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 )
 
@@ -25,41 +21,6 @@ type embeddingRoleLoader interface {
 
 type embeddingRoleSaver interface {
 	SaveEmbeddingRole(ctx context.Context, provider, model string) error
-}
-
-type embeddingEnvironment struct {
-	cell     *atomic.Pointer[modelrole.Role]
-	resolver *modelclient.EmbeddingResolver
-	index    codebaseindex.Index
-}
-
-func buildEmbeddingEnvironment(ctx context.Context, roleStore embeddingRoleLoader, indexStore codebaseindex.Store, providers modelclient.CredentialLookup) (embeddingEnvironment, error) {
-	resolver := modelclient.NewEmbeddingResolver(providers)
-	cell := &atomic.Pointer[modelrole.Role]{}
-	var role modelrole.Role
-	if roleStore != nil {
-		p, m, err := roleStore.LoadEmbeddingRole(ctx)
-		if err != nil {
-			return embeddingEnvironment{}, fmt.Errorf("runtime: load embedding role: %w", err)
-		}
-		role, err = modelrole.New(p, m)
-		if err != nil {
-			return embeddingEnvironment{}, fmt.Errorf("runtime: load embedding role: %w", err)
-		}
-	}
-	cell.Store(&role)
-	resolveEmbedder := func(ctx context.Context) (codebaseindex.Embedder, error) {
-		role := cell.Load()
-		if role == nil || !role.Configured() {
-			return nil, codebaseindex.ErrNoEmbeddingModel
-		}
-		return resolver.Resolve(ctx, role.ProviderID(), role.Model())
-	}
-	var index codebaseindex.Index
-	if indexStore != nil {
-		index = codebaseindex.New(indexStore, resolveEmbedder, codebaseindexadapter.Source{})
-	}
-	return embeddingEnvironment{cell: cell, resolver: resolver, index: index}, nil
 }
 
 // EmbeddingRole returns the live embedding role; both empty when unset. Backs

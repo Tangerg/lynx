@@ -1,4 +1,4 @@
-package runtime
+package bootstrap
 
 import (
 	"context"
@@ -11,15 +11,15 @@ import (
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
+	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
-// Assemble builds a Runtime from cfg: it constructs the engine, turn
+// Assemble builds the runtime facade from cfg: it constructs the engine, turn
 // dispatcher, tool registry, and the utility/embedding/mcp environments, then
-// wires them into the facade via [New]. Returns an error when a required
-// dependency is missing or any internal constructor fails -- engine deployment,
-// MCP dial, etc. (The composition-root migration will move this assembly into
-// the bootstrap ring; [New] is already the wiring seam it will call.)
-func Assemble(ctx context.Context, cfg Config) (*Runtime, error) {
+// wires them into the facade via [lyraruntime.New]. Returns an error when a
+// required dependency is missing or any internal constructor fails — engine
+// deployment, MCP dial, etc.
+func Assemble(ctx context.Context, cfg lyraruntime.Config) (*lyraruntime.Runtime, error) {
 	if cfg.Engine.ChatClient == nil {
 		return nil, errors.New("runtime: Engine.ChatClient is required")
 	}
@@ -111,7 +111,7 @@ func Assemble(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, errors.Join(fmt.Errorf("runtime: tool registry: %w", err), eng.Close())
 	}
 
-	return New(Dependencies{
+	return lyraruntime.New(lyraruntime.Dependencies{
 		Engine:           eng,
 		Turns:            turnDispatcher,
 		Tools:            toolRegistry,
