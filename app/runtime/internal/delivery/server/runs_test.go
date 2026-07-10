@@ -3,13 +3,25 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
+
+// durableRunEvent builds a durable wire RunEvent with a fixed-width eventId, for
+// the SubscribeRun replay test (durability derives from the type — item.completed
+// is durable).
+func durableRunEvent(seq int) protocol.RunEvent {
+	return protocol.RunEvent{
+		EventID: fmt.Sprintf("%s%011d", protocol.IDPrefixEvent, seq),
+		Event:   protocol.StreamEvent{Type: protocol.StreamItemCompleted},
+	}
+}
 
 func TestOpenSegmentAfterServerCloseCancelsCreatedTurn(t *testing.T) {
 	turns := &recordingTurns{}
@@ -31,9 +43,9 @@ func TestOpenSegmentAfterServerCloseCancelsCreatedTurn(t *testing.T) {
 // subscription that replays the durable backlog (after Last-Event-Id when
 // supplied) then tails live; anything else is run_not_found.
 func TestSubscribeRun_StreamsLiveRunFromHub(t *testing.T) {
-	h := newRunHub()
-	h.Append(ev(1, true))
-	h.Append(ev(2, true))
+	h := runs.NewJournal[protocol.RunEvent]()
+	h.Append(durableRunEvent(1))
+	h.Append(durableRunEvent(2))
 	s := &Server{}
 	s.runs.Open(runstate.Record{ID: "run_live"}, &runHandle{hub: h})
 
@@ -48,17 +60,17 @@ func TestSubscribeRun_StreamsLiveRunFromHub(t *testing.T) {
 	if events == nil {
 		t.Fatal("subscribe must return a per-run stream")
 	}
-	if (<-events).EventID != ev(1, true).EventID || (<-events).EventID != ev(2, true).EventID {
+	if (<-events).EventID != durableRunEvent(1).EventID || (<-events).EventID != durableRunEvent(2).EventID {
 		t.Fatal("subscribe must replay the durable backlog in order")
 	}
 
 	// With Last-Event-Id (via ctx): replay only what's after it.
-	ctx := transport.WithLastEventID(context.Background(), ev(1, true).EventID)
+	ctx := transport.WithLastEventID(context.Background(), durableRunEvent(1).EventID)
 	_, resumed, err := s.SubscribeRun(ctx, "run_live")
 	if err != nil {
 		t.Fatalf("subscribe resume: %v", err)
 	}
-	if (<-resumed).EventID != ev(2, true).EventID {
+	if (<-resumed).EventID != durableRunEvent(2).EventID {
 		t.Fatal("resume must replay only events after Last-Event-Id")
 	}
 

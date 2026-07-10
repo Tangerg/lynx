@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -96,7 +97,7 @@ type runHandle struct {
 	mu              sync.Mutex
 	cancel          context.CancelFunc
 	owner           context.Context
-	hub             *runHub
+	hub             *runs.Journal[protocol.RunEvent]
 	cancelRequested bool
 	cancelReason    string
 }
