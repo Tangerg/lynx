@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
 
 // wireSessionErr maps the session domain's not-found sentinel onto the wire
@@ -84,7 +84,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	// parked turn and interrupt as part of the cascade.
 	admission, err := s.rt.ClaimMutationSlot(s.coordinator, id)
 	if err != nil {
-		if errors.Is(err, lifecycle.ErrSessionBusy) {
+		if errors.Is(err, sessions.ErrSessionBusy) {
 			return fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, id)
 		}
 		return err
@@ -142,7 +142,7 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 		}
 	}
 
-	child, err := s.rt.ForkSession(ctx, lifecycle.ForkSpec{
+	child, err := s.rt.ForkSession(ctx, sessions.ForkSpec{
 		ParentID:  in.SessionID,
 		FromRunID: in.FromRunID,
 		Runs:      nodes,

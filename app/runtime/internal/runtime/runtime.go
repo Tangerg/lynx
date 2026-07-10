@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
@@ -16,7 +17,6 @@ import (
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
@@ -111,5 +111,5 @@ type Runtime struct {
 
 	// workingTrees coordinates short run admissions with destructive
 	// working-tree mutations for every transport using this runtime.
-	workingTrees lifecycle.WorkingTreeGate
+	workingTrees sessions.WorkingTreeGate
 }

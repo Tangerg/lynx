@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -18,7 +19,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -38,7 +38,7 @@ type stubRuntime struct {
 	hist        transcript.Store          // durable Item/run history (rollback/fork read runs)
 	interrupts  interrupts.Store          // open-interrupt registry (rollback clears dropped)
 	turns       turn.Dispatcher
-	workingTree *lifecycle.WorkingTreeGate
+	workingTree *sessions.WorkingTreeGate
 }
 
 func newTestServer(rt RuntimePort) *Server {
@@ -215,11 +215,11 @@ type stubLifecycleStores struct {
 	rt stubRuntime
 }
 
-func (s stubLifecycleStores) Session() lifecycle.SessionStore { return s.rt.sess }
+func (s stubLifecycleStores) Session() sessions.SessionStore { return s.rt.sess }
 
-func (s stubLifecycleStores) Transcript() lifecycle.TranscriptStore { return s.rt.hist }
+func (s stubLifecycleStores) Transcript() sessions.TranscriptStore { return s.rt.hist }
 
-func (s stubLifecycleStores) Interrupts() lifecycle.InterruptStore { return s.rt.interrupts }
+func (s stubLifecycleStores) Interrupts() sessions.InterruptStore { return s.rt.interrupts }
 
 func (s stubLifecycleStores) ReadHistory(ctx context.Context, id string) ([]chat.Message, error) {
 	return s.rt.ReadHistory(ctx, id)
@@ -257,62 +257,62 @@ func (s stubRunSegmentStores) GenerateTitle(context.Context, string) (string, er
 	return "", nil
 }
 
-func (s stubRuntime) ClaimRunSlot(ctx context.Context, claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error) {
-	return lifecycle.New(stubLifecycleStores{rt: s}).ClaimRunSlot(ctx, claims, sessionID)
+func (s stubRuntime) ClaimRunSlot(ctx context.Context, claims sessions.SessionClaimer, sessionID string) (sessions.RunAdmission, error) {
+	return sessions.New(stubLifecycleStores{rt: s}).ClaimRunSlot(ctx, claims, sessionID)
 }
 
-func (s stubRuntime) ClaimMutationSlot(claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error) {
-	return lifecycle.New(stubLifecycleStores{rt: s}).ClaimMutationSlot(claims, sessionID)
+func (s stubRuntime) ClaimMutationSlot(claims sessions.SessionClaimer, sessionID string) (sessions.RunAdmission, error) {
+	return sessions.New(stubLifecycleStores{rt: s}).ClaimMutationSlot(claims, sessionID)
 }
 
-func (s *stubRuntime) ClaimWorkingTreeRun(cwd string) (lifecycle.WorkingTreeAdmission, bool) {
+func (s *stubRuntime) ClaimWorkingTreeRun(cwd string) (sessions.WorkingTreeAdmission, bool) {
 	return s.workingTreeGate().ClaimRun(worktree.CanonicalCwd(cwd))
 }
 
-func (s *stubRuntime) ClaimWorkingTreeMutation(cwd string) (lifecycle.WorkingTreeAdmission, bool) {
+func (s *stubRuntime) ClaimWorkingTreeMutation(cwd string) (sessions.WorkingTreeAdmission, bool) {
 	return s.workingTreeGate().ClaimMutation(worktree.CanonicalCwd(cwd))
 }
 
-func (s *stubRuntime) workingTreeGate() *lifecycle.WorkingTreeGate {
+func (s *stubRuntime) workingTreeGate() *sessions.WorkingTreeGate {
 	if s.workingTree == nil {
-		s.workingTree = &lifecycle.WorkingTreeGate{}
+		s.workingTree = &sessions.WorkingTreeGate{}
 	}
 	return s.workingTree
 }
 
-func (s stubRuntime) ClaimResumeSlot(ctx context.Context, claims lifecycle.SessionClaimer, parentRunID string) (interrupts.Pending, lifecycle.RunAdmission, error) {
-	return lifecycle.New(stubLifecycleStores{rt: s}).ClaimResumeSlot(ctx, claims, parentRunID)
+func (s stubRuntime) ClaimResumeSlot(ctx context.Context, claims sessions.SessionClaimer, parentRunID string) (interrupts.Pending, sessions.RunAdmission, error) {
+	return sessions.New(stubLifecycleStores{rt: s}).ClaimResumeSlot(ctx, claims, parentRunID)
 }
 
 func (s stubRuntime) CancelParkedRun(ctx context.Context, runID string) error {
-	return lifecycle.New(stubLifecycleStores{rt: s}).CancelParkedRun(ctx, stubLifecycleTurns{rt: s}, runID)
+	return sessions.New(stubLifecycleStores{rt: s}).CancelParkedRun(ctx, stubLifecycleTurns{rt: s}, runID)
 }
 
-func (s stubRuntime) CancelRunBinding(ctx context.Context, run lifecycle.RunTurnBinding) error {
-	return lifecycle.New(stubLifecycleStores{rt: s}).CancelRunBinding(ctx, stubLifecycleTurns{rt: s}, run)
+func (s stubRuntime) CancelRunBinding(ctx context.Context, run sessions.RunTurnBinding) error {
+	return sessions.New(stubLifecycleStores{rt: s}).CancelRunBinding(ctx, stubLifecycleTurns{rt: s}, run)
 }
 
-func (s stubRuntime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution, interruptKinds []string) (lifecycle.ResumedInterrupt, error) {
-	return lifecycle.New(stubLifecycleStores{rt: s}).ResumeClaimedInterrupt(ctx, stubLifecycleTurns{rt: s}, parentRunID, resolution, interruptKinds)
+func (s stubRuntime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution, interruptKinds []string) (sessions.ResumedInterrupt, error) {
+	return sessions.New(stubLifecycleStores{rt: s}).ResumeClaimedInterrupt(ctx, stubLifecycleTurns{rt: s}, parentRunID, resolution, interruptKinds)
 }
 
 func (s stubRuntime) RollbackResolved(ctx context.Context, sessionID string, boundary transcript.Boundary) error {
 	if len(boundary.Dropped) == 0 {
 		return nil
 	}
-	return lifecycle.New(stubLifecycleStores{rt: s}).Rollback(ctx, stubLifecycleTurns{rt: s}, sessionID, boundary)
+	return sessions.New(stubLifecycleStores{rt: s}).Rollback(ctx, stubLifecycleTurns{rt: s}, sessionID, boundary)
 }
 
-func (s stubRuntime) ForkSession(ctx context.Context, spec lifecycle.ForkSpec) (session.Session, error) {
-	return lifecycle.New(stubLifecycleStores{rt: s}).Fork(ctx, spec)
+func (s stubRuntime) ForkSession(ctx context.Context, spec sessions.ForkSpec) (session.Session, error) {
+	return sessions.New(stubLifecycleStores{rt: s}).Fork(ctx, spec)
 }
 
 func (s stubRuntime) RestoreSession(ctx context.Context, ses session.Session, msgs []chat.Message, runs []transcript.Run, items []transcript.Item) error {
-	return lifecycle.New(stubLifecycleStores{rt: s}).RestoreSession(ctx, ses, msgs, runs, items)
+	return sessions.New(stubLifecycleStores{rt: s}).RestoreSession(ctx, ses, msgs, runs, items)
 }
 
 func (s stubRuntime) DeleteSession(ctx context.Context, id string) error {
-	return lifecycle.New(stubLifecycleStores{rt: s}).DeleteSession(ctx, stubLifecycleTurns{rt: s}, id)
+	return sessions.New(stubLifecycleStores{rt: s}).DeleteSession(ctx, stubLifecycleTurns{rt: s}, id)
 }
 
 func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects {

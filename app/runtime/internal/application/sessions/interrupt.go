@@ -1,4 +1,4 @@
-package lifecycle
+package sessions
 
 import (
 	"context"
@@ -108,14 +108,14 @@ func (c *Coordinator) restoreConsumedInterrupt(ctx context.Context, pending inte
 	restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), interruptCompensationTimeout)
 	defer cancel()
 	if err := c.s.Interrupts().Put(restoreCtx, pending); err != nil {
-		return fmt.Errorf("lifecycle: restore consumed interrupt: %w", err)
+		return fmt.Errorf("sessions: restore consumed interrupt: %w", err)
 	}
 	return nil
 }
 
 func rehydratePendingTurn(ctx context.Context, turns TurnResumer, pending interrupts.Pending, approved bool, interruptKinds []string) (turn.TurnHandle, error) {
 	if pending.ProcessID == "" {
-		return turn.TurnHandle{}, errors.New("lifecycle: interrupt has no recorded process id")
+		return turn.TurnHandle{}, errors.New("sessions: interrupt has no recorded process id")
 	}
 	return turns.Rehydrate(ctx, turn.RehydrateRequest{
 		SessionID:      pending.SessionID,

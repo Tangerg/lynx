@@ -5,27 +5,27 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-func (r *Runtime) lifecycle() *lifecycle.Coordinator {
-	return lifecycle.New(lifecycleStores{rt: r})
+func (r *Runtime) lifecycle() *sessions.Coordinator {
+	return sessions.New(lifecycleStores{rt: r})
 }
 
 type lifecycleStores struct {
 	rt *Runtime
 }
 
-func (s lifecycleStores) Session() lifecycle.SessionStore { return s.rt.sessions }
+func (s lifecycleStores) Session() sessions.SessionStore { return s.rt.sessions }
 
-func (s lifecycleStores) Transcript() lifecycle.TranscriptStore { return s.rt.transcript }
+func (s lifecycleStores) Transcript() sessions.TranscriptStore { return s.rt.transcript }
 
-func (s lifecycleStores) Interrupts() lifecycle.InterruptStore { return s.rt.interrupts }
+func (s lifecycleStores) Interrupts() sessions.InterruptStore { return s.rt.interrupts }
 
 func (s lifecycleStores) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
 	return s.rt.ReadHistory(ctx, sessionID)
@@ -64,27 +64,27 @@ func (t lifecycleTurns) Rehydrate(ctx context.Context, req turn.RehydrateRequest
 }
 
 // ClaimRunSlot reserves the single-writer session slot for a new run.
-func (r *Runtime) ClaimRunSlot(ctx context.Context, claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error) {
+func (r *Runtime) ClaimRunSlot(ctx context.Context, claims sessions.SessionClaimer, sessionID string) (sessions.RunAdmission, error) {
 	return r.lifecycle().ClaimRunSlot(ctx, claims, sessionID)
 }
 
 // ClaimMutationSlot reserves the single-writer session slot for a destructive mutation.
-func (r *Runtime) ClaimMutationSlot(claims lifecycle.SessionClaimer, sessionID string) (lifecycle.RunAdmission, error) {
+func (r *Runtime) ClaimMutationSlot(claims sessions.SessionClaimer, sessionID string) (sessions.RunAdmission, error) {
 	return r.lifecycle().ClaimMutationSlot(claims, sessionID)
 }
 
 // ClaimWorkingTreeRun reserves a working tree while a run segment is being admitted.
-func (r *Runtime) ClaimWorkingTreeRun(cwd string) (lifecycle.WorkingTreeAdmission, bool) {
+func (r *Runtime) ClaimWorkingTreeRun(cwd string) (sessions.WorkingTreeAdmission, bool) {
 	return r.workingTrees.ClaimRun(worktree.CanonicalCwd(cwd))
 }
 
 // ClaimWorkingTreeMutation reserves exclusive access for a destructive working-tree mutation.
-func (r *Runtime) ClaimWorkingTreeMutation(cwd string) (lifecycle.WorkingTreeAdmission, bool) {
+func (r *Runtime) ClaimWorkingTreeMutation(cwd string) (sessions.WorkingTreeAdmission, bool) {
 	return r.workingTrees.ClaimMutation(worktree.CanonicalCwd(cwd))
 }
 
 // ClaimResumeSlot reserves the interrupted session before its interrupt is consumed.
-func (r *Runtime) ClaimResumeSlot(ctx context.Context, claims lifecycle.SessionClaimer, parentRunID string) (interrupts.Pending, lifecycle.RunAdmission, error) {
+func (r *Runtime) ClaimResumeSlot(ctx context.Context, claims sessions.SessionClaimer, parentRunID string) (interrupts.Pending, sessions.RunAdmission, error) {
 	return r.lifecycle().ClaimResumeSlot(ctx, claims, parentRunID)
 }
 
@@ -94,12 +94,12 @@ func (r *Runtime) CancelParkedRun(ctx context.Context, runID string) error {
 }
 
 // CancelRunBinding tears down the turn bound to a run and drops any durable interrupt record.
-func (r *Runtime) CancelRunBinding(ctx context.Context, run lifecycle.RunTurnBinding) error {
+func (r *Runtime) CancelRunBinding(ctx context.Context, run sessions.RunTurnBinding) error {
 	return r.lifecycle().CancelRunBinding(ctx, lifecycleTurns{rt: r}, run)
 }
 
 // ResumeClaimedInterrupt consumes an open interrupt and resumes or rehydrates its turn.
-func (r *Runtime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution, interruptKinds []string) (lifecycle.ResumedInterrupt, error) {
+func (r *Runtime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution, interruptKinds []string) (sessions.ResumedInterrupt, error) {
 	return r.lifecycle().ResumeClaimedInterrupt(ctx, lifecycleTurns{rt: r}, parentRunID, resolution, interruptKinds)
 }
 
@@ -112,7 +112,7 @@ func (r *Runtime) RollbackResolved(ctx context.Context, sessionID string, bounda
 }
 
 // ForkSession creates a child session from a resolved fork boundary.
-func (r *Runtime) ForkSession(ctx context.Context, spec lifecycle.ForkSpec) (session.Session, error) {
+func (r *Runtime) ForkSession(ctx context.Context, spec sessions.ForkSpec) (session.Session, error) {
 	return r.lifecycle().Fork(ctx, spec)
 }
 

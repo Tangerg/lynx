@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -112,7 +112,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	id := art.Session.ID
 	admission, err := s.rt.ClaimRunSlot(ctx, s.coordinator, id)
 	if err != nil {
-		if errors.Is(err, lifecycle.ErrSessionBusy) {
+		if errors.Is(err, sessions.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, id)
 		}
 		return nil, err

@@ -13,10 +13,10 @@ import (
 	"github.com/Tangerg/lynx/pkg/mime"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -49,7 +49,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	sessionID := sess.ID
 	admission, err := s.rt.ClaimRunSlot(ctx, s.coordinator, sessionID)
 	if err != nil {
-		if errors.Is(err, lifecycle.ErrSessionBusy) {
+		if errors.Is(err, sessions.ErrSessionBusy) {
 			return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, sessionID)
 		}
 		return nil, nil, err
