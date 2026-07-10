@@ -5,12 +5,12 @@ import (
 	"time"
 )
 
-// Event is the minimum the [Journal] needs to buffer, fan out, and replay a run
-// event — nothing wire-specific. The concrete event type belongs to the caller
-// (the delivery layer supplies its protocol RunEvent); the Journal never
-// interprets the payload, which keeps run-stream ownership in the application
-// while the wire shape stays in delivery.
-type Event interface {
+// Streamable is the minimum the [Journal] needs to buffer, fan out, and replay a
+// run event — nothing wire-specific. The concrete event type belongs to the
+// caller (delivery supplies its protocol RunEvent; the application supplies its
+// own [Event]); the Journal never interprets the payload, which keeps run-stream
+// ownership in the application while the wire shape stays in delivery.
+type Streamable interface {
 	// Durable reports whether the event is retained for replay. Live-only events
 	// are fanned out to current subscribers but never buffered, so a
 	// reconnecting subscriber never re-receives them.
@@ -45,7 +45,7 @@ const (
 // Only durable events are retained for replay; live-only events reach current
 // subscribers but are not buffered. The pump calls Close on the terminal event;
 // the Journal doesn't otherwise interpret events.
-type Journal[E Event] struct {
+type Journal[E Streamable] struct {
 	mu        sync.Mutex
 	durable   []E
 	subs      map[int]chan E
@@ -54,7 +54,7 @@ type Journal[E Event] struct {
 }
 
 // NewJournal builds an empty Journal for events of type E.
-func NewJournal[E Event]() *Journal[E] {
+func NewJournal[E Streamable]() *Journal[E] {
 	return &Journal[E]{subs: map[int]chan E{}}
 }
 
@@ -91,7 +91,7 @@ func (j *Journal[E]) Append(ev E) {
 // deliverTerminal gives every healthy subscriber an immediate chance before
 // waiting on backpressured ones under one shared deadline. Call with the
 // Journal's mu held, which keeps subscriber channels open for the duration.
-func deliverTerminal[E Event](subs map[int]chan E, ev E, budget time.Duration) {
+func deliverTerminal[E Streamable](subs map[int]chan E, ev E, budget time.Duration) {
 	blocked := make([]chan E, 0, len(subs))
 	for _, ch := range subs {
 		select {
