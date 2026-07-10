@@ -18,6 +18,14 @@ type RunEvent struct {
 	Event     StreamEvent `json:"event"`
 }
 
+// Durable, Terminal, and Cursor let a RunEvent satisfy the application/runs
+// Journal's Event interface (buffer / fan-out / replay after a cursor) without
+// the Journal knowing anything wire-specific. EventID is fixed-width
+// zero-padded, so the Journal's lexical cursor comparison agrees with numeric.
+func (e RunEvent) Durable() bool  { return e.Event.IsDurable() }
+func (e RunEvent) Terminal() bool { return e.Event.Type == StreamRunFinished }
+func (e RunEvent) Cursor() string { return e.EventID }
+
 // StreamEventType discriminates the StreamEvent union (API.md §5).
 type StreamEventType string
 

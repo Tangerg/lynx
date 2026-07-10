@@ -7,6 +7,7 @@ import (
 	"iter"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
@@ -55,7 +56,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// independent of any client connection (streamable HTTP, TRANSPORT
 	// §6.4/§9.2). The pump appends to it; this caller streams from a
 	// fresh subscription; a later runs.subscribe attaches another.
-	hub := newRunHub()
+	hub := runs.NewJournal[protocol.RunEvent]()
 	// The canonical working tree this run mutates — the key the cwd-aware busy
 	// guard (a file rollback) uses to find sibling sessions sharing the tree.
 	// Resolved here so the guard never does a session lookup under the registry
