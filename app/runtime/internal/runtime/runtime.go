@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -89,11 +88,6 @@ type Runtime struct {
 	// recipesGlobalDir is the global recipes directory the workspace.recipes.list
 	// discovery layers under a project's .lyra/recipes. Empty → project-only.
 	recipesGlobalDir string
-
-	// schedules is the configured registry; when scheduling is unavailable it
-	// is a disabled registry while scheduleWorker remains nil.
-	schedules      schedule.Registry
-	scheduleWorker schedule.WorkerStore
 
 	// @codebase semantic index: embeddingCell holds the live embedding role,
 	// embeddings builds+caches embedders from it, embeddingStore saves it, and

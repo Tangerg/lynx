@@ -6,27 +6,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
-type scheduleRuntime struct {
-	stubRuntime
-	listed       []schedule.Schedule
-	listErr      error
-	byID         map[string]schedule.Schedule
-	created      []schedule.Schedule
-	updated      []schedule.Schedule
-	deleted      []string
-	workerRunner schedule.Runner
+// fakeScheduleRegistry is a schedule.Registry (+ WorkerStore) that records the
+// CRUD the schedules coordinator drives, so delivery tests assert the wire→domain
+// mapping without a real store.
+type fakeScheduleRegistry struct {
+	listed  []schedule.Schedule
+	listErr error
+	byID    map[string]schedule.Schedule
+	created []schedule.Schedule
+	updated []schedule.Schedule
+	deleted []string
 }
 
-func (r *scheduleRuntime) ListSchedules(context.Context) ([]schedule.Schedule, error) {
+func (r *fakeScheduleRegistry) List(context.Context) ([]schedule.Schedule, error) {
 	return r.listed, r.listErr
 }
 
-func (r *scheduleRuntime) Schedule(_ context.Context, id string) (schedule.Schedule, error) {
+func (r *fakeScheduleRegistry) Get(_ context.Context, id string) (schedule.Schedule, error) {
 	sc, ok := r.byID[id]
 	if !ok {
 		return schedule.Schedule{}, schedule.ErrNotFound
@@ -34,7 +36,7 @@ func (r *scheduleRuntime) Schedule(_ context.Context, id string) (schedule.Sched
 	return sc, nil
 }
 
-func (r *scheduleRuntime) CreateSchedule(_ context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
+func (r *fakeScheduleRegistry) Create(_ context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
 	r.created = append(r.created, sc)
 	if sc.ID == "" {
 		sc.ID = "sch_created"
@@ -45,27 +47,37 @@ func (r *scheduleRuntime) CreateSchedule(_ context.Context, sc schedule.Schedule
 	return sc, nil
 }
 
-func (r *scheduleRuntime) UpdateSchedule(_ context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
+func (r *fakeScheduleRegistry) Update(_ context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
 	r.updated = append(r.updated, sc)
 	return sc, nil
 }
 
-func (r *scheduleRuntime) DeleteSchedule(_ context.Context, id string) error {
+func (r *fakeScheduleRegistry) Delete(_ context.Context, id string) error {
 	r.deleted = append(r.deleted, id)
 	return nil
 }
 
-func (r *scheduleRuntime) RecordScheduleRun(context.Context, string, time.Time) error {
+func (r *fakeScheduleRegistry) RecordRun(context.Context, string, time.Time) error { return nil }
+
+func (r *fakeScheduleRegistry) Due(context.Context, time.Time) ([]schedule.Schedule, error) {
+	return nil, nil
+}
+
+func (r *fakeScheduleRegistry) MarkFired(context.Context, string, time.Time, time.Time, time.Time) error {
 	return nil
 }
 
-func (r *scheduleRuntime) RunScheduleWorker(_ context.Context, runner schedule.Runner) {
-	r.workerRunner = runner
+// serverWithSchedules builds a test Server whose schedules coordinator is backed
+// by reg (used as both the CRUD registry and the worker store).
+func serverWithSchedules(reg schedule.Registry) *Server {
+	s := newTestServer(&stubRuntime{})
+	s.schedules = schedules.NewCoordinator(reg, reg)
+	return s
 }
 
 func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
-	rt := &scheduleRuntime{}
-	s := newTestServer(rt)
+	reg := &fakeScheduleRegistry{}
+	s := serverWithSchedules(reg)
 	cwd := t.TempDir()
 
 	got, err := s.CreateSchedule(context.Background(), protocol.CreateScheduleRequest{
@@ -77,10 +89,10 @@ func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create schedule: %v", err)
 	}
-	if len(rt.created) != 1 {
-		t.Fatalf("created %d schedule(s), want 1", len(rt.created))
+	if len(reg.created) != 1 {
+		t.Fatalf("created %d schedule(s), want 1", len(reg.created))
 	}
-	created := rt.created[0]
+	created := reg.created[0]
 	if !created.Enabled || created.Prompt != "Summarize the repo" || created.Cwd != worktree.CanonicalCwd(cwd) || created.Cron != "@daily" {
 		t.Fatalf("created = %+v", created)
 	}
@@ -93,8 +105,8 @@ func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 }
 
 func TestCreateScheduleRejectsUnavailableCwd(t *testing.T) {
-	rt := &scheduleRuntime{}
-	s := newTestServer(rt)
+	reg := &fakeScheduleRegistry{}
+	s := serverWithSchedules(reg)
 
 	_, err := s.CreateSchedule(context.Background(), protocol.CreateScheduleRequest{
 		Prompt: "Summarize the repo",
@@ -104,18 +116,18 @@ func TestCreateScheduleRejectsUnavailableCwd(t *testing.T) {
 	if !errors.Is(err, protocol.ErrCwdUnavailable) {
 		t.Fatalf("create schedule cwd err = %v, want ErrCwdUnavailable", err)
 	}
-	if len(rt.created) != 0 {
-		t.Fatalf("created %d schedule(s), want 0", len(rt.created))
+	if len(reg.created) != 0 {
+		t.Fatalf("created %d schedule(s), want 0", len(reg.created))
 	}
 }
 
 func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 	last := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
 	createdAt := time.Date(2026, 7, 1, 9, 0, 0, 0, time.UTC)
-	rt := &scheduleRuntime{byID: map[string]schedule.Schedule{
+	reg := &fakeScheduleRegistry{byID: map[string]schedule.Schedule{
 		"sch_1": {ID: "sch_1", LastRunAt: last, CreatedAt: createdAt, NextRunAt: last.Add(time.Hour)},
 	}}
-	s := newTestServer(rt)
+	s := serverWithSchedules(reg)
 	cwd := t.TempDir()
 
 	got, err := s.UpdateSchedule(context.Background(), protocol.UpdateScheduleRequest{
@@ -129,10 +141,10 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update schedule: %v", err)
 	}
-	if len(rt.updated) != 1 {
-		t.Fatalf("updated %d schedule(s), want 1", len(rt.updated))
+	if len(reg.updated) != 1 {
+		t.Fatalf("updated %d schedule(s), want 1", len(reg.updated))
 	}
-	updated := rt.updated[0]
+	updated := reg.updated[0]
 	if !updated.LastRunAt.Equal(last) || !updated.CreatedAt.Equal(createdAt) {
 		t.Fatalf("updated timestamps = last %v created %v", updated.LastRunAt, updated.CreatedAt)
 	}
@@ -148,7 +160,7 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 }
 
 func TestUpdateScheduleUnknownIDIsInvalidParams(t *testing.T) {
-	s := newTestServer(&scheduleRuntime{})
+	s := serverWithSchedules(&fakeScheduleRegistry{})
 
 	_, err := s.UpdateSchedule(context.Background(), protocol.UpdateScheduleRequest{
 		ID:      "missing",
@@ -162,8 +174,8 @@ func TestUpdateScheduleUnknownIDIsInvalidParams(t *testing.T) {
 }
 
 func TestScheduleUnavailableIsCapabilityNotNegotiated(t *testing.T) {
-	rt := &scheduleRuntime{listErr: schedule.ErrUnavailable}
-	s := newTestServer(rt)
+	reg := &fakeScheduleRegistry{listErr: schedule.ErrUnavailable}
+	s := serverWithSchedules(reg)
 
 	_, err := s.ListSchedules(context.Background())
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
@@ -171,13 +183,19 @@ func TestScheduleUnavailableIsCapabilityNotNegotiated(t *testing.T) {
 	}
 }
 
-func TestRunSchedulerDelegatesWorkerToRuntime(t *testing.T) {
-	rt := &scheduleRuntime{}
-	s := newTestServer(rt)
-
-	s.RunScheduler(context.Background())
-
-	if rt.workerRunner == nil {
-		t.Fatal("worker runner not passed to runtime")
+// TestRunSchedulerNoOpWhenDisabled: the default (disabled) coordinator has no
+// worker store, so RunScheduler returns immediately rather than blocking on a
+// scan loop — the delivery wiring's no-scheduling path.
+func TestRunSchedulerNoOpWhenDisabled(t *testing.T) {
+	s := newTestServer(&stubRuntime{}) // default disabled schedules coordinator
+	done := make(chan struct{})
+	go func() {
+		s.RunScheduler(context.Background())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("RunScheduler blocked with no worker store")
 	}
 }

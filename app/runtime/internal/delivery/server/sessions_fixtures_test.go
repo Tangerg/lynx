@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
@@ -46,6 +47,9 @@ func newTestServer(rt RuntimePort) *Server {
 	// Build the run Coordinator like New does, so tests exercise the real
 	// admission / lifecycle seam (its effects come from the stub runtime).
 	s.coordinator = runs.NewCoordinator(rt, s.runSegmentEffects(), cursorMinter{next: s.nextEventID})
+	// Default to a disabled schedules coordinator (schedules.* report
+	// capability_not_negotiated); schedule tests replace it with a fake registry.
+	s.schedules = schedules.NewCoordinator(nil, nil)
 	return s
 }
 

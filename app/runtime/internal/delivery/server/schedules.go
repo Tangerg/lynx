@@ -17,7 +17,7 @@ import (
 
 // ListSchedules returns every schedule, newest-created first (schedules.list).
 func (s *Server) ListSchedules(ctx context.Context) (*protocol.ListSchedulesResult, error) {
-	scheds, err := s.rt.ListSchedules(ctx)
+	scheds, err := s.schedules.List(ctx)
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.list", "")
 	}
@@ -48,7 +48,7 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 	}
 	sc.Cwd = cwd
 	sc.NextRunAt, _ = schedule.NextRun(in.Cron, time.Now()) // cron validated above
-	created, err := s.rt.CreateSchedule(ctx, sc)
+	created, err := s.schedules.Create(ctx, sc)
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.create", "")
 	}
@@ -76,7 +76,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 	if err != nil {
 		return nil, err
 	}
-	existing, err := s.rt.Schedule(ctx, in.ID)
+	existing, err := s.schedules.Get(ctx, in.ID)
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.update", in.ID)
 	}
@@ -86,7 +86,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 	}
 	sc.LastRunAt = existing.LastRunAt
 	sc.CreatedAt = existing.CreatedAt
-	updated, err := s.rt.UpdateSchedule(ctx, sc)
+	updated, err := s.schedules.Update(ctx, sc)
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.update", in.ID)
 	}
@@ -96,21 +96,21 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 
 // DeleteSchedule removes a schedule (schedules.delete). Idempotent.
 func (s *Server) DeleteSchedule(ctx context.Context, in protocol.DeleteScheduleRequest) error {
-	return mapScheduleErr(s.rt.DeleteSchedule(ctx, in.ID), "schedules.delete", in.ID)
+	return mapScheduleErr(s.schedules.Delete(ctx, in.ID), "schedules.delete", in.ID)
 }
 
 // RunScheduleNow fires a schedule immediately (schedules.runNow) — a manual
 // extra run that records the firing without shifting the schedule's next due
 // time.
 func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowRequest) error {
-	sc, err := s.rt.Schedule(ctx, in.ID)
+	sc, err := s.schedules.Get(ctx, in.ID)
 	if err != nil {
 		return mapScheduleErr(err, "schedules.runNow", in.ID)
 	}
 	if _, err := schedule.Fire(ctx, scheduleRunner{s}, sc); err != nil {
 		return err
 	}
-	return mapScheduleErr(s.rt.RecordScheduleRun(ctx, sc.ID, time.Now().UTC()), "schedules.runNow", sc.ID)
+	return mapScheduleErr(s.schedules.RecordRun(ctx, sc.ID, time.Now().UTC()), "schedules.runNow", sc.ID)
 }
 
 func scheduleCwdFromWire(cwd string) (string, error) {

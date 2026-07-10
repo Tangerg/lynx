@@ -18,6 +18,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/taskgroup"
@@ -38,6 +39,11 @@ type Config struct {
 	// Checkpoints backs run-boundary snapshots and sessions.rollback file
 	// restore (restoreType). nil defaults to a disabled checkpoint adapter.
 	Checkpoints *workspace.Checkpoints
+
+	// Schedules is the application coordinator for cron-triggered headless runs
+	// (schedules.* + the background worker). nil defaults to a disabled
+	// coordinator, so a build without scheduling reports capability_not_negotiated.
+	Schedules *schedules.Coordinator
 }
 
 // Server is the protocol.Runtime implementation exposed via [New].
@@ -52,6 +58,10 @@ type Server struct {
 	// the segment pumps, cancel — the application-side home of what delivery used
 	// to track inline. Built in New (its durable effects close over this Server).
 	coordinator *runs.Coordinator
+
+	// schedules owns the cron-triggered headless-run use cases (schedules.* + the
+	// background worker), injected by the composition root. Never nil after New.
+	schedules *schedules.Coordinator
 
 	// eventSeq is the server-wide monotonic source for RunEvent ids
 	// (TRANSPORT.md §9.1). A single counter across all runs is strictly
@@ -115,11 +125,16 @@ func New(cfg Config) (*Server, error) {
 	if checkpoints == nil {
 		checkpoints = workspace.NewCheckpoints("") // disabled: VCS reads still work, checkpoints off
 	}
+	scheduleCoord := cfg.Schedules
+	if scheduleCoord == nil {
+		scheduleCoord = schedules.NewCoordinator(nil, nil) // disabled: schedules.* report capability_not_negotiated
+	}
 	srv := &Server{
 		rt:          cfg.Runtime,
 		serverInfo:  cfg.ServerInfo,
 		wsHub:       newWorkspaceHub(),
 		checkpoints: checkpoints,
+		schedules:   scheduleCoord,
 	}
 	// The run Coordinator's durable effects close over srv (workspace publish +
 	// checkpoints), so it is built here, after the Server value exists. evt_
