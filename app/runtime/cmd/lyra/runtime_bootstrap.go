@@ -74,7 +74,7 @@ func bootstrapRuntime(ctx context.Context) (_ runtimeStack, _ config.Config, err
 
 	hookResolver := bootstrap.HookResolver(stores.Trust)
 
-	rt, err := lyraruntime.Assemble(ctx, bootstrap.RuntimeConfig(cfg, stores, client, providers, hookResolver))
+	rt, err := bootstrap.Assemble(ctx, bootstrap.RuntimeConfig(cfg, stores, client, providers, hookResolver))
 	if err != nil {
 		return runtimeStack{}, config.Config{}, err
 	}

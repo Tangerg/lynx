@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -27,39 +26,6 @@ type utilityRoleSaver interface {
 
 type chatClientResolver interface {
 	ResolveClient(ctx context.Context, providerID, model string) (*chat.Client, error)
-}
-
-type utilityEnvironment struct {
-	cell    *atomic.Pointer[modelrole.Role]
-	resolve func(context.Context) *chat.Client
-}
-
-func buildUtilityEnvironment(ctx context.Context, mainClient *chat.Client, loader utilityRoleLoader, resolver chatClientResolver) (utilityEnvironment, error) {
-	var role modelrole.Role
-	if loader != nil {
-		p, m, err := loader.LoadUtilityRole(ctx)
-		if err != nil {
-			return utilityEnvironment{}, fmt.Errorf("runtime: load utility role: %w", err)
-		}
-		role, err = modelrole.New(p, m)
-		if err != nil {
-			return utilityEnvironment{}, fmt.Errorf("runtime: load utility role: %w", err)
-		}
-	}
-	cell := &atomic.Pointer[modelrole.Role]{}
-	cell.Store(&role)
-	resolve := func(ctx context.Context) *chat.Client {
-		role := cell.Load()
-		if role == nil || !role.Configured() || resolver == nil {
-			return mainClient
-		}
-		c, err := resolver.ResolveClient(ctx, role.ProviderID(), role.Model())
-		if err != nil || c == nil {
-			return mainClient
-		}
-		return c
-	}
-	return utilityEnvironment{cell: cell, resolve: resolve}, nil
 }
 
 // UtilityRole returns the live utility-model role; both empty when unset
