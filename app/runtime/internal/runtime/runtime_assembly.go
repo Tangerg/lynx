@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
@@ -51,7 +52,7 @@ func Assemble(ctx context.Context, cfg Config) (*Runtime, error) {
 	// tuple. A turn uses it to honor a per-run model; the maintenance services
 	// below use it to honor the utility-model role.
 	providers := cfg.ProviderRegistry
-	resolver := newClientResolver(providers)
+	resolver := modelclient.NewClientResolver(providers)
 
 	utilityEnv, err := buildUtilityEnvironment(ctx, cfg.Engine.ChatClient, cfg.UtilityRoleStore, resolver)
 	if err != nil {

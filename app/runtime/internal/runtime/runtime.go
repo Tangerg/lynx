@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
@@ -94,7 +95,7 @@ type Runtime struct {
 	// codebase is the management/search surface (nil when no CodebaseStore).
 	// See embedding.go.
 	embeddingCell  *atomic.Pointer[modelrole.Role]
-	embeddings     *embeddingResolver
+	embeddings     *modelclient.EmbeddingResolver
 	embeddingStore embeddingRoleSaver
 	codebase       codebaseindex.Index
 
