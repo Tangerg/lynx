@@ -65,9 +65,9 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 			cfg := runtimeConfigWithRequiredDeps(t)
 			tt.edit(&cfg)
 
-			_, err := New(t.Context(), cfg)
+			_, err := Assemble(t.Context(), cfg)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("New error = %v, want containing %q", err, tt.want)
+				t.Fatalf("Assemble error = %v, want containing %q", err, tt.want)
 			}
 		})
 	}

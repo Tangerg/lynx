@@ -5,16 +5,20 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-// New assembles a Runtime from cfg. Returns an error when a required
-// dependency is missing or any internal constructor fails -- engine
-// deployment, MCP dial, etc.
-func New(ctx context.Context, cfg Config) (*Runtime, error) {
+// Assemble builds a Runtime from cfg: it constructs the engine, turn
+// dispatcher, tool registry, and the utility/embedding/mcp environments, then
+// wires them into the facade via [New]. Returns an error when a required
+// dependency is missing or any internal constructor fails -- engine deployment,
+// MCP dial, etc. (The composition-root migration will move this assembly into
+// the bootstrap ring; [New] is already the wiring seam it will call.)
+func Assemble(ctx context.Context, cfg Config) (*Runtime, error) {
 	if cfg.Engine.ChatClient == nil {
 		return nil, errors.New("runtime: Engine.ChatClient is required")
 	}
@@ -106,17 +110,34 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, errors.Join(fmt.Errorf("runtime: tool registry: %w", err), eng.Close())
 	}
 
-	return newRuntimeFacade(runtimeFacadeDeps{
-		cfg:       cfg,
-		engine:    eng,
-		turns:     turnDispatcher,
-		tools:     toolRegistry,
-		approval:  approvalPolicy,
-		messages:  messages,
-		resolver:  resolver,
-		mcp:       mcpEnv,
-		utility:   utilityEnv,
-		embedding: embeddingEnv,
+	return New(Dependencies{
+		Engine:           eng,
+		Turns:            turnDispatcher,
+		Tools:            toolRegistry,
+		Approval:         approvalPolicy,
+		Conversation:     messages.conversation,
+		Resolver:         resolver,
+		Sessions:         cfg.SessionStore,
+		Interrupts:       cfg.InterruptStore,
+		Transcript:       cfg.TranscriptStore,
+		Memory:           cfg.Engine.Knowledge,
+		Providers:        cfg.ProviderRegistry,
+		MCPRegistry:      cfg.MCPRegistry,
+		MCPPolicy:        mcpEnv.policy,
+		DefaultProvider:  cfg.Provider,
+		DefaultModel:     cfg.Model,
+		Titles:           maintenance.NewTitler(utilityEnv.resolve),
+		UtilityCell:      utilityEnv.cell,
+		UtilityStore:     cfg.UtilityRoleStore,
+		HookInspection:   cfg.HooksResolver,
+		HookTrust:        cfg.HookTrustStore,
+		RecipesGlobalDir: cfg.RecipesGlobalDir,
+		EmbeddingCell:    embeddingEnv.cell,
+		Embeddings:       embeddingEnv.resolver,
+		EmbeddingStore:   cfg.EmbeddingRoleStore,
+		Codebase:         embeddingEnv.index,
+		Transactor:       cfg.Transactor,
+		Resources:        cfg.Resources,
 	}), nil
 }
 
