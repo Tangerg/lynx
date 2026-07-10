@@ -5,18 +5,18 @@ import (
 	"iter"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
 // The ports this package consumes to run a segment. They are defined here — on
 // the consumer side — and satisfied structurally by the runtime / delivery /
-// kernel implementations the composition root injects.
+// adapter implementations the composition root injects.
 //
-// Executor and Projector currently reference kernel types (turn.Event,
-// turn.TurnHandle) and kernel/runsegment.Event: the application depends inward
-// on them for now. A later batch inverts the executor edge behind an
-// engine-neutral event (rewrite Batch 5) and relocates runsegment (Batch 3).
+// Executor and Projector still reference kernel types (turn.Event,
+// turn.TurnHandle): the application depends inward on them for now. A later
+// batch inverts the executor edge behind an engine-neutral event (rewrite
+// Batch 5). The durable side-effect payload is already opaque (see
+// ProjectedEvent.Effect), so relocating its adapter left no application edge.
 
 // Executor is what the run pump needs to drive, observe, and cancel the agent
 // turn backing a run segment. The concrete runtime implements it.
@@ -49,15 +49,18 @@ type Projector interface {
 }
 
 // ProjectedEvent is one event on its way to both the durable store and the live
-// journal. Payload is the opaque wire event (the application never imports the
-// wire package); Effect is the durable domain record to commit.
+// journal. Payload and Effect are BOTH opaque to the application: it shuttles
+// each from the delivery-side Projector to its consumer without inspecting it.
+// Payload is the wire event (published to the journal); Effect is the durable
+// side effect (handed to the Effects port). The projector builds Effect as a
+// concrete adapter type; only that adapter reads it back.
 type ProjectedEvent struct {
-	Durable   bool             // retained for replay (mirrors the wire's IsDurable)
-	Terminal  bool             // ends the run's stream (the run.finished)
-	Interrupt bool             // terminal that PARKS — takes the commit-before-publish path
-	Abort     bool             // projection failed; cancel the turn and terminalize as error
-	Payload   any              // opaque wire payload (a protocol StreamEvent)
-	Effect    runsegment.Event // durable side effect to commit (item / run / interrupt / files)
+	Durable   bool // retained for replay (mirrors the wire's IsDurable)
+	Terminal  bool // ends the run's stream (the run.finished)
+	Interrupt bool // terminal that PARKS — takes the commit-before-publish path
+	Abort     bool // projection failed; cancel the turn and terminalize as error
+	Payload   any  // opaque wire payload (a protocol StreamEvent)
+	Effect    any  // opaque durable side effect (an adapter side-effect record)
 }
 
 // SegmentView exposes late-bound segment state the Projector reads at terminal
@@ -69,12 +72,24 @@ type SegmentView interface {
 
 // Effects is the durable side of a run segment: commit the interrupt record
 // before its event is published (BeforeLive), commit item/run/files after
-// publication (AfterLive), and run terminal boundary maintenance (Finish).
-// *kernel/runsegment.Effects satisfies this structurally.
+// publication (AfterLive), and run terminal boundary maintenance (Finish). The
+// side-effect payload is opaque (see ProjectedEvent.Effect); only [Finish] —
+// which the pump builds from run-boundary facts it owns — is a concrete type.
+// The adapter/runsegment.Effects satisfies this structurally.
 type Effects interface {
-	BeforeLive(ctx context.Context, ev runsegment.Event) error
-	AfterLive(ctx context.Context, ev runsegment.Event)
-	Finish(ctx context.Context, fin runsegment.Finish)
+	BeforeLive(ctx context.Context, effect any) error
+	AfterLive(ctx context.Context, effect any)
+	Finish(ctx context.Context, fin Finish)
+}
+
+// Finish describes the terminal run-boundary maintenance the Effects port runs
+// after the live stream has closed. The pump builds it from run-boundary facts
+// it already owns; a parked run is resumable, not a boundary.
+type Finish struct {
+	SessionID       string
+	RunID           string
+	Parked          bool
+	OpeningUserText string
 }
 
 // CursorMinter supplies the monotonic, fixed-width, lexically-ordered cursor

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -78,20 +77,20 @@ type fakeEffects struct {
 	beforeErr error
 }
 
-func (e *fakeEffects) BeforeLive(context.Context, runsegment.Event) error {
+func (e *fakeEffects) BeforeLive(context.Context, any) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.before++
 	return e.beforeErr
 }
 
-func (e *fakeEffects) AfterLive(context.Context, runsegment.Event) {
+func (e *fakeEffects) AfterLive(context.Context, any) {
 	e.mu.Lock()
 	e.after++
 	e.mu.Unlock()
 }
 
-func (e *fakeEffects) Finish(context.Context, runsegment.Finish) {
+func (e *fakeEffects) Finish(context.Context, Finish) {
 	e.mu.Lock()
 	e.finished = true
 	e.mu.Unlock()

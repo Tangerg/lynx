@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 )
 
 // sideEffectEvent converts one wire StreamEvent into the delivery-neutral
-// payload that kernel/runsegment executes. The wire blob encoding stays here:
+// payload that adapter/runsegment executes. The wire blob encoding stays here:
 // transcript history is the replay store for the protocol-facing UI timeline.
 // createdAt is the run's start time (captured at segment open), carried onto the
 // synthesized terminal RunRef so the persisted run keeps its timeline key.

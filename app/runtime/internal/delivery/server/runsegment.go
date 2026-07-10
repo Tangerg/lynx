@@ -1,9 +1,9 @@
 package server
 
 import (
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/runsegment"
 )
 
 // The durable side-effect coordinator satisfies the application-side Effects
