@@ -1,4 +1,4 @@
-package startup
+package bootstrap
 
 import (
 	"io"
