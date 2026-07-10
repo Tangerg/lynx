@@ -1,6 +1,6 @@
 // Package startup adapts process config and environment state into runtime
 // construction inputs.
-package startup
+package bootstrap
 
 import (
 	"errors"

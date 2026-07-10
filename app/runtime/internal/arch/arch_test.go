@@ -27,7 +27,8 @@ import (
 //	domain         internal/domain/**          bounded contexts: entities + repository ports + domain services
 //	infra          internal/infra/**            sqlite / git / lsp / mcp / exec — driven adapters & frameworks
 //	composition    internal/runtime/**,         the "main" component that wires everything; exempt as an importer
-//	               internal/config, cmd/**       (startup projection lives at internal/runtime/startup)
+//	               internal/bootstrap/**,       (config load + assembly + host lifecycle live in internal/bootstrap)
+//	               internal/config, cmd/**
 //
 // Forbidden edges (an inner ring learning about an outer one, or an adapter
 // reaching across the core):
@@ -150,6 +151,7 @@ const (
 func layerOf(rel string) string {
 	switch {
 	case rel == "internal/runtime" || strings.HasPrefix(rel, "internal/runtime/") ||
+		rel == "internal/bootstrap" || strings.HasPrefix(rel, "internal/bootstrap/") ||
 		rel == "internal/config" || strings.HasPrefix(rel, "cmd/"):
 		return ringComposition
 	case rel == "internal/delivery" || strings.HasPrefix(rel, "internal/delivery/"):
