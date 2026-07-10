@@ -51,9 +51,9 @@ type Dependencies struct {
 	// todo_write. nil disables the projection.
 	Todos todoLister
 
-	// MCPAutoApprove returns the model-facing MCP tool names whose calls skip
-	// the approval prompt. nil disables MCP-specific auto-approval.
-	MCPAutoApprove func() map[string]struct{}
+	// MCPToolAutoApproved reports whether a model-facing MCP tool may skip the
+	// approval prompt. nil disables MCP-specific auto-approval.
+	MCPToolAutoApproved func(string) bool
 
 	// Hooks resolves lifecycle hooks for a turn's cwd. nil disables hooks.
 	Hooks hookResolver
@@ -71,7 +71,7 @@ type Dependencies struct {
 //   - turn_start.go     — start-turn admission into the agent engine
 //   - turn_control.go   — cancel/resume interrupt control
 //   - rehydrate.go      — cross-restart parked-turn resume
-//   - live_registry.go  — live-turn lookup + negotiated interrupt gates
+//   - live_registry.go  — live-turn lookup + per-turn interrupt gates
 //   - event_emit.go     — stamped event delivery and backpressure semantics
 //   - state.go          — per-turn state + cross-goroutine invariants
 //   - turn.go           — run/drive/interrupt lifecycle
@@ -89,14 +89,15 @@ func New(deps Dependencies) (Dispatcher, error) {
 		return nil, errors.New("turn: engine is required")
 	}
 	return &inMemory{
-		engine:         deps.Engine,
-		approval:       deps.Approval,
-		resolver:       deps.ClientResolver,
-		todos:          deps.Todos,
-		mcpAutoApprove: deps.MCPAutoApprove,
-		hooks:          deps.Hooks,
-		turns:          map[string]*turnState{},
-		seenSessions:   map[string]struct{}{},
+		engine:              deps.Engine,
+		approval:            deps.Approval,
+		resolver:            deps.ClientResolver,
+		todos:               deps.Todos,
+		mcpToolAutoApproved: deps.MCPToolAutoApproved,
+		hooks:               deps.Hooks,
+		turns:               map[string]*turnState{},
+		seenSessions:        map[string]struct{}{},
+		closeDone:           make(chan struct{}),
 	}, nil
 }
 
@@ -109,33 +110,70 @@ type inMemory struct {
 	resolver clientResolver  // optional — nil = always use the default model
 	todos    todoLister      // optional — nil = no state.snapshot{todos} projection
 
-	// mcpAutoApprove returns the model-facing MCP tool names whose calls skip the
-	// approval prompt — a per-server whitelist the runtime recomputes on every
+	// mcpToolAutoApproved reports whether a model-facing MCP tool skips the
+	// approval prompt. The runtime recomputes the policy on every
 	// MCP registry change. Consulted on the GatePrompt path only, AFTER standing
 	// rules, so it never overrides a remembered deny or the read-only plan-mode
 	// deny; it only spares a prompt the user would otherwise see. nil = off.
-	mcpAutoApprove func() map[string]struct{}
+	mcpToolAutoApproved func(string) bool
 
 	// hooks resolves the lifecycle-hook set for a turn's cwd. nil = no hooks.
 	hooks hookResolver
 
-	// mu guards the live-turn registry + interruptKinds + seenSessions; each
-	// turn owns the synchronization of its own cross-goroutine state (see
-	// turnState.mu).
-	mu    sync.Mutex
-	turns map[string]*turnState // turn_id → state
+	// mu guards the live-turn registry + seenSessions; each turn owns the
+	// synchronization of its own cross-goroutine state (see turnState.mu).
+	mu        sync.Mutex
+	turns     map[string]*turnState // turn_id → state
+	closed    bool
+	closeOnce sync.Once
+	closeDone chan struct{}
 
 	// seenSessions tracks which sessions this process has already opened a turn
 	// for, so the SessionStart hook fires once per session per process (not on
 	// every turn). Guarded by mu.
 	seenSessions map[string]struct{}
+}
 
-	// interruptKinds is the allowlist of HITL kinds the connected client
-	// declared it can answer (ClientCapabilities.InterruptKinds). nil means
-	// unconfigured → surface every kind (the permissive default for
-	// in-process / CLI callers that don't negotiate). A non-nil set gates
-	// strictly: a turn about to park on a kind absent here is auto-denied
-	// rather than left as an unanswerable interrupt (API.md §6.2). Guarded
-	// by mu.
-	interruptKinds map[string]bool
+func (s *inMemory) register(st *turnState) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
+	}
+	s.turns[st.handle.TurnID] = st
+	return true
+}
+
+func (s *inMemory) isClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
+}
+
+// Close cancels and joins the complete live-turn set. The dispatcher, not the
+// delivery run registry, is authoritative because parked turns remain live
+// after their streaming segment has ended.
+func (s *inMemory) Close() {
+	s.closeOnce.Do(func() {
+		s.mu.Lock()
+		s.closed = true
+		states := make([]*turnState, 0, len(s.turns))
+		for _, st := range s.turns {
+			states = append(states, st)
+		}
+		s.mu.Unlock()
+
+		var cancels sync.WaitGroup
+		for _, st := range states {
+			cancels.Go(func() {
+				_ = s.Cancel(context.WithoutCancel(st.ctx), st.handle)
+			})
+		}
+		cancels.Wait()
+		for _, st := range states {
+			<-st.done
+		}
+		close(s.closeDone)
+	})
+	<-s.closeDone
 }

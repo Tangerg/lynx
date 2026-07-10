@@ -47,8 +47,10 @@ type TranscriptStore interface {
 }
 
 // InterruptStore is the lifecycle coordinator's view of open HITL interrupts.
-// It can claim, inspect, and delete open records, but cannot create new ones.
+// Put is used only to compensate a consumed cross-restart claim when rehydrate
+// fails before any continuation can run.
 type InterruptStore interface {
+	Put(ctx context.Context, pending interrupts.Pending) error
 	List(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
 	Get(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error)
 	Consume(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error)

@@ -6,24 +6,45 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-// DeleteSession removes the session row (authoritative) then best-effort
-// cascades the session-scoped storage: durable history, chat history, parked
-// turns/open interrupts, and the process-local resume gate. The cascade runs
-// AFTER the authoritative delete so a partial cascade leaves harmless orphans,
-// never a half-deleted session. File checkpoints (shadow git) are NOT dropped
-// here — that is the adapter's workspace concern, not a storage write-set.
+// DeleteSession atomically removes all durable session state, then tears down
+// process-local parked turns and the resume gate. File checkpoints are an
+// adapter-owned workspace concern and are dropped by the caller after commit.
 func (c *Coordinator) DeleteSession(ctx context.Context, turns TurnCanceler, sessionID string) error {
-	if err := c.s.Session().Delete(ctx, sessionID); err != nil {
+	var pending []interrupts.Pending
+	if err := c.s.RunInTx(ctx, func(ctx context.Context) error {
+		var err error
+		pending, err = c.s.Interrupts().List(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		if err := c.s.Transcript().DeleteSession(ctx, sessionID); err != nil {
+			return err
+		}
+		if err := c.s.TruncateMessages(ctx, sessionID, 0); err != nil {
+			return err
+		}
+		for _, item := range pending {
+			if err := c.s.Interrupts().Delete(ctx, item.ParentRunID); err != nil {
+				return err
+			}
+		}
+		return c.s.Session().Delete(ctx, sessionID)
+	}); err != nil {
 		return err
 	}
-	_ = c.s.Transcript().DeleteSession(ctx, sessionID) // history runs + items
-	_ = c.s.TruncateMessages(ctx, sessionID, 0)        // chat history messages
-	c.cancelParkedInterrupts(ctx, turns, sessionID)    // live parked turns + durable interrupts
-	c.s.ForgetSession(sessionID)                       // process-local SessionStart gate
+	for _, item := range pending {
+		c.cancelTurn(ctx, turns, RunTurnBinding{
+			RunID:     item.ParentRunID,
+			SessionID: item.SessionID,
+			TurnID:    item.TurnID,
+		})
+	}
+	c.s.ForgetSession(sessionID)
 	return nil
 }
 

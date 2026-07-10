@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"context"
+	"slices"
 	"time"
 )
 
@@ -26,7 +27,7 @@ func (c *client) diagnostics(ctx context.Context, abs string, settle time.Durati
 		wait := c.updated
 		c.mu.Unlock()
 		if ok && ds.version >= version {
-			return ds.diagnostics, nil
+			return slices.Clone(ds.diagnostics), nil
 		}
 		select {
 		case <-wait: // a push arrived — re-check
@@ -34,7 +35,7 @@ func (c *client) diagnostics(ctx context.Context, abs string, settle time.Durati
 			c.mu.Lock()
 			ds := c.diags[uri]
 			c.mu.Unlock()
-			return ds.diagnostics, nil // best effort: whatever we have
+			return slices.Clone(ds.diagnostics), nil // best effort: whatever we have
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}

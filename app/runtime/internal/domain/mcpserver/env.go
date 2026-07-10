@@ -27,8 +27,8 @@ var injectionEnvKeys = map[string]struct{}{
 // spawning. It returns a fresh map — never mutates Env — and preserves the
 // empty case (nil Env → nil result).
 func (s Server) SafeEnv() map[string]string {
-	if len(s.Env) == 0 {
-		return s.Env
+	if s.Env == nil {
+		return nil
 	}
 	out := make(map[string]string, len(s.Env))
 	for k, v := range s.Env {

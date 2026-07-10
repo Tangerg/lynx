@@ -1,23 +1,18 @@
-// Package inprocess implements the [transport.Transport] interface
-// for "Go ↔ Go in the same binary" deployments — typically a Bubble
-// Tea TUI linking the runtime directly. The business path skips
-// JSON-RPC serialization entirely; the Transport surface exists only
-// so logging / tracing middleware can wrap calls uniformly.
+// Package inprocess implements the [transport.Transport] interface for future
+// same-process clients such as a CLI/TUI that embeds the runtime instead of
+// talking over HTTP. The runtime server binary does not use this package.
 //
 // Two modes of use:
 //
-//  1. Direct Runtime passthrough (recommended). Get the Runtime
-//     interface back as-is and call methods directly:
+//  1. Direct Runtime passthrough. Get the Runtime interface back as-is and call
+//     methods directly:
 //
 //     api := server.New(...)
 //     sessions, err := api.ListSessions(ctx, ...)
 //
-//  2. Through Transport (for middleware symmetry). Wrap the api in
-//     an InProcessTransport and treat it like any other transport.
-//     Messages are dispatched through delivery/dispatch.Dispatcher so
-//     codepaths stay uniform with HTTP.
-//
-// The second mode is mostly for tests; production TUI code uses #1.
+//  2. Through Transport. Wrap the api in an InProcessTransport and treat it like
+//     any other transport. Messages are dispatched through
+//     delivery/dispatch.Dispatcher so codepaths stay uniform with HTTP.
 package inprocess
 
 import (
@@ -29,7 +24,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/taskgroup"
 )
+
+var errTransportClosed = errors.New("inprocess: transport closed")
 
 // messageHandler is the dispatch surface this transport needs: route
 // one inbound message, return the synchronous reply plus any stream.
@@ -45,18 +43,18 @@ type messageHandler interface {
 type Transport struct {
 	dispatcher messageHandler
 
-	in   chan transport.Message // outbound from Runtime's POV → inbound to client
+	in   chan transport.Message // outbound from Runtime's POV -> inbound to client
 	once sync.Once
 
 	// close signals every sender to stop; gone short-circuits new sends.
 	// mu makes "reserve a send slot" and "begin closing" mutually exclusive,
-	// and sending counts in-flight sends so Close waits them out BEFORE
-	// close(in) — otherwise a send (Send / pumpStream) racing close(in) panics
-	// with "send on closed channel" (select doesn't shield a closed-send case).
+	// and sending counts in-flight sends so Close waits them out before close(in).
 	close   chan struct{}
 	gone    atomic.Bool
 	mu      sync.Mutex
 	sending sync.WaitGroup
+	pumps   sync.WaitGroup
+	calls   taskgroup.Group
 }
 
 // reserve registers one in-flight send unless the transport is closing. On true
@@ -104,14 +102,20 @@ func NewTransport(cfg Config) (*Transport, error) {
 // streaming methods (runs.start, ...), the resulting events are
 // piped onto the Recv channel as notifications/run/event entries.
 func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
-	if t.gone.Load() {
-		return errors.New("inprocess: transport closed")
+	callCtx, release, ok := t.calls.AttachLinked(ctx)
+	if !ok {
+		return errTransportClosed
 	}
-
-	res := t.dispatcher.Handle(ctx, msg, "")
+	releaseCall := true
+	defer func() {
+		if releaseCall {
+			release()
+		}
+	}()
+	res := t.dispatcher.Handle(callCtx, msg, "")
 	if res.Response != nil {
 		if !t.reserve() {
-			return errors.New("inprocess: transport closed")
+			return errTransportClosed
 		}
 		err := func() error {
 			defer t.sending.Done()
@@ -121,7 +125,7 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-t.close:
-				return errors.New("inprocess: transport closed")
+				return errTransportClosed
 			}
 		}()
 		if err != nil {
@@ -129,9 +133,27 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 		}
 	}
 	if res.EventStream != nil {
-		go t.pumpStream(ctx, res.EventStream)
+		if !t.startPump(callCtx, res.EventStream, release) {
+			return errTransportClosed
+		}
+		releaseCall = false // the stream pump now owns the attached call
 	}
 	return nil
+}
+
+func (t *Transport) startPump(ctx context.Context, events <-chan dispatch.StreamFrame, release func()) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.gone.Load() {
+		return false
+	}
+	t.pumps.Add(1)
+	go func() {
+		defer release()
+		defer t.pumps.Done()
+		t.pumpStream(ctx, events)
+	}()
+	return true
 }
 
 // pumpStream drains a streaming method's frame channel and emits each frame's
@@ -175,15 +197,17 @@ func (t *Transport) tryEmit(msg transport.Message) bool {
 // Recv returns the inbound channel — responses + notifications.
 func (t *Transport) Recv() <-chan transport.Message { return t.in }
 
-// Close signals senders to stop, waits for in-flight sends to settle, then
-// closes the Recv channel. Idempotent and safe to call concurrently with Send.
+// Close signals streams and senders to stop, joins them, then closes the Recv
+// channel. Idempotent and safe to call concurrently with Send.
 func (t *Transport) Close() error {
 	t.once.Do(func() {
 		t.mu.Lock()
 		t.gone.Store(true)
 		close(t.close)
 		t.mu.Unlock()
-		t.sending.Wait() // no send is mid-flight on t.in past this point
+		t.calls.Close()
+		t.pumps.Wait()
+		t.sending.Wait()
 		close(t.in)
 	})
 	return nil

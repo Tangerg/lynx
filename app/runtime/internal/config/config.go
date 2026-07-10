@@ -5,7 +5,6 @@
 //  1. Built-in defaults
 //  2. config/config.yaml (or $HOME/.lyra/config.yaml) — viper
 //  3. Environment variables (LYRA_*)
-//  4. CLI flags (resolved by cmd/lyra; e.g. serve --listen)
 //
 // The yaml file is where the API key lives in dev; it is gitignored.
 // Copy config/config.example.yaml → config/config.yaml and fill it in.
@@ -90,7 +89,6 @@ func Load() (Config, error) {
 			NoLocalToken:   v.GetBool("server.noLocalToken"),
 			LocalTokenPath: v.GetString("server.localTokenPath"),
 			CORSOrigins:    v.GetStringSlice("server.corsOrigins"),
-			A2AListen:      v.GetString("server.a2aListen"),
 		},
 	}, nil
 }

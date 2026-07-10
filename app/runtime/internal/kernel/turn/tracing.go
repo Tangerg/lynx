@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 )
 
 // turnTracer emits the business-level span for one turn — the

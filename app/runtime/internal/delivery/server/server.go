@@ -7,19 +7,21 @@
 // memory) are wired through; the rest return protocol.ErrCapabilityNotNeg,
 // which the dispatch maps to capability_not_negotiated so the client
 // sees an honest "off on this build" signal consistent with the
-// capability flags advertised at initialize.
+// capability flags advertised through discovery.
 package server
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/taskgroup"
 )
 
 // Config bundles construction inputs.
@@ -39,9 +41,7 @@ type Config struct {
 	Checkpoints *workspace.Checkpoints
 }
 
-// Server is the Runtime implementation. Exposed via [New]; the returned
-// interface is protocol.Runtime so callers can't reach past the typed
-// surface.
+// Server is the protocol.Runtime implementation exposed via [New].
 type Server struct {
 	// rt is the inbound adapter's single seam into the runtime application
 	// boundary (see [RuntimePort]) — the composition root passes the concrete
@@ -70,6 +70,10 @@ type Server struct {
 	// so sessions.rollback can restore files. VCS reads stay stateless package
 	// functions in adapter/workspace.
 	checkpoints *workspace.Checkpoints
+
+	// tasks owns request-detached delivery work such as MCP reconnect and OAuth
+	// flows. Close cancels and joins it before runtime resources disappear.
+	tasks taskgroup.Group
 }
 
 // nextEventID returns the next globally-monotonic RunEvent id, formatted
@@ -79,10 +83,91 @@ func (s *Server) nextEventID() string {
 	return protocol.IDPrefixEvent + fmt.Sprintf("%011d", s.eventSeq.Add(1))
 }
 
+// Close cancels and joins request-detached delivery work, including run pumps
+// and MCP connection actions. It is safe to call repeatedly.
+func (s *Server) Close() {
+	if s != nil {
+		s.tasks.Close()
+	}
+}
+
 // runHandle holds delivery-owned resources for one in-flight run segment.
 type runHandle struct {
-	cancel context.CancelFunc
-	hub    *runHub
+	mu              sync.Mutex
+	cancel          context.CancelFunc
+	owner           context.Context
+	hub             *runHub
+	cancelRequested bool
+	cancelReason    string
+}
+
+// requestCancel linearizes cancellation with interrupt publication. Once it
+// returns, no new interrupt can be committed for this run; a commit already in
+// progress has completed before cancellation proceeds to delete its durable
+// record.
+func (h *runHandle) requestCancel(reason string) {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	h.cancelRequested = true
+	h.cancelReason = reason
+	cancel := h.cancel
+	h.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// commitInterrupt runs the durable commit and live publication as one critical
+// section relative to requestCancel. committed=false means cancellation won the
+// race and commit was deliberately not called.
+func (h *runHandle) commitInterrupt(commit func() error) (committed bool, err error) {
+	if h == nil {
+		return false, errors.New("server: missing live run handle")
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.cancelRequested {
+		return false, nil
+	}
+	if err := commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (h *runHandle) reason() string {
+	if h == nil {
+		return ""
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.cancelReason
+}
+
+func (h *runHandle) stop() {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	cancel := h.cancel
+	h.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func (h *runHandle) cleanupContext(fallback context.Context) (context.Context, context.CancelFunc) {
+	base := context.WithoutCancel(fallback)
+	if h != nil {
+		h.mu.Lock()
+		if h.owner != nil {
+			base = h.owner
+		}
+		h.mu.Unlock()
+	}
+	return context.WithTimeout(base, runCleanupTimeout)
 }
 
 // New builds a Server. Returns an error when Runtime is nil. The concrete
@@ -139,6 +224,9 @@ func Capabilities(rt capabilityAccess) protocol.ServerCapabilities {
 			protocol.StreamItemStarted,
 			protocol.StreamItemDelta,
 			protocol.StreamItemCompleted,
+			protocol.StreamStateSnapshot,
+			protocol.StreamStateDelta,
+			protocol.StreamCustom,
 		},
 		// streamable-HTTP methods, machine-readable so the client knows which
 		// calls return an event stream rather than hardcoding the names (§7/§9).
@@ -160,6 +248,8 @@ func Capabilities(rt capabilityAccess) protocol.ServerCapabilities {
 			"checkpoints": workspace.GitAvailable(),
 			"multimodal":  true, // image input: runs.start input image blocks (Mime + base64 Data)
 			"relocate":    true, // sessions.update cwd-relocate
+			"todos":       true, // state.snapshot{todos} from the todo_write tool
+			"compaction":  true, // compaction Item boundaries
 			// Off until the corresponding engine support lands:
 			"subagents":   false,
 			"clientTools": false,
@@ -181,7 +271,7 @@ func providerIDs(supported []providersvc.Metadata) []string {
 
 // capabilityNotNegotiated marks a protocol method that exists in the contract
 // but isn't backed on this build. Maps to capability_not_negotiated (API.md §8.2)
-// — consistent with the feature flag advertised at initialize.
+// — consistent with the feature flag advertised through discovery.
 func capabilityNotNegotiated(method string) error {
 	return fmt.Errorf("%w: %s", protocol.ErrCapabilityNotNeg, method)
 }

@@ -3,9 +3,9 @@ export type BootstrapTeardown = () => void | Promise<void>;
 export interface BootstrapLifecyclePorts {
   installPorts: () => void;
   initObservability: () => Promise<BootstrapTeardown>;
-  performHandshake: () => Promise<void>;
+  discoverRuntime: () => Promise<void>;
   reportObservabilityFailure: (error: unknown) => void;
-  reportHandshakeFailure: (error: unknown) => void;
+  reportDiscoveryFailure: (error: unknown) => void;
 }
 
 export function startBootstrapLifecycle(ports: BootstrapLifecyclePorts): BootstrapTeardown {
@@ -25,7 +25,7 @@ export function startBootstrapLifecycle(ports: BootstrapLifecyclePorts): Bootstr
     })
     .catch(ports.reportObservabilityFailure);
 
-  void ports.performHandshake().catch(ports.reportHandshakeFailure);
+  void ports.discoverRuntime().catch(ports.reportDiscoveryFailure);
 
   return () => {
     disposed = true;

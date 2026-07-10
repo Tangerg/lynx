@@ -44,7 +44,7 @@ func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 // delivers the bool decision to the agent process, and drives the continuation
 // segment onto the same event channel. Returns [ErrTurnNotFound] when the turn
 // isn't parked (unknown / already resumed / terminal).
-func (s *inMemory) Resume(_ context.Context, handle TurnHandle, resolution interrupts.Resolution) error {
+func (s *inMemory) Resume(_ context.Context, handle TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err
@@ -55,6 +55,7 @@ func (s *inMemory) Resume(_ context.Context, handle TurnHandle, resolution inter
 		// restart) so the caller doesn't rehydrate and resurrect a canceled turn.
 		return ErrParkClaimed
 	}
+	state.setInterruptKinds(interruptKinds)
 	return s.resumeAndDrive(state, resolution)
 }
 

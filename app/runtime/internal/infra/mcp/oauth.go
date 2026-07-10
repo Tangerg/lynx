@@ -50,6 +50,7 @@ type oauthFlow struct {
 	redirectURI string
 	server      *http.Server
 	result      chan oauthCallback
+	serveDone   chan error
 }
 
 // newOAuthFlow binds a loopback callback server on an ephemeral port and starts
@@ -62,11 +63,12 @@ func newOAuthFlow() (*oauthFlow, error) {
 	f := &oauthFlow{
 		redirectURI: fmt.Sprintf("http://%s%s", ln.Addr().String(), oauthCallbackPath),
 		result:      make(chan oauthCallback, 1),
+		serveDone:   make(chan error, 1),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc(oauthCallbackPath, f.handleCallback)
 	f.server = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
-	go func() { _ = f.server.Serve(ln) }() // returns on Shutdown
+	go func() { f.serveDone <- f.server.Serve(ln) }()
 	return f, nil
 }
 
@@ -96,7 +98,7 @@ func (f *oauthFlow) handleCallback(w http.ResponseWriter, r *http.Request) {
 // fetch is the [auth.AuthorizationCodeFetcher]: open the browser to the
 // authorization URL, then wait for the loopback redirect (or ctx timeout).
 func (f *oauthFlow) fetch(ctx context.Context, args *auth.AuthorizationArgs) (*auth.AuthorizationResult, error) {
-	if err := openBrowser(args.URL); err != nil {
+	if err := openBrowser(ctx, args.URL); err != nil {
 		return nil, fmt.Errorf("mcp oauth: open browser (visit %s manually): %w", args.URL, err)
 	}
 	select {
@@ -118,7 +120,16 @@ func (f *oauthFlow) fetch(ctx context.Context, args *auth.AuthorizationArgs) (*a
 func (f *oauthFlow) close(ctx context.Context) {
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 	defer cancel()
-	_ = f.server.Shutdown(shutdownCtx)
+	shutdownErr := f.server.Shutdown(shutdownCtx)
+	var forceErr error
+	if shutdownErr != nil {
+		forceErr = f.server.Close()
+	}
+	serveErr := <-f.serveDone
+	if errors.Is(serveErr, http.ErrServerClosed) {
+		serveErr = nil
+	}
+	recordCleanupError(ctx, errors.Join(shutdownErr, forceErr, serveErr))
 }
 
 // newOAuthHandler builds the interactive authorization-code handler for one
@@ -144,17 +155,17 @@ func newOAuthHandler(flow *oauthFlow) (auth.OAuthHandler, error) {
 // platform-specific. The runtime is local (the desktop app's loopback), so this
 // opens on the user's machine; an error is surfaced so the URL can be opened
 // manually.
-func openBrowser(url string) error {
+func openBrowser(ctx context.Context, url string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", url)
+		cmd = exec.CommandContext(ctx, "open", url)
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		cmd = exec.CommandContext(ctx, "rundll32", "url.dll,FileProtocolHandler", url)
 	default:
-		cmd = exec.Command("xdg-open", url)
+		cmd = exec.CommandContext(ctx, "xdg-open", url)
 	}
-	return cmd.Start()
+	return cmd.Run()
 }
 
 func oauthResultHTML(msg string) string {

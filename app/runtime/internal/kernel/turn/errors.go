@@ -6,6 +6,10 @@ import "errors"
 // targets a non-existent or already-finished turn.
 var ErrTurnNotFound = errors.New("turn: turn not found")
 
+// ErrDispatcherClosed reports admission after the process-scoped dispatcher
+// has begun shutdown.
+var ErrDispatcherClosed = errors.New("turn: dispatcher closed")
+
 // ErrPromptBlocked surfaces when a UserPromptSubmit / SessionStart hook blocks a
 // turn before it starts. The delivery layer maps it to a run-channel error so
 // the client sees why the prompt was refused.
@@ -18,3 +22,9 @@ var ErrPromptBlocked = errors.New("turn: prompt blocked by a hook")
 // caller must NOT rehydrate on ErrParkClaimed: doing so would resurrect a turn
 // the user just canceled (and fire its pending tool). Cancel wins this race.
 var ErrParkClaimed = errors.New("turn: park already claimed")
+
+// ErrRehydrateCommitted marks a cross-restart resume failure that happened
+// after the restored process accepted the interrupt decision. The turn has
+// already been terminalized, so lifecycle must not restore the consumed open
+// interrupt record. Rehydrate failures without this marker are safe to retry.
+var ErrRehydrateCommitted = errors.New("turn: rehydrate continuation committed")

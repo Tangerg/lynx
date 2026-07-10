@@ -154,6 +154,49 @@ func TestServers_UnsupportedFile(t *testing.T) {
 	}
 }
 
+func TestNewServersSnapshotsSpecs(t *testing.T) {
+	specs := []ServerSpec{{
+		Name:        "test",
+		Command:     "test-lsp",
+		Args:        []string{"before"},
+		Extensions:  []string{".before"},
+		RootMarkers: []string{"before.mod"},
+	}}
+	servers := NewServers(specs)
+	t.Cleanup(func() { _ = servers.Close() })
+	specs[0].Args[0] = "after"
+	specs[0].Extensions[0] = ".after"
+	specs[0].RootMarkers[0] = "after.mod"
+
+	if !servers.Supported("file.before") || servers.Supported("file.after") {
+		t.Fatal("server table retained caller-owned spec storage")
+	}
+}
+
+func TestServersCloseWaitsForRegisteredStartup(t *testing.T) {
+	servers := NewServers(nil)
+	servers.mu.Lock()
+	servers.starting.Add(1)
+	servers.mu.Unlock()
+	closed := make(chan error, 1)
+	go func() { closed <- servers.Close() }()
+
+	select {
+	case err := <-closed:
+		t.Fatalf("Close returned before startup cleanup: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	servers.starting.Done()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Close did not finish after startup cleanup")
+	}
+}
+
 func hasSymbol(syms []Symbol, name string) bool {
 	for _, s := range syms {
 		if s.Name == name {

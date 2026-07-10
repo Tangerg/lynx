@@ -63,13 +63,13 @@ export interface ServerInfo {
   home: string;
 }
 
-export interface InitializeRequest {
-  protocolVersion: string;
-  clientInfo: { name: string; version: string };
-  capabilities: ClientCapabilities;
+export interface RequestMeta {
+  protocolVersion?: string;
+  clientInfo?: { name: string; version: string };
+  clientCapabilities?: ClientCapabilities;
 }
 
-export interface InitializeResponse {
+export interface DiscoverResponse {
   protocolVersion: string;
   serverInfo: ServerInfo;
   capabilities: ServerCapabilities;

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
@@ -40,5 +41,9 @@ func SeedUtilityRole(ctx context.Context, store lyraruntime.UtilityRoleStore, cf
 	if cfg.UtilityModel == "" || cfg.UtilityModel == cfg.Model {
 		return nil
 	}
-	return store.SaveUtilityRole(ctx, cfg.Provider, cfg.UtilityModel)
+	role, err := modelrole.New(cfg.Provider, cfg.UtilityModel)
+	if err != nil {
+		return err
+	}
+	return store.SaveUtilityRole(ctx, role.ProviderID(), role.Model())
 }

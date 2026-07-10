@@ -33,10 +33,15 @@ const maxBuffer = 256 * 1024
 // stop them. The process handles and output buffers live here. The zero value is
 // not usable; build one with [NewShells].
 type Shells struct {
-	mu     sync.Mutex
-	nextID int
-	shells map[string]*Shell
+	mu        sync.Mutex
+	nextID    int
+	shells    map[string]*Shell
+	closed    bool
+	closeOnce sync.Once
 }
+
+// ErrShellsClosed reports a launch attempted after the shell owner shut down.
+var ErrShellsClosed = errors.New("exec: shells closed")
 
 // NewShells creates an empty background-shell set.
 func NewShells() *Shells {
@@ -71,7 +76,7 @@ type Shell struct {
 // rather than being severed by a bare context.Background(). A positive timeout
 // hard-kills the command when it elapses (0 = no hard timeout; the command
 // runs until it exits or is killed).
-func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.Duration) string {
+func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.Duration) (string, error) {
 	base := context.WithoutCancel(ctx)
 	runCtx, cancel := context.WithCancel(base)
 	if timeout > 0 {
@@ -88,6 +93,11 @@ func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.D
 	cmd.Stderr = sh
 
 	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		cancel()
+		return "", ErrShellsClosed
+	}
 	s.nextID++
 	id := "bg_" + strconv.Itoa(s.nextID)
 	s.shells[id] = sh
@@ -95,7 +105,7 @@ func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.D
 
 	if err := cmd.Start(); err != nil {
 		sh.finish("start failed: "+err.Error(), -1, false)
-		return id
+		return id, nil
 	}
 	go func() {
 		err := cmd.Wait()
@@ -112,7 +122,7 @@ func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.D
 		}
 		sh.finish(info, code, killed)
 	}()
-	return id
+	return id, nil
 }
 
 // Get returns the shell with id and whether it exists.
@@ -150,18 +160,24 @@ func (s *Shells) Remove(id string) {
 	s.mu.Unlock()
 }
 
-// KillAll stops every background shell — called on engine shutdown.
+// KillAll stops and joins every background shell — called on engine shutdown.
 func (s *Shells) KillAll() {
-	s.mu.Lock()
-	shells := s.shells
-	s.shells = map[string]*Shell{}
-	s.mu.Unlock()
-	for _, sh := range shells {
-		sh.cancel()
-		if sh.cmd.Process != nil {
-			_ = sh.cmd.Process.Kill()
+	s.closeOnce.Do(func() {
+		s.mu.Lock()
+		s.closed = true
+		shells := s.shells
+		s.shells = map[string]*Shell{}
+		s.mu.Unlock()
+		for _, sh := range shells {
+			sh.cancel()
+			if sh.cmd.Process != nil {
+				_ = sh.cmd.Process.Kill()
+			}
 		}
-	}
+		for _, sh := range shells {
+			<-sh.done
+		}
+	})
 }
 
 func (s *Shell) finish(info string, code int, killed bool) {

@@ -10,15 +10,9 @@ import (
 
 	codebaseindexadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 )
-
-// embeddingRole is the (provider, model) the @codebase semantic index embeds
-// with. Empty model = unset (the feature is off). Mirrors [utilityRole].
-type embeddingRole struct {
-	provider string
-	model    string
-}
 
 // EmbeddingRoleStore persists the embedding-model role across restarts. Defined
 // here (consumer side); the composition root injects the sqlite-backed impl. A
@@ -37,29 +31,32 @@ type embeddingRoleSaver interface {
 }
 
 type embeddingEnvironment struct {
-	cell     *atomic.Pointer[embeddingRole]
+	cell     *atomic.Pointer[modelrole.Role]
 	resolver *embeddingResolver
 	index    codebaseindex.Index
 }
 
 func buildEmbeddingEnvironment(ctx context.Context, roleStore embeddingRoleLoader, indexStore codebaseindex.Store, providers providerCredentialLookup) (embeddingEnvironment, error) {
 	resolver := newEmbeddingResolver(providers)
-	cell := &atomic.Pointer[embeddingRole]{}
-	var role embeddingRole
+	cell := &atomic.Pointer[modelrole.Role]{}
+	var role modelrole.Role
 	if roleStore != nil {
 		p, m, err := roleStore.LoadEmbeddingRole(ctx)
 		if err != nil {
 			return embeddingEnvironment{}, fmt.Errorf("runtime: load embedding role: %w", err)
 		}
-		role = embeddingRole{provider: p, model: m}
+		role, err = modelrole.New(p, m)
+		if err != nil {
+			return embeddingEnvironment{}, fmt.Errorf("runtime: load embedding role: %w", err)
+		}
 	}
 	cell.Store(&role)
 	resolveEmbedder := func(ctx context.Context) (codebaseindex.Embedder, error) {
 		role := cell.Load()
-		if role == nil || role.model == "" {
+		if role == nil || !role.Configured() {
 			return nil, codebaseindex.ErrNoEmbeddingModel
 		}
-		return resolver.resolve(ctx, role.provider, role.model)
+		return resolver.resolve(ctx, role.ProviderID(), role.Model())
 	}
 	var index codebaseindex.Index
 	if indexStore != nil {
@@ -75,7 +72,7 @@ func (r *Runtime) EmbeddingRole() (providerID, model string) {
 	if role == nil {
 		return "", ""
 	}
-	return role.provider, role.model
+	return role.ProviderID(), role.Model()
 }
 
 // SetEmbeddingRole repoints the @codebase index at (provider, model), persists
@@ -86,17 +83,21 @@ func (r *Runtime) EmbeddingRole() (providerID, model string) {
 // provider (the delivery layer does, as invalid_params), so a failure here is an
 // internal one. Backs models.setEmbeddingRole.
 func (r *Runtime) SetEmbeddingRole(ctx context.Context, providerID, model string) error {
-	if model == "" {
-		providerID = "" // a cleared role carries no provider
-	} else if _, err := r.embeddings.resolve(ctx, providerID, model); err != nil {
-		return fmt.Errorf("runtime: build embedding model %q on %q: %w", model, providerID, err)
+	role, err := modelrole.New(providerID, model)
+	if err != nil {
+		return err
+	}
+	if role.Configured() {
+		if _, err := r.embeddings.resolve(ctx, role.ProviderID(), role.Model()); err != nil {
+			return fmt.Errorf("runtime: build embedding model %q on %q: %w", role.Model(), role.ProviderID(), err)
+		}
 	}
 	if r.embeddingStore != nil {
-		if err := r.embeddingStore.SaveEmbeddingRole(ctx, providerID, model); err != nil {
+		if err := r.embeddingStore.SaveEmbeddingRole(ctx, role.ProviderID(), role.Model()); err != nil {
 			return fmt.Errorf("runtime: persist embedding role: %w", err)
 		}
 	}
-	r.embeddingCell.Store(&embeddingRole{provider: providerID, model: model})
+	r.embeddingCell.Store(&role)
 	return nil
 }
 

@@ -7,51 +7,76 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// pathLocker serializes file-mutating tool calls that target the same resolved
-// path. The agent runs tool_calls in parallel (ParallelToolLoop), so without
-// this two concurrent write/edit calls to one file could interleave and corrupt
-// it. Keyed by resolved abs path, ref-counted so the map doesn't grow unbounded;
-// read / glob / grep / LSP / MCP tools are unaffected (they don't acquire). One
-// locker is shared by a build's write + edit tools (see BuildWorkdirTools).
+// pathLocker serializes file tool calls that target the same resolved path. The
+// agent runs tool_calls in parallel (ParallelToolLoop), so two write/edit calls
+// must not interleave, and a tracked read must stamp the exact state it read.
+// Keyed by resolved abs path and ref-counted so the map doesn't grow unbounded;
+// glob / grep / LSP / MCP tools are unaffected. The runtime resolver owns one
+// locker across all of its per-turn tool builds, so separate turns cannot both
+// cross a stale-read check before either mutation lands.
 type pathLocker struct {
 	mu    sync.Mutex
 	locks map[string]*pathLock
 }
 
 type pathLock struct {
-	mu   sync.Mutex
-	refs int
+	ready chan struct{}
+	refs  int
 }
 
 func newPathLocker() *pathLocker { return &pathLocker{locks: make(map[string]*pathLock)} }
 
 // acquire takes the per-path lock and returns a release closure. Calls for
-// distinct paths run concurrently; calls for the same path serialize.
-func (p *pathLocker) acquire(path string) func() {
+// distinct paths run concurrently; calls for the same path serialize. Waiting
+// is context-aware so a canceled turn is never pinned behind another tool call.
+func (p *pathLocker) acquire(ctx context.Context, path string) (func(), error) {
 	p.mu.Lock()
 	l := p.locks[path]
 	if l == nil {
-		l = &pathLock{}
+		l = &pathLock{ready: make(chan struct{}, 1)}
+		l.ready <- struct{}{}
 		p.locks[path] = l
 	}
 	l.refs++
 	p.mu.Unlock()
 
-	l.mu.Lock()
-	return func() {
-		l.mu.Unlock()
-		p.mu.Lock()
-		if l.refs--; l.refs == 0 {
-			delete(p.locks, path)
-		}
-		p.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		p.releaseRef(path, l)
+		return nil, err
 	}
+	select {
+	case <-ctx.Done():
+		p.releaseRef(path, l)
+		return nil, ctx.Err()
+	case <-l.ready:
+	}
+	if err := ctx.Err(); err != nil {
+		l.ready <- struct{}{}
+		p.releaseRef(path, l)
+		return nil, err
+	}
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			l.ready <- struct{}{}
+			p.releaseRef(path, l)
+		})
+	}, nil
 }
 
-// withPathLock wraps a file-mutating tool so concurrent calls targeting the same
-// resolved path run one-at-a-time (see [pathLocker]). Applied INSIDE the path
-// guard (no lock for a refused write) but OUTSIDE the staleness / diagnostics /
-// mutation chain, so the read-before check and the write stay atomic per path.
+func (p *pathLocker) releaseRef(path string, l *pathLock) {
+	p.mu.Lock()
+	if l.refs--; l.refs == 0 {
+		delete(p.locks, path)
+	}
+	p.mu.Unlock()
+}
+
+// withPathLock wraps a file tool so concurrent calls targeting the same resolved
+// path run one-at-a-time (see [pathLocker]). For mutations it is applied inside
+// the path guard but outside the staleness / diagnostics / mutation chain. For
+// reads it encloses both the filesystem read and tracker stamp.
 func withPathLock(inner chat.Tool, locker *pathLocker, workdir string) chat.Tool {
 	if locker == nil {
 		return inner
@@ -63,7 +88,14 @@ func withPathLock(inner chat.Tool, locker *pathLocker, workdir string) chat.Tool
 		}
 		releases := make([]func(), 0, len(paths))
 		for _, path := range paths {
-			releases = append(releases, locker.acquire(path))
+			release, err := locker.acquire(ctx, path)
+			if err != nil {
+				for i := len(releases) - 1; i >= 0; i-- {
+					releases[i]()
+				}
+				return "", err
+			}
+			releases = append(releases, release)
 		}
 		defer func() {
 			for i := len(releases) - 1; i >= 0; i-- {

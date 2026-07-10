@@ -2,6 +2,7 @@ package toolset
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -57,11 +58,9 @@ type BuildConfig struct {
 	// index with no embedding model configured — omits the tool.
 	CodebaseIndex CodebaseIndex
 
-	// MCPDisabled returns the model-facing MCP tool names the configured servers
-	// hide from the model (per-server blacklist; nil → no filtering). The runtime
-	// recomputes it on every registry change; the resolver reads it per
-	// resolution so a disable takes effect mid-session.
-	MCPDisabled func() map[string]struct{}
+	// MCPToolDisabled reports whether a model-facing MCP tool is hidden. The
+	// runtime updates the underlying policy after every registry change.
+	MCPToolDisabled func(string) bool
 }
 
 // Built is the assembled tool environment handed to the engine core: the
@@ -83,7 +82,7 @@ type Built struct {
 // tolerated (recorded "failed"); a config mistake (duplicate name / invalid
 // entry) fails. An A2A dial failure closes the already-opened MCP sessions so
 // nothing leaks.
-func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
+func Build(ctx context.Context, cfg BuildConfig) (_ Built, err error) {
 	online, err := BuildOnlineTools(cfg.Online)
 	if err != nil {
 		return Built{}, err
@@ -112,6 +111,15 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build shell tools: %w", err)
 	}
+	var mcpConns *mcp.Connections
+	var a2aConns *a2a.Connections
+	cleanupOnError := true
+	defer func() {
+		if cleanupOnError {
+			shells.KillAll()
+			err = errors.Join(err, codeIntel.Close(), mcpConns.Close(), a2aConns.Close())
+		}
+	}()
 
 	interrupt := cfg.Interruption
 	if interrupt == nil {
@@ -151,7 +159,6 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 
 	a2aConns, a2aTools, err := a2a.Dial(ctx, infraA2AClientConfigs(cfg.A2AAgents))
 	if err != nil {
-		_ = mcpConns.Close()
 		return Built{}, err
 	}
 
@@ -168,13 +175,11 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		Schedule:        scheduleTool,
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
-		MCPDisabled:     cfg.MCPDisabled,
+		MCPToolDisabled: cfg.MCPToolDisabled,
 		CodebaseIndex:   cfg.CodebaseIndex,
 		DownloadAllow:   downloadAllow,
 	})
 	if err != nil {
-		_ = mcpConns.Close()
-		_ = a2aConns.Close()
 		return Built{}, fmt.Errorf("toolset: build resolver: %w", err)
 	}
 	resolver.SetMCPTools(mcpTools)             // seed the hot-swappable MCP set
@@ -183,7 +188,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	// Canonical tool list for tools.list — metadata (name/schema) is
 	// working-directory independent, so the default-workdir build is faithful.
 	// Only `task` is appended by the engine (it needs the platform).
-	tools := BuildWorkdirTools(cfg.Workdir, codeIntel, tracker, downloadAllow)
+	tools := resolver.workdirTools(cfg.Workdir)
 	tools = append(tools, online...)
 	tools = append(tools, mcpTools...)
 	tools = append(tools, a2aTools...)
@@ -215,6 +220,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 
 	mcpControl := &mcpControl{inner: mcpConns}
 
+	cleanupOnError = false
 	return Built{
 		Resolver:              resolver,
 		Tools:                 tools,

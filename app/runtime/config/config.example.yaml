@@ -4,7 +4,7 @@
 #   cp config/config.example.yaml config/config.yaml
 #
 # config.yaml is gitignored (it holds your key). Precedence, later wins:
-#   built-in defaults  <  this file  <  env vars (LYRA_* / {PROVIDER}_API_KEY)  <  CLI flags
+#   built-in defaults  <  this file  <  env vars (LYRA_* / {PROVIDER}_API_KEY)
 
 # LLM provider: anthropic | openai | moonshot | deepseek
 provider: anthropic
@@ -31,8 +31,8 @@ baseURL: ""
 # Persistence backend: file | sqlite
 storage: file
 
-# `lyra serve` HTTP transport settings. Each is overridable by the
-# matching serve flag (--listen / --no-local-token / --cors-origin / ...).
+# Runtime HTTP transport settings. Each is overridable by the matching
+# LYRA_SERVER_* env var.
 server:
   listen: 127.0.0.1:17171   # matches the frontend's AGUI_BASE
   noLocalToken: false       # true = disable the local-process gate (dev / same-origin)

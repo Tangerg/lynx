@@ -49,6 +49,9 @@ func TestBoundaryAt(t *testing.T) {
 	if b.KeepMark != 4 || len(b.Dropped) != 2 || b.Dropped[0].ID != "R2" || !b.BoundaryTime.Equal(time.Unix(3, 0).UTC()) {
 		t.Fatalf("R1 split = keep%d drop%v boundary%v, want keep4 [R2 R3] @3", b.KeepMark, runIDs(b.Dropped), b.BoundaryTime.Unix())
 	}
+	if got := b.DroppedRunIDs(); len(got) != 2 || got[0] != "R2" || got[1] != "R3" {
+		t.Fatalf("DroppedRunIDs = %v, want [R2 R3]", got)
+	}
 
 	// Keep through R2 → watermark 6, drop only R3.
 	if b, _ := timeline.BoundaryAt("R2", true); b.KeepMark != 6 || len(b.Dropped) != 1 || b.Dropped[0].ID != "R3" {

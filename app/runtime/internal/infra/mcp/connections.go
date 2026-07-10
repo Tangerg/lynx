@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -9,8 +11,8 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// server is the live state of one configured MCP server. Mutated only by
-// [Connections.Reconnect] after boot; access guarded by Connections.mu.
+// server is the live state of one configured MCP server. Runtime mutations are
+// serialized by Connections.reconnectMu; access is guarded by Connections.mu.
 type server struct {
 	config  ServerConfig
 	session *sdkmcp.ClientSession // nil when not connected
@@ -34,8 +36,8 @@ type Connections struct {
 	mu      sync.Mutex
 	servers []*server
 	client  *sdkmcp.Client
-	onTools func([]chat.Tool) // tool sink; nil until SetToolSink
-	closed  bool              // set by Close; Reconnect checks it after dialing
+	onTools func([]chat.Tool) // tool sink; nil until SetToolSink; guarded by mu
+	closed  bool              // terminal state set by Close
 
 	// reconnectMu serializes Reconnect so two concurrent calls can't both dial
 	// and leak the loser's freshly-dialed session (the winner overwrites
@@ -45,9 +47,14 @@ type Connections struct {
 	reconnectMu sync.Mutex
 }
 
-// SetToolSink registers the callback Reconnect invokes with the rebuilt
-// model-facing MCP tool set (the engine wires it to its resolver's hot-swap).
-func (c *Connections) SetToolSink(sink func([]chat.Tool)) { c.onTools = sink }
+// SetToolSink registers the callback connection mutations invoke with the
+// rebuilt model-facing MCP tool set (the engine wires it to its resolver's
+// hot-swap).
+func (c *Connections) SetToolSink(sink func([]chat.Tool)) {
+	c.mu.Lock()
+	c.onTools = sink
+	c.mu.Unlock()
+}
 
 // newClient builds the shared MCP client identity used for every server's
 // session (and re-dials). No per-server handlers are needed, so one suffices.
@@ -63,4 +70,11 @@ func (c *Connections) find(name string) *server {
 		}
 	}
 	return nil
+}
+
+func cloneServerConfig(cfg ServerConfig) ServerConfig {
+	cfg.Args = slices.Clone(cfg.Args)
+	cfg.Env = slices.Clone(cfg.Env)
+	cfg.Headers = maps.Clone(cfg.Headers)
+	return cfg
 }

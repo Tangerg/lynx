@@ -54,3 +54,20 @@ func TestResolver_TrustUsesCallContext(t *testing.T) {
 		t.Fatalf("InjectContext = %q, want project hook trusted by call context", got.InjectContext)
 	}
 }
+
+func TestResolver_InspectReturnsSnapshot(t *testing.T) {
+	home := t.TempDir()
+	cwd := t.TempDir()
+	writeHooks(t, cwd, `{"hooks":[{"event":"SessionStart","inject":"original"}]}`)
+	resolver := NewResolver(home, nil, nil)
+
+	first := resolver.Inspect(context.Background(), cwd)
+	if len(first.Hooks) != 1 {
+		t.Fatalf("hooks = %v, want one", first.Hooks)
+	}
+	first.Hooks[0].Inject = "mutated"
+	second := resolver.Inspect(context.Background(), cwd)
+	if second.Hooks[0].Inject != "original" {
+		t.Fatalf("cached hook was mutated through inspection: %+v", second.Hooks[0])
+	}
+}

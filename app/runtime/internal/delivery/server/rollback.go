@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
@@ -61,7 +62,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if err != nil {
 		return nil, err
 	}
-	b, err := lifecycle.ResolveRollbackBoundary(nodes, in.ToRunID)
+	b, err := transcript.Timeline(nodes).BoundaryAt(in.ToRunID, true)
 	if err != nil {
 		return nil, wireBoundaryErr(err)
 	}

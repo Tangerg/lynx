@@ -85,28 +85,25 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		// toolset.Build already dialed MCP/A2A + launched LSP/exec backends into
 		// built.Closers; kernel.New didn't take ownership (no engine to Close), so
 		// release them here rather than leaking the sessions/processes.
-		runClosers(built.Closers)
-		return nil, fmt.Errorf("runtime: engine: %w", err)
+		return nil, errors.Join(fmt.Errorf("runtime: engine: %w", err), runClosers(built.Closers))
 	}
 	// From here the engine owns built.Closers (eng.Close runs them), so a later
 	// construction failure tears down via eng.Close.
 
 	turnDispatcher, err := turn.New(turn.Dependencies{
-		Engine:         eng,
-		Approval:       approvalPolicy,
-		ClientResolver: resolver,
-		Todos:          ecfg.Todos,
-		MCPAutoApprove: mcpEnv.autoApprove,
-		Hooks:          cfg.HooksResolver,
+		Engine:              eng,
+		Approval:            approvalPolicy,
+		ClientResolver:      resolver,
+		Todos:               ecfg.Todos,
+		MCPToolAutoApproved: mcpEnv.toolAutoApproved,
+		Hooks:               cfg.HooksResolver,
 	})
 	if err != nil {
-		_ = eng.Close()
-		return nil, fmt.Errorf("runtime: turn dispatcher: %w", err)
+		return nil, errors.Join(fmt.Errorf("runtime: turn dispatcher: %w", err), eng.Close())
 	}
 	toolRegistry, err := toolsvc.New(eng)
 	if err != nil {
-		_ = eng.Close()
-		return nil, fmt.Errorf("runtime: tool registry: %w", err)
+		return nil, errors.Join(fmt.Errorf("runtime: tool registry: %w", err), eng.Close())
 	}
 
 	return newRuntimeFacade(runtimeFacadeDeps{
@@ -123,13 +120,15 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	}), nil
 }
 
-// runClosers runs capability shutdown hooks best-effort -- used to release a
-// half-built tool environment when runtime construction fails before the engine
-// (which would otherwise own them) is created.
-func runClosers(closers []func() error) {
+// runClosers releases a half-built tool environment before the engine can take
+// ownership. Every closer runs; the caller joins any cleanup failures with the
+// construction error.
+func runClosers(closers []func() error) error {
+	var errs []error
 	for _, closeFn := range closers {
 		if closeFn != nil {
-			_ = closeFn()
+			errs = append(errs, closeFn())
 		}
 	}
+	return errors.Join(errs...)
 }

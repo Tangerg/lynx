@@ -47,7 +47,7 @@ type Server struct {
 	// Description is an optional human note shown in the UI.
 	Description string
 
-	// URL is the Streamable HTTP endpoint. Used when Transport == [TransportHTTP].
+	// URL is the Streamable HTTP endpoint. Used when Transport == [TransportStreamableHTTP].
 	URL string
 
 	// Authorization, when set, is sent as the HTTP `Authorization` header

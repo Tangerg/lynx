@@ -16,8 +16,8 @@ type methodHandler = func(*Dispatcher, context.Context, *transport.Request) Hand
 // row. Notifications route through [Dispatcher.handleNotification].
 var methodTable = map[string]methodHandler{
 	// Lifecycle.
-	MethodInitialize: (*Dispatcher).handleInitialize,
-	MethodPing:       (*Dispatcher).handlePing,
+	MethodDiscover: (*Dispatcher).handleDiscover,
+	MethodPing:     (*Dispatcher).handlePing,
 
 	// Sessions.
 	MethodSessionsList:     (*Dispatcher).handleSessionsList,

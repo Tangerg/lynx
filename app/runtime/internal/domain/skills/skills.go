@@ -91,6 +91,9 @@ func List(ctx context.Context, projectDir, globalDir string) ([]Info, error) {
 // ProjectDir resolves the project skills directory for a session working
 // directory.
 func ProjectDir(workdir string) string {
+	if workdir == "" {
+		return ""
+	}
 	return filepath.Join(workdir, ProjectSubdir)
 }
 

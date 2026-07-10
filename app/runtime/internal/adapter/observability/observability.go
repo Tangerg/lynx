@@ -3,6 +3,7 @@ package observability
 
 import (
 	"context"
+	"errors"
 	stdslog "log/slog"
 	"os"
 	"strings"
@@ -47,7 +48,7 @@ const scopeName = "lyra"
 //
 // Returns a shutdown func that flushes + tears down the providers; call it
 // on process exit.
-func Setup(serviceVersion string) func(context.Context) {
+func Setup(serviceVersion string) func(context.Context) error {
 	level := parseLogLevel(os.Getenv("LYRA_LOG_LEVEL"))
 
 	// The base logger is the actual stderr sink every signal renders into;
@@ -91,12 +92,14 @@ func Setup(serviceVersion string) func(context.Context) {
 		propagation.Baggage{},
 	))
 
-	return func(ctx context.Context) {
+	return func(ctx context.Context) error {
 		shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-		_ = tp.Shutdown(shutdownCtx)
-		_ = mp.Shutdown(shutdownCtx)
-		_ = lp.Shutdown(shutdownCtx)
+		return errors.Join(
+			tp.Shutdown(shutdownCtx),
+			mp.Shutdown(shutdownCtx),
+			lp.Shutdown(shutdownCtx),
+		)
 	}
 }
 

@@ -1,19 +1,11 @@
 package config
 
-// ServerConfig holds the `lyra serve` HTTP transport settings. CLI flags
-// override these (serve resolves flag-vs-config per field).
+// ServerConfig holds the runtime HTTP transport settings.
 type ServerConfig struct {
 	Listen         string
 	NoLocalToken   bool
 	LocalTokenPath string
-	CORSOrigins    []string // empty → serve falls back to the built-in dev allowlist
-
-	// A2AListen is the bind address for the A2A (Agent-to-Agent) endpoint
-	// that exposes this Lyra agent to other agents. Empty disables it —
-	// A2A serving is opt-in because it hands a remote caller the full
-	// coding agent (filesystem + shell tools). Separate listener: the A2A
-	// protocol is distinct from the Lyra Runtime Protocol on Listen.
-	A2AListen string
+	CORSOrigins    []string // empty → server falls back to the built-in dev allowlist
 }
 
 // OnlineConfig holds credentials for optional network-reaching tools. Empty

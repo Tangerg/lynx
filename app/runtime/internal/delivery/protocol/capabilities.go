@@ -1,6 +1,6 @@
 package protocol
 
-// ClientCapabilities is what the client declares at initialize (API.md §9).
+// ClientCapabilities is what the client declares in request metadata (API.md §9).
 // Server MUST NOT emit events the client can't render, nor produce an
 // open interrupt whose type the client didn't declare in InterruptTypes.
 type ClientCapabilities struct {
@@ -19,7 +19,7 @@ type ClientCapabilities struct {
 	OptOutNotificationMethods []StreamEventType `json:"optOutNotificationMethods,omitempty"`
 }
 
-// ServerCapabilities is what Runtime advertises in the initialize result
+// ServerCapabilities is what Runtime advertises in runtime.discover
 // and the /v2/info sidecar (API.md §9).
 type ServerCapabilities struct {
 	ProtocolVersion  string                 `json:"protocolVersion"`

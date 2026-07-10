@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 

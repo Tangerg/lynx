@@ -89,13 +89,12 @@ func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
 	s.endTurn(st)
 }
 
-// handleWaiting decides what to do when the process parks at
-// StatusWaiting. If the pending interrupt's kind is one the client can
-// answer (see [inMemory.canSurface]) it surfaces it via
-// [inMemory.emitInterrupt] and the turn waits for [inMemory.Resume].
-// Otherwise the client could never answer it, so rather than leave a
-// deadlocked interrupt (API.md §6.2) the turn auto-denies (via the shared
-// [inMemory.resumeAndDrive]) and the continuation runs to a real terminal.
+// handleWaiting decides what to do when the process parks at StatusWaiting. If
+// the pending interrupt's kind is one this turn's client can answer, it
+// surfaces it via [inMemory.emitInterrupt] and the turn waits for
+// [inMemory.Resume]. Otherwise the client could never answer it, so rather
+// than leave a deadlocked interrupt (API.md §6.2) the turn auto-denies and the
+// continuation runs to a real terminal.
 func (s *inMemory) handleWaiting(st *turnState, proc kernel.TurnProcess) {
 	// Canceled while the process was parking: Cancel cancels st.ctx but skips
 	// killing a process that still read Running, so a turn that parks just
@@ -107,7 +106,7 @@ func (s *inMemory) handleWaiting(st *turnState, proc kernel.TurnProcess) {
 		return
 	}
 	aw := proc.PendingAwaitable()
-	if aw == nil || s.canSurface(interruptKind(aw)) {
+	if aw == nil || st.canSurface(interruptKind(aw)) {
 		s.emitInterrupt(st, proc)
 		return
 	}

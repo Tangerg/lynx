@@ -11,114 +11,35 @@ import (
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-type toolCatalogAccess interface {
+// settingsUseCases groups runtime-wide configuration and management contexts:
+// tools, memory, approval, schedules, providers, and model roles.
+type settingsUseCases interface {
 	ListRegisteredTools(ctx context.Context) ([]toolsvc.Tool, error)
-}
-
-type toolInvocationAccess interface {
 	InvokeRegisteredTool(ctx context.Context, name string, arguments string) (string, error)
-}
-
-type memoryAvailabilityAccess interface {
 	HasMemory() bool
-}
-
-type memoryListAccess interface {
 	ListMemoryEntries(ctx context.Context, cwd string) ([]knowledge.Entry, error)
-}
-
-type memoryReadAccess interface {
 	Memory(ctx context.Context, scope knowledge.Scope, cwd string) (string, error)
-}
-
-type memoryWriteAccess interface {
 	UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd string, content string) error
-}
-
-type approvalModeReadAccess interface {
 	ApprovalMode(ctx context.Context) (approval.Mode, error)
-}
-
-type approvalModeMutationAccess interface {
 	SetApprovalMode(ctx context.Context, mode approval.Mode) error
-}
-
-type approvalRuleCatalogAccess interface {
 	ListApprovalRules(ctx context.Context, sessionID string) ([]approval.Rule, error)
-}
-
-type approvalRuleMutationAccess interface {
 	ForgetApprovalRule(ctx context.Context, id string) error
-}
-
-type scheduleListAccess interface {
 	ListSchedules(ctx context.Context) ([]schedule.Schedule, error)
-}
-
-type scheduleReadAccess interface {
 	Schedule(ctx context.Context, id string) (schedule.Schedule, error)
-}
-
-type scheduleCreationAccess interface {
 	CreateSchedule(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
-}
-
-type scheduleUpdateAccess interface {
 	UpdateSchedule(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
-}
-
-type scheduleDeletionAccess interface {
 	DeleteSchedule(ctx context.Context, id string) error
-}
-
-type scheduleRunRecorderAccess interface {
 	RecordScheduleRun(ctx context.Context, id string, ranAt time.Time) error
-}
-
-type scheduleWorkerAccess interface {
 	RunScheduleWorker(ctx context.Context, runner schedule.Runner)
-}
-
-type providerRegistryListAccess interface {
 	ListRegisteredProviders(ctx context.Context) ([]providersvc.Provider, error)
-}
-
-type providerRegistryReadAccess interface {
 	RegisteredProvider(ctx context.Context, id string) (providersvc.Provider, bool, error)
-}
-
-type providerRegistryMutationAccess interface {
 	ConfigureProvider(ctx context.Context, entry providersvc.Provider) error
-}
-
-type providerRegistryProbeAccess interface {
 	ProbeProvider(ctx context.Context, entry providersvc.Provider) error
-}
-
-type providerSupportCatalogAccess interface {
 	SupportedProviders() []providersvc.Metadata
-}
-
-type providerMetadataAccess interface {
 	ProviderMetadata(id string) (providersvc.Metadata, bool)
-}
-
-type providerDefaultAccess interface {
 	DefaultProvider() string
-}
-
-type utilityRoleReadAccess interface {
 	UtilityRole() (provider, model string)
-}
-
-type utilityRoleMutationAccess interface {
 	SetUtilityRole(ctx context.Context, provider, model string) error
-}
-
-type embeddingRoleReadAccess interface {
 	EmbeddingRole() (provider, model string)
-}
-
-type embeddingRoleMutationAccess interface {
 	SetEmbeddingRole(ctx context.Context, provider, model string) error
 }

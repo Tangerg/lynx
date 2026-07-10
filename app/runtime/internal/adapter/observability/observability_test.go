@@ -32,7 +32,9 @@ func TestSetupObservability_LogPathEmits(t *testing.T) {
 	stdslog.InfoContext(ctx, "session created", "gen_ai.conversation.id", "ses_x")
 	span.End()
 
-	shutdown(context.Background())
+	if err := shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown: %v", err)
+	}
 	_ = w.Close()
 	os.Stderr = origStderr
 	stdslog.SetDefault(prevDefault)

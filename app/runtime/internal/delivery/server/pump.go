@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"iter"
 	"time"
 
@@ -18,6 +19,14 @@ import (
 // durable side, and feeds the run's hub. Lifecycle bookkeeping
 // (s.runs) starts in openSegment and ends in pumpRun's teardown.
 
+const runCleanupTimeout = 5 * time.Second
+
+func (s *Server) cancelTurnAfterAdmissionFailure(ctx context.Context, handle turn.TurnHandle) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
+	defer cancel()
+	return s.rt.CancelTurn(cleanupCtx, handle)
+}
+
 // openSegment subscribes to the turn's event stream and starts the wire
 // pump for one run segment. parentRunID is empty for a root run
 // (runs.start) and set for a continuation (runs.resume) — it rides onto
@@ -29,11 +38,17 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// keeps ctx values — including the entry span — so the run's spans are
 	// children of the same trace (full-link), while our own cancel drives
 	// CancelRun. Rooting on context.Background() here would sever the trace.
-	runCtx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
+	taskCtx, release, ok := s.tasks.Attach(reqCtx)
+	if !ok {
+		_ = s.cancelTurnAfterAdmissionFailure(reqCtx, handle)
+		return nil, nil, errServerClosed
+	}
+	runCtx, cancel := context.WithCancel(taskCtx)
 	inner, err := s.rt.TurnEvents(runCtx, handle)
 	if err != nil {
 		cancel()
-		_ = s.rt.CancelTurn(context.WithoutCancel(reqCtx), handle)
+		_ = s.rt.CancelTurn(taskCtx, handle)
+		release()
 		return nil, nil, err
 	}
 	// The hub owns the run's event stream for its whole lifetime,
@@ -46,6 +61,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// Resolved here so the guard never does a session lookup under the registry
 	// lock.
 	cwd := worktree.CanonicalCwd(s.sessionCwd(reqCtx, sessionID))
+	live := &runHandle{cancel: cancel, owner: taskCtx, hub: hub}
 	s.runs.Open(runstate.Record{
 		ID:          runID,
 		SessionID:   sessionID,
@@ -55,7 +71,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 		ParentRunID: parentRunID,
 		Provider:    provider,
 		Model:       model,
-	}, &runHandle{cancel: cancel, hub: hub})
+	}, live)
 	events, unsubscribe := hub.Subscribe("")
 	// Drop this caller's subscription when its request ends (client
 	// disconnect or stream completion) — the run keeps running on runCtx
@@ -63,7 +79,10 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// WithoutCancel(reqCtx) (see above), so it outlives the request that
 	// started it without losing the trace.
 	context.AfterFunc(reqCtx, unsubscribe)
-	go s.pumpRun(runCtx, runID, parentRunID, handle, inner, hub, userInput, resume, provider, model)
+	go func() {
+		defer release()
+		s.pumpRun(runCtx, taskCtx, runID, parentRunID, handle, inner, live, userInput, resume, provider, model)
+	}()
 	return &protocol.StartRunResponse{RunID: runID}, events, nil
 }
 
@@ -77,10 +96,12 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 //
 // Either way the wire run.finished event is the last thing on the
 // channel before it closes.
-func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle turn.TurnHandle, inner iter.Seq[turn.Event], hub *runHub, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string) {
+func (s *Server) pumpRun(ctx, ownerCtx context.Context, runID, parentRunID string, handle turn.TurnHandle, inner iter.Seq[turn.Event], live *runHandle, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string) {
+	hub := live.hub
 	tr := newTranslator(handle.SessionID, runID, parentRunID, userInput, resume, provider, model)
 	finished := false
 	parked := false
+	abortTurn := false
 	// The session's cwd, resolved once: tool-derived files.changed events carry
 	// it so a workspace subscriber can scope the (cwd-relative) paths.
 	cwd := s.sessionCwd(ctx, handle.SessionID)
@@ -101,65 +122,90 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 	// feeds items.list + cross-restart only. Exception: the interrupt record is
 	// written before the append because a client can resume the instant it sees
 	// run.finished{interrupt}.
-	emit := func(events []protocol.StreamEvent) {
+	emit := func(events []protocol.StreamEvent) bool {
 		for _, se := range events {
+			terminal := se.Type == protocol.StreamRunFinished
+			interrupt := terminal && se.Outcome != nil && se.Outcome.Type == protocol.OutcomeInterrupt
+			if terminal && !interrupt {
+				finished = true
+				if se.Outcome != nil && se.Outcome.Type == protocol.OutcomeCanceled {
+					// Flow the runs.cancel reason to the outcome detail (S6)
+					// so the client can tell user-canceled from other stops.
+					if se.Outcome.Detail == "" {
+						if r := live.reason(); r != "" {
+							se.Outcome.Detail = r
+						}
+					}
+				}
+			}
 			re := protocol.RunEvent{
 				RunID:     runID,
 				EventID:   s.nextEventID(),
 				Timestamp: time.Now().UTC(),
 				Event:     se,
 			}
-			if se.Type == protocol.StreamRunFinished {
-				finished = true
-				if se.Outcome != nil {
-					switch se.Outcome.Type {
-					case protocol.OutcomeInterrupt:
-						parked = true
-					case protocol.OutcomeCanceled:
-						// Flow the runs.cancel reason to the outcome detail (S6)
-						// so the client can tell user-canceled from other stops.
-						if se.Outcome.Detail == "" {
-							if r := s.cancelReasonFor(runID); r != "" {
-								se.Outcome.Detail = r
-							}
-						}
-					}
-				}
-			}
 			side := s.sideEffectEvent(runID, handle.SessionID, parentRunID, cwd, se, provider, model)
-			if se.Type == protocol.StreamRunFinished && se.Outcome != nil && se.Outcome.Type == protocol.OutcomeInterrupt {
-				if raw, err := json.Marshal(se.Outcome.Interrupts); err == nil {
-					side.Interrupt = &runsegment.Interrupt{
-						RunID:        runID,
-						Handle:       handle,
-						Provider:     provider,
-						Model:        model,
-						Payload:      raw,
-						DrainedTools: tr.parkDrained,
-					}
+			if interrupt {
+				raw, err := json.Marshal(se.Outcome.Interrupts)
+				if err != nil {
+					tr.errMsg = fmt.Sprintf("persist interrupt payload: %v", err)
+					abortTurn = true
+					return false
 				}
+				side.Interrupt = &runsegment.Interrupt{
+					RunID:        runID,
+					Handle:       handle,
+					Provider:     provider,
+					Model:        model,
+					Payload:      raw,
+					DrainedTools: tr.parkDrained,
+				}
+				committed, err := live.commitInterrupt(func() error {
+					if err := effects.BeforeLive(ownerCtx, side); err != nil {
+						return err
+					}
+					finished = true
+					parked = true
+					hub.Append(re)
+					return nil
+				})
+				if err != nil {
+					if ctx.Err() == nil && ownerCtx.Err() == nil {
+						tr.errMsg = err.Error()
+					}
+					abortTurn = true
+					return false
+				}
+				if !committed {
+					return false
+				}
+				effects.AfterLive(ownerCtx, side)
+				continue
 			}
-			effects.BeforeLive(ctx, side)
 			// Live first: deliver to subscribers + retain in the hub's in-memory
-			// replay backlog. BeforeLive already ran, so a resume triggered by an
-			// interrupt terminal event finds its record.
+			// replay backlog. Interrupt terminals take the coordinated path above,
+			// where their durable record is committed before publication.
 			hub.Append(re)
-			// Persist off a cancel-decoupled ctx so the durable history (incl.
-			// the terminal run.finished synthesized on a canceled run) lands
-			// regardless of run-ctx cancellation — WithoutCancel keeps the
-			// trace span (full-link), unlike context.Background(). After the
-			// append so the DB never gates live delivery (see emit's doc).
-			effects.AfterLive(context.WithoutCancel(ctx), side)
+			// ownerCtx survives runs.cancel but is canceled by Server.Close. This
+			// preserves terminal history without allowing a stuck store to outlive
+			// the component that owns the pump.
+			effects.AfterLive(ownerCtx, side)
 		}
+		return true
 	}
 
 	// run.started leads every segment (root + continuation), independent of
 	// any turn-level TurnStart — continuation runs (runs.resume) carry none,
 	// so emitting here is what gives them a run boundary + parentRunId, and
 	// closes any question item the parked run left open.
-	emit(tr.open())
+	if !emit(tr.open()) {
+		return
+	}
 
 	defer func() {
+		if ctx.Err() != nil || abortTurn {
+			_ = s.rt.CancelTurn(ownerCtx, handle)
+		}
 		if !finished {
 			// The turn ended without a run.finished (canceled mid-flight /
 			// drained iterator) — synthesize the terminal so the stream ends
@@ -168,20 +214,20 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			if tr.errMsg != "" {
 				outcome = protocol.OutcomeError
 			}
-			emit(tr.finish(outcome))
+			_ = emit(tr.finish(outcome))
 		}
 		hub.Close()
 		if e, ok := s.runs.Close(runID); ok {
 			// A parked run keeps its live turn alive for resume — only
 			// cancel + forget on a true terminal.
-			if !parked && e.Payload != nil && e.Payload.cancel != nil {
-				e.Payload.cancel()
+			if !parked && e.Payload != nil {
+				e.Payload.stop()
 			}
 		}
 		// Terminal maintenance stays off the run.finished path: async +
 		// best-effort, so a slow snapshot or title LLM call never holds up live
 		// delivery or teardown. A parked run is resumable, not a boundary.
-		effects.Finish(ctx, runsegment.Finish{
+		effects.Finish(ownerCtx, runsegment.Finish{
 			SessionID:       handle.SessionID,
 			RunID:           runID,
 			Parked:          parked,
@@ -190,7 +236,9 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 	}()
 
 	for ev := range inner {
-		emit(tr.translate(ev))
+		if !emit(tr.translate(ev)) {
+			return
+		}
 		if parked {
 			// Interrupt segment done; leave the turn parked for resume.
 			return

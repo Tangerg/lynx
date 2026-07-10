@@ -65,6 +65,10 @@ func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSu
 	if err != nil {
 		return nil, nil, err
 	}
+	streamCtx, release, ok := s.tasks.AttachLinked(ctx)
+	if !ok {
+		return nil, nil, errServerClosed
+	}
 
 	// WorkspaceSubscribe owns the channel: the hub broadcasts to it and (when
 	// watches are present) the git watcher emits to it. Closing it only after
@@ -83,16 +87,18 @@ func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSu
 		if err != nil {
 			unregister()
 			close(out)
+			release()
 			return nil, nil, fmt.Errorf("workspace.subscribe: start git watcher: %w", err)
 		}
 	}
 
-	context.AfterFunc(ctx, func() {
+	context.AfterFunc(streamCtx, func() {
 		if watcher != nil {
 			watcher.Close() // joins the watch goroutine — no emit after this
 		}
 		unregister() // hub stops broadcasting to out
 		close(out)
+		release()
 	})
 	return &protocol.WorkspaceSubscribeResponse{}, out, nil
 }

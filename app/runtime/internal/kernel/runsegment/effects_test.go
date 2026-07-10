@@ -2,6 +2,7 @@ package runsegment
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -63,6 +64,23 @@ func TestBeforeLiveRecordsInterruptWithProcessID(t *testing.T) {
 	}
 	if string(got.Interrupts) != `[{"id":"int_1"}]` || len(got.DrainedTools) != 1 {
 		t.Fatalf("pending payload = %s drained=%+v", got.Interrupts, got.DrainedTools)
+	}
+}
+
+func TestBeforeLiveRejectsUnresumableInterrupt(t *testing.T) {
+	want := errors.New("process snapshot unavailable")
+	stores := &fakeStores{interrupts: &fakeInterrupts{}}
+	effects := New(Config{Stores: stores, Processes: fakeProcess{err: want}})
+
+	err := effects.BeforeLive(context.Background(), Event{Interrupt: &Interrupt{
+		RunID:  "run_1",
+		Handle: turn.TurnHandle{SessionID: "ses_1", TurnID: "turn_1"},
+	}})
+	if !errors.Is(err, want) {
+		t.Fatalf("BeforeLive err = %v, want %v", err, want)
+	}
+	if stores.interrupts.pending.ParentRunID != "" {
+		t.Fatalf("unresumable interrupt was persisted: %+v", stores.interrupts.pending)
 	}
 }
 

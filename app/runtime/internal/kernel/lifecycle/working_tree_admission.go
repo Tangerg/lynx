@@ -2,15 +2,16 @@ package lifecycle
 
 import "sync"
 
-// WorkingTreeAdmission is a held working-tree slot. Release drops it.
+// WorkingTreeAdmission is a held working-tree slot. Release drops it once and
+// is idempotent across value copies.
 type WorkingTreeAdmission struct {
-	release func()
+	release *releaseOnce
 }
 
 // Release drops the held working-tree slot.
 func (a WorkingTreeAdmission) Release() {
 	if a.release != nil {
-		a.release()
+		a.release.run()
 	}
 }
 
@@ -35,7 +36,7 @@ func (g *WorkingTreeGate) ClaimRun(cwd string) (WorkingTreeAdmission, bool) {
 		return WorkingTreeAdmission{}, false
 	}
 	g.runCount[cwd]++
-	return WorkingTreeAdmission{release: func() { g.releaseRun(cwd) }}, true
+	return WorkingTreeAdmission{release: newReleaseOnce(func() { g.releaseRun(cwd) })}, true
 }
 
 // ClaimMutation reserves exclusive access for a destructive working-tree
@@ -54,7 +55,7 @@ func (g *WorkingTreeGate) ClaimMutation(cwd string) (WorkingTreeAdmission, bool)
 		return WorkingTreeAdmission{}, false
 	}
 	g.mutations[cwd] = struct{}{}
-	return WorkingTreeAdmission{release: func() { g.releaseMutation(cwd) }}, true
+	return WorkingTreeAdmission{release: newReleaseOnce(func() { g.releaseMutation(cwd) })}, true
 }
 
 func (g *WorkingTreeGate) releaseRun(cwd string) {

@@ -45,11 +45,10 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	ctx := context.Background()
 	appr := approval.New(approval.ModeSafe, approvaltest.NewMemoryStore()) // unknown tool → exec → would prompt
-	autoApprove := map[string]struct{}{"srv_read": {}}
 	obs := &turnObserver{
 		svc: &inMemory{
-			approval:       appr,
-			mcpAutoApprove: func() map[string]struct{} { return autoApprove },
+			approval:            appr,
+			mcpToolAutoApproved: func(name string) bool { return name == "srv_read" },
 		},
 		st: &turnState{handle: TurnHandle{SessionID: "s1"}},
 	}

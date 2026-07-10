@@ -1,6 +1,6 @@
 # Lyra
 
-**Lyra Runtime — 产品级通用 agent 运行时后端（Go）。** 实现 Lyra Runtime Protocol（JSON-RPC 2.0，MCP-inspired），经 HTTP+SSE / inprocess 两种 transport 给前端（Wails 桌面壳 / Web，同仓独立模块 [`../desktop`](../desktop)）用。
+**Lyra Runtime — 产品级通用 agent 运行时后端（Go）。** 实现 Lyra Runtime Protocol（JSON-RPC 2.0，MCP-inspired），经 HTTP+SSE 给前端（Wails 桌面壳 / Web，同仓独立模块 [`../desktop`](../desktop)）用；保留 inprocess transport 给未来独立 CLI/TUI 复用。
 
 > 模块级上下文（设计原则 / 分层 / Go idiom / 协议约定）见 [`CLAUDE.md`](./CLAUDE.md)；架构基准见 [`doc/GREENFIELD_ARCHITECTURE.md`](./doc/GREENFIELD_ARCHITECTURE.md)；文档总目录见 [`doc/README.md`](./doc/README.md)。
 
@@ -33,10 +33,9 @@ agent loop + 并行工具循环 · **HITL R 模型**（park-on-interrupt + resum
 ```bash
 cd app/runtime                                         # 从仓库根进入 runtime 模块
 go build ./... && go vet ./... && go test ./...        # 全绿
-ANTHROPIC_API_KEY=xxx ./lyra serve                     # 默认 127.0.0.1:17171（匹配前端默认 base），SQLite at $LYRA_HOME/lyra.db
-./lyra agents --show                                   # 看本会话能读到哪些 AGENTS.md
+ANTHROPIC_API_KEY=xxx ./lyra                           # 默认 127.0.0.1:17171（匹配前端默认 base），SQLite at $LYRA_HOME/lyra.db
 ```
 
 ## 不做（刻意）
 
-不写 client（前端是同仓独立模块 `../desktop`，只共仓不共代码）· 不做 stdio/gRPC transport（只 HTTP+SSE + inprocess）· 不做用户鉴权/多租户（协议层零 user 概念）· 不向 lynx 反向贡献抽象（除非沉淀过 3+ 用例）。
+不写 client（前端是同仓独立模块 `../desktop`，只共仓不共代码；未来 CLI/TUI 也独立做）· 不做 stdio/gRPC transport（HTTP+SSE + inprocess）· 不做用户鉴权/多租户（协议层零 user 概念）· 不向 lynx 反向贡献抽象（除非沉淀过 3+ 用例）。

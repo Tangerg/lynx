@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
 // TestProjectsFromSessions: distinct cwds collapse to one project each,
@@ -220,7 +220,7 @@ func TestWorkspaceGrep(t *testing.T) {
 func TestWorkspaceListSkills(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
-		rt: &stubRuntime{skills: []kernel.SkillInfo{
+		rt: &stubRuntime{skills: []skills.Info{
 			{Name: "pdf", Description: "PDF tools", Scope: "project"},
 			{Name: "web", Description: "web tools", Scope: "global"},
 		}},
@@ -291,6 +291,36 @@ func TestWorkspaceSubscribe(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("channel not closed after ctx cancel")
+	}
+}
+
+func TestWorkspaceSubscribeIsOwnedByServerClose(t *testing.T) {
+	s := &Server{wsHub: newWorkspaceHub()}
+	_, events, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{})
+	if err != nil {
+		t.Fatalf("WorkspaceSubscribe: %v", err)
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		s.Close()
+		close(closed)
+	}()
+	select {
+	case _, ok := <-events:
+		if ok {
+			t.Fatal("workspace stream yielded an event while closing")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Server.Close did not close the workspace stream")
+	}
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("Server.Close did not join the workspace subscription")
+	}
+	if _, _, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{}); !errors.Is(err, errServerClosed) {
+		t.Fatalf("subscribe after close err = %v, want errServerClosed", err)
 	}
 }
 

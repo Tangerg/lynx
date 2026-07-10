@@ -3,6 +3,7 @@ package lsp
 import (
 	"context"
 	"encoding/json"
+	"slices"
 
 	"github.com/sourcegraph/jsonrpc2"
 )
@@ -44,7 +45,7 @@ func (c *client) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 
 func (c *client) storeDiagnostics(p publishDiagnosticsParams) {
 	c.mu.Lock()
-	c.diags[p.URI] = diagSet{version: p.Version, diagnostics: p.Diagnostics}
+	c.diags[p.URI] = diagSet{version: p.Version, diagnostics: slices.Clone(p.Diagnostics)}
 	close(c.updated)
 	c.updated = make(chan struct{})
 	c.mu.Unlock()

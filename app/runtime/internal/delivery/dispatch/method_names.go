@@ -9,10 +9,10 @@
 //	        → call Runtime method → marshal result OR map error to {code, type}.
 //	Encode  Runtime RunEvent stream  → notifications.run.event envelopes.
 //
-// The dispatcher gates business methods behind a successful
-// runtime.initialize call — pre-handshake requests get
-// capability_not_negotiated. The /v2/info + /v2/health sidecars don't
-// go through this dispatcher (flat REST handled by delivery/transport/http).
+// The dispatcher is stateless: request metadata travels inside params._meta and
+// is exposed on context for handlers that need client-scoped capabilities. The
+// /v2/info + /v2/health sidecars don't go through this dispatcher (flat REST
+// handled by delivery/transport/http).
 package dispatch
 
 // JSON-RPC method names — single source for everywhere that needs to
@@ -21,9 +21,9 @@ package dispatch
 // Names are dotted <domain>.<verb> (API.md §2.3); HTTP keeps the dots.
 const (
 	// Lifecycle (API.md §7.1).
-	MethodInitialize = "runtime.initialize"
-	MethodShutdown   = "runtime.shutdown"
-	MethodPing       = "runtime.ping"
+	MethodDiscover = "runtime.discover"
+	MethodShutdown = "runtime.shutdown"
+	MethodPing     = "runtime.ping"
 
 	// Sessions (API.md §7.2).
 	MethodSessionsList     = "sessions.list"

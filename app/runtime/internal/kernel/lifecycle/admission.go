@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 )
@@ -13,18 +14,30 @@ type SessionClaimer interface {
 	ReleaseSession(sessionID string)
 }
 
-// RunAdmission is a held single-writer slot. Release must be called exactly
-// once by the caller after the run segment is registered or admission fails.
+// RunAdmission is a held single-writer slot. Release is idempotent across value
+// copies and should be called after the run segment is registered or admission
+// fails.
 type RunAdmission struct {
 	SessionID string
-	release   func()
+	release   *releaseOnce
 }
 
 // Release drops the held single-writer slot.
 func (a RunAdmission) Release() {
 	if a.release != nil {
-		a.release()
+		a.release.run()
 	}
+}
+
+type releaseOnce struct {
+	once sync.Once
+	fn   func()
+}
+
+func newReleaseOnce(fn func()) *releaseOnce { return &releaseOnce{fn: fn} }
+
+func (r *releaseOnce) run() {
+	r.once.Do(r.fn)
 }
 
 // ClaimRunSlot reserves a session's single-writer slot for a fresh run and
@@ -35,7 +48,7 @@ func (c *Coordinator) ClaimRunSlot(ctx context.Context, claims SessionClaimer, s
 	}
 	admission := RunAdmission{
 		SessionID: sessionID,
-		release:   func() { claims.ReleaseSession(sessionID) },
+		release:   newReleaseOnce(func() { claims.ReleaseSession(sessionID) }),
 	}
 	open, err := c.s.Interrupts().List(ctx, sessionID)
 	if err != nil {
@@ -59,7 +72,7 @@ func (c *Coordinator) ClaimMutationSlot(claims SessionClaimer, sessionID string)
 	}
 	return RunAdmission{
 		SessionID: sessionID,
-		release:   func() { claims.ReleaseSession(sessionID) },
+		release:   newReleaseOnce(func() { claims.ReleaseSession(sessionID) }),
 	}, nil
 }
 
@@ -78,6 +91,6 @@ func (c *Coordinator) ClaimResumeSlot(ctx context.Context, claims SessionClaimer
 	}
 	return pending, RunAdmission{
 		SessionID: pending.SessionID,
-		release:   func() { claims.ReleaseSession(pending.SessionID) },
+		release:   newReleaseOnce(func() { claims.ReleaseSession(pending.SessionID) }),
 	}, nil
 }

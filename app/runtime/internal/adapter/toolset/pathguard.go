@@ -29,7 +29,11 @@ func withPathGuard(inner chat.Tool, workdir string) chat.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths := mutatedPaths(inner, arguments)
 		for _, path := range paths {
-			if dir := protectedDirHit(resolveAbs(workdir, path)); dir != "" {
+			resolved, err := resolvePhysicalAbs(workdir, path)
+			if err != nil {
+				return fmt.Sprintf("Refused: %q could not be resolved safely (%v).", path, err), nil
+			}
+			if dir := protectedDirHit(resolved); dir != "" {
 				return fmt.Sprintf("Refused: %q is inside the protected %q directory, which is read-only to the agent. Use the shell/git tooling if you need to change version-control state.", path, dir), nil
 			}
 		}

@@ -34,7 +34,7 @@ func mutatedPaths(tool chat.Tool, arguments string) []string {
 func resolvedMutatedPaths(tool chat.Tool, arguments, workdir string) []string {
 	paths := mutatedPaths(tool, arguments)
 	for i, path := range paths {
-		paths[i] = resolveAbs(workdir, path)
+		paths[i] = canonicalAbs(workdir, path)
 	}
 	return cleanPathList(paths)
 }

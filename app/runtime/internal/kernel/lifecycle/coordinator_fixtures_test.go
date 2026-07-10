@@ -108,14 +108,15 @@ func (t cancelTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
 
 type resumeTurns struct {
 	resumeErr       error
+	rehydrateErr    error
 	rehydrateHandle turn.TurnHandle
-	onResume        func(turn.TurnHandle, interrupts.Resolution)
+	onResume        func(turn.TurnHandle, interrupts.Resolution, []string)
 	onRehydrate     func(turn.RehydrateRequest)
 }
 
-func (t resumeTurns) Resume(_ context.Context, h turn.TurnHandle, r interrupts.Resolution) error {
+func (t resumeTurns) Resume(_ context.Context, h turn.TurnHandle, r interrupts.Resolution, interruptKinds []string) error {
 	if t.onResume != nil {
-		t.onResume(h, r)
+		t.onResume(h, r, interruptKinds)
 	}
 	return t.resumeErr
 }
@@ -124,5 +125,5 @@ func (t resumeTurns) Rehydrate(_ context.Context, req turn.RehydrateRequest) (tu
 	if t.onRehydrate != nil {
 		t.onRehydrate(req)
 	}
-	return t.rehydrateHandle, nil
+	return t.rehydrateHandle, t.rehydrateErr
 }

@@ -25,6 +25,7 @@ import (
 type turnState struct {
 	handle TurnHandle
 	events chan Event
+	done   chan struct{}
 	cancel context.CancelFunc
 	seq    atomic.Uint64
 
@@ -73,6 +74,10 @@ type turnState struct {
 	// Written once before the turn goroutine reads it; not mu-guarded.
 	lifecycle *turnLifecycle
 
+	// interruptKinds is the set of HITL kinds the current client can answer
+	// for this turn. Nil / empty means no HITL kind may surface.
+	interruptKinds map[string]bool
+
 	// --- mu-guarded: mutated/read across the turn + caller goroutines ---
 	mu sync.Mutex
 
@@ -113,10 +118,22 @@ func newTurnState(ctx context.Context, handle TurnHandle) *turnState {
 	return &turnState{
 		handle:    handle,
 		events:    make(chan Event, 32),
+		done:      make(chan struct{}),
 		cancel:    cancel,
 		ctx:       lifeCtx,
 		startedAt: time.Now(),
 	}
+}
+
+func (st *turnState) setInterruptKinds(kinds []string) {
+	st.interruptKinds = make(map[string]bool, len(kinds))
+	for _, kind := range kinds {
+		st.interruptKinds[kind] = true
+	}
+}
+
+func (st *turnState) canSurface(kind string) bool {
+	return st.interruptKinds[kind]
 }
 
 // setProc records the agent process backing this turn. runTurn / Rehydrate

@@ -28,4 +28,10 @@ func TestServerSafeEnv(t *testing.T) {
 	if (Server{}).SafeEnv() != nil {
 		t.Fatal("nil Env should yield nil")
 	}
+	empty := Server{Env: map[string]string{}}
+	gotEmpty := empty.SafeEnv()
+	gotEmpty["NEW"] = "value"
+	if len(empty.Env) != 0 {
+		t.Fatal("non-nil empty Env shared storage with SafeEnv result")
+	}
 }

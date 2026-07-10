@@ -7,6 +7,7 @@
 // Notifications go through subscribe() — no id, no waiter.
 
 import { RpcError, RpcTransportError } from "./errors";
+import type { RequestMeta } from "./shapes";
 import type { Transport } from "./transport";
 import type {
   RpcId,
@@ -19,6 +20,10 @@ import type {
 import { JSONRPC_VERSION, isErrorResponse, isNotification, isResponse } from "./types";
 
 export type NotificationHandler = (msg: RpcNotification) => void;
+
+export interface RpcClientOptions {
+  requestMeta?: () => RequestMeta | undefined;
+}
 
 export interface RpcClient {
   /** Send a Request and resolve with its result, or reject with RpcError. */
@@ -36,7 +41,7 @@ interface Pending {
   reject: (err: unknown) => void;
 }
 
-export function createRpcClient(transport: Transport): RpcClient {
+export function createRpcClient(transport: Transport, options: RpcClientOptions = {}): RpcClient {
   // Monotonic integer counter, stringified at allocation — the wire id is
   // always a string (RpcId, §1.1), but an integer counter is the cheapest
   // way to keep every in-flight request's id unique so responses correlate.
@@ -105,14 +110,27 @@ export function createRpcClient(transport: Transport): RpcClient {
     console.warn("[rpc] dropping unexpected server-initiated Request", msg);
   }
 
+  function paramsWithMeta<P>(params: P | undefined): unknown {
+    const meta = options.requestMeta?.();
+    if (!meta) return params as P;
+    if (params === undefined) return { _meta: meta };
+    if (params !== null && typeof params === "object" && !Array.isArray(params)) {
+      return { ...(params as Record<string, unknown>), _meta: meta } as P;
+    }
+    return params as P;
+  }
+
   async function call<R, P>(method: string, params?: P, signal?: AbortSignal): Promise<R> {
     if (closed) throw new RpcTransportError("client closed");
     const id = String(nextId++);
-    const req: RpcRequest<P> = {
+    const req: RpcRequest = {
       jsonrpc: JSONRPC_VERSION,
       id,
       method,
-      ...(params !== undefined ? { params } : {}),
+      ...(() => {
+        const withMeta = paramsWithMeta(params);
+        return withMeta !== undefined ? { params: withMeta } : {};
+      })(),
     };
 
     return new Promise<R>((resolve, reject) => {
@@ -129,7 +147,7 @@ export function createRpcClient(transport: Transport): RpcClient {
             // cancel-in-flight params are `{ id, reason? }` where `id` is the
             // envelope id of the Request being canceled — this cancels a slow
             // JSON-RPC call, NOT a run (that's runs.cancel, §3).
-            params: { id, reason: "client_aborted" },
+            params: paramsWithMeta({ id, reason: "client_aborted" }),
           })
           .catch(() => undefined);
         reject(new RpcTransportError("aborted"));
@@ -168,10 +186,11 @@ export function createRpcClient(transport: Transport): RpcClient {
 
   async function notify<P>(method: string, params?: P): Promise<void> {
     if (closed) throw new RpcTransportError("client closed");
-    const msg: RpcNotification<P> = {
+    const withMeta = paramsWithMeta(params);
+    const msg: RpcNotification = {
       jsonrpc: JSONRPC_VERSION,
       method,
-      ...(params !== undefined ? { params } : {}),
+      ...(withMeta !== undefined ? { params: withMeta } : {}),
     };
     await transport.send(msg);
   }

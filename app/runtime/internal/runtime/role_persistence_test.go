@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -22,14 +23,14 @@ func TestBuildUtilityEnvironmentUsesLoaderPort(t *testing.T) {
 	}
 
 	role := env.cell.Load()
-	if loader.calls != 1 || role == nil || role.provider != "anthropic" || role.model != "claude-haiku" {
+	if loader.calls != 1 || role == nil || role.ProviderID() != "anthropic" || role.Model() != "claude-haiku" {
 		t.Fatalf("loaded calls=%d role=%+v", loader.calls, role)
 	}
 }
 
 func TestRuntimeSetUtilityRoleUsesSaverPort(t *testing.T) {
-	cell := &atomic.Pointer[utilityRole]{}
-	cell.Store(&utilityRole{provider: "anthropic", model: "claude-haiku"})
+	cell := &atomic.Pointer[modelrole.Role]{}
+	cell.Store(mustModelRole(t, "anthropic", "claude-haiku"))
 	saver := &fakeUtilityRoleSaver{}
 	rt := &Runtime{utility: cell, utilStore: saver}
 
@@ -41,14 +42,14 @@ func TestRuntimeSetUtilityRoleUsesSaverPort(t *testing.T) {
 	if saver.calls != 1 || saver.provider != "" || saver.model != "" {
 		t.Fatalf("saved calls=%d provider=%q model=%q", saver.calls, saver.provider, saver.model)
 	}
-	if role == nil || role.provider != "" || role.model != "" {
+	if role == nil || role.Configured() {
 		t.Fatalf("role = %+v, want cleared", role)
 	}
 }
 
 func TestRuntimeSetUtilityRoleUsesClientResolverPort(t *testing.T) {
-	cell := &atomic.Pointer[utilityRole]{}
-	cell.Store(&utilityRole{})
+	cell := &atomic.Pointer[modelrole.Role]{}
+	cell.Store(&modelrole.Role{})
 	saver := &fakeUtilityRoleSaver{}
 	resolver := &fakeChatClientResolver{}
 	rt := &Runtime{utility: cell, utilityClients: resolver, utilStore: saver}
@@ -67,8 +68,8 @@ func TestRuntimeSetUtilityRoleUsesClientResolverPort(t *testing.T) {
 
 func TestRuntimeSetUtilityRoleReturnsClientResolverError(t *testing.T) {
 	fail := errors.New("build client")
-	cell := &atomic.Pointer[utilityRole]{}
-	cell.Store(&utilityRole{})
+	cell := &atomic.Pointer[modelrole.Role]{}
+	cell.Store(&modelrole.Role{})
 	rt := &Runtime{utility: cell, utilityClients: &fakeChatClientResolver{err: fail}}
 
 	if err := rt.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); !errors.Is(err, fail) {
@@ -85,14 +86,14 @@ func TestBuildEmbeddingEnvironmentUsesLoaderPort(t *testing.T) {
 	}
 
 	role := env.cell.Load()
-	if loader.calls != 1 || role == nil || role.provider != "openai" || role.model != "text-embedding-3-small" {
+	if loader.calls != 1 || role == nil || role.ProviderID() != "openai" || role.Model() != "text-embedding-3-small" {
 		t.Fatalf("loaded calls=%d role=%+v", loader.calls, role)
 	}
 }
 
 func TestRuntimeSetEmbeddingRoleUsesSaverPort(t *testing.T) {
-	cell := &atomic.Pointer[embeddingRole]{}
-	cell.Store(&embeddingRole{provider: "openai", model: "text-embedding-3-small"})
+	cell := &atomic.Pointer[modelrole.Role]{}
+	cell.Store(mustModelRole(t, "openai", "text-embedding-3-small"))
 	saver := &fakeEmbeddingRoleSaver{}
 	rt := &Runtime{embeddingCell: cell, embeddingStore: saver}
 
@@ -104,9 +105,18 @@ func TestRuntimeSetEmbeddingRoleUsesSaverPort(t *testing.T) {
 	if saver.calls != 1 || saver.provider != "" || saver.model != "" {
 		t.Fatalf("saved calls=%d provider=%q model=%q", saver.calls, saver.provider, saver.model)
 	}
-	if role == nil || role.provider != "" || role.model != "" {
+	if role == nil || role.Configured() {
 		t.Fatalf("role = %+v, want cleared", role)
 	}
+}
+
+func mustModelRole(t *testing.T, providerID, model string) *modelrole.Role {
+	t.Helper()
+	role, err := modelrole.New(providerID, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &role
 }
 
 type fakeUtilityRoleLoader struct {

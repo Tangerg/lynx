@@ -2,10 +2,13 @@ package runtime
 
 import (
 	"context"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
+
+const mcpReconcileTimeout = 30 * time.Second
 
 // MCP-server registry orchestration: the runtime owns both the persisted
 // registry (mcpserver.Registry) and the live connection ports, so a
@@ -15,22 +18,6 @@ import (
 
 type mcpServerList interface {
 	List(ctx context.Context) ([]mcpserver.Server, error)
-}
-
-type mcpServerRead interface {
-	Get(ctx context.Context, name string) (mcpserver.Server, bool, error)
-}
-
-type mcpServerConfigure interface {
-	Configure(ctx context.Context, srv mcpserver.Server) error
-}
-
-type mcpServerRemove interface {
-	Remove(ctx context.Context, name string) error
-}
-
-type mcpServerEnable interface {
-	SetEnabled(ctx context.Context, name string, enabled bool) error
 }
 
 type mcpLiveStatusReader interface {
@@ -55,7 +42,7 @@ type mcpLiveRegistryCommands interface {
 // ListMCPRegisteredServers returns the persisted MCP-server registry entries,
 // distinct from the live connection statuses returned by MCPServerStatuses.
 func (r *Runtime) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error) {
-	return r.mcpRegistryList.List(ctx)
+	return r.mcpRegistry.List(ctx)
 }
 
 // MCPServerStatuses returns the per-server connection state of every
@@ -70,7 +57,7 @@ func (r *Runtime) MCPServerStatuses() []toolport.MCPServerStatus {
 
 // MCPRegisteredServer returns one persisted MCP-server registry entry.
 func (r *Runtime) MCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error) {
-	return r.mcpRegistryRead.Get(ctx, name)
+	return r.mcpRegistry.Get(ctx, name)
 }
 
 // ReconnectMCPServer re-dials a configured MCP server and hot-swaps the live
@@ -102,64 +89,122 @@ func (r *Runtime) ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) 
 	if err := srv.Validate(); err != nil {
 		return err
 	}
-	if err := r.mcpRegistryConfigure.Configure(ctx, srv); err != nil {
+	requestCtx, ownerCtx, finish, err := r.beginMCPMutation(ctx)
+	if err != nil {
 		return err
 	}
-	return r.applyAndGate(ctx, srv)
+	defer finish()
+	r.mcpMutationMu.Lock()
+	defer r.mcpMutationMu.Unlock()
+	if err := requestCtx.Err(); err != nil {
+		return err
+	}
+	if err := r.mcpRegistry.Configure(requestCtx, srv); err != nil {
+		return err
+	}
+	reconcileCtx, cancel := context.WithTimeout(ownerCtx, mcpReconcileTimeout)
+	defer cancel()
+	return r.applyMCPRegistryChange(reconcileCtx, srv)
 }
 
 // RemoveMCPServer deletes a server from the registry and drops it from the live
 // connections.
 func (r *Runtime) RemoveMCPServer(ctx context.Context, name string) error {
-	if err := r.mcpRegistryRemove.Remove(ctx, name); err != nil {
+	requestCtx, ownerCtx, finish, err := r.beginMCPMutation(ctx)
+	if err != nil {
 		return err
 	}
-	// Shrink the live set before the gating (the disable direction of the
-	// applyAndGate rule): dropping tools can't expose a hidden one, but
-	// shrinking the gating first would leave the about-to-be-dropped tools
-	// briefly live and ungated.
-	if r.mcpLiveRegistry != nil {
-		r.mcpLiveRegistry.RemoveMCPServer(ctx, name)
+	defer finish()
+	r.mcpMutationMu.Lock()
+	defer r.mcpMutationMu.Unlock()
+	if err := requestCtx.Err(); err != nil {
+		return err
 	}
-	return r.refreshMCPGating(ctx)
+	if err := r.mcpRegistry.Remove(requestCtx, name); err != nil {
+		return err
+	}
+	reconcileCtx, cancel := context.WithTimeout(ownerCtx, mcpReconcileTimeout)
+	defer cancel()
+	// Shrink the live set before publishing the new policy: dropping tools can't
+	// expose a hidden one, but publishing first would leave the
+	// about-to-be-dropped tools briefly live under the wrong policy.
+	if r.mcpLiveRegistry != nil {
+		r.mcpLiveRegistry.RemoveMCPServer(reconcileCtx, name)
+	}
+	return r.refreshMCPToolPolicy(reconcileCtx)
 }
 
 // SetMCPServerEnabled flips a server's enablement in the registry and applies
 // it to the live connections (enable → dial, disable → drop).
 func (r *Runtime) SetMCPServerEnabled(ctx context.Context, name string, enabled bool) error {
-	if err := r.mcpRegistryEnable.SetEnabled(ctx, name, enabled); err != nil {
+	requestCtx, ownerCtx, finish, err := r.beginMCPMutation(ctx)
+	if err != nil {
 		return err
 	}
-	srv, ok, err := r.mcpRegistryRead.Get(ctx, name)
+	defer finish()
+	r.mcpMutationMu.Lock()
+	defer r.mcpMutationMu.Unlock()
+	if err := requestCtx.Err(); err != nil {
+		return err
+	}
+	if err := r.mcpRegistry.SetEnabled(requestCtx, name, enabled); err != nil {
+		return err
+	}
+	reconcileCtx, cancel := context.WithTimeout(ownerCtx, mcpReconcileTimeout)
+	defer cancel()
+	srv, ok, err := r.mcpRegistry.Get(reconcileCtx, name)
 	if err != nil || !ok {
 		return err
 	}
-	return r.applyAndGate(ctx, srv)
+	return r.applyMCPRegistryChange(reconcileCtx, srv)
 }
 
-// applyAndGate reflects a just-persisted registry entry into BOTH the live tool
-// set (engine) and the gating sets (atomic cell), ordered so a tool that should
-// be hidden is never momentarily visible to the model. The two are read together
-// at tool-resolution time but published here in two steps, so the order matters
-// by direction:
-//   - enabling: the server's tools are about to APPEAR, so the gating that hides
-//     some of them must publish first (refresh → apply);
-//   - disabling: the tools are about to be DROPPED, so the live set shrinks first,
-//     then the gating (apply → refresh).
+// beginMCPMutation gives a write both scopes it needs: requestCtx is canceled
+// by the caller or Runtime.Close and is used until the durable registry commit;
+// ownerCtx ignores caller cancellation but is still canceled by Runtime.Close,
+// so post-commit live/policy reconciliation cannot be abandoned by a dropped
+// connection or escape component shutdown.
+func (r *Runtime) beginMCPMutation(parent context.Context) (
+	requestCtx context.Context,
+	ownerCtx context.Context,
+	finish func(),
+	err error,
+) {
+	ownerCtx, releaseOwner, ok := r.tasks.Attach(parent)
+	if !ok {
+		return nil, nil, nil, errRuntimeClosed
+	}
+	requestCtx, releaseRequest, ok := r.tasks.AttachLinked(parent)
+	if !ok {
+		releaseOwner()
+		return nil, nil, nil, errRuntimeClosed
+	}
+	return requestCtx, ownerCtx, func() {
+		releaseRequest()
+		releaseOwner()
+	}, nil
+}
+
+// applyMCPRegistryChange reflects a persisted registry entry into the live tool
+// set and the policy snapshot. Publication order keeps disabled tools from
+// becoming momentarily visible:
+//   - enabling publishes policy before adding tools;
+//   - disabling removes tools before publishing policy.
 //
-// Either reversal would leave a window where a disabled tool is live but ungated.
-// The caller has already mutated the registry, so refreshMCPGating reads the new
-// gating lists.
-func (r *Runtime) applyAndGate(ctx context.Context, srv mcpserver.Server) error {
+// Either reversal would leave a window where a disabled tool is live under the
+// wrong policy.
+// The caller has already mutated the registry, so refreshMCPToolPolicy reads
+// the new policy inputs.
+func (r *Runtime) applyMCPRegistryChange(ctx context.Context, srv mcpserver.Server) error {
 	if srv.Enabled {
-		if err := r.refreshMCPGating(ctx); err != nil {
+		if err := r.refreshMCPToolPolicy(ctx); err != nil {
 			return err
 		}
 		r.applyMCPServer(ctx, srv)
 		return nil
 	}
 	r.applyMCPServer(ctx, srv)
-	return r.refreshMCPGating(ctx)
+	return r.refreshMCPToolPolicy(ctx)
 }
 
 // TestMCPServer dials srv with a throwaway client and proves its tools list —

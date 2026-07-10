@@ -40,10 +40,28 @@ func (s *sessionRuntimeStore) Create(_ context.Context, title, cwd string) (sess
 	return session.Session{ID: "ses_created", Title: title, Cwd: cwd}, nil
 }
 
+func (*sessionRuntimeStore) Restore(context.Context, session.Session) error { return nil }
+
+func (*sessionRuntimeStore) Fork(context.Context, string, string) (session.Session, error) {
+	return session.Session{}, nil
+}
+
+func (*sessionRuntimeStore) CreateSubtask(context.Context, string, string) (session.Session, error) {
+	return session.Session{}, nil
+}
+
+func (*sessionRuntimeStore) Children(context.Context, string) ([]session.Session, error) {
+	return nil, nil
+}
+
+func (*sessionRuntimeStore) Delete(context.Context, string) error { return nil }
+
 func (s *sessionRuntimeStore) Rename(_ context.Context, id, title string) error {
 	s.renamed = [2]string{id, title}
 	return nil
 }
+
+func (*sessionRuntimeStore) RenameIfUntitled(context.Context, string, string) error { return nil }
 
 func (s *sessionRuntimeStore) SetModel(_ context.Context, id, model string) error {
 	s.model = [2]string{id, model}
@@ -69,11 +87,7 @@ func (s *sessionRuntimeStore) SetFavorite(_ context.Context, id string, favorite
 
 func runtimeWithSessionStore(store *sessionRuntimeStore) *Runtime {
 	return &Runtime{
-		sessionList:     store,
-		sessionRead:     store,
-		sessionCreation: store,
-		sessionPatch:    store,
-		sessionModel:    store,
+		sessions: store,
 	}
 }
 

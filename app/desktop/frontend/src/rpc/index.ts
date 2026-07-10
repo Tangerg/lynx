@@ -3,7 +3,7 @@
 // The SDK is transport-agnostic: inject a `Transport`, get a typed client.
 //
 //   const client = createLyraClient(createHttpTransport({ baseUrl, localToken }));
-//   await client.runtime.initialize({ ... });   // handshake
+//   await client.runtime.discover();            // optional capability discovery
 //   const sessions = await client.sessions.list();
 //   const { result, events } = await client.runs.start({ ... });
 //   await client.close();
@@ -31,8 +31,8 @@ export type {
   ServerFeatures,
   ServerInfo,
   InterruptType,
-  InitializeRequest,
-  InitializeResponse,
+  RequestMeta,
+  DiscoverResponse,
   ShutdownRequest,
   CanceledNotification,
   // Sessions / projects

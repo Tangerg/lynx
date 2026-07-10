@@ -125,3 +125,15 @@ func TestWithEnvKeys_EmptyMapIsPassThrough(t *testing.T) {
 		t.Error("empty env map should return inner unchanged")
 	}
 }
+
+func TestWithEnvKeys_SnapshotsInput(t *testing.T) {
+	inner := &fakeRegistry{stored: map[string]Provider{}}
+	env := map[string]string{"openai": "before"}
+	svc := WithEnvKeys(inner, env)
+	env["openai"] = "after"
+
+	got, ok, err := svc.Get(context.Background(), "openai")
+	if err != nil || !ok || got.APIKey != "before" {
+		t.Fatalf("Get after caller mutation = %+v, ok=%v, err=%v", got, ok, err)
+	}
+}

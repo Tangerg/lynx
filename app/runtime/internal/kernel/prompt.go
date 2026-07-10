@@ -40,12 +40,12 @@ task is ambiguous, ask one focused question rather than guess.`
 // The project side anchors to the TURN's working directory — the
 // session cwd seeded on the process blackboard ([turnCwd]), the same
 // seam the fs/shell/skill tools follow — so a session opened on
-// project A briefs the model about project A regardless of where
-// `lyra serve` was started.
+// project A briefs the model about project A regardless of where the runtime
+// server process was started.
 //
-// knowledge.Store is Lyra's writable surface (`lyra memory edit`);
-// agentdoc is the read-only cross-tool AGENTS.md convention. Engines
-// built without a memory store simply yield the base prompt +
+// knowledge.Store is Lyra's writable memory surface managed over the runtime
+// protocol; agentdoc is the read-only cross-tool AGENTS.md convention.
+// Engines built without a memory store simply yield the base prompt +
 // discovered files.
 func (e *Engine) SystemPrompt(ctx context.Context) string {
 	prompt := composePrompt(ctx, e.knowledge, turnctx.TurnCwd(ctx, e.workdir))

@@ -37,7 +37,7 @@ func withReadTracking(inner chat.Tool, tr *editguard.Tracker, workdir string) ch
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" {
-			tr.Record(turnctx.TurnSession(ctx), resolveAbs(workdir, a.Path), a.Offset > 0 || a.Limit > 0)
+			tr.Record(turnctx.TurnSession(ctx), canonicalAbs(workdir, a.Path), a.Offset > 0 || a.Limit > 0)
 		}
 		return out, nil
 	})
@@ -52,7 +52,7 @@ func withEditGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths := mutatedPaths(inner, arguments)
 		for _, path := range paths {
-			abs := resolveAbs(workdir, path)
+			abs := canonicalAbs(workdir, path)
 			if !isExistingFile(abs) {
 				continue
 			}
@@ -65,7 +65,7 @@ func withEditGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.
 			return out, err
 		}
 		for _, path := range paths {
-			tr.Refresh(turnctx.TurnSession(ctx), resolveAbs(workdir, path))
+			tr.Refresh(turnctx.TurnSession(ctx), canonicalAbs(workdir, path))
 		}
 		return out, nil
 	})
@@ -85,7 +85,7 @@ func withWriteGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" && !a.Append {
-			abs := resolveAbs(workdir, a.Path)
+			abs := canonicalAbs(workdir, a.Path)
 			if isExistingFile(abs) {
 				if msg := tr.Check(turnctx.TurnSession(ctx), abs, true).Message(a.Path, "overwriting"); msg != "" {
 					return msg, nil
@@ -97,7 +97,7 @@ func withWriteGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat
 			return out, err
 		}
 		if a.Path != "" {
-			tr.Refresh(turnctx.TurnSession(ctx), resolveAbs(workdir, a.Path))
+			tr.Refresh(turnctx.TurnSession(ctx), canonicalAbs(workdir, a.Path))
 		}
 		return out, nil
 	})

@@ -36,9 +36,13 @@ const diagnosticsSettle = 3 * time.Second
 type Servers struct {
 	table *serverTable
 
-	mu      sync.Mutex
-	clients map[string]*client // key: root + "\x00" + server name
-	closed  bool
+	mu       sync.Mutex
+	clients  map[string]*client // key: root + "\x00" + server name
+	closed   bool
+	starting sync.WaitGroup
+
+	closeOnce sync.Once
+	closeErr  error
 }
 
 // NewServers builds a server set over specs (see DefaultServers for the
@@ -76,7 +80,9 @@ func (s *Servers) clientFor(ctx context.Context, root string, spec ServerSpec) (
 		s.mu.Unlock()
 		return c, nil
 	}
+	s.starting.Add(1)
 	s.mu.Unlock()
+	defer s.starting.Done()
 
 	c, err := startClient(ctx, spec, root)
 	if err != nil {
@@ -84,16 +90,18 @@ func (s *Servers) clientFor(ctx context.Context, root string, spec ServerSpec) (
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.closed {
+		s.mu.Unlock()
 		_ = c.close()
 		return nil, ErrClosed
 	}
 	if existing, ok := s.clients[key]; ok {
+		s.mu.Unlock()
 		_ = c.close() // lost the race — keep the established one
 		return existing, nil
 	}
 	s.clients[key] = c
+	s.mu.Unlock()
 	return c, nil
 }
 
@@ -222,21 +230,24 @@ func (s *Servers) Supported(file string) bool {
 
 // Close shuts every live server down. Safe to call multiple times.
 func (s *Servers) Close() error {
-	s.mu.Lock()
-	if s.closed {
+	s.closeOnce.Do(func() {
+		s.mu.Lock()
+		s.closed = true
+		clients := s.clients
+		s.clients = nil
 		s.mu.Unlock()
-		return nil
-	}
-	s.closed = true
-	clients := s.clients
-	s.clients = nil
-	s.mu.Unlock()
 
-	var errs []error
-	for _, c := range clients {
-		if err := c.close(); err != nil {
-			errs = append(errs, err)
+		var errs []error
+		for _, c := range clients {
+			if err := c.close(); err != nil {
+				errs = append(errs, err)
+			}
 		}
-	}
-	return errors.Join(errs...)
+		// Add happens under mu before a startup leaves the initial closed
+		// check. Since closed was set under that same lock, no Add can race
+		// this Wait; late handshakes close their own client before Done.
+		s.starting.Wait()
+		s.closeErr = errors.Join(errs...)
+	})
+	return s.closeErr
 }

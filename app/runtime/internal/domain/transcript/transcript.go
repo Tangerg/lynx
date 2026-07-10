@@ -135,6 +135,15 @@ type Boundary struct {
 	BoundaryTime time.Time
 }
 
+// DroppedRunIDs returns the dropped timeline node ids in boundary order.
+func (b Boundary) DroppedRunIDs() []string {
+	ids := make([]string, len(b.Dropped))
+	for i, node := range b.Dropped {
+		ids[i] = node.ID
+	}
+	return ids
+}
+
 // BoundaryAt computes the inclusive-keep split of this timeline at runID. It
 // orders a copy by CreatedAt and leaves the timeline untouched. runID==""
 // drops every run (KeepMark 0 — clear to empty). requireRoot rejects a non-root

@@ -5,5 +5,5 @@
 // Go API the service implementations consume.
 //
 // Engine is owned by [New]; everything else is internal plumbing.
-// The engine is process-scoped — one *Engine per `lyra serve`.
+// The engine is process-scoped — one *Engine per runtime server process.
 package kernel

@@ -42,6 +42,8 @@ func (i *codebaseIndex) Search(_ context.Context, root, query string, limit int)
 	return i.hits, nil
 }
 
+func (*codebaseIndex) EnsureIndexed(context.Context, string) error { return nil }
+
 func (i *codebaseIndex) Status(_ context.Context, root string) (codebaseindex.Status, error) {
 	i.statusRoot = root
 	return i.status, nil
@@ -64,7 +66,7 @@ func TestRuntimeCodebaseSearchUsesSearchPort(t *testing.T) {
 		Path:  "runtime/codebase.go",
 		Score: 0.95,
 	}}}
-	rt := &Runtime{codebaseSearch: idx}
+	rt := &Runtime{codebase: idx}
 
 	got, err := rt.SearchCodebase(context.Background(), "/repo", "runtime facade", 4)
 	if err != nil {
@@ -82,7 +84,7 @@ func TestRuntimeCodebaseStatusUsesStatusPort(t *testing.T) {
 	idx := &codebaseIndex{status: codebaseindex.Status{
 		State: codebaseindex.StateReady,
 	}}
-	rt := &Runtime{codebaseStatus: idx}
+	rt := &Runtime{codebase: idx}
 
 	got, err := rt.CodebaseIndexStatus(context.Background(), "/repo")
 	if err != nil {
@@ -100,8 +102,7 @@ func TestRuntimeStartCodebaseReindexRequiresAvailableIndex(t *testing.T) {
 	}
 
 	idx := &codebaseIndex{}
-	rt.codebaseAvailability = idx
-	rt.codebaseReindex = idx
+	rt.codebase = idx
 	if err := rt.StartCodebaseReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 		t.Fatalf("start reindex unavailable err = %v, want ErrNoEmbeddingModel", err)
 	}
@@ -109,10 +110,7 @@ func TestRuntimeStartCodebaseReindexRequiresAvailableIndex(t *testing.T) {
 
 func TestRuntimeStartCodebaseReindexDetachesFromRequestCancel(t *testing.T) {
 	idx := &codebaseIndex{available: true, reindexed: make(chan codebaseReindexCall, 1)}
-	rt := &Runtime{
-		codebaseAvailability: idx,
-		codebaseReindex:      idx,
-	}
+	rt := &Runtime{codebase: idx}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -130,5 +128,16 @@ func TestRuntimeStartCodebaseReindexDetachesFromRequestCancel(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("reindex did not start")
+	}
+}
+
+func TestRuntimeStartCodebaseReindexRejectsClosedRuntime(t *testing.T) {
+	idx := &codebaseIndex{available: true}
+	rt := &Runtime{codebase: idx}
+	if err := rt.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := rt.StartCodebaseReindex(context.Background(), "/repo"); !errors.Is(err, errRuntimeClosed) {
+		t.Fatalf("StartCodebaseReindex error = %v, want %v", err, errRuntimeClosed)
 	}
 }

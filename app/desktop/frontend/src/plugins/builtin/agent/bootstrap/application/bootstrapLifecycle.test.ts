@@ -17,38 +17,38 @@ describe("startBootstrapLifecycle", () => {
   it("installs ports synchronously and starts boot tasks", () => {
     const installPorts = vi.fn();
     const initObservability = vi.fn().mockResolvedValue(vi.fn());
-    const performHandshake = vi.fn().mockResolvedValue(undefined);
+    const discoverRuntime = vi.fn().mockResolvedValue(undefined);
 
     startBootstrapLifecycle({
       installPorts,
       initObservability,
-      performHandshake,
+      discoverRuntime,
       reportObservabilityFailure: vi.fn(),
-      reportHandshakeFailure: vi.fn(),
+      reportDiscoveryFailure: vi.fn(),
     });
 
     expect(installPorts).toHaveBeenCalledOnce();
     expect(initObservability).toHaveBeenCalledOnce();
-    expect(performHandshake).toHaveBeenCalledOnce();
+    expect(discoverRuntime).toHaveBeenCalledOnce();
   });
 
-  it("reports handshake and observability failures without throwing", async () => {
+  it("reports discovery and observability failures without throwing", async () => {
     const reportObservabilityFailure = vi.fn();
-    const reportHandshakeFailure = vi.fn();
+    const reportDiscoveryFailure = vi.fn();
     const observabilityError = new Error("otel failed");
-    const handshakeError = new Error("initialize failed");
+    const discoveryError = new Error("discover failed");
 
     startBootstrapLifecycle({
       installPorts: vi.fn(),
       initObservability: vi.fn().mockRejectedValue(observabilityError),
-      performHandshake: vi.fn().mockRejectedValue(handshakeError),
+      discoverRuntime: vi.fn().mockRejectedValue(discoveryError),
       reportObservabilityFailure,
-      reportHandshakeFailure,
+      reportDiscoveryFailure,
     });
     await tick();
 
     expect(reportObservabilityFailure).toHaveBeenCalledWith(observabilityError);
-    expect(reportHandshakeFailure).toHaveBeenCalledWith(handshakeError);
+    expect(reportDiscoveryFailure).toHaveBeenCalledWith(discoveryError);
   });
 
   it("runs observability teardown on dispose after init resolves", async () => {
@@ -56,9 +56,9 @@ describe("startBootstrapLifecycle", () => {
     const dispose = startBootstrapLifecycle({
       installPorts: vi.fn(),
       initObservability: vi.fn().mockResolvedValue(teardown),
-      performHandshake: vi.fn().mockResolvedValue(undefined),
+      discoverRuntime: vi.fn().mockResolvedValue(undefined),
       reportObservabilityFailure: vi.fn(),
-      reportHandshakeFailure: vi.fn(),
+      reportDiscoveryFailure: vi.fn(),
     });
     await tick();
 
@@ -73,9 +73,9 @@ describe("startBootstrapLifecycle", () => {
     const dispose = startBootstrapLifecycle({
       installPorts: vi.fn(),
       initObservability: vi.fn().mockReturnValue(init.promise),
-      performHandshake: vi.fn().mockResolvedValue(undefined),
+      discoverRuntime: vi.fn().mockResolvedValue(undefined),
       reportObservabilityFailure: vi.fn(),
-      reportHandshakeFailure: vi.fn(),
+      reportDiscoveryFailure: vi.fn(),
     });
 
     dispose();

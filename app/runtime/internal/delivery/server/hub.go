@@ -16,8 +16,8 @@ import (
 // the ultimate backstop, API.md §5.2).
 const liveHeadroom = 256
 
-// terminalSendTimeout bounds how long Append blocks delivering the terminal
-// run.finished to a live subscriber. The terminal is the last event before
+// terminalSendTimeout bounds how long Append blocks in total while delivering
+// the terminal run.finished to live subscribers. The terminal is the last event before
 // Close, and a dropped one strands the client (after teardown the run leaves
 // s.runs, so runs.subscribe returns run_not_found and items.list carries no run
 // outcome — the client can't recover the terminal). So unlike every other event
@@ -72,17 +72,40 @@ func (h *runHub) Append(ev protocol.RunEvent) {
 		h.durable = append(h.durable, ev)
 	}
 	terminal := ev.Event.Type == protocol.StreamRunFinished
+	if terminal {
+		deliverTerminal(h.subs, ev, terminalSendTimeout)
+		return
+	}
 	for _, ch := range h.subs {
-		if !terminal {
-			select {
-			case ch <- ev:
-			default:
-			}
-			continue
-		}
 		select {
 		case ch <- ev:
-		case <-time.After(terminalSendTimeout):
+		default:
+		}
+	}
+}
+
+// deliverTerminal gives every healthy subscriber an immediate chance before
+// waiting on backpressured ones under one shared deadline. Call with h.mu held,
+// which keeps subscriber channels open for the duration.
+func deliverTerminal(subs map[int]chan protocol.RunEvent, ev protocol.RunEvent, budget time.Duration) {
+	blocked := make([]chan protocol.RunEvent, 0, len(subs))
+	for _, ch := range subs {
+		select {
+		case ch <- ev:
+		default:
+			blocked = append(blocked, ch)
+		}
+	}
+	if len(blocked) == 0 {
+		return
+	}
+	timer := time.NewTimer(budget)
+	defer timer.Stop()
+	for _, ch := range blocked {
+		select {
+		case ch <- ev:
+		case <-timer.C:
+			return
 		}
 	}
 }

@@ -21,7 +21,9 @@ package http
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -48,8 +50,7 @@ type messageHandler interface {
 // the call's event channel as text/event-stream (TRANSPORT §6.4). It
 // holds no per-run state — the event hubs + replay live in the runtime.
 type Server struct {
-	addr     string
-	info     protocol.InitializeResponse
+	info     protocol.DiscoverResponse
 	serverID string
 
 	localToken      string
@@ -61,7 +62,8 @@ type Server struct {
 
 	httpServer *http.Server
 
-	mu sync.Mutex
+	mu      sync.Mutex
+	started bool
 }
 
 // Config bundles construction inputs.
@@ -134,20 +136,34 @@ func NewServer(cfg Config) (*Server, error) {
 	if serverID == "" {
 		serverID = cfg.ServerInfo.Name + "/" + cfg.ServerInfo.Version
 	}
-	return &Server{
-		addr:            cfg.Addr,
+	s := &Server{
 		serverID:        serverID,
 		localToken:      cfg.LocalToken,
-		corsOrigins:     cfg.CORSOrigins,
-		healthProbes:    cfg.HealthProbes,
+		corsOrigins:     slices.Clone(cfg.CORSOrigins),
+		healthProbes:    slices.Clone(cfg.HealthProbes),
 		agentDocsLister: cfg.AgentDocsLister,
 		dispatcher:      dispatch.New(cfg.Runtime),
-		info: protocol.InitializeResponse{
+		info: protocol.DiscoverResponse{
 			ProtocolVersion: cfg.ProtocolVersion,
 			ServerInfo:      cfg.ServerInfo,
-			Capabilities:    cfg.Capabilities,
+			Capabilities:    cloneServerCapabilities(cfg.Capabilities),
 		},
-	}, nil
+	}
+	s.httpServer = &http.Server{
+		Addr:              cfg.Addr,
+		Handler:           s.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		// No WriteTimeout — SSE streams can be arbitrarily long.
+	}
+	return s, nil
+}
+
+func cloneServerCapabilities(in protocol.ServerCapabilities) protocol.ServerCapabilities {
+	in.Events = slices.Clone(in.Events)
+	in.StreamingMethods = slices.Clone(in.StreamingMethods)
+	in.Features = maps.Clone(in.Features)
+	in.Providers = slices.Clone(in.Providers)
+	return in
 }
 
 // Handler returns the routed handler — exposed so tests can drive it
@@ -184,26 +200,27 @@ func (s *Server) Handler() http.Handler {
 // Returns http.ErrServerClosed on clean shutdown.
 func (s *Server) Start() error {
 	s.mu.Lock()
-	s.httpServer = &http.Server{
-		Addr:              s.addr,
-		Handler:           s.Handler(),
-		ReadHeaderTimeout: 10 * time.Second,
-		// No WriteTimeout — SSE streams can be arbitrarily long.
+	if s.started {
+		s.mu.Unlock()
+		return errors.New("http: server already started")
 	}
+	s.started = true
 	srv := s.httpServer
 	s.mu.Unlock()
 	return srv.ListenAndServe()
 }
 
-// Shutdown gracefully closes the server. Idempotent. Each in-flight
-// streaming POST ends when its request context is canceled by the
-// http.Server shutdown; the per-run hubs live in the runtime, not here.
+// Shutdown gracefully drains the server. It is safe before Start and prevents
+// a later Start from binding. Active handlers keep their request contexts until
+// they return or the caller's shutdown deadline expires; run ownership remains
+// in the runtime rather than this transport.
 func (s *Server) Shutdown(ctx context.Context) error {
-	s.mu.Lock()
-	srv := s.httpServer
-	s.mu.Unlock()
-	if srv == nil {
-		return nil
-	}
-	return srv.Shutdown(ctx)
+	return s.httpServer.Shutdown(ctx)
+}
+
+// Close force-closes listeners and active connections. The process owner uses
+// it only when graceful Shutdown exhausts its deadline, to cancel active
+// request contexts before application resources are released.
+func (s *Server) Close() error {
+	return s.httpServer.Close()
 }

@@ -2,6 +2,8 @@ package toolset
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -59,5 +61,64 @@ func TestWithPathGuard(t *testing.T) {
 				t.Fatalf("inner result lost for %q: %q", tc.path, out)
 			}
 		})
+	}
+}
+
+func TestWithPathGuardRejectsSymlinkAliasesIntoGit(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(".git", filepath.Join(dir, "git-alias")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(".git", "new-config"), filepath.Join(dir, "dangling-alias")); err != nil {
+		t.Fatal(err)
+	}
+
+	called := false
+	inner, _ := chat.NewTool[struct{}, string](
+		chat.ToolDefinition{Name: "write", Description: "stub"},
+		func(context.Context, struct{}) (string, error) {
+			called = true
+			return "wrote", nil
+		},
+	)
+	guarded := withPathGuard(inner, dir)
+	for _, path := range []string{"git-alias/config", "dangling-alias"} {
+		called = false
+		out, err := guarded.Call(context.Background(), `{"file_path":"`+path+`"}`)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if called || !strings.Contains(out, "Refused") {
+			t.Fatalf("symlink path %q escaped guard: called=%v out=%q", path, called, out)
+		}
+	}
+}
+
+func TestWithPathGuardRejectsSymlinkCycle(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Symlink("b", filepath.Join(dir, "a")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("a", filepath.Join(dir, "b")); err != nil {
+		t.Fatal(err)
+	}
+
+	called := false
+	inner, _ := chat.NewTool[struct{}, string](
+		chat.ToolDefinition{Name: "write", Description: "stub"},
+		func(context.Context, struct{}) (string, error) {
+			called = true
+			return "wrote", nil
+		},
+	)
+	out, err := withPathGuard(inner, dir).Call(context.Background(), `{"file_path":"a/config"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if called || !strings.Contains(out, "Refused") {
+		t.Fatalf("symlink cycle was not refused: called=%v out=%q", called, out)
 	}
 }

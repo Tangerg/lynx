@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -67,6 +68,7 @@ func (r *Resolver) Inspect(ctx context.Context, cwd string) domainhooks.Inspecti
 func (r *Resolver) load(ctx context.Context, cwd string) []domainhooks.Hook {
 	r.mu.Lock()
 	if all, ok := r.cache[cwd]; ok {
+		all = slices.Clone(all)
 		r.mu.Unlock()
 		return all
 	}
@@ -77,7 +79,7 @@ func (r *Resolver) load(ctx context.Context, cwd string) []domainhooks.Hook {
 		return nil
 	}
 	r.mu.Lock()
-	r.cache[cwd] = all
+	r.cache[cwd] = slices.Clone(all)
 	r.mu.Unlock()
 	return all
 }

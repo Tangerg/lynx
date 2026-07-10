@@ -9,38 +9,17 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-type sessionListAccess interface {
+// sessionUseCases is the session-facing slice of the application boundary.
+// The server as a whole needs this cohesive context; individual handler methods
+// still only call the operation they translate to wire.
+type sessionUseCases interface {
 	ListSessions(ctx context.Context) ([]sessionsvc.Session, error)
-}
-
-type sessionReadAccess interface {
 	SessionByID(ctx context.Context, id string) (sessionsvc.Session, error)
-}
-
-type sessionCreationAccess interface {
 	CreateSession(ctx context.Context, title, cwd string) (sessionsvc.Session, error)
-}
-
-type sessionDeletionAccess interface {
 	DeleteSession(ctx context.Context, id string) error
-}
-
-type sessionUpdateAccess interface {
 	UpdateSession(ctx context.Context, id string, patch sessionsvc.Patch) (sessionsvc.Session, error)
-}
-
-type sessionDefaultModelAccess interface {
 	DefaultModel() string
-}
-
-type transcriptContentAccess interface {
 	ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error)
-}
-
-type transcriptRunAccess interface {
 	ListTranscriptRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
-}
-
-type historyAccess interface {
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
 }

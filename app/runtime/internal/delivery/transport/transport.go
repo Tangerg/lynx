@@ -1,14 +1,6 @@
-// Package transport is the Lyra Runtime Protocol's transport layer
-// — a bidirectional pipe for JSON-RPC 2.0 messages. See
-// docs/TRANSPORT.md for the architectural picture.
-//
-// One [Transport] interface, two implementations:
-//
-//   - delivery/transport/inprocess — Go ↔ Go in the same binary, business
-//     path bypasses JSON serialization entirely.
-//   - delivery/transport/http      — JSON-RPC over streamable HTTP (POST
-//     /v2/rpc/{method}; a streaming method's events ride its own
-//     text/event-stream response) + sidecar /v2/info, /v2/health.
+// Package transport is the Lyra Runtime Protocol's transport layer: a
+// bidirectional pipe for JSON-RPC 2.0 messages. The runtime server uses HTTP;
+// inprocess remains available for future same-process clients such as a CLI/TUI.
 //
 // Wire envelope types and encode/decode are re-exported from the MCP
 // Go SDK's `jsonrpc` package — same vendor we use for our MCP
@@ -16,11 +8,10 @@
 // mcp transport authors" per its own doc.
 //
 // File layout in this package:
-//   - transport.go (this file) — [Transport] interface + Message/
-//     Request/Response/ID/Error type aliases
+//   - transport.go (this file) — [Transport] interface + Message/Request/
+//     Response/ID/Error type aliases
 //   - codes.go    — wire error codes + canonical-message helper
-//   - builders.go — NewCall/NewNotification/NewResponseResult/
-//     NewResponseError + StringID convenience constructors
+//   - builders.go — call/notification/response/error convenience constructors
 package transport
 
 import (
@@ -64,12 +55,9 @@ func EncodeMessage(msg Message) ([]byte, error) { return jsonrpc.EncodeMessage(m
 // catches invalid envelopes (wrong version tag, malformed id).
 func DecodeMessage(data []byte) (Message, error) { return jsonrpc.DecodeMessage(data) }
 
-// Transport is the bidirectional message pipe. One interface,
-// multiple implementations.
-//
-// Concurrency: implementations MUST be safe for concurrent Send
-// from multiple goroutines, and Recv MUST yield to exactly one
-// consumer. Close MUST be idempotent.
+// Transport is the bidirectional message pipe. Implementations must be safe
+// for concurrent Send from multiple goroutines, and Recv must yield to exactly
+// one consumer. Close must be idempotent.
 type Transport interface {
 	// Send hands one outbound message to the underlying transport.
 	// Returns when the message has been queued, not when the peer

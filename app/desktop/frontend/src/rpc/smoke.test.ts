@@ -7,7 +7,7 @@
 // interleavings encoded here ARE the protocol contract.
 //
 // Coverage:
-//   1. runtime.initialize          (handshake + capability negotiation)
+//   1. runtime.discover            (optional capability discovery)
 //   2. sessions.create             (Session shape, default cwd)
 //   3. runs.start                  (immediate {runId}, then RunEvent stream)
 //   4. item.* + run.* StreamEvents (the v2 Item model)
@@ -48,42 +48,53 @@ describe("smoke: v2 end-to-end happy path", () => {
     await client.close();
   });
 
-  it("initialize → create → start → interrupt → resume → completed", async () => {
+  it("discover → create → start → interrupt → resume → completed", async () => {
     transport = createMemoryTransport();
-    client = createRpcClient(transport);
+    client = createRpcClient(transport, {
+      requestMeta: () => ({
+        protocolVersion: "2026-06-07",
+        clientInfo: { name: "smoke-test", version: "0.1" },
+        clientCapabilities: {
+          events: ["run.started", "run.finished", "item.started", "item.delta", "item.completed"],
+          features: {},
+          interruptTypes: ["approval", "question"],
+        },
+      }),
+    });
     methods = createMethods(client);
 
-    // ---- Step 1: runtime.initialize ---------------------------------------
-    const initPromise = methods.runtime.initialize({
-      protocolVersion: "2026-06-03",
-      clientInfo: { name: "smoke-test", version: "0.1" },
-      capabilities: {
-        events: ["run.started", "run.finished", "item.started", "item.delta", "item.completed"],
-        features: {},
-        interruptTypes: ["approval", "question"],
+    // ---- Step 1: runtime.discover -----------------------------------------
+    const discoverPromise = methods.runtime.discover();
+    const discoverReq = await waitForRequest(transport, "runtime.discover");
+    expect(discoverReq.params).toMatchObject({
+      _meta: {
+        protocolVersion: "2026-06-07",
+        clientCapabilities: { interruptTypes: ["approval", "question"] },
       },
     });
-    const initReq = await waitForRequest(transport, "runtime.initialize");
-    expect(initReq.params).toMatchObject({ protocolVersion: "2026-06-03" });
-    respondSuccess(transport, initReq.id, {
-      protocolVersion: "2026-06-03",
+    respondSuccess(transport, discoverReq.id, {
+      protocolVersion: "2026-06-07",
       serverInfo: { name: "lyra-runtime", version: "0.0.0", cwd: "/work", home: "/home/u" },
       capabilities: {
-        protocolVersion: "2026-06-03",
+        protocolVersion: "2026-06-07",
         events: ["run.started", "run.finished", "item.started", "item.delta", "item.completed"],
         features: { reasoning: true, mcp: true, relocate: true, multimodal: true },
         providers: ["anthropic"],
+        streamingMethods: ["runs.start", "runs.resume", "runs.subscribe"],
         limits: { maxConcurrentRuns: 8 },
       },
     });
-    const init = await initPromise;
-    expect(init.serverInfo.cwd).toBe("/work");
-    expect(init.capabilities.providers).toEqual(["anthropic"]);
+    const discovery = await discoverPromise;
+    expect(discovery.serverInfo.cwd).toBe("/work");
+    expect(discovery.capabilities.providers).toEqual(["anthropic"]);
 
     // ---- Step 2: sessions.create ------------------------------------------
     const createPromise = methods.sessions.create({ title: "smoke" });
     const createReq = await waitForRequest(transport, "sessions.create");
-    expect(createReq.params).toEqual({ title: "smoke" });
+    expect(createReq.params).toMatchObject({
+      title: "smoke",
+      _meta: { protocolVersion: "2026-06-07" },
+    });
     respondSuccess(transport, createReq.id, {
       id: "ses_1",
       title: "smoke",

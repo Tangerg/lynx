@@ -1,28 +1,23 @@
 package runtime
 
 import (
-	"context"
+	"maps"
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
-// enabledConfigs reads the registry and returns the live-connection port
-// descriptors for the enabled servers — the boot-time MCP set handed to
-// toolset.Build.
-func enabledConfigs(ctx context.Context, svc mcpServerList) ([]toolport.MCPServerConfig, error) {
-	servers, err := svc.List(ctx)
-	if err != nil {
-		return nil, err
-	}
+// configsForEnabledServers returns the live-connection descriptors projected
+// from one registry snapshot.
+func configsForEnabledServers(servers []mcpserver.Server) []toolport.MCPServerConfig {
 	var out []toolport.MCPServerConfig
 	for _, s := range servers {
 		if s.Enabled {
 			out = append(out, configFromServer(s))
 		}
 	}
-	return out, nil
+	return out
 }
 
 // configFromServer maps a registry entry to the kernel's live MCP port
@@ -37,11 +32,11 @@ func configFromServer(s mcpserver.Server) toolport.MCPServerConfig {
 		cfg.Transport = toolport.MCPTransportHTTP
 		cfg.Endpoint = s.URL
 		cfg.Authorization = s.Authorization
-		cfg.Headers = s.Headers
+		cfg.Headers = maps.Clone(s.Headers)
 	case mcpserver.TransportStdio:
 		cfg.Transport = toolport.MCPTransportStdio
 		cfg.Command = s.Command
-		cfg.Args = s.Args
+		cfg.Args = slices.Clone(s.Args)
 		cfg.Env = envMapToSlice(s.SafeEnv())
 		cfg.Dir = s.Dir
 	}

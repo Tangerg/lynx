@@ -22,19 +22,25 @@ import (
 // downloadAllow gates the download tool: empty (no configured host allowlist)
 // omits it entirely, so an offline build makes no surprise outbound calls.
 func BuildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguard.Tracker, downloadAllow httpreq.Allowlist) []chat.Tool {
+	return buildWorkdirTools(workdir, ci, tracker, downloadAllow, newPathLocker())
+}
+
+// buildWorkdirTools accepts the owner-scoped path locker. Resolver-owned builds
+// reuse one locker so read/check/write remains atomic across concurrent turns,
+// not merely across tools resolved for one turn.
+func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguard.Tracker, downloadAllow httpreq.Allowlist, locker *pathLocker) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
 
 	// Mutation guard stack, innermost → outermost: auto-format the applied
 	// change; diagnostics type-check it; read/staleness guard gates before the
 	// change and refreshes the read stamp after; per-path lock serializes
 	// concurrent writes to the same file; path guard refuses protected dirs.
-	locker := newPathLocker()
 	write := writeMutationTool(fs.NewWriteTool(fsExec), ci, tracker, locker, workdir)
 	edit := editMutationTool(fs.NewEditTool(fsExec), ci, tracker, locker, workdir)
 	applyPatch := editMutationTool(fs.NewApplyPatchTool(fsExec), ci, tracker, locker, workdir)
 
 	tools := []chat.Tool{
-		withReadTracking(fs.NewReadTool(fsExec), tracker, workdir),
+		withPathLock(withReadTracking(fs.NewReadTool(fsExec), tracker, workdir), locker, workdir),
 		write,
 		edit,
 		applyPatch,

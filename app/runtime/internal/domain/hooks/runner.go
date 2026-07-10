@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -173,7 +174,7 @@ type Bound struct {
 
 // NewBound binds a hook list to the runner that evaluates command hooks.
 func NewBound(hooks []Hook, runner *Runner) *Bound {
-	return &Bound{hooks: hooks, runner: runner}
+	return &Bound{hooks: slices.Clone(hooks), runner: runner}
 }
 
 // Run fires the bound hooks for in's event and returns the combined Decision.

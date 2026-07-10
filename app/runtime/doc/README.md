@@ -21,6 +21,12 @@
 | [GREENFIELD_DESIGN.md](GREENFIELD_DESIGN.md) | greenfield 重审：如果从零写 lyra 的应然设计 + 跨模块接缝（lyra 定义 `agentRuntime` 窄接口消费 agent / tool loop 归属 / 事件桥 / 持久化分工）。与 agent 侧 [`GREENFIELD_DESIGN.md`](../../../agent/docs/GREENFIELD_DESIGN.md) 配套 |
 | [SECOND_BATCH_RUNTIME_WORKFLOW.md](SECOND_BATCH_RUNTIME_WORKFLOW.md) | 第二批 runtime 工作流可靠性改造的目标、非目标、计划、进度和完成判据 |
 
+## C. 重写提案
+
+| 文档 | 一句话 |
+|---|---|
+| [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md) | **非现行基准**：以 Run 生命周期而非 agent loop 为中心的从零重写提案；重新划分 Domain / Application / Adapter / Delivery / Bootstrap，并定义事件、事务、并发、生命周期与迁移批次 |
+
 ---
 
 > 协议契约（wire shape）在前端模块：[`../../desktop/docs/protocol/`](../../desktop/docs/protocol/)（API / TRANSPORT / AUX_API）。改协议契约先在那里对一遍。

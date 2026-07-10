@@ -454,7 +454,7 @@ otel.SetTracerProvider(tp)
 
 ### 8.3 待动工
 
-- [ ] vectorstore + chathistory 的端到端 span 行为单测（chat tracing_test + lyra chat tracing_test 已覆盖各自一例）
+- [ ] vectorstore + chathistory 的端到端 span 行为单测（chat tracing_test 与 runtime tracing 测试已覆盖各自一例）
 
 ### 8.4 不做的事
 

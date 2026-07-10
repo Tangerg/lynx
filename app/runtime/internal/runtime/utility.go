@@ -5,16 +5,9 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
-
-// utilityRole is the (provider, model) the in-house maintenance services
-// (compaction / extraction / titling) run on. An empty model means unset —
-// those services fall back to the main turn model.
-type utilityRole struct {
-	provider string
-	model    string
-}
 
 // UtilityRoleStore persists the global utility-model role across restarts.
 // Defined here (consumer side); the composition root injects the sqlite-backed
@@ -37,27 +30,30 @@ type chatClientResolver interface {
 }
 
 type utilityEnvironment struct {
-	cell    *atomic.Pointer[utilityRole]
+	cell    *atomic.Pointer[modelrole.Role]
 	resolve func(context.Context) *chat.Client
 }
 
 func buildUtilityEnvironment(ctx context.Context, mainClient *chat.Client, loader utilityRoleLoader, resolver chatClientResolver) (utilityEnvironment, error) {
-	var role utilityRole
+	var role modelrole.Role
 	if loader != nil {
 		p, m, err := loader.LoadUtilityRole(ctx)
 		if err != nil {
 			return utilityEnvironment{}, fmt.Errorf("runtime: load utility role: %w", err)
 		}
-		role = utilityRole{provider: p, model: m}
+		role, err = modelrole.New(p, m)
+		if err != nil {
+			return utilityEnvironment{}, fmt.Errorf("runtime: load utility role: %w", err)
+		}
 	}
-	cell := &atomic.Pointer[utilityRole]{}
+	cell := &atomic.Pointer[modelrole.Role]{}
 	cell.Store(&role)
 	resolve := func(ctx context.Context) *chat.Client {
 		role := cell.Load()
-		if role == nil || role.model == "" || resolver == nil {
+		if role == nil || !role.Configured() || resolver == nil {
 			return mainClient
 		}
-		c, err := resolver.ResolveClient(ctx, role.provider, role.model)
+		c, err := resolver.ResolveClient(ctx, role.ProviderID(), role.Model())
 		if err != nil || c == nil {
 			return mainClient
 		}
@@ -73,7 +69,7 @@ func (r *Runtime) UtilityRole() (provider, model string) {
 	if role == nil {
 		return "", ""
 	}
-	return role.provider, role.model
+	return role.ProviderID(), role.Model()
 }
 
 // SetUtilityRole repoints the maintenance services at (provider, model),
@@ -83,16 +79,20 @@ func (r *Runtime) UtilityRole() (provider, model string) {
 // provider or unknown model fails here (surfaced to the caller) rather than
 // silently degrading at the next compaction. Backs models.setUtilityRole.
 func (r *Runtime) SetUtilityRole(ctx context.Context, provider, model string) error {
-	if model == "" {
-		provider = "" // a cleared role carries no provider
-	} else if _, err := r.utilityClients.ResolveClient(ctx, provider, model); err != nil {
-		return fmt.Errorf("runtime: utility model %q on %q: %w", model, provider, err)
+	role, err := modelrole.New(provider, model)
+	if err != nil {
+		return err
+	}
+	if role.Configured() {
+		if _, err := r.utilityClients.ResolveClient(ctx, role.ProviderID(), role.Model()); err != nil {
+			return fmt.Errorf("runtime: utility model %q on %q: %w", role.Model(), role.ProviderID(), err)
+		}
 	}
 	if r.utilStore != nil {
-		if err := r.utilStore.SaveUtilityRole(ctx, provider, model); err != nil {
+		if err := r.utilStore.SaveUtilityRole(ctx, role.ProviderID(), role.Model()); err != nil {
 			return err
 		}
 	}
-	r.utility.Store(&utilityRole{provider: provider, model: model})
+	r.utility.Store(&role)
 	return nil
 }

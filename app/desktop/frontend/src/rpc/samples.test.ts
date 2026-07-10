@@ -17,8 +17,7 @@ import type {
   ForkSessionRequest,
   GrepResult,
   HooksListResult,
-  InitializeRequest,
-  InitializeResponse,
+  DiscoverResponse,
   Interrupt,
   Item,
   ItemDelta,
@@ -31,6 +30,7 @@ import type {
   Project,
   Provider,
   Recipe,
+  RequestMeta,
   ResumeRunRequest,
   ResumeRunResponse,
   RollbackSessionRequest,
@@ -83,8 +83,7 @@ import mcpServerConfig from "./samples/mcpServerConfig.json";
 import memoryEntry from "./samples/memoryEntry.json";
 import getDiffReq from "./samples/method.getDiff.req.json";
 import grepReq from "./samples/method.grep.req.json";
-import initializeReq from "./samples/method.initialize.req.json";
-import initializeResp from "./samples/method.initialize.resp.json";
+import discoverResp from "./samples/method.discover.resp.json";
 import listFileChangesReq from "./samples/method.listFileChanges.req.json";
 import listFileChangesResp from "./samples/method.listFileChanges.resp.json";
 import runsResumeReq from "./samples/method.runs.resume.req.json";
@@ -109,6 +108,7 @@ import project from "./samples/project.json";
 import provider from "./samples/provider.json";
 import providersListResp from "./samples/providers.list.resp.json";
 import recipe from "./samples/recipe.json";
+import requestMeta from "./samples/request.meta.json";
 import runFinished from "./samples/run.finished.json";
 import runProgress from "./samples/run.progress.json";
 import runStarted from "./samples/run.started.json";
@@ -256,9 +256,9 @@ const samples: unknown[] = [
   wire<CodebaseHit>(codebaseHit),
   wire<{ hits: CodebaseHit[] }>(codebaseSearchResp),
 
-  // §3/§9 handshake + §4.10 config surfaces.
-  wire<InitializeRequest>(initializeReq),
-  wire<InitializeResponse>(initializeResp),
+  // §3/§9 discovery, request metadata + §4.10 config surfaces.
+  wire<DiscoverResponse>(discoverResp),
+  wire<RequestMeta>(requestMeta),
   wire<Schedule>(schedule),
   wire<Recipe>(recipe),
   wire<Skill>(skill),

@@ -111,9 +111,9 @@ var wireSamples = []struct {
 	{"codebaseHit.json", func() any { return new(CodebaseHit) }},
 	{"codebaseSearch.resp.json", func() any { return new(CodebaseSearchResult) }},
 
-	// §3/§9 handshake + §4.10 config surfaces.
-	{"method.initialize.req.json", func() any { return new(InitializeRequest) }},
-	{"method.initialize.resp.json", func() any { return new(InitializeResponse) }},
+	// §3/§9 discovery, request metadata + §4.10 config surfaces.
+	{"method.discover.resp.json", func() any { return new(DiscoverResponse) }},
+	{"request.meta.json", func() any { return new(RequestMeta) }},
 	{"schedule.json", func() any { return new(Schedule) }},
 	{"recipe.json", func() any { return new(Recipe) }},
 	{"skill.json", func() any { return new(Skill) }},

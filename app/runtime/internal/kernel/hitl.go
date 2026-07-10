@@ -8,7 +8,6 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/toolloop"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	coremodel "github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -29,15 +28,6 @@ type resumableInterrupt interface {
 // directly.
 func Interrupt[R any](ctx context.Context, key string, value any) (R, bool, error) {
 	return hitl.Interrupt[R](ctx, key, value)
-}
-
-// InterruptKey is the stable hash input for HITL keys:
-// kind/tool/args, with a separator.
-//
-// This keeps all resumable-key derivation in one place and guarantees the same
-// digest shape across approval and question-style interrupts.
-func InterruptKey(kind, toolName, arguments string) string {
-	return interrupts.InterruptKey(kind, toolName, arguments)
 }
 
 // IsInterrupt reports whether err is a resumable HITL-like halt (non-aborting

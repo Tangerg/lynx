@@ -18,7 +18,7 @@
   - **adapter**:能力适配器,实现 kernel / domain 的 port,包装外部能力(压缩提取、工具装配、代码智能、持久化 bundle …)。
   - **infra**:技术设施,零领域、不依赖任何上层(存储 / git / LSP / 影子 git / 进程执行 / MCP / A2A)。
   - 组合根(config·env → runtime 投影 + SPI nil-default 注入)住在自己的一层,arch_test 禁 adapter → 组合根。
-- **transport 可换、对业务零感知**:HTTP + SSE 与 inprocess 只是 envelope I/O 的两种实现,换 transport 不动业务。
+- **transport 可换、对业务零感知**:HTTP + SSE 与 inprocess 都只是 envelope I/O,不把传输细节带进 kernel/domain。
 - **流式走 streamable HTTP,不是常开通道**:每个流式调用的事件走它**自己那条 POST 响应流**,事件源是 server 侧的 per-run hub,无连接身份簿记;重连是 per-run(带 last-event-id),不是重连一条共享流。
 - **持久化 dev 阶段单一 SQLite 后端**(纯 Go 无 CGO):session / snapshot / interrupt / history / provider / message 都在一个 DB;没有存储开关、没有 in-memory 并行实现。**唯一文件例外**是用户可编辑的 LYRA.md memory —— "可编辑" 正是它存在的意义。
 - **per-run model 显式配对**:一次 run 指定 provider + model(缺一即报错、都缺用默认),provider **不从 model 推断**;凭证取自运行态可变的 provider 注册表,经 agent 的 client-provider 扩展点让该 turn 用它。
@@ -27,7 +27,7 @@
 
 跨模块共用反向不变量见 [`../CLAUDE.md`](../CLAUDE.md)。下面是 lyra 协议层独有的(数值 / header / 端点等细节以协议规范为准):
 
-- ❌ **Stdio transport**(给 LLM 用那种):协议层有意不实现 —— Web 走 HTTP loopback、TUI 走 inprocess。
+- ❌ **Stdio transport**(给 LLM 用那种):协议层有意不实现。Web / 桌面走 HTTP loopback；inprocess 保留给未来独立 CLI/TUI。
 - ❌ **后端做用户鉴权 / 账号 / 订阅 / 多租户**:Runtime 协议层零 user 概念,鉴权由更外层(OS 信任 / 本地门禁 token / 未来 facade)解决。
 - ❌ **业务方法的 RESTy read-only shadow**:业务调用一律走单一 RPC 形态,不加按资源的 GET 影子端点;sidecar 只留 info / health 两个 no-auth 端点。
 - ❌ **HTTP transport 换 gin / echo / fiber**:它们的自家 ctx / ResponseWriter 把 SSE 的 buffer / flush 搞砸过。**"换 router" ≠ "换掉现用的 chi"** —— chi 就是标准 `net/http` handler,flush 与 stdlib 一致,是例外、已采用。
@@ -43,4 +43,4 @@
 - **动 kernel 编排 / turn 循环**:跑 kernel 与 maintenance 的测试。
 - **动某个 domain 的 service 接口**:跑该包测试;改接口形状先搜下游 consumer。
 - **动 infra 持久化**:跑存储测试(sqlite + file knowledge)。
-- **加新 transport**:实现 transport 接口新起一包,参考 inprocess(最简)与 http(最全)。
+- **改 transport**:保持 transport 只做 envelope I/O;业务入口仍走 `delivery/server` 的协议方法。新增同进程客户端优先复用 inprocess。

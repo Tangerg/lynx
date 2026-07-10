@@ -11,6 +11,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
@@ -42,8 +43,7 @@ func Open(path string) (*sql.DB, error) {
 	db.SetMaxOpenConns(1)
 
 	if err := migrate(db); err != nil {
-		_ = db.Close()
-		return nil, err
+		return nil, errors.Join(err, db.Close())
 	}
 	return db, nil
 }
@@ -127,7 +127,7 @@ func migrate(db *sql.DB) error {
 		// MCP-server registry (workspace.mcp.configure). One row per server
 		// name; the list columns (args/disabled_tools/auto_approve_tools) and the
 		// map columns (env/headers) are JSON; timeout is nanoseconds. transport is
-		// "stdio" | "http".
+		// "stdio" | "streamableHttp".
 		`CREATE TABLE IF NOT EXISTS mcp_servers (
 			name               TEXT    PRIMARY KEY,
 			transport          TEXT    NOT NULL,
