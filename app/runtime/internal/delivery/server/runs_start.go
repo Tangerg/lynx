@@ -6,13 +6,16 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/core/media"
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/pkg/mime"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
@@ -44,7 +47,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, wireTurnStartErr(err)
 	}
 	sessionID := sess.ID
-	admission, err := s.rt.ClaimRunSlot(ctx, sessionClaimer{s: s}, sessionID)
+	admission, err := s.rt.ClaimRunSlot(ctx, s.coordinator, sessionID)
 	if err != nil {
 		if errors.Is(err, lifecycle.ErrSessionBusy) {
 			return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, sessionID)
@@ -74,7 +77,18 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// emits it after run.started) — streamed live and persisted through the
 	// same path, so the wire id and the items.list id are one and the same.
 	runID := handle.TurnID
-	out, events, err := s.openSegment(ctx, runID, "", handle, sessionID, in.Input, nil, in.Provider, in.Model)
+	createdAt := time.Now().UTC()
+	factory := s.segmentProjector(runID, "", sessionID, sess.Cwd, handle, in.Input, nil, in.Provider, in.Model, createdAt)
+	evCh, err := s.coordinator.Start(ctx, runs.StartSpec{
+		RunID:           runID,
+		SessionID:       sessionID,
+		Cwd:             worktree.CanonicalCwd(sess.Cwd),
+		Handle:          handle,
+		Provider:        in.Provider,
+		Model:           in.Model,
+		CreatedAt:       createdAt,
+		OpeningUserText: userMessageText(in.Input),
+	}, factory)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -82,8 +96,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	releaseTreeAdmission = false
 	// Return the opening userMessage Item id so the client reconciles its
 	// optimistic bubble by exact id (same id the stream + items.list carry).
-	out.UserItemID = userMessageItemID(runID)
-	return out, events, nil
+	return &protocol.StartRunResponse{RunID: runID, UserItemID: userMessageItemID(runID)}, mapRunEvents(evCh), nil
 }
 
 func wireTurnStartErr(err error) error {

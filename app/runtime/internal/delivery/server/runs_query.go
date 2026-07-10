@@ -11,10 +11,9 @@ import (
 // ListRuns returns the currently running runs as a Page (API.md §7.3).
 // The set is in-process and bounded, so the page carries no cursor.
 func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
-	entries := s.runs.List()
-	out := make([]protocol.RunRef, 0, len(entries))
-	for _, e := range entries {
-		r := e.Record
+	records := s.coordinator.List()
+	out := make([]protocol.RunRef, 0, len(records))
+	for _, r := range records {
 		if in.SessionID != "" && r.SessionID != in.SessionID {
 			continue
 		}
@@ -66,12 +65,9 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 	if runID == "" {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	e, live := s.runs.Get(runID)
-	if !live || e.Payload == nil || e.Payload.hub == nil {
+	evCh, ok := s.coordinator.Subscribe(ctx, runID, transport.LastEventIDFrom(ctx))
+	if !ok {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	events, unsubscribe := e.Payload.hub.Subscribe(transport.LastEventIDFrom(ctx))
-	// Drop the subscription when this request ends; the run continues.
-	context.AfterFunc(ctx, unsubscribe)
-	return &protocol.StartRunResponse{RunID: runID}, events, nil
+	return &protocol.StartRunResponse{RunID: runID}, mapRunEvents(evCh), nil
 }
