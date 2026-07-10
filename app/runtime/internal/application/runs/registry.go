@@ -1,21 +1,11 @@
-// Package run is the process-local registry of LIVE run segments and their
-// admission slots — the in-memory truth of "what is running right now" (the
-// durable run history lives in transcript). It is a domain type with a real
-// concurrency invariant, not a data bag: [Registry] enforces one writer per
-// session — either one open run or one in-progress admission claim, never both —
-// so run start / resume / destructive session mutation can't race.
-//
-// [Registry] is generic over the payload P the adapter attaches per entry (the
-// run's cancel func + event hub), keeping the admission invariant in the domain
-// without pulling delivery/kernel types up into it.
-package run
+package runs
 
 import (
 	"sync"
 	"time"
 )
 
-// Record is the domain-visible state of an active run segment.
+// Record is the observable state of an active run segment.
 type Record struct {
 	ID           string
 	SessionID    string
@@ -28,16 +18,24 @@ type Record struct {
 	CancelReason string
 }
 
-// Entry pairs a run record with adapter-owned process state.
+// Entry pairs a run record with the payload the delivery layer attaches.
 type Entry[P any] struct {
 	Record  Record
 	Payload P
 }
 
-// Registry owns live run admission and lookup invariants.
+// Registry is the process-local registry of LIVE run segments and their
+// admission slots — the in-memory truth of "what is running right now" (durable
+// run history lives in transcript). It is not a data bag: it enforces one writer
+// per session — either one open run or one in-progress admission claim, never
+// both — so run start / resume / destructive session mutation can't race.
 //
-// Its zero value is usable. A session may have either one open run or one
-// in-progress admission claim, never both.
+// This is application-owned run-lifecycle state — it folds into the run
+// supervisor alongside the [Journal]. It is generic over the payload P the
+// delivery layer attaches per entry (the run's cancel func + event journal),
+// keeping the admission invariant here without pulling wire/executor types in.
+//
+// Its zero value is usable.
 type Registry[P any] struct {
 	mu       sync.Mutex
 	runs     map[string]Entry[P]

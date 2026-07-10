@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
@@ -86,7 +86,7 @@ func TestCancelRunCleanupSurvivesRequestCancellation(t *testing.T) {
 		t.Fatal("owner attach rejected")
 	}
 	live := &runHandle{owner: ownerCtx, cancel: func() {}}
-	s.runs.Open(runstate.Record{ID: "run_1", SessionID: "ses_1", TurnID: "turn_1"}, live)
+	s.runs.Open(runs.Record{ID: "run_1", SessionID: "ses_1", TurnID: "turn_1"}, live)
 	cancelRequest()
 
 	if err := s.CancelRun(requestCtx, protocol.CancelRunRequest{RunID: "run_1"}); err != nil {

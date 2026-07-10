@@ -3,8 +3,8 @@ package server
 import (
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // TestReconcileLostRun verifies items.list heals a RunRef the durable history
@@ -14,7 +14,7 @@ import (
 // while genuinely live and already-terminal runs are left untouched.
 func TestReconcileLostRun(t *testing.T) {
 	s := &Server{}
-	s.runs.Open(runstate.Record{ID: "run_live"}, nil)
+	s.runs.Open(runs.Record{ID: "run_live"}, nil)
 
 	// Dangling running run (no live pump) → terminal error(run_lost).
 	lost := &protocol.RunRef{ID: "run_dead", SessionID: "ses_1", Status: protocol.RunStatusRunning}

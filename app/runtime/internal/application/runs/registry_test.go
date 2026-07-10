@@ -1,4 +1,4 @@
-package run
+package runs
 
 import (
 	"testing"

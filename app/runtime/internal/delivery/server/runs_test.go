@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
-	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -47,7 +46,7 @@ func TestSubscribeRun_StreamsLiveRunFromHub(t *testing.T) {
 	h.Append(durableRunEvent(1))
 	h.Append(durableRunEvent(2))
 	s := &Server{}
-	s.runs.Open(runstate.Record{ID: "run_live"}, &runHandle{hub: h})
+	s.runs.Open(runs.Record{ID: "run_live"}, &runHandle{hub: h})
 
 	// From the start: replay the whole durable backlog.
 	out, events, err := s.SubscribeRun(context.Background(), "run_live")
