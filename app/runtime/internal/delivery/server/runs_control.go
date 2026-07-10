@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -21,9 +21,9 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 		pending, admission, err := s.rt.ClaimResumeSlot(ctx, s.coordinator, in.RunID)
 		if err != nil {
 			switch {
-			case errors.Is(err, lifecycle.ErrInterruptNotOpen):
+			case errors.Is(err, sessions.ErrInterruptNotOpen):
 				return protocol.ErrRunNotFound
-			case errors.Is(err, lifecycle.ErrSessionBusy):
+			case errors.Is(err, sessions.ErrSessionBusy):
 				return protocol.ErrSessionBusy
 			default:
 				return err
@@ -32,7 +32,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 		defer admission.Release()
 		pcleanupCtx, pcancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 		defer pcancel()
-		return s.rt.CancelRunBinding(pcleanupCtx, lifecycle.RunTurnBinding{
+		return s.rt.CancelRunBinding(pcleanupCtx, sessions.RunTurnBinding{
 			RunID:     in.RunID,
 			SessionID: pending.SessionID,
 			TurnID:    pending.TurnID,
@@ -42,7 +42,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	// a cancel can't delete an interrupt the pump is about to recreate) and gave
 	// us a cleanup context rooted on the run's owner (it survives request cancel).
 	defer cancel()
-	return s.rt.CancelRunBinding(cleanupCtx, lifecycle.RunTurnBinding{
+	return s.rt.CancelRunBinding(cleanupCtx, sessions.RunTurnBinding{
 		RunID:     in.RunID,
 		SessionID: binding.SessionID,
 		TurnID:    binding.TurnID,

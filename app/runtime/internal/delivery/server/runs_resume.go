@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
 
 // ResumeRun answers an open interrupt by continuing the parked run as a
@@ -30,9 +30,9 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	pending, admission, err := s.rt.ClaimResumeSlot(ctx, s.coordinator, in.ParentRunID)
 	if err != nil {
 		switch {
-		case errors.Is(err, lifecycle.ErrInterruptNotOpen):
+		case errors.Is(err, sessions.ErrInterruptNotOpen):
 			return nil, nil, protocol.ErrInterruptNotOpen
-		case errors.Is(err, lifecycle.ErrSessionBusy):
+		case errors.Is(err, sessions.ErrSessionBusy):
 			return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, pending.SessionID)
 		default:
 			return nil, nil, err
@@ -58,9 +58,9 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	resumed, err := s.rt.ResumeClaimedInterrupt(ctx, in.ParentRunID, resolution, interruptKindsFromContext(ctx))
 	if err != nil {
 		switch {
-		case errors.Is(err, lifecycle.ErrInterruptNotOpen):
+		case errors.Is(err, sessions.ErrInterruptNotOpen):
 			return nil, nil, protocol.ErrInterruptNotOpen
-		case errors.Is(err, lifecycle.ErrRunNotFound):
+		case errors.Is(err, sessions.ErrRunNotFound):
 			return nil, nil, protocol.ErrRunNotFound
 		default:
 			return nil, nil, err

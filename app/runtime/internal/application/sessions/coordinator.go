@@ -1,4 +1,4 @@
-// Package lifecycle owns the cross-domain atomic write-sets behind a few
+// Package sessions owns the cross-domain atomic write-sets behind a few
 // session/run lifecycle use-cases — rollback truncation, the session-delete
 // cascade, the import/restore sequence, and the subagent subtree purge. Each
 // spans several domain stores (the session row, the transcript, the chat history
@@ -11,7 +11,7 @@
 // tested without standing up the wire. The adapter lifts wire blobs into domain
 // values; the Coordinator decides and executes the multi-domain mutation
 // atomically.
-package lifecycle
+package sessions
 
 import (
 	"context"
@@ -88,14 +88,14 @@ type Coordinator struct {
 }
 
 // ErrRunNotFound reports that a lifecycle operation targeted no live or parked run.
-var ErrRunNotFound = errors.New("lifecycle: run not found")
+var ErrRunNotFound = errors.New("sessions: run not found")
 
 // ErrInterruptNotOpen reports that an interrupt resume/cancel target is no
 // longer open.
-var ErrInterruptNotOpen = errors.New("lifecycle: interrupt not open")
+var ErrInterruptNotOpen = errors.New("sessions: interrupt not open")
 
 // ErrSessionBusy reports that a session already has an active or parked run.
-var ErrSessionBusy = errors.New("lifecycle: session busy")
+var ErrSessionBusy = errors.New("sessions: session busy")
 
 // New returns a Coordinator over s.
 func New(s Stores) *Coordinator { return &Coordinator{s: s} }

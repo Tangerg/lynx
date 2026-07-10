@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
 
 // RollbackSession discards the runs after the kept boundary, truncating the
@@ -24,7 +24,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	}
 	admission, err := s.rt.ClaimMutationSlot(s.coordinator, in.SessionID)
 	if err != nil {
-		if errors.Is(err, lifecycle.ErrSessionBusy) {
+		if errors.Is(err, sessions.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, in.SessionID)
 		}
 		return nil, err
