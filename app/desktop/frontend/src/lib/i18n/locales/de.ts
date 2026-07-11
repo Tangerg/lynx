@@ -264,8 +264,9 @@ export const de: Record<string, string> = {
 
   "settings.pane.connection": "Verbindung",
   "settings.connection.title": "Backend",
-  "settings.connection.sub": "Adresse der Lyra Runtime-Runtime. Wirkt ab der nächsten Anfrage.",
+  "settings.connection.sub": "Adresse der Lyra Runtime. Anwenden lädt die Desktop-App neu.",
   "settings.connection.url": "URL",
+  "settings.connection.apply": "Anwenden und neu laden",
   "settings.connection.reset": "Auf Standard zurücksetzen",
 
   "iconGallery.filterLabel": "Symbole nach Name filtern",

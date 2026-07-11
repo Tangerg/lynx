@@ -37,10 +37,10 @@ type HookTrustStore interface {
 	Untrust(ctx context.Context, projectRoot string) error
 }
 
-// RecipeLister discovers the prompt recipes visible from a working directory.
-// The default implementation layers a project's .lyra/recipes over the global
-// directory; the port keeps discovery injectable (and moves cleanly to an
-// adapter later).
+// RecipeLister discovers the prompt recipes visible from a working directory —
+// a project's .lyra/recipes layered over the global directory. The composition
+// root supplies the filesystem-backed implementation (the promptsource adapter);
+// the port keeps the coordinator free of file I/O.
 type RecipeLister interface {
 	List(ctx context.Context, cwd string) ([]recipes.Recipe, error)
 }
@@ -57,37 +57,25 @@ type Coordinator struct {
 
 // Config bundles the Coordinator's dependencies.
 type Config struct {
-	Memory           knowledge.Store
-	Skills           SkillCatalog
-	Hooks            HookInspector
-	Trust            HookTrustStore
-	RecipesGlobalDir string
-	// Recipes overrides the default project+global recipe discovery. nil uses the
-	// filesystem-backed default layered under RecipesGlobalDir.
+	Memory knowledge.Store
+	Skills SkillCatalog
+	Hooks  HookInspector
+	Trust  HookTrustStore
+	// Recipes discovers the prompt recipes visible from a working directory. The
+	// composition root supplies the filesystem-backed implementation; nil disables
+	// recipe discovery (listRecipes returns empty).
 	Recipes RecipeLister
 }
 
 // New returns a workspace Coordinator over cfg.
 func New(cfg Config) *Coordinator {
-	recipeLister := cfg.Recipes
-	if recipeLister == nil {
-		recipeLister = projectRecipeLister{globalDir: cfg.RecipesGlobalDir}
-	}
 	return &Coordinator{
 		memory:  cfg.Memory,
 		skills:  cfg.Skills,
 		hooks:   cfg.Hooks,
 		trust:   cfg.Trust,
-		recipes: recipeLister,
+		recipes: cfg.Recipes,
 	}
-}
-
-// projectRecipeLister is the filesystem-backed default: project recipes
-// (<cwd>/.lyra/recipes) layered over the global directory.
-type projectRecipeLister struct{ globalDir string }
-
-func (l projectRecipeLister) List(ctx context.Context, cwd string) ([]recipes.Recipe, error) {
-	return recipes.List(ctx, recipes.ProjectDir(cwd), l.globalDir)
 }
 
 // HasMemory reports whether this runtime is backed by a long-term knowledge store.
@@ -130,6 +118,9 @@ func (c *Coordinator) ListSkills(ctx context.Context, cwd string) ([]skills.Info
 // (<cwd>/.lyra/recipes) layered over the global directory, project winning on a
 // name collision (workspace.recipes.list).
 func (c *Coordinator) ListRecipes(ctx context.Context, cwd string) ([]recipes.Recipe, error) {
+	if c.recipes == nil {
+		return nil, nil
+	}
 	return c.recipes.List(ctx, cwd)
 }
 

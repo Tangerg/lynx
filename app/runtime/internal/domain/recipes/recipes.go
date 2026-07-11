@@ -1,24 +1,23 @@
-// Package recipes is the recipe-discovery domain: it finds prompt recipes
-// (*.md with optional YAML frontmatter) under a project's .lyra/recipes and the
-// global recipes directory, merging them (project winning on a name collision).
+// Package recipes is the recipe model: the Recipe value type, the frontmatter/
+// body parse rule, and the project-over-global precedence (.lyra/recipes). The
+// filesystem discovery — walking the recipe directories and reading files — is
+// the promptsource adapter's job (internal/adapter/promptsource), not this
+// package's.
 //
 // A recipe is a user-invoked, parameterized prompt template: the client expands
 // the body's $ARGUMENTS / $1..$9 placeholders with the user's input and sends
 // the result as a turn. Discovery mirrors skills (two flat directories, project
 // over global) — recipes are user-facing prompt templates, the read-only sibling
-// of the model-facing skill repo, not the nested cascade hooks/AGENTS.md use.
+// of the model-facing skill repo.
 //
 // Recipes are inert text: unlike lifecycle hooks they execute nothing, so there
-// is no trust gate. A cloned repo's recipe only pre-fills a prompt the user
-// picks and sees before sending; any tool the resulting turn calls still passes
-// the approval gate.
+// is no trust gate. A cloned repo's recipe only pre-fills a prompt the user picks
+// and sees before sending; any tool the resulting turn calls still passes the
+// approval gate.
 package recipes
 
 import (
-	"context"
-	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -60,49 +59,6 @@ type frontmatter struct {
 	ArgumentHint string `yaml:"argumentHint"`
 }
 
-// List enumerates the recipes visible from projectDir layered over globalDir,
-// the project copy winning on a name collision (the same precedence the skill
-// source gives the model). A missing directory contributes nothing; a file that
-// can't be read is skipped rather than failing the whole listing. Result is
-// sorted by name.
-func List(ctx context.Context, projectDir, globalDir string) ([]Recipe, error) {
-	seen := make(map[string]struct{})
-	var out []Recipe
-	add := func(dir, scope string) error {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			return nil // missing / unreadable dir contributes nothing
-		}
-		for _, entry := range entries {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			name, ok := recipeName(entry)
-			if !ok {
-				continue
-			}
-			if _, dup := seen[name]; dup {
-				continue // a higher-precedence (project) source already provided it
-			}
-			r, ok := loadFile(filepath.Join(dir, entry.Name()), name, scope)
-			if !ok {
-				continue
-			}
-			seen[name] = struct{}{}
-			out = append(out, r)
-		}
-		return nil
-	}
-	if err := add(projectDir, ScopeProject); err != nil {
-		return nil, err
-	}
-	if err := add(globalDir, ScopeGlobal); err != nil {
-		return nil, err
-	}
-	slices.SortFunc(out, func(a, b Recipe) int { return strings.Compare(a.Name, b.Name) })
-	return out, nil
-}
-
 // ProjectDir resolves the project recipes directory for a session working
 // directory. Empty workdir → empty (no project recipes).
 func ProjectDir(workdir string) string {
@@ -112,37 +68,31 @@ func ProjectDir(workdir string) string {
 	return filepath.Join(workdir, ProjectSubdir)
 }
 
-// recipeName returns a directory entry's recipe name (its file name minus the
-// .md extension), or ok=false when the entry isn't a regular .md file (dirs,
-// dotfiles, and other extensions are skipped).
-func recipeName(entry os.DirEntry) (string, bool) {
-	if entry.IsDir() {
+// RecipeName returns a directory entry file name's recipe name (its name minus
+// the .md extension), or ok=false when the entry isn't a regular .md file
+// (dotfiles and other extensions are skipped). The caller has already excluded
+// directories.
+func RecipeName(filename string) (string, bool) {
+	if strings.HasPrefix(filename, ".") || !strings.HasSuffix(filename, fileExt) {
 		return "", false
 	}
-	name := entry.Name()
-	if strings.HasPrefix(name, ".") || !strings.HasSuffix(name, fileExt) {
-		return "", false
-	}
-	return strings.TrimSuffix(name, fileExt), true
+	return strings.TrimSuffix(filename, fileExt), true
 }
 
-// loadFile reads and parses one recipe file. ok=false (skip) only for an
-// unreadable file; frontmatter is optional, so a file with none — or with a
+// Parse builds a Recipe from a recipe file's raw bytes: it splits the optional
+// YAML frontmatter from the Markdown body (see [parse]) and tags the result with
+// name / scope / source. Frontmatter is optional, so a file with none — or with a
 // malformed block — still yields a recipe whose whole content is the body.
-func loadFile(path, name, scope string) (Recipe, bool) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return Recipe{}, false
-	}
-	fm, body := parse(data)
+func Parse(name, scope, source string, content []byte) Recipe {
+	fm, body := parse(content)
 	return Recipe{
 		Name:         name,
 		Description:  strings.TrimSpace(fm.Description),
 		ArgumentHint: strings.TrimSpace(fm.ArgumentHint),
 		Body:         body,
 		Scope:        scope,
-		Source:       path,
-	}, true
+		Source:       source,
+	}
 }
 
 // parse splits a recipe document into its optional YAML frontmatter and the

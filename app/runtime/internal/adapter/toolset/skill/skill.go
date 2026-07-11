@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	skillstool "github.com/Tangerg/lynx/tools/skills"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
@@ -19,7 +20,7 @@ import (
 // the turn's working directory; the merged source just wraps os.DirFS, so the
 // cost is negligible.
 func Build(workdir, globalDir string) chat.Tool {
-	source := skills.MergedSource(skills.ProjectDir(workdir), globalDir)
+	source := promptsource.MergeSkillSource(skills.ProjectDir(workdir), globalDir)
 	if source == nil {
 		return nil
 	}

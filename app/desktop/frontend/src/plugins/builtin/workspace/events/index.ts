@@ -5,13 +5,13 @@
 // live in their owning layers under this bounded context.
 
 import { definePlugin } from "@/plugins/sdk";
+import { subscribeRuntimeCapabilities } from "@/plugins/builtin/runtime/public/capabilities";
 import {
   invalidateWorkspaceEvent,
   invalidateWorkspaceEverything,
 } from "./adapters/queryInvalidation";
 import {
   canSubscribeWorkspaceEvents,
-  subscribeRuntimeCapabilities,
   subscribeRuntimeWorkspaceEvents,
 } from "./adapters/runtimeWorkspaceEvents";
 import {
@@ -24,6 +24,7 @@ import { startWorkspaceEventSubscription } from "./application/workspaceEventSub
 export default definePlugin({
   name: "lyra.builtin.workspace-events",
   version: "1.0.0",
+  requires: ["lyra.builtin.runtime", "lyra.builtin.agent-bootstrap"],
   setup() {
     const loop = createWorkspaceEventLoop({
       subscribe: ({ cwd, signal }) => subscribeRuntimeWorkspaceEvents(cwd, signal),

@@ -28,29 +28,29 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
   };
 }
 
-describe("runtimeStore", () => {
+describe("runtime capability store", () => {
   beforeEach(() => {
-    useRuntimeStore.setState({ capabilities: null });
+    useRuntimeStore.getState().clear();
   });
 
   it("starts empty (capabilities null before discovery)", () => {
     expect(useRuntimeStore.getState().capabilities).toBeNull();
   });
 
-  it("setDiscovery stores capabilities", () => {
-    useRuntimeStore.getState().setDiscovery(makeCaps());
+  it("replace stores capabilities", () => {
+    useRuntimeStore.getState().replace(makeCaps());
     expect(useRuntimeStore.getState().capabilities?.features.reasoning).toBe(true);
   });
 
-  it("setDiscovery makes feature flags readable", () => {
-    useRuntimeStore.getState().setDiscovery(makeCaps());
+  it("replace makes feature flags readable", () => {
+    useRuntimeStore.getState().replace(makeCaps());
     const caps = useRuntimeStore.getState().capabilities!;
     expect(caps.features.reasoning).toBe(true);
     expect(caps.features.multimodal).toBe(false);
   });
 
   it("events + providers are flat membership lists (§9)", () => {
-    useRuntimeStore.getState().setDiscovery(makeCaps());
+    useRuntimeStore.getState().replace(makeCaps());
     const caps = useRuntimeStore.getState().capabilities!;
     expect(caps.events.includes("item.started")).toBe(true);
     expect(caps.events.includes("UNKNOWN")).toBe(false);

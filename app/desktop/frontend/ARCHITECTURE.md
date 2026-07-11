@@ -79,14 +79,16 @@ src/
 │   │
 │   └── builtin/              内置插件，按领域（限界上下文）分组
 │       ├── index.ts          manifest（topo sort 由 spec.requires 驱动）
-│       ├── agent/            bootstrap · agent fold（StreamEvent→view state）· rpc-agent（默认 driver）
+│       ├── agent/            agent ports bootstrap · fold（StreamEvent→view state）· rpc-agent
 │       ├── chat/             composer · message/(渲染 ui/ + public) · message-actions · plan-progress ·
 │       │                     slash-hints · chat-search · preview-blocks · file-references ·
 │       │                     tools/(meta + previews + ui/)
 │       ├── command/          command-palette · global-keymap · shortcuts
-│       ├── defaults/         默认 commands / config / data / accents / roles / title
+│       ├── defaults/         默认 commands / data / accents / roles / title
 │       ├── i18n/             locales pack（8 语言）
 │       ├── navigation/       Work Index read model（projects/sessions/attention）
+│       ├── observability/    OTel 生命周期插件
+│       ├── runtime/          连接配置 · capability discovery/read model
 │       ├── settings/         appearance · personalization · connection-settings ·
 │       │                     plugins-pane · providers · icon-gallery
 │       ├── shell/            纯框架：kernel · main-route · status · toaster ·
@@ -113,6 +115,12 @@ src/
 │   ├── application/        projects + sessions + active context projection
 │   └── public/             Work Index renderer consumption facade
 │
+├── plugins/builtin/runtime/                        Runtime 限界上下文
+│   ├── domain/             capability published language
+│   ├── application/        endpoint config / discovery / capability ports
+│   ├── adapters/           capability Zustand read model
+│   └── public/             connection / capability facade
+│
 ├── plugins/builtin/workspace/                      Workspace 限界上下文
 │   ├── application/        navigation / tool routing / activity projection
 │   ├── adapters/           workspace navigation port adapters
@@ -121,7 +129,6 @@ src/
 │
 ├── state/                Kernel 共享 store（不承载业务规则）
 │   ├── uiStore.ts        主题 / accent / 字体 / motion / sidebarRail（持久化）
-│   ├── runtimeStore.ts   握手能力（全局 ephemeral）
 │   ├── tasksStore.ts     后台任务
 │   ├── paletteStore.ts   命令面板 UI 状态
 │   ├── workspaceSurfaceStore.ts  app-global workspace tabs / settings target
@@ -149,8 +156,8 @@ src/
 │   └── client.ts / channel.ts / ids.ts / errors.ts
 │
 ├── main/                 composition root（DI）
-│   ├── container.ts      getContainer() 单例：client()=createLyraClient + sidecar；测试 setContainer 注入
-│   └── config.ts         RUNTIME_BASE / PROTOCOL_VERSION 等常量
+│   ├── container.ts      按 active endpoint/token 缓存 LyraClient；测试 setContainer 注入
+│   └── config.ts         默认 endpoint / PROTOCOL_VERSION 等组合常量
 │
 ├── styles/               globals.css（Tailwind base + @theme token + keyframes，唯一主样式）
 │                         + tool/markdown/overlays/layout.css（只承载无法用 utility 表达的 chrome）
@@ -174,7 +181,7 @@ Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内
                           ▲ wires
         ┌────────────────────────────────────────────┐
         │  main/container.ts                           │
-        │   getContainer() 单例：client() / sidecar    │
+        │   getContainer() 单例：client() / shell      │
         │   可依赖任何东西                              │
         └────────────────────────────────────────────┘
                           ▲ via getContainer()
@@ -194,6 +201,11 @@ Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内
 - **跨限界上下文只能走 `public/`**：`plugins/builtin/<ctx>/` 一旦有 `application/domain/adapters/presentation/ui/public` 任一目录即视为限界上下文；别的上下文只准 import 它的 `public/` facade，连它根目录下的松散文件也不行（`builtin/index.ts` manifest 作为插件组合根豁免）。`check-builtin-contexts.mjs` 再在这些合法的 public→public 边上查环。
 - **`settings/` 各面板的上下文形态**：统一 `ui/`（React 组件）+ `application/`（用例 hook + `ports/`）+ `adapters/`（gateway 实现），plugin 入口 `index.{ts,tsx}` 注册面板。**刻意不设 `public/`** —— 面板是叶子，不被其他上下文消费（唯一跨界引用是 manifest 引 `index`），加 facade 是无消费方的仪式（YAGNI）。加新面板照此摆放，UI 别散在上下文根。
 - 业务调用一律走 `getContainer().client().xxx(...)`；测试用 `setContainer({ client })` / `resetContainer()` 注入假实现。
+
+Runtime endpoint 是组合配置：`lyra.builtin.runtime` 在 capability discovery 之前同步恢复
+`runtime.endpoint`，`main/container.ts` 按 endpoint + local token 缓存客户端。Connection 面板只编辑
+Runtime 发布的 connection use case；应用变更后重载前端，让 streams、queries、capabilities 与 session
+read models 在同一个 Runtime 边界上重新装配，不做半热切换。
 
 **增加新协议方法的步骤**：
 
@@ -380,7 +392,7 @@ host.extensions.contribute(POINT, spec, opts?)
 
 ```
 protocol        → agent fold
-infrastructure  → defaultConfig / bootstrap / defaultData / rpcAgent / defaultTitle /
+infrastructure  → observability / agentBootstrap / runtime / defaultData / rpcAgent / defaultTitle /
                   defaultAccents / themesPack / localesPack / mainRoute
 messageRendering→ defaultRoles / messageCopy+Edit+Regenerate / previewBlocks
 toolRendering   → shellPreview / diff / file / grep / toolActions / toolIcons
@@ -464,11 +476,11 @@ unmount → cancel + 解绑 send/stop/resume（该会话 view state 留在 store
 | `agentStore`     | 每会话 AgentViewState + send/stop/resume 引用 + applyEvents | ❌ ephemeral      |
 | `sessionStore`   | activeSessionId / openSessionIds / draft / 选择             | ✅（部分字段）    |
 | `uiStore`        | theme / accent / 字体 / motion / messageStyle / sidebarRail | ✅                |
-| `runtimeStore`   | 握手协商的 runtime 能力                                     | ❌ 全局 ephemeral |
+| Runtime capability store | 握手协商能力（由 runtime context 私有持有）             | ❌ ephemeral      |
 | `tasksStore`     | host.tasks 的后台任务                                       | ❌                |
 | `composerStore`  | 撰写区文本 / 模式 / 附件 / provider+model                   | ❌ ephemeral      |
 | `usePluginStore` | 整个插件 registry                                           | ❌                |
-| `useConfigStore` | 插件可读写的全局 config（如 `api.baseUrl`）                 | ✅                |
+| `useConfigStore` | 插件可读写的全局 config（如 `runtime.endpoint`）            | ✅                |
 
 每个 store 各自用 Zustand `persist` + 自己的 `version`；**schema 变了就 bump version 丢旧数据，不写 migration**（开发期无历史包袱）。
 
@@ -495,7 +507,7 @@ helper 自动补 shadow ladder + CTA defaults + 注册仪式（`host.extensions.
 
 `lib/observability/` 是后端 `setupObservability` 的前端镜像：**一处**装好三个全局 OTel provider（Tracer / Meter / Logger）+ 共享 Resource（`service.name=lyra-frontend`）+ W3C TraceContext+Baggage propagator，其余代码只用 `trace.getTracer` / `metrics.getMeter` / `logs.getLogger` 这些静态访问器（无注入）。
 
-- **安装时机**：`bootstrap` 插件**动态导入** `setup.ts` 并 always-on 安装——重 SDK 进懒 chunk、不碰首屏；trace context 传播又始终在线。
+- **安装时机**：独立 `observability` 插件**动态导入** `setup.ts` 并 always-on 安装——重 SDK 进懒 chunk、不碰首屏；trace context 传播又始终在线。
 - **可切换 exporter**（同后端）：本地有界内存 sink（dev 可见，`stores.ts`）始终在；配了 `otel.endpoint` config 才追加 OTLP（prod 切换，懒导入 + 批处理）。
 - **三信号**：①Traces——`tracing.ts` 给每个 run 开 span（`useAgentSession`），`rpc/transports/http.ts` 给每个 RPC 开 CLIENT span 并把 `traceparent` 注入 header（接上后端已有 trace，§6.2：trace 元数据走 header 不进 body）。**粗粒度**——绝不按 StreamEvent/token 开 span。②Metrics——`lib/metrics.ts` 的 histogram/counter。③Logs——`logBridge.ts` 把 `host.log.*` 也发成 OTel LogRecord（按 active span 关联）。
 - **性能/存储**：本地 sink 是**内存有界环形缓冲**（最新 N，非 localStorage/IndexedDB——高频遥测不该落前端，持久化交给 OTLP→collector），sink 批量刷新（一波一次 store commit）；Diagnostics view 三页（traces/metrics/logs）的 traces/logs 用 `@tanstack/react-virtual` 虚拟滚动。

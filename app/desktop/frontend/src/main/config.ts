@@ -5,11 +5,14 @@
 // RPC facade) also reads the default base URL from here so the
 // constant has a single owner.
 //
-// Plugin config (`host.config.set("api.baseUrl", "...")`) can override
+// Runtime config (`host.config.set("runtime.endpoint", "...")`) can override
 // this at runtime; this file just supplies the first-paint default.
 
 /** Default base URL for the local Go Lyra Runtime mock backend. */
 export const RUNTIME_BASE = "http://127.0.0.1:17171";
+
+/** Active Runtime endpoint in the app-wide configuration registry. */
+export const RUNTIME_ENDPOINT_CONFIG_KEY = "runtime.endpoint";
 
 /**
  * Runtime Protocol version this client sends in request metadata. Date

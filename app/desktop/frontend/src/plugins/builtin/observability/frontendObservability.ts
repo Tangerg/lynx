@@ -1,8 +1,8 @@
 import { CLIENT_INFO } from "@/main/config";
 import { getConfig } from "@/plugins/sdk/config";
-import type { BootstrapTeardown } from "../application/bootstrapLifecycle";
+import type { ObservabilityTeardown } from "./observabilityLifecycle";
 
-export async function initFrontendObservability(): Promise<BootstrapTeardown> {
+export async function initFrontendObservability(): Promise<ObservabilityTeardown> {
   const { setupObservability, teardownObservability } = await import("@/lib/observability/setup");
   await setupObservability({
     serviceName: "lyra-frontend",

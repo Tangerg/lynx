@@ -1,16 +1,16 @@
 import type { KyInstance } from "ky";
 import ky from "ky";
-import { RUNTIME_BASE } from "@/main/config";
+import { RUNTIME_BASE, RUNTIME_ENDPOINT_CONFIG_KEY } from "@/main/config";
 import { getConfig } from "@/plugins/sdk/config";
 import { listRpcAfterHooks, listRpcBeforeHooks } from "@/plugins/sdk/selectors";
 
-// First-paint base URL is owned by `main/config`. Plugins (typically
-// `lyra.builtin.default-config`) can override at runtime via
-// `host.config.set("api.baseUrl", "...")`. The override is read on
+// First-paint base URL is owned by `main/config`. The Runtime context
+// restores the user's configured endpoint before discovery via
+// `host.config.set("runtime.endpoint", "...")`. The override is read on
 // every request so a runtime change takes effect immediately.
 
 function activeBase(): string {
-  return getConfig<string>("api.baseUrl") ?? RUNTIME_BASE;
+  return getConfig<string>(RUNTIME_ENDPOINT_CONFIG_KEY) ?? RUNTIME_BASE;
 }
 
 // Thread the request through every before-hook: each may return a

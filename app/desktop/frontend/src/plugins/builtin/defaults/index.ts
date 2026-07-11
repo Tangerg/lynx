@@ -1,4 +1,3 @@
-import { RUNTIME_BASE } from "@/main/config";
 import { definePlugin } from "@/plugins/sdk";
 import { t } from "@/lib/i18n";
 import { ACCENT, MESSAGE_ROLE } from "@/plugins/sdk/kernelPoints";
@@ -6,14 +5,6 @@ import { DEFAULT_ACCENTS, defaultMessageRoles } from "./application/defaultContr
 
 export { defaultCommands } from "./commands";
 export { defaultData } from "./data";
-
-export const defaultConfig = definePlugin({
-  name: "lyra.builtin.default-config",
-  version: "1.0.0",
-  setup({ host }) {
-    host.config.set("api.baseUrl", RUNTIME_BASE);
-  },
-});
 
 export const defaultTitle = definePlugin({
   name: "lyra.builtin.default-title",

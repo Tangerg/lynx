@@ -5,10 +5,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 )
 
 // basePrompt is the always-on identity / behavioral preamble. It
@@ -98,7 +99,7 @@ func composePrompt(ctx context.Context, mem knowledge.Store, cwd string) string 
 	// file or unreadable home dir never derails a turn.
 	if dir := resolveCwd(cwd); dir != "" {
 		home, _ := os.UserHomeDir()
-		if files, err := agentdoc.Discover(ctx, dir, home); err == nil {
+		if files, err := promptsource.DiscoverAgentDocs(ctx, dir, home); err == nil {
 			if rendered := agentdoc.Render(files, agentdoc.DefaultMaxBytes); rendered != "" {
 				b.WriteString("\n\n## Project context (from AGENTS.md cascade)\n\n")
 				b.WriteString(rendered)

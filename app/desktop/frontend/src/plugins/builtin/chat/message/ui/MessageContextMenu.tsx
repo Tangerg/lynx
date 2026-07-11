@@ -24,7 +24,7 @@ import { messageCopyPayloads } from "@/plugins/builtin/chat/message-actions/publ
 import { messageContextMenuModel } from "@/plugins/builtin/chat/message-actions/public/contextMenu";
 import { writeToClipboard } from "@/lib/clipboard";
 import { useT } from "@/lib/i18n";
-import { serverFeature } from "@/state/runtimeStore";
+import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 
 interface Props {
   msg: Message;
@@ -36,7 +36,7 @@ export function MessageContextMenu({ msg, children }: Props) {
   const copy = messageCopyPayloads(msg);
   // Imperative read, not a subscription (see header comment) — capabilities
   // are discovery-time stable and messages can't exist before runtime startup.
-  const canRestoreFiles = serverFeature("checkpoints");
+  const canRestoreFiles = runtimeCapability("checkpoints");
   const menu = messageContextMenuModel({ msg, copy, canRestoreFiles });
 
   return (

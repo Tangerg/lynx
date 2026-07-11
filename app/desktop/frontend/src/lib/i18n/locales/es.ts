@@ -263,8 +263,9 @@ export const es: Record<string, string> = {
   "settings.pane.connection": "Conexión",
   "settings.connection.title": "Backend",
   "settings.connection.sub":
-    "Dirección del runtime Lyra Runtime. Se aplica en la siguiente petición.",
+    "Dirección de Lyra Runtime. Al aplicar se recarga la aplicación de escritorio.",
   "settings.connection.url": "URL",
+  "settings.connection.apply": "Aplicar y recargar",
   "settings.connection.reset": "Restaurar predeterminado",
 
   "iconGallery.filterLabel": "Filtrar iconos por nombre",

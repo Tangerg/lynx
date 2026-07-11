@@ -26,14 +26,15 @@ import {
 } from "./chat/composer";
 import connectionSettings from "./settings/connection-settings";
 import previewBlocks from "./chat/preview-blocks";
-import bootstrap from "./agent/bootstrap";
+import agentBootstrap from "./agent/bootstrap";
+import observability from "./observability";
+import runtime from "./runtime";
 import conversationExport from "./workspace/conversation-export";
 import contextDockDestinations from "./workspace/context-dock";
 import agentFold from "./agent/public/foldPlugin";
 import {
   defaultAccents,
   defaultCommands,
-  defaultConfig,
   defaultData,
   defaultRoles,
   defaultTitle,
@@ -117,10 +118,9 @@ const protocol: PluginSpec[] = [agentFold];
 
 const infrastructure: PluginSpec[] = [
   nativeShell,
-  defaultConfig,
-  // bootstrap after defaultConfig so api.localToken is set before the
-  // Runtime Protocol client is built.
-  bootstrap,
+  observability,
+  agentBootstrap,
+  runtime,
   workspaceBootstrap,
   defaultData,
   // After bootstrap: watches the discovery result and opens the app's one

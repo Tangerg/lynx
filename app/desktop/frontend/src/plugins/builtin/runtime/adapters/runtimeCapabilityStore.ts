@@ -13,54 +13,56 @@
 
 import { create } from "zustand";
 import type { ServerCapabilities } from "@/rpc";
+import { configureRuntimeCapabilityPort } from "../application/ports/capabilities";
+import type { RuntimeCapability } from "../domain/capability";
 
 interface RuntimeState {
   /** What the server can do. Null before discovery. */
   capabilities: ServerCapabilities | null;
   /** Store discovered server capabilities. */
-  setDiscovery: (capabilities: ServerCapabilities) => void;
+  replace: (capabilities: ServerCapabilities) => void;
+  clear: () => void;
 }
 
 export const useRuntimeStore = create<RuntimeState>((set) => ({
   capabilities: null,
-  setDiscovery: (capabilities) => set({ capabilities }),
+  replace: (capabilities) => set({ capabilities }),
+  clear: () => set({ capabilities: null }),
 }));
 
 // Selector hooks
-
-// Boolean feature flags the server advertises via `capabilities.features.*`
-// (API.md §9). Kept as a string-literal union (rather than `string`) so typos
-// at the callsite are compile-time errors.
-export type ServerFeature =
-  | "multimodal"
-  | "reasoning"
-  | "checkpoints"
-  | "git"
-  | "fileWatch"
-  | "lsp"
-  | "codeIntel"
-  | "todos"
-  | "compaction"
-  | "subagents"
-  | "skills"
-  | "mcp"
-  | "sessionExport"
-  | "memory"
-  | "relocate"
-  | "clientTools";
 
 /**
  * Returns true iff the server has advertised this feature as enabled.
  * Returns false before discovery — UI must treat that as "feature off"
  * (don't show a button users can't actually use).
  */
-export function useServerFeature(feature: ServerFeature): boolean {
+export function useServerFeature(feature: RuntimeCapability): boolean {
   return useRuntimeStore((s) => s.capabilities?.features[feature] === true);
 }
 
 /** Imperative twin of {@link useServerFeature} for non-React call sites
  *  (palette commands, context-menu handlers, module-level wiring). Same
  *  pre-discovery default: false. */
-export function serverFeature(feature: ServerFeature): boolean {
+export function serverFeature(feature: RuntimeCapability): boolean {
   return useRuntimeStore.getState().capabilities?.features[feature] === true;
+}
+
+export function runtimeSupportsStreamingMethod(method: string): boolean {
+  return useRuntimeStore.getState().capabilities?.streamingMethods?.includes(method) ?? false;
+}
+
+export function subscribeRuntimeCapabilities(onChange: () => void): () => void {
+  return useRuntimeStore.subscribe(onChange);
+}
+
+export function installRuntimeCapabilityPort(): void {
+  configureRuntimeCapabilityPort({
+    useCapability: useServerFeature,
+    hasCapability: serverFeature,
+    supportsStreamingMethod: runtimeSupportsStreamingMethod,
+    subscribe: subscribeRuntimeCapabilities,
+    replace: (capabilities) => useRuntimeStore.getState().replace(capabilities),
+    clear: () => useRuntimeStore.getState().clear(),
+  });
 }

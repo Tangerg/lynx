@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/observability"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 )
 
@@ -141,7 +141,7 @@ func agentDocsLister() lyrahttp.AgentDocsLister {
 	}
 	home, _ := os.UserHomeDir()
 	return func(ctx context.Context) []lyrahttp.AgentDocInfo {
-		files, err := agentdoc.Discover(ctx, cwd, home)
+		files, err := promptsource.DiscoverAgentDocs(ctx, cwd, home)
 		if err != nil {
 			return nil
 		}

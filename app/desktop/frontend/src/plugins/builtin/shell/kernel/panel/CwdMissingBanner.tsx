@@ -13,12 +13,12 @@ import { cn } from "@/lib/utils";
 import { useActiveSession, useRelocateSession } from "@/plugins/builtin/agent/public/session";
 import { BannerAction } from "./BannerAction";
 import { useT } from "@/lib/i18n";
-import { useServerFeature } from "@/state/runtimeStore";
+import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 
 export function CwdMissingBanner() {
   const t = useT();
   const session = useActiveSession();
-  const relocateEnabled = useServerFeature("relocate");
+  const relocateEnabled = useRuntimeCapability("relocate");
   const relocate = useRelocateSession();
   const [editing, setEditing] = useState(false);
   const [path, setPath] = useState("");
