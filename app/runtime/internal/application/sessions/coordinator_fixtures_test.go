@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
@@ -13,19 +14,38 @@ type coordinatorStores struct {
 	interrupts *coordinatorInterrupts
 }
 
-func (s coordinatorStores) Session() SessionStore       { panic("unused") }
-func (s coordinatorStores) Transcript() TranscriptStore { panic("unused") }
-func (s coordinatorStores) Interrupts() InterruptStore  { return s.interrupts }
+func (s coordinatorStores) Session() SessionStore      { panic("unused") }
+func (s coordinatorStores) Interrupts() InterruptStore { return s.interrupts }
 func (s coordinatorStores) ReadHistory(context.Context, string) ([]chat.Message, error) {
 	panic("unused")
 }
-func (s coordinatorStores) TruncateMessages(context.Context, string, int) error { panic("unused") }
 func (s coordinatorStores) SeedHistory(context.Context, string, []chat.Message) error {
 	panic("unused")
 }
 func (s coordinatorStores) ForgetSession(string) {}
 func (s coordinatorStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
+}
+
+// The atomic write-sets delegate their interrupt drops to the interrupt fake so
+// the coordinator tests observe them (the run-state transition an ApplyCancel /
+// ApplyRollback also commits is verified at the sqlite/bootstrap level).
+func (s coordinatorStores) ApplyRollback(ctx context.Context, plan execution.RollbackPlan) error {
+	for _, runID := range plan.DropRunIDs {
+		_ = s.interrupts.Delete(ctx, runID)
+	}
+	return nil
+}
+func (s coordinatorStores) ApplyRestore(context.Context, execution.RestorePlan) error { return nil }
+func (s coordinatorStores) ApplyDelete(ctx context.Context, sessionID string) error {
+	pending, _ := s.interrupts.List(ctx, sessionID)
+	for _, p := range pending {
+		_ = s.interrupts.Delete(ctx, p.ParentRunID)
+	}
+	return nil
+}
+func (s coordinatorStores) ApplyCancel(ctx context.Context, _ string, runID string) error {
+	return s.interrupts.Delete(ctx, runID)
 }
 
 type coordinatorInterrupts struct {
@@ -128,32 +148,7 @@ func (t stubTurns) Rehydrate(_ context.Context, req RehydrateSpec) (Handle, erro
 	return t.rehydrateHandle, t.rehydrateErr
 }
 
-// fakeDurableRuns records the durable-admission writes the abandonment
-// write-sets make, so a test can assert a canceled/rolled-back/deleted run frees
-// its session's durable slot.
-type fakeDurableRuns struct {
-	terminalized []string
-	deleted      []string
-}
-
-func (f *fakeDurableRuns) Terminalize(_ context.Context, sessionID, _ string) error {
-	f.terminalized = append(f.terminalized, sessionID)
-	return nil
-}
-
-func (f *fakeDurableRuns) DeleteForSession(_ context.Context, sessionID string) error {
-	f.deleted = append(f.deleted, sessionID)
-	return nil
-}
-
-// newCoordinator builds a Coordinator over test stores and turns, without a
-// durable run-admission backstop (in-process-only).
+// newCoordinator builds a Coordinator over test stores and turns.
 func newCoordinator(stores Stores, turns Turns) *Coordinator {
 	return New(Dependencies{Stores: stores, Turns: turns})
-}
-
-// newCoordinatorWithRuns builds a Coordinator wired to a durable run-admission
-// backstop so a test can observe the slot-freeing writes.
-func newCoordinatorWithRuns(stores Stores, turns Turns, runs DurableRuns) *Coordinator {
-	return New(Dependencies{Stores: stores, Turns: turns, Runs: runs})
 }
