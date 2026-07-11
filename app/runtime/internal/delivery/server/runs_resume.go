@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
 // ResumeRun answers an open interrupt by continuing the parked run as a
@@ -67,7 +68,10 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		}
 	}
 	pending = resumed.Pending
-	handle := resumed.Handle
+	handle, ok := resumed.Handle.(turn.TurnHandle)
+	if !ok {
+		return nil, nil, fmt.Errorf("resume: executor handle %T is not a turn handle", resumed.Handle)
+	}
 
 	// Continuation gets a fresh wire runId linked to the parent. handle.TurnID
 	// is the original turn for a same-process resume, or the freshly rebuilt

@@ -23,7 +23,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
 // SessionStore is the coordinator's consumer view of session persistence: the
@@ -82,22 +81,49 @@ type Stores interface {
 	TruncateMessages(ctx context.Context, sessionID string, keepN int) error
 	// SeedHistory replaces a session's chat history log with msgs.
 	SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error
-	// ForgetSession releases the turn dispatcher's process-local state for a
-	// session that is being removed (the SessionStart gate) — see turn.Dispatcher.
+	// ForgetSession releases the executor's process-local state for a session
+	// that is being removed (the SessionStart gate).
 	ForgetSession(sessionID string)
 	// RunInTx runs fn inside one storage transaction; the store calls the
 	// closure makes join it through the context.
 	RunInTx(ctx context.Context, fn func(context.Context) error) error
 }
 
-// Turns is the turn-dispatcher slice the lifecycle coordinator drives to
-// abandon (Cancel) or continue (Resume / Rehydrate) the process backing a run.
-// The kernel turn dispatcher satisfies it. Held as a fixed collaborator, not a
-// per-call parameter: it is the same dispatcher for every lifecycle write-set.
+// RunRef identifies the durable turn a lifecycle write-set acts on, without
+// naming the executor's handle representation — the engine-neutral coordinates
+// the [Turns] adapter rebuilds a concrete handle from.
+type RunRef struct {
+	SessionID string
+	TurnID    string
+}
+
+// RehydrateSpec describes rebuilding a parked turn's process from its durable
+// interrupt snapshot after process-local state was lost.
+type RehydrateSpec struct {
+	SessionID      string
+	ProcessID      string
+	Approved       bool
+	Provider       string
+	Model          string
+	InterruptKinds []string
+}
+
+// Handle is the opaque per-turn execution handle a resumed / rehydrated turn
+// runs under. It is opaque to the coordinator: the delivery layer forwards it to
+// the run coordinator (as its own opaque handle) without inspecting it.
+type Handle = any
+
+// Turns is the engine-neutral turn-control slice the lifecycle coordinator
+// drives to abandon (Cancel) or continue (Resume / Rehydrate) the process
+// backing a run. The composition root injects an adapter over the agent turn
+// dispatcher that rebuilds a concrete handle from a [RunRef] and maps the
+// dispatcher's resume outcomes onto [ErrParkClaimed] / [ErrTurnNotLive] /
+// [ErrRehydrateCommitted]. Held as a fixed collaborator, not a per-call
+// parameter: it is the same executor for every lifecycle write-set.
 type Turns interface {
-	Cancel(context.Context, turn.TurnHandle) error
-	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error
-	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
+	Cancel(ctx context.Context, ref RunRef) error
+	Resume(ctx context.Context, ref RunRef, resolution interrupts.Resolution, interruptKinds []string) (Handle, error)
+	Rehydrate(ctx context.Context, req RehydrateSpec) (Handle, error)
 }
 
 // Coordinator executes session/run lifecycle write-sets across the domain
@@ -129,6 +155,19 @@ var ErrInterruptNotOpen = errors.New("sessions: interrupt not open")
 
 // ErrSessionBusy reports that a session already has an active or parked run.
 var ErrSessionBusy = errors.New("sessions: session busy")
+
+// ErrParkClaimed, ErrTurnNotLive, and ErrRehydrateCommitted are the
+// engine-neutral resume outcomes the [Turns] adapter maps the executor's errors
+// onto, so the coordinator branches on resume semantics without importing the
+// agent turn package: ErrParkClaimed = another resume already claimed the parked
+// turn; ErrTurnNotLive = the process is gone (fall back to rehydrate);
+// ErrRehydrateCommitted = rehydrate already terminalized the process, so the
+// consumed interrupt must NOT be restored (restoring would create a ghost).
+var (
+	ErrParkClaimed        = errors.New("sessions: parked turn already claimed")
+	ErrTurnNotLive        = errors.New("sessions: turn not live")
+	ErrRehydrateCommitted = errors.New("sessions: rehydrate already committed")
+)
 
 // New returns a Coordinator over deps.
 func New(deps Dependencies) *Coordinator {
