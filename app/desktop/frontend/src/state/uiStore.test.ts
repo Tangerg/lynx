@@ -20,7 +20,17 @@ beforeEach(() => {
   document.documentElement.removeAttribute("style");
   document.documentElement.className = "";
   // Reset UI store to defaults (the setup file already wipes plugin store).
-  useUiStore.setState({ theme: "dark", accent: "#1ed760" });
+  useUiStore.setState({
+    theme: "dark",
+    accent: "#1ed760",
+    contrast: 60,
+    uiFont: "",
+    codeFont: "",
+    fontSize: null,
+    fontSmoothing: true,
+    radiusScale: 1,
+    motionScale: 1,
+  });
   sink.length = 0;
 });
 
@@ -87,6 +97,28 @@ describe("applyTheme — theme-as-plugin contract", () => {
     expect(root.style.getPropertyValue("--color-text")).toBe("#f7f8f8");
   });
 
+  it("removes tokens omitted by the next theme", () => {
+    const host = createHost("test", sink);
+    host.extensions.contribute(THEME, {
+      id: "dark",
+      label: "Dark",
+      scheme: "dark",
+      tokens: { "color-bg": "#010102", "color-warning": "#f0c000" },
+    });
+    host.extensions.contribute(THEME, {
+      id: "light",
+      label: "Light",
+      scheme: "light",
+      tokens: { "color-bg": "#fafafa" },
+    });
+
+    useUiStore.getState().setTheme("light");
+
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue("--color-bg")).toBe("#fafafa");
+    expect(root.style.getPropertyValue("--color-warning")).toBe("");
+  });
+
   it("resolves accent through the registry for light-scheme themes", () => {
     const host = createHost("test", sink);
     host.extensions.contribute(THEME, {
@@ -130,5 +162,44 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
     useUiStore.getState().toggleTheme();
     expect(useUiStore.getState().theme).toBe("dark");
+  });
+});
+
+describe("UI preference DOM synchronization", () => {
+  it("applies and clears font preferences", () => {
+    const state = useUiStore.getState();
+    state.setUiFont("Inter");
+    state.setCodeFont("JetBrains Mono");
+    state.setFontSize(17);
+    state.setFontSmoothing(false);
+
+    const style = document.documentElement.style;
+    expect(style.getPropertyValue("--font-sans")).toContain('"Inter"');
+    expect(style.getPropertyValue("--font-mono")).toContain('"JetBrains Mono"');
+    expect(style.fontSize).toBe("17px");
+    expect(style.getPropertyValue("-webkit-font-smoothing")).toBe("auto");
+
+    useUiStore.getState().setUiFont("");
+    useUiStore.getState().setCodeFont("");
+    useUiStore.getState().setFontSize(null);
+
+    expect(style.getPropertyValue("--font-sans")).toBe("");
+    expect(style.getPropertyValue("--font-mono")).toBe("");
+    expect(style.fontSize).toBe("");
+  });
+
+  it("applies contrast, radius, and reduced-motion preferences", () => {
+    useUiStore.getState().setContrast(100);
+    useUiStore.getState().setRadiusScale(1.25);
+    useUiStore.getState().setMotionScale(0);
+
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue("--depth-step")).toBe("10.0%");
+    expect(root.style.getPropertyValue("--radius-scale")).toBe("1.25");
+    expect(root.style.getPropertyValue("--motion-scale")).toBe("0");
+    expect(root.dataset.motion).toBe("off");
+
+    useUiStore.getState().setMotionScale(0.5);
+    expect(root.dataset.motion).toBeUndefined();
   });
 });
