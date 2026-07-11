@@ -27,6 +27,17 @@ type RollbackPlan struct {
 	Terminate bool
 }
 
+// ForkPlan is the durable write-set a session fork commits atomically: branch a
+// child session off ParentID, seed its chat log with the resolved history prefix,
+// and (optionally) title it — so a concurrent delete on the parent can't race a
+// half-created child. The application resolves the history prefix; the adapter
+// commits the branch and returns the created child.
+type ForkPlan struct {
+	ParentID string
+	Messages []chat.Message
+	Title    string
+}
+
 // RestorePlan is the durable write-set a session restore/import commits
 // atomically: recreate the session under its original id and REPLACE its whole
 // history — clear the old open interrupts, admission rows, transcript, and chat

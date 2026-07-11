@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/core/model/chat"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -98,6 +100,37 @@ func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
 		t.Fatalf("admit after rollback = %v, want the slot freed", err)
+	}
+}
+
+// TestApplyForkBranchesAndSeeds: fork branches a child, seeds its chat log with
+// the resolved prefix, and titles it — all in one transaction (the child's Fork
+// joins the seed + rename rather than opening its own connection).
+func TestApplyForkBranchesAndSeeds(t *testing.T) {
+	ss, _, _ := newWriteSetFixture(t)
+	ctx := context.Background()
+	parent, err := ss.sessions.Create(ctx, "parent", "/repo")
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+
+	child, err := ss.ApplyFork(ctx, execution.ForkPlan{
+		ParentID: parent.ID,
+		Messages: []chat.Message{chat.NewUserMessage("hello")},
+		Title:    "Child",
+	})
+	if err != nil {
+		t.Fatalf("ApplyFork: %v", err)
+	}
+	if child.ID == "" || child.ID == parent.ID {
+		t.Fatalf("child id = %q (parent %q)", child.ID, parent.ID)
+	}
+	if child.Title != "Child" {
+		t.Fatalf("child title = %q, want Child", child.Title)
+	}
+	msgs, err := ss.history.Read(ctx, child.ID)
+	if err != nil || len(msgs) != 1 {
+		t.Fatalf("child history = %d (err %v), want 1 seeded message", len(msgs), err)
 	}
 }
 

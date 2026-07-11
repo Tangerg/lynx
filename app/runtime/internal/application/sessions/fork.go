@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -36,8 +37,9 @@ func ResolveForkHistoryPrefix(msgs []chat.Message, nodes []transcript.RunNode, f
 }
 
 // Fork creates a child session, seeds it with the resolved parent history
-// prefix, and renames it as ONE transaction. The protocol adapter owns only
-// wire decoding; the boundary semantics and chat history prefix live here.
+// prefix, and renames it as ONE atomic write-set (§8.1). The protocol adapter
+// owns only wire decoding; the boundary semantics + chat history prefix live
+// here (the application resolves the prefix; the adapter commits the branch).
 func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session, error) {
 	msgs, err := c.s.ReadHistory(ctx, spec.ParentID)
 	if err != nil {
@@ -47,26 +49,9 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 	if err != nil {
 		return session.Session{}, err
 	}
-
-	var child session.Session
-	if err := c.s.RunInTx(ctx, func(ctx context.Context) error {
-		ch, err := c.s.Session().Fork(ctx, spec.ParentID, "")
-		if err != nil {
-			return err
-		}
-		if err := c.s.SeedHistory(ctx, ch.ID, msgs); err != nil {
-			return err
-		}
-		if spec.Title != "" {
-			if err := c.s.Session().Rename(ctx, ch.ID, spec.Title); err != nil {
-				return err
-			}
-			ch.Title = spec.Title
-		}
-		child = ch
-		return nil
-	}); err != nil {
-		return session.Session{}, err
-	}
-	return child, nil
+	return c.s.ApplyFork(ctx, execution.ForkPlan{
+		ParentID: spec.ParentID,
+		Messages: msgs,
+		Title:    spec.Title,
+	})
 }

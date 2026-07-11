@@ -13,7 +13,7 @@ import (
 // Internal subtask-delegation sessions ([session.KindSubtask]) are excluded so
 // they never clutter the session list — query the lineage via [Children].
 func (s *SessionStore) List(ctx context.Context) ([]session.Session, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT `+sessionColumns+` FROM sessions WHERE kind != ? ORDER BY updated_at DESC`,
 		session.KindSubtask)
 	if err != nil {
@@ -36,7 +36,7 @@ func (s *SessionStore) List(ctx context.Context) ([]session.Session, error) {
 }
 
 func (s *SessionStore) Get(ctx context.Context, id string) (session.Session, error) {
-	row := s.db.QueryRowContext(ctx,
+	row := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT `+sessionColumns+` FROM sessions WHERE id = ?`, id)
 	sess, err := rowToSession(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -52,7 +52,7 @@ func (s *SessionStore) Get(ctx context.Context, id string) (session.Session, err
 // fork lineage under a session, newest-updated first. Includes KindSubtask
 // children (which List hides).
 func (s *SessionStore) Children(ctx context.Context, parentID string) ([]session.Session, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT `+sessionColumns+` FROM sessions WHERE parent_id = ? ORDER BY updated_at DESC`,
 		parentID)
 	if err != nil {

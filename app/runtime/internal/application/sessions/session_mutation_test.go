@@ -100,12 +100,11 @@ func (s *mutationStores) Interrupts() InterruptStore { return s.ints }
 func (*mutationStores) ReadHistory(context.Context, string) ([]chat.Message, error) {
 	panic("unused")
 }
-func (*mutationStores) SeedHistory(context.Context, string, []chat.Message) error { panic("unused") }
 func (s *mutationStores) ForgetSession(string) {
 	s.operations = append(s.operations, "session.forget")
 }
-func (s *mutationStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
-	return fn(ctx)
+func (*mutationStores) ApplyFork(context.Context, execution.ForkPlan) (session.Session, error) {
+	panic("unused")
 }
 
 func (s *mutationStores) ApplyRollback(context.Context, execution.RollbackPlan) error {
