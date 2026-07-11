@@ -25,7 +25,7 @@ import (
 // ever called) and overriding only what the session handlers touch.
 type stubRuntime struct {
 	RuntimePort
-	sess       session.Store
+	sess       *sqlite.SessionStore
 	model      string
 	history    map[string][]chat.Message // per-session chat history (fork copies it)
 	hist       transcript.Store          // durable Item/run history (rollback/fork read runs)
@@ -347,7 +347,7 @@ func (s stubRuntime) SeedHistory(_ context.Context, id string, msgs []chat.Messa
 	return nil
 }
 
-func newSessionServer(t *testing.T) (*Server, session.Store) {
+func newSessionServer(t *testing.T) (*Server, *sqlite.SessionStore) {
 	t.Helper()
 	db, err := sqlite.Open(":memory:")
 	if err != nil {

@@ -20,7 +20,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	todosvc "github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
@@ -39,7 +38,7 @@ type Bundle struct {
 	Home string
 	Tx   func(context.Context, func(context.Context) error) error
 
-	Session       sessionsvc.Store
+	Session       *sqlitestore.SessionStore
 	Memory        knowledge.Store
 	Process       core.ProcessStore
 	Interrupt     interrupts.Store

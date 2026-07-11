@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"io"
 	"sync"
 
@@ -10,6 +11,20 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 )
+
+// sessionStore is the turn executor's consumer view of session persistence:
+// resolve or create the session a turn runs in (Get / Create), record the model
+// a run explicitly selected (SetModel), and the terminal auto-titler's
+// untitled-only rename (RenameIfUntitled). It is narrower than the sessions
+// coordinator's lifecycle surface — the composition root threads the one
+// sqlite-backed session store, which satisfies both. Defined here at the
+// consumer so the facade names no broad persistence interface.
+type sessionStore interface {
+	Get(ctx context.Context, id string) (sessionsvc.Session, error)
+	Create(ctx context.Context, title, cwd string) (sessionsvc.Session, error)
+	SetModel(ctx context.Context, id, model string) error
+	RenameIfUntitled(ctx context.Context, id, title string) error
+}
 
 // Runtime is the residual execution facade: the turn/engine surface (the
 // runs.Executor the run pump drives) plus the durable session/transcript/history
@@ -28,7 +43,7 @@ type Runtime struct {
 	closeOnce sync.Once
 	closeErr  error
 
-	sessions   sessionsvc.Store
+	sessions   sessionStore
 	interrupts interrupts.Store
 	transcript transcript.Store
 

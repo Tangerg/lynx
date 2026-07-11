@@ -5,7 +5,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
@@ -19,7 +18,7 @@ type Dependencies struct {
 	Turns        turn.Dispatcher
 	Conversation *conversation.Messages
 
-	Sessions   sessionsvc.Store
+	Sessions   sessionStore
 	Interrupts interrupts.Store
 	Transcript transcript.Store
 

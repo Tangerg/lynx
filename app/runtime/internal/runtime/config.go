@@ -11,10 +11,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
 // Config is the construction-time bundle for [New]. Engine carries the
@@ -54,9 +54,13 @@ type Config struct {
 	// workspace.mcp.configure / remove / setEnabled. Required.
 	MCPRegistry mcpserver.Registry
 
-	// SessionStore persists Lyra sessions. Required; the composition root
-	// injects the sqlite-backed store (tests use a sqlite :memory: DB).
-	SessionStore sessionsvc.Store
+	// SessionStore persists Lyra sessions. Required; the composition root injects
+	// the sqlite-backed store (tests use a sqlite :memory: DB) and threads it to
+	// the consumers that each hold their own narrow session port — the sessions
+	// coordinator, the run-segment titler, and the sub-agent spawn adapter. The
+	// concrete type is named here because persistence is single-backend and this
+	// is the composition ring (see doc/EXECUTION_CENTERED_ARCHITECTURE.md §8.1).
+	SessionStore *sqlitestore.SessionStore
 
 	// InterruptStore records open HITL interrupts (R-model resume discovery).
 	// Required; injected sqlite-backed, same as SessionStore.
