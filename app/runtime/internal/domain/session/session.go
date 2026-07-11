@@ -1,11 +1,12 @@
-// Package session defines the Session store — Lyra's conversation
-// lifecycle surface. Every multi-turn interaction lives under a Session;
-// the store exposes the operations a client needs to find, resume,
-// branch, or discard those conversations.
+// Package session models Lyra's conversation identity — the Session entity and
+// the pure derivations over it (Fork, NewSubtask, EffectiveModel, the editable
+// Patch). Every multi-turn interaction lives under a Session. Persistence is a
+// consumer concern: each coordinator/adapter defines the narrow store port it
+// needs (list/resume/branch/discard), so this package holds no persistence
+// interface of its own.
 package session
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"time"
@@ -25,8 +26,8 @@ const ForkAtMessageIDKey = "fork_at_message_id"
 // KindSubtask marks a session created for a sub-agent delegation (the `task`
 // tool). Such a session has its OWN conversation history (isolated from the
 // parent) and records the parent via [Session.ParentID], but it is internal:
-// [Store.List] hides it so it never clutters the user's session list. The
-// lineage stays queryable via [Store.Get] / [Store.Children].
+// the user-facing session list hides it so it never clutters the user's view,
+// while the lineage stays queryable by id and by parent.
 const KindSubtask = "subtask"
 
 // ErrTitleRequired reports a session edit with an empty title.
@@ -140,88 +141,4 @@ func (s Session) NewSubtask(id string, now time.Time) Session {
 		StartedAt: now,
 		UpdatedAt: now,
 	}
-}
-
-// Store is the session persistence contract.
-//
-// All methods are safe for concurrent use. Implementations are
-// transport-agnostic — HTTP/gRPC/IPC adapters wrap this surface
-// without changing its shape.
-type Store interface {
-	// List returns every known session, newest-updated first. The full
-	// list comes back in one call; the wire layer paginates on top.
-	List(ctx context.Context) ([]Session, error)
-
-	// Get returns the session by id, or ErrNotFound.
-	Get(ctx context.Context, id string) (Session, error)
-
-	// Create starts a fresh session; title is optional (auto-generated
-	// from the first turn when empty). cwd is the session's working-
-	// directory identity (API.md §0.2) — callers pass the serve cwd as
-	// the default when the client omits it.
-	Create(ctx context.Context, title, cwd string) (Session, error)
-
-	// Restore upserts a session VERBATIM — its id, timestamps, and every
-	// field as given — overwriting any existing row with the same id. It is
-	// the write side of sessions.import (restore semantics): unlike Create it
-	// preserves the supplied id rather than minting a new one. The caller owns
-	// id validity.
-	Restore(ctx context.Context, sess Session) error
-
-	// Fork creates a new session whose history equals the parent's
-	// up to atMessageID, then diverges. The new session's ParentID
-	// points at the parent.
-	Fork(ctx context.Context, parentID, atMessageID string) (Session, error)
-
-	// CreateSubtask records an internal sub-agent delegation session under id
-	// (the caller supplies it — it is the agent runtime's child conversation
-	// id, so the persisted subtask history lines up), linked to parentID and
-	// marked [KindSubtask]. The child inherits the parent's working directory.
-	// Idempotent on id so a re-driven spawn doesn't error. Hidden from [List].
-	CreateSubtask(ctx context.Context, id, parentID string) (Session, error)
-
-	// Children returns the sessions whose ParentID is parentID — the
-	// delegation/fork lineage under a session, newest-updated first. Includes
-	// [KindSubtask] children (which List hides), so callers can walk the tree.
-	Children(ctx context.Context, parentID string) ([]Session, error)
-
-	// Delete drops the session and its persisted turns. Idempotent.
-	Delete(ctx context.Context, id string) error
-
-	// SetModel records the model a turn ran against, so sessions.list /
-	// sessions.get surface the session's current model (the wire
-	// Session.model). Called when a run explicitly selects a provider+model.
-	// Returns ErrNotFound for an unknown id.
-	SetModel(ctx context.Context, id, model string) error
-
-	// Rename changes the session's human-readable title and refreshes
-	// UpdatedAt. Backs sessions.update's title edit. The caller is
-	// responsible for rejecting empty titles; this records whatever it is
-	// given. Returns ErrNotFound for an unknown id.
-	Rename(ctx context.Context, id, title string) error
-
-	// RenameIfUntitled sets the title only if the session currently has none
-	// (an empty title), in one atomic UPDATE — the auto-titler's write, which
-	// must not clobber a title the user set concurrently during the (slow,
-	// async) title generation. A no-op (returns nil, not ErrNotFound) when the
-	// session is already titled or unknown: titling is best-effort, so "nothing
-	// to do" is success.
-	RenameIfUntitled(ctx context.Context, id, title string) error
-
-	// SetCwd relocates the session's working-directory identity (API.md §7.2
-	// relocate): subsequent runs resolve tools and memory against the new cwd;
-	// existing history is untouched. The caller validates the cwd exists
-	// (cwd_unavailable is its concern); this records whatever it is given.
-	// Returns ErrNotFound for an unknown id.
-	SetCwd(ctx context.Context, id, cwd string) error
-
-	// SetMetadata full-replaces the session's free-form metadata (API.md §7.2
-	// — "全替换") and refreshes UpdatedAt. A nil map clears it. Returns
-	// ErrNotFound for an unknown id.
-	SetMetadata(ctx context.Context, id string, meta map[string]any) error
-
-	// SetFavorite pins / unpins the session — a favorited session sorts ahead
-	// of the rest in the session list. Backs sessions.update's favorite toggle.
-	// Returns ErrNotFound for an unknown id.
-	SetFavorite(ctx context.Context, id string, favorite bool) error
 }

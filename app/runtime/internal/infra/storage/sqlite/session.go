@@ -1,12 +1,10 @@
 package sqlite
 
-import (
-	"database/sql"
+import "database/sql"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-)
-
-// SessionStore implements session.Store against a SQLite database.
+// SessionStore is the SQLite-backed session persistence surface — the single
+// implementation each consumer's narrow session port (the sessions coordinator's
+// lifecycle surface, the run-segment titler, the sub-agent spawn store) binds to.
 // Mutations are single-row INSERT / UPDATE / DELETE, so each operation is
 // atomic on its own — no multi-step rollback handling needed.
 //
@@ -16,9 +14,7 @@ type SessionStore struct {
 	db *sql.DB
 }
 
-var _ session.Store = (*SessionStore)(nil)
-
-// NewSessionStore wires the given *sql.DB to the session.Store surface.
+// NewSessionStore wires the given *sql.DB to the session persistence surface.
 // The DB must have been opened via [Open] so the migration ran.
 func NewSessionStore(db *sql.DB) *SessionStore {
 	return &SessionStore{db: db}

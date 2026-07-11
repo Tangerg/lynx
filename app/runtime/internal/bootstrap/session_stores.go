@@ -8,8 +8,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
@@ -27,7 +27,7 @@ type sessionForgetter interface {
 // chat history log, the resume gate, and the transactional seam — instead of
 // the whole runtime facade.
 type sessionStores struct {
-	sessions   sessionsvc.Store
+	sessions   *sqlitestore.SessionStore
 	transcript transcript.Store
 	interrupts interrupts.Store
 	history    *conversation.Messages
