@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -22,7 +23,6 @@ import (
 	todosvc "github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 )
 
 // Bundle holds every persistence backend opened for one runtime process. All

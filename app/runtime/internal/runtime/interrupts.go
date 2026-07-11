@@ -3,7 +3,7 @@ package runtime
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // ListPendingInterrupts returns durable open HITL interrupts. Empty sessionID

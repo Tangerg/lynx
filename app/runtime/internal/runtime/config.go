@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -11,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 

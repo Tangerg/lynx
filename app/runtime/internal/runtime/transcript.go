@@ -3,7 +3,7 @@ package runtime
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // ListTranscript returns a session's durable item history and run records.

@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
 // runTurn starts the turn's agent process and drives its first run

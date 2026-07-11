@@ -5,11 +5,11 @@ import (
 	"io"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 // sessionStore is the turn executor's consumer view of session persistence:

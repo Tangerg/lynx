@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 type transcriptRuntimeStore struct {

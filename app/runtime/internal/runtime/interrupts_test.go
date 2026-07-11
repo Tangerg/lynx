@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 type interruptRuntimeStore struct {

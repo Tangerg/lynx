@@ -13,8 +13,8 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/history"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // newHistoryStore re-exports history.NewInMemoryStore under a

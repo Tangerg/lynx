@@ -3,8 +3,8 @@ package runtime
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 )
 
 type runSegmentProcesses struct {

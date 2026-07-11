@@ -33,8 +33,8 @@ type ExtractionResult struct {
 // the engine core touches — steering is a turn concern. The rest of history
 // management (read / seed / count / truncate, for fork / rollback /
 // messages.list) is NOT a turn concern and is driven directly off
-// domain/conversation by the runtime, never proxied through the engine.
-// Implemented by domain/conversation.
+// domain/execution/conversation by the runtime, never proxied through the
+// engine. Implemented by domain/execution/conversation.
 type SteeringSink interface {
 	InjectUser(ctx context.Context, sessionID, text string) error
 }

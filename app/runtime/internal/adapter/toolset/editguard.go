@@ -6,9 +6,9 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 )
 
 // The read/edit/write guards: the LLM-facing presentation of the

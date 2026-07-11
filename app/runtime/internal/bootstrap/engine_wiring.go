@@ -6,9 +6,9 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // RunTurnBinding binds a protocol run id to the turn that owns its process.

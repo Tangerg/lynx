@@ -9,9 +9,9 @@ import (
 
 	chatmodel "github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 )
 
 func buildDispatcher(t *testing.T) (turn.Dispatcher, *agentexec.Engine) {

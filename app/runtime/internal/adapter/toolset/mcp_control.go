@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 )
 
 type mcpControl struct {

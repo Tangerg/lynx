@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 )
 
 // ResumeRun answers an open interrupt by continuing the parked run as a

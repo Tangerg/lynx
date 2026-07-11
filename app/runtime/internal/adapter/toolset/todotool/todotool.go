@@ -16,8 +16,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 const description = `Maintain a structured task list for the current session.

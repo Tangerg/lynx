@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // TranscriptStore is the SQLite-backed durable Item history — the single

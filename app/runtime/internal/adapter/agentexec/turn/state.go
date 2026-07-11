@@ -8,8 +8,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
 // turnState holds the per-turn bookkeeping the implementation needs:

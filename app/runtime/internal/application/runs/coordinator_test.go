@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
 )
 
 // --- fakes (drive the Coordinator without the wire or the agent SDK) ---
@@ -67,10 +66,10 @@ type fakeProjector struct {
 	aborted   string
 }
 
-func (p *fakeProjector) Open() []ProjectedEvent                { return p.open }
+func (p *fakeProjector) Open() []ProjectedEvent                 { return p.open }
 func (p *fakeProjector) Translate(EngineEvent) []ProjectedEvent { return p.translate }
-func (p *fakeProjector) SynthesizeTerminal() []ProjectedEvent  { return p.terminal }
-func (p *fakeProjector) Abort(msg string)                      { p.aborted = msg }
+func (p *fakeProjector) SynthesizeTerminal() []ProjectedEvent   { return p.terminal }
+func (p *fakeProjector) Abort(msg string)                       { p.aborted = msg }
 
 type fakeEffects struct {
 	mu        sync.Mutex

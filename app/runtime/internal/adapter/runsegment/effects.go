@@ -15,11 +15,11 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 // SessionStore is the run-segment side-effect view of session persistence.

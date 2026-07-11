@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // Cancel stops a turn. The ctx cancel is the primary signal: it aborts any

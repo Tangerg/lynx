@@ -2,7 +2,7 @@
 package pricing
 
 import (
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/catalog"
 )

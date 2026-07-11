@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 )
 
 // CancelRun hard-stops a running run (outcome:canceled, API.md §7.3).
