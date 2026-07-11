@@ -58,6 +58,48 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// Patch applies a (normalized) session patch — each set field — and returns the
+// updated aggregate, as ONE transaction (§8.1). nil fields are left untouched;
+// patching an unknown session is [session.ErrNotFound]. The caller normalizes +
+// resolves the patch (title/cwd) before calling; this only commits it.
+func (s *SessionStore) Patch(ctx context.Context, id string, patch session.Patch) (session.Session, error) {
+	var updated session.Session
+	err := RunInTx(ctx, s.db, func(ctx context.Context) error {
+		if patch.Title != nil {
+			if err := s.Rename(ctx, id, *patch.Title); err != nil {
+				return err
+			}
+		}
+		if patch.Model != nil {
+			if err := s.SetModel(ctx, id, *patch.Model); err != nil {
+				return err
+			}
+		}
+		if patch.Cwd != nil {
+			if err := s.SetCwd(ctx, id, *patch.Cwd); err != nil {
+				return err
+			}
+		}
+		if patch.Metadata != nil {
+			if err := s.SetMetadata(ctx, id, *patch.Metadata); err != nil {
+				return err
+			}
+		}
+		if patch.Favorite != nil {
+			if err := s.SetFavorite(ctx, id, *patch.Favorite); err != nil {
+				return err
+			}
+		}
+		var err error
+		updated, err = s.Get(ctx, id)
+		return err
+	})
+	if err != nil {
+		return session.Session{}, err
+	}
+	return updated, nil
+}
+
 // SetModel records the session's current model + refreshes UpdatedAt in a
 // single UPDATE. ErrNotFound for unknown id.
 func (s *SessionStore) SetModel(ctx context.Context, id, model string) error {

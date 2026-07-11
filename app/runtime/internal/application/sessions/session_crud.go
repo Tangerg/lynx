@@ -45,42 +45,7 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch
 		patch.Cwd = &cwd
 	}
 
-	var updated session.Session
-	err = c.s.RunInTx(ctx, func(tx context.Context) error {
-		store := c.s.Session()
-		if patch.Title != nil {
-			if err := store.Rename(tx, id, *patch.Title); err != nil {
-				return err
-			}
-		}
-		if patch.Model != nil {
-			if err := store.SetModel(tx, id, *patch.Model); err != nil {
-				return err
-			}
-		}
-		if patch.Cwd != nil {
-			if err := store.SetCwd(tx, id, *patch.Cwd); err != nil {
-				return err
-			}
-		}
-		if patch.Metadata != nil {
-			if err := store.SetMetadata(tx, id, *patch.Metadata); err != nil {
-				return err
-			}
-		}
-		if patch.Favorite != nil {
-			if err := store.SetFavorite(tx, id, *patch.Favorite); err != nil {
-				return err
-			}
-		}
-		var err error
-		updated, err = store.Get(tx, id)
-		return err
-	})
-	if err != nil {
-		return session.Session{}, err
-	}
-	return updated, nil
+	return c.s.Session().Patch(ctx, id, patch)
 }
 
 // resolveSessionCwd canonicalizes cwd and requires it to be an existing

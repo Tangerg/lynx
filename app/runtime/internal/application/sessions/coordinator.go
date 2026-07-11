@@ -26,19 +26,15 @@ import (
 )
 
 // SessionStore is the coordinator's consumer view of session persistence: the
-// session-aggregate CRUD (list / get / create / patch) plus fork + child
-// traversal. The destructive multi-store write-sets (rollback, restore, delete)
-// go through [WriteSets], not here.
+// session-aggregate reads/create, the atomic multi-field Patch, and child
+// traversal. Patch is single-domain (all on the session row), so it stays an
+// aggregate store method; the multi-store write-sets (fork, rollback, restore,
+// delete) go through [WriteSets].
 type SessionStore interface {
 	List(ctx context.Context) ([]session.Session, error)
 	Get(ctx context.Context, id string) (session.Session, error)
 	Create(ctx context.Context, title, cwd string) (session.Session, error)
-	Rename(ctx context.Context, id, title string) error
-	SetModel(ctx context.Context, id, model string) error
-	SetCwd(ctx context.Context, id, cwd string) error
-	SetMetadata(ctx context.Context, id string, meta map[string]any) error
-	SetFavorite(ctx context.Context, id string, favorite bool) error
-	Fork(ctx context.Context, parentID, atMessageID string) (session.Session, error)
+	Patch(ctx context.Context, id string, patch session.Patch) (session.Session, error)
 	Children(ctx context.Context, parentID string) ([]session.Session, error)
 }
 
@@ -60,6 +56,10 @@ type InterruptStore interface {
 // calls with the boundary hidden in the context (§8.4). The application decides
 // the plan; the adapter executes it atomically, enriching nothing.
 type WriteSets interface {
+	// ApplyFork branches a child session off the plan's parent, seeds its chat log
+	// with the resolved history prefix, and titles it — atomically — returning the
+	// created child.
+	ApplyFork(ctx context.Context, plan execution.ForkPlan) (session.Session, error)
 	// ApplyRollback truncates the chat log to the boundary and drops each
 	// past-boundary run's transcript record + open interrupt, terminalizing an
 	// abandoned parked run's admission row — atomically.
@@ -76,25 +76,22 @@ type WriteSets interface {
 }
 
 // Stores is the consumer-defined surface the Coordinator drives — the atomic
-// write-sets, the session-scoped read/CRUD stores, the chat history log, the
-// process-local resume gate (ForgetSession), and the transactional seam (RunInTx,
-// used only by the fork/patch aggregate write-sets that stay single-domain). The
-// composition root supplies an adapter so the Coordinator depends only on what it
-// calls, not the whole runtime.
+// write-sets, the session-scoped read/create/patch store, the open-interrupt
+// reads, the chat history read (for the fork prefix), and the process-local
+// resume gate. Every durable mutation goes through an atomic write-set port
+// ([WriteSets] or [SessionStore.Patch]); the coordinator no longer stitches a
+// transaction across table-CRUD calls (§8.4). The composition root supplies an
+// adapter so the Coordinator depends only on what it calls, not the whole runtime.
 type Stores interface {
 	WriteSets
 	Session() SessionStore
 	Interrupts() InterruptStore
-	// ReadHistory returns the chat history log for a session.
+	// ReadHistory returns the chat history log for a session — read by fork to
+	// resolve the prefix seeded into the child.
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
-	// SeedHistory replaces a session's chat history log with msgs.
-	SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error
 	// ForgetSession releases the executor's process-local state for a session
 	// that is being removed (the SessionStart gate).
 	ForgetSession(sessionID string)
-	// RunInTx runs fn inside one storage transaction; the store calls the closure
-	// makes join it through the context.
-	RunInTx(ctx context.Context, fn func(context.Context) error) error
 }
 
 // RunRef identifies the durable turn a lifecycle write-set acts on, without

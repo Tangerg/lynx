@@ -12,33 +12,30 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// Fork checks the parent exists and inserts the child in a single transaction
-// so a concurrent Delete on the parent can't race against the fork.
+// Fork checks the parent exists and inserts the child in a single transaction so
+// a concurrent Delete on the parent can't race against the fork. Uses the
+// re-entrant [RunInTx] + conn(ctx) so it joins the fork write-set's transaction
+// (seed history + rename) rather than opening a second connection.
 func (s *SessionStore) Fork(ctx context.Context, parentID, atMessageID string) (session.Session, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	var child session.Session
+	err := RunInTx(ctx, s.db, func(ctx context.Context) error {
+		q := conn(ctx, s.db)
+		parent, err := rowToSession(q.QueryRowContext(ctx,
+			`SELECT `+sessionColumns+` FROM sessions WHERE id = ?`, parentID))
+		if errors.Is(err, sql.ErrNoRows) {
+			return session.ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("sqlite: fork parent lookup: %w", err)
+		}
+		// The fork-derivation rule (title suffix, cwd inheritance, branch-point
+		// metadata) is a Session invariant — the adapter only supplies the new id
+		// and the clock.
+		child = parent.Fork(session.IDPrefix+uuid.NewString(), atMessageID, time.Now().UTC())
+		return s.execInsert(ctx, q, child)
+	})
 	if err != nil {
-		return session.Session{}, fmt.Errorf("sqlite: begin fork tx: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck // commit overrides; rollback on early return
-
-	parent, err := rowToSession(tx.QueryRowContext(ctx,
-		`SELECT `+sessionColumns+` FROM sessions WHERE id = ?`, parentID))
-	if errors.Is(err, sql.ErrNoRows) {
-		return session.Session{}, session.ErrNotFound
-	}
-	if err != nil {
-		return session.Session{}, fmt.Errorf("sqlite: fork parent lookup: %w", err)
-	}
-
-	// The fork-derivation rule (title suffix, cwd inheritance, branch-point
-	// metadata) is a Session invariant — the adapter only supplies the new id
-	// and the clock.
-	child := parent.Fork(session.IDPrefix+uuid.NewString(), atMessageID, time.Now().UTC())
-	if err := s.execInsert(ctx, tx, child); err != nil {
 		return session.Session{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return session.Session{}, fmt.Errorf("sqlite: commit fork: %w", err)
 	}
 	return child, nil
 }

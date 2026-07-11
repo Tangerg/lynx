@@ -279,14 +279,23 @@ func (s stubLifecycleStores) ReadHistory(ctx context.Context, id string) ([]chat
 	return s.rt.ReadHistory(ctx, id)
 }
 
-func (s stubLifecycleStores) SeedHistory(ctx context.Context, id string, msgs []chat.Message) error {
-	return s.rt.SeedHistory(ctx, id, msgs)
-}
-
 func (s stubLifecycleStores) ForgetSession(id string) { s.rt.ForgetSession(id) }
 
-func (s stubLifecycleStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
-	return s.rt.RunInTx(ctx, fn)
+func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan execution.ForkPlan) (session.Session, error) {
+	child, err := s.rt.sess.Fork(ctx, plan.ParentID, "")
+	if err != nil {
+		return session.Session{}, err
+	}
+	if err := s.rt.SeedHistory(ctx, child.ID, plan.Messages); err != nil {
+		return session.Session{}, err
+	}
+	if plan.Title != "" {
+		if err := s.rt.sess.Rename(ctx, child.ID, plan.Title); err != nil {
+			return session.Session{}, err
+		}
+		child.Title = plan.Title
+	}
+	return child, nil
 }
 
 // The atomic write-sets over the stub's in-memory history + real sqlite

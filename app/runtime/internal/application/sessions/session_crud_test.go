@@ -26,6 +26,7 @@ type crudSessionStore struct {
 	metadata      map[string]any
 	favoriteID    string
 	favoriteValue bool
+	patched       bool
 }
 
 func (s *crudSessionStore) List(context.Context) ([]session.Session, error) { return s.sessions, nil }
@@ -41,55 +42,47 @@ func (s *crudSessionStore) Create(_ context.Context, title, cwd string) (session
 	return session.Session{ID: "ses_created", Title: title, Cwd: cwd}, nil
 }
 
-func (*crudSessionStore) Restore(context.Context, session.Session) error { return nil }
-func (*crudSessionStore) Fork(context.Context, string, string) (session.Session, error) {
-	return session.Session{}, nil
-}
 func (*crudSessionStore) Children(context.Context, string) ([]session.Session, error) {
 	return nil, nil
 }
-func (*crudSessionStore) Delete(context.Context, string) error { return nil }
 
-func (s *crudSessionStore) Rename(_ context.Context, id, title string) error {
-	s.renamed = [2]string{id, title}
-	return nil
-}
-
-func (s *crudSessionStore) SetModel(_ context.Context, id, model string) error {
-	s.model = [2]string{id, model}
-	return s.modelErr
-}
-
-func (s *crudSessionStore) SetCwd(_ context.Context, id, cwd string) error {
-	s.cwd = [2]string{id, cwd}
-	return nil
-}
-
-func (s *crudSessionStore) SetMetadata(_ context.Context, id string, meta map[string]any) error {
-	s.metadataID = id
-	s.metadata = meta
-	return nil
-}
-
-func (s *crudSessionStore) SetFavorite(_ context.Context, id string, favorite bool) error {
-	s.favoriteID = id
-	s.favoriteValue = favorite
-	return nil
+// Patch applies the normalized patch — recording each set field — as the
+// aggregate atomic write-set the coordinator's Update drives.
+func (s *crudSessionStore) Patch(_ context.Context, id string, patch session.Patch) (session.Session, error) {
+	s.patched = true
+	if patch.Title != nil {
+		s.renamed = [2]string{id, *patch.Title}
+	}
+	if patch.Model != nil {
+		s.model = [2]string{id, *patch.Model}
+	}
+	if patch.Cwd != nil {
+		s.cwd = [2]string{id, *patch.Cwd}
+	}
+	if patch.Metadata != nil {
+		s.metadataID = id
+		s.metadata = *patch.Metadata
+	}
+	if patch.Favorite != nil {
+		s.favoriteID = id
+		s.favoriteValue = *patch.Favorite
+	}
+	if s.modelErr != nil {
+		return session.Session{}, s.modelErr
+	}
+	return session.Session{ID: id}, nil
 }
 
 type crudStores struct {
 	session *crudSessionStore
-	ranInTx bool
 }
 
 func (s *crudStores) Session() SessionStore                                     { return s.session }
 func (*crudStores) Interrupts() InterruptStore                                  { panic("unused") }
 func (*crudStores) ReadHistory(context.Context, string) ([]chat.Message, error) { panic("unused") }
-func (*crudStores) SeedHistory(context.Context, string, []chat.Message) error   { panic("unused") }
 func (*crudStores) ForgetSession(string)                                        {}
-func (s *crudStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
-	s.ranInTx = true
-	return fn(ctx)
+func (*crudStores) ApplyFork(context.Context, execution.ForkPlan) (session.Session, error) {
+	panic("unused")
 }
 func (*crudStores) ApplyRollback(context.Context, execution.RollbackPlan) error { panic("unused") }
 func (*crudStores) ApplyRestore(context.Context, execution.RestorePlan) error   { panic("unused") }
@@ -134,7 +127,7 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 
 func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	store := &crudSessionStore{}
-	c, stores := newCRUDCoordinator(store)
+	c, _ := newCRUDCoordinator(store)
 	ctx := context.Background()
 
 	title := "  Renamed  "
@@ -153,8 +146,8 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	if !stores.ranInTx {
-		t.Fatal("Update did not run through the transactor")
+	if !store.patched {
+		t.Fatal("Update did not apply the atomic patch write-set")
 	}
 	if got.ID != "ses_1" || store.renamed != ([2]string{"ses_1", "Renamed"}) {
 		t.Fatalf("updated=%+v renamed=%v", got, store.renamed)

@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
@@ -44,29 +45,53 @@ func (s sessionStores) ReadHistory(ctx context.Context, sessionID string) ([]cha
 	return s.history.Read(ctx, sessionID)
 }
 
-func (s sessionStores) SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error {
-	return s.history.Seed(ctx, sessionID, msgs)
-}
-
 func (s sessionStores) ForgetSession(sessionID string) { s.forgetter.ForgetSession(sessionID) }
 
-// RunInTx runs fn inside one storage transaction, falling back to a direct call
+// runInTx runs fn inside one storage transaction, falling back to a direct call
 // when no transactor is wired (a non-sqlite / test runtime) — see
-// [lyraruntime.Transactor]. Used by the fork/patch aggregate write-sets that stay
-// single-domain; the destructive multi-store write-sets go through the Apply*
-// methods below.
-func (s sessionStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
+// [lyraruntime.Transactor]. The Apply* write-sets below drive it; it is the one
+// transactional seam left, now behind the atomic ports rather than the
+// coordinator's own surface (§8.4).
+func (s sessionStores) runInTx(ctx context.Context, fn func(context.Context) error) error {
 	if s.tx == nil {
 		return fn(ctx)
 	}
 	return s.tx(ctx, fn)
 }
 
+// ApplyFork branches a child session off plan.ParentID, seeds its chat log with
+// the resolved history prefix, and titles it — all in one transaction, so a
+// concurrent delete on the parent can't race a half-created child.
+func (s sessionStores) ApplyFork(ctx context.Context, plan execution.ForkPlan) (session.Session, error) {
+	var child session.Session
+	err := s.runInTx(ctx, func(ctx context.Context) error {
+		ch, err := s.sessions.Fork(ctx, plan.ParentID, "")
+		if err != nil {
+			return err
+		}
+		if err := s.history.Seed(ctx, ch.ID, plan.Messages); err != nil {
+			return err
+		}
+		if plan.Title != "" {
+			if err := s.sessions.Rename(ctx, ch.ID, plan.Title); err != nil {
+				return err
+			}
+			ch.Title = plan.Title
+		}
+		child = ch
+		return nil
+	})
+	if err != nil {
+		return session.Session{}, err
+	}
+	return child, nil
+}
+
 // ApplyRollback truncates the chat log to the boundary watermark, drops each
 // past-boundary run's transcript record + open interrupt, and terminalizes an
 // abandoned parked run's admission row — all in one transaction (§8.1/§8.3).
 func (s sessionStores) ApplyRollback(ctx context.Context, plan execution.RollbackPlan) error {
-	return s.RunInTx(ctx, func(ctx context.Context) error {
+	return s.runInTx(ctx, func(ctx context.Context) error {
 		if plan.KeepMark >= 0 {
 			if err := s.history.Truncate(ctx, plan.SessionID, plan.KeepMark); err != nil {
 				return err
@@ -95,7 +120,7 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan execution.Rollbac
 // chat log, then seed the decoded messages, runs, and items.
 func (s sessionStores) ApplyRestore(ctx context.Context, plan execution.RestorePlan) error {
 	id := plan.Session.ID
-	return s.RunInTx(ctx, func(ctx context.Context) error {
+	return s.runInTx(ctx, func(ctx context.Context) error {
 		if err := s.sessions.Restore(ctx, plan.Session); err != nil {
 			return err
 		}
@@ -131,7 +156,7 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan execution.RestoreP
 // ApplyDelete removes all of a session's durable state — transcript, chat log,
 // open interrupts, admission rows, and the session row — atomically.
 func (s sessionStores) ApplyDelete(ctx context.Context, sessionID string) error {
-	return s.RunInTx(ctx, func(ctx context.Context) error {
+	return s.runInTx(ctx, func(ctx context.Context) error {
 		if err := s.transcript.DeleteSession(ctx, sessionID); err != nil {
 			return err
 		}
@@ -152,7 +177,7 @@ func (s sessionStores) ApplyDelete(ctx context.Context, sessionID string) error 
 // the run's admission row atomically, so a canceled parked run neither stays
 // resumable nor leaves the session durably busy.
 func (s sessionStores) ApplyCancel(ctx context.Context, sessionID, runID string) error {
-	return s.RunInTx(ctx, func(ctx context.Context) error {
+	return s.runInTx(ctx, func(ctx context.Context) error {
 		if err := s.interrupts.Delete(ctx, runID); err != nil {
 			return err
 		}

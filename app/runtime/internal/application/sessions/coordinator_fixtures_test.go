@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 type coordinatorStores struct {
@@ -19,12 +20,9 @@ func (s coordinatorStores) Interrupts() InterruptStore { return s.interrupts }
 func (s coordinatorStores) ReadHistory(context.Context, string) ([]chat.Message, error) {
 	panic("unused")
 }
-func (s coordinatorStores) SeedHistory(context.Context, string, []chat.Message) error {
-	panic("unused")
-}
 func (s coordinatorStores) ForgetSession(string) {}
-func (s coordinatorStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
-	return fn(ctx)
+func (s coordinatorStores) ApplyFork(context.Context, execution.ForkPlan) (session.Session, error) {
+	panic("unused")
 }
 
 // The atomic write-sets delegate their interrupt drops to the interrupt fake so
