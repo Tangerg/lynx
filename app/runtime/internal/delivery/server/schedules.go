@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
@@ -107,7 +108,7 @@ func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowR
 	if err != nil {
 		return mapScheduleErr(err, "schedules.runNow", in.ID)
 	}
-	if _, err := schedule.Fire(ctx, scheduleRunner{s}, sc); err != nil {
+	if _, err := schedules.Fire(ctx, scheduleRunner{s}, sc); err != nil {
 		return err
 	}
 	return mapScheduleErr(s.schedules.RecordRun(ctx, sc.ID, time.Now().UTC()), "schedules.runNow", sc.ID)

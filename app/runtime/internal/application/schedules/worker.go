@@ -1,4 +1,4 @@
-package schedule
+package schedules
 
 import (
 	"context"
@@ -10,26 +10,33 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
 var workerTracer = otel.Tracer("lynx/lyra/schedule")
 
 const workerTick = time.Minute
 
-// Runner starts one scheduled prompt as a headless run.
+// Runner starts one scheduled prompt as a headless run. The delivery layer
+// supplies it; it is the application-owned seam between a fired schedule and a
+// run start.
 type Runner interface {
-	StartScheduledRun(ctx context.Context, sc Schedule) (string, error)
+	StartScheduledRun(ctx context.Context, sc schedule.Schedule) (string, error)
 }
 
-// WorkerStore is the schedule persistence slice the worker owns. Management
-// CRUD stays on [Registry]; the worker only needs the due query and guarded
+// WorkerStore is the schedule persistence slice the worker owns. Management CRUD
+// stays on [schedule.Registry]; the worker only needs the due query and guarded
 // cursor advance.
 type WorkerStore interface {
-	Due(ctx context.Context, now time.Time) ([]Schedule, error)
+	Due(ctx context.Context, now time.Time) ([]schedule.Schedule, error)
 	MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error
 }
 
 // Worker scans due schedules and advances their cron cursor after each firing.
+// It is the ticker component of the automation use case — the schedule spec and
+// next-fire rule are the domain's ([schedule.Schedule] / [schedule.NextRun]);
+// the periodic scan and side-effecting firing are the application's.
 type Worker struct {
 	schedules WorkerStore
 	runner    Runner
@@ -58,9 +65,9 @@ func (w Worker) Run(ctx context.Context) {
 }
 
 // Fire starts one schedule through runner under the schedule firing span.
-func Fire(ctx context.Context, runner Runner, sc Schedule) (string, error) {
+func Fire(ctx context.Context, runner Runner, sc schedule.Schedule) (string, error) {
 	if runner == nil {
-		return "", errors.New("schedule: runner is nil")
+		return "", errors.New("schedules: runner is nil")
 	}
 	ctx, span := workerTracer.Start(ctx, "schedule.fire",
 		trace.WithAttributes(attribute.String("schedule.id", sc.ID)))
@@ -84,7 +91,7 @@ func (w Worker) fireDue(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, sc := range due {
-		next, nerr := NextRun(sc.Cron, now)
+		next, nerr := schedule.NextRun(sc.Cron, now)
 		if nerr != nil {
 			recordWorkerError(ctx, "unparseable cron", fmt.Errorf("schedule %s: %w", sc.ID, nerr))
 			next = time.Time{}

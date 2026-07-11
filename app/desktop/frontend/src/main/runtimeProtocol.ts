@@ -1,6 +1,5 @@
 import { CLIENT_INFO, PROTOCOL_VERSION } from "@/main/config";
-import type { ClientCapabilities, DiscoverResponse, RequestMeta, RpcClient } from "@/rpc";
-import { useRuntimeStore } from "@/state/runtimeStore";
+import type { ClientCapabilities, RequestMeta } from "@/rpc";
 
 export const CLIENT_CAPABILITIES: ClientCapabilities = {
   events: [
@@ -24,23 +23,4 @@ export function runtimeRequestMeta(): RequestMeta {
     clientInfo: CLIENT_INFO,
     clientCapabilities: CLIENT_CAPABILITIES,
   };
-}
-
-const inFlight = new WeakMap<RpcClient, Promise<void>>();
-
-export function discoverRuntime(rpc: RpcClient): Promise<void> {
-  const existing = inFlight.get(rpc);
-  if (existing) return existing;
-
-  const current = Promise.resolve()
-    .then(() => rpc.call<DiscoverResponse>("runtime.discover", {}))
-    .then((result) => {
-      useRuntimeStore.getState().setDiscovery(result.capabilities);
-    });
-  inFlight.set(rpc, current);
-  const clear = () => {
-    if (inFlight.get(rpc) === current) inFlight.delete(rpc);
-  };
-  void current.then(clear, clear);
-  return current;
 }

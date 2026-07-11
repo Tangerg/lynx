@@ -1,14 +1,16 @@
-package schedule
+package schedules
 
 import (
 	"context"
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
 type workerStore struct {
-	due       []Schedule
+	due       []schedule.Schedule
 	dueErr    error
 	markCalls []markCall
 }
@@ -20,18 +22,18 @@ type markCall struct {
 	nextRunAt     time.Time
 }
 
-func (s *workerStore) List(context.Context) ([]Schedule, error) { return nil, nil }
-func (s *workerStore) Get(context.Context, string) (Schedule, error) {
-	return Schedule{}, ErrNotFound
+func (s *workerStore) List(context.Context) ([]schedule.Schedule, error) { return nil, nil }
+func (s *workerStore) Get(context.Context, string) (schedule.Schedule, error) {
+	return schedule.Schedule{}, schedule.ErrNotFound
 }
-func (s *workerStore) Create(context.Context, Schedule) (Schedule, error) {
-	return Schedule{}, nil
+func (s *workerStore) Create(context.Context, schedule.Schedule) (schedule.Schedule, error) {
+	return schedule.Schedule{}, nil
 }
-func (s *workerStore) Update(context.Context, Schedule) (Schedule, error) {
-	return Schedule{}, nil
+func (s *workerStore) Update(context.Context, schedule.Schedule) (schedule.Schedule, error) {
+	return schedule.Schedule{}, nil
 }
 func (s *workerStore) Delete(context.Context, string) error { return nil }
-func (s *workerStore) Due(_ context.Context, now time.Time) ([]Schedule, error) {
+func (s *workerStore) Due(_ context.Context, now time.Time) ([]schedule.Schedule, error) {
 	return s.due, s.dueErr
 }
 func (s *workerStore) MarkFired(_ context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error {
@@ -42,10 +44,10 @@ func (s *workerStore) RecordRun(context.Context, string, time.Time) error { retu
 
 type workerRunner struct {
 	err   error
-	fired []Schedule
+	fired []schedule.Schedule
 }
 
-func (r *workerRunner) StartScheduledRun(_ context.Context, sc Schedule) (string, error) {
+func (r *workerRunner) StartScheduledRun(_ context.Context, sc schedule.Schedule) (string, error) {
 	r.fired = append(r.fired, sc)
 	if r.err != nil {
 		return "", r.err
@@ -56,7 +58,7 @@ func (r *workerRunner) StartScheduledRun(_ context.Context, sc Schedule) (string
 func TestWorkerFireDueMarksFiredAfterRunFailure(t *testing.T) {
 	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
 	prev := now.Add(-time.Minute)
-	store := &workerStore{due: []Schedule{{ID: "sch_1", Cron: "* * * * *", NextRunAt: prev}}}
+	store := &workerStore{due: []schedule.Schedule{{ID: "sch_1", Cron: "* * * * *", NextRunAt: prev}}}
 	runner := &workerRunner{err: errors.New("boom")}
 
 	NewWorker(store, runner).fireDue(context.Background(), now)
@@ -78,7 +80,7 @@ func TestWorkerFireDueMarksFiredAfterRunFailure(t *testing.T) {
 
 func TestWorkerFireDueDisablesCorruptCron(t *testing.T) {
 	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
-	store := &workerStore{due: []Schedule{{ID: "sch_bad", Cron: "not cron", NextRunAt: now}}}
+	store := &workerStore{due: []schedule.Schedule{{ID: "sch_bad", Cron: "not cron", NextRunAt: now}}}
 	runner := &workerRunner{}
 
 	NewWorker(store, runner).fireDue(context.Background(), now)
