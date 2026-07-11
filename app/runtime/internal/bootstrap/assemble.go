@@ -7,6 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
@@ -14,29 +16,39 @@ import (
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
-// Assemble builds the runtime facade from cfg: it constructs the engine, turn
-// dispatcher, tool registry, and the utility/embedding/mcp environments, then
-// wires them into the facade via [lyraruntime.New]. Returns an error when a
-// required dependency is missing or any internal constructor fails — engine
-// deployment, MCP dial, etc.
-func Assemble(ctx context.Context, cfg lyraruntime.Config) (*lyraruntime.Runtime, error) {
+// Stack is the assembled application: the Runtime facade (the turn/engine
+// Executor surface) plus the application coordinators the delivery layer holds
+// directly. It grows as facade responsibilities move into coordinators.
+type Stack struct {
+	Runtime   *lyraruntime.Runtime
+	Workspace *workspace.Coordinator
+	Schedules *schedules.Coordinator
+}
+
+// Assemble builds the application Stack from cfg: it constructs the engine, turn
+// dispatcher, tool registry, and the utility/embedding/mcp environments, wires
+// them into the facade via [lyraruntime.New], and builds the application
+// coordinators from the same materials. Returns an error when a required
+// dependency is missing or any internal constructor fails — engine deployment,
+// MCP dial, etc.
+func Assemble(ctx context.Context, cfg lyraruntime.Config) (Stack, error) {
 	if cfg.Engine.ChatClient == nil {
-		return nil, errors.New("runtime: Engine.ChatClient is required")
+		return Stack{}, errors.New("runtime: Engine.ChatClient is required")
 	}
 	if cfg.ProviderRegistry == nil {
-		return nil, errors.New("runtime: ProviderRegistry is required")
+		return Stack{}, errors.New("runtime: ProviderRegistry is required")
 	}
 	if cfg.MCPRegistry == nil {
-		return nil, errors.New("runtime: MCPRegistry is required")
+		return Stack{}, errors.New("runtime: MCPRegistry is required")
 	}
 	if cfg.SessionStore == nil {
-		return nil, errors.New("runtime: SessionStore is required")
+		return Stack{}, errors.New("runtime: SessionStore is required")
 	}
 	if cfg.InterruptStore == nil {
-		return nil, errors.New("runtime: InterruptStore is required")
+		return Stack{}, errors.New("runtime: InterruptStore is required")
 	}
 	if cfg.TranscriptStore == nil {
-		return nil, errors.New("runtime: TranscriptStore is required")
+		return Stack{}, errors.New("runtime: TranscriptStore is required")
 	}
 
 	ecfg, messages := prepareEngineConfig(cfg)
@@ -56,11 +68,11 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (*lyraruntime.Runtime
 
 	utilityEnv, err := buildUtilityEnvironment(ctx, cfg.Engine.ChatClient, cfg.UtilityRoleStore, resolver)
 	if err != nil {
-		return nil, err
+		return Stack{}, err
 	}
 	embeddingEnv, err := buildEmbeddingEnvironment(ctx, cfg.EmbeddingRoleStore, cfg.CodebaseStore, providers)
 	if err != nil {
-		return nil, err
+		return Stack{}, err
 	}
 
 	wireEnginePorts(&ecfg, cfg, messages, utilityEnv.resolve)
@@ -76,12 +88,12 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (*lyraruntime.Runtime
 
 	mcpEnv, err := buildMCPEnvironment(ctx, cfg.MCPRegistry)
 	if err != nil {
-		return nil, err
+		return Stack{}, err
 	}
 
 	built, err := buildToolEnvironment(ctx, cfg, ecfg, approvalPolicy, mcpEnv, embeddingEnv.index)
 	if err != nil {
-		return nil, err
+		return Stack{}, err
 	}
 	attachToolEnvironment(&ecfg, built)
 
@@ -90,7 +102,7 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (*lyraruntime.Runtime
 		// toolset.Build already dialed MCP/A2A + launched LSP/exec backends into
 		// built.Closers; kernel.New didn't take ownership (no engine to Close), so
 		// release them here rather than leaking the sessions/processes.
-		return nil, errors.Join(fmt.Errorf("runtime: engine: %w", err), runClosers(built.Closers))
+		return Stack{}, errors.Join(fmt.Errorf("runtime: engine: %w", err), runClosers(built.Closers))
 	}
 	// From here the engine owns built.Closers (eng.Close runs them), so a later
 	// construction failure tears down via eng.Close.
@@ -104,42 +116,50 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (*lyraruntime.Runtime
 		Hooks:               cfg.HooksResolver,
 	})
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("runtime: turn dispatcher: %w", err), eng.Close())
+		return Stack{}, errors.Join(fmt.Errorf("runtime: turn dispatcher: %w", err), eng.Close())
 	}
 	toolRegistry, err := toolsvc.New(eng)
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("runtime: tool registry: %w", err), eng.Close())
+		return Stack{}, errors.Join(fmt.Errorf("runtime: tool registry: %w", err), eng.Close())
 	}
 
-	return lyraruntime.New(lyraruntime.Dependencies{
-		Engine:           eng,
-		Turns:            turnDispatcher,
-		Tools:            toolRegistry,
-		Approval:         approvalPolicy,
-		Conversation:     messages.conversation,
-		Resolver:         resolver,
-		Sessions:         cfg.SessionStore,
-		Interrupts:       cfg.InterruptStore,
-		Transcript:       cfg.TranscriptStore,
-		Memory:           cfg.Engine.Knowledge,
-		Providers:        cfg.ProviderRegistry,
-		MCPRegistry:      cfg.MCPRegistry,
-		MCPPolicy:        mcpEnv.policy,
-		DefaultProvider:  cfg.Provider,
-		DefaultModel:     cfg.Model,
-		Titles:           maintenance.NewTitler(utilityEnv.resolve),
-		UtilityCell:      utilityEnv.cell,
-		UtilityStore:     cfg.UtilityRoleStore,
-		HookInspection:   cfg.HooksResolver,
-		HookTrust:        cfg.HookTrustStore,
-		RecipesGlobalDir: cfg.RecipesGlobalDir,
-		EmbeddingCell:    embeddingEnv.cell,
-		Embeddings:       embeddingEnv.resolver,
-		EmbeddingStore:   cfg.EmbeddingRoleStore,
-		Codebase:         embeddingEnv.index,
-		Transactor:       cfg.Transactor,
-		Resources:        cfg.Resources,
-	}), nil
+	rt := lyraruntime.New(lyraruntime.Dependencies{
+		Engine:          eng,
+		Turns:           turnDispatcher,
+		Tools:           toolRegistry,
+		Approval:        approvalPolicy,
+		Conversation:    messages.conversation,
+		Resolver:        resolver,
+		Sessions:        cfg.SessionStore,
+		Interrupts:      cfg.InterruptStore,
+		Transcript:      cfg.TranscriptStore,
+		Providers:       cfg.ProviderRegistry,
+		MCPRegistry:     cfg.MCPRegistry,
+		MCPPolicy:       mcpEnv.policy,
+		DefaultProvider: cfg.Provider,
+		DefaultModel:    cfg.Model,
+		Titles:          maintenance.NewTitler(utilityEnv.resolve),
+		UtilityCell:     utilityEnv.cell,
+		UtilityStore:    cfg.UtilityRoleStore,
+		EmbeddingCell:   embeddingEnv.cell,
+		Embeddings:      embeddingEnv.resolver,
+		EmbeddingStore:  cfg.EmbeddingRoleStore,
+		Codebase:        embeddingEnv.index,
+		Transactor:      cfg.Transactor,
+		Resources:       cfg.Resources,
+	})
+
+	return Stack{
+		Runtime: rt,
+		Workspace: workspace.New(workspace.Config{
+			Memory:           cfg.Engine.Knowledge,
+			Skills:           eng,
+			Hooks:            cfg.HooksResolver,
+			Trust:            cfg.HookTrustStore,
+			RecipesGlobalDir: cfg.RecipesGlobalDir,
+		}),
+		Schedules: schedules.NewCoordinator(cfg.ScheduleRegistry, cfg.ScheduleRegistry),
+	}, nil
 }
 
 // runClosers releases a half-built tool environment before the engine can take

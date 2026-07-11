@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/taskgroup"
@@ -44,6 +45,11 @@ type Config struct {
 	// (schedules.* + the background worker). nil defaults to a disabled
 	// coordinator, so a build without scheduling reports capability_not_negotiated.
 	Schedules *schedules.Coordinator
+
+	// Workspace is the application coordinator for the project developer surface
+	// (memory / skills / recipes / hooks). nil defaults to a disabled coordinator
+	// (every dependency nil), so those workspace.* methods degrade gracefully.
+	Workspace *workspaceapp.Coordinator
 }
 
 // Server is the protocol.Runtime implementation exposed via [New].
@@ -62,6 +68,10 @@ type Server struct {
 	// schedules owns the cron-triggered headless-run use cases (schedules.* + the
 	// background worker), injected by the composition root. Never nil after New.
 	schedules *schedules.Coordinator
+
+	// workspace owns the project developer-surface use cases (memory / skills /
+	// recipes / hooks), injected by the composition root. Never nil after New.
+	workspace *workspaceapp.Coordinator
 
 	// eventSeq is the server-wide monotonic source for RunEvent ids
 	// (TRANSPORT.md §9.1). A single counter across all runs is strictly
@@ -129,12 +139,17 @@ func New(cfg Config) (*Server, error) {
 	if scheduleCoord == nil {
 		scheduleCoord = schedules.NewCoordinator(nil, nil) // disabled: schedules.* report capability_not_negotiated
 	}
+	workspaceCoord := cfg.Workspace
+	if workspaceCoord == nil {
+		workspaceCoord = workspaceapp.New(workspaceapp.Config{}) // disabled: memory/skills/recipes/hooks all no-op
+	}
 	srv := &Server{
 		rt:          cfg.Runtime,
 		serverInfo:  cfg.ServerInfo,
 		wsHub:       newWorkspaceHub(),
 		checkpoints: checkpoints,
 		schedules:   scheduleCoord,
+		workspace:   workspaceCoord,
 	}
 	// The run Coordinator's durable effects close over srv (workspace publish +
 	// checkpoints), so it is built here, after the Server value exists. evt_
@@ -147,22 +162,22 @@ func New(cfg Config) (*Server, error) {
 // delegating to the package-level [Capabilities] so the /v2/info
 // sidecar can build the same snapshot without a constructed Server.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return Capabilities(s.rt)
+	return Capabilities(s.rt, s.workspace.HasMemory())
 }
 
 // capabilityAccess is the slice of the runtime the capability snapshot needs;
 // [RuntimePort] (and any test fake of it) satisfies it directly.
 type capabilityAccess interface {
-	HasMemory() bool
 	SupportedProviders() []providersvc.Metadata
 }
 
 // Capabilities builds the capability snapshot a Runtime advertises
 // (API.md §9). It reflects actual wiring — features whose methods would
 // return capability_not_negotiated are advertised false, so the client never calls a
-// method this build silently rejects.
-func Capabilities(rt capabilityAccess) protocol.ServerCapabilities {
-	memory := rt != nil && rt.HasMemory()
+// method this build silently rejects. hasMemory comes from the workspace
+// coordinator (the long-term knowledge store may be absent).
+func Capabilities(rt capabilityAccess, hasMemory bool) protocol.ServerCapabilities {
+	memory := hasMemory
 	return protocol.ServerCapabilities{
 		ProtocolVersion: protocol.ProtocolVersion,
 		Events: []protocol.StreamEventType{

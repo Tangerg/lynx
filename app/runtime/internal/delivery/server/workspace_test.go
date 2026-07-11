@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -215,15 +216,27 @@ func TestWorkspaceGrep(t *testing.T) {
 	}
 }
 
+type fakeSkillCatalog struct{ skills []skills.Info }
+
+func (f fakeSkillCatalog) ListSkills(context.Context, string) ([]skills.Info, error) {
+	return f.skills, nil
+}
+
+type fakeRecipeLister struct{ recipes []recipes.Recipe }
+
+func (f fakeRecipeLister) List(context.Context, string) ([]recipes.Recipe, error) {
+	return f.recipes, nil
+}
+
 // TestWorkspaceListSkills maps the engine's discovered skills onto the wire,
 // carrying each one's scope through Source, and defaults cwd to the serve dir.
 func TestWorkspaceListSkills(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
-		rt: &stubRuntime{skills: []skills.Info{
+		workspace: workspaceapp.New(workspaceapp.Config{Skills: fakeSkillCatalog{skills: []skills.Info{
 			{Name: "pdf", Description: "PDF tools", Scope: "project"},
 			{Name: "web", Description: "web tools", Scope: "global"},
-		}},
+		}}}),
 		serverInfo: protocol.ServerInfo{Cwd: dir},
 	}
 	got, err := s.WorkspaceListSkills(context.Background(), protocol.WorkspaceListQuery{})
@@ -240,10 +253,10 @@ func TestWorkspaceListSkills(t *testing.T) {
 func TestWorkspaceListRecipes(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
-		rt: &stubRuntime{recipes: []recipes.Recipe{
+		workspace: workspaceapp.New(workspaceapp.Config{Recipes: fakeRecipeLister{recipes: []recipes.Recipe{
 			{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: "project", Source: "/p/review.md"},
 			{Name: "commit", Body: "Write a commit", Scope: "global", Source: "/g/commit.md"},
-		}},
+		}}}),
 		serverInfo: protocol.ServerInfo{Cwd: dir},
 	}
 	got, err := s.WorkspaceListRecipes(context.Background(), protocol.WorkspaceListQuery{})

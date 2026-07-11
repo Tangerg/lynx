@@ -18,7 +18,7 @@ func (s *Server) WorkspaceListHooks(ctx context.Context, in protocol.ListHooksRe
 	if err != nil {
 		return nil, err
 	}
-	insp := s.rt.InspectHooks(ctx, root)
+	insp := s.workspace.InspectHooks(ctx, root)
 	out := &protocol.HooksListResult{
 		ProjectRoot:    insp.ProjectRoot,
 		ProjectTrusted: insp.ProjectTrusted,
@@ -49,5 +49,5 @@ func (s *Server) WorkspaceSetHookTrust(ctx context.Context, in protocol.SetHookT
 	if err != nil {
 		return fmt.Errorf("%w: %s: %v", protocol.ErrCwdUnavailable, in.ProjectRoot, err)
 	}
-	return s.rt.SetProjectHookTrust(ctx, root, in.Trusted)
+	return s.workspace.SetProjectHookTrust(ctx, root, in.Trusted)
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/observability"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
@@ -29,7 +30,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, stack.rt.Close()) }()
+	defer func() { err = errors.Join(err, stack.Runtime.Close()) }()
 	srv := cfg.Server
 	if len(srv.CORSOrigins) == 0 {
 		srv.CORSOrigins = lyrahttp.DefaultCORSOrigins
@@ -60,7 +61,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 }
 
 // buildHTTPServer assembles the HTTP+SSE server from the resolved settings.
-func buildHTTPServer(stack runtimeStack, srv config.ServerConfig, tokenValue string) (*lyrahttp.Server, *server.Server, error) {
+func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue string) (*lyrahttp.Server, *server.Server, error) {
 	info := lyrahttp.ServerInfoOrDefault()
 	info.Version = resolvedVersion()
 	if home, err := os.UserHomeDir(); err == nil {
@@ -76,16 +77,17 @@ func buildHTTPServer(stack runtimeStack, srv config.ServerConfig, tokenValue str
 	}
 
 	api, err := server.New(server.Config{
-		Runtime:     stack.rt,
+		Runtime:     stack.Runtime,
 		ServerInfo:  info,
 		Checkpoints: workspace.NewCheckpoints(checkpointDir),
-		Schedules:   stack.schedules,
+		Schedules:   stack.Schedules,
+		Workspace:   stack.Workspace,
 	})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	caps := server.Capabilities(stack.rt)
+	caps := server.Capabilities(stack.Runtime, stack.Workspace.HasMemory())
 	httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
 		Runtime:         api,
 		Addr:            srv.Listen,

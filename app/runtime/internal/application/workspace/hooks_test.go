@@ -1,4 +1,4 @@
-package runtime
+package workspace
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 )
 
 func TestRuntimeInspectHooksReturnsEmptyWhenUnconfigured(t *testing.T) {
-	rt := &Runtime{}
+	c := New(Config{})
 
-	got := rt.InspectHooks(context.Background(), "/repo")
+	got := c.InspectHooks(context.Background(), "/repo")
 	if got.ProjectRoot != "" || got.ProjectTrusted || len(got.Hooks) != 0 {
 		t.Fatalf("InspectHooks = %+v, want empty inspection", got)
 	}
@@ -27,9 +27,9 @@ func TestRuntimeInspectHooksUsesInspectionPort(t *testing.T) {
 			}},
 		},
 	}
-	rt := &Runtime{hookInspection: inspector}
+	c := New(Config{Hooks: inspector})
 
-	got := rt.InspectHooks(context.Background(), "/repo")
+	got := c.InspectHooks(context.Background(), "/repo")
 	if inspector.cwd != "/repo" {
 		t.Fatalf("inspect cwd = %q, want /repo", inspector.cwd)
 	}
