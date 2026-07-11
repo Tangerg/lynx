@@ -18,6 +18,23 @@ type TrackDisposable = (disposable: Disposable) => Disposable;
 let nextCompositeKeyId = 0;
 const mintId = (prefix: string) => `${prefix}#${++nextCompositeKeyId}`;
 
+function itemId(item: unknown): string | undefined {
+  if (typeof item !== "object" || item === null || !("id" in item)) return undefined;
+  return typeof item.id === "string" ? item.id : undefined;
+}
+
+function singleContributionKey<T>(
+  point: ExtensionPoint<T>,
+  item: T,
+  explicitKey: string | undefined,
+): string {
+  const key = explicitKey ?? point.keyOf?.(item) ?? itemId(item);
+  if (key) return key;
+  throw new Error(
+    `Single extension point "${point.id}" requires opts.key, keyOf, or a non-empty item.id`,
+  );
+}
+
 export function createContribute(
   pluginName: string,
   capabilities: HostCapability[] | undefined,
@@ -40,11 +57,10 @@ export function createContribute(
           `"${point.capability}" — add it to spec.capabilities`,
       );
     }
-    const keyOf = point.keyOf ?? ((i: T) => (i as unknown as { id: string }).id);
     let outerKey: string;
     let conflictKey: string;
     if (point.keying === "single") {
-      const base = opts?.key ?? keyOf(item);
+      const base = singleContributionKey(point, item, opts?.key);
       conflictKey = point.normalizeKey ? point.normalizeKey(base) : base;
       outerKey = composeExtensionKey(point.id, conflictKey);
     } else {

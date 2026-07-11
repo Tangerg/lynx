@@ -58,6 +58,20 @@ describe("extension point substrate", () => {
     expect(glyphs).toEqual(["bash:shell", "grep:search"]);
   });
 
+  it("single point: rejects a contribution with no stable key", () => {
+    const idless = defineExtensionPoint<{ label: string }>({
+      id: "test.idless",
+      keying: "single",
+    });
+
+    expect(() =>
+      createHost("alpha", []).extensions.contribute(idless, { label: "No key" }),
+    ).toThrow(
+      'Single extension point "test.idless" requires opts.key, keyOf, or a non-empty item.id',
+    );
+    expect(lookupExtensionPoint(idless)).toHaveLength(0);
+  });
+
   it("multi point: every contribution coexists (no override)", () => {
     const a = createHost("alpha", []);
     const b = createHost("beta", []);
