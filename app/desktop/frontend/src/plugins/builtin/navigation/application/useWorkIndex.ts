@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useProjects } from "@/lib/data/queries";
+import { useWorkspaceProjects } from "@/plugins/builtin/workspace/public/data";
 import {
   useActiveSessionCwd,
   useActiveSessionId,
@@ -13,7 +13,7 @@ interface UseWorkIndexOptions {
 }
 
 export function useWorkIndex({ fallbackProjectName }: UseWorkIndexOptions): WorkIndex {
-  const projects = useProjects();
+  const projects = useWorkspaceProjects();
   const sessions = useVisibleAgentSessions();
   const activeSessionId = useActiveSessionId();
   const activeCwd = useActiveSessionCwd();

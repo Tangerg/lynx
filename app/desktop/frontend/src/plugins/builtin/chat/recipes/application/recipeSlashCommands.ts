@@ -1,13 +1,14 @@
 import type { Disposable, Host } from "@/plugins/sdk";
-import type { RecipesQuery, AgentSessionSummary } from "@/lib/data/queries";
-import { RECIPES_KEY, SESSIONS_KEY } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 import { lookupDataProvider } from "@/plugins/sdk";
 import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
 import {
+  AGENT_SESSIONS_KEY,
   getActiveSessionId,
   subscribeActiveSessionId,
+  type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
+import { RECIPES_KEY, type RecipesQuery } from "./recipeQueries";
 
 const RECIPE_SIGNATURE_FIELD_SEPARATOR = "\u0000";
 const RECIPE_SIGNATURE_ROW_SEPARATOR = "\u0001";
@@ -30,7 +31,7 @@ function expandRecipe(body: string, argStr: string): string {
 function activeCwd(): string | undefined {
   const id = getActiveSessionId();
   if (!id) return undefined;
-  const sessions = queryClient.getQueryData<AgentSessionSummary[]>([SESSIONS_KEY]);
+  const sessions = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
   return sessions?.find((session) => session.id === id)?.cwd;
 }
 
@@ -88,7 +89,7 @@ export function installRecipeSlashCommands(host: Host): () => void {
   refresh();
   const unsubscribeSession = subscribeActiveSessionId(refresh);
   const unsubscribeQuery = queryClient.getQueryCache().subscribe((event) => {
-    if (event.query.queryKey[0] === SESSIONS_KEY) refresh();
+    if (event.query.queryKey[0] === AGENT_SESSIONS_KEY) refresh();
   });
 
   return () => {

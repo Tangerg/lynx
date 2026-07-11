@@ -1,4 +1,7 @@
-import { useUsageSummary } from "@/lib/data/useUsage";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { usageGateway } from "./ports/usageGateway";
+
+export const USAGE_SUMMARY_KEY = "usage.summary";
 
 export interface UsageBreakdownBucket {
   key: string;
@@ -22,5 +25,9 @@ export function usageTokens(bucket: { inputTokens?: number; outputTokens?: numbe
 }
 
 export function useUsageReport(sinceDays: number) {
-  return useUsageSummary(sinceDays);
+  return useQuery({
+    queryKey: [USAGE_SUMMARY_KEY, sinceDays],
+    queryFn: () => usageGateway().loadSummary(sinceDays),
+    placeholderData: keepPreviousData,
+  });
 }

@@ -6,7 +6,7 @@
 // cached per cwd by react-query.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useListFiles } from "@/lib/data/queries";
+import { useWorkspaceListFiles } from "@/plugins/builtin/workspace/public/data";
 import { fuzzyFile } from "./fuzzyFile";
 
 const MENTION_ROWS = 8; // visible suggestions
@@ -63,7 +63,7 @@ export function useFileMentions({ value, caret, cwd, apply }: Args): FileMention
   const open = mention !== null && mention.start !== dismissedStart;
 
   // Lazy + cached: the recursive list is fetched only once a mention is open.
-  const { data: files } = useListFiles(
+  const { data: files } = useWorkspaceListFiles(
     open && cwd !== undefined ? { cwd, recursive: true, limit: FETCH_LIMIT } : undefined,
   );
 

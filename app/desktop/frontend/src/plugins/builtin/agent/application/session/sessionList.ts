@@ -1,12 +1,12 @@
-import type { AgentSessionSummary } from "@/lib/data/queries";
+import type { AgentSessionSummary } from "./sessionQueries";
 import { useEffect, useMemo, useRef } from "react";
-import { useSessions } from "@/lib/data/queries";
+import { useAgentSessions } from "./sessionQueries";
 import { agentSessionState } from "../ports/sessionState";
 
 const EMPTY_SESSIONS: AgentSessionSummary[] = [];
 
 export function useVisibleAgentSessions(): AgentSessionSummary[] {
-  const { data } = useSessions();
+  const { data } = useAgentSessions();
   const draftIds = agentSessionState().useDraftSessionIds();
   const sessions = data ?? EMPTY_SESSIONS;
   return useMemo(
@@ -16,7 +16,7 @@ export function useVisibleAgentSessions(): AgentSessionSummary[] {
 }
 
 export function useReconcilePersistedAgentSessions(): void {
-  const { data, isSuccess } = useSessions();
+  const { data, isSuccess } = useAgentSessions();
   const done = useRef(false);
   useEffect(() => {
     if (done.current || !isSuccess) return;

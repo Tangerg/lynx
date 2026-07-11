@@ -1,5 +1,9 @@
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { useDiff, useFileHead, useGrep } from "@/lib/data/queries";
+import {
+  useWorkspaceDiff,
+  useWorkspaceFileHead,
+  useWorkspaceGrep,
+} from "@/plugins/builtin/workspace/public/data";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { parseJsonResult } from "./toolResultParsing";
@@ -7,7 +11,7 @@ import { parseJsonResult } from "./toolResultParsing";
 export function useDiffToolPreview(tool: ToolCall, maxRows: number) {
   const gitEnabled = useRuntimeCapability("git");
   const cwd = useActiveSessionCwd();
-  const { data } = useDiff(gitEnabled ? { cwd } : undefined);
+  const { data } = useWorkspaceDiff(gitEnabled ? { cwd } : undefined);
   const rows = tool.diff
     ? tool.diff
     : (data?.files ?? []).flatMap((file) => [
@@ -24,7 +28,7 @@ export function useDiffToolPreview(tool: ToolCall, maxRows: number) {
 export function useFileToolPreview(tool: ToolCall, maxLines: number) {
   const cwd = useActiveSessionCwd();
   const path = tool.fn && tool.fn !== tool.name ? tool.fn : undefined;
-  return useFileHead(path ? { path, cwd, lines: maxLines } : undefined);
+  return useWorkspaceFileHead(path ? { path, cwd, lines: maxLines } : undefined);
 }
 
 interface GrepPreviewRow {
@@ -69,7 +73,7 @@ export function useGrepToolPreview(tool: ToolCall, maxMatches: number) {
   const cwd = useActiveSessionCwd();
   const query =
     !inline && tool.name === "grep" && tool.fn && tool.fn !== "search" ? tool.fn : undefined;
-  const { data } = useGrep(query ? { query, cwd, limit: maxMatches } : undefined);
+  const { data } = useWorkspaceGrep(query ? { query, cwd, limit: maxMatches } : undefined);
   const rows =
     inline?.rows ??
     (data?.matches ?? []).map((match) => ({

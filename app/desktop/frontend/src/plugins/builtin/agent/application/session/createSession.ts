@@ -1,7 +1,7 @@
 import type { AgentRunStartOptions } from "@/plugins/sdk";
 import type { AgentInput } from "../../domain/input";
 import { useCallback } from "react";
-import { invalidateSessions } from "@/lib/data/queries";
+import { invalidateAgentSessions } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { reportSessionError } from "./reportSessionError";
@@ -55,7 +55,7 @@ async function createAndOpen({
     // Draft is filtered out of the Work Index; refetch so its graduation
     // (and any backend-assigned title) lands promptly. A cwd create may
     // also have minted a brand-new project.
-    void invalidateSessions(cwd ? { projects: true } : undefined);
+    void invalidateAgentSessions(cwd ? { projects: true } : undefined);
     return session.id;
   } catch (err) {
     reportSessionError("create", err);

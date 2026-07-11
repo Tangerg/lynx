@@ -4,11 +4,11 @@ import { z } from "zod";
 import { notifyError } from "@/lib/notify";
 import { t } from "@/lib/i18n";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
-import { invalidateSessions } from "@/lib/data/queries";
 import { getActiveConversationSnapshot } from "@/plugins/builtin/agent/public/conversation";
 import { flattenMarkdown } from "@/plugins/builtin/agent/public/messageContent";
 import {
   getActiveSessionId,
+  invalidateAgentSessions,
   rehydrateSessionView,
   selectAgentSession,
 } from "@/plugins/builtin/agent/public/session";
@@ -155,7 +155,7 @@ export async function importConversationJson(): Promise<void> {
     const session = await conversationArchiveGateway().importConversation(raw);
     await rehydrateSessionView(session.id);
     selectAgentSession(session.id);
-    void invalidateSessions({ projects: true });
+    void invalidateAgentSessions({ projects: true });
     toast.success(t("convExport.importSuccess", { title: session.title ?? session.id }));
   } catch (err) {
     console.error("[import] sessions.import failed:", err);

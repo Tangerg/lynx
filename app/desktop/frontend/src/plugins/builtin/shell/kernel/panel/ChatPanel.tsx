@@ -13,7 +13,7 @@ import {
 } from "@/ui/agent";
 import { dragClasses, noDragClasses } from "@/ui";
 import { cn } from "@/lib/utils";
-import { useSessions } from "@/lib/data/queries";
+import { useAgentSessions } from "@/plugins/builtin/agent/public/session";
 import { basename } from "@/lib/path";
 import { useActiveSession } from "@/plugins/builtin/agent/public/session";
 import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
@@ -74,7 +74,7 @@ export function ChatPanel({ onSend }: Props) {
   const toggleDock = useUiStore((s) => s.toggleDock);
   const sidebarHidden = useSidebarRail();
   const views = useWorkspaceViews();
-  const { isLoading } = useSessions();
+  const { isLoading } = useAgentSessions();
   const activeSession = useActiveSession();
   const running = useIsAgentRunning();
   const t = useT();

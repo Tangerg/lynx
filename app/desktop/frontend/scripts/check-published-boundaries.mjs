@@ -23,6 +23,24 @@ for (const file of files(SRC)) {
   const text = readFileSync(file, "utf8");
   const isTest = /\.(test|spec)\.[tj]sx?$/.test(rel);
 
+  if (
+    rel.startsWith("lib/data/") &&
+    rel !== "lib/data/dataQuery.ts" &&
+    rel !== "lib/data/queryClient.ts"
+  ) {
+    violations.push({
+      file: rel,
+      reason: "lib/data is query infrastructure only; business read models belong to contexts",
+    });
+  }
+
+  if (/@\/lib\/data\/(?:queries|useUsage)/.test(text)) {
+    violations.push({
+      file: rel,
+      reason: "legacy global business-query modules must not be referenced",
+    });
+  }
+
   if (/@\/protocol\/run|protocol\/run|agent\/core-reducer|core-reducer/.test(text)) {
     violations.push({
       file: rel,
@@ -44,6 +62,16 @@ for (const file of files(SRC)) {
     violations.push({
       file: rel,
       reason: "builtin public surfaces must not import runtime wire directly",
+    });
+  }
+
+  if (
+    /plugins\/builtin\/.+\/application\/.+(?:Queries|Data)\.ts$/.test(rel) &&
+    /from\s+["']@\/rpc["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "context read models must publish context language, not runtime wire DTOs",
     });
   }
 

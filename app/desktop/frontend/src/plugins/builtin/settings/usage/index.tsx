@@ -3,6 +3,7 @@
 
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
+import { installUsageGateway } from "./adapters/runtimeUsageGateway";
 import { usageSettingsPane } from "./application/usageContributions";
 import { UsagePane } from "./ui/UsagePane";
 
@@ -10,6 +11,7 @@ export default definePlugin({
   name: "lyra.builtin.usage-pane",
   version: "1.0.0",
   setup({ host }) {
+    installUsageGateway();
     registerSettingsPane(host, usageSettingsPane(UsagePane));
   },
 });

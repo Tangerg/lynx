@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { invalidateSessions } from "@/lib/data/queries";
+import { invalidateAgentSessions } from "./sessionQueries";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
@@ -15,7 +15,7 @@ export function useRelocateSession(): (id: string, cwd: string) => Promise<boole
       await agentRuntime().updateSession({ sessionId: id, cwd });
       // projects too: the list is derived from session cwds, and this
       // session just moved — its old project may retire, the new one mint.
-      await invalidateSessions({ projects: true });
+      await invalidateAgentSessions({ projects: true });
       return true;
     } catch (err) {
       reportSessionError("relocate", err, rpcErrorText(err) ?? String(err));

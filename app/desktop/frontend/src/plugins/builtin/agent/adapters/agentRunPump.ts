@@ -1,6 +1,6 @@
 import { queryClient } from "@/lib/data/queryClient";
-import { USAGE_SESSION_KEY } from "@/lib/data/useUsage";
 import type { RunEvent, RunId, StreamingResult } from "@/rpc";
+import { AGENT_SESSION_USAGE_KEY } from "../application/session/sessionUsage";
 import type { FoldEvent } from "./agentStore";
 import { createRunEventBatcher } from "./runEventBatcher";
 
@@ -29,7 +29,7 @@ export function createAgentRunPump({
     readEpoch,
     apply: applyEvents,
     onRunFinished: () => {
-      void queryClient.invalidateQueries({ queryKey: [USAGE_SESSION_KEY, sessionId] });
+      void queryClient.invalidateQueries({ queryKey: [AGENT_SESSION_USAGE_KEY, sessionId] });
     },
   });
 

@@ -1,9 +1,13 @@
 // @codebase actions (codebase.search / reindex). Both refresh the codebase
 // status query so the view's status header reflects the new index state.
 
-import { CODEBASE_STATUS_KEY, useCodebaseStatus, useEmbeddingRole } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import {
+  CODEBASE_STATUS_KEY,
+  useCodebaseStatus,
+  useEmbeddingRole,
+} from "@/plugins/builtin/settings/providers/public/data";
 import { codebaseGateway, type CodebaseSearchHit } from "./ports/codebaseGateway";
 
 export type { CodebaseSearchHit } from "./ports/codebaseGateway";

@@ -2,7 +2,7 @@
 // mutator invalidates it so the pane re-reads the new set and recomputed
 // nextRunAt.
 
-import { SCHEDULES_KEY, useSchedules } from "@/lib/data/queries";
+import { SCHEDULES_KEY, useSchedules } from "./scheduleQueries";
 import { queryClient } from "@/lib/data/queryClient";
 import type { ScheduleConfig, ScheduleConfigInput } from "./scheduleConfig";
 import { scheduleGateway } from "./ports/scheduleGateway";

@@ -5,7 +5,7 @@ import {
   MCP_TOOLS_KEY,
   type MCPServerConfigInfo,
   useMCPConfigs,
-} from "@/lib/data/queries";
+} from "./mcpServerQueries";
 import { queryClient } from "@/lib/data/queryClient";
 import type { MCPServerConfigInput } from "./mcpServerInput";
 import { mcpServerGateway, type MCPServerTestOutcome } from "./ports/mcpServerGateway";

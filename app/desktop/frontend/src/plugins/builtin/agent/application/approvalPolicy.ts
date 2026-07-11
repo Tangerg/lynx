@@ -1,7 +1,11 @@
-// Approval policy mutations. Reads live in lib/data query hooks; these commands
-// invalidate the matching keys after the runtime accepts the write.
+// Approval policy mutations. Reads live in this context's query module; these
+// commands invalidate the matching keys after the runtime accepts the write.
 
-import { APPROVAL_MODE_KEY, APPROVAL_RULES_KEY, type ApprovalModeValue } from "@/lib/data/queries";
+import {
+  APPROVAL_MODE_KEY,
+  APPROVAL_RULES_KEY,
+  type ApprovalModeValue,
+} from "./approvalPolicyQueries";
 import { queryClient } from "@/lib/data/queryClient";
 import { agentRuntime } from "./ports/runtimeGateway";
 
