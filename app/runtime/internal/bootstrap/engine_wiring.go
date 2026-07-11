@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
@@ -17,7 +17,7 @@ type messageEnvironment struct {
 	conversation *conversation.Messages
 }
 
-func prepareEngineConfig(cfg lyraruntime.Config) (kernel.Config, messageEnvironment) {
+func prepareEngineConfig(cfg lyraruntime.Config) (agentexec.Config, messageEnvironment) {
 	ecfg := cfg.Engine
 	ecfg.SessionStore = newChildSessionStore(cfg.SessionStore)
 	ecfg.Provider = cfg.Provider
@@ -25,7 +25,7 @@ func prepareEngineConfig(cfg lyraruntime.Config) (kernel.Config, messageEnvironm
 	return ecfg, messages
 }
 
-func buildMessageEnvironment(ecfg *kernel.Config) messageEnvironment {
+func buildMessageEnvironment(ecfg *agentexec.Config) messageEnvironment {
 	historyStore := ecfg.HistoryStore
 	if historyStore == nil {
 		historyStore = history.NewInMemoryStore()
@@ -37,7 +37,7 @@ func buildMessageEnvironment(ecfg *kernel.Config) messageEnvironment {
 	}
 }
 
-func wireEnginePorts(ecfg *kernel.Config, cfg lyraruntime.Config, messages messageEnvironment, resolveUtility func(context.Context) *chat.Client) {
+func wireEnginePorts(ecfg *agentexec.Config, cfg lyraruntime.Config, messages messageEnvironment, resolveUtility func(context.Context) *chat.Client) {
 	if ecfg.Steering == nil {
 		ecfg.Steering = messages.conversation
 	}
@@ -47,7 +47,7 @@ func wireEnginePorts(ecfg *kernel.Config, cfg lyraruntime.Config, messages messa
 	}
 }
 
-func attachToolEnvironment(ecfg *kernel.Config, built toolset.Built) {
+func attachToolEnvironment(ecfg *agentexec.Config, built toolset.Built) {
 	ecfg.ToolResolver = built.Resolver
 	ecfg.Tools = built.Tools
 	ecfg.MCPStatusReader = built.MCPStatusReader

@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
@@ -20,7 +20,7 @@ import (
 func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.Client, providers providersvc.Registry, hooks lyraruntime.HookResolver) lyraruntime.Config {
 	return lyraruntime.Config{
 		Resources: []io.Closer{stores},
-		Engine: kernel.Config{
+		Engine: agentexec.Config{
 			ChatClient:      client,
 			Pricing:         pricing.Catalog(),
 			SkillsGlobalDir: filepath.Join(stores.Home, "skills"),

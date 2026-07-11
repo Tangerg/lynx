@@ -7,15 +7,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 )
 
 // Dependencies is the fully-assembled collaborator set a [Runtime] facade holds.
 // The composition root (bootstrap) builds each collaborator and calls [New]. The
-// single *kernel.Engine satisfies the facade's closer, so it is supplied once.
+// single *agentexec.Engine satisfies the facade's closer, so it is supplied once.
 type Dependencies struct {
-	Engine       *kernel.Engine
+	Engine       *agentexec.Engine
 	Turns        turn.Dispatcher
 	Conversation *conversation.Messages
 

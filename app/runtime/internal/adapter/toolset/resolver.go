@@ -14,8 +14,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/tools/httpreq"
 )

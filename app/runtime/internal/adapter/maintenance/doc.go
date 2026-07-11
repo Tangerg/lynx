@@ -7,7 +7,7 @@
 // conversation history. They share the transcript-rendering and
 // direct-call helpers in llm.go; each is otherwise an independent,
 // single-responsibility worker (Compactor / Extractor / Titler) in its
-// own file, constructible and testable without the kernel.
+// own file, constructible and testable without the agentexec.
 //
 // The kernel owns construction (any worker may be nil when its feature is
 // disabled by config) and orchestration — it decides when to call which; this

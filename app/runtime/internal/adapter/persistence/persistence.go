@@ -25,7 +25,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 )
 
 // Bundle holds every persistence backend opened for one runtime process. All
@@ -47,7 +47,7 @@ type Bundle struct {
 	Provider      providersvc.Registry
 	MCPServers    mcpserversvc.Registry
 	ChatHistory   history.Store
-	Park          kernel.ParkStore
+	Park          agentexec.ParkStore
 	Todos         todosvc.Store
 	ApprovalRules approval.RuleStore
 	UtilityRole   *sqlitestore.UtilityRoleStore
@@ -86,7 +86,7 @@ func Open() (*Bundle, error) {
 		Provider:      sqlitestore.NewProviderStore(db),
 		MCPServers:    sqlitestore.NewMCPServerStore(db),
 		ChatHistory:   sqlitestore.NewMessageStore(db),
-		Park:          kernel.AsParkStore(sqlitestore.NewParkStore(db)),
+		Park:          agentexec.AsParkStore(sqlitestore.NewParkStore(db)),
 		Todos:         sqlitestore.NewTodoStore(db),
 		ApprovalRules: sqlitestore.NewApprovalRuleStore(db),
 		UtilityRole:   sqlitestore.NewUtilityRoleStore(db),

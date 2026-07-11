@@ -14,7 +14,7 @@ import (
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 )
 
 // Config is the construction-time bundle for [New]. Engine carries the
@@ -26,7 +26,7 @@ type Config struct {
 	// SessionStore (adapted from the Lyra session store) and the
 	// tool-environment fields (ToolResolver/Tools/live-MCP ports/Closers) from
 	// [toolset.Build] below; Engine.ChatClient is required.
-	Engine kernel.Config
+	Engine agentexec.Config
 
 	// Resources are process adapters whose ownership transfers to Runtime only
 	// when [New] succeeds. Close releases them after background tasks and the

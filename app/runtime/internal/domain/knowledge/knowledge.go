@@ -3,8 +3,8 @@
 // user scopes) that get auto-injected into every session's system prompt.
 //
 // Deliberately storage + retrieval of the editable LYRA.md files only: prompt
-// composition (which scopes, in what order) lives in internal/kernel/prompt,
-// not here.
+// composition (which scopes, in what order) lives in the agent-execution
+// adapter (internal/adapter/agentexec), not here.
 package knowledge
 
 import (

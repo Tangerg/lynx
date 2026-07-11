@@ -10,7 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 )
 
 // TestRegistry_List enumerates the coding tool set and verifies the
@@ -88,7 +88,7 @@ func buildRegistry(t *testing.T) tool.Registry {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eng, err := kernel.New(context.Background(), kernel.Config{
+	eng, err := agentexec.New(context.Background(), agentexec.Config{
 		ChatClient:            client,
 		ToolResolver:          built.Resolver,
 		Tools:                 built.Tools,

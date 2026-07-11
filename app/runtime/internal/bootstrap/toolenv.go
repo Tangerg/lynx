@@ -8,11 +8,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
-func buildToolEnvironment(ctx context.Context, cfg lyraruntime.Config, ecfg kernel.Config, approvalPolicy approval.Policy, mcpEnv mcpEnvironment, codebaseIdx toolset.CodebaseIndex) (toolset.Built, error) {
+func buildToolEnvironment(ctx context.Context, cfg lyraruntime.Config, ecfg agentexec.Config, approvalPolicy approval.Policy, mcpEnv mcpEnvironment, codebaseIdx toolset.CodebaseIndex) (toolset.Built, error) {
 	built, err := toolset.Build(ctx, toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.Engine.SkillsGlobalDir,
@@ -22,7 +22,7 @@ func buildToolEnvironment(ctx context.Context, cfg lyraruntime.Config, ecfg kern
 		A2AAgents:       toolsetA2AAgentConfigs(cfg.A2AAgents),
 		Todos:           ecfg.Todos,
 		Approval:        approvalPolicy,
-		Interruption:    kernel.Interrupt[interrupts.Resolution],
+		Interruption:    agentexec.Interrupt[interrupts.Resolution],
 		Schedules:       cfg.ScheduleRegistry,
 		MCPToolDisabled: mcpEnv.toolDisabled,
 		CodebaseIndex:   codebaseIdx,

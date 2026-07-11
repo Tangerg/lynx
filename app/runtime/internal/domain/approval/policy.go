@@ -5,7 +5,7 @@
 //     engine reads at each tool call to decide whether a call runs, is denied,
 //     or must pause for approval. The HITL pause/resume is the R model (the
 //     agent runtime parks on AwaitInput, the client answers via runs.resume) —
-//     see internal/kernel/turn + internal/domain/interrupts.
+//     see internal/adapter/agentexec/turn + internal/domain/interrupts.
 //   - Rules: persistent, fine-grained "remember this decision" rules. A rule
 //     gates a (tool, subject) pair under a scope (session / project / global),
 //     so the user can approve once and not be re-asked for matching calls. The

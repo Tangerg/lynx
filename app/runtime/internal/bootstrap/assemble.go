@@ -13,8 +13,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
@@ -118,10 +118,10 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 	}
 	attachToolEnvironment(&ecfg, built)
 
-	eng, err := kernel.New(ctx, ecfg)
+	eng, err := agentexec.New(ctx, ecfg)
 	if err != nil {
 		// toolset.Build already dialed MCP/A2A + launched LSP/exec backends into
-		// built.Closers; kernel.New didn't take ownership (no engine to Close), so
+		// built.Closers; agentexec.New didn't take ownership (no engine to Close), so
 		// release them here rather than leaking the sessions/processes.
 		return Host{}, errors.Join(fmt.Errorf("runtime: engine: %w", err), runClosers(built.Closers))
 	}

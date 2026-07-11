@@ -8,13 +8,13 @@ import (
 	"github.com/Tangerg/lynx/models/catalog"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
 // wireMaintenancePorts fills the engine's compaction + extraction SPIs with the
 // in-house maintenance services when the composition root didn't inject its own.
-func wireMaintenancePorts(ecfg *kernel.Config, cfg lyraruntime.Config, historyStore history.Store, resolveUtility func(context.Context) *chat.Client) {
+func wireMaintenancePorts(ecfg *agentexec.Config, cfg lyraruntime.Config, historyStore history.Store, resolveUtility func(context.Context) *chat.Client) {
 	if ecfg.Compactor == nil {
 		// Window-relative compaction trigger: resolve the default turn model's
 		// context window from the catalog so compaction fires relative to the
