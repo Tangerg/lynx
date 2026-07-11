@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -21,8 +22,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 // SessionLookup resolves a session so approval-rule listing can scope rules to
@@ -74,12 +73,12 @@ type EmbeddingRoleSaver interface {
 // durable registry (§9). The kernel engine satisfies it. Registry (source of
 // truth) vs connection pool (live) stay distinct — this port is only the pool.
 type MCPLive interface {
-	MCPServerStatuses() []toolport.MCPServerStatus
-	MCPTools(ctx context.Context, server string) ([]toolport.MCPToolInfo, error)
+	MCPServerStatuses() []mcpserver.ConnectionStatus
+	MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
 	ReconnectMCPServer(ctx context.Context, name string) error
 	AuthorizeMCPServer(ctx context.Context, name string) error
-	ProbeMCPServer(ctx context.Context, cfg toolport.MCPServerConfig) error
-	ConfigureMCPServer(ctx context.Context, cfg toolport.MCPServerConfig) error
+	ProbeMCPServer(ctx context.Context, cfg mcpserver.LiveConfig) error
+	ConfigureMCPServer(ctx context.Context, cfg mcpserver.LiveConfig) error
 	RemoveMCPServer(ctx context.Context, name string)
 }
 

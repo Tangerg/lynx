@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 type blockingMCPRegistry struct {
@@ -68,17 +67,17 @@ type mcpLiveSet struct {
 	servers map[string]bool
 }
 
-func (*mcpLiveSet) MCPServerStatuses() []toolport.MCPServerStatus { return nil }
-func (*mcpLiveSet) MCPTools(context.Context, string) ([]toolport.MCPToolInfo, error) {
+func (*mcpLiveSet) MCPServerStatuses() []mcpserver.ConnectionStatus { return nil }
+func (*mcpLiveSet) MCPTools(context.Context, string) ([]mcpserver.ToolInfo, error) {
 	return nil, nil
 }
-func (*mcpLiveSet) ReconnectMCPServer(context.Context, string) error       { return nil }
-func (*mcpLiveSet) AuthorizeMCPServer(context.Context, string) error       { return nil }
-func (*mcpLiveSet) ProbeMCPServer(context.Context, toolport.MCPServerConfig) error {
+func (*mcpLiveSet) ReconnectMCPServer(context.Context, string) error { return nil }
+func (*mcpLiveSet) AuthorizeMCPServer(context.Context, string) error { return nil }
+func (*mcpLiveSet) ProbeMCPServer(context.Context, mcpserver.LiveConfig) error {
 	return nil
 }
 
-func (s *mcpLiveSet) ConfigureMCPServer(_ context.Context, cfg toolport.MCPServerConfig) error {
+func (s *mcpLiveSet) ConfigureMCPServer(_ context.Context, cfg mcpserver.LiveConfig) error {
 	s.mu.Lock()
 	s.servers[cfg.Name] = true
 	s.mu.Unlock()

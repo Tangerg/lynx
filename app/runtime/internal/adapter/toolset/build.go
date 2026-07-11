@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
@@ -47,7 +48,7 @@ type BuildConfig struct {
 	SkillsGlobalDir string
 	Online          OnlineConfig
 	LSPServers      []codeintel.ServerSpec
-	MCPServers      []toolport.MCPServerConfig
+	MCPServers      []mcpserver.LiveConfig
 	A2AAgents       []A2AAgentConfig
 	Todos           todo.Store      // backs todo_write; nil → the tool is omitted
 	Approval        approval.Policy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted

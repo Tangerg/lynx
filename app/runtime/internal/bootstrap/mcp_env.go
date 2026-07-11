@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 // mcpServerList is the boot-time snapshot view of the MCP registry: building the
@@ -23,7 +22,7 @@ type mcpEnvironment struct {
 	policy           *atomic.Pointer[mcpserver.ToolPolicy]
 	toolDisabled     func(string) bool
 	toolAutoApproved func(string) bool
-	configs          []toolport.MCPServerConfig
+	configs          []mcpserver.LiveConfig
 }
 
 func buildMCPEnvironment(ctx context.Context, registry mcpServerList) (mcpEnvironment, error) {
@@ -42,6 +41,6 @@ func buildMCPEnvironment(ctx context.Context, registry mcpServerList) (mcpEnviro
 		toolAutoApproved: func(toolName string) bool {
 			return policyCell.Load().AutoApproved(toolName)
 		},
-		configs: toolport.ConfigsForEnabledServers(servers),
+		configs: mcpserver.ConfigsForEnabledServers(servers),
 	}, nil
 }

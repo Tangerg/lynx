@@ -6,7 +6,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 func (s *Server) mcpServersWire(ctx context.Context) []protocol.McpServer {
@@ -18,7 +17,7 @@ func (s *Server) mcpServersWire(ctx context.Context) []protocol.McpServer {
 	return out
 }
 
-func (s *Server) mcpServerWire(ctx context.Context, st toolport.MCPServerStatus) protocol.McpServer {
+func (s *Server) mcpServerWire(ctx context.Context, st mcpserver.ConnectionStatus) protocol.McpServer {
 	entry := protocol.McpServer{Name: st.Name, Status: protocol.McpStatus(st.Status)}
 	switch st.Status {
 	case "connected":
@@ -38,13 +37,13 @@ func (s *Server) mcpLiveStatus(ctx context.Context, name string) (protocol.McpSt
 	return wire.Status, wire.ToolCount, wire.Error, true
 }
 
-func (s *Server) mcpStatusByName(name string) (toolport.MCPServerStatus, bool) {
+func (s *Server) mcpStatusByName(name string) (mcpserver.ConnectionStatus, bool) {
 	for _, st := range s.capabilities.MCPServerStatuses() {
 		if st.Name == name {
 			return st, true
 		}
 	}
-	return toolport.MCPServerStatus{}, false
+	return mcpserver.ConnectionStatus{}, false
 }
 
 func (s *Server) mcpToolCount(ctx context.Context, server string) *int {
@@ -64,7 +63,7 @@ func mcpDialFailedProblem(err error) *protocol.ProblemData {
 	return &protocol.ProblemData{Type: "mcp_dial_failed", Detail: detail}
 }
 
-func mcpToolWire(t toolport.MCPToolInfo) protocol.McpTool {
+func mcpToolWire(t mcpserver.ToolInfo) protocol.McpTool {
 	return protocol.McpTool{
 		Server:      t.Server,
 		Name:        t.Name,

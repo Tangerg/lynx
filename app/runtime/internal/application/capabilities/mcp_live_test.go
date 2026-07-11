@@ -5,13 +5,12 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 func TestMCPLiveStatusAndToolsUsePorts(t *testing.T) {
 	live := &fakeMCPLive{
-		statuses: []toolport.MCPServerStatus{{Name: "fs", Status: "connected"}},
-		tools:    []toolport.MCPToolInfo{{Server: "fs", Name: "read"}},
+		statuses: []mcpserver.ConnectionStatus{{Name: "fs", Status: "connected"}},
+		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
 	}
 	c := New(Config{MCPLive: live})
 
@@ -63,22 +62,22 @@ func TestTestMCPServerUsesLiveRegistryPort(t *testing.T) {
 }
 
 type fakeMCPLive struct {
-	statuses []toolport.MCPServerStatus
-	tools    []toolport.MCPToolInfo
+	statuses []mcpserver.ConnectionStatus
+	tools    []mcpserver.ToolInfo
 
 	toolsServer string
 
 	reconnectName string
 	authorizeName string
 
-	probe      toolport.MCPServerConfig
-	configure  toolport.MCPServerConfig
+	probe      mcpserver.LiveConfig
+	configure  mcpserver.LiveConfig
 	removeName string
 }
 
-func (f *fakeMCPLive) MCPServerStatuses() []toolport.MCPServerStatus { return f.statuses }
+func (f *fakeMCPLive) MCPServerStatuses() []mcpserver.ConnectionStatus { return f.statuses }
 
-func (f *fakeMCPLive) MCPTools(_ context.Context, server string) ([]toolport.MCPToolInfo, error) {
+func (f *fakeMCPLive) MCPTools(_ context.Context, server string) ([]mcpserver.ToolInfo, error) {
 	f.toolsServer = server
 	return f.tools, nil
 }
@@ -93,12 +92,12 @@ func (f *fakeMCPLive) AuthorizeMCPServer(_ context.Context, name string) error {
 	return nil
 }
 
-func (f *fakeMCPLive) ProbeMCPServer(_ context.Context, cfg toolport.MCPServerConfig) error {
+func (f *fakeMCPLive) ProbeMCPServer(_ context.Context, cfg mcpserver.LiveConfig) error {
 	f.probe = cfg
 	return nil
 }
 
-func (f *fakeMCPLive) ConfigureMCPServer(_ context.Context, cfg toolport.MCPServerConfig) error {
+func (f *fakeMCPLive) ConfigureMCPServer(_ context.Context, cfg mcpserver.LiveConfig) error {
 	f.configure = cfg
 	return nil
 }
