@@ -2,11 +2,11 @@ package toolport
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
 const (
@@ -26,58 +26,14 @@ type ToolResolver interface {
 	SetTask(chat.Tool)
 }
 
-// MCPToolInfo is one tool advertised by a connected MCP server.
-type MCPToolInfo struct {
-	Server      string
-	Name        string
-	Description string
-	InputSchema map[string]any
-}
-
-// MCPServerStatus is the per-server connection state exposed by the live MCP
-// control plane.
-type MCPServerStatus struct {
-	Name   string
-	Status string
-	Err    error
-}
-
-// MCPTransport names the live MCP connection transport at the kernel port.
-type MCPTransport string
-
-const (
-	MCPTransportHTTP  MCPTransport = "http"
-	MCPTransportStdio MCPTransport = "stdio"
-)
-
-// MCPServerConfig is the live MCP server descriptor accepted by the kernel
-// port. The concrete MCP adapter maps it to its own dial config at the infra
-// boundary.
-type MCPServerConfig struct {
-	Name          string
-	Transport     MCPTransport
-	Endpoint      string
-	Command       string
-	Args          []string
-	Env           []string
-	Dir           string
-	Authorization string
-	Headers       map[string]string
-	Timeout       time.Duration
-}
-
-// ErrUnknownMCPServer is returned when a live MCP operation addresses a server
-// that was never configured.
-var ErrUnknownMCPServer = errors.New("mcp: unknown server")
-
 // MCPStatusReader reads live status for configured MCP servers.
 type MCPStatusReader interface {
-	Statuses() []MCPServerStatus
+	Statuses() []mcpserver.ConnectionStatus
 }
 
 // MCPToolCatalog lists tools advertised by live MCP server connections.
 type MCPToolCatalog interface {
-	Tools(ctx context.Context, server string) ([]MCPToolInfo, error)
+	Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
 }
 
 // MCPConnectionCommands operates on an already configured MCP server's live
@@ -89,7 +45,7 @@ type MCPConnectionCommands interface {
 
 // MCPRegistryCommands probes and applies live MCP server registry changes.
 type MCPRegistryCommands interface {
-	Probe(ctx context.Context, cfg MCPServerConfig) error
-	Configure(ctx context.Context, cfg MCPServerConfig) error
+	Probe(ctx context.Context, cfg mcpserver.LiveConfig) error
+	Configure(ctx context.Context, cfg mcpserver.LiveConfig) error
 	Remove(ctx context.Context, name string)
 }

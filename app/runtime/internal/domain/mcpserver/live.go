@@ -1,0 +1,113 @@
+package mcpserver
+
+import (
+	"errors"
+	"maps"
+	"slices"
+	"time"
+)
+
+// The live-connection vocabulary: the value types that describe an MCP server's
+// process-local connection (§9 — the live projection of the persisted registry,
+// as opposed to the durable [Server] entries this package also owns). The
+// capability layer and delivery share these DTOs; the concrete MCP adapter maps
+// them to its own dial/session types at the infra boundary.
+
+// LiveTransport names the transport of a live MCP connection at the capability
+// boundary. It is the dial-time projection of the persisted [Transport]; a
+// distinct enum because the persisted form ("streamable-http") and the dial form
+// ("http") diverge — unifying them is a domain-reshape left to a later batch.
+type LiveTransport string
+
+const (
+	LiveTransportHTTP  LiveTransport = "http"
+	LiveTransportStdio LiveTransport = "stdio"
+)
+
+// LiveConfig is the live MCP server descriptor the capability layer hands to the
+// engine's MCP control port to open a connection. [ConfigFromServer] projects a
+// persisted registry [Server] into it; the concrete MCP adapter maps it to its
+// own dial config at the infra boundary.
+type LiveConfig struct {
+	Name          string
+	Transport     LiveTransport
+	Endpoint      string
+	Command       string
+	Args          []string
+	Env           []string
+	Dir           string
+	Authorization string
+	Headers       map[string]string
+	Timeout       time.Duration
+}
+
+// ToolInfo is one tool advertised by a connected MCP server.
+type ToolInfo struct {
+	Server      string
+	Name        string
+	Description string
+	InputSchema map[string]any
+}
+
+// ConnectionStatus is the per-server live connection state exposed by the MCP
+// control plane: connected or boot-failed alike, carrying the dial error when
+// failed.
+type ConnectionStatus struct {
+	Name   string
+	Status string
+	Err    error
+}
+
+// ErrUnknownServer is returned when a live MCP operation addresses a server that
+// was never configured.
+var ErrUnknownServer = errors.New("mcp: unknown server")
+
+// ConfigsForEnabledServers returns the live-connection descriptors projected
+// from one registry snapshot (enabled servers only).
+func ConfigsForEnabledServers(servers []Server) []LiveConfig {
+	var out []LiveConfig
+	for _, s := range servers {
+		if s.Enabled {
+			out = append(out, ConfigFromServer(s))
+		}
+	}
+	return out
+}
+
+// ConfigFromServer maps a persisted registry entry to the live MCP dial
+// descriptor. Tool-level gating (DisabledTools / AutoApproveTools) is applied at
+// toolset build / approval, not at connection setup, so it has no place here.
+// Env is flattened from the registry's KEY→value map to the "KEY=value" slice
+// the stdio adapter consumes.
+func ConfigFromServer(s Server) LiveConfig {
+	cfg := LiveConfig{Name: s.Name, Timeout: s.Timeout}
+	switch s.Transport {
+	case TransportStreamableHTTP:
+		cfg.Transport = LiveTransportHTTP
+		cfg.Endpoint = s.URL
+		cfg.Authorization = s.Authorization
+		cfg.Headers = maps.Clone(s.Headers)
+	case TransportStdio:
+		cfg.Transport = LiveTransportStdio
+		cfg.Command = s.Command
+		cfg.Args = slices.Clone(s.Args)
+		cfg.Env = envMapToSlice(s.SafeEnv())
+		cfg.Dir = s.Dir
+	}
+	return cfg
+}
+
+// envMapToSlice flattens a KEY→value map to the "KEY=value" slice exec wants,
+// sorted by key so the dialed env is deterministic (stable across restarts and
+// in tests). nil/empty yields nil.
+func envMapToSlice(m map[string]string) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m))
+	for k, v := range m {
+		out = append(out, k+"="+v)
+	}
+	slices.Sort(out)
+	return out
+}

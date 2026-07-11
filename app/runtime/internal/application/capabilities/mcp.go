@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 const mcpReconcileTimeout = 30 * time.Second
@@ -29,7 +28,7 @@ func (c *Coordinator) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver
 
 // MCPServerStatuses returns the per-server connection state of every configured
 // MCP server (connected and boot-failed alike) for workspace.mcp.listServers.
-func (c *Coordinator) MCPServerStatuses() []toolport.MCPServerStatus {
+func (c *Coordinator) MCPServerStatuses() []mcpserver.ConnectionStatus {
 	if c.mcpLive == nil {
 		return nil
 	}
@@ -45,7 +44,7 @@ func (c *Coordinator) MCPRegisteredServer(ctx context.Context, name string) (mcp
 // set (workspace.mcp.reconnect).
 func (c *Coordinator) ReconnectMCPServer(ctx context.Context, name string) error {
 	if c.mcpLive == nil {
-		return toolport.ErrUnknownMCPServer
+		return mcpserver.ErrUnknownServer
 	}
 	return c.mcpLive.ReconnectMCPServer(ctx, name)
 }
@@ -56,7 +55,7 @@ func (c *Coordinator) ReconnectMCPServer(ctx context.Context, name string) error
 // (re-prompt after restart).
 func (c *Coordinator) AuthorizeMCPServer(ctx context.Context, name string) error {
 	if c.mcpLive == nil {
-		return toolport.ErrUnknownMCPServer
+		return mcpserver.ErrUnknownServer
 	}
 	return c.mcpLive.AuthorizeMCPServer(ctx, name)
 }
@@ -197,14 +196,14 @@ func (c *Coordinator) TestMCPServer(ctx context.Context, srv mcpserver.Server) e
 		return err
 	}
 	if c.mcpLive == nil {
-		return toolport.ErrUnknownMCPServer
+		return mcpserver.ErrUnknownServer
 	}
-	return c.mcpLive.ProbeMCPServer(ctx, toolport.ConfigFromServer(srv))
+	return c.mcpLive.ProbeMCPServer(ctx, mcpserver.ConfigFromServer(srv))
 }
 
 // MCPTools lists tools advertised by the connected MCP servers (scoped to server
 // when non-empty) for workspace.mcp.listTools.
-func (c *Coordinator) MCPTools(ctx context.Context, server string) ([]toolport.MCPToolInfo, error) {
+func (c *Coordinator) MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {
 	if c.mcpLive == nil {
 		return nil, nil
 	}
@@ -219,7 +218,7 @@ func (c *Coordinator) applyMCPServer(ctx context.Context, srv mcpserver.Server) 
 		return
 	}
 	if srv.Enabled {
-		_ = c.mcpLive.ConfigureMCPServer(ctx, toolport.ConfigFromServer(srv))
+		_ = c.mcpLive.ConfigureMCPServer(ctx, mcpserver.ConfigFromServer(srv))
 		return
 	}
 	c.mcpLive.RemoveMCPServer(ctx, srv.Name)
