@@ -102,8 +102,8 @@ export function ApprovalCard({
   }
 
   // Pre-decision card. Buttons disabled when not resumable (decorative preview),
-  // while a request is in flight, OR once the interrupt is no longer open:
-  // settleOpenInterrupts downgrades an unacted interrupt to `incomplete` on
+  // while a request is in flight, OR once the interrupt is no longer pending:
+  // settlePendingInterrupts downgrades an unacted interrupt to `incomplete` on
   // run-end precisely so its buttons can't resume a dead run.
   const riskView = approvalRiskView(risk);
   const scopeViews = approvalScopeViews(scope);
