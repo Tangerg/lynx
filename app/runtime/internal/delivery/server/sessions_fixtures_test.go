@@ -45,7 +45,7 @@ func newTestServer(rt RuntimePort) *Server {
 	s := &Server{rt: rt}
 	// Build the run Coordinator like New does, so tests exercise the real
 	// admission / lifecycle seam (its effects come from the stub runtime).
-	s.coordinator = runs.NewCoordinator(rt, s.runSegmentEffects(), cursorMinter{next: s.nextEventID})
+	s.coordinator = runs.NewCoordinator(rt, s.runSegmentEffects(), cursorMinter{next: s.nextEventID}, nil)
 	// Wire the session/run lifecycle coordinator over the fake's in-memory stores
 	// when the fake provides one, mirroring the composition root.
 	if p, ok := rt.(sessionsCoordinatorProvider); ok {

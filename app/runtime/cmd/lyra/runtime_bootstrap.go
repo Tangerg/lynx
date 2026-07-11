@@ -32,6 +32,14 @@ func bootstrapRuntime(ctx context.Context) (_ bootstrap.Host, _ config.Config, e
 			err = errors.Join(err, stores.Close())
 		}
 	}()
+	// Reconcile the durable Run-admission table (§8.2) at boot, before any run is
+	// admitted: a crash leaves running rows whose live process is gone, which
+	// would otherwise block their session forever. Parked (interrupted) runs are
+	// preserved for resume. A sweep failure means the DB is unusable, so fail
+	// startup rather than admit runs against an inconsistent admission table.
+	if _, err := stores.Runs.ReconcileOrphans(ctx); err != nil {
+		return bootstrap.Host{}, config.Config{}, err
+	}
 	// Provider registry with the stored>env credential fallback: a provider with
 	// no stored key falls back to its environment variable (ANTHROPIC_API_KEY,
 	// OPENAI_API_KEY, …), so a developer with keys in their shell gets those

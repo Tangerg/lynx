@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
@@ -91,6 +92,12 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		OpeningUserText: userMessageText(in.Input),
 	}, factory)
 	if err != nil {
+		// The durable admission backstop (§8.2) rejects a session that already
+		// holds a non-terminal run in the store — a run the in-memory claim missed
+		// (e.g. left over across a restart). Same wire error as the in-memory busy.
+		if errors.Is(err, execution.ErrSessionBusy) {
+			return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, sessionID)
+		}
 		return nil, nil, err
 	}
 	treeAdmission.Release()
