@@ -26,15 +26,15 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	shutdownObs := observability.Setup(resolvedVersion())
 	defer func() { err = errors.Join(err, shutdownObs(context.WithoutCancel(ctx))) }()
 
-	stack, cfg, err := bootstrapRuntime(ctx)
+	host, cfg, err := bootstrapRuntime(ctx)
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, stack.Runtime.Close()) }()
-	// The capabilities component's post-commit reconcile + reindex tasks depend on
-	// the engine (MCP live pool); stop + join them before Runtime.Close tears the
-	// engine down (LIFO: this defer runs first).
-	defer stack.Capabilities.Close()
+	// The Host owns the application tier's reverse-order shutdown (§10.3): the
+	// capabilities reconcile/reindex tasks, then the run pump + engine +
+	// persistence. api.Close (the run supervisor) is deferred later, so LIFO runs
+	// it first — transport → supervisor → reconciler → engine/persistence.
+	defer func() { err = errors.Join(err, host.Close()) }()
 	srv := cfg.Server
 	if len(srv.CORSOrigins) == 0 {
 		srv.CORSOrigins = lyrahttp.DefaultCORSOrigins
@@ -56,7 +56,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	if token != nil {
 		tokenValue = token.Value
 	}
-	httpServer, api, err := buildHTTPServer(stack, srv, tokenValue)
+	httpServer, api, err := buildHTTPServer(host.Stack, srv, tokenValue)
 	if err != nil {
 		return err
 	}
