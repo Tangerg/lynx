@@ -7,10 +7,10 @@
 // pre-existing toolCalls entry — not reset it when item.started re-fires.
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, RunOutcome, StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/builtin/agent/public/viewState";
+import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 function item(partial: Record<string, unknown>): Item {
   return {

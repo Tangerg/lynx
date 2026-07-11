@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, RunOutcome, StreamEvent } from "@/rpc";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 // Terse builders (mirror reducer.events.test.ts). Items are partial — only the
 // fields the fold reads matter; the cast keeps the wire shape from bloating.

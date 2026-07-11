@@ -4,7 +4,6 @@
 // Items are the wire primitive; this grouping (one assistant turn = one
 // bubble with many blocks) is purely a UI concern.
 
-import type { DiffRow, OpenInterrupt } from "@/rpc";
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 
 // Narrow view-side roles. userMessage → "user", everything the agent
@@ -63,6 +62,12 @@ export function isQuestionTool(name: string): boolean {
 // NOT a failure — it gets a neutral treatment, not the alarming "err" red.
 export type ToolCallStatus = "running" | "ok" | "err" | "denied" | "requires-action";
 
+export type ToolDiffRow =
+  | { type: "hunk"; text: string }
+  | { type: "context"; leftLine: number; rightLine: number; code: string }
+  | { type: "added"; rightLine: number; code: string }
+  | { type: "deleted"; leftLine: number; code: string };
+
 export interface ToolCall {
   id: string;
   name: string; // wire tool identity (ToolInvocation.name) — drives icon/preview routing (display label is `fn`)
@@ -74,7 +79,7 @@ export interface ToolCall {
   /** Call-scoped structured diff for an edit tool (FileEdit.diff, §12.1 C) —
    *  the literal patch THIS edit applied, rendered inline instead of
    *  re-querying the whole worktree. Absent for write / non-edit tools. */
-  diff?: DiffRow[];
+  diff?: ToolDiffRow[];
   hits?: number;
   /** command-category (`shell`) exit code, from result.exitCode (§4.4.2).
    *  Surfaced for visibility; a non-zero exit is shown but does NOT force the
@@ -201,6 +206,20 @@ export interface TimelineEntry {
   status?: "ok" | "err" | "approved" | "declined";
 }
 
+export type PendingInterruptKind = "approval" | "question" | "toolResult";
+
+export interface PendingInterrupt {
+  itemId: string;
+  kind: PendingInterruptKind;
+}
+
+export interface PendingInterruptGroup {
+  parentRunId: string;
+  sessionId: string;
+  interrupts: PendingInterrupt[];
+  createdAt: string;
+}
+
 export interface AgentViewState {
   messages: Message[];
   toolCalls: Record<string, ToolCall>;
@@ -216,10 +235,10 @@ export interface AgentViewState {
   turnMessageId: string | null;
   /** Append-only audit log of run-significant events. See TimelineEntry. */
   timeline: TimelineEntry[];
-  /** Pending HITL interrupts for this session — discovered from
-   *  run.finished{interrupt} / runs.listOpenInterrupts. The cards resume via
-   *  `parentRunId` + the interrupt `itemId` (API.md §6). */
-  openInterrupts: OpenInterrupt[];
+  /** Pending HITL references for this session. Runtime payloads are
+   *  materialized into message blocks at the fold boundary; the read model
+   *  retains only the identity and kind needed to resume or settle them. */
+  pendingInterrupts: PendingInterruptGroup[];
   /**
    * Backend-owned shared state — v2 state.snapshot / state.delta. Free-form
    * JSON the agent maintains and the UI observes; plugins subscribe to
@@ -244,6 +263,6 @@ export const INITIAL_VIEW_STATE: AgentViewState = {
   error: null,
   turnMessageId: null,
   timeline: [],
-  openInterrupts: [],
+  pendingInterrupts: [],
   shared: {},
 };

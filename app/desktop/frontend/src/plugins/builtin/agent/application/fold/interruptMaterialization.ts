@@ -1,6 +1,7 @@
 import { t } from "@/lib/i18n";
-import type { Interrupt, OpenInterrupt } from "@/rpc";
-import type { AgentViewState, ContentBlock } from "@/plugins/builtin/agent/public/viewState";
+import type { Interrupt } from "@/rpc";
+import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
+import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 import { appendTimelineEntry } from "@/plugins/sdk";
 import { approvalText, commandString, editableArgs, mapQuestion, toolLabel } from "./projections";
 import { appendToTurn, markToolRequiresAction, patchBlock } from "./fold";
@@ -8,7 +9,7 @@ import { appendToTurn, markToolRequiresAction, patchBlock } from "./fold";
 export function materializeInterrupt(
   state: AgentViewState,
   it: Interrupt,
-  parentRunId: OpenInterrupt["parentRunId"],
+  parentRunId: string,
 ): AgentViewState {
   const withToolStatus = markToolRequiresAction(state, it.itemId);
   if (it.type === "approval") {

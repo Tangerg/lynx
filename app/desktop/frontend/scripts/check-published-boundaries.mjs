@@ -50,12 +50,24 @@ for (const file of files(SRC)) {
   if (
     !rel.startsWith("plugins/sdk/") &&
     !rel.startsWith("plugins/host/") &&
+    !rel.startsWith("plugins/builtin/agent/") &&
     rel !== "plugins/builtin/agent/public/viewState.ts" &&
     /from\s+["']@\/plugins\/sdk\/types\/agent(View|Timeline)["']/.test(text)
   ) {
     violations.push({
       file: rel,
-      reason: "agent view language must be consumed through agent public/viewState",
+      reason: "cross-context consumers must use the agent public view-state facade",
+    });
+  }
+
+  if (
+    !rel.startsWith("plugins/builtin/agent/public/") &&
+    /plugins\/builtin\/agent\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/plugins\/builtin\/agent\/public\/viewState["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "agent internals must depend on the SDK type owner, not their outward public facade",
     });
   }
 

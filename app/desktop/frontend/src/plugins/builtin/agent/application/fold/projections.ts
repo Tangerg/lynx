@@ -2,18 +2,17 @@
 // map a v2 Item (or its pieces) into the shapes the chat UI renders. The
 // stateful folds that place these into AgentViewState live in `fold.ts`.
 
-import type { DiffRow, Item, ItemStatus, PlanStep, Question, ToolInvocation } from "@/rpc";
+import type { Item, ItemStatus, PlanStep, Question, ToolInvocation } from "@/rpc";
 import type { ContentBlock as WireContentBlock } from "@/rpc";
+import type { BlockStatus, ContentBlock, QuestionItem } from "@/plugins/sdk/types/contentBlock";
 import type {
-  BlockStatus,
-  ContentBlock,
   MessageRole,
   PlanItem,
-  QuestionItem,
   ToolCall,
   ToolCallStatus,
-} from "@/plugins/builtin/agent/public/viewState";
-import { toolCategory } from "@/plugins/builtin/agent/public/viewState";
+  ToolDiffRow,
+} from "@/plugins/sdk/types/agentView";
+import { toolCategory } from "@/plugins/sdk/types/agentView";
 
 // Formatting / naming
 
@@ -131,8 +130,39 @@ function asRecord(v: unknown): Record<string, unknown> | undefined {
 function asString(v: unknown): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
+function asNumber(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
 function asArrayLength(v: unknown): number | undefined {
   return Array.isArray(v) ? v.length : undefined;
+}
+
+function toolDiffRow(value: unknown): ToolDiffRow | undefined {
+  const row = asRecord(value);
+  if (!row) return undefined;
+  const type = asString(row.type);
+  if (type === "hunk") {
+    const text = asString(row.text);
+    return text === undefined ? undefined : { type, text };
+  }
+  const code = asString(row.code);
+  if (code === undefined) return undefined;
+  if (type === "context") {
+    const leftLine = asNumber(row.leftLine);
+    const rightLine = asNumber(row.rightLine);
+    return leftLine === undefined || rightLine === undefined
+      ? undefined
+      : { type, leftLine, rightLine, code };
+  }
+  if (type === "added") {
+    const rightLine = asNumber(row.rightLine);
+    return rightLine === undefined ? undefined : { type, rightLine, code };
+  }
+  if (type === "deleted") {
+    const leftLine = asNumber(row.leftLine);
+    return leftLine === undefined ? undefined : { type, leftLine, code };
+  }
+  return undefined;
 }
 
 /** result.changes (FileEdit[]) → the call-scoped diff rows + their +added /
@@ -144,16 +174,15 @@ function asArrayLength(v: unknown): number | undefined {
 function editLineCounts(result: unknown): Partial<ToolCall> {
   const changes = asRecord(result)?.changes;
   if (!Array.isArray(changes)) return {};
-  const rows = changes.flatMap((c) => {
+  const rows = changes.flatMap((c): ToolDiffRow[] => {
     const diff = asRecord(c)?.diff;
-    return Array.isArray(diff) ? diff : [];
+    return Array.isArray(diff) ? diff.flatMap((row) => toolDiffRow(row) ?? []) : [];
   });
   if (rows.length === 0) return {}; // {path,status} entries, no diff rows → nothing to count
-  const isType = (r: unknown, t: string) => asRecord(r)?.type === t;
   return {
-    diff: rows as DiffRow[],
-    added: rows.filter((r) => isType(r, "added")).length,
-    removed: rows.filter((r) => isType(r, "deleted")).length,
+    diff: rows,
+    added: rows.filter((row) => row.type === "added").length,
+    removed: rows.filter((row) => row.type === "deleted").length,
   };
 }
 

@@ -1,9 +1,6 @@
-import type {
-  AgentViewState,
-  ContentBlock,
-  RunError,
-} from "@/plugins/builtin/agent/public/viewState";
-import { appendTimelineEntry } from "@/plugins/builtin/agent/public/viewState";
+import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
+import type { AgentViewState, RunError } from "@/plugins/sdk/types/agentView";
+import { appendTimelineEntry } from "@/plugins/sdk/types/agentTimeline";
 
 export interface SettledInterrupt {
   decision?: "approved" | "declined";
@@ -90,19 +87,19 @@ export function resolveInterrupt(
   const messages = touchedBlock ? settledMessages : view.messages;
 
   let touchedInterrupt = false;
-  const settledOpenInterrupts = view.openInterrupts.flatMap((oi) => {
+  const settledPendingInterrupts = view.pendingInterrupts.flatMap((oi) => {
     const hasItem = oi.interrupts.some((i) => i.itemId === itemId);
     if (!hasItem) return [oi];
     touchedInterrupt = true;
-    touchedApproval ||= oi.interrupts.some((i) => i.itemId === itemId && i.type === "approval");
+    touchedApproval ||= oi.interrupts.some((i) => i.itemId === itemId && i.kind === "approval");
     const interrupts = oi.interrupts.filter((i) => i.itemId !== itemId);
     return interrupts.length > 0 ? [{ ...oi, interrupts }] : [];
   });
-  const openInterrupts = touchedInterrupt ? settledOpenInterrupts : view.openInterrupts;
+  const pendingInterrupts = touchedInterrupt ? settledPendingInterrupts : view.pendingInterrupts;
 
   if (!touchedBlock && !touchedInterrupt) return view;
 
-  let next: AgentViewState = { ...view, messages, openInterrupts };
+  let next: AgentViewState = { ...view, messages, pendingInterrupts };
   if (touchedInterrupt) {
     next = settleInterruptedTool(
       next,

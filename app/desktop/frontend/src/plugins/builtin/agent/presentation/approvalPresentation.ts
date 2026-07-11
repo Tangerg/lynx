@@ -1,4 +1,4 @@
-import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
+import type { BlockStatus } from "@/plugins/sdk/types/contentBlock";
 import type { ApprovalDecision } from "../domain/hitl";
 export { dangerHints } from "./dangerPatterns";
 

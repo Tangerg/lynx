@@ -6,10 +6,10 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, RunOutcome, StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/builtin/agent/public/viewState";
+import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 // Builders. Items are partial — only the fields the fold reads matter; the
 // cast keeps the test terse without re-stating the full wire shape.
@@ -394,8 +394,8 @@ describe("reducer — HITL interrupt", () => {
       parentRunId: "run_1",
       command: "rm -rf x", // derived from payload.tool (commandExecution)
     });
-    expect(s.openInterrupts).toHaveLength(1);
-    expect(s.openInterrupts[0]!.parentRunId).toBe("run_1");
+    expect(s.pendingInterrupts).toHaveLength(1);
+    expect(s.pendingInterrupts[0]!.parentRunId).toBe("run_1");
     expect(s.toolCalls.tool_1?.status).toBe("requires-action");
   });
 
@@ -475,8 +475,8 @@ describe("reducer — HITL interrupt", () => {
       parentRunId: "run_1",
       questions: [{ id: "db", question: "Pick a database" }],
     });
-    expect(s.openInterrupts).toHaveLength(1);
-    expect(s.openInterrupts[0]!.parentRunId).toBe("run_1");
+    expect(s.pendingInterrupts).toHaveLength(1);
+    expect(s.pendingInterrupts[0]!.parentRunId).toBe("run_1");
   });
 
   it("a second run.started (resume) never splits the open turn — live grouping matches replay", () => {
@@ -557,23 +557,23 @@ describe("reducer — interrupt idempotency + terminal cleanup", () => {
   it("a re-delivered run.finished{interrupt} keeps one card + one open interrupt (B1)", () => {
     let s = toInterrupt();
     expect(approvalBlocks(s)).toHaveLength(1);
-    expect(s.openInterrupts).toHaveLength(1);
+    expect(s.pendingInterrupts).toHaveLength(1);
 
     // Reconnect / replay re-presents the same finished event — must be a no-op,
     // not a duplicate approval block (React key clash) or a second envelope.
     s = reduce(s, approvalInterrupt("tool_1", "rm x"));
     expect(approvalBlocks(s)).toHaveLength(1);
-    expect(s.openInterrupts).toHaveLength(1);
-    expect(s.openInterrupts[0]!.interrupts).toHaveLength(1);
+    expect(s.pendingInterrupts).toHaveLength(1);
+    expect(s.pendingInterrupts[0]!.interrupts).toHaveLength(1);
   });
 
   it("a terminal run.finished clears open interrupts + downgrades the card (B2)", () => {
     let s = toInterrupt();
-    expect(s.openInterrupts).toHaveLength(1);
+    expect(s.pendingInterrupts).toHaveLength(1);
 
     // The run is canceled while the approval is still open (user never answered).
     s = reduce(s, runFinished({ type: "canceled", result: {} }));
-    expect(s.openInterrupts).toHaveLength(0);
+    expect(s.pendingInterrupts).toHaveLength(0);
     expect(approvalBlocks(s)[0]).toMatchObject({ status: "incomplete" });
     expect(s.toolCalls.tool_1?.status).toBe("err");
   });

@@ -2,11 +2,11 @@ import type { AgentRunStartOptions } from "@/plugins/sdk/types";
 import type { StreamEvent } from "@/rpc";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
 import type { ResumeFn } from "@/plugins/builtin/agent/application/ports/viewState";
-import type { AgentViewState, RunError } from "@/plugins/builtin/agent/public/viewState";
+import type { AgentViewState, RunError } from "@/plugins/sdk/types/agentView";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
 import { reduce } from "@/plugins/builtin/agent/application/fold/reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 import {
   cancelRunningRun,
   dropMessage,

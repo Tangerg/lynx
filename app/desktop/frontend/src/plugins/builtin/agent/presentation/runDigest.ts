@@ -6,8 +6,8 @@
 // derivation lives here so it can be unit-tested in isolation (and so
 // future surfaces — telemetry export, end-of-run toasts — can reuse it).
 
-import type { AgentViewState, TimelineEntry } from "@/plugins/builtin/agent/public/viewState";
-import { toolCategory } from "@/plugins/builtin/agent/public/viewState";
+import type { AgentViewState, TimelineEntry } from "@/plugins/sdk/types/agentView";
+import { toolCategory } from "@/plugins/sdk/types/agentView";
 
 export interface ApprovalDigest {
   command: string;

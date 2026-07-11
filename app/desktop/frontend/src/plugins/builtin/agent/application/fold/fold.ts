@@ -3,14 +3,9 @@
 // `projections.ts`; the StreamEvent dispatch that calls these is `handlers.ts`.
 
 import type { Item } from "@/rpc";
-import type {
-  AgentViewState,
-  BlockStatus,
-  ContentBlock,
-  Message,
-  ToolCall,
-} from "@/plugins/builtin/agent/public/viewState";
-import { isLocalMessageId, isLocalSteerMessageId } from "@/plugins/builtin/agent/public/viewState";
+import type { BlockStatus, ContentBlock } from "@/plugins/sdk/types/contentBlock";
+import type { AgentViewState, Message, ToolCall } from "@/plugins/sdk/types/agentView";
+import { isLocalMessageId, isLocalSteerMessageId } from "@/plugins/sdk/types/agentView";
 import {
   argsText,
   contentText,
@@ -108,15 +103,15 @@ export function markToolRequiresAction(state: AgentViewState, id: string): Agent
   );
 }
 
-/** Drop every open interrupt and downgrade its still-actionable approval /
+/** Drop every pending interrupt and downgrade its still-actionable approval /
  *  question card to `incomplete`. Called on a terminal run end (not an
  *  interrupt): the run that owned the interrupt is finished, so a card left in
  *  `requires-action` would offer buttons that resume a dead run. No-op when
- *  nothing is open (a resolved interrupt already emptied the list). */
-export function settleOpenInterrupts(state: AgentViewState): AgentViewState {
-  if (state.openInterrupts.length === 0) return state;
+ *  nothing is pending (a resolved interrupt already emptied the list). */
+export function settlePendingInterrupts(state: AgentViewState): AgentViewState {
+  if (state.pendingInterrupts.length === 0) return state;
   const interruptItemIds = new Set(
-    state.openInterrupts.flatMap((oi) => oi.interrupts.map((interrupt) => interrupt.itemId)),
+    state.pendingInterrupts.flatMap((oi) => oi.interrupts.map((interrupt) => interrupt.itemId)),
   );
   const actionable = (b: ContentBlock) =>
     (b.kind === "approval" || b.kind === "question") && b.status === "requires-action";
@@ -138,7 +133,7 @@ export function settleOpenInterrupts(state: AgentViewState): AgentViewState {
     if (!tool || tool.status !== "requires-action") continue;
     toolCalls = { ...toolCalls, [id]: { ...tool, status: "err" } };
   }
-  return { ...state, messages, toolCalls, openInterrupts: [] };
+  return { ...state, messages, toolCalls, pendingInterrupts: [] };
 }
 
 // Per-item folds — shared by item.started (append) and item.completed

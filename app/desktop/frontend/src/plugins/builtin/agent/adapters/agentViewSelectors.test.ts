@@ -9,7 +9,7 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { INITIAL_VIEW_STATE, type RunError } from "@/plugins/builtin/agent/public/viewState";
+import { INITIAL_VIEW_STATE, type RunError } from "@/plugins/sdk/types/agentView";
 import { useAgentStore } from "./agentStore";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { useAgentError, useAgentSharedState } from "./agentViewSelectors";

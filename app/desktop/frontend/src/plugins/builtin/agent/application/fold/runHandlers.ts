@@ -1,7 +1,7 @@
-import type { OpenInterrupt, RunOutcome, RunProgress, RunRef, Usage } from "@/rpc";
-import type { AgentViewState, RunUsage } from "@/plugins/builtin/agent/public/viewState";
+import type { RunOutcome, RunProgress, RunRef, Usage } from "@/rpc";
+import type { AgentViewState, RunUsage } from "@/plugins/sdk/types/agentView";
 import { appendTimelineEntry, patchRun } from "@/plugins/sdk";
-import { settleOpenInterrupts } from "./fold";
+import { settlePendingInterrupts } from "./fold";
 import { materializeInterrupt } from "./interruptMaterialization";
 
 export function onRunStarted(state: AgentViewState, run: RunRef): AgentViewState {
@@ -67,11 +67,11 @@ export function onRunFinished(
   }
   const idle: AgentViewState = { ...state, run: { ...state.run, running: false } };
   if (outcome.type === "interrupt") {
-    const parentRunId = (state.run.runId ?? "") as OpenInterrupt["parentRunId"];
+    const parentRunId = state.run.runId ?? "";
     // Re-delivery can present interrupts already enrolled. Only add fresh
     // envelopes; materialization below is an idempotent upsert.
     const openItemIds = new Set(
-      idle.openInterrupts.flatMap((oi) => oi.interrupts.map((i) => i.itemId)),
+      idle.pendingInterrupts.flatMap((oi) => oi.interrupts.map((i) => i.itemId)),
     );
     const fresh = outcome.interrupts.filter((it) => !openItemIds.has(it.itemId));
     let next: AgentViewState =
@@ -79,12 +79,15 @@ export function onRunFinished(
         ? idle
         : {
             ...idle,
-            openInterrupts: [
-              ...idle.openInterrupts,
+            pendingInterrupts: [
+              ...idle.pendingInterrupts,
               {
                 parentRunId,
-                sessionId: (state.run.sessionId ?? "") as OpenInterrupt["sessionId"],
-                interrupts: fresh,
+                sessionId: state.run.sessionId ?? "",
+                interrupts: fresh.map((interrupt) => ({
+                  itemId: interrupt.itemId,
+                  kind: interrupt.type,
+                })),
                 createdAt: new Date().toISOString(),
               },
             ],
@@ -96,7 +99,7 @@ export function onRunFinished(
   const { result } = outcome;
   const usage = result?.usage;
   // A terminal non-interrupt run invalidates any still-actionable cards it owns.
-  const withRun = settleOpenInterrupts(
+  const withRun = settlePendingInterrupts(
     patchRun({
       running: false,
       step: result?.steps ?? state.run.step,

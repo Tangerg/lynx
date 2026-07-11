@@ -1,7 +1,7 @@
 // Public message-text projection for surfaces that need to flatten an agent
 // message: message actions, conversation export, and error recovery prompts.
 
-import type { Message } from "@/plugins/builtin/agent/public/viewState";
+import type { Message } from "@/plugins/sdk/types/agentView";
 
 /**
  * Best-effort plaintext extraction from a Message's content blocks. Only text +
