@@ -16,14 +16,14 @@ import (
 // stateless beyond its dependencies and safe to share.
 type Coordinator struct {
 	registry schedule.Registry
-	worker   schedule.WorkerStore
+	worker   WorkerStore
 }
 
 // NewCoordinator returns a Coordinator over the schedule registry. A nil
 // registry yields a disabled coordinator (every CRUD op returns
 // [schedule.ErrUnavailable]); a nil worker disables the background scanner. The
 // same store is passed as both when scheduling is available.
-func NewCoordinator(registry schedule.Registry, worker schedule.WorkerStore) *Coordinator {
+func NewCoordinator(registry schedule.Registry, worker WorkerStore) *Coordinator {
 	if registry == nil {
 		registry = disabledRegistry{}
 	}
@@ -62,11 +62,11 @@ func (c *Coordinator) RecordRun(ctx context.Context, id string, ranAt time.Time)
 
 // RunWorker starts the due-schedule scanner until ctx is canceled. No worker
 // store → no-op (scheduling unavailable on this build).
-func (c *Coordinator) RunWorker(ctx context.Context, runner schedule.Runner) {
+func (c *Coordinator) RunWorker(ctx context.Context, runner Runner) {
 	if c.worker == nil {
 		return
 	}
-	schedule.NewWorker(c.worker, runner).Run(ctx)
+	NewWorker(c.worker, runner).Run(ctx)
 }
 
 // disabledRegistry is the no-scheduling fallback: CRUD reports unavailable while

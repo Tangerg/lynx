@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ServerCapabilities } from "@/rpc";
-import { useRuntimeStore, useServerFeature } from "./runtimeStore";
+import { useRuntimeStore, useServerFeature } from "./runtimeCapabilityStore";
 
 function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabilities {
   return {

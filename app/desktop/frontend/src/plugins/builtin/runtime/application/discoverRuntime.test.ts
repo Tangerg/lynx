@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DiscoverResponse, RpcClient } from "@/rpc";
-import { useRuntimeStore } from "@/state/runtimeStore";
-import { discoverRuntime } from "./runtimeProtocol";
+import { describe, expect, it, vi } from "vitest";
+import type { DiscoverResponse, RpcClient, ServerCapabilities } from "@/rpc";
+import { discoverRuntime, type RuntimeCapabilitySink } from "./discoverRuntime";
 
 const discovery: DiscoverResponse = {
   protocolVersion: "2026-06-07",
@@ -39,13 +38,12 @@ function fakeRpc(call: RpcClient["call"]): RpcClient {
   } as unknown as RpcClient;
 }
 
-afterEach(() => {
-  useRuntimeStore.setState({ capabilities: null });
-  vi.restoreAllMocks();
-});
+function capabilitySink(): RuntimeCapabilitySink & { replace: ReturnType<typeof vi.fn> } {
+  return { replace: vi.fn<(capabilities: ServerCapabilities) => void>() };
+}
 
 describe("discoverRuntime", () => {
-  it("deduplicates per client and allows another client to discover independently", async () => {
+  it("deduplicates discovery per client without coupling clients or state stores", async () => {
     let resolveFirst: (value: DiscoverResponse) => void = () => undefined;
     const first = new Promise<DiscoverResponse>((resolve) => {
       resolveFirst = resolve;
@@ -54,10 +52,12 @@ describe("discoverRuntime", () => {
     const secondCall = vi.fn().mockResolvedValue(discovery);
     const firstRpc = fakeRpc(firstCall);
     const secondRpc = fakeRpc(secondCall);
+    const firstSink = capabilitySink();
+    const secondSink = capabilitySink();
 
-    const firstDiscovery = discoverRuntime(firstRpc);
-    expect(discoverRuntime(firstRpc)).toBe(firstDiscovery);
-    const secondDiscovery = discoverRuntime(secondRpc);
+    const firstDiscovery = discoverRuntime(firstRpc, firstSink);
+    expect(discoverRuntime(firstRpc, firstSink)).toBe(firstDiscovery);
+    const secondDiscovery = discoverRuntime(secondRpc, secondSink);
 
     await Promise.resolve();
     expect(firstCall).toHaveBeenCalledOnce();
@@ -65,7 +65,8 @@ describe("discoverRuntime", () => {
 
     resolveFirst(discovery);
     await Promise.all([firstDiscovery, secondDiscovery]);
-    expect(useRuntimeStore.getState().capabilities).toEqual(discovery.capabilities);
+    expect(firstSink.replace).toHaveBeenCalledWith(discovery.capabilities);
+    expect(secondSink.replace).toHaveBeenCalledWith(discovery.capabilities);
   });
 
   it("clears a failed discovery so the next call can retry", async () => {
@@ -74,9 +75,10 @@ describe("discoverRuntime", () => {
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce(discovery);
     const rpc = fakeRpc(call as unknown as RpcClient["call"]);
+    const sink = capabilitySink();
 
-    await expect(discoverRuntime(rpc)).rejects.toThrow("offline");
-    await expect(discoverRuntime(rpc)).resolves.toBeUndefined();
+    await expect(discoverRuntime(rpc, sink)).rejects.toThrow("offline");
+    await expect(discoverRuntime(rpc, sink)).resolves.toBeUndefined();
     expect(call).toHaveBeenCalledTimes(2);
   });
 });
