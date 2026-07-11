@@ -29,11 +29,8 @@ import {
 } from "./registryMutations";
 import { freshState } from "./registryState";
 
-type OwnedMapKey = {
-  [K in keyof PluginStoreState]: PluginStoreState[K] extends Map<string, Owned<unknown>>
-    ? K
-    : never;
-}[keyof PluginStoreState];
+type DeclaredSpec = ContributedCommand | ContributedView | ContributedSettingsPane;
+type DeclaredSpecSlot = "declaredCommands" | "declaredViews" | "declaredSettingsPanes";
 
 export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set, get) => {
   // The only contribution maps still kept by name are the "declared
@@ -41,18 +38,11 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   // register* surface lives on the shared `extensions` substrate; one factory
   // generates their id-keyed `{add,remove}`. The `as` casts narrow
   // PluginStoreState[K] from its TS union back to `Map<string, Owned<T>>`.
-  function ownedSpecSlot<T>(slot: OwnedMapKey, label: string) {
-    const keyOf = (s: T) => (s as unknown as { id: string }).id;
+  function ownedSpecSlot<T extends DeclaredSpec>(slot: DeclaredSpecSlot, label: string) {
     return {
       add: (pluginName: string, spec: T) =>
         set({
-          [slot]: addOwned(
-            get()[slot] as Map<string, Owned<T>>,
-            pluginName,
-            keyOf(spec),
-            spec,
-            label,
-          ),
+          [slot]: addOwned(get()[slot] as Map<string, Owned<T>>, pluginName, spec.id, spec, label),
         } as Partial<PluginStoreState>),
       remove: (pluginName: string, key: string) =>
         set({
