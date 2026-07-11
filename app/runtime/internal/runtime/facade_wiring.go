@@ -4,8 +4,6 @@ import (
 	"io"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 )
@@ -19,8 +17,8 @@ type Dependencies struct {
 	Conversation *conversation.Messages
 
 	Sessions   sessionStore
-	Interrupts interrupts.Store
-	Transcript transcript.Store
+	Interrupts interruptStore
+	Transcript transcriptStore
 
 	Titles titleGenerator
 

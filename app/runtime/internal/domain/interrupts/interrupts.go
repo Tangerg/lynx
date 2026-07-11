@@ -4,20 +4,16 @@
 // here; the client discovers them via runs.listOpenInterrupts and
 // answers via runs.resume, which removes the entry.
 //
-// The [Store] interface is the pluggable seam: the runtime depends on
-// it, not on a concrete backend. Lyra backs it with the SQLite store
-// (internal/infra/storage/sqlite), so open interrupts survive a restart and
-// runs.resume rebuilds the parked process from its ProcessStore
-// snapshot (Pending.ProcessID) — same-process resume just drives the
-// retained live process instead.
-//
-// Deliberately a durable record store (CRUD over [Pending]): the park/resume
-// orchestration lives in internal/adapter/agentexec/turn, not here — this package only
-// remembers what is open.
+// This package holds the durable record shapes (Pending, DrainedTool) — a plain
+// CRUD-over-[Pending] model. The park/resume orchestration lives in
+// internal/adapter/agentexec/turn, not here; persistence is a consumer concern
+// (each consumer declares the narrow interrupt port it needs), backed by the
+// SQLite store so open interrupts survive a restart and runs.resume rebuilds the
+// parked process from its ProcessStore snapshot (Pending.ProcessID) —
+// same-process resume just drives the retained live process instead.
 package interrupts
 
 import (
-	"context"
 	"encoding/json"
 	"time"
 )
@@ -63,33 +59,3 @@ type DrainedTool struct {
 	Arguments string `json:"arguments"`
 }
 
-// Store is the open-interrupt registry. Implementations must be safe
-// for concurrent use. The interface is the consumer-side abstraction
-// (the runtime + RPC server depend on it); back it with the sqlite
-// store (internal/infra/storage/sqlite) or any persistent implementation.
-type Store interface {
-	// Put records (or replaces) a pending interrupt keyed by ParentRunID.
-	Put(ctx context.Context, p Pending) error
-
-	// List returns the pending interrupts for sessionID, or all of them
-	// when sessionID is empty.
-	List(ctx context.Context, sessionID string) ([]Pending, error)
-
-	// Get returns the pending interrupt for parentRunID, ok=false when
-	// none is recorded (resolved / unknown).
-	Get(ctx context.Context, parentRunID string) (Pending, bool, error)
-
-	// Consume atomically returns AND removes the pending interrupt for
-	// parentRunID (ok=false when none is recorded). It is the resume path's
-	// claim: read-and-remove in one operation makes resuming idempotent — a
-	// second, concurrent resume of the same interrupt finds nothing and backs
-	// off, so a non-idempotent tool can't re-fire. Distinct from [Store.Delete]
-	// (a fire-and-forget drop that needs no prior read), used by cancel /
-	// rollback / session cleanup.
-	Consume(ctx context.Context, parentRunID string) (Pending, bool, error)
-
-	// Delete removes the entry for parentRunID. Abandoning (cancel) or
-	// sweeping (rollback / session delete) a run calls this; absent entries
-	// are a no-op.
-	Delete(ctx context.Context, parentRunID string) error
-}

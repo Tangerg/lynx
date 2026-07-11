@@ -28,8 +28,8 @@ type stubRuntime struct {
 	sess       *sqlite.SessionStore
 	model      string
 	history    map[string][]chat.Message // per-session chat history (fork copies it)
-	hist       transcript.Store          // durable Item/run history (rollback/fork read runs)
-	interrupts interrupts.Store          // open-interrupt registry (rollback clears dropped)
+	hist       *sqlite.TranscriptStore   // durable Item/run history (rollback/fork read runs)
+	interrupts *sqlite.InterruptStore    // open-interrupt registry (rollback clears dropped)
 	turns      turn.Dispatcher
 }
 
@@ -78,7 +78,7 @@ func newTestServerWithInfo(rt RuntimePort, info protocol.ServerInfo) *Server {
 	return s
 }
 
-func (s stubRuntime) Transcript() transcript.Store { return s.hist }
+func (s stubRuntime) Transcript() *sqlite.TranscriptStore { return s.hist }
 func (s stubRuntime) ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error) {
 	if s.hist == nil {
 		return nil, nil, nil
@@ -91,7 +91,7 @@ func (s stubRuntime) ListTranscriptRuns(ctx context.Context, sessionID string) (
 	}
 	return s.hist.ListRuns(ctx, sessionID)
 }
-func (s stubRuntime) Interrupts() interrupts.Store { return s.interrupts }
+func (s stubRuntime) Interrupts() *sqlite.InterruptStore { return s.interrupts }
 func (s stubRuntime) ListPendingInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
 	if s.interrupts == nil {
 		return nil, nil

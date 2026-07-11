@@ -26,6 +26,27 @@ type sessionStore interface {
 	RenameIfUntitled(ctx context.Context, id, title string) error
 }
 
+// transcriptStore is the facade's view of the durable transcript: the two read
+// projections it serves (List / ListRuns — items.list and the run timeline) plus
+// the run-segment committer's append writes (AppendItem / PutRun). Narrower than
+// the sessions coordinator's lifecycle transcript surface; the composition root
+// threads the one sqlite-backed transcript store, which satisfies both. Defined
+// here at the consumer so the facade names no broad persistence interface.
+type transcriptStore interface {
+	List(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error)
+	ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
+	AppendItem(ctx context.Context, it transcript.Item) error
+	PutRun(ctx context.Context, r transcript.Run) error
+}
+
+// interruptStore is the facade's view of the open-interrupt registry: listing a
+// session's open interrupts (List) and the run-segment committer's park write
+// (Put). Narrower than the sessions coordinator's resume/cancel surface.
+type interruptStore interface {
+	List(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
+	Put(ctx context.Context, p interrupts.Pending) error
+}
+
 // Runtime is the residual execution facade: the turn/engine surface (the
 // runs.Executor the run pump drives) plus the durable session/transcript/history
 // stores it reads for turn planning and projections. Batch 5 relocates this
@@ -44,8 +65,8 @@ type Runtime struct {
 	closeErr  error
 
 	sessions   sessionStore
-	interrupts interrupts.Store
-	transcript transcript.Store
+	interrupts interruptStore
+	transcript transcriptStore
 
 	// history exposes the message-history operations used outside the turn loop
 	// — not via the engine (it owns only the steering touchpoint).

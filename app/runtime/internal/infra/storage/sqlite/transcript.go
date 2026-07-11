@@ -10,17 +10,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-// TranscriptStore implements [transcript.Store] against a SQLite database — the
-// durable Item history a session's items.list is served from. Two tables:
-// history_items (append-only, ordered by an autoincrement seq) and
-// history_runs (one row per run, UPSERT by run_id). Wire Item / RunRef
-// payloads are stored as opaque JSON text; created_at / updated_at as
-// unix nanos.
+// TranscriptStore is the SQLite-backed durable Item history — the single
+// implementation each consumer's narrow transcript port binds to. It is the
+// history a session's items.list is served from. Two tables: history_items
+// (append-only, ordered by an autoincrement seq) and history_runs (one row per
+// run, UPSERT by run_id). Wire Item / RunRef payloads are stored as opaque JSON
+// text; created_at / updated_at as unix nanos.
 type TranscriptStore struct {
 	db *sql.DB
 }
-
-var _ transcript.Store = (*TranscriptStore)(nil)
 
 // NewTranscriptStore binds the SQLite history to db. db must have been
 // opened via [Open] so the migration ran.

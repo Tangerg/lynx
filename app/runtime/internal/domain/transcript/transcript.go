@@ -1,19 +1,20 @@
-// Package transcript defines the durable Item history — the authoritative
-// completed-Item log a session's items.list is served from (API.md §7.4
-// / §10.3). It is the protocol's "Item is the only history primitive"
-// (§0.1) made persistent: the runtime records every completed Item and
-// the RunRef it belongs to as a run streams, so history hydration after a
-// restart returns exactly what the live stream emitted — same ids, same
-// runId, same text — rather than reconstructing items from chat messages.
+// Package transcript defines the durable Item history model — the authoritative
+// completed-Item log a session's items.list is served from (API.md §7.4 /
+// §10.3). It is the protocol's "Item is the only history primitive" (§0.1) made
+// persistent: every completed Item and the RunRef it belongs to is recorded as a
+// run streams, so history hydration after a restart returns exactly what the
+// live stream emitted — same ids, same runId, same text — rather than
+// reconstructing items from chat messages.
 //
-// The store is transport-neutral: Items and Runs are carried as opaque
-// wire blobs (marshaled protocol.Item / protocol.RunRef) plus the few
-// fields the store needs to order and group them, so this package depends
-// on neither delivery/protocol nor any backend.
+// This package holds the persisted shapes (Item, Run) and the run-timeline
+// boundary invariant (Timeline, Boundary — the rollback/fork cut). Items and
+// Runs carry opaque wire blobs (marshaled protocol.Item / protocol.RunRef) plus
+// the few fields needed to order and group them, so the package depends on
+// neither delivery/protocol nor any backend. Persistence is a consumer concern:
+// each consumer declares the narrow transcript port it needs.
 package transcript
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,36 +46,6 @@ type Run struct {
 	// fork{fromRunId} truncate the message log to it. -1 means unknown: a run
 	// still in flight, or one persisted before this field existed.
 	Mark int
-}
-
-// Store is the durable Item history. Implementations must be safe for
-// concurrent use. Consumer-side abstraction: the runtime + RPC server
-// depend on it; back it with the sqlite TranscriptStore
-// (internal/infra/storage/sqlite).
-type Store interface {
-	// AppendItem records one completed Item. List returns items in
-	// append order.
-	AppendItem(ctx context.Context, it Item) error
-
-	// PutRun records (or replaces) a RunRef keyed by (SessionID, RunID).
-	PutRun(ctx context.Context, r Run) error
-
-	// List returns sessionID's items (append order) plus the RunRefs
-	// those items belong to (for run-tree reconstruction, §10.3).
-	List(ctx context.Context, sessionID string) ([]Item, []Run, error)
-
-	// ListRuns returns just sessionID's RunRefs (no items) — the cheap path for
-	// consumers that only need the run records (e.g. usage aggregation), so they
-	// don't load every item blob just to discard it.
-	ListRuns(ctx context.Context, sessionID string) ([]Run, error)
-
-	// DeleteRun removes one run's record and its items (sessions.rollback drops
-	// runs after the kept boundary). Idempotent — unknown run is not an error.
-	DeleteRun(ctx context.Context, sessionID, runID string) error
-
-	// DeleteSession removes every item + run for a session (sessions.rollback
-	// purges the subagent child sessions a dropped run spawned). Idempotent.
-	DeleteSession(ctx context.Context, sessionID string) error
 }
 
 // --- run timeline (the rollback / fork boundary invariant) ---
