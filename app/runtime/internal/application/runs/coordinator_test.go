@@ -73,24 +73,30 @@ func (p *fakeProjector) Translate(EngineEvent) []ProjectedEvent { return p.trans
 func (p *fakeProjector) SynthesizeTerminal() []ProjectedEvent   { return p.terminal }
 func (p *fakeProjector) Abort(msg string)                       { p.aborted = msg }
 
+// fakeEffects records the atomic event commits + nudges the pump drives: it
+// commits an interrupt before publishing (checking the error) and every other
+// event after (best-effort). commitErr fails a commit — the interrupt-abort path.
 type fakeEffects struct {
 	mu        sync.Mutex
-	before    int
-	after     int
+	commits   []execution.EventCommit
+	nudges    int
 	finished  bool
-	beforeErr error
+	commitErr error
 }
 
-func (e *fakeEffects) BeforeLive(context.Context, any) error {
+func (e *fakeEffects) CommitEvent(_ context.Context, c execution.EventCommit) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.before++
-	return e.beforeErr
+	if e.commitErr != nil {
+		return e.commitErr
+	}
+	e.commits = append(e.commits, c)
+	return nil
 }
 
-func (e *fakeEffects) AfterLive(context.Context, any) {
+func (e *fakeEffects) Nudge(string, []string) {
 	e.mu.Lock()
-	e.after++
+	e.nudges++
 	e.mu.Unlock()
 }
 
@@ -100,10 +106,23 @@ func (e *fakeEffects) Finish(context.Context, Finish) {
 	e.mu.Unlock()
 }
 
-func (e *fakeEffects) afters() int {
+func (e *fakeEffects) commitCount() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.after
+	return len(e.commits)
+}
+
+// terminalized reports whether a terminalizing commit landed for sessionID — the
+// terminal run-state transition now rides CommitEvent, not the admission store.
+func (e *fakeEffects) terminalized(sessionID string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, c := range e.commits {
+		if c.State == execution.StateTerminalize && c.SessionID == sessionID {
+			return true
+		}
+	}
+	return false
 }
 
 type fakeMinter struct{ n atomic.Uint64 }
@@ -113,20 +132,18 @@ func (m *fakeMinter) Mint() string { return fmt.Sprintf("evt_%011d", m.n.Add(1))
 // fakeRunStore is the durable admission backstop under test. It enforces the
 // real one-non-terminal-run-per-session invariant (Admit rejects a session that
 // already holds a non-terminal run) so a continuation that wrongly re-Admits is
-// caught, records the admitted drafts and resumes, and signals each terminalize
-// on a channel so a test can observe the pump's teardown write (which runs after
-// the event channel closes).
+// caught, and records the admitted drafts + resumes. The park/terminal state
+// transitions ride the atomic CommitEvent (see [fakeEffects]), not this store.
 type fakeRunStore struct {
 	mu       sync.Mutex
 	admitted []execution.RunDraft
 	active   map[string]bool // sessions holding a non-terminal run
 	resumed  []string
 	admitErr error
-	term     chan string
 }
 
 func newFakeRunStore() *fakeRunStore {
-	return &fakeRunStore{active: map[string]bool{}, term: make(chan string, 4)}
+	return &fakeRunStore{active: map[string]bool{}}
 }
 
 func (f *fakeRunStore) Admit(_ context.Context, d execution.RunDraft) error {
@@ -143,20 +160,10 @@ func (f *fakeRunStore) Admit(_ context.Context, d execution.RunDraft) error {
 	return nil
 }
 
-func (f *fakeRunStore) Suspend(context.Context, string) error { return nil }
-
 func (f *fakeRunStore) Resume(_ context.Context, sessionID string) error {
 	f.mu.Lock()
 	f.resumed = append(f.resumed, sessionID)
 	f.mu.Unlock()
-	return nil
-}
-
-func (f *fakeRunStore) Terminalize(_ context.Context, sessionID, _ string) error {
-	f.mu.Lock()
-	delete(f.active, sessionID)
-	f.mu.Unlock()
-	f.term <- sessionID
 	return nil
 }
 
@@ -198,15 +205,20 @@ func TestCoordinatorStartRejectsDurablyBusySession(t *testing.T) {
 }
 
 // TestCoordinatorStartAdmitsAndTerminalizes: a run records a durable admission on
-// Start and, on its true (non-parked) terminal, releases the durable slot.
+// Start and, on its true (non-parked) terminal, commits the terminalizing state
+// transition atomically through the event committer (not the admission store).
 func TestCoordinatorStartAdmitsAndTerminalizes(t *testing.T) {
 	exec := &fakeExecutor{}
 	store := newFakeRunStore()
+	eff := &fakeEffects{}
 	proj := &fakeProjector{
-		open:     []ProjectedEvent{{Durable: true, Payload: "started"}},
-		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: "finished"}},
+		open: []ProjectedEvent{{Durable: true, Payload: "started"}},
+		terminal: []ProjectedEvent{{
+			Durable: true, Terminal: true, Payload: "finished",
+			Commit: &execution.EventCommit{SessionID: "ses_1", State: execution.StateTerminalize},
+		}},
 	}
-	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, store)
+	c := NewCoordinator(exec, eff, &fakeMinter{}, store)
 
 	events, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
@@ -220,13 +232,8 @@ func TestCoordinatorStartAdmitsAndTerminalizes(t *testing.T) {
 	}
 	for range events {
 	}
-	select {
-	case s := <-store.term:
-		if s != "ses_1" {
-			t.Fatalf("terminalized session = %q, want ses_1", s)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("pump never terminalized the durable run slot")
+	if !eff.terminalized("ses_1") {
+		t.Fatal("pump never committed the terminalizing state transition for ses_1")
 	}
 }
 
@@ -268,10 +275,11 @@ func TestCoordinatorResumeReusesDurableSlot(t *testing.T) {
 func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
 	exec := &fakeExecutor{events: []EngineEvent{stubEngineEvent{}}}
 	eff := &fakeEffects{}
+	commit := &execution.EventCommit{SessionID: "ses_1"}
 	proj := &fakeProjector{
-		open:      []ProjectedEvent{{Durable: true, Payload: "started"}},
-		translate: []ProjectedEvent{{Durable: true, Payload: "item"}},
-		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: "finished"}},
+		open:      []ProjectedEvent{{Durable: true, Payload: "started", Commit: commit}},
+		translate: []ProjectedEvent{{Durable: true, Payload: "item", Commit: commit}},
+		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: "finished", Commit: commit}},
 	}
 	c := NewCoordinator(exec, eff, &fakeMinter{}, nil)
 
@@ -297,10 +305,10 @@ func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
 	if cursors[0] >= cursors[1] || cursors[1] >= cursors[2] {
 		t.Fatalf("cursors not monotonic: %v", cursors)
 	}
-	// Every non-interrupt event committed after publication (AfterLive precedes
+	// Every non-interrupt event committed after publication (the commit precedes
 	// the terminal's hub.Close, so this read is ordered by the channel close).
-	if got := eff.afters(); got != 3 {
-		t.Fatalf("AfterLive calls = %d, want 3", got)
+	if got := eff.commitCount(); got != 3 {
+		t.Fatalf("CommitEvent calls = %d, want 3", got)
 	}
 	if proj.view == nil {
 		t.Fatal("projector never received its segment view")
@@ -399,11 +407,14 @@ func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 // turn, and terminalizes as error.
 func TestCoordinatorInterruptPersistFailureAborts(t *testing.T) {
 	exec := &fakeExecutor{events: []EngineEvent{stubEngineEvent{}}}
-	eff := &fakeEffects{beforeErr: fmt.Errorf("store down")}
+	eff := &fakeEffects{commitErr: fmt.Errorf("store down")}
 	proj := &fakeProjector{
-		open:      []ProjectedEvent{{Durable: true, Payload: "started"}},
-		translate: []ProjectedEvent{{Durable: true, Terminal: true, Interrupt: true, Payload: "interrupt"}},
-		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: "error"}},
+		open: []ProjectedEvent{{Durable: true, Payload: "started"}},
+		translate: []ProjectedEvent{{
+			Durable: true, Terminal: true, Interrupt: true, Payload: "interrupt",
+			Commit: &execution.EventCommit{SessionID: "ses_1", State: execution.StateSuspend},
+		}},
+		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: "error"}},
 	}
 	c := NewCoordinator(exec, eff, &fakeMinter{}, nil)
 	events, err := c.Start(context.Background(),

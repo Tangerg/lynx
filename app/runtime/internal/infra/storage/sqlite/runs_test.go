@@ -27,6 +27,68 @@ func runDraft(runID, sessionID string) execution.RunDraft {
 	return execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: time.Unix(0, 0)}
 }
 
+// TestParkCommitsInterruptAndSuspendAtomically proves the §8.3 pairing the
+// run-event committer relies on: opening the interrupt record and suspending the
+// run's admission row commit — or roll back — as ONE transaction (both writes
+// join the same conn(ctx)), so a crash can never leave a parked run with an
+// interrupt but a still-running admission row, or vice versa.
+func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	runStore, ints := sqlite.NewRunStateStore(db), sqlite.NewInterruptStore(db)
+	ctx := context.Background()
+
+	if err := runStore.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+
+	// park writes through the transaction's context so both statements join the
+	// SAME connection (conn(ctx)); using the outer ctx would open a second
+	// connection under MaxOpenConns(1) and deadlock.
+	park := func(ctx context.Context) error {
+		if err := ints.Put(ctx, interrupts.Pending{ParentRunID: "run_1", SessionID: "ses_A", Interrupts: json.RawMessage("[]"), CreatedAt: time.Unix(0, 0)}); err != nil {
+			return err
+		}
+		return runStore.Suspend(ctx, "ses_A")
+	}
+
+	// A park commit that fails after both writes leaves NEITHER: no interrupt, and
+	// the row stays running (a second admit is still rejected as busy).
+	boom := errors.New("boom")
+	if err := sqlite.RunInTx(ctx, db, func(ctx context.Context) error {
+		if err := park(ctx); err != nil {
+			return err
+		}
+		return boom
+	}); !errors.Is(err, boom) {
+		t.Fatalf("RunInTx err = %v, want boom", err)
+	}
+	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
+		t.Fatalf("interrupt survived a rolled-back park: %+v", open)
+	}
+	// Still running (not interrupted): a rolled-back Suspend left the state intact.
+	if err := runStore.Resume(ctx, "ses_A"); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if err := runStore.Admit(ctx, runDraft("run_x", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("admit after rolled-back park = %v, want ErrSessionBusy (row never freed)", err)
+	}
+
+	// A successful park commit persists BOTH the interrupt and the suspended state.
+	if err := sqlite.RunInTx(ctx, db, park); err != nil {
+		t.Fatalf("park commit: %v", err)
+	}
+	if open, _ := ints.List(ctx, "ses_A"); len(open) != 1 {
+		t.Fatalf("open interrupts = %d, want 1 after committed park", len(open))
+	}
+	if err := runStore.Admit(ctx, runDraft("run_y", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("admit while parked = %v, want ErrSessionBusy (row non-terminal)", err)
+	}
+}
+
 // TestRunAdmitEnforcesOneActivePerSession proves the durable §8.2 guarantee: the
 // partial unique index rejects a second non-terminal run for the same session,
 // a different session is independent, and terminalizing frees the slot.

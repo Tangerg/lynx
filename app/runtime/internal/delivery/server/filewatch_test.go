@@ -91,12 +91,16 @@ func TestRunSegmentPublishesToolFileChange(t *testing.T) {
 		return protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: it}
 	}
 
+	// The nudge derived from a completed item is published via Effects.Nudge.
+	nudgeFrom := func(se protocol.StreamEvent) {
+		_, nudge := sideEffectEvent("run_1", "ses_1", "", "/proj", se, "", "", time.Time{})
+		if nudge != nil {
+			s.runSegmentEffects().Nudge(nudge.Cwd, nudge.Paths)
+		}
+	}
+
 	// write → files.changed{cwd, [path]}
-	ev := sideEffectEvent(
-		"run_1", "ses_1", "", "/proj",
-		completed("write", "src/a.go", false), "", "", time.Time{},
-	)
-	s.runSegmentEffects().AfterLive(context.Background(), ev)
+	nudgeFrom(completed("write", "src/a.go", false))
 	select {
 	case ev := <-events:
 		if ev.Type != "files.changed" || ev.Cwd != "/proj" || len(ev.Paths) != 1 || ev.Paths[0] != "src/a.go" {
@@ -107,12 +111,12 @@ func TestRunSegmentPublishesToolFileChange(t *testing.T) {
 	}
 
 	// shell, errored write, and a non-tool item → nothing.
-	for _, ev := range []protocol.StreamEvent{
+	for _, se := range []protocol.StreamEvent{
 		completed("shell", "whatever", false),
 		completed("write", "src/b.go", true),
 		{Type: protocol.StreamItemCompleted, Item: &protocol.Item{Type: protocol.ItemTypeAgentMessage}},
 	} {
-		s.runSegmentEffects().AfterLive(context.Background(), sideEffectEvent("run_1", "ses_1", "", "/proj", ev, "", "", time.Time{}))
+		nudgeFrom(se)
 	}
 	select {
 	case ev := <-events:

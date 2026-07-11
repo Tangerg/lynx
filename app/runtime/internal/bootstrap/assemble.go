@@ -154,6 +154,8 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		Sessions:     cfg.SessionStore,
 		Interrupts:   cfg.InterruptStore,
 		Transcript:   cfg.TranscriptStore,
+		RunState:     cfg.RunStore,
+		Transact:     cfg.Transactor,
 		Titles:       maintenance.NewTitler(utilityEnv.resolve),
 		Resources:    cfg.Resources,
 	})

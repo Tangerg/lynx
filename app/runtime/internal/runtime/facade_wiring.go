@@ -20,6 +20,11 @@ type Dependencies struct {
 	Interrupts interruptStore
 	Transcript transcriptStore
 
+	// RunState + Transact back the run-segment committer's atomic event commit —
+	// the durable Run-state transition and the transactional seam (§8.3).
+	RunState runStateWriter
+	Transact Transactor
+
 	Titles titleGenerator
 
 	Resources []io.Closer
@@ -37,6 +42,8 @@ func New(d Dependencies) *Runtime {
 		sessions:   d.Sessions,
 		interrupts: d.Interrupts,
 		transcript: d.Transcript,
+		runState:   d.RunState,
+		transact:   d.Transact,
 		titles:     d.Titles,
 	}
 }
