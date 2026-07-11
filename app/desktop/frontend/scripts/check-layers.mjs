@@ -166,6 +166,7 @@ function builtinContext(path, contextRoots) {
 // main/container may reach anything. It's exempt as an importer; peer contexts
 // get no such license.
 const BUILTIN_MANIFEST = "plugins/builtin/index.ts";
+const TEST_SETUP = "test/setup.ts";
 
 // A peer context may import only another context's `public/` facade. Any other
 // cross-context import — including into a loose file sitting at the context
@@ -175,6 +176,7 @@ const BUILTIN_MANIFEST = "plugins/builtin/index.ts";
 // loophole of importing a root-level file that lives in no boundary dir at all.
 function crossContextViolation(file, dep, contextRoots) {
   if (file === BUILTIN_MANIFEST) return null; // plugin composition root
+  if (file === TEST_SETUP) return null; // test-only composition root installs concrete adapters
   const depContext = builtinContext(dep, contextRoots);
   if (!depContext) return null; // dep isn't inside any recognized context
   const fromContext = builtinContext(file, contextRoots);

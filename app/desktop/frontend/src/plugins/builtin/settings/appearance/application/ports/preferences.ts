@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 export type Theme = string;
 
 export interface CustomTheme {
@@ -28,13 +29,9 @@ export interface AppearancePreferencesPort {
   useSetMotionScale(): (scale: number) => void;
 }
 
-let port: AppearancePreferencesPort | null = null;
+const port = createSingletonPort<AppearancePreferencesPort>(
+  "Appearance preferences port is not configured",
+);
 
-export function configureAppearancePreferencesPort(next: AppearancePreferencesPort): void {
-  port = next;
-}
-
-export function appearancePreferences(): AppearancePreferencesPort {
-  if (!port) throw new Error("Appearance preferences port is not configured");
-  return port;
-}
+export const configureAppearancePreferencesPort = port.configure;
+export const appearancePreferences = port.get;

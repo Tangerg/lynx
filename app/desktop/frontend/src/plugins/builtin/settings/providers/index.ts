@@ -8,7 +8,8 @@ export default definePlugin({
   name: "lyra.builtin.providers-pane",
   version: "1.0.0",
   setup({ host }) {
-    installProviderGateway();
+    const disposeGateway = installProviderGateway();
     registerSettingsPane(host, providersSettingsPane(ProvidersPane));
+    return disposeGateway;
   },
 });

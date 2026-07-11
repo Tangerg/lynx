@@ -1,8 +1,8 @@
 import { useUiStore } from "@/state/uiStore";
 import { configureAppearancePreferencesPort } from "../application/ports/preferences";
 
-export function installAppearancePreferencesPort(): void {
-  configureAppearancePreferencesPort({
+export function installAppearancePreferencesPort(): () => void {
+  return configureAppearancePreferencesPort({
     useTheme: () => useUiStore((state) => state.theme),
     useSetTheme: () => useUiStore((state) => state.setTheme),
     useAccent: () => useUiStore((state) => state.accent),

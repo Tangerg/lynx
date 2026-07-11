@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { AgentRunStartOptions } from "@/plugins/sdk";
 import type { Item } from "@/rpc";
 import type { AgentInput } from "../../domain/input";
@@ -78,13 +79,7 @@ export interface AgentViewStatePort {
   subscribeSessions(onChange: (sessions: Record<string, AgentViewSession>) => void): () => void;
 }
 
-let port: AgentViewStatePort | null = null;
+const port = createSingletonPort<AgentViewStatePort>("Agent view state port is not configured");
 
-export function configureAgentViewStatePort(next: AgentViewStatePort): void {
-  port = next;
-}
-
-export function agentViewState(): AgentViewStatePort {
-  if (!port) throw new Error("Agent view state port is not configured");
-  return port;
-}
+export const configureAgentViewStatePort = port.configure;
+export const agentViewState = port.get;

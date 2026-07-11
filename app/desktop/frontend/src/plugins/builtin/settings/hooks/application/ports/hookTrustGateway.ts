@@ -1,14 +1,9 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 export interface HookTrustGateway {
   setProjectTrust(projectRoot: string, trusted: boolean): Promise<void>;
 }
 
-let port: HookTrustGateway | null = null;
+const port = createSingletonPort<HookTrustGateway>("Hook trust gateway is not configured");
 
-export function configureHookTrustGateway(next: HookTrustGateway): void {
-  port = next;
-}
-
-export function hookTrustGateway(): HookTrustGateway {
-  if (!port) throw new Error("Hook trust gateway is not configured");
-  return port;
-}
+export const configureHookTrustGateway = port.configure;
+export const hookTrustGateway = port.get;

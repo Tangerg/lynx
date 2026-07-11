@@ -56,8 +56,8 @@ export function subscribeRuntimeCapabilities(onChange: () => void): () => void {
   return useRuntimeStore.subscribe(onChange);
 }
 
-export function installRuntimeCapabilityPort(): void {
-  configureRuntimeCapabilityPort({
+export function installRuntimeCapabilityPort(): () => void {
+  return configureRuntimeCapabilityPort({
     useCapability: useServerFeature,
     hasCapability: serverFeature,
     supportsStreamingMethod: runtimeSupportsStreamingMethod,

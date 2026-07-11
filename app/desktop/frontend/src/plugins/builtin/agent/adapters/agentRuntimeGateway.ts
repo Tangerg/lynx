@@ -57,6 +57,6 @@ const gateway: AgentRuntimeGateway = {
   },
 };
 
-export function installAgentRuntimeGateway(): void {
-  configureAgentRuntimeGateway(gateway);
+export function installAgentRuntimeGateway(): () => void {
+  return configureAgentRuntimeGateway(gateway);
 }

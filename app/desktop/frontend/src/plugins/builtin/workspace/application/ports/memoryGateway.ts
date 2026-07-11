@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 export type WorkspaceMemoryScope = "cwd" | "projectRoot" | "home";
 
 export interface WorkspaceMemoryUpdateInput {
@@ -10,13 +11,9 @@ export interface WorkspaceMemoryGateway {
   save(input: WorkspaceMemoryUpdateInput): Promise<void>;
 }
 
-let port: WorkspaceMemoryGateway | null = null;
+const port = createSingletonPort<WorkspaceMemoryGateway>(
+  "Workspace memory gateway is not configured",
+);
 
-export function configureWorkspaceMemoryGateway(next: WorkspaceMemoryGateway): void {
-  port = next;
-}
-
-export function workspaceMemoryGateway(): WorkspaceMemoryGateway {
-  if (!port) throw new Error("Workspace memory gateway is not configured");
-  return port;
-}
+export const configureWorkspaceMemoryGateway = port.configure;
+export const workspaceMemoryGateway = port.get;

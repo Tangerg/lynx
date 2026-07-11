@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { ScheduleConfig, ScheduleConfigInput } from "../scheduleConfig";
 
 export interface ScheduleUpdateInput extends ScheduleConfigInput {
@@ -13,13 +14,7 @@ export interface ScheduleGateway {
   runNow(id: string): Promise<void>;
 }
 
-let port: ScheduleGateway | null = null;
+const port = createSingletonPort<ScheduleGateway>("Schedule gateway is not configured");
 
-export function configureScheduleGateway(next: ScheduleGateway): void {
-  port = next;
-}
-
-export function scheduleGateway(): ScheduleGateway {
-  if (!port) throw new Error("Schedule gateway is not configured");
-  return port;
-}
+export const configureScheduleGateway = port.configure;
+export const scheduleGateway = port.get;

@@ -13,7 +13,8 @@ export default definePlugin({
   name: "lyra.builtin.appearance",
   version: "1.0.0",
   setup({ host }) {
-    installAppearancePreferencesPort();
+    const disposePreferences = installAppearancePreferencesPort();
     registerSettingsPane(host, appearanceSettingsPane(AppearancePane));
+    return disposePreferences;
   },
 });

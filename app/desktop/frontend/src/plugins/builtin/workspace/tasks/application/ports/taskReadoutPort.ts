@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 export type TaskReadoutStatus = "running" | "succeeded" | "failed";
 
 export interface TaskReadoutTask {
@@ -14,13 +15,7 @@ export interface TaskReadoutPort {
   useTasks(): Map<string, TaskReadoutTask>;
 }
 
-let port: TaskReadoutPort | null = null;
+const port = createSingletonPort<TaskReadoutPort>("task readout port is not configured");
 
-export function configureTaskReadoutPort(next: TaskReadoutPort): void {
-  port = next;
-}
-
-export function taskReadoutPort(): TaskReadoutPort {
-  if (!port) throw new Error("task readout port is not configured");
-  return port;
-}
+export const configureTaskReadoutPort = port.configure;
+export const taskReadoutPort = port.get;

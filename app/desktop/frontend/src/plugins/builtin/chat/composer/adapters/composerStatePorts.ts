@@ -10,8 +10,8 @@ import { useComposerStore } from "./composerStore";
 
 let stopSessionSync: (() => void) | null = null;
 
-export function installComposerStatePorts(): void {
-  configureComposerStatePort({
+export function installComposerStatePorts(): () => void {
+  const disposePort = configureComposerStatePort({
     useText: () => useComposerStore((state) => state.value),
     useSetText: () => useComposerStore((state) => state.setValue),
     useClearDraft: () => useComposerStore((state) => state.clear),
@@ -37,21 +37,29 @@ export function installComposerStatePorts(): void {
     },
     useSetModelPreference: () => useComposerStore((state) => state.setModel),
   });
-
-  installComposerSessionSync();
+  const disposeSessionSync = installComposerSessionSync();
+  return () => {
+    disposeSessionSync();
+    disposePort();
+  };
 }
 
-function installComposerSessionSync(): void {
+function installComposerSessionSync(): () => void {
   stopSessionSync?.();
-  stopSessionSync = subscribeAgentSessionLifecycle(({ activeSessionId, openSessionIds }) => {
+  const stop = subscribeAgentSessionLifecycle(({ activeSessionId, openSessionIds }) => {
     const composer = useComposerStore.getState();
     composer.loadSession(activeSessionId);
     composer.pruneDrafts(new Set(openSessionIds));
   });
+  stopSessionSync = stop;
 
   const initial = getAgentSessionLifecycleSnapshot();
   useComposerStore.getState().loadSession(initial.activeSessionId);
   useComposerStore.getState().pruneDrafts(new Set(initial.openSessionIds));
+  return () => {
+    stop();
+    if (stopSessionSync === stop) stopSessionSync = null;
+  };
 }
 
 disposeOnHmr(() => {

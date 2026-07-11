@@ -204,6 +204,8 @@ Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内
 
 React Query 的 cache 与 provider lookup 是共享技术机制，留在 `lib/data/dataQuery.ts` 与 `queryClient.ts`。Session、Workspace、Approval、Provider、MCP、Hooks、Schedules、Recipes、Usage 的 query key、read model 与 hook 均由所属上下文拥有；跨上下文消费必须经过该上下文的 `public/data.ts`（或既有 public facade）。`lib/data` 不再充当全局业务模型仓库。
 
+Application port 使用 `lib/ports/singletonPort.ts` 管理进程内绑定。每个 adapter installer 必须返回 disposer，plugin `setup` 必须把它返回给 SDK lifecycle；unload / reload / HMR 会断开旧 adapter。disposer 按实例比较，旧插件的迟到 cleanup 不会误清除后来安装的新 adapter。`public/` 不暴露 adapter installer，组合入口在同一上下文内直接装配。
+
 Runtime endpoint 是组合配置：`lyra.builtin.runtime` 在 capability discovery 之前同步恢复
 `runtime.endpoint`，`main/container.ts` 按 endpoint + local token 缓存客户端。Connection 面板只编辑
 Runtime 发布的 connection use case；应用变更后重载前端，让 streams、queries、capabilities 与 session

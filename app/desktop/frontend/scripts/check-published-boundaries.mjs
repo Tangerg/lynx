@@ -41,6 +41,24 @@ for (const file of files(SRC)) {
     });
   }
 
+  if (!isTest && rel.startsWith("plugins/builtin/") && /\blet\s+port\s*:/.test(text)) {
+    violations.push({
+      file: rel,
+      reason: "builtin application ports must use replacement-safe singletonPort lifecycle",
+    });
+  }
+
+  if (
+    !isTest &&
+    /plugins\/builtin\/.+\/adapters\/.+\.(ts|tsx)$/.test(rel) &&
+    /export\s+function\s+install\w+\(\)\s*:\s*void/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "port installers must return a disposer for plugin unload and HMR",
+    });
+  }
+
   if (/@\/protocol\/run|protocol\/run|agent\/core-reducer|core-reducer/.test(text)) {
     violations.push({
       file: rel,
@@ -251,7 +269,6 @@ for (const file of files(SRC)) {
   if (
     !isTest &&
     /plugins\/builtin\/.+\/public\/.+\.(ts|tsx)$/.test(rel) &&
-    !/plugins\/builtin\/.+\/public\/statePorts\.ts$/.test(rel) &&
     /from\s+["'](?:@\/plugins\/builtin\/.+\/adapters(?:\/[^"']*)?|(?:\.\.\/)+adapters(?:\/[^"']*)?)["']/.test(
       text,
     )

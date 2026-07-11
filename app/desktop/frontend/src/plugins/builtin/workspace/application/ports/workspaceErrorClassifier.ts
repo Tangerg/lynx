@@ -1,14 +1,11 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 export interface WorkspaceErrorClassifier {
   isVcsUnavailable(error: unknown): boolean;
 }
 
-let port: WorkspaceErrorClassifier | null = null;
+const port = createSingletonPort<WorkspaceErrorClassifier>(
+  "Workspace error classifier is not configured",
+);
 
-export function configureWorkspaceErrorClassifier(next: WorkspaceErrorClassifier): void {
-  port = next;
-}
-
-export function workspaceErrorClassifier(): WorkspaceErrorClassifier {
-  if (!port) throw new Error("Workspace error classifier is not configured");
-  return port;
-}
+export const configureWorkspaceErrorClassifier = port.configure;
+export const workspaceErrorClassifier = port.get;

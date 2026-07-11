@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { MCPServerConfigInput } from "../mcpServerInput";
 
 export interface MCPServerTestOutcome {
@@ -13,13 +14,7 @@ export interface MCPServerGateway {
   test(input: MCPServerConfigInput): Promise<MCPServerTestOutcome>;
 }
 
-let port: MCPServerGateway | null = null;
+const port = createSingletonPort<MCPServerGateway>("MCP server gateway is not configured");
 
-export function configureMCPServerGateway(next: MCPServerGateway): void {
-  port = next;
-}
-
-export function mcpServerGateway(): MCPServerGateway {
-  if (!port) throw new Error("MCP server gateway is not configured");
-  return port;
-}
+export const configureMCPServerGateway = port.configure;
+export const mcpServerGateway = port.get;

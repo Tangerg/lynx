@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 export interface ProviderCredentials {
   provider: string;
   apiKey?: string;
@@ -22,13 +23,7 @@ export interface ProviderGateway {
   errorMessage(error: unknown): string | undefined;
 }
 
-let port: ProviderGateway | null = null;
+const port = createSingletonPort<ProviderGateway>("Provider gateway is not configured");
 
-export function configureProviderGateway(next: ProviderGateway): void {
-  port = next;
-}
-
-export function providerGateway(): ProviderGateway {
-  if (!port) throw new Error("Provider gateway is not configured");
-  return port;
-}
+export const configureProviderGateway = port.configure;
+export const providerGateway = port.get;

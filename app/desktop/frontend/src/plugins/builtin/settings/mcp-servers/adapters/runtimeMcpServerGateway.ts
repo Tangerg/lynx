@@ -56,6 +56,6 @@ const gateway: MCPServerGateway = {
   },
 };
 
-export function installMCPServerGateway(): void {
-  configureMCPServerGateway(gateway);
+export function installMCPServerGateway(): () => void {
+  return configureMCPServerGateway(gateway);
 }

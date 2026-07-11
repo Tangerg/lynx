@@ -18,6 +18,6 @@ const gateway: ConversationArchiveGateway = {
   },
 };
 
-export function installConversationArchiveGateway(): void {
-  configureConversationArchiveGateway(gateway);
+export function installConversationArchiveGateway(): () => void {
+  return configureConversationArchiveGateway(gateway);
 }

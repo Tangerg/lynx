@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { MessageFeedbackRating } from "../domain/feedback";
 
 export interface MessageFeedbackTarget {
@@ -12,16 +13,12 @@ export interface SubmitMessageFeedbackPort {
   }): Promise<void>;
 }
 
-let port: SubmitMessageFeedbackPort | null = null;
+const port = createSingletonPort<SubmitMessageFeedbackPort>(
+  "Message feedback port is not configured",
+);
 
-export function configureMessageFeedbackPort(next: SubmitMessageFeedbackPort): void {
-  port = next;
-}
-
-function messageFeedbackPort(): SubmitMessageFeedbackPort {
-  if (!port) throw new Error("Message feedback port is not configured");
-  return port;
-}
+export const configureMessageFeedbackPort = port.configure;
+const messageFeedbackPort = port.get;
 
 const ratedMessages = new Map<string, MessageFeedbackRating>();
 

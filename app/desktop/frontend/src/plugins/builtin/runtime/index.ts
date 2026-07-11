@@ -9,7 +9,7 @@ export default definePlugin({
   name: "lyra.builtin.runtime",
   version: "1.0.0",
   setup({ host }) {
-    installRuntimeCapabilityPort();
+    const disposeCapabilities = installRuntimeCapabilityPort();
     installRuntimeConnection(host);
     const capabilities = runtimeCapabilities();
     capabilities.clear();
@@ -17,5 +17,9 @@ export default definePlugin({
     void discoverRuntime(getContainer().client().rpc, capabilities).catch((error) => {
       console.warn("[runtime] discovery failed; running degraded:", error);
     });
+    return () => {
+      capabilities.clear();
+      disposeCapabilities();
+    };
   },
 });

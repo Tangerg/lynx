@@ -12,6 +12,6 @@ const gateway: CodebaseGateway = {
   },
 };
 
-export function installCodebaseGateway(): void {
-  configureCodebaseGateway(gateway);
+export function installCodebaseGateway(): () => void {
+  return configureCodebaseGateway(gateway);
 }

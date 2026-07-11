@@ -8,6 +8,6 @@ const gateway: HookTrustGateway = {
   },
 };
 
-export function installHookTrustGateway(): void {
-  configureHookTrustGateway(gateway);
+export function installHookTrustGateway(): () => void {
+  return configureHookTrustGateway(gateway);
 }

@@ -8,6 +8,6 @@ const classifier: WorkspaceErrorClassifier = {
   },
 };
 
-export function installWorkspaceErrorClassifier(): void {
-  configureWorkspaceErrorClassifier(classifier);
+export function installWorkspaceErrorClassifier(): () => void {
+  return configureWorkspaceErrorClassifier(classifier);
 }

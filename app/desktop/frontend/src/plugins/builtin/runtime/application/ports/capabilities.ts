@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { ServerCapabilities } from "@/rpc";
 import type { RuntimeCapability } from "../../domain/capability";
 
@@ -10,13 +11,9 @@ export interface RuntimeCapabilityPort {
   clear(): void;
 }
 
-let port: RuntimeCapabilityPort | null = null;
+const port = createSingletonPort<RuntimeCapabilityPort>(
+  "Runtime capability port is not configured",
+);
 
-export function configureRuntimeCapabilityPort(next: RuntimeCapabilityPort): void {
-  port = next;
-}
-
-export function runtimeCapabilities(): RuntimeCapabilityPort {
-  if (!port) throw new Error("Runtime capability port is not configured");
-  return port;
-}
+export const configureRuntimeCapabilityPort = port.configure;
+export const runtimeCapabilities = port.get;
