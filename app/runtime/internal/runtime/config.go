@@ -121,11 +121,11 @@ type Config struct {
 	EmbeddingRoleStore EmbeddingRoleStore
 	CodebaseStore      codebaseindex.Store
 
-	// Transactor runs a write-set inside one storage transaction, so the
-	// cross-store operations (sessions.import / rollback) commit atomically. nil
-	// means [Runtime.runInTx] runs the function directly (no atomicity), keeping
-	// non-sqlite / test runtimes working. The composition root wires the
-	// sqlite-backed transactor.
+	// Transactor runs a write-set inside one storage transaction, so the sessions
+	// coordinator's cross-store operations (sessions.import / rollback / delete
+	// cascade) commit atomically. nil runs each function directly (no atomicity),
+	// keeping non-sqlite / test runtimes working. The composition root wires the
+	// sqlite-backed transactor into the sessions coordinator.
 	Transactor Transactor
 }
 

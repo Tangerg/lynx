@@ -84,9 +84,4 @@ type Runtime struct {
 	embeddings     *modelclient.EmbeddingResolver
 	embeddingStore embeddingRoleSaver
 	codebase       codebaseindex.Index
-
-	// transactor runs a write-set inside one storage transaction so the
-	// cross-store operations (sessions.import / rollback) are atomic; nil → run
-	// directly (RunInTx). See [Transactor].
-	transactor Transactor
 }

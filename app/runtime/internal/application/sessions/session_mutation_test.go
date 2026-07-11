@@ -120,11 +120,22 @@ func (s *deleteStores) RunInTx(ctx context.Context, fn func(context.Context) err
 
 type deleteSessionStore struct{ stores *deleteStores }
 
+func (deleteSessionStore) List(context.Context) ([]session.Session, error)     { panic("unused") }
+func (deleteSessionStore) Get(context.Context, string) (session.Session, error) { panic("unused") }
+func (deleteSessionStore) Create(context.Context, string, string) (session.Session, error) {
+	panic("unused")
+}
 func (deleteSessionStore) Fork(context.Context, string, string) (session.Session, error) {
 	panic("unused")
 }
-func (deleteSessionStore) Rename(context.Context, string, string) error   { panic("unused") }
-func (deleteSessionStore) Restore(context.Context, session.Session) error { panic("unused") }
+func (deleteSessionStore) Rename(context.Context, string, string) error         { panic("unused") }
+func (deleteSessionStore) SetModel(context.Context, string, string) error       { panic("unused") }
+func (deleteSessionStore) SetCwd(context.Context, string, string) error         { panic("unused") }
+func (deleteSessionStore) SetMetadata(context.Context, string, map[string]any) error {
+	panic("unused")
+}
+func (deleteSessionStore) SetFavorite(context.Context, string, bool) error { panic("unused") }
+func (deleteSessionStore) Restore(context.Context, session.Session) error  { panic("unused") }
 func (deleteSessionStore) Children(context.Context, string) ([]session.Session, error) {
 	panic("unused")
 }

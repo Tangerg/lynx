@@ -35,7 +35,7 @@ const defaultSessionPageLimit = 100
 // NextCursor is the "has more" signal — never a silent truncation. The
 // store returns the full ordered list; pagination is applied here.
 func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
-	sessions, err := s.rt.ListSessions(ctx)
+	sessions, err := s.sessions.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 }
 
 func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {
-	ses, err := s.rt.SessionByID(ctx, id)
+	ses, err := s.sessions.Get(ctx, id)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
@@ -65,7 +65,7 @@ func (s *Server) CreateSession(ctx context.Context, in protocol.CreateSessionReq
 	if cwd == "" {
 		cwd = s.serverInfo.Cwd
 	}
-	ses, err := s.rt.CreateSession(ctx, in.Title, cwd)
+	ses, err := s.sessions.Create(ctx, in.Title, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 // all live. Nil fields are left alone; the updated session is returned. The
 // dispatch layer already rejects an empty SessionID.
 func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
-	ses, err := s.rt.UpdateSession(ctx, in.SessionID, session.Patch{
+	ses, err := s.sessions.Update(ctx, in.SessionID, session.Patch{
 		Title:    in.Title,
 		Model:    in.Model,
 		Cwd:      in.Cwd,

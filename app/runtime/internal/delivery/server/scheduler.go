@@ -26,7 +26,7 @@ func (r scheduleRunner) StartScheduledRun(ctx context.Context, sc schedule.Sched
 	if title == "" {
 		title = "Scheduled run"
 	}
-	sess, err := s.rt.CreateSession(ctx, title, cwd)
+	sess, err := s.sessions.Create(ctx, title, cwd)
 	if err != nil {
 		return "", err
 	}
