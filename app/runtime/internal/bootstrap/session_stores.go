@@ -7,8 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
@@ -28,8 +26,8 @@ type sessionForgetter interface {
 // the whole runtime facade.
 type sessionStores struct {
 	sessions   *sqlitestore.SessionStore
-	transcript transcript.Store
-	interrupts interrupts.Store
+	transcript *sqlitestore.TranscriptStore
+	interrupts *sqlitestore.InterruptStore
 	history    *conversation.Messages
 	forgetter  sessionForgetter
 	tx         lyraruntime.Transactor

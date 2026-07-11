@@ -11,16 +11,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 )
 
-// InterruptStore implements [interrupts.Store] against a SQLite database —
-// the durable open-interrupt registry for cross-restart resume. One row
-// per parked run keyed by parent_run_id; the wire interrupt payload is
-// stored as opaque JSON text, created_at as unix nanos for ordering.
-// Put is UPSERT so re-recording the same parentRunId overwrites.
+// InterruptStore is the SQLite-backed durable open-interrupt registry for
+// cross-restart resume — the single implementation each consumer's narrow
+// interrupt port binds to. One row per parked run keyed by parent_run_id; the
+// wire interrupt payload is stored as opaque JSON text, created_at as unix nanos
+// for ordering. Put is UPSERT so re-recording the same parentRunId overwrites.
 type InterruptStore struct {
 	db *sql.DB
 }
-
-var _ interrupts.Store = (*InterruptStore)(nil)
 
 // NewInterruptStore binds the SQLite interrupt registry to db. db must
 // have been opened via [Open] so the migration ran.
@@ -105,9 +103,9 @@ func (s *InterruptStore) Get(ctx context.Context, parentRunID string) (interrupt
 
 // Consume atomically reads AND deletes the pending interrupt for parentRunID
 // (one DELETE ... RETURNING), or returns ok=false when none is recorded — the
-// [interrupts.Store] claim contract. A single statement means two concurrent
-// resumes can't both observe the same open interrupt: one claims it, the other
-// gets ok=false, so a non-idempotent tool never re-fires.
+// resume claim contract. A single statement means two concurrent resumes can't
+// both observe the same open interrupt: one claims it, the other gets ok=false,
+// so a non-idempotent tool never re-fires.
 func (s *InterruptStore) Consume(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error) {
 	row := conn(ctx, s.db).QueryRowContext(ctx,
 		`DELETE FROM interrupts WHERE parent_run_id = ?

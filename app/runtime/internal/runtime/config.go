@@ -7,12 +7,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -63,13 +61,14 @@ type Config struct {
 	SessionStore *sqlitestore.SessionStore
 
 	// InterruptStore records open HITL interrupts (R-model resume discovery).
-	// Required; injected sqlite-backed, same as SessionStore.
-	InterruptStore interrupts.Store
+	// Required; injected sqlite-backed, same as SessionStore (concrete for the
+	// same single-backend / composition-ring reason).
+	InterruptStore *sqlitestore.InterruptStore
 
 	// TranscriptStore persists the durable Item history that items.list is
 	// served from (authoritative completed Items + their RunRefs). Required;
 	// injected sqlite-backed, same as SessionStore.
-	TranscriptStore transcript.Store
+	TranscriptStore *sqlitestore.TranscriptStore
 
 	// ProviderRegistry is the runtime-mutable provider registry (per-provider
 	// credentials, persisted). Required; the composition root injects the

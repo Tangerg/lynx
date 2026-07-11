@@ -7,33 +7,31 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-type transcriptStore struct {
+type transcriptRuntimeStore struct {
 	listSessionID string
 	runsSessionID string
 	items         []transcript.Item
 	runs          []transcript.Run
 }
 
-func (s *transcriptStore) List(_ context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error) {
+var _ transcriptStore = (*transcriptRuntimeStore)(nil)
+
+func (s *transcriptRuntimeStore) List(_ context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error) {
 	s.listSessionID = sessionID
 	return s.items, s.runs, nil
 }
 
-func (s *transcriptStore) ListRuns(_ context.Context, sessionID string) ([]transcript.Run, error) {
+func (s *transcriptRuntimeStore) ListRuns(_ context.Context, sessionID string) ([]transcript.Run, error) {
 	s.runsSessionID = sessionID
 	return s.runs, nil
 }
 
-func (*transcriptStore) AppendItem(context.Context, transcript.Item) error { return nil }
+func (*transcriptRuntimeStore) AppendItem(context.Context, transcript.Item) error { return nil }
 
-func (*transcriptStore) PutRun(context.Context, transcript.Run) error { return nil }
-
-func (*transcriptStore) DeleteRun(context.Context, string, string) error { return nil }
-
-func (*transcriptStore) DeleteSession(context.Context, string) error { return nil }
+func (*transcriptRuntimeStore) PutRun(context.Context, transcript.Run) error { return nil }
 
 func TestRuntimeListTranscript(t *testing.T) {
-	store := &transcriptStore{
+	store := &transcriptRuntimeStore{
 		items: []transcript.Item{{ItemID: "item_1"}},
 		runs:  []transcript.Run{{RunID: "run_1"}},
 	}
@@ -52,7 +50,7 @@ func TestRuntimeListTranscript(t *testing.T) {
 }
 
 func TestRuntimeListTranscriptRuns(t *testing.T) {
-	store := &transcriptStore{runs: []transcript.Run{{RunID: "run_1"}}}
+	store := &transcriptRuntimeStore{runs: []transcript.Run{{RunID: "run_1"}}}
 	rt := &Runtime{transcript: store}
 
 	runs, err := rt.ListTranscriptRuns(context.Background(), "ses_1")

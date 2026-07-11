@@ -16,12 +16,10 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/history"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	todosvc "github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
@@ -41,8 +39,8 @@ type Bundle struct {
 	Session       *sqlitestore.SessionStore
 	Memory        knowledge.Store
 	Process       core.ProcessStore
-	Interrupt     interrupts.Store
-	Transcript    transcript.Store
+	Interrupt     *sqlitestore.InterruptStore
+	Transcript    *sqlitestore.TranscriptStore
 	Provider      providersvc.Registry
 	MCPServers    mcpserversvc.Registry
 	ChatHistory   history.Store
