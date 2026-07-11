@@ -18,8 +18,17 @@ type RunStore interface {
 	// Admit records draft as the session's active (running) Run. It returns
 	// [execution.ErrSessionBusy] when the session already has a non-terminal Run
 	// — the durable "one non-terminal Run per Session" guarantee (§8.2), upheld
-	// across restarts unlike the in-memory [Registry] claim.
+	// across restarts unlike the in-memory [Registry] claim. Called for a fresh
+	// root run; a continuation of a parked run calls [RunStore.Resume] instead,
+	// reusing the session's existing durable row rather than admitting a second.
 	Admit(ctx context.Context, draft execution.RunDraft) error
+	// Suspend transitions the session's running Run to interrupted when it parks
+	// for HITL resume, keeping it non-terminal (the session stays claimed).
+	// Idempotent: a no-op when the session has no running Run.
+	Suspend(ctx context.Context, sessionID string) error
+	// Resume transitions the session's interrupted Run back to running when a
+	// parked run continues. Idempotent: a no-op when the row is already running.
+	Resume(ctx context.Context, sessionID string) error
 	// Terminalize transitions the session's non-terminal Run to terminal with the
 	// given outcome, freeing the session. Idempotent: a no-op when the session has
 	// no non-terminal Run.

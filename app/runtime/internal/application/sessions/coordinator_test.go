@@ -37,6 +37,26 @@ func TestCancelParkedRunCancelsTurnBeforeDeletingInterrupt(t *testing.T) {
 	}
 }
 
+func TestCancelParkedRunFreesDurableSlot(t *testing.T) {
+	stores := coordinatorStores{
+		interrupts: &coordinatorInterrupts{
+			pending: map[string]interrupts.Pending{
+				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+			},
+		},
+	}
+	runs := &fakeDurableRuns{}
+
+	if err := newCoordinatorWithRuns(stores, stubTurns{}, runs).CancelParkedRun(context.Background(), "run_1"); err != nil {
+		t.Fatalf("cancel parked run: %v", err)
+	}
+	// Abandoning the parked run must terminalize its durable admission row so the
+	// session can start a fresh run — the parked cancel is its only terminalize.
+	if len(runs.terminalized) != 1 || runs.terminalized[0] != "ses_1" {
+		t.Fatalf("terminalized = %v, want [ses_1]", runs.terminalized)
+	}
+}
+
 func TestCancelParkedRunMissing(t *testing.T) {
 	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
 	err := newCoordinator(stores, stubTurns{}).CancelParkedRun(context.Background(), "missing")

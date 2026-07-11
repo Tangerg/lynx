@@ -110,29 +110,52 @@ type fakeMinter struct{ n atomic.Uint64 }
 
 func (m *fakeMinter) Mint() string { return fmt.Sprintf("evt_%011d", m.n.Add(1)) }
 
-// fakeRunStore is the durable admission backstop under test: it records the
-// admitted drafts and signals each terminalize on a channel so a test can
-// observe the pump's teardown write (which runs after the event channel closes).
+// fakeRunStore is the durable admission backstop under test. It enforces the
+// real one-non-terminal-run-per-session invariant (Admit rejects a session that
+// already holds a non-terminal run) so a continuation that wrongly re-Admits is
+// caught, records the admitted drafts and resumes, and signals each terminalize
+// on a channel so a test can observe the pump's teardown write (which runs after
+// the event channel closes).
 type fakeRunStore struct {
 	mu       sync.Mutex
 	admitted []execution.RunDraft
+	active   map[string]bool // sessions holding a non-terminal run
+	resumed  []string
 	admitErr error
 	term     chan string
 }
 
-func newFakeRunStore() *fakeRunStore { return &fakeRunStore{term: make(chan string, 4)} }
+func newFakeRunStore() *fakeRunStore {
+	return &fakeRunStore{active: map[string]bool{}, term: make(chan string, 4)}
+}
 
 func (f *fakeRunStore) Admit(_ context.Context, d execution.RunDraft) error {
 	if f.admitErr != nil {
 		return f.admitErr
 	}
 	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.active[d.SessionID] {
+		return execution.ErrSessionBusy
+	}
+	f.active[d.SessionID] = true
 	f.admitted = append(f.admitted, d)
+	return nil
+}
+
+func (f *fakeRunStore) Suspend(context.Context, string) error { return nil }
+
+func (f *fakeRunStore) Resume(_ context.Context, sessionID string) error {
+	f.mu.Lock()
+	f.resumed = append(f.resumed, sessionID)
 	f.mu.Unlock()
 	return nil
 }
 
 func (f *fakeRunStore) Terminalize(_ context.Context, sessionID, _ string) error {
+	f.mu.Lock()
+	delete(f.active, sessionID)
+	f.mu.Unlock()
 	f.term <- sessionID
 	return nil
 }
@@ -143,6 +166,12 @@ func (f *fakeRunStore) admits() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.admitted)
+}
+
+func (f *fakeRunStore) resumes() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.resumed)
 }
 
 // TestCoordinatorStartRejectsDurablyBusySession: when the durable backstop
@@ -198,6 +227,37 @@ func TestCoordinatorStartAdmitsAndTerminalizes(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("pump never terminalized the durable run slot")
+	}
+}
+
+// TestCoordinatorResumeReusesDurableSlot: a continuation of a parked run (a spec
+// carrying a ParentRunID) transitions the session's EXISTING durable row back to
+// running rather than admitting a second row — so a resume does not trip the
+// one-non-terminal-run-per-session guard the parent's still-open row would trip.
+func TestCoordinatorResumeReusesDurableSlot(t *testing.T) {
+	exec := &fakeExecutor{}
+	store := newFakeRunStore()
+	// The parent run parked: its durable row is still non-terminal (active).
+	store.active["ses_1"] = true
+	proj := &fakeProjector{
+		open:     []ProjectedEvent{{Durable: true, Payload: "started"}},
+		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: "finished"}},
+	}
+	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, store)
+
+	events, err := c.Start(context.Background(),
+		StartSpec{RunID: "cont_1", ParentRunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
+		func(v SegmentView) Projector { proj.view = v; return proj })
+	if err != nil {
+		t.Fatalf("resume Start must not re-admit a durably-busy session: %v", err)
+	}
+	if store.admits() != 0 {
+		t.Fatalf("a continuation must not Admit (got %d) — it reuses the parent's row", store.admits())
+	}
+	if store.resumes() != 1 {
+		t.Fatalf("resumes = %d, want 1", store.resumes())
+	}
+	for range events {
 	}
 }
 

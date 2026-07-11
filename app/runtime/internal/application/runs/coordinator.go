@@ -59,25 +59,11 @@ func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector
 		release()
 		return nil, err
 	}
-	// Durable admission (§8.2) is the LAST gate before the pump: if it rejects
-	// (the session already holds a non-terminal run in the durable table — a race
-	// the in-memory claim missed, or a run left over across restart), nothing
-	// durable was written, so tearing the turn down here needs no compensation.
-	// Past this point the pump always runs, and only its teardown terminalizes.
-	if c.runStore != nil {
-		if err := c.runStore.Admit(reqCtx, execution.RunDraft{
-			RunID:     spec.RunID,
-			SessionID: spec.SessionID,
-			Provider:  spec.Provider,
-			Model:     spec.Model,
-			ProcessID: spec.TurnID,
-			CreatedAt: spec.CreatedAt,
-		}); err != nil {
-			cancel()
-			_ = c.executor.CancelTurn(taskCtx, spec.Handle)
-			release()
-			return nil, err
-		}
+	if err := c.admitDurable(reqCtx, spec); err != nil {
+		cancel()
+		_ = c.executor.CancelTurn(taskCtx, spec.Handle)
+		release()
+		return nil, err
 	}
 	hub := NewJournal[Event]()
 	live := &handle{cancel: cancel, owner: taskCtx, hub: hub}
@@ -99,6 +85,34 @@ func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector
 		c.pump(runCtx, taskCtx, spec, inner, live, projector)
 	}()
 	return events, nil
+}
+
+// admitDurable records the segment's Run in the durable admission table (§8.2)
+// as the LAST gate before the pump. A fresh root run (no parent) is Admitted:
+// its INSERT is the gate — a rejection means the session already holds a
+// non-terminal run (a race the in-memory claim missed, or a run left over across
+// restart), and since nothing durable was written, tearing the turn down needs
+// no compensation. A continuation of a parked run (spec.ParentRunID set) is
+// already gated by the in-memory resume claim, so it does not admit a second row
+// for the session; it transitions the session's existing durable row back to
+// running (best-effort — the resume proceeds regardless). A nil store disables
+// the durable backstop (the in-memory claim still guards within one process).
+func (c *Coordinator) admitDurable(ctx context.Context, spec StartSpec) error {
+	if c.runStore == nil {
+		return nil
+	}
+	if spec.ParentRunID != "" {
+		_ = c.runStore.Resume(ctx, spec.SessionID)
+		return nil
+	}
+	return c.runStore.Admit(ctx, execution.RunDraft{
+		RunID:     spec.RunID,
+		SessionID: spec.SessionID,
+		Provider:  spec.Provider,
+		Model:     spec.Model,
+		ProcessID: spec.TurnID,
+		CreatedAt: spec.CreatedAt,
+	})
 }
 
 // cancelTurnAfterAdmissionFailure tears down a turn that was created but never

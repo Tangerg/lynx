@@ -128,7 +128,32 @@ func (t stubTurns) Rehydrate(_ context.Context, req RehydrateSpec) (Handle, erro
 	return t.rehydrateHandle, t.rehydrateErr
 }
 
-// newCoordinator builds a Coordinator over test stores and turns.
+// fakeDurableRuns records the durable-admission writes the abandonment
+// write-sets make, so a test can assert a canceled/rolled-back/deleted run frees
+// its session's durable slot.
+type fakeDurableRuns struct {
+	terminalized []string
+	deleted      []string
+}
+
+func (f *fakeDurableRuns) Terminalize(_ context.Context, sessionID, _ string) error {
+	f.terminalized = append(f.terminalized, sessionID)
+	return nil
+}
+
+func (f *fakeDurableRuns) DeleteForSession(_ context.Context, sessionID string) error {
+	f.deleted = append(f.deleted, sessionID)
+	return nil
+}
+
+// newCoordinator builds a Coordinator over test stores and turns, without a
+// durable run-admission backstop (in-process-only).
 func newCoordinator(stores Stores, turns Turns) *Coordinator {
 	return New(Dependencies{Stores: stores, Turns: turns})
+}
+
+// newCoordinatorWithRuns builds a Coordinator wired to a durable run-admission
+// backstop so a test can observe the slot-freeing writes.
+func newCoordinatorWithRuns(stores Stores, turns Turns, runs DurableRuns) *Coordinator {
+	return New(Dependencies{Stores: stores, Turns: turns, Runs: runs})
 }

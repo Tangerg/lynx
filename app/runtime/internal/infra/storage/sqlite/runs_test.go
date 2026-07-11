@@ -71,6 +71,106 @@ func TestTerminalizeIsIdempotent(t *testing.T) {
 	}
 }
 
+// TestSuspendResumeReusesOneSlot: a parked run's Suspend keeps the session's row
+// non-terminal (a second Admit is still rejected), and a continuation's Resume
+// keeps reusing that one row rather than admitting a second — so the durable
+// slot survives the full park→resume→park→terminal cycle. Terminalize after
+// resume frees it.
+func TestSuspendResumeReusesOneSlot(t *testing.T) {
+	ctx := context.Background()
+	store, _ := newRunStores(t)
+
+	if err := store.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	// Park: the row goes interrupted but stays non-terminal — still busy.
+	if err := store.Suspend(ctx, "ses_A"); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+	if err := store.Admit(ctx, runDraft("run_2", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("admit while suspended = %v, want ErrSessionBusy (row still non-terminal)", err)
+	}
+	// Resume: back to running, no second row admitted.
+	if err := store.Resume(ctx, "ses_A"); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if err := store.Admit(ctx, runDraft("run_3", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("admit while resumed = %v, want ErrSessionBusy", err)
+	}
+	// Terminal frees the one reused slot.
+	if err := store.Terminalize(ctx, "ses_A", execution.OutcomeCompleted.String()); err != nil {
+		t.Fatalf("terminalize: %v", err)
+	}
+	if err := store.Admit(ctx, runDraft("run_4", "ses_A")); err != nil {
+		t.Fatalf("re-admit after terminal: %v", err)
+	}
+}
+
+// TestDeleteForSessionFreesSlot: dropping a session's rows wholesale (the
+// delete/restore cascade) removes even a non-terminal row, freeing the session.
+func TestDeleteForSessionFreesSlot(t *testing.T) {
+	ctx := context.Background()
+	store, _ := newRunStores(t)
+
+	if err := store.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	if err := store.DeleteForSession(ctx, "ses_A"); err != nil {
+		t.Fatalf("delete for session: %v", err)
+	}
+	// The non-terminal row is gone, so a fresh admit succeeds.
+	if err := store.Admit(ctx, runDraft("run_2", "ses_A")); err != nil {
+		t.Fatalf("re-admit after delete: %v", err)
+	}
+}
+
+// TestReconcileOrphansSweepsInterruptedWithoutRecord: the boot sweep reclaims a
+// non-terminal run — running OR interrupted — whose session has no open
+// interrupt (a continuation whose consumed-interrupt Resume was missed leaves an
+// interrupted-but-orphaned row), while a genuinely parked interrupted run (its
+// interrupt still recorded) is preserved.
+func TestReconcileOrphansSweepsInterruptedWithoutRecord(t *testing.T) {
+	ctx := context.Background()
+	store, ints := newRunStores(t)
+
+	// Orphaned interrupted row: interrupted state but no interrupt record.
+	if err := store.Admit(ctx, runDraft("run_orphan", "ses_orphan")); err != nil {
+		t.Fatalf("admit orphan: %v", err)
+	}
+	if err := store.Suspend(ctx, "ses_orphan"); err != nil {
+		t.Fatalf("suspend orphan: %v", err)
+	}
+	// Genuinely parked: interrupted state WITH an open interrupt record.
+	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
+		t.Fatalf("admit park: %v", err)
+	}
+	if err := store.Suspend(ctx, "ses_park"); err != nil {
+		t.Fatalf("suspend park: %v", err)
+	}
+	if err := ints.Put(ctx, interrupts.Pending{
+		ParentRunID: "run_park",
+		SessionID:   "ses_park",
+		Interrupts:  json.RawMessage("[]"),
+		CreatedAt:   time.Unix(0, 0),
+	}); err != nil {
+		t.Fatalf("put interrupt: %v", err)
+	}
+
+	swept, err := store.ReconcileOrphans(ctx)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if swept != 1 {
+		t.Fatalf("swept = %d, want 1 (only the interrupted orphan without a record)", swept)
+	}
+	if err := store.Admit(ctx, runDraft("run_orphan2", "ses_orphan")); err != nil {
+		t.Fatalf("re-admit swept orphan session: %v", err)
+	}
+	if err := store.Admit(ctx, runDraft("run_park2", "ses_park")); !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("parked-session admit = %v, want ErrSessionBusy (preserved)", err)
+	}
+}
+
 // TestReconcileOrphansSweepsCrashedButPreservesParked: a boot sweep terminalizes
 // a running run whose process is gone with no open interrupt (a crash), but
 // leaves a running run whose session has a parked interrupt (resumable) — so a

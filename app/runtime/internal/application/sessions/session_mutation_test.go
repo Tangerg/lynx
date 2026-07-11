@@ -37,6 +37,35 @@ func TestDeleteSessionCommitsDurableStateBeforeProcessCleanup(t *testing.T) {
 	}
 }
 
+func TestDeleteSessionDropsDurableRunRowsInTransaction(t *testing.T) {
+	stores := newDeleteStores("")
+	turns := deleteTurns{operations: &stores.operations}
+	runs := deleteRunsRecorder{stores: stores}
+
+	if err := newCoordinatorWithRuns(stores, turns, runs).DeleteSession(context.Background(), "ses_1"); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+
+	// The durable run rows drop inside the same transaction as the rest of the
+	// cascade (between the interrupt delete and the session delete), so a deleted
+	// session leaves no admission row keeping it durably busy.
+	want := []string{
+		"tx.begin",
+		"interrupts.list",
+		"transcript.delete",
+		"messages.truncate",
+		"interrupt.delete",
+		"runs.delete",
+		"session.delete",
+		"tx.commit",
+		"turn.cancel",
+		"session.forget",
+	}
+	if !slices.Equal(stores.operations, want) {
+		t.Fatalf("operations = %v, want %v", stores.operations, want)
+	}
+}
+
 func TestDeleteSessionStopsBeforeProcessCleanupOnDurableFailure(t *testing.T) {
 	tests := []struct {
 		name string
@@ -171,6 +200,15 @@ func (deleteInterruptStore) Consume(context.Context, string) (interrupts.Pending
 }
 func (s deleteInterruptStore) Delete(context.Context, string) error {
 	return s.stores.record("interrupt.delete")
+}
+
+// deleteRunsRecorder records the durable run-row drop into the cascade's shared
+// operation log so a test can assert it lands inside the transaction.
+type deleteRunsRecorder struct{ stores *deleteStores }
+
+func (deleteRunsRecorder) Terminalize(context.Context, string, string) error { panic("unused") }
+func (r deleteRunsRecorder) DeleteForSession(context.Context, string) error {
+	return r.stores.record("runs.delete")
 }
 
 type deleteTurns struct{ operations *[]string }

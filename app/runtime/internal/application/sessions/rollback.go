@@ -46,6 +46,13 @@ func (c *Coordinator) Rollback(ctx context.Context, sessionID string, boundary t
 	for _, r := range parked {
 		c.cancelTurn(ctx, r)
 	}
+	// A dropped parked run held the session's durable admission slot; free it so
+	// the session can start a fresh run after the rollback. The partial unique
+	// index guarantees at most one non-terminal row per session, so a single
+	// session-keyed terminalize covers whichever dropped run was parked.
+	if len(parked) > 0 {
+		c.terminalizeRun(ctx, sessionID)
+	}
 	c.purgeChildrenAfter(ctx, sessionID, boundary.BoundaryTime)
 	return nil
 }

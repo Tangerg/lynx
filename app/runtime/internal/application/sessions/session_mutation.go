@@ -33,6 +33,9 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 				return err
 			}
 		}
+		if err := c.deleteRunRows(ctx, sessionID); err != nil {
+			return err
+		}
 		return c.s.Session().Delete(ctx, sessionID)
 	}); err != nil {
 		return err
@@ -64,6 +67,9 @@ func (c *Coordinator) RestoreSession(ctx context.Context, ses session.Session, m
 			return err
 		}
 		if err := c.deleteInterrupts(ctx, ses.ID); err != nil {
+			return err
+		}
+		if err := c.deleteRunRows(ctx, ses.ID); err != nil {
 			return err
 		}
 		if err := c.s.Transcript().DeleteSession(ctx, ses.ID); err != nil {
@@ -103,6 +109,7 @@ func (c *Coordinator) PurgeSubtree(ctx context.Context, sessionID string) {
 	_ = c.s.TruncateMessages(ctx, sessionID, 0)
 	_ = c.s.Transcript().DeleteSession(ctx, sessionID)
 	c.dropInterrupts(ctx, sessionID)
+	_ = c.deleteRunRows(ctx, sessionID)
 	_ = c.s.Session().Delete(ctx, sessionID)
 	c.s.ForgetSession(sessionID)
 }
