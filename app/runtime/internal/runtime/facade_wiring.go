@@ -2,12 +2,9 @@ package runtime
 
 import (
 	"io"
-	"sync/atomic"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
@@ -16,8 +13,7 @@ import (
 
 // Dependencies is the fully-assembled collaborator set a [Runtime] facade holds.
 // The composition root (bootstrap) builds each collaborator and calls [New]. The
-// single *kernel.Engine satisfies the facade's closer and every live-MCP port,
-// so it is supplied once.
+// single *kernel.Engine satisfies the facade's closer, so it is supplied once.
 type Dependencies struct {
 	Engine       *kernel.Engine
 	Turns        turn.Dispatcher
@@ -27,11 +23,7 @@ type Dependencies struct {
 	Interrupts interrupts.Store
 	Transcript transcript.Store
 
-	MCPRegistry mcpserver.Registry
-	MCPPolicy   *atomic.Pointer[mcpserver.ToolPolicy]
-
-	Titles   titleGenerator
-	Codebase codebaseindex.Index
+	Titles titleGenerator
 
 	Resources []io.Closer
 }
@@ -41,20 +33,13 @@ type Dependencies struct {
 // which calls New.
 func New(d Dependencies) *Runtime {
 	return &Runtime{
-		turns:              d.Turns,
-		closer:             d.Engine,
-		resources:          append([]io.Closer(nil), d.Resources...),
-		history:            d.Conversation,
-		sessions:           d.Sessions,
-		interrupts:         d.Interrupts,
-		transcript:         d.Transcript,
-		mcpRegistry:        d.MCPRegistry,
-		mcpLiveStatus:      d.Engine,
-		mcpLiveTools:       d.Engine,
-		mcpLiveConnections: d.Engine,
-		mcpLiveRegistry:    d.Engine,
-		mcpPolicy:          d.MCPPolicy,
-		titles:             d.Titles,
-		codebase:           d.Codebase,
+		turns:      d.Turns,
+		closer:     d.Engine,
+		resources:  append([]io.Closer(nil), d.Resources...),
+		history:    d.Conversation,
+		sessions:   d.Sessions,
+		interrupts: d.Interrupts,
+		transcript: d.Transcript,
+		titles:     d.Titles,
 	}
 }

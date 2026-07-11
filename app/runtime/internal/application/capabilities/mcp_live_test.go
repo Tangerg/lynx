@@ -1,4 +1,4 @@
-package runtime
+package capabilities
 
 import (
 	"context"
@@ -8,20 +8,17 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
-func TestRuntimeMCPLiveStatusAndToolsUsePorts(t *testing.T) {
+func TestMCPLiveStatusAndToolsUsePorts(t *testing.T) {
 	live := &fakeMCPLive{
 		statuses: []toolport.MCPServerStatus{{Name: "fs", Status: "connected"}},
 		tools:    []toolport.MCPToolInfo{{Server: "fs", Name: "read"}},
 	}
-	rt := &Runtime{
-		mcpLiveStatus: live,
-		mcpLiveTools:  live,
-	}
+	c := New(Config{MCPLive: live})
 
-	if got := rt.MCPServerStatuses(); len(got) != 1 || got[0].Name != "fs" {
+	if got := c.MCPServerStatuses(); len(got) != 1 || got[0].Name != "fs" {
 		t.Fatalf("MCPServerStatuses = %+v", got)
 	}
-	tools, err := rt.MCPTools(context.Background(), "fs")
+	tools, err := c.MCPTools(context.Background(), "fs")
 	if err != nil {
 		t.Fatalf("MCPTools err = %v", err)
 	}
@@ -30,14 +27,14 @@ func TestRuntimeMCPLiveStatusAndToolsUsePorts(t *testing.T) {
 	}
 }
 
-func TestRuntimeMCPLiveConnectionCommandsUsePort(t *testing.T) {
+func TestMCPLiveConnectionCommandsUsePort(t *testing.T) {
 	live := &fakeMCPLive{}
-	rt := &Runtime{mcpLiveConnections: live}
+	c := New(Config{MCPLive: live})
 
-	if err := rt.ReconnectMCPServer(context.Background(), "fs"); err != nil {
+	if err := c.ReconnectMCPServer(context.Background(), "fs"); err != nil {
 		t.Fatalf("ReconnectMCPServer err = %v", err)
 	}
-	if err := rt.AuthorizeMCPServer(context.Background(), "github"); err != nil {
+	if err := c.AuthorizeMCPServer(context.Background(), "github"); err != nil {
 		t.Fatalf("AuthorizeMCPServer err = %v", err)
 	}
 
@@ -46,11 +43,11 @@ func TestRuntimeMCPLiveConnectionCommandsUsePort(t *testing.T) {
 	}
 }
 
-func TestRuntimeTestMCPServerUsesLiveRegistryPort(t *testing.T) {
+func TestTestMCPServerUsesLiveRegistryPort(t *testing.T) {
 	live := &fakeMCPLive{}
-	rt := &Runtime{mcpLiveRegistry: live}
+	c := New(Config{MCPLive: live})
 
-	err := rt.TestMCPServer(context.Background(), mcpserver.Server{
+	err := c.TestMCPServer(context.Background(), mcpserver.Server{
 		Name:      "fs",
 		Transport: mcpserver.TransportStdio,
 		Command:   "mcp-fs",
@@ -79,9 +76,7 @@ type fakeMCPLive struct {
 	removeName string
 }
 
-func (f *fakeMCPLive) MCPServerStatuses() []toolport.MCPServerStatus {
-	return f.statuses
-}
+func (f *fakeMCPLive) MCPServerStatuses() []toolport.MCPServerStatus { return f.statuses }
 
 func (f *fakeMCPLive) MCPTools(_ context.Context, server string) ([]toolport.MCPToolInfo, error) {
 	f.toolsServer = server

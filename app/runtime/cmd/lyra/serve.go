@@ -31,6 +31,10 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, stack.Runtime.Close()) }()
+	// The capabilities component's post-commit reconcile + reindex tasks depend on
+	// the engine (MCP live pool); stop + join them before Runtime.Close tears the
+	// engine down (LIFO: this defer runs first).
+	defer stack.Capabilities.Close()
 	srv := cfg.Server
 	if len(srv.CORSOrigins) == 0 {
 		srv.CORSOrigins = lyrahttp.DefaultCORSOrigins

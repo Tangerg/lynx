@@ -6,20 +6,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 func TestWorkspaceMCPListServers(t *testing.T) {
-	s := newTestServer(&stubRuntime{
-		mcpStatuses: []toolport.MCPServerStatus{
+	s := serverWithMCP(capabilities.Config{MCPLive: &fakeMCPLive{
+		statuses: []toolport.MCPServerStatus{
 			{Name: "fs", Status: "connected"},
 			{Name: "down", Status: "failed", Err: errors.New("connection refused")},
 		},
-		mcpTools: []toolport.MCPToolInfo{
+		tools: []toolport.MCPToolInfo{
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
 		},
-	})
+	}})
 	page, err := s.WorkspaceMCPListServers(context.Background(), protocol.PageQuery{})
 	if err != nil {
 		t.Fatalf("listServers: %v", err)
@@ -38,13 +39,10 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 }
 
 func TestWorkspaceMCPReconnect(t *testing.T) {
-	s := &Server{
-		rt: &stubRuntime{
-			mcpStatuses: []toolport.MCPServerStatus{{Name: "fs", Status: "connected"}},
-			mcpTools:    []toolport.MCPToolInfo{{Server: "fs", Name: "read"}},
-		},
-		wsHub: newWorkspaceHub(),
-	}
+	s := serverWithMCP(capabilities.Config{MCPLive: &fakeMCPLive{
+		statuses: []toolport.MCPServerStatus{{Name: "fs", Status: "connected"}},
+		tools:    []toolport.MCPToolInfo{{Server: "fs", Name: "read"}},
+	}})
 	defer s.Close()
 	events, unsub := s.wsHub.subscribe()
 	defer unsub()
@@ -66,9 +64,9 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 
 func TestMCPConnectionActionIsDetachedButServerOwned(t *testing.T) {
 	type contextKey struct{}
-	s := &Server{
-		rt: &stubRuntime{mcpStatuses: []toolport.MCPServerStatus{{Name: "fs", Status: "connected"}}},
-	}
+	s := serverWithMCP(capabilities.Config{MCPLive: &fakeMCPLive{
+		statuses: []toolport.MCPServerStatus{{Name: "fs", Status: "connected"}},
+	}})
 	requestCtx, cancelRequest := context.WithCancel(context.WithValue(context.Background(), contextKey{}, "trace"))
 	cancelRequest()
 
@@ -99,11 +97,11 @@ func TestMCPConnectionActionIsDetachedButServerOwned(t *testing.T) {
 }
 
 func TestWorkspaceMCPListTools(t *testing.T) {
-	s := newTestServer(&stubRuntime{mcpTools: []toolport.MCPToolInfo{
+	s := serverWithMCP(capabilities.Config{MCPLive: &fakeMCPLive{tools: []toolport.MCPToolInfo{
 		{Server: "fs", Name: "read", Description: "read a file", InputSchema: map[string]any{"type": "object"}},
 		{Server: "fs", Name: "write"},
 		{Server: "git", Name: "log"},
-	}})
+	}}})
 
 	all, err := s.WorkspaceMCPListTools(context.Background(), protocol.MCPListToolsRequest{})
 	if err != nil {

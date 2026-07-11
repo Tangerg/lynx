@@ -6,49 +6,57 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
-type codebaseRuntime struct {
-	stubRuntime
-	enabled     bool
+// fakeCodebaseIndex is the codebaseindex.Index the capabilities coordinator
+// drives; the codebase wire handlers are tested against it.
+type fakeCodebaseIndex struct {
+	available   bool
 	hits        []codebaseindex.Hit
 	status      codebaseindex.Status
 	searchRoot  string
 	searchQuery string
 	searchLimit int
 	statusRoot  string
-	reindexRoot string
-	reindexErr  error
+	reindexed   chan string
 }
 
-func (r *codebaseRuntime) HasCodebaseIndex() bool {
-	return r.enabled
+func (i *fakeCodebaseIndex) Available(context.Context) bool { return i.available }
+
+func (i *fakeCodebaseIndex) Reindex(_ context.Context, root string) error {
+	i.reindexed <- root
+	return nil
 }
 
-func (r *codebaseRuntime) SearchCodebase(_ context.Context, root, query string, limit int) ([]codebaseindex.Hit, error) {
-	r.searchRoot = root
-	r.searchQuery = query
-	r.searchLimit = limit
-	return r.hits, nil
+func (i *fakeCodebaseIndex) Search(_ context.Context, root, query string, limit int) ([]codebaseindex.Hit, error) {
+	i.searchRoot = root
+	i.searchQuery = query
+	i.searchLimit = limit
+	return i.hits, nil
 }
 
-func (r *codebaseRuntime) CodebaseIndexStatus(_ context.Context, root string) (codebaseindex.Status, error) {
-	r.statusRoot = root
-	return r.status, nil
+func (*fakeCodebaseIndex) EnsureIndexed(context.Context, string) error { return nil }
+
+func (i *fakeCodebaseIndex) Status(_ context.Context, root string) (codebaseindex.Status, error) {
+	i.statusRoot = root
+	return i.status, nil
 }
 
-func (r *codebaseRuntime) StartCodebaseReindex(_ context.Context, root string) error {
-	r.reindexRoot = root
-	return r.reindexErr
+func serverWithCodebase(root string, idx codebaseindex.Index) *Server {
+	return &Server{
+		serverInfo:   protocol.ServerInfo{Cwd: root},
+		capabilities: capabilities.New(capabilities.Config{Codebase: idx}),
+	}
 }
 
 func TestCodebaseSearchUsesRuntimeFacade(t *testing.T) {
 	root := t.TempDir()
-	rt := &codebaseRuntime{
-		enabled: true,
+	idx := &fakeCodebaseIndex{
+		available: true,
 		hits: []codebaseindex.Hit{{
 			Path:      "runtime/session.go",
 			StartLine: 10,
@@ -57,14 +65,14 @@ func TestCodebaseSearchUsesRuntimeFacade(t *testing.T) {
 			Score:     0.9,
 		}},
 	}
-	s := newTestServerWithInfo(rt, protocol.ServerInfo{Cwd: root})
+	s := serverWithCodebase(root, idx)
 
 	got, err := s.CodebaseSearch(context.Background(), protocol.CodebaseSearchRequest{Query: "session", Limit: 3})
 	if err != nil {
 		t.Fatalf("codebase search: %v", err)
 	}
-	if rt.searchRoot != worktree.CanonicalCwd(root) || rt.searchQuery != "session" || rt.searchLimit != 3 {
-		t.Fatalf("search root=%q query=%q limit=%d", rt.searchRoot, rt.searchQuery, rt.searchLimit)
+	if idx.searchRoot != worktree.CanonicalCwd(root) || idx.searchQuery != "session" || idx.searchLimit != 3 {
+		t.Fatalf("search root=%q query=%q limit=%d", idx.searchRoot, idx.searchQuery, idx.searchLimit)
 	}
 	if len(got.Hits) != 1 || got.Hits[0].Path != "runtime/session.go" || got.Hits[0].Score != 0.9 {
 		t.Fatalf("wire hits = %+v", got.Hits)
@@ -73,15 +81,15 @@ func TestCodebaseSearchUsesRuntimeFacade(t *testing.T) {
 
 func TestCodebaseSearchRequiresIndexAndQuery(t *testing.T) {
 	root := t.TempDir()
-	s := newTestServerWithInfo(&codebaseRuntime{}, protocol.ServerInfo{Cwd: root})
+	s := serverWithCodebase(root, nil) // no index
 
 	_, err := s.CodebaseSearch(context.Background(), protocol.CodebaseSearchRequest{Query: "session"})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("search without index err = %v, want invalid_params", err)
 	}
 
-	s.rt = &codebaseRuntime{enabled: true}
-	_, err = s.CodebaseSearch(context.Background(), protocol.CodebaseSearchRequest{})
+	withIndex := serverWithCodebase(root, &fakeCodebaseIndex{available: true})
+	_, err = withIndex.CodebaseSearch(context.Background(), protocol.CodebaseSearchRequest{})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("search without query err = %v, want invalid_params", err)
 	}
@@ -90,21 +98,21 @@ func TestCodebaseSearchRequiresIndexAndQuery(t *testing.T) {
 func TestCodebaseStatusUsesRuntimeFacade(t *testing.T) {
 	root := t.TempDir()
 	indexedAt := time.Date(2026, 7, 5, 10, 0, 0, 0, time.UTC)
-	rt := &codebaseRuntime{status: codebaseindex.Status{
+	idx := &fakeCodebaseIndex{status: codebaseindex.Status{
 		State:      codebaseindex.StateReady,
 		ModelID:    "openai:text-embedding-3-small",
 		FileCount:  12,
 		ChunkCount: 34,
 		IndexedAt:  indexedAt,
 	}}
-	s := newTestServerWithInfo(rt, protocol.ServerInfo{Cwd: root})
+	s := serverWithCodebase(root, idx)
 
 	got, err := s.CodebaseStatus(context.Background(), protocol.CodebaseStatusRequest{})
 	if err != nil {
 		t.Fatalf("codebase status: %v", err)
 	}
-	if rt.statusRoot != worktree.CanonicalCwd(root) {
-		t.Fatalf("status root = %q, want %q", rt.statusRoot, worktree.CanonicalCwd(root))
+	if idx.statusRoot != worktree.CanonicalCwd(root) {
+		t.Fatalf("status root = %q, want %q", idx.statusRoot, worktree.CanonicalCwd(root))
 	}
 	if got.State != protocol.CodebaseStateReady || got.IndexedAt != indexedAt.Format(time.RFC3339) {
 		t.Fatalf("status = %+v", got)
@@ -113,18 +121,24 @@ func TestCodebaseStatusUsesRuntimeFacade(t *testing.T) {
 
 func TestCodebaseReindexUsesRuntimeFacade(t *testing.T) {
 	root := t.TempDir()
-	rt := &codebaseRuntime{}
-	s := newTestServerWithInfo(rt, protocol.ServerInfo{Cwd: root})
+	idx := &fakeCodebaseIndex{available: true, reindexed: make(chan string, 1)}
+	s := serverWithCodebase(root, idx)
 
 	if err := s.CodebaseReindex(context.Background(), protocol.CodebaseReindexRequest{}); err != nil {
 		t.Fatalf("codebase reindex: %v", err)
 	}
-	if rt.reindexRoot != worktree.CanonicalCwd(root) {
-		t.Fatalf("reindex root = %q, want %q", rt.reindexRoot, worktree.CanonicalCwd(root))
+	select {
+	case got := <-idx.reindexed:
+		if got != worktree.CanonicalCwd(root) {
+			t.Fatalf("reindex root = %q, want %q", got, worktree.CanonicalCwd(root))
+		}
+	case <-time.After(time.Second):
+		t.Fatal("reindex did not start")
 	}
 
-	rt.reindexErr = codebaseindex.ErrNoEmbeddingModel
-	if err := s.CodebaseReindex(context.Background(), protocol.CodebaseReindexRequest{}); !errors.Is(err, protocol.ErrInvalidParams) {
+	// An unavailable index maps to invalid_params.
+	unavailable := serverWithCodebase(root, &fakeCodebaseIndex{available: false})
+	if err := unavailable.CodebaseReindex(context.Background(), protocol.CodebaseReindexRequest{}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("reindex without embedding err = %v, want invalid_params", err)
 	}
 }
