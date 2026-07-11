@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
@@ -82,16 +83,18 @@ type crudStores struct {
 }
 
 func (s *crudStores) Session() SessionStore                                     { return s.session }
-func (*crudStores) Transcript() TranscriptStore                                 { panic("unused") }
 func (*crudStores) Interrupts() InterruptStore                                  { panic("unused") }
 func (*crudStores) ReadHistory(context.Context, string) ([]chat.Message, error) { panic("unused") }
-func (*crudStores) TruncateMessages(context.Context, string, int) error         { panic("unused") }
 func (*crudStores) SeedHistory(context.Context, string, []chat.Message) error   { panic("unused") }
 func (*crudStores) ForgetSession(string)                                        {}
 func (s *crudStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
 	s.ranInTx = true
 	return fn(ctx)
 }
+func (*crudStores) ApplyRollback(context.Context, execution.RollbackPlan) error { panic("unused") }
+func (*crudStores) ApplyRestore(context.Context, execution.RestorePlan) error   { panic("unused") }
+func (*crudStores) ApplyDelete(context.Context, string) error                   { panic("unused") }
+func (*crudStores) ApplyCancel(context.Context, string, string) error           { panic("unused") }
 
 func newCRUDCoordinator(store *crudSessionStore) (*Coordinator, *crudStores) {
 	stores := &crudStores{session: store}

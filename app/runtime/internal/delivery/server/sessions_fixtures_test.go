@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -272,16 +273,10 @@ type stubLifecycleStores struct {
 
 func (s stubLifecycleStores) Session() sessions.SessionStore { return s.rt.sess }
 
-func (s stubLifecycleStores) Transcript() sessions.TranscriptStore { return s.rt.hist }
-
 func (s stubLifecycleStores) Interrupts() sessions.InterruptStore { return s.rt.interrupts }
 
 func (s stubLifecycleStores) ReadHistory(ctx context.Context, id string) ([]chat.Message, error) {
 	return s.rt.ReadHistory(ctx, id)
-}
-
-func (s stubLifecycleStores) TruncateMessages(ctx context.Context, id string, keepN int) error {
-	return s.rt.TruncateMessages(ctx, id, keepN)
 }
 
 func (s stubLifecycleStores) SeedHistory(ctx context.Context, id string, msgs []chat.Message) error {
@@ -292,6 +287,88 @@ func (s stubLifecycleStores) ForgetSession(id string) { s.rt.ForgetSession(id) }
 
 func (s stubLifecycleStores) RunInTx(ctx context.Context, fn func(context.Context) error) error {
 	return s.rt.RunInTx(ctx, fn)
+}
+
+// The atomic write-sets over the stub's in-memory history + real sqlite
+// transcript/interrupt/session stores. The stub carries no durable run-state
+// store (admission state is verified in the sqlite/sessions unit tests), so the
+// run-state transition is skipped — the observable transcript/history effects
+// these delivery tests assert are unaffected.
+func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan execution.RollbackPlan) error {
+	if plan.KeepMark >= 0 {
+		if err := s.rt.TruncateMessages(ctx, plan.SessionID, plan.KeepMark); err != nil {
+			return err
+		}
+	}
+	for _, runID := range plan.DropRunIDs {
+		if err := s.rt.hist.DeleteRun(ctx, plan.SessionID, runID); err != nil {
+			return err
+		}
+		if err := s.rt.interrupts.Delete(ctx, runID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan execution.RestorePlan) error {
+	id := plan.Session.ID
+	if err := s.rt.sess.Restore(ctx, plan.Session); err != nil {
+		return err
+	}
+	if err := s.deleteInterrupts(ctx, id); err != nil {
+		return err
+	}
+	if err := s.rt.hist.DeleteSession(ctx, id); err != nil {
+		return err
+	}
+	if err := s.rt.TruncateMessages(ctx, id, 0); err != nil {
+		return err
+	}
+	if err := s.rt.SeedHistory(ctx, id, plan.Messages); err != nil {
+		return err
+	}
+	for _, r := range plan.Runs {
+		if err := s.rt.hist.PutRun(ctx, r); err != nil {
+			return err
+		}
+	}
+	for _, it := range plan.Items {
+		if err := s.rt.hist.AppendItem(ctx, it); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s stubLifecycleStores) ApplyDelete(ctx context.Context, sessionID string) error {
+	if err := s.rt.hist.DeleteSession(ctx, sessionID); err != nil {
+		return err
+	}
+	if err := s.rt.TruncateMessages(ctx, sessionID, 0); err != nil {
+		return err
+	}
+	if err := s.deleteInterrupts(ctx, sessionID); err != nil {
+		return err
+	}
+	return s.rt.sess.Delete(ctx, sessionID)
+}
+
+func (s stubLifecycleStores) ApplyCancel(ctx context.Context, _ string, runID string) error {
+	return s.rt.interrupts.Delete(ctx, runID)
+}
+
+func (s stubLifecycleStores) deleteInterrupts(ctx context.Context, sessionID string) error {
+	pending, err := s.rt.interrupts.List(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	for _, p := range pending {
+		if err := s.rt.interrupts.Delete(ctx, p.ParentRunID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type stubRunSegmentStores struct {

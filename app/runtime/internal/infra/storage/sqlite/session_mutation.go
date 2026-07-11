@@ -46,9 +46,11 @@ func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error 
 	return nil
 }
 
-// Delete is idempotent — deleting an unknown id is not an error.
+// Delete is idempotent — deleting an unknown id is not an error. Uses conn(ctx)
+// so it joins the delete-cascade transaction rather than opening a second
+// connection (which deadlocks under the single-connection pool).
 func (s *SessionStore) Delete(ctx context.Context, id string) error {
-	if _, err := s.db.ExecContext(ctx,
+	if _, err := conn(ctx, s.db).ExecContext(ctx,
 		`DELETE FROM sessions WHERE id = ?`, id,
 	); err != nil {
 		return fmt.Errorf("sqlite: delete session: %w", err)
@@ -78,7 +80,7 @@ func (s *SessionStore) Rename(ctx context.Context, id, title string) error {
 // 0 rows affected (already titled or unknown id) is a no-op success, NOT
 // ErrNotFound — so it can't use updateByID.
 func (s *SessionStore) RenameIfUntitled(ctx context.Context, id, title string) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ? AND title = ''`,
 		title, time.Now().UTC().UnixNano(), id)
 	if err != nil {
@@ -120,7 +122,7 @@ func (s *SessionStore) SetFavorite(ctx context.Context, id string, favorite bool
 // (e.g. "rename session"). Shared by the SetModel / Rename field writes, which
 // differ only in their SET clause and bound args.
 func (s *SessionStore) updateByID(ctx context.Context, op, query string, args ...any) error {
-	res, err := s.db.ExecContext(ctx, query, args...)
+	res, err := conn(ctx, s.db).ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("sqlite: %s: %w", op, err)
 	}
@@ -134,10 +136,10 @@ func (s *SessionStore) updateByID(ctx context.Context, op, query string, args ..
 	return nil
 }
 
-// insert is the one-shot path used by Create. Fork goes through execInsert so
-// it can run inside its own transaction.
+// insert is the one-shot path used by Create; conn(ctx) lets it join an ambient
+// transaction (else it uses the pool directly). Fork goes through execInsert too.
 func (s *SessionStore) insert(ctx context.Context, sess session.Session) error {
-	return s.execInsert(ctx, s.db, sess)
+	return s.execInsert(ctx, conn(ctx, s.db), sess)
 }
 
 // execInsert is shared by Create and Fork; the shared [execer] (see tx.go)
