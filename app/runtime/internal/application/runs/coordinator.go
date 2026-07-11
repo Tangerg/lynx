@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 // ErrClosed is returned by [Coordinator.Start] once the Coordinator is closing:
@@ -23,14 +24,19 @@ type Coordinator struct {
 	executor Executor
 	effects  Effects
 	minter   CursorMinter
+	// runStore is the durable admission backstop (§8.2): Start records the run as
+	// the session's active run, the pump terminalizes it. nil disables it — the
+	// in-memory registry claim still guards admission within a single process.
+	runStore RunStore
 	tasks    taskgroup.Group
 	registry Registry[*handle]
 }
 
 // NewCoordinator builds a Coordinator over the executor it drives, the durable
-// effects it commits through, and the cursor minter that stamps its events.
-func NewCoordinator(executor Executor, effects Effects, minter CursorMinter) *Coordinator {
-	return &Coordinator{executor: executor, effects: effects, minter: minter}
+// effects it commits through, the cursor minter that stamps its events, and the
+// durable run-admission backstop (nil to run in-memory-only).
+func NewCoordinator(executor Executor, effects Effects, minter CursorMinter, runStore RunStore) *Coordinator {
+	return &Coordinator{executor: executor, effects: effects, minter: minter, runStore: runStore}
 }
 
 // Start opens a run segment: it detaches the run from the request (so it
@@ -52,6 +58,26 @@ func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector
 		_ = c.executor.CancelTurn(taskCtx, spec.Handle)
 		release()
 		return nil, err
+	}
+	// Durable admission (§8.2) is the LAST gate before the pump: if it rejects
+	// (the session already holds a non-terminal run in the durable table — a race
+	// the in-memory claim missed, or a run left over across restart), nothing
+	// durable was written, so tearing the turn down here needs no compensation.
+	// Past this point the pump always runs, and only its teardown terminalizes.
+	if c.runStore != nil {
+		if err := c.runStore.Admit(reqCtx, execution.RunDraft{
+			RunID:     spec.RunID,
+			SessionID: spec.SessionID,
+			Provider:  spec.Provider,
+			Model:     spec.Model,
+			ProcessID: spec.TurnID,
+			CreatedAt: spec.CreatedAt,
+		}); err != nil {
+			cancel()
+			_ = c.executor.CancelTurn(taskCtx, spec.Handle)
+			release()
+			return nil, err
+		}
 	}
 	hub := NewJournal[Event]()
 	live := &handle{cancel: cancel, owner: taskCtx, hub: hub}

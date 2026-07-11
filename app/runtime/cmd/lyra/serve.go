@@ -88,6 +88,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		Checkpoints:  workspace.NewCheckpoints(checkpointDir),
 		Schedules:    stack.Schedules,
 		Workspace:    stack.Workspace,
+		RunStore:     stack.RunStore,
 	})
 	if err != nil {
 		return nil, nil, err

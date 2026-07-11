@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
@@ -26,6 +27,9 @@ type Stack struct {
 	Capabilities *capabilities.Coordinator
 	Workspace    *workspace.Coordinator
 	Schedules    *schedules.Coordinator
+	// RunStore is the durable Run-admission backstop (§8.2) delivery injects into
+	// the run coordinator it builds; nil when persistence is disabled (tests).
+	RunStore runs.RunStore
 }
 
 // Host owns the assembled application tier and its process-level close order
@@ -191,6 +195,7 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		Runtime:      rt,
 		Sessions:     sessionCoord,
 		Capabilities: capabilityCoord,
+		RunStore:     cfg.RunStore,
 		Workspace: workspace.New(workspace.Config{
 			Memory:  cfg.Engine.Knowledge,
 			Skills:  eng,

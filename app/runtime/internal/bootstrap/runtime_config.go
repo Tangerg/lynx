@@ -35,6 +35,7 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.C
 		A2AAgents:          runtimeA2AAgents(cfg.A2AAgents),
 		LSPServers:         runtimeLSPServers(cfg.LSPServers),
 		SessionStore:       stores.Session,
+		RunStore:           stores.Runs,
 		InterruptStore:     stores.Interrupt,
 		TranscriptStore:    stores.Transcript,
 		ProviderRegistry:   providers,

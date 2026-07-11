@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 // --- fakes (drive the Coordinator without the wire or the agent SDK) ---
@@ -108,6 +110,97 @@ type fakeMinter struct{ n atomic.Uint64 }
 
 func (m *fakeMinter) Mint() string { return fmt.Sprintf("evt_%011d", m.n.Add(1)) }
 
+// fakeRunStore is the durable admission backstop under test: it records the
+// admitted drafts and signals each terminalize on a channel so a test can
+// observe the pump's teardown write (which runs after the event channel closes).
+type fakeRunStore struct {
+	mu       sync.Mutex
+	admitted []execution.RunDraft
+	admitErr error
+	term     chan string
+}
+
+func newFakeRunStore() *fakeRunStore { return &fakeRunStore{term: make(chan string, 4)} }
+
+func (f *fakeRunStore) Admit(_ context.Context, d execution.RunDraft) error {
+	if f.admitErr != nil {
+		return f.admitErr
+	}
+	f.mu.Lock()
+	f.admitted = append(f.admitted, d)
+	f.mu.Unlock()
+	return nil
+}
+
+func (f *fakeRunStore) Terminalize(_ context.Context, sessionID, _ string) error {
+	f.term <- sessionID
+	return nil
+}
+
+func (f *fakeRunStore) ReconcileOrphans(context.Context) (int, error) { return 0, nil }
+
+func (f *fakeRunStore) admits() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.admitted)
+}
+
+// TestCoordinatorStartRejectsDurablyBusySession: when the durable backstop
+// rejects admission (the session already holds a non-terminal run across a
+// restart the in-memory claim can't see), Start surfaces ErrSessionBusy and
+// tears the created turn down, registering no run.
+func TestCoordinatorStartRejectsDurablyBusySession(t *testing.T) {
+	exec := &fakeExecutor{}
+	store := &fakeRunStore{admitErr: execution.ErrSessionBusy}
+	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, store)
+
+	_, err := c.Start(context.Background(),
+		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
+		func(SegmentView) Projector { return &fakeProjector{} })
+	if !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("Start err = %v, want ErrSessionBusy", err)
+	}
+	if exec.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1 (turn torn down on durable busy)", exec.cancels())
+	}
+	if c.Contains("run_1") {
+		t.Fatal("a durably-rejected start must register no run")
+	}
+}
+
+// TestCoordinatorStartAdmitsAndTerminalizes: a run records a durable admission on
+// Start and, on its true (non-parked) terminal, releases the durable slot.
+func TestCoordinatorStartAdmitsAndTerminalizes(t *testing.T) {
+	exec := &fakeExecutor{}
+	store := newFakeRunStore()
+	proj := &fakeProjector{
+		open:     []ProjectedEvent{{Durable: true, Payload: "started"}},
+		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: "finished"}},
+	}
+	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, store)
+
+	events, err := c.Start(context.Background(),
+		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
+		func(v SegmentView) Projector { proj.view = v; return proj })
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	// Admission is synchronous in Start.
+	if store.admits() != 1 {
+		t.Fatalf("admits = %d, want 1", store.admits())
+	}
+	for range events {
+	}
+	select {
+	case s := <-store.term:
+		if s != "ses_1" {
+			t.Fatalf("terminalized session = %q, want ses_1", s)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("pump never terminalized the durable run slot")
+	}
+}
+
 // TestCoordinatorStartStreamsThenTerminates: Start opens a run, streams the
 // projector's open + translated events, and — because the executor stream ends
 // without a terminal — synthesizes one on teardown; each non-interrupt event is
@@ -120,7 +213,7 @@ func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
 		translate: []ProjectedEvent{{Durable: true, Payload: "item"}},
 		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: "finished"}},
 	}
-	c := NewCoordinator(exec, eff, &fakeMinter{})
+	c := NewCoordinator(exec, eff, &fakeMinter{}, nil)
 
 	events, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
@@ -158,7 +251,7 @@ func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
 // error and tears the created turn down (cancels it), registering no run.
 func TestCoordinatorStartExecutorError(t *testing.T) {
 	exec := &fakeExecutor{startErr: fmt.Errorf("boom")}
-	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{})
+	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, nil)
 
 	_, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1"},
@@ -177,7 +270,7 @@ func TestCoordinatorStartExecutorError(t *testing.T) {
 // TestCoordinatorAdmission: the Coordinator is the session single-writer — a
 // claim blocks a second claim and an active run, until released/closed.
 func TestCoordinatorAdmission(t *testing.T) {
-	c := NewCoordinator(&fakeExecutor{}, &fakeEffects{}, &fakeMinter{})
+	c := NewCoordinator(&fakeExecutor{}, &fakeEffects{}, &fakeMinter{}, nil)
 	if !c.ClaimSession("ses_1") {
 		t.Fatal("first claim must succeed")
 	}
@@ -197,7 +290,7 @@ func TestCoordinatorAdmission(t *testing.T) {
 // down the turn that was already created.
 func TestCoordinatorStartAfterClose(t *testing.T) {
 	exec := &fakeExecutor{block: true}
-	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{})
+	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, nil)
 	c.Close()
 
 	_, err := c.Start(context.Background(),
@@ -219,7 +312,7 @@ func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 		open:     []ProjectedEvent{{Durable: true, Payload: "started"}},
 		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: "canceled"}},
 	}
-	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{})
+	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, nil)
 	events, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1"},
 		func(SegmentView) Projector { return proj })
@@ -252,7 +345,7 @@ func TestCoordinatorInterruptPersistFailureAborts(t *testing.T) {
 		translate: []ProjectedEvent{{Durable: true, Terminal: true, Interrupt: true, Payload: "interrupt"}},
 		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: "error"}},
 	}
-	c := NewCoordinator(exec, eff, &fakeMinter{})
+	c := NewCoordinator(exec, eff, &fakeMinter{}, nil)
 	events, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
 		func(SegmentView) Projector { return proj })
@@ -279,7 +372,7 @@ func TestCoordinatorInterruptPersistFailureAborts(t *testing.T) {
 // stays alive even after the request context is canceled.
 func TestCoordinatorBeginCancelCleanupSurvivesRequest(t *testing.T) {
 	exec := &fakeExecutor{block: true}
-	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{})
+	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, nil)
 	reqCtx, cancelReq := context.WithCancel(context.Background())
 	events, err := c.Start(reqCtx,
 		StartSpec{RunID: "run_1", SessionID: "ses_1"},

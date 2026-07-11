@@ -60,6 +60,13 @@ type Config struct {
 	// is the composition ring (see doc/EXECUTION_CENTERED_ARCHITECTURE.md §8.1).
 	SessionStore *sqlitestore.SessionStore
 
+	// RunStore is the durable Run-admission backstop (§8.2): the authoritative
+	// "one non-terminal Run per Session" table the run coordinator records
+	// admissions/terminals through, and the boot reconcile sweeps. nil disables
+	// the durable backstop (in-memory admission only). The composition root
+	// injects the sqlite-backed store.
+	RunStore *sqlitestore.RunStateStore
+
 	// InterruptStore records open HITL interrupts (R-model resume discovery).
 	// Required; injected sqlite-backed, same as SessionStore (concrete for the
 	// same single-backend / composition-ring reason).

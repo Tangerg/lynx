@@ -64,6 +64,11 @@ type Config struct {
 	// (memory / skills / recipes / hooks). nil defaults to a disabled coordinator
 	// (every dependency nil), so those workspace.* methods degrade gracefully.
 	Workspace *workspaceapp.Coordinator
+
+	// RunStore is the durable Run-admission backstop (§8.2) the run Coordinator
+	// records admissions/terminals through. nil disables it — admission stays the
+	// in-memory single-writer claim only (a test / non-sqlite runtime).
+	RunStore runs.RunStore
 }
 
 // Server is the protocol.Runtime implementation exposed via [New].
@@ -186,7 +191,7 @@ func New(cfg Config) (*Server, error) {
 	// The run Coordinator's durable effects close over srv (workspace publish +
 	// checkpoints), so it is built here, after the Server value exists. evt_
 	// cursor minting stays a delivery concern, injected as the CursorMinter.
-	srv.coordinator = runs.NewCoordinator(srv.rt, srv.runSegmentEffects(), cursorMinter{next: srv.nextEventID})
+	srv.coordinator = runs.NewCoordinator(srv.rt, srv.runSegmentEffects(), cursorMinter{next: srv.nextEventID}, cfg.RunStore)
 	return srv, nil
 }
 

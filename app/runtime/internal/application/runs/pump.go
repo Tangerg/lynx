@@ -4,6 +4,8 @@ import (
 	"context"
 	"iter"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 // pump is the run segment goroutine: it leads with the projector's open events,
@@ -96,6 +98,13 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 				e.Payload.stop()
 			}
 		}
+		// Release the durable admission slot (§8.2) on a true terminal; a parked
+		// run stays non-terminal in the runs table (it is resumable), matching the
+		// live turn left alive above. Best-effort: a missed write leaves a running
+		// row the next boot's ReconcileOrphans sweeps.
+		if !parked && c.runStore != nil {
+			_ = c.runStore.Terminalize(ownerCtx, spec.SessionID, pumpOutcome(ctx, abortTurn))
+		}
 		// Terminal boundary maintenance stays off the critical path (async /
 		// best-effort inside Effects). A parked run is resumable, not a boundary.
 		c.effects.Finish(ownerCtx, Finish{
@@ -114,5 +123,21 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 			// Interrupt segment done; leave the turn parked for resume.
 			return
 		}
+	}
+}
+
+// pumpOutcome is the coarse terminal reason the durable run row records at
+// teardown: canceled when the run's context was canceled, error when a
+// projection/commit aborted the turn, else completed. It is deliberately coarse
+// — the precise [execution.Outcome] (maxBudget / maxSteps) rides the terminal
+// event's opaque payload; a later atomic EventCommit (§8.1) records it exactly.
+func pumpOutcome(runCtx context.Context, aborted bool) string {
+	switch {
+	case runCtx.Err() != nil:
+		return execution.OutcomeCanceled.String()
+	case aborted:
+		return execution.OutcomeError.String()
+	default:
+		return execution.OutcomeCompleted.String()
 	}
 }

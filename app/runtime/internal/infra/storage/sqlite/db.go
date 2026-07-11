@@ -75,6 +75,27 @@ func migrate(db *sql.DB) error {
 			snapshot     TEXT    NOT NULL,
 			captured_at  INTEGER NOT NULL
 		)`,
+		// Authoritative Run admission state (§8.2): one row per Run. state is the
+		// coarse admission position — 'running' | 'interrupted' | 'terminal' — and
+		// the partial unique index below is the durable "one non-terminal Run per
+		// Session" guarantee that survives restart (the in-process live-run registry
+		// is only this process's view). outcome is the terminal reason, '' until
+		// terminal; process_id is a recovery handle, not an identity.
+		`CREATE TABLE IF NOT EXISTS runs (
+			run_id      TEXT    PRIMARY KEY,
+			session_id  TEXT    NOT NULL,
+			state       TEXT    NOT NULL,
+			provider    TEXT    NOT NULL DEFAULT '',
+			model       TEXT    NOT NULL DEFAULT '',
+			outcome     TEXT    NOT NULL DEFAULT '',
+			process_id  TEXT    NOT NULL DEFAULT '',
+			started_at  INTEGER NOT NULL,
+			updated_at  INTEGER NOT NULL
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_session_active
+			ON runs(session_id) WHERE state != 'terminal'`,
+		`CREATE INDEX IF NOT EXISTS idx_runs_session
+			ON runs(session_id)`,
 		`CREATE TABLE IF NOT EXISTS interrupts (
 			parent_run_id TEXT    PRIMARY KEY,
 			session_id    TEXT    NOT NULL DEFAULT '',
