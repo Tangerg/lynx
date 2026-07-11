@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -21,6 +22,7 @@ import (
 // directly. It grows as facade responsibilities move into coordinators.
 type Stack struct {
 	Runtime   *lyraruntime.Runtime
+	Sessions  *sessions.Coordinator
 	Workspace *workspace.Coordinator
 	Schedules *schedules.Coordinator
 }
@@ -149,8 +151,21 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Stack, error) {
 		Resources:       cfg.Resources,
 	})
 
+	sessionCoord := sessions.New(sessions.Dependencies{
+		Stores: sessionStores{
+			sessions:   cfg.SessionStore,
+			transcript: cfg.TranscriptStore,
+			interrupts: cfg.InterruptStore,
+			history:    messages.conversation,
+			forgetter:  turnDispatcher,
+			tx:         cfg.Transactor,
+		},
+		Turns: turnDispatcher,
+	})
+
 	return Stack{
-		Runtime: rt,
+		Runtime:  rt,
+		Sessions: sessionCoord,
 		Workspace: workspace.New(workspace.Config{
 			Memory:           cfg.Engine.Knowledge,
 			Skills:           eng,

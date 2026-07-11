@@ -22,7 +22,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	admission, err := s.rt.ClaimMutationSlot(s.coordinator, in.SessionID)
+	admission, err := s.sessions.ClaimMutationSlot(s.coordinator, in.SessionID)
 	if err != nil {
 		if errors.Is(err, sessions.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, in.SessionID)
@@ -44,7 +44,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// just this session's log, so the per-session guard suffices.)
 	if intent.restoreFiles {
 		restoreCwd := worktree.CanonicalCwd(ses.Cwd)
-		treeAdmission, ok := s.rt.ClaimWorkingTreeMutation(restoreCwd)
+		treeAdmission, ok := s.sessions.ClaimWorkingTreeMutation(restoreCwd)
 		if !ok {
 			return nil, fmt.Errorf("%w: working tree %q has a run admission in flight", protocol.ErrSessionBusy, ses.Cwd)
 		}
@@ -86,7 +86,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// watermark + drops each dropped run's items/record + dangling interrupt as
 	// ONE transaction (a failure can't leave a run whose messages were already
 	// truncated away), then purges the subagent subtree those runs spawned.
-	if err := s.rt.RollbackResolved(ctx, in.SessionID, b); err != nil {
+	if err := s.sessions.Rollback(ctx, in.SessionID, b); err != nil {
 		return nil, err
 	}
 

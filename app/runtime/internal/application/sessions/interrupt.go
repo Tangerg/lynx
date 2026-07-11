@@ -10,17 +10,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-// TurnCanceler is the turn dispatcher slice needed to abandon a run.
-type TurnCanceler interface {
-	Cancel(context.Context, turn.TurnHandle) error
-}
-
-// TurnResumer is the turn dispatcher slice needed to continue an interrupt.
-type TurnResumer interface {
-	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error
-	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
-}
-
 // RunTurnBinding binds a protocol run id to the turn handle that owns its process.
 type RunTurnBinding struct {
 	RunID     string
@@ -41,7 +30,7 @@ type ResumedInterrupt struct {
 
 // CancelParkedRun abandons a run that has already left the live run stream and
 // is discoverable only through its open interrupt record.
-func (c *Coordinator) CancelParkedRun(ctx context.Context, turns TurnCanceler, runID string) error {
+func (c *Coordinator) CancelParkedRun(ctx context.Context, runID string) error {
 	pending, found, err := c.s.Interrupts().Get(ctx, runID)
 	if err != nil {
 		return err
@@ -49,7 +38,7 @@ func (c *Coordinator) CancelParkedRun(ctx context.Context, turns TurnCanceler, r
 	if !found {
 		return ErrRunNotFound
 	}
-	return c.CancelRunBinding(ctx, turns, RunTurnBinding{
+	return c.CancelRunBinding(ctx, RunTurnBinding{
 		RunID:     runID,
 		SessionID: pending.SessionID,
 		TurnID:    pending.TurnID,
@@ -60,15 +49,15 @@ func (c *Coordinator) CancelParkedRun(ctx context.Context, turns TurnCanceler, r
 // record. The turn cancel is best-effort: after a backend restart the durable
 // interrupt may outlive the in-memory turn, and abandoning the run still means
 // removing the resumable record.
-func (c *Coordinator) CancelRunBinding(ctx context.Context, turns TurnCanceler, r RunTurnBinding) error {
-	c.cancelTurn(ctx, turns, r)
+func (c *Coordinator) CancelRunBinding(ctx context.Context, r RunTurnBinding) error {
+	c.cancelTurn(ctx, r)
 	return c.s.Interrupts().Delete(ctx, r.RunID)
 }
 
 // ResumeClaimedInterrupt consumes an open interrupt and resumes its parked
 // turn. If the live turn disappeared after a backend restart, it rebuilds the
 // process from the durable interrupt snapshot before returning the handle.
-func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, turns TurnResumer, parentRunID string, resolution interrupts.Resolution, interruptKinds []string) (ResumedInterrupt, error) {
+func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution, interruptKinds []string) (ResumedInterrupt, error) {
 	pending, ok, err := c.s.Interrupts().Consume(ctx, parentRunID)
 	if err != nil {
 		return ResumedInterrupt{}, err
@@ -78,14 +67,14 @@ func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, turns TurnResu
 	}
 
 	handle := turn.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
-	if err := turns.Resume(ctx, handle, resolution, interruptKinds); err != nil {
+	if err := c.turns.Resume(ctx, handle, resolution, interruptKinds); err != nil {
 		if errors.Is(err, turn.ErrParkClaimed) {
 			return ResumedInterrupt{}, ErrInterruptNotOpen
 		}
 		if !errors.Is(err, turn.ErrTurnNotFound) {
 			return ResumedInterrupt{}, err
 		}
-		handle, err = rehydratePendingTurn(ctx, turns, pending, resolution.Approved, interruptKinds)
+		handle, err = c.rehydratePendingTurn(ctx, pending, resolution.Approved, interruptKinds)
 		if err != nil {
 			// Rehydrate errors before the decision reaches a restored process are
 			// uncommitted: put the claim back so a transient resolver/storage failure
@@ -113,11 +102,11 @@ func (c *Coordinator) restoreConsumedInterrupt(ctx context.Context, pending inte
 	return nil
 }
 
-func rehydratePendingTurn(ctx context.Context, turns TurnResumer, pending interrupts.Pending, approved bool, interruptKinds []string) (turn.TurnHandle, error) {
+func (c *Coordinator) rehydratePendingTurn(ctx context.Context, pending interrupts.Pending, approved bool, interruptKinds []string) (turn.TurnHandle, error) {
 	if pending.ProcessID == "" {
 		return turn.TurnHandle{}, errors.New("sessions: interrupt has no recorded process id")
 	}
-	return turns.Rehydrate(ctx, turn.RehydrateRequest{
+	return c.turns.Rehydrate(ctx, turn.RehydrateRequest{
 		SessionID:      pending.SessionID,
 		ProcessID:      pending.ProcessID,
 		Approved:       approved,
@@ -146,8 +135,8 @@ func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTu
 	return out, nil
 }
 
-func (c *Coordinator) cancelTurn(ctx context.Context, turns TurnCanceler, r RunTurnBinding) {
-	if turns != nil {
-		_ = turns.Cancel(ctx, r.handle())
+func (c *Coordinator) cancelTurn(ctx context.Context, r RunTurnBinding) {
+	if c.turns != nil {
+		_ = c.turns.Cancel(ctx, r.handle())
 	}
 }

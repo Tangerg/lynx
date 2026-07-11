@@ -11,8 +11,12 @@ import (
 // any in-process parked turns that were abandoned and purges the subagent child
 // sessions spawned at/after purgeAfter. A keepMark < 0 (unknown watermark —
 // chain terminal still in-flight / pre-watermark) leaves the log untouched
-// rather than guessing at a boundary that was never recorded.
-func (c *Coordinator) Rollback(ctx context.Context, turns TurnCanceler, sessionID string, boundary transcript.Boundary) error {
+// rather than guessing at a boundary that was never recorded. An empty boundary
+// (nothing dropped) is a no-op.
+func (c *Coordinator) Rollback(ctx context.Context, sessionID string, boundary transcript.Boundary) error {
+	if len(boundary.Dropped) == 0 {
+		return nil
+	}
 	dropRunIDs := boundary.DroppedRunIDs()
 	parked, err := c.parkedTurns(ctx, dropRunIDs)
 	if err != nil {
@@ -40,7 +44,7 @@ func (c *Coordinator) Rollback(ctx context.Context, turns TurnCanceler, sessionI
 		return err
 	}
 	for _, r := range parked {
-		c.cancelTurn(ctx, turns, r)
+		c.cancelTurn(ctx, r)
 	}
 	c.purgeChildrenAfter(ctx, sessionID, boundary.BoundaryTime)
 	return nil

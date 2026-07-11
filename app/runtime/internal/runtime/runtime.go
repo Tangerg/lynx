@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
@@ -90,8 +89,4 @@ type Runtime struct {
 	// cross-store operations (sessions.import / rollback) are atomic; nil → run
 	// directly (RunInTx). See [Transactor].
 	transactor Transactor
-
-	// workingTrees coordinates short run admissions with destructive
-	// working-tree mutations for every transport using this runtime.
-	workingTrees sessions.WorkingTreeGate
 }

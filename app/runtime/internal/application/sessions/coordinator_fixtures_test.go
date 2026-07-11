@@ -95,18 +95,11 @@ func (c *testClaimer) ReleaseSession(sessionID string) {
 	delete(c.claimed, sessionID)
 }
 
-type cancelTurns struct {
-	onCancel func(turn.TurnHandle)
-}
-
-func (t cancelTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
-	if t.onCancel != nil {
-		t.onCancel(h)
-	}
-	return nil
-}
-
-type resumeTurns struct {
+// stubTurns is the test double for the coordinator's [Turns] collaborator: the
+// combined cancel / resume / rehydrate surface. Each behavior is optional so a
+// test wires only the leg it exercises.
+type stubTurns struct {
+	onCancel        func(turn.TurnHandle)
 	resumeErr       error
 	rehydrateErr    error
 	rehydrateHandle turn.TurnHandle
@@ -114,16 +107,28 @@ type resumeTurns struct {
 	onRehydrate     func(turn.RehydrateRequest)
 }
 
-func (t resumeTurns) Resume(_ context.Context, h turn.TurnHandle, r interrupts.Resolution, interruptKinds []string) error {
+func (t stubTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
+	if t.onCancel != nil {
+		t.onCancel(h)
+	}
+	return nil
+}
+
+func (t stubTurns) Resume(_ context.Context, h turn.TurnHandle, r interrupts.Resolution, interruptKinds []string) error {
 	if t.onResume != nil {
 		t.onResume(h, r, interruptKinds)
 	}
 	return t.resumeErr
 }
 
-func (t resumeTurns) Rehydrate(_ context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
+func (t stubTurns) Rehydrate(_ context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
 	if t.onRehydrate != nil {
 		t.onRehydrate(req)
 	}
 	return t.rehydrateHandle, t.rehydrateErr
+}
+
+// newCoordinator builds a Coordinator over test stores and turns.
+func newCoordinator(stores Stores, turns Turns) *Coordinator {
+	return New(Dependencies{Stores: stores, Turns: turns})
 }

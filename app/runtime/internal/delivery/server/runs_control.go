@@ -18,7 +18,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 		// Not live — the parked-cancel path. Parked cancel and resume claim the
 		// same session admission slot, so a failed rehydrate's compensating Put
 		// can't race a cancel's Delete and resurrect an abandoned interrupt.
-		pending, admission, err := s.rt.ClaimResumeSlot(ctx, s.coordinator, in.RunID)
+		pending, admission, err := s.sessions.ClaimResumeSlot(ctx, s.coordinator, in.RunID)
 		if err != nil {
 			switch {
 			case errors.Is(err, sessions.ErrInterruptNotOpen):
@@ -32,7 +32,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 		defer admission.Release()
 		pcleanupCtx, pcancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 		defer pcancel()
-		return s.rt.CancelRunBinding(pcleanupCtx, sessions.RunTurnBinding{
+		return s.sessions.CancelRunBinding(pcleanupCtx, sessions.RunTurnBinding{
 			RunID:     in.RunID,
 			SessionID: pending.SessionID,
 			TurnID:    pending.TurnID,
@@ -42,7 +42,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	// a cancel can't delete an interrupt the pump is about to recreate) and gave
 	// us a cleanup context rooted on the run's owner (it survives request cancel).
 	defer cancel()
-	return s.rt.CancelRunBinding(cleanupCtx, sessions.RunTurnBinding{
+	return s.sessions.CancelRunBinding(cleanupCtx, sessions.RunTurnBinding{
 		RunID:     in.RunID,
 		SessionID: binding.SessionID,
 		TurnID:    binding.TurnID,

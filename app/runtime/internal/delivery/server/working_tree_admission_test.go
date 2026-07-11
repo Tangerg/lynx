@@ -16,7 +16,7 @@ func TestStartRunRejectsWorkingTreeMutation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	mutationAdmission, ok := rt.ClaimWorkingTreeMutation(cwd)
+	mutationAdmission, ok := s.sessions.ClaimWorkingTreeMutation(cwd)
 	if !ok {
 		t.Fatal("claim mutation")
 	}
@@ -45,7 +45,7 @@ func TestRollbackFilesRejectsWorkingTreeRunAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	runAdmission, ok := rt.ClaimWorkingTreeRun(cwd)
+	runAdmission, ok := s.sessions.ClaimWorkingTreeRun(cwd)
 	if !ok {
 		t.Fatal("claim run")
 	}

@@ -159,7 +159,7 @@ func TestRestoreSessionClearsOpenInterrupts(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	if err := s.rt.RestoreSession(ctx, session.Session{
+	if err := s.sessions.RestoreSession(ctx, session.Session{
 		ID:    ses.ID,
 		Title: "Restored",
 		Cwd:   "/restore",

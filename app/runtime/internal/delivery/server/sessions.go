@@ -82,7 +82,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	// mid-admission) by taking the same single-writer slot as runs.start/resume
 	// and rollback. A parked run is still deletable: lifecycle tears down its
 	// parked turn and interrupt as part of the cascade.
-	admission, err := s.rt.ClaimMutationSlot(s.coordinator, id)
+	admission, err := s.sessions.ClaimMutationSlot(s.coordinator, id)
 	if err != nil {
 		if errors.Is(err, sessions.ErrSessionBusy) {
 			return fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, id)
@@ -93,7 +93,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	// Delete the session row + cascade its session-scoped storage and parked
 	// turn state via the lifecycle coordinator. File checkpoints (shadow git)
 	// are a workspace concern, dropped here after the storage cascade.
-	if err := s.rt.DeleteSession(ctx, id); err != nil {
+	if err := s.sessions.DeleteSession(ctx, id); err != nil {
 		return wireSessionErr(err)
 	}
 	s.dropCheckpoints(id) // file snapshots (shadow git)
@@ -142,7 +142,7 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 		}
 	}
 
-	child, err := s.rt.ForkSession(ctx, sessions.ForkSpec{
+	child, err := s.sessions.Fork(ctx, sessions.ForkSpec{
 		ParentID:  in.SessionID,
 		FromRunID: in.FromRunID,
 		Runs:      nodes,

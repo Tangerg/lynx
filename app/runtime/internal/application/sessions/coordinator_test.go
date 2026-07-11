@@ -19,14 +19,14 @@ func TestCancelParkedRunCancelsTurnBeforeDeletingInterrupt(t *testing.T) {
 			onDelete: func(string) { order = append(order, "delete") },
 		},
 	}
-	turns := cancelTurns{onCancel: func(h turn.TurnHandle) {
+	turns := stubTurns{onCancel: func(h turn.TurnHandle) {
 		order = append(order, "cancel")
 		if h.SessionID != "ses_1" || h.TurnID != "turn_1" {
 			t.Fatalf("handle = %+v, want ses_1/turn_1", h)
 		}
 	}}
 
-	if err := New(stores).CancelParkedRun(context.Background(), turns, "run_1"); err != nil {
+	if err := newCoordinator(stores, turns).CancelParkedRun(context.Background(), "run_1"); err != nil {
 		t.Fatalf("cancel parked run: %v", err)
 	}
 	if got := stores.interrupts.deleted; len(got) != 1 || got[0] != "run_1" {
@@ -39,7 +39,7 @@ func TestCancelParkedRunCancelsTurnBeforeDeletingInterrupt(t *testing.T) {
 
 func TestCancelParkedRunMissing(t *testing.T) {
 	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
-	err := New(stores).CancelParkedRun(context.Background(), cancelTurns{}, "missing")
+	err := newCoordinator(stores, stubTurns{}).CancelParkedRun(context.Background(), "missing")
 	if !errors.Is(err, ErrRunNotFound) {
 		t.Fatalf("err = %v, want ErrRunNotFound", err)
 	}
@@ -52,7 +52,7 @@ func TestClaimRunSlotHoldsAndReleasesSession(t *testing.T) {
 	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
 	claimer := &testClaimer{}
 
-	admission, err := New(stores).ClaimRunSlot(context.Background(), claimer, "ses_1")
+	admission, err := newCoordinator(stores, nil).ClaimRunSlot(context.Background(), claimer, "ses_1")
 	if err != nil {
 		t.Fatalf("claim run slot: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestClaimRunSlotRejectsOpenInterrupt(t *testing.T) {
 	}
 	claimer := &testClaimer{}
 
-	_, err := New(stores).ClaimRunSlot(context.Background(), claimer, "ses_1")
+	_, err := newCoordinator(stores, nil).ClaimRunSlot(context.Background(), claimer, "ses_1")
 	if !errors.Is(err, ErrSessionBusy) {
 		t.Fatalf("err = %v, want ErrSessionBusy", err)
 	}
@@ -100,7 +100,7 @@ func TestClaimRunSlotRejectsActiveClaim(t *testing.T) {
 	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
 	claimer := &testClaimer{claimed: map[string]bool{"ses_1": true}}
 
-	_, err := New(stores).ClaimRunSlot(context.Background(), claimer, "ses_1")
+	_, err := newCoordinator(stores, nil).ClaimRunSlot(context.Background(), claimer, "ses_1")
 	if !errors.Is(err, ErrSessionBusy) {
 		t.Fatalf("err = %v, want ErrSessionBusy", err)
 	}
@@ -119,7 +119,7 @@ func TestClaimMutationSlotAllowsOpenInterrupt(t *testing.T) {
 	}
 	claimer := &testClaimer{}
 
-	admission, err := New(stores).ClaimMutationSlot(claimer, "ses_1")
+	admission, err := newCoordinator(stores, nil).ClaimMutationSlot(claimer, "ses_1")
 	if err != nil {
 		t.Fatalf("claim mutation slot: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestClaimResumeSlotPeeksAndClaimsInterruptSession(t *testing.T) {
 	}
 	claimer := &testClaimer{}
 
-	pending, admission, err := New(stores).ClaimResumeSlot(context.Background(), claimer, "run_1")
+	pending, admission, err := newCoordinator(stores, nil).ClaimResumeSlot(context.Background(), claimer, "run_1")
 	if err != nil {
 		t.Fatalf("claim resume slot: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestClaimResumeSlotMissingInterrupt(t *testing.T) {
 	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
 	claimer := &testClaimer{}
 
-	_, _, err := New(stores).ClaimResumeSlot(context.Background(), claimer, "missing")
+	_, _, err := newCoordinator(stores, nil).ClaimResumeSlot(context.Background(), claimer, "missing")
 	if !errors.Is(err, ErrInterruptNotOpen) {
 		t.Fatalf("err = %v, want ErrInterruptNotOpen", err)
 	}
@@ -178,7 +178,7 @@ func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
 		},
 	}
 	resolution := interrupts.Resolution{Approved: true}
-	turns := resumeTurns{onResume: func(h turn.TurnHandle, got interrupts.Resolution, interruptKinds []string) {
+	turns := stubTurns{onResume: func(h turn.TurnHandle, got interrupts.Resolution, interruptKinds []string) {
 		if h.SessionID != "ses_1" || h.TurnID != "turn_1" {
 			t.Fatalf("handle = %+v, want ses_1/turn_1", h)
 		}
@@ -190,7 +190,7 @@ func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
 		}
 	}}
 
-	resumed, err := New(stores).ResumeClaimedInterrupt(context.Background(), turns, "run_1", resolution, []string{"approval"})
+	resumed, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", resolution, []string{"approval"})
 	if err != nil {
 		t.Fatalf("resume claimed interrupt: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestResumeClaimedInterruptRehydratesMissingTurn(t *testing.T) {
 			},
 		},
 	}
-	turns := resumeTurns{
+	turns := stubTurns{
 		resumeErr:       turn.ErrTurnNotFound,
 		rehydrateHandle: turn.TurnHandle{SessionID: "ses_1", TurnID: "turn_rebuilt"},
 		onRehydrate: func(req turn.RehydrateRequest) {
@@ -230,7 +230,7 @@ func TestResumeClaimedInterruptRehydratesMissingTurn(t *testing.T) {
 		},
 	}
 
-	resumed, err := New(stores).ResumeClaimedInterrupt(context.Background(), turns, "run_1", interrupts.Resolution{Approved: true}, []string{"approval"})
+	resumed, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", interrupts.Resolution{Approved: true}, []string{"approval"})
 	if err != nil {
 		t.Fatalf("resume claimed interrupt: %v", err)
 	}
@@ -247,9 +247,9 @@ func TestResumeClaimedInterruptParkClaimed(t *testing.T) {
 			},
 		},
 	}
-	turns := resumeTurns{resumeErr: turn.ErrParkClaimed}
+	turns := stubTurns{resumeErr: turn.ErrParkClaimed}
 
-	_, err := New(stores).ResumeClaimedInterrupt(context.Background(), turns, "run_1", interrupts.Resolution{Approved: true}, nil)
+	_, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", interrupts.Resolution{Approved: true}, nil)
 	if !errors.Is(err, ErrInterruptNotOpen) {
 		t.Fatalf("err = %v, want ErrInterruptNotOpen", err)
 	}
@@ -265,12 +265,12 @@ func TestResumeClaimedInterruptRestoresUncommittedRehydrateFailure(t *testing.T)
 	stores := coordinatorStores{interrupts: &coordinatorInterrupts{
 		pending: map[string]interrupts.Pending{"run_1": pending},
 	}}
-	turns := resumeTurns{
+	turns := stubTurns{
 		resumeErr:    turn.ErrTurnNotFound,
 		rehydrateErr: errors.New("snapshot store temporarily unavailable"),
 	}
 
-	_, err := New(stores).ResumeClaimedInterrupt(context.Background(), turns, "run_1", interrupts.Resolution{Approved: true}, nil)
+	_, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", interrupts.Resolution{Approved: true}, nil)
 	if !errors.Is(err, ErrRunNotFound) {
 		t.Fatalf("err = %v, want ErrRunNotFound", err)
 	}
@@ -285,12 +285,12 @@ func TestResumeClaimedInterruptDoesNotRestoreCommittedRehydrateFailure(t *testin
 			"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1"},
 		},
 	}}
-	turns := resumeTurns{
+	turns := stubTurns{
 		resumeErr:    turn.ErrTurnNotFound,
 		rehydrateErr: errors.Join(turn.ErrRehydrateCommitted, errors.New("resumed process failed")),
 	}
 
-	_, err := New(stores).ResumeClaimedInterrupt(context.Background(), turns, "run_1", interrupts.Resolution{Approved: true}, nil)
+	_, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", interrupts.Resolution{Approved: true}, nil)
 	if !errors.Is(err, ErrRunNotFound) {
 		t.Fatalf("err = %v, want ErrRunNotFound", err)
 	}

@@ -22,6 +22,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
 // SessionStore is the lifecycle coordinator's consumer view of session
@@ -81,10 +83,34 @@ type Stores interface {
 	RunInTx(ctx context.Context, fn func(context.Context) error) error
 }
 
+// Turns is the turn-dispatcher slice the lifecycle coordinator drives to
+// abandon (Cancel) or continue (Resume / Rehydrate) the process backing a run.
+// The kernel turn dispatcher satisfies it. Held as a fixed collaborator, not a
+// per-call parameter: it is the same dispatcher for every lifecycle write-set.
+type Turns interface {
+	Cancel(context.Context, turn.TurnHandle) error
+	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error
+	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
+}
+
 // Coordinator executes session/run lifecycle write-sets across the domain
-// stores. Stateless beyond its Stores handle; safe to share.
+// stores, coordinates single-writer run admission (the per-session and
+// per-working-tree slots), and tears down the turn process behind an abandoned
+// run. Stateless beyond its collaborators and the in-process admission gates;
+// safe to share.
 type Coordinator struct {
-	s Stores
+	s     Stores
+	turns Turns
+	// trees serializes short run admissions against destructive working-tree
+	// mutations (file rollback) for every transport using this coordinator.
+	trees WorkingTreeGate
+}
+
+// Dependencies is the collaborator set [New] wires into a Coordinator: the
+// consumer-defined store surface and the turn dispatcher.
+type Dependencies struct {
+	Stores Stores
+	Turns  Turns
 }
 
 // ErrRunNotFound reports that a lifecycle operation targeted no live or parked run.
@@ -97,5 +123,19 @@ var ErrInterruptNotOpen = errors.New("sessions: interrupt not open")
 // ErrSessionBusy reports that a session already has an active or parked run.
 var ErrSessionBusy = errors.New("sessions: session busy")
 
-// New returns a Coordinator over s.
-func New(s Stores) *Coordinator { return &Coordinator{s: s} }
+// New returns a Coordinator over deps.
+func New(deps Dependencies) *Coordinator {
+	return &Coordinator{s: deps.Stores, turns: deps.Turns}
+}
+
+// ClaimWorkingTreeRun reserves cwd's working tree for a run segment admission,
+// serializing it against any in-flight destructive mutation of the same tree.
+func (c *Coordinator) ClaimWorkingTreeRun(cwd string) (WorkingTreeAdmission, bool) {
+	return c.trees.ClaimRun(worktree.CanonicalCwd(cwd))
+}
+
+// ClaimWorkingTreeMutation reserves exclusive access to cwd's working tree for a
+// destructive mutation such as file rollback.
+func (c *Coordinator) ClaimWorkingTreeMutation(cwd string) (WorkingTreeAdmission, bool) {
+	return c.trees.ClaimMutation(worktree.CanonicalCwd(cwd))
+}

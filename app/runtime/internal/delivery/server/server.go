@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -30,6 +31,12 @@ type Config struct {
 	// Runtime is the in-process runtime bundle. Required. Typed as the
 	// narrow RuntimePort (the concrete *internal/runtime.Runtime satisfies it).
 	Runtime RuntimePort
+
+	// Sessions is the application coordinator for the session/run lifecycle
+	// write-sets and single-writer admission (rollback / delete cascade / fork /
+	// restore / resume / working-tree gates). Required — the delivery layer drives
+	// every lifecycle mutation through it.
+	Sessions *sessions.Coordinator
 
 	// ServerInfo identifies this process on the wire. Defaults to
 	// {Name: "runtime", Version: "0.0.0-dev"} when zero — a vendor-neutral
@@ -59,6 +66,11 @@ type Server struct {
 	// *internal/runtime.Runtime here.
 	rt         RuntimePort
 	serverInfo protocol.ServerInfo
+
+	// sessions owns the session/run lifecycle write-sets and single-writer
+	// admission gates (rollback / delete cascade / fork / restore / resume /
+	// working-tree). Injected by the composition root; never nil after New.
+	sessions *sessions.Coordinator
 
 	// coordinator owns the run lifecycle — admission, the per-run event Journal,
 	// the segment pumps, cancel — the application-side home of what delivery used
@@ -125,6 +137,9 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Runtime == nil {
 		return nil, errors.New("server: Runtime is required")
 	}
+	if cfg.Sessions == nil {
+		return nil, errors.New("server: Sessions is required")
+	}
 	if cfg.ServerInfo.Name == "" {
 		cfg.ServerInfo.Name = "runtime"
 	}
@@ -145,6 +160,7 @@ func New(cfg Config) (*Server, error) {
 	}
 	srv := &Server{
 		rt:          cfg.Runtime,
+		sessions:    cfg.Sessions,
 		serverInfo:  cfg.ServerInfo,
 		wsHub:       newWorkspaceHub(),
 		checkpoints: checkpoints,
