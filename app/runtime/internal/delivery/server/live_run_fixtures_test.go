@@ -25,11 +25,11 @@ func (*blockingRunRuntime) SessionByID(context.Context, string) (session.Session
 	return session.Session{ID: "ses_1", Cwd: "/work"}, nil
 }
 
-func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ turn.TurnHandle) (iter.Seq[turn.Event], error) {
-	return func(func(turn.Event) bool) { <-ctx.Done() }, nil
+func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ runs.Handle) (iter.Seq[runs.EngineEvent], error) {
+	return func(func(runs.EngineEvent) bool) { <-ctx.Done() }, nil
 }
 
-func (*blockingRunRuntime) CancelTurn(context.Context, turn.TurnHandle) error { return nil }
+func (*blockingRunRuntime) CancelTurn(context.Context, runs.Handle) error { return nil }
 
 func (*blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {
 	return runsegment.New(runsegment.Config{})
@@ -42,7 +42,7 @@ func startLiveRun(t *testing.T, s *Server, runID string) {
 	t.Helper()
 	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: runID}
 	factory := s.segmentProjector(runID, "", "ses_1", "", handle, nil, nil, "", "", time.Now().UTC())
-	if _, err := s.coordinator.Start(context.Background(), runs.StartSpec{RunID: runID, SessionID: "ses_1", Handle: handle}, factory); err != nil {
+	if _, err := s.coordinator.Start(context.Background(), runs.StartSpec{RunID: runID, SessionID: "ses_1", TurnID: runID, Handle: handle}, factory); err != nil {
 		t.Fatalf("start live run: %v", err)
 	}
 	deadline := time.Now().Add(time.Second)

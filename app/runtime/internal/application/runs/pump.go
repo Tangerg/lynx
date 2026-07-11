@@ -4,8 +4,6 @@ import (
 	"context"
 	"iter"
 	"time"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
 // pump is the run segment goroutine: it leads with the projector's open events,
@@ -16,7 +14,7 @@ import (
 // record is committed before its event is published (a client may resume the
 // instant it sees the interrupt). A parked run leaves its live turn alive for
 // resume; a true terminal cancels it.
-func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner iter.Seq[turn.Event], live *handle, projector Projector) {
+func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner iter.Seq[EngineEvent], live *handle, projector Projector) {
 	hub := live.hub
 	finished := false
 	parked := false
