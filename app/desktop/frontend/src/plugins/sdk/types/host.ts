@@ -13,12 +13,7 @@ import type { StreamEventHandler, CustomEventHandler } from "./events";
 import type { CommandSpec } from "./commands";
 import type { ExtensionContributionOptions, ExtensionPoint } from "./extensions";
 import type { BeforeUnloadHandler, Disposable, ReadyHandler } from "./common";
-import type {
-  LogSubscriber,
-  NotificationLevel,
-  TaskHandle,
-  TaskStartOptions,
-} from "./infra";
+import type { LogSubscriber, NotificationLevel, TaskHandle, TaskStartOptions } from "./infra";
 import type { ContentBlockRenderer } from "./message";
 import type { LoadedPlugin, PluginSpec } from "./plugin";
 import type { LayoutSlotSpec } from "./workspace";

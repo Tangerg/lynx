@@ -31,7 +31,7 @@ The browser dynamic-imports your file from
     --external:window
   ```
 
-- Declare `apiVersion: "^1.0.0"` in your `definePlugin` call — the host
+- Declare `apiVersion: "^3.0.0"` in your `definePlugin` call — the host
   refuses to load incompatible ranges.
 
 ## Available on `window.__LYRA__`
@@ -48,18 +48,19 @@ The browser dynamic-imports your file from
 
 ```js
 const { React, SDK } = window.__LYRA__;
-const { definePlugin } = SDK;
+const { SLASH_COMMAND, SETTINGS_PANE, TOOL_PREVIEW, definePlugin } = SDK;
 
 export default definePlugin({
   name:       "user.something",           // unique id
   version:    "0.1.0",                    // semver
-  apiVersion: "^1.0.0",                   // host range (optional but recommended)
+  apiVersion: "^3.0.0",                   // host range (optional but recommended)
+  capabilities: ["extensions", "tool", "composer", "message", "events", "settings", "notify"],
   setup({ host }) {
-    host.tool.registerPreview("my-tool", MyToolPreview);
-    host.composer.registerCommand("/cmd", { description: "...", run: ... });
+    host.extensions.contribute(TOOL_PREVIEW, MyToolPreview, { key: "my-tool" });
+    host.extensions.contribute(SLASH_COMMAND, { description: "...", run: ... }, { key: "/cmd" });
     host.message.registerContentBlock("myBlock", MyBlockRenderer);
     host.events.onCustom("my.event", (value) => /* StateUpdate */);
-    host.settings.registerPane({ id: "my-pane", label: "...", component: ... });
+    host.extensions.contribute(SETTINGS_PANE, { id: "my-pane", label: "...", component: ... });
   },
 });
 ```

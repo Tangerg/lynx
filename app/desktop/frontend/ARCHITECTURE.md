@@ -623,9 +623,9 @@ import { COMMAND } from "@/plugins/sdk/kernelPoints";
 export default definePlugin({
   name: "lyra.example.hello",
   version: "1.0.0",
-  apiVersion: "^1.0.0",                          // 可选；不写接受任意 host
+  apiVersion: "^3.0.0",                          // 可选；不写接受任意 host
   requires: ["lyra.builtin.default-themes"],     // 可选；依赖（拓扑排序）
-  capabilities: ["commands", "events", "message", "notify", "logger"], // 可选；最小权限
+  capabilities: ["extensions", "commands", "events", "message", "notify", "log"], // 可选；最小权限
   setup({ host }) {
     // 1. 加一个 Cmd+K 命令
     host.extensions.contribute(COMMAND, {
