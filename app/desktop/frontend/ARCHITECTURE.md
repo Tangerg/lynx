@@ -141,7 +141,7 @@ src/
 ├── lib/                  共享 hook + 纯函数（跨插件共享，不属于上述任一层）
 │   ├── agent/            会话用例 hook（useChatSend / useApprovalSubmit / useQuestionAnswer /
 │   │                     useCreateSession / …）+ HITL 决策词表 + streamReveal + messageContent
-│   ├── data/             ky 包装（http）+ React Query（queries / queryClient）
+│   ├── data/             React Query read cache（queries / queryClient）
 │   ├── i18n/             i18next 接线 + 分词 + 相对时间
 │   ├── markdown/         rehype 插件 + shiki + KaTeX（纯 infra）
 │   ├── observability/    OTel 三信号（setup/sink/stores/tracing/logBridge）—— 见 §5.5
@@ -342,7 +342,7 @@ export default definePlugin({
 host.extensions.contribute(POINT, spec, opts?)
 ```
 
-内置点（`kernelPoints.ts`，~35 个）涵盖主题 / 强调色 / 路由 / 命令 / 设置面板 / 侧栏分区 + rail / 工具预览 + 操作 + 图标 / 内容块 / 消息角色 / slash 命令 / agent source / 数据 provider / composer 状态 + 模式 + 占位符 / 快捷键 + 键绑定 / locale / 工作区 view / 错误回退 / rpc + log + 生命周期 hook 等。第三方插件用 `defineExtensionPoint` 开自己的点，机制完全相同。
+内置点（`kernelPoints.ts`）涵盖主题 / 强调色 / 路由 / 命令 / 设置面板 / 侧栏分区 + rail / 工具预览 + 操作 + 图标 / 内容块 / 消息角色 / slash 命令 / agent source / 数据 provider / composer 状态 + 模式 + 占位符 / 快捷键 + 键绑定 / locale / 工作区 view / 错误回退 / log + 生命周期 hook 等。第三方插件用 `defineExtensionPoint` 开自己的点，机制完全相同。
 
 **保留的薄 facade**（仍只是调 `contribute`，但各带逻辑/泛型/防错）：
 
@@ -353,10 +353,9 @@ host.extensions.contribute(POINT, spec, opts?)
 | `host.layout.register(slot, spec)`        | 内部算去重 id `${slot}#${spec.id}`      |
 | `host.message.registerContentBlock<K>`    | per-kind 泛型类型安全                   |
 | `host.lifecycle.onReady / onBeforeUnload` | onReady 带"已 ready 则立即触发"逻辑     |
-| `host.rpc.beforeRequest / afterResponse`  | HTTP 拦截 hook 订阅                     |
 | `host.log.subscribe`                      | 日志订阅 hook                           |
 
-**命令式动作（非贡献，本就该是方法）**：`host.workspace.openView/closeView` · `host.config` · `host.storage` · `host.state` · `host.notify` · `host.window` · `host.plugins.{list,load,unload,reload}` · `host.i18n.addBundle` · `host.tasks` · `host.rpc.get/post` · `host.log.{debug,info,warn,error}` · `host.commands.execute`。
+**命令式动作（非贡献，本就该是方法）**：`host.workspace.openView/closeView` · `host.config` · `host.storage` · `host.state` · `host.notify` · `host.window` · `host.plugins.{list,load,unload,reload}` · `host.i18n.addBundle` · `host.tasks` · `host.log.{debug,info,warn,error}` · `host.commands.execute`。Runtime 网络访问不属于通用 Host；内置业务经 context adapter → `main/container` → typed JSON-RPC client，第三方插件通过明确的 domain extension/command 协作。
 
 `contribute` 与每个 facade 都返回 `Disposable`，`createHost` 收集到 `setup` 期的 sink；plugin setup 抛错时自动 dispose 已注册部分，避免半成品挂在 registry。
 
@@ -365,7 +364,7 @@ host.extensions.contribute(POINT, spec, opts?)
 `usePluginStore`（`registry.ts` + `registryState.ts`）是一个 Zustand store。所有贡献坐落在**单一** `extensions: Map<"${point.id}#${dedupe}", Owned<ContributionEntry>>`。两种 keying（点定义里声明）：
 
 - **single**：`dedupe` = 归一后的单键（主题 by id、工具预览 by fn、slash by trigger…）。同 key 后来者覆盖 + console 警告。
-- **multi**：`dedupe` = `${plugin}|${id}`（id 默认 mint），每条共存——事件 handler / layout slot / rpc+log hook 等链式执行。
+- **multi**：`dedupe` = `${plugin}|${id}`（id 默认 mint），每条共存——事件 handler / layout slot / log hook 等链式执行。
 
 `pluginName` 嵌在外层 `Owned`，dispose 只删本插件那条；selector 侧（`selectors/extensions.ts`）用缓存在 map 引用上的二级索引保 O(1) 读。
 

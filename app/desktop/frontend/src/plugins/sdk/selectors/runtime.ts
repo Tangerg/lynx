@@ -1,5 +1,5 @@
 // Runtime / data-layer selectors — routes, agent sources, data providers,
-// RPC hooks, plugin error fallback. The grab-bag of "things plugins
+// and plugin error fallback. The grab-bag of "things plugins
 // register that don't belong to a specific UI surface".
 
 import type {
@@ -7,17 +7,8 @@ import type {
   AgentRunOptionsProviderSpec,
   AgentSourceSpec,
   PluginErrorFallbackSpec,
-  RpcAfterResponseHook,
-  RpcBeforeRequestHook,
 } from "../types";
-import {
-  AGENT_RUN_OPTIONS,
-  AGENT_SOURCE,
-  DATA_PROVIDER,
-  ERROR_FALLBACK,
-  RPC_AFTER_RESPONSE,
-  RPC_BEFORE_REQUEST,
-} from "../kernelPoints";
+import { AGENT_RUN_OPTIONS, AGENT_SOURCE, DATA_PROVIDER, ERROR_FALLBACK } from "../kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "./extensions";
 
 /**
@@ -52,16 +43,6 @@ export function lookupDataProvider<T = unknown, P = unknown>(
 ): ((params?: P) => Promise<T>) | undefined {
   const spec = lookupExtensionByKey(DATA_PROVIDER, key);
   return spec ? (spec.fetcher as (params?: P) => Promise<T>) : undefined;
-}
-
-/** Snapshot of registered beforeRequest hooks in insertion order. */
-export function listRpcBeforeHooks(): RpcBeforeRequestHook[] {
-  return lookupExtensionPoint(RPC_BEFORE_REQUEST);
-}
-
-/** Snapshot of registered afterResponse hooks in insertion order. */
-export function listRpcAfterHooks(): RpcAfterResponseHook[] {
-  return lookupExtensionPoint(RPC_AFTER_RESPONSE);
 }
 
 /**

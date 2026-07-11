@@ -16,7 +16,7 @@
 // and ship the resulting `index.js` instead.
 
 const { React, SDK } = window.__LYRA__;
-const { definePlugin } = SDK;
+const { definePlugin, SLASH_COMMAND, TOOL_PREVIEW } = SDK;
 
 // React.createElement shorthand keeps the code readable without JSX.
 const h = React.createElement;
@@ -41,15 +41,19 @@ function HelloPreview(props) {
 export default definePlugin({
   name: "user.hello-sideload",
   version: "0.1.0",
-  apiVersion: "^2.0.0",
+  apiVersion: "^3.0.0",
+  capabilities: ["extensions", "tool", "composer", "notify"],
   setup({ host }) {
-    host.tool.registerPreview("hello", HelloPreview);
-
-    host.composer.registerCommand("/hello", {
-      description: "Sideload demo — shows a toast",
-      run: async ({ args }) => {
-        host.notify(`Hello${args ? `, ${args}` : ""}!`, "info");
+    host.extensions.contribute(TOOL_PREVIEW, HelloPreview, { key: "hello" });
+    host.extensions.contribute(
+      SLASH_COMMAND,
+      {
+        description: "Sideload demo — shows a toast",
+        run: async ({ args }) => {
+          host.notify(`Hello${args ? `, ${args}` : ""}!`, "info");
+        },
       },
-    });
+      { key: "/hello" },
+    );
   },
 });

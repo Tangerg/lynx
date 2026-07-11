@@ -1,4 +1,4 @@
-package tool_test
+package agentexec_test
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 
 	chatmodel "github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 )
 
 // TestRegistry_List enumerates the coding tool set and verifies the
@@ -101,7 +101,7 @@ func buildRegistry(t *testing.T) tool.Registry {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc, err := tool.New(eng)
+	svc, err := agentexec.NewToolRegistry(eng)
 	if err != nil {
 		t.Fatal(err)
 	}

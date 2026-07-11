@@ -48,8 +48,6 @@ export { usePluginStore } from "./registry";
 // use/lookupExtensionByKey); the rest are selectors with real logic.
 export {
   executeCommand,
-  listRpcAfterHooks,
-  listRpcBeforeHooks,
   lookupCommandOwner,
   lookupStreamHandlers,
   lookupCustomHandlers,
@@ -137,8 +135,6 @@ export type {
   PluginSpec,
   ReadyHandler,
   RouteSpec,
-  RpcAfterResponseHook,
-  RpcBeforeRequestHook,
   SettingsPaneSpec,
   ShortcutHandler,
   ShortcutSpec,

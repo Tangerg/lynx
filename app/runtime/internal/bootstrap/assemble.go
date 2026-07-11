@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
@@ -12,9 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
@@ -139,7 +138,7 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 	if err != nil {
 		return Host{}, errors.Join(fmt.Errorf("runtime: turn dispatcher: %w", err), eng.Close())
 	}
-	toolRegistry, err := toolsvc.New(eng)
+	toolRegistry, err := agentexec.NewToolRegistry(eng)
 	if err != nil {
 		return Host{}, errors.Join(fmt.Errorf("runtime: tool registry: %w", err), eng.Close())
 	}

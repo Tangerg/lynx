@@ -30,8 +30,6 @@ import {
 } from "./kernelPoints";
 import { normalizeCombo, usePluginStore } from "./registry";
 import {
-  listRpcAfterHooks,
-  listRpcBeforeHooks,
   lookupStreamHandlers,
   lookupCustomHandlers,
   lookupDataProvider,
@@ -600,29 +598,6 @@ describe("plugin registry", () => {
 
     expect(lookupExtensionPoint(MESSAGE_ROLE).length).toBe(1);
     expect(lookupExtensionByKey(MESSAGE_ROLE, "dev")?.displayName).toBe("Dev");
-  });
-
-  it("rpc.beforeRequest + listRpcBeforeHooks round-trip", () => {
-    const sink: Disposable[] = [];
-    const host = createHost("alpha", sink);
-    const hook = vi.fn();
-    const d = host.rpc.beforeRequest(hook);
-
-    expect(listRpcBeforeHooks()).toHaveLength(1);
-    expect(listRpcBeforeHooks()[0]).toBe(hook);
-    d.dispose();
-    expect(listRpcBeforeHooks()).toHaveLength(0);
-  });
-
-  it("rpc.afterResponse + listRpcAfterHooks round-trip", () => {
-    const sink: Disposable[] = [];
-    const host = createHost("alpha", sink);
-    const hook = vi.fn();
-    host.rpc.afterResponse(hook);
-
-    const hooks = listRpcAfterHooks();
-    expect(hooks).toHaveLength(1);
-    expect(hooks[0]).toBe(hook);
   });
 
   it("log.info fans events out to every subscriber with plugin attribution", () => {

@@ -47,7 +47,7 @@ export interface ExtensionPoint<T> {
    * Capability a plugin must declare to contribute to this point — the
    * permission gate, enforced by `host.extensions.contribute` for hosts that
    * declared `capabilities` (sideload). Kernel points carry their domain
-   * capability (THEME → "theme", RPC_BEFORE_REQUEST → "rpc"); plugin-defined
+   * capability (THEME → "theme", COMMAND → "commands"); plugin-defined
    * points omit it (contributing to a plugin's own point needs no kernel
    * permission). Full hosts (built-ins, no `capabilities`) skip the check.
    */
