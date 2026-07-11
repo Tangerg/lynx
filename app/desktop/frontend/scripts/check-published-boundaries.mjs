@@ -50,12 +50,35 @@ for (const file of files(SRC)) {
 
   if (
     !isTest &&
+    /plugins\/builtin\/.+\/application\/ports\/.+\.ts$/.test(rel) &&
+    /configure\w+(?:Port|Gateway)/.test(text) &&
+    !/@\/lib\/ports\/singletonPort/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "configurable application ports must use singletonPort lifecycle ownership",
+    });
+  }
+
+  if (
+    !isTest &&
     /plugins\/builtin\/.+\/adapters\/.+\.(ts|tsx)$/.test(rel) &&
     /export\s+function\s+install\w+\(\)\s*:\s*void/.test(text)
   ) {
     violations.push({
       file: rel,
       reason: "port installers must return a disposer for plugin unload and HMR",
+    });
+  }
+
+  if (
+    !isTest &&
+    /plugins\/builtin\/.+\/(?:index|bootstrap)\.(ts|tsx)$/.test(rel) &&
+    /^\s*install\w+(?:Port|Gateway)\(\);/m.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "plugin setup must retain and return the port installer's disposer",
     });
   }
 
