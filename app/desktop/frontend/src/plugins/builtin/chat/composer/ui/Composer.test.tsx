@@ -1,9 +1,10 @@
 import type { ReactElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
 import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
+import { addLocaleBundle, setLocale } from "@/lib/i18n";
 import { Composer } from "./Composer";
 
 // Composer now reads the workspace file list (useFileMentions → useListFiles)
@@ -48,6 +49,13 @@ const baseProps = {
   onModeChange: () => {},
 };
 
+afterEach(async () => {
+  await act(async () => {
+    setLocale("en");
+    await Promise.resolve();
+  });
+});
+
 describe("composer", () => {
   it("calls onChange as the user types", () => {
     const onChange = vi.fn();
@@ -90,5 +98,23 @@ describe("composer", () => {
     const imgs = screen.getAllByRole("img");
     expect(imgs).toHaveLength(2);
     expect(imgs[0]!.getAttribute("src")).toBe("data:image/png;base64,AAAA");
+  });
+
+  it("refreshes the placeholder when the locale changes", async () => {
+    addLocaleBundle("placeholder-test", {
+      "composer.input.label": "Prompt",
+      "composer.placeholder.fallback": "Localized placeholder",
+    });
+    wrap(<Composer {...baseProps} value="" onChange={() => {}} onSend={() => {}} />);
+
+    await act(async () => {
+      setLocale("placeholder-test");
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+      expect(textarea.placeholder).toBe("Localized placeholder");
+    });
   });
 });

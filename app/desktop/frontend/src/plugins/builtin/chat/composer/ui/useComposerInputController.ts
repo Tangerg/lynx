@@ -5,7 +5,7 @@ import type {
   KeyboardEvent,
   SyntheticEvent,
 } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
@@ -68,14 +68,8 @@ export function useComposerInputController({
     [onChange],
   );
   const mentions = useFileMentions({ value, caret, cwd, apply: applyMention });
-  const basePlaceholder = useMemo(
-    () => {
-      const picked = pickComposerPlaceholder()?.text;
-      return picked ? t(picked) : t("composer.placeholder.fallback");
-    },
-    // eslint-disable-next-line react/exhaustive-deps
-    [],
-  );
+  const placeholderKey = pickComposerPlaceholder()?.text ?? "composer.placeholder.fallback";
+  const basePlaceholder = t(placeholderKey);
   const running = useIsAgentRunning();
   const placeholder = running ? t("composer.placeholder.steer") : basePlaceholder;
   const submit = useCallback(
