@@ -438,7 +438,7 @@ reducer 自己不处理任何事件语义——全部搬到 `lyra.builtin.agent 
 2. **可测**：测试只加载需要的 agent fold 子集。
 3. **错误隔离**：一个 handler 抛错，其余继续——dispatcher 包了 try/catch。
 
-`AgentViewState`（`viewState.ts`）把 v2 wire 模型（Session→Run→Item）投影成 UI 形状：`messages: Message[]`（每条含 `blocks: ContentBlock[]`）+ `toolCalls: Record<id, ToolCall>` + `plan` + `run`（含 `sessionId` / `runId` / step / tokens）+ `timeline` + `openInterrupts` + `shared`。其中"连续助手 Item 折进一个气泡"叫一个 **turn**（`turnMessageId`），是纯 UI 概念，与协议 Run 干净分离。
+`AgentViewState`（`viewState.ts`）把 v2 wire 模型（Session→Run→Item）投影成 UI 形状：`messages: Message[]`（每条含 `blocks: ContentBlock[]`）+ `toolCalls: Record<id, ToolCall>` + `plan` + `run`（含 `sessionId` / `runId` / step / tokens）+ `timeline` + `pendingInterrupts` + `shared`。其中“连续助手 Item 折进一个气泡”叫一个 **turn**（`turnMessageId`），是纯 UI 概念，与协议 Run 干净分离。`fold` 是 wire→view 的反腐层：interrupt 与 diff 的协议 DTO 在这里被物化为稳定的发布语言，view state 不持有 `@/rpc` 类型。
 
 #### useAgentSession 编排会话生命周期
 
@@ -470,16 +470,16 @@ unmount → cancel + 解绑 send/stop/resume（该会话 view state 留在 store
 
 ### 5.3 状态分层（除 agent 外的 UI 状态）
 
-| Store            | 内容                                                        | 持久化            |
-| ---------------- | ----------------------------------------------------------- | ----------------- |
-| `agentStore`     | 每会话 AgentViewState + send/stop/resume 引用 + applyEvents | ❌ ephemeral      |
-| `sessionStore`   | activeSessionId / openSessionIds / draft / 选择             | ✅（部分字段）    |
-| `uiStore`        | theme / accent / 字体 / motion / messageStyle / sidebarRail | ✅                |
-| Runtime capability store | 握手协商能力（由 runtime context 私有持有）             | ❌ ephemeral      |
-| `tasksStore`     | host.tasks 的后台任务                                       | ❌                |
-| `composerStore`  | 撰写区文本 / 模式 / 附件 / provider+model                   | ❌ ephemeral      |
-| `usePluginStore` | 整个插件 registry                                           | ❌                |
-| `useConfigStore` | 插件可读写的全局 config（如 `runtime.endpoint`）            | ✅                |
+| Store                    | 内容                                                        | 持久化         |
+| ------------------------ | ----------------------------------------------------------- | -------------- |
+| `agentStore`             | 每会话 AgentViewState + send/stop/resume 引用 + applyEvents | ❌ ephemeral   |
+| `sessionStore`           | activeSessionId / openSessionIds / draft / 选择             | ✅（部分字段） |
+| `uiStore`                | theme / accent / 字体 / motion / messageStyle / sidebarRail | ✅             |
+| Runtime capability store | 握手协商能力（由 runtime context 私有持有）                 | ❌ ephemeral   |
+| `tasksStore`             | host.tasks 的后台任务                                       | ❌             |
+| `composerStore`          | 撰写区文本 / 模式 / 附件 / provider+model                   | ❌ ephemeral   |
+| `usePluginStore`         | 整个插件 registry                                           | ❌             |
+| `useConfigStore`         | 插件可读写的全局 config（如 `runtime.endpoint`）            | ✅             |
 
 每个 store 各自用 Zustand `persist` + 自己的 `version`；**schema 变了就 bump version 丢旧数据，不写 migration**（开发期无历史包袱）。
 

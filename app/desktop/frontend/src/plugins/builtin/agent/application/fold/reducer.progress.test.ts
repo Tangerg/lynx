@@ -3,10 +3,10 @@
 // must surface progress live AND let the finished totals win.
 import { beforeEach, describe, expect, it } from "vitest";
 import type { RunOutcome, StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/builtin/agent/public/viewState";
+import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 const runStarted = (id: string): StreamEvent => ({
   type: "run.started",

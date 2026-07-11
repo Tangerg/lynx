@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { resolveAgentRunStartOptions } from "@/plugins/sdk";
 import type { AgentInput } from "../../domain/input";
 import { agentInputText } from "../../domain/input";
-import { LOCAL_STEER_PREFIX } from "@/plugins/builtin/agent/public/viewState";
+import { LOCAL_STEER_PREFIX } from "@/plugins/sdk/types/agentView";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentViewState } from "../ports/viewState";
 import { getActiveSessionId } from "../session/activeSession";

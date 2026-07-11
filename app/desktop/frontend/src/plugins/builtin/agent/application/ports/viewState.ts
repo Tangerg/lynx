@@ -10,7 +10,7 @@ import type {
   RunUsage,
   TimelineEntry,
   ToolCall,
-} from "@/plugins/builtin/agent/public/viewState";
+} from "@/plugins/sdk/types/agentView";
 
 export type ResolvePatch = {
   decision?: "approved" | "declined";

@@ -115,7 +115,7 @@ describe("agentStore.cancelRun", () => {
 describe("agentStore.resolveInterrupt", () => {
   it("settles an approval, drops the open interrupt, and stamps approval-result", () => {
     seedInterrupt("approval", "tool_1");
-    expect(view().openInterrupts).toHaveLength(1);
+    expect(view().pendingInterrupts).toHaveLength(1);
 
     useAgentStore.getState().resolveInterrupt(SID, "tool_1", { decision: "approved" });
 
@@ -123,7 +123,7 @@ describe("agentStore.resolveInterrupt", () => {
       .messages.flatMap((m) => m.blocks)
       .find((b) => b.kind === "approval");
     expect(block).toMatchObject({ status: "complete", decision: "approved" });
-    expect(view().openInterrupts).toHaveLength(0);
+    expect(view().pendingInterrupts).toHaveLength(0);
 
     const tl = view().timeline.find((e) => e.kind === "approval-result");
     expect(tl).toMatchObject({ kind: "approval-result", refId: "tool_1", status: "approved" });
@@ -138,7 +138,7 @@ describe("agentStore.resolveInterrupt", () => {
       .messages.flatMap((m) => m.blocks)
       .find((b) => b.kind === "question");
     expect(block).toMatchObject({ status: "complete", answered: true });
-    expect(view().openInterrupts).toHaveLength(0);
+    expect(view().pendingInterrupts).toHaveLength(0);
     expect(view().timeline.some((e) => e.kind === "approval-result")).toBe(false);
   });
 
@@ -180,13 +180,13 @@ describe("agentStore.resolveInterrupt", () => {
         }),
       ].map(fold),
     );
-    expect(view().openInterrupts[0]!.interrupts).toHaveLength(2);
+    expect(view().pendingInterrupts[0]!.interrupts).toHaveLength(2);
 
     useAgentStore.getState().resolveInterrupt(SID, "t1", { decision: "approved" });
 
     // Envelope survives with only the unresolved sibling — not dropped whole.
-    expect(view().openInterrupts).toHaveLength(1);
-    expect(view().openInterrupts[0]!.interrupts.map((i) => i.itemId)).toEqual(["t2"]);
+    expect(view().pendingInterrupts).toHaveLength(1);
+    expect(view().pendingInterrupts[0]!.interrupts.map((i) => i.itemId)).toEqual(["t2"]);
   });
 });
 

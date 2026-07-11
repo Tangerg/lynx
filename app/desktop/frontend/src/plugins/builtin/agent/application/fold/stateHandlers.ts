@@ -1,5 +1,5 @@
 import type { Operation } from "fast-json-patch";
-import type { AgentViewState } from "@/plugins/builtin/agent/public/viewState";
+import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 import { applyPatch, deepClone } from "fast-json-patch";
 
 export function onStateSnapshot(

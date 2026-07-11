@@ -1,6 +1,6 @@
 import type { RunEvent, RunId, StreamingResult } from "@/rpc";
 import { errorDetail, errorType, RpcError } from "@/rpc";
-import type { RunError } from "@/plugins/builtin/agent/public/viewState";
+import type { RunError } from "@/plugins/sdk/types/agentView";
 import { endSpan, startRunSpan, withSpan } from "@/lib/observability/tracing";
 
 interface RunOpeningControllerOptions {

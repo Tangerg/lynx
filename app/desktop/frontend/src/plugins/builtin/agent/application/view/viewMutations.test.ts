@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { OpenInterrupt } from "@/rpc";
+import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type {
   AgentViewState,
-  ContentBlock,
   Message,
+  PendingInterruptGroup,
   RunError,
-} from "@/plugins/builtin/agent/public/viewState";
-import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
+} from "@/plugins/sdk/types/agentView";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 import {
   cancelRunningRun,
   dropMessage,
@@ -23,7 +23,7 @@ function view(partial: Partial<AgentViewState> = {}): AgentViewState {
     run: { ...INITIAL_VIEW_STATE.run },
     messages: [],
     timeline: [],
-    openInterrupts: [],
+    pendingInterrupts: [],
     ...partial,
   };
 }
@@ -62,32 +62,15 @@ function questionBlock(itemId: string): ContentBlock {
   };
 }
 
-function openInterrupt(
-  items: Array<{ itemId: string; type: "approval" | "question" }>,
-): OpenInterrupt {
+function pendingInterrupt(
+  items: Array<{ itemId: string; kind: "approval" | "question" }>,
+): PendingInterruptGroup {
   return {
     parentRunId: "run_1",
     sessionId: "ses_1",
     createdAt: time,
-    interrupts: items.map(({ itemId, type }) =>
-      type === "approval"
-        ? {
-            type,
-            itemId,
-            payload: { tool: { name: "shell", arguments: { command: "rm x" } } },
-          }
-        : {
-            type,
-            itemId,
-            payload: {
-              question: {
-                prompt: "Which option?",
-                fields: [{ type: "text", name: "choice", label: "Which option?" }],
-              },
-            },
-          },
-    ),
-  } as OpenInterrupt;
+    interrupts: items,
+  };
 }
 
 describe("view mutations - messages", () => {
@@ -159,7 +142,7 @@ describe("view mutations - interrupts", () => {
   it("settles an approval block, drops its interrupt, and stamps an approval result", () => {
     const original = view({
       messages: [message("assistant-1", [approvalBlock("tool_1")])],
-      openInterrupts: [openInterrupt([{ itemId: "tool_1", type: "approval" }])],
+      pendingInterrupts: [pendingInterrupt([{ itemId: "tool_1", kind: "approval" }])],
       toolCalls: {
         tool_1: {
           id: "tool_1",
@@ -178,7 +161,7 @@ describe("view mutations - interrupts", () => {
       status: "complete",
       decision: "approved",
     });
-    expect(next.openInterrupts).toEqual([]);
+    expect(next.pendingInterrupts).toEqual([]);
     expect(next.toolCalls.tool_1?.status).toBe("running");
     expect(next.timeline.at(-1)).toMatchObject({
       kind: "approval-result",
@@ -191,7 +174,7 @@ describe("view mutations - interrupts", () => {
     const answers = { choice: ["A"] };
     const original = view({
       messages: [message("assistant-1", [questionBlock("question_1")])],
-      openInterrupts: [openInterrupt([{ itemId: "question_1", type: "question" }])],
+      pendingInterrupts: [pendingInterrupt([{ itemId: "question_1", kind: "question" }])],
     });
 
     const next = resolveInterrupt(original, "question_1", { answers });
@@ -202,7 +185,7 @@ describe("view mutations - interrupts", () => {
       answered: true,
       answers,
     });
-    expect(next.openInterrupts).toEqual([]);
+    expect(next.pendingInterrupts).toEqual([]);
     expect(next.timeline.some((entry) => entry.kind === "approval-result")).toBe(false);
   });
 
@@ -225,18 +208,18 @@ describe("view mutations - interrupts", () => {
           status: "requires-action",
         },
       },
-      openInterrupts: [
-        openInterrupt([
-          { itemId: "tool_1", type: "approval" },
-          { itemId: "tool_2", type: "approval" },
+      pendingInterrupts: [
+        pendingInterrupt([
+          { itemId: "tool_1", kind: "approval" },
+          { itemId: "tool_2", kind: "approval" },
         ]),
       ],
     });
 
     const next = resolveInterrupt(original, "tool_1", { decision: "declined" });
 
-    expect(next.openInterrupts).toHaveLength(1);
-    expect(next.openInterrupts[0]!.interrupts.map((interrupt) => interrupt.itemId)).toEqual([
+    expect(next.pendingInterrupts).toHaveLength(1);
+    expect(next.pendingInterrupts[0]!.interrupts.map((interrupt) => interrupt.itemId)).toEqual([
       "tool_2",
     ]);
     expect(next.messages[0]!.blocks[0]).toMatchObject({
@@ -254,7 +237,7 @@ describe("view mutations - interrupts", () => {
   it("does not churn state or stamp results for an unknown item id", () => {
     const original = view({
       messages: [message("assistant-1", [approvalBlock("tool_1")])],
-      openInterrupts: [openInterrupt([{ itemId: "tool_1", type: "approval" }])],
+      pendingInterrupts: [pendingInterrupt([{ itemId: "tool_1", kind: "approval" }])],
     });
 
     expect(resolveInterrupt(original, "missing", { decision: "approved" })).toBe(original);

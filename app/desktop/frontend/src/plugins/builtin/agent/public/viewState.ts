@@ -9,6 +9,9 @@ export type {
   AgentViewState,
   Message,
   MessageRole,
+  PendingInterrupt,
+  PendingInterruptGroup,
+  PendingInterruptKind,
   PlanItem,
   RunError,
   RunUsage,
@@ -17,6 +20,7 @@ export type {
   ToolCall,
   ToolCallStatus,
   ToolCategory,
+  ToolDiffRow,
 } from "@/plugins/sdk/types/agentView";
 export {
   INITIAL_VIEW_STATE,

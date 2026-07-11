@@ -98,6 +98,36 @@ describe("toolFields — runtime wire shapes", () => {
     expect(g.removed).toBeUndefined();
   });
 
+  it("edit: maps only valid call-scoped diff rows into the Agent view model", () => {
+    const f = toolFields(
+      tool(
+        "edit",
+        {},
+        {
+          changes: [
+            {
+              diff: [
+                { type: "hunk", text: "@@ -1 +1 @@" },
+                { type: "deleted", leftLine: 1, code: "old" },
+                { type: "added", rightLine: 1, code: "new" },
+                { type: "added", rightLine: "2", code: "malformed" },
+                { type: "unknown", code: "ignored" },
+              ],
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(f.diff).toEqual([
+      { type: "hunk", text: "@@ -1 +1 @@" },
+      { type: "deleted", leftLine: 1, code: "old" },
+      { type: "added", rightLine: 1, code: "new" },
+    ]);
+    expect(f.added).toBe(1);
+    expect(f.removed).toBe(1);
+  });
+
   it("read: passes the content through as the result body", () => {
     expect(toolFields(tool("read", { path: "a.go" }, { content: "package main" })).result).toBe(
       "package main",

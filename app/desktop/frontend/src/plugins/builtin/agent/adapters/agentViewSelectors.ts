@@ -6,8 +6,8 @@ import type {
   RunUsage,
   TimelineEntry,
   ToolCall,
-} from "@/plugins/builtin/agent/public/viewState";
-import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
+} from "@/plugins/sdk/types/agentView";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { type AgentSendAction, type AgentStopAction, useAgentStore } from "./agentStore";
 

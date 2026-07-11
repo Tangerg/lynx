@@ -1,16 +1,17 @@
 import type {
+  PendingInterruptGroup,
   PlanItem,
   RunError,
   TimelineEntry,
   ToolCall,
-} from "@/plugins/builtin/agent/public/viewState";
+} from "@/plugins/sdk/types/agentView";
 import { agentSessionState } from "../ports/sessionState";
 import { agentViewState } from "../ports/viewState";
 
 interface AgentSessionEntry {
   view: {
     run: { running: boolean };
-    openInterrupts: unknown[];
+    pendingInterrupts: PendingInterruptGroup[];
     error: RunError | null;
   };
 }
@@ -96,7 +97,7 @@ export function subscribeAgentRunSettlements(
       if (was && !running) {
         onSettled({
           sessionId,
-          needsInput: view.openInterrupts.length > 0,
+          needsInput: view.pendingInterrupts.length > 0,
           errorMessage: view.error?.message ?? null,
         });
       }

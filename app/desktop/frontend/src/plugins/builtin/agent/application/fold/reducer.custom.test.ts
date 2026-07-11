@@ -10,7 +10,7 @@ import { usePluginErrorStore } from "@/plugins/sdk/errors";
 import { createHost } from "@/plugins/sdk/host";
 import { appendBlockToLatestAssistant, appendBlockToMessage } from "@/plugins/sdk/state";
 import { reduce } from "./reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 const custom = (name: string, payload: unknown): StreamEvent => ({ type: "custom", name, payload });
 

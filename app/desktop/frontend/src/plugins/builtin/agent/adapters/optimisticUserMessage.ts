@@ -1,5 +1,5 @@
 import type { ContentBlock, RunEvent } from "@/rpc";
-import { LOCAL_MESSAGE_PREFIX } from "@/plugins/builtin/agent/public/viewState";
+import { LOCAL_MESSAGE_PREFIX } from "@/plugins/sdk/types/agentView";
 
 let localSeq = 0;
 

@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import { buildPlaintext, deriveLatestRun } from "./runDigest";
-import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 // Spread-helpers so tests stay terse — each entry only needs to set
 // the fields it actually cares about.

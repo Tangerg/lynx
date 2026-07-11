@@ -224,10 +224,10 @@ describe("useAgentSession durable recovery", () => {
     renderHook(() => useAgentSession(() => driver, RID));
 
     await waitFor(() => {
-      expect(useAgentStore.getState().sessions[RID]!.view.openInterrupts).toHaveLength(1);
+      expect(useAgentStore.getState().sessions[RID]!.view.pendingInterrupts).toHaveLength(1);
     });
     const view = useAgentStore.getState().sessions[RID]!.view;
-    expect(view.openInterrupts[0]!.parentRunId).toBe("run_int");
+    expect(view.pendingInterrupts[0]!.parentRunId).toBe("run_int");
     const approval = view.messages
       .flatMap((m) => m.blocks)
       .find((b) => b.kind === "approval" && b.itemId === "item_appr");

@@ -1,4 +1,4 @@
-import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
+import type { PlanItem } from "@/plugins/sdk/types/agentView";
 import { Icon } from "@/ui";
 import { cn } from "@/lib/utils";
 

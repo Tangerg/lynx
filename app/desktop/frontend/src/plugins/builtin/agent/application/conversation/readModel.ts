@@ -1,9 +1,4 @@
-import type {
-  Message,
-  PlanItem,
-  TimelineEntry,
-  ToolCall,
-} from "@/plugins/builtin/agent/public/viewState";
+import type { Message, PlanItem, TimelineEntry, ToolCall } from "@/plugins/sdk/types/agentView";
 import { agentViewState } from "../ports/viewState";
 
 interface ActiveConversationSnapshot {
