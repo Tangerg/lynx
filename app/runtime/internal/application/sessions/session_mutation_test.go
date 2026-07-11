@@ -11,7 +11,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
 func TestDeleteSessionCommitsDurableStateBeforeProcessCleanup(t *testing.T) {
@@ -176,15 +175,15 @@ func (s deleteInterruptStore) Delete(context.Context, string) error {
 
 type deleteTurns struct{ operations *[]string }
 
-func (t deleteTurns) Cancel(context.Context, turn.TurnHandle) error {
+func (t deleteTurns) Cancel(context.Context, RunRef) error {
 	*t.operations = append(*t.operations, "turn.cancel")
 	return nil
 }
 
-func (deleteTurns) Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error {
+func (deleteTurns) Resume(context.Context, RunRef, interrupts.Resolution, []string) (Handle, error) {
 	panic("unused")
 }
 
-func (deleteTurns) Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error) {
+func (deleteTurns) Rehydrate(context.Context, RehydrateSpec) (Handle, error) {
 	panic("unused")
 }

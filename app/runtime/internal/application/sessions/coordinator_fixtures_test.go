@@ -99,29 +99,29 @@ func (c *testClaimer) ReleaseSession(sessionID string) {
 // combined cancel / resume / rehydrate surface. Each behavior is optional so a
 // test wires only the leg it exercises.
 type stubTurns struct {
-	onCancel        func(turn.TurnHandle)
+	onCancel        func(RunRef)
 	resumeErr       error
 	rehydrateErr    error
-	rehydrateHandle turn.TurnHandle
-	onResume        func(turn.TurnHandle, interrupts.Resolution, []string)
-	onRehydrate     func(turn.RehydrateRequest)
+	rehydrateHandle Handle
+	onResume        func(RunRef, interrupts.Resolution, []string)
+	onRehydrate     func(RehydrateSpec)
 }
 
-func (t stubTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
+func (t stubTurns) Cancel(_ context.Context, ref RunRef) error {
 	if t.onCancel != nil {
-		t.onCancel(h)
+		t.onCancel(ref)
 	}
 	return nil
 }
 
-func (t stubTurns) Resume(_ context.Context, h turn.TurnHandle, r interrupts.Resolution, interruptKinds []string) error {
+func (t stubTurns) Resume(_ context.Context, ref RunRef, r interrupts.Resolution, interruptKinds []string) (Handle, error) {
 	if t.onResume != nil {
-		t.onResume(h, r, interruptKinds)
+		t.onResume(ref, r, interruptKinds)
 	}
-	return t.resumeErr
+	return turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID}, t.resumeErr
 }
 
-func (t stubTurns) Rehydrate(_ context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
+func (t stubTurns) Rehydrate(_ context.Context, req RehydrateSpec) (Handle, error) {
 	if t.onRehydrate != nil {
 		t.onRehydrate(req)
 	}

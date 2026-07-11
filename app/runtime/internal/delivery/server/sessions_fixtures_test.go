@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"testing"
@@ -220,16 +221,41 @@ type stubLifecycleTurns struct {
 	rt *stubRuntime
 }
 
-func (t stubLifecycleTurns) Cancel(ctx context.Context, handle turn.TurnHandle) error {
-	return t.rt.CancelTurn(ctx, handle)
+func (t stubLifecycleTurns) Cancel(ctx context.Context, ref sessions.RunRef) error {
+	return t.rt.CancelTurn(ctx, turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID})
 }
 
-func (t stubLifecycleTurns) Resume(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
-	return t.rt.ResumeTurn(ctx, handle, resolution, interruptKinds)
+func (t stubLifecycleTurns) Resume(ctx context.Context, ref sessions.RunRef, resolution interrupts.Resolution, interruptKinds []string) (sessions.Handle, error) {
+	handle := turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID}
+	return handle, mapStubResumeError(t.rt.ResumeTurn(ctx, handle, resolution, interruptKinds))
 }
 
-func (t stubLifecycleTurns) Rehydrate(ctx context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
-	return t.rt.RehydrateTurn(ctx, req)
+func (t stubLifecycleTurns) Rehydrate(ctx context.Context, req sessions.RehydrateSpec) (sessions.Handle, error) {
+	handle, err := t.rt.RehydrateTurn(ctx, turn.RehydrateRequest{
+		SessionID:      req.SessionID,
+		ProcessID:      req.ProcessID,
+		Approved:       req.Approved,
+		Provider:       req.Provider,
+		Model:          req.Model,
+		InterruptKinds: req.InterruptKinds,
+	})
+	return handle, mapStubResumeError(err)
+}
+
+// mapStubResumeError mirrors the production bootstrap adapter: it maps the turn
+// dispatcher's resume vocabulary onto the coordinator's neutral sentinels so the
+// delivery resume tests branch exactly as production does.
+func mapStubResumeError(err error) error {
+	switch {
+	case errors.Is(err, turn.ErrParkClaimed):
+		return fmt.Errorf("%w: %w", sessions.ErrParkClaimed, err)
+	case errors.Is(err, turn.ErrTurnNotFound):
+		return fmt.Errorf("%w: %w", sessions.ErrTurnNotLive, err)
+	case errors.Is(err, turn.ErrRehydrateCommitted):
+		return fmt.Errorf("%w: %w", sessions.ErrRehydrateCommitted, err)
+	default:
+		return err
+	}
 }
 
 type stubRunSegmentProcesses struct {

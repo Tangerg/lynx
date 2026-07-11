@@ -7,25 +7,24 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-// RunTurnBinding binds a protocol run id to the turn handle that owns its process.
+// RunTurnBinding binds a protocol run id to the turn that owns its process.
 type RunTurnBinding struct {
 	RunID     string
 	SessionID string
 	TurnID    string
 }
 
-func (r RunTurnBinding) handle() turn.TurnHandle {
-	return turn.TurnHandle{SessionID: r.SessionID, TurnID: r.TurnID}
+func (r RunTurnBinding) ref() RunRef {
+	return RunRef{SessionID: r.SessionID, TurnID: r.TurnID}
 }
 
-// ResumedInterrupt is the claimed interrupt plus the turn handle its
+// ResumedInterrupt is the claimed interrupt plus the opaque handle its
 // continuation should stream from.
 type ResumedInterrupt struct {
 	Pending interrupts.Pending
-	Handle  turn.TurnHandle
+	Handle  Handle
 }
 
 // CancelParkedRun abandons a run that has already left the live run stream and
@@ -66,12 +65,12 @@ func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, parentRunID st
 		return ResumedInterrupt{}, ErrInterruptNotOpen
 	}
 
-	handle := turn.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
-	if err := c.turns.Resume(ctx, handle, resolution, interruptKinds); err != nil {
-		if errors.Is(err, turn.ErrParkClaimed) {
+	handle, err := c.turns.Resume(ctx, RunRef{SessionID: pending.SessionID, TurnID: pending.TurnID}, resolution, interruptKinds)
+	if err != nil {
+		if errors.Is(err, ErrParkClaimed) {
 			return ResumedInterrupt{}, ErrInterruptNotOpen
 		}
-		if !errors.Is(err, turn.ErrTurnNotFound) {
+		if !errors.Is(err, ErrTurnNotLive) {
 			return ResumedInterrupt{}, err
 		}
 		handle, err = c.rehydratePendingTurn(ctx, pending, resolution.Approved, interruptKinds)
@@ -81,7 +80,7 @@ func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, parentRunID st
 			// does not silently destroy the user's open interrupt. Once the turn layer
 			// marks the failure committed it has already terminalized the process, and
 			// restoring would create a ghost resumable record.
-			if !errors.Is(err, turn.ErrRehydrateCommitted) {
+			if !errors.Is(err, ErrRehydrateCommitted) {
 				return ResumedInterrupt{}, errors.Join(ErrRunNotFound, c.restoreConsumedInterrupt(ctx, pending))
 			}
 			return ResumedInterrupt{}, ErrRunNotFound
@@ -102,11 +101,11 @@ func (c *Coordinator) restoreConsumedInterrupt(ctx context.Context, pending inte
 	return nil
 }
 
-func (c *Coordinator) rehydratePendingTurn(ctx context.Context, pending interrupts.Pending, approved bool, interruptKinds []string) (turn.TurnHandle, error) {
+func (c *Coordinator) rehydratePendingTurn(ctx context.Context, pending interrupts.Pending, approved bool, interruptKinds []string) (Handle, error) {
 	if pending.ProcessID == "" {
-		return turn.TurnHandle{}, errors.New("sessions: interrupt has no recorded process id")
+		return nil, errors.New("sessions: interrupt has no recorded process id")
 	}
-	return c.turns.Rehydrate(ctx, turn.RehydrateRequest{
+	return c.turns.Rehydrate(ctx, RehydrateSpec{
 		SessionID:      pending.SessionID,
 		ProcessID:      pending.ProcessID,
 		Approved:       approved,
@@ -137,6 +136,6 @@ func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTu
 
 func (c *Coordinator) cancelTurn(ctx context.Context, r RunTurnBinding) {
 	if c.turns != nil {
-		_ = c.turns.Cancel(ctx, r.handle())
+		_ = c.turns.Cancel(ctx, r.ref())
 	}
 }

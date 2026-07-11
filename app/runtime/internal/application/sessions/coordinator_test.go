@@ -19,7 +19,7 @@ func TestCancelParkedRunCancelsTurnBeforeDeletingInterrupt(t *testing.T) {
 			onDelete: func(string) { order = append(order, "delete") },
 		},
 	}
-	turns := stubTurns{onCancel: func(h turn.TurnHandle) {
+	turns := stubTurns{onCancel: func(h RunRef) {
 		order = append(order, "cancel")
 		if h.SessionID != "ses_1" || h.TurnID != "turn_1" {
 			t.Fatalf("handle = %+v, want ses_1/turn_1", h)
@@ -178,7 +178,7 @@ func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
 		},
 	}
 	resolution := interrupts.Resolution{Approved: true}
-	turns := stubTurns{onResume: func(h turn.TurnHandle, got interrupts.Resolution, interruptKinds []string) {
+	turns := stubTurns{onResume: func(h RunRef, got interrupts.Resolution, interruptKinds []string) {
 		if h.SessionID != "ses_1" || h.TurnID != "turn_1" {
 			t.Fatalf("handle = %+v, want ses_1/turn_1", h)
 		}
@@ -194,7 +194,7 @@ func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resume claimed interrupt: %v", err)
 	}
-	if resumed.Pending.ParentRunID != "run_1" || resumed.Handle.TurnID != "turn_1" {
+	if resumed.Pending.ParentRunID != "run_1" || resumed.Handle.(turn.TurnHandle).TurnID != "turn_1" {
 		t.Fatalf("resumed = %+v", resumed)
 	}
 	if _, ok := stores.interrupts.pending["run_1"]; ok {
@@ -218,9 +218,9 @@ func TestResumeClaimedInterruptRehydratesMissingTurn(t *testing.T) {
 		},
 	}
 	turns := stubTurns{
-		resumeErr:       turn.ErrTurnNotFound,
+		resumeErr:       ErrTurnNotLive,
 		rehydrateHandle: turn.TurnHandle{SessionID: "ses_1", TurnID: "turn_rebuilt"},
-		onRehydrate: func(req turn.RehydrateRequest) {
+		onRehydrate: func(req RehydrateSpec) {
 			if req.SessionID != "ses_1" || req.ProcessID != "proc_1" || !req.Approved || req.Provider != "anthropic" || req.Model != "claude" {
 				t.Fatalf("rehydrate request = %+v", req)
 			}
@@ -234,7 +234,7 @@ func TestResumeClaimedInterruptRehydratesMissingTurn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resume claimed interrupt: %v", err)
 	}
-	if resumed.Handle.TurnID != "turn_rebuilt" {
+	if resumed.Handle.(turn.TurnHandle).TurnID != "turn_rebuilt" {
 		t.Fatalf("handle = %+v, want rebuilt turn", resumed.Handle)
 	}
 }
@@ -247,7 +247,7 @@ func TestResumeClaimedInterruptParkClaimed(t *testing.T) {
 			},
 		},
 	}
-	turns := stubTurns{resumeErr: turn.ErrParkClaimed}
+	turns := stubTurns{resumeErr: ErrParkClaimed}
 
 	_, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", interrupts.Resolution{Approved: true}, nil)
 	if !errors.Is(err, ErrInterruptNotOpen) {
@@ -266,7 +266,7 @@ func TestResumeClaimedInterruptRestoresUncommittedRehydrateFailure(t *testing.T)
 		pending: map[string]interrupts.Pending{"run_1": pending},
 	}}
 	turns := stubTurns{
-		resumeErr:    turn.ErrTurnNotFound,
+		resumeErr:    ErrTurnNotLive,
 		rehydrateErr: errors.New("snapshot store temporarily unavailable"),
 	}
 
@@ -286,8 +286,8 @@ func TestResumeClaimedInterruptDoesNotRestoreCommittedRehydrateFailure(t *testin
 		},
 	}}
 	turns := stubTurns{
-		resumeErr:    turn.ErrTurnNotFound,
-		rehydrateErr: errors.Join(turn.ErrRehydrateCommitted, errors.New("resumed process failed")),
+		resumeErr:    ErrTurnNotLive,
+		rehydrateErr: errors.Join(ErrRehydrateCommitted, errors.New("resumed process failed")),
 	}
 
 	_, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", interrupts.Resolution{Approved: true}, nil)
