@@ -10,21 +10,21 @@ import (
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
-// bootstrapRuntime builds the application Stack (the Runtime facade + the
-// application coordinators) for the server process.
-func bootstrapRuntime(ctx context.Context) (_ bootstrap.Stack, _ config.Config, err error) {
+// bootstrapRuntime builds the composition Host (the application Stack + its
+// process-level close order) for the server process.
+func bootstrapRuntime(ctx context.Context) (_ bootstrap.Host, _ config.Config, err error) {
 	cfg, err := bootstrap.LoadConfig()
 	if err != nil {
-		return bootstrap.Stack{}, config.Config{}, err
+		return bootstrap.Host{}, config.Config{}, err
 	}
 	client, err := bootstrap.DefaultClient(cfg)
 	if err != nil {
-		return bootstrap.Stack{}, config.Config{}, err
+		return bootstrap.Host{}, config.Config{}, err
 	}
 
 	stores, err := persistence.Open()
 	if err != nil {
-		return bootstrap.Stack{}, config.Config{}, err
+		return bootstrap.Host{}, config.Config{}, err
 	}
 	owned := true
 	defer func() {
@@ -45,26 +45,26 @@ func bootstrapRuntime(ctx context.Context) (_ bootstrap.Stack, _ config.Config, 
 	// persisted — it stays surfaced as "from env" rather than copied to "stored".
 	// Other supported providers stay unconfigured until the user sets their keys.
 	if err = bootstrap.SeedConfiguredProvider(ctx, providers, cfg); err != nil {
-		return bootstrap.Stack{}, config.Config{}, err
+		return bootstrap.Host{}, config.Config{}, err
 	}
 	// Seed the config-file utility model into its store on first run, so the
 	// cheaper maintenance model is honored out of the box; a persisted
 	// models.setUtilityRole for the same role wins (runtime edits over config).
 	if err = bootstrap.SeedUtilityRole(ctx, stores.UtilityRole, cfg); err != nil {
-		return bootstrap.Stack{}, config.Config{}, err
+		return bootstrap.Host{}, config.Config{}, err
 	}
 	// Seed env-sourced MCP servers (LYRA_MCP_SERVERS) into the registry on
 	// first run; a persisted workspace.mcp.configure for the same name wins.
 	if err = lyraruntime.SeedMCPServers(ctx, stores.MCPServers, bootstrap.MCPServers(cfg.MCPServers)); err != nil {
-		return bootstrap.Stack{}, config.Config{}, err
+		return bootstrap.Host{}, config.Config{}, err
 	}
 
 	hookResolver := bootstrap.HookResolver(stores.Trust)
 
-	stack, err := bootstrap.Assemble(ctx, bootstrap.RuntimeConfig(cfg, stores, client, providers, hookResolver))
+	host, err := bootstrap.Assemble(ctx, bootstrap.RuntimeConfig(cfg, stores, client, providers, hookResolver))
 	if err != nil {
-		return bootstrap.Stack{}, config.Config{}, err
+		return bootstrap.Host{}, config.Config{}, err
 	}
 	owned = false // successful Runtime construction takes ownership of stores
-	return stack, cfg, nil
+	return host, cfg, nil
 }
