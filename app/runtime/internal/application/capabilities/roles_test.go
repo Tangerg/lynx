@@ -1,4 +1,4 @@
-package runtime
+package capabilities
 
 import (
 	"context"
@@ -6,17 +6,18 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/core/model/chat"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 )
 
-func TestRuntimeSetUtilityRoleUsesSaverPort(t *testing.T) {
+func TestSetUtilityRoleUsesSaverPort(t *testing.T) {
 	cell := &atomic.Pointer[modelrole.Role]{}
 	cell.Store(mustModelRole(t, "anthropic", "claude-haiku"))
 	saver := &fakeUtilityRoleSaver{}
-	rt := &Runtime{utility: cell, utilStore: saver}
+	c := New(Config{UtilityCell: cell, UtilityStore: saver})
 
-	if err := rt.SetUtilityRole(context.Background(), "anthropic", ""); err != nil {
+	if err := c.SetUtilityRole(context.Background(), "anthropic", ""); err != nil {
 		t.Fatalf("SetUtilityRole err = %v", err)
 	}
 
@@ -29,14 +30,14 @@ func TestRuntimeSetUtilityRoleUsesSaverPort(t *testing.T) {
 	}
 }
 
-func TestRuntimeSetUtilityRoleUsesClientResolverPort(t *testing.T) {
+func TestSetUtilityRoleUsesClientResolverPort(t *testing.T) {
 	cell := &atomic.Pointer[modelrole.Role]{}
 	cell.Store(&modelrole.Role{})
 	saver := &fakeUtilityRoleSaver{}
 	resolver := &fakeChatClientResolver{}
-	rt := &Runtime{utility: cell, utilityClients: resolver, utilStore: saver}
+	c := New(Config{UtilityCell: cell, UtilityResolver: resolver, UtilityStore: saver})
 
-	if err := rt.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); err != nil {
+	if err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); err != nil {
 		t.Fatalf("SetUtilityRole err = %v", err)
 	}
 
@@ -48,24 +49,24 @@ func TestRuntimeSetUtilityRoleUsesClientResolverPort(t *testing.T) {
 	}
 }
 
-func TestRuntimeSetUtilityRoleReturnsClientResolverError(t *testing.T) {
+func TestSetUtilityRoleReturnsClientResolverError(t *testing.T) {
 	fail := errors.New("build client")
 	cell := &atomic.Pointer[modelrole.Role]{}
 	cell.Store(&modelrole.Role{})
-	rt := &Runtime{utility: cell, utilityClients: &fakeChatClientResolver{err: fail}}
+	c := New(Config{UtilityCell: cell, UtilityResolver: &fakeChatClientResolver{err: fail}})
 
-	if err := rt.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); !errors.Is(err, fail) {
+	if err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); !errors.Is(err, fail) {
 		t.Fatalf("SetUtilityRole err = %v, want %v", err, fail)
 	}
 }
 
-func TestRuntimeSetEmbeddingRoleUsesSaverPort(t *testing.T) {
+func TestSetEmbeddingRoleUsesSaverPort(t *testing.T) {
 	cell := &atomic.Pointer[modelrole.Role]{}
 	cell.Store(mustModelRole(t, "openai", "text-embedding-3-small"))
 	saver := &fakeEmbeddingRoleSaver{}
-	rt := &Runtime{embeddingCell: cell, embeddingStore: saver}
+	c := New(Config{EmbeddingCell: cell, EmbeddingStore: saver})
 
-	if err := rt.SetEmbeddingRole(context.Background(), "openai", ""); err != nil {
+	if err := c.SetEmbeddingRole(context.Background(), "openai", ""); err != nil {
 		t.Fatalf("SetEmbeddingRole err = %v", err)
 	}
 

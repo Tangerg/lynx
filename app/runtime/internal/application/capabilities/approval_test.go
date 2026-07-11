@@ -1,4 +1,4 @@
-package runtime
+package capabilities
 
 import (
 	"context"
@@ -8,19 +8,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
-
-// approvalSessionStore satisfies session.Store via the embedded interface
-// (nil — unimplemented methods panic if ever called) and stubs only Get, the one
-// method ListApprovalRules reads to resolve a session's project dir.
-type approvalSessionStore struct {
-	session.Store
-	sess session.Session
-	err  error
-}
-
-func (s approvalSessionStore) Get(context.Context, string) (session.Session, error) {
-	return s.sess, s.err
-}
 
 type approvalStore struct {
 	mode       approval.Mode
@@ -35,9 +22,7 @@ type approvalRuleScope struct {
 	projectDir string
 }
 
-func (s *approvalStore) Mode(context.Context) (approval.Mode, error) {
-	return s.mode, nil
-}
+func (s *approvalStore) Mode(context.Context) (approval.Mode, error) { return s.mode, nil }
 
 func (s *approvalStore) SetMode(_ context.Context, mode approval.Mode) error {
 	s.set = append(s.set, mode)
@@ -60,17 +45,21 @@ func (*approvalStore) Decide(context.Context, approval.Query) (approval.Decision
 
 func (*approvalStore) Remember(context.Context, approval.RememberRequest) error { return nil }
 
-func runtimeWithApprovalStore(store *approvalStore) *Runtime {
-	return &Runtime{
-		approval: store,
-	}
+// fakeSessionLookup stubs the session getter the approval-rule scoping reads.
+type fakeSessionLookup struct {
+	sess session.Session
+	err  error
 }
 
-func TestRuntimeApprovalModeFacadeUsesModePorts(t *testing.T) {
-	approvals := &approvalStore{mode: approval.ModeBalanced}
-	rt := runtimeWithApprovalStore(approvals)
+func (f fakeSessionLookup) Get(context.Context, string) (session.Session, error) {
+	return f.sess, f.err
+}
 
-	got, err := rt.ApprovalMode(context.Background())
+func TestApprovalModeUsesModePorts(t *testing.T) {
+	approvals := &approvalStore{mode: approval.ModeBalanced}
+	c := New(Config{Approval: approvals})
+
+	got, err := c.ApprovalMode(context.Background())
 	if err != nil {
 		t.Fatalf("ApprovalMode: %v", err)
 	}
@@ -78,7 +67,7 @@ func TestRuntimeApprovalModeFacadeUsesModePorts(t *testing.T) {
 		t.Fatalf("mode = %v, want balanced", got)
 	}
 
-	if err := rt.SetApprovalMode(context.Background(), approval.ModeYolo); err != nil {
+	if err := c.SetApprovalMode(context.Background(), approval.ModeYolo); err != nil {
 		t.Fatalf("SetApprovalMode: %v", err)
 	}
 	if len(approvals.set) != 1 || approvals.set[0] != approval.ModeYolo {
@@ -86,29 +75,26 @@ func TestRuntimeApprovalModeFacadeUsesModePorts(t *testing.T) {
 	}
 }
 
-func TestRuntimeListApprovalRulesResolvesSessionProject(t *testing.T) {
+func TestListApprovalRulesResolvesSessionProject(t *testing.T) {
 	approvals := &approvalStore{}
-	rt := runtimeWithApprovalStore(approvals)
-	rt.sessions = &approvalSessionStore{sess: session.Session{ID: "ses_1", Cwd: "/repo"}}
+	c := New(Config{Approval: approvals, Sessions: fakeSessionLookup{sess: session.Session{ID: "ses_1", Cwd: "/repo"}}})
 
-	if _, err := rt.ListApprovalRules(context.Background(), "ses_1"); err != nil {
+	if _, err := c.ListApprovalRules(context.Background(), "ses_1"); err != nil {
 		t.Fatalf("list approval rules: %v", err)
 	}
 	if len(approvals.ruleScopes) != 1 {
 		t.Fatalf("rule calls = %d, want 1", len(approvals.ruleScopes))
 	}
-	got := approvals.ruleScopes[0]
-	if got.sessionID != "ses_1" || got.projectDir != "/repo" {
+	if got := approvals.ruleScopes[0]; got.sessionID != "ses_1" || got.projectDir != "/repo" {
 		t.Fatalf("rule scope = %+v, want session ses_1 project /repo", got)
 	}
 }
 
-func TestRuntimeListApprovalRulesUnknownSessionUsesEmptyProject(t *testing.T) {
+func TestListApprovalRulesUnknownSessionUsesEmptyProject(t *testing.T) {
 	approvals := &approvalStore{}
-	rt := runtimeWithApprovalStore(approvals)
-	rt.sessions = &approvalSessionStore{err: session.ErrNotFound}
+	c := New(Config{Approval: approvals, Sessions: fakeSessionLookup{err: session.ErrNotFound}})
 
-	if _, err := rt.ListApprovalRules(context.Background(), "missing"); err != nil {
+	if _, err := c.ListApprovalRules(context.Background(), "missing"); err != nil {
 		t.Fatalf("list approval rules: %v", err)
 	}
 	if got := approvals.ruleScopes[0]; got.sessionID != "missing" || got.projectDir != "" {
@@ -116,13 +102,12 @@ func TestRuntimeListApprovalRulesUnknownSessionUsesEmptyProject(t *testing.T) {
 	}
 }
 
-func TestRuntimeListApprovalRulesReturnsSessionStoreFailure(t *testing.T) {
+func TestListApprovalRulesReturnsSessionStoreFailure(t *testing.T) {
 	storeErr := errors.New("store unavailable")
 	approvals := &approvalStore{}
-	rt := runtimeWithApprovalStore(approvals)
-	rt.sessions = &approvalSessionStore{err: storeErr}
+	c := New(Config{Approval: approvals, Sessions: fakeSessionLookup{err: storeErr}})
 
-	_, err := rt.ListApprovalRules(context.Background(), "ses_1")
+	_, err := c.ListApprovalRules(context.Background(), "ses_1")
 	if !errors.Is(err, storeErr) {
 		t.Fatalf("list approval rules err = %v, want %v", err, storeErr)
 	}
@@ -131,11 +116,11 @@ func TestRuntimeListApprovalRulesReturnsSessionStoreFailure(t *testing.T) {
 	}
 }
 
-func TestRuntimeForgetApprovalRuleUsesDeletionPort(t *testing.T) {
+func TestForgetApprovalRuleUsesDeletionPort(t *testing.T) {
 	approvals := &approvalStore{}
-	rt := runtimeWithApprovalStore(approvals)
+	c := New(Config{Approval: approvals})
 
-	if err := rt.ForgetApprovalRule(context.Background(), "rule_1"); err != nil {
+	if err := c.ForgetApprovalRule(context.Background(), "rule_1"); err != nil {
 		t.Fatalf("ForgetApprovalRule: %v", err)
 	}
 	if len(approvals.forgotten) != 1 || approvals.forgotten[0] != "rule_1" {

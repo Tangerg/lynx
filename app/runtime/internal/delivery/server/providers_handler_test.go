@@ -5,12 +5,15 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-type providerRuntime struct {
-	stubRuntime
+// providerFake satisfies the capabilities coordinator's three provider-facing
+// ports at once: the provider.Registry (List/Get/Configure), the static
+// ProviderCatalog (Supported/Metadata), and the ProviderProber (Probe).
+type providerFake struct {
 	entries    map[string]provider.Provider
 	supported  []provider.Metadata
 	configured []provider.Provider
@@ -19,15 +22,15 @@ type providerRuntime struct {
 	dropStored bool
 }
 
-func (r *providerRuntime) SupportedProviders() []provider.Metadata {
+func (r *providerFake) Supported() []provider.Metadata {
 	if r.supported != nil {
 		return r.supported
 	}
 	return []provider.Metadata{{ID: "anthropic"}}
 }
 
-func (r *providerRuntime) ProviderMetadata(id string) (provider.Metadata, bool) {
-	for _, meta := range r.SupportedProviders() {
+func (r *providerFake) Metadata(id string) (provider.Metadata, bool) {
+	for _, meta := range r.Supported() {
 		if meta.ID == id {
 			return meta, true
 		}
@@ -35,7 +38,7 @@ func (r *providerRuntime) ProviderMetadata(id string) (provider.Metadata, bool) 
 	return provider.Metadata{}, false
 }
 
-func (r *providerRuntime) ListRegisteredProviders(context.Context) ([]provider.Provider, error) {
+func (r *providerFake) List(context.Context) ([]provider.Provider, error) {
 	out := make([]provider.Provider, 0, len(r.entries))
 	for _, entry := range r.entries {
 		out = append(out, entry)
@@ -43,12 +46,12 @@ func (r *providerRuntime) ListRegisteredProviders(context.Context) ([]provider.P
 	return out, nil
 }
 
-func (r *providerRuntime) RegisteredProvider(_ context.Context, id string) (provider.Provider, bool, error) {
+func (r *providerFake) Get(_ context.Context, id string) (provider.Provider, bool, error) {
 	entry, ok := r.entries[id]
 	return entry, ok, nil
 }
 
-func (r *providerRuntime) ConfigureProvider(_ context.Context, entry provider.Provider) error {
+func (r *providerFake) Configure(_ context.Context, entry provider.Provider) error {
 	r.configured = append(r.configured, entry)
 	if r.dropStored {
 		return nil
@@ -60,13 +63,17 @@ func (r *providerRuntime) ConfigureProvider(_ context.Context, entry provider.Pr
 	return nil
 }
 
-func (r *providerRuntime) ProbeProvider(_ context.Context, entry provider.Provider) error {
+func (r *providerFake) Probe(_ context.Context, entry provider.Provider) error {
 	r.probed = append(r.probed, entry)
 	return r.probeErr
 }
 
+func serverWithProviders(rt *providerFake) *Server {
+	return serverWithCapabilities(capabilities.Config{Providers: rt, Catalog: rt, Prober: rt})
+}
+
 func TestListProvidersMergesSupportedCatalogWithRegistry(t *testing.T) {
-	s := newTestServer(&providerRuntime{entries: map[string]provider.Provider{
+	s := serverWithProviders(&providerFake{entries: map[string]provider.Provider{
 		"anthropic": {ID: "anthropic", APIKey: "sk-ant-secret", KeySource: provider.KeyStored},
 	}})
 
@@ -93,8 +100,8 @@ func TestListProvidersMergesSupportedCatalogWithRegistry(t *testing.T) {
 }
 
 func TestConfigureProviderPersistsThenReturnsStoredEntry(t *testing.T) {
-	rt := &providerRuntime{}
-	s := newTestServer(rt)
+	rt := &providerFake{}
+	s := serverWithProviders(rt)
 
 	got, err := s.ConfigureProvider(context.Background(), protocol.ConfigureProviderRequest{
 		Provider: "anthropic",
@@ -116,8 +123,8 @@ func TestConfigureProviderPersistsThenReturnsStoredEntry(t *testing.T) {
 }
 
 func TestConfigureProviderRequiresBaseURLWhenMetadataRequiresIt(t *testing.T) {
-	rt := &providerRuntime{supported: []provider.Metadata{{ID: "openai-compatible", RequiresBaseURL: true}}}
-	s := newTestServer(rt)
+	rt := &providerFake{supported: []provider.Metadata{{ID: "openai-compatible", RequiresBaseURL: true}}}
+	s := serverWithProviders(rt)
 
 	_, err := s.ConfigureProvider(context.Background(), protocol.ConfigureProviderRequest{
 		Provider: "openai-compatible",
@@ -132,8 +139,8 @@ func TestConfigureProviderRequiresBaseURLWhenMetadataRequiresIt(t *testing.T) {
 }
 
 func TestConfigureProviderFailsWhenStoredEntryCannotBeReadBack(t *testing.T) {
-	rt := &providerRuntime{dropStored: true}
-	s := newTestServer(rt)
+	rt := &providerFake{dropStored: true}
+	s := serverWithProviders(rt)
 
 	_, err := s.ConfigureProvider(context.Background(), protocol.ConfigureProviderRequest{
 		Provider: "anthropic",
@@ -146,13 +153,13 @@ func TestConfigureProviderFailsWhenStoredEntryCannotBeReadBack(t *testing.T) {
 
 func TestTestProviderUsesConfiguredProvider(t *testing.T) {
 	probeErr := errors.New("bad key")
-	rt := &providerRuntime{
+	rt := &providerFake{
 		entries: map[string]provider.Provider{
 			"anthropic": {ID: "anthropic", APIKey: "sk-ant-secret"},
 		},
 		probeErr: probeErr,
 	}
-	s := newTestServer(rt)
+	s := serverWithProviders(rt)
 
 	got, err := s.TestProvider(context.Background(), "anthropic")
 	if err != nil {

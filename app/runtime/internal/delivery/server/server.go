@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
@@ -37,6 +38,12 @@ type Config struct {
 	// restore / resume / working-tree gates). Required — the delivery layer drives
 	// every lifecycle mutation through it.
 	Sessions *sessions.Coordinator
+
+	// Capabilities is the application coordinator for the runtime's capability +
+	// configuration surface (approval / tools / providers / model roles / default
+	// provider+model). Required — the delivery settings + capability handlers
+	// drive it directly.
+	Capabilities *capabilities.Coordinator
 
 	// ServerInfo identifies this process on the wire. Defaults to
 	// {Name: "runtime", Version: "0.0.0-dev"} when zero — a vendor-neutral
@@ -71,6 +78,11 @@ type Server struct {
 	// admission gates (rollback / delete cascade / fork / restore / resume /
 	// working-tree). Injected by the composition root; never nil after New.
 	sessions *sessions.Coordinator
+
+	// capabilities owns the runtime capability + configuration use cases (approval
+	// / tools / providers / model roles / defaults). Injected by the composition
+	// root; never nil after New.
+	capabilities *capabilities.Coordinator
 
 	// coordinator owns the run lifecycle — admission, the per-run event Journal,
 	// the segment pumps, cancel — the application-side home of what delivery used
@@ -140,6 +152,9 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Sessions == nil {
 		return nil, errors.New("server: Sessions is required")
 	}
+	if cfg.Capabilities == nil {
+		return nil, errors.New("server: Capabilities is required")
+	}
 	if cfg.ServerInfo.Name == "" {
 		cfg.ServerInfo.Name = "runtime"
 	}
@@ -159,13 +174,14 @@ func New(cfg Config) (*Server, error) {
 		workspaceCoord = workspaceapp.New(workspaceapp.Config{}) // disabled: memory/skills/recipes/hooks all no-op
 	}
 	srv := &Server{
-		rt:          cfg.Runtime,
-		sessions:    cfg.Sessions,
-		serverInfo:  cfg.ServerInfo,
-		wsHub:       newWorkspaceHub(),
-		checkpoints: checkpoints,
-		schedules:   scheduleCoord,
-		workspace:   workspaceCoord,
+		rt:           cfg.Runtime,
+		sessions:     cfg.Sessions,
+		capabilities: cfg.Capabilities,
+		serverInfo:   cfg.ServerInfo,
+		wsHub:        newWorkspaceHub(),
+		checkpoints:  checkpoints,
+		schedules:    scheduleCoord,
+		workspace:    workspaceCoord,
 	}
 	// The run Coordinator's durable effects close over srv (workspace publish +
 	// checkpoints), so it is built here, after the Server value exists. evt_
@@ -178,11 +194,11 @@ func New(cfg Config) (*Server, error) {
 // delegating to the package-level [Capabilities] so the /v2/info
 // sidecar can build the same snapshot without a constructed Server.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return Capabilities(s.rt, s.workspace.HasMemory())
+	return Capabilities(s.capabilities, s.workspace.HasMemory())
 }
 
-// capabilityAccess is the slice of the runtime the capability snapshot needs;
-// [RuntimePort] (and any test fake of it) satisfies it directly.
+// capabilityAccess is the slice of the capabilities coordinator the capability
+// snapshot needs; the coordinator (and any test fake of it) satisfies it.
 type capabilityAccess interface {
 	SupportedProviders() []providersvc.Metadata
 }

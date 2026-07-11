@@ -174,7 +174,7 @@ func (s *Server) sessionToWire(ses session.Session, status protocol.SessionStatu
 		ID:        ses.ID,
 		Title:     ses.Title,
 		Cwd:       ses.Cwd,
-		Model:     ses.EffectiveModel(s.rt.DefaultModel()),
+		Model:     ses.EffectiveModel(s.capabilities.DefaultModel()),
 		Status:    status,
 		CreatedAt: ses.StartedAt,
 		UpdatedAt: ses.UpdatedAt,
