@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -52,10 +52,25 @@ func newTestServer(rt RuntimePort) *Server {
 	if p, ok := rt.(sessionsCoordinatorProvider); ok {
 		s.sessions = p.sessionsCoordinator()
 	}
+	// Seed a default capabilities coordinator so the session→wire projection
+	// (which reads DefaultModel) works; capability handler tests build their own
+	// via serverWithCapabilities.
+	defaultModel := ""
+	if src, ok := rt.(interface{ DefaultModel() string }); ok {
+		defaultModel = src.DefaultModel()
+	}
+	s.capabilities = capabilities.New(capabilities.Config{DefaultModel: defaultModel})
 	// Default to a disabled schedules coordinator (schedules.* report
 	// capability_not_negotiated); schedule tests replace it with a fake registry.
 	s.schedules = schedules.NewCoordinator(nil, nil)
 	return s
+}
+
+// serverWithCapabilities builds a Server whose only wired coordinator is the
+// capabilities one — enough for the approval / tools / providers / models
+// handler tests, which touch nothing else.
+func serverWithCapabilities(cfg capabilities.Config) *Server {
+	return &Server{capabilities: capabilities.New(cfg)}
 }
 
 func newTestServerWithInfo(rt RuntimePort, info protocol.ServerInfo) *Server {
@@ -65,10 +80,6 @@ func newTestServerWithInfo(rt RuntimePort, info protocol.ServerInfo) *Server {
 }
 
 func (s stubRuntime) MCPServerStatuses() []toolport.MCPServerStatus { return s.mcpStatuses }
-func (stubRuntime) SupportedProviders() []provider.Metadata         { return nil }
-func (stubRuntime) ProviderMetadata(string) (provider.Metadata, bool) {
-	return provider.Metadata{}, false
-}
 
 func (s stubRuntime) Transcript() transcript.Store { return s.hist }
 func (s stubRuntime) ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error) {

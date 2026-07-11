@@ -4,12 +4,15 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-type approvalRuntime struct {
-	stubRuntime
+// approvalPolicyFake is the approval.Policy the capabilities coordinator drives;
+// it records the mutating calls the wire handlers make.
+type approvalPolicyFake struct {
 	mode             approval.Mode
 	set              []approval.Mode
 	rules            []approval.Rule
@@ -17,23 +20,38 @@ type approvalRuntime struct {
 	forgottenRuleIDs []string
 }
 
-func (r *approvalRuntime) ApprovalMode(context.Context) (approval.Mode, error) {
-	return r.mode, nil
-}
+func (r *approvalPolicyFake) Mode(context.Context) (approval.Mode, error) { return r.mode, nil }
 
-func (r *approvalRuntime) SetApprovalMode(_ context.Context, mode approval.Mode) error {
+func (r *approvalPolicyFake) SetMode(_ context.Context, mode approval.Mode) error {
 	r.set = append(r.set, mode)
 	return nil
 }
 
-func (r *approvalRuntime) ListApprovalRules(_ context.Context, sessionID string) ([]approval.Rule, error) {
+func (r *approvalPolicyFake) Rules(_ context.Context, sessionID, _ string) ([]approval.Rule, error) {
 	r.rulesForSession = sessionID
 	return r.rules, nil
 }
 
-func (r *approvalRuntime) ForgetApprovalRule(_ context.Context, id string) error {
+func (r *approvalPolicyFake) Forget(_ context.Context, id string) error {
 	r.forgottenRuleIDs = append(r.forgottenRuleIDs, id)
 	return nil
+}
+
+func (*approvalPolicyFake) Decide(context.Context, approval.Query) (approval.Decision, bool, error) {
+	return "", false, nil
+}
+
+func (*approvalPolicyFake) Remember(context.Context, approval.RememberRequest) error { return nil }
+
+// fakeSessionLookup stubs the capabilities coordinator's session getter (used to
+// scope approval rules to a project dir).
+type fakeSessionLookup struct {
+	sess session.Session
+	err  error
+}
+
+func (f fakeSessionLookup) Get(context.Context, string) (session.Session, error) {
+	return f.sess, f.err
 }
 
 // TestApprovalModeWireRoundTrip checks every engine stance maps to a wire name
@@ -51,8 +69,8 @@ func TestApprovalModeWireRoundTrip(t *testing.T) {
 }
 
 func TestApprovalModeHandlersUseRuntimeFacade(t *testing.T) {
-	rt := &approvalRuntime{mode: approval.ModePlan}
-	s := newTestServer(rt)
+	rt := &approvalPolicyFake{mode: approval.ModePlan}
+	s := serverWithCapabilities(capabilities.Config{Approval: rt})
 
 	got, err := s.GetApprovalMode(context.Background())
 	if err != nil {
@@ -75,7 +93,7 @@ func TestApprovalModeHandlersUseRuntimeFacade(t *testing.T) {
 }
 
 func TestListApprovalRulesUsesRuntimeFacade(t *testing.T) {
-	rt := &approvalRuntime{rules: []approval.Rule{{
+	rt := &approvalPolicyFake{rules: []approval.Rule{{
 		ID:       "rule_1",
 		Scope:    approval.ScopeProject,
 		ScopeKey: "/repo",
@@ -83,7 +101,7 @@ func TestListApprovalRulesUsesRuntimeFacade(t *testing.T) {
 		Subject:  "npm test",
 		Decision: approval.Allow,
 	}}}
-	s := newTestServer(rt)
+	s := serverWithCapabilities(capabilities.Config{Approval: rt, Sessions: fakeSessionLookup{err: session.ErrNotFound}})
 
 	got, err := s.ListApprovalRules(context.Background(), protocol.ListApprovalRulesRequest{SessionID: "ses_1"})
 	if err != nil {
@@ -98,8 +116,8 @@ func TestListApprovalRulesUsesRuntimeFacade(t *testing.T) {
 }
 
 func TestForgetApprovalRuleUsesRuntimeFacade(t *testing.T) {
-	rt := &approvalRuntime{}
-	s := newTestServer(rt)
+	rt := &approvalPolicyFake{}
+	s := serverWithCapabilities(capabilities.Config{Approval: rt})
 
 	if err := s.ForgetApprovalRule(context.Background(), protocol.ForgetApprovalRuleRequest{ID: "rule_1"}); err != nil {
 		t.Fatalf("forget approval rule: %v", err)

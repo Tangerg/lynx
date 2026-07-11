@@ -12,6 +12,5 @@ package server
 type RuntimePort interface {
 	sessionReadUseCases
 	turnUseCases
-	settingsUseCases
 	workspaceUseCases
 }

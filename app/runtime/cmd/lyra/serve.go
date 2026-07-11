@@ -77,18 +77,19 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 	}
 
 	api, err := server.New(server.Config{
-		Runtime:     stack.Runtime,
-		Sessions:    stack.Sessions,
-		ServerInfo:  info,
-		Checkpoints: workspace.NewCheckpoints(checkpointDir),
-		Schedules:   stack.Schedules,
-		Workspace:   stack.Workspace,
+		Runtime:      stack.Runtime,
+		Sessions:     stack.Sessions,
+		Capabilities: stack.Capabilities,
+		ServerInfo:   info,
+		Checkpoints:  workspace.NewCheckpoints(checkpointDir),
+		Schedules:    stack.Schedules,
+		Workspace:    stack.Workspace,
 	})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	caps := server.Capabilities(stack.Runtime, stack.Workspace.HasMemory())
+	caps := server.Capabilities(stack.Capabilities, stack.Workspace.HasMemory())
 	httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
 		Runtime:         api,
 		Addr:            srv.Listen,

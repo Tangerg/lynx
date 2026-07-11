@@ -1,4 +1,4 @@
-package runtime
+package capabilities
 
 import (
 	"context"
@@ -11,11 +11,10 @@ type toolRegistryFixture struct {
 	tools []tool.Tool
 }
 
-func (c toolRegistryFixture) List(context.Context) ([]tool.Tool, error) {
-	return c.tools, nil
+func (c toolRegistryFixture) List(context.Context) ([]tool.Tool, error) { return c.tools, nil }
+func (toolRegistryFixture) Invoke(context.Context, string, string) (string, error) {
+	return "", nil
 }
-
-func (toolRegistryFixture) Invoke(context.Context, string, string) (string, error) { return "", nil }
 
 type toolRegistryRecorder struct {
 	name      string
@@ -30,10 +29,10 @@ func (i *toolRegistryRecorder) Invoke(_ context.Context, name string, arguments 
 
 func (*toolRegistryRecorder) List(context.Context) ([]tool.Tool, error) { return nil, nil }
 
-func TestRuntimeListRegisteredToolsUsesRegistry(t *testing.T) {
-	rt := &Runtime{tools: toolRegistryFixture{tools: []tool.Tool{{Name: "read"}}}}
+func TestListRegisteredToolsUsesRegistry(t *testing.T) {
+	c := New(Config{Tools: toolRegistryFixture{tools: []tool.Tool{{Name: "read"}}}})
 
-	got, err := rt.ListRegisteredTools(context.Background())
+	got, err := c.ListRegisteredTools(context.Background())
 	if err != nil {
 		t.Fatalf("ListRegisteredTools: %v", err)
 	}
@@ -42,11 +41,11 @@ func TestRuntimeListRegisteredToolsUsesRegistry(t *testing.T) {
 	}
 }
 
-func TestRuntimeInvokeRegisteredToolUsesRegistry(t *testing.T) {
+func TestInvokeRegisteredToolUsesRegistry(t *testing.T) {
 	invoker := &toolRegistryRecorder{}
-	rt := &Runtime{tools: invoker}
+	c := New(Config{Tools: invoker})
 
-	got, err := rt.InvokeRegisteredTool(context.Background(), "shell", `{"command":"true"}`)
+	got, err := c.InvokeRegisteredTool(context.Background(), "shell", `{"command":"true"}`)
 	if err != nil {
 		t.Fatalf("InvokeRegisteredTool: %v", err)
 	}

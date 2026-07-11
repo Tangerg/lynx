@@ -3,54 +3,71 @@ package server
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/model/chat"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-type modelRoleRuntime struct {
-	stubRuntime
-	entries map[string]provider.Provider
+// modelProviderFake satisfies the provider.Registry (Get) + ProviderCatalog
+// (Metadata) surface the model-role validation reads.
+type modelProviderFake struct{ entries map[string]provider.Provider }
 
-	utilityProvider string
-	utilityModel    string
-	utilityCalls    int
+func (r *modelProviderFake) List(context.Context) ([]provider.Provider, error) { return nil, nil }
+func (r *modelProviderFake) Get(_ context.Context, id string) (provider.Provider, bool, error) {
+	entry, ok := r.entries[id]
+	return entry, ok, nil
 }
-
-func (r *modelRoleRuntime) ProviderMetadata(id string) (provider.Metadata, bool) {
+func (r *modelProviderFake) Configure(context.Context, provider.Provider) error { return nil }
+func (r *modelProviderFake) Supported() []provider.Metadata {
+	return []provider.Metadata{{ID: "anthropic"}}
+}
+func (r *modelProviderFake) Metadata(id string) (provider.Metadata, bool) {
 	if id == "anthropic" {
 		return provider.Metadata{ID: id}, true
 	}
 	return provider.Metadata{}, false
 }
 
-func (r *modelRoleRuntime) RegisteredProvider(_ context.Context, id string) (provider.Provider, bool, error) {
-	entry, ok := r.entries[id]
-	return entry, ok, nil
+// okClientResolver satisfies the utility client resolver, always validating.
+type okClientResolver struct{}
+
+func (okClientResolver) ResolveClient(context.Context, string, string) (*chat.Client, error) {
+	return nil, nil
 }
 
-func (r *modelRoleRuntime) UtilityRole() (string, string) {
-	return r.utilityProvider, r.utilityModel
+type utilitySaverRecorder struct {
+	provider string
+	model    string
+	calls    int
 }
 
-func (r *modelRoleRuntime) SetUtilityRole(_ context.Context, providerID, model string) error {
-	if model == "" {
-		providerID = ""
-	}
-	r.utilityProvider = providerID
-	r.utilityModel = model
-	r.utilityCalls++
+func (s *utilitySaverRecorder) SaveUtilityRole(_ context.Context, provider, model string) error {
+	s.calls++
+	s.provider = provider
+	s.model = model
 	return nil
 }
 
-func (r *modelRoleRuntime) EmbeddingRole() (string, string) { return "", "" }
-
-func (r *modelRoleRuntime) SetEmbeddingRole(context.Context, string, string) error { return nil }
+func modelRoleServer(entries map[string]provider.Provider, saver *utilitySaverRecorder) *Server {
+	fake := &modelProviderFake{entries: entries}
+	return serverWithCapabilities(capabilities.Config{
+		Providers:       fake,
+		Catalog:         fake,
+		UtilityCell:     &atomic.Pointer[modelrole.Role]{},
+		UtilityResolver: okClientResolver{},
+		UtilityStore:    saver,
+	})
+}
 
 func TestSetUtilityRoleRequiresConfiguredProvider(t *testing.T) {
-	rt := &modelRoleRuntime{entries: map[string]provider.Provider{}}
-	s := &Server{rt: rt}
+	saver := &utilitySaverRecorder{}
+	s := modelRoleServer(map[string]provider.Provider{}, saver)
 
 	_, err := s.SetUtilityRole(context.Background(), protocol.UtilityRole{
 		Provider: "anthropic",
@@ -59,16 +76,16 @@ func TestSetUtilityRoleRequiresConfiguredProvider(t *testing.T) {
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("set utility role err = %v, want ErrInvalidParams", err)
 	}
-	if rt.utilityCalls != 0 {
-		t.Fatalf("utility role calls = %d, want 0", rt.utilityCalls)
+	if saver.calls != 0 {
+		t.Fatalf("utility role calls = %d, want 0", saver.calls)
 	}
 }
 
 func TestSetUtilityRoleStoresConfiguredProvider(t *testing.T) {
-	rt := &modelRoleRuntime{entries: map[string]provider.Provider{
+	saver := &utilitySaverRecorder{}
+	s := modelRoleServer(map[string]provider.Provider{
 		"anthropic": {ID: "anthropic", APIKey: "sk-secret"},
-	}}
-	s := &Server{rt: rt}
+	}, saver)
 
 	got, err := s.SetUtilityRole(context.Background(), protocol.UtilityRole{
 		Provider: "anthropic",
@@ -80,7 +97,7 @@ func TestSetUtilityRoleStoresConfiguredProvider(t *testing.T) {
 	if got.Provider != "anthropic" || got.Model != "claude-3-5-haiku-20241022" {
 		t.Fatalf("utility role = %+v", got)
 	}
-	if rt.utilityCalls != 1 {
-		t.Fatalf("utility role calls = %d, want 1", rt.utilityCalls)
+	if saver.calls != 1 {
+		t.Fatalf("utility role calls = %d, want 1", saver.calls)
 	}
 }

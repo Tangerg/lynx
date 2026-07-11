@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
@@ -21,10 +22,11 @@ import (
 // Executor surface) plus the application coordinators the delivery layer holds
 // directly. It grows as facade responsibilities move into coordinators.
 type Stack struct {
-	Runtime   *lyraruntime.Runtime
-	Sessions  *sessions.Coordinator
-	Workspace *workspace.Coordinator
-	Schedules *schedules.Coordinator
+	Runtime      *lyraruntime.Runtime
+	Sessions     *sessions.Coordinator
+	Capabilities *capabilities.Coordinator
+	Workspace    *workspace.Coordinator
+	Schedules    *schedules.Coordinator
 }
 
 // Assemble builds the application Stack from cfg: it constructs the engine, turn
@@ -126,28 +128,17 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Stack, error) {
 	}
 
 	rt := lyraruntime.New(lyraruntime.Dependencies{
-		Engine:          eng,
-		Turns:           turnDispatcher,
-		Tools:           toolRegistry,
-		Approval:        approvalPolicy,
-		Conversation:    messages.conversation,
-		Resolver:        resolver,
-		Sessions:        cfg.SessionStore,
-		Interrupts:      cfg.InterruptStore,
-		Transcript:      cfg.TranscriptStore,
-		Providers:       cfg.ProviderRegistry,
-		MCPRegistry:     cfg.MCPRegistry,
-		MCPPolicy:       mcpEnv.policy,
-		DefaultProvider: cfg.Provider,
-		DefaultModel:    cfg.Model,
-		Titles:          maintenance.NewTitler(utilityEnv.resolve),
-		UtilityCell:     utilityEnv.cell,
-		UtilityStore:    cfg.UtilityRoleStore,
-		EmbeddingCell:   embeddingEnv.cell,
-		Embeddings:      embeddingEnv.resolver,
-		EmbeddingStore:  cfg.EmbeddingRoleStore,
-		Codebase:        embeddingEnv.index,
-		Resources:       cfg.Resources,
+		Engine:       eng,
+		Turns:        turnDispatcher,
+		Conversation: messages.conversation,
+		Sessions:     cfg.SessionStore,
+		Interrupts:   cfg.InterruptStore,
+		Transcript:   cfg.TranscriptStore,
+		MCPRegistry:  cfg.MCPRegistry,
+		MCPPolicy:    mcpEnv.policy,
+		Titles:       maintenance.NewTitler(utilityEnv.resolve),
+		Codebase:     embeddingEnv.index,
+		Resources:    cfg.Resources,
 	})
 
 	sessionCoord := sessions.New(sessions.Dependencies{
@@ -162,9 +153,27 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Stack, error) {
 		Turns: turnDispatcher,
 	})
 
+	capabilityCoord := capabilities.New(capabilities.Config{
+		Approval:          approvalPolicy,
+		Tools:             toolRegistry,
+		Providers:         cfg.ProviderRegistry,
+		Catalog:           providerCatalog{},
+		Prober:            providerProber{},
+		Sessions:          cfg.SessionStore,
+		UtilityCell:       utilityEnv.cell,
+		UtilityResolver:   resolver,
+		UtilityStore:      cfg.UtilityRoleStore,
+		EmbeddingCell:     embeddingEnv.cell,
+		EmbeddingResolver: embeddingEnv.resolver,
+		EmbeddingStore:    cfg.EmbeddingRoleStore,
+		DefaultProvider:   cfg.Provider,
+		DefaultModel:      cfg.Model,
+	})
+
 	return Stack{
-		Runtime:  rt,
-		Sessions: sessionCoord,
+		Runtime:      rt,
+		Sessions:     sessionCoord,
+		Capabilities: capabilityCoord,
 		Workspace: workspace.New(workspace.Config{
 			Memory:           cfg.Engine.Knowledge,
 			Skills:           eng,

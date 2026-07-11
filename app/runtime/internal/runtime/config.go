@@ -174,3 +174,19 @@ type HookResolver interface {
 // composition root uses to give the Runtime cross-store atomicity without
 // coupling it to the sqlite backend.
 type Transactor func(ctx context.Context, fn func(context.Context) error) error
+
+// UtilityRoleStore persists the global utility-model role across restarts. The
+// composition root loads it at boot to seed the live cell and injects the
+// sqlite-backed implementation. A nil store disables persistence — the role
+// stays in-process only. Consumed by bootstrap + the capabilities coordinator.
+type UtilityRoleStore interface {
+	LoadUtilityRole(ctx context.Context) (provider, model string, err error)
+	SaveUtilityRole(ctx context.Context, provider, model string) error
+}
+
+// EmbeddingRoleStore persists the embedding-model role across restarts. nil
+// disables persistence — the role stays whatever was last set in-process.
+type EmbeddingRoleStore interface {
+	LoadEmbeddingRole(ctx context.Context) (provider, model string, err error)
+	SaveEmbeddingRole(ctx context.Context, provider, model string) error
+}
