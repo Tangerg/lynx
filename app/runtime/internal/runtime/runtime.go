@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -31,15 +30,13 @@ import (
 type Runtime struct {
 	tasks taskgroup.Group
 
-	turns        turn.Dispatcher
-	closer       io.Closer
-	resources    []io.Closer
-	closeOnce    sync.Once
-	closeErr     error
-	skillCatalog skillCatalog
-	tools        toolsvc.Registry
+	turns     turn.Dispatcher
+	closer    io.Closer
+	resources []io.Closer
+	closeOnce sync.Once
+	closeErr  error
+	tools     toolsvc.Registry
 
-	memory     knowledge.Store
 	approval   approval.Policy
 	sessions   sessionsvc.Store
 	interrupts interrupts.Store
@@ -79,16 +76,6 @@ type Runtime struct {
 	utility        *atomic.Pointer[modelrole.Role]
 	utilityClients chatClientResolver
 	utilStore      utilityRoleSaver
-
-	// hookInspection inspects lifecycle hooks for a cwd (workspace.hooks.list);
-	// hookTrust mutates project trust (workspace.hooks.setTrust). Both nil when
-	// hooks are unconfigured.
-	hookInspection hookInspector
-	hookTrust      HookTrustStore
-
-	// recipesGlobalDir is the global recipes directory the workspace.recipes.list
-	// discovery layers under a project's .lyra/recipes. Empty → project-only.
-	recipesGlobalDir string
 
 	// @codebase semantic index: embeddingCell holds the live embedding role,
 	// embeddings builds+caches embedders from it, embeddingStore saves it, and

@@ -1,12 +1,9 @@
 package runtime
 
 import (
-	"context"
 	"errors"
 	"io"
 	"testing"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
 func TestRuntimeCloseUsesCloserPort(t *testing.T) {
@@ -39,24 +36,6 @@ func TestRuntimeCloseIsIdempotentAndJoinsResourceErrors(t *testing.T) {
 	}
 }
 
-func TestRuntimeListSkillsUsesCatalogPort(t *testing.T) {
-	catalog := &fakeSkillCatalog{
-		skills: []skills.Info{{Name: "lint", Description: "check code", Scope: "project"}},
-	}
-	rt := &Runtime{skillCatalog: catalog}
-
-	got, err := rt.ListSkills(context.Background(), "/repo")
-	if err != nil {
-		t.Fatalf("ListSkills err = %v", err)
-	}
-	if catalog.cwd != "/repo" {
-		t.Fatalf("catalog cwd = %q", catalog.cwd)
-	}
-	if len(got) != 1 || got[0].Name != "lint" {
-		t.Fatalf("skills = %+v", got)
-	}
-}
-
 type fakeRuntimeCloser struct {
 	closed bool
 	calls  int
@@ -67,14 +46,4 @@ func (f *fakeRuntimeCloser) Close() error {
 	f.closed = true
 	f.calls++
 	return f.err
-}
-
-type fakeSkillCatalog struct {
-	cwd    string
-	skills []skills.Info
-}
-
-func (f *fakeSkillCatalog) ListSkills(_ context.Context, cwd string) ([]skills.Info, error) {
-	f.cwd = cwd
-	return f.skills, nil
 }

@@ -6,32 +6,40 @@ import (
 	"path/filepath"
 	"testing"
 
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
-type hookTrustRuntime struct {
-	RuntimePort // unstubbed methods panic; this fake only serves the hook-trust path
+// fakeHookTrust records the workspace coordinator's trust calls (Trust/Untrust)
+// so the hooks delivery handler can be tested against a wired trust store.
+type fakeHookTrust struct {
 	projectRoot string
 	trusted     bool
 	calls       int
 }
 
-func (r *hookTrustRuntime) InspectHooks(context.Context, string) hooks.Inspection {
-	return hooks.Inspection{}
-}
-
-func (r *hookTrustRuntime) SetProjectHookTrust(_ context.Context, projectRoot string, trusted bool) error {
-	r.projectRoot = projectRoot
-	r.trusted = trusted
-	r.calls++
+func (f *fakeHookTrust) Trust(_ context.Context, projectRoot string) error {
+	f.projectRoot = projectRoot
+	f.trusted = true
+	f.calls++
 	return nil
 }
 
+func (f *fakeHookTrust) Untrust(_ context.Context, projectRoot string) error {
+	f.projectRoot = projectRoot
+	f.trusted = false
+	f.calls++
+	return nil
+}
+
+func serverWithHookTrust(trust workspaceapp.HookTrustStore) *Server {
+	return &Server{workspace: workspaceapp.New(workspaceapp.Config{Trust: trust})}
+}
+
 func TestWorkspaceSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
-	rt := &hookTrustRuntime{}
-	s := &Server{rt: rt}
+	trust := &fakeHookTrust{}
+	s := serverWithHookTrust(trust)
 	projectRoot := t.TempDir()
 
 	err := s.WorkspaceSetHookTrust(context.Background(), protocol.SetHookTrustRequest{
@@ -41,14 +49,14 @@ func TestWorkspaceSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setTrust: %v", err)
 	}
-	if rt.calls != 1 || rt.projectRoot != worktree.CanonicalCwd(projectRoot) || !rt.trusted {
-		t.Fatalf("trusted root=%q trusted=%v calls=%d, want %q true 1", rt.projectRoot, rt.trusted, rt.calls, worktree.CanonicalCwd(projectRoot))
+	if trust.calls != 1 || trust.projectRoot != worktree.CanonicalCwd(projectRoot) || !trust.trusted {
+		t.Fatalf("trusted root=%q trusted=%v calls=%d, want %q true 1", trust.projectRoot, trust.trusted, trust.calls, worktree.CanonicalCwd(projectRoot))
 	}
 }
 
 func TestWorkspaceSetHookTrustRejectsUnavailableProjectRoot(t *testing.T) {
-	rt := &hookTrustRuntime{}
-	s := &Server{rt: rt}
+	trust := &fakeHookTrust{}
+	s := serverWithHookTrust(trust)
 	missing := filepath.Join(t.TempDir(), "missing")
 
 	err := s.WorkspaceSetHookTrust(context.Background(), protocol.SetHookTrustRequest{
@@ -58,7 +66,7 @@ func TestWorkspaceSetHookTrustRejectsUnavailableProjectRoot(t *testing.T) {
 	if !errors.Is(err, protocol.ErrCwdUnavailable) {
 		t.Fatalf("setTrust err = %v, want ErrCwdUnavailable", err)
 	}
-	if rt.calls != 0 {
-		t.Fatalf("trust store calls = %d, want 0", rt.calls)
+	if trust.calls != 0 {
+		t.Fatalf("trust store calls = %d, want 0", trust.calls)
 	}
 }

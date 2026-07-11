@@ -1,4 +1,4 @@
-package runtime
+package workspace
 
 import (
 	"context"
@@ -9,19 +9,19 @@ import (
 )
 
 func TestRuntimeMemoryUnavailable(t *testing.T) {
-	rt := &Runtime{}
+	c := New(Config{})
 	ctx := context.Background()
 
-	if rt.HasMemory() {
+	if c.HasMemory() {
 		t.Fatal("HasMemory = true, want false")
 	}
-	if _, err := rt.ListMemoryEntries(ctx, "/repo"); !errors.Is(err, ErrMemoryUnavailable) {
+	if _, err := c.ListMemoryEntries(ctx, "/repo"); !errors.Is(err, ErrMemoryUnavailable) {
 		t.Fatalf("ListMemoryEntries err = %v, want ErrMemoryUnavailable", err)
 	}
-	if _, err := rt.Memory(ctx, knowledge.ScopeProject, "/repo"); !errors.Is(err, ErrMemoryUnavailable) {
+	if _, err := c.Memory(ctx, knowledge.ScopeProject, "/repo"); !errors.Is(err, ErrMemoryUnavailable) {
 		t.Fatalf("Memory err = %v, want ErrMemoryUnavailable", err)
 	}
-	if err := rt.UpdateMemory(ctx, knowledge.ScopeUser, "", "prefs"); !errors.Is(err, ErrMemoryUnavailable) {
+	if err := c.UpdateMemory(ctx, knowledge.ScopeUser, "", "prefs"); !errors.Is(err, ErrMemoryUnavailable) {
 		t.Fatalf("UpdateMemory err = %v, want ErrMemoryUnavailable", err)
 	}
 }
@@ -35,12 +35,12 @@ func TestRuntimeMemoryPorts(t *testing.T) {
 		}},
 		content: "project notes",
 	}
-	rt := &Runtime{memory: store}
+	c := New(Config{Memory: store})
 
-	if !rt.HasMemory() {
+	if !c.HasMemory() {
 		t.Fatal("HasMemory = false, want true")
 	}
-	entries, err := rt.ListMemoryEntries(ctx, "/repo")
+	entries, err := c.ListMemoryEntries(ctx, "/repo")
 	if err != nil {
 		t.Fatalf("ListMemoryEntries err = %v", err)
 	}
@@ -48,7 +48,7 @@ func TestRuntimeMemoryPorts(t *testing.T) {
 		t.Fatalf("ListMemoryEntries = %+v, cwd = %q", entries, store.listCwd)
 	}
 
-	got, err := rt.Memory(ctx, knowledge.ScopeProject, "/repo")
+	got, err := c.Memory(ctx, knowledge.ScopeProject, "/repo")
 	if err != nil {
 		t.Fatalf("Memory err = %v", err)
 	}
@@ -56,7 +56,7 @@ func TestRuntimeMemoryPorts(t *testing.T) {
 		t.Fatalf("Memory = %q, scope = %v, cwd = %q", got, store.getScope, store.getCwd)
 	}
 
-	if err := rt.UpdateMemory(ctx, knowledge.ScopeUser, "", "global prefs"); err != nil {
+	if err := c.UpdateMemory(ctx, knowledge.ScopeUser, "", "global prefs"); err != nil {
 		t.Fatalf("UpdateMemory err = %v", err)
 	}
 	if store.updateScope != knowledge.ScopeUser || store.updateCwd != "" || store.updateContent != "global prefs" {

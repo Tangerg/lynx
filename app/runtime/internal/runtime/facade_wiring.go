@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -21,10 +20,9 @@ import (
 )
 
 // Dependencies is the fully-assembled collaborator set a [Runtime] facade holds.
-// The composition root (bootstrap) builds each collaborator and calls [New]; the
-// in-package [Assemble] is the convenience that wires them from a [Config]. The
-// single *kernel.Engine satisfies the facade's closer, skill catalog, and every
-// live-MCP port, so it is supplied once.
+// The composition root (bootstrap) builds each collaborator and calls [New]. The
+// single *kernel.Engine satisfies the facade's closer and every live-MCP port,
+// so it is supplied once.
 type Dependencies struct {
 	Engine       *kernel.Engine
 	Turns        turn.Dispatcher
@@ -36,7 +34,6 @@ type Dependencies struct {
 	Sessions   sessionsvc.Store
 	Interrupts interrupts.Store
 	Transcript transcript.Store
-	Memory     knowledge.Store
 	Providers  provider.Registry
 
 	MCPRegistry mcpserver.Registry
@@ -49,10 +46,6 @@ type Dependencies struct {
 	UtilityCell  *atomic.Pointer[modelrole.Role]
 	UtilityStore utilityRoleSaver
 
-	HookInspection   hookInspector
-	HookTrust        HookTrustStore
-	RecipesGlobalDir string
-
 	EmbeddingCell  *atomic.Pointer[modelrole.Role]
 	Embeddings     *modelclient.EmbeddingResolver
 	EmbeddingStore embeddingRoleSaver
@@ -63,16 +56,14 @@ type Dependencies struct {
 }
 
 // New builds a Runtime facade from already-assembled dependencies. It only
-// wires; all construction/validation lives in [Assemble] (and, in the target
-// architecture, in the bootstrap ring that will call New directly).
+// wires; all construction/validation lives in the bootstrap ring's Assemble,
+// which calls New.
 func New(d Dependencies) *Runtime {
 	return &Runtime{
 		turns:              d.Turns,
 		closer:             d.Engine,
 		resources:          append([]io.Closer(nil), d.Resources...),
-		skillCatalog:       d.Engine,
 		tools:              d.Tools,
-		memory:             d.Memory,
 		approval:           d.Approval,
 		history:            d.Conversation,
 		sessions:           d.Sessions,
@@ -91,9 +82,6 @@ func New(d Dependencies) *Runtime {
 		utility:            d.UtilityCell,
 		utilityClients:     d.Resolver,
 		utilStore:          d.UtilityStore,
-		hookInspection:     d.HookInspection,
-		hookTrust:          d.HookTrust,
-		recipesGlobalDir:   d.RecipesGlobalDir,
 		embeddingCell:      d.EmbeddingCell,
 		embeddings:         d.Embeddings,
 		embeddingStore:     d.EmbeddingStore,

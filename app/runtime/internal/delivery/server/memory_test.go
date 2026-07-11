@@ -7,14 +7,16 @@ import (
 	"testing"
 	"time"
 
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
-type memoryRuntime struct {
-	stubRuntime
-	enabled       bool
+// fakeMemoryStore is a knowledge.Store recording the workspace coordinator's
+// calls, so the memory delivery handlers can be tested against a wired store
+// (or, when nil, against the disabled path).
+type fakeMemoryStore struct {
 	entries       []knowledge.Entry
 	listCwd       string
 	getScope      knowledge.Scope
@@ -25,30 +27,34 @@ type memoryRuntime struct {
 	updateContent string
 }
 
-func (r *memoryRuntime) HasMemory() bool {
-	return r.enabled
+func (s *fakeMemoryStore) List(_ context.Context, cwd string) ([]knowledge.Entry, error) {
+	s.listCwd = cwd
+	return s.entries, nil
 }
 
-func (r *memoryRuntime) ListMemoryEntries(_ context.Context, cwd string) ([]knowledge.Entry, error) {
-	r.listCwd = cwd
-	return r.entries, nil
+func (s *fakeMemoryStore) Get(_ context.Context, scope knowledge.Scope, cwd string) (string, error) {
+	s.getScope = scope
+	s.getCwd = cwd
+	return s.getContent, nil
 }
 
-func (r *memoryRuntime) Memory(_ context.Context, scope knowledge.Scope, cwd string) (string, error) {
-	r.getScope = scope
-	r.getCwd = cwd
-	return r.getContent, nil
-}
-
-func (r *memoryRuntime) UpdateMemory(_ context.Context, scope knowledge.Scope, cwd string, content string) error {
-	r.updateScope = scope
-	r.updateCwd = cwd
-	r.updateContent = content
+func (s *fakeMemoryStore) Update(_ context.Context, scope knowledge.Scope, cwd string, content string) error {
+	s.updateScope = scope
+	s.updateCwd = cwd
+	s.updateContent = content
 	return nil
 }
 
+// serverWithMemory builds a test Server whose workspace coordinator is backed by
+// store (nil store → the disabled memory path).
+func serverWithMemory(store knowledge.Store) *Server {
+	s := newTestServer(&stubRuntime{})
+	s.workspace = workspaceapp.New(workspaceapp.Config{Memory: store})
+	return s
+}
+
 func TestListMemoryWithoutStoreReturnsEmptyPage(t *testing.T) {
-	s := newTestServer(&memoryRuntime{})
+	s := serverWithMemory(nil)
 
 	got, err := s.ListMemory(context.Background(), protocol.WorkspaceListQuery{
 		WorkspaceQuery: protocol.WorkspaceQuery{Cwd: "/repo"},
@@ -62,7 +68,7 @@ func TestListMemoryWithoutStoreReturnsEmptyPage(t *testing.T) {
 }
 
 func TestMemoryHandlersReturnCapabilityErrorWithoutStore(t *testing.T) {
-	s := newTestServer(&memoryRuntime{})
+	s := serverWithMemory(nil)
 
 	_, err := s.GetMemory(context.Background(), protocol.GetMemoryRequest{Scope: protocol.MemoryScopeHome})
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
@@ -77,15 +83,14 @@ func TestMemoryHandlersReturnCapabilityErrorWithoutStore(t *testing.T) {
 func TestListMemoryMapsEntriesToWire(t *testing.T) {
 	captured := time.Date(2026, 7, 5, 9, 0, 0, 0, time.UTC)
 	repo := t.TempDir()
-	rt := &memoryRuntime{
-		enabled: true,
+	store := &fakeMemoryStore{
 		entries: []knowledge.Entry{{
 			Scope:      knowledge.ScopeUser,
 			Content:    "Use short answers",
 			CapturedAt: captured,
 		}},
 	}
-	s := newTestServer(rt)
+	s := serverWithMemory(store)
 
 	got, err := s.ListMemory(context.Background(), protocol.WorkspaceListQuery{
 		WorkspaceQuery: protocol.WorkspaceQuery{Cwd: repo},
@@ -93,8 +98,8 @@ func TestListMemoryMapsEntriesToWire(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list memory: %v", err)
 	}
-	if rt.listCwd != worktree.CanonicalCwd(repo) {
-		t.Fatalf("cwd = %q, want %q", rt.listCwd, worktree.CanonicalCwd(repo))
+	if store.listCwd != worktree.CanonicalCwd(repo) {
+		t.Fatalf("cwd = %q, want %q", store.listCwd, worktree.CanonicalCwd(repo))
 	}
 	if len(got.Data) != 1 || got.Data[0].Scope != protocol.MemoryScopeHome || got.Data[0].UpdatedAt != captured {
 		t.Fatalf("wire memory = %+v", got.Data)
@@ -102,16 +107,16 @@ func TestListMemoryMapsEntriesToWire(t *testing.T) {
 }
 
 func TestGetAndUpdateMemoryMapScopeToRuntime(t *testing.T) {
-	rt := &memoryRuntime{enabled: true, getContent: "project notes"}
-	s := newTestServer(rt)
+	store := &fakeMemoryStore{getContent: "project notes"}
+	s := serverWithMemory(store)
 	repo := t.TempDir()
 
 	got, err := s.GetMemory(context.Background(), protocol.GetMemoryRequest{Scope: protocol.MemoryScopeProjectRoot, Cwd: repo})
 	if err != nil {
 		t.Fatalf("get memory: %v", err)
 	}
-	if got.Content != "project notes" || rt.getScope != knowledge.ScopeProject || rt.getCwd != worktree.CanonicalCwd(repo) {
-		t.Fatalf("get wire=%+v scope=%v cwd=%q", got, rt.getScope, rt.getCwd)
+	if got.Content != "project notes" || store.getScope != knowledge.ScopeProject || store.getCwd != worktree.CanonicalCwd(repo) {
+		t.Fatalf("get wire=%+v scope=%v cwd=%q", got, store.getScope, store.getCwd)
 	}
 
 	err = s.UpdateMemory(context.Background(), protocol.UpdateMemoryRequest{
@@ -122,14 +127,14 @@ func TestGetAndUpdateMemoryMapScopeToRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update memory: %v", err)
 	}
-	if rt.updateScope != knowledge.ScopeUser || rt.updateCwd != "" || rt.updateContent != "global prefs" {
-		t.Fatalf("update scope=%v cwd=%q content=%q", rt.updateScope, rt.updateCwd, rt.updateContent)
+	if store.updateScope != knowledge.ScopeUser || store.updateCwd != "" || store.updateContent != "global prefs" {
+		t.Fatalf("update scope=%v cwd=%q content=%q", store.updateScope, store.updateCwd, store.updateContent)
 	}
 }
 
 func TestProjectMemoryRejectsUnavailableCwd(t *testing.T) {
-	rt := &memoryRuntime{enabled: true}
-	s := newTestServer(rt)
+	store := &fakeMemoryStore{}
+	s := serverWithMemory(store)
 	missing := filepath.Join(t.TempDir(), "missing")
 
 	if _, err := s.GetMemory(context.Background(), protocol.GetMemoryRequest{

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -15,10 +14,6 @@ import (
 type settingsUseCases interface {
 	ListRegisteredTools(ctx context.Context) ([]toolsvc.Tool, error)
 	InvokeRegisteredTool(ctx context.Context, name string, arguments string) (string, error)
-	HasMemory() bool
-	ListMemoryEntries(ctx context.Context, cwd string) ([]knowledge.Entry, error)
-	Memory(ctx context.Context, scope knowledge.Scope, cwd string) (string, error)
-	UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd string, content string) error
 	ApprovalMode(ctx context.Context) (approval.Mode, error)
 	SetApprovalMode(ctx context.Context, mode approval.Mode) error
 	ListApprovalRules(ctx context.Context, sessionID string) ([]approval.Rule, error)
