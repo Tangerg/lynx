@@ -6,7 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 )
 
 type coordinatorStores struct {

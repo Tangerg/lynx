@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 )
 
 // TestSubscribeRun_StreamsLiveRun verifies the streamable-HTTP subscribe

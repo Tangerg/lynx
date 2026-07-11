@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -88,7 +88,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) lyraruntime.Config {
 	}
 
 	return lyraruntime.Config{
-		Engine: kernel.Config{
+		Engine: agentexec.Config{
 			ChatClient: client,
 		},
 		ProviderRegistry: sqlitestore.NewProviderStore(db),

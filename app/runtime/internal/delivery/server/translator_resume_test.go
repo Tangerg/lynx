@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 )
 
 // TestTranslator_EditedArgsReusesProposalItem verifies that when the user edits

@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 )
@@ -49,35 +49,35 @@ func NewExtractor(store history.Store, mem knowledge.Store, client ClientFunc) *
 // falls back to the memory store's default dir). Returns the zero
 // result on a nil receiver (LYRA.md disabled) or when the conversation
 // is still too short to be worth mining.
-func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (kernel.ExtractionResult, error) {
+func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (agentexec.ExtractionResult, error) {
 	if e == nil || sessionID == "" {
-		return kernel.ExtractionResult{}, nil
+		return agentexec.ExtractionResult{}, nil
 	}
 	msgs, err := e.store.Read(ctx, sessionID)
 	if err != nil {
-		return kernel.ExtractionResult{}, fmt.Errorf("extractor: read: %w", err)
+		return agentexec.ExtractionResult{}, fmt.Errorf("extractor: read: %w", err)
 	}
 	if len(msgs) < e.minMsgs {
-		return kernel.ExtractionResult{}, nil
+		return agentexec.ExtractionResult{}, nil
 	}
 
 	facts, err := e.askForFacts(ctx, msgs)
 	if err != nil {
-		return kernel.ExtractionResult{}, fmt.Errorf("extractor: ask: %w", err)
+		return agentexec.ExtractionResult{}, fmt.Errorf("extractor: ask: %w", err)
 	}
 	if facts == "" {
-		return kernel.ExtractionResult{}, nil
+		return agentexec.ExtractionResult{}, nil
 	}
 
 	existing, err := e.mem.Get(ctx, knowledge.ScopeProject, cwd)
 	if err != nil {
-		return kernel.ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
+		return agentexec.ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
 	}
 	updated := mergeMemory(existing, facts)
 	if err := e.mem.Update(ctx, knowledge.ScopeProject, cwd, updated); err != nil {
-		return kernel.ExtractionResult{}, err
+		return agentexec.ExtractionResult{}, err
 	}
-	return kernel.ExtractionResult{Extracted: true, Facts: facts}, nil
+	return agentexec.ExtractionResult{Extracted: true, Facts: facts}, nil
 }
 
 // askForFacts queries the LLM directly (no middleware → no

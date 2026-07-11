@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 )
 
 // Build exposes the code-intelligence analyzer as the agent's language tools: a

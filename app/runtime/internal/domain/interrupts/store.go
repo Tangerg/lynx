@@ -12,7 +12,7 @@
 // retained live process instead.
 //
 // Deliberately a durable record store (CRUD over [Pending]): the park/resume
-// orchestration lives in internal/kernel/turn, not here — this package only
+// orchestration lives in internal/adapter/agentexec/turn, not here — this package only
 // remembers what is open.
 package interrupts
 

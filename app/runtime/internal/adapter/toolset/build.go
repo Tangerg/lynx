@@ -25,7 +25,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 )
 
 // This file is the tool-assembly entry point. It is the SOLE place that

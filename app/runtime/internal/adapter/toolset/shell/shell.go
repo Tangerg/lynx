@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 )
 
 // Shell tools over a shared [exec.Shells]: the primary `shell` tool plus

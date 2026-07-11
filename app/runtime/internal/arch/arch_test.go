@@ -16,14 +16,15 @@ import (
 // TestDependencyRule enforces Clean Architecture's Dependency Rule for the lyra
 // module: source dependencies point INWARD, toward the domain. Outer rings
 // (delivery / capability / infra adapters) may depend on inner rings; the
-// reverse — or a sibling adapter reaching across the core — is forbidden. See
-// doc/GREENFIELD_ARCHITECTURE.md.
+// reverse — or a sibling adapter reaching up into composition — is forbidden.
+// See doc/EXECUTION_CENTERED_ARCHITECTURE.md.
 //
 // Rings (outer → inner):
 //
 //	delivery       internal/delivery/**         HTTP+SSE / inprocess transport, dispatch, protocol
-//	adapter        internal/adapter/**          capability adapters (tools, live external capabilities)
-//	orchestration  internal/kernel/**           use-case core (drives the agent loop; ACL over the agent SDK)
+//	adapter        internal/adapter/**          capability adapters, incl. adapter/agentexec (the
+//	                                             agent-execution adapter driving the agent loop / ACL
+//	                                             over the agent SDK) and infra-backed capability adapters
 //	domain         internal/domain/**          bounded contexts: entities + repository ports + domain services
 //	infra          internal/infra/**            sqlite / git / lsp / mcp / exec — driven adapters & frameworks
 //	composition    internal/runtime/**,         the "main" component that wires everything; exempt as an importer
@@ -31,22 +32,20 @@ import (
 //	               internal/config, cmd/**
 //
 // Forbidden edges (an inner ring learning about an outer one, or an adapter
-// reaching across the core):
+// reaching up into composition):
 //
-//	infra         ↛ delivery, adapter, orchestration
-//	domain        ↛ delivery, adapter, orchestration, infra
-//	orchestration ↛ delivery, adapter
-//	adapter       ↛ delivery, composition
+//	infra   ↛ delivery, adapter
+//	domain  ↛ delivery, adapter, infra
+//	adapter ↛ delivery, composition
 //
 // Intentionally NOT forbidden (each is a correct inward / hexagonal edge —
-// documented in GREENFIELD_ARCHITECTURE.md §5):
+// documented in EXECUTION_CENTERED_ARCHITECTURE.md §3 / §6):
 //
-//	kernel            → domain/*    orchestration depends inward on domain
-//	infra             → domain/*    adapter depends inward on domain entities + repo ports
-//	adapter          → kernel/*     capability adapters implement kernel-owned
-//	                                 ports (tool resolver, MCP live control)
-//	adapter          → infra/*      capability adapters wrap driven capabilities
-//	delivery          → anything inward
+//	adapter → domain/*    capability + agent-execution adapters depend inward on domain entities + ports
+//	infra   → domain/*    driven adapters depend inward on domain entities + repo ports
+//	adapter → adapter/*   sibling adapters compose (e.g. toolset implements agentexec's tool SPI)
+//	adapter → infra/*     capability adapters wrap driven capabilities
+//	delivery → anything inward
 func TestDependencyRule(t *testing.T) {
 	const modulePath = "github.com/Tangerg/lynx/app/runtime"
 	root := moduleRoot(t)
@@ -138,12 +137,11 @@ func TestDomainHooksStayPure(t *testing.T) {
 }
 
 const (
-	ringDelivery      = "delivery"
-	ringAdapter       = "adapter"
-	ringOrchestration = "orchestration"
-	ringDomain        = "domain"
-	ringInfra         = "infra"
-	ringComposition   = "composition"
+	ringDelivery    = "delivery"
+	ringAdapter     = "adapter"
+	ringDomain      = "domain"
+	ringInfra       = "infra"
+	ringComposition = "composition"
 )
 
 // layerOf classifies a module-relative package dir (e.g. "internal/infra/storage")
@@ -158,8 +156,6 @@ func layerOf(rel string) string {
 		return ringDelivery
 	case rel == "internal/adapter" || strings.HasPrefix(rel, "internal/adapter/"):
 		return ringAdapter
-	case rel == "internal/kernel" || strings.HasPrefix(rel, "internal/kernel/"):
-		return ringOrchestration
 	case rel == "internal/domain" || strings.HasPrefix(rel, "internal/domain/"):
 		return ringDomain
 	case rel == "internal/infra" || strings.HasPrefix(rel, "internal/infra/"):
@@ -173,16 +169,14 @@ func layerOf(rel string) string {
 func forbidden(from, to string) bool {
 	switch from {
 	case ringInfra:
-		return to == ringDelivery || to == ringAdapter || to == ringOrchestration
+		return to == ringDelivery || to == ringAdapter
 	case ringDomain:
-		return to == ringDelivery || to == ringAdapter || to == ringOrchestration || to == ringInfra
-	case ringOrchestration:
 		return to == ringDelivery || to == ringAdapter || to == ringInfra
 	case ringAdapter:
-		// Adapters implement kernel/domain ports and wrap infra; they must never
-		// reach up into the composition root (internal/runtime / config / cmd) —
-		// that inversion would let assembly logic hide inside a capability adapter
-		// (the startup-projection edge that prompted this guard).
+		// Adapters implement domain/application ports and wrap infra; they must
+		// never reach up into the composition root (internal/runtime / config /
+		// cmd) — that inversion would let assembly logic hide inside a capability
+		// adapter (the startup-projection edge that prompted this guard).
 		return to == ringDelivery || to == ringComposition
 	default:
 		return false
