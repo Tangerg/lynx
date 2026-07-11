@@ -1,14 +1,9 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 export interface ToolCatalogGateway {
   reconnectMCPServer(server: string): Promise<void>;
 }
 
-let port: ToolCatalogGateway | null = null;
+const port = createSingletonPort<ToolCatalogGateway>("Tool catalog gateway is not configured");
 
-export function configureToolCatalogGateway(next: ToolCatalogGateway): void {
-  port = next;
-}
-
-export function toolCatalogGateway(): ToolCatalogGateway {
-  if (!port) throw new Error("Tool catalog gateway is not configured");
-  return port;
-}
+export const configureToolCatalogGateway = port.configure;
+export const toolCatalogGateway = port.get;

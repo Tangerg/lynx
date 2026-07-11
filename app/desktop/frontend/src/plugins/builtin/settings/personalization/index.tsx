@@ -8,7 +8,8 @@ export default definePlugin({
   name: "lyra.builtin.personalization",
   version: "1.0.0",
   setup({ host }) {
-    installPersonalizationPreferencesPort();
+    const disposePreferences = installPersonalizationPreferencesPort();
     registerSettingsPane(host, personalizationSettingsPane(PersonalizationPane));
+    return disposePreferences;
   },
 });

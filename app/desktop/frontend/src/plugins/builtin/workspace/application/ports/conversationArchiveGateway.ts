@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 export type ConversationExportFormat = "md" | "json";
 
 export type ConversationExportResult =
@@ -16,13 +17,9 @@ export interface ConversationArchiveGateway {
   importConversation(artifact: unknown): Promise<ImportedConversation>;
 }
 
-let port: ConversationArchiveGateway | null = null;
+const port = createSingletonPort<ConversationArchiveGateway>(
+  "Conversation archive gateway is not configured",
+);
 
-export function configureConversationArchiveGateway(next: ConversationArchiveGateway): void {
-  port = next;
-}
-
-export function conversationArchiveGateway(): ConversationArchiveGateway {
-  if (!port) throw new Error("Conversation archive gateway is not configured");
-  return port;
-}
+export const configureConversationArchiveGateway = port.configure;
+export const conversationArchiveGateway = port.get;

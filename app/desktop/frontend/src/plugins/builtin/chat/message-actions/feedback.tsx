@@ -69,7 +69,8 @@ export const messageFeedback = definePlugin({
   name: "lyra.builtin.message-feedback",
   version: "1.0.0",
   setup({ host }) {
-    installRuntimeFeedbackPort();
+    const disposeFeedback = installRuntimeFeedbackPort();
     host.layout.register("message.actions", messageFeedbackActionSlot(FeedbackButtons));
+    return disposeFeedback;
   },
 });

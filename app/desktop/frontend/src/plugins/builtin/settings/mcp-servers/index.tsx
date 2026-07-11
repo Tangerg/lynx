@@ -8,7 +8,8 @@ export default definePlugin({
   name: "lyra.builtin.mcp-servers-pane",
   version: "1.0.0",
   setup({ host }) {
-    installMCPServerGateway();
+    const disposeGateway = installMCPServerGateway();
     registerSettingsPane(host, mcpServersSettingsPane(McpServersPane));
+    return disposeGateway;
   },
 });

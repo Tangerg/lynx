@@ -25,6 +25,6 @@ const gateway: ProviderGateway = {
   },
 };
 
-export function installProviderGateway(): void {
-  configureProviderGateway(gateway);
+export function installProviderGateway(): () => void {
+  return configureProviderGateway(gateway);
 }

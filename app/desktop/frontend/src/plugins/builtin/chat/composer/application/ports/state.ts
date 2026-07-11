@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { ComposerDraftInput, ComposerImage, PastedText } from "../../domain/draft";
 
 export interface ComposerModelPreference {
@@ -25,13 +26,7 @@ export interface ComposerStatePort {
   useSetModelPreference(): (provider: string | null, model: string | null) => void;
 }
 
-let port: ComposerStatePort | null = null;
+const port = createSingletonPort<ComposerStatePort>("Composer state port is not configured");
 
-export function configureComposerStatePort(next: ComposerStatePort): void {
-  port = next;
-}
-
-export function composerState(): ComposerStatePort {
-  if (!port) throw new Error("Composer state port is not configured");
-  return port;
-}
+export const configureComposerStatePort = port.configure;
+export const composerState = port.get;

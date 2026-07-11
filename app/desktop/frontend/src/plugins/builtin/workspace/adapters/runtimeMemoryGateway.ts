@@ -8,6 +8,6 @@ const gateway: WorkspaceMemoryGateway = {
   },
 };
 
-export function installWorkspaceMemoryGateway(): void {
-  configureWorkspaceMemoryGateway(gateway);
+export function installWorkspaceMemoryGateway(): () => void {
+  return configureWorkspaceMemoryGateway(gateway);
 }

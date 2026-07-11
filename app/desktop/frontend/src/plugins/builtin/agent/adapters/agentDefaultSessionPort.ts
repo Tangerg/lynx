@@ -4,8 +4,8 @@ import { configureAgentDefaultSessionPort } from "../application/ports/defaultSe
 import { useAgentSessionStore } from "./agentSessionStore";
 import { useAgentSession } from "./useAgentSession";
 
-export function installAgentDefaultSessionPort(): void {
-  configureAgentDefaultSessionPort({
+export function installAgentDefaultSessionPort(): () => void {
+  return configureAgentDefaultSessionPort({
     useDefaultChatSession,
   });
 }

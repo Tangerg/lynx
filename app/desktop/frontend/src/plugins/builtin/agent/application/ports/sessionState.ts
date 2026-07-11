@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { AgentRunStartOptions } from "@/plugins/sdk";
 import type { AgentInput } from "../../domain/input";
 
@@ -39,13 +40,9 @@ export interface AgentSessionStatePort {
   takePendingMessage(id: string): PendingAgentMessage | undefined;
 }
 
-let port: AgentSessionStatePort | null = null;
+const port = createSingletonPort<AgentSessionStatePort>(
+  "Agent session state port is not configured",
+);
 
-export function configureAgentSessionStatePort(next: AgentSessionStatePort): void {
-  port = next;
-}
-
-export function agentSessionState(): AgentSessionStatePort {
-  if (!port) throw new Error("Agent session state port is not configured");
-  return port;
-}
+export const configureAgentSessionStatePort = port.configure;
+export const agentSessionState = port.get;

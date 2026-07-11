@@ -42,6 +42,6 @@ const gateway: ScheduleGateway = {
   },
 };
 
-export function installScheduleGateway(): void {
-  configureScheduleGateway(gateway);
+export function installScheduleGateway(): () => void {
+  return configureScheduleGateway(gateway);
 }

@@ -8,7 +8,8 @@ export default definePlugin({
   name: "lyra.builtin.schedules-pane",
   version: "1.0.0",
   setup({ host }) {
-    installScheduleGateway();
+    const disposeGateway = installScheduleGateway();
     registerSettingsPane(host, schedulesSettingsPane(SchedulesPane));
+    return disposeGateway;
   },
 });

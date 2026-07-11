@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { Item } from "@/rpc";
 
 export type AgentRestoreType = "history" | "files" | "both";
@@ -46,13 +47,7 @@ export interface AgentRuntimeGateway {
   forgetApprovalRule(id: string): Promise<void>;
 }
 
-let port: AgentRuntimeGateway | null = null;
+const port = createSingletonPort<AgentRuntimeGateway>("Agent runtime gateway is not configured");
 
-export function configureAgentRuntimeGateway(next: AgentRuntimeGateway): void {
-  port = next;
-}
-
-export function agentRuntime(): AgentRuntimeGateway {
-  if (!port) throw new Error("Agent runtime gateway is not configured");
-  return port;
-}
+export const configureAgentRuntimeGateway = port.configure;
+export const agentRuntime = port.get;

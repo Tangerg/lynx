@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 export interface WorkspaceViewTab {
   id: string;
   title?: string;
@@ -36,13 +37,9 @@ export interface WorkspaceNavigationPort {
   forgetSessionScopes(openSessionIds: string[]): void;
 }
 
-let port: WorkspaceNavigationPort | null = null;
+const port = createSingletonPort<WorkspaceNavigationPort>(
+  "Workspace navigation port is not configured",
+);
 
-export function configureWorkspaceNavigationPort(next: WorkspaceNavigationPort): void {
-  port = next;
-}
-
-export function workspaceNavigation(): WorkspaceNavigationPort {
-  if (!port) throw new Error("Workspace navigation port is not configured");
-  return port;
-}
+export const configureWorkspaceNavigationPort = port.configure;
+export const workspaceNavigation = port.get;

@@ -7,7 +7,8 @@ export const tasksPill = definePlugin({
   name: "lyra.builtin.tasks",
   version: "1.0.0",
   setup({ host }) {
-    installTaskReadoutPort();
+    const disposeTaskReadout = installTaskReadoutPort();
     host.layout.register("sidebar.footer.status", tasksStatusSlot(TasksPill));
+    return disposeTaskReadout;
   },
 });

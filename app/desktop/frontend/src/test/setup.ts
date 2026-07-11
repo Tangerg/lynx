@@ -13,14 +13,12 @@ import { usePluginStore } from "@/plugins/sdk/registry";
 import { _resetAllSlices } from "@/plugins/sdk/stateSlice";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
-import {
-  installAgentDefaultSessionPort,
-  installAgentRuntimeGateway,
-  installAgentStatePorts,
-} from "@/plugins/builtin/agent/public/statePorts";
-import { installComposerStatePorts } from "@/plugins/builtin/chat/composer/public/statePorts";
-import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/public/statePorts";
-import { installRuntimeCapabilityPort } from "@/plugins/builtin/runtime/public/statePorts";
+import { installAgentDefaultSessionPort } from "@/plugins/builtin/agent/adapters/agentDefaultSessionPort";
+import { installAgentRuntimeGateway } from "@/plugins/builtin/agent/adapters/agentRuntimeGateway";
+import { installAgentStatePorts } from "@/plugins/builtin/agent/adapters/agentStatePorts";
+import { installComposerStatePorts } from "@/plugins/builtin/chat/composer/adapters/composerStatePorts";
+import { installRuntimeCapabilityPort } from "@/plugins/builtin/runtime/adapters/runtimeCapabilityStore";
+import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adapters/navigationStatePort";
 
 installAgentStatePorts();
 installAgentDefaultSessionPort();

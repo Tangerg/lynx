@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { AgentRunStartOptions } from "@/plugins/sdk/types";
 import type { AgentInput } from "../../domain/input";
 
@@ -10,13 +11,9 @@ export interface AgentDefaultSessionPort {
   useDefaultChatSession(): AgentSession;
 }
 
-let port: AgentDefaultSessionPort | null = null;
+const port = createSingletonPort<AgentDefaultSessionPort>(
+  "Agent default session port is not configured",
+);
 
-export function configureAgentDefaultSessionPort(next: AgentDefaultSessionPort): void {
-  port = next;
-}
-
-export function agentDefaultSession(): AgentDefaultSessionPort {
-  if (!port) throw new Error("Agent default session port is not configured");
-  return port;
-}
+export const configureAgentDefaultSessionPort = port.configure;
+export const agentDefaultSession = port.get;

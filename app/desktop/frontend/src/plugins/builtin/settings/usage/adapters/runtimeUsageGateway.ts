@@ -9,6 +9,6 @@ const gateway: UsageGateway = {
   },
 };
 
-export function installUsageGateway(): void {
-  configureUsageGateway(gateway);
+export function installUsageGateway(): () => void {
+  return configureUsageGateway(gateway);
 }

@@ -10,11 +10,16 @@ export default definePlugin({
   name: "lyra.builtin.workspace-bootstrap",
   version: "1.0.0",
   setup() {
-    installCodebaseGateway();
-    installConversationArchiveGateway();
-    installWorkspaceMemoryGateway();
-    installToolCatalogGateway();
-    installWorkspaceErrorClassifier();
-    installWorkspaceNavigationPort();
+    const disposers = [
+      installCodebaseGateway(),
+      installConversationArchiveGateway(),
+      installWorkspaceMemoryGateway(),
+      installToolCatalogGateway(),
+      installWorkspaceErrorClassifier(),
+      installWorkspaceNavigationPort(),
+    ];
+    return () => {
+      for (let index = disposers.length - 1; index >= 0; index--) disposers[index]!();
+    };
   },
 });

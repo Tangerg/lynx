@@ -1,3 +1,4 @@
+import { createSingletonPort } from "@/lib/ports/singletonPort";
 export type MessageStyle = "bubble" | "plain";
 export type StreamReveal = "smooth" | "typewriter";
 
@@ -10,15 +11,9 @@ export interface PersonalizationPreferencesPort {
   useSetStreamReveal(): (mode: StreamReveal) => void;
 }
 
-let port: PersonalizationPreferencesPort | null = null;
+const port = createSingletonPort<PersonalizationPreferencesPort>(
+  "Personalization preferences port is not configured",
+);
 
-export function configurePersonalizationPreferencesPort(
-  next: PersonalizationPreferencesPort,
-): void {
-  port = next;
-}
-
-export function personalizationPreferences(): PersonalizationPreferencesPort {
-  if (!port) throw new Error("Personalization preferences port is not configured");
-  return port;
-}
+export const configurePersonalizationPreferencesPort = port.configure;
+export const personalizationPreferences = port.get;

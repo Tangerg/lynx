@@ -20,6 +20,6 @@ export const runtimeFeedbackPort: SubmitMessageFeedbackPort = {
   },
 };
 
-export function installRuntimeFeedbackPort(): void {
-  configureMessageFeedbackPort(runtimeFeedbackPort);
+export function installRuntimeFeedbackPort(): () => void {
+  return configureMessageFeedbackPort(runtimeFeedbackPort);
 }

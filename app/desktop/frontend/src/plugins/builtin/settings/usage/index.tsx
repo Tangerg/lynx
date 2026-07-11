@@ -11,7 +11,8 @@ export default definePlugin({
   name: "lyra.builtin.usage-pane",
   version: "1.0.0",
   setup({ host }) {
-    installUsageGateway();
+    const disposeGateway = installUsageGateway();
     registerSettingsPane(host, usageSettingsPane(UsagePane));
+    return disposeGateway;
   },
 });

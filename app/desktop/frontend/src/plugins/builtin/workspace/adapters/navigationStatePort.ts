@@ -15,8 +15,8 @@ function withWorkspaceViewMetadata(tab: WorkspaceViewTab): WorkspaceSurfaceTab {
   };
 }
 
-export function installWorkspaceNavigationPort(): void {
-  configureWorkspaceNavigationPort({
+export function installWorkspaceNavigationPort(): () => void {
+  return configureWorkspaceNavigationPort({
     useActiveViewId: () => useWorkspaceSurfaceStore((state) => state.activeMainView),
     useSplitViewId: () => useContextDockStore((state) => state.splitViewId),
     useActiveFile: () => useContextDockStore((state) => state.activeFile),

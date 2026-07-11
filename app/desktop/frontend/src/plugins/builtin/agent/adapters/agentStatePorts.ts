@@ -33,8 +33,8 @@ function getSelectionSnapshot(): AgentSessionSelectionSnapshot {
   return { activeSessionId: state.activeSessionId, selectionEpoch: state.selectionEpoch };
 }
 
-export function installAgentStatePorts(): void {
-  configureAgentSessionStatePort({
+export function installAgentStatePorts(): () => void {
+  const disposeSessionState = configureAgentSessionStatePort({
     useActiveSessionId: () => useAgentSessionStore((state) => state.activeSessionId),
     getActiveSessionId: () => useAgentSessionStore.getState().activeSessionId,
     getLifecycleSnapshot,
@@ -91,7 +91,7 @@ export function installAgentStatePorts(): void {
     takePendingMessage: (id) => useAgentSessionStore.getState().takePendingMessage(id),
   });
 
-  configureAgentViewStatePort({
+  const disposeViewState = configureAgentViewStatePort({
     useRunning: useAgentRunning,
     useRunId: useAgentRunId,
     usePlan: useAgentPlan,
@@ -142,4 +142,8 @@ export function installAgentStatePorts(): void {
       useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled),
     subscribeSessions: (onChange) => useAgentStore.subscribe((state) => onChange(state.sessions)),
   });
+  return () => {
+    disposeViewState();
+    disposeSessionState();
+  };
 }

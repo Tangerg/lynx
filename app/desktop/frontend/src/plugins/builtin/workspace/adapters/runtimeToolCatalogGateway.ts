@@ -8,6 +8,6 @@ const gateway: ToolCatalogGateway = {
   },
 };
 
-export function installToolCatalogGateway(): void {
-  configureToolCatalogGateway(gateway);
+export function installToolCatalogGateway(): () => void {
+  return configureToolCatalogGateway(gateway);
 }
