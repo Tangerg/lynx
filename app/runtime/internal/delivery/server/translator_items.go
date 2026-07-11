@@ -3,8 +3,8 @@ package server
 import (
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
 func (t *translator) appendText(text string) []protocol.StreamEvent {

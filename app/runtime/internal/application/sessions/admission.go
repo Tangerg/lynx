@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // SessionClaimer is the run-admission slot used to enforce one writer per

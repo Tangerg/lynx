@@ -6,7 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )

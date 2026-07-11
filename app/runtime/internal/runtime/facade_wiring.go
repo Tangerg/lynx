@@ -3,9 +3,9 @@ package runtime
 import (
 	"io"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 )
 
 // Dependencies is the fully-assembled collaborator set a [Runtime] facade holds.

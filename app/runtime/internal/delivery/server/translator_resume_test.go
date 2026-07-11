@@ -3,8 +3,8 @@ package server
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
 // TestTranslator_EditedArgsReusesProposalItem verifies that when the user edits

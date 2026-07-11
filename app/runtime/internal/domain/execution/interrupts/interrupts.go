@@ -58,4 +58,3 @@ type DrainedTool struct {
 	// it; consumers canonicalize when keying.
 	Arguments string `json:"arguments"`
 }
-

@@ -38,4 +38,15 @@
 // the durable-vs-live event classification with its commit-before-publish
 // ordering rule ([Durability]). It is pure: no I/O, no storage, no wire types,
 // no agent SDK — those are outer rings that depend inward on this vocabulary.
+//
+// # Co-located sub-contexts
+//
+// The execution context is ONE bounded context but not one aggregate (§4.1): the
+// run-scoped state and projections that co-evolve with a Run live as sub-packages
+// under this directory rather than as independent top-level domains —
+// execution/interrupts (the open-HITL registry, a Run state), execution/transcript
+// (the durable Item history + rollback/fork boundary), execution/conversation (the
+// chat-message log), and execution/accounting (token/cost usage value objects).
+// Each is its own package with its own model; the nesting expresses that they
+// belong to the Run's lifecycle, not that they share code.
 package execution

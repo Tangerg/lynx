@@ -6,8 +6,8 @@ import (
 	"iter"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 type turnRuntimeDispatcher struct {

@@ -3,7 +3,7 @@ package sessions
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // Rollback truncates the chat history log to the boundary watermark and drops each run's
