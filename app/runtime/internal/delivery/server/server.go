@@ -24,7 +24,7 @@ import (
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/taskgroup"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 )
 
 // Config bundles construction inputs.

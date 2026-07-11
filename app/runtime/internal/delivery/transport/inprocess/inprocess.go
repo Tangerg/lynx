@@ -24,7 +24,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/taskgroup"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 )
 
 var errTransportClosed = errors.New("inprocess: transport closed")
