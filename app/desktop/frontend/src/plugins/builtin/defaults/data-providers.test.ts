@@ -53,6 +53,26 @@ async function runProvider<T>(
 }
 
 describe("defaultData — providers over JSON-RPC", () => {
+  it("rejects missing parameters before a parameterized provider reaches RPC", async () => {
+    const client = createLyraClient(createMemoryTransport());
+    setContainer({ client: () => client });
+    await loadPlugin(defaultData);
+
+    for (const key of [
+      "mcp-tools",
+      "diff",
+      "grep",
+      "file-head",
+      "approval-rules",
+      "list-files",
+      "read-file",
+    ]) {
+      const fetcher = lookupDataProvider(key);
+      expect(fetcher).toBeDefined();
+      await expect(fetcher!()).rejects.toThrow(`Data provider "${key}" requires parameters`);
+    }
+  });
+
   it("sessions: maps Page<Session>.data into AgentSessionSummary rows (updatedAt → time)", async () => {
     const { value: rows } = await runProvider<AgentSessionSummary[]>("sessions", [
       [

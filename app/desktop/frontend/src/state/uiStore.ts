@@ -123,6 +123,7 @@ export const useUiStore = create<UiState & UiActions>()(
       storage: createJSONStorage(() => localStorage),
       version: 5,
       merge: (persisted, current) => {
+        if (persisted === undefined) return current;
         const parsed = uiPersistSchema.safeParse(persisted);
         if (!parsed.success) {
           // Reset on schema mismatch — defaults are always a safe boot.

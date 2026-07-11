@@ -139,6 +139,7 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
       // rather than migrate (the merge below Zod-validates what survives).
       version: 5,
       merge: (persisted, current) => {
+        if (persisted === undefined) return current;
         const parsed = sessionPersistSchema.safeParse(persisted);
         if (!parsed.success) {
           console.warn(

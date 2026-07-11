@@ -18,6 +18,7 @@ import {
   MODELS_KEY,
   PROVIDERS_KEY,
   UTILITY_ROLE_KEY,
+  type CodebaseStatusQuery,
 } from "@/plugins/builtin/settings/providers/public/data";
 import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/data";
 import type {
@@ -57,6 +58,19 @@ import {
   toAgentSessionSummary,
 } from "./runtimeDataAdapters";
 
+// DATA_PROVIDER intentionally erases each fetcher's parameter type so unlike
+// resources can share one registry. Restore that type once at this adapter
+// boundary instead of scattering unchecked casts through every provider.
+function optionalParams<P>(params: unknown): P | undefined {
+  return params as P | undefined;
+}
+
+function requiredParams<P>(key: string, params: unknown): P {
+  const value = optionalParams<P>(params);
+  if (value === undefined) throw new Error(`Data provider "${key}" requires parameters`);
+  return value;
+}
+
 export function registerDefaultDataProviders(host: Host): void {
   const client = () => getContainer().client();
   const contribute = (provider: DataProviderSpec): void => {
@@ -77,7 +91,7 @@ export function registerDefaultDataProviders(host: Host): void {
     fetcher: async (params) =>
       (
         await client().workspace.listFileChanges(
-          (params as WorkspaceFileChangesQuery | undefined)?.cwd,
+          optionalParams<WorkspaceFileChangesQuery>(params)?.cwd,
         )
       ).data.map(toWorkspaceFileChangeSummary),
   });
@@ -106,28 +120,31 @@ export function registerDefaultDataProviders(host: Host): void {
     fetcher: async (params) =>
       (
         await client()
-          .workspace.mcp.listTools((params as McpToolsQuery).server)
+          .workspace.mcp.listTools(requiredParams<McpToolsQuery>(MCP_TOOLS_KEY, params).server)
           .catch(emptyPageIfUngated)
       ).data.map((t) => ({ name: t.name, description: t.description ?? "" })),
   });
   contribute({
     key: WORKSPACE_DIFF_KEY,
     fetcher: async (params) => {
-      const diff = await client().workspace.getDiff({
-        ...(params as WorkspaceDiffQuery),
-        format: "rows",
-      });
+      const query = requiredParams<WorkspaceDiffQuery>(WORKSPACE_DIFF_KEY, params);
+      const diff = await client().workspace.getDiff({ ...query, format: "rows" });
       return { files: diff.files ?? [], truncated: diff.truncated } satisfies WorkspaceDiff;
     },
   });
   contribute({
     key: WORKSPACE_GREP_KEY,
-    fetcher: (params) => client().workspace.grep(params as WorkspaceGrepQuery),
+    fetcher: async (params) =>
+      client().workspace.grep(requiredParams<WorkspaceGrepQuery>(WORKSPACE_GREP_KEY, params)),
   });
   contribute({
     key: WORKSPACE_FILE_HEAD_KEY,
     fetcher: async (params) =>
-      (await client().workspace.getFileHead(params as WorkspaceFileHeadQuery)).lines,
+      (
+        await client().workspace.getFileHead(
+          requiredParams<WorkspaceFileHeadQuery>(WORKSPACE_FILE_HEAD_KEY, params),
+        )
+      ).lines,
   });
   contribute({
     key: WORKSPACE_SKILLS_KEY,
@@ -152,7 +169,7 @@ export function registerDefaultDataProviders(host: Host): void {
     fetcher: async (params) =>
       (
         await client()
-          .memory.list((params as WorkspaceMemoryQuery | undefined)?.cwd)
+          .memory.list(optionalParams<WorkspaceMemoryQuery>(params)?.cwd)
           .catch(emptyPageIfUngated)
       ).data.map((m) => ({
         scope: m.scope,
@@ -219,17 +236,18 @@ export function registerDefaultDataProviders(host: Host): void {
   });
   contribute({
     key: CODEBASE_STATUS_KEY,
-    fetcher: (params) => client().codebase.status((params as { cwd?: string } | undefined)?.cwd),
+    fetcher: (params) => client().codebase.status(optionalParams<CodebaseStatusQuery>(params)?.cwd),
   });
   contribute({
     key: APPROVAL_RULES_KEY,
-    fetcher: async (params) =>
-      (await client().approval.listRules(asSessionId((params as ApprovalRulesQuery).sessionId)))
-        .rules,
+    fetcher: async (params) => {
+      const query = requiredParams<ApprovalRulesQuery>(APPROVAL_RULES_KEY, params);
+      return (await client().approval.listRules(asSessionId(query.sessionId))).rules;
+    },
   });
   contribute({
     key: HOOKS_KEY,
-    fetcher: (params) => client().workspace.hooks.list((params as HooksQuery | undefined)?.cwd),
+    fetcher: (params) => client().workspace.hooks.list(optionalParams<HooksQuery>(params)?.cwd),
   });
   contribute({
     key: SCHEDULES_KEY,
@@ -240,14 +258,14 @@ export function registerDefaultDataProviders(host: Host): void {
     fetcher: async (params) =>
       (
         await client()
-          .workspace.recipes.list((params as RecipesQuery | undefined)?.cwd)
+          .workspace.recipes.list(optionalParams<RecipesQuery>(params)?.cwd)
           .catch(emptyPageIfUngated)
       ).data,
   });
   contribute({
     key: WORKSPACE_LIST_FILES_KEY,
     fetcher: async (params) => {
-      const q = params as WorkspaceListFilesQuery;
+      const q = requiredParams<WorkspaceListFilesQuery>(WORKSPACE_LIST_FILES_KEY, params);
       return (
         await client().workspace.listFiles({
           cwd: q.cwd,
@@ -266,7 +284,7 @@ export function registerDefaultDataProviders(host: Host): void {
   contribute({
     key: WORKSPACE_READ_FILE_KEY,
     fetcher: async (params) => {
-      const q = params as WorkspaceReadFileQuery;
+      const q = requiredParams<WorkspaceReadFileQuery>(WORKSPACE_READ_FILE_KEY, params);
       const r = await client().workspace.readFile({ path: q.path, cwd: q.cwd });
       return { content: r.content, totalLines: r.totalLines, truncated: r.truncated };
     },
