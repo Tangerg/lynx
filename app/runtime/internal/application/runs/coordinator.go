@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
 // ErrClosed is returned by [Coordinator.Start] once the Coordinator is closing:
@@ -61,7 +60,7 @@ func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector
 		SessionID:   spec.SessionID,
 		Cwd:         spec.Cwd,
 		CreatedAt:   spec.CreatedAt,
-		TurnID:      spec.Handle.TurnID,
+		TurnID:      spec.TurnID,
 		ParentRunID: spec.ParentRunID,
 		Provider:    spec.Provider,
 		Model:       spec.Model,
@@ -78,7 +77,7 @@ func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector
 
 // cancelTurnAfterAdmissionFailure tears down a turn that was created but never
 // admitted (the Coordinator closed between turn start and Attach).
-func (c *Coordinator) cancelTurnAfterAdmissionFailure(ctx context.Context, handle turn.TurnHandle) error {
+func (c *Coordinator) cancelTurnAfterAdmissionFailure(ctx context.Context, handle Handle) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
 	return c.executor.CancelTurn(cleanupCtx, handle)

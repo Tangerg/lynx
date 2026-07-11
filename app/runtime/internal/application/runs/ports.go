@@ -4,25 +4,36 @@ import (
 	"context"
 	"iter"
 	"time"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
 // The ports this package consumes to run a segment. They are defined here — on
 // the consumer side — and satisfied structurally by the runtime / delivery /
 // adapter implementations the composition root injects.
 //
-// Executor and Projector still reference kernel types (turn.Event,
-// turn.TurnHandle): the application depends inward on them for now. A later
-// batch inverts the executor edge behind an engine-neutral event (rewrite
-// Batch 5). The durable side-effect payload is already opaque (see
-// ProjectedEvent.Effect), so relocating its adapter left no application edge.
+// The application drives execution through an engine-neutral [Executor]: both
+// the events it observes ([EngineEvent]) and the handle it drives ([Handle]) are
+// opaque to it, so the run lifecycle owns no agent-SDK type. The pump is a pure
+// conduit — it shuttles each EngineEvent from the Executor to the [Projector]
+// without inspecting it, the same opacity the durable side-effect payload
+// already has (see ProjectedEvent.Effect). The agentexec adapter produces the
+// concrete event + handle; the delivery Projector asserts the event back to the
+// shape it emitted.
+
+// EngineEvent is one event the [Executor] emits for a live run segment. It is
+// opaque to the application: the pump forwards each to the [Projector] verbatim.
+type EngineEvent = any
+
+// Handle is the opaque per-segment execution handle the [Executor] returns and
+// the application hands back to it to observe and cancel a live turn. Opaque for
+// the same reason as [EngineEvent]: the application owns the run's lifecycle, not
+// the executor's internal representation of a live turn.
+type Handle = any
 
 // Executor is what the run pump needs to drive, observe, and cancel the agent
-// turn backing a run segment. The concrete runtime implements it.
+// turn backing a run segment. The concrete agent-execution adapter implements it.
 type Executor interface {
-	TurnEvents(ctx context.Context, handle turn.TurnHandle) (iter.Seq[turn.Event], error)
-	CancelTurn(ctx context.Context, handle turn.TurnHandle) error
+	TurnEvents(ctx context.Context, handle Handle) (iter.Seq[EngineEvent], error)
+	CancelTurn(ctx context.Context, handle Handle) error
 }
 
 // Projector turns the executor's events into projected events: the pump feeds it
@@ -38,7 +49,7 @@ type Projector interface {
 	// events, independent of any executor event.
 	Open() []ProjectedEvent
 	// Translate projects one executor event into zero or more projected events.
-	Translate(ev turn.Event) []ProjectedEvent
+	Translate(ev EngineEvent) []ProjectedEvent
 	// SynthesizeTerminal builds the terminal the pump needs when the executor
 	// stream ended without one (canceled mid-flight / drained iterator). The
 	// Projector decides error-vs-canceled from its own recorded state.
@@ -103,11 +114,15 @@ type CursorMinter interface {
 // input and resume bindings are deliberately NOT here — they live in the
 // Projector the caller supplies, so the application never sees wire content.
 type StartSpec struct {
-	RunID           string
-	ParentRunID     string
-	SessionID       string
-	Cwd             string
-	Handle          turn.TurnHandle
+	RunID       string
+	ParentRunID string
+	SessionID   string
+	Cwd         string
+	// TurnID is the executor's durable turn identity recorded on the live run —
+	// supplied alongside the opaque Handle so the application never reaches into
+	// the executor's handle representation.
+	TurnID          string
+	Handle          Handle
 	Provider        string
 	Model           string
 	CreatedAt       time.Time

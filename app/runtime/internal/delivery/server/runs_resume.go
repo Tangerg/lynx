@@ -89,6 +89,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		ParentRunID: in.ParentRunID,
 		SessionID:   pending.SessionID,
 		Cwd:         worktree.CanonicalCwd(sess.Cwd),
+		TurnID:      handle.TurnID,
 		Handle:      handle,
 		Provider:    pending.Provider,
 		Model:       pending.Model,

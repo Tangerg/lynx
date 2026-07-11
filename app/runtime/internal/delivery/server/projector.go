@@ -30,8 +30,16 @@ var _ runs.Projector = (*projector)(nil)
 
 func (p *projector) Open() []runs.ProjectedEvent { return p.project(p.tr.open()) }
 
-func (p *projector) Translate(ev turn.Event) []runs.ProjectedEvent {
-	return p.project(p.tr.translate(ev))
+func (p *projector) Translate(ev runs.EngineEvent) []runs.ProjectedEvent {
+	// The executor yields turn events; the port is engine-neutral so the pump
+	// stays wire-agnostic. A non-turn event can't reach here (the facade is the
+	// sole executor), so an unexpected type is a wiring bug — drop it rather than
+	// fabricate a projection.
+	te, ok := ev.(turn.Event)
+	if !ok {
+		return nil
+	}
+	return p.project(p.tr.translate(te))
 }
 
 // SynthesizeTerminal builds the terminal for a stream that ended without one.

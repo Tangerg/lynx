@@ -10,24 +10,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
 // --- fakes (drive the Coordinator without the wire or the agent SDK) ---
 
+// stubEngineEvent is an opaque placeholder executor event: the pump forwards it
+// verbatim and the fakeProjector ignores its content.
+type stubEngineEvent struct{}
+
 type fakeExecutor struct {
-	events   []turn.Event
+	events   []EngineEvent
 	block    bool // when set, the turn blocks on ctx instead of emitting — a live run
 	mu       sync.Mutex
 	canceled int
 	startErr error
 }
 
-func (f *fakeExecutor) TurnEvents(ctx context.Context, _ turn.TurnHandle) (iter.Seq[turn.Event], error) {
+func (f *fakeExecutor) TurnEvents(ctx context.Context, _ Handle) (iter.Seq[EngineEvent], error) {
 	if f.startErr != nil {
 		return nil, f.startErr
 	}
-	return func(yield func(turn.Event) bool) {
+	return func(yield func(EngineEvent) bool) {
 		if f.block {
 			<-ctx.Done()
 			return
@@ -43,7 +46,7 @@ func (f *fakeExecutor) TurnEvents(ctx context.Context, _ turn.TurnHandle) (iter.
 	}, nil
 }
 
-func (f *fakeExecutor) CancelTurn(context.Context, turn.TurnHandle) error {
+func (f *fakeExecutor) CancelTurn(context.Context, Handle) error {
 	f.mu.Lock()
 	f.canceled++
 	f.mu.Unlock()
@@ -65,7 +68,7 @@ type fakeProjector struct {
 }
 
 func (p *fakeProjector) Open() []ProjectedEvent                { return p.open }
-func (p *fakeProjector) Translate(turn.Event) []ProjectedEvent { return p.translate }
+func (p *fakeProjector) Translate(EngineEvent) []ProjectedEvent { return p.translate }
 func (p *fakeProjector) SynthesizeTerminal() []ProjectedEvent  { return p.terminal }
 func (p *fakeProjector) Abort(msg string)                      { p.aborted = msg }
 
@@ -111,7 +114,7 @@ func (m *fakeMinter) Mint() string { return fmt.Sprintf("evt_%011d", m.n.Add(1))
 // without a terminal — synthesizes one on teardown; each non-interrupt event is
 // committed after publication.
 func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
-	exec := &fakeExecutor{events: []turn.Event{turn.TurnStart{}}}
+	exec := &fakeExecutor{events: []EngineEvent{stubEngineEvent{}}}
 	eff := &fakeEffects{}
 	proj := &fakeProjector{
 		open:      []ProjectedEvent{{Durable: true, Payload: "started"}},
@@ -121,7 +124,7 @@ func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
 	c := NewCoordinator(exec, eff, &fakeMinter{})
 
 	events, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SessionID: "ses_1", Handle: turn.TurnHandle{SessionID: "ses_1", TurnID: "run_1"}},
+		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
 		func(v SegmentView) Projector { proj.view = v; return proj })
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -243,7 +246,7 @@ func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 // commit fails, the pump aborts — it never publishes the interrupt, cancels the
 // turn, and terminalizes as error.
 func TestCoordinatorInterruptPersistFailureAborts(t *testing.T) {
-	exec := &fakeExecutor{events: []turn.Event{turn.TurnStart{}}}
+	exec := &fakeExecutor{events: []EngineEvent{stubEngineEvent{}}}
 	eff := &fakeEffects{beforeErr: fmt.Errorf("store down")}
 	proj := &fakeProjector{
 		open:      []ProjectedEvent{{Durable: true, Payload: "started"}},
@@ -252,7 +255,7 @@ func TestCoordinatorInterruptPersistFailureAborts(t *testing.T) {
 	}
 	c := NewCoordinator(exec, eff, &fakeMinter{})
 	events, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SessionID: "ses_1", Handle: turn.TurnHandle{TurnID: "run_1"}},
+		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
 		func(SegmentView) Projector { return proj })
 	if err != nil {
 		t.Fatalf("Start: %v", err)

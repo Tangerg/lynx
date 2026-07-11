@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"testing"
 
@@ -173,8 +174,22 @@ func (s stubRuntime) PlanTurnStart(ctx context.Context, sessionID, defaultCwd st
 	return sess, planned, nil
 }
 
-func (s stubRuntime) TurnEvents(ctx context.Context, handle turn.TurnHandle) (iter.Seq[turn.Event], error) {
-	return s.turnDispatcher().Events(ctx, handle)
+func (s stubRuntime) TurnEvents(ctx context.Context, handle runs.Handle) (iter.Seq[runs.EngineEvent], error) {
+	h, ok := handle.(turn.TurnHandle)
+	if !ok {
+		return nil, fmt.Errorf("stub: handle %T is not a turn handle", handle)
+	}
+	seq, err := s.turnDispatcher().Events(ctx, h)
+	if err != nil {
+		return nil, err
+	}
+	return func(yield func(runs.EngineEvent) bool) {
+		for ev := range seq {
+			if !yield(ev) {
+				return
+			}
+		}
+	}, nil
 }
 
 func (s stubRuntime) InjectTurnSteering(ctx context.Context, handle turn.TurnHandle, message string) error {
@@ -189,8 +204,12 @@ func (s stubRuntime) RehydrateTurn(ctx context.Context, req turn.RehydrateReques
 	return s.turnDispatcher().Rehydrate(ctx, req)
 }
 
-func (s stubRuntime) CancelTurn(ctx context.Context, handle turn.TurnHandle) error {
-	return s.turnDispatcher().Cancel(ctx, handle)
+func (s stubRuntime) CancelTurn(ctx context.Context, handle runs.Handle) error {
+	h, ok := handle.(turn.TurnHandle)
+	if !ok {
+		return fmt.Errorf("stub: handle %T is not a turn handle", handle)
+	}
+	return s.turnDispatcher().Cancel(ctx, h)
 }
 
 func (s stubRuntime) TurnProcessID(ctx context.Context, handle turn.TurnHandle) (string, error) {

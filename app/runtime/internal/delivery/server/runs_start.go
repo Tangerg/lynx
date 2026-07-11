@@ -83,6 +83,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		RunID:           runID,
 		SessionID:       sessionID,
 		Cwd:             worktree.CanonicalCwd(sess.Cwd),
+		TurnID:          handle.TurnID,
 		Handle:          handle,
 		Provider:        in.Provider,
 		Model:           in.Model,
