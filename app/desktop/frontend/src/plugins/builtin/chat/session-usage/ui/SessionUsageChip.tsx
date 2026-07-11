@@ -1,13 +1,12 @@
 import { fmtCost, fmtTokens } from "@/lib/format";
-import { useSessionUsage } from "@/lib/data/useUsage";
 import { useT } from "@/lib/i18n";
-import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
+import { useActiveSessionId, useAgentSessionUsage } from "@/plugins/builtin/agent/public/session";
 import { sessionUsageReadout } from "../application/sessionUsageReadout";
 
 export function SessionUsageChip() {
   const t = useT();
   const sessionId = useActiveSessionId();
-  const { data } = useSessionUsage(sessionId || undefined);
+  const { data } = useAgentSessionUsage(sessionId || undefined);
   const readout = sessionUsageReadout(data);
   if (!readout) return null;
 

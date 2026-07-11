@@ -7,15 +7,15 @@
 //   - grep:        params pass-through, result verbatim (matches + total)
 //   - file-head:   params pass-through, FileHead unwrapped to its lines
 
+import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session";
+import type { MCPServer as McpServerStatusSummary } from "@/plugins/builtin/settings/mcp-servers/public/data";
 import type {
-  FileChange as WorkspaceFileChangeSummary,
-  FileLine,
-  GrepResult,
-  MCPServer as McpServerStatusSummary,
+  WorkspaceFileChange as WorkspaceFileChangeSummary,
+  WorkspaceFileLine,
+  WorkspaceGrepResult,
   WorkspaceProjectSummary,
-  AgentSessionSummary,
   WorkspaceDiff,
-} from "@/lib/data/queries";
+} from "@/plugins/builtin/workspace/public/data";
 import { afterEach, describe, expect, it } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
@@ -189,11 +189,11 @@ describe("defaultData — providers over JSON-RPC", () => {
   });
 
   it("grep: forwards params on the wire and returns matches + total verbatim", async () => {
-    const result: GrepResult = {
+    const result: WorkspaceGrepResult = {
       matches: [{ path: "src/a.ts", lineNumber: 12, text: "const x = 1" }],
       total: 5, // > matches.length — the server-truncation signal must survive
     };
-    const { value, requests } = await runProvider<GrepResult>(
+    const { value, requests } = await runProvider<WorkspaceGrepResult>(
       "grep",
       [["workspace.grep", result]],
       { query: "const x", limit: 1 },
@@ -203,7 +203,7 @@ describe("defaultData — providers over JSON-RPC", () => {
   });
 
   it("file-head: forwards params and unwraps FileHead to its lines", async () => {
-    const { value, requests } = await runProvider<FileLine[]>(
+    const { value, requests } = await runProvider<WorkspaceFileLine[]>(
       "file-head",
       [
         [

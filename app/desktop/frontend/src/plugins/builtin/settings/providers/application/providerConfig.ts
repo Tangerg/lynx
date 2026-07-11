@@ -11,7 +11,7 @@ import {
   useModels,
   useProviders,
   useUtilityRole,
-} from "@/lib/data/queries";
+} from "./providerQueries";
 import { queryClient } from "@/lib/data/queryClient";
 import {
   providerGateway,

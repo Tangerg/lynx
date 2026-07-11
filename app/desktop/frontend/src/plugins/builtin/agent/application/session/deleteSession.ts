@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import type { AgentSessionSummary } from "@/lib/data/queries";
+import type { AgentSessionSummary } from "./sessionQueries";
 import { queryClient } from "@/lib/data/queryClient";
-import { invalidateSessions, SESSIONS_KEY } from "@/lib/data/queries";
+import { invalidateAgentSessions, AGENT_SESSIONS_KEY } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { reportSessionError } from "./reportSessionError";
@@ -17,17 +17,17 @@ export function useDeleteSession(): (id: string) => Promise<void> {
     // delete RPC and the list refetch both complete. Cancel any in-flight
     // refetch first so it can't resolve with the (still-present) row and undo
     // the optimistic removal; snapshot after cancelling for rollback.
-    await queryClient.cancelQueries({ queryKey: [SESSIONS_KEY] });
-    const prev = queryClient.getQueryData<AgentSessionSummary[]>([SESSIONS_KEY]);
-    queryClient.setQueryData<AgentSessionSummary[]>([SESSIONS_KEY], (old) =>
+    await queryClient.cancelQueries({ queryKey: [AGENT_SESSIONS_KEY] });
+    const prev = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
+    queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
       old?.filter((s) => s.id !== id),
     );
     try {
       await agentRuntime().deleteSession(id);
       agentSessionState().closeSession(id);
-      void invalidateSessions();
+      void invalidateAgentSessions();
     } catch (err) {
-      if (prev) queryClient.setQueryData([SESSIONS_KEY], prev);
+      if (prev) queryClient.setQueryData([AGENT_SESSIONS_KEY], prev);
       reportSessionError("delete", err);
     }
   }, []);

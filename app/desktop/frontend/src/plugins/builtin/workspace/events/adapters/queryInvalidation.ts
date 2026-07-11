@@ -1,13 +1,15 @@
 import { queryClient } from "@/lib/data/queryClient";
+import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
 import {
-  DIFF_KEY,
-  FILES_CHANGED_KEY,
   MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
-  SESSIONS_KEY,
-  SKILLS_KEY,
-} from "@/lib/data/queries";
+} from "@/plugins/builtin/settings/mcp-servers/public/data";
+import {
+  WORKSPACE_DIFF_KEY,
+  WORKSPACE_FILES_CHANGED_KEY,
+  WORKSPACE_SKILLS_KEY,
+} from "@/plugins/builtin/workspace/public/data";
 import {
   workspaceInvalidations,
   type WorkspaceEventLike,
@@ -15,13 +17,13 @@ import {
 } from "../domain/eventInvalidation";
 
 const QUERY_KEYS: Record<Exclude<WorkspaceInvalidationTarget, "all">, string> = {
-  diff: DIFF_KEY,
-  filesChanged: FILES_CHANGED_KEY,
+  diff: WORKSPACE_DIFF_KEY,
+  filesChanged: WORKSPACE_FILES_CHANGED_KEY,
   mcpConfigs: MCP_CONFIGS_KEY,
   mcpServers: MCP_SERVERS_KEY,
   mcpTools: MCP_TOOLS_KEY,
-  sessions: SESSIONS_KEY,
-  skills: SKILLS_KEY,
+  sessions: AGENT_SESSIONS_KEY,
+  skills: WORKSPACE_SKILLS_KEY,
 };
 
 export function invalidateWorkspaceTargets(targets: WorkspaceInvalidationTarget[]): void {

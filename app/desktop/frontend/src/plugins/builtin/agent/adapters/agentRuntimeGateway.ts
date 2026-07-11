@@ -31,6 +31,9 @@ const gateway: AgentRuntimeGateway = {
       .items.list({ sessionId: asSessionId(sessionId) });
     return { items: data, runs };
   },
+  loadSessionUsage(sessionId) {
+    return getContainer().client().usage.session(asSessionId(sessionId));
+  },
   async rollbackSession(input) {
     await getContainer()
       .client()

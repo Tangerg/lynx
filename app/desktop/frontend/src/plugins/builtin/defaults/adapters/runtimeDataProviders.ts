@@ -1,40 +1,50 @@
-import type {
-  ApprovalRulesQuery,
-  DiffQuery,
-  FileChangesQuery,
-  FileHeadQuery,
-  GrepQuery,
-  HooksQuery,
-  ListFilesQuery,
-  McpToolsQuery,
-  MemoryQuery,
-  ReadFileQuery,
-  RecipesQuery,
-  WorkspaceDiff,
-} from "@/lib/data/queries";
-import type { DataProviderSpec, Host } from "@/plugins/sdk";
-import type { McpServer as RpcMCPServer } from "@/rpc";
+import type { ApprovalRulesQuery } from "@/plugins/builtin/agent/public/approvalPolicy";
 import {
   APPROVAL_MODE_KEY,
   APPROVAL_RULES_KEY,
-  CODEBASE_STATUS_KEY,
-  DIFF_KEY,
-  EMBEDDING_ROLE_KEY,
-  FILES_CHANGED_KEY,
-  HOOKS_KEY,
+} from "@/plugins/builtin/agent/public/approvalPolicy";
+import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
+import { RECIPES_KEY, type RecipesQuery } from "@/plugins/builtin/chat/recipes/public/data";
+import { HOOKS_KEY, type HooksQuery } from "@/plugins/builtin/settings/hooks/public/data";
+import {
   MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
-  MEMORY_KEY,
+  type McpToolsQuery,
+} from "@/plugins/builtin/settings/mcp-servers/public/data";
+import {
+  CODEBASE_STATUS_KEY,
+  EMBEDDING_ROLE_KEY,
   MODELS_KEY,
-  PROJECTS_KEY,
   PROVIDERS_KEY,
-  RECIPES_KEY,
-  SCHEDULES_KEY,
-  SESSIONS_KEY,
-  SKILLS_KEY,
   UTILITY_ROLE_KEY,
-} from "@/lib/data/queries";
+} from "@/plugins/builtin/settings/providers/public/data";
+import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/data";
+import type {
+  WorkspaceDiffQuery,
+  WorkspaceFileChangesQuery,
+  WorkspaceFileHeadQuery,
+  WorkspaceGrepQuery,
+  WorkspaceListFilesQuery,
+  WorkspaceMemoryQuery,
+  WorkspaceReadFileQuery,
+  WorkspaceDiff,
+} from "@/plugins/builtin/workspace/public/data";
+import {
+  WORKSPACE_AGENT_DOCS_KEY,
+  WORKSPACE_BUILTIN_TOOLS_KEY,
+  WORKSPACE_DIFF_KEY,
+  WORKSPACE_FILES_CHANGED_KEY,
+  WORKSPACE_FILE_HEAD_KEY,
+  WORKSPACE_GREP_KEY,
+  WORKSPACE_LIST_FILES_KEY,
+  WORKSPACE_MEMORY_KEY,
+  WORKSPACE_PROJECTS_KEY,
+  WORKSPACE_READ_FILE_KEY,
+  WORKSPACE_SKILLS_KEY,
+} from "@/plugins/builtin/workspace/public/data";
+import type { DataProviderSpec, Host } from "@/plugins/sdk";
+import type { McpServer as RpcMCPServer } from "@/rpc";
 import { getContainer } from "@/main/container";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { asSessionId } from "@/rpc";
@@ -54,19 +64,21 @@ export function registerDefaultDataProviders(host: Host): void {
   };
 
   contribute({
-    key: SESSIONS_KEY,
+    key: AGENT_SESSIONS_KEY,
     fetcher: async () => (await client().sessions.list()).data.map(toAgentSessionSummary),
   });
   contribute({
-    key: PROJECTS_KEY,
+    key: WORKSPACE_PROJECTS_KEY,
     fetcher: async () =>
       (await client().workspace.listProjects()).data.map(toWorkspaceProjectSummary),
   });
   contribute({
-    key: FILES_CHANGED_KEY,
+    key: WORKSPACE_FILES_CHANGED_KEY,
     fetcher: async (params) =>
       (
-        await client().workspace.listFileChanges((params as FileChangesQuery | undefined)?.cwd)
+        await client().workspace.listFileChanges(
+          (params as WorkspaceFileChangesQuery | undefined)?.cwd,
+        )
       ).data.map(toWorkspaceFileChangeSummary),
   });
   contribute({
@@ -99,23 +111,26 @@ export function registerDefaultDataProviders(host: Host): void {
       ).data.map((t) => ({ name: t.name, description: t.description ?? "" })),
   });
   contribute({
-    key: DIFF_KEY,
+    key: WORKSPACE_DIFF_KEY,
     fetcher: async (params) => {
-      const diff = await client().workspace.getDiff({ ...(params as DiffQuery), format: "rows" });
+      const diff = await client().workspace.getDiff({
+        ...(params as WorkspaceDiffQuery),
+        format: "rows",
+      });
       return { files: diff.files ?? [], truncated: diff.truncated } satisfies WorkspaceDiff;
     },
   });
   contribute({
-    key: "grep",
-    fetcher: (params) => client().workspace.grep(params as GrepQuery),
+    key: WORKSPACE_GREP_KEY,
+    fetcher: (params) => client().workspace.grep(params as WorkspaceGrepQuery),
   });
   contribute({
-    key: "file-head",
+    key: WORKSPACE_FILE_HEAD_KEY,
     fetcher: async (params) =>
-      (await client().workspace.getFileHead(params as FileHeadQuery)).lines,
+      (await client().workspace.getFileHead(params as WorkspaceFileHeadQuery)).lines,
   });
   contribute({
-    key: SKILLS_KEY,
+    key: WORKSPACE_SKILLS_KEY,
     fetcher: async () =>
       (await client().workspace.listSkills().catch(emptyPageIfUngated)).data.map((s) => ({
         name: s.name,
@@ -124,7 +139,7 @@ export function registerDefaultDataProviders(host: Host): void {
       })),
   });
   contribute({
-    key: "builtin-tools",
+    key: WORKSPACE_BUILTIN_TOOLS_KEY,
     fetcher: async () =>
       (await client().tools.list()).data.map((t) => ({
         name: t.name,
@@ -133,11 +148,11 @@ export function registerDefaultDataProviders(host: Host): void {
       })),
   });
   contribute({
-    key: MEMORY_KEY,
+    key: WORKSPACE_MEMORY_KEY,
     fetcher: async (params) =>
       (
         await client()
-          .memory.list((params as MemoryQuery | undefined)?.cwd)
+          .memory.list((params as WorkspaceMemoryQuery | undefined)?.cwd)
           .catch(emptyPageIfUngated)
       ).data.map((m) => ({
         scope: m.scope,
@@ -147,7 +162,7 @@ export function registerDefaultDataProviders(host: Host): void {
       })),
   });
   contribute({
-    key: "agent-docs",
+    key: WORKSPACE_AGENT_DOCS_KEY,
     fetcher: async () =>
       (await client().workspace.listAgentDocs().catch(emptyPageIfUngated)).data.map((d) => ({
         path: d.path,
@@ -230,9 +245,9 @@ export function registerDefaultDataProviders(host: Host): void {
       ).data,
   });
   contribute({
-    key: "list-files",
+    key: WORKSPACE_LIST_FILES_KEY,
     fetcher: async (params) => {
-      const q = params as ListFilesQuery;
+      const q = params as WorkspaceListFilesQuery;
       return (
         await client().workspace.listFiles({
           cwd: q.cwd,
@@ -249,9 +264,9 @@ export function registerDefaultDataProviders(host: Host): void {
     },
   });
   contribute({
-    key: "read-file",
+    key: WORKSPACE_READ_FILE_KEY,
     fetcher: async (params) => {
-      const q = params as ReadFileQuery;
+      const q = params as WorkspaceReadFileQuery;
       const r = await client().workspace.readFile({ path: q.path, cwd: q.cwd });
       return { content: r.content, totalLines: r.totalLines, truncated: r.truncated };
     },

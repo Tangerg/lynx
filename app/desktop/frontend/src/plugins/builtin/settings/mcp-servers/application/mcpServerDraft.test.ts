@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MCPServerConfigInfo } from "@/lib/data/queries";
+import type { MCPServerConfigInfo } from "./mcpServerQueries";
 import {
   initialMCPServerDraft,
   isMCPServerDraftValid,

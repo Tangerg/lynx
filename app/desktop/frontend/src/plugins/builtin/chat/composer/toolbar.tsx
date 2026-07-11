@@ -1,15 +1,16 @@
 import { useEffect, useRef } from "react";
-import type { ApprovalModeValue } from "@/lib/data/queries";
 import { AgentIconButton } from "@/ui/agent";
 import { DropdownMenu, Icon, ProviderIcon, StatusDot, Tooltip } from "@/ui";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { useSelectedModel } from "./public/selectedModel";
-import { useApprovalMode, useModels } from "@/lib/data/queries";
 import {
   APPROVAL_MODES,
   DEFAULT_APPROVAL_MODE,
   setApprovalMode,
+  useApprovalMode,
+  type ApprovalModeValue,
 } from "@/plugins/builtin/agent/public/approvalPolicy";
+import { useModels } from "@/plugins/builtin/settings/providers/public/data";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";

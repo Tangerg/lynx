@@ -1,7 +1,7 @@
 // The runtime's approval stances in backend order. Labels/descriptions are i18n
 // keys resolved by consumers.
 
-import type { ApprovalModeValue } from "@/lib/data/queries";
+import type { ApprovalModeValue } from "../application/approvalPolicyQueries";
 
 export interface ApprovalModeOption {
   value: ApprovalModeValue;

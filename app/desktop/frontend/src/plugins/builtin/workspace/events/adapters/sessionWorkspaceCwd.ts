@@ -1,7 +1,7 @@
 import { getContainer } from "@/main/container";
 import { queryClient } from "@/lib/data/queryClient";
-import { SESSIONS_KEY } from "@/lib/data/queries";
 import {
+  AGENT_SESSIONS_KEY,
   getActiveSessionId,
   subscribeActiveSessionId,
 } from "@/plugins/builtin/agent/public/session";
@@ -10,7 +10,7 @@ import { asSessionId } from "@/rpc";
 export async function resolveActiveSessionWorkspaceCwd(): Promise<string | undefined> {
   const id = getActiveSessionId();
   if (!id) return undefined;
-  const list = queryClient.getQueryData<{ id: string; cwd?: string }[]>([SESSIONS_KEY]);
+  const list = queryClient.getQueryData<{ id: string; cwd?: string }[]>([AGENT_SESSIONS_KEY]);
   const cached = list?.find((session) => session.id === id)?.cwd;
   if (cached !== undefined || list !== undefined) return cached;
   return getContainer()
@@ -23,7 +23,7 @@ export async function resolveActiveSessionWorkspaceCwd(): Promise<string | undef
 export function subscribeWorkspaceCwdInputs(onChange: () => void): () => void {
   const unsubSession = subscribeActiveSessionId(onChange);
   const unsubCache = queryClient.getQueryCache().subscribe((event) => {
-    if (event.query.queryKey[0] === SESSIONS_KEY) onChange();
+    if (event.query.queryKey[0] === AGENT_SESSIONS_KEY) onChange();
   });
   return () => {
     unsubSession();

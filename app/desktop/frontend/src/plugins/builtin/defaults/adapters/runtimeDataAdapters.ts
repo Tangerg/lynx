@@ -1,10 +1,12 @@
+import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session";
 import type {
-  FileChange as WorkspaceFileChangeSummary,
   MCPServer as McpServerStatusSummary,
   MCPServerConfigInfo,
+} from "@/plugins/builtin/settings/mcp-servers/public/data";
+import type {
+  WorkspaceFileChange as WorkspaceFileChangeSummary,
   WorkspaceProjectSummary,
-  AgentSessionSummary,
-} from "@/lib/data/queries";
+} from "@/plugins/builtin/workspace/public/data";
 import type {
   McpServer as RpcMCPServer,
   McpServerConfig as RpcMCPServerConfig,

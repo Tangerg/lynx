@@ -141,7 +141,7 @@ src/
 ├── lib/                  共享 hook + 纯函数（跨插件共享，不属于上述任一层）
 │   ├── agent/            会话用例 hook（useChatSend / useApprovalSubmit / useQuestionAnswer /
 │   │                     useCreateSession / …）+ HITL 决策词表 + streamReveal + messageContent
-│   ├── data/             React Query read cache（queries / queryClient）
+│   ├── data/             React Query 基础设施（dataQuery / queryClient；不放业务模型）
 │   ├── i18n/             i18next 接线 + 分词 + 相对时间
 │   ├── markdown/         rehype 插件 + shiki + KaTeX（纯 infra）
 │   ├── observability/    OTel 三信号（setup/sink/stores/tracing/logBridge）—— 见 §5.5
@@ -168,7 +168,7 @@ src/
 
 Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内外分层"的只有一处：**UI / 状态 / 插件不应直接发起 outbound 副作用**（HTTP、SSE、IPC）。这一层由 **`rpc/`（Runtime Protocol boundary）+ `main/container.ts`（composition root）** 承担。
 
-> 早期规划过 `domain/gateways` + `infra/HttpXxx` 的清洁架构分层，**那套从未落地**：所有 outbound 都收敛成一个 JSON-RPC 协议，gateway-per-capability 的抽象没必要了。现在的边界就是"一个协议客户端"。
+所有 outbound 都收敛成一个 JSON-RPC 协议客户端，但业务上下文不会直接依赖它：application 定义窄 port，adapter 在组合边界把 port 接到 `getContainer().client()`。协议 DTO 只在 adapter 或明确的 fold 反腐层出现。
 
 ```
         ┌────────────────────────────────────────────┐
@@ -186,9 +186,9 @@ Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内
         └────────────────────────────────────────────┘
                           ▲ via getContainer()
         ┌────────────────────────────────────────────┐
-        │  components/ state/ plugins/ lib/ pages/     │
-        │   拿 client 一律走 getContainer()，           │
-        │   不自己 createLyraClient / 不绕过 container   │
+        │  builtin context adapters                     │
+        │   实现 application ports，经 getContainer()    │
+        │   接到 JSON-RPC client                         │
         └────────────────────────────────────────────┘
 ```
 
@@ -197,10 +197,12 @@ Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内
 - `rpc/` 是独立层：只依赖外部库 + 自己，**禁** import `state` / `sdk` / `components` / `protocol` / `main` 任何 app 层。
 - `plugins/builtin/agent/application/fold/`（fold/viewState）可达 `rpc`（wire 类型）+ `sdk`（dispatcher seam）+ `lib`，**禁** UI / state / main。
 - `plugins/sdk` / `state` / `lib` **禁** import UI（`components` / `pages` / `builtin`）——锁住"平台/工具层不依赖它被消费的 UI"。
-- `components/` / `pages/` **禁** import `@/main`（composition root）或 `@/rpc`（协议客户端）——只经 store selector / `lib/data` query / SDK selector 触业务。
+- `components/` / `pages/` **禁** import `@/main`（composition root）或 `@/rpc`（协议客户端）——只经 context public facade / store selector / SDK selector 触业务。
 - **跨限界上下文只能走 `public/`**：`plugins/builtin/<ctx>/` 一旦有 `application/domain/adapters/presentation/ui/public` 任一目录即视为限界上下文；别的上下文只准 import 它的 `public/` facade，连它根目录下的松散文件也不行（`builtin/index.ts` manifest 作为插件组合根豁免）。`check-builtin-contexts.mjs` 再在这些合法的 public→public 边上查环。
-- **`settings/` 各面板的上下文形态**：统一 `ui/`（React 组件）+ `application/`（用例 hook + `ports/`）+ `adapters/`（gateway 实现），plugin 入口 `index.{ts,tsx}` 注册面板。**刻意不设 `public/`** —— 面板是叶子，不被其他上下文消费（唯一跨界引用是 manifest 引 `index`），加 facade 是无消费方的仪式（YAGNI）。加新面板照此摆放，UI 别散在上下文根。
-- 业务调用一律走 `getContainer().client().xxx(...)`；测试用 `setContainer({ client })` / `resetContainer()` 注入假实现。
+- **`settings/` 各面板的上下文形态**：统一 `ui/`（React 组件）+ `application/`（用例、读模型与 `ports/`）+ `adapters/`（gateway 实现），plugin 入口 `index.{ts,tsx}` 注册面板。只有被其他上下文消费的稳定读模型才建立 `public/data.ts`；其余面板保持叶子。
+- 业务用例依赖 application port；只有 adapter / composition root 调用 `getContainer().client().xxx(...)`。测试优先替换 port，协议 adapter 测试再用 `setContainer({ client })` / `resetContainer()`。
+
+React Query 的 cache 与 provider lookup 是共享技术机制，留在 `lib/data/dataQuery.ts` 与 `queryClient.ts`。Session、Workspace、Approval、Provider、MCP、Hooks、Schedules、Recipes、Usage 的 query key、read model 与 hook 均由所属上下文拥有；跨上下文消费必须经过该上下文的 `public/data.ts`（或既有 public facade）。`lib/data` 不再充当全局业务模型仓库。
 
 Runtime endpoint 是组合配置：`lyra.builtin.runtime` 在 capability discovery 之前同步恢复
 `runtime.endpoint`，`main/container.ts` 按 endpoint + local token 缓存客户端。Connection 面板只编辑
@@ -668,7 +670,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 - **registry 是唯一真相**——不直接 import 内置插件去用，永远走 `useXxx` / `lookupXxx`。
 - **store 是单 Zustand instance**——多 selector 订阅，不要把 store 包进 context。
 - **运行时事件单向流入 view state**——render 路径不回写 agent store；想"做事"就调 store 上的 `send` / `stop` / `resume`。
-- **components 不直连后端**——只经 store selector / `lib/data` query / SDK selector，**禁** import `@/main` / `@/rpc`（`check:layers` 强制）。
+- **components 不直连后端**——只经 context public facade / store selector / SDK selector，**禁** import `@/main` / `@/rpc`（`check:layers` 强制）。
 - **Disposable 一律由 Host 收集**——别手动 `dispose()`。
 - **协议是唯一 outbound 边界**——不在 UI/store 里直接 `fetch` / 开 SSE / 调 IPC，都走 `rpc/`。
 - **API breaking 改动碰 `apiVersion.ts`**——破坏 Host 接口/spec 形状的改动 bump major。

@@ -1,6 +1,10 @@
-import type { BuiltinToolInfo, MCPServer } from "@/lib/data/queries";
-import { useBuiltinTools, useMCPServers, useMCPTools } from "@/lib/data/queries";
+import {
+  useMCPServers,
+  useMCPTools,
+  type MCPServer,
+} from "@/plugins/builtin/settings/mcp-servers/public/data";
 import { toolCatalogGateway } from "./ports/toolCatalogGateway";
+import { useWorkspaceBuiltinTools, type BuiltinToolInfo } from "./workspaceData";
 
 export type MCPServerConfig = MCPServer;
 
@@ -37,7 +41,7 @@ const SAFETY_PILL_CLASS_BY_SAFETY: Record<string, string> = {
 const DEFAULT_SAFETY_PILL_CLASS = "bg-surface-2 text-fg-muted";
 
 export function useBuiltinToolConfigs() {
-  return useBuiltinTools();
+  return useWorkspaceBuiltinTools();
 }
 
 export function useMCPServerConfigs() {

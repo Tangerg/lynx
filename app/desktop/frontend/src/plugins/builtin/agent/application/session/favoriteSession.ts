@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import type { AgentSessionSummary } from "@/lib/data/queries";
+import type { AgentSessionSummary } from "./sessionQueries";
 import { queryClient } from "@/lib/data/queryClient";
-import { invalidateSessions, SESSIONS_KEY } from "@/lib/data/queries";
+import { invalidateAgentSessions, AGENT_SESSIONS_KEY } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
 
@@ -13,16 +13,16 @@ export function useToggleFavorite(): (id: string, favorite: boolean) => Promise<
     // Cancel any in-flight sessions refetch before the optimistic write so a
     // background invalidate (workspace resync / reconnect) started earlier
     // can't resolve with the old favorite flag and un-flip the star.
-    await queryClient.cancelQueries({ queryKey: [SESSIONS_KEY] });
-    const prev = queryClient.getQueryData<AgentSessionSummary[]>([SESSIONS_KEY]);
-    queryClient.setQueryData<AgentSessionSummary[]>([SESSIONS_KEY], (old) =>
+    await queryClient.cancelQueries({ queryKey: [AGENT_SESSIONS_KEY] });
+    const prev = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
+    queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
       old?.map((s) => (s.id === id ? { ...s, favorite } : s)),
     );
     try {
       await agentRuntime().updateSession({ sessionId: id, favorite });
-      void invalidateSessions();
+      void invalidateAgentSessions();
     } catch (err) {
-      if (prev) queryClient.setQueryData([SESSIONS_KEY], prev);
+      if (prev) queryClient.setQueryData([AGENT_SESSIONS_KEY], prev);
       reportSessionError("favorite", err);
     }
   }, []);

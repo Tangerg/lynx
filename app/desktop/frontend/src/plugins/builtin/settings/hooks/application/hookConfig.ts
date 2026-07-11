@@ -1,4 +1,4 @@
-import { useHooks } from "@/lib/data/queries";
+import { useHooks } from "./hookQueries";
 
 export interface HookConfig {
   event: string;

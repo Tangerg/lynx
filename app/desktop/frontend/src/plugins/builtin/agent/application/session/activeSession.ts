@@ -1,5 +1,5 @@
-import type { AgentSessionSummary } from "@/lib/data/queries";
-import { useSessions } from "@/lib/data/queries";
+import type { AgentSessionSummary } from "./sessionQueries";
+import { useAgentSessions } from "./sessionQueries";
 import {
   agentSessionState,
   type AgentSessionLifecycleSnapshot,
@@ -61,7 +61,7 @@ export function closeActiveAgentSession(): boolean {
  */
 export function useActiveSession(): AgentSessionSummary | undefined {
   const activeSessionId = useActiveSessionId();
-  const { data } = useSessions();
+  const { data } = useAgentSessions();
   if (!activeSessionId) return undefined;
   return data?.find((s) => s.id === activeSessionId);
 }

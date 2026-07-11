@@ -16,6 +16,13 @@ export {
   useReconcilePersistedAgentSessions,
   useVisibleAgentSessions,
 } from "../application/session/sessionList";
+export {
+  AGENT_SESSIONS_KEY,
+  invalidateAgentSessions,
+  useAgentSessions,
+  type AgentSessionSummary,
+} from "../application/session/sessionQueries";
+export { AGENT_SESSION_USAGE_KEY, useAgentSessionUsage } from "../application/session/sessionUsage";
 export { createSession, useCreateSession } from "../application/session/createSession";
 export type { CreateSessionOptions } from "../application/session/createSession";
 export { useDeleteSession } from "../application/session/deleteSession";

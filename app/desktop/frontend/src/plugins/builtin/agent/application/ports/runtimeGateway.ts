@@ -14,6 +14,15 @@ export interface AgentSessionHistory {
   runs: AgentRunHistoryRef[];
 }
 
+export interface AgentSessionUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+  costUsd?: number;
+}
+
 export interface AgentRuntimeGateway {
   createSession(input: { cwd?: string }, signal?: AbortSignal): Promise<{ id: string }>;
   deleteSession(sessionId: string): Promise<void>;
@@ -25,6 +34,7 @@ export interface AgentRuntimeGateway {
   }): Promise<void>;
   forkSession(input: { sessionId: string; fromRunId?: string }): Promise<{ id: string }>;
   loadSessionHistory(sessionId: string): Promise<AgentSessionHistory>;
+  loadSessionUsage(sessionId: string): Promise<AgentSessionUsage>;
   rollbackSession(input: {
     sessionId: string;
     toRunId?: string;

@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import type { AgentSessionSummary } from "@/lib/data/queries";
+import type { AgentSessionSummary } from "./sessionQueries";
 import { queryClient } from "@/lib/data/queryClient";
-import { invalidateSessions, SESSIONS_KEY } from "@/lib/data/queries";
+import { invalidateAgentSessions, AGENT_SESSIONS_KEY } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
 
@@ -16,16 +16,16 @@ export function useRenameSession(): (id: string, title: string) => Promise<void>
     // optimistic write (a background workspace resync / reconnect invalidate)
     // would otherwise resolve with pre-rename data and clobber the optimistic
     // title. Snapshot after cancelling so rollback restores the right state.
-    await queryClient.cancelQueries({ queryKey: [SESSIONS_KEY] });
-    const prev = queryClient.getQueryData<AgentSessionSummary[]>([SESSIONS_KEY]);
-    queryClient.setQueryData<AgentSessionSummary[]>([SESSIONS_KEY], (old) =>
+    await queryClient.cancelQueries({ queryKey: [AGENT_SESSIONS_KEY] });
+    const prev = queryClient.getQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY]);
+    queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
       old?.map((s) => (s.id === id ? { ...s, title } : s)),
     );
     try {
       await agentRuntime().updateSession({ sessionId: id, title });
-      void invalidateSessions();
+      void invalidateAgentSessions();
     } catch (err) {
-      if (prev) queryClient.setQueryData([SESSIONS_KEY], prev);
+      if (prev) queryClient.setQueryData([AGENT_SESSIONS_KEY], prev);
       reportSessionError("rename", err);
     }
   }, []);

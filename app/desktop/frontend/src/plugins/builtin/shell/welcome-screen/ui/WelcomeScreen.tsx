@@ -1,7 +1,7 @@
 import type { IconName } from "@/ui";
 import { Icon, Kbd, Tooltip } from "@/ui";
 import { comboGlyph } from "@/lib/combo";
-import { useProviders } from "@/lib/data/queries";
+import { useProviders } from "@/plugins/builtin/settings/providers/public/data";
 import { useT } from "@/lib/i18n";
 import { useSetComposerText } from "@/plugins/builtin/chat/composer/public/draft";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";

@@ -1,4 +1,5 @@
-import type { WorkspaceProjectSummary, AgentSessionSummary } from "@/lib/data/queries";
+import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session";
+import type { WorkspaceProjectSummary } from "@/plugins/builtin/workspace/public/data";
 import { basename } from "@/lib/path";
 import type { WorkGroup, WorkProject, WorkSession } from "../domain/workIndex";
 

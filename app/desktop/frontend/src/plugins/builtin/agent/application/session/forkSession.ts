@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { invalidateSessions } from "@/lib/data/queries";
+import { invalidateAgentSessions } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { reportSessionError } from "./reportSessionError";
@@ -29,7 +29,7 @@ async function doFork(id: string, fromRunId?: string): Promise<void> {
   try {
     const fork = await agentRuntime().forkSession({ sessionId: id, fromRunId });
     agentSessionState().selectSession(fork.id);
-    void invalidateSessions();
+    void invalidateAgentSessions();
   } catch (err) {
     reportSessionError("fork", err);
   }

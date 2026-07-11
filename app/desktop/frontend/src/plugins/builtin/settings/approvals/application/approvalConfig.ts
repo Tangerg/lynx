@@ -1,15 +1,13 @@
 import {
   APPROVAL_MODES,
+  APPROVAL_RULES_KEY,
   forgetRule,
   setApprovalMode,
-} from "@/plugins/builtin/agent/public/approvalPolicy";
-import {
-  APPROVAL_RULES_KEY,
   type ApprovalModeValue,
   type ApprovalRuleInfo,
   useApprovalMode,
   useApprovalRules,
-} from "@/lib/data/queries";
+} from "@/plugins/builtin/agent/public/approvalPolicy";
 import { queryClient } from "@/lib/data/queryClient";
 
 export type ApprovalMode = ApprovalModeValue;
