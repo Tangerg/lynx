@@ -47,6 +47,15 @@ type interruptStore interface {
 	Put(ctx context.Context, p interrupts.Pending) error
 }
 
+// runStateWriter is the facade's view of the durable Run-admission state the
+// run-segment committer transitions inside the event commit (§8.3): a park
+// suspends the run, a terminal terminalizes it. Narrower than the run
+// coordinator's admission surface; the one sqlite-backed store satisfies both.
+type runStateWriter interface {
+	Suspend(ctx context.Context, sessionID string) error
+	Terminalize(ctx context.Context, sessionID, outcome string) error
+}
+
 // Runtime is the residual execution facade: the turn/engine surface (the
 // runs.Executor the run pump drives) plus the durable session/transcript/history
 // stores it reads for turn planning and projections. Batch 5 relocates this
@@ -67,6 +76,12 @@ type Runtime struct {
 	sessions   sessionStore
 	interrupts interruptStore
 	transcript transcriptStore
+
+	// runState + transact back the run-segment committer's atomic event commit:
+	// the durable Run-state transition and the transactional seam that lands it in
+	// one transaction with the interrupt / transcript record (§8.3).
+	runState runStateWriter
+	transact Transactor
 
 	// history exposes the message-history operations used outside the turn loop
 	// — not via the engine (it owns only the steering touchpoint).

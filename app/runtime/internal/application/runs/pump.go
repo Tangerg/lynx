@@ -4,18 +4,19 @@ import (
 	"context"
 	"iter"
 	"time"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 // pump is the run segment goroutine: it leads with the projector's open events,
 // projects each executor event, and — on a terminal or a drained stream — tears
 // the run down. It preserves the run stream's ordering exactly: live publication
-// generally precedes the durable write (a slow store can't delay the terminal
+// generally precedes the durable commit (a slow store can't delay the terminal
 // reaching subscribers or the teardown), EXCEPT an interrupt, whose durable
 // record is committed before its event is published (a client may resume the
-// instant it sees the interrupt). A parked run leaves its live turn alive for
-// resume; a true terminal cancels it.
+// instant it sees the interrupt). Each event's durable commit is ATOMIC: its
+// projections and the run-state transition it implies (park → interrupted,
+// terminal) land in one transaction (§8.3), so a crash never leaves a parked run
+// with no admission mark or a terminal transcript with a running row. A parked
+// run leaves its live turn alive for resume; a true terminal cancels it.
 func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner iter.Seq[EngineEvent], live *handle, projector Projector) {
 	hub := live.hub
 	finished := false
@@ -40,9 +41,15 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 				Payload:   pe.Payload,
 			}
 			if pe.Interrupt {
+				// Park: the atomic commit ({open interrupt + suspend the run-state},
+				// §8.3) must land before the event is published, so a client can't
+				// resume ahead of the durable record. Linearized vs cancel: a cancel
+				// that won the race skips the commit (committed=false).
 				committed, err := live.commitInterrupt(func() error {
-					if err := c.effects.BeforeLive(ownerCtx, pe.Effect); err != nil {
-						return err
+					if pe.Commit != nil {
+						if err := c.effects.CommitEvent(ownerCtx, *pe.Commit); err != nil {
+							return err
+						}
 					}
 					finished = true
 					parked = true
@@ -59,16 +66,23 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 				if !committed {
 					return false
 				}
-				c.effects.AfterLive(ownerCtx, pe.Effect)
 				continue
 			}
 			if pe.Terminal {
 				finished = true
 			}
-			// Live first: deliver + retain in the replay backlog before the
-			// durable write, so a slow store can't delay the terminal.
+			// Live first: deliver + retain in the replay backlog before the durable
+			// commit, so a slow store can't delay the terminal. The commit (which for
+			// a terminal atomically records the run + terminalizes the run-state) is
+			// best-effort — a lost projection self-heals, a stranded admission row is
+			// swept by the next boot's ReconcileOrphans.
 			hub.Append(ev)
-			c.effects.AfterLive(ownerCtx, pe.Effect)
+			if pe.Commit != nil {
+				_ = c.effects.CommitEvent(ownerCtx, *pe.Commit)
+			}
+			if pe.Nudge != nil {
+				c.effects.Nudge(pe.Nudge.Cwd, pe.Nudge.Paths)
+			}
 		}
 		return true
 	}
@@ -87,7 +101,9 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 		if !finished {
 			// The stream ended without a run.finished (canceled mid-flight /
 			// drained iterator) — synthesize the terminal so the stream ends
-			// balanced. The projector decides error-vs-canceled from its state.
+			// balanced. The projector decides error-vs-canceled from its state, and
+			// the synthesized terminal's commit terminalizes the run-state, so no
+			// separate teardown state write is needed.
 			_ = publish(projector.SynthesizeTerminal())
 		}
 		hub.Close()
@@ -96,19 +112,6 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 			// forget on a true terminal.
 			if !parked && e.Payload != nil {
 				e.Payload.stop()
-			}
-		}
-		// Move the durable admission row (§8.2) to match the segment's fate: a true
-		// terminal frees the session; a parked run suspends to interrupted, staying
-		// non-terminal (resumable) — matching the live turn left alive above. Both
-		// are best-effort — a missed write leaves the row non-terminal, but with no
-		// open interrupt the next boot's ReconcileOrphans sweeps it (§8.3 makes the
-		// interrupt/state pair atomic so the state alone becomes authoritative).
-		if c.runStore != nil {
-			if parked {
-				_ = c.runStore.Suspend(ownerCtx, spec.SessionID)
-			} else {
-				_ = c.runStore.Terminalize(ownerCtx, spec.SessionID, pumpOutcome(ctx, abortTurn))
 			}
 		}
 		// Terminal boundary maintenance stays off the critical path (async /
@@ -129,21 +132,5 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 			// Interrupt segment done; leave the turn parked for resume.
 			return
 		}
-	}
-}
-
-// pumpOutcome is the coarse terminal reason the durable run row records at
-// teardown: canceled when the run's context was canceled, error when a
-// projection/commit aborted the turn, else completed. It is deliberately coarse
-// — the precise [execution.Outcome] (maxBudget / maxSteps) rides the terminal
-// event's opaque payload; a later atomic EventCommit (§8.1) records it exactly.
-func pumpOutcome(runCtx context.Context, aborted bool) string {
-	switch {
-	case runCtx.Err() != nil:
-		return execution.OutcomeCanceled.String()
-	case aborted:
-		return execution.OutcomeError.String()
-	default:
-		return execution.OutcomeCompleted.String()
 	}
 }

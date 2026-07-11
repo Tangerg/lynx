@@ -4,6 +4,8 @@ import (
 	"context"
 	"iter"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 // The ports this package consumes to run a segment. They are defined here — on
@@ -60,18 +62,29 @@ type Projector interface {
 }
 
 // ProjectedEvent is one event on its way to both the durable store and the live
-// journal. Payload and Effect are BOTH opaque to the application: it shuttles
-// each from the delivery-side Projector to its consumer without inspecting it.
-// Payload is the wire event (published to the journal); Effect is the durable
-// side effect (handed to the Effects port). The projector builds Effect as a
-// concrete adapter type; only that adapter reads it back.
+// journal. Payload is opaque to the application — it shuttles the wire event to
+// the journal without inspecting it. Commit is the event's atomic durable
+// side-effect ([execution.EventCommit], nil when the event persists nothing);
+// Nudge is a non-durable live workspace notification (nil when none). The
+// application reads neither Commit's records nor Nudge's paths — it forwards them
+// to the [Effects] port — but Commit is a domain value (not an opaque adapter
+// type) so the run pump can commit it without an agent-SDK dependency.
 type ProjectedEvent struct {
-	Durable   bool // retained for replay (mirrors the wire's IsDurable)
-	Terminal  bool // ends the run's stream (the run.finished)
-	Interrupt bool // terminal that PARKS — takes the commit-before-publish path
-	Abort     bool // projection failed; cancel the turn and terminalize as error
-	Payload   any  // opaque wire payload (a protocol StreamEvent)
-	Effect    any  // opaque durable side effect (an adapter side-effect record)
+	Durable   bool                   // retained for replay (mirrors the wire's IsDurable)
+	Terminal  bool                   // ends the run's stream (the run.finished)
+	Interrupt bool                   // terminal that PARKS — takes the commit-before-publish path
+	Abort     bool                   // projection failed; cancel the turn and terminalize as error
+	Payload   any                    // opaque wire payload (a protocol StreamEvent)
+	Commit    *execution.EventCommit // atomic durable commit (nil = nothing to persist)
+	Nudge     *Nudge                 // non-durable live workspace nudge (nil = none)
+}
+
+// Nudge is a non-durable live workspace change notification the pump forwards to
+// subscribers after a file-mutating tool item — deliberately path-only, so the
+// wire WorkspaceEvent shape stays in the delivery adapter.
+type Nudge struct {
+	Cwd   string
+	Paths []string
 }
 
 // SegmentView exposes late-bound segment state the Projector reads at terminal
@@ -81,15 +94,25 @@ type SegmentView interface {
 	CancelReason() string
 }
 
-// Effects is the durable side of a run segment: commit the interrupt record
-// before its event is published (BeforeLive), commit item/run/files after
-// publication (AfterLive), and run terminal boundary maintenance (Finish). The
-// side-effect payload is opaque (see ProjectedEvent.Effect); only [Finish] —
-// which the pump builds from run-boundary facts it owns — is a concrete type.
-// The adapter/runsegment.Effects satisfies this structurally.
+// Effects is the durable side of a run segment. CommitEvent atomically persists
+// one event's projections and its run-state transition (§8.3/§8.4) in a single
+// transaction — the pump calls it BEFORE publishing an interrupt (so a client
+// can't resume ahead of the durable record) and AFTER publishing every other
+// event (so a slow store can't delay live delivery), the commit-before-publish
+// vs live-first ordering the pump owns. Nudge is a non-durable live workspace
+// notification; Finish runs terminal boundary maintenance (checkpoint snapshot,
+// title) off the live path. The adapter/runsegment.Effects satisfies this.
 type Effects interface {
-	BeforeLive(ctx context.Context, effect any) error
-	AfterLive(ctx context.Context, effect any)
+	// CommitEvent applies commit's set parts (interrupt open, transcript item/run,
+	// run-state transition) in one transaction. The pump checks the returned error
+	// only for a park (an interrupt commit that fails aborts the run); item/run
+	// commits are best-effort (a lost projection self-heals, reconcile sweeps a
+	// stranded admission row).
+	CommitEvent(ctx context.Context, commit execution.EventCommit) error
+	// Nudge publishes a non-durable live workspace change to subscribers.
+	Nudge(cwd string, paths []string)
+	// Finish runs terminal boundary maintenance off the live path. A parked run is
+	// resumable, not a boundary, so Finish no-ops for it (fin.Parked).
 	Finish(ctx context.Context, fin Finish)
 }
 

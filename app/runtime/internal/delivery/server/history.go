@@ -4,34 +4,37 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// sideEffectEvent converts one wire StreamEvent into the delivery-neutral
-// payload that adapter/runsegment executes. The wire blob encoding stays here:
+// sideEffectEvent derives one wire StreamEvent's durable transcript projections
+// (an item, a run record) plus its non-durable workspace nudge. The run-state
+// transition and the open-interrupt record are added by the projector, which
+// knows the event's terminal/interrupt shape. The wire blob encoding stays here:
 // transcript history is the replay store for the protocol-facing UI timeline.
 // createdAt is the run's start time (captured at segment open), carried onto the
 // synthesized terminal RunRef so the persisted run keeps its timeline key.
-func sideEffectEvent(runID, sessionID, parentRunID, cwd string, se protocol.StreamEvent, provider, model string, createdAt time.Time) runsegment.Event {
-	var out runsegment.Event
+func sideEffectEvent(runID, sessionID, parentRunID, cwd string, se protocol.StreamEvent, provider, model string, createdAt time.Time) (execution.EventCommit, *runs.Nudge) {
+	commit := execution.EventCommit{SessionID: sessionID}
+	var nudge *runs.Nudge
 	switch se.Type {
 	case protocol.StreamItemCompleted:
-		out.Item = transcriptItem(sessionID, se.Item)
-		paths := toolFileChangedPaths(se)
-		if len(paths) > 0 {
-			out.FilesChanged = &runsegment.FilesChanged{Cwd: cwd, Paths: paths}
+		commit.Item = transcriptItem(sessionID, se.Item)
+		if paths := toolFileChangedPaths(se); len(paths) > 0 {
+			nudge = &runs.Nudge{Cwd: cwd, Paths: paths}
 		}
 	case protocol.StreamRunStarted:
-		out.Run = transcriptRun(sessionID, se.Run, false)
+		commit.Run = transcriptRun(sessionID, se.Run)
 	case protocol.StreamRunFinished:
-		// run.finished carries only the outcome; synthesize the terminal
-		// RunRef so history records the run's final status + outcome. The
-		// message log is now in its terminal post-maintenance (post-compaction)
-		// shape — runsegment resolves MessageCount as this run's watermark, the
-		// boundary sessions.rollback / fork{fromRunId} truncate to (B4).
-		out.Run = transcriptRun(sessionID, &protocol.RunRef{
+		// run.finished carries only the outcome; synthesize the terminal RunRef so
+		// history records the run's final status + outcome. The message log is now
+		// in its terminal post-maintenance (post-compaction) shape — the committer
+		// resolves the terminal watermark (Mark) as this run's boundary, the mark
+		// sessions.rollback / fork{fromRunId} truncate to (B4).
+		commit.Run = transcriptRun(sessionID, &protocol.RunRef{
 			ID:          runID,
 			SessionID:   sessionID,
 			ParentRunID: parentRunID,
@@ -44,15 +47,12 @@ func sideEffectEvent(runID, sessionID, parentRunID, cwd string, se protocol.Stre
 			// rollback/fork boundary math (+ runs.list) loses the run's timeline key.
 			CreatedAt:  createdAt,
 			FinishedAt: time.Now().UTC(),
-		}, true)
-		// NOTE: the file-checkpoint snapshot is deliberately NOT taken here.
-		// It used to run synchronously on this run.finished path, ahead of the
-		// hub append — so a slow `git add` (e.g. a session opened on a huge
-		// dir) blocked the terminal event from reaching the client AND blocked
-		// the pump's teardown, leaving the run stuck "running" forever. It now
-		// runs asynchronously off the critical path in pumpRun's teardown.
+		})
+		// NOTE: the file-checkpoint snapshot is deliberately NOT taken here. It
+		// runs asynchronously off the critical path in the pump's teardown Finish,
+		// so a slow `git add` can't block the terminal event or the teardown.
 	}
-	return out
+	return commit, nudge
 }
 
 func transcriptItem(sessionID string, item *protocol.Item) *transcript.Item {
@@ -72,7 +72,10 @@ func transcriptItem(sessionID string, item *protocol.Item) *transcript.Item {
 	}
 }
 
-func transcriptRun(sessionID string, run *protocol.RunRef, terminal bool) *runsegment.RunRecord {
+// transcriptRun marshals a run record for persistence, with Mark left unresolved
+// (-1): the committer fills the terminal watermark inside the commit for a
+// terminalizing run and leaves it -1 (unknown) for the opening run.started.
+func transcriptRun(sessionID string, run *protocol.RunRef) *transcript.Run {
 	if run == nil {
 		return nil
 	}
@@ -80,12 +83,11 @@ func transcriptRun(sessionID string, run *protocol.RunRef, terminal bool) *runse
 	if err != nil {
 		return nil
 	}
-	mark := -1
-	return &runsegment.RunRecord{Run: transcript.Run{
+	return &transcript.Run{
 		SessionID: sessionID,
 		RunID:     run.ID,
 		UpdatedAt: time.Now().UTC(),
 		Blob:      blob,
-		Mark:      mark,
-	}, Terminal: terminal}
+		Mark:      -1,
+	}
 }

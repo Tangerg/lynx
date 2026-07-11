@@ -8,56 +8,71 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-func TestAfterLivePersistsTranscriptAndPublishesFileChange(t *testing.T) {
+// TestCommitEventPersistsTranscriptAndTerminalizes: a terminal commit persists
+// the item + run projection (resolving the terminal message watermark) AND
+// terminalizes the run-state — all through one CommitEvent, atomically inside the
+// wired transactor.
+func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	stores := &fakeStores{transcript: &fakeTranscript{}, mark: 7}
-	var published FilesChanged
-	effects := New(Config{
-		Stores: stores,
-		PublishFileChanges: func(cwd string, paths []string) {
-			published = FilesChanged{Cwd: cwd, Paths: paths}
-		},
-	})
+	runState := &fakeRunState{}
+	tx := &fakeTx{}
+	effects := New(Config{Stores: stores, RunState: runState, Tx: tx.run})
 
-	effects.AfterLive(context.Background(), Event{
-		Item: &transcript.Item{SessionID: "ses_1", RunID: "run_1", ItemID: "item_1", Blob: []byte(`{"id":"item_1"}`)},
-		Run: &RunRecord{
-			Run:      transcript.Run{SessionID: "ses_1", RunID: "run_1", Blob: []byte(`{"id":"run_1"}`), Mark: -1},
-			Terminal: true,
-		},
-		FilesChanged: &FilesChanged{Cwd: "/work", Paths: []string{"a.go"}},
+	err := effects.CommitEvent(context.Background(), execution.EventCommit{
+		SessionID: "ses_1",
+		State:     execution.StateTerminalize,
+		Outcome:   execution.OutcomeCompleted,
+		Item:      &transcript.Item{SessionID: "ses_1", RunID: "run_1", ItemID: "item_1", Blob: []byte(`{"id":"item_1"}`)},
+		Run:       &transcript.Run{SessionID: "ses_1", RunID: "run_1", Blob: []byte(`{"id":"run_1"}`), Mark: -1},
 	})
+	if err != nil {
+		t.Fatalf("CommitEvent: %v", err)
+	}
 
 	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ItemID != "item_1" {
 		t.Fatalf("items = %+v, want item_1", stores.transcript.items)
 	}
 	if len(stores.transcript.runs) != 1 || stores.transcript.runs[0].Mark != 7 {
-		t.Fatalf("runs = %+v, want one terminal run with mark 7", stores.transcript.runs)
+		t.Fatalf("runs = %+v, want one run with resolved mark 7", stores.transcript.runs)
 	}
-	if published.Cwd != "/work" || len(published.Paths) != 1 || published.Paths[0] != "a.go" {
-		t.Fatalf("published = %+v, want /work [a.go]", published)
+	if len(runState.terminalized) != 1 || runState.terminalized[0] != "ses_1:completed" {
+		t.Fatalf("terminalized = %v, want [ses_1:completed]", runState.terminalized)
+	}
+	if tx.calls != 1 {
+		t.Fatalf("RunInTx calls = %d, want 1 (the whole commit is one transaction)", tx.calls)
 	}
 }
 
-func TestBeforeLiveRecordsInterruptWithProcessID(t *testing.T) {
+// TestCommitEventRecordsInterruptAndSuspends: a park commit resolves the
+// interrupt's process id from the live turn, persists the resumable record, and
+// suspends the run-state — atomically.
+func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	stores := &fakeStores{interrupts: &fakeInterrupts{}}
-	effects := New(Config{Stores: stores, Processes: fakeProcess{processID: "proc_1"}})
+	runState := &fakeRunState{}
+	effects := New(Config{Stores: stores, Processes: fakeProcess{processID: "proc_1"}, RunState: runState})
 
-	effects.BeforeLive(context.Background(), Event{Interrupt: &Interrupt{
-		RunID:    "run_1",
-		Handle:   turn.TurnHandle{SessionID: "ses_1", TurnID: "turn_1"},
-		Provider: "anthropic",
-		Model:    "claude",
-		Payload:  []byte(`[{"id":"int_1"}]`),
-		DrainedTools: []interrupts.DrainedTool{{
-			ItemID: "tool_1",
-			Name:   "ask_user",
-		}},
-	}})
+	err := effects.CommitEvent(context.Background(), execution.EventCommit{
+		SessionID: "ses_1",
+		State:     execution.StateSuspend,
+		Interrupt: &interrupts.Pending{
+			ParentRunID:  "run_1",
+			SessionID:    "ses_1",
+			TurnID:       "turn_1",
+			Provider:     "anthropic",
+			Model:        "claude",
+			Interrupts:   []byte(`[{"id":"int_1"}]`),
+			DrainedTools: []interrupts.DrainedTool{{ItemID: "tool_1", Name: "ask_user"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CommitEvent: %v", err)
+	}
 
 	got := stores.interrupts.pending
 	if got.ParentRunID != "run_1" || got.ProcessID != "proc_1" || got.Provider != "anthropic" || got.Model != "claude" {
@@ -66,22 +81,50 @@ func TestBeforeLiveRecordsInterruptWithProcessID(t *testing.T) {
 	if string(got.Interrupts) != `[{"id":"int_1"}]` || len(got.DrainedTools) != 1 {
 		t.Fatalf("pending payload = %s drained=%+v", got.Interrupts, got.DrainedTools)
 	}
+	if len(runState.suspended) != 1 || runState.suspended[0] != "ses_1" {
+		t.Fatalf("suspended = %v, want [ses_1]", runState.suspended)
+	}
 }
 
-func TestBeforeLiveRejectsUnresumableInterrupt(t *testing.T) {
+// TestCommitEventRejectsUnresumableInterrupt: an unresolvable process id fails the
+// commit before the transaction — nothing is persisted and the run-state is not
+// suspended.
+func TestCommitEventRejectsUnresumableInterrupt(t *testing.T) {
 	want := errors.New("process snapshot unavailable")
 	stores := &fakeStores{interrupts: &fakeInterrupts{}}
-	effects := New(Config{Stores: stores, Processes: fakeProcess{err: want}})
+	runState := &fakeRunState{}
+	effects := New(Config{Stores: stores, Processes: fakeProcess{err: want}, RunState: runState})
 
-	err := effects.BeforeLive(context.Background(), Event{Interrupt: &Interrupt{
-		RunID:  "run_1",
-		Handle: turn.TurnHandle{SessionID: "ses_1", TurnID: "turn_1"},
-	}})
+	err := effects.CommitEvent(context.Background(), execution.EventCommit{
+		SessionID: "ses_1",
+		State:     execution.StateSuspend,
+		Interrupt: &interrupts.Pending{ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+	})
 	if !errors.Is(err, want) {
-		t.Fatalf("BeforeLive err = %v, want %v", err, want)
+		t.Fatalf("CommitEvent err = %v, want %v", err, want)
 	}
 	if stores.interrupts.pending.ParentRunID != "" {
 		t.Fatalf("unresumable interrupt was persisted: %+v", stores.interrupts.pending)
+	}
+	if len(runState.suspended) != 0 {
+		t.Fatalf("suspended = %v, want none (commit rejected before the transaction)", runState.suspended)
+	}
+}
+
+// TestNudgePublishesFileChange: the non-durable workspace nudge reaches the
+// publisher.
+func TestNudgePublishesFileChange(t *testing.T) {
+	var published struct {
+		cwd   string
+		paths []string
+	}
+	effects := New(Config{PublishFileChanges: func(cwd string, paths []string) {
+		published.cwd, published.paths = cwd, paths
+	}})
+
+	effects.Nudge("/work", []string{"a.go"})
+	if published.cwd != "/work" || len(published.paths) != 1 || published.paths[0] != "a.go" {
+		t.Fatalf("published = %+v, want /work [a.go]", published)
 	}
 }
 
@@ -153,6 +196,30 @@ type fakeProcess struct {
 
 func (p fakeProcess) ProcessID(context.Context, turn.TurnHandle) (string, error) {
 	return p.processID, p.err
+}
+
+// fakeRunState records the run-state transitions the commit applies.
+type fakeRunState struct {
+	suspended    []string
+	terminalized []string
+}
+
+func (r *fakeRunState) Suspend(_ context.Context, sessionID string) error {
+	r.suspended = append(r.suspended, sessionID)
+	return nil
+}
+
+func (r *fakeRunState) Terminalize(_ context.Context, sessionID, outcome string) error {
+	r.terminalized = append(r.terminalized, sessionID+":"+outcome)
+	return nil
+}
+
+// fakeTx records how many transactions the commit opens and runs the body inline.
+type fakeTx struct{ calls int }
+
+func (t *fakeTx) run(ctx context.Context, fn func(context.Context) error) error {
+	t.calls++
+	return fn(ctx)
 }
 
 type fakeTranscript struct {

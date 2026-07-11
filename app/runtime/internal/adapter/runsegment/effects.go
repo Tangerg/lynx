@@ -1,9 +1,13 @@
-// Package runsegment is the driven adapter that executes the non-wire side
-// effects of one streamed run segment — durable transcript writes,
-// open-interrupt records, workspace change nudges, and terminal best-effort
-// maintenance. It implements the application's runs.Effects port: the run pump
-// hands it opaque effect payloads (built elsewhere via this package's [Event])
-// plus the app-owned [runs.Finish] boundary descriptor.
+// Package runsegment is the driven adapter that executes the durable side
+// effects of one streamed run segment. It implements the application's
+// runs.Effects port: the run pump hands it an [execution.EventCommit] per event,
+// which it applies ATOMICALLY — the open-interrupt record, transcript
+// projections, and the run-state transition land in one transaction (§8.3/§8.4),
+// so a crash never leaves a parked run with no admission mark or a terminal
+// transcript with a still-running row. It also runs the non-durable live
+// workspace nudge and terminal boundary maintenance (checkpoint snapshot,
+// title). The fields only the runtime can resolve — an interrupt's process id
+// from the live turn, a terminal run's message watermark — it fills in itself.
 package runsegment
 
 import (
@@ -13,10 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -43,6 +46,20 @@ type TranscriptStore interface {
 	AppendItem(ctx context.Context, it transcript.Item) error
 	PutRun(ctx context.Context, r transcript.Run) error
 }
+
+// RunStateWriter applies the run's mid-flight admission-state transitions inside
+// the event commit (§8.3): a park suspends the run, a terminal terminalizes it —
+// each in the SAME transaction as the interrupt / terminal record it must stay
+// consistent with. The sqlite RunStateStore satisfies it.
+type RunStateWriter interface {
+	Suspend(ctx context.Context, sessionID string) error
+	Terminalize(ctx context.Context, sessionID, outcome string) error
+}
+
+// Transactor runs fn inside one storage transaction; the store calls fn makes
+// join it through the context. A nil Transactor degrades to a direct
+// (non-transactional) call for tests / non-sqlite runtimes.
+type Transactor func(ctx context.Context, fn func(context.Context) error) error
 
 // Stores is the consumer-defined surface the Effects coordinator drives. It is
 // intentionally narrower than the runtime bundle: this use-case needs only
@@ -83,6 +100,8 @@ type FileChangePublisher func(cwd string, paths []string)
 type Config struct {
 	Stores             Stores
 	Processes          ProcessLookup
+	RunState           RunStateWriter
+	Tx                 Transactor
 	Checkpoints        Checkpoints
 	Tasks              TaskLauncher
 	PublishFileChanges FileChangePublisher
@@ -93,89 +112,70 @@ type Config struct {
 type Effects struct {
 	stores      Stores
 	processes   ProcessLookup
+	runState    RunStateWriter
+	tx          Transactor
 	checkpoints Checkpoints
 	tasks       TaskLauncher
 	publish     FileChangePublisher
 }
+
+var _ runs.Effects = (*Effects)(nil)
 
 // New returns an Effects coordinator.
 func New(cfg Config) *Effects {
 	return &Effects{
 		stores:      cfg.Stores,
 		processes:   cfg.Processes,
+		runState:    cfg.RunState,
+		tx:          cfg.Tx,
 		checkpoints: cfg.Checkpoints,
 		tasks:       cfg.Tasks,
 		publish:     cfg.PublishFileChanges,
 	}
 }
 
-// Event is the delivery-neutral side-effect payload for one stream event. The
-// protocol adapter builds it while translating wire shapes; Effects only sees
-// domain records and opaque JSON blobs.
-type Event struct {
-	Interrupt    *Interrupt
-	Item         *transcript.Item
-	Run          *RunRecord
-	FilesChanged *FilesChanged
-}
-
-// Interrupt is the durable-resume record opened when a run parks on HITL.
-type Interrupt struct {
-	RunID        string
-	Handle       turn.TurnHandle
-	Provider     string
-	Model        string
-	Payload      []byte
-	DrainedTools []interrupts.DrainedTool
-}
-
-// RunRecord is a transcript run upsert. Terminal records get their chat history
-// watermark resolved by Effects immediately before PutRun.
-type RunRecord struct {
-	Run      transcript.Run
-	Terminal bool
-}
-
-// FilesChanged is the workspace live-update nudge derived from a completed
-// file-mutating tool call.
-type FilesChanged struct {
-	Cwd   string
-	Paths []string
-}
-
-// asEvent recovers the concrete side-effect payload the pump shuttles opaquely.
-// The application ring treats an effect as any (mirroring the opaque wire
-// payload), so the only producer — the delivery projector — always builds an
-// [Event]; the zero value legitimately means "nothing to commit".
-func asEvent(effect any) Event {
-	ev, _ := effect.(Event)
-	return ev
-}
-
-// BeforeLive runs side effects that must complete before the terminal event is
-// visible to subscribers. Today that means only the interrupt record: a client
-// may call runs.resume as soon as it observes run.finished{interrupt}.
-func (e *Effects) BeforeLive(ctx context.Context, effect any) error {
-	ev := asEvent(effect)
-	if ev.Interrupt != nil {
-		return e.recordInterrupt(ctx, *ev.Interrupt)
+// CommitEvent applies one run event's durable parts atomically (§8.3/§8.4): the
+// open-interrupt record, transcript item/run projections, and the run-state
+// transition, all in one transaction. The interrupt's recoverable process id is
+// resolved from the live turn BEFORE the transaction opens (an in-memory lookup,
+// not a DB read) and its absence fails the commit — a park with no recoverable
+// process is not resumable. A terminal run's message watermark is resolved inside
+// the transaction so it is consistent with the state it terminalizes.
+func (e *Effects) CommitEvent(ctx context.Context, commit execution.EventCommit) error {
+	var pending *interrupts.Pending
+	if commit.Interrupt != nil {
+		p := *commit.Interrupt
+		procID, err := e.interruptProcessID(ctx, p)
+		if err != nil {
+			return err
+		}
+		p.ProcessID = procID
+		pending = &p
 	}
-	return nil
+	return e.runInTx(ctx, func(ctx context.Context) error {
+		if pending != nil {
+			if err := e.putInterrupt(ctx, *pending); err != nil {
+				return err
+			}
+		}
+		if commit.Item != nil {
+			if err := e.appendItem(ctx, *commit.Item); err != nil {
+				return err
+			}
+		}
+		if commit.Run != nil {
+			if err := e.putRun(ctx, *commit.Run, commit.State == execution.StateTerminalize); err != nil {
+				return err
+			}
+		}
+		return e.applyState(ctx, commit)
+	})
 }
 
-// AfterLive runs side effects that must not block live delivery: durable
-// transcript writes and workspace change nudges. The caller should pass a
-// cancel-decoupled context for terminal events that must survive run cancel.
-func (e *Effects) AfterLive(ctx context.Context, effect any) {
-	ev := asEvent(effect)
-	if ev.Item != nil {
-		e.recordItem(ctx, *ev.Item)
-	}
-	if ev.Run != nil {
-		e.recordRun(ctx, *ev.Run)
-	}
-	if ev.FilesChanged != nil && e.publish != nil && len(ev.FilesChanged.Paths) > 0 {
-		e.publish(ev.FilesChanged.Cwd, ev.FilesChanged.Paths)
+// Nudge publishes a non-durable live workspace change to subscribers.
+func (e *Effects) Nudge(cwd string, paths []string) {
+	if e.publish != nil && len(paths) > 0 {
+		e.publish(cwd, paths)
 	}
 }
 
@@ -197,67 +197,88 @@ func (e *Effects) Finish(ctx context.Context, fin runs.Finish) {
 	}
 }
 
+func (e *Effects) runInTx(ctx context.Context, fn func(context.Context) error) error {
+	if e.tx == nil {
+		return fn(ctx)
+	}
+	return e.tx(ctx, fn)
+}
+
+func (e *Effects) interruptProcessID(ctx context.Context, p interrupts.Pending) (string, error) {
+	if e.processes == nil {
+		return "", errors.New("runsegment: interrupt persistence is unavailable")
+	}
+	// Rebuild the executor's turn handle from the persisted coordinates — the
+	// dispatcher keys the live turn by session + turn id, and the domain record
+	// carries both, so runsegment needs no adapter handle in the commit value.
+	procID, err := e.processes.ProcessID(ctx, turn.TurnHandle{SessionID: p.SessionID, TurnID: p.TurnID})
+	if err != nil {
+		return "", fmt.Errorf("runsegment: resolve interrupt process: %w", err)
+	}
+	if procID == "" {
+		return "", errors.New("runsegment: interrupt process id is empty")
+	}
+	return procID, nil
+}
+
+func (e *Effects) putInterrupt(ctx context.Context, p interrupts.Pending) error {
+	if e.stores == nil || e.stores.Interrupts() == nil {
+		return errors.New("runsegment: interrupt persistence is unavailable")
+	}
+	if err := e.stores.Interrupts().Put(ctx, p); err != nil {
+		return fmt.Errorf("runsegment: persist interrupt: %w", err)
+	}
+	return nil
+}
+
+// appendItem is a best-effort transcript projection write: a missing store (a
+// non-persisting test runtime) or a lost item is a display gap, not a run error.
+func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
+	if e.stores == nil || e.stores.Transcript() == nil {
+		return nil
+	}
+	return e.stores.Transcript().AppendItem(ctx, item)
+}
+
+// putRun upserts a transcript run, resolving the terminal message watermark
+// inside the caller's transaction — the mark the rollback / fork boundary math
+// truncates the chat log to. The message log is in its terminal post-maintenance
+// (post-compaction) shape by the time the terminal event reaches here.
+func (e *Effects) putRun(ctx context.Context, run transcript.Run, terminal bool) error {
+	if e.stores == nil || e.stores.Transcript() == nil {
+		return nil
+	}
+	if terminal && run.Mark < 0 {
+		if mark, err := e.stores.MessageCount(ctx, run.SessionID); err == nil {
+			run.Mark = mark
+		}
+	}
+	if run.UpdatedAt.IsZero() {
+		run.UpdatedAt = time.Now().UTC()
+	}
+	return e.stores.Transcript().PutRun(ctx, run)
+}
+
+func (e *Effects) applyState(ctx context.Context, commit execution.EventCommit) error {
+	if e.runState == nil {
+		return nil
+	}
+	switch commit.State {
+	case execution.StateSuspend:
+		return e.runState.Suspend(ctx, commit.SessionID)
+	case execution.StateTerminalize:
+		return e.runState.Terminalize(ctx, commit.SessionID, commit.Outcome.String())
+	default:
+		return nil
+	}
+}
+
 func (e *Effects) startBackground(ctx context.Context, task func(context.Context)) {
 	if e.tasks != nil {
 		e.tasks.Start(ctx, task)
 		return
 	}
 	task(ctx)
-}
-
-func (e *Effects) recordInterrupt(ctx context.Context, in Interrupt) error {
-	if e.stores == nil || e.stores.Interrupts() == nil || e.processes == nil {
-		return errors.New("runsegment: interrupt persistence is unavailable")
-	}
-	processID, err := e.processes.ProcessID(ctx, in.Handle)
-	if err != nil {
-		return fmt.Errorf("runsegment: resolve interrupt process: %w", err)
-	}
-	if processID == "" {
-		return errors.New("runsegment: interrupt process id is empty")
-	}
-	if err := e.stores.Interrupts().Put(ctx, interrupts.Pending{
-		ParentRunID:  in.RunID,
-		SessionID:    in.Handle.SessionID,
-		TurnID:       in.Handle.TurnID,
-		ProcessID:    processID,
-		Provider:     in.Provider,
-		Model:        in.Model,
-		Interrupts:   in.Payload,
-		DrainedTools: in.DrainedTools,
-		CreatedAt:    time.Now().UTC(),
-	}); err != nil {
-		return fmt.Errorf("runsegment: persist interrupt: %w", err)
-	}
-	return nil
-}
-
-func (e *Effects) recordItem(ctx context.Context, item transcript.Item) {
-	if e.stores == nil || e.stores.Transcript() == nil {
-		return
-	}
-	if err := e.stores.Transcript().AppendItem(ctx, item); err != nil {
-		trace.SpanFromContext(ctx).RecordError(err)
-	}
-}
-
-func (e *Effects) recordRun(ctx context.Context, rec RunRecord) {
-	if e.stores == nil || e.stores.Transcript() == nil {
-		return
-	}
-	if rec.Terminal {
-		mark, err := e.stores.MessageCount(ctx, rec.Run.SessionID)
-		if err != nil {
-			mark = -1
-		}
-		rec.Run.Mark = mark
-	}
-	if rec.Run.UpdatedAt.IsZero() {
-		rec.Run.UpdatedAt = time.Now().UTC()
-	}
-	if err := e.stores.Transcript().PutRun(ctx, rec.Run); err != nil {
-		trace.SpanFromContext(ctx).RecordError(err)
-	}
 }
 
 func (e *Effects) snapshot(ctx context.Context, sessionID, runID string) {

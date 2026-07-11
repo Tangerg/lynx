@@ -198,11 +198,13 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 
 	started := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
 
-	ev := sideEffectEvent("run_1", sess.ID, "", "", protocol.StreamEvent{
+	commit, _ := sideEffectEvent("run_1", sess.ID, "", "", protocol.StreamEvent{
 		Type:    protocol.StreamRunFinished,
 		Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted},
 	}, "", "", started)
-	s.runSegmentEffects().AfterLive(ctx, ev)
+	if err := s.runSegmentEffects().CommitEvent(ctx, commit); err != nil {
+		t.Fatalf("commit terminal run: %v", err)
+	}
 
 	_, runs, err := rt.hist.List(ctx, sess.ID)
 	if err != nil || len(runs) != 1 {

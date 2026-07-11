@@ -38,6 +38,8 @@ func (r *Runtime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publish 
 	return runsegment.New(runsegment.Config{
 		Stores:             runSegmentStores{rt: r},
 		Processes:          runSegmentProcesses{rt: r},
+		RunState:           r.runState,
+		Tx:                 runsegment.Transactor(r.transact),
 		Checkpoints:        checkpoints,
 		Tasks:              &r.tasks,
 		PublishFileChanges: publish,
