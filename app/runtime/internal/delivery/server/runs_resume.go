@@ -27,7 +27,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	pending, admission, err := s.rt.ClaimResumeSlot(ctx, s.coordinator, in.ParentRunID)
+	pending, admission, err := s.sessions.ClaimResumeSlot(ctx, s.coordinator, in.ParentRunID)
 	if err != nil {
 		switch {
 		case errors.Is(err, sessions.ErrInterruptNotOpen):
@@ -44,7 +44,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if err != nil {
 		return nil, nil, wireSessionErr(err)
 	}
-	treeAdmission, ok := s.rt.ClaimWorkingTreeRun(sess.Cwd)
+	treeAdmission, ok := s.sessions.ClaimWorkingTreeRun(sess.Cwd)
 	if !ok {
 		return nil, nil, fmt.Errorf("%w: working tree %q has a file restore in flight", protocol.ErrSessionBusy, sess.Cwd)
 	}
@@ -55,7 +55,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		}
 	}()
 
-	resumed, err := s.rt.ResumeClaimedInterrupt(ctx, in.ParentRunID, resolution, interruptKindsFromContext(ctx))
+	resumed, err := s.sessions.ResumeClaimedInterrupt(ctx, in.ParentRunID, resolution, interruptKindsFromContext(ctx))
 	if err != nil {
 		switch {
 		case errors.Is(err, sessions.ErrInterruptNotOpen):

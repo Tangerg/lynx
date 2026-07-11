@@ -78,6 +78,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 
 	api, err := server.New(server.Config{
 		Runtime:     stack.Runtime,
+		Sessions:    stack.Sessions,
 		ServerInfo:  info,
 		Checkpoints: workspace.NewCheckpoints(checkpointDir),
 		Schedules:   stack.Schedules,

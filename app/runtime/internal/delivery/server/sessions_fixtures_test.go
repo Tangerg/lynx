@@ -35,7 +35,14 @@ type stubRuntime struct {
 	hist        transcript.Store          // durable Item/run history (rollback/fork read runs)
 	interrupts  interrupts.Store          // open-interrupt registry (rollback clears dropped)
 	turns       turn.Dispatcher
-	workingTree *sessions.WorkingTreeGate
+}
+
+// sessionsCoordinatorProvider is the optional test seam newTestServer uses to
+// wire s.sessions: a fake that can build the real lifecycle coordinator over its
+// own in-memory stores (stubRuntime). Fakes that never drive a lifecycle
+// write-set may omit it, leaving s.sessions nil.
+type sessionsCoordinatorProvider interface {
+	sessionsCoordinator() *sessions.Coordinator
 }
 
 func newTestServer(rt RuntimePort) *Server {
@@ -43,6 +50,11 @@ func newTestServer(rt RuntimePort) *Server {
 	// Build the run Coordinator like New does, so tests exercise the real
 	// admission / lifecycle seam (its effects come from the stub runtime).
 	s.coordinator = runs.NewCoordinator(rt, s.runSegmentEffects(), cursorMinter{next: s.nextEventID})
+	// Wire the session/run lifecycle coordinator over the fake's in-memory stores
+	// when the fake provides one, mirroring the composition root.
+	if p, ok := rt.(sessionsCoordinatorProvider); ok {
+		s.sessions = p.sessionsCoordinator()
+	}
 	// Default to a disabled schedules coordinator (schedules.* report
 	// capability_not_negotiated); schedule tests replace it with a fake registry.
 	s.schedules = schedules.NewCoordinator(nil, nil)
@@ -188,7 +200,7 @@ func (s stubRuntime) TurnProcessID(ctx context.Context, handle turn.TurnHandle) 
 }
 
 type stubLifecycleTurns struct {
-	rt stubRuntime
+	rt *stubRuntime
 }
 
 func (t stubLifecycleTurns) Cancel(ctx context.Context, handle turn.TurnHandle) error {
@@ -212,7 +224,7 @@ func (p stubRunSegmentProcesses) ProcessID(ctx context.Context, handle turn.Turn
 }
 
 type stubLifecycleStores struct {
-	rt stubRuntime
+	rt *stubRuntime
 }
 
 func (s stubLifecycleStores) Session() sessions.SessionStore { return s.rt.sess }
@@ -257,62 +269,14 @@ func (s stubRunSegmentStores) GenerateTitle(context.Context, string) (string, er
 	return "", nil
 }
 
-func (s stubRuntime) ClaimRunSlot(ctx context.Context, claims sessions.SessionClaimer, sessionID string) (sessions.RunAdmission, error) {
-	return sessions.New(stubLifecycleStores{rt: s}).ClaimRunSlot(ctx, claims, sessionID)
-}
-
-func (s stubRuntime) ClaimMutationSlot(claims sessions.SessionClaimer, sessionID string) (sessions.RunAdmission, error) {
-	return sessions.New(stubLifecycleStores{rt: s}).ClaimMutationSlot(claims, sessionID)
-}
-
-func (s *stubRuntime) ClaimWorkingTreeRun(cwd string) (sessions.WorkingTreeAdmission, bool) {
-	return s.workingTreeGate().ClaimRun(worktree.CanonicalCwd(cwd))
-}
-
-func (s *stubRuntime) ClaimWorkingTreeMutation(cwd string) (sessions.WorkingTreeAdmission, bool) {
-	return s.workingTreeGate().ClaimMutation(worktree.CanonicalCwd(cwd))
-}
-
-func (s *stubRuntime) workingTreeGate() *sessions.WorkingTreeGate {
-	if s.workingTree == nil {
-		s.workingTree = &sessions.WorkingTreeGate{}
-	}
-	return s.workingTree
-}
-
-func (s stubRuntime) ClaimResumeSlot(ctx context.Context, claims sessions.SessionClaimer, parentRunID string) (interrupts.Pending, sessions.RunAdmission, error) {
-	return sessions.New(stubLifecycleStores{rt: s}).ClaimResumeSlot(ctx, claims, parentRunID)
-}
-
-func (s stubRuntime) CancelParkedRun(ctx context.Context, runID string) error {
-	return sessions.New(stubLifecycleStores{rt: s}).CancelParkedRun(ctx, stubLifecycleTurns{rt: s}, runID)
-}
-
-func (s stubRuntime) CancelRunBinding(ctx context.Context, run sessions.RunTurnBinding) error {
-	return sessions.New(stubLifecycleStores{rt: s}).CancelRunBinding(ctx, stubLifecycleTurns{rt: s}, run)
-}
-
-func (s stubRuntime) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution, interruptKinds []string) (sessions.ResumedInterrupt, error) {
-	return sessions.New(stubLifecycleStores{rt: s}).ResumeClaimedInterrupt(ctx, stubLifecycleTurns{rt: s}, parentRunID, resolution, interruptKinds)
-}
-
-func (s stubRuntime) RollbackResolved(ctx context.Context, sessionID string, boundary transcript.Boundary) error {
-	if len(boundary.Dropped) == 0 {
-		return nil
-	}
-	return sessions.New(stubLifecycleStores{rt: s}).Rollback(ctx, stubLifecycleTurns{rt: s}, sessionID, boundary)
-}
-
-func (s stubRuntime) ForkSession(ctx context.Context, spec sessions.ForkSpec) (session.Session, error) {
-	return sessions.New(stubLifecycleStores{rt: s}).Fork(ctx, spec)
-}
-
-func (s stubRuntime) RestoreSession(ctx context.Context, ses session.Session, msgs []chat.Message, runs []transcript.Run, items []transcript.Item) error {
-	return sessions.New(stubLifecycleStores{rt: s}).RestoreSession(ctx, ses, msgs, runs, items)
-}
-
-func (s stubRuntime) DeleteSession(ctx context.Context, id string) error {
-	return sessions.New(stubLifecycleStores{rt: s}).DeleteSession(ctx, stubLifecycleTurns{rt: s}, id)
+// sessionsCoordinator builds the real lifecycle coordinator over the stub's
+// in-memory stores and turns, so newTestServer can wire s.sessions the way the
+// composition root does — delivery drives every lifecycle write-set through it.
+func (s *stubRuntime) sessionsCoordinator() *sessions.Coordinator {
+	return sessions.New(sessions.Dependencies{
+		Stores: stubLifecycleStores{rt: s},
+		Turns:  stubLifecycleTurns{rt: s},
+	})
 }
 
 func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects {

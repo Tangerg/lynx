@@ -206,39 +206,3 @@ func TestRuntimeUpdateSessionRejectsInvalidPatch(t *testing.T) {
 	}
 }
 
-func TestRuntimeWorkingTreeAdmission(t *testing.T) {
-	rt := &Runtime{}
-	const cwd = "/repo"
-
-	runAdmission, ok := rt.ClaimWorkingTreeRun(cwd)
-	if !ok {
-		t.Fatal("run admission must claim an idle cwd")
-	}
-	if _, ok := rt.ClaimWorkingTreeMutation(cwd); ok {
-		t.Fatal("mutation admission must wait for run admission")
-	}
-	runAdmission.Release()
-
-	mutationAdmission, ok := rt.ClaimWorkingTreeMutation(cwd)
-	if !ok {
-		t.Fatal("mutation admission must claim an idle cwd")
-	}
-	if _, ok := rt.ClaimWorkingTreeRun(cwd); ok {
-		t.Fatal("run admission must wait for mutation admission")
-	}
-	mutationAdmission.Release()
-}
-
-func TestRuntimeWorkingTreeAdmissionCanonicalizesCwd(t *testing.T) {
-	rt := &Runtime{}
-
-	mutationAdmission, ok := rt.ClaimWorkingTreeMutation("/repo/./child/..")
-	if !ok {
-		t.Fatal("mutation admission must claim canonical cwd")
-	}
-	defer mutationAdmission.Release()
-
-	if _, ok := rt.ClaimWorkingTreeRun("/repo"); ok {
-		t.Fatal("run admission must share the canonical cwd namespace")
-	}
-}

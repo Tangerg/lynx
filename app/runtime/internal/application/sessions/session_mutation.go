@@ -14,7 +14,7 @@ import (
 // DeleteSession atomically removes all durable session state, then tears down
 // process-local parked turns and the resume gate. File checkpoints are an
 // adapter-owned workspace concern and are dropped by the caller after commit.
-func (c *Coordinator) DeleteSession(ctx context.Context, turns TurnCanceler, sessionID string) error {
+func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error {
 	var pending []interrupts.Pending
 	if err := c.s.RunInTx(ctx, func(ctx context.Context) error {
 		var err error
@@ -38,7 +38,7 @@ func (c *Coordinator) DeleteSession(ctx context.Context, turns TurnCanceler, ses
 		return err
 	}
 	for _, item := range pending {
-		c.cancelTurn(ctx, turns, RunTurnBinding{
+		c.cancelTurn(ctx, RunTurnBinding{
 			RunID:     item.ParentRunID,
 			SessionID: item.SessionID,
 			TurnID:    item.TurnID,

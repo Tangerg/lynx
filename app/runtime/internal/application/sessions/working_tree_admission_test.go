@@ -2,6 +2,30 @@ package sessions
 
 import "testing"
 
+// TestCoordinatorWorkingTreeAdmissionCanonicalizesCwd verifies the coordinator's
+// admission methods canonicalize the cwd before touching the gate, so a run and
+// a mutation targeting the same tree by different spellings still exclude.
+func TestCoordinatorWorkingTreeAdmissionCanonicalizesCwd(t *testing.T) {
+	c := New(Dependencies{})
+
+	mutationAdmission, ok := c.ClaimWorkingTreeMutation("/repo/./child/..")
+	if !ok {
+		t.Fatal("mutation admission must claim canonical cwd")
+	}
+	defer mutationAdmission.Release()
+
+	if _, ok := c.ClaimWorkingTreeRun("/repo"); ok {
+		t.Fatal("run admission must share the canonical cwd namespace")
+	}
+
+	mutationAdmission.Release()
+	runAdmission, ok := c.ClaimWorkingTreeRun("/repo")
+	if !ok {
+		t.Fatal("run admission must claim after the mutation releases")
+	}
+	runAdmission.Release()
+}
+
 func TestWorkingTreeGateExcludesRunsAndMutations(t *testing.T) {
 	var gate WorkingTreeGate
 	const cwd = "/repo"

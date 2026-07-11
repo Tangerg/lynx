@@ -18,7 +18,7 @@ func TestDeleteSessionCommitsDurableStateBeforeProcessCleanup(t *testing.T) {
 	stores := newDeleteStores("")
 	turns := deleteTurns{operations: &stores.operations}
 
-	if err := New(stores).DeleteSession(context.Background(), turns, "ses_1"); err != nil {
+	if err := newCoordinator(stores, turns).DeleteSession(context.Background(), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
 
@@ -55,7 +55,7 @@ func TestDeleteSessionStopsBeforeProcessCleanupOnDurableFailure(t *testing.T) {
 			stores := newDeleteStores(tt.fail)
 			turns := deleteTurns{operations: &stores.operations}
 
-			err := New(stores).DeleteSession(context.Background(), turns, "ses_1")
+			err := newCoordinator(stores, turns).DeleteSession(context.Background(), "ses_1")
 			if !errors.Is(err, errDeleteStage) {
 				t.Fatalf("DeleteSession error = %v, want %v", err, errDeleteStage)
 			}
@@ -168,4 +168,12 @@ type deleteTurns struct{ operations *[]string }
 func (t deleteTurns) Cancel(context.Context, turn.TurnHandle) error {
 	*t.operations = append(*t.operations, "turn.cancel")
 	return nil
+}
+
+func (deleteTurns) Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error {
+	panic("unused")
+}
+
+func (deleteTurns) Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error) {
+	panic("unused")
 }
