@@ -1,4 +1,4 @@
-package runtime
+package capabilities
 
 import (
 	"context"
@@ -60,12 +60,23 @@ func (r *blockingMCPRegistry) SetEnabled(_ context.Context, name string, enabled
 	return nil
 }
 
+// mcpLiveSet is the MCPLive projection the registry-mutation tests observe. Only
+// Configure/Remove are exercised; the read/connection legs are inert no-ops so
+// the fake still satisfies the whole MCPLive port.
 type mcpLiveSet struct {
 	mu      sync.Mutex
 	servers map[string]bool
 }
 
-func (*mcpLiveSet) ProbeMCPServer(context.Context, toolport.MCPServerConfig) error { return nil }
+func (*mcpLiveSet) MCPServerStatuses() []toolport.MCPServerStatus { return nil }
+func (*mcpLiveSet) MCPTools(context.Context, string) ([]toolport.MCPToolInfo, error) {
+	return nil, nil
+}
+func (*mcpLiveSet) ReconnectMCPServer(context.Context, string) error       { return nil }
+func (*mcpLiveSet) AuthorizeMCPServer(context.Context, string) error       { return nil }
+func (*mcpLiveSet) ProbeMCPServer(context.Context, toolport.MCPServerConfig) error {
+	return nil
+}
 
 func (s *mcpLiveSet) ConfigureMCPServer(_ context.Context, cfg toolport.MCPServerConfig) error {
 	s.mu.Lock()
@@ -90,14 +101,14 @@ func TestMCPRegistryMutationIsLinearizedThroughLiveApply(t *testing.T) {
 	policyCell := &atomic.Pointer[mcpserver.ToolPolicy]{}
 	policy := mcpserver.NewToolPolicy(nil)
 	policyCell.Store(&policy)
-	rt := &Runtime{mcpRegistry: registry, mcpLiveRegistry: live, mcpPolicy: policyCell}
+	c := New(Config{MCPRegistry: registry, MCPLive: live, MCPPolicy: policyCell})
 	server := mcpserver.Server{Name: "files", Enabled: true, Transport: mcpserver.TransportStdio, Command: "mcp-files"}
 
 	configured := make(chan error, 1)
-	go func() { configured <- rt.ConfigureMCPServer(context.Background(), server) }()
+	go func() { configured <- c.ConfigureMCPServer(context.Background(), server) }()
 	<-registry.configureCommitted
 	removed := make(chan error, 1)
-	go func() { removed <- rt.RemoveMCPServer(context.Background(), server.Name) }()
+	go func() { removed <- c.RemoveMCPServer(context.Background(), server.Name) }()
 	select {
 	case err := <-removed:
 		t.Fatalf("remove crossed an incomplete configure workflow: %v", err)
@@ -132,11 +143,11 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 	policyCell := &atomic.Pointer[mcpserver.ToolPolicy]{}
 	policy := mcpserver.NewToolPolicy(nil)
 	policyCell.Store(&policy)
-	rt := &Runtime{mcpRegistry: registry, mcpLiveRegistry: live, mcpPolicy: policyCell}
+	c := New(Config{MCPRegistry: registry, MCPLive: live, MCPPolicy: policyCell})
 	server := mcpserver.Server{Name: "files", Enabled: true, Transport: mcpserver.TransportStdio, Command: "mcp-files"}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- rt.ConfigureMCPServer(ctx, server) }()
+	go func() { done <- c.ConfigureMCPServer(ctx, server) }()
 
 	<-registry.configureCommitted
 	cancel()

@@ -15,7 +15,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -24,14 +23,12 @@ import (
 // ever called) and overriding only what the session handlers touch.
 type stubRuntime struct {
 	RuntimePort
-	sess        session.Store
-	model       string
-	mcpTools    []toolport.MCPToolInfo
-	mcpStatuses []toolport.MCPServerStatus
-	history     map[string][]chat.Message // per-session chat history (fork copies it)
-	hist        transcript.Store          // durable Item/run history (rollback/fork read runs)
-	interrupts  interrupts.Store          // open-interrupt registry (rollback clears dropped)
-	turns       turn.Dispatcher
+	sess       session.Store
+	model      string
+	history    map[string][]chat.Message // per-session chat history (fork copies it)
+	hist       transcript.Store          // durable Item/run history (rollback/fork read runs)
+	interrupts interrupts.Store          // open-interrupt registry (rollback clears dropped)
+	turns      turn.Dispatcher
 }
 
 // sessionsCoordinatorProvider is the optional test seam newTestServer uses to
@@ -79,8 +76,6 @@ func newTestServerWithInfo(rt RuntimePort, info protocol.ServerInfo) *Server {
 	return s
 }
 
-func (s stubRuntime) MCPServerStatuses() []toolport.MCPServerStatus { return s.mcpStatuses }
-
 func (s stubRuntime) Transcript() transcript.Store { return s.hist }
 func (s stubRuntime) ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error) {
 	if s.hist == nil {
@@ -125,11 +120,6 @@ func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) e
 	}
 	return nil
 }
-
-// ReconnectMCPServer is a no-op for the stub. WorkspaceMCPReconnect's event
-// sequencing is what the server test exercises, and it builds those frames from
-// MCPServerStatuses (above), not from this call's side effects.
-func (s stubRuntime) ReconnectMCPServer(context.Context, string) error { return nil }
 
 // turnStub satisfies turn.Dispatcher by embedding it. Most session tests never
 // drive a turn, so no method is implemented unless a specific case needs it.
@@ -310,21 +300,6 @@ func (s stubRuntime) SeedHistory(_ context.Context, id string, msgs []chat.Messa
 		s.history[id] = append(s.history[id], msgs...)
 	}
 	return nil
-}
-
-// MCPTools echoes the canned set, applying the same server filter the real
-// engine does, so the handler test exercises the scoping passthrough.
-func (s stubRuntime) MCPTools(_ context.Context, server string) ([]toolport.MCPToolInfo, error) {
-	if server == "" {
-		return s.mcpTools, nil
-	}
-	var out []toolport.MCPToolInfo
-	for _, t := range s.mcpTools {
-		if t.Server == server {
-			out = append(out, t)
-		}
-	}
-	return out, nil
 }
 
 func newSessionServer(t *testing.T) (*Server, session.Store) {

@@ -5,40 +5,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-type mcpConfigRuntime struct {
-	stubRuntime
-	servers    map[string]mcpserver.Server
-	getErr     error
-	configured []mcpserver.Server
-}
-
-func (r *mcpConfigRuntime) ListMCPRegisteredServers(context.Context) ([]mcpserver.Server, error) {
-	out := make([]mcpserver.Server, 0, len(r.servers))
-	for _, srv := range r.servers {
-		out = append(out, srv)
-	}
-	return out, nil
-}
-
-func (r *mcpConfigRuntime) MCPRegisteredServer(_ context.Context, name string) (mcpserver.Server, bool, error) {
-	if r.getErr != nil {
-		return mcpserver.Server{}, false, r.getErr
-	}
-	srv, ok := r.servers[name]
-	return srv, ok, nil
-}
-
-func (r *mcpConfigRuntime) ConfigureMCPServer(_ context.Context, srv mcpserver.Server) error {
-	r.configured = append(r.configured, srv)
-	return nil
-}
-
 func TestWorkspaceMCPConfigurePreservesStoredAuthorization(t *testing.T) {
-	rt := &mcpConfigRuntime{servers: map[string]mcpserver.Server{
+	rt := &mcpRegistryFake{servers: map[string]mcpserver.Server{
 		"linear": {
 			Name:          "linear",
 			Transport:     mcpserver.TransportStreamableHTTP,
@@ -46,7 +19,7 @@ func TestWorkspaceMCPConfigurePreservesStoredAuthorization(t *testing.T) {
 			Authorization: "Bearer stored-token",
 		},
 	}}
-	s := newTestServer(rt)
+	s := serverWithMCP(capabilities.Config{MCPRegistry: rt})
 
 	got, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:      "linear",
@@ -70,8 +43,8 @@ func TestWorkspaceMCPConfigurePreservesStoredAuthorization(t *testing.T) {
 
 func TestWorkspaceMCPConfigurePropagatesAuthorizationLookupError(t *testing.T) {
 	lookupErr := errors.New("registry unavailable")
-	rt := &mcpConfigRuntime{servers: map[string]mcpserver.Server{}, getErr: lookupErr}
-	s := newTestServer(rt)
+	rt := &mcpRegistryFake{servers: map[string]mcpserver.Server{}, getErr: lookupErr}
+	s := serverWithMCP(capabilities.Config{MCPRegistry: rt})
 
 	_, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:      "linear",
@@ -88,8 +61,8 @@ func TestWorkspaceMCPConfigurePropagatesAuthorizationLookupError(t *testing.T) {
 }
 
 func TestWorkspaceMCPConfigureRejectsNegativeTimeout(t *testing.T) {
-	rt := &mcpConfigRuntime{}
-	s := newTestServer(rt)
+	rt := &mcpRegistryFake{}
+	s := serverWithMCP(capabilities.Config{MCPRegistry: rt})
 
 	_, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:           "linear",

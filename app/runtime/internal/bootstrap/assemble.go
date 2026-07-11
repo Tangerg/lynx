@@ -134,10 +134,7 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Stack, error) {
 		Sessions:     cfg.SessionStore,
 		Interrupts:   cfg.InterruptStore,
 		Transcript:   cfg.TranscriptStore,
-		MCPRegistry:  cfg.MCPRegistry,
-		MCPPolicy:    mcpEnv.policy,
 		Titles:       maintenance.NewTitler(utilityEnv.resolve),
-		Codebase:     embeddingEnv.index,
 		Resources:    cfg.Resources,
 	})
 
@@ -166,6 +163,10 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Stack, error) {
 		EmbeddingCell:     embeddingEnv.cell,
 		EmbeddingResolver: embeddingEnv.resolver,
 		EmbeddingStore:    cfg.EmbeddingRoleStore,
+		MCPRegistry:       cfg.MCPRegistry,
+		MCPLive:           eng,
+		MCPPolicy:         mcpEnv.policy,
+		Codebase:          embeddingEnv.index,
 		DefaultProvider:   cfg.Provider,
 		DefaultModel:      cfg.Model,
 	})

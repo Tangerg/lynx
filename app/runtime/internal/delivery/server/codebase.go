@@ -17,7 +17,7 @@ import (
 // CodebaseSearch returns the chunks most similar to the query in the cwd's
 // project (codebase.search), building/refreshing the index first.
 func (s *Server) CodebaseSearch(ctx context.Context, in protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) {
-	if !s.rt.HasCodebaseIndex() {
+	if !s.capabilities.HasCodebaseIndex() {
 		return nil, fmt.Errorf("%w: codebase index is unavailable", protocol.ErrInvalidParams)
 	}
 	if in.Query == "" {
@@ -27,7 +27,7 @@ func (s *Server) CodebaseSearch(ctx context.Context, in protocol.CodebaseSearchR
 	if err != nil {
 		return nil, err
 	}
-	hits, err := s.rt.SearchCodebase(ctx, root, in.Query, in.Limit)
+	hits, err := s.capabilities.SearchCodebase(ctx, root, in.Query, in.Limit)
 	if err != nil {
 		return nil, mapCodebaseErr(err)
 	}
@@ -50,7 +50,7 @@ func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusR
 	if err != nil {
 		return nil, err
 	}
-	st, err := s.rt.CodebaseIndexStatus(ctx, root)
+	st, err := s.capabilities.CodebaseIndexStatus(ctx, root)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (s *Server) CodebaseReindex(ctx context.Context, in protocol.CodebaseReinde
 	if err != nil {
 		return err
 	}
-	return mapCodebaseErr(s.rt.StartCodebaseReindex(ctx, root))
+	return mapCodebaseErr(s.capabilities.StartCodebaseReindex(ctx, root))
 }
 
 // mapCodebaseErr surfaces "no embedding model" as invalid_params with a fix-it
