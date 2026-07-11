@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -115,7 +115,7 @@ func (s *Server) WorkspaceListAgentDocs(ctx context.Context, q protocol.Workspac
 		return nil, err
 	}
 	home := s.serverInfo.Home
-	files, err := agentdoc.Discover(ctx, root, home)
+	files, err := promptsource.DiscoverAgentDocs(ctx, root, home)
 	if err != nil {
 		return nil, err
 	}

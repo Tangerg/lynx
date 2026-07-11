@@ -9,6 +9,7 @@ import { rpcAgentSource } from "./application/rpcAgentSource";
 export default definePlugin({
   name: "lyra.builtin.rpc-agent",
   version: "1.0.0",
+  requires: ["lyra.builtin.runtime", "lyra.builtin.agent-bootstrap"],
   setup({ host }) {
     host.extensions.contribute(
       AGENT_SOURCE,

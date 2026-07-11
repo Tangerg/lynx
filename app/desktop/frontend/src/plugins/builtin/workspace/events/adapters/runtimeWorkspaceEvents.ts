@@ -1,25 +1,20 @@
 import type { WorkspaceEvent } from "@/rpc";
 import { getContainer } from "@/main/container";
 import { WORKSPACE_SUBSCRIBE_METHOD } from "@/rpc/transport";
-import { serverFeature, useRuntimeStore } from "@/state/runtimeStore";
+import {
+  runtimeCapability,
+  runtimeSupportsStreamingMethod,
+} from "@/plugins/builtin/runtime/public/capabilities";
 
 export function canSubscribeWorkspaceEvents(): boolean {
-  return (
-    useRuntimeStore
-      .getState()
-      .capabilities?.streamingMethods?.includes(WORKSPACE_SUBSCRIBE_METHOD) ?? false
-  );
-}
-
-export function subscribeRuntimeCapabilities(onChange: () => void): () => void {
-  return useRuntimeStore.subscribe(onChange);
+  return runtimeSupportsStreamingMethod(WORKSPACE_SUBSCRIBE_METHOD);
 }
 
 export async function subscribeRuntimeWorkspaceEvents(
   cwd: string | undefined,
   signal: AbortSignal,
 ): Promise<AsyncIterable<WorkspaceEvent>> {
-  const fileWatch = serverFeature("fileWatch");
+  const fileWatch = runtimeCapability("fileWatch");
   const { events } = await getContainer()
     .client()
     .workspace.subscribe(

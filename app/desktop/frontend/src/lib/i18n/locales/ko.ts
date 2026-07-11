@@ -257,8 +257,9 @@ export const ko: Record<string, string> = {
 
   "settings.pane.connection": "연결",
   "settings.connection.title": "백엔드",
-  "settings.connection.sub": "Lyra Runtime 런타임 주소. 다음 요청부터 적용.",
+  "settings.connection.sub": "Lyra Runtime 주소. 적용하면 데스크톱 앱을 다시 불러옵니다.",
   "settings.connection.url": "URL",
+  "settings.connection.apply": "적용 후 다시 불러오기",
   "settings.connection.reset": "기본값 복원",
 
   "iconGallery.filterLabel": "이름으로 아이콘 필터",

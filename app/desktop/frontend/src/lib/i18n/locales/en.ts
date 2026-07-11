@@ -400,8 +400,9 @@ export const en: Record<string, string> = {
   "settings.pane.connection": "Connection",
   "settings.connection.title": "Backend",
   "settings.connection.sub":
-    "Where the Lyra runtime is reachable. Changes apply on the next request.",
+    "Where the Lyra runtime is reachable. Applying reconnects the desktop app.",
   "settings.connection.url": "URL",
+  "settings.connection.apply": "Apply & reload",
   "settings.connection.reset": "Reset to default",
 
   "iconGallery.filterLabel": "Filter icons by name",

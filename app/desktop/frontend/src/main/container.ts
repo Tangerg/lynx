@@ -1,35 +1,23 @@
-// Composition root — owns the app's Runtime Protocol entry points: the SDK
-// client (createLyraClient over an HTTP transport) + the sidecar probe.
+// Composition root — owns the app's Runtime Protocol client and the local
+// desktop-shell asset client.
 // Singleton instead of Context because non-component code (zustand effects,
 // plugin setup) calls these too; tests inject fakes via `setContainer()`.
 
-import { RUNTIME_BASE } from "@/main/config";
+import { RUNTIME_BASE, RUNTIME_ENDPOINT_CONFIG_KEY } from "@/main/config";
 import { runtimeRequestMeta } from "@/main/runtimeProtocol";
 import { getConfig } from "@/plugins/sdk/config";
-import type { LyraClient, ShellClient, SidecarClient } from "@/rpc";
-import {
-  createHttpTransport,
-  createLyraClient,
-  createShellClient,
-  createSidecarClient,
-} from "@/rpc";
+import type { LyraClient, ShellClient } from "@/rpc";
+import { createHttpTransport, createLyraClient, createShellClient } from "@/rpc";
 
 export interface Container {
   /**
    * Shared, lazily-constructed Lyra Runtime Protocol SDK client for app use.
-   * Builds the transport (one SSE connection) on first call and caches it for
-   * the life of the container — the single entry point so callers don't each
-   * spin up their own. Tests get a fresh cache via `resetContainer()` (and can
-   * override with `setContainer({ client })`).
+   * Builds the transport lazily and caches one client per active endpoint and
+   * local-token signature. Runtime configuration is restored before discovery;
+   * changing it produces a new client instead of leaving callers pinned to the
+   * startup default. Tests can override with `setContainer({ client })`.
    */
   client: () => LyraClient;
-  /**
-   * Sidecar HTTP probe — pre-instantiated because it doesn't open a
-   * persistent connection (each call is a one-shot fetch). HTTP-transport
-   * only; safe to call against a backend that doesn't implement it yet (the
-   * caller handles the RpcTransportError).
-   */
-  sidecar: SidecarClient;
   /**
    * Wails shell asset client (sideloaded-plugin manifest). NOT the Runtime
    * Protocol — host/packaging metadata served by the desktop shell. Routed
@@ -40,24 +28,22 @@ export interface Container {
 }
 
 function defaultContainer(): Container {
-  const baseUrl = RUNTIME_BASE;
-  let shared: LyraClient | null = null;
+  let shared: { signature: string; client: LyraClient } | null = null;
   return {
-    // Read `api.localToken` at build time so plugins (e.g. a Wails-side
-    // bootstrap reading `~/.lyra/local-token`) can set it via
-    // `host.config.set("api.localToken", ...)` before the first client is
-    // built. Local-loopback process gate (TRANSPORT.md §11); dev mock leaves
-    // it unset.
-    client: () =>
-      (shared ??= createLyraClient(
-        createHttpTransport({
-          baseUrl,
-          localToken: getConfig<string>("api.localToken") ?? undefined,
-        }),
-        { requestMeta: runtimeRequestMeta },
-      )),
-    sidecar: createSidecarClient({ baseUrl }),
-    shell: createShellClient({ baseUrl }),
+    client: () => {
+      const baseUrl = getConfig<string>(RUNTIME_ENDPOINT_CONFIG_KEY) ?? RUNTIME_BASE;
+      const localToken = getConfig<string>("api.localToken") ?? undefined;
+      const signature = `${baseUrl}\u0000${localToken ?? ""}`;
+      if (shared?.signature === signature) return shared.client;
+      const client = createLyraClient(createHttpTransport({ baseUrl, localToken }), {
+        requestMeta: runtimeRequestMeta,
+      });
+      shared = { signature, client };
+      return client;
+    },
+    // Shell assets belong to the local desktop process, not to the selectable
+    // Runtime Protocol endpoint.
+    shell: createShellClient({ baseUrl: RUNTIME_BASE }),
   };
 }
 

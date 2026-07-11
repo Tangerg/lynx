@@ -389,8 +389,9 @@ export const zh: Record<string, string> = {
 
   "settings.pane.connection": "连接",
   "settings.connection.title": "后端",
-  "settings.connection.sub": "Lyra Runtime 运行时的地址。下一次请求生效。",
+  "settings.connection.sub": "Lyra Runtime 的地址。应用后将重新载入桌面端。",
   "settings.connection.url": "URL",
+  "settings.connection.apply": "应用并重新载入",
   "settings.connection.reset": "恢复默认",
 
   "iconGallery.filterLabel": "按名称筛选图标",

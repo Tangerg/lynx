@@ -15,6 +15,7 @@ import { bindWorkspaceSessionNavigation } from "./application/sessionNavigationS
 export default definePlugin({
   name: "lyra.builtin.workspace.session-navigation",
   version: "1.0.0",
+  requires: ["lyra.builtin.agent-bootstrap", "lyra.builtin.workspace-bootstrap"],
   setup() {
     return bindWorkspaceSessionNavigation({
       activeSessionId: getActiveSessionId,

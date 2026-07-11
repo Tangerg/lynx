@@ -193,11 +193,11 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		Sessions:     sessionCoord,
 		Capabilities: capabilityCoord,
 		Workspace: workspace.New(workspace.Config{
-			Memory:           cfg.Engine.Knowledge,
-			Skills:           eng,
-			Hooks:            cfg.HooksResolver,
-			Trust:            cfg.HookTrustStore,
-			RecipesGlobalDir: cfg.RecipesGlobalDir,
+			Memory:  cfg.Engine.Knowledge,
+			Skills:  eng,
+			Hooks:   cfg.HooksResolver,
+			Trust:   cfg.HookTrustStore,
+			Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},
 		}),
 		Schedules: schedules.NewCoordinator(cfg.ScheduleRegistry, cfg.ScheduleRegistry),
 	}}, nil

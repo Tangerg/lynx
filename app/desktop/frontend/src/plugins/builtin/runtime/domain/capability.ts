@@ -1,0 +1,17 @@
+export type RuntimeCapability =
+  | "multimodal"
+  | "reasoning"
+  | "checkpoints"
+  | "git"
+  | "fileWatch"
+  | "lsp"
+  | "codeIntel"
+  | "todos"
+  | "compaction"
+  | "subagents"
+  | "skills"
+  | "mcp"
+  | "sessionExport"
+  | "memory"
+  | "relocate"
+  | "clientTools";

@@ -20,12 +20,14 @@ import {
 } from "@/plugins/builtin/agent/public/statePorts";
 import { installComposerStatePorts } from "@/plugins/builtin/chat/composer/public/statePorts";
 import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/public/statePorts";
+import { installRuntimeCapabilityPort } from "@/plugins/builtin/runtime/public/statePorts";
 
 installAgentStatePorts();
 installAgentDefaultSessionPort();
 installAgentRuntimeGateway();
 installComposerStatePorts();
 installWorkspaceNavigationPort();
+installRuntimeCapabilityPort();
 
 beforeEach(() => {
   installAgentStatePorts();
@@ -33,6 +35,7 @@ beforeEach(() => {
   installAgentRuntimeGateway();
   installComposerStatePorts();
   installWorkspaceNavigationPort();
+  installRuntimeCapabilityPort();
   usePluginStore.getState().resetForTest();
   usePluginErrorStore.setState({ log: [], nextId: 1 });
   useNotificationStore.setState({ log: [], nextId: 1 });
