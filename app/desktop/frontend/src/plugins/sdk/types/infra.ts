@@ -50,25 +50,6 @@ export interface LogEvent {
 export type LogSubscriber = (event: LogEvent) => void;
 
 /**
- * A `beforeRequest` hook — runs immediately before the underlying fetch.
- * Can mutate the Request (set headers, replace URL, log) or return a
- * brand-new one to substitute. Awaited.
- *
- * Hooks run in registration order; the first registered runs first.
- */
-export type RpcBeforeRequestHook = (request: Request) => void | Request | Promise<void | Request>;
-
-/**
- * An `afterResponse` hook — runs once the underlying fetch resolves
- * (success or HTTP error). Can inspect / replace the Response (e.g.
- * shape error bodies, refresh expired tokens then retry).
- */
-export type RpcAfterResponseHook = (
-  request: Request,
-  response: Response,
-) => void | Response | Promise<void | Response>;
-
-/**
  * A data fetcher registered against a key. TanStack-Query hooks in the app
  * resolve their `queryFn` by looking up the provider for their key. The
  * fetcher must return a fully-typed result, but the registry erases that

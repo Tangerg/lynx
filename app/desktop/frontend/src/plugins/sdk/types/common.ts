@@ -54,7 +54,6 @@ export type HostCapability =
   | "config"
   | "settings"
   | "storage"
-  | "rpc"
   | "notify"
   | "window"
   | "plugins"

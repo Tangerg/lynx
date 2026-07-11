@@ -35,7 +35,6 @@ export const CAPABILITY_RISK: Record<HostCapability, CapabilityRisk> = {
   window: "moderate",
   tasks: "moderate",
   lifecycle: "moderate",
-  rpc: "dangerous",
   plugins: "dangerous",
 };
 

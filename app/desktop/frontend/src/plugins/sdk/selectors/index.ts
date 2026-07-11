@@ -42,10 +42,8 @@ export {
 // Tool owner attribution + per-message citation sources.
 export { lookupToolActionOwner, lookupToolViewOpenerOwner, useCitationSources } from "./messages";
 
-// Runtime / data-layer: priority picks + data-provider fetcher + RPC hook lists.
+// Runtime / data-layer: priority picks + data-provider fetcher.
 export {
-  listRpcAfterHooks,
-  listRpcBeforeHooks,
   lookupDataProvider,
   pickAgentSource,
   pickPluginErrorFallback,

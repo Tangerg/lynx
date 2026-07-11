@@ -4,4 +4,4 @@
 // hostBridge needs it for window.__LYRA__. If we kept it on hostBridge,
 // definePlugin → hostBridge → @/plugins/sdk → definePlugin is a cycle.
 // Leaf module = no cycle, deterministic init order.
-export const HOST_API_VERSION = "2.0.0";
+export const HOST_API_VERSION = "3.0.0";

@@ -17,11 +17,8 @@ import type {
   LogSubscriber,
   PluginSpec,
   ReadyHandler,
-  RpcAfterResponseHook,
-  RpcBeforeRequestHook,
 } from "./types";
 import type { ContentBlockKind } from "@/plugins/sdk/types/contentBlock";
-import { api } from "@/lib/data/http";
 import { addLocaleBundle } from "@/lib/i18n";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
@@ -44,8 +41,6 @@ import {
   PLUGIN_LOAD_LISTENER,
   PLUGIN_UNLOAD_LISTENER,
   READY_HANDLER,
-  RPC_AFTER_RESPONSE,
-  RPC_BEFORE_REQUEST,
   WORKSPACE_VIEW,
 } from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
@@ -181,25 +176,6 @@ export function createHost(
     },
 
     storage: createStorage(pluginName),
-
-    rpc: {
-      get<T>(path: string, params?: Record<string, unknown>): Promise<T> {
-        // ky's baseUrl resolution prefers paths without a leading slash.
-        const p = path.startsWith("/") ? path.slice(1) : path;
-        const opts = params
-          ? { searchParams: params as Record<string, string | number | boolean> }
-          : undefined;
-        return api.get(p, opts).json<T>();
-      },
-      post<T>(path: string, body?: unknown): Promise<T> {
-        const p = path.startsWith("/") ? path.slice(1) : path;
-        return api.post(p, body !== undefined ? { json: body } : undefined).json<T>();
-      },
-      beforeRequest: (hook: RpcBeforeRequestHook): Disposable =>
-        contribute(RPC_BEFORE_REQUEST, hook),
-      afterResponse: (hook: RpcAfterResponseHook): Disposable =>
-        contribute(RPC_AFTER_RESPONSE, hook),
-    },
 
     notify(message: string, level: "info" | "warn" | "error" = "info"): void {
       logToConsole(pluginName, level, [message]);

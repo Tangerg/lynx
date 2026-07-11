@@ -1,6 +1,6 @@
 // The Host facade — what a plugin can touch: the `extensions.contribute` write
 // path, a few retained thin facades (events / layout / message.registerContentBlock
-// / lifecycle / rpc hooks / log.subscribe), and imperative actions.
+// / lifecycle / log.subscribe), and imperative actions.
 //
 // Adding a new contribution surface: define an `ExtensionPoint` in
 // `kernelPoints.ts` + a selector — NOT a new method here. This interface only
@@ -16,8 +16,6 @@ import type { BeforeUnloadHandler, Disposable, ReadyHandler } from "./common";
 import type {
   LogSubscriber,
   NotificationLevel,
-  RpcAfterResponseHook,
-  RpcBeforeRequestHook,
   TaskHandle,
   TaskStartOptions,
 } from "./infra";
@@ -119,25 +117,6 @@ export interface Host {
     set: <T = unknown>(key: string, value: T) => void;
     remove: (key: string) => void;
     keys: () => string[];
-  };
-  rpc: {
-    /** GET against the Go backend (baseUrl is pre-configured). */
-    get: <T>(path: string, params?: Record<string, unknown>) => Promise<T>;
-    /** POST against the Go backend. */
-    post: <T>(path: string, body?: unknown) => Promise<T>;
-    /**
-     * Register a request hook. Runs for every call made through the shared
-     * `api` ky instance (which is what `host.rpc.get/post`, queries.ts, and
-     * kernel-chat all use). Common uses: auth headers, request logging,
-     * X-Request-Id injection.
-     */
-    beforeRequest: (hook: RpcBeforeRequestHook) => Disposable;
-    /**
-     * Register a response hook. Runs after every call via the shared `api`
-     * instance. Common uses: response logging, automatic token refresh,
-     * normalising error envelopes.
-     */
-    afterResponse: (hook: RpcAfterResponseHook) => Disposable;
   };
   i18n: {
     /**

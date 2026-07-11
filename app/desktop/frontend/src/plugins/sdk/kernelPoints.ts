@@ -30,8 +30,6 @@ import type {
   PluginSpec,
   ReadyHandler,
   RouteSpec,
-  RpcAfterResponseHook,
-  RpcBeforeRequestHook,
   SettingsPaneSpec,
   ShortcutSpec,
   SlashCommandSpec,
@@ -160,16 +158,6 @@ export const CONTEXT_DOCK_DESTINATION = defineExtensionPoint<ContextDockDestinat
 });
 
 // ---- multi-handler surfaces (every contribution coexists, runs in order) --
-export const RPC_BEFORE_REQUEST = defineExtensionPoint<RpcBeforeRequestHook>({
-  id: "lyra.rpc.beforeRequest",
-  capability: "rpc",
-  keying: "multi",
-});
-export const RPC_AFTER_RESPONSE = defineExtensionPoint<RpcAfterResponseHook>({
-  id: "lyra.rpc.afterResponse",
-  capability: "rpc",
-  keying: "multi",
-});
 export const LOG_SUBSCRIBER = defineExtensionPoint<LogSubscriber>({
   id: "lyra.log.subscriber",
   capability: "log",
