@@ -98,12 +98,18 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 				e.Payload.stop()
 			}
 		}
-		// Release the durable admission slot (§8.2) on a true terminal; a parked
-		// run stays non-terminal in the runs table (it is resumable), matching the
-		// live turn left alive above. Best-effort: a missed write leaves a running
-		// row the next boot's ReconcileOrphans sweeps.
-		if !parked && c.runStore != nil {
-			_ = c.runStore.Terminalize(ownerCtx, spec.SessionID, pumpOutcome(ctx, abortTurn))
+		// Move the durable admission row (§8.2) to match the segment's fate: a true
+		// terminal frees the session; a parked run suspends to interrupted, staying
+		// non-terminal (resumable) — matching the live turn left alive above. Both
+		// are best-effort — a missed write leaves the row non-terminal, but with no
+		// open interrupt the next boot's ReconcileOrphans sweeps it (§8.3 makes the
+		// interrupt/state pair atomic so the state alone becomes authoritative).
+		if c.runStore != nil {
+			if parked {
+				_ = c.runStore.Suspend(ownerCtx, spec.SessionID)
+			} else {
+				_ = c.runStore.Terminalize(ownerCtx, spec.SessionID, pumpOutcome(ctx, abortTurn))
+			}
 		}
 		// Terminal boundary maintenance stays off the critical path (async /
 		// best-effort inside Effects). A parked run is resumable, not a boundary.

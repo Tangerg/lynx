@@ -45,12 +45,20 @@ func (c *Coordinator) CancelParkedRun(ctx context.Context, runID string) error {
 }
 
 // CancelRunBinding tears down the bound turn before dropping the durable interrupt
-// record. The turn cancel is best-effort: after a backend restart the durable
-// interrupt may outlive the in-memory turn, and abandoning the run still means
-// removing the resumable record.
+// record, then frees the session's durable admission slot. The turn cancel is
+// best-effort: after a backend restart the durable interrupt may outlive the
+// in-memory turn, and abandoning the run still means removing the resumable
+// record. Terminalizing the durable row is what lets the session start a fresh
+// run — for a live cancel the pump also terminalizes, but this frees the slot
+// synchronously (and is the ONLY terminalize for a parked cancel, whose pump has
+// already exited).
 func (c *Coordinator) CancelRunBinding(ctx context.Context, r RunTurnBinding) error {
 	c.cancelTurn(ctx, r)
-	return c.s.Interrupts().Delete(ctx, r.RunID)
+	if err := c.s.Interrupts().Delete(ctx, r.RunID); err != nil {
+		return err
+	}
+	c.terminalizeRun(ctx, r.SessionID)
+	return nil
 }
 
 // ResumeClaimedInterrupt consumes an open interrupt and resumes its parked

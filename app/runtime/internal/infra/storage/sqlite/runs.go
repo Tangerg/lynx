@@ -57,6 +57,35 @@ func (s *RunStateStore) Admit(ctx context.Context, draft execution.RunDraft) err
 	return nil
 }
 
+// Suspend transitions the session's running Run to interrupted — it parked for
+// HITL resume — keeping it non-terminal so the session stays durably claimed.
+// Keyed on session + guarded on the running state so it is idempotent (a no-op
+// when the session has no running Run). Best-effort at the park boundary; a
+// missed write leaves a running row that a still-open interrupt keeps out of the
+// boot [RunStateStore.ReconcileOrphans] sweep.
+func (s *RunStateStore) Suspend(ctx context.Context, sessionID string) error {
+	return s.transition(ctx, sessionID, runStateRunning, runStateInterrupted, "suspend")
+}
+
+// Resume transitions the session's interrupted Run back to running when a parked
+// run continues, so a crash mid-continuation leaves a running row the boot sweep
+// reclaims (the interrupt was already consumed) rather than a stuck interrupted
+// one. Keyed on session + guarded on the interrupted state so it is idempotent (a
+// no-op when the row is already running because a park's Suspend was missed).
+func (s *RunStateStore) Resume(ctx context.Context, sessionID string) error {
+	return s.transition(ctx, sessionID, runStateInterrupted, runStateRunning, "resume")
+}
+
+func (s *RunStateStore) transition(ctx context.Context, sessionID, from, to, op string) error {
+	_, err := conn(ctx, s.db).ExecContext(ctx,
+		`UPDATE runs SET state = ?, updated_at = ? WHERE session_id = ? AND state = ?`,
+		to, time.Now().UTC().UnixNano(), sessionID, from)
+	if err != nil {
+		return fmt.Errorf("sqlite: %s run: %w", op, err)
+	}
+	return nil
+}
+
 // Terminalize transitions the session's non-terminal Run to terminal with the
 // given outcome, freeing the session. Keyed on session (the partial unique index
 // guarantees one non-terminal Run, so no run_id is needed and a resumed run whose
@@ -73,17 +102,37 @@ func (s *RunStateStore) Terminalize(ctx context.Context, sessionID, outcome stri
 	return nil
 }
 
-// ReconcileOrphans terminalizes running Runs abandoned by a crash — their live
-// process is gone after restart and no open interrupt keeps them resumable — so
-// a crashed run doesn't block its session forever. Interrupted runs (parked, an
-// open interrupt recorded) are resumable and left untouched. Run once at boot
-// before admitting any run; returns the count swept.
+// DeleteForSession drops every Run row of a session whose durable state is being
+// removed or replaced wholesale — the session-delete cascade, the import/restore
+// replace, and the subagent subtree purge. Freeing the admission slot by deletion
+// (not terminalization) keeps the runs table from accumulating dead rows for
+// sessions that no longer exist. Joins the caller's transaction via the context.
+func (s *RunStateStore) DeleteForSession(ctx context.Context, sessionID string) error {
+	_, err := conn(ctx, s.db).ExecContext(ctx,
+		`DELETE FROM runs WHERE session_id = ?`, sessionID)
+	if err != nil {
+		return fmt.Errorf("sqlite: delete runs for session: %w", err)
+	}
+	return nil
+}
+
+// ReconcileOrphans terminalizes non-terminal Runs abandoned by a crash — the
+// process died with no open interrupt keeping the run resumable — so a crash
+// doesn't block its session forever. A non-terminal Run is an orphan iff its
+// session has NO open interrupt: this is robust to a best-effort Suspend/Resume
+// that failed to advance the row's state (a parked run whose Suspend was missed
+// stays 'running' but its interrupt still preserves it; a continuation whose
+// Resume was missed stays 'interrupted' but its consumed interrupt no longer
+// does, so the sweep reclaims it). Once §8.3 commits the interrupt open/close in
+// the same transaction as the state transition, the state alone is authoritative
+// and this can key on state = 'running'. Run once at boot before admitting any
+// run; returns the count swept.
 func (s *RunStateStore) ReconcileOrphans(ctx context.Context) (int, error) {
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE runs SET state = ?, outcome = ?, updated_at = ?
-		 WHERE state = ?
+		 WHERE state != ?
 		   AND session_id NOT IN (SELECT DISTINCT session_id FROM interrupts)`,
-		runStateTerminal, execution.OutcomeCanceled.String(), time.Now().UTC().UnixNano(), runStateRunning)
+		runStateTerminal, execution.OutcomeCanceled.String(), time.Now().UTC().UnixNano(), runStateTerminal)
 	if err != nil {
 		return 0, fmt.Errorf("sqlite: reconcile orphan runs: %w", err)
 	}

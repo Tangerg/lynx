@@ -168,6 +168,7 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 			tx:         cfg.Transactor,
 		},
 		Turns: sessionsTurns{dispatcher: turnDispatcher},
+		Runs:  cfg.RunStore,
 	})
 
 	capabilityCoord := capabilities.New(capabilities.Config{

@@ -19,6 +19,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -126,6 +127,21 @@ type Turns interface {
 	Rehydrate(ctx context.Context, req RehydrateSpec) (Handle, error)
 }
 
+// DurableRuns is the coordinator's write view of the durable Run admission table
+// (§8.2): the abandonment write-sets free or drop a session's admission slot so a
+// run this coordinator cancels, rolls back, deletes, or restores never leaves the
+// session durably busy. It is the durable counterpart to the in-process
+// [RunAdmission] slot. The sqlite RunStateStore satisfies it structurally; a nil
+// collaborator disables it (the in-process claim still guards within one process).
+type DurableRuns interface {
+	// Terminalize marks the session's non-terminal Run terminal, freeing the slot
+	// when the session survives the abandonment (parked-cancel, rollback).
+	Terminalize(ctx context.Context, sessionID, outcome string) error
+	// DeleteForSession drops every Run row of a session whose durable state is
+	// removed or replaced wholesale (delete-cascade, restore, subtree purge).
+	DeleteForSession(ctx context.Context, sessionID string) error
+}
+
 // Coordinator executes session/run lifecycle write-sets across the domain
 // stores, coordinates single-writer run admission (the per-session and
 // per-working-tree slots), and tears down the turn process behind an abandoned
@@ -134,16 +150,21 @@ type Turns interface {
 type Coordinator struct {
 	s     Stores
 	turns Turns
+	// runs is the durable admission table; the abandonment write-sets free/drop
+	// its slot. nil disables the durable backstop (in-process claim only).
+	runs DurableRuns
 	// trees serializes short run admissions against destructive working-tree
 	// mutations (file rollback) for every transport using this coordinator.
 	trees WorkingTreeGate
 }
 
 // Dependencies is the collaborator set [New] wires into a Coordinator: the
-// consumer-defined store surface and the turn dispatcher.
+// consumer-defined store surface, the turn dispatcher, and the durable
+// run-admission table (nil to run in-process-only).
 type Dependencies struct {
 	Stores Stores
 	Turns  Turns
+	Runs   DurableRuns
 }
 
 // ErrRunNotFound reports that a lifecycle operation targeted no live or parked run.
@@ -171,7 +192,28 @@ var (
 
 // New returns a Coordinator over deps.
 func New(deps Dependencies) *Coordinator {
-	return &Coordinator{s: deps.Stores, turns: deps.Turns}
+	return &Coordinator{s: deps.Stores, turns: deps.Turns, runs: deps.Runs}
+}
+
+// terminalizeRun frees the session's durable admission slot after this
+// coordinator abandons its non-terminal run (parked-cancel, rollback). The
+// session survives, so the row is terminalized (canceled), not deleted.
+// Best-effort: a missed write leaves a non-terminal row with no open interrupt,
+// which the next boot's ReconcileOrphans sweeps.
+func (c *Coordinator) terminalizeRun(ctx context.Context, sessionID string) {
+	if c.runs != nil {
+		_ = c.runs.Terminalize(ctx, sessionID, execution.OutcomeCanceled.String())
+	}
+}
+
+// deleteRunRows drops a session's durable admission rows when its whole state is
+// removed or replaced (delete-cascade, restore, purge). Joins the caller's
+// transaction via ctx when invoked inside RunInTx.
+func (c *Coordinator) deleteRunRows(ctx context.Context, sessionID string) error {
+	if c.runs == nil {
+		return nil
+	}
+	return c.runs.DeleteForSession(ctx, sessionID)
 }
 
 // ClaimWorkingTreeRun reserves cwd's working tree for a run segment admission,
