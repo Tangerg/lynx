@@ -26,13 +26,20 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
-// SessionStore is the lifecycle coordinator's consumer view of session
-// persistence. It intentionally excludes unrelated read/update operations from
-// domain/session.Store: lifecycle write-sets only need branch, restore, delete,
-// child traversal, and post-fork rename.
+// SessionStore is the coordinator's consumer view of session persistence: the
+// session-aggregate CRUD (list / get / create / patch) plus the lifecycle
+// write-set operations (branch, restore, delete, child traversal). It excludes
+// only the turn-scoped touchpoints the dispatcher owns.
 type SessionStore interface {
-	Fork(ctx context.Context, parentID, atMessageID string) (session.Session, error)
+	List(ctx context.Context) ([]session.Session, error)
+	Get(ctx context.Context, id string) (session.Session, error)
+	Create(ctx context.Context, title, cwd string) (session.Session, error)
 	Rename(ctx context.Context, id, title string) error
+	SetModel(ctx context.Context, id, model string) error
+	SetCwd(ctx context.Context, id, cwd string) error
+	SetMetadata(ctx context.Context, id string, meta map[string]any) error
+	SetFavorite(ctx context.Context, id string, favorite bool) error
+	Fork(ctx context.Context, parentID, atMessageID string) (session.Session, error)
 	Restore(ctx context.Context, sess session.Session) error
 	Children(ctx context.Context, parentID string) ([]session.Session, error)
 	Delete(ctx context.Context, id string) error

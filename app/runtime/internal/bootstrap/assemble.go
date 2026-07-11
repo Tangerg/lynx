@@ -147,7 +147,6 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Stack, error) {
 		Embeddings:      embeddingEnv.resolver,
 		EmbeddingStore:  cfg.EmbeddingRoleStore,
 		Codebase:        embeddingEnv.index,
-		Transactor:      cfg.Transactor,
 		Resources:       cfg.Resources,
 	})
 

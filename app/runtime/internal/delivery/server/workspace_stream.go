@@ -148,7 +148,7 @@ func (s *Server) PublishWorkspaceEvent(ev protocol.WorkspaceEvent) {
 // sessionCwd resolves a session's working directory (empty on any error) — used
 // to scope tool-derived files.changed events.
 func (s *Server) sessionCwd(ctx context.Context, sessionID string) string {
-	sess, err := s.rt.SessionByID(ctx, sessionID)
+	sess, err := s.sessions.Get(ctx, sessionID)
 	if err != nil {
 		return ""
 	}

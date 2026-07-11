@@ -9,8 +9,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
+// approvalSessionStore satisfies session.Store via the embedded interface
+// (nil — unimplemented methods panic if ever called) and stubs only Get, the one
+// method ListApprovalRules reads to resolve a session's project dir.
 type approvalSessionStore struct {
-	sessionRuntimeStore
+	session.Store
 	sess session.Session
 	err  error
 }

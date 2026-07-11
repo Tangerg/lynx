@@ -51,8 +51,7 @@ type Dependencies struct {
 	EmbeddingStore embeddingRoleSaver
 	Codebase       codebaseindex.Index
 
-	Transactor Transactor
-	Resources  []io.Closer
+	Resources []io.Closer
 }
 
 // New builds a Runtime facade from already-assembled dependencies. It only
@@ -86,6 +85,5 @@ func New(d Dependencies) *Runtime {
 		embeddings:         d.Embeddings,
 		embeddingStore:     d.EmbeddingStore,
 		codebase:           d.Codebase,
-		transactor:         d.Transactor,
 	}
 }

@@ -2,9 +2,7 @@ package server
 
 import (
 	"context"
-	"errors"
 	"iter"
-	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
@@ -16,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
@@ -293,51 +290,6 @@ func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publi
 // gate; these tests have no live turn state to forget.
 func (stubRuntime) ForgetSession(string) {}
 
-func (s stubRuntime) ListSessions(ctx context.Context) ([]session.Session, error) {
-	return s.sess.List(ctx)
-}
-func (s stubRuntime) SessionByID(ctx context.Context, id string) (session.Session, error) {
-	return s.sess.Get(ctx, id)
-}
-func (s stubRuntime) CreateSession(ctx context.Context, title, cwd string) (session.Session, error) {
-	return s.sess.Create(ctx, title, cwd)
-}
-func (s stubRuntime) UpdateSession(ctx context.Context, id string, patch session.Patch) (session.Session, error) {
-	if patch.Title != nil {
-		title := strings.TrimSpace(*patch.Title)
-		if title == "" {
-			return session.Session{}, session.ErrTitleRequired
-		}
-		if err := s.sess.Rename(ctx, id, title); err != nil {
-			return session.Session{}, err
-		}
-	}
-	if patch.Model != nil {
-		if err := s.sess.SetModel(ctx, id, *patch.Model); err != nil {
-			return session.Session{}, err
-		}
-	}
-	if patch.Cwd != nil {
-		cwd, err := worktree.ResolveExistingDir(*patch.Cwd)
-		if err != nil {
-			return session.Session{}, errors.Join(session.ErrCwdUnavailable, err)
-		}
-		if err := s.sess.SetCwd(ctx, id, cwd); err != nil {
-			return session.Session{}, err
-		}
-	}
-	if patch.Metadata != nil {
-		if err := s.sess.SetMetadata(ctx, id, *patch.Metadata); err != nil {
-			return session.Session{}, err
-		}
-	}
-	if patch.Favorite != nil {
-		if err := s.sess.SetFavorite(ctx, id, *patch.Favorite); err != nil {
-			return session.Session{}, err
-		}
-	}
-	return s.sess.Get(ctx, id)
-}
 func (s stubRuntime) DefaultModel() string { return s.model }
 func (s stubRuntime) ReadHistory(_ context.Context, id string) ([]chat.Message, error) {
 	return s.history[id], nil
