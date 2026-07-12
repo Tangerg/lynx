@@ -2,7 +2,7 @@
 
 > **日期**：2026-07-06。**视角**：把 lyra 放进业界横切面里做一次外部体检 —— "领头的 coding agent 在上下文 / 沙箱 / 工具 / 多代理上怎么做，lyra 站在哪，哪些真值得学、哪些是我们威胁模型下的仪式"。
 > **来源**：[`NeuZhou/awesome-ai-anatomy`](https://github.com/NeuZhou/awesome-ai-anatomy) —— 16 个 AI coding agent 的 source-level 拆解（Claude Code / Codex CLI / Goose / OpenHands / Cline / Hermes / oh-my-codex / oh-my-claudecode / Dify / DeerFlow …）。逐份深读了与 lyra 最相关的拆解 + `CROSS-CUTTING.md` + `knowledge/patterns/*`；**每一条对照都回 lyra 实际代码核实**（非从 README 推断）。分析用，未 vendor 进本仓。
-> **状态**：**外部横向体检 + backlog**，非架构基准。与 [`ARCHITECTURE_REVIEW.md`](ARCHITECTURE_REVIEW.md) 并列（那份是内部体检，这份是外部对照）。actionable 项落在 §3，分「该做 / 取向-等触发 / 别做-仪式」。
+> **状态**：**外部横向体检 + backlog**，非架构基准（架构基准见 [`EXECUTION_CENTERED_ARCHITECTURE.md`](EXECUTION_CENTERED_ARCHITECTURE.md)）。actionable 项落在 §3，分「该做 / 取向-等触发 / 别做-仪式」。
 >
 > **结论先行**：
 > 1. **lyra 在这 16 个里属第一梯队** —— 自有 loop（非借框架）、无 god-file（`arch_test` 强制）、有硬成本预算（16 个里只有 Dify 和我们）、loop 检测已达并略超金标准。业界那份 "if building today" 清单，我们做对了大半。
@@ -18,14 +18,14 @@
 |---|---|---|---|
 | 核心 loop | 自有 while-loop 或 event-loop；**借框架的都吃了 upstream 债**（DeerFlow 借 LangGraph、MiroFish 借 OASIS、OMC 借 Claude Code） | planner-driven（GOAP）+ 自有 `agent/toolloop`，无外部框架借核 | **领先** |
 | god-file | 10/12 有 loop 的项目有 1.4K–9K 行巨石（Cline `Task` 3756、Hermes `run_agent.py` 9000、Codex `codex.rs` 7786）。只有 DeerFlow / Goose 靠结构避开 | Clean Arch + `internal/arch/arch_test.go` 机器强制；最大文件 ~627 行 | **领先** |
-| 成本预算 | 16 个里**只有 Dify** 有硬上限（500 步/1200s）；其余全「信任模型自停」（业界点名 anti-pattern） | `kernel/agent.go`：`MaxBudget`(token)/`MaxCostUSD`/`MaxSteps` + `StoppedOnBudget/Steps` | **领先** |
+| 成本预算 | 16 个里**只有 Dify** 有硬上限（500 步/1200s）；其余全「信任模型自停」（业界点名 anti-pattern） | `adapter/agentexec/agent.go`：`MaxBudget`(token)/`MaxCostUSD`/`MaxSteps` + `StoppedOnBudget/Steps` | **领先** |
 | loop / stuck 检测 | 金标准 = 调用签名 hash（order-independent）、window≈20、warn@3 / kill@5（DeerFlow）；OpenHands 487 行 StuckDetector 做恢复 | `agent/toolloop/loop_detection.go`：签名=**调用+结果**、window=10、nudge@3（软提醒）→ halt@5 | **达标/略超**（键控「结果」比 DeerFlow 只键「调用」更准） |
 | 上下文管理 | 谱系：单策略 → 多策略 → **级联**（Claude Code 4 层、OpenHands 10-condenser、Hermes 5 步结构化） | `compaction.go` `MaybeCompact`：已是**结构化多字段摘要**（Goal/Progress/…）+ 压缩标记 + tail 保护 + 隐式迭代 refine；摘要输入现按 `summaryToolResultCap` 截断巨型 tool 输出 | **达标（近多策略；深读后从「大 gap」修正，见 §3 B1）** |
-| prompt-cache | Hermes 把 memory 在会话开始 freeze 进 system prompt，之后写盘不改运行提示 → 保住 prefix cache | `kernel/prompt.go`：前缀（base+LYRA.md+AGENTS.md）稳定 ✓，但 `appendTodos` 把**易变 todo 拼进 system 块** → 每次 `todo_write` 击穿最贵的 system 缓存 | **gap（中型：需 ephemeral 消息原语，见 §3 B2）** |
+| prompt-cache | Hermes 把 memory 在会话开始 freeze 进 system prompt，之后写盘不改运行提示 → 保住 prefix cache | `adapter/agentexec/prompt.go`：前缀（base+LYRA.md+AGENTS.md）稳定 ✓，但 `appendTodos` 把**易变 todo 拼进 system 块** → 每次 `todo_write` 击穿最贵的 system 缓存 | **gap（中型：需 ephemeral 消息原语，见 §3 B2）** |
 | 沙箱 / containment | Codex：seatbelt(SBPL)/Landlock+bwrap+seccomp/Windows 受限令牌（17K 行，3 OS）；Claude Code：macOS `sandbox-exec` | shell/hook/MCP 子进程**无 OS 沙箱**（grep 确认无 seatbelt/landlock）。安全=policy（approval）+recovery（shadow-git 回滚），**无围栏层** | **gap（威胁模型取舍）** |
 | 子进程 env 硬化 | Goose 对 extension 声明的 env 挡 **31 个危险键**（`LD_PRELOAD`/`DYLD_INSERT_LIBRARIES`/`APPINIT_DLLS`…）防注入 | shell(`infra/exec/exec.go`)/hook(`adapter/hooks/shell.go`)/MCP stdio 均**无 env 黑名单**，透传父环境 | **gap（最高性价比）** |
 | 工具并发 | Claude Code RWLock：只读并行、写独占 | `chat.Tool.ConcurrencyKey`（并行读 / 独占写），装饰器强制转发 | **达标** |
-| 子代理隔离 | oh-my-codex：**git worktree per agent**，~30 个并行零文件冲突（业界唯一被验证的多代理收益）；语料几乎都 cap 深度=1 | 并行子代理**共享 cwd**，靠 `kernel/lifecycle` working-tree admission **串行化**避冲突；有 `worktree` domain；**深度上限已加**（`maxSpawnDepth` 结构性 backstop，`66dd466a`） | **部分（深度已保险；worktree 并行仍是提案）** |
+| 子代理隔离 | oh-my-codex：**git worktree per agent**，~30 个并行零文件冲突（业界唯一被验证的多代理收益）；语料几乎都 cap 深度=1 | 并行子代理**共享 cwd**，靠 `application/sessions` working-tree admission **串行化**避冲突；有 `worktree` domain；**深度上限已加**（`maxSpawnDepth` 结构性 backstop，`66dd466a`） | **部分（深度已保险；worktree 并行仍是提案）** |
 | MCP / provider | Goose MCP 6 flavor 统一 `McpClientTrait`；声明式 provider JSON | 已有 MCP 配置子系统 + 数据驱动 provider 表 | **达标** |
 | 记忆存储 | 反面：flat-file 并发损坏（DeerFlow mtime JSON）；正解：SQLite | 单 SQLite（消息/会话/中断）+ LYRA.md（唯一文件，用户可编辑） | **达标** |
 
@@ -58,7 +58,7 @@
 **净结论**：B1 的大头（结构化模板 + 标记 + 迭代）本就在；真正开着的只有「巨型 tool 输出喂爆摘要调用」，已补。
 
 ### B2 prompt-cache：todo 移出被缓存前缀 —— **取向-中型（深读改判，非便宜）**
-Anthropic 缓存**已接线**（`models/anthropic/chat.go applyPromptCaching`：在 tools+system 前缀尾 + 会话末各下一个 ephemeral breakpoint，注释明写前缀须「byte-identical on every call」）。所以 `kernel/prompt.go appendTodos` 把易变 todo 拼进 system 块**确实**击穿缓存 —— 且 system 在 byte 0，一变把下游 history 缓存一并冲掉。**问题在于干净解比初判贵**：
+Anthropic 缓存**已接线**（`models/anthropic/chat.go applyPromptCaching`：在 tools+system 前缀尾 + 会话末各下一个 ephemeral breakpoint，注释明写前缀须「byte-identical on every call」）。所以 `adapter/agentexec/prompt.go appendTodos` 把易变 todo 拼进 system 块**确实**击穿缓存 —— 且 system 在 byte 0，一变把下游 history 缓存一并冲掉。**问题在于干净解比初判贵**：
 - 适配层 `buildSystem` 用 `MergeSystem()` 把**所有 system 消息合并成一块** → 无法把 todo 拆成「稳定 system 段（缓存）+ todo 段（不缓存）」两个 system 块。
 - history 中间件**只对 system 消息不持久化**；任何非-system 消息（把 todo 挪去当普通消息）都会被逐轮持久化 → 历史里堆积每轮 stale todo 快照（噪声 + 膨胀），比缓存成本更糟。
 - 故干净解需要**新增「ephemeral 上下文消息」原语**（core `chat` 加 transient 标记 + history mw 跳过持久化 + 适配层把它放在 rolling breakpoint 之后）—— 一个跨 core/agent/lyra 的中型特性，不是单文件便宜改。
@@ -70,7 +70,7 @@ Anthropic 缓存**已接线**（`models/anthropic/chat.go applyPromptCaching`：
 - **B3b macOS seatbelt-for-bash —— 取向（值这一薄片）**：给 shell 的 `exec.CommandContext` 包 `/usr/bin/sandbox-exec -p <SBPL>`（硬编码路径防注入）+ workspace 写白名单 + 默认拒网络。对齐 Claude Code。**明确不做**：Codex 的 Windows 受限令牌/ACL 堡垒 + MITM proxy —— 那是给「不可信/多租户」威胁模型的，lyra 本地单用户、OS 信任、无鉴权（有意），操作者本就有 shell，沙箱只防「模型误伤 / 注入的 tool 输出」，不防敌意用户。Linux Landlock 可作 phase-2。
 
 ### B4 并行子代理隔离 + 深度上限 —— **取向 + 一个廉价该做**
-- **worktree per 并行子代理 —— 取向（真提案）**：基于已有 `worktree` domain，给每个并行子代理独立 git worktree（分支 → 完成时 merge/commit 回收），解除 `kernel/lifecycle` working-tree admission 的**串行化**，让并行子代理真正并行。业界唯一被验证的多代理收益（oh-my-codex）。权衡：每 worktree 磁盘成本 + fold-in 时的 merge 步；admission-slot 退化为非-git workspace 的 fallback。
+- **worktree per 并行子代理 —— 取向（真提案）**：基于已有 `worktree` domain，给每个并行子代理独立 git worktree（分支 → 完成时 merge/commit 回收），解除 `application/sessions` working-tree admission 的**串行化**，让并行子代理真正并行。业界唯一被验证的多代理收益（oh-my-codex）。权衡：每 worktree 磁盘成本 + fold-in 时的 merge 步；admission-slot 退化为非-git workspace 的 fallback。
 - **✅ DONE — 子代理深度上限**（`66dd466a`）：`AgentProcess` 带 delegation depth（顶层 0、child=parent+1，`CreateChildProcess` 设置、snapshot/restore 保留）；单一 spawn choke point `childSpawn.prepare`（四种 spawn 共用）在超过 `maxSpawnDepth`(8) 时**创建 child 前**以 `ErrMaxSpawnDepth` 快速失败，agent-as-tool wrapper 把它当可恢复 tool error 返回给模型。全局 `MaxBudget/MaxSteps` 只兜住成本；depth cap 补一个**结构性**快速失败（budget 未设时也有界）。刻意用 const 不做 config（YAGNI，需要调再提升）；8 足够深、不碰正当嵌套，仍保留业界多数禁止的 depth>1。lyra 的 `SpawnChildProtectedOnly`（仅 ambient 继承）本就站在「限制继承、不粗暴禁工具」这一侧。
 - **model 路由（cheap→expensive）—— 别做/YAGNI**：OMC 的 role→tier（critic 用便宜、reviewer 用贵，省 30–50% token）。lyra 的 per-run model 已是人手的升级杠杆；只有当我们真的大量 spawn 廉价子代理时才值得自动化便宜端 —— 否则是 KISS 退步。
 
@@ -93,4 +93,4 @@ loop 检测（已达/略超金标准，键控「调用+结果」）、成本/步
 
 - 语料：`NeuZhou/awesome-ai-anatomy`（16 teardowns + `CROSS-CUTTING.md` + `knowledge/architecture-insights.md` + `knowledge/patterns/{loop-detection,subagent-delegation,memory-frozen-snapshot}.yaml`）。
 - 深读：`claude-code/` `hermes-agent/` `openhands/`（上下文）；`codex-cli/` `goose/` `cline/`（沙箱/安全/工具）；`oh-my-codex/` `oh-my-claudecode/`（多代理/隔离）。
-- lyra 侧核实点：`app/runtime/internal/adapter/maintenance/compaction.go`、`app/runtime/internal/kernel/prompt.go`、`app/runtime/internal/infra/exec/exec.go`、`app/runtime/internal/adapter/hooks/shell.go`、`app/runtime/internal/infra/mcp/`、`app/runtime/internal/domain/approval/`、`app/runtime/internal/infra/checkpoint/`、`app/runtime/internal/kernel/agent.go`、`app/runtime/internal/kernel/lifecycle/working_tree_admission.go`、`app/runtime/internal/domain/worktree/`、`agent/toolloop/loop_detection.go`、`agent/runtime/child.go`。
+- lyra 侧核实点：`app/runtime/internal/adapter/maintenance/compaction.go`、`app/runtime/internal/adapter/agentexec/prompt.go`、`app/runtime/internal/infra/exec/exec.go`、`app/runtime/internal/adapter/hooks/shell.go`、`app/runtime/internal/infra/mcp/`、`app/runtime/internal/domain/approval/`、`app/runtime/internal/infra/checkpoint/`、`app/runtime/internal/adapter/agentexec/agent.go`、`app/runtime/internal/application/sessions/working_tree_admission.go`、`app/runtime/internal/domain/worktree/`、`agent/toolloop/loop_detection.go`、`agent/runtime/child.go`。

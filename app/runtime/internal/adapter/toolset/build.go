@@ -33,7 +33,7 @@ import (
 // background exec, MCP, A2A) and wires them into the resolver — so the engine
 // CORE imports none of them; it receives the assembled [Built] from the
 // composition root (runtime). This is the "tools assembled outside the core
-// loop" shape the convergent microkernel design uses (doc/GREENFIELD_ARCHITECTURE.md §5.1).
+// loop" shape the convergent microkernel design uses (doc/EXECUTION_CENTERED_ARCHITECTURE.md).
 
 // CodebaseIndex is the live @codebase capability the tool resolver consumes.
 type CodebaseIndex interface {

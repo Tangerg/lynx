@@ -2,27 +2,26 @@
 
 **Lyra Runtime — 产品级通用 agent 运行时后端（Go）。** 实现 Lyra Runtime Protocol（JSON-RPC 2.0，MCP-inspired），经 HTTP+SSE 给前端（Wails 桌面壳 / Web，同仓独立模块 [`../desktop`](../desktop)）用；保留 inprocess transport 给未来独立 CLI/TUI 复用。
 
-> 模块级上下文（设计原则 / 分层 / Go idiom / 协议约定）见 [`CLAUDE.md`](./CLAUDE.md)；架构基准见 [`doc/GREENFIELD_ARCHITECTURE.md`](./doc/GREENFIELD_ARCHITECTURE.md)；文档总目录见 [`doc/README.md`](./doc/README.md)。
+> 模块级上下文（设计原则 / 分层 / Go idiom / 协议约定）见 [`CLAUDE.md`](./CLAUDE.md)；架构基准见 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](./doc/EXECUTION_CENTERED_ARCHITECTURE.md)；文档总目录见 [`doc/README.md`](./doc/README.md)。
 
 ---
 
 ## 这是什么
 
-基于 [lynx-agent](../agent) 框架的 agent 服务运行时。**协议层薄、业务层厚、传输层可换**：`internal/delivery` 是 wire 契约 + 传输，`internal/kernel` 是驱动 agent loop 的微内核，`internal/domain/*` 按限界上下文切业务，`internal/infra/*` 是技术设施。客户端（前端）是同仓独立模块 [`../desktop`](../desktop)（自带 go.work，不共享代码），经 JSON-RPC over HTTP/SSE 消费。
+基于 [lynx-agent](../agent) 框架的 agent 服务运行时，以 **Run 生命周期**（而非 agent loop）为中心。**协议层薄、业务层厚、传输层可换**：`internal/delivery` 是 wire 契约 + 传输，`internal/application/*` 是驱动 Run/Session/能力生命周期的用例协调器，`internal/adapter/*`（含 `agentexec`）适配外部能力与 agent SDK，`internal/domain/*` 按限界上下文切业务，`internal/infra/*` 是技术设施。客户端（前端）是同仓独立模块 [`../desktop`](../desktop)（自带 go.work，不共享代码），经 JSON-RPC over HTTP/SSE 消费。
 
 ## 架构（Clean Arch 同心环，依赖向内，`internal/arch` 机器强制）
 
 ```
-delivery (internal/delivery)  协议契约 + HTTP+SSE / inprocess 传输 + dispatch
-   ↓
-kernel   (internal/kernel)    微内核：定义窄 port、驱动 agent loop、装配工具集（含 turn 用例）
-   ↓
-domain   (internal/domain/*)  限界上下文：session / transcript / knowledge / maintenance / codeintel / workspace / …
-   ↓
-infra    (internal/infra/*)   sqlite / git / lsp / mcp / a2a / exec / checkpoint
+composition (internal/{runtime,bootstrap,config}, cmd)  装配 + host 生命周期；wires 每一环，无环 import 它
+delivery    (internal/delivery)      协议契约 + HTTP+SSE / inprocess 传输 + dispatch
+adapter     (internal/adapter/*)     能力适配器（含 agentexec：驱动 agent loop 的 ACL over agent SDK）
+application (internal/application/*) 用例协调器：runs / sessions / capabilities / workspace / schedules
+infra       (internal/infra/*)       driven adapter：sqlite / git / lsp / mcp / a2a / exec / checkpoint
+domain      (internal/domain/*)      限界上下文：entities + repo ports + domain services
 ```
 
-详见 [`doc/GREENFIELD_ARCHITECTURE.md`](./doc/GREENFIELD_ARCHITECTURE.md)。
+依赖一律向内（domain 是核心）；application 只依赖 domain，adapter 实现 application/domain port，delivery 驱动协调器。详见 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](./doc/EXECUTION_CENTERED_ARCHITECTURE.md)。
 
 ## 能力（现状）
 
