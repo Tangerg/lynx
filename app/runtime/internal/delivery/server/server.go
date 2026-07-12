@@ -31,10 +31,6 @@ import (
 
 // Config bundles construction inputs.
 type Config struct {
-	// Runtime is the in-process runtime bundle. Required. Typed as the
-	// narrow RuntimePort (the concrete *internal/runtime.Runtime satisfies it).
-	Runtime RuntimePort
-
 	// Sessions is the application coordinator for the session/run lifecycle
 	// write-sets and single-writer admission (rollback / delete cascade / fork /
 	// restore / resume / working-tree gates). Required — the delivery layer drives
@@ -93,10 +89,6 @@ type Config struct {
 
 // Server is the protocol.Runtime implementation exposed via [New].
 type Server struct {
-	// rt is the inbound adapter's single seam into the runtime application
-	// boundary (see [RuntimePort]) — the composition root passes the concrete
-	// *internal/runtime.Runtime here.
-	rt         RuntimePort
 	serverInfo protocol.ServerInfo
 
 	// sessions owns the session/run lifecycle write-sets and single-writer
@@ -172,13 +164,10 @@ func (s *Server) Close() {
 // durable cancel, so a stuck store can't wedge cancellation.
 const runCleanupTimeout = 5 * time.Second
 
-// New builds a Server. Returns an error when Runtime is nil. The concrete
-// *Server is returned (it satisfies [protocol.Runtime]) so the composition root
-// can also reach process entry points like RunScheduler.
+// New builds a Server. Returns an error when a required coordinator is nil. The
+// concrete *Server is returned (it satisfies [protocol.Runtime]) so the
+// composition root can also reach process entry points like RunScheduler.
 func New(cfg Config) (*Server, error) {
-	if cfg.Runtime == nil {
-		return nil, errors.New("server: Runtime is required")
-	}
 	if cfg.Sessions == nil {
 		return nil, errors.New("server: Sessions is required")
 	}
@@ -209,7 +198,6 @@ func New(cfg Config) (*Server, error) {
 		workspaceCoord = workspaceapp.New(workspaceapp.Config{}) // disabled: memory/skills/recipes/hooks all no-op
 	}
 	srv := &Server{
-		rt:           cfg.Runtime,
 		sessions:     cfg.Sessions,
 		capabilities: cfg.Capabilities,
 		coordinator:  cfg.Coordinator,

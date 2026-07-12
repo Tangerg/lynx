@@ -22,10 +22,19 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// stubRuntime satisfies RuntimePort by embedding it (unstubbed methods panic if
-// ever called) and overriding only what the session handlers touch.
+// testRuntime is the delivery test seam newTestServer builds the run coordinator
+// from: the executor + the run-segment effects factory. Production wires the
+// agentexec turn executor + a Host-built effects; the stub provides both, plus
+// the optional coordinator-provider seams asserted below.
+type testRuntime interface {
+	runs.Executor
+	RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects
+}
+
+// stubRuntime is the delivery session/lifecycle test double: it provides the run
+// executor + effects (testRuntime) over its own in-memory + sqlite stores, and
+// the coordinator-provider seams (sessions / queries / turn control).
 type stubRuntime struct {
-	RuntimePort
 	sess       *sqlite.SessionStore
 	model      string
 	history    map[string][]chat.Message // per-session chat history (fork copies it)
@@ -76,13 +85,13 @@ func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 	})
 }
 
-func newTestServer(rt RuntimePort) *Server {
-	s := &Server{rt: rt}
+func newTestServer(rt testRuntime) *Server {
+	s := &Server{}
 	// Build the run Coordinator like the Host does, so tests exercise the real
 	// admission / lifecycle seam. The stub runtime provides both the executor
 	// (TurnEvents/CancelTurn) and the run-segment effects; no checkpoint store or
 	// file-change publisher is needed for these tests.
-	s.coordinator = runs.NewCoordinator(rt.(runs.Executor), rt.RunSegmentEffects(nil, nil), nil)
+	s.coordinator = runs.NewCoordinator(rt, rt.RunSegmentEffects(nil, nil), nil)
 	// Wire the session/run lifecycle coordinator over the fake's in-memory stores
 	// when the fake provides one, mirroring the composition root.
 	if p, ok := rt.(sessionsCoordinatorProvider); ok {
@@ -115,7 +124,7 @@ func serverWithCapabilities(cfg capabilities.Config) *Server {
 	return &Server{capabilities: capabilities.New(cfg)}
 }
 
-func newTestServerWithInfo(rt RuntimePort, info protocol.ServerInfo) *Server {
+func newTestServerWithInfo(rt testRuntime, info protocol.ServerInfo) *Server {
 	s := newTestServer(rt)
 	s.serverInfo = info
 	return s
