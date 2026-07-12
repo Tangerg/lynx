@@ -180,9 +180,9 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 			forgetter:  turnDispatcher,
 			tx:         cfg.Transactor,
 		},
-		Turns:     sessionsTurns{dispatcher: turnDispatcher},
-		Restorer:  checkpointRestorer{cp: checkpoints},
-		Mutations: cfg.WorkspaceMutationStore,
+		Turns:       sessionsTurns{dispatcher: turnDispatcher},
+		Checkpoints: sessionCheckpoints{cp: checkpoints},
+		Mutations:   cfg.WorkspaceMutationStore,
 	})
 
 	capabilityCoord := capabilities.New(capabilities.Config{

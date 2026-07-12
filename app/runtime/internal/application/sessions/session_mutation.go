@@ -12,10 +12,11 @@ import (
 )
 
 // DeleteSession atomically removes all durable session state (the atomic
-// write-set), then tears down process-local parked turns and the resume gate.
-// The open interrupts are read up front so the abandoned turns can be canceled
-// after the durable state is gone. File checkpoints are an adapter-owned
-// workspace concern and are dropped by the caller after commit.
+// write-set), then tears down process-local parked turns and the resume gate,
+// and finally drops the session's working-tree checkpoints. The open interrupts
+// are read up front so the abandoned turns can be canceled after the durable
+// state is gone. The checkpoint drop is best-effort cleanup (a shadow-git
+// concern) run last, after the durable delete has already succeeded.
 func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error {
 	pending, err := c.s.Interrupts().List(ctx, sessionID)
 	if err != nil {
@@ -32,6 +33,9 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 		})
 	}
 	c.s.ForgetSession(sessionID)
+	if c.checkpoints != nil {
+		_ = c.checkpoints.DropSession(sessionID)
+	}
 	return nil
 }
 

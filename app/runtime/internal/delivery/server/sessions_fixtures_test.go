@@ -408,12 +408,12 @@ func (s *stubRuntime) sessionsCoordinator() *sessions.Coordinator {
 	return s.sessionsCoordinatorWithRestorer(nil)
 }
 
-func (s *stubRuntime) sessionsCoordinatorWithRestorer(restorer sessions.WorkspaceRestorer) *sessions.Coordinator {
+func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.WorkspaceCheckpoints) *sessions.Coordinator {
 	return sessions.New(sessions.Dependencies{
-		Stores:    stubLifecycleStores{rt: s},
-		Turns:     stubLifecycleTurns{rt: s},
-		Restorer:  restorer,
-		Mutations: s.muts,
+		Stores:      stubLifecycleStores{rt: s},
+		Turns:       stubLifecycleTurns{rt: s},
+		Checkpoints: checkpoints,
+		Mutations:   s.muts,
 	})
 }
 

@@ -186,12 +186,12 @@ func (c *Coordinator) completeMutation(ctx context.Context, sessionID string) er
 	return c.mutations.Complete(ctx, sessionID)
 }
 
-// restore drives the checkpoint restorer, mapping a nil restorer (file
-// checkpoints disabled) onto [ErrCheckpointUnavailable] so a build without
-// checkpoints rejects file restore rather than nil-panicking.
+// restore drives the checkpoint store, mapping a nil store (file checkpoints
+// disabled) onto [ErrCheckpointUnavailable] so a build without checkpoints
+// rejects file restore rather than nil-panicking.
 func (c *Coordinator) restore(ctx context.Context, sessionID, cwd, runID string) error {
-	if c.restorer == nil {
+	if c.checkpoints == nil {
 		return ErrCheckpointUnavailable
 	}
-	return c.restorer.Restore(ctx, sessionID, cwd, runID)
+	return c.checkpoints.Restore(ctx, sessionID, cwd, runID)
 }

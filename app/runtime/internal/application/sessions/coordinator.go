@@ -118,15 +118,21 @@ type RehydrateSpec struct {
 // the run coordinator (as its own opaque handle) without inspecting it.
 type Handle = any
 
-// WorkspaceRestorer resets a session's working tree to a run-boundary
-// checkpoint — the filesystem half of a file rollback (§8.5). Restore is
-// reentrant (a git reset to an already-restored tree is a no-op), so the
-// recoverable operation can re-drive it at boot. A disabled store or missing
+// WorkspaceCheckpoints is the coordinator's view of a session's working-tree
+// checkpoint store (shadow git): Restore resets the tree to a run-boundary
+// snapshot — the filesystem half of a file rollback (§8.5) — and DropSession
+// discards a deleted session's snapshots as the last step of the delete cascade.
+// Restore is reentrant (a git reset to an already-restored tree is a no-op), so
+// the recoverable operation can re-drive it at boot. A disabled store or missing
 // snapshot surfaces as [ErrCheckpointUnavailable]; the composition root maps the
 // checkpoint adapter's own sentinel onto it so the coordinator stays free of the
 // adapter package.
-type WorkspaceRestorer interface {
+type WorkspaceCheckpoints interface {
 	Restore(ctx context.Context, sessionID, cwd, runID string) error
+	// DropSession removes a session's checkpoint history. Best-effort cleanup
+	// after the durable delete — a failed drop leaks a shadow repo but corrupts no
+	// session state.
+	DropSession(sessionID string) error
 }
 
 // WorkspaceMutations is the recoverable operation log for file rollbacks (§8.5):
@@ -165,10 +171,10 @@ type Turns interface {
 type Coordinator struct {
 	s     Stores
 	turns Turns
-	// restorer resets the working tree to a run-boundary checkpoint for a file
-	// rollback; nil disables file restore (the coordinator rejects it as
-	// [ErrCheckpointUnavailable]).
-	restorer WorkspaceRestorer
+	// checkpoints resets the working tree to a run-boundary checkpoint for a file
+	// rollback and drops a deleted session's snapshots; nil disables both (file
+	// restore is rejected as [ErrCheckpointUnavailable], drop no-ops).
+	checkpoints WorkspaceCheckpoints
 	// mutations is the §8.5 recoverable operation log guarding a file+history
 	// rollback across the working tree and the durable history; nil disables it.
 	mutations WorkspaceMutations
@@ -179,13 +185,13 @@ type Coordinator struct {
 
 // Dependencies is the collaborator set [New] wires into a Coordinator: the
 // consumer-defined store surface (including the atomic durable write-sets), the
-// turn dispatcher, the working-tree checkpoint restorer, and the recoverable
+// turn dispatcher, the working-tree checkpoint store, and the recoverable
 // rollback operation log.
 type Dependencies struct {
-	Stores    Stores
-	Turns     Turns
-	Restorer  WorkspaceRestorer
-	Mutations WorkspaceMutations
+	Stores      Stores
+	Turns       Turns
+	Checkpoints WorkspaceCheckpoints
+	Mutations   WorkspaceMutations
 }
 
 // ErrRunNotFound reports that a lifecycle operation targeted no live or parked run.
@@ -214,10 +220,10 @@ var (
 // New returns a Coordinator over deps.
 func New(deps Dependencies) *Coordinator {
 	return &Coordinator{
-		s:         deps.Stores,
-		turns:     deps.Turns,
-		restorer:  deps.Restorer,
-		mutations: deps.Mutations,
+		s:           deps.Stores,
+		turns:       deps.Turns,
+		checkpoints: deps.Checkpoints,
+		mutations:   deps.Mutations,
 	}
 }
 
