@@ -46,6 +46,17 @@ func (s *Server) mcpStatusByName(name string) (mcpserver.ConnectionStatus, bool)
 	return mcpserver.ConnectionStatus{}, false
 }
 
+// mcpServerChangedEvent builds the settled mcp.serverChanged frame for name,
+// reading its live status back from the pool (connected + tool count, or failed
+// + reason). A name no longer tracked yields a bare frame (status omitted).
+func (s *Server) mcpServerChangedEvent(ctx context.Context, server string) protocol.WorkspaceEvent {
+	ev := protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: server}
+	if status, toolCount, problem, ok := s.mcpLiveStatus(ctx, server); ok {
+		ev.Status, ev.ToolCount, ev.Error = status, toolCount, problem
+	}
+	return ev
+}
+
 func (s *Server) mcpToolCount(ctx context.Context, server string) *int {
 	tools, err := s.capabilities.MCPTools(ctx, server)
 	if err != nil {

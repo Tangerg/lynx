@@ -2,12 +2,17 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
+
+// errServerClosed reports that a request-detached delivery operation could not
+// start because the Server is shutting down (its task group is closed).
+var errServerClosed = errors.New("server: closed")
 
 // workspaceHub fans workspace events out to the live workspace.subscribe
 // streams (AUX_API §3). It is the non-run, ephemeral counterpart to the

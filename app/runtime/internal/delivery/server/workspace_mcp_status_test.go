@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -59,40 +58,6 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 
 	if err := s.WorkspaceMCPReconnect(context.Background(), "ghost"); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("reconnect unknown = %v, want ErrInvalidParams", err)
-	}
-}
-
-func TestMCPConnectionActionIsDetachedButServerOwned(t *testing.T) {
-	type contextKey struct{}
-	s := serverWithMCP(capabilities.Config{MCPLive: &fakeMCPLive{
-		statuses: []mcpserver.ConnectionStatus{{Name: "fs", Status: "connected"}},
-	}})
-	requestCtx, cancelRequest := context.WithCancel(context.WithValue(context.Background(), contextKey{}, "trace"))
-	cancelRequest()
-
-	started := make(chan bool, 1)
-	stopped := make(chan struct{})
-	err := s.runMCPConnectionAction(requestCtx, "fs", func(ctx context.Context, _ string) error {
-		started <- ctx.Err() == nil && ctx.Value(contextKey{}) == "trace"
-		<-ctx.Done()
-		close(stopped)
-		return ctx.Err()
-	})
-	if err != nil {
-		t.Fatalf("run action: %v", err)
-	}
-	if detached := <-started; !detached {
-		t.Fatal("action context did not detach request cancellation or preserve values")
-	}
-
-	s.Close()
-	select {
-	case <-stopped:
-	case <-time.After(time.Second):
-		t.Fatal("Server.Close did not cancel and join the action")
-	}
-	if err := s.runMCPConnectionAction(context.Background(), "fs", func(context.Context, string) error { return nil }); !errors.Is(err, errServerClosed) {
-		t.Fatalf("action after Close = %v, want errServerClosed", err)
 	}
 }
 

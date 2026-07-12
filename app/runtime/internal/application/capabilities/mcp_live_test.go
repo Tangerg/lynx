@@ -2,7 +2,9 @@ package capabilities
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -26,19 +28,75 @@ func TestMCPLiveStatusAndToolsUsePorts(t *testing.T) {
 	}
 }
 
+// TestMCPLiveConnectionCommandsUsePort: reconnect/authorize are fire-and-forget —
+// they validate the name synchronously, then dial on the component task group and
+// publish the settled frame. The test waits on the settled notification (which
+// runs after the dial) before asserting the live port was driven with the name.
 func TestMCPLiveConnectionCommandsUsePort(t *testing.T) {
-	live := &fakeMCPLive{}
-	c := New(Config{MCPLive: live})
+	live := &fakeMCPLive{statuses: []mcpserver.ConnectionStatus{{Name: "fs"}, {Name: "github"}}}
+	settled := make(chan string, 2)
+	c := New(Config{MCPLive: live, MCPStatus: func(_ context.Context, server string, connecting bool) {
+		if !connecting {
+			settled <- server
+		}
+	}})
+	defer c.Close()
 
 	if err := c.ReconnectMCPServer(context.Background(), "fs"); err != nil {
 		t.Fatalf("ReconnectMCPServer err = %v", err)
 	}
+	if got := <-settled; got != "fs" {
+		t.Fatalf("settled server = %q, want fs", got)
+	}
 	if err := c.AuthorizeMCPServer(context.Background(), "github"); err != nil {
 		t.Fatalf("AuthorizeMCPServer err = %v", err)
+	}
+	if got := <-settled; got != "github" {
+		t.Fatalf("settled server = %q, want github", got)
 	}
 
 	if live.reconnectName != "fs" || live.authorizeName != "github" {
 		t.Fatalf("reconnect=%q authorize=%q", live.reconnectName, live.authorizeName)
+	}
+
+	if err := c.ReconnectMCPServer(context.Background(), "ghost"); !errors.Is(err, mcpserver.ErrUnknownServer) {
+		t.Fatalf("reconnect unknown = %v, want ErrUnknownServer", err)
+	}
+}
+
+// TestReconnectMCPServerDetachedButComponentOwned: a dial detaches the caller's
+// cancellation (a returning RPC must not abort it) while preserving its trace
+// values, and is canceled + joined by Coordinator.Close; a reconnect requested
+// after Close reports errClosed. This is the component-owned lifecycle §10.2/§10.3
+// the delivery layer used to hold on its own task group.
+func TestReconnectMCPServerDetachedButComponentOwned(t *testing.T) {
+	type ctxKey struct{}
+	live := &blockingMCPLive{
+		fakeMCPLive: fakeMCPLive{statuses: []mcpserver.ConnectionStatus{{Name: "fs"}}},
+		started:     make(chan bool, 1),
+		stopped:     make(chan struct{}),
+		wantValue:   func(ctx context.Context) bool { return ctx.Value(ctxKey{}) == "trace" },
+	}
+	c := New(Config{MCPLive: live})
+
+	reqCtx, cancelRequest := context.WithCancel(context.WithValue(context.Background(), ctxKey{}, "trace"))
+	cancelRequest() // the request is done — the dial must keep running
+
+	if err := c.ReconnectMCPServer(reqCtx, "fs"); err != nil {
+		t.Fatalf("reconnect: %v", err)
+	}
+	if detached := <-live.started; !detached {
+		t.Fatal("dial context did not detach request cancellation or preserve values")
+	}
+
+	c.Close()
+	select {
+	case <-live.stopped:
+	case <-time.After(time.Second):
+		t.Fatal("Coordinator.Close did not cancel and join the dial")
+	}
+	if err := c.ReconnectMCPServer(context.Background(), "fs"); !errors.Is(err, errClosed) {
+		t.Fatalf("reconnect after Close = %v, want errClosed", err)
 	}
 }
 
@@ -104,4 +162,20 @@ func (f *fakeMCPLive) ConfigureMCPServer(_ context.Context, cfg mcpserver.LiveCo
 
 func (f *fakeMCPLive) RemoveMCPServer(_ context.Context, name string) {
 	f.removeName = name
+}
+
+// blockingMCPLive is a fakeMCPLive whose dial blocks on its context until Close,
+// so a test can observe the detach + component-owned-cancellation contract.
+type blockingMCPLive struct {
+	fakeMCPLive
+	started   chan bool
+	stopped   chan struct{}
+	wantValue func(context.Context) bool
+}
+
+func (f *blockingMCPLive) ReconnectMCPServer(ctx context.Context, _ string) error {
+	f.started <- ctx.Err() == nil && f.wantValue(ctx)
+	<-ctx.Done()
+	close(f.stopped)
+	return ctx.Err()
 }

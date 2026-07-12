@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/filechanges"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/mcpstatus"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
@@ -38,6 +39,9 @@ type Stack struct {
 	// workspace hub (the seam that lets the coordinator be built here rather than
 	// inside the delivery Server, §2.5). Delivery installs the consumer via Observe.
 	FileChanges *filechanges.Notifier
+	// MCPStatus bridges the capabilities coordinator's MCP connection transitions
+	// to the delivery workspace hub, same seam as FileChanges. Delivery observes it.
+	MCPStatus *mcpstatus.Notifier
 }
 
 // Host owns the assembled application tier and its process-level close order
@@ -184,6 +188,10 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 	fileChanges := &filechanges.Notifier{}
 	runCoord := runs.NewCoordinator(rt, rt.RunSegmentEffects(checkpoints, fileChanges.Publish), cfg.RunStore)
 
+	// mcpStatus bridges the capabilities coordinator's MCP reconnect/authorize
+	// transitions to the delivery workspace stream the Server observes.
+	mcpStatus := &mcpstatus.Notifier{}
+
 	sessionCoord := sessions.New(sessions.Dependencies{
 		Stores: sessionStores{
 			sessions:   cfg.SessionStore,
@@ -216,6 +224,7 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		MCPLive:           eng,
 		MCPPolicy:         mcpEnv.policy,
 		Codebase:          embeddingEnv.index,
+		MCPStatus:         mcpStatus.Publish,
 		DefaultProvider:   cfg.Provider,
 		DefaultModel:      cfg.Model,
 	})
@@ -226,6 +235,7 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		Capabilities: capabilityCoord,
 		Coordinator:  runCoord,
 		FileChanges:  fileChanges,
+		MCPStatus:    mcpStatus,
 		Workspace: workspace.New(workspace.Config{
 			Memory:  cfg.Engine.Knowledge,
 			Skills:  eng,
