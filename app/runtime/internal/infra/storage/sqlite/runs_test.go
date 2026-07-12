@@ -105,7 +105,7 @@ func TestRunAdmitEnforcesOneActivePerSession(t *testing.T) {
 	if err := store.Admit(ctx, runDraft("run_3", "ses_B")); err != nil {
 		t.Fatalf("other-session admit: %v", err)
 	}
-	if err := store.Terminalize(ctx, "ses_A", execution.OutcomeCompleted.String()); err != nil {
+	if err := store.Terminalize(ctx, "ses_A", execution.OutcomeCompleted); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
 	if err := store.Admit(ctx, runDraft("run_4", "ses_A")); err != nil {
@@ -119,17 +119,51 @@ func TestTerminalizeIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	store, _ := newRunStores(t)
 
-	if err := store.Terminalize(ctx, "ses_unknown", execution.OutcomeCompleted.String()); err != nil {
+	if err := store.Terminalize(ctx, "ses_unknown", execution.OutcomeCompleted); err != nil {
 		t.Fatalf("terminalize unknown: %v", err)
 	}
 	if err := store.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := store.Terminalize(ctx, "ses_A", execution.OutcomeCompleted.String()); err != nil {
+	if err := store.Terminalize(ctx, "ses_A", execution.OutcomeCompleted); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
-	if err := store.Terminalize(ctx, "ses_A", execution.OutcomeCompleted.String()); err != nil {
+	if err := store.Terminalize(ctx, "ses_A", execution.OutcomeCompleted); err != nil {
 		t.Fatalf("second terminalize (idempotent): %v", err)
+	}
+}
+
+// TestTerminalizeParkedRunRejectsNonCancel proves the store defers to the
+// [execution.RunState] machine (§8.2): a parked (interrupted) run may terminalize
+// only via cancellation — any other terminal must resume first — so a non-cancel
+// terminalize of a parked run surfaces an error instead of silently overwriting
+// the row, while a cancel of the same parked run succeeds (the parked-cancel path
+// ApplyCancel relies on).
+func TestTerminalizeParkedRunRejectsNonCancel(t *testing.T) {
+	ctx := context.Background()
+	store, _ := newRunStores(t)
+
+	if err := store.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	if err := store.Suspend(ctx, "ses_A"); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+	// A parked run cannot complete/error/cap out without resuming — the illegal
+	// transition is surfaced, not silently applied.
+	if err := store.Terminalize(ctx, "ses_A", execution.OutcomeCompleted); err == nil {
+		t.Fatal("terminalize(completed) of a parked run must be rejected as illegal")
+	}
+	// The row is untouched — still non-terminal, still busy.
+	if err := store.Admit(ctx, runDraft("run_2", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("admit after rejected terminalize = %v, want ErrSessionBusy (row untouched)", err)
+	}
+	// Cancellation of the same parked run is legal (Interrupted → Canceled).
+	if err := store.Terminalize(ctx, "ses_A", execution.OutcomeCanceled); err != nil {
+		t.Fatalf("terminalize(canceled) of a parked run: %v", err)
+	}
+	if err := store.Admit(ctx, runDraft("run_3", "ses_A")); err != nil {
+		t.Fatalf("re-admit after parked cancel: %v", err)
 	}
 }
 
@@ -160,7 +194,7 @@ func TestSuspendResumeReusesOneSlot(t *testing.T) {
 		t.Fatalf("admit while resumed = %v, want ErrSessionBusy", err)
 	}
 	// Terminal frees the one reused slot.
-	if err := store.Terminalize(ctx, "ses_A", execution.OutcomeCompleted.String()); err != nil {
+	if err := store.Terminalize(ctx, "ses_A", execution.OutcomeCompleted); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
 	if err := store.Admit(ctx, runDraft("run_4", "ses_A")); err != nil {

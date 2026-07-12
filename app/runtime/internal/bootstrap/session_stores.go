@@ -108,7 +108,7 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan execution.Rollbac
 			}
 		}
 		if plan.Terminate {
-			return s.runs.Terminalize(ctx, plan.SessionID, execution.OutcomeCanceled.String())
+			return s.runs.Terminalize(ctx, plan.SessionID, execution.OutcomeCanceled)
 		}
 		return nil
 	})
@@ -180,7 +180,7 @@ func (s sessionStores) ApplyCancel(ctx context.Context, sessionID, runID string)
 		if err := s.interrupts.Delete(ctx, runID); err != nil {
 			return err
 		}
-		return s.runs.Terminalize(ctx, sessionID, execution.OutcomeCanceled.String())
+		return s.runs.Terminalize(ctx, sessionID, execution.OutcomeCanceled)
 	})
 }
 

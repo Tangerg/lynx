@@ -209,8 +209,8 @@ func (r *fakeRunState) Suspend(_ context.Context, sessionID string) error {
 	return nil
 }
 
-func (r *fakeRunState) Terminalize(_ context.Context, sessionID, outcome string) error {
-	r.terminalized = append(r.terminalized, sessionID+":"+outcome)
+func (r *fakeRunState) Terminalize(_ context.Context, sessionID string, o execution.Outcome) error {
+	r.terminalized = append(r.terminalized, sessionID+":"+o.String())
 	return nil
 }
 

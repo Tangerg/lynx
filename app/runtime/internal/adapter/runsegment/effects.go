@@ -53,7 +53,7 @@ type TranscriptStore interface {
 // consistent with. The sqlite RunStateStore satisfies it.
 type RunStateWriter interface {
 	Suspend(ctx context.Context, sessionID string) error
-	Terminalize(ctx context.Context, sessionID, outcome string) error
+	Terminalize(ctx context.Context, sessionID string, o execution.Outcome) error
 }
 
 // Transactor runs fn inside one storage transaction: any store call fn makes
@@ -267,7 +267,7 @@ func (e *Effects) applyState(ctx context.Context, commit execution.EventCommit) 
 	case execution.StateSuspend:
 		return e.runState.Suspend(ctx, commit.SessionID)
 	case execution.StateTerminalize:
-		return e.runState.Terminalize(ctx, commit.SessionID, commit.Outcome.String())
+		return e.runState.Terminalize(ctx, commit.SessionID, commit.Outcome)
 	default:
 		return nil
 	}
