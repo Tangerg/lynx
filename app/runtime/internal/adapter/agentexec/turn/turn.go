@@ -85,7 +85,7 @@ func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
 	}
 	// MessageDelta events already streamed through the observer — no
 	// need to re-emit the assembled reply here.
-	s.emitTurnEnd(st, proc, st.lifecycle.get(), runErr, time.Since(st.startedAt), st.ctx.Err())
+	s.emitTurnEnd(st, proc, st.lifecycle.terminalEvent(), runErr, time.Since(st.startedAt), st.ctx.Err())
 	s.endTurn(st)
 }
 
@@ -150,12 +150,11 @@ func (s *inMemory) emitInterrupt(st *turnState, proc agentexec.TurnProcess) {
 	}
 }
 
-// interruptKind classifies the pending awaitable into the wire interrupt
-// kind (API.md §6: "approval" | "question" | "toolResult"). An
-// [ApprovalPrompt] payload is a gated tool call ("approval"); anything
-// else is a structured question (ask_user / exit_plan_mode), which surfaces
-// as a "question". Returns "" for a nil awaitable (treated as surfaceable so
-// the defensive empty-interrupt path in emitInterrupt still fires).
+// interruptKind classifies the pending awaitable into its wire interrupt kind
+// (API.md §6). An [ApprovalPrompt] payload is a gated tool call ("approval");
+// anything else is a structured question (ask_user / exit_plan_mode), which
+// surfaces as a "question". Returns "" for a nil awaitable (treated as
+// surfaceable so the defensive empty-interrupt path in emitInterrupt still fires).
 func interruptKind(aw core.Awaitable) string {
 	if aw == nil {
 		return ""

@@ -11,8 +11,8 @@
 // interfaces owned by the consumer, satisfied structurally by the adapters the
 // composition root injects.
 //
-// The relocation proceeds in steps within the rewrite's Batch 2/3: the [Journal]
-// (per-run event fan-out + durable replay) lands first; the run registry, the
-// per-segment pump, and the supervisor follow, at which point delivery keeps
-// only wire framing.
+// The pieces: the [Journal] (per-run event fan-out + durable replay), the
+// [Registry] (live single-writer admission + run records), and the per-segment
+// pump that drains an executor's events into the journal — all coordinated by
+// [Coordinator]. Delivery keeps only wire framing on top.
 package runs

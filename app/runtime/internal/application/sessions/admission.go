@@ -44,16 +44,22 @@ func (r *releaseOnce) run() {
 	r.once.Do(r.fn)
 }
 
+// heldAdmission builds a slot whose Release drops the session's single-writer
+// claim exactly once.
+func heldAdmission(claims SessionClaimer, sessionID string) RunAdmission {
+	return RunAdmission{
+		SessionID: sessionID,
+		release:   newReleaseOnce(func() { claims.ReleaseSession(sessionID) }),
+	}
+}
+
 // ClaimRunSlot reserves a session's single-writer slot for a fresh run and
 // rejects sessions already parked on an open interrupt.
 func (c *Coordinator) ClaimRunSlot(ctx context.Context, claims SessionClaimer, sessionID string) (RunAdmission, error) {
 	if !claims.ClaimSession(sessionID) {
 		return RunAdmission{}, ErrSessionBusy
 	}
-	admission := RunAdmission{
-		SessionID: sessionID,
-		release:   newReleaseOnce(func() { claims.ReleaseSession(sessionID) }),
-	}
+	admission := heldAdmission(claims, sessionID)
 	open, err := c.s.Interrupts().List(ctx, sessionID)
 	if err != nil {
 		admission.Release()
@@ -74,10 +80,7 @@ func (c *Coordinator) ClaimMutationSlot(claims SessionClaimer, sessionID string)
 	if !claims.ClaimSession(sessionID) {
 		return RunAdmission{}, ErrSessionBusy
 	}
-	return RunAdmission{
-		SessionID: sessionID,
-		release:   newReleaseOnce(func() { claims.ReleaseSession(sessionID) }),
-	}, nil
+	return heldAdmission(claims, sessionID), nil
 }
 
 // ClaimResumeSlot peeks an open interrupt to find its session, then reserves
@@ -93,8 +96,5 @@ func (c *Coordinator) ClaimResumeSlot(ctx context.Context, claims SessionClaimer
 	if !claims.ClaimSession(pending.SessionID) {
 		return pending, RunAdmission{}, ErrSessionBusy
 	}
-	return pending, RunAdmission{
-		SessionID: pending.SessionID,
-		release:   newReleaseOnce(func() { claims.ReleaseSession(pending.SessionID) }),
-	}, nil
+	return pending, heldAdmission(claims, pending.SessionID), nil
 }

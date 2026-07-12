@@ -129,7 +129,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// resolver, which folds it into the toolport.ToolRoleCoding set only.
 	// AsChatToolFromAgent needs no separate deploy — child processes land
 	// on the platform when spawned.
-	tools := append([]chat.Tool{}, cfg.Tools...)
+	tools := slices.Clone(cfg.Tools)
 	if resolver != nil {
 		taskTool, err := runtime.AsChatToolFromAgent[taskInput, string](platform, e.buildSubtaskAgent())
 		if err != nil {

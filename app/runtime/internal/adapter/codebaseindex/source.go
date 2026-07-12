@@ -1,6 +1,7 @@
 package codebaseindex
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -128,10 +129,5 @@ func (Source) Chunks(cwd, rel string) (chunks []domain.Chunk, hash string, ok bo
 
 // isBinary reports whether data looks non-text (a NUL byte in the first 8KB).
 func isBinary(data []byte) bool {
-	for i := 0; i < min(len(data), 8192); i++ {
-		if data[i] == 0 {
-			return true
-		}
-	}
-	return false
+	return bytes.IndexByte(data[:min(len(data), 8192)], 0) >= 0
 }

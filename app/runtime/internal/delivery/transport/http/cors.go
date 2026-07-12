@@ -47,7 +47,7 @@ func corsMiddleware(origins []string) func(http.Handler) http.Handler {
 	// forbids a literal "*" in Access-Control-Allow-Origin (browsers reject
 	// it on a credentialed request), so REFLECT the request origin instead —
 	// a credentials-compatible allow-all — rather than emitting "*". This is
-	// what makes the Wails webview origin (wails://wails.localhost) work
+	// what makes the Tauri webview origin (tauri://localhost) work
 	// while the config keeps the simple "*" dev default. An explicit
 	// allowlist passes through unchanged.
 	if slices.Contains(origins, "*") {

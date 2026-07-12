@@ -1,5 +1,6 @@
-// Package startup adapts process config and environment state into runtime
-// construction inputs.
+// Package bootstrap is the composition root: it adapts process config and
+// environment into runtime construction inputs, wires the rings, and owns host
+// lifecycle.
 package bootstrap
 
 import (

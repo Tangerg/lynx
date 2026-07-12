@@ -18,6 +18,10 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
+// errSessionIDRequired guards every operation: a session id is the history key,
+// so an empty one is a programming error, not an empty history.
+var errSessionIDRequired = errors.New("conversation: sessionID is required")
+
 // Messages owns LLM message histories keyed by session over a chat history store.
 type Messages struct {
 	store history.Store
@@ -36,7 +40,7 @@ func NewMessages(store history.Store) *Messages {
 // an unknown / never-used session.
 func (m *Messages) Read(ctx context.Context, sessionID string) ([]chat.Message, error) {
 	if sessionID == "" {
-		return nil, errors.New("conversation: sessionID is required")
+		return nil, errSessionIDRequired
 	}
 	return m.store.Read(ctx, sessionID)
 }
@@ -48,7 +52,7 @@ func (m *Messages) Read(ctx context.Context, sessionID string) ([]chat.Message, 
 // would concatenate).
 func (m *Messages) Seed(ctx context.Context, sessionID string, msgs []chat.Message) error {
 	if sessionID == "" {
-		return errors.New("conversation: sessionID is required")
+		return errSessionIDRequired
 	}
 	if len(msgs) == 0 {
 		return nil
@@ -61,7 +65,7 @@ func (m *Messages) Seed(ctx context.Context, sessionID string, msgs []chat.Messa
 // Empty session → 0.
 func (m *Messages) Count(ctx context.Context, sessionID string) (int, error) {
 	if sessionID == "" {
-		return 0, errors.New("conversation: sessionID is required")
+		return 0, errSessionIDRequired
 	}
 	// history.Count uses the store's Counter capability (SQLite: SELECT COUNT(*))
 	// when present, so this hot run.finished watermark read doesn't load and
@@ -78,7 +82,7 @@ func (m *Messages) Count(ctx context.Context, sessionID string) (int, error) {
 // immaterial; rollback doesn't depend on stable seqs).
 func (m *Messages) Truncate(ctx context.Context, sessionID string, keepN int) error {
 	if sessionID == "" {
-		return errors.New("conversation: sessionID is required")
+		return errSessionIDRequired
 	}
 	msgs, err := m.store.Read(ctx, sessionID)
 	if err != nil {
@@ -97,7 +101,7 @@ func (m *Messages) Truncate(ctx context.Context, sessionID string, keepN int) er
 // once the current turn ends. Errors on an empty sessionID or text.
 func (m *Messages) InjectUser(ctx context.Context, sessionID, text string) error {
 	if sessionID == "" {
-		return errors.New("conversation: sessionID is required")
+		return errSessionIDRequired
 	}
 	if text == "" {
 		return errors.New("conversation: text must not be empty")

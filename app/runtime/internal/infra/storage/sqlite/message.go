@@ -4,11 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 )
+
+// errEmptyConversationID guards every store operation: the conversation id is
+// the table key, so an empty one is a caller bug, not an empty conversation.
+var errEmptyConversationID = errors.New("sqlite: conversation id is required")
 
 // MessageStore implements the lynx-core chat history [history.Store] against
 // SQLite — the per-conversation chat history the history middleware loads
@@ -40,7 +45,7 @@ func NewMessageStore(db *sql.DB) *MessageStore {
 // the whole conversation.
 func (s *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
 	if conversationID == "" {
-		return nil, fmt.Errorf("sqlite: invalid conversation id %q", conversationID)
+		return nil, errEmptyConversationID
 	}
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT message FROM messages WHERE conversation_id = ? ORDER BY seq`, conversationID)
@@ -71,7 +76,7 @@ func (s *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.
 // an empty batch; nil entries are skipped.
 func (s *MessageStore) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
 	if conversationID == "" {
-		return fmt.Errorf("sqlite: invalid conversation id %q", conversationID)
+		return errEmptyConversationID
 	}
 	if len(messages) == 0 {
 		return nil
@@ -108,7 +113,7 @@ func (s *MessageStore) Write(ctx context.Context, conversationID string, message
 // would lose the conversation if the Write failed after the Clear committed.
 func (s *MessageStore) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
 	if conversationID == "" {
-		return fmt.Errorf("sqlite: invalid conversation id %q", conversationID)
+		return errEmptyConversationID
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		q := conn(ctx, s.db)
@@ -144,7 +149,7 @@ func (s *MessageStore) Replace(ctx context.Context, conversationID string, messa
 // messages, so in practice the two agree.
 func (s *MessageStore) Count(ctx context.Context, conversationID string) (int, error) {
 	if conversationID == "" {
-		return 0, fmt.Errorf("sqlite: invalid conversation id %q", conversationID)
+		return 0, errEmptyConversationID
 	}
 	var n int
 	if err := conn(ctx, s.db).QueryRowContext(ctx,
@@ -159,7 +164,7 @@ func (s *MessageStore) Count(ctx context.Context, conversationID string) (int, e
 // not an error (matches history.InMemoryStore).
 func (s *MessageStore) Clear(ctx context.Context, conversationID string) error {
 	if conversationID == "" {
-		return fmt.Errorf("sqlite: invalid conversation id %q", conversationID)
+		return errEmptyConversationID
 	}
 	if _, err := conn(ctx, s.db).ExecContext(ctx,
 		`DELETE FROM messages WHERE conversation_id = ?`, conversationID,

@@ -23,13 +23,11 @@ func (c *Coordinator) SetApprovalMode(ctx context.Context, mode approval.Mode) e
 func (c *Coordinator) ListApprovalRules(ctx context.Context, sessionID string) ([]approval.Rule, error) {
 	cwd := ""
 	if sessionID != "" {
-		sess, err := c.sessions.Get(ctx, sessionID)
-		if err != nil {
-			if !errors.Is(err, session.ErrNotFound) {
-				return nil, err
-			}
-		} else {
+		switch sess, err := c.sessions.Get(ctx, sessionID); {
+		case err == nil:
 			cwd = sess.Cwd
+		case !errors.Is(err, session.ErrNotFound):
+			return nil, err
 		}
 	}
 	return c.approval.Rules(ctx, sessionID, cwd)

@@ -23,11 +23,3 @@ func (s *Server) claimSession(sessionID string) bool {
 func (s *Server) releaseSession(sessionID string) {
 	s.coordinator.ReleaseSession(sessionID)
 }
-
-// hasActiveRunSharingCwd returns the id of an in-flight run's session whose
-// canonical working tree is cwd, or "" when none — the broader busy guard a file
-// restore needs (its `git reset --hard` writes the working tree a sibling
-// session sharing the cwd would race). cwd must already be canonical.
-func (s *Server) hasActiveRunSharingCwd(cwd string) string {
-	return s.coordinator.ActiveSessionWithCwd(cwd)
-}

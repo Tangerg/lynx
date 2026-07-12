@@ -198,7 +198,7 @@ func errorString(err error) string {
 	return err.Error()
 }
 
-func (l *turnLifecycle) get() event.Event {
+func (l *turnLifecycle) terminalEvent() event.Event {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.terminal

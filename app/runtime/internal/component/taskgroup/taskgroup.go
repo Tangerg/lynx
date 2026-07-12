@@ -7,6 +7,8 @@ package taskgroup
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sync"
 )
 
@@ -91,10 +93,7 @@ func (g *Group) finish(id uint64, cancel context.CancelFunc) {
 func (g *Group) Close() {
 	g.mu.Lock()
 	g.closed = true
-	cancels := make([]context.CancelFunc, 0, len(g.cancels))
-	for _, cancel := range g.cancels {
-		cancels = append(cancels, cancel)
-	}
+	cancels := slices.Collect(maps.Values(g.cancels))
 	g.mu.Unlock()
 
 	for _, cancel := range cancels {

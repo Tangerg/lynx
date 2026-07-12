@@ -110,16 +110,8 @@ func (t *sourcegraphTool) search(ctx context.Context, in sourcegraphRequest) (so
 	if maxResults <= 0 {
 		maxResults = 10
 	}
-	if maxResults > 50 {
-		maxResults = 50
-	}
-	contextLines := in.ContextLines
-	if contextLines < 0 {
-		contextLines = 0
-	}
-	if contextLines > 5 {
-		contextLines = 5
-	}
+	maxResults = min(maxResults, 50)
+	contextLines := min(max(in.ContextLines, 0), 5)
 	q := u.Query()
 	q.Set("q", in.Query)
 	q.Set("v", "V3")

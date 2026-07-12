@@ -13,9 +13,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 )
 
-// turnInput is the typed input to the M1 single-turn chat agent. It
-// carries the user's message verbatim; future milestones extend with
-// session context, tool selection hints, etc.
+// turnInput is the typed input to the chat turn agent — the user's message
+// plus the per-turn provider selection and any image attachments.
 type turnInput struct {
 	Message string
 

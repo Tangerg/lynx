@@ -15,7 +15,7 @@ type UtilityRoleStore struct {
 
 // NewUtilityRoleStore wires the given *sql.DB to the utility-role surface.
 func NewUtilityRoleStore(db *sql.DB) *UtilityRoleStore {
-	return &UtilityRoleStore{store: newRoleStore(db, "utility_role", "utility role", "utility role")}
+	return &UtilityRoleStore{store: newRoleStore(db, "utility_role", "utility role")}
 }
 
 // LoadUtilityRole returns the stored (provider, model); both empty when unset

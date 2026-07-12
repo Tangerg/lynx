@@ -10,19 +10,13 @@ import (
 // roleStore is the shared persistence primitive for single-row role tables,
 // used by utility-role and embedding-role storage.
 type roleStore struct {
-	db               *sql.DB
-	table            string
-	loadErrorContext string
-	saveErrorContext string
+	db    *sql.DB
+	table string
+	label string // role name woven into load/save error context
 }
 
-func newRoleStore(db *sql.DB, table, loadErrorContext, saveErrorContext string) *roleStore {
-	return &roleStore{
-		db:               db,
-		table:            table,
-		loadErrorContext: loadErrorContext,
-		saveErrorContext: saveErrorContext,
-	}
+func newRoleStore(db *sql.DB, table, label string) *roleStore {
+	return &roleStore{db: db, table: table, label: label}
 }
 
 func (s *roleStore) load(ctx context.Context) (provider, model string, err error) {
@@ -32,7 +26,7 @@ func (s *roleStore) load(ctx context.Context) (provider, model string, err error
 		return "", "", nil
 	}
 	if err != nil {
-		return "", "", fmt.Errorf("sqlite: load %s: %w", s.loadErrorContext, err)
+		return "", "", fmt.Errorf("sqlite: load %s: %w", s.label, err)
 	}
 	return provider, model, nil
 }
@@ -44,7 +38,7 @@ func (s *roleStore) save(ctx context.Context, provider, model string) error {
 	)
 	_, err := s.db.ExecContext(ctx, query, provider, model)
 	if err != nil {
-		return fmt.Errorf("sqlite: save %s: %w", s.saveErrorContext, err)
+		return fmt.Errorf("sqlite: save %s: %w", s.label, err)
 	}
 	return nil
 }

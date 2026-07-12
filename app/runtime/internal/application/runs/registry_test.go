@@ -56,11 +56,12 @@ func TestRegistryTracksActiveRuns(t *testing.T) {
 func TestRegistryCancelReason(t *testing.T) {
 	var r Registry[struct{}]
 	r.Open(Record{ID: "run_1", SessionID: "ses_1"}, struct{}{})
-	if _, ok := r.MarkCancel("run_1", "user asked"); !ok {
+	e, ok := r.MarkCancel("run_1", "user asked")
+	if !ok {
 		t.Fatal("mark cancel must find the run")
 	}
-	if got := r.CancelReason("run_1"); got != "user asked" {
-		t.Fatalf("cancel reason = %q", got)
+	if e.Record.CancelReason != "user asked" {
+		t.Fatalf("cancel reason = %q", e.Record.CancelReason)
 	}
 	if _, ok := r.MarkCancel("missing", "x"); ok {
 		t.Fatal("mark cancel must miss unknown runs")

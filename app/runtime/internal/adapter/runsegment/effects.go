@@ -56,9 +56,9 @@ type RunStateWriter interface {
 	Terminalize(ctx context.Context, sessionID, outcome string) error
 }
 
-// Transactor runs fn inside one storage transaction; the store calls fn makes
-// join it through the context. A nil Transactor degrades to a direct
-// (non-transactional) call for tests / non-sqlite runtimes.
+// Transactor runs fn inside one storage transaction: any store call fn makes
+// joins that transaction through the context. A nil Transactor degrades to a
+// direct (non-transactional) call for tests / non-sqlite runtimes.
 type Transactor func(ctx context.Context, fn func(context.Context) error) error
 
 // Stores is the consumer-defined surface the Effects coordinator drives. It is

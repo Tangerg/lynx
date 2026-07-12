@@ -22,10 +22,9 @@ import (
 // time, so an edit/write can be refused when the file was never read or has
 // changed since. Keyed by session so one session reading a file doesn't license
 // another to edit it. In-memory and per-engine: lost on restart (the agent just
-// re-reads, as a per-session in-memory cache. Content hash,
-// not mtime — mtime is coarse and unreliable across filesystems, and the file
-// content is read anyway. The zero value is not usable; build one with
-// [NewTracker].
+// re-reads). Content hash, not mtime — mtime is coarse and unreliable across
+// filesystems, and the file content is read anyway. The zero value is not
+// usable; build one with [NewTracker].
 type Tracker struct {
 	mu   sync.Mutex
 	seen map[string]map[string]stamp // sessionID → absPath → stamp

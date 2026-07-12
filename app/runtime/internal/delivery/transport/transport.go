@@ -6,12 +6,6 @@
 // Go SDK's `jsonrpc` package — same vendor we use for our MCP
 // integration, conformant JSON-RPC 2.0 implementation, "for use by
 // mcp transport authors" per its own doc.
-//
-// File layout in this package:
-//   - transport.go (this file) — [Transport] interface + Message/Request/
-//     Response/ID/Error type aliases
-//   - codes.go    — wire error codes + canonical-message helper
-//   - builders.go — call/notification/response/error convenience constructors
 package transport
 
 import (

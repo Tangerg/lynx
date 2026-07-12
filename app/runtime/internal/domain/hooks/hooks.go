@@ -191,5 +191,4 @@ func (d *Decision) fold(block, ask bool, reason, inject, rewrite string) {
 	}
 }
 
-// trimZero collapses an all-whitespace string to "".
-func trimZero(s string) string { return strings.TrimSpace(s) }
+func trimSpace(s string) string { return strings.TrimSpace(s) }

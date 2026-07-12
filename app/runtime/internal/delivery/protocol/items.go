@@ -147,12 +147,8 @@ type Item struct {
 type ContentBlock struct {
 	Type ContentBlockType `json:"type"` // see ContentBlockType
 	Text string           `json:"text,omitempty"`
-	// Mime is the image media type ("image/png", "image/jpeg", …). Set on
-	// image blocks; empty otherwise.
-	Mime string `json:"mime,omitempty"`
-	// Data is the base64-encoded image bytes (no "data:…;base64," prefix).
-	// Set on image blocks; empty otherwise.
-	Data string `json:"data,omitempty"`
+	Mime string           `json:"mime,omitempty"`
+	Data string           `json:"data,omitempty"`
 }
 
 // PlanStep is one step of a plan Item (API.md §4.3).

@@ -72,7 +72,7 @@ func (t *Transport) reserve() bool {
 
 // Config bundles the inputs for NewTransport.
 type Config struct {
-	// API is the Runtime implementation the dispatcher routes to.
+	// Runtime is the protocol implementation the dispatcher routes to.
 	// Required.
 	Runtime protocol.Runtime
 
@@ -83,10 +83,10 @@ type Config struct {
 }
 
 // NewTransport builds an InProcess transport. Returns an error when
-// API is nil.
+// Runtime is nil.
 func NewTransport(cfg Config) (*Transport, error) {
 	if cfg.Runtime == nil {
-		return nil, errors.New("inprocess: API is required")
+		return nil, errors.New("inprocess: Runtime is required")
 	}
 	if cfg.RecvBuffer <= 0 {
 		cfg.RecvBuffer = 64

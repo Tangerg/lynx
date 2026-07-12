@@ -12,9 +12,8 @@
 //	GET /v2/info              ServerInfo + protocolVersion + capabilities
 //	GET /v2/health            liveness probe
 //
-// See docs/{API,TRANSPORT}.md for the wire details. Most of the
-// observability discipline (X-Method header, structured log,
-// metric labels) is enforced here in middleware — the dispatcher
+// See docs/{API,TRANSPORT}.md for the wire details. The middleware here wraps
+// each request in an OTel span and sets the X-Method header — the dispatcher
 // itself stays transport-agnostic.
 package http
 

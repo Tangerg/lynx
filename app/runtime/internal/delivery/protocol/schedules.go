@@ -27,7 +27,7 @@ type Schedules interface {
 	RunScheduleNow(ctx context.Context, in RunScheduleNowRequest) error
 }
 
-// Schedule is one scheduled run (API.md §4.12). Body/Prompt is the final text
+// Schedule is one scheduled run (API.md §4.12). Prompt is the final text
 // sent as the run's input. cron is a 5-field standard expression
 // ("min hour dom month dow"). lastRunAt is omitted until first fired; nextRunAt
 // is omitted when the schedule is disabled.

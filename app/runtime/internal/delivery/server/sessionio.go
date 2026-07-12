@@ -227,9 +227,9 @@ func contentText(it protocol.Item) string {
 	var parts []string
 	for _, c := range it.Content {
 		switch c.Type {
-		case "text":
+		case protocol.ContentBlockText:
 			parts = append(parts, c.Text)
-		case "image":
+		case protocol.ContentBlockImage:
 			parts = append(parts, "[image]")
 		}
 	}
