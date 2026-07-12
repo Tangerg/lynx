@@ -33,39 +33,41 @@ type Item struct {
 	Blob      json.RawMessage
 }
 
-// Run is one persisted RunRef, upserted by (SessionID, RunID) as a run
-// starts (status running) and then finishes (status finished + outcome).
-// Blob is the marshaled wire RunRef.
+// Run is one persisted RunRef, upserted by (SessionID, RunID). RunID is the
+// STABLE logical run id: a run's initial segment and every resume continuation
+// share it, so the segments collapse into ONE record here (each segment upserts,
+// the terminal one wins). Blob is the marshaled wire RunRef.
 type Run struct {
 	SessionID string
 	RunID     string
 	UpdatedAt time.Time
 	Blob      json.RawMessage
 	// Mark is the per-run chat history message watermark — the message count
-	// captured when the run finished (post-compaction). sessions.rollback /
+	// captured when the run terminated (post-compaction). sessions.rollback /
 	// fork{fromRunId} truncate the message log to it. -1 means unknown: a run
-	// still in flight, or one persisted before this field existed.
+	// still in flight (or parked between segments).
 	Mark int
 }
 
 // --- run timeline (the rollback / fork boundary invariant) ---
 //
 // A session's runs form a wall-clock timeline: each turn opens with a ROOT run
-// (a runs.start), optionally followed by continuations (runs.resume, carrying a
-// ParentRunID) and subagent runs (carrying a SpawnedByItemID). sessions.rollback
-// and sessions.fork both cut this timeline at a run boundary — keeping a run's
-// whole continuation chain and dropping/copying from the next root on. That
-// boundary math is a domain invariant of the run log, so it lives here (wire-
-// free) rather than in the protocol adapter; the adapter only lifts the
-// structured fields out of the opaque Run.Blob and maps these sentinels to wire
-// errors. See doc/EXECUTION_CENTERED_ARCHITECTURE.md.
+// (a runs.start), optionally interleaved with subagent runs it spawns (carrying
+// a SpawnedByItemID). A run's resume continuations are NOT separate nodes — they
+// share the run's stable id and collapse into its one record. sessions.rollback
+// and sessions.fork both cut this timeline at a run boundary — keeping a run
+// (with its subagents) and dropping/copying from the next root on. That boundary
+// math is a domain invariant of the run log, so it lives here (wire-free) rather
+// than in the protocol adapter; the adapter only lifts the structured fields out
+// of the opaque Run.Blob and maps these sentinels to wire errors. See
+// doc/EXECUTION_CENTERED_ARCHITECTURE.md.
 
 // Boundary-resolution errors. The adapter maps them to protocol errors.
 var (
 	// ErrRunNotFound means the boundary run id isn't in the timeline.
 	ErrRunNotFound = errors.New("run not found in timeline")
-	// ErrNotRoot means a root-only boundary (rollback) addressed a continuation
-	// or subagent run. Fork is lax and never returns this.
+	// ErrNotRoot means a root-only boundary (rollback) addressed a subagent run.
+	// Fork is lax and never returns this.
 	ErrNotRoot = errors.New("run is not a root run")
 )
 
@@ -74,15 +76,14 @@ var (
 // the caller (which owns wire parsing). Wire-free by design.
 type RunNode struct {
 	ID              string
-	ParentRunID     string    // non-empty: a resume continuation
 	SpawnedByItemID string    // non-empty: a subagent run
 	CreatedAt       time.Time // wall-clock turn order
 	Mark            int       // chat history message watermark; -1 when unknown
 }
 
 // IsRoot reports whether the run opens a turn (a runs.start) rather than a
-// continuation (runs.resume) or a subagent run.
-func (n RunNode) IsRoot() bool { return n.ParentRunID == "" && n.SpawnedByItemID == "" }
+// subagent run.
+func (n RunNode) IsRoot() bool { return n.SpawnedByItemID == "" }
 
 // Timeline is the domain view of a session's run log. It owns boundary math for
 // fork/rollback: callers lift wire/store records into [RunNode] values, then
@@ -91,12 +92,12 @@ type Timeline []RunNode
 
 // Boundary is the inclusive-keep split of a timeline at a run:
 //
-//   - KeepMark: the watermark to keep — the Mark of the kept run's chain
-//     terminal (the last run before the first root run after it), so the run's
-//     own continuation chain is kept. -1 when that watermark is unknown
-//     (in-flight / pre-watermark), which the caller clamps.
+//   - KeepMark: the watermark to keep — the Mark of the last kept run (the last
+//     node before the first root run after it), so the run and its subagents are
+//     kept. -1 when that watermark is unknown (in-flight / pre-watermark), which
+//     the caller clamps.
 //   - Dropped: the runs at/after the boundary, in timeline order — the next root
-//     run plus everything after it (continuations, subagent runs) included.
+//     run plus everything after it (its subagent runs) included.
 //   - BoundaryTime: the first dropped root run's CreatedAt — the cut-off that
 //     attributes subagent child sessions to dropped runs. Zero when nothing is
 //     dropped (or the whole timeline is dropped).
@@ -136,7 +137,7 @@ func (tl Timeline) BoundaryAt(runID string, requireRoot bool) (Boundary, error) 
 	}
 	for k := idx + 1; k < len(t); k++ {
 		if t[k].IsRoot() {
-			// Keep through t[k-1] (runID's chain terminal); drop from the next
+			// Keep through t[k-1] (runID + its subagents); drop from the next
 			// root on.
 			return Boundary{
 				KeepMark:     t[k-1].Mark,
@@ -145,7 +146,7 @@ func (tl Timeline) BoundaryAt(runID string, requireRoot bool) (Boundary, error) 
 			}, nil
 		}
 	}
-	// No root run after runID — its turn (incl. continuations) is the latest, so
+	// No root run after runID — its turn (incl. subagents) is the latest, so
 	// there is nothing to drop / everything up to it is copied.
 	return Boundary{KeepMark: t[len(t)-1].Mark}, nil
 }

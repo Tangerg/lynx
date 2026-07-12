@@ -68,14 +68,14 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 	}
 
 	if err := sqlite.RunInTx(ctx, db, func(ctx context.Context) error {
-		if err := ints.Put(ctx, interrupts.Pending{ParentRunID: "run_1", SessionID: "s2"}); err != nil {
+		if err := ints.Put(ctx, interrupts.Pending{RunID: "run_1", SessionID: "s2"}); err != nil {
 			return err
 		}
 		pending, err := ints.List(ctx, "s2")
 		if err != nil {
 			return err
 		}
-		if len(pending) != 1 || pending[0].ParentRunID != "run_1" {
+		if len(pending) != 1 || pending[0].RunID != "run_1" {
 			t.Fatalf("pending interrupts = %+v, want run_1 inside tx", pending)
 		}
 		return ints.Delete(ctx, "run_1")

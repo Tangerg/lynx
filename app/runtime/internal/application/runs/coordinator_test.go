@@ -242,10 +242,10 @@ func TestCoordinatorStartAdmitsAndTerminalizes(t *testing.T) {
 	}
 }
 
-// TestCoordinatorResumeReusesDurableSlot: a continuation of a parked run (a spec
-// carrying a ParentRunID) transitions the session's EXISTING durable row back to
-// running rather than admitting a second row — so a resume does not trip the
-// one-non-terminal-run-per-session guard the parent's still-open row would trip.
+// TestCoordinatorResumeReusesDurableSlot: a continuation segment (a spec with
+// Resume set) transitions the session's EXISTING durable row back to running
+// rather than admitting a second row — so a resume does not trip the
+// one-non-terminal-run-per-session guard the parked run's still-open row would trip.
 func TestCoordinatorResumeReusesDurableSlot(t *testing.T) {
 	exec := &fakeExecutor{}
 	store := newFakeRunStore()
@@ -258,7 +258,7 @@ func TestCoordinatorResumeReusesDurableSlot(t *testing.T) {
 	c := NewCoordinator(exec, &fakeEffects{}, store)
 
 	events, err := c.Start(context.Background(),
-		StartSpec{RunID: "cont_1", ParentRunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
+		StartSpec{RunID: "run_1", SegmentID: "seg_2", Resume: true, SessionID: "ses_1", TurnID: "run_1"},
 		func(v SegmentView) Projector { proj.view = v; return proj })
 	if err != nil {
 		t.Fatalf("resume Start must not re-admit a durably-busy session: %v", err)

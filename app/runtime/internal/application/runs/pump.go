@@ -37,6 +37,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 			}
 			ev := Event{
 				RunID:     spec.RunID,
+				SegmentID: spec.SegmentID,
 				Seq:       c.mintCursor(),
 				Timestamp: time.Now().UTC(),
 				IsDurable: pe.Durable,

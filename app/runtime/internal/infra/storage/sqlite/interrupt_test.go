@@ -26,13 +26,13 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 	store := newInterruptStore(t)
 
 	p := interrupts.Pending{
-		ParentRunID: "run_1",
-		SessionID:   "ses_a",
-		TurnID:      "turn_1",
-		Provider:    "anthropic",
-		Model:       "claude-opus-4-8",
-		Interrupts:  json.RawMessage(`[{"kind":"plan"}]`),
-		CreatedAt:   time.Unix(5, 0).UTC(),
+		RunID:      "run_1",
+		SessionID:  "ses_a",
+		TurnID:     "turn_1",
+		Provider:   "anthropic",
+		Model:      "claude-opus-4-8",
+		Interrupts: json.RawMessage(`[{"kind":"plan"}]`),
+		CreatedAt:  time.Unix(5, 0).UTC(),
 	}
 	if err := store.Put(ctx, p); err != nil {
 		t.Fatalf("Put: %v", err)
@@ -92,11 +92,11 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	}
 
 	if err := store.Put(ctx, interrupts.Pending{
-		ParentRunID: "run_1",
-		SessionID:   "ses_a",
-		ProcessID:   "proc_1",
-		Interrupts:  json.RawMessage(`[{"kind":"approval"}]`),
-		CreatedAt:   time.Unix(7, 0).UTC(),
+		RunID:      "run_1",
+		SessionID:  "ses_a",
+		ProcessID:  "proc_1",
+		Interrupts: json.RawMessage(`[{"kind":"approval"}]`),
+		CreatedAt:  time.Unix(7, 0).UTC(),
 	}); err != nil {
 		t.Fatalf("Put: %v", err)
 	}

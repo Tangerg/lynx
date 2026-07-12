@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
-	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -16,11 +16,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
-// ResumeRun answers an open interrupt by continuing the parked run as a
-// fresh continuation run (R model, API.md §6). parentRunId identifies
-// the interrupted run; the response decision is delivered to the live
-// agent process, and the continuation streams under a new runId linked
-// back via RunRef.parentRunId.
+// ResumeRun answers an open interrupt by opening a NEW segment of the SAME run
+// (R model, API.md §6). in.RunID is the stable run to continue; the response
+// decision is delivered to the live agent process, and the continuation streams
+// under the same runId with a fresh segmentId.
 func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	// Validate the decision BEFORE touching the interrupt — a malformed
 	// response shouldn't consume the (still-resumable) record.
@@ -28,7 +27,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	pending, admission, err := s.sessions.ClaimResumeSlot(ctx, s.coordinator, in.ParentRunID)
+	pending, admission, err := s.sessions.ClaimResumeSlot(ctx, s.coordinator, in.RunID)
 	if err != nil {
 		switch {
 		case errors.Is(err, sessions.ErrInterruptNotOpen):
@@ -56,7 +55,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		}
 	}()
 
-	resumed, err := s.sessions.ResumeClaimedInterrupt(ctx, in.ParentRunID, resolution, interruptKindsFromContext(ctx))
+	resumed, err := s.sessions.ResumeClaimedInterrupt(ctx, in.RunID, resolution, interruptKindsFromContext(ctx))
 	if err != nil {
 		switch {
 		case errors.Is(err, sessions.ErrInterruptNotOpen):
@@ -73,31 +72,34 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		return nil, nil, fmt.Errorf("resume: executor handle %T is not a turn handle", resumed.Handle)
 	}
 
-	// Continuation gets a fresh wire runId linked to the parent. handle.TurnID
-	// is the original turn for a same-process resume, or the freshly rebuilt
-	// turn for a cross-restart one — and already carries the run_ prefix, so
-	// suffix it (not re-prefix) to derive a distinct continuation id.
-	contRunID := handle.TurnID + "_" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	// A resume opens a NEW segment of the SAME run: the runId (in.RunID = the
+	// stable logical run) is unchanged, and a fresh segmentId identifies this
+	// continuation stream. handle.TurnID is the executor's turn handle (= the
+	// ProcessID) — distinct from the stable runId.
+	segmentID := protocol.IDPrefixSegment + uuid.NewString()
 	// A continuation carries no new user turn — the decision is delivered
 	// out-of-band via runs.resume, so no opening userMessage Item. It DOES
-	// carry the resume binding: an approved tool re-fires in this run and
-	// must complete its ORIGINAL proposal item (API.md §5.2 / §6), not a
-	// fresh one.
-	// A continuation runs against the parked run's same provider+model — stamp
-	// them so the continuation's RunRef (and its persisted usage) is
-	// self-describing, rather than forcing consumers to chase parentRunId.
-	createdAt := time.Now().UTC()
-	factory := s.segmentProjector(contRunID, in.ParentRunID, pending.SessionID, sess.Cwd, handle, nil, resumeBindingFrom(pending), pending.Provider, pending.Model, createdAt)
+	// carry the resume binding: an approved tool re-fires in this segment and
+	// must complete its ORIGINAL proposal item (API.md §5.2 / §6), not a fresh
+	// one. It runs against the parked run's same provider+model.
+	//
+	// createdAt is the RUN's original start time (carried on the interrupt), NOT
+	// now: the run's segments share one durable transcript record keyed by the
+	// stable runId, so a resume that terminates must not shift the run's timeline
+	// position (it anchors rollback/fork ordering + subagent grouping, §10.3).
+	createdAt := pending.RunCreatedAt
+	factory := s.segmentProjector(in.RunID, segmentID, pending.SessionID, sess.Cwd, handle, nil, resumeBindingFrom(pending), pending.Provider, pending.Model, createdAt)
 	evCh, err := s.coordinator.Start(ctx, runs.StartSpec{
-		RunID:       contRunID,
-		ParentRunID: in.ParentRunID,
-		SessionID:   pending.SessionID,
-		Cwd:         worktree.CanonicalCwd(sess.Cwd),
-		TurnID:      handle.TurnID,
-		Handle:      handle,
-		Provider:    pending.Provider,
-		Model:       pending.Model,
-		CreatedAt:   createdAt,
+		RunID:     in.RunID,
+		SegmentID: segmentID,
+		Resume:    true,
+		SessionID: pending.SessionID,
+		Cwd:       worktree.CanonicalCwd(sess.Cwd),
+		TurnID:    handle.TurnID,
+		Handle:    handle,
+		Provider:  pending.Provider,
+		Model:     pending.Model,
+		CreatedAt: createdAt,
 	}, factory)
 	if err != nil {
 		// The interrupt was already consumed and the parked turn resumed; a Start
@@ -110,7 +112,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	}
 	treeAdmission.Release()
 	releaseTreeAdmission = false
-	return &protocol.StartRunResponse{RunID: contRunID}, mapRunEvents(ctx, evCh), nil
+	return &protocol.StartRunResponse{RunID: in.RunID, SegmentID: segmentID}, mapRunEvents(ctx, evCh), nil
 }
 
 // resolveResolution maps the wire interrupt responses onto the structured

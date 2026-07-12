@@ -101,7 +101,7 @@ func TestRunSegmentPublishesToolFileChange(t *testing.T) {
 
 	// The nudge derived from a completed item is published via Effects.Nudge.
 	nudgeFrom := func(se protocol.StreamEvent) {
-		_, nudge := sideEffectEvent("run_1", "ses_1", "", "/proj", se, "", "", time.Time{})
+		_, nudge := sideEffectEvent("run_1", "ses_1", "/proj", se, "", "", time.Time{})
 		if nudge != nil {
 			effects.Nudge(nudge.Cwd, nudge.Paths)
 		}

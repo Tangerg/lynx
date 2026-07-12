@@ -57,7 +57,7 @@ func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 		runs:  []transcript.Run{{RunID: "run_1"}},
 	}
 	hist := &fakeHistory{msgs: []chat.Message{chat.NewUserMessage("hi")}}
-	ints := &fakeInterrupts{pending: []interrupts.Pending{{ParentRunID: "run_1"}}}
+	ints := &fakeInterrupts{pending: []interrupts.Pending{{RunID: "run_1"}}}
 	c := New(Dependencies{Transcript: tx, History: hist, Interrupts: ints})
 
 	items, runs, err := c.ListTranscript(ctx, "ses_1")

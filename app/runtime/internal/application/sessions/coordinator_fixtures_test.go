@@ -38,7 +38,7 @@ func (s coordinatorStores) ApplyRestore(context.Context, execution.RestorePlan) 
 func (s coordinatorStores) ApplyDelete(ctx context.Context, sessionID string) error {
 	pending, _ := s.interrupts.List(ctx, sessionID)
 	for _, p := range pending {
-		_ = s.interrupts.Delete(ctx, p.ParentRunID)
+		_ = s.interrupts.Delete(ctx, p.RunID)
 	}
 	return nil
 }
@@ -56,7 +56,7 @@ func (s *coordinatorInterrupts) Put(_ context.Context, p interrupts.Pending) err
 	if s.pending == nil {
 		s.pending = map[string]interrupts.Pending{}
 	}
-	s.pending[p.ParentRunID] = p
+	s.pending[p.RunID] = p
 	return nil
 }
 

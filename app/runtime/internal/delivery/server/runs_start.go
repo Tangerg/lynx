@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/Tangerg/lynx/core/media"
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/pkg/mime"
@@ -73,15 +75,18 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, err
 	}
 
-	// runId on the wire == the turn id for the root run. The user's input
-	// rides the stream as the run's opening userMessage Item (translator
-	// emits it after run.started) — streamed live and persisted through the
-	// same path, so the wire id and the items.list id are one and the same.
-	runID := handle.TurnID
+	// runId is the STABLE logical run identity — its own mint, independent of the
+	// executor's turn handle (handle.TurnID = the ProcessID, which a cross-restart
+	// resume re-mints). segmentId identifies this first streamed segment; the
+	// opening userMessage Item id derives from it (translator emits it after
+	// run.started), so its wire id and its items.list id are one and the same.
+	runID := protocol.IDPrefixRun + uuid.NewString()
+	segmentID := protocol.IDPrefixSegment + uuid.NewString()
 	createdAt := time.Now().UTC()
-	factory := s.segmentProjector(runID, "", sessionID, sess.Cwd, handle, in.Input, nil, in.Provider, in.Model, createdAt)
+	factory := s.segmentProjector(runID, segmentID, sessionID, sess.Cwd, handle, in.Input, nil, in.Provider, in.Model, createdAt)
 	evCh, err := s.coordinator.Start(ctx, runs.StartSpec{
 		RunID:           runID,
+		SegmentID:       segmentID,
 		SessionID:       sessionID,
 		Cwd:             worktree.CanonicalCwd(sess.Cwd),
 		TurnID:          handle.TurnID,
@@ -104,7 +109,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	releaseTreeAdmission = false
 	// Return the opening userMessage Item id so the client reconciles its
 	// optimistic bubble by exact id (same id the stream + items.list carry).
-	return &protocol.StartRunResponse{RunID: runID, UserItemID: userMessageItemID(runID)}, mapRunEvents(ctx, evCh), nil
+	return &protocol.StartRunResponse{RunID: runID, SegmentID: segmentID, UserItemID: userMessageItemID(segmentID)}, mapRunEvents(ctx, evCh), nil
 }
 
 func wireTurnStartErr(err error) error {

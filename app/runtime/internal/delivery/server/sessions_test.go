@@ -103,7 +103,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	if err := hist.AppendItem(ctx, transcript.Item{SessionID: id, RunID: "run_1", ItemID: "item_1", Blob: []byte(`{"id":"item_1"}`)}); err != nil {
 		t.Fatalf("seed item: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{ParentRunID: "run_1", SessionID: id, Interrupts: []byte(`[]`)}); err != nil {
+	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_1", SessionID: id, Interrupts: []byte(`[]`)}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	history := map[string][]chat.Message{id: {chat.NewUserMessage("hi")}}
@@ -164,10 +164,10 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 	created, _ := svc.Create(ctx, "parked", "/w")
 	id := created.ID
 	if err := ints.Put(ctx, interrupts.Pending{
-		ParentRunID: "run_parked",
-		SessionID:   id,
-		TurnID:      "turn_parked",
-		Interrupts:  []byte(`[]`),
+		RunID:      "run_parked",
+		SessionID:  id,
+		TurnID:     "turn_parked",
+		Interrupts: []byte(`[]`),
 	}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}

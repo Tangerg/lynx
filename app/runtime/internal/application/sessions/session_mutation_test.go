@@ -135,7 +135,7 @@ func (i *mutationInterrupts) List(context.Context, string) ([]interrupts.Pending
 	if err := i.stores.record("interrupts.list"); err != nil {
 		return nil, err
 	}
-	return []interrupts.Pending{{ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"}}, nil
+	return []interrupts.Pending{{RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"}}, nil
 }
 func (i *mutationInterrupts) Get(context.Context, string) (interrupts.Pending, bool, error) {
 	panic("unused")

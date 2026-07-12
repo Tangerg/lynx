@@ -49,7 +49,7 @@ func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
 	// SAME connection (conn(ctx)); using the outer ctx would open a second
 	// connection under MaxOpenConns(1) and deadlock.
 	park := func(ctx context.Context) error {
-		if err := ints.Put(ctx, interrupts.Pending{ParentRunID: "run_1", SessionID: "ses_A", Interrupts: json.RawMessage("[]"), CreatedAt: time.Unix(0, 0)}); err != nil {
+		if err := ints.Put(ctx, interrupts.Pending{RunID: "run_1", SessionID: "ses_A", Interrupts: json.RawMessage("[]"), CreatedAt: time.Unix(0, 0)}); err != nil {
 			return err
 		}
 		return runStore.Suspend(ctx, "ses_A")
@@ -244,10 +244,10 @@ func TestReconcileOrphansSweepsInterruptedWithoutRecord(t *testing.T) {
 		t.Fatalf("suspend park: %v", err)
 	}
 	if err := ints.Put(ctx, interrupts.Pending{
-		ParentRunID: "run_park",
-		SessionID:   "ses_park",
-		Interrupts:  json.RawMessage("[]"),
-		CreatedAt:   time.Unix(0, 0),
+		RunID:      "run_park",
+		SessionID:  "ses_park",
+		Interrupts: json.RawMessage("[]"),
+		CreatedAt:  time.Unix(0, 0),
 	}); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
@@ -282,10 +282,10 @@ func TestReconcileOrphansSweepsCrashedButPreservesParked(t *testing.T) {
 		t.Fatalf("admit park: %v", err)
 	}
 	if err := ints.Put(ctx, interrupts.Pending{
-		ParentRunID: "run_park",
-		SessionID:   "ses_park",
-		Interrupts:  json.RawMessage("[]"),
-		CreatedAt:   time.Unix(0, 0),
+		RunID:      "run_park",
+		SessionID:  "ses_park",
+		Interrupts: json.RawMessage("[]"),
+		CreatedAt:  time.Unix(0, 0),
 	}); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}

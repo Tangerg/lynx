@@ -192,7 +192,7 @@ func (s sessionStores) deleteInterrupts(ctx context.Context, sessionID string) e
 		return err
 	}
 	for _, p := range pending {
-		if err := s.interrupts.Delete(ctx, p.ParentRunID); err != nil {
+		if err := s.interrupts.Delete(ctx, p.RunID); err != nil {
 			return err
 		}
 	}

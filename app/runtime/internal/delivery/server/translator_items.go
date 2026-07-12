@@ -107,14 +107,13 @@ func (t *translator) toolStart(e turn.ToolCallStart) []protocol.StreamEvent {
 		Progress: &protocol.RunProgress{Step: &step, Activity: activityVerb(e.ToolName)},
 	})
 
-	id, runID := t.reuseOrNextItemID(e.ToolName, e.Arguments)
-	ref := &openTool{id: id, runID: runID, createdAt: time.Now().UTC(), name: e.ToolName, args: e.Arguments, safetyClass: e.SafetyClass}
+	ref := &openTool{id: t.reuseOrNextItemID(e.ToolName, e.Arguments), createdAt: time.Now().UTC(), name: e.ToolName, args: e.Arguments, safetyClass: e.SafetyClass}
 	t.tools[e.CallID] = ref
 	out = append(out, protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
 		Item: &protocol.Item{
 			ID:          ref.id,
-			RunID:       ref.runID,
+			RunID:       t.runID,
 			Status:      protocol.ItemStatusRunning,
 			Type:        protocol.ItemTypeToolCall,
 			CreatedAt:   ref.createdAt,
@@ -156,7 +155,7 @@ func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
 
 	item := &protocol.Item{
 		ID:          ref.id,
-		RunID:       ref.runID,
+		RunID:       t.runID,
 		Status:      protocol.ItemStatusCompleted,
 		Type:        protocol.ItemTypeToolCall,
 		CreatedAt:   ref.createdAt,

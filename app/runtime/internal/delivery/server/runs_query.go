@@ -19,12 +19,11 @@ func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*prot
 			continue
 		}
 		out = append(out, protocol.RunRef{
-			ID:          r.ID,
-			SessionID:   r.SessionID,
-			ParentRunID: r.ParentRunID,
-			Provider:    r.Provider,
-			Model:       r.Model,
-			Status:      protocol.RunStatusRunning,
+			ID:        r.ID,
+			SessionID: r.SessionID,
+			Provider:  r.Provider,
+			Model:     r.Model,
+			Status:    protocol.RunStatusRunning,
 		})
 	}
 	return protocol.NewPage(out), nil
@@ -46,10 +45,10 @@ func (s *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 			continue
 		}
 		out = append(out, protocol.OpenInterrupt{
-			ParentRunID: p.ParentRunID,
-			SessionID:   p.SessionID,
-			Interrupts:  ints,
-			CreatedAt:   p.CreatedAt,
+			RunID:      p.RunID,
+			SessionID:  p.SessionID,
+			Interrupts: ints,
+			CreatedAt:  p.CreatedAt,
 		})
 	}
 	return protocol.NewPage(out), nil
@@ -66,6 +65,12 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 	if runID == "" {
 		return nil, nil, protocol.ErrRunNotFound
 	}
+	// The live record carries the current segment's id (reconnect rebinds to that
+	// segment, §0.3) — read it before subscribing so the response can return it.
+	record, ok := s.coordinator.LiveRun(runID)
+	if !ok {
+		return nil, nil, protocol.ErrRunNotFound
+	}
 	// The Journal replays after an opaque, prefix-free application cursor; strip
 	// the evt_ wire framing off the client's Last-Event-Id (§11.2). TrimPrefix
 	// leaves an empty / unframed id untouched, so replay-from-start still works.
@@ -74,5 +79,5 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 	if !ok {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	return &protocol.StartRunResponse{RunID: runID}, mapRunEvents(ctx, evCh), nil
+	return &protocol.StartRunResponse{RunID: runID, SegmentID: record.SegmentID}, mapRunEvents(ctx, evCh), nil
 }
