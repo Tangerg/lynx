@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
-// fakeCodebaseIndex is the codebaseindex.Index the capabilities coordinator
-// drives; the codebase wire handlers are tested against it.
+// fakeCodebaseIndex is the codebaseindex.Index the codebase coordinator drives;
+// the codebase wire handlers are tested against it.
 type fakeCodebaseIndex struct {
 	available   bool
 	hits        []codebaseindex.Hit
@@ -48,12 +48,12 @@ func (i *fakeCodebaseIndex) Status(_ context.Context, root string) (codebaseinde
 
 func serverWithCodebase(root string, idx codebaseindex.Index) *Server {
 	return &Server{
-		serverInfo:   protocol.ServerInfo{Cwd: root},
-		capabilities: capabilities.New(capabilities.Config{Codebase: idx}),
+		serverInfo: protocol.ServerInfo{Cwd: root},
+		codebase:   codebase.New(idx),
 	}
 }
 
-func TestCodebaseSearchUsesRuntimeFacade(t *testing.T) {
+func TestCodebaseSearchMapsToWire(t *testing.T) {
 	root := t.TempDir()
 	idx := &fakeCodebaseIndex{
 		available: true,
@@ -95,7 +95,7 @@ func TestCodebaseSearchRequiresIndexAndQuery(t *testing.T) {
 	}
 }
 
-func TestCodebaseStatusUsesRuntimeFacade(t *testing.T) {
+func TestCodebaseStatusMapsToWire(t *testing.T) {
 	root := t.TempDir()
 	indexedAt := time.Date(2026, 7, 5, 10, 0, 0, 0, time.UTC)
 	idx := &fakeCodebaseIndex{status: codebaseindex.Status{
@@ -119,7 +119,7 @@ func TestCodebaseStatusUsesRuntimeFacade(t *testing.T) {
 	}
 }
 
-func TestCodebaseReindexUsesRuntimeFacade(t *testing.T) {
+func TestCodebaseReindexMapsToWire(t *testing.T) {
 	root := t.TempDir()
 	idx := &fakeCodebaseIndex{available: true, reindexed: make(chan string, 1)}
 	s := serverWithCodebase(root, idx)

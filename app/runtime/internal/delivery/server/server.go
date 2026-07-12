@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -85,6 +86,11 @@ type Config struct {
 	// (memory / skills / recipes / hooks). nil defaults to a disabled coordinator
 	// (every dependency nil), so those workspace.* methods degrade gracefully.
 	Workspace *workspaceapp.Coordinator
+
+	// Codebase is the application coordinator for the @codebase semantic index
+	// (codebase.search / status / reindex). Required — a nil-index coordinator
+	// still reports "unavailable" gracefully, so the handlers always have one.
+	Codebase *codebase.Coordinator
 }
 
 // Server is the protocol.Runtime implementation exposed via [New].
@@ -100,6 +106,10 @@ type Server struct {
 	// / tools / providers / model roles / defaults). Injected by the composition
 	// root; never nil after New.
 	capabilities *capabilities.Coordinator
+
+	// codebase owns the @codebase semantic-index use cases (search / status /
+	// reindex). Injected by the composition root; never nil after New.
+	codebase *codebase.Coordinator
 
 	// coordinator owns the run lifecycle — admission, the per-run event Journal,
 	// the segment pumps, cancel. Built + owned by the composition root
@@ -197,9 +207,14 @@ func New(cfg Config) (*Server, error) {
 	if workspaceCoord == nil {
 		workspaceCoord = workspaceapp.New(workspaceapp.Config{}) // disabled: memory/skills/recipes/hooks all no-op
 	}
+	codebaseCoord := cfg.Codebase
+	if codebaseCoord == nil {
+		codebaseCoord = codebase.New(nil) // disabled: codebase.* report unavailable
+	}
 	srv := &Server{
 		sessions:     cfg.Sessions,
 		capabilities: cfg.Capabilities,
+		codebase:     codebaseCoord,
 		coordinator:  cfg.Coordinator,
 		queries:      cfg.Queries,
 		turnControl:  cfg.TurnControl,
