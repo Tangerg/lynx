@@ -93,14 +93,6 @@ func TestRuntimeTurnFacade(t *testing.T) {
 		t.Fatalf("start handle=%+v req=%+v", gotHandle, svc.startReq)
 	}
 
-	gotEvents, err := rt.TurnEvents(ctx, handle)
-	if err != nil {
-		t.Fatalf("TurnEvents: %v", err)
-	}
-	if gotEvents == nil || svc.eventsHandle != handle {
-		t.Fatalf("events handle=%+v events nil=%v", svc.eventsHandle, gotEvents == nil)
-	}
-
 	if err := rt.InjectTurnSteering(ctx, handle, "wait"); err != nil {
 		t.Fatalf("InjectTurnSteering: %v", err)
 	}
@@ -123,13 +115,6 @@ func TestRuntimeTurnFacade(t *testing.T) {
 	}
 	if gotRehydrated.TurnID != "run_resumed" || svc.rehydrateReq.ProcessID != "proc_1" {
 		t.Fatalf("rehydrated=%+v req=%+v", gotRehydrated, svc.rehydrateReq)
-	}
-
-	if err := rt.CancelTurn(ctx, handle); err != nil {
-		t.Fatalf("CancelTurn: %v", err)
-	}
-	if svc.cancelHandle != handle {
-		t.Fatalf("cancel handle=%+v", svc.cancelHandle)
 	}
 
 	processID, err := rt.TurnProcessID(ctx, handle)

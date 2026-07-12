@@ -186,7 +186,11 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 	// seam that lets the coordinator be constructed here in the Host rather than
 	// inside delivery (§11.1/§13.2). Built after rt so its executor is the facade.
 	fileChanges := &filechanges.Notifier{}
-	runCoord := runs.NewCoordinator(rt, rt.RunSegmentEffects(checkpoints, fileChanges.Publish), cfg.RunStore)
+	// The run coordinator drives the agent turn through the turn Executor (§6.1),
+	// not the facade — the executor port is the adapter's, the run lifecycle the
+	// application's.
+	runExecutor := turn.NewExecutor(turnDispatcher)
+	runCoord := runs.NewCoordinator(runExecutor, rt.RunSegmentEffects(checkpoints, fileChanges.Publish), cfg.RunStore)
 
 	// mcpStatus bridges the capabilities coordinator's MCP reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
