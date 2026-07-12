@@ -25,7 +25,14 @@ import (
 // (emit, in inmemory.go) fills the four routing fields uniformly.
 // Adding a new event = adding the struct + one stamp method, nothing else.
 // The unexported stamp method keeps the sum type closed to this package.
+//
+// Every event is also an [execution.Event]: it carries the run-lifecycle
+// classification the application pipeline switches on (terminal / park). Most
+// events are neither — BaseEvent supplies the defaults, only the two lifecycle
+// events override — so the run coordinator drives the run off the domain
+// contract without depending on this package's concrete types.
 type Event interface {
+	execution.Event
 	stamp(b BaseEvent) Event
 }
 
@@ -220,3 +227,15 @@ func (e ErrorEvent) stamp(b BaseEvent) Event      { e.BaseEvent = b; return e }
 func (e UsageReported) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
 func (e SteerMessage) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
 func (e TodosUpdated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
+
+// Terminal and Interrupt classify an event for the run pipeline
+// ([execution.Event]). By default an event neither ends nor parks the run;
+// BaseEvent carries those defaults so every concrete event satisfies the
+// contract, and only the two lifecycle events override: TurnEnd ends the run
+// with its [execution.Outcome], TurnInterrupted parks it (an ErrorEvent is a
+// pre-terminal record — the following TurnEnd carries OutcomeError).
+func (BaseEvent) Terminal() (execution.Outcome, bool) { return 0, false }
+func (BaseEvent) Interrupt() bool                     { return false }
+
+func (e TurnEnd) Terminal() (execution.Outcome, bool) { return e.Reason, true }
+func (TurnInterrupted) Interrupt() bool               { return true }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"iter"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 // Executor adapts the turn [Dispatcher] to the application's run executor port
@@ -24,8 +26,10 @@ func NewExecutor(dispatcher Dispatcher) *Executor {
 
 // TurnEvents subscribes to a live turn's event stream. The opaque handle is
 // asserted back to the [TurnHandle] the dispatcher minted; each rich turn event
-// is forwarded as an opaque value the delivery projector asserts back.
-func (e *Executor) TurnEvents(ctx context.Context, handle any) (iter.Seq[any], error) {
+// is forwarded as the engine-neutral [execution.Event] the run pipeline
+// classifies (the delivery projector asserts it back to the concrete event for
+// wire shaping).
+func (e *Executor) TurnEvents(ctx context.Context, handle any) (iter.Seq[execution.Event], error) {
 	h, ok := handle.(TurnHandle)
 	if !ok {
 		return nil, fmt.Errorf("turn: executor handle %T is not a turn handle", handle)
@@ -34,7 +38,7 @@ func (e *Executor) TurnEvents(ctx context.Context, handle any) (iter.Seq[any], e
 	if err != nil {
 		return nil, err
 	}
-	return func(yield func(any) bool) {
+	return func(yield func(execution.Event) bool) {
 		for ev := range seq {
 			if !yield(ev) {
 				return

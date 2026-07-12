@@ -14,9 +14,13 @@ import (
 
 // --- fakes (drive the Coordinator without the wire or the agent SDK) ---
 
-// stubEngineEvent is an opaque placeholder executor event: the pump forwards it
-// verbatim and the fakeProjector ignores its content.
+// stubEngineEvent is a placeholder executor event: the pump forwards it and the
+// fakeProjector ignores its content. It satisfies the engine event's classifying
+// contract ([execution.Event]) as a plain, non-terminal mid-run signal.
 type stubEngineEvent struct{}
+
+func (stubEngineEvent) Terminal() (execution.Outcome, bool) { return 0, false }
+func (stubEngineEvent) Interrupt() bool                     { return false }
 
 type fakeExecutor struct {
 	events   []EngineEvent

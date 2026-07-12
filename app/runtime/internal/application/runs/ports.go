@@ -12,23 +12,26 @@ import (
 // the consumer side — and satisfied structurally by the runtime / delivery /
 // adapter implementations the composition root injects.
 //
-// The application drives execution through an engine-neutral [Executor]: both
-// the events it observes ([EngineEvent]) and the handle it drives ([Handle]) are
-// opaque to it, so the run lifecycle owns no agent-SDK type. The pump is a pure
-// conduit — it shuttles each EngineEvent from the Executor to the [Projector]
-// without inspecting it, the same opacity the durable side-effect payload
-// already has (see ProjectedEvent.Effect). The agentexec adapter produces the
-// concrete event + handle; the delivery Projector asserts the event back to the
-// shape it emitted.
+// The application drives execution through an engine-neutral [Executor]: it
+// observes a stream of [EngineEvent] — narrowed to the run-lifecycle
+// classification the pipeline acts on ([execution.Event]) — and drives an opaque
+// [Handle], so the run lifecycle owns no agent-SDK type. The agentexec adapter
+// produces the concrete event + handle; the delivery [Projector] asserts the
+// event back to its concrete shape for wire projection, while the application
+// reads only the classification (terminal / park).
 
-// EngineEvent is one event the [Executor] emits for a live run segment. It is
-// opaque to the application: the pump forwards each to the [Projector] verbatim.
-type EngineEvent = any
+// EngineEvent is one event the [Executor] emits for a live run segment: the
+// engine-neutral run-execution event, narrowed to the lifecycle classification
+// the pipeline switches on ([execution.Event.Terminal] / [execution.Event.Interrupt]).
+// The concrete, data-rich event stays in the agentexec adapter; the [Projector]
+// down-asserts to it for wire shaping.
+type EngineEvent = execution.Event
 
-// Handle is the opaque per-segment execution handle the [Executor] returns and
-// the application hands back to it to observe and cancel a live turn. Opaque for
-// the same reason as [EngineEvent]: the application owns the run's lifecycle, not
-// the executor's internal representation of a live turn.
+// Handle is the per-segment execution handle the [Executor] returns and the
+// application hands back to observe and cancel a live turn. It stays opaque (any)
+// on purpose: unlike an [EngineEvent] it carries no lifecycle semantics the
+// application acts on — it is an inert token the executor recovers its turn from
+// — so typing it would be an empty-interface ceremony.
 type Handle = any
 
 // Executor is what the run pump needs to drive, observe, and cancel the agent
