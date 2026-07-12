@@ -13,7 +13,6 @@ package server
 import (
 	"errors"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
@@ -102,13 +101,6 @@ type Server struct {
 	// recipes / hooks), injected by the composition root. Never nil after New.
 	workspace *workspaceapp.Coordinator
 
-	// eventSeq is the server-wide monotonic source for RunEvent ids
-	// (TRANSPORT.md §9.1). A single counter across all runs is strictly
-	// stronger than the contract's per-root-stream requirement and lets
-	// Last-Event-Id linearly resume / dedup even when the single SSE
-	// connection interleaves events from more than one run.
-	eventSeq atomic.Uint64
-
 	// wsHub fans non-run workspace events (files/skills/mcp changes) out to
 	// workspace.subscribe streams (AUX_API §3). Ephemeral, lossy, connection-
 	// scoped — distinct from the durable per-run hubs.
@@ -122,13 +114,6 @@ type Server struct {
 	// tasks owns request-detached delivery work such as MCP reconnect and OAuth
 	// flows. Close cancels and joins it before runtime resources disappear.
 	tasks taskgroup.Group
-}
-
-// nextEventID returns the next globally-monotonic RunEvent id, formatted
-// evt_<zero-padded-decimal> (TRANSPORT.md §9.1, e.g. evt_00000000042).
-// The fixed width keeps lexical and numeric ordering in agreement.
-func (s *Server) nextEventID() string {
-	return protocol.IDPrefixEvent + fmt.Sprintf("%011d", s.eventSeq.Add(1))
 }
 
 // Close cancels and joins request-detached delivery work: the run Coordinator's
@@ -189,9 +174,10 @@ func New(cfg Config) (*Server, error) {
 		workspace:    workspaceCoord,
 	}
 	// The run Coordinator's durable effects close over srv (workspace publish +
-	// checkpoints), so it is built here, after the Server value exists. evt_
-	// cursor minting stays a delivery concern, injected as the CursorMinter.
-	srv.coordinator = runs.NewCoordinator(srv.rt, srv.runSegmentEffects(), cursorMinter{next: srv.nextEventID}, cfg.RunStore)
+	// checkpoints), so it is built here, after the Server value exists. The
+	// Coordinator mints its own opaque monotonic cursor; delivery frames the evt_
+	// wire id when it presents the event (§11.2).
+	srv.coordinator = runs.NewCoordinator(srv.rt, srv.runSegmentEffects(), cfg.RunStore)
 	return srv, nil
 }
 

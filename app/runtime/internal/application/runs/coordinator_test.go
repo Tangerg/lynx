@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"iter"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -125,10 +124,6 @@ func (e *fakeEffects) terminalized(sessionID string) bool {
 	return false
 }
 
-type fakeMinter struct{ n atomic.Uint64 }
-
-func (m *fakeMinter) Mint() string { return fmt.Sprintf("evt_%011d", m.n.Add(1)) }
-
 // fakeRunStore is the durable admission backstop under test. It enforces the
 // real one-non-terminal-run-per-session invariant (Admit rejects a session that
 // already holds a non-terminal run) so a continuation that wrongly re-Admits is
@@ -188,7 +183,7 @@ func (f *fakeRunStore) resumes() int {
 func TestCoordinatorStartRejectsDurablyBusySession(t *testing.T) {
 	exec := &fakeExecutor{}
 	store := &fakeRunStore{admitErr: execution.ErrSessionBusy}
-	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, store)
+	c := NewCoordinator(exec, &fakeEffects{}, store)
 
 	_, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
@@ -218,7 +213,7 @@ func TestCoordinatorStartAdmitsAndTerminalizes(t *testing.T) {
 			Commit: &execution.EventCommit{SessionID: "ses_1", State: execution.StateTerminalize},
 		}},
 	}
-	c := NewCoordinator(exec, eff, &fakeMinter{}, store)
+	c := NewCoordinator(exec, eff, store)
 
 	events, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
@@ -250,7 +245,7 @@ func TestCoordinatorResumeReusesDurableSlot(t *testing.T) {
 		open:     []ProjectedEvent{{Durable: true, Payload: "started"}},
 		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: "finished"}},
 	}
-	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, store)
+	c := NewCoordinator(exec, &fakeEffects{}, store)
 
 	events, err := c.Start(context.Background(),
 		StartSpec{RunID: "cont_1", ParentRunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
@@ -281,7 +276,7 @@ func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
 		translate: []ProjectedEvent{{Durable: true, Payload: "item", Commit: commit}},
 		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: "finished", Commit: commit}},
 	}
-	c := NewCoordinator(exec, eff, &fakeMinter{}, nil)
+	c := NewCoordinator(exec, eff, nil)
 
 	events, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
@@ -319,7 +314,7 @@ func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
 // error and tears the created turn down (cancels it), registering no run.
 func TestCoordinatorStartExecutorError(t *testing.T) {
 	exec := &fakeExecutor{startErr: fmt.Errorf("boom")}
-	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, nil)
+	c := NewCoordinator(exec, &fakeEffects{}, nil)
 
 	_, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1"},
@@ -338,7 +333,7 @@ func TestCoordinatorStartExecutorError(t *testing.T) {
 // TestCoordinatorAdmission: the Coordinator is the session single-writer — a
 // claim blocks a second claim and an active run, until released/closed.
 func TestCoordinatorAdmission(t *testing.T) {
-	c := NewCoordinator(&fakeExecutor{}, &fakeEffects{}, &fakeMinter{}, nil)
+	c := NewCoordinator(&fakeExecutor{}, &fakeEffects{}, nil)
 	if !c.ClaimSession("ses_1") {
 		t.Fatal("first claim must succeed")
 	}
@@ -358,7 +353,7 @@ func TestCoordinatorAdmission(t *testing.T) {
 // down the turn that was already created.
 func TestCoordinatorStartAfterClose(t *testing.T) {
 	exec := &fakeExecutor{block: true}
-	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, nil)
+	c := NewCoordinator(exec, &fakeEffects{}, nil)
 	c.Close()
 
 	_, err := c.Start(context.Background(),
@@ -380,7 +375,7 @@ func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 		open:     []ProjectedEvent{{Durable: true, Payload: "started"}},
 		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: "canceled"}},
 	}
-	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, nil)
+	c := NewCoordinator(exec, &fakeEffects{}, nil)
 	events, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1"},
 		func(SegmentView) Projector { return proj })
@@ -416,7 +411,7 @@ func TestCoordinatorInterruptPersistFailureAborts(t *testing.T) {
 		}},
 		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: "error"}},
 	}
-	c := NewCoordinator(exec, eff, &fakeMinter{}, nil)
+	c := NewCoordinator(exec, eff, nil)
 	events, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
 		func(SegmentView) Projector { return proj })
@@ -452,7 +447,7 @@ func TestCoordinatorItemPersistFailureAborts(t *testing.T) {
 		translate: []ProjectedEvent{{Durable: true, Payload: "item", Commit: &execution.EventCommit{SessionID: "ses_1"}}},
 		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: "error"}},
 	}
-	c := NewCoordinator(exec, eff, &fakeMinter{}, nil)
+	c := NewCoordinator(exec, eff, nil)
 	events, err := c.Start(context.Background(),
 		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
 		func(SegmentView) Projector { return proj })
@@ -484,7 +479,7 @@ func TestCoordinatorItemPersistFailureAborts(t *testing.T) {
 // stays alive even after the request context is canceled.
 func TestCoordinatorBeginCancelCleanupSurvivesRequest(t *testing.T) {
 	exec := &fakeExecutor{block: true}
-	c := NewCoordinator(exec, &fakeEffects{}, &fakeMinter{}, nil)
+	c := NewCoordinator(exec, &fakeEffects{}, nil)
 	reqCtx, cancelReq := context.WithCancel(context.Background())
 	events, err := c.Start(reqCtx,
 		StartSpec{RunID: "run_1", SessionID: "ses_1"},

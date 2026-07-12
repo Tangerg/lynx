@@ -126,13 +126,6 @@ type Finish struct {
 	OpeningUserText string
 }
 
-// CursorMinter supplies the monotonic, fixed-width, lexically-ordered cursor
-// stamped on each [Event]. Minting stays with the delivery layer (it is wire
-// framing — the evt_ id); the application only needs opaque monotonic strings.
-type CursorMinter interface {
-	Mint() string
-}
-
 // StartSpec is the protocol-free description of a run segment to open. User
 // input and resume bindings are deliberately NOT here — they live in the
 // Projector the caller supplies, so the application never sees wire content.
