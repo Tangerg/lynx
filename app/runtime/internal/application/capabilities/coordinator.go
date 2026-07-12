@@ -112,12 +112,9 @@ type Coordinator struct {
 	mcpPolicy     *atomic.Pointer[mcpserver.ToolPolicy]
 	mcpMutationMu sync.Mutex
 
-	// codebase is the @codebase semantic index (nil when no index store).
-	codebase codebaseindex.Index
-
-	// tasks is this component's context for post-commit reconcile + background
-	// reindex: MCP registry mutations and codebase rebuilds outlive the request
-	// but are canceled + joined by Close (§10.2 component context, §10.3).
+	// tasks is this component's context for post-commit reconcile: MCP registry
+	// mutations outlive the request but are canceled + joined by Close (§10.2
+	// component context, §10.3).
 	tasks taskgroup.Group
 
 	// mcpStatus publishes an MCP server's connection transitions (connecting →
@@ -150,7 +147,6 @@ type Config struct {
 	MCPRegistry mcpserver.Registry
 	MCPLive     MCPLive
 	MCPPolicy   *atomic.Pointer[mcpserver.ToolPolicy]
-	Codebase    codebaseindex.Index
 	// MCPStatus publishes MCP connection transitions to the delivery workspace
 	// stream (the notifier's Publish). nil disables the notification.
 	MCPStatus func(ctx context.Context, server string, connecting bool)
@@ -177,15 +173,14 @@ func New(cfg Config) *Coordinator {
 		mcpRegistry:       cfg.MCPRegistry,
 		mcpLive:           cfg.MCPLive,
 		mcpPolicy:         cfg.MCPPolicy,
-		codebase:          cfg.Codebase,
 		mcpStatus:         cfg.MCPStatus,
 		defaultProvider:   cfg.DefaultProvider,
 		defaultModel:      cfg.DefaultModel,
 	}
 }
 
-// Close cancels and joins this component's post-commit reconcile + background
-// reindex work (§10.3). Idempotent; safe to call on a nil Coordinator.
+// Close cancels and joins this component's post-commit reconcile work (§10.3).
+// Idempotent; safe to call on a nil Coordinator.
 func (c *Coordinator) Close() {
 	if c == nil {
 		return

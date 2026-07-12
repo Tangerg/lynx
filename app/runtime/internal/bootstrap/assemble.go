@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -30,6 +31,7 @@ import (
 type Stack struct {
 	Sessions     *sessions.Coordinator
 	Capabilities *capabilities.Coordinator
+	Codebase     *codebase.Coordinator
 	Queries      *queries.Coordinator
 	TurnControl  *turn.Control
 	Workspace    *workspace.Coordinator
@@ -64,15 +66,17 @@ type Host struct {
 }
 
 // Close shuts the assembled application tier down in reverse dependency order
-// (§10.3): the capabilities component's post-commit reconcile + reindex tasks
-// first (they depend on the engine's MCP pool), then the run coordinator (cancel
-// + join every live pump), then live turns, the run-boundary maintenance tasks,
+// (§10.3): the capabilities component's post-commit reconcile tasks + the
+// codebase reindex tasks first (they depend on the engine's MCP pool / the
+// embedding index), then the run coordinator (cancel + join every live pump),
+// then live turns, the run-boundary maintenance tasks,
 // and finally the engine + the injected process resources / persistence. The
 // pumps join before the maintenance tasks so every terminal's boundary work is
 // scheduled, and the maintenance tasks join before the engine they title against.
 // Idempotent.
 func (h Host) Close() error {
 	h.Stack.Capabilities.Close()
+	h.Stack.Codebase.Close()
 	h.Stack.Coordinator.Close()
 	if h.dispatcher != nil {
 		h.dispatcher.Close()
@@ -260,16 +264,20 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 		MCPRegistry:       cfg.MCPRegistry,
 		MCPLive:           eng,
 		MCPPolicy:         mcpEnv.policy,
-		Codebase:          embeddingEnv.index,
 		MCPStatus:         mcpStatus.Publish,
 		DefaultProvider:   cfg.Provider,
 		DefaultModel:      cfg.Model,
 	})
 
+	// The @codebase semantic index is its own use-case coordinator (nil index =
+	// disabled); it owns the background reindex task group, closed by the Host.
+	codebaseCoord := codebase.New(embeddingEnv.index)
+
 	return Host{
 		Stack: Stack{
 			Sessions:     sessionCoord,
 			Capabilities: capabilityCoord,
+			Codebase:     codebaseCoord,
 			Coordinator:  runCoord,
 			FileChanges:  fileChanges,
 			MCPStatus:    mcpStatus,

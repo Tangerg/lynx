@@ -1,4 +1,4 @@
-package capabilities
+package codebase
 
 import (
 	"context"
@@ -47,69 +47,69 @@ func (i *codebaseIndex) Status(_ context.Context, root string) (codebaseindex.St
 	return i.status, nil
 }
 
-func TestCodebaseStatusReturnsNoneWhenUnconfigured(t *testing.T) {
-	c := New(Config{})
+func TestStatusReturnsNoneWhenUnconfigured(t *testing.T) {
+	c := New(nil)
 
-	got, err := c.CodebaseIndexStatus(context.Background(), "/repo")
+	got, err := c.Status(context.Background(), "/repo")
 	if err != nil {
-		t.Fatalf("codebase status: %v", err)
+		t.Fatalf("status: %v", err)
 	}
 	if got.State != codebaseindex.StateNone {
 		t.Fatalf("state = %q, want none", got.State)
 	}
 }
 
-func TestCodebaseSearchUsesSearchPort(t *testing.T) {
+func TestSearchUsesSearchPort(t *testing.T) {
 	idx := &codebaseIndex{hits: []codebaseindex.Hit{{
 		Path:  "runtime/codebase.go",
 		Score: 0.95,
 	}}}
-	c := New(Config{Codebase: idx})
+	c := New(idx)
 
-	got, err := c.SearchCodebase(context.Background(), "/repo", "runtime facade", 4)
+	got, err := c.Search(context.Background(), "/repo", "runtime facade", 4)
 	if err != nil {
-		t.Fatalf("SearchCodebase err = %v", err)
+		t.Fatalf("Search err = %v", err)
 	}
 	if len(got) != 1 || got[0].Path != "runtime/codebase.go" {
-		t.Fatalf("SearchCodebase = %+v", got)
+		t.Fatalf("Search = %+v", got)
 	}
 	if idx.searchRoot != "/repo" || idx.searchQuery != "runtime facade" || idx.searchLimit != 4 {
 		t.Fatalf("search root=%q query=%q limit=%d", idx.searchRoot, idx.searchQuery, idx.searchLimit)
 	}
 }
 
-func TestCodebaseStatusUsesStatusPort(t *testing.T) {
+func TestStatusUsesStatusPort(t *testing.T) {
 	idx := &codebaseIndex{status: codebaseindex.Status{State: codebaseindex.StateReady}}
-	c := New(Config{Codebase: idx})
+	c := New(idx)
 
-	got, err := c.CodebaseIndexStatus(context.Background(), "/repo")
+	got, err := c.Status(context.Background(), "/repo")
 	if err != nil {
-		t.Fatalf("CodebaseIndexStatus err = %v", err)
+		t.Fatalf("Status err = %v", err)
 	}
 	if got.State != codebaseindex.StateReady || idx.statusRoot != "/repo" {
 		t.Fatalf("status = %+v, root = %q", got, idx.statusRoot)
 	}
 }
 
-func TestStartCodebaseReindexRequiresAvailableIndex(t *testing.T) {
-	c := New(Config{})
-	if err := c.StartCodebaseReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
+func TestStartReindexRequiresAvailableIndex(t *testing.T) {
+	c := New(nil)
+	if err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 		t.Fatalf("start reindex without index err = %v, want ErrNoEmbeddingModel", err)
 	}
 
-	c = New(Config{Codebase: &codebaseIndex{}})
-	if err := c.StartCodebaseReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
+	c = New(&codebaseIndex{})
+	if err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 		t.Fatalf("start reindex unavailable err = %v, want ErrNoEmbeddingModel", err)
 	}
 }
 
-func TestStartCodebaseReindexDetachesFromRequestCancel(t *testing.T) {
+func TestStartReindexDetachesFromRequestCancel(t *testing.T) {
 	idx := &codebaseIndex{available: true, reindexed: make(chan codebaseReindexCall, 1)}
-	c := New(Config{Codebase: idx})
+	c := New(idx)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	if err := c.StartCodebaseReindex(ctx, "/repo"); err != nil {
+	if err := c.StartReindex(ctx, "/repo"); err != nil {
 		t.Fatalf("start reindex: %v", err)
 	}
 
@@ -126,10 +126,10 @@ func TestStartCodebaseReindexDetachesFromRequestCancel(t *testing.T) {
 	}
 }
 
-func TestStartCodebaseReindexRejectsClosedComponent(t *testing.T) {
-	c := New(Config{Codebase: &codebaseIndex{available: true}})
+func TestStartReindexRejectsClosedComponent(t *testing.T) {
+	c := New(&codebaseIndex{available: true})
 	c.Close()
-	if err := c.StartCodebaseReindex(context.Background(), "/repo"); !errors.Is(err, errClosed) {
-		t.Fatalf("StartCodebaseReindex error = %v, want %v", err, errClosed)
+	if err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, errClosed) {
+		t.Fatalf("StartReindex error = %v, want %v", err, errClosed)
 	}
 }
