@@ -4,14 +4,20 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// approvalPolicyFake is the approval.Policy the capabilities coordinator drives;
-// it records the mutating calls the wire handlers make.
+// serverWithApprovals builds a Server whose only wired coordinator is the
+// approvals one — enough for the approval.* handler tests.
+func serverWithApprovals(policy approval.Policy, sessions approvals.SessionLookup) *Server {
+	return &Server{approvals: approvals.New(policy, sessions)}
+}
+
+// approvalPolicyFake is the approval.Policy the approvals coordinator drives; it
+// records the mutating calls the wire handlers make.
 type approvalPolicyFake struct {
 	mode             approval.Mode
 	set              []approval.Mode
@@ -43,7 +49,7 @@ func (*approvalPolicyFake) Decide(context.Context, approval.Query) (approval.Dec
 
 func (*approvalPolicyFake) Remember(context.Context, approval.RememberRequest) error { return nil }
 
-// fakeSessionLookup stubs the capabilities coordinator's session getter (used to
+// fakeSessionLookup stubs the approvals coordinator's session getter (used to
 // scope approval rules to a project dir).
 type fakeSessionLookup struct {
 	sess session.Session
@@ -68,9 +74,9 @@ func TestApprovalModeWireRoundTrip(t *testing.T) {
 	}
 }
 
-func TestApprovalModeHandlersUseRuntimeFacade(t *testing.T) {
+func TestApprovalModeHandlersMapToWire(t *testing.T) {
 	rt := &approvalPolicyFake{mode: approval.ModePlan}
-	s := serverWithCapabilities(capabilities.Config{Approval: rt})
+	s := serverWithApprovals(rt, nil)
 
 	got, err := s.GetApprovalMode(context.Background())
 	if err != nil {
@@ -92,7 +98,7 @@ func TestApprovalModeHandlersUseRuntimeFacade(t *testing.T) {
 	}
 }
 
-func TestListApprovalRulesUsesRuntimeFacade(t *testing.T) {
+func TestListApprovalRulesMapsToWire(t *testing.T) {
 	rt := &approvalPolicyFake{rules: []approval.Rule{{
 		ID:       "rule_1",
 		Scope:    approval.ScopeProject,
@@ -101,7 +107,7 @@ func TestListApprovalRulesUsesRuntimeFacade(t *testing.T) {
 		Subject:  "npm test",
 		Decision: approval.Allow,
 	}}}
-	s := serverWithCapabilities(capabilities.Config{Approval: rt, Sessions: fakeSessionLookup{err: session.ErrNotFound}})
+	s := serverWithApprovals(rt, fakeSessionLookup{err: session.ErrNotFound})
 
 	got, err := s.ListApprovalRules(context.Background(), protocol.ListApprovalRulesRequest{SessionID: "ses_1"})
 	if err != nil {
@@ -115,9 +121,9 @@ func TestListApprovalRulesUsesRuntimeFacade(t *testing.T) {
 	}
 }
 
-func TestForgetApprovalRuleUsesRuntimeFacade(t *testing.T) {
+func TestForgetApprovalRuleMapsToWire(t *testing.T) {
 	rt := &approvalPolicyFake{}
-	s := serverWithCapabilities(capabilities.Config{Approval: rt})
+	s := serverWithApprovals(rt, nil)
 
 	if err := s.ForgetApprovalRule(context.Background(), protocol.ForgetApprovalRuleRequest{ID: "rule_1"}); err != nil {
 		t.Fatalf("forget approval rule: %v", err)

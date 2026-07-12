@@ -1,10 +1,10 @@
 // Package capabilities is the application coordinator for the runtime's
-// capability + configuration surface: the tool-permission stance (approval),
-// the diagnostic tool registry, the provider registry + static catalog, the
-// model roles (utility / embedding), and the default provider/model. It is a
-// thin use-case layer over the domain services and a few composition-injected
-// ports (client/embedding resolvers, provider catalog + prober); the delivery
-// layer drives it per settings/capability request.
+// capability + configuration surface: the diagnostic tool registry, the provider
+// registry + static catalog, the model roles (utility / embedding), the default
+// provider/model, and the MCP server registry. It is a thin use-case layer over
+// the domain services and a few composition-injected ports (client/embedding
+// resolvers, provider catalog + prober); the delivery layer drives it per
+// settings/capability request.
 package capabilities
 
 import (
@@ -15,20 +15,12 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
-
-// SessionLookup resolves a session so approval-rule listing can scope rules to
-// the session's project directory. The session store satisfies it.
-type SessionLookup interface {
-	Get(ctx context.Context, id string) (session.Session, error)
-}
 
 // ProviderCatalog is the static provider reference data (which providers this
 // build serves + their capabilities), projected from the infra provider table.
@@ -85,12 +77,10 @@ type MCPLive interface {
 // Coordinator owns the capability + configuration use cases. Any nil dependency
 // disables the corresponding capability.
 type Coordinator struct {
-	approval  approval.Policy
 	tools     toolsvc.Registry
 	providers provider.Registry
 	catalog   ProviderCatalog
 	prober    ProviderProber
-	sessions  SessionLookup
 
 	// utility / embedding model roles: the live cell (shared with the maintenance
 	// titler / codebase index that read it), the resolver that validates a new
@@ -129,12 +119,10 @@ type Coordinator struct {
 
 // Config bundles the Coordinator's dependencies.
 type Config struct {
-	Approval  approval.Policy
 	Tools     toolsvc.Registry
 	Providers provider.Registry
 	Catalog   ProviderCatalog
 	Prober    ProviderProber
-	Sessions  SessionLookup
 
 	UtilityCell     *atomic.Pointer[modelrole.Role]
 	UtilityResolver ClientResolver
@@ -158,12 +146,10 @@ type Config struct {
 // New returns a capabilities Coordinator over cfg.
 func New(cfg Config) *Coordinator {
 	return &Coordinator{
-		approval:          cfg.Approval,
 		tools:             cfg.Tools,
 		providers:         cfg.Providers,
 		catalog:           cfg.Catalog,
 		prober:            cfg.Prober,
-		sessions:          cfg.Sessions,
 		utilityCell:       cfg.UtilityCell,
 		utilityResolver:   cfg.UtilityResolver,
 		utilityStore:      cfg.UtilityStore,

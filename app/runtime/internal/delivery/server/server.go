@@ -19,6 +19,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
@@ -39,10 +40,14 @@ type Config struct {
 	Sessions *sessions.Coordinator
 
 	// Capabilities is the application coordinator for the runtime's capability +
-	// configuration surface (approval / tools / providers / model roles / default
-	// provider+model). Required — the delivery settings + capability handlers
+	// configuration surface (tools / providers / model roles / default
+	// provider+model / MCP). Required — the delivery settings + capability handlers
 	// drive it directly.
 	Capabilities *capabilities.Coordinator
+
+	// Approvals is the application coordinator for the tool-permission stance +
+	// approval rules. Required — the approval.* settings handlers drive it.
+	Approvals *approvals.Coordinator
 
 	// Coordinator owns the run lifecycle (admission / journal / pump / cancel),
 	// built + owned by the composition root (bootstrap.Host). Required — delivery
@@ -102,10 +107,14 @@ type Server struct {
 	// working-tree). Injected by the composition root; never nil after New.
 	sessions *sessions.Coordinator
 
-	// capabilities owns the runtime capability + configuration use cases (approval
-	// / tools / providers / model roles / defaults). Injected by the composition
-	// root; never nil after New.
+	// capabilities owns the runtime capability + configuration use cases (tools /
+	// providers / model roles / defaults / MCP). Injected by the composition root;
+	// never nil after New.
 	capabilities *capabilities.Coordinator
+
+	// approvals owns the tool-permission stance + approval-rule use cases. Injected
+	// by the composition root; never nil after New.
+	approvals *approvals.Coordinator
 
 	// codebase owns the @codebase semantic-index use cases (search / status /
 	// reindex). Injected by the composition root; never nil after New.
@@ -184,6 +193,9 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Capabilities == nil {
 		return nil, errors.New("server: Capabilities is required")
 	}
+	if cfg.Approvals == nil {
+		return nil, errors.New("server: Approvals is required")
+	}
 	if cfg.ServerInfo.Name == "" {
 		cfg.ServerInfo.Name = "runtime"
 	}
@@ -214,6 +226,7 @@ func New(cfg Config) (*Server, error) {
 	srv := &Server{
 		sessions:     cfg.Sessions,
 		capabilities: cfg.Capabilities,
+		approvals:    cfg.Approvals,
 		codebase:     codebaseCoord,
 		coordinator:  cfg.Coordinator,
 		queries:      cfg.Queries,
