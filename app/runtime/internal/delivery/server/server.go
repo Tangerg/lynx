@@ -1,5 +1,5 @@
-// Package server realizes protocol.Runtime on top of Lyra's internal
-// kernel + domain layer (API.md §0 model: Session → Run → Item). It's
+// Package server realizes protocol.Runtime on top of the application
+// coordinators + domain layer (API.md §0 model: Session → Run → Item). It's
 // the single place where the JSON-RPC method table (delivery/dispatch) and
 // the runtime's chat / session / tool / memory stores meet.
 //
@@ -27,6 +27,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -40,10 +41,9 @@ type Config struct {
 	// every lifecycle mutation through it.
 	Sessions *sessions.Coordinator
 
-	// Capabilities is the application coordinator for the runtime's capability +
-	// configuration surface (tools / providers / model roles / default
-	// provider+model / MCP). Required — the delivery settings + capability handlers
-	// drive it directly.
+	// Capabilities is the application coordinator for the runtime's MCP
+	// integration surface (server registry / live pool / tool policy). Required —
+	// the delivery mcp.* handlers drive it directly.
 	Capabilities *capabilities.Coordinator
 
 	// Approvals is the application coordinator for the tool-permission stance +
@@ -54,6 +54,10 @@ type Config struct {
 	// (providers.* / models.* / the default provider+model). Required — the
 	// provider/model settings handlers + the capability snapshot drive it.
 	Models *models.Coordinator
+
+	// Tools is the application coordinator for the diagnostic tool registry
+	// (tools.list / tools.invoke). Required — the tools.* handlers drive it.
+	Tools *tools.Coordinator
 
 	// Coordinator owns the run lifecycle (admission / journal / pump / cancel),
 	// built + owned by the composition root (bootstrap.Host). Required — delivery
@@ -113,9 +117,8 @@ type Server struct {
 	// working-tree). Injected by the composition root; never nil after New.
 	sessions *sessions.Coordinator
 
-	// capabilities owns the runtime capability + configuration use cases (tools /
-	// providers / model roles / defaults / MCP). Injected by the composition root;
-	// never nil after New.
+	// capabilities owns the MCP integration use cases (server registry / live pool
+	// / tool policy). Injected by the composition root; never nil after New.
 	capabilities *capabilities.Coordinator
 
 	// approvals owns the tool-permission stance + approval-rule use cases. Injected
@@ -125,6 +128,10 @@ type Server struct {
 	// models owns provider + model configuration (registry / catalog / roles /
 	// defaults). Injected by the composition root; never nil after New.
 	models *models.Coordinator
+
+	// tools owns the diagnostic tool-registry read/invoke use cases. Injected by
+	// the composition root; never nil after New.
+	tools *tools.Coordinator
 
 	// codebase owns the @codebase semantic-index use cases (search / status /
 	// reindex). Injected by the composition root; never nil after New.
@@ -209,6 +216,9 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Models == nil {
 		return nil, errors.New("server: Models is required")
 	}
+	if cfg.Tools == nil {
+		return nil, errors.New("server: Tools is required")
+	}
 	if cfg.ServerInfo.Name == "" {
 		cfg.ServerInfo.Name = "runtime"
 	}
@@ -241,6 +251,7 @@ func New(cfg Config) (*Server, error) {
 		capabilities: cfg.Capabilities,
 		approvals:    cfg.Approvals,
 		models:       cfg.Models,
+		tools:        cfg.Tools,
 		codebase:     codebaseCoord,
 		coordinator:  cfg.Coordinator,
 		queries:      cfg.Queries,

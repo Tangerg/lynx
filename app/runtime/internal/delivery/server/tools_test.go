@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// toolRegistryFake is the tool.Registry the capabilities coordinator drives.
+// toolRegistryFake is the tool.Registry the tools coordinator drives.
 type toolRegistryFake struct {
 	tools          []tool.Tool
 	invokedName    string
@@ -26,7 +25,7 @@ func (r *toolRegistryFake) Invoke(_ context.Context, name string, arguments stri
 }
 
 func TestListToolsMapsRegisteredToolsToWire(t *testing.T) {
-	s := serverWithCapabilities(capabilities.Config{Tools: &toolRegistryFake{tools: []tool.Tool{
+	s := serverWithTools(&toolRegistryFake{tools: []tool.Tool{
 		{
 			Name:        "shell",
 			Description: "run a command",
@@ -39,7 +38,7 @@ func TestListToolsMapsRegisteredToolsToWire(t *testing.T) {
 			Schema:      `{`,
 			SafetyClass: tool.SafetyClassSafe,
 		},
-	}}})
+	}})
 
 	page, err := s.ListTools(context.Background(), protocol.PageQuery{})
 	if err != nil {
@@ -61,7 +60,7 @@ func TestListToolsMapsRegisteredToolsToWire(t *testing.T) {
 
 func TestInvokeToolPassesJSONArgumentsToRuntime(t *testing.T) {
 	rt := &toolRegistryFake{}
-	s := serverWithCapabilities(capabilities.Config{Tools: rt})
+	s := serverWithTools(rt)
 
 	got, err := s.InvokeTool(context.Background(), protocol.InvokeToolRequest{
 		Name:      "shell",

@@ -1,4 +1,4 @@
-package capabilities
+package tools
 
 import (
 	"context"
@@ -29,25 +29,25 @@ func (i *toolRegistryRecorder) Invoke(_ context.Context, name string, arguments 
 
 func (*toolRegistryRecorder) List(context.Context) ([]tool.Tool, error) { return nil, nil }
 
-func TestListRegisteredToolsUsesRegistry(t *testing.T) {
-	c := New(Config{Tools: toolRegistryFixture{tools: []tool.Tool{{Name: "read"}}}})
+func TestListUsesRegistry(t *testing.T) {
+	c := New(toolRegistryFixture{tools: []tool.Tool{{Name: "read"}}})
 
-	got, err := c.ListRegisteredTools(context.Background())
+	got, err := c.List(context.Background())
 	if err != nil {
-		t.Fatalf("ListRegisteredTools: %v", err)
+		t.Fatalf("List: %v", err)
 	}
 	if len(got) != 1 || got[0].Name != "read" {
 		t.Fatalf("tools = %+v, want read", got)
 	}
 }
 
-func TestInvokeRegisteredToolUsesRegistry(t *testing.T) {
+func TestInvokeUsesRegistry(t *testing.T) {
 	invoker := &toolRegistryRecorder{}
-	c := New(Config{Tools: invoker})
+	c := New(invoker)
 
-	got, err := c.InvokeRegisteredTool(context.Background(), "shell", `{"command":"true"}`)
+	got, err := c.Invoke(context.Background(), "shell", `{"command":"true"}`)
 	if err != nil {
-		t.Fatalf("InvokeRegisteredTool: %v", err)
+		t.Fatalf("Invoke: %v", err)
 	}
 	if got != "ok" || invoker.name != "shell" || invoker.arguments != `{"command":"true"}` {
 		t.Fatalf("result=%q name=%q arguments=%q", got, invoker.name, invoker.arguments)
