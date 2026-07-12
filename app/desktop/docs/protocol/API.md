@@ -63,11 +63,17 @@ Session            会话；绑定一个工作目录 cwd          id: ses_…
 - `Project` 是按 `Session.cwd` 分组的**派生视图**：无不透明 id、无 active 标记。
 - `projectRoot` 只是**配置发现根**（向上找到最近含 `.git` 的祖先，找不到回落 cwd），**不取代** cwd 作为身份/工具根。
 
-### 0.3 HITL 采用 R 模型（收尾 + 延续 run）
+### 0.3 HITL 采用 R 模型（分段续跑）
 
-agent 需要人介入（审批 / 提问 / client 侧工具结果）时，**当前 Run 结束**，以 `RunOutcome.type="interrupt"` 收尾、
-资源全释放；待解项作 `OpenInterrupt` 落持久状态。客户端用 `runs.resume` 起一个**延续 Run**（`parentRunId` 串接）来
-应答。无"活跃挂起 run"、无被占用的 goroutine。详见 §6。
+agent 需要人介入（审批 / 提问 / client 侧工具结果）时，**当前流式段（segment）结束**，以 `RunOutcome.type="interrupt"`
+收尾、资源全释放；**Run 本身（稳定 `runId`）不结束**——它挂起为一个持久 `OpenInterrupt`。客户端用 `runs.resume{runId}`
+在**同一个 Run 上开新的一段**来应答。无"活跃挂起 run"、无被占用的 goroutine。详见 §6。
+
+> **Run vs Segment（贯穿全协议的身份模型）**：一个 **Run**（`runId`，`run_…`）是一次逻辑运行的**稳定身份**——`runs.start`
+> 铸一次、跨所有 interrupt/resume 周期与进程重启**永不重铸**。一个 **Segment**（`segmentId`，`seg_…`）是该 Run 的一个连续
+> 流式段：`runs.start` 开第一段，每次 `runs.resume` 开新的一段。事件流、重连/回放都**按 Segment**划界；Run 的生命周期跨其
+> 全部 Segment。终态信号 `run.finished` 标记的是**当前 Segment 的结束**——`outcome.type=interrupt` 表示停车待续（同 Run 会有
+> 下一段），其余 outcome 表示 Run 真正终结。
 
 ### 0.4 收敛点
 
@@ -170,8 +176,9 @@ interface RequestMeta {
 | Session         | `ses_`  |                                                |
 | Run             | `run_`  | 幂等见 §7；client 不传                         |
 | Item            | `item_` | HITL 关联键（§6）                              |
+| Segment         | `seg_`  | Run 的一个流式段（§0.3）；server→client，client 不传 |
 | Background task | `tsk_`  |                                                |
-| Event           | `evt_`  | **单个 root run stream 内单调**，流续传/去重锚 |
+| Event           | `evt_`  | **单个 Segment 流内单调**，流续传/去重锚       |
 
 - 客户端只生成两种非业务 id：JSON-RPC envelope `id`、幂等键。
 - **id 自带类型**：前缀（`ses_`/`run_`/`item_` …）即资源的**自描述类型标签**——一个 id 的归属无需额外字段就能识别（不另设
@@ -180,9 +187,9 @@ interface RequestMeta {
   锚定**显式字段**：会话 / 历史按 `createdAt`（ISO-8601），run 内事件按 `eventId`（下条）。分页 `cursor` 同样不透明（§4.11）。
   > 实现**可选**用时间可排序 id（ULID/KSUID 式，保留类型前缀）以获得 restart-stable 的事件序与 cursor-by-id 便利，
   > 但这是**实现优化、非 wire 保证**；client 永远按上面的显式字段排序，不依赖 id 形状。
-- **`eventId` 作用域**：在单个 **root run stream** 内单调（不是 per-Run）——这是**唯一**被契约保证"单调有序"的 id。一条 root
-  流复用根 Run + 所有子孙 Run 的事件。`runs.resume` 起的延续 Run = **新 root stream**（新 runId + eventId 从头）；
-  subagent Run = **非 root**，事件并入父 stream、共享父序列。
+- **`eventId` 作用域**：在单个 **Segment 流**内单调——这是**唯一**被契约保证"单调有序"的 id。一条段流复用根 Run 该段 +
+  所有子孙 Run 的事件。`runs.resume` 在同一 Run 上开**新的一段**（同 runId + 新 segmentId，eventId 从头）；subagent Run =
+  事件并入父段流、共享父序列。client 按 `segmentId` 划定去重/续传作用域（§5）。
 
 ### 2.5 事件名 / 方法名
 
@@ -245,11 +252,11 @@ runs.start ──▶ run.started ──▶ (item.started → item.delta* → ite
 1. **起 run**：客户端 `runs.start{ sessionId, input }`，**立即**返 `{ runId }`，同一条流随即推 `RunEvent`（§5）。
 2. **流式产出**：先 `run.started`，然后每个 Item 走 `item.started`（壳）→ `item.delta*`（文本 / 工具入参 / 输出增量，§5.1）→
    `item.completed`（权威终态）。assistant 的 message / reasoning / toolCall（§4.3 / §4.4）就这样逐个落地。
-3. **需要人介入**（HITL，§0.3 / §6）：run 以 `run.finished{ outcome: interrupt }` **结束**、资源释放；待解项作 `OpenInterrupt`
-   持久化（跨重启可发现）。
-4. **延续**：客户端 `runs.resume{ parentRunId, responses }` 起一个**新 run**（新 `runId`，`parentRunId` 串联），又一段
-   `run.started → items → …`。**所以一个"对话回合"= 一条 run 链**（初始 run + 若干延续 run），不是单个 run。
-5. **收尾**：某个 run 以 `run.finished{ outcome: completed | error | maxSteps | maxBudget | canceled }` 终结该链。
+3. **需要人介入**（HITL，§0.3 / §6）：当前**段**以 `run.finished{ outcome: interrupt }` 收尾、资源释放；**Run 不结束**，
+   待解项作 `OpenInterrupt` 持久化（跨重启可发现）。
+4. **续段**：客户端 `runs.resume{ runId, responses }` 在**同一 Run 上开新的一段**（同 `runId`、新 `segmentId`），又一段
+   `run.started → items → …`。**所以一个"对话回合"= 一个 Run 的若干 Segment**，始终一个 `runId`。
+5. **收尾**：某一段以 `run.finished{ outcome: completed | error | maxSteps | maxBudget | canceled }` 终结整个 Run。
 6. **历史 vs 实时**：重开会话用 `items.list` 按持久 seq 重建（§10）；实时流内按 `eventId` 排序（§5）。两套各自权威，靠 item id 关联。
 
 ### 3.2 Minimal Profile（最小可用客户端）
@@ -310,10 +317,9 @@ interface Project {
 
 ```ts
 interface RunRef {
-  id: string; // run_…
+  id: string; // run_…（稳定逻辑 Run 身份，跨 resume 永不重铸；§0.3）
   sessionId: string;
   spawnedByItemId?: string; // child-of：本 Run 是子 agent，由该 toolCall Item 派生
-  parentRunId?: string; // continuation-of：本 Run 是 resume/edit 的延续
   status?: "running" | "finished";
   outcome?: RunOutcome; // status=finished 时给
   model?: string; // 本 Run 用的 model（Model.id）；空=运行时默认
@@ -339,7 +345,8 @@ interface RunResult {
 }
 ```
 
-> `spawnedByItemId`（子）与 `parentRunId`（延续）是**两种不同关系，永不互相复用**。
+> `spawnedByItemId`（子 agent）是 RunRef 上**唯一的 run 树边**：延续（resume）不再是独立 Run，而是**同一个 `runId` 的新
+> Segment**（§0.3），故没有 `parentRunId`。
 > `model` 落在 RunRef 上：`runs.subscribe` 重连或 `items.list.runs` 历史还原**没见过原始 `runs.start` 请求**时，
 > 仍能据此标注"这条 Run 用的哪个模型"。
 > **没有 `mode` 字段**：agent/chat/plan 这套 per-run 模式已移除——run 永远是带工具的 agent 循环，"计划"是
@@ -635,7 +642,7 @@ interface ToolResultPayload {
   tool: ToolInvocation; // 要客户端执行的工具（client-side tools）；结果经 runs.resume 回传
 }
 interface OpenInterrupt {
-  parentRunId: string; // 待 resume 的 Run（其 outcome.type=interrupt）
+  runId: string; // 待 resume 的 Run（稳定 runId；其当前段以 outcome.type=interrupt 收尾）
   sessionId: string;
   interrupts: Interrupt[];
   createdAt: string;
@@ -756,8 +763,9 @@ interface Page<T> {
 
 ```ts
 interface RunEvent {
-  runId: string;
-  eventId: string; // evt_…；单 root run stream 内单调（§2.4）
+  runId: string; // 稳定逻辑 Run（§0.3）
+  segmentId: string; // seg_…；事件所属的流式段——client 按它 key 流树 + 重连回放去重
+  eventId: string; // evt_…；单 Segment 流内单调（§2.4）
   timestamp: string; // ISO-8601
   event: StreamEvent;
 }
@@ -765,7 +773,7 @@ interface RunEvent {
 type StreamEvent =
   | { type: "run.started"; run: RunRef }
   | { type: "run.progress"; progress: RunProgress } // mid-run 进度预览（ephemeral）
-  | { type: "run.finished"; outcome: RunOutcome }
+  | { type: "run.finished"; outcome: RunOutcome } // 标记当前 Segment 结束；outcome=interrupt 即停车待续（§0.3）
   | { type: "item.started"; item: Item } // item 壳（status=running）
   | { type: "item.delta"; itemId: string; delta: ItemDelta }
   | { type: "item.completed"; item: Item } // 权威终态（durable）
@@ -852,12 +860,12 @@ completed item 一样必发权威终值。
 
 ### 5.4 Run 树
 
-一条 root run 流包含**整棵 run 树**的事件（根 + 所有子孙 subagent run）：
+一条 root run 的**一段流**包含**整棵 run 树**的事件（根 + 所有子孙 subagent run）：
 
-- 每条事件带它所属的 `runId`；
-- 子 run 以 `run.started` 携带 `run.spawnedByItemId` 开始；
-- 客户端用 `runId` + `spawnedByItemId` join 还原树；
-- 对 root run `runs.subscribe` = 订阅整棵树；
+- 每条事件带它所属的 `runId`（稳定）+ `segmentId`（所属段）；
+- 子 run 以 `run.started` 携带 `spawnedByItemId` 开始，有**自己的** `runId` 与 `segmentId`；
+- 客户端用 `runId` + `spawnedByItemId` join 还原树，用 `segmentId` key 流；
+- 对 root run `runs.subscribe` = 订阅其当前活跃段的整棵树；
 - `features.subagents=false` 时不产出任何子 run 事件。
 
 ---
@@ -867,11 +875,11 @@ completed item 一样必发权威终值。
 流程：
 
 1. agent 需要人介入 → 产出对应 Item（`toolCall` 待批 / `question` 待答 / client 工具调用）。
-2. Run **结束**：`run.finished{ outcome:{ type:"interrupt", interrupts:[…] } }`，资源全释放。每个 `Interrupt.itemId`
-   指向那个待解 Item。
+2. 当前 **Segment 结束**：`run.finished{ outcome:{ type:"interrupt", interrupts:[…] } }`，资源全释放。**Run 不结束**——
+   稳定 `runId` 挂起待续。每个 `Interrupt.itemId` 指向那个待解 Item。
 3. 待解项作 `OpenInterrupt` **持久化**（跨重启可经 `runs.listOpenInterrupts` 发现）。
-4. 客户端调 `runs.resume{ parentRunId, responses:[…] }` 起一个**延续 Run**（新 runId，`parentRunId` 串接）应答。
-5. 延续 Run 像普通 run 一样流式，直到下一个 outcome。
+4. 客户端调 `runs.resume{ runId, responses:[…] }` 在**同一 Run 上开新的一段**应答（返回同 `runId` + 新 `segmentId`）。
+5. 续段像普通流一样，直到下一个 outcome。
 
 **关联键 = `itemId`**（无单独 requestId）。**拒绝 ≠ 取消**：拒绝是 `runs.resume` 带 `decision:"deny"`，run 继续
 （agent 据理由换方案）；取消是 `runs.cancel`，硬终止整个 run。
@@ -1007,8 +1015,8 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 #### `sessions.rollback` **（turn 粒度回退，AUX_API §4.1）**
 
 - 入参 `{ sessionId: string; toRunId?: string; restoreType?: "history" | "files" | "both" }`；返回 `{ session: Session; droppedRuns: DroppedRun[] }`。
-- **`toRunId` = inclusive-keep**：保留的**最后一个 root run**（其延续链一并保留），其后**全部丢弃**。省略 `toRunId` = 丢弃全部、回到空会话（覆盖「编辑第一条消息重跑」）。
-- `toRunId` **必须是 root run**（子 agent / 延续 run → `invalid_params`）；未知 → `run_not_found`。
+- **`toRunId` = inclusive-keep**：保留的**最后一个 root run**（含其停车-续跑的全部段），其后**全部丢弃**。省略 `toRunId` = 丢弃全部、回到空会话（覆盖「编辑第一条消息重跑」）。
+- `toRunId` **必须是 root run**（子 agent run → `invalid_params`）；未知 → `run_not_found`。
 - **就地销毁**：截断聊天历史、删被丢 run 的 Item/记录、清其悬挂 open interrupt、并**递归 purge 被丢 run 派生的 subagent 子会话整棵子树**。
 - **运行中拒绝**：session 有 run 在跑 → `session_busy`（避免与在 append 的历史竞争）。
 - **`restoreType`（默认 `history`，AUX_API §4.1，门控 `features.checkpoints`）**：
@@ -1017,7 +1025,7 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
   - `both` → 二者，**原子**：files 先行,失败 → 整体失败、history 不动、返 `checkpoint_unavailable`，**绝不静默降级**。
   - `files`/`both` **必须带 `toRunId`**（否则 `invalid_params`）；该 run 无快照 → `checkpoint_unavailable`。还原前自动快照当前态(可 unrevert)。
   - `history`（默认）下不动文件：UI 用 `workspace.getDiff` 自查未还原改动。
-- `DroppedRun.userInput` 是被丢 run 的开场 userMessage `content`（与 `StartRunRequest.input` 同型，composer 零转换预填）；延续 run 无开场轮 → 省略。
+- `DroppedRun.userInput` 是被丢 run 的开场 userMessage `content`（与 `StartRunRequest.input` 同型，composer 零转换预填）；子 agent run 无开场轮 → 省略。
 - 错误 `session_not_found` / `run_not_found` / `invalid_params` / `session_busy`。
 
 ```ts
@@ -1089,7 +1097,8 @@ interface SessionArtifact {
   > agent 调研完调 `exit_plan_mode` 工具把计划作为一个 `question` interrupt 抛出（§6）；用户批了，姿态自动翻回
   > `balanced` 执行，拒了留在 `plan`。"chat"（无工具单轮）没有替代——run 总是带工具的。
 
-- 返回 `{ runId: string; userItemId?: string }`；随后流式 `RunEvent`（§5），以 `run.finished{outcome}` 收尾。
+- 返回 `{ runId: string; segmentId: string; userItemId?: string }`；随后流式 `RunEvent`（§5），以 `run.finished{outcome}`
+  收尾（**该段**的结束）。
   - `userItemId`：本 run 开场 `userMessage` Item 的 id —— 与流上 `item.*` 及 `items.list` 里同一个 id。客户端用它把
     乐观气泡按精确 id 对账（不按内容文本启发式匹配）。`runs.resume` 无开场 user 回合，故为空。
 - 幂等：**尚未实现**（`X-Idempotency-Key` 头当前未被读取；`idempotency_conflict`/`-32015` 为预留码、暂不产生）。
@@ -1124,7 +1133,7 @@ interface SessionArtifact {
   {
     "jsonrpc": "2.0",
     "id": "1",
-    "result": { "runId": "run_01", "userItemId": "item_00" }
+    "result": { "runId": "run_01", "segmentId": "seg_01", "userItemId": "item_00" }
   }
   ```
 
@@ -1132,26 +1141,26 @@ interface SessionArtifact {
 
   ```json
   { "jsonrpc":"2.0", "method":"notifications.run.event",
-    "params": { "runId":"run_01", "eventId":"evt_0001", "timestamp":"2026-06-07T10:00:00Z",
+    "params": { "runId":"run_01", "segmentId":"seg_01", "eventId":"evt_0001", "timestamp":"2026-06-07T10:00:00Z",
                 "event": { "type":"run.started", "run": { "id":"run_01", "sessionId":"ses_01" } } } }
   { "jsonrpc":"2.0", "method":"notifications.run.event",
-    "params": { "runId":"run_01", "eventId":"evt_0008", "timestamp":"2026-06-07T10:00:02Z",
+    "params": { "runId":"run_01", "segmentId":"seg_01", "eventId":"evt_0008", "timestamp":"2026-06-07T10:00:02Z",
                 "event": { "type":"run.finished",
                            "outcome": { "type":"completed", "result": { "usage": { "inputTokens": 1200, "outputTokens": 80 }, "steps": 2 } } } } }
   ```
 
 #### `runs.resume` — Stream
 
-应答 open interrupt，起一个延续 Run。
+应答 open interrupt，在同一 Run 上开新的一段。
 
 - 入参 `ResumeRunRequest`：
 
-  | 字段          | 类型                          | 必填 | 说明                                                                                                       |
-  | ------------- | ----------------------------- | ---- | ---------------------------------------------------------------------------------------------------------- |
-  | `parentRunId` | string                        | 是   | 被中断的 Run（其 outcome.type=interrupt）                                                                  |
-  | `responses`   | `InterruptResponse[]`（§6.1） | 是   | 按 itemId 寻址。**必须恰好覆盖 parentRun 的全部 open interrupt**——缺漏或含未知/已 resolve 的 itemId → 报错 |
+  | 字段        | 类型                          | 必填 | 说明                                                                                                   |
+  | ----------- | ----------------------------- | ---- | ------------------------------------------------------------------------------------------------------ |
+  | `runId`     | string                        | 是   | 待续的 Run（稳定 `runId`；其当前段以 outcome.type=interrupt 收尾）                                     |
+  | `responses` | `InterruptResponse[]`（§6.1） | 是   | 按 itemId 寻址。**必须恰好覆盖该 Run 的全部 open interrupt**——缺漏或含未知/已 resolve 的 itemId → 报错 |
 
-- 返回 `{ runId: string }`（新 runId，其 `RunRef.parentRunId` = `parentRunId`）+ 流式 `RunEvent`。
+- 返回 `{ runId: string; segmentId: string }`（**同** `runId` + 新一段的 `segmentId`）+ 流式 `RunEvent`。
 - 错误：`run_not_found` / `interrupt_not_open`（含未知 / 已 resolve 的 itemId）/ `invalid_params`（`responses` 未覆盖全部 open interrupt）。
 
 - **示例**（批准一个 toolCall interrupt）：
@@ -1161,7 +1170,7 @@ interface SessionArtifact {
     "id": "7",
     "method": "runs.resume",
     "params": {
-      "parentRunId": "run_01",
+      "runId": "run_01",
       "responses": [
         {
           "itemId": "item_09",
@@ -1176,7 +1185,7 @@ interface SessionArtifact {
 
 为一个已存在的 run（root）打开一条新的事件流（重连/崩溃恢复）。
 
-- 入参 `{ runId: string }`；返回 `{ runId }` + 流式 `RunEvent`（订阅整棵 run 树，§5.4）。带 `Last-Event-Id` 从断点续传 durable 事件（HTTP 见 TRANSPORT §9.2）。
+- 入参 `{ runId: string }`（稳定 Run 身份，重连到其**当前活跃段**）；返回 `{ runId; segmentId }` + 流式 `RunEvent`（订阅整棵 run 树，§5.4）。带 `Last-Event-Id` 从断点续传 durable 事件（HTTP 见 TRANSPORT §9.2）。
 - 错误：`run_not_found`。
 
 #### `runs.cancel`
@@ -1217,7 +1226,7 @@ interface SessionArtifact {
   | ------------ | ---------- | ----------------------------------------------------------------------------------------------------- |
   | `data`       | `Item[]`   | 本页 item（`Page<Item>.data`）                                                                        |
   | `nextCursor` | string?    | 分页游标；存在即还有更多页（**不静默截断**，§4.11）                                                   |
-  | `runs`       | `RunRef[]` | 这些 item 所属 Run（含已完成/在跑），带 `parentRunId`/`spawnedByItemId`，供 join 还原 Run 树（§10.3） |
+  | `runs`       | `RunRef[]` | 这些 item 所属 Run（含已完成/在跑），带 `spawnedByItemId`，供 join 还原 Run 树（§10.3） |
 
 - 错误：`session_not_found`。
 
@@ -1676,10 +1685,9 @@ interface ClientCapabilities {
 
 ### 10.3 还原 Run 树（一个会话跨多个 Run）
 
-`items.list` 同时返回 `runs: RunRef[]`。客户端按 `runId` 把 item 归到 Run，再用：
-
-- `RunRef.parentRunId` 串**延续链**（resume / edit）—— 显式，不靠 `createdAt` 猜；
-- `RunRef.spawnedByItemId` 把子 Run 嵌到父 toolCall Item 下（**子树，`features.subagents` 门控**）。
+`items.list` 同时返回 `runs: RunRef[]`。客户端按 `runId` 把 item 归到 Run，再用 `RunRef.spawnedByItemId` 把子 Run 嵌到父
+toolCall Item 下（**子树，`features.subagents` 门控**）。延续（resume）不产生独立 Run —— 一个 Run 的停车-续跑各段共享同一
+`runId`，天然归为一条（§0.3），无需串链。
 
 三个 run 视图职责不重叠：`runs.list`（在跑）/ `listOpenInterrupts`（待解）/ `items.list.runs`（历史结构）。
 
@@ -1765,7 +1773,7 @@ interface ClientCapabilities {
 1. **领域中立核心**：核心只懂 Session/Run/Item/通用 `tool`。"工具长什么样"是领域知识，走客户端展示注册表，新工具零协议成本（§4.4）。
 2. **一个判别字段 `type`**：所有联合看 `type`，`kind` 不在 wire 上出现（§2.1）。
 3. **durable/ephemeral 不变量**：丢掉每个 ephemeral 事件仍得正确终态；每个 ephemeral 必有命名 durable 落点（§5.2）。`durable` 由 `event.type` 推导，不每帧冗余携带。
-4. **HITL = R 模型**：interrupt 收尾当前 run、`runs.resume` 起延续 run；所有 interrupt payload **自包含**（§6 / §4.8）。
+4. **HITL = R 模型**：interrupt 收尾当前**段**、`runs.resume` 在同一 Run 上续段（同 `runId`、新 `segmentId`）；所有 interrupt payload **自包含**（§6 / §4.8）。
 5. **元数据带外、业务进 params**：cwd/sessionId/runId 进 params；trace/版本/幂等键/token/游标走带外（TRANSPORT §2）。
 6. **能力开放可加**：`features` 开放 map、`events`/`providers`/`streamingMethods` 开放数组；新能力不 bump 契约（§9）。
 7. **错误三落点、一个形状**：rpc / run / tool 三通道共用 `ProblemData`，`channel` 自描述（§8）。

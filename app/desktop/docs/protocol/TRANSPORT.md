@@ -321,13 +321,13 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{...}}
 
 ### 9.1 Event id
 
-`eventId` 由 server 生成，**在一个 root run 的事件序列内单调有序**（= API.md §2.4 的 "root run stream"；含根 +
-所有子孙 Run 的事件）。这个序列**可能分布在多条 HTTP 响应里** —— 原始 `runs.start` 流 + 之后的 `runs.subscribe`
-续流 —— 单调性贯穿整个序列，故 `Last-Event-Id` 能线性重放。
+`eventId` 由 server 生成，**在一个 Segment 的事件序列内单调有序**（= API.md §2.4 的 "Segment 流"；含该段根 Run +
+所有子孙 Run 的事件）。同一段序列**可能分布在多条 HTTP 响应里** —— 原始 `runs.start`/`runs.resume` 流 + 之后对该段的
+`runs.subscribe` 续流 —— 单调性贯穿整段，故 `Last-Event-Id` 能线性重放。
 
-- `runs.subscribe` 续流**沿用同一序列**：从 `Last-Event-Id` 之后接着发（重放的 durable 事件保持其原始
+- `runs.subscribe` 续流**沿用同一段序列**：从 `Last-Event-Id` 之后接着发（重放的 durable 事件保持其原始
   `eventId`，客户端据此去重）；
-- 只有 `runs.resume` 起的**延续 Run** 才开新序列（新 `runId`、`eventId` 从头，API.md §2.4）。
+- `runs.resume` 在同一 Run 上开**新的一段**（同 `runId`、新 `segmentId`、`eventId` 从头，API.md §2.4）。
 
 server 应保留 durable 事件足够久以支撑续流，但**正确性不得依赖 ephemeral delta 的重放**。
 
