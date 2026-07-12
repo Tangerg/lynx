@@ -4,9 +4,10 @@ import "time"
 
 // Event is the transport-neutral run event the [Journal] carries and the
 // delivery layer maps to the wire. Payload is opaque to the application (the
-// concrete wire event lives only in delivery); Seq is the monotonic cursor
-// minted by the delivery layer (see [CursorMinter]), which is what lets the
-// Journal's lexical replay stay correct without knowing the cursor's format.
+// concrete wire event lives only in delivery); Seq is the monotonic cursor the
+// Coordinator mints ([Coordinator.mintCursor]) — an opaque, fixed-width,
+// lexically-ordered position, so the Journal's replay stays correct while the
+// evt_ wire framing is applied in delivery (§11.2).
 type Event struct {
 	RunID     string
 	Seq       string

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
@@ -65,7 +66,11 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 	if runID == "" {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	evCh, ok := s.coordinator.Subscribe(ctx, runID, transport.LastEventIDFrom(ctx))
+	// The Journal replays after an opaque, prefix-free application cursor; strip
+	// the evt_ wire framing off the client's Last-Event-Id (§11.2). TrimPrefix
+	// leaves an empty / unframed id untouched, so replay-from-start still works.
+	fromCursor := strings.TrimPrefix(transport.LastEventIDFrom(ctx), protocol.IDPrefixEvent)
+	evCh, ok := s.coordinator.Subscribe(ctx, runID, fromCursor)
 	if !ok {
 		return nil, nil, protocol.ErrRunNotFound
 	}

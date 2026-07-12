@@ -191,8 +191,10 @@ func mapRunEvents(in <-chan runs.Event) <-chan protocol.RunEvent {
 		for e := range in {
 			se, _ := e.Payload.(protocol.StreamEvent)
 			out <- protocol.RunEvent{
-				RunID:     e.RunID,
-				EventID:   e.Seq,
+				RunID: e.RunID,
+				// The application cursor is opaque + prefix-free; delivery owns the
+				// evt_ wire framing (§11.2). Fixed-width so lexical == numeric order.
+				EventID:   protocol.IDPrefixEvent + e.Seq,
 				Timestamp: e.Timestamp,
 				Event:     se,
 			}
@@ -200,9 +202,3 @@ func mapRunEvents(in <-chan runs.Event) <-chan protocol.RunEvent {
 	}()
 	return out
 }
-
-// cursorMinter adapts the Server's wire event-id source to the Coordinator's
-// CursorMinter port (evt_ minting stays a delivery concern).
-type cursorMinter struct{ next func() string }
-
-func (c cursorMinter) Mint() string { return c.next() }

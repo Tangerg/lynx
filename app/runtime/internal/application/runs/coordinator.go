@@ -3,6 +3,8 @@ package runs
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -19,11 +21,15 @@ var ErrClosed = errors.New("runs: coordinator closed")
 //
 // It is the transport-neutral home of the run lifecycle: reading Start + the
 // pump explains a run end to end, with the wire shape confined to the injected
-// [Projector] and [CursorMinter].
+// [Projector].
 type Coordinator struct {
 	executor Executor
 	effects  Effects
-	minter   CursorMinter
+	// seq is the process-wide monotonic run-event cursor source (§11.2): the pump
+	// stamps every event with the next value, fixed-width so the Journal's lexical
+	// replay stays correct. It is an opaque application cursor — the evt_ wire
+	// framing is applied by the delivery layer, which owns the protocol format.
+	seq atomic.Uint64
 	// runStore is the durable admission backstop (§8.2): Start records the run as
 	// the session's active run, the pump terminalizes it. nil disables it — the
 	// in-memory registry claim still guards admission within a single process.
@@ -33,10 +39,18 @@ type Coordinator struct {
 }
 
 // NewCoordinator builds a Coordinator over the executor it drives, the durable
-// effects it commits through, the cursor minter that stamps its events, and the
-// durable run-admission backstop (nil to run in-memory-only).
-func NewCoordinator(executor Executor, effects Effects, minter CursorMinter, runStore RunStore) *Coordinator {
-	return &Coordinator{executor: executor, effects: effects, minter: minter, runStore: runStore}
+// effects it commits through, and the durable run-admission backstop (nil to run
+// in-memory-only).
+func NewCoordinator(executor Executor, effects Effects, runStore RunStore) *Coordinator {
+	return &Coordinator{executor: executor, effects: effects, runStore: runStore}
+}
+
+// mintCursor returns the next monotonic, fixed-width, lexically-ordered run-event
+// cursor. It is prefix-free (the evt_ wire id is applied in delivery, §11.2); the
+// fixed width keeps lexical and numeric order in agreement so the Journal can
+// replay strictly-after a cursor without knowing its format.
+func (c *Coordinator) mintCursor() string {
+	return fmt.Sprintf("%011d", c.seq.Add(1))
 }
 
 // Start opens a run segment: it detaches the run from the request (so it
