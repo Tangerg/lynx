@@ -111,6 +111,12 @@ func (e *fakeEffects) commitCount() int {
 	return len(e.commits)
 }
 
+func (e *fakeEffects) didFinish() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.finished
+}
+
 // terminalized reports whether a terminalizing commit landed for sessionID — the
 // terminal run-state transition now rides CommitEvent, not the admission store.
 func (e *fakeEffects) terminalized(sessionID string) bool {
@@ -471,6 +477,43 @@ func TestCoordinatorItemPersistFailureAborts(t *testing.T) {
 	}
 	if proj.aborted == "" {
 		t.Fatal("projector Abort was not called with the commit error")
+	}
+}
+
+// TestCoordinatorOpeningCommitFailureTearsDown proves the teardown defer is armed
+// BEFORE the opening run.started publish (§8.2 correctness): when that first
+// durable commit fails, the run is still torn down — the turn is canceled, the
+// registry entry removed (the session freed), and the stream drained to close —
+// rather than stranding a client that acked start but can never reach a terminal.
+func TestCoordinatorOpeningCommitFailureTearsDown(t *testing.T) {
+	exec := &fakeExecutor{}
+	eff := &fakeEffects{commitErr: fmt.Errorf("store down")}
+	proj := &fakeProjector{
+		open: []ProjectedEvent{{Durable: true, Payload: "started", Commit: &execution.EventCommit{SessionID: "ses_1"}}},
+	}
+	c := NewCoordinator(exec, eff, nil)
+
+	events, err := c.Start(context.Background(),
+		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
+		func(v SegmentView) Projector { proj.view = v; return proj })
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	for range events { // the stream must drain to close, not hang
+	}
+	c.Close() // join the pump goroutine so the post-hub-close teardown is race-free
+
+	if exec.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1 (opening-commit failure must cancel the turn)", exec.cancels())
+	}
+	if c.Contains("run_1") {
+		t.Fatal("opening-commit failure must remove the registry entry, not strand a busy session")
+	}
+	if !eff.didFinish() {
+		t.Fatal("teardown Finish never ran after the opening-commit failure")
+	}
+	if proj.aborted == "" {
+		t.Fatal("projector Abort was not called with the opening-commit error")
 	}
 }
 

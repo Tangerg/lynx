@@ -74,5 +74,5 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 	if !ok {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	return &protocol.StartRunResponse{RunID: runID}, mapRunEvents(evCh), nil
+	return &protocol.StartRunResponse{RunID: runID}, mapRunEvents(ctx, evCh), nil
 }

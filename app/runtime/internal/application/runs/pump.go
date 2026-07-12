@@ -96,23 +96,23 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 		return true
 	}
 
-	// run.started leads every segment, before the teardown defer is armed — a
-	// failure here (which the run.started class can't actually trigger) means no
-	// teardown, matching the pre-rewrite pump.
-	if !publish(projector.Open()) {
-		return
-	}
-
+	// Teardown is armed BEFORE the first publish, so even the opening run.started —
+	// which carries a durable transcript commit — tears the run down on a commit
+	// failure (cancel the turn, synthesize an error terminal, close the journal,
+	// free the in-memory admission) instead of stranding a client that acked start
+	// but can never reach a terminal. (A persistently-down store still leaves the
+	// durable admission row for reconcile to sweep; the deeper fix is a synchronous
+	// atomic Start, §8.2.)
 	defer func() {
 		if ctx.Err() != nil || abortTurn {
 			_ = c.executor.CancelTurn(ownerCtx, spec.Handle)
 		}
 		if !finished {
 			// The stream ended without a run.finished (canceled mid-flight /
-			// drained iterator) — synthesize the terminal so the stream ends
-			// balanced. The projector decides error-vs-canceled from its state, and
-			// the synthesized terminal's commit terminalizes the run-state, so no
-			// separate teardown state write is needed.
+			// drained iterator, or a failed opening commit) — synthesize the terminal
+			// so the stream ends balanced. The projector decides error-vs-canceled
+			// from its state, and the synthesized terminal's commit terminalizes the
+			// run-state, so no separate teardown state write is needed.
 			_ = publish(projector.SynthesizeTerminal())
 		}
 		hub.Close()
@@ -132,6 +132,11 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 			OpeningUserText: spec.OpeningUserText,
 		})
 	}()
+
+	// run.started leads every segment.
+	if !publish(projector.Open()) {
+		return
+	}
 
 	for ev := range inner {
 		if !publish(projector.Translate(ev)) {

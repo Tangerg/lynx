@@ -104,7 +104,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	releaseTreeAdmission = false
 	// Return the opening userMessage Item id so the client reconciles its
 	// optimistic bubble by exact id (same id the stream + items.list carry).
-	return &protocol.StartRunResponse{RunID: runID, UserItemID: userMessageItemID(runID)}, mapRunEvents(evCh), nil
+	return &protocol.StartRunResponse{RunID: runID, UserItemID: userMessageItemID(runID)}, mapRunEvents(ctx, evCh), nil
 }
 
 func wireTurnStartErr(err error) error {
