@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
@@ -22,7 +23,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
@@ -116,9 +116,10 @@ type Server struct {
 	// scoped — distinct from the durable per-run hubs.
 	wsHub *workspaceHub
 
-	// tasks owns request-detached delivery work such as MCP reconnect and OAuth
-	// flows. Close cancels and joins it before runtime resources disappear.
-	tasks taskgroup.Group
+	// closed gates new workspace subscriptions once the Server is shutting down.
+	// Each stream's own lifetime is its request ctx (canceled on client disconnect
+	// or the transport's forced shutdown); delivery owns no task group (§16 rule 5).
+	closed atomic.Bool
 }
 
 // FileChangeSource is the delivery-side view of the composition-root file-change
@@ -138,14 +139,14 @@ type MCPStatusSource interface {
 	Observe(sink func(ctx context.Context, server string, connecting bool))
 }
 
-// Close cancels and joins request-detached delivery work (MCP reconnect / OAuth
-// flows). The run coordinator's pumps are joined by the Host, not here — delivery
-// drives the coordinator but does not own it (§11.1). Safe to call repeatedly.
+// Close marks the Server shut down so new workspace subscriptions are rejected;
+// in-flight streams end with their request contexts, and the run coordinator's
+// pumps are joined by the Host, not here (§11.1). Safe to call repeatedly.
 func (s *Server) Close() {
 	if s == nil {
 		return
 	}
-	s.tasks.Close()
+	s.closed.Store(true)
 }
 
 // runCleanupTimeout bounds the request-detached work that drives a parked run's

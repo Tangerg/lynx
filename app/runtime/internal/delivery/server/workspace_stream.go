@@ -72,21 +72,22 @@ func (h *workspaceHub) publish(ev protocol.WorkspaceEvent) {
 }
 
 // WorkspaceSubscribe opens the workspace event stream (AUX_API §3.1). The
-// stream's lifetime is the subscription; it ends when the request ctx does
-// (client disconnect). Broadcast events (mcp.serverChanged, skills.changed) go
-// to every subscription; when the request carries watches, the subscription
-// also monitors those cwds' git state and emits a debounced resync on any
-// change (commit / stage / checkout / merge) — the client then re-fetches
+// stream's lifetime is the request ctx: it ends on client disconnect and on
+// server shutdown (the transport force-closes the connection, canceling the
+// request), at which point the cleanup below runs and the transport's own
+// shutdown joins this still-active handler. Broadcast events (mcp.serverChanged,
+// skills.changed) go to every subscription; when the request carries watches, the
+// subscription also monitors those cwds' git state and emits a debounced resync
+// on any change (commit / stage / checkout / merge) — the client then re-fetches
 // workspace.getDiff. (Working-tree file edits aren't watched directly — see
 // gitWatcher; the agent's own edits arrive as files.changed from its tools.)
 func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSubscribeRequest) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {
+	if s.closed.Load() {
+		return nil, nil, errServerClosed
+	}
 	gitDirs, err := s.resolveWatchGitDirs(in.Watches)
 	if err != nil {
 		return nil, nil, err
-	}
-	streamCtx, release, ok := s.tasks.AttachLinked(ctx)
-	if !ok {
-		return nil, nil, errServerClosed
 	}
 
 	// WorkspaceSubscribe owns the channel: the hub broadcasts to it and (when
@@ -106,18 +107,16 @@ func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSu
 		if err != nil {
 			unregister()
 			close(out)
-			release()
 			return nil, nil, fmt.Errorf("workspace.subscribe: start git watcher: %w", err)
 		}
 	}
 
-	context.AfterFunc(streamCtx, func() {
+	context.AfterFunc(ctx, func() {
 		if watcher != nil {
 			watcher.Close() // joins the watch goroutine — no emit after this
 		}
 		unregister() // hub stops broadcasting to out
 		close(out)
-		release()
 	})
 	return &protocol.WorkspaceSubscribeResponse{}, out, nil
 }
