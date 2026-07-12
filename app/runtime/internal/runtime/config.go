@@ -67,6 +67,13 @@ type Config struct {
 	// injects the sqlite-backed store.
 	RunStore *sqlitestore.RunStateStore
 
+	// WorkspaceMutationStore is the §8.5 recoverable operation log for file
+	// rollbacks: the intent recorded before a working-tree + history rollback and
+	// cleared once both commit, so a crash is re-driven at boot. nil disables the
+	// log (rollback runs best-effort). The composition root injects the
+	// sqlite-backed store.
+	WorkspaceMutationStore *sqlitestore.WorkspaceMutationStore
+
 	// InterruptStore records open HITL interrupts (R-model resume discovery).
 	// Required; injected sqlite-backed, same as SessionStore (concrete for the
 	// same single-backend / composition-ring reason).

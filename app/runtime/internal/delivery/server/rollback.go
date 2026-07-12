@@ -71,6 +71,30 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	return &protocol.RollbackSessionResponse{Session: &sess, DroppedRuns: out}, nil
 }
 
+// RecoverRollbacks re-drives any file rollback a crash left unfinished (§8.5),
+// re-restoring the working tree + re-applying the durable truncation for each
+// logged intent. Called once at boot before the server serves, so no run
+// contends. It supplies the coordinator a boundary lookup that decodes the
+// wire-shaped run blobs — the wire knowledge that keeps the recovery loop in the
+// application layer without the coordinator learning the protocol.
+func (s *Server) RecoverRollbacks(ctx context.Context) error {
+	return s.sessions.RecoverWorkspaceMutations(ctx, s.rollbackBoundary)
+}
+
+// rollbackBoundary rebuilds the durable rollback cut for a (sessionID, toRunID)
+// from the durable run records — the same decode the live rollback path runs.
+func (s *Server) rollbackBoundary(ctx context.Context, sessionID, toRunID string) (transcript.Boundary, error) {
+	runs, err := s.rt.ListTranscriptRuns(ctx, sessionID)
+	if err != nil {
+		return transcript.Boundary{}, err
+	}
+	nodes, _, err := runBoundaryNodes(runs)
+	if err != nil {
+		return transcript.Boundary{}, err
+	}
+	return transcript.Timeline(nodes).BoundaryAt(toRunID, true)
+}
+
 // wireRollbackErr maps the rollback coordinator's sentinels onto their wire
 // errors (the boundary sentinels are already wire-mapped inside the resolver).
 func wireRollbackErr(err error, sessionID string) error {

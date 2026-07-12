@@ -129,6 +129,21 @@ type WorkspaceRestorer interface {
 	Restore(ctx context.Context, sessionID, cwd, runID string) error
 }
 
+// WorkspaceMutations is the recoverable operation log for file rollbacks (§8.5):
+// the working tree and the durable history can't commit in one ACID
+// transaction, so Record logs the intent before either is touched, Complete
+// clears it once both commit, and ListPending returns the operations a crash
+// left unfinished for boot recovery to re-drive. The composition root injects a
+// store whose writes commit independently (not joined to any rollback
+// transaction) — the log is precisely the marker that the two resources change
+// out of transaction. nil disables the log (rollback runs without a recovery
+// record, degrading to best-effort).
+type WorkspaceMutations interface {
+	Record(ctx context.Context, m execution.WorkspaceMutation) error
+	Complete(ctx context.Context, sessionID string) error
+	ListPending(ctx context.Context) ([]execution.WorkspaceMutation, error)
+}
+
 // Turns is the engine-neutral turn-control slice the lifecycle coordinator
 // drives to abandon (Cancel) or continue (Resume / Rehydrate) the process
 // backing a run. The composition root injects an adapter over the agent turn
@@ -154,6 +169,9 @@ type Coordinator struct {
 	// rollback; nil disables file restore (the coordinator rejects it as
 	// [ErrCheckpointUnavailable]).
 	restorer WorkspaceRestorer
+	// mutations is the §8.5 recoverable operation log guarding a file+history
+	// rollback across the working tree and the durable history; nil disables it.
+	mutations WorkspaceMutations
 	// trees serializes short run admissions against destructive working-tree
 	// mutations (file rollback) for every transport using this coordinator.
 	trees WorkingTreeGate
@@ -161,11 +179,13 @@ type Coordinator struct {
 
 // Dependencies is the collaborator set [New] wires into a Coordinator: the
 // consumer-defined store surface (including the atomic durable write-sets), the
-// turn dispatcher, and the working-tree checkpoint restorer.
+// turn dispatcher, the working-tree checkpoint restorer, and the recoverable
+// rollback operation log.
 type Dependencies struct {
-	Stores   Stores
-	Turns    Turns
-	Restorer WorkspaceRestorer
+	Stores    Stores
+	Turns     Turns
+	Restorer  WorkspaceRestorer
+	Mutations WorkspaceMutations
 }
 
 // ErrRunNotFound reports that a lifecycle operation targeted no live or parked run.
@@ -193,7 +213,12 @@ var (
 
 // New returns a Coordinator over deps.
 func New(deps Dependencies) *Coordinator {
-	return &Coordinator{s: deps.Stores, turns: deps.Turns, restorer: deps.Restorer}
+	return &Coordinator{
+		s:         deps.Stores,
+		turns:     deps.Turns,
+		restorer:  deps.Restorer,
+		mutations: deps.Mutations,
+	}
 }
 
 // ClaimWorkingTreeRun reserves cwd's working tree for a run segment admission,

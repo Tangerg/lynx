@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 // testCheckpointRestorer mirrors the composition root's restorer: it drives the
@@ -119,6 +120,105 @@ func TestRollback_RestoreFilesKeepsHistory(t *testing.T) {
 	}
 	if len(resp.DroppedRuns) != 0 {
 		t.Errorf("droppedRuns = %+v, want none (history kept)", resp.DroppedRuns)
+	}
+}
+
+// TestRollback_RestoreBoth_ClearsIntent: a successful files+history rollback
+// leaves no pending operation — the §8.5 intent is recorded then cleared, so
+// boot recovery has nothing to re-drive.
+func TestRollback_RestoreBoth_ClearsIntent(t *testing.T) {
+	s, rt, sid, cwd := checkpointHarness(t)
+	ctx := context.Background()
+
+	writeFile(t, cwd, "a.txt", "v1")
+	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run1"); err != nil {
+		t.Fatalf("snapshot run1: %v", err)
+	}
+	putRun(t, rt, sid, "run1", "", 1, 1)
+	writeFile(t, cwd, "a.txt", "v2")
+	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run2"); err != nil {
+		t.Fatalf("snapshot run2: %v", err)
+	}
+	putRun(t, rt, sid, "run2", "", 2, 2)
+
+	if _, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{
+		SessionID: sid, ToRunID: "run1", RestoreType: protocol.RestoreBoth,
+	}); err != nil {
+		t.Fatalf("rollback both: %v", err)
+	}
+	if pending, _ := rt.muts.ListPending(ctx); len(pending) != 0 {
+		t.Fatalf("pending intents after success = %+v, want none (recorded then cleared)", pending)
+	}
+}
+
+// TestRecoverRollbacks re-drives a rollback a crash left unfinished: an intent is
+// logged with the working tree already reverted but the history NOT yet
+// truncated (the crash window). Boot recovery restores (reentrant), truncates,
+// and clears the intent.
+func TestRecoverRollbacks(t *testing.T) {
+	s, rt, sid, cwd := checkpointHarness(t)
+	ctx := context.Background()
+
+	writeFile(t, cwd, "a.txt", "v1")
+	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run1"); err != nil {
+		t.Fatalf("snapshot run1: %v", err)
+	}
+	putRun(t, rt, sid, "run1", "", 1, 1)
+	writeFile(t, cwd, "a.txt", "v2")
+	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run2"); err != nil {
+		t.Fatalf("snapshot run2: %v", err)
+	}
+	putRun(t, rt, sid, "run2", "", 2, 2)
+
+	// Simulate the crash: the intent is logged but neither resource is rolled back
+	// yet (tree still v2, run2 still in history).
+	if err := rt.muts.Record(ctx, execution.WorkspaceMutation{SessionID: sid, Cwd: cwd, ToRunID: "run1"}); err != nil {
+		t.Fatalf("record intent: %v", err)
+	}
+
+	if err := s.RecoverRollbacks(ctx); err != nil {
+		t.Fatalf("RecoverRollbacks: %v", err)
+	}
+
+	if b, _ := os.ReadFile(filepath.Join(cwd, "a.txt")); string(b) != "v1" {
+		t.Errorf("a.txt = %q, want v1 (working tree restored by recovery)", b)
+	}
+	_, runs, _ := rt.hist.List(ctx, sid)
+	if len(runs) != 1 || runs[0].RunID != "run1" {
+		t.Errorf("runs after recovery = %+v, want only run1 (history truncated)", runs)
+	}
+	if pending, _ := rt.muts.ListPending(ctx); len(pending) != 0 {
+		t.Errorf("pending after recovery = %+v, want none (intent cleared)", pending)
+	}
+}
+
+// TestRecoverRollbacks_Idempotent: recovering an intent whose durable rollback
+// already committed (history already truncated) is a no-op — the boundary
+// recomputes empty and the restore is reentrant — and still clears the intent.
+func TestRecoverRollbacks_Idempotent(t *testing.T) {
+	s, rt, sid, cwd := checkpointHarness(t)
+	ctx := context.Background()
+
+	writeFile(t, cwd, "a.txt", "v1")
+	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run1"); err != nil {
+		t.Fatalf("snapshot run1: %v", err)
+	}
+	putRun(t, rt, sid, "run1", "", 1, 1)
+	// Only run1 in history (run2 already dropped by the pre-crash rollback), tree
+	// already at v1 — the "crashed after durable, before complete" state.
+	if err := rt.muts.Record(ctx, execution.WorkspaceMutation{SessionID: sid, Cwd: cwd, ToRunID: "run1"}); err != nil {
+		t.Fatalf("record intent: %v", err)
+	}
+
+	if err := s.RecoverRollbacks(ctx); err != nil {
+		t.Fatalf("RecoverRollbacks: %v", err)
+	}
+	_, runs, _ := rt.hist.List(ctx, sid)
+	if len(runs) != 1 || runs[0].RunID != "run1" {
+		t.Errorf("runs = %+v, want run1 untouched (idempotent no-op)", runs)
+	}
+	if pending, _ := rt.muts.ListPending(ctx); len(pending) != 0 {
+		t.Errorf("pending after recovery = %+v, want cleared", pending)
 	}
 }
 
