@@ -100,6 +100,12 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		CreatedAt:   createdAt,
 	}, factory)
 	if err != nil {
+		// The interrupt was already consumed and the parked turn resumed; a Start
+		// failure (Coordinator closing / executor error) would otherwise strand the
+		// session with a non-terminal run and no interrupt to resume. Re-open the
+		// interrupt so a retry can resume it — Start already canceled the turn, and a
+		// later resume rehydrates a fresh one from the durable snapshot.
+		_ = s.sessions.RestoreConsumedInterrupt(ctx, pending)
 		return nil, nil, err
 	}
 	treeAdmission.Release()

@@ -85,7 +85,7 @@ func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, parentRunID st
 			// marks the failure committed it has already terminalized the process, and
 			// restoring would create a ghost resumable record.
 			if !errors.Is(err, ErrRehydrateCommitted) {
-				return ResumedInterrupt{}, errors.Join(ErrRunNotFound, c.restoreConsumedInterrupt(ctx, pending))
+				return ResumedInterrupt{}, errors.Join(ErrRunNotFound, c.RestoreConsumedInterrupt(ctx, pending))
 			}
 			return ResumedInterrupt{}, ErrRunNotFound
 		}
@@ -96,7 +96,14 @@ func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, parentRunID st
 
 const interruptCompensationTimeout = 2 * time.Second
 
-func (c *Coordinator) restoreConsumedInterrupt(ctx context.Context, pending interrupts.Pending) error {
+// RestoreConsumedInterrupt re-opens an interrupt a resume consumed but whose
+// continuation then failed to start, so the session is not stranded with a
+// non-terminal run and no interrupt to resume. Best-effort within a bounded,
+// caller-cancel-detached context — the compensation must run even as the failing
+// request unwinds. Used both by [Coordinator.ResumeClaimedInterrupt] (rehydrate
+// failed before the decision reached a restored process) and by the delivery
+// resume flow (the continuation's Start failed after the interrupt was consumed).
+func (c *Coordinator) RestoreConsumedInterrupt(ctx context.Context, pending interrupts.Pending) error {
 	restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), interruptCompensationTimeout)
 	defer cancel()
 	if err := c.s.Interrupts().Put(restoreCtx, pending); err != nil {

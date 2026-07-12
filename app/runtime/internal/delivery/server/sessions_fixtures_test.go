@@ -14,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -37,9 +36,9 @@ type testRuntime interface {
 type stubRuntime struct {
 	sess       *sqlite.SessionStore
 	model      string
-	history    map[string][]chat.Message // per-session chat history (fork copies it)
-	hist       *sqlite.TranscriptStore   // durable Item/run history (rollback/fork read runs)
-	interrupts *sqlite.InterruptStore    // open-interrupt registry (rollback clears dropped)
+	history    map[string][]chat.Message      // per-session chat history (fork copies it)
+	hist       *sqlite.TranscriptStore        // durable Item/run history (rollback/fork read runs)
+	interrupts *sqlite.InterruptStore         // open-interrupt registry (rollback clears dropped)
 	muts       *sqlite.WorkspaceMutationStore // §8.5 recoverable file-rollback log
 	turns      turn.Dispatcher
 }
@@ -122,12 +121,6 @@ func newTestServer(rt testRuntime) *Server {
 // handler tests, which touch nothing else.
 func serverWithCapabilities(cfg capabilities.Config) *Server {
 	return &Server{capabilities: capabilities.New(cfg)}
-}
-
-func newTestServerWithInfo(rt testRuntime, info protocol.ServerInfo) *Server {
-	s := newTestServer(rt)
-	s.serverInfo = info
-	return s
 }
 
 func (s stubRuntime) Transcript() *sqlite.TranscriptStore { return s.hist }
