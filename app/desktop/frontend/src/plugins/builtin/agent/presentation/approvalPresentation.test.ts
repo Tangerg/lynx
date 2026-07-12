@@ -46,7 +46,7 @@ describe("approvalPresentation", () => {
   it("allows submit only for open resumable approval interrupts", () => {
     expect(
       canSubmitApproval({
-        parentRunId: "run",
+        runId: "run",
         itemId: "item",
         pending: null,
         status: "requires-action",
@@ -54,14 +54,14 @@ describe("approvalPresentation", () => {
     ).toBe(true);
     expect(
       canSubmitApproval({
-        parentRunId: "run",
+        runId: "run",
         itemId: "item",
         pending: "approved",
         status: "requires-action",
       }),
     ).toBe(false);
     expect(
-      canSubmitApproval({ parentRunId: "run", itemId: "item", pending: null, status: "complete" }),
+      canSubmitApproval({ runId: "run", itemId: "item", pending: null, status: "complete" }),
     ).toBe(false);
   });
 });

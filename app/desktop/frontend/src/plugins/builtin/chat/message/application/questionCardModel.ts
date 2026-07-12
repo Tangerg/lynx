@@ -36,35 +36,35 @@ export function questionCardSettledView({
 }
 
 export function canSubmitQuestionCard({
-  parentRunId,
+  runId,
   itemId,
   status,
   complete,
   pending,
 }: {
-  parentRunId?: string;
+  runId?: string;
   itemId?: string;
   status: BlockStatus;
   complete: boolean;
   pending: boolean;
 }): boolean {
-  return !pending && canSubmitQuestion({ parentRunId, itemId, complete, status });
+  return !pending && canSubmitQuestion({ runId, itemId, complete, status });
 }
 
 export function useQuestionCardActions({
-  parentRunId,
+  runId,
   itemId,
   status,
   questions,
   draft,
 }: {
-  parentRunId?: string;
+  runId?: string;
   itemId?: string;
   status: BlockStatus;
   questions: readonly QuestionItem[];
   draft: QuestionDraft;
 }) {
-  const { submit, pending } = useQuestionAnswer(parentRunId, itemId);
+  const { submit, pending } = useQuestionAnswer(runId, itemId);
   const complete = useMemo(() => questionDraftComplete(questions, draft), [questions, draft]);
   const payload = useMemo(() => questionDraftAnswers(questions, draft), [questions, draft]);
 
@@ -74,7 +74,7 @@ export function useQuestionCardActions({
 
   return {
     pending,
-    disabled: !canSubmitQuestionCard({ parentRunId, itemId, status, complete, pending }),
+    disabled: !canSubmitQuestionCard({ runId, itemId, status, complete, pending }),
     submit: submitAnswer,
   };
 }

@@ -50,13 +50,13 @@ describe("createRpcAgentDriver", () => {
     const driver = createRpcAgentDriver("ses_1", () => gateway);
 
     await expect(driver.start(input, { provider: "openai" }, signal)).resolves.toBe(startResult);
-    const parentRunId = asRunId("run_1");
+    const runId = asRunId("run_1");
     const responses: Parameters<AgentDriver["resume"]>[1] = [
       { itemId: asItemId("item_1"), response: { type: "approval", decision: "approve" } },
     ];
-    await expect(driver.resume(parentRunId, responses, signal)).resolves.toBe(resumeResult);
+    await expect(driver.resume(runId, responses, signal)).resolves.toBe(resumeResult);
 
     expect(gateway.start).toHaveBeenCalledWith({ sessionId: "ses_1", input }, signal);
-    expect(gateway.resume).toHaveBeenCalledWith({ parentRunId, responses }, signal);
+    expect(gateway.resume).toHaveBeenCalledWith({ runId, responses }, signal);
   });
 });

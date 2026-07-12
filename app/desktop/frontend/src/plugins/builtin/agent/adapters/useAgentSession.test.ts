@@ -175,7 +175,7 @@ describe("useAgentSession durable recovery", () => {
   function stubClient(overrides: Record<string, unknown> = {}) {
     const subscribe = vi.fn(() =>
       Promise.resolve({
-        result: { runId: "run_live" },
+        result: { runId: "run_live", segmentId: "seg_live" },
         // Parked stream — yields nothing, never ends (the run is "still going").
         events: (async function* () {
           yield* [];
@@ -212,7 +212,7 @@ describe("useAgentSession durable recovery", () => {
       listOpenInterrupts: vi.fn().mockResolvedValue(
         page([
           {
-            parentRunId: "run_int",
+            runId: "run_int",
             sessionId: RID,
             interrupts: [approvalInterrupt],
             createdAt: "2026-06-11T00:00:00Z",
@@ -227,11 +227,11 @@ describe("useAgentSession durable recovery", () => {
       expect(useAgentStore.getState().sessions[RID]!.view.pendingInterrupts).toHaveLength(1);
     });
     const view = useAgentStore.getState().sessions[RID]!.view;
-    expect(view.pendingInterrupts[0]!.parentRunId).toBe("run_int");
+    expect(view.pendingInterrupts[0]!.runId).toBe("run_int");
     const approval = view.messages
       .flatMap((m) => m.blocks)
       .find((b) => b.kind === "approval" && b.itemId === "item_appr");
-    expect(approval).toMatchObject({ status: "requires-action", parentRunId: "run_int" });
+    expect(approval).toMatchObject({ status: "requires-action", runId: "run_int" });
     expect(view.run.running).toBe(false); // interrupt = run already ended
   });
 

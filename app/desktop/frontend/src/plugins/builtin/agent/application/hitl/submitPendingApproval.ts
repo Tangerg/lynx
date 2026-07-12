@@ -50,7 +50,7 @@ export function submitPendingApproval(decision: ApprovalDecision): boolean {
   if (
     !resumeInterrupt(
       sid,
-      oi.parentRunId,
+      oi.runId,
       itemId,
       { type: "approval", decision: WIRE_DECISION[decision] },
       { decision },

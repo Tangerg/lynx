@@ -40,7 +40,7 @@ function approvalBlock(itemId: string): ContentBlock {
     command: "rm x",
     reason: "Needs confirmation",
     itemId,
-    parentRunId: "run_1",
+    runId: "run_1",
   };
 }
 
@@ -49,7 +49,7 @@ function questionBlock(itemId: string): ContentBlock {
     kind: "question",
     status: "requires-action",
     itemId,
-    parentRunId: "run_1",
+    runId: "run_1",
     questions: [
       {
         id: "choice",
@@ -66,7 +66,7 @@ function pendingInterrupt(
   items: Array<{ itemId: string; kind: "approval" | "question" }>,
 ): PendingInterruptGroup {
   return {
-    parentRunId: "run_1",
+    runId: "run_1",
     sessionId: "ses_1",
     createdAt: time,
     interrupts: items,

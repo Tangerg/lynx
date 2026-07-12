@@ -26,10 +26,10 @@ interface Props {
   what: string;
   cmd: string;
   reason: string;
-  /** The interrupted Run + the toolCall Item awaiting approval — the HITL
+  /** The Run to resume + the toolCall Item awaiting approval — the HITL
    *  resume target (API.md §6). When either is absent the card is a
    *  decorative pre-HITL preview with no buttons. */
-  parentRunId?: string;
+  runId?: string;
   itemId?: string;
   /** Set once the decision is submitted (optimistic) / the run resolves. */
   decision?: ApprovalDecision;
@@ -60,15 +60,15 @@ interface Props {
 // HITL flow (R-model, API.md §6):
 //   1. Run ends with outcome.type="interrupt" carrying an approval Interrupt
 //   2. Reducer materialises an approval block (status="requires-action")
-//      bound to { parentRunId, itemId }
-//   3. User clicks → useApprovalSubmit starts a continuation Run via
+//      bound to { runId, itemId }
+//   3. User clicks → useApprovalSubmit resumes the run (new segment) via
 //      runs.resume + optimistically settles the card (resolveInterrupt)
 export function ApprovalCard({
   status,
   what,
   cmd,
   reason,
-  parentRunId,
+  runId,
   itemId,
   decision,
   args,
@@ -86,7 +86,7 @@ export function ApprovalCard({
   const [remember, setRemember] = useState(false);
   const [rememberScope, setRememberScope] = useState<RememberScope>("session");
   const { pending, disabled, approve, decline } = useApprovalCardActions({
-    parentRunId,
+    runId,
     itemId,
     status,
     argsEditor: hasArgs ? argsEditor : undefined,

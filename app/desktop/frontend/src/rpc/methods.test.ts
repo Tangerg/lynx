@@ -9,8 +9,8 @@ import { waitForRequest } from "./transports/memory.testkit";
 import type { RpcMessage } from "./types";
 import { JSONRPC_VERSION } from "./types";
 
-function runEvent(runId: string, eventId: string, event: StreamEvent): RunEvent {
-  return { runId, eventId, timestamp: "2026-06-03T00:00:00Z", event } as RunEvent;
+function runEvent(runId: string, segmentId: string, eventId: string, event: StreamEvent): RunEvent {
+  return { runId, segmentId, eventId, timestamp: "2026-06-03T00:00:00Z", event } as RunEvent;
 }
 
 describe("methods factory", () => {
@@ -40,7 +40,7 @@ describe("methods factory", () => {
     await client.close();
   });
 
-  it("runs.start returns a streaming result that ends on root run.finished", async () => {
+  it("runs.start returns a streaming result that ends on the root segment's run.finished", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const methods = createMethods(client);
@@ -52,14 +52,18 @@ describe("methods factory", () => {
     const req = await waitForRequest(t, "runs.start");
     expect(req.params).toMatchObject({ sessionId: "ses_1" });
 
-    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { runId: "run_1" } } as RpcMessage);
+    t.inject({
+      jsonrpc: JSONRPC_VERSION,
+      id: req.id,
+      result: { runId: "run_1", segmentId: "seg_1" },
+    } as RpcMessage);
     const { result, events } = await startPromise;
     expect(result.runId).toBe("run_1");
 
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: RUN_EVENT_METHOD,
-      params: runEvent("run_1", "evt_1", {
+      params: runEvent("run_1", "seg_1", "evt_1", {
         type: "item.started",
         item: { id: asRunId("item_1"), type: "agentMessage" } as never,
       }),
@@ -67,7 +71,7 @@ describe("methods factory", () => {
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: RUN_EVENT_METHOD,
-      params: runEvent("run_1", "evt_2", {
+      params: runEvent("run_1", "seg_1", "evt_2", {
         type: "run.finished",
         outcome: { type: "completed", result: {} },
       }),
@@ -79,7 +83,7 @@ describe("methods factory", () => {
     await client.close();
   });
 
-  it("ignores events for foreign runs", async () => {
+  it("ignores events for foreign segments", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const methods = createMethods(client);
@@ -89,13 +93,17 @@ describe("methods factory", () => {
       input: [{ type: "text", text: "hi" }],
     });
     const req = await waitForRequest(t, "runs.start");
-    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { runId: "run_1" } } as RpcMessage);
+    t.inject({
+      jsonrpc: JSONRPC_VERSION,
+      id: req.id,
+      result: { runId: "run_1", segmentId: "seg_1" },
+    } as RpcMessage);
     const { events } = await startPromise;
 
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: RUN_EVENT_METHOD,
-      params: runEvent("run_OTHER", "evt_x", {
+      params: runEvent("run_OTHER", "seg_OTHER", "evt_x", {
         type: "item.started",
         item: { id: asRunId("item_x"), type: "agentMessage" } as never,
       }),
@@ -103,7 +111,7 @@ describe("methods factory", () => {
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: RUN_EVENT_METHOD,
-      params: runEvent("run_1", "evt_1", {
+      params: runEvent("run_1", "seg_1", "evt_1", {
         type: "item.completed",
         item: { id: asRunId("item_1"), type: "agentMessage" } as never,
       }),
@@ -111,7 +119,7 @@ describe("methods factory", () => {
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: RUN_EVENT_METHOD,
-      params: runEvent("run_1", "evt_2", {
+      params: runEvent("run_1", "seg_1", "evt_2", {
         type: "run.finished",
         outcome: { type: "completed", result: {} },
       }),

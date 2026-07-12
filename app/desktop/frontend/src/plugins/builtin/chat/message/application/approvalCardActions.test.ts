@@ -18,21 +18,21 @@ describe("canRegisterApprovalActions", () => {
   it("registers shortcuts only for an open resumable approval", () => {
     expect(
       canRegisterApprovalActions({
-        parentRunId: "run",
+        runId: "run",
         itemId: "item",
         status: "requires-action",
       }),
     ).toBe(true);
     expect(
       canRegisterApprovalActions({
-        parentRunId: "run",
+        runId: "run",
         itemId: "item",
         status: "complete",
       }),
     ).toBe(false);
     expect(
       canRegisterApprovalActions({
-        parentRunId: undefined,
+        runId: undefined,
         itemId: "item",
         status: "requires-action",
       }),

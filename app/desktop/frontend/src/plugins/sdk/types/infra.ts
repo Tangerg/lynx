@@ -96,11 +96,11 @@ export interface AgentDriver {
     signal?: AbortSignal,
   ) => Promise<StreamingResult<{ runId: RunId; userItemId?: ItemId }, RunEvent>>;
   /**
-   * Resume the interrupted run `parentRunId` with HITL responses — starts a
-   * continuation Run and returns its event stream (API.md §6).
+   * Resume the run `runId` with HITL responses — opens a NEW segment of the
+   * SAME run (runId unchanged) and returns its event stream (API.md §6).
    */
   resume: (
-    parentRunId: RunId,
+    runId: RunId,
     responses: InterruptResponse[],
     signal?: AbortSignal,
   ) => Promise<StreamingResult<{ runId: RunId }, RunEvent>>;

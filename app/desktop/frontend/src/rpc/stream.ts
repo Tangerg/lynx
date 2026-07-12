@@ -4,13 +4,17 @@
 // v2 collapses run streaming onto ONE notification method:
 // `notifications.run.event`, params = RunEvent. There is no separate
 // "run closed" method — the terminal signal is a `run.finished`
-// StreamEvent for the ROOT run, delivered inside the same stream.
+// StreamEvent for the ROOT SEGMENT, delivered inside the same stream.
 //
-// A single root run stream carries the WHOLE run tree (root + every
-// descendant subagent run, §5.4). We track tree membership by runId:
-// seed with the root, then admit a child run when its `run.started`
-// carries a `spawnedByItemId` whose owning item we've already seen on
-// this tree. The stream ends when the ROOT run's `run.finished` arrives.
+// A single stream is rooted on ONE segment (the segment `runs.start` /
+// `runs.resume` / `runs.subscribe` opened, identified by SegmentId — a Run
+// keeps a stable RunId across HITL resume, but each resume opens a fresh
+// segment). That root segment stream carries the WHOLE run tree: the root
+// segment's own events PLUS every descendant subagent run's events (§5.4).
+// The root is keyed on segmentId; subagents are admitted by runId (they keep
+// distinct RunIds) when a `run.started` carries a `spawnedByItemId` whose
+// owning item we've already seen on this tree. The stream ends when the ROOT
+// SEGMENT's `run.finished` arrives (a subagent's has a different segmentId).
 
 import { z } from "zod";
 import { createPushPullChannel, type PushPullChannel } from "./channel";
@@ -35,6 +39,7 @@ export const WORKSPACE_EVENT_METHOD = "notifications.workspace.event";
 
 const RunEventEnvelopeSchema = z.object({
   runId: z.string(),
+  segmentId: z.string(),
   eventId: z.string(),
   timestamp: z.string(),
   // No `durable` on the envelope — durability derives from event.type
@@ -69,11 +74,15 @@ const parseWorkspaceEvent = makeParser(WORKSPACE_EVENT_METHOD, WorkspaceEventEnv
 // Run-tree membership tracker
 // ---------------------------------------------------------------------------
 //
-// Decides, for a given root run stream, whether an inbound RunEvent
-// belongs to this tree, and whether it's the terminal root finish.
+// Decides, for a given root segment stream, whether an inbound RunEvent
+// belongs to this tree, and whether it's the terminal root-segment finish.
 
 class RunTree {
-  private readonly runs: Set<string>;
+  // Subagent runIds admitted onto this tree PLUS the root run's own runId
+  // (learned from the root-segment run.started). The root's OWN events are
+  // matched by segmentId, not by this set; the set exists so subagents can be
+  // admitted by runId and so STREAM_DOWN (which reports runIds) can match.
+  private readonly runs = new Set<string>();
   private readonly itemOwner = new Map<string, string>(); // itemId → owning runId
   // Event ids already delivered on this stream. §9.2 requires the client to
   // dedupe on replay/overlap (a residual live stream + a runs.subscribe
@@ -82,9 +91,7 @@ class RunTree {
   // comparable, so we track a per-stream seen-set (freed with the stream).
   private readonly seenEventIds = new Set<string>();
 
-  constructor(private readonly rootRunId: string) {
-    this.runs = new Set([rootRunId]);
-  }
+  constructor(private readonly rootSegmentId: string) {}
 
   /** True if this event id was already delivered on this stream (replay /
    *  overlapping-subscription duplicate). Marks it seen otherwise. */
@@ -94,36 +101,51 @@ class RunTree {
     return false;
   }
 
-  /** True if the given run belongs to this stream's tree. */
+  /** True if the given run belongs to this stream's tree (root or subagent) —
+   *  used by STREAM_DOWN, which is keyed on runId. The root runId is populated
+   *  once its root-segment run.started is seen. */
   hasRun(runId: string): boolean {
     return this.runs.has(runId);
   }
 
+  /** An event belongs to this tree if it's on the root segment or on an
+   *  admitted subagent run. */
+  private belongs(ev: RunEvent): boolean {
+    return ev.segmentId === this.rootSegmentId || this.runs.has(ev.runId);
+  }
+
   /** Update tree membership from an event; return true if it belongs here. */
   admit(ev: RunEvent): boolean {
-    // The Zod envelope only guarantees `event.type` is a string — the inner
-    // payload is cast, not validated (see top-of-file note). So treat
-    // run/item as possibly-absent here: a malformed event must update nothing
-    // and be dropped, never throw. This runs inside the `client.subscribe`
-    // callback, which has no try/catch — an unguarded deref would kill the
-    // whole run stream, not just drop one event.
+    // The Zod envelope only guarantees `segmentId`/`runId` are strings and
+    // `event.type` a string — the inner payload is cast, not validated (see
+    // top-of-file note). So treat run/item as possibly-absent here: a malformed
+    // event must update nothing and be dropped, never throw. This runs inside
+    // the `client.subscribe` callback, which has no try/catch — an unguarded
+    // deref would kill the whole run stream, not just drop one event.
     const e = ev.event as {
       type: string;
       run?: { id: string; spawnedByItemId?: string };
       item?: { id: string };
     };
     if (e.type === "run.started" && e.run) {
-      const spawnedBy = e.run.spawnedByItemId;
-      if (spawnedBy && this.itemOwner.has(spawnedBy)) this.runs.add(e.run.id);
+      if (ev.segmentId === this.rootSegmentId) {
+        // Root-segment run.started — learn the root runId (for STREAM_DOWN).
+        this.runs.add(e.run.id);
+      } else {
+        // A subagent run.started — admit it iff its spawning item is on the tree.
+        const spawnedBy = e.run.spawnedByItemId;
+        if (spawnedBy && this.itemOwner.has(spawnedBy)) this.runs.add(e.run.id);
+      }
     } else if ((e.type === "item.started" || e.type === "item.completed") && e.item) {
-      if (this.runs.has(ev.runId)) this.itemOwner.set(e.item.id, ev.runId);
+      if (this.belongs(ev)) this.itemOwner.set(e.item.id, ev.runId);
     }
-    return this.runs.has(ev.runId);
+    return this.belongs(ev);
   }
 
-  /** True once the ROOT run has finished — ends the stream. */
+  /** True once the ROOT SEGMENT has finished — ends the stream. A subagent's
+   *  run.finished carries a different segmentId, so it never closes the tree. */
   isRootFinish(ev: RunEvent): boolean {
-    return ev.runId === this.rootRunId && ev.event.type === "run.finished";
+    return ev.segmentId === this.rootSegmentId && ev.event.type === "run.finished";
   }
 }
 
@@ -225,50 +247,22 @@ export interface RunEventStream {
   dispose: () => void;
 }
 
-/** Subscribe to a known root run's event stream (runs.subscribe). */
+/**
+ * Subscribe to run events BEFORE the root segment id is known, then bind once
+ * `runs.start` / `runs.resume` / `runs.subscribe` returns. Under streamable
+ * HTTP the call's response and its event frames arrive on one ordered stream
+ * (TRANSPORT.md §6.4), so the head events land right after the response —
+ * subscribing only after the response resolves races and drops them. So we
+ * subscribe immediately, buffer raw events until `bind(rootSegmentId)` supplies
+ * the runtime-assigned root segment id, then replay the buffer through the tree
+ * filter. (Every stream-opening method returns its root segmentId, so this is
+ * the single run-event stream builder — a Run's runId is stable, but the
+ * segment being streamed is only known from the response.)
+ */
 export function streamRunEvents(
   client: RpcClient,
-  rootRunId: string,
   signal?: AbortSignal,
-): RunEventStream {
-  const channel = createPushPullChannel<RunEvent>();
-  const tree = new RunTree(rootRunId);
-  const unsubEvents = client.subscribe(RUN_EVENT_METHOD, (msg) => {
-    if (channel.closed) return;
-    const ev = toRunEvent(msg.params);
-    if (ev) feedRunEvent(tree, channel, ev);
-  });
-  const unsubDown = subscribeStreamDown(client, channel, () => tree);
-  const cleanup = bindLifecycle(
-    channel,
-    () => {
-      unsubEvents();
-      unsubDown();
-    },
-    signal,
-  );
-  return {
-    events: iterableOf(channel, cleanup),
-    dispose: () => {
-      channel.close();
-      cleanup();
-    },
-  };
-}
-
-/**
- * Subscribe to run events BEFORE the runId is known, then bind once
- * `runs.start` / `runs.resume` returns. Under streamable HTTP the call's
- * response and its event frames arrive on one ordered stream (TRANSPORT.md
- * §6.4), so the head events land right after the response — subscribing only
- * after the response resolves races and drops them. So we subscribe
- * immediately, buffer raw events until `bind(rootRunId)` supplies the
- * runtime-assigned id, then replay the buffer through the tree filter.
- */
-export function streamRunEventsDeferred(
-  client: RpcClient,
-  signal?: AbortSignal,
-): RunEventStream & { bind: (rootRunId: string) => void } {
+): RunEventStream & { bind: (rootSegmentId: string) => void } {
   const channel = createPushPullChannel<RunEvent>();
   const buffer: RunEvent[] = [];
   let tree: RunTree | null = null;
@@ -277,7 +271,7 @@ export function streamRunEventsDeferred(
     if (channel.closed) return;
     const ev = toRunEvent(msg.params);
     if (!ev) return;
-    // Not bound yet — keep raw until bind() supplies our root run id.
+    // Not bound yet — keep raw until bind() supplies our root segment id.
     if (tree === null) buffer.push(ev);
     else feedRunEvent(tree, channel, ev);
   });
@@ -286,9 +280,9 @@ export function streamRunEventsDeferred(
   // transport synthesizes an error Response) and methods.ts disposes us.
   const unsubDown = subscribeStreamDown(client, channel, () => tree);
 
-  const bind = (rootRunId: string): void => {
+  const bind = (rootSegmentId: string): void => {
     if (tree !== null) return;
-    tree = new RunTree(rootRunId);
+    tree = new RunTree(rootSegmentId);
     for (const ev of buffer) feedRunEvent(tree, channel, ev);
     buffer.length = 0;
   };

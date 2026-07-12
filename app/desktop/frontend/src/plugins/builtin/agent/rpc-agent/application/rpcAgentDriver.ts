@@ -4,7 +4,7 @@ export const DEFAULT_RPC_SESSION_ID = "ses_default";
 
 export type RpcAgentInput = Parameters<AgentDriver["start"]>[0];
 export type RpcAgentStartOptions = Parameters<AgentDriver["start"]>[1];
-export type RpcAgentParentRunId = Parameters<AgentDriver["resume"]>[0];
+export type RpcAgentRunId = Parameters<AgentDriver["resume"]>[0];
 export type RpcAgentInterruptResponses = Parameters<AgentDriver["resume"]>[1];
 
 export interface RpcRunStartParams {
@@ -15,7 +15,7 @@ export interface RpcRunStartParams {
 }
 
 export interface RpcRunResumeParams {
-  parentRunId: RpcAgentParentRunId;
+  runId: RpcAgentRunId;
   responses: RpcAgentInterruptResponses;
 }
 
@@ -48,7 +48,6 @@ export function createRpcAgentDriver(
   return {
     start: (input, options, signal) =>
       gateway().start(rpcRunStartParams(sessionId, input, options), signal),
-    resume: (parentRunId, responses, signal) =>
-      gateway().resume({ parentRunId, responses }, signal),
+    resume: (runId, responses, signal) => gateway().resume({ runId, responses }, signal),
   };
 }

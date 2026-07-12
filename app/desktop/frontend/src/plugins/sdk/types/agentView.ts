@@ -152,7 +152,15 @@ export interface RunUsage {
 export interface RunState {
   running: boolean;
   sessionId: string | null;
+  /** The stable logical Run (RunRef.id) — unchanged across a HITL resume, so a
+   *  run's continuations group into one run. Anchors run-boundary actions
+   *  (rollback / fork). */
   runId: string | null;
+  /** The streamed segment currently folding into this view (RunEvent.segmentId).
+   *  A resume opens a NEW segment of the SAME run; a change here — not a change
+   *  in runId — is what resets the per-segment streaming readout (usage/error).
+   *  Null until the first run.started carrying a segmentId. */
+  segmentId: string | null;
   step: number;
   totalSteps: number;
   activity: string;
@@ -214,7 +222,7 @@ export interface PendingInterrupt {
 }
 
 export interface PendingInterruptGroup {
-  parentRunId: string;
+  runId: string; // the Run to resume (its current segment ended in an interrupt)
   sessionId: string;
   interrupts: PendingInterrupt[];
   createdAt: string;
@@ -255,6 +263,7 @@ export const INITIAL_VIEW_STATE: AgentViewState = {
     running: false,
     sessionId: null,
     runId: null,
+    segmentId: null,
     step: 0,
     totalSteps: 0,
     activity: "",

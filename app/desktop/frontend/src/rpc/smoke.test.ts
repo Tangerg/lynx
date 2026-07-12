@@ -9,10 +9,10 @@
 // Coverage:
 //   1. runtime.discover            (optional capability discovery)
 //   2. sessions.create             (Session shape, default cwd)
-//   3. runs.start                  (immediate {runId}, then RunEvent stream)
+//   3. runs.start                  (immediate {runId, segmentId}, then RunEvent stream)
 //   4. item.* + run.* StreamEvents (the v2 Item model)
-//   5. run.finished{interrupt}     (R-model HITL — Run ends, resources freed)
-//   6. runs.resume                 (continuation Run answering the interrupt)
+//   5. run.finished{interrupt}     (R-model HITL — the segment ends, run parked)
+//   6. runs.resume                 (SAME run, a NEW segment answering the interrupt)
 //   7. run.finished{completed}     (terminates the stream)
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -116,23 +116,25 @@ describe("smoke: v2 end-to-end happy path", () => {
     });
     const startReq = await waitForRequest(transport, "runs.start");
     expect(startReq.params).toMatchObject({ sessionId: "ses_1" });
-    respondSuccess(transport, startReq.id, { runId: "run_1" });
+    respondSuccess(transport, startReq.id, { runId: "run_1", segmentId: "seg_1" });
     const { result: started, events } = await startPromise;
     expect(started.runId).toBe("run_1");
+    expect(started.segmentId).toBe("seg_1");
 
     // ---- Step 4 + 5: drive items until the interrupt ----------------------
     setTimeout(() => {
-      injectRunEvent(transport, "run_1", "evt_1", {
+      injectRunEvent(transport, "run_1", "seg_1", "evt_1", {
         type: "run.started",
         run: { id: asRunId("run_1"), sessionId: asSessionId("ses_1") },
       });
-      injectRunEvent(transport, "run_1", "evt_2", {
+      injectRunEvent(transport, "run_1", "seg_1", "evt_2", {
         type: "item.started",
         item: agentMessageItem("item_1", "run_1", "", "running"),
       });
       injectRunEvent(
         transport,
         "run_1",
+        "seg_1",
         "evt_3",
         {
           type: "item.delta",
@@ -141,7 +143,7 @@ describe("smoke: v2 end-to-end happy path", () => {
         },
         false,
       );
-      injectRunEvent(transport, "run_1", "evt_4", {
+      injectRunEvent(transport, "run_1", "seg_1", "evt_4", {
         type: "item.started",
         item: {
           id: asItemId("item_tool"),
@@ -152,8 +154,8 @@ describe("smoke: v2 end-to-end happy path", () => {
           tool: { name: "shell", arguments: { command: "ls" } },
         },
       });
-      // R-model HITL: the run ENDS with an interrupt for the tool approval.
-      injectRunFinished(transport, "run_1", "evt_5", {
+      // R-model HITL: the segment ENDS with an interrupt for the tool approval.
+      injectRunFinished(transport, "run_1", "seg_1", "evt_5", {
         type: "interrupt",
         interrupts: [
           {
@@ -176,34 +178,31 @@ describe("smoke: v2 end-to-end happy path", () => {
         : null;
     expect(interrupt?.itemId).toBe("item_tool");
 
-    // ---- Step 6: runs.resume (approve) ------------------------------------
+    // ---- Step 6: runs.resume (approve) — SAME run, a NEW segment ----------
     const resumePromise = methods.runs.resume({
-      parentRunId: asRunId("run_1"),
+      runId: asRunId("run_1"),
       responses: [
         { itemId: asItemId("item_tool"), response: { type: "approval", decision: "approve" } },
       ],
     });
     const resumeReq = await waitForRequest(transport, "runs.resume");
-    expect(resumeReq.params).toMatchObject({ parentRunId: "run_1" });
-    respondSuccess(transport, resumeReq.id, { runId: "run_2" });
+    expect(resumeReq.params).toMatchObject({ runId: "run_1" });
+    respondSuccess(transport, resumeReq.id, { runId: "run_1", segmentId: "seg_2" });
     const { result: resumed, events: resumeEvents } = await resumePromise;
-    expect(resumed.runId).toBe("run_2");
+    expect(resumed.runId).toBe("run_1"); // the SAME run
+    expect(resumed.segmentId).toBe("seg_2"); // a NEW segment
 
-    // ---- Step 7: continuation run completes -------------------------------
+    // ---- Step 7: continuation segment completes ---------------------------
     setTimeout(() => {
-      injectRunEvent(transport, "run_2", "evt_1", {
+      injectRunEvent(transport, "run_1", "seg_2", "evt_1", {
         type: "run.started",
-        run: {
-          id: asRunId("run_2"),
-          sessionId: asSessionId("ses_1"),
-          parentRunId: asRunId("run_1"),
-        },
+        run: { id: asRunId("run_1"), sessionId: asSessionId("ses_1") },
       });
-      injectRunEvent(transport, "run_2", "evt_2", {
+      injectRunEvent(transport, "run_1", "seg_2", "evt_2", {
         type: "item.completed",
-        item: agentMessageItem("item_2", "run_2", "Found 5 files.", "completed"),
+        item: agentMessageItem("item_2", "run_1", "Found 5 files.", "completed"),
       });
-      injectRunFinished(transport, "run_2", "evt_3", {
+      injectRunFinished(transport, "run_1", "seg_2", "evt_3", {
         type: "completed",
         result: { usage: { inputTokens: 100, outputTokens: 20 }, steps: 2 },
       });
@@ -218,7 +217,7 @@ describe("smoke: v2 end-to-end happy path", () => {
     ]);
   });
 
-  it("foreign-run events are filtered out (cross-run isolation)", async () => {
+  it("foreign-segment events are filtered out (cross-run isolation)", async () => {
     transport = createMemoryTransport();
     client = createRpcClient(transport);
     methods = createMethods(client);
@@ -228,19 +227,19 @@ describe("smoke: v2 end-to-end happy path", () => {
       input: [{ type: "text", text: "hi" }],
     });
     const req = await waitForRequest(transport, "runs.start");
-    respondSuccess(transport, req.id, { runId: "run_ours" });
+    respondSuccess(transport, req.id, { runId: "run_ours", segmentId: "seg_ours" });
     const { events } = await startPromise;
 
     setTimeout(() => {
-      injectRunEvent(transport, "run_other", "evt_1", {
+      injectRunEvent(transport, "run_other", "seg_other", "evt_1", {
         type: "item.completed",
         item: agentMessageItem("item_x", "run_other", "stolen", "completed"),
       });
-      injectRunEvent(transport, "run_ours", "evt_1", {
+      injectRunEvent(transport, "run_ours", "seg_ours", "evt_1", {
         type: "item.completed",
         item: agentMessageItem("item_ok", "run_ours", "ok", "completed"),
       });
-      injectRunFinished(transport, "run_ours", "evt_2");
+      injectRunFinished(transport, "run_ours", "seg_ours", "evt_2");
     }, 0);
 
     const collected: RunEvent[] = [];
@@ -258,21 +257,21 @@ describe("smoke: v2 end-to-end happy path", () => {
       input: [{ type: "text", text: "hi" }],
     });
     const req = await waitForRequest(transport, "runs.start");
-    respondSuccess(transport, req.id, { runId: "run_1" });
+    respondSuccess(transport, req.id, { runId: "run_1", segmentId: "seg_1" });
     const { events } = await startPromise;
 
     setTimeout(() => {
-      // Malformed: missing eventId/timestamp/durable (required by envelope schema).
+      // Malformed: missing segmentId/eventId/timestamp (required by envelope schema).
       transport.inject({
         jsonrpc: "2.0",
         method: "notifications.run.event",
         params: { runId: "run_1", event: { type: "item.started" } },
       });
-      injectRunEvent(transport, "run_1", "evt_1", {
+      injectRunEvent(transport, "run_1", "seg_1", "evt_1", {
         type: "item.completed",
         item: agentMessageItem("item_ok", "run_1", "ok", "completed"),
       });
-      injectRunFinished(transport, "run_1", "evt_2");
+      injectRunFinished(transport, "run_1", "seg_1", "evt_2");
     }, 0);
 
     const collected: RunEvent[] = [];

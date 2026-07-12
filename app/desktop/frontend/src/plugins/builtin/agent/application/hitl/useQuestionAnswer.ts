@@ -14,8 +14,8 @@ export interface QuestionAnswerSubmit {
   pending: boolean;
 }
 
-export function useQuestionAnswer(parentRunId?: string, itemId?: string): QuestionAnswerSubmit {
-  const { pending, resume } = useInterruptResume<true>(parentRunId, itemId);
+export function useQuestionAnswer(runId?: string, itemId?: string): QuestionAnswerSubmit {
+  const { pending, resume } = useInterruptResume<true>(runId, itemId);
 
   const submit = useCallback(
     (answers: QuestionAnswers) => {

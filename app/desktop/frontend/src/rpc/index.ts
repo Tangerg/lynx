@@ -18,8 +18,8 @@ export type { PushPullChannel } from "./channel";
 export { createRpcClient } from "./client";
 export type { NotificationHandler, RpcClient } from "./client";
 export { isErrorType, RpcError, RpcTransportError } from "./errors";
-export { asEventId, asItemId, asRunId, asSessionId } from "./ids";
-export type { EventId, ItemId, RunId, SessionId } from "./ids";
+export { asEventId, asItemId, asRunId, asSegmentId, asSessionId } from "./ids";
+export type { EventId, ItemId, RunId, SegmentId, SessionId } from "./ids";
 export { createMethods } from "./methods";
 export type { Methods, StreamingResult } from "./methods";
 export { createLyraClient } from "./sdk";
@@ -177,7 +177,6 @@ export type {
 export { isDurableEvent } from "./shapes";
 export {
   streamRunEvents,
-  streamRunEventsDeferred,
   streamWorkspaceEvents,
   RUN_EVENT_METHOD,
   WORKSPACE_EVENT_METHOD,

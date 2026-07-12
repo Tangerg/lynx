@@ -48,7 +48,7 @@ describe("useQuestionAnswer", () => {
     expect(result.current.pending).toBe(true);
   });
 
-  it("no-ops without a parentRunId/itemId, and never double-submits", () => {
+  it("no-ops without a runId/itemId, and never double-submits", () => {
     const resume = bindResume();
     const { result } = renderHook(() => useQuestionAnswer(undefined, undefined));
     act(() => result.current.submit({ q1: "x" }));

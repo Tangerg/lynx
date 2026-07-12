@@ -60,16 +60,20 @@ export function injectNotification(t: MemoryTransport, method: string, params: u
 }
 
 /** Inject a `notifications.run.event` carrying a v2 StreamEvent (§5). A
- *  fixed timestamp keeps fixtures stable; `durable` defaults to true. */
+ *  fixed timestamp keeps fixtures stable; `durable` defaults to true. The
+ *  envelope carries BOTH runId and segmentId — the stream tree keys on the
+ *  segmentId (a resume opens a new segment of the same run). */
 export function injectRunEvent(
   t: MemoryTransport,
   runId: string,
+  segmentId: string,
   eventId: string,
   event: StreamEvent,
   durable = true,
 ): void {
   injectNotification(t, RUN_EVENT_METHOD, {
     runId,
+    segmentId,
     eventId,
     timestamp: "2026-06-03T00:00:00Z",
     durable,
@@ -77,13 +81,14 @@ export function injectRunEvent(
   });
 }
 
-/** Inject a `run.finished` StreamEvent for the root run — terminates the
+/** Inject a `run.finished` StreamEvent for the root segment — terminates the
  *  stream (v2 has no separate "closed" method, §5). */
 export function injectRunFinished(
   t: MemoryTransport,
   runId: string,
+  segmentId: string,
   eventId: string,
   outcome: RunOutcome = { type: "completed", result: {} },
 ): void {
-  injectRunEvent(t, runId, eventId, { type: "run.finished", outcome });
+  injectRunEvent(t, runId, segmentId, eventId, { type: "run.finished", outcome });
 }

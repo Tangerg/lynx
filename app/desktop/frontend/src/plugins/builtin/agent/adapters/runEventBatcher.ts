@@ -5,7 +5,7 @@ type ScheduleFrame = (flush: () => void) => number;
 type CancelFrame = (handle: number) => void;
 
 export interface RunEventBatcher {
-  enqueue(event: RunEvent["event"], runId?: string): void;
+  enqueue(event: RunEvent["event"], runId?: string, segmentId?: string): void;
   dispose(): void;
 }
 
@@ -45,7 +45,7 @@ export function createRunEventBatcher({
   };
 
   return {
-    enqueue(event, runId) {
+    enqueue(event, runId, segmentId) {
       if (disposed) return;
 
       const epoch = readEpoch();
@@ -53,7 +53,7 @@ export function createRunEventBatcher({
         queue = [];
         queueEpoch = epoch;
       }
-      queue.push({ event, runId });
+      queue.push({ event, runId, segmentId });
       if (frame === null) frame = scheduleFrame(flush);
     },
     dispose() {

@@ -30,7 +30,9 @@ export async function rollbackSessionToBeforeRun(
   restoreType: RestoreType = "history",
 ): Promise<boolean> {
   const { runs } = await agentRuntime().loadSessionHistory(sessionId);
-  const roots = runs.filter((run) => !run.parentRunId && !run.spawnedByItemId);
+  // Continuations are no longer separate runs (a resume reuses the run) — the
+  // only non-root run is a subagent, so `spawnedByItemId` alone identifies roots.
+  const roots = runs.filter((run) => !run.spawnedByItemId);
   const index = roots.findIndex((run) => run.id === runId);
   if (index < 0) return false;
   const keep = index > 0 ? roots[index - 1]!.id : undefined;

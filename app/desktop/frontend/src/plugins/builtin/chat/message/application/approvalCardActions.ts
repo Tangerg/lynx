@@ -36,31 +36,31 @@ export function approvalSubmitOptions({
 }
 
 export function canRegisterApprovalActions({
-  parentRunId,
+  runId,
   itemId,
   status,
 }: {
-  parentRunId?: string;
+  runId?: string;
   itemId?: string;
   status: BlockStatus;
 }): boolean {
-  return Boolean(parentRunId && itemId && status === "requires-action");
+  return Boolean(runId && itemId && status === "requires-action");
 }
 
 export function useApprovalCardActions({
-  parentRunId,
+  runId,
   itemId,
   status,
   argsEditor,
   rememberScope,
 }: {
-  parentRunId?: string;
+  runId?: string;
   itemId?: string;
   status: BlockStatus;
   argsEditor?: ApprovalArgsCommitter;
   rememberScope?: RememberScope;
 }): ApprovalCardActionState {
-  const { submit, pending } = useApprovalSubmit(parentRunId, itemId);
+  const { submit, pending } = useApprovalSubmit(runId, itemId);
 
   const approve = useCallback(() => {
     const editedArgs = argsEditor?.commit();
@@ -75,7 +75,7 @@ export function useApprovalCardActions({
   const actionsRef = useRef<ApprovalActions>({ approve, decline });
   actionsRef.current = { approve, decline };
 
-  const registerable = canRegisterApprovalActions({ parentRunId, itemId, status });
+  const registerable = canRegisterApprovalActions({ runId, itemId, status });
   useEffect(() => {
     if (!registerable || !itemId) return;
     return registerApprovalActions(itemId, {
@@ -86,7 +86,7 @@ export function useApprovalCardActions({
 
   return {
     pending,
-    disabled: !canSubmitApproval({ parentRunId, itemId, pending, status }),
+    disabled: !canSubmitApproval({ runId, itemId, pending, status }),
     approve,
     decline,
   };

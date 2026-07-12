@@ -109,7 +109,7 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
           what={block.text}
           cmd={block.command}
           reason={block.reason}
-          parentRunId={block.parentRunId}
+          runId={block.runId}
           itemId={block.itemId}
           decision={block.decision}
           args={block.args}
@@ -126,7 +126,7 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
         <QuestionCard
           key={block.itemId ?? key}
           status={block.status}
-          parentRunId={block.parentRunId}
+          runId={block.runId}
           itemId={block.itemId}
           questions={block.questions}
           answered={block.answered}

@@ -37,11 +37,15 @@ export type CustomEventHandler<T = unknown> = (value: T) => StateUpdate | void;
  *
  * `runId` is the wire (RunEvent envelope) runId that carried this event —
  * threaded through so run.* handlers can tell a subagent's run from the root's
- * (RunOutcome itself carries no id). Absent for synthetic events (the optimistic
- * local bubble, items.list history replay).
+ * (RunOutcome itself carries no id). `segmentId` is the envelope segmentId —
+ * the streamed segment; a change in it is the segment boundary that resets the
+ * per-segment streaming readout (a resume opens a new segment of the same run).
+ * Both are absent for synthetic events (the optimistic local bubble, items.list
+ * history replay).
  */
 export type StreamEventHandler = (
   state: AgentViewState,
   event: StreamEvent,
   runId?: string,
+  segmentId?: string,
 ) => AgentViewState;

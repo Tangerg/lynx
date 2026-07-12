@@ -26,8 +26,8 @@ export interface ApprovalSubmit {
   pending: ApprovalDecision | null;
 }
 
-export function useApprovalSubmit(parentRunId?: string, itemId?: string): ApprovalSubmit {
-  const { pending, resume } = useInterruptResume<ApprovalDecision>(parentRunId, itemId);
+export function useApprovalSubmit(runId?: string, itemId?: string): ApprovalSubmit {
+  const { pending, resume } = useInterruptResume<ApprovalDecision>(runId, itemId);
 
   const submit = useCallback(
     (decision: ApprovalDecision, opts?: ApprovalSubmitOptions) => {

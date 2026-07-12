@@ -46,17 +46,17 @@ export function questionSettledAnswers(
 }
 
 export function canSubmitQuestion({
-  parentRunId,
+  runId,
   itemId,
   complete,
   status,
 }: {
-  parentRunId?: string;
+  runId?: string;
   itemId?: string;
   complete: boolean;
   status: BlockStatus;
 }): boolean {
-  return Boolean(parentRunId && itemId && complete && status === "requires-action");
+  return Boolean(runId && itemId && complete && status === "requires-action");
 }
 
 export function questionDraftAnswers(

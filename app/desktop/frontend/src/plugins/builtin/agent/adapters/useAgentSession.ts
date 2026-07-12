@@ -104,7 +104,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     };
 
     const resume = (
-      parentRunId: string,
+      runId: string,
       responses: InterruptResumeInput[],
       onSettled?: () => void,
       onStartError?: () => void,
@@ -115,7 +115,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         response: response.response,
       }));
       runOpening.begin(
-        (signal) => driver.resume(asRunId(parentRunId), wireResponses, signal),
+        (signal) => driver.resume(asRunId(runId), wireResponses, signal),
         onSettled ? () => onSettled() : undefined,
         onStartError,
       );

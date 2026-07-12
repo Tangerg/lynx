@@ -9,7 +9,7 @@ import { appendToTurn, markToolRequiresAction, patchBlock } from "./fold";
 export function materializeInterrupt(
   state: AgentViewState,
   it: Interrupt,
-  parentRunId: string,
+  runId: string,
 ): AgentViewState {
   const withToolStatus = markToolRequiresAction(state, it.itemId);
   if (it.type === "approval") {
@@ -24,14 +24,14 @@ export function materializeInterrupt(
       return patchBlock(
         withToolStatus,
         (b) => b.kind === "approval" && b.itemId === it.itemId,
-        (b) => ({ ...b, status: "requires-action", parentRunId }),
+        (b) => ({ ...b, status: "requires-action", runId }),
       );
     }
     const block: ContentBlock = {
       kind: "approval",
       status: "requires-action",
       itemId: it.itemId,
-      parentRunId,
+      runId,
       text: tool ? approvalText(tool) : t("approval.fallbackText"),
       command: tool ? commandString(tool) : "",
       reason: it.payload?.reason ?? "",
@@ -55,14 +55,14 @@ export function materializeInterrupt(
       return patchBlock(
         withToolStatus,
         (b) => b.kind === "question" && b.itemId === it.itemId,
-        (b) => ({ ...b, status: "requires-action", parentRunId }),
+        (b) => ({ ...b, status: "requires-action", runId }),
       );
     }
     return appendToTurn(withToolStatus, it.itemId, {
       kind: "question",
       status: "requires-action",
       itemId: it.itemId,
-      parentRunId,
+      runId,
       questions: mapQuestion(it.payload?.question),
     });
   }

@@ -5,11 +5,11 @@
 //
 // Streaming methods (runs.start / runs.resume / runs.subscribe) return
 // `{ result, events }` where `events` is an AsyncIterable. Run streams
-// carry the whole run tree and end on the root run's `run.finished`
+// carry the whole run tree and end on the root segment's `run.finished`
 // (see ./stream).
 
 import type { RpcClient } from "./client";
-import type { RunId, SessionId } from "./ids";
+import type { RunId, SegmentId, SessionId } from "./ids";
 import type {
   AgentDoc,
   ApprovalMode,
@@ -81,7 +81,7 @@ import type {
   WorkspaceFileChange,
   WorkspaceSymbol,
 } from "./shapes";
-import { streamRunEvents, streamRunEventsDeferred, streamWorkspaceEvents } from "./stream";
+import { streamRunEvents, streamWorkspaceEvents } from "./stream";
 import { WORKSPACE_SUBSCRIBE_METHOD } from "./transport";
 
 export interface StreamingResult<R, E> {
@@ -145,7 +145,7 @@ export interface Methods {
     subscribe: (
       runId: RunId,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<{ runId: RunId }, RunEvent>>;
+    ) => Promise<StreamingResult<{ runId: RunId; segmentId: SegmentId }, RunEvent>>;
     cancel: (runId: RunId, reason?: string) => Promise<void>;
     // Mid-run steering (§6): inject a user message into the running run so the
     // model reads it next tool round. run_not_found if no longer actively running.
@@ -352,31 +352,35 @@ export function createMethods(client: RpcClient): Methods {
     },
     runs: {
       start: async (params, signal) => {
-        // Subscribe BEFORE the POST, then bind to the runtime-assigned runId.
-        // Under streamable HTTP the response + its event frames arrive on the
-        // same ordered stream, so the first events follow the response
-        // immediately; binding only after `call` resolves could drop the head
-        // (see streamRunEventsDeferred).
-        const stream = streamRunEventsDeferred(client, signal);
+        // Subscribe BEFORE the POST, then bind the tree to the runtime-assigned
+        // root segmentId. Under streamable HTTP the response + its event frames
+        // arrive on the same ordered stream, so the first events follow the
+        // response immediately; binding only after `call` resolves could drop
+        // the head (see streamRunEvents).
+        const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
           client.call<StartRunResponse>("runs.start", params, signal),
         );
-        stream.bind(result.runId);
+        stream.bind(result.segmentId);
         return { result, events: stream.events };
       },
       resume: async (params, signal) => {
-        const stream = streamRunEventsDeferred(client, signal);
+        // A resume opens a NEW segment of the SAME run — bind the tree to it.
+        const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
           client.call<ResumeRunResponse>("runs.resume", params, signal),
         );
-        stream.bind(result.runId);
+        stream.bind(result.segmentId);
         return { result, events: stream.events };
       },
       subscribe: async (runId, signal) => {
-        const stream = streamRunEvents(client, runId, signal);
+        // Reattach to a running run: its response names the CURRENT segment;
+        // bind the tree to that segmentId (same deferred-bind head-drop guard).
+        const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          client.call<{ runId: RunId }>("runs.subscribe", { runId }, signal),
+          client.call<{ runId: RunId; segmentId: SegmentId }>("runs.subscribe", { runId }, signal),
         );
+        stream.bind(result.segmentId);
         return { result, events: stream.events };
       },
       cancel: (runId, reason) => client.call<void>("runs.cancel", { runId, reason }),
