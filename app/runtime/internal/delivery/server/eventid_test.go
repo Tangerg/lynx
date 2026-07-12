@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -21,7 +23,7 @@ func TestMapRunEvents_FramesWireEventID(t *testing.T) {
 	close(in)
 
 	var ids []string
-	for e := range mapRunEvents(in) {
+	for e := range mapRunEvents(context.Background(), in) {
 		if !strings.HasPrefix(e.EventID, "evt_") {
 			t.Fatalf("eventId %q missing evt_ prefix", e.EventID)
 		}
@@ -40,4 +42,31 @@ func TestMapRunEvents_FramesWireEventID(t *testing.T) {
 			t.Fatalf("eventIds not strictly increasing: %q then %q", ids[i-1], ids[i])
 		}
 	}
+}
+
+// TestMapRunEvents_ExitsOnClientDisconnect proves the mapper goroutine doesn't
+// leak when the client disconnects while an event is in flight: with nobody
+// draining the wire channel the mapper blocks on send, and only the request ctx
+// can free it — the source channel closing can't unblock a stuck send. Detected
+// via goroutine count, because *reading* the wire channel would itself unblock
+// the send and hide the leak.
+func TestMapRunEvents_ExitsOnClientDisconnect(t *testing.T) {
+	before := runtime.NumGoroutine()
+	in := make(chan runs.Event) // unbuffered: the send below rendezvous with the mapper
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = mapRunEvents(ctx, in)
+
+	// Hand the mapper one event; it reads it, then blocks on the wire send because
+	// no one drains the returned channel — the leak condition.
+	in <- runs.Event{RunID: "run_1", Seq: "00000000001", Timestamp: time.Unix(0, 0)}
+	cancel() // client disconnect must free the blocked mapper
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if runtime.NumGoroutine() <= before {
+			return // mapper exited — no leak
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("mapRunEvents goroutine did not exit after ctx cancel — leaked")
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -183,20 +184,29 @@ func (s *Server) segmentProjector(runID, parentRunID, sessionID, cwd string, han
 // mapRunEvents adapts the Coordinator's transport-neutral event stream to the
 // wire RunEvent channel the protocol returns, attaching the run/cursor/timestamp
 // envelope. The mapping goroutine ends when the source closes (terminal teardown
-// or subscription drop), closing the wire channel in turn.
-func mapRunEvents(in <-chan runs.Event) <-chan protocol.RunEvent {
+// or subscription drop) OR the request ctx is canceled (client disconnect),
+// closing the wire channel in turn. The ctx-aware send is load-bearing: without
+// it a disconnected client whose downstream stops reading would block the mapper
+// forever on an in-flight send — the source closing can't unblock a stuck send —
+// leaking one goroutine per disconnect.
+func mapRunEvents(ctx context.Context, in <-chan runs.Event) <-chan protocol.RunEvent {
 	out := make(chan protocol.RunEvent)
 	go func() {
 		defer close(out)
 		for e := range in {
 			se, _ := e.Payload.(protocol.StreamEvent)
-			out <- protocol.RunEvent{
+			ev := protocol.RunEvent{
 				RunID: e.RunID,
 				// The application cursor is opaque + prefix-free; delivery owns the
 				// evt_ wire framing (§11.2). Fixed-width so lexical == numeric order.
 				EventID:   protocol.IDPrefixEvent + e.Seq,
 				Timestamp: e.Timestamp,
 				Event:     se,
+			}
+			select {
+			case out <- ev:
+			case <-ctx.Done():
+				return
 			}
 		}
 	}()

@@ -104,7 +104,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	}
 	treeAdmission.Release()
 	releaseTreeAdmission = false
-	return &protocol.StartRunResponse{RunID: contRunID}, mapRunEvents(evCh), nil
+	return &protocol.StartRunResponse{RunID: contRunID}, mapRunEvents(ctx, evCh), nil
 }
 
 // resolveResolution maps the wire interrupt responses onto the structured
