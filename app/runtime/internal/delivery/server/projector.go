@@ -31,39 +31,50 @@ type projector struct {
 
 var _ runs.Projector = (*projector)(nil)
 
-func (p *projector) Open() []runs.ProjectedEvent { return p.project(p.tr.open()) }
+func (p *projector) Open() []runs.ProjectedEvent {
+	// The opening run.started carries no terminal, so classification is moot.
+	return p.project(p.tr.open(), false, 0)
+}
 
 func (p *projector) Translate(ev runs.EngineEvent) []runs.ProjectedEvent {
-	// The executor yields turn events; the port is engine-neutral so the pump
-	// stays wire-agnostic. A non-turn event can't reach here (the facade is the
-	// sole executor), so an unexpected type is a wiring bug — drop it rather than
-	// fabricate a projection.
+	// The run-lifecycle classification (does this event end/park the run, with
+	// what outcome) comes from the engine-neutral event's domain contract
+	// ([execution.Event]) — NOT re-derived from the wire projection below. The
+	// concrete turn event is asserted back only to shape the wire timeline; a
+	// non-turn event can't reach here (the facade is the sole executor), so an
+	// unexpected type is a wiring bug — drop it rather than fabricate a projection.
+	outcome, _ := ev.Terminal()
+	interrupt := ev.Interrupt()
 	te, ok := ev.(turn.Event)
 	if !ok {
 		return nil
 	}
-	return p.project(p.tr.translate(te))
+	return p.project(p.tr.translate(te), interrupt, outcome)
 }
 
-// SynthesizeTerminal builds the terminal for a stream that ended without one.
-// The outcome is error when the translator recorded a failure (an ErrorEvent or
-// an Abort from a failed commit), else canceled.
+// SynthesizeTerminal builds the terminal for a stream that ended without one:
+// errored when the translator recorded a failure (an ErrorEvent or an Abort from
+// a failed commit), else canceled. Never a park — a stream that drained left no
+// live turn to resume. The protocol outcome shapes the wire payload; the domain
+// [execution.Outcome] the commit's Terminalize.
 func (p *projector) SynthesizeTerminal() []runs.ProjectedEvent {
-	outcome := protocol.OutcomeCanceled
 	if p.tr.errMsg != "" {
-		outcome = protocol.OutcomeError
+		return p.project(p.tr.finish(protocol.OutcomeError), false, execution.OutcomeError)
 	}
-	return p.project(p.tr.finish(outcome))
+	return p.project(p.tr.finish(protocol.OutcomeCanceled), false, execution.OutcomeCanceled)
 }
 
 // Abort records a commit-failure message; the next SynthesizeTerminal reports
 // the run as errored.
 func (p *projector) Abort(msg string) { p.tr.errMsg = msg }
 
-func (p *projector) project(events []protocol.StreamEvent) []runs.ProjectedEvent {
+// project turns the translator's wire events into projected events, stamping the
+// caller's run-lifecycle classification (parks + terminal outcome) onto the
+// run.finished frame among them.
+func (p *projector) project(events []protocol.StreamEvent, parks bool, outcome execution.Outcome) []runs.ProjectedEvent {
 	out := make([]runs.ProjectedEvent, 0, len(events))
 	for _, se := range events {
-		pe := p.projected(se)
+		pe := p.projected(se, parks, outcome)
 		out = append(out, pe)
 		if pe.Abort {
 			break
@@ -72,17 +83,19 @@ func (p *projector) project(events []protocol.StreamEvent) []runs.ProjectedEvent
 	return out
 }
 
-// projected maps one wire event to a projected event: durability/terminal are
-// pure functions of the wire type; the interrupt terminal grows its resumable
-// record (marshal failure aborts the run) + a Suspend transition; a plain
-// terminal grows a Terminalize transition carrying the mapped outcome; a canceled
-// terminal picks up the late-bound cancel reason from the segment view. The
-// run-state transition rides the SAME EventCommit as the record it must agree
+// projected maps one wire event to a projected event. Durability/terminal-frame
+// are read off the wire type (delivery's own structured output); the lifecycle
+// COMMIT the frame carries is supplied by the caller from the engine event's
+// domain contract, not re-derived from the wire outcome: a park grows its
+// resumable record (marshal failure aborts the run) + a Suspend transition; a
+// plain terminal grows a Terminalize transition with the domain outcome; a
+// canceled terminal picks up the late-bound cancel reason from the segment view.
+// The run-state transition rides the SAME EventCommit as the record it must agree
 // with, so the commit is atomic (§8.3).
-func (p *projector) projected(se protocol.StreamEvent) runs.ProjectedEvent {
+func (p *projector) projected(se protocol.StreamEvent, parks bool, outcome execution.Outcome) runs.ProjectedEvent {
 	terminal := se.Type == protocol.StreamRunFinished
-	interrupt := terminal && se.Outcome != nil && se.Outcome.Type == protocol.OutcomeInterrupt
-	if terminal && !interrupt && se.Outcome != nil && se.Outcome.Type == protocol.OutcomeCanceled && se.Outcome.Detail == "" {
+	interrupt := terminal && parks
+	if terminal && !interrupt && outcome == execution.OutcomeCanceled && se.Outcome != nil && se.Outcome.Detail == "" {
 		if reason := p.view.CancelReason(); reason != "" {
 			se.Outcome.Detail = reason
 		}
@@ -98,7 +111,7 @@ func (p *projector) projected(se protocol.StreamEvent) runs.ProjectedEvent {
 		commit.State = execution.StateSuspend
 	case terminal:
 		commit.State = execution.StateTerminalize
-		commit.Outcome = outcomeFromWire(se.Outcome)
+		commit.Outcome = outcome
 	}
 	return runs.ProjectedEvent{
 		Durable:   se.IsDurable(),
@@ -138,28 +151,6 @@ func commitOrNil(c execution.EventCommit) *execution.EventCommit {
 		return nil
 	}
 	return &c
-}
-
-// outcomeFromWire maps the wire terminal outcome onto the durable
-// [execution.Outcome] recorded on the run's admission row. An interrupt is not an
-// outcome (it is the Interrupted state, handled via Suspend); a missing outcome
-// defaults to completed.
-func outcomeFromWire(o *protocol.RunOutcome) execution.Outcome {
-	if o == nil {
-		return execution.OutcomeCompleted
-	}
-	switch o.Type {
-	case protocol.OutcomeCanceled:
-		return execution.OutcomeCanceled
-	case protocol.OutcomeError:
-		return execution.OutcomeError
-	case protocol.OutcomeMaxSteps:
-		return execution.OutcomeMaxSteps
-	case protocol.OutcomeMaxBudget:
-		return execution.OutcomeMaxBudget
-	default:
-		return execution.OutcomeCompleted
-	}
 }
 
 // segmentProjector builds the per-segment projector factory the Coordinator
