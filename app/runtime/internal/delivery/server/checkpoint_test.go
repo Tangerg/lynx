@@ -9,8 +9,24 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
+
+// testCheckpointRestorer mirrors the composition root's restorer: it drives the
+// checkpoint adapter and maps its disabled/missing-snapshot sentinel onto the
+// sessions port sentinel, so a file rollback restores under the coordinator.
+type testCheckpointRestorer struct{ cp *workspace.Checkpoints }
+
+func (r testCheckpointRestorer) Restore(ctx context.Context, sessionID, cwd, runID string) error {
+	if err := r.cp.Restore(ctx, sessionID, cwd, runID); err != nil {
+		if errors.Is(err, workspace.ErrCheckpointUnavailable) {
+			return sessions.ErrCheckpointUnavailable
+		}
+		return err
+	}
+	return nil
+}
 
 // checkpointHarness extends the rollback harness with a real shadow-git
 // checkpoint store and a session whose cwd is a populated temp dir. It returns
@@ -22,6 +38,9 @@ func checkpointHarness(t *testing.T) (*Server, *stubRuntime, string, string) {
 	}
 	s, rt := rollbackHarness(t)
 	s.checkpoints = workspace.NewCheckpoints(t.TempDir())
+	// The restorer lives on the sessions coordinator now, so rebuild it over the
+	// real checkpoint store (newTestServer wired a disabled one).
+	s.sessions = rt.sessionsCoordinatorWithRestorer(testCheckpointRestorer{cp: s.checkpoints})
 	cwd := t.TempDir()
 	// Checkpoints only fire in a real git repo now (Checkpoints.Snapshot's gate,
 	// mirroring opencode): a repo's .gitignore is what bounds the whole-tree

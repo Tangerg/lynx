@@ -401,10 +401,17 @@ func (s stubRunSegmentStores) GenerateTitle(context.Context, string) (string, er
 // sessionsCoordinator builds the real lifecycle coordinator over the stub's
 // in-memory stores and turns, so newTestServer can wire s.sessions the way the
 // composition root does — delivery drives every lifecycle write-set through it.
+// File restore stays disabled (nil restorer); the checkpoint tests rebuild it
+// with a real restorer via [stubRuntime.sessionsCoordinatorWithRestorer].
 func (s *stubRuntime) sessionsCoordinator() *sessions.Coordinator {
+	return s.sessionsCoordinatorWithRestorer(nil)
+}
+
+func (s *stubRuntime) sessionsCoordinatorWithRestorer(restorer sessions.WorkspaceRestorer) *sessions.Coordinator {
 	return sessions.New(sessions.Dependencies{
-		Stores: stubLifecycleStores{rt: s},
-		Turns:  stubLifecycleTurns{rt: s},
+		Stores:   stubLifecycleStores{rt: s},
+		Turns:    stubLifecycleTurns{rt: s},
+		Restorer: restorer,
 	})
 }
 

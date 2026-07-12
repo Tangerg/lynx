@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
+	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -30,6 +31,10 @@ type Stack struct {
 	// RunStore is the durable Run-admission backstop (§8.2) delivery injects into
 	// the run coordinator it builds; nil when persistence is disabled (tests).
 	RunStore runs.RunStore
+	// Checkpoints backs run-boundary file snapshots + sessions.rollback file
+	// restore. Held here so the same adapter serves both the sessions coordinator
+	// (the restorer) and the run-segment durable effects (the boundary snapshot).
+	Checkpoints *checkpointstore.Checkpoints
 }
 
 // Host owns the assembled application tier and its process-level close order
@@ -160,6 +165,11 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		Resources:    cfg.Resources,
 	})
 
+	// File checkpoints (shadow git) enable run-boundary snapshots + file
+	// rollback only when git is present + a dir is configured; the same adapter
+	// backs the run-segment boundary snapshot and the sessions file restorer.
+	checkpoints := checkpointstore.NewCheckpoints(cfg.CheckpointDir)
+
 	sessionCoord := sessions.New(sessions.Dependencies{
 		Stores: sessionStores{
 			sessions:   cfg.SessionStore,
@@ -170,7 +180,8 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 			forgetter:  turnDispatcher,
 			tx:         cfg.Transactor,
 		},
-		Turns: sessionsTurns{dispatcher: turnDispatcher},
+		Turns:    sessionsTurns{dispatcher: turnDispatcher},
+		Restorer: checkpointRestorer{cp: checkpoints},
 	})
 
 	capabilityCoord := capabilities.New(capabilities.Config{
@@ -199,6 +210,7 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		Sessions:     sessionCoord,
 		Capabilities: capabilityCoord,
 		RunStore:     cfg.RunStore,
+		Checkpoints:  checkpoints,
 		Workspace: workspace.New(workspace.Config{
 			Memory:  cfg.Engine.Knowledge,
 			Skills:  eng,

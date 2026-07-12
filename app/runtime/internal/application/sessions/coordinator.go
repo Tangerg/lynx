@@ -118,6 +118,17 @@ type RehydrateSpec struct {
 // the run coordinator (as its own opaque handle) without inspecting it.
 type Handle = any
 
+// WorkspaceRestorer resets a session's working tree to a run-boundary
+// checkpoint — the filesystem half of a file rollback (§8.5). Restore is
+// reentrant (a git reset to an already-restored tree is a no-op), so the
+// recoverable operation can re-drive it at boot. A disabled store or missing
+// snapshot surfaces as [ErrCheckpointUnavailable]; the composition root maps the
+// checkpoint adapter's own sentinel onto it so the coordinator stays free of the
+// adapter package.
+type WorkspaceRestorer interface {
+	Restore(ctx context.Context, sessionID, cwd, runID string) error
+}
+
 // Turns is the engine-neutral turn-control slice the lifecycle coordinator
 // drives to abandon (Cancel) or continue (Resume / Rehydrate) the process
 // backing a run. The composition root injects an adapter over the agent turn
@@ -139,17 +150,22 @@ type Turns interface {
 type Coordinator struct {
 	s     Stores
 	turns Turns
+	// restorer resets the working tree to a run-boundary checkpoint for a file
+	// rollback; nil disables file restore (the coordinator rejects it as
+	// [ErrCheckpointUnavailable]).
+	restorer WorkspaceRestorer
 	// trees serializes short run admissions against destructive working-tree
 	// mutations (file rollback) for every transport using this coordinator.
 	trees WorkingTreeGate
 }
 
 // Dependencies is the collaborator set [New] wires into a Coordinator: the
-// consumer-defined store surface (including the atomic durable write-sets) and
-// the turn dispatcher.
+// consumer-defined store surface (including the atomic durable write-sets), the
+// turn dispatcher, and the working-tree checkpoint restorer.
 type Dependencies struct {
-	Stores Stores
-	Turns  Turns
+	Stores   Stores
+	Turns    Turns
+	Restorer WorkspaceRestorer
 }
 
 // ErrRunNotFound reports that a lifecycle operation targeted no live or parked run.
@@ -177,7 +193,7 @@ var (
 
 // New returns a Coordinator over deps.
 func New(deps Dependencies) *Coordinator {
-	return &Coordinator{s: deps.Stores, turns: deps.Turns}
+	return &Coordinator{s: deps.Stores, turns: deps.Turns, restorer: deps.Restorer}
 }
 
 // ClaimWorkingTreeRun reserves cwd's working tree for a run segment admission,
