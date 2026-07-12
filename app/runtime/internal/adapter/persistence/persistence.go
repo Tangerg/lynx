@@ -38,6 +38,7 @@ type Bundle struct {
 
 	Session       *sqlitestore.SessionStore
 	Runs          *sqlitestore.RunStateStore
+	WorkspaceMuts *sqlitestore.WorkspaceMutationStore
 	Memory        knowledge.Store
 	Process       core.ProcessStore
 	Interrupt     *sqlitestore.InterruptStore
@@ -78,6 +79,7 @@ func Open() (*Bundle, error) {
 		},
 		Session:       sqlitestore.NewSessionStore(db),
 		Runs:          sqlitestore.NewRunStateStore(db),
+		WorkspaceMuts: sqlitestore.NewWorkspaceMutationStore(db),
 		Memory:        mem,
 		Process:       sqlitestore.NewProcessStore(db),
 		Interrupt:     sqlitestore.NewInterruptStore(db),

@@ -109,6 +109,19 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_interrupts_session
 			ON interrupts(session_id)`,
+		// pending_workspace_mutations is the recoverable operation log for file
+		// rollbacks (§8.5): the working tree (git) and the durable history (SQLite)
+		// can't commit in one ACID transaction, so the intent is logged before
+		// either is touched and cleared once both commit. A row surviving a crash is
+		// re-driven at boot. session_id keys it — the mutation slot admits at most
+		// one in-flight rollback per session. created_at is stamped by the DB for
+		// operational visibility (recovery is timestamp-free).
+		`CREATE TABLE IF NOT EXISTS pending_workspace_mutations (
+			session_id TEXT    PRIMARY KEY,
+			cwd        TEXT    NOT NULL,
+			to_run_id  TEXT    NOT NULL,
+			created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+		)`,
 		`CREATE TABLE IF NOT EXISTS history_items (
 			seq         INTEGER PRIMARY KEY AUTOINCREMENT,
 			session_id  TEXT    NOT NULL,

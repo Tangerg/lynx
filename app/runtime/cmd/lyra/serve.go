@@ -58,6 +58,12 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 		return err
 	}
 	defer api.Close()
+	// Re-drive any file rollback a crash left unfinished (§8.5) before serving, so
+	// a client never observes a session whose working tree + history disagree. A
+	// recovery failure means durable state is inconsistent — fail startup loud.
+	if err := api.RecoverRollbacks(ctx); err != nil {
+		return err
+	}
 	return runServer(ctx, errw, httpServer, api, srv.Listen, token)
 }
 

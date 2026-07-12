@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
@@ -80,20 +81,109 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 		return ses, err
 	}
 
-	// Files first: if the working tree can't be restored, return before the
-	// history changes so a both-rollback leaves the log untouched.
-	if spec.RestoreFiles {
-		if err := c.restore(ctx, spec.SessionID, cwd, spec.ToRunID); err != nil {
+	// A both-rollback that drops runs mutates two resources that can't share one
+	// transaction — the working tree (git) and the durable history (SQLite) — so
+	// log the intent before either changes (§8.5); a crash mid-operation is then
+	// re-driven at boot. Single-resource rollbacks (files-only or history-only)
+	// commit in one resource and need no log.
+	recoverable := spec.RestoreFiles && spec.RestoreHistory && len(boundary.Dropped) > 0
+	if recoverable {
+		if err := c.recordMutation(ctx, execution.WorkspaceMutation{
+			SessionID: spec.SessionID, Cwd: cwd, ToRunID: spec.ToRunID,
+		}); err != nil {
 			return ses, err
 		}
 	}
 
+	// Files first: git reset is atomic, so a restore error leaves the tree
+	// unchanged — clear the just-logged intent rather than let boot force-complete
+	// a rollback the caller saw fail (a missing snapshot would never recover).
+	if spec.RestoreFiles {
+		if err := c.restore(ctx, spec.SessionID, cwd, spec.ToRunID); err != nil {
+			if recoverable {
+				_ = c.completeMutation(ctx, spec.SessionID)
+			}
+			return ses, err
+		}
+	}
+
+	// The tree is restored now; a durable failure here leaves the intent logged so
+	// boot recovery completes the truncation (the tree + history would otherwise
+	// disagree).
 	if spec.RestoreHistory && len(boundary.Dropped) > 0 {
 		if err := c.Rollback(ctx, spec.SessionID, boundary); err != nil {
 			return ses, err
 		}
 	}
+
+	if recoverable {
+		if err := c.completeMutation(ctx, spec.SessionID); err != nil {
+			return ses, err
+		}
+	}
 	return ses, nil
+}
+
+// BoundaryLookup rebuilds the durable rollback cut for a (sessionID, toRunID)
+// the way the live path does — decoding the wire-shaped run blobs the
+// coordinator can't. Boot recovery drives it per logged intent.
+type BoundaryLookup func(ctx context.Context, sessionID, toRunID string) (transcript.Boundary, error)
+
+// RecoverWorkspaceMutations re-drives every file rollback a crash left
+// unfinished (§8.5): for each logged intent it re-restores the working tree
+// (reentrant) and re-applies the durable truncation (idempotent — a rollback
+// that already committed recomputes an empty boundary), then clears the intent.
+// It runs at boot before the server serves, so no run contends for the session
+// and the admission guards the live path needs are unnecessary. A failed
+// recovery aborts startup (returned loud) rather than serving a session whose
+// tree and history disagree.
+func (c *Coordinator) RecoverWorkspaceMutations(ctx context.Context, lookup BoundaryLookup) error {
+	if c.mutations == nil {
+		return nil
+	}
+	pending, err := c.mutations.ListPending(ctx)
+	if err != nil {
+		return err
+	}
+	for _, m := range pending {
+		if err := c.recoverRollback(ctx, m, lookup); err != nil {
+			return fmt.Errorf("recover rollback for session %q: %w", m.SessionID, err)
+		}
+	}
+	return nil
+}
+
+func (c *Coordinator) recoverRollback(ctx context.Context, m execution.WorkspaceMutation, lookup BoundaryLookup) error {
+	boundary, err := lookup(ctx, m.SessionID, m.ToRunID)
+	if err != nil {
+		return err
+	}
+	if err := c.restore(ctx, m.SessionID, m.Cwd, m.ToRunID); err != nil {
+		return err
+	}
+	if len(boundary.Dropped) > 0 {
+		if err := c.Rollback(ctx, m.SessionID, boundary); err != nil {
+			return err
+		}
+	}
+	return c.completeMutation(ctx, m.SessionID)
+}
+
+// recordMutation / completeMutation drive the recoverable operation log,
+// no-oping when it is disabled (nil) so a build without the log degrades to a
+// best-effort rollback rather than nil-panicking.
+func (c *Coordinator) recordMutation(ctx context.Context, m execution.WorkspaceMutation) error {
+	if c.mutations == nil {
+		return nil
+	}
+	return c.mutations.Record(ctx, m)
+}
+
+func (c *Coordinator) completeMutation(ctx context.Context, sessionID string) error {
+	if c.mutations == nil {
+		return nil
+	}
+	return c.mutations.Complete(ctx, sessionID)
 }
 
 // restore drives the checkpoint restorer, mapping a nil restorer (file

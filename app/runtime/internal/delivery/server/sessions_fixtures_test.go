@@ -31,6 +31,7 @@ type stubRuntime struct {
 	history    map[string][]chat.Message // per-session chat history (fork copies it)
 	hist       *sqlite.TranscriptStore   // durable Item/run history (rollback/fork read runs)
 	interrupts *sqlite.InterruptStore    // open-interrupt registry (rollback clears dropped)
+	muts       *sqlite.WorkspaceMutationStore // §8.5 recoverable file-rollback log
 	turns      turn.Dispatcher
 }
 
@@ -409,9 +410,10 @@ func (s *stubRuntime) sessionsCoordinator() *sessions.Coordinator {
 
 func (s *stubRuntime) sessionsCoordinatorWithRestorer(restorer sessions.WorkspaceRestorer) *sessions.Coordinator {
 	return sessions.New(sessions.Dependencies{
-		Stores:   stubLifecycleStores{rt: s},
-		Turns:    stubLifecycleTurns{rt: s},
-		Restorer: restorer,
+		Stores:    stubLifecycleStores{rt: s},
+		Turns:     stubLifecycleTurns{rt: s},
+		Restorer:  restorer,
+		Mutations: s.muts,
 	})
 }
 
