@@ -4,7 +4,7 @@ import "context"
 
 // This file is the microkernel's port surface: the narrow interfaces the engine
 // core consumes, defined here (the consumer) per DIP. Implementations live in
-// domain/* and are injected by the composition root (runtime) via [Config];
+// domain/* and are injected by the composition root (bootstrap) via [Config];
 // the engine core imports no concrete service. Every port use is nil-guarded,
 // so an engine built without a given port simply no-ops that capability (used
 // by unit tests that drive only the loop). See doc/EXECUTION_CENTERED_ARCHITECTURE.md

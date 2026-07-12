@@ -50,11 +50,13 @@ import (
 //	delivery → domain, application, adapter
 //	composition → anything        the root wires every ring
 //
-// Two further §19 invariants are enforced structurally by the edges above rather
-// than by a dedicated test: "application event 不引用 protocol" holds because
-// protocol lives under internal/delivery and application ↛ delivery; "delivery 不
-// 持有 Run lifecycle state" holds because the pump / registry / journal all live
-// in application/runs (delivery holds only a coordinator pointer it drives).
+// The dependency edges above are the backbone; §16's remaining rules get their
+// own dedicated tests below so each invariant is independently guarded, not left
+// to a transitive consequence: rule 2/domain-purity (incl. the internal/component
+// concurrency-primitive edge the ring rule leaves unclassified), rule 4/5/8, rule
+// 9 (application ↛ protocol, TestApplicationEventFreeOfProtocol) and rule 10
+// (protocol ↛ domain/application, TestProtocolStaysWireOnly). Rule 11's domain
+// DAG is the Go compiler's (import cycles don't build).
 func TestDependencyRule(t *testing.T) {
 	const modulePath = "github.com/Tangerg/lynx/app/runtime"
 	root := moduleRoot(t)
@@ -133,7 +135,12 @@ func TestDomainHooksStayPure(t *testing.T) {
 // is a deliberate, documented exception and stays allowed.
 func TestDomainStaysFrameworkFree(t *testing.T) {
 	root := moduleRoot(t)
-	forbidExternalImports(t, filepath.Join(root, "internal", "domain"), frameworkImports)
+	// componentPkg is banned here (not in frameworkImports) because application
+	// legitimately imports internal/component/taskgroup — only the inner domain
+	// ring must stay free of it, and layerOf leaves component unclassified so the
+	// ring rule alone would miss a domain → component edge.
+	forbidExternalImports(t, filepath.Join(root, "internal", "domain"),
+		append([]string{componentPkg}, frameworkImports...))
 }
 
 // TestApplicationStaysFrameworkFree enforces §19's headline application-purity
@@ -149,13 +156,16 @@ func TestApplicationStaysFrameworkFree(t *testing.T) {
 
 // TestExecutionDomainStaysPure enforces §16 rule 2: the core execution context
 // (domain/execution + its sub-contexts) is the innermost, most-protected code —
-// it must not touch the filesystem, a SQL driver, HTTP, OTel, or the agent SDK.
-// (The accounting sub-context maps the SDK's token counts at the agentexec
-// boundary, so it holds only the neutral core chat model, never agent/*.)
+// it must not touch the filesystem, a SQL driver, HTTP, OTel, the agent SDK, or a
+// concurrency/wiring primitive (internal/component/*). (The accounting sub-context
+// maps the SDK's token counts at the agentexec boundary, so it holds only the
+// neutral core chat model, never agent/*.) The component ban is listed explicitly
+// because layerOf leaves internal/component unclassified — the ring rule would not
+// otherwise catch a domain → component/taskgroup edge.
 func TestExecutionDomainStaysPure(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "domain", "execution"),
-		[]string{"os", "database/sql", "net", "net/http", "go.opentelemetry.io", "github.com/Tangerg/lynx/agent"})
+		[]string{"os", "database/sql", "net", "net/http", "go.opentelemetry.io", "github.com/Tangerg/lynx/agent", componentPkg})
 }
 
 // TestDeliveryStaysAdapterOnly enforces §16 rule 4: delivery drives ports, so it
@@ -221,7 +231,10 @@ func TestDeliveryHoldsNoRunLifecycleState(t *testing.T) {
 	dir := filepath.Join(root, "internal", "delivery", "server")
 	forbidExternalImports(t, dir, []string{"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"})
 
-	forbiddenFields := []string{"taskgroup.Group", "workspace.Checkpoints", "runs.Registry"}
+	// taskgroup.Group is also import-forbidden above; context.CancelFunc and
+	// runs.Registry cover the rule's "cancel func" + "run registry" clauses so a
+	// hand-rolled live-run map's cancel handles can't be parked on the Server.
+	forbiddenFields := []string{"taskgroup.Group", "workspace.Checkpoints", "runs.Registry", "context.CancelFunc"}
 	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -276,6 +289,28 @@ func exprString(e ast.Expr) string {
 	}
 }
 
+// TestApplicationEventFreeOfProtocol enforces §16 rule 9: application (its Events,
+// commands, ports) never references a protocol/wire type. The ring rule already
+// forbids application → delivery; this is the dedicated, explicit guard so the
+// invariant survives even if a protocol type were ever mislocated outside delivery.
+func TestApplicationEventFreeOfProtocol(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "application"), []string{protocolPkg})
+}
+
+// TestProtocolStaysWireOnly enforces §16 rule 10: protocol types don't enter
+// domain/application — the wire package itself must import neither ring, so wire
+// shapes never become a business dependency. (Delivery as a whole MAY import
+// domain/application to drive them; this constrains only the protocol subpackage.)
+func TestProtocolStaysWireOnly(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "delivery", "protocol"),
+		[]string{
+			"github.com/Tangerg/lynx/app/runtime/internal/domain",
+			"github.com/Tangerg/lynx/app/runtime/internal/application",
+		})
+}
+
 // receiverIsExported reports whether a method's receiver is a (pointer to an)
 // exported named type.
 func receiverIsExported(recv *ast.FieldList) bool {
@@ -289,6 +324,16 @@ func receiverIsExported(recv *ast.FieldList) bool {
 	id, ok := typ.(*ast.Ident)
 	return ok && id.IsExported()
 }
+
+// componentPkg is the neutral concurrency/wiring primitive package
+// (taskgroup / filechanges / mcpstatus). layerOf leaves it unclassified so the
+// ring rule doesn't check edges into it; the domain rings ban it explicitly
+// (application/delivery/composition may import it). Prefix-matched.
+const componentPkg = "github.com/Tangerg/lynx/app/runtime/internal/component"
+
+// protocolPkg is the wire-type package; it must stay pure wire (no domain /
+// application import) so protocol types never leak inward (§16 rule 10).
+const protocolPkg = "github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 
 // externalSDKs are the external agent-SDK / driver / framework libraries the
 // inner + delivery rings must never import directly (the internal infra edges are

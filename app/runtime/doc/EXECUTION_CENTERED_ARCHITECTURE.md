@@ -919,7 +919,16 @@ Clock、ID generator、Executor 由测试注入，确保确定性。
 11. domain package 间必须保持 DAG，跨 context 通过稳定值类型或 application 协调；
 12. 测试文件可使用跨层 fixture，但生产文件不能。
 
-**落地：全部 12 条由 `internal/arch` 机器强制**（`go/parser`/`go/ast` 走查）。承载业务逻辑的 `runtime` 包已删除,composition 环退化为纯 `bootstrap/config/cmd`(无业务方法,rule 8 `TestBootstrapExposesNoBusinessMethod` 强制);rule 5(`TestDeliveryHoldsNoRunLifecycleState`)强制 delivery/server 不 import `component/taskgroup`、不持 `taskgroup.Group`/`workspace.Checkpoints`/`runs.Registry` 字段;rule 2(`TestExecutionDomainStaysPure`)+ rule 4(`TestDeliveryStaysAdapterOnly`)覆盖内层/交付环的外部 SDK 边界。每条新规则均以 inject-and-revert 证过非空。
+**落地：由 `internal/arch` 机器强制**（`go/parser`/`go/ast` 走查）,承载业务逻辑的 `runtime` 包已删除,composition 环退化为纯 `bootstrap/config/cmd`。精确覆盖(诚实分档,均以 inject-and-revert 证过非空):
+
+- **1/3/7/12 由 `TestDependencyRule` 的环矩阵强制**(向内边合法、向外/向上边禁);
+- **2** `TestExecutionDomainStaysPure` + `TestDomainStaysFrameworkFree`(禁 os/SQL/HTTP/OTel/agent-SDK **及 `internal/component/*` 并发原语** —— component 因 `layerOf` 不分类、环规则不覆盖,故显式禁 domain 环 import 它);
+- **4** `TestDeliveryStaysAdapterOnly`(外部 SDK);
+- **5** `TestDeliveryHoldsNoRunLifecycleState`(禁 `component/taskgroup` import + 禁 `taskgroup.Group`/`workspace.Checkpoints`/`runs.Registry`/`context.CancelFunc` 字段 —— 覆盖"registry/cancel func/task group/checkpoint"四类);
+- **8** `TestBootstrapExposesNoBusinessMethod`(exported bootstrap 类型只许 `Close`);
+- **9** `TestApplicationEventFreeOfProtocol`(application ↛ protocol,专属守卫,叠加环规则);
+- **10** `TestProtocolStaysWireOnly`(protocol 子包 ↛ domain/application);
+- **11** domain package DAG 由 **Go 编译器**(import cycle 不通过)强制;"跨 context 只经稳定值类型"这半条无法机械判定(区分 value-type import 与 service import 需人判),靠 review + 上述环矩阵兜底 —— 这是唯一非"专属测试"覆盖项,如实标注。
 
 ---
 
