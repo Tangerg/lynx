@@ -31,8 +31,8 @@ const (
 )
 
 // WorkspaceEvent is one non-run workspace event (AUX_API §3.2) — a flat
-// tag-discriminated struct (single `type`, optional fields per tag, §2.1).
-// Types: files.changed | skills.changed | mcp.serverChanged | resync.
+// tag-discriminated struct (single `type`, optional fields per tag, §2.1). The
+// tag values are the [WorkspaceEventType] constants above.
 type WorkspaceEvent struct {
 	Type WorkspaceEventType `json:"type"`
 	// files.changed

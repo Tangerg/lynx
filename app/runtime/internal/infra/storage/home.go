@@ -1,8 +1,6 @@
-// Package storage implements Lyra's on-disk persistence: session
-// metadata and chat history messages. Every
-// concrete type targets a directory rooted at [Home] — usually
-// ~/.lyra — so a single LYRA_HOME environment variable relocates
-// every artifact.
+// Package storage resolves Lyra's on-disk root ([Home], usually ~/.lyra or
+// $LYRA_HOME) and provides the file-backed knowledge store (the editable LYRA.md
+// cascade). Database-backed state lives in the sqlite sub-package.
 package storage
 
 import (

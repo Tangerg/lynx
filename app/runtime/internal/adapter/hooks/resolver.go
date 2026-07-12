@@ -41,7 +41,7 @@ func (r *Resolver) For(ctx context.Context, cwd string) *domainhooks.Bound {
 	}
 	all := r.load(ctx, cwd)
 	projectTrusted := r.trusted != nil && r.trusted(ctx, ProjectRoot(cwd))
-	kept := all[:0:0]
+	var kept []domainhooks.Hook
 	for _, h := range all {
 		if h.Scope == domainhooks.ScopeProject && !projectTrusted {
 			continue

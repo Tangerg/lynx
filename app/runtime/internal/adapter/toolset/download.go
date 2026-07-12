@@ -170,13 +170,12 @@ func writeDownloadedFile(path, displayPath string, body io.Reader, maxBytes int6
 		return 0, fmt.Errorf("download: temp file: %w", err)
 	}
 	tmpPath := tmp.Name()
-	var written int64
 	defer func() {
 		_ = tmp.Close()
 		_ = os.Remove(tmpPath)
 	}()
 
-	written, err = io.Copy(tmp, io.LimitReader(body, maxBytes+1))
+	written, err := io.Copy(tmp, io.LimitReader(body, maxBytes+1))
 	if err != nil {
 		return 0, fmt.Errorf("download: write: %w", err)
 	}

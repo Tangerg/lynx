@@ -120,9 +120,14 @@ func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.Configur
 	if err := s.capabilities.ConfigureMCPServer(ctx, srv); err != nil {
 		return nil, err
 	}
-	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, in.Name))
+	s.publishMCPServerChanged(ctx, in.Name)
 	out := mcpConfigWire(srv)
 	return &out, nil
+}
+
+// publishMCPServerChanged emits the workspace mcp.serverChanged frame for name.
+func (s *Server) publishMCPServerChanged(ctx context.Context, name string) {
+	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, name))
 }
 
 // WorkspaceMCPRemove deletes a server from the registry + the live set. The
@@ -134,7 +139,7 @@ func (s *Server) WorkspaceMCPRemove(ctx context.Context, name string) error {
 	if err := s.capabilities.RemoveMCPServer(ctx, name); err != nil {
 		return err
 	}
-	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, name))
+	s.publishMCPServerChanged(ctx, name)
 	return nil
 }
 
@@ -147,7 +152,7 @@ func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPE
 	if err := s.capabilities.SetMCPServerEnabled(ctx, in.Name, in.Enabled); err != nil {
 		return err
 	}
-	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, in.Name))
+	s.publishMCPServerChanged(ctx, in.Name)
 	return nil
 }
 

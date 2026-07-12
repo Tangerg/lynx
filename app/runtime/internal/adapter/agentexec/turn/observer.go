@@ -73,11 +73,9 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		}
 	}
 
-	approvalConfigured := t.svc.approval != nil
 	mode := approval.ModeYolo
-	if t.svc.approval == nil {
-		approvalConfigured = false
-	} else {
+	approvalConfigured := t.svc.approval != nil
+	if approvalConfigured {
 		var err error
 		mode, err = t.svc.approval.Mode(ctx)
 		if err != nil {
@@ -188,13 +186,9 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, err error)
 	// script can audit / notify / integrate. Result-injection isn't plumbed yet
 	// — the result already streamed to the model — so the Decision is ignored.
 	if !t.st.hooks.Empty() {
-		errStr := ""
-		if err != nil {
-			errStr = err.Error()
-		}
 		_ = t.st.hooks.Run(t.st.ctx, hooks.Input{
 			Event: hooks.PostToolUse, SessionID: t.st.handle.SessionID, Cwd: t.st.cwd,
-			Tool: &hooks.ToolInput{Name: toolName, Result: output}, Reason: errStr,
+			Tool: &hooks.ToolInput{Name: toolName, Result: output}, Reason: errorString(err),
 		})
 	}
 }

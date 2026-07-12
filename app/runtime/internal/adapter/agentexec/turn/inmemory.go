@@ -3,6 +3,8 @@ package turn
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/google/uuid"
@@ -157,10 +159,7 @@ func (s *inMemory) Close() {
 	s.closeOnce.Do(func() {
 		s.mu.Lock()
 		s.closed = true
-		states := make([]*turnState, 0, len(s.turns))
-		for _, st := range s.turns {
-			states = append(states, st)
-		}
+		states := slices.Collect(maps.Values(s.turns))
 		s.mu.Unlock()
 
 		var cancels sync.WaitGroup

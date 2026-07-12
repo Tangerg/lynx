@@ -32,10 +32,7 @@ func (p parkStoreFromToolloop) Consume(ctx context.Context, conversationID strin
 }
 
 func (p parkStoreFromToolloop) Write(ctx context.Context, conversationID string, state *ParkState) error {
-	if state == nil {
-		return nil
-	}
-	if state.Assistant == nil {
+	if state == nil || state.Assistant == nil {
 		return nil
 	}
 	return p.inner.Write(ctx, conversationID, &toolloop.ParkState{
@@ -69,10 +66,7 @@ func (p parkStoreToToolloop) Consume(ctx context.Context, conversationID string)
 }
 
 func (p parkStoreToToolloop) Write(ctx context.Context, conversationID string, state *toolloop.ParkState) error {
-	if state == nil {
-		return nil
-	}
-	if state.Assistant == nil {
+	if state == nil || state.Assistant == nil {
 		return nil
 	}
 	return p.inner.Write(ctx, conversationID, &ParkState{

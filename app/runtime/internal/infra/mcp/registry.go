@@ -11,6 +11,13 @@ import (
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
+// target is a connected (name, session) pair snapshotted under the lock so the
+// live tools/list RPCs can run outside it.
+type target struct {
+	name    string
+	session *sdkmcp.ClientSession
+}
+
 // Statuses returns one entry per CONFIGURED server (connected and failed
 // alike), in dial order. Nil-safe.
 func (c *Connections) Statuses() []ServerStatus {
@@ -36,10 +43,6 @@ func (c *Connections) Tools(ctx context.Context, server string) ([]ToolInfo, err
 	// Snapshot the connected (name, session) pairs under the lock, then run the
 	// live tools/list RPCs outside it — a slow upstream mustn't block reconnect
 	// or status reads. A session closed by a racing reconnect just errors here.
-	type target struct {
-		name    string
-		session *sdkmcp.ClientSession
-	}
 	c.mu.Lock()
 	var targets []target
 	for _, ms := range c.servers {
@@ -105,10 +108,6 @@ func (c *Connections) Remove(ctx context.Context, name string) {
 // sessions and pushes it to the tool sink. A per-server tools/list error drops
 // just that server's tools. Runs the RPCs outside mu.
 func (c *Connections) refreshTools(ctx context.Context) {
-	type target struct {
-		name    string
-		session *sdkmcp.ClientSession
-	}
 	c.mu.Lock()
 	var targets []target
 	for _, ms := range c.servers {

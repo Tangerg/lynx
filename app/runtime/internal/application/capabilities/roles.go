@@ -9,7 +9,7 @@ import (
 
 // UtilityRole returns the live utility-model role; both empty when unset
 // (maintenance runs on the main turn model). Backs models.getUtilityRole.
-func (c *Coordinator) UtilityRole() (provider, model string) {
+func (c *Coordinator) UtilityRole() (providerID, model string) {
 	role := c.utilityCell.Load()
 	if role == nil {
 		return "", ""

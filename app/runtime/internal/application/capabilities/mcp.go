@@ -108,16 +108,11 @@ func (c *Coordinator) ConfigureMCPServer(ctx context.Context, srv mcpserver.Serv
 	if err := srv.Validate(); err != nil {
 		return err
 	}
-	requestCtx, ownerCtx, finish, err := c.beginMCPMutation(ctx)
+	requestCtx, ownerCtx, release, err := c.beginMCPWrite(ctx)
 	if err != nil {
 		return err
 	}
-	defer finish()
-	c.mcpMutationMu.Lock()
-	defer c.mcpMutationMu.Unlock()
-	if err := requestCtx.Err(); err != nil {
-		return err
-	}
+	defer release()
 	if err := c.mcpRegistry.Configure(requestCtx, srv); err != nil {
 		return err
 	}
@@ -129,16 +124,11 @@ func (c *Coordinator) ConfigureMCPServer(ctx context.Context, srv mcpserver.Serv
 // RemoveMCPServer deletes a server from the registry and drops it from the live
 // connections.
 func (c *Coordinator) RemoveMCPServer(ctx context.Context, name string) error {
-	requestCtx, ownerCtx, finish, err := c.beginMCPMutation(ctx)
+	requestCtx, ownerCtx, release, err := c.beginMCPWrite(ctx)
 	if err != nil {
 		return err
 	}
-	defer finish()
-	c.mcpMutationMu.Lock()
-	defer c.mcpMutationMu.Unlock()
-	if err := requestCtx.Err(); err != nil {
-		return err
-	}
+	defer release()
 	if err := c.mcpRegistry.Remove(requestCtx, name); err != nil {
 		return err
 	}
@@ -156,24 +146,22 @@ func (c *Coordinator) RemoveMCPServer(ctx context.Context, name string) error {
 // SetMCPServerEnabled flips a server's enablement in the registry and applies it
 // to the live connections (enable → dial, disable → drop).
 func (c *Coordinator) SetMCPServerEnabled(ctx context.Context, name string, enabled bool) error {
-	requestCtx, ownerCtx, finish, err := c.beginMCPMutation(ctx)
+	requestCtx, ownerCtx, release, err := c.beginMCPWrite(ctx)
 	if err != nil {
 		return err
 	}
-	defer finish()
-	c.mcpMutationMu.Lock()
-	defer c.mcpMutationMu.Unlock()
-	if err := requestCtx.Err(); err != nil {
-		return err
-	}
+	defer release()
 	if err := c.mcpRegistry.SetEnabled(requestCtx, name, enabled); err != nil {
 		return err
 	}
 	reconcileCtx, cancel := context.WithTimeout(ownerCtx, mcpReconcileTimeout)
 	defer cancel()
 	srv, ok, err := c.mcpRegistry.Get(reconcileCtx, name)
-	if err != nil || !ok {
+	if err != nil {
 		return err
+	}
+	if !ok {
+		return mcpserver.ErrUnknownServer
 	}
 	return c.applyMCPRegistryChange(reconcileCtx, srv)
 }
@@ -201,6 +189,30 @@ func (c *Coordinator) beginMCPMutation(parent context.Context) (
 	return requestCtx, ownerCtx, func() {
 		releaseRequest()
 		releaseOwner()
+	}, nil
+}
+
+// beginMCPWrite acquires both mutation scopes plus the serialization lock and
+// returns a single release the caller must defer. requestCtx is caller-cancelable
+// (used through the durable registry commit); ownerCtx survives caller cancel but
+// not component shutdown (used for post-commit live/policy reconciliation).
+// release unlocks then tears the scopes down — the acquire order reversed — so the
+// lock/ctx/teardown protocol lives in one place across the write methods. err is
+// non-nil when the component is shutting down or the caller ctx is already dead.
+func (c *Coordinator) beginMCPWrite(ctx context.Context) (requestCtx, ownerCtx context.Context, release func(), err error) {
+	requestCtx, ownerCtx, finish, err := c.beginMCPMutation(ctx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	c.mcpMutationMu.Lock()
+	if err := requestCtx.Err(); err != nil {
+		c.mcpMutationMu.Unlock()
+		finish()
+		return nil, nil, nil, err
+	}
+	return requestCtx, ownerCtx, func() {
+		c.mcpMutationMu.Unlock()
+		finish()
 	}, nil
 }
 

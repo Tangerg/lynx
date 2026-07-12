@@ -1,6 +1,8 @@
 package runs
 
 import (
+	"maps"
+	"slices"
 	"sync"
 	"time"
 )
@@ -30,10 +32,10 @@ type Entry[P any] struct {
 // per session — either one open run or one in-progress admission claim, never
 // both — so run start / resume / destructive session mutation can't race.
 //
-// This is application-owned run-lifecycle state — it folds into the run
-// supervisor alongside the [Journal]. It is generic over the payload P the
-// delivery layer attaches per entry (the run's cancel func + event journal),
-// keeping the admission invariant here without pulling wire/executor types in.
+// This is application-owned run-lifecycle state, held by [Coordinator] alongside
+// the [Journal]. It is generic over the payload P the delivery layer attaches
+// per entry (the run's cancel func + event journal), keeping the admission
+// invariant here without pulling wire/executor types in.
 //
 // Its zero value is usable.
 type Registry[P any] struct {
@@ -109,25 +111,11 @@ func (r *Registry[P]) MarkCancel(id, reason string) (Entry[P], bool) {
 	return e, true
 }
 
-// CancelReason returns the recorded cancel reason for a live run.
-func (r *Registry[P]) CancelReason(id string) string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if e, ok := r.runs[id]; ok {
-		return e.Record.CancelReason
-	}
-	return ""
-}
-
 // List snapshots active run segments.
 func (r *Registry[P]) List() []Entry[P] {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]Entry[P], 0, len(r.runs))
-	for _, e := range r.runs {
-		out = append(out, e)
-	}
-	return out
+	return slices.Collect(maps.Values(r.runs))
 }
 
 // ActiveSession reports whether the session has an open run or admission claim.

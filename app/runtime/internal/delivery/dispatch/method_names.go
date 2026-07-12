@@ -93,16 +93,16 @@ const (
 	MethodCodebaseReindex = "codebase.reindex"
 
 	// Providers / Models / Tools (API.md §7.6).
-	MethodProvidersList        = "providers.list"
-	MethodProvidersConfigure   = "providers.configure"
-	MethodProvidersTest        = "providers.test"
-	MethodModelsList           = "models.list"
-	MethodModelsGetUtilityRole = "models.getUtilityRole"
-	MethodModelsSetUtilityRole = "models.setUtilityRole"
-	MethodModelsGetEmbedRole   = "models.getEmbeddingRole"
-	MethodModelsSetEmbedRole   = "models.setEmbeddingRole"
-	MethodToolsList            = "tools.list"
-	MethodToolsInvoke          = "tools.invoke"
+	MethodProvidersList          = "providers.list"
+	MethodProvidersConfigure     = "providers.configure"
+	MethodProvidersTest          = "providers.test"
+	MethodModelsList             = "models.list"
+	MethodModelsGetUtilityRole   = "models.getUtilityRole"
+	MethodModelsSetUtilityRole   = "models.setUtilityRole"
+	MethodModelsGetEmbeddingRole = "models.getEmbeddingRole"
+	MethodModelsSetEmbeddingRole = "models.setEmbeddingRole"
+	MethodToolsList              = "tools.list"
+	MethodToolsInvoke            = "tools.invoke"
 
 	// Usage reporting (API.md §7.7).
 	MethodUsageSession = "usage.session"

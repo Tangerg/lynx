@@ -16,7 +16,7 @@ type EmbeddingRoleStore struct {
 
 // NewEmbeddingRoleStore wires the given *sql.DB to the embedding-role surface.
 func NewEmbeddingRoleStore(db *sql.DB) *EmbeddingRoleStore {
-	return &EmbeddingRoleStore{store: newRoleStore(db, "embedding_role", "embedding role", "embedding role")}
+	return &EmbeddingRoleStore{store: newRoleStore(db, "embedding_role", "embedding role")}
 }
 
 // LoadEmbeddingRole returns the stored (provider, model); both empty when unset

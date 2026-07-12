@@ -65,12 +65,7 @@ func (t *translator) shapeToolResult(name string, args map[string]any, outputJSO
 
 // isCommandTool reports whether a tool name is a shell/command tool.
 func isCommandTool(name string) bool {
-	switch strings.ToLower(name) {
-	case "shell":
-		return true
-	default:
-		return false
-	}
+	return strings.ToLower(name) == "shell"
 }
 
 // ── result type projections (server-side, §4.4.2 display convention) ─

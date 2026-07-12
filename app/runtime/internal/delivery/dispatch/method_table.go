@@ -85,16 +85,16 @@ var methodTable = map[string]methodHandler{
 	MethodCodebaseReindex: (*Dispatcher).handleCodebaseReindex,
 
 	// Providers / Models / Tools.
-	MethodProvidersList:        (*Dispatcher).handleProvidersList,
-	MethodProvidersConfigure:   (*Dispatcher).handleProvidersConfigure,
-	MethodProvidersTest:        (*Dispatcher).handleProvidersTest,
-	MethodModelsList:           (*Dispatcher).handleModelsList,
-	MethodModelsGetUtilityRole: (*Dispatcher).handleModelsGetUtilityRole,
-	MethodModelsSetUtilityRole: (*Dispatcher).handleModelsSetUtilityRole,
-	MethodModelsGetEmbedRole:   (*Dispatcher).handleModelsGetEmbeddingRole,
-	MethodModelsSetEmbedRole:   (*Dispatcher).handleModelsSetEmbeddingRole,
-	MethodToolsList:            (*Dispatcher).handleToolsList,
-	MethodToolsInvoke:          (*Dispatcher).handleToolsInvoke,
+	MethodProvidersList:          (*Dispatcher).handleProvidersList,
+	MethodProvidersConfigure:     (*Dispatcher).handleProvidersConfigure,
+	MethodProvidersTest:          (*Dispatcher).handleProvidersTest,
+	MethodModelsList:             (*Dispatcher).handleModelsList,
+	MethodModelsGetUtilityRole:   (*Dispatcher).handleModelsGetUtilityRole,
+	MethodModelsSetUtilityRole:   (*Dispatcher).handleModelsSetUtilityRole,
+	MethodModelsGetEmbeddingRole: (*Dispatcher).handleModelsGetEmbeddingRole,
+	MethodModelsSetEmbeddingRole: (*Dispatcher).handleModelsSetEmbeddingRole,
+	MethodToolsList:              (*Dispatcher).handleToolsList,
+	MethodToolsInvoke:            (*Dispatcher).handleToolsInvoke,
 
 	// Usage reporting.
 	MethodUsageSession: (*Dispatcher).handleUsageSession,

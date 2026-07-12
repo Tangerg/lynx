@@ -1,6 +1,10 @@
 package approval
 
-import "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+import (
+	"cmp"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+)
 
 // HookDecision is the approval-relevant part of a PreToolUse hook decision.
 type HookDecision struct {
@@ -58,7 +62,7 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 	}
 	if in.Hook.Block {
 		plan.Action = GateDeny
-		plan.DenyReason = firstNonEmpty(in.Hook.Reason, "denied by a PreToolUse hook")
+		plan.DenyReason = cmp.Or(in.Hook.Reason, "denied by a PreToolUse hook")
 		return plan
 	}
 	if !in.ApprovalConfigured {
@@ -104,7 +108,7 @@ func (p ToolCallPlan) ResolvePromptShortcuts(standing StandingDecision, autoAppr
 // ApprovedArguments returns the tool-argument override after a human approval:
 // edited arguments win, otherwise a hook rewrite is preserved.
 func (p ToolCallPlan) ApprovedArguments(edited string) string {
-	return firstNonEmpty(edited, p.ArgumentOverride)
+	return cmp.Or(edited, p.ArgumentOverride)
 }
 
 // DecisionOf maps an approve/deny boolean to the approval domain's verdict.
@@ -117,13 +121,4 @@ func DecisionOf(approved bool) Decision {
 
 func planModeDenyReason(toolName string) string {
 	return "plan mode is active (read-only): " + toolName + " is not permitted. Investigate with read-only tools, then call exit_plan_mode to present your plan for approval."
-}
-
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }

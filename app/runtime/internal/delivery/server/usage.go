@@ -1,9 +1,10 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -110,7 +111,7 @@ func foldRunUsage(blob json.RawMessage, since time.Time, defProvider, defModel s
 		total.runs++
 	}
 	if byProvider != nil {
-		b := accFor(byProvider, firstNonEmpty(ref.Provider, defProvider, "unknown"))
+		b := accFor(byProvider, cmp.Or(ref.Provider, defProvider, "unknown"))
 		b.add(u.ModelUsage)
 		b.runs++
 	}
@@ -129,7 +130,7 @@ func foldRunUsage(blob json.RawMessage, since time.Time, defProvider, defModel s
 				b.runs++
 			}
 		} else {
-			b := accFor(byModel, firstNonEmpty(ref.Model, defModel, "unknown"))
+			b := accFor(byModel, cmp.Or(ref.Model, defModel, "unknown"))
 			b.add(u.ModelUsage)
 			b.runs++
 		}
@@ -180,12 +181,11 @@ func accFor(m map[string]*usageAcc, key string) *usageAcc {
 // input tokens desc — the spend-ranked order a dashboard wants.
 func bucketsBySpend(m map[string]*usageAcc) []protocol.UsageBucket {
 	out := bucketsOf(m)
-	sort.Slice(out, func(i, j int) bool {
-		ci, cj := costOf(out[i].CostUSD), costOf(out[j].CostUSD)
-		if ci != cj {
-			return ci > cj
-		}
-		return out[i].InputTokens > out[j].InputTokens
+	slices.SortFunc(out, func(a, b protocol.UsageBucket) int {
+		return cmp.Or(
+			cmp.Compare(costOf(b.CostUSD), costOf(a.CostUSD)), // cost desc
+			cmp.Compare(b.InputTokens, a.InputTokens),         // then input tokens desc
+		)
 	})
 	return out
 }
@@ -193,7 +193,7 @@ func bucketsBySpend(m map[string]*usageAcc) []protocol.UsageBucket {
 // bucketsByKey renders buckets sorted by key ascending (chronological for days).
 func bucketsByKey(m map[string]*usageAcc) []protocol.UsageBucket {
 	out := bucketsOf(m)
-	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	slices.SortFunc(out, func(a, b protocol.UsageBucket) int { return cmp.Compare(a.Key, b.Key) })
 	return out
 }
 
@@ -210,13 +210,4 @@ func costOf(p *float64) float64 {
 		return 0
 	}
 	return *p
-}
-
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }
