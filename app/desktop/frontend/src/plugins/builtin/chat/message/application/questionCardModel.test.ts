@@ -60,7 +60,7 @@ describe("canSubmitQuestionCard", () => {
   it("requires a resumable complete non-pending question", () => {
     expect(
       canSubmitQuestionCard({
-        parentRunId: "run",
+        runId: "run",
         itemId: "item",
         status: "requires-action",
         complete: true,
@@ -69,7 +69,7 @@ describe("canSubmitQuestionCard", () => {
     ).toBe(true);
     expect(
       canSubmitQuestionCard({
-        parentRunId: "run",
+        runId: "run",
         itemId: "item",
         status: "requires-action",
         complete: true,
@@ -78,7 +78,7 @@ describe("canSubmitQuestionCard", () => {
     ).toBe(false);
     expect(
       canSubmitQuestionCard({
-        parentRunId: "run",
+        runId: "run",
         itemId: "item",
         status: "requires-action",
         complete: false,

@@ -91,7 +91,7 @@ describe("useApprovalSubmit", () => {
     );
   });
 
-  it("no-ops without a parentRunId/itemId, and never double-submits", () => {
+  it("no-ops without a runId/itemId, and never double-submits", () => {
     const resume = bindResume();
     const { result } = renderHook(() => useApprovalSubmit(undefined, undefined));
     act(() => result.current.submit("approved"));

@@ -391,11 +391,11 @@ describe("reducer — HITL interrupt", () => {
       kind: "approval",
       status: "requires-action",
       itemId: "tool_1",
-      parentRunId: "run_1",
+      runId: "run_1",
       command: "rm -rf x", // derived from payload.tool (commandExecution)
     });
     expect(s.pendingInterrupts).toHaveLength(1);
-    expect(s.pendingInterrupts[0]!.parentRunId).toBe("run_1");
+    expect(s.pendingInterrupts[0]!.runId).toBe("run_1");
     expect(s.toolCalls.tool_1?.status).toBe("requires-action");
   });
 
@@ -472,11 +472,11 @@ describe("reducer — HITL interrupt", () => {
       kind: "question",
       status: "requires-action",
       itemId: "q1",
-      parentRunId: "run_1",
+      runId: "run_1",
       questions: [{ id: "db", question: "Pick a database" }],
     });
     expect(s.pendingInterrupts).toHaveLength(1);
-    expect(s.pendingInterrupts[0]!.parentRunId).toBe("run_1");
+    expect(s.pendingInterrupts[0]!.runId).toBe("run_1");
   });
 
   it("a second run.started (resume) never splits the open turn — live grouping matches replay", () => {
@@ -509,10 +509,10 @@ describe("reducer — HITL interrupt", () => {
     expect(s.messages).toHaveLength(1);
     const turnId = s.messages[0]!.id;
 
-    // Approve → resume Run. run.started here carries NO parentRunId (a real
-    // backend may omit it), yet its agentMessage must STILL fold into the same
-    // bubble — turn grouping is item-driven, not run-driven. This is exactly
-    // what history replay produces (it never sees run.started at all).
+    // Approve → resume opens a new SEGMENT of the run (this synthetic
+    // run.started carries no segmentId), yet its agentMessage must STILL fold
+    // into the same bubble — turn grouping is item-driven, not run-driven. This
+    // is exactly what history replay produces (it never sees run.started at all).
     s = reduce(s, runStarted("run_2", "ses_1"));
     s = reduce(s, started(item({ id: "msg_1", type: "agentMessage", content: [] })));
     s = reduce(s, delta("msg_1", { type: "content", text: "Deleted." }));

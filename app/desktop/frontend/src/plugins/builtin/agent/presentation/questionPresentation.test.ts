@@ -88,7 +88,7 @@ describe("questionPresentation", () => {
   it("submits only open resumable questions with complete answers", () => {
     expect(
       canSubmitQuestion({
-        parentRunId: "run_1",
+        runId: "run_1",
         itemId: "item_1",
         complete: true,
         status: "requires-action",
@@ -96,7 +96,7 @@ describe("questionPresentation", () => {
     ).toBe(true);
     expect(
       canSubmitQuestion({
-        parentRunId: "run_1",
+        runId: "run_1",
         itemId: "item_1",
         complete: false,
         status: "requires-action",
@@ -104,7 +104,7 @@ describe("questionPresentation", () => {
     ).toBe(false);
     expect(
       canSubmitQuestion({
-        parentRunId: "run_1",
+        runId: "run_1",
         itemId: "item_1",
         complete: true,
         status: "incomplete",

@@ -4,10 +4,25 @@ import { appendTimelineEntry, patchRun } from "@/plugins/sdk";
 import { settlePendingInterrupts } from "./fold";
 import { materializeInterrupt } from "./interruptMaterialization";
 
-export function onRunStarted(state: AgentViewState, run: RunRef): AgentViewState {
+export function onRunStarted(
+  state: AgentViewState,
+  run: RunRef,
+  segmentId?: string,
+): AgentViewState {
   // Subagent runs share the parent stream but must not reset the root run state.
   if (run.spawnedByItemId) {
     return appendTimelineEntry({ kind: "run-start", runId: run.id, summary: "subagent" })(state);
+  }
+  // The per-segment streaming readout (usage/error) resets on a NEW segment, not
+  // on a new run: a resume opens a fresh segment of the SAME run, so runId (from
+  // run.id) stays stable while segmentId turns over. Keying the reset on
+  // segmentId also makes a reconnect replay of the CURRENT segment's run.started
+  // idempotent — re-seeing the same segmentId must not wipe the live readout.
+  // (A synthetic run.started with no segmentId — reconnect scaffolding, history
+  // replay — always resets, matching the prior per-run.started behaviour.)
+  const sameSegment = segmentId !== undefined && segmentId === state.run.segmentId;
+  if (sameSegment) {
+    return appendTimelineEntry({ kind: "run-start", runId: run.id })(state);
   }
   // Run boundaries are not turn boundaries. User items open new turns; assistant
   // items append to the current one so live streaming matches history replay.
@@ -18,6 +33,7 @@ export function onRunStarted(state: AgentViewState, run: RunRef): AgentViewState
       ...state.run,
       running: true,
       runId: run.id,
+      segmentId: segmentId ?? null,
       sessionId: run.sessionId,
       usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
     },
@@ -67,7 +83,9 @@ export function onRunFinished(
   }
   const idle: AgentViewState = { ...state, run: { ...state.run, running: false } };
   if (outcome.type === "interrupt") {
-    const parentRunId = state.run.runId ?? "";
+    // The stable Run to resume — a resume continues THIS run (new segment),
+    // never a fresh run.
+    const interruptedRunId = state.run.runId ?? "";
     // Re-delivery can present interrupts already enrolled. Only add fresh
     // envelopes; materialization below is an idempotent upsert.
     const openItemIds = new Set(
@@ -82,7 +100,7 @@ export function onRunFinished(
             pendingInterrupts: [
               ...idle.pendingInterrupts,
               {
-                parentRunId,
+                runId: interruptedRunId,
                 sessionId: state.run.sessionId ?? "",
                 interrupts: fresh.map((interrupt) => ({
                   itemId: interrupt.itemId,
@@ -92,7 +110,7 @@ export function onRunFinished(
               },
             ],
           };
-    for (const it of outcome.interrupts) next = materializeInterrupt(next, it, parentRunId);
+    for (const it of outcome.interrupts) next = materializeInterrupt(next, it, interruptedRunId);
     return next;
   }
 

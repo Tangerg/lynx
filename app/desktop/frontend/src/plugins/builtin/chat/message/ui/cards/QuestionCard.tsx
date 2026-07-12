@@ -20,9 +20,9 @@ interface Props {
   /** Block lifecycle. `"requires-action"` shows the interactive card;
    *  `"complete"` (or `answered`) collapses to a settled row. */
   status: BlockStatus;
-  /** The interrupted Run + the question Item — the HITL resume target
+  /** The Run to resume + the question Item — the HITL resume target
    *  (API.md §6). Absent ⇒ decorative preview with no submit button. */
-  parentRunId?: string;
+  runId?: string;
   itemId?: string;
   questions: QuestionItem[];
   /** Set once the answer is submitted (optimistic) / the run resolves. */
@@ -37,13 +37,13 @@ interface Props {
 //
 // HITL flow (R-model, API.md §6; parallels ApprovalCard):
 //   1. Run ends with a question Interrupt → reducer materialises a question
-//      block (status="requires-action") bound to { parentRunId, itemId }
-//   2. User selects / types → useQuestionAnswer starts a continuation Run
+//      block (status="requires-action") bound to { runId, itemId }
+//   2. User selects / types → useQuestionAnswer resumes the run (new segment)
 //      via runs.resume + optimistically settles the card (resolveInterrupt)
-export function QuestionCard({ status, parentRunId, itemId, questions, answered, answers }: Props) {
+export function QuestionCard({ status, runId, itemId, questions, answered, answers }: Props) {
   const t = useT();
   const [draft, setDraft] = useState<QuestionDraft>(() => createQuestionDraft(questions));
-  const actions = useQuestionCardActions({ parentRunId, itemId, status, questions, draft });
+  const actions = useQuestionCardActions({ runId, itemId, status, questions, draft });
 
   const settled = questionCardSettledView({
     status,

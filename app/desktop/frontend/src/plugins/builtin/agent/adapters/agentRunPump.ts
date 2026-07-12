@@ -40,7 +40,7 @@ export function createAgentRunPump({
       try {
         for await (const ev of stream.events) {
           if (isCancelled() || signal.aborted) break;
-          eventBatcher.enqueue(ev.event, ev.runId);
+          eventBatcher.enqueue(ev.event, ev.runId, ev.segmentId);
         }
       } catch (err) {
         if (!isCancelled() && !signal.aborted)

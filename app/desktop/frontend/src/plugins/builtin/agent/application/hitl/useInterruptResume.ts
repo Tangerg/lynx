@@ -33,7 +33,7 @@ import { agentViewState } from "../ports/viewState";
  */
 export function resumeInterrupt(
   sessionId: string,
-  parentRunId: string,
+  runId: string,
   itemId: string,
   response: InterruptResumePayload,
   settled: ResolvePatch,
@@ -42,7 +42,7 @@ export function resumeInterrupt(
   const sessionResume = agentViewState().getSession(sessionId)?.resume;
   if (!sessionResume) return false;
   sessionResume(
-    parentRunId,
+    runId,
     [{ itemId, response }],
     () => {
       agentViewState().resolveInterrupt(sessionId, itemId, settled);
@@ -53,7 +53,7 @@ export function resumeInterrupt(
   return true;
 }
 
-export function useInterruptResume<P>(parentRunId?: string, itemId?: string) {
+export function useInterruptResume<P>(runId?: string, itemId?: string) {
   const [pending, setPending] = useState<P | null>(null);
   const [sessionId] = useState(() => agentSessionState().getActiveSessionId());
   // Synchronous one-shot latch. `pending` state only updates on the next render,
@@ -66,7 +66,7 @@ export function useInterruptResume<P>(parentRunId?: string, itemId?: string) {
 
   const resume = useCallback(
     (marker: P, response: InterruptResumePayload, settled: ResolvePatch) => {
-      if (!parentRunId || !itemId || submitted.current) return;
+      if (!runId || !itemId || submitted.current) return;
       submitted.current = true;
       setPending(marker);
       const rollback = () => {
@@ -75,12 +75,10 @@ export function useInterruptResume<P>(parentRunId?: string, itemId?: string) {
       };
       // No resume binding (session torn down) ⇒ never latched; roll back so the
       // card stays actionable. On success the latch stays (interrupt resolved).
-      if (
-        !resumeInterrupt(sessionId, parentRunId, itemId, response, settled, { onError: rollback })
-      )
+      if (!resumeInterrupt(sessionId, runId, itemId, response, settled, { onError: rollback }))
         rollback();
     },
-    [parentRunId, itemId, sessionId],
+    [runId, itemId, sessionId],
   );
 
   return { pending, resume };

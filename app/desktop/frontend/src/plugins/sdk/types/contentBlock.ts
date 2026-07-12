@@ -37,7 +37,7 @@ export interface BuiltinContentBlockMap {
     command: string;
     reason: string;
     itemId?: string;
-    parentRunId?: string;
+    runId?: string;
     decision?: "approved" | "declined";
     args?: Record<string, unknown>;
     risk?: "low" | "medium" | "high";
@@ -49,7 +49,7 @@ export interface BuiltinContentBlockMap {
     kind: "question";
     status: BlockStatus;
     itemId?: string;
-    parentRunId?: string;
+    runId?: string;
     questions: QuestionItem[];
     answered?: boolean;
     answers?: Record<string, string[]>;

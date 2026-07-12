@@ -12,13 +12,20 @@ function bind<T extends StreamEvent["type"]>(
     state: AgentViewState,
     ev: Extract<StreamEvent, { type: T }>,
     runId?: string,
+    segmentId?: string,
   ) => AgentViewState,
 ): [string, StreamEventHandler] {
-  return [type, (state, ev, runId) => fn(state, ev as Extract<StreamEvent, { type: T }>, runId)];
+  return [
+    type,
+    (state, ev, runId, segmentId) =>
+      fn(state, ev as Extract<StreamEvent, { type: T }>, runId, segmentId),
+  ];
 }
 
 export const HANDLERS: ReadonlyArray<[string, StreamEventHandler]> = [
-  bind("run.started", (state, event) => onRunStarted(state, event.run)),
+  bind("run.started", (state, event, _runId, segmentId) =>
+    onRunStarted(state, event.run, segmentId),
+  ),
   bind("run.progress", (state, event, runId) => onRunProgress(state, event.progress, runId)),
   bind("run.finished", (state, event, runId) => onRunFinished(state, event.outcome, runId)),
   bind("item.started", (state, event) => onItemStarted(state, event.item)),

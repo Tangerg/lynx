@@ -38,7 +38,7 @@ export interface InterruptResumeInput {
 }
 export type ResumeFn =
   | ((
-      parentRunId: string,
+      runId: string,
       responses: InterruptResumeInput[],
       onSettled?: () => void,
       onStartError?: () => void,

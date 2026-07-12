@@ -61,15 +61,15 @@ export function approvalSettledDecision(
 }
 
 export function canSubmitApproval({
-  parentRunId,
+  runId,
   itemId,
   pending,
   status,
 }: {
-  parentRunId?: string;
+  runId?: string;
   itemId?: string;
   pending: ApprovalDecision | null;
   status: BlockStatus;
 }): boolean {
-  return Boolean(parentRunId && itemId && pending === null && status === "requires-action");
+  return Boolean(runId && itemId && pending === null && status === "requires-action");
 }

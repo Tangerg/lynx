@@ -8,7 +8,7 @@
 // are a *presentation projection* the reducer folds these wire shapes
 // into; this file is the upstream contract.
 
-import type { ItemId, RunId, SessionId } from "./ids";
+import type { ItemId, RunId, SegmentId, SessionId } from "./ids";
 
 // ---------------------------------------------------------------------------
 // §3 / §9 — Lifecycle + capabilities
@@ -210,10 +210,9 @@ export interface ImportSessionResponse {
 // ---------------------------------------------------------------------------
 
 export interface RunRef {
-  id: RunId;
+  id: RunId; // stable across HITL resume — a resume opens a new segment, NOT a new Run
   sessionId: SessionId;
   spawnedByItemId?: ItemId; // child-of: this Run is a subagent spawned by that toolCall Item
-  parentRunId?: RunId; // continuation-of: this Run is a resume/edit continuation
   // The model id this Run ran against (Model.id); absent = runtime default
   // (surfaced via Session.model). Rides RunRef so a reconnect (runs.subscribe)
   // or history restore (items.list.runs) — which never saw the originating
@@ -532,7 +531,7 @@ export interface ToolResultPayload {
 }
 
 export interface OpenInterrupt {
-  parentRunId: RunId; // the Run to resume (its outcome.type=interrupt)
+  runId: RunId; // the Run to resume (its current segment ended with outcome.type=interrupt)
   sessionId: SessionId;
   interrupts: Interrupt[];
   createdAt: string;
@@ -929,8 +928,9 @@ export type StreamEventType = StreamEvent["type"];
 // a self-contradictory illegal state — so it's removed (API.md §5.2,
 // TRANSPORT §6.4).
 export interface RunEvent {
-  runId: RunId;
-  eventId: string; // evt_…; monotonic within a single root run stream (§2.4)
+  runId: RunId; // the stable Run this event belongs to
+  segmentId: SegmentId; // the streamed segment this event belongs to (a resume = a new segment)
+  eventId: string; // evt_…; monotonic within a single root SEGMENT stream (§2.4)
   timestamp: string; // ISO-8601
   event: StreamEvent;
 }
@@ -974,12 +974,13 @@ export interface StartRunRequest {
 }
 
 export interface ResumeRunRequest {
-  parentRunId: RunId; // the interrupted Run (outcome.type=interrupt)
+  runId: RunId; // the Run to resume (its current segment ended with outcome.type=interrupt)
   responses: InterruptResponse[]; // one per open interrupt, addressed by itemId
 }
 
 export interface StartRunResponse {
-  runId: RunId;
+  runId: RunId; // the stable logical Run
+  segmentId: SegmentId; // the streamed segment this call opens (root of the event stream)
   // The opening userMessage Item's id — same id as on the stream's
   // item.started/completed and in items.list. The client reconciles its
   // optimistic bubble by this exact id (no content-text heuristic). Absent on
@@ -988,7 +989,8 @@ export interface StartRunResponse {
 }
 
 export interface ResumeRunResponse {
-  runId: RunId; // new continuation Run (RunRef.parentRunId = parentRunId)
+  runId: RunId; // the SAME Run being resumed (unchanged across resume)
+  segmentId: SegmentId; // a NEW segment of that Run — the root of this resume's event stream
 }
 
 // ---------------------------------------------------------------------------
@@ -1005,7 +1007,7 @@ export interface ListItemsRequest {
 // (§10.3). Reuses Page<T>'s `data` field so every paginated method reads
 // `resp.data` (no `data` vs `items` drift across the surface).
 export interface ListItemsResponse extends Page<Item> {
-  runs: RunRef[]; // owning Runs (finished/running), with parentRunId/spawnedByItemId
+  runs: RunRef[]; // owning Runs (finished/running), with spawnedByItemId run-tree edges
 }
 
 // ---------------------------------------------------------------------------

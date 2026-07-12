@@ -6,7 +6,6 @@ export type AgentApprovalMode = "plan" | "safe" | "balanced" | "yolo";
 
 export interface AgentRunHistoryRef {
   id: string;
-  parentRunId?: string;
   spawnedByItemId?: string;
 }
 

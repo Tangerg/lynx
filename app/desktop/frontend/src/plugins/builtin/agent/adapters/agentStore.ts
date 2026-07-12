@@ -32,13 +32,16 @@ interface SessionEntry {
   resume: ResumeFn;
 }
 
-/** A StreamEvent + the wire (envelope) runId of the RunEvent that carried it —
- *  the fold needs the runId to tell a subagent's run.* from the root run's
- *  (RunOutcome itself has no id). Absent for synthetic events (the optimistic
- *  local user bubble, items.list history replay). */
+/** A StreamEvent + the wire (envelope) runId + segmentId of the RunEvent that
+ *  carried it. The fold needs the runId to tell a subagent's run.* from the root
+ *  run's (RunOutcome itself has no id), and the segmentId to detect the segment
+ *  boundary that resets the streaming readout (a resume opens a new segment of
+ *  the same run). Absent for synthetic events (the optimistic local user bubble,
+ *  items.list history replay). */
 export interface FoldEvent {
   event: StreamEvent;
   runId?: string;
+  segmentId?: string;
 }
 
 interface AgentStore {
@@ -152,7 +155,8 @@ export const useAgentStore = create<AgentStore>((set) => ({
       const prev = s.sessions[sessionId];
       if (!prev) return s; // session torn down — drop the late batch
       let view = prev.view;
-      for (const { event, runId } of events) view = reduce(view, event, runId);
+      for (const { event, runId, segmentId } of events)
+        view = reduce(view, event, runId, segmentId);
       return { sessions: patchSession(s.sessions, sessionId, { view }) };
     }),
   resetSession: (sessionId) =>
