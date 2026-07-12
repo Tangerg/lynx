@@ -113,6 +113,10 @@ func (c *testClaimer) ReleaseSession(sessionID string) {
 	delete(c.claimed, sessionID)
 }
 
+// ActiveSessionWithCwd reports no cross-session working-tree contention by
+// default; the file-rollback tests that need it drive a dedicated claimer.
+func (*testClaimer) ActiveSessionWithCwd(string) string { return "" }
+
 // stubTurns is the test double for the coordinator's [Turns] collaborator: the
 // combined cancel / resume / rehydrate surface. Each behavior is optional so a
 // test wires only the leg it exercises.

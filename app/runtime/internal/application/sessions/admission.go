@@ -8,10 +8,14 @@ import (
 )
 
 // SessionClaimer is the run-admission slot used to enforce one writer per
-// session across active runs and start/resume races.
+// session across active runs and start/resume races. ActiveSessionWithCwd
+// widens the guard to a shared working tree: a file rollback's `git reset
+// --hard` writes the tree a sibling session sharing the cwd would race, so the
+// mutation must see any in-flight run on that tree, not just this session.
 type SessionClaimer interface {
 	ClaimSession(sessionID string) bool
 	ReleaseSession(sessionID string)
+	ActiveSessionWithCwd(cwd string) string
 }
 
 // RunAdmission is a held single-writer slot. Release is idempotent across value

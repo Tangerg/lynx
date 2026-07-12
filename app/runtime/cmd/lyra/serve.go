@@ -8,18 +8,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/observability"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 )
 
 func run(ctx context.Context, errw io.Writer) (err error) {
@@ -73,22 +70,18 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		info.Home = home
 	}
 
-	// File checkpoints live in a shadow git repo per session under the lyra
-	// home; the checkpoint adapter enables them only when git is present.
-	var checkpointDir string
-	if home, err := storage.Home(); err == nil {
-		checkpointDir = filepath.Join(home, "checkpoints")
-	}
-
 	api, err := server.New(server.Config{
 		Runtime:      stack.Runtime,
 		Sessions:     stack.Sessions,
 		Capabilities: stack.Capabilities,
 		ServerInfo:   info,
-		Checkpoints:  workspace.NewCheckpoints(checkpointDir),
-		Schedules:    stack.Schedules,
-		Workspace:    stack.Workspace,
-		RunStore:     stack.RunStore,
+		// File checkpoints (shadow git) are built + owned by the composition root
+		// so the same adapter serves the run-segment snapshot and the sessions
+		// file restorer; delivery only reads them for the boundary snapshot.
+		Checkpoints: stack.Checkpoints,
+		Schedules:   stack.Schedules,
+		Workspace:   stack.Workspace,
+		RunStore:    stack.RunStore,
 	})
 	if err != nil {
 		return nil, nil, err

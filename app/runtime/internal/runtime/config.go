@@ -118,6 +118,12 @@ type Config struct {
 	// Empty means only project recipes are listed. The composition root sets it.
 	RecipesGlobalDir string
 
+	// CheckpointDir roots the per-session shadow-git repos backing run-boundary
+	// file snapshots (<LYRA_HOME>/checkpoints); the checkpoint adapter enables
+	// snapshots + file rollback only when git is present. Empty disables file
+	// checkpoints. The composition root sets it.
+	CheckpointDir string
+
 	// ScheduleRegistry persists scheduled runs (schedules.*) and is the registry
 	// the scheduler worker fires from. nil disables scheduling; schedules.*
 	// fails and the worker no-ops. The composition root injects the sqlite-backed

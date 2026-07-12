@@ -45,6 +45,7 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.C
 		HooksResolver:      hooks,
 		HookTrustStore:     stores.Trust,
 		RecipesGlobalDir:   filepath.Join(stores.Home, "recipes"),
+		CheckpointDir:      filepath.Join(stores.Home, "checkpoints"),
 		ScheduleRegistry:   stores.Schedules,
 		EmbeddingRoleStore: stores.EmbeddingRole,
 		CodebaseStore:      stores.Codebase,
