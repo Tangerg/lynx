@@ -1,9 +1,9 @@
-// Package capabilities is the application coordinator for the runtime's MCP
-// integration surface: the durable MCP server registry (source of truth), its
-// live connection pool, and the atomically-published tool policy the engine's
-// gate reads. It is a thin use-case layer over the domain services the delivery
-// mcp.* handlers drive.
-package capabilities
+// Package integrations is the application coordinator for the runtime's external
+// integration surface — currently MCP: the durable MCP server registry (source
+// of truth), its live connection pool, and the atomically-published tool policy
+// the engine's gate reads. It is a thin use-case layer over the domain services
+// the delivery mcp.* handlers drive.
+package integrations
 
 import (
 	"context"
@@ -61,7 +61,7 @@ type Config struct {
 	MCPStatus func(ctx context.Context, server string, connecting bool)
 }
 
-// New returns a capabilities Coordinator over cfg.
+// New returns an integrations Coordinator over cfg.
 func New(cfg Config) *Coordinator {
 	return &Coordinator{
 		mcpRegistry: cfg.MCPRegistry,

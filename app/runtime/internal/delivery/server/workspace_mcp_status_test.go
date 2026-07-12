@@ -5,13 +5,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
 func TestWorkspaceMCPListServers(t *testing.T) {
-	s := serverWithMCP(capabilities.Config{MCPLive: &fakeMCPLive{
+	s := serverWithMCP(integrations.Config{MCPLive: &fakeMCPLive{
 		statuses: []mcpserver.ConnectionStatus{
 			{Name: "fs", Status: "connected"},
 			{Name: "down", Status: "failed", Err: errors.New("connection refused")},
@@ -38,7 +38,7 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 }
 
 func TestWorkspaceMCPReconnect(t *testing.T) {
-	s := serverWithMCP(capabilities.Config{MCPLive: &fakeMCPLive{
+	s := serverWithMCP(integrations.Config{MCPLive: &fakeMCPLive{
 		statuses: []mcpserver.ConnectionStatus{{Name: "fs", Status: "connected"}},
 		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
 	}})
@@ -62,7 +62,7 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 }
 
 func TestWorkspaceMCPListTools(t *testing.T) {
-	s := serverWithMCP(capabilities.Config{MCPLive: &fakeMCPLive{tools: []mcpserver.ToolInfo{
+	s := serverWithMCP(integrations.Config{MCPLive: &fakeMCPLive{tools: []mcpserver.ToolInfo{
 		{Server: "fs", Name: "read", Description: "read a file", InputSchema: map[string]any{"type": "object"}},
 		{Server: "fs", Name: "write"},
 		{Server: "git", Name: "log"},

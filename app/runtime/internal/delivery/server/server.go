@@ -20,8 +20,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -41,10 +41,10 @@ type Config struct {
 	// every lifecycle mutation through it.
 	Sessions *sessions.Coordinator
 
-	// Capabilities is the application coordinator for the runtime's MCP
+	// Integrations is the application coordinator for the runtime's MCP
 	// integration surface (server registry / live pool / tool policy). Required —
 	// the delivery mcp.* handlers drive it directly.
-	Capabilities *capabilities.Coordinator
+	Integrations *integrations.Coordinator
 
 	// Approvals is the application coordinator for the tool-permission stance +
 	// approval rules. Required — the approval.* settings handlers drive it.
@@ -80,7 +80,7 @@ type Config struct {
 	// don't exercise the workspace stream.
 	FileChanges FileChangeSource
 
-	// MCPStatus is the composition-root bridge the capabilities coordinator
+	// MCPStatus is the composition-root bridge the integrations coordinator
 	// publishes MCP connection transitions through; the Server installs a consumer
 	// that maps them to mcp.serverChanged workspace events. Required in production;
 	// nil in tests that don't exercise the MCP status stream.
@@ -117,9 +117,9 @@ type Server struct {
 	// working-tree). Injected by the composition root; never nil after New.
 	sessions *sessions.Coordinator
 
-	// capabilities owns the MCP integration use cases (server registry / live pool
+	// integrations owns the MCP integration use cases (server registry / live pool
 	// / tool policy). Injected by the composition root; never nil after New.
-	capabilities *capabilities.Coordinator
+	integrations *integrations.Coordinator
 
 	// approvals owns the tool-permission stance + approval-rule use cases. Injected
 	// by the composition root; never nil after New.
@@ -178,10 +178,10 @@ type FileChangeSource interface {
 }
 
 // MCPStatusSource is the delivery-side view of the composition-root MCP-status
-// bridge: the Server installs a consumer (Observe) that maps the capabilities
+// bridge: the Server installs a consumer (Observe) that maps the integrations
 // coordinator's connection transitions to mcp.serverChanged workspace events. The
 // concrete notifier is owned by the Host, which passes its publish side to the
-// capabilities coordinator.
+// integrations coordinator.
 type MCPStatusSource interface {
 	Observe(sink func(ctx context.Context, server string, connecting bool))
 }
@@ -207,7 +207,7 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Sessions == nil {
 		return nil, errors.New("server: Sessions is required")
 	}
-	if cfg.Capabilities == nil {
+	if cfg.Integrations == nil {
 		return nil, errors.New("server: Capabilities is required")
 	}
 	if cfg.Approvals == nil {
@@ -248,7 +248,7 @@ func New(cfg Config) (*Server, error) {
 	}
 	srv := &Server{
 		sessions:     cfg.Sessions,
-		capabilities: cfg.Capabilities,
+		integrations: cfg.Integrations,
 		approvals:    cfg.Approvals,
 		models:       cfg.Models,
 		tools:        cfg.Tools,
@@ -268,7 +268,7 @@ func New(cfg Config) (*Server, error) {
 	if cfg.FileChanges != nil {
 		srv.wsHub.observe(cfg.FileChanges)
 	}
-	// MCP reconnect/authorize run fire-and-forget in the capabilities coordinator;
+	// MCP reconnect/authorize run fire-and-forget in the integrations coordinator;
 	// their connecting → settled transitions reach the workspace hub through this
 	// bridge, mapped to mcp.serverChanged frames.
 	if cfg.MCPStatus != nil {

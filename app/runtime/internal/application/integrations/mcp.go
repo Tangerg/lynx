@@ -1,4 +1,4 @@
-package capabilities
+package integrations
 
 import (
 	"context"
@@ -12,7 +12,7 @@ const mcpReconcileTimeout = 30 * time.Second
 
 // errClosed reports that a post-commit reconcile / background task could not be
 // launched because the component is shutting down.
-var errClosed = errors.New("capabilities: closed")
+var errClosed = errors.New("integrations: closed")
 
 // MCP-server registry orchestration: the coordinator owns both the persisted
 // registry (mcpserver.Registry) and the live connection pool, so a

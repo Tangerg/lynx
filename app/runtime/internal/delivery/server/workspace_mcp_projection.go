@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Server) mcpServersWire(ctx context.Context) []protocol.McpServer {
-	statuses := s.capabilities.MCPServerStatuses()
+	statuses := s.integrations.MCPServerStatuses()
 	out := make([]protocol.McpServer, 0, len(statuses))
 	for _, st := range statuses {
 		out = append(out, s.mcpServerWire(ctx, st))
@@ -38,7 +38,7 @@ func (s *Server) mcpLiveStatus(ctx context.Context, name string) (protocol.McpSt
 }
 
 func (s *Server) mcpStatusByName(name string) (mcpserver.ConnectionStatus, bool) {
-	for _, st := range s.capabilities.MCPServerStatuses() {
+	for _, st := range s.integrations.MCPServerStatuses() {
 		if st.Name == name {
 			return st, true
 		}
@@ -58,7 +58,7 @@ func (s *Server) mcpServerChangedEvent(ctx context.Context, server string) proto
 }
 
 func (s *Server) mcpToolCount(ctx context.Context, server string) *int {
-	tools, err := s.capabilities.MCPTools(ctx, server)
+	tools, err := s.integrations.MCPTools(ctx, server)
 	if err != nil {
 		return nil
 	}
