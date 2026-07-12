@@ -81,13 +81,13 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		Sessions:     stack.Sessions,
 		Capabilities: stack.Capabilities,
 		ServerInfo:   info,
-		// File checkpoints (shadow git) are built + owned by the composition root
-		// so the same adapter serves the run-segment snapshot and the sessions
-		// file restorer; delivery only reads them for the boundary snapshot.
-		Checkpoints: stack.Checkpoints,
+		// The run coordinator is built + owned by the Host; delivery drives it as a
+		// use-case surface. Its file-change nudges reach the delivery workspace hub
+		// through the notifier the Server observes.
+		Coordinator: stack.Coordinator,
+		FileChanges: stack.FileChanges,
 		Schedules:   stack.Schedules,
 		Workspace:   stack.Workspace,
-		RunStore:    stack.RunStore,
 	})
 	if err != nil {
 		return nil, nil, err

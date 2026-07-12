@@ -44,15 +44,22 @@ type Config struct {
 	// drive it directly.
 	Capabilities *capabilities.Coordinator
 
+	// Coordinator owns the run lifecycle (admission / journal / pump / cancel),
+	// built + owned by the composition root (bootstrap.Host). Required — delivery
+	// drives it as a use-case surface but never constructs or closes it (§11.1).
+	Coordinator *runs.Coordinator
+
+	// FileChanges is the composition-root bridge the run pump publishes live
+	// file-change nudges through; the Server installs a consumer that maps them to
+	// wire workspace events on the hub. Required in production; nil in tests that
+	// don't exercise the workspace stream.
+	FileChanges FileChangeSource
+
 	// ServerInfo identifies this process on the wire. Defaults to
 	// {Name: "runtime", Version: "0.0.0-dev"} when zero — a vendor-neutral
 	// name, since the protocol is consumed by arbitrary clients and the
 	// rpc/protocol package is the codegen SSOT for other languages.
 	ServerInfo protocol.ServerInfo
-
-	// Checkpoints backs run-boundary snapshots and sessions.rollback file
-	// restore (restoreType). nil defaults to a disabled checkpoint adapter.
-	Checkpoints *workspace.Checkpoints
 
 	// Schedules is the application coordinator for cron-triggered headless runs
 	// (schedules.* + the background worker). nil defaults to a disabled
@@ -63,11 +70,6 @@ type Config struct {
 	// (memory / skills / recipes / hooks). nil defaults to a disabled coordinator
 	// (every dependency nil), so those workspace.* methods degrade gracefully.
 	Workspace *workspaceapp.Coordinator
-
-	// RunStore is the durable Run-admission backstop (§8.2) the run Coordinator
-	// records admissions/terminals through. nil disables it — admission stays the
-	// in-memory single-writer claim only (a test / non-sqlite runtime).
-	RunStore runs.RunStore
 }
 
 // Server is the protocol.Runtime implementation exposed via [New].
@@ -89,8 +91,9 @@ type Server struct {
 	capabilities *capabilities.Coordinator
 
 	// coordinator owns the run lifecycle — admission, the per-run event Journal,
-	// the segment pumps, cancel — the application-side home of what delivery used
-	// to track inline. Built in New (its durable effects close over this Server).
+	// the segment pumps, cancel. Built + owned by the composition root
+	// (bootstrap.Host); delivery drives it as a use-case surface and never closes
+	// it (§11.1). Injected by New; never nil after New.
 	coordinator *runs.Coordinator
 
 	// schedules owns the cron-triggered headless-run use cases (schedules.* + the
@@ -106,24 +109,25 @@ type Server struct {
 	// scoped — distinct from the durable per-run hubs.
 	wsHub *workspaceHub
 
-	// checkpoints owns per-session file snapshots: snapshot at each run boundary
-	// so sessions.rollback can restore files. VCS reads stay stateless package
-	// functions in adapter/workspace.
-	checkpoints *workspace.Checkpoints
-
 	// tasks owns request-detached delivery work such as MCP reconnect and OAuth
 	// flows. Close cancels and joins it before runtime resources disappear.
 	tasks taskgroup.Group
 }
 
-// Close cancels and joins request-detached delivery work: the run Coordinator's
-// pumps first, then MCP connection actions. Safe to call repeatedly.
+// FileChangeSource is the delivery-side view of the composition-root file-change
+// bridge: the Server installs a consumer (Observe) that maps the run pump's live
+// file-change nudges to wire workspace events on the hub. The concrete notifier
+// is owned by the Host, which also passes its publish side to the run effects.
+type FileChangeSource interface {
+	Observe(sink func(cwd string, paths []string))
+}
+
+// Close cancels and joins request-detached delivery work (MCP reconnect / OAuth
+// flows). The run coordinator's pumps are joined by the Host, not here — delivery
+// drives the coordinator but does not own it (§11.1). Safe to call repeatedly.
 func (s *Server) Close() {
 	if s == nil {
 		return
-	}
-	if s.coordinator != nil {
-		s.coordinator.Close()
 	}
 	s.tasks.Close()
 }
@@ -151,9 +155,8 @@ func New(cfg Config) (*Server, error) {
 	if cfg.ServerInfo.Version == "" {
 		cfg.ServerInfo.Version = "0.0.0-dev"
 	}
-	checkpoints := cfg.Checkpoints
-	if checkpoints == nil {
-		checkpoints = workspace.NewCheckpoints("") // disabled: VCS reads still work, checkpoints off
+	if cfg.Coordinator == nil {
+		return nil, errors.New("server: Coordinator is required")
 	}
 	scheduleCoord := cfg.Schedules
 	if scheduleCoord == nil {
@@ -167,17 +170,19 @@ func New(cfg Config) (*Server, error) {
 		rt:           cfg.Runtime,
 		sessions:     cfg.Sessions,
 		capabilities: cfg.Capabilities,
+		coordinator:  cfg.Coordinator,
 		serverInfo:   cfg.ServerInfo,
 		wsHub:        newWorkspaceHub(),
-		checkpoints:  checkpoints,
 		schedules:    scheduleCoord,
 		workspace:    workspaceCoord,
 	}
-	// The run Coordinator's durable effects close over srv (workspace publish +
-	// checkpoints), so it is built here, after the Server value exists. The
-	// Coordinator mints its own opaque monotonic cursor; delivery frames the evt_
-	// wire id when it presents the event (§11.2).
-	srv.coordinator = runs.NewCoordinator(srv.rt, srv.runSegmentEffects(), cfg.RunStore)
+	// The run pump publishes live file-change nudges through the composition-root
+	// bridge; the Server maps each to a wire workspace event on its hub. This is
+	// the seam that lets the coordinator be built in the Host (§11.1/§13.2) — its
+	// effects need a publish sink, but the hub is constructed here in delivery.
+	if cfg.FileChanges != nil {
+		srv.wsHub.observe(cfg.FileChanges)
+	}
 	return srv, nil
 }
 

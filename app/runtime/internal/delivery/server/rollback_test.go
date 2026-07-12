@@ -193,7 +193,7 @@ func TestRollbackSession_Busy(t *testing.T) {
 // this — this drives the same side-effect payload the pump hands to
 // adapter/runsegment.
 func TestPersistRunCarriesCreatedAt(t *testing.T) {
-	s, rt := rollbackHarness(t)
+	_, rt := rollbackHarness(t)
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
@@ -203,7 +203,7 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 		Type:    protocol.StreamRunFinished,
 		Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted},
 	}, "", "", started)
-	if err := s.runSegmentEffects().CommitEvent(ctx, commit); err != nil {
+	if err := rt.RunSegmentEffects(nil, nil).CommitEvent(ctx, commit); err != nil {
 		t.Fatalf("commit terminal run: %v", err)
 	}
 

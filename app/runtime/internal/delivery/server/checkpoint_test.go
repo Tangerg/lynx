@@ -35,17 +35,19 @@ func (r testCheckpointRestorer) DropSession(sessionID string) error {
 
 // checkpointHarness extends the rollback harness with a real shadow-git
 // checkpoint store and a session whose cwd is a populated temp dir. It returns
-// the server, runtime stub, session id, and cwd so a test can mutate + snapshot.
-func checkpointHarness(t *testing.T) (*Server, *stubRuntime, string, string) {
+// the server, runtime stub, the checkpoint store, session id, and cwd so a test
+// can mutate + snapshot. The store is owned by the Host in production, so the
+// harness holds it locally and wires it into the sessions coordinator restorer.
+func checkpointHarness(t *testing.T) (*Server, *stubRuntime, *workspace.Checkpoints, string, string) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed; skipping checkpoint rollback test")
 	}
 	s, rt := rollbackHarness(t)
-	s.checkpoints = workspace.NewCheckpoints(t.TempDir())
+	cp := workspace.NewCheckpoints(t.TempDir())
 	// The restorer lives on the sessions coordinator now, so rebuild it over the
 	// real checkpoint store (newTestServer wired a disabled one).
-	s.sessions = rt.sessionsCoordinatorWithRestorer(testCheckpointRestorer{cp: s.checkpoints})
+	s.sessions = rt.sessionsCoordinatorWithRestorer(testCheckpointRestorer{cp: cp})
 	cwd := t.TempDir()
 	// Checkpoints only fire in a real git repo now (Checkpoints.Snapshot's gate,
 	// mirroring opencode): a repo's .gitignore is what bounds the whole-tree
@@ -58,7 +60,7 @@ func checkpointHarness(t *testing.T) (*Server, *stubRuntime, string, string) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	return s, rt, ses.ID, cwd
+	return s, rt, cp, ses.ID, cwd
 }
 
 func writeFile(t *testing.T, cwd, name, body string) {
@@ -71,17 +73,17 @@ func writeFile(t *testing.T, cwd, name, body string) {
 // TestRollback_RestoreBoth restores files AND truncates history: rolling back
 // to run1 reverts the working tree to run1's snapshot and drops run2.
 func TestRollback_RestoreBoth(t *testing.T) {
-	s, rt, sid, cwd := checkpointHarness(t)
+	s, rt, cp, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
 
 	writeFile(t, cwd, "a.txt", "v1")
-	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run1"); err != nil {
+	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
 	putRun(t, rt, sid, "run1", "", 1, 1)
 
 	writeFile(t, cwd, "a.txt", "v2")
-	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run2"); err != nil {
+	if err := cp.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}
 	putRun(t, rt, sid, "run2", "", 2, 2)
@@ -103,14 +105,14 @@ func TestRollback_RestoreBoth(t *testing.T) {
 // TestRollback_RestoreFilesKeepsHistory reverts the working tree but drops no
 // runs (restoreType=files).
 func TestRollback_RestoreFilesKeepsHistory(t *testing.T) {
-	s, rt, sid, cwd := checkpointHarness(t)
+	s, rt, cp, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
 
 	writeFile(t, cwd, "a.txt", "v1")
-	s.checkpoints.Snapshot(ctx, sid, cwd, "run1")
+	cp.Snapshot(ctx, sid, cwd, "run1")
 	putRun(t, rt, sid, "run1", "", 1, 1)
 	writeFile(t, cwd, "a.txt", "v2")
-	s.checkpoints.Snapshot(ctx, sid, cwd, "run2")
+	cp.Snapshot(ctx, sid, cwd, "run2")
 	putRun(t, rt, sid, "run2", "", 2, 2)
 
 	resp, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{
@@ -131,16 +133,16 @@ func TestRollback_RestoreFilesKeepsHistory(t *testing.T) {
 // leaves no pending operation — the §8.5 intent is recorded then cleared, so
 // boot recovery has nothing to re-drive.
 func TestRollback_RestoreBoth_ClearsIntent(t *testing.T) {
-	s, rt, sid, cwd := checkpointHarness(t)
+	s, rt, cp, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
 
 	writeFile(t, cwd, "a.txt", "v1")
-	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run1"); err != nil {
+	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
 	putRun(t, rt, sid, "run1", "", 1, 1)
 	writeFile(t, cwd, "a.txt", "v2")
-	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run2"); err != nil {
+	if err := cp.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}
 	putRun(t, rt, sid, "run2", "", 2, 2)
@@ -160,16 +162,16 @@ func TestRollback_RestoreBoth_ClearsIntent(t *testing.T) {
 // truncated (the crash window). Boot recovery restores (reentrant), truncates,
 // and clears the intent.
 func TestRecoverRollbacks(t *testing.T) {
-	s, rt, sid, cwd := checkpointHarness(t)
+	s, rt, cp, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
 
 	writeFile(t, cwd, "a.txt", "v1")
-	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run1"); err != nil {
+	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
 	putRun(t, rt, sid, "run1", "", 1, 1)
 	writeFile(t, cwd, "a.txt", "v2")
-	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run2"); err != nil {
+	if err := cp.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}
 	putRun(t, rt, sid, "run2", "", 2, 2)
@@ -200,11 +202,11 @@ func TestRecoverRollbacks(t *testing.T) {
 // already committed (history already truncated) is a no-op — the boundary
 // recomputes empty and the restore is reentrant — and still clears the intent.
 func TestRecoverRollbacks_Idempotent(t *testing.T) {
-	s, rt, sid, cwd := checkpointHarness(t)
+	s, rt, cp, sid, cwd := checkpointHarness(t)
 	ctx := context.Background()
 
 	writeFile(t, cwd, "a.txt", "v1")
-	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run1"); err != nil {
+	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
 	putRun(t, rt, sid, "run1", "", 1, 1)
@@ -228,7 +230,7 @@ func TestRecoverRollbacks_Idempotent(t *testing.T) {
 
 // TestRollback_FilesRequiresToRunID rejects a files restore with no target.
 func TestRollback_FilesRequiresToRunID(t *testing.T) {
-	s, _, sid, _ := checkpointHarness(t)
+	s, _, _, sid, _ := checkpointHarness(t)
 	_, err := s.RollbackSession(context.Background(), protocol.RollbackSessionRequest{
 		SessionID: sid, RestoreType: protocol.RestoreFiles,
 	})
