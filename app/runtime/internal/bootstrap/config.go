@@ -11,7 +11,6 @@ import (
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
-	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -90,13 +89,13 @@ func runtimeMCPTransport(transport string) string {
 	}
 }
 
-func runtimeA2AAgents(in []config.A2AAgentConfig) []lyraruntime.A2AAgentConfig {
+func runtimeA2AAgents(in []config.A2AAgentConfig) []A2AAgentConfig {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]lyraruntime.A2AAgentConfig, len(in))
+	out := make([]A2AAgentConfig, len(in))
 	for i, agent := range in {
-		out[i] = lyraruntime.A2AAgentConfig{
+		out[i] = A2AAgentConfig{
 			Name:    agent.Name,
 			CardURL: agent.CardURL,
 		}
@@ -104,13 +103,13 @@ func runtimeA2AAgents(in []config.A2AAgentConfig) []lyraruntime.A2AAgentConfig {
 	return out
 }
 
-func runtimeLSPServers(in []config.LSPServerConfig) []lyraruntime.LSPServerConfig {
+func runtimeLSPServers(in []config.LSPServerConfig) []LSPServerConfig {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]lyraruntime.LSPServerConfig, len(in))
+	out := make([]LSPServerConfig, len(in))
 	for i, server := range in {
-		out[i] = lyraruntime.LSPServerConfig{
+		out[i] = LSPServerConfig{
 			Name:        server.Name,
 			Command:     server.Command,
 			Args:        server.Args,

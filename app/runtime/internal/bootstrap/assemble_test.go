@@ -7,54 +7,53 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 func TestNewRequiresRuntimeDependencies(t *testing.T) {
 	tests := []struct {
 		name string
-		edit func(*lyraruntime.Config)
+		edit func(*Config)
 		want string
 	}{
 		{
 			name: "chat client",
-			edit: func(cfg *lyraruntime.Config) {
+			edit: func(cfg *Config) {
 				cfg.Engine.ChatClient = nil
 			},
 			want: "runtime: Engine.ChatClient is required",
 		},
 		{
 			name: "provider registry",
-			edit: func(cfg *lyraruntime.Config) {
+			edit: func(cfg *Config) {
 				cfg.ProviderRegistry = nil
 			},
 			want: "runtime: ProviderRegistry is required",
 		},
 		{
 			name: "mcp registry",
-			edit: func(cfg *lyraruntime.Config) {
+			edit: func(cfg *Config) {
 				cfg.MCPRegistry = nil
 			},
 			want: "runtime: MCPRegistry is required",
 		},
 		{
 			name: "session store",
-			edit: func(cfg *lyraruntime.Config) {
+			edit: func(cfg *Config) {
 				cfg.SessionStore = nil
 			},
 			want: "runtime: SessionStore is required",
 		},
 		{
 			name: "interrupt store",
-			edit: func(cfg *lyraruntime.Config) {
+			edit: func(cfg *Config) {
 				cfg.InterruptStore = nil
 			},
 			want: "runtime: InterruptStore is required",
 		},
 		{
 			name: "transcript store",
-			edit: func(cfg *lyraruntime.Config) {
+			edit: func(cfg *Config) {
 				cfg.TranscriptStore = nil
 			},
 			want: "runtime: TranscriptStore is required",
@@ -74,7 +73,7 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 	}
 }
 
-func runtimeConfigWithRequiredDeps(t *testing.T) lyraruntime.Config {
+func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 	t.Helper()
 
 	client, err := chat.NewClient(newReplyStub("ok"))
@@ -87,7 +86,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) lyraruntime.Config {
 		t.Fatalf("open sqlite: %v", err)
 	}
 
-	return lyraruntime.Config{
+	return Config{
 		Engine: agentexec.Config{
 			ChatClient: client,
 		},

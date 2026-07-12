@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
@@ -18,15 +20,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/filechanges"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/mcpstatus"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
-// Stack is the assembled application: the Runtime facade (the turn/engine
-// Executor surface) plus the application coordinators the delivery layer holds
-// directly. It grows as facade responsibilities move into coordinators.
+// Stack is the assembled application: the coordinators + adapters the delivery
+// layer drives. It is a pure discovery/delivery aggregate (§5.3) — it owns no
+// resource closers; the Host does.
 type Stack struct {
-	Runtime      *lyraruntime.Runtime
 	Sessions     *sessions.Coordinator
 	Capabilities *capabilities.Coordinator
 	Queries      *queries.Coordinator
@@ -48,32 +49,57 @@ type Stack struct {
 }
 
 // Host owns the assembled application tier and its process-level close order
-// (§13.2). The Stack is a pure discovery/delivery aggregate (§5.3); the Host,
-// not the Stack, holds the resource closers, so delivery reaches coordinators
-// through host.Stack while the composition root drives shutdown through Close.
+// (§13.2). The Stack is a pure discovery/delivery aggregate (§5.3); the Host holds
+// the process resources, so delivery reaches coordinators through host.Stack while
+// the composition root drives shutdown through Close.
 type Host struct {
 	Stack Stack
+
+	// dispatcher / effectsTasks / engine / resources are the process resources the
+	// Host closes at shutdown, in reverse dependency order (§10.3).
+	dispatcher   turn.Dispatcher
+	effectsTasks *taskgroup.Group
+	engine       io.Closer
+	resources    []io.Closer
 }
 
 // Close shuts the assembled application tier down in reverse dependency order
 // (§10.3): the capabilities component's post-commit reconcile + reindex tasks
 // first (they depend on the engine's MCP pool), then the run coordinator (cancel
-// + join every live pump before the engine they drive disappears), then the
-// Runtime facade (engine + the injected process resources / persistence).
+// + join every live pump), then live turns, the run-boundary maintenance tasks,
+// and finally the engine + the injected process resources / persistence. The
+// pumps join before the maintenance tasks so every terminal's boundary work is
+// scheduled, and the maintenance tasks join before the engine they title against.
 // Idempotent.
 func (h Host) Close() error {
 	h.Stack.Capabilities.Close()
 	h.Stack.Coordinator.Close()
-	return h.Stack.Runtime.Close()
+	if h.dispatcher != nil {
+		h.dispatcher.Close()
+	}
+	if h.effectsTasks != nil {
+		h.effectsTasks.Close()
+	}
+	var errs []error
+	if h.engine != nil {
+		errs = append(errs, h.engine.Close())
+	}
+	for _, resource := range h.resources {
+		if resource != nil {
+			errs = append(errs, resource.Close())
+		}
+	}
+	return errors.Join(errs...)
 }
 
-// Assemble builds the application Stack from cfg: it constructs the engine, turn
-// dispatcher, tool registry, and the utility/embedding/mcp environments, wires
-// them into the facade via [lyraruntime.New], and builds the application
-// coordinators from the same materials. Returns an error when a required
+// Assemble builds the application Host from cfg: it constructs the engine, turn
+// dispatcher, tool registry, and the utility/embedding/mcp environments, builds
+// the application coordinators + adapters (run lifecycle, sessions, capabilities,
+// queries, turn control, workspace, schedules) from those materials, and hands the
+// process resources to the Host for shutdown. Returns an error when a required
 // dependency is missing or any internal constructor fails — engine deployment,
 // MCP dial, etc.
-func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
+func Assemble(ctx context.Context, cfg Config) (Host, error) {
 	if cfg.Engine.ChatClient == nil {
 		return Host{}, errors.New("runtime: Engine.ChatClient is required")
 	}
@@ -165,19 +191,6 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		return Host{}, errors.Join(fmt.Errorf("runtime: tool registry: %w", err), eng.Close())
 	}
 
-	rt := lyraruntime.New(lyraruntime.Dependencies{
-		Engine:       eng,
-		Turns:        turnDispatcher,
-		Conversation: messages.conversation,
-		Sessions:     cfg.SessionStore,
-		Interrupts:   cfg.InterruptStore,
-		Transcript:   cfg.TranscriptStore,
-		RunState:     cfg.RunStore,
-		Transact:     cfg.Transactor,
-		Titles:       maintenance.NewTitler(utilityEnv.resolve),
-		Resources:    cfg.Resources,
-	})
-
 	// File checkpoints (shadow git) enable run-boundary snapshots + file
 	// rollback only when git is present + a dir is configured; the same adapter
 	// backs the run-segment boundary snapshot and the sessions file restorer.
@@ -187,14 +200,30 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 	// effects through the run-segment adapter, whose file-change nudges reach the
 	// delivery workspace hub via the notifier the delivery Server observes — the
 	// seam that lets the coordinator be constructed here in the Host rather than
-	// inside delivery (§11.1/§13.2). Built after rt so its executor is the facade.
+	// inside delivery (§11.1/§13.2). It drives the agent turn through the turn
+	// Executor (§6.1); turnControl is the sibling turn-start adapter delivery drives.
 	fileChanges := &filechanges.Notifier{}
-	// The run coordinator drives the agent turn through the turn Executor (§6.1),
-	// not the facade — the executor port is the adapter's, the run lifecycle the
-	// application's. turnControl is the sibling turn-start adapter delivery drives.
 	runExecutor := turn.NewExecutor(turnDispatcher)
 	turnControl := turn.NewControl(turnDispatcher, cfg.SessionStore)
-	runCoord := runs.NewCoordinator(runExecutor, rt.RunSegmentEffects(checkpoints, fileChanges.Publish), cfg.RunStore)
+	// effectsTasks backs the run-segment terminal boundary maintenance (checkpoint
+	// snapshot + title) off the live pump; the Host joins it after the pumps.
+	effectsTasks := &taskgroup.Group{}
+	runEffects := runsegment.New(runsegment.Config{
+		Stores: runSegmentStores{
+			interrupts:   cfg.InterruptStore,
+			session:      cfg.SessionStore,
+			transcript:   cfg.TranscriptStore,
+			conversation: messages.conversation,
+			titler:       maintenance.NewTitler(utilityEnv.resolve),
+		},
+		Processes:          runSegmentProcesses{dispatcher: turnDispatcher},
+		RunState:           cfg.RunStore,
+		Tx:                 runsegment.Transactor(cfg.Transactor),
+		Checkpoints:        checkpoints,
+		Tasks:              effectsTasks,
+		PublishFileChanges: fileChanges.Publish,
+	})
+	runCoord := runs.NewCoordinator(runExecutor, runEffects, cfg.RunStore)
 
 	// mcpStatus bridges the capabilities coordinator's MCP reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
@@ -237,28 +266,33 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		DefaultModel:      cfg.Model,
 	})
 
-	return Host{Stack: Stack{
-		Runtime:      rt,
-		Sessions:     sessionCoord,
-		Capabilities: capabilityCoord,
-		Coordinator:  runCoord,
-		FileChanges:  fileChanges,
-		MCPStatus:    mcpStatus,
-		TurnControl:  turnControl,
-		Queries: queries.New(queries.Dependencies{
-			Transcript: cfg.TranscriptStore,
-			History:    messages.conversation,
-			Interrupts: cfg.InterruptStore,
-		}),
-		Workspace: workspace.New(workspace.Config{
-			Memory:  cfg.Engine.Knowledge,
-			Skills:  eng,
-			Hooks:   cfg.HooksResolver,
-			Trust:   cfg.HookTrustStore,
-			Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},
-		}),
-		Schedules: schedules.NewCoordinator(cfg.ScheduleRegistry, cfg.ScheduleRegistry),
-	}}, nil
+	return Host{
+		Stack: Stack{
+			Sessions:     sessionCoord,
+			Capabilities: capabilityCoord,
+			Coordinator:  runCoord,
+			FileChanges:  fileChanges,
+			MCPStatus:    mcpStatus,
+			TurnControl:  turnControl,
+			Queries: queries.New(queries.Dependencies{
+				Transcript: cfg.TranscriptStore,
+				History:    messages.conversation,
+				Interrupts: cfg.InterruptStore,
+			}),
+			Workspace: workspace.New(workspace.Config{
+				Memory:  cfg.Engine.Knowledge,
+				Skills:  eng,
+				Hooks:   cfg.HooksResolver,
+				Trust:   cfg.HookTrustStore,
+				Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},
+			}),
+			Schedules: schedules.NewCoordinator(cfg.ScheduleRegistry, cfg.ScheduleRegistry),
+		},
+		dispatcher:   turnDispatcher,
+		effectsTasks: effectsTasks,
+		engine:       eng,
+		resources:    cfg.Resources,
+	}, nil
 }
 
 // runClosers releases a half-built tool environment before the engine can take

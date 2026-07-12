@@ -7,7 +7,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
-	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
 // bootstrapRuntime builds the composition Host (the application Stack + its
@@ -63,11 +62,11 @@ func bootstrapRuntime(ctx context.Context) (_ bootstrap.Host, _ config.Config, e
 	}
 	// Seed env-sourced MCP servers (LYRA_MCP_SERVERS) into the registry on
 	// first run; a persisted workspace.mcp.configure for the same name wins.
-	if err = lyraruntime.SeedMCPServers(ctx, stores.MCPServers, bootstrap.MCPServers(cfg.MCPServers)); err != nil {
+	if err = bootstrap.SeedMCPServers(ctx, stores.MCPServers, bootstrap.MCPServers(cfg.MCPServers)); err != nil {
 		return bootstrap.Host{}, config.Config{}, err
 	}
 
-	hookResolver := bootstrap.HookResolver(stores.Trust)
+	hookResolver := bootstrap.NewHookResolver(stores.Trust)
 
 	host, err := bootstrap.Assemble(ctx, bootstrap.RuntimeConfig(cfg, stores, client, providers, hookResolver))
 	if err != nil {
