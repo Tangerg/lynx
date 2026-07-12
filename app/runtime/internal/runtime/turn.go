@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // StartTurn launches one agent turn through the runtime facade. An explicit
@@ -22,16 +21,6 @@ func (r *Runtime) StartTurn(ctx context.Context, req turn.StartTurnRequest) (tur
 // InjectTurnSteering queues an in-flight steering message for a live turn.
 func (r *Runtime) InjectTurnSteering(ctx context.Context, handle turn.TurnHandle, message string) error {
 	return r.turns.InjectSteering(ctx, handle, message)
-}
-
-// ResumeTurn answers a parked HITL turn.
-func (r *Runtime) ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
-	return r.turns.Resume(ctx, handle, resolution, interruptKinds)
-}
-
-// RehydrateTurn rebuilds and resumes a parked turn after process-local state was lost.
-func (r *Runtime) RehydrateTurn(ctx context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
-	return r.turns.Rehydrate(ctx, req)
 }
 
 // TurnProcessID returns the persisted agent-process id backing a parked turn.
