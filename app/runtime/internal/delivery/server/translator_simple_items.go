@@ -76,8 +76,7 @@ func (t *translator) openUserMessage() []protocol.StreamEvent {
 // context (the loop appended it after the latest tool result); this is its
 // timeline + durable-transcript record, shaped exactly like the opening turn.
 func (t *translator) steerMessage(e turn.SteerMessage) []protocol.StreamEvent {
-	out := t.closeReasoning()
-	out = append(out, t.closeText()...)
+	out := t.closeStreaming()
 	id := t.nextItemID()
 	now := time.Now().UTC()
 	item := func(status protocol.ItemStatus) *protocol.Item {

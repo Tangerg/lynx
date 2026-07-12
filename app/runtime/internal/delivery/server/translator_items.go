@@ -86,9 +86,15 @@ func (t *translator) closeReasoning() []protocol.StreamEvent {
 	return []protocol.StreamEvent{{Type: protocol.StreamItemCompleted, Item: item}}
 }
 
+// closeStreaming flushes any open reasoning then text stream as completed items
+// — the ordered pair emitted at every boundary (tool start, turn end, interrupt,
+// steer) before the next event.
+func (t *translator) closeStreaming() []protocol.StreamEvent {
+	return append(t.closeReasoning(), t.closeText()...)
+}
+
 func (t *translator) toolStart(e turn.ToolCallStart) []protocol.StreamEvent {
-	out := t.closeReasoning()
-	out = append(out, t.closeText()...)
+	out := t.closeStreaming()
 
 	// Mid-run progress (API.md §5, ephemeral): a tool call is a meaningful
 	// activity boundary, so surface "what's happening now" + the running tool
@@ -228,8 +234,7 @@ func activityVerb(name string) string {
 // turnEnd closes any open items (so the wire ends balanced) then emits
 // the terminal run.finished with its discriminated outcome.
 func (t *translator) turnEnd(e turn.TurnEnd) []protocol.StreamEvent {
-	out := t.closeReasoning()
-	out = append(out, t.closeText()...)
+	out := t.closeStreaming()
 	out = append(out, t.drainTools()...)
 	return append(out, protocol.StreamEvent{
 		Type:    protocol.StreamRunFinished,
@@ -241,8 +246,7 @@ func (t *translator) turnEnd(e turn.TurnEnd) []protocol.StreamEvent {
 // turn.TurnEnd (e.g. run cancellation drained the iterator). Closes
 // open items, then emits run.finished with the given outcome type.
 func (t *translator) finish(outcomeType protocol.RunOutcomeType) []protocol.StreamEvent {
-	out := t.closeReasoning()
-	out = append(out, t.closeText()...)
+	out := t.closeStreaming()
 	out = append(out, t.drainTools()...)
 	res := &protocol.RunResult{}
 	if outcomeType == protocol.OutcomeError && t.errMsg != "" {
