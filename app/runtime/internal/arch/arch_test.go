@@ -4,6 +4,7 @@
 package arch
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -144,6 +145,90 @@ func TestApplicationStaysFrameworkFree(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "application"),
 		append([]string{"github.com/Tangerg/lynx/agent"}, frameworkImports...))
+}
+
+// TestExecutionDomainStaysPure enforces §16 rule 2: the core execution context
+// (domain/execution + its sub-contexts) is the innermost, most-protected code —
+// it must not touch the filesystem, a SQL driver, HTTP, OTel, or the agent SDK.
+// (The accounting sub-context maps the SDK's token counts at the agentexec
+// boundary, so it holds only the neutral core chat model, never agent/*.)
+func TestExecutionDomainStaysPure(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "domain", "execution"),
+		[]string{"os", "database/sql", "net", "net/http", "go.opentelemetry.io", "github.com/Tangerg/lynx/agent"})
+}
+
+// TestDeliveryStaysAdapterOnly enforces §16 rule 4: delivery drives ports, so it
+// imports no agent SDK / SQLite driver / Git / MCP / LSP library directly (the
+// ring rule already forbids the internal infra edge; this covers the EXTERNAL
+// libraries). net/http is NOT banned — it is delivery's own transport.
+func TestDeliveryStaysAdapterOnly(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "delivery"), externalSDKs)
+}
+
+// TestBootstrapExposesNoBusinessMethod enforces §16 rule 8: the composition root
+// assembles and closes — it must not become a business facade. Assembly / config
+// / seed FUNCTIONS are fine (they return the Stack); the guard is that exported
+// TYPES in bootstrap (Host / Stack) carry only lifecycle methods, so a business
+// method like `Host.RollbackSession` — which delivery could call instead of a
+// coordinator — can't sneak in.
+func TestBootstrapExposesNoBusinessMethod(t *testing.T) {
+	root := moduleRoot(t)
+	allowedMethods := map[string]struct{}{"Close": {}}
+	fset := token.NewFileSet()
+	walkErr := filepath.WalkDir(filepath.Join(root, "internal", "bootstrap"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, decl := range f.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv == nil || !fn.Name.IsExported() || !receiverIsExported(fn.Recv) {
+				continue // plain funcs (assembly) + methods on unexported types are fine
+			}
+			if _, ok := allowedMethods[fn.Name.Name]; ok {
+				continue
+			}
+			rel, _ := filepath.Rel(root, path)
+			t.Errorf("%s: exported method %s on an exported bootstrap type — bootstrap may only assemble/close (§16 rule 8)", rel, fn.Name.Name)
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk bootstrap: %v", walkErr)
+	}
+}
+
+// receiverIsExported reports whether a method's receiver is a (pointer to an)
+// exported named type.
+func receiverIsExported(recv *ast.FieldList) bool {
+	if recv == nil || len(recv.List) == 0 {
+		return false
+	}
+	typ := recv.List[0].Type
+	if star, ok := typ.(*ast.StarExpr); ok {
+		typ = star.X
+	}
+	id, ok := typ.(*ast.Ident)
+	return ok && id.IsExported()
+}
+
+// externalSDKs are the external agent-SDK / driver / framework libraries the
+// inner + delivery rings must never import directly (the internal infra edges are
+// covered by the ring rule). Prefix-matched.
+var externalSDKs = []string{
+	"github.com/Tangerg/lynx/agent",
+	"modernc.org/sqlite",
+	"github.com/go-git",
+	"github.com/mark3labs",
+	"github.com/sourcegraph",
 }
 
 // frameworkImports are the framework / driver / SDK packages an inner ring must
