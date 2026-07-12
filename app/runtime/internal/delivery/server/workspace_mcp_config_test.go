@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -19,7 +19,7 @@ func TestWorkspaceMCPConfigurePreservesStoredAuthorization(t *testing.T) {
 			Authorization: "Bearer stored-token",
 		},
 	}}
-	s := serverWithMCP(capabilities.Config{MCPRegistry: rt})
+	s := serverWithMCP(integrations.Config{MCPRegistry: rt})
 
 	got, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:      "linear",
@@ -44,7 +44,7 @@ func TestWorkspaceMCPConfigurePreservesStoredAuthorization(t *testing.T) {
 func TestWorkspaceMCPConfigurePropagatesAuthorizationLookupError(t *testing.T) {
 	lookupErr := errors.New("registry unavailable")
 	rt := &mcpRegistryFake{servers: map[string]mcpserver.Server{}, getErr: lookupErr}
-	s := serverWithMCP(capabilities.Config{MCPRegistry: rt})
+	s := serverWithMCP(integrations.Config{MCPRegistry: rt})
 
 	_, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:      "linear",
@@ -62,7 +62,7 @@ func TestWorkspaceMCPConfigurePropagatesAuthorizationLookupError(t *testing.T) {
 
 func TestWorkspaceMCPConfigureRejectsNegativeTimeout(t *testing.T) {
 	rt := &mcpRegistryFake{}
-	s := serverWithMCP(capabilities.Config{MCPRegistry: rt})
+	s := serverWithMCP(integrations.Config{MCPRegistry: rt})
 
 	_, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:           "linear",

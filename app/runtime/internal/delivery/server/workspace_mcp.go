@@ -27,7 +27,7 @@ func (s *Server) WorkspaceMCPListServers(ctx context.Context, _ protocol.PageQue
 // server it belongs to are kept separate on the wire (the model sees them as
 // "<server>_<name>").
 func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
-	found, err := s.capabilities.MCPTools(ctx, in.Server)
+	found, err := s.integrations.MCPTools(ctx, in.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListT
 // invalid_params) then runs the dial fire-and-forget on its component task group,
 // publishing the connecting + settled frames through the MCP-status bridge.
 func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error {
-	return wireMCPError(s.capabilities.ReconnectMCPServer(ctx, server))
+	return wireMCPError(s.integrations.ReconnectMCPServer(ctx, server))
 }
 
 // WorkspaceMCPAuthorize starts the interactive OAuth sign-in for an HTTP MCP
@@ -54,7 +54,7 @@ func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error
 // runs the flow — open the browser, catch the loopback redirect, exchange the
 // code — publishing the connecting + settled frames as it settles.
 func (s *Server) WorkspaceMCPAuthorize(ctx context.Context, server string) error {
-	return wireMCPError(s.capabilities.AuthorizeMCPServer(ctx, server))
+	return wireMCPError(s.integrations.AuthorizeMCPServer(ctx, server))
 }
 
 // wireMCPError maps the coordinator's unknown-server sentinel onto invalid_params
@@ -92,7 +92,7 @@ func (s *Server) observeMCPStatus(src MCPStatusSource) {
 // configuration (token masked). Live connection state is not included — read it
 // from workspace.mcp.listServers (McpServer), keyed by name.
 func (s *Server) WorkspaceMCPListConfigs(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
-	servers, err := s.capabilities.ListMCPRegisteredServers(ctx)
+	servers, err := s.integrations.ListMCPRegisteredServers(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.Configur
 	if err := srv.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
-	if err := s.capabilities.ConfigureMCPServer(ctx, srv); err != nil {
+	if err := s.integrations.ConfigureMCPServer(ctx, srv); err != nil {
 		return nil, err
 	}
 	s.publishMCPServerChanged(ctx, in.Name)
@@ -136,7 +136,7 @@ func (s *Server) WorkspaceMCPRemove(ctx context.Context, name string) error {
 	if name == "" {
 		return protocol.ErrInvalidParams
 	}
-	if err := s.capabilities.RemoveMCPServer(ctx, name); err != nil {
+	if err := s.integrations.RemoveMCPServer(ctx, name); err != nil {
 		return err
 	}
 	s.publishMCPServerChanged(ctx, name)
@@ -149,7 +149,7 @@ func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPE
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
 	}
-	if err := s.capabilities.SetMCPServerEnabled(ctx, in.Name, in.Enabled); err != nil {
+	if err := s.integrations.SetMCPServerEnabled(ctx, in.Name, in.Enabled); err != nil {
 		return err
 	}
 	s.publishMCPServerChanged(ctx, in.Name)
@@ -167,7 +167,7 @@ func (s *Server) WorkspaceMCPTest(ctx context.Context, in protocol.ConfigureMCPS
 	if err := srv.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
-	if err := s.capabilities.TestMCPServer(ctx, srv); err != nil {
+	if err := s.integrations.TestMCPServer(ctx, srv); err != nil {
 		return &protocol.McpTestResult{OK: false, Error: mcpDialFailedProblem(err)}, nil
 	}
 	return &protocol.McpTestResult{OK: true}, nil

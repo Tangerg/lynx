@@ -13,8 +13,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -33,7 +33,7 @@ import (
 // resource closers; the Host does.
 type Stack struct {
 	Sessions     *sessions.Coordinator
-	Capabilities *capabilities.Coordinator
+	Integrations *integrations.Coordinator
 	Approvals    *approvals.Coordinator
 	Models       *models.Coordinator
 	Tools        *tools.Coordinator
@@ -51,7 +51,7 @@ type Stack struct {
 	// workspace hub (the seam that lets the coordinator be built here rather than
 	// inside the delivery Server, §2.5). Delivery installs the consumer via Observe.
 	FileChanges *filechanges.Notifier
-	// MCPStatus bridges the capabilities coordinator's MCP connection transitions
+	// MCPStatus bridges the integrations coordinator's MCP connection transitions
 	// to the delivery workspace hub, same seam as FileChanges. Delivery observes it.
 	MCPStatus *mcpstatus.Notifier
 }
@@ -72,7 +72,7 @@ type Host struct {
 }
 
 // Close shuts the assembled application tier down in reverse dependency order
-// (§10.3): the capabilities component's post-commit reconcile tasks + the
+// (§10.3): the integrations component's post-commit reconcile tasks + the
 // codebase reindex tasks first (they depend on the engine's MCP pool / the
 // embedding index), then the run coordinator (cancel + join every live pump),
 // then live turns, the run-boundary maintenance tasks,
@@ -81,7 +81,7 @@ type Host struct {
 // scheduled, and the maintenance tasks join before the engine they title against.
 // Idempotent.
 func (h Host) Close() error {
-	h.Stack.Capabilities.Close()
+	h.Stack.Integrations.Close()
 	h.Stack.Codebase.Close()
 	h.Stack.Coordinator.Close()
 	if h.dispatcher != nil {
@@ -104,7 +104,7 @@ func (h Host) Close() error {
 
 // Assemble builds the application Host from cfg: it constructs the engine, turn
 // dispatcher, tool registry, and the utility/embedding/mcp environments, builds
-// the application coordinators + adapters (run lifecycle, sessions, capabilities,
+// the application coordinators + adapters (run lifecycle, sessions, integrations,
 // queries, turn control, workspace, schedules) from those materials, and hands the
 // process resources to the Host for shutdown. Returns an error when a required
 // dependency is missing or any internal constructor fails — engine deployment,
@@ -235,7 +235,7 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 	})
 	runCoord := runs.NewCoordinator(runExecutor, runEffects, cfg.RunStore)
 
-	// mcpStatus bridges the capabilities coordinator's MCP reconnect/authorize
+	// mcpStatus bridges the integrations coordinator's MCP reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
 	mcpStatus := &mcpstatus.Notifier{}
 
@@ -272,7 +272,7 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 
 	toolsCoord := tools.New(toolRegistry)
 
-	capabilityCoord := capabilities.New(capabilities.Config{
+	integrationsCoord := integrations.New(integrations.Config{
 		MCPRegistry: cfg.MCPRegistry,
 		MCPLive:     eng,
 		MCPPolicy:   mcpEnv.policy,
@@ -286,7 +286,7 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 	return Host{
 		Stack: Stack{
 			Sessions:     sessionCoord,
-			Capabilities: capabilityCoord,
+			Integrations: integrationsCoord,
 			Approvals:    approvalsCoord,
 			Models:       modelsCoord,
 			Tools:        toolsCoord,
