@@ -117,8 +117,8 @@ func newTestServer(rt testRuntime) *Server {
 }
 
 // serverWithCapabilities builds a Server whose only wired coordinator is the
-// capabilities one — enough for the approval / tools / providers / models
-// handler tests, which touch nothing else.
+// capabilities one — enough for the tools / providers / models handler tests,
+// which touch nothing else.
 func serverWithCapabilities(cfg capabilities.Config) *Server {
 	return &Server{capabilities: capabilities.New(cfg)}
 }

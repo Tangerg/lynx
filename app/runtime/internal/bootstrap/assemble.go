@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
@@ -31,6 +32,7 @@ import (
 type Stack struct {
 	Sessions     *sessions.Coordinator
 	Capabilities *capabilities.Coordinator
+	Approvals    *approvals.Coordinator
 	Codebase     *codebase.Coordinator
 	Queries      *queries.Coordinator
 	TurnControl  *turn.Control
@@ -248,13 +250,13 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 		Mutations:   cfg.WorkspaceMutationStore,
 	})
 
+	approvalsCoord := approvals.New(approvalPolicy, cfg.SessionStore)
+
 	capabilityCoord := capabilities.New(capabilities.Config{
-		Approval:          approvalPolicy,
 		Tools:             toolRegistry,
 		Providers:         cfg.ProviderRegistry,
 		Catalog:           providerCatalog{},
 		Prober:            providerProber{},
-		Sessions:          cfg.SessionStore,
 		UtilityCell:       utilityEnv.cell,
 		UtilityResolver:   resolver,
 		UtilityStore:      cfg.UtilityRoleStore,
@@ -277,6 +279,7 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 		Stack: Stack{
 			Sessions:     sessionCoord,
 			Capabilities: capabilityCoord,
+			Approvals:    approvalsCoord,
 			Codebase:     codebaseCoord,
 			Coordinator:  runCoord,
 			FileChanges:  fileChanges,
