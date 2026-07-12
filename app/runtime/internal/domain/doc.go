@@ -26,5 +26,5 @@
 // (session, knowledge, transcript, provider, interrupts, approval, …) defines a
 // consumer-side Store / Registry / Policy interface and an implementation named
 // for its essence (sqlite-backed, file-backed, engine-backed). See
-// lyra/doc/GREENFIELD_ARCHITECTURE.md.
+// lyra/doc/EXECUTION_CENTERED_ARCHITECTURE.md.
 package domain

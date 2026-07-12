@@ -18,7 +18,7 @@ import (
 )
 
 // Engine is the microkernel core: it drives the agent loop and depends on
-// injected ports for the capabilities it consumes (doc/GREENFIELD_ARCHITECTURE.md §5.1). It
+// injected ports for the capabilities it consumes (doc/EXECUTION_CENTERED_ARCHITECTURE.md). It
 // composes three concerns:
 //
 //   - turn execution: platform + agent drive [Engine.StartTurn]

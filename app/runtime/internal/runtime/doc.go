@@ -1,6 +1,6 @@
 // Package runtime is Lyra's core-runtime facade; one struct that bundles the
 // kernel and every domain service a transport adapter might need. The
-// architecture goal documented in GREENFIELD_ARCHITECTURE.md is a
+// architecture goal documented in EXECUTION_CENTERED_ARCHITECTURE.md is a
 // transport-agnostic application boundary: Runtime realizes that boundary in
 // code.
 //
