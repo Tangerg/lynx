@@ -1,6 +1,10 @@
 package turn
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+)
 
 // coalesceTextDeltas merges same-kind text deltas already queued on the channel
 // so the per-token live stream collapses into fewer frames under load (T3.8).
@@ -25,7 +29,7 @@ func TestCoalesceTextDeltas_MergesConsecutive(t *testing.T) {
 func TestCoalesceTextDeltas_SpillsAtKindBoundary(t *testing.T) {
 	ch := make(chan Event, 8)
 	ch <- MessageDelta{Text: "b"}
-	ch <- TurnEnd{Reason: TurnEndCompleted}
+	ch <- TurnEnd{Reason: execution.OutcomeCompleted}
 	ch <- MessageDelta{Text: "c"} // past the boundary — must NOT be merged in
 	var spill Event
 	got := coalesceTextDeltas(MessageDelta{Text: "a"}, ch, &spill)

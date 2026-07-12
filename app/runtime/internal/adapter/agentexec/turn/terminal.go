@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
@@ -60,7 +61,7 @@ func discardProcess(ctx context.Context, process agentexec.TurnProcess) {
 // [Dispatcher.Cancel] and a failed [Dispatcher.Resume] — where no drive
 // goroutine will run [emitTurnEnd]. The clean path goes through
 // emitTurnEnd (which carries usage) followed by endTurn in [drive].
-func (s *inMemory) finishTurn(st *turnState, reason TurnEndReason) {
+func (s *inMemory) finishTurn(st *turnState, reason execution.Outcome) {
 	dur := time.Since(st.startedAt)
 	finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
 	recordTurnDuration(st.ctx, reason, st.model, dur)
@@ -113,7 +114,7 @@ func (s *inMemory) fireStop(st *turnState, detail string) {
 // / budget-stopped completions carry usage; cancellations and errors
 // don't), and an optional ErrorEvent to emit first.
 type turnEndPlan struct {
-	reason    TurnEndReason
+	reason    execution.Outcome
 	withUsage bool
 	errMsg    string // non-empty → emit an ErrorEvent before TurnEnd
 	errCode   string
@@ -132,15 +133,15 @@ func planTurnEnd(terminal event.Event, out agentexec.TurnOutput, runErr, ctxErr 
 	case event.ProcessCompleted:
 		return completedPlan(out)
 	case event.ProcessKilled, event.ProcessTerminated:
-		return turnEndPlan{reason: TurnEndCanceled}
+		return turnEndPlan{reason: execution.OutcomeCanceled}
 	case event.ProcessFailed:
 		msg := "engine error"
 		if t.Err != nil {
 			msg = t.Err.Error()
 		}
-		return turnEndPlan{reason: TurnEndErrored, errMsg: msg, errCode: "ENGINE_ERROR"}
+		return turnEndPlan{reason: execution.OutcomeError, errMsg: msg, errCode: "ENGINE_ERROR"}
 	case event.ProcessStuck:
-		return turnEndPlan{reason: TurnEndErrored, errMsg: "agent stuck — no forward progress", errCode: "AGENT_STUCK"}
+		return turnEndPlan{reason: execution.OutcomeError, errMsg: "agent stuck — no forward progress", errCode: "AGENT_STUCK"}
 	default:
 		return fallbackPlan(out, runErr, ctxErr, status)
 	}
@@ -153,11 +154,11 @@ func planTurnEnd(terminal event.Event, out agentexec.TurnOutput, runErr, ctxErr 
 func completedPlan(out agentexec.TurnOutput) turnEndPlan {
 	switch {
 	case out.StoppedOnSteps:
-		return turnEndPlan{reason: TurnEndStepsExceeded, withUsage: true}
+		return turnEndPlan{reason: execution.OutcomeMaxSteps, withUsage: true}
 	case out.StoppedOnBudget:
-		return turnEndPlan{reason: TurnEndBudgetExceeded, withUsage: true}
+		return turnEndPlan{reason: execution.OutcomeMaxBudget, withUsage: true}
 	default:
-		return turnEndPlan{reason: TurnEndCompleted, withUsage: true}
+		return turnEndPlan{reason: execution.OutcomeCompleted, withUsage: true}
 	}
 }
 
@@ -168,9 +169,9 @@ func completedPlan(out agentexec.TurnOutput) turnEndPlan {
 func fallbackPlan(out agentexec.TurnOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
 	if runErr != nil {
 		if status == core.StatusKilled || errors.Is(ctxErr, context.Canceled) {
-			return turnEndPlan{reason: TurnEndCanceled}
+			return turnEndPlan{reason: execution.OutcomeCanceled}
 		}
-		return turnEndPlan{reason: TurnEndErrored, errMsg: runErr.Error(), errCode: "ENGINE_ERROR"}
+		return turnEndPlan{reason: execution.OutcomeError, errMsg: runErr.Error(), errCode: "ENGINE_ERROR"}
 	}
 	return completedPlan(out)
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
@@ -317,7 +318,7 @@ func TestTranslator_TodosSnapshot(t *testing.T) {
 func TestTranslator_OutcomeDurationAndBudget(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
 	oc := tr.outcome(turn.TurnEnd{
-		Reason:     turn.TurnEndBudgetExceeded,
+		Reason:     execution.OutcomeMaxBudget,
 		Duration:   1500 * time.Millisecond,
 		CostUSD:    4.2,
 		MaxCostUSD: 4.0,
@@ -334,7 +335,7 @@ func TestTranslator_OutcomeDurationAndBudget(t *testing.T) {
 
 	// A clean completion still carries the duration (the client shows "took
 	// 0.8s"), with no budget detail.
-	done := tr.outcome(turn.TurnEnd{Reason: turn.TurnEndCompleted, Duration: 800 * time.Millisecond})
+	done := tr.outcome(turn.TurnEnd{Reason: execution.OutcomeCompleted, Duration: 800 * time.Millisecond})
 	if done.Type != protocol.OutcomeCompleted || done.Result.DurationMs != 800 || done.Detail != "" {
 		t.Fatalf("completed outcome = %+v (result %+v), want completed/800ms/no-detail", done, done.Result)
 	}
@@ -345,7 +346,7 @@ func TestTranslator_OutcomeDurationAndBudget(t *testing.T) {
 // (Lever 3).
 func TestTranslator_OutcomeMaxSteps(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
-	oc := tr.outcome(turn.TurnEnd{Reason: turn.TurnEndStepsExceeded, MaxSteps: 8})
+	oc := tr.outcome(turn.TurnEnd{Reason: execution.OutcomeMaxSteps, MaxSteps: 8})
 	if oc.Type != protocol.OutcomeMaxSteps {
 		t.Fatalf("type = %s, want maxSteps", oc.Type)
 	}

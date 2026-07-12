@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -50,7 +51,7 @@ func millis(d time.Duration) float64 { return float64(d.Microseconds()) / 1000.0
 // recordTurnDuration records one finished turn's wall-clock against the
 // duration histogram, dimensioned by outcome + model (both low
 // cardinality; the session / run ids stay on the span + logs).
-func recordTurnDuration(ctx context.Context, reason TurnEndReason, model string, dur time.Duration) {
+func recordTurnDuration(ctx context.Context, reason execution.Outcome, model string, dur time.Duration) {
 	loadTurnMetrics().duration.Record(ctx, millis(dur), metric.WithAttributes(
 		attribute.String(attrRunOutcome, reason.String()),
 		attribute.String(attrGenAIRequestModel, model),

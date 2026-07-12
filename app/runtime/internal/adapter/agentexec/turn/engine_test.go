@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -81,7 +82,7 @@ func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 }
 
 // TestStubEngineBudgetStop — a turn whose process reports
-// StoppedOnBudget ends with Reason=TurnEndBudgetExceeded, not a plain
+// StoppedOnBudget ends with Reason=execution.OutcomeMaxBudget, not a plain
 // completion, so clients can tell "stopped at the ceiling" apart from
 // "model finished".
 func TestStubEngineBudgetStop(t *testing.T) {
@@ -102,7 +103,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 
 	for ev := range events {
 		if end, ok := ev.(turn.TurnEnd); ok {
-			if end.Reason != turn.TurnEndBudgetExceeded {
+			if end.Reason != execution.OutcomeMaxBudget {
 				t.Fatalf("TurnEnd reason = %v, want budget_exceeded", end.Reason)
 			}
 			return
@@ -136,7 +137,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 		return
 	}
 	for ev := range events {
-		if end, ok := ev.(turn.TurnEnd); ok && end.Reason == turn.TurnEndCanceled {
+		if end, ok := ev.(turn.TurnEnd); ok && end.Reason == execution.OutcomeCanceled {
 			return
 		}
 	}
@@ -182,7 +183,7 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 			sawDelta = true
 		case turn.TurnEnd:
 			sawEnd = true
-			if e.Reason != turn.TurnEndCompleted {
+			if e.Reason != execution.OutcomeCompleted {
 				t.Errorf("TurnEnd reason = %s, want completed", e.Reason)
 			}
 		}

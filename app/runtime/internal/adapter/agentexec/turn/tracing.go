@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 )
 
@@ -71,7 +72,7 @@ func startTurnSpan(ctx context.Context, sessionID, runID, model string) (context
 // only), and an Error status when the turn aborted. It does NOT end the
 // span; endTurn owns the single End() so the span closes exactly once
 // regardless of which teardown path fired. No-op on a nil span.
-func finishTurnSpan(span trace.Span, reason TurnEndReason, usage accounting.TokenUsage, withUsage bool, errMsg string) {
+func finishTurnSpan(span trace.Span, reason execution.Outcome, usage accounting.TokenUsage, withUsage bool, errMsg string) {
 	if span == nil {
 		return
 	}

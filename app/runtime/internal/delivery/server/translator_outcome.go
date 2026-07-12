@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 // Run-terminal shaping: how a finished turn becomes the wire
@@ -22,13 +23,13 @@ func (t *translator) outcome(e turn.TurnEnd) *protocol.RunOutcome {
 	steps := t.step
 	res := &protocol.RunResult{Usage: t.turnUsage(e), Steps: &steps, DurationMs: int(e.Duration.Milliseconds())}
 	switch e.Reason {
-	case turn.TurnEndCanceled:
+	case execution.OutcomeCanceled:
 		return &protocol.RunOutcome{Type: protocol.OutcomeCanceled, Result: res}
-	case turn.TurnEndBudgetExceeded:
+	case execution.OutcomeMaxBudget:
 		return &protocol.RunOutcome{Type: protocol.OutcomeMaxBudget, Result: res, Detail: budgetDetail(e)}
-	case turn.TurnEndStepsExceeded:
+	case execution.OutcomeMaxSteps:
 		return &protocol.RunOutcome{Type: protocol.OutcomeMaxSteps, Result: res, Detail: stepDetail(e)}
-	case turn.TurnEndErrored:
+	case execution.OutcomeError:
 		res.Error = t.classifyRunError(t.errMsg)
 		return &protocol.RunOutcome{Type: protocol.OutcomeError, Result: res}
 	default:

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
@@ -28,7 +29,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 		c, err := s.resolver.ResolveClient(st.ctx, req.Provider, req.Model)
 		if err != nil {
 			s.emit(st, ErrorEvent{Message: err.Error(), Code: "MODEL_UNAVAILABLE"})
-			s.finishTurn(st, TurnEndErrored)
+			s.finishTurn(st, execution.OutcomeError)
 			return
 		}
 		client = c
@@ -102,7 +103,7 @@ func (s *inMemory) handleWaiting(st *turnState, proc agentexec.TurnProcess) {
 	// will answer — terminate the suspended process and emit the terminal.
 	if st.ctx.Err() != nil {
 		_ = proc.Cancel()
-		s.finishTurn(st, TurnEndCanceled)
+		s.finishTurn(st, execution.OutcomeCanceled)
 		return
 	}
 	aw := proc.PendingAwaitable()
@@ -128,7 +129,7 @@ func (s *inMemory) emitInterrupt(st *turnState, proc agentexec.TurnProcess) {
 		// the turn can't linger parked on a dead ctx. (handleWaiting's top check
 		// catches cancel-before-handleWaiting; this closes the cancel-during gap.)
 		_ = proc.Cancel()
-		s.finishTurn(st, TurnEndCanceled)
+		s.finishTurn(st, execution.OutcomeCanceled)
 		return
 	}
 	if aw == nil {
