@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/filechanges"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -80,6 +82,12 @@ func TestRunSegmentPublishesToolFileChange(t *testing.T) {
 	events, unsub := s.wsHub.subscribe()
 	defer unsub()
 
+	// Wire the production seam: the run effects publish nudges through the
+	// notifier, and the hub observes it (mapping to the wire files.changed).
+	fc := &filechanges.Notifier{}
+	s.wsHub.observe(fc)
+	effects := runsegment.New(runsegment.Config{PublishFileChanges: fc.Publish})
+
 	completed := func(name, path string, failed bool) protocol.StreamEvent {
 		it := &protocol.Item{
 			Type: protocol.ItemTypeToolCall, Status: protocol.ItemStatusCompleted,
@@ -95,7 +103,7 @@ func TestRunSegmentPublishesToolFileChange(t *testing.T) {
 	nudgeFrom := func(se protocol.StreamEvent) {
 		_, nudge := sideEffectEvent("run_1", "ses_1", "", "/proj", se, "", "", time.Time{})
 		if nudge != nil {
-			s.runSegmentEffects().Nudge(nudge.Cwd, nudge.Paths)
+			effects.Nudge(nudge.Cwd, nudge.Paths)
 		}
 	}
 

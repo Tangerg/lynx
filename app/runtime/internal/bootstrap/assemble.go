@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/filechanges"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
@@ -28,13 +29,15 @@ type Stack struct {
 	Capabilities *capabilities.Coordinator
 	Workspace    *workspace.Coordinator
 	Schedules    *schedules.Coordinator
-	// RunStore is the durable Run-admission backstop (§8.2) delivery injects into
-	// the run coordinator it builds; nil when persistence is disabled (tests).
-	RunStore runs.RunStore
-	// Checkpoints backs run-boundary file snapshots + sessions.rollback file
-	// restore. Held here so the same adapter serves both the sessions coordinator
-	// (the restorer) and the run-segment durable effects (the boundary snapshot).
-	Checkpoints *checkpointstore.Checkpoints
+	// Coordinator owns the run lifecycle end to end (§8.2/§20): admission, the
+	// per-run event journal, the segment pumps, and cancel. Built + owned by the
+	// Host (its pumps are joined by Host.Close); the delivery layer drives it as a
+	// use-case surface, never constructing it.
+	Coordinator *runs.Coordinator
+	// FileChanges bridges the run pump's live file-change nudges to the delivery
+	// workspace hub (the seam that lets the coordinator be built here rather than
+	// inside the delivery Server, §2.5). Delivery installs the consumer via Observe.
+	FileChanges *filechanges.Notifier
 }
 
 // Host owns the assembled application tier and its process-level close order
@@ -47,10 +50,13 @@ type Host struct {
 
 // Close shuts the assembled application tier down in reverse dependency order
 // (§10.3): the capabilities component's post-commit reconcile + reindex tasks
-// first (they depend on the engine's MCP pool), then the Runtime facade (run
-// pump + engine + the injected process resources / persistence). Idempotent.
+// first (they depend on the engine's MCP pool), then the run coordinator (cancel
+// + join every live pump before the engine they drive disappears), then the
+// Runtime facade (engine + the injected process resources / persistence).
+// Idempotent.
 func (h Host) Close() error {
 	h.Stack.Capabilities.Close()
+	h.Stack.Coordinator.Close()
 	return h.Stack.Runtime.Close()
 }
 
@@ -170,6 +176,14 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 	// backs the run-segment boundary snapshot and the sessions file restorer.
 	checkpoints := checkpointstore.NewCheckpoints(cfg.CheckpointDir)
 
+	// The run coordinator owns the run lifecycle (§20). It commits durable side
+	// effects through the run-segment adapter, whose file-change nudges reach the
+	// delivery workspace hub via the notifier the delivery Server observes — the
+	// seam that lets the coordinator be constructed here in the Host rather than
+	// inside delivery (§11.1/§13.2). Built after rt so its executor is the facade.
+	fileChanges := &filechanges.Notifier{}
+	runCoord := runs.NewCoordinator(rt, rt.RunSegmentEffects(checkpoints, fileChanges.Publish), cfg.RunStore)
+
 	sessionCoord := sessions.New(sessions.Dependencies{
 		Stores: sessionStores{
 			sessions:   cfg.SessionStore,
@@ -210,8 +224,8 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		Runtime:      rt,
 		Sessions:     sessionCoord,
 		Capabilities: capabilityCoord,
-		RunStore:     cfg.RunStore,
-		Checkpoints:  checkpoints,
+		Coordinator:  runCoord,
+		FileChanges:  fileChanges,
 		Workspace: workspace.New(workspace.Config{
 			Memory:  cfg.Engine.Knowledge,
 			Skills:  eng,

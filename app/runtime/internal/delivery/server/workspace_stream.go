@@ -39,6 +39,20 @@ func (h *workspaceHub) register(ch chan protocol.WorkspaceEvent) func() {
 	}
 }
 
+// observe wires the run pump's live file-change nudges (delivered through the
+// composition-root bridge) into the hub: each nudge becomes a files.changed
+// workspace event fanned to subscribers. The wire WorkspaceEvent shape stays
+// here in delivery; the bridge itself carries only neutral (cwd, paths).
+func (h *workspaceHub) observe(src FileChangeSource) {
+	src.Observe(func(cwd string, paths []string) {
+		h.publish(protocol.WorkspaceEvent{
+			Type:  protocol.WorkspaceEventFilesChanged,
+			Cwd:   cwd,
+			Paths: paths,
+		})
+	})
+}
+
 // publish fans ev to every subscriber, dropping it for any whose buffer is
 // full (lossy by design — see the type doc).
 func (h *workspaceHub) publish(ev protocol.WorkspaceEvent) {
