@@ -206,6 +206,76 @@ func TestBootstrapExposesNoBusinessMethod(t *testing.T) {
 	}
 }
 
+// TestDeliveryHoldsNoRunLifecycleState enforces §16 rule 5: the delivery Server
+// (the protocol handler) drives the run coordinator as a use-case surface, but
+// must not itself HOLD the run registry, a cancel func, a task group, or a
+// checkpoint store — the run-lifecycle ownership §20 moved to the application/Host.
+// Scoped to delivery/server: the transport packages legitimately own their own
+// call-lifecycle task groups. Two forms: (a) the task group is import-forbidden
+// outright (a field would need the import; this also catches a held cancel-func
+// group); (b) a struct-field AST walk forbids a held checkpoint store or run
+// registry, whose packages the Server imports for other reasons (adapter/
+// workspace's GitAvailable probe; application/runs' Coordinator + Event).
+func TestDeliveryHoldsNoRunLifecycleState(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "internal", "delivery", "server")
+	forbidExternalImports(t, dir, []string{"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"})
+
+	forbiddenFields := []string{"taskgroup.Group", "workspace.Checkpoints", "runs.Registry"}
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			st, ok := n.(*ast.StructType)
+			if !ok || st.Fields == nil {
+				return true
+			}
+			for _, field := range st.Fields.List {
+				ts := exprString(field.Type)
+				for _, bad := range forbiddenFields {
+					if strings.Contains(ts, bad) {
+						rel, _ := filepath.Rel(root, path)
+						t.Errorf("%s: delivery struct holds %s — run-lifecycle state belongs to the coordinator/Host (§16 rule 5)", rel, bad)
+					}
+				}
+			}
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk delivery: %v", walkErr)
+	}
+}
+
+// exprString renders a field's type expression to a "pkg.Type" / "*pkg.Type[…]"
+// string for substring matching. Unhandled shapes render "", which matches no
+// rule (the checks are allow-by-default).
+func exprString(e ast.Expr) string {
+	switch t := e.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.SelectorExpr:
+		return exprString(t.X) + "." + t.Sel.Name
+	case *ast.StarExpr:
+		return "*" + exprString(t.X)
+	case *ast.IndexExpr:
+		return exprString(t.X) + "[" + exprString(t.Index) + "]"
+	case *ast.ArrayType:
+		return "[]" + exprString(t.Elt)
+	default:
+		return ""
+	}
+}
+
 // receiverIsExported reports whether a method's receiver is a (pointer to an)
 // exported named type.
 func receiverIsExported(recv *ast.FieldList) bool {
