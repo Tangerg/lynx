@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
@@ -34,7 +35,7 @@ func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 	if claimed {
 		// The turn was parked on an interrupt — no drive goroutine is waiting on
 		// it, so emit the terminal + tear down here.
-		s.finishTurn(state, TurnEndCanceled)
+		s.finishTurn(state, execution.OutcomeCanceled)
 	}
 	return nil
 }
@@ -69,7 +70,7 @@ func (s *inMemory) resumeAndDrive(state *turnState, resolution interrupts.Resolu
 	resumed, err := state.process().Resume(state.ctx, resolution)
 	if err != nil {
 		s.emit(state, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
-		s.finishTurn(state, TurnEndErrored)
+		s.finishTurn(state, execution.OutcomeError)
 		return err
 	}
 	go s.drive(state, resumed)

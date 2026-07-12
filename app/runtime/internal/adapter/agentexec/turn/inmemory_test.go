@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
@@ -76,7 +77,7 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 				t.Errorf("MessageDelta.Text missing 'lyra': %q", e.Text)
 			}
 		case turn.TurnEnd:
-			if e.Reason != turn.TurnEndCompleted {
+			if e.Reason != execution.OutcomeCompleted {
 				t.Errorf("TurnEnd.Reason = %s, want completed", e.Reason)
 			}
 		}
@@ -107,13 +108,13 @@ func TestDispatcherCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 	}
 
 	svc.Close()
-	var endReason turn.TurnEndReason
+	var endReason execution.Outcome
 	for ev := range events {
 		if end, ok := ev.(turn.TurnEnd); ok {
 			endReason = end.Reason
 		}
 	}
-	if endReason != turn.TurnEndCanceled {
+	if endReason != execution.OutcomeCanceled {
 		t.Fatalf("TurnEnd reason = %q, want canceled", endReason)
 	}
 	if _, err := svc.Events(context.Background(), handle); !errors.Is(err, turn.ErrTurnNotFound) {
@@ -226,7 +227,7 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 
 	var (
 		sawInterrupt bool
-		endReason    turn.TurnEndReason
+		endReason    execution.Outcome
 	)
 	for ev := range events {
 		switch e := ev.(type) {
@@ -247,7 +248,7 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	if !sawInterrupt {
 		t.Error("TurnInterrupted never fired in balanced mode")
 	}
-	if endReason != turn.TurnEndCompleted {
+	if endReason != execution.OutcomeCompleted {
 		t.Errorf("turn end = %s, want completed", endReason)
 	}
 }
@@ -277,7 +278,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	})
 	events, _ := svc.Events(context.Background(), handle)
 
-	var endReason turn.TurnEndReason
+	var endReason execution.Outcome
 	for ev := range events {
 		switch e := ev.(type) {
 		case turn.TurnInterrupted:
@@ -289,7 +290,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 		}
 	}
 
-	if endReason != turn.TurnEndCompleted {
+	if endReason != execution.OutcomeCompleted {
 		t.Errorf("turn end = %s, want completed", endReason)
 	}
 	if got := model.calls.Load(); got != 2 {
@@ -338,7 +339,7 @@ func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	var (
 		sawInterrupt bool
 		sawEnd       bool
-		endReason    turn.TurnEndReason
+		endReason    execution.Outcome
 	)
 	for ev := range events {
 		switch e := ev.(type) {
@@ -358,7 +359,7 @@ func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	if !sawEnd {
 		t.Fatal("Cancel must deliver a terminal TurnEnd, not just close the channel")
 	}
-	if endReason != turn.TurnEndCanceled {
+	if endReason != execution.OutcomeCanceled {
 		t.Errorf("TurnEnd.Reason = %s, want canceled", endReason)
 	}
 }
@@ -381,7 +382,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 
 	var (
 		sawDenial bool
-		endReason turn.TurnEndReason
+		endReason execution.Outcome
 	)
 	for ev := range events {
 		switch e := ev.(type) {
@@ -400,7 +401,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 	if !sawDenial {
 		t.Error("expected a denied tool result after Resume(false)")
 	}
-	if endReason != turn.TurnEndCompleted {
+	if endReason != execution.OutcomeCompleted {
 		t.Errorf("turn end = %s, want completed (model recovered after denial)", endReason)
 	}
 }

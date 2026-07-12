@@ -109,8 +109,8 @@ func (s RunState) String() string {
 
 // Outcome is why a Run reached a terminal state — the single terminal-reason
 // taxonomy that both the executor's terminal decision and the wire RunOutcome
-// resolve against (superseding the pre-rewrite duplication between the kernel's
-// TurnEndReason and the protocol's RunOutcomeType).
+// resolve against, replacing the pre-rewrite duplication between the turn
+// layer's own end-reason enum and the protocol's RunOutcomeType.
 //
 // An interrupt is deliberately NOT an Outcome: parking is the [Interrupted]
 // state, not a terminal reason. A run that ends while parked ends via

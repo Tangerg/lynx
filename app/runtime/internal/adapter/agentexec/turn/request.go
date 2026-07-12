@@ -52,19 +52,19 @@ type StartTurnRequest struct {
 	// MaxBudget caps the total tokens (prompt + completion) the turn
 	// may spend across its tool-loop rounds. 0 means unlimited. On
 	// overrun the turn stops cleanly after the current round and ends
-	// with Reason=[TurnEndBudgetExceeded], the partial reply already
+	// with Reason=[execution.OutcomeMaxBudget], the partial reply already
 	// streamed. In-process / automated callers set this; it is not
 	// (yet) carried on the wire.
 	MaxBudget int64
 
 	// MaxCostUSD caps the turn's dollar cost the same way MaxBudget caps
 	// tokens (0 = no cap). Needs a configured pricing hook; same
-	// TurnEndBudgetExceeded stop. Also not (yet) on the wire.
+	// execution.OutcomeMaxBudget stop. Also not (yet) on the wire.
 	MaxCostUSD float64
 
 	// MaxSteps caps the turn's tool-call rounds (model turns); 0 = unlimited.
 	// On overrun the turn stops cleanly after the round with
-	// Reason=[TurnEndStepsExceeded] (distinct from the token/cost budget).
+	// Reason=[execution.OutcomeMaxSteps] (distinct from the token/cost budget).
 	MaxSteps int
 
 	// Options carries per-run generation tuning. The turn keeps model

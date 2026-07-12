@@ -3,6 +3,7 @@ package turn
 import (
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
@@ -134,19 +135,20 @@ type Interrupt struct {
 	Payload any
 }
 
-// TurnEnd fires once at the end of a turn. Reason explains why the
-// turn ended; TokenUsage / CostUSD are the rolled-up totals for the
-// turn (sum across every LLM call inside it).
+// TurnEnd fires once at the end of a turn. Reason is the domain terminal
+// [execution.Outcome] (the single terminal-reason taxonomy — an interrupt is
+// NOT one, parking is a separate state); TokenUsage / CostUSD are the rolled-up
+// totals for the turn (sum across every LLM call inside it).
 type TurnEnd struct {
 	BaseEvent
-	Reason       TurnEndReason
+	Reason       execution.Outcome
 	TokenUsage   accounting.TokenUsage
 	UsageByModel []accounting.ModelUsage // per-model breakdown; one entry for a single-model turn
 	CostUSD      float64                 // turn cost; zero unless a pricing hook is configured (engine.Config.Pricing)
 	Duration     time.Duration
 	// MaxBudget / MaxCostUSD / MaxSteps echo the turn's configured caps so a
-	// Reason=TurnEndBudgetExceeded / TurnEndStepsExceeded terminal can be
-	// described precisely ("spent $4.20 of $4.00 budget" / "reached the
+	// Reason=[execution.OutcomeMaxBudget] / [execution.OutcomeMaxSteps] terminal
+	// can be described precisely ("spent $4.20 of $4.00 budget" / "reached the
 	// 8000-token budget" / "reached the 8-step limit"). Zero when uncapped.
 	MaxBudget  int64
 	MaxCostUSD float64
@@ -218,44 +220,3 @@ func (e ErrorEvent) stamp(b BaseEvent) Event      { e.BaseEvent = b; return e }
 func (e UsageReported) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
 func (e SteerMessage) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
 func (e TodosUpdated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
-
-// TurnEndReason enumerates why a turn ended.
-type TurnEndReason int
-
-const (
-	// TurnEndCompleted — the model returned a stop-marker normally.
-	TurnEndCompleted TurnEndReason = iota
-	// TurnEndCanceled — the client called [Dispatcher.Cancel] or ctx was
-	// canceled.
-	TurnEndCanceled
-	// TurnEndErrored — the turn aborted on error. An [ErrorEvent]
-	// fires before [TurnEnd] in this case.
-	TurnEndErrored
-	// TurnEndBudgetExceeded — the turn hit [StartTurnRequest.MaxBudget]
-	// and stopped cleanly after the current round. Not an error: the
-	// partial reply already streamed; TokenUsage reflects what was
-	// spent.
-	TurnEndBudgetExceeded
-	// TurnEndStepsExceeded — the turn hit [StartTurnRequest.MaxSteps] (the
-	// tool-call-round cap) and stopped cleanly after the round. Not an error;
-	// distinct from the token/cost budget so the wire can surface the dedicated
-	// maxSteps outcome.
-	TurnEndStepsExceeded
-)
-
-func (r TurnEndReason) String() string {
-	switch r {
-	case TurnEndCompleted:
-		return "completed"
-	case TurnEndCanceled:
-		return "canceled"
-	case TurnEndErrored:
-		return "errored"
-	case TurnEndBudgetExceeded:
-		return "budget_exceeded"
-	case TurnEndStepsExceeded:
-		return "steps_exceeded"
-	default:
-		return "unknown"
-	}
-}
