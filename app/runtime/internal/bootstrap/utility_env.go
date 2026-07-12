@@ -12,13 +12,13 @@ import (
 )
 
 // utilityRoleLoader is the boot-time load view of the utility-role store
-// (persistence save belongs to the runtime facade's SetUtilityRole).
+// (persistence save belongs to the capabilities coordinator's SetUtilityRole).
 type utilityRoleLoader interface {
 	LoadUtilityRole(ctx context.Context) (provider, model string, err error)
 }
 
 // utilityEnvironment is the boot-time utility-model wiring: the live role cell
-// (repointed by the runtime facade's SetUtilityRole) and a resolve closure that
+// (repointed by the capabilities coordinator's SetUtilityRole) and a resolve closure that
 // yields the utility client, falling back to the main turn client when the role
 // is unset or unresolvable.
 type utilityEnvironment struct {

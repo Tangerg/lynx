@@ -15,9 +15,9 @@ type mcpServerList interface {
 }
 
 // mcpEnvironment is the boot-time MCP wiring: the live tool policy cell (shared
-// with the runtime facade's refresh path), the gating predicates the toolset +
-// approval read, and the enabled-server dial descriptors the engine's tools are
-// built from.
+// with the capabilities coordinator's MCP refresh path), the gating predicates
+// the toolset + approval read, and the enabled-server dial descriptors the
+// engine's tools are built from.
 type mcpEnvironment struct {
 	policy           *atomic.Pointer[mcpserver.ToolPolicy]
 	toolDisabled     func(string) bool
