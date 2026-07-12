@@ -30,7 +30,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	putRun(t, rt, ses.ID, "run1", "", 1, 2)
+	putRun(t, rt, ses.ID, "run1", 1, 2)
 	putUserItem(t, rt, ses.ID, "run1", "item1", "hello")
 
 	// Export (json).
@@ -128,7 +128,7 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{ParentRunID: "run_parked", SessionID: ses.ID}); err != nil {
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{RunID: "run_parked", SessionID: ses.ID}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
@@ -155,7 +155,7 @@ func TestRestoreSessionClearsOpenInterrupts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{ParentRunID: "run_old", SessionID: ses.ID}); err != nil {
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{RunID: "run_old", SessionID: ses.ID}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
@@ -180,7 +180,7 @@ func TestSessionExport_Markdown(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
 	ses, _ := rt.sess.Create(ctx, "Doc", "/proj")
-	putRun(t, rt, ses.ID, "run1", "", 1, 0)
+	putRun(t, rt, ses.ID, "run1", 1, 0)
 	putUserItem(t, rt, ses.ID, "run1", "item1", "explain this")
 
 	exp, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID, Format: protocol.ExportFormatMarkdown})

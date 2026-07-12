@@ -13,9 +13,10 @@ import (
 
 // InterruptStore is the SQLite-backed durable open-interrupt registry for
 // cross-restart resume — the single implementation each consumer's narrow
-// interrupt port binds to. One row per parked run keyed by parent_run_id; the
-// wire interrupt payload is stored as opaque JSON text, created_at as unix nanos
-// for ordering. Put is UPSERT so re-recording the same parentRunId overwrites.
+// interrupt port binds to. One row per parked run keyed by run_id (the stable
+// logical run); the wire interrupt payload is stored as opaque JSON text,
+// timestamps as unix nanos. Put is UPSERT so re-recording the same runId
+// overwrites (a run parks at most once at a time).
 type InterruptStore struct {
 	db *sql.DB
 }
@@ -27,8 +28,8 @@ func NewInterruptStore(db *sql.DB) *InterruptStore {
 }
 
 func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
-	if p.ParentRunID == "" {
-		return errors.New("sqlite: interrupt parentRunId is required")
+	if p.RunID == "" {
+		return errors.New("sqlite: interrupt runId is required")
 	}
 	var drained string
 	if len(p.DrainedTools) > 0 {
@@ -39,18 +40,19 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 		drained = string(b)
 	}
 	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO interrupts(parent_run_id, session_id, turn_id, process_id, provider, model, interrupts, drained_tools, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(parent_run_id) DO UPDATE SET
-		   session_id    = excluded.session_id,
-		   turn_id       = excluded.turn_id,
-		   process_id    = excluded.process_id,
-		   provider      = excluded.provider,
-		   model         = excluded.model,
-		   interrupts    = excluded.interrupts,
-		   drained_tools = excluded.drained_tools,
-		   created_at    = excluded.created_at`,
-		p.ParentRunID, p.SessionID, p.TurnID, p.ProcessID, p.Provider, p.Model, string(p.Interrupts), drained, p.CreatedAt.UnixNano(),
+		`INSERT INTO interrupts(run_id, session_id, turn_id, process_id, provider, model, interrupts, drained_tools, run_created_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(run_id) DO UPDATE SET
+		   session_id      = excluded.session_id,
+		   turn_id         = excluded.turn_id,
+		   process_id      = excluded.process_id,
+		   provider        = excluded.provider,
+		   model           = excluded.model,
+		   interrupts      = excluded.interrupts,
+		   drained_tools   = excluded.drained_tools,
+		   run_created_at  = excluded.run_created_at,
+		   created_at      = excluded.created_at`,
+		p.RunID, p.SessionID, p.TurnID, p.ProcessID, p.Provider, p.Model, string(p.Interrupts), drained, p.RunCreatedAt.UnixNano(), p.CreatedAt.UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: put interrupt: %w", err)
@@ -58,8 +60,10 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 	return nil
 }
 
+const interruptColumns = `run_id, session_id, turn_id, process_id, provider, model, interrupts, drained_tools, run_created_at, created_at`
+
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
-	query := `SELECT parent_run_id, session_id, turn_id, process_id, provider, model, interrupts, drained_tools, created_at FROM interrupts`
+	query := `SELECT ` + interruptColumns + ` FROM interrupts`
 	args := []any{}
 	if sessionID != "" {
 		query += ` WHERE session_id = ?`
@@ -87,10 +91,9 @@ func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrup
 	return out, nil
 }
 
-func (s *InterruptStore) Get(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error) {
+func (s *InterruptStore) Get(ctx context.Context, runID string) (interrupts.Pending, bool, error) {
 	row := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT parent_run_id, session_id, turn_id, process_id, provider, model, interrupts, drained_tools, created_at
-		 FROM interrupts WHERE parent_run_id = ?`, parentRunID)
+		`SELECT `+interruptColumns+` FROM interrupts WHERE run_id = ?`, runID)
 	p, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return interrupts.Pending{}, false, nil
@@ -101,16 +104,16 @@ func (s *InterruptStore) Get(ctx context.Context, parentRunID string) (interrupt
 	return p, true, nil
 }
 
-// Consume atomically reads AND deletes the pending interrupt for parentRunID
-// (one DELETE ... RETURNING), or returns ok=false when none is recorded — the
-// resume claim contract. A single statement means two concurrent resumes can't
-// both observe the same open interrupt: one claims it, the other gets ok=false,
-// so a non-idempotent tool never re-fires.
-func (s *InterruptStore) Consume(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error) {
+// Consume atomically reads AND deletes the pending interrupt for runID (one
+// DELETE ... RETURNING), or returns ok=false when none is recorded — the resume
+// claim contract. A single statement means two concurrent resumes can't both
+// observe the same open interrupt: one claims it, the other gets ok=false, so a
+// non-idempotent tool never re-fires.
+func (s *InterruptStore) Consume(ctx context.Context, runID string) (interrupts.Pending, bool, error) {
 	row := conn(ctx, s.db).QueryRowContext(ctx,
-		`DELETE FROM interrupts WHERE parent_run_id = ?
-		 RETURNING parent_run_id, session_id, turn_id, process_id, provider, model, interrupts, drained_tools, created_at`,
-		parentRunID)
+		`DELETE FROM interrupts WHERE run_id = ?
+		 RETURNING `+interruptColumns,
+		runID)
 	p, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return interrupts.Pending{}, false, nil
@@ -121,9 +124,9 @@ func (s *InterruptStore) Consume(ctx context.Context, parentRunID string) (inter
 	return p, true, nil
 }
 
-func (s *InterruptStore) Delete(ctx context.Context, parentRunID string) error {
+func (s *InterruptStore) Delete(ctx context.Context, runID string) error {
 	if _, err := conn(ctx, s.db).ExecContext(ctx,
-		`DELETE FROM interrupts WHERE parent_run_id = ?`, parentRunID,
+		`DELETE FROM interrupts WHERE run_id = ?`, runID,
 	); err != nil {
 		return fmt.Errorf("sqlite: delete interrupt: %w", err)
 	}
@@ -138,12 +141,13 @@ type scanRow interface {
 
 func scanPending(row scanRow) (interrupts.Pending, error) {
 	var (
-		p         interrupts.Pending
-		payload   string
-		drained   string
-		createdNs int64
+		p            interrupts.Pending
+		payload      string
+		drained      string
+		runCreatedNs int64
+		createdNs    int64
 	)
-	if err := row.Scan(&p.ParentRunID, &p.SessionID, &p.TurnID, &p.ProcessID, &p.Provider, &p.Model, &payload, &drained, &createdNs); err != nil {
+	if err := row.Scan(&p.RunID, &p.SessionID, &p.TurnID, &p.ProcessID, &p.Provider, &p.Model, &payload, &drained, &runCreatedNs, &createdNs); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return interrupts.Pending{}, err
 		}
@@ -157,6 +161,7 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 			return interrupts.Pending{}, fmt.Errorf("sqlite: decode drained tools: %w", err)
 		}
 	}
+	p.RunCreatedAt = time.Unix(0, runCreatedNs).UTC()
 	p.CreatedAt = time.Unix(0, createdNs).UTC()
 	return p, nil
 }

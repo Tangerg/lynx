@@ -10,11 +10,11 @@ import (
 // Record is the observable state of an active run segment.
 type Record struct {
 	ID           string
+	SegmentID    string
 	SessionID    string
 	Cwd          string
 	CreatedAt    time.Time
 	TurnID       string
-	ParentRunID  string
 	Provider     string
 	Model        string
 	CancelReason string

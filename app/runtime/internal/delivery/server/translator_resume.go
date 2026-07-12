@@ -10,13 +10,13 @@ import (
 
 // resumeBinding carries a parked run's pending toolCall item ids into its
 // continuation translator. When a continuation resumes an approved tool, the
-// tool re-fires and the translator reuses its ORIGINAL proposal item id (and
-// the run it was created in) instead of minting a fresh one.
+// tool re-fires and the translator reuses its ORIGINAL proposal item id instead
+// of minting a fresh one — the item's runId is unchanged, since a resume
+// continues the SAME run (there is no separate origin run to track).
 type resumeBinding struct {
-	originRunID string            // the interrupted run the items were created in
-	toolItems   map[string]string // resumeKey(toolName, arguments) -> original item id
-	byName      map[string]string // toolName -> original item id; edited-args fallback ("" = ambiguous)
-	questions   []resumedQuestion // question items awaiting their terminal
+	toolItems map[string]string // resumeKey(toolName, arguments) -> original item id
+	byName    map[string]string // toolName -> original item id; edited-args fallback ("" = ambiguous)
+	questions []resumedQuestion // question items awaiting their terminal
 }
 
 // resumedQuestion is a question item from the interrupted run (ask_user /
@@ -34,9 +34,8 @@ type resumedQuestion struct {
 // name + arguments) from a parked run so the continuation translator can
 // reuse them when the approved tools re-fire. Returns nil when there are no
 // approval interrupts (e.g. an ask_user / exit_plan_mode question, which
-// resolves without a re-fired tool). originRunID is the interrupted run the
-// items were created in — the continuation re-emits them under that run so
-// the item's id + runId stay stable across the boundary.
+// resolves without a re-fired tool). The re-emitted items keep their original
+// id + runId — a resume continues the SAME run, so the boundary is seamless.
 func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 	var ints []protocol.Interrupt
 	if err := json.Unmarshal(pending.Interrupts, &ints); err != nil || len(ints) == 0 {
@@ -91,7 +90,7 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 	if len(items) == 0 && len(questions) == 0 {
 		return nil
 	}
-	return &resumeBinding{originRunID: pending.ParentRunID, toolItems: items, byName: byName, questions: questions}
+	return &resumeBinding{toolItems: items, byName: byName, questions: questions}
 }
 
 // questionFromPayload reconstructs the wire Question from an interrupt's
@@ -148,19 +147,19 @@ func argsKey(args map[string]any) string {
 // proposal item for this tool name (the runtime parks one awaitable at a time)
 // — otherwise the original proposal card would never get its terminal
 // item.completed and would hang "in progress" forever.
-func (t *translator) reuseOrNextItemID(toolName, argsJSON string) (id, runID string) {
+func (t *translator) reuseOrNextItemID(toolName, argsJSON string) string {
 	if t.resume != nil {
 		key := resumeKey(toolName, argsKey(protocol.ParseArgs(argsJSON)))
 		if orig, ok := t.resume.toolItems[key]; ok {
 			delete(t.resume.toolItems, key)
-			return orig, t.resume.originRunID
+			return orig
 		}
 		if orig, ok := t.resume.byName[toolName]; ok && orig != "" {
 			delete(t.resume.byName, toolName)
-			return orig, t.resume.originRunID
+			return orig
 		}
 	}
-	return t.nextItemID(), t.runID
+	return t.nextItemID()
 }
 
 // resumeQuestionCompletions terminalizes the question items (ask_user /
@@ -168,8 +167,8 @@ func (t *translator) reuseOrNextItemID(toolName, argsJSON string) (id, runID str
 // by the resume answer (no event re-fires), so the continuation must emit its
 // item.completed itself — otherwise the proposal card stays "LIVE" forever
 // (API.md §5.2). Emitted once, right after run.started; the completed item
-// keeps the original id + origin runId and carries the Question payload so
-// items.list stays well-formed. No-op for root runs / tool-only resumes.
+// keeps the original id + runId and carries the Question payload so items.list
+// stays well-formed. No-op for root runs / tool-only resumes.
 func (t *translator) resumeQuestionCompletions() []protocol.StreamEvent {
 	if t.resume == nil || len(t.resume.questions) == 0 {
 		return nil
@@ -180,7 +179,7 @@ func (t *translator) resumeQuestionCompletions() []protocol.StreamEvent {
 			Type: protocol.StreamItemCompleted,
 			Item: &protocol.Item{
 				ID:        q.itemID,
-				RunID:     t.resume.originRunID,
+				RunID:     t.runID,
 				Status:    protocol.ItemStatusCompleted,
 				Type:      protocol.ItemTypeQuestion,
 				CreatedAt: time.Now().UTC(),

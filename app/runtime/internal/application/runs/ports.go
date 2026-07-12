@@ -133,10 +133,20 @@ type Finish struct {
 // input and resume bindings are deliberately NOT here — they live in the
 // Projector the caller supplies, so the application never sees wire content.
 type StartSpec struct {
-	RunID       string
-	ParentRunID string
-	SessionID   string
-	Cwd         string
+	// RunID is the STABLE logical run id — minted once at the run's first segment
+	// and carried unchanged through every resume, so admission / journal / durable
+	// records key on the run, not the segment.
+	RunID string
+	// SegmentID identifies THIS streamed segment (a fresh one per runs.start /
+	// runs.resume). The wire event envelope carries it so a client scopes its
+	// stream-tree + reconnect-replay dedup to the segment.
+	SegmentID string
+	// Resume marks a continuation segment (runs.resume) rather than a run's
+	// opening one: durable admission then revives the session's existing run row
+	// instead of admitting a new one (§8.2).
+	Resume    bool
+	SessionID string
+	Cwd       string
 	// TurnID is the executor's durable turn identity recorded on the live run —
 	// supplied alongside the opaque Handle so the application never reaches into
 	// the executor's handle representation.

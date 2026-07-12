@@ -14,7 +14,7 @@ func TestCancelParkedRunCancelsTurnBeforeDeletingInterrupt(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
-				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+				"run_1": {RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 			},
 			onDelete: func(string) { order = append(order, "delete") },
 		},
@@ -78,7 +78,7 @@ func TestClaimRunSlotRejectsOpenInterrupt(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
-				"run_1": {ParentRunID: "run_1", SessionID: "ses_1"},
+				"run_1": {RunID: "run_1", SessionID: "ses_1"},
 			},
 		},
 	}
@@ -113,7 +113,7 @@ func TestClaimMutationSlotAllowsOpenInterrupt(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
-				"run_1": {ParentRunID: "run_1", SessionID: "ses_1"},
+				"run_1": {RunID: "run_1", SessionID: "ses_1"},
 			},
 		},
 	}
@@ -133,7 +133,7 @@ func TestClaimResumeSlotPeeksAndClaimsInterruptSession(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
-				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+				"run_1": {RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 			},
 		},
 	}
@@ -143,7 +143,7 @@ func TestClaimResumeSlotPeeksAndClaimsInterruptSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("claim resume slot: %v", err)
 	}
-	if pending.ParentRunID != "run_1" || pending.SessionID != "ses_1" {
+	if pending.RunID != "run_1" || pending.SessionID != "ses_1" {
 		t.Fatalf("pending = %+v, want run_1/ses_1", pending)
 	}
 	if admission.SessionID != "ses_1" || !claimer.claimed["ses_1"] {
@@ -173,7 +173,7 @@ func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
-				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+				"run_1": {RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 			},
 		},
 	}
@@ -194,7 +194,7 @@ func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resume claimed interrupt: %v", err)
 	}
-	if resumed.Pending.ParentRunID != "run_1" || resumed.Handle.(turn.TurnHandle).TurnID != "turn_1" {
+	if resumed.Pending.RunID != "run_1" || resumed.Handle.(turn.TurnHandle).TurnID != "turn_1" {
 		t.Fatalf("resumed = %+v", resumed)
 	}
 	if _, ok := stores.interrupts.pending["run_1"]; ok {
@@ -207,12 +207,12 @@ func TestResumeClaimedInterruptRehydratesMissingTurn(t *testing.T) {
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
 				"run_1": {
-					ParentRunID: "run_1",
-					SessionID:   "ses_1",
-					TurnID:      "turn_1",
-					ProcessID:   "proc_1",
-					Provider:    "anthropic",
-					Model:       "claude",
+					RunID:     "run_1",
+					SessionID: "ses_1",
+					TurnID:    "turn_1",
+					ProcessID: "proc_1",
+					Provider:  "anthropic",
+					Model:     "claude",
 				},
 			},
 		},
@@ -243,7 +243,7 @@ func TestResumeClaimedInterruptParkClaimed(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
-				"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+				"run_1": {RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 			},
 		},
 	}
@@ -257,10 +257,10 @@ func TestResumeClaimedInterruptParkClaimed(t *testing.T) {
 
 func TestResumeClaimedInterruptRestoresUncommittedRehydrateFailure(t *testing.T) {
 	pending := interrupts.Pending{
-		ParentRunID: "run_1",
-		SessionID:   "ses_1",
-		TurnID:      "turn_1",
-		ProcessID:   "proc_1",
+		RunID:     "run_1",
+		SessionID: "ses_1",
+		TurnID:    "turn_1",
+		ProcessID: "proc_1",
 	}
 	stores := coordinatorStores{interrupts: &coordinatorInterrupts{
 		pending: map[string]interrupts.Pending{"run_1": pending},
@@ -282,7 +282,7 @@ func TestResumeClaimedInterruptRestoresUncommittedRehydrateFailure(t *testing.T)
 func TestResumeClaimedInterruptDoesNotRestoreCommittedRehydrateFailure(t *testing.T) {
 	stores := coordinatorStores{interrupts: &coordinatorInterrupts{
 		pending: map[string]interrupts.Pending{
-			"run_1": {ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1"},
+			"run_1": {RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1"},
 		},
 	}}
 	turns := stubTurns{

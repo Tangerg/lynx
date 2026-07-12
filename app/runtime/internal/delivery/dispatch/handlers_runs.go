@@ -36,8 +36,8 @@ func (d *Dispatcher) handleRunsResume(ctx context.Context, msg *transport.Reques
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.ParentRunID == "" {
-		return responseError(msg.ID, invalidParams("parentRunId is required"))
+	if in.RunID == "" {
+		return responseError(msg.ID, invalidParams("runId is required"))
 	}
 	out, events, err := d.api.ResumeRun(ctx, in)
 	return replyStream(ctx, msg, out, events, err)

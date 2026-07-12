@@ -193,7 +193,7 @@ func (t *translator) drainTools() []protocol.StreamEvent {
 			Type: protocol.StreamItemCompleted,
 			Item: &protocol.Item{
 				ID:        ref.id,
-				RunID:     ref.runID,
+				RunID:     t.runID,
 				Status:    protocol.ItemStatusIncomplete,
 				Type:      protocol.ItemTypeToolCall,
 				CreatedAt: ref.createdAt,

@@ -60,8 +60,8 @@ func (c *Coordinator) CancelRunBinding(ctx context.Context, r RunTurnBinding) er
 // ResumeClaimedInterrupt consumes an open interrupt and resumes its parked
 // turn. If the live turn disappeared after a backend restart, it rebuilds the
 // process from the durable interrupt snapshot before returning the handle.
-func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, parentRunID string, resolution interrupts.Resolution, interruptKinds []string) (ResumedInterrupt, error) {
-	pending, ok, err := c.s.Interrupts().Consume(ctx, parentRunID)
+func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, runID string, resolution interrupts.Resolution, interruptKinds []string) (ResumedInterrupt, error) {
+	pending, ok, err := c.s.Interrupts().Consume(ctx, runID)
 	if err != nil {
 		return ResumedInterrupt{}, err
 	}
@@ -137,7 +137,7 @@ func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTu
 			continue
 		}
 		out = append(out, RunTurnBinding{
-			RunID:     pending.ParentRunID,
+			RunID:     pending.RunID,
 			SessionID: pending.SessionID,
 			TurnID:    pending.TurnID,
 		})

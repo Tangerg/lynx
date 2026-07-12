@@ -4,7 +4,9 @@ import "time"
 
 // RunEvent is the params of the notifications.run.event notification —
 // the single downstream stream carrying run / item / state events
-// (API.md §5). eventId is monotonic within one root run stream.
+// (API.md §5). RunID is the stable logical run; SegmentID is the streamed
+// segment the event belongs to (§0.3) — a client scopes its stream tree +
+// reconnect-replay dedup to it. eventId is monotonic within one segment stream.
 //
 // There is NO per-frame `durable` bool (S4): durability is a pure function
 // of the event type (StreamEvent.IsDurable), so a redundant field that could
@@ -13,6 +15,7 @@ import "time"
 // which carries its own optional flag on StreamEvent.Durable.
 type RunEvent struct {
 	RunID     string      `json:"runId"`
+	SegmentID string      `json:"segmentId"` // seg_…
 	EventID   string      `json:"eventId"`   // evt_…
 	Timestamp time.Time   `json:"timestamp"` // ISO-8601 (time.Time marshals to RFC3339)
 	Event     StreamEvent `json:"event"`

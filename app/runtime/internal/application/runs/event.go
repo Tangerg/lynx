@@ -10,6 +10,7 @@ import "time"
 // evt_ wire framing is applied in delivery (§11.2).
 type Event struct {
 	RunID     string
+	SegmentID string
 	Seq       string
 	Timestamp time.Time
 	IsDurable bool

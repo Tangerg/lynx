@@ -30,7 +30,6 @@ func runBoundaryNodes(runs []transcript.Run) ([]transcript.RunNode, map[string]p
 		}
 		nodes = append(nodes, transcript.RunNode{
 			ID:              ref.ID,
-			ParentRunID:     ref.ParentRunID,
 			SpawnedByItemID: ref.SpawnedByItemID,
 			CreatedAt:       ref.CreatedAt,
 			Mark:            r.Mark,

@@ -7,49 +7,52 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
+// A resume opens a new segment (seg_2) of the SAME run (run_1); reused proposal
+// items keep their original ids (minted under the parked segment seg_1), fresh
+// items derive from the continuation segment id — all under the one stable runId.
+
 // TestTranslator_EditedArgsReusesProposalItem verifies that when the user edits
 // a tool's args at approval, the re-fired call with different args still reuses
 // the original proposal item id.
 func TestTranslator_EditedArgsReusesProposalItem(t *testing.T) {
 	rb := &resumeBinding{
-		originRunID: "run_1",
-		toolItems:   map[string]string{resumeKey("write", argsKey(map[string]any{"file_path": "a.txt"})): "item_orig"},
-		byName:      map[string]string{"write": "item_orig"},
+		toolItems: map[string]string{resumeKey("write", argsKey(map[string]any{"file_path": "a.txt"})): "item_orig"},
+		byName:    map[string]string{"write": "item_orig"},
 	}
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, rb, "", "")
+	tr := newTranslator("ses_1", "run_1", "seg_2", nil, rb, "", "")
 
-	id, runID := tr.reuseOrNextItemID("write", `{"file_path":"b.txt"}`)
-	if id != "item_orig" || runID != "run_1" {
-		t.Fatalf("edited-args re-fire = (%q,%q), want (item_orig, run_1) - original item must be reused", id, runID)
+	id := tr.reuseOrNextItemID("write", `{"file_path":"b.txt"}`)
+	if id != "item_orig" {
+		t.Fatalf("edited-args re-fire = %q, want item_orig - original item must be reused", id)
 	}
-	if id2, _ := tr.reuseOrNextItemID("write", `{"file_path":"c.txt"}`); id2 == "item_orig" {
+	if id2 := tr.reuseOrNextItemID("write", `{"file_path":"c.txt"}`); id2 == "item_orig" {
 		t.Errorf("fallback must be one-shot, got %q again", id2)
 	}
 }
 
-// TestTranslator_NoUserMessageOnContinuation verifies a continuation run
-// opens with run.started alone, with no synthetic user turn.
+// TestTranslator_NoUserMessageOnContinuation verifies a continuation segment
+// opens with run.started alone (carrying the stable runId), no synthetic user turn.
 func TestTranslator_NoUserMessageOnContinuation(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, nil, "", "")
+	tr := newTranslator("ses_1", "run_1", "seg_2", nil, nil, "", "")
 	out := tr.open()
 	if len(out) != 1 || out[0].Type != protocol.StreamRunStarted {
 		t.Fatalf("continuation open() = %+v, want run.started only", out)
 	}
-	if out[0].Run == nil || out[0].Run.ParentRunID != "run_1" {
-		t.Fatalf("continuation run.started must carry parentRunId run_1: %+v", out[0].Run)
+	if out[0].Run == nil || out[0].Run.ID != "run_1" {
+		t.Fatalf("continuation run.started must carry the stable runId run_1: %+v", out[0].Run)
 	}
 }
 
 // TestTranslator_ResumedToolReusesOriginalItemID verifies an approved tool
-// re-firing in a continuation completes its original proposal item.
+// re-firing in a continuation completes its original proposal item, under the
+// same stable runId — while a fresh tool gets a new (segment-derived) item id.
 func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
-	const origItemID = "item_run_1_3"
+	const origItemID = "item_seg_1_3"
 	const args = `{"command":"ls"}`
 	resume := &resumeBinding{
-		originRunID: "run_1",
-		toolItems:   map[string]string{resumeKey("shell", args): origItemID},
+		toolItems: map[string]string{resumeKey("shell", args): origItemID},
 	}
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume, "", "")
+	tr := newTranslator("ses_1", "run_1", "seg_2", nil, resume, "", "")
 
 	itemStarted := func(events []protocol.StreamEvent) *protocol.Item {
 		for _, se := range events {
@@ -83,21 +86,20 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 	if other == nil || other.ID == origItemID {
 		t.Fatalf("non-matching tool reused the original id: %+v", other)
 	}
-	if other.RunID != "run_1_cont" {
-		t.Fatalf("fresh tool runId = %q, want continuation run_1_cont", other.RunID)
+	if other.RunID != "run_1" {
+		t.Fatalf("fresh tool runId = %q, want the stable run run_1", other.RunID)
 	}
 }
 
 // TestTranslator_ResumedQuestionCompletes verifies a question item left
 // in-progress at interrupt gets its terminal item.completed in the continuation.
 func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
-	const qItemID = "item_run_1_1"
+	const qItemID = "item_seg_1_1"
 	q := &protocol.Question{Prompt: "what next?", Fields: []protocol.QuestionField{{Name: "answer", Type: "text"}}}
 	resume := &resumeBinding{
-		originRunID: "run_1",
-		questions:   []resumedQuestion{{itemID: qItemID, question: q}},
+		questions: []resumedQuestion{{itemID: qItemID, question: q}},
 	}
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume, "", "")
+	tr := newTranslator("ses_1", "run_1", "seg_2", nil, resume, "", "")
 
 	out := tr.open()
 	if len(out) != 2 {

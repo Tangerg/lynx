@@ -17,12 +17,13 @@ import (
 // side-effect derivation so the application pump stays wire-agnostic. One per
 // run segment (the translator carries in-flight item state).
 type projector struct {
-	tr       *translator
-	view     runs.SegmentView
-	runID    string
-	provider string
-	model    string
-	handle   turn.TurnHandle
+	tr        *translator
+	view      runs.SegmentView
+	runID     string
+	createdAt time.Time // the run's stable start time — stamped onto a park's Pending
+	provider  string
+	model     string
+	handle    turn.TurnHandle
 	// sideEffect derives a wire event's durable transcript commit + non-durable
 	// nudge; it closes over the run's ids + cwd + createdAt so this type stays
 	// free of the Server.
@@ -133,13 +134,14 @@ func (p *projector) interruptPending(se protocol.StreamEvent) (*interrupts.Pendi
 		return nil, err
 	}
 	return &interrupts.Pending{
-		ParentRunID:  p.runID,
+		RunID:        p.runID,
 		SessionID:    p.handle.SessionID,
 		TurnID:       p.handle.TurnID,
 		Provider:     p.provider,
 		Model:        p.model,
 		Interrupts:   raw,
 		DrainedTools: p.tr.parkDrained,
+		RunCreatedAt: p.createdAt,
 		CreatedAt:    time.Now().UTC(),
 	}, nil
 }
@@ -156,17 +158,18 @@ func commitOrNil(c execution.EventCommit) *execution.EventCommit {
 // segmentProjector builds the per-segment projector factory the Coordinator
 // calls once it has a segment view. It captures everything the wire translation
 // + durable derivation need, so the application pump only sees the port.
-func (s *Server) segmentProjector(runID, parentRunID, sessionID, cwd string, handle turn.TurnHandle, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string, createdAt time.Time) func(runs.SegmentView) runs.Projector {
+func (s *Server) segmentProjector(runID, segmentID, sessionID, cwd string, handle turn.TurnHandle, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string, createdAt time.Time) func(runs.SegmentView) runs.Projector {
 	return func(view runs.SegmentView) runs.Projector {
 		return &projector{
-			tr:       newTranslator(sessionID, runID, parentRunID, userInput, resume, provider, model),
-			view:     view,
-			runID:    runID,
-			provider: provider,
-			model:    model,
-			handle:   handle,
+			tr:        newTranslator(sessionID, runID, segmentID, userInput, resume, provider, model),
+			view:      view,
+			runID:     runID,
+			createdAt: createdAt,
+			provider:  provider,
+			model:     model,
+			handle:    handle,
 			sideEffect: func(se protocol.StreamEvent) (execution.EventCommit, *runs.Nudge) {
-				return sideEffectEvent(runID, sessionID, parentRunID, cwd, se, provider, model, createdAt)
+				return sideEffectEvent(runID, sessionID, cwd, se, provider, model, createdAt)
 			},
 		}
 	}
@@ -187,7 +190,8 @@ func mapRunEvents(ctx context.Context, in <-chan runs.Event) <-chan protocol.Run
 		for e := range in {
 			se, _ := e.Payload.(protocol.StreamEvent)
 			ev := protocol.RunEvent{
-				RunID: e.RunID,
+				RunID:     e.RunID,
+				SegmentID: e.SegmentID,
 				// The application cursor is opaque + prefix-free; delivery owns the
 				// evt_ wire framing (§11.2). Fixed-width so lexical == numeric order.
 				EventID:   protocol.IDPrefixEvent + e.Seq,

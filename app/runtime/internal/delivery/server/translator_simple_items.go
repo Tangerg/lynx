@@ -54,7 +54,7 @@ func (t *translator) openUserMessage() []protocol.StreamEvent {
 	}
 	input := t.userInput
 	t.userInput = nil
-	id := userMessageItemID(t.runID)
+	id := userMessageItemID(t.segmentID)
 	now := time.Now().UTC()
 	item := func(status protocol.ItemStatus) *protocol.Item {
 		return &protocol.Item{

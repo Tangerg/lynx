@@ -12,7 +12,7 @@ import (
 
 // translator converts Lyra's internal [turn.Event] delta stream into
 // the v2 [protocol.StreamEvent] / Item model (API.md §5). One
-// translator per run — it carries the in-flight Item state (open
+// translator per SEGMENT — it carries the in-flight Item state (open
 // agentMessage / reasoning / toolCall items) so the output is
 // well-formed regardless of how the underlying deltas interleave.
 //
@@ -31,14 +31,16 @@ import (
 // MemoryUpdated is not surfaced here: extracted long-term memory is internal
 // housekeeping with no client-facing surface (nothing folds a memory event).
 type translator struct {
-	runID       string
-	sessionID   string
-	parentRunID string // non-empty for continuation runs (runs.resume)
-	provider    string // run's provider → RunRef.provider on run.started
-	model       string // run's model → RunRef.model on run.started
-	resume      *resumeBinding
-	itemSeq     int
-	step        int // tool-call ordinal, surfaced as run.progress.step (API.md §5)
+	runID     string // the STABLE logical run → RunRef.id + every Item.runId
+	sessionID string
+	// segmentID is THIS streamed segment. Item ids derive from it (not runID) so a
+	// run's resume segments — which share runID — never collide on item ids.
+	segmentID string
+	provider  string // run's provider → RunRef.provider on run.started
+	model     string // run's model → RunRef.model on run.started
+	resume    *resumeBinding
+	itemSeq   int
+	step      int // tool-call ordinal, surfaced as run.progress.step (API.md §5)
 
 	// userInput is the run's opening user message, emitted as the first
 	// Item (userMessage) right after run.started. Set only for root runs
@@ -68,58 +70,56 @@ type openText struct {
 
 type openTool struct {
 	id          string
-	runID       string // the run the item belongs to (origin run for a resumed tool)
 	createdAt   time.Time
 	name        string
 	args        string // raw JSON arguments, replayed to rebuild the invocation at completion
 	safetyClass string // wire SafetyClass, carried so item.completed matches item.started
 }
 
-func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string) *translator {
+func newTranslator(sessionID, runID, segmentID string, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string) *translator {
 	return &translator{
-		runID:       runID,
-		sessionID:   sessionID,
-		parentRunID: parentRunID,
-		provider:    provider,
-		model:       model,
-		resume:      resume,
-		userInput:   userInput,
-		tools:       map[string]*openTool{},
+		runID:     runID,
+		sessionID: sessionID,
+		segmentID: segmentID,
+		provider:  provider,
+		model:     model,
+		resume:    resume,
+		userInput: userInput,
+		tools:     map[string]*openTool{},
 	}
 }
 
 func (t *translator) nextItemID() string {
 	t.itemSeq++
-	return protocol.IDPrefixItem + t.runID + "_" + strconv.Itoa(t.itemSeq)
+	return protocol.IDPrefixItem + t.segmentID + "_" + strconv.Itoa(t.itemSeq)
 }
 
-// userMessageItemID is the deterministic id of a run's opening userMessage
-// Item — derived from the runId so [StartRun] can return it in the response
-// (for optimistic-bubble reconciliation) and the translator stamps the same
-// one onto the streamed + persisted Item. The "_u" suffix keeps it clear of
-// the translator's numbered items (_1, _2, …).
-func userMessageItemID(runID string) string {
-	return protocol.IDPrefixItem + runID + "_u"
+// userMessageItemID is the deterministic id of a segment's opening userMessage
+// Item — derived from the segmentId so [StartRun] can return it in the response
+// (for optimistic-bubble reconciliation) and the translator stamps the same one
+// onto the streamed + persisted Item. Segment-scoped (not run-scoped) so a run's
+// resume segments don't collide. The "_u" suffix keeps it clear of the
+// translator's numbered items (_1, _2, …).
+func userMessageItemID(segmentID string) string {
+	return protocol.IDPrefixItem + segmentID + "_u"
 }
 
-// open is the first thing emitted on EVERY run segment — root and
-// continuation alike. It guarantees run.started leads the stream (the
-// client's run boundary; continuation runs carry parentRunId), then the
-// root's opening userMessage Item and, for a resumed run, the terminal
-// item.completed for any question the parked run left open. Driven by
-// pumpRun before any turn event, so it never depends on a turn-level
-// TurnStart (which continuations don't emit).
+// open is the first thing emitted on EVERY run segment — a run's opening one and
+// its resume continuations alike. It guarantees run.started leads the stream (the
+// client's segment boundary), then the opening userMessage Item and, for a
+// resumed segment, the terminal item.completed for any question the parked run
+// left open. Driven by pumpRun before any turn event, so it never depends on a
+// turn-level TurnStart (which continuations don't emit).
 func (t *translator) open() []protocol.StreamEvent {
 	out := []protocol.StreamEvent{{
 		Type: protocol.StreamRunStarted,
 		Run: &protocol.RunRef{
-			ID:          t.runID,
-			SessionID:   t.sessionID,
-			ParentRunID: t.parentRunID,
-			Provider:    t.provider,
-			Model:       t.model,
-			Status:      protocol.RunStatusRunning,
-			CreatedAt:   time.Now().UTC(),
+			ID:        t.runID,
+			SessionID: t.sessionID,
+			Provider:  t.provider,
+			Model:     t.model,
+			Status:    protocol.RunStatusRunning,
+			CreatedAt: time.Now().UTC(),
 		},
 	}}
 	out = append(out, t.openUserMessage()...)

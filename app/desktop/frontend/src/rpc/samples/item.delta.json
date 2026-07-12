@@ -1,5 +1,6 @@
 {
   "runId": "run_01",
+  "segmentId": "seg_01",
   "eventId": "evt_02",
   "timestamp": "2026-07-07T10:00:01Z",
   "event": {

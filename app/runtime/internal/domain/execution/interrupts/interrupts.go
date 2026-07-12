@@ -18,20 +18,20 @@ import (
 	"time"
 )
 
-// Pending is one parked run awaiting a human decision. ParentRunID is
-// the interrupted run the client passes to runs.resume; TurnID is the
-// runtime's internal handle for the live process the resume drives;
-// ProcessID is the agent-process snapshot key used to REBUILD that
-// process after a restart (the live TurnID is gone then). Interrupts is
-// the wire payload (one entry per pending awaitable), stored opaquely as
-// JSON so this package stays free of a protocol-type dependency.
-// DrainedTools is the backend-private half of the park: resume
-// bookkeeping the client never sees.
+// Pending is one parked run awaiting a human decision. RunID is the STABLE
+// logical run id the client passes to runs.resume — the same id across the run's
+// whole park/resume history, never a per-segment one; TurnID is the runtime's
+// internal handle for the live process the resume drives; ProcessID is the
+// agent-process snapshot key used to REBUILD that process after a restart (the
+// live TurnID is gone then). Interrupts is the wire payload (one entry per
+// pending awaitable), stored opaquely as JSON so this package stays free of a
+// protocol-type dependency. DrainedTools is the backend-private half of the
+// park: resume bookkeeping the client never sees.
 type Pending struct {
-	ParentRunID string
-	SessionID   string
-	TurnID      string
-	ProcessID   string
+	RunID     string
+	SessionID string
+	TurnID    string
+	ProcessID string
 	// Provider + Model are the parked run's per-run model selection (the
 	// runs.start{providerId, model} pair). Persisted so a cross-restart
 	// rehydrate rebuilds the SAME model client instead of silently dropping to
@@ -41,7 +41,14 @@ type Pending struct {
 	Model        string
 	Interrupts   json.RawMessage
 	DrainedTools []DrainedTool
-	CreatedAt    time.Time
+	// RunCreatedAt is the RUN's original start time, carried unchanged across
+	// every resume. A resume continuation stamps it back onto the run's durable
+	// transcript record so the run keeps its timeline position (rollback/fork
+	// ordering + subagent grouping) instead of jumping to the resume time.
+	RunCreatedAt time.Time
+	// CreatedAt is when THIS interrupt was recorded (the park), for ordering
+	// listOpenInterrupts.
+	CreatedAt time.Time
 }
 
 // DrainedTool records one tool item that was still open when the run

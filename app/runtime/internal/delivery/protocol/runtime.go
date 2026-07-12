@@ -47,6 +47,7 @@ const ProtocolVersion = "2026-06-07"
 const (
 	IDPrefixSession = "ses_"
 	IDPrefixRun     = "run_"
+	IDPrefixSegment = "seg_"
 	IDPrefixItem    = "item_"
 	IDPrefixEvent   = "evt_"
 )

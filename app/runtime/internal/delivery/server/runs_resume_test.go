@@ -30,13 +30,13 @@ func TestResumeRun_RestoresInterruptWhenStartFails(t *testing.T) {
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	if err := rt.interrupts.Put(ctx, interrupts.Pending{
-		ParentRunID: "run_1",
-		SessionID:   sess.ID,
-		TurnID:      "turn_parked",
-		ProcessID:   "turn_parked",
-		Provider:    "openai",
-		Model:       "gpt",
-		Interrupts:  []byte(`[]`),
+		RunID:      "run_1",
+		SessionID:  sess.ID,
+		TurnID:     "turn_parked",
+		ProcessID:  "turn_parked",
+		Provider:   "openai",
+		Model:      "gpt",
+		Interrupts: []byte(`[]`),
 	}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestResumeRun_RestoresInterruptWhenStartFails(t *testing.T) {
 	// interrupt has been consumed and the parked turn resumed.
 	s.coordinator.Close()
 
-	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{ParentRunID: "run_1"}); err == nil {
+	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{RunID: "run_1"}); err == nil {
 		t.Fatal("ResumeRun must surface the failed continuation Start")
 	}
 

@@ -17,7 +17,7 @@ import (
 // transcript history is the replay store for the protocol-facing UI timeline.
 // createdAt is the run's start time (captured at segment open), carried onto the
 // synthesized terminal RunRef so the persisted run keeps its timeline key.
-func sideEffectEvent(runID, sessionID, parentRunID, cwd string, se protocol.StreamEvent, provider, model string, createdAt time.Time) (execution.EventCommit, *runs.Nudge) {
+func sideEffectEvent(runID, sessionID, cwd string, se protocol.StreamEvent, provider, model string, createdAt time.Time) (execution.EventCommit, *runs.Nudge) {
 	commit := execution.EventCommit{SessionID: sessionID}
 	var nudge *runs.Nudge
 	switch se.Type {
@@ -35,13 +35,12 @@ func sideEffectEvent(runID, sessionID, parentRunID, cwd string, se protocol.Stre
 		// resolves the terminal watermark (Mark) as this run's boundary, the mark
 		// sessions.rollback / fork{fromRunId} truncate to (B4).
 		commit.Run = transcriptRun(sessionID, &protocol.RunRef{
-			ID:          runID,
-			SessionID:   sessionID,
-			ParentRunID: parentRunID,
-			Provider:    provider,
-			Model:       model,
-			Status:      protocol.RunStatusFinished,
-			Outcome:     se.Outcome,
+			ID:        runID,
+			SessionID: sessionID,
+			Provider:  provider,
+			Model:     model,
+			Status:    protocol.RunStatusFinished,
+			Outcome:   se.Outcome,
 			// Carry the run's start time forward: the terminal RunRef replaces the
 			// whole stored blob, so without this CreatedAt persists as zero and the
 			// rollback/fork boundary math (+ runs.list) loses the run's timeline key.

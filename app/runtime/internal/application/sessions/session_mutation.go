@@ -27,7 +27,7 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 	}
 	for _, item := range pending {
 		c.cancelTurn(ctx, RunTurnBinding{
-			RunID:     item.ParentRunID,
+			RunID:     item.RunID,
 			SessionID: item.SessionID,
 			TurnID:    item.TurnID,
 		})

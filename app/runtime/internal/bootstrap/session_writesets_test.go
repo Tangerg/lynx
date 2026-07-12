@@ -56,7 +56,7 @@ func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore,
 	if err := runs.Suspend(ctx, sessionID); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{ParentRunID: runID, SessionID: sessionID, Interrupts: json.RawMessage("[]"), CreatedAt: time.Unix(0, 0)}); err != nil {
+	if err := ints.Put(ctx, interrupts.Pending{RunID: runID, SessionID: sessionID, Interrupts: json.RawMessage("[]"), CreatedAt: time.Unix(0, 0)}); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
 }

@@ -61,7 +61,7 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 		SessionID: "ses_1",
 		State:     execution.StateSuspend,
 		Interrupt: &interrupts.Pending{
-			ParentRunID:  "run_1",
+			RunID:        "run_1",
 			SessionID:    "ses_1",
 			TurnID:       "turn_1",
 			Provider:     "anthropic",
@@ -75,7 +75,7 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	}
 
 	got := stores.interrupts.pending
-	if got.ParentRunID != "run_1" || got.ProcessID != "proc_1" || got.Provider != "anthropic" || got.Model != "claude" {
+	if got.RunID != "run_1" || got.ProcessID != "proc_1" || got.Provider != "anthropic" || got.Model != "claude" {
 		t.Fatalf("pending = %+v", got)
 	}
 	if string(got.Interrupts) != `[{"id":"int_1"}]` || len(got.DrainedTools) != 1 {
@@ -98,12 +98,12 @@ func TestCommitEventRejectsUnresumableInterrupt(t *testing.T) {
 	err := effects.CommitEvent(context.Background(), execution.EventCommit{
 		SessionID: "ses_1",
 		State:     execution.StateSuspend,
-		Interrupt: &interrupts.Pending{ParentRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+		Interrupt: &interrupts.Pending{RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 	})
 	if !errors.Is(err, want) {
 		t.Fatalf("CommitEvent err = %v, want %v", err, want)
 	}
-	if stores.interrupts.pending.ParentRunID != "" {
+	if stores.interrupts.pending.RunID != "" {
 		t.Fatalf("unresumable interrupt was persisted: %+v", stores.interrupts.pending)
 	}
 	if len(runState.suspended) != 0 {

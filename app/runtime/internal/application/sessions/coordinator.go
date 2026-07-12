@@ -46,8 +46,8 @@ type SessionStore interface {
 type InterruptStore interface {
 	Put(ctx context.Context, pending interrupts.Pending) error
 	List(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
-	Get(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error)
-	Consume(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error)
+	Get(ctx context.Context, runID string) (interrupts.Pending, bool, error)
+	Consume(ctx context.Context, runID string) (interrupts.Pending, bool, error)
 }
 
 // WriteSets are the atomic durable write-sets the coordinator commits through the

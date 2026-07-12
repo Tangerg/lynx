@@ -80,13 +80,13 @@ func TestRollback_RestoreBoth(t *testing.T) {
 	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
-	putRun(t, rt, sid, "run1", "", 1, 1)
+	putRun(t, rt, sid, "run1", 1, 1)
 
 	writeFile(t, cwd, "a.txt", "v2")
 	if err := cp.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}
-	putRun(t, rt, sid, "run2", "", 2, 2)
+	putRun(t, rt, sid, "run2", 2, 2)
 
 	resp, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{
 		SessionID: sid, ToRunID: "run1", RestoreType: protocol.RestoreBoth,
@@ -110,10 +110,10 @@ func TestRollback_RestoreFilesKeepsHistory(t *testing.T) {
 
 	writeFile(t, cwd, "a.txt", "v1")
 	cp.Snapshot(ctx, sid, cwd, "run1")
-	putRun(t, rt, sid, "run1", "", 1, 1)
+	putRun(t, rt, sid, "run1", 1, 1)
 	writeFile(t, cwd, "a.txt", "v2")
 	cp.Snapshot(ctx, sid, cwd, "run2")
-	putRun(t, rt, sid, "run2", "", 2, 2)
+	putRun(t, rt, sid, "run2", 2, 2)
 
 	resp, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{
 		SessionID: sid, ToRunID: "run1", RestoreType: protocol.RestoreFiles,
@@ -140,12 +140,12 @@ func TestRollback_RestoreBoth_ClearsIntent(t *testing.T) {
 	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
-	putRun(t, rt, sid, "run1", "", 1, 1)
+	putRun(t, rt, sid, "run1", 1, 1)
 	writeFile(t, cwd, "a.txt", "v2")
 	if err := cp.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}
-	putRun(t, rt, sid, "run2", "", 2, 2)
+	putRun(t, rt, sid, "run2", 2, 2)
 
 	if _, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{
 		SessionID: sid, ToRunID: "run1", RestoreType: protocol.RestoreBoth,
@@ -169,12 +169,12 @@ func TestRecoverRollbacks(t *testing.T) {
 	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
-	putRun(t, rt, sid, "run1", "", 1, 1)
+	putRun(t, rt, sid, "run1", 1, 1)
 	writeFile(t, cwd, "a.txt", "v2")
 	if err := cp.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}
-	putRun(t, rt, sid, "run2", "", 2, 2)
+	putRun(t, rt, sid, "run2", 2, 2)
 
 	// Simulate the crash: the intent is logged but neither resource is rolled back
 	// yet (tree still v2, run2 still in history).
@@ -209,7 +209,7 @@ func TestRecoverRollbacks_Idempotent(t *testing.T) {
 	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
-	putRun(t, rt, sid, "run1", "", 1, 1)
+	putRun(t, rt, sid, "run1", 1, 1)
 	// Only run1 in history (run2 already dropped by the pre-crash rollback), tree
 	// already at v1 — the "crashed after durable, before complete" state.
 	if err := rt.muts.Record(ctx, execution.WorkspaceMutation{SessionID: sid, Cwd: cwd, ToRunID: "run1"}); err != nil {
@@ -258,8 +258,8 @@ func TestRollback_NoCheckpointStore(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
 	ses, _ := rt.sess.Create(ctx, "t", t.TempDir())
-	putRun(t, rt, ses.ID, "run1", "", 1, 1)
-	putRun(t, rt, ses.ID, "run2", "", 2, 2)
+	putRun(t, rt, ses.ID, "run1", 1, 1)
+	putRun(t, rt, ses.ID, "run2", 2, 2)
 
 	_, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{
 		SessionID: ses.ID, ToRunID: "run1", RestoreType: protocol.RestoreBoth,

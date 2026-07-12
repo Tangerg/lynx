@@ -82,14 +82,14 @@ func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector
 	hub := NewJournal[Event]()
 	live := &handle{cancel: cancel, owner: taskCtx, hub: hub}
 	c.registry.Open(Record{
-		ID:          spec.RunID,
-		SessionID:   spec.SessionID,
-		Cwd:         spec.Cwd,
-		CreatedAt:   spec.CreatedAt,
-		TurnID:      spec.TurnID,
-		ParentRunID: spec.ParentRunID,
-		Provider:    spec.Provider,
-		Model:       spec.Model,
+		ID:        spec.RunID,
+		SegmentID: spec.SegmentID,
+		SessionID: spec.SessionID,
+		Cwd:       spec.Cwd,
+		CreatedAt: spec.CreatedAt,
+		TurnID:    spec.TurnID,
+		Provider:  spec.Provider,
+		Model:     spec.Model,
 	}, live)
 	events, unsubscribe := hub.Subscribe("")
 	context.AfterFunc(reqCtx, unsubscribe)
@@ -102,20 +102,20 @@ func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector
 }
 
 // admitDurable records the segment's Run in the durable admission table (§8.2)
-// as the LAST gate before the pump. A fresh root run (no parent) is Admitted:
-// its INSERT is the gate — a rejection means the session already holds a
-// non-terminal run (a race the in-memory claim missed, or a run left over across
-// restart), and since nothing durable was written, tearing the turn down needs
-// no compensation. A continuation of a parked run (spec.ParentRunID set) is
-// already gated by the in-memory resume claim, so it does not admit a second row
-// for the session; it transitions the session's existing durable row back to
-// running (best-effort — the resume proceeds regardless). A nil store disables
-// the durable backstop (the in-memory claim still guards within one process).
+// as the LAST gate before the pump. A run's opening segment is Admitted: its
+// INSERT is the gate — a rejection means the session already holds a non-terminal
+// run (a race the in-memory claim missed, or a run left over across restart), and
+// since nothing durable was written, tearing the turn down needs no compensation.
+// A continuation segment (spec.Resume) is already gated by the in-memory resume
+// claim, so it does not admit a second row for the session; it transitions the
+// session's existing durable row back to running (best-effort — the resume
+// proceeds regardless). A nil store disables the durable backstop (the in-memory
+// claim still guards within one process).
 func (c *Coordinator) admitDurable(ctx context.Context, spec StartSpec) error {
 	if c.runStore == nil {
 		return nil
 	}
-	if spec.ParentRunID != "" {
+	if spec.Resume {
 		_ = c.runStore.Resume(ctx, spec.SessionID)
 		return nil
 	}

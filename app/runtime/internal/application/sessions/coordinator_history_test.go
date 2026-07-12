@@ -16,12 +16,11 @@ func TestResolveForkHistoryPrefix(t *testing.T) {
 		chat.NewUserMessage("three"),
 	}
 	nodes := []transcript.RunNode{
-		{ID: "run_1", CreatedAt: time.Unix(1, 0), Mark: 1},
-		{ID: "run_1_resume", ParentRunID: "run_1", CreatedAt: time.Unix(2, 0), Mark: 2},
+		{ID: "run_1", CreatedAt: time.Unix(1, 0), Mark: 2},
 		{ID: "run_2", CreatedAt: time.Unix(3, 0), Mark: 3},
 	}
 
-	got, err := ResolveForkHistoryPrefix(msgs, nodes, "run_1_resume")
+	got, err := ResolveForkHistoryPrefix(msgs, nodes, "run_1")
 	if err != nil {
 		t.Fatalf("resolve fork prefix: %v", err)
 	}

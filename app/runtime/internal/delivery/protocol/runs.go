@@ -16,13 +16,12 @@ type Runs interface {
 	// one stream (API.md §5 / §5.4).
 	StartRun(ctx context.Context, in StartRunRequest) (*StartRunResponse, <-chan RunEvent, error)
 
-	// ResumeRun answers open interrupts by starting a continuation run
-	// (R model, API.md §6.1). The new run's RunRef.parentRunId = the
-	// interrupted run id.
+	// ResumeRun answers open interrupts by opening a new segment of the SAME run
+	// (R model, API.md §6.1): same stable runId, a fresh segmentId.
 	ResumeRun(ctx context.Context, in ResumeRunRequest) (*StartRunResponse, <-chan RunEvent, error)
 
-	// SubscribeRun rebinds an existing root run's stream to the caller
-	// (reconnect / crash recovery; subscribes the whole run tree).
+	// SubscribeRun rebinds a run's current live segment to the caller (reconnect /
+	// crash recovery; subscribes the whole run tree).
 	SubscribeRun(ctx context.Context, runID string) (*StartRunResponse, <-chan RunEvent, error)
 
 	// CancelRun hard-stops a running run (outcome:canceled).
@@ -50,17 +49,14 @@ const (
 	RunStatusFinished RunStatus = "finished"
 )
 
-// RunRef identifies a run + its place in the run tree (API.md §4.2).
-//
-//	SpawnedByItemID (child-of)  → this run is a subagent of that toolCall item
-//	ParentRunID    (continuation-of) → this run continues that run (resume/edit)
-//
-// The two are never reused for each other's meaning.
+// RunRef identifies a run + its place in the run tree (API.md §4.2). ID is the
+// STABLE logical run id — a resume continues the same run (a new segment), never
+// a new run — so SpawnedByItemID (this run is a subagent of that toolCall item)
+// is the only run-tree edge; there is no continuation chain to carry.
 type RunRef struct {
 	ID              string `json:"id"`
 	SessionID       string `json:"sessionId"`
 	SpawnedByItemID string `json:"spawnedByItemId,omitempty"`
-	ParentRunID     string `json:"parentRunId,omitempty"`
 	// Model is the model id this run ran against (Model.id); empty means the
 	// run used the runtime default (surfaced via Session.model).
 	Model string `json:"model,omitempty"`
@@ -143,6 +139,10 @@ type StartRunRequest struct {
 // subscribe.
 type StartRunResponse struct {
 	RunID string `json:"runId"`
+	// SegmentID is the streamed segment this call opened (a fresh one per
+	// runs.start / runs.resume; the current live one for runs.subscribe). The
+	// client keys its stream tree + reconnect-replay dedup on it (§0.3).
+	SegmentID string `json:"segmentId"`
 	// UserItemID is the id of the userMessage Item this run opens with — the
 	// same id that rides the stream (item.started/completed) and lands in
 	// items.list. Returned so a client can reconcile its optimistic user
@@ -185,10 +185,11 @@ type ListOpenInterruptsRequest struct {
 	PageQuery
 }
 
-// ResumeRunRequest is the runs.resume body (API.md §6.1).
+// ResumeRunRequest is the runs.resume body (API.md §6.1). RunID is the stable
+// run to continue — its current segment parked with outcome:interrupt.
 type ResumeRunRequest struct {
-	ParentRunID string              `json:"parentRunId"`
-	Responses   []InterruptResponse `json:"responses"`
+	RunID     string              `json:"runId"`
+	Responses []InterruptResponse `json:"responses"`
 }
 
 // InterruptResponseType discriminates a client's answer to an interrupt
@@ -276,12 +277,13 @@ type Interrupt struct {
 	Payload map[string]any `json:"payload,omitempty"`
 }
 
-// OpenInterrupt is a durable, resumable interrupt (API.md §4.8 / §6.2).
+// OpenInterrupt is a durable, resumable interrupt (API.md §4.8 / §6.2). RunID is
+// the stable run to resume — its current segment parked with outcome:interrupt.
 type OpenInterrupt struct {
-	ParentRunID string      `json:"parentRunId"`
-	SessionID   string      `json:"sessionId"`
-	Interrupts  []Interrupt `json:"interrupts"`
-	CreatedAt   time.Time   `json:"createdAt"`
+	RunID      string      `json:"runId"`
+	SessionID  string      `json:"sessionId"`
+	Interrupts []Interrupt `json:"interrupts"`
+	CreatedAt  time.Time   `json:"createdAt"`
 }
 
 // ContextItemType discriminates a ContextItem (API.md §4.7).
