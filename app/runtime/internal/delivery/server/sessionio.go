@@ -25,7 +25,7 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	items, runs, err := s.rt.ListTranscript(ctx, in.SessionID)
+	items, runs, err := s.queries.ListTranscript(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 		return nil, fmt.Errorf("%w: unsupported export format %q", protocol.ErrInvalidParams, format)
 	}
 
-	msgs, err := s.rt.ReadHistory(ctx, in.SessionID)
+	msgs, err := s.queries.ReadHistory(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}

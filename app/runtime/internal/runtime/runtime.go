@@ -26,24 +26,21 @@ type sessionStore interface {
 	RenameIfUntitled(ctx context.Context, id, title string) error
 }
 
-// transcriptStore is the facade's view of the durable transcript: the two read
-// projections it serves (List / ListRuns — items.list and the run timeline) plus
-// the run-segment committer's append writes (AppendItem / PutRun). Narrower than
+// transcriptStore is the facade's view of the durable transcript: only the
+// run-segment committer's append writes (AppendItem / PutRun). The read
+// projections (items.list / run timeline) are an application query. Narrower than
 // the sessions coordinator's lifecycle transcript surface; the composition root
 // threads the one sqlite-backed transcript store, which satisfies both. Defined
 // here at the consumer so the facade names no broad persistence interface.
 type transcriptStore interface {
-	List(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error)
-	ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
 	AppendItem(ctx context.Context, it transcript.Item) error
 	PutRun(ctx context.Context, r transcript.Run) error
 }
 
-// interruptStore is the facade's view of the open-interrupt registry: listing a
-// session's open interrupts (List) and the run-segment committer's park write
-// (Put). Narrower than the sessions coordinator's resume/cancel surface.
+// interruptStore is the facade's view of the open-interrupt registry: only the
+// run-segment committer's park write (Put). Listing open interrupts is an
+// application query. Narrower than the sessions coordinator's resume/cancel surface.
 type interruptStore interface {
-	List(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
 	Put(ctx context.Context, p interrupts.Pending) error
 }
 

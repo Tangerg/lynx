@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
@@ -28,6 +29,7 @@ type Stack struct {
 	Runtime      *lyraruntime.Runtime
 	Sessions     *sessions.Coordinator
 	Capabilities *capabilities.Coordinator
+	Queries      *queries.Coordinator
 	Workspace    *workspace.Coordinator
 	Schedules    *schedules.Coordinator
 	// Coordinator owns the run lifecycle end to end (§8.2/§20): admission, the
@@ -240,6 +242,11 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		Coordinator:  runCoord,
 		FileChanges:  fileChanges,
 		MCPStatus:    mcpStatus,
+		Queries: queries.New(queries.Dependencies{
+			Transcript: cfg.TranscriptStore,
+			History:    messages.conversation,
+			Interrupts: cfg.InterruptStore,
+		}),
 		Workspace: workspace.New(workspace.Config{
 			Memory:  cfg.Engine.Knowledge,
 			Skills:  eng,

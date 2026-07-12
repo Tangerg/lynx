@@ -10,13 +10,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -43,6 +43,29 @@ type sessionsCoordinatorProvider interface {
 	sessionsCoordinator() *sessions.Coordinator
 }
 
+// queriesCoordinatorProvider is the parallel seam for the read coordinator: a
+// fake that can build the query coordinator over its own transcript/history/
+// interrupt stores. Fakes that never drive a read (live-run tests) may omit it.
+type queriesCoordinatorProvider interface {
+	queriesCoordinator() *queries.Coordinator
+}
+
+// stubHistoryReader adapts the stub's in-memory chat-history map to the query
+// coordinator's history reader port.
+type stubHistoryReader struct{ history map[string][]chat.Message }
+
+func (r stubHistoryReader) Read(_ context.Context, id string) ([]chat.Message, error) {
+	return r.history[id], nil
+}
+
+func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
+	return queries.New(queries.Dependencies{
+		Transcript: s.hist,
+		History:    stubHistoryReader{history: s.history},
+		Interrupts: s.interrupts,
+	})
+}
+
 func newTestServer(rt RuntimePort) *Server {
 	s := &Server{rt: rt}
 	// Build the run Coordinator like the Host does, so tests exercise the real
@@ -54,6 +77,9 @@ func newTestServer(rt RuntimePort) *Server {
 	// when the fake provides one, mirroring the composition root.
 	if p, ok := rt.(sessionsCoordinatorProvider); ok {
 		s.sessions = p.sessionsCoordinator()
+	}
+	if p, ok := rt.(queriesCoordinatorProvider); ok {
+		s.queries = p.queriesCoordinator()
 	}
 	// Seed a default capabilities coordinator so the session→wire projection
 	// (which reads DefaultModel) works; capability handler tests build their own
@@ -83,25 +109,7 @@ func newTestServerWithInfo(rt RuntimePort, info protocol.ServerInfo) *Server {
 }
 
 func (s stubRuntime) Transcript() *sqlite.TranscriptStore { return s.hist }
-func (s stubRuntime) ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error) {
-	if s.hist == nil {
-		return nil, nil, nil
-	}
-	return s.hist.List(ctx, sessionID)
-}
-func (s stubRuntime) ListTranscriptRuns(ctx context.Context, sessionID string) ([]transcript.Run, error) {
-	if s.hist == nil {
-		return nil, nil
-	}
-	return s.hist.ListRuns(ctx, sessionID)
-}
-func (s stubRuntime) Interrupts() *sqlite.InterruptStore { return s.interrupts }
-func (s stubRuntime) ListPendingInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
-	if s.interrupts == nil {
-		return nil, nil
-	}
-	return s.interrupts.List(ctx, sessionID)
-}
+func (s stubRuntime) Interrupts() *sqlite.InterruptStore  { return s.interrupts }
 
 // MessageCount and TruncateMessages operate on the in-memory history map,
 // mirroring the engine's conversation-history store closely enough for
