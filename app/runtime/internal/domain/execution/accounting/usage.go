@@ -2,10 +2,7 @@
 // turn execution, delivery, and pricing adapters.
 package accounting
 
-import (
-	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
-)
+import "github.com/Tangerg/lynx/core/model/chat"
 
 // TokenUsage is a token roll-up. ReasoningTokens is the chain-of-thought
 // subset of CompletionTokens, so total counts only prompt + completion.
@@ -22,13 +19,16 @@ func (t TokenUsage) Total() int64 {
 	return t.PromptTokens + t.CompletionTokens
 }
 
-// AddInvocation folds one model invocation's token counts into this roll-up.
-func (t *TokenUsage) AddInvocation(inv core.LLMInvocation) {
-	t.PromptTokens += inv.PromptTokens
-	t.CompletionTokens += inv.CompletionTokens
-	t.ReasoningTokens += inv.ReasoningTokens
-	t.CacheReadTokens += inv.CacheReadInputTokens
-	t.CacheWriteTokens += inv.CacheWriteInputTokens
+// Add folds another token roll-up into this one — used to accumulate per-round
+// usage into a turn total + per-model breakdown. The caller (the agent-execution
+// adapter, which owns the SDK invocation type) maps a model round to a
+// [TokenUsage], keeping this domain value free of the agent SDK.
+func (t *TokenUsage) Add(u TokenUsage) {
+	t.PromptTokens += u.PromptTokens
+	t.CompletionTokens += u.CompletionTokens
+	t.ReasoningTokens += u.ReasoningTokens
+	t.CacheReadTokens += u.CacheReadTokens
+	t.CacheWriteTokens += u.CacheWriteTokens
 }
 
 // ModelUsage is one model's slice of a turn's tokens and cost.

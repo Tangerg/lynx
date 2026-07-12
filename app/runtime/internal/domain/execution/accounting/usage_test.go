@@ -1,39 +1,23 @@
 package accounting
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/Tangerg/lynx/agent/core"
-)
-
-func TestTokenUsageAddInvocation(t *testing.T) {
+func TestTokenUsageAdd(t *testing.T) {
 	tests := []struct {
 		name string
 		base TokenUsage
-		inv  core.LLMInvocation
+		add  TokenUsage
 		want TokenUsage
 	}{
 		{
 			name: "empty rollup",
-			inv: core.LLMInvocation{
-				PromptTokens:          10,
-				CompletionTokens:      4,
-				ReasoningTokens:       2,
-				CacheReadInputTokens:  3,
-				CacheWriteInputTokens: 1,
-			},
-			want: TokenUsage{
-				PromptTokens:     10,
-				CompletionTokens: 4,
-				ReasoningTokens:  2,
-				CacheReadTokens:  3,
-				CacheWriteTokens: 1,
-			},
+			add:  TokenUsage{PromptTokens: 10, CompletionTokens: 4, ReasoningTokens: 2, CacheReadTokens: 3, CacheWriteTokens: 1},
+			want: TokenUsage{PromptTokens: 10, CompletionTokens: 4, ReasoningTokens: 2, CacheReadTokens: 3, CacheWriteTokens: 1},
 		},
 		{
 			name: "existing rollup",
 			base: TokenUsage{PromptTokens: 5, CompletionTokens: 2, ReasoningTokens: 1},
-			inv:  core.LLMInvocation{PromptTokens: 7, CompletionTokens: 3, ReasoningTokens: 2},
+			add:  TokenUsage{PromptTokens: 7, CompletionTokens: 3, ReasoningTokens: 2},
 			want: TokenUsage{PromptTokens: 12, CompletionTokens: 5, ReasoningTokens: 3},
 		},
 	}
@@ -41,7 +25,7 @@ func TestTokenUsageAddInvocation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.base
-			got.AddInvocation(tt.inv)
+			got.Add(tt.add)
 			if got != tt.want {
 				t.Fatalf("TokenUsage = %+v, want %+v", got, tt.want)
 			}
