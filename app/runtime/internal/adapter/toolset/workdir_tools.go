@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/tools/httpreq"
 )
 
-// BuildWorkdirTools instantiates the working-directory-bound filesystem tools,
+// buildWorkdirTools instantiates the working-directory-bound filesystem tools,
 // all anchored at workdir. These are the only tools whose behavior depends on
 // the working directory, so they are rebuilt per resolution (cheap structs)
 // rather than captured once. The filesystem tools need no credentials; the sole
@@ -21,13 +21,10 @@ import (
 // result (see withEditDiagnostics). ci may be nil — the wrap is then a no-op.
 // downloadAllow gates the download tool: empty (no configured host allowlist)
 // omits it entirely, so an offline build makes no surprise outbound calls.
-func BuildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguard.Tracker, downloadAllow httpreq.Allowlist) []chat.Tool {
-	return buildWorkdirTools(workdir, ci, tracker, downloadAllow, newPathLocker())
-}
-
-// buildWorkdirTools accepts the owner-scoped path locker. Resolver-owned builds
-// reuse one locker so read/check/write remains atomic across concurrent turns,
-// not merely across tools resolved for one turn.
+//
+// locker is owner-scoped: resolver-owned builds reuse one locker so
+// read/check/write stays atomic across concurrent turns, not merely across the
+// tools resolved for one turn.
 func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguard.Tracker, downloadAllow httpreq.Allowlist, locker *pathLocker) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
 
