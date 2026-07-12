@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/filechanges"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/mcpstatus"
@@ -35,6 +36,7 @@ type Stack struct {
 	Capabilities *capabilities.Coordinator
 	Approvals    *approvals.Coordinator
 	Models       *models.Coordinator
+	Tools        *tools.Coordinator
 	Codebase     *codebase.Coordinator
 	Queries      *queries.Coordinator
 	TurnControl  *turn.Control
@@ -268,8 +270,9 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 		DefaultModel:      cfg.Model,
 	})
 
+	toolsCoord := tools.New(toolRegistry)
+
 	capabilityCoord := capabilities.New(capabilities.Config{
-		Tools:       toolRegistry,
 		MCPRegistry: cfg.MCPRegistry,
 		MCPLive:     eng,
 		MCPPolicy:   mcpEnv.policy,
@@ -286,6 +289,7 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 			Capabilities: capabilityCoord,
 			Approvals:    approvalsCoord,
 			Models:       modelsCoord,
+			Tools:        toolsCoord,
 			Codebase:     codebaseCoord,
 			Coordinator:  runCoord,
 			FileChanges:  fileChanges,

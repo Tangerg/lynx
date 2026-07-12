@@ -1,9 +1,8 @@
 // Package capabilities is the application coordinator for the runtime's MCP
-// integration surface + the diagnostic tool registry: the durable MCP server
-// registry (source of truth), its live connection pool, the atomically-published
-// tool policy the engine's gate reads, and the read-only registered-tool listing.
-// It is a thin use-case layer over the domain services the delivery mcp.* /
-// tools.* handlers drive.
+// integration surface: the durable MCP server registry (source of truth), its
+// live connection pool, and the atomically-published tool policy the engine's
+// gate reads. It is a thin use-case layer over the domain services the delivery
+// mcp.* handlers drive.
 package capabilities
 
 import (
@@ -13,7 +12,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // MCPLive is the process-local MCP connection pool: the live projection of the
@@ -29,10 +27,9 @@ type MCPLive interface {
 	RemoveMCPServer(ctx context.Context, name string)
 }
 
-// Coordinator owns the MCP integration + tool-registry use cases.
+// Coordinator owns the MCP integration use cases: the durable server registry,
+// its live connection pool, and the atomically-published tool policy.
 type Coordinator struct {
-	tools toolsvc.Registry
-
 	// MCP: the durable registry (source of truth), the live connection pool
 	// (projection), and the atomically-published ToolPolicy the engine's tool gate
 	// + approval read. mcpMutationMu linearizes the multi-step registry -> live ->
@@ -56,7 +53,6 @@ type Coordinator struct {
 
 // Config bundles the Coordinator's dependencies.
 type Config struct {
-	Tools       toolsvc.Registry
 	MCPRegistry mcpserver.Registry
 	MCPLive     MCPLive
 	MCPPolicy   *atomic.Pointer[mcpserver.ToolPolicy]
@@ -68,7 +64,6 @@ type Config struct {
 // New returns a capabilities Coordinator over cfg.
 func New(cfg Config) *Coordinator {
 	return &Coordinator{
-		tools:       cfg.Tools,
 		mcpRegistry: cfg.MCPRegistry,
 		mcpLive:     cfg.MCPLive,
 		mcpPolicy:   cfg.MCPPolicy,

@@ -81,6 +81,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		Capabilities: stack.Capabilities,
 		Approvals:    stack.Approvals,
 		Models:       stack.Models,
+		Tools:        stack.Tools,
 		Codebase:     stack.Codebase,
 		ServerInfo:   info,
 		// The run coordinator is built + owned by the Host; delivery drives it as a

@@ -9,15 +9,16 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -105,7 +106,7 @@ func newTestServer(rt testRuntime) *Server {
 	}
 	// Seed a default models coordinator so the session→wire projection (which
 	// reads DefaultModel) works; capability handler tests build their own via
-	// serverWithModels / serverWithCapabilities.
+	// serverWithModels / serverWithTools / serverWithMCP.
 	defaultModel := ""
 	if src, ok := rt.(interface{ DefaultModel() string }); ok {
 		defaultModel = src.DefaultModel()
@@ -117,16 +118,16 @@ func newTestServer(rt testRuntime) *Server {
 	return s
 }
 
-// serverWithCapabilities builds a Server whose only wired coordinator is the
-// capabilities one — enough for the tools handler tests, which touch nothing else.
-func serverWithCapabilities(cfg capabilities.Config) *Server {
-	return &Server{capabilities: capabilities.New(cfg)}
-}
-
 // serverWithModels builds a Server whose only wired coordinator is the models one
 // — enough for the providers / models handler tests.
 func serverWithModels(cfg models.Config) *Server {
 	return &Server{models: models.New(cfg)}
+}
+
+// serverWithTools builds a Server whose only wired coordinator is the tools one —
+// enough for the tools.* handler tests.
+func serverWithTools(registry tool.Registry) *Server {
+	return &Server{tools: tools.New(registry)}
 }
 
 func (s stubRuntime) Transcript() *sqlite.TranscriptStore { return s.hist }
