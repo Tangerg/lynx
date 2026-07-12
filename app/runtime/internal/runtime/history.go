@@ -1,25 +1,14 @@
 package runtime
 
-import (
-	"context"
-
-	"github.com/Tangerg/lynx/core/model/chat"
-)
+import "context"
 
 // historyStore is the Runtime's consumer-side view of the chat-history service
-// (one backing conversation.Messages): the read projection the messages.list
-// surface converts to wire, and the per-run message-count watermark the run
-// boundary records. History WRITES (seed/truncate) belong to the sessions
-// coordinator's atomic write-sets, not here.
+// (one backing conversation.Messages): only the per-run message-count watermark
+// the run boundary records. History reads (messages.list) are an application
+// query and writes (seed/truncate) are the sessions coordinator's write-sets —
+// neither lives here.
 type historyStore interface {
-	Read(ctx context.Context, sessionID string) ([]chat.Message, error)
 	Count(ctx context.Context, sessionID string) (int, error)
-}
-
-// ReadHistory returns sessionID's persisted chat history — the messages.list
-// transport surface converts these to wire messages.
-func (r *Runtime) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
-	return r.history.Read(ctx, sessionID)
 }
 
 // MessageCount returns sessionID's chat history message count — the per-run

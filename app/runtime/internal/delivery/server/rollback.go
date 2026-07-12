@@ -33,7 +33,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	var refByID map[string]protocol.RunRef
 	var userByRun map[string][]protocol.ContentBlock
 	resolve := func(ctx context.Context) (transcript.Boundary, error) {
-		items, runs, err := s.rt.ListTranscript(ctx, in.SessionID)
+		items, runs, err := s.queries.ListTranscript(ctx, in.SessionID)
 		if err != nil {
 			return transcript.Boundary{}, err
 		}
@@ -84,7 +84,7 @@ func (s *Server) RecoverRollbacks(ctx context.Context) error {
 // rollbackBoundary rebuilds the durable rollback cut for a (sessionID, toRunID)
 // from the durable run records — the same decode the live rollback path runs.
 func (s *Server) rollbackBoundary(ctx context.Context, sessionID, toRunID string) (transcript.Boundary, error) {
-	runs, err := s.rt.ListTranscriptRuns(ctx, sessionID)
+	runs, err := s.queries.ListTranscriptRuns(ctx, sessionID)
 	if err != nil {
 		return transcript.Boundary{}, err
 	}

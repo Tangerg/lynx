@@ -10,6 +10,5 @@ package server
 // root (cmd/lyra) passes the concrete value where a RuntimePort is
 // expected.
 type RuntimePort interface {
-	sessionReadUseCases
 	turnUseCases
 }

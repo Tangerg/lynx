@@ -130,7 +130,7 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
 	var nodes []transcript.RunNode
 	if in.FromRunID != "" {
-		_, runs, err := s.rt.ListTranscript(ctx, in.SessionID)
+		_, runs, err := s.queries.ListTranscript(ctx, in.SessionID)
 		if err != nil {
 			return nil, wireSessionErr(err)
 		}
@@ -204,7 +204,7 @@ func (s *Server) liveStatus(ctx context.Context, sessionID string) protocol.Sess
 		return protocol.SessionStatusRunning
 	}
 	waiting := false
-	if pending, err := s.rt.ListPendingInterrupts(ctx, sessionID); err == nil {
+	if pending, err := s.queries.ListPendingInterrupts(ctx, sessionID); err == nil {
 		waiting = len(pending) > 0
 	}
 	return sessionStatus(false, waiting)
@@ -220,7 +220,7 @@ func (s *Server) runningSessionSet() map[string]bool {
 // sessions awaiting a HITL answer — the list path's batched form, so per-session
 // status costs no extra query. Empty on error (status degrades to running/idle).
 func (s *Server) waitingSessionSet(ctx context.Context) map[string]bool {
-	pending, err := s.rt.ListPendingInterrupts(ctx, "")
+	pending, err := s.queries.ListPendingInterrupts(ctx, "")
 	if err != nil {
 		return nil
 	}

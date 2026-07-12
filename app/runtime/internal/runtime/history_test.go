@@ -3,24 +3,11 @@ package runtime
 import (
 	"context"
 	"testing"
-
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-func TestRuntimeHistoryPorts(t *testing.T) {
-	store := &fakeHistoryStore{
-		messages: []chat.Message{chat.NewUserMessage("hello")},
-		count:    3,
-	}
+func TestRuntimeMessageCount(t *testing.T) {
+	store := &fakeHistoryStore{count: 3}
 	rt := &Runtime{history: store}
-
-	msgs, err := rt.ReadHistory(context.Background(), "ses_1")
-	if err != nil {
-		t.Fatalf("ReadHistory err = %v", err)
-	}
-	if store.readSession != "ses_1" || len(msgs) != 1 {
-		t.Fatalf("read session=%q msgs=%+v", store.readSession, msgs)
-	}
 
 	count, err := rt.MessageCount(context.Background(), "ses_3")
 	if err != nil {
@@ -32,16 +19,8 @@ func TestRuntimeHistoryPorts(t *testing.T) {
 }
 
 type fakeHistoryStore struct {
-	messages []chat.Message
-	count    int
-
-	readSession  string
+	count        int
 	countSession string
-}
-
-func (s *fakeHistoryStore) Read(_ context.Context, sessionID string) ([]chat.Message, error) {
-	s.readSession = sessionID
-	return s.messages, nil
 }
 
 func (s *fakeHistoryStore) Count(_ context.Context, sessionID string) (int, error) {

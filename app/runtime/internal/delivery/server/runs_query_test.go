@@ -5,24 +5,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
-type interruptRuntime struct {
-	stubRuntime
+// fakeInterruptReader backs the query coordinator's interrupt read for the
+// ListOpenInterrupts wire-projection test.
+type fakeInterruptReader struct {
 	sessionID string
 	pending   []interrupts.Pending
 }
 
-func (r *interruptRuntime) ListPendingInterrupts(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
+func (r *fakeInterruptReader) List(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
 	r.sessionID = sessionID
 	return r.pending, nil
 }
 
-func TestListOpenInterruptsUsesRuntimeFacade(t *testing.T) {
+func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 	created := time.Date(2026, 7, 5, 11, 0, 0, 0, time.UTC)
-	rt := &interruptRuntime{pending: []interrupts.Pending{
+	reader := &fakeInterruptReader{pending: []interrupts.Pending{
 		{
 			ParentRunID: "run_waiting",
 			SessionID:   "ses_1",
@@ -36,14 +38,14 @@ func TestListOpenInterruptsUsesRuntimeFacade(t *testing.T) {
 			CreatedAt:   created,
 		},
 	}}
-	s := newTestServer(rt)
+	s := &Server{queries: queries.New(queries.Dependencies{Interrupts: reader})}
 
 	got, err := s.ListOpenInterrupts(context.Background(), protocol.ListOpenInterruptsRequest{SessionID: "ses_1"})
 	if err != nil {
 		t.Fatalf("list open interrupts: %v", err)
 	}
-	if rt.sessionID != "ses_1" {
-		t.Fatalf("runtime session = %q, want ses_1", rt.sessionID)
+	if reader.sessionID != "ses_1" {
+		t.Fatalf("read session = %q, want ses_1", reader.sessionID)
 	}
 	if len(got.Data) != 1 {
 		t.Fatalf("open interrupts = %+v, want only valid record", got.Data)

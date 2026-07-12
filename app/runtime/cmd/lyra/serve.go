@@ -87,6 +87,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		Coordinator: stack.Coordinator,
 		FileChanges: stack.FileChanges,
 		MCPStatus:   stack.MCPStatus,
+		Queries:     stack.Queries,
 		Schedules:   stack.Schedules,
 		Workspace:   stack.Workspace,
 	})

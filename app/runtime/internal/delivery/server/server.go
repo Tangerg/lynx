@@ -19,6 +19,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
@@ -49,6 +50,11 @@ type Config struct {
 	// built + owned by the composition root (bootstrap.Host). Required — delivery
 	// drives it as a use-case surface but never constructs or closes it (§11.1).
 	Coordinator *runs.Coordinator
+
+	// Queries is the application read coordinator for a session's durable
+	// execution record (transcript / history / interrupts). Required — the
+	// items.list / messages.list / interrupts.list handlers drive it.
+	Queries *queries.Coordinator
 
 	// FileChanges is the composition-root bridge the run pump publishes live
 	// file-change nudges through; the Server installs a consumer that maps them to
@@ -102,6 +108,10 @@ type Server struct {
 	// (bootstrap.Host); delivery drives it as a use-case surface and never closes
 	// it (§11.1). Injected by New; never nil after New.
 	coordinator *runs.Coordinator
+
+	// queries is the application read coordinator for a session's durable
+	// execution record (transcript / history / interrupts). Injected by New.
+	queries *queries.Coordinator
 
 	// schedules owns the cron-triggered headless-run use cases (schedules.* + the
 	// background worker), injected by the composition root. Never nil after New.
@@ -175,6 +185,9 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Coordinator == nil {
 		return nil, errors.New("server: Coordinator is required")
 	}
+	if cfg.Queries == nil {
+		return nil, errors.New("server: Queries is required")
+	}
 	scheduleCoord := cfg.Schedules
 	if scheduleCoord == nil {
 		scheduleCoord = schedules.NewCoordinator(nil, nil) // disabled: schedules.* report capability_not_negotiated
@@ -188,6 +201,7 @@ func New(cfg Config) (*Server, error) {
 		sessions:     cfg.Sessions,
 		capabilities: cfg.Capabilities,
 		coordinator:  cfg.Coordinator,
+		queries:      cfg.Queries,
 		serverInfo:   cfg.ServerInfo,
 		wsHub:        newWorkspaceHub(),
 		schedules:    scheduleCoord,
