@@ -1,6 +1,6 @@
 # EXTENSIBILITY.md — Lyra 的可替换性边界（外部 SPI vs 内部焊死）
 
-> 当前环命名：`internal/{delivery,adapter,application,infra,domain}` + 组合根 `internal/{runtime,bootstrap}`（agent loop 现居 `adapter/agentexec`）；依赖规则见 [`EXECUTION_CENTERED_ARCHITECTURE.md`](EXECUTION_CENTERED_ARCHITECTURE.md)。
+> 当前环命名：`internal/{delivery,adapter,application,infra,domain}` + 组合根 `internal/{bootstrap,config}`（agent loop 现居 `adapter/agentexec`；`bootstrap.Host` 装配 + 拥有关闭）；依赖规则见 [`EXECUTION_CENTERED_ARCHITECTURE.md`](EXECUTION_CENTERED_ARCHITECTURE.md)。
 
 > **取代** 旧的 `EXTENSION_POINTS.md`（那份是"核心不长肉、**所有**能力都是插件、连 agent loop 都是插件"的 aspirational 蓝图，过度抽象，已删）。本文件是**已落地现状 + 判断准则**，不是蓝图。
 > 配套：[`EXECUTION_CENTERED_ARCHITECTURE.md`](EXECUTION_CENTERED_ARCHITECTURE.md)（现行架构基准：Run 生命周期为中心的 Clean Arch + SPI）。
@@ -48,7 +48,7 @@ eng := agentexec.Config{
 }
 ```
 
-`knowledge` 已从 `cmd/lyra` 注入；`Compactor`/`Extractor`/`Planner`/`Steering` 经上述 nil-default 接缝注入（见 `internal/runtime/runtime.go`）。
+`knowledge` 已从 `cmd/lyra` 注入；`Compactor`/`Extractor`/`Planner`/`Steering` 经上述 nil-default 接缝注入（见 `internal/bootstrap/engine_wiring.go` 的 `wireEnginePorts`）。
 
 ---
 

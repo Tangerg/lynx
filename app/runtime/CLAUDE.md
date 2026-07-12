@@ -17,7 +17,7 @@
   - **application**:用例协调层 —— Run/Session/能力/workspace/schedules 生命周期的编排;`application/runs` 拥有 Run 从 Start 到 Terminal 的完整流程(admission / journal / pump / cancel),engine 与 wire 中立,consumer-side port 定义在此。
   - **domain**:限界上下文,一域一包(会话 / 知识 / transcript / 审批 / 工具 / provider / execution …),零外向依赖,纯 entities + 领域服务 + port。
   - **infra**:技术设施(driven adapter),零领域、只实现 domain port(存储 / git / LSP / 影子 git / 进程执行 / MCP / A2A)。
-  - 组合根 `internal/{runtime,bootstrap,config}` + cmd:config·env → 装配 + host 生命周期 + SPI nil-default 注入;wires 每一环,arch_test 禁任何环 import 它。
+  - 组合根 `internal/{bootstrap,config}` + cmd:config·env → 装配 + host 生命周期 + SPI nil-default 注入;`bootstrap.Host` 拥有资源关闭、`bootstrap.Stack` 是纯 discovery 聚合(§5.3),不提供业务方法;wires 每一环,arch_test 禁任何环 import 它。
 - **transport 可换、对业务零感知**:HTTP + SSE 与 inprocess 都只是 envelope I/O,不把传输细节带进 application/domain。
 - **流式走 streamable HTTP,不是常开通道**:每个流式调用的事件走它**自己那条 POST 响应流**,事件源是 server 侧的 per-run hub,无连接身份簿记;重连是 per-run(带 last-event-id),不是重连一条共享流。
 - **持久化 dev 阶段单一 SQLite 后端**(纯 Go 无 CGO):session / snapshot / interrupt / history / provider / message 都在一个 DB;没有存储开关、没有 in-memory 并行实现。**唯一文件例外**是用户可编辑的 LYRA.md memory —— "可编辑" 正是它存在的意义。

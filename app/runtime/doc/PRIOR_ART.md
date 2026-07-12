@@ -66,7 +66,7 @@ Anthropic 缓存**已接线**（`models/anthropic/chat.go applyPromptCaching`：
 **改判**：B2 从「便宜该做」降为「中型取向」。要么当我们**通用地**引入 ephemeral system-reminder 机制时让 todo 顺这条 seam（那时才做），要么维持现状（缓存成本仅限 todo-active 会话的 todo-变更轮，范围有限）。**不 hack** —— 挪成持久化消息是负收益。
 
 ### B3 沙箱 + 子进程硬化 —— **分档**
-- **✅ DONE — B3a env 黑名单**（`dad8ba7e`）：落地为 `mcpserver.Server.SafeEnv()` —— 实体丢弃无正当用途的 linker/loader 注入键（`LD_*`/`DYLD_*`，大小写不敏感），在 dial 边界 `internal/runtime/mcp.go configFromServer` 应用。**收窄了初始设想**：只做 MCP config env（真正配置驱动、可被投毒的面）；shell/hook 继承操作者自己的 `os.Environ()`（无配置来源，本地信任下 scrub 属仪式），故不在范围。`PATH`/`NODE_OPTIONS`/`PYTHONPATH` 刻意保留（server 可能正当设置）。
+- **✅ DONE — B3a env 黑名单**（`dad8ba7e`）：落地为 `mcpserver.Server.SafeEnv()` —— 实体丢弃无正当用途的 linker/loader 注入键（`LD_*`/`DYLD_*`，大小写不敏感），在 dial 边界的 MCP config 投影应用（`domain/mcpserver` 的 `ConfigFromServer`,原 `internal/runtime/mcp.go`,随 Batch 5/6 归位 domain/adapter）。**收窄了初始设想**：只做 MCP config env（真正配置驱动、可被投毒的面）；shell/hook 继承操作者自己的 `os.Environ()`（无配置来源，本地信任下 scrub 属仪式），故不在范围。`PATH`/`NODE_OPTIONS`/`PYTHONPATH` 刻意保留（server 可能正当设置）。
 - **B3b macOS seatbelt-for-bash —— 取向（值这一薄片）**：给 shell 的 `exec.CommandContext` 包 `/usr/bin/sandbox-exec -p <SBPL>`（硬编码路径防注入）+ workspace 写白名单 + 默认拒网络。对齐 Claude Code。**明确不做**：Codex 的 Windows 受限令牌/ACL 堡垒 + MITM proxy —— 那是给「不可信/多租户」威胁模型的，lyra 本地单用户、OS 信任、无鉴权（有意），操作者本就有 shell，沙箱只防「模型误伤 / 注入的 tool 输出」，不防敌意用户。Linux Landlock 可作 phase-2。
 
 ### B4 并行子代理隔离 + 深度上限 —— **取向 + 一个廉价该做**
