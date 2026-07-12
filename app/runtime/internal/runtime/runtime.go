@@ -12,17 +12,14 @@ import (
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// sessionStore is the turn executor's consumer view of session persistence:
-// resolve or create the session a turn runs in (Get / Create), record the model
-// a run explicitly selected (SetModel), and the terminal auto-titler's
-// untitled-only rename (RenameIfUntitled). It is narrower than the sessions
-// coordinator's lifecycle surface — the composition root threads the one
-// sqlite-backed session store, which satisfies both. Defined here at the
-// consumer so the facade names no broad persistence interface.
+// sessionStore is the facade's view of session persistence for the run-segment
+// committer: the session's cwd/title read (Get) and the terminal auto-titler's
+// untitled-only rename (RenameIfUntitled). Turn-start session resolution moved to
+// the turn.Control adapter. Narrower than the sessions coordinator's lifecycle
+// surface — the composition root threads the one sqlite-backed session store,
+// which satisfies both. Defined here at the consumer.
 type sessionStore interface {
 	Get(ctx context.Context, id string) (sessionsvc.Session, error)
-	Create(ctx context.Context, title, cwd string) (sessionsvc.Session, error)
-	SetModel(ctx context.Context, id, model string) error
 	RenameIfUntitled(ctx context.Context, id, title string) error
 }
 

@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
@@ -55,6 +56,11 @@ type Config struct {
 	// execution record (transcript / history / interrupts). Required — the
 	// items.list / messages.list / interrupts.list handlers drive it.
 	Queries *queries.Coordinator
+
+	// TurnControl is the turn-start adapter (plan / start / steer a turn). Required
+	// — the runs.start / runs.steer handlers drive it. It speaks the agent-SDK turn
+	// types, so it lives in the adapter ring, not application.
+	TurnControl *turn.Control
 
 	// FileChanges is the composition-root bridge the run pump publishes live
 	// file-change nudges through; the Server installs a consumer that maps them to
@@ -112,6 +118,9 @@ type Server struct {
 	// queries is the application read coordinator for a session's durable
 	// execution record (transcript / history / interrupts). Injected by New.
 	queries *queries.Coordinator
+
+	// turnControl is the turn-start adapter (plan / start / steer). Injected by New.
+	turnControl *turn.Control
 
 	// schedules owns the cron-triggered headless-run use cases (schedules.* + the
 	// background worker), injected by the composition root. Never nil after New.
@@ -188,6 +197,9 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Queries == nil {
 		return nil, errors.New("server: Queries is required")
 	}
+	if cfg.TurnControl == nil {
+		return nil, errors.New("server: TurnControl is required")
+	}
 	scheduleCoord := cfg.Schedules
 	if scheduleCoord == nil {
 		scheduleCoord = schedules.NewCoordinator(nil, nil) // disabled: schedules.* report capability_not_negotiated
@@ -202,6 +214,7 @@ func New(cfg Config) (*Server, error) {
 		capabilities: cfg.Capabilities,
 		coordinator:  cfg.Coordinator,
 		queries:      cfg.Queries,
+		turnControl:  cfg.TurnControl,
 		serverInfo:   cfg.ServerInfo,
 		wsHub:        newWorkspaceHub(),
 		schedules:    scheduleCoord,

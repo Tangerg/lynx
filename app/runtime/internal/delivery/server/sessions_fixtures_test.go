@@ -50,6 +50,16 @@ type queriesCoordinatorProvider interface {
 	queriesCoordinator() *queries.Coordinator
 }
 
+// turnControlProvider is the parallel seam for the turn-start adapter: a fake that
+// can build the real turn.Control over its dispatcher + session store.
+type turnControlProvider interface {
+	turnControlAdapter() *turn.Control
+}
+
+func (s stubRuntime) turnControlAdapter() *turn.Control {
+	return turn.NewControl(s.turnDispatcher(), s.sess)
+}
+
 // stubHistoryReader adapts the stub's in-memory chat-history map to the query
 // coordinator's history reader port.
 type stubHistoryReader struct{ history map[string][]chat.Message }
@@ -80,6 +90,9 @@ func newTestServer(rt RuntimePort) *Server {
 	}
 	if p, ok := rt.(queriesCoordinatorProvider); ok {
 		s.queries = p.queriesCoordinator()
+	}
+	if p, ok := rt.(turnControlProvider); ok {
+		s.turnControl = p.turnControlAdapter()
 	}
 	// Seed a default capabilities coordinator so the session→wire projection
 	// (which reads DefaultModel) works; capability handler tests build their own
@@ -158,35 +171,6 @@ func (s stubRuntime) turnDispatcher() turn.Dispatcher {
 	return turnStub{}
 }
 
-func (s stubRuntime) StartTurn(ctx context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error) {
-	return s.turnDispatcher().StartTurn(ctx, req)
-}
-
-func (s stubRuntime) PlanTurnStart(ctx context.Context, sessionID, defaultCwd string, draft turn.StartTurnRequest) (session.Session, turn.StartTurnRequest, error) {
-	if draft.Message == "" && len(draft.Media) == 0 {
-		return session.Session{}, turn.StartTurnRequest{}, turn.ErrInputRequired
-	}
-	if (draft.Model == "") != (draft.Provider == "") {
-		return session.Session{}, turn.StartTurnRequest{}, turn.ErrIncompleteModelSelection
-	}
-	var (
-		sess session.Session
-		err  error
-	)
-	if sessionID == "" {
-		sess, err = s.sess.Create(ctx, "", defaultCwd)
-	} else {
-		sess, err = s.sess.Get(ctx, sessionID)
-	}
-	if err != nil {
-		return session.Session{}, turn.StartTurnRequest{}, err
-	}
-	planned := draft
-	planned.SessionID = sess.ID
-	planned.Cwd = sess.Cwd
-	return sess, planned, nil
-}
-
 func (s stubRuntime) TurnEvents(ctx context.Context, handle runs.Handle) (iter.Seq[runs.EngineEvent], error) {
 	h, ok := handle.(turn.TurnHandle)
 	if !ok {
@@ -203,10 +187,6 @@ func (s stubRuntime) TurnEvents(ctx context.Context, handle runs.Handle) (iter.S
 			}
 		}
 	}, nil
-}
-
-func (s stubRuntime) InjectTurnSteering(ctx context.Context, handle turn.TurnHandle, message string) error {
-	return s.turnDispatcher().InjectSteering(ctx, handle, message)
 }
 
 func (s stubRuntime) ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
