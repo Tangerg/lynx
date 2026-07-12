@@ -14,38 +14,46 @@ import (
 )
 
 // TestDependencyRule enforces Clean Architecture's Dependency Rule for the lyra
-// module: source dependencies point INWARD, toward the domain. Outer rings
-// (delivery / capability / infra adapters) may depend on inner rings; the
-// reverse — or a sibling adapter reaching up into composition — is forbidden.
-// See doc/EXECUTION_CENTERED_ARCHITECTURE.md.
+// module: source dependencies point INWARD, toward the domain. Outer rings may
+// depend on inner rings; the reverse — or a driven/adapter ring reaching up into
+// the composition root — is forbidden. See doc/EXECUTION_CENTERED_ARCHITECTURE.md.
 //
 // Rings (outer → inner):
 //
-//	delivery       internal/delivery/**         HTTP+SSE / inprocess transport, dispatch, protocol
-//	adapter        internal/adapter/**          capability adapters, incl. adapter/agentexec (the
-//	                                             agent-execution adapter driving the agent loop / ACL
-//	                                             over the agent SDK) and infra-backed capability adapters
-//	domain         internal/domain/**          bounded contexts: entities + repository ports + domain services
-//	infra          internal/infra/**            sqlite / git / lsp / mcp / exec — driven adapters & frameworks
-//	composition    internal/runtime/**,         the "main" component that wires everything; exempt as an importer
-//	               internal/bootstrap/**,       (config load + assembly + host lifecycle live in internal/bootstrap)
-//	               internal/config, cmd/**
+//	composition    internal/runtime/**,         the "main" component: config load, assembly, the
+//	               internal/bootstrap/**,        Executor/turn facade, host lifecycle. Wires every
+//	               internal/config, cmd/**       ring, so it imports anything — but nothing imports IT.
+//	delivery       internal/delivery/**          HTTP+SSE / inprocess transport, dispatch, protocol
+//	adapter        internal/adapter/**           capability adapters, incl. adapter/agentexec (the
+//	                                              agent-execution adapter over the agent SDK)
+//	application    internal/application/**        use-case coordinators (runs / sessions / capabilities /
+//	                                              workspace / schedules) — engine- and wire-neutral
+//	infra          internal/infra/**             sqlite / git / lsp / mcp / exec — driven adapters & frameworks
+//	domain         internal/domain/**            bounded contexts: entities + repository ports + domain services
 //
-// Forbidden edges (an inner ring learning about an outer one, or an adapter
-// reaching up into composition):
+// Forbidden edges (an inner ring learning about an outer one, a driven ring
+// reaching sideways/up, or anything importing the composition root):
 //
-//	infra   ↛ delivery, adapter
-//	domain  ↛ delivery, adapter, infra
-//	adapter ↛ delivery, composition
+//	domain      ↛ application, adapter, infra, delivery, composition
+//	application ↛ adapter, infra, delivery, composition   (§19: application imports no SDK/SQLite/protocol)
+//	infra       ↛ application, adapter, delivery, composition   (driven adapter: imports only domain)
+//	adapter     ↛ delivery, composition
+//	delivery    ↛ infra, composition   (drives ports/adapters, never raw storage)
 //
-// Intentionally NOT forbidden (each is a correct inward / hexagonal edge —
-// documented in EXECUTION_CENTERED_ARCHITECTURE.md §3 / §6):
+// Intentionally allowed inward / hexagonal edges (EXECUTION_CENTERED_ARCHITECTURE.md §3 / §6):
 //
-//	adapter → domain/*    capability + agent-execution adapters depend inward on domain entities + ports
-//	infra   → domain/*    driven adapters depend inward on domain entities + repo ports
-//	adapter → adapter/*   sibling adapters compose (e.g. toolset implements agentexec's tool SPI)
-//	adapter → infra/*     capability adapters wrap driven capabilities
-//	delivery → anything inward
+//	application → domain          coordinators depend on entities + consumer-side ports
+//	adapter → domain, application capability + agent-execution adapters implement application/domain ports
+//	adapter → adapter, infra      sibling adapters compose; capability adapters wrap driven capabilities
+//	infra   → domain              driven adapters implement domain repo ports
+//	delivery → domain, application, adapter
+//	composition → anything        the root wires every ring
+//
+// Two further §19 invariants are enforced structurally by the edges above rather
+// than by a dedicated test: "application event 不引用 protocol" holds because
+// protocol lives under internal/delivery and application ↛ delivery; "delivery 不
+//持有 Run lifecycle state" holds because the pump / registry / journal all live
+// in application/runs (delivery holds only a coordinator pointer it drives).
 func TestDependencyRule(t *testing.T) {
 	const modulePath = "github.com/Tangerg/lynx/app/runtime"
 	root := moduleRoot(t)
@@ -74,8 +82,8 @@ func TestDependencyRule(t *testing.T) {
 			return err
 		}
 		from := layerOf(filepath.ToSlash(rel))
-		if from == "" || from == ringComposition {
-			return nil // unclassified or exempt importer
+		if from == "" {
+			return nil // unclassified importer (e.g. a module-root helper)
 		}
 
 		f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
@@ -104,14 +112,62 @@ func TestDependencyRule(t *testing.T) {
 	}
 }
 
+// TestDomainHooksStayPure keeps the hooks bounded context free of filesystem +
+// process I/O: hooks is a pure policy domain (precedence / merge / trust rules),
+// and its I/O belongs to the composition-side subprocess adapter.
 func TestDomainHooksStayPure(t *testing.T) {
 	root := moduleRoot(t)
-	forbidden := map[string]struct{}{
-		"os":            {},
-		"os/exec":       {},
-		"path/filepath": {},
-	}
-	walkErr := filepath.WalkDir(filepath.Join(root, "internal", "domain", "hooks"), func(path string, d fs.DirEntry, err error) error {
+	forbidExternalImports(t, filepath.Join(root, "internal", "domain", "hooks"),
+		[]string{"os", "os/exec", "path/filepath"})
+}
+
+// TestDomainStaysFrameworkFree keeps every bounded context free of frameworks +
+// heavy runtime coupling (§19 "domain 不引入 I/O/framework"): no process exec, no
+// network, no database driver, and no external SDK/storage library. Path-string
+// helpers (path/filepath) and simple filesystem reads (os) are NOT forbidden here
+// — a handful of contexts (worktree/editguard path canon, recipes/skills project
+// dir resolution) still resolve paths; moving that residual fs coupling to an
+// adapter is a tracked §4.3 follow-up, not a framework dependency. The single
+// agent-SDK edge (accounting reads core.LLMInvocation token counts, a value type)
+// is a deliberate, documented exception and stays allowed.
+func TestDomainStaysFrameworkFree(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "domain"), frameworkImports)
+}
+
+// TestApplicationStaysFrameworkFree enforces §19's headline application-purity
+// clause directly for EXTERNAL dependencies (the ring rule already forbids the
+// internal SDK/SQLite/protocol edges): a use-case coordinator imports no agent
+// SDK, SQLite driver, Git, MCP, or LSP library. Its only cross-module import is
+// the neutral core chat model.
+func TestApplicationStaysFrameworkFree(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "application"),
+		append([]string{"github.com/Tangerg/lynx/agent"}, frameworkImports...))
+}
+
+// frameworkImports are the framework / driver / SDK packages an inner ring must
+// never import. Prefix-matched, so e.g. "modernc.org/sqlite" catches the driver
+// and its sub-packages.
+var frameworkImports = []string{
+	"os/exec",
+	"net",
+	"net/http",
+	"database/sql",
+	"modernc.org/sqlite",
+	"github.com/go-git",
+	"github.com/mark3labs",
+	"github.com/sourcegraph",
+}
+
+// forbidExternalImports fails the test for any production file under dir whose
+// import path equals or (for framework roots) is prefixed by a forbidden entry.
+// Exact std-lib names ("net") match the package itself and its sub-packages
+// ("net/http") without matching unrelated names.
+func forbidExternalImports(t *testing.T, dir string, banned []string) {
+	t.Helper()
+	root := moduleRoot(t)
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -124,24 +180,27 @@ func TestDomainHooksStayPure(t *testing.T) {
 		}
 		for _, imp := range f.Imports {
 			ip := strings.Trim(imp.Path.Value, `"`)
-			if _, bad := forbidden[ip]; bad {
-				rel, _ := filepath.Rel(root, path)
-				t.Errorf("domain hooks must not import %s: %s", ip, rel)
+			for _, bad := range banned {
+				if ip == bad || strings.HasPrefix(ip, bad+"/") {
+					rel, _ := filepath.Rel(root, path)
+					t.Errorf("%s must not import %q", rel, ip)
+				}
 			}
 		}
 		return nil
 	})
 	if walkErr != nil {
-		t.Fatalf("walk domain hooks: %v", walkErr)
+		t.Fatalf("walk %s: %v", dir, walkErr)
 	}
 }
 
 const (
+	ringComposition = "composition"
 	ringDelivery    = "delivery"
 	ringAdapter     = "adapter"
-	ringDomain      = "domain"
+	ringApplication = "application"
 	ringInfra       = "infra"
-	ringComposition = "composition"
+	ringDomain      = "domain"
 )
 
 // layerOf classifies a module-relative package dir (e.g. "internal/infra/storage")
@@ -156,29 +215,43 @@ func layerOf(rel string) string {
 		return ringDelivery
 	case rel == "internal/adapter" || strings.HasPrefix(rel, "internal/adapter/"):
 		return ringAdapter
-	case rel == "internal/domain" || strings.HasPrefix(rel, "internal/domain/"):
-		return ringDomain
+	case rel == "internal/application" || strings.HasPrefix(rel, "internal/application/"):
+		return ringApplication
 	case rel == "internal/infra" || strings.HasPrefix(rel, "internal/infra/"):
 		return ringInfra
+	case rel == "internal/domain" || strings.HasPrefix(rel, "internal/domain/"):
+		return ringDomain
 	default:
 		return ""
 	}
 }
 
 // forbidden reports whether a package in ring "from" may NOT import one in "to".
+// The composition root (runtime facade / bootstrap / config / cmd) wires every
+// ring, so it forbids nothing as an importer — but it is a forbidden TARGET for
+// every other ring, so assembly logic can never be pulled back into a business
+// ring (there is no blanket skip: composition is a normal ring here that happens
+// to import freely, while nothing imports it).
 func forbidden(from, to string) bool {
 	switch from {
-	case ringInfra:
-		return to == ringDelivery || to == ringAdapter
 	case ringDomain:
-		return to == ringDelivery || to == ringAdapter || to == ringInfra
+		return to != ringDomain
+	case ringApplication:
+		return to != ringDomain && to != ringApplication
+	case ringInfra:
+		// A driven adapter implements domain ports; it must never reach out to
+		// application, sibling adapters, delivery, or the composition root.
+		return to != ringDomain && to != ringInfra
 	case ringAdapter:
 		// Adapters implement domain/application ports and wrap infra; they must
-		// never reach up into the composition root (internal/runtime / config /
-		// cmd) — that inversion would let assembly logic hide inside a capability
-		// adapter (the startup-projection edge that prompted this guard).
+		// never reach up into delivery or the composition root (the latter would
+		// let assembly logic hide inside a capability adapter).
 		return to == ringDelivery || to == ringComposition
-	default:
+	case ringDelivery:
+		// Delivery drives coordinators + adapters through ports; it never touches
+		// raw storage (infra) or imports the root that wires it.
+		return to == ringInfra || to == ringComposition
+	default: // composition imports anything inward
 		return false
 	}
 }
