@@ -2,7 +2,7 @@
 
 > **日期**：2026-07-10（设计）/ 2026-07-12（落地）
 >
-> **状态**：**现行唯一架构基准**。§18 的 8 批重写已全部落地，依赖规则由 `internal/arch` 机器强制。本文原为"从零设计提案"，现为实现基准 —— 描述的是已建成的结构，不是设想。
+> **状态**：**现行唯一架构基准**。§18 的 8 批重写 + 收尾批（§20 所有权反转的最后一公里）已全部落地：run 生命周期归 `application/runs` + `bootstrap.Host`，executor/turn-control 归 `adapter/agentexec/turn`,读投影归 `application/queries`,`internal/runtime` facade 已彻底解散、config 折入 `bootstrap`;§16 全部 fitness 规则(含 rule 5 delivery 无 run-lifecycle state)由 `internal/arch` 机器强制。本文原为"从零设计提案",现为实现基准 —— 描述的是已建成的结构,不是设想。
 >
 > **命题**：如果不考虑现有目录与 API 包袱，只吸收领域驱动设计、整洁架构和六边形架构的思想，`app/runtime` 应该如何从零设计？
 >
@@ -235,7 +235,7 @@ app/runtime/
 - 小而内聚的上下文保持一个包；
 - 只有出现真实复用时才提取技术型 `platform/*` 包。
 
-从零设计时不需要单列 `infra` 环。SQLite、Git、MCP、LSP 本来就是 driven adapters。若某个纯技术 client 被多个 adapter 重复使用，再提取 `platform/git`、`platform/lsp`，不提前建立抽象层。
+**落地采用了单列 `infra` 环**（`internal/infra/{storage/sqlite,git,lsp,mcp,exec,a2a}`）：SQLite、Git、MCP、LSP 是 driven adapters，把它们与 capability adapters（`internal/adapter/*`）分环，让"实现 domain port 的纯技术设施"与"实现 application port + 包外部能力的适配器"各自成环、依赖规则更清晰（`arch_test` 强制 `infra ↛ application/adapter/delivery/composition`,只 import domain）。这是 §3 从零设计里"不单列 infra"理想化的一个有意偏离 —— 单列 infra 是合法的整洁架构选择,不是债。`platform/*` 抽象仍按"出现真实复用再提"的原则,不提前建立。
 
 ---
 
@@ -254,6 +254,8 @@ Execution 初始包含：
 - 与 Session 生命周期严格绑定的 Todo。
 
 这些概念属于一个上下文，但不必属于同一个 aggregate。
+
+**落地偏离（有意）**：`Run`/`Transcript`/`Conversation`/`Interrupt`/`Usage(accounting)` 落在 `domain/execution/{run,transcript,conversation,interrupts,accounting}` 子包；但 **`Session` 与 `Todo` 保留为各自独立的 `domain/session`、`domain/todo` 包，不物理归入 `execution`**。理由：二者的 aggregate store 有真实跨环 feature 消费者（session 被 sessions 协调器 + 多适配器消费,todo 被 agentexec + toolset 消费）,port 须落在最内公共点(自身 domain 包);把它们塞进 execution 子包不增内聚、只增耦合。"属于同一执行上下文"是概念归属,不强制同一 Go 包 —— 这与本节"一个上下文但不必同一 aggregate"的精神一致。
 
 #### Session aggregate
 
@@ -408,21 +410,26 @@ func (c *Coordinator) Subscribe(ctx context.Context, id execution.RunID, after C
 
 ### 5.3 Application facade
 
-组合后的应用入口可以是一个纯结构：
+组合后的应用入口是一个纯结构。**落地为 `bootstrap.Stack`**（+ 承载 executor/turn-control 的 adapter、workspace 事件 notifier 等交付面所需的引用）：
 
 ```go
-type Application struct {
-	Runs         *runs.Coordinator
+// internal/bootstrap
+type Stack struct {
+	Coordinator  *runs.Coordinator      // run 生命周期
 	Sessions     *sessions.Coordinator
-	Workspace    *workspace.Coordinator
 	Capabilities *capabilities.Coordinator
+	Queries      *queries.Coordinator   // 读投影(§5.4)
+	TurnControl  *turn.Control           // turn-start adapter(用 agent-SDK turn 类型,故在 adapter 环)
+	Workspace    *workspace.Coordinator
 	Schedules    *schedules.Coordinator
+	FileChanges  *filechanges.Notifier   // §2.5 显式管线:run→delivery hub
+	MCPStatus    *mcpstatus.Notifier
 }
 ```
 
-它只用于发现和交付，不拥有跨能力业务锁、资源 closer 或复杂方法。
+它只用于发现和交付,**不拥有资源 closer**：资源关闭由 `bootstrap.Host` 持有（`Host{Stack; dispatcher; effectsTasks; engine; resources}`,`Host.Close` 按反依赖序关闭,§10.3/§13.2）,所以 Stack 保持无 closer、无业务方法。**注意**:turn-control（`turn.Control`）签名用 `turn.StartTurnRequest`/`TurnHandle`（agent-SDK 类型）,application ↛ adapter,故它是 adapter 而非 application coordinator —— 交付面驱动它,但它不进 Stack 的"application coordinator"语义（Stack 只是把交付所需引用聚在一处）。
 
-Delivery 可以按自己的消费面定义 `runUseCases`、`sessionUseCases` 等窄接口，具体 Coordinator 隐式满足。
+Delivery 按自己的消费面直接持具体 Coordinator/adapter 指针驱动(runs/sessions/queries/turnControl/…),不再经任何 facade —— `internal/runtime` facade 已删除。
 
 ### 5.4 Query 不必机械经过 aggregate
 
@@ -506,6 +513,8 @@ FilesChanged
 - timestamp；
 - typed payload。
 
+**落地偏离（有意，见 B5.1）**：application 的 `runs.Event` 是 transport-neutral **信封**（RunID / Seq / Timestamp / IsDurable / IsTerm / **opaque Payload**）,pump 是"纯导管"逐个转发 opaque payload,**不**另立一套 typed `RunStarted/OutputDelta/…` application 事件族。理由:agent 适配器的 `turn.Event` 已是 Lyra 的中立中间事件(dispatcher 把 `core.*` 译成 `turn.Event`);再造一套 typed `runs.EngineEvent` 会是它的 lockstep DRY 孪生(双重维护,比 opaque 导管更糟),除非能消灭 `turn.Event` —— 而它经不可导出的 `stamp` 与 dispatcher emit 机制紧耦合,无法干净分离。§19 的三层仍在:agent event(`turn.Event`)→ application event(`runs.Event` 信封)→ protocol event(`protocol.RunEvent`,delivery 的 Projector 做 rich→wire 翻译)。monotonic cursor 由 `runs.Coordinator` 自持(§11.2 opaque 递增),delivery 只在两端做 `evt_` framing。
+
 Protocol adapter 只能把它映射为 `protocol.RunEvent`，不能反向生成持久化事实。
 
 ### 7.2 事件处理顺序
@@ -566,7 +575,7 @@ type Store interface {
 
 Domain/Application 决定 `RollbackPlan`；SQLite adapter 只原子执行计划。
 
-不建议继续把 transaction handle 隐式藏进 `context.Context`，再让多个 Store 自动 join。事务边界应当在 application port 语义上可见。
+**落地**：上例的单一 `Store` 是示意 —— 实际按 ISP + 消费者拆分：`runs.RunStore.Admit`（admission）、`runs.Effects.CommitEvent`（run-event 原子提交）、`sessions.WriteSets.{ApplyFork,ApplyRollback,ApplyRestore,ApplyDelete,ApplyCancel}` + `SessionStore.Patch`（会话生命周期写集），各由其 bounded consumer 定义。每个 `Apply*`/`CommitEvent` 方法 = 一个原子决策 = 一个事务,事务边界在 method 语义上可见。`context.Context` 里确实藏了 tx handle 让 sqlite 子 store 经 `conn(ctx)` join,但那**封装在单个 Apply\* 方法内部**（组合根的持久化适配器,§8.4）,协调器从不跨 table-CRUD 调用拼事务 —— 可见边界仍是 `Apply*` 这一个方法,与本节精神一致。
 
 ### 8.2 Run admission 由 durable constraint 保底
 
@@ -910,7 +919,7 @@ Clock、ID generator、Executor 由测试注入，确保确定性。
 11. domain package 间必须保持 DAG，跨 context 通过稳定值类型或 application 协调；
 12. 测试文件可使用跨层 fixture，但生产文件不能。
 
-现有 `internal/arch` 可以继续使用 `go/parser`，但不再给一个承载业务逻辑的 `runtime` 包整体 composition exemption，也不再允许 delivery 依赖任意内层包。
+**落地：全部 12 条由 `internal/arch` 机器强制**（`go/parser`/`go/ast` 走查）。承载业务逻辑的 `runtime` 包已删除,composition 环退化为纯 `bootstrap/config/cmd`(无业务方法,rule 8 `TestBootstrapExposesNoBusinessMethod` 强制);rule 5(`TestDeliveryHoldsNoRunLifecycleState`)强制 delivery/server 不 import `component/taskgroup`、不持 `taskgroup.Group`/`workspace.Checkpoints`/`runs.Registry` 字段;rule 2(`TestExecutionDomainStaysPure`)+ rule 4(`TestDeliveryStaysAdapterOnly`)覆盖内层/交付环的外部 SDK 边界。每条新规则均以 inject-and-revert 证过非空。
 
 ---
 
