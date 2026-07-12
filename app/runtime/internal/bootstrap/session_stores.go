@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
 // sessionForgetter releases the turn dispatcher's process-local state for a
@@ -35,7 +34,7 @@ type sessionStores struct {
 	runs       *sqlitestore.RunStateStore
 	history    *conversation.Messages
 	forgetter  sessionForgetter
-	tx         lyraruntime.Transactor
+	tx         Transactor
 }
 
 func (s sessionStores) Session() sessions.SessionStore      { return s.sessions }
@@ -49,7 +48,7 @@ func (s sessionStores) ForgetSession(sessionID string) { s.forgetter.ForgetSessi
 
 // runInTx runs fn inside one storage transaction, falling back to a direct call
 // when no transactor is wired (a non-sqlite / test runtime) — see
-// [lyraruntime.Transactor]. The Apply* write-sets below drive it; it is the one
+// [Transactor]. The Apply* write-sets below drive it; it is the one
 // transactional seam left, now behind the atomic ports rather than the
 // coordinator's own surface (§8.4).
 func (s sessionStores) runInTx(ctx context.Context, fn func(context.Context) error) error {

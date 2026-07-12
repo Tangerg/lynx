@@ -21,9 +21,9 @@ import (
 //
 // Rings (outer → inner):
 //
-//	composition    internal/runtime/**,         the "main" component: config load, assembly, the
-//	               internal/bootstrap/**,        Executor/turn facade, host lifecycle. Wires every
-//	               internal/config, cmd/**       ring, so it imports anything — but nothing imports IT.
+//	composition    internal/bootstrap/**,        the "main" component: config load, assembly, host
+//	               internal/config, cmd/**       lifecycle. Wires every ring, so it imports anything —
+//	                                             but nothing imports IT.
 //	delivery       internal/delivery/**          HTTP+SSE / inprocess transport, dispatch, protocol
 //	adapter        internal/adapter/**           capability adapters, incl. adapter/agentexec (the
 //	                                              agent-execution adapter over the agent SDK)
@@ -53,7 +53,7 @@ import (
 // Two further §19 invariants are enforced structurally by the edges above rather
 // than by a dedicated test: "application event 不引用 protocol" holds because
 // protocol lives under internal/delivery and application ↛ delivery; "delivery 不
-//持有 Run lifecycle state" holds because the pump / registry / journal all live
+// 持有 Run lifecycle state" holds because the pump / registry / journal all live
 // in application/runs (delivery holds only a coordinator pointer it drives).
 func TestDependencyRule(t *testing.T) {
 	const modulePath = "github.com/Tangerg/lynx/app/runtime"
@@ -362,8 +362,7 @@ const (
 // into its ring, or "" when the path is outside the rings under test.
 func layerOf(rel string) string {
 	switch {
-	case rel == "internal/runtime" || strings.HasPrefix(rel, "internal/runtime/") ||
-		rel == "internal/bootstrap" || strings.HasPrefix(rel, "internal/bootstrap/") ||
+	case rel == "internal/bootstrap" || strings.HasPrefix(rel, "internal/bootstrap/") ||
 		rel == "internal/config" || strings.HasPrefix(rel, "cmd/"):
 		return ringComposition
 	case rel == "internal/delivery" || strings.HasPrefix(rel, "internal/delivery/"):

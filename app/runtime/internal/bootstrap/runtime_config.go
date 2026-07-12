@@ -12,13 +12,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
 // RuntimeConfig assembles the runtime facade config from already-opened
 // process adapters.
-func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.Client, providers providersvc.Registry, hooks lyraruntime.HookResolver) lyraruntime.Config {
-	return lyraruntime.Config{
+func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.Client, providers providersvc.Registry, hooks HookResolver) Config {
+	return Config{
 		Resources: []io.Closer{stores},
 		Engine: agentexec.Config{
 			ChatClient:      client,
@@ -30,7 +29,7 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.C
 			ParkStore:       stores.Park,
 		},
 		UtilityRoleStore:       stores.UtilityRole,
-		Online:                 lyraruntime.OnlineConfig(cfg.Online),
+		Online:                 OnlineConfig(cfg.Online),
 		MCPRegistry:            stores.MCPServers,
 		A2AAgents:              runtimeA2AAgents(cfg.A2AAgents),
 		LSPServers:             runtimeLSPServers(cfg.LSPServers),
@@ -50,7 +49,7 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.C
 		ScheduleRegistry:       stores.Schedules,
 		EmbeddingRoleStore:     stores.EmbeddingRole,
 		CodebaseStore:          stores.Codebase,
-		Transactor:             lyraruntime.Transactor(stores.Tx),
+		Transactor:             Transactor(stores.Tx),
 		ApprovalMode:           approval.ModeBalanced,
 		ApprovalRuleStore:      stores.ApprovalRules,
 	}

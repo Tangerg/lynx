@@ -6,7 +6,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
 // SeedConfiguredProvider ensures the config-file provider is present in the
@@ -32,7 +31,7 @@ func SeedConfiguredProvider(ctx context.Context, svc providersvc.Registry, cfg c
 // persisted via models.setUtilityRole is left untouched — runtime edits win
 // over the config file. An empty / identical-to-main UtilityModel seeds
 // nothing (maintenance then runs on the main model).
-func SeedUtilityRole(ctx context.Context, store lyraruntime.UtilityRoleStore, cfg config.Config) error {
+func SeedUtilityRole(ctx context.Context, store UtilityRoleStore, cfg config.Config) error {
 	if _, model, err := store.LoadUtilityRole(ctx); err != nil {
 		return err
 	} else if model != "" {

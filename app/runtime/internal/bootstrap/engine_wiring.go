@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
-	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
 )
 
 type messageEnvironment struct {
@@ -17,7 +16,7 @@ type messageEnvironment struct {
 	conversation *conversation.Messages
 }
 
-func prepareEngineConfig(cfg lyraruntime.Config) (agentexec.Config, messageEnvironment) {
+func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment) {
 	ecfg := cfg.Engine
 	ecfg.SessionStore = newChildSessionStore(cfg.SessionStore)
 	ecfg.Provider = cfg.Provider
@@ -37,7 +36,7 @@ func buildMessageEnvironment(ecfg *agentexec.Config) messageEnvironment {
 	}
 }
 
-func wireEnginePorts(ecfg *agentexec.Config, cfg lyraruntime.Config, messages messageEnvironment, resolveUtility func(context.Context) *chat.Client) {
+func wireEnginePorts(ecfg *agentexec.Config, cfg Config, messages messageEnvironment, resolveUtility func(context.Context) *chat.Client) {
 	if ecfg.Steering == nil {
 		ecfg.Steering = messages.conversation
 	}
