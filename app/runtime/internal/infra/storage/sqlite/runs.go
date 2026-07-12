@@ -57,49 +57,129 @@ func (s *RunStateStore) Admit(ctx context.Context, draft execution.RunDraft) err
 	return nil
 }
 
-// Suspend transitions the session's running Run to interrupted — it parked for
-// HITL resume — keeping it non-terminal so the session stays durably claimed.
-// Keyed on session + guarded on the running state so it is idempotent (a no-op
-// when the session has no running Run). Best-effort at the park boundary; a
-// missed write leaves a running row that a still-open interrupt keeps out of the
-// boot [RunStateStore.ReconcileOrphans] sweep.
+// Suspend parks the session's running Run (Running → Interrupted, kept
+// non-terminal so the session stays durably claimed) by deferring to the
+// [execution.RunState] machine. Idempotent when the run is already interrupted (a
+// re-applied park) or absent (nothing active); Suspend from any other state is
+// illegal and surfaces an error rather than silently succeeding.
 func (s *RunStateStore) Suspend(ctx context.Context, sessionID string) error {
-	return s.transition(ctx, sessionID, runStateRunning, runStateInterrupted, "suspend")
+	return s.advance(ctx, sessionID, "suspend", execution.RunState.Suspend, execution.Interrupted)
 }
 
-// Resume transitions the session's interrupted Run back to running when a parked
-// run continues, so a crash mid-continuation leaves a running row the boot sweep
-// reclaims (the interrupt was already consumed) rather than a stuck interrupted
-// one. Keyed on session + guarded on the interrupted state so it is idempotent (a
-// no-op when the row is already running because a park's Suspend was missed).
+// Resume continues the session's parked Run (Interrupted → Running) so a crash
+// mid-continuation leaves a running row the boot sweep reclaims (the interrupt
+// was already consumed) rather than a stuck interrupted one. Idempotent when the
+// row is already running (a park's Suspend was missed) or absent; Resume from any
+// other state is illegal and surfaced.
 func (s *RunStateStore) Resume(ctx context.Context, sessionID string) error {
-	return s.transition(ctx, sessionID, runStateInterrupted, runStateRunning, "resume")
+	return s.advance(ctx, sessionID, "resume", execution.RunState.Resume, execution.Running)
 }
 
-func (s *RunStateStore) transition(ctx context.Context, sessionID, from, to, op string) error {
-	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`UPDATE runs SET state = ?, updated_at = ? WHERE session_id = ? AND state = ?`,
-		to, time.Now().UTC().UnixNano(), sessionID, from)
+// Terminalize ends the session's non-terminal Run with outcome o, freeing the
+// admission slot. Keyed on session (the partial unique index guarantees one
+// non-terminal Run, so a resumed run whose segment id differs still
+// terminalizes). Deferring to [execution.RunState.Terminate] enforces the
+// machine's legality — a parked run may terminalize only via cancellation; any
+// other terminal from a parked run must resume first — so an illegal terminal
+// surfaces instead of silently overwriting the row. Idempotent when the session
+// has no non-terminal Run (already terminal / never admitted).
+func (s *RunStateStore) Terminalize(ctx context.Context, sessionID string, o execution.Outcome) error {
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		cur, found, err := s.activeState(ctx, sessionID)
+		if err != nil || !found {
+			return err
+		}
+		next, ok := cur.Terminate(o)
+		if !ok {
+			return fmt.Errorf("sqlite: terminalize run: illegal %s from %s", o, cur)
+		}
+		return s.writeState(ctx, sessionID, "terminalize", cur, next, o.String())
+	})
+}
+
+// advance applies a domain [execution.RunState] transition to the session's one
+// non-terminal Run and persists the result, keeping the store's admission state
+// governed by the machine rather than ad-hoc SQL guards:
+//
+//   - no active run                → benign no-op (already terminal / never admitted).
+//   - the move is legal            → CAS-write guarded on the observed state.
+//   - illegal but already at dest  → benign idempotent no-op (a re-applied park,
+//     or a resume whose park's Suspend was missed).
+//   - illegal from any other state → surfaced as an error, not silently dropped.
+//
+// The read-classify-write runs in one transaction ([RunInTx] joins a caller's
+// commit transaction or opens its own), so the observed state can't shift under
+// the CAS.
+func (s *RunStateStore) advance(ctx context.Context, sessionID, op string, move func(execution.RunState) (execution.RunState, bool), dest execution.RunState) error {
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		cur, found, err := s.activeState(ctx, sessionID)
+		if err != nil || !found {
+			return err
+		}
+		next, ok := move(cur)
+		if !ok {
+			if cur == dest {
+				return nil
+			}
+			return fmt.Errorf("sqlite: %s run: illegal transition from %s", op, cur)
+		}
+		return s.writeState(ctx, sessionID, op, cur, next, "")
+	})
+}
+
+// activeState reads the session's single non-terminal Run (the partial unique
+// index guarantees at most one) and reconstructs its [execution.RunState].
+// found=false means the session has no active run — every transition treats that
+// as a benign no-op.
+func (s *RunStateStore) activeState(ctx context.Context, sessionID string) (execution.RunState, bool, error) {
+	var coarse string
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT state FROM runs WHERE session_id = ? AND state != ?`,
+		sessionID, runStateTerminal).Scan(&coarse)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return 0, false, nil
+	case err != nil:
+		return 0, false, fmt.Errorf("sqlite: read run state: %w", err)
+	case coarse == runStateInterrupted:
+		return execution.Interrupted, true, nil
+	default:
+		return execution.Running, true, nil
+	}
+}
+
+// writeState persists a machine-validated transition as a CAS guarded on the
+// observed source state; a 0-row result means the row changed under the
+// transaction (a lost race) and is surfaced rather than silently dropped. The
+// outcome column is stamped from o — empty for a non-terminal transition, which
+// leaves it at the empty string every non-terminal row already carries.
+func (s *RunStateStore) writeState(ctx context.Context, sessionID, op string, from, to execution.RunState, outcome string) error {
+	res, err := conn(ctx, s.db).ExecContext(ctx,
+		`UPDATE runs SET state = ?, outcome = ?, updated_at = ?
+		 WHERE session_id = ? AND state = ?`,
+		coarseState(to), outcome, time.Now().UTC().UnixNano(), sessionID, coarseState(from))
 	if err != nil {
 		return fmt.Errorf("sqlite: %s run: %w", op, err)
 	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("sqlite: %s run: state changed concurrently (was %s)", op, from)
+	}
 	return nil
 }
 
-// Terminalize transitions the session's non-terminal Run to terminal with the
-// given outcome, freeing the session. Keyed on session (the partial unique index
-// guarantees one non-terminal Run, so no run_id is needed and a resumed run whose
-// segment id differs still terminalizes), guarded on state so it is idempotent:
-// terminalizing an already-terminal / absent session is a no-op.
-func (s *RunStateStore) Terminalize(ctx context.Context, sessionID, outcome string) error {
-	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`UPDATE runs SET state = ?, outcome = ?, updated_at = ?
-		 WHERE session_id = ? AND state != ?`,
-		runStateTerminal, outcome, time.Now().UTC().UnixNano(), sessionID, runStateTerminal)
-	if err != nil {
-		return fmt.Errorf("sqlite: terminalize run: %w", err)
+// coarseState projects the fine [execution.RunState] onto the three admission
+// states the runs table stores — the partial unique index keys on non-terminal,
+// so every terminal RunState collapses to the one 'terminal' value (the fine
+// terminal reason lives in runs.outcome).
+func coarseState(s execution.RunState) string {
+	switch {
+	case s.IsTerminal():
+		return runStateTerminal
+	case s == execution.Interrupted:
+		return runStateInterrupted
+	default:
+		return runStateRunning
 	}
-	return nil
 }
 
 // DeleteForSession drops every Run row of a session whose durable state is being
