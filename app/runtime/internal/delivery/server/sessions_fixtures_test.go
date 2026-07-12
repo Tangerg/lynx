@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -102,14 +103,14 @@ func newTestServer(rt testRuntime) *Server {
 	if p, ok := rt.(turnControlProvider); ok {
 		s.turnControl = p.turnControlAdapter()
 	}
-	// Seed a default capabilities coordinator so the session→wire projection
-	// (which reads DefaultModel) works; capability handler tests build their own
-	// via serverWithCapabilities.
+	// Seed a default models coordinator so the session→wire projection (which
+	// reads DefaultModel) works; capability handler tests build their own via
+	// serverWithModels / serverWithCapabilities.
 	defaultModel := ""
 	if src, ok := rt.(interface{ DefaultModel() string }); ok {
 		defaultModel = src.DefaultModel()
 	}
-	s.capabilities = capabilities.New(capabilities.Config{DefaultModel: defaultModel})
+	s.models = models.New(models.Config{DefaultModel: defaultModel})
 	// Default to a disabled schedules coordinator (schedules.* report
 	// capability_not_negotiated); schedule tests replace it with a fake registry.
 	s.schedules = schedules.NewCoordinator(nil, nil)
@@ -117,10 +118,15 @@ func newTestServer(rt testRuntime) *Server {
 }
 
 // serverWithCapabilities builds a Server whose only wired coordinator is the
-// capabilities one — enough for the tools / providers / models handler tests,
-// which touch nothing else.
+// capabilities one — enough for the tools handler tests, which touch nothing else.
 func serverWithCapabilities(cfg capabilities.Config) *Server {
 	return &Server{capabilities: capabilities.New(cfg)}
+}
+
+// serverWithModels builds a Server whose only wired coordinator is the models one
+// — enough for the providers / models handler tests.
+func serverWithModels(cfg models.Config) *Server {
+	return &Server{models: models.New(cfg)}
 }
 
 func (s stubRuntime) Transcript() *sqlite.TranscriptStore { return s.hist }

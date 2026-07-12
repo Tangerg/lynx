@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-// providerFake satisfies the capabilities coordinator's three provider-facing
+// providerFake satisfies the models coordinator's three provider-facing
 // ports at once: the provider.Registry (List/Get/Configure), the static
 // ProviderCatalog (Supported/Metadata), and the ProviderProber (Probe).
 type providerFake struct {
@@ -69,7 +69,7 @@ func (r *providerFake) Probe(_ context.Context, entry provider.Provider) error {
 }
 
 func serverWithProviders(rt *providerFake) *Server {
-	return serverWithCapabilities(capabilities.Config{Providers: rt, Catalog: rt, Prober: rt})
+	return serverWithModels(models.Config{Providers: rt, Catalog: rt, Prober: rt})
 }
 
 func TestListProvidersMergesSupportedCatalogWithRegistry(t *testing.T) {

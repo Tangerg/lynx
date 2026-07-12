@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -33,6 +34,7 @@ type Stack struct {
 	Sessions     *sessions.Coordinator
 	Capabilities *capabilities.Coordinator
 	Approvals    *approvals.Coordinator
+	Models       *models.Coordinator
 	Codebase     *codebase.Coordinator
 	Queries      *queries.Coordinator
 	TurnControl  *turn.Control
@@ -252,8 +254,7 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 
 	approvalsCoord := approvals.New(approvalPolicy, cfg.SessionStore)
 
-	capabilityCoord := capabilities.New(capabilities.Config{
-		Tools:             toolRegistry,
+	modelsCoord := models.New(models.Config{
 		Providers:         cfg.ProviderRegistry,
 		Catalog:           providerCatalog{},
 		Prober:            providerProber{},
@@ -263,12 +264,16 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 		EmbeddingCell:     embeddingEnv.cell,
 		EmbeddingResolver: embeddingEnv.resolver,
 		EmbeddingStore:    cfg.EmbeddingRoleStore,
-		MCPRegistry:       cfg.MCPRegistry,
-		MCPLive:           eng,
-		MCPPolicy:         mcpEnv.policy,
-		MCPStatus:         mcpStatus.Publish,
 		DefaultProvider:   cfg.Provider,
 		DefaultModel:      cfg.Model,
+	})
+
+	capabilityCoord := capabilities.New(capabilities.Config{
+		Tools:       toolRegistry,
+		MCPRegistry: cfg.MCPRegistry,
+		MCPLive:     eng,
+		MCPPolicy:   mcpEnv.policy,
+		MCPStatus:   mcpStatus.Publish,
 	})
 
 	// The @codebase semantic index is its own use-case coordinator (nil index =
@@ -280,6 +285,7 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 			Sessions:     sessionCoord,
 			Capabilities: capabilityCoord,
 			Approvals:    approvalsCoord,
+			Models:       modelsCoord,
 			Codebase:     codebaseCoord,
 			Coordinator:  runCoord,
 			FileChanges:  fileChanges,
