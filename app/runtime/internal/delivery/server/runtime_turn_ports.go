@@ -2,11 +2,9 @@ package server
 
 import (
 	"context"
-	"iter"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -21,11 +19,6 @@ import (
 type turnUseCases interface {
 	PlanTurnStart(ctx context.Context, sessionID, defaultCwd string, draft turn.StartTurnRequest) (sessionsvc.Session, turn.StartTurnRequest, error)
 	StartTurn(ctx context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error)
-	// TurnEvents / CancelTurn satisfy the application's engine-neutral
-	// [runs.Executor] (opaque handle + event); the facade holds the concrete turn
-	// handle behind them.
-	TurnEvents(ctx context.Context, handle runs.Handle) (iter.Seq[runs.EngineEvent], error)
-	CancelTurn(ctx context.Context, handle runs.Handle) error
 	InjectTurnSteering(ctx context.Context, handle turn.TurnHandle, message string) error
 	RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects
 	ListPendingInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error)

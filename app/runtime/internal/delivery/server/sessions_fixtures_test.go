@@ -46,9 +46,10 @@ type sessionsCoordinatorProvider interface {
 func newTestServer(rt RuntimePort) *Server {
 	s := &Server{rt: rt}
 	// Build the run Coordinator like the Host does, so tests exercise the real
-	// admission / lifecycle seam (its effects come from the stub runtime; no
-	// checkpoint store or file-change publisher is needed for these tests).
-	s.coordinator = runs.NewCoordinator(rt, rt.RunSegmentEffects(nil, nil), nil)
+	// admission / lifecycle seam. The stub runtime provides both the executor
+	// (TurnEvents/CancelTurn) and the run-segment effects; no checkpoint store or
+	// file-change publisher is needed for these tests.
+	s.coordinator = runs.NewCoordinator(rt.(runs.Executor), rt.RunSegmentEffects(nil, nil), nil)
 	// Wire the session/run lifecycle coordinator over the fake's in-memory stores
 	// when the fake provides one, mirroring the composition root.
 	if p, ok := rt.(sessionsCoordinatorProvider); ok {
