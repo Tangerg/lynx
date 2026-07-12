@@ -8,15 +8,18 @@ import (
 
 // pump is the run segment goroutine: it leads with the projector's open events,
 // projects each executor event, and — on a terminal or a drained stream — tears
-// the run down. It preserves the run stream's ordering exactly: live publication
-// generally precedes the durable commit (a slow store can't delay the terminal
-// reaching subscribers or the teardown), EXCEPT an interrupt, whose durable
-// record is committed before its event is published (a client may resume the
-// instant it sees the interrupt). Each event's durable commit is ATOMIC: its
-// projections and the run-state transition it implies (park → interrupted,
-// terminal) land in one transaction (§8.3), so a crash never leaves a parked run
-// with no admission mark or a terminal transcript with a running row. A parked
-// run leaves its live turn alive for resume; a true terminal cancels it.
+// the run down. It commits before it publishes (§7.2): every durable event's
+// ATOMIC commit — its projections plus the run-state transition it implies (park
+// → interrupted, terminal → terminalized; §8.3) — lands in one transaction
+// BEFORE the event reaches subscribers, so a client that acts on an event (reads
+// the transcript after a terminal, resumes the instant it sees an interrupt)
+// never observes state the store does not yet hold, and a terminal frees the
+// session's durable admission slot before it frees the in-memory one. A commit
+// failure aborts the turn rather than publishing an event the durable record
+// can't back. The interrupt commit additionally linearizes against cancel (a
+// cancel that wins the race skips the commit). Non-durable deltas publish
+// directly. A parked run leaves its live turn alive for resume; a true terminal
+// cancels it.
 func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner iter.Seq[EngineEvent], live *handle, projector Projector) {
 	hub := live.hub
 	finished := false
@@ -68,18 +71,24 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 				}
 				continue
 			}
+			// Commit before publish: a durable event's atomic commit (for a terminal,
+			// recording the run + terminalizing the run-state) lands before the event
+			// is delivered or retained for replay, so a subscriber never observes an
+			// event the store doesn't yet back. A commit failure aborts the turn (as
+			// the interrupt path does) rather than publishing an unbacked event.
+			if pe.Commit != nil {
+				if err := c.effects.CommitEvent(ownerCtx, *pe.Commit); err != nil {
+					if ctx.Err() == nil && ownerCtx.Err() == nil {
+						projector.Abort(err.Error())
+					}
+					abortTurn = true
+					return false
+				}
+			}
 			if pe.Terminal {
 				finished = true
 			}
-			// Live first: deliver + retain in the replay backlog before the durable
-			// commit, so a slow store can't delay the terminal. The commit (which for
-			// a terminal atomically records the run + terminalizes the run-state) is
-			// best-effort — a lost projection self-heals, a stranded admission row is
-			// swept by the next boot's ReconcileOrphans.
 			hub.Append(ev)
-			if pe.Commit != nil {
-				_ = c.effects.CommitEvent(ownerCtx, *pe.Commit)
-			}
 			if pe.Nudge != nil {
 				c.effects.Nudge(pe.Nudge.Cwd, pe.Nudge.Paths)
 			}

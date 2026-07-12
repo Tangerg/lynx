@@ -270,8 +270,8 @@ func TestCoordinatorResumeReusesDurableSlot(t *testing.T) {
 
 // TestCoordinatorStartStreamsThenTerminates: Start opens a run, streams the
 // projector's open + translated events, and — because the executor stream ends
-// without a terminal — synthesizes one on teardown; each non-interrupt event is
-// committed after publication.
+// without a terminal — synthesizes one on teardown; each durable event is
+// committed before publication (§7.2).
 func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
 	exec := &fakeExecutor{events: []EngineEvent{stubEngineEvent{}}}
 	eff := &fakeEffects{}
@@ -305,8 +305,8 @@ func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
 	if cursors[0] >= cursors[1] || cursors[1] >= cursors[2] {
 		t.Fatalf("cursors not monotonic: %v", cursors)
 	}
-	// Every non-interrupt event committed after publication (the commit precedes
-	// the terminal's hub.Close, so this read is ordered by the channel close).
+	// Every durable event committed (before publication, §7.2 — proven
+	// deterministically by TestCoordinatorItemPersistFailureAborts).
 	if got := eff.commitCount(); got != 3 {
 		t.Fatalf("CommitEvent calls = %d, want 3", got)
 	}
@@ -429,6 +429,47 @@ func TestCoordinatorInterruptPersistFailureAborts(t *testing.T) {
 	}
 	if len(payloads) == 0 || payloads[len(payloads)-1] != "error" {
 		t.Fatalf("payloads = %v, want ending in an error terminal (interrupt never published)", payloads)
+	}
+	if exec.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1 (aborted turn canceled)", exec.cancels())
+	}
+	if proj.aborted == "" {
+		t.Fatal("projector Abort was not called with the commit error")
+	}
+}
+
+// TestCoordinatorItemPersistFailureAborts proves commit-before-publish for a
+// durable non-terminal event (§7.2): when the item's atomic commit fails, the
+// pump aborts BEFORE publishing it — the item never reaches the stream, the turn
+// is canceled, and the run terminalizes as error. Under a live-first order the
+// item would already be on the stream (backed by no durable record); this test
+// would fail then, so it pins the ordering.
+func TestCoordinatorItemPersistFailureAborts(t *testing.T) {
+	exec := &fakeExecutor{events: []EngineEvent{stubEngineEvent{}}}
+	eff := &fakeEffects{commitErr: fmt.Errorf("store down")}
+	proj := &fakeProjector{
+		open:      []ProjectedEvent{{Durable: true, Payload: "started"}},
+		translate: []ProjectedEvent{{Durable: true, Payload: "item", Commit: &execution.EventCommit{SessionID: "ses_1"}}},
+		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: "error"}},
+	}
+	c := NewCoordinator(exec, eff, &fakeMinter{}, nil)
+	events, err := c.Start(context.Background(),
+		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
+		func(SegmentView) Projector { return proj })
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	var payloads []any
+	for e := range events {
+		payloads = append(payloads, e.Payload)
+	}
+	for _, p := range payloads {
+		if p == "item" {
+			t.Fatalf("payloads = %v, want the item NEVER published (commit-before-publish)", payloads)
+		}
+	}
+	if len(payloads) == 0 || payloads[len(payloads)-1] != "error" {
+		t.Fatalf("payloads = %v, want ending in an error terminal", payloads)
 	}
 	if exec.cancels() != 1 {
 		t.Fatalf("CancelTurn calls = %d, want 1 (aborted turn canceled)", exec.cancels())
