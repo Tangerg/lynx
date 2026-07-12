@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -48,6 +49,11 @@ type Config struct {
 	// Approvals is the application coordinator for the tool-permission stance +
 	// approval rules. Required — the approval.* settings handlers drive it.
 	Approvals *approvals.Coordinator
+
+	// Models is the application coordinator for provider + model configuration
+	// (providers.* / models.* / the default provider+model). Required — the
+	// provider/model settings handlers + the capability snapshot drive it.
+	Models *models.Coordinator
 
 	// Coordinator owns the run lifecycle (admission / journal / pump / cancel),
 	// built + owned by the composition root (bootstrap.Host). Required — delivery
@@ -115,6 +121,10 @@ type Server struct {
 	// approvals owns the tool-permission stance + approval-rule use cases. Injected
 	// by the composition root; never nil after New.
 	approvals *approvals.Coordinator
+
+	// models owns provider + model configuration (registry / catalog / roles /
+	// defaults). Injected by the composition root; never nil after New.
+	models *models.Coordinator
 
 	// codebase owns the @codebase semantic-index use cases (search / status /
 	// reindex). Injected by the composition root; never nil after New.
@@ -196,6 +206,9 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Approvals == nil {
 		return nil, errors.New("server: Approvals is required")
 	}
+	if cfg.Models == nil {
+		return nil, errors.New("server: Models is required")
+	}
 	if cfg.ServerInfo.Name == "" {
 		cfg.ServerInfo.Name = "runtime"
 	}
@@ -227,6 +240,7 @@ func New(cfg Config) (*Server, error) {
 		sessions:     cfg.Sessions,
 		capabilities: cfg.Capabilities,
 		approvals:    cfg.Approvals,
+		models:       cfg.Models,
 		codebase:     codebaseCoord,
 		coordinator:  cfg.Coordinator,
 		queries:      cfg.Queries,
@@ -256,11 +270,11 @@ func New(cfg Config) (*Server, error) {
 // delegating to the package-level [Capabilities] so the /v2/info
 // sidecar can build the same snapshot without a constructed Server.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return Capabilities(s.capabilities, s.workspace.HasMemory())
+	return Capabilities(s.models, s.workspace.HasMemory())
 }
 
-// capabilityAccess is the slice of the capabilities coordinator the capability
-// snapshot needs; the coordinator (and any test fake of it) satisfies it.
+// capabilityAccess is the slice of the models coordinator the capability snapshot
+// needs; the coordinator (and any test fake of it) satisfies it.
 type capabilityAccess interface {
 	SupportedProviders() []providersvc.Metadata
 }

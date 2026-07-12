@@ -80,6 +80,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		Sessions:     stack.Sessions,
 		Capabilities: stack.Capabilities,
 		Approvals:    stack.Approvals,
+		Models:       stack.Models,
 		Codebase:     stack.Codebase,
 		ServerInfo:   info,
 		// The run coordinator is built + owned by the Host; delivery drives it as a
@@ -97,7 +98,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		return nil, nil, err
 	}
 
-	caps := server.Capabilities(stack.Capabilities, stack.Workspace.HasMemory())
+	caps := server.Capabilities(stack.Models, stack.Workspace.HasMemory())
 	httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
 		Runtime:         api,
 		Addr:            srv.Listen,

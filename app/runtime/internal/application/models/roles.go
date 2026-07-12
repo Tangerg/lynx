@@ -1,4 +1,4 @@
-package capabilities
+package models
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func (c *Coordinator) SetUtilityRole(ctx context.Context, provider, model string
 	}
 	if role.Configured() {
 		if _, err := c.utilityResolver.ResolveClient(ctx, role.ProviderID(), role.Model()); err != nil {
-			return fmt.Errorf("capabilities: utility model %q on %q: %w", role.Model(), role.ProviderID(), err)
+			return fmt.Errorf("models: utility model %q on %q: %w", role.Model(), role.ProviderID(), err)
 		}
 	}
 	if c.utilityStore != nil {
@@ -66,12 +66,12 @@ func (c *Coordinator) SetEmbeddingRole(ctx context.Context, providerID, model st
 	}
 	if role.Configured() {
 		if _, err := c.embeddingResolver.Resolve(ctx, role.ProviderID(), role.Model()); err != nil {
-			return fmt.Errorf("capabilities: build embedding model %q on %q: %w", role.Model(), role.ProviderID(), err)
+			return fmt.Errorf("models: build embedding model %q on %q: %w", role.Model(), role.ProviderID(), err)
 		}
 	}
 	if c.embeddingStore != nil {
 		if err := c.embeddingStore.SaveEmbeddingRole(ctx, role.ProviderID(), role.Model()); err != nil {
-			return fmt.Errorf("capabilities: persist embedding role: %w", err)
+			return fmt.Errorf("models: persist embedding role: %w", err)
 		}
 	}
 	c.embeddingCell.Store(&role)

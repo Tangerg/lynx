@@ -27,7 +27,7 @@ func (s *Server) ListModels(_ context.Context, in protocol.ListModelsRequest) (*
 // services run on — empty model when unset, meaning they run on the main turn
 // model (models.getUtilityRole).
 func (s *Server) GetUtilityRole(_ context.Context) (*protocol.UtilityRole, error) {
-	p, m := s.capabilities.UtilityRole()
+	p, m := s.models.UtilityRole()
 	return &protocol.UtilityRole{Provider: p, Model: m}, nil
 }
 
@@ -38,10 +38,10 @@ func (s *Server) SetUtilityRole(ctx context.Context, in protocol.UtilityRole) (*
 	if err := s.validateUtilityRole(ctx, in); err != nil {
 		return nil, err
 	}
-	if err := s.capabilities.SetUtilityRole(ctx, in.Provider, in.Model); err != nil {
+	if err := s.models.SetUtilityRole(ctx, in.Provider, in.Model); err != nil {
 		return nil, err
 	}
-	p, m := s.capabilities.UtilityRole()
+	p, m := s.models.UtilityRole()
 	return &protocol.UtilityRole{Provider: p, Model: m}, nil
 }
 
@@ -49,7 +49,7 @@ func (s *Server) SetUtilityRole(ctx context.Context, in protocol.UtilityRole) (*
 // embeds with — empty model when unset (the feature is off)
 // (models.getEmbeddingRole).
 func (s *Server) GetEmbeddingRole(_ context.Context) (*protocol.EmbeddingRole, error) {
-	p, m := s.capabilities.EmbeddingRole()
+	p, m := s.models.EmbeddingRole()
 	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
 }
 
@@ -61,10 +61,10 @@ func (s *Server) SetEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole
 	if err := s.validateEmbeddingRole(ctx, in); err != nil {
 		return nil, err
 	}
-	if err := s.capabilities.SetEmbeddingRole(ctx, in.Provider, in.Model); err != nil {
+	if err := s.models.SetEmbeddingRole(ctx, in.Provider, in.Model); err != nil {
 		return nil, err
 	}
-	p, m := s.capabilities.EmbeddingRole()
+	p, m := s.models.EmbeddingRole()
 	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
 }
 
@@ -72,7 +72,7 @@ func (s *Server) validateUtilityRole(ctx context.Context, in protocol.UtilityRol
 	if in.Model == "" {
 		return nil
 	}
-	if _, ok := s.capabilities.ProviderMetadata(in.Provider); !ok {
+	if _, ok := s.models.ProviderMetadata(in.Provider); !ok {
 		return fmt.Errorf("%w: provider %q is not supported", protocol.ErrInvalidParams, in.Provider)
 	}
 	return s.requireConfiguredProvider(ctx, in.Provider)
@@ -82,7 +82,7 @@ func (s *Server) validateEmbeddingRole(ctx context.Context, in protocol.Embeddin
 	if in.Model == "" {
 		return nil
 	}
-	meta, ok := s.capabilities.ProviderMetadata(in.Provider)
+	meta, ok := s.models.ProviderMetadata(in.Provider)
 	if !ok || !meta.EmbeddingCapable {
 		return fmt.Errorf("%w: provider %q has no embeddings adapter", protocol.ErrInvalidParams, in.Provider)
 	}
@@ -90,7 +90,7 @@ func (s *Server) validateEmbeddingRole(ctx context.Context, in protocol.Embeddin
 }
 
 func (s *Server) requireConfiguredProvider(ctx context.Context, providerID string) error {
-	entry, ok, err := s.capabilities.RegisteredProvider(ctx, providerID)
+	entry, ok, err := s.models.RegisteredProvider(ctx, providerID)
 	if err != nil {
 		return err
 	}

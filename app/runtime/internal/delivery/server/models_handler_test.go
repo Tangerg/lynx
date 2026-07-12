@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/capabilities"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -56,7 +56,7 @@ func (s *utilitySaverRecorder) SaveUtilityRole(_ context.Context, provider, mode
 
 func modelRoleServer(entries map[string]provider.Provider, saver *utilitySaverRecorder) *Server {
 	fake := &modelProviderFake{entries: entries}
-	return serverWithCapabilities(capabilities.Config{
+	return serverWithModels(models.Config{
 		Providers:       fake,
 		Catalog:         fake,
 		UtilityCell:     &atomic.Pointer[modelrole.Role]{},

@@ -1,4 +1,4 @@
-package capabilities
+package models
 
 import (
 	"context"
