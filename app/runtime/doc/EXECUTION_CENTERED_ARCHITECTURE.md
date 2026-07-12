@@ -513,7 +513,9 @@ FilesChanged
 - timestamp；
 - typed payload。
 
-**落地偏离（有意，见 B5.1）**：application 的 `runs.Event` 是 transport-neutral **信封**（RunID / Seq / Timestamp / IsDurable / IsTerm / **opaque Payload**）,pump 是"纯导管"逐个转发 opaque payload,**不**另立一套 typed `RunStarted/OutputDelta/…` application 事件族。理由:agent 适配器的 `turn.Event` 已是 Lyra 的中立中间事件(dispatcher 把 `core.*` 译成 `turn.Event`);再造一套 typed `runs.EngineEvent` 会是它的 lockstep DRY 孪生(双重维护,比 opaque 导管更糟),除非能消灭 `turn.Event` —— 而它经不可导出的 `stamp` 与 dispatcher emit 机制紧耦合,无法干净分离。§19 的三层仍在:agent event(`turn.Event`)→ application event(`runs.Event` 信封)→ protocol event(`protocol.RunEvent`,delivery 的 Projector 做 rich→wire 翻译)。monotonic cursor 由 `runs.Coordinator` 自持(§11.2 opaque 递增),delivery 只在两端做 `evt_` framing。
+**落地偏离（有意）**：上面那套 typed application 事件族（`RunStarted/OutputDelta/RunCompleted/…`，每个带 typed payload）**没有**照搬。application 的 `runs.Event` 仍是 transport-neutral **信封**（RunID / Seq / Timestamp / IsDurable / IsTerm / **opaque Payload**）：wire 事件形态归 delivery，pump 逐个转发 Payload 而不拆解它。理由:再造一整套 typed application 事件族会是 agent 适配器 `turn.Event` 的 lockstep DRY 孪生（双重维护，比 opaque 信封更糟），而 `turn.Event` 经不可导出的 `stamp` 与 dispatcher emit 紧耦合、无法干净搬走。
+
+但 executor→pump 的 **seam 本身是 typed 的**，不是 `any`：`runs.EngineEvent = execution.Event` —— 一个**窄** domain 分类端口（`Terminal() (Outcome, bool)` / `Interrupt() bool`），`turn.Event` 实现它（`BaseEvent` 给默认，只有 `TurnEnd`/`TurnInterrupted` override）。这样既拿到编译期契约、又把 run 生命周期的**判定权威**（终态 / park / outcome）放在 domain 端口上 —— delivery 的 Projector 从端口读判定、不再从它自己产出的 wire 形态反推（`outcomeFromWire` 已删）—— 且不产生孪生：搬到 domain 的只是**分类契约**、不是事件族本身。§19 的三层仍在:agent event(`turn.Event`，同时是 `execution.Event`)→ application event(`runs.Event` 信封)→ protocol event(`protocol.RunEvent`,delivery 的 Projector 做 rich→wire 翻译)。monotonic cursor 由 `runs.Coordinator` 自持(§11.2 opaque 递增),delivery 只在两端做 `evt_` framing。
 
 Protocol adapter 只能把它映射为 `protocol.RunEvent`，不能反向生成持久化事实。
 

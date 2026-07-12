@@ -14,7 +14,7 @@ import (
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-// RuntimeConfig assembles the runtime facade config from already-opened
+// RuntimeConfig assembles the runtime Config from already-opened
 // process adapters.
 func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.Client, providers providersvc.Registry, hooks HookResolver) Config {
 	return Config{

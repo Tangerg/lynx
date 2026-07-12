@@ -13,7 +13,7 @@ import (
 )
 
 // sessionForgetter releases the turn dispatcher's process-local state for a
-// session being removed (the SessionStart gate). The kernel turn dispatcher
+// session being removed (the SessionStart gate). The turn dispatcher
 // satisfies it; the sessions coordinator's Stores surface calls it after a
 // delete/purge cascade commits.
 type sessionForgetter interface {
