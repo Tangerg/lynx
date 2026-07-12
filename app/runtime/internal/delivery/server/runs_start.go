@@ -34,7 +34,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	if err != nil {
 		return nil, nil, err
 	}
-	sess, turnReq, err := s.rt.PlanTurnStart(ctx, in.SessionID, s.serverInfo.Cwd, turn.StartTurnRequest{
+	sess, turnReq, err := s.turnControl.PlanTurnStart(ctx, in.SessionID, s.serverInfo.Cwd, turn.StartTurnRequest{
 		Message:        userMsg,
 		Media:          userMedia,
 		Provider:       in.Provider,
@@ -68,7 +68,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		}
 	}()
 
-	handle, err := s.rt.StartTurn(ctx, turnReq)
+	handle, err := s.turnControl.StartTurn(ctx, turnReq)
 	if err != nil {
 		return nil, nil, err
 	}

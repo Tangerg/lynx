@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
@@ -11,25 +10,8 @@ import (
 type turnRuntimeDispatcher struct {
 	turn.Dispatcher
 
-	startReq    turn.StartTurnRequest
-	startHandle turn.TurnHandle
-
-	steeringHandle  turn.TurnHandle
-	steeringMessage string
-
 	processHandle turn.TurnHandle
 	processID     string
-}
-
-func (s *turnRuntimeDispatcher) StartTurn(_ context.Context, req turn.StartTurnRequest) (turn.TurnHandle, error) {
-	s.startReq = req
-	return s.startHandle, nil
-}
-
-func (s *turnRuntimeDispatcher) InjectSteering(_ context.Context, handle turn.TurnHandle, message string) error {
-	s.steeringHandle = handle
-	s.steeringMessage = message
-	return nil
 }
 
 func (s *turnRuntimeDispatcher) ProcessID(_ context.Context, handle turn.TurnHandle) (string, error) {
@@ -37,78 +19,19 @@ func (s *turnRuntimeDispatcher) ProcessID(_ context.Context, handle turn.TurnHan
 	return s.processID, nil
 }
 
-func TestRuntimeTurnFacade(t *testing.T) {
-	ctx := context.Background()
+// TestRuntimeTurnProcessID: the facade resolves a parked turn's persisted process
+// id through the dispatcher (the one turn touchpoint the run-segment committer
+// still reads off the facade).
+func TestRuntimeTurnProcessID(t *testing.T) {
 	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
-	svc := &turnRuntimeDispatcher{
-		startHandle: handle,
-		processID:   "proc_1",
-	}
+	svc := &turnRuntimeDispatcher{processID: "proc_1"}
 	rt := &Runtime{turns: svc}
 
-	gotHandle, err := rt.StartTurn(ctx, turn.StartTurnRequest{SessionID: "ses_1", Message: "hello"})
-	if err != nil {
-		t.Fatalf("StartTurn: %v", err)
-	}
-	if gotHandle != handle || svc.startReq.Message != "hello" {
-		t.Fatalf("start handle=%+v req=%+v", gotHandle, svc.startReq)
-	}
-
-	if err := rt.InjectTurnSteering(ctx, handle, "wait"); err != nil {
-		t.Fatalf("InjectTurnSteering: %v", err)
-	}
-	if svc.steeringHandle != handle || svc.steeringMessage != "wait" {
-		t.Fatalf("steering handle=%+v message=%q", svc.steeringHandle, svc.steeringMessage)
-	}
-
-	processID, err := rt.TurnProcessID(ctx, handle)
+	processID, err := rt.TurnProcessID(context.Background(), handle)
 	if err != nil {
 		t.Fatalf("TurnProcessID: %v", err)
 	}
 	if processID != "proc_1" || svc.processHandle != handle {
 		t.Fatalf("processID=%q handle=%+v", processID, svc.processHandle)
-	}
-
-}
-
-func TestRuntimeStartTurnPersistsExplicitModelBeforeDispatch(t *testing.T) {
-	ctx := context.Background()
-	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
-	turns := &turnRuntimeDispatcher{startHandle: handle}
-	sessions := &sessionRuntimeStore{}
-	rt := &Runtime{turns: turns, sessions: sessions}
-
-	gotHandle, err := rt.StartTurn(ctx, turn.StartTurnRequest{
-		SessionID: "ses_1",
-		Message:   "hello",
-		Provider:  "anthropic",
-		Model:     "claude-opus-4-8",
-	})
-	if err != nil {
-		t.Fatalf("StartTurn: %v", err)
-	}
-	if gotHandle != handle {
-		t.Fatalf("handle = %+v, want %+v", gotHandle, handle)
-	}
-	if sessions.model != ([2]string{"ses_1", "claude-opus-4-8"}) {
-		t.Fatalf("session model = %v", sessions.model)
-	}
-	if turns.startReq.Model != "claude-opus-4-8" || turns.startReq.Provider != "anthropic" {
-		t.Fatalf("start req = %+v", turns.startReq)
-	}
-}
-
-func TestRuntimeStartTurnDoesNotDispatchWhenModelPersistenceFails(t *testing.T) {
-	ctx := context.Background()
-	fail := errors.New("store failed")
-	turns := &turnRuntimeDispatcher{}
-	sessions := &sessionRuntimeStore{modelErr: fail}
-	rt := &Runtime{turns: turns, sessions: sessions}
-
-	if _, err := rt.StartTurn(ctx, turn.StartTurnRequest{SessionID: "ses_1", Message: "hello", Model: "claude-opus-4-8"}); !errors.Is(err, fail) {
-		t.Fatalf("StartTurn err = %v, want store failure", err)
-	}
-	if turns.startReq.SessionID != "" {
-		t.Fatalf("turn dispatched despite model persistence failure: %+v", turns.startReq)
 	}
 }

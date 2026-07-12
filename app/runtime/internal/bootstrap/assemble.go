@@ -30,6 +30,7 @@ type Stack struct {
 	Sessions     *sessions.Coordinator
 	Capabilities *capabilities.Coordinator
 	Queries      *queries.Coordinator
+	TurnControl  *turn.Control
 	Workspace    *workspace.Coordinator
 	Schedules    *schedules.Coordinator
 	// Coordinator owns the run lifecycle end to end (§8.2/§20): admission, the
@@ -190,8 +191,9 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 	fileChanges := &filechanges.Notifier{}
 	// The run coordinator drives the agent turn through the turn Executor (§6.1),
 	// not the facade — the executor port is the adapter's, the run lifecycle the
-	// application's.
+	// application's. turnControl is the sibling turn-start adapter delivery drives.
 	runExecutor := turn.NewExecutor(turnDispatcher)
+	turnControl := turn.NewControl(turnDispatcher, cfg.SessionStore)
 	runCoord := runs.NewCoordinator(runExecutor, rt.RunSegmentEffects(checkpoints, fileChanges.Publish), cfg.RunStore)
 
 	// mcpStatus bridges the capabilities coordinator's MCP reconnect/authorize
@@ -242,6 +244,7 @@ func Assemble(ctx context.Context, cfg lyraruntime.Config) (Host, error) {
 		Coordinator:  runCoord,
 		FileChanges:  fileChanges,
 		MCPStatus:    mcpStatus,
+		TurnControl:  turnControl,
 		Queries: queries.New(queries.Dependencies{
 			Transcript: cfg.TranscriptStore,
 			History:    messages.conversation,
