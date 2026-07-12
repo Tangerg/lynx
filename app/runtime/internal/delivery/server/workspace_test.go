@@ -307,31 +307,41 @@ func TestWorkspaceSubscribe(t *testing.T) {
 	}
 }
 
-func TestWorkspaceSubscribeIsOwnedByServerClose(t *testing.T) {
+// TestWorkspaceSubscribeLifetimeIsTheRequest: a subscription's stream is bounded
+// by its request ctx (client disconnect / the transport's forced shutdown), not
+// by Server.Close — delivery owns no task group (§16 rule 5). Server.Close only
+// gates NEW subscriptions; an in-flight, request-owned stream is left to its ctx.
+func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
-	_, events, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{})
+	reqCtx, cancelReq := context.WithCancel(context.Background())
+	_, events, err := s.WorkspaceSubscribe(reqCtx, protocol.WorkspaceSubscribeRequest{})
 	if err != nil {
 		t.Fatalf("WorkspaceSubscribe: %v", err)
 	}
 
-	closed := make(chan struct{})
-	go func() {
-		s.Close()
-		close(closed)
-	}()
+	// Server.Close gates new work but must not disturb an in-flight request-owned
+	// stream (the transport joins active handlers on shutdown).
+	s.Close()
 	select {
 	case _, ok := <-events:
-		if ok {
-			t.Fatal("workspace stream yielded an event while closing")
+		if !ok {
+			t.Fatal("Server.Close must not close a request-owned stream")
+		}
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	// The request ending is what closes the stream.
+	cancelReq()
+	select {
+	case _, ok := <-events:
+		for ok {
+			_, ok = <-events
 		}
 	case <-time.After(time.Second):
-		t.Fatal("Server.Close did not close the workspace stream")
+		t.Fatal("stream not closed after request ctx cancel")
 	}
-	select {
-	case <-closed:
-	case <-time.After(time.Second):
-		t.Fatal("Server.Close did not join the workspace subscription")
-	}
+
+	// A new subscription after Close is rejected.
 	if _, _, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{}); !errors.Is(err, errServerClosed) {
 		t.Fatalf("subscribe after close err = %v, want errServerClosed", err)
 	}
