@@ -17,8 +17,7 @@ import (
 //	question → a question Item (inProgress) for a tool asking the user
 //	           (ask_user free text / choices, or exit_plan_mode's plan)
 func (t *translator) interrupt(e turn.TurnInterrupted) []protocol.StreamEvent {
-	out := t.closeReasoning()
-	out = append(out, t.closeText()...)
+	out := t.closeStreaming()
 
 	// Snapshot every open tool item before drainTools clears t.tools.
 	// Internal-interrupt tools (tools that call hitl.Interrupt inside
