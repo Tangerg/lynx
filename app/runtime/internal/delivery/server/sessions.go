@@ -90,13 +90,11 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 		return err
 	}
 	defer admission.Release()
-	// Delete the session row + cascade its session-scoped storage and parked
-	// turn state via the lifecycle coordinator. File checkpoints (shadow git)
-	// are a workspace concern, dropped here after the storage cascade.
+	// Delete the session row + cascade its session-scoped storage, parked turn
+	// state, and working-tree checkpoints via the lifecycle coordinator.
 	if err := s.sessions.DeleteSession(ctx, id); err != nil {
 		return wireSessionErr(err)
 	}
-	s.dropCheckpoints(id) // file snapshots (shadow git)
 	return nil
 }
 

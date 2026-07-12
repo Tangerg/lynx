@@ -29,6 +29,10 @@ func (r testCheckpointRestorer) Restore(ctx context.Context, sessionID, cwd, run
 	return nil
 }
 
+func (r testCheckpointRestorer) DropSession(sessionID string) error {
+	return r.cp.DropSession(sessionID)
+}
+
 // checkpointHarness extends the rollback harness with a real shadow-git
 // checkpoint store and a session whose cwd is a populated temp dir. It returns
 // the server, runtime stub, session id, and cwd so a test can mutate + snapshot.
