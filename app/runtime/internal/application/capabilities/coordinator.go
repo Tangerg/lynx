@@ -120,6 +120,12 @@ type Coordinator struct {
 	// but are canceled + joined by Close (§10.2 component context, §10.3).
 	tasks taskgroup.Group
 
+	// mcpStatus publishes an MCP server's connection transitions (connecting →
+	// settled) so a delivery consumer can republish them on the workspace event
+	// stream; nil disables the notification (the reconnect still runs). The
+	// composition root injects the notifier's Publish.
+	mcpStatus func(ctx context.Context, server string, connecting bool)
+
 	defaultProvider string
 	defaultModel    string
 }
@@ -145,6 +151,9 @@ type Config struct {
 	MCPLive     MCPLive
 	MCPPolicy   *atomic.Pointer[mcpserver.ToolPolicy]
 	Codebase    codebaseindex.Index
+	// MCPStatus publishes MCP connection transitions to the delivery workspace
+	// stream (the notifier's Publish). nil disables the notification.
+	MCPStatus func(ctx context.Context, server string, connecting bool)
 
 	DefaultProvider string
 	DefaultModel    string
@@ -169,6 +178,7 @@ func New(cfg Config) *Coordinator {
 		mcpLive:           cfg.MCPLive,
 		mcpPolicy:         cfg.MCPPolicy,
 		codebase:          cfg.Codebase,
+		mcpStatus:         cfg.MCPStatus,
 		defaultProvider:   cfg.DefaultProvider,
 		defaultModel:      cfg.DefaultModel,
 	}

@@ -41,23 +41,62 @@ func (c *Coordinator) MCPRegisteredServer(ctx context.Context, name string) (mcp
 }
 
 // ReconnectMCPServer re-dials a configured MCP server and hot-swaps the live tool
-// set (workspace.mcp.reconnect).
+// set (workspace.mcp.reconnect). Fire-and-forget: the name is validated
+// synchronously (unknown → [mcpserver.ErrUnknownServer]), then the dial runs on
+// the component task group with connecting → settled status published for the
+// workspace stream, so a returning RPC does not abort it while shutdown still can.
 func (c *Coordinator) ReconnectMCPServer(ctx context.Context, name string) error {
-	if c.mcpLive == nil {
-		return mcpserver.ErrUnknownServer
-	}
-	return c.mcpLive.ReconnectMCPServer(ctx, name)
+	return c.startMCPConnection(ctx, name, func(ctx context.Context) error {
+		return c.mcpLive.ReconnectMCPServer(ctx, name)
+	})
 }
 
 // AuthorizeMCPServer runs the interactive OAuth sign-in for an HTTP MCP server
 // (workspace.mcp.authorize) — opens the system browser, catches the loopback
-// redirect, and connects on success. The credentials live for the process only
-// (re-prompt after restart).
+// redirect, and connects on success. Fire-and-forget like reconnect; the
+// credentials live for the process only (re-prompt after restart).
 func (c *Coordinator) AuthorizeMCPServer(ctx context.Context, name string) error {
-	if c.mcpLive == nil {
+	return c.startMCPConnection(ctx, name, func(ctx context.Context) error {
+		return c.mcpLive.AuthorizeMCPServer(ctx, name)
+	})
+}
+
+// startMCPConnection validates the server exists, then runs dial on the
+// component task group — detached from the caller's cancellation (so a returning
+// RPC cannot abort it) but keeping its trace values and canceled + joined by
+// Close — publishing the connecting frame before and the settled frame after, in
+// that order. The task's context scopes the dial and the settled status read.
+// Returns [mcpserver.ErrUnknownServer] for an unknown name (the delivery layer
+// maps it to invalid_params) or [errClosed] when the component is shutting down.
+func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial func(context.Context) error) error {
+	if c.mcpLive == nil || !c.mcpServerKnown(name) {
 		return mcpserver.ErrUnknownServer
 	}
-	return c.mcpLive.AuthorizeMCPServer(ctx, name)
+	if !c.tasks.Start(ctx, func(ctx context.Context) {
+		c.notifyMCPStatus(ctx, name, true)
+		_ = dial(ctx)
+		c.notifyMCPStatus(ctx, name, false)
+	}) {
+		return errClosed
+	}
+	return nil
+}
+
+// mcpServerKnown reports whether name is a tracked MCP server (a configured
+// server appears in the live statuses even when its last dial failed).
+func (c *Coordinator) mcpServerKnown(name string) bool {
+	for _, st := range c.mcpLive.MCPServerStatuses() {
+		if st.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Coordinator) notifyMCPStatus(ctx context.Context, name string, connecting bool) {
+	if c.mcpStatus != nil {
+		c.mcpStatus(ctx, name, connecting)
+	}
 }
 
 // ConfigureMCPServer upserts a server in the registry and applies it to the live

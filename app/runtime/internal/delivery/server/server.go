@@ -11,6 +11,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -54,6 +55,12 @@ type Config struct {
 	// wire workspace events on the hub. Required in production; nil in tests that
 	// don't exercise the workspace stream.
 	FileChanges FileChangeSource
+
+	// MCPStatus is the composition-root bridge the capabilities coordinator
+	// publishes MCP connection transitions through; the Server installs a consumer
+	// that maps them to mcp.serverChanged workspace events. Required in production;
+	// nil in tests that don't exercise the MCP status stream.
+	MCPStatus MCPStatusSource
 
 	// ServerInfo identifies this process on the wire. Defaults to
 	// {Name: "runtime", Version: "0.0.0-dev"} when zero — a vendor-neutral
@@ -122,6 +129,15 @@ type FileChangeSource interface {
 	Observe(sink func(cwd string, paths []string))
 }
 
+// MCPStatusSource is the delivery-side view of the composition-root MCP-status
+// bridge: the Server installs a consumer (Observe) that maps the capabilities
+// coordinator's connection transitions to mcp.serverChanged workspace events. The
+// concrete notifier is owned by the Host, which passes its publish side to the
+// capabilities coordinator.
+type MCPStatusSource interface {
+	Observe(sink func(ctx context.Context, server string, connecting bool))
+}
+
 // Close cancels and joins request-detached delivery work (MCP reconnect / OAuth
 // flows). The run coordinator's pumps are joined by the Host, not here — delivery
 // drives the coordinator but does not own it (§11.1). Safe to call repeatedly.
@@ -182,6 +198,12 @@ func New(cfg Config) (*Server, error) {
 	// effects need a publish sink, but the hub is constructed here in delivery.
 	if cfg.FileChanges != nil {
 		srv.wsHub.observe(cfg.FileChanges)
+	}
+	// MCP reconnect/authorize run fire-and-forget in the capabilities coordinator;
+	// their connecting → settled transitions reach the workspace hub through this
+	// bridge, mapped to mcp.serverChanged frames.
+	if cfg.MCPStatus != nil {
+		srv.observeMCPStatus(cfg.MCPStatus)
 	}
 	return srv, nil
 }

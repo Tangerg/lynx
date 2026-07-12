@@ -2,9 +2,11 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
 // workspace.mcp.* — MCP is runtime-global, so these take no cwd (API.md §7.5).
@@ -39,22 +41,45 @@ func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListT
 // WorkspaceMCPReconnect re-dials a configured MCP server (AUX_API §5.2). It has
 // no synchronous result — the outcome rides notifications.workspace.event as
 // mcp.serverChanged, in the guaranteed order connecting → (connected | failed).
-// The call validates the server name synchronously (unknown → invalid_params),
-// then schedules the connecting frame and dial on the server-owned task group,
-// so a returning RPC does not abort it while server shutdown still can. The
-// terminal frame is published when the dial settles.
+// The capabilities coordinator validates the name synchronously (unknown →
+// invalid_params) then runs the dial fire-and-forget on its component task group,
+// publishing the connecting + settled frames through the MCP-status bridge.
 func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error {
-	return s.runMCPConnectionAction(ctx, server, s.capabilities.ReconnectMCPServer)
+	return wireMCPError(s.capabilities.ReconnectMCPServer(ctx, server))
 }
 
 // WorkspaceMCPAuthorize starts the interactive OAuth sign-in for an HTTP MCP
 // server (workspace.mcp.authorize). Like reconnect it is fire-and-forget: the
-// name is validated synchronously (unknown → invalid_params), then the server
-// task group publishes connecting and runs the flow — open the browser, catch
-// the loopback redirect, exchange the code. The flow outlives one RPC but is
-// canceled at server shutdown; its terminal frame is published when it settles.
+// coordinator validates the name synchronously (unknown → invalid_params) then
+// runs the flow — open the browser, catch the loopback redirect, exchange the
+// code — publishing the connecting + settled frames as it settles.
 func (s *Server) WorkspaceMCPAuthorize(ctx context.Context, server string) error {
-	return s.runMCPConnectionAction(ctx, server, s.capabilities.AuthorizeMCPServer)
+	return wireMCPError(s.capabilities.AuthorizeMCPServer(ctx, server))
+}
+
+// wireMCPError maps the coordinator's unknown-server sentinel onto invalid_params
+// (an unknown / empty name is a bad request); every other error surfaces as-is.
+func wireMCPError(err error) error {
+	if errors.Is(err, mcpserver.ErrUnknownServer) {
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+	}
+	return err
+}
+
+// observeMCPStatus installs the MCP-status bridge consumer: the coordinator
+// publishes a connection transition, and the Server maps it to a workspace event
+// on the hub. connecting=true is the transient pre-frame; connecting=false reads
+// back the settled live status (connected + tool count, or failed + reason).
+func (s *Server) observeMCPStatus(src MCPStatusSource) {
+	src.Observe(func(ctx context.Context, server string, connecting bool) {
+		if connecting {
+			s.PublishWorkspaceEvent(protocol.WorkspaceEvent{
+				Type: protocol.WorkspaceEventMCPServerChanged, Server: server, Status: protocol.McpConnecting,
+			})
+			return
+		}
+		s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, server))
+	})
 }
 
 // workspace.mcp registry CRUD — the editable configuration the settings pane
