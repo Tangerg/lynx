@@ -22,9 +22,3 @@ var ErrPromptBlocked = errors.New("turn: prompt blocked by a hook")
 // caller must NOT rehydrate on ErrParkClaimed: doing so would resurrect a turn
 // the user just canceled (and fire its pending tool). Cancel wins this race.
 var ErrParkClaimed = errors.New("turn: park already claimed")
-
-// ErrRehydrateCommitted marks a cross-restart resume failure that happened
-// after the restored process accepted the interrupt decision. The turn has
-// already been terminalized, so lifecycle must not restore the consumed open
-// interrupt record. Rehydrate failures without this marker are safe to retry.
-var ErrRehydrateCommitted = errors.New("turn: rehydrate continuation committed")

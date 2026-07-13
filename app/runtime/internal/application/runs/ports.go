@@ -13,19 +13,8 @@ import (
 // adapter implementations the composition root injects.
 //
 // The application drives execution through an engine-neutral [Executor]: it
-// observes a stream of [EngineEvent] — narrowed to the run-lifecycle
-// classification the pipeline acts on ([execution.Event]) — and drives an opaque
-// [Handle], so the run lifecycle owns no agent-SDK type. The agentexec adapter
-// produces the concrete event + handle; the delivery [Projector] asserts the
-// event back to its concrete shape for wire projection, while the application
-// reads only the classification (terminal / park).
-
-// EngineEvent is one event the [Executor] emits for a live run segment: the
-// engine-neutral run-execution event, narrowed to the lifecycle classification
-// the pipeline switches on ([execution.Event.Terminal] / [execution.Event.Interrupt]).
-// The concrete, data-rich event stays in the agentexec adapter; the [Projector]
-// down-asserts to it for wire shaping.
-type EngineEvent = execution.Event
+// observes the application-owned [EngineEvent] sum type and drives an opaque
+// [Handle], so neither the lifecycle nor delivery depends on agent-SDK types.
 
 // Handle is the per-segment execution handle the [Executor] returns and the
 // application hands back to observe and cancel a live turn. It stays opaque (any)
@@ -41,8 +30,8 @@ type Executor interface {
 	CancelTurn(ctx context.Context, handle Handle) error
 }
 
-// Projector turns the executor's events into projected events: the pump feeds it
-// a lead Open(), then each turn.Event via Translate, and a SynthesizeTerminal()
+// Projector turns normalized executor events into projected events: the pump
+// feeds it a lead Open(), then each EngineEvent via Translate, and a SynthesizeTerminal()
 // when the stream ended without a terminal. It hands back the durable side
 // effect to commit and the opaque wire payload to publish.
 //
@@ -64,6 +53,13 @@ type Projector interface {
 	Abort(msg string)
 }
 
+// Projection is the payload family a delivery adapter may place on the run
+// journal. The marker removes the unbounded any seam while keeping the concrete
+// transport value outside the application package.
+type Projection interface {
+	RunProjection()
+}
+
 // ProjectedEvent is one event on its way to both the durable store and the live
 // journal. Payload is opaque to the application — it shuttles the wire event to
 // the journal without inspecting it. Commit is the event's atomic durable
@@ -77,7 +73,7 @@ type ProjectedEvent struct {
 	Terminal  bool                   // ends the run's stream (the segment.finished)
 	Interrupt bool                   // terminal that PARKS — takes the commit-before-publish path
 	Abort     bool                   // projection failed; cancel the turn and terminalize as error
-	Payload   any                    // opaque wire payload (a protocol StreamEvent)
+	Payload   Projection             // delivery-owned payload (a protocol StreamEvent)
 	Commit    *execution.EventCommit // atomic durable commit (nil = nothing to persist)
 	Nudge     *Nudge                 // non-durable live workspace nudge (nil = none)
 }
@@ -99,24 +95,36 @@ type SegmentView interface {
 
 // Effects is the durable side of a run segment. CommitEvent atomically persists
 // one event's projections and its run-state transition (§8.3/§8.4) in a single
-// transaction — the pump calls it BEFORE publishing an interrupt (so a client
-// can't resume ahead of the durable record) and AFTER publishing every other
-// event (so a slow store can't delay live delivery), the commit-before-publish
-// vs live-first ordering the pump owns. Nudge is a non-durable live workspace
-// notification; Finish runs terminal boundary maintenance (checkpoint snapshot,
-// title) off the live path. The adapter/runsegment.Effects satisfies this.
+// transaction before publishing the corresponding event, so subscribers never
+// observe state the durable stores cannot yet serve. Nudge is a non-durable live
+// workspace notification; Finish runs terminal boundary maintenance (checkpoint
+// snapshot, title) off the live path. The adapter/runsegment.Effects satisfies it.
 type Effects interface {
+	// CommitOpening atomically persists every durable projection that leads a
+	// segment. For a fresh Run it also admits the Run; for a continuation it
+	// consumes the open interrupt and resumes the existing Run. Start does not
+	// return until this succeeds.
+	CommitOpening(ctx context.Context, opening OpeningCommit) error
 	// CommitEvent applies commit's set parts (interrupt open, transcript item/run,
-	// run-state transition) in one transaction. The pump checks the returned error
-	// only for a park (an interrupt commit that fails aborts the run); item/run
-	// commits are best-effort (a lost projection self-heals, reconcile sweeps a
-	// stranded admission row).
+	// run-state transition) in one transaction. Every durable commit completes
+	// before publication; any error aborts the segment.
 	CommitEvent(ctx context.Context, commit execution.EventCommit) error
 	// Nudge publishes a non-durable live workspace change to subscribers.
 	Nudge(cwd string, paths []string)
 	// Finish runs terminal boundary maintenance off the live path. A parked run is
 	// resumable, not a boundary, so Finish no-ops for it (fin.Parked).
 	Finish(ctx context.Context, fin Finish)
+}
+
+// OpeningCommit is the single atomic acceptance commit for a segment. Exactly
+// one of Admit or Resume is set. Events contains the durable transcript
+// projections produced by Projector.Open; applying the admission transition and
+// all projections in one transaction prevents a successful start response from
+// naming a Run whose opening record does not exist.
+type OpeningCommit struct {
+	Admit  *execution.RunDraft
+	Resume *execution.ResumeDraft
+	Events []execution.EventCommit
 }
 
 // Finish describes the terminal run-boundary maintenance the Effects port runs
@@ -141,10 +149,6 @@ type StartSpec struct {
 	// runs.resume). The wire event envelope carries it so a client scopes its
 	// stream-tree + reconnect-replay dedup to the segment.
 	SegmentID string
-	// Resume marks a continuation segment (runs.resume) rather than a run's
-	// opening one: durable admission then revives the session's existing run row
-	// instead of admitting a new one (§8.2).
-	Resume    bool
 	SessionID string
 	Cwd       string
 	// TurnID is the executor's durable turn identity recorded on the live run —
@@ -156,4 +160,9 @@ type StartSpec struct {
 	Model           string
 	CreatedAt       time.Time
 	OpeningUserText string
+	// Activate distinguishes a continuation from a fresh Run and delivers its
+	// already-durably-accepted decision to the executor. It is nil for a fresh
+	// Run. Start establishes the event owner before calling it; an activation
+	// error becomes the segment's streamed error terminal.
+	Activate func(context.Context) error
 }

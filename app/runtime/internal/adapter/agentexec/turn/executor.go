@@ -5,16 +5,15 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 // Executor adapts the turn [Dispatcher] to the application's run executor port
 // (application/runs.Executor): it drives, observes, and cancels the agent turn
 // backing a run segment. The application holds the run lifecycle and drives
 // execution through this port, so both the handle it hands back and the events it
-// observes are opaque to it (any) — the concrete [TurnHandle] + [Event] stay here
-// in the adapter, asserted back to the shape the dispatcher emitted. Construct via
-// [NewExecutor]; the composition root injects it into the run coordinator.
+// observes are normalized into the application-owned event family. Construct
+// via [NewExecutor]; the composition root injects it into the run coordinator.
 type Executor struct {
 	dispatcher Dispatcher
 }
@@ -26,10 +25,8 @@ func NewExecutor(dispatcher Dispatcher) *Executor {
 
 // TurnEvents subscribes to a live turn's event stream. The opaque handle is
 // asserted back to the [TurnHandle] the dispatcher minted; each rich turn event
-// is forwarded as the engine-neutral [execution.Event] the run pipeline
-// classifies (the delivery projector asserts it back to the concrete event for
-// wire shaping).
-func (e *Executor) TurnEvents(ctx context.Context, handle any) (iter.Seq[execution.Event], error) {
+// is translated into the engine-neutral application event contract.
+func (e *Executor) TurnEvents(ctx context.Context, handle any) (iter.Seq[runs.EngineEvent], error) {
 	h, ok := handle.(TurnHandle)
 	if !ok {
 		return nil, fmt.Errorf("turn: executor handle %T is not a turn handle", handle)
@@ -38,13 +35,7 @@ func (e *Executor) TurnEvents(ctx context.Context, handle any) (iter.Seq[executi
 	if err != nil {
 		return nil, err
 	}
-	return func(yield func(execution.Event) bool) {
-		for ev := range seq {
-			if !yield(ev) {
-				return
-			}
-		}
-	}, nil
+	return seq, nil
 }
 
 // CancelTurn stops a live or parked turn, asserting the opaque handle back to the

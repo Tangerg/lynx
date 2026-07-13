@@ -55,8 +55,8 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 			if e.SessionID != "sess-1" {
 				t.Errorf("TurnStart.SessionID = %q, want sess-1", e.SessionID)
 			}
-			if e.TurnID == "" {
-				t.Error("TurnStart.TurnID is empty")
+			if !strings.HasPrefix(e.TurnID, "turn_") {
+				t.Errorf("TurnStart.TurnID = %q, want turn_ namespace", e.TurnID)
 			}
 		case turn.ToolCallStart:
 			if e.ToolName != "shell" {
@@ -235,8 +235,8 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 			sawInterrupt = true
 			if len(e.Interrupts) != 1 || e.Interrupts[0].Kind != "approval" {
 				t.Errorf("interrupts = %+v, want one approval", e.Interrupts)
-			} else if p, ok := e.Interrupts[0].Payload.(turn.ApprovalPrompt); !ok || p.ToolName != "shell" {
-				t.Errorf("approval payload = %+v, want shell ApprovalPrompt", e.Interrupts[0].Payload)
+			} else if p := e.Interrupts[0].Approval; p == nil || p.ToolName != "shell" {
+				t.Errorf("approval payload = %+v, want shell ApprovalPrompt", p)
 			}
 			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []string{"approval"}); err != nil {
 				t.Errorf("Resume: %v", err)

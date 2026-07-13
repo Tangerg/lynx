@@ -55,7 +55,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		}
 	}()
 
-	resumed, err := s.sessions.ResumeClaimedInterrupt(ctx, in.RunID, resolution, interruptKindsFromContext(ctx))
+	prepared, err := s.sessions.PrepareClaimedInterrupt(ctx, pending)
 	if err != nil {
 		switch {
 		case errors.Is(err, sessions.ErrInterruptNotOpen):
@@ -66,11 +66,12 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 			return nil, nil, err
 		}
 	}
-	pending = resumed.Pending
-	handle, ok := resumed.Handle.(turn.TurnHandle)
+	pending = prepared.Pending
+	handle, ok := prepared.Handle.(turn.TurnHandle)
 	if !ok {
-		return nil, nil, fmt.Errorf("resume: executor handle %T is not a turn handle", resumed.Handle)
+		return nil, nil, fmt.Errorf("resume: executor handle %T is not a turn handle", prepared.Handle)
 	}
+	interruptKinds := interruptKindsFromContext(ctx)
 
 	// A resume opens a NEW segment of the SAME run: the runId (in.RunID = the
 	// stable logical run) is unchanged, and a fresh segmentId identifies this
@@ -92,7 +93,6 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	evCh, err := s.coordinator.Start(ctx, runs.StartSpec{
 		RunID:     in.RunID,
 		SegmentID: segmentID,
-		Resume:    true,
 		SessionID: pending.SessionID,
 		Cwd:       worktree.CanonicalCwd(sess.Cwd),
 		TurnID:    handle.TurnID,
@@ -100,14 +100,11 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		Provider:  pending.Provider,
 		Model:     pending.Model,
 		CreatedAt: createdAt,
+		Activate: func(activateCtx context.Context) error {
+			return s.sessions.ActivatePreparedInterrupt(activateCtx, prepared, resolution, interruptKinds)
+		},
 	}, factory)
 	if err != nil {
-		// The interrupt was already consumed and the parked turn resumed; a Start
-		// failure (Coordinator closing / executor error) would otherwise strand the
-		// session with a non-terminal run and no interrupt to resume. Re-open the
-		// interrupt so a retry can resume it — Start already canceled the turn, and a
-		// later resume rehydrates a fresh one from the durable snapshot.
-		_ = s.sessions.RestoreConsumedInterrupt(ctx, pending)
 		return nil, nil, err
 	}
 	treeAdmission.Release()

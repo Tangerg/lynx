@@ -70,8 +70,8 @@ func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
 		t.Fatalf("interrupt survived a rolled-back park: %+v", open)
 	}
 	// Still running (not interrupted): a rolled-back Suspend left the state intact.
-	if err := runStore.Resume(ctx, "ses_A"); err != nil {
-		t.Fatalf("resume: %v", err)
+	if err := runStore.Resume(ctx, execution.ResumeDraft{RunID: "run_1", SessionID: "ses_A"}); err == nil {
+		t.Fatal("resume after rolled-back park must reject the still-running row")
 	}
 	if err := runStore.Admit(ctx, runDraft("run_x", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {
 		t.Fatalf("admit after rolled-back park = %v, want ErrSessionBusy (row never freed)", err)
@@ -187,7 +187,7 @@ func TestSuspendResumeReusesOneSlot(t *testing.T) {
 		t.Fatalf("admit while suspended = %v, want ErrSessionBusy (row still non-terminal)", err)
 	}
 	// Resume: back to running, no second row admitted.
-	if err := store.Resume(ctx, "ses_A"); err != nil {
+	if err := store.Resume(ctx, execution.ResumeDraft{RunID: "run_1", SessionID: "ses_A"}); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	if err := store.Admit(ctx, runDraft("run_3", "ses_A")); !errors.Is(err, execution.ErrSessionBusy) {

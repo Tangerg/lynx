@@ -38,16 +38,13 @@ type SessionStore interface {
 	Children(ctx context.Context, parentID string) ([]session.Session, error)
 }
 
-// InterruptStore is the lifecycle coordinator's view of open HITL interrupts:
-// the admission/resume reads (List / Get / Consume) plus Put, used only to
-// compensate a consumed cross-restart claim when rehydrate fails before any
-// continuation can run. Deleting an interrupt is part of an atomic write-set
+// InterruptStore is the lifecycle coordinator's read view of open HITL
+// interrupts. Consuming an interrupt is part of the run coordinator's atomic
+// segment-opening commit; deleting one is part of an atomic write-set
 // ([WriteSets.ApplyRollback] / ApplyDelete / ApplyCancel), not a lone call.
 type InterruptStore interface {
-	Put(ctx context.Context, pending interrupts.Pending) error
 	List(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
 	Get(ctx context.Context, runID string) (interrupts.Pending, bool, error)
-	Consume(ctx context.Context, runID string) (interrupts.Pending, bool, error)
 }
 
 // WriteSets are the atomic durable write-sets the coordinator commits through the
@@ -103,14 +100,14 @@ type RunRef struct {
 }
 
 // RehydrateSpec describes rebuilding a parked turn's process from its durable
-// interrupt snapshot after process-local state was lost.
+// interrupt snapshot after process-local state was lost. TurnID is reused so a
+// prepared turn remains addressable if continuation opening is rejected.
 type RehydrateSpec struct {
-	SessionID      string
-	ProcessID      string
-	Approved       bool
-	Provider       string
-	Model          string
-	InterruptKinds []string
+	SessionID string
+	TurnID    string
+	ProcessID string
+	Provider  string
+	Model     string
 }
 
 // Handle is the opaque per-turn execution handle a resumed / rehydrated turn
@@ -151,15 +148,14 @@ type WorkspaceMutations interface {
 }
 
 // Turns is the engine-neutral turn-control slice the lifecycle coordinator
-// drives to abandon (Cancel) or continue (Resume / Rehydrate) the process
-// backing a run. The composition root injects an adapter over the agent turn
-// dispatcher that rebuilds a concrete handle from a [RunRef] and maps the
-// dispatcher's resume outcomes onto [ErrParkClaimed] / [ErrTurnNotLive] /
-// [ErrRehydrateCommitted]. Held as a fixed collaborator, not a per-call
-// parameter: it is the same executor for every lifecycle write-set.
+// drives to abandon (Cancel), prepare (Prepare / Rehydrate), or continue
+// (Resume) the process backing a run. The composition root injects an adapter
+// over the agent turn dispatcher and maps its ownership outcomes onto
+// [ErrParkClaimed] / [ErrTurnNotLive].
 type Turns interface {
 	Cancel(ctx context.Context, ref RunRef) error
-	Resume(ctx context.Context, ref RunRef, resolution interrupts.Resolution, interruptKinds []string) (Handle, error)
+	Prepare(ctx context.Context, ref RunRef) (Handle, error)
+	Resume(ctx context.Context, handle Handle, resolution interrupts.Resolution, interruptKinds []string) error
 	Rehydrate(ctx context.Context, req RehydrateSpec) (Handle, error)
 }
 
@@ -204,17 +200,14 @@ var ErrInterruptNotOpen = errors.New("sessions: interrupt not open")
 // ErrSessionBusy reports that a session already has an active or parked run.
 var ErrSessionBusy = errors.New("sessions: session busy")
 
-// ErrParkClaimed, ErrTurnNotLive, and ErrRehydrateCommitted are the
+// ErrParkClaimed and ErrTurnNotLive are the
 // engine-neutral resume outcomes the [Turns] adapter maps the executor's errors
 // onto, so the coordinator branches on resume semantics without importing the
 // agent turn package: ErrParkClaimed = another resume already claimed the parked
-// turn; ErrTurnNotLive = the process is gone (fall back to rehydrate);
-// ErrRehydrateCommitted = rehydrate already terminalized the process, so the
-// consumed interrupt must NOT be restored (restoring would create a ghost).
+// turn; ErrTurnNotLive = the process is gone (fall back to rehydrate).
 var (
-	ErrParkClaimed        = errors.New("sessions: parked turn already claimed")
-	ErrTurnNotLive        = errors.New("sessions: turn not live")
-	ErrRehydrateCommitted = errors.New("sessions: rehydrate already committed")
+	ErrParkClaimed = errors.New("sessions: parked turn already claimed")
+	ErrTurnNotLive = errors.New("sessions: turn not live")
 )
 
 // New returns a Coordinator over deps.

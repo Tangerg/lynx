@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -148,23 +149,23 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 	}
 }
 
-// TestRehydrateResumesRestoredTurn covers the cross-restart path: a
-// rehydrated turn restores its process via the engine, resumes it, and
-// streams the continuation (delta + TurnEnd) on a fresh handle.
+// TestRehydrateResumesRestoredTurn covers the cross-restart two-phase path: a
+// rehydrated turn first exposes its parked process, then Resume delivers the
+// decision and streams the continuation on the already-observable handle.
 func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply"}
 	svc := mustTurn(turn.New(turnDeps(stub)))
 
 	handle, err := svc.Rehydrate(context.Background(), turn.RehydrateRequest{
 		SessionID: "sess-restored",
+		TurnID:    "turn-original",
 		ProcessID: "proc-42",
-		Approved:  true,
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
 	}
-	if handle.TurnID == "" {
-		t.Fatal("Rehydrate returned empty handle")
+	if handle.TurnID != "turn-original" {
+		t.Fatalf("Rehydrate turn id = %q, want persisted turn-original", handle.TurnID)
 	}
 	if got := stub.restoreCalls.Load(); got != 1 {
 		t.Fatalf("RestoreTurn calls = %d, want 1", got)
@@ -175,6 +176,9 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	events, err := svc.Events(ctx, handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
+	}
+	if err := svc.Resume(ctx, handle, interrupts.Resolution{Approved: true}, nil); err != nil {
+		t.Fatalf("Resume: %v", err)
 	}
 	var sawDelta, sawEnd bool
 	for ev := range events {
@@ -196,30 +200,41 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	}
 }
 
-// TestRehydrate_ResumeError_ReturnsError: when the restored process fails to
-// resume, Rehydrate has already torn the turn down, so it must surface the
-// error rather than hand back a handle to a dead turn (which would leave the
-// caller's openSegment leaking ErrTurnNotFound instead of a clean run_not_found).
+// TestRehydrate_ResumeError_ReturnsError proves a synchronous resume failure is
+// still observable: Rehydrate returns the parked handle, Events attaches, then
+// Resume emits ErrorEvent + TurnEnd before returning its error.
 func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	stub := &stubEngine{runReply: "x", restoreResumeErr: errors.New("resume boom")}
 	svc := mustTurn(turn.New(turnDeps(stub)))
 
 	handle, err := svc.Rehydrate(context.Background(), turn.RehydrateRequest{
 		SessionID: "sess-restored",
+		TurnID:    "turn-original",
 		ProcessID: "proc-99",
-		Approved:  true,
 	})
-	if err == nil {
-		t.Fatal("Rehydrate returned nil error despite a failed resume; want the resume error surfaced")
+	if err != nil {
+		t.Fatalf("Rehydrate: %v", err)
 	}
-	if !errors.Is(err, turn.ErrRehydrateCommitted) {
-		t.Fatalf("Rehydrate error = %v, want ErrRehydrateCommitted marker", err)
+	events, err := svc.Events(context.Background(), handle)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
 	}
-	if handle.TurnID != "" {
-		t.Errorf("Rehydrate returned a handle (%q) for a torn-down turn; want the zero handle", handle.TurnID)
+	if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, nil); err == nil {
+		t.Fatal("Resume returned nil error despite the restored process failure")
 	}
-	// The torn-down turn must not linger in the registry.
-	if _, evErr := svc.Events(context.Background(), turn.TurnHandle{TurnID: handle.TurnID}); evErr == nil {
+	var sawError, sawEnd bool
+	for ev := range events {
+		switch ev.(type) {
+		case turn.ErrorEvent:
+			sawError = true
+		case turn.TurnEnd:
+			sawEnd = true
+		}
+	}
+	if !sawError || !sawEnd {
+		t.Fatalf("terminal stream = error:%v end:%v, want both", sawError, sawEnd)
+	}
+	if _, evErr := svc.Events(context.Background(), handle); evErr == nil {
 		t.Error("Events resolved a turn that should have been torn down")
 	}
 }

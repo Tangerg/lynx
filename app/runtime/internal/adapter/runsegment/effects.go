@@ -38,6 +38,7 @@ type SessionStore interface {
 // belongs to lifecycle.
 type InterruptStore interface {
 	Put(ctx context.Context, p interrupts.Pending) error
+	Consume(ctx context.Context, runID string) (interrupts.Pending, bool, error)
 }
 
 // TranscriptStore is the run-segment append/upsert side of durable transcript
@@ -52,13 +53,15 @@ type TranscriptStore interface {
 // each in the SAME transaction as the interrupt / terminal record it must stay
 // consistent with. The sqlite RunStateStore satisfies it.
 type RunStateWriter interface {
+	Admit(ctx context.Context, draft execution.RunDraft) error
+	Resume(ctx context.Context, draft execution.ResumeDraft) error
 	Suspend(ctx context.Context, sessionID string) error
 	Terminalize(ctx context.Context, sessionID string, o execution.Outcome) error
 }
 
-// Transactor runs fn inside one storage transaction: any store call fn makes
-// joins that transaction through the context. A nil Transactor degrades to a
-// direct (non-transactional) call for tests / non-sqlite runtimes.
+// Transactor runs fn inside one storage transaction: every store call made by
+// fn joins that transaction through the context. Durable commits reject a nil
+// transactor rather than silently weakening atomicity.
 type Transactor func(ctx context.Context, fn func(context.Context) error) error
 
 // Stores is the consumer-defined surface the Effects coordinator drives. It is
@@ -134,6 +137,49 @@ func New(cfg Config) *Effects {
 	}
 }
 
+// CommitOpening accepts one segment atomically. A fresh segment admits its Run;
+// a continuation consumes the open interrupt and resumes the existing Run. The
+// opening transcript projections land in that same transaction, so Start cannot
+// acknowledge a segment whose durable opening is missing.
+func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit) error {
+	if e.tx == nil {
+		return errors.New("runsegment: transactor is unavailable")
+	}
+	if (opening.Admit == nil) == (opening.Resume == nil) {
+		return errors.New("runsegment: opening requires exactly one admission action")
+	}
+	if len(opening.Events) == 0 {
+		return errors.New("runsegment: opening requires a durable projection")
+	}
+	return e.runInTx(ctx, func(ctx context.Context) error {
+		switch {
+		case opening.Admit != nil:
+			if e.runState == nil {
+				return errors.New("runsegment: run-state persistence is unavailable")
+			}
+			if err := e.runState.Admit(ctx, *opening.Admit); err != nil {
+				return err
+			}
+		case opening.Resume != nil:
+			if err := e.consumeResume(ctx, *opening.Resume); err != nil {
+				return err
+			}
+		}
+		for _, commit := range opening.Events {
+			if commit.Interrupt != nil || commit.State != execution.StateUnchanged {
+				return errors.New("runsegment: opening commit contains a lifecycle transition")
+			}
+			if commit.Item == nil && commit.Run == nil {
+				return errors.New("runsegment: opening commit has no durable projection")
+			}
+			if err := e.applyCommit(ctx, commit, nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // CommitEvent applies one run event's durable parts atomically (§8.3/§8.4): the
 // open-interrupt record, transcript item/run projections, and the run-state
 // transition, all in one transaction. The interrupt's recoverable process id is
@@ -142,6 +188,9 @@ func New(cfg Config) *Effects {
 // process is not resumable. A terminal run's message watermark is resolved inside
 // the transaction so it is consistent with the state it terminalizes.
 func (e *Effects) CommitEvent(ctx context.Context, commit execution.EventCommit) error {
+	if e.tx == nil {
+		return errors.New("runsegment: transactor is unavailable")
+	}
 	var pending *interrupts.Pending
 	if commit.Interrupt != nil {
 		p := *commit.Interrupt
@@ -152,24 +201,49 @@ func (e *Effects) CommitEvent(ctx context.Context, commit execution.EventCommit)
 		p.ProcessID = procID
 		pending = &p
 	}
-	return e.runInTx(ctx, func(ctx context.Context) error {
-		if pending != nil {
-			if err := e.putInterrupt(ctx, *pending); err != nil {
-				return err
-			}
+	return e.runInTx(ctx, func(ctx context.Context) error { return e.applyCommit(ctx, commit, pending) })
+}
+
+func (e *Effects) applyCommit(ctx context.Context, commit execution.EventCommit, pending *interrupts.Pending) error {
+	if pending != nil {
+		if err := e.putInterrupt(ctx, *pending); err != nil {
+			return err
 		}
-		if commit.Item != nil {
-			if err := e.appendItem(ctx, *commit.Item); err != nil {
-				return err
-			}
+	}
+	if commit.Item != nil {
+		if err := e.appendItem(ctx, *commit.Item); err != nil {
+			return err
 		}
-		if commit.Run != nil {
-			if err := e.putRun(ctx, *commit.Run, commit.State == execution.StateTerminalize); err != nil {
-				return err
-			}
+	}
+	if commit.Run != nil {
+		if err := e.putRun(ctx, *commit.Run, commit.State == execution.StateTerminalize); err != nil {
+			return err
 		}
-		return e.applyState(ctx, commit)
-	})
+	}
+	return e.applyState(ctx, commit)
+}
+
+func (e *Effects) consumeResume(ctx context.Context, resume execution.ResumeDraft) error {
+	if e.stores == nil || e.stores.Interrupts() == nil {
+		return errors.New("runsegment: interrupt persistence is unavailable")
+	}
+	pending, ok, err := e.stores.Interrupts().Consume(ctx, resume.RunID)
+	if err != nil {
+		return fmt.Errorf("runsegment: consume resume interrupt: %w", err)
+	}
+	if !ok {
+		return errors.New("runsegment: resume interrupt is no longer open")
+	}
+	if pending.SessionID != resume.SessionID {
+		return fmt.Errorf("runsegment: resume interrupt session mismatch: got %q want %q", pending.SessionID, resume.SessionID)
+	}
+	if e.runState == nil {
+		return errors.New("runsegment: run-state persistence is unavailable")
+	}
+	if err := e.runState.Resume(ctx, resume); err != nil {
+		return fmt.Errorf("runsegment: resume run state: %w", err)
+	}
+	return nil
 }
 
 // Nudge publishes a non-durable live workspace change to subscribers.
@@ -198,9 +272,6 @@ func (e *Effects) Finish(ctx context.Context, fin runs.Finish) {
 }
 
 func (e *Effects) runInTx(ctx context.Context, fn func(context.Context) error) error {
-	if e.tx == nil {
-		return fn(ctx)
-	}
 	return e.tx(ctx, fn)
 }
 
@@ -231,11 +302,9 @@ func (e *Effects) putInterrupt(ctx context.Context, p interrupts.Pending) error 
 	return nil
 }
 
-// appendItem is a best-effort transcript projection write: a missing store (a
-// non-persisting test runtime) or a lost item is a display gap, not a run error.
 func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
 	if e.stores == nil || e.stores.Transcript() == nil {
-		return nil
+		return errors.New("runsegment: transcript persistence is unavailable")
 	}
 	return e.stores.Transcript().AppendItem(ctx, item)
 }
@@ -246,7 +315,7 @@ func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
 // (post-compaction) shape by the time the terminal event reaches here.
 func (e *Effects) putRun(ctx context.Context, run transcript.Run, terminal bool) error {
 	if e.stores == nil || e.stores.Transcript() == nil {
-		return nil
+		return errors.New("runsegment: transcript persistence is unavailable")
 	}
 	if terminal && run.Mark < 0 {
 		if mark, err := e.stores.MessageCount(ctx, run.SessionID); err == nil {
@@ -260,8 +329,11 @@ func (e *Effects) putRun(ctx context.Context, run transcript.Run, terminal bool)
 }
 
 func (e *Effects) applyState(ctx context.Context, commit execution.EventCommit) error {
-	if e.runState == nil {
+	if commit.State == execution.StateUnchanged {
 		return nil
+	}
+	if e.runState == nil {
+		return errors.New("runsegment: run-state persistence is unavailable")
 	}
 	switch commit.State {
 	case execution.StateSuspend:

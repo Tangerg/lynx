@@ -15,7 +15,7 @@ type Event struct {
 	Timestamp time.Time
 	IsDurable bool
 	IsTerm    bool
-	Payload   any
+	Payload   Projection
 }
 
 // Durable, Terminal, and Cursor satisfy the [Journal]'s [Streamable] interface.

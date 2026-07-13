@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -29,20 +30,15 @@ type Coordinator struct {
 	// stamps every event with the next value, fixed-width so the Journal's lexical
 	// replay stays correct. It is an opaque application cursor — the evt_ wire
 	// framing is applied by the delivery layer, which owns the protocol format.
-	seq atomic.Uint64
-	// runStore is the durable admission backstop (§8.2): Start records the run as
-	// the session's active run, the pump terminalizes it. nil disables it — the
-	// in-memory registry claim still guards admission within a single process.
-	runStore RunStore
+	seq      atomic.Uint64
 	tasks    taskgroup.Group
 	registry Registry[*handle]
 }
 
-// NewCoordinator builds a Coordinator over the executor it drives, the durable
-// effects it commits through, and the durable run-admission backstop (nil to run
-// in-memory-only).
-func NewCoordinator(executor Executor, effects Effects, runStore RunStore) *Coordinator {
-	return &Coordinator{executor: executor, effects: effects, runStore: runStore}
+// NewCoordinator builds a Coordinator over the executor it drives and the
+// durable effects it commits through.
+func NewCoordinator(executor Executor, effects Effects) *Coordinator {
+	return &Coordinator{executor: executor, effects: effects}
 }
 
 // mintCursor returns the next monotonic, fixed-width, lexically-ordered run-event
@@ -53,34 +49,60 @@ func (c *Coordinator) mintCursor() string {
 	return fmt.Sprintf("%011d", c.seq.Add(1))
 }
 
-// Start opens a run segment: it detaches the run from the request (so it
-// outlives the request without losing the trace), subscribes to the executor's
-// event stream, registers the live run, and spawns the pump. It returns the
-// run's transport-neutral event channel; the caller drops its subscription when
-// its request ends (the run keeps running and stays resumable). newProjector
-// builds the per-segment projector, given the segment view it reads at terminal.
+// Start opens a run segment: it attaches the executor stream, atomically commits
+// admission/resume plus opening projections, registers the live owner, then
+// activates a continuation and spawns the pump. The run lifetime is detached
+// from the request without losing its trace; request cancellation drops only
+// that subscriber. newProjector builds the per-segment projector from the live
+// view it reads at terminal.
 func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector func(SegmentView) Projector) (<-chan Event, error) {
+	if c.executor == nil {
+		return nil, errors.New("runs: executor is required")
+	}
+	if c.effects == nil {
+		return nil, errors.New("runs: effects are required")
+	}
+	if newProjector == nil {
+		return nil, errors.New("runs: projector factory is required")
+	}
+	resume := spec.Activate != nil
 	taskCtx, release, ok := c.tasks.Attach(reqCtx)
 	if !ok {
-		_ = c.cancelTurnAfterAdmissionFailure(reqCtx, spec.Handle)
+		if !resume {
+			_ = c.cancelTurnAfterAdmissionFailure(reqCtx, spec.Handle)
+		}
 		return nil, ErrClosed
 	}
 	runCtx, cancel := context.WithCancel(taskCtx)
 	inner, err := c.executor.TurnEvents(runCtx, spec.Handle)
 	if err != nil {
 		cancel()
-		_ = c.executor.CancelTurn(taskCtx, spec.Handle)
-		release()
-		return nil, err
-	}
-	if err := c.admitDurable(reqCtx, spec); err != nil {
-		cancel()
-		_ = c.executor.CancelTurn(taskCtx, spec.Handle)
+		if !resume {
+			_ = c.executor.CancelTurn(taskCtx, spec.Handle)
+		}
 		release()
 		return nil, err
 	}
 	hub := NewJournal[Event]()
 	live := &handle{cancel: cancel, owner: taskCtx, hub: hub}
+	projector := newProjector(live)
+	if projector == nil {
+		cancel()
+		if !resume {
+			_ = c.executor.CancelTurn(taskCtx, spec.Handle)
+		}
+		release()
+		return nil, errors.New("runs: projector is required")
+	}
+	opening, err := c.commitOpening(reqCtx, spec, projector)
+	if err != nil {
+		cancel()
+		if !resume {
+			_ = c.executor.CancelTurn(taskCtx, spec.Handle)
+		}
+		release()
+		return nil, err
+	}
 	c.registry.Open(Record{
 		ID:        spec.RunID,
 		SegmentID: spec.SegmentID,
@@ -93,7 +115,15 @@ func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector
 	}, live)
 	events, unsubscribe := hub.Subscribe("")
 	context.AfterFunc(reqCtx, unsubscribe)
-	projector := newProjector(live)
+	for _, pe := range opening {
+		hub.Append(c.event(spec, pe))
+	}
+	if spec.Activate != nil {
+		if err := spec.Activate(taskCtx); err != nil {
+			projector.Abort(err.Error())
+			cancel()
+		}
+	}
 	go func() {
 		defer release()
 		c.pump(runCtx, taskCtx, spec, inner, live, projector)
@@ -101,32 +131,50 @@ func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector
 	return events, nil
 }
 
-// admitDurable records the segment's Run in the durable admission table (§8.2)
-// as the LAST gate before the pump. A run's opening segment is Admitted: its
-// INSERT is the gate — a rejection means the session already holds a non-terminal
-// run (a race the in-memory claim missed, or a run left over across restart), and
-// since nothing durable was written, tearing the turn down needs no compensation.
-// A continuation segment (spec.Resume) is already gated by the in-memory resume
-// claim, so it does not admit a second row for the session; it transitions the
-// session's existing durable row back to running (best-effort — the resume
-// proceeds regardless). A nil store disables the durable backstop (the in-memory
-// claim still guards within one process).
-func (c *Coordinator) admitDurable(ctx context.Context, spec StartSpec) error {
-	if c.runStore == nil {
-		return nil
+func (c *Coordinator) commitOpening(ctx context.Context, spec StartSpec, projector Projector) ([]ProjectedEvent, error) {
+	projected := projector.Open()
+	if len(projected) == 0 {
+		return nil, errors.New("runs: projector produced no opening events")
 	}
-	if spec.Resume {
-		_ = c.runStore.Resume(ctx, spec.SessionID)
-		return nil
+	opening := OpeningCommit{Events: make([]execution.EventCommit, 0, len(projected))}
+	if spec.Activate != nil {
+		opening.Resume = &execution.ResumeDraft{RunID: spec.RunID, SessionID: spec.SessionID}
+	} else {
+		opening.Admit = &execution.RunDraft{
+			RunID:     spec.RunID,
+			SessionID: spec.SessionID,
+			Provider:  spec.Provider,
+			Model:     spec.Model,
+			CreatedAt: spec.CreatedAt,
+		}
 	}
-	return c.runStore.Admit(ctx, execution.RunDraft{
+	for _, pe := range projected {
+		if pe.Abort || pe.Terminal || pe.Interrupt || pe.Nudge != nil {
+			return nil, errors.New("runs: invalid opening projection")
+		}
+		if pe.Commit != nil {
+			opening.Events = append(opening.Events, *pe.Commit)
+		}
+	}
+	if len(opening.Events) == 0 {
+		return nil, errors.New("runs: opening has no durable projection")
+	}
+	if err := c.effects.CommitOpening(ctx, opening); err != nil {
+		return nil, err
+	}
+	return projected, nil
+}
+
+func (c *Coordinator) event(spec StartSpec, pe ProjectedEvent) Event {
+	return Event{
 		RunID:     spec.RunID,
-		SessionID: spec.SessionID,
-		Provider:  spec.Provider,
-		Model:     spec.Model,
-		ProcessID: spec.TurnID,
-		CreatedAt: spec.CreatedAt,
-	})
+		SegmentID: spec.SegmentID,
+		Seq:       c.mintCursor(),
+		Timestamp: time.Now().UTC(),
+		IsDurable: pe.Durable,
+		IsTerm:    pe.Terminal,
+		Payload:   pe.Payload,
+	}
 }
 
 // cancelTurnAfterAdmissionFailure tears down a turn that was created but never

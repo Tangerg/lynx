@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
-// translator converts Lyra's internal [turn.Event] delta stream into
+// translator converts the application's normalized [runs.EngineEvent] stream into
 // the v2 [protocol.StreamEvent] / Item model (API.md §5). One
 // translator per SEGMENT — it carries the in-flight Item state (open
 // agentMessage / reasoning / toolCall items) so the output is
@@ -18,15 +18,15 @@ import (
 //
 // State machine:
 //
-//	turn.TurnStart       → segment.started
-//	turn.MessageDelta    → close reasoning + item.started(agentMessage,lazy) + item.delta(content)
-//	turn.ReasoningDelta  → close text + item.started(reasoning,lazy) + item.delta(reasoning)
-//	turn.ToolCallStart   → close text+reasoning + item.started(toolCall) + item.delta(toolArguments)
-//	turn.ToolCallEnd     → item.completed(toolCall)
-//	turn.TurnEnd         → close open items + segment.finished(outcome)
-//	turn.TurnInterrupted → close open items + interrupt Item(s) + segment.finished(outcome:interrupt)
-//	turn.ErrorEvent      → captured, surfaced in segment.finished(outcome:error)
-//	turn.CompactBoundary → compaction Item (item.started + item.completed)
+//	runs.TurnStart       → segment.started
+//	runs.MessageDelta    → close reasoning + item.started(agentMessage,lazy) + item.delta(content)
+//	runs.ReasoningDelta  → close text + item.started(reasoning,lazy) + item.delta(reasoning)
+//	runs.ToolCallStart   → close text+reasoning + item.started(toolCall) + item.delta(toolArguments)
+//	runs.ToolCallEnd     → item.completed(toolCall)
+//	runs.TurnEnd         → close open items + segment.finished(outcome)
+//	runs.TurnInterrupted → close open items + interrupt Item(s) + segment.finished(outcome:interrupt)
+//	runs.ErrorEvent      → captured, surfaced in segment.finished(outcome:error)
+//	runs.CompactBoundary → compaction Item (item.started + item.completed)
 //
 // MemoryUpdated is not surfaced here: extracted long-term memory is internal
 // housekeeping with no client-facing surface (nothing folds a memory event).
@@ -38,6 +38,7 @@ type translator struct {
 	segmentID string
 	provider  string // run's provider → RunRef.provider on segment.started
 	model     string // run's model → RunRef.model on segment.started
+	createdAt time.Time
 	resume    *resumeBinding
 	itemSeq   int
 	step      int // tool-call ordinal, surfaced as segment.progress.step (API.md §5)
@@ -111,6 +112,10 @@ func userMessageItemID(segmentID string) string {
 // left open. Driven by pumpRun before any turn event, so it never depends on a
 // turn-level TurnStart (which continuations don't emit).
 func (t *translator) open() []protocol.StreamEvent {
+	createdAt := t.createdAt
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
+	}
 	out := []protocol.StreamEvent{{
 		Type: protocol.StreamSegmentStarted,
 		Run: &protocol.RunRef{
@@ -119,7 +124,7 @@ func (t *translator) open() []protocol.StreamEvent {
 			Provider:  t.provider,
 			Model:     t.model,
 			Status:    protocol.RunStatusRunning,
-			CreatedAt: time.Now().UTC(),
+			CreatedAt: createdAt,
 		},
 	}}
 	out = append(out, t.openUserMessage()...)
@@ -127,43 +132,46 @@ func (t *translator) open() []protocol.StreamEvent {
 }
 
 // translate maps one Lyra turn event to zero or more StreamEvents.
-func (t *translator) translate(ev turn.Event) []protocol.StreamEvent {
+func (t *translator) translate(ev runs.EngineEvent) []protocol.StreamEvent {
 	switch e := ev.(type) {
-	case turn.TurnStart:
+	case runs.TurnStart:
 		// segment.started is emitted by open() at the start of every run segment
 		// (so continuation runs get it too — they carry no turn.TurnStart),
 		// not here. Nothing to do for the turn-level TurnStart.
 		return nil
-	case turn.MessageDelta:
+	case runs.MessageDelta:
 		// Close any open reasoning before emitting text — reasoning and
 		// text cannot be concurrently open (API.md §5: at most one
 		// streaming item at a time).
 		out := t.closeReasoning()
 		return append(out, t.appendText(e.Text)...)
-	case turn.ReasoningDelta:
+	case runs.ReasoningDelta:
 		// Close any open text before emitting reasoning.
 		out := t.closeText()
 		return append(out, t.appendReasoning(e.Text)...)
-	case turn.ToolCallStart:
+	case runs.ToolCallStart:
 		return t.toolStart(e)
-	case turn.ToolCallEnd:
+	case runs.ToolCallEnd:
 		return t.toolEnd(e)
-	case turn.UsageReported:
+	case runs.UsageReported:
 		return t.usageProgress(e)
-	case turn.SteerMessage:
+	case runs.SteerMessage:
 		return t.steerMessage(e)
-	case turn.TodosUpdated:
+	case runs.TodosUpdated:
 		return t.todosSnapshot(e)
-	case turn.ErrorEvent:
+	case runs.ErrorEvent:
 		t.errMsg = e.Message
 		t.errCode = e.Code
 		return nil
-	case turn.CompactBoundary:
+	case runs.CompactBoundary:
 		return t.compaction(e)
-	case turn.TurnInterrupted:
+	case runs.MemoryUpdated:
+		return nil
+	case runs.TurnInterrupted:
 		return t.interrupt(e)
-	case turn.TurnEnd:
+	case runs.TurnEnd:
 		return t.turnEnd(e)
+	default:
+		panic("server: unhandled application engine event")
 	}
-	return nil
 }

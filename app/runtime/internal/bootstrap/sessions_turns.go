@@ -23,22 +23,29 @@ func (t sessionsTurns) Cancel(ctx context.Context, ref sessions.RunRef) error {
 	return t.dispatcher.Cancel(ctx, turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID})
 }
 
-func (t sessionsTurns) Resume(ctx context.Context, ref sessions.RunRef, resolution interrupts.Resolution, interruptKinds []string) (sessions.Handle, error) {
+func (t sessionsTurns) Prepare(ctx context.Context, ref sessions.RunRef) (sessions.Handle, error) {
 	handle := turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID}
-	if err := t.dispatcher.Resume(ctx, handle, resolution, interruptKinds); err != nil {
+	if _, err := t.dispatcher.ProcessID(ctx, handle); err != nil {
 		return nil, mapResumeError(err)
 	}
 	return handle, nil
 }
 
+func (t sessionsTurns) Resume(ctx context.Context, opaque sessions.Handle, resolution interrupts.Resolution, interruptKinds []string) error {
+	handle, ok := opaque.(turn.TurnHandle)
+	if !ok {
+		return fmt.Errorf("bootstrap: resume handle %T is not a turn handle", opaque)
+	}
+	return mapResumeError(t.dispatcher.Resume(ctx, handle, resolution, interruptKinds))
+}
+
 func (t sessionsTurns) Rehydrate(ctx context.Context, req sessions.RehydrateSpec) (sessions.Handle, error) {
 	handle, err := t.dispatcher.Rehydrate(ctx, turn.RehydrateRequest{
-		SessionID:      req.SessionID,
-		ProcessID:      req.ProcessID,
-		Approved:       req.Approved,
-		Provider:       req.Provider,
-		Model:          req.Model,
-		InterruptKinds: req.InterruptKinds,
+		SessionID: req.SessionID,
+		TurnID:    req.TurnID,
+		ProcessID: req.ProcessID,
+		Provider:  req.Provider,
+		Model:     req.Model,
 	})
 	if err != nil {
 		return nil, mapResumeError(err)
@@ -50,13 +57,14 @@ func (t sessionsTurns) Rehydrate(ctx context.Context, req sessions.RehydrateSpec
 // coordinator's engine-neutral sentinels, preserving the original error in the
 // chain so diagnostics keep the dispatcher's detail.
 func mapResumeError(err error) error {
+	if err == nil {
+		return nil
+	}
 	switch {
 	case errors.Is(err, turn.ErrParkClaimed):
 		return fmt.Errorf("%w: %w", sessions.ErrParkClaimed, err)
 	case errors.Is(err, turn.ErrTurnNotFound):
 		return fmt.Errorf("%w: %w", sessions.ErrTurnNotLive, err)
-	case errors.Is(err, turn.ErrRehydrateCommitted):
-		return fmt.Errorf("%w: %w", sessions.ErrRehydrateCommitted, err)
 	default:
 		return err
 	}

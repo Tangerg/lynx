@@ -169,7 +169,7 @@ func TestClaimResumeSlotMissingInterrupt(t *testing.T) {
 	}
 }
 
-func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
+func TestPrepareAndActivateInterruptLeavesConsumptionToRunOpening(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
@@ -178,7 +178,8 @@ func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
 		},
 	}
 	resolution := interrupts.Resolution{Approved: true}
-	turns := stubTurns{onResume: func(h RunRef, got interrupts.Resolution, interruptKinds []string) {
+	turns := stubTurns{onResume: func(opaque Handle, got interrupts.Resolution, interruptKinds []string) {
+		h := opaque.(turn.TurnHandle)
 		if h.SessionID != "ses_1" || h.TurnID != "turn_1" {
 			t.Fatalf("handle = %+v, want ses_1/turn_1", h)
 		}
@@ -190,19 +191,24 @@ func TestResumeClaimedInterruptConsumesAndResumes(t *testing.T) {
 		}
 	}}
 
-	resumed, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", resolution, []string{"approval"})
+	coordinator := newCoordinator(stores, turns)
+	pending := stores.interrupts.pending["run_1"]
+	prepared, err := coordinator.PrepareClaimedInterrupt(context.Background(), pending)
 	if err != nil {
-		t.Fatalf("resume claimed interrupt: %v", err)
+		t.Fatalf("prepare claimed interrupt: %v", err)
 	}
-	if resumed.Pending.RunID != "run_1" || resumed.Handle.(turn.TurnHandle).TurnID != "turn_1" {
-		t.Fatalf("resumed = %+v", resumed)
+	if prepared.Pending.RunID != "run_1" || prepared.Handle.(turn.TurnHandle).TurnID != "turn_1" {
+		t.Fatalf("prepared = %+v", prepared)
 	}
-	if _, ok := stores.interrupts.pending["run_1"]; ok {
-		t.Fatal("interrupt must be consumed")
+	if _, ok := stores.interrupts.pending["run_1"]; !ok {
+		t.Fatal("prepare must not consume the interrupt")
+	}
+	if err := coordinator.ActivatePreparedInterrupt(context.Background(), prepared, resolution, []string{"approval"}); err != nil {
+		t.Fatalf("activate prepared interrupt: %v", err)
 	}
 }
 
-func TestResumeClaimedInterruptRehydratesMissingTurn(t *testing.T) {
+func TestPrepareClaimedInterruptRehydratesMissingTurnWithoutDecision(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
@@ -218,28 +224,25 @@ func TestResumeClaimedInterruptRehydratesMissingTurn(t *testing.T) {
 		},
 	}
 	turns := stubTurns{
-		resumeErr:       ErrTurnNotLive,
+		prepareErr:      ErrTurnNotLive,
 		rehydrateHandle: turn.TurnHandle{SessionID: "ses_1", TurnID: "turn_rebuilt"},
 		onRehydrate: func(req RehydrateSpec) {
-			if req.SessionID != "ses_1" || req.ProcessID != "proc_1" || !req.Approved || req.Provider != "anthropic" || req.Model != "claude" {
+			if req.SessionID != "ses_1" || req.TurnID != "turn_1" || req.ProcessID != "proc_1" || req.Provider != "anthropic" || req.Model != "claude" {
 				t.Fatalf("rehydrate request = %+v", req)
-			}
-			if len(req.InterruptKinds) != 1 || req.InterruptKinds[0] != "approval" {
-				t.Fatalf("interrupt kinds = %+v, want approval", req.InterruptKinds)
 			}
 		},
 	}
 
-	resumed, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", interrupts.Resolution{Approved: true}, []string{"approval"})
+	prepared, err := newCoordinator(stores, turns).PrepareClaimedInterrupt(context.Background(), stores.interrupts.pending["run_1"])
 	if err != nil {
-		t.Fatalf("resume claimed interrupt: %v", err)
+		t.Fatalf("prepare claimed interrupt: %v", err)
 	}
-	if resumed.Handle.(turn.TurnHandle).TurnID != "turn_rebuilt" {
-		t.Fatalf("handle = %+v, want rebuilt turn", resumed.Handle)
+	if prepared.Handle.(turn.TurnHandle).TurnID != "turn_rebuilt" {
+		t.Fatalf("handle = %+v, want rebuilt turn", prepared.Handle)
 	}
 }
 
-func TestResumeClaimedInterruptParkClaimed(t *testing.T) {
+func TestPrepareClaimedInterruptParkClaimed(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
 			pending: map[string]interrupts.Pending{
@@ -247,15 +250,15 @@ func TestResumeClaimedInterruptParkClaimed(t *testing.T) {
 			},
 		},
 	}
-	turns := stubTurns{resumeErr: ErrParkClaimed}
+	turns := stubTurns{prepareErr: ErrParkClaimed}
 
-	_, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", interrupts.Resolution{Approved: true}, nil)
+	_, err := newCoordinator(stores, turns).PrepareClaimedInterrupt(context.Background(), stores.interrupts.pending["run_1"])
 	if !errors.Is(err, ErrInterruptNotOpen) {
 		t.Fatalf("err = %v, want ErrInterruptNotOpen", err)
 	}
 }
 
-func TestResumeClaimedInterruptRestoresUncommittedRehydrateFailure(t *testing.T) {
+func TestPrepareClaimedInterruptKeepsInterruptOnRehydrateFailure(t *testing.T) {
 	pending := interrupts.Pending{
 		RunID:     "run_1",
 		SessionID: "ses_1",
@@ -266,35 +269,15 @@ func TestResumeClaimedInterruptRestoresUncommittedRehydrateFailure(t *testing.T)
 		pending: map[string]interrupts.Pending{"run_1": pending},
 	}}
 	turns := stubTurns{
-		resumeErr:    ErrTurnNotLive,
+		prepareErr:   ErrTurnNotLive,
 		rehydrateErr: errors.New("snapshot store temporarily unavailable"),
 	}
 
-	_, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", interrupts.Resolution{Approved: true}, nil)
+	_, err := newCoordinator(stores, turns).PrepareClaimedInterrupt(context.Background(), pending)
 	if !errors.Is(err, ErrRunNotFound) {
 		t.Fatalf("err = %v, want ErrRunNotFound", err)
 	}
 	if got, ok := stores.interrupts.pending["run_1"]; !ok || got.ProcessID != "proc_1" {
-		t.Fatalf("pending = %+v, ok=%v; uncommitted claim must be restored", got, ok)
-	}
-}
-
-func TestResumeClaimedInterruptDoesNotRestoreCommittedRehydrateFailure(t *testing.T) {
-	stores := coordinatorStores{interrupts: &coordinatorInterrupts{
-		pending: map[string]interrupts.Pending{
-			"run_1": {RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1"},
-		},
-	}}
-	turns := stubTurns{
-		resumeErr:    ErrTurnNotLive,
-		rehydrateErr: errors.Join(ErrRehydrateCommitted, errors.New("resumed process failed")),
-	}
-
-	_, err := newCoordinator(stores, turns).ResumeClaimedInterrupt(context.Background(), "run_1", interrupts.Resolution{Approved: true}, nil)
-	if !errors.Is(err, ErrRunNotFound) {
-		t.Fatalf("err = %v, want ErrRunNotFound", err)
-	}
-	if _, ok := stores.interrupts.pending["run_1"]; ok {
-		t.Fatal("committed rehydrate failure must remain consumed")
+		t.Fatalf("pending = %+v, ok=%v; prepare failure must leave it open", got, ok)
 	}
 }

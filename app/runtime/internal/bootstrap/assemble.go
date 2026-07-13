@@ -128,6 +128,12 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 	if cfg.TranscriptStore == nil {
 		return Host{}, errors.New("runtime: TranscriptStore is required")
 	}
+	if cfg.RunStore == nil {
+		return Host{}, errors.New("runtime: RunStore is required")
+	}
+	if cfg.Transactor == nil {
+		return Host{}, errors.New("runtime: Transactor is required")
+	}
 
 	ecfg, messages := prepareEngineConfig(cfg)
 
@@ -233,7 +239,7 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 		Tasks:              effectsTasks,
 		PublishFileChanges: fileChanges.Publish,
 	})
-	runCoord := runs.NewCoordinator(runExecutor, runEffects, cfg.RunStore)
+	runCoord := runs.NewCoordinator(runExecutor, runEffects)
 
 	// mcpStatus bridges the integrations coordinator's MCP reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.

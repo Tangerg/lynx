@@ -3,7 +3,7 @@ package server
 import (
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -93,7 +93,7 @@ func (t *translator) closeStreaming() []protocol.StreamEvent {
 	return append(t.closeReasoning(), t.closeText()...)
 }
 
-func (t *translator) toolStart(e turn.ToolCallStart) []protocol.StreamEvent {
+func (t *translator) toolStart(e runs.ToolCallStart) []protocol.StreamEvent {
 	out := t.closeStreaming()
 
 	// Mid-run progress (API.md §5, ephemeral): a tool call is a meaningful
@@ -131,7 +131,7 @@ func (t *translator) toolStart(e turn.ToolCallStart) []protocol.StreamEvent {
 	return out
 }
 
-func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
+func (t *translator) toolEnd(e runs.ToolCallEnd) []protocol.StreamEvent {
 	ref, ok := t.tools[e.CallID]
 	if !ok {
 		return nil
@@ -179,7 +179,7 @@ func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
 // preview (API.md §5, ephemeral) — the live "tokens / cost spent" readout. Only
 // the usage field is carried; step/activity ride the tool-call boundary above.
 // The authoritative final total still lands on segment.finished.result (§5.2).
-func (t *translator) usageProgress(e turn.UsageReported) []protocol.StreamEvent {
+func (t *translator) usageProgress(e runs.UsageReported) []protocol.StreamEvent {
 	progress := &protocol.RunProgress{
 		Usage: &protocol.Usage{
 			ModelUsage: modelUsageFrom(e.TokenUsage.PromptTokens, e.TokenUsage.CompletionTokens, e.TokenUsage.ReasoningTokens, e.TokenUsage.CacheReadTokens, e.TokenUsage.CacheWriteTokens, e.CostUSD),
@@ -232,7 +232,7 @@ func activityVerb(name string) string {
 
 // turnEnd closes any open items (so the wire ends balanced) then emits
 // the terminal segment.finished with its discriminated outcome.
-func (t *translator) turnEnd(e turn.TurnEnd) []protocol.StreamEvent {
+func (t *translator) turnEnd(e runs.TurnEnd) []protocol.StreamEvent {
 	out := t.closeStreaming()
 	out = append(out, t.drainTools()...)
 	return append(out, protocol.StreamEvent{

@@ -17,13 +17,21 @@ var ErrSessionBusy = errors.New("execution: session has a non-terminal run")
 // durable side of "one non-terminal Run per Session" (§8.2). It carries only the
 // identity + per-run selection an admission needs; the streamed segments, usage,
 // and terminal Outcome accrue afterward. Provider/Model are the run's explicit
-// per-run model selection (empty ⇒ the runtime default); ProcessID is the
-// executor's recovery handle, not an identity.
+// per-run model selection (empty ⇒ the runtime default). Executor recovery
+// handles do not belong on the Run row; a parked interrupt records the actual
+// process snapshot id at the point where it is known.
 type RunDraft struct {
 	RunID     string
 	SessionID string
 	Provider  string
 	Model     string
-	ProcessID string
 	CreatedAt time.Time
+}
+
+// ResumeDraft is the durable identity of a parked Run whose next segment is
+// opening. Applying it atomically consumes the Run's open interrupt and moves
+// its admission state from Interrupted back to Running.
+type ResumeDraft struct {
+	RunID     string
+	SessionID string
 }

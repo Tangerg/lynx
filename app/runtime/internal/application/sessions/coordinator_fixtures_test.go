@@ -122,10 +122,11 @@ func (*testClaimer) ActiveSessionWithCwd(string) string { return "" }
 // test wires only the leg it exercises.
 type stubTurns struct {
 	onCancel        func(RunRef)
+	prepareErr      error
 	resumeErr       error
 	rehydrateErr    error
 	rehydrateHandle Handle
-	onResume        func(RunRef, interrupts.Resolution, []string)
+	onResume        func(Handle, interrupts.Resolution, []string)
 	onRehydrate     func(RehydrateSpec)
 }
 
@@ -136,11 +137,15 @@ func (t stubTurns) Cancel(_ context.Context, ref RunRef) error {
 	return nil
 }
 
-func (t stubTurns) Resume(_ context.Context, ref RunRef, r interrupts.Resolution, interruptKinds []string) (Handle, error) {
+func (t stubTurns) Prepare(_ context.Context, ref RunRef) (Handle, error) {
+	return turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID}, t.prepareErr
+}
+
+func (t stubTurns) Resume(_ context.Context, handle Handle, r interrupts.Resolution, interruptKinds []string) error {
 	if t.onResume != nil {
-		t.onResume(ref, r, interruptKinds)
+		t.onResume(handle, r, interruptKinds)
 	}
-	return turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID}, t.resumeErr
+	return t.resumeErr
 }
 
 func (t stubTurns) Rehydrate(_ context.Context, req RehydrateSpec) (Handle, error) {

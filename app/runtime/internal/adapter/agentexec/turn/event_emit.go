@@ -16,7 +16,7 @@ import "time"
 // escape hatch: a canceled turn stops blocking producers even when no consumer
 // is left to drain.
 func (s *inMemory) emit(st *turnState, ev Event) {
-	stamped := ev.stamp(BaseEvent{
+	stamped := ev.WithMeta(BaseEvent{
 		SessionID: st.handle.SessionID,
 		TurnID:    st.handle.TurnID,
 		Seq:       st.seq.Add(1),

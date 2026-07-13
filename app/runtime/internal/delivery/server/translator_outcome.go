@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
@@ -15,7 +15,7 @@ import (
 // RunOutcome — outcome kind, usage roll-up, and error classification.
 // This file changes when the outcome contract does.
 
-func (t *translator) outcome(e turn.TurnEnd) *protocol.RunOutcome {
+func (t *translator) outcome(e runs.TurnEnd) *protocol.RunOutcome {
 	// steps lands the run's final step count durably (API.md §5.2): it's the
 	// authoritative home of the ephemeral segment.progress.step, so a client that
 	// dropped the progress deltas can still read it off the terminal. t.step is
@@ -40,7 +40,7 @@ func (t *translator) outcome(e turn.TurnEnd) *protocol.RunOutcome {
 // budgetDetail describes which configured cap a budget-exceeded run hit, for
 // RunOutcome.detail (e.g. "spent $4.20 of $4.00 budget" / "reached the
 // 8000-token budget"). Falls back to a generic note when neither cap is echoed.
-func budgetDetail(e turn.TurnEnd) string {
+func budgetDetail(e runs.TurnEnd) string {
 	switch {
 	case e.MaxCostUSD > 0:
 		return fmt.Sprintf("spent $%.2f of $%.2f budget", e.CostUSD, e.MaxCostUSD)
@@ -54,7 +54,7 @@ func budgetDetail(e turn.TurnEnd) string {
 // stepDetail describes a maxSteps-terminated run for RunOutcome.detail
 // (e.g. "reached the 8-step limit"). Falls back to a generic note if the cap
 // wasn't echoed.
-func stepDetail(e turn.TurnEnd) string {
+func stepDetail(e runs.TurnEnd) string {
 	if e.MaxSteps > 0 {
 		return fmt.Sprintf("reached the %d-step limit", e.MaxSteps)
 	}
@@ -140,7 +140,7 @@ func parseRetryAfter(msg string) int {
 }
 
 // turnUsage maps the engine's per-turn token roll-up onto wire Usage.
-func (t *translator) turnUsage(e turn.TurnEnd) *protocol.Usage {
+func (t *translator) turnUsage(e runs.TurnEnd) *protocol.Usage {
 	u := &protocol.Usage{
 		ModelUsage: modelUsageFrom(e.TokenUsage.PromptTokens, e.TokenUsage.CompletionTokens, e.TokenUsage.ReasoningTokens, e.TokenUsage.CacheReadTokens, e.TokenUsage.CacheWriteTokens, e.CostUSD),
 	}

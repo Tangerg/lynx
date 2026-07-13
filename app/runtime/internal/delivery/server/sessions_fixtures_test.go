@@ -92,7 +92,7 @@ func newTestServer(rt testRuntime) *Server {
 	// admission / lifecycle seam. The stub runtime provides both the executor
 	// (TurnEvents/CancelTurn) and the run-segment effects; no checkpoint store or
 	// file-change publisher is needed for these tests.
-	s.coordinator = runs.NewCoordinator(rt, rt.RunSegmentEffects(nil, nil), nil)
+	s.coordinator = runs.NewCoordinator(rt, rt.RunSegmentEffects(nil, nil))
 	// Wire the session/run lifecycle coordinator over the fake's in-memory stores
 	// when the fake provides one, mirroring the composition root.
 	if p, ok := rt.(sessionsCoordinatorProvider); ok {
@@ -181,21 +181,7 @@ func (s stubRuntime) turnDispatcher() turn.Dispatcher {
 }
 
 func (s stubRuntime) TurnEvents(ctx context.Context, handle runs.Handle) (iter.Seq[runs.EngineEvent], error) {
-	h, ok := handle.(turn.TurnHandle)
-	if !ok {
-		return nil, fmt.Errorf("stub: handle %T is not a turn handle", handle)
-	}
-	seq, err := s.turnDispatcher().Events(ctx, h)
-	if err != nil {
-		return nil, err
-	}
-	return func(yield func(runs.EngineEvent) bool) {
-		for ev := range seq {
-			if !yield(ev) {
-				return
-			}
-		}
-	}, nil
+	return turn.NewExecutor(s.turnDispatcher()).TurnEvents(ctx, handle)
 }
 
 func (s stubRuntime) ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
@@ -226,19 +212,27 @@ func (t stubLifecycleTurns) Cancel(ctx context.Context, ref sessions.RunRef) err
 	return t.rt.CancelTurn(ctx, turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID})
 }
 
-func (t stubLifecycleTurns) Resume(ctx context.Context, ref sessions.RunRef, resolution interrupts.Resolution, interruptKinds []string) (sessions.Handle, error) {
+func (t stubLifecycleTurns) Prepare(ctx context.Context, ref sessions.RunRef) (sessions.Handle, error) {
 	handle := turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID}
-	return handle, mapStubResumeError(t.rt.ResumeTurn(ctx, handle, resolution, interruptKinds))
+	_, err := t.rt.TurnProcessID(ctx, handle)
+	return handle, mapStubResumeError(err)
+}
+
+func (t stubLifecycleTurns) Resume(ctx context.Context, opaque sessions.Handle, resolution interrupts.Resolution, interruptKinds []string) error {
+	handle, ok := opaque.(turn.TurnHandle)
+	if !ok {
+		return fmt.Errorf("stub: handle %T is not a turn handle", opaque)
+	}
+	return mapStubResumeError(t.rt.ResumeTurn(ctx, handle, resolution, interruptKinds))
 }
 
 func (t stubLifecycleTurns) Rehydrate(ctx context.Context, req sessions.RehydrateSpec) (sessions.Handle, error) {
 	handle, err := t.rt.RehydrateTurn(ctx, turn.RehydrateRequest{
-		SessionID:      req.SessionID,
-		ProcessID:      req.ProcessID,
-		Approved:       req.Approved,
-		Provider:       req.Provider,
-		Model:          req.Model,
-		InterruptKinds: req.InterruptKinds,
+		SessionID: req.SessionID,
+		TurnID:    req.TurnID,
+		ProcessID: req.ProcessID,
+		Provider:  req.Provider,
+		Model:     req.Model,
 	})
 	return handle, mapStubResumeError(err)
 }
@@ -247,13 +241,14 @@ func (t stubLifecycleTurns) Rehydrate(ctx context.Context, req sessions.Rehydrat
 // dispatcher's resume vocabulary onto the coordinator's neutral sentinels so the
 // delivery resume tests branch exactly as production does.
 func mapStubResumeError(err error) error {
+	if err == nil {
+		return nil
+	}
 	switch {
 	case errors.Is(err, turn.ErrParkClaimed):
 		return fmt.Errorf("%w: %w", sessions.ErrParkClaimed, err)
 	case errors.Is(err, turn.ErrTurnNotFound):
 		return fmt.Errorf("%w: %w", sessions.ErrTurnNotLive, err)
-	case errors.Is(err, turn.ErrRehydrateCommitted):
-		return fmt.Errorf("%w: %w", sessions.ErrRehydrateCommitted, err)
 	default:
 		return err
 	}
@@ -420,10 +415,19 @@ func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publi
 	return runsegment.New(runsegment.Config{
 		Stores:             stubRunSegmentStores{rt: s},
 		Processes:          stubRunSegmentProcesses{rt: s},
+		RunState:           stubRunState{},
+		Tx:                 s.RunInTx,
 		Checkpoints:        checkpoints,
 		PublishFileChanges: publish,
 	})
 }
+
+type stubRunState struct{}
+
+func (stubRunState) Admit(context.Context, execution.RunDraft) error              { return nil }
+func (stubRunState) Resume(context.Context, execution.ResumeDraft) error          { return nil }
+func (stubRunState) Suspend(context.Context, string) error                        { return nil }
+func (stubRunState) Terminalize(context.Context, string, execution.Outcome) error { return nil }
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call
 // (via the lifecycle coordinator) to release a removed session's process-local

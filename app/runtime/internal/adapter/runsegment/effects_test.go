@@ -49,13 +49,59 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	}
 }
 
+func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
+	stores := &fakeStores{transcript: &fakeTranscript{}}
+	runState := &fakeRunState{}
+	tx := &fakeTx{}
+	effects := New(Config{Stores: stores, RunState: runState, Tx: tx.run})
+	draft := execution.RunDraft{RunID: "run_1", SessionID: "ses_1"}
+
+	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
+		Admit: &draft,
+		Events: []execution.EventCommit{{
+			SessionID: "ses_1",
+			Run:       &transcript.Run{SessionID: "ses_1", RunID: "run_1", Blob: []byte(`{"id":"run_1"}`)},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("CommitOpening: %v", err)
+	}
+	if tx.calls != 1 || len(runState.admitted) != 1 || len(stores.transcript.runs) != 1 {
+		t.Fatalf("opening tx=%d admitted=%d runs=%d, want 1/1/1", tx.calls, len(runState.admitted), len(stores.transcript.runs))
+	}
+}
+
+func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
+	ints := &fakeInterrupts{pending: interrupts.Pending{RunID: "run_1", SessionID: "ses_1"}}
+	stores := &fakeStores{interrupts: ints, transcript: &fakeTranscript{}}
+	runState := &fakeRunState{}
+	tx := &fakeTx{}
+	effects := New(Config{Stores: stores, RunState: runState, Tx: tx.run})
+	resume := execution.ResumeDraft{RunID: "run_1", SessionID: "ses_1"}
+
+	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
+		Resume: &resume,
+		Events: []execution.EventCommit{{
+			SessionID: "ses_1",
+			Run:       &transcript.Run{SessionID: "ses_1", RunID: "run_1", Blob: []byte(`{"id":"run_1"}`)},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("CommitOpening: %v", err)
+	}
+	if tx.calls != 1 || ints.pending.RunID != "" || len(runState.resumed) != 1 || len(stores.transcript.runs) != 1 {
+		t.Fatalf("resume tx=%d pending=%+v resumed=%v runs=%d", tx.calls, ints.pending, runState.resumed, len(stores.transcript.runs))
+	}
+}
+
 // TestCommitEventRecordsInterruptAndSuspends: a park commit resolves the
 // interrupt's process id from the live turn, persists the resumable record, and
 // suspends the run-state — atomically.
 func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	stores := &fakeStores{interrupts: &fakeInterrupts{}}
 	runState := &fakeRunState{}
-	effects := New(Config{Stores: stores, Processes: fakeProcess{processID: "proc_1"}, RunState: runState})
+	tx := &fakeTx{}
+	effects := New(Config{Stores: stores, Processes: fakeProcess{processID: "proc_1"}, RunState: runState, Tx: tx.run})
 
 	err := effects.CommitEvent(context.Background(), execution.EventCommit{
 		SessionID: "ses_1",
@@ -93,7 +139,8 @@ func TestCommitEventRejectsUnresumableInterrupt(t *testing.T) {
 	want := errors.New("process snapshot unavailable")
 	stores := &fakeStores{interrupts: &fakeInterrupts{}}
 	runState := &fakeRunState{}
-	effects := New(Config{Stores: stores, Processes: fakeProcess{err: want}, RunState: runState})
+	tx := &fakeTx{}
+	effects := New(Config{Stores: stores, Processes: fakeProcess{err: want}, RunState: runState, Tx: tx.run})
 
 	err := effects.CommitEvent(context.Background(), execution.EventCommit{
 		SessionID: "ses_1",
@@ -200,8 +247,20 @@ func (p fakeProcess) ProcessID(context.Context, turn.TurnHandle) (string, error)
 
 // fakeRunState records the run-state transitions the commit applies.
 type fakeRunState struct {
+	admitted     []execution.RunDraft
+	resumed      []string
 	suspended    []string
 	terminalized []string
+}
+
+func (r *fakeRunState) Admit(_ context.Context, draft execution.RunDraft) error {
+	r.admitted = append(r.admitted, draft)
+	return nil
+}
+
+func (r *fakeRunState) Resume(_ context.Context, draft execution.ResumeDraft) error {
+	r.resumed = append(r.resumed, draft.SessionID)
+	return nil
 }
 
 func (r *fakeRunState) Suspend(_ context.Context, sessionID string) error {
@@ -244,6 +303,15 @@ type fakeInterrupts struct {
 func (s *fakeInterrupts) Put(_ context.Context, p interrupts.Pending) error {
 	s.pending = p
 	return nil
+}
+
+func (s *fakeInterrupts) Consume(_ context.Context, runID string) (interrupts.Pending, bool, error) {
+	if s.pending.RunID != runID {
+		return interrupts.Pending{}, false, nil
+	}
+	pending := s.pending
+	s.pending = interrupts.Pending{}
+	return pending, true, nil
 }
 
 type fakeSession struct {

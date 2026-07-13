@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -32,8 +33,25 @@ func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ runs.Handle) (iter.
 func (*blockingRunRuntime) CancelTurn(context.Context, runs.Handle) error { return nil }
 
 func (*blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {
-	return runsegment.New(runsegment.Config{})
+	return runsegment.New(runsegment.Config{
+		Stores:   blockingRunStores{},
+		RunState: stubRunState{},
+		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) },
+	})
 }
+
+type blockingRunStores struct{}
+
+func (blockingRunStores) Interrupts() runsegment.InterruptStore                 { return nil }
+func (blockingRunStores) Session() runsegment.SessionStore                      { return nil }
+func (blockingRunStores) Transcript() runsegment.TranscriptStore                { return blockingTranscript{} }
+func (blockingRunStores) MessageCount(context.Context, string) (int, error)     { return 0, nil }
+func (blockingRunStores) GenerateTitle(context.Context, string) (string, error) { return "", nil }
+
+type blockingTranscript struct{}
+
+func (blockingTranscript) AppendItem(context.Context, transcript.Item) error { return nil }
+func (blockingTranscript) PutRun(context.Context, transcript.Run) error      { return nil }
 
 // startLiveRun starts a run that blocks forever (via a blockingRunRuntime the
 // caller wired into the Server), waits until the coordinator has registered it,
