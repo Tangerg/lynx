@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -66,45 +65,15 @@ func (s *Server) listItemsFromHistory(hItems []transcript.Item, hRuns []transcri
 	for _, item := range pageRows {
 		items = append(items, presentItem(item))
 	}
-	// Runs stay fully decoded: the client needs the whole run tree to
-	// thread items, the per-session run count is small, and
-	// reconcileLostRun must inspect each ref.
+	// Runs stay fully decoded: the client needs the whole run tree to thread
+	// items, and the per-session run count is small.
 	runs := make([]protocol.RunRef, 0, len(hRuns))
 	for _, run := range hRuns {
-		ref := presentRun(run)
-		s.reconcileLostRun(&ref)
-		runs = append(runs, ref)
+		runs = append(runs, presentRun(run))
 	}
 
 	return &protocol.ListItemsResponse{
 		Page: protocol.Page[protocol.Item]{Data: items, NextCursor: next},
 		Runs: runs,
 	}, nil
-}
-
-// reconcileLostRun heals a RunRef the durable history left at status:running
-// when no live pump is driving it: such a run was lost to a restart/crash
-// between segment.started and its terminal segment.finished. Nothing is advancing it
-// and it isn't resumable (no interrupt was recorded — a parked run finishes
-// with outcome:interrupt, which IS terminal in history), so without this the
-// client renders a perpetual spinner. We present it as a terminal
-// error(run_lost) (API.md §6.2 anti-dangling, applied to non-parked runs).
-//
-// Reconciliation is in-memory on the read path, not a write-back: it re-judges
-// liveness from the run table on every items.list, so a run is never wrongly
-// terminalized (the table entry is set before the first persist and cleared
-// only after the terminal one — a genuinely live run is always present). No-op
-// for already-terminal runs.
-func (s *Server) reconcileLostRun(r *protocol.RunRef) {
-	if r.Status != protocol.RunStatusRunning || s.isRunLive(r.ID) {
-		return
-	}
-	r.Status = protocol.RunStatusFinished
-	r.Outcome = &protocol.RunOutcome{
-		Type:   protocol.OutcomeError,
-		Result: &protocol.RunResult{Error: &protocol.ProblemData{Type: "run_lost", Channel: protocol.ErrorChannelRun, Detail: "run lost on restart"}},
-	}
-	if r.FinishedAt.IsZero() {
-		r.FinishedAt = time.Now().UTC()
-	}
 }

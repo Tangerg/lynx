@@ -175,6 +175,46 @@ func (r *reducer) project(events []RunEvent) []reduction {
 	for _, event := range events {
 		out = append(out, r.projectOne(event))
 	}
+
+	// A park is one durable boundary: any drained/closed items, its running
+	// approval/question items, open interrupt record, interrupted transcript run,
+	// and admission transition must commit together before ANY event in this
+	// reduction batch is published. Collapse every item projection into the park
+	// write-set and mark the first reduction as the batch boundary; the pump then
+	// commits and publishes the entire batch inside the cancel-linearization lock.
+	interruptAt := -1
+	for i := range out {
+		if out[i].Interrupt {
+			interruptAt = i
+		}
+		if itemStarted, ok := out[i].Event.(ItemStarted); ok {
+			itemStarted.Item.SessionID = r.cfg.SessionID
+			out[i].Event = itemStarted
+		}
+	}
+	if interruptAt >= 0 {
+		commit := out[interruptAt].Commit
+		if commit == nil || len(out) == 0 {
+			panic("runs: interrupt boundary has no durable commit or item")
+		}
+		items := make([]transcript.Item, 0, len(out))
+		for i, reduced := range out {
+			if i != interruptAt && reduced.Commit != nil {
+				if reduced.Commit.Run != nil || reduced.Commit.Interrupt != nil || reduced.Commit.State != StateUnchanged {
+					panic("runs: interrupt batch contains another lifecycle transition")
+				}
+				items = append(items, reduced.Commit.Items...)
+			}
+			if itemStarted, ok := reduced.Event.(ItemStarted); ok {
+				items = append(items, itemStarted.Item)
+			}
+			out[i].Commit = nil
+			out[i].Interrupt = false
+		}
+		commit.Items = items
+		out[0].Commit = commit
+		out[0].Interrupt = true
+	}
 	return out
 }
 
@@ -185,7 +225,7 @@ func (r *reducer) projectOne(event RunEvent) reduction {
 	case ItemCompleted:
 		e.Item.SessionID = r.cfg.SessionID
 		event = e
-		commit.Item = &e.Item
+		commit.Items = []transcript.Item{e.Item}
 		if paths := fileChangedPaths(e.Item); len(paths) > 0 {
 			nudge = &Nudge{Cwd: r.cfg.Cwd, Paths: paths}
 		}
@@ -212,7 +252,7 @@ func (r *reducer) projectOne(event RunEvent) reduction {
 }
 
 func commitOrNil(commit EventCommit) *EventCommit {
-	if commit.Item == nil && commit.Run == nil && commit.Interrupt == nil && commit.State == StateUnchanged {
+	if len(commit.Items) == 0 && commit.Run == nil && commit.Interrupt == nil && commit.State == StateUnchanged {
 		return nil
 	}
 	return &commit

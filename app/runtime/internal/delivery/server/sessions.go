@@ -77,21 +77,13 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	if id == "" {
 		return protocol.ErrSessionNotFound
 	}
-	// Refuse to delete a session with a run in flight (actively pumping or
-	// mid-admission) by taking the same single-writer slot as runs.start/resume
-	// and rollback. A parked run is still deletable: lifecycle tears down its
-	// parked turn and interrupt as part of the cascade.
-	admission, err := s.sessions.ClaimMutationSlot(s.coordinator, id)
-	if err != nil {
+	// The lifecycle coordinator claims the addressed session and every owned
+	// internal-subtask descendant before deleting their durable state atomically.
+	// User-created forks remain independent conversations.
+	if err := s.sessions.DeleteSession(ctx, s.coordinator, id); err != nil {
 		if errors.Is(err, sessions.ErrSessionBusy) {
-			return fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, id)
+			return fmt.Errorf("%w: session %q or its subtask tree has a run in flight", protocol.ErrSessionBusy, id)
 		}
-		return err
-	}
-	defer admission.Release()
-	// Delete the session row + cascade its session-scoped storage, parked turn
-	// state, and working-tree checkpoints via the lifecycle coordinator.
-	if err := s.sessions.DeleteSession(ctx, id); err != nil {
 		return wireSessionErr(err)
 	}
 	return nil
@@ -102,7 +94,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 // all live. Nil fields are left alone; the updated session is returned. The
 // dispatch layer already rejects an empty SessionID.
 func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
-	ses, err := s.sessions.Update(ctx, in.SessionID, session.Patch{
+	ses, err := s.sessions.Update(ctx, s.coordinator, in.SessionID, session.Patch{
 		Title:    in.Title,
 		Model:    in.Model,
 		Cwd:      in.Cwd,
@@ -110,6 +102,9 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		Favorite: in.Favorite,
 	})
 	if err != nil {
+		if errors.Is(err, sessions.ErrSessionBusy) {
+			return nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, in.SessionID)
+		}
 		return nil, wireSessionErr(err)
 	}
 	out := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))

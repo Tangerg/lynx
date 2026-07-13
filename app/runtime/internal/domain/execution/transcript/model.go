@@ -175,6 +175,7 @@ type ProblemKind uint8
 
 const (
 	InternalProblem ProblemKind = iota
+	RunLostProblem
 	AgentStuckProblem
 	RateLimitedProblem
 	InvalidAPIKeyProblem

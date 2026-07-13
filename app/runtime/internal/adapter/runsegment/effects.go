@@ -169,7 +169,7 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 			if commit.Interrupt != nil || commit.State != runs.StateUnchanged {
 				return errors.New("runsegment: opening commit contains a lifecycle transition")
 			}
-			if commit.Item == nil && commit.Run == nil {
+			if len(commit.Items) == 0 && commit.Run == nil {
 				return errors.New("runsegment: opening commit has no durable projection")
 			}
 			if err := e.applyCommit(ctx, commit, nil); err != nil {
@@ -210,8 +210,8 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit, pend
 			return err
 		}
 	}
-	if commit.Item != nil {
-		if err := e.appendItem(ctx, *commit.Item); err != nil {
+	for _, item := range commit.Items {
+		if err := e.appendItem(ctx, item); err != nil {
 			return err
 		}
 	}
@@ -261,7 +261,7 @@ func (e *Effects) Finish(ctx context.Context, fin runs.Finish) {
 	}
 	if e.checkpoints != nil {
 		e.startBackground(ctx, func(ctx context.Context) {
-			e.snapshot(ctx, fin.SessionID, fin.RunID)
+			e.snapshot(ctx, fin.SessionID, fin.Cwd, fin.RunID)
 		})
 	}
 	if fin.OpeningUserText != "" {
@@ -355,8 +355,7 @@ func (e *Effects) startBackground(ctx context.Context, task func(context.Context
 	task(ctx)
 }
 
-func (e *Effects) snapshot(ctx context.Context, sessionID, runID string) {
-	cwd := e.sessionCwd(ctx, sessionID)
+func (e *Effects) snapshot(ctx context.Context, sessionID, cwd, runID string) {
 	if cwd == "" {
 		return
 	}
@@ -379,15 +378,4 @@ func (e *Effects) title(ctx context.Context, sessionID, prompt string) {
 		return
 	}
 	_ = e.stores.Session().RenameIfUntitled(ctx, sessionID, title)
-}
-
-func (e *Effects) sessionCwd(ctx context.Context, sessionID string) string {
-	if e.stores == nil || e.stores.Session() == nil {
-		return ""
-	}
-	sess, err := e.stores.Session().Get(ctx, sessionID)
-	if err != nil {
-		return ""
-	}
-	return sess.Cwd
 }

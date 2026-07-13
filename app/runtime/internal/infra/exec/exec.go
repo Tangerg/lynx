@@ -104,6 +104,7 @@ func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.D
 	s.mu.Unlock()
 
 	if err := cmd.Start(); err != nil {
+		cancel()
 		sh.finish("start failed: "+err.Error(), -1, false)
 		return id, nil
 	}

@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
@@ -40,7 +39,7 @@ type Bundle struct {
 	Runs          *sqlitestore.RunStateStore
 	WorkspaceMuts *sqlitestore.WorkspaceMutationStore
 	Memory        knowledge.Store
-	Process       core.ProcessStore
+	Process       *sqlitestore.ProcessStore
 	Interrupt     *sqlitestore.InterruptStore
 	Transcript    *sqlitestore.TranscriptStore
 	Provider      providersvc.Registry

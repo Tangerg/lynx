@@ -43,7 +43,7 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 	if !ok || itemCompleted.Item.ID != itemStarted.Item.ID || itemCompleted.Item.SessionID != "ses_1" || itemCompleted.Item.Content[0].Text != "hello" {
 		t.Fatalf("user item completion = %#v", opening[2].Event)
 	}
-	if opening[2].Commit == nil || opening[2].Commit.Item == nil {
+	if opening[2].Commit == nil || len(opening[2].Commit.Items) != 1 {
 		t.Fatal("completed user item has no canonical durable fact")
 	}
 	if again := reducer.open(); len(again) != 1 {
@@ -188,6 +188,43 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	}
 	if secondID == "" || secondID == "item_approval" {
 		t.Fatalf("new same-name tool item id = %q, want a fresh identity", secondID)
+	}
+}
+
+func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	reduced := reducer.reduce(TurnInterrupted{Interrupts: []Interrupt{
+		{Kind: ApprovalInterruptKind, Approval: &ApprovalPrompt{ToolName: "shell", Arguments: `{}`}},
+		{Kind: QuestionInterruptKind, Question: &interrupts.QuestionPrompt{Questions: []interrupts.Question{{Question: "Continue?"}}}},
+	}})
+
+	interruptReduction := -1
+	for i, reduction := range reduced {
+		if reduction.Interrupt {
+			if interruptReduction >= 0 {
+				t.Fatal("park has more than one atomic commit boundary")
+			}
+			interruptReduction = i
+		}
+	}
+	if interruptReduction < 0 {
+		t.Fatal("park has no atomic commit boundary")
+	}
+	first, ok := reduced[interruptReduction].Event.(ItemStarted)
+	if !ok || first.Item.SessionID != "ses_1" || interruptReduction != 0 {
+		t.Fatalf("atomic boundary event = %#v at %d, want first persisted interrupt item at batch start", reduced[interruptReduction].Event, interruptReduction)
+	}
+	commit := reduced[interruptReduction].Commit
+	if commit == nil || len(commit.Items) != 2 || commit.Run == nil || commit.Interrupt == nil || commit.State != StateSuspend {
+		t.Fatalf("park commit = %+v, want items + run + interrupt + suspend", commit)
+	}
+	for _, item := range commit.Items {
+		if item.SessionID != "ses_1" || item.RunID != "run_1" || item.Status != ItemRunning {
+			t.Fatalf("persisted interrupt item = %+v", item)
+		}
+	}
+	if terminal := reduced[len(reduced)-1]; terminal.Commit != nil || terminal.Interrupt {
+		t.Fatalf("terminal event repeated park commit: %+v", terminal)
 	}
 }
 

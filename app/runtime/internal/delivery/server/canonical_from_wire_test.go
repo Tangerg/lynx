@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -15,7 +16,8 @@ func validArtifact() protocol.SessionArtifact {
 			MessageMark: 0,
 			Run: protocol.RunRef{
 				ID: "run_1", SessionID: "ses_1", Status: protocol.RunStatusFinished,
-				Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}},
+				Outcome:    &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}},
+				FinishedAt: time.Unix(1, 0),
 			},
 		}},
 		Items: []protocol.ArtifactItem{{Item: protocol.Item{
@@ -82,6 +84,25 @@ func TestCanonicalArtifactRejectsNonPortableRunStates(t *testing.T) {
 				t.Fatalf("canonicalArtifact error = %v, want ErrInvalidParams", err)
 			}
 		})
+	}
+}
+
+func TestCanonicalArtifactRoundTripsRunLostProblem(t *testing.T) {
+	artifact := validArtifact()
+	artifact.Runs[0].Run.Outcome = &protocol.RunOutcome{
+		Type: protocol.OutcomeError,
+		Result: &protocol.RunResult{Error: &protocol.ProblemData{
+			Type: protocol.ProblemRunLost, Channel: protocol.ErrorChannelRun,
+			Detail: "run lost on restart",
+		}},
+	}
+	runs, _, err := canonicalArtifact(artifact, 0)
+	if err != nil {
+		t.Fatalf("canonicalArtifact: %v", err)
+	}
+	got := presentRun(runs[0])
+	if got.Outcome == nil || got.Outcome.Result == nil || got.Outcome.Result.Error == nil || got.Outcome.Result.Error.Type != protocol.ProblemRunLost {
+		t.Fatalf("round-tripped run = %+v, want run_lost", got)
 	}
 }
 

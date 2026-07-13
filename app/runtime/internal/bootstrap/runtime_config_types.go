@@ -66,6 +66,11 @@ type Config struct {
 	// in-memory-only fallback would violate the restart-safe admission invariant.
 	RunStore *sqlitestore.RunStateStore
 
+	// ProcessStore holds the recoverable agent-process snapshot referenced by a
+	// parked interrupt. Required so session cancel/delete/rollback can remove the
+	// snapshot in the same SQLite write-set as the interrupt and admission row.
+	ProcessStore *sqlitestore.ProcessStore
+
 	// WorkspaceMutationStore is the §8.5 recoverable operation log for file
 	// rollbacks: the intent recorded before a working-tree + history rollback and
 	// cleared once both commit, so a crash is re-driven at boot. nil disables the

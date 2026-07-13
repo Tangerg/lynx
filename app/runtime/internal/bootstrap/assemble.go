@@ -134,6 +134,9 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 	if cfg.RunStore == nil {
 		return Host{}, errors.New("runtime: RunStore is required")
 	}
+	if cfg.ProcessStore == nil {
+		return Host{}, errors.New("runtime: ProcessStore is required")
+	}
 	if cfg.Transactor == nil {
 		return Host{}, errors.New("runtime: Transactor is required")
 	}
@@ -252,6 +255,7 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 			transcript: cfg.TranscriptStore,
 			interrupts: cfg.InterruptStore,
 			runs:       cfg.RunStore,
+			processes:  cfg.ProcessStore,
 			history:    messages.conversation,
 			forgetter:  turnDispatcher,
 			tx:         cfg.Transactor,

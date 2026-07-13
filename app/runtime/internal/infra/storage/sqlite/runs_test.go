@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -20,6 +22,61 @@ func newRunStores(t *testing.T) (*sqlite.RunStateStore, *sqlite.InterruptStore) 
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	return sqlite.NewRunStateStore(db), sqlite.NewInterruptStore(db)
+}
+
+func newRunRecoveryStores(t *testing.T) (*sqlite.RunStateStore, *sqlite.InterruptStore, *sqlite.TranscriptStore, *sqlite.ProcessStore) {
+	t.Helper()
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return sqlite.NewRunStateStore(db), sqlite.NewInterruptStore(db), sqlite.NewTranscriptStore(db), sqlite.NewProcessStore(db)
+}
+
+func putActiveTranscript(t *testing.T, store *sqlite.TranscriptStore, runID, sessionID string, state execution.RunState) {
+	t.Helper()
+	if err := store.PutRun(t.Context(), transcript.Run{
+		SessionID: sessionID, ID: runID, State: state,
+		CreatedAt: time.Unix(1, 0), UpdatedAt: time.Unix(1, 0), MessageMark: -1,
+	}); err != nil {
+		t.Fatalf("put active transcript: %v", err)
+	}
+}
+
+func putParkedState(t *testing.T, transcripts *sqlite.TranscriptStore, ints *sqlite.InterruptStore, processes *sqlite.ProcessStore, runID, sessionID string) {
+	t.Helper()
+	createdAt := time.Unix(1, 0).UTC()
+	parkedAt := time.Unix(2, 0).UTC()
+	question := &transcript.Question{Prompt: "Continue?"}
+	open := []transcript.Interrupt{{
+		ItemID: "item_" + runID, Kind: transcript.QuestionInterrupt, Question: question,
+	}}
+	if err := transcripts.PutRun(t.Context(), transcript.Run{
+		SessionID: sessionID, ID: runID, State: execution.Interrupted,
+		Interrupts: open, CreatedAt: createdAt, UpdatedAt: parkedAt, MessageMark: -1,
+	}); err != nil {
+		t.Fatalf("put parked transcript run: %v", err)
+	}
+	if err := transcripts.AppendItem(t.Context(), transcript.Item{
+		SessionID: sessionID, ID: "item_" + runID, RunID: runID,
+		Status: transcript.ItemRunning, Kind: transcript.QuestionItem,
+		Question: question, CreatedAt: parkedAt,
+	}); err != nil {
+		t.Fatalf("put parked transcript item: %v", err)
+	}
+	if err := ints.Put(t.Context(), interrupts.Pending{
+		RunID: runID, SessionID: sessionID, TurnID: "turn_" + runID,
+		ProcessID: "proc_" + runID, Interrupts: open,
+		RunCreatedAt: createdAt, CreatedAt: parkedAt,
+	}); err != nil {
+		t.Fatalf("put parked interrupt: %v", err)
+	}
+	if err := processes.Save(t.Context(), core.ProcessSnapshot{
+		ID: "proc_" + runID, AgentName: "chat", Status: core.StatusWaiting, CapturedAt: parkedAt,
+	}); err != nil {
+		t.Fatalf("put parked process snapshot: %v", err)
+	}
 }
 
 func runDraft(runID, sessionID string) execution.RunDraft {
@@ -230,7 +287,7 @@ func TestDeleteForSessionFreesSlot(t *testing.T) {
 // interrupt still recorded) is preserved.
 func TestReconcileOrphansSweepsInterruptedWithoutRecord(t *testing.T) {
 	ctx := context.Background()
-	store, ints := newRunStores(t)
+	store, ints, transcripts, processes := newRunRecoveryStores(t)
 
 	// Orphaned interrupted row: interrupted state but no interrupt record.
 	if err := store.Admit(ctx, runDraft("run_orphan", "ses_orphan")); err != nil {
@@ -239,6 +296,7 @@ func TestReconcileOrphansSweepsInterruptedWithoutRecord(t *testing.T) {
 	if err := store.Suspend(ctx, "ses_orphan", "run_orphan"); err != nil {
 		t.Fatalf("suspend orphan: %v", err)
 	}
+	putActiveTranscript(t, transcripts, "run_orphan", "ses_orphan", execution.Interrupted)
 	// Genuinely parked: interrupted state WITH an open interrupt record.
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
 		t.Fatalf("admit park: %v", err)
@@ -246,11 +304,7 @@ func TestReconcileOrphansSweepsInterruptedWithoutRecord(t *testing.T) {
 	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
 		t.Fatalf("suspend park: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{
-		RunID: "run_park", SessionID: "ses_park", CreatedAt: time.Unix(0, 0),
-	}); err != nil {
-		t.Fatalf("put interrupt: %v", err)
-	}
+	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
 
 	swept, err := store.ReconcileOrphans(ctx)
 	if err != nil {
@@ -269,23 +323,22 @@ func TestReconcileOrphansSweepsInterruptedWithoutRecord(t *testing.T) {
 
 // TestReconcileOrphansSweepsCrashedButPreservesParked: a boot sweep terminalizes
 // a running run whose process is gone with no open interrupt (a crash), but
-// leaves a running run whose session has a parked interrupt (resumable) — so a
-// crash frees its session while parked runs stay resumable across restart.
+// leaves an interrupted run whose matching interrupt makes it resumable.
 func TestReconcileOrphansSweepsCrashedButPreservesParked(t *testing.T) {
 	ctx := context.Background()
-	store, ints := newRunStores(t)
+	store, ints, transcripts, processes := newRunRecoveryStores(t)
 
 	if err := store.Admit(ctx, runDraft("run_crash", "ses_crash")); err != nil {
 		t.Fatalf("admit crash: %v", err)
 	}
+	putActiveTranscript(t, transcripts, "run_crash", "ses_crash", execution.Running)
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
 		t.Fatalf("admit park: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{
-		RunID: "run_park", SessionID: "ses_park", CreatedAt: time.Unix(0, 0),
-	}); err != nil {
-		t.Fatalf("put interrupt: %v", err)
+	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+		t.Fatalf("suspend park: %v", err)
 	}
+	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
 
 	swept, err := store.ReconcileOrphans(ctx)
 	if err != nil {
@@ -299,5 +352,175 @@ func TestReconcileOrphansSweepsCrashedButPreservesParked(t *testing.T) {
 	}
 	if err := store.Admit(ctx, runDraft("run_park2", "ses_park")); !errors.Is(err, execution.ErrSessionBusy) {
 		t.Fatalf("parked-session admit err = %v, want ErrSessionBusy (preserved)", err)
+	}
+}
+
+func TestReconcileOrphansTerminalizesParkWhoseProcessSnapshotIsMissing(t *testing.T) {
+	store, ints, transcripts, processes := newRunRecoveryStores(t)
+	ctx := t.Context()
+	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
+	if err := processes.Delete(ctx, "proc_run_park"); err != nil {
+		t.Fatalf("delete process snapshot: %v", err)
+	}
+
+	recovered, err := store.ReconcileOrphans(ctx)
+	if err != nil || recovered != 1 {
+		t.Fatalf("reconcile = (%d, %v), want one recovered lost park", recovered, err)
+	}
+	if pending, err := ints.List(ctx, "ses_park"); err != nil || len(pending) != 0 {
+		t.Fatalf("pending after recovery = (%+v, %v), want none", pending, err)
+	}
+	_, runs, err := transcripts.List(ctx, "ses_park")
+	if err != nil || len(runs) != 1 || runs[0].State != execution.Failed || runs[0].Result == nil || runs[0].Result.Error == nil || runs[0].Result.Error.Kind != transcript.RunLostProblem {
+		t.Fatalf("transcript after recovery = (%+v, %v), want failed run_lost", runs, err)
+	}
+	if err := store.Admit(ctx, runDraft("run_next", "ses_park")); err != nil {
+		t.Fatalf("admit after lost park recovery: %v", err)
+	}
+}
+
+func TestReconcileOrphansRepairsWholeDurableLifecycle(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	runStore := sqlite.NewRunStateStore(db)
+	transcripts := sqlite.NewTranscriptStore(db)
+
+	if err := runStore.Admit(ctx, runDraft("run_lost", "ses_lost")); err != nil {
+		t.Fatalf("admit lost run: %v", err)
+	}
+	if err := transcripts.PutRun(ctx, transcript.Run{
+		SessionID: "ses_lost", ID: "run_lost", State: execution.Running,
+		CreatedAt: time.Unix(1, 0), UpdatedAt: time.Unix(1, 0), MessageMark: -1,
+	}); err != nil {
+		t.Fatalf("put running transcript: %v", err)
+	}
+	if err := transcripts.AppendItem(ctx, transcript.Item{
+		SessionID: "ses_lost", ID: "item_tool", RunID: "run_lost",
+		Status: transcript.ItemRunning, Kind: transcript.ToolCall, CreatedAt: time.Unix(2, 0),
+		Tool: &transcript.ToolInvocation{Name: "shell", Arguments: map[string]any{}},
+	}); err != nil {
+		t.Fatalf("put running item: %v", err)
+	}
+
+	swept, err := runStore.ReconcileOrphans(ctx)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if swept != 1 {
+		t.Fatalf("swept = %d, want 1", swept)
+	}
+	items, runs, err := transcripts.List(ctx, "ses_lost")
+	if err != nil {
+		t.Fatalf("list transcript: %v", err)
+	}
+	if len(runs) != 1 || runs[0].State != execution.Failed || runs[0].Outcome == nil || *runs[0].Outcome != execution.OutcomeError {
+		t.Fatalf("recovered run = %+v, want failed/error", runs)
+	}
+	if runs[0].Result == nil || runs[0].Result.Error == nil || runs[0].Result.Error.Kind != transcript.RunLostProblem {
+		t.Fatalf("recovered run result = %+v, want run-lost problem", runs[0].Result)
+	}
+	if runs[0].FinishedAt.IsZero() || runs[0].MessageMark != 0 {
+		t.Fatalf("recovered terminal boundary = finished:%v mark:%d", runs[0].FinishedAt, runs[0].MessageMark)
+	}
+	if len(items) != 1 || items[0].Status != transcript.ItemIncomplete || items[0].Error == nil {
+		t.Fatalf("recovered items = %+v, want incomplete failed tool", items)
+	}
+	if err := runStore.Admit(ctx, runDraft("run_next", "ses_lost")); err != nil {
+		t.Fatalf("re-admit after full recovery: %v", err)
+	}
+}
+
+func TestReconcileOrphansDoesNotLetStaleInterruptProtectRunningRun(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewRunStateStore(db)
+	interruptStore := sqlite.NewInterruptStore(db)
+	processStore := sqlite.NewProcessStore(db)
+	transcripts := sqlite.NewTranscriptStore(db)
+	ctx := t.Context()
+	if err := store.Admit(ctx, runDraft("run_lost", "ses_1")); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	if err := transcripts.PutRun(ctx, transcript.Run{
+		SessionID: "ses_1", ID: "run_lost", State: execution.Running,
+		CreatedAt: time.Unix(1, 0), UpdatedAt: time.Unix(1, 0), MessageMark: -1,
+	}); err != nil {
+		t.Fatalf("put transcript: %v", err)
+	}
+	if err := processStore.Save(ctx, core.ProcessSnapshot{ID: "proc_stale", AgentName: "chat", Status: core.StatusWaiting}); err != nil {
+		t.Fatalf("put stale process snapshot: %v", err)
+	}
+	if err := interruptStore.Put(ctx, interrupts.Pending{RunID: "run_stale", SessionID: "ses_1", ProcessID: "proc_stale", CreatedAt: time.Unix(0, 0)}); err != nil {
+		t.Fatalf("put stale interrupt: %v", err)
+	}
+	if swept, err := store.ReconcileOrphans(ctx); err != nil || swept != 1 {
+		t.Fatalf("reconcile = (%d, %v), want (1, nil)", swept, err)
+	}
+	if pending, err := interruptStore.List(ctx, "ses_1"); err != nil || len(pending) != 0 {
+		t.Fatalf("stale interrupts after reconcile = (%+v, %v), want none", pending, err)
+	}
+	if _, err := processStore.Load(ctx, "proc_stale"); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("stale process snapshot after reconcile = %v, want not found", err)
+	}
+}
+
+func TestReconcileOrphansRejectsPartialParkWithoutMutatingIt(t *testing.T) {
+	store, ints, transcripts, _ := newRunRecoveryStores(t)
+	ctx := t.Context()
+	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+	createdAt := time.Unix(1, 0).UTC()
+	parkedAt := time.Unix(2, 0).UTC()
+	question := &transcript.Question{Prompt: "Continue?"}
+	open := []transcript.Interrupt{{ItemID: "item_missing", Kind: transcript.QuestionInterrupt, Question: question}}
+	if err := transcripts.PutRun(ctx, transcript.Run{
+		SessionID: "ses_park", ID: "run_park", State: execution.Interrupted,
+		Interrupts: open, CreatedAt: createdAt, UpdatedAt: parkedAt, MessageMark: -1,
+	}); err != nil {
+		t.Fatalf("put transcript: %v", err)
+	}
+	if err := ints.Put(ctx, interrupts.Pending{
+		RunID: "run_park", SessionID: "ses_park", TurnID: "turn_park", ProcessID: "proc_park",
+		Interrupts: open, RunCreatedAt: createdAt, CreatedAt: parkedAt,
+	}); err != nil {
+		t.Fatalf("put interrupt: %v", err)
+	}
+
+	if _, err := store.ReconcileOrphans(ctx); err == nil {
+		t.Fatal("reconcile accepted a parked run whose interrupt item is missing")
+	}
+	if err := store.Admit(ctx, runDraft("run_next", "ses_park")); !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("admit after rejected recovery = %v, want original park to remain busy", err)
+	}
+	if _, found, err := ints.Get(ctx, "run_park"); err != nil || !found {
+		t.Fatalf("interrupt after rejected recovery = found:%v err:%v, want preserved transaction", found, err)
+	}
+}
+
+func TestTerminalizeRejectsUnknownOutcome(t *testing.T) {
+	store, _ := newRunStores(t)
+	ctx := t.Context()
+	if err := store.Admit(ctx, runDraft("run_1", "ses_1")); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	if err := store.Terminalize(ctx, "ses_1", "run_1", execution.Outcome(255)); err == nil {
+		t.Fatal("terminalize accepted an unknown outcome")
 	}
 }

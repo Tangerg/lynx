@@ -107,14 +107,6 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	}
 
 	id := art.Session.ID
-	admission, err := s.sessions.ClaimRunSlot(ctx, s.coordinator, id)
-	if err != nil {
-		if errors.Is(err, sessions.ErrSessionBusy) {
-			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, id)
-		}
-		return nil, err
-	}
-	defer admission.Release()
 
 	// Hand the strictly-decoded canonical aggregate to the lifecycle coordinator.
 	// It commits the whole thing as ONE transaction — upsert the
@@ -124,7 +116,10 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	// delete/truncate can't leave the session row live but its history
 	// half-destroyed (an import-over losing the prior history with nothing to
 	// replace it).
-	if err := s.sessions.RestoreSession(ctx, artifactToSession(art.Session), msgs, runs, items); err != nil {
+	if err := s.sessions.RestoreSession(ctx, s.coordinator, artifactToSession(art.Session), msgs, runs, items); err != nil {
+		if errors.Is(err, sessions.ErrSessionBusy) {
+			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, id)
+		}
 		if errors.Is(err, transcript.ErrIdentityConflict) {
 			return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
 		}

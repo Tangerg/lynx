@@ -1603,6 +1603,7 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 - **RPC 级**（通道 a）：§8.2 数字码表里的那些（带 `error.code`）。
 - **run 级 / 执行期**（通道 b/c，**无数字码**，仅 `ProblemData.type`）：`tool_failed`（工具执行失败）、`denied_by_user`
   （HITL 用户拒绝该工具，§6）、`agent_stuck`（agent loop 无前进进度被守卫终止 —— run 终态错误，区别于落 `internal_error` 的意外失败），以及 **provider 失败按模式拆出的稳定符号**（落在 `segment.finished` 终态 `result.error`，`channel:"run"`）：
+  - `run_lost` —— runtime 重启时发现 executor 已消失且没有可恢复 interrupt；启动恢复会把该 Run 及仍在 running 的 Item 原子收敛到终态。
   - `rate_limited` —— 被限流（429 / overloaded / quota），`retryable:true` + `retryAfterSeconds`。
   - `invalid_api_key` —— 凭证被拒（401 / 403），**不可重试**，UI 引导改 key。
   - `timeout` —— 请求超时 / 连接失败，`retryable:true`。

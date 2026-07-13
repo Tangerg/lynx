@@ -19,6 +19,7 @@ type messageEnvironment struct {
 func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment) {
 	ecfg := cfg.Engine
 	ecfg.SessionStore = newChildSessionStore(cfg.SessionStore)
+	ecfg.ProcessStore = cfg.ProcessStore
 	ecfg.Provider = cfg.Provider
 	messages := buildMessageEnvironment(&ecfg)
 	return ecfg, messages

@@ -249,10 +249,6 @@ func (s stubLifecycleStores) Interrupts() sessions.InterruptStore { return s.rt.
 
 func (s stubLifecycleStores) Transcript() sessions.TranscriptStore { return s.rt.hist }
 
-func (s stubLifecycleStores) ReadHistory(ctx context.Context, id string) ([]chat.Message, error) {
-	return s.rt.ReadHistory(ctx, id)
-}
-
 func (s stubLifecycleStores) ReadSnapshot(ctx context.Context, id string) (sessions.Snapshot, error) {
 	ses, err := s.rt.sess.Get(ctx, id)
 	if err != nil {
@@ -345,8 +341,13 @@ func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.Res
 	return nil
 }
 
-func (s stubLifecycleStores) ApplyDelete(ctx context.Context, sessionID string) error {
-	return s.deleteSession(ctx, sessionID)
+func (s stubLifecycleStores) ApplyDelete(ctx context.Context, plan sessions.DeletePlan) error {
+	for _, sessionID := range plan.SessionIDs {
+		if err := s.deleteSession(ctx, sessionID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s stubLifecycleStores) deleteSession(ctx context.Context, sessionID string) error {

@@ -29,7 +29,7 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 		SessionID: "ses_1",
 		State:     runs.StateTerminalize,
 		Outcome:   execution.OutcomeCompleted,
-		Item:      &transcript.Item{SessionID: "ses_1", RunID: "run_1", ID: "item_1"},
+		Items:     []transcript.Item{{SessionID: "ses_1", RunID: "run_1", ID: "item_1"}},
 		Run:       &transcript.Run{SessionID: "ses_1", ID: "run_1", MessageMark: -1},
 	})
 	if err != nil {
@@ -125,7 +125,7 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 // interrupt's process id from the live turn, persists the resumable record, and
 // suspends the run-state — atomically.
 func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
-	stores := &fakeStores{interrupts: &fakeInterrupts{}}
+	stores := &fakeStores{interrupts: &fakeInterrupts{}, transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
 	effects := New(Config{Stores: stores, Processes: fakeProcess{processID: "proc_1"}, RunState: runState, Tx: tx.run})
@@ -143,6 +143,14 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 			Interrupts:   []transcript.Interrupt{{ItemID: "int_1", Kind: transcript.QuestionInterrupt}},
 			DrainedTools: []interrupts.DrainedTool{{ItemID: "tool_1", Name: "ask_user"}},
 		},
+		Items: []transcript.Item{{
+			SessionID: "ses_1", RunID: "run_1", ID: "int_1",
+			Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+		}},
+		Run: &transcript.Run{
+			SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+			Interrupts: []transcript.Interrupt{{ItemID: "int_1", Kind: transcript.QuestionInterrupt}},
+		},
 	})
 	if err != nil {
 		t.Fatalf("CommitEvent: %v", err)
@@ -157,6 +165,9 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	}
 	if len(runState.suspended) != 1 || runState.suspended[0] != "ses_1:run_1" {
 		t.Fatalf("suspended = %v, want [ses_1:run_1]", runState.suspended)
+	}
+	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ID != "int_1" || len(stores.transcript.runs) != 1 {
+		t.Fatalf("park transcript = items:%+v runs:%+v, want one running interrupt item and run", stores.transcript.items, stores.transcript.runs)
 	}
 }
 
@@ -219,16 +230,16 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 		Checkpoints: fakeCheckpoints{snapshotted: snapshotted},
 	})
 
-	effects.Finish(context.Background(), runs.Finish{SessionID: "ses_1", RunID: "run_1", OpeningUserText: "hello"})
+	effects.Finish(t.Context(), runs.Finish{SessionID: "ses_1", RunID: "run_1", Cwd: "/run-cwd", OpeningUserText: "hello"})
 
-	if got := waitString(t, snapshotted); got != "ses_1:/repo:run_1" {
+	if got := waitString(t, snapshotted); got != "ses_1:/run-cwd:run_1" {
 		t.Fatalf("snapshot = %q", got)
 	}
 	if got := waitString(t, renamed); got != "Generated title" {
 		t.Fatalf("title = %q", got)
 	}
 
-	effects.Finish(context.Background(), runs.Finish{SessionID: "ses_1", RunID: "run_2", Parked: true, OpeningUserText: "ignored"})
+	effects.Finish(t.Context(), runs.Finish{SessionID: "ses_1", RunID: "run_2", Cwd: "/run-cwd", Parked: true, OpeningUserText: "ignored"})
 	select {
 	case got := <-snapshotted:
 		t.Fatalf("parked run must not snapshot, got %q", got)

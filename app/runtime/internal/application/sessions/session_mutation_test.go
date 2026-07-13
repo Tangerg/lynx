@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -20,7 +21,7 @@ func TestDeleteSessionAppliesThenCleansUpProcesses(t *testing.T) {
 	stores := newMutationStores("")
 	turns := mutationTurns{operations: &stores.operations}
 
-	if err := newCoordinator(stores, turns).DeleteSession(context.Background(), "ses_1"); err != nil {
+	if err := newCoordinator(stores, turns).DeleteSession(t.Context(), new(testClaimer), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
 
@@ -40,7 +41,7 @@ func TestDeleteSessionStopsBeforeProcessCleanupOnApplyFailure(t *testing.T) {
 	stores := newMutationStores("apply.delete")
 	turns := mutationTurns{operations: &stores.operations}
 
-	err := newCoordinator(stores, turns).DeleteSession(context.Background(), "ses_1")
+	err := newCoordinator(stores, turns).DeleteSession(t.Context(), new(testClaimer), "ses_1")
 	if !errors.Is(err, errMutationStage) {
 		t.Fatalf("DeleteSession error = %v, want %v", err, errMutationStage)
 	}
@@ -55,7 +56,7 @@ func TestDeleteSessionDetachesParkedTurnCleanupFromCallerCancellation(t *testing
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	if err := newCoordinator(stores, turns).DeleteSession(ctx, "ses_1"); err != nil {
+	if err := newCoordinator(stores, turns).DeleteSession(ctx, new(testClaimer), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
 	if turns.calls != 1 {
@@ -69,12 +70,74 @@ func TestDeleteSessionDetachesParkedTurnCleanupFromCallerCancellation(t *testing
 	}
 }
 
+func TestDeleteSessionRemovesOwnedSubtaskTreeButPreservesUserForks(t *testing.T) {
+	stores := newMutationStores("")
+	stores.children = map[string][]session.Session{
+		"ses_1": {
+			{ID: "ses_sub", Kind: session.KindSubtask},
+			{ID: "ses_fork"},
+		},
+		"ses_sub": {{ID: "ses_nested", Kind: session.KindSubtask}},
+	}
+	stores.pending["ses_sub"] = []interrupts.Pending{{RunID: "run_sub", SessionID: "ses_sub", TurnID: "turn_sub"}}
+	claims := new(testClaimer)
+
+	if err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).DeleteSession(t.Context(), claims, "ses_1"); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+	wantDeleted := []string{"ses_nested", "ses_sub", "ses_1"}
+	if !slices.Equal(stores.deleted, wantDeleted) {
+		t.Fatalf("deleted = %v, want %v (user fork preserved)", stores.deleted, wantDeleted)
+	}
+	if len(claims.claimed) != 0 || len(claims.released) != len(wantDeleted) {
+		t.Fatalf("claims after delete = %+v releases=%v", claims.claimed, claims.released)
+	}
+}
+
+func TestDeleteSessionRejectsActiveSubtaskDescendant(t *testing.T) {
+	stores := newMutationStores("")
+	stores.children = map[string][]session.Session{
+		"ses_1": {{ID: "ses_sub", Kind: session.KindSubtask}},
+	}
+	claims := &testClaimer{claimed: map[string]bool{"ses_sub": true}}
+
+	err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).DeleteSession(t.Context(), claims, "ses_1")
+	if !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("DeleteSession error = %v, want ErrSessionBusy", err)
+	}
+	if slices.Contains(stores.operations, "apply.delete") {
+		t.Fatal("active descendant allowed the delete write-set to commit")
+	}
+	if claims.claimed["ses_1"] {
+		t.Fatal("failed subtree claim leaked the root admission")
+	}
+}
+
+func TestRollbackRejectsActiveSubtaskDescendantBeforeWriteSet(t *testing.T) {
+	stores := newMutationStores("")
+	stores.children = map[string][]session.Session{
+		"ses_1": {{ID: "ses_sub", Kind: session.KindSubtask}},
+	}
+	claims := &testClaimer{claimed: map[string]bool{"ses_sub": true}}
+	boundary := transcript.Boundary{Dropped: []transcript.RunNode{{ID: "run_drop"}}}
+
+	_, _, err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).prepareRollbackSessions(t.Context(), claims, "ses_1", boundary)
+	if !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("Rollback error = %v, want ErrSessionBusy", err)
+	}
+	if slices.Contains(stores.operations, "apply.rollback") {
+		t.Fatal("active subtask descendant allowed the rollback write-set to commit")
+	}
+}
+
 // TestRestoreSessionAppliesPlan: RestoreSession forwards the decoded artifact to
 // the atomic restore write-set verbatim.
 func TestRestoreSessionAppliesPlan(t *testing.T) {
 	stores := newMutationStores("")
+	stores.pending = map[string][]interrupts.Pending{}
 	err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).RestoreSession(
 		t.Context(),
+		new(testClaimer),
 		session.Session{ID: "ses_1", Cwd: "/workspace"},
 		[]chat.Message{chat.NewUserMessage("hi")},
 		nil, nil,
@@ -89,6 +152,7 @@ func TestRestoreSessionAppliesPlan(t *testing.T) {
 
 func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
 	stores := newMutationStores("")
+	stores.pending = map[string][]interrupts.Pending{}
 	want := errors.New("missing workspace")
 	coordinator := New(Dependencies{
 		Stores: stores,
@@ -97,7 +161,7 @@ func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
 	})
 
 	err := coordinator.RestoreSession(
-		t.Context(), session.Session{ID: "ses_1", Cwd: "relative"}, nil, nil, nil,
+		t.Context(), new(testClaimer), session.Session{ID: "ses_1", Cwd: "relative"}, nil, nil, nil,
 	)
 	if !errors.Is(err, session.ErrCwdUnavailable) || !errors.Is(err, want) {
 		t.Fatalf("RestoreSession error = %v, want cwd unavailable + cause", err)
@@ -118,10 +182,17 @@ type mutationStores struct {
 	deleted    []string
 	restored   []RestorePlan
 	ints       *mutationInterrupts
+	children   map[string][]session.Session
+	pending    map[string][]interrupts.Pending
 }
 
 func newMutationStores(fail string) *mutationStores {
-	s := &mutationStores{fail: fail}
+	s := &mutationStores{
+		fail: fail,
+		pending: map[string][]interrupts.Pending{
+			"ses_1": {{RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"}},
+		},
+	}
 	s.ints = &mutationInterrupts{stores: s}
 	return s
 }
@@ -134,12 +205,9 @@ func (s *mutationStores) record(stage string) error {
 	return nil
 }
 
-func (s *mutationStores) Session() SessionStore       { panic("unused") }
-func (s *mutationStores) Interrupts() InterruptStore  { return s.ints }
-func (s *mutationStores) Transcript() TranscriptStore { return emptyTranscript{} }
-func (*mutationStores) ReadHistory(context.Context, string) ([]chat.Message, error) {
-	panic("unused")
-}
+func (s *mutationStores) Session() SessionStore                                { return s }
+func (s *mutationStores) Interrupts() InterruptStore                           { return s.ints }
+func (s *mutationStores) Transcript() TranscriptStore                          { return emptyTranscript{} }
 func (*mutationStores) ReadSnapshot(context.Context, string) (Snapshot, error) { panic("unused") }
 func (s *mutationStores) ForgetSession(string) {
 	s.operations = append(s.operations, "session.forget")
@@ -158,25 +226,37 @@ func (s *mutationStores) ApplyRestore(_ context.Context, plan RestorePlan) error
 	s.restored = append(s.restored, plan)
 	return nil
 }
-func (s *mutationStores) ApplyDelete(_ context.Context, sessionID string) error {
+func (s *mutationStores) ApplyDelete(_ context.Context, plan DeletePlan) error {
 	if err := s.record("apply.delete"); err != nil {
 		return err
 	}
-	s.deleted = append(s.deleted, sessionID)
+	s.deleted = append(s.deleted, plan.SessionIDs...)
 	return nil
 }
 func (s *mutationStores) ApplyCancel(context.Context, CancelPlan) error {
 	return s.record("apply.cancel")
 }
 
+func (*mutationStores) List(context.Context) ([]session.Session, error)      { panic("unused") }
+func (*mutationStores) Get(context.Context, string) (session.Session, error) { panic("unused") }
+func (*mutationStores) Create(context.Context, string, string) (session.Session, error) {
+	panic("unused")
+}
+func (*mutationStores) Patch(context.Context, string, session.Patch) (session.Session, error) {
+	panic("unused")
+}
+func (s *mutationStores) Children(_ context.Context, parentID string) ([]session.Session, error) {
+	return s.children[parentID], nil
+}
+
 type mutationInterrupts struct{ stores *mutationStores }
 
 func (i *mutationInterrupts) Put(context.Context, interrupts.Pending) error { panic("unused") }
-func (i *mutationInterrupts) List(context.Context, string) ([]interrupts.Pending, error) {
+func (i *mutationInterrupts) List(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
 	if err := i.stores.record("interrupts.list"); err != nil {
 		return nil, err
 	}
-	return []interrupts.Pending{{RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"}}, nil
+	return i.stores.pending[sessionID], nil
 }
 func (i *mutationInterrupts) Get(context.Context, string) (interrupts.Pending, bool, error) {
 	panic("unused")

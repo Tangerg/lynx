@@ -67,6 +67,13 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 			want: "runtime: RunStore is required",
 		},
 		{
+			name: "process store",
+			edit: func(cfg *Config) {
+				cfg.ProcessStore = nil
+			},
+			want: "runtime: ProcessStore is required",
+		},
+		{
 			name: "transactor",
 			edit: func(cfg *Config) {
 				cfg.Transactor = nil
@@ -101,6 +108,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 		t.Fatalf("open sqlite: %v", err)
 	}
 
+	processes := sqlitestore.NewProcessStore(db)
 	return Config{
 		Engine: agentexec.Config{
 			ChatClient: client,
@@ -111,6 +119,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 		InterruptStore:   sqlitestore.NewInterruptStore(db),
 		TranscriptStore:  sqlitestore.NewTranscriptStore(db),
 		RunStore:         sqlitestore.NewRunStateStore(db),
+		ProcessStore:     processes,
 		Transactor: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlitestore.RunInTx(ctx, db, fn)
 		},

@@ -53,13 +53,14 @@ func (f *fakeExecutor) cancels() int {
 }
 
 type fakeEffects struct {
-	mu         sync.Mutex
-	commits    []EventCommit
-	openings   []OpeningCommit
-	finishes   []Finish
-	nudges     int
-	openingErr error
-	commitErr  error
+	mu             sync.Mutex
+	commits        []EventCommit
+	openings       []OpeningCommit
+	finishes       []Finish
+	nudges         int
+	openingErr     error
+	commitErr      error
+	rejectCanceled bool
 }
 
 func (e *fakeEffects) CommitOpening(_ context.Context, opening OpeningCommit) error {
@@ -73,9 +74,12 @@ func (e *fakeEffects) CommitOpening(_ context.Context, opening OpeningCommit) er
 	return nil
 }
 
-func (e *fakeEffects) CommitEvent(_ context.Context, commit EventCommit) error {
+func (e *fakeEffects) CommitEvent(ctx context.Context, commit EventCommit) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.rejectCanceled && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if e.commitErr != nil {
 		return e.commitErr
 	}
@@ -113,6 +117,12 @@ func (e *fakeEffects) terminalized(sessionID, runID string) bool {
 		}
 	}
 	return false
+}
+
+func (e *fakeEffects) finishCount() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.finishes)
 }
 
 func testCoordinator(executor SegmentExecutor, effects Effects) *Coordinator {
@@ -155,6 +165,9 @@ func TestCoordinatorRejectsUncommittedOpening(t *testing.T) {
 	}
 	if executor.cancels() != 1 {
 		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	}
+	if effects.finishCount() != 0 {
+		t.Fatalf("Finish calls = %d, want none without a committed terminal", effects.finishCount())
 	}
 }
 
@@ -304,7 +317,8 @@ func TestCoordinatorStartExecutorError(t *testing.T) {
 
 func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 	executor := &fakeExecutor{block: true}
-	coordinator := testCoordinator(executor, &fakeEffects{})
+	effects := &fakeEffects{rejectCanceled: true}
+	coordinator := testCoordinator(executor, effects)
 	stream, err := coordinator.openSegment(context.Background(), testSegment())
 	if err != nil {
 		t.Fatalf("openSegment: %v", err)
@@ -322,6 +336,9 @@ func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 		t.Fatal("Close did not cancel and join the segment pump")
 	}
 	collectEvents(stream)
+	if !effects.terminalized("ses_1", "run_1") {
+		t.Fatal("Close left the run non-terminal after canceling its owner context")
+	}
 }
 
 func TestCoordinatorStartAfterClose(t *testing.T) {

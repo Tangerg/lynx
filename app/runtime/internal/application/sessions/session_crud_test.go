@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -76,18 +74,17 @@ type crudStores struct {
 	session *crudSessionStore
 }
 
-func (s *crudStores) Session() SessionStore                                     { return s.session }
-func (*crudStores) Interrupts() InterruptStore                                  { panic("unused") }
-func (*crudStores) Transcript() TranscriptStore                                 { return emptyTranscript{} }
-func (*crudStores) ReadHistory(context.Context, string) ([]chat.Message, error) { panic("unused") }
-func (*crudStores) ReadSnapshot(context.Context, string) (Snapshot, error)      { panic("unused") }
-func (*crudStores) ForgetSession(string)                                        {}
+func (s *crudStores) Session() SessionStore                                { return s.session }
+func (*crudStores) Interrupts() InterruptStore                             { panic("unused") }
+func (*crudStores) Transcript() TranscriptStore                            { return emptyTranscript{} }
+func (*crudStores) ReadSnapshot(context.Context, string) (Snapshot, error) { panic("unused") }
+func (*crudStores) ForgetSession(string)                                   {}
 func (*crudStores) ApplyFork(context.Context, ForkPlan) (session.Session, error) {
 	panic("unused")
 }
 func (*crudStores) ApplyRollback(context.Context, RollbackPlan) error { panic("unused") }
 func (*crudStores) ApplyRestore(context.Context, RestorePlan) error   { panic("unused") }
-func (*crudStores) ApplyDelete(context.Context, string) error         { panic("unused") }
+func (*crudStores) ApplyDelete(context.Context, DeletePlan) error     { panic("unused") }
 func (*crudStores) ApplyCancel(context.Context, CancelPlan) error     { panic("unused") }
 
 func newCRUDCoordinator(store *crudSessionStore) (*Coordinator, *crudStores) {
@@ -130,6 +127,7 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	c, _ := newCRUDCoordinator(store)
 	ctx := context.Background()
+	claims := new(testClaimer)
 
 	title := "  Renamed  "
 	model := "claude-opus-4-8"
@@ -137,7 +135,7 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	meta := map[string]any{"pinned": true}
 	favorite := true
 
-	got, err := c.Update(ctx, "ses_1", session.Patch{
+	got, err := c.Update(ctx, claims, "ses_1", session.Patch{
 		Title:    &title,
 		Model:    &model,
 		Cwd:      &cwd,
@@ -165,14 +163,33 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	if store.favoriteID != "ses_1" || !store.favoriteValue {
 		t.Fatalf("favorite id=%q value=%v", store.favoriteID, store.favoriteValue)
 	}
+	if len(claims.released) != 1 || claims.released[0] != "ses_1" {
+		t.Fatalf("relocation admission releases = %v, want [ses_1]", claims.released)
+	}
+}
+
+func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
+	store := &crudSessionStore{}
+	c, _ := newCRUDCoordinator(store)
+	claims := &testClaimer{claimed: map[string]bool{"ses_1": true}}
+	cwd := t.TempDir()
+
+	_, err := c.Update(t.Context(), claims, "ses_1", session.Patch{Cwd: &cwd})
+	if !errors.Is(err, ErrSessionBusy) {
+		t.Fatalf("Update relocation error = %v, want ErrSessionBusy", err)
+	}
+	if store.patched {
+		t.Fatal("busy relocation mutated the session")
+	}
 }
 
 func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	c, _ := newCRUDCoordinator(store)
+	claims := new(testClaimer)
 
 	blank := "  "
-	if _, err := c.Update(context.Background(), "ses_1", session.Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {
+	if _, err := c.Update(t.Context(), claims, "ses_1", session.Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {
 		t.Fatalf("blank title err = %v, want ErrTitleRequired", err)
 	}
 	if store.renamed != ([2]string{}) {
@@ -180,7 +197,7 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	}
 
 	ghost := "/no/such/dir"
-	if _, err := c.Update(context.Background(), "ses_1", session.Patch{Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
+	if _, err := c.Update(t.Context(), claims, "ses_1", session.Patch{Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
 		t.Fatalf("ghost cwd err = %v, want ErrCwdUnavailable", err)
 	}
 	if store.cwd != ([2]string{}) {
@@ -188,7 +205,7 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	}
 
 	title := "Renamed"
-	if _, err := c.Update(context.Background(), "ses_1", session.Patch{Title: &title, Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
+	if _, err := c.Update(t.Context(), claims, "ses_1", session.Patch{Title: &title, Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
 		t.Fatalf("mixed patch err = %v, want ErrCwdUnavailable", err)
 	}
 	if store.renamed != ([2]string{}) {

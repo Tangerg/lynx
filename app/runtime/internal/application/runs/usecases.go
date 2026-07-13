@@ -186,9 +186,15 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 	}
 	defer c.ReleaseSession(pending.SessionID)
 	cleanupCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
-	defer cancel()
-	_ = c.turns.Cancel(cleanupCtx, TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID})
-	return c.sessions.ApplyRunCancel(cleanupCtx, pending.SessionID, cmd.RunID, cmd.Reason, c.now().UTC())
+	if err := c.sessions.ApplyRunCancel(cleanupCtx, pending.SessionID, cmd.RunID, cmd.Reason, c.now().UTC()); err != nil {
+		cancel()
+		return err
+	}
+	cancel()
+	turnCtx, cancelTurn := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
+	defer cancelTurn()
+	_ = c.turns.Cancel(turnCtx, TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID})
+	return nil
 }
 
 // Steer addresses a live run by its application record and lets the turn

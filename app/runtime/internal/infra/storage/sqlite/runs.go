@@ -3,14 +3,19 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	sqlite3 "modernc.org/sqlite"
 	sqlite3lib "modernc.org/sqlite/lib"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // Coarse admission states stored in runs.state. The partial unique index
@@ -118,10 +123,12 @@ func (s *RunStateStore) stateForRun(ctx context.Context, sessionID, runID string
 		return 0, false, nil
 	case err != nil:
 		return 0, false, fmt.Errorf("sqlite: read run state: %w", err)
+	case coarse == runStateRunning:
+		return execution.Running, true, nil
 	case coarse == runStateInterrupted:
 		return execution.Interrupted, true, nil
 	default:
-		return execution.Running, true, nil
+		return 0, false, fmt.Errorf("sqlite: read run state: unknown state %q", coarse)
 	}
 }
 
@@ -195,24 +202,282 @@ func (s *RunStateStore) DeleteForSession(ctx context.Context, sessionID string) 
 	return nil
 }
 
-// ReconcileOrphans terminalizes non-terminal Runs abandoned by a crash — the
-// process died with no open interrupt keeping the run resumable — so a crash
-// doesn't block its session forever. A non-terminal Run is an orphan iff its
-// session has NO open interrupt. The state transition and interrupt open/consume
-// are atomic, but both Running continuations and Interrupted parked runs are
-// non-terminal; interrupt presence distinguishes the latter at boot. Run once
-// before admitting any run; returns the count swept.
+// ReconcileOrphans repairs non-terminal Runs abandoned by a process exit before
+// any new run is admitted. An Interrupted run with a coherent transcript,
+// matching durable interrupt, and resumable process snapshot survives. Every
+// other non-terminal row is lost: its running
+// transcript items become incomplete, its transcript Run becomes a terminal
+// error(run_lost) with a message watermark, and its admission row terminalizes.
+// Orphan interrupt rows are removed. The complete cross-table repair commits in
+// one transaction, so boot never exposes a half-reconciled lifecycle.
 func (s *RunStateStore) ReconcileOrphans(ctx context.Context) (int, error) {
-	res, err := s.db.ExecContext(ctx,
-		`UPDATE runs SET state = ?, outcome = ?, updated_at = ?
-		 WHERE state != ?
-		   AND session_id NOT IN (SELECT DISTINCT session_id FROM interrupts)`,
-		runStateTerminal, execution.OutcomeCanceled.String(), time.Now().UTC().UnixNano(), runStateTerminal)
+	var reconciled int
+	now := time.Now().UTC()
+	err := RunInTx(ctx, s.db, func(ctx context.Context) error {
+		active, err := s.nonTerminalRuns(ctx)
+		if err != nil {
+			return err
+		}
+		interruptStore := NewInterruptStore(s.db)
+		pending, err := interruptStore.List(ctx, "")
+		if err != nil {
+			return fmt.Errorf("sqlite: reconcile orphan runs: %w", err)
+		}
+		pendingByRun := make(map[string]interrupts.Pending, len(pending))
+		for _, interrupt := range pending {
+			pendingByRun[interrupt.RunID] = interrupt
+		}
+
+		preserved := make(map[string]struct{}, len(active))
+		for _, run := range active {
+			pendingInterrupt, hasInterrupt := pendingByRun[run.runID]
+			if run.state == execution.Interrupted && hasInterrupt && pendingInterrupt.SessionID == run.sessionID {
+				resumable, err := s.validateParkedRun(ctx, run, pendingInterrupt)
+				if err != nil {
+					return err
+				}
+				if resumable {
+					preserved[run.runID] = struct{}{}
+					continue
+				}
+				if err := s.recoverLostRun(ctx, run, now); err != nil {
+					return err
+				}
+				if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM process_snapshots WHERE id = ?`, pendingInterrupt.ProcessID); err != nil {
+					return fmt.Errorf("sqlite: delete unusable process snapshot for run %q: %w", run.runID, err)
+				}
+				reconciled++
+				continue
+			}
+			if err := s.recoverLostRun(ctx, run, now); err != nil {
+				return err
+			}
+			reconciled++
+		}
+		for _, interrupt := range pending {
+			if _, ok := preserved[interrupt.RunID]; ok {
+				continue
+			}
+			if interrupt.ProcessID != "" {
+				if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM process_snapshots WHERE id = ?`, interrupt.ProcessID); err != nil {
+					return fmt.Errorf("sqlite: reconcile orphan process snapshot: %w", err)
+				}
+			}
+			if err := interruptStore.Delete(ctx, interrupt.RunID); err != nil {
+				return fmt.Errorf("sqlite: reconcile orphan interrupt: %w", err)
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		return 0, fmt.Errorf("sqlite: reconcile orphan runs: %w", err)
+		return 0, err
 	}
-	n, _ := res.RowsAffected()
-	return int(n), nil
+	return reconciled, nil
+}
+
+// validateParkedRun checks the complete park boundary before boot keeps it
+// resumable. A matching row in interrupts is not sufficient: resume also needs
+// the interrupted transcript Run, every referenced running item, and a usable
+// process snapshot. An impossible partial transcript write means database
+// corruption (the transcript park is one transaction), so startup fails loud;
+// a missing/unusable process snapshot is an external-resource loss and returns
+// resumable=false so reconciliation can terminalize the Run as run_lost.
+func (s *RunStateStore) validateParkedRun(ctx context.Context, active nonTerminalRun, pending interrupts.Pending) (bool, error) {
+	if pending.RunCreatedAt.IsZero() || pending.CreatedAt.IsZero() || len(pending.Interrupts) == 0 {
+		return false, fmt.Errorf("sqlite: validate parked run %q: incomplete interrupt boundary", active.runID)
+	}
+
+	items, runs, err := NewTranscriptStore(s.db).List(ctx, active.sessionID)
+	if err != nil {
+		return false, fmt.Errorf("sqlite: validate parked run %q transcript: %w", active.runID, err)
+	}
+	var run *transcript.Run
+	for i := range runs {
+		if runs[i].ID == active.runID {
+			run = &runs[i]
+			break
+		}
+	}
+	if run == nil {
+		return false, fmt.Errorf("sqlite: validate parked run %q: transcript run not found", active.runID)
+	}
+	if run.State != execution.Interrupted || run.Outcome != nil || run.Result != nil || !run.FinishedAt.IsZero() || run.MessageMark != -1 {
+		return false, fmt.Errorf("sqlite: validate parked run %q: invalid interrupted transcript boundary", active.runID)
+	}
+	if !run.CreatedAt.Equal(pending.RunCreatedAt) {
+		return false, fmt.Errorf("sqlite: validate parked run %q: transcript and interrupt creation times differ", active.runID)
+	}
+	if !reflect.DeepEqual(run.Interrupts, pending.Interrupts) {
+		return false, fmt.Errorf("sqlite: validate parked run %q: transcript and pending interrupts differ", active.runID)
+	}
+
+	itemsByID := make(map[string]transcript.Item, len(items))
+	for _, item := range items {
+		itemsByID[item.ID] = item
+	}
+	seen := make(map[string]struct{}, len(pending.Interrupts))
+	for _, interrupt := range pending.Interrupts {
+		if interrupt.ItemID == "" {
+			return false, fmt.Errorf("sqlite: validate parked run %q: interrupt item id is required", active.runID)
+		}
+		if _, duplicate := seen[interrupt.ItemID]; duplicate {
+			return false, fmt.Errorf("sqlite: validate parked run %q: duplicate interrupt item %q", active.runID, interrupt.ItemID)
+		}
+		seen[interrupt.ItemID] = struct{}{}
+		item, found := itemsByID[interrupt.ItemID]
+		if !found || item.RunID != active.runID || item.Status != transcript.ItemRunning {
+			return false, fmt.Errorf("sqlite: validate parked run %q: interrupt item %q is not running in the run", active.runID, interrupt.ItemID)
+		}
+		switch interrupt.Kind {
+		case transcript.ApprovalInterrupt:
+			if interrupt.Approval == nil || interrupt.Question != nil || item.Kind != transcript.ToolCall || item.Tool == nil {
+				return false, fmt.Errorf("sqlite: validate parked run %q: malformed approval item %q", active.runID, interrupt.ItemID)
+			}
+		case transcript.QuestionInterrupt:
+			if interrupt.Question == nil || interrupt.Approval != nil || item.Kind != transcript.QuestionItem || item.Question == nil {
+				return false, fmt.Errorf("sqlite: validate parked run %q: malformed question item %q", active.runID, interrupt.ItemID)
+			}
+		default:
+			return false, fmt.Errorf("sqlite: validate parked run %q: unknown interrupt kind %d", active.runID, interrupt.Kind)
+		}
+	}
+	for _, drained := range pending.DrainedTools {
+		item, found := itemsByID[drained.ItemID]
+		if drained.ItemID == "" || drained.Name == "" || !found || item.RunID != active.runID || item.Kind != transcript.ToolCall || item.Status != transcript.ItemIncomplete {
+			return false, fmt.Errorf("sqlite: validate parked run %q: malformed drained tool %q", active.runID, drained.ItemID)
+		}
+	}
+	if pending.ProcessID == "" {
+		return false, nil
+	}
+	return s.hasResumableProcessSnapshot(ctx, pending.ProcessID)
+}
+
+func (s *RunStateStore) hasResumableProcessSnapshot(ctx context.Context, processID string) (bool, error) {
+	var payload string
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT snapshot FROM process_snapshots WHERE id = ?`, processID,
+	).Scan(&payload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("sqlite: validate process snapshot %q: %w", processID, err)
+	}
+	var snapshot core.ProcessSnapshot
+	if err := json.Unmarshal([]byte(payload), &snapshot); err != nil {
+		return false, nil
+	}
+	if snapshot.ID != processID || snapshot.AgentName == "" {
+		return false, nil
+	}
+	return snapshot.Status == core.StatusWaiting || snapshot.Status == core.StatusPaused, nil
+}
+
+type nonTerminalRun struct {
+	runID     string
+	sessionID string
+	state     execution.RunState
+}
+
+func (s *RunStateStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, error) {
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
+		`SELECT run_id, session_id, state FROM runs WHERE state != ? ORDER BY started_at`,
+		runStateTerminal)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list non-terminal runs: %w", err)
+	}
+	defer rows.Close()
+
+	var out []nonTerminalRun
+	for rows.Next() {
+		var run nonTerminalRun
+		var coarse string
+		if err := rows.Scan(&run.runID, &run.sessionID, &coarse); err != nil {
+			return nil, fmt.Errorf("sqlite: scan non-terminal run: %w", err)
+		}
+		switch coarse {
+		case runStateRunning:
+			run.state = execution.Running
+		case runStateInterrupted:
+			run.state = execution.Interrupted
+		default:
+			return nil, fmt.Errorf("sqlite: scan non-terminal run: unknown state %q", coarse)
+		}
+		out = append(out, run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: list non-terminal runs: %w", err)
+	}
+	return out, nil
+}
+
+func (s *RunStateStore) recoverLostRun(ctx context.Context, active nonTerminalRun, now time.Time) error {
+	transcripts := NewTranscriptStore(s.db)
+	items, runs, err := transcripts.List(ctx, active.sessionID)
+	if err != nil {
+		return fmt.Errorf("sqlite: reconcile lost run %q transcript: %w", active.runID, err)
+	}
+	var run *transcript.Run
+	for i := range runs {
+		if runs[i].ID == active.runID {
+			run = &runs[i]
+			break
+		}
+	}
+	if run == nil {
+		return fmt.Errorf("sqlite: reconcile lost run %q: transcript run not found", active.runID)
+	}
+	if run.State != active.state {
+		return fmt.Errorf("sqlite: reconcile lost run %q: transcript state %s does not match admission state %s", active.runID, run.State, active.state)
+	}
+
+	for _, item := range items {
+		if item.RunID != active.runID || item.Status != transcript.ItemRunning {
+			continue
+		}
+		item.Status = transcript.ItemIncomplete
+		if item.Kind == transcript.ToolCall {
+			item.Error = &transcript.Problem{
+				Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem,
+				Detail: "tool call interrupted because the run was lost on restart",
+			}
+		}
+		if err := transcripts.AppendItem(ctx, item); err != nil {
+			return fmt.Errorf("sqlite: reconcile lost run %q item %q: %w", active.runID, item.ID, err)
+		}
+	}
+
+	messageMark, err := NewMessageStore(s.db).Count(ctx, active.sessionID)
+	if err != nil {
+		return fmt.Errorf("sqlite: reconcile lost run %q watermark: %w", active.runID, err)
+	}
+	next, ok := active.state.RecoverLost()
+	if !ok {
+		return fmt.Errorf("sqlite: reconcile lost run %q: state %s is not recoverable", active.runID, active.state)
+	}
+	outcome := execution.OutcomeError
+	if run.Result == nil {
+		run.Result = &transcript.RunResult{}
+	}
+	run.State = next
+	run.Outcome = new(outcome)
+	run.Result.Error = &transcript.Problem{
+		Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
+		Detail: "run lost on restart",
+	}
+	run.Detail = ""
+	run.Interrupts = nil
+	run.FinishedAt = now
+	run.UpdatedAt = now
+	run.MessageMark = messageMark
+	if err := transcripts.PutRun(ctx, *run); err != nil {
+		return fmt.Errorf("sqlite: reconcile lost run %q terminal transcript: %w", active.runID, err)
+	}
+	if err := s.writeState(ctx, active.sessionID, active.runID, "reconcile lost", active.state, next, outcome.String()); err != nil {
+		return err
+	}
+	return nil
 }
 
 // isUniqueViolation reports whether err is a SQLite UNIQUE-constraint failure —

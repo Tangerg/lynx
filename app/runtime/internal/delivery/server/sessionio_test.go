@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -233,7 +234,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	}
 }
 
-func TestRestoreSessionClearsOpenInterrupts(t *testing.T) {
+func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
 	restoreCwd := t.TempDir()
@@ -246,19 +247,19 @@ func TestRestoreSessionClearsOpenInterrupts(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	if err := s.sessions.RestoreSession(ctx, session.Session{
+	if err := s.sessions.RestoreSession(ctx, s.coordinator, session.Session{
 		ID:    ses.ID,
 		Title: "Restored",
 		Cwd:   restoreCwd,
-	}, nil, nil, nil); err != nil {
-		t.Fatalf("restore: %v", err)
+	}, nil, nil, nil); !errors.Is(err, sessions.ErrSessionBusy) {
+		t.Fatalf("restore = %v, want ErrSessionBusy", err)
 	}
 	pending, err := rt.interrupts.List(ctx, ses.ID)
 	if err != nil {
 		t.Fatalf("list interrupts: %v", err)
 	}
-	if len(pending) != 0 {
-		t.Fatalf("pending interrupts = %+v, want cleared", pending)
+	if len(pending) != 1 {
+		t.Fatalf("pending interrupts = %+v, want untouched", pending)
 	}
 }
 

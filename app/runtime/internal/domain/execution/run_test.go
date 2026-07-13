@@ -72,6 +72,26 @@ func TestTerminate(t *testing.T) {
 	}
 }
 
+func TestTerminateRejectsUnknownOutcome(t *testing.T) {
+	if got, ok := Running.Terminate(Outcome(255)); ok || got != Running {
+		t.Fatalf("Running.Terminate(unknown) = (%s, %v), want (running, false)", got, ok)
+	}
+}
+
+func TestRecoverLost(t *testing.T) {
+	for _, state := range allStates {
+		got, ok := state.RecoverLost()
+		wantOK := state == Running || state == Interrupted
+		want := state
+		if wantOK {
+			want = Failed
+		}
+		if got != want || ok != wantOK {
+			t.Errorf("%s.RecoverLost() = (%s, %v), want (%s, %v)", state, got, ok, want, wantOK)
+		}
+	}
+}
+
 // TestOutcomeTerminalState pins the outcome → terminal-state mapping: completion
 // and cancellation get their own states; every failure flavor folds into Failed.
 func TestOutcomeTerminalState(t *testing.T) {

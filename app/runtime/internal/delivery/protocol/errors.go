@@ -61,6 +61,7 @@ const (
 	// never the wire.
 	ProblemInternalError = "internal_error"
 	// Run channel (segment.finished outcome:error) — how a failed run is classified.
+	ProblemRunLost             = "run_lost"             // process exited before the run reached a durable terminal
 	ProblemAgentStuck          = "agent_stuck"          // the loop's no-forward-progress guard tripped
 	ProblemRateLimited         = "rate_limited"         // provider 429 / quota — retryable
 	ProblemInvalidAPIKey       = "invalid_api_key"      // provider 401 / 403 — not retryable

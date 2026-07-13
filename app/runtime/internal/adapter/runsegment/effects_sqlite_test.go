@@ -2,9 +2,11 @@ package runsegment
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -96,6 +98,61 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	var stateName string
 	if err := db.QueryRowContext(ctx, `SELECT state FROM runs WHERE run_id = ?`, "run_1").Scan(&stateName); err != nil || stateName != "running" {
 		t.Fatalf("run state=%q err=%v, want running", stateName, err)
+	}
+}
+
+func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ints := sqlite.NewInterruptStore(db)
+	history := sqlite.NewTranscriptStore(db)
+	state := sqlite.NewRunStateStore(db)
+	ctx := t.Context()
+	createdAt := time.Unix(1, 0).UTC()
+	parkedAt := time.Unix(2, 0).UTC()
+	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: createdAt}); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	if err := sqlite.NewProcessStore(db).Save(ctx, core.ProcessSnapshot{
+		ID: "proc_1", AgentName: "chat", Status: core.StatusWaiting, CapturedAt: parkedAt,
+	}); err != nil {
+		t.Fatalf("save process snapshot: %v", err)
+	}
+	question := &transcript.Question{Prompt: "Continue?"}
+	open := []transcript.Interrupt{{ItemID: "item_question", Kind: transcript.QuestionInterrupt, Question: question}}
+	effects := New(Config{
+		Stores:    sqliteOpeningStores{interrupts: ints, transcript: history},
+		Processes: fakeProcess{processID: "proc_1"},
+		RunState:  state,
+		Tx:        func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+	})
+	if err := effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
+		Interrupt: &interrupts.Pending{
+			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
+			Interrupts: open, RunCreatedAt: createdAt, CreatedAt: parkedAt,
+		},
+		Items: []transcript.Item{{
+			SessionID: "ses_1", ID: "item_question", RunID: "run_1",
+			Status: transcript.ItemRunning, Kind: transcript.QuestionItem,
+			Question: question, CreatedAt: parkedAt,
+		}},
+		Run: &transcript.Run{
+			SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+			Interrupts: open, CreatedAt: createdAt, UpdatedAt: parkedAt, MessageMark: -1,
+		},
+	}); err != nil {
+		t.Fatalf("park: %v", err)
+	}
+
+	if recovered, err := state.ReconcileOrphans(ctx); err != nil || recovered != 0 {
+		t.Fatalf("boot reconcile = (%d, %v), want intact resumable park", recovered, err)
+	}
+	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_next", SessionID: "ses_1", CreatedAt: parkedAt}); !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("admit after intact park = %v, want ErrSessionBusy", err)
 	}
 }
 
