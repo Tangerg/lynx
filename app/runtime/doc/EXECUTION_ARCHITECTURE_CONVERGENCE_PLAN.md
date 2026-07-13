@@ -3,6 +3,7 @@
 > 状态：完成
 > 建立日期：2026-07-13  
 > 完成 checkpoint：`a94e63b91`（`codex/runtime-architecture-refactor`）
+> 最近审查修复 checkpoint：`7ff31775f`
 > 目标架构基准：[EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md)
 
 ## 0. 文档职责
@@ -522,13 +523,14 @@ AST 无法可靠判断的语义规则，应通过编译期类型封闭、package
 | Batch 2 | Application-owned event pipeline | 已完成 | 100% | 无 | canonical reducer/journal；旧 Projector/translator 链已删除 |
 | Batch 3 | Canonical durable execution record | 已完成 | 100% | 无 | typed transcript/interrupt；strict RunID CAS；schema v2/artifact v3 |
 | Batch 4 | 纯化、fitness tests、最终清理 | 已完成 | 100% | 无 | `a94e63b91`；domain I/O 迁移、architecture tests、full/race/frontend 验收 |
+| Post-audit | Go 审查发现的不变量、并发与资源边界修复 | 已完成 | 100% | 无 | `7ff31775f`；strict artifact/identity、lossless Journal、bounded health probe、full race |
 
 ### 10.2 当前执行指针
 
 ```text
-Current batch: complete
+Current batch: complete (including post-convergence audit remediation)
 Current sub-step: none
-Last completed code checkpoint: a94e63b91
+Last completed code checkpoint: 7ff31775f
 Next required gate: none
 ```
 
@@ -665,6 +667,9 @@ Batch 4
 | D-007 | 2026-07-13 | Batch 1 只保留既有 ProjectorFactory 作为 Batch 2 的明确迁移边界，不允许其携带 executor handle 或表达 fresh/resume 模式 | Batch 1 禁止同时重写 event pipeline；先移除命令编排与 handle 泄漏，再在 Batch 2 一次删除 outer projection seam | 已完成，seam 已删除 |
 | D-008 | 2026-07-13 | Batch 2 与 Batch 3 合并为一次原子切换；旧 transcript/interrupt schema 直接丢弃，不写 migration，不用 canonical→旧 wire JSON blob 过渡 | 用户明确要求按第一、第二法则实施且不做任何历史兼容；分批保留 blob 会在错误的持久化边界上制造短命 shim，并让 Delivery 语义继续反向渗透 | 已完成 |
 | D-009 | 2026-07-13 | Session Cwd 在进入 Application 时经 `CwdResolver` 一次性解析为 canonical path；Domain 与后续用例信任该不变量，不重复访问文件系统或防御性 canonicalize | 路径身份是外部世界解析结果，重复解析会把 I/O 泄漏回 Domain 并制造多套 workspace identity | 已接受并实施 |
+| D-010 | 2026-07-13 | Run ID 永久归属一个 Session，Item ID 永久归属一个 Session+Run；artifact 在任何写入前完成严格 union、引用关系和 run-tree 校验 | identity re-parent 会跨 aggregate 覆盖 durable fact；宽松 decode 会把损坏状态带入事务，二者都必须在持久化边界被拒绝 | 已接受并实施 |
+| D-011 | 2026-07-13 | Journal 为每个 subscriber 建立独立投递泵；durable/terminal 进入有序队列且不受 live-only 丢弃预算约束，只有过量 live-only event 可丢弃，关闭后的遗弃订阅有明确退出上限 | 原先 channel 满时可能漏掉 durable event，却仍送达 terminal，使客户端无法通过重连察觉历史缺口 | 已接受并实施 |
+| D-012 | 2026-07-13 | 每个 HealthProbe 最多一个 in-flight invocation；并发请求共享该调用，各自受请求 budget 约束 | 单纯给请求加 timeout 无法停止忽略 context 的 probe，重复请求会持续泄漏 goroutine | 已接受并实施 |
 
 新增决策使用递增 ID，并同步修改受影响批次的范围、完成判据和风险。
 
@@ -769,6 +774,30 @@ Batch 4
 - Remaining within current batch: none；
 - Decision log updates: D-009。
 
+### 2026-07-13 — Post-convergence Go review remediation
+
+- Commit: `7ff31775f`
+- Invariants preserved/added:
+  - Transcript store 拒绝跨 Session/Run 重新绑定既有 Run/Item identity，真实 SQLite restore write-set 在冲突时整体回滚；
+  - artifact v3 在 admission 和存储 mutation 前严格校验枚举、tagged union、message mark、引用归属、interrupt item、run tree 与 terminal item 状态；
+  - Session restore 与 create/update 共用 canonical Cwd 不变量，不可解析目录在 mutation 前失败；
+  - Journal 的 durable/terminal event 按 subscriber 顺序可靠投递，live-only backpressure 独立受限；
+  - resume item identity 消费一次即从 exact/fallback 两个索引移除，drained tool 使用显式启动顺序；
+  - 不遵守 context 的 HealthProbe 每个配置项最多占用一个 goroutine，未知 health status 归一为 unhealthy；
+- Removed seams/debt:
+  - 删除未使用的 workspace tool-event helper 和 test stub；
+  - 清理剩余 goimports、现代 `errors.AsType` 与可直接类型转换的 lint 问题；
+- Validation:
+  - `go build ./...`：通过；
+  - `go vet ./...`：通过；
+  - `golangci-lint run ./...`：通过；
+  - `go test ./...`：通过；
+  - `go test -race ./...`：通过；
+  - Journal、resume、artifact、restore、health 关键用例在 `-race -shuffle=on` 下重复 30–50 次：通过；
+  - `git diff --check` 与 Go 格式检查：通过；
+- Remaining work: none；
+- Decision log updates: D-010、D-011、D-012。
+
 ## 18. 最终验收清单
 
 架构收敛完成时逐项勾选：
@@ -787,5 +816,8 @@ Batch 4
 - [x] architecture fitness tests 覆盖最终边界；
 - [x] protocol golden、SQLite contract、全量 build/vet/test/race 通过；
 - [x] 不存在中间 shim、双写、死类型和过期注释；
+- [x] artifact 导入在 mutation 前拒绝非法 union、悬空引用、identity 冲突和循环 run tree；
+- [x] durable Journal event 不因 subscriber backpressure 静默丢失；
+- [x] context-unaware health probe 不会随请求数无限增殖 goroutine；
 - [x] `EXECUTION_CENTERED_ARCHITECTURE.md` 与真实实现一致；
 - [x] 本文档状态改为“完成”，进度看板和执行记录已封账。
