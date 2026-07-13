@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -128,22 +127,9 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 // at the boundary contributes only what it has already flushed. Forking deletes
 // nothing, so unlike rollback it needs no session_busy guard.
 func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
-	var nodes []transcript.RunNode
-	if in.FromRunID != "" {
-		_, runs, err := s.queries.ListTranscript(ctx, in.SessionID)
-		if err != nil {
-			return nil, wireSessionErr(err)
-		}
-		nodes, _, err = runBoundaryNodes(runs)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	child, err := s.sessions.Fork(ctx, sessions.ForkSpec{
 		ParentID:  in.SessionID,
 		FromRunID: in.FromRunID,
-		Runs:      nodes,
 		Title:     in.Title,
 	})
 	if err != nil {

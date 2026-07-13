@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // fakeMemoryStore is a knowledge.Store recording the workspace coordinator's
@@ -98,8 +98,8 @@ func TestListMemoryMapsEntriesToWire(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list memory: %v", err)
 	}
-	if store.listCwd != worktree.CanonicalCwd(repo) {
-		t.Fatalf("cwd = %q, want %q", store.listCwd, worktree.CanonicalCwd(repo))
+	if store.listCwd != workspacepath.Canonical(repo) {
+		t.Fatalf("cwd = %q, want %q", store.listCwd, workspacepath.Canonical(repo))
 	}
 	if len(got.Data) != 1 || got.Data[0].Scope != protocol.MemoryScopeHome || got.Data[0].UpdatedAt != captured {
 		t.Fatalf("wire memory = %+v", got.Data)
@@ -115,7 +115,7 @@ func TestGetAndUpdateMemoryMapScopeToRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get memory: %v", err)
 	}
-	if got.Content != "project notes" || store.getScope != knowledge.ScopeProject || store.getCwd != worktree.CanonicalCwd(repo) {
+	if got.Content != "project notes" || store.getScope != knowledge.ScopeProject || store.getCwd != workspacepath.Canonical(repo) {
 		t.Fatalf("get wire=%+v scope=%v cwd=%q", got, store.getScope, store.getCwd)
 	}
 

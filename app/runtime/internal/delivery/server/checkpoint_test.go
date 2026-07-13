@@ -190,7 +190,7 @@ func TestRecoverRollbacks(t *testing.T) {
 		t.Errorf("a.txt = %q, want v1 (working tree restored by recovery)", b)
 	}
 	_, runs, _ := rt.hist.List(ctx, sid)
-	if len(runs) != 1 || runs[0].RunID != "run1" {
+	if len(runs) != 1 || runs[0].ID != "run1" {
 		t.Errorf("runs after recovery = %+v, want only run1 (history truncated)", runs)
 	}
 	if pending, _ := rt.muts.ListPending(ctx); len(pending) != 0 {
@@ -220,7 +220,7 @@ func TestRecoverRollbacks_Idempotent(t *testing.T) {
 		t.Fatalf("RecoverRollbacks: %v", err)
 	}
 	_, runs, _ := rt.hist.List(ctx, sid)
-	if len(runs) != 1 || runs[0].RunID != "run1" {
+	if len(runs) != 1 || runs[0].ID != "run1" {
 		t.Errorf("runs = %+v, want run1 untouched (idempotent no-op)", runs)
 	}
 	if pending, _ := rt.muts.ListPending(ctx); len(pending) != 0 {

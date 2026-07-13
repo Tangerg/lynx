@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "session": {
     "id": "ses_01",
     "title": "Refactor the runtime protocol",
@@ -13,7 +13,6 @@
   "messages": [],
   "runs": [
     {
-      "runId": "run_01",
       "updatedAt": "2026-07-07T10:00:20Z",
       "messageMark": 4,
       "run": {
@@ -29,9 +28,6 @@
   ],
   "items": [
     {
-      "runId": "run_01",
-      "itemId": "item_01",
-      "createdAt": "2026-07-07T10:00:04Z",
       "item": {
         "id": "item_01",
         "runId": "run_01",

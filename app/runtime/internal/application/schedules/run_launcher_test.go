@@ -22,9 +22,7 @@ func (f *fakeRunUseCases) Start(ctx context.Context, cmd runs.StartCommand) (run
 func TestRunLauncherUsesApplicationRunEntry(t *testing.T) {
 	useCases := &fakeRunUseCases{canceled: make(chan struct{})}
 	var fired string
-	launcher := NewRunLauncher(useCases, "/default", func(schedule.Schedule) runs.ProjectorFactory {
-		return func(runs.ProjectorContext, runs.SegmentView) runs.Projector { return nil }
-	}, func(id string) { fired = id })
+	launcher := NewRunLauncher(useCases, "/default", func(id string) { fired = id })
 
 	sessionID, err := launcher.StartScheduledRun(context.Background(), schedule.Schedule{
 		ID: "sch_1", Prompt: "summarize", Provider: "p", Model: "m",

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -129,26 +128,6 @@ func newUseCaseCoordinator(exec SegmentExecutor, turns TurnControl, sessions Ses
 	})
 }
 
-func useCaseProjector(ctx ProjectorContext, view SegmentView) Projector {
-	return &fakeProjector{
-		view: view,
-		open: []ProjectedEvent{{
-			Durable: true,
-			Payload: fakeProjection("started"),
-			Commit:  &execution.EventCommit{SessionID: ctx.SessionID},
-		}},
-		terminal: []ProjectedEvent{{
-			Durable:  true,
-			Terminal: true,
-			Payload:  fakeProjection("finished"),
-			Commit: &execution.EventCommit{
-				SessionID: ctx.SessionID,
-				State:     execution.StateTerminalize,
-			},
-		}},
-	}
-}
-
 func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
@@ -162,7 +141,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 		Provider:        "provider",
 		Model:           "model",
 		OpeningUserText: "hello",
-		NewProjector:    useCaseProjector,
+		Input:           []ContentBlock{{Kind: TextContent, Text: "hello"}},
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -202,9 +181,8 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
 
 	result, err := c.Resume(context.Background(), ResumeCommand{
-		RunID:        "run_1",
-		Resolution:   interrupts.Resolution{Approved: true},
-		NewProjector: useCaseProjector,
+		RunID:      "run_1",
+		Resolution: interrupts.Resolution{Approved: true},
 	})
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
@@ -257,7 +235,7 @@ func TestStartRejectsInvalidInputBeforeSessionCreation(t *testing.T) {
 	sessions := &fakeRunSessions{treeOK: true}
 	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeTurnControl{}, sessions, &fakeEffects{})
 
-	_, err := c.Start(context.Background(), StartCommand{NewProjector: useCaseProjector})
+	_, err := c.Start(context.Background(), StartCommand{})
 	if !errors.Is(err, ErrInputRequired) {
 		t.Fatalf("err = %v, want ErrInputRequired", err)
 	}

@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -10,41 +11,29 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// TranscriptStore is the SQLite-backed durable Item history — the single
-// implementation each consumer's narrow transcript port binds to. It is the
-// history a session's items.list is served from. Two tables: history_items
-// (append-only, ordered by an autoincrement seq) and history_runs (one row per
-// run, UPSERT by run_id). Wire Item / RunRef payloads are stored as opaque JSON
-// text; created_at / updated_at as unix nanos.
-type TranscriptStore struct {
-	db *sql.DB
-}
+type TranscriptStore struct{ db *sql.DB }
 
-// NewTranscriptStore binds the SQLite history to db. db must have been
-// opened via [Open] so the migration ran.
-func NewTranscriptStore(db *sql.DB) *TranscriptStore {
-	return &TranscriptStore{db: db}
-}
+func NewTranscriptStore(db *sql.DB) *TranscriptStore { return &TranscriptStore{db: db} }
 
-func (s *TranscriptStore) AppendItem(ctx context.Context, it transcript.Item) error {
-	if it.SessionID == "" {
+func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) error {
+	if item.SessionID == "" {
 		return errors.New("sqlite: history item sessionId is required")
 	}
-	if it.ItemID == "" {
-		return errors.New("sqlite: history item itemId is required")
+	if item.ID == "" {
+		return errors.New("sqlite: history item id is required")
 	}
-	// item_id is UNIQUE: a re-appended item (e.g. a drainTools-produced
-	// incomplete toolCall that a resumed HITL round later completes with
-	// the same id) atomically updates in place, keeping its original seq —
-	// items.list surfaces the latest state at the item's original position.
-	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO history_items(session_id, run_id, item_id, created_at, item)
+	payload, err := json.Marshal(item)
+	if err != nil {
+		return fmt.Errorf("sqlite: encode history item: %w", err)
+	}
+	_, err = conn(ctx, s.db).ExecContext(ctx,
+		`INSERT INTO history_items(session_id, run_id, item_id, created_at, payload)
 		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(item_id) DO UPDATE SET
 		   session_id = excluded.session_id,
 		   run_id     = excluded.run_id,
-		   item       = excluded.item`,
-		it.SessionID, it.RunID, it.ItemID, it.CreatedAt.UnixNano(), string(it.Blob),
+		   payload    = excluded.payload`,
+		item.SessionID, item.RunID, item.ID, item.CreatedAt.UnixNano(), string(payload),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: append history item: %w", err)
@@ -52,19 +41,23 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, it transcript.Item) er
 	return nil
 }
 
-func (s *TranscriptStore) PutRun(ctx context.Context, r transcript.Run) error {
-	if r.SessionID == "" || r.RunID == "" {
-		return errors.New("sqlite: history run sessionId/runId are required")
+func (s *TranscriptStore) PutRun(ctx context.Context, run transcript.Run) error {
+	if run.SessionID == "" || run.ID == "" {
+		return errors.New("sqlite: history run sessionId/id are required")
 	}
-	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO history_runs(run_id, session_id, updated_at, run, message_mark)
+	payload, err := json.Marshal(run)
+	if err != nil {
+		return fmt.Errorf("sqlite: encode history run: %w", err)
+	}
+	_, err = conn(ctx, s.db).ExecContext(ctx,
+		`INSERT INTO history_runs(run_id, session_id, updated_at, payload, message_mark)
 		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(run_id) DO UPDATE SET
 		   session_id   = excluded.session_id,
 		   updated_at   = excluded.updated_at,
-		   run          = excluded.run,
+		   payload      = excluded.payload,
 		   message_mark = excluded.message_mark`,
-		r.RunID, r.SessionID, r.UpdatedAt.UnixNano(), string(r.Blob), r.Mark,
+		run.ID, run.SessionID, run.UpdatedAt.UnixNano(), string(payload), run.MessageMark,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: put history run: %w", err)
@@ -72,9 +65,6 @@ func (s *TranscriptStore) PutRun(ctx context.Context, r transcript.Run) error {
 	return nil
 }
 
-// DeleteRun removes a run's record and all its items in one transaction
-// (sessions.rollback drops the runs after the kept boundary). Unknown run /
-// session is a no-op, not an error.
 func (s *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string) error {
 	if sessionID == "" || runID == "" {
 		return errors.New("sqlite: delete history run requires sessionId + runId")
@@ -87,7 +77,7 @@ func (s *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string
 			return fmt.Errorf("sqlite: delete run items: %w", err)
 		}
 		if _, err := q.ExecContext(ctx,
-			`DELETE FROM history_runs WHERE run_id = ?`, runID,
+			`DELETE FROM history_runs WHERE run_id = ? AND session_id = ?`, runID, sessionID,
 		); err != nil {
 			return fmt.Errorf("sqlite: delete run: %w", err)
 		}
@@ -95,22 +85,16 @@ func (s *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string
 	})
 }
 
-// DeleteSession removes every item + run for a session (sessions.rollback
-// purges the subagent child sessions a dropped run spawned). Idempotent.
 func (s *TranscriptStore) DeleteSession(ctx context.Context, sessionID string) error {
 	if sessionID == "" {
 		return errors.New("sqlite: delete history session requires sessionId")
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		q := conn(ctx, s.db)
-		if _, err := q.ExecContext(ctx,
-			`DELETE FROM history_items WHERE session_id = ?`, sessionID,
-		); err != nil {
+		if _, err := q.ExecContext(ctx, `DELETE FROM history_items WHERE session_id = ?`, sessionID); err != nil {
 			return fmt.Errorf("sqlite: delete session items: %w", err)
 		}
-		if _, err := q.ExecContext(ctx,
-			`DELETE FROM history_runs WHERE session_id = ?`, sessionID,
-		); err != nil {
+		if _, err := q.ExecContext(ctx, `DELETE FROM history_runs WHERE session_id = ?`, sessionID); err != nil {
 			return fmt.Errorf("sqlite: delete session runs: %w", err)
 		}
 		return nil
@@ -129,34 +113,35 @@ func (s *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcr
 	return items, runs, nil
 }
 
-// ListRuns returns just the session's run records (no item blobs) — the cheap
-// path for usage aggregation, which only needs the runs.
 func (s *TranscriptStore) ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error) {
 	return s.listRuns(ctx, sessionID)
 }
 
 func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]transcript.Item, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT session_id, run_id, item_id, created_at, item
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
+		`SELECT session_id, run_id, item_id, created_at, payload
 		 FROM history_items WHERE session_id = ? ORDER BY seq`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list history items: %w", err)
 	}
 	defer rows.Close()
 
-	out := make([]transcript.Item, 0)
+	var out []transcript.Item
 	for rows.Next() {
-		var (
-			it        transcript.Item
-			createdNs int64
-			blob      string
-		)
-		if err := rows.Scan(&it.SessionID, &it.RunID, &it.ItemID, &createdNs, &blob); err != nil {
+		var session, runID, itemID, payload string
+		var createdAt int64
+		if err := rows.Scan(&session, &runID, &itemID, &createdAt, &payload); err != nil {
 			return nil, fmt.Errorf("sqlite: scan history item: %w", err)
 		}
-		it.CreatedAt = time.Unix(0, createdNs).UTC()
-		it.Blob = []byte(blob)
-		out = append(out, it)
+		var item transcript.Item
+		if err := json.Unmarshal([]byte(payload), &item); err != nil {
+			return nil, fmt.Errorf("sqlite: decode history item %q: %w", itemID, err)
+		}
+		item.SessionID = session
+		item.RunID = runID
+		item.ID = itemID
+		item.CreatedAt = time.Unix(0, createdAt).UTC()
+		out = append(out, item)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("sqlite: list history items: %w", err)
@@ -165,27 +150,31 @@ func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]tr
 }
 
 func (s *TranscriptStore) listRuns(ctx context.Context, sessionID string) ([]transcript.Run, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT session_id, run_id, updated_at, run, message_mark
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
+		`SELECT session_id, run_id, updated_at, payload, message_mark
 		 FROM history_runs WHERE session_id = ? ORDER BY updated_at`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list history runs: %w", err)
 	}
 	defer rows.Close()
 
-	out := make([]transcript.Run, 0)
+	var out []transcript.Run
 	for rows.Next() {
-		var (
-			r         transcript.Run
-			updatedNs int64
-			blob      string
-		)
-		if err := rows.Scan(&r.SessionID, &r.RunID, &updatedNs, &blob, &r.Mark); err != nil {
+		var session, runID, payload string
+		var updatedAt int64
+		var mark int
+		if err := rows.Scan(&session, &runID, &updatedAt, &payload, &mark); err != nil {
 			return nil, fmt.Errorf("sqlite: scan history run: %w", err)
 		}
-		r.UpdatedAt = time.Unix(0, updatedNs).UTC()
-		r.Blob = []byte(blob)
-		out = append(out, r)
+		var run transcript.Run
+		if err := json.Unmarshal([]byte(payload), &run); err != nil {
+			return nil, fmt.Errorf("sqlite: decode history run %q: %w", runID, err)
+		}
+		run.SessionID = session
+		run.ID = runID
+		run.UpdatedAt = time.Unix(0, updatedAt).UTC()
+		run.MessageMark = mark
+		out = append(out, run)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("sqlite: list history runs: %w", err)

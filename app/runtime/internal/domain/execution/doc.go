@@ -33,11 +33,9 @@
 //
 // This package holds only what the runtime must PROTECT: the Run state machine
 // and its legal transitions ([RunState]), the terminal-reason taxonomy
-// ([Outcome]) that both the executor's terminal decision and the wire projection
-// resolve against, the identity value types and their stability contracts, and
-// the durable-vs-live event classification with its commit-before-publish
-// ordering rule ([Durability]). It is pure: no I/O, no storage, no wire types,
-// no agent SDK — those are outer rings that depend inward on this vocabulary.
+// ([Outcome]) that executor and presentation resolve against, and the identity
+// value types and their stability contracts. It is pure: no I/O, no storage,
+// no wire types, no agent SDK — outer rings depend inward on this vocabulary.
 //
 // # Co-located sub-contexts
 //

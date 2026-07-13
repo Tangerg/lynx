@@ -24,25 +24,26 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	tx := &fakeTx{}
 	effects := New(Config{Stores: stores, RunState: runState, Tx: tx.run})
 
-	err := effects.CommitEvent(context.Background(), execution.EventCommit{
+	err := effects.CommitEvent(context.Background(), runs.EventCommit{
+		RunID:     "run_1",
 		SessionID: "ses_1",
-		State:     execution.StateTerminalize,
+		State:     runs.StateTerminalize,
 		Outcome:   execution.OutcomeCompleted,
-		Item:      &transcript.Item{SessionID: "ses_1", RunID: "run_1", ItemID: "item_1", Blob: []byte(`{"id":"item_1"}`)},
-		Run:       &transcript.Run{SessionID: "ses_1", RunID: "run_1", Blob: []byte(`{"id":"run_1"}`), Mark: -1},
+		Item:      &transcript.Item{SessionID: "ses_1", RunID: "run_1", ID: "item_1"},
+		Run:       &transcript.Run{SessionID: "ses_1", ID: "run_1", MessageMark: -1},
 	})
 	if err != nil {
 		t.Fatalf("CommitEvent: %v", err)
 	}
 
-	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ItemID != "item_1" {
+	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ID != "item_1" {
 		t.Fatalf("items = %+v, want item_1", stores.transcript.items)
 	}
-	if len(stores.transcript.runs) != 1 || stores.transcript.runs[0].Mark != 7 {
+	if len(stores.transcript.runs) != 1 || stores.transcript.runs[0].MessageMark != 7 {
 		t.Fatalf("runs = %+v, want one run with resolved mark 7", stores.transcript.runs)
 	}
-	if len(runState.terminalized) != 1 || runState.terminalized[0] != "ses_1:completed" {
-		t.Fatalf("terminalized = %v, want [ses_1:completed]", runState.terminalized)
+	if len(runState.terminalized) != 1 || runState.terminalized[0] != "ses_1:run_1:completed" {
+		t.Fatalf("terminalized = %v, want [ses_1:run_1:completed]", runState.terminalized)
 	}
 	if tx.calls != 1 {
 		t.Fatalf("RunInTx calls = %d, want 1 (the whole commit is one transaction)", tx.calls)
@@ -58,9 +59,10 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
 		Admit: &draft,
-		Events: []execution.EventCommit{{
+		Events: []runs.EventCommit{{
+			RunID:     "run_1",
 			SessionID: "ses_1",
-			Run:       &transcript.Run{SessionID: "ses_1", RunID: "run_1", Blob: []byte(`{"id":"run_1"}`)},
+			Run:       &transcript.Run{SessionID: "ses_1", ID: "run_1"},
 		}},
 	})
 	if err != nil {
@@ -81,9 +83,10 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
 		Resume: &resume,
-		Events: []execution.EventCommit{{
+		Events: []runs.EventCommit{{
+			RunID:     "run_1",
 			SessionID: "ses_1",
-			Run:       &transcript.Run{SessionID: "ses_1", RunID: "run_1", Blob: []byte(`{"id":"run_1"}`)},
+			Run:       &transcript.Run{SessionID: "ses_1", ID: "run_1"},
 		}},
 	})
 	if err != nil {
@@ -103,16 +106,17 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	tx := &fakeTx{}
 	effects := New(Config{Stores: stores, Processes: fakeProcess{processID: "proc_1"}, RunState: runState, Tx: tx.run})
 
-	err := effects.CommitEvent(context.Background(), execution.EventCommit{
+	err := effects.CommitEvent(context.Background(), runs.EventCommit{
+		RunID:     "run_1",
 		SessionID: "ses_1",
-		State:     execution.StateSuspend,
+		State:     runs.StateSuspend,
 		Interrupt: &interrupts.Pending{
 			RunID:        "run_1",
 			SessionID:    "ses_1",
 			TurnID:       "turn_1",
 			Provider:     "anthropic",
 			Model:        "claude",
-			Interrupts:   []byte(`[{"id":"int_1"}]`),
+			Interrupts:   []transcript.Interrupt{{ItemID: "int_1", Kind: transcript.QuestionInterrupt}},
 			DrainedTools: []interrupts.DrainedTool{{ItemID: "tool_1", Name: "ask_user"}},
 		},
 	})
@@ -124,11 +128,11 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	if got.RunID != "run_1" || got.ProcessID != "proc_1" || got.Provider != "anthropic" || got.Model != "claude" {
 		t.Fatalf("pending = %+v", got)
 	}
-	if string(got.Interrupts) != `[{"id":"int_1"}]` || len(got.DrainedTools) != 1 {
-		t.Fatalf("pending payload = %s drained=%+v", got.Interrupts, got.DrainedTools)
+	if len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "int_1" || len(got.DrainedTools) != 1 {
+		t.Fatalf("pending interrupts = %+v drained=%+v", got.Interrupts, got.DrainedTools)
 	}
-	if len(runState.suspended) != 1 || runState.suspended[0] != "ses_1" {
-		t.Fatalf("suspended = %v, want [ses_1]", runState.suspended)
+	if len(runState.suspended) != 1 || runState.suspended[0] != "ses_1:run_1" {
+		t.Fatalf("suspended = %v, want [ses_1:run_1]", runState.suspended)
 	}
 }
 
@@ -142,9 +146,10 @@ func TestCommitEventRejectsUnresumableInterrupt(t *testing.T) {
 	tx := &fakeTx{}
 	effects := New(Config{Stores: stores, Processes: fakeProcess{err: want}, RunState: runState, Tx: tx.run})
 
-	err := effects.CommitEvent(context.Background(), execution.EventCommit{
+	err := effects.CommitEvent(context.Background(), runs.EventCommit{
+		RunID:     "run_1",
 		SessionID: "ses_1",
-		State:     execution.StateSuspend,
+		State:     runs.StateSuspend,
 		Interrupt: &interrupts.Pending{RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 	})
 	if !errors.Is(err, want) {
@@ -263,13 +268,13 @@ func (r *fakeRunState) Resume(_ context.Context, draft execution.ResumeDraft) er
 	return nil
 }
 
-func (r *fakeRunState) Suspend(_ context.Context, sessionID string) error {
-	r.suspended = append(r.suspended, sessionID)
+func (r *fakeRunState) Suspend(_ context.Context, sessionID, runID string) error {
+	r.suspended = append(r.suspended, sessionID+":"+runID)
 	return nil
 }
 
-func (r *fakeRunState) Terminalize(_ context.Context, sessionID string, o execution.Outcome) error {
-	r.terminalized = append(r.terminalized, sessionID+":"+o.String())
+func (r *fakeRunState) Terminalize(_ context.Context, sessionID, runID string, o execution.Outcome) error {
+	r.terminalized = append(r.terminalized, sessionID+":"+runID+":"+o.String())
 	return nil
 }
 

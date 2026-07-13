@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // fakeInterruptReader backs the query coordinator's interrupt read for the
@@ -26,16 +27,13 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 	created := time.Date(2026, 7, 5, 11, 0, 0, 0, time.UTC)
 	reader := &fakeInterruptReader{pending: []interrupts.Pending{
 		{
-			RunID:      "run_waiting",
-			SessionID:  "ses_1",
-			Interrupts: []byte(`[{"itemId":"item_1","type":"approval"}]`),
-			CreatedAt:  created,
-		},
-		{
-			RunID:      "run_corrupt",
-			SessionID:  "ses_1",
-			Interrupts: []byte(`{`),
-			CreatedAt:  created,
+			RunID:     "run_waiting",
+			SessionID: "ses_1",
+			Interrupts: []transcript.Interrupt{{
+				ItemID: "item_1", Kind: transcript.ApprovalInterrupt,
+				Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}},
+			}},
+			CreatedAt: created,
 		},
 	}}
 	s := &Server{queries: queries.New(queries.Dependencies{Interrupts: reader})}
@@ -48,7 +46,7 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 		t.Fatalf("read session = %q, want ses_1", reader.sessionID)
 	}
 	if len(got.Data) != 1 {
-		t.Fatalf("open interrupts = %+v, want only valid record", got.Data)
+		t.Fatalf("open interrupts = %+v, want one typed record", got.Data)
 	}
 	open := got.Data[0]
 	if open.RunID != "run_waiting" || open.SessionID != "ses_1" || !open.CreatedAt.Equal(created) || len(open.Interrupts) != 1 {

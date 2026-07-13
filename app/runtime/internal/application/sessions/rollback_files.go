@@ -8,7 +8,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // ErrCheckpointUnavailable reports that a file rollback can't restore the working
@@ -29,12 +28,15 @@ type RollbackSpec struct {
 	RestoreHistory bool
 }
 
-// BoundaryResolver yields the domain rollback cut for the target run, resolved
-// UNDER the claimed mutation slot so no concurrent run can append to the
-// transcript between the read and the durable truncation. The delivery adapter
-// implements it by listing the transcript and decoding the wire-shaped run blobs
-// — which only the wire layer may decode — into the domain timeline.
-type BoundaryResolver func(ctx context.Context) (transcript.Boundary, error)
+type DroppedRun struct {
+	Run       transcript.Run
+	UserInput []transcript.ContentBlock
+}
+
+type RollbackResult struct {
+	Session session.Session
+	Dropped []DroppedRun
+}
 
 // RollbackFiles executes a session rollback as one guarded operation: it claims
 // the single-writer mutation slot (rejecting a rollback under an in-flight run
@@ -48,37 +50,45 @@ type BoundaryResolver func(ctx context.Context) (transcript.Boundary, error)
 // writes a working tree a sibling session sharing the cwd would race, and that
 // sibling's tool writes never take the checkpoint lock, so the mutation must see
 // any in-flight run on the tree (ActiveSessionWithCwd), not just this session's.
-func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, spec RollbackSpec, resolve BoundaryResolver) (session.Session, error) {
+func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, spec RollbackSpec) (RollbackResult, error) {
 	ses, err := c.s.Session().Get(ctx, spec.SessionID)
 	if err != nil {
-		return session.Session{}, err
+		return RollbackResult{}, err
 	}
+	result := RollbackResult{Session: ses}
 
 	admission, err := c.ClaimMutationSlot(claims, spec.SessionID)
 	if err != nil {
-		return ses, err
+		return result, err
 	}
 	defer admission.Release()
 
 	var cwd string
 	if spec.RestoreFiles {
-		cwd = worktree.CanonicalCwd(ses.Cwd)
+		cwd = ses.Cwd
 		if cwd == "" {
-			return ses, ErrCheckpointUnavailable
+			return result, ErrCheckpointUnavailable
 		}
 		treeAdmission, ok := c.ClaimWorkingTreeMutation(cwd)
 		if !ok {
-			return ses, fmt.Errorf("%w: working tree %q has a run admission in flight", ErrSessionBusy, cwd)
+			return result, fmt.Errorf("%w: working tree %q has a run admission in flight", ErrSessionBusy, cwd)
 		}
 		defer treeAdmission.Release()
 		if busy := claims.ActiveSessionWithCwd(cwd); busy != "" {
-			return ses, fmt.Errorf("%w: session %q shares this working tree and has a run in flight", ErrSessionBusy, busy)
+			return result, fmt.Errorf("%w: session %q shares this working tree and has a run in flight", ErrSessionBusy, busy)
 		}
 	}
 
-	boundary, err := resolve(ctx)
+	items, runs, err := c.s.Transcript().List(ctx, spec.SessionID)
 	if err != nil {
-		return ses, err
+		return result, err
+	}
+	boundary, err := transcript.TimelineFromRuns(runs).BoundaryAt(spec.ToRunID, true)
+	if err != nil {
+		return result, err
+	}
+	if spec.RestoreHistory {
+		result.Dropped = droppedRuns(boundary, runs, transcript.OpeningInputs(items))
 	}
 
 	// A both-rollback that drops runs mutates two resources that can't share one
@@ -91,7 +101,7 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 		if err := c.recordMutation(ctx, execution.WorkspaceMutation{
 			SessionID: spec.SessionID, Cwd: cwd, ToRunID: spec.ToRunID,
 		}); err != nil {
-			return ses, err
+			return result, err
 		}
 	}
 
@@ -103,7 +113,7 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 			if recoverable {
 				_ = c.completeMutation(ctx, spec.SessionID)
 			}
-			return ses, err
+			return result, err
 		}
 	}
 
@@ -112,22 +122,29 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 	// disagree).
 	if spec.RestoreHistory && len(boundary.Dropped) > 0 {
 		if err := c.Rollback(ctx, spec.SessionID, boundary); err != nil {
-			return ses, err
+			return result, err
 		}
 	}
 
 	if recoverable {
 		if err := c.completeMutation(ctx, spec.SessionID); err != nil {
-			return ses, err
+			return result, err
 		}
 	}
-	return ses, nil
+	return result, nil
 }
 
-// BoundaryLookup rebuilds the durable rollback cut for a (sessionID, toRunID)
-// the way the live path does — decoding the wire-shaped run blobs the
-// coordinator can't. Boot recovery drives it per logged intent.
-type BoundaryLookup func(ctx context.Context, sessionID, toRunID string) (transcript.Boundary, error)
+func droppedRuns(boundary transcript.Boundary, runs []transcript.Run, inputs map[string][]transcript.ContentBlock) []DroppedRun {
+	byID := make(map[string]transcript.Run, len(runs))
+	for _, run := range runs {
+		byID[run.ID] = run
+	}
+	out := make([]DroppedRun, 0, len(boundary.Dropped))
+	for _, node := range boundary.Dropped {
+		out = append(out, DroppedRun{Run: byID[node.ID], UserInput: inputs[node.ID]})
+	}
+	return out
+}
 
 // RecoverWorkspaceMutations re-drives every file rollback a crash left
 // unfinished (§8.5): for each logged intent it re-restores the working tree
@@ -137,7 +154,7 @@ type BoundaryLookup func(ctx context.Context, sessionID, toRunID string) (transc
 // and the admission guards the live path needs are unnecessary. A failed
 // recovery aborts startup (returned loud) rather than serving a session whose
 // tree and history disagree.
-func (c *Coordinator) RecoverWorkspaceMutations(ctx context.Context, lookup BoundaryLookup) error {
+func (c *Coordinator) RecoverWorkspaceMutations(ctx context.Context) error {
 	if c.mutations == nil {
 		return nil
 	}
@@ -146,15 +163,19 @@ func (c *Coordinator) RecoverWorkspaceMutations(ctx context.Context, lookup Boun
 		return err
 	}
 	for _, m := range pending {
-		if err := c.recoverRollback(ctx, m, lookup); err != nil {
+		if err := c.recoverRollback(ctx, m); err != nil {
 			return fmt.Errorf("recover rollback for session %q: %w", m.SessionID, err)
 		}
 	}
 	return nil
 }
 
-func (c *Coordinator) recoverRollback(ctx context.Context, m execution.WorkspaceMutation, lookup BoundaryLookup) error {
-	boundary, err := lookup(ctx, m.SessionID, m.ToRunID)
+func (c *Coordinator) recoverRollback(ctx context.Context, m execution.WorkspaceMutation) error {
+	_, runs, err := c.s.Transcript().List(ctx, m.SessionID)
+	if err != nil {
+		return err
+	}
+	boundary, err := transcript.TimelineFromRuns(runs).BoundaryAt(m.ToRunID, true)
 	if err != nil {
 		return err
 	}

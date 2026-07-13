@@ -14,15 +14,16 @@ import (
 // InterruptStore is the SQLite-backed durable open-interrupt registry for
 // cross-restart resume — the single implementation each consumer's narrow
 // interrupt port binds to. One row per parked run keyed by run_id (the stable
-// logical run); the wire interrupt payload is stored as opaque JSON text,
-// timestamps as unix nanos. Put is UPSERT so re-recording the same runId
-// overwrites (a run parks at most once at a time).
+// logical run). The canonical typed interrupt union is serialized as an adapter
+// detail; protocol payloads never enter this store. Timestamps use unix nanos.
+// Put is UPSERT so re-recording the same runId overwrites (a run parks at most
+// once at a time).
 type InterruptStore struct {
 	db *sql.DB
 }
 
-// NewInterruptStore binds the SQLite interrupt registry to db. db must
-// have been opened via [Open] so the migration ran.
+// NewInterruptStore binds the SQLite interrupt registry to a database opened via
+// [Open].
 func NewInterruptStore(db *sql.DB) *InterruptStore {
 	return &InterruptStore{db: db}
 }
@@ -32,6 +33,10 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 		return errors.New("sqlite: interrupt runId is required")
 	}
 	var drained string
+	payload, err := json.Marshal(p.Interrupts)
+	if err != nil {
+		return fmt.Errorf("sqlite: encode interrupts: %w", err)
+	}
 	if len(p.DrainedTools) > 0 {
 		b, err := json.Marshal(p.DrainedTools)
 		if err != nil {
@@ -39,8 +44,8 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 		}
 		drained = string(b)
 	}
-	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO interrupts(run_id, session_id, turn_id, process_id, provider, model, interrupts, drained_tools, run_created_at, created_at)
+	_, err = conn(ctx, s.db).ExecContext(ctx,
+		`INSERT INTO interrupts(run_id, session_id, turn_id, process_id, provider, model, payload, drained_tools, run_created_at, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(run_id) DO UPDATE SET
 		   session_id      = excluded.session_id,
@@ -48,11 +53,11 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 		   process_id      = excluded.process_id,
 		   provider        = excluded.provider,
 		   model           = excluded.model,
-		   interrupts      = excluded.interrupts,
+		   payload         = excluded.payload,
 		   drained_tools   = excluded.drained_tools,
 		   run_created_at  = excluded.run_created_at,
 		   created_at      = excluded.created_at`,
-		p.RunID, p.SessionID, p.TurnID, p.ProcessID, p.Provider, p.Model, string(p.Interrupts), drained, p.RunCreatedAt.UnixNano(), p.CreatedAt.UnixNano(),
+		p.RunID, p.SessionID, p.TurnID, p.ProcessID, p.Provider, p.Model, string(payload), drained, p.RunCreatedAt.UnixNano(), p.CreatedAt.UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: put interrupt: %w", err)
@@ -60,7 +65,7 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 	return nil
 }
 
-const interruptColumns = `run_id, session_id, turn_id, process_id, provider, model, interrupts, drained_tools, run_created_at, created_at`
+const interruptColumns = `run_id, session_id, turn_id, process_id, provider, model, payload, drained_tools, run_created_at, created_at`
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
 	query := `SELECT ` + interruptColumns + ` FROM interrupts`
@@ -154,7 +159,9 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 		return interrupts.Pending{}, fmt.Errorf("sqlite: scan interrupt: %w", err)
 	}
 	if payload != "" {
-		p.Interrupts = []byte(payload)
+		if err := json.Unmarshal([]byte(payload), &p.Interrupts); err != nil {
+			return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupts: %w", err)
+		}
 	}
 	if drained != "" {
 		if err := json.Unmarshal([]byte(drained), &p.DrainedTools); err != nil {

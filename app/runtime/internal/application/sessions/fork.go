@@ -5,17 +5,14 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// ForkSpec describes where a session fork should branch. Runs are the timeline
-// nodes for ParentID; empty FromRunID means copy the whole conversation.
+// ForkSpec describes where a session fork should branch.
 type ForkSpec struct {
 	ParentID  string
 	FromRunID string
-	Runs      []transcript.RunNode
 	Title     string
 }
 
@@ -45,11 +42,19 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 	if err != nil {
 		return session.Session{}, err
 	}
-	msgs, err = ResolveForkHistoryPrefix(msgs, spec.Runs, spec.FromRunID)
+	var nodes []transcript.RunNode
+	if spec.FromRunID != "" {
+		_, runs, err := c.s.Transcript().List(ctx, spec.ParentID)
+		if err != nil {
+			return session.Session{}, err
+		}
+		nodes = transcript.TimelineFromRuns(runs)
+	}
+	msgs, err = ResolveForkHistoryPrefix(msgs, nodes, spec.FromRunID)
 	if err != nil {
 		return session.Session{}, err
 	}
-	return c.s.ApplyFork(ctx, execution.ForkPlan{
+	return c.s.ApplyFork(ctx, ForkPlan{
 		ParentID: spec.ParentID,
 		Messages: msgs,
 		Title:    spec.Title,

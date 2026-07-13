@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -62,8 +62,8 @@ func TestUpdateSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("relocate: %v", err)
 	}
-	if out.Cwd != worktree.CanonicalCwd(newCwd) {
-		t.Errorf("Cwd = %q, want relocated %q", out.Cwd, worktree.CanonicalCwd(newCwd))
+	if out.Cwd != workspacepath.Canonical(newCwd) {
+		t.Errorf("Cwd = %q, want relocated %q", out.Cwd, workspacepath.Canonical(newCwd))
 	}
 
 	// metadata is full-replaced and round-trips arbitrary JSON values
@@ -97,13 +97,13 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	id := created.ID
 
 	// Seed one of every session-scoped row.
-	if err := hist.PutRun(ctx, transcript.Run{SessionID: id, RunID: "run_1", Blob: []byte(`{"id":"run_1"}`)}); err != nil {
+	if err := hist.PutRun(ctx, transcript.Run{SessionID: id, ID: "run_1"}); err != nil {
 		t.Fatalf("seed run: %v", err)
 	}
-	if err := hist.AppendItem(ctx, transcript.Item{SessionID: id, RunID: "run_1", ItemID: "item_1", Blob: []byte(`{"id":"item_1"}`)}); err != nil {
+	if err := hist.AppendItem(ctx, transcript.Item{SessionID: id, RunID: "run_1", ID: "item_1"}); err != nil {
 		t.Fatalf("seed item: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_1", SessionID: id, Interrupts: []byte(`[]`)}); err != nil {
+	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_1", SessionID: id}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 	history := map[string][]chat.Message{id: {chat.NewUserMessage("hi")}}
@@ -164,10 +164,9 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 	created, _ := svc.Create(ctx, "parked", "/w")
 	id := created.ID
 	if err := ints.Put(ctx, interrupts.Pending{
-		RunID:      "run_parked",
-		SessionID:  id,
-		TurnID:     "turn_parked",
-		Interrupts: []byte(`[]`),
+		RunID:     "run_parked",
+		SessionID: id,
+		TurnID:    "turn_parked",
 	}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}

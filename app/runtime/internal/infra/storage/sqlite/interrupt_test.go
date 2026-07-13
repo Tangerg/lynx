@@ -2,12 +2,12 @@ package sqlite_test
 
 import (
 	"context"
-	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -26,13 +26,16 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 	store := newInterruptStore(t)
 
 	p := interrupts.Pending{
-		RunID:      "run_1",
-		SessionID:  "ses_a",
-		TurnID:     "turn_1",
-		Provider:   "anthropic",
-		Model:      "claude-opus-4-8",
-		Interrupts: json.RawMessage(`[{"kind":"plan"}]`),
-		CreatedAt:  time.Unix(5, 0).UTC(),
+		RunID:     "run_1",
+		SessionID: "ses_a",
+		TurnID:    "turn_1",
+		Provider:  "anthropic",
+		Model:     "claude-opus-4-8",
+		Interrupts: []transcript.Interrupt{{
+			ItemID: "item_question", Kind: transcript.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "Choose"},
+		}},
+		CreatedAt: time.Unix(5, 0).UTC(),
 	}
 	if err := store.Put(ctx, p); err != nil {
 		t.Fatalf("Put: %v", err)
@@ -47,7 +50,7 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Get: ok=%v err=%v", ok, err)
 	}
-	if got.SessionID != "ses_b" || string(got.Interrupts) != `[{"kind":"plan"}]` || !got.CreatedAt.Equal(time.Unix(5, 0).UTC()) {
+	if got.SessionID != "ses_b" || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_question" || !got.CreatedAt.Equal(time.Unix(5, 0).UTC()) {
 		t.Fatalf("Get returned %+v", got)
 	}
 	// Per-run model selection round-trips (T1.4 — cross-restart rehydrate rebuilds
@@ -92,11 +95,14 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	}
 
 	if err := store.Put(ctx, interrupts.Pending{
-		RunID:      "run_1",
-		SessionID:  "ses_a",
-		ProcessID:  "proc_1",
-		Interrupts: json.RawMessage(`[{"kind":"approval"}]`),
-		CreatedAt:  time.Unix(7, 0).UTC(),
+		RunID:     "run_1",
+		SessionID: "ses_a",
+		ProcessID: "proc_1",
+		Interrupts: []transcript.Interrupt{{
+			ItemID: "item_approval", Kind: transcript.ApprovalInterrupt,
+			Approval: &transcript.Approval{Risk: "high"},
+		}},
+		CreatedAt: time.Unix(7, 0).UTC(),
 	}); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
@@ -106,7 +112,7 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Consume: ok=%v err=%v", ok, err)
 	}
-	if got.ProcessID != "proc_1" || string(got.Interrupts) != `[{"kind":"approval"}]` {
+	if got.ProcessID != "proc_1" || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_approval" {
 		t.Fatalf("Consume returned %+v", got)
 	}
 

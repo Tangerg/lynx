@@ -15,7 +15,7 @@ const runCleanupTimeout = 5 * time.Second
 // the run context's cancel, the detached owner context (survives request
 // cancellation, killed only by [Coordinator.Close]), the run's event [Journal],
 // and the cancel bookkeeping that linearizes cancellation against interrupt
-// publication. It is the [SegmentView] the projector reads at terminal time.
+// publication. The reducer reads its late-bound cancellation reason.
 type handle struct {
 	mu              sync.Mutex
 	cancel          context.CancelFunc
@@ -61,9 +61,8 @@ func (h *handle) commitInterrupt(commit func() error) (committed bool, err error
 	return true, nil
 }
 
-// CancelReason returns the recorded human cancel reason — the [SegmentView] seam
-// the projector reads when it shapes a canceled terminal. Late-bound on purpose:
-// the cancel path sets it after the segment starts.
+// CancelReason returns the recorded human cancel reason. It is late-bound on
+// purpose because cancellation can arrive after the segment starts.
 func (h *handle) CancelReason() string {
 	if h == nil {
 		return ""

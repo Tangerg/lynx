@@ -1,53 +1,15 @@
-// Package transcript defines the durable Item history model — the authoritative
-// completed-Item log a session's items.list is served from (API.md §7.4 /
-// §10.3). It is the protocol's "Item is the only history primitive" (§0.1) made
-// persistent: every completed Item and the RunRef it belongs to is recorded as a
-// run streams, so history hydration after a restart returns exactly what the
-// live stream emitted — same ids, same runId, same text — rather than
-// reconstructing items from chat messages.
-//
-// This package holds the persisted shapes (Item, Run) and the run-timeline
-// boundary invariant (Timeline, Boundary — the rollback/fork cut). Items and
-// Runs carry opaque wire blobs (marshaled protocol.Item / protocol.RunRef) plus
-// the few fields needed to order and group them, so the package depends on
-// neither delivery/protocol nor any backend. Persistence is a consumer concern:
-// each consumer declares the narrow transcript port it needs.
+// Package transcript defines the canonical execution transcript and the
+// run-timeline boundary invariant used by history, rollback, and fork. The
+// records are transport-neutral domain values; persistence and protocol
+// projection are adapter concerns.
 package transcript
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"time"
 )
-
-// Item is one persisted completed Item. Blob is the marshaled wire Item;
-// the lifted fields let the store order (by append) and group (by RunID)
-// without parsing the blob.
-type Item struct {
-	SessionID string
-	RunID     string
-	ItemID    string
-	CreatedAt time.Time
-	Blob      json.RawMessage
-}
-
-// Run is one persisted RunRef, upserted by (SessionID, RunID). RunID is the
-// STABLE logical run id: a run's initial segment and every resume continuation
-// share it, so the segments collapse into ONE record here (each segment upserts,
-// the terminal one wins). Blob is the marshaled wire RunRef.
-type Run struct {
-	SessionID string
-	RunID     string
-	UpdatedAt time.Time
-	Blob      json.RawMessage
-	// Mark is the per-run chat history message watermark — the message count
-	// captured when the run terminated (post-compaction). sessions.rollback /
-	// fork{fromRunId} truncate the message log to it. -1 means unknown: a run
-	// still in flight (or parked between segments).
-	Mark int
-}
 
 // --- run timeline (the rollback / fork boundary invariant) ---
 //
@@ -58,8 +20,8 @@ type Run struct {
 // and sessions.fork both cut this timeline at a run boundary — keeping a run
 // (with its subagents) and dropping/copying from the next root on. That boundary
 // math is a domain invariant of the run log, so it lives here (wire-free) rather
-// than in the protocol adapter; the adapter only lifts the structured fields out
-// of the opaque Run.Blob and maps these sentinels to wire errors. See
+// than in the protocol adapter; adapters only map these canonical values and
+// sentinels to their external representation. See
 // doc/EXECUTION_CENTERED_ARCHITECTURE.md.
 
 // Boundary-resolution errors. The adapter maps them to protocol errors.
@@ -71,9 +33,7 @@ var (
 	ErrNotRoot = errors.New("run is not a root run")
 )
 
-// RunNode is one run's position in a session's timeline — the structured fields
-// the boundary computation reasons over, lifted out of the opaque [Run.Blob] by
-// the caller (which owns wire parsing). Wire-free by design.
+// RunNode is one run's position in a session's timeline.
 type RunNode struct {
 	ID              string
 	SpawnedByItemID string    // non-empty: a subagent run
@@ -89,6 +49,31 @@ func (n RunNode) IsRoot() bool { return n.SpawnedByItemID == "" }
 // fork/rollback: callers lift wire/store records into [RunNode] values, then
 // ask the timeline where the inclusive-keep split lands.
 type Timeline []RunNode
+
+func TimelineFromRuns(runs []Run) Timeline {
+	nodes := make(Timeline, len(runs))
+	for i, run := range runs {
+		nodes[i] = RunNode{
+			ID: run.ID, SpawnedByItemID: run.SpawnedByItemID,
+			CreatedAt: run.CreatedAt, Mark: run.MessageMark,
+		}
+	}
+	return nodes
+}
+
+func OpeningInputs(items []Item) map[string][]ContentBlock {
+	out := make(map[string][]ContentBlock)
+	for _, item := range items {
+		if item.Kind != UserMessage {
+			continue
+		}
+		if _, exists := out[item.RunID]; exists {
+			continue
+		}
+		out[item.RunID] = slices.Clone(item.Content)
+	}
+	return out
+}
 
 // Boundary is the inclusive-keep split of a timeline at a run:
 //

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -246,13 +247,15 @@ func (s stubLifecycleStores) Session() sessions.SessionStore { return s.rt.sess 
 
 func (s stubLifecycleStores) Interrupts() sessions.InterruptStore { return s.rt.interrupts }
 
+func (s stubLifecycleStores) Transcript() sessions.TranscriptStore { return s.rt.hist }
+
 func (s stubLifecycleStores) ReadHistory(ctx context.Context, id string) ([]chat.Message, error) {
 	return s.rt.ReadHistory(ctx, id)
 }
 
 func (s stubLifecycleStores) ForgetSession(id string) { s.rt.ForgetSession(id) }
 
-func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan execution.ForkPlan) (session.Session, error) {
+func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
 	child, err := s.rt.sess.Fork(ctx, plan.ParentID, "")
 	if err != nil {
 		return session.Session{}, err
@@ -274,7 +277,7 @@ func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan execution.ForkP
 // store (admission state is verified in the sqlite/sessions unit tests), so the
 // run-state transition is skipped — the observable transcript/history effects
 // these delivery tests assert are unaffected.
-func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan execution.RollbackPlan) error {
+func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
 	if plan.KeepMark >= 0 {
 		if err := s.rt.TruncateMessages(ctx, plan.SessionID, plan.KeepMark); err != nil {
 			return err
@@ -291,7 +294,7 @@ func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan execution.R
 	return nil
 }
 
-func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan execution.RestorePlan) error {
+func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.RestorePlan) error {
 	id := plan.Session.ID
 	if err := s.rt.sess.Restore(ctx, plan.Session); err != nil {
 		return err
@@ -382,6 +385,7 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 	return sessions.New(sessions.Dependencies{
 		Stores:      stubLifecycleStores{rt: s},
 		Turns:       stubLifecycleTurns{rt: s},
+		Paths:       workspacepath.Resolver{},
 		Checkpoints: checkpoints,
 		Mutations:   s.muts,
 	})
@@ -400,10 +404,12 @@ func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publi
 
 type stubRunState struct{}
 
-func (stubRunState) Admit(context.Context, execution.RunDraft) error              { return nil }
-func (stubRunState) Resume(context.Context, execution.ResumeDraft) error          { return nil }
-func (stubRunState) Suspend(context.Context, string) error                        { return nil }
-func (stubRunState) Terminalize(context.Context, string, execution.Outcome) error { return nil }
+func (stubRunState) Admit(context.Context, execution.RunDraft) error     { return nil }
+func (stubRunState) Resume(context.Context, execution.ResumeDraft) error { return nil }
+func (stubRunState) Suspend(context.Context, string, string) error       { return nil }
+func (stubRunState) Terminalize(context.Context, string, string, execution.Outcome) error {
+	return nil
+}
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call
 // (via the lifecycle coordinator) to release a removed session's process-local

@@ -33,8 +33,7 @@ var (
 	_ history.Counter  = (*MessageStore)(nil)
 )
 
-// NewMessageStore binds the chat history store to db. db must have been
-// opened via [Open] so the migration ran.
+// NewMessageStore binds the chat history store to a database opened via [Open].
 func NewMessageStore(db *sql.DB) *MessageStore {
 	return &MessageStore{db: db}
 }

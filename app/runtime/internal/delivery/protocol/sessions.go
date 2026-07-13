@@ -164,16 +164,14 @@ type ExportSessionResponse struct {
 }
 
 // SessionArtifactVersion is the artifact schema version. Import rejects an
-// artifact it doesn't recognize, so a breaking change bumps this. v2 renamed
-// ArtifactRun.mark → messageMark (self-describing on the wire); a v1 artifact
-// is rejected rather than silently read with the field absent.
-const SessionArtifactVersion = 2
+// artifact it doesn't recognize; development builds do not migrate old
+// artifacts.
+const SessionArtifactVersion = 3
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // metadata plus the full conversation — chat messages (the model's context),
-// and the items + runs (the UI transcript). Messages are opaque chat.Message
-// blobs; items/runs carry the storage keys explicitly so import reconstructs
-// them without peeking inside the wire blob.
+// and the items + runs (the UI transcript). Messages remain opaque
+// chat.Message values; items and runs are explicit protocol DTOs.
 type SessionArtifact struct {
 	Version  int               `json:"version"`
 	Session  Session           `json:"session"`
@@ -182,22 +180,17 @@ type SessionArtifact struct {
 	Items    []ArtifactItem    `json:"items"`
 }
 
-// ArtifactRun is one run record in a SessionArtifact — the wire RunRef blob
-// plus the storage-side fields (watermark, updatedAt) not carried in RunRef.
+// ArtifactRun is one run record plus the storage-side fields not carried by
+// RunRef.
 type ArtifactRun struct {
-	RunID       string          `json:"runId"`
-	UpdatedAt   time.Time       `json:"updatedAt"`
-	MessageMark int             `json:"messageMark"` // conversation message watermark for rollback/fork boundaries (-1 = unknown)
-	Run         json.RawMessage `json:"run"`         // protocol.RunRef blob
+	UpdatedAt   time.Time `json:"updatedAt"`
+	MessageMark int       `json:"messageMark"`
+	Run         RunRef    `json:"run"`
 }
 
-// ArtifactItem is one item record in a SessionArtifact — the wire Item blob
-// plus the storage keys (run id, item id, createdAt) needed to re-persist it.
+// ArtifactItem is one canonical item projection in a SessionArtifact.
 type ArtifactItem struct {
-	RunID     string          `json:"runId"`
-	ItemID    string          `json:"itemId"`
-	CreatedAt time.Time       `json:"createdAt"`
-	Item      json.RawMessage `json:"item"` // protocol.Item blob
+	Item Item `json:"item"`
 }
 
 // ImportSessionRequest — sessions.import body. Restore semantics: the session

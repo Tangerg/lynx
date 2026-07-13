@@ -21,14 +21,6 @@ type RunEvent struct {
 	Event     StreamEvent `json:"event"`
 }
 
-// Durable, Terminal, and Cursor let a RunEvent satisfy the application/runs
-// Journal's Event interface (buffer / fan-out / replay after a cursor) without
-// the Journal knowing anything wire-specific. EventID is fixed-width
-// zero-padded, so the Journal's lexical cursor comparison agrees with numeric.
-func (e RunEvent) Durable() bool  { return e.Event.IsDurable() }
-func (e RunEvent) Terminal() bool { return e.Event.Type == StreamSegmentFinished }
-func (e RunEvent) Cursor() string { return e.EventID }
-
 // StreamEventType discriminates the StreamEvent union (API.md §5).
 type StreamEventType string
 
@@ -71,11 +63,6 @@ type StreamEvent struct {
 	Payload  any            `json:"payload,omitempty"` // custom
 	Durable  *bool          `json:"durable,omitempty"` // custom only — its self-declared durability (default false)
 }
-
-// RunProjection marks StreamEvent as a delivery-owned payload accepted by the
-// application run journal. It intentionally carries no behavior: lifecycle and
-// durability metadata remain explicit on runs.ProjectedEvent.
-func (StreamEvent) RunProjection() {}
 
 // IsDurable reports whether a stream event is durable (authoritative /
 // replayable, retained for replay + persisted) per the §5.2 derivation

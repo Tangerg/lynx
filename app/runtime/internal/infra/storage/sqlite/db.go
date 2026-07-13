@@ -1,5 +1,5 @@
-// Package sqlite hosts the SQLite-backed implementations of the service
-// interfaces in lyra/internal/domain/*. One SQLite file is the single
+// Package sqlite hosts the SQLite-backed implementations of Runtime's storage
+// ports. One SQLite file is the single
 // durable backend — sessions / process snapshots / interrupts / history /
 // providers each live in their own table, sharing one *sql.DB. (Memory is
 // the deliberate exception: it stays a user-editable LYRA.md file cascade,
@@ -13,12 +13,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
 
-// Open dials a SQLite database at path and applies the migrations
-// every storage type in this package depends on. The returned *sql.DB
+// Open dials a SQLite database at path and installs the current schema. A
+// mismatched development schema is discarded instead of migrated. The returned *sql.DB
 // is safe for concurrent use; callers share it across every
 // sqlite-backed store (session / transcript / interrupt / provider /
 // message). Knowledge (LYRA.md) is file-backed, not here.
@@ -42,17 +43,24 @@ func Open(path string) (*sql.DB, error) {
 	// concurrent transactions.
 	db.SetMaxOpenConns(1)
 
-	if err := migrate(db); err != nil {
+	if err := installCurrentSchema(db); err != nil {
 		return nil, errors.Join(err, db.Close())
 	}
 	return db, nil
 }
 
-// migrate is a forward-only schema bootstrap. We deliberately don't
-// version the migrations — there's only one schema today and the
-// project is pre-1.0; when we ship a v2 schema we'll add a tracker
-// table at the same time.
-func migrate(db *sql.DB) error {
+const schemaVersion = 2
+
+func installCurrentSchema(db *sql.DB) error {
+	var version int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return fmt.Errorf("sqlite: read schema version: %w", err)
+	}
+	if version != schemaVersion {
+		if err := discardSchema(db); err != nil {
+			return err
+		}
+	}
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS sessions (
 			id          TEXT    PRIMARY KEY,
@@ -103,7 +111,7 @@ func migrate(db *sql.DB) error {
 			process_id     TEXT    NOT NULL DEFAULT '',
 			provider       TEXT    NOT NULL DEFAULT '',
 			model          TEXT    NOT NULL DEFAULT '',
-			interrupts     TEXT    NOT NULL DEFAULT '',
+			payload        TEXT    NOT NULL DEFAULT '',
 			drained_tools  TEXT    NOT NULL DEFAULT '',
 			run_created_at INTEGER NOT NULL DEFAULT 0,
 			created_at     INTEGER NOT NULL
@@ -129,7 +137,7 @@ func migrate(db *sql.DB) error {
 			run_id      TEXT    NOT NULL DEFAULT '',
 			item_id     TEXT    NOT NULL UNIQUE,
 			created_at  INTEGER NOT NULL,
-			item        TEXT    NOT NULL
+			payload     TEXT    NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_history_items_session
 			ON history_items(session_id, seq)`,
@@ -137,7 +145,7 @@ func migrate(db *sql.DB) error {
 			run_id       TEXT    PRIMARY KEY,
 			session_id   TEXT    NOT NULL,
 			updated_at   INTEGER NOT NULL,
-			run          TEXT    NOT NULL,
+			payload      TEXT    NOT NULL,
 			-- message_mark is the conversation message count captured when the run
 			-- finished (post-compaction) — the per-run watermark sessions.rollback
 			-- / fork{fromRunId} truncate to. -1 = unknown / still in-flight (B4).
@@ -281,7 +289,39 @@ func migrate(db *sql.DB) error {
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
-			return fmt.Errorf("sqlite: migrate: %w", err)
+			return fmt.Errorf("sqlite: install current schema: %w", err)
+		}
+	}
+	if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion)); err != nil {
+		return fmt.Errorf("sqlite: set schema version: %w", err)
+	}
+	return nil
+}
+
+func discardSchema(db *sql.DB) error {
+	rows, err := db.Query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
+	if err != nil {
+		return fmt.Errorf("sqlite: list stale schema: %w", err)
+	}
+	var tables []string
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			rows.Close()
+			return fmt.Errorf("sqlite: scan stale schema: %w", err)
+		}
+		tables = append(tables, table)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("sqlite: close stale schema rows: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("sqlite: list stale schema: %w", err)
+	}
+	for _, table := range tables {
+		quoted := `"` + strings.ReplaceAll(table, `"`, `""`) + `"`
+		if _, err := db.Exec(`DROP TABLE ` + quoted); err != nil {
+			return fmt.Errorf("sqlite: discard table %q: %w", table, err)
 		}
 	}
 	return nil

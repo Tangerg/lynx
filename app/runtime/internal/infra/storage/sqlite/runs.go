@@ -33,7 +33,7 @@ type RunStateStore struct {
 }
 
 // NewRunStateStore binds the run-admission table to db. db must have been opened
-// via [Open] so the migration ran.
+// via [Open] so the current schema was installed.
 func NewRunStateStore(db *sql.DB) *RunStateStore {
 	return &RunStateStore{db: db}
 }
@@ -57,13 +57,25 @@ func (s *RunStateStore) Admit(ctx context.Context, draft execution.RunDraft) err
 	return nil
 }
 
-// Suspend parks the session's running Run (Running → Interrupted, kept
-// non-terminal so the session stays durably claimed) by deferring to the
-// [execution.RunState] machine. Idempotent when the run is already interrupted (a
-// re-applied park) or absent (nothing active); Suspend from any other state is
-// illegal and surfaces an error rather than silently succeeding.
-func (s *RunStateStore) Suspend(ctx context.Context, sessionID string) error {
-	return s.advance(ctx, sessionID, "suspend", execution.RunState.Suspend, execution.Interrupted)
+// Suspend parks the exact running Run (Running → Interrupted, kept non-terminal
+// so the session stays durably claimed) by deferring to the [execution.RunState]
+// machine. A missing row, repeated transition, mismatched identity, or any other
+// source state is an ownership error and never succeeds silently.
+func (s *RunStateStore) Suspend(ctx context.Context, sessionID, runID string) error {
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		current, found, err := s.stateForRun(ctx, sessionID, runID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return errors.New("sqlite: suspend run: active run not found")
+		}
+		next, ok := current.Suspend()
+		if !ok {
+			return fmt.Errorf("sqlite: suspend run: illegal transition from %s", current)
+		}
+		return s.writeState(ctx, sessionID, runID, "suspend", current, next, "")
+	})
 }
 
 // Resume continues the exact parked Run (Interrupted → Running). Unlike cleanup
@@ -71,7 +83,7 @@ func (s *RunStateStore) Suspend(ctx context.Context, sessionID string) error {
 // continuation opening does not own the durable Run and must roll back.
 func (s *RunStateStore) Resume(ctx context.Context, draft execution.ResumeDraft) error {
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		cur, found, err := s.stateForRun(ctx, draft)
+		cur, found, err := s.stateForRun(ctx, draft.SessionID, draft.RunID)
 		if err != nil {
 			return err
 		}
@@ -96,83 +108,11 @@ func (s *RunStateStore) Resume(ctx context.Context, draft execution.ResumeDraft)
 	})
 }
 
-func (s *RunStateStore) stateForRun(ctx context.Context, draft execution.ResumeDraft) (execution.RunState, bool, error) {
+func (s *RunStateStore) stateForRun(ctx context.Context, sessionID, runID string) (execution.RunState, bool, error) {
 	var coarse string
 	err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT state FROM runs WHERE run_id = ? AND session_id = ? AND state != ?`,
-		draft.RunID, draft.SessionID, runStateTerminal).Scan(&coarse)
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
-		return 0, false, nil
-	case err != nil:
-		return 0, false, fmt.Errorf("sqlite: read resume run state: %w", err)
-	case coarse == runStateInterrupted:
-		return execution.Interrupted, true, nil
-	default:
-		return execution.Running, true, nil
-	}
-}
-
-// Terminalize ends the session's non-terminal Run with outcome o, freeing the
-// admission slot. Keyed on session (the partial unique index guarantees one
-// non-terminal Run, so a resumed run whose segment id differs still
-// terminalizes). Deferring to [execution.RunState.Terminate] enforces the
-// machine's legality — a parked run may terminalize only via cancellation; any
-// other terminal from a parked run must resume first — so an illegal terminal
-// surfaces instead of silently overwriting the row. Idempotent when the session
-// has no non-terminal Run (already terminal / never admitted).
-func (s *RunStateStore) Terminalize(ctx context.Context, sessionID string, o execution.Outcome) error {
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		cur, found, err := s.activeState(ctx, sessionID)
-		if err != nil || !found {
-			return err
-		}
-		next, ok := cur.Terminate(o)
-		if !ok {
-			return fmt.Errorf("sqlite: terminalize run: illegal %s from %s", o, cur)
-		}
-		return s.writeState(ctx, sessionID, "terminalize", cur, next, o.String())
-	})
-}
-
-// advance applies a domain [execution.RunState] transition to the session's one
-// non-terminal Run and persists the result, keeping the store's admission state
-// governed by the machine rather than ad-hoc SQL guards:
-//
-//   - no active run                → benign no-op (already terminal / never admitted).
-//   - the move is legal            → CAS-write guarded on the observed state.
-//   - illegal but already at dest  → benign idempotent no-op (a re-applied park).
-//   - illegal from any other state → surfaced as an error, not silently dropped.
-//
-// The read-classify-write runs in one transaction ([RunInTx] joins a caller's
-// commit transaction or opens its own), so the observed state can't shift under
-// the CAS.
-func (s *RunStateStore) advance(ctx context.Context, sessionID, op string, move func(execution.RunState) (execution.RunState, bool), dest execution.RunState) error {
-	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		cur, found, err := s.activeState(ctx, sessionID)
-		if err != nil || !found {
-			return err
-		}
-		next, ok := move(cur)
-		if !ok {
-			if cur == dest {
-				return nil
-			}
-			return fmt.Errorf("sqlite: %s run: illegal transition from %s", op, cur)
-		}
-		return s.writeState(ctx, sessionID, op, cur, next, "")
-	})
-}
-
-// activeState reads the session's single non-terminal Run (the partial unique
-// index guarantees at most one) and reconstructs its [execution.RunState].
-// found=false means the session has no active run — every transition treats that
-// as a benign no-op.
-func (s *RunStateStore) activeState(ctx context.Context, sessionID string) (execution.RunState, bool, error) {
-	var coarse string
-	err := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT state FROM runs WHERE session_id = ? AND state != ?`,
-		sessionID, runStateTerminal).Scan(&coarse)
+		runID, sessionID, runStateTerminal).Scan(&coarse)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return 0, false, nil
@@ -185,16 +125,38 @@ func (s *RunStateStore) activeState(ctx context.Context, sessionID string) (exec
 	}
 }
 
+// Terminalize ends the exact non-terminal Run with outcome o, freeing the
+// admission slot. RunID + SessionID prevent a late segment from modifying a
+// different run admitted by the same session. [execution.RunState.Terminate]
+// enforces the machine's legality, and a missing row, repeated transition,
+// mismatched identity, or illegal source state fails instead of being hidden.
+func (s *RunStateStore) Terminalize(ctx context.Context, sessionID, runID string, o execution.Outcome) error {
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		cur, found, err := s.stateForRun(ctx, sessionID, runID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return errors.New("sqlite: terminalize run: active run not found")
+		}
+		next, ok := cur.Terminate(o)
+		if !ok {
+			return fmt.Errorf("sqlite: terminalize run: illegal %s from %s", o, cur)
+		}
+		return s.writeState(ctx, sessionID, runID, "terminalize", cur, next, o.String())
+	})
+}
+
 // writeState persists a machine-validated transition as a CAS guarded on the
 // observed source state; a 0-row result means the row changed under the
 // transaction (a lost race) and is surfaced rather than silently dropped. The
 // outcome column is stamped from o — empty for a non-terminal transition, which
 // leaves it at the empty string every non-terminal row already carries.
-func (s *RunStateStore) writeState(ctx context.Context, sessionID, op string, from, to execution.RunState, outcome string) error {
+func (s *RunStateStore) writeState(ctx context.Context, sessionID, runID, op string, from, to execution.RunState, outcome string) error {
 	res, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE runs SET state = ?, outcome = ?, updated_at = ?
-		 WHERE session_id = ? AND state = ?`,
-		coarseState(to), outcome, time.Now().UTC().UnixNano(), sessionID, coarseState(from))
+		 WHERE session_id = ? AND run_id = ? AND state = ?`,
+		coarseState(to), outcome, time.Now().UTC().UnixNano(), sessionID, runID, coarseState(from))
 	if err != nil {
 		return fmt.Errorf("sqlite: %s run: %w", op, err)
 	}

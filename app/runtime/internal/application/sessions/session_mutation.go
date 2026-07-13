@@ -6,7 +6,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -49,7 +48,7 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 // The caller decodes the wire artifact into these domain values; this method
 // only commits them.
 func (c *Coordinator) RestoreSession(ctx context.Context, ses session.Session, msgs []chat.Message, runs []transcript.Run, items []transcript.Item) error {
-	return c.s.ApplyRestore(ctx, execution.RestorePlan{
+	return c.s.ApplyRestore(ctx, RestorePlan{
 		Session:  ses,
 		Messages: msgs,
 		Runs:     runs,

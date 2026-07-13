@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -38,16 +37,10 @@ func (s *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 	}
 	out := make([]protocol.OpenInterrupt, 0, len(pending))
 	for _, p := range pending {
-		var ints []protocol.Interrupt
-		if err := json.Unmarshal(p.Interrupts, &ints); err != nil {
-			// Corrupted interrupt record — skip it rather than
-			// surfacing a bogus entry with zero interrupts.
-			continue
-		}
 		out = append(out, protocol.OpenInterrupt{
 			RunID:      p.RunID,
 			SessionID:  p.SessionID,
-			Interrupts: ints,
+			Interrupts: presentInterrupts(p.Interrupts),
 			CreatedAt:  p.CreatedAt,
 		})
 	}

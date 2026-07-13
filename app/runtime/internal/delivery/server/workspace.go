@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // workspace.* (API.md §7.5) is split across files by the source each read draws
@@ -29,7 +29,7 @@ func (s *Server) workspaceRoot(cwd string) (string, error) {
 	if root == "" {
 		root = s.serverInfo.Cwd
 	}
-	resolved, err := worktree.ResolveExistingDir(root)
+	resolved, err := workspacepath.ResolveExistingDir(root)
 	if err != nil {
 		return "", fmt.Errorf("%w: %s: %v", protocol.ErrCwdUnavailable, root, err)
 	}
@@ -67,8 +67,8 @@ func resolveExistingInRoot(root, p string) (string, error) {
 	if err != nil {
 		return rel, nil
 	}
-	resolved = worktree.CanonicalCwd(resolved)
-	if !pathInside(worktree.CanonicalCwd(root), resolved) {
+	resolved = workspacepath.Canonical(resolved)
+	if !pathInside(workspacepath.Canonical(root), resolved) {
 		return "", protocol.ErrPathOutsideRoot
 	}
 	return rel, nil

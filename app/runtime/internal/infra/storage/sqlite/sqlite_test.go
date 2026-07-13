@@ -2,12 +2,13 @@ package sqlite_test
 
 import (
 	"context"
-	"encoding/json"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -313,20 +314,21 @@ func TestTranscriptStore_RoundTrip(t *testing.T) {
 	now := time.Now().UTC()
 
 	for _, it := range []transcript.Item{
-		{SessionID: "ses_a", RunID: "run_1", ItemID: "i1", CreatedAt: now, Blob: json.RawMessage(`{"id":"i1"}`)},
-		{SessionID: "ses_a", RunID: "run_1", ItemID: "i2", CreatedAt: now, Blob: json.RawMessage(`{"id":"i2"}`)},
-		{SessionID: "ses_b", RunID: "run_9", ItemID: "i9", CreatedAt: now, Blob: json.RawMessage(`{"id":"i9"}`)},
+		{SessionID: "ses_a", RunID: "run_1", ID: "i1", CreatedAt: now, Status: transcript.ItemCompleted, Kind: transcript.UserMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "one"}}},
+		{SessionID: "ses_a", RunID: "run_1", ID: "i2", CreatedAt: now, Status: transcript.ItemCompleted, Kind: transcript.AgentMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "two"}}},
+		{SessionID: "ses_b", RunID: "run_9", ID: "i9", CreatedAt: now, Status: transcript.ItemCompleted, Kind: transcript.Reasoning, Text: "other"},
 	} {
 		err = store.AppendItem(ctx, it)
 		if err != nil {
-			t.Fatalf("append %s: %v", it.ItemID, err)
+			t.Fatalf("append %s: %v", it.ID, err)
 		}
 	}
-	err = store.PutRun(ctx, transcript.Run{SessionID: "ses_a", RunID: "run_1", UpdatedAt: now, Blob: json.RawMessage(`{"status":"running"}`)})
+	err = store.PutRun(ctx, transcript.Run{SessionID: "ses_a", ID: "run_1", State: execution.Running, UpdatedAt: now, MessageMark: -1})
 	if err != nil {
 		t.Fatalf("put run running: %v", err)
 	}
-	err = store.PutRun(ctx, transcript.Run{SessionID: "ses_a", RunID: "run_1", UpdatedAt: now, Blob: json.RawMessage(`{"status":"finished"}`)})
+	outcome := execution.OutcomeCompleted
+	err = store.PutRun(ctx, transcript.Run{SessionID: "ses_a", ID: "run_1", State: execution.Completed, Outcome: &outcome, UpdatedAt: now, MessageMark: 3})
 	if err != nil {
 		t.Fatalf("put run finished: %v", err)
 	}
@@ -335,11 +337,47 @@ func TestTranscriptStore_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(items) != 2 || items[0].ItemID != "i1" || items[1].ItemID != "i2" {
+	if len(items) != 2 || items[0].ID != "i1" || items[1].ID != "i2" || items[1].Content[0].Text != "two" {
 		t.Fatalf("items = %+v, want [i1 i2]", items)
 	}
-	if len(runs) != 1 || string(runs[0].Blob) != `{"status":"finished"}` {
+	if len(runs) != 1 || runs[0].State != execution.Completed || runs[0].Outcome == nil || *runs[0].Outcome != execution.OutcomeCompleted || runs[0].MessageMark != 3 {
 		t.Fatalf("runs = %+v, want one finished run", runs)
+	}
+}
+
+// TestOpenDiscardsAnOlderSchema codifies the development contract: storage
+// shape changes reset obsolete local state instead of carrying migrations or
+// compatibility readers into the new architecture.
+func TestOpenDiscardsAnOlderSchema(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "legacy.db")
+	legacy, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open legacy database: %v", err)
+	}
+	if _, err := legacy.Exec(`CREATE TABLE legacy_runs (id TEXT PRIMARY KEY); INSERT INTO legacy_runs(id) VALUES ('old'); PRAGMA user_version = 1`); err != nil {
+		_ = legacy.Close()
+		t.Fatalf("seed legacy schema: %v", err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatalf("close legacy database: %v", err)
+	}
+
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("Open current schema: %v", err)
+	}
+	defer db.Close()
+	var version int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 2 {
+		t.Fatalf("schema version = %d, err=%v, want 2", version, err)
+	}
+	var legacyTables int
+	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='legacy_runs'`).Scan(&legacyTables); err != nil || legacyTables != 0 {
+		t.Fatalf("legacy table count = %d, err=%v, want discarded", legacyTables, err)
+	}
+	var currentTables int
+	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='sessions'`).Scan(&currentTables); err != nil || currentTables != 1 {
+		t.Fatalf("sessions table count = %d, err=%v, want current schema", currentTables, err)
 	}
 }
 

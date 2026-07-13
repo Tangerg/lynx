@@ -1,45 +1,35 @@
 package server
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 func usd(v float64) *float64 { return &v }
 
-func finishedRunBlob(t *testing.T, provider, model string, at time.Time, u protocol.Usage) json.RawMessage {
+func finishedRun(t *testing.T, provider, model string, at time.Time, usage transcript.Usage) transcript.Run {
 	t.Helper()
-	b, err := json.Marshal(protocol.RunRef{
-		ID:         "run_x",
-		Provider:   provider,
-		Model:      model,
-		Status:     protocol.RunStatusFinished,
-		FinishedAt: at,
-		Outcome: &protocol.RunOutcome{
-			Type:   protocol.OutcomeCompleted,
-			Result: &protocol.RunResult{Usage: &u},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
+	return transcript.Run{
+		ID: "run_x", Provider: provider, Model: model, State: execution.Completed,
+		FinishedAt: at, Result: &transcript.RunResult{Usage: &usage},
 	}
-	return b
 }
 
 func TestFoldRunUsage_FoldsAllDimensions(t *testing.T) {
 	day := time.Date(2026, 6, 21, 10, 0, 0, 0, time.UTC)
-	blob := finishedRunBlob(t, "anthropic", "claude-opus-4-8", day, protocol.Usage{
-		ModelUsage: protocol.ModelUsage{InputTokens: 100, OutputTokens: 40, CostUSD: usd(1.5)},
+	run := finishedRun(t, "anthropic", "claude-opus-4-8", day, transcript.Usage{
+		ModelUsage: transcript.ModelUsage{InputTokens: 100, OutputTokens: 40, CostUSD: usd(1.5)},
 	})
 
 	total := usageAcc{}
 	byProvider := map[string]*usageAcc{}
 	byModel := map[string]*usageAcc{}
 	byDay := map[string]*usageAcc{}
-	foldRunUsage(blob, time.Time{}, "openai", "gpt", &total, byProvider, byModel, byDay)
+	foldRunUsage(run, time.Time{}, "openai", "gpt", &total, byProvider, byModel, byDay)
 
 	if total.runs != 1 || total.tok.InputTokens != 100 || total.cost != 1.5 {
 		t.Fatalf("total = %+v", total)
@@ -57,12 +47,12 @@ func TestFoldRunUsage_FoldsAllDimensions(t *testing.T) {
 
 func TestFoldRunUsage_DefaultsAttributeUnnamedRuns(t *testing.T) {
 	// A default-model run carries no provider/model — attribute to the defaults.
-	blob := finishedRunBlob(t, "", "", time.Now().UTC(), protocol.Usage{
-		ModelUsage: protocol.ModelUsage{InputTokens: 10},
+	run := finishedRun(t, "", "", time.Now().UTC(), transcript.Usage{
+		ModelUsage: transcript.ModelUsage{InputTokens: 10},
 	})
 	byProvider := map[string]*usageAcc{}
 	byModel := map[string]*usageAcc{}
-	foldRunUsage(blob, time.Time{}, "anthropic", "claude-opus-4-8", nil, byProvider, byModel, nil)
+	foldRunUsage(run, time.Time{}, "anthropic", "claude-opus-4-8", nil, byProvider, byModel, nil)
 
 	if byProvider["anthropic"] == nil {
 		t.Errorf("default provider not attributed: %+v", byProvider)
@@ -74,15 +64,15 @@ func TestFoldRunUsage_DefaultsAttributeUnnamedRuns(t *testing.T) {
 
 func TestFoldRunUsage_PrefersByModelSplit(t *testing.T) {
 	// A run that touched two models (headline + utility) splits per model.
-	blob := finishedRunBlob(t, "anthropic", "claude-opus-4-8", time.Now().UTC(), protocol.Usage{
-		ModelUsage: protocol.ModelUsage{InputTokens: 120, CostUSD: usd(2)},
-		ByModel: map[string]protocol.ModelUsage{
+	run := finishedRun(t, "anthropic", "claude-opus-4-8", time.Now().UTC(), transcript.Usage{
+		ModelUsage: transcript.ModelUsage{InputTokens: 120, CostUSD: usd(2)},
+		ByModel: map[string]transcript.ModelUsage{
 			"claude-opus-4-8":  {InputTokens: 100, CostUSD: usd(1.8)},
 			"claude-haiku-4-5": {InputTokens: 20, CostUSD: usd(0.2)},
 		},
 	})
 	byModel := map[string]*usageAcc{}
-	foldRunUsage(blob, time.Time{}, "", "", nil, nil, byModel, nil)
+	foldRunUsage(run, time.Time{}, "", "", nil, nil, byModel, nil)
 
 	if len(byModel) != 2 {
 		t.Fatalf("expected 2 model buckets, got %+v", byModel)
@@ -96,19 +86,15 @@ func TestFoldRunUsage_SkipsUnfinishedAndOld(t *testing.T) {
 	total := usageAcc{}
 
 	// Not finished → skipped.
-	running, _ := json.Marshal(protocol.RunRef{Status: protocol.RunStatusRunning})
-	foldRunUsage(running, time.Time{}, "", "", &total, nil, nil, nil)
+	foldRunUsage(transcript.Run{State: execution.Running}, time.Time{}, "", "", &total, nil, nil, nil)
 
 	// Finished but no usage → skipped.
-	noUsage, _ := json.Marshal(protocol.RunRef{
-		Status:  protocol.RunStatusFinished,
-		Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}},
-	})
+	noUsage := transcript.Run{State: execution.Completed, Result: &transcript.RunResult{}}
 	foldRunUsage(noUsage, time.Time{}, "", "", &total, nil, nil, nil)
 
 	// Finished before the since cutoff → skipped.
-	old := finishedRunBlob(t, "anthropic", "m", time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
-		protocol.Usage{ModelUsage: protocol.ModelUsage{InputTokens: 99}})
+	old := finishedRun(t, "anthropic", "m", time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+		transcript.Usage{ModelUsage: transcript.ModelUsage{InputTokens: 99}})
 	foldRunUsage(old, time.Now().UTC().AddDate(0, 0, -1), "", "", &total, nil, nil, nil)
 
 	if total.runs != 0 {

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // fakeCodebaseIndex is the codebaseindex.Index the codebase coordinator drives;
@@ -71,7 +71,7 @@ func TestCodebaseSearchMapsToWire(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codebase search: %v", err)
 	}
-	if idx.searchRoot != worktree.CanonicalCwd(root) || idx.searchQuery != "session" || idx.searchLimit != 3 {
+	if idx.searchRoot != workspacepath.Canonical(root) || idx.searchQuery != "session" || idx.searchLimit != 3 {
 		t.Fatalf("search root=%q query=%q limit=%d", idx.searchRoot, idx.searchQuery, idx.searchLimit)
 	}
 	if len(got.Hits) != 1 || got.Hits[0].Path != "runtime/session.go" || got.Hits[0].Score != 0.9 {
@@ -111,8 +111,8 @@ func TestCodebaseStatusMapsToWire(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codebase status: %v", err)
 	}
-	if idx.statusRoot != worktree.CanonicalCwd(root) {
-		t.Fatalf("status root = %q, want %q", idx.statusRoot, worktree.CanonicalCwd(root))
+	if idx.statusRoot != workspacepath.Canonical(root) {
+		t.Fatalf("status root = %q, want %q", idx.statusRoot, workspacepath.Canonical(root))
 	}
 	if got.State != protocol.CodebaseStateReady || got.IndexedAt != indexedAt.Format(time.RFC3339) {
 		t.Fatalf("status = %+v", got)
@@ -129,8 +129,8 @@ func TestCodebaseReindexMapsToWire(t *testing.T) {
 	}
 	select {
 	case got := <-idx.reindexed:
-		if got != worktree.CanonicalCwd(root) {
-			t.Fatalf("reindex root = %q, want %q", got, worktree.CanonicalCwd(root))
+		if got != workspacepath.Canonical(root) {
+			t.Fatalf("reindex root = %q, want %q", got, workspacepath.Canonical(root))
 		}
 	case <-time.After(time.Second):
 		t.Fatal("reindex did not start")

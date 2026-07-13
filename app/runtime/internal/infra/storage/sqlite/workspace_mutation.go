@@ -22,8 +22,8 @@ type WorkspaceMutationStore struct {
 	db *sql.DB
 }
 
-// NewWorkspaceMutationStore wires the *sql.DB (opened via [Open], so the
-// migration ran) to the operation-log surface.
+// NewWorkspaceMutationStore wires a database opened via [Open] to the
+// operation-log surface.
 func NewWorkspaceMutationStore(db *sql.DB) *WorkspaceMutationStore {
 	return &WorkspaceMutationStore{db: db}
 }

@@ -7,7 +7,7 @@
 // transport-neutral output to the wire.
 //
 // It builds on the execution domain vocabulary (RunID / SegmentID / RunState /
-// Outcome / Durability) and defines the ports it consumes (executor, store) —
+// Outcome) and defines the ports it consumes (executor, store) —
 // interfaces owned by the consumer, satisfied structurally by the adapters the
 // composition root injects.
 //

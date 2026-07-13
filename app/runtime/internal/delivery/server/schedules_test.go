@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // fakeScheduleRegistry is a schedule.Registry (+ WorkerStore) that records the
@@ -93,7 +93,7 @@ func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 		t.Fatalf("created %d schedule(s), want 1", len(reg.created))
 	}
 	created := reg.created[0]
-	if !created.Enabled || created.Prompt != "Summarize the repo" || created.Cwd != worktree.CanonicalCwd(cwd) || created.Cron != "@daily" {
+	if !created.Enabled || created.Prompt != "Summarize the repo" || created.Cwd != workspacepath.Canonical(cwd) || created.Cron != "@daily" {
 		t.Fatalf("created = %+v", created)
 	}
 	if created.NextRunAt.IsZero() {
@@ -151,8 +151,8 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 	if !updated.NextRunAt.IsZero() {
 		t.Fatalf("updated.NextRunAt = %v, want zero when disabled", updated.NextRunAt)
 	}
-	if updated.Cwd != worktree.CanonicalCwd(cwd) {
-		t.Fatalf("updated.Cwd = %q, want %q", updated.Cwd, worktree.CanonicalCwd(cwd))
+	if updated.Cwd != workspacepath.Canonical(cwd) {
+		t.Fatalf("updated.Cwd = %q, want %q", updated.Cwd, workspacepath.Canonical(cwd))
 	}
 	if got.NextRunAt != nil || got.LastRunAt == nil {
 		t.Fatalf("wire schedule = %+v, want omitted nextRunAt and present lastRunAt", got)
