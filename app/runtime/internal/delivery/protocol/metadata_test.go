@@ -8,7 +8,7 @@ import (
 func TestRequestMetaContextOwnsSnapshot(t *testing.T) {
 	info := &ClientInfo{Name: "before"}
 	caps := &ClientCapabilities{
-		Events:         []StreamEventType{StreamRunStarted},
+		Events:         []StreamEventType{StreamSegmentStarted},
 		InterruptTypes: []InterruptType{"approval"},
 		Features: map[string]any{
 			"nested": map[string]any{"enabled": true},
@@ -16,20 +16,20 @@ func TestRequestMetaContextOwnsSnapshot(t *testing.T) {
 	}
 	ctx := WithRequestMeta(context.Background(), RequestMeta{ClientInfo: info, ClientCapabilities: caps})
 	info.Name = "after"
-	caps.Events[0] = StreamRunFinished
+	caps.Events[0] = StreamSegmentFinished
 	caps.InterruptTypes[0] = "after"
 	caps.Features["nested"].(map[string]any)["enabled"] = false
 
 	first, ok := RequestMetaFrom(ctx)
-	if !ok || first.ClientInfo.Name != "before" || first.ClientCapabilities.Events[0] != StreamRunStarted || first.ClientCapabilities.InterruptTypes[0] != "approval" {
+	if !ok || first.ClientInfo.Name != "before" || first.ClientCapabilities.Events[0] != StreamSegmentStarted || first.ClientCapabilities.InterruptTypes[0] != "approval" {
 		t.Fatalf("stored metadata retained caller state: %+v", first)
 	}
 	if first.ClientCapabilities.Features["nested"].(map[string]any)["enabled"] != true {
 		t.Fatalf("nested feature retained caller state: %+v", first.ClientCapabilities.Features)
 	}
-	first.ClientCapabilities.Events[0] = StreamRunFinished
+	first.ClientCapabilities.Events[0] = StreamSegmentFinished
 	second, _ := RequestMetaFrom(ctx)
-	if second.ClientCapabilities.Events[0] != StreamRunStarted {
+	if second.ClientCapabilities.Events[0] != StreamSegmentStarted {
 		t.Fatal("RequestMetaFrom exposed context-owned backing storage")
 	}
 }

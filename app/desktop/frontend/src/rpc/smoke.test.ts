@@ -11,9 +11,9 @@
 //   2. sessions.create             (Session shape, default cwd)
 //   3. runs.start                  (immediate {runId, segmentId}, then RunEvent stream)
 //   4. item.* + run.* StreamEvents (the v2 Item model)
-//   5. run.finished{interrupt}     (R-model HITL — the segment ends, run parked)
+//   5. segment.finished{interrupt}     (R-model HITL — the segment ends, run parked)
 //   6. runs.resume                 (SAME run, a NEW segment answering the interrupt)
-//   7. run.finished{completed}     (terminates the stream)
+//   7. segment.finished{completed}     (terminates the stream)
 
 import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryTransport, type MemoryTransport } from "./transports/memory";
@@ -55,7 +55,13 @@ describe("smoke: v2 end-to-end happy path", () => {
         protocolVersion: "2026-06-07",
         clientInfo: { name: "smoke-test", version: "0.1" },
         clientCapabilities: {
-          events: ["run.started", "run.finished", "item.started", "item.delta", "item.completed"],
+          events: [
+            "segment.started",
+            "segment.finished",
+            "item.started",
+            "item.delta",
+            "item.completed",
+          ],
           features: {},
           interruptTypes: ["approval", "question"],
         },
@@ -77,7 +83,13 @@ describe("smoke: v2 end-to-end happy path", () => {
       serverInfo: { name: "lyra-runtime", version: "0.0.0", cwd: "/work", home: "/home/u" },
       capabilities: {
         protocolVersion: "2026-06-07",
-        events: ["run.started", "run.finished", "item.started", "item.delta", "item.completed"],
+        events: [
+          "segment.started",
+          "segment.finished",
+          "item.started",
+          "item.delta",
+          "item.completed",
+        ],
         features: { reasoning: true, mcp: true, relocate: true, multimodal: true },
         providers: ["anthropic"],
         streamingMethods: ["runs.start", "runs.resume", "runs.subscribe"],
@@ -124,7 +136,7 @@ describe("smoke: v2 end-to-end happy path", () => {
     // ---- Step 4 + 5: drive items until the interrupt ----------------------
     setTimeout(() => {
       injectRunEvent(transport, "run_1", "seg_1", "evt_1", {
-        type: "run.started",
+        type: "segment.started",
         run: { id: asRunId("run_1"), sessionId: asSessionId("ses_1") },
       });
       injectRunEvent(transport, "run_1", "seg_1", "evt_2", {
@@ -170,10 +182,10 @@ describe("smoke: v2 end-to-end happy path", () => {
     const firstRun: RunEvent[] = [];
     for await (const ev of events) firstRun.push(ev);
     const finish = firstRun.at(-1)!;
-    expect(finish.event.type).toBe("run.finished");
-    expect(finish.event.type === "run.finished" && finish.event.outcome.type).toBe("interrupt");
+    expect(finish.event.type).toBe("segment.finished");
+    expect(finish.event.type === "segment.finished" && finish.event.outcome.type).toBe("interrupt");
     const interrupt =
-      finish.event.type === "run.finished" && finish.event.outcome.type === "interrupt"
+      finish.event.type === "segment.finished" && finish.event.outcome.type === "interrupt"
         ? finish.event.outcome.interrupts[0]!
         : null;
     expect(interrupt?.itemId).toBe("item_tool");
@@ -195,7 +207,7 @@ describe("smoke: v2 end-to-end happy path", () => {
     // ---- Step 7: continuation segment completes ---------------------------
     setTimeout(() => {
       injectRunEvent(transport, "run_1", "seg_2", "evt_1", {
-        type: "run.started",
+        type: "segment.started",
         run: { id: asRunId("run_1"), sessionId: asSessionId("ses_1") },
       });
       injectRunEvent(transport, "run_1", "seg_2", "evt_2", {
@@ -211,9 +223,9 @@ describe("smoke: v2 end-to-end happy path", () => {
     const secondRun: RunEvent[] = [];
     for await (const ev of resumeEvents) secondRun.push(ev);
     expect(secondRun.map((e) => e.event.type)).toEqual([
-      "run.started",
+      "segment.started",
       "item.completed",
-      "run.finished",
+      "segment.finished",
     ]);
   });
 
@@ -276,6 +288,6 @@ describe("smoke: v2 end-to-end happy path", () => {
 
     const collected: RunEvent[] = [];
     for await (const ev of events) collected.push(ev);
-    expect(collected.map((e) => e.event.type)).toEqual(["item.completed", "run.finished"]);
+    expect(collected.map((e) => e.event.type)).toEqual(["item.completed", "segment.finished"]);
   });
 });

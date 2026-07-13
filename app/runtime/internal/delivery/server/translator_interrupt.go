@@ -9,7 +9,7 @@ import (
 )
 
 // interrupt maps a parked turn (HITL) onto its Item(s) + a terminal
-// run.finished{outcome:interrupt}. Each pending awaitable becomes a
+// segment.finished{outcome:interrupt}. Each pending awaitable becomes a
 // durable Item the client renders plus a protocol.Interrupt keyed by
 // that item's id:
 //
@@ -56,7 +56,7 @@ func (t *translator) interrupt(e turn.TurnInterrupted) []protocol.StreamEvent {
 	}
 
 	return append(out, protocol.StreamEvent{
-		Type:    protocol.StreamRunFinished,
+		Type:    protocol.StreamSegmentFinished,
 		Outcome: &protocol.RunOutcome{Type: protocol.OutcomeInterrupt, Interrupts: wire},
 	})
 }

@@ -1,5 +1,5 @@
-// Reducer — built-in v2 StreamEvent behaviour. Covers run.started /
-// run.finished (completed / error / interrupt) + item.started / item.delta
+// Reducer — built-in v2 StreamEvent behaviour. Covers segment.started /
+// segment.finished (completed / error / interrupt) + item.started / item.delta
 // / item.completed folding into message bubbles + tool calls. `custom`
 // dispatch lives in reducer.custom.test.ts; shared-state / plan accumulator
 // tests in reducer.aggregates.test.ts.
@@ -26,10 +26,10 @@ const completed = (i: Item): StreamEvent => ({ type: "item.completed", item: i }
 const delta = (itemId: string, d: Record<string, unknown>): StreamEvent =>
   ({ type: "item.delta", itemId, delta: d }) as StreamEvent;
 const runStarted = (id: string, sessionId: string): StreamEvent => ({
-  type: "run.started",
+  type: "segment.started",
   run: { id, sessionId } as never,
 });
-const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "run.finished", outcome });
+const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "segment.finished", outcome });
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
@@ -37,7 +37,7 @@ beforeEach(async () => {
 });
 
 describe("reducer — run lifecycle", () => {
-  it("run.started flips running + records ids; run.finished flips off", () => {
+  it("segment.started flips running + records ids; segment.finished flips off", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
     expect(s.run).toMatchObject({ running: true, runId: "run_1", sessionId: "ses_1" });
     s = reduce(s, runFinished({ type: "completed", result: { steps: 2 } }));
@@ -45,7 +45,7 @@ describe("reducer — run lifecycle", () => {
     expect(s.run.step).toBe(2);
   });
 
-  it("run.finished{error} stores the error; a fresh run.started clears it", () => {
+  it("segment.finished{error} stores the error; a fresh segment.started clears it", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
     s = reduce(
       s,
@@ -361,7 +361,7 @@ describe("reducer — compaction fold (B10)", () => {
 });
 
 describe("reducer — HITL interrupt", () => {
-  it("run.finished{interrupt} materializes an approval block + open interrupt", () => {
+  it("segment.finished{interrupt} materializes an approval block + open interrupt", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
     s = reduce(
       s,
@@ -437,7 +437,7 @@ describe("reducer — HITL interrupt", () => {
     });
   });
 
-  it("run.finished{interrupt,question} materializes a question card bound to the run", () => {
+  it("segment.finished{interrupt,question} materializes a question card bound to the run", () => {
     // The question interrupt path is distinct from approval: the card can
     // materialize straight from the interrupt payload (item.started may have
     // been missed while the process was down), projecting answerable fields.
@@ -479,7 +479,7 @@ describe("reducer — HITL interrupt", () => {
     expect(s.pendingInterrupts[0]!.runId).toBe("run_1");
   });
 
-  it("a second run.started (resume) never splits the open turn — live grouping matches replay", () => {
+  it("a second segment.started (resume) never splits the open turn — live grouping matches replay", () => {
     // run_1: tool call → interrupt (approval). Tool block + approval land in
     // one assistant turn.
     let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
@@ -510,9 +510,9 @@ describe("reducer — HITL interrupt", () => {
     const turnId = s.messages[0]!.id;
 
     // Approve → resume opens a new SEGMENT of the run (this synthetic
-    // run.started carries no segmentId), yet its agentMessage must STILL fold
+    // segment.started carries no segmentId), yet its agentMessage must STILL fold
     // into the same bubble — turn grouping is item-driven, not run-driven. This
-    // is exactly what history replay produces (it never sees run.started at all).
+    // is exactly what history replay produces (it never sees segment.started at all).
     s = reduce(s, runStarted("run_2", "ses_1"));
     s = reduce(s, started(item({ id: "msg_1", type: "agentMessage", content: [] })));
     s = reduce(s, delta("msg_1", { type: "content", text: "Deleted." }));
@@ -554,7 +554,7 @@ describe("reducer — interrupt idempotency + terminal cleanup", () => {
   const approvalBlocks = (s: AgentViewState) =>
     s.messages.flatMap((m) => m.blocks).filter((b) => b.kind === "approval");
 
-  it("a re-delivered run.finished{interrupt} keeps one card + one open interrupt (B1)", () => {
+  it("a re-delivered segment.finished{interrupt} keeps one card + one open interrupt (B1)", () => {
     let s = toInterrupt();
     expect(approvalBlocks(s)).toHaveLength(1);
     expect(s.pendingInterrupts).toHaveLength(1);
@@ -567,7 +567,7 @@ describe("reducer — interrupt idempotency + terminal cleanup", () => {
     expect(s.pendingInterrupts[0]!.interrupts).toHaveLength(1);
   });
 
-  it("a terminal run.finished clears open interrupts + downgrades the card (B2)", () => {
+  it("a terminal segment.finished clears open interrupts + downgrades the card (B2)", () => {
     let s = toInterrupt();
     expect(s.pendingInterrupts).toHaveLength(1);
 

@@ -896,9 +896,9 @@ export type ItemDelta =
   | { type: "plan"; steps: PlanStep[] }; // current full plan (not a hot char stream)
 
 export type StreamEvent =
-  | { type: "run.started"; run: RunRef }
-  | { type: "run.progress"; progress: RunProgress } // ephemeral; authoritative final usage/steps land on run.finished.result
-  | { type: "run.finished"; outcome: RunOutcome }
+  | { type: "segment.started"; run: RunRef }
+  | { type: "segment.progress"; progress: RunProgress } // ephemeral; authoritative final usage/steps land on segment.finished.result
+  | { type: "segment.finished"; outcome: RunOutcome }
   | { type: "item.started"; item: Item } // shell (status=running)
   | { type: "item.delta"; itemId: ItemId; delta: ItemDelta }
   | { type: "item.completed"; item: Item } // authoritative terminal, durable
@@ -907,8 +907,8 @@ export type StreamEvent =
   | { type: "custom"; name: string; durable?: boolean; payload: unknown }; // durable carried on-frame (default false)
 
 // Mid-run progress preview — a live readout of step/usage/cost while the Run
-// streams. Ephemeral like item.delta: dropping every run.progress still yields
-// the correct totals from run.finished.result (the authoritative landing), so
+// streams. Ephemeral like item.delta: dropping every segment.progress still yields
+// the correct totals from segment.finished.result (the authoritative landing), so
 // §5.2's durable invariant holds. Suppressible via optOutNotificationMethods.
 // Cumulative cost reads `usage.costUsd` — no separate RunProgress.costUsd (§5).
 export interface RunProgress {
@@ -939,8 +939,8 @@ export interface RunEvent {
 // has a named durable landing; clients may opt out of ephemeral deltas and
 // still reconstruct correct terminal state.
 const DURABLE_EVENT_TYPES: ReadonlySet<StreamEventType> = new Set<StreamEventType>([
-  "run.started",
-  "run.finished",
+  "segment.started",
+  "segment.finished",
   "item.started",
   "item.completed",
   "state.snapshot",

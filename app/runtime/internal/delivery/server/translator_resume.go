@@ -166,7 +166,7 @@ func (t *translator) reuseOrNextItemID(toolName, argsJSON string) string {
 // exit_plan_mode) the interrupted run left inProgress. A question is resolved
 // by the resume answer (no event re-fires), so the continuation must emit its
 // item.completed itself — otherwise the proposal card stays "LIVE" forever
-// (API.md §5.2). Emitted once, right after run.started; the completed item
+// (API.md §5.2). Emitted once, right after segment.started; the completed item
 // keeps the original id + runId and carries the Question payload so items.list
 // stays well-formed. No-op for root runs / tool-only resumes.
 func (t *translator) resumeQuestionCompletions() []protocol.StreamEvent {

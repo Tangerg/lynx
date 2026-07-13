@@ -4,7 +4,7 @@
   "eventId": "evt_06",
   "timestamp": "2026-07-07T10:00:07Z",
   "event": {
-    "type": "run.progress",
+    "type": "segment.progress",
     "progress": {
       "step": 2,
       "usage": { "inputTokens": 800, "outputTokens": 120 },

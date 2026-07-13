@@ -22,7 +22,7 @@ func TestHandleNotificationSuppressesMetadataErrors(t *testing.T) {
 }
 
 func TestStreamFilterEventDeclarations(t *testing.T) {
-	runStarted := protocol.StreamEvent{Type: protocol.StreamRunStarted}
+	runStarted := protocol.StreamEvent{Type: protocol.StreamSegmentStarted}
 	itemDelta := protocol.StreamEvent{Type: protocol.StreamItemDelta}
 
 	if !streamFilterFrom(context.Background()).allow(runStarted) {
@@ -36,7 +36,7 @@ func TestStreamFilterEventDeclarations(t *testing.T) {
 	}
 
 	declared := protocol.ClientCapabilities{
-		Events:                    []protocol.StreamEventType{protocol.StreamRunStarted, protocol.StreamItemDelta},
+		Events:                    []protocol.StreamEventType{protocol.StreamSegmentStarted, protocol.StreamItemDelta},
 		OptOutNotificationMethods: []protocol.StreamEventType{protocol.StreamItemDelta},
 	}
 	ctx = protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &declared})

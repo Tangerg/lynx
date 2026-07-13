@@ -9,9 +9,9 @@
   "capabilities": {
     "protocolVersion": "2026-06-07",
     "events": [
-      "run.started",
-      "run.progress",
-      "run.finished",
+      "segment.started",
+      "segment.progress",
+      "segment.finished",
       "item.started",
       "item.delta",
       "item.completed",

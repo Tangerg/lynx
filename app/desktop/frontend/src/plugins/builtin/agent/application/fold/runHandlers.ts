@@ -16,10 +16,10 @@ export function onRunStarted(
   // The per-segment streaming readout (usage/error) resets on a NEW segment, not
   // on a new run: a resume opens a fresh segment of the SAME run, so runId (from
   // run.id) stays stable while segmentId turns over. Keying the reset on
-  // segmentId also makes a reconnect replay of the CURRENT segment's run.started
+  // segmentId also makes a reconnect replay of the CURRENT segment's segment.started
   // idempotent — re-seeing the same segmentId must not wipe the live readout.
-  // (A synthetic run.started with no segmentId — reconnect scaffolding, history
-  // replay — always resets, matching the prior per-run.started behaviour.)
+  // (A synthetic segment.started with no segmentId — reconnect scaffolding, history
+  // replay — always resets, matching the prior per-segment.started behaviour.)
   const sameSegment = segmentId !== undefined && segmentId === state.run.segmentId;
   if (sameSegment) {
     return appendTimelineEntry({ kind: "run-start", runId: run.id })(state);

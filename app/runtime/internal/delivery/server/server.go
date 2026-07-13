@@ -300,9 +300,9 @@ func Capabilities(rt capabilityAccess, hasMemory bool) protocol.ServerCapabiliti
 	return protocol.ServerCapabilities{
 		ProtocolVersion: protocol.ProtocolVersion,
 		Events: []protocol.StreamEventType{
-			protocol.StreamRunStarted,
-			protocol.StreamRunProgress,
-			protocol.StreamRunFinished,
+			protocol.StreamSegmentStarted,
+			protocol.StreamSegmentProgress,
+			protocol.StreamSegmentFinished,
 			protocol.StreamItemStarted,
 			protocol.StreamItemDelta,
 			protocol.StreamItemCompleted,

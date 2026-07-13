@@ -21,7 +21,7 @@ const heartbeatInterval = 15 * time.Second
 // call's JSON-RPC response (carries the envelope id, NOT an SSE id: — a
 // one-shot ack, not a replayable run event, §7); each subsequent frame is
 // a notifications.run.event with SSE id: = eventId. The loop ends when the
-// run stream closes (terminal run.finished → the hub closed the channel)
+// run stream closes (terminal segment.finished → the hub closed the channel)
 // or the client disconnects — a disconnect only detaches; the run keeps
 // running server-side and the client resumes via runs.subscribe (§9.2).
 func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *transport.Response, events <-chan dispatch.StreamFrame, methodLabel string) {

@@ -4,7 +4,7 @@
   "eventId": "evt_01",
   "timestamp": "2026-07-07T10:00:00Z",
   "event": {
-    "type": "run.started",
+    "type": "segment.started",
     "run": {
       "id": "run_01",
       "sessionId": "ses_01",

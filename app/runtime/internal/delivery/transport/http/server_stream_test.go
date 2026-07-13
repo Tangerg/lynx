@@ -17,9 +17,9 @@ import (
 func (f *fakeRuntime) StartRun(_ context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	ch := make(chan protocol.RunEvent, 2)
 	ch <- protocol.RunEvent{RunID: "run_x", EventID: "evt_00000000001",
-		Event: protocol.StreamEvent{Type: protocol.StreamRunStarted, Run: &protocol.RunRef{ID: "run_x", SessionID: in.SessionID}}}
+		Event: protocol.StreamEvent{Type: protocol.StreamSegmentStarted, Run: &protocol.RunRef{ID: "run_x", SessionID: in.SessionID}}}
 	ch <- protocol.RunEvent{RunID: "run_x", EventID: "evt_00000000002",
-		Event: protocol.StreamEvent{Type: protocol.StreamRunFinished, Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}}}}
+		Event: protocol.StreamEvent{Type: protocol.StreamSegmentFinished, Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}}}}
 	close(ch)
 	return &protocol.StartRunResponse{RunID: "run_x"}, ch, nil
 }
@@ -84,11 +84,11 @@ func TestStreamableRunStart(t *testing.T) {
 	if frames[0].id != "" || !strings.Contains(frames[0].data, `"runId":"run_x"`) {
 		t.Fatalf("ack frame = %+v, want runId result with no SSE id", frames[0])
 	}
-	if frames[1].id != "evt_00000000001" || !strings.Contains(frames[1].data, "run.started") {
-		t.Fatalf("frame[1] = %+v, want run.started @ evt 1", frames[1])
+	if frames[1].id != "evt_00000000001" || !strings.Contains(frames[1].data, "segment.started") {
+		t.Fatalf("frame[1] = %+v, want segment.started @ evt 1", frames[1])
 	}
-	if frames[2].id != "evt_00000000002" || !strings.Contains(frames[2].data, "run.finished") {
-		t.Fatalf("frame[2] = %+v, want run.finished @ evt 2", frames[2])
+	if frames[2].id != "evt_00000000002" || !strings.Contains(frames[2].data, "segment.finished") {
+		t.Fatalf("frame[2] = %+v, want segment.finished @ evt 2", frames[2])
 	}
 }
 

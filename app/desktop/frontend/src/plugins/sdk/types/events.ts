@@ -26,7 +26,7 @@ export type StateUpdate = (state: AgentViewState) => AgentViewState;
 export type CustomEventHandler<T = unknown> = (value: T) => StateUpdate | void;
 
 /**
- * Handler for a first-class StreamEvent type (run.started / run.finished /
+ * Handler for a first-class StreamEvent type (segment.started / segment.finished /
  * item.started / item.delta / item.completed / state.snapshot / state.delta).
  * Receives the full state + the StreamEvent and returns the next state.
  * Multiple plugins can register for the same type; they run in registration

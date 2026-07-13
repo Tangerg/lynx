@@ -485,7 +485,7 @@ func TestCoordinatorItemPersistFailureAborts(t *testing.T) {
 }
 
 // TestCoordinatorOpeningCommitFailureTearsDown proves the teardown defer is armed
-// BEFORE the opening run.started publish (§8.2 correctness): when that first
+// BEFORE the opening segment.started publish (§8.2 correctness): when that first
 // durable commit fails, the run is still torn down — the turn is canceled, the
 // registry entry removed (the session freed), and the stream drained to close —
 // rather than stranding a client that acked start but can never reach a terminal.

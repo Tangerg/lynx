@@ -31,7 +31,7 @@ export interface Host {
     /** Subscribe to a `custom` StreamEvent by name (third-party extension). */
     onCustom: <T = unknown>(name: string, handler: CustomEventHandler<T>) => Disposable;
     /**
-     * Subscribe to a first-class StreamEvent type (run.started / item.started
+     * Subscribe to a first-class StreamEvent type (segment.started / item.started
      * / item.delta / item.completed / state.snapshot / …).
      *
      * Handlers chain: the reducer dispatches one event through every plugin

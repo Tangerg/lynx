@@ -14,7 +14,7 @@ import (
 
 // TestTranslator_OpensUserMessageOnRootRun verifies a root run streams the
 // user's input as the opening userMessage Item (item.started + item.completed)
-// right after run.started — the event source the live view renders from, with
+// right after segment.started — the event source the live view renders from, with
 // an id that matches items.list on reload.
 func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 	input := []protocol.ContentBlock{{Type: "text", Text: "hello"}}
@@ -22,10 +22,10 @@ func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 
 	out := tr.open()
 	if len(out) != 3 {
-		t.Fatalf("open() on a root run: got %d events, want 3 (run.started + userMessage started/completed)", len(out))
+		t.Fatalf("open() on a root run: got %d events, want 3 (segment.started + userMessage started/completed)", len(out))
 	}
-	if out[0].Type != protocol.StreamRunStarted {
-		t.Fatalf("event[0] = %s, want run.started", out[0].Type)
+	if out[0].Type != protocol.StreamSegmentStarted {
+		t.Fatalf("event[0] = %s, want segment.started", out[0].Type)
 	}
 
 	started, completed := out[1], out[2]
@@ -51,23 +51,23 @@ func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 	}
 
 	// The opening user turn is emitted once — open() consumed userInput, so a
-	// second open() yields run.started alone (defensive; pumpRun calls once).
-	if again := tr.open(); len(again) != 1 || again[0].Type != protocol.StreamRunStarted {
+	// second open() yields segment.started alone (defensive; pumpRun calls once).
+	if again := tr.open(); len(again) != 1 || again[0].Type != protocol.StreamSegmentStarted {
 		t.Fatalf("second open() re-emitted the user message: %+v", again)
 	}
-	// The turn-level TurnStart is a no-op (run.started comes from open()).
+	// The turn-level TurnStart is a no-op (segment.started comes from open()).
 	if ts := tr.translate(turn.TurnStart{Model: "deepseek-v4-flash"}); ts != nil {
 		t.Fatalf("turn TurnStart should be a no-op, got %+v", ts)
 	}
 }
 
-// TestTranslator_RunStartedCarriesModel verifies the run.started RunRef
+// TestTranslator_RunStartedCarriesModel verifies the segment.started RunRef
 // surfaces the run's model so the frontend can label the run (RunRef.model).
 func TestTranslator_RunStartedCarriesModel(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "claude-opus-4-8")
 	out := tr.open()
-	if len(out) == 0 || out[0].Type != protocol.StreamRunStarted || out[0].Run == nil {
-		t.Fatalf("first event = %+v, want run.started with a RunRef", out)
+	if len(out) == 0 || out[0].Type != protocol.StreamSegmentStarted || out[0].Run == nil {
+		t.Fatalf("first event = %+v, want segment.started with a RunRef", out)
 	}
 	if r := out[0].Run; r.Model != "claude-opus-4-8" {
 		t.Errorf("RunRef model = %q, want claude-opus-4-8", r.Model)
@@ -232,7 +232,7 @@ func TestTranslator_Compaction(t *testing.T) {
 }
 
 // TestTranslator_UsageProgress verifies a per-round UsageReported becomes an
-// ephemeral run.progress carrying cumulative usage (input/output/reasoning +
+// ephemeral segment.progress carrying cumulative usage (input/output/reasoning +
 // cost), with cost omitted when no pricing is configured (T1.2).
 func TestTranslator_UsageProgress(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
@@ -240,8 +240,8 @@ func TestTranslator_UsageProgress(t *testing.T) {
 		TokenUsage: accounting.TokenUsage{PromptTokens: 1200, CompletionTokens: 80, ReasoningTokens: 30},
 		CostUSD:    0.0125,
 	})
-	if len(out) != 1 || out[0].Type != protocol.StreamRunProgress {
-		t.Fatalf("UsageReported → %+v, want one run.progress", out)
+	if len(out) != 1 || out[0].Type != protocol.StreamSegmentProgress {
+		t.Fatalf("UsageReported → %+v, want one segment.progress", out)
 	}
 	u := out[0].Progress.Usage
 	if u == nil || u.InputTokens != 1200 || u.OutputTokens != 80 || u.ReasoningTokens != 30 {
@@ -250,9 +250,9 @@ func TestTranslator_UsageProgress(t *testing.T) {
 	if u.CostUSD == nil || *u.CostUSD != 0.0125 {
 		t.Fatalf("costUsd = %v, want 0.0125", u.CostUSD)
 	}
-	// run.progress is ephemeral — it must not be replayed/persisted.
+	// segment.progress is ephemeral — it must not be replayed/persisted.
 	if out[0].IsDurable() {
-		t.Fatal("run.progress usage preview must be ephemeral (IsDurable=false)")
+		t.Fatal("segment.progress usage preview must be ephemeral (IsDurable=false)")
 	}
 
 	// No pricing configured (cost 0) → costUsd omitted, never a fabricated $0.

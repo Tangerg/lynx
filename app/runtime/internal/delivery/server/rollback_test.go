@@ -184,7 +184,7 @@ func TestRollbackSession_Busy(t *testing.T) {
 }
 
 // TestPersistRunCarriesCreatedAt guards the rollback over-purge bug: the
-// terminal RunRef synthesized on run.finished replaces the whole stored blob
+// terminal RunRef synthesized on segment.finished replaces the whole stored blob
 // (PutRun upsert), so it must carry the run's start CreatedAt. Omitting it
 // persisted CreatedAt as zero (json:"createdAt,omitzero"), which collapsed the
 // rollback boundary time to the zero time → purgeSubtasksAfter then purged EVERY
@@ -200,7 +200,7 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	started := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
 
 	commit, _ := sideEffectEvent("run_1", sess.ID, "", protocol.StreamEvent{
-		Type:    protocol.StreamRunFinished,
+		Type:    protocol.StreamSegmentFinished,
 		Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted},
 	}, "", "", started)
 	if err := rt.RunSegmentEffects(nil, nil).CommitEvent(ctx, commit); err != nil {

@@ -99,11 +99,11 @@ func (t *translator) toolStart(e turn.ToolCallStart) []protocol.StreamEvent {
 	// Mid-run progress (API.md §5, ephemeral): a tool call is a meaningful
 	// activity boundary, so surface "what's happening now" + the running tool
 	// ordinal. Text/reasoning deltas are their OWN activity signal, so
-	// run.progress fires only here — not per high-frequency delta.
+	// segment.progress fires only here — not per high-frequency delta.
 	t.step++
 	step := t.step
 	out = append(out, protocol.StreamEvent{
-		Type:     protocol.StreamRunProgress,
+		Type:     protocol.StreamSegmentProgress,
 		Progress: &protocol.RunProgress{Step: &step, Activity: activityVerb(e.ToolName)},
 	})
 
@@ -175,10 +175,10 @@ func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
 	return append(out, protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item})
 }
 
-// usageProgress surfaces a per-round cumulative usage report as a run.progress
+// usageProgress surfaces a per-round cumulative usage report as a segment.progress
 // preview (API.md §5, ephemeral) — the live "tokens / cost spent" readout. Only
 // the usage field is carried; step/activity ride the tool-call boundary above.
-// The authoritative final total still lands on run.finished.result (§5.2).
+// The authoritative final total still lands on segment.finished.result (§5.2).
 func (t *translator) usageProgress(e turn.UsageReported) []protocol.StreamEvent {
 	progress := &protocol.RunProgress{
 		Usage: &protocol.Usage{
@@ -191,11 +191,11 @@ func (t *translator) usageProgress(e turn.UsageReported) []protocol.StreamEvent 
 		ct := e.ContextTokens
 		progress.ContextTokens = &ct
 	}
-	return []protocol.StreamEvent{{Type: protocol.StreamRunProgress, Progress: progress}}
+	return []protocol.StreamEvent{{Type: protocol.StreamSegmentProgress, Progress: progress}}
 }
 
 // activityVerb maps a tool name to a human-readable mid-run activity line for
-// run.progress (API.md §5) — the "what's happening now" a client shows while
+// segment.progress (API.md §5) — the "what's happening now" a client shows while
 // the tool runs. A small first-party verb map with a generic "Calling <name>"
 // fallback (covers MCP "<server>.<tool>" and any dynamic / lsp_* tool).
 func activityVerb(name string) string {
@@ -231,19 +231,19 @@ func activityVerb(name string) string {
 }
 
 // turnEnd closes any open items (so the wire ends balanced) then emits
-// the terminal run.finished with its discriminated outcome.
+// the terminal segment.finished with its discriminated outcome.
 func (t *translator) turnEnd(e turn.TurnEnd) []protocol.StreamEvent {
 	out := t.closeStreaming()
 	out = append(out, t.drainTools()...)
 	return append(out, protocol.StreamEvent{
-		Type:    protocol.StreamRunFinished,
+		Type:    protocol.StreamSegmentFinished,
 		Outcome: t.outcome(e),
 	})
 }
 
-// finish builds a terminal run.finished for paths that never observe a
+// finish builds a terminal segment.finished for paths that never observe a
 // turn.TurnEnd (e.g. run cancellation drained the iterator). Closes
-// open items, then emits run.finished with the given outcome type.
+// open items, then emits segment.finished with the given outcome type.
 func (t *translator) finish(outcomeType protocol.RunOutcomeType) []protocol.StreamEvent {
 	out := t.closeStreaming()
 	out = append(out, t.drainTools()...)
@@ -252,7 +252,7 @@ func (t *translator) finish(outcomeType protocol.RunOutcomeType) []protocol.Stre
 		res.Error = t.classifyRunError(t.errMsg)
 	}
 	return append(out, protocol.StreamEvent{
-		Type:    protocol.StreamRunFinished,
+		Type:    protocol.StreamSegmentFinished,
 		Outcome: &protocol.RunOutcome{Type: outcomeType, Result: res},
 	})
 }

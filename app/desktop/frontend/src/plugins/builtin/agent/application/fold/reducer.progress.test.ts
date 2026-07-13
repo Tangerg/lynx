@@ -1,5 +1,5 @@
-// run.progress is the ephemeral mid-run readout (step / usage / cost / activity);
-// run.finished.result is the authoritative landing (API.md §5.2). The reducer
+// segment.progress is the ephemeral mid-run readout (step / usage / cost / activity);
+// segment.finished.result is the authoritative landing (API.md §5.2). The reducer
 // must surface progress live AND let the finished totals win.
 import { beforeEach, describe, expect, it } from "vitest";
 import type { RunOutcome, StreamEvent } from "@/rpc";
@@ -9,19 +9,19 @@ import { reduce } from "./reducer";
 import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 const runStarted = (id: string): StreamEvent => ({
-  type: "run.started",
+  type: "segment.started",
   run: { id, sessionId: "ses_1" } as never,
 });
 const progress = (p: Record<string, unknown>): StreamEvent =>
-  ({ type: "run.progress", progress: p }) as StreamEvent;
-const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "run.finished", outcome });
+  ({ type: "segment.progress", progress: p }) as StreamEvent;
+const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "segment.finished", outcome });
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
   await loadPlugin(spec);
 });
 
-describe("reducer — run.progress (mid-run live readout)", () => {
+describe("reducer — segment.progress (mid-run live readout)", () => {
   it("surfaces step / maxSteps / activity / tokens / cost while the run streams", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(s, runStarted("run_1"));
@@ -43,7 +43,7 @@ describe("reducer — run.progress (mid-run live readout)", () => {
     });
   });
 
-  it("run.finished totals are authoritative over the last progress preview", () => {
+  it("segment.finished totals are authoritative over the last progress preview", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(s, runStarted("run_1"));
     s = reduce(s, progress({ step: 1, usage: { inputTokens: 10, outputTokens: 5 } }));

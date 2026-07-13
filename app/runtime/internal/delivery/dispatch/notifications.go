@@ -9,7 +9,7 @@ import (
 
 // EncodeRunEvent wraps one RunEvent into a notifications.run.event
 // JSON-RPC notification (API.md §5). The single downstream stream
-// carries run / item / state events; run.finished (the terminal event)
+// carries run / item / state events; segment.finished (the terminal event)
 // rides this same channel — there is no separate run-closed
 // notification. runId + eventId let the client filter by stream and
 // de-duplicate on reconnect (Last-Event-Id).

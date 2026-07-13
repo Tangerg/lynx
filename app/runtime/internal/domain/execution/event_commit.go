@@ -14,7 +14,7 @@ type StateChange uint8
 
 const (
 	// StateUnchanged leaves the Run's admission state as-is — a projection-only
-	// event (a completed item, the run.started record).
+	// event (a completed item, the segment.started record).
 	StateUnchanged StateChange = iota
 	// StateSuspend transitions the Run running→interrupted (it parked for HITL
 	// resume), committed atomically with the open-interrupt record.

@@ -3,7 +3,7 @@
 //
 // v2 collapses run streaming onto ONE notification method:
 // `notifications.run.event`, params = RunEvent. There is no separate
-// "run closed" method — the terminal signal is a `run.finished`
+// "run closed" method — the terminal signal is a `segment.finished`
 // StreamEvent for the ROOT SEGMENT, delivered inside the same stream.
 //
 // A single stream is rooted on ONE segment (the segment `runs.start` /
@@ -12,9 +12,9 @@
 // segment). That root segment stream carries the WHOLE run tree: the root
 // segment's own events PLUS every descendant subagent run's events (§5.4).
 // The root is keyed on segmentId; subagents are admitted by runId (they keep
-// distinct RunIds) when a `run.started` carries a `spawnedByItemId` whose
+// distinct RunIds) when a `segment.started` carries a `spawnedByItemId` whose
 // owning item we've already seen on this tree. The stream ends when the ROOT
-// SEGMENT's `run.finished` arrives (a subagent's has a different segmentId).
+// SEGMENT's `segment.finished` arrives (a subagent's has a different segmentId).
 
 import { z } from "zod";
 import { createPushPullChannel, type PushPullChannel } from "./channel";
@@ -79,7 +79,7 @@ const parseWorkspaceEvent = makeParser(WORKSPACE_EVENT_METHOD, WorkspaceEventEnv
 
 class RunTree {
   // Subagent runIds admitted onto this tree PLUS the root run's own runId
-  // (learned from the root-segment run.started). The root's OWN events are
+  // (learned from the root-segment segment.started). The root's OWN events are
   // matched by segmentId, not by this set; the set exists so subagents can be
   // admitted by runId and so STREAM_DOWN (which reports runIds) can match.
   private readonly runs = new Set<string>();
@@ -103,7 +103,7 @@ class RunTree {
 
   /** True if the given run belongs to this stream's tree (root or subagent) —
    *  used by STREAM_DOWN, which is keyed on runId. The root runId is populated
-   *  once its root-segment run.started is seen. */
+   *  once its root-segment segment.started is seen. */
   hasRun(runId: string): boolean {
     return this.runs.has(runId);
   }
@@ -127,12 +127,12 @@ class RunTree {
       run?: { id: string; spawnedByItemId?: string };
       item?: { id: string };
     };
-    if (e.type === "run.started" && e.run) {
+    if (e.type === "segment.started" && e.run) {
       if (ev.segmentId === this.rootSegmentId) {
-        // Root-segment run.started — learn the root runId (for STREAM_DOWN).
+        // Root-segment segment.started — learn the root runId (for STREAM_DOWN).
         this.runs.add(e.run.id);
       } else {
-        // A subagent run.started — admit it iff its spawning item is on the tree.
+        // A subagent segment.started — admit it iff its spawning item is on the tree.
         const spawnedBy = e.run.spawnedByItemId;
         if (spawnedBy && this.itemOwner.has(spawnedBy)) this.runs.add(e.run.id);
       }
@@ -143,9 +143,9 @@ class RunTree {
   }
 
   /** True once the ROOT SEGMENT has finished — ends the stream. A subagent's
-   *  run.finished carries a different segmentId, so it never closes the tree. */
+   *  segment.finished carries a different segmentId, so it never closes the tree. */
   isRootFinish(ev: RunEvent): boolean {
-    return ev.segmentId === this.rootSegmentId && ev.event.type === "run.finished";
+    return ev.segmentId === this.rootSegmentId && ev.event.type === "segment.finished";
   }
 }
 

@@ -1,5 +1,5 @@
 // Run-event stream lifecycle (API.md §5 / §10). The headline guarantees:
-//   - the stream ends on the ROOT SEGMENT's `run.finished` (no separate
+//   - the stream ends on the ROOT SEGMENT's `segment.finished` (no separate
 //     "closed" method in v2);
 //   - a single root-segment stream carries the whole run tree (subagent runs
 //     are admitted via spawnedByItemId, keyed on their distinct runIds);
@@ -57,17 +57,17 @@ function evt(
   return { runId, segmentId, eventId, timestamp: "2026-06-03T00:00:00Z", event } as RunEvent;
 }
 
-// A root-segment run.started — its `run.id` is the root runId (learned by the
+// A root-segment segment.started — its `run.id` is the root runId (learned by the
 // tree for STREAM_DOWN matching); it lands FIRST on every real stream.
 function rootStarted(): RunEvent {
   return evt("run_root", "seg_root", "evt_start", {
-    type: "run.started",
+    type: "segment.started",
     run: { id: "run_root", sessionId: "s" } as never,
   });
 }
 
 describe("streamRunEvents — tree membership (bound)", () => {
-  it("yields tree events and ends on the root-segment run.finished, no leaked subscriber", async () => {
+  it("yields tree events and ends on the root-segment segment.finished, no leaked subscriber", async () => {
     const { client, emit, activeCount } = fakeClient();
     const stream = streamRunEvents(client);
     stream.bind("seg_root");
@@ -81,7 +81,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
     // Foreign segment (different segmentId AND runId) — dropped.
     emit(
       evt("run_other", "seg_other", "evt_x", {
-        type: "run.started",
+        type: "segment.started",
         run: { id: "run_other", sessionId: "s" } as never,
       }),
     );
@@ -93,13 +93,13 @@ describe("streamRunEvents — tree membership (bound)", () => {
     );
     emit(
       evt("run_root", "seg_root", "evt_2", {
-        type: "run.finished",
+        type: "segment.finished",
         outcome: { type: "completed", result: {} },
       }),
     );
     await consume;
 
-    expect(collected).toEqual(["item.started", "run.finished"]); // foreign dropped; finish closes
+    expect(collected).toEqual(["item.started", "segment.finished"]); // foreign dropped; finish closes
     expect(activeCount()).toBe(0);
   });
 
@@ -122,7 +122,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
     // The subagent runs on its OWN segment (seg_child) with its OWN runId.
     emit(
       evt("run_child", "seg_child", "evt_2", {
-        type: "run.started",
+        type: "segment.started",
         run: { id: "run_child", sessionId: "s", spawnedByItemId: "item_tool" } as never,
       }),
     );
@@ -132,16 +132,16 @@ describe("streamRunEvents — tree membership (bound)", () => {
         item: { id: "item_c", type: "agentMessage" } as never,
       }),
     );
-    // A subagent's run.finished (different segmentId) must NOT close the stream.
+    // A subagent's segment.finished (different segmentId) must NOT close the stream.
     emit(
       evt("run_child", "seg_child", "evt_4", {
-        type: "run.finished",
+        type: "segment.finished",
         outcome: { type: "completed", result: {} },
       }),
     );
     emit(
       evt("run_root", "seg_root", "evt_5", {
-        type: "run.finished",
+        type: "segment.finished",
         outcome: { type: "completed", result: {} },
       }),
     );
@@ -174,7 +174,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
     emit(started); // replay overlap re-delivers the same eventId
     emit(
       evt("run_root", "seg_root", "evt_2", {
-        type: "run.finished",
+        type: "segment.finished",
         outcome: { type: "completed", result: {} },
       }),
     );
@@ -223,12 +223,12 @@ describe("streamRunEvents — tree membership (bound)", () => {
         item: { id: "item_1", type: "agentMessage" } as never,
       }),
     );
-    // Transport reports the SSE stream carrying run_root died (no run.finished
+    // Transport reports the SSE stream carrying run_root died (no segment.finished
     // ever arrived) — the consumer's for-await must end, not hang forever.
     emitDown(["run_root"]);
     await consume;
 
-    expect(collected).toEqual(["run.started", "item.started"]);
+    expect(collected).toEqual(["segment.started", "item.started"]);
     expect(activeCount()).toBe(0);
   });
 
@@ -251,13 +251,13 @@ describe("streamRunEvents — tree membership (bound)", () => {
     );
     emit(
       evt("run_root", "seg_root", "evt_2", {
-        type: "run.finished",
+        type: "segment.finished",
         outcome: { type: "completed", result: {} },
       }),
     );
     await consume;
 
-    expect(collected).toEqual(["item.started", "run.finished"]);
+    expect(collected).toEqual(["item.started", "segment.finished"]);
   });
 });
 
@@ -307,12 +307,12 @@ describe("streamRunEvents — deferred bind lifecycle", () => {
     bind("seg_root");
     emit(
       evt("run_root", "seg_root", "evt_3", {
-        type: "run.finished",
+        type: "segment.finished",
         outcome: { type: "completed", result: {} },
       }),
     );
     await consume;
 
-    expect(collected).toEqual(["run.started", "item.started", "run.finished"]);
+    expect(collected).toEqual(["segment.started", "item.started", "segment.finished"]);
   });
 });

@@ -8,7 +8,7 @@
 //   - mixed          = any interleaving (some items fully streamed, some snapshot-only —
 //                      e.g. hydrated history followed by a live continuation)
 // This test pins that convergence so no future change can reintroduce a
-// streaming-only quirk (the run.started turn-reset this guards against was one).
+// streaming-only quirk (the segment.started turn-reset this guards against was one).
 //
 // SCOPE — the symmetric payload, whose information lives identically on the
 // completed snapshot and the delta stream, so any subset converges:
@@ -101,7 +101,7 @@ const t1 = item({
 const m2 = item({ id: "m2", type: "agentMessage", content: [{ type: "text", text: "Done." }] });
 
 const FULL_STREAM: StreamEvent[] = [
-  { type: "run.started", run: { id: "run_1", sessionId: "ses_1" } as never },
+  { type: "segment.started", run: { id: "run_1", sessionId: "ses_1" } as never },
   started(u1), // user bubble (boundary) — backend sends started(inProgress)+completed
   completed(u1),
   started(r1),
@@ -118,7 +118,7 @@ const FULL_STREAM: StreamEvent[] = [
   started(m2),
   delta("m2", { type: "content", text: "Done." }),
   completed(m2),
-  { type: "run.finished", outcome: { type: "completed", result: { steps: 1 } } },
+  { type: "segment.finished", outcome: { type: "completed", result: { steps: 1 } } },
 ];
 
 describe("reducer — render convergence across delivery modes", () => {

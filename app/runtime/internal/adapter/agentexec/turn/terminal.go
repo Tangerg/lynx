@@ -94,7 +94,7 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc agentexec.TurnProcess, termin
 	}
 	s.emit(st, end)
 	// Stop hooks (observe-only): fire after the terminal is emitted (the client
-	// already saw run.finished) — for notify / chain / cleanup. Bounded by the
+	// already saw segment.finished) — for notify / chain / cleanup. Bounded by the
 	// hook timeout; it precedes only the turn's teardown, not the client signal.
 	s.fireStop(st, plan.errMsg)
 }

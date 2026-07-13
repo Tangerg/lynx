@@ -58,7 +58,7 @@ describe("HTTPTransport — streamable HTTP", () => {
       {
         jsonrpc: "2.0",
         method: "notifications.run.event",
-        params: { event: { type: "run.started" } },
+        params: { event: { type: "segment.started" } },
       },
       "evt_0001",
     );
@@ -66,7 +66,7 @@ describe("HTTPTransport — streamable HTTP", () => {
       {
         jsonrpc: "2.0",
         method: "notifications.run.event",
-        params: { event: { type: "run.finished" } },
+        params: { event: { type: "segment.finished" } },
       },
       "evt_0002",
     );
@@ -85,8 +85,8 @@ describe("HTTPTransport — streamable HTTP", () => {
     await transport.close();
 
     expect(r0.value).toMatchObject({ id: "1", result: { runId: "run_01" } });
-    expect(r1.value).toMatchObject({ params: { event: { type: "run.started" } } });
-    expect(r2.value).toMatchObject({ params: { event: { type: "run.finished" } } });
+    expect(r1.value).toMatchObject({ params: { event: { type: "segment.started" } } });
+    expect(r2.value).toMatchObject({ params: { event: { type: "segment.finished" } } });
   });
 
   it("non-streaming method: POST returns a single application/json message", async () => {
@@ -141,7 +141,7 @@ describe("HTTPTransport — streamable HTTP", () => {
   it("a stream dying mid-run synthesizes a stream-down naming the run", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     // Response frame arrives (runId run_01), then the connection dies with a
-    // non-abort error — no run.finished was ever delivered. Without the
+    // non-abort error — no segment.finished was ever delivered. Without the
     // synthetic, every consumer of run_01's events would await forever.
     const responseFrame = frame({ jsonrpc: "2.0", id: "1", result: { runId: "run_01" } });
     const enc = new TextEncoder();

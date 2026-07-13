@@ -26,30 +26,30 @@ type RunEvent struct {
 // the Journal knowing anything wire-specific. EventID is fixed-width
 // zero-padded, so the Journal's lexical cursor comparison agrees with numeric.
 func (e RunEvent) Durable() bool  { return e.Event.IsDurable() }
-func (e RunEvent) Terminal() bool { return e.Event.Type == StreamRunFinished }
+func (e RunEvent) Terminal() bool { return e.Event.Type == StreamSegmentFinished }
 func (e RunEvent) Cursor() string { return e.EventID }
 
 // StreamEventType discriminates the StreamEvent union (API.md §5).
 type StreamEventType string
 
 const (
-	StreamRunStarted    StreamEventType = "run.started"
-	StreamRunProgress   StreamEventType = "run.progress"
-	StreamRunFinished   StreamEventType = "run.finished"
-	StreamItemStarted   StreamEventType = "item.started"
-	StreamItemDelta     StreamEventType = "item.delta"
-	StreamItemCompleted StreamEventType = "item.completed"
-	StreamStateSnapshot StreamEventType = "state.snapshot"
-	StreamStateDelta    StreamEventType = "state.delta"
-	StreamCustom        StreamEventType = "custom"
+	StreamSegmentStarted  StreamEventType = "segment.started"
+	StreamSegmentProgress StreamEventType = "segment.progress"
+	StreamSegmentFinished StreamEventType = "segment.finished"
+	StreamItemStarted     StreamEventType = "item.started"
+	StreamItemDelta       StreamEventType = "item.delta"
+	StreamItemCompleted   StreamEventType = "item.completed"
+	StreamStateSnapshot   StreamEventType = "state.snapshot"
+	StreamStateDelta      StreamEventType = "state.delta"
+	StreamCustom          StreamEventType = "custom"
 )
 
 // StreamEvent is a tag-discriminated union over downstream events
 // (API.md §5). Type selects which optional fields apply.
 //
-//	run.started     → Run
-//	run.progress    → Progress
-//	run.finished    → Outcome
+//	segment.started     → Run
+//	segment.progress    → Progress
+//	segment.finished    → Outcome
 //	item.started    → Item
 //	item.delta      → ItemID, Delta
 //	item.completed  → Item
@@ -81,7 +81,7 @@ type StreamEvent struct {
 // derives durability independently.
 func (se StreamEvent) IsDurable() bool {
 	switch se.Type {
-	case StreamItemDelta, StreamStateDelta, StreamRunProgress:
+	case StreamItemDelta, StreamStateDelta, StreamSegmentProgress:
 		return false
 	case StreamCustom:
 		return se.Durable != nil && *se.Durable
@@ -90,9 +90,9 @@ func (se StreamEvent) IsDurable() bool {
 	}
 }
 
-// RunProgress is the mid-run progress preview carried by a run.progress
+// RunProgress is the mid-run progress preview carried by a segment.progress
 // event (API.md §5). Ephemeral — its terminal values land on
-// run.finished.result (usage incl. costUsd / steps).
+// segment.finished.result (usage incl. costUsd / steps).
 type RunProgress struct {
 	Step *int `json:"step,omitempty"`
 	// MaxSteps would complete a "step N of M" counter, but no producer sets it

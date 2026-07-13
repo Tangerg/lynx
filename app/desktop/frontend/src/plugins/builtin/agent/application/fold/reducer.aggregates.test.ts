@@ -29,7 +29,7 @@ beforeEach(async () => {
 describe("reducer — timeline accumulator", () => {
   it("records run-start / tool-start+end / run-end entries in order", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
-    s = reduce(s, { type: "run.started", run: { id: "r1", sessionId: "s" } as never });
+    s = reduce(s, { type: "segment.started", run: { id: "r1", sessionId: "s" } as never });
     s = reduce(
       s,
       started(
@@ -51,7 +51,7 @@ describe("reducer — timeline accumulator", () => {
         }),
       ),
     );
-    s = reduce(s, { type: "run.finished", outcome: { type: "completed", result: {} } });
+    s = reduce(s, { type: "segment.finished", outcome: { type: "completed", result: {} } });
 
     expect(s.timeline.map((t) => t.kind)).toEqual([
       "run-start",
@@ -66,7 +66,7 @@ describe("reducer — timeline accumulator", () => {
 
   it("records an approval-request when a run finishes with an approval interrupt", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
-    s = reduce(s, { type: "run.started", run: { id: "r1", sessionId: "s" } as never });
+    s = reduce(s, { type: "segment.started", run: { id: "r1", sessionId: "s" } as never });
     s = reduce(
       s,
       started(
@@ -78,7 +78,7 @@ describe("reducer — timeline accumulator", () => {
       ),
     );
     s = reduce(s, {
-      type: "run.finished",
+      type: "segment.finished",
       outcome: {
         type: "interrupt",
         interrupts: [
