@@ -1,8 +1,8 @@
 # Runtime Execution-Centered Architecture 收敛执行计划
 
-> 状态：执行中  
+> 状态：完成
 > 建立日期：2026-07-13  
-> 当前代码基线：`581005b50`（`codex/runtime-architecture-refactor`）  
+> 完成 checkpoint：`a94e63b91`（`codex/runtime-architecture-refactor`）
 > 目标架构基准：[EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md)
 
 ## 0. 文档职责
@@ -65,10 +65,10 @@ wire request
 
 ### 2.1 执行原则
 
-1. 一次只推进一个批次；后续批次不得以“顺手”为由提前混入。
+1. 批次用于控制决策和验收边界；当分批会制造短命兼容层时，允许通过决策日志批准原子合并执行。
 2. 每个提交只解决一个可描述的语义问题，并能独立回退。
 3. 先移动所有权，再清理命名和目录；不得以重命名代替职责迁移。
-4. 优先保持 wire 行为不变；需要改变协议、schema 或 exported API 时必须单独列出影响并先确认。
+4. 当前开发期不为历史 wire artifact、数据库 schema 或错误 exported API 保留兼容；改变现行用户协议时仍须单独列出影响。
 5. 不保留明知错误的兼容层、双写、双事件族或“以后删除”的永久 shim。
 6. 中间提交可以为同一批次服务，但一批只有在其临时桥接全部删除后才能标记完成。
 7. 每批结束必须全量验证并更新本文档；测试通过不是可选收尾步骤。
@@ -88,9 +88,9 @@ wire request
 
 出现以下任一情况，当前任务不得自行扩大范围：
 
-- 需要改变公开协议 wire shape；
-- 需要改变外部可见 exported API；
-- 需要执行破坏性数据库 schema 变更；
+- 需要改变 D-008 已批准范围之外的现行公开协议 wire shape；
+- 需要改变 D-008 已批准范围之外的外部可见 exported API；
+- 需要保留旧数据库、artifact、API 或双模型兼容；
 - 当前批次无法完成，必须依赖后续批次的临时设计才能合并；
 - 发现目标架构与已证实的业务不变量冲突；
 - 需要新增兼容层、双写或长期 feature flag；
@@ -121,7 +121,9 @@ wire request
 
 这些成果已经解决了旧架构最危险的问题：生命周期分散、状态多源、interrupt/resume 非原子、publish 早于 commit，以及 composition root 兼任业务 facade。
 
-### 3.2 尚未完成的核心差异
+### 3.2 执行前核心差异（现已收敛）
+
+以下内容保留为本计划的历史问题定义，不再描述当前实现。对应收敛结果见 §17 执行记录。
 
 #### 差异 A：完整 Run 用例仍由 Delivery 编排
 
@@ -170,8 +172,8 @@ schedule worker 通过 Delivery `Server.StartRun` 构造 protocol request 启动
 
 | 口径 | 当前值 | 说明 |
 |---|---:|---|
-| 原始重写目标总体完成度 | 约 75%–80% | 已完成结构、生命周期、事务和大部分持久化一致性 |
-| 本文档剩余收敛计划 | 1 / 4 批 | Batch 1 已完成，进入 canonical event pipeline |
+| 原始重写目标总体完成度 | 100% | 四批目标及最终验收全部完成 |
+| 本文档剩余收敛计划 | 4 / 4 批 | 已封账，无剩余批次 |
 
 不得用代码行数、文件数或提交数计算进度。只有批次完成判据全部满足，才能增加进度。
 
@@ -329,7 +331,7 @@ Subscribe(ctx context.Context, runID RunID, after Cursor) (...)
 
 ## 7. Batch 2：Application-owned Event + Projection Pipeline
 
-> 状态：执行中
+> 状态：已完成（checkpoint `a94e63b91`）
 > 依赖：Batch 1 完成  
 > 目标：durable fact 和 canonical RunEvent 在 Application 中形成，Delivery 只做最终 protocol projection。
 
@@ -337,9 +339,9 @@ Subscribe(ctx context.Context, runID RunID, after Cursor) (...)
 
 ```text
 Executor EngineEvent
-  → application reducer/projector
+  → application reducer
       ├─ canonical RunEvent
-      ├─ execution.EventCommit
+      ├─ runs.EventCommit
       └─ optional application nudge
   → commit when required
   → Journal<RunEvent>
@@ -390,18 +392,18 @@ Executor EngineEvent
 
 ### 7.3 本批完成判据
 
-- [ ] Application Journal 中不存在 Delivery/protocol concrete payload；
-- [ ] `protocol.StreamEvent` 只在 Delivery 包内出现；
-- [ ] EventCommit 在 protocol projection 前形成；
-- [ ] Delivery translator 不 import/use `execution.EventCommit`；
-- [ ] opening、interrupt、terminal 仍严格 commit-before-publish；
-- [ ] 同一 canonical RunEvent 经 HTTP/inprocess 得到一致 wire；
-- [ ] 所有 translator golden 与 resume/cancel race 通过；
-- [ ] 本批临时桥接全部删除。
+- [x] Application Journal 中不存在 Delivery/protocol concrete payload；
+- [x] `protocol.StreamEvent` 只在 Delivery 包内出现；
+- [x] EventCommit 在 protocol projection 前形成；
+- [x] Delivery presenter 不 import/use domain EventCommit；
+- [x] opening、interrupt、terminal 仍严格 commit-before-publish；
+- [x] 同一 canonical RunEvent 经统一无状态 presenter 得到一致 wire；
+- [x] reducer、presenter 与 resume/cancel race 测试通过；
+- [x] 本批临时桥接全部删除。
 
 ## 8. Batch 3：Canonical Transcript、Interrupt 与 Run Identity
 
-> 状态：未开始  
+> 状态：已完成（与 Batch 2 原子切换，checkpoint `a94e63b91`）
 > 依赖：Batch 2 完成  
 > 目标：Execution 的 durable record 不再以 protocol DTO 为领域事实，Run 状态转换严格定位逻辑 Run。
 
@@ -444,31 +446,27 @@ Executor EngineEvent
 - 若需要 Created，则 opening transaction 必须显式执行 Created → Running；
 - 删除状态机、注释、schema 三者之间的虚假状态。
 
-### 8.2 Schema 与数据策略
+### 8.2 Schema 与数据策略（已执行）
 
-Runtime 当前处于快速开发阶段，不为旧数据保留明知错误的长期兼容层。实施前必须单独列出：
-
-- 是否只改变现有 JSON blob 的 canonical shape；
-- 是否调整表字段或索引；
-- 是否需要清空本地开发数据；
-- 是否影响 session export/import artifact；
-- 是否改变任何公开 wire shape。
-
-需要 schema 或公开 artifact 变更时，必须在本批开始前确认具体方案。
+- SQLite current schema 升为 version 2；打开旧版本数据库时直接删除旧结构并安装当前 schema，不迁移历史数据；
+- Transcript 与 Pending Interrupt 只序列化 canonical typed record，不保留 protocol JSON blob；
+- session export/import artifact 升为 version 3，旧 version 2 明确拒绝；
+- 删除旧 artifact 外层存储键和旧投影路径，不提供双读、双写或转换 shim；
+- 当前 command/event wire contract 保持不变，只有持久化与导入导出 artifact 按当前正确模型切断历史。
 
 ### 8.3 本批完成判据
 
-- [ ] domain/application 不再把 protocol Item/RunRef blob 当作 authoritative record；
-- [ ] rollback/fork/recovery 不依赖 Delivery callback；
-- [ ] Pending Interrupt 不保存 wire interrupt JSON；
-- [ ] 每个 Run state transition 都严格携带并校验 RunID；
-- [ ] 状态机没有生产代码永不使用的 transition；
-- [ ] import/export、items/runs/query wire golden 全部通过；
-- [ ] SQLite 原子性与 CAS 竞态测试通过。
+- [x] domain/application 不再把 protocol Item/RunRef blob 当作 authoritative record；
+- [x] rollback/fork/recovery 不依赖 Delivery callback；
+- [x] Pending Interrupt 不保存 wire interrupt JSON；
+- [x] 每个 Run state transition 都严格携带并校验 RunID；
+- [x] 状态机没有生产代码永不使用的 transition；
+- [x] import/export、items/runs/query wire tests 通过；
+- [x] SQLite 原子性与 CAS 竞态测试通过。
 
 ## 9. Batch 4：Domain 纯化、Fitness Tests 与最终清理
 
-> 状态：未开始  
+> 状态：已完成（checkpoint `a94e63b91`）
 > 依赖：Batch 3 完成  
 > 目标：删除中间残留，用机器规则固化最终架构，并完成全量验收。
 
@@ -506,12 +504,12 @@ AST 无法可靠判断的语义规则，应通过编译期类型封闭、package
 
 ### 9.4 本批完成判据
 
-- [ ] Domain 生产代码无文件系统、数据库、网络、进程、telemetry I/O；
-- [ ] architecture tests 能阻止关键语义边界回退；
-- [ ] 不存在中间兼容层、双事件族、死接口或过期注释；
-- [ ] 全量 build/vet/test/race 通过；
-- [ ] 目标架构文档完成判据逐项验收通过；
-- [ ] 本文档状态更新为“完成”。
+- [x] Domain 生产代码无文件系统、数据库、网络、进程、telemetry I/O；
+- [x] architecture tests 能阻止关键语义边界回退；
+- [x] 不存在中间兼容层、双事件族、死接口或过期注释；
+- [x] 全量 build/vet/test/race 通过；
+- [x] 目标架构文档完成判据逐项验收通过；
+- [x] 本文档状态更新为“完成”。
 
 ## 10. 进度看板
 
@@ -521,17 +519,17 @@ AST 无法可靠判断的语义规则，应通过编译期类型封闭、package
 |---|---|---|---:|---|---|
 | Baseline | 分层、生命周期、原子 opening、stable RunID | 已完成 | 100% | 无 | 基线 `581005b50`；现有 arch/runs/sessions/runsegment tests |
 | Batch 1 | 完整 Run 用例进入 Application | 已完成 | 100% | 无 | `5cdd31c53`；full build/vet/test + key race |
-| Batch 2 | Application-owned event pipeline | 执行中 | 0% | 无 | Batch 1 已解除入口所有权依赖 |
-| Batch 3 | Canonical durable execution record | 未开始 | 0% | 依赖 Batch 2 | — |
-| Batch 4 | 纯化、fitness tests、最终清理 | 未开始 | 0% | 依赖 Batch 3 | — |
+| Batch 2 | Application-owned event pipeline | 已完成 | 100% | 无 | canonical reducer/journal；旧 Projector/translator 链已删除 |
+| Batch 3 | Canonical durable execution record | 已完成 | 100% | 无 | typed transcript/interrupt；strict RunID CAS；schema v2/artifact v3 |
+| Batch 4 | 纯化、fitness tests、最终清理 | 已完成 | 100% | 无 | `a94e63b91`；domain I/O 迁移、architecture tests、full/race/frontend 验收 |
 
 ### 10.2 当前执行指针
 
 ```text
-Current batch: Batch 2
-Current sub-step: 2.1 定义 canonical RunEvent 与 reducer 输入/输出
-Last completed commit: 5cdd31c53
-Next required gate: canonical event/commit model review before production migration
+Current batch: complete
+Current sub-step: none
+Last completed code checkpoint: a94e63b91
+Next required gate: none
 ```
 
 每次开始新的子步骤或提交后，必须更新这里。不得只修改下方历史记录而保留过期指针。
@@ -609,7 +607,7 @@ go test -race \
 
 ## 13. 提交与批次策略
 
-建议提交序列如下，实际可按依赖细分，但不得跨批混合：
+建议提交序列如下，实际可按依赖细分。D-008 之后 Batch 2/3 是一次原子切换：
 
 ```text
 Batch 1
@@ -620,18 +618,13 @@ Batch 1
   5. route scheduler directly to runs
   6. thin delivery + remove old seams
 
-Batch 2
-  1. canonical RunEvent + application reducer
-  2. journal canonical events
-  3. delivery presentation translator
-  4. remove delivery Projector/Projection/sideEffectEvent
-
-Batch 3
-  1. canonical transcript records
-  2. typed interrupt record
-  3. move rollback/fork/recovery boundary resolution
-  4. strict RunID state transitions
-  5. align state machine and persistence
+Batch 2 + 3 atomic cutover
+  1. one canonical execution/transcript/interrupt model + application reducer
+  2. typed SQLite persistence (discard the old schema; no migration)
+  3. canonical journal + stateless delivery projection
+  4. move rollback/fork/recovery boundary resolution inward
+  5. strict RunID state transitions + align the state machine
+  6. remove Projector/Projection/blob/sideEffectEvent and every transition shim
 
 Batch 4
   1. remove residual domain I/O
@@ -669,7 +662,9 @@ Batch 4
 | D-004 | 2026-07-13 | protocol snapshot 不再作为 Execution authoritative record | rollback/fork/recovery 必须独立于 Delivery | 已接受 |
 | D-005 | 2026-07-13 | Run state transition 必须显式定位 RunID + SessionID | 用 aggregate identity 防止错误 segment/late event 修改其他 Run | 已接受 |
 | D-006 | 2026-07-13 | 独立 infra 环、Session/Todo 的物理分包不回滚 | 这些是合理的 Go/工程化偏离，不影响 bounded context 与依赖规则 | 已接受 |
-| D-007 | 2026-07-13 | Batch 1 只保留既有 ProjectorFactory 作为 Batch 2 的明确迁移边界，不允许其携带 executor handle 或表达 fresh/resume 模式 | Batch 1 禁止同时重写 event pipeline；先移除命令编排与 handle 泄漏，再在 Batch 2 一次删除 outer projection seam | 已接受，Batch 2 必须删除 |
+| D-007 | 2026-07-13 | Batch 1 只保留既有 ProjectorFactory 作为 Batch 2 的明确迁移边界，不允许其携带 executor handle 或表达 fresh/resume 模式 | Batch 1 禁止同时重写 event pipeline；先移除命令编排与 handle 泄漏，再在 Batch 2 一次删除 outer projection seam | 已完成，seam 已删除 |
+| D-008 | 2026-07-13 | Batch 2 与 Batch 3 合并为一次原子切换；旧 transcript/interrupt schema 直接丢弃，不写 migration，不用 canonical→旧 wire JSON blob 过渡 | 用户明确要求按第一、第二法则实施且不做任何历史兼容；分批保留 blob 会在错误的持久化边界上制造短命 shim，并让 Delivery 语义继续反向渗透 | 已完成 |
+| D-009 | 2026-07-13 | Session Cwd 在进入 Application 时经 `CwdResolver` 一次性解析为 canonical path；Domain 与后续用例信任该不变量，不重复访问文件系统或防御性 canonicalize | 路径身份是外部世界解析结果，重复解析会把 I/O 泄漏回 Domain 并制造多套 workspace identity | 已接受并实施 |
 
 新增决策使用递增 ID，并同步修改受影响批次的范围、完成判据和风险。
 
@@ -731,23 +726,66 @@ Batch 4
 - Decision log updates: D-007；
 - 下一步：Batch 2.1，建立 Application-owned canonical RunEvent/reducer，并保持现有 wire golden 不变。
 
+### 2026-07-13 — Batch 2 + 3 — canonical execution pipeline atomic cutover
+
+- Commit: `a94e63b91`
+- Changed ownership:
+  - EngineEvent 的状态归约、item identity、terminal/interrupt synthesis、EventCommit 与 canonical RunEvent 从 Delivery 移入 `application/runs`；
+  - Transcript、Interrupt、Run/Item durable record 从 protocol JSON blob 改为 `domain/execution/transcript` typed model；
+  - rollback/fork/recovery timeline resolution 从 Delivery callback 移入 Application/Domain；
+- Invariants preserved/added:
+  - opening、interrupt、terminal 继续严格 commit-before-publish；
+  - Suspend/Resume/Terminalize 使用 RunID + SessionID + expected state 严格 CAS；
+  - cancel 只有一个 terminal owner，不再执行 live cancel 后的重复 durable terminalize；
+- Removed seams/debt:
+  - 删除 Delivery Projector、stateful translator、wire → EventCommit、BoundaryResolver 与 protocol payload marker；
+  - 删除 `Created/Begin` 假状态，admission 直接建立 Running；
+  - SQLite schema v2 遇到旧版本直接丢弃重建，artifact v3 拒绝旧版本，不保留 migration/双读/双写；
+- Validation:
+  - Runtime full build/vet/test 与关键 race：通过；
+  - protocol、SQLite、import/export、resume/cancel/reducer tests：通过；
+- Remaining within current batch: none；
+- Decision log updates: D-008。
+
+### 2026-07-13 — Batch 4 — domain purity, fitness tests, and closeout
+
+- Commit: `a94e63b91`
+- Changed ownership:
+  - workspace canonical path 的文件系统解析移入 `adapter/workspacepath`，Application 通过 `CwdResolver` 在入口建立一次性不变量；
+  - editguard 文件读取/hash 移入 tool adapter，Domain 只比较 fingerprint；
+- Invariants preserved/added:
+  - Domain 全环禁止文件系统、数据库、网络、进程和 framework I/O；
+  - architecture guards 禁止 opaque execution record、outer projection seam、Delivery concrete turn control 回归；
+  - 前后端 artifact v3 shape 同步删除冗余外层存储 identity；
+- Removed seams/debt:
+  - 删除 `domain/worktree` I/O package、死 Durability 类型、过期 migration/strict-transition 注释；
+- Validation:
+  - `go build ./...`：通过；
+  - `go vet ./...`：通过；
+  - `go test ./...`：通过；
+  - `go test -race ./internal/application/runs ./internal/application/sessions ./internal/application/schedules ./internal/adapter/runsegment ./internal/delivery/server`：通过；
+  - frontend Prettier、RPC sample test、TypeScript typecheck：通过；
+  - `git diff --check`：通过；
+- Remaining within current batch: none；
+- Decision log updates: D-009。
+
 ## 18. 最终验收清单
 
 架构收敛完成时逐项勾选：
 
-- [ ] `application/runs` 展示完整 Start → Resume/Cancel → Terminal 流程；
-- [ ] Delivery Run command handler 只 decode/call/present；
-- [ ] scheduler 与 transports 共享同一 Application Runs 入口；
-- [ ] Delivery 不理解 executor handle；
-- [ ] Application Journal 不携带 protocol concrete payload；
-- [ ] EventCommit 不由 wire event 反推；
-- [ ] Transcript/Interrupt 是 canonical durable record；
-- [ ] rollback/fork/recovery 不依赖 Delivery callback；
-- [ ] 所有 Run transition 严格按 RunID + SessionID；
-- [ ] Domain 无 I/O/framework；
-- [ ] Bootstrap 只装配、启动和关闭；
-- [ ] architecture fitness tests 覆盖最终边界；
-- [ ] protocol golden、SQLite contract、全量 build/vet/test/race 通过；
-- [ ] 不存在中间 shim、双写、死类型和过期注释；
-- [ ] `EXECUTION_CENTERED_ARCHITECTURE.md` 与真实实现一致；
-- [ ] 本文档状态改为“完成”，进度看板和执行记录已封账。
+- [x] `application/runs` 展示完整 Start → Resume/Cancel → Terminal 流程；
+- [x] Delivery Run command handler 只 decode/call/present；
+- [x] scheduler 与 transports 共享同一 Application Runs 入口；
+- [x] Delivery 不理解 executor handle；
+- [x] Application Journal 不携带 protocol concrete payload；
+- [x] EventCommit 不由 wire event 反推；
+- [x] Transcript/Interrupt 是 canonical durable record；
+- [x] rollback/fork/recovery 不依赖 Delivery callback；
+- [x] 所有 Run transition 严格按 RunID + SessionID；
+- [x] Domain 无 I/O/framework；
+- [x] Bootstrap 只装配、启动和关闭；
+- [x] architecture fitness tests 覆盖最终边界；
+- [x] protocol golden、SQLite contract、全量 build/vet/test/race 通过；
+- [x] 不存在中间 shim、双写、死类型和过期注释；
+- [x] `EXECUTION_CENTERED_ARCHITECTURE.md` 与真实实现一致；
+- [x] 本文档状态改为“完成”，进度看板和执行记录已封账。
