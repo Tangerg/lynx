@@ -54,8 +54,8 @@ func TestDeleteSessionStopsBeforeProcessCleanupOnApplyFailure(t *testing.T) {
 func TestRestoreSessionAppliesPlan(t *testing.T) {
 	stores := newMutationStores("")
 	err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).RestoreSession(
-		context.Background(),
-		session.Session{ID: "ses_1"},
+		t.Context(),
+		session.Session{ID: "ses_1", Cwd: "/workspace"},
 		[]chat.Message{chat.NewUserMessage("hi")},
 		nil, nil,
 	)
@@ -64,6 +64,26 @@ func TestRestoreSessionAppliesPlan(t *testing.T) {
 	}
 	if len(stores.restored) != 1 || stores.restored[0].Session.ID != "ses_1" || len(stores.restored[0].Messages) != 1 {
 		t.Fatalf("restored = %+v, want one plan for ses_1 with 1 message", stores.restored)
+	}
+}
+
+func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
+	stores := newMutationStores("")
+	want := errors.New("missing workspace")
+	coordinator := New(Dependencies{
+		Stores: stores,
+		Turns:  mutationTurns{operations: &stores.operations},
+		Paths:  testCwdResolver{err: want},
+	})
+
+	err := coordinator.RestoreSession(
+		t.Context(), session.Session{ID: "ses_1", Cwd: "relative"}, nil, nil, nil,
+	)
+	if !errors.Is(err, session.ErrCwdUnavailable) || !errors.Is(err, want) {
+		t.Fatalf("RestoreSession error = %v, want cwd unavailable + cause", err)
+	}
+	if len(stores.restored) != 0 {
+		t.Fatalf("restore mutated storage after cwd rejection: %+v", stores.restored)
 	}
 }
 

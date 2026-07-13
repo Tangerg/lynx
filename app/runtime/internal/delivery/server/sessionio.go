@@ -106,6 +106,10 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 		}
 		msgs = append(msgs, m)
 	}
+	runs, items, err := canonicalArtifact(art, len(msgs))
+	if err != nil {
+		return nil, err
+	}
 
 	id := art.Session.ID
 	admission, err := s.sessions.ClaimRunSlot(ctx, s.coordinator, id)
@@ -117,25 +121,19 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	}
 	defer admission.Release()
 
-	// Map the wire artifact's runs/items into domain records (the wire→domain
-	// decode is the adapter's job), then hand the restore to the lifecycle
-	// coordinator. It commits the whole thing as ONE transaction — upsert the
+	// Hand the strictly-decoded canonical aggregate to the lifecycle coordinator.
+	// It commits the whole thing as ONE transaction — upsert the
 	// session row, replace existing history (drop old items/runs + clear the
 	// chat log + stale open interrupts), re-seed the messages, re-persist
 	// runs+items — so a mid-sequence failure after the destructive
 	// delete/truncate can't leave the session row live but its history
 	// half-destroyed (an import-over losing the prior history with nothing to
 	// replace it).
-	runs := make([]transcript.Run, 0, len(art.Runs))
-	for _, r := range art.Runs {
-		runs = append(runs, canonicalRunFromWire(id, r.Run, r.UpdatedAt, r.MessageMark))
-	}
-	items := make([]transcript.Item, 0, len(art.Items))
-	for _, it := range art.Items {
-		items = append(items, canonicalItemFromWire(id, it.Item))
-	}
 	if err := s.sessions.RestoreSession(ctx, artifactToSession(art.Session), msgs, runs, items); err != nil {
-		return nil, err
+		if errors.Is(err, transcript.ErrIdentityConflict) {
+			return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+		}
+		return nil, wireSessionErr(err)
 	}
 
 	ses, err := s.sessions.Get(ctx, id)

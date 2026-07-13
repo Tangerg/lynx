@@ -54,7 +54,7 @@ type Server struct {
 
 	localToken      string
 	corsOrigins     []string
-	healthProbes    []HealthProbe
+	healthProbes    []*healthProbeRunner
 	agentDocsLister AgentDocsLister
 
 	dispatcher messageHandler
@@ -139,7 +139,7 @@ func NewServer(cfg Config) (*Server, error) {
 		serverID:        serverID,
 		localToken:      cfg.LocalToken,
 		corsOrigins:     slices.Clone(cfg.CORSOrigins),
-		healthProbes:    slices.Clone(cfg.HealthProbes),
+		healthProbes:    newHealthProbeRunners(cfg.HealthProbes),
 		agentDocsLister: cfg.AgentDocsLister,
 		dispatcher:      dispatch.New(cfg.Runtime),
 		info: protocol.DiscoverResponse{

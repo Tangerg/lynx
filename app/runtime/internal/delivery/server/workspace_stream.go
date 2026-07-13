@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -161,33 +160,4 @@ func (s *Server) PublishWorkspaceEvent(ev protocol.WorkspaceEvent) {
 	if s.wsHub != nil {
 		s.wsHub.publish(ev)
 	}
-}
-
-// fileMutatingTools are the agent tools whose completed call means a specific
-// file changed — their path argument names it exactly, so a workspace
-// subscriber can refresh without watching the working tree. shell is excluded
-// (its file effects aren't knowable from arguments); git-affecting commands
-// surface via the .git watch instead.
-var fileMutatingTools = map[string]struct{}{"write": {}, "edit": {}}
-
-// toolFileChangedPaths extracts file-change paths from a completed, successful
-// file-mutating tool call. This is the precise, fd-free half of the watch
-// model: the agent's own edits are known exactly from tool arguments, so the
-// git watcher only needs to cover out-of-band (git) state changes.
-func toolFileChangedPaths(se protocol.StreamEvent) []string {
-	if se.Type != protocol.StreamItemCompleted || se.Item == nil {
-		return nil
-	}
-	it := se.Item
-	if it.Type != protocol.ItemTypeToolCall || it.Status != protocol.ItemStatusCompleted || it.Error != nil || it.Tool == nil {
-		return nil
-	}
-	if _, ok := fileMutatingTools[strings.ToLower(it.Tool.Name)]; !ok {
-		return nil
-	}
-	path, _ := it.Tool.Arguments["file_path"].(string)
-	if path == "" {
-		return nil
-	}
-	return []string{path}
 }

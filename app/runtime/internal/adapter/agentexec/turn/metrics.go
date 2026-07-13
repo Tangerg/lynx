@@ -5,10 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 // Meter scope + metric names. These measure the lyra-runtime turn

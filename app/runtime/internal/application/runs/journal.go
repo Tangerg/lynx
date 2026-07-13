@@ -7,66 +7,50 @@ import (
 
 // Streamable is the minimum the [Journal] needs to buffer, fan out, and replay a
 // run event — nothing wire-specific. The concrete event type belongs to the
-// caller (delivery supplies its protocol RunEvent; the application supplies its
-// own [Event]); the Journal never interprets the payload, which keeps run-stream
-// ownership in the application while the wire shape stays in delivery.
+// caller; the Journal never interprets its payload.
 type Streamable interface {
-	// Durable reports whether the event is retained for replay. Live-only events
-	// are fanned out to current subscribers but never buffered, so a
-	// reconnecting subscriber never re-receives them.
+	// Durable reports whether the event is retained for replay. A live subscriber
+	// also receives every durable event in order, regardless of backpressure.
 	Durable() bool
-	// Terminal reports whether the event ends the run's stream. A dropped
-	// terminal strands the client, so the Journal delivers it with a bounded
-	// blocking send and expects Close to follow.
+	// Terminal reports whether the event ends the run's stream. Terminal events
+	// are never dropped, even if a concrete event family marks one non-durable.
 	Terminal() bool
 	// Cursor is the event's monotonic stream position. Replay yields only events
-	// strictly after a requested cursor, compared lexically — so cursors must be
-	// fixed-width and lexically ordered (the wire's zero-padded ids are, which is
-	// what lets the Journal stay ignorant of their format).
+	// strictly after a requested cursor, compared lexically — cursors must therefore
+	// be fixed-width and lexically ordered.
 	Cursor() string
 }
 
 const (
-	// liveHeadroom is the spare capacity a subscriber channel keeps beyond its
-	// replay backlog, to absorb live events while the consumer drains. A
-	// subscriber that overflows drops live events and must reconnect.
+	// liveHeadroom bounds queued live-only events per subscriber. Durable and
+	// terminal events are never subject to this budget.
 	liveHeadroom = 256
-	// terminalSendTimeout bounds the total time [Journal.Append] blocks
-	// delivering a terminal event to (possibly backpressured) subscribers.
+	// terminalSendTimeout bounds how long a finished Journal lets an abandoned
+	// subscriber drain its final queue before aborting that subscription.
 	terminalSendTimeout = 2 * time.Second
 )
 
-// Journal is the per-run event fan-out + durable replay buffer that owns a run's
-// stream for its whole lifetime, independent of any client connection: the run's
-// pump Appends every event, and each streaming call Subscribes — replaying the
-// durable backlog after its cursor, then tailing live — so a dropped connection
-// never stalls the run and a re-subscribe resumes cleanly.
-//
-// Only durable events are retained for replay; live-only events reach current
-// subscribers but are not buffered. The pump calls Close on the terminal event;
-// the Journal doesn't otherwise interpret events.
+// Journal is the per-run event fan-out + durable replay buffer. Each subscriber
+// owns a small delivery pump: Append only enqueues, so a slow consumer cannot
+// stall the run; durable events remain ordered and lossless while excess
+// live-only deltas are coalesced by dropping them at the subscriber boundary.
 type Journal[E Streamable] struct {
 	mu        sync.Mutex
 	durable   []E
-	subs      map[int]chan E
+	subs      map[int]*journalSubscriber[E]
 	nextSubID int
 	closed    bool
 }
 
 // NewJournal builds an empty Journal for events of type E.
 func NewJournal[E Streamable]() *Journal[E] {
-	return &Journal[E]{subs: map[int]chan E{}}
+	return &Journal[E]{subs: map[int]*journalSubscriber[E]{}}
 }
 
-// Append fans ev out to every live subscriber and, when ev is durable, retains
-// it for replay. Per-subscriber delivery is non-blocking — a full channel drops
-// the event so one slow consumer can't stall the run (it recovers by
-// reconnecting) — EXCEPT a terminal event, delivered with a bounded blocking
-// send so it can't be the one event a backpressured consumer loses. The blocking
-// send holds mu, which is safe: Close and a subscriber's cancel also take mu, so
-// a channel can't be closed under us (no send-on-closed panic); a draining
-// consumer frees a slot immediately, and only a vanished one waits out the
-// timeout.
+// Append retains a durable event and enqueues the event for every live
+// subscriber. Durable and terminal events are lossless; only excess live-only
+// events can be dropped. Per-subscriber delivery pumps keep Append non-blocking
+// with respect to consumers.
 func (j *Journal[E]) Append(ev E) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -76,95 +60,177 @@ func (j *Journal[E]) Append(ev E) {
 	if ev.Durable() {
 		j.durable = append(j.durable, ev)
 	}
-	if ev.Terminal() {
-		deliverTerminal(j.subs, ev, terminalSendTimeout)
-		return
-	}
-	for _, ch := range j.subs {
-		select {
-		case ch <- ev:
-		default:
-		}
+	for _, subscriber := range j.subs {
+		subscriber.enqueue(ev)
 	}
 }
 
-// deliverTerminal gives every healthy subscriber an immediate chance before
-// waiting on backpressured ones under one shared deadline. Call with the
-// Journal's mu held, which keeps subscriber channels open for the duration.
-func deliverTerminal[E Streamable](subs map[int]chan E, ev E, budget time.Duration) {
-	blocked := make([]chan E, 0, len(subs))
-	for _, ch := range subs {
-		select {
-		case ch <- ev:
-		default:
-			blocked = append(blocked, ch)
-		}
-	}
-	if len(blocked) == 0 {
-		return
-	}
-	timer := time.NewTimer(budget)
-	defer timer.Stop()
-	for _, ch := range blocked {
-		select {
-		case ch <- ev:
-		case <-timer.C:
-			return
-		}
-	}
-}
-
-// Close ends the run's stream: every subscriber channel is closed (the
-// consumer's end-of-stream signal). Idempotent. Subscribers that attach after
-// Close get the durable replay followed by a closed channel.
+// Close ends the run's stream. Subscribers drain their already-enqueued events
+// in order and then close; an abandoned consumer is aborted after one bounded
+// shared-duration window. Close itself does not wait, which lets a stream opened
+// by a fast run return to its caller before that caller starts draining.
 func (j *Journal[E]) Close() {
 	j.mu.Lock()
-	defer j.mu.Unlock()
 	if j.closed {
+		j.mu.Unlock()
 		return
 	}
 	j.closed = true
-	for id, ch := range j.subs {
-		close(ch)
+	subscribers := make([]*journalSubscriber[E], 0, len(j.subs))
+	for id, subscriber := range j.subs {
+		subscribers = append(subscribers, subscriber)
 		delete(j.subs, id)
+	}
+	j.mu.Unlock()
+
+	for _, subscriber := range subscribers {
+		subscriber.finish(terminalSendTimeout)
 	}
 }
 
-// Subscribe returns a channel delivering the durable backlog after fromCursor
-// (empty = from the start) followed by live events, plus a cancel func to
-// detach. When the Journal is already closed the channel carries the replay then
-// closes. The channel is sized for the replay plus live headroom so the replay
-// enqueue never blocks.
+// Subscribe returns the durable backlog after fromCursor followed by live
+// events, plus an idempotent cancel function. Subscribe and Append serialize on
+// the Journal lock, so replay and the first live event form one ordered stream.
 func (j *Journal[E]) Subscribe(fromCursor string) (<-chan E, func()) {
 	j.mu.Lock()
-	defer j.mu.Unlock()
-
 	replay := make([]E, 0, len(j.durable))
 	for _, ev := range j.durable {
 		if fromCursor == "" || ev.Cursor() > fromCursor {
 			replay = append(replay, ev)
 		}
 	}
-	ch := make(chan E, len(replay)+liveHeadroom)
-	for _, ev := range replay {
-		ch <- ev
-	}
-
 	if j.closed {
-		close(ch)
-		return ch, func() {}
+		j.mu.Unlock()
+		out := make(chan E, len(replay))
+		for _, ev := range replay {
+			out <- ev
+		}
+		close(out)
+		return out, func() {}
 	}
 
+	subscriber := newJournalSubscriber(replay)
 	id := j.nextSubID
 	j.nextSubID++
-	j.subs[id] = ch
+	j.subs[id] = subscriber
+	j.mu.Unlock()
+
+	var cancelOnce sync.Once
 	cancel := func() {
-		j.mu.Lock()
-		defer j.mu.Unlock()
-		if c, ok := j.subs[id]; ok {
+		cancelOnce.Do(func() {
+			j.mu.Lock()
 			delete(j.subs, id)
-			close(c)
+			j.mu.Unlock()
+			subscriber.abort()
+			<-subscriber.stopped
+		})
+	}
+	return subscriber.out, cancel
+}
+
+type journalSubscriber[E Streamable] struct {
+	mu         sync.Mutex
+	ready      *sync.Cond
+	queue      []E
+	queuedLive int
+	finishing  bool
+	aborted    bool
+	abortOnce  sync.Once
+	abortCh    chan struct{}
+	out        chan E
+	stopped    chan struct{}
+	timer      *time.Timer
+}
+
+func newJournalSubscriber[E Streamable](replay []E) *journalSubscriber[E] {
+	subscriber := &journalSubscriber[E]{
+		queue:   replay,
+		abortCh: make(chan struct{}),
+		out:     make(chan E, liveHeadroom),
+		stopped: make(chan struct{}),
+	}
+	subscriber.ready = sync.NewCond(&subscriber.mu)
+	go subscriber.run()
+	return subscriber
+}
+
+func (s *journalSubscriber[E]) enqueue(ev E) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.finishing || s.aborted {
+		return
+	}
+	if !ev.Durable() && !ev.Terminal() {
+		if s.queuedLive >= liveHeadroom {
+			return
+		}
+		s.queuedLive++
+	}
+	s.queue = append(s.queue, ev)
+	s.ready.Signal()
+}
+
+func (s *journalSubscriber[E]) finish(budget time.Duration) {
+	s.mu.Lock()
+	if s.finishing || s.aborted {
+		s.mu.Unlock()
+		return
+	}
+	s.finishing = true
+	s.timer = time.AfterFunc(budget, s.abort)
+	s.ready.Broadcast()
+	s.mu.Unlock()
+}
+
+func (s *journalSubscriber[E]) abort() {
+	s.abortOnce.Do(func() {
+		s.mu.Lock()
+		s.aborted = true
+		close(s.abortCh)
+		s.ready.Broadcast()
+		s.mu.Unlock()
+	})
+}
+
+func (s *journalSubscriber[E]) run() {
+	defer func() {
+		s.mu.Lock()
+		if s.timer != nil {
+			s.timer.Stop()
+		}
+		s.mu.Unlock()
+		close(s.out)
+		close(s.stopped)
+	}()
+	for {
+		ev, ok := s.next()
+		if !ok {
+			return
+		}
+		select {
+		case s.out <- ev:
+		case <-s.abortCh:
+			return
 		}
 	}
-	return ch, cancel
+}
+
+func (s *journalSubscriber[E]) next() (E, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for len(s.queue) == 0 && !s.finishing && !s.aborted {
+		s.ready.Wait()
+	}
+	if s.aborted || len(s.queue) == 0 && s.finishing {
+		var zero E
+		return zero, false
+	}
+	ev := s.queue[0]
+	var zero E
+	s.queue[0] = zero
+	s.queue = s.queue[1:]
+	if !ev.Durable() && !ev.Terminal() {
+		s.queuedLive--
+	}
+	return ev, true
 }

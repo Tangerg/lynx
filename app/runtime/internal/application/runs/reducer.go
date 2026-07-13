@@ -43,6 +43,7 @@ type reducer struct {
 	resume    *resumeBinding
 	itemSeq   int
 	step      int
+	toolOrder int
 	userInput []ContentBlock
 	text      *openText
 	reasoning *openText
@@ -59,6 +60,8 @@ type openText struct {
 }
 
 type openTool struct {
+	callID      string
+	order       int
 	id          string
 	createdAt   time.Time
 	name        string

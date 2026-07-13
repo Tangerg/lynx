@@ -1,10 +1,16 @@
 package transcript
 
 import (
+	"errors"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
+
+// ErrIdentityConflict reports an attempt to reuse a durable transcript identity
+// for a different owner. Item ids are bound to one Session+Run and Run ids to
+// one Session for their entire lifetime; persistence must never re-parent them.
+var ErrIdentityConflict = errors.New("transcript: identity conflict")
 
 type Run struct {
 	SessionID       string

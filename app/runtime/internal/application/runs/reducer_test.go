@@ -1,6 +1,7 @@
 package runs
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -175,6 +176,45 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	}
 	if itemID != "item_approval" {
 		t.Fatalf("resumed tool item id = %q, want item_approval", itemID)
+	}
+	reducer.reduce(ToolCallEnd{CallID: "call_1", Output: "ok"})
+
+	second := reducer.reduce(ToolCallStart{CallID: "call_2", ToolName: "shell", Arguments: `{"command":"go vet"}`})
+	var secondID string
+	for _, reduction := range second {
+		if event, ok := reduction.Event.(ItemStarted); ok {
+			secondID = event.Item.ID
+		}
+	}
+	if secondID == "" || secondID == "item_approval" {
+		t.Fatalf("new same-name tool item id = %q, want a fresh identity", secondID)
+	}
+}
+
+func TestReducerDrainsToolsInStartOrder(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	for _, event := range []ToolCallStart{
+		{CallID: "call_z", ToolName: "first", Arguments: `{}`},
+		{CallID: "call_a", ToolName: "second", Arguments: `{}`},
+		{CallID: "call_m", ToolName: "third", Arguments: `{}`},
+	} {
+		reducer.reduce(event)
+	}
+
+	drained := drainedToolsFrom(reducer.tools)
+	if len(drained) != 3 {
+		t.Fatalf("drained tool count = %d, want 3", len(drained))
+	}
+	if got := []string{drained[0].Name, drained[1].Name, drained[2].Name}; !slices.Equal(got, []string{"first", "second", "third"}) {
+		t.Fatalf("drained tools = %v, want start order", got)
+	}
+	completed := reducer.drainTools()
+	got := make([]string, 0, len(completed))
+	for _, event := range completed {
+		got = append(got, event.(ItemCompleted).Item.Tool.Name)
+	}
+	if !slices.Equal(got, []string{"first", "second", "third"}) {
+		t.Fatalf("completed tools = %v, want start order", got)
 	}
 }
 

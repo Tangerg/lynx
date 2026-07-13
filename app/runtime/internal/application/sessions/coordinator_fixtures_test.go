@@ -117,22 +117,24 @@ func (c *testClaimer) ReleaseSession(sessionID string) {
 // default; the file-rollback tests that need it drive a dedicated claimer.
 func (*testClaimer) ActiveSessionWithCwd(string) string { return "" }
 
-// stubTurns is the test double for the coordinator's parked-process cleanup
-// collaborator.
-type stubTurns struct {
-	onCancel func(RunRef)
-}
-
-func (t stubTurns) Cancel(_ context.Context, ref RunRef) error {
-	if t.onCancel != nil {
-		t.onCancel(ref)
-	}
-	return nil
-}
-
 // newCoordinator builds a Coordinator over test stores and turns.
 func newCoordinator(stores Stores, turns Turns) *Coordinator {
-	return New(Dependencies{Stores: stores, Turns: turns})
+	return New(Dependencies{Stores: stores, Turns: turns, Paths: testCwdResolver{}})
+}
+
+type testCwdResolver struct {
+	resolved string
+	err      error
+}
+
+func (r testCwdResolver) ResolveExistingDir(path string) (string, error) {
+	if r.err != nil {
+		return "", r.err
+	}
+	if r.resolved != "" {
+		return r.resolved, nil
+	}
+	return path, nil
 }
 
 type emptyTranscript struct{}
