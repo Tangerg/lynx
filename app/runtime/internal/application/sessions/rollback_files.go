@@ -93,6 +93,18 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 	if spec.RestoreHistory {
 		result.Dropped = droppedRuns(boundary, runs, transcript.OpeningInputs(items))
 	}
+	// Resolve and claim the complete internal session subtree before restoring
+	// files. Waiting until the SQLite phase would let a child run reject the
+	// history delete only after the working tree had already been rewound.
+	var dropSessionIDs []string
+	var childAdmissions []RunAdmission
+	if spec.RestoreHistory {
+		dropSessionIDs, childAdmissions, err = c.prepareRollbackSessions(ctx, claims, spec.SessionID, boundary)
+		if err != nil {
+			return result, err
+		}
+	}
+	defer releaseAdmissions(childAdmissions)
 
 	// A both-rollback that drops runs mutates two resources that can't share one
 	// transaction — the working tree (git) and the durable history (SQLite) — so
@@ -126,7 +138,7 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 	// boot recovery completes the truncation (the tree + history would otherwise
 	// disagree).
 	if spec.RestoreHistory && len(boundary.Dropped) > 0 {
-		if err := c.Rollback(ctx, spec.SessionID, boundary); err != nil {
+		if err := c.applyRollback(ctx, spec.SessionID, boundary, dropSessionIDs); err != nil {
 			return result, err
 		}
 	}
@@ -184,11 +196,18 @@ func (c *Coordinator) recoverRollback(ctx context.Context, m execution.Workspace
 	if err != nil {
 		return err
 	}
+	var dropSessionIDs []string
+	if len(boundary.Dropped) > 0 {
+		dropSessionIDs, err = c.subtaskSessionsAfter(ctx, m.SessionID, boundary.BoundaryTime)
+		if err != nil {
+			return err
+		}
+	}
 	if err := c.restore(ctx, m.SessionID, m.Cwd, m.ToRunID); err != nil {
 		return err
 	}
 	if len(boundary.Dropped) > 0 {
-		if err := c.Rollback(ctx, m.SessionID, boundary); err != nil {
+		if err := c.applyRollback(ctx, m.SessionID, boundary, dropSessionIDs); err != nil {
 			return err
 		}
 	}

@@ -7,22 +7,19 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// Rollback truncates the chat history log to the boundary watermark and drops each run's
+// applyRollback truncates the chat history log to the boundary watermark and drops each run's
 // durable record + dangling interrupt as ONE atomic write-set (§8.1), then cancels
 // any in-process parked turns that were abandoned and purges the subagent child
 // sessions spawned at/after the boundary. A keepMark < 0 (unknown watermark —
 // chain terminal still in-flight / pre-watermark) leaves the log untouched
 // rather than guessing at a boundary that was never recorded. An empty boundary
-// (nothing dropped) is a no-op.
-func (c *Coordinator) Rollback(ctx context.Context, sessionID string, boundary transcript.Boundary) error {
+// (nothing dropped) is a no-op. The caller resolves and claims dropSessionIDs
+// before any cross-resource file restore starts.
+func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, boundary transcript.Boundary, dropSessionIDs []string) error {
 	if len(boundary.Dropped) == 0 {
 		return nil
 	}
 	dropRunIDs := boundary.DroppedRunIDs()
-	dropSessionIDs, err := c.subtaskSessionsAfter(ctx, sessionID, boundary.BoundaryTime)
-	if err != nil {
-		return err
-	}
 	// Read the parked turns BEFORE the write-set consumes their interrupts — the
 	// in-process turns still need canceling once the durable records are gone.
 	parked, err := c.parkedTurns(ctx, dropRunIDs)
@@ -42,6 +39,7 @@ func (c *Coordinator) Rollback(ctx context.Context, sessionID string, boundary t
 		KeepMark:       boundary.KeepMark,
 		DropRunIDs:     dropRunIDs,
 		DropSessionIDs: dropSessionIDs,
+		ProcessIDs:     parkedProcessIDs(parked),
 		Terminate:      len(parked) > 0,
 	}); err != nil {
 		return err
@@ -53,6 +51,16 @@ func (c *Coordinator) Rollback(ctx context.Context, sessionID string, boundary t
 		c.s.ForgetSession(id)
 	}
 	return nil
+}
+
+func parkedProcessIDs(parked []RunTurnBinding) []string {
+	ids := make([]string, 0, len(parked))
+	for _, binding := range parked {
+		if binding.ProcessID != "" {
+			ids = append(ids, binding.ProcessID)
+		}
+	}
+	return ids
 }
 
 func parkedRunID(parked []RunTurnBinding) string {
@@ -70,7 +78,7 @@ func (c *Coordinator) parkedSessionTurns(ctx context.Context, sessionIDs []strin
 			return nil, err
 		}
 		for _, item := range pending {
-			out = append(out, RunTurnBinding{RunID: item.RunID, SessionID: item.SessionID, TurnID: item.TurnID})
+			out = append(out, RunTurnBinding{RunID: item.RunID, SessionID: item.SessionID, TurnID: item.TurnID, ProcessID: item.ProcessID})
 		}
 	}
 	return out, nil

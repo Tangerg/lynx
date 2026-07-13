@@ -65,6 +65,14 @@ func TestUpdateSession(t *testing.T) {
 	if out.Cwd != workspacepath.Canonical(newCwd) {
 		t.Errorf("Cwd = %q, want relocated %q", out.Cwd, workspacepath.Canonical(newCwd))
 	}
+	if !s.claimSession(created.ID) {
+		t.Fatal("claim active session")
+	}
+	busyCwd := t.TempDir()
+	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Cwd: &busyCwd}); !errors.Is(err, protocol.ErrSessionBusy) {
+		t.Fatalf("relocate under active run = %v, want ErrSessionBusy", err)
+	}
+	s.releaseSession(created.ID)
 
 	// metadata is full-replaced and round-trips arbitrary JSON values
 	meta := map[string]any{"pinned": true, "n": float64(3)}
@@ -95,6 +103,13 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	ints := sqlite.NewInterruptStore(db)
 	created, _ := svc.Create(ctx, "doomed", "/w")
 	id := created.ID
+	if _, err := svc.CreateSubtask(ctx, "ses_subtask", id); err != nil {
+		t.Fatalf("seed subtask: %v", err)
+	}
+	fork, err := svc.Fork(ctx, id, "")
+	if err != nil {
+		t.Fatalf("seed user fork: %v", err)
+	}
 
 	// Seed one of every session-scoped row.
 	if err := hist.PutRun(ctx, transcript.Run{SessionID: id, ID: "run_1"}); err != nil {
@@ -115,6 +130,12 @@ func TestDeleteSession_Cascade(t *testing.T) {
 
 	if _, err := svc.Get(ctx, id); !errors.Is(err, session.ErrNotFound) {
 		t.Errorf("session still present after delete: err = %v", err)
+	}
+	if _, err := svc.Get(ctx, "ses_subtask"); !errors.Is(err, session.ErrNotFound) {
+		t.Errorf("owned subtask still present after parent delete: err = %v", err)
+	}
+	if _, err := svc.Get(ctx, fork.ID); err != nil {
+		t.Errorf("independent user fork was deleted with its parent: %v", err)
 	}
 	if items, runs, _ := hist.List(ctx, id); len(items) != 0 || len(runs) != 0 {
 		t.Errorf("transcript not cascaded: %d items, %d runs left", len(items), len(runs))

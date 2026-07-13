@@ -2,8 +2,7 @@ package bootstrap
 
 import (
 	"context"
-
-	"github.com/Tangerg/lynx/core/model/chat"
+	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -32,6 +31,7 @@ type sessionStores struct {
 	transcript *sqlitestore.TranscriptStore
 	interrupts *sqlitestore.InterruptStore
 	runs       *sqlitestore.RunStateStore
+	processes  *sqlitestore.ProcessStore
 	history    *conversation.Messages
 	forgetter  sessionForgetter
 	tx         Transactor
@@ -40,10 +40,6 @@ type sessionStores struct {
 func (s sessionStores) Session() sessions.SessionStore       { return s.sessions }
 func (s sessionStores) Interrupts() sessions.InterruptStore  { return s.interrupts }
 func (s sessionStores) Transcript() sessions.TranscriptStore { return s.transcript }
-
-func (s sessionStores) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
-	return s.history.Read(ctx, sessionID)
-}
 
 func (s sessionStores) ReadSnapshot(ctx context.Context, sessionID string) (sessions.Snapshot, error) {
 	var snapshot sessions.Snapshot
@@ -110,7 +106,8 @@ func (s sessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (s
 
 // ApplyRollback truncates the chat log to the boundary watermark, drops each
 // past-boundary run, terminalizes an abandoned parked run, and deletes the
-// attributed internal subtask subtrees — all in one transaction (§8.1/§8.3).
+// attributed internal subtask subtrees and their process snapshots — all in one
+// transaction (§8.1/§8.3).
 func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		if plan.KeepMark >= 0 {
@@ -126,6 +123,11 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollback
 				return err
 			}
 			if err := s.interrupts.Delete(ctx, runID); err != nil {
+				return err
+			}
+		}
+		for _, processID := range plan.ProcessIDs {
+			if err := s.processes.Delete(ctx, processID); err != nil {
 				return err
 			}
 		}
@@ -182,10 +184,19 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 }
 
 // ApplyDelete removes all of a session's durable state — transcript, chat log,
-// open interrupts, admission rows, and the session row — atomically.
-func (s sessionStores) ApplyDelete(ctx context.Context, sessionID string) error {
+// open interrupts, process snapshots, admission rows, and the session row —
+// atomically.
+func (s sessionStores) ApplyDelete(ctx context.Context, plan sessions.DeletePlan) error {
+	if len(plan.SessionIDs) == 0 {
+		return errors.New("runtime: delete plan has no sessions")
+	}
 	return s.runInTx(ctx, func(ctx context.Context) error {
-		return s.deleteSession(ctx, sessionID)
+		for _, sessionID := range plan.SessionIDs {
+			if err := s.deleteSession(ctx, sessionID); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -205,9 +216,9 @@ func (s sessionStores) deleteSession(ctx context.Context, sessionID string) erro
 	return s.sessions.Delete(ctx, sessionID)
 }
 
-// ApplyCancel abandons a parked run: it drops the open interrupt and terminalizes
-// the run's admission row atomically, so a canceled parked run neither stays
-// resumable nor leaves the session durably busy.
+// ApplyCancel abandons a parked run: it drops the open interrupt + process
+// snapshot and terminalizes the run's admission row atomically, so a canceled
+// parked run neither stays resumable nor leaves the session durably busy.
 func (s sessionStores) ApplyCancel(ctx context.Context, plan sessions.CancelPlan) error {
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		for _, item := range plan.Items {
@@ -218,6 +229,11 @@ func (s sessionStores) ApplyCancel(ctx context.Context, plan sessions.CancelPlan
 		if err := s.transcript.PutRun(ctx, plan.Run); err != nil {
 			return err
 		}
+		if plan.ProcessID != "" {
+			if err := s.processes.Delete(ctx, plan.ProcessID); err != nil {
+				return err
+			}
+		}
 		if err := s.interrupts.Delete(ctx, plan.Run.ID); err != nil {
 			return err
 		}
@@ -225,14 +241,20 @@ func (s sessionStores) ApplyCancel(ctx context.Context, plan sessions.CancelPlan
 	})
 }
 
-// deleteInterrupts removes every open-interrupt record for a session inside the
-// caller's transaction — the list + per-row delete join the same conn(ctx).
+// deleteInterrupts removes every open-interrupt record and referenced process
+// snapshot for a session inside the caller's transaction — the list + per-row
+// deletes join the same conn(ctx).
 func (s sessionStores) deleteInterrupts(ctx context.Context, sessionID string) error {
 	pending, err := s.interrupts.List(ctx, sessionID)
 	if err != nil {
 		return err
 	}
 	for _, p := range pending {
+		if p.ProcessID != "" {
+			if err := s.processes.Delete(ctx, p.ProcessID); err != nil {
+				return err
+			}
+		}
 		if err := s.interrupts.Delete(ctx, p.RunID); err != nil {
 			return err
 		}

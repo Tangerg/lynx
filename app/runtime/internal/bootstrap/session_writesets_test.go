@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
@@ -39,6 +40,7 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStateStore, *sq
 		transcript: sqlite.NewTranscriptStore(db),
 		interrupts: ints,
 		runs:       runs,
+		processes:  sqlite.NewProcessStore(db),
 		history:    conversation.NewMessages(sqlite.NewMessageStore(db)),
 		forgetter:  noopForgetter{},
 		tx: func(ctx context.Context, fn func(context.Context) error) error {
@@ -48,18 +50,23 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStateStore, *sq
 	return ss, runs, ints
 }
 
-func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore, sessionID, runID string) {
+func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore, processes *sqlite.ProcessStore, sessionID, runID string) string {
 	t.Helper()
 	ctx := context.Background()
+	processID := "proc_" + runID
+	if err := processes.Save(ctx, core.ProcessSnapshot{ID: processID, AgentName: "chat", Status: core.StatusWaiting}); err != nil {
+		t.Fatalf("save process snapshot: %v", err)
+	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: time.Unix(0, 0)}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := runs.Suspend(ctx, sessionID, runID); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{RunID: runID, SessionID: sessionID, CreatedAt: time.Unix(0, 0)}); err != nil {
+	if err := ints.Put(ctx, interrupts.Pending{RunID: runID, SessionID: sessionID, ProcessID: processID, CreatedAt: time.Unix(0, 0)}); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
+	return processID
 }
 
 // TestApplyCancelDropsInterruptAndTerminalizes: abandoning a parked run frees both
@@ -67,11 +74,11 @@ func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore,
 func TestApplyCancelDropsInterruptAndTerminalizes(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	park(t, runs, ints, "ses_A", "run_1")
+	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
 	outcome := execution.OutcomeCanceled
 	finishedAt := time.Date(2026, 7, 13, 2, 3, 4, 0, time.UTC)
 
-	if err := ss.ApplyCancel(ctx, sessions.CancelPlan{Run: transcript.Run{
+	if err := ss.ApplyCancel(ctx, sessions.CancelPlan{ProcessID: processID, Run: transcript.Run{
 		SessionID: "ses_A", ID: "run_1", State: execution.Canceled,
 		Outcome: &outcome, Result: &transcript.RunResult{},
 		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
@@ -80,6 +87,9 @@ func TestApplyCancelDropsInterruptAndTerminalizes(t *testing.T) {
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived cancel: %+v", open)
+	}
+	if _, err := ss.processes.Load(ctx, processID); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("process snapshot after cancel = %v, want not found", err)
 	}
 	// The admission row is terminal, so the session can start a fresh run.
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
@@ -96,19 +106,23 @@ func TestApplyCancelDropsInterruptAndTerminalizes(t *testing.T) {
 func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
-	park(t, runs, ints, "ses_A", "run_1")
+	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
 
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID:  "ses_A",
 		RunID:      "run_1",
 		KeepMark:   -1,
 		DropRunIDs: []string{"run_1"},
+		ProcessIDs: []string{processID},
 		Terminate:  true,
 	}); err != nil {
 		t.Fatalf("ApplyRollback: %v", err)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("dropped run's interrupt survived rollback: %+v", open)
+	}
+	if _, err := ss.processes.Load(ctx, processID); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("process snapshot after rollback = %v, want not found", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
 		t.Fatalf("admit after rollback = %v, want the slot freed", err)
@@ -155,13 +169,16 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if err := ss.sessions.Restore(ctx, session.Session{ID: "ses_A"}); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
-	park(t, runs, ints, "ses_A", "run_1")
+	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
 
-	if err := ss.ApplyDelete(ctx, "ses_A"); err != nil {
+	if err := ss.ApplyDelete(ctx, sessions.DeletePlan{SessionIDs: []string{"ses_A"}}); err != nil {
 		t.Fatalf("ApplyDelete: %v", err)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived delete: %+v", open)
+	}
+	if _, err := ss.processes.Load(ctx, processID); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("process snapshot after delete = %v, want not found", err)
 	}
 	if _, err := ss.sessions.Get(ctx, "ses_A"); !errors.Is(err, session.ErrNotFound) {
 		t.Fatalf("session survived delete: %v", err)
@@ -187,9 +204,12 @@ func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
 	if err := ss.history.Seed(ctx, child.ID, []chat.Message{chat.NewUserMessage("preserve on rollback")}); err != nil {
 		t.Fatalf("seed child history: %v", err)
 	}
+	if err := ss.processes.Save(ctx, core.ProcessSnapshot{ID: "proc_preserve", AgentName: "chat", Status: core.StatusWaiting}); err != nil {
+		t.Fatalf("seed process snapshot: %v", err)
+	}
 
 	err = ss.ApplyRollback(ctx, sessions.RollbackPlan{
-		SessionID: parent.ID, KeepMark: -1,
+		SessionID: parent.ID, KeepMark: -1, ProcessIDs: []string{"proc_preserve"},
 		DropSessionIDs: []string{child.ID, ""},
 	})
 	if err == nil {
@@ -201,6 +221,9 @@ func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
 	messages, err := ss.history.Read(ctx, child.ID)
 	if err != nil || len(messages) != 1 {
 		t.Fatalf("child history after rollback = %+v, %v", messages, err)
+	}
+	if _, err := ss.processes.Load(ctx, "proc_preserve"); err != nil {
+		t.Fatalf("process snapshot delete was not rolled back: %v", err)
 	}
 }
 

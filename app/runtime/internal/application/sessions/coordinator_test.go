@@ -99,7 +99,7 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	var applied CancelPlan
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
-			"run_1": {RunID: "run_1", SessionID: "ses_1"},
+			"run_1": {RunID: "run_1", SessionID: "ses_1", ProcessID: "proc_1"},
 		}},
 		snapshot: Snapshot{
 			Messages: []chat.Message{chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi")},
@@ -131,5 +131,8 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	}
 	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete {
 		t.Fatalf("interrupt items = %+v, want one incomplete item", applied.Items)
+	}
+	if applied.ProcessID != "proc_1" {
+		t.Fatalf("process snapshot = %q, want proc_1 in cancel write-set", applied.ProcessID)
 	}
 }

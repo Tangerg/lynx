@@ -3,31 +3,34 @@ package sessions
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 type coordinatorStores struct {
-	interrupts *coordinatorInterrupts
-	snapshot   Snapshot
-	canceled   *CancelPlan
+	interrupts    *coordinatorInterrupts
+	snapshot      Snapshot
+	canceled      *CancelPlan
+	forked        *ForkPlan
+	snapshotReads *int
 }
 
 func (s coordinatorStores) Session() SessionStore       { panic("unused") }
 func (s coordinatorStores) Interrupts() InterruptStore  { return s.interrupts }
 func (s coordinatorStores) Transcript() TranscriptStore { return emptyTranscript{} }
-func (s coordinatorStores) ReadHistory(context.Context, string) ([]chat.Message, error) {
-	panic("unused")
-}
 func (s coordinatorStores) ReadSnapshot(context.Context, string) (Snapshot, error) {
+	if s.snapshotReads != nil {
+		*s.snapshotReads++
+	}
 	return s.snapshot, nil
 }
 func (s coordinatorStores) ForgetSession(string) {}
-func (s coordinatorStores) ApplyFork(context.Context, ForkPlan) (session.Session, error) {
-	panic("unused")
+func (s coordinatorStores) ApplyFork(_ context.Context, plan ForkPlan) (session.Session, error) {
+	if s.forked != nil {
+		*s.forked = plan
+	}
+	return session.Session{ID: "ses_fork"}, nil
 }
 
 // The atomic write-sets delegate their interrupt drops to the interrupt fake so
@@ -40,10 +43,12 @@ func (s coordinatorStores) ApplyRollback(ctx context.Context, plan RollbackPlan)
 	return nil
 }
 func (s coordinatorStores) ApplyRestore(context.Context, RestorePlan) error { return nil }
-func (s coordinatorStores) ApplyDelete(ctx context.Context, sessionID string) error {
-	pending, _ := s.interrupts.List(ctx, sessionID)
-	for _, p := range pending {
-		_ = s.interrupts.Delete(ctx, p.RunID)
+func (s coordinatorStores) ApplyDelete(ctx context.Context, plan DeletePlan) error {
+	for _, sessionID := range plan.SessionIDs {
+		pending, _ := s.interrupts.List(ctx, sessionID)
+		for _, p := range pending {
+			_ = s.interrupts.Delete(ctx, p.RunID)
+		}
 	}
 	return nil
 }

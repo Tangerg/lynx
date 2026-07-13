@@ -302,6 +302,8 @@ func presentProblem(problem *transcript.Problem) *protocol.ProblemData {
 	}
 	kind := protocol.ProblemInternalError
 	switch problem.Kind {
+	case transcript.RunLostProblem:
+		kind = protocol.ProblemRunLost
 	case transcript.AgentStuckProblem:
 		kind = protocol.ProblemAgentStuck
 	case transcript.RateLimitedProblem:

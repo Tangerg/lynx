@@ -21,6 +21,7 @@ type fakeRunSessions struct {
 	canceledAt    time.Time
 	treeOK        bool
 	treeReleases  int
+	operations    *[]string
 }
 
 func (f *fakeRunSessions) Get(context.Context, string) (session.Session, error) {
@@ -54,6 +55,9 @@ func (f *fakeRunSessions) GetOpenInterrupt(_ context.Context, runID string) (int
 }
 
 func (f *fakeRunSessions) ApplyRunCancel(_ context.Context, _ string, runID, reason string, finishedAt time.Time) error {
+	if f.operations != nil {
+		*f.operations = append(*f.operations, "durable.cancel")
+	}
 	f.canceledRunID = runID
 	f.cancelReason = reason
 	f.canceledAt = finishedAt
@@ -81,6 +85,7 @@ type fakeTurnControl struct {
 	canceled     []TurnRef
 	steered      []TurnRef
 	steerMessage string
+	operations   *[]string
 }
 
 func (f *fakeTurnControl) ValidateStart(req StartTurn) error {
@@ -110,6 +115,9 @@ func (f *fakeTurnControl) Rehydrate(context.Context, RehydrateTurn) (Turn, error
 }
 
 func (f *fakeTurnControl) Cancel(_ context.Context, ref TurnRef) error {
+	if f.operations != nil {
+		*f.operations = append(*f.operations, "turn.cancel")
+	}
 	f.canceled = append(f.canceled, ref)
 	return nil
 }
@@ -202,10 +210,11 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 }
 
 func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
+	var operations []string
 	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{"run_1": {
 		RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
-	}}}
-	turns := &fakeTurnControl{}
+	}}, operations: &operations}
+	turns := &fakeTurnControl{operations: &operations}
 	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions})
 
 	if err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "user stopped"}); err != nil {
@@ -216,6 +225,9 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	}
 	if sessions.cancelReason != "user stopped" || sessions.canceledAt.IsZero() {
 		t.Fatalf("cancel reason/time = %q/%v, want user reason and terminal time", sessions.cancelReason, sessions.canceledAt)
+	}
+	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "turn.cancel" {
+		t.Fatalf("cancel operations = %v, want durable commit before process cleanup", operations)
 	}
 	if c.ActiveSession("ses_1") {
 		t.Fatal("parked cancel leaked the session admission claim")

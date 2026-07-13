@@ -153,6 +153,7 @@ type OpeningCommit struct {
 type Finish struct {
 	SessionID       string
 	RunID           string
+	Cwd             string
 	Parked          bool
 	OpeningUserText string
 }

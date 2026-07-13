@@ -130,6 +130,9 @@ func canonicalRunFromWire(sessionID, path string, ref protocol.RunRef, updatedAt
 		if ref.Outcome == nil {
 			return transcript.Run{}, invalidArtifact(path+".outcome", "is required while status is finished")
 		}
+		if ref.FinishedAt.IsZero() {
+			return transcript.Run{}, invalidArtifact(path+".finishedAt", "is required while status is finished")
+		}
 	default:
 		return transcript.Run{}, invalidArtifact(path+".status", "unknown value %q", ref.Status)
 	}
@@ -477,6 +480,8 @@ func canonicalProblem(path string, problem *protocol.ProblemData, channel protoc
 	switch problem.Type {
 	case protocol.ProblemInternalError:
 		kind = transcript.InternalProblem
+	case protocol.ProblemRunLost:
+		kind = transcript.RunLostProblem
 	case protocol.ProblemAgentStuck:
 		kind = transcript.AgentStuckProblem
 	case protocol.ProblemRateLimited:

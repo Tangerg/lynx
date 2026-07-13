@@ -67,18 +67,18 @@ type WriteSets interface {
 	// ApplyRestore recreates a session under its original id and replaces its
 	// whole history (clear old + seed decoded messages/runs/items) — atomically.
 	ApplyRestore(ctx context.Context, plan RestorePlan) error
-	// ApplyDelete removes all of a session's durable state — transcript, chat log,
-	// open interrupts, admission rows, and the session row — atomically.
-	ApplyDelete(ctx context.Context, sessionID string) error
+	// ApplyDelete removes all durable state for the plan's post-order session
+	// cascade — transcript, chat log, interrupts, admission rows, and rows — atomically.
+	ApplyDelete(ctx context.Context, plan DeletePlan) error
 	// ApplyCancel abandons a parked run: it persists the terminal transcript
 	// projection, drops the open interrupt, and terminalizes admission — atomically.
 	ApplyCancel(ctx context.Context, plan CancelPlan) error
 }
 
 // Stores is the consumer-defined surface the Coordinator drives — the atomic
-// write-sets, the session-scoped read/create/patch store, the open-interrupt
-// reads, the chat history read (for the fork prefix), and the process-local
-// resume gate. Every durable mutation goes through an atomic write-set port
+// write-sets, the session-scoped read/create/patch store, open-interrupt reads,
+// coherent aggregate snapshots, and the process-local resume gate. Every
+// durable mutation goes through an atomic write-set port
 // ([WriteSets] or [SessionStore.Patch]); the coordinator no longer stitches a
 // transaction across table-CRUD calls (§8.4). The composition root supplies an
 // adapter so the Coordinator depends only on what it calls, not the whole runtime.
@@ -90,9 +90,6 @@ type Stores interface {
 	// ReadSnapshot returns the session aggregate, conversation history, and
 	// transcript from one storage transaction.
 	ReadSnapshot(ctx context.Context, sessionID string) (Snapshot, error)
-	// ReadHistory returns the chat history log for a session — read by fork to
-	// resolve the prefix seeded into the child.
-	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
 	// ForgetSession releases the executor's process-local state for a session
 	// that is being removed (the SessionStart gate).
 	ForgetSession(sessionID string)

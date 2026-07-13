@@ -66,6 +66,9 @@ func (s RunState) Resume() (RunState, bool) {
 // other terminal requires resuming first. It reports false (leaving s unchanged)
 // from any other state or an illegal (Interrupted, non-cancel) pair.
 func (s RunState) Terminate(o Outcome) (RunState, bool) {
+	if !o.valid() {
+		return s, false
+	}
 	switch s {
 	case Running:
 		return o.terminalState(), true
@@ -73,6 +76,17 @@ func (s RunState) Terminate(o Outcome) (RunState, bool) {
 		if o == OutcomeCanceled {
 			return Canceled, true
 		}
+	}
+	return s, false
+}
+
+// RecoverLost ends a non-terminal run whose executor disappeared without a
+// resumable interrupt. Loss is a recovery transition rather than a normal
+// executor outcome: both Running and an inconsistent orphaned Interrupted run
+// become Failed, while terminal states are immutable.
+func (s RunState) RecoverLost() (RunState, bool) {
+	if s == Running || s == Interrupted {
+		return Failed, true
 	}
 	return s, false
 }
@@ -133,6 +147,10 @@ func (o Outcome) terminalState() RunState {
 	default:
 		return Failed
 	}
+}
+
+func (o Outcome) valid() bool {
+	return o <= OutcomeMaxSteps
 }
 
 func (o Outcome) String() string {

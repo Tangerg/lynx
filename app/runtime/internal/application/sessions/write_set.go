@@ -13,6 +13,7 @@ type RollbackPlan struct {
 	KeepMark       int
 	DropRunIDs     []string
 	DropSessionIDs []string
+	ProcessIDs     []string
 	Terminate      bool
 }
 
@@ -29,10 +30,18 @@ type RestorePlan struct {
 	Items    []transcript.Item
 }
 
+// DeletePlan is the post-order session set removed by one delete cascade. It
+// contains the addressed session plus its owned internal-subtask descendants;
+// user-created forks are independent and are not included.
+type DeletePlan struct {
+	SessionIDs []string
+}
+
 // CancelPlan is the complete durable projection for abandoning a parked run:
 // the run becomes terminal, its interrupt items become incomplete, and its
 // open-interrupt/admission records are closed in the same transaction.
 type CancelPlan struct {
-	Run   transcript.Run
-	Items []transcript.Item
+	Run       transcript.Run
+	Items     []transcript.Item
+	ProcessID string
 }

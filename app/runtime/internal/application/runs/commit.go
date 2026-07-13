@@ -20,6 +20,6 @@ type EventCommit struct {
 	State     StateChange
 	Outcome   execution.Outcome
 	Interrupt *interrupts.Pending
-	Item      *transcript.Item
+	Items     []transcript.Item
 	Run       *transcript.Run
 }

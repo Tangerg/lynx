@@ -38,17 +38,14 @@ func ResolveForkHistoryPrefix(msgs []chat.Message, nodes []transcript.RunNode, f
 // owns only wire decoding; the boundary semantics + chat history prefix live
 // here (the application resolves the prefix; the adapter commits the branch).
 func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session, error) {
-	msgs, err := c.s.ReadHistory(ctx, spec.ParentID)
+	snapshot, err := c.s.ReadSnapshot(ctx, spec.ParentID)
 	if err != nil {
 		return session.Session{}, err
 	}
+	msgs := snapshot.Messages
 	var nodes []transcript.RunNode
 	if spec.FromRunID != "" {
-		_, runs, err := c.s.Transcript().List(ctx, spec.ParentID)
-		if err != nil {
-			return session.Session{}, err
-		}
-		nodes = transcript.TimelineFromRuns(runs)
+		nodes = transcript.TimelineFromRuns(snapshot.Runs)
 	}
 	msgs, err = ResolveForkHistoryPrefix(msgs, nodes, spec.FromRunID)
 	if err != nil {

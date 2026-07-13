@@ -19,6 +19,7 @@ type RunTurnBinding struct {
 	RunID     string
 	SessionID string
 	TurnID    string
+	ProcessID string
 }
 
 func (r RunTurnBinding) ref() RunRef {
@@ -42,6 +43,13 @@ func (c *Coordinator) GetOpenInterrupt(ctx context.Context, runID string) (inter
 func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) error {
 	if finishedAt.IsZero() {
 		return fmt.Errorf("sessions: cancel parked run %q: finished time is required", runID)
+	}
+	pending, found, err := c.s.Interrupts().Get(ctx, runID)
+	if err != nil {
+		return err
+	}
+	if !found || pending.SessionID != sessionID {
+		return fmt.Errorf("sessions: cancel parked run %q: open interrupt not found for session %q", runID, sessionID)
 	}
 	snapshot, err := c.s.ReadSnapshot(ctx, sessionID)
 	if err != nil {
@@ -86,7 +94,7 @@ func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reas
 	run.FinishedAt = finishedAt.UTC()
 	run.UpdatedAt = run.FinishedAt
 	run.MessageMark = len(snapshot.Messages)
-	return c.s.ApplyCancel(ctx, CancelPlan{Run: run, Items: items})
+	return c.s.ApplyCancel(ctx, CancelPlan{Run: run, Items: items, ProcessID: pending.ProcessID})
 }
 
 func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTurnBinding, error) {
@@ -103,6 +111,7 @@ func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTu
 			RunID:     pending.RunID,
 			SessionID: pending.SessionID,
 			TurnID:    pending.TurnID,
+			ProcessID: pending.ProcessID,
 		})
 	}
 	return out, nil

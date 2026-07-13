@@ -37,7 +37,7 @@ func (s *ProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot) 
 	if err != nil {
 		return fmt.Errorf("sqlite: marshal snapshot: %w", err)
 	}
-	_, err = s.db.ExecContext(ctx,
+	_, err = conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO process_snapshots(id, snapshot, captured_at) VALUES (?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
 		   snapshot    = excluded.snapshot,
@@ -54,7 +54,7 @@ func (s *ProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot) 
 // [core.ErrSnapshotNotFound] when the id is unknown.
 func (s *ProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapshot, error) {
 	var data string
-	err := s.db.QueryRowContext(ctx,
+	err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT snapshot FROM process_snapshots WHERE id = ?`, id,
 	).Scan(&data)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -73,7 +73,7 @@ func (s *ProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapsho
 // Delete removes the snapshot for id. Idempotent — unknown id is not an
 // error.
 func (s *ProcessStore) Delete(ctx context.Context, id string) error {
-	if _, err := s.db.ExecContext(ctx,
+	if _, err := conn(ctx, s.db).ExecContext(ctx,
 		`DELETE FROM process_snapshots WHERE id = ?`, id,
 	); err != nil {
 		return fmt.Errorf("sqlite: delete snapshot: %w", err)
@@ -83,7 +83,7 @@ func (s *ProcessStore) Delete(ctx context.Context, id string) error {
 
 // List returns every stored process id, most-recently-captured first.
 func (s *ProcessStore) List(ctx context.Context) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT id FROM process_snapshots ORDER BY captured_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list snapshots: %w", err)
