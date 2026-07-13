@@ -60,9 +60,9 @@ type WriteSets interface {
 	// with the resolved history prefix, and titles it — atomically — returning the
 	// created child.
 	ApplyFork(ctx context.Context, plan ForkPlan) (session.Session, error)
-	// ApplyRollback truncates the chat log to the boundary and drops each
-	// past-boundary run's transcript record + open interrupt, terminalizing an
-	// abandoned parked run's admission row — atomically.
+	// ApplyRollback truncates the chat log to the boundary, drops each
+	// past-boundary run, terminalizes an abandoned parked run, and removes the
+	// attributed internal subtask subtrees — atomically.
 	ApplyRollback(ctx context.Context, plan RollbackPlan) error
 	// ApplyRestore recreates a session under its original id and replaces its
 	// whole history (clear old + seed decoded messages/runs/items) — atomically.
@@ -70,9 +70,9 @@ type WriteSets interface {
 	// ApplyDelete removes all of a session's durable state — transcript, chat log,
 	// open interrupts, admission rows, and the session row — atomically.
 	ApplyDelete(ctx context.Context, sessionID string) error
-	// ApplyCancel abandons a parked run: it drops the open interrupt and
-	// terminalizes the run's admission row — atomically.
-	ApplyCancel(ctx context.Context, sessionID, runID string) error
+	// ApplyCancel abandons a parked run: it persists the terminal transcript
+	// projection, drops the open interrupt, and terminalizes admission — atomically.
+	ApplyCancel(ctx context.Context, plan CancelPlan) error
 }
 
 // Stores is the consumer-defined surface the Coordinator drives — the atomic
@@ -87,12 +87,25 @@ type Stores interface {
 	Session() SessionStore
 	Interrupts() InterruptStore
 	Transcript() TranscriptStore
+	// ReadSnapshot returns the session aggregate, conversation history, and
+	// transcript from one storage transaction.
+	ReadSnapshot(ctx context.Context, sessionID string) (Snapshot, error)
 	// ReadHistory returns the chat history log for a session — read by fork to
 	// resolve the prefix seeded into the child.
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
 	// ForgetSession releases the executor's process-local state for a session
 	// that is being removed (the SessionStart gate).
 	ForgetSession(sessionID string)
+}
+
+// Snapshot is one coherent, canonical session read used to produce portable
+// exports. The application owns this shape; delivery only projects it onto the
+// selected wire format.
+type Snapshot struct {
+	Session  session.Session
+	Messages []chat.Message
+	Items    []transcript.Item
+	Runs     []transcript.Run
 }
 
 // RunRef identifies the durable turn a lifecycle write-set acts on, without

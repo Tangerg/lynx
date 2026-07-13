@@ -12,9 +12,10 @@ func validArtifact() protocol.SessionArtifact {
 		Version: protocol.SessionArtifactVersion,
 		Session: protocol.Session{ID: "ses_1"},
 		Runs: []protocol.ArtifactRun{{
-			MessageMark: -1,
+			MessageMark: 0,
 			Run: protocol.RunRef{
-				ID: "run_1", SessionID: "ses_1", Status: protocol.RunStatusRunning,
+				ID: "run_1", SessionID: "ses_1", Status: protocol.RunStatusFinished,
+				Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}},
 			},
 		}},
 		Items: []protocol.ArtifactItem{{Item: protocol.Item{
@@ -31,10 +32,10 @@ func TestCanonicalArtifactRejectsInvalidCurrentShape(t *testing.T) {
 		mutate func(*protocol.SessionArtifact)
 	}{
 		{"unknown run status", func(a *protocol.SessionArtifact) { a.Runs[0].Run.Status = "paused" }},
-		{"finished without outcome", func(a *protocol.SessionArtifact) { a.Runs[0].Run.Status = protocol.RunStatusFinished }},
+		{"finished without outcome", func(a *protocol.SessionArtifact) { a.Runs[0].Run.Outcome = nil }},
+		{"terminal without result", func(a *protocol.SessionArtifact) { a.Runs[0].Run.Outcome.Result = nil }},
 		{"unknown outcome", func(a *protocol.SessionArtifact) {
-			a.Runs[0].Run.Status = protocol.RunStatusFinished
-			a.Runs[0].Run.Outcome = &protocol.RunOutcome{Type: "legacy"}
+			a.Runs[0].Run.Outcome.Type = "legacy"
 		}},
 		{"unknown item status", func(a *protocol.SessionArtifact) { a.Items[0].Item.Status = "done" }},
 		{"unknown item type", func(a *protocol.SessionArtifact) { a.Items[0].Item.Type = "legacyMessage" }},
@@ -60,48 +61,21 @@ func TestCanonicalArtifactRejectsInvalidCurrentShape(t *testing.T) {
 	}
 }
 
-func validApprovalArtifact() protocol.SessionArtifact {
-	artifact := validArtifact()
-	artifact.Runs[0].Run.Status = protocol.RunStatusFinished
-	artifact.Runs[0].Run.Outcome = &protocol.RunOutcome{
-		Type: protocol.OutcomeInterrupt,
-		Interrupts: []protocol.Interrupt{{
-			ItemID: "item_1", Type: protocol.InterruptApproval,
-			Payload: map[string]any{
-				"tool": protocol.ToolInvocation{Name: "shell", Arguments: map[string]any{"command": "go test ./..."}},
-				"risk": "executes a command",
-			},
-		}},
-	}
-	artifact.Items[0].Item.Status = protocol.ItemStatusRunning
-	artifact.Items[0].Item.Type = protocol.ItemTypeToolCall
-	artifact.Items[0].Item.Content = nil
-	artifact.Items[0].Item.Tool = &protocol.ToolInvocation{Name: "shell", Arguments: map[string]any{"command": "go test ./..."}}
-	artifact.Items[0].Item.SafetyClass = protocol.SafetyClassExec
-	return artifact
-}
-
-func TestCanonicalArtifactValidatesInterruptItemRelationship(t *testing.T) {
-	if _, _, err := canonicalArtifact(validApprovalArtifact(), 0); err != nil {
-		t.Fatalf("valid approval artifact rejected: %v", err)
-	}
-
-	tests := []struct {
+func TestCanonicalArtifactRejectsNonPortableRunStates(t *testing.T) {
+	for _, test := range []struct {
 		name   string
 		mutate func(*protocol.SessionArtifact)
 	}{
-		{"wrong item kind", func(a *protocol.SessionArtifact) {
-			a.Items[0].Item.Type = protocol.ItemTypeUserMessage
-			a.Items[0].Item.Tool = nil
-			a.Items[0].Item.SafetyClass = ""
+		{"running", func(a *protocol.SessionArtifact) {
+			a.Runs[0].Run.Status = protocol.RunStatusRunning
+			a.Runs[0].Run.Outcome = nil
 		}},
-		{"completed item", func(a *protocol.SessionArtifact) {
-			a.Items[0].Item.Status = protocol.ItemStatusCompleted
+		{"interrupted", func(a *protocol.SessionArtifact) {
+			a.Runs[0].Run.Outcome = &protocol.RunOutcome{Type: protocol.OutcomeInterrupt}
 		}},
-	}
-	for _, test := range tests {
+	} {
 		t.Run(test.name, func(t *testing.T) {
-			artifact := validApprovalArtifact()
+			artifact := validArtifact()
 			test.mutate(&artifact)
 			_, _, err := canonicalArtifact(artifact, 0)
 			if !errors.Is(err, protocol.ErrInvalidParams) {
@@ -122,27 +96,10 @@ func TestCanonicalArtifactRejectsCyclicRunTree(t *testing.T) {
 		Version: protocol.SessionArtifactVersion,
 		Session: protocol.Session{ID: "ses_1"},
 		Runs: []protocol.ArtifactRun{
-			{MessageMark: -1, Run: protocol.RunRef{ID: "run_1", SessionID: "ses_1", Status: protocol.RunStatusRunning, SpawnedByItemID: "item_2"}},
-			{MessageMark: -1, Run: protocol.RunRef{ID: "run_2", SessionID: "ses_1", Status: protocol.RunStatusRunning, SpawnedByItemID: "item_1"}},
+			{MessageMark: 0, Run: protocol.RunRef{ID: "run_1", SessionID: "ses_1", Status: protocol.RunStatusFinished, Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}}, SpawnedByItemID: "item_2"}},
+			{MessageMark: 0, Run: protocol.RunRef{ID: "run_2", SessionID: "ses_1", Status: protocol.RunStatusFinished, Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}}, SpawnedByItemID: "item_1"}},
 		},
 		Items: []protocol.ArtifactItem{tool("item_1", "run_1"), tool("item_2", "run_2")},
-	}
-
-	_, _, err := canonicalArtifact(artifact, 0)
-	if !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Fatalf("canonicalArtifact error = %v, want ErrInvalidParams", err)
-	}
-}
-
-func TestCanonicalArtifactRejectsMalformedInterrupt(t *testing.T) {
-	artifact := validArtifact()
-	artifact.Runs[0].Run.Status = protocol.RunStatusFinished
-	artifact.Runs[0].Run.Outcome = &protocol.RunOutcome{
-		Type: protocol.OutcomeInterrupt,
-		Interrupts: []protocol.Interrupt{{
-			ItemID: "item_1", Type: protocol.InterruptApproval,
-			Payload: map[string]any{"tool": map[string]any{"name": "shell", "arguments": "not-an-object"}},
-		}},
 	}
 
 	_, _, err := canonicalArtifact(artifact, 0)
@@ -158,11 +115,11 @@ func FuzzCanonicalArtifactRunStatus(f *testing.F) {
 	f.Fuzz(func(t *testing.T, rawStatus string) {
 		artifact := validArtifact()
 		artifact.Runs[0].Run.Status = protocol.RunStatus(rawStatus)
-		if artifact.Runs[0].Run.Status == protocol.RunStatusFinished {
-			artifact.Runs[0].Run.Outcome = &protocol.RunOutcome{Type: protocol.OutcomeCompleted}
+		if artifact.Runs[0].Run.Status != protocol.RunStatusFinished {
+			artifact.Runs[0].Run.Outcome = nil
 		}
 		_, _, err := canonicalArtifact(artifact, 0)
-		valid := rawStatus == string(protocol.RunStatusRunning) || rawStatus == string(protocol.RunStatusFinished)
+		valid := rawStatus == string(protocol.RunStatusFinished)
 		if valid && err != nil {
 			t.Fatalf("valid status %q rejected: %v", rawStatus, err)
 		}

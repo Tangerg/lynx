@@ -8,11 +8,12 @@ import (
 )
 
 type RollbackPlan struct {
-	SessionID  string
-	RunID      string
-	KeepMark   int
-	DropRunIDs []string
-	Terminate  bool
+	SessionID      string
+	RunID          string
+	KeepMark       int
+	DropRunIDs     []string
+	DropSessionIDs []string
+	Terminate      bool
 }
 
 type ForkPlan struct {
@@ -26,4 +27,12 @@ type RestorePlan struct {
 	Messages []chat.Message
 	Runs     []transcript.Run
 	Items    []transcript.Item
+}
+
+// CancelPlan is the complete durable projection for abandoning a parked run:
+// the run becomes terminal, its interrupt items become incomplete, and its
+// open-interrupt/admission records are closed in the same transaction.
+type CancelPlan struct {
+	Run   transcript.Run
+	Items []transcript.Item
 }

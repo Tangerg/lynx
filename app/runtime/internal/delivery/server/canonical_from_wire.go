@@ -1,8 +1,6 @@
 package server
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -20,8 +18,8 @@ func canonicalArtifact(art protocol.SessionArtifact, messageCount int) ([]transc
 		if _, duplicate := runIDs[entry.Run.ID]; entry.Run.ID != "" && duplicate {
 			return nil, nil, invalidArtifact(path+".run.id", "duplicate id %q", entry.Run.ID)
 		}
-		if entry.MessageMark < -1 || entry.MessageMark > messageCount {
-			return nil, nil, invalidArtifact(path+".messageMark", "must be between -1 and %d", messageCount)
+		if entry.MessageMark < 0 || entry.MessageMark > messageCount {
+			return nil, nil, invalidArtifact(path+".messageMark", "must be between 0 and %d", messageCount)
 		}
 		run, err := canonicalRunFromWire(art.Session.ID, path+".run", entry.Run, entry.UpdatedAt, entry.MessageMark)
 		if err != nil {
@@ -62,29 +60,6 @@ func canonicalArtifact(art protocol.SessionArtifact, messageCount int) ([]transc
 			}
 			if item.RunID == run.ID {
 				return nil, nil, invalidArtifact(path+".spawnedByItemId", "cannot reference an item from the spawned run itself")
-			}
-		}
-		for j, interrupt := range run.Interrupts {
-			item, ok := itemIDs[interrupt.ItemID]
-			if !ok || item.RunID != run.ID {
-				return nil, nil, invalidArtifact(
-					fmt.Sprintf("%s.outcome.interrupts[%d].itemId", path, j),
-					"must reference an item in run %q", run.ID,
-				)
-			}
-			interruptPath := fmt.Sprintf("%s.outcome.interrupts[%d].itemId", path, j)
-			if item.Status != transcript.ItemRunning {
-				return nil, nil, invalidArtifact(interruptPath, "must reference a running item")
-			}
-			switch interrupt.Kind {
-			case transcript.ApprovalInterrupt:
-				if item.Kind != transcript.ToolCall {
-					return nil, nil, invalidArtifact(interruptPath, "approval must reference a toolCall item")
-				}
-			case transcript.QuestionInterrupt:
-				if item.Kind != transcript.QuestionItem {
-					return nil, nil, invalidArtifact(interruptPath, "question must reference a question item")
-				}
 			}
 		}
 	}
@@ -150,10 +125,7 @@ func canonicalRunFromWire(sessionID, path string, ref protocol.RunRef, updatedAt
 	}
 	switch ref.Status {
 	case protocol.RunStatusRunning:
-		if ref.Outcome != nil {
-			return transcript.Run{}, invalidArtifact(path+".outcome", "must be absent while status is running")
-		}
-		return run, nil
+		return transcript.Run{}, invalidArtifact(path+".status", "running runs are not portable")
 	case protocol.RunStatusFinished:
 		if ref.Outcome == nil {
 			return transcript.Run{}, invalidArtifact(path+".outcome", "is required while status is finished")
@@ -163,19 +135,7 @@ func canonicalRunFromWire(sessionID, path string, ref protocol.RunRef, updatedAt
 	}
 
 	if ref.Outcome.Type == protocol.OutcomeInterrupt {
-		if ref.Outcome.Result != nil {
-			return transcript.Run{}, invalidArtifact(path+".outcome.result", "must be absent for an interrupt")
-		}
-		interrupts, err := canonicalInterruptsFromWire(path+".outcome.interrupts", ref.Outcome.Interrupts)
-		if err != nil {
-			return transcript.Run{}, err
-		}
-		if len(interrupts) == 0 {
-			return transcript.Run{}, invalidArtifact(path+".outcome.interrupts", "must not be empty")
-		}
-		run.State = execution.Interrupted
-		run.Interrupts = interrupts
-		return run, nil
+		return transcript.Run{}, invalidArtifact(path+".outcome.type", "interrupted runs are not portable")
 	}
 	if len(ref.Outcome.Interrupts) != 0 {
 		return transcript.Run{}, invalidArtifact(path+".outcome.interrupts", "must be absent for terminal outcome %q", ref.Outcome.Type)
@@ -218,10 +178,7 @@ func canonicalOutcome(path string, kind protocol.RunOutcomeType) (execution.Outc
 
 func canonicalRunResult(path string, result *protocol.RunResult, outcome execution.Outcome) (*transcript.RunResult, error) {
 	if result == nil {
-		if outcome == execution.OutcomeError {
-			return nil, invalidArtifact(path, "is required for outcome error")
-		}
-		return nil, nil
+		return nil, invalidArtifact(path, "is required for terminal outcome %q", outcome.String())
 	}
 	if result.DurationMs < 0 {
 		return nil, invalidArtifact(path+".durationMs", "must not be negative")
@@ -556,87 +513,6 @@ func canonicalProblem(path string, problem *protocol.ProblemData, channel protoc
 		Kind: kind, Scope: scope, Detail: problem.Detail, DocURL: problem.DocURL,
 		Retryable: problem.Retryable, RetryAfterSeconds: problem.RetryAfterSeconds,
 	}, nil
-}
-
-func canonicalInterruptsFromWire(path string, entries []protocol.Interrupt) ([]transcript.Interrupt, error) {
-	out := make([]transcript.Interrupt, 0, len(entries))
-	seen := make(map[string]struct{}, len(entries))
-	for i, entry := range entries {
-		entryPath := fmt.Sprintf("%s[%d]", path, i)
-		if entry.ItemID == "" {
-			return nil, invalidArtifact(entryPath+".itemId", "is required")
-		}
-		if _, duplicate := seen[entry.ItemID]; duplicate {
-			return nil, invalidArtifact(entryPath+".itemId", "duplicate id %q", entry.ItemID)
-		}
-		seen[entry.ItemID] = struct{}{}
-		interrupt := transcript.Interrupt{ItemID: entry.ItemID}
-		switch entry.Type {
-		case protocol.InterruptApproval:
-			wireTool, err := decodeArtifactPayload[protocol.ToolInvocation](entryPath+".payload.tool", entry.Payload["tool"])
-			if err != nil {
-				return nil, err
-			}
-			tool, err := canonicalTool(entryPath+".payload.tool", wireTool)
-			if err != nil {
-				return nil, err
-			}
-			risk, err := artifactPayloadString(entryPath+".payload.risk", entry.Payload, "risk")
-			if err != nil {
-				return nil, err
-			}
-			reason, err := artifactPayloadString(entryPath+".payload.reason", entry.Payload, "reason")
-			if err != nil {
-				return nil, err
-			}
-			interrupt.Kind = transcript.ApprovalInterrupt
-			interrupt.Approval = &transcript.Approval{Tool: tool, Risk: risk, Reason: reason}
-		case protocol.InterruptQuestion:
-			wireQuestion, err := decodeArtifactPayload[protocol.Question](entryPath+".payload.question", entry.Payload["question"])
-			if err != nil {
-				return nil, err
-			}
-			question, err := canonicalQuestion(entryPath+".payload.question", wireQuestion)
-			if err != nil {
-				return nil, err
-			}
-			interrupt.Kind = transcript.QuestionInterrupt
-			interrupt.Question = &question
-		default:
-			return nil, invalidArtifact(entryPath+".type", "unsupported value %q", entry.Type)
-		}
-		out = append(out, interrupt)
-	}
-	return out, nil
-}
-
-func decodeArtifactPayload[T any](path string, value any) (T, error) {
-	var out T
-	if value == nil {
-		return out, invalidArtifact(path, "is required")
-	}
-	payload, err := json.Marshal(value)
-	if err != nil {
-		return out, invalidArtifact(path, "cannot be encoded: %v", err)
-	}
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&out); err != nil {
-		return out, invalidArtifact(path, "invalid payload: %v", err)
-	}
-	return out, nil
-}
-
-func artifactPayloadString(path string, values map[string]any, key string) (string, error) {
-	value, ok := values[key]
-	if !ok {
-		return "", nil
-	}
-	text, ok := value.(string)
-	if !ok {
-		return "", invalidArtifact(path, "must be a string")
-	}
-	return text, nil
 }
 
 func validateSafetyClass(path string, class protocol.SafetyClass) error {

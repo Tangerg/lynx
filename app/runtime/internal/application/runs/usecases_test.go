@@ -17,6 +17,8 @@ type fakeRunSessions struct {
 	model         string
 	pending       map[string]interrupts.Pending
 	canceledRunID string
+	cancelReason  string
+	canceledAt    time.Time
 	treeOK        bool
 	treeReleases  int
 }
@@ -51,8 +53,10 @@ func (f *fakeRunSessions) GetOpenInterrupt(_ context.Context, runID string) (int
 	return pending, ok, nil
 }
 
-func (f *fakeRunSessions) ApplyRunCancel(_ context.Context, _ string, runID string) error {
+func (f *fakeRunSessions) ApplyRunCancel(_ context.Context, _ string, runID, reason string, finishedAt time.Time) error {
 	f.canceledRunID = runID
+	f.cancelReason = reason
+	f.canceledAt = finishedAt
 	delete(f.pending, runID)
 	return nil
 }
@@ -204,11 +208,14 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	turns := &fakeTurnControl{}
 	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions})
 
-	if err := c.Cancel(context.Background(), CancelCommand{RunID: "run_1"}); err != nil {
+	if err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "user stopped"}); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
 	if sessions.canceledRunID != "run_1" || len(turns.canceled) != 1 {
 		t.Fatalf("durable cancel=%q turn cancels=%v", sessions.canceledRunID, turns.canceled)
+	}
+	if sessions.cancelReason != "user stopped" || sessions.canceledAt.IsZero() {
+		t.Fatalf("cancel reason/time = %q/%v, want user reason and terminal time", sessions.cancelReason, sessions.canceledAt)
 	}
 	if c.ActiveSession("ses_1") {
 		t.Fatal("parked cancel leaked the session admission claim")

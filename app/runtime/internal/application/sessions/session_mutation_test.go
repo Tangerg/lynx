@@ -49,6 +49,26 @@ func TestDeleteSessionStopsBeforeProcessCleanupOnApplyFailure(t *testing.T) {
 	}
 }
 
+func TestDeleteSessionDetachesParkedTurnCleanupFromCallerCancellation(t *testing.T) {
+	stores := newMutationStores("")
+	turns := new(observingTurns)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if err := newCoordinator(stores, turns).DeleteSession(ctx, "ses_1"); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+	if turns.calls != 1 {
+		t.Fatalf("turn Cancel calls = %d, want 1", turns.calls)
+	}
+	if turns.canceled {
+		t.Fatal("turn cleanup inherited caller cancellation")
+	}
+	if !turns.bounded {
+		t.Fatal("turn cleanup context has no deadline")
+	}
+}
+
 // TestRestoreSessionAppliesPlan: RestoreSession forwards the decoded artifact to
 // the atomic restore write-set verbatim.
 func TestRestoreSessionAppliesPlan(t *testing.T) {
@@ -120,6 +140,7 @@ func (s *mutationStores) Transcript() TranscriptStore { return emptyTranscript{}
 func (*mutationStores) ReadHistory(context.Context, string) ([]chat.Message, error) {
 	panic("unused")
 }
+func (*mutationStores) ReadSnapshot(context.Context, string) (Snapshot, error) { panic("unused") }
 func (s *mutationStores) ForgetSession(string) {
 	s.operations = append(s.operations, "session.forget")
 }
@@ -144,7 +165,7 @@ func (s *mutationStores) ApplyDelete(_ context.Context, sessionID string) error 
 	s.deleted = append(s.deleted, sessionID)
 	return nil
 }
-func (s *mutationStores) ApplyCancel(context.Context, string, string) error {
+func (s *mutationStores) ApplyCancel(context.Context, CancelPlan) error {
 	return s.record("apply.cancel")
 }
 
@@ -168,5 +189,18 @@ type mutationTurns struct{ operations *[]string }
 
 func (t mutationTurns) Cancel(context.Context, RunRef) error {
 	*t.operations = append(*t.operations, "turn.cancel")
+	return nil
+}
+
+type observingTurns struct {
+	calls    int
+	canceled bool
+	bounded  bool
+}
+
+func (t *observingTurns) Cancel(ctx context.Context, _ RunRef) error {
+	t.calls++
+	t.canceled = ctx.Err() != nil
+	_, t.bounded = ctx.Deadline()
 	return nil
 }

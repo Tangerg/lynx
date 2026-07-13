@@ -12,6 +12,8 @@ import (
 
 type coordinatorStores struct {
 	interrupts *coordinatorInterrupts
+	snapshot   Snapshot
+	canceled   *CancelPlan
 }
 
 func (s coordinatorStores) Session() SessionStore       { panic("unused") }
@@ -19,6 +21,9 @@ func (s coordinatorStores) Interrupts() InterruptStore  { return s.interrupts }
 func (s coordinatorStores) Transcript() TranscriptStore { return emptyTranscript{} }
 func (s coordinatorStores) ReadHistory(context.Context, string) ([]chat.Message, error) {
 	panic("unused")
+}
+func (s coordinatorStores) ReadSnapshot(context.Context, string) (Snapshot, error) {
+	return s.snapshot, nil
 }
 func (s coordinatorStores) ForgetSession(string) {}
 func (s coordinatorStores) ApplyFork(context.Context, ForkPlan) (session.Session, error) {
@@ -42,8 +47,11 @@ func (s coordinatorStores) ApplyDelete(ctx context.Context, sessionID string) er
 	}
 	return nil
 }
-func (s coordinatorStores) ApplyCancel(ctx context.Context, _ string, runID string) error {
-	return s.interrupts.Delete(ctx, runID)
+func (s coordinatorStores) ApplyCancel(ctx context.Context, plan CancelPlan) error {
+	if s.canceled != nil {
+		*s.canceled = plan
+	}
+	return s.interrupts.Delete(ctx, plan.Run.ID)
 }
 
 type coordinatorInterrupts struct {

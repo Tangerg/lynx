@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -15,6 +16,8 @@ import (
 // run has no snapshot. The composition root maps the checkpoint adapter's own
 // sentinel onto this one so the coordinator stays free of the adapter package.
 var ErrCheckpointUnavailable = errors.New("sessions: checkpoint unavailable")
+
+const mutationCleanupTimeout = 5 * time.Second
 
 // RollbackSpec is the wire-decoded rollback intent: which run to keep to and
 // what the rollback rewinds. RestoreFiles restores the working tree to the run
@@ -111,7 +114,9 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 	if spec.RestoreFiles {
 		if err := c.restore(ctx, spec.SessionID, cwd, spec.ToRunID); err != nil {
 			if recoverable {
-				_ = c.completeMutation(ctx, spec.SessionID)
+				if cleanupErr := c.completeMutationDetached(ctx, spec.SessionID); cleanupErr != nil {
+					return result, errors.Join(err, fmt.Errorf("sessions: clear failed rollback intent: %w", cleanupErr))
+				}
 			}
 			return result, err
 		}
@@ -127,7 +132,7 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 	}
 
 	if recoverable {
-		if err := c.completeMutation(ctx, spec.SessionID); err != nil {
+		if err := c.completeMutationDetached(ctx, spec.SessionID); err != nil {
 			return result, err
 		}
 	}
@@ -205,6 +210,12 @@ func (c *Coordinator) completeMutation(ctx context.Context, sessionID string) er
 		return nil
 	}
 	return c.mutations.Complete(ctx, sessionID)
+}
+
+func (c *Coordinator) completeMutationDetached(ctx context.Context, sessionID string) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mutationCleanupTimeout)
+	defer cancel()
+	return c.completeMutation(cleanupCtx, sessionID)
 }
 
 // restore drives the checkpoint store, mapping a nil store (file checkpoints

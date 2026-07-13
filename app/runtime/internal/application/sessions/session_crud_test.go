@@ -80,6 +80,7 @@ func (s *crudStores) Session() SessionStore                                     
 func (*crudStores) Interrupts() InterruptStore                                  { panic("unused") }
 func (*crudStores) Transcript() TranscriptStore                                 { return emptyTranscript{} }
 func (*crudStores) ReadHistory(context.Context, string) ([]chat.Message, error) { panic("unused") }
+func (*crudStores) ReadSnapshot(context.Context, string) (Snapshot, error)      { panic("unused") }
 func (*crudStores) ForgetSession(string)                                        {}
 func (*crudStores) ApplyFork(context.Context, ForkPlan) (session.Session, error) {
 	panic("unused")
@@ -87,7 +88,7 @@ func (*crudStores) ApplyFork(context.Context, ForkPlan) (session.Session, error)
 func (*crudStores) ApplyRollback(context.Context, RollbackPlan) error { panic("unused") }
 func (*crudStores) ApplyRestore(context.Context, RestorePlan) error   { panic("unused") }
 func (*crudStores) ApplyDelete(context.Context, string) error         { panic("unused") }
-func (*crudStores) ApplyCancel(context.Context, string, string) error { panic("unused") }
+func (*crudStores) ApplyCancel(context.Context, CancelPlan) error     { panic("unused") }
 
 func newCRUDCoordinator(store *crudSessionStore) (*Coordinator, *crudStores) {
 	stores := &crudStores{session: store}

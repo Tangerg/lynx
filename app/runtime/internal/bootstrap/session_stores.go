@@ -45,6 +45,27 @@ func (s sessionStores) ReadHistory(ctx context.Context, sessionID string) ([]cha
 	return s.history.Read(ctx, sessionID)
 }
 
+func (s sessionStores) ReadSnapshot(ctx context.Context, sessionID string) (sessions.Snapshot, error) {
+	var snapshot sessions.Snapshot
+	err := s.runInTx(ctx, func(ctx context.Context) error {
+		ses, err := s.sessions.Get(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		messages, err := s.history.Read(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		items, runs, err := s.transcript.List(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		snapshot = sessions.Snapshot{Session: ses, Messages: messages, Items: items, Runs: runs}
+		return nil
+	})
+	return snapshot, err
+}
+
 func (s sessionStores) ForgetSession(sessionID string) { s.forgetter.ForgetSession(sessionID) }
 
 // runInTx runs fn inside one storage transaction, falling back to a direct call
@@ -88,8 +109,8 @@ func (s sessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (s
 }
 
 // ApplyRollback truncates the chat log to the boundary watermark, drops each
-// past-boundary run's transcript record + open interrupt, and terminalizes an
-// abandoned parked run's admission row — all in one transaction (§8.1/§8.3).
+// past-boundary run, terminalizes an abandoned parked run, and deletes the
+// attributed internal subtask subtrees — all in one transaction (§8.1/§8.3).
 func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		if plan.KeepMark >= 0 {
@@ -109,7 +130,14 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollback
 			}
 		}
 		if plan.Terminate {
-			return s.runs.Terminalize(ctx, plan.SessionID, plan.RunID, execution.OutcomeCanceled)
+			if err := s.runs.Terminalize(ctx, plan.SessionID, plan.RunID, execution.OutcomeCanceled); err != nil {
+				return err
+			}
+		}
+		for _, sessionID := range plan.DropSessionIDs {
+			if err := s.deleteSession(ctx, sessionID); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -157,31 +185,43 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 // open interrupts, admission rows, and the session row — atomically.
 func (s sessionStores) ApplyDelete(ctx context.Context, sessionID string) error {
 	return s.runInTx(ctx, func(ctx context.Context) error {
-		if err := s.transcript.DeleteSession(ctx, sessionID); err != nil {
-			return err
-		}
-		if err := s.history.Truncate(ctx, sessionID, 0); err != nil {
-			return err
-		}
-		if err := s.deleteInterrupts(ctx, sessionID); err != nil {
-			return err
-		}
-		if err := s.runs.DeleteForSession(ctx, sessionID); err != nil {
-			return err
-		}
-		return s.sessions.Delete(ctx, sessionID)
+		return s.deleteSession(ctx, sessionID)
 	})
+}
+
+func (s sessionStores) deleteSession(ctx context.Context, sessionID string) error {
+	if err := s.transcript.DeleteSession(ctx, sessionID); err != nil {
+		return err
+	}
+	if err := s.history.Truncate(ctx, sessionID, 0); err != nil {
+		return err
+	}
+	if err := s.deleteInterrupts(ctx, sessionID); err != nil {
+		return err
+	}
+	if err := s.runs.DeleteForSession(ctx, sessionID); err != nil {
+		return err
+	}
+	return s.sessions.Delete(ctx, sessionID)
 }
 
 // ApplyCancel abandons a parked run: it drops the open interrupt and terminalizes
 // the run's admission row atomically, so a canceled parked run neither stays
 // resumable nor leaves the session durably busy.
-func (s sessionStores) ApplyCancel(ctx context.Context, sessionID, runID string) error {
+func (s sessionStores) ApplyCancel(ctx context.Context, plan sessions.CancelPlan) error {
 	return s.runInTx(ctx, func(ctx context.Context) error {
-		if err := s.interrupts.Delete(ctx, runID); err != nil {
+		for _, item := range plan.Items {
+			if err := s.transcript.AppendItem(ctx, item); err != nil {
+				return err
+			}
+		}
+		if err := s.transcript.PutRun(ctx, plan.Run); err != nil {
 			return err
 		}
-		return s.runs.Terminalize(ctx, sessionID, runID, execution.OutcomeCanceled)
+		if err := s.interrupts.Delete(ctx, plan.Run.ID); err != nil {
+			return err
+		}
+		return s.runs.Terminalize(ctx, plan.Run.SessionID, plan.Run.ID, execution.OutcomeCanceled)
 	})
 }
 

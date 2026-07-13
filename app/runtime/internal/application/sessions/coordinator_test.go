@@ -4,8 +4,13 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/Tangerg/lynx/core/model/chat"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 func TestClaimRunSlotHoldsAndReleasesSession(t *testing.T) {
@@ -87,4 +92,44 @@ func TestClaimMutationSlotAllowsOpenInterrupt(t *testing.T) {
 		t.Fatalf("admission = %+v claimed = %v, want ses_1 claimed", admission, claimer.claimed)
 	}
 	admission.Release()
+}
+
+func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
+	finishedAt := time.Date(2026, 7, 13, 2, 3, 4, 0, time.UTC)
+	var applied CancelPlan
+	stores := coordinatorStores{
+		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
+			"run_1": {RunID: "run_1", SessionID: "ses_1"},
+		}},
+		snapshot: Snapshot{
+			Messages: []chat.Message{chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi")},
+			Runs: []transcript.Run{{
+				ID: "run_1", SessionID: "ses_1", State: execution.Interrupted,
+				Interrupts:  []transcript.Interrupt{{ItemID: "item_1", Kind: transcript.QuestionInterrupt}},
+				MessageMark: -1,
+			}},
+			Items: []transcript.Item{{
+				ID: "item_1", RunID: "run_1", SessionID: "ses_1",
+				Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+			}},
+		},
+		canceled: &applied,
+	}
+
+	err := newCoordinator(stores, nil).ApplyRunCancel(t.Context(), "ses_1", "run_1", "user stopped", finishedAt)
+	if err != nil {
+		t.Fatalf("ApplyRunCancel: %v", err)
+	}
+	if applied.Run.State != execution.Canceled || applied.Run.Outcome == nil || *applied.Run.Outcome != execution.OutcomeCanceled {
+		t.Fatalf("terminal run = %+v, want canceled", applied.Run)
+	}
+	if applied.Run.Result == nil || applied.Run.Detail != "user stopped" || !applied.Run.FinishedAt.Equal(finishedAt) {
+		t.Fatalf("terminal result/detail/time = %+v/%q/%v", applied.Run.Result, applied.Run.Detail, applied.Run.FinishedAt)
+	}
+	if applied.Run.MessageMark != 2 || len(applied.Run.Interrupts) != 0 {
+		t.Fatalf("terminal mark/interrupts = %d/%+v, want 2/none", applied.Run.MessageMark, applied.Run.Interrupts)
+	}
+	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete {
+		t.Fatalf("interrupt items = %+v, want one incomplete item", applied.Items)
+	}
 }

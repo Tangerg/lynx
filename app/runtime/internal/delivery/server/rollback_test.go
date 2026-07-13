@@ -37,9 +37,12 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 
 func putRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64, mark int) {
 	t.Helper()
-	if err := rt.hist.PutRun(context.Background(), transcript.Run{
+	outcome := execution.OutcomeCompleted
+	if err := rt.hist.PutRun(t.Context(), transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Completed,
-		CreatedAt: time.Unix(atUnix, 0).UTC(), UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark,
+		Outcome: &outcome, Result: &transcript.RunResult{},
+		CreatedAt: time.Unix(atUnix, 0).UTC(), FinishedAt: time.Unix(atUnix, 0).UTC(),
+		UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark,
 	}); err != nil {
 		t.Fatalf("putRun %s: %v", runID, err)
 	}
@@ -47,7 +50,7 @@ func putRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64
 
 func putUserItem(t *testing.T, rt *stubRuntime, sessionID, runID, itemID, text string) {
 	t.Helper()
-	if err := rt.hist.AppendItem(context.Background(), transcript.Item{
+	if err := rt.hist.AppendItem(t.Context(), transcript.Item{
 		SessionID: sessionID, RunID: runID, ID: itemID, CreatedAt: time.Unix(1, 0).UTC(),
 		Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
 		Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: text}},
@@ -167,6 +170,31 @@ func TestRollbackSession_DropAll(t *testing.T) {
 	}
 	if pending, _ := rt.interrupts.List(ctx, child.ID); len(pending) != 0 {
 		t.Fatalf("subagent child interrupts = %+v, want purged", pending)
+	}
+}
+
+func TestRollbackSessionPreservesUserForks(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := t.Context()
+	parent, err := rt.sess.Create(ctx, "parent", t.TempDir())
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	fork, err := rt.sess.Fork(ctx, parent.ID, "")
+	if err != nil {
+		t.Fatalf("create fork: %v", err)
+	}
+	rt.history[fork.ID] = []chat.Message{chat.NewUserMessage("keep me")}
+	putRun(t, rt, parent.ID, "run_1", 100, 0)
+
+	if _, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: parent.ID}); err != nil {
+		t.Fatalf("rollback all: %v", err)
+	}
+	if _, err := rt.sess.Get(ctx, fork.ID); err != nil {
+		t.Fatalf("user fork was deleted by parent rollback: %v", err)
+	}
+	if len(rt.history[fork.ID]) != 1 {
+		t.Fatalf("fork history = %+v, want preserved", rt.history[fork.ID])
 	}
 }
 
