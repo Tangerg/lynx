@@ -618,6 +618,8 @@ Interrupt 可以独立建表，但领域上属于 Run：
 
 Resume 的 interrupt delete 不是 lifecycle coordinator 的预先 CRUD：`CommitOpening` 在一个 SQLite 事务里执行 `Consume(runID)`、校验 Session binding、按 RunID + SessionID 严格执行 `RunState.Resume`，再写 opening transcript projection。任何一步失败都会回滚，interrupt 仍保持开放。跨重启 rehydrate 复用 interrupt 持久化的 TurnID；因此 prepare 成功但 opening 失败时，重试仍解析到同一个 parked owner，不会重复 restore 同一 ProcessID。
 
+Parked Cancel 同样是一个完整写集：Application 在持有 Session admission 时把 `Interrupted` Run 归约为 `Canceled`，将等待中的 interrupt item 改为 `Incomplete`，写入 terminal result、message watermark、取消原因和完成时间；SQLite 在同一事务内提交这些 transcript projections、删除 open interrupt 并 terminalize admission row。不能只删除 interrupt/run-state 而留下一个无法 resume 的 `Interrupted` transcript。
+
 ### 8.4 Transcript 与 Conversation 是 projection
 
 Run event commit 可以同时更新：
@@ -634,6 +636,10 @@ Transcript 的 authoritative record 是 `domain/execution/transcript` 中的 typ
 
 Runtime 处于开发期，只安装当前 SQLite schema。`PRAGMA user_version` 与当前 version 不一致时直接丢弃旧结构并重建，不提供 migration；session artifact 同样只接受当前 version。该策略用于阻止错误持久化模型通过兼容代码继续存在。
 
+Session artifact 是**便携终态快照**，不是进程快照：导出先 claim Session single-writer slot、拒绝 active/open-interrupt Session，再在一个 SQLite transaction 中读取 Session + Conversation + Transcript；artifact 中的 Run 必须 terminal，必须带 outcome/result 和已解析的 message watermark，terminal item 不得仍为 running。导入严格拒绝 `running`/`interrupt` Run，因为 admission、parked executor 与 ProcessSnapshot 不在 artifact 中，接受它们只会制造不可恢复的孤儿状态。
+
+Rollback 对内部 delegation lineage 的清理也是 durable plan 的一部分：Application 只把归属于 dropped run window 的 `KindSubtask` 子树加入 `DropSessionIDs`，用户主动创建的 fork 即使共享 `ParentID` 也必须保留；SQLite 将父 Session 的 timeline truncate 与这些 subtask 子树删除放进同一事务，不能在提交后 best-effort 递归删除并吞错。
+
 ### 8.5 数据库与工作区不能假装原子
 
 SQLite 事务不能和 Git/文件系统 restore 组成真正 ACID 事务。
@@ -647,6 +653,8 @@ SQLite 事务不能和 Git/文件系统 restore 组成真正 ACID 事务。
 5. 启动时恢复未完成操作。
 
 不需要通用 Saga 框架，只需要为真实存在的跨资源一致性建立小型、可恢复的操作日志。
+
+live request 已看到 restore/transaction 成功或失败后，mutation completion 属于 post-commit cleanup：它保留 request value/trace，但不继承 request cancellation，并受短 deadline 约束。否则客户端断线可能把已经完成的 operation 永久留成 pending，让启动恢复重复执行或阻塞启动。
 
 ---
 

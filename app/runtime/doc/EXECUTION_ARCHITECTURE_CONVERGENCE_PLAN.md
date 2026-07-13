@@ -3,7 +3,7 @@
 > 状态：完成
 > 建立日期：2026-07-13  
 > 完成 checkpoint：`a94e63b91`（`codex/runtime-architecture-refactor`）
-> 最近审查修复 checkpoint：`7ff31775f`
+> 最近审查修复 checkpoint：`75adcec22`
 > 目标架构基准：[EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md)
 
 ## 0. 文档职责
@@ -524,13 +524,14 @@ AST 无法可靠判断的语义规则，应通过编译期类型封闭、package
 | Batch 3 | Canonical durable execution record | 已完成 | 100% | 无 | typed transcript/interrupt；strict RunID CAS；schema v2/artifact v3 |
 | Batch 4 | 纯化、fitness tests、最终清理 | 已完成 | 100% | 无 | `a94e63b91`；domain I/O 迁移、architecture tests、full/race/frontend 验收 |
 | Post-audit | Go 审查发现的不变量、并发与资源边界修复 | 已完成 | 100% | 无 | `7ff31775f`；strict artifact/identity、lossless Journal、bounded health probe、full race |
+| Post-audit II | 便携快照、parked cancel、interrupt 与 rollback 子树边界 | 已完成 | 100% | 无 | `75adcec22`；atomic snapshot/cancel/subtask rollback、detached cleanup、full race |
 
 ### 10.2 当前执行指针
 
 ```text
-Current batch: complete (including post-convergence audit remediation)
+Current batch: complete (including two post-convergence audit remediations)
 Current sub-step: none
-Last completed code checkpoint: 7ff31775f
+Last completed code checkpoint: 75adcec22
 Next required gate: none
 ```
 
@@ -670,6 +671,9 @@ Batch 4
 | D-010 | 2026-07-13 | Run ID 永久归属一个 Session，Item ID 永久归属一个 Session+Run；artifact 在任何写入前完成严格 union、引用关系和 run-tree 校验 | identity re-parent 会跨 aggregate 覆盖 durable fact；宽松 decode 会把损坏状态带入事务，二者都必须在持久化边界被拒绝 | 已接受并实施 |
 | D-011 | 2026-07-13 | Journal 为每个 subscriber 建立独立投递泵；durable/terminal 进入有序队列且不受 live-only 丢弃预算约束，只有过量 live-only event 可丢弃，关闭后的遗弃订阅有明确退出上限 | 原先 channel 满时可能漏掉 durable event，却仍送达 terminal，使客户端无法通过重连察觉历史缺口 | 已接受并实施 |
 | D-012 | 2026-07-13 | 每个 HealthProbe 最多一个 in-flight invocation；并发请求共享该调用，各自受请求 budget 约束 | 单纯给请求加 timeout 无法停止忽略 context 的 probe，重复请求会持续泄漏 goroutine | 已接受并实施 |
+| D-013 | 2026-07-13 | Session artifact 只表达 idle Session 的 terminal transcript；导出先占 admission 并在一个事务中读取完整快照，导入拒绝 running/interrupt Run | artifact 不携带 admission、parked executor 或 ProcessSnapshot；接受非终态只会生成无法恢复的孤儿状态，分次读取也不能保证 round-trip 自洽 | 已接受并实施 |
+| D-014 | 2026-07-13 | Parked cancel 必须原子提交 canceled Run、incomplete interrupt items、terminal watermark/result 与 interrupt/admission 关闭；未知或 malformed executor interrupt fail closed 为 error terminal | 只删除 interrupt/admission 会留下幽灵 Interrupted transcript；把未知 kind 强制当 question 会把 adapter 错误持久化为合法业务状态 | 已接受并实施 |
+| D-015 | 2026-07-13 | Rollback 只删除归属于 dropped window 的 KindSubtask 子树，并把子树删除并入父 rollback write-set；用户 fork 永远保留 | ParentID 同时承载 fork/subtask lineage，按 ParentID best-effort 递归会误删用户 fork，吞错还会留下半删子树 | 已接受并实施 |
 
 新增决策使用递增 ID，并同步修改受影响批次的范围、完成判据和风险。
 
@@ -798,6 +802,32 @@ Batch 4
 - Remaining work: none；
 - Decision log updates: D-010、D-011、D-012。
 
+### 2026-07-13 — Post-convergence lifecycle and portability hardening
+
+- Commit: `75adcec22`
+- Invariants preserved/added:
+  - terminal Run 的 conversation watermark 解析失败会使整个 event transaction 失败，不再持久化 `-1` 假边界；
+  - Session export 先 claim single-writer slot，再从一个 SQLite transaction 读取 metadata、conversation 和 transcript；active/open-interrupt Session 返回 `session_busy`；
+  - artifact 只接受 terminal Run，且 terminal outcome 必须携带 Result 和已解析 watermark；running/interrupt artifact 在 mutation 前拒绝；
+  - parked cancel 原子写入 canceled Run、incomplete interrupt items、取消原因、完成时间与 message watermark，同时关闭 interrupt/admission；
+  - executor 发出 empty/unknown/mismatched interrupt union 时中止 turn，并通过 canonical error terminal 收口，不再默认强制转换成 question；
+  - rollback 只删除 dropped run window 对应的 KindSubtask subtree，用户 fork 保留；父 timeline mutation 与 subtask subtree delete 在同一 write-set 回滚或提交；
+  - post-commit turn/mutation cleanup 使用 `WithoutCancel` + bounded timeout，客户端取消不会跳过进程或 intent 清理。
+- Removed seams/debt:
+  - 删除 artifact 对 running/interrupt payload 的无效 decode/restore 路径及其 dead payload decoder；
+  - 删除吞错的 best-effort `PurgeSubtree`，subtask 删除进入明确的 RollbackPlan；
+  - 修正已失效的 workspace file-change 注释。
+- Validation:
+  - `go build ./...`：通过；
+  - `go vet ./...`：通过；
+  - `golangci-lint run ./...`：通过；
+  - `go test ./...`：通过；
+  - `go test -race ./...`：通过；
+  - interrupt abort、parked cancel/export、detached cleanup、fork preservation、atomic subtask rollback 与 terminal watermark 用例在 `-race -shuffle=on` 下重复 20–30 次：通过；
+  - `git diff --check` 与 Go 格式检查：通过。
+- Remaining work: none；
+- Decision log updates: D-013、D-014、D-015。
+
 ## 18. 最终验收清单
 
 架构收敛完成时逐项勾选：
@@ -817,6 +847,9 @@ Batch 4
 - [x] protocol golden、SQLite contract、全量 build/vet/test/race 通过；
 - [x] 不存在中间 shim、双写、死类型和过期注释；
 - [x] artifact 导入在 mutation 前拒绝非法 union、悬空引用、identity 冲突和循环 run tree；
+- [x] artifact 导出来自 idle Session 的单事务快照，且只包含可往返的 terminal Run；
+- [x] parked cancel 不留下 Interrupted transcript 或 running interrupt item；
+- [x] rollback 原子删除 dropped KindSubtask subtree，且不删除用户 fork；
 - [x] durable Journal event 不因 subscriber backpressure 静默丢失；
 - [x] context-unaware health probe 不会随请求数无限增殖 goroutine；
 - [x] `EXECUTION_CENTERED_ARCHITECTURE.md` 与真实实现一致；
