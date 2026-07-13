@@ -21,21 +21,6 @@ type turnObserver struct {
 	st  *turnState
 }
 
-// ApprovalPrompt is the awaitable payload surfaced to the client when a
-// gated tool call needs approval (HITL R model). It rides the run's
-// interrupt outcome; the client answers via a continuation run.
-type ApprovalPrompt struct {
-	CallID    string `json:"callId"`
-	ToolName  string `json:"toolName"`
-	Arguments string `json:"arguments"`
-	// SafetyClass / Risk / Reason describe the gated call so the approval card
-	// shows the risk + a one-line why without joining tools.list. SafetyClass
-	// is the wire class ("write"|"exec"); Risk is the coarse low/medium/high.
-	SafetyClass string `json:"safetyClass"`
-	Risk        string `json:"risk"`
-	Reason      string `json:"reason"`
-}
-
 // ApproveToolCall is the non-blocking gate the engine consults BEFORE
 // every tool call (HITL R model). It maps the runtime approval mode +
 // the tool's safety class to a verdict:

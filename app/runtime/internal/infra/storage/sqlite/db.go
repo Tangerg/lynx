@@ -80,7 +80,8 @@ func migrate(db *sql.DB) error {
 		// the partial unique index below is the durable "one non-terminal Run per
 		// Session" guarantee that survives restart (the in-process live-run registry
 		// is only this process's view). outcome is the terminal reason, '' until
-		// terminal; process_id is a recovery handle, not an identity.
+		// terminal. Executor recovery handles live on open interrupts, where the
+		// actual snapshot id is known.
 		`CREATE TABLE IF NOT EXISTS runs (
 			run_id      TEXT    PRIMARY KEY,
 			session_id  TEXT    NOT NULL,
@@ -88,7 +89,6 @@ func migrate(db *sql.DB) error {
 			provider    TEXT    NOT NULL DEFAULT '',
 			model       TEXT    NOT NULL DEFAULT '',
 			outcome     TEXT    NOT NULL DEFAULT '',
-			process_id  TEXT    NOT NULL DEFAULT '',
 			started_at  INTEGER NOT NULL,
 			updated_at  INTEGER NOT NULL
 		)`,

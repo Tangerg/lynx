@@ -3,8 +3,6 @@ package sessions
 import (
 	"context"
 	"errors"
-	"fmt"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
@@ -20,9 +18,9 @@ func (r RunTurnBinding) ref() RunRef {
 	return RunRef{SessionID: r.SessionID, TurnID: r.TurnID}
 }
 
-// ResumedInterrupt is the claimed interrupt plus the opaque handle its
-// continuation should stream from.
-type ResumedInterrupt struct {
+// PreparedInterrupt is an open interrupt plus the parked executor handle whose
+// continuation can be attached before the decision is delivered.
+type PreparedInterrupt struct {
 	Pending interrupts.Pending
 	Handle  Handle
 }
@@ -57,72 +55,46 @@ func (c *Coordinator) CancelRunBinding(ctx context.Context, r RunTurnBinding) er
 	return c.s.ApplyCancel(ctx, r.SessionID, r.RunID)
 }
 
-// ResumeClaimedInterrupt consumes an open interrupt and resumes its parked
-// turn. If the live turn disappeared after a backend restart, it rebuilds the
-// process from the durable interrupt snapshot before returning the handle.
-func (c *Coordinator) ResumeClaimedInterrupt(ctx context.Context, runID string, resolution interrupts.Resolution, interruptKinds []string) (ResumedInterrupt, error) {
-	pending, ok, err := c.s.Interrupts().Consume(ctx, runID)
-	if err != nil {
-		return ResumedInterrupt{}, err
-	}
-	if !ok {
-		return ResumedInterrupt{}, ErrInterruptNotOpen
-	}
-
-	handle, err := c.turns.Resume(ctx, RunRef{SessionID: pending.SessionID, TurnID: pending.TurnID}, resolution, interruptKinds)
+// PrepareClaimedInterrupt resolves the parked executor handle without consuming
+// the interrupt or delivering the decision. If the process-local turn was lost
+// across restart, it restores the parked process from the durable snapshot. The
+// run coordinator subsequently attaches the event stream and atomically accepts
+// the continuation before [Coordinator.ActivatePreparedInterrupt] resumes it.
+func (c *Coordinator) PrepareClaimedInterrupt(ctx context.Context, pending interrupts.Pending) (PreparedInterrupt, error) {
+	handle, err := c.turns.Prepare(ctx, RunRef{SessionID: pending.SessionID, TurnID: pending.TurnID})
 	if err != nil {
 		if errors.Is(err, ErrParkClaimed) {
-			return ResumedInterrupt{}, ErrInterruptNotOpen
+			return PreparedInterrupt{}, ErrInterruptNotOpen
 		}
 		if !errors.Is(err, ErrTurnNotLive) {
-			return ResumedInterrupt{}, err
+			return PreparedInterrupt{}, err
 		}
-		handle, err = c.rehydratePendingTurn(ctx, pending, resolution.Approved, interruptKinds)
+		handle, err = c.rehydratePendingTurn(ctx, pending)
 		if err != nil {
-			// Rehydrate errors before the decision reaches a restored process are
-			// uncommitted: put the claim back so a transient resolver/storage failure
-			// does not silently destroy the user's open interrupt. Once the turn layer
-			// marks the failure committed it has already terminalized the process, and
-			// restoring would create a ghost resumable record.
-			if !errors.Is(err, ErrRehydrateCommitted) {
-				return ResumedInterrupt{}, errors.Join(ErrRunNotFound, c.RestoreConsumedInterrupt(ctx, pending))
-			}
-			return ResumedInterrupt{}, ErrRunNotFound
+			return PreparedInterrupt{}, errors.Join(ErrRunNotFound, err)
 		}
 	}
-
-	return ResumedInterrupt{Pending: pending, Handle: handle}, nil
+	return PreparedInterrupt{Pending: pending, Handle: handle}, nil
 }
 
-const interruptCompensationTimeout = 2 * time.Second
-
-// RestoreConsumedInterrupt re-opens an interrupt a resume consumed but whose
-// continuation then failed to start, so the session is not stranded with a
-// non-terminal run and no interrupt to resume. Best-effort within a bounded,
-// caller-cancel-detached context — the compensation must run even as the failing
-// request unwinds. Used both by [Coordinator.ResumeClaimedInterrupt] (rehydrate
-// failed before the decision reached a restored process) and by the delivery
-// resume flow (the continuation's Start failed after the interrupt was consumed).
-func (c *Coordinator) RestoreConsumedInterrupt(ctx context.Context, pending interrupts.Pending) error {
-	restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), interruptCompensationTimeout)
-	defer cancel()
-	if err := c.s.Interrupts().Put(restoreCtx, pending); err != nil {
-		return fmt.Errorf("sessions: restore consumed interrupt: %w", err)
-	}
-	return nil
+// ActivatePreparedInterrupt delivers the user's resolution after the run
+// coordinator has attached the continuation stream and committed its durable
+// opening. Any executor error is therefore observed by the segment pump and
+// becomes a terminal stream event; the consumed interrupt is never resurrected.
+func (c *Coordinator) ActivatePreparedInterrupt(ctx context.Context, prepared PreparedInterrupt, resolution interrupts.Resolution, interruptKinds []string) error {
+	return c.turns.Resume(ctx, prepared.Handle, resolution, interruptKinds)
 }
 
-func (c *Coordinator) rehydratePendingTurn(ctx context.Context, pending interrupts.Pending, approved bool, interruptKinds []string) (Handle, error) {
+func (c *Coordinator) rehydratePendingTurn(ctx context.Context, pending interrupts.Pending) (Handle, error) {
 	if pending.ProcessID == "" {
 		return nil, errors.New("sessions: interrupt has no recorded process id")
 	}
 	return c.turns.Rehydrate(ctx, RehydrateSpec{
-		SessionID:      pending.SessionID,
-		ProcessID:      pending.ProcessID,
-		Approved:       approved,
-		Provider:       pending.Provider,
-		Model:          pending.Model,
-		InterruptKinds: interruptKinds,
+		SessionID: pending.SessionID,
+		TurnID:    pending.TurnID,
+		ProcessID: pending.ProcessID,
+		Provider:  pending.Provider,
+		Model:     pending.Model,
 	})
 }
 

@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -58,6 +59,20 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 			},
 			want: "runtime: TranscriptStore is required",
 		},
+		{
+			name: "run store",
+			edit: func(cfg *Config) {
+				cfg.RunStore = nil
+			},
+			want: "runtime: RunStore is required",
+		},
+		{
+			name: "transactor",
+			edit: func(cfg *Config) {
+				cfg.Transactor = nil
+			},
+			want: "runtime: Transactor is required",
+		},
 	}
 
 	for _, tt := range tests {
@@ -95,5 +110,9 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 		SessionStore:     sqlitestore.NewSessionStore(db),
 		InterruptStore:   sqlitestore.NewInterruptStore(db),
 		TranscriptStore:  sqlitestore.NewTranscriptStore(db),
+		RunStore:         sqlitestore.NewRunStateStore(db),
+		Transactor: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlitestore.RunInTx(ctx, db, fn)
+		},
 	}
 }

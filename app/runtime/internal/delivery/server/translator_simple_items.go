@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -26,7 +26,7 @@ func itemPair(build func(protocol.ItemStatus) *protocol.Item) []protocol.StreamE
 // clamped ≥0); the summary text stays server-side — it's already folded into
 // the rewritten history. Emitted from drive() before TurnEnd, so the divider
 // lands after this turn's content and ahead of segment.finished.
-func (t *translator) compaction(e turn.CompactBoundary) []protocol.StreamEvent {
+func (t *translator) compaction(e runs.CompactBoundary) []protocol.StreamEvent {
 	dropped := max(e.MessagesBefore-e.MessagesAfter, 0)
 	id := t.nextItemID()
 	now := time.Now().UTC()
@@ -75,7 +75,7 @@ func (t *translator) openUserMessage() []protocol.StreamEvent {
 // turn never nests inside one. The injected message is already in the model's
 // context (the loop appended it after the latest tool result); this is its
 // timeline + durable-transcript record, shaped exactly like the opening turn.
-func (t *translator) steerMessage(e turn.SteerMessage) []protocol.StreamEvent {
+func (t *translator) steerMessage(e runs.SteerMessage) []protocol.StreamEvent {
 	out := t.closeStreaming()
 	id := t.nextItemID()
 	now := time.Now().UTC()
@@ -96,7 +96,7 @@ func (t *translator) steerMessage(e turn.SteerMessage) []protocol.StreamEvent {
 // "todos" key (the frontend reads shared["todos"]). The list is replaced whole,
 // so the id is positional. Maps the domain Item (Content/Status) to the wire
 // TodoSnapshot (text/status); status strings already match the wire vocab.
-func (t *translator) todosSnapshot(e turn.TodosUpdated) []protocol.StreamEvent {
+func (t *translator) todosSnapshot(e runs.TodosUpdated) []protocol.StreamEvent {
 	todos := make([]protocol.TodoSnapshot, len(e.Todos))
 	for i, it := range e.Todos {
 		todos[i] = protocol.TodoSnapshot{

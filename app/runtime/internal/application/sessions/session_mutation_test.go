@@ -151,7 +151,11 @@ func (t mutationTurns) Cancel(context.Context, RunRef) error {
 	return nil
 }
 
-func (mutationTurns) Resume(context.Context, RunRef, interrupts.Resolution, []string) (Handle, error) {
+func (mutationTurns) Prepare(context.Context, RunRef) (Handle, error) {
+	panic("unused")
+}
+
+func (mutationTurns) Resume(context.Context, Handle, interrupts.Resolution, []string) error {
 	panic("unused")
 }
 

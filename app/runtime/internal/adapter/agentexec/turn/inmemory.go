@@ -22,10 +22,9 @@ type todoLister interface {
 	List(ctx context.Context, sessionID string) ([]todo.Item, error)
 }
 
-// turnIDPrefix tags every turn id. A turn id doubles as the root run's
-// wire id (runs.start returns it as runId), so it carries the run_ type
-// prefix (API.md §2.2; mirrors protocol.IDPrefixRun).
-const turnIDPrefix = "run_"
+// turnIDPrefix tags adapter-local turn handles. A TurnID is neither the stable
+// domain RunID nor the agent process snapshot id, so it has its own namespace.
+const turnIDPrefix = "turn_"
 
 func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 

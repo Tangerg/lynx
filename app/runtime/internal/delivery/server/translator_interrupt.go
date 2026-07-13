@@ -3,7 +3,7 @@ package server
 import (
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
@@ -16,7 +16,7 @@ import (
 //	approval → a toolCall Item (inProgress) for the gated call
 //	question → a question Item (inProgress) for a tool asking the user
 //	           (ask_user free text / choices, or exit_plan_mode's plan)
-func (t *translator) interrupt(e turn.TurnInterrupted) []protocol.StreamEvent {
+func (t *translator) interrupt(e runs.TurnInterrupted) []protocol.StreamEvent {
 	out := t.closeStreaming()
 
 	// Snapshot every open tool item before drainTools clears t.tools.
@@ -63,8 +63,11 @@ func (t *translator) interrupt(e turn.TurnInterrupted) []protocol.StreamEvent {
 
 // approvalInterrupt renders a gated tool call awaiting approval as an
 // inProgress toolCall Item plus the protocol.Interrupt keyed to it.
-func (t *translator) approvalInterrupt(in turn.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
-	p, _ := in.Payload.(turn.ApprovalPrompt)
+func (t *translator) approvalInterrupt(in runs.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
+	p := in.Approval
+	if p == nil {
+		return protocol.StreamEvent{}, protocol.Interrupt{}
+	}
 	id := t.nextItemID()
 	// The gated tool as a full ToolInvocation (arguments parsed, no result
 	// yet). The approval Interrupt's payload reuses it (API.md §4.8:
@@ -113,8 +116,11 @@ func (t *translator) approvalInterrupt(in turn.Interrupt) (protocol.StreamEvent,
 // presents its plan as an Approve / alternatives / Reject choice this way).
 // The client answers via runs.resume with an "answer" response keyed by each
 // field's name ([interrupts.QuestionFieldName]).
-func (t *translator) askUserInterrupt(in turn.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
-	q, _ := in.Payload.(interrupts.QuestionPrompt)
+func (t *translator) askUserInterrupt(in runs.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
+	if in.Question == nil {
+		return protocol.StreamEvent{}, protocol.Interrupt{}
+	}
+	q := *in.Question
 	id := t.nextItemID()
 	fields := make([]protocol.QuestionField, len(q.Questions))
 	for i, qq := range q.Questions {

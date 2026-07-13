@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
@@ -56,7 +56,7 @@ func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 		t.Fatalf("second open() re-emitted the user message: %+v", again)
 	}
 	// The turn-level TurnStart is a no-op (segment.started comes from open()).
-	if ts := tr.translate(turn.TurnStart{Model: "deepseek-v4-flash"}); ts != nil {
+	if ts := tr.translate(runs.TurnStart{Model: "deepseek-v4-flash"}); ts != nil {
 		t.Fatalf("turn TurnStart should be a no-op, got %+v", ts)
 	}
 }
@@ -79,8 +79,8 @@ func TestTranslator_RunStartedCarriesModel(t *testing.T) {
 // — so the UI can render "denied" rather than ✓.
 func TestTranslator_DeniedToolIsDistinct(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
-	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "shell", Arguments: `{"command":"rm -rf /"}`})
-	end := tr.translate(turn.ToolCallEnd{CallID: "c1", Output: "tool call denied by user", Denied: true})
+	tr.translate(runs.ToolCallStart{CallID: "c1", ToolName: "shell", Arguments: `{"command":"rm -rf /"}`})
+	end := tr.translate(runs.ToolCallEnd{CallID: "c1", Output: "tool call denied by user", Denied: true})
 	if len(end) != 1 || end[0].Item == nil {
 		t.Fatalf("toolEnd = %+v, want one item.completed", end)
 	}
@@ -101,8 +101,8 @@ func TestTranslator_DeniedToolIsDistinct(t *testing.T) {
 // neutral envelope carries name + arguments + a best-effort JSON result.
 func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
-	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "shell", Arguments: `{"command":"echo hi"}`})
-	out := tr.translate(turn.ToolCallEnd{
+	tr.translate(runs.ToolCallStart{CallID: "c1", ToolName: "shell", Arguments: `{"command":"echo hi"}`})
+	out := tr.translate(runs.ToolCallEnd{
 		CallID: "c1",
 		Output: `{"stdout":"hi\n","stderr":"oops","exit_code":0,"duration":"5ms"}`,
 	})
@@ -131,8 +131,8 @@ func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	// omitted) so the client renders an empty terminal rather than falling back
 	// to a stale preview / "(no output)".
 	tr2 := newTranslator("ses_1", "run_2", "", nil, nil, "", "")
-	tr2.translate(turn.ToolCallStart{CallID: "c2", ToolName: "shell", Arguments: `{"command":"true"}`})
-	out2 := tr2.translate(turn.ToolCallEnd{CallID: "c2", Output: `{"stdout":"","stderr":"","exit_code":0,"duration":"1ms"}`})
+	tr2.translate(runs.ToolCallStart{CallID: "c2", ToolName: "shell", Arguments: `{"command":"true"}`})
+	out2 := tr2.translate(runs.ToolCallEnd{CallID: "c2", Output: `{"stdout":"","stderr":"","exit_code":0,"duration":"1ms"}`})
 	for _, se := range out2 {
 		if se.Type == protocol.StreamItemCompleted {
 			res, ok := se.Item.Tool.Result.(commandResult)
@@ -210,7 +210,7 @@ func TestClassifyRunError_AgentStuck(t *testing.T) {
 // count, so the client can render a "context compacted" divider (T3.1).
 func TestTranslator_Compaction(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
-	out := tr.translate(turn.CompactBoundary{MessagesBefore: 20, MessagesAfter: 6})
+	out := tr.translate(runs.CompactBoundary{MessagesBefore: 20, MessagesAfter: 6})
 	if len(out) != 2 {
 		t.Fatalf("CompactBoundary → %d events, want 2 (item.started + item.completed)", len(out))
 	}
@@ -236,7 +236,7 @@ func TestTranslator_Compaction(t *testing.T) {
 // cost), with cost omitted when no pricing is configured (T1.2).
 func TestTranslator_UsageProgress(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
-	out := tr.translate(turn.UsageReported{
+	out := tr.translate(runs.UsageReported{
 		TokenUsage: accounting.TokenUsage{PromptTokens: 1200, CompletionTokens: 80, ReasoningTokens: 30},
 		CostUSD:    0.0125,
 	})
@@ -256,7 +256,7 @@ func TestTranslator_UsageProgress(t *testing.T) {
 	}
 
 	// No pricing configured (cost 0) → costUsd omitted, never a fabricated $0.
-	free := tr.translate(turn.UsageReported{TokenUsage: accounting.TokenUsage{PromptTokens: 10}})
+	free := tr.translate(runs.UsageReported{TokenUsage: accounting.TokenUsage{PromptTokens: 10}})
 	if free[0].Progress.Usage.CostUSD != nil {
 		t.Fatalf("costUsd = %v, want nil when cost is 0", free[0].Progress.Usage.CostUSD)
 	}
@@ -266,8 +266,8 @@ func TestTranslator_UsageProgress(t *testing.T) {
 // userMessage Item, closing any open assistant text first (T2.1).
 func TestTranslator_SteerMessage(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
-	tr.translate(turn.MessageDelta{Text: "thinking…"}) // opens an assistant text item
-	out := tr.translate(turn.SteerMessage{Text: "also check the tests"})
+	tr.translate(runs.MessageDelta{Text: "thinking…"}) // opens an assistant text item
+	out := tr.translate(runs.SteerMessage{Text: "also check the tests"})
 	if len(out) < 3 {
 		t.Fatalf("SteerMessage → %d events, want close-text + item.started + item.completed", len(out))
 	}
@@ -292,7 +292,7 @@ func TestTranslator_SteerMessage(t *testing.T) {
 // positional id (Lever 2).
 func TestTranslator_TodosSnapshot(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
-	out := tr.translate(turn.TodosUpdated{Todos: []todo.Item{
+	out := tr.translate(runs.TodosUpdated{Todos: []todo.Item{
 		{Content: "write tests", Status: todo.StatusInProgress, NextAction: "run focused package"},
 		{Content: "ship it", Status: todo.StatusPending, BlockedReason: "waiting on review"},
 	}})
@@ -317,7 +317,7 @@ func TestTranslator_TodosSnapshot(t *testing.T) {
 // gets a precise "spent $X / $Y" detail (T3.4).
 func TestTranslator_OutcomeDurationAndBudget(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
-	oc := tr.outcome(turn.TurnEnd{
+	oc := tr.outcome(runs.TurnEnd{
 		Reason:     execution.OutcomeMaxBudget,
 		Duration:   1500 * time.Millisecond,
 		CostUSD:    4.2,
@@ -335,7 +335,7 @@ func TestTranslator_OutcomeDurationAndBudget(t *testing.T) {
 
 	// A clean completion still carries the duration (the client shows "took
 	// 0.8s"), with no budget detail.
-	done := tr.outcome(turn.TurnEnd{Reason: execution.OutcomeCompleted, Duration: 800 * time.Millisecond})
+	done := tr.outcome(runs.TurnEnd{Reason: execution.OutcomeCompleted, Duration: 800 * time.Millisecond})
 	if done.Type != protocol.OutcomeCompleted || done.Result.DurationMs != 800 || done.Detail != "" {
 		t.Fatalf("completed outcome = %+v (result %+v), want completed/800ms/no-detail", done, done.Result)
 	}
@@ -346,7 +346,7 @@ func TestTranslator_OutcomeDurationAndBudget(t *testing.T) {
 // (Lever 3).
 func TestTranslator_OutcomeMaxSteps(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
-	oc := tr.outcome(turn.TurnEnd{Reason: execution.OutcomeMaxSteps, MaxSteps: 8})
+	oc := tr.outcome(runs.TurnEnd{Reason: execution.OutcomeMaxSteps, MaxSteps: 8})
 	if oc.Type != protocol.OutcomeMaxSteps {
 		t.Fatalf("type = %s, want maxSteps", oc.Type)
 	}

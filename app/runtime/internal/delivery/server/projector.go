@@ -38,19 +38,11 @@ func (p *projector) Open() []runs.ProjectedEvent {
 }
 
 func (p *projector) Translate(ev runs.EngineEvent) []runs.ProjectedEvent {
-	// The run-lifecycle classification (does this event end/park the run, with
-	// what outcome) comes from the engine-neutral event's domain contract
-	// ([execution.Event]) — NOT re-derived from the wire projection below. The
-	// concrete turn event is asserted back only to shape the wire timeline; a
-	// non-turn event can't reach here (the facade is the sole executor), so an
-	// unexpected type is a wiring bug — drop it rather than fabricate a projection.
+	// Lifecycle classification and projection data come from the same normalized,
+	// application-owned event. Delivery never reaches back into the turn adapter.
 	outcome, _ := ev.Terminal()
 	interrupt := ev.Interrupt()
-	te, ok := ev.(turn.Event)
-	if !ok {
-		return nil
-	}
-	return p.project(p.tr.translate(te), interrupt, outcome)
+	return p.project(p.tr.translate(ev), interrupt, outcome)
 }
 
 // SynthesizeTerminal builds the terminal for a stream that ended without one:
@@ -160,8 +152,10 @@ func commitOrNil(c execution.EventCommit) *execution.EventCommit {
 // + durable derivation need, so the application pump only sees the port.
 func (s *Server) segmentProjector(runID, segmentID, sessionID, cwd string, handle turn.TurnHandle, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string, createdAt time.Time) func(runs.SegmentView) runs.Projector {
 	return func(view runs.SegmentView) runs.Projector {
+		tr := newTranslator(sessionID, runID, segmentID, userInput, resume, provider, model)
+		tr.createdAt = createdAt
 		return &projector{
-			tr:        newTranslator(sessionID, runID, segmentID, userInput, resume, provider, model),
+			tr:        tr,
 			view:      view,
 			runID:     runID,
 			createdAt: createdAt,
@@ -188,7 +182,14 @@ func mapRunEvents(ctx context.Context, in <-chan runs.Event) <-chan protocol.Run
 	go func() {
 		defer close(out)
 		for e := range in {
-			se, _ := e.Payload.(protocol.StreamEvent)
+			var se protocol.StreamEvent
+			if e.Payload != nil {
+				var ok bool
+				se, ok = e.Payload.(protocol.StreamEvent)
+				if !ok {
+					panic("server: run projection is not a protocol.StreamEvent")
+				}
+			}
 			ev := protocol.RunEvent{
 				RunID:     e.RunID,
 				SegmentID: e.SegmentID,

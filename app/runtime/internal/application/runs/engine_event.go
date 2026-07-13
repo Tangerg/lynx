@@ -1,0 +1,152 @@
+package runs
+
+import (
+	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+)
+
+// EngineEvent is the application-owned execution event sum type. Driven
+// adapters emit these values at the runs.Executor port; delivery therefore
+// projects a stable application contract and never reaches back into an
+// executor adapter. The unexported marker seals the family to this package.
+type EngineEvent interface {
+	execution.Event
+	WithMeta(EventMeta) EngineEvent
+	engineEvent()
+}
+
+// EventMeta is correlation metadata supplied by the executor adapter. Run event
+// replay uses the Coordinator's own cursor; this metadata is diagnostic only.
+type EventMeta struct {
+	SessionID string
+	TurnID    string
+	Seq       uint64
+	Timestamp time.Time
+}
+
+func (EventMeta) engineEvent()                            {}
+func (EventMeta) Terminal() (execution.Outcome, bool)     { return 0, false }
+func (EventMeta) Interrupt() bool                         { return false }
+
+type TurnStart struct {
+	EventMeta
+	Model string
+}
+
+type MessageDelta struct {
+	EventMeta
+	Text string
+}
+
+type ReasoningDelta struct {
+	EventMeta
+	Text string
+}
+
+type ToolCallStart struct {
+	EventMeta
+	CallID      string
+	ToolName    string
+	Arguments   string
+	SafetyClass string
+}
+
+type ToolCallEnd struct {
+	EventMeta
+	CallID string
+	Output string
+	Err    string
+	Denied bool
+}
+
+type CompactBoundary struct {
+	EventMeta
+	MessagesBefore int
+	MessagesAfter  int
+}
+
+type MemoryUpdated struct {
+	EventMeta
+	Facts string
+}
+
+// ApprovalPrompt is the normalized approval request carried by an Interrupt.
+type ApprovalPrompt struct {
+	CallID      string `json:"callId"`
+	ToolName    string `json:"toolName"`
+	Arguments   string `json:"arguments"`
+	SafetyClass string `json:"safetyClass"`
+	Risk        string `json:"risk"`
+	Reason      string `json:"reason"`
+}
+
+// Interrupt is a typed union. Exactly one of Approval or Question is set and
+// Kind names that member. Keeping the payload typed prevents malformed executor
+// values from turning into empty approval/question cards via failed assertions.
+type Interrupt struct {
+	Kind     string
+	Approval *ApprovalPrompt
+	Question *interrupts.QuestionPrompt
+}
+
+type TurnInterrupted struct {
+	EventMeta
+	Interrupts []Interrupt
+}
+
+func (TurnInterrupted) Interrupt() bool { return true }
+
+type TurnEnd struct {
+	EventMeta
+	Reason       execution.Outcome
+	TokenUsage   accounting.TokenUsage
+	UsageByModel []accounting.ModelUsage
+	CostUSD      float64
+	Duration     time.Duration
+	MaxBudget    int64
+	MaxCostUSD   float64
+	MaxSteps     int
+}
+
+func (e TurnEnd) Terminal() (execution.Outcome, bool) { return e.Reason, true }
+
+type ErrorEvent struct {
+	EventMeta
+	Message string
+	Code    string
+}
+
+type UsageReported struct {
+	EventMeta
+	TokenUsage   accounting.TokenUsage
+	CostUSD      float64
+	ContextTokens int64
+}
+
+type TodosUpdated struct {
+	EventMeta
+	Todos []todo.Item
+}
+
+type SteerMessage struct {
+	EventMeta
+	Text string
+}
+
+func (e TurnStart) WithMeta(m EventMeta) EngineEvent       { e.EventMeta = m; return e }
+func (e MessageDelta) WithMeta(m EventMeta) EngineEvent    { e.EventMeta = m; return e }
+func (e ReasoningDelta) WithMeta(m EventMeta) EngineEvent  { e.EventMeta = m; return e }
+func (e ToolCallStart) WithMeta(m EventMeta) EngineEvent   { e.EventMeta = m; return e }
+func (e ToolCallEnd) WithMeta(m EventMeta) EngineEvent     { e.EventMeta = m; return e }
+func (e CompactBoundary) WithMeta(m EventMeta) EngineEvent { e.EventMeta = m; return e }
+func (e MemoryUpdated) WithMeta(m EventMeta) EngineEvent   { e.EventMeta = m; return e }
+func (e TurnInterrupted) WithMeta(m EventMeta) EngineEvent { e.EventMeta = m; return e }
+func (e TurnEnd) WithMeta(m EventMeta) EngineEvent         { e.EventMeta = m; return e }
+func (e ErrorEvent) WithMeta(m EventMeta) EngineEvent      { e.EventMeta = m; return e }
+func (e UsageReported) WithMeta(m EventMeta) EngineEvent   { e.EventMeta = m; return e }
+func (e TodosUpdated) WithMeta(m EventMeta) EngineEvent    { e.EventMeta = m; return e }
+func (e SteerMessage) WithMeta(m EventMeta) EngineEvent    { e.EventMeta = m; return e }

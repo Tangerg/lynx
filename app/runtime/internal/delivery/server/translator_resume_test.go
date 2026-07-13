@@ -2,8 +2,9 @@ package server
 
 import (
 	"testing"
+	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -34,12 +35,17 @@ func TestTranslator_EditedArgsReusesProposalItem(t *testing.T) {
 // opens with segment.started alone (carrying the stable runId), no synthetic user turn.
 func TestTranslator_NoUserMessageOnContinuation(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "seg_2", nil, nil, "", "")
+	createdAt := time.Unix(123, 0).UTC()
+	tr.createdAt = createdAt
 	out := tr.open()
 	if len(out) != 1 || out[0].Type != protocol.StreamSegmentStarted {
 		t.Fatalf("continuation open() = %+v, want segment.started only", out)
 	}
 	if out[0].Run == nil || out[0].Run.ID != "run_1" {
 		t.Fatalf("continuation segment.started must carry the stable runId run_1: %+v", out[0].Run)
+	}
+	if !out[0].Run.CreatedAt.Equal(createdAt) {
+		t.Fatalf("continuation createdAt = %v, want stable run time %v", out[0].Run.CreatedAt, createdAt)
 	}
 }
 
@@ -63,7 +69,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 		return nil
 	}
 
-	start := itemStarted(tr.translate(turn.ToolCallStart{CallID: "call_x", ToolName: "shell", Arguments: args}))
+	start := itemStarted(tr.translate(runs.ToolCallStart{CallID: "call_x", ToolName: "shell", Arguments: args}))
 	if start == nil {
 		t.Fatal("no item.started for the resumed tool")
 	}
@@ -71,7 +77,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 		t.Fatalf("resumed tool item id/runId = %q/%q, want %q/run_1 (reuse the proposal item)", start.ID, start.RunID, origItemID)
 	}
 
-	end := tr.translate(turn.ToolCallEnd{CallID: "call_x", Output: "files"})
+	end := tr.translate(runs.ToolCallEnd{CallID: "call_x", Output: "files"})
 	if len(end) != 1 || end[0].Type != protocol.StreamItemCompleted {
 		t.Fatalf("toolEnd = %+v, want one item.completed", end)
 	}
@@ -82,7 +88,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 		t.Fatalf("completed status = %s, want completed", end[0].Item.Status)
 	}
 
-	other := itemStarted(tr.translate(turn.ToolCallStart{CallID: "call_y", ToolName: "shell", Arguments: `{"command":"pwd"}`}))
+	other := itemStarted(tr.translate(runs.ToolCallStart{CallID: "call_y", ToolName: "shell", Arguments: `{"command":"pwd"}`}))
 	if other == nil || other.ID == origItemID {
 		t.Fatalf("non-matching tool reused the original id: %+v", other)
 	}

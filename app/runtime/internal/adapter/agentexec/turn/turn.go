@@ -107,7 +107,8 @@ func (s *inMemory) handleWaiting(st *turnState, proc agentexec.TurnProcess) {
 		return
 	}
 	aw := proc.PendingAwaitable()
-	if aw == nil || st.canSurface(interruptKind(aw)) {
+	kind := interruptKind(aw)
+	if aw == nil || kind == "" || st.canSurface(kind) {
 		s.emitInterrupt(st, proc)
 		return
 	}
@@ -133,20 +134,26 @@ func (s *inMemory) emitInterrupt(st *turnState, proc agentexec.TurnProcess) {
 		return
 	}
 	if aw == nil {
-		// Defensive: Waiting without a parked awaitable shouldn't happen;
-		// surface an empty interrupt rather than silently dropping it.
-		s.emit(st, TurnInterrupted{})
+		_ = proc.Cancel()
+		s.emit(st, ErrorEvent{Message: "agent process is waiting without an awaitable", Code: "ENGINE_ERROR"})
+		s.finishTurn(st, execution.OutcomeError)
 		return
 	}
-	kind := interruptKind(aw)
-	recordInterruptMetric(st.ctx, kind)
-	s.emit(st, TurnInterrupted{Interrupts: []Interrupt{{Kind: kind, Payload: aw.PromptAny()}}})
+	pending, ok := typedInterrupt(aw)
+	if !ok {
+		_ = proc.Cancel()
+		s.emit(st, ErrorEvent{Message: "agent process returned an unsupported interrupt payload", Code: "ENGINE_ERROR"})
+		s.finishTurn(st, execution.OutcomeError)
+		return
+	}
+	recordInterruptMetric(st.ctx, pending.Kind)
+	s.emit(st, TurnInterrupted{Interrupts: []Interrupt{pending}})
 	// Notification hooks (observe-only): the turn is waiting on the user — fire
 	// so a user script can route it (desktop / Slack / …). The kind ("approval"
 	// | "question") rides as the reason.
 	if !st.hooks.Empty() {
 		_ = st.hooks.Run(st.ctx, hooks.Input{
-			Event: hooks.Notification, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: kind,
+			Event: hooks.Notification, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: pending.Kind,
 		})
 	}
 }
@@ -160,10 +167,29 @@ func interruptKind(aw core.Awaitable) string {
 	if aw == nil {
 		return ""
 	}
-	if _, ok := aw.PromptAny().(ApprovalPrompt); ok {
+	switch aw.PromptAny().(type) {
+	case ApprovalPrompt, *ApprovalPrompt:
 		return "approval"
+	case interrupts.QuestionPrompt, *interrupts.QuestionPrompt:
+		return "question"
+	default:
+		return ""
 	}
-	return "question"
+}
+
+func typedInterrupt(aw core.Awaitable) (Interrupt, bool) {
+	switch prompt := aw.PromptAny().(type) {
+	case ApprovalPrompt:
+		return Interrupt{Kind: "approval", Approval: &prompt}, true
+	case *ApprovalPrompt:
+		return Interrupt{Kind: "approval", Approval: prompt}, prompt != nil
+	case interrupts.QuestionPrompt:
+		return Interrupt{Kind: "question", Question: &prompt}, true
+	case *interrupts.QuestionPrompt:
+		return Interrupt{Kind: "question", Question: prompt}, prompt != nil
+	default:
+		return Interrupt{}, false
+	}
 }
 
 // postTurnMaintenance runs the compact + (conditional) extract pair

@@ -72,6 +72,11 @@ type StreamEvent struct {
 	Durable  *bool          `json:"durable,omitempty"` // custom only — its self-declared durability (default false)
 }
 
+// RunProjection marks StreamEvent as a delivery-owned payload accepted by the
+// application run journal. It intentionally carries no behavior: lifecycle and
+// durability metadata remain explicit on runs.ProjectedEvent.
+func (StreamEvent) RunProjection() {}
+
 // IsDurable reports whether a stream event is durable (authoritative /
 // replayable, retained for replay + persisted) per the §5.2 derivation
 // table. Durability is a pure function of the event type for every

@@ -18,12 +18,15 @@ func (resumeOKTurns) Resume(context.Context, turn.TurnHandle, interrupts.Resolut
 	return nil
 }
 func (resumeOKTurns) Cancel(context.Context, turn.TurnHandle) error { return nil }
+func (resumeOKTurns) ProcessID(_ context.Context, handle turn.TurnHandle) (string, error) {
+	return handle.TurnID, nil
+}
 
-// TestResumeRun_RestoresInterruptWhenStartFails proves the resume compensation
-// (P1): the interrupt is consumed and the parked turn resumed BEFORE the
-// continuation's Start runs, so a Start failure must re-open the interrupt rather
-// than strand the session with a non-terminal run and nothing left to resume.
-func TestResumeRun_RestoresInterruptWhenStartFails(t *testing.T) {
+// TestResumeRun_KeepsInterruptOpenWhenStartFails proves ownership ordering: the
+// continuation must durably open before its parked decision is delivered. A
+// pre-opening Start failure therefore leaves the interrupt untouched and retryable
+// without a compensation write.
+func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	rt.turns = resumeOKTurns{}
 	ctx := context.Background()
@@ -41,16 +44,15 @@ func TestResumeRun_RestoresInterruptWhenStartFails(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	// Close the run coordinator so the continuation's Start fails AFTER the
-	// interrupt has been consumed and the parked turn resumed.
+	// Close the run coordinator so continuation admission fails before opening.
 	s.coordinator.Close()
 
 	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{RunID: "run_1"}); err == nil {
 		t.Fatal("ResumeRun must surface the failed continuation Start")
 	}
 
-	// Compensation: the consumed interrupt is re-opened, so a retry can resume it.
+	// No compensation is needed: the opening transaction never consumed it.
 	if _, found, err := rt.interrupts.Get(ctx, "run_1"); err != nil || !found {
-		t.Fatalf("interrupt not restored after the failed resume Start (found=%v err=%v)", found, err)
+		t.Fatalf("interrupt changed after rejected resume Start (found=%v err=%v)", found, err)
 	}
 }

@@ -44,10 +44,10 @@ func NewRunStateStore(db *sql.DB) *RunStateStore {
 func (s *RunStateStore) Admit(ctx context.Context, draft execution.RunDraft) error {
 	now := draft.CreatedAt.UTC().UnixNano()
 	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO runs(run_id, session_id, state, provider, model, outcome, process_id, started_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, '', ?, ?, ?)`,
+		`INSERT INTO runs(run_id, session_id, state, provider, model, outcome, started_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, '', ?, ?)`,
 		draft.RunID, draft.SessionID, runStateRunning,
-		draft.Provider, draft.Model, draft.ProcessID, now, now)
+		draft.Provider, draft.Model, now, now)
 	if isUniqueViolation(err) {
 		return execution.ErrSessionBusy
 	}
@@ -66,13 +66,51 @@ func (s *RunStateStore) Suspend(ctx context.Context, sessionID string) error {
 	return s.advance(ctx, sessionID, "suspend", execution.RunState.Suspend, execution.Interrupted)
 }
 
-// Resume continues the session's parked Run (Interrupted → Running) so a crash
-// mid-continuation leaves a running row the boot sweep reclaims (the interrupt
-// was already consumed) rather than a stuck interrupted one. Idempotent when the
-// row is already running (a park's Suspend was missed) or absent; Resume from any
-// other state is illegal and surfaced.
-func (s *RunStateStore) Resume(ctx context.Context, sessionID string) error {
-	return s.advance(ctx, sessionID, "resume", execution.RunState.Resume, execution.Running)
+// Resume continues the exact parked Run (Interrupted → Running). Unlike cleanup
+// transitions it is strict: a missing/mismatched/already-running row means the
+// continuation opening does not own the durable Run and must roll back.
+func (s *RunStateStore) Resume(ctx context.Context, draft execution.ResumeDraft) error {
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		cur, found, err := s.stateForRun(ctx, draft)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return errors.New("sqlite: resume run: active run not found")
+		}
+		next, ok := cur.Resume()
+		if !ok {
+			return fmt.Errorf("sqlite: resume run: illegal transition from %s", cur)
+		}
+		res, err := conn(ctx, s.db).ExecContext(ctx,
+			`UPDATE runs SET state = ?, outcome = '', updated_at = ?
+			 WHERE run_id = ? AND session_id = ? AND state = ?`,
+			coarseState(next), time.Now().UTC().UnixNano(), draft.RunID, draft.SessionID, coarseState(cur))
+		if err != nil {
+			return fmt.Errorf("sqlite: resume run: %w", err)
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return fmt.Errorf("sqlite: resume run: state changed concurrently (was %s)", cur)
+		}
+		return nil
+	})
+}
+
+func (s *RunStateStore) stateForRun(ctx context.Context, draft execution.ResumeDraft) (execution.RunState, bool, error) {
+	var coarse string
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT state FROM runs WHERE run_id = ? AND session_id = ? AND state != ?`,
+		draft.RunID, draft.SessionID, runStateTerminal).Scan(&coarse)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return 0, false, nil
+	case err != nil:
+		return 0, false, fmt.Errorf("sqlite: read resume run state: %w", err)
+	case coarse == runStateInterrupted:
+		return execution.Interrupted, true, nil
+	default:
+		return execution.Running, true, nil
+	}
 }
 
 // Terminalize ends the session's non-terminal Run with outcome o, freeing the
@@ -103,8 +141,7 @@ func (s *RunStateStore) Terminalize(ctx context.Context, sessionID string, o exe
 //
 //   - no active run                → benign no-op (already terminal / never admitted).
 //   - the move is legal            → CAS-write guarded on the observed state.
-//   - illegal but already at dest  → benign idempotent no-op (a re-applied park,
-//     or a resume whose park's Suspend was missed).
+//   - illegal but already at dest  → benign idempotent no-op (a re-applied park).
 //   - illegal from any other state → surfaced as an error, not silently dropped.
 //
 // The read-classify-write runs in one transaction ([RunInTx] joins a caller's
@@ -199,14 +236,10 @@ func (s *RunStateStore) DeleteForSession(ctx context.Context, sessionID string) 
 // ReconcileOrphans terminalizes non-terminal Runs abandoned by a crash — the
 // process died with no open interrupt keeping the run resumable — so a crash
 // doesn't block its session forever. A non-terminal Run is an orphan iff its
-// session has NO open interrupt: this is robust to a best-effort Suspend/Resume
-// that failed to advance the row's state (a parked run whose Suspend was missed
-// stays 'running' but its interrupt still preserves it; a continuation whose
-// Resume was missed stays 'interrupted' but its consumed interrupt no longer
-// does, so the sweep reclaims it). Once §8.3 commits the interrupt open/close in
-// the same transaction as the state transition, the state alone is authoritative
-// and this can key on state = 'running'. Run once at boot before admitting any
-// run; returns the count swept.
+// session has NO open interrupt. The state transition and interrupt open/consume
+// are atomic, but both Running continuations and Interrupted parked runs are
+// non-terminal; interrupt presence distinguishes the latter at boot. Run once
+// before admitting any run; returns the count swept.
 func (s *RunStateStore) ReconcileOrphans(ctx context.Context) (int, error) {
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE runs SET state = ?, outcome = ?, updated_at = ?

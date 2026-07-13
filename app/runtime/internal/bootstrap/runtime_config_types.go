@@ -62,9 +62,8 @@ type Config struct {
 
 	// RunStore is the durable Run-admission backstop (§8.2): the authoritative
 	// "one non-terminal Run per Session" table the run coordinator records
-	// admissions/terminals through, and the boot reconcile sweeps. nil disables
-	// the durable backstop (in-memory admission only). The composition root
-	// injects the sqlite-backed store.
+	// admissions/terminals through, and the boot reconcile sweeps. Required: an
+	// in-memory-only fallback would violate the restart-safe admission invariant.
 	RunStore *sqlitestore.RunStateStore
 
 	// WorkspaceMutationStore is the §8.5 recoverable operation log for file

@@ -16,8 +16,8 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	binding, cleanupCtx, cancel, ok := s.coordinator.BeginCancel(ctx, in.RunID, in.Reason)
 	if !ok {
 		// Not live — the parked-cancel path. Parked cancel and resume claim the
-		// same session admission slot, so a failed rehydrate's compensating Put
-		// can't race a cancel's Delete and resurrect an abandoned interrupt.
+		// same session admission slot, so cancellation cannot race continuation
+		// preparation/opening and claim the same parked process.
 		pending, admission, err := s.sessions.ClaimResumeSlot(ctx, s.coordinator, in.RunID)
 		if err != nil {
 			switch {

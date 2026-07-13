@@ -3,12 +3,12 @@ package runs
 import (
 	"context"
 	"iter"
-	"time"
 )
 
-// pump is the run segment goroutine: it leads with the projector's open events,
-// projects each executor event, and — on a terminal or a drained stream — tears
-// the run down. It commits before it publishes (§7.2): every durable event's
+// pump is the run segment goroutine: Start has already atomically committed and
+// published the projector's opening events; the pump projects each executor
+// event and — on a terminal or a drained stream — tears the run down. It commits
+// before it publishes (§7.2): every durable event's
 // ATOMIC commit — its projections plus the run-state transition it implies (park
 // → interrupted, terminal → terminalized; §8.3) — lands in one transaction
 // BEFORE the event reaches subscribers, so a client that acts on an event (reads
@@ -35,15 +35,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 				abortTurn = true
 				return false
 			}
-			ev := Event{
-				RunID:     spec.RunID,
-				SegmentID: spec.SegmentID,
-				Seq:       c.mintCursor(),
-				Timestamp: time.Now().UTC(),
-				IsDurable: pe.Durable,
-				IsTerm:    pe.Terminal,
-				Payload:   pe.Payload,
-			}
+			ev := c.event(spec, pe)
 			if pe.Interrupt {
 				// Park: the atomic commit ({open interrupt + suspend the run-state},
 				// §8.3) must land before the event is published, so a client can't
@@ -97,20 +89,13 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 		return true
 	}
 
-	// Teardown is armed BEFORE the first publish, so even the opening segment.started —
-	// which carries a durable transcript commit — tears the run down on a commit
-	// failure (cancel the turn, synthesize an error terminal, close the journal,
-	// free the in-memory admission) instead of stranding a client that acked start
-	// but can never reach a terminal. (A persistently-down store still leaves the
-	// durable admission row for reconcile to sweep; the deeper fix is a synchronous
-	// atomic Start, §8.2.)
 	defer func() {
 		if ctx.Err() != nil || abortTurn {
 			_ = c.executor.CancelTurn(ownerCtx, spec.Handle)
 		}
 		if !finished {
 			// The stream ended without a segment.finished (canceled mid-flight /
-			// drained iterator, or a failed opening commit) — synthesize the terminal
+			// drained iterator, or a failed continuation activation) — synthesize the terminal
 			// so the stream ends balanced. The projector decides error-vs-canceled
 			// from its state, and the synthesized terminal's commit terminalizes the
 			// run-state, so no separate teardown state write is needed.
@@ -133,11 +118,6 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 			OpeningUserText: spec.OpeningUserText,
 		})
 	}()
-
-	// segment.started leads every segment.
-	if !publish(projector.Open()) {
-		return
-	}
 
 	for ev := range inner {
 		if !publish(projector.Translate(ev)) {

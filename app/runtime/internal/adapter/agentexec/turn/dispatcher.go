@@ -83,13 +83,10 @@ type Dispatcher interface {
 	// isn't live, or an error when it hasn't dispatched a process yet.
 	ProcessID(ctx context.Context, handle TurnHandle) (string, error)
 
-	// Rehydrate rebuilds a turn whose live in-memory state was lost (the
-	// backend restarted) from the persisted process snapshot identified by
-	// req.ProcessID, then resumes it with req.Approved. It registers a
-	// fresh turn and returns its handle; the continuation streams on that
-	// handle's channel (subscribe via [Events]). This is the cross-restart
-	// counterpart to [Resume], used when [Resume] would return
-	// [ErrTurnNotFound]. Errors when the snapshot is missing / unrestorable.
+	// Rehydrate rebuilds a parked turn whose live in-memory state was lost from
+	// the persisted process snapshot identified by req.ProcessID. It deliberately
+	// does not deliver a decision: the caller first attaches Events and commits
+	// the durable resume boundary, then calls Resume.
 	Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHandle, error)
 
 	// Cancel stops the turn immediately, drains pending tool calls
