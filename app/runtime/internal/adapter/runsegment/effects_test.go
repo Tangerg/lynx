@@ -24,7 +24,7 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	tx := &fakeTx{}
 	effects := New(Config{Stores: stores, RunState: runState, Tx: tx.run})
 
-	err := effects.CommitEvent(context.Background(), runs.EventCommit{
+	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID:     "run_1",
 		SessionID: "ses_1",
 		State:     runs.StateTerminalize,
@@ -47,6 +47,30 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	}
 	if tx.calls != 1 {
 		t.Fatalf("RunInTx calls = %d, want 1 (the whole commit is one transaction)", tx.calls)
+	}
+}
+
+func TestCommitEventRejectsUnresolvedTerminalMessageWatermark(t *testing.T) {
+	want := errors.New("message count unavailable")
+	stores := &fakeStores{transcript: &fakeTranscript{}, markErr: want}
+	runState := &fakeRunState{}
+	effects := New(Config{Stores: stores, RunState: runState, Tx: new(fakeTx).run})
+
+	err := effects.CommitEvent(t.Context(), runs.EventCommit{
+		RunID:     "run_1",
+		SessionID: "ses_1",
+		State:     runs.StateTerminalize,
+		Outcome:   execution.OutcomeCompleted,
+		Run:       &transcript.Run{SessionID: "ses_1", ID: "run_1", MessageMark: -1},
+	})
+	if !errors.Is(err, want) {
+		t.Fatalf("CommitEvent error = %v, want %v", err, want)
+	}
+	if len(stores.transcript.runs) != 0 {
+		t.Fatalf("runs = %+v, want none after unresolved terminal watermark", stores.transcript.runs)
+	}
+	if len(runState.terminalized) != 0 {
+		t.Fatalf("terminalized = %v, want none", runState.terminalized)
 	}
 }
 
@@ -230,13 +254,16 @@ type fakeStores struct {
 	interrupts *fakeInterrupts
 	session    *fakeSession
 	mark       int
+	markErr    error
 	title      string
 }
 
-func (s *fakeStores) Interrupts() InterruptStore                        { return s.interrupts }
-func (s *fakeStores) Session() SessionStore                             { return s.session }
-func (s *fakeStores) Transcript() TranscriptStore                       { return s.transcript }
-func (s *fakeStores) MessageCount(context.Context, string) (int, error) { return s.mark, nil }
+func (s *fakeStores) Interrupts() InterruptStore  { return s.interrupts }
+func (s *fakeStores) Session() SessionStore       { return s.session }
+func (s *fakeStores) Transcript() TranscriptStore { return s.transcript }
+func (s *fakeStores) MessageCount(context.Context, string) (int, error) {
+	return s.mark, s.markErr
+}
 func (s *fakeStores) GenerateTitle(context.Context, string) (string, error) {
 	return s.title, nil
 }

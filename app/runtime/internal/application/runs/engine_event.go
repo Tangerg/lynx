@@ -84,11 +84,21 @@ type ApprovalPrompt struct {
 	Reason      string `json:"reason"`
 }
 
+// InterruptKind discriminates the engine-neutral interrupt payload union.
+type InterruptKind string
+
+const (
+	// ApprovalInterruptKind carries an ApprovalPrompt.
+	ApprovalInterruptKind InterruptKind = "approval"
+	// QuestionInterruptKind carries an interrupts.QuestionPrompt.
+	QuestionInterruptKind InterruptKind = "question"
+)
+
 // Interrupt is a typed union. Exactly one of Approval or Question is set and
 // Kind names that member. Keeping the payload typed prevents malformed executor
 // values from turning into empty approval/question cards via failed assertions.
 type Interrupt struct {
-	Kind     string
+	Kind     InterruptKind
 	Approval *ApprovalPrompt
 	Question *interrupts.QuestionPrompt
 }

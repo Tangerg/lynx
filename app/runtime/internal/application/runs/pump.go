@@ -31,6 +31,10 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 	// projection, or a cancel that won the interrupt-commit race.
 	publish := func(reductions []reduction) bool {
 		for _, reduced := range reductions {
+			if reduced.Abort {
+				abortTurn = true
+				return false
+			}
 			ev := c.event(spec, reduced)
 			if reduced.Interrupt {
 				// Park: the atomic commit ({open interrupt + suspend the run-state},

@@ -2,6 +2,8 @@ package runs
 
 import (
 	"cmp"
+	"errors"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -10,7 +12,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-func (r *reducer) interrupt(e TurnInterrupted) []RunEvent {
+func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
+	if err := validateInterrupts(e.Interrupts); err != nil {
+		return nil, err
+	}
 	out := r.closeStreaming()
 	r.drained = drainedToolsFrom(r.tools)
 	out = append(out, r.drainTools()...)
@@ -20,13 +25,10 @@ func (r *reducer) interrupt(e TurnInterrupted) []RunEvent {
 		var item Item
 		var interrupt transcript.Interrupt
 		switch in.Kind {
-		case "approval":
+		case ApprovalInterruptKind:
 			item, interrupt = r.approvalInterrupt(in)
-		default:
+		case QuestionInterruptKind:
 			item, interrupt = r.questionInterrupt(in)
-		}
-		if item.ID == "" {
-			continue
 		}
 		out = append(out, ItemStarted{Item: item})
 		pending = append(pending, interrupt)
@@ -34,7 +36,28 @@ func (r *reducer) interrupt(e TurnInterrupted) []RunEvent {
 
 	run := r.runRecord(execution.Interrupted)
 	run.Interrupts = pending
-	return append(out, SegmentFinished{Run: run})
+	return append(out, SegmentFinished{Run: run}), nil
+}
+
+func validateInterrupts(values []Interrupt) error {
+	if len(values) == 0 {
+		return errors.New("runs: executor emitted an empty interrupt")
+	}
+	for _, value := range values {
+		switch value.Kind {
+		case ApprovalInterruptKind:
+			if value.Approval == nil || value.Question != nil {
+				return errors.New("runs: malformed approval interrupt")
+			}
+		case QuestionInterruptKind:
+			if value.Question == nil || value.Approval != nil {
+				return errors.New("runs: malformed question interrupt")
+			}
+		default:
+			return fmt.Errorf("runs: unknown interrupt kind %q", value.Kind)
+		}
+	}
+	return nil
 }
 
 func (r *reducer) approvalInterrupt(in Interrupt) (Item, transcript.Interrupt) {

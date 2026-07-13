@@ -62,36 +62,40 @@ func (c *Coordinator) RestoreSession(ctx context.Context, ses session.Session, m
 	})
 }
 
-// PurgeSubtree deletes a session and its whole descendant subtree depth-first,
-// each node removed by the atomic delete write-set. Best-effort — a partial
-// failure still removes the leaves it reached (each node either deletes cleanly
-// or is left for a later pass). Used to drop a failed-fork orphan and (via
-// purgeChildrenAfter) the subagent children a rollback discards.
-func (c *Coordinator) PurgeSubtree(ctx context.Context, sessionID string) {
-	if children, err := c.s.Session().Children(ctx, sessionID); err == nil {
-		for _, child := range children {
-			c.PurgeSubtree(ctx, child.ID)
-		}
-	}
-	_ = c.s.ApplyDelete(ctx, sessionID)
-	c.s.ForgetSession(sessionID)
-}
-
-// purgeChildrenAfter purges the subagent child sessions of parentID spawned
-// at/after boundary (a zero boundary purges all children — the drop-all
-// rollback). Attribution is by spawn time: a subtask of a kept run started
-// before the boundary, one of a dropped run at/after it. Exact because a
-// session runs its turns sequentially and rollback requires it idle, so run
-// windows don't overlap.
-func (c *Coordinator) purgeChildrenAfter(ctx context.Context, parentID string, boundary time.Time) {
+// subtaskSessionsAfter resolves the internal subtask subtrees a rollback must
+// delete. User-created forks share ParentID but have an empty Kind and remain
+// independent conversations; only KindSubtask roots are attributed to runs.
+// IDs are post-order so descendants are deleted before their parent.
+func (c *Coordinator) subtaskSessionsAfter(ctx context.Context, parentID string, boundary time.Time) ([]string, error) {
 	children, err := c.s.Session().Children(ctx, parentID)
 	if err != nil {
-		return
+		return nil, err
 	}
+	var out []string
 	for _, child := range children {
+		if child.Kind != session.KindSubtask {
+			continue
+		}
 		if !boundary.IsZero() && child.StartedAt.Before(boundary) {
 			continue
 		}
-		c.PurgeSubtree(ctx, child.ID)
+		if err := c.appendSessionSubtree(ctx, child.ID, &out); err != nil {
+			return nil, err
+		}
 	}
+	return out, nil
+}
+
+func (c *Coordinator) appendSessionSubtree(ctx context.Context, sessionID string, out *[]string) error {
+	children, err := c.s.Session().Children(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	for _, child := range children {
+		if err := c.appendSessionSubtree(ctx, child.ID, out); err != nil {
+			return err
+		}
+	}
+	*out = append(*out, sessionID)
+	return nil
 }

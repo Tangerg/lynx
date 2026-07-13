@@ -171,7 +171,9 @@ const SessionArtifactVersion = 3
 // SessionArtifact is the portable, round-trippable form of a session: its
 // metadata plus the full conversation — chat messages (the model's context),
 // and the items + runs (the UI transcript). Messages remain opaque
-// chat.Message values; items and runs are explicit protocol DTOs.
+// chat.Message values; items and runs are explicit protocol DTOs. Runs are
+// terminal-only: live and interrupted executor state is process-local and is
+// therefore not portable.
 type SessionArtifact struct {
 	Version  int               `json:"version"`
 	Session  Session           `json:"session"`

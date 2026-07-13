@@ -244,6 +244,28 @@ func TestCoordinatorActivationFailureBecomesErrorTerminal(t *testing.T) {
 	}
 }
 
+func TestCoordinatorMalformedInterruptAbortsExecutorAndTerminalizes(t *testing.T) {
+	executor := &fakeExecutor{events: []EngineEvent{TurnInterrupted{Interrupts: []Interrupt{{Kind: InterruptKind("unknown")}}}}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	finished, ok := events[len(events)-1].Payload.(SegmentFinished)
+	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeError {
+		t.Fatalf("last payload = %#v, want error terminal", events[len(events)-1].Payload)
+	}
+	if executor.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	}
+	if !effects.terminalized("ses_1", "run_1") {
+		t.Fatal("malformed interrupt did not terminalize the run")
+	}
+}
+
 func TestCoordinatorCommitFailureNeverPublishesUnbackedFact(t *testing.T) {
 	executor := &fakeExecutor{events: []EngineEvent{CompactBoundary{MessagesBefore: 4, MessagesAfter: 2}}}
 	effects := &fakeEffects{commitErr: fmt.Errorf("store down")}

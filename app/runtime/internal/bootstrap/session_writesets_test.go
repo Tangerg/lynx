@@ -66,10 +66,16 @@ func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore,
 // the resumable record and the durable admission slot, atomically.
 func TestApplyCancelDropsInterruptAndTerminalizes(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	park(t, runs, ints, "ses_A", "run_1")
+	outcome := execution.OutcomeCanceled
+	finishedAt := time.Date(2026, 7, 13, 2, 3, 4, 0, time.UTC)
 
-	if err := ss.ApplyCancel(ctx, "ses_A", "run_1"); err != nil {
+	if err := ss.ApplyCancel(ctx, sessions.CancelPlan{Run: transcript.Run{
+		SessionID: "ses_A", ID: "run_1", State: execution.Canceled,
+		Outcome: &outcome, Result: &transcript.RunResult{},
+		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
+	}}); err != nil {
 		t.Fatalf("ApplyCancel: %v", err)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
@@ -78,6 +84,10 @@ func TestApplyCancelDropsInterruptAndTerminalizes(t *testing.T) {
 	// The admission row is terminal, so the session can start a fresh run.
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
 		t.Fatalf("admit after cancel = %v, want the slot freed", err)
+	}
+	_, transcriptRuns, err := ss.transcript.List(ctx, "ses_A")
+	if err != nil || len(transcriptRuns) != 1 || transcriptRuns[0].State != execution.Canceled {
+		t.Fatalf("terminal transcript = %+v (err %v), want canceled run", transcriptRuns, err)
 	}
 }
 
@@ -160,6 +170,37 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	// succeeds — proving the delete cascade dropped the runs rows.
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
 		t.Fatalf("admit after delete = %v, want the slot freed", err)
+	}
+}
+
+func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
+	ss, _, _ := newWriteSetFixture(t)
+	ctx := t.Context()
+	parent, err := ss.sessions.Create(ctx, "parent", "/repo")
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child, err := ss.sessions.CreateSubtask(ctx, "ses_child", parent.ID)
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	if err := ss.history.Seed(ctx, child.ID, []chat.Message{chat.NewUserMessage("preserve on rollback")}); err != nil {
+		t.Fatalf("seed child history: %v", err)
+	}
+
+	err = ss.ApplyRollback(ctx, sessions.RollbackPlan{
+		SessionID: parent.ID, KeepMark: -1,
+		DropSessionIDs: []string{child.ID, ""},
+	})
+	if err == nil {
+		t.Fatal("ApplyRollback unexpectedly accepted an invalid subtask id")
+	}
+	if _, err := ss.sessions.Get(ctx, child.ID); err != nil {
+		t.Fatalf("child delete was not rolled back: %v", err)
+	}
+	messages, err := ss.history.Read(ctx, child.ID)
+	if err != nil || len(messages) != 1 {
+		t.Fatalf("child history after rollback = %+v, %v", messages, err)
 	}
 }
 

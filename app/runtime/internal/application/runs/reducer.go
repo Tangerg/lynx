@@ -18,6 +18,7 @@ type reduction struct {
 	Commit    *EventCommit
 	Nudge     *Nudge
 	Interrupt bool
+	Abort     bool
 }
 
 type reducerConfig struct {
@@ -136,7 +137,12 @@ func (r *reducer) reduce(ev EngineEvent) []reduction {
 	case MemoryUpdated:
 		return nil
 	case TurnInterrupted:
-		out = r.interrupt(e)
+		var err error
+		out, err = r.interrupt(e)
+		if err != nil {
+			r.abort(err.Error())
+			return []reduction{{Abort: true}}
+		}
 	case TurnEnd:
 		out = r.turnEnd(e)
 	default:

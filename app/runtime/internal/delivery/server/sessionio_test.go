@@ -8,7 +8,9 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -123,6 +125,24 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 	}
 }
 
+func TestSessionExportRejectsActiveSession(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := t.Context()
+	ses, err := rt.sess.Create(ctx, "Live", t.TempDir())
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if !s.claimSession(ses.ID) {
+		t.Fatal("claim session")
+	}
+	t.Cleanup(func() { s.releaseSession(ses.ID) })
+
+	_, err = s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	if !errors.Is(err, protocol.ErrSessionBusy) {
+		t.Fatalf("export err = %v, want ErrSessionBusy", err)
+	}
+}
+
 func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
@@ -147,6 +167,69 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 	})
 	if !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("import err = %v, want ErrSessionBusy", err)
+	}
+}
+
+func TestSessionExportRejectsOpenInterrupt(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := t.Context()
+	ses, err := rt.sess.Create(ctx, "Parked", t.TempDir())
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{RunID: "run_parked", SessionID: ses.ID}); err != nil {
+		t.Fatalf("seed interrupt: %v", err)
+	}
+
+	_, err = s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	if !errors.Is(err, protocol.ErrSessionBusy) {
+		t.Fatalf("export err = %v, want ErrSessionBusy", err)
+	}
+}
+
+func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := t.Context()
+	ses, err := rt.sess.Create(ctx, "Parked", t.TempDir())
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	rt.history[ses.ID] = []chat.Message{chat.NewUserMessage("hello"), chat.NewAssistantMessage("waiting")}
+	if err := rt.hist.PutRun(ctx, transcript.Run{
+		ID: "run_parked", SessionID: ses.ID, State: execution.Interrupted,
+		Interrupts:  []transcript.Interrupt{{ItemID: "item_question", Kind: transcript.QuestionInterrupt}},
+		MessageMark: -1,
+	}); err != nil {
+		t.Fatalf("put interrupted run: %v", err)
+	}
+	if err := rt.hist.AppendItem(ctx, transcript.Item{
+		ID: "item_question", RunID: "run_parked", SessionID: ses.ID,
+		Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+	}); err != nil {
+		t.Fatalf("put interrupt item: %v", err)
+	}
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{
+		RunID: "run_parked", SessionID: ses.ID, TurnID: "turn_parked",
+	}); err != nil {
+		t.Fatalf("put interrupt: %v", err)
+	}
+
+	if err := s.CancelRun(ctx, protocol.CancelRunRequest{RunID: "run_parked", Reason: "user stopped"}); err != nil {
+		t.Fatalf("cancel parked run: %v", err)
+	}
+	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	if err != nil {
+		t.Fatalf("export canceled session: %v", err)
+	}
+	run := exported.Artifact.Runs[0]
+	if run.Run.Outcome == nil || run.Run.Outcome.Type != protocol.OutcomeCanceled || run.Run.Outcome.Result == nil {
+		t.Fatalf("exported run = %+v, want canceled terminal result", run)
+	}
+	if run.MessageMark != 2 || run.Run.Outcome.Detail != "user stopped" {
+		t.Fatalf("exported mark/detail = %d/%q, want 2/user stopped", run.MessageMark, run.Run.Outcome.Detail)
+	}
+	if got := exported.Artifact.Items[0].Item.Status; got != protocol.ItemStatusIncomplete {
+		t.Fatalf("interrupt item status = %q, want incomplete", got)
 	}
 }
 

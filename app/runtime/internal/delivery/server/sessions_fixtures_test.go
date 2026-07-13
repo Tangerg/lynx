@@ -253,6 +253,22 @@ func (s stubLifecycleStores) ReadHistory(ctx context.Context, id string) ([]chat
 	return s.rt.ReadHistory(ctx, id)
 }
 
+func (s stubLifecycleStores) ReadSnapshot(ctx context.Context, id string) (sessions.Snapshot, error) {
+	ses, err := s.rt.sess.Get(ctx, id)
+	if err != nil {
+		return sessions.Snapshot{}, err
+	}
+	items, runs, err := s.rt.hist.List(ctx, id)
+	if err != nil {
+		return sessions.Snapshot{}, err
+	}
+	messages, err := s.rt.ReadHistory(ctx, id)
+	if err != nil {
+		return sessions.Snapshot{}, err
+	}
+	return sessions.Snapshot{Session: ses, Messages: messages, Items: items, Runs: runs}, nil
+}
+
 func (s stubLifecycleStores) ForgetSession(id string) { s.rt.ForgetSession(id) }
 
 func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
@@ -291,6 +307,11 @@ func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan sessions.Ro
 			return err
 		}
 	}
+	for _, sessionID := range plan.DropSessionIDs {
+		if err := s.deleteSession(ctx, sessionID); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -325,6 +346,10 @@ func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.Res
 }
 
 func (s stubLifecycleStores) ApplyDelete(ctx context.Context, sessionID string) error {
+	return s.deleteSession(ctx, sessionID)
+}
+
+func (s stubLifecycleStores) deleteSession(ctx context.Context, sessionID string) error {
 	if err := s.rt.hist.DeleteSession(ctx, sessionID); err != nil {
 		return err
 	}
@@ -337,8 +362,16 @@ func (s stubLifecycleStores) ApplyDelete(ctx context.Context, sessionID string) 
 	return s.rt.sess.Delete(ctx, sessionID)
 }
 
-func (s stubLifecycleStores) ApplyCancel(ctx context.Context, _ string, runID string) error {
-	return s.rt.interrupts.Delete(ctx, runID)
+func (s stubLifecycleStores) ApplyCancel(ctx context.Context, plan sessions.CancelPlan) error {
+	for _, item := range plan.Items {
+		if err := s.rt.hist.AppendItem(ctx, item); err != nil {
+			return err
+		}
+	}
+	if err := s.rt.hist.PutRun(ctx, plan.Run); err != nil {
+		return err
+	}
+	return s.rt.interrupts.Delete(ctx, plan.Run.ID)
 }
 
 func (s stubLifecycleStores) deleteInterrupts(ctx context.Context, sessionID string) error {

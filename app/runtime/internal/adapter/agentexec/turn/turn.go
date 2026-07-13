@@ -146,14 +146,14 @@ func (s *inMemory) emitInterrupt(st *turnState, proc agentexec.TurnProcess) {
 		s.finishTurn(st, execution.OutcomeError)
 		return
 	}
-	recordInterruptMetric(st.ctx, pending.Kind)
+	recordInterruptMetric(st.ctx, string(pending.Kind))
 	s.emit(st, TurnInterrupted{Interrupts: []Interrupt{pending}})
 	// Notification hooks (observe-only): the turn is waiting on the user — fire
 	// so a user script can route it (desktop / Slack / …). The kind ("approval"
 	// | "question") rides as the reason.
 	if !st.hooks.Empty() {
 		_ = st.hooks.Run(st.ctx, hooks.Input{
-			Event: hooks.Notification, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: pending.Kind,
+			Event: hooks.Notification, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: string(pending.Kind),
 		})
 	}
 }
@@ -180,13 +180,13 @@ func interruptKind(aw core.Awaitable) string {
 func typedInterrupt(aw core.Awaitable) (Interrupt, bool) {
 	switch prompt := aw.PromptAny().(type) {
 	case ApprovalPrompt:
-		return Interrupt{Kind: "approval", Approval: &prompt}, true
+		return Interrupt{Kind: ApprovalInterruptKind, Approval: &prompt}, true
 	case *ApprovalPrompt:
-		return Interrupt{Kind: "approval", Approval: prompt}, prompt != nil
+		return Interrupt{Kind: ApprovalInterruptKind, Approval: prompt}, prompt != nil
 	case interrupts.QuestionPrompt:
-		return Interrupt{Kind: "question", Question: &prompt}, true
+		return Interrupt{Kind: QuestionInterruptKind, Question: &prompt}, true
 	case *interrupts.QuestionPrompt:
-		return Interrupt{Kind: "question", Question: prompt}, prompt != nil
+		return Interrupt{Kind: QuestionInterruptKind, Question: prompt}, prompt != nil
 	default:
 		return Interrupt{}, false
 	}

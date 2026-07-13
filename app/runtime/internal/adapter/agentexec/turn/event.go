@@ -16,9 +16,15 @@ type CompactBoundary = runs.CompactBoundary
 type MemoryUpdated = runs.MemoryUpdated
 type TurnInterrupted = runs.TurnInterrupted
 type Interrupt = runs.Interrupt
+type InterruptKind = runs.InterruptKind
 type ApprovalPrompt = runs.ApprovalPrompt
 type TurnEnd = runs.TurnEnd
 type ErrorEvent = runs.ErrorEvent
 type UsageReported = runs.UsageReported
 type TodosUpdated = runs.TodosUpdated
 type SteerMessage = runs.SteerMessage
+
+const (
+	ApprovalInterruptKind = runs.ApprovalInterruptKind
+	QuestionInterruptKind = runs.QuestionInterruptKind
+)

@@ -53,6 +53,9 @@ type Dependencies struct {
 
 // NewCoordinator builds the single owner of run use cases and live segments.
 func NewCoordinator(deps Dependencies) *Coordinator {
+	if deps.Now == nil {
+		deps.Now = time.Now
+	}
 	return &Coordinator{
 		executor:     deps.Segments,
 		turns:        deps.Turns,

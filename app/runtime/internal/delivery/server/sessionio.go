@@ -21,13 +21,12 @@ import (
 // Returned inline: lyra is a local loopback runtime, so there's no out-of-band
 // file channel nor a giant-payload concern.
 func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
-	ses, err := s.sessions.Get(ctx, in.SessionID)
+	snapshot, err := s.sessions.ReadSnapshot(ctx, s.coordinator, in.SessionID)
 	if err != nil {
+		if errors.Is(err, sessions.ErrSessionBusy) {
+			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, in.SessionID)
+		}
 		return nil, wireSessionErr(err)
-	}
-	items, runs, err := s.queries.ListTranscript(ctx, in.SessionID)
-	if err != nil {
-		return nil, err
 	}
 
 	format := in.Format
@@ -39,19 +38,15 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	case protocol.ExportFormatMarkdown:
 		return &protocol.ExportSessionResponse{
 			Format:   format,
-			Markdown: renderSessionMarkdown(s.sessionToWire(ses, s.liveStatus(ctx, ses.ID)), items),
+			Markdown: renderSessionMarkdown(s.sessionToWire(snapshot.Session, protocol.SessionStatusIdle), snapshot.Items),
 		}, nil
 	case protocol.ExportFormatJSON:
 	default:
 		return nil, fmt.Errorf("%w: unsupported export format %q", protocol.ErrInvalidParams, format)
 	}
 
-	msgs, err := s.queries.ReadHistory(ctx, in.SessionID)
-	if err != nil {
-		return nil, err
-	}
-	msgBlobs := make([]json.RawMessage, 0, len(msgs))
-	for _, m := range msgs {
+	msgBlobs := make([]json.RawMessage, 0, len(snapshot.Messages))
+	for _, m := range snapshot.Messages {
 		b, err := json.Marshal(m)
 		if err != nil {
 			return nil, fmt.Errorf("sessions.export: marshal message: %w", err)
@@ -59,14 +54,14 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 		msgBlobs = append(msgBlobs, b)
 	}
 
-	artRuns := make([]protocol.ArtifactRun, 0, len(runs))
-	for _, r := range runs {
+	artRuns := make([]protocol.ArtifactRun, 0, len(snapshot.Runs))
+	for _, r := range snapshot.Runs {
 		artRuns = append(artRuns, protocol.ArtifactRun{
 			UpdatedAt: r.UpdatedAt, MessageMark: r.MessageMark, Run: presentRun(r),
 		})
 	}
-	artItems := make([]protocol.ArtifactItem, 0, len(items))
-	for _, it := range items {
+	artItems := make([]protocol.ArtifactItem, 0, len(snapshot.Items))
+	for _, it := range snapshot.Items {
 		artItems = append(artItems, protocol.ArtifactItem{Item: presentItem(it)})
 	}
 
@@ -74,7 +69,7 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 		Format: format,
 		Artifact: &protocol.SessionArtifact{
 			Version:  protocol.SessionArtifactVersion,
-			Session:  s.sessionToWire(ses, s.liveStatus(ctx, ses.ID)),
+			Session:  s.sessionToWire(snapshot.Session, protocol.SessionStatusIdle),
 			Messages: msgBlobs,
 			Runs:     artRuns,
 			Items:    artItems,

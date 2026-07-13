@@ -318,9 +318,11 @@ func (e *Effects) putRun(ctx context.Context, run transcript.Run, terminal bool)
 		return errors.New("runsegment: transcript persistence is unavailable")
 	}
 	if terminal && run.MessageMark < 0 {
-		if mark, err := e.stores.MessageCount(ctx, run.SessionID); err == nil {
-			run.MessageMark = mark
+		mark, err := e.stores.MessageCount(ctx, run.SessionID)
+		if err != nil {
+			return fmt.Errorf("runsegment: resolve terminal message watermark: %w", err)
 		}
+		run.MessageMark = mark
 	}
 	if run.UpdatedAt.IsZero() {
 		run.UpdatedAt = time.Now().UTC()

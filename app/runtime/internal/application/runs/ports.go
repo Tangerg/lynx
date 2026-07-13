@@ -46,7 +46,7 @@ type SessionLifecycle interface {
 	SetModel(ctx context.Context, id, model string) error
 	ListOpenInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
 	GetOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error)
-	ApplyRunCancel(ctx context.Context, sessionID, runID string) error
+	ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) error
 	AcquireWorkingTreeRun(cwd string) (release func(), ok bool)
 }
 
