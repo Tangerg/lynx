@@ -7,24 +7,22 @@ package execution
 //
 // The state machine (see the transition methods below):
 //
-//	Created ──Begin──▶ Running ──Suspend──▶ Interrupted
-//	                     │  ▲                   │
-//	                     │  └──────Resume───────┘
-//	                     │                      │
-//	                Terminate(o)          Terminate(Canceled)
-//	                     │                      │
-//	                     ▼                      ▼
-//	          Completed / Failed / Canceled  (terminal)
+//	Running ──Suspend──▶ Interrupted
+//	   │  ▲                   │
+//	   │  └──────Resume───────┘
+//	   │                      │
+//	Terminate(o)       Terminate(Canceled)
+//	   │                      │
+//	   ▼                      ▼
+//	Completed / Failed / Canceled
 //
 // A Run reaches exactly one terminal state. Admission ("one non-terminal Run per
 // Session") keys on [RunState.IsTerminal].
 type RunState uint8
 
 const (
-	// Created — admitted (single-writer slot claimed) but not yet executing.
-	Created RunState = iota
 	// Running — a segment is actively executing.
-	Running
+	Running RunState = iota
 	// Interrupted — parked on a HITL interrupt, awaiting Resume or Cancel. NOT
 	// terminal: the run is resumable, its durable interrupt record committed.
 	Interrupted
@@ -42,15 +40,6 @@ const (
 // single-writer admission slot.
 func (s RunState) IsTerminal() bool {
 	return s == Completed || s == Failed || s == Canceled
-}
-
-// Begin moves a freshly-admitted run into execution (Created → Running). It
-// reports false from any other state, leaving s unchanged.
-func (s RunState) Begin() (RunState, bool) {
-	if s == Created {
-		return Running, true
-	}
-	return s, false
 }
 
 // Suspend parks a running run on a HITL interrupt (Running → Interrupted). It
@@ -90,8 +79,6 @@ func (s RunState) Terminate(o Outcome) (RunState, bool) {
 
 func (s RunState) String() string {
 	switch s {
-	case Created:
-		return "created"
 	case Running:
 		return "running"
 	case Interrupted:

@@ -20,9 +20,8 @@ var ErrClosed = errors.New("runs: coordinator closed")
 // drives a run from Start to terminal, and the request-detached task group that
 // keeps runs alive across client disconnects and cancels + joins them on Close.
 //
-// It is the transport-neutral home of the run lifecycle: reading Start + the
-// pump explains a run end to end, with the wire shape confined to the injected
-// [Projector].
+// It is the transport-neutral home of the run lifecycle: reading Start and the
+// pump explains a run end to end; delivery only presents its canonical events.
 type Coordinator struct {
 	executor     SegmentExecutor
 	turns        TurnControl
@@ -77,17 +76,13 @@ func (c *Coordinator) mintCursor() string {
 // admission/resume plus opening projections, registers the live owner, then
 // activates a continuation and spawns the pump. The run lifetime is detached
 // from the request without losing its trace; request cancellation drops only
-// that subscriber. newProjector builds the per-segment projector from the live
-// view it reads at terminal.
-func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec, newProjector func(SegmentView) Projector) (<-chan Event, error) {
+// that subscriber.
+func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-chan Event, error) {
 	if c.executor == nil {
 		return nil, errors.New("runs: executor is required")
 	}
 	if c.effects == nil {
 		return nil, errors.New("runs: effects are required")
-	}
-	if newProjector == nil {
-		return nil, errors.New("runs: projector factory is required")
 	}
 	resume := spec.Activate != nil
 	taskCtx, release, ok := c.tasks.Attach(reqCtx)
@@ -109,16 +104,13 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec, newP
 	}
 	hub := NewJournal[Event]()
 	live := &handle{cancel: cancel, owner: taskCtx, hub: hub}
-	projector := newProjector(live)
-	if projector == nil {
-		cancel()
-		if !resume {
-			_ = c.executor.CancelTurn(taskCtx, spec.Handle)
-		}
-		release()
-		return nil, errors.New("runs: projector is required")
-	}
-	opening, err := c.commitOpening(reqCtx, spec, projector)
+	reducer := newReducer(reducerConfig{
+		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
+		Cwd: spec.Cwd, TurnID: spec.TurnID, Provider: spec.Provider, Model: spec.Model,
+		CreatedAt: spec.CreatedAt, UserInput: spec.Input, Pending: spec.Pending,
+		Now: c.now, CancelReason: live.CancelReason,
+	})
+	opening, err := c.commitOpening(reqCtx, spec, reducer)
 	if err != nil {
 		cancel()
 		if !resume {
@@ -144,23 +136,23 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec, newP
 	}
 	if spec.Activate != nil {
 		if err := spec.Activate(taskCtx); err != nil {
-			projector.Abort(err.Error())
+			reducer.abort(err.Error())
 			cancel()
 		}
 	}
 	go func() {
 		defer release()
-		c.pump(runCtx, taskCtx, spec, inner, live, projector)
+		c.pump(runCtx, taskCtx, spec, inner, live, reducer)
 	}()
 	return events, nil
 }
 
-func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, projector Projector) ([]ProjectedEvent, error) {
-	projected := projector.Open()
+func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reducer *reducer) ([]reduction, error) {
+	projected := reducer.open()
 	if len(projected) == 0 {
-		return nil, errors.New("runs: projector produced no opening events")
+		return nil, errors.New("runs: reducer produced no opening events")
 	}
-	opening := OpeningCommit{Events: make([]execution.EventCommit, 0, len(projected))}
+	opening := OpeningCommit{Events: make([]EventCommit, 0, len(projected))}
 	if spec.Activate != nil {
 		opening.Resume = &execution.ResumeDraft{RunID: spec.RunID, SessionID: spec.SessionID}
 	} else {
@@ -172,12 +164,12 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, proje
 			CreatedAt: spec.CreatedAt,
 		}
 	}
-	for _, pe := range projected {
-		if pe.Abort || pe.Terminal || pe.Interrupt || pe.Nudge != nil {
-			return nil, errors.New("runs: invalid opening projection")
+	for _, reduced := range projected {
+		if reduced.Event.Terminal() || reduced.Interrupt || reduced.Nudge != nil {
+			return nil, errors.New("runs: invalid opening event")
 		}
-		if pe.Commit != nil {
-			opening.Events = append(opening.Events, *pe.Commit)
+		if reduced.Commit != nil {
+			opening.Events = append(opening.Events, *reduced.Commit)
 		}
 	}
 	if len(opening.Events) == 0 {
@@ -189,15 +181,13 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, proje
 	return projected, nil
 }
 
-func (c *Coordinator) event(spec segmentSpec, pe ProjectedEvent) Event {
+func (c *Coordinator) event(spec segmentSpec, reduced reduction) Event {
 	return Event{
 		RunID:     spec.RunID,
 		SegmentID: spec.SegmentID,
 		Seq:       c.mintCursor(),
-		Timestamp: time.Now().UTC(),
-		IsDurable: pe.Durable,
-		IsTerm:    pe.Terminal,
-		Payload:   pe.Payload,
+		Timestamp: c.now().UTC(),
+		Payload:   reduced.Event,
 	}
 }
 

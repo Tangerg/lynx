@@ -1,6 +1,6 @@
 // Package runsegment is the driven adapter that executes the durable side
 // effects of one streamed run segment. It implements the application's
-// runs.Effects port: the run pump hands it an [execution.EventCommit] per event,
+// runs.Effects port: the run pump hands it a [runs.EventCommit] per event,
 // which it applies ATOMICALLY — the open-interrupt record, transcript
 // projections, and the run-state transition land in one transaction (§8.3/§8.4),
 // so a crash never leaves a parked run with no admission mark or a terminal
@@ -55,8 +55,8 @@ type TranscriptStore interface {
 type RunStateWriter interface {
 	Admit(ctx context.Context, draft execution.RunDraft) error
 	Resume(ctx context.Context, draft execution.ResumeDraft) error
-	Suspend(ctx context.Context, sessionID string) error
-	Terminalize(ctx context.Context, sessionID string, o execution.Outcome) error
+	Suspend(ctx context.Context, sessionID, runID string) error
+	Terminalize(ctx context.Context, sessionID, runID string, o execution.Outcome) error
 }
 
 // Transactor runs fn inside one storage transaction: every store call made by
@@ -166,7 +166,7 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 			}
 		}
 		for _, commit := range opening.Events {
-			if commit.Interrupt != nil || commit.State != execution.StateUnchanged {
+			if commit.Interrupt != nil || commit.State != runs.StateUnchanged {
 				return errors.New("runsegment: opening commit contains a lifecycle transition")
 			}
 			if commit.Item == nil && commit.Run == nil {
@@ -187,7 +187,7 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 // not a DB read) and its absence fails the commit — a park with no recoverable
 // process is not resumable. A terminal run's message watermark is resolved inside
 // the transaction so it is consistent with the state it terminalizes.
-func (e *Effects) CommitEvent(ctx context.Context, commit execution.EventCommit) error {
+func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) error {
 	if e.tx == nil {
 		return errors.New("runsegment: transactor is unavailable")
 	}
@@ -204,7 +204,7 @@ func (e *Effects) CommitEvent(ctx context.Context, commit execution.EventCommit)
 	return e.runInTx(ctx, func(ctx context.Context) error { return e.applyCommit(ctx, commit, pending) })
 }
 
-func (e *Effects) applyCommit(ctx context.Context, commit execution.EventCommit, pending *interrupts.Pending) error {
+func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit, pending *interrupts.Pending) error {
 	if pending != nil {
 		if err := e.putInterrupt(ctx, *pending); err != nil {
 			return err
@@ -216,7 +216,7 @@ func (e *Effects) applyCommit(ctx context.Context, commit execution.EventCommit,
 		}
 	}
 	if commit.Run != nil {
-		if err := e.putRun(ctx, *commit.Run, commit.State == execution.StateTerminalize); err != nil {
+		if err := e.putRun(ctx, *commit.Run, commit.State == runs.StateTerminalize); err != nil {
 			return err
 		}
 	}
@@ -317,9 +317,9 @@ func (e *Effects) putRun(ctx context.Context, run transcript.Run, terminal bool)
 	if e.stores == nil || e.stores.Transcript() == nil {
 		return errors.New("runsegment: transcript persistence is unavailable")
 	}
-	if terminal && run.Mark < 0 {
+	if terminal && run.MessageMark < 0 {
 		if mark, err := e.stores.MessageCount(ctx, run.SessionID); err == nil {
-			run.Mark = mark
+			run.MessageMark = mark
 		}
 	}
 	if run.UpdatedAt.IsZero() {
@@ -328,18 +328,18 @@ func (e *Effects) putRun(ctx context.Context, run transcript.Run, terminal bool)
 	return e.stores.Transcript().PutRun(ctx, run)
 }
 
-func (e *Effects) applyState(ctx context.Context, commit execution.EventCommit) error {
-	if commit.State == execution.StateUnchanged {
+func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error {
+	if commit.State == runs.StateUnchanged {
 		return nil
 	}
 	if e.runState == nil {
 		return errors.New("runsegment: run-state persistence is unavailable")
 	}
 	switch commit.State {
-	case execution.StateSuspend:
-		return e.runState.Suspend(ctx, commit.SessionID)
-	case execution.StateTerminalize:
-		return e.runState.Terminalize(ctx, commit.SessionID, commit.Outcome)
+	case runs.StateSuspend:
+		return e.runState.Suspend(ctx, commit.SessionID, commit.RunID)
+	case runs.StateTerminalize:
+		return e.runState.Terminalize(ctx, commit.SessionID, commit.RunID, commit.Outcome)
 	default:
 		return nil
 	}

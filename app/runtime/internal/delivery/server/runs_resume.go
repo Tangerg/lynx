@@ -26,7 +26,6 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		RunID:          in.RunID,
 		Resolution:     resolution,
 		InterruptKinds: interruptKindsFromContext(ctx),
-		NewProjector:   s.segmentProjector(nil),
 	})
 	if err != nil {
 		switch {

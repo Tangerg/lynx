@@ -2,12 +2,13 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
+	appRuns "github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -36,10 +37,9 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 
 func putRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64, mark int) {
 	t.Helper()
-	ref := protocol.RunRef{ID: runID, SessionID: sessionID, CreatedAt: time.Unix(atUnix, 0).UTC()}
-	blob, _ := json.Marshal(ref)
 	if err := rt.hist.PutRun(context.Background(), transcript.Run{
-		SessionID: sessionID, RunID: runID, UpdatedAt: time.Unix(atUnix, 0).UTC(), Blob: blob, Mark: mark,
+		SessionID: sessionID, ID: runID, State: execution.Completed,
+		CreatedAt: time.Unix(atUnix, 0).UTC(), UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark,
 	}); err != nil {
 		t.Fatalf("putRun %s: %v", runID, err)
 	}
@@ -47,10 +47,10 @@ func putRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64
 
 func putUserItem(t *testing.T, rt *stubRuntime, sessionID, runID, itemID, text string) {
 	t.Helper()
-	item := protocol.Item{ID: itemID, RunID: runID, Type: protocol.ItemTypeUserMessage, Content: []protocol.ContentBlock{{Type: "text", Text: text}}}
-	blob, _ := json.Marshal(item)
 	if err := rt.hist.AppendItem(context.Background(), transcript.Item{
-		SessionID: sessionID, RunID: runID, ItemID: itemID, CreatedAt: time.Unix(1, 0).UTC(), Blob: blob,
+		SessionID: sessionID, RunID: runID, ID: itemID, CreatedAt: time.Unix(1, 0).UTC(),
+		Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
+		Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: text}},
 	}); err != nil {
 		t.Fatalf("putUserItem %s: %v", itemID, err)
 	}
@@ -89,7 +89,7 @@ func TestRollbackSession_DropTail(t *testing.T) {
 	}
 	// run_2's durable history is gone; run_1 survives.
 	_, runs, _ := rt.hist.List(ctx, sess.ID)
-	if len(runs) != 1 || runs[0].RunID != "run_1" {
+	if len(runs) != 1 || runs[0].ID != "run_1" {
 		t.Fatalf("surviving runs = %+v, want [run_1]", runs)
 	}
 }
@@ -107,10 +107,9 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 	putRun(t, rt, sess.ID, "run_2", 200, 4)
 	putUserItem(t, rt, sess.ID, "run_2", "item_u2", "second prompt")
 	if err := rt.interrupts.Put(ctx, interrupts.Pending{
-		RunID:      "run_2",
-		SessionID:  sess.ID,
-		TurnID:     "turn_parked",
-		Interrupts: []byte(`[]`),
+		RunID:     "run_2",
+		SessionID: sess.ID,
+		TurnID:    "turn_parked",
 	}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
@@ -145,7 +144,7 @@ func TestRollbackSession_DropAll(t *testing.T) {
 	rt.history[sess.ID] = []chat.Message{chat.NewUserMessage("u1"), chat.NewAssistantMessage("a1")}
 	rt.history[child.ID] = []chat.Message{chat.NewUserMessage("sub")}
 	putRun(t, rt, sess.ID, "run_1", 100, 2)
-	if err := rt.interrupts.Put(ctx, interrupts.Pending{RunID: "run_child", SessionID: child.ID, Interrupts: []byte(`[]`)}); err != nil {
+	if err := rt.interrupts.Put(ctx, interrupts.Pending{RunID: "run_child", SessionID: child.ID}); err != nil {
 		t.Fatalf("seed child interrupt: %v", err)
 	}
 
@@ -183,15 +182,8 @@ func TestRollbackSession_Busy(t *testing.T) {
 	}
 }
 
-// TestPersistRunCarriesCreatedAt guards the rollback over-purge bug: the
-// terminal RunRef synthesized on segment.finished replaces the whole stored blob
-// (PutRun upsert), so it must carry the run's start CreatedAt. Omitting it
-// persisted CreatedAt as zero (json:"createdAt,omitzero"), which collapsed the
-// rollback boundary time to the zero time → purgeSubtasksAfter then purged EVERY
-// subagent child, including kept runs'. The putRun test helper writes a real
-// CreatedAt and so bypassed the production stream side-effect path that exposed
-// this — this drives the same side-effect payload the pump hands to
-// adapter/runsegment.
+// TestPersistRunCarriesCreatedAt guards rollback boundary ordering on the
+// canonical transcript model; there is no wire blob to decode or replace.
 func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	_, rt := rollbackHarness(t)
 	ctx := context.Background()
@@ -199,10 +191,14 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 
 	started := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
 
-	commit, _ := sideEffectEvent("run_1", sess.ID, "", protocol.StreamEvent{
-		Type:    protocol.StreamSegmentFinished,
-		Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted},
-	}, "", "", started)
+	outcome := execution.OutcomeCompleted
+	commit := appRuns.EventCommit{
+		RunID: "run_1", SessionID: sess.ID, State: appRuns.StateTerminalize, Outcome: outcome,
+		Run: &transcript.Run{
+			ID: "run_1", SessionID: sess.ID, State: execution.Completed, Outcome: &outcome,
+			CreatedAt: started, UpdatedAt: started.Add(time.Minute), MessageMark: -1,
+		},
+	}
 	if err := rt.RunSegmentEffects(nil, nil).CommitEvent(ctx, commit); err != nil {
 		t.Fatalf("commit terminal run: %v", err)
 	}
@@ -211,15 +207,11 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	if err != nil || len(runs) != 1 {
 		t.Fatalf("list runs = %d (err %v), want 1", len(runs), err)
 	}
-	var ref protocol.RunRef
-	if err := json.Unmarshal(runs[0].Blob, &ref); err != nil {
-		t.Fatalf("decode run blob: %v", err)
+	if runs[0].CreatedAt.IsZero() {
+		t.Fatal("terminal run persisted CreatedAt as zero — rollback boundary math would over-purge")
 	}
-	if ref.CreatedAt.IsZero() {
-		t.Fatal("terminal RunRef persisted CreatedAt as zero — rollback boundary math would over-purge")
-	}
-	if !ref.CreatedAt.Equal(started) {
-		t.Errorf("CreatedAt = %v, want the run's start %v", ref.CreatedAt, started)
+	if !runs[0].CreatedAt.Equal(started) {
+		t.Errorf("CreatedAt = %v, want the run's start %v", runs[0].CreatedAt, started)
 	}
 }
 

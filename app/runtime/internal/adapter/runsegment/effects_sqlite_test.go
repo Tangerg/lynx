@@ -28,7 +28,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_actual", SessionID: "ses_1", CreatedAt: time.Now().UTC()}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := state.Suspend(ctx, "ses_1"); err != nil {
+	if err := state.Suspend(ctx, "ses_1", "run_actual"); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_stale", SessionID: "ses_1"}); err != nil {
@@ -40,7 +40,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
 	resume := execution.ResumeDraft{RunID: "run_stale", SessionID: "ses_1"}
-	err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume, Events: []execution.EventCommit{{SessionID: "ses_1"}}})
+	err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume, Events: []runs.EventCommit{{RunID: "run_stale", SessionID: "ses_1"}}})
 	if err == nil {
 		t.Fatal("CommitOpening must reject an interrupt that does not own the active run")
 	}
@@ -63,7 +63,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: created}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := state.Suspend(ctx, "ses_1"); err != nil {
+	if err := state.Suspend(ctx, "ses_1", "run_1"); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
 	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_1", SessionID: "ses_1"}); err != nil {
@@ -77,9 +77,10 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	resume := execution.ResumeDraft{RunID: "run_1", SessionID: "ses_1"}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
 		Resume: &resume,
-		Events: []execution.EventCommit{{
+		Events: []runs.EventCommit{{
+			RunID:     "run_1",
 			SessionID: "ses_1",
-			Run:       &transcript.Run{SessionID: "ses_1", RunID: "run_1", Blob: []byte(`{"id":"run_1"}`), UpdatedAt: created},
+			Run:       &transcript.Run{SessionID: "ses_1", ID: "run_1", UpdatedAt: created},
 		}},
 	})
 	if err != nil {

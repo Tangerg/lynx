@@ -5,8 +5,14 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
+
+// CwdResolver is the filesystem boundary needed when a session is created or
+// relocated. Session.Cwd is canonical after admission, so downstream use cases
+// treat it as an invariant instead of repeatedly touching the filesystem.
+type CwdResolver interface {
+	ResolveExistingDir(path string) (string, error)
+}
 
 // List returns every user-facing session, newest-updated first.
 func (c *Coordinator) List(ctx context.Context) ([]session.Session, error) {
@@ -21,7 +27,7 @@ func (c *Coordinator) Get(ctx context.Context, id string) (session.Session, erro
 // Create starts a fresh session in cwd, resolving cwd to an existing directory
 // (an unavailable cwd is [session.ErrCwdUnavailable]).
 func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Session, error) {
-	cwd, err := resolveSessionCwd(cwd)
+	cwd, err := c.resolveSessionCwd(cwd)
 	if err != nil {
 		return session.Session{}, err
 	}
@@ -46,7 +52,7 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch
 		return session.Session{}, err
 	}
 	if patch.Cwd != nil {
-		cwd, err := resolveSessionCwd(*patch.Cwd)
+		cwd, err := c.resolveSessionCwd(*patch.Cwd)
 		if err != nil {
 			return session.Session{}, err
 		}
@@ -58,8 +64,11 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch
 
 // resolveSessionCwd canonicalizes cwd and requires it to be an existing
 // directory, joining [session.ErrCwdUnavailable] on failure.
-func resolveSessionCwd(cwd string) (string, error) {
-	resolved, err := worktree.ResolveExistingDir(cwd)
+func (c *Coordinator) resolveSessionCwd(cwd string) (string, error) {
+	if c.paths == nil {
+		return "", errors.Join(session.ErrCwdUnavailable, errors.New("sessions: cwd resolver is unavailable"))
+	}
+	resolved, err := c.paths.ResolveExistingDir(cwd)
 	if err != nil {
 		return "", errors.Join(session.ErrCwdUnavailable, err)
 	}

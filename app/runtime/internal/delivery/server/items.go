@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -62,32 +61,19 @@ func pageByID[T any](elems []T, id func(T) string, cursor string, limit, maxLimi
 
 // listItemsFromHistory serves items.list from durable Item rows.
 func (s *Server) listItemsFromHistory(hItems []transcript.Item, hRuns []transcript.Run, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	// Page first, decode after: pagination is a row-level operation and
-	// the item id is a plain column, so only the returned page's blobs
-	// are unmarshaled (a long session would otherwise decode thousands
-	// of items to serve 200). A corrupt row occupies its page slot and
-	// is skipped at decode — same tolerance as a cursor pointing at a
-	// deleted element.
-	pageRows, next := pageByID(hItems, func(hi transcript.Item) string { return hi.ItemID }, in.Cursor, in.Limit, defaultItemPageLimit)
+	pageRows, next := pageByID(hItems, func(item transcript.Item) string { return item.ID }, in.Cursor, in.Limit, defaultItemPageLimit)
 	items := make([]protocol.Item, 0, len(pageRows))
-	for _, hi := range pageRows {
-		var it protocol.Item
-		if err := json.Unmarshal(hi.Blob, &it); err != nil {
-			continue // skip a corrupt row rather than failing the whole list
-		}
-		items = append(items, it)
+	for _, item := range pageRows {
+		items = append(items, presentItem(item))
 	}
 	// Runs stay fully decoded: the client needs the whole run tree to
 	// thread items, the per-session run count is small, and
 	// reconcileLostRun must inspect each ref.
 	runs := make([]protocol.RunRef, 0, len(hRuns))
-	for _, hr := range hRuns {
-		var r protocol.RunRef
-		if err := json.Unmarshal(hr.Blob, &r); err != nil {
-			continue
-		}
-		s.reconcileLostRun(&r)
-		runs = append(runs, r)
+	for _, run := range hRuns {
+		ref := presentRun(run)
+		s.reconcileLostRun(&ref)
+		runs = append(runs, ref)
 	}
 
 	return &protocol.ListItemsResponse{

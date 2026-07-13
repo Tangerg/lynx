@@ -3,17 +3,17 @@ package server
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // Usage reporting (usage.session / usage.summary). Sum-on-read over the durable
 // run history (history_runs): each finished run already carries its terminal
 // metering (RunResult.Usage, subtree-aggregated), so totals are a fold over run
-// blobs — no denormalized counters to keep in sync, and a rollback/fork that
+// records — no denormalized counters to keep in sync, and a rollback/fork that
 // drops runs is reflected for free (the dropped runs are simply gone).
 //
 // Attribution is at run granularity: per-provider / per-day buckets fold whole
@@ -31,7 +31,7 @@ func (s *Server) SessionUsage(ctx context.Context, sessionID string) (*protocol.
 	total := usageAcc{}
 	byModel := map[string]*usageAcc{}
 	for _, r := range runs {
-		foldRunUsage(r.Blob, time.Time{}, s.models.DefaultProvider(), s.models.DefaultModel(), &total, nil, byModel, nil)
+		foldRunUsage(r, time.Time{}, s.models.DefaultProvider(), s.models.DefaultModel(), &total, nil, byModel, nil)
 	}
 	out := &protocol.Usage{ModelUsage: total.modelUsage()}
 	if len(byModel) > 0 {
@@ -69,7 +69,7 @@ func (s *Server) UsageSummary(ctx context.Context, in protocol.UsageSummaryReque
 		}
 		before := total.runs
 		for _, r := range runs {
-			foldRunUsage(r.Blob, since, s.models.DefaultProvider(), s.models.DefaultModel(), &total, byProvider, byModel, byDay)
+			foldRunUsage(r, since, s.models.DefaultProvider(), s.models.DefaultModel(), &total, byProvider, byModel, byDay)
 		}
 		if total.runs > before {
 			sessionCount++
@@ -86,38 +86,34 @@ func (s *Server) UsageSummary(ctx context.Context, in protocol.UsageSummaryReque
 	}, nil
 }
 
-// foldRunUsage lifts one run blob's terminal usage and folds it into the
+// foldRunUsage folds one canonical run's terminal usage into the
 // supplied accumulators. The grouped maps (byProvider/byModel/byDay) are
 // optional — pass nil to skip (usage.session wants only total + byModel). since
 // (when non-zero) drops runs finished before it. defProvider / defModel attribute
 // default-model runs (whose RunRef carries no provider/model). Pure (no Server
-// receiver) so the aggregation is unit-testable from crafted blobs.
-func foldRunUsage(blob json.RawMessage, since time.Time, defProvider, defModel string, total *usageAcc, byProvider, byModel, byDay map[string]*usageAcc) {
-	var ref protocol.RunRef
-	if json.Unmarshal(blob, &ref) != nil {
+// receiver) so the aggregation is unit-testable from crafted domain values.
+func foldRunUsage(run transcript.Run, since time.Time, defProvider, defModel string, total *usageAcc, byProvider, byModel, byDay map[string]*usageAcc) {
+	if !run.State.IsTerminal() || run.Result == nil || run.Result.Usage == nil {
 		return
 	}
-	if ref.Status != protocol.RunStatusFinished || ref.Outcome == nil ||
-		ref.Outcome.Result == nil || ref.Outcome.Result.Usage == nil {
+	if !since.IsZero() && !run.FinishedAt.IsZero() && run.FinishedAt.Before(since) {
 		return
 	}
-	if !since.IsZero() && !ref.FinishedAt.IsZero() && ref.FinishedAt.Before(since) {
-		return
-	}
-	u := ref.Outcome.Result.Usage
+	u := run.Result.Usage
+	totalUsage := presentModelUsage(u.ModelUsage)
 
 	if total != nil {
-		total.add(u.ModelUsage)
+		total.add(totalUsage)
 		total.runs++
 	}
 	if byProvider != nil {
-		b := accFor(byProvider, cmp.Or(ref.Provider, defProvider, "unknown"))
-		b.add(u.ModelUsage)
+		b := accFor(byProvider, cmp.Or(run.Provider, defProvider, "unknown"))
+		b.add(totalUsage)
 		b.runs++
 	}
-	if byDay != nil && !ref.FinishedAt.IsZero() {
-		b := accFor(byDay, ref.FinishedAt.UTC().Format(time.DateOnly))
-		b.add(u.ModelUsage)
+	if byDay != nil && !run.FinishedAt.IsZero() {
+		b := accFor(byDay, run.FinishedAt.UTC().Format(time.DateOnly))
+		b.add(totalUsage)
 		b.runs++
 	}
 	if byModel != nil {
@@ -126,12 +122,12 @@ func foldRunUsage(blob json.RawMessage, since time.Time, defProvider, defModel s
 		if len(u.ByModel) > 0 {
 			for name, mu := range u.ByModel {
 				b := accFor(byModel, name)
-				b.add(mu)
+				b.add(presentModelUsage(mu))
 				b.runs++
 			}
 		} else {
-			b := accFor(byModel, cmp.Or(ref.Model, defModel, "unknown"))
-			b.add(u.ModelUsage)
+			b := accFor(byModel, cmp.Or(run.Model, defModel, "unknown"))
+			b.add(totalUsage)
 			b.runs++
 		}
 	}

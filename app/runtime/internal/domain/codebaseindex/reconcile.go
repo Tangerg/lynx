@@ -3,8 +3,6 @@ package codebaseindex
 import (
 	"context"
 	"time"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // EnsureIndexed builds or incrementally refreshes cwd's index. No-op on the
@@ -14,7 +12,6 @@ func (ix *Indexer) EnsureIndexed(ctx context.Context, cwd string) error {
 	if err != nil {
 		return err
 	}
-	cwd = worktree.CanonicalCwd(cwd)
 	modelID := emb.ID()
 	if ix.fresh(cwd, modelID) {
 		return nil
@@ -35,7 +32,6 @@ func (ix *Indexer) Reindex(ctx context.Context, cwd string) error {
 	if err != nil {
 		return err
 	}
-	cwd = worktree.CanonicalCwd(cwd)
 	lock := ix.cwdLock(cwd)
 	lock.Lock()
 	defer lock.Unlock()

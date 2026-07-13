@@ -11,16 +11,15 @@ import (
 	"github.com/Tangerg/lynx/agent/toolloop"
 )
 
-// parkStore persists [toolloop.ParkState] in SQLite — the tool_parks table
-// created by [Open]'s migration, like every other table in this package.
+// parkStore persists [toolloop.ParkState] in SQLite's current tool_parks table.
 type parkStore struct {
 	db *sql.DB
 }
 
 var _ toolloop.ParkStore = (*parkStore)(nil)
 
-// NewParkStore returns a [toolloop.ParkStore] backed by db. db must have
-// been opened via [Open] so the migration ran.
+// NewParkStore returns a [toolloop.ParkStore] backed by a database opened via
+// [Open].
 func NewParkStore(db *sql.DB) toolloop.ParkStore {
 	return &parkStore{db: db}
 }

@@ -14,8 +14,8 @@ type SessionStore struct {
 	db *sql.DB
 }
 
-// NewSessionStore wires the given *sql.DB to the session persistence surface.
-// The DB must have been opened via [Open] so the migration ran.
+// NewSessionStore wires a database opened via [Open] to the session persistence
+// surface.
 func NewSessionStore(db *sql.DB) *SessionStore {
 	return &SessionStore{db: db}
 }

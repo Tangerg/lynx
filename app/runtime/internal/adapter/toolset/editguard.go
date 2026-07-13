@@ -3,6 +3,7 @@ package toolset
 import (
 	"context"
 	"encoding/json"
+	"os"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
@@ -37,7 +38,10 @@ func withReadTracking(inner chat.Tool, tr *editguard.Tracker, workdir string) ch
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" {
-			tr.Record(turnctx.TurnSession(ctx), canonicalAbs(workdir, a.Path), a.Offset > 0 || a.Limit > 0)
+			abs := canonicalAbs(workdir, a.Path)
+			if fingerprint, err := fingerprintFile(abs); err == nil {
+				tr.Record(turnctx.TurnSession(ctx), abs, fingerprint, a.Offset > 0 || a.Limit > 0)
+			}
 		}
 		return out, nil
 	})
@@ -56,7 +60,11 @@ func withEditGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.
 			if !isExistingFile(abs) {
 				continue
 			}
-			if msg := tr.Check(turnctx.TurnSession(ctx), abs, false).Message(path, "editing"); msg != "" {
+			fingerprint, err := fingerprintFile(abs)
+			if err != nil {
+				continue
+			}
+			if msg := tr.Check(turnctx.TurnSession(ctx), abs, fingerprint, false).Message(path, "editing"); msg != "" {
 				return msg, nil
 			}
 		}
@@ -65,7 +73,10 @@ func withEditGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.
 			return out, err
 		}
 		for _, path := range paths {
-			tr.Refresh(turnctx.TurnSession(ctx), canonicalAbs(workdir, path))
+			abs := canonicalAbs(workdir, path)
+			if fingerprint, err := fingerprintFile(abs); err == nil {
+				tr.Refresh(turnctx.TurnSession(ctx), abs, fingerprint)
+			}
 		}
 		return out, nil
 	})
@@ -87,8 +98,11 @@ func withWriteGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat
 		if a.Path != "" && !a.Append {
 			abs := canonicalAbs(workdir, a.Path)
 			if isExistingFile(abs) {
-				if msg := tr.Check(turnctx.TurnSession(ctx), abs, true).Message(a.Path, "overwriting"); msg != "" {
-					return msg, nil
+				fingerprint, err := fingerprintFile(abs)
+				if err == nil {
+					if msg := tr.Check(turnctx.TurnSession(ctx), abs, fingerprint, true).Message(a.Path, "overwriting"); msg != "" {
+						return msg, nil
+					}
 				}
 			}
 		}
@@ -97,10 +111,21 @@ func withWriteGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat
 			return out, err
 		}
 		if a.Path != "" {
-			tr.Refresh(turnctx.TurnSession(ctx), canonicalAbs(workdir, a.Path))
+			abs := canonicalAbs(workdir, a.Path)
+			if fingerprint, err := fingerprintFile(abs); err == nil {
+				tr.Refresh(turnctx.TurnSession(ctx), abs, fingerprint)
+			}
 		}
 		return out, nil
 	})
+}
+
+func fingerprintFile(path string) (editguard.Fingerprint, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return editguard.Fingerprint{}, err
+	}
+	return editguard.FingerprintOf(content), nil
 }
 
 // withEditDiagnostics wraps a file-mutating tool (write / edit) so a successful

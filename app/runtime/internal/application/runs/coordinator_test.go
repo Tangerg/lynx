@@ -12,11 +12,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
-// --- fakes (drive the Coordinator without the wire or the agent SDK) ---
-
+// These fakes exercise the application-owned reducer and journal. Delivery
+// protocol values deliberately do not appear here.
 type fakeExecutor struct {
 	events   []EngineEvent
-	block    bool // when set, the turn blocks on ctx instead of emitting — a live run
+	block    bool
 	mu       sync.Mutex
 	canceled int
 	startErr error
@@ -31,11 +31,8 @@ func (f *fakeExecutor) TurnEvents(ctx context.Context, _ Handle) (iter.Seq[Engin
 			<-ctx.Done()
 			return
 		}
-		for _, e := range f.events {
-			if ctx.Err() != nil {
-				return
-			}
-			if !yield(e) {
+		for _, event := range f.events {
+			if ctx.Err() != nil || !yield(event) {
 				return
 			}
 		}
@@ -44,8 +41,8 @@ func (f *fakeExecutor) TurnEvents(ctx context.Context, _ Handle) (iter.Seq[Engin
 
 func (f *fakeExecutor) CancelTurn(context.Context, Handle) error {
 	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.canceled++
-	f.mu.Unlock()
 	return nil
 }
 
@@ -55,32 +52,12 @@ func (f *fakeExecutor) cancels() int {
 	return f.canceled
 }
 
-type fakeProjector struct {
-	open      []ProjectedEvent
-	translate []ProjectedEvent
-	terminal  []ProjectedEvent
-	view      SegmentView
-	aborted   string
-}
-
-type fakeProjection string
-
-func (fakeProjection) RunProjection() {}
-
-func (p *fakeProjector) Open() []ProjectedEvent                 { return p.open }
-func (p *fakeProjector) Translate(EngineEvent) []ProjectedEvent { return p.translate }
-func (p *fakeProjector) SynthesizeTerminal() []ProjectedEvent   { return p.terminal }
-func (p *fakeProjector) Abort(msg string)                       { p.aborted = msg }
-
-// fakeEffects records the atomic event commits + nudges the pump drives: it
-// commits an interrupt before publishing (checking the error) and every other
-// event after (best-effort). commitErr fails a commit — the interrupt-abort path.
 type fakeEffects struct {
 	mu         sync.Mutex
-	commits    []execution.EventCommit
+	commits    []EventCommit
 	openings   []OpeningCommit
+	finishes   []Finish
 	nudges     int
-	finished   bool
 	openingErr error
 	commitErr  error
 }
@@ -96,51 +73,26 @@ func (e *fakeEffects) CommitOpening(_ context.Context, opening OpeningCommit) er
 	return nil
 }
 
-func (e *fakeEffects) CommitEvent(_ context.Context, c execution.EventCommit) error {
+func (e *fakeEffects) CommitEvent(_ context.Context, commit EventCommit) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.commitErr != nil {
 		return e.commitErr
 	}
-	e.commits = append(e.commits, c)
+	e.commits = append(e.commits, commit)
 	return nil
 }
 
 func (e *fakeEffects) Nudge(string, []string) {
 	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.nudges++
-	e.mu.Unlock()
 }
 
-func (e *fakeEffects) Finish(context.Context, Finish) {
-	e.mu.Lock()
-	e.finished = true
-	e.mu.Unlock()
-}
-
-func (e *fakeEffects) commitCount() int {
+func (e *fakeEffects) Finish(_ context.Context, finish Finish) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return len(e.commits)
-}
-
-func (e *fakeEffects) didFinish() bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.finished
-}
-
-// terminalized reports whether a terminalizing commit landed for sessionID — the
-// terminal run-state transition now rides CommitEvent, not the admission store.
-func (e *fakeEffects) terminalized(sessionID string) bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	for _, c := range e.commits {
-		if c.State == execution.StateTerminalize && c.SessionID == sessionID {
-			return true
-		}
-	}
-	return false
+	e.finishes = append(e.finishes, finish)
 }
 
 func (e *fakeEffects) opening() OpeningCommit {
@@ -152,403 +104,237 @@ func (e *fakeEffects) opening() OpeningCommit {
 	return e.openings[len(e.openings)-1]
 }
 
-// TestCoordinatorStartRejectsDurablyBusySession: when the durable backstop
-// rejects admission (the session already holds a non-terminal run across a
-// restart the in-memory claim can't see), Start surfaces ErrSessionBusy and
-// tears the created turn down, registering no run.
-func TestCoordinatorStartRejectsDurablyBusySession(t *testing.T) {
-	exec := &fakeExecutor{}
-	eff := &fakeEffects{openingErr: execution.ErrSessionBusy}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
-
-	_, err := c.openSegment(context.Background(),
-		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
-		func(SegmentView) Projector {
-			return &fakeProjector{open: []ProjectedEvent{{Durable: true, Commit: &execution.EventCommit{SessionID: "ses_1"}}}}
-		})
-	if !errors.Is(err, execution.ErrSessionBusy) {
-		t.Fatalf("Start err = %v, want ErrSessionBusy", err)
+func (e *fakeEffects) terminalized(sessionID, runID string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, commit := range e.commits {
+		if commit.State == StateTerminalize && commit.SessionID == sessionID && commit.RunID == runID {
+			return true
+		}
 	}
-	if exec.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1 (turn torn down on durable busy)", exec.cancels())
-	}
-	if c.Contains("run_1") {
-		t.Fatal("a durably-rejected start must register no run")
-	}
+	return false
 }
 
-// TestCoordinatorStartAdmitsAndTerminalizes: a run records a durable admission on
-// Start and, on its true (non-parked) terminal, commits the terminalizing state
-// transition atomically through the event committer (not the admission store).
-func TestCoordinatorStartAdmitsAndTerminalizes(t *testing.T) {
-	exec := &fakeExecutor{}
-	eff := &fakeEffects{}
-	proj := &fakeProjector{
-		open: []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
-		terminal: []ProjectedEvent{{
-			Durable: true, Terminal: true, Payload: fakeProjection("finished"),
-			Commit: &execution.EventCommit{SessionID: "ses_1", State: execution.StateTerminalize},
-		}},
-	}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
-
-	events, err := c.openSegment(context.Background(),
-		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
-		func(v SegmentView) Projector { proj.view = v; return proj })
-	if err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	if opening := eff.opening(); opening.Admit == nil || opening.Admit.RunID != "run_1" || opening.Resume != nil {
-		t.Fatalf("opening admission = %+v, want fresh run_1", opening)
-	}
-	for range events {
-	}
-	if !eff.terminalized("ses_1") {
-		t.Fatal("pump never committed the terminalizing state transition for ses_1")
-	}
-}
-
-// TestCoordinatorResumeReusesDurableSlot: a continuation segment (a spec with
-// Resume set) transitions the session's EXISTING durable row back to running
-// rather than admitting a second row — so a resume does not trip the
-// one-non-terminal-run-per-session guard the parked run's still-open row would trip.
-func TestCoordinatorResumeReusesDurableSlot(t *testing.T) {
-	exec := &fakeExecutor{}
-	eff := &fakeEffects{}
-	proj := &fakeProjector{
-		open:     []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
-		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("finished")}},
-	}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
-
-	events, err := c.openSegment(context.Background(),
-		segmentSpec{RunID: "run_1", SegmentID: "seg_2", SessionID: "ses_1", TurnID: "turn_1", Activate: func(context.Context) error { return nil }},
-		func(v SegmentView) Projector { proj.view = v; return proj })
-	if err != nil {
-		t.Fatalf("resume Start must not re-admit a durably-busy session: %v", err)
-	}
-	if opening := eff.opening(); opening.Resume == nil || opening.Resume.RunID != "run_1" || opening.Admit != nil {
-		t.Fatalf("opening admission = %+v, want resume run_1", opening)
-	}
-	for range events {
-	}
-}
-
-func TestCoordinatorResumeActivationFailureStreamsTerminal(t *testing.T) {
-	exec := &fakeExecutor{block: true}
-	eff := &fakeEffects{}
-	proj := &fakeProjector{
-		open:     []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
-		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("error"), Commit: &execution.EventCommit{SessionID: "ses_1", State: execution.StateTerminalize, Outcome: execution.OutcomeError}}},
-	}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
-	activatedAfterOpening := false
-
-	events, err := c.openSegment(context.Background(), segmentSpec{
-		RunID: "run_1", SegmentID: "seg_2", SessionID: "ses_1", TurnID: "turn_1",
-		Activate: func(context.Context) error {
-			activatedAfterOpening = eff.opening().Resume != nil
-			return errors.New("resume failed")
+func testCoordinator(executor SegmentExecutor, effects Effects) *Coordinator {
+	return NewCoordinator(Dependencies{
+		Segments: executor,
+		Effects:  effects,
+		Now: func() time.Time {
+			return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
 		},
-	}, func(v SegmentView) Projector { proj.view = v; return proj })
-	if err != nil {
-		t.Fatalf("Start: %v", err)
+	})
+}
+
+func testSegment() segmentSpec {
+	return segmentSpec{
+		RunID: "run_1", SegmentID: "seg_1", SessionID: "ses_1",
+		TurnID: "turn_1", Handle: "opaque", Provider: "openai", Model: "model",
+		CreatedAt: time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC),
 	}
-	var payloads []Projection
+}
+
+func collectEvents(events <-chan Event) []Event {
+	var out []Event
 	for event := range events {
-		payloads = append(payloads, event.Payload)
+		out = append(out, event)
 	}
+	return out
+}
+
+func TestCoordinatorRejectsUncommittedOpening(t *testing.T) {
+	executor := &fakeExecutor{}
+	effects := &fakeEffects{openingErr: execution.ErrSessionBusy}
+	coordinator := testCoordinator(executor, effects)
+
+	events, err := coordinator.openSegment(context.Background(), testSegment())
+	if !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("openSegment error = %v, want ErrSessionBusy", err)
+	}
+	if events != nil || coordinator.Contains("run_1") {
+		t.Fatal("an uncommitted opening became visible")
+	}
+	if executor.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	}
+}
+
+func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
+	executor := &fakeExecutor{events: []EngineEvent{
+		MessageDelta{Text: "hello"},
+		TurnEnd{Reason: execution.OutcomeCompleted},
+	}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	spec := testSegment()
+	spec.Input = []ContentBlock{{Kind: TextContent, Text: "question"}}
+
+	stream, err := coordinator.openSegment(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if len(events) < 2 {
+		t.Fatalf("events = %d, want canonical opening and terminal", len(events))
+	}
+	started, ok := events[0].Payload.(SegmentStarted)
+	if !ok || started.Run.ID != "run_1" || started.Run.SessionID != "ses_1" {
+		t.Fatalf("first payload = %#v", events[0].Payload)
+	}
+	finished, ok := events[len(events)-1].Payload.(SegmentFinished)
+	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeCompleted {
+		t.Fatalf("last payload = %#v", events[len(events)-1].Payload)
+	}
+	if opening := effects.opening(); opening.Admit == nil || opening.Resume != nil || len(opening.Events) != 2 {
+		t.Fatalf("opening = %+v, want admit + run/user-item commits", opening)
+	}
+	if !effects.terminalized("ses_1", "run_1") {
+		t.Fatal("terminal run and exact run-state transition were not committed")
+	}
+	for index := 1; index < len(events); index++ {
+		if events[index-1].Seq >= events[index].Seq {
+			t.Fatalf("event cursors are not monotonic: %q then %q", events[index-1].Seq, events[index].Seq)
+		}
+	}
+}
+
+func TestCoordinatorResumeCommitsBeforeActivation(t *testing.T) {
+	executor := &fakeExecutor{}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	spec := testSegment()
+	spec.SegmentID = "seg_2"
+	activatedAfterOpening := false
+	spec.Activate = func(context.Context) error {
+		activatedAfterOpening = effects.opening().Resume != nil
+		return nil
+	}
+
+	stream, err := coordinator.openSegment(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	collectEvents(stream)
 	if !activatedAfterOpening {
-		t.Fatal("activation ran before the continuation opening committed")
+		t.Fatal("continuation activated before its opening commit")
 	}
-	if len(payloads) != 2 || payloads[0] != fakeProjection("started") || payloads[1] != fakeProjection("error") {
-		t.Fatalf("payloads = %v, want [started error]", payloads)
-	}
-	if !eff.terminalized("ses_1") {
-		t.Fatal("activation failure did not terminalize the accepted continuation")
-	}
-	if proj.aborted != "resume failed" {
-		t.Fatalf("projector abort = %q, want resume failed", proj.aborted)
+	opening := effects.opening()
+	if opening.Resume == nil || opening.Resume.RunID != "run_1" || opening.Admit != nil {
+		t.Fatalf("opening = %+v, want resume run_1", opening)
 	}
 }
 
-// TestCoordinatorStartStreamsThenTerminates: Start opens a run, streams the
-// projector's open + translated events, and — because the executor stream ends
-// without a terminal — synthesizes one on teardown; each durable event is
-// committed before publication (§7.2).
-func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
-	exec := &fakeExecutor{events: []EngineEvent{MessageDelta{}}}
-	eff := &fakeEffects{}
-	commit := &execution.EventCommit{SessionID: "ses_1"}
-	proj := &fakeProjector{
-		open:      []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: commit}},
-		translate: []ProjectedEvent{{Durable: true, Payload: fakeProjection("item"), Commit: commit}},
-		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("finished"), Commit: commit}},
-	}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
+func TestCoordinatorActivationFailureBecomesErrorTerminal(t *testing.T) {
+	executor := &fakeExecutor{block: true}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	spec := testSegment()
+	spec.Activate = func(context.Context) error { return errors.New("resume failed") }
 
-	events, err := c.openSegment(context.Background(),
-		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
-		func(v SegmentView) Projector { proj.view = v; return proj })
+	stream, err := coordinator.openSegment(context.Background(), spec)
 	if err != nil {
-		t.Fatalf("Start: %v", err)
+		t.Fatalf("openSegment: %v", err)
 	}
-
-	var payloads []any
-	var cursors []string
-	for e := range events {
-		payloads = append(payloads, e.Payload)
-		cursors = append(cursors, e.Seq)
+	events := collectEvents(stream)
+	finished, ok := events[len(events)-1].Payload.(SegmentFinished)
+	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeError {
+		t.Fatalf("last payload = %#v, want error terminal", events[len(events)-1].Payload)
 	}
-
-	want := []any{fakeProjection("started"), fakeProjection("item"), fakeProjection("finished")}
-	if fmt.Sprint(payloads) != fmt.Sprint(want) {
-		t.Fatalf("payloads = %v, want %v", payloads, want)
-	}
-	// Cursors are monotonic and minted per event.
-	if cursors[0] >= cursors[1] || cursors[1] >= cursors[2] {
-		t.Fatalf("cursors not monotonic: %v", cursors)
-	}
-	// Every durable event committed (before publication, §7.2 — proven
-	// deterministically by TestCoordinatorItemPersistFailureAborts).
-	if got := eff.commitCount(); got != 3 {
-		t.Fatalf("CommitEvent calls = %d, want 3", got)
-	}
-	if proj.view == nil {
-		t.Fatal("projector never received its segment view")
+	if finished.Run.Result == nil || finished.Run.Result.Error == nil {
+		t.Fatalf("error terminal has no canonical problem: %+v", finished.Run)
 	}
 }
 
-// TestCoordinatorStartExecutorError: a turn that fails to start returns the
-// error and tears the created turn down (cancels it), registering no run.
+func TestCoordinatorCommitFailureNeverPublishesUnbackedFact(t *testing.T) {
+	executor := &fakeExecutor{events: []EngineEvent{CompactBoundary{MessagesBefore: 4, MessagesAfter: 2}}}
+	effects := &fakeEffects{commitErr: fmt.Errorf("store down")}
+	coordinator := testCoordinator(executor, effects)
+
+	stream, err := coordinator.openSegment(context.Background(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	for _, event := range events {
+		if _, ok := event.Payload.(ItemCompleted); ok {
+			t.Fatalf("uncommitted item was published: %#v", event.Payload)
+		}
+		if _, ok := event.Payload.(SegmentFinished); ok {
+			t.Fatalf("uncommitted terminal was published: %#v", event.Payload)
+		}
+	}
+	if executor.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	}
+}
+
 func TestCoordinatorStartExecutorError(t *testing.T) {
-	exec := &fakeExecutor{startErr: fmt.Errorf("boom")}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: &fakeEffects{}})
+	executor := &fakeExecutor{startErr: fmt.Errorf("boom")}
+	coordinator := testCoordinator(executor, &fakeEffects{})
 
-	_, err := c.openSegment(context.Background(),
-		segmentSpec{RunID: "run_1", SessionID: "ses_1"},
-		func(SegmentView) Projector { return &fakeProjector{} })
+	_, err := coordinator.openSegment(context.Background(), testSegment())
 	if err == nil {
-		t.Fatal("Start must surface the executor error")
+		t.Fatal("openSegment must surface the executor error")
 	}
-	if exec.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1", exec.cancels())
-	}
-	if c.Contains("run_1") {
-		t.Fatal("a failed start must register no run")
+	if executor.cancels() != 1 || coordinator.Contains("run_1") {
+		t.Fatal("failed executor start was not torn down")
 	}
 }
 
-// TestCoordinatorAdmission: the Coordinator is the session single-writer — a
-// claim blocks a second claim and an active run, until released/closed.
-func TestCoordinatorAdmission(t *testing.T) {
-	c := NewCoordinator(Dependencies{Segments: &fakeExecutor{}, Effects: &fakeEffects{}})
-	if !c.ClaimSession("ses_1") {
-		t.Fatal("first claim must succeed")
-	}
-	if c.ClaimSession("ses_1") {
-		t.Fatal("second claim on the same session must fail")
-	}
-	if !c.ActiveSession("ses_1") {
-		t.Fatal("a claimed session reads as active")
-	}
-	c.ReleaseSession("ses_1")
-	if c.ActiveSession("ses_1") {
-		t.Fatal("a released session is no longer active")
-	}
-}
-
-// TestCoordinatorStartAfterClose: once closed, Start admits no new run and tears
-// down the turn that was already created.
-func TestCoordinatorStartAfterClose(t *testing.T) {
-	exec := &fakeExecutor{block: true}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: &fakeEffects{}})
-	c.Close()
-
-	_, err := c.openSegment(context.Background(),
-		segmentSpec{RunID: "run_1", SessionID: "ses_1"},
-		func(SegmentView) Projector { return &fakeProjector{} })
-	if !errors.Is(err, ErrClosed) {
-		t.Fatalf("Start after Close = %v, want ErrClosed", err)
-	}
-	if exec.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1 (created turn torn down)", exec.cancels())
-	}
-}
-
-// TestCoordinatorCloseCancelsAndJoins: Close cancels an in-flight blocking run
-// and joins its pump; the run's stream drains to close.
 func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
-	exec := &fakeExecutor{block: true}
-	proj := &fakeProjector{
-		open:     []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
-		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("canceled")}},
-	}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: &fakeEffects{}})
-	events, err := c.openSegment(context.Background(),
-		segmentSpec{RunID: "run_1", SessionID: "ses_1"},
-		func(SegmentView) Projector { return proj })
+	executor := &fakeExecutor{block: true}
+	coordinator := testCoordinator(executor, &fakeEffects{})
+	stream, err := coordinator.openSegment(context.Background(), testSegment())
 	if err != nil {
-		t.Fatalf("Start: %v", err)
+		t.Fatalf("openSegment: %v", err)
 	}
-	if e := <-events; e.Payload != fakeProjection("started") { // run is live
-		t.Fatalf("first event = %v, want started", e.Payload)
-	}
+	<-stream
 
 	done := make(chan struct{})
-	go func() { c.Close(); close(done) }()
+	go func() {
+		coordinator.Close()
+		close(done)
+	}()
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("Close did not cancel + join the blocking run")
+		t.Fatal("Close did not cancel and join the segment pump")
 	}
-	for range events { // teardown synthesized the terminal, then closed the stream
+	collectEvents(stream)
+}
+
+func TestCoordinatorStartAfterClose(t *testing.T) {
+	executor := &fakeExecutor{}
+	coordinator := testCoordinator(executor, &fakeEffects{})
+	coordinator.Close()
+
+	_, err := coordinator.openSegment(context.Background(), testSegment())
+	if !errors.Is(err, ErrClosed) {
+		t.Fatalf("openSegment error = %v, want ErrClosed", err)
+	}
+	if executor.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
 	}
 }
 
-// TestCoordinatorInterruptPersistFailureAborts: when the interrupt's durable
-// commit fails, the pump aborts — it never publishes the interrupt, cancels the
-// turn, and terminalizes as error.
-func TestCoordinatorInterruptPersistFailureAborts(t *testing.T) {
-	exec := &fakeExecutor{events: []EngineEvent{MessageDelta{}}}
-	eff := &fakeEffects{commitErr: fmt.Errorf("store down")}
-	proj := &fakeProjector{
-		open: []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
-		translate: []ProjectedEvent{{
-			Durable: true, Terminal: true, Interrupt: true, Payload: fakeProjection("interrupt"),
-			Commit: &execution.EventCommit{SessionID: "ses_1", State: execution.StateSuspend},
-		}},
-		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("error")}},
-	}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
-	events, err := c.openSegment(context.Background(),
-		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
-		func(SegmentView) Projector { return proj })
+func TestCoordinatorBeginCancelSurvivesRequestContext(t *testing.T) {
+	executor := &fakeExecutor{block: true}
+	coordinator := testCoordinator(executor, &fakeEffects{})
+	requestContext, cancelRequest := context.WithCancel(context.Background())
+	stream, err := coordinator.openSegment(requestContext, testSegment())
 	if err != nil {
-		t.Fatalf("Start: %v", err)
+		t.Fatalf("openSegment: %v", err)
 	}
-	var payloads []any
-	for e := range events {
-		payloads = append(payloads, e.Payload)
-	}
-	if len(payloads) == 0 || payloads[len(payloads)-1] != fakeProjection("error") {
-		t.Fatalf("payloads = %v, want ending in an error terminal (interrupt never published)", payloads)
-	}
-	if exec.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1 (aborted turn canceled)", exec.cancels())
-	}
-	if proj.aborted == "" {
-		t.Fatal("projector Abort was not called with the commit error")
-	}
-}
+	<-stream
+	cancelRequest()
 
-// TestCoordinatorItemPersistFailureAborts proves commit-before-publish for a
-// durable non-terminal event (§7.2): when the item's atomic commit fails, the
-// pump aborts BEFORE publishing it — the item never reaches the stream, the turn
-// is canceled, and the run terminalizes as error. Under a live-first order the
-// item would already be on the stream (backed by no durable record); this test
-// would fail then, so it pins the ordering.
-func TestCoordinatorItemPersistFailureAborts(t *testing.T) {
-	exec := &fakeExecutor{events: []EngineEvent{MessageDelta{}}}
-	eff := &fakeEffects{commitErr: fmt.Errorf("store down")}
-	proj := &fakeProjector{
-		open:      []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
-		translate: []ProjectedEvent{{Durable: true, Payload: fakeProjection("item"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
-		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("error")}},
-	}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
-	events, err := c.openSegment(context.Background(),
-		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
-		func(SegmentView) Projector { return proj })
-	if err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	var payloads []any
-	for e := range events {
-		payloads = append(payloads, e.Payload)
-	}
-	for _, p := range payloads {
-		if p == fakeProjection("item") {
-			t.Fatalf("payloads = %v, want the item NEVER published (commit-before-publish)", payloads)
-		}
-	}
-	if len(payloads) == 0 || payloads[len(payloads)-1] != fakeProjection("error") {
-		t.Fatalf("payloads = %v, want ending in an error terminal", payloads)
-	}
-	if exec.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1 (aborted turn canceled)", exec.cancels())
-	}
-	if proj.aborted == "" {
-		t.Fatal("projector Abort was not called with the commit error")
-	}
-}
-
-// TestCoordinatorOpeningCommitFailureRejectsStart proves Start acknowledges only
-// after the opening admission and transcript projection commit. A failed opening
-// never registers a live run or returns a stream the client could mistake for an
-// accepted segment.
-func TestCoordinatorOpeningCommitFailureRejectsStart(t *testing.T) {
-	exec := &fakeExecutor{}
-	eff := &fakeEffects{openingErr: fmt.Errorf("store down")}
-	proj := &fakeProjector{
-		open: []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
-	}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
-
-	events, err := c.openSegment(context.Background(),
-		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
-		func(v SegmentView) Projector { proj.view = v; return proj })
-	if err == nil {
-		t.Fatal("Start must reject an uncommitted opening")
-	}
-	if events != nil {
-		t.Fatal("failed opening must not return an event stream")
-	}
-
-	if exec.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1 (opening-commit failure must cancel the turn)", exec.cancels())
-	}
-	if c.Contains("run_1") {
-		t.Fatal("opening-commit failure must remove the registry entry, not strand a busy session")
-	}
-	if eff.didFinish() {
-		t.Fatal("rejected opening must not run terminal maintenance")
-	}
-	if proj.aborted != "" {
-		t.Fatal("rejected opening must not synthesize an accepted run terminal")
-	}
-}
-
-// TestCoordinatorBeginCancelCleanupSurvivesRequest: the run outlives the request
-// that started it, so BeginCancel's cleanup context (rooted on the run's owner)
-// stays alive even after the request context is canceled.
-func TestCoordinatorBeginCancelCleanupSurvivesRequest(t *testing.T) {
-	exec := &fakeExecutor{block: true}
-	c := NewCoordinator(Dependencies{Segments: exec, Effects: &fakeEffects{}})
-	reqCtx, cancelReq := context.WithCancel(context.Background())
-	events, err := c.openSegment(reqCtx,
-		segmentSpec{RunID: "run_1", SessionID: "ses_1"},
-		func(SegmentView) Projector {
-			return &fakeProjector{open: []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}}}
-		})
-	if err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	<-events    // run is live
-	cancelReq() // the request ends; the run must survive it
-
-	binding, cleanupCtx, cancel, ok := c.BeginCancel(context.Background(), "run_1", "stop")
+	binding, cleanupContext, cancelCleanup, ok := coordinator.BeginCancel(context.Background(), "run_1", "stop")
 	if !ok {
-		t.Fatal("BeginCancel must find the live run")
+		t.Fatal("BeginCancel did not find the live run")
 	}
-	defer cancel()
-	if cleanupCtx.Err() != nil {
-		t.Fatalf("cleanup context canceled despite the run outliving the request: %v", cleanupCtx.Err())
+	defer cancelCleanup()
+	if cleanupContext.Err() != nil || binding.SessionID != "ses_1" || binding.TurnID != "turn_1" {
+		t.Fatalf("binding=%+v cleanup error=%v", binding, cleanupContext.Err())
 	}
-	if binding.SessionID != "ses_1" {
-		t.Fatalf("binding = %+v, want SessionID ses_1", binding)
-	}
-	c.Close()
-	for range events {
-	}
+	coordinator.Close()
+	collectEvents(stream)
 }

@@ -19,42 +19,20 @@ import (
 //
 // The whole guarded operation — single-writer + working-tree admission, working
 // tree restore, durable truncation — lives in the sessions coordinator
-// ([sessions.Coordinator.RollbackFiles]). This adapter owns only the wire: it
-// decodes the intent, resolves the boundary by decoding the wire-shaped run
-// blobs UNDER the coordinator's claimed slot (the [sessions.BoundaryResolver]),
-// and shapes the response from the dropped runs.
+// ([sessions.Coordinator.RollbackFiles]). This adapter only decodes the intent
+// and presents the canonical result; boundary resolution stays in application.
 func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
 	intent, err := rollbackIntentFromWire(in)
 	if err != nil {
 		return nil, err
 	}
 
-	var boundary transcript.Boundary
-	var refByID map[string]protocol.RunRef
-	var userByRun map[string][]protocol.ContentBlock
-	resolve := func(ctx context.Context) (transcript.Boundary, error) {
-		items, runs, err := s.queries.ListTranscript(ctx, in.SessionID)
-		if err != nil {
-			return transcript.Boundary{}, err
-		}
-		nodes, byID, err := runBoundaryNodes(runs)
-		if err != nil {
-			return transcript.Boundary{}, err
-		}
-		b, err := transcript.Timeline(nodes).BoundaryAt(in.ToRunID, true)
-		if err != nil {
-			return transcript.Boundary{}, wireBoundaryErr(err)
-		}
-		boundary, refByID, userByRun = b, byID, openingUserInputByRun(items)
-		return b, nil
-	}
-
-	ses, err := s.sessions.RollbackFiles(ctx, s.coordinator, sessions.RollbackSpec{
+	result, err := s.sessions.RollbackFiles(ctx, s.coordinator, sessions.RollbackSpec{
 		SessionID:      in.SessionID,
 		ToRunID:        in.ToRunID,
 		RestoreFiles:   intent.restoreFiles,
 		RestoreHistory: intent.restoreHistory,
-	}, resolve)
+	})
 	if err != nil {
 		return nil, wireRollbackErr(err, in.SessionID)
 	}
@@ -63,36 +41,24 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// re-populate the composer. Files-only rollback drops nothing from history.
 	out := []protocol.DroppedRun{}
 	if intent.restoreHistory {
-		for _, rec := range boundary.Dropped {
-			out = append(out, protocol.DroppedRun{Run: refByID[rec.ID], UserInput: userByRun[rec.ID]})
+		for _, dropped := range result.Dropped {
+			input := make([]protocol.ContentBlock, len(dropped.UserInput))
+			for i, block := range dropped.UserInput {
+				input[i] = presentContent(block)
+			}
+			out = append(out, protocol.DroppedRun{Run: presentRun(dropped.Run), UserInput: input})
 		}
 	}
-	sess := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
+	sess := s.sessionToWire(result.Session, s.liveStatus(ctx, result.Session.ID))
 	return &protocol.RollbackSessionResponse{Session: &sess, DroppedRuns: out}, nil
 }
 
 // RecoverRollbacks re-drives any file rollback a crash left unfinished (§8.5),
 // re-restoring the working tree + re-applying the durable truncation for each
 // logged intent. Called once at boot before the server serves, so no run
-// contends. It supplies the coordinator a boundary lookup that decodes the
-// wire-shaped run blobs — the wire knowledge that keeps the recovery loop in the
-// application layer without the coordinator learning the protocol.
+// contends. The coordinator resolves canonical transcript boundaries itself.
 func (s *Server) RecoverRollbacks(ctx context.Context) error {
-	return s.sessions.RecoverWorkspaceMutations(ctx, s.rollbackBoundary)
-}
-
-// rollbackBoundary rebuilds the durable rollback cut for a (sessionID, toRunID)
-// from the durable run records — the same decode the live rollback path runs.
-func (s *Server) rollbackBoundary(ctx context.Context, sessionID, toRunID string) (transcript.Boundary, error) {
-	runs, err := s.queries.ListTranscriptRuns(ctx, sessionID)
-	if err != nil {
-		return transcript.Boundary{}, err
-	}
-	nodes, _, err := runBoundaryNodes(runs)
-	if err != nil {
-		return transcript.Boundary{}, err
-	}
-	return transcript.Timeline(nodes).BoundaryAt(toRunID, true)
+	return s.sessions.RecoverWorkspaceMutations(ctx)
 }
 
 // wireRollbackErr maps the rollback coordinator's sentinels onto their wire
@@ -103,7 +69,22 @@ func wireRollbackErr(err error, sessionID string) error {
 		return fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, sessionID)
 	case errors.Is(err, sessions.ErrCheckpointUnavailable):
 		return protocol.ErrCheckpointUnavailable
+	case errors.Is(err, transcript.ErrRunNotFound):
+		return protocol.ErrRunNotFound
+	case errors.Is(err, transcript.ErrNotRoot):
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	default:
 		return wireSessionErr(err)
+	}
+}
+
+func wireBoundaryErr(err error) error {
+	switch {
+	case errors.Is(err, transcript.ErrRunNotFound):
+		return protocol.ErrRunNotFound
+	case errors.Is(err, transcript.ErrNotRoot):
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+	default:
+		return err
 	}
 }

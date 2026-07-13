@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // schedules.* (API.md §7.9) — manage the cron-triggered headless runs the
@@ -118,7 +118,7 @@ func scheduleCwdFromWire(cwd string) (string, error) {
 	if cwd == "" {
 		return "", nil
 	}
-	resolved, err := worktree.ResolveExistingDir(cwd)
+	resolved, err := workspacepath.ResolveExistingDir(cwd)
 	if err != nil {
 		return "", fmt.Errorf("%w: %s: %v", protocol.ErrCwdUnavailable, cwd, err)
 	}

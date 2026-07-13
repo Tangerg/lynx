@@ -125,14 +125,11 @@ func TestDomainHooksStayPure(t *testing.T) {
 }
 
 // TestDomainStaysFrameworkFree keeps every bounded context free of frameworks +
-// heavy runtime coupling (§19 "domain 不引入 I/O/framework"): no process exec, no
-// network, no database driver, and no external SDK/storage library. Path-string
-// helpers (path/filepath) and simple filesystem reads (os) are NOT forbidden here
-// — a handful of contexts (worktree/editguard path canon, recipes/skills project
-// dir resolution) still resolve paths; moving that residual fs coupling to an
-// adapter is a tracked §4.3 follow-up, not a framework dependency. The single
-// agent-SDK edge (accounting reads core.LLMInvocation token counts, a value type)
-// is a deliberate, documented exception and stays allowed.
+// heavy runtime coupling (§19 "domain 不引入 I/O/framework"): no filesystem or
+// process I/O, network, database driver, or external SDK/storage library.
+// Pure path-string composition via path/filepath remains allowed. The single
+// agent-SDK edge (accounting reads core.LLMInvocation token counts, a value
+// type) is a deliberate, documented exception and stays allowed.
 func TestDomainStaysFrameworkFree(t *testing.T) {
 	root := moduleRoot(t)
 	// componentPkg is banned here (not in frameworkImports) because application
@@ -320,6 +317,108 @@ func TestProtocolStaysWireOnly(t *testing.T) {
 		})
 }
 
+// TestCanonicalExecutionRecordsStayTyped prevents the old persistence design
+// from returning: transcript and interrupt records may be serialized by an
+// adapter, but their domain shape cannot contain an opaque Blob/Payload/JSON
+// field or json.RawMessage.
+func TestCanonicalExecutionRecordsStayTyped(t *testing.T) {
+	root := moduleRoot(t)
+	dirs := []string{
+		filepath.Join(root, "internal", "domain", "execution", "transcript"),
+		filepath.Join(root, "internal", "domain", "execution", "interrupts"),
+	}
+	for _, dir := range dirs {
+		walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+			if err != nil {
+				return err
+			}
+			for _, imp := range f.Imports {
+				if strings.Trim(imp.Path.Value, `"`) == "encoding/json" {
+					rel, _ := filepath.Rel(root, path)
+					t.Errorf("%s: canonical execution records must not depend on JSON", rel)
+				}
+			}
+			ast.Inspect(f, func(node ast.Node) bool {
+				field, ok := node.(*ast.Field)
+				if !ok {
+					return true
+				}
+				for _, name := range field.Names {
+					switch name.Name {
+					case "Blob", "Payload", "JSON":
+						rel, _ := filepath.Rel(root, path)
+						t.Errorf("%s: canonical execution field %s reintroduces an opaque persistence payload", rel, name.Name)
+					}
+				}
+				return true
+			})
+			return nil
+		})
+		if walkErr != nil {
+			t.Fatalf("walk %s: %v", dir, walkErr)
+		}
+	}
+}
+
+// TestRunReductionHasNoOuterProjectionSeam locks in the ownership cutover:
+// application/runs reduces EngineEvent into canonical RunEvent itself, and
+// delivery cannot recreate the former stateful Projector/translator or derive
+// durable side effects from protocol events.
+func TestRunReductionHasNoOuterProjectionSeam(t *testing.T) {
+	root := moduleRoot(t)
+	banned := map[string]struct{}{
+		"Projector": {}, "Projection": {}, "ProjectedEvent": {}, "SegmentView": {},
+		"sideEffectEvent": {}, "newTranslator": {}, "translator": {},
+	}
+	dirs := []string{
+		filepath.Join(root, "internal", "application", "runs"),
+		filepath.Join(root, "internal", "delivery", "server"),
+	}
+	for _, dir := range dirs {
+		walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+			if err != nil {
+				return err
+			}
+			for _, decl := range f.Decls {
+				switch decl := decl.(type) {
+				case *ast.FuncDecl:
+					if _, found := banned[decl.Name.Name]; found {
+						rel, _ := filepath.Rel(root, path)
+						t.Errorf("%s: obsolete run projection seam %s", rel, decl.Name.Name)
+					}
+				case *ast.GenDecl:
+					for _, spec := range decl.Specs {
+						if typ, ok := spec.(*ast.TypeSpec); ok {
+							if _, found := banned[typ.Name.Name]; found {
+								rel, _ := filepath.Rel(root, path)
+								t.Errorf("%s: obsolete run projection type %s", rel, typ.Name.Name)
+							}
+						}
+					}
+				}
+			}
+			return nil
+		})
+		if walkErr != nil {
+			t.Fatalf("walk %s: %v", dir, walkErr)
+		}
+	}
+}
+
 // receiverIsExported reports whether a method's receiver is a (pointer to an)
 // exported named type.
 func receiverIsExported(recv *ast.FieldList) bool {
@@ -359,7 +458,8 @@ var externalSDKs = []string{
 // never import. Prefix-matched, so e.g. "modernc.org/sqlite" catches the driver
 // and its sub-packages.
 var frameworkImports = []string{
-	"os/exec",
+	"os",
+	"io/fs",
 	"net",
 	"net/http",
 	"database/sql",

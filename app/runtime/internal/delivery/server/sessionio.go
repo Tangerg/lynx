@@ -16,8 +16,8 @@ import (
 
 // ExportSession serializes a session to a portable artifact (AUX_API §4.3).
 // format=json (default) produces a round-trippable SessionArtifact —
-// metadata + chat history + items + runs — that ImportSession restores
-// verbatim. format=md produces a human-readable transcript (not re-importable).
+// metadata + chat history + canonical items + runs — that ImportSession
+// restores. format=md produces a human-readable transcript (not re-importable).
 // Returned inline: lyra is a local loopback runtime, so there's no out-of-band
 // file channel nor a giant-payload concern.
 func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
@@ -62,14 +62,12 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	artRuns := make([]protocol.ArtifactRun, 0, len(runs))
 	for _, r := range runs {
 		artRuns = append(artRuns, protocol.ArtifactRun{
-			RunID: r.RunID, UpdatedAt: r.UpdatedAt, MessageMark: r.Mark, Run: r.Blob,
+			UpdatedAt: r.UpdatedAt, MessageMark: r.MessageMark, Run: presentRun(r),
 		})
 	}
 	artItems := make([]protocol.ArtifactItem, 0, len(items))
 	for _, it := range items {
-		artItems = append(artItems, protocol.ArtifactItem{
-			RunID: it.RunID, ItemID: it.ItemID, CreatedAt: it.CreatedAt, Item: it.Blob,
-		})
+		artItems = append(artItems, protocol.ArtifactItem{Item: presentItem(it)})
 	}
 
 	return &protocol.ExportSessionResponse{
@@ -86,8 +84,8 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 
 // ImportSession recreates a session from a SessionArtifact under its ORIGINAL
 // id (restore semantics): it upserts the session record, replaces any existing
-// history, then re-seeds the chat messages and re-persists the items + runs
-// verbatim. Re-importing the same artifact is idempotent; importing over an
+// history, then re-seeds the chat messages and re-persists the canonical items
+// and runs. Re-importing the same artifact is idempotent; importing over an
 // existing session restores it.
 func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
 	art := in.Artifact
@@ -130,15 +128,11 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	// replace it).
 	runs := make([]transcript.Run, 0, len(art.Runs))
 	for _, r := range art.Runs {
-		runs = append(runs, transcript.Run{
-			SessionID: id, RunID: r.RunID, UpdatedAt: r.UpdatedAt, Blob: r.Run, Mark: r.MessageMark,
-		})
+		runs = append(runs, canonicalRunFromWire(id, r.Run, r.UpdatedAt, r.MessageMark))
 	}
 	items := make([]transcript.Item, 0, len(art.Items))
 	for _, it := range art.Items {
-		items = append(items, transcript.Item{
-			SessionID: id, RunID: it.RunID, ItemID: it.ItemID, CreatedAt: it.CreatedAt, Blob: it.Item,
-		})
+		items = append(items, canonicalItemFromWire(id, it.Item))
 	}
 	if err := s.sessions.RestoreSession(ctx, artifactToSession(art.Session), msgs, runs, items); err != nil {
 		return nil, err
@@ -153,7 +147,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 }
 
 // artifactToSession maps the wire Session carried in an artifact back to the
-// domain session for a verbatim restore. The wire shape omits the
+// domain session. The wire shape omits the
 // delegation-lineage fields (Kind / ParentID); a restored session is a
 // standalone user-facing conversation, so Kind/ParentID stay empty.
 func artifactToSession(w protocol.Session) session.Session {
@@ -169,8 +163,8 @@ func artifactToSession(w protocol.Session) session.Session {
 }
 
 // renderSessionMarkdown produces a human-readable transcript of a session — a
-// header plus each item rendered by type. Best-effort: an item whose blob
-// can't be decoded is skipped. Not re-importable (use format=json for that).
+// header plus each canonical item rendered by type. It is not re-importable
+// (use format=json for that).
 func renderSessionMarkdown(ses protocol.Session, items []transcript.Item) string {
 	var b strings.Builder
 	title := ses.Title
@@ -187,10 +181,7 @@ func renderSessionMarkdown(ses protocol.Session, items []transcript.Item) string
 	b.WriteString("\n")
 
 	for _, raw := range items {
-		var it protocol.Item
-		if err := json.Unmarshal(raw.Blob, &it); err != nil {
-			continue
-		}
+		it := presentItem(raw)
 		switch it.Type {
 		case protocol.ItemTypeUserMessage:
 			fmt.Fprintf(&b, "## User\n\n%s\n\n", contentText(it))

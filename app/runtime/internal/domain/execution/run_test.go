@@ -2,7 +2,7 @@ package execution
 
 import "testing"
 
-var allStates = []RunState{Created, Running, Interrupted, Completed, Failed, Canceled}
+var allStates = []RunState{Running, Interrupted, Completed, Failed, Canceled}
 
 var allOutcomes = []Outcome{OutcomeCompleted, OutcomeCanceled, OutcomeError, OutcomeMaxBudget, OutcomeMaxSteps}
 
@@ -12,22 +12,6 @@ func TestIsTerminal(t *testing.T) {
 	for _, s := range allStates {
 		if got := s.IsTerminal(); got != terminal[s] {
 			t.Errorf("%s.IsTerminal() = %v, want %v", s, got, terminal[s])
-		}
-	}
-}
-
-// TestBegin: only Created advances (→ Running); every other state is a no-op
-// that reports false and leaves the state unchanged.
-func TestBegin(t *testing.T) {
-	for _, s := range allStates {
-		got, ok := s.Begin()
-		wantOK := s == Created
-		wantState := s
-		if wantOK {
-			wantState = Running
-		}
-		if got != wantState || ok != wantOK {
-			t.Errorf("%s.Begin() = (%s,%v), want (%s,%v)", s, got, ok, wantState, wantOK)
 		}
 	}
 }
@@ -108,9 +92,6 @@ func TestOutcomeTerminalState(t *testing.T) {
 // TestNoTransitionFromTerminal: once terminal, no operation advances the run.
 func TestNoTransitionFromTerminal(t *testing.T) {
 	for _, s := range []RunState{Completed, Failed, Canceled} {
-		if _, ok := s.Begin(); ok {
-			t.Errorf("%s.Begin() unexpectedly succeeded", s)
-		}
 		if _, ok := s.Suspend(); ok {
 			t.Errorf("%s.Suspend() unexpectedly succeeded", s)
 		}
@@ -151,14 +132,3 @@ func TestStringsAreDistinct(t *testing.T) {
 }
 
 // TestDurability pins the commit-before-publish predicate.
-func TestDurability(t *testing.T) {
-	if Live.MustCommitFirst() {
-		t.Error("Live.MustCommitFirst() = true, want false")
-	}
-	if !Durable.MustCommitFirst() {
-		t.Error("Durable.MustCommitFirst() = false, want true")
-	}
-	if Live.String() != "live" || Durable.String() != "durable" {
-		t.Errorf("durability strings = (%q,%q)", Live.String(), Durable.String())
-	}
-}

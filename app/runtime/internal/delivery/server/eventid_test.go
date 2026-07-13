@@ -17,9 +17,9 @@ import (
 // numeric, which the SSE replay path relies on.
 func TestMapRunEvents_FramesWireEventID(t *testing.T) {
 	in := make(chan runs.Event, 3)
-	in <- runs.Event{RunID: "run_1", Seq: "00000000001", Timestamp: time.Unix(0, 0)}
-	in <- runs.Event{RunID: "run_1", Seq: "00000000002", Timestamp: time.Unix(0, 0)}
-	in <- runs.Event{RunID: "run_1", Seq: "00000000010", Timestamp: time.Unix(0, 0)}
+	in <- runs.Event{RunID: "run_1", Seq: "00000000001", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}}
+	in <- runs.Event{RunID: "run_1", Seq: "00000000002", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}}
+	in <- runs.Event{RunID: "run_1", Seq: "00000000010", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}}
 	close(in)
 
 	var ids []string
@@ -58,7 +58,7 @@ func TestMapRunEvents_ExitsOnClientDisconnect(t *testing.T) {
 
 	// Hand the mapper one event; it reads it, then blocks on the wire send because
 	// no one drains the returned channel — the leak condition.
-	in <- runs.Event{RunID: "run_1", Seq: "00000000001", Timestamp: time.Unix(0, 0)}
+	in <- runs.Event{RunID: "run_1", Seq: "00000000001", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}}
 	cancel() // client disconnect must free the blocked mapper
 
 	deadline := time.Now().Add(2 * time.Second)

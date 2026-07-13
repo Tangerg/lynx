@@ -22,8 +22,8 @@ type ProcessStore struct {
 
 var _ core.ProcessStore = (*ProcessStore)(nil)
 
-// NewProcessStore binds the SQLite process-store to db. db must have been
-// opened via [Open] so the migration ran.
+// NewProcessStore binds the SQLite process-store to a database opened via
+// [Open].
 func NewProcessStore(db *sql.DB) *ProcessStore {
 	return &ProcessStore{db: db}
 }

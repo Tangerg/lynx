@@ -74,10 +74,10 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	}
 }
 
-// TestRunSegmentPublishesToolFileChange: a completed write/edit tool call
-// publishes a files.changed naming the exact (cwd-relative) path; shell,
-// errored, and non-tool items publish nothing.
-func TestRunSegmentPublishesToolFileChange(t *testing.T) {
+// TestRunEffectsNudgePublishesFileChange verifies the application nudge adapter
+// reaches the workspace event hub. Tool-item-to-nudge decisions belong to and
+// are tested in application/runs.
+func TestRunEffectsNudgePublishesFileChange(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
 	events, unsub := s.wsHub.subscribe()
 	defer unsub()
@@ -88,27 +88,7 @@ func TestRunSegmentPublishesToolFileChange(t *testing.T) {
 	s.wsHub.observe(fc)
 	effects := runsegment.New(runsegment.Config{PublishFileChanges: fc.Publish})
 
-	completed := func(name, path string, failed bool) protocol.StreamEvent {
-		it := &protocol.Item{
-			Type: protocol.ItemTypeToolCall, Status: protocol.ItemStatusCompleted,
-			Tool: &protocol.ToolInvocation{Name: name, Arguments: map[string]any{"file_path": path}},
-		}
-		if failed {
-			it.Error = &protocol.ProblemData{Type: "tool_failed"}
-		}
-		return protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: it}
-	}
-
-	// The nudge derived from a completed item is published via Effects.Nudge.
-	nudgeFrom := func(se protocol.StreamEvent) {
-		_, nudge := sideEffectEvent("run_1", "ses_1", "/proj", se, "", "", time.Time{})
-		if nudge != nil {
-			effects.Nudge(nudge.Cwd, nudge.Paths)
-		}
-	}
-
-	// write → files.changed{cwd, [path]}
-	nudgeFrom(completed("write", "src/a.go", false))
+	effects.Nudge("/proj", []string{"src/a.go"})
 	select {
 	case ev := <-events:
 		if ev.Type != "files.changed" || ev.Cwd != "/proj" || len(ev.Paths) != 1 || ev.Paths[0] != "src/a.go" {
@@ -118,19 +98,6 @@ func TestRunSegmentPublishesToolFileChange(t *testing.T) {
 		t.Fatal("write tool call must publish files.changed")
 	}
 
-	// shell, errored write, and a non-tool item → nothing.
-	for _, se := range []protocol.StreamEvent{
-		completed("shell", "whatever", false),
-		completed("write", "src/b.go", true),
-		{Type: protocol.StreamItemCompleted, Item: &protocol.Item{Type: protocol.ItemTypeAgentMessage}},
-	} {
-		nudgeFrom(se)
-	}
-	select {
-	case ev := <-events:
-		t.Fatalf("expected no further events, got %+v", ev)
-	default:
-	}
 }
 
 // TestWorkspaceSubscribe_MissingWatchID rejects a watch with no id.

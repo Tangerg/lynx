@@ -8,9 +8,8 @@
 // These are use-case orchestration, not protocol adaptation: keeping them here
 // (driven by the protocol adapter, which still owns wire decode and streaming
 // registry concerns) holds the "thin delivery" line and lets the write-sets be
-// tested without standing up the wire. The adapter lifts wire blobs into domain
-// values; the Coordinator decides and executes the multi-domain mutation
-// atomically.
+// tested without standing up the wire. The Coordinator reads canonical
+// transcript values, decides the mutation, and executes it atomically.
 package sessions
 
 import (
@@ -21,8 +20,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // SessionStore is the coordinator's consumer view of session persistence: the
@@ -47,6 +46,10 @@ type InterruptStore interface {
 	Get(ctx context.Context, runID string) (interrupts.Pending, bool, error)
 }
 
+type TranscriptStore interface {
+	List(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error)
+}
+
 // WriteSets are the atomic durable write-sets the coordinator commits through the
 // persistence adapter (§8.1): each applies its whole multi-store mutation in ONE
 // transaction, so the coordinator never stitches a transaction across table-CRUD
@@ -56,14 +59,14 @@ type WriteSets interface {
 	// ApplyFork branches a child session off the plan's parent, seeds its chat log
 	// with the resolved history prefix, and titles it — atomically — returning the
 	// created child.
-	ApplyFork(ctx context.Context, plan execution.ForkPlan) (session.Session, error)
+	ApplyFork(ctx context.Context, plan ForkPlan) (session.Session, error)
 	// ApplyRollback truncates the chat log to the boundary and drops each
 	// past-boundary run's transcript record + open interrupt, terminalizing an
 	// abandoned parked run's admission row — atomically.
-	ApplyRollback(ctx context.Context, plan execution.RollbackPlan) error
+	ApplyRollback(ctx context.Context, plan RollbackPlan) error
 	// ApplyRestore recreates a session under its original id and replaces its
 	// whole history (clear old + seed decoded messages/runs/items) — atomically.
-	ApplyRestore(ctx context.Context, plan execution.RestorePlan) error
+	ApplyRestore(ctx context.Context, plan RestorePlan) error
 	// ApplyDelete removes all of a session's durable state — transcript, chat log,
 	// open interrupts, admission rows, and the session row — atomically.
 	ApplyDelete(ctx context.Context, sessionID string) error
@@ -83,6 +86,7 @@ type Stores interface {
 	WriteSets
 	Session() SessionStore
 	Interrupts() InterruptStore
+	Transcript() TranscriptStore
 	// ReadHistory returns the chat history log for a session — read by fork to
 	// resolve the prefix seeded into the child.
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
@@ -146,6 +150,7 @@ type Turns interface {
 type Coordinator struct {
 	s     Stores
 	turns Turns
+	paths CwdResolver
 	// checkpoints resets the working tree to a run-boundary checkpoint for a file
 	// rollback and drops a deleted session's snapshots; nil disables both (file
 	// restore is rejected as [ErrCheckpointUnavailable], drop no-ops).
@@ -165,6 +170,7 @@ type Coordinator struct {
 type Dependencies struct {
 	Stores      Stores
 	Turns       Turns
+	Paths       CwdResolver
 	Checkpoints WorkspaceCheckpoints
 	Mutations   WorkspaceMutations
 }
@@ -177,6 +183,7 @@ func New(deps Dependencies) *Coordinator {
 	return &Coordinator{
 		s:           deps.Stores,
 		turns:       deps.Turns,
+		paths:       deps.Paths,
 		checkpoints: deps.Checkpoints,
 		mutations:   deps.Mutations,
 	}
@@ -185,7 +192,7 @@ func New(deps Dependencies) *Coordinator {
 // ClaimWorkingTreeRun reserves cwd's working tree for a run segment admission,
 // serializing it against any in-flight destructive mutation of the same tree.
 func (c *Coordinator) ClaimWorkingTreeRun(cwd string) (WorkingTreeAdmission, bool) {
-	return c.trees.ClaimRun(worktree.CanonicalCwd(cwd))
+	return c.trees.ClaimRun(cwd)
 }
 
 // AcquireWorkingTreeRun is the closure-based consumer seam used by
@@ -202,5 +209,5 @@ func (c *Coordinator) AcquireWorkingTreeRun(cwd string) (func(), bool) {
 // ClaimWorkingTreeMutation reserves exclusive access to cwd's working tree for a
 // destructive mutation such as file rollback.
 func (c *Coordinator) ClaimWorkingTreeMutation(cwd string) (WorkingTreeAdmission, bool) {
-	return c.trees.ClaimMutation(worktree.CanonicalCwd(cwd))
+	return c.trees.ClaimMutation(cwd)
 }

@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -53,10 +53,10 @@ func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore,
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: time.Unix(0, 0)}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := runs.Suspend(ctx, sessionID); err != nil {
+	if err := runs.Suspend(ctx, sessionID, runID); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	if err := ints.Put(ctx, interrupts.Pending{RunID: runID, SessionID: sessionID, Interrupts: json.RawMessage("[]"), CreatedAt: time.Unix(0, 0)}); err != nil {
+	if err := ints.Put(ctx, interrupts.Pending{RunID: runID, SessionID: sessionID, CreatedAt: time.Unix(0, 0)}); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
 }
@@ -87,8 +87,9 @@ func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
 	ctx := context.Background()
 	park(t, runs, ints, "ses_A", "run_1")
 
-	if err := ss.ApplyRollback(ctx, execution.RollbackPlan{
+	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID:  "ses_A",
+		RunID:      "run_1",
 		KeepMark:   -1,
 		DropRunIDs: []string{"run_1"},
 		Terminate:  true,
@@ -114,7 +115,7 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 		t.Fatalf("create parent: %v", err)
 	}
 
-	child, err := ss.ApplyFork(ctx, execution.ForkPlan{
+	child, err := ss.ApplyFork(ctx, sessions.ForkPlan{
 		ParentID: parent.ID,
 		Messages: []chat.Message{chat.NewUserMessage("hello")},
 		Title:    "Child",

@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 )
 
@@ -184,51 +183,6 @@ type QuestionOption struct {
 	Label       string `json:"label"`
 	Description string `json:"description,omitempty"`
 	Preview     string `json:"preview,omitempty"`
-}
-
-// NewToolInvocation constructs a ToolInvocation from raw JSON strings.
-// argsJSON is the model's raw arguments (JSON-encoded); it is parsed into
-// the structured Arguments map. outputJSON ("" before the tool completes)
-// is decoded as best-effort JSON into Result — name-based display shaping
-// (commandResult, searchHits, ...) lives in the server-side translator
-// and is applied after construction. Arguments is always a non-nil map.
-func NewToolInvocation(name, argsJSON, outputJSON string) *ToolInvocation {
-	inv := &ToolInvocation{Name: name, Arguments: ParseArgs(argsJSON)}
-	if inv.Arguments == nil {
-		inv.Arguments = map[string]any{}
-	}
-	if outputJSON != "" {
-		inv.Result = BestEffortJSON(outputJSON)
-	}
-	return inv
-}
-
-// ParseArgs decodes a tool call's JSON-encoded arguments into a
-// structured map. Returns nil when empty or unparseable — callers
-// normalize to the empty map {}.
-func ParseArgs(raw string) map[string]any {
-	if raw == "" {
-		return nil
-	}
-	var m map[string]any
-	if err := json.Unmarshal([]byte(raw), &m); err != nil {
-		return nil
-	}
-	return m
-}
-
-// BestEffortJSON decodes raw as JSON (object / array / scalar); when raw
-// isn't valid JSON, the string is returned as-is. Used for tool results
-// that don't have a richer display convention.
-func BestEffortJSON(raw string) any {
-	if raw == "" {
-		return nil
-	}
-	var v any
-	if err := json.Unmarshal([]byte(raw), &v); err != nil {
-		return raw
-	}
-	return v
 }
 
 // ToolInvocation is the domain-neutral tool envelope (API.md §4.4). The

@@ -3,7 +3,6 @@ package sessions
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
@@ -28,8 +27,9 @@ func (c *Coordinator) Rollback(ctx context.Context, sessionID string, boundary t
 	// A dropped parked run held the session's durable admission slot; the write-set
 	// terminalizes it (Terminate) so the session can start a fresh run afterward.
 	// The partial unique index guarantees at most one non-terminal row per session.
-	if err := c.s.ApplyRollback(ctx, execution.RollbackPlan{
+	if err := c.s.ApplyRollback(ctx, RollbackPlan{
 		SessionID:  sessionID,
+		RunID:      parkedRunID(parked),
 		KeepMark:   boundary.KeepMark,
 		DropRunIDs: dropRunIDs,
 		Terminate:  len(parked) > 0,
@@ -41,4 +41,11 @@ func (c *Coordinator) Rollback(ctx context.Context, sessionID string, boundary t
 	}
 	c.purgeChildrenAfter(ctx, sessionID, boundary.BoundaryTime)
 	return nil
+}
+
+func parkedRunID(parked []RunTurnBinding) string {
+	if len(parked) == 0 {
+		return ""
+	}
+	return parked[0].RunID
 }

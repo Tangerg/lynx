@@ -8,7 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -77,7 +76,7 @@ type mutationStores struct {
 	operations []string
 	fail       string
 	deleted    []string
-	restored   []execution.RestorePlan
+	restored   []RestorePlan
 	ints       *mutationInterrupts
 }
 
@@ -95,22 +94,23 @@ func (s *mutationStores) record(stage string) error {
 	return nil
 }
 
-func (s *mutationStores) Session() SessionStore      { panic("unused") }
-func (s *mutationStores) Interrupts() InterruptStore { return s.ints }
+func (s *mutationStores) Session() SessionStore       { panic("unused") }
+func (s *mutationStores) Interrupts() InterruptStore  { return s.ints }
+func (s *mutationStores) Transcript() TranscriptStore { return emptyTranscript{} }
 func (*mutationStores) ReadHistory(context.Context, string) ([]chat.Message, error) {
 	panic("unused")
 }
 func (s *mutationStores) ForgetSession(string) {
 	s.operations = append(s.operations, "session.forget")
 }
-func (*mutationStores) ApplyFork(context.Context, execution.ForkPlan) (session.Session, error) {
+func (*mutationStores) ApplyFork(context.Context, ForkPlan) (session.Session, error) {
 	panic("unused")
 }
 
-func (s *mutationStores) ApplyRollback(context.Context, execution.RollbackPlan) error {
+func (s *mutationStores) ApplyRollback(context.Context, RollbackPlan) error {
 	return s.record("apply.rollback")
 }
-func (s *mutationStores) ApplyRestore(_ context.Context, plan execution.RestorePlan) error {
+func (s *mutationStores) ApplyRestore(_ context.Context, plan RestorePlan) error {
 	if err := s.record("apply.restore"); err != nil {
 		return err
 	}

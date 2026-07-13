@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
@@ -256,6 +257,7 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 			tx:         cfg.Transactor,
 		},
 		Turns:       sessionsTurns{dispatcher: turnDispatcher},
+		Paths:       workspacepath.Resolver{},
 		Checkpoints: sessionCheckpoints{cp: checkpoints},
 		Mutations:   cfg.WorkspaceMutationStore,
 	})

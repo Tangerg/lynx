@@ -212,10 +212,12 @@ func TestSessionExportRejectsUnknownFormat(t *testing.T) {
 // TestSessionImport_VersionMismatch rejects an unrecognized artifact version.
 func TestSessionImport_VersionMismatch(t *testing.T) {
 	s, _ := rollbackHarness(t)
-	_, err := s.ImportSession(context.Background(), protocol.ImportSessionRequest{
-		Artifact: protocol.SessionArtifact{Version: 999, Session: protocol.Session{ID: "ses_x"}},
-	})
-	if !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Fatalf("version mismatch err = %v, want ErrInvalidParams", err)
+	for _, version := range []int{2, 999} {
+		_, err := s.ImportSession(context.Background(), protocol.ImportSessionRequest{
+			Artifact: protocol.SessionArtifact{Version: version, Session: protocol.Session{ID: "ses_x"}},
+		})
+		if !errors.Is(err, protocol.ErrInvalidParams) {
+			t.Fatalf("version %d mismatch err = %v, want ErrInvalidParams", version, err)
+		}
 	}
 }

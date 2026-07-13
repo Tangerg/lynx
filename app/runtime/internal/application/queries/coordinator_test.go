@@ -53,8 +53,8 @@ func (f *fakeInterrupts) List(_ context.Context, sessionID string) ([]interrupts
 func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 	ctx := context.Background()
 	tx := &fakeTranscript{
-		items: []transcript.Item{{ItemID: "it_1"}},
-		runs:  []transcript.Run{{RunID: "run_1"}},
+		items: []transcript.Item{{ID: "it_1"}},
+		runs:  []transcript.Run{{ID: "run_1"}},
 	}
 	hist := &fakeHistory{msgs: []chat.Message{chat.NewUserMessage("hi")}}
 	ints := &fakeInterrupts{pending: []interrupts.Pending{{RunID: "run_1"}}}

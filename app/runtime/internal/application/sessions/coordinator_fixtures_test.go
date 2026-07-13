@@ -5,8 +5,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -14,26 +14,27 @@ type coordinatorStores struct {
 	interrupts *coordinatorInterrupts
 }
 
-func (s coordinatorStores) Session() SessionStore      { panic("unused") }
-func (s coordinatorStores) Interrupts() InterruptStore { return s.interrupts }
+func (s coordinatorStores) Session() SessionStore       { panic("unused") }
+func (s coordinatorStores) Interrupts() InterruptStore  { return s.interrupts }
+func (s coordinatorStores) Transcript() TranscriptStore { return emptyTranscript{} }
 func (s coordinatorStores) ReadHistory(context.Context, string) ([]chat.Message, error) {
 	panic("unused")
 }
 func (s coordinatorStores) ForgetSession(string) {}
-func (s coordinatorStores) ApplyFork(context.Context, execution.ForkPlan) (session.Session, error) {
+func (s coordinatorStores) ApplyFork(context.Context, ForkPlan) (session.Session, error) {
 	panic("unused")
 }
 
 // The atomic write-sets delegate their interrupt drops to the interrupt fake so
 // the coordinator tests observe them (the run-state transition an ApplyCancel /
 // ApplyRollback also commits is verified at the sqlite/bootstrap level).
-func (s coordinatorStores) ApplyRollback(ctx context.Context, plan execution.RollbackPlan) error {
+func (s coordinatorStores) ApplyRollback(ctx context.Context, plan RollbackPlan) error {
 	for _, runID := range plan.DropRunIDs {
 		_ = s.interrupts.Delete(ctx, runID)
 	}
 	return nil
 }
-func (s coordinatorStores) ApplyRestore(context.Context, execution.RestorePlan) error { return nil }
+func (s coordinatorStores) ApplyRestore(context.Context, RestorePlan) error { return nil }
 func (s coordinatorStores) ApplyDelete(ctx context.Context, sessionID string) error {
 	pending, _ := s.interrupts.List(ctx, sessionID)
 	for _, p := range pending {
@@ -132,4 +133,10 @@ func (t stubTurns) Cancel(_ context.Context, ref RunRef) error {
 // newCoordinator builds a Coordinator over test stores and turns.
 func newCoordinator(stores Stores, turns Turns) *Coordinator {
 	return New(Dependencies{Stores: stores, Turns: turns})
+}
+
+type emptyTranscript struct{}
+
+func (emptyTranscript) List(context.Context, string) ([]transcript.Item, []transcript.Run, error) {
+	return nil, nil, nil
 }

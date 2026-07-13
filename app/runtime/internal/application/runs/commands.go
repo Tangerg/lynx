@@ -31,9 +31,7 @@ var (
 	ErrInvalidTurnOptions       = errors.New("runs: invalid turn options")
 )
 
-// StartCommand is the protocol-neutral runs.start use case input. NewProjector
-// is the temporary Batch-1 projection seam; all lifecycle and executor inputs
-// are canonical application values.
+// StartCommand is the protocol-neutral runs.start use case input.
 type StartCommand struct {
 	SessionID       string
 	DefaultCwd      string
@@ -48,7 +46,7 @@ type StartCommand struct {
 	Options         *corechat.Options
 	InterruptKinds  []string
 	OpeningUserText string
-	NewProjector    ProjectorFactory
+	Input           []ContentBlock
 }
 
 // ResumeCommand is the protocol-neutral runs.resume use case input.
@@ -56,7 +54,6 @@ type ResumeCommand struct {
 	RunID          string
 	Resolution     interrupts.Resolution
 	InterruptKinds []string
-	NewProjector   ProjectorFactory
 }
 
 // CancelCommand abandons a live or parked run.
@@ -74,10 +71,11 @@ type SteerCommand struct {
 // StartResult identifies the admitted segment and exposes its application
 // event stream. Delivery only maps this result to protocol DTOs.
 type StartResult struct {
-	RunID     string
-	SegmentID string
-	SessionID string
-	Events    <-chan Event
+	RunID      string
+	SegmentID  string
+	SessionID  string
+	UserItemID string
+	Events     <-chan Event
 }
 
 // Validate checks the transport-neutral turn invariants before any session is

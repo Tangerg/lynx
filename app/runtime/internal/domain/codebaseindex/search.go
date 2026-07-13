@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // Available reports whether an embedding model is configured.
@@ -23,7 +21,6 @@ func (ix *Indexer) Search(ctx context.Context, cwd, query string, topK int) ([]H
 	if topK <= 0 {
 		topK = defaultTopK
 	}
-	cwd = worktree.CanonicalCwd(cwd)
 	if err := ix.EnsureIndexed(ctx, cwd); err != nil {
 		return nil, err
 	}
@@ -51,7 +48,6 @@ func (ix *Indexer) Search(ctx context.Context, cwd, query string, topK int) ([]H
 // Status reports cwd's current index state — the live in-memory status, falling
 // back to the persisted meta on a cold process.
 func (ix *Indexer) Status(ctx context.Context, cwd string) (Status, error) {
-	cwd = worktree.CanonicalCwd(cwd)
 	ix.mu.Lock()
 	s, ok := ix.status[cwd]
 	ix.mu.Unlock()

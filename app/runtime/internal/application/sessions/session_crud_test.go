@@ -8,9 +8,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 type crudSessionStore struct {
@@ -79,19 +78,20 @@ type crudStores struct {
 
 func (s *crudStores) Session() SessionStore                                     { return s.session }
 func (*crudStores) Interrupts() InterruptStore                                  { panic("unused") }
+func (*crudStores) Transcript() TranscriptStore                                 { return emptyTranscript{} }
 func (*crudStores) ReadHistory(context.Context, string) ([]chat.Message, error) { panic("unused") }
 func (*crudStores) ForgetSession(string)                                        {}
-func (*crudStores) ApplyFork(context.Context, execution.ForkPlan) (session.Session, error) {
+func (*crudStores) ApplyFork(context.Context, ForkPlan) (session.Session, error) {
 	panic("unused")
 }
-func (*crudStores) ApplyRollback(context.Context, execution.RollbackPlan) error { panic("unused") }
-func (*crudStores) ApplyRestore(context.Context, execution.RestorePlan) error   { panic("unused") }
-func (*crudStores) ApplyDelete(context.Context, string) error                   { panic("unused") }
-func (*crudStores) ApplyCancel(context.Context, string, string) error           { panic("unused") }
+func (*crudStores) ApplyRollback(context.Context, RollbackPlan) error { panic("unused") }
+func (*crudStores) ApplyRestore(context.Context, RestorePlan) error   { panic("unused") }
+func (*crudStores) ApplyDelete(context.Context, string) error         { panic("unused") }
+func (*crudStores) ApplyCancel(context.Context, string, string) error { panic("unused") }
 
 func newCRUDCoordinator(store *crudSessionStore) (*Coordinator, *crudStores) {
 	stores := &crudStores{session: store}
-	return New(Dependencies{Stores: stores}), stores
+	return New(Dependencies{Stores: stores, Paths: workspacepath.Resolver{}}), stores
 }
 
 func TestCoordinatorSessionCRUD(t *testing.T) {
@@ -120,7 +120,7 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if created.ID != "ses_created" || store.createTitle != "New" || store.createCwd != worktree.CanonicalCwd(createCwd) {
+	if created.ID != "ses_created" || store.createTitle != "New" || store.createCwd != workspacepath.Canonical(createCwd) {
 		t.Fatalf("created=%+v title=%q cwd=%q", created, store.createTitle, store.createCwd)
 	}
 }
@@ -155,7 +155,7 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	if store.model != ([2]string{"ses_1", model}) {
 		t.Fatalf("model = %v", store.model)
 	}
-	if store.cwd != ([2]string{"ses_1", worktree.CanonicalCwd(cwd)}) {
+	if store.cwd != ([2]string{"ses_1", workspacepath.Canonical(cwd)}) {
 		t.Fatalf("cwd = %v", store.cwd)
 	}
 	if store.metadataID != "ses_1" || store.metadata["pinned"] != true {

@@ -41,14 +41,26 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		Options:         options,
 		InterruptKinds:  interruptKindsFromContext(ctx),
 		OpeningUserText: userMessageText(in.Input),
-		NewProjector:    s.segmentProjector(in.Input),
+		Input:           runInputFromWire(in.Input),
 	})
 	if err != nil {
 		return nil, nil, wireRunStartErr(err)
 	}
 	// Return the opening userMessage Item id so the client reconciles its
 	// optimistic bubble by exact id (same id the stream + items.list carry).
-	return &protocol.StartRunResponse{RunID: result.RunID, SegmentID: result.SegmentID, UserItemID: userMessageItemID(result.SegmentID)}, mapRunEvents(ctx, result.Events), nil
+	return &protocol.StartRunResponse{RunID: result.RunID, SegmentID: result.SegmentID, UserItemID: result.UserItemID}, mapRunEvents(ctx, result.Events), nil
+}
+
+func runInputFromWire(blocks []protocol.ContentBlock) []runs.ContentBlock {
+	input := make([]runs.ContentBlock, len(blocks))
+	for i, block := range blocks {
+		kind := runs.TextContent
+		if block.Type == protocol.ContentBlockImage {
+			kind = runs.ImageContent
+		}
+		input[i] = runs.ContentBlock{Kind: kind, Text: block.Text, Mime: block.Mime, Data: block.Data}
+	}
+	return input
 }
 
 func wireRunStartErr(err error) error {

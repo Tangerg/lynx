@@ -8,7 +8,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // Start validates and resolves the session, claims the session and working
@@ -70,27 +69,18 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 
 	runID, segmentID := c.newRunID(), c.newSegmentID()
 	createdAt := c.now().UTC()
-	pctx := ProjectorContext{
-		RunID: runID, SegmentID: segmentID, SessionID: sess.ID,
-		Cwd: worktree.CanonicalCwd(sess.Cwd), TurnID: turn.TurnID,
-		Provider: cmd.Provider, Model: cmd.Model, CreatedAt: createdAt,
-	}
 	events, err := c.openSegment(ctx, segmentSpec{
 		RunID:           runID,
 		SegmentID:       segmentID,
 		SessionID:       sess.ID,
-		Cwd:             pctx.Cwd,
+		Cwd:             sess.Cwd,
 		TurnID:          turn.TurnID,
 		Handle:          turn.Handle,
 		Provider:        cmd.Provider,
 		Model:           cmd.Model,
 		CreatedAt:       createdAt,
 		OpeningUserText: cmd.OpeningUserText,
-	}, func(view SegmentView) Projector {
-		if cmd.NewProjector == nil {
-			return nil
-		}
-		return cmd.NewProjector(pctx, view)
+		Input:           cmd.Input,
 	})
 	if err != nil {
 		if errors.Is(err, execution.ErrSessionBusy) {
@@ -100,7 +90,10 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	}
 	releaseTree()
 	releaseTreeOnReturn = false
-	return StartResult{RunID: runID, SegmentID: segmentID, SessionID: sess.ID, Events: events}, nil
+	return StartResult{
+		RunID: runID, SegmentID: segmentID, SessionID: sess.ID,
+		UserItemID: userMessageItemID(segmentID), Events: events,
+	}, nil
 }
 
 // Resume claims the parked run's session, prepares or rehydrates its turn,
@@ -144,30 +137,20 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	segmentID := c.newSegmentID()
 	createdAt := pending.RunCreatedAt
 	pendingCopy := pending
-	pctx := ProjectorContext{
-		RunID: cmd.RunID, SegmentID: segmentID, SessionID: pending.SessionID,
-		Cwd: worktree.CanonicalCwd(sess.Cwd), TurnID: turn.TurnID,
-		Provider: pending.Provider, Model: pending.Model, CreatedAt: createdAt,
-		Pending: &pendingCopy,
-	}
 	events, err := c.openSegment(ctx, segmentSpec{
 		RunID:     cmd.RunID,
 		SegmentID: segmentID,
 		SessionID: pending.SessionID,
-		Cwd:       pctx.Cwd,
+		Cwd:       sess.Cwd,
 		TurnID:    turn.TurnID,
 		Handle:    turn.Handle,
 		Provider:  pending.Provider,
 		Model:     pending.Model,
 		CreatedAt: createdAt,
+		Pending:   &pendingCopy,
 		Activate: func(activateCtx context.Context) error {
 			return c.turns.Resume(activateCtx, turn, cmd.Resolution, cmd.InterruptKinds)
 		},
-	}, func(view SegmentView) Projector {
-		if cmd.NewProjector == nil {
-			return nil
-		}
-		return cmd.NewProjector(pctx, view)
 	})
 	if err != nil {
 		return StartResult{}, err
@@ -188,7 +171,7 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 	if live {
 		defer cancel()
 		_ = c.turns.Cancel(cleanupCtx, TurnRef{SessionID: binding.SessionID, TurnID: binding.TurnID})
-		return c.sessions.ApplyRunCancel(cleanupCtx, binding.SessionID, cmd.RunID)
+		return nil
 	}
 
 	pending, found, err := c.sessions.GetOpenInterrupt(ctx, cmd.RunID)

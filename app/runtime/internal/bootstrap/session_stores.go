@@ -37,8 +37,9 @@ type sessionStores struct {
 	tx         Transactor
 }
 
-func (s sessionStores) Session() sessions.SessionStore      { return s.sessions }
-func (s sessionStores) Interrupts() sessions.InterruptStore { return s.interrupts }
+func (s sessionStores) Session() sessions.SessionStore       { return s.sessions }
+func (s sessionStores) Interrupts() sessions.InterruptStore  { return s.interrupts }
+func (s sessionStores) Transcript() sessions.TranscriptStore { return s.transcript }
 
 func (s sessionStores) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
 	return s.history.Read(ctx, sessionID)
@@ -61,7 +62,7 @@ func (s sessionStores) runInTx(ctx context.Context, fn func(context.Context) err
 // ApplyFork branches a child session off plan.ParentID, seeds its chat log with
 // the resolved history prefix, and titles it — all in one transaction, so a
 // concurrent delete on the parent can't race a half-created child.
-func (s sessionStores) ApplyFork(ctx context.Context, plan execution.ForkPlan) (session.Session, error) {
+func (s sessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
 	var child session.Session
 	err := s.runInTx(ctx, func(ctx context.Context) error {
 		ch, err := s.sessions.Fork(ctx, plan.ParentID, "")
@@ -89,7 +90,7 @@ func (s sessionStores) ApplyFork(ctx context.Context, plan execution.ForkPlan) (
 // ApplyRollback truncates the chat log to the boundary watermark, drops each
 // past-boundary run's transcript record + open interrupt, and terminalizes an
 // abandoned parked run's admission row — all in one transaction (§8.1/§8.3).
-func (s sessionStores) ApplyRollback(ctx context.Context, plan execution.RollbackPlan) error {
+func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		if plan.KeepMark >= 0 {
 			if err := s.history.Truncate(ctx, plan.SessionID, plan.KeepMark); err != nil {
@@ -108,7 +109,7 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan execution.Rollbac
 			}
 		}
 		if plan.Terminate {
-			return s.runs.Terminalize(ctx, plan.SessionID, execution.OutcomeCanceled)
+			return s.runs.Terminalize(ctx, plan.SessionID, plan.RunID, execution.OutcomeCanceled)
 		}
 		return nil
 	})
@@ -117,7 +118,7 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan execution.Rollbac
 // ApplyRestore recreates a session under its original id and replaces its whole
 // history atomically: clear the old interrupts / admission rows / transcript /
 // chat log, then seed the decoded messages, runs, and items.
-func (s sessionStores) ApplyRestore(ctx context.Context, plan execution.RestorePlan) error {
+func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePlan) error {
 	id := plan.Session.ID
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		if err := s.sessions.Restore(ctx, plan.Session); err != nil {
@@ -180,7 +181,7 @@ func (s sessionStores) ApplyCancel(ctx context.Context, sessionID, runID string)
 		if err := s.interrupts.Delete(ctx, runID); err != nil {
 			return err
 		}
-		return s.runs.Terminalize(ctx, sessionID, execution.OutcomeCanceled)
+		return s.runs.Terminalize(ctx, sessionID, runID, execution.OutcomeCanceled)
 	})
 }
 

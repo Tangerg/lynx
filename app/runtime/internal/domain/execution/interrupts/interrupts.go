@@ -14,8 +14,9 @@
 package interrupts
 
 import (
-	"encoding/json"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // Pending is one parked run awaiting a human decision. RunID is the STABLE
@@ -23,9 +24,8 @@ import (
 // whole park/resume history, never a per-segment one; TurnID is the runtime's
 // internal handle for the live process the resume drives; ProcessID is the
 // agent-process snapshot key used to REBUILD that process after a restart (the
-// live TurnID is gone then). Interrupts is the wire payload (one entry per
-// pending awaitable), stored opaquely as JSON so this package stays free of a
-// protocol-type dependency. DrainedTools is the backend-private half of the
+// live TurnID is gone then). Interrupts is the canonical typed set of pending
+// awaitables. DrainedTools is the backend-private half of the
 // park: resume bookkeeping the client never sees.
 type Pending struct {
 	RunID     string
@@ -39,7 +39,7 @@ type Pending struct {
 	// process holds its client in memory, so same-process resume ignores these.
 	Provider     string
 	Model        string
-	Interrupts   json.RawMessage
+	Interrupts   []transcript.Interrupt
 	DrainedTools []DrainedTool
 	// RunCreatedAt is the RUN's original start time, carried unchanged across
 	// every resume. A resume continuation stamps it back onto the run's durable

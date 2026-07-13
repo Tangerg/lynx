@@ -24,8 +24,8 @@ type TodoStore struct {
 
 var _ todo.Store = (*TodoStore)(nil)
 
-// NewTodoStore wires the *sql.DB (opened via [Open], so the migration ran)
-// to the todo.Store surface.
+// NewTodoStore wires a database with the current [Open]-installed schema to the
+// todo.Store surface.
 func NewTodoStore(db *sql.DB) *TodoStore {
 	return &TodoStore{db: db}
 }

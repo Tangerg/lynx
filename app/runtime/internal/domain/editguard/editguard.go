@@ -14,7 +14,6 @@ package editguard
 import (
 	"crypto/sha256"
 	"fmt"
-	"os"
 	"sync"
 )
 
@@ -31,48 +30,42 @@ type Tracker struct {
 }
 
 type stamp struct {
-	hash    [32]byte
+	hash    Fingerprint
 	partial bool // only a line range was read → not safe to overwrite wholesale
 }
+
+// Fingerprint is a content identity supplied by the filesystem adapter. The
+// domain compares fingerprints; it never opens files itself.
+type Fingerprint [32]byte
+
+// FingerprintOf computes the stable content identity used by the guard.
+func FingerprintOf(content []byte) Fingerprint { return sha256.Sum256(content) }
 
 func NewTracker() *Tracker {
 	return &Tracker{seen: map[string]map[string]stamp{}}
 }
 
-// Record stamps abs as read by session, hashing its current content; partial
-// marks a range-only read (a whole-file overwrite then needs a full read). A
-// file that can't be hashed now is silently skipped — there's nothing to guard.
-func (t *Tracker) Record(session, abs string, partial bool) {
-	h, err := hashFile(abs)
-	if err != nil {
-		return
-	}
-	t.put(session, abs, stamp{hash: h, partial: partial})
+// Record stamps path as read by session. partial marks a range-only read (a
+// whole-file overwrite then needs a full read).
+func (t *Tracker) Record(session, path string, fingerprint Fingerprint, partial bool) {
+	t.put(session, path, stamp{hash: fingerprint, partial: partial})
 }
 
-// Refresh re-stamps abs from its current content (a full view), called after a
+// Refresh re-stamps path from its current content (a full view), called after a
 // successful edit/write so consecutive edits to the same file in a turn don't
 // trip the guard.
-func (t *Tracker) Refresh(session, abs string) {
-	if h, err := hashFile(abs); err == nil {
-		t.put(session, abs, stamp{hash: h})
-	}
+func (t *Tracker) Refresh(session, path string, fingerprint Fingerprint) {
+	t.put(session, path, stamp{hash: fingerprint})
 }
 
-// Check reports whether abs may be modified by session. requireFull adds the
-// partial-view rule (a whole-file overwrite needs a whole-file read). A file
-// that can't be hashed now passes, so the underlying tool surfaces its own,
-// more specific error.
-func (t *Tracker) Check(session, abs string, requireFull bool) Result {
-	st, ok := t.get(session, abs)
+// Check reports whether path may be modified by session. requireFull adds the
+// partial-view rule (a whole-file overwrite needs a whole-file read).
+func (t *Tracker) Check(session, path string, current Fingerprint, requireFull bool) Result {
+	st, ok := t.get(session, path)
 	if !ok {
 		return resultMissing
 	}
-	cur, err := hashFile(abs)
-	if err != nil {
-		return resultOK
-	}
-	if cur != st.hash {
+	if current != st.hash {
 		return resultStale
 	}
 	if requireFull && st.partial {
@@ -124,12 +117,4 @@ func (r Result) Message(path, verb string) string {
 	default:
 		return ""
 	}
-}
-
-func hashFile(abs string) ([32]byte, error) {
-	data, err := os.ReadFile(abs)
-	if err != nil {
-		return [32]byte{}, err
-	}
-	return sha256.Sum256(data), nil
 }

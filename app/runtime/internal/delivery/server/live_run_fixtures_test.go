@@ -89,7 +89,7 @@ func startLiveRun(t *testing.T, s *Server, cwd string) string {
 		SessionID:       sess.ID,
 		Message:         "hold this run open",
 		OpeningUserText: "hold this run open",
-		NewProjector:    s.segmentProjector(nil),
+		Input:           []runs.ContentBlock{{Kind: runs.TextContent, Text: "hold this run open"}},
 	})
 	if err != nil {
 		t.Fatalf("start live run: %v", err)

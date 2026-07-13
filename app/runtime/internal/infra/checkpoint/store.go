@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // Store manages the shadow repos for every session. Safe for concurrent use:
@@ -31,7 +29,7 @@ func NewStore(dir string) *Store { return &Store{root: dir} }
 // lockFor returns the mutex serializing git ops on one working tree (keyed by
 // the canonical cwd, the shared resource — see [Store]).
 func (s *Store) lockFor(cwd string) *sync.Mutex {
-	mu, _ := s.locks.LoadOrStore(worktree.CanonicalCwd(cwd), &sync.Mutex{})
+	mu, _ := s.locks.LoadOrStore(cwd, &sync.Mutex{})
 	return mu.(*sync.Mutex)
 }
 
