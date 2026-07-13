@@ -3,7 +3,7 @@
 > 状态：完成
 > 建立日期：2026-07-13  
 > 完成 checkpoint：`a94e63b91`（`codex/runtime-architecture-refactor`）
-> 最近审查修复 checkpoint：`75adcec22`
+> 最近审查修复 checkpoint：`a03c123e3`
 > 目标架构基准：[EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md)
 
 ## 0. 文档职责
@@ -525,13 +525,14 @@ AST 无法可靠判断的语义规则，应通过编译期类型封闭、package
 | Batch 4 | 纯化、fitness tests、最终清理 | 已完成 | 100% | 无 | `a94e63b91`；domain I/O 迁移、architecture tests、full/race/frontend 验收 |
 | Post-audit | Go 审查发现的不变量、并发与资源边界修复 | 已完成 | 100% | 无 | `7ff31775f`；strict artifact/identity、lossless Journal、bounded health probe、full race |
 | Post-audit II | 便携快照、parked cancel、interrupt 与 rollback 子树边界 | 已完成 | 100% | 无 | `75adcec22`；atomic snapshot/cancel/subtask rollback、detached cleanup、full race |
+| Post-audit III | durable recovery、park batch、ProcessSnapshot 与 Session 子树 admission | 已完成 | 100% | 无 | `a03c123e3`；atomic park batch、durable `run_lost`、snapshot lifecycle、full race |
 
 ### 10.2 当前执行指针
 
 ```text
-Current batch: complete (including two post-convergence audit remediations)
+Current batch: complete (including three post-convergence audit remediations)
 Current sub-step: none
-Last completed code checkpoint: 75adcec22
+Last completed code checkpoint: a03c123e3
 Next required gate: none
 ```
 
@@ -564,11 +565,7 @@ go test <affected-packages>
 go build ./...
 go vet ./...
 go test ./...
-go test -race \
-  ./internal/application/runs \
-  ./internal/application/sessions \
-  ./internal/adapter/runsegment \
-  ./internal/delivery/server
+go test -race ./...
 ```
 
 同时执行：
@@ -652,6 +649,9 @@ Batch 4
 | RunID CAS 过严暴露旧竞态 | Batch 3 | 旧代码测试失败 | 不放宽 CAS；修复错误 owner/ordering 根因 |
 | domain I/O 迁移造成过度抽象 | Batch 4 | 接口膨胀 | 只为真实 I/O 边界定义 consumer interface |
 | AST 规则过度脆弱 | Batch 4 | 正确重构被字符串规则阻塞 | 优先类型封闭和编译依赖，AST 只查稳定结构 |
+| park batch 被拆分提交或发布 | Post-audit III | durable timeline 缺少 interrupt item，cancel 可观察到半成品 | 在 cancel linearization 内原子提交并发布完整 park batch；真实 SQLite contract test |
+| 启动时保留不可恢复的 Interrupted Run | Post-audit III | admission 永久占用或 resume 指向无效进程 | 校验完整 parked boundary 与 ProcessSnapshot；外部丢失持久化为 `run_lost` |
+| 删除/rollback 子树时子 Session 启动 Run | Post-audit III | 活跃执行被删除或工作区部分恢复 | 文件 mutation 前 claim 完整 KindSubtask 子树；删除与 snapshot cleanup 同事务 |
 
 ## 15. 决策日志
 
@@ -674,6 +674,10 @@ Batch 4
 | D-013 | 2026-07-13 | Session artifact 只表达 idle Session 的 terminal transcript；导出先占 admission 并在一个事务中读取完整快照，导入拒绝 running/interrupt Run | artifact 不携带 admission、parked executor 或 ProcessSnapshot；接受非终态只会生成无法恢复的孤儿状态，分次读取也不能保证 round-trip 自洽 | 已接受并实施 |
 | D-014 | 2026-07-13 | Parked cancel 必须原子提交 canceled Run、incomplete interrupt items、terminal watermark/result 与 interrupt/admission 关闭；未知或 malformed executor interrupt fail closed 为 error terminal | 只删除 interrupt/admission 会留下幽灵 Interrupted transcript；把未知 kind 强制当 question 会把 adapter 错误持久化为合法业务状态 | 已接受并实施 |
 | D-015 | 2026-07-13 | Rollback 只删除归属于 dropped window 的 KindSubtask 子树，并把子树删除并入父 rollback write-set；用户 fork 永远保留 | ParentID 同时承载 fork/subtask lineage，按 ParentID best-effort 递归会误删用户 fork，吞错还会留下半删子树 | 已接受并实施 |
+| D-016 | 2026-07-13 | Park 是一个完整 aggregate boundary：running interrupt items、Interrupted Run、Pending Interrupt、admission suspend 与 ProcessSnapshot reference 必须作为一个 write-set 提交，并在 cancel linearization 内整批发布 | 只提交最终 interrupt projection 会丢失此前 `ItemStarted` 事实；分项发布会让并发 cancel 观察到不可解释的半个 park | 已接受并实施 |
+| D-017 | 2026-07-13 | 启动恢复必须修复 durable truth：只保留 transcript、interrupt、admission 与可用 ProcessSnapshot 完全自洽的 parked boundary；外部进程丢失持久化为 `run_lost`，不可能由原子写集产生的内部矛盾则启动失败 | read path 临时伪造 `run_lost` 会让不同客户端看到不同事实，也会掩盖数据库不变量破坏 | 已接受并实施 |
+| D-018 | 2026-07-13 | ProcessSnapshot 属于 parked Run 的资源生命周期；cancel/delete/rollback/recovery 必须在同一 SQLite write-set 清理引用快照，parked cancel 先提交 durable terminal 再做进程侧 best-effort teardown | 先删进程快照再提交 cancel 会在事务失败时留下仍开放但不可恢复的 interrupt | 已接受并实施 |
+| D-019 | 2026-07-13 | Session 用例自己拥有 admission：restore 在 Application 内 claim；fork 读取一致快照；delete/rollback 在任何文件 mutation 前 claim 全部待删除 KindSubtask 后代 | 把 claim 留给 Delivery 或分次读取/逐层删除，会允许内部调用绕过互斥并形成 TOCTOU 与部分工作区恢复 | 已接受并实施 |
 
 新增决策使用递增 ID，并同步修改受影响批次的范围、完成判据和风险。
 
@@ -828,6 +832,31 @@ Batch 4
 - Remaining work: none；
 - Decision log updates: D-013、D-014、D-015。
 
+### 2026-07-13 — Post-convergence durable lifecycle truth audit
+
+- Commit: `a03c123e3`
+- Invariants preserved/added:
+  - park 将本段所有 running interrupt items、Interrupted Run、Pending Interrupt、admission suspend 与 ProcessSnapshot reference 作为一个 EventCommit write-set；commit 与整批 Journal publish 均位于 cancel linearization 内；
+  - terminal shutdown 使用脱离 owner cancellation 且有界的 context 合成 durable terminal；只有 terminal/park commit 成功后才执行 Finish maintenance，runsegment snapshot 固定使用 Run 启动时捕获的 Cwd；
+  - 启动恢复在一个事务中审计 non-terminal Run：只保留完整可恢复的 parked boundary；进程快照缺失/不可用等外部损失持久化为 canonical `run_lost` terminal，原子事实内部矛盾则阻止启动；
+  - ProcessSnapshot 随 cancel、session delete、subtask delete、rollback 与 orphan recovery 在同一 SQLite write-set 删除；parked cancel 先建立 durable terminal truth，再 best-effort teardown 进程侧 turn；
+  - Snapshot read/restore 严格校验 Session/Run/Item ownership、terminal coupling、watermark、accounting、spawning reference 与 run-tree；restore admission 由 Application 用例自己持有；
+  - fork 使用一个 coherent snapshot；Cwd mutation 进入 Session admission；delete 递归处理 KindSubtask 后代而保留用户 fork；rollback 在 workspace restore 前 claim 全部待删 subtask descendants。
+- Removed seams/debt:
+  - 删除 Delivery read path 中临时伪造 `run_lost` 的 live-run reconciliation；客户端读取只呈现已经提交的 durable fact；
+  - 删除 Delivery 对 restore admission 的外置编排，内部调用无法绕过 Session single-writer 规则；
+  - 删除分次读取 session history/transcript 的 fork/export 路径，以及脱离 ambient transaction 的 ProcessSnapshot cleanup。
+- Validation:
+  - `go build ./...`：通过；
+  - `go vet ./...`：通过；
+  - `golangci-lint run ./...`：通过；
+  - `go test ./...`：通过；
+  - `go test -race ./...`：通过；
+  - park write-set、boot recovery、ProcessSnapshot rollback、session subtree admission 与 coherent snapshot 使用真实 SQLite/并发测试覆盖；
+  - `git diff --check` 与 Go 格式检查：通过。
+- Remaining work: none；
+- Decision log updates: D-016、D-017、D-018、D-019。
+
 ## 18. 最终验收清单
 
 架构收敛完成时逐项勾选：
@@ -849,7 +878,12 @@ Batch 4
 - [x] artifact 导入在 mutation 前拒绝非法 union、悬空引用、identity 冲突和循环 run tree；
 - [x] artifact 导出来自 idle Session 的单事务快照，且只包含可往返的 terminal Run；
 - [x] parked cancel 不留下 Interrupted transcript 或 running interrupt item；
+- [x] park 原子提交 running interrupt items、Run/Interrupt/admission/ProcessSnapshot，并在 cancel linearization 内整批发布；
+- [x] boot recovery 只保留可恢复的 parked boundary，外部丢失以 durable `run_lost` 收口；
+- [x] ProcessSnapshot 在 cancel/delete/rollback/recovery 中与引用状态原子清理；
 - [x] rollback 原子删除 dropped KindSubtask subtree，且不删除用户 fork；
+- [x] delete/rollback 在任何 durable 或 workspace mutation 前 claim 完整待删 KindSubtask 子树；
+- [x] restore admission 由 Application use case 持有，fork/export 读取 coherent snapshot；
 - [x] durable Journal event 不因 subscriber backpressure 静默丢失；
 - [x] context-unaware health probe 不会随请求数无限增殖 goroutine；
 - [x] `EXECUTION_CENTERED_ARCHITECTURE.md` 与真实实现一致；
