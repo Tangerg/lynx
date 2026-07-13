@@ -345,6 +345,51 @@ func TestTranscriptStore_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lyra.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewTranscriptStore(db)
+	ctx := t.Context()
+	now := time.Now().UTC()
+
+	if err := store.PutRun(ctx, transcript.Run{SessionID: "ses_a", ID: "run_shared", UpdatedAt: now}); err != nil {
+		t.Fatalf("seed run: %v", err)
+	}
+	if err := store.AppendItem(ctx, transcript.Item{
+		SessionID: "ses_a", RunID: "run_shared", ID: "item_shared", CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("seed item: %v", err)
+	}
+
+	if err := store.PutRun(ctx, transcript.Run{SessionID: "ses_b", ID: "run_shared", UpdatedAt: now}); !errors.Is(err, transcript.ErrIdentityConflict) {
+		t.Fatalf("re-parent run error = %v, want ErrIdentityConflict", err)
+	}
+	if err := store.AppendItem(ctx, transcript.Item{
+		SessionID: "ses_b", RunID: "run_other", ID: "item_shared", CreatedAt: now,
+	}); !errors.Is(err, transcript.ErrIdentityConflict) {
+		t.Fatalf("re-parent item error = %v, want ErrIdentityConflict", err)
+	}
+
+	itemsA, runsA, err := store.List(ctx, "ses_a")
+	if err != nil {
+		t.Fatalf("list ses_a: %v", err)
+	}
+	itemsB, runsB, err := store.List(ctx, "ses_b")
+	if err != nil {
+		t.Fatalf("list ses_b: %v", err)
+	}
+	if len(itemsA) != 1 || itemsA[0].ID != "item_shared" || len(runsA) != 1 || runsA[0].ID != "run_shared" {
+		t.Fatalf("original transcript changed: items=%+v runs=%+v", itemsA, runsA)
+	}
+	if len(itemsB) != 0 || len(runsB) != 0 {
+		t.Fatalf("conflicting transcript was re-parented: items=%+v runs=%+v", itemsB, runsB)
+	}
+}
+
 // TestOpenDiscardsAnOlderSchema codifies the development contract: storage
 // shape changes reset obsolete local state instead of carrying migrations or
 // compatibility readers into the new architecture.

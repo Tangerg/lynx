@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -18,9 +19,11 @@ import (
 // semantics).
 func TestSessionExportImport_RoundTrip(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	ctx := context.Background()
+	ctx := t.Context()
+	cwd := t.TempDir()
+	canonicalCwd := workspacepath.Canonical(cwd)
 
-	ses, err := rt.sess.Create(ctx, "My Session", "/proj")
+	ses, err := rt.sess.Create(ctx, "My Session", cwd)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -42,7 +45,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("export = %+v, want a json artifact", exp)
 	}
 	art := exp.Artifact
-	if art.Session.Title != "My Session" || art.Session.Cwd != "/proj" {
+	if art.Session.Title != "My Session" || art.Session.Cwd != cwd {
 		t.Errorf("artifact session = %+v, want title/cwd preserved", art.Session)
 	}
 	if len(art.Messages) != 2 || len(art.Items) != 1 || len(art.Runs) != 1 {
@@ -66,7 +69,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("import: %v", err)
 	}
-	if imp.Session == nil || imp.Session.ID != ses.ID || imp.Session.Title != "My Session" || imp.Session.Cwd != "/proj" {
+	if imp.Session == nil || imp.Session.ID != ses.ID || imp.Session.Title != "My Session" || imp.Session.Cwd != canonicalCwd {
 		t.Fatalf("imported session = %+v, want id/title/cwd restored", imp.Session)
 	}
 
@@ -149,7 +152,8 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 
 func TestRestoreSessionClearsOpenInterrupts(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	ctx := context.Background()
+	ctx := t.Context()
+	restoreCwd := t.TempDir()
 
 	ses, err := rt.sess.Create(ctx, "Old", "/proj")
 	if err != nil {
@@ -162,7 +166,7 @@ func TestRestoreSessionClearsOpenInterrupts(t *testing.T) {
 	if err := s.sessions.RestoreSession(ctx, session.Session{
 		ID:    ses.ID,
 		Title: "Restored",
-		Cwd:   "/restore",
+		Cwd:   restoreCwd,
 	}, nil, nil, nil); err != nil {
 		t.Fatalf("restore: %v", err)
 	}
@@ -219,5 +223,19 @@ func TestSessionImport_VersionMismatch(t *testing.T) {
 		if !errors.Is(err, protocol.ErrInvalidParams) {
 			t.Fatalf("version %d mismatch err = %v, want ErrInvalidParams", version, err)
 		}
+	}
+}
+
+func TestSessionImportRejectsUnavailableCwd(t *testing.T) {
+	s, _ := rollbackHarness(t)
+	missing := t.TempDir() + "/missing"
+	_, err := s.ImportSession(t.Context(), protocol.ImportSessionRequest{
+		Artifact: protocol.SessionArtifact{
+			Version: protocol.SessionArtifactVersion,
+			Session: protocol.Session{ID: "ses_missing_cwd", Cwd: missing},
+		},
+	})
+	if !errors.Is(err, protocol.ErrCwdUnavailable) {
+		t.Fatalf("import error = %v, want ErrCwdUnavailable", err)
 	}
 }

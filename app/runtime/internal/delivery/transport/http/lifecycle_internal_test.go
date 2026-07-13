@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	stdhttp "net/http"
+	"runtime"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ func newLifecycleServer(t *testing.T, configure func(*Config)) *Server {
 
 func TestShutdownBeforeStartPreventsListen(t *testing.T) {
 	srv := newLifecycleServer(t, nil)
-	if err := srv.Shutdown(context.Background()); err != nil {
+	if err := srv.Shutdown(t.Context()); err != nil {
 		t.Fatalf("Shutdown: %v", err)
 	}
 	if err := srv.Start(); !errors.Is(err, stdhttp.ErrServerClosed) {
@@ -65,7 +66,7 @@ func TestNewServerSnapshotsConfig(t *testing.T) {
 	capabilities.Features["before"] = false
 	capabilities.Providers[0] = "after"
 
-	if srv.corsOrigins[0] != "https://before.example" || srv.healthProbes[0].Name != "before" {
+	if srv.corsOrigins[0] != "https://before.example" || srv.healthProbes[0].name != "before" {
 		t.Fatal("server retained caller-owned transport configuration")
 	}
 	got := srv.info.Capabilities
@@ -87,7 +88,7 @@ func TestHealthBudgetDoesNotWaitForUncooperativeProbe(t *testing.T) {
 	}
 
 	started := time.Now()
-	overall, checks := runHealthProbesWithBudget(context.Background(), probes, 20*time.Millisecond)
+	overall, checks := runHealthProbesWithBudget(t.Context(), newHealthProbeRunners(probes), 20*time.Millisecond)
 	elapsed := time.Since(started)
 	close(blocked)
 
@@ -96,5 +97,74 @@ func TestHealthBudgetDoesNotWaitForUncooperativeProbe(t *testing.T) {
 	}
 	if overall != HealthUnhealthy || checks["blocked"] != HealthUnhealthy || checks["fast"] != HealthOK {
 		t.Fatalf("overall/checks = %q/%v", overall, checks)
+	}
+}
+
+func TestHealthProbeRunnerLimitsUncooperativeProbeToOneInvocation(t *testing.T) {
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	runners := newHealthProbeRunners([]HealthProbe{{
+		Name: "blocked",
+		Probe: func(context.Context) HealthCheck {
+			started <- struct{}{}
+			<-release
+			return HealthCheck{Status: HealthOK}
+		},
+	}})
+
+	for range 2 {
+		overall, checks := runHealthProbesWithBudget(t.Context(), runners, 20*time.Millisecond)
+		if overall != HealthUnhealthy || checks["blocked"] != HealthUnhealthy {
+			t.Fatalf("overall/checks = %q/%v", overall, checks)
+		}
+	}
+	select {
+	case <-started:
+	default:
+		t.Fatal("probe was never invoked")
+	}
+	select {
+	case <-started:
+		t.Fatal("uncooperative probe was invoked more than once while still running")
+	default:
+	}
+
+	close(release)
+	deadline := time.Now().Add(time.Second)
+	for {
+		runners[0].mu.Lock()
+		running := runners[0].current != nil
+		runners[0].mu.Unlock()
+		if !running {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("released probe did not finish")
+		}
+		runtime.Gosched()
+	}
+
+	overall, checks := runHealthProbesWithBudget(t.Context(), runners, time.Second)
+	if overall != HealthOK || checks["blocked"] != HealthOK {
+		t.Fatalf("restarted overall/checks = %q/%v", overall, checks)
+	}
+	select {
+	case <-started:
+	default:
+		t.Fatal("probe did not restart after its prior invocation finished")
+	}
+}
+
+func TestHealthProbeRejectsUnknownStatus(t *testing.T) {
+	runners := newHealthProbeRunners([]HealthProbe{{
+		Name: "invalid",
+		Probe: func(context.Context) HealthCheck {
+			return HealthCheck{Status: "unexpected"}
+		},
+	}})
+
+	overall, checks := runHealthProbesWithBudget(t.Context(), runners, time.Second)
+	if overall != HealthUnhealthy || checks["invalid"] != HealthUnhealthy {
+		t.Fatalf("overall/checks = %q/%v, want unhealthy", overall, checks)
 	}
 }

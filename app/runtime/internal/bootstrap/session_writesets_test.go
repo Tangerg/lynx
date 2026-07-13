@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -159,5 +160,59 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	// succeeds — proving the delete cascade dropped the runs rows.
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
 		t.Fatalf("admit after delete = %v, want the slot freed", err)
+	}
+}
+
+func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
+	ss, _, _ := newWriteSetFixture(t)
+	ctx := t.Context()
+	for _, ses := range []session.Session{
+		{ID: "ses_A", Title: "source", Cwd: "/source"},
+		{ID: "ses_B", Title: "target", Cwd: "/target"},
+	} {
+		if err := ss.sessions.Restore(ctx, ses); err != nil {
+			t.Fatalf("seed session %s: %v", ses.ID, err)
+		}
+	}
+	now := time.Now().UTC()
+	if err := ss.transcript.PutRun(ctx, transcript.Run{SessionID: "ses_A", ID: "run_shared", UpdatedAt: now}); err != nil {
+		t.Fatalf("seed source run: %v", err)
+	}
+	if err := ss.transcript.AppendItem(ctx, transcript.Item{
+		SessionID: "ses_A", RunID: "run_shared", ID: "item_shared", CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("seed source item: %v", err)
+	}
+	if err := ss.transcript.PutRun(ctx, transcript.Run{SessionID: "ses_B", ID: "run_target", UpdatedAt: now}); err != nil {
+		t.Fatalf("seed target run: %v", err)
+	}
+	if err := ss.history.Seed(ctx, "ses_B", []chat.Message{chat.NewUserMessage("before")}); err != nil {
+		t.Fatalf("seed target history: %v", err)
+	}
+
+	err := ss.ApplyRestore(ctx, sessions.RestorePlan{
+		Session:  session.Session{ID: "ses_B", Title: "replacement", Cwd: "/replacement"},
+		Messages: []chat.Message{chat.NewUserMessage("after")},
+		Runs:     []transcript.Run{{SessionID: "ses_B", ID: "run_shared", UpdatedAt: now}},
+	})
+	if !errors.Is(err, transcript.ErrIdentityConflict) {
+		t.Fatalf("ApplyRestore error = %v, want ErrIdentityConflict", err)
+	}
+
+	target, err := ss.sessions.Get(ctx, "ses_B")
+	if err != nil || target.Title != "target" || target.Cwd != "/target" {
+		t.Fatalf("target session after rollback = %+v, %v", target, err)
+	}
+	messages, err := ss.history.Read(ctx, "ses_B")
+	if err != nil || len(messages) != 1 {
+		t.Fatalf("target history after rollback = %+v, %v", messages, err)
+	}
+	_, targetRuns, err := ss.transcript.List(ctx, "ses_B")
+	if err != nil || len(targetRuns) != 1 || targetRuns[0].ID != "run_target" {
+		t.Fatalf("target transcript after rollback = %+v, %v", targetRuns, err)
+	}
+	sourceItems, sourceRuns, err := ss.transcript.List(ctx, "ses_A")
+	if err != nil || len(sourceItems) != 1 || len(sourceRuns) != 1 {
+		t.Fatalf("source transcript after conflict = items=%+v runs=%+v err=%v", sourceItems, sourceRuns, err)
 	}
 }

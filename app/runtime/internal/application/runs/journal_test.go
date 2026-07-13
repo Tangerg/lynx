@@ -2,6 +2,7 @@ package runs
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
@@ -143,31 +144,63 @@ func TestJournal_CancelDetaches(t *testing.T) {
 	j.Close()             // must not double-close
 }
 
-// TestDeliverTerminalUsesOneSharedBudget: a terminal delivered to several
-// backpressured subscribers waits out ONE shared budget, not budget×N, and still
-// reaches healthy subscribers immediately.
-func TestDeliverTerminalUsesOneSharedBudget(t *testing.T) {
-	terminal := testEvent{cursor: "evt_00000000009", durable: true, terminal: true}
-	healthy := make(chan testEvent, 1)
-	subs := map[int]chan testEvent{0: healthy}
-	for i := 1; i <= 3; i++ {
-		blocked := make(chan testEvent, 1)
-		blocked <- ev(i, false)
-		subs[i] = blocked
+func TestJournal_DurableOverflowIsLossless(t *testing.T) {
+	j := NewJournal[testEvent]()
+	ch, cancel := j.Subscribe("")
+	defer cancel()
+	const total = liveHeadroom*3 + 17
+	for i := 1; i <= total; i++ {
+		j.Append(ev(i, true))
 	}
+	j.Close()
+
+	got := drain(ch)
+	if len(got) != total {
+		t.Fatalf("durable events = %d, want %d", len(got), total)
+	}
+	for i, cursor := range got {
+		if want := ev(i+1, true).cursor; cursor != want {
+			t.Fatalf("durable event[%d] = %q, want %q", i, cursor, want)
+		}
+	}
+}
+
+func TestJournalSubscriberTerminalDrainIsBounded(t *testing.T) {
+	subscriber := newJournalSubscriber[testEvent](nil)
+	for i := 1; i <= liveHeadroom*2; i++ {
+		subscriber.enqueue(ev(i, true))
+	}
+	subscriber.enqueue(testEvent{cursor: "evt_99999999999", durable: true, terminal: true})
 
 	started := time.Now()
-	deliverTerminal(subs, terminal, 20*time.Millisecond)
-	elapsed := time.Since(started)
-	if elapsed > 100*time.Millisecond {
-		t.Fatalf("terminal delivery multiplied the budget by subscriber count: %v", elapsed)
+	subscriber.finish(20 * time.Millisecond)
+	<-subscriber.stopped
+	if elapsed := time.Since(started); elapsed > 100*time.Millisecond {
+		t.Fatalf("abandoned subscriber exceeded terminal drain budget: %v", elapsed)
 	}
-	select {
-	case got := <-healthy:
-		if !got.terminal {
-			t.Fatalf("healthy subscriber got %+v", got)
+}
+
+func TestJournalConcurrentAppendCloseAndCancel(t *testing.T) {
+	j := NewJournal[testEvent]()
+	ch, cancel := j.Subscribe("")
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		<-start
+		for i := 1; i <= liveHeadroom*2; i++ {
+			j.Append(ev(i, true))
 		}
-	default:
-		t.Fatal("healthy subscriber missed terminal event")
+	})
+	wg.Go(func() {
+		<-start
+		j.Close()
+	})
+	wg.Go(func() {
+		<-start
+		cancel()
+	})
+	close(start)
+	wg.Wait()
+	for range ch {
 	}
 }

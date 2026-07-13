@@ -2,6 +2,7 @@ package runs
 
 import (
 	"encoding/json"
+	"maps"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -66,15 +67,20 @@ func (r *reducer) reuseOrNextItemID(toolName, rawArguments string) string {
 	if r.resume != nil {
 		key := resumeKey(toolName, argsKey(parseArgs(rawArguments)))
 		if id, ok := r.resume.toolItems[key]; ok {
-			delete(r.resume.toolItems, key)
+			r.resume.consumeToolItem(id)
 			return id
 		}
 		if id, ok := r.resume.byName[toolName]; ok && id != "" {
-			delete(r.resume.byName, toolName)
+			r.resume.consumeToolItem(id)
 			return id
 		}
 	}
 	return r.nextItemID()
+}
+
+func (b *resumeBinding) consumeToolItem(id string) {
+	maps.DeleteFunc(b.toolItems, func(_ string, candidate string) bool { return candidate == id })
+	maps.DeleteFunc(b.byName, func(_ string, candidate string) bool { return candidate == id })
 }
 
 func (r *reducer) resumeQuestionCompletions() []RunEvent {

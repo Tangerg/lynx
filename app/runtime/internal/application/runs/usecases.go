@@ -170,7 +170,7 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 	binding, cleanupCtx, cancel, live := c.BeginCancel(ctx, cmd.RunID, cmd.Reason)
 	if live {
 		defer cancel()
-		_ = c.turns.Cancel(cleanupCtx, TurnRef{SessionID: binding.SessionID, TurnID: binding.TurnID})
+		_ = c.turns.Cancel(cleanupCtx, TurnRef(binding))
 		return nil
 	}
 

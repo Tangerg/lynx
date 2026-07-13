@@ -45,9 +45,15 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 // the single transaction a mid-sequence failure (after the destructive clear)
 // would leave the session row live but its history half-destroyed.
 //
-// The caller decodes the wire artifact into these domain values; this method
-// only commits them.
+// The caller decodes the wire artifact into these domain values. Restore still
+// owns the Session admission boundary: it resolves Cwd exactly as Create and
+// Update do before committing the decoded aggregate.
 func (c *Coordinator) RestoreSession(ctx context.Context, ses session.Session, msgs []chat.Message, runs []transcript.Run, items []transcript.Item) error {
+	cwd, err := c.resolveSessionCwd(ses.Cwd)
+	if err != nil {
+		return err
+	}
+	ses.Cwd = cwd
 	return c.s.ApplyRestore(ctx, RestorePlan{
 		Session:  ses,
 		Messages: msgs,

@@ -220,6 +220,6 @@ func (s *RunStateStore) ReconcileOrphans(ctx context.Context) (int, error) {
 // non-terminal run. modernc.org/sqlite surfaces it as a typed *sqlite.Error
 // carrying the extended result code.
 func isUniqueViolation(err error) bool {
-	var se *sqlite3.Error
-	return errors.As(err, &se) && se.Code() == sqlite3lib.SQLITE_CONSTRAINT_UNIQUE
+	se, ok := errors.AsType[*sqlite3.Error](err)
+	return ok && se.Code() == sqlite3lib.SQLITE_CONSTRAINT_UNIQUE
 }

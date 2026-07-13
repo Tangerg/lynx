@@ -1,6 +1,10 @@
 package runs
 
 import (
+	"cmp"
+	"maps"
+	"slices"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -98,7 +102,7 @@ func drainedToolsFrom(tools map[string]*openTool) []interrupts.DrainedTool {
 		return nil
 	}
 	out := make([]interrupts.DrainedTool, 0, len(tools))
-	for _, ref := range tools {
+	for _, ref := range orderedOpenTools(tools) {
 		out = append(out, interrupts.DrainedTool{ItemID: ref.id, Name: ref.name, Arguments: ref.args})
 	}
 	return out
@@ -109,14 +113,20 @@ func (r *reducer) drainTools() []RunEvent {
 		return nil
 	}
 	out := make([]RunEvent, 0, len(r.tools))
-	for callID, ref := range r.tools {
+	for _, ref := range orderedOpenTools(r.tools) {
 		out = append(out, ItemCompleted{Item: Item{
 			ID: ref.id, RunID: r.cfg.RunID, Status: ItemIncomplete,
 			Kind: ToolCall, CreatedAt: ref.createdAt,
 			Tool:        r.newToolInvocation(ref.name, ref.args, ""),
 			SafetyClass: ref.safetyClass,
 		}})
-		delete(r.tools, callID)
+		delete(r.tools, ref.callID)
 	}
 	return out
+}
+
+func orderedOpenTools(tools map[string]*openTool) []*openTool {
+	ordered := slices.Collect(maps.Values(tools))
+	slices.SortFunc(ordered, func(a, b *openTool) int { return cmp.Compare(a.order, b.order) })
+	return ordered
 }

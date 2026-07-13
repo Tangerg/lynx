@@ -26,17 +26,22 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 	if err != nil {
 		return fmt.Errorf("sqlite: encode history item: %w", err)
 	}
-	_, err = conn(ctx, s.db).ExecContext(ctx,
+	res, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO history_items(session_id, run_id, item_id, created_at, payload)
 		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(item_id) DO UPDATE SET
-		   session_id = excluded.session_id,
-		   run_id     = excluded.run_id,
-		   payload    = excluded.payload`,
+		   payload = excluded.payload
+		 WHERE history_items.session_id = excluded.session_id
+		   AND history_items.run_id = excluded.run_id`,
 		item.SessionID, item.RunID, item.ID, item.CreatedAt.UnixNano(), string(payload),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: append history item: %w", err)
+	}
+	if changed, err := res.RowsAffected(); err != nil {
+		return fmt.Errorf("sqlite: inspect history item write: %w", err)
+	} else if changed != 1 {
+		return fmt.Errorf("%w: item %q already belongs to another session or run", transcript.ErrIdentityConflict, item.ID)
 	}
 	return nil
 }
@@ -49,18 +54,23 @@ func (s *TranscriptStore) PutRun(ctx context.Context, run transcript.Run) error 
 	if err != nil {
 		return fmt.Errorf("sqlite: encode history run: %w", err)
 	}
-	_, err = conn(ctx, s.db).ExecContext(ctx,
+	res, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO history_runs(run_id, session_id, updated_at, payload, message_mark)
 		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(run_id) DO UPDATE SET
-		   session_id   = excluded.session_id,
 		   updated_at   = excluded.updated_at,
 		   payload      = excluded.payload,
-		   message_mark = excluded.message_mark`,
+		   message_mark = excluded.message_mark
+		 WHERE history_runs.session_id = excluded.session_id`,
 		run.ID, run.SessionID, run.UpdatedAt.UnixNano(), string(payload), run.MessageMark,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: put history run: %w", err)
+	}
+	if changed, err := res.RowsAffected(); err != nil {
+		return fmt.Errorf("sqlite: inspect history run write: %w", err)
+	} else if changed != 1 {
+		return fmt.Errorf("%w: run %q already belongs to another session", transcript.ErrIdentityConflict, run.ID)
 	}
 	return nil
 }
