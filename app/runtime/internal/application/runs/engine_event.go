@@ -28,9 +28,9 @@ type EventMeta struct {
 	Timestamp time.Time
 }
 
-func (EventMeta) engineEvent()                            {}
-func (EventMeta) Terminal() (execution.Outcome, bool)     { return 0, false }
-func (EventMeta) Interrupt() bool                         { return false }
+func (EventMeta) engineEvent()                        {}
+func (EventMeta) Terminal() (execution.Outcome, bool) { return 0, false }
+func (EventMeta) Interrupt() bool                     { return false }
 
 type TurnStart struct {
 	EventMeta
@@ -122,8 +122,8 @@ type ErrorEvent struct {
 
 type UsageReported struct {
 	EventMeta
-	TokenUsage   accounting.TokenUsage
-	CostUSD      float64
+	TokenUsage    accounting.TokenUsage
+	CostUSD       float64
 	ContextTokens int64
 }
 
