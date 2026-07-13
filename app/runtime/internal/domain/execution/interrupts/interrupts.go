@@ -6,7 +6,7 @@
 //
 // This package holds the durable record shapes (Pending, DrainedTool) — a plain
 // CRUD-over-[Pending] model. The park/resume orchestration lives in
-// internal/adapter/agentexec/turn, not here; persistence is a consumer concern
+// application/runs, not here; persistence is a consumer concern
 // (each consumer declares the narrow interrupt port it needs), backed by the
 // SQLite store so open interrupts survive a restart and runs.resume rebuilds the
 // parked process from its ProcessStore snapshot (Pending.ProcessID) —

@@ -108,7 +108,7 @@ func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowR
 	if err != nil {
 		return mapScheduleErr(err, "schedules.runNow", in.ID)
 	}
-	if _, err := schedules.Fire(ctx, scheduleRunner{s}, sc); err != nil {
+	if _, err := schedules.Fire(ctx, s.scheduledRunLauncher(), sc); err != nil {
 		return err
 	}
 	return mapScheduleErr(s.schedules.RecordRun(ctx, sc.ID, time.Now().UTC()), "schedules.runNow", sc.ID)

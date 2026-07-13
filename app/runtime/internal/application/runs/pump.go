@@ -20,7 +20,7 @@ import (
 // cancel that wins the race skips the commit). Non-durable deltas publish
 // directly. A parked run leaves its live turn alive for resume; a true terminal
 // cancels it.
-func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner iter.Seq[EngineEvent], live *handle, projector Projector) {
+func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inner iter.Seq[EngineEvent], live *handle, projector Projector) {
 	hub := live.hub
 	finished := false
 	parked := false

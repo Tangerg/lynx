@@ -15,9 +15,6 @@ var ErrInputRequired = errors.New("turn: input required")
 // was supplied. Turn model selection is explicit: both are set, or both empty.
 var ErrIncompleteModelSelection = errors.New("turn: incomplete model selection")
 
-// ErrUnsupportedMedia reports media that the selected model cannot accept.
-var ErrUnsupportedMedia = errors.New("turn: unsupported media")
-
 // ErrInvalidTurnLimit reports a negative turn budget / step cap. Limits use
 // zero as "unlimited", so negative values have no domain meaning.
 var ErrInvalidTurnLimit = errors.New("turn: invalid limit")

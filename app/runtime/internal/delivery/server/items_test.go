@@ -12,8 +12,8 @@ import (
 // terminal error(run_lost) so the client stops rendering a perpetual spinner,
 // while genuinely live and already-terminal runs are left untouched.
 func TestReconcileLostRun(t *testing.T) {
-	s := newTestServer(&blockingRunRuntime{})
-	startLiveRun(t, s, "run_live")
+	s := newBlockingServer(t)
+	runID := startLiveRun(t, s, t.TempDir())
 
 	// Dangling running run (no live pump) → terminal error(run_lost).
 	lost := &protocol.RunRef{ID: "run_dead", SessionID: "ses_1", Status: protocol.RunStatusRunning}
@@ -34,7 +34,7 @@ func TestReconcileLostRun(t *testing.T) {
 	// A genuinely live run (still in the run table) is left untouched — the
 	// table entry is set before the first persist, so a live run is never
 	// seen as lost.
-	live := &protocol.RunRef{ID: "run_live", SessionID: "ses_1", Status: protocol.RunStatusRunning}
+	live := &protocol.RunRef{ID: runID, SessionID: "ses_1", Status: protocol.RunStatusRunning}
 	s.reconcileLostRun(live)
 	if live.Status != protocol.RunStatusRunning || live.Outcome != nil {
 		t.Fatalf("live run must not be reconciled: %+v", live)

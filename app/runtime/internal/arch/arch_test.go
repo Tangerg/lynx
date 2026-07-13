@@ -177,6 +177,15 @@ func TestDeliveryStaysAdapterOnly(t *testing.T) {
 	forbidExternalImports(t, filepath.Join(root, "internal", "delivery"), externalSDKs)
 }
 
+// TestDeliveryDoesNotControlAgentTurns keeps complete Run commands behind the
+// application/runs use-case surface. Delivery may decode and present wire data,
+// but it must not plan, rebuild, assert, or steer concrete agent turn handles.
+func TestDeliveryDoesNotControlAgentTurns(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "delivery"),
+		[]string{"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"})
+}
+
 // TestBootstrapExposesNoBusinessMethod enforces §16 rule 8: the composition root
 // assembles and closes — it must not become a business facade. Assembly / config
 // / seed FUNCTIONS are fine (they return the Stack); the guard is that exported

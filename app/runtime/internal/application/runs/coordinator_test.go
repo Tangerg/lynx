@@ -159,10 +159,10 @@ func (e *fakeEffects) opening() OpeningCommit {
 func TestCoordinatorStartRejectsDurablyBusySession(t *testing.T) {
 	exec := &fakeExecutor{}
 	eff := &fakeEffects{openingErr: execution.ErrSessionBusy}
-	c := NewCoordinator(exec, eff)
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
 
-	_, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
+	_, err := c.openSegment(context.Background(),
+		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1"},
 		func(SegmentView) Projector {
 			return &fakeProjector{open: []ProjectedEvent{{Durable: true, Commit: &execution.EventCommit{SessionID: "ses_1"}}}}
 		})
@@ -190,10 +190,10 @@ func TestCoordinatorStartAdmitsAndTerminalizes(t *testing.T) {
 			Commit: &execution.EventCommit{SessionID: "ses_1", State: execution.StateTerminalize},
 		}},
 	}
-	c := NewCoordinator(exec, eff)
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
 
-	events, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
+	events, err := c.openSegment(context.Background(),
+		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
 		func(v SegmentView) Projector { proj.view = v; return proj })
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -219,10 +219,10 @@ func TestCoordinatorResumeReusesDurableSlot(t *testing.T) {
 		open:     []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
 		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("finished")}},
 	}
-	c := NewCoordinator(exec, eff)
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
 
-	events, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SegmentID: "seg_2", SessionID: "ses_1", TurnID: "turn_1", Activate: func(context.Context) error { return nil }},
+	events, err := c.openSegment(context.Background(),
+		segmentSpec{RunID: "run_1", SegmentID: "seg_2", SessionID: "ses_1", TurnID: "turn_1", Activate: func(context.Context) error { return nil }},
 		func(v SegmentView) Projector { proj.view = v; return proj })
 	if err != nil {
 		t.Fatalf("resume Start must not re-admit a durably-busy session: %v", err)
@@ -241,10 +241,10 @@ func TestCoordinatorResumeActivationFailureStreamsTerminal(t *testing.T) {
 		open:     []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
 		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("error"), Commit: &execution.EventCommit{SessionID: "ses_1", State: execution.StateTerminalize, Outcome: execution.OutcomeError}}},
 	}
-	c := NewCoordinator(exec, eff)
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
 	activatedAfterOpening := false
 
-	events, err := c.Start(context.Background(), StartSpec{
+	events, err := c.openSegment(context.Background(), segmentSpec{
 		RunID: "run_1", SegmentID: "seg_2", SessionID: "ses_1", TurnID: "turn_1",
 		Activate: func(context.Context) error {
 			activatedAfterOpening = eff.opening().Resume != nil
@@ -285,10 +285,10 @@ func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
 		translate: []ProjectedEvent{{Durable: true, Payload: fakeProjection("item"), Commit: commit}},
 		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("finished"), Commit: commit}},
 	}
-	c := NewCoordinator(exec, eff)
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
 
-	events, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
+	events, err := c.openSegment(context.Background(),
+		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
 		func(v SegmentView) Projector { proj.view = v; return proj })
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -323,10 +323,10 @@ func TestCoordinatorStartStreamsThenTerminates(t *testing.T) {
 // error and tears the created turn down (cancels it), registering no run.
 func TestCoordinatorStartExecutorError(t *testing.T) {
 	exec := &fakeExecutor{startErr: fmt.Errorf("boom")}
-	c := NewCoordinator(exec, &fakeEffects{})
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: &fakeEffects{}})
 
-	_, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SessionID: "ses_1"},
+	_, err := c.openSegment(context.Background(),
+		segmentSpec{RunID: "run_1", SessionID: "ses_1"},
 		func(SegmentView) Projector { return &fakeProjector{} })
 	if err == nil {
 		t.Fatal("Start must surface the executor error")
@@ -342,7 +342,7 @@ func TestCoordinatorStartExecutorError(t *testing.T) {
 // TestCoordinatorAdmission: the Coordinator is the session single-writer — a
 // claim blocks a second claim and an active run, until released/closed.
 func TestCoordinatorAdmission(t *testing.T) {
-	c := NewCoordinator(&fakeExecutor{}, &fakeEffects{})
+	c := NewCoordinator(Dependencies{Segments: &fakeExecutor{}, Effects: &fakeEffects{}})
 	if !c.ClaimSession("ses_1") {
 		t.Fatal("first claim must succeed")
 	}
@@ -362,11 +362,11 @@ func TestCoordinatorAdmission(t *testing.T) {
 // down the turn that was already created.
 func TestCoordinatorStartAfterClose(t *testing.T) {
 	exec := &fakeExecutor{block: true}
-	c := NewCoordinator(exec, &fakeEffects{})
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: &fakeEffects{}})
 	c.Close()
 
-	_, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SessionID: "ses_1"},
+	_, err := c.openSegment(context.Background(),
+		segmentSpec{RunID: "run_1", SessionID: "ses_1"},
 		func(SegmentView) Projector { return &fakeProjector{} })
 	if !errors.Is(err, ErrClosed) {
 		t.Fatalf("Start after Close = %v, want ErrClosed", err)
@@ -384,9 +384,9 @@ func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 		open:     []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
 		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("canceled")}},
 	}
-	c := NewCoordinator(exec, &fakeEffects{})
-	events, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SessionID: "ses_1"},
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: &fakeEffects{}})
+	events, err := c.openSegment(context.Background(),
+		segmentSpec{RunID: "run_1", SessionID: "ses_1"},
 		func(SegmentView) Projector { return proj })
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -420,9 +420,9 @@ func TestCoordinatorInterruptPersistFailureAborts(t *testing.T) {
 		}},
 		terminal: []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("error")}},
 	}
-	c := NewCoordinator(exec, eff)
-	events, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
+	events, err := c.openSegment(context.Background(),
+		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
 		func(SegmentView) Projector { return proj })
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -456,9 +456,9 @@ func TestCoordinatorItemPersistFailureAborts(t *testing.T) {
 		translate: []ProjectedEvent{{Durable: true, Payload: fakeProjection("item"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
 		terminal:  []ProjectedEvent{{Durable: true, Terminal: true, Payload: fakeProjection("error")}},
 	}
-	c := NewCoordinator(exec, eff)
-	events, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
+	events, err := c.openSegment(context.Background(),
+		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
 		func(SegmentView) Projector { return proj })
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -493,10 +493,10 @@ func TestCoordinatorOpeningCommitFailureRejectsStart(t *testing.T) {
 	proj := &fakeProjector{
 		open: []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}},
 	}
-	c := NewCoordinator(exec, eff)
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: eff})
 
-	events, err := c.Start(context.Background(),
-		StartSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
+	events, err := c.openSegment(context.Background(),
+		segmentSpec{RunID: "run_1", SessionID: "ses_1", TurnID: "run_1"},
 		func(v SegmentView) Projector { proj.view = v; return proj })
 	if err == nil {
 		t.Fatal("Start must reject an uncommitted opening")
@@ -524,10 +524,10 @@ func TestCoordinatorOpeningCommitFailureRejectsStart(t *testing.T) {
 // stays alive even after the request context is canceled.
 func TestCoordinatorBeginCancelCleanupSurvivesRequest(t *testing.T) {
 	exec := &fakeExecutor{block: true}
-	c := NewCoordinator(exec, &fakeEffects{})
+	c := NewCoordinator(Dependencies{Segments: exec, Effects: &fakeEffects{}})
 	reqCtx, cancelReq := context.WithCancel(context.Background())
-	events, err := c.Start(reqCtx,
-		StartSpec{RunID: "run_1", SessionID: "ses_1"},
+	events, err := c.openSegment(reqCtx,
+		segmentSpec{RunID: "run_1", SessionID: "ses_1"},
 		func(SegmentView) Projector {
 			return &fakeProjector{open: []ProjectedEvent{{Durable: true, Payload: fakeProjection("started"), Commit: &execution.EventCommit{SessionID: "ses_1"}}}}
 		})

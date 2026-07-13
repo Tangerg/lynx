@@ -6,11 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/core/model/chat"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
 // blockingRunRuntime is a stub whose turn never emits or finishes, so a run
@@ -22,6 +25,21 @@ type blockingRunRuntime struct {
 	stubRuntime
 }
 
+func newBlockingServer(t *testing.T) *Server {
+	t.Helper()
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open blocking runtime store: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return newTestServer(&blockingRunRuntime{stubRuntime: stubRuntime{
+		sess:       sqlite.NewSessionStore(db),
+		hist:       sqlite.NewTranscriptStore(db),
+		interrupts: sqlite.NewInterruptStore(db),
+		history:    map[string][]chat.Message{},
+	}})
+}
+
 func (*blockingRunRuntime) SessionByID(context.Context, string) (session.Session, error) {
 	return session.Session{ID: "ses_1", Cwd: "/work"}, nil
 }
@@ -31,6 +49,11 @@ func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ runs.Handle) (iter.
 }
 
 func (*blockingRunRuntime) CancelTurn(context.Context, runs.Handle) error { return nil }
+
+func (*blockingRunRuntime) Start(_ context.Context, req runs.StartTurn) (runs.Turn, error) {
+	handle := turn.TurnHandle{SessionID: req.SessionID, TurnID: "turn_blocking"}
+	return runs.Turn{SessionID: handle.SessionID, TurnID: handle.TurnID, Handle: handle}, nil
+}
 
 func (*blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {
 	return runsegment.New(runsegment.Config{
@@ -56,19 +79,28 @@ func (blockingTranscript) PutRun(context.Context, transcript.Run) error      { r
 // startLiveRun starts a run that blocks forever (via a blockingRunRuntime the
 // caller wired into the Server), waits until the coordinator has registered it,
 // and schedules teardown. Use for tests that need a live run present.
-func startLiveRun(t *testing.T, s *Server, runID string) {
+func startLiveRun(t *testing.T, s *Server, cwd string) string {
 	t.Helper()
-	handle := turn.TurnHandle{SessionID: "ses_1", TurnID: runID}
-	factory := s.segmentProjector(runID, "", "ses_1", "", handle, nil, nil, "", "", time.Now().UTC())
-	if _, err := s.coordinator.Start(context.Background(), runs.StartSpec{RunID: runID, SessionID: "ses_1", TurnID: runID, Handle: handle}, factory); err != nil {
+	sess, err := s.sessions.Create(context.Background(), "", cwd)
+	if err != nil {
+		t.Fatalf("create live-run session: %v", err)
+	}
+	result, err := s.coordinator.Start(context.Background(), runs.StartCommand{
+		SessionID:       sess.ID,
+		Message:         "hold this run open",
+		OpeningUserText: "hold this run open",
+		NewProjector:    s.segmentProjector(nil),
+	})
+	if err != nil {
 		t.Fatalf("start live run: %v", err)
 	}
 	deadline := time.Now().Add(time.Second)
-	for !s.coordinator.Contains(runID) {
+	for !s.coordinator.Contains(result.RunID) {
 		if time.Now().After(deadline) {
 			t.Fatal("live run was not registered")
 		}
 		time.Sleep(time.Millisecond)
 	}
 	t.Cleanup(s.Close)
+	return result.RunID
 }

@@ -99,22 +99,6 @@ type RunRef struct {
 	TurnID    string
 }
 
-// RehydrateSpec describes rebuilding a parked turn's process from its durable
-// interrupt snapshot after process-local state was lost. TurnID is reused so a
-// prepared turn remains addressable if continuation opening is rejected.
-type RehydrateSpec struct {
-	SessionID string
-	TurnID    string
-	ProcessID string
-	Provider  string
-	Model     string
-}
-
-// Handle is the opaque per-turn execution handle a resumed / rehydrated turn
-// runs under. It is opaque to the coordinator: the delivery layer forwards it to
-// the run coordinator (as its own opaque handle) without inspecting it.
-type Handle = any
-
 // WorkspaceCheckpoints is the coordinator's view of a session's working-tree
 // checkpoint store (shadow git): Restore resets the tree to a run-boundary
 // snapshot — the filesystem half of a file rollback (§8.5) — and DropSession
@@ -147,16 +131,11 @@ type WorkspaceMutations interface {
 	ListPending(ctx context.Context) ([]execution.WorkspaceMutation, error)
 }
 
-// Turns is the engine-neutral turn-control slice the lifecycle coordinator
-// drives to abandon (Cancel), prepare (Prepare / Rehydrate), or continue
-// (Resume) the process backing a run. The composition root injects an adapter
-// over the agent turn dispatcher and maps its ownership outcomes onto
-// [ErrParkClaimed] / [ErrTurnNotLive].
+// Turns is the engine-neutral process cleanup slice the session lifecycle
+// coordinator uses when delete/rollback abandons parked turns. User-visible
+// resume/cancel/steer orchestration belongs to application/runs.
 type Turns interface {
 	Cancel(ctx context.Context, ref RunRef) error
-	Prepare(ctx context.Context, ref RunRef) (Handle, error)
-	Resume(ctx context.Context, handle Handle, resolution interrupts.Resolution, interruptKinds []string) error
-	Rehydrate(ctx context.Context, req RehydrateSpec) (Handle, error)
 }
 
 // Coordinator executes session/run lifecycle write-sets across the domain
@@ -190,25 +169,8 @@ type Dependencies struct {
 	Mutations   WorkspaceMutations
 }
 
-// ErrRunNotFound reports that a lifecycle operation targeted no live or parked run.
-var ErrRunNotFound = errors.New("sessions: run not found")
-
-// ErrInterruptNotOpen reports that an interrupt resume/cancel target is no
-// longer open.
-var ErrInterruptNotOpen = errors.New("sessions: interrupt not open")
-
 // ErrSessionBusy reports that a session already has an active or parked run.
 var ErrSessionBusy = errors.New("sessions: session busy")
-
-// ErrParkClaimed and ErrTurnNotLive are the
-// engine-neutral resume outcomes the [Turns] adapter maps the executor's errors
-// onto, so the coordinator branches on resume semantics without importing the
-// agent turn package: ErrParkClaimed = another resume already claimed the parked
-// turn; ErrTurnNotLive = the process is gone (fall back to rehydrate).
-var (
-	ErrParkClaimed = errors.New("sessions: parked turn already claimed")
-	ErrTurnNotLive = errors.New("sessions: turn not live")
-)
 
 // New returns a Coordinator over deps.
 func New(deps Dependencies) *Coordinator {
@@ -224,6 +186,17 @@ func New(deps Dependencies) *Coordinator {
 // serializing it against any in-flight destructive mutation of the same tree.
 func (c *Coordinator) ClaimWorkingTreeRun(cwd string) (WorkingTreeAdmission, bool) {
 	return c.trees.ClaimRun(worktree.CanonicalCwd(cwd))
+}
+
+// AcquireWorkingTreeRun is the closure-based consumer seam used by
+// application/runs. Returning only a release function keeps the concrete
+// admission token inside this package while preserving idempotent release.
+func (c *Coordinator) AcquireWorkingTreeRun(cwd string) (func(), bool) {
+	admission, ok := c.ClaimWorkingTreeRun(cwd)
+	if !ok {
+		return nil, false
+	}
+	return admission.Release, true
 }
 
 // ClaimWorkingTreeMutation reserves exclusive access to cwd's working tree for a

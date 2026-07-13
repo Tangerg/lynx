@@ -6,14 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // ResumeRun answers an open interrupt by opening a NEW segment of the SAME run
@@ -27,89 +22,25 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	pending, admission, err := s.sessions.ClaimResumeSlot(ctx, s.coordinator, in.RunID)
+	result, err := s.coordinator.Resume(ctx, runs.ResumeCommand{
+		RunID:          in.RunID,
+		Resolution:     resolution,
+		InterruptKinds: interruptKindsFromContext(ctx),
+		NewProjector:   s.segmentProjector(nil),
+	})
 	if err != nil {
 		switch {
-		case errors.Is(err, sessions.ErrInterruptNotOpen):
+		case errors.Is(err, runs.ErrInterruptNotOpen):
 			return nil, nil, protocol.ErrInterruptNotOpen
-		case errors.Is(err, sessions.ErrSessionBusy):
-			return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, pending.SessionID)
-		default:
-			return nil, nil, err
-		}
-	}
-	defer admission.Release()
-
-	sess, err := s.sessions.Get(ctx, pending.SessionID)
-	if err != nil {
-		return nil, nil, wireSessionErr(err)
-	}
-	treeAdmission, ok := s.sessions.ClaimWorkingTreeRun(sess.Cwd)
-	if !ok {
-		return nil, nil, fmt.Errorf("%w: working tree %q has a file restore in flight", protocol.ErrSessionBusy, sess.Cwd)
-	}
-	releaseTreeAdmission := true
-	defer func() {
-		if releaseTreeAdmission {
-			treeAdmission.Release()
-		}
-	}()
-
-	prepared, err := s.sessions.PrepareClaimedInterrupt(ctx, pending)
-	if err != nil {
-		switch {
-		case errors.Is(err, sessions.ErrInterruptNotOpen):
-			return nil, nil, protocol.ErrInterruptNotOpen
-		case errors.Is(err, sessions.ErrRunNotFound):
+		case errors.Is(err, runs.ErrSessionBusy):
+			return nil, nil, protocol.ErrSessionBusy
+		case errors.Is(err, runs.ErrRunNotFound):
 			return nil, nil, protocol.ErrRunNotFound
 		default:
 			return nil, nil, err
 		}
 	}
-	pending = prepared.Pending
-	handle, ok := prepared.Handle.(turn.TurnHandle)
-	if !ok {
-		return nil, nil, fmt.Errorf("resume: executor handle %T is not a turn handle", prepared.Handle)
-	}
-	interruptKinds := interruptKindsFromContext(ctx)
-
-	// A resume opens a NEW segment of the SAME run: the runId (in.RunID = the
-	// stable logical run) is unchanged, and a fresh segmentId identifies this
-	// continuation stream. handle.TurnID is the executor's turn handle (= the
-	// ProcessID) — distinct from the stable runId.
-	segmentID := protocol.IDPrefixSegment + uuid.NewString()
-	// A continuation carries no new user turn — the decision is delivered
-	// out-of-band via runs.resume, so no opening userMessage Item. It DOES
-	// carry the resume binding: an approved tool re-fires in this segment and
-	// must complete its ORIGINAL proposal item (API.md §5.2 / §6), not a fresh
-	// one. It runs against the parked run's same provider+model.
-	//
-	// createdAt is the RUN's original start time (carried on the interrupt), NOT
-	// now: the run's segments share one durable transcript record keyed by the
-	// stable runId, so a resume that terminates must not shift the run's timeline
-	// position (it anchors rollback/fork ordering + subagent grouping, §10.3).
-	createdAt := pending.RunCreatedAt
-	factory := s.segmentProjector(in.RunID, segmentID, pending.SessionID, sess.Cwd, handle, nil, resumeBindingFrom(pending), pending.Provider, pending.Model, createdAt)
-	evCh, err := s.coordinator.Start(ctx, runs.StartSpec{
-		RunID:     in.RunID,
-		SegmentID: segmentID,
-		SessionID: pending.SessionID,
-		Cwd:       worktree.CanonicalCwd(sess.Cwd),
-		TurnID:    handle.TurnID,
-		Handle:    handle,
-		Provider:  pending.Provider,
-		Model:     pending.Model,
-		CreatedAt: createdAt,
-		Activate: func(activateCtx context.Context) error {
-			return s.sessions.ActivatePreparedInterrupt(activateCtx, prepared, resolution, interruptKinds)
-		},
-	}, factory)
-	if err != nil {
-		return nil, nil, err
-	}
-	treeAdmission.Release()
-	releaseTreeAdmission = false
-	return &protocol.StartRunResponse{RunID: in.RunID, SegmentID: segmentID}, mapRunEvents(ctx, evCh), nil
+	return &protocol.StartRunResponse{RunID: result.RunID, SegmentID: result.SegmentID}, mapRunEvents(ctx, result.Events), nil
 }
 
 // resolveResolution maps the wire interrupt responses onto the structured

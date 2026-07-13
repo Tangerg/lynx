@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -15,22 +15,22 @@ import (
 // replays its backlog then tails live; anything else is run_not_found. (Backlog
 // replay / Last-Event-Id windowing is covered by the Journal's own tests.)
 func TestSubscribeRun_StreamsLiveRun(t *testing.T) {
-	s := newTestServer(&blockingRunRuntime{})
-	startLiveRun(t, s, "run_live")
+	s := newBlockingServer(t)
+	runID := startLiveRun(t, s, t.TempDir())
 
-	out, events, err := s.SubscribeRun(context.Background(), "run_live")
+	out, events, err := s.SubscribeRun(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("subscribe live: %v", err)
 	}
-	if out == nil || out.RunID != "run_live" || events == nil {
+	if out == nil || out.RunID != runID || events == nil {
 		t.Fatalf("subscribe live: out=%+v events=%v", out, events)
 	}
 	// The live run's opening segment.started is durable, so a fresh subscription
 	// replays it.
 	select {
 	case ev := <-events:
-		if ev.RunID != "run_live" {
-			t.Fatalf("first event runId = %q, want run_live", ev.RunID)
+		if ev.RunID != runID {
+			t.Fatalf("first event runId = %q, want %s", ev.RunID, runID)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("subscribe must replay the live run's opening event")
@@ -99,7 +99,7 @@ func TestCollectUserInput(t *testing.T) {
 }
 
 func TestWireTurnStartErrMapsInvalidTurnLimit(t *testing.T) {
-	err := wireTurnStartErr(turn.ErrInvalidTurnLimit)
+	err := wireRunStartErr(runs.ErrInvalidTurnLimit)
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("err = %v, want ErrInvalidParams", err)
 	}
@@ -133,7 +133,7 @@ func TestGenerationOptionsFromWire(t *testing.T) {
 }
 
 func TestWireTurnStartErrMapsInvalidTurnOptions(t *testing.T) {
-	err := wireTurnStartErr(turn.ErrInvalidTurnOptions)
+	err := wireRunStartErr(runs.ErrInvalidTurnOptions)
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("err = %v, want ErrInvalidParams", err)
 	}
