@@ -561,7 +561,7 @@ sequenceDiagram
 - activation 失败发生在已接受 segment 内，必须通过同一 stream terminalize，不能恢复已消费 interrupt 制造 ghost resume；
 - delta：live-only，可直接发布；
 - completed item：持久化后发布；
-- interrupt：Run state、interrupt payload、ProcessSnapshot reference 提交后发布；
+- interrupt/park：本段所有 running interrupt items、Interrupted Run、Pending Interrupt、admission suspend 与 ProcessSnapshot reference 作为一个 write-set 提交；完整 event batch 在同一 cancel linearization 内、commit 成功后整批发布；
 - terminal：Run outcome、usage、Transcript/Conversation projection 提交后发布；
 - 发布后会解锁新命令的事件，必须 commit-before-publish；
 - terminal 发布后，立即查询应看到一致结果。
@@ -618,7 +618,11 @@ Interrupt 可以独立建表，但领域上属于 Run：
 
 Resume 的 interrupt delete 不是 lifecycle coordinator 的预先 CRUD：`CommitOpening` 在一个 SQLite 事务里执行 `Consume(runID)`、校验 Session binding、按 RunID + SessionID 严格执行 `RunState.Resume`，再写 opening transcript projection。任何一步失败都会回滚，interrupt 仍保持开放。跨重启 rehydrate 复用 interrupt 持久化的 TurnID；因此 prepare 成功但 opening 失败时，重试仍解析到同一个 parked owner，不会重复 restore 同一 ProcessID。
 
-Parked Cancel 同样是一个完整写集：Application 在持有 Session admission 时把 `Interrupted` Run 归约为 `Canceled`，将等待中的 interrupt item 改为 `Incomplete`，写入 terminal result、message watermark、取消原因和完成时间；SQLite 在同一事务内提交这些 transcript projections、删除 open interrupt 并 terminalize admission row。不能只删除 interrupt/run-state 而留下一个无法 resume 的 `Interrupted` transcript。
+Park 本身也是一个 aggregate commit，而不是“最后一条 interrupt 事件”的副作用。Reducer 必须把本段此前已经发出的 approval/question `ItemStarted`、最终 interrupt item projection、Run/Pending Interrupt/admission/ProcessSnapshot 一次性交给 `CommitEvent`；Coordinator 在 `commitInterrupt` 锁内完成整个 batch 的 commit 与 publication，使 cancel 不可能插入半个 park 边界。
+
+Parked Cancel 同样是一个完整写集：Application 在持有 Session admission 时把 `Interrupted` Run 归约为 `Canceled`，将等待中的 interrupt item 改为 `Incomplete`，写入 terminal result、message watermark、取消原因和完成时间；SQLite 在同一事务内提交这些 transcript projections、删除 open interrupt、删除其 ProcessSnapshot 并 terminalize admission row。顺序上必须先提交 durable cancel truth，再对 process-local turn 做 bounded best-effort teardown；不能先删除唯一可恢复快照，再冒险让 durable cancel 失败。
+
+启动恢复不是 read path 的临时修饰。Persistence 在对外服务前以一个事务审计全部 non-terminal Run：只有 Run、transcript、Pending Interrupt、admission 与可用 ProcessSnapshot 构成完整 parked boundary 时才保留 `Interrupted`；Running、孤儿 Interrupted 或外部丢失快照的 Run 必须持久化为 `Failed/Error` + `run_lost`，同步关闭 running items/admission 并清理 orphan interrupt/snapshot。若事实组合不可能由原子 write-set 产生（例如 transcript identity/state 自相矛盾），启动应 fail loud，不能把内部数据损坏伪装成外部进程丢失。
 
 ### 8.4 Transcript 与 Conversation 是 projection
 
@@ -636,9 +640,11 @@ Transcript 的 authoritative record 是 `domain/execution/transcript` 中的 typ
 
 Runtime 处于开发期，只安装当前 SQLite schema。`PRAGMA user_version` 与当前 version 不一致时直接丢弃旧结构并重建，不提供 migration；session artifact 同样只接受当前 version。该策略用于阻止错误持久化模型通过兼容代码继续存在。
 
-Session artifact 是**便携终态快照**，不是进程快照：导出先 claim Session single-writer slot、拒绝 active/open-interrupt Session，再在一个 SQLite transaction 中读取 Session + Conversation + Transcript；artifact 中的 Run 必须 terminal，必须带 outcome/result 和已解析的 message watermark，terminal item 不得仍为 running。导入严格拒绝 `running`/`interrupt` Run，因为 admission、parked executor 与 ProcessSnapshot 不在 artifact 中，接受它们只会制造不可恢复的孤儿状态。
+Session artifact 是**便携终态快照**，不是进程快照：导出先 claim Session single-writer slot、拒绝 active/open-interrupt Session，再在一个 SQLite transaction 中读取 Session + Conversation + Transcript；artifact 中的 Run 必须 terminal，必须带 outcome/result、FinishedAt 和已解析的 message watermark，terminal item 不得仍为 running。Snapshot 读取同时校验 Session/Run/Item ownership、error coupling、accounting、spawning reference、tool kind 与 run-tree cycle。导入严格拒绝 `running`/`interrupt` Run，因为 admission、parked executor 与 ProcessSnapshot 不在 artifact 中，接受它们只会制造不可恢复的孤儿状态；restore 自己在 Application 内 claim admission，不能依赖 Delivery 代为互斥。
 
-Rollback 对内部 delegation lineage 的清理也是 durable plan 的一部分：Application 只把归属于 dropped run window 的 `KindSubtask` 子树加入 `DropSessionIDs`，用户主动创建的 fork 即使共享 `ParentID` 也必须保留；SQLite 将父 Session 的 timeline truncate 与这些 subtask 子树删除放进同一事务，不能在提交后 best-effort 递归删除并吞错。
+Fork 必须从同一个 coherent snapshot 派生 session、conversation 与 transcript，不能先读 history、稍后再读 execution timeline。Cwd patch 也属于 Session mutation admission；只有 Cwd 改动在 live Run 期间被拒绝，其他不冲突 patch 不应被过度阻塞。
+
+Rollback 对内部 delegation lineage 的清理也是 durable plan 的一部分：Application 只把归属于 dropped run window 的 `KindSubtask` 子树加入 `DropSessionIDs`，用户主动创建的 fork 即使共享 `ParentID` 也必须保留；在任何 workspace restore 前，先解析并 claim 全部待删除 subtask descendants，避免子 Session 在检查后启动 Run。SQLite 将父 Session timeline truncate、subtask subtree 及其 interrupt/ProcessSnapshot 删除放进同一事务，不能在提交后 best-effort 递归删除并吞错。Session delete 使用相同的递归 claim/write-set 规则，但从目标 Session 开始删除完整 KindSubtask 子树并保留独立用户 fork。
 
 ### 8.5 数据库与工作区不能假装原子
 
@@ -646,11 +652,12 @@ SQLite 事务不能和 Git/文件系统 restore 组成真正 ACID 事务。
 
 对于 rollback/import 这类跨资源破坏操作，采用针对性的 operation intent：
 
-1. 在 SQLite 记录 PendingWorkspaceMutation；
-2. 执行可重入的 workspace restore；
-3. 应用 durable rollback plan；
-4. 标记 mutation completed；
-5. 启动时恢复未完成操作。
+1. claim 全部会被 durable plan 删除或改写的 Session；
+2. 在 SQLite 记录 PendingWorkspaceMutation；
+3. 执行可重入的 workspace restore；
+4. 应用 durable rollback plan；
+5. 标记 mutation completed；
+6. 启动时恢复未完成操作。
 
 不需要通用 Saga 框架，只需要为真实存在的跨资源一致性建立小型、可恢复的操作日志。
 
@@ -711,6 +718,8 @@ Supervisor 的约束：
 - Cancel 幂等；
 - 每个 instance 只有一个 terminalization owner；
 - Run 结束后先完成必要 commit，再关闭 Journal；
+- shutdown cancel 后的 terminal synthesis 使用 detached、bounded cleanup context，不能因 owner context 已取消而跳过 durable terminal；
+- post-terminal maintenance 只在 terminal/park commit 成功后运行，并使用 Run 启动时捕获的 workspace identity；
 - Supervisor.Close 并发 cancel 全部实例并 join。
 
 ### 10.2 三类 Context
@@ -726,6 +735,7 @@ Supervisor 的约束：
 - Run 不继承 request cancellation；
 - Request span/metadata 可以保留，但 deadline 不得逃逸；
 - post-commit 工作不受客户端断线影响，但必须受 component shutdown 控制；
+- cleanup 可以通过 `WithoutCancel` 保留 trace/value，但必须重新施加短 deadline；
 - 每个 goroutine 都必须有 owner、cancel 和 join point。
 
 ### 10.3 关闭顺序
@@ -852,6 +862,7 @@ YAML/env 只在 bootstrap/config 解析，随后投影成各组件的 typed conf
 - 构造 application coordinators；
 - 构造 delivery/transport；
 - 启动 scheduler/reconciler；
+- 在对外服务前完成 non-terminal Run/Interrupt/ProcessSnapshot durable reconciliation；
 - 保存进程级关闭顺序。
 
 Host 不提供 Sessions、Runs、MCP 等业务方法。
@@ -901,13 +912,16 @@ Host 不提供 Sessions、Runs、MCP 等业务方法。
 
 - Start admission 与 failure cleanup；
 - interrupt commit-before-publish；
+- park batch 的 running interrupt items 与 Run/Interrupt/admission/ProcessSnapshot 原子提交、整批发布；
 - cancel/interrupt 竞态；
 - resume/rehydrate ownership ordering（prepare 不交付 decision，opening 后才 activate）；
 - opening 失败保持 interrupt 开放、activation 失败在已接受 segment 内 terminalize；
 - terminal commit 与 Journal close 顺序；
 - request cancel 不杀死 Run；
 - component close 必须 join；
+- shutdown cancellation 仍能 bounded terminalize，失败 commit 不触发 Finish maintenance；
 - rollback plan 的 transaction/write ordering；
+- delete/rollback 在 workspace mutation 前 claim 完整 KindSubtask subtree；
 - MCP registry commit 与 live reconcile。
 
 Clock、ID generator、Executor 由测试注入，确保确定性。
@@ -916,6 +930,7 @@ Clock、ID generator、Executor 由测试注入，确保确定性。
 
 - SQLite 使用真实临时 DB；
 - Store 契约测试覆盖事务、约束和快照隔离（包括真实 SQLite 下 Consume 后失败必须回滚）；
+- 启动 reconciliation 覆盖 coherent parked boundary、`run_lost`、impossible durable mismatch 与 ProcessSnapshot cleanup；
 - agentexec 用 stub model/tool；
 - MCP/LSP/exec 用可控 fake process/server；
 - Git/checkpoint 使用临时仓库。
@@ -1070,7 +1085,9 @@ Clock、ID generator、Executor 由测试注入，确保确定性。
 - application 不 import agent SDK、SQLite、Git、MCP、LSP 或 protocol；
 - agent event、application event、protocol event 三层清晰且单向翻译；
 - terminal/interrupt 的 durable commit 与 live publication 顺序可由单元测试证明；
+- park、resume、cancel 与 boot recovery 对 ProcessSnapshot 使用同一个 durable truth；
 - Session admission 在重启后仍有唯一事实源；
+- restore/fork/delete/rollback 无法绕过 Session admission 或读取 split snapshot；
 - rollback 的数据库与工作区一致性拥有可恢复语义；
 - Bootstrap 只装配和关闭，不提供业务 API；
 - 每个 goroutine 都能回答 owner、cancel、join；
