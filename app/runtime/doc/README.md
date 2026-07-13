@@ -10,7 +10,8 @@
 
 | 文档 | 一句话 |
 |---|---|
-| [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md) | ★ **唯一架构基准**：以 Run 生命周期（而非 agent loop）为中心的 Clean Arch —— Domain / Application / Adapter / Delivery / Bootstrap 五环 + 事件三层 + 事务 / 并发 / 生命周期语义 + 完成判据。已由 8 批重写落地，依赖规则由 `internal/arch` 机器强制。 |
+| [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md) | ★ **唯一架构基准**：以 Run 生命周期（而非 agent loop）为中心的 Clean Arch —— Domain / Application / Adapter / Delivery / Bootstrap 五环 + 事件三层 + 事务 / 并发 / 生命周期语义 + 完成判据。主体已由 8 批重写落地，依赖规则由 `internal/arch` 机器强制，剩余语义收敛由执行计划跟踪。 |
+| [EXECUTION_ARCHITECTURE_CONVERGENCE_PLAN.md](EXECUTION_ARCHITECTURE_CONVERGENCE_PLAN.md) | **当前执行控制面**：记录 Execution-centered 架构剩余差异、四批收敛顺序、进度、门禁、风险与决策日志，防止长任务偏离目标。 |
 | [EXTENSIBILITY.md](EXTENSIBILITY.md) | 可替换性边界：外部 SPI（memory / 压缩 / LLM / RAG…可换）vs 内部焊死（核心强耦合）+ nil-default 注入方式 |
 
 ## B. 外部对照
