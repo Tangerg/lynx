@@ -3,51 +3,30 @@ package server
 import (
 	"context"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
 // RunScheduler starts the scheduled-run worker until ctx is canceled.
 func (s *Server) RunScheduler(ctx context.Context) {
-	s.schedules.RunWorker(ctx, scheduleRunner{s})
+	s.schedules.RunWorker(ctx, s.scheduledRunLauncher())
 }
 
-type scheduleRunner struct {
-	server *Server
-}
-
-func (r scheduleRunner) StartScheduledRun(ctx context.Context, sc schedule.Schedule) (string, error) {
-	s := r.server
-	cwd := sc.Cwd
-	if cwd == "" {
-		cwd = s.serverInfo.Cwd
-	}
-	title := sc.Title
-	if title == "" {
-		title = "Scheduled run"
-	}
-	sess, err := s.sessions.Create(ctx, title, cwd)
-	if err != nil {
-		return "", err
-	}
-
-	// Drop the unused event subscription immediately; StartRun detaches the run
-	// context, so the pump keeps going and persists without a subscriber.
-	fireCtx, cancel := context.WithCancel(ctx)
-	_, _, err = s.StartRun(fireCtx, protocol.StartRunRequest{
-		SessionID: sess.ID,
-		Input:     []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: sc.Prompt}},
-		Provider:  sc.Provider,
-		Model:     sc.Model,
-	})
-	cancel()
-	if err != nil {
-		return "", err
-	}
-
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{
-		Type:       protocol.WorkspaceEventSchedulesFired,
-		ScheduleID: sc.ID,
-	})
-	return sess.ID, nil
+func (s *Server) scheduledRunLauncher() schedules.RunLauncher {
+	return schedules.NewRunLauncher(
+		s.coordinator,
+		s.serverInfo.Cwd,
+		func(sc schedule.Schedule) runs.ProjectorFactory {
+			input := []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: sc.Prompt}}
+			return s.segmentProjector(input)
+		},
+		func(scheduleID string) {
+			s.PublishWorkspaceEvent(protocol.WorkspaceEvent{
+				Type:       protocol.WorkspaceEventSchedulesFired,
+				ScheduleID: scheduleID,
+			})
+		},
+	)
 }

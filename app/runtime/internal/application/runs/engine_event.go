@@ -10,7 +10,7 @@ import (
 )
 
 // EngineEvent is the application-owned execution event sum type. Driven
-// adapters emit these values at the runs.Executor port; delivery therefore
+// adapters emit these values at the runs.SegmentExecutor port; delivery therefore
 // projects a stable application contract and never reaches back into an
 // executor adapter. The unexported marker seals the family to this package.
 type EngineEvent interface {

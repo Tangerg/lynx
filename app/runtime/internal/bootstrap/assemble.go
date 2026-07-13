@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
@@ -39,7 +42,6 @@ type Stack struct {
 	Tools        *tools.Coordinator
 	Codebase     *codebase.Coordinator
 	Queries      *queries.Coordinator
-	TurnControl  *turn.Control
 	Workspace    *workspace.Coordinator
 	Schedules    *schedules.Coordinator
 	// Coordinator owns the run lifecycle end to end (§8.2/§20): admission, the
@@ -217,10 +219,10 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 	// delivery workspace hub via the notifier the delivery Server observes — the
 	// seam that lets the coordinator be constructed here in the Host rather than
 	// inside delivery (§11.1/§13.2). It drives the agent turn through the turn
-	// Executor (§6.1); turnControl is the sibling turn-start adapter delivery drives.
+	// Executor (§6.1); the same adapter implements the complete neutral turn-control
+	// surface consumed by application/runs.
 	fileChanges := &filechanges.Notifier{}
 	runExecutor := turn.NewExecutor(turnDispatcher)
-	turnControl := turn.NewControl(turnDispatcher, cfg.SessionStore)
 	// effectsTasks backs the run-segment terminal boundary maintenance (checkpoint
 	// snapshot + title) off the live pump; the Host joins it after the pumps.
 	effectsTasks := &taskgroup.Group{}
@@ -239,8 +241,6 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 		Tasks:              effectsTasks,
 		PublishFileChanges: fileChanges.Publish,
 	})
-	runCoord := runs.NewCoordinator(runExecutor, runEffects)
-
 	// mcpStatus bridges the integrations coordinator's MCP reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
 	mcpStatus := &mcpstatus.Notifier{}
@@ -258,6 +258,19 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 		Turns:       sessionsTurns{dispatcher: turnDispatcher},
 		Checkpoints: sessionCheckpoints{cp: checkpoints},
 		Mutations:   cfg.WorkspaceMutationStore,
+	})
+	runCoord := runs.NewCoordinator(runs.Dependencies{
+		Segments: runExecutor,
+		Turns:    runExecutor,
+		Sessions: sessionCoord,
+		Effects:  runEffects,
+		Now:      time.Now,
+		NewRunID: func() string {
+			return "run_" + uuid.NewString()
+		},
+		NewSegmentID: func() string {
+			return "seg_" + uuid.NewString()
+		},
 	})
 
 	approvalsCoord := approvals.New(approvalPolicy, cfg.SessionStore)
@@ -300,7 +313,6 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 			Coordinator:  runCoord,
 			FileChanges:  fileChanges,
 			MCPStatus:    mcpStatus,
-			TurnControl:  turnControl,
 			Queries: queries.New(queries.Dependencies{
 				Transcript: cfg.TranscriptStore,
 				History:    messages.conversation,

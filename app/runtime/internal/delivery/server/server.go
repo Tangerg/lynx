@@ -15,9 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
-	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
@@ -68,11 +66,6 @@ type Config struct {
 	// execution record (transcript / history / interrupts). Required — the
 	// items.list / messages.list / interrupts.list handlers drive it.
 	Queries *queries.Coordinator
-
-	// TurnControl is the turn-start adapter (plan / start / steer a turn). Required
-	// — the runs.start / runs.steer handlers drive it. It speaks the agent-SDK turn
-	// types, so it lives in the adapter ring, not application.
-	TurnControl *turn.Control
 
 	// FileChanges is the composition-root bridge the run pump publishes live
 	// file-change nudges through; the Server installs a consumer that maps them to
@@ -147,9 +140,6 @@ type Server struct {
 	// execution record (transcript / history / interrupts). Injected by New.
 	queries *queries.Coordinator
 
-	// turnControl is the turn-start adapter (plan / start / steer). Injected by New.
-	turnControl *turn.Control
-
 	// schedules owns the cron-triggered headless-run use cases (schedules.* + the
 	// background worker), injected by the composition root. Never nil after New.
 	schedules *schedules.Coordinator
@@ -196,10 +186,6 @@ func (s *Server) Close() {
 	s.closed.Store(true)
 }
 
-// runCleanupTimeout bounds the request-detached work that drives a parked run's
-// durable cancel, so a stuck store can't wedge cancellation.
-const runCleanupTimeout = 5 * time.Second
-
 // New builds a Server. Returns an error when a required coordinator is nil. The
 // concrete *Server is returned (it satisfies [protocol.Runtime]) so the
 // composition root can also reach process entry points like RunScheduler.
@@ -231,9 +217,6 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Queries == nil {
 		return nil, errors.New("server: Queries is required")
 	}
-	if cfg.TurnControl == nil {
-		return nil, errors.New("server: TurnControl is required")
-	}
 	scheduleCoord := cfg.Schedules
 	if scheduleCoord == nil {
 		scheduleCoord = schedules.NewCoordinator(nil, nil) // disabled: schedules.* report capability_not_negotiated
@@ -255,7 +238,6 @@ func New(cfg Config) (*Server, error) {
 		codebase:     codebaseCoord,
 		coordinator:  cfg.Coordinator,
 		queries:      cfg.Queries,
-		turnControl:  cfg.TurnControl,
 		serverInfo:   cfg.ServerInfo,
 		wsHub:        newWorkspaceHub(),
 		schedules:    scheduleCoord,

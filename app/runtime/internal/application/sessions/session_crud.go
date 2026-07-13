@@ -28,6 +28,14 @@ func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Se
 	return c.s.Session().Create(ctx, title, cwd)
 }
 
+// SetModel records the model explicitly selected for a run. It is the narrow
+// mutation consumed by application/runs; callers that need the full editable
+// session surface use Update.
+func (c *Coordinator) SetModel(ctx context.Context, id, model string) error {
+	_, err := c.s.Session().Patch(ctx, id, session.Patch{Model: &model})
+	return err
+}
+
 // Update applies a session edit and returns the updated aggregate. Title (rename),
 // model, cwd (relocate), metadata (full replace) and favorite are each optional;
 // nil fields are left alone. The whole patch commits as one transaction so a

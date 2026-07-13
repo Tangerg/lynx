@@ -2,10 +2,11 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
@@ -28,7 +29,8 @@ import (
 // agentexec turn executor + a Host-built effects; the stub provides both, plus
 // the optional coordinator-provider seams asserted below.
 type testRuntime interface {
-	runs.Executor
+	runs.SegmentExecutor
+	runs.TurnControl
 	RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects
 }
 
@@ -60,16 +62,6 @@ type queriesCoordinatorProvider interface {
 	queriesCoordinator() *queries.Coordinator
 }
 
-// turnControlProvider is the parallel seam for the turn-start adapter: a fake that
-// can build the real turn.Control over its dispatcher + session store.
-type turnControlProvider interface {
-	turnControlAdapter() *turn.Control
-}
-
-func (s stubRuntime) turnControlAdapter() *turn.Control {
-	return turn.NewControl(s.turnDispatcher(), s.sess)
-}
-
 // stubHistoryReader adapts the stub's in-memory chat-history map to the query
 // coordinator's history reader port.
 type stubHistoryReader struct{ history map[string][]chat.Message }
@@ -88,21 +80,27 @@ func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 
 func newTestServer(rt testRuntime) *Server {
 	s := &Server{}
-	// Build the run Coordinator like the Host does, so tests exercise the real
-	// admission / lifecycle seam. The stub runtime provides both the executor
-	// (TurnEvents/CancelTurn) and the run-segment effects; no checkpoint store or
-	// file-change publisher is needed for these tests.
-	s.coordinator = runs.NewCoordinator(rt, rt.RunSegmentEffects(nil, nil))
 	// Wire the session/run lifecycle coordinator over the fake's in-memory stores
 	// when the fake provides one, mirroring the composition root.
 	if p, ok := rt.(sessionsCoordinatorProvider); ok {
 		s.sessions = p.sessionsCoordinator()
 	}
+	var ids atomic.Uint64
+	s.coordinator = runs.NewCoordinator(runs.Dependencies{
+		Segments: rt,
+		Turns:    rt,
+		Sessions: s.sessions,
+		Effects:  rt.RunSegmentEffects(nil, nil),
+		Now:      time.Now,
+		NewRunID: func() string {
+			return fmt.Sprintf("run_test_%d", ids.Add(1))
+		},
+		NewSegmentID: func() string {
+			return fmt.Sprintf("seg_test_%d", ids.Add(1))
+		},
+	})
 	if p, ok := rt.(queriesCoordinatorProvider); ok {
 		s.queries = p.queriesCoordinator()
-	}
-	if p, ok := rt.(turnControlProvider); ok {
-		s.turnControl = p.turnControlAdapter()
 	}
 	// Seed a default models coordinator so the session→wire projection (which
 	// reads DefaultModel) works; capability handler tests build their own via
@@ -184,12 +182,32 @@ func (s stubRuntime) TurnEvents(ctx context.Context, handle runs.Handle) (iter.S
 	return turn.NewExecutor(s.turnDispatcher()).TurnEvents(ctx, handle)
 }
 
-func (s stubRuntime) ResumeTurn(ctx context.Context, handle turn.TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
-	return s.turnDispatcher().Resume(ctx, handle, resolution, interruptKinds)
+func (s stubRuntime) ValidateStart(req runs.StartTurn) error {
+	return turn.NewExecutor(s.turnDispatcher()).ValidateStart(req)
 }
 
-func (s stubRuntime) RehydrateTurn(ctx context.Context, req turn.RehydrateRequest) (turn.TurnHandle, error) {
-	return s.turnDispatcher().Rehydrate(ctx, req)
+func (s stubRuntime) Start(ctx context.Context, req runs.StartTurn) (runs.Turn, error) {
+	return turn.NewExecutor(s.turnDispatcher()).Start(ctx, req)
+}
+
+func (s stubRuntime) Prepare(ctx context.Context, ref runs.TurnRef) (runs.Turn, error) {
+	return turn.NewExecutor(s.turnDispatcher()).Prepare(ctx, ref)
+}
+
+func (s stubRuntime) Resume(ctx context.Context, prepared runs.Turn, resolution interrupts.Resolution, interruptKinds []string) error {
+	return turn.NewExecutor(s.turnDispatcher()).Resume(ctx, prepared, resolution, interruptKinds)
+}
+
+func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateTurn) (runs.Turn, error) {
+	return turn.NewExecutor(s.turnDispatcher()).Rehydrate(ctx, req)
+}
+
+func (s stubRuntime) Cancel(ctx context.Context, ref runs.TurnRef) error {
+	return turn.NewExecutor(s.turnDispatcher()).Cancel(ctx, ref)
+}
+
+func (s stubRuntime) Steer(ctx context.Context, ref runs.TurnRef, message string) error {
+	return turn.NewExecutor(s.turnDispatcher()).Steer(ctx, ref, message)
 }
 
 func (s stubRuntime) CancelTurn(ctx context.Context, handle runs.Handle) error {
@@ -210,48 +228,6 @@ type stubLifecycleTurns struct {
 
 func (t stubLifecycleTurns) Cancel(ctx context.Context, ref sessions.RunRef) error {
 	return t.rt.CancelTurn(ctx, turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID})
-}
-
-func (t stubLifecycleTurns) Prepare(ctx context.Context, ref sessions.RunRef) (sessions.Handle, error) {
-	handle := turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID}
-	_, err := t.rt.TurnProcessID(ctx, handle)
-	return handle, mapStubResumeError(err)
-}
-
-func (t stubLifecycleTurns) Resume(ctx context.Context, opaque sessions.Handle, resolution interrupts.Resolution, interruptKinds []string) error {
-	handle, ok := opaque.(turn.TurnHandle)
-	if !ok {
-		return fmt.Errorf("stub: handle %T is not a turn handle", opaque)
-	}
-	return mapStubResumeError(t.rt.ResumeTurn(ctx, handle, resolution, interruptKinds))
-}
-
-func (t stubLifecycleTurns) Rehydrate(ctx context.Context, req sessions.RehydrateSpec) (sessions.Handle, error) {
-	handle, err := t.rt.RehydrateTurn(ctx, turn.RehydrateRequest{
-		SessionID: req.SessionID,
-		TurnID:    req.TurnID,
-		ProcessID: req.ProcessID,
-		Provider:  req.Provider,
-		Model:     req.Model,
-	})
-	return handle, mapStubResumeError(err)
-}
-
-// mapStubResumeError mirrors the production bootstrap adapter: it maps the turn
-// dispatcher's resume vocabulary onto the coordinator's neutral sentinels so the
-// delivery resume tests branch exactly as production does.
-func mapStubResumeError(err error) error {
-	if err == nil {
-		return nil
-	}
-	switch {
-	case errors.Is(err, turn.ErrParkClaimed):
-		return fmt.Errorf("%w: %w", sessions.ErrParkClaimed, err)
-	case errors.Is(err, turn.ErrTurnNotFound):
-		return fmt.Errorf("%w: %w", sessions.ErrTurnNotLive, err)
-	default:
-		return err
-	}
 }
 
 type stubRunSegmentProcesses struct {

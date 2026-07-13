@@ -150,15 +150,3 @@ func (t mutationTurns) Cancel(context.Context, RunRef) error {
 	*t.operations = append(*t.operations, "turn.cancel")
 	return nil
 }
-
-func (mutationTurns) Prepare(context.Context, RunRef) (Handle, error) {
-	panic("unused")
-}
-
-func (mutationTurns) Resume(context.Context, Handle, interrupts.Resolution, []string) error {
-	panic("unused")
-}
-
-func (mutationTurns) Rehydrate(context.Context, RehydrateSpec) (Handle, error) {
-	panic("unused")
-}

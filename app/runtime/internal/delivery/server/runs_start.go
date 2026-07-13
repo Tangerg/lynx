@@ -6,21 +6,14 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/media"
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/pkg/mime"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/worktree"
 )
 
 // StartRun translates runs.start into the in-process runtime turn
@@ -36,94 +29,42 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	if err != nil {
 		return nil, nil, err
 	}
-	sess, turnReq, err := s.turnControl.PlanTurnStart(ctx, in.SessionID, s.serverInfo.Cwd, turn.StartTurnRequest{
-		Message:        userMsg,
-		Media:          userMedia,
-		Provider:       in.Provider,
-		Model:          in.Model,
-		MaxCostUSD:     in.MaxBudgetUSD,
-		MaxSteps:       in.MaxSteps,
-		Options:        options,
-		InterruptKinds: interruptKindsFromContext(ctx),
-	})
-	if err != nil {
-		return nil, nil, wireTurnStartErr(err)
-	}
-	sessionID := sess.ID
-	admission, err := s.sessions.ClaimRunSlot(ctx, s.coordinator, sessionID)
-	if err != nil {
-		if errors.Is(err, sessions.ErrSessionBusy) {
-			return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, sessionID)
-		}
-		return nil, nil, err
-	}
-	defer admission.Release()
-
-	treeAdmission, ok := s.sessions.ClaimWorkingTreeRun(sess.Cwd)
-	if !ok {
-		return nil, nil, fmt.Errorf("%w: working tree %q has a file restore in flight", protocol.ErrSessionBusy, sess.Cwd)
-	}
-	releaseTreeAdmission := true
-	defer func() {
-		if releaseTreeAdmission {
-			treeAdmission.Release()
-		}
-	}()
-
-	handle, err := s.turnControl.StartTurn(ctx, turnReq)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// runId is the STABLE logical run identity — its own mint, independent of the
-	// executor's turn handle (handle.TurnID = the ProcessID, which a cross-restart
-	// resume re-mints). segmentId identifies this first streamed segment; the
-	// opening userMessage Item id derives from it (translator emits it after
-	// segment.started), so its wire id and its items.list id are one and the same.
-	runID := protocol.IDPrefixRun + uuid.NewString()
-	segmentID := protocol.IDPrefixSegment + uuid.NewString()
-	createdAt := time.Now().UTC()
-	factory := s.segmentProjector(runID, segmentID, sessionID, sess.Cwd, handle, in.Input, nil, in.Provider, in.Model, createdAt)
-	evCh, err := s.coordinator.Start(ctx, runs.StartSpec{
-		RunID:           runID,
-		SegmentID:       segmentID,
-		SessionID:       sessionID,
-		Cwd:             worktree.CanonicalCwd(sess.Cwd),
-		TurnID:          handle.TurnID,
-		Handle:          handle,
+	result, err := s.coordinator.Start(ctx, runs.StartCommand{
+		SessionID:       in.SessionID,
+		DefaultCwd:      s.serverInfo.Cwd,
+		Message:         userMsg,
+		Media:           userMedia,
 		Provider:        in.Provider,
 		Model:           in.Model,
-		CreatedAt:       createdAt,
+		MaxCostUSD:      in.MaxBudgetUSD,
+		MaxSteps:        in.MaxSteps,
+		Options:         options,
+		InterruptKinds:  interruptKindsFromContext(ctx),
 		OpeningUserText: userMessageText(in.Input),
-	}, factory)
+		NewProjector:    s.segmentProjector(in.Input),
+	})
 	if err != nil {
-		// The durable admission backstop (§8.2) rejects a session that already
-		// holds a non-terminal run in the store — a run the in-memory claim missed
-		// (e.g. left over across a restart). Same wire error as the in-memory busy.
-		if errors.Is(err, execution.ErrSessionBusy) {
-			return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, sessionID)
-		}
-		return nil, nil, err
+		return nil, nil, wireRunStartErr(err)
 	}
-	treeAdmission.Release()
-	releaseTreeAdmission = false
 	// Return the opening userMessage Item id so the client reconciles its
 	// optimistic bubble by exact id (same id the stream + items.list carry).
-	return &protocol.StartRunResponse{RunID: runID, SegmentID: segmentID, UserItemID: userMessageItemID(segmentID)}, mapRunEvents(ctx, evCh), nil
+	return &protocol.StartRunResponse{RunID: result.RunID, SegmentID: result.SegmentID, UserItemID: userMessageItemID(result.SegmentID)}, mapRunEvents(ctx, result.Events), nil
 }
 
-func wireTurnStartErr(err error) error {
+func wireRunStartErr(err error) error {
 	switch {
-	case errors.Is(err, turn.ErrInputRequired):
+	case errors.Is(err, runs.ErrInputRequired):
 		return fmt.Errorf("%w: input must contain a user text or image block", protocol.ErrInvalidParams)
-	case errors.Is(err, turn.ErrIncompleteModelSelection):
+	case errors.Is(err, runs.ErrIncompleteModelSelection):
 		return protocol.ErrInvalidParams
-	case errors.Is(err, turn.ErrInvalidTurnLimit):
+	case errors.Is(err, runs.ErrInvalidTurnLimit):
 		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
-	case errors.Is(err, turn.ErrInvalidTurnOptions):
+	case errors.Is(err, runs.ErrInvalidTurnOptions):
 		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
-	case errors.Is(err, turn.ErrUnsupportedMedia):
+	case errors.Is(err, runs.ErrUnsupportedMedia):
 		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+	case errors.Is(err, runs.ErrSessionBusy):
+		return protocol.ErrSessionBusy
 	case errors.Is(err, session.ErrNotFound):
 		return protocol.ErrSessionNotFound
 	default:

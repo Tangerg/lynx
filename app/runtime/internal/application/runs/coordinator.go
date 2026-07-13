@@ -24,8 +24,13 @@ var ErrClosed = errors.New("runs: coordinator closed")
 // pump explains a run end to end, with the wire shape confined to the injected
 // [Projector].
 type Coordinator struct {
-	executor Executor
-	effects  Effects
+	executor     SegmentExecutor
+	turns        TurnControl
+	sessions     SessionLifecycle
+	effects      Effects
+	now          func() time.Time
+	newRunID     func() string
+	newSegmentID func() string
 	// seq is the process-wide monotonic run-event cursor source (§11.2): the pump
 	// stamps every event with the next value, fixed-width so the Journal's lexical
 	// replay stays correct. It is an opaque application cursor — the evt_ wire
@@ -35,10 +40,29 @@ type Coordinator struct {
 	registry Registry[*handle]
 }
 
-// NewCoordinator builds a Coordinator over the executor it drives and the
-// durable effects it commits through.
-func NewCoordinator(executor Executor, effects Effects) *Coordinator {
-	return &Coordinator{executor: executor, effects: effects}
+// Dependencies is the complete collaborator set for the user-visible run use
+// cases and the segment supervisor they own.
+type Dependencies struct {
+	Segments     SegmentExecutor
+	Turns        TurnControl
+	Sessions     SessionLifecycle
+	Effects      Effects
+	Now          func() time.Time
+	NewRunID     func() string
+	NewSegmentID func() string
+}
+
+// NewCoordinator builds the single owner of run use cases and live segments.
+func NewCoordinator(deps Dependencies) *Coordinator {
+	return &Coordinator{
+		executor:     deps.Segments,
+		turns:        deps.Turns,
+		sessions:     deps.Sessions,
+		effects:      deps.Effects,
+		now:          deps.Now,
+		newRunID:     deps.NewRunID,
+		newSegmentID: deps.NewSegmentID,
+	}
 }
 
 // mintCursor returns the next monotonic, fixed-width, lexically-ordered run-event
@@ -49,13 +73,13 @@ func (c *Coordinator) mintCursor() string {
 	return fmt.Sprintf("%011d", c.seq.Add(1))
 }
 
-// Start opens a run segment: it attaches the executor stream, atomically commits
+// openSegment attaches an already-prepared executor stream, atomically commits
 // admission/resume plus opening projections, registers the live owner, then
 // activates a continuation and spawns the pump. The run lifetime is detached
 // from the request without losing its trace; request cancellation drops only
 // that subscriber. newProjector builds the per-segment projector from the live
 // view it reads at terminal.
-func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector func(SegmentView) Projector) (<-chan Event, error) {
+func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec, newProjector func(SegmentView) Projector) (<-chan Event, error) {
 	if c.executor == nil {
 		return nil, errors.New("runs: executor is required")
 	}
@@ -131,7 +155,7 @@ func (c *Coordinator) Start(reqCtx context.Context, spec StartSpec, newProjector
 	return events, nil
 }
 
-func (c *Coordinator) commitOpening(ctx context.Context, spec StartSpec, projector Projector) ([]ProjectedEvent, error) {
+func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, projector Projector) ([]ProjectedEvent, error) {
 	projected := projector.Open()
 	if len(projected) == 0 {
 		return nil, errors.New("runs: projector produced no opening events")
@@ -165,7 +189,7 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec StartSpec, project
 	return projected, nil
 }
 
-func (c *Coordinator) event(spec StartSpec, pe ProjectedEvent) Event {
+func (c *Coordinator) event(spec segmentSpec, pe ProjectedEvent) Event {
 	return Event{
 		RunID:     spec.RunID,
 		SegmentID: spec.SegmentID,

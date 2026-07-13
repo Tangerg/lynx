@@ -3,8 +3,6 @@ package sessions
 import (
 	"context"
 	"sync"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // SessionClaimer is the run-admission slot used to enforce one writer per
@@ -81,20 +79,4 @@ func (c *Coordinator) ClaimMutationSlot(claims SessionClaimer, sessionID string)
 		return RunAdmission{}, ErrSessionBusy
 	}
 	return heldAdmission(claims, sessionID), nil
-}
-
-// ClaimResumeSlot peeks an open interrupt to find its session, then reserves
-// that session's single-writer slot before the interrupt is consumed.
-func (c *Coordinator) ClaimResumeSlot(ctx context.Context, claims SessionClaimer, runID string) (interrupts.Pending, RunAdmission, error) {
-	pending, found, err := c.s.Interrupts().Get(ctx, runID)
-	if err != nil {
-		return interrupts.Pending{}, RunAdmission{}, err
-	}
-	if !found {
-		return interrupts.Pending{}, RunAdmission{}, ErrInterruptNotOpen
-	}
-	if !claims.ClaimSession(pending.SessionID) {
-		return pending, RunAdmission{}, ErrSessionBusy
-	}
-	return pending, heldAdmission(claims, pending.SessionID), nil
 }

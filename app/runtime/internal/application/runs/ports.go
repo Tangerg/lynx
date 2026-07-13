@@ -5,29 +5,104 @@ import (
 	"iter"
 	"time"
 
+	"github.com/Tangerg/lynx/core/media"
+	corechat "github.com/Tangerg/lynx/core/model/chat"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 // The ports this package consumes to run a segment. They are defined here — on
 // the consumer side — and satisfied structurally by the runtime / delivery /
 // adapter implementations the composition root injects.
 //
-// The application drives execution through an engine-neutral [Executor]: it
-// observes the application-owned [EngineEvent] sum type and drives an opaque
-// [Handle], so neither the lifecycle nor delivery depends on agent-SDK types.
+// The application drives execution through engine-neutral [SegmentExecutor]
+// and [TurnControl] ports: it observes the application-owned [EngineEvent] sum
+// type and drives an opaque [Handle], so neither lifecycle nor Delivery depends
+// on agent-SDK types.
 
-// Handle is the per-segment execution handle the [Executor] returns and the
+// Handle is the per-segment execution handle the turn adapter returns and the
 // application hands back to observe and cancel a live turn. It stays opaque (any)
 // on purpose: unlike an [EngineEvent] it carries no lifecycle semantics the
 // application acts on — it is an inert token the executor recovers its turn from
 // — so typing it would be an empty-interface ceremony.
 type Handle = any
 
-// Executor is what the run pump needs to drive, observe, and cancel the agent
+// SegmentExecutor is what the run pump needs to observe and cancel the agent
 // turn backing a run segment. The concrete agent-execution adapter implements it.
-type Executor interface {
+type SegmentExecutor interface {
 	TurnEvents(ctx context.Context, handle Handle) (iter.Seq[EngineEvent], error)
 	CancelTurn(ctx context.Context, handle Handle) error
+}
+
+// SessionLifecycle is the run use cases' narrow view of session persistence,
+// open interrupts, the atomic parked-run abandon write-set, and the in-process
+// working-tree admission gate. It is implemented by application/sessions; runs
+// owns the ordering in which these capabilities are used.
+type SessionLifecycle interface {
+	Get(ctx context.Context, id string) (session.Session, error)
+	Create(ctx context.Context, title, cwd string) (session.Session, error)
+	SetModel(ctx context.Context, id, model string) error
+	ListOpenInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
+	GetOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error)
+	ApplyRunCancel(ctx context.Context, sessionID, runID string) error
+	AcquireWorkingTreeRun(cwd string) (release func(), ok bool)
+}
+
+// TurnRef is the engine-neutral durable address of a turn. Delivery never
+// rebuilds an adapter handle from it; the driven turn adapter does.
+type TurnRef struct {
+	SessionID string
+	TurnID    string
+}
+
+// Turn is the result of starting, preparing, or rehydrating an executor turn.
+// The identity is application-visible; Handle remains an opaque token used only
+// by the segment executor and turn-control adapter.
+type Turn struct {
+	SessionID string
+	TurnID    string
+	Handle    Handle
+}
+
+// StartTurn is the protocol-neutral command the run use case sends to the
+// executor adapter after resolving the session and its working directory.
+type StartTurn struct {
+	SessionID      string
+	Message        string
+	Media          []*media.Media
+	Cwd            string
+	Provider       string
+	Model          string
+	MaxBudget      int64
+	MaxCostUSD     float64
+	MaxSteps       int
+	Options        *corechat.Options
+	InterruptKinds []string
+}
+
+// RehydrateTurn describes rebuilding a parked executor turn from its durable
+// process snapshot after process-local state was lost.
+type RehydrateTurn struct {
+	SessionID string
+	TurnID    string
+	ProcessID string
+	Provider  string
+	Model     string
+}
+
+// TurnControl is the run use cases' engine-neutral control surface. Validation
+// happens before session creation; all opaque-handle recovery remains inside
+// the adapter implementation.
+type TurnControl interface {
+	ValidateStart(StartTurn) error
+	Start(ctx context.Context, req StartTurn) (Turn, error)
+	Prepare(ctx context.Context, ref TurnRef) (Turn, error)
+	Resume(ctx context.Context, turn Turn, resolution interrupts.Resolution, interruptKinds []string) error
+	Rehydrate(ctx context.Context, req RehydrateTurn) (Turn, error)
+	Cancel(ctx context.Context, ref TurnRef) error
+	Steer(ctx context.Context, ref TurnRef, message string) error
 }
 
 // Projector turns normalized executor events into projected events: the pump
@@ -93,6 +168,26 @@ type SegmentView interface {
 	CancelReason() string
 }
 
+// ProjectorContext is the application-owned segment identity passed to the
+// temporary delivery projector seam. Pending is populated only for a resume so
+// Delivery can preserve the current wire projection until Batch 2; executor
+// handles never cross this boundary.
+type ProjectorContext struct {
+	RunID     string
+	SegmentID string
+	SessionID string
+	Cwd       string
+	TurnID    string
+	Provider  string
+	Model     string
+	CreatedAt time.Time
+	Pending   *interrupts.Pending
+}
+
+// ProjectorFactory builds the current per-segment projection adapter. Batch 2
+// removes this seam when canonical RunEvent reduction moves into Application.
+type ProjectorFactory func(ProjectorContext, SegmentView) Projector
+
 // Effects is the durable side of a run segment. CommitEvent atomically persists
 // one event's projections and its run-state transition (§8.3/§8.4) in a single
 // transaction before publishing the corresponding event, so subscribers never
@@ -137,10 +232,10 @@ type Finish struct {
 	OpeningUserText string
 }
 
-// StartSpec is the protocol-free description of a run segment to open. User
-// input and resume bindings are deliberately NOT here — they live in the
-// Projector the caller supplies, so the application never sees wire content.
-type StartSpec struct {
+// segmentSpec is the already-prepared input to the package's segment
+// supervisor. User-visible Start/Resume use cases build it; no outer layer may
+// call the supervisor directly.
+type segmentSpec struct {
 	// RunID is the STABLE logical run id — minted once at the run's first segment
 	// and carried unchanged through every resume, so admission / journal / durable
 	// records key on the run, not the segment.

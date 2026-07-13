@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -23,7 +22,8 @@ type projector struct {
 	createdAt time.Time // the run's stable start time — stamped onto a park's Pending
 	provider  string
 	model     string
-	handle    turn.TurnHandle
+	sessionID string
+	turnID    string
 	// sideEffect derives a wire event's durable transcript commit + non-durable
 	// nudge; it closes over the run's ids + cwd + createdAt so this type stays
 	// free of the Server.
@@ -127,8 +127,8 @@ func (p *projector) interruptPending(se protocol.StreamEvent) (*interrupts.Pendi
 	}
 	return &interrupts.Pending{
 		RunID:        p.runID,
-		SessionID:    p.handle.SessionID,
-		TurnID:       p.handle.TurnID,
+		SessionID:    p.sessionID,
+		TurnID:       p.turnID,
 		Provider:     p.provider,
 		Model:        p.model,
 		Interrupts:   raw,
@@ -150,20 +150,25 @@ func commitOrNil(c execution.EventCommit) *execution.EventCommit {
 // segmentProjector builds the per-segment projector factory the Coordinator
 // calls once it has a segment view. It captures everything the wire translation
 // + durable derivation need, so the application pump only sees the port.
-func (s *Server) segmentProjector(runID, segmentID, sessionID, cwd string, handle turn.TurnHandle, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string, createdAt time.Time) func(runs.SegmentView) runs.Projector {
-	return func(view runs.SegmentView) runs.Projector {
-		tr := newTranslator(sessionID, runID, segmentID, userInput, resume, provider, model)
-		tr.createdAt = createdAt
+func (s *Server) segmentProjector(userInput []protocol.ContentBlock) runs.ProjectorFactory {
+	return func(ctx runs.ProjectorContext, view runs.SegmentView) runs.Projector {
+		var resume *resumeBinding
+		if ctx.Pending != nil {
+			resume = resumeBindingFrom(*ctx.Pending)
+		}
+		tr := newTranslator(ctx.SessionID, ctx.RunID, ctx.SegmentID, userInput, resume, ctx.Provider, ctx.Model)
+		tr.createdAt = ctx.CreatedAt
 		return &projector{
 			tr:        tr,
 			view:      view,
-			runID:     runID,
-			createdAt: createdAt,
-			provider:  provider,
-			model:     model,
-			handle:    handle,
+			runID:     ctx.RunID,
+			createdAt: ctx.CreatedAt,
+			provider:  ctx.Provider,
+			model:     ctx.Model,
+			sessionID: ctx.SessionID,
+			turnID:    ctx.TurnID,
 			sideEffect: func(se protocol.StreamEvent) (execution.EventCommit, *runs.Nudge) {
-				return sideEffectEvent(runID, sessionID, cwd, se, provider, model, createdAt)
+				return sideEffectEvent(ctx.RunID, ctx.SessionID, ctx.Cwd, se, ctx.Provider, ctx.Model, ctx.CreatedAt)
 			},
 		}
 	}

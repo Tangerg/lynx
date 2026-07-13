@@ -5,7 +5,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -117,17 +116,10 @@ func (c *testClaimer) ReleaseSession(sessionID string) {
 // default; the file-rollback tests that need it drive a dedicated claimer.
 func (*testClaimer) ActiveSessionWithCwd(string) string { return "" }
 
-// stubTurns is the test double for the coordinator's [Turns] collaborator: the
-// combined cancel / resume / rehydrate surface. Each behavior is optional so a
-// test wires only the leg it exercises.
+// stubTurns is the test double for the coordinator's parked-process cleanup
+// collaborator.
 type stubTurns struct {
-	onCancel        func(RunRef)
-	prepareErr      error
-	resumeErr       error
-	rehydrateErr    error
-	rehydrateHandle Handle
-	onResume        func(Handle, interrupts.Resolution, []string)
-	onRehydrate     func(RehydrateSpec)
+	onCancel func(RunRef)
 }
 
 func (t stubTurns) Cancel(_ context.Context, ref RunRef) error {
@@ -135,24 +127,6 @@ func (t stubTurns) Cancel(_ context.Context, ref RunRef) error {
 		t.onCancel(ref)
 	}
 	return nil
-}
-
-func (t stubTurns) Prepare(_ context.Context, ref RunRef) (Handle, error) {
-	return turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID}, t.prepareErr
-}
-
-func (t stubTurns) Resume(_ context.Context, handle Handle, r interrupts.Resolution, interruptKinds []string) error {
-	if t.onResume != nil {
-		t.onResume(handle, r, interruptKinds)
-	}
-	return t.resumeErr
-}
-
-func (t stubTurns) Rehydrate(_ context.Context, req RehydrateSpec) (Handle, error) {
-	if t.onRehydrate != nil {
-		t.onRehydrate(req)
-	}
-	return t.rehydrateHandle, t.rehydrateErr
 }
 
 // newCoordinator builds a Coordinator over test stores and turns.
