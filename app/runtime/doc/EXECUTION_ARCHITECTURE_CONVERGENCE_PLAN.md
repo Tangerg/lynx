@@ -171,7 +171,7 @@ schedule worker 通过 Delivery `Server.StartRun` 构造 protocol request 启动
 | 口径 | 当前值 | 说明 |
 |---|---:|---|
 | 原始重写目标总体完成度 | 约 75%–80% | 已完成结构、生命周期、事务和大部分持久化一致性 |
-| 本文档剩余收敛计划 | 0 / 4 批 | 从完整用例所有权开始计算 |
+| 本文档剩余收敛计划 | 1 / 4 批 | Batch 1 已完成，进入 canonical event pipeline |
 
 不得用代码行数、文件数或提交数计算进度。只有批次完成判据全部满足，才能增加进度。
 
@@ -244,7 +244,7 @@ Batch 4  Domain 纯化、Fitness Tests 与最终清理
 
 ## 6. Batch 1：完整 Run 用例进入 Application
 
-> 状态：未开始  
+> 状态：已完成（checkpoint `5cdd31c53`）
 > 目标：Application 拥有 Start/Resume/Cancel/Steer 的完整副作用顺序；现有 segment lifecycle 机制继续复用。
 
 ### 6.1 设计结果
@@ -319,17 +319,17 @@ Subscribe(ctx context.Context, runID RunID, after Cursor) (...)
 
 ### 6.4 完成判据
 
-- [ ] Server Start/Resume/Cancel/Steer 每个只调用一个 Application Runs 用例；
-- [ ] scheduler 不 import/use protocol request 启动 Run；
-- [ ] Delivery 不 import `adapter/agentexec/turn` 处理 Run command；
-- [ ] Delivery 不 type assert opaque executor handle；
-- [ ] fresh/resume/cancel 的原子性和竞态测试全部保留；
-- [ ] wire golden 无非预期变化；
-- [ ] 全量 build/vet/test 与关键 race 通过。
+- [x] Server Start/Resume/Cancel/Steer 每个只调用一个 Application Runs 用例；
+- [x] scheduler 不 import/use protocol request 启动 Run；
+- [x] Delivery 不 import `adapter/agentexec/turn` 处理 Run command；
+- [x] Delivery 不 type assert opaque executor handle；
+- [x] fresh/resume/cancel 的原子性和竞态测试全部保留；
+- [x] wire golden 无非预期变化；
+- [x] 全量 build/vet/test 与关键 race 通过。
 
 ## 7. Batch 2：Application-owned Event + Projection Pipeline
 
-> 状态：未开始  
+> 状态：执行中
 > 依赖：Batch 1 完成  
 > 目标：durable fact 和 canonical RunEvent 在 Application 中形成，Delivery 只做最终 protocol projection。
 
@@ -520,18 +520,18 @@ AST 无法可靠判断的语义规则，应通过编译期类型封闭、package
 | 批次 | 目标 | 状态 | 完成度 | 当前阻塞 | 验证证据 |
 |---|---|---|---:|---|---|
 | Baseline | 分层、生命周期、原子 opening、stable RunID | 已完成 | 100% | 无 | 基线 `581005b50`；现有 arch/runs/sessions/runsegment tests |
-| Batch 1 | 完整 Run 用例进入 Application | 未开始 | 0% | 无 | — |
-| Batch 2 | Application-owned event pipeline | 未开始 | 0% | 依赖 Batch 1 | — |
+| Batch 1 | 完整 Run 用例进入 Application | 已完成 | 100% | 无 | `5cdd31c53`；full build/vet/test + key race |
+| Batch 2 | Application-owned event pipeline | 执行中 | 0% | 无 | Batch 1 已解除入口所有权依赖 |
 | Batch 3 | Canonical durable execution record | 未开始 | 0% | 依赖 Batch 2 | — |
 | Batch 4 | 纯化、fitness tests、最终清理 | 未开始 | 0% | 依赖 Batch 3 | — |
 
 ### 10.2 当前执行指针
 
 ```text
-Current batch: Batch 1
-Current sub-step: 1.1 建立 command、result 与消费方 port
-Last completed commit: 581005b50
-Next required gate: Batch 1 design/API scope review
+Current batch: Batch 2
+Current sub-step: 2.1 定义 canonical RunEvent 与 reducer 输入/输出
+Last completed commit: 5cdd31c53
+Next required gate: canonical event/commit model review before production migration
 ```
 
 每次开始新的子步骤或提交后，必须更新这里。不得只修改下方历史记录而保留过期指针。
@@ -669,6 +669,7 @@ Batch 4
 | D-004 | 2026-07-13 | protocol snapshot 不再作为 Execution authoritative record | rollback/fork/recovery 必须独立于 Delivery | 已接受 |
 | D-005 | 2026-07-13 | Run state transition 必须显式定位 RunID + SessionID | 用 aggregate identity 防止错误 segment/late event 修改其他 Run | 已接受 |
 | D-006 | 2026-07-13 | 独立 infra 环、Session/Todo 的物理分包不回滚 | 这些是合理的 Go/工程化偏离，不影响 bounded context 与依赖规则 | 已接受 |
+| D-007 | 2026-07-13 | Batch 1 只保留既有 ProjectorFactory 作为 Batch 2 的明确迁移边界，不允许其携带 executor handle 或表达 fresh/resume 模式 | Batch 1 禁止同时重写 event pipeline；先移除命令编排与 handle 泄漏，再在 Batch 2 一次删除 outer projection seam | 已接受，Batch 2 必须删除 |
 
 新增决策使用递增 ID，并同步修改受影响批次的范围、完成判据和风险。
 
@@ -705,6 +706,31 @@ Batch 4
 - race verification：application/runs、application/sessions、adapter/runsegment 通过；
 - 下一步：Batch 1.1，先评审 Application Runs command/port 形状，再修改生产代码。
 
+### 2026-07-13 — Batch 1 — complete Run use cases moved into Application
+
+- Commit: `5cdd31c53`
+- Changed ownership:
+  - Start/Resume/Cancel/Steer 的 Session 解析、admission、working-tree gate、ID/Clock、turn prepare/rehydrate/activate 与 cleanup 从 Delivery/`sessions`/`turn.Control` 移入 `application/runs`；
+  - scheduled execution strategy 移入 `application/schedules.RunLauncher`，HTTP 与 background worker 共享 `application/runs.Start`；
+- Invariants preserved/added:
+  - fresh opening 仍 admission + opening projections 原子提交；
+  - resume 仍先 attach + commit opening，再 activate decision；
+  - live/parked cancel 共用 session admission，cancel/interrupt linearization 保留；
+  - request cancellation 只退订，不终止 coordinator-owned pump；
+- Removed seams/debt:
+  - 删除 adapter `turn.Control`；
+  - 删除 `sessions` 中重复的 resume prepare/rehydrate/activate orchestration；
+  - Delivery 不再 import agent turn adapter，也不再 type assert opaque handle；
+  - raw prepared-segment `StartSpec` 收为 package-private `segmentSpec/openSegment`；
+- Validation:
+  - `go build ./...`：通过；
+  - `go vet ./...`：通过；
+  - `go test ./...`：通过；
+  - `go test -race ./internal/application/runs ./internal/application/sessions ./internal/application/schedules ./internal/adapter/runsegment ./internal/delivery/server`：通过；
+- Remaining within current batch: none；
+- Decision log updates: D-007；
+- 下一步：Batch 2.1，建立 Application-owned canonical RunEvent/reducer，并保持现有 wire golden 不变。
+
 ## 18. 最终验收清单
 
 架构收敛完成时逐项勾选：
@@ -725,4 +751,3 @@ Batch 4
 - [ ] 不存在中间 shim、双写、死类型和过期注释；
 - [ ] `EXECUTION_CENTERED_ARCHITECTURE.md` 与真实实现一致；
 - [ ] 本文档状态改为“完成”，进度看板和执行记录已封账。
-
