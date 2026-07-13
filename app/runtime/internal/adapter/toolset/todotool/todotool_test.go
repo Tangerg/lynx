@@ -15,6 +15,7 @@ func (s *stubStore) Replace(_ context.Context, _ string, items []todo.Item) erro
 	s.items = items
 	return nil
 }
+func (s *stubStore) DeleteSession(context.Context, string) error { return nil }
 
 func TestNew_NilStoreOmitted(t *testing.T) {
 	tool, err := New(nil)

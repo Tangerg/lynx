@@ -343,7 +343,7 @@ func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error
 	case runs.StateTerminalize:
 		return e.runState.Terminalize(ctx, commit.SessionID, commit.RunID, commit.Outcome)
 	default:
-		return nil
+		return fmt.Errorf("runsegment: unknown run state change %d", commit.State)
 	}
 }
 

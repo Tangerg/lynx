@@ -122,3 +122,20 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 		t.Fatalf("second Consume = ok=%v err=%v, want ok=false — record must be gone", ok, err)
 	}
 }
+
+func TestInterruptStore_ProcessSnapshotHasOneOwner(t *testing.T) {
+	store := newInterruptStore(t)
+	ctx := t.Context()
+	for _, runID := range []string{"run_1", "run_2"} {
+		err := store.Put(ctx, interrupts.Pending{
+			RunID: runID, SessionID: "ses_" + runID, TurnID: "turn_" + runID,
+			ProcessID: "proc_shared", CreatedAt: time.Unix(1, 0),
+		})
+		if runID == "run_1" && err != nil {
+			t.Fatalf("first Put: %v", err)
+		}
+		if runID == "run_2" && err == nil {
+			t.Fatal("second Put reused a process snapshot owned by another interrupt")
+		}
+	}
+}

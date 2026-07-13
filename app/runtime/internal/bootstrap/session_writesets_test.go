@@ -11,11 +11,13 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -35,6 +37,8 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStateStore, *sq
 	t.Cleanup(func() { _ = db.Close() })
 	runs := sqlite.NewRunStateStore(db)
 	ints := sqlite.NewInterruptStore(db)
+	todos := sqlite.NewTodoStore(db)
+	approvals := sqlite.NewApprovalRuleStore(db)
 	ss := sessionStores{
 		sessions:   sqlite.NewSessionStore(db),
 		transcript: sqlite.NewTranscriptStore(db),
@@ -42,6 +46,8 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStateStore, *sq
 		runs:       runs,
 		processes:  sqlite.NewProcessStore(db),
 		history:    conversation.NewMessages(sqlite.NewMessageStore(db)),
+		todos:      todos,
+		approvals:  approvals,
 		forgetter:  noopForgetter{},
 		tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
@@ -107,6 +113,9 @@ func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
 	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
+	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "future work", Status: todo.StatusPending}}); err != nil {
+		t.Fatalf("seed todos: %v", err)
+	}
 
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID:  "ses_A",
@@ -126,6 +135,9 @@ func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
 		t.Fatalf("admit after rollback = %v, want the slot freed", err)
+	}
+	if got, err := ss.todos.List(ctx, "ses_A"); err != nil || len(got) != 0 {
+		t.Fatalf("todos after rollback = %+v, %v, want cleared", got, err)
 	}
 }
 
@@ -170,6 +182,12 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 		t.Fatalf("seed session: %v", err)
 	}
 	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
+	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "owned", Status: todo.StatusPending}}); err != nil {
+		t.Fatalf("seed todos: %v", err)
+	}
+	if err := ss.approvals.Put(ctx, approval.Rule{ID: "session", Scope: approval.ScopeSession, ScopeKey: "ses_A", Tool: "shell", Decision: approval.Allow}); err != nil {
+		t.Fatalf("seed approval: %v", err)
+	}
 
 	if err := ss.ApplyDelete(ctx, sessions.DeletePlan{SessionIDs: []string{"ses_A"}}); err != nil {
 		t.Fatalf("ApplyDelete: %v", err)
@@ -183,10 +201,54 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if _, err := ss.sessions.Get(ctx, "ses_A"); !errors.Is(err, session.ErrNotFound) {
 		t.Fatalf("session survived delete: %v", err)
 	}
+	if got, err := ss.todos.List(ctx, "ses_A"); err != nil || len(got) != 0 {
+		t.Fatalf("todos after delete = %+v, %v, want cleared", got, err)
+	}
+	if got, err := ss.approvals.Visible(ctx, "ses_A", ""); err != nil || len(got) != 0 {
+		t.Fatalf("session approvals after delete = %+v, %v, want cleared", got, err)
+	}
 	// The non-terminal admission row is gone (not just terminal), so a fresh admit
 	// succeeds — proving the delete cascade dropped the runs rows.
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
 		t.Fatalf("admit after delete = %v, want the slot freed", err)
+	}
+}
+
+func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
+	ss, _, _ := newWriteSetFixture(t)
+	ctx := t.Context()
+	if err := ss.sessions.Restore(ctx, session.Session{ID: "ses_A", Cwd: "/repo"}); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "stale", Status: todo.StatusPending}}); err != nil {
+		t.Fatalf("seed todos: %v", err)
+	}
+	for _, rule := range []approval.Rule{
+		{ID: "session", Scope: approval.ScopeSession, ScopeKey: "ses_A", Tool: "shell", Decision: approval.Allow},
+		{ID: "project", Scope: approval.ScopeProject, ScopeKey: "/repo", Tool: "write", Decision: approval.Allow},
+		{ID: "global", Scope: approval.ScopeGlobal, Tool: "read", Decision: approval.Allow},
+	} {
+		if err := ss.approvals.Put(ctx, rule); err != nil {
+			t.Fatalf("seed approval %s: %v", rule.ID, err)
+		}
+	}
+
+	if err := ss.ApplyRestore(ctx, sessions.RestorePlan{Session: session.Session{ID: "ses_A", Cwd: "/repo"}}); err != nil {
+		t.Fatalf("ApplyRestore: %v", err)
+	}
+	if got, err := ss.todos.List(ctx, "ses_A"); err != nil || len(got) != 0 {
+		t.Fatalf("todos after restore = %+v, %v, want cleared", got, err)
+	}
+	rules, err := ss.approvals.Visible(ctx, "ses_A", "/repo")
+	if err != nil {
+		t.Fatalf("visible approvals: %v", err)
+	}
+	ids := make(map[string]bool, len(rules))
+	for _, rule := range rules {
+		ids[rule.ID] = true
+	}
+	if ids["session"] || !ids["project"] || !ids["global"] || len(ids) != 2 {
+		t.Fatalf("approvals after restore = %v, want project+global only", ids)
 	}
 }
 

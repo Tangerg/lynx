@@ -235,8 +235,8 @@ func TestForkSession(t *testing.T) {
 	if child.Title != "branch A" {
 		t.Errorf("child title = %q, want override 'branch A'", child.Title)
 	}
-	if got := len(hist[child.ID]); got != 2 {
-		t.Errorf("child history = %d msgs, want 2 copied from parent", got)
+	if got := len(hist[child.ID]); got != 0 {
+		t.Errorf("child history = %d msgs, want 0 without a terminal run boundary", got)
 	}
 
 	// run-boundary fork against a run that doesn't exist → run_not_found

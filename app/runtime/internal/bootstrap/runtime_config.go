@@ -25,7 +25,6 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chat.C
 			SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
 			HistoryStore:    stores.ChatHistory,
 			Knowledge:       stores.Memory,
-			ParkStore:       stores.Park,
 		},
 		UtilityRoleStore:       stores.UtilityRole,
 		Online:                 OnlineConfig(cfg.Online),

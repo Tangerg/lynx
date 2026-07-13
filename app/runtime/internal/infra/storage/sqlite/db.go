@@ -49,7 +49,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -118,6 +118,8 @@ func installCurrentSchema(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_interrupts_session
 			ON interrupts(session_id)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_interrupts_process
+			ON interrupts(process_id) WHERE process_id != ''`,
 		// pending_workspace_mutations is the recoverable operation log for file
 		// rollbacks (§8.5): the working tree (git) and the durable history (SQLite)
 		// can't commit in one ACID transaction, so the intent is logged before
@@ -194,12 +196,6 @@ func installCurrentSchema(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_conversation
 			ON messages(conversation_id, seq)`,
-		`CREATE TABLE IF NOT EXISTS tool_parks (
-			conversation_id TEXT    PRIMARY KEY,
-			assistant       TEXT    NOT NULL,
-			done            TEXT,
-			created_at      INTEGER NOT NULL
-		)`,
 		`CREATE TABLE IF NOT EXISTS todos (
 			session_id TEXT    PRIMARY KEY,
 			items      TEXT    NOT NULL,

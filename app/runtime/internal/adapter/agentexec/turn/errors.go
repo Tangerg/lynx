@@ -10,6 +10,10 @@ var ErrTurnNotFound = errors.New("turn: turn not found")
 // has begun shutdown.
 var ErrDispatcherClosed = errors.New("turn: dispatcher closed")
 
+// ErrCloseTimeout reports that dispatcher shutdown canceled every turn but at
+// least one turn did not finish its terminal teardown within the close budget.
+var ErrCloseTimeout = errors.New("turn: close timeout")
+
 // ErrPromptBlocked surfaces when a UserPromptSubmit / SessionStart hook blocks a
 // turn before it starts. The delivery layer maps it to a run-channel error so
 // the client sees why the prompt was refused.

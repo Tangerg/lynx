@@ -3,9 +3,11 @@ package turn
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -98,7 +100,6 @@ func New(deps Dependencies) (Dispatcher, error) {
 		hooks:               deps.Hooks,
 		turns:               map[string]*turnState{},
 		seenSessions:        map[string]struct{}{},
-		closeDone:           make(chan struct{}),
 	}, nil
 }
 
@@ -127,7 +128,7 @@ type inMemory struct {
 	turns     map[string]*turnState // turn_id → state
 	closed    bool
 	closeOnce sync.Once
-	closeDone chan struct{}
+	closing   []*turnState
 
 	// seenSessions tracks which sessions this process has already opened a turn
 	// for, so the SessionStart hook fires once per session per process (not on
@@ -151,27 +152,44 @@ func (s *inMemory) isClosed() bool {
 	return s.closed
 }
 
-// Close cancels and joins the complete live-turn set. The dispatcher, not the
-// delivery run registry, is authoritative because parked turns remain live
-// after their streaming segment has ended.
-func (s *inMemory) Close() {
+const turnCloseTimeout = 5 * time.Second
+
+// Close cancels and joins the complete live-turn set within a bounded shutdown
+// budget. The dispatcher, not the delivery run registry, is authoritative
+// because parked turns remain live after their streaming segment has ended.
+func (s *inMemory) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), turnCloseTimeout)
+	defer cancel()
+	return s.close(ctx)
+}
+
+func (s *inMemory) close(ctx context.Context) error {
 	s.closeOnce.Do(func() {
 		s.mu.Lock()
 		s.closed = true
-		states := slices.Collect(maps.Values(s.turns))
+		s.closing = slices.Collect(maps.Values(s.turns))
+		states := slices.Clone(s.closing)
 		s.mu.Unlock()
 
-		var cancels sync.WaitGroup
 		for _, st := range states {
-			cancels.Go(func() {
-				_ = s.Cancel(context.WithoutCancel(st.ctx), st.handle)
-			})
+			_ = s.Cancel(context.WithoutCancel(st.ctx), st.handle)
 		}
-		cancels.Wait()
-		for _, st := range states {
-			<-st.done
-		}
-		close(s.closeDone)
 	})
-	<-s.closeDone
+
+	for _, st := range s.closing {
+		select {
+		case <-st.done:
+		case <-ctx.Done():
+			remaining := 0
+			for _, pending := range s.closing {
+				select {
+				case <-pending.done:
+				default:
+					remaining++
+				}
+			}
+			return fmt.Errorf("%w: %d turn(s) still running", ErrCloseTimeout, remaining)
+		}
+	}
+	return nil
 }

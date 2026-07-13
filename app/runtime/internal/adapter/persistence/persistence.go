@@ -14,7 +14,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat/history"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -45,7 +44,6 @@ type Bundle struct {
 	Provider      providersvc.Registry
 	MCPServers    mcpserversvc.Registry
 	ChatHistory   history.Store
-	Park          agentexec.ParkStore
 	Todos         todosvc.Store
 	ApprovalRules approval.RuleStore
 	UtilityRole   *sqlitestore.UtilityRoleStore
@@ -86,7 +84,6 @@ func Open() (*Bundle, error) {
 		Provider:      sqlitestore.NewProviderStore(db),
 		MCPServers:    sqlitestore.NewMCPServerStore(db),
 		ChatHistory:   sqlitestore.NewMessageStore(db),
-		Park:          agentexec.AsParkStore(sqlitestore.NewParkStore(db)),
 		Todos:         sqlitestore.NewTodoStore(db),
 		ApprovalRules: sqlitestore.NewApprovalRuleStore(db),
 		UtilityRole:   sqlitestore.NewUtilityRoleStore(db),

@@ -74,6 +74,21 @@ func TestCommitEventRejectsUnresolvedTerminalMessageWatermark(t *testing.T) {
 	}
 }
 
+func TestCommitEventRejectsUnknownStateChange(t *testing.T) {
+	effects := New(Config{
+		Stores:   &fakeStores{transcript: &fakeTranscript{}},
+		RunState: &fakeRunState{},
+		Tx:       new(fakeTx).run,
+	})
+	err := effects.CommitEvent(t.Context(), runs.EventCommit{
+		RunID: "run_1", SessionID: "ses_1", State: runs.StateChange(255),
+		Run: &transcript.Run{SessionID: "ses_1", ID: "run_1"},
+	})
+	if err == nil {
+		t.Fatal("CommitEvent accepted an unknown run state change")
+	}
+}
+
 func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 	stores := &fakeStores{transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}

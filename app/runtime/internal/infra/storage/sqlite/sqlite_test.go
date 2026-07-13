@@ -413,8 +413,8 @@ func TestOpenDiscardsAnOlderSchema(t *testing.T) {
 	}
 	defer db.Close()
 	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 2 {
-		t.Fatalf("schema version = %d, err=%v, want 2", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 3 {
+		t.Fatalf("schema version = %d, err=%v, want 3", version, err)
 	}
 	var legacyTables int
 	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='legacy_runs'`).Scan(&legacyTables); err != nil || legacyTables != 0 {

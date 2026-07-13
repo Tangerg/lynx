@@ -42,10 +42,9 @@ func stallContext(parent context.Context, idle time.Duration) (ctx context.Conte
 // runTurn drives one streaming turn end-to-end: compose the
 // system prompt + user message (with any image attachments), run the
 // tool-loop, stream deltas to the observer, record each LLM round into the
-// process budget, and assemble the result. HITL interrupt / resume is
-// handled by the tool middleware's ParkStore; when none is
-// configured, the engine intercepts tool-loop interrupt chunks as
-// a fallback.
+// process budget, and assemble the result. HITL interrupt / resume is stored
+// on the process blackboard so the durable process snapshot remains the only
+// resumable-state aggregate.
 func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget accounting.Budget) (TurnOutput, error) {
 	// A silent provider ends the turn (llmIdleTimeout); every chunk below calls
 	// keepAlive to push the deadline out, so a healthy long turn never trips it.
@@ -62,7 +61,11 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 	sysPrompt := e.SystemPrompt(ctx)
 	inflightTail := inflightTailStore{bb: pc.Blackboard}
 	var stream *chat.ClientStreamer
-	if tail, ok := inflightTail.Load(); ok {
+	tail, resumed, err := inflightTail.Load()
+	if err != nil {
+		return TurnOutput{}, err
+	}
+	if resumed {
 		inflightTail.Clear()
 		msgs := append([]chat.Message{chat.NewSystemMessage(sysPrompt)}, tail...)
 		stream = req.WithMessages(msgs...).Stream()
@@ -112,13 +115,14 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 			recordRound()
 			return TurnOutput{}, streamErr
 		}
-		// Fallback: when no ParkStore is configured, the tool middleware
-		// yields interrupt chunks. Intercept and save to the
-		// process blackboard so resume works. With a ParkStore configured
-		// the middleware never yields these — the engine does nothing.
+		// Interrupt chunks carry the exact conversation tail needed on resume.
+		// Save it on the process blackboard before the process parks; automatic
+		// process snapshots then persist the tail with its owning aggregate.
 		if isInterruptResult(chunk) {
 			recordRound()
-			inflightTail.Save(chunk.Result)
+			if err := inflightTail.Save(chunk.Result); err != nil {
+				return TurnOutput{}, err
+			}
 			continue
 		}
 		if chunk.IsToolResult() {

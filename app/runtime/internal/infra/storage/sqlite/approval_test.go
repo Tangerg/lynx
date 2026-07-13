@@ -85,3 +85,35 @@ func TestApprovalRuleStore_UpsertAndDelete(t *testing.T) {
 		t.Fatalf("after delete = %+v, want none", rules)
 	}
 }
+
+func TestApprovalRuleStore_DeleteSessionPreservesBroaderScopes(t *testing.T) {
+	ctx := context.Background()
+	store := newApprovalStore(t)
+	for _, rule := range []approval.Rule{
+		{ID: "s1", Scope: approval.ScopeSession, ScopeKey: "sess1", Tool: "shell", Decision: approval.Allow},
+		{ID: "s2", Scope: approval.ScopeSession, ScopeKey: "sess2", Tool: "shell", Decision: approval.Allow},
+		{ID: "p", Scope: approval.ScopeProject, ScopeKey: "/proj", Tool: "write", Decision: approval.Allow},
+		{ID: "g", Scope: approval.ScopeGlobal, Tool: "read", Decision: approval.Allow},
+	} {
+		if err := store.Put(ctx, rule); err != nil {
+			t.Fatalf("put %s: %v", rule.ID, err)
+		}
+	}
+	if err := store.DeleteSession(ctx, "sess1"); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+	rules, err := store.Visible(ctx, "sess1", "/proj")
+	if err != nil {
+		t.Fatalf("Visible: %v", err)
+	}
+	ids := map[string]bool{}
+	for _, rule := range rules {
+		ids[rule.ID] = true
+	}
+	if ids["s1"] || !ids["p"] || !ids["g"] || len(ids) != 2 {
+		t.Fatalf("visible after DeleteSession = %v, want p+g", ids)
+	}
+	if rules, err := store.Visible(ctx, "sess2", ""); err != nil || len(rules) != 2 {
+		t.Fatalf("other session after DeleteSession = %+v, %v, want s2+g", rules, err)
+	}
+}
