@@ -2,8 +2,8 @@
 // stream (same SSE connection), so its run.* events arrive interleaved with the
 // root run's. The fold must keep them from clobbering the root run readout: a
 // child run is a timeline entry, never a reset of running / runId / step /
-// usage. The discriminators are run.spawnedByItemId on run.started and the wire
-// envelope runId (reduce's third arg) on run.progress / run.finished.
+// usage. The discriminators are run.spawnedByItemId on segment.started and the wire
+// envelope runId (reduce's third arg) on segment.progress / segment.finished.
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { RunOutcome, StreamEvent } from "@/rpc";
@@ -13,16 +13,16 @@ import { reduce } from "./reducer";
 import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 const runStarted = (id: string): StreamEvent => ({
-  type: "run.started",
+  type: "segment.started",
   run: { id, sessionId: "ses_1" } as never,
 });
 const subagentStarted = (id: string, spawnedByItemId: string): StreamEvent => ({
-  type: "run.started",
+  type: "segment.started",
   run: { id, sessionId: "ses_1", spawnedByItemId } as never,
 });
 const progress = (p: Record<string, unknown>): StreamEvent =>
-  ({ type: "run.progress", progress: p }) as StreamEvent;
-const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "run.finished", outcome });
+  ({ type: "segment.progress", progress: p }) as StreamEvent;
+const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "segment.finished", outcome });
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
@@ -30,7 +30,7 @@ beforeEach(async () => {
 });
 
 describe("reducer — subagent run isolation", () => {
-  it("a subagent run.started records a timeline entry but does not reset the root run", () => {
+  it("a subagent segment.started records a timeline entry but does not reset the root run", () => {
     let s: AgentViewState = reduce(INITIAL_VIEW_STATE, runStarted("run_1"));
     s = reduce(s, progress({ step: 3, activity: "root work" }));
 
@@ -45,7 +45,7 @@ describe("reducer — subagent run isolation", () => {
     });
   });
 
-  it("a subagent run.progress (mismatched envelope runId) does not overwrite the root readout", () => {
+  it("a subagent segment.progress (mismatched envelope runId) does not overwrite the root readout", () => {
     let s: AgentViewState = reduce(INITIAL_VIEW_STATE, runStarted("run_1"));
     s = reduce(s, progress({ step: 5, activity: "root work" }));
 
@@ -55,7 +55,7 @@ describe("reducer — subagent run isolation", () => {
     expect(s.run).toMatchObject({ step: 5, activity: "root work" });
   });
 
-  it("a subagent run.finished (mismatched envelope runId) leaves the root run running", () => {
+  it("a subagent segment.finished (mismatched envelope runId) leaves the root run running", () => {
     let s: AgentViewState = reduce(INITIAL_VIEW_STATE, runStarted("run_1"));
 
     s = reduce(s, runFinished({ type: "completed", result: { steps: 1 } }), "sub_1");

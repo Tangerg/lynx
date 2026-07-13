@@ -159,7 +159,7 @@ export interface RunState {
   /** The streamed segment currently folding into this view (RunEvent.segmentId).
    *  A resume opens a NEW segment of the SAME run; a change here — not a change
    *  in runId — is what resets the per-segment streaming readout (usage/error).
-   *  Null until the first run.started carrying a segmentId. */
+   *  Null until the first segment.started carrying a segmentId. */
   segmentId: string | null;
   step: number;
   totalSteps: number;

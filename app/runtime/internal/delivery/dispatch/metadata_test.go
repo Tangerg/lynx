@@ -18,7 +18,7 @@ func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
 				"protocolVersion": "2026-06-07",
 				"clientInfo": { "name": "cli", "version": "0.1.0" },
 				"clientCapabilities": {
-					"events": ["run.started"],
+					"events": ["segment.started"],
 					"features": {},
 					"interruptTypes": ["approval"]
 				}

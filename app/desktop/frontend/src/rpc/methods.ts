@@ -5,7 +5,7 @@
 //
 // Streaming methods (runs.start / runs.resume / runs.subscribe) return
 // `{ result, events }` where `events` is an AsyncIterable. Run streams
-// carry the whole run tree and end on the root segment's `run.finished`
+// carry the whole run tree and end on the root segment's `segment.finished`
 // (see ./stream).
 
 import type { RpcClient } from "./client";

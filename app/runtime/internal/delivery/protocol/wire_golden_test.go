@@ -27,9 +27,9 @@ var wireSamples = []struct {
 	target func() any
 }{
 	// §5 streaming — RunEvent envelope over every StreamEvent variant.
-	{"run.started.json", func() any { return new(RunEvent) }},
-	{"run.progress.json", func() any { return new(RunEvent) }},
-	{"run.finished.json", func() any { return new(RunEvent) }},
+	{"segment.started.json", func() any { return new(RunEvent) }},
+	{"segment.progress.json", func() any { return new(RunEvent) }},
+	{"segment.finished.json", func() any { return new(RunEvent) }},
 	{"item.started.json", func() any { return new(RunEvent) }},
 	{"item.delta.json", func() any { return new(RunEvent) }},
 	{"item.completed.json", func() any { return new(RunEvent) }},

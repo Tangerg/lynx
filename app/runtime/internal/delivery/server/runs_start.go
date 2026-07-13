@@ -26,7 +26,7 @@ import (
 // StartRun translates runs.start into the in-process runtime turn
 // path (API.md §7.3). It returns the runId synchronously; events flow
 // out via the returned channel as RunEvents (wrapped by the transport
-// into notifications.run.event). The terminal run.finished rides this
+// into notifications.run.event). The terminal segment.finished rides this
 // channel — including outcome:interrupt when the run parks for HITL
 // approval, after which the run suspends and the client answers via
 // runs.resume.
@@ -79,7 +79,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// executor's turn handle (handle.TurnID = the ProcessID, which a cross-restart
 	// resume re-mints). segmentId identifies this first streamed segment; the
 	// opening userMessage Item id derives from it (translator emits it after
-	// run.started), so its wire id and its items.list id are one and the same.
+	// segment.started), so its wire id and its items.list id are one and the same.
 	runID := protocol.IDPrefixRun + uuid.NewString()
 	segmentID := protocol.IDPrefixSegment + uuid.NewString()
 	createdAt := time.Now().UTC()

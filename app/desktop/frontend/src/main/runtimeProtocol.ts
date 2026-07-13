@@ -3,9 +3,9 @@ import type { ClientCapabilities, RequestMeta } from "@/rpc";
 
 export const CLIENT_CAPABILITIES: ClientCapabilities = {
   events: [
-    "run.started",
-    "run.progress",
-    "run.finished",
+    "segment.started",
+    "segment.progress",
+    "segment.finished",
     "item.started",
     "item.delta",
     "item.completed",

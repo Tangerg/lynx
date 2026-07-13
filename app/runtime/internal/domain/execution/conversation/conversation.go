@@ -61,14 +61,14 @@ func (m *Messages) Seed(ctx context.Context, sessionID string, msgs []chat.Messa
 }
 
 // Count returns sessionID's message count — the per-run watermark
-// sessions.rollback / fork{fromRunId} record at run.finished and truncate to.
+// sessions.rollback / fork{fromRunId} record at segment.finished and truncate to.
 // Empty session → 0.
 func (m *Messages) Count(ctx context.Context, sessionID string) (int, error) {
 	if sessionID == "" {
 		return 0, errSessionIDRequired
 	}
 	// history.Count uses the store's Counter capability (SQLite: SELECT COUNT(*))
-	// when present, so this hot run.finished watermark read doesn't load and
+	// when present, so this hot segment.finished watermark read doesn't load and
 	// unmarshal the entire history just to count it; it falls back to len(Read)
 	// for backends that can't count cheaply.
 	return history.Count(ctx, m.store, sessionID)

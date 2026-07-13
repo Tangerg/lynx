@@ -4,10 +4,10 @@ import type { FoldEvent } from "./agentStore";
 import { createRunEventBatcher } from "./runEventBatcher";
 
 const runStarted = (): RunEvent["event"] =>
-  ({ type: "run.started", run: { id: "run_1", sessionId: "ses_1" } }) as RunEvent["event"];
+  ({ type: "segment.started", run: { id: "run_1", sessionId: "ses_1" } }) as RunEvent["event"];
 
 const runFinished = (): RunEvent["event"] => ({
-  type: "run.finished",
+  type: "segment.finished",
   outcome: { type: "completed" },
 });
 
@@ -47,7 +47,10 @@ describe("createRunEventBatcher", () => {
     frames.flushNext();
 
     expect(applied).toHaveLength(1);
-    expect(applied[0]!.map((entry) => entry.event.type)).toEqual(["run.started", "run.finished"]);
+    expect(applied[0]!.map((entry) => entry.event.type)).toEqual([
+      "segment.started",
+      "segment.finished",
+    ]);
     expect(applied[0]![1]!.runId).toBe("run_1");
     expect(onRunFinished).toHaveBeenCalledTimes(1);
   });
@@ -73,7 +76,7 @@ describe("createRunEventBatcher", () => {
     frames.flushNext();
 
     expect(applied).toHaveLength(1);
-    expect(applied[0]![0]!.event.type).toBe("run.finished");
+    expect(applied[0]![0]!.event.type).toBe("segment.finished");
   });
 
   it("cancels pending frames and ignores future events after dispose", () => {

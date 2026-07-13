@@ -167,23 +167,23 @@ describe("plugin registry", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
 
-    host.events.onStream("run.started", (s) => ({
+    host.events.onStream("segment.started", (s) => ({
       ...s,
       run: { ...s.run, sessionId: "a" },
     }));
-    host.events.onStream("run.started", (s) => ({
+    host.events.onStream("segment.started", (s) => ({
       ...s,
       run: { ...s.run, sessionId: `${s.run.sessionId}b` },
     }));
 
-    const handlers = lookupStreamHandlers("run.started");
+    const handlers = lookupStreamHandlers("segment.started");
     expect(handlers).toHaveLength(2);
 
     // Apply by hand to verify ordering.
     let state = INITIAL_VIEW_STATE;
     for (const { handler } of handlers) {
       state = handler(state, {
-        type: "run.started",
+        type: "segment.started",
         run: { id: "r", sessionId: "a" },
       } as StreamEvent);
     }
@@ -194,11 +194,11 @@ describe("plugin registry", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
 
-    const d = host.events.onStream("run.started", (s) => s);
-    expect(lookupStreamHandlers("run.started")).toHaveLength(1);
+    const d = host.events.onStream("segment.started", (s) => s);
+    expect(lookupStreamHandlers("segment.started")).toHaveLength(1);
 
     d.dispose();
-    expect(lookupStreamHandlers("run.started")).toHaveLength(0);
+    expect(lookupStreamHandlers("segment.started")).toHaveLength(0);
   });
 
   it("layout.register stores the spec under (slot, plugin, id)", () => {

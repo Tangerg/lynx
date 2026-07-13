@@ -97,7 +97,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 		return true
 	}
 
-	// Teardown is armed BEFORE the first publish, so even the opening run.started —
+	// Teardown is armed BEFORE the first publish, so even the opening segment.started —
 	// which carries a durable transcript commit — tears the run down on a commit
 	// failure (cancel the turn, synthesize an error terminal, close the journal,
 	// free the in-memory admission) instead of stranding a client that acked start
@@ -109,7 +109,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 			_ = c.executor.CancelTurn(ownerCtx, spec.Handle)
 		}
 		if !finished {
-			// The stream ended without a run.finished (canceled mid-flight /
+			// The stream ended without a segment.finished (canceled mid-flight /
 			// drained iterator, or a failed opening commit) — synthesize the terminal
 			// so the stream ends balanced. The projector decides error-vs-canceled
 			// from its state, and the synthesized terminal's commit terminalizes the
@@ -134,7 +134,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec StartSpec, inner 
 		})
 	}()
 
-	// run.started leads every segment.
+	// segment.started leads every segment.
 	if !publish(projector.Open()) {
 		return
 	}

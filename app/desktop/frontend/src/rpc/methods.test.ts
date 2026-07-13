@@ -40,7 +40,7 @@ describe("methods factory", () => {
     await client.close();
   });
 
-  it("runs.start returns a streaming result that ends on the root segment's run.finished", async () => {
+  it("runs.start returns a streaming result that ends on the root segment's segment.finished", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const methods = createMethods(client);
@@ -72,14 +72,14 @@ describe("methods factory", () => {
       jsonrpc: JSONRPC_VERSION,
       method: RUN_EVENT_METHOD,
       params: runEvent("run_1", "seg_1", "evt_2", {
-        type: "run.finished",
+        type: "segment.finished",
         outcome: { type: "completed", result: {} },
       }),
     });
 
     const collected: RunEvent[] = [];
     for await (const ev of events) collected.push(ev);
-    expect(collected.map((e) => e.event.type)).toEqual(["item.started", "run.finished"]);
+    expect(collected.map((e) => e.event.type)).toEqual(["item.started", "segment.finished"]);
     await client.close();
   });
 
@@ -120,14 +120,14 @@ describe("methods factory", () => {
       jsonrpc: JSONRPC_VERSION,
       method: RUN_EVENT_METHOD,
       params: runEvent("run_1", "seg_1", "evt_2", {
-        type: "run.finished",
+        type: "segment.finished",
         outcome: { type: "completed", result: {} },
       }),
     });
 
     const collected: RunEvent[] = [];
     for await (const ev of events) collected.push(ev);
-    expect(collected.map((e) => e.event.type)).toEqual(["item.completed", "run.finished"]);
+    expect(collected.map((e) => e.event.type)).toEqual(["item.completed", "segment.finished"]);
     await client.close();
   });
 });

@@ -4,7 +4,7 @@
   "eventId": "evt_03",
   "timestamp": "2026-07-07T10:00:12Z",
   "event": {
-    "type": "run.finished",
+    "type": "segment.finished",
     "outcome": {
       "type": "completed",
       "result": {

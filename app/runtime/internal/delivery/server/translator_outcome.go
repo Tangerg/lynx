@@ -17,9 +17,9 @@ import (
 
 func (t *translator) outcome(e turn.TurnEnd) *protocol.RunOutcome {
 	// steps lands the run's final step count durably (API.md §5.2): it's the
-	// authoritative home of the ephemeral run.progress.step, so a client that
+	// authoritative home of the ephemeral segment.progress.step, so a client that
 	// dropped the progress deltas can still read it off the terminal. t.step is
-	// the live ordinal the translator emitted on run.progress.
+	// the live ordinal the translator emitted on segment.progress.
 	steps := t.step
 	res := &protocol.RunResult{Usage: t.turnUsage(e), Steps: &steps, DurationMs: int(e.Duration.Milliseconds())}
 	switch e.Reason {

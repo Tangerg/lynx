@@ -98,7 +98,7 @@ func (s *Server) listItemsFromHistory(hItems []transcript.Item, hRuns []transcri
 
 // reconcileLostRun heals a RunRef the durable history left at status:running
 // when no live pump is driving it: such a run was lost to a restart/crash
-// between run.started and its terminal run.finished. Nothing is advancing it
+// between segment.started and its terminal segment.finished. Nothing is advancing it
 // and it isn't resumable (no interrupt was recorded — a parked run finishes
 // with outcome:interrupt, which IS terminal in history), so without this the
 // client renders a perpetual spinner. We present it as a terminal

@@ -174,7 +174,7 @@ type ErrorEvent struct {
 // UsageReported fires once per completed LLM round with the turn's
 // cumulative token roll-up + cost so far — the mid-run "tokens / cost spent"
 // readout (the live preview whose authoritative final lands on [TurnEnd]).
-// Ephemeral by nature; transport maps it to a run.progress usage preview.
+// Ephemeral by nature; transport maps it to a segment.progress usage preview.
 // CostUSD is zero unless a pricing hook is configured.
 type UsageReported struct {
 	BaseEvent
@@ -182,7 +182,7 @@ type UsageReported struct {
 	CostUSD    float64
 	// ContextTokens is this round's prompt-token count — the live context-window
 	// occupancy (not the cumulative roll-up in TokenUsage). Transport maps it to
-	// run.progress.contextTokens for the client's occupancy gauge.
+	// segment.progress.contextTokens for the client's occupancy gauge.
 	ContextTokens int64
 }
 

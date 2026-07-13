@@ -25,7 +25,7 @@ func itemPair(build func(protocol.ItemStatus) *protocol.Item) []protocol.StreamE
 // (API.md §4.3). DroppedMessages is the net history reduction (before − after,
 // clamped ≥0); the summary text stays server-side — it's already folded into
 // the rewritten history. Emitted from drive() before TurnEnd, so the divider
-// lands after this turn's content and ahead of run.finished.
+// lands after this turn's content and ahead of segment.finished.
 func (t *translator) compaction(e turn.CompactBoundary) []protocol.StreamEvent {
 	dropped := max(e.MessagesBefore-e.MessagesAfter, 0)
 	id := t.nextItemID()

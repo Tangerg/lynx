@@ -16,8 +16,8 @@ const SID = "ses_1";
 const item = (partial: Record<string, unknown>): Item =>
   ({ runId: "run_1", status: "running", createdAt: "2026-06-03T00:00:00Z", ...partial }) as Item;
 const runStarted = (id: string, sessionId: string): StreamEvent =>
-  ({ type: "run.started", run: { id, sessionId } }) as never;
-const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "run.finished", outcome });
+  ({ type: "segment.started", run: { id, sessionId } }) as never;
+const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "segment.finished", outcome });
 // Wrap a synthetic StreamEvent as a FoldEvent — no envelope runId, so the fold
 // treats it as the root run (matching applyEvents' batch shape).
 const fold = (event: StreamEvent) => ({ event });
@@ -90,7 +90,7 @@ describe("agentStore.cancelRun", () => {
       [
         runStarted("run_1", SID),
         {
-          type: "run.progress",
+          type: "segment.progress",
           progress: { usage: { inputTokens: 1000, outputTokens: 200 } },
         } as StreamEvent,
       ].map(fold),

@@ -34,13 +34,13 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
     options.applyEvents([
       {
         event: {
-          type: "run.started",
+          type: "segment.started",
           run: { id: oi.runId, sessionId: oi.sessionId, createdAt: oi.createdAt },
         },
       },
       {
         event: {
-          type: "run.finished",
+          type: "segment.finished",
           outcome: { type: "interrupt", interrupts: oi.interrupts },
         },
       },
@@ -75,10 +75,10 @@ async function attachRootRun(options: AgentSessionRecoveryOptions, run: RunRef):
   }
   if (options.isCancelled() || ctrl.signal.aborted) return;
   // Stamp the CURRENT segment id (from the subscribe response) so the synthetic
-  // run.started keys the segment correctly — the replayed real run.started then
+  // segment.started keys the segment correctly — the replayed real segment.started then
   // carries the same segmentId and won't re-reset the streaming readout.
   options.applyEvents([
-    { event: { type: "run.started", run }, segmentId: stream.result.segmentId },
+    { event: { type: "segment.started", run }, segmentId: stream.result.segmentId },
   ]);
   await options.pump(stream, ctrl.signal);
 }

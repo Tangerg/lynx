@@ -1,6 +1,6 @@
 // useAgentSession owns the agent driver lifecycle for one session. The
 // regression locked here: send() is re-entrancy-safe in the window before
-// run.started arrives. The steady-state guard (useChatSend reads run.running)
+// segment.started arrives. The steady-state guard (useChatSend reads run.running)
 // only flips true a round-trip later, so without the synchronous `starting`
 // latch a second Enter fires a second runs.start — two backend runs + an
 // orphaned optimistic bubble whose localId is never relabeled.
@@ -19,7 +19,7 @@ import { useAgentSession } from "./useAgentSession";
 const SID = "ses_dbl";
 
 // A driver whose start() never resolves — keeps begin() parked in the
-// pre-run.started window where the latch is the only guard.
+// pre-segment.started window where the latch is the only guard.
 function parkedDriver(): { driver: AgentDriver; start: ReturnType<typeof vi.fn> } {
   const start = vi.fn(() => new Promise<never>(() => {}));
   const resume = vi.fn(() => new Promise<never>(() => {}));
@@ -47,7 +47,7 @@ describe("useAgentSession send re-entrancy", () => {
     act(() => {
       const send = useAgentStore.getState().sessions[SID]!.send!;
       send(agentTextInput("first"));
-      send(agentTextInput("second")); // blocked by the starting latch — still pre-run.started
+      send(agentTextInput("second")); // blocked by the starting latch — still pre-segment.started
     });
 
     expect(start).toHaveBeenCalledTimes(1);

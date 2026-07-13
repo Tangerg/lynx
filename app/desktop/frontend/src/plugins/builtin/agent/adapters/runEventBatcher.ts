@@ -41,7 +41,7 @@ export function createRunEventBatcher({
     }
 
     apply(batch);
-    if (batch.some((entry) => entry.event.type === "run.finished")) onRunFinished?.();
+    if (batch.some((entry) => entry.event.type === "segment.finished")) onRunFinished?.();
   };
 
   return {

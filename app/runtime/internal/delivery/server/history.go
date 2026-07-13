@@ -26,10 +26,10 @@ func sideEffectEvent(runID, sessionID, cwd string, se protocol.StreamEvent, prov
 		if paths := toolFileChangedPaths(se); len(paths) > 0 {
 			nudge = &runs.Nudge{Cwd: cwd, Paths: paths}
 		}
-	case protocol.StreamRunStarted:
+	case protocol.StreamSegmentStarted:
 		commit.Run = transcriptRun(sessionID, se.Run)
-	case protocol.StreamRunFinished:
-		// run.finished carries only the outcome; synthesize the terminal RunRef so
+	case protocol.StreamSegmentFinished:
+		// segment.finished carries only the outcome; synthesize the terminal RunRef so
 		// history records the run's final status + outcome. The message log is now
 		// in its terminal post-maintenance (post-compaction) shape — the committer
 		// resolves the terminal watermark (Mark) as this run's boundary, the mark
@@ -73,7 +73,7 @@ func transcriptItem(sessionID string, item *protocol.Item) *transcript.Item {
 
 // transcriptRun marshals a run record for persistence, with Mark left unresolved
 // (-1): the committer fills the terminal watermark inside the commit for a
-// terminalizing run and leaves it -1 (unknown) for the opening run.started.
+// terminalizing run and leaves it -1 (unknown) for the opening segment.started.
 func transcriptRun(sessionID string, run *protocol.RunRef) *transcript.Run {
 	if run == nil {
 		return nil

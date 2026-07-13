@@ -6,7 +6,7 @@
 // builds bubbles/turns); this file pins each handler's minimal per-type effect
 // and the branches those scenarios don't reach: the `plan` item on all three
 // phases (started / delta / completed), the item.delta `plan` branch, deltas
-// that target nothing, and run.started's usage reset. Kept deliberately narrow
+// that target nothing, and segment.started's usage reset. Kept deliberately narrow
 // — one event, one contract — so a regression names the exact handler.
 
 import { beforeEach, describe, expect, it } from "vitest";
@@ -30,12 +30,12 @@ const completed = (i: Item): StreamEvent => ({ type: "item.completed", item: i }
 const delta = (itemId: string, d: Record<string, unknown>): StreamEvent =>
   ({ type: "item.delta", itemId, delta: d }) as StreamEvent;
 const runStarted = (id: string, sessionId: string): StreamEvent => ({
-  type: "run.started",
+  type: "segment.started",
   run: { id, sessionId } as never,
 });
-const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "run.finished", outcome });
+const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "segment.finished", outcome });
 const runProgress = (progress: Record<string, unknown>): StreamEvent =>
-  ({ type: "run.progress", progress }) as StreamEvent;
+  ({ type: "segment.progress", progress }) as StreamEvent;
 const snapshot = (state: Record<string, unknown>): StreamEvent =>
   ({ type: "state.snapshot", state }) as StreamEvent;
 const stateDelta = (patch: Record<string, unknown>[]): StreamEvent =>
@@ -47,7 +47,7 @@ beforeEach(async () => {
 });
 
 describe("handler contract — run.*", () => {
-  it("run.started resets usage to zero + clears a prior error, without touching the stream", () => {
+  it("segment.started resets usage to zero + clears a prior error, without touching the stream", () => {
     // Seed a dirty state: accumulated usage, a stored error, and one open block.
     let s = reduce(INITIAL_VIEW_STATE, runStarted("r0", "s0"));
     s = reduce(
@@ -72,7 +72,7 @@ describe("handler contract — run.*", () => {
     expect(out.timeline.at(-1)).toMatchObject({ kind: "run-start", runId: "r1" });
   });
 
-  it("run.progress patches only the fields present, leaving sibling readout untouched", () => {
+  it("segment.progress patches only the fields present, leaving sibling readout untouched", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("r1", "s1"));
     s = reduce(
       s,
@@ -90,13 +90,13 @@ describe("handler contract — run.*", () => {
     expect(out.run.usage).toEqual({ inputTokens: 100, outputTokens: 5, cacheReadTokens: 0 });
   });
 
-  it("run.progress carrying a subagent envelope runId is an identity no-op", () => {
+  it("segment.progress carrying a subagent envelope runId is an identity no-op", () => {
     const s = reduce(INITIAL_VIEW_STATE, runStarted("root", "s1"));
     const out = reduce(s, runProgress({ step: 9, activity: "child" }), "sub_run");
     expect(out).toBe(s);
   });
 
-  it("run.finished{completed} settles running without disturbing messages / plan / shared", () => {
+  it("segment.finished{completed} settles running without disturbing messages / plan / shared", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("r1", "s1"));
     s = reduce(s, started(item({ id: "a", type: "agentMessage", content: [] })));
     s = reduce(s, snapshot({ k: 1 }));

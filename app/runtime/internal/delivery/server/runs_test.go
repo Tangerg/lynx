@@ -25,7 +25,7 @@ func TestSubscribeRun_StreamsLiveRun(t *testing.T) {
 	if out == nil || out.RunID != "run_live" || events == nil {
 		t.Fatalf("subscribe live: out=%+v events=%v", out, events)
 	}
-	// The live run's opening run.started is durable, so a fresh subscription
+	// The live run's opening segment.started is durable, so a fresh subscription
 	// replays it.
 	select {
 	case ev := <-events:

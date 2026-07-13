@@ -8,7 +8,7 @@ import (
 
 // TestReconcileLostRun verifies items.list heals a RunRef the durable history
 // left at status:running when no live pump is driving it (a run lost to a
-// restart/crash between run.started and run.finished) — it's presented as a
+// restart/crash between segment.started and segment.finished) — it's presented as a
 // terminal error(run_lost) so the client stops rendering a perpetual spinner,
 // while genuinely live and already-terminal runs are left untouched.
 func TestReconcileLostRun(t *testing.T) {

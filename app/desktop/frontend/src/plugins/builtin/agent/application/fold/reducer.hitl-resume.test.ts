@@ -1,7 +1,7 @@
 // Regression: stdout that streams via item.delta{toolOutput} during a HITL
 // *resume* run must land on the toolCall's `result`. Captured from the real
 // runtime: a commandExecution interrupts for approval (runs.start ends with
-// run.finished{interrupt}, toolCall still inProgress, no output yet), then the
+// segment.finished{interrupt}, toolCall still inProgress, no output yet), then the
 // resume run RE-EMITS the same toolCall id and streams its stdout before
 // settling. The fold must preserve the resume-streamed output onto the
 // pre-existing toolCalls entry — not reset it when item.started re-fires.
@@ -25,10 +25,10 @@ const completed = (i: Item): StreamEvent => ({ type: "item.completed", item: i }
 const delta = (itemId: string, d: Record<string, unknown>): StreamEvent =>
   ({ type: "item.delta", itemId, delta: d }) as StreamEvent;
 const runStarted = (id: string): StreamEvent => ({
-  type: "run.started",
+  type: "segment.started",
   run: { id, sessionId: "ses_1" } as never,
 });
-const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "run.finished", outcome });
+const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "segment.finished", outcome });
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");

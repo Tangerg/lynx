@@ -23,7 +23,7 @@ const (
 type ProblemData struct {
 	Type string `json:"type"`
 	// Channel self-describes which delivery channel the error came on —
-	// "rpc" (sync JSON-RPC error), "run" (run.finished outcome:error), or
+	// "rpc" (sync JSON-RPC error), "run" (segment.finished outcome:error), or
 	// "tool" (toolCall.error) — so the client reads it instead of inferring
 	// from where the error arrived (API.md §8.1). Empty = unclassified.
 	Channel ErrorChannel `json:"channel,omitempty"`
@@ -60,7 +60,7 @@ const (
 	// (run outcome:error, RPC error, tool error); the full error rides the span,
 	// never the wire.
 	ProblemInternalError = "internal_error"
-	// Run channel (run.finished outcome:error) — how a failed run is classified.
+	// Run channel (segment.finished outcome:error) — how a failed run is classified.
 	ProblemAgentStuck          = "agent_stuck"          // the loop's no-forward-progress guard tripped
 	ProblemRateLimited         = "rate_limited"         // provider 429 / quota — retryable
 	ProblemInvalidAPIKey       = "invalid_api_key"      // provider 401 / 403 — not retryable

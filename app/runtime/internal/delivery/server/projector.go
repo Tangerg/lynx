@@ -33,7 +33,7 @@ type projector struct {
 var _ runs.Projector = (*projector)(nil)
 
 func (p *projector) Open() []runs.ProjectedEvent {
-	// The opening run.started carries no terminal, so classification is moot.
+	// The opening segment.started carries no terminal, so classification is moot.
 	return p.project(p.tr.open(), false, 0)
 }
 
@@ -71,7 +71,7 @@ func (p *projector) Abort(msg string) { p.tr.errMsg = msg }
 
 // project turns the translator's wire events into projected events, stamping the
 // caller's run-lifecycle classification (parks + terminal outcome) onto the
-// run.finished frame among them.
+// segment.finished frame among them.
 func (p *projector) project(events []protocol.StreamEvent, parks bool, outcome execution.Outcome) []runs.ProjectedEvent {
 	out := make([]runs.ProjectedEvent, 0, len(events))
 	for _, se := range events {
@@ -94,7 +94,7 @@ func (p *projector) project(events []protocol.StreamEvent, parks bool, outcome e
 // The run-state transition rides the SAME EventCommit as the record it must agree
 // with, so the commit is atomic (§8.3).
 func (p *projector) projected(se protocol.StreamEvent, parks bool, outcome execution.Outcome) runs.ProjectedEvent {
-	terminal := se.Type == protocol.StreamRunFinished
+	terminal := se.Type == protocol.StreamSegmentFinished
 	interrupt := terminal && parks
 	if terminal && !interrupt && outcome == execution.OutcomeCanceled && se.Outcome != nil && se.Outcome.Detail == "" {
 		if reason := p.view.CancelReason(); reason != "" {

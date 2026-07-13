@@ -50,7 +50,7 @@ type Executor interface {
 // classification), so the delivery layer builds one per segment; the application
 // never sees the wire shape it produces.
 type Projector interface {
-	// Open leads every segment (root + continuation) with its run.started-class
+	// Open leads every segment (root + continuation) with its segment.started-class
 	// events, independent of any executor event.
 	Open() []ProjectedEvent
 	// Translate projects one executor event into zero or more projected events.
@@ -74,7 +74,7 @@ type Projector interface {
 // type) so the run pump can commit it without an agent-SDK dependency.
 type ProjectedEvent struct {
 	Durable   bool                   // retained for replay (mirrors the wire's IsDurable)
-	Terminal  bool                   // ends the run's stream (the run.finished)
+	Terminal  bool                   // ends the run's stream (the segment.finished)
 	Interrupt bool                   // terminal that PARKS — takes the commit-before-publish path
 	Abort     bool                   // projection failed; cancel the turn and terminalize as error
 	Payload   any                    // opaque wire payload (a protocol StreamEvent)

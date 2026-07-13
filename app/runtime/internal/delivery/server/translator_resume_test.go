@@ -31,15 +31,15 @@ func TestTranslator_EditedArgsReusesProposalItem(t *testing.T) {
 }
 
 // TestTranslator_NoUserMessageOnContinuation verifies a continuation segment
-// opens with run.started alone (carrying the stable runId), no synthetic user turn.
+// opens with segment.started alone (carrying the stable runId), no synthetic user turn.
 func TestTranslator_NoUserMessageOnContinuation(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "seg_2", nil, nil, "", "")
 	out := tr.open()
-	if len(out) != 1 || out[0].Type != protocol.StreamRunStarted {
-		t.Fatalf("continuation open() = %+v, want run.started only", out)
+	if len(out) != 1 || out[0].Type != protocol.StreamSegmentStarted {
+		t.Fatalf("continuation open() = %+v, want segment.started only", out)
 	}
 	if out[0].Run == nil || out[0].Run.ID != "run_1" {
-		t.Fatalf("continuation run.started must carry the stable runId run_1: %+v", out[0].Run)
+		t.Fatalf("continuation segment.started must carry the stable runId run_1: %+v", out[0].Run)
 	}
 }
 
@@ -103,10 +103,10 @@ func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 
 	out := tr.open()
 	if len(out) != 2 {
-		t.Fatalf("continuation open() = %d events, want 2 (run.started + question item.completed)", len(out))
+		t.Fatalf("continuation open() = %d events, want 2 (segment.started + question item.completed)", len(out))
 	}
-	if out[0].Type != protocol.StreamRunStarted {
-		t.Fatalf("event[0] = %s, want run.started", out[0].Type)
+	if out[0].Type != protocol.StreamSegmentStarted {
+		t.Fatalf("event[0] = %s, want segment.started", out[0].Type)
 	}
 	c := out[1]
 	if c.Type != protocol.StreamItemCompleted || c.Item == nil {

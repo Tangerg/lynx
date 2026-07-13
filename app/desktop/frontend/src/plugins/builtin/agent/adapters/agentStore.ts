@@ -81,16 +81,16 @@ interface AgentStore {
   clearError: (sessionId: string) => void;
   /** Surface a channel-a failure (a rejected runs.start / runs.resume, API.md
    *  §8.1) on the run-error banner — the stream never opened, so no
-   *  run.finished{error} will arrive to carry it. */
+   *  segment.finished{error} will arrive to carry it. */
   setError: (sessionId: string, error: RunError | null) => void;
   /**
    * Locally settle a user-stopped run. `stop()` aborts the event stream, which
-   * closes the channel BEFORE the backend's run.finished{canceled} can reach
+   * closes the channel BEFORE the backend's segment.finished{canceled} can reach
    * the fold — so flip `running` off here (and stamp a canceled timeline entry)
    * or the view stays stuck "running": the status bar spins, the composer's
    * Stop button stays latched, and useChatSend's `running` guard blocks the
    * next send until a remount. Preserves the run's token/step readout (a
-   * synthetic run.finished would zero it). No-op once the run has settled.
+   * synthetic segment.finished would zero it). No-op once the run has settled.
    */
   cancelRun: (sessionId: string) => void;
   /**

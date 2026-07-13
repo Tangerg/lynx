@@ -23,11 +23,11 @@ function bind<T extends StreamEvent["type"]>(
 }
 
 export const HANDLERS: ReadonlyArray<[string, StreamEventHandler]> = [
-  bind("run.started", (state, event, _runId, segmentId) =>
+  bind("segment.started", (state, event, _runId, segmentId) =>
     onRunStarted(state, event.run, segmentId),
   ),
-  bind("run.progress", (state, event, runId) => onRunProgress(state, event.progress, runId)),
-  bind("run.finished", (state, event, runId) => onRunFinished(state, event.outcome, runId)),
+  bind("segment.progress", (state, event, runId) => onRunProgress(state, event.progress, runId)),
+  bind("segment.finished", (state, event, runId) => onRunFinished(state, event.outcome, runId)),
   bind("item.started", (state, event) => onItemStarted(state, event.item)),
   bind("item.delta", (state, event) => onItemDelta(state, event.itemId, event.delta)),
   bind("item.completed", (state, event) => onItemCompleted(state, event.item)),

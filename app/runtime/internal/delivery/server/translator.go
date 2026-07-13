@@ -18,14 +18,14 @@ import (
 //
 // State machine:
 //
-//	turn.TurnStart       → run.started
+//	turn.TurnStart       → segment.started
 //	turn.MessageDelta    → close reasoning + item.started(agentMessage,lazy) + item.delta(content)
 //	turn.ReasoningDelta  → close text + item.started(reasoning,lazy) + item.delta(reasoning)
 //	turn.ToolCallStart   → close text+reasoning + item.started(toolCall) + item.delta(toolArguments)
 //	turn.ToolCallEnd     → item.completed(toolCall)
-//	turn.TurnEnd         → close open items + run.finished(outcome)
-//	turn.TurnInterrupted → close open items + interrupt Item(s) + run.finished(outcome:interrupt)
-//	turn.ErrorEvent      → captured, surfaced in run.finished(outcome:error)
+//	turn.TurnEnd         → close open items + segment.finished(outcome)
+//	turn.TurnInterrupted → close open items + interrupt Item(s) + segment.finished(outcome:interrupt)
+//	turn.ErrorEvent      → captured, surfaced in segment.finished(outcome:error)
 //	turn.CompactBoundary → compaction Item (item.started + item.completed)
 //
 // MemoryUpdated is not surfaced here: extracted long-term memory is internal
@@ -36,14 +36,14 @@ type translator struct {
 	// segmentID is THIS streamed segment. Item ids derive from it (not runID) so a
 	// run's resume segments — which share runID — never collide on item ids.
 	segmentID string
-	provider  string // run's provider → RunRef.provider on run.started
-	model     string // run's model → RunRef.model on run.started
+	provider  string // run's provider → RunRef.provider on segment.started
+	model     string // run's model → RunRef.model on segment.started
 	resume    *resumeBinding
 	itemSeq   int
-	step      int // tool-call ordinal, surfaced as run.progress.step (API.md §5)
+	step      int // tool-call ordinal, surfaced as segment.progress.step (API.md §5)
 
 	// userInput is the run's opening user message, emitted as the first
-	// Item (userMessage) right after run.started. Set only for root runs
+	// Item (userMessage) right after segment.started. Set only for root runs
 	// (runs.start); empty for continuations (runs.resume carry no new
 	// user turn).
 	userInput []protocol.ContentBlock
@@ -105,14 +105,14 @@ func userMessageItemID(segmentID string) string {
 }
 
 // open is the first thing emitted on EVERY run segment — a run's opening one and
-// its resume continuations alike. It guarantees run.started leads the stream (the
+// its resume continuations alike. It guarantees segment.started leads the stream (the
 // client's segment boundary), then the opening userMessage Item and, for a
 // resumed segment, the terminal item.completed for any question the parked run
 // left open. Driven by pumpRun before any turn event, so it never depends on a
 // turn-level TurnStart (which continuations don't emit).
 func (t *translator) open() []protocol.StreamEvent {
 	out := []protocol.StreamEvent{{
-		Type: protocol.StreamRunStarted,
+		Type: protocol.StreamSegmentStarted,
 		Run: &protocol.RunRef{
 			ID:        t.runID,
 			SessionID: t.sessionID,
@@ -130,7 +130,7 @@ func (t *translator) open() []protocol.StreamEvent {
 func (t *translator) translate(ev turn.Event) []protocol.StreamEvent {
 	switch e := ev.(type) {
 	case turn.TurnStart:
-		// run.started is emitted by open() at the start of every run segment
+		// segment.started is emitted by open() at the start of every run segment
 		// (so continuation runs get it too — they carry no turn.TurnStart),
 		// not here. Nothing to do for the turn-level TurnStart.
 		return nil

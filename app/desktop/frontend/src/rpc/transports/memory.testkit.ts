@@ -81,7 +81,7 @@ export function injectRunEvent(
   });
 }
 
-/** Inject a `run.finished` StreamEvent for the root segment — terminates the
+/** Inject a `segment.finished` StreamEvent for the root segment — terminates the
  *  stream (v2 has no separate "closed" method, §5). */
 export function injectRunFinished(
   t: MemoryTransport,
@@ -90,5 +90,5 @@ export function injectRunFinished(
   eventId: string,
   outcome: RunOutcome = { type: "completed", result: {} },
 ): void {
-  injectRunEvent(t, runId, segmentId, eventId, { type: "run.finished", outcome });
+  injectRunEvent(t, runId, segmentId, eventId, { type: "segment.finished", outcome });
 }
