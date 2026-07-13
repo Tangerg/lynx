@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
@@ -36,7 +37,7 @@ func bootstrapRuntime(ctx context.Context) (_ bootstrap.Host, _ config.Config, e
 	// would otherwise block their session forever. Parked (interrupted) runs are
 	// preserved for resume. A sweep failure means the DB is unusable, so fail
 	// startup rather than admit runs against an inconsistent admission table.
-	if _, err := stores.Runs.ReconcileOrphans(ctx); err != nil {
+	if _, err := stores.Runs.ReconcileOrphans(ctx, agentexec.ValidateInterruptSnapshot); err != nil {
 		return bootstrap.Host{}, config.Config{}, err
 	}
 	// Provider registry with the stored>env credential fallback: a provider with

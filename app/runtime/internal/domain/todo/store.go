@@ -44,14 +44,17 @@ type Item struct {
 
 // Store persists a session's todo list. The list is always read and written
 // whole — the model owns it via a full replace — so the surface is just List
-// + Replace. Implementations must be safe for concurrent use.
+// + Replace + session-lifecycle cleanup. Implementations must be safe for
+// concurrent use and join an ambient transaction when the backend supports it.
 //
 // List returns the session's current items, or an empty slice when none are
 // set (an unknown session is not an error). Replace overwrites the list
-// wholesale.
+// wholesale. DeleteSession removes the list owned by a deleted, restored, or
+// history-rewound session; deleting a missing list is not an error.
 type Store interface {
 	List(ctx context.Context, sessionID string) ([]Item, error)
 	Replace(ctx context.Context, sessionID string, items []Item) error
+	DeleteSession(ctx context.Context, sessionID string) error
 }
 
 // ErrInvalid wraps the human-readable reason a proposed list breaks a

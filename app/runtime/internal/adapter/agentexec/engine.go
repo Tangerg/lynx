@@ -50,7 +50,6 @@ type Engine struct {
 	skillsGlobalDir string     // captured from Config.SkillsGlobalDir for workspace.listSkills
 	pricing         accounting.Pricing
 	defaultProvider string // default provider id; pricing fallback for a default/subtask turn
-	parkStore       ParkStore
 
 	// Maintenance ports (turn-boundary autonomous ops) — injected by the
 	// composition root; nil when not wired (every use is nil-guarded).
@@ -116,7 +115,6 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		skillsGlobalDir:       cfg.SkillsGlobalDir,
 		pricing:               cfg.Pricing,
 		defaultProvider:       cfg.Provider,
-		parkStore:             cfg.ParkStore,
 		mcpStatusReader:       cfg.MCPStatusReader,
 		mcpToolCatalog:        cfg.MCPToolCatalog,
 		mcpConnectionCommands: cfg.MCPConnectionCommands,

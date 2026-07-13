@@ -61,14 +61,16 @@ type WriteSets interface {
 	// created child.
 	ApplyFork(ctx context.Context, plan ForkPlan) (session.Session, error)
 	// ApplyRollback truncates the chat log to the boundary, drops each
-	// past-boundary run, terminalizes an abandoned parked run, and removes the
-	// attributed internal subtask subtrees — atomically.
+	// past-boundary run, clears the now-invalid todo projection, terminalizes an
+	// abandoned parked run, and removes attributed internal subtask subtrees — atomically.
 	ApplyRollback(ctx context.Context, plan RollbackPlan) error
 	// ApplyRestore recreates a session under its original id and replaces its
-	// whole history (clear old + seed decoded messages/runs/items) — atomically.
+	// whole history (clear old session-owned projections + seed decoded
+	// messages/runs/items) — atomically.
 	ApplyRestore(ctx context.Context, plan RestorePlan) error
 	// ApplyDelete removes all durable state for the plan's post-order session
-	// cascade — transcript, chat log, interrupts, admission rows, and rows — atomically.
+	// cascade — transcript, chat log, todos, session approval rules, interrupts,
+	// admission rows, and session rows — atomically.
 	ApplyDelete(ctx context.Context, plan DeletePlan) error
 	// ApplyCancel abandons a parked run: it persists the terminal transcript
 	// projection, drops the open interrupt, and terminalizes admission — atomically.

@@ -82,4 +82,10 @@ func TestTodoStore_RoundTrip(t *testing.T) {
 	if got, _ := store.List(ctx, sess); len(got) != 0 {
 		t.Fatalf("session bleed: %v", got)
 	}
+	if err := store.DeleteSession(ctx, "other"); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+	if got, err := store.List(ctx, "other"); err != nil || len(got) != 0 {
+		t.Fatalf("after DeleteSession = %v, %v, want none", got, err)
+	}
 }

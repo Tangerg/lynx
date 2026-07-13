@@ -1,8 +1,6 @@
 package agentexec
 
 import (
-	"context"
-
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
@@ -11,24 +9,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/history"
 )
-
-// ParkState is the resumable HITL payload the runtime persists on
-// interruption and consumes on resume.
-type ParkState struct {
-	Assistant *chat.AssistantMessage
-	Done      []*chat.ToolReturn
-}
-
-// ParkStore persists and restores resumable HITL state.
-//
-// The port-level split mirrors the tool-loop contract while keeping
-// the kernel's constructor surface independent of driver internals.
-// Atomic consume-on-read is the key invariant: resume and replay
-// consume the same pending round exactly once.
-type ParkStore interface {
-	Consume(context.Context, string) (*ParkState, error)
-	Write(context.Context, string, *ParkState) error
-}
 
 // Config is the engine construction-time bundle. ChatClient is the
 // only hard requirement (New errors without it); the rest are
@@ -120,9 +100,4 @@ type Config struct {
 	// this to [agent/runtime.PlatformConfig] — keeping session CRUD out of the
 	// turn-execution layer. nil = delegation lineage stays in-process only.
 	SessionStore core.SessionStore
-
-	// ParkStore persists interrupted tool rounds for HITL resume.
-	// When nil the engine intercepts tool-loop interrupt chunks
-	// itself and parks the resumable tail on the process blackboard.
-	ParkStore ParkStore
 }

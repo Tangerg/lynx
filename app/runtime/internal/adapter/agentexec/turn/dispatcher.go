@@ -94,8 +94,10 @@ type Dispatcher interface {
 	Cancel(ctx context.Context, handle TurnHandle) error
 
 	// Close rejects new turns, cancels every live turn (including parked
-	// interrupts), and waits for their terminal teardown. It is idempotent.
-	Close()
+	// interrupts), and waits up to the dispatcher's shutdown budget for their
+	// terminal teardown. It is idempotent. A timeout is reported as
+	// [ErrCloseTimeout]; later calls can finish joining the same turn set.
+	Close() error
 
 	// ForgetSession releases the process-local state the dispatcher keeps keyed by
 	// a session — currently the SessionStart fire-once gate. Call it when a

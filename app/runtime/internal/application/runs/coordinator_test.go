@@ -15,11 +15,13 @@ import (
 // These fakes exercise the application-owned reducer and journal. Delivery
 // protocol values deliberately do not appear here.
 type fakeExecutor struct {
-	events   []EngineEvent
-	block    bool
-	mu       sync.Mutex
-	canceled int
-	startErr error
+	events        []EngineEvent
+	block         bool
+	mu            sync.Mutex
+	canceled      int
+	startErr      error
+	cancelStarted chan struct{}
+	releaseCancel chan struct{}
 }
 
 func (f *fakeExecutor) TurnEvents(ctx context.Context, _ Handle) (iter.Seq[EngineEvent], error) {
@@ -40,6 +42,12 @@ func (f *fakeExecutor) TurnEvents(ctx context.Context, _ Handle) (iter.Seq[Engin
 }
 
 func (f *fakeExecutor) CancelTurn(context.Context, Handle) error {
+	if f.cancelStarted != nil {
+		close(f.cancelStarted)
+	}
+	if f.releaseCancel != nil {
+		<-f.releaseCancel
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.canceled++
@@ -277,6 +285,31 @@ func TestCoordinatorMalformedInterruptAbortsExecutorAndTerminalizes(t *testing.T
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("malformed interrupt did not terminalize the run")
 	}
+}
+
+func TestCoordinatorCommitsSyntheticTerminalBeforeCancelTurn(t *testing.T) {
+	executor := &fakeExecutor{
+		events:        []EngineEvent{TurnInterrupted{Interrupts: []Interrupt{{Kind: InterruptKind("unknown")}}}},
+		cancelStarted: make(chan struct{}),
+		releaseCancel: make(chan struct{}),
+	}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+
+	select {
+	case <-executor.cancelStarted:
+	case <-time.After(time.Second):
+		t.Fatal("CancelTurn did not start")
+	}
+	if !effects.terminalized("ses_1", "run_1") {
+		t.Fatal("CancelTurn started before the synthesized terminal committed")
+	}
+	close(executor.releaseCancel)
+	collectEvents(stream)
 }
 
 func TestCoordinatorCommitFailureNeverPublishesUnbackedFact(t *testing.T) {

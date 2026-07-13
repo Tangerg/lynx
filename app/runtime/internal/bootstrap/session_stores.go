@@ -5,9 +5,11 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -33,6 +35,8 @@ type sessionStores struct {
 	runs       *sqlitestore.RunStateStore
 	processes  *sqlitestore.ProcessStore
 	history    *conversation.Messages
+	todos      todo.Store
+	approvals  approval.RuleStore
 	forgetter  sessionForgetter
 	tx         Transactor
 }
@@ -110,6 +114,13 @@ func (s sessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (s
 // transaction (§8.1/§8.3).
 func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
 	return s.runInTx(ctx, func(ctx context.Context) error {
+		// Todos describe the current future plan, not historical transcript state.
+		// A rewind invalidates that projection, so clear it in the same commit.
+		if s.todos != nil {
+			if err := s.todos.DeleteSession(ctx, plan.SessionID); err != nil {
+				return err
+			}
+		}
 		if plan.KeepMark >= 0 {
 			if err := s.history.Truncate(ctx, plan.SessionID, plan.KeepMark); err != nil {
 				return err
@@ -166,6 +177,16 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 		if err := s.history.Truncate(ctx, id, 0); err != nil {
 			return err
 		}
+		if s.todos != nil {
+			if err := s.todos.DeleteSession(ctx, id); err != nil {
+				return err
+			}
+		}
+		if s.approvals != nil {
+			if err := s.approvals.DeleteSession(ctx, id); err != nil {
+				return err
+			}
+		}
 		if err := s.history.Seed(ctx, id, plan.Messages); err != nil {
 			return err
 		}
@@ -212,6 +233,16 @@ func (s sessionStores) deleteSession(ctx context.Context, sessionID string) erro
 	}
 	if err := s.runs.DeleteForSession(ctx, sessionID); err != nil {
 		return err
+	}
+	if s.todos != nil {
+		if err := s.todos.DeleteSession(ctx, sessionID); err != nil {
+			return err
+		}
+	}
+	if s.approvals != nil {
+		if err := s.approvals.DeleteSession(ctx, sessionID); err != nil {
+			return err
+		}
 	}
 	return s.sessions.Delete(ctx, sessionID)
 }

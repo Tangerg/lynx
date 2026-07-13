@@ -84,16 +84,16 @@ type Host struct {
 // scheduled, and the maintenance tasks join before the engine they title against.
 // Idempotent.
 func (h Host) Close() error {
+	var errs []error
 	h.Stack.Integrations.Close()
 	h.Stack.Codebase.Close()
 	h.Stack.Coordinator.Close()
 	if h.dispatcher != nil {
-		h.dispatcher.Close()
+		errs = append(errs, h.dispatcher.Close())
 	}
 	if h.effectsTasks != nil {
 		h.effectsTasks.Close()
 	}
-	var errs []error
 	if h.engine != nil {
 		errs = append(errs, h.engine.Close())
 	}
@@ -257,6 +257,8 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 			runs:       cfg.RunStore,
 			processes:  cfg.ProcessStore,
 			history:    messages.conversation,
+			todos:      cfg.TodoStore,
+			approvals:  cfg.ApprovalRuleStore,
 			forgetter:  turnDispatcher,
 			tx:         cfg.Transactor,
 		},

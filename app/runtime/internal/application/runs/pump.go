@@ -102,19 +102,23 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 		// synthesis is a durable cleanup boundary, so it must outlive that signal
 		// while remaining bounded; otherwise a graceful shutdown itself leaves a
 		// Running transcript/admission row for boot recovery to repair.
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
-		defer cancel()
-		if ctx.Err() != nil || abortTurn {
-			_ = c.executor.CancelTurn(cleanupCtx, spec.Handle)
-		}
 		if !finished {
 			// The stream ended without a segment.finished (canceled mid-flight /
 			// drained iterator, or a failed continuation activation) — synthesize the terminal
 			// so the stream ends balanced. The reducer decides error-vs-canceled
 			// from its state, and the synthesized terminal's commit terminalizes the
-			// run-state, so no separate teardown state write is needed.
-			commitCtx = cleanupCtx
+			// run-state, so no separate teardown state write is needed. This commit
+			// happens before executor teardown: a slow or broken CancelTurn must never
+			// consume the only budget available for the durable terminal boundary.
+			terminalCtx, cancelTerminal := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
+			commitCtx = terminalCtx
 			_ = publish(reducer.synthesizeTerminal())
+			cancelTerminal()
+		}
+		if ctx.Err() != nil || abortTurn {
+			teardownCtx, cancelTeardown := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
+			_ = c.executor.CancelTurn(teardownCtx, spec.Handle)
+			cancelTeardown()
 		}
 		hub.Close()
 		if e, ok := c.registry.Close(spec.RunID); ok {
@@ -129,13 +133,15 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 		// title that falsely implies the run completed. A parked commit sets
 		// finished too; Effects deliberately treats it as non-terminal.
 		if finished {
-			c.effects.Finish(cleanupCtx, Finish{
+			finishCtx, cancelFinish := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
+			c.effects.Finish(finishCtx, Finish{
 				SessionID:       spec.SessionID,
 				RunID:           spec.RunID,
 				Cwd:             spec.Cwd,
 				Parked:          parked,
 				OpeningUserText: spec.OpeningUserText,
 			})
+			cancelFinish()
 		}
 	}()
 

@@ -34,7 +34,7 @@ func NewTodoStore(db *sql.DB) *TodoStore {
 // (an unknown session is not an error — see [todo.Store]).
 func (s *TodoStore) List(ctx context.Context, sessionID string) ([]todo.Item, error) {
 	var itemsJSON string
-	err := s.db.QueryRowContext(ctx,
+	err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT items FROM todos WHERE session_id = ?`, sessionID).Scan(&itemsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -63,11 +63,20 @@ func (s *TodoStore) Replace(ctx context.Context, sessionID string, items []todo.
 	if err != nil {
 		return fmt.Errorf("sqlite: encode todos: %w", err)
 	}
-	_, err = s.db.ExecContext(ctx,
+	_, err = conn(ctx, s.db).ExecContext(ctx,
 		`INSERT OR REPLACE INTO todos(session_id, items, updated_at) VALUES (?, ?, ?)`,
 		sessionID, string(data), time.Now().UTC().UnixNano())
 	if err != nil {
 		return fmt.Errorf("sqlite: replace todos: %w", err)
+	}
+	return nil
+}
+
+// DeleteSession removes the todo projection owned by sessionID. It joins an
+// ambient lifecycle write-set transaction through conn(ctx).
+func (s *TodoStore) DeleteSession(ctx context.Context, sessionID string) error {
+	if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM todos WHERE session_id = ?`, sessionID); err != nil {
+		return fmt.Errorf("sqlite: delete session todos: %w", err)
 	}
 	return nil
 }

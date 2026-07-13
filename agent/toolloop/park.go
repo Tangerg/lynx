@@ -117,7 +117,9 @@ func injectParkTail(ctx context.Context, req *chat.Request, state *ParkState) *c
 // path, the two-yield sequence on the stream path ([yieldInterrupt]).
 func (m *middleware) interruptOutcome(ctx context.Context, req *chat.Request, assistant *chat.AssistantMessage, done []*chat.ToolReturn) (*chat.Response, error) {
 	if m.parkStore != nil {
-		m.savePark(ctx, req, assistant, done)
+		if err := m.savePark(ctx, req, assistant, done); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
 	return buildInterruptResponse(assistant, done)
@@ -140,20 +142,25 @@ func (m *middleware) yieldInterrupt(ctx context.Context, req *chat.Request, assi
 	}
 }
 
-// savePark persists an interrupted round so it can be resumed later.
-// No-op when no ParkStore is configured or no park id is on the request.
-func (m *middleware) savePark(ctx context.Context, req *chat.Request, assistant *chat.AssistantMessage, done []*chat.ToolReturn) {
+// savePark persists an interrupted round so it can be resumed later. A
+// configured store makes persistence part of the interrupt contract: losing
+// this write would acknowledge a pause whose continuation no longer exists.
+func (m *middleware) savePark(ctx context.Context, req *chat.Request, assistant *chat.AssistantMessage, done []*chat.ToolReturn) error {
 	if m.parkStore == nil {
-		return
+		return nil
 	}
-	// A malformed id was already rejected at the handler entry, so an
-	// error here degrades to "no park id" (no persistence).
-	id, _ := chatconversation.ID(req)
+	id, err := chatconversation.ID(req)
+	if err != nil {
+		return fmt.Errorf("tool: resolve parked-round conversation: %w", err)
+	}
 	if id == "" {
-		return
+		return fmt.Errorf("tool: park interrupted round: conversation id is empty")
 	}
-	_ = m.parkStore.Write(ctx, id, &ParkState{
+	if err := m.parkStore.Write(ctx, id, &ParkState{
 		Assistant: assistant,
 		Done:      done,
-	})
+	}); err != nil {
+		return fmt.Errorf("tool: park interrupted round: %w", err)
+	}
+	return nil
 }

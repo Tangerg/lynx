@@ -51,6 +51,17 @@ func (m *MemoryStore) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (m *MemoryStore) DeleteSession(_ context.Context, sessionID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, r := range m.rules {
+		if r.Scope == approval.ScopeSession && r.ScopeKey == sessionID {
+			delete(m.rules, id)
+		}
+	}
+	return nil
+}
+
 // visible reports whether a rule is reachable from the given session/project —
 // the same scope predicate the sqlite store expresses as a WHERE clause.
 func visible(r approval.Rule, sessionID, projectDir string) bool {
