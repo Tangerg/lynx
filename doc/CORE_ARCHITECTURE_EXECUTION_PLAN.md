@@ -500,9 +500,13 @@ flowchart LR
   - 证据：新增 `core/metadata.Map`、写时编码/typed decode/递归 JSON 校验与 `core/media` tagged source；bytes 构造和读取均防御性复制，URI 要求绝对资源标识，provider reference 保持独立语义。
   - 迁移：Core tokenizer/transcription、运行时 wire 入站边界、OpenAI/Anthropic/Google/Bedrock/Ollama 及全部 audio provider 已切换；全 workspace 检索确认 `NewMedia`、`DataAsBytes`、`DataAsString`、`MimeType`、Media `Data any` 均为 0。
   - 验证：metadata/media coverage 分别为 91.7%/92.9%；`scripts/check.sh build vet test lint` 68/68 全绿。
-- [ ] **P1-02 定义新的 `core/chat` Message/Part tagged value**
+- [x] **P1-02 定义新的 `core/chat` Message/Part tagged value**（完成：2026-07-14）
   - 覆盖 system/user/assistant/tool result、text/media/reasoning/tool call。
   - 明确 Validate 和 JSON discriminator。
+  - 采用新路径并存模式：本任务只建立无运行时对象的值协议与测试；旧 `core/model/chat` 冻结到 P6，provider reference mapping 在 P1-07 完成。
+  - 证据：`Message{Role, Parts, Metadata}` 和普通 `Part` tagged value 覆盖 4 种 role、5 种 part kind；role/part 兼容矩阵、payload 互斥、嵌套 Media/Metadata 与未知 discriminator 均递归校验。
+  - ToolCall Arguments 保留 provider JSON 文本语义，使流式片段与模型产生的 malformed JSON 仍可无损序列化；可信解码留给 `tools` 运行时边界。
+  - 验证：`core/chat` coverage 94.9%；Core build/vet/test/lint 与 race 全绿。
 - [ ] **P1-03 定义新的 Chat Request/Options**
   - 移除 Params 和可执行 Tool。
   - Options 零值合法。
@@ -688,21 +692,21 @@ flowchart LR
 | 阶段 | 状态 | 已完成/任务数 | 当前说明 |
 |---|---|---:|---|
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
-| P1 Media/Chat 协议分离 | 进行中 | 1/7 | P1-01 完成；当前执行 P1-02 Message/Part tagged value |
+| P1 Media/Chat 协议分离 | 进行中 | 2/7 | P1-02 完成；当前执行 P1-03 Request/Options |
 | P2 Chat Model SPI 收缩 | 未开始 | 0/7 | 依赖 P1 |
 | P3 高层运行时外移 | 未开始 | 0/9 | 依赖 P2 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **7/60** | **12%** |
+| **总计** | **进行中** | **8/60** | **13%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P1。
-- 下一任务：P1-02，在新路径 `core/chat` 定义 Message/Part tagged value，并冻结 wire discriminator。
+- 下一任务：P1-03，在新路径 `core/chat` 定义纯数据 Request/Options、ToolDefinition 与唯一 Extensions 逃生舱。
 - 当前阻塞：无。
-- 最近完成：P1-01；`core/metadata` 与 tagged `core/media`、全 workspace Media 消费迁移、旧任意 Data API 删除及 68 项全量回归。
+- 最近完成：P1-02；新 `core/chat` 普通 Message/Part tagged value、递归 Validate、role/part 矩阵和稳定 JSON discriminator。
 
 ### 10.3 进度更新规则
 
@@ -921,6 +925,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P1-02；建立新 `core/chat` Message/Part 普通 tagged value、ToolCall/ToolResult 值与递归 wire 校验；进入 P1-03 | Codex |
 | 2026-07-14 | 完成 P1-01；新增 JSON-safe metadata 与 tagged media，迁移全部消费者并删除旧 Media 任意载荷 API；进入 P1-02 | Codex |
 | 2026-07-14 | 完成 P0-05/P0-06；采纳协调 v0 breaking 与 ADR-006，统一 Core/OTel 治理边界，增加外部依赖预算和公共 package allowlist 架构守卫；进入 P1 | Codex |
 | 2026-07-14 | 完成 P0-03/P0-04；登记 1,205 个 exported identifiers、501 个唯一消费文件/830 条 import 关系及 provider/backend 子清单；固化 coverage/race/依赖基线；将当前焦点推进到 P0-05 | Codex |
@@ -934,6 +939,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P1-02 | 新增 `core/chat` 的 4 role/5 part tagged value、ToolCall/ToolResult、role/part 兼容矩阵和递归 JSON 校验；coverage 94.9%；Core build/vet/test/lint/race 全绿；任务计数 8/60 | P1-03 Request/Options |
 | 2026-07-14 | P1-01 | 新增 `core/metadata` 与 tagged `core/media`；迁移 Core/Models/App 全部消费者；旧 Media API 全 workspace 清零；metadata/media coverage 91.7%/92.9%；全量 build/vet/test/lint 68/68 通过；任务计数 7/60 | P1-02 Message/Part |
 | 2026-07-14 | P0-05、P0-06 | 采纳推荐 breaking/OTel 方案；同步 4 份治理入口；新增 Core dependency/package allowlist 测试；Core build/vet/test/lint/race 全绿；任务计数 6/60 | P1-01 metadata/media |
 | 2026-07-14 | P0-03、P0-04 | 新增 `CORE_API_INVENTORY.md`、`CORE_BASELINE.md`；`scripts/check.sh build vet test lint` 68/68 通过；core/agent/chathistory/rag/tools/vectorstores race 通过；任务计数 4/60 | P0-05 维护者决策 |
