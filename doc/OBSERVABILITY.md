@@ -1,14 +1,14 @@
 # 可观测性
 
-> Lynx **直接使用 OpenTelemetry API**，不自造观测抽象。OTel 本身就是厂商中立层，再加一层是重复建设。
+> Lynx 在应用、integration 和独立 `otel` module 中**直接使用 OpenTelemetry API**，不自造观测抽象。Core 不 import OTel；`otel` wrapper 从外层包装 Core 协议调用。
 >
-> **当前状态（2026-06-05 更新）**：可观测性三驾马车（**Traces / Metrics / Logs**）都是 OTel 信号，dev 统一 sink 到 `log/slog`、生产换 OTLP（vendor-neutral）。`otel/slog` 含三个 exporter——`NewSpanExporter`(span) + `NewMetricExporter`(metric) + `NewLogExporter`(OTel log record→slog)；log 的 `slog.Handler` 用 contrib `otelslog` bridge（→ LoggerProvider → LogExporter）。lyra startup（`cmd/lyra/observability.go::setupObservability`）一次性绑全局 provider。**埋点原则：观测靠 span + metric,不在业务代码撒 `slog`**——span 经 sink 渲染即"日志"。**全模块埋点已落地**——chat（`Call`+`Stream`）、embedding、tool、RAG 五阶段、MCP client+server、agent runtime（tick/action/plan metrics + planner span）、24 个 vectorstore、6 个 chathistory provider 按 GenAI/DB semconv;lyra 业务层 chat turn `invoke_agent` span + `run.*` metrics + 各层 span（session/tool/mcp 经 RPC/dial span 覆盖）。**所有 attr key 已去品牌**（见 §3）。
+> **当前状态（2026-07-14 更新）**：Traces / Metrics / Logs 都是 OTel 信号，dev 统一 sink 到 `log/slog`、生产换 OTLP。`otel/slog` 的三个 exporter 与 `app/runtime` startup 组合根已经可用；RAG、MCP、Agent、VectorStore、ChatHistory 的外圈埋点继续直接使用官方 API。旧 Chat/Embedding/Tool 埋点仍暂存在 Core，已按 [`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md) P3-06 登记迁入 `otel` wrapper，在迁移完成前属于架构预算内的临时例外，不是目标边界。
 
 ---
 
 ## 1. 设计决策
 
-### 1.1 直接用 OTel，不再自造抽象
+### 1.1 直接用 OTel，但保持正确的依赖方向
 
 | 维度 | 判断 |
 |-----|-----|
@@ -18,13 +18,13 @@
 | 依赖成本 | API 包（`go.opentelemetry.io/otel/trace`）只含接口 + noop，不拉 gRPC；SDK 包才是重的，但只在用户 app 引入 |
 | 零配置行为 | 不调 `otel.SetTracerProvider(...)` = 自动 noop，真·零开销 |
 
-**结论**：`core/` 直接 import OTel API 包、不建 `core/observation/` 自造抽象；需要 OTel SDK 的 dev-sink（span/metric/log → slog）外挂在独立 `otel/` module，不污染 core。
+**结论**：`otel`、应用和 integration 直接 import 官方 OTel API，不建 `core/observation` 或自造 tracer/meter 接口。`otel` 从外层 import Core 并提供普通 decorator；Core 只传播 `context.Context` 和协议值，不 import OTel。需要 SDK 的 dev-sink 也位于 `otel` module。
 
 ### 1.2 设计原则
 
 | # | 原则 |
 |---|-----|
-| P1 | **直接用 OTel API**：核心代码就调 `otel.Tracer("lynx/...")` / `otel.Meter("lynx/...")`，不包装、零 DI |
+| P1 | **直接用官方 OTel API**：应用/integration/`otel` wrapper 直接调 `otel.Tracer("lynx/...")` / `otel.Meter("lynx/...")`；不包装官方 API，但用普通 decorator 保持 Core 的依赖方向 |
 | P2 | **去品牌、严格 semconv**：attr key 有 semconv 就用（`gen_ai.*` / `db.*` / `rpc.method`），否则裸 domain（`run.*` / `agent.*` / `rag.*`）。**不带 `lynx.*` / `lyra.*` 前缀**（scope 名 `lynx/...` 是库标识，例外） |
 | P3 | **Context 传播 + 全链路**：span 通过 `context.Context` 自动串联；trace_id 在入口生成，脱钩 goroutine 用 `context.WithoutCancel` 保 span |
 | P4 | **零配置即 noop**：默认 provider 不输出，无开销 |
@@ -34,7 +34,7 @@
 ### 1.3 非目标
 
 - ❌ 不做 APM 平台（交给后端厂商）
-- ❌ 不内置 OTel SDK（用户在 app 层引入；lyra 这个具体 app 才装 SDK）
+- ❌ Core 不内置 OTel API/SDK；SDK 只由 `otel` dev-sink 或具体应用引入
 - ❌ 不自造观测抽象（`Registry` / `Convention` / `Adapter` 一概不写——OTel 就是那层）
 - ✅ **但**：发 metric instrument（不只是 span）、Logs 经 `otelslog` bridge → `NewLogExporter` 成一等 OTel 信号——三驾马车都要齐且都可一键换 OTLP（旧版"不做 metrics 聚合 / 不做日志框架"的措辞已废：我们不写聚合/框架，但**三个信号都发 + sink 到 slog**）
 
@@ -44,13 +44,15 @@
 
 | 档位 | 装什么 | `go.sum` 影响 |
 |-----|-------|-------------|
-| 纯用 Lynx 库，不观测 | 只装 `core/` 等 | `go.opentelemetry.io/otel`（API 包，仅接口 + noop，~10KB）|
-| 开发态看 span（slog）| + `otel/slog` | 拉入 OTel SDK 依赖（仅此 module 的 go.sum）|
+| 纯用 Core 协议，不观测 | 只装 `core/` | 仅 Go 标准库 |
+| 为 Core 调用加观测 | + `github.com/Tangerg/lynx/otel` wrapper | 拉入 OTel API，不强制 SDK |
+| 开发态看 span（slog）| + `otel/slog` | 拉入 OTel SDK 依赖（仅 `otel`/应用的 go.sum）|
 | 生产 OTel + Jaeger/Tempo | + `go.opentelemetry.io/otel/sdk` + OTLP exporter | OTel 全家桶（gRPC、protobuf）|
 
 **关键**：
-- `core/` 只 import OTel **API 包**（不装 SDK）——不主动配置观测的用户完全不感知 OTel 重依赖
-- 所有需要 OTel SDK 的桥接实现都放在独立外部 module `otel/`，严格不污染 core
+- `core/` 不 import OTel API 或 SDK；只用协议的用户不承担任何 OTel 依赖
+- Core 调用的 span/metric 由独立 `otel` module 的 decorator 发射；它直接使用官方 API，不增加自造抽象
+- 所有需要 OTel SDK 的桥接实现都放在 `otel`/应用组合根，严格不污染 Core
 - 与 `models/`、`vectorstores/` 同规格——重依赖走外挂
 
 ---
@@ -115,47 +117,52 @@ semconv 已有的概念用 semconv key；没有的用裸 domain（无 `lynx.`/`l
 
 ### 4.1 Chat / Embedding / Image / Audio Model
 
+Model 埋点属于 `otel` wrapper，不属于 Core Client。provider identity 等观测属性在构造 wrapper 时显式传入，不通过 Core Model 强制 `Metadata()`：
+
 ```go
 import (
-    "go.opentelemetry.io/otel"
-    "go.opentelemetry.io/otel/attribute"
-    "go.opentelemetry.io/otel/codes"
-    "go.opentelemetry.io/otel/trace"
+	"context"
+
+	"github.com/Tangerg/lynx/core/chat"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
-var chatTracer = otel.Tracer("lynx/chat")
+type ChatModel struct {
+	next   chat.Model
+	system string
+	tracer trace.Tracer
+}
 
-func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
-    ctx, span := chatTracer.Start(ctx, "gen_ai.chat",
-        trace.WithAttributes(
-            attribute.String("gen_ai.system", c.request.model.Metadata().Provider),
-            attribute.String("gen_ai.operation.name", "chat"),
-            attribute.String("gen_ai.request.model", req.Options.Model),
-        ),
-    )
-    defer span.End()
+func WrapChat(next chat.Model, system string) *ChatModel {
+	return &ChatModel{next: next, system: system, tracer: otel.Tracer("lynx/chat")}
+}
 
-    res, err := c.request.MiddlewareChain().BuildCallHandler(c.request.model).Call(ctx, req)
-    if err != nil {
-        span.RecordError(err)
-        span.SetStatus(codes.Error, err.Error())
-        return nil, err
-    }
+func (m *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
+	ctx, span := m.tracer.Start(ctx, "gen_ai.chat",
+		trace.WithAttributes(
+			attribute.String("gen_ai.system", m.system),
+			attribute.String("gen_ai.operation.name", "chat"),
+		),
+	)
+	defer span.End()
 
-    if m := res.Metadata; m != nil && m.Usage != nil {
-        span.SetAttributes(
-            attribute.Int64("gen_ai.usage.input_tokens",  m.Usage.PromptTokens),
-            attribute.Int64("gen_ai.usage.output_tokens", m.Usage.CompletionTokens),
-        )
-    }
-    return res, nil
+	res, err := m.next.Call(ctx, req)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return res, nil
 }
 ```
 
 ### 4.2 Stream 模式额外事件
 
 ```go
-ctx, span := chatTracer.Start(ctx, "gen_ai.chat.stream", ...)
+ctx, span := m.tracer.Start(ctx, "gen_ai.chat.stream", ...)
 defer span.End()
 
 firstChunk := true
@@ -277,15 +284,13 @@ func (p *AgentProcess) Tick(ctx context.Context) error {
 
 ## 5. Noop 行为（默认）
 
-什么都不用写。OTel 的 `TracerProvider` 默认返回 Noop 实现：
+Core 本身不含埋点。调用方不安装 wrapper 时就是直接协议调用，依赖为零；安装 `otel` wrapper 但不配置 Provider 时，官方 OTel `TracerProvider` 返回 Noop 实现：
 
 ```go
-import "go.opentelemetry.io/otel"
-
 func main() {
-    client := chat.NewClient(...)
-    client.ChatWithText("hello").Call().Response(ctx)
-    // ↑ 这里面所有 otel.Tracer(...).Start(...) 返回 noop span，零开销
+	model := lynxotel.WrapChat(providerModel, "openai")
+	model.Call(ctx, req)
+	// wrapper 内的 otel.Tracer(...).Start(...) 默认返回 noop span
 }
 ```
 
@@ -295,7 +300,7 @@ func main() {
 
 ## 6. `otel/`：自带的 dev-sink（span / metric / log → slog）
 
-> 独立外部 module，不污染 core。span/metric exporter + 关联 log handler 都已实现并有单测。
+> 独立外部 module，从外层包装 Core，不污染 Core。span/metric exporter + 关联 log handler 已实现；Model wrapper 按 P3-06 迁移。
 
 ### 6.1 `otel/slog`：开发态看 span
 
@@ -438,13 +443,10 @@ otel.SetTracerProvider(tp)
 - [x] `otel/slog/NewSpanExporter`：span → slog（单测）
 - [x] `otel/slog/NewMetricExporter`：metric → slog（单测）
 - [x] `otel/slog/NewLogExporter`：OTel log record → slog（单测）；log 的 `slog.Handler` 用 contrib `otelslog` bridge
-- [x] `lyra/cmd/lyra/observability.go::setupObservability`：startup 一次性绑全局 TracerProvider + MeterProvider + LoggerProvider + W3C propagator
+- [x] `app/runtime/cmd/lyra/observability.go::setupObservability`：startup 一次性绑全局 TracerProvider + MeterProvider + LoggerProvider + W3C propagator
 
-### 8.2 已就绪（发射侧）
+### 8.2 已就绪（外圈发射侧）
 
-- [x] `core/model/chat/client.go` Call/Stream 加 OTel span（GenAI semconv 全套属性 + `gen_ai.stream.first_token_received` 事件 + 错误状态）
-- [x] `core/model/chat/tool.go::invokeOne` 单次 tool 调用加 `execute_tool <name>` span（`gen_ai.tool.*` + span status=Error）
-- [x] `core/model/embedding/client.go` Response 加 OTel span（GenAI semconv 子集 + `embeddings.input.count` 扩展）
 - [x] `rag/pipeline.go` 五阶段加 span（`rag.pipeline` 父 span + Query/Retrieve/Augment/Generate/Stream 子 span）
 - [x] `vectorstores/{pgvector,qdrant,milvus,pinecone,weaviate,chroma,redis,mongodb,cassandra,neo4j,couchbase,typesense,vespa,vectara,bedrockkb,s3vectors,azureaisearch,azurecosmos,mariadb,oracle,tidb,clickhouse,opensearch,elasticsearch,inmemory}` 共 24 个 provider 统一加 `db.vector.*` 埋点（cockroachdb/supabase 通过 pgvector 类型别名继承）
 - [x] `mcp/tool.go::Tool.Call` + `mcp/server.go::makeServerHandler` 加 `mcp.tool.call` / `mcp.tool.serve` span
@@ -452,8 +454,12 @@ otel.SetTracerProvider(tp)
 - [x] `chathistory/{postgres,redis,mongodb,cassandra,neo4j,cosmosdb}` 6 个 provider Read/Write/Clear 加 DB-semconv span
 - [x] **lyra 业务层**：chat turn `invoke_agent <model>` span（全链路父 span）+ `run.duration` / `run.interrupts` metrics；MCP dial（`mcp.dial_servers`）、直调 tool（`execute_tool`）span；session/run 生命周期由 RPC server span + turn span 覆盖（**不撒 slog**——见 §1.2 P6）
 
-### 8.3 待动工
+### 8.3 Core 外移待办
 
+- [ ] P3-06：把 `core/model/chat` Call/Stream span 迁为 `otel` Chat Model/Streamer decorator
+- [ ] P3-06：把 `core/model/embedding` span/metric 迁为 `otel` Embedding Model decorator
+- [ ] P3-07/P3-08：把 Core tool span 随 executor/tool-loop 迁到 `tools`/`agent` 或对应 `otel` decorator
+- [ ] 删除 Core 对 OTel API/SDK 的依赖并收紧 `internal/arch` 依赖预算
 - [ ] vectorstore + chathistory 的端到端 span 行为单测（chat tracing_test 与 runtime tracing 测试已覆盖各自一例）
 
 ### 8.4 不做的事
@@ -461,7 +467,7 @@ otel.SetTracerProvider(tp)
 - ❌ 不写 `observation.Registry` 接口
 - ❌ 不自己写 `Convention` / `Adapter` 抽象
 - ❌ 不提供 Prometheus metrics exporter（生产用户自己配 OTel metric SDK + prom exporter）
-- ⚠️ `otel/` 外部 module **是有意保留的**（dev 态 span/metric/log → slog 的 sink，重 SDK 依赖外挂、不污染 `core/`）——别和"不在 core 自造抽象"搞混
+- ⚠️ `otel/` 外部 module **是有意保留的**（Core wrapper + dev 态 span/metric/log → slog sink）——外挂改变依赖方向，不等于自造观测抽象
 
 ---
 
@@ -470,9 +476,9 @@ otel.SetTracerProvider(tp)
 | 问题 | 结论 |
 |-----|-----|
 | 是不是需要自造观测抽象？ | **不需要**。OTel 就是那层 |
-| 依赖会不会爆？ | **不会**。API 包极轻，SDK 只在用户 app 引入 |
-| 用户能不能「零依赖」？ | **能**。不调 `SetTracerProvider` 就是 noop，无分配 |
-| 开发态如何看 span？ | **自带 slog / log 两个 exporter**，60-80 行桥接代码 |
+| 依赖会不会爆？ | Core **零 OTel 依赖**；只有选择 `otel` wrapper 的用户引入 API，SDK 仍只在 app/dev-sink 引入 |
+| 用户能不能「零依赖」？ | **能**。不使用 wrapper 时 Core 只有标准库；使用 wrapper 但不设 Provider 时是 noop |
+| 开发态如何看 span？ | `otel/slog` 自带 span/metric/log 三个 exporter |
 | 生产如何接后端？ | **用户自配 OTel SDK + exporter**，Lynx 代码不变 |
 | 为什么 Spring AI 用 Micrometer？ | 历史包袱。Go 世界从来没有这个问题 |
 
@@ -480,4 +486,4 @@ otel.SetTracerProvider(tp)
 
 ## 10. 一句话定档
 
-> Go 世界里 OTel 已经是共识，再加一层是负资产。Lynx 的 observability 故事就是「core/库 直接 import OTel API 包发 Traces+Metrics + `otel/` module 把三驾马车 sink 到 slog（含关联 log handler）+ lyra startup 一次绑全局 provider、业务事件直接 `slog.InfoContext` + 生产用户自配 OTel SDK」。接收侧与发射侧均已就绪、attr key 全部去品牌（semconv 优先），trace_id 从 HTTP 入口生成、全链路串联。
+> Go 世界里 OTel 已经是共识，再加一套观测接口是负资产。Lynx 的边界是「Core 只定义协议并保持标准库依赖；`otel`/integration 直接使用官方 OTel API，从外层以 decorator 发 Traces+Metrics；`otel/slog` 把三驾马车 sink 到 slog；应用 startup 一次绑定全局 provider，生产用户可换官方 exporter」。attr key 遵循 semconv，trace_id 从入口生成并沿 context 全链路传播。

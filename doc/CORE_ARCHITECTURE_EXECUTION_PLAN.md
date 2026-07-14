@@ -1,6 +1,6 @@
 # Core 架构演进执行计划
 
-> 状态：执行中（P0 决策门）
+> 状态：执行中（P1 Media/Chat 协议分离）
 > 建立日期：2026-07-13
 > 最后更新：2026-07-14
 > 维护者：Lynx 仓库维护者
@@ -457,7 +457,8 @@ flowchart LR
 - [x] **P0-04 固化测试与依赖基线**（完成：2026-07-14）
   - 证据：[`CORE_BASELINE.md`](./CORE_BASELINE.md)；17 个 workspace module 的 68 项 build/vet/test/lint 全绿，6 个目标 module race 全绿，coverage 与 16 个 direct non-stdlib import path 已记录。
   - `scripts/check.sh` 已移除过期 `chatmemory`/`lyra`，改为以 `go.work` 主 module 为事实来源，并拆分普通 test/race 语义。
-- [ ] **P0-05 确认破坏性变更批次**（阻塞：等待维护者确认 v0 breaking batch 与 ADR-006）
+- [x] **P0-05 确认破坏性变更批次**（完成：2026-07-14）
+  - 授权证据：维护者要求按本文持续推进直到全部完成；采用本文推荐的协调 v0 breaking batch 与 ADR-006 OTel 外移方案。
   - 发布事实：仓库当前没有 tag，Core 由 `v0.0.0-*` pseudo-version 消费；推荐执行一次协调的 v0 breaking batch，不引入无意义的 `/v2` module path，也不维护长期双轨。
   - 破坏范围：Media/Document/VectorStore 同路径类型变更；`core/model/<modality>` 扁平化；ChatClient/history/tool runtime/evaluation/tokenizer/OTel 职责外移；删除旧 builder、胖接口、任意 `any` 扩展和具体 middleware。
   - Workspace 影响：501 个唯一文件、830 条 Core package direct-import 关系；重点包括 38 个 model provider、27 个 vectorstore backend 和 9 个直接消费旧 `core/model/*` 的 module。迁移由本计划分阶段完成，不把兼容责任推给调用方。
@@ -468,7 +469,7 @@ flowchart LR
     1. 推荐：Core 生产代码仅标准库；`otel` module 直接使用 OTel API 并包装 Core handler，不增加自造 tracer/meter 抽象。
     2. 保守：Core 保留 OTel API 依赖；先修订本文的依赖指标、P3/P5/P6 任务和退出标准，再开始实现。
   - 必须由维护者明确确认后才能进入 P1 实现。
-- [ ] **P0-06 建立架构守卫并同步治理规则**
+- [x] **P0-06 建立架构守卫并同步治理规则**（完成：2026-07-14）
   - Core 不得 import 上层模块。
   - 记录生产依赖预算。
   - 为目标包结构建立 allowlist 测试。
@@ -476,7 +477,8 @@ flowchart LR
   - 若选择推荐 OTel 方案，文档必须明确 `otel` wrapper 直接使用官方 OTel API、不建立 `core/observation` 或自造 tracer/meter 接口，并删除“Core 直接 import OTel”的旧结论。
   - 若选择保守 OTel 方案，先让本文所有“仅标准库/零外部依赖/OTel 全外移”指标与任务改为一致口径；不得留下互斥验收标准。
   - 标明“新路径并存 / 同路径纵向切片”规则及各自删除截止点。
-  - 本任务依赖 P0-05 授权；授权前只准备 patch，不把目标态规则写成当前已完成事实。
+  - 证据：根/core/otel `CLAUDE.md`、`doc/OBSERVABILITY.md` 与 README 已同步；`core/internal/arch` 对上层反向 import、临时外部依赖预算和公共 package allowlist 建立自动守卫。
+  - 验证：`MODULE=core scripts/check.sh build vet test lint` 与 `MODULE=core scripts/check.sh race` 全绿。
 
 退出标准：
 
@@ -561,8 +563,7 @@ flowchart LR
   - fact/relevancy evaluation 进入 `rag/evaluation`。
   - 删除通用 request/response Logger middleware；不在 `chatclient` 复制同等能力。
 - [ ] **P3-06 迁移 tracing/metrics 到 `otel` wrapper**
-  - 仅在 ADR-006 选择推荐方案时执行：目标新包不 import OTel，`otel` 直接包装 handler；冻结旧 client tracing 随旧包在 P6 删除。
-  - 若 ADR-006 选择保守方案，本任务必须先在 P0-06 重写，不允许执行者自行猜测边界。
+  - 按已采纳 ADR-006 执行：目标新包不 import OTel，`otel` 直接包装 handler；冻结旧 client tracing 随旧包在 P6 删除。
 - [ ] **P3-07 完成 Tool executor/schema/runtime helper 向 `tools` 的迁移**
   - 沿用 P1-06 已建立的 `tools.Tool`/`Registry` 和 `agent/toolloop.ToolResolver` 边界，不再建立第二套 registry。
   - 旧 Core 可执行 Tool 表面冻结，随剩余 provider/consumer 在 P6 删除。
@@ -572,7 +573,7 @@ flowchart LR
 退出标准：
 
 - 目标 `core/chat` 中不存在 ClientRequest fluent builder、具体 middleware、可执行 Tool 或 tool-loop。
-- 若 ADR-006 选择推荐方案，OTel 新实现已完全位于 `otel`；若选择保守方案，以 P0-06 修订后的退出标准为准。冻结旧 client 表面如仍存在，必须登记为 P6 删除项。
+- OTel 新实现已完全位于 `otel`；冻结旧 client 表面如仍存在，必须登记为 P6 删除项。
 - `chatclient` 能完成同步、流式、模板、structured output 的常见路径。
 - agent/toolloop 能通过 Event 表达工具执行和暂停恢复。
 - 旧 Client/Tool runtime 表面可以在新路径迁移窗口内保留，但已冻结且登记为 P6 删除项。
@@ -630,7 +631,7 @@ flowchart LR
 退出标准：
 
 - 所有 modality 遵循相同的最小能力原则。
-- 目标新包无 `cast`、tiktoken、UUID 等实现依赖；OTel API 是否允许以 ADR-006 的最终裁决为准，冻结旧包残余有完整删除清单。
+- 目标新包无 `cast`、tiktoken、UUID、OTel API 等实现依赖；冻结旧包残余有完整删除清单。
 - 目标包路径已经建立且无无意义 stutter；冻结旧路径有完整 P6 迁移清单。
 - 针对目标新包的 dependency budget test 通过。
 
@@ -683,22 +684,22 @@ flowchart LR
 
 | 阶段 | 状态 | 已完成/任务数 | 当前说明 |
 |---|---|---:|---|
-| P0 基线与定档 | 阻塞 | 4/6 | API/测试/依赖基线完成，等待 P0-05 维护者决策 |
-| P1 Media/Chat 协议分离 | 未开始 | 0/7 | 依赖 P0 |
+| P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
+| P1 Media/Chat 协议分离 | 进行中 | 0/7 | 当前执行 P1-01 metadata/media 纵向切片 |
 | P2 Chat Model SPI 收缩 | 未开始 | 0/7 | 依赖 P1 |
 | P3 高层运行时外移 | 未开始 | 0/9 | 依赖 P2 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **阻塞于决策门** | **4/60** | **约 7%** |
+| **总计** | **进行中** | **6/60** | **10%** |
 
 ### 10.2 当前焦点
 
-- 当前阶段：P0。
-- 下一任务：P0-05，确认协调的 v0 breaking batch 与 ADR-006 OTel 边界。
-- 当前阻塞：任何破坏性 exported API 修改、P0-06 治理规则合入及进入 P1，都必须先得到维护者对 P0-05 的明确确认。
-- 最近完成：公共 API/消费清单、全 workspace 测试与覆盖率/race/依赖基线、动态 workspace 检查脚本。
+- 当前阶段：P1。
+- 下一任务：P1-01，定义 `core/metadata` 和新的 `core/media` tagged source，并完成同路径全 workspace 迁移。
+- 当前阻塞：无。
+- 最近完成：P0 全部任务；协调 v0 breaking/OTel 外移决策、治理同步、依赖预算与公共 package allowlist 守卫。
 
 ### 10.3 进度更新规则
 
@@ -801,7 +802,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 | Tool 运行时拆分破坏 Agent pause/resume | 高 | 高 | P1 先建立 Invocation/Event，P3 再迁移 tool-loop | 未验证 |
 | VectorStore 小接口迁移量过大 | 高 | 中 | 建立 conformance suite，按 backend 批次迁移 | 未验证 |
 | Core 标准库依赖目标过严 | 中 | 中 | 允许 ADR 例外，但必须证明 stdlib 不足和退出条件 | 监控中 |
-| Core/OTel 目标与现行治理文档互相冲突 | 高 | 高 | P0-05 二选一；P0-06 同步根/core CLAUDE、OBSERVABILITY 和本文后才能进入 P1 | 阻塞 P1 |
+| Core/OTel 目标与现行治理文档互相冲突 | 高 | 高 | P0-05 已裁决 OTel 外移；P0-06 已同步根/core/otel CLAUDE、OBSERVABILITY 和本文 | 已解除 |
 | 只改目录不改职责，形成新名字的旧架构 | 中 | 高 | 每阶段以退出标准和 forbidden responsibilities 验收 | 监控中 |
 | 限时新旧包并存演变成长期双轨 | 高 | 高 | P0 登记旧 API/bridge；旧面冻结；同路径在所属阶段删除，新路径最迟 P6 删除 | 监控中 |
 | 进度文档失真 | 中 | 高 | 每个逻辑提交同步更新本文；review 必查进度和证据 | 监控中 |
@@ -885,11 +886,10 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 ### ADR-006：Core 生产依赖默认仅标准库，包括 OTel 埋点外移
 
-- 日期：2026-07-13
-- 状态：待 P0-05 确认
-- 推荐决策：第三方依赖和 sibling helper 依赖默认外移；Core 不 import OTel API，`otel` module 直接使用官方 API 包装 Core handler，不增加自造观测抽象；保留例外必须新增 ADR。
-- 备选决策：保留 Core 对 OTel API 的直接依赖，并在 P0-06 同步修订本文的依赖目标、P3/P5/P6 任务和验收标准。
-- 原因：Core 是整个 workspace 的窄腰，依赖成本会传递到所有消费者；但当前根 `CLAUDE.md` 与 `doc/OBSERVABILITY.md` 明确选择了 Core 直接 OTel，必须由维护者显式改变而不能由实施者暗改。
+- 日期：2026-07-14
+- 状态：已采纳
+- 决策：第三方依赖和 sibling helper 依赖默认外移；Core 不 import OTel API，`otel` module 直接使用官方 API 包装 Core handler，不增加自造观测抽象；保留例外必须新增 ADR。
+- 原因：Core 是整个 workspace 的窄腰，依赖成本会传递到所有消费者；官方 OTel API 仍是 vendor-neutral 层，但由外圈 decorator 使用才能保持正确依赖方向。
 
 ### ADR-007：按路径类型选择迁移模式
 
@@ -918,6 +918,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P0-05/P0-06；采纳协调 v0 breaking 与 ADR-006，统一 Core/OTel 治理边界，增加外部依赖预算和公共 package allowlist 架构守卫；进入 P1 | Codex |
 | 2026-07-14 | 完成 P0-03/P0-04；登记 1,205 个 exported identifiers、501 个唯一消费文件/830 条 import 关系及 provider/backend 子清单；固化 coverage/race/依赖基线；将当前焦点推进到 P0-05 | Codex |
 | 2026-07-13 | 建立执行计划；两轮独立规格审查后前置 Media 与全局治理同步，明确 OTel 决策门、P2/P5 唯一阶段边界、Tool Registry 依赖方向、documentpipeline 归属及两类迁移策略；共 8 个阶段、60 项任务 | Codex |
 
@@ -929,5 +930,6 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P0-05、P0-06 | 采纳推荐 breaking/OTel 方案；同步 4 份治理入口；新增 Core dependency/package allowlist 测试；Core build/vet/test/lint/race 全绿；任务计数 6/60 | P1-01 metadata/media |
 | 2026-07-14 | P0-03、P0-04 | 新增 `CORE_API_INVENTORY.md`、`CORE_BASELINE.md`；`scripts/check.sh build vet test lint` 68/68 通过；core/agent/chathistory/rag/tools/vectorstores race 通过；任务计数 4/60 | P0-05 维护者决策 |
 | 2026-07-13 | P0-01、P0-02 | 建立本文；完成 Core 与 Spring AI 的模块/API 差分审计；任务计数核对为 2/60 | P0-03 公共 API 与消费清单 |

@@ -1,0 +1,79 @@
+package arch
+
+import (
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+)
+
+var targetPublicPackages = map[string]struct{}{
+	"chat":               {},
+	"document":           {},
+	"embedding":          {},
+	"image":              {},
+	"media":              {},
+	"metadata":           {},
+	"model":              {},
+	"moderation":         {},
+	"speech":             {},
+	"transcription":      {},
+	"vectorstore":        {},
+	"vectorstore/filter": {},
+}
+
+var temporaryPublicPackages = map[string]string{
+	"document/id":                     "P4-01",
+	"evaluation":                      "P3-05",
+	"model/audio/transcription":       "P5-02",
+	"model/audio/tts":                 "P5-02",
+	"model/chat":                      "P6-05",
+	"model/chat/conversation":         "P3-03/P6-05",
+	"model/chat/history":              "P3-04/P6-05",
+	"model/chat/middleware/history":   "P3-04/P6-05",
+	"model/chat/middleware/logger":    "P3-05",
+	"model/chat/middleware/safeguard": "P3-05/P6-05",
+	"model/embedding":                 "P5-01/P6-05",
+	"model/image":                     "P5-02/P6-05",
+	"model/moderation":                "P5-02/P6-05",
+	"tokenizer":                       "P5-04",
+	"vectorstore/filter/ast":          "P4-07",
+	"vectorstore/filter/lexer":        "P4-07",
+	"vectorstore/filter/parser":       "P4-07",
+	"vectorstore/filter/token":        "P4-07",
+	"vectorstore/filter/visitors":     "P4-07",
+}
+
+func TestPublicPackagesMatchArchitectureAllowlist(t *testing.T) {
+	root := moduleRoot(t)
+	seen := make(map[string]struct{})
+	for _, path := range productionGoFiles(t) {
+		dir := filepath.Dir(path)
+		rel, err := filepath.Rel(root, dir)
+		if err != nil {
+			t.Fatalf("relative package path for %s: %v", path, err)
+		}
+		rel = filepath.ToSlash(rel)
+		if rel == "." || rel == "internal" || strings.HasPrefix(rel, "internal/") {
+			continue
+		}
+		seen[rel] = struct{}{}
+	}
+
+	var temporary []string
+	for packagePath := range seen {
+		if _, ok := targetPublicPackages[packagePath]; ok {
+			continue
+		}
+		deadline, ok := temporaryPublicPackages[packagePath]
+		if !ok {
+			t.Errorf("public package %q is outside the target architecture", packagePath)
+			continue
+		}
+		temporary = append(temporary, packagePath+" -> "+deadline)
+	}
+	slices.Sort(temporary)
+	for _, item := range temporary {
+		t.Log("temporary public package remains: " + item)
+	}
+}
