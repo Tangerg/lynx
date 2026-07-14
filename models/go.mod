@@ -3,8 +3,9 @@ module github.com/Tangerg/lynx/models
 go 1.26.4
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260627110629-977ea6791375
+	github.com/Tangerg/lynx/core v0.0.0-20260714090234-687df9b609db
 	github.com/Tangerg/lynx/pkg v0.0.0-20260627110629-977ea6791375
+	github.com/Tangerg/lynx/tokenizer v0.0.0-20260714090234-687df9b609db
 	github.com/anthropics/anthropic-sdk-go v1.52.0
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
@@ -33,7 +34,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.43.3 // indirect
 	github.com/aws/smithy-go v1.27.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/dlclark/regexp2 v1.12.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -41,7 +41,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
-	github.com/pkoukk/tiktoken-go v0.1.8 // indirect
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect

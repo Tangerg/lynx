@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/genai"
 
-	"github.com/Tangerg/lynx/core/tokenizer"
+	"github.com/Tangerg/lynx/tokenizer"
 )
 
 // TextEstimatorConfig configures a Gemini-backed token estimator.
