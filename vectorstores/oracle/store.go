@@ -307,7 +307,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs VECTOR_DISTANCE against the embedding column.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("oracle: invalid retrieval request: %w", err)
 	}
@@ -358,7 +358,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 	defer rows.Close()
 
-	docs = make([]*document.Document, 0, req.TopK)
+	docs = make([]vectorstore.Match, 0, req.TopK)
 	for rows.Next() {
 		var (
 			id       string
@@ -375,7 +375,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 			continue
 		}
 
-		doc := &document.Document{ID: id, Score: score}
+		doc := &document.Document{ID: id}
 		if content.Valid {
 			doc.Text = content.String
 		}
@@ -384,7 +384,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 				return nil, fmt.Errorf("oracle: unmarshal metadata for %s: %w", id, err)
 			}
 		}
-		docs = append(docs, doc)
+		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("oracle: read rows: %w", err)

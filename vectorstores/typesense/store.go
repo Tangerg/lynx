@@ -221,7 +221,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs a vector search via the documents.Search API.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("typesense: invalid retrieval request: %w", err)
 	}
@@ -262,13 +262,13 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, nil
 	}
 
-	docs = make([]*document.Document, 0, len(*result.Hits))
+	docs = make([]vectorstore.Match, 0, len(*result.Hits))
 	for _, hit := range *result.Hits {
-		doc := toDocument(hit)
-		if doc.Score < req.MinScore {
+		match := toMatch(hit)
+		if match.Score < req.MinScore {
 			continue
 		}
-		docs = append(docs, doc)
+		docs = append(docs, match)
 	}
 	return docs, nil
 }
@@ -308,10 +308,10 @@ func (s *Store) buildFilter(filter ast.Expr) (string, error) {
 	return v.Result(), nil
 }
 
-func toDocument(hit api.SearchResultHit) *document.Document {
+func toMatch(hit api.SearchResultHit) vectorstore.Match {
 	doc := &document.Document{}
 	if hit.Document == nil {
-		return doc
+		return vectorstore.Match{Document: doc}
 	}
 	raw := *hit.Document
 	if id, ok := raw[idField].(string); ok {
@@ -325,19 +325,20 @@ func toDocument(hit api.SearchResultHit) *document.Document {
 	}
 	// Typesense returns distance in the cosine [0, 2] range; map
 	// onto a "higher = more similar" score in [0, 1].
+	var matchScore float64
 	if hit.VectorDistance != nil {
 		distance := float64(*hit.VectorDistance)
 		score := 1.0 - distance/2.0
 		switch {
 		case score < 0:
-			doc.Score = 0
+			matchScore = 0
 		case score > 1:
-			doc.Score = 1
+			matchScore = 1
 		default:
-			doc.Score = score
+			matchScore = score
 		}
 	}
-	return doc
+	return vectorstore.Match{Document: doc, Score: matchScore}
 }
 
 // formatVectorQuery builds the Typesense `vector_query` string —

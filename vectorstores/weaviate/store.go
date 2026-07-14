@@ -273,7 +273,7 @@ func (s *Store) buildNearVector(vector []float64, minScore float64) *graphql.Nea
 	return builder
 }
 
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("weaviate: invalid retrieval request: %w", err)
 	}
@@ -334,7 +334,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	return docs, nil
 }
 
-func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*document.Document, error) {
+func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]vectorstore.Match, error) {
 	getData, ok := result.Data["Get"]
 	if !ok {
 		return nil, nil
@@ -355,7 +355,7 @@ func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 		return nil, nil
 	}
 
-	docs := make([]*document.Document, 0, len(items))
+	docs := make([]vectorstore.Match, 0, len(items))
 
 	for _, item := range items {
 		objMap, ok := item.(map[string]any)
@@ -364,16 +364,17 @@ func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 		}
 
 		doc := &document.Document{}
+		var score float64
 
 		if additional, ok := objMap["_additional"].(map[string]any); ok {
 			if id, ok := additional[additionalID].(string); ok {
 				doc.ID = id
 			}
 			if certainty, ok := additional[additionalCertainty].(float64); ok {
-				doc.Score = certainty
+				score = certainty
 			} else if distance, ok := additional[additionalDistance].(float64); ok {
 				// Convert distance to a similarity score: smaller distance = higher score.
-				doc.Score = 1.0 - distance
+				score = 1.0 - distance
 			}
 		}
 
@@ -390,7 +391,7 @@ func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 			}
 		}
 
-		docs = append(docs, doc)
+		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 
 	return docs, nil

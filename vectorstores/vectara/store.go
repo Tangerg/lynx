@@ -161,7 +161,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs a Vectara semantic search.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("vectara: invalid retrieval request: %w", err)
 	}
@@ -204,16 +204,14 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("vectara: decode query response: %w", err)
 	}
 
-	docs = make([]*document.Document, 0, len(parsed.SearchResults))
+	docs = make([]vectorstore.Match, 0, len(parsed.SearchResults))
 	for _, hit := range parsed.SearchResults {
 		if hit.Score < req.MinScore {
 			continue
 		}
-		docs = append(docs, &document.Document{
-			ID:       hit.DocumentID,
-			Text:     hit.Text,
+		docs = append(docs, vectorstore.Match{
+			Document: &document.Document{ID: hit.DocumentID, Text: hit.Text, Metadata: hit.Metadata},
 			Score:    hit.Score,
-			Metadata: hit.Metadata,
 		})
 	}
 	return docs, nil

@@ -137,7 +137,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 // Retrieve embeds the query, scores every record by similarity, and
 // returns the top-K above MinScore. Filtering happens BEFORE scoring
 // to keep the cost O(filtered × dim) rather than O(all × dim).
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (out []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (out []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("inmemory.Store.Retrieve: %w", err)
 	}
@@ -186,9 +186,9 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	})
 
 	limit := min(req.TopK, len(candidates))
-	out = make([]*document.Document, 0, limit)
+	out = make([]vectorstore.Match, 0, limit)
 	for i := range limit {
-		out = append(out, candidates[i].doc)
+		out = append(out, vectorstore.Match{Document: candidates[i].doc, Score: candidates[i].score})
 	}
 	return out, nil
 }

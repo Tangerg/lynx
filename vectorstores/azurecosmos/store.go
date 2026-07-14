@@ -202,7 +202,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs a VectorDistance-ordered query.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("azurecosmos: invalid retrieval request: %w", err)
 	}
@@ -251,19 +251,19 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		QueryParameters: queryParams,
 	})
 
-	docs = make([]*document.Document, 0, req.TopK)
+	docs = make([]vectorstore.Match, 0, req.TopK)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("azurecosmos: query: %w", err)
 		}
 		for _, item := range page.Items {
-			doc, err := s.decodeRow(item, req.MinScore)
+			match, err := s.decodeRow(item, req.MinScore)
 			if err != nil {
 				return nil, err
 			}
-			if doc != nil {
-				docs = append(docs, doc)
+			if match != nil {
+				docs = append(docs, *match)
 			}
 		}
 	}
@@ -331,7 +331,7 @@ func (s *Store) buildFilter(filter ast.Expr) (string, []NamedParam, error) {
 
 // decodeRow turns a Cosmos JSON row into a Document, applying the
 // MinScore filter using the distance-to-score helper.
-func (s *Store) decodeRow(raw json.RawMessage, minScore float64) (*document.Document, error) {
+func (s *Store) decodeRow(raw json.RawMessage, minScore float64) (*vectorstore.Match, error) {
 	var row struct {
 		ID       string         `json:"_id"`
 		Content  string         `json:"_content"`
@@ -346,10 +346,8 @@ func (s *Store) decodeRow(raw json.RawMessage, minScore float64) (*document.Docu
 	if score < minScore {
 		return nil, nil
 	}
-	return &document.Document{
-		ID:       row.ID,
-		Text:     row.Content,
-		Metadata: row.Metadata,
+	return &vectorstore.Match{
+		Document: &document.Document{ID: row.ID, Text: row.Content, Metadata: row.Metadata},
 		Score:    score,
 	}, nil
 }

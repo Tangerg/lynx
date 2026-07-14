@@ -6,7 +6,6 @@ import (
 	"iter"
 	"slices"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -44,7 +43,7 @@ func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMid
 	return mw.wrapCallHandler, mw.wrapStreamHandler, nil
 }
 
-func (m *middleware) run(ctx context.Context, req *chat.Request) (*Query, []*document.Document, error) {
+func (m *middleware) run(ctx context.Context, req *chat.Request) (*Query, []Candidate, error) {
 	query, err := NewQuery(req.UserMessage().Text)
 	if err != nil {
 		return nil, nil, fmt.Errorf("rag.NewMiddleware: build query: %w", err)

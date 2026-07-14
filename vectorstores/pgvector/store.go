@@ -415,7 +415,7 @@ func drainBatch(br pgx.BatchResults, n int) error {
 // One `db.vector.retrieve pgvector` span per call carrying
 // `db.vector.query.top_k` / `db.vector.query.similarity_threshold`
 // and (on success) `rag.doc_count`.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("pgvector: invalid retrieval request: %w", err)
 	}
@@ -455,7 +455,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 	defer rows.Close()
 
-	docs = make([]*document.Document, 0, req.TopK)
+	docs = make([]vectorstore.Match, 0, req.TopK)
 	for rows.Next() {
 		var (
 			id       string
@@ -472,7 +472,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 			continue
 		}
 
-		doc := &document.Document{ID: id, Score: score}
+		doc := &document.Document{ID: id}
 		if content != nil {
 			doc.Text = *content
 		}
@@ -481,7 +481,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 				return nil, fmt.Errorf("pgvector: unmarshal metadata for %s: %w", id, err)
 			}
 		}
-		docs = append(docs, doc)
+		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("pgvector: read rows: %w", err)

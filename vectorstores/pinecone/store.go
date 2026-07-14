@@ -175,8 +175,8 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 	return nil
 }
 
-func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, minScore float64) ([]*document.Document, error) {
-	docs := make([]*document.Document, 0, len(svs))
+func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, minScore float64) ([]vectorstore.Match, error) {
+	docs := make([]vectorstore.Match, 0, len(svs))
 
 	for _, sv := range svs {
 		score := float64(sv.Score)
@@ -184,7 +184,7 @@ func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, mi
 			continue
 		}
 
-		doc := &document.Document{Score: score}
+		doc := &document.Document{}
 
 		if sv.Vector != nil {
 			doc.ID = sv.Vector.Id
@@ -203,13 +203,13 @@ func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, mi
 			}
 		}
 
-		docs = append(docs, doc)
+		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 
 	return docs, nil
 }
 
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("pinecone: invalid retrieval request: %w", err)
 	}

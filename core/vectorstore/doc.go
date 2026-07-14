@@ -28,7 +28,7 @@
 //	expr, _ := filter.ParseAndAnalyze(`category == "tech" AND year >= 2020`)
 //	req, _ := vectorstore.NewRetrievalRequest("attention")
 //	req.WithTopK(5).WithMinScore(0.7).WithFilter(expr)
-//	docs, err := store.Retrieve(ctx, req)
+//	matches, err := store.Retrieve(ctx, req)
 //
 // To bridge a vector store into a document writer for ingest
 // pipelines, see [NewDocumentWriter].

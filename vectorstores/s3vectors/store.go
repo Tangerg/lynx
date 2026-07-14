@@ -189,7 +189,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs QueryVectors with the configured filter.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("s3vectors: invalid retrieval request: %w", err)
 	}
@@ -231,14 +231,14 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("s3vectors: QueryVectors: %w", err)
 	}
 
-	docs = make([]*document.Document, 0, len(resp.Vectors))
+	docs = make([]vectorstore.Match, 0, len(resp.Vectors))
 	for _, hit := range resp.Vectors {
-		doc, err := s.toDocument(hit, req.MinScore)
+		match, err := s.toMatch(hit, req.MinScore)
 		if err != nil {
 			return nil, err
 		}
-		if doc != nil {
-			docs = append(docs, doc)
+		if match != nil {
+			docs = append(docs, *match)
 		}
 	}
 	return docs, nil
@@ -314,14 +314,15 @@ func (s *Store) buildFilter(filter ast.Expr) (map[string]any, error) {
 	return v.Result(), nil
 }
 
-func (s *Store) toDocument(hit types.QueryOutputVector, minScore float64) (*document.Document, error) {
+func (s *Store) toMatch(hit types.QueryOutputVector, minScore float64) (*vectorstore.Match, error) {
 	doc := &document.Document{}
+	var score float64
 	if hit.Key != nil {
 		doc.ID = *hit.Key
 	}
 	if hit.Distance != nil {
-		doc.Score = s.distanceToScore(float64(*hit.Distance))
-		if doc.Score < minScore {
+		score = s.distanceToScore(float64(*hit.Distance))
+		if score < minScore {
 			return nil, nil
 		}
 	}
@@ -339,7 +340,7 @@ func (s *Store) toDocument(hit types.QueryOutputVector, minScore float64) (*docu
 			doc.Metadata = meta
 		}
 	}
-	return doc, nil
+	return &vectorstore.Match{Document: doc, Score: score}, nil
 }
 
 func (s *Store) distanceToScore(distance float64) float64 {

@@ -289,7 +289,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs an ANN search using the configured distance function.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("clickhouse: invalid retrieval request: %w", err)
 	}
@@ -334,7 +334,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 	defer rows.Close()
 
-	docs = make([]*document.Document, 0, req.TopK)
+	docs = make([]vectorstore.Match, 0, req.TopK)
 	for rows.Next() {
 		var (
 			id       string
@@ -349,11 +349,9 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if score < req.MinScore {
 			continue
 		}
-		docs = append(docs, &document.Document{
-			ID:       id,
-			Text:     content,
+		docs = append(docs, vectorstore.Match{
+			Document: &document.Document{ID: id, Text: content, Metadata: stringMapToMetadata(metaRaw)},
 			Score:    score,
-			Metadata: stringMapToMetadata(metaRaw),
 		})
 	}
 	if err := rows.Err(); err != nil {

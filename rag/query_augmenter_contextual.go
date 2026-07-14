@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -94,7 +93,7 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
 // context. When documents is empty, falls back to
 // [contextualAugmenter.handleEmptyContext]. Honors ctx
 // cancellation.
-func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documents []*document.Document) (*Query, error) {
+func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documents []Candidate) (*Query, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

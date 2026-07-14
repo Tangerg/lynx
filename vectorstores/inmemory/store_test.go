@@ -113,8 +113,8 @@ func TestStore_CreateAndRetrieveBasics(t *testing.T) {
 		t.Fatalf("got %d results, want 2", len(got))
 	}
 	// Identical vector means doc "1" must rank first.
-	if got[0].ID != "1" {
-		t.Fatalf("top result = %q, want %q", got[0].ID, "1")
+	if got[0].Document.ID != "1" {
+		t.Fatalf("top result = %q, want %q", got[0].Document.ID, "1")
 	}
 }
 
@@ -173,10 +173,10 @@ func TestStore_RetrieveAppliesFilter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Retrieve: %v", err)
 	}
-	if len(got) != 1 || got[0].ID != "2" {
+	if len(got) != 1 || got[0].Document.ID != "2" {
 		ids := make([]string, 0, len(got))
 		for _, d := range got {
-			ids = append(ids, d.ID)
+			ids = append(ids, d.Document.ID)
 		}
 		t.Fatalf("got ids=%v, want [\"2\"]", ids)
 	}
@@ -206,10 +206,10 @@ func TestStore_RetrieveLikePattern(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("got %d, want 2", len(got))
 	}
-	for _, doc := range got {
-		name, _ := doc.Metadata["name"].(string)
+	for _, match := range got {
+		name, _ := match.Document.Metadata["name"].(string)
 		if !strings.HasPrefix(name, "alpha") {
-			t.Errorf("doc %q has name=%q, want alpha-prefix", doc.ID, name)
+			t.Errorf("doc %q has name=%q, want alpha-prefix", match.Document.ID, name)
 		}
 	}
 }
@@ -267,9 +267,9 @@ func TestStore_RetrieveMinScoreFilters(t *testing.T) {
 	// exact match's. The fake embedder makes the exact match's score
 	// strictly higher than the unrelated doc's.
 	allScores := make([]float64, 0, len(all))
-	for _, d := range all {
+	for _, match := range all {
 		allScores = append(allScores, inmemory.CosineSimilarity(
-			vectorFor("alpha"), vectorFor(d.Text)))
+			vectorFor("alpha"), vectorFor(match.Document.Text)))
 	}
 	if allScores[0] <= allScores[1] {
 		t.Fatalf("expected exact match to outscore unrelated, got %v", allScores)
@@ -282,10 +282,10 @@ func TestStore_RetrieveMinScoreFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Retrieve tight: %v", err)
 	}
-	if len(got) != 1 || got[0].ID != "1" {
+	if len(got) != 1 || got[0].Document.ID != "1" {
 		ids := make([]string, 0, len(got))
 		for _, d := range got {
-			ids = append(ids, d.ID)
+			ids = append(ids, d.Document.ID)
 		}
 		t.Fatalf("got ids=%v, want only doc 1", ids)
 	}
@@ -384,7 +384,7 @@ func TestStore_RetrieveIsNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Retrieve(is not null): %v", err)
 	}
-	if len(got2) != 1 || got2[0].ID != "2" {
+	if len(got2) != 1 || got2[0].Document.ID != "2" {
 		t.Fatalf("is not null = %+v, want [id 2]", got2)
 	}
 }
@@ -412,10 +412,10 @@ func TestStore_RetrieveNotIn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Retrieve: %v", err)
 	}
-	if len(got) != 1 || got[0].ID != "3" {
+	if len(got) != 1 || got[0].Document.ID != "3" {
 		ids := make([]string, 0, len(got))
 		for _, d := range got {
-			ids = append(ids, d.ID)
+			ids = append(ids, d.Document.ID)
 		}
 		t.Fatalf("not in ('a','b') matched %v, want [3]", ids)
 	}
@@ -451,8 +451,8 @@ func TestStore_DeleteByIDs(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("after DeleteByIDs([1]), have %d docs, want 2 (2,3)", len(got))
 	}
-	for _, d := range got {
-		if d.ID == "1" {
+	for _, match := range got {
+		if match.Document.ID == "1" {
 			t.Fatal("id 1 should have been deleted")
 		}
 	}

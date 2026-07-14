@@ -56,7 +56,7 @@
 //	type routingRetriever struct {
 //	    docsR, logsR rag.Retriever
 //	}
-//	func (r *routingRetriever) Retrieve(ctx context.Context, q *rag.Query) ([]*document.Document, error) {
+//	func (r *routingRetriever) Retrieve(ctx context.Context, q *rag.Query) ([]Candidate, error) {
 //	    if route, _ := q.Get("route"); route == "logs" {
 //	        return r.logsR.Retrieve(ctx, q)
 //	    }

@@ -97,7 +97,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 
 // Retrieve runs a KNN search over the embedding field. Optional
 // metadata filtering is expressed via a query_string clause.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("elasticsearch: invalid retrieval request: %w", err)
 	}
@@ -161,13 +161,13 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("elasticsearch: decode search response: %w", err)
 	}
 
-	docs = make([]*document.Document, 0, len(parsed.Hits.Hits))
+	docs = make([]vectorstore.Match, 0, len(parsed.Hits.Hits))
 	for _, hit := range parsed.Hits.Hits {
 		score := s.normalizeScore(hit.Score)
 		if score < req.MinScore {
 			continue
 		}
-		docs = append(docs, s.toDocument(hit, score))
+		docs = append(docs, vectorstore.Match{Document: s.toDocument(hit), Score: score})
 	}
 	return docs, nil
 }
@@ -303,11 +303,8 @@ func (s *Store) normalizeScore(score float64) float64 {
 	}
 }
 
-func (s *Store) toDocument(hit searchHit, score float64) *document.Document {
-	doc := &document.Document{
-		ID:    hit.ID,
-		Score: score,
-	}
+func (s *Store) toDocument(hit searchHit) *document.Document {
+	doc := &document.Document{ID: hit.ID}
 	if hit.Source == nil {
 		return doc
 	}

@@ -219,7 +219,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs a nearestNeighbor YQL query.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("vespa: invalid retrieval request: %w", err)
 	}
@@ -273,7 +273,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("vespa: decode search response: %w", err)
 	}
 
-	docs = make([]*document.Document, 0, len(parsed.Root.Children))
+	docs = make([]vectorstore.Match, 0, len(parsed.Root.Children))
 	for _, hit := range parsed.Root.Children {
 		// Vespa relevance for nearestNeighbor is the configured
 		// distance metric's similarity directly (cosine: [0, 1]).
@@ -281,8 +281,8 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if score < req.MinScore {
 			continue
 		}
-		doc := s.toDocument(hit.ID, hit.Fields, score)
-		docs = append(docs, doc)
+		doc := s.toDocument(hit.ID, hit.Fields)
+		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 	return docs, nil
 }
@@ -365,8 +365,8 @@ func (s *Store) buildFilter(filter ast.Expr) (string, error) {
 	return v.Result(), nil
 }
 
-func (s *Store) toDocument(rawID string, fields map[string]any, score float64) *document.Document {
-	doc := &document.Document{Score: score}
+func (s *Store) toDocument(rawID string, fields map[string]any) *document.Document {
+	doc := &document.Document{}
 	if id, ok := fields[s.idField].(string); ok {
 		doc.ID = id
 	} else {

@@ -361,7 +361,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs a SQL++ query that embeds the KNN search clause.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("couchbase: invalid retrieval request: %w", err)
 	}
@@ -412,13 +412,13 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 	defer rows.Close()
 
-	docs = make([]*document.Document, 0, req.TopK)
+	docs = make([]vectorstore.Match, 0, req.TopK)
 	for rows.Next() {
 		var raw map[string]any
 		if err := rows.Row(&raw); err != nil {
 			return nil, fmt.Errorf("couchbase: decode row: %w", err)
 		}
-		docs = append(docs, s.toDocument(raw))
+		docs = append(docs, vectorstore.Match{Document: s.toDocument(raw)})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("couchbase: read rows: %w", err)

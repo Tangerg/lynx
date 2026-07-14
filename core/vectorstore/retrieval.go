@@ -107,6 +107,14 @@ func (r *RetrievalRequest) Validate() error {
 	return nil
 }
 
+// Match relates a document to one search operation. Score is deliberately
+// kept outside document.Document: relevance belongs to a query/result pair,
+// not to the indexed content itself.
+type Match struct {
+	Document *document.Document `json:"document"`
+	Score    float64            `json:"score"`
+}
+
 // Retriever pulls documents similar to a query out of a vector store.
 // Results are ranked by similarity score in descending order.
 type Retriever interface {
@@ -116,5 +124,5 @@ type Retriever interface {
 	//   - the score threshold ([RetrievalRequest.MinScore]),
 	//   - the metadata filter ([RetrievalRequest.Filter]),
 	//   - the result cap ([RetrievalRequest.TopK]).
-	Retrieve(ctx context.Context, request *RetrievalRequest) ([]*document.Document, error)
+	Retrieve(ctx context.Context, request *RetrievalRequest) ([]Match, error)
 }

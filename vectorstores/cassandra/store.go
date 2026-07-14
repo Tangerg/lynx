@@ -358,7 +358,7 @@ func (s *Store) insertOne(ctx context.Context, id string, doc *document.Document
 }
 
 // Retrieve runs an ANN query using the configured similarity function.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("cassandra: invalid retrieval request: %w", err)
 	}
@@ -404,17 +404,17 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	iter := s.session.Query(stmt, whereArgs...).WithContext(ctx).Iter()
 	defer iter.Close()
 
-	docs = make([]*document.Document, 0, req.TopK)
+	docs = make([]vectorstore.Match, 0, req.TopK)
 	scanDest := s.makeScanDestinations()
 	for iter.Scan(scanDest...) {
-		doc, err := s.scanDestToDocument(scanDest, req.MinScore)
+		match, err := s.scanDestToMatch(scanDest, req.MinScore)
 		if err != nil {
 			return nil, err
 		}
-		if doc == nil {
+		if match == nil {
 			continue
 		}
-		docs = append(docs, doc)
+		docs = append(docs, *match)
 	}
 	if err := iter.Close(); err != nil {
 		return nil, fmt.Errorf("cassandra: query %s: %w", s.fullTable, err)
@@ -435,7 +435,7 @@ func (s *Store) makeScanDestinations() []any {
 
 // scanDestToDocument turns the per-row pointer slice back into a
 // Document. Returns nil when the row's score falls below minScore.
-func (s *Store) scanDestToDocument(dest []any, minScore float64) (*document.Document, error) {
+func (s *Store) scanDestToMatch(dest []any, minScore float64) (*vectorstore.Match, error) {
 	id := *dest[0].(*string)
 	text := *dest[1].(*string)
 	score := float64(*dest[2].(*float32))
@@ -443,7 +443,7 @@ func (s *Store) scanDestToDocument(dest []any, minScore float64) (*document.Docu
 		return nil, nil
 	}
 
-	doc := &document.Document{ID: id, Text: text, Score: score}
+	doc := &document.Document{ID: id, Text: text}
 	if len(s.metadataColumns) > 0 {
 		meta := make(map[string]any, len(s.metadataColumns))
 		for i, m := range s.metadataColumns {
@@ -456,7 +456,7 @@ func (s *Store) scanDestToDocument(dest []any, minScore float64) (*document.Docu
 			doc.Metadata = meta
 		}
 	}
-	return doc, nil
+	return &vectorstore.Match{Document: doc, Score: score}, nil
 }
 
 // Delete removes rows matching the filter expression.

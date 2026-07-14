@@ -3,7 +3,6 @@ package rag
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/pkg/sets"
 )
 
@@ -21,13 +20,13 @@ func Dedup() Refiner {
 
 // Refine returns documents with duplicate IDs removed, keeping the
 // first occurrence in input order. Honors ctx cancellation.
-func (d deduper) Refine(ctx context.Context, _ *Query, documents []*document.Document) ([]*document.Document, error) {
+func (d deduper) Refine(ctx context.Context, _ *Query, documents []Candidate) ([]Candidate, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
 	seen := sets.NewHashSet[string]()
-	out := make([]*document.Document, 0, len(documents))
+	out := make([]Candidate, 0, len(documents))
 
 	for _, doc := range documents {
 		if seen.Contains(doc.ID) {

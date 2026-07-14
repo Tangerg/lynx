@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/document"
 	corevs "github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
@@ -82,7 +81,7 @@ func NewVectorStoreRetriever(cfg VectorStoreConfig) (Retriever, error) {
 }
 
 // Retrieve issues a similarity search via the underlying vector store.
-func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]*document.Document, error) {
+func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Candidate, error) {
 	if query == nil {
 		return nil, ErrNilQuery
 	}
@@ -99,7 +98,15 @@ func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]*d
 
 	request.WithTopK(v.topK).WithMinScore(v.minScore).WithFilter(expr)
 
-	return v.vectorStore.Retrieve(ctx, request)
+	matches, err := v.vectorStore.Retrieve(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]Candidate, 0, len(matches))
+	for _, match := range matches {
+		candidates = append(candidates, Candidate{Document: match.Document, Score: match.Score})
+	}
+	return candidates, nil
 }
 
 // resolveFilter picks the filter expression to use for this call,

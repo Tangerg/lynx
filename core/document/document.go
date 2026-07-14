@@ -8,16 +8,11 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 )
 
-// Document is the canonical content carrier. A document holds a unique
-// id, optional textual content, optional media, optional retrieval
-// score, a metadata map, and the formatter used to render it for
-// downstream consumers.
+// Document is the canonical content carrier. It holds identity, content, and
+// metadata; query-specific relationships and runtime policies live outside
+// this value.
 type Document struct {
 	ID string `json:"id,omitempty"`
-
-	// Score is the retrieval relevance score. 0 when the document was
-	// not produced by a search.
-	Score float64 `json:"score,omitempty"`
 
 	// Text is the textual content. May be empty if Media is set.
 	Text string `json:"text,omitempty"`
