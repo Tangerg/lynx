@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
@@ -210,11 +211,13 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ vectorstore.Store     = (*Store)(nil)
-	_ vectorstore.IDDeleter = (*Store)(nil)
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is a Redis-backed implementation of [vectorstore.Store]. It
+// Store is a Redis-backed implementation of the vectorstore capability interfaces. It
 // stores documents as Redis HASHes and queries them through RediSearch
 // vector + metadata indexes.
 type Store struct {
@@ -419,16 +422,16 @@ func (s *Store) distanceToScore(distance float64) float64 {
 
 // Create embeds documents and writes them as Redis HASHes keyed by
 // `<KeyPrefix><id>`.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("redis: invalid create request: %w", err)
+func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
 
-	ctx, span := tracing.StartCreate(ctx, "redis", len(req.Documents))
+	ctx, span := tracing.StartAdd(ctx, "redis", len(docs))
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
 	if err != nil {
 		return fmt.Errorf("redis: failed to batch documents: %w", err)
 	}
@@ -471,13 +474,13 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 
 // Retrieve embeds the query, runs a KNN search through RediSearch,
 // and returns the matching documents above MinScore.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("redis: invalid retrieval request: %w", err)
+		return nil, fmt.Errorf("redis: invalid search request: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "redis", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+	ctx, span := tracing.StartSearch(ctx, "redis", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
 	vector, _, err = s.embeddingClient.
@@ -545,16 +548,19 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 // Delete looks up documents matching the filter via FT.SEARCH, then
 // removes the underlying keys with DEL.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("redis: invalid delete request: %w", err)
+func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+	if expr == nil {
+		return vectorstore.ErrMissingFilter
+	}
+	if err = filter.Analyze(expr); err != nil {
+		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
 	ctx, span := tracing.StartDelete(ctx, "redis")
 	defer func() { tracing.Finish(span, err) }()
 
 	var query string
-	query, err = s.buildFilterQuery(req.Filter)
+	query, err = s.buildFilterQuery(expr)
 	if err != nil {
 		return err
 	}
@@ -590,11 +596,11 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	}
 }
 
-// DeleteByIDs removes documents by id, resolving each to its HASH key
+// DeleteIDs removes documents by id, resolving each to its HASH key
 // `<KeyPrefix><id>` and issuing a single DEL. An empty slice is a
 // no-op; unknown ids are silently ignored (idempotent). Implements
 // [vectorstore.IDDeleter].
-func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -707,13 +713,6 @@ func parseMetadataValue(raw string, t MetadataFieldType) any {
 		}
 	}
 	return raw
-}
-
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		NativeClient: s.client,
-		Provider:     Provider,
-	}
 }
 
 func (s *Store) Close() error { return nil }

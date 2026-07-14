@@ -1,5 +1,5 @@
 // Package elasticsearch wraps the official go-elasticsearch v8
-// client as a [vectorstore.Store]. Documents are indexed JSON
+// client as a the vectorstore capability interfaces. Documents are indexed JSON
 // objects with a `dense_vector` field for the embedding and a
 // nested `object` field for metadata.
 //

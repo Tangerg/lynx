@@ -18,6 +18,8 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
@@ -102,8 +104,10 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ vectorstore.Store     = (*Store)(nil)
-	_ vectorstore.IDDeleter = (*Store)(nil)
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
 type Store struct {
@@ -214,16 +218,16 @@ func (s *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 	return objects, nil
 }
 
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("weaviate: invalid create request: %w", err)
+func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
 
-	ctx, span := tracing.StartCreate(ctx, "weaviate", len(req.Documents))
+	ctx, span := tracing.StartAdd(ctx, "weaviate", len(docs))
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
 	if err != nil {
 		return fmt.Errorf("weaviate: failed to batch documents: %w", err)
 	}
@@ -274,13 +278,13 @@ func (s *Store) buildNearVector(vector []float64, minScore float64) *graphql.Nea
 	return builder
 }
 
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("weaviate: invalid retrieval request: %w", err)
+		return nil, fmt.Errorf("weaviate: invalid search request: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "weaviate", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+	ctx, span := tracing.StartSearch(ctx, "weaviate", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
 	vector, _, err = s.embeddingClient.
@@ -397,16 +401,19 @@ func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]vect
 	return docs, nil
 }
 
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("weaviate: invalid delete request: %w", err)
+func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+	if expr == nil {
+		return vectorstore.ErrMissingFilter
+	}
+	if err = filter.Analyze(expr); err != nil {
+		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
 	ctx, span := tracing.StartDelete(ctx, "weaviate")
 	defer func() { tracing.Finish(span, err) }()
 
 	var whereFilter *filters.WhereBuilder
-	whereFilter, err = ToFilter(req.Filter)
+	whereFilter, err = ToFilter(expr)
 	if err != nil {
 		return fmt.Errorf("weaviate: failed to convert filter: %w", err)
 	}
@@ -422,7 +429,7 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
-// DeleteByIDs removes objects by their Weaviate object UUID. The ids are
+// DeleteIDs removes objects by their Weaviate object UUID. The ids are
 // the same identifiers surfaced as document.ID by Retrieve (the object's
 // `_additional.id`), since Create assigns each object a UUID that becomes
 // its primary key. An empty slice is a no-op; unknown ids are silently
@@ -430,7 +437,7 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 // [vectorstore.IDDeleter].
 //
 // One `db.vector.delete weaviate` span per call.
-func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -455,13 +462,6 @@ func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 	}
 
 	return nil
-}
-
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		NativeClient: s.client,
-		Provider:     Provider,
-	}
 }
 
 func (s *Store) Close() error {

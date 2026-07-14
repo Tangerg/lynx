@@ -1,5 +1,5 @@
 // Package mariadb wraps MariaDB's native VECTOR column type as a
-// [vectorstore.Store]. Documents live in a regular MariaDB table
+// the vectorstore capability interfaces. Documents live in a regular MariaDB table
 // (id / content / metadata JSON / embedding VECTOR) reached through
 // `database/sql` + the go-sql-driver/mysql driver.
 //

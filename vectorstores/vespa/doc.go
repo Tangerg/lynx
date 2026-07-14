@@ -1,5 +1,5 @@
 // Package vespa wraps Yahoo Vespa's vector search as a
-// [vectorstore.Store]. Documents are regular Vespa documents in a
+// the vectorstore capability interfaces. Documents are regular Vespa documents in a
 // schema with id / content / embedding (tensor) fields plus any
 // metadata attributes — reached over the HTTP Document / Search REST
 // APIs.

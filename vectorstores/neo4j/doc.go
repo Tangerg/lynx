@@ -1,5 +1,5 @@
 // Package neo4j wraps the official neo4j-go-driver v5 as a
-// [vectorstore.Store]. Documents become nodes labeled `:Document`
+// the vectorstore capability interfaces. Documents become nodes labeled `:Document`
 // (or whatever [StoreConfig.Label] picks) — metadata keys are
 // stored as flat properties named `metadata.<key>`, the embedding
 // rides on the configured property, and the id has a uniqueness

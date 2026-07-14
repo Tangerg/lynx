@@ -129,12 +129,14 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ vectorstore.Store     = (*Store)(nil)
-	_ vectorstore.IDDeleter = (*Store)(nil)
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
 // Store is an Elasticsearch-backed implementation of
-// [vectorstore.Store]. It uses the dense_vector field type and the
+// the vectorstore capability interfaces. It uses the dense_vector field type and the
 // `knn` query for similarity search.
 type Store struct {
 	client           *elasticsearch.Client

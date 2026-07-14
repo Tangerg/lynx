@@ -25,7 +25,7 @@ const Provider = "Supabase"
 // already handles via InitializeSchema.
 type StoreConfig = pgvector.StoreConfig
 
-// Store is a Supabase-backed [vectorstore.Store] implementation. It's
+// Store is a Supabase-backed the vectorstore capability interfaces implementation. It's
 // identical to [pgvector.Store] at runtime.
 type Store = pgvector.Store
 

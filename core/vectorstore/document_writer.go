@@ -2,7 +2,6 @@ package vectorstore
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/Tangerg/lynx/core/document"
 )
@@ -13,7 +12,7 @@ func (w writeFunc) Write(ctx context.Context, docs []*document.Document) error {
 	return w(ctx, docs)
 }
 
-// NewDocumentWriter wraps a [Creator] as a [document.Writer], so the
+// NewDocumentWriter wraps an [Indexer] as a [document.Writer], so the
 // vector store fits into pipelines built from generic document
 // reader/writer interfaces.
 //
@@ -21,12 +20,11 @@ func (w writeFunc) Write(ctx context.Context, docs []*document.Document) error {
 //
 //	writer := vectorstore.NewDocumentWriter(myVectorStore)
 //	err := writer.Write(ctx, documents)
-func NewDocumentWriter(creator Creator) document.Writer {
+func NewDocumentWriter(indexer Indexer) document.Writer {
 	return writeFunc(func(ctx context.Context, docs []*document.Document) error {
-		req, err := NewCreateRequest(docs)
-		if err != nil {
-			return fmt.Errorf("vectorstore.NewDocumentWriter: %w", err)
+		if len(docs) == 0 {
+			return ErrEmptyDocuments
 		}
-		return creator.Create(ctx, req)
+		return indexer.Add(ctx, docs)
 	})
 }

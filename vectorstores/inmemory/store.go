@@ -10,6 +10,8 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -48,11 +50,13 @@ type record struct {
 }
 
 var (
-	_ vectorstore.Store     = (*Store)(nil)
-	_ vectorstore.IDDeleter = (*Store)(nil)
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is the in-memory [vectorstore.Store] implementation.
+// Store is the in-memory the vectorstore capability interfaces implementation.
 // Construct with [NewStore].
 type Store struct {
 	embedder   *embedding.Client
@@ -74,15 +78,8 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 	}, nil
 }
 
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		Provider:     Provider,
-		NativeClient: s,
-	}
-}
-
 // Len reports the number of stored records — exposed for tests /
-// monitoring; not part of the [vectorstore.Store] contract.
+// monitoring; not part of the the vectorstore capability interfaces contract.
 func (s *Store) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -93,21 +90,21 @@ func (s *Store) Len() int {
 // document must have a non-empty ID (use [document.Document.ID] or
 // assign one before calling). Existing IDs are overwritten — this
 // mirrors the upsert semantics most vendor stores expose.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("inmemory.Store.Create: %w", err)
+func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
 
-	ctx, span := tracing.StartCreate(ctx, "inmemory", len(req.Documents))
+	ctx, span := tracing.StartAdd(ctx, "inmemory", len(docs))
 	defer func() { tracing.Finish(span, err) }()
 
-	texts := make([]string, 0, len(req.Documents))
-	for i, doc := range req.Documents {
+	texts := make([]string, 0, len(docs))
+	for i, doc := range docs {
 		if doc == nil {
-			return fmt.Errorf("inmemory.Store.Create: document[%d] is nil", i)
+			return fmt.Errorf("inmemory.Store.Add: document[%d] is nil", i)
 		}
 		if doc.ID == "" {
-			return fmt.Errorf("inmemory.Store.Create: document[%d] has empty ID", i)
+			return fmt.Errorf("inmemory.Store.Add: document[%d] has empty ID", i)
 		}
 		texts = append(texts, doc.Text)
 	}
@@ -119,16 +116,16 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 		Call().
 		Embeddings(ctx)
 	if err != nil {
-		return fmt.Errorf("inmemory.Store.Create: embed: %w", err)
+		return fmt.Errorf("inmemory.Store.Add: embed: %w", err)
 	}
-	if len(embeddings) != len(req.Documents) {
-		return fmt.Errorf("inmemory.Store.Create: embedder returned %d vectors for %d documents",
-			len(embeddings), len(req.Documents))
+	if len(embeddings) != len(docs) {
+		return fmt.Errorf("inmemory.Store.Add: embedder returned %d vectors for %d documents",
+			len(embeddings), len(docs))
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i, doc := range req.Documents {
+	for i, doc := range docs {
 		s.records[doc.ID] = record{doc: doc, embedding: embeddings[i]}
 	}
 	return nil
@@ -137,13 +134,13 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 // Retrieve embeds the query, scores every record by similarity, and
 // returns the top-K above MinScore. Filtering happens BEFORE scoring
 // to keep the cost O(filtered × dim) rather than O(all × dim).
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (out []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (out []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("inmemory.Store.Retrieve: %w", err)
+		return nil, fmt.Errorf("inmemory.Store.Search: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "inmemory", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(out)) }()
+	ctx, span := tracing.StartSearch(ctx, "inmemory", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(out)) }()
 
 	var query []float64
 	query, _, err = s.embedder.
@@ -152,7 +149,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		Call().
 		Embedding(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("inmemory.Store.Retrieve: embed query: %w", err)
+		return nil, fmt.Errorf("inmemory.Store.Search: embed query: %w", err)
 	}
 
 	type scored struct {
@@ -167,12 +164,12 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 			metadataValues, decodeErr := rec.doc.Metadata.Values()
 			if decodeErr != nil {
 				s.mu.RUnlock()
-				return nil, fmt.Errorf("inmemory.Store.Retrieve: metadata: %w", decodeErr)
+				return nil, fmt.Errorf("inmemory.Store.Search: metadata: %w", decodeErr)
 			}
 			match, ferr := matchesFilter(req.Filter, metadataValues)
 			if ferr != nil {
 				s.mu.RUnlock()
-				return nil, fmt.Errorf("inmemory.Store.Retrieve: filter: %w", ferr)
+				return nil, fmt.Errorf("inmemory.Store.Search: filter: %w", ferr)
 			}
 			if !match {
 				continue
@@ -200,11 +197,14 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 // Delete removes every record whose metadata matches the filter
 // expression. The number of records actually removed is not reported
-// by the [vectorstore.Deleter] contract; call [Store.Len] before and
+// by the [vectorstore.FilterDeleter] contract; call [Store.Len] before and
 // after if you need the delta.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("inmemory.Store.Delete: %w", err)
+func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+	if expr == nil {
+		return vectorstore.ErrMissingFilter
+	}
+	if err = filter.Analyze(expr); err != nil {
+		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
 	_, span := tracing.StartDelete(ctx, "inmemory")
@@ -220,7 +220,7 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		if err != nil {
 			return fmt.Errorf("inmemory.Store.Delete: metadata: %w", err)
 		}
-		match, err := matchesFilter(req.Filter, metadataValues)
+		match, err := matchesFilter(expr, metadataValues)
 		if err != nil {
 			return fmt.Errorf("inmemory.Store.Delete: filter: %w", err)
 		}
@@ -231,12 +231,12 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
-// DeleteByIDs removes the records with the given ids. An empty slice is
+// DeleteIDs removes the records with the given ids. An empty slice is
 // a no-op; unknown ids are ignored (idempotent). Implements
 // [vectorstore.IDDeleter].
-func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if err = ctx.Err(); err != nil {
-		return fmt.Errorf("inmemory.Store.DeleteByIDs: %w", err)
+		return fmt.Errorf("inmemory.Store.DeleteIDs: %w", err)
 	}
 	if len(ids) == 0 {
 		return nil
@@ -254,7 +254,7 @@ func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 }
 
 // Clear removes every record. Useful for test setup/teardown; not
-// part of the [vectorstore.Store] interface.
+// part of the the vectorstore capability interfaces interface.
 func (s *Store) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

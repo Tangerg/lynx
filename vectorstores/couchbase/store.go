@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
@@ -149,11 +150,13 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ vectorstore.Store     = (*Store)(nil)
-	_ vectorstore.IDDeleter = (*Store)(nil)
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is a Couchbase Search Service backed [vectorstore.Store].
+// Store is a Couchbase Search Service backed the vectorstore capability interfaces.
 type Store struct {
 	cluster           *gocb.Cluster
 	bucket            *gocb.Bucket
@@ -320,16 +323,16 @@ func (s *Store) upsertSearchIndex() error {
 }
 
 // Create embeds documents and upserts them by id.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("couchbase: invalid create request: %w", err)
+func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
 
-	ctx, span := tracing.StartCreate(ctx, "couchbase", len(req.Documents))
+	ctx, span := tracing.StartAdd(ctx, "couchbase", len(docs))
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
 	if err != nil {
 		return fmt.Errorf("couchbase: failed to batch documents: %w", err)
 	}
@@ -367,13 +370,13 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs a SQL++ query that embeds the KNN search clause.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("couchbase: invalid retrieval request: %w", err)
+		return nil, fmt.Errorf("couchbase: invalid search request: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "couchbase", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+	ctx, span := tracing.StartSearch(ctx, "couchbase", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
 	vector, _, err = s.embeddingClient.
@@ -437,15 +440,18 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes documents matching the filter via DELETE.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("couchbase: invalid delete request: %w", err)
+func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+	if expr == nil {
+		return vectorstore.ErrMissingFilter
+	}
+	if err = filter.Analyze(expr); err != nil {
+		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
 	ctx, span := tracing.StartDelete(ctx, "couchbase")
 	defer func() { tracing.Finish(span, err) }()
 
-	predicate, err := s.buildFilter(req.Filter)
+	predicate, err := s.buildFilter(expr)
 	if err != nil {
 		return err
 	}
@@ -463,12 +469,12 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
-// DeleteByIDs removes documents by their KV key. Create upserts each
-// document under its id as the document key (see [Store.Create]), so the
+// DeleteIDs removes documents by their KV key. Create upserts each
+// document under its id as the document key (see [Store.Add]), so the
 // id is the KV key here too. An empty slice is a no-op; a per-key
 // "document not found" error is treated as success so repeated deletes
 // stay idempotent. Implements [vectorstore.IDDeleter].
-func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -524,13 +530,6 @@ func metaOrEmpty(m map[string]any) map[string]any {
 		return map[string]any{}
 	}
 	return m
-}
-
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		NativeClient: s.cluster,
-		Provider:     Provider,
-	}
 }
 
 func (s *Store) Close() error { return nil }

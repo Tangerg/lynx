@@ -21,9 +21,8 @@ const Provider = "BedrockKnowledgeBase"
 
 // StoreConfig contains configuration options for the AWS Bedrock
 // Knowledge Base vector store. Bedrock manages document ingestion
-// out of band (S3 data source + StartIngestionJob), so this store is
-// effectively read-only — [Store.Create] and [Store.Delete] return
-// [ErrUnsupported].
+// out of band (S3 data source + StartIngestionJob), so this store exposes only
+// semantic search.
 type StoreConfig struct {
 	// Client is the bedrockagentruntime client. Required.
 	Client *bedrockagentruntime.Client
@@ -36,7 +35,7 @@ type StoreConfig struct {
 	// VectorSearchConfiguration sent with each Retrieve call —
 	// number of results / override search type / metadata filter.
 	// Optional; the store fills in NumberOfResults from
-	// [vectorstore.RetrievalRequest.TopK] automatically.
+	// [vectorstore.SearchRequest.TopK] automatically.
 	VectorSearchOverrides *types.KnowledgeBaseVectorSearchConfiguration
 }
 
@@ -50,10 +49,10 @@ func (c StoreConfig) Validate() error {
 	return nil
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var _ vectorstore.Searcher = (*Store)(nil)
 
-// Store is a Bedrock Knowledge Base backed [vectorstore.Store]
-// implementation.
+// Store is a searchable Bedrock Knowledge Base. Ingestion and deletion are
+// intentionally absent because the runtime API cannot perform them.
 type Store struct {
 	client          *bedrockagentruntime.Client
 	knowledgeBaseID string
@@ -71,27 +70,14 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Create returns [ErrUnsupported]. Bedrock Knowledge Bases ingest
-// documents via configured data sources (S3, Confluence, etc.), not
-// the runtime API.
-func (s *Store) Create(_ context.Context, _ *vectorstore.CreateRequest) error {
-	return ErrUnsupported
-}
-
-// Delete returns [ErrUnsupported] for the same reason as
-// [Store.Create].
-func (s *Store) Delete(_ context.Context, _ *vectorstore.DeleteRequest) error {
-	return ErrUnsupported
-}
-
-// Retrieve runs the Bedrock Knowledge Base Retrieve API.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
+// Search runs the Bedrock Knowledge Base Retrieve API.
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("bedrockkb: invalid retrieval request: %w", err)
+		return nil, fmt.Errorf("bedrockkb: invalid search request: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "bedrockkb", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+	ctx, span := tracing.StartSearch(ctx, "bedrockkb", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	vectorCfg := s.vectorSearchConfig(req)
 	retrievalCfg := &types.KnowledgeBaseRetrievalConfiguration{
@@ -126,7 +112,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 // vectorSearchConfig builds the per-call vector search configuration,
 // layering caller-supplied overrides on top of the request defaults.
-func (s *Store) vectorSearchConfig(req *vectorstore.RetrievalRequest) *types.KnowledgeBaseVectorSearchConfiguration {
+func (s *Store) vectorSearchConfig(req vectorstore.SearchRequest) *types.KnowledgeBaseVectorSearchConfiguration {
 	topK := int32(req.TopK)
 	cfg := &types.KnowledgeBaseVectorSearchConfiguration{
 		NumberOfResults: &topK,
@@ -189,13 +175,6 @@ func toMatch(r types.KnowledgeBaseRetrievalResult) (vectorstore.Match, error) {
 		doc.ID = doc.Text
 	}
 	return vectorstore.Match{Document: doc, Score: score}, nil
-}
-
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		NativeClient: s.client,
-		Provider:     Provider,
-	}
 }
 
 func (s *Store) Close() error { return nil }

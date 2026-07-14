@@ -1,5 +1,5 @@
 // Package vectara wraps Vectara's managed RAG service as a
-// [vectorstore.Store]. Vectara handles embedding, chunking, and
+// the vectorstore capability interfaces. Vectara handles embedding, chunking, and
 // retrieval internally — the store sends raw text to the v2 API and
 // does NOT need an [embedding.Model]. This is unlike every other
 // lynx vector store.

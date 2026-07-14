@@ -1,5 +1,5 @@
 // Package typesense wraps Typesense's vector search as a
-// [vectorstore.Store]. Documents are regular Typesense documents in
+// the vectorstore capability interfaces. Documents are regular Typesense documents in
 // a collection with id / content / metadata (nested object) / embedding
 // (float[]) fields, reached through the official typesense-go v3
 // client.

@@ -1,5 +1,5 @@
-// Package bedrockkb wraps AWS Bedrock Knowledge Bases as a
-// [vectorstore.Store]. Bedrock Knowledge Base is a managed RAG
+// Package bedrockkb wraps AWS Bedrock Knowledge Bases as a semantic searcher.
+// Bedrock Knowledge Base is a managed RAG
 // service — embedding, chunking, and persistence are all handled
 // behind the API; lynx only consumes the runtime Retrieve surface.
 //
@@ -9,14 +9,13 @@
 // bedrockagentruntime client.
 //
 // Document lifecycle. Bedrock ingests via the configured data source
-// + StartIngestionJob — there's no runtime upsert / delete. The store
-// reflects that: [Store.Create] and [Store.Delete] always return
-// [ErrUnsupported]. Manage documents via the data source instead
+// + StartIngestionJob — there's no runtime upsert / delete. The store exposes
+// no fake mutation methods. Manage documents via the data source instead
 // (StartIngestionJob through the bedrockagent control plane).
 //
 // Retrieve uses Bedrock's runtime Retrieve API with the configured
 // [types.KnowledgeBaseVectorSearchConfiguration] — NumberOfResults
-// is populated from [vectorstore.RetrievalRequest.TopK]. Callers can
+// is populated from [vectorstore.SearchRequest.TopK]. Callers can
 // override search type / reranking / implicit filter via
 // [StoreConfig.VectorSearchOverrides].
 //

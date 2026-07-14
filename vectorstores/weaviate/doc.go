@@ -1,4 +1,4 @@
-// Package weaviate wraps Weaviate as a [vectorstore.Store].
+// Package weaviate wraps Weaviate as a the vectorstore capability interfaces.
 // Documents are stored as objects in a Weaviate class (`{id,
 // vector, properties}`); retrieval runs Weaviate's `nearVector`
 // (or `nearText` when the class is configured with a vectorizer)

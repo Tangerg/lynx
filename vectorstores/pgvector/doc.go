@@ -1,5 +1,5 @@
 // Package pgvector wraps the pgvector PostgreSQL extension as a
-// [vectorstore.Store]. Documents live in a regular Postgres table
+// the vectorstore capability interfaces. Documents live in a regular Postgres table
 // with a typed `vector(N)` column; metadata is stored in a `jsonb`
 // column and reached through `metadata->>'key'` extractors.
 //

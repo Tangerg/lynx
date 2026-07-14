@@ -12,6 +12,8 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
@@ -101,11 +103,13 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ vectorstore.Store     = (*Store)(nil)
-	_ vectorstore.IDDeleter = (*Store)(nil)
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is a Chroma-backed implementation of vectorstore.Store.
+// Store is a Chroma-backed implementation of vectorstore capability interfaces.
 type Store struct {
 	client               v2.Client
 	collection           v2.Collection
@@ -267,16 +271,16 @@ func (s *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) 
 }
 
 // Create embeds the documents in req and upserts them into Chroma.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("chroma: invalid create request: %w", err)
+func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
 
-	ctx, span := tracing.StartCreate(ctx, "chroma", len(req.Documents))
+	ctx, span := tracing.StartAdd(ctx, "chroma", len(docs))
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to batch documents: %w", err)
 	}
@@ -306,7 +310,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 
 // buildQueryOptions assembles the Query options for the given retrieval request
 // and the pre-computed query embedding vector.
-func (s *Store) buildQueryOptions(req *vectorstore.RetrievalRequest, queryVector []float32) ([]v2.CollectionQueryOption, error) {
+func (s *Store) buildQueryOptions(req vectorstore.SearchRequest, queryVector []float32) ([]v2.CollectionQueryOption, error) {
 	includes := []v2.Include{v2.IncludeMetadatas, v2.IncludeDistances}
 	if s.storeDocumentContent {
 		includes = append(includes, v2.IncludeDocuments)
@@ -391,13 +395,13 @@ func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64
 }
 
 // Retrieve embeds the query in req, searches Chroma, and returns matching documents.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("chroma: invalid retrieval request: %w", err)
+		return nil, fmt.Errorf("chroma: invalid search request: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "chroma", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+	ctx, span := tracing.StartSearch(ctx, "chroma", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
 	vector, _, err = s.embeddingClient.
@@ -430,16 +434,19 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes documents from the collection that match the filter in req.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("chroma: invalid delete request: %w", err)
+func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+	if expr == nil {
+		return vectorstore.ErrMissingFilter
+	}
+	if err = filter.Analyze(expr); err != nil {
+		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
 	ctx, span := tracing.StartDelete(ctx, "chroma")
 	defer func() { tracing.Finish(span, err) }()
 
 	var filter v2.WhereFilter
-	filter, err = ToFilter(req.Filter)
+	filter, err = ToFilter(expr)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to convert filter: %w", err)
 	}
@@ -457,10 +464,10 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
-// DeleteByIDs removes documents from the collection by their Chroma IDs.
+// DeleteIDs removes documents from the collection by their Chroma IDs.
 // An empty slice is a no-op; unknown ids are silently ignored. Implements
 // [vectorstore.IDDeleter].
-func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -482,12 +489,6 @@ func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 }
 
 // Info returns metadata about this store instance.
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		NativeClient: s.client,
-		Provider:     Provider,
-	}
-}
 
 // Close releases resources held by the underlying Chroma collection handle.
 func (s *Store) Close() error {
