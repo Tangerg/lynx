@@ -1,6 +1,6 @@
 # CLAUDE.md — tools module
 
-> 给 LLM 调用的具体工具集(shell / 文件系统 / HTTP / 网页抓取 / 网页搜索 / skill 等),都实现 core 的 `chat.Tool`。
+> 给 LLM 调用的具体工具集(shell / 文件系统 / HTTP / 网页抓取 / 网页搜索 / skill 等)，目标统一实现根包的 `tools.Tool`；模型可见定义使用 `core/chat` 协议值。
 > 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。工具名录 / 依赖版本以代码为准 —— 本则只讲宏观。
 
 ---
@@ -13,6 +13,7 @@
 
 - **两层 SPI 是核心**:Tool 层只做 JSON ↔ Go + schema 校验 + LLM 交互;**所有业务逻辑**(行号、binary 检测、写锁、路径锚定 …)都在 Executor 层 —— 这样远程 backend 能独立优化,不必往返整个文件。
 - **手动注册,无全局 registry**:调用方显式把工具注册进自己的 toolset,多 agent / 多进程各管各的。
+- **迁移期只有一套目标 Registry**:根包 `tools.Registry` 是新路径唯一 registry；现有子包在 P3 前仍实现冻结的 `core/model/chat.Tool`，迁移时直接切到根包契约，不再建立第二套 registry。
 - **schema 从 Input struct 自动推导**:写工具不手写 schema 字符串。
 - **Nil-safety 双标**:有本地实现的(shell / fs 等)`New(nil)` 默认本地、开箱即用;必须外部配置的(websearch / webfetch / httpreq)`New(nil)` **返错** —— 没有本地 fallback。
 - **输出超限截断而非报错**:带 truncated 标记,LLM 据此决定下一步。
