@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/model/audio/transcription"
+	"github.com/Tangerg/lynx/core/transcription"
 )
 
 type fakeTranscriptionModel struct {

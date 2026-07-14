@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/image"
+	"github.com/Tangerg/lynx/core/image"
 )
 
 type fakeImageModel struct {

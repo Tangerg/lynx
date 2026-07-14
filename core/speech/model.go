@@ -1,4 +1,4 @@
-package tts
+package speech
 
 import "github.com/Tangerg/lynx/core/model"
 

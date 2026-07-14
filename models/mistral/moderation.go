@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/model"
-	"github.com/Tangerg/lynx/core/model/moderation"
+	"github.com/Tangerg/lynx/core/moderation"
 )
 
 type ModerationModelConfig struct {

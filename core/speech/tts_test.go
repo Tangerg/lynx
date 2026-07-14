@@ -1,4 +1,4 @@
-package tts_test
+package speech_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"iter"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/audio/tts"
+	tts "github.com/Tangerg/lynx/core/speech"
 )
 
 type fakeTTSModel struct {

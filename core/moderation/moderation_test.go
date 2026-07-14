@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/moderation"
+	"github.com/Tangerg/lynx/core/moderation"
 )
 
 type fakeModerationModel struct {

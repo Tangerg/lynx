@@ -6,7 +6,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/model"
-	"github.com/Tangerg/lynx/core/model/audio/tts"
+	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/openai"
 )
 

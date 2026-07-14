@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/genai"
 
-	"github.com/Tangerg/lynx/core/model/audio/transcription"
+	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/google"
 )
 

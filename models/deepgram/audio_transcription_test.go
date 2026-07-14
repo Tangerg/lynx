@@ -6,7 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model"
-	"github.com/Tangerg/lynx/core/model/audio/transcription"
+	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/deepgram"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 )
