@@ -7,8 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
+
+type pathGuardArgs struct {
+	FilePath string `json:"file_path"`
+}
 
 // TestWithPathGuard verifies the VCS-metadata write barrier: writes whose
 // resolved path lands inside a .git directory (directly, nested, or via a
@@ -16,9 +20,9 @@ import (
 // ordinary paths — including non-.git dotfiles — pass through untouched.
 func TestWithPathGuard(t *testing.T) {
 	called := false
-	inner, _ := chat.NewTool[struct{}, string](
-		chat.ToolDefinition{Name: "write", Description: "stub"},
-		func(context.Context, struct{}) (string, error) {
+	inner, _ := tools.New[pathGuardArgs, string](
+		tools.Config{Name: "write", Description: "stub"},
+		func(context.Context, pathGuardArgs) (string, error) {
 			called = true
 			return "wrote", nil
 		},
@@ -77,9 +81,9 @@ func TestWithPathGuardRejectsSymlinkAliasesIntoGit(t *testing.T) {
 	}
 
 	called := false
-	inner, _ := chat.NewTool[struct{}, string](
-		chat.ToolDefinition{Name: "write", Description: "stub"},
-		func(context.Context, struct{}) (string, error) {
+	inner, _ := tools.New[pathGuardArgs, string](
+		tools.Config{Name: "write", Description: "stub"},
+		func(context.Context, pathGuardArgs) (string, error) {
 			called = true
 			return "wrote", nil
 		},
@@ -107,9 +111,9 @@ func TestWithPathGuardRejectsSymlinkCycle(t *testing.T) {
 	}
 
 	called := false
-	inner, _ := chat.NewTool[struct{}, string](
-		chat.ToolDefinition{Name: "write", Description: "stub"},
-		func(context.Context, struct{}) (string, error) {
+	inner, _ := tools.New[pathGuardArgs, string](
+		tools.Config{Name: "write", Description: "stub"},
+		func(context.Context, pathGuardArgs) (string, error) {
 			called = true
 			return "wrote", nil
 		},

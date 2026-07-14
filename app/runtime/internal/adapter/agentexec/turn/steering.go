@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	corechat "github.com/Tangerg/lynx/core/model/chat"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 // InjectSteering queues message onto the active turn's pending steering buffer.
@@ -51,7 +51,7 @@ func (s *inMemory) steerSource(st *turnState) agentexec.SteerSource {
 		out := make([]corechat.Message, len(queue))
 		for i, m := range queue {
 			s.emit(st, SteerMessage{Text: m})
-			out[i] = corechat.NewUserMessage(m)
+			out[i] = corechat.NewUserMessage(corechat.NewTextPart(m))
 		}
 		return out
 	}

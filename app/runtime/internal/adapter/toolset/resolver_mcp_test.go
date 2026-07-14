@@ -4,7 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type mcpToolStub struct {
@@ -22,7 +23,7 @@ func (mcpToolStub) Call(context.Context, string) (string, error) {
 func TestResolverMCPToolsReadsCurrentPolicy(t *testing.T) {
 	disabled := map[string]bool{}
 	resolver := &Resolver{mcpToolDisabled: func(name string) bool { return disabled[name] }}
-	resolver.SetMCPTools([]chat.Tool{mcpToolStub{name: "files_read"}, mcpToolStub{name: "files_write"}})
+	resolver.SetMCPTools([]tools.Tool{mcpToolStub{name: "files_read"}, mcpToolStub{name: "files_write"}})
 
 	tests := []struct {
 		name     string
@@ -56,7 +57,7 @@ func TestResolverMCPToolsReadsCurrentPolicy(t *testing.T) {
 
 func TestResolverSetMCPToolsSnapshotsInput(t *testing.T) {
 	resolver := &Resolver{}
-	tools := []chat.Tool{mcpToolStub{name: "before"}}
+	tools := []tools.Tool{mcpToolStub{name: "before"}}
 	resolver.SetMCPTools(tools)
 	tools[0] = mcpToolStub{name: "after"}
 

@@ -4,7 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 const compactionPrompt = `You are compacting the earlier portion of a long coding-agent
@@ -42,13 +43,13 @@ your sections verbatim.`
 func (c *Compactor) summarize(ctx context.Context, msgs []chat.Message) (chat.Message, error) {
 	transcript := renderTranscript(msgs, summaryToolResultCap)
 
-	var client *chat.Client
+	var client *chatclient.Client
 	if c.client != nil {
 		client = c.client(ctx)
 	}
 	text, err := askDirect(ctx, client, compactionPrompt, transcript)
 	if err != nil {
-		return nil, err
+		return chat.Message{}, err
 	}
 
 	body := "[Earlier conversation summary]\n" + strings.TrimSpace(text)

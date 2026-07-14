@@ -9,7 +9,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	corechat "github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 // TestStubEngineDrivesTurn — confirms the turn dispatcher runs a full
@@ -244,7 +245,7 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 // the turn-dispatcher half of per-run model selection.
 func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
-	sentinel, _ := corechat.NewClient(newCapturingModel())
+	sentinel, _ := chatclient.New(newCapturingModel())
 	resolver := &fakeResolver{client: sentinel}
 
 	svc := mustTurn(turn.New(turnDeps(stub, withClientResolver(resolver))))

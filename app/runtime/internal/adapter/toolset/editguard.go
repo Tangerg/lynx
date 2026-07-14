@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // The read/edit/write guards: the LLM-facing presentation of the
@@ -22,7 +21,7 @@ import (
 
 // withReadTracking wraps the read tool to stamp every successfully read file,
 // marking it partial when only a line range was requested.
-func withReadTracking(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.Tool {
+func withReadTracking(inner tools.Tool, tr *editguard.Tracker, workdir string) tools.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -49,7 +48,7 @@ func withReadTracking(inner chat.Tool, tr *editguard.Tracker, workdir string) ch
 
 // withEditGuard wraps the edit tool: it requires the file to have been read and
 // unchanged since, then refreshes the stamp after a successful edit.
-func withEditGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.Tool {
+func withEditGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) tools.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -85,7 +84,7 @@ func withEditGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.
 // withWriteGuard wraps the write tool: overwriting an EXISTING file requires a
 // full, current read (a new file or an append is exempt — there's nothing to
 // clobber). The stamp is refreshed after a successful write.
-func withWriteGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.Tool {
+func withWriteGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) tools.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -137,7 +136,7 @@ func fingerprintFile(path string) (editguard.Fingerprint, error) {
 // the resolved workspace directory for this resolution; the wrapped tool's path
 // argument is relative to it. A fs-edit decorator (sibling to the read/edit/write
 // guards), not an lsp query tool — hence it lives here, not in the lsptools package.
-func withEditDiagnostics(inner chat.Tool, ci *codeintel.Analyzer, root string) chat.Tool {
+func withEditDiagnostics(inner tools.Tool, ci *codeintel.Analyzer, root string) tools.Tool {
 	if ci == nil {
 		return inner
 	}

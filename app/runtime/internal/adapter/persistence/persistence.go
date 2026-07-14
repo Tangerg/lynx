@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	history "github.com/Tangerg/lynx/chathistory"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"

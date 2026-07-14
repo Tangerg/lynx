@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	corechat "github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 // Rehydrate rebuilds a parked turn from a persisted process snapshot without
@@ -30,7 +30,7 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	// provider+model so the continuation runs against the SAME model (mirrors
 	// the StartTurn path). No selection / no resolver / a provider since removed
 	// → nil client = platform default, and the span records "default".
-	var client *corechat.Client
+	var client *chatclient.Client
 	if req.Provider != "" && req.Model != "" && s.resolver != nil {
 		c, err := s.resolver.ResolveClient(state.ctx, req.Provider, req.Model)
 		if err != nil {

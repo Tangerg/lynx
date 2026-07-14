@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -23,7 +23,7 @@ const (
 // sub-agents on the engine's platform, then injected back into the resolver.
 type ToolResolver interface {
 	core.ToolGroupResolver
-	SetTask(chat.Tool)
+	SetTask(tools.Tool)
 }
 
 // MCPStatusReader reads live status for configured MCP servers.

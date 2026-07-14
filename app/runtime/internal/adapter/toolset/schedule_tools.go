@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // scheduleRequest is the single `schedule` tool's argument shape — one
@@ -56,12 +55,12 @@ type scheduleView struct {
 
 // newScheduleTool builds the single `schedule` management tool. nil reg → nil
 // tool (feature off, omitted). Coding role only.
-func newScheduleTool(reg schedule.Registry) (chat.Tool, error) {
+func newScheduleTool(reg schedule.Registry) (tools.Tool, error) {
 	if reg == nil {
 		return nil, nil
 	}
-	return chat.NewTool[scheduleRequest, string](
-		chat.ToolDefinition{
+	return tools.New[scheduleRequest, string](
+		tools.Config{
 			Name:        "schedule",
 			Description: "Manage cron schedules for background agent runs. op=list returns all; create needs prompt + cron; update patches by id (omitted fields unchanged); delete removes by id.",
 		},

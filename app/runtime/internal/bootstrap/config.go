@@ -12,7 +12,7 @@ import (
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 // LoadConfig loads the app config and resolves provider defaults plus env-key
@@ -45,7 +45,7 @@ func resolveProviderConfig(cfg config.Config) (config.Config, error) {
 
 // DefaultClient builds the provider/model client used when a turn does not
 // choose a per-run model.
-func DefaultClient(cfg config.Config) (*chat.Client, error) {
+func DefaultClient(cfg config.Config) (*chatclient.Client, error) {
 	return llm.BuildClient(llm.ClientSpec{
 		Provider: llm.Provider(cfg.Provider),
 		Model:    cfg.Model,

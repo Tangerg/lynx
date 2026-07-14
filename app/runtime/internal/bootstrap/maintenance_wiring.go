@@ -3,8 +3,8 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/chatclient"
+	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/models/catalog"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
@@ -13,7 +13,7 @@ import (
 
 // wireMaintenancePorts fills the engine's compaction + extraction SPIs with the
 // in-house maintenance services when the composition root didn't inject its own.
-func wireMaintenancePorts(ecfg *agentexec.Config, cfg Config, historyStore history.Store, resolveUtility func(context.Context) *chat.Client) {
+func wireMaintenancePorts(ecfg *agentexec.Config, cfg Config, historyStore history.Store, resolveUtility func(context.Context) *chatclient.Client) {
 	if ecfg.Compactor == nil {
 		// Window-relative compaction trigger: resolve the default turn model's
 		// context window from the catalog so compaction fires relative to the

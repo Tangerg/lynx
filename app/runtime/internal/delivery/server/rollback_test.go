@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // rollbackHarness wires a Server over a sqlite-backed stub: a real session
@@ -69,8 +69,8 @@ func TestRollbackSession_DropTail(t *testing.T) {
 
 	// Two completed turns: R1 left 3 messages, R2 left 6.
 	rt.history[sess.ID] = []chat.Message{
-		chat.NewUserMessage("u1"), chat.NewAssistantMessage("a1"), chat.NewUserMessage("u1b"),
-		chat.NewUserMessage("u2"), chat.NewAssistantMessage("a2"), chat.NewUserMessage("u2b"),
+		chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1")), chat.NewUserMessage(chat.NewTextPart("u1b")),
+		chat.NewUserMessage(chat.NewTextPart("u2")), chat.NewAssistantMessage(chat.NewTextPart("a2")), chat.NewUserMessage(chat.NewTextPart("u2b")),
 	}
 	putRun(t, rt, sess.ID, "run_1", 100, 3)
 	putRun(t, rt, sess.ID, "run_2", 200, 6)
@@ -103,8 +103,8 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	rt.history[sess.ID] = []chat.Message{
-		chat.NewUserMessage("u1"), chat.NewAssistantMessage("a1"),
-		chat.NewUserMessage("u2"), chat.NewAssistantMessage("a2"),
+		chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1")),
+		chat.NewUserMessage(chat.NewTextPart("u2")), chat.NewAssistantMessage(chat.NewTextPart("a2")),
 	}
 	putRun(t, rt, sess.ID, "run_1", 100, 2)
 	putRun(t, rt, sess.ID, "run_2", 200, 4)
@@ -144,8 +144,8 @@ func TestRollbackSession_DropAll(t *testing.T) {
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 	child, _ := rt.sess.CreateSubtask(ctx, "ses_child", sess.ID)
-	rt.history[sess.ID] = []chat.Message{chat.NewUserMessage("u1"), chat.NewAssistantMessage("a1")}
-	rt.history[child.ID] = []chat.Message{chat.NewUserMessage("sub")}
+	rt.history[sess.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1"))}
+	rt.history[child.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("sub"))}
 	putRun(t, rt, sess.ID, "run_1", 100, 2)
 	if err := rt.interrupts.Put(ctx, interrupts.Pending{RunID: "run_child", SessionID: child.ID}); err != nil {
 		t.Fatalf("seed child interrupt: %v", err)
@@ -184,7 +184,7 @@ func TestRollbackSessionPreservesUserForks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create fork: %v", err)
 	}
-	rt.history[fork.ID] = []chat.Message{chat.NewUserMessage("keep me")}
+	rt.history[fork.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("keep me"))}
 	putRun(t, rt, parent.ID, "run_1", 100, 0)
 
 	if _, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: parent.ID}); err != nil {
@@ -278,8 +278,8 @@ func TestForkSession_FromRun(t *testing.T) {
 	ctx := context.Background()
 	parent, _ := rt.sess.Create(ctx, "p", "/w")
 	rt.history[parent.ID] = []chat.Message{
-		chat.NewUserMessage("u1"), chat.NewAssistantMessage("a1"),
-		chat.NewUserMessage("u2"), chat.NewAssistantMessage("a2"),
+		chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1")),
+		chat.NewUserMessage(chat.NewTextPart("u2")), chat.NewAssistantMessage(chat.NewTextPart("a2")),
 	}
 	putRun(t, rt, parent.ID, "run_1", 100, 2)
 	putRun(t, rt, parent.ID, "run_2", 200, 4)

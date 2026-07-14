@@ -2,7 +2,7 @@
 // turn execution, delivery, and pricing adapters.
 package accounting
 
-import "github.com/Tangerg/lynx/core/model/chat"
+import "github.com/Tangerg/lynx/core/chat"
 
 // TokenUsage is a token roll-up. ReasoningTokens is the chain-of-thought
 // subset of CompletionTokens, so total counts only prompt + completion.

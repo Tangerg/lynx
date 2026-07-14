@@ -7,8 +7,8 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // target is a connected (name, session) pair snapshotted under the lock so the
@@ -118,7 +118,7 @@ func (c *Connections) refreshTools(ctx context.Context) {
 	sink := c.onTools
 	c.mu.Unlock()
 
-	var tools []chat.Tool
+	var tools []tools.Tool
 	for _, t := range targets {
 		srcTools, err := sourceTools(ctx, lynxmcp.ToolSource{Name: t.name, Session: t.session})
 		if err != nil {

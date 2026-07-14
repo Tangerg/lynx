@@ -9,9 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
+	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/fs"
 )
 
@@ -19,7 +18,7 @@ import (
 // guards over dir. The tests pass no code-intelligence analyzer, so the
 // diagnostics wrap is a no-op. They drive the tools with a plain context, so
 // turnSession resolves to "" and every call shares one session bucket.
-func guardTools(dir string) (read, edit, write chat.Tool, tr *editguard.Tracker) {
+func guardTools(dir string) (read, edit, write tools.Tool, tr *editguard.Tracker) {
 	tr = editguard.NewTracker()
 	ex := fs.NewLocalExecutor(dir)
 	read = withReadTracking(fs.NewReadTool(ex), tr, dir)
@@ -28,7 +27,7 @@ func guardTools(dir string) (read, edit, write chat.Tool, tr *editguard.Tracker)
 	return read, edit, write, tr
 }
 
-func guardToolsWithFormat(dir string) (read, edit chat.Tool) {
+func guardToolsWithFormat(dir string) (read, edit tools.Tool) {
 	tr := editguard.NewTracker()
 	ex := fs.NewLocalExecutor(dir)
 	read = withReadTracking(fs.NewReadTool(ex), tr, dir)

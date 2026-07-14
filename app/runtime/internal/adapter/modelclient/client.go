@@ -11,10 +11,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 // CredentialLookup is the model-client construction view of the provider
@@ -32,21 +31,21 @@ type ClientResolver struct {
 	providers CredentialLookup
 
 	mu    sync.Mutex
-	cache map[string]*chat.Client
+	cache map[string]*chatclient.Client
 }
 
 // NewClientResolver returns a resolver over the provider credential lookup.
 func NewClientResolver(providers CredentialLookup) *ClientResolver {
 	return &ClientResolver{
 		providers: providers,
-		cache:     map[string]*chat.Client{},
+		cache:     map[string]*chatclient.Client{},
 	}
 }
 
 // ResolveClient returns the client for (provider, model), building it from the
 // provider's registry credentials. Errors when the provider isn't configured /
 // enabled — the run then ends with a clear "set its API key first" error.
-func (r *ClientResolver) ResolveClient(ctx context.Context, providerID, model string) (*chat.Client, error) {
+func (r *ClientResolver) ResolveClient(ctx context.Context, providerID, model string) (*chatclient.Client, error) {
 	entry, ok, err := r.providers.Get(ctx, providerID)
 	if err != nil {
 		return nil, err

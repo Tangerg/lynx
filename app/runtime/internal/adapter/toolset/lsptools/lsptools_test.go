@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // lspTool returns the combined `lsp` tool from a fresh Build.
-func lspTool(t *testing.T, ci *codeintel.Analyzer) chat.Tool {
+func lspTool(t *testing.T, ci *codeintel.Analyzer) tools.Tool {
 	t.Helper()
 	tools, err := Build(ci, t.TempDir())
 	if err != nil {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -56,7 +56,7 @@ func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 		items: []transcript.Item{{ID: "it_1"}},
 		runs:  []transcript.Run{{ID: "run_1"}},
 	}
-	hist := &fakeHistory{msgs: []chat.Message{chat.NewUserMessage("hi")}}
+	hist := &fakeHistory{msgs: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hi"))}}
 	ints := &fakeInterrupts{pending: []interrupts.Pending{{RunID: "run_1"}}}
 	c := New(Dependencies{Transcript: tx, History: hist, Interrupts: ints})
 

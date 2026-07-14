@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools/httpreq"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
@@ -254,7 +254,7 @@ type patchPathStub struct {
 }
 
 func (p *patchPathStub) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{Name: "apply_patch", InputSchema: `{"type":"object"}`}
+	return chat.ToolDefinition{Name: "apply_patch", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
 func (p *patchPathStub) Call(context.Context, string) (string, error) {

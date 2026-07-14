@@ -17,12 +17,12 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 const toolName = "ask_user"
 
-// askUserArgs is the model-facing argument shape; [chat.NewTool] derives
+// askUserArgs is the model-facing argument shape; [tools.New] derives
 // the JSON schema from it and decodes calls back into it, so the advertised
 // schema and parsed value cannot drift. It mirrors [interrupts.QuestionPrompt]
 // with the LLM-facing copy kept here (out of the domain type, which
@@ -77,13 +77,13 @@ type tool struct {
 }
 
 // New builds the ask_user tool.
-func New(interrupt interrupts.Interruption) (chat.Tool, error) {
+func New(interrupt interrupts.Interruption) (tools.Tool, error) {
 	if interrupt == nil {
 		interrupt = interrupts.NoInterruption
 	}
 	t := &tool{interrupt: interrupt}
-	return chat.NewTool[askUserArgs, string](
-		chat.ToolDefinition{
+	return tools.New[askUserArgs, string](
+		tools.Config{
 			Name:        toolName,
 			Description: "Ask the user a question and wait for their answer. Use when you need a decision, clarification, or information only the user can provide - not for routine progress updates. Give 2-4 `options` for a multiple-choice question (put the recommended one first), or omit `options` for a free-text answer; set `multi_select` when more than one option may apply.",
 		},

@@ -11,8 +11,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type sourcegraphConfig struct {
@@ -60,7 +61,7 @@ type sourcegraphTool struct {
 	client    *http.Client
 }
 
-func newSourcegraphTool(cfg sourcegraphConfig) (chat.Tool, error) {
+func newSourcegraphTool(cfg sourcegraphConfig) (tools.Tool, error) {
 	streamURL, err := sourcegraphStreamURL(cfg.Endpoint)
 	if err != nil {
 		return nil, err
@@ -72,7 +73,7 @@ func (t *sourcegraphTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name:        "sourcegraph_search",
 		Description: "Search code with Sourcegraph streaming search. Use for public or configured Sourcegraph code search across repositories.",
-		InputSchema: sourcegraphSchema,
+		InputSchema: json.RawMessage(sourcegraphSchema),
 	}
 }
 

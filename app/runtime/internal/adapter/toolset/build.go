@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/httpreq"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
@@ -70,7 +70,7 @@ type BuildConfig struct {
 // closers the engine runs at shutdown.
 type Built struct {
 	Resolver              *Resolver
-	Tools                 []chat.Tool
+	Tools                 []tools.Tool
 	MCPStatusReader       toolport.MCPStatusReader
 	MCPToolCatalog        toolport.MCPToolCatalog
 	MCPConnectionCommands toolport.MCPConnectionCommands

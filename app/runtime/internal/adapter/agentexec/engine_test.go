@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -26,7 +27,7 @@ import (
 // real LLM in the loop.
 func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 	stub := newStubModel("shell", `{"command":"echo lyra"}`, "I ran echo and got lyra.")
-	client, err := chat.NewClient(stub)
+	client, err := chatclient.New(stub)
 	if err != nil {
 		t.Fatalf("chat client: %v", err)
 	}
@@ -80,7 +81,7 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 // notifications.
 func TestEngine_RunChat_NoObserver(t *testing.T) {
 	stub := newStubModel("shell", `{"command":"echo lyra"}`, "done")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub, chatclient.WithDefaults(*stub.defaults))
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
@@ -102,7 +103,7 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 // The turn would return a "tool not registered" error.
 func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 	stub := newStubModel("frobnicate", `{}`, "recovered: used a real approach")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub, chatclient.WithDefaults(*stub.defaults))
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
@@ -124,7 +125,7 @@ func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 // can't recurse.)
 func TestEngine_RunChat_TaskDelegation(t *testing.T) {
 	stub := newDelegatingStubModel()
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
@@ -150,7 +151,7 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 		t.Fatalf("seed sentinel: %v", err)
 	}
 	stub := newStubModel("shell", `{"command":"ls"}`, "done")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
@@ -181,7 +182,7 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 	dir := t.TempDir()
 	stub := newCwdDelegatingStubModel()
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
@@ -211,7 +212,7 @@ func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 // the main turn surfaces it.
 func TestEngine_RunChat_SubtaskKeepsHistoryAcrossRounds(t *testing.T) {
 	stub := newSubtaskMemoryStub()
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
@@ -236,7 +237,7 @@ func TestEngine_RunChat_SubtaskKeepsHistoryAcrossRounds(t *testing.T) {
 // of all chunks.
 func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 	stub := newStreamingStubModel("Hello, ", "world!", " (lyra)")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
@@ -268,7 +269,7 @@ func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 
 func TestEngine_RunChat_PassesOptions(t *testing.T) {
 	stub := newStreamingStubModel("ok")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub, chatclient.WithDefaults(*stub.defaults))
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
@@ -309,7 +310,7 @@ func TestEngine_RunChat_PassesOptions(t *testing.T) {
 
 func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	stub := newOptionToolStub()
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub, chatclient.WithDefaults(*stub.defaults))
 	store := newJSONProcessStore()
 	built, err := toolset.Build(context.Background(), toolset.BuildConfig{})
 	if err != nil {
@@ -412,8 +413,8 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 // actually drives the turn's LLM call (via the ChatClientProvider seam),
 // not the platform's default client.
 func TestEngine_RunChat_PerRunClientOverride(t *testing.T) {
-	defClient, _ := chat.NewClient(newNamedStub("default-model"))
-	ovrClient, _ := chat.NewClient(newNamedStub("override-model"))
+	defClient, _ := chatclient.New(newNamedStub("default-model"))
+	ovrClient, _ := chatclient.New(newNamedStub("override-model"))
 	eng, err := New(context.Background(), Config{ChatClient: defClient})
 	if err != nil {
 		t.Fatal(err)

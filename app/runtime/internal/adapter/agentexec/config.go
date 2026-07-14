@@ -6,8 +6,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/chatclient"
+	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // Config is the engine construction-time bundle. ChatClient is the
@@ -17,7 +18,7 @@ import (
 type Config struct {
 	// ChatClient is the LLM client used by every action. Built from
 	// a lynx model adapter (anthropic, openai, ...) at startup.
-	ChatClient *chat.Client
+	ChatClient *chatclient.Client
 
 	// Workdir is the DEFAULT working directory — the fallback for
 	// turns that carry no session cwd. A turn that does carry one
@@ -67,7 +68,7 @@ type Config struct {
 	// resolver, task is not available (the env can still pass only static tools
 	// like ask_user).
 	ToolResolver          toolport.ToolResolver
-	Tools                 []chat.Tool                    // canonical tool list (without task)
+	Tools                 []tools.Tool                   // canonical tool list (without task)
 	MCPStatusReader       toolport.MCPStatusReader       // live MCP server status read model
 	MCPToolCatalog        toolport.MCPToolCatalog        // live MCP tool read model
 	MCPConnectionCommands toolport.MCPConnectionCommands // reconnect / authorize configured servers

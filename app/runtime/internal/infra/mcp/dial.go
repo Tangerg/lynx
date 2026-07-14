@@ -11,8 +11,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // tracer emits the MCP dial / reconnect spans the lower layers don't (per-call
@@ -28,7 +28,7 @@ var tracer = otel.Tracer("lynx/lyra/infra/mcp")
 // FATAL (validated before any dial); a reachability failure is TOLERATED
 // (recorded "failed" and skipped). An empty config still yields a live,
 // initially-empty Connections so runtime configuration can add servers later.
-func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []chat.Tool, error) {
+func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []tools.Tool, error) {
 	// Always carry a client, even with zero servers: the registry starts empty
 	// and the common path is a 0-server boot followed by a runtime Configure,
 	// which re-dials with this client.
@@ -64,7 +64,7 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []chat.Too
 		trace.WithAttributes(attribute.Int("mcp.server.count", len(servers))))
 	defer span.End()
 
-	var tools []chat.Tool
+	var tools []tools.Tool
 	failures := 0
 	for _, srv := range servers {
 		ms := &server{config: srv}

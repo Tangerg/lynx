@@ -14,8 +14,9 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/httpreq"
 )
 
@@ -51,7 +52,7 @@ type downloadTool struct {
 // that gates httpreq (a download is an arbitrary-URL GET that also writes to
 // disk, so it carries the identical SSRF surface); the caller only registers
 // the tool when the allowlist is non-empty.
-func newDownloadTool(workdir string, allow httpreq.Allowlist) chat.Tool {
+func newDownloadTool(workdir string, allow httpreq.Allowlist) tools.Tool {
 	client := resty.New().SetTimeout(downloadTimeout)
 	return &downloadTool{workdir: workdir, allow: allow, client: client}
 }
@@ -60,7 +61,7 @@ func (t *downloadTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name:        "download",
 		Description: "Download an HTTP(S) URL to a local file. The URL host must be in the configured allowlist. Parent directories are created. Existing files are not overwritten unless overwrite=true.",
-		InputSchema: downloadSchema,
+		InputSchema: json.RawMessage(downloadSchema),
 	}
 }
 

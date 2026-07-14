@@ -3,9 +3,8 @@ package agentexec
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 // TestEngine_RegistersLSPTools verifies the code-intelligence tools are folded
@@ -15,7 +14,7 @@ import (
 // post-edit diagnostics) is tested in internal/adapter/toolset.
 func TestEngine_RegistersLSPTools(t *testing.T) {
 	stub := newStubModel("nop", `{}`, "")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 

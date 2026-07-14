@@ -6,13 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // shellTool returns the named tool from a freshly-built shell tool set.
-func shellTool(t *testing.T, shells *exec.Shells, name string) chat.Tool {
+func shellTool(t *testing.T, shells *exec.Shells, name string) tools.Tool {
 	t.Helper()
 	tools, err := Build(shells, t.TempDir())
 	if err != nil {

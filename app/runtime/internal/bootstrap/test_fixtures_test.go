@@ -4,35 +4,22 @@ import (
 	"context"
 	"iter"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // replyStub is a minimal chat.Model that answers every turn with a fixed text
 // reply, so tests can build a chat.Client without touching a provider.
 type replyStub struct {
-	reply    string
-	defaults *chat.Options
+	reply string
 }
 
 func newReplyStub(reply string) *replyStub {
-	opts, _ := chat.NewOptions("stub")
-	return &replyStub{reply: reply, defaults: opts}
-}
-
-func (m *replyStub) DefaultOptions() chat.Options { return *m.defaults }
-
-func (m *replyStub) Metadata() chat.ModelMetadata {
-	return chat.ModelMetadata{Provider: "stub"}
+	return &replyStub{reply: reply}
 }
 
 func (m *replyStub) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
-	return chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(m.reply),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 }
 
 func (m *replyStub) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {

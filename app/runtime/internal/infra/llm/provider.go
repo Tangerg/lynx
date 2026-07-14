@@ -2,7 +2,7 @@
 // construction of a chat client for one. It owns the static provider table
 // (which vendors Lyra can talk to, each one's default model, key env var, and
 // wire adapter) and [BuildClient], which wires a vendor's lynx model adapter
-// into a *chat.Client. It is pure infrastructure: it wraps the external model
+// into a *chatclient.Client. It is pure infrastructure: it wraps the external model
 // SDKs and depends on no inner ring.
 //
 // The runtime-mutable credential registry (a provider's configured key + base

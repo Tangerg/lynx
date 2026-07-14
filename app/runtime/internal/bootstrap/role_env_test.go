@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 func TestBuildUtilityEnvironmentUsesLoaderPort(t *testing.T) {
-	client, err := chat.NewClient(newReplyStub("ok"))
+	client, err := chatclient.New(newReplyStub("ok"))
 	if err != nil {
 		t.Fatalf("chat client: %v", err)
 	}

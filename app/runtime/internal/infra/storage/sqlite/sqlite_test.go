@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 func newTempDB(t *testing.T) *sqlite.SessionStore {
@@ -259,15 +259,15 @@ func TestMessageStore_RoundTrip(t *testing.T) {
 		t.Fatalf("Read empty = %v (err %v), want empty", got, err)
 	}
 
-	err = store.Write(ctx, "conv-a", chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi"))
+	err = store.Write(ctx, "conv-a", chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi")))
 	if err != nil {
 		t.Fatalf("Write: %v", err)
 	}
-	err = store.Write(ctx, "conv-a", chat.NewUserMessage("again"))
+	err = store.Write(ctx, "conv-a", chat.NewUserMessage(chat.NewTextPart("again")))
 	if err != nil {
 		t.Fatalf("Write 2: %v", err)
 	}
-	err = store.Write(ctx, "conv-b", chat.NewUserMessage("other"))
+	err = store.Write(ctx, "conv-b", chat.NewUserMessage(chat.NewTextPart("other")))
 	if err != nil {
 		t.Fatalf("Write conv-b: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestMessageStore_RoundTrip(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("conv-a len = %d, want 3 (append order across writes)", len(got))
 	}
-	if u, ok := got[0].(*chat.UserMessage); !ok || u.Text != "hello" {
+	if got[0].Role != chat.RoleUser || got[0].Text() != "hello" {
 		t.Fatalf("got[0] = %#v, want user 'hello'", got[0])
 	}
 	if got2, _ := store.Read(ctx, "conv-b"); len(got2) != 1 {

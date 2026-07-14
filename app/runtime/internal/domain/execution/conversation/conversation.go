@@ -14,8 +14,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // errSessionIDRequired guards every operation: a session id is the history key,
@@ -106,5 +106,5 @@ func (m *Messages) InjectUser(ctx context.Context, sessionID, text string) error
 	if text == "" {
 		return errors.New("conversation: text must not be empty")
 	}
-	return m.store.Write(ctx, sessionID, chat.NewUserMessage(text))
+	return m.store.Write(ctx, sessionID, chat.NewUserMessage(chat.NewTextPart(text)))
 }

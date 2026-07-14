@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // pathLocker serializes file tool calls that target the same resolved path. The
@@ -77,7 +77,7 @@ func (p *pathLocker) releaseRef(path string, l *pathLock) {
 // path run one-at-a-time (see [pathLocker]). For mutations it is applied inside
 // the path guard but outside the staleness / diagnostics / mutation chain. For
 // reads it encloses both the filesystem read and tracker stamp.
-func withPathLock(inner chat.Tool, locker *pathLocker, workdir string) chat.Tool {
+func withPathLock(inner tools.Tool, locker *pathLocker, workdir string) tools.Tool {
 	if locker == nil {
 		return inner
 	}

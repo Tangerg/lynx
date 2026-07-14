@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -139,7 +139,7 @@ func TestRestoreSessionAppliesPlan(t *testing.T) {
 		t.Context(),
 		new(testClaimer),
 		session.Session{ID: "ses_1", Cwd: "/workspace"},
-		[]chat.Message{chat.NewUserMessage("hi")},
+		[]chat.Message{chat.NewUserMessage(chat.NewTextPart("hi"))},
 		nil, nil,
 	)
 	if err != nil {

@@ -3,7 +3,7 @@ package toolset
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/fs"
 	"github.com/Tangerg/lynx/tools/httpreq"
 )
@@ -25,7 +25,7 @@ import (
 // locker is owner-scoped: resolver-owned builds reuse one locker so
 // read/check/write stays atomic across concurrent turns, not merely across the
 // tools resolved for one turn.
-func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguard.Tracker, downloadAllow httpreq.Allowlist, locker *pathLocker) []chat.Tool {
+func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguard.Tracker, downloadAllow httpreq.Allowlist, locker *pathLocker) []tools.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
 
 	// Mutation guard stack, innermost → outermost: auto-format the applied
@@ -36,7 +36,7 @@ func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguar
 	edit := editMutationTool(fs.NewEditTool(fsExec), ci, tracker, locker, workdir)
 	applyPatch := editMutationTool(fs.NewApplyPatchTool(fsExec), ci, tracker, locker, workdir)
 
-	tools := []chat.Tool{
+	tools := []tools.Tool{
 		withPathLock(withReadTracking(fs.NewReadTool(fsExec), tracker, workdir), locker, workdir),
 		write,
 		edit,
@@ -55,7 +55,7 @@ func buildWorkdirTools(workdir string, ci *codeintel.Analyzer, tracker *editguar
 	return tools
 }
 
-func writeMutationTool(tool chat.Tool, ci *codeintel.Analyzer, tracker *editguard.Tracker, locker *pathLocker, workdir string) chat.Tool {
+func writeMutationTool(tool tools.Tool, ci *codeintel.Analyzer, tracker *editguard.Tracker, locker *pathLocker, workdir string) tools.Tool {
 	return withPathGuard(
 		withPathLock(
 			withWriteGuard(
@@ -74,7 +74,7 @@ func writeMutationTool(tool chat.Tool, ci *codeintel.Analyzer, tracker *editguar
 	)
 }
 
-func editMutationTool(tool chat.Tool, ci *codeintel.Analyzer, tracker *editguard.Tracker, locker *pathLocker, workdir string) chat.Tool {
+func editMutationTool(tool tools.Tool, ci *codeintel.Analyzer, tracker *editguard.Tracker, locker *pathLocker, workdir string) tools.Tool {
 	return withPathGuard(
 		withPathLock(
 			withEditGuard(

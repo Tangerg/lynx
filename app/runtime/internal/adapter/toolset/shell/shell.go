@@ -7,10 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // Shell tools over a shared [exec.Shells]: the primary `shell` tool plus
@@ -82,19 +81,19 @@ func (a shellIDArgs) validate() error {
 	return nil
 }
 
-type tools struct {
+type toolSet struct {
 	shells         *exec.Shells
 	defaultWorkdir string
 }
 
-func Build(shells *exec.Shells, defaultWorkdir string) ([]chat.Tool, error) {
+func Build(shells *exec.Shells, defaultWorkdir string) ([]tools.Tool, error) {
 	if shells == nil {
 		return nil, errors.New("shell: shells is nil")
 	}
-	t := &tools{shells: shells, defaultWorkdir: defaultWorkdir}
+	t := &toolSet{shells: shells, defaultWorkdir: defaultWorkdir}
 
-	shellTool, err := chat.NewTool[shellArgs, string](
-		chat.ToolDefinition{
+	shellTool, err := tools.New[shellArgs, string](
+		tools.Config{
 			Name: "shell",
 			Description: "Execute a shell command via /bin/sh -c. Returns stdout/stderr, exit code, and duration. " +
 				"Avoid `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk` here — use the dedicated `glob`, `grep`, `read`, `edit` tools instead; reserve `shell` for operations that genuinely need a shell (build commands, git, package managers, etc.). " +
@@ -106,8 +105,8 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]chat.Tool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("shell: build shell tool: %w", err)
 	}
-	outputTool, err := chat.NewTool[shellOutputArgs, string](
-		chat.ToolDefinition{
+	outputTool, err := tools.New[shellOutputArgs, string](
+		tools.Config{
 			Name:        "shell_output",
 			Description: "Read new output from a background shell (only output since the last read). Reports whether it is still running or has exited. With block, waits until the shell exits (or timeout ms) — wait for a backgrounded command without a sleep poll loop.",
 		},
@@ -116,8 +115,8 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]chat.Tool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("shell: build shell_output tool: %w", err)
 	}
-	killTool, err := chat.NewTool[shellIDArgs, string](
-		chat.ToolDefinition{
+	killTool, err := tools.New[shellIDArgs, string](
+		tools.Config{
 			Name:        "shell_kill",
 			Description: "Stop a background shell.",
 		},
@@ -126,10 +125,10 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]chat.Tool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("shell: build shell_kill tool: %w", err)
 	}
-	return []chat.Tool{shellTool, outputTool, killTool}, nil
+	return []tools.Tool{shellTool, outputTool, killTool}, nil
 }
 
-func (t *tools) run(ctx context.Context, a shellArgs) (string, error) {
+func (t *toolSet) run(ctx context.Context, a shellArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", err
 	}
@@ -158,14 +157,14 @@ func (t *tools) run(ctx context.Context, a shellArgs) (string, error) {
 	}
 }
 
-func (t *tools) completed(id string, sh *exec.Shell) string {
+func (t *toolSet) completed(id string, sh *exec.Shell) string {
 	out, dropped := sh.Read()
 	code, killed, dur := sh.Outcome()
 	t.shells.Remove(id)
 	return completedJSON(out, dropped, code, killed, dur)
 }
 
-func (t *tools) cancelForeground(ctx context.Context, id string, sh *exec.Shell) (string, error) {
+func (t *toolSet) cancelForeground(ctx context.Context, id string, sh *exec.Shell) (string, error) {
 	// The command may have finished in the same instant the turn was canceled;
 	// select picks a ready case at random, so check Done() before discarding a
 	// completed result the user can still use.
@@ -182,7 +181,7 @@ func (t *tools) cancelForeground(ctx context.Context, id string, sh *exec.Shell)
 	}
 }
 
-func (t *tools) output(ctx context.Context, a shellOutputArgs) (string, error) {
+func (t *toolSet) output(ctx context.Context, a shellOutputArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", err
 	}
@@ -209,7 +208,7 @@ func (t *tools) output(ctx context.Context, a shellOutputArgs) (string, error) {
 	return fmt.Sprintf("Shell %s %s.\n%s", a.ShellID, state, string(b)), nil
 }
 
-func (t *tools) kill(_ context.Context, a shellIDArgs) (string, error) {
+func (t *toolSet) kill(_ context.Context, a shellIDArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", err
 	}

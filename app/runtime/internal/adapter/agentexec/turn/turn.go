@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // runTurn starts the turn's agent process and drives its first run
@@ -24,7 +26,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 	// Resolve a per-turn client when the run picked a provider+model and a
 	// resolver is wired; no selection / no resolver runs on the platform's
 	// default client.
-	var client core.ChatClient
+	var client *chatclient.Client
 	if req.Provider != "" && req.Model != "" && s.resolver != nil {
 		c, err := s.resolver.ResolveClient(st.ctx, req.Provider, req.Model)
 		if err != nil {
@@ -37,6 +39,12 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 
 	observer := &turnObserver{svc: s, st: st}
 	st.lifecycle = &turnLifecycle{sessionID: st.handle.SessionID, cwd: st.cwd, hooks: st.hooks}
+	var options *chat.Options
+	if req.Options != nil {
+		copy := *req.Options
+		copy.Stop = append([]string(nil), req.Options.Stop...)
+		options = &copy
+	}
 	proc := s.engine.StartTurn(st.ctx, agentexec.TurnRequest{
 		SessionID:     req.SessionID,
 		Message:       req.Message,
@@ -46,7 +54,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 		MaxBudget:     req.MaxBudget,
 		MaxCostUSD:    req.MaxCostUSD,
 		MaxSteps:      req.MaxSteps,
-		Options:       req.Options.Clone(),
+		Options:       options,
 		ChatClient:    client,
 		Observer:      observer,
 		EventListener: st.lifecycle.listener(st.handle.TurnID),

@@ -13,8 +13,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/core/model/chat"
-	history "github.com/Tangerg/lynx/core/model/chat/history"
+	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // Engine is the microkernel core: it drives the agent loop and depends on
@@ -42,7 +42,7 @@ type Engine struct {
 
 	// Context inputs (read at SystemPrompt + chat-history time).
 	historyStore    history.Store
-	tools           []chat.Tool
+	tools           []tools.Tool
 	steering        SteeringSink // turn-end steering inject; nil → steering drops
 	knowledge       knowledge.Store
 	todos           todo.Store // per-session task list; nil → todo_write absent + no prompt injection
@@ -188,7 +188,7 @@ func (e *Engine) MaybeExtract(ctx context.Context, sessionID, cwd string) (Extra
 
 // Tools returns the registered coding tool set — used by the tool registry to
 // surface metadata to clients without re-running construction.
-func (e *Engine) Tools() []chat.Tool { return slices.Clone(e.tools) }
+func (e *Engine) Tools() []tools.Tool { return slices.Clone(e.tools) }
 
 // Close releases the per-engine external resources the toolset assembly opened
 // (code-intelligence servers, background processes, MCP / A2A sessions) by

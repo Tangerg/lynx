@@ -4,14 +4,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 )
 
 func TestEngine_ToolsReturnsSnapshot(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
@@ -30,7 +31,7 @@ func TestEngine_ToolsReturnsSnapshot(t *testing.T) {
 // configured. Provider-backed tools must NOT appear.
 func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
@@ -67,9 +68,9 @@ func TestEngine_New_WithoutResolverDoesNotInjectTask(t *testing.T) {
 	t.Parallel()
 
 	stub := newStubModel("shell", `{}`, "")
-	client, _ := chat.NewClient(stub)
-	customTool, err := chat.NewTool[struct{}, string](
-		chat.ToolDefinition{
+	client, _ := chatclient.New(stub)
+	customTool, err := tools.New[struct{}, string](
+		tools.Config{
 			Name:        "noop",
 			Description: "noop tool",
 		},
@@ -78,12 +79,12 @@ func TestEngine_New_WithoutResolverDoesNotInjectTask(t *testing.T) {
 		},
 	)
 	if err != nil {
-		t.Fatalf("chat.NewTool: %v", err)
+		t.Fatalf("tools.New: %v", err)
 	}
 
 	eng, err := New(context.Background(), Config{
 		ChatClient: client,
-		Tools:      []chat.Tool{customTool},
+		Tools:      []tools.Tool{customTool},
 	})
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
@@ -104,7 +105,7 @@ func TestEngine_New_WithoutResolverDoesNotInjectTask(t *testing.T) {
 // arrive when their credentials are supplied.
 func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		Online: toolset.OnlineConfig{
 			JinaAPIKey:       "test-jina",
@@ -132,7 +133,7 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 // extra tool.
 func TestEngine_Tools_PartialOnline(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
 	if len(eng.Tools()) != 14 {
@@ -140,7 +141,7 @@ func TestEngine_Tools_PartialOnline(t *testing.T) {
 	}
 }
 
-func toolNames(tools []chat.Tool) map[string]bool {
+func toolNames(tools []tools.Tool) map[string]bool {
 	out := make(map[string]bool, len(tools))
 	for _, tl := range tools {
 		out[tl.Definition().Name] = true

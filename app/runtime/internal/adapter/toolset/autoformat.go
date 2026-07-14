@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
-func withAutoFormat(inner chat.Tool, workdir string) chat.Tool {
+func withAutoFormat(inner tools.Tool, workdir string) tools.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths := resolvedMutatedPaths(inner, arguments, workdir)
 		out, err := inner.Call(ctx, arguments)
