@@ -578,11 +578,12 @@ flowchart LR
   - 证据：新增 stdlib HandlerFunc 风格的 `ModelFunc`/`StreamerFunc`、函数型 CallMiddleware/StreamMiddleware 与 `Wrap`/`WrapStream`；删除目标用户面上的泛型 Chain builder。
   - 泛型边界：唯一泛型是未导出的 `compose` 包装算法，真实复用 Call/Stream 的 outermost-first 组合，不建立名义层次或公共泛型 API。
   - 验证：覆盖 adapter 委托、错误透传、call/stream 顺序、nil middleware、输入 slice 变更隔离和空链；`core/chat` coverage 94.5%，Core build/vet/test/lint/race 全绿。
-- [ ] **P2-06 为四个 reference provider 建立 compile-time 和行为 conformance suite**（进行中：2026-07-14；harness 完成，provider 2/4）
+- [ ] **P2-06 为四个 reference provider 建立 compile-time 和行为 conformance suite**（进行中：2026-07-14；harness 完成，provider 3/4）
   - Harness 位于 `models/internal/conformance`，由各 provider 测试传入具体构造函数；Core 不 import provider。
   - 当前进度：provider-neutral ChatSuite 已覆盖 Call/Stream 的构造、请求/响应递归校验、非空 yield 和 Request 不可变性；OpenAI、Anthropic 新 `Chat` adapter 直接实现目标 Core SPI，两个 legacy `ChatModel` 均保持冻结。
   - OpenAI 证据：真实 `openai-go` mock wire conformance 覆盖多 choice、native extension、多模态、reasoning/usage 映射和流式 tool-call 稳定身份。
-  - Anthropic 证据：真实 SDK mock wire 覆盖 content block 保序、thinking signature/redacted replay、image/PDF、tool error、自动 cache breakpoint 与 SSE 多事件状态；原生 fresh/cache-read/cache-create 三段输入归一化为 Core 总输入，原始计数留在 extension。Models/Core 全门禁与目标 race 全绿，下一批接入 Google。
+  - Anthropic 证据：真实 SDK mock wire 覆盖 content block 保序、thinking signature/redacted replay、image/PDF、tool error、自动 cache breakpoint 与 SSE 多事件状态；原生 fresh/cache-read/cache-create 三段输入归一化为 Core 总输入，原始计数留在 extension。
+  - Google 证据：真实 `genai` mock wire 覆盖全部 candidates、Thought/ThoughtSignature、safety、bytes/URI media、FunctionResponse 与 snake_case native extension；Call/Stream 对无原生 ID 的 tool call 都生成确定性 `google/<choice>/<part>`，prompt/tool-use 与 candidate/thought 分段 usage 归一化为 Core 总量。Models 全门禁与目标 race 全绿，下一批接入 Ollama。
 - [ ] **P2-07 固化 Chat Call/Stream 行为契约**
   - 覆盖 context cancel、调用方提前停止、首个错误终止、无 goroutine 泄漏和流式聚合语义。
 
@@ -743,7 +744,7 @@ flowchart LR
 ### 10.2 当前焦点
 
 - 当前阶段：P2。
-- 下一任务：继续 P2-06；OpenAI、Anthropic 已完成，按 Google → Ollama 接入真实 SDK mock wire（当前 2/4）。
+- 下一任务：继续 P2-06；OpenAI、Anthropic、Google 已完成，接入最后一个 Ollama Native SDK mock wire（当前 3/4）。
 - 当前阻塞：无。
 - 最近完成：P2-05；stdlib 风格 function adapter、Call/Stream middleware 与私有泛型 compose 算法。
 
@@ -843,7 +844,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 | 风险 | 概率 | 影响 | 缓解措施 | 状态 |
 |---|---|---|---|---|
 | 公共 API 爆炸式迁移导致 workspace 长期不可编译 | 高 | 高 | 按第 8.3 节分类：新路径限时并存，同路径按阶段完成纵向切片 | 监控中 |
-| Message tagged value 无法表达个别 provider 能力 | 中 | 高 | 四个差异 provider 已完成映射验证；生产 adapter 在 P2-06 接入同一 conformance | 已验证，迁移进行中（2/4） |
+| Message tagged value 无法表达个别 provider 能力 | 中 | 高 | 四个差异 provider 已完成映射验证；生产 adapter 在 P2-06 接入同一 conformance | 已验证，迁移进行中（3/4） |
 | ChatClient 外移后用户体验下降 | 中 | 中 | 直接调用为主，保留常见 Text/Template/Structured Output 便利 API | 未验证 |
 | Tool 运行时拆分破坏 Agent pause/resume | 高 | 高 | P1 已建立并验证 Invocation/Event 原型，P3 再迁移现有 tool-loop | 原型已验证，迁移待执行 |
 | VectorStore 小接口迁移量过大 | 高 | 中 | 建立 conformance suite，按 backend 批次迁移 | 未验证 |
@@ -964,6 +965,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | P2-06 完成 Google reference adapter/conformance；保留全部 candidates、稳定合成 tool ID，并修正 tool-use/thought token 的 Core 总量归一化 | Codex |
 | 2026-07-14 | P2-06 完成 Anthropic reference adapter/conformance；修正缓存输入归一化语义并同步 Core Usage 注释、provider golden 与 loss policy | Codex |
 | 2026-07-14 | P2-06 完成 OpenAI reference adapter/conformance；新 `Chat` 直接实现 Core Model/Streamer，保留多 choice 与 namespaced native 数据，并冻结 legacy `ChatModel` | Codex |
 | 2026-07-14 | 完成 P2-05；以 stdlib 风格函数 adapter/包装器替代泛型 Chain 用户面，仅保留私有 compose 算法复用；进入 P2-06 | Codex |
@@ -990,6 +992,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P2-06（批次 4，Google 3/4） | 新增 `google.Chat`/`ChatConfig` 与独立 request/response mapper；保留全部 candidates 和 part 顺序，映射 Thought/signature、safety、media、FunctionResponse，并为缺失 ID 的 Call/Stream tool call 生成稳定位置 ID；将 prompt 20 + tool-use 3、candidate 9 + thoughts 4 归一化为 Core 23/13，原始分项留在 extension；Models 全门禁与目标 race 全绿；任务计数保持 18/60 | P2-06 Ollama adapter/conformance |
 | 2026-07-14 | P2-06（批次 3，Anthropic 2/4） | 新增 `anthropic.Chat`/`ChatConfig` 与独立 request/response/stream mapper；覆盖 block 保序、signature/redacted replay、多模态、tool error、自动缓存断点和稳定流式 tool identity；依据 provider 原生 usage 定义将 100 fresh + 40 read + 20 write 归一化为 Core 总输入 160，并同步 golden/loss policy；Models/Core build/vet/test/lint 与目标 race 全绿；任务计数保持 18/60 | P2-06 Google adapter/conformance |
 | 2026-07-14 | P2-06（批次 2，OpenAI 1/4） | 新增 `openai.Chat`/`ChatConfig` 目标 SPI adapter；provider request extension 与 Core options 两级合并，显式拒绝不兼容能力；Call 保留全部 choice、reasoning/audio/native metadata/usage，Stream 维持 delta 语义和稳定 tool-call 身份；真实 SDK mock-wire conformance、Models build/vet/test/lint 与目标 race 全绿；任务计数保持 18/60 | P2-06 Anthropic adapter/conformance |
 | 2026-07-14 | P2-06（批次 1） | 建立 provider-neutral `models/internal/conformance.ChatSuite`；Call/Stream 验证合法 Response、非空 stream、Request 不变；harness race 与 Models build/vet/test/lint 全绿；任务计数保持 18/60 | P2-06 OpenAI adapter/conformance |
