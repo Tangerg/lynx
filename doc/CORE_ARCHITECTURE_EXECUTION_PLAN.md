@@ -656,7 +656,14 @@ flowchart LR
   - `tools.Registry` 继续是唯一目标 registry；新架构守卫锁定 Tool 只有 Definition/Call 两个方法，并禁止根包反向 import 旧 `core/model`、agent 或 chatclient。
   - 旧 `chat.NewTool` 仍有 21 个文件/38 个真实调用点、12 个具体 tools package 仍消费旧协议，按 P3-08/P6 直接迁移后删除；没有增加 alias、bridge 或转发构造器。
   - 验证：tools 根包 coverage 92.7%，全 module race 通过，workspace build/vet/test/lint 72/72 全绿；实现提交 `e8749bc36`。
-- [ ] **P3-08 将 tool-loop/Halt/control-flow 迁入 `agent/toolloop`**
+- [x] **P3-08 将 tool-loop/Halt/control-flow 迁入 `agent/toolloop`**（完成：2026-07-14）
+  - 新 `Runner` 只消费最小 `core/chat.Model`、runtime-only `Invocation/ToolResolver` 与两方法 `tools.Tool`；以 lazy `iter.Seq2[Event, error]` 逐边界表达 model request/response、tool call/result、pause/resume，Request/Response/Event 快照互不别名。
+  - 默认串行执行是保守正确策略；普通 tool error 转为 `IsError` ToolResult，context/`AbortError` 原样终止，不增加自动 retry；只有整个 round 都由 `Direct` tool 组成时才以最后一个 ToolResult 完成。
+  - `PauseError` 生成包含当前 Request、模型 Response、已完成结果、pending call 位置和 round 的 JSON-safe `Checkpoint`；`Resume` 校验稳定 ID，把 operator input 放入待执行工具的 context，并证明不重调模型、不重跑已完成工具。
+  - 多 choice 中只有首 choice 可作为可执行分支；其余 choice 带 tool call 或同一分支出现重复 call ID 时 fail-fast，避免运行时隐式猜测。模型幻觉工具名和普通工具失败仍作为可恢复反馈返回模型。
+  - `core/model.Halt`、`ControlFlowError` 与 helper 已直接删除；agent HITL 与 app runtime 最后两个真实消费者切到 agent 所有的 `toolloop.Halt`，Core 架构守卫禁止控制流类型回流。
+  - 旧 `NewMiddleware`/park/stream/concurrency 路径仍有真实旧 Chat 消费者，已与新 Runner 完全分离冻结并登记 P6 删除；没有 alias、bridge 或双协议分支。
+  - 证据：实现 `ab30d8943`、Core 所有权清理 `7ecf915e5`；目标新路径 coverage 91.2%，Core/Agent module race 与 workspace build/vet/test/lint 72/72 全绿。
 - [ ] **P3-09 更新用户示例和最小上手路径**
 
 退出标准：
@@ -777,19 +784,19 @@ flowchart LR
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
-| P3 高层运行时外移 | 进行中 | 7/9 | high-level policy/observability 已外移；唯一 Tool/Registry/helper 目标面已建立 |
+| P3 高层运行时外移 | 进行中 | 8/9 | event-driven Runner/Checkpoint 已建立；待收口用户入口与示例 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **27/60** | **45%** |
+| **总计** | **进行中** | **28/60** | **47%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P3。
-- 下一任务：执行 P3-08，将 tool-loop/Halt/control-flow 直接迁入基于新 `core/chat`、`tools.Tool` 与 `agent/toolloop.Event` 的运行时实现。
+- 下一任务：执行 P3-09，更新目标架构的用户示例与最小上手路径，并完成 P3 阶段验收。
 - 当前阻塞：无。
-- 最近完成：P3-07；`tools.New` 已承接 typed executor/schema/JSON runtime helper，唯一 Registry 与两方法 Tool 由架构守卫锁定；tools 根包 coverage 92.7%、module race 与 workspace 72 项门禁全绿。
+- 最近完成：P3-08；`agent/toolloop.Runner` 已承接多轮、错误反馈、all-direct、pause/checkpoint/resume，Core 控制流契约已删除；目标路径 coverage 91.2%、Core/Agent race 与 workspace 72 项门禁全绿。
 
 ### 10.3 进度更新规则
 
@@ -1015,6 +1022,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P3-08；建立基于新 Chat/Tool 契约的 lazy Event Runner 与可序列化 checkpoint/resume，删除 Core Halt/ControlFlowError 并迁完真实消费者；旧 middleware 不做 bridge、按 P6 直接删除 | Codex |
 | 2026-07-14 | 完成 P3-07；在唯一 `tools.Tool/Registry` 目标面增加 strict typed-function helper 与反向依赖守卫，冻结仍有真实消费者的旧 Core Tool 构造器，不增加兼容转发 | Codex |
 | 2026-07-14 | 完成 P3-06；新增基于当前 GenAI semconv 的 Chat Call/Stream wrapper，删除 Core Chat/Embedding 旧 tracing、通用 metrics 与全部 OTel 依赖；目标 Embedding decorator 随 P5 新协议建立 | Codex |
 | 2026-07-14 | 采纳 ADR-008；后续迁移禁止 bridge、兼容字段和 dual-read，删除 P3-04 旧 history wire 解码及已无消费者的旧 Core safeguard | Codex |
@@ -1052,6 +1060,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P3-08 | `ab30d8943` 新增新协议 `Runner`、保守串行工具策略、普通错误反馈、all-direct、六类边界 Event 与 JSON-safe checkpoint/resume；`7ecf915e5` 删除 Core Halt/ControlFlowError 并把 agent HITL/app runtime 直接迁到 agent 所有权；目标 coverage 91.2%，Core/Agent race 与 workspace 72/72 全绿；任务计数 28/60，P3 8/9 | P3-09 用户示例、最小上手路径与 P3 阶段验收 |
 | 2026-07-14 | P3-07 | `e8749bc36` 在 `tools` 根包增加 struct-only schema 推导、strict JSON decode、string/JSON 输出的 typed function Tool，并以 AST/reflect 守卫锁定唯一两方法 Tool/Registry 边界；未桥接仍有 21 文件/38 调用点的旧 `chat.NewTool`；coverage 92.7%、tools race 与 workspace 72/72 全绿；任务计数 27/60，P3 7/9 | P3-08 tool-loop/Halt/control-flow 迁移 |
 | 2026-07-14 | P3-06 | `08071a046` 新增显式 provider、能力分离、lazy stream 的 `otel.ChatMiddleware`，coverage 93.4%；`b4d76334e` 直接删除 Core Chat/Embedding tracing、通用 metrics 与 OTel module graph/架构预算，未建立旧 API wrapper；Core/otel race 和 workspace 72/72 全绿；任务计数 26/60，P3 6/9 | P3-07 Tool executor/schema/runtime helper 外移 |
 | 2026-07-14 | P3-05 | `9fabd460e` 新增 fail-closed safeguard，`96c709324` 新增不依赖 Document/旧 Chat Client 的 fact/relevance/composite evaluation，`f8b705dab` 删除 Core Logger 与旧 evaluation，`f0762ad73` 删除旧 Core safeguard；coverage 90.4%/93.6%，目标 race 与 workspace 72/72 全绿；任务计数 25/60，P3 5/9 | P3-06 tracing/metrics 外移到 otel wrapper |
