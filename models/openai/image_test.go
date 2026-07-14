@@ -64,12 +64,3 @@ func TestImageModel_Call_Mock(t *testing.T) {
 		t.Fatal("nil result")
 	}
 }
-
-func TestImageModel_Metadata(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, "{}")
-	t.Cleanup(srv.Close)
-	m := newImageModel(t, srv.URL, "dall-e-3")
-	if m.Metadata().Provider != openai.Provider {
-		t.Errorf("provider = %q; want %q", m.Metadata().Provider, openai.Provider)
-	}
-}

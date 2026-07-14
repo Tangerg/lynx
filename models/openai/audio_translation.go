@@ -22,10 +22,6 @@ type AudioTranslationModelConfig struct {
 	APIKey         model.APIKey
 	DefaultOptions *transcription.Options
 	RequestOptions []option.RequestOption
-
-	// Metadata overrides the [transcription.ModelMetadata] returned by
-	// [AudioTranslationModel.Metadata]. Zero Provider falls back to [Provider].
-	Metadata *transcription.ModelMetadata
 }
 
 func (c AudioTranslationModelConfig) Validate() error {
@@ -51,7 +47,6 @@ var _ transcription.Model = (*AudioTranslationModel)(nil)
 type AudioTranslationModel struct {
 	api            *API
 	defaultOptions *transcription.Options
-	metadata       transcription.ModelMetadata
 }
 
 func NewAudioTranslationModel(cfg AudioTranslationModelConfig) (*AudioTranslationModel, error) {
@@ -67,14 +62,9 @@ func NewAudioTranslationModel(cfg AudioTranslationModelConfig) (*AudioTranslatio
 		return nil, err
 	}
 
-	info := transcription.ModelMetadata{Provider: Provider}
-	if cfg.Metadata != nil {
-		info = *cfg.Metadata
-	}
 	return &AudioTranslationModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:       info,
 	}, nil
 }
 
@@ -122,12 +112,4 @@ func (a *AudioTranslationModel) Call(ctx context.Context, req *transcription.Req
 		return nil, err
 	}
 	return transcription.NewResponse(result, &transcription.ResponseMetadata{})
-}
-
-func (a *AudioTranslationModel) DefaultOptions() transcription.Options {
-	return *a.defaultOptions
-}
-
-func (a *AudioTranslationModel) Metadata() transcription.ModelMetadata {
-	return a.metadata
 }

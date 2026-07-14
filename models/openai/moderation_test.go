@@ -51,17 +51,3 @@ func TestModerationModel_Call_Mock(t *testing.T) {
 		t.Fatal("empty results")
 	}
 }
-
-func TestModerationModel_Metadata(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, "{}")
-	t.Cleanup(srv.Close)
-	opts, _ := moderation.NewOptions("omni-moderation-latest")
-	m, _ := openai.NewModerationModel(openai.ModerationModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
-		DefaultOptions: opts,
-		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
-	})
-	if m.Metadata().Provider != openai.Provider {
-		t.Errorf("provider = %q; want %q", m.Metadata().Provider, openai.Provider)
-	}
-}

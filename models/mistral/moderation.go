@@ -103,8 +103,3 @@ func mapMistralCategories(flags map[string]bool, scores map[string]float64) *mod
 		Pii:                         get("pii"),
 	}
 }
-
-func (m *ModerationModel) DefaultOptions() moderation.Options { return *m.defaultOptions }
-func (m *ModerationModel) Metadata() moderation.ModelMetadata {
-	return moderation.ModelMetadata{Provider: Provider}
-}

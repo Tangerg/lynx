@@ -18,10 +18,6 @@ type ImageModelConfig struct {
 	APIKey         model.APIKey
 	DefaultOptions *image.Options
 	RequestOptions []option.RequestOption
-
-	// Metadata overrides the [image.ModelMetadata] returned by [ImageModel.Metadata].
-	// Facades pass their own Provider here. Zero falls back to [Provider].
-	Metadata *image.ModelMetadata
 }
 
 func (c ImageModelConfig) Validate() error {
@@ -39,7 +35,6 @@ var _ image.Model = (*ImageModel)(nil)
 type ImageModel struct {
 	api            *API
 	defaultOptions *image.Options
-	metadata       image.ModelMetadata
 }
 
 func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
@@ -55,14 +50,9 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 		return nil, err
 	}
 
-	info := image.ModelMetadata{Provider: Provider}
-	if cfg.Metadata != nil {
-		info = *cfg.Metadata
-	}
 	return &ImageModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:       info,
 	}, nil
 }
 
@@ -132,12 +122,4 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	}
 
 	return i.buildImageResponse(apiResp)
-}
-
-func (i *ImageModel) DefaultOptions() image.Options {
-	return *i.defaultOptions
-}
-
-func (i *ImageModel) Metadata() image.ModelMetadata {
-	return i.metadata
 }

@@ -174,6 +174,3 @@ func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*FetchRespon
 		}
 	}
 }
-
-func (i *ImageModel) DefaultOptions() image.Options { return *i.defaultOptions }
-func (i *ImageModel) Metadata() image.ModelMetadata { return image.ModelMetadata{Provider: Provider} }

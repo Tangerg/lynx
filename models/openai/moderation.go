@@ -17,10 +17,6 @@ type ModerationModelConfig struct {
 	APIKey         model.APIKey
 	DefaultOptions *moderation.Options
 	RequestOptions []option.RequestOption
-
-	// Metadata overrides the [moderation.ModelMetadata] returned by [ModerationModel.Metadata].
-	// Zero Provider falls back to [Provider].
-	Metadata *moderation.ModelMetadata
 }
 
 func (c ModerationModelConfig) Validate() error {
@@ -38,7 +34,6 @@ var _ moderation.Model = (*ModerationModel)(nil)
 type ModerationModel struct {
 	api            *API
 	defaultOptions *moderation.Options
-	metadata       moderation.ModelMetadata
 }
 
 func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
@@ -54,14 +49,9 @@ func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
 		return nil, err
 	}
 
-	info := moderation.ModelMetadata{Provider: Provider}
-	if cfg.Metadata != nil {
-		info = *cfg.Metadata
-	}
 	return &ModerationModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:       info,
 	}, nil
 }
 
@@ -169,12 +159,4 @@ func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*m
 	}
 
 	return m.buildModerationResponse(apiResp)
-}
-
-func (m *ModerationModel) DefaultOptions() moderation.Options {
-	return *m.defaultOptions
-}
-
-func (m *ModerationModel) Metadata() moderation.ModelMetadata {
-	return m.metadata
 }

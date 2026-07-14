@@ -29,6 +29,7 @@ func (c AudioTTSModelConfig) Validate() error {
 }
 
 var _ tts.Model = (*AudioTTSModel)(nil)
+var _ tts.Streamer = (*AudioTTSModel)(nil)
 
 // AudioTTSModel wraps Hume's Octave TTS (/v0/tts). Hume's headline
 // feature is emotion-aware synthesis driven by per-utterance
@@ -118,6 +119,3 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 		yield(resp, nil)
 	}
 }
-
-func (a *AudioTTSModel) DefaultOptions() tts.Options { return *a.defaultOptions }
-func (a *AudioTTSModel) Metadata() tts.ModelMetadata { return tts.ModelMetadata{Provider: Provider} }

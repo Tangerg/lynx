@@ -31,6 +31,7 @@ func (c AudioTTSModelConfig) Validate() error {
 }
 
 var _ tts.Model = (*AudioTTSModel)(nil)
+var _ tts.Streamer = (*AudioTTSModel)(nil)
 
 // AudioTTSModel wraps Deepgram's /v1/speak endpoint. Supported models
 // include the Aura family ("aura-asteria-en", "aura-luna-en", ...) and
@@ -142,12 +143,4 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			}
 		}
 	}
-}
-
-func (a *AudioTTSModel) DefaultOptions() tts.Options {
-	return *a.defaultOptions
-}
-
-func (a *AudioTTSModel) Metadata() tts.ModelMetadata {
-	return tts.ModelMetadata{Provider: Provider}
 }

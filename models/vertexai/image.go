@@ -39,6 +39,5 @@ func NewImageModel(cfg ImageModelConfig) (*google.ImageModel, error) {
 		Project:        cfg.Project,
 		Location:       cfg.Location,
 		DefaultOptions: cfg.DefaultOptions,
-		Metadata:       &image.ModelMetadata{Provider: Provider},
 	})
 }

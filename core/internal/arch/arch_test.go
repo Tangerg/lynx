@@ -14,7 +14,11 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/core/moderation"
+	"github.com/Tangerg/lynx/core/speech"
+	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
@@ -146,6 +150,78 @@ func TestEmbeddingSPIRemainsMinimal(t *testing.T) {
 			case *ast.FuncDecl:
 				if typed.Recv == nil && forbiddenFuncs[typed.Name.Name] {
 					t.Errorf("core/embedding must not reintroduce %s", typed.Name.Name)
+				}
+			}
+		}
+	}
+}
+
+func TestOtherModalitySPIsRemainMinimal(t *testing.T) {
+	want := map[reflect.Type]string{
+		reflect.TypeFor[image.Model]():         "Call",
+		reflect.TypeFor[transcription.Model](): "Call",
+		reflect.TypeFor[moderation.Model]():    "Call",
+		reflect.TypeFor[speech.Model]():        "Call",
+		reflect.TypeFor[speech.Streamer]():     "Stream",
+	}
+	for typ, method := range want {
+		if typ.NumMethod() != 1 || typ.Method(0).Name != method {
+			t.Errorf("%v methods changed: want only %s", typ, method)
+		}
+	}
+
+	for _, packageName := range []string{"image", "transcription", "speech", "moderation"} {
+		assertMinimalModalityPackage(t, packageName)
+	}
+}
+
+func assertMinimalModalityPackage(t *testing.T, packageName string) {
+	t.Helper()
+	root := filepath.Join(moduleRoot(t), packageName)
+	forbiddenTypes := map[string]bool{
+		"ModelMetadata": true, "Client": true,
+		"ClientRequest": true, "ClientCaller": true, "ClientStreamer": true,
+		"Middleware": true, "MiddlewareChain": true,
+		"Handler": true, "HandlerFunc": true,
+	}
+	forbiddenFuncs := map[string]bool{
+		"NewClient": true, "NewClientRequest": true,
+		"NewClientFromRequest": true, "NewMiddlewareChain": true,
+	}
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(root, entry.Name())
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, imported := range file.Imports {
+			if strings.Trim(imported.Path.Value, `"`) == "github.com/Tangerg/lynx/core/model" {
+				t.Errorf("core/%s must not depend on the generic model framework: %s", packageName, path)
+			}
+		}
+		for _, declaration := range file.Decls {
+			switch typed := declaration.(type) {
+			case *ast.GenDecl:
+				if typed.Tok != token.TYPE {
+					continue
+				}
+				for _, specification := range typed.Specs {
+					name := specification.(*ast.TypeSpec).Name.Name
+					if forbiddenTypes[name] {
+						t.Errorf("core/%s must not reintroduce %s", packageName, name)
+					}
+				}
+			case *ast.FuncDecl:
+				if typed.Recv == nil && forbiddenFuncs[typed.Name.Name] {
+					t.Errorf("core/%s must not reintroduce %s", packageName, typed.Name.Name)
 				}
 			}
 		}

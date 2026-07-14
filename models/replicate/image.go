@@ -197,6 +197,3 @@ func firstImageURL(out any) (string, error) {
 		return "", fmt.Errorf("replicate: unsupported output type %T", out)
 	}
 }
-
-func (i *ImageModel) DefaultOptions() image.Options { return *i.defaultOptions }
-func (i *ImageModel) Metadata() image.ModelMetadata { return image.ModelMetadata{Provider: Provider} }

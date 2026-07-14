@@ -190,13 +190,3 @@ func (a *AudioTranscriptionModel) buildResponse(apiResp *TranscriptResponse) (*t
 
 	return transcription.NewResponse(result, meta)
 }
-
-func (a *AudioTranscriptionModel) DefaultOptions() transcription.Options {
-	return *a.defaultOptions
-}
-
-func (a *AudioTranscriptionModel) Metadata() transcription.ModelMetadata {
-	return transcription.ModelMetadata{
-		Provider: Provider,
-	}
-}

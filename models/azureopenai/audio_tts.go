@@ -41,6 +41,5 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*openai.AudioTTSModel, error) {
 		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
-		Metadata:       &tts.ModelMetadata{Provider: Provider},
 	})
 }

@@ -41,6 +41,5 @@ func NewImageModel(cfg ImageModelConfig) (*openai.ImageModel, error) {
 		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
-		Metadata:       &image.ModelMetadata{Provider: Provider},
 	})
 }

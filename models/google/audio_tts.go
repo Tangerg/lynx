@@ -25,10 +25,6 @@ type AudioTTSModelConfig struct {
 
 	// BaseURL overrides the genai endpoint. Optional.
 	BaseURL string
-
-	// Metadata overrides the [tts.ModelMetadata] returned by [AudioTTSModel.Metadata].
-	// Zero Provider falls back to [Provider].
-	Metadata *tts.ModelMetadata
 }
 
 func (c AudioTTSModelConfig) Validate() error {
@@ -42,6 +38,7 @@ func (c AudioTTSModelConfig) Validate() error {
 }
 
 var _ tts.Model = (*AudioTTSModel)(nil)
+var _ tts.Streamer = (*AudioTTSModel)(nil)
 
 // AudioTTSModel wraps Gemini 2.5's native TTS, exposed not as a dedicated
 // endpoint but as GenerateContent with ResponseModalities=AUDIO. Models:
@@ -53,7 +50,6 @@ var _ tts.Model = (*AudioTTSModel)(nil)
 type AudioTTSModel struct {
 	api            *API
 	defaultOptions *tts.Options
-	metadata       tts.ModelMetadata
 }
 
 func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
@@ -72,14 +68,9 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 
-	info := tts.ModelMetadata{Provider: Provider}
-	if cfg.Metadata != nil {
-		info = *cfg.Metadata
-	}
 	return &AudioTTSModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:       info,
 	}, nil
 }
 
@@ -211,12 +202,4 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			}
 		}
 	}
-}
-
-func (a *AudioTTSModel) DefaultOptions() tts.Options {
-	return *a.defaultOptions
-}
-
-func (a *AudioTTSModel) Metadata() tts.ModelMetadata {
-	return a.metadata
 }
