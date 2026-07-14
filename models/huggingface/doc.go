@@ -3,7 +3,7 @@
 // the same request/response shape.
 //
 // Rather than maintain a parallel chat implementation,
-// NewOpenAIChatModel returns an [openai.ChatModel] pre-configured with
+// [NewOpenAIChat] returns an [openai.Chat] pre-configured with
 // the HuggingFace router base URL. Callers get every feature of the
 // openai provider (tool calling, streaming, response accumulation,
 // etc.) for free, and the lynx provider matrix records HuggingFace as

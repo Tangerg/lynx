@@ -2,7 +2,7 @@
 // weight models (Llama, Gemma, DeepSeek, Kimi) on its in-house LPUs
 // at extremely high throughput.
 //
-// Groq-specific knobs reachable via Extra-threaded openai params:
+// Groq-specific knobs reachable through the namespaced OpenAI request extension:
 //
 //   - service_tier ("on_demand" / "flex" / "auto") trades cost for
 //     latency. See https://console.groq.com/docs/flex-processing.

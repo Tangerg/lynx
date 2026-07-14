@@ -1,10 +1,10 @@
 // Package openai wraps OpenAI's API surface as the canonical
-// implementation of lynx's core/model interfaces.
+// implementation of lynx's Core modality interfaces.
 //
 // Modalities exposed:
 //
-//   - chat (Chat Completions) via [NewChatModel] — tool calling,
-//     streaming, response_format, reasoning_content auto-routing
+//   - chat (Chat Completions) via [NewChat] — tool calling,
+//     streaming, native request extensions, reasoning_content mapping
 //     (used transparently by DeepSeek-R1, Kimi-thinking, QwQ, etc.),
 //     vision input, audio input/output;
 //   - embedding via [NewEmbeddingModel] — text-embedding-3-small/large
@@ -22,9 +22,9 @@
 // openai-go ([openai.ChatModelGPT4o], [openai.EmbeddingModelTextEmbedding3Large],
 // etc.). Import openai-go directly when you need them.
 //
-// Provider-specific OpenAI fields not modeled by core/model
-// (response_format, tools, audio, modalities, vision parts) reach
-// the wire via Extra-threaded openai-go params.
+// Provider-specific OpenAI request fields not modeled by core/chat reach the
+// wire through the namespaced "openai/request" request extension. Response
+// details are preserved in namespaced JSON-safe extensions.
 //
 // See https://platform.openai.com/docs for the full API reference.
 package openai

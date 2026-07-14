@@ -19,10 +19,10 @@ mcp/
 ├── meta.go      // context scoped _meta helpers
 ├── session.go   // active ServerSession/progress token context helpers
 ├── reverse.go   // progress / elicitation / logging reverse helpers
-├── tool.go      // remote MCP tool -> chat.Tool
-├── tools.go     // list remote tools and wrap them as []chat.Tool
-├── server.go    // chat.Tool -> MCP server tool
-├── sampling.go  // MCP sampling via chat.Client
+├── tool.go      // remote MCP tool -> tools.Tool
+├── tools.go     // list remote tools and wrap them as []tools.Tool
+├── server.go    // tools.Tool -> MCP server tool
+├── sampling.go  // MCP sampling via chatclient.Client
 └── prompt.go    // MCP prompt messages -> []chat.Message
 ```
 
@@ -50,9 +50,9 @@ import (
 | `ReportProgress` | 根据原始 progress token 发送 progress notification |
 | `ElicitFromClient` | tool 执行中向客户端发起 elicitation |
 | `LogToClient` | 通过 MCP logging notification 向客户端发送日志 |
-| `Tools(ctx, sources, opts)` | 现场列出远端 MCP tools，并包装成 `[]chat.Tool` |
-| `Register(server, tools...)` | 把 lynx `chat.Tool` 暴露到 MCP server |
-| `SamplingViaChatClient` | 用 `*chat.Client` 实现 MCP sampling handler |
+| `Tools(ctx, sources, opts)` | 现场列出远端 MCP tools，并包装成 `[]tools.Tool` |
+| `Register(server, tools...)` | 把 lynx `tools.Tool` 暴露到 MCP server |
+| `SamplingViaChatClient` | 用 `*chatclient.Client` 实现 MCP sampling handler |
 | `PromptMessagesToChat` | 把 MCP prompt messages 转成 `[]chat.Message` |
 
 根包刻意不提供：
@@ -121,7 +121,7 @@ JSON-RPC protocol error. `lynx/mcp` preserves that distinction:
 
 - 远端 `CallToolResult.IsError=true` → `*lynxmcp.ToolCallError`
 - 传输/协议错误 → 普通 wrapped Go error
-- 本地 `chat.Tool` 返回 error → `CallToolResult{IsError:true}`
+- 本地 `tools.Tool` 返回 error → `CallToolResult{IsError:true}`
 
 调用方用 `errors.As` 区分远端 tool 自身失败和基础设施失败。
 

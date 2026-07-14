@@ -131,8 +131,8 @@ const (
 // live in their respective facade packages: see
 // [github.com/Tangerg/lynx/models/anthropic.BaseURLOpenAI] and
 // [github.com/Tangerg/lynx/models/google.BaseURLOpenAI]. Constructing
-// against those bridges goes through models/anthropic.NewOpenAIChatModel
-// or models/google.NewOpenAIChatModel rather than openai.NewChatModel
+// against those bridges goes through models/anthropic.NewOpenAIChat
+// or models/google.NewOpenAIChat rather than openai.NewChat
 // with a hardcoded BaseURL.
 
 // vLLM is self-hosted — there is no shared base URL. Configure with

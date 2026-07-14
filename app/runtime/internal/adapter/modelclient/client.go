@@ -23,7 +23,7 @@ type CredentialLookup interface {
 	Get(ctx context.Context, id string) (provider.Provider, bool, error)
 }
 
-// ClientResolver resolves a per-turn [chat.Client] for an explicit
+// ClientResolver resolves a per-turn [chatclient.Client] for an explicit
 // (provider, model). The provider is taken as given (the wire carries it; it is
 // never inferred from the model id); the resolver pulls that provider's
 // credentials from the registry, then builds and caches the client.

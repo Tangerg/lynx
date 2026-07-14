@@ -17,7 +17,7 @@ type AudioTTSModelConfig struct {
 	DefaultOptions *tts.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
-	// the matching fields on [ChatModelConfig] for semantics.
+	// the matching fields on [ChatConfig] for semantics.
 	Backend  genai.Backend
 	Project  string
 	Location string

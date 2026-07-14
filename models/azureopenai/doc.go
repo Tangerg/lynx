@@ -18,7 +18,7 @@
 //
 // Constructors:
 //
-//   - [NewChatModel] — /chat/completions
+//   - [NewChat] — /chat/completions
 //   - [NewEmbeddingModel] — /embeddings
 //   - [NewImageModel] — /images/generations
 //   - [NewAudioTTSModel] — /audio/speech

@@ -1,7 +1,6 @@
-# Core 目标 API 最小上手
+# Core API 最小上手
 
-本文只展示重构后的目标路径，不包含 `core/model/chat`、旧 Client builder 或旧
-Tool middleware。完整的可运行版本见
+本文展示当前稳定方向的路径和调用面。完整的可运行版本见
 [`agent/examples/toolloop`](../agent/examples/toolloop/)。
 
 ## 1. 先选最小依赖
@@ -16,7 +15,7 @@ Tool middleware。完整的可运行版本见
 | OpenTelemetry | `otel` |
 
 Provider 只需实现 `chat.Model`；流式能力独立实现 `chat.Streamer`。当前
-OpenAI、Anthropic、Google 和 Ollama 的目标适配器分别由各 provider 包的
+OpenAI、Anthropic、Google 和 Ollama 的适配器分别由各 provider 包的
 `NewChat(ChatConfig)` 构造，返回值可直接注入下述 API。
 
 ## 2. 最小同步调用
@@ -191,5 +190,5 @@ decode 失败时仍返回原始 Response，repair/retry 策略由调用方显式
 - `go doc github.com/Tangerg/lynx/tools`
 - `go doc github.com/Tangerg/lynx/agent/toolloop`
 - 观测接入见 [`OBSERVABILITY.md`](./OBSERVABILITY.md)
-- 长期边界与迁移状态见
+- 长期边界、ADR 与发布状态见
   [`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md)

@@ -13,7 +13,7 @@ import (
 // API covers the Mistral-specific endpoints that don't already exist in
 // the OpenAI-compatible surface — moderation, OCR, etc. Chat and
 // embeddings go through the openai provider with a swapped base URL
-// (see [NewChatModel] / [NewEmbeddingModel] below).
+// (see [NewOpenAIChat] / [NewEmbeddingModel]).
 type APIConfig struct {
 	APIKey     string
 	BaseURL    string

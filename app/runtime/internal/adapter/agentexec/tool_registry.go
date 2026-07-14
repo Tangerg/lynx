@@ -15,8 +15,8 @@ import (
 )
 
 // toolTracer spans direct (out-of-turn) tool invocations. Tool calls the model
-// makes during a chat turn are already traced by core/model/chat + the mcp
-// module; this covers only the diagnostic Invoke path. Tool name key follows the
+// makes during a chat turn are traced at the target chat/tool adapter boundaries;
+// this covers only the diagnostic Invoke path. Tool name key follows the
 // gen_ai semconv. No-op until a provider is set.
 var toolTracer = otel.Tracer("lynx/lyra/tool")
 

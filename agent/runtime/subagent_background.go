@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// AsBackgroundChatTool exposes an agent as a PAIR of [chat.Tool]s
+// AsBackgroundChatTool exposes an agent as a pair of [tools.Tool] values
 // implementing the background-task pattern (mirrors the SDK's
 // AgentDefinition.background + stopTask): a spawn tool that launches the
 // agent in the background and returns a task id immediately, and a

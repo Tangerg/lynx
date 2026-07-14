@@ -1,19 +1,19 @@
 # CLAUDE.md — vectorstores module
 
-> 各家向量数据库后端的统一适配层:每个后端实现 core 的 `vectorstore.Store`,并用 Visitor 把 lynx 统一的 filter AST 编译成本地查询方言。
+> 各家向量数据库后端的统一适配层:每个后端按真实能力实现 core 的 `Indexer` / `Searcher` / `IDDeleter` / `FilterDeleter`,并把稳定的 filter `Expr` 编译成本地查询方言。
 > 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。后端名录 / 成熟度 / 依赖版本以代码为准 —— 本则只讲宏观。
 
 ---
 
 ## 定位
 
-- **一套 Store 接口,多个数据库后端**:上层不关心是哪家向量库,只见 core 的 Store 契约。
-- **加后端 = 实现 Store + 写一个 filter Visitor**,不动统一的 filter 语义。
+- **一组小能力接口,多个数据库后端**:上层只要求实际调用的能力,不通过胖 `Store` 强迫只读或不可删后端伪实现方法。
+- **加后端 = 实现真实能力 + 写 filter compiler**,不动统一的 filter 语义。
 
 ## 架构心智
 
-- **filter mini-language 定义在 core**(lexer → parser → AST),后端只提供 **Visitor**:统一的 filter 语义,各后端把同一棵 AST 译成自家方言(JSONB 路径 / 扁平字典 / 嵌套查询 …)。
-- **每后端固定两件**:store(实现接口)+ visitor(AST → 方言);共享工具(文档 IO / filter 解析 / OTel / SQL identifier 校验 / conformance 套件)沉到内部包。
+- **filter 公共面只表达语义**:`core/vectorstore/filter.Expr` 与 `Parse` 是稳定门面；lexer/parser/token/optimizer/内部 AST 都在 Core `internal`。后端 compiler 把同一公开语义树译成自家方言(JSONB 路径 / 扁平字典 / 嵌套查询 …)。
+- **每后端固定两件**:backend(实现其能力集合)+ compiler(Expr → 方言);共享工具(文档 IO / OTel / SQL identifier 校验 / conformance 套件)沉到内部包。
 - **向量编码与距离度量因 DB 而异**:在适配层归一化成统一区间,上层拿到一致的 score。
 - **schema 初始化是显式开关**:开则建表建索引,关则假设已 provisioned —— 绝不静默 ALTER。
 - **批量 upsert 两级切分**:调用方注入 batcher 控 embedding 批量,后端再按自家 API 上限二次切分。
@@ -28,6 +28,6 @@
 
 ## 改动前必看(波及面)
 
-- **动 core 的 filter AST**:所有后端 visitor 都要跟,先跑共享 conformance 套件。
-- **动 Store 接口**:是 core 的契约,爆炸半径 = 所有后端 + 所有消费方(如 rag)。
-- **加新后端**:拿内存实现当模板,实现 Store + Visitor,注册进 conformance 套件。
+- **动 core 的 filter Expr**:所有后端 compiler 都要跟,先跑共享 conformance 套件。
+- **动能力接口**:是 core 的契约,爆炸半径 = 实现该能力的后端 + 对应消费方(如 rag)。
+- **加新后端**:拿内存实现当模板,只实现真实能力并注册进 conformance 套件。

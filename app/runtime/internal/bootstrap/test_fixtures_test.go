@@ -8,7 +8,7 @@ import (
 )
 
 // replyStub is a minimal chat.Model that answers every turn with a fixed text
-// reply, so tests can build a chat.Client without touching a provider.
+// reply, so tests can build a chatclient.Client without touching a provider.
 type replyStub struct {
 	reply string
 }

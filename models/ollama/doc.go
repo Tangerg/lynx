@@ -2,12 +2,12 @@
 //
 // Ollama serves the same models at two different wire formats:
 //
-//   - Native API at /api/chat — accessed via [NewNativeChatModel]. Gives
+//   - Native API at /api/chat — accessed via [NewChat]. Gives
 //     access to Ollama-specific features (keep_alive, format=json,
 //     thinking on supported models, raw "options" dict for fine-grained
 //     sampling control).
 //   - OpenAI-compatible API at /v1/chat/completions — accessed via
-//     [NewOpenAIChatModel]. Works with any OpenAI tooling and benefits
+//     [NewOpenAIChat]. Works with the same Core chat protocol and benefits
 //     from the openai provider's response_format / tool_calling /
 //     reasoning_content plumbing.
 //

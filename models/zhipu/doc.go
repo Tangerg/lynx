@@ -2,9 +2,9 @@
 //
 // BigModel serves the GLM chat surface in two compatibility flavors:
 //
-//   - OpenAI-compatible at /api/paas/v4 — use [NewOpenAIChatModel];
+//   - OpenAI-compatible at /api/paas/v4 — use [NewOpenAIChat];
 //   - Anthropic-compatible at /api/anthropic — use
-//     [NewAnthropicChatModel], available for GLM-4.5 and GLM-4.6.
+//     [NewAnthropicChat], available for GLM-4.5 and GLM-4.6.
 //     Swap base URL and keep
 //     their existing integration.
 //

@@ -41,10 +41,10 @@ Each model entry is a `chat.ModelInfo`:
 - `provider` must equal the adapter's `Provider` const, lowercased
   (`Lookup` matches case-insensitively): `"Anthropic"` → `"anthropic"`,
   `"Google"` → `"google"`, `"DeepSeek"` → `"deepseek"`. OpenAI-compat
-  providers delegate to `openai.NewChatModel` with their own `Provider`,
+  providers delegate to `openai.NewChat` with their own `Provider`,
   and the lookup keys off that — so their config is keyed by their name
   (`deepseek`, `groq`, `xai`, …), not `openai`. Likewise `vertexai`
-  delegates to `google.NewChatModel` but keeps Provider `"VertexAI"`.
+  delegates to `google.NewChat` but keeps Provider `"VertexAI"`.
 - `pricing` is an **array of rate bands** (USD per 1,000,000 tokens),
   ascending by `threshold`. Usually one band (threshold omitted = 0, the
   base). Omit `pricing` for a metadata-only row; omit `cache_*` within a

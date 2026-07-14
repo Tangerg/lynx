@@ -6,8 +6,8 @@
 // agent is a LIBRARY, not an application, so this is NOT a Clean-Architecture
 // concentric-ring rule (delivery/use-case/domain/infra). The natural shape of a
 // library is a dependency LADDER: primitives → strategy plug-ins → engine →
-// combinators. The rule below encodes that ladder. See docs/ARCHITECTURE_REVIEW.md
-// §2.1 and docs/GREENFIELD_DESIGN.md §1.2.
+// combinators. The rule below encodes that ladder. See docs/README.md and
+// docs/EXTENSION_DESIGN.md for the maintained architecture description.
 package arch
 
 import (

@@ -69,7 +69,7 @@ func NewCompactor(store history.Store, client ClientFunc, cfg CompactionConfig) 
 // No-op (zero result) on a nil receiver (compaction disabled) or an
 // empty sessionID.
 //
-// Important: the summary call goes through chat.Client directly
+// Important: the summary call goes through chatclient.Client directly
 // (no middleware), so it does NOT enter the chat history middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.

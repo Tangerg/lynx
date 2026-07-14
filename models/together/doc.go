@@ -2,7 +2,8 @@
 // Together hosts hundreds of open-weight models (Llama, DeepSeek,
 // Qwen, Mistral, etc.) with serverless and dedicated endpoints.
 //
-// Together-specific knobs reachable via Extra-threaded openai params:
+// Together-specific knobs reachable through the namespaced OpenAI request
+// extension:
 //
 //   - "echo" / "n" / "min_p" / "repetition_penalty" / "top_k" are
 //     accepted on top of the standard openai surface.

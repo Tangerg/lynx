@@ -1,10 +1,10 @@
-# Core Chat 四 Provider 映射基线
+# Core Chat 四 Provider 映射契约
 
-> 状态：P1-07 映射验证基线
+> 状态：当前 conformance 契约（最初建立于 P1-07）
 > 日期：2026-07-14
 > 范围：OpenAI、Anthropic、Google Gemini、Ollama Native Chat
 
-本文冻结新 `core/chat` 协议对四个差异 provider 的表达能力，作为 P2-06 实现新 Model/Streamer adapter 的可执行预期。`models/internal/chatconformance/testdata` 保存的是 adapter 迁移后必须产出的 Core wire，而不是第二套 provider 实现。
+本文锁定当前 `core/chat` 协议对四个差异 provider 的表达能力。`models/internal/chatconformance/testdata` 保存 adapter 必须产出的 Core wire，而不是第二套 provider 实现。
 
 “无损”限定为：Lynx 当前公开并实际映射的能力不得丢失，同时修复旧 Response 只保留首个 choice/candidate 的缺陷；不承诺把 SDK 的每个实验字段提升为 Core 公共字段。provider 原生但仍需保留的 JSON-safe 数据进入唯一的 namespaced Extensions。
 
@@ -72,4 +72,4 @@
 - `models/internal/chatconformance/testdata/*.response.golden.json`：四家期望 Core 响应，包括多 choice、reasoning、media、tool、usage 和 provider extensions。
 - `models/internal/chatconformance/mapping_test.go`：递归验证、canonical JSON fixed-point 和 provider 特有能力断言。
 
-P2-06 实现 adapter 时必须让四家真实 SDK fixture 产出与本基线等价的 Core 值；可以调整 provider 私有 helper，但如需改变 Core wire 或上述 loss policy，必须先更新本文、golden fixture 与执行计划决策记录。
+四家 adapter 的真实 SDK fixture 必须产出与本契约等价的 Core 值；可以调整 provider 私有 helper，但如需改变 Core wire 或上述 loss policy，必须先更新本文、golden fixture、API diff 与 release notes。

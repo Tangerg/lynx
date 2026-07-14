@@ -55,7 +55,7 @@ func progressTokenFromContext(ctx context.Context) any {
 
 // WithServerSession returns a copy of ctx carrying the MCP server
 // session. The tool dispatcher calls this before invoking a
-// [chat.Tool] so reverse-capability helpers ([ReportProgress],
+// a `tools.Tool` so reverse-capability helpers ([ReportProgress],
 // [ElicitFromClient], [LogToClient]) can recover the session from
 // context.
 //

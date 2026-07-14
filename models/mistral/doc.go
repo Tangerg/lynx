@@ -3,7 +3,7 @@
 // Mistral exposes:
 //
 //   - /chat/completions — OpenAI-compatible, used via
-//     [NewOpenAIChatModel] (returns an [openai.ChatModel]);
+//     [NewOpenAIChat] (returns an [openai.Chat]);
 //   - /embeddings — OpenAI-compatible, used via [NewEmbeddingModel]
 //     (returns an [openai.EmbeddingModel]);
 //   - /moderations — Mistral-native shape that doesn't match OpenAI's
@@ -12,8 +12,7 @@
 //
 // Mistral-specific surfaces not exposed here:
 //   - /agents (stateful agent runs);
-//   - /fim (code completion endpoint — call from the openai facade
-//     using Extra-threaded params).
+//   - /fim (code completion endpoint; it is not modeled by the chat facade).
 //
 // See https://docs.mistral.ai/ for the full API reference.
 package mistral

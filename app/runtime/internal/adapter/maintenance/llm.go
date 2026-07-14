@@ -31,7 +31,7 @@ const directCallTimeout = 2 * time.Minute
 
 // askDirect runs one synchronous LLM chat call with the supplied
 // system + user prompts. Crucially, the call goes through
-// [chat.Client.Chat] without any of the platform middleware
+// [chatclient.Client.Call] without any of the platform middleware
 // (chat history, tools, guardrails) — compaction and extraction both
 // work outside the normal conversation flow and must not pollute its
 // history.

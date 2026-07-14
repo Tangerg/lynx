@@ -3,7 +3,8 @@
 // stack and ships latency-optimized custom variants of popular
 // models.
 //
-// Fireworks-specific knobs reachable via Extra-threaded openai params:
+// Fireworks-specific knobs reachable through the namespaced OpenAI request
+// extension:
 //
 //   - "context_length_exceeded_behavior" controls truncation policy.
 //   - "prompt_cache_max_len" enables Fireworks' prompt-cache layer.

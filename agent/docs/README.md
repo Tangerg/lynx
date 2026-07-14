@@ -1,83 +1,44 @@
-# Lynx Agent
+# Lynx Agent 文档
 
-GOAP (Goal-Oriented Action Planning) agent runtime for Go — a port of
-[`embabel-agent`](https://github.com/embabel/embabel-agent)'s core ideas
-(GOAP + blackboard + OODA loop) shaped to Go idioms.
+`agent` 是 planner-driven 的 Go agent runtime：agent 定义由 Goal、Action、
+Condition 和 Blackboard 组成，runtime 在每个 tick 重新观察状态并规划下一步。
+它不是把所有能力塞进一个 ReAct client 的框架，也不复制 provider 协议。
 
-Implemented and `go test -race ./...` is green. See
-[`GUIDE.md`](./GUIDE.md) for the deep guide,
-[`EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md) for the SPI surface,
-[`EMBABEL_DEEP_COMPARISON.md`](./EMBABEL_DEEP_COMPARISON.md) for the
-canonical source-level comparison against embabel-agent (2026-06 refresh:
-lynx closed most old capability gaps — parallel tool loop, max-iter +
-loop-detection, tool-error recovery, Supervisor, best-of-N, metrics,
-per-call events, durable persistence — ToolLoop dimension flipped from
-"embabel leads" to "lynx leads"; embabel's edge returns to its framework
-niche), [`EMBABEL_FEATURE_DIFF.md`](./EMBABEL_FEATURE_DIFF.md) for the
-bidirectional "who has what" checklist (embabel-only / lynx-only, tagged
-real-gap vs by-design-skip vs framework-niche),
-[`EMBABEL_ORGANIZING_PRINCIPLES.md`](./EMBABEL_ORGANIZING_PRINCIPLES.md)
-for the convergent-design organizing-philosophy axis, and
-[`ARCHITECTURE_REVIEW.md`](./ARCHITECTURE_REVIEW.md) for a senior-architect
-architecture health check (clean-arch/DDD verdict for agent-as-library;
-the 2026-07 milestone closed the arch guard, Router naming, and concrete
-chat-client port items).
+当前文档只有三份：
 
-## Structure
+- [`GUIDE.md`](./GUIDE.md)：从 agent 定义、运行到 LLM/tool-loop、HITL 和持久化的使用指南。
+- [`EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md)：公开 SPI、扩展分发规则和所有权边界。
+- [`../CLAUDE.md`](../CLAUDE.md)：模块维护规则和反向不变量。
 
-```
+跨模块的 Core 架构、最终依赖方向和完整执行证据见
+[`../../doc/CORE_ARCHITECTURE_EXECUTION_PLAN.md`](../../doc/CORE_ARCHITECTURE_EXECUTION_PLAN.md)。
+provider-neutral Chat/Tool 上手入口见
+[`../../doc/CORE_GETTING_STARTED.md`](../../doc/CORE_GETTING_STARTED.md)。
+
+早期的 Spring/Embabel 移植对照、greenfield 草案和阶段性架构体检已经删除。
+这些文件引用了已移除的 `core/model/chat`、旧 Chat client 和旧 tool-loop，不能再作为
+当前设计依据；需要追溯决策时，以执行计划中的 ADR、变更日志和提交证据为准。
+
+## 当前结构
+
+```text
 agent/
-├── agent.go        fluent agent builder (the recommended user API)
-├── builder.go
-├── core/           primitives — Action / Goal / Condition / Agent / Blackboard
-├── planning/       WorldState, Plan, PlanningSystem, Planner interface
-│   └── planner/    goap (A* / default), htn, reactive, utility
-├── runtime/        Platform, AgentProcess, sequential/concurrent tick, retry
-├── event/          lifecycle event types + multicast listener
-├── hitl/           Interrupt[R] + typed Awaitable helpers
-├── toolloop/       Event Runner + serializable Checkpoint / pause / resume
-├── toolpolicy/     OnceOnly / Unlocked chat-tool decorators
-├── workflow/       higher-level agent shapes (Loop / Parallel / RepeatUntil / …)
-└── examples/       hello (1 action), blog (3-action GOAP plan), toolloop,
-                    supervisor, mcpagent, blogllm, mcpbridge
+├── core/                 Agent、Action、Goal、Condition、Blackboard、SPI
+├── planning/             Planner 契约、PlanningSystem 与算法实现
+│   └── planner/          goap、htn、reactive、utility
+├── runtime/              Platform、AgentProcess、生命周期与持久化
+├── event/                生命周期事件和 listener
+├── hitl/                 typed await/interrupt helper
+├── toolloop/             唯一 Event Runner、Checkpoint、Pause/Resume
+├── toolpolicy/           tools.Tool decorator
+├── workflow/             编译为普通 Agent 的高阶组合器
+└── examples/             可运行示例
 ```
 
-## Quick start
+运行基础示例：
 
-```go
-import (
-    "context"
-    "fmt"
-
-    "github.com/Tangerg/lynx/agent"
-    "github.com/Tangerg/lynx/agent/core"
-)
-
-type Topic struct{ Title string }
-type Post  struct{ Body  string }
-
-func main() {
-    a := agent.New("Hello").
-        Actions(agent.NewAction("write",
-            func(ctx context.Context, pc *core.ProcessContext, t Topic) (Post, error) {
-                return Post{Body: "About " + t.Title}, nil
-            },
-            core.ActionConfig{},
-        )).
-        Goals(agent.GoalProducing[Post](core.Goal{Description: "post produced"})).
-        Build()
-
-    p := agent.NewPlatform(runtime.PlatformConfig{})
-    _ = p.Deploy(a)
-    proc, _ := p.RunAgent(context.Background(), a, map[string]any{
-        core.DefaultBindingName: Topic{Title: "agents"},
-    }, core.ProcessOptions{})
-    post, _ := core.ResultOfType[Post](proc)
-    fmt.Println(post.Body)
-}
+```bash
+go run ./examples/hello
+go run ./examples/blog
+go run ./examples/toolloop
 ```
-
-Run the planner example with `go run ./examples/blog`, or the target
-Core Chat + typed Tool + Event Runner path with `go run ./examples/toolloop`.
-The provider-neutral quick start is
-[`../../doc/CORE_GETTING_STARTED.md`](../../doc/CORE_GETTING_STARTED.md).

@@ -3,8 +3,8 @@
 // MiniMax operates two billing zones (international USD / domestic RMB)
 // and exposes the chat surface in two compatibility flavors:
 //
-//   - OpenAI-compatible at /v1 — use [NewOpenAIChatModel];
-//   - Anthropic-compatible at /anthropic — use [NewAnthropicChatModel],
+//   - OpenAI-compatible at /v1 — use [NewOpenAIChat];
+//   - Anthropic-compatible at /anthropic — use [NewAnthropicChat],
 //     which routes through the [anthropic] provider so the Anthropic
 //     SDK's tool-calling, extended thinking, and reasoning-signature
 //     handling all work as-is.

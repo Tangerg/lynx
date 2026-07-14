@@ -32,8 +32,7 @@ var (
 	_ corechat.Streamer = (*Chat)(nil)
 )
 
-// Chat implements Core chat over Ollama's native /api/chat endpoint. It
-// coexists with NativeChatModel while the legacy model surface is frozen.
+// Chat implements Core chat over Ollama's native /api/chat endpoint.
 type Chat struct {
 	api      *API
 	defaults corechat.Options

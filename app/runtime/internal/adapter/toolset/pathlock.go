@@ -7,9 +7,9 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// pathLocker serializes file tool calls that target the same resolved path. The
-// agent runs tool_calls in parallel (ParallelToolLoop), so two write/edit calls
-// must not interleave, and a tracked read must stamp the exact state it read.
+// pathLocker serializes file tool calls that target the same resolved path.
+// Separate runs can execute concurrently, so two write/edit calls must not
+// interleave, and a tracked read must stamp the exact state it read.
 // Keyed by resolved abs path and ref-counted so the map doesn't grow unbounded;
 // glob / grep / LSP / MCP tools are unaffected. The runtime resolver owns one
 // locker across all of its per-turn tool builds, so separate turns cannot both

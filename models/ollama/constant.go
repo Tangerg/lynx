@@ -11,6 +11,6 @@ const (
 	DefaultBaseURL = "http://127.0.0.1:11434"
 
 	// OpenAICompatPath is the suffix Ollama serves the OpenAI-compatible
-	// API under. [NewOpenAIChatModel] joins it with the configured host.
+	// API under. [NewOpenAIChat] joins it with the configured host.
 	OpenAICompatPath = "/v1"
 )

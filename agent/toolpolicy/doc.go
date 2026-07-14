@@ -1,8 +1,8 @@
-// Package toolpolicy ships [chat.Tool] decorators that enforce
+// Package toolpolicy ships `tools.Tool` decorators that enforce
 // LLM-tool-loop policies — OneShotPerLoop, Playbook with
 // UnlockCondition, and similar patterns.
 //
-// Each helper wraps an existing tool and returns a new [chat.Tool]
+// Each helper wraps an existing tool and returns a new `tools.Tool`
 // (plus an error for nil inputs). Compose freely:
 //
 //	once, err := toolpolicy.OnceOnly(rawSearch)
