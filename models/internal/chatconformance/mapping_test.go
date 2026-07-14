@@ -192,6 +192,9 @@ func assertGoogle(t *testing.T, request *chat.Request, response *chat.Response) 
 	if response.Usage.ReasoningTokens == nil || *response.Usage.ReasoningTokens != 4 {
 		t.Fatalf("Google thoughts usage = %v", response.Usage.ReasoningTokens)
 	}
+	if response.Usage.InputTokens != 23 || response.Usage.OutputTokens != 13 {
+		t.Fatalf("Google normalized usage = %#v, want input/output 23/13", response.Usage)
+	}
 	if response.Usage.CacheReadInputTokens == nil || *response.Usage.CacheReadInputTokens != 6 {
 		t.Fatalf("Google cached usage = %v", response.Usage.CacheReadInputTokens)
 	}

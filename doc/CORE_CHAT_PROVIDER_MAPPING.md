@@ -56,7 +56,8 @@
 - Content.Parts 原生保序；Thought/ThoughtSignature 直接映射 Reasoning Part。
 - Candidates 全量映射为 Choices，并保留 Candidate.Index、native finish reason 与 safety ratings。
 - FunctionCall.ID 缺失时按统一规则生成稳定 ID；FunctionResponse 仍按 provider 要求以 name/object 下沉。
-- model version、tool-use prompt token 和原始 usage 进入 Response Extensions。
+- 原生 `prompt_token_count + tool_use_prompt_token_count` 归一化为 Core 总 `InputTokens`，`candidates_token_count + thoughts_token_count` 归一化为总 `OutputTokens`；cache/thoughts 作为 breakdown，原始分项进入 `google/usage`。
+- model version 和 tool-use prompt token 另行进入 Response Extensions。
 
 ### 3.4 Ollama Native Chat
 
