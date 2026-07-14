@@ -12,8 +12,8 @@ github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 h1:fhqpLE3UEXi9lPaBRpQ6Xu
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0/go.mod h1:7dCRMLwisfRH3dBupKeNCioWYUZ4SS09Z14H+7i8ZoY=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 h1:XRzhVemXdgvJqCH0sFfrBUTnUJSBrBf7++ypk+twtRs=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0/go.mod h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=
-github.com/Tangerg/lynx/core v0.0.0-20260714090234-687df9b609db h1:L10Ym9KlS21cNPj46YbPjc5SS9x2CfVJsi+Y1FXYghM=
-github.com/Tangerg/lynx/core v0.0.0-20260714090234-687df9b609db/go.mod h1:prYWZFMF8n5MS+P6r/7xOAHPgPYlbPR4zy9p3HHcFvo=
+github.com/Tangerg/lynx/core v0.0.0-20260714090610-6953b45da9d2 h1:hWRuFlpkiTSZx23mv/PyqVV6V96t7jELyTcPUpoF+3w=
+github.com/Tangerg/lynx/core v0.0.0-20260714090610-6953b45da9d2/go.mod h1:gdaBWGWg3ofjmjTVRy1nQFKfoH6c3lk+CySuhAFiTgU=
 github.com/Tangerg/lynx/pkg v0.0.0-20260627110629-977ea6791375 h1:Jy6b7FqvDCX4VCToRNxfs3MImL10XhLc8XiChiF4OIE=
 github.com/Tangerg/lynx/pkg v0.0.0-20260627110629-977ea6791375/go.mod h1:buyfYRLHeu7EiQzjDWadGZxxVr34CkW9tlajEn+t3GY=
 github.com/Tangerg/lynx/tokenizer v0.0.0-20260714090234-687df9b609db h1:N/GF5YFoW9U9PgkC/xRhlpwvYVjDzsV9RHumy+wWMKY=

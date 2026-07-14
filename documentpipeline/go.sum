@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx/core v0.0.0-20260714090234-687df9b609db h1:L10Ym9KlS21cNPj46YbPjc5SS9x2CfVJsi+Y1FXYghM=
-github.com/Tangerg/lynx/core v0.0.0-20260714090234-687df9b609db/go.mod h1:prYWZFMF8n5MS+P6r/7xOAHPgPYlbPR4zy9p3HHcFvo=
+github.com/Tangerg/lynx/core v0.0.0-20260714090610-6953b45da9d2 h1:hWRuFlpkiTSZx23mv/PyqVV6V96t7jELyTcPUpoF+3w=
+github.com/Tangerg/lynx/core v0.0.0-20260714090610-6953b45da9d2/go.mod h1:gdaBWGWg3ofjmjTVRy1nQFKfoH6c3lk+CySuhAFiTgU=
 github.com/Tangerg/lynx/tokenizer v0.0.0-20260714090234-687df9b609db h1:N/GF5YFoW9U9PgkC/xRhlpwvYVjDzsV9RHumy+wWMKY=
 github.com/Tangerg/lynx/tokenizer v0.0.0-20260714090234-687df9b609db/go.mod h1:redpr1KJr61ZY+TZb123GJVvkgCSCw8ZhatESTbZyho=
 github.com/frankban/quicktest v1.14.6 h1:7Xjx+VpznH+oBnejlPUj8oUpdxnVs4f8XU8WnHkI4W8=
