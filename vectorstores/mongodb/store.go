@@ -254,7 +254,7 @@ func (s *Store) createSearchIndex(ctx context.Context) error {
 	return nil
 }
 
-// Create embeds documents and bulk-upserts them by _id.
+// Add embeds documents and bulk-upserts them by _id.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
 		return vectorstore.ErrEmptyDocuments
@@ -320,7 +320,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve runs the $vectorSearch aggregation and returns the matching
+// Search runs the $vectorSearch aggregation and returns the matching
 // documents above the configured MinScore threshold.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {

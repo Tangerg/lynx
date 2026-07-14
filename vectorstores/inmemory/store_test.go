@@ -81,7 +81,7 @@ func mustDoc(t *testing.T, id, text string, metadata map[string]any) *document.D
 	return &document.Document{ID: id, Text: text, Metadata: encoded}
 }
 
-func TestStore_CreateAndRetrieveBasics(t *testing.T) {
+func TestStore_AddAndSearchBasics(t *testing.T) {
 	store := newStore(t)
 	ctx := t.Context()
 
@@ -93,7 +93,7 @@ func TestStore_CreateAndRetrieveBasics(t *testing.T) {
 	createReq := docs
 	err := store.Add(ctx, createReq)
 	if err != nil {
-		t.Fatalf("Create: %v", err)
+		t.Fatalf("Add: %v", err)
 	}
 	if got := store.Len(); got != 3 {
 		t.Fatalf("Len = %d, want 3", got)
@@ -103,7 +103,7 @@ func TestStore_CreateAndRetrieveBasics(t *testing.T) {
 	retrieveReq.TopK = 2
 	got, err := store.Search(ctx, retrieveReq)
 	if err != nil {
-		t.Fatalf("Retrieve: %v", err)
+		t.Fatalf("Search: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %d results, want 2", len(got))
@@ -114,16 +114,16 @@ func TestStore_CreateAndRetrieveBasics(t *testing.T) {
 	}
 }
 
-func TestStore_CreateRejectsEmptyID(t *testing.T) {
+func TestStore_AddRejectsEmptyID(t *testing.T) {
 	store := newStore(t)
 	docs := []*document.Document{{ID: "", Text: "x"}}
 	req := docs
 	if err := store.Add(t.Context(), req); err == nil {
-		t.Fatal("Create should reject empty ID")
+		t.Fatal("Add should reject empty ID")
 	}
 }
 
-func TestStore_RetrieveHonoursTopK(t *testing.T) {
+func TestStore_SearchHonoursTopK(t *testing.T) {
 	store := newStore(t)
 	ctx := t.Context()
 	docs := make([]*document.Document, 0, 10)
@@ -132,21 +132,21 @@ func TestStore_RetrieveHonoursTopK(t *testing.T) {
 	}
 	createReq := docs
 	if err := store.Add(ctx, createReq); err != nil {
-		t.Fatalf("Create: %v", err)
+		t.Fatalf("Add: %v", err)
 	}
 
 	retrieveReq := vectorstore.SearchRequest{Query: "text 3", TopK: vectorstore.DefaultTopK}
 	retrieveReq.TopK = 3
 	got, err := store.Search(ctx, retrieveReq)
 	if err != nil {
-		t.Fatalf("Retrieve: %v", err)
+		t.Fatalf("Search: %v", err)
 	}
 	if len(got) != 3 {
 		t.Fatalf("got %d results, want 3", len(got))
 	}
 }
 
-func TestStore_RetrieveAppliesFilter(t *testing.T) {
+func TestStore_SearchAppliesFilter(t *testing.T) {
 	store := newStore(t)
 	ctx := t.Context()
 	docs := []*document.Document{
@@ -156,7 +156,7 @@ func TestStore_RetrieveAppliesFilter(t *testing.T) {
 	}
 	createReq := docs
 	if err := store.Add(ctx, createReq); err != nil {
-		t.Fatalf("Create: %v", err)
+		t.Fatalf("Add: %v", err)
 	}
 
 	expr, err := filter.Parse(`category == 'a' AND year >= 2024`)
@@ -168,7 +168,7 @@ func TestStore_RetrieveAppliesFilter(t *testing.T) {
 	retrieveReq.TopK = 5
 	got, err := store.Search(ctx, retrieveReq)
 	if err != nil {
-		t.Fatalf("Retrieve: %v", err)
+		t.Fatalf("Search: %v", err)
 	}
 	if len(got) != 1 || got[0].Document.ID != "2" {
 		ids := make([]string, 0, len(got))
@@ -179,7 +179,7 @@ func TestStore_RetrieveAppliesFilter(t *testing.T) {
 	}
 }
 
-func TestStore_RetrieveLikePattern(t *testing.T) {
+func TestStore_SearchLikePattern(t *testing.T) {
 	store := newStore(t)
 	ctx := t.Context()
 	docs := []*document.Document{
@@ -199,7 +199,7 @@ func TestStore_RetrieveLikePattern(t *testing.T) {
 	retrieveReq.TopK = 10
 	got, err := store.Search(ctx, retrieveReq)
 	if err != nil {
-		t.Fatalf("Retrieve: %v", err)
+		t.Fatalf("Search: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %d, want 2", len(got))
@@ -236,7 +236,7 @@ func TestStore_Delete(t *testing.T) {
 	}
 }
 
-func TestStore_RetrieveMinScoreFilters(t *testing.T) {
+func TestStore_SearchMinScoreFilters(t *testing.T) {
 	store := newStore(t)
 	ctx := t.Context()
 	docs := []*document.Document{
@@ -253,7 +253,7 @@ func TestStore_RetrieveMinScoreFilters(t *testing.T) {
 	baseline.MinScore = 0.0
 	all, err := store.Search(ctx, baseline)
 	if err != nil {
-		t.Fatalf("Retrieve baseline: %v", err)
+		t.Fatalf("Search baseline: %v", err)
 	}
 	if len(all) != 2 {
 		t.Fatalf("baseline got %d, want 2", len(all))
@@ -277,7 +277,7 @@ func TestStore_RetrieveMinScoreFilters(t *testing.T) {
 	tight.TopK = 10
 	got, err := store.Search(ctx, tight)
 	if err != nil {
-		t.Fatalf("Retrieve tight: %v", err)
+		t.Fatalf("Search tight: %v", err)
 	}
 	if len(got) != 1 || got[0].Document.ID != "1" {
 		ids := make([]string, 0, len(got))
@@ -297,19 +297,19 @@ func TestStore_RejectsBadConfig(t *testing.T) {
 	}
 }
 
-func TestStore_RetrieveOnEmpty(t *testing.T) {
+func TestStore_SearchOnEmpty(t *testing.T) {
 	store := newStore(t)
 	retrieveReq := vectorstore.SearchRequest{Query: "anything", TopK: vectorstore.DefaultTopK}
 	got, err := store.Search(t.Context(), retrieveReq)
 	if err != nil {
-		t.Fatalf("Retrieve: %v", err)
+		t.Fatalf("Search: %v", err)
 	}
 	if len(got) != 0 {
 		t.Fatalf("got %d, want 0", len(got))
 	}
 }
 
-func TestStore_CreateUpsertsExistingID(t *testing.T) {
+func TestStore_AddUpsertsExistingID(t *testing.T) {
 	store := newStore(t)
 	ctx := t.Context()
 
@@ -320,7 +320,7 @@ func TestStore_CreateUpsertsExistingID(t *testing.T) {
 	second := []*document.Document{mustDoc(t, "1", "updated", map[string]any{"v": 2})}
 	updateReq := second
 	if err := store.Add(ctx, updateReq); err != nil {
-		t.Fatalf("Create upsert: %v", err)
+		t.Fatalf("Add upsert: %v", err)
 	}
 
 	if got := store.Len(); got != 1 {
@@ -342,7 +342,7 @@ func TestSimilarity_EuclideanSelfIsOne(t *testing.T) {
 	}
 }
 
-func TestStore_RetrieveIsNull(t *testing.T) {
+func TestStore_SearchIsNull(t *testing.T) {
 	store := newStore(t)
 	ctx := t.Context()
 	docs := []*document.Document{
@@ -352,7 +352,7 @@ func TestStore_RetrieveIsNull(t *testing.T) {
 	}
 	createReq := docs
 	if err := store.Add(ctx, createReq); err != nil {
-		t.Fatalf("Create: %v", err)
+		t.Fatalf("Add: %v", err)
 	}
 
 	// IS NULL: matches docs missing "owner".
@@ -365,7 +365,7 @@ func TestStore_RetrieveIsNull(t *testing.T) {
 	req.TopK = 10
 	got, err := store.Search(ctx, req)
 	if err != nil {
-		t.Fatalf("Retrieve(is null): %v", err)
+		t.Fatalf("Search(is null): %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("is null matched %d docs, want 2 (ids 1,3)", len(got))
@@ -381,14 +381,14 @@ func TestStore_RetrieveIsNull(t *testing.T) {
 	req2.TopK = 10
 	got2, err := store.Search(ctx, req2)
 	if err != nil {
-		t.Fatalf("Retrieve(is not null): %v", err)
+		t.Fatalf("Search(is not null): %v", err)
 	}
 	if len(got2) != 1 || got2[0].Document.ID != "2" {
 		t.Fatalf("is not null = %+v, want [id 2]", got2)
 	}
 }
 
-func TestStore_RetrieveNotIn(t *testing.T) {
+func TestStore_SearchNotIn(t *testing.T) {
 	store := newStore(t)
 	ctx := t.Context()
 	docs := []*document.Document{
@@ -398,7 +398,7 @@ func TestStore_RetrieveNotIn(t *testing.T) {
 	}
 	createReq := docs
 	if err := store.Add(ctx, createReq); err != nil {
-		t.Fatalf("Create: %v", err)
+		t.Fatalf("Add: %v", err)
 	}
 
 	expr, err := filter.Parse(`category not in ('a', 'b')`)
@@ -410,7 +410,7 @@ func TestStore_RetrieveNotIn(t *testing.T) {
 	req.TopK = 10
 	got, err := store.Search(ctx, req)
 	if err != nil {
-		t.Fatalf("Retrieve: %v", err)
+		t.Fatalf("Search: %v", err)
 	}
 	if len(got) != 1 || got[0].Document.ID != "3" {
 		ids := make([]string, 0, len(got))
@@ -431,7 +431,7 @@ func TestStore_DeleteIDs(t *testing.T) {
 	}
 	createReq := docs
 	if err := store.Add(ctx, createReq); err != nil {
-		t.Fatalf("Create: %v", err)
+		t.Fatalf("Add: %v", err)
 	}
 
 	// Empty slice is a no-op; an unknown id is ignored.
@@ -446,7 +446,7 @@ func TestStore_DeleteIDs(t *testing.T) {
 	req.TopK = 10
 	got, err := store.Search(ctx, req)
 	if err != nil {
-		t.Fatalf("Retrieve: %v", err)
+		t.Fatalf("Search: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("after DeleteIDs([1]), have %d docs, want 2 (2,3)", len(got))

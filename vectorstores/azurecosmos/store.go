@@ -160,7 +160,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Create embeds documents and upserts them.
+// Add embeds documents and upserts them.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
 		return vectorstore.ErrEmptyDocuments
@@ -211,7 +211,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve runs a VectorDistance-ordered query.
+// Search runs a VectorDistance-ordered query.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("azurecosmos: invalid search request: %w", err)

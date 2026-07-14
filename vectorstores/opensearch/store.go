@@ -305,7 +305,7 @@ func (s *Store) createIndex(ctx context.Context) error {
 	return nil
 }
 
-// Create embeds documents and bulk-indexes them.
+// Add embeds documents and bulk-indexes them.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
 		return vectorstore.ErrEmptyDocuments
@@ -391,7 +391,7 @@ func (s *Store) bulkErrorReason(resp *opensearchapi.BulkResp) error {
 	return errors.New("opensearch: bulk reported errors with no item-level reason")
 }
 
-// Retrieve runs an approximate KNN query against the configured index
+// Search runs an approximate KNN query against the configured index
 // and returns the documents above MinScore.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {

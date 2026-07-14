@@ -12,7 +12,7 @@
 // dense_vector mapping at index creation time and cannot be changed
 // without rebuilding.
 //
-// Retrieval shape:
+// Search shape:
 //
 //	POST <index>/_search
 //	{

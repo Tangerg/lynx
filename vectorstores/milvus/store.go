@@ -40,7 +40,7 @@ const (
 type StoreConfig struct {
 	// Context is the bootstrap context used during NewStore (schema /
 	// index creation when InitializeSchema is true). Per-call operations
-	// (Create / Retrieve / Delete) use their own caller-supplied ctx and
+	// (Add / Search / DeleteWhere / DeleteIDs) use their own caller-supplied ctx and
 	// ignore this field. Optional: defaults to context.Background().
 	Context context.Context
 

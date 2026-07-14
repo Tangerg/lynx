@@ -17,7 +17,7 @@
 // [EngineFaiss]. The chosen value is baked into the index mapping
 // at creation time and cannot be changed without rebuilding.
 //
-// Retrieval uses approximate k-NN:
+// Search uses approximate k-NN:
 //
 //	POST <index>/_search
 //	{

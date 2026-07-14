@@ -178,7 +178,7 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	return nil
 }
 
-// Create embeds documents and imports them via the upsert action.
+// Add embeds documents and imports them via the upsert action.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
 		return vectorstore.ErrEmptyDocuments
@@ -230,7 +230,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve runs a vector search via the documents.Search API.
+// Search runs a vector search via the documents.Search API.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("typesense: invalid search request: %w", err)

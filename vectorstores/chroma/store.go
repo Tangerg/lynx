@@ -269,7 +269,7 @@ func (s *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) 
 	return opts, nil
 }
 
-// Create embeds the documents in req and upserts them into Chroma.
+// Add embeds the documents and upserts them into Chroma.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
 		return vectorstore.ErrEmptyDocuments
@@ -393,7 +393,7 @@ func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64
 	return docs, nil
 }
 
-// Retrieve embeds the query in req, searches Chroma, and returns matching documents.
+// Search embeds the query, searches Chroma, and returns matching documents.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("chroma: invalid search request: %w", err)

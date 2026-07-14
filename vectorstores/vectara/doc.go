@@ -11,7 +11,7 @@
 //
 // Authentication. API key via the `x-api-key` header.
 //
-// Retrieval shape. The store hits Vectara's v2 query endpoint —
+// Search shape. The store hits Vectara's v2 query endpoint —
 // `POST /v2/corpora/<corpus_key>/query` — with the user's raw query
 // and a `metadata_filter` string derived from the filter visitor.
 // Scores come from Vectara directly (higher = more similar).

@@ -14,7 +14,7 @@
 // or plain HTTP (self-hosted). Inject credentials by passing a
 // configured [http.Client] via [StoreConfig.HTTPClient].
 //
-// Retrieval shape. The store issues a `nearestNeighbor` YQL search:
+// Search shape. The store issues a `nearestNeighbor` YQL search:
 //
 //	POST /search/
 //	{

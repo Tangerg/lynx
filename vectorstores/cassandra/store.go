@@ -298,7 +298,7 @@ func firstLine(s string) string {
 	return s
 }
 
-// Create embeds documents and inserts them.
+// Add embeds documents and inserts them.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
 		return vectorstore.ErrEmptyDocuments
@@ -365,7 +365,7 @@ func (s *Store) insertOne(ctx context.Context, id string, doc *document.Document
 	return nil
 }
 
-// Retrieve runs an ANN query using the configured similarity function.
+// Search runs an ANN query using the configured similarity function.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("cassandra: invalid search request: %w", err)
@@ -432,7 +432,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 
 // makeScanDestinations allocates the per-row pointer slice used by
 // gocql.Iter.Scan. The shape mirrors the SELECT column list built in
-// Retrieve.
+// Search.
 func (s *Store) makeScanDestinations() []any {
 	dest := []any{new(string), new(string), new(float32)}
 	for range s.metadataColumns {

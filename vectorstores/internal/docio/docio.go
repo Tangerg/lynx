@@ -9,7 +9,7 @@ import (
 )
 
 // EnsureID returns id unchanged when it's non-empty; otherwise it
-// mints a fresh UUID. Used by every Create path's per-document loop.
+// mints a fresh UUID. Used by every Add path's per-document loop.
 func EnsureID(id string) string {
 	if id != "" {
 		return id

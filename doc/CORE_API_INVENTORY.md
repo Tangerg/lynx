@@ -323,41 +323,43 @@ ast, lexer, parser, token, visitors
 
 Reference batch：
 
-- [ ] `vectorstores/inmemory`
-- [ ] `vectorstores/pgvector`
-- [ ] `vectorstores/mongodb`
-- [ ] `vectorstores/qdrant`
+- [x] `vectorstores/inmemory`
+- [x] `vectorstores/pgvector`
+- [x] `vectorstores/mongodb`
+- [x] `vectorstores/qdrant`
 
 Remaining implementation batch：
 
-- [ ] `vectorstores/azureaisearch`
-- [ ] `vectorstores/azurecosmos`
-- [ ] `vectorstores/bedrockkb`
-- [ ] `vectorstores/cassandra`
-- [ ] `vectorstores/chroma`
-- [ ] `vectorstores/clickhouse`
-- [ ] `vectorstores/couchbase`
-- [ ] `vectorstores/elasticsearch`
-- [ ] `vectorstores/mariadb`
-- [ ] `vectorstores/milvus`
-- [ ] `vectorstores/neo4j`
-- [ ] `vectorstores/opensearch`
-- [ ] `vectorstores/oracle`
-- [ ] `vectorstores/pinecone`
-- [ ] `vectorstores/redis`
-- [ ] `vectorstores/s3vectors`
-- [ ] `vectorstores/tidb`
-- [ ] `vectorstores/typesense`
-- [ ] `vectorstores/vectara`
-- [ ] `vectorstores/vespa`
-- [ ] `vectorstores/weaviate`
+- [x] `vectorstores/azureaisearch`
+- [x] `vectorstores/azurecosmos`
+- [x] `vectorstores/bedrockkb`
+- [x] `vectorstores/cassandra`
+- [x] `vectorstores/chroma`
+- [x] `vectorstores/clickhouse`
+- [x] `vectorstores/couchbase`
+- [x] `vectorstores/elasticsearch`
+- [x] `vectorstores/mariadb`
+- [x] `vectorstores/milvus`
+- [x] `vectorstores/neo4j`
+- [x] `vectorstores/opensearch`
+- [x] `vectorstores/oracle`
+- [x] `vectorstores/pinecone`
+- [x] `vectorstores/redis`
+- [x] `vectorstores/s3vectors`
+- [x] `vectorstores/tidb`
+- [x] `vectorstores/typesense`
+- [x] `vectorstores/vectara`
+- [x] `vectorstores/vespa`
+- [x] `vectorstores/weaviate`
 
 Alias verification batch：
 
-- [ ] `vectorstores/cockroachdb`（复用 pgvector）
-- [ ] `vectorstores/supabase`（复用 pgvector）
+- [x] `vectorstores/cockroachdb`（复用 pgvector）
+- [x] `vectorstores/supabase`（复用 pgvector）
 
 每个 backend 子项只有在 compile-time assertion、统一 conformance suite、原 backend 测试和 filter visitor 测试全部通过后才可勾选。
+
+P4-08 证据：`c970a3343`。`vectorstores/internal/conformance` 对每个实现验证精确能力集合，并执行必须在外部 I/O 前完成的 Add/Search/Delete 输入契约；27 个目录的原测试、visitor 测试以及 build/vet/lint/race 全绿。
 
 ## 7. P6 Provider 迁移子清单
 

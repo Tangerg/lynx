@@ -174,17 +174,17 @@ func (p *Pipeline) Execute(ctx context.Context, q *Query) (*Query, error) {
 ```go
 var qdrantTracer = otel.Tracer("lynx/vectorstore/qdrant")
 
-func (s *Store) Retrieve(ctx context.Context, req *RetrievalRequest) ([]*Document, error) {
-    ctx, span := qdrantTracer.Start(ctx, "db.vector.retrieve",
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) ([]vectorstore.Match, error) {
+    ctx, span := qdrantTracer.Start(ctx, "db.vector.search",
         trace.WithAttributes(
             attribute.String("db.system", "qdrant"),
-            attribute.String("db.operation.name", "retrieve"),
+            attribute.String("db.operation.name", "search"),
             attribute.Int("db.vector.query.top_k", req.TopK),
         ),
     )
     defer span.End()
     // ...
-    span.SetAttributes(attribute.Int("rag.doc_count", len(docs)))
+    span.SetAttributes(attribute.Int("rag.doc_count", len(matches)))
 }
 ```
 
@@ -427,7 +427,7 @@ otel.SetTracerProvider(tp)
 ### 8.2 已就绪（外圈发射侧）
 
 - [x] `rag/pipeline.go` 五阶段加 span（`rag.pipeline` 父 span + Query/Retrieve/Augment/Generate/Stream 子 span）
-- [x] `vectorstores/{pgvector,qdrant,milvus,pinecone,weaviate,chroma,redis,mongodb,cassandra,neo4j,couchbase,typesense,vespa,vectara,bedrockkb,s3vectors,azureaisearch,azurecosmos,mariadb,oracle,tidb,clickhouse,opensearch,elasticsearch,inmemory}` 共 24 个 provider 统一加 `db.vector.*` 埋点（cockroachdb/supabase 通过 pgvector 类型别名继承）
+- [x] `vectorstores/{pgvector,qdrant,milvus,pinecone,weaviate,chroma,redis,mongodb,cassandra,neo4j,couchbase,typesense,vespa,vectara,bedrockkb,s3vectors,azureaisearch,azurecosmos,mariadb,oracle,tidb,clickhouse,opensearch,elasticsearch,inmemory}` 共 25 个实现统一加 `db.vector.*` 埋点（cockroachdb/supabase 复用 pgvector 实现）
 - [x] `mcp/tool.go::Tool.Call` + `mcp/server.go::makeServerHandler` 加 `mcp.tool.call` / `mcp.tool.serve` span
 - [x] `agent/runtime/` tick / action / plan 全套埋点：span（含 HTN / Reactive / GOAP planner）+ metrics（`agent.ticks` / `agent.action.executions` / `agent.action.duration` / `agent.plan.duration` / `agent.process.exits`）
 - [x] `chathistory/{postgres,redis,mongodb,cassandra,neo4j,cosmosdb}` 6 个 provider Read/Write/Clear 加 DB-semconv span
