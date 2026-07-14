@@ -15,14 +15,15 @@
 - **Retriever 是窄腰**:围绕它用组合函数(叠加 transformer / expander / refiner)显式表达能力,而非用一个大 Config 描述整条 pipeline。
 - **组合用函数,不用框架式配置**:没有 PipelineConfig / Pipeline 这类中心配置对象。
 - **单包优先**:同一 RAG 域先放根包、用具体类型名表达职责,不预先拆 `rag/vectorstore`、`rag/llm` 之类子包。
-- **只有 fan-out 检索并行**:多路检索 / query 扩展并发收集;transform / refine 是明确的顺序步骤。
+- **只有 fan-out 检索并行**:多路检索 / query 扩展并发收集;transform / refine / evaluation 是明确的顺序步骤。
 - **Query 的 per-call metadata 走 Extra**:filter / history / tenant 等上下文跨组件传递靠它。
+- **evaluation 是独立策略域**:`rag/evaluation` 只依赖最小 Chat Model 和普通 Query/Answer/Context 值，不反向耦合 Document/VectorStore 或固定 RAG pipeline。
 
 ## 模块特有反向不变量
 
 - ❌ **恢复 PipelineConfig / Pipeline** —— 组合用 Go 函数完成,不引框架式中心配置。
 - ❌ **加 QueryRouter / DocumentJoiner 之类固定阶段** —— 路由写成自定义 Retriever,合并写成 Refiner。
-- ❌ **把根包拆回 `rag/vectorstore`、`rag/llm`、`rag/ragchat`** —— 单包 + 具体命名即可。
+- ❌ **把根包拆回 `rag/vectorstore`、`rag/llm`、`rag/ragchat`** —— 单包 + 具体命名即可；独立的 evaluation 策略域除外。
 - ❌ **为能力加大 Config / Builder** —— 小接口 + 函数组合优先,只有真实可选项才进 Config。
 
 ## 改动前必看(波及面)
