@@ -6,8 +6,6 @@ import (
 	"iter"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/chat"
-	lynxotel "github.com/Tangerg/lynx/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -15,6 +13,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/core/chat"
+	lynxotel "github.com/Tangerg/lynx/otel"
 )
 
 type telemetryRig struct {
