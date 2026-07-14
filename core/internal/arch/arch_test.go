@@ -34,6 +34,12 @@ func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse %s: %v", path, err)
 		}
+		for _, imported := range file.Imports {
+			importPath := strings.Trim(imported.Path.Value, `"`)
+			if importPath == "github.com/Tangerg/lynx/core/model" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/model/") {
+				t.Errorf("target core/chat must not depend on legacy generic model layer %q: %s", importPath, path)
+			}
+		}
 		for _, declaration := range file.Decls {
 			general, ok := declaration.(*ast.GenDecl)
 			if !ok || general.Tok != token.TYPE {
@@ -49,6 +55,9 @@ func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
 					continue
 				}
 				found[typeSpec.Name.Name] = true
+				if typeSpec.TypeParams != nil && len(typeSpec.TypeParams.List) != 0 {
+					t.Errorf("core/chat.%s must not use type parameters", typeSpec.Name.Name)
+				}
 				iface, ok := typeSpec.Type.(*ast.InterfaceType)
 				if !ok {
 					t.Errorf("core/chat.%s must remain an interface", typeSpec.Name.Name)
