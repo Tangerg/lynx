@@ -694,15 +694,25 @@ flowchart LR
   - `vectorstore.Match` 显式承载 `Document` 与 `Score`；27 个 backend 的搜索结果全部迁移。
   - RAG 使用自己的 `Candidate`，由 vectorstore retriever 显式映射，避免通用 RAG 契约反向依赖具体检索实现。
   - 证据：`16332a7d0`；全 workspace 门禁及 RAG/vectorstores race 全绿，`Document.Score` 与替代性的 metadata score 均不存在。
-- [ ] **P4-03 用 Indexer/Searcher/IDDeleter/FilterDeleter 替代胖 Store 要求**
-- [ ] **P4-04 简化 Add/Delete 单字段 request wrapper**
+- [x] **P4-03 用 Indexer/Searcher/IDDeleter/FilterDeleter 替代胖 Store 要求**（完成：2026-07-14）
+  - 四个能力接口各只含一个方法；不支持某能力的 backend 不再提供伪实现，Bedrock KB 只实现 `Searcher`。
+  - 证据：`8531c022e`；Core 架构测试锁定接口方法数，全部 adapter 有精确 compile-time assertion。
+- [x] **P4-04 简化 Add/Delete 单字段 request wrapper**（完成：2026-07-14）
   - 多参数搜索保留 SearchRequest。
-- [ ] **P4-05 删除 NativeClient any**
-- [ ] **P4-06 重写 SearchRequest 配置方式**
+  - `Add(ctx, documents)`、`DeleteIDs(ctx, ids)`、`DeleteWhere(ctx, expr)` 直接接收唯一逻辑输入；`CreateRequest`/`DeleteRequest` 已删除。
+  - 证据：`8531c022e`；workspace 中无旧 wrapper 构造或调用。
+- [x] **P4-05 删除 NativeClient any**（完成：2026-07-14）
+  - `StoreMetadata`、`Metadata()` 与 `NativeClient()` 已从 Core 和全部 backend 删除，不增加类型断言替代面。
+  - 证据：`8531c022e`；Core 公共面和 adapter 实现均无 native-client 探测 API。
+- [x] **P4-06 重写 SearchRequest 配置方式**（完成：2026-07-14）
   - 普通 struct + Validate；非法值不静默忽略。
-- [ ] **P4-07 收敛 Filter 公共门面**
+  - 删除 constructor/fluent `With*`；`Search` 在 I/O 前校验 query、TopK、MinScore 和 Filter。
+  - 证据：`8531c022e`；Core 与 backend 测试覆盖非法值拒绝。
+- [x] **P4-07 收敛 Filter 公共门面**（完成：2026-07-14）
   - Expr 和稳定节点/构造函数公开。
   - lexer/parser/token/analyzer/optimizer 进入 internal。
+  - 根门面完全使用语义 `Operator`/`LiteralKind`，不暴露 token；`Parse` 统一 parse + validate + simplify，手工树通过 `Validate` 校验且残缺输入不 panic。
+  - 证据：`e49928f04`；旧五个公共子包路径无引用，Core/RAG/全部 vectorstore build、vet、lint、race 及 workspace 19/19 门禁全绿。
 - [ ] **P4-08 迁移全部 vectorstore adapters**
   - 先以 `inmemory`、`pgvector`、`mongodb`、`qdrant` 作为 reference，再分批迁移其余实现。
   - 每个实现使用相同 conformance suite。
@@ -796,18 +806,18 @@ flowchart LR
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
-| P4 Document/VectorStore | 进行中 | 2/9 | Document 纯数据与 Match 已完成；进入能力接口拆分 |
+| P4 Document/VectorStore | 进行中 | 7/9 | 小能力接口、请求值和 Filter 语义门面已完成；进入统一 conformance |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **31/60** | **52%** |
+| **总计** | **进行中** | **36/60** | **60%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P4。
-- 下一任务：执行 P4-03，以 `Indexer`、`Searcher`、`IDDeleter`、`FilterDeleter` 替代胖 `Store` 要求，并直接迁移真实消费者。
+- 下一任务：执行 P4-08，在 `vectorstores/internal/conformance` 建立统一能力/前置校验套件，并由 25 个实现和 2 个 alias 全部实例化。
 - 当前阻塞：无。
-- 最近完成：P4-01/P4-02 原子纵向切片；Document 已成为纯数据，运行时策略移至 `documentpipeline`/`documentreaders`，检索分数改由 `vectorstore.Match` 与 RAG `Candidate` 承载，workspace 19/19 与受影响模块 race 全绿。
+- 最近完成：P4-03 至 P4-07；胖 Store、单字段 wrapper、NativeClient、fluent SearchRequest 和 Filter 编译器公共包全部删除，真实消费者已切到四个小能力接口与 token-free Filter 语义树。
 
 ### 10.3 进度更新规则
 
@@ -1020,6 +1030,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：P4-01/P4-02 在同一逻辑批次完成；`Document` 不通过字段或 metadata 暂存 score，vectorstore 使用 `Match`，RAG 使用自己的 `Candidate` 并在 adapter 边界显式映射。
 - 原因：先删除 Score 会迫使中间提交引入隐式传值协议，先保留 Score 又无法证明纯数据边界；两个独立结果类型也避免通用 RAG 契约耦合 vectorstore。
 
+### ADR-010：Filter 公共树只表达语义，不表达编译过程
+
+- 日期：2026-07-14
+- 状态：已采纳
+- 决策：公开 `Expr` 使用 token-free 稳定节点与语义 `Operator`；`Parse` 拥有 parse + validate + simplify 完整入口，手工构造树使用 `Validate`；lexer/parser/token/analyzer/optimizer 和内部 AST 位于 `internal`，根树与内部树通过显式转换而非 alias 连接。
+- 原因：provider 只需要翻译查询语义，不应依赖词法 token、parser 状态或 optimizer visitor；显式边界允许内部编译器独立演进，并让公开类型不会因实现重构扩散破坏。
+
 ---
 
 ## 16. 长期完成定义
@@ -1040,6 +1057,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P4-03 至 P4-07；VectorStore 改为四个小能力接口和普通 SearchRequest，删除 wrapper/native client；Filter 收敛为 token-free 语义门面并采纳 ADR-010 | Codex |
 | 2026-07-14 | 完成 P4-01/P4-02；Document 收缩为纯数据，pipeline/reader 策略移出 Core，检索关系由 vectorstore.Match 与 RAG Candidate 显式承载；采纳 ADR-009 | Codex |
 | 2026-07-14 | 完成 P3-09 与 P3 阶段验收；新增只使用目标 API 的 quick start、无凭证可运行 tool-loop 示例和 ChatClient/Tools GoDoc examples；进入 P4 | Codex |
 | 2026-07-14 | 完成 P3-08；建立基于新 Chat/Tool 契约的 lazy Event Runner 与可序列化 checkpoint/resume，删除 Core Halt/ControlFlowError 并迁完真实消费者；旧 middleware 不做 bridge、按 P6 直接删除 | Codex |
@@ -1080,6 +1098,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P4-03 至 P4-07 | `8531c022e` 将 Store 拆为 `Indexer`/`Searcher`/`IDDeleter`/`FilterDeleter`，删除单字段 request wrapper、metadata/native client 探测面并以普通 `SearchRequest.Validate` 取代 fluent 配置；`e49928f04` 将 Filter 编译器五个公共子包移入 internal，以显式树转换提供 token-free 根语义门面并迁完 RAG/25 个实现；workspace 19/19 与 Core/RAG/vectorstores build、vet、lint、race 全绿；任务计数 36/60 | P4-08 全 backend 统一 conformance |
 | 2026-07-14 | P4-01、P4-02 | `16332a7d0` 将 27 个 vectorstore backend 返回值迁为 `Match`，并以 RAG `Candidate` 隔离通用契约；`de6f778ee` 将 Document 收缩为 `ID/Text/Media/Metadata`，新增 `documentpipeline`、迁移 text/JSON reader 到 `documentreaders`，删除 Core runtime policy 与 `document/id`；workspace 19/19 及 Core/documentpipeline/documentreaders/RAG/vectorstores race 全绿；任务计数 31/60 | P4-03 小能力接口替代胖 Store |
 | 2026-07-14 | P3-09、P3 阶段验收 | `22acec1e9` 新增目标 API quick start、可运行并有输出测试的 `agent/examples/toolloop`、ChatClient Call/Stream/Template/Structured 与 Tools typed-function GoDoc examples；旧路径未进入新用户入口；Agent/ChatClient/Tools race、示例实跑与 workspace 72/72 全绿；任务计数 29/60，P3 9/9 完成 | P4-01 Document 纯数据与 documentpipeline 原子纵向切片 |
 | 2026-07-14 | P3-08 | `ab30d8943` 新增新协议 `Runner`、保守串行工具策略、普通错误反馈、all-direct、六类边界 Event 与 JSON-safe checkpoint/resume；`7ecf915e5` 删除 Core Halt/ControlFlowError 并把 agent HITL/app runtime 直接迁到 agent 所有权；目标 coverage 91.2%，Core/Agent race 与 workspace 72/72 全绿；任务计数 28/60，P3 8/9 | P3-09 用户示例、最小上手路径与 P3 阶段验收 |

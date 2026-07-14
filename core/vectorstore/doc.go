@@ -1,5 +1,5 @@
 // Package vectorstore is the unified abstraction layer over vector
-// databases (Pinecone, Weaviate, Milvus, Qdrant, Chroma, ...). Three
+// databases (Pinecone, Weaviate, Milvus, Qdrant, Chroma, ...). Four
 // independent interfaces split the surface by capability:
 //
 //   - [Indexer] adds documents.
