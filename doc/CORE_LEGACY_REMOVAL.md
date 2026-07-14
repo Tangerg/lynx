@@ -37,12 +37,12 @@ DefaultOptions 不再是 provider 能力：provider 构造参数持有 provider 
 
 | 项目 | 内容 |
 |---|---|
-| 旧路径 | `core/model/chat` Client、conversation/history、middleware、tool helper 与关联 `core/model` 名义层次 |
+| 旧路径 | `core/model/chat` Client、conversation/history、剩余 safeguard/history middleware、tool helper 与关联 `core/model` 名义层次；Logger 已在 P3-05 删除 |
 | 旧职责 | Client builder、history/logger/safeguard middleware、tool schema/execution、通用调用/流式组合混在 Core |
 | 目标替代 | `chatclient`、`chathistory`、`tools`、`agent/toolloop`、`otel`；Core 仅保留纯组合算法 |
 | 冻结起点 | P2-03；P3 各迁移任务开始后按职责切换 |
 | 迁移任务 | P2-04/P2-05、P3-01～P3-09 |
-| 删除任务 | P6-05；残余外部依赖由 P6-06 清理 |
+| 删除任务 | 通用 Logger 与 `core/evaluation` 已在 P3-05 删除；剩余冻结 Chat 表面由 P6-05 删除，残余外部依赖由 P6-06 清理 |
 | 验收 | 第 5 节 forbidden responsibilities 在 Core 中为 0；无 path bridge |
 
 ## 台账维护规则
