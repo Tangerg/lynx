@@ -739,9 +739,12 @@ flowchart LR
 
 目标：把 Chat 中验证过的模式一致地应用到其余 Core 包，不做无需求抽象。
 
-- [ ] **P5-01 建立并迁移 embedding API、Dimensioner 和 batching/helper 归属**
+- [x] **P5-01 建立并迁移 embedding API、Dimensioner 和 batching/helper 归属**（完成：2026-07-14）
   - 目标 API 不引入全局 dimensions cache；已知维度由 provider 显式能力提供。
   - 未知维度探测由调用方 helper 管理并返回错误，不以 0 吞错。
+  - `Model` 只保留 `Call`，可选 `Dimensioner` 独立为返回 `(int, error)` 的单方法能力；删除 provider `DefaultOptions`/`Metadata`/递归 `Dimensions` 伪能力。
+  - `Client` 收缩为无状态的 Call/Text/Texts/Documents helper；删除 fluent request/caller、middleware/handler/chain 和全局 dimensions cache，不保留旧 API 转发。
+  - 证据：`7cd3865c3`；8 个原生 embedding provider、5 个品牌 facade、全部 vectorstore 与 runtime 消费点完成原子切换；Core/Models/Vectorstores/Runtime 的 build、vet、lint、test、race 全绿。
 - [ ] **P5-02 迁移 image/transcription/speech/moderation API**
 - [ ] **P5-03 将 pricing/catalog/capabilities 迁入 `models/catalog`，APIKey 配置迁回各 provider**
 - [ ] **P5-04 建立独立 `tokenizer` module 并迁移 tiktoken 实现**
@@ -816,17 +819,17 @@ flowchart LR
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
-| P5 其余模态与依赖 | 进行中 | 1/7 | 五个 modality 路径已直接扁平化；进入 embedding 最小 SPI |
+| P5 其余模态与依赖 | 进行中 | 2/7 | embedding 最小 SPI 已完成；进入其余四模态收缩 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **39/60** | **65%** |
+| **总计** | **进行中** | **40/60** | **67%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P5。
-- 下一任务：执行 P5-01，建立 `core/embedding` 单方法最小 SPI，并按消费方能力拆分可选维度接口。
+- 下一任务：执行 P5-02，按相同最小能力原则迁移 image/transcription/speech/moderation API。
 - 当前阻塞：无。
-- 最近完成：P5-05；五个旧 `core/model/<modality>` 路径已直接移动到顶层并迁完全部 import，无 alias/bridge。
+- 最近完成：P5-01；embedding 已收缩为单方法 Model、独立 Dimensioner 和无状态 helper，旧 fluent/middleware/cache API 直接删除。
 
 ### 10.3 进度更新规则
 
@@ -1046,6 +1049,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：公开 `Expr` 使用 token-free 稳定节点与语义 `Operator`；`Parse` 拥有 parse + validate + simplify 完整入口，手工构造树使用 `Validate`；lexer/parser/token/analyzer/optimizer 和内部 AST 位于 `internal`，根树与内部树通过显式转换而非 alias 连接。
 - 原因：provider 只需要翻译查询语义，不应依赖词法 token、parser 状态或 optimizer visitor；显式边界允许内部编译器独立演进，并让公开类型不会因实现重构扩散破坏。
 
+### ADR-011：Embedding 维度是可选能力，探测是调用方显式操作
+
+- 日期：2026-07-14
+- 状态：已采纳
+- 决策：`embedding.Model` 只包含 `Call`；已知维度由独立 `Dimensioner` 以 `(int, error)` 返回，未知维度通过不缓存的 `ResolveDimensions`/`ProbeDimensions` 显式探测。公共 `Client` 只提供无状态批量便利方法，不拥有 provider defaults、middleware、全局 cache 或身份元数据。
+- 原因：输出维度并非每个 provider 都能无 I/O 得知，旧 `int64`/0 返回值会吞掉网络和协议错误；全局 cache 又无法正确表达模型、凭证、endpoint 和生命周期。能力拆分和调用方缓存所有权使错误、成本与失效策略都可见。
+
 ---
 
 ## 16. 长期完成定义
@@ -1066,6 +1076,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P5-01；Embedding 收缩为单方法 Model、独立 Dimensioner 与无状态 helper，删除 fluent/middleware/metadata/global-cache 表面并采纳 ADR-011 | Codex |
 | 2026-07-14 | 提前完成 P5-05；五个 modality 包直接扁平到 Core 顶层并同步切换全部消费者，旧路径和临时 allowlist 已删除 | Codex |
 | 2026-07-14 | 完成 P4-09 与 P4 阶段验收；消费方、旧术语和观测示例完成切换，Filter 覆盖率/fuzz、workspace 与 race 门禁达标；进入 P5 | Codex |
 | 2026-07-14 | 完成 P4-08；27 个 vectorstore backend 全部接入统一能力与前置校验 conformance，完整 backend 子清单逐项验收 | Codex |
@@ -1110,6 +1121,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P5-01 | `7cd3865c3` 建立单方法 `embedding.Model`、独立 `Dimensioner`/函数 adapter 与显式无缓存维度探测，Client 仅保留无状态批量 helper；直接删除 fluent builder、middleware、默认值/身份能力和全局 cache，迁完 8 个原生 provider、5 个品牌 facade、全部 vectorstore 与 runtime；四模块 build/vet/lint/test/race 全绿；任务计数 40/60 | P5-02 image/transcription/speech/moderation 最小 SPI |
 | 2026-07-14 | P5-05 | `444dfd3bc` 将 embedding/image/transcription/tts/moderation 从 `core/model/*` 直接移动为 `core/{embedding,image,transcription,speech,moderation}`，机械迁移 models/vectorstores/app 全部 import，不保留旧路径或 bridge；Core、models、vectorstores、app/runtime 测试全绿；任务计数 39/60 | P5-01 embedding 最小 SPI、Dimensioner 与 helper 归属 |
 | 2026-07-14 | P4-09、P4 阶段验收 | `0921d67c8` 清理全部 backend 与观测文档的旧 Create/Retrieve 语义；`4a4df484e` 新增 Filter 公共门面全词汇测试和稳定 FuzzParse，并修正 documentpipeline import 门禁；Filter 覆盖率 93.5%，30 秒 fuzz 约 971 万次通过，全 workspace 76 项 build/vet/test/lint 与 Core/RAG/documentpipeline/vectorstores race 全绿；任务计数 38/60，P4 9/9 完成 | P5-01 `core/embedding` 最小 SPI |
 | 2026-07-14 | P4-08 | `c970a3343` 新增 `vectorstores/internal/conformance`，由 25 个实现和 2 个 alias 全部实例化，验证精确能力集合、空 Add、非法 Search、空 ID 删除和 nil Filter 的统一 I/O 前契约；全部原 backend/visitor 测试及 vectorstores build、vet、lint、race 全绿；任务计数 37/60 | P4-09 消费方迁移与阶段退出审计 |
