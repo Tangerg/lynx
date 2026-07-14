@@ -1,0 +1,370 @@
+# Generated Core exported API baseline. Review every diff; do not edit by hand.
+# Regenerate: go test ./internal/arch -run TestExportedAPIMatchesBaseline -update-api
+
+chat: const ( FinishReasonStop FinishReason = "stop" FinishReasonLength FinishReason = "length" FinishReasonToolCalls FinishReason = "tool_calls" FinishReasonContentFilter FinishReason = "content_filter" FinishReasonOther FinishReason = "other" )
+chat: const ( PartText PartKind = "text" PartMedia PartKind = "media" PartReasoning PartKind = "reasoning" PartToolCall PartKind = "tool_call" PartToolResult PartKind = "tool_result" )
+chat: const ( RoleSystem Role = "system" RoleUser Role = "user" RoleAssistant Role = "assistant" RoleTool Role = "tool" )
+chat: func (a *ResponseAccumulator) Add(chunk *Response) error
+chat: func (a *ResponseAccumulator) Response() *Response
+chat: func (c *Choice) SetExtension(key string, value any) error
+chat: func (c *Choice) Text() string
+chat: func (c *Choice) UnmarshalJSON(data []byte) error
+chat: func (c *Choice) Validate() error
+chat: func (c Choice) MarshalJSON() ([]byte, error)
+chat: func (c ToolCall) Validate() error
+chat: func (d *ToolDefinition) UnmarshalJSON(data []byte) error
+chat: func (d ToolDefinition) MarshalJSON() ([]byte, error)
+chat: func (d ToolDefinition) Validate() error
+chat: func (f ModelFunc) Call(ctx context.Context, req *Request) (*Response, error)
+chat: func (f StreamerFunc) Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error]
+chat: func (k PartKind) Valid() bool
+chat: func (m *Message) Text() string
+chat: func (m *Message) UnmarshalJSON(data []byte) error
+chat: func (m Message) MarshalJSON() ([]byte, error)
+chat: func (m Message) Validate() error
+chat: func (o *Options) UnmarshalJSON(data []byte) error
+chat: func (o Options) MarshalJSON() ([]byte, error)
+chat: func (o Options) Validate() error
+chat: func (p *Part) UnmarshalJSON(data []byte) error
+chat: func (p Part) MarshalJSON() ([]byte, error)
+chat: func (p Part) Validate() error
+chat: func (r *Request) SetExtension(key string, value any) error
+chat: func (r *Request) UnmarshalJSON(data []byte) error
+chat: func (r *Request) Validate() error
+chat: func (r *Response) First() *Choice
+chat: func (r *Response) SetExtension(key string, value any) error
+chat: func (r *Response) Text() string
+chat: func (r *Response) UnmarshalJSON(data []byte) error
+chat: func (r *Response) Validate() error
+chat: func (r FinishReason) String() string
+chat: func (r FinishReason) Valid() bool
+chat: func (r Request) MarshalJSON() ([]byte, error)
+chat: func (r Response) MarshalJSON() ([]byte, error)
+chat: func (r Role) Valid() bool
+chat: func (r ToolResult) Validate() error
+chat: func (u *Usage) UnmarshalJSON(data []byte) error
+chat: func (u Usage) MarshalJSON() ([]byte, error)
+chat: func (u Usage) TotalTokens() int64
+chat: func (u Usage) Validate() error
+chat: func NewAssistantMessage(parts ...Part) Message
+chat: func NewMediaPart(value *media.Media) Part
+chat: func NewReasoningPart(text string, signature []byte) Part
+chat: func NewRequest(messages ...Message) (*Request, error)
+chat: func NewResponse(choices ...Choice) (*Response, error)
+chat: func NewSystemMessage(text string) Message
+chat: func NewTextPart(text string) Part
+chat: func NewToolCallPart(call ToolCall) Part
+chat: func NewToolMessage(results ...ToolResult) Message
+chat: func NewToolResultPart(result ToolResult) Part
+chat: func NewUserMessage(parts ...Part) Message
+chat: func Wrap(model Model, middlewares ...CallMiddleware) Model
+chat: func WrapStream(streamer Streamer, middlewares ...StreamMiddleware) Streamer
+chat: type CallMiddleware func(next Model) Model
+chat: type Choice struct { Index int `json:"index"` Message *Message `json:"message,omitempty"` FinishReason FinishReason `json:"finish_reason,omitempty"` Extensions metadata.Map `json:"extensions,omitempty"` }
+chat: type FinishReason string
+chat: type Message struct { Role Role `json:"role"` Parts []Part `json:"parts"` Metadata metadata.Map `json:"metadata,omitempty"` }
+chat: type Model interface { Call(ctx context.Context, req *Request) (*Response, error) }
+chat: type ModelFunc func(ctx context.Context, req *Request) (*Response, error)
+chat: type Options struct { Model string `json:"model,omitempty"` FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"` MaxTokens *int64 `json:"max_tokens,omitempty"` PresencePenalty *float64 `json:"presence_penalty,omitempty"` Stop []string `json:"stop,omitempty"` Temperature *float64 `json:"temperature,omitempty"` TopK *int64 `json:"top_k,omitempty"` TopP *float64 `json:"top_p,omitempty"` }
+chat: type Part struct { Kind PartKind `json:"kind"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Signature []byte `json:"signature,omitempty"` ToolCall *ToolCall `json:"tool_call,omitempty"` ToolResult *ToolResult `json:"tool_result,omitempty"` }
+chat: type PartKind string
+chat: type Request struct { Messages []Message `json:"messages"` Tools []ToolDefinition `json:"tools,omitempty"` Options Options `json:"options,omitzero"` Extensions metadata.Map `json:"extensions,omitempty"` }
+chat: type Response struct { ID string `json:"id,omitempty"` Model string `json:"model,omitempty"` Choices []Choice `json:"choices,omitempty"` Usage Usage `json:"usage,omitzero"` Extensions metadata.Map `json:"extensions,omitempty"` }
+chat: type ResponseAccumulator struct { response Response choices []accumulatedChoice byIndex map[int]int seen bool }
+chat: type Role string
+chat: type StreamMiddleware func(next Streamer) Streamer
+chat: type Streamer interface { Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] }
+chat: type StreamerFunc func(ctx context.Context, req *Request) iter.Seq2[*Response, error]
+chat: type ToolCall struct { ID string `json:"id"` Name string `json:"name"` Arguments string `json:"arguments,omitempty"` }
+chat: type ToolDefinition struct { Name string `json:"name"` Description string `json:"description,omitempty"` InputSchema json.RawMessage `json:"input_schema"` }
+chat: type ToolResult struct { ID string `json:"id"` Name string `json:"name"` Result string `json:"result"` IsError bool `json:"is_error,omitempty"` }
+chat: type Usage struct { InputTokens int64 `json:"input_tokens,omitempty"` OutputTokens int64 `json:"output_tokens,omitempty"` ReasoningTokens *int64 `json:"reasoning_tokens,omitempty"` CacheReadInputTokens *int64 `json:"cache_read_input_tokens,omitempty"` CacheWriteInputTokens *int64 `json:"cache_write_input_tokens,omitempty"` }
+chat: var ( ErrInvalidMessage = errors.New("chat: invalid message") ErrInvalidPart = errors.New("chat: invalid part") ErrInvalidToolCall = errors.New("chat: invalid tool call") ErrInvalidToolResult = errors.New("chat: invalid tool result") )
+chat: var ( ErrInvalidRequest = errors.New("chat: invalid request") ErrInvalidExtension = errors.New("chat: invalid extension") )
+chat: var ( ErrInvalidResponse = errors.New("chat: invalid response") ErrInvalidChoice = errors.New("chat: invalid choice") )
+chat: var ErrInvalidOptions = errors.New("chat: invalid options")
+chat: var ErrInvalidToolDefinition = errors.New("chat: invalid tool definition")
+chat: var ErrInvalidUsage = errors.New("chat: invalid usage")
+document: func (d *Document) Validate() error
+document: func NewDocument(text string, media *media.Media) (*Document, error)
+document: type Document struct { ID string `json:"id,omitempty"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
+document: type Reader interface { Read(ctx context.Context) ([]*Document, error) }
+document: type Writer interface { Write(ctx context.Context, docs []*Document) error }
+embedding: const ( EncodingFormatFloat EncodingFormat = "float" EncodingFormatBase64 EncodingFormat = "base64" )
+embedding: const ( Text ModalityType = "text" Image ModalityType = "image" Audio ModalityType = "audio" Video ModalityType = "video" )
+embedding: func (c *Client) Call(ctx context.Context, request *Request) (*Response, error)
+embedding: func (c *Client) EmbedDocuments(ctx context.Context, docs []*document.Document) ([][]float64, *Response, error)
+embedding: func (c *Client) EmbedText(ctx context.Context, text string) ([]float64, *Response, error)
+embedding: func (c *Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, *Response, error)
+embedding: func (e EncodingFormat) Valid() bool
+embedding: func (f DimensionFunc) Dimensions(ctx context.Context) (int, error)
+embedding: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
+embedding: func (m *ResponseMetadata) Get(key string) (any, bool)
+embedding: func (m *ResponseMetadata) Set(key string, value any)
+embedding: func (m *ResultMetadata) Get(key string) (any, bool)
+embedding: func (m *ResultMetadata) Set(key string, value any)
+embedding: func (m ModalityType) String() string
+embedding: func (o *Options) Clone() *Options
+embedding: func (o *Options) Get(key string) (any, bool)
+embedding: func (o *Options) Set(key string, value any)
+embedding: func (r *Request) Get(key string) (any, bool)
+embedding: func (r *Request) Set(key string, value any)
+embedding: func (r *Response) Result() *Result
+embedding: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
+embedding: func NewClient(model Model) (*Client, error)
+embedding: func NewOptions(model string) (*Options, error)
+embedding: func NewRequest(texts []string) (*Request, error)
+embedding: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
+embedding: func NewResult(embedding []float64, metadata *ResultMetadata) (*Result, error)
+embedding: func ProbeDimensions(ctx context.Context, model Model) (int, error)
+embedding: func ResolveDimensions(ctx context.Context, model Model) (int, error)
+embedding: type Client struct { model Model }
+embedding: type DimensionFunc func(context.Context) (int, error)
+embedding: type Dimensioner interface { Dimensions(context.Context) (int, error) }
+embedding: type EncodingFormat string
+embedding: type ModalityType string
+embedding: type Model interface { Call(context.Context, *Request) (*Response, error) }
+embedding: type ModelFunc func(context.Context, *Request) (*Response, error)
+embedding: type Options struct { Model string `json:"model"` EncodingFormat EncodingFormat `json:"encoding_format"` Dimensions *int64 `json:"dimensions,omitempty"` Extra map[string]any `json:"extra,omitzero"` }
+embedding: type Request struct { Texts []string `json:"texts,omitzero"` Options *Options `json:"options,omitempty"` Params map[string]any `json:"params,omitzero"` }
+embedding: type Response struct { Results []*Result `json:"results,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
+embedding: type ResponseMetadata struct { Model string `json:"model"` Usage *model.Usage `json:"usage,omitempty"` RateLimit *model.RateLimit `json:"rate_limit,omitempty"` Created int64 `json:"created"` Extra map[string]any `json:"extra,omitzero"` }
+embedding: type Result struct { Embedding []float64 `json:"embedding"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
+embedding: type ResultMetadata struct { Index int64 `json:"index"` ModalityType ModalityType `json:"modality_type"` MIMEType string `json:"mime_type,omitempty"` Extra map[string]any `json:"extra,omitzero"` }
+image: const ( ResponseFormatURL ResponseFormat = "url" ResponseFormatB64JSON ResponseFormat = "b64json" )
+image: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
+image: func (m *ResponseMetadata) Get(key string) (any, bool)
+image: func (m *ResponseMetadata) Set(key string, value any)
+image: func (m *ResultMetadata) Get(key string) (any, bool)
+image: func (m *ResultMetadata) Set(key string, value any)
+image: func (o *Options) Clone() *Options
+image: func (o *Options) Get(key string) (any, bool)
+image: func (o *Options) Set(key string, value any)
+image: func (r *Request) Get(key string) (any, bool)
+image: func (r *Request) Set(key string, value any)
+image: func (r ResponseFormat) String() string
+image: func (r ResponseFormat) Valid() bool
+image: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
+image: func NewImage(url, b64JSON string) (*Image, error)
+image: func NewOptions(model string) (*Options, error)
+image: func NewRequest(prompt string) (*Request, error)
+image: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
+image: func NewResult(image *Image, metadata *ResultMetadata) (*Result, error)
+image: type Image struct { URL string `json:"url"` B64JSON string `json:"b64_json"` }
+image: type Model interface { Call(context.Context, *Request) (*Response, error) }
+image: type ModelFunc func(context.Context, *Request) (*Response, error)
+image: type Options struct { Model string `json:"model"` NegativePrompt string `json:"negative_prompt"` Width *int64 `json:"width,omitempty"` Height *int64 `json:"height,omitempty"` Style string `json:"style"` Quality string `json:"quality"` Seed *int64 `json:"seed,omitempty"` OutputFormat string `json:"output_format,omitempty"` ResponseFormat ResponseFormat `json:"response_format"` Extra map[string]any `json:"extra,omitzero"` }
+image: type Request struct { Prompt string `json:"prompt"` Options *Options `json:"options,omitempty"` Params map[string]any `json:"params,omitzero"` }
+image: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
+image: type ResponseFormat string
+image: type ResponseMetadata struct { Created int64 `json:"created"` Extra map[string]any `json:"extra,omitzero"` }
+image: type Result struct { Image *Image `json:"image,omitempty"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
+image: type ResultMetadata struct { Extra map[string]any `json:"extra,omitzero"` }
+media: const ( SourceBytes SourceKind = "bytes" SourceURI SourceKind = "uri" SourceReference SourceKind = "reference" )
+media: func (m *Media) Bytes() ([]byte, error)
+media: func (m *Media) Reference() (string, error)
+media: func (m *Media) URI() (string, error)
+media: func (m *Media) UnmarshalJSON(data []byte) error
+media: func (m *Media) Validate() error
+media: func (m Media) MarshalJSON() ([]byte, error)
+media: func (s MediaSource) Validate() error
+media: func NewBytes(mimeType string, data []byte) (*Media, error)
+media: func NewReference(mimeType, ref string) (*Media, error)
+media: func NewURI(mimeType, uri string) (*Media, error)
+media: type Media struct { MIME string `json:"mime"` Source MediaSource `json:"source"` ID string `json:"id,omitempty"` Name string `json:"name,omitempty"` Metadata metadata.Map `json:"metadata,omitempty"` }
+media: type MediaSource struct { Kind SourceKind `json:"kind"` Bytes []byte `json:"bytes,omitempty"` URI string `json:"uri,omitempty"` Ref string `json:"ref,omitempty"` }
+media: type SourceKind string
+media: var ( ErrNilMedia = errors.New("media: nil media") ErrInvalidMIME = errors.New("media: invalid MIME type") ErrInvalidSource = errors.New("media: invalid source") )
+metadata: func (m *Map) UnmarshalJSON(data []byte) error
+metadata: func (m Map) Clone() Map
+metadata: func (m Map) MarshalJSON() ([]byte, error)
+metadata: func (m Map) Validate() error
+metadata: func (m Map) Values() (map[string]any, error)
+metadata: func Decode[T any](m Map, key string) (T, bool, error)
+metadata: func FromValues(values map[string]any) (Map, error)
+metadata: func New() Map
+metadata: func Set(m Map, key string, value any) error
+metadata: type Map map[string]json.RawMessage
+metadata: var ( ErrNilMap = errors.New("metadata: nil map") ErrEmptyKey = errors.New("metadata: empty key") ErrInvalidValue = errors.New("metadata: invalid JSON value") )
+model: func (u *Usage) HasCacheReadInputTokens() bool
+model: func (u *Usage) HasCacheWriteInputTokens() bool
+model: func (u *Usage) HasReasoningTokens() bool
+model: func (u *Usage) TotalTokens() int64
+model: type RateLimit struct { RequestsLimit int64 `json:"requests_limit"` RequestsRemaining int64 `json:"requests_remaining"` RequestsReset time.Duration `json:"requests_reset"` TokensLimit int64 `json:"tokens_limit"` TokensRemaining int64 `json:"tokens_remaining"` TokensReset time.Duration `json:"tokens_reset"` }
+model: type Usage struct { PromptTokens int64 `json:"prompt_tokens"` CompletionTokens int64 `json:"completion_tokens"` ReasoningTokens *int64 `json:"reasoning_tokens,omitempty"` CacheReadInputTokens *int64 `json:"cache_read_input_tokens,omitempty"` CacheWriteInputTokens *int64 `json:"cache_write_input_tokens,omitempty"` OriginalUsage any `json:"original_usage,omitempty"` }
+moderation: func (c *Categories) Flagged() bool
+moderation: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
+moderation: func (m *ResponseMetadata) Get(key string) (any, bool)
+moderation: func (m *ResponseMetadata) Set(key string, value any)
+moderation: func (m *ResultMetadata) Get(key string) (any, bool)
+moderation: func (m *ResultMetadata) Set(key string, value any)
+moderation: func (o *Options) Clone() *Options
+moderation: func (o *Options) Get(key string) (any, bool)
+moderation: func (o *Options) Set(key string, value any)
+moderation: func (r *Request) Get(key string) (any, bool)
+moderation: func (r *Request) Set(key string, value any)
+moderation: func (r *Response) Result() *Result
+moderation: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
+moderation: func NewOptions(model string) (*Options, error)
+moderation: func NewRequest(texts []string) (*Request, error)
+moderation: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
+moderation: func NewResult(categories *Categories, metadata *ResultMetadata) (*Result, error)
+moderation: type Categories struct { Sexual Verdict `json:"sexual"` Hate Verdict `json:"hate"` Harassment Verdict `json:"harassment"` SelfHarm Verdict `json:"self_harm"` SexualMinors Verdict `json:"sexual_minors"` HateThreatening Verdict `json:"hate_threatening"` ViolenceGraphic Verdict `json:"violence_graphic"` SelfHarmIntent Verdict `json:"self_harm_intent"` SelfHarmInstructions Verdict `json:"self_harm_instructions"` HarassmentThreatening Verdict `json:"harassment_threatening"` Violence Verdict `json:"violence"` DangerousAndCriminalContent Verdict `json:"dangerous_and_criminal_content"` Health Verdict `json:"health"` Financial Verdict `json:"financial"` Law Verdict `json:"law"` Pii Verdict `json:"pii"` Illicit Verdict `json:"illicit"` IllicitViolent Verdict `json:"illicit_violent"` }
+moderation: type Model interface { Call(context.Context, *Request) (*Response, error) }
+moderation: type ModelFunc func(context.Context, *Request) (*Response, error)
+moderation: type Options struct { Model string `json:"model"` Extra map[string]any `json:"extra,omitzero"` }
+moderation: type Request struct { Texts []string `json:"texts,omitzero"` Options *Options `json:"options,omitempty"` Params map[string]any `json:"params,omitzero"` }
+moderation: type Response struct { Results []*Result `json:"results,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
+moderation: type ResponseMetadata struct { ID string `json:"id"` Model string `json:"model"` Created int64 `json:"created"` Extra map[string]any `json:"extra,omitzero"` }
+moderation: type Result struct { Categories *Categories `json:"categories,omitempty"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
+moderation: type ResultMetadata struct { Extra map[string]any `json:"extra,omitzero"` }
+moderation: type Verdict struct { Flagged bool `json:"flagged"` Score float64 `json:"score"` }
+speech: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
+speech: func (f StreamFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
+speech: func (m *ResponseMetadata) Get(key string) (any, bool)
+speech: func (m *ResponseMetadata) Set(key string, value any)
+speech: func (m *ResultMetadata) Get(key string) (any, bool)
+speech: func (m *ResultMetadata) Set(key string, value any)
+speech: func (o *Options) Clone() *Options
+speech: func (o *Options) Get(key string) (any, bool)
+speech: func (o *Options) Set(key string, value any)
+speech: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
+speech: func NewOptions(model string) (*Options, error)
+speech: func NewRequest(text string) (*Request, error)
+speech: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
+speech: func NewResult(speech []byte, metadata *ResultMetadata) (*Result, error)
+speech: type Model interface { Call(context.Context, *Request) (*Response, error) }
+speech: type ModelFunc func(context.Context, *Request) (*Response, error)
+speech: type Options struct { Model string `json:"model"` Voice string `json:"voice"` ResponseFormat string `json:"response_format"` Speed float64 `json:"speed"` Extra map[string]any `json:"extra,omitzero"` }
+speech: type Request struct { Text string `json:"text"` Options *Options `json:"options,omitempty"` Params map[string]any `json:"params,omitzero"` }
+speech: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
+speech: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra map[string]any `json:"extra,omitzero"` }
+speech: type Result struct { Speech []byte `json:"speech,omitzero"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
+speech: type ResultMetadata struct { Extra map[string]any `json:"extra,omitzero"` }
+speech: type StreamFunc func(context.Context, *Request) iter.Seq2[*Response, error]
+speech: type Streamer interface { Stream(context.Context, *Request) iter.Seq2[*Response, error] }
+transcription: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
+transcription: func (m *ResponseMetadata) Get(key string) (any, bool)
+transcription: func (m *ResponseMetadata) Set(key string, value any)
+transcription: func (m *ResultMetadata) Get(key string) (any, bool)
+transcription: func (m *ResultMetadata) Set(key string, value any)
+transcription: func (o *Options) Clone() *Options
+transcription: func (o *Options) Get(key string) (any, bool)
+transcription: func (o *Options) Set(key string, value any)
+transcription: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
+transcription: func NewOptions(model string) (*Options, error)
+transcription: func NewRequest(audio *media.Media) (*Request, error)
+transcription: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
+transcription: func NewResult(text string, metadata *ResultMetadata) (*Result, error)
+transcription: type Model interface { Call(context.Context, *Request) (*Response, error) }
+transcription: type ModelFunc func(context.Context, *Request) (*Response, error)
+transcription: type Options struct { Model string `json:"model"` Language string `json:"language"` Prompt string `json:"prompt"` Temperature *float64 `json:"temperature,omitempty"` ResponseFormat string `json:"response_format"` TimestampGranularity []string `json:"timestamp_granularity,omitzero"` Extra map[string]any `json:"extra,omitzero"` }
+transcription: type Request struct { Audio *media.Media `json:"audio,omitempty"` Options *Options `json:"options,omitempty"` Params map[string]any `json:"params,omitzero"` }
+transcription: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
+transcription: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra map[string]any `json:"extra,omitzero"` }
+transcription: type Result struct { Text string `json:"text"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
+transcription: type ResultMetadata struct { Extra map[string]any `json:"extra,omitzero"` }
+vectorstore/filter: const ( LiteralString LiteralKind = "string" LiteralNumber LiteralKind = "number" LiteralBool LiteralKind = "bool" LiteralNull LiteralKind = "null" )
+vectorstore/filter: const ( OpEqual Operator = "==" OpNotEqual Operator = "!=" OpLess Operator = "<" OpLessEqual Operator = "<=" OpGreater Operator = ">" OpGreaterEqual Operator = ">=" OpAnd Operator = "and" OpOr Operator = "or" OpNot Operator = "not" OpIn Operator = "in" OpLike Operator = "like" OpIs Operator = "is" )
+vectorstore/filter: func (b *BinaryExpr) End() Position
+vectorstore/filter: func (b *BinaryExpr) Equal(other Expr) bool
+vectorstore/filter: func (b *BinaryExpr) Precedence() int
+vectorstore/filter: func (b *BinaryExpr) Start() Position
+vectorstore/filter: func (b *ExprBuilder) And(fn func(*ExprBuilder)) *ExprBuilder
+vectorstore/filter: func (b *ExprBuilder) Build() (Expr, error)
+vectorstore/filter: func (b *ExprBuilder) EQ(l, r any) *ExprBuilder
+vectorstore/filter: func (b *ExprBuilder) GE(l, r any) *ExprBuilder
+vectorstore/filter: func (b *ExprBuilder) GT(l, r any) *ExprBuilder
+vectorstore/filter: func (b *ExprBuilder) In(l, r any) *ExprBuilder
+vectorstore/filter: func (b *ExprBuilder) LE(l, r any) *ExprBuilder
+vectorstore/filter: func (b *ExprBuilder) LT(l, r any) *ExprBuilder
+vectorstore/filter: func (b *ExprBuilder) Like(l, r any) *ExprBuilder
+vectorstore/filter: func (b *ExprBuilder) NE(l, r any) *ExprBuilder
+vectorstore/filter: func (b *ExprBuilder) Not(fn func(*ExprBuilder)) *ExprBuilder
+vectorstore/filter: func (b *ExprBuilder) Or(fn func(*ExprBuilder)) *ExprBuilder
+vectorstore/filter: func (i *Ident) End() Position
+vectorstore/filter: func (i *Ident) Equal(other Expr) bool
+vectorstore/filter: func (i *Ident) Start() Position
+vectorstore/filter: func (i *IndexExpr) End() Position
+vectorstore/filter: func (i *IndexExpr) Equal(other Expr) bool
+vectorstore/filter: func (i *IndexExpr) Start() Position
+vectorstore/filter: func (l *ListLiteral) End() Position
+vectorstore/filter: func (l *ListLiteral) Equal(other Expr) bool
+vectorstore/filter: func (l *ListLiteral) Start() Position
+vectorstore/filter: func (l *Literal) AsBool() (bool, error)
+vectorstore/filter: func (l *Literal) AsNumber() (float64, error)
+vectorstore/filter: func (l *Literal) AsString() (string, error)
+vectorstore/filter: func (l *Literal) End() Position
+vectorstore/filter: func (l *Literal) Equal(other Expr) bool
+vectorstore/filter: func (l *Literal) IsBool() bool
+vectorstore/filter: func (l *Literal) IsNull() bool
+vectorstore/filter: func (l *Literal) IsNumber() bool
+vectorstore/filter: func (l *Literal) IsSameKind(other *Literal) bool
+vectorstore/filter: func (l *Literal) IsString() bool
+vectorstore/filter: func (l *Literal) Start() Position
+vectorstore/filter: func (o Operator) Is(other Operator) bool
+vectorstore/filter: func (o Operator) IsBinaryOperator() bool
+vectorstore/filter: func (o Operator) IsComparisonOperator() bool
+vectorstore/filter: func (o Operator) IsEqualityOperator() bool
+vectorstore/filter: func (o Operator) IsLogicalOperator() bool
+vectorstore/filter: func (o Operator) IsMatchingOperator() bool
+vectorstore/filter: func (o Operator) IsNullOperator() bool
+vectorstore/filter: func (o Operator) IsOrderingOperator() bool
+vectorstore/filter: func (o Operator) IsUnaryOperator() bool
+vectorstore/filter: func (o Operator) Name() string
+vectorstore/filter: func (o Operator) Precedence() int
+vectorstore/filter: func (o Operator) String() string
+vectorstore/filter: func (p Position) String() string
+vectorstore/filter: func (u *UnaryExpr) End() Position
+vectorstore/filter: func (u *UnaryExpr) Equal(other Expr) bool
+vectorstore/filter: func (u *UnaryExpr) Precedence() int
+vectorstore/filter: func (u *UnaryExpr) Start() Position
+vectorstore/filter: func And[L ComputedExpr, R ComputedExpr](l L, r R) *BinaryExpr
+vectorstore/filter: func EQ[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
+vectorstore/filter: func GE[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
+vectorstore/filter: func GT[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
+vectorstore/filter: func In[L IdentifierValue | *IndexExpr, R ListValue](l L, r R) *BinaryExpr
+vectorstore/filter: func Index[L IdentifierValue | *IndexExpr, I Number | string | *Literal](left L, index I) *IndexExpr
+vectorstore/filter: func IsNotNull[L IdentifierValue | *IndexExpr](l L) *UnaryExpr
+vectorstore/filter: func IsNull[L IdentifierValue | *IndexExpr](l L) *BinaryExpr
+vectorstore/filter: func LE[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
+vectorstore/filter: func LT[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
+vectorstore/filter: func Like[L IdentifierValue | *IndexExpr, R string | *Literal](l L, r R) *BinaryExpr
+vectorstore/filter: func NE[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
+vectorstore/filter: func NewExprBuilder() *ExprBuilder
+vectorstore/filter: func NewIdent[T IdentifierValue](value T) *Ident
+vectorstore/filter: func NewListLiteral[T ListValue](value T) *ListLiteral
+vectorstore/filter: func NewLiteral[T LiteralValue](value T) *Literal
+vectorstore/filter: func NewLiterals[T LiteralValue](values []T) []*Literal
+vectorstore/filter: func Not[T ComputedExpr](r T) *UnaryExpr
+vectorstore/filter: func Or[L ComputedExpr, R ComputedExpr](l L, r R) *BinaryExpr
+vectorstore/filter: func Parse(input string) (Expr, error)
+vectorstore/filter: func Validate(expr Expr) error
+vectorstore/filter: type AtomicExpr interface { Expr atomicExpr() }
+vectorstore/filter: type BinaryExpr struct { Left Expr Op Operator Right Expr start Position end Position }
+vectorstore/filter: type ComputedExpr interface { Expr computedExpr() }
+vectorstore/filter: type Expr interface { Start() Position End() Position Equal(Expr) bool expr() }
+vectorstore/filter: type ExprBuilder struct { err error expr ComputedExpr }
+vectorstore/filter: type Ident struct { Value string start Position end Position }
+vectorstore/filter: type IdentifierValue interface { string | *Ident }
+vectorstore/filter: type IndexExpr struct { Left Expr Index *Literal start Position end Position }
+vectorstore/filter: type ListLiteral struct { Values []*Literal start Position end Position }
+vectorstore/filter: type ListValue interface { []int | []int8 | []int16 | []int32 | []int64 | []uint | []uint8 | []uint16 | []uint32 | []uint64 | []float32 | []float64 | []string | []bool | []*Literal | *ListLiteral }
+vectorstore/filter: type Literal struct { Kind LiteralKind Value string start Position end Position }
+vectorstore/filter: type LiteralKind string
+vectorstore/filter: type LiteralValue interface { Number | string | bool | *Literal }
+vectorstore/filter: type Number interface { ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~float32 | ~float64 }
+vectorstore/filter: type Operator string
+vectorstore/filter: type Position struct { Line int Column int }
+vectorstore/filter: type UnaryExpr struct { Op Operator Right ComputedExpr start Position end Position }
+vectorstore: const ( DefaultTopK = 5 MinSimilarityScore = 0.0 MaxSimilarityScore = 1.0 AcceptAllScores = MinSimilarityScore )
+vectorstore: func (r SearchRequest) Validate() error
+vectorstore: func (w writeFunc) Write(ctx context.Context, docs []*document.Document) error
+vectorstore: func NewDocumentWriter(indexer Indexer) document.Writer
+vectorstore: type FilterDeleter interface { DeleteWhere(ctx context.Context, expr filter.Expr) error }
+vectorstore: type IDDeleter interface { DeleteIDs(ctx context.Context, ids []string) error }
+vectorstore: type Indexer interface { Add(ctx context.Context, docs []*document.Document) error }
+vectorstore: type Match struct { Document *document.Document `json:"document"` Score float64 `json:"score"` }
+vectorstore: type SearchRequest struct { Query string `json:"query,omitempty"` TopK int `json:"top_k,omitempty"` MinScore float64 `json:"min_score,omitempty"` Filter filter.Expr `json:"-"` }
+vectorstore: type Searcher interface { Search(ctx context.Context, request SearchRequest) ([]Match, error) }
+vectorstore: var ( ErrEmptyDocuments = errors.New("vectorstore: documents must not be empty") ErrMissingFilter = errors.New("vectorstore: filter is required") )
