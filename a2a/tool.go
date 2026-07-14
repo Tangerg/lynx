@@ -13,8 +13,9 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	corechat "github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 var (
@@ -37,8 +38,10 @@ var inputSchema, _ = pkgjson.StringDefSchemaOf(toolRequest{})
 // The wrapper is immutable after construction and does not own the client.
 type tool struct {
 	client     *a2aclient.Client
-	definition chat.ToolDefinition
+	definition corechat.ToolDefinition
 }
+
+var _ toolcontract.Tool = (*tool)(nil)
 
 type toolConfig struct {
 	Client *a2aclient.Client
@@ -72,17 +75,17 @@ func newTool(cfg toolConfig) (*tool, error) {
 	}
 	return &tool{
 		client: cfg.Client,
-		definition: chat.ToolDefinition{
+		definition: corechat.ToolDefinition{
 			Name:        cfg.Name,
 			Description: describeAgent(cfg.Card),
-			InputSchema: inputSchema,
+			InputSchema: json.RawMessage(inputSchema),
 		},
 	}, nil
 }
 
-func (t *tool) Definition() chat.ToolDefinition { return t.definition }
+func (t *tool) Definition() corechat.ToolDefinition { return t.definition }
 
-// Call implements [chat.Tool]: it sends the request text to the remote agent
+// Call implements [tools.Tool]: it sends the request text to the remote agent
 // and returns its reply. One `a2a.agent.call <name>` span per call
 // (kind=Client) carrying gen_ai.agent.name; a remote failure records the
 // error and sets the span status to Error.
