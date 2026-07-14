@@ -3,57 +3,42 @@ package rag_test
 import (
 	"context"
 	"errors"
-	"iter"
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/rag"
 )
 
-// fakeChatModel is the mock used by every LLM-backed component test.
+// fakeChatModel is the target core/chat mock used by every LLM-backed
+// component test.
 type fakeChatModel struct {
-	defaults *chat.Options
-	reply    string
-	err      error
+	reply string
+	err   error
 
 	// captured holds the last rendered prompt so tests can assert that
 	// per-call variables (Number, Target, Query, ...) reached the LLM.
 	captured string
 }
 
-func newFakeChatModel(t *testing.T, reply string) *fakeChatModel {
-	t.Helper()
-	defaults, err := chat.NewOptions("rag-fake")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &fakeChatModel{defaults: defaults, reply: reply}
+func newFakeChatModel(_ *testing.T, reply string) *fakeChatModel {
+	return &fakeChatModel{reply: reply}
 }
 
-func (m *fakeChatModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *fakeChatModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "fake"} }
-
 func (m *fakeChatModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
-	if user, ok := req.Messages[len(req.Messages)-1].(*chat.UserMessage); ok {
-		m.captured = user.Text
+	if len(req.Messages) != 0 {
+		m.captured = req.Messages[len(req.Messages)-1].Text()
 	}
 	if m.err != nil {
 		return nil, m.err
 	}
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(m.reply),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
-	return resp, nil
-}
-
-func (m *fakeChatModel) Stream(_ context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {}
+	choice := chat.Choice{Index: 0, FinishReason: chat.FinishReasonStop}
+	if m.reply != "" {
+		message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
+		choice.Message = &message
+	}
+	return chat.NewResponse(choice)
 }
 
 // --- ContextualAugmenter -------------------------------------------
@@ -112,9 +97,7 @@ func TestContextualAugmenter_EmptyDocs_DefaultRefusal(t *testing.T) {
 }
 
 func TestContextualAugmenter_EmptyDocs_AllowEmptyPassesThrough(t *testing.T) {
-	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{
-		AllowEmptyContext: true,
-	})
+	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{AllowEmptyContext: true})
 
 	q, _ := rag.NewQuery("hi")
 	got, err := aug.Augment(context.Background(), q, nil)
@@ -133,7 +116,7 @@ func TestContextualAugmenter_NilQuery(t *testing.T) {
 	}
 }
 
-// --- MultiQueryExpander -------------------------------------------------
+// --- MultiQueryExpander --------------------------------------------
 
 func TestMultiQueryExpander_ParsesNewlineVariants(t *testing.T) {
 	model := newFakeChatModel(t, " variant 1 \n\nvariant 2\nvariant 3")
@@ -173,16 +156,13 @@ func TestMultiQueryExpander_IncludeOriginal(t *testing.T) {
 	q, _ := rag.NewQuery("orig")
 	got, _ := exp.Expand(context.Background(), q)
 	if len(got) != 3 || got[0].Text != "orig" {
-		t.Fatalf("IncludeOriginal=true should prepend original; got %d entries, first=%q",
-			len(got), got[0].Text)
+		t.Fatalf("IncludeOriginal=true should prepend original; got %d entries, first=%q", len(got), got[0].Text)
 	}
 }
 
 func TestMultiQueryExpander_EmptyLLMFallsBackToOriginal(t *testing.T) {
 	model := newFakeChatModel(t, "")
-	exp, _ := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
-		ChatModel: model,
-	})
+	exp, _ := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{ChatModel: model})
 
 	q, _ := rag.NewQuery("orig")
 	got, _ := exp.Expand(context.Background(), q)
@@ -197,7 +177,7 @@ func TestMultiQueryExpanderConfig_RejectsMissingChatModel(t *testing.T) {
 	}
 }
 
-// --- CompressionTransformer ----------------------------------------
+// --- CompressionTransformer ---------------------------------------
 
 func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
 	model := newFakeChatModel(t, "compressed query")
@@ -208,8 +188,8 @@ func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
 
 	q, _ := rag.NewQuery("follow-up")
 	q.Set(rag.ChatHistoryKey, []chat.Message{
-		chat.NewUserMessage("first turn"),
-		chat.NewAssistantMessage("first reply"),
+		chat.NewUserMessage(chat.NewTextPart("first turn")),
+		chat.NewAssistantMessage(chat.NewTextPart("first reply")),
 	})
 
 	out, err := tr.Transform(context.Background(), q)
@@ -235,7 +215,7 @@ func TestCompressionTransformer_EmptyOutputPreservesOriginal(t *testing.T) {
 	}
 }
 
-// --- RewriteTransformer --------------------------------------------
+// --- RewriteTransformer -------------------------------------------
 
 func TestRewriteTransformer_DefaultsToVectorStoreTarget(t *testing.T) {
 	model := newFakeChatModel(t, "tightened query")
@@ -264,13 +244,11 @@ func TestRewriteTransformer_HonorsCustomTarget(t *testing.T) {
 	}
 }
 
-// --- TranslationTransformer ----------------------------------------
+// --- TranslationTransformer ---------------------------------------
 
 func TestTranslationTransformer_RequiresTargetLanguage(t *testing.T) {
 	model := newFakeChatModel(t, "")
-	if _, err := rag.NewTranslationTransformer(rag.TranslationTransformerConfig{
-		ChatModel: model,
-	}); err == nil {
+	if _, err := rag.NewTranslationTransformer(rag.TranslationTransformerConfig{ChatModel: model}); err == nil {
 		t.Fatal("missing TargetLanguage must error")
 	}
 }

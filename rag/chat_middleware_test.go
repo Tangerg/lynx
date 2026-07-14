@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/rag"
 )
 
@@ -22,36 +23,43 @@ func (s *stubRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candida
 	return s.docs, nil
 }
 
-// echoChatModel mirrors the user's last message back. Lets the test
-// observe what the middleware did to the request.
+// echoChatModel mirrors the user's last message back. It implements both
+// target chat capabilities so call and stream middleware share one fixture.
 type echoChatModel struct {
-	defaults *chat.Options
 	captured string
 }
 
-func newEchoChatModel(t *testing.T) *echoChatModel {
-	t.Helper()
-	defaults, _ := chat.NewOptions("echo")
-	return &echoChatModel{defaults: defaults}
+func (m *echoChatModel) capture(req *chat.Request) string {
+	for index := len(req.Messages) - 1; index >= 0; index-- {
+		if req.Messages[index].Role == chat.RoleUser {
+			m.captured = req.Messages[index].Text()
+			return m.captured
+		}
+	}
+	return ""
 }
 
-func (m *echoChatModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *echoChatModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "fake"} }
+func textResponse(text string) *chat.Response {
+	message := chat.NewAssistantMessage(chat.NewTextPart(text))
+	response, err := chat.NewResponse(chat.Choice{
+		Index:        0,
+		Message:      &message,
+		FinishReason: chat.FinishReasonStop,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return response
+}
 
 func (m *echoChatModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
-	m.captured = req.UserMessage().Text
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(m.captured),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
-	return resp, nil
+	return textResponse(m.capture(req)), nil
 }
 
-func (m *echoChatModel) Stream(_ context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {}
+func (m *echoChatModel) Stream(_ context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	return func(yield func(*chat.Response, error) bool) {
+		yield(textResponse(m.capture(req)), nil)
+	}
 }
 
 func TestNewMiddlewareRejectsInvalidConfig(t *testing.T) {
@@ -63,9 +71,7 @@ func TestNewMiddlewareRejectsInvalidConfig(t *testing.T) {
 func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
 	retriever := &stubRetriever{docs: []rag.Candidate{candidate(doc)}}
-
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
-
 	callMW, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
 		Retriever: retriever,
 		Augmenter: aug,
@@ -74,52 +80,76 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	model := newEchoChatModel(t)
-	client, _ := chat.NewClient(model)
-
-	resp, err := client.Chat().
-		WithCallMiddlewares(callMW).
-		WithMessages(chat.NewUserMessage("what is RAG?")).
-		Call().
-		Response(context.Background())
+	model := &echoChatModel{}
+	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("what is RAG?")))
+	response, err := callMW(model).Call(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Augmented user message should embed the retrieved doc text.
 	if !strings.Contains(model.captured, "retrieved info") {
 		t.Fatalf("augmented user message did not embed retrieved doc: %q", model.captured)
 	}
-
-	// Response metadata should carry the retrieved docs.
-	v, ok := resp.Metadata.Get(rag.DocumentContextKey)
-	if !ok {
-		t.Fatal("DocumentContextKey not attached to response metadata")
+	docs, ok, err := metadata.Decode[[]rag.Candidate](response.Extensions, rag.DocumentContextKey)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if docs, _ := v.([]rag.Candidate); len(docs) != 1 {
+	if !ok {
+		t.Fatal("DocumentContextKey not attached to response extensions")
+	}
+	if len(docs) != 1 {
 		t.Fatalf("attached docs len = %d, want 1", len(docs))
 	}
 }
 
-func TestMiddlewarePropagatesRetrieverError(t *testing.T) {
-	want := errors.New("boom")
-	failingRetriever := &errorRetriever{err: want}
-
-	callMW, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
-		Retriever: failingRetriever,
-	})
+func TestMiddlewareStreamAugmentsOnceAndAttachesDocs(t *testing.T) {
+	doc, _ := document.NewDocument("streamed context", nil)
+	retriever := &countingRetriever{docs: []rag.Candidate{candidate(doc)}}
+	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
+	_, streamMW, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: retriever, Augmenter: aug})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	model := newEchoChatModel(t)
-	client, _ := chat.NewClient(model)
+	model := &echoChatModel{}
+	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("question")))
+	var chunks int
+	for response, streamErr := range streamMW(model).Stream(context.Background(), request) {
+		if streamErr != nil {
+			t.Fatal(streamErr)
+		}
+		chunks++
+		if _, ok, decodeErr := metadata.Decode[[]rag.Candidate](response.Extensions, rag.DocumentContextKey); decodeErr != nil || !ok {
+			t.Fatalf("document extension = present %v, error %v", ok, decodeErr)
+		}
+	}
+	if chunks != 1 || retriever.hits != 1 {
+		t.Fatalf("chunks = %d, retrievals = %d; want 1, 1", chunks, retriever.hits)
+	}
+	if !strings.Contains(model.captured, "streamed context") {
+		t.Fatalf("stream model did not see augmented text: %q", model.captured)
+	}
+}
 
-	_, err = client.Chat().
-		WithCallMiddlewares(callMW).
-		WithMessages(chat.NewUserMessage("hi")).
-		Call().
-		Response(context.Background())
+type countingRetriever struct {
+	docs []rag.Candidate
+	hits int
+}
+
+func (r *countingRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candidate, error) {
+	r.hits++
+	return r.docs, nil
+}
+
+func TestMiddlewarePropagatesRetrieverError(t *testing.T) {
+	want := errors.New("boom")
+	callMW, _, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: &errorRetriever{err: want}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("hi")))
+	_, err = callMW(&echoChatModel{}).Call(context.Background(), request)
 	if !errors.Is(err, want) {
 		t.Fatalf("err = %v", err)
 	}
@@ -133,42 +163,26 @@ func (r *errorRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candid
 	return nil, r.err
 }
 
-// TestMiddlewareDoesNotMutateCallerMessages verifies the
-// middleware augments a COPY: the caller's original *chat.UserMessage
-// text must survive the call unchanged (buildRequest shares message
-// pointers with the ClientRequest, so an in-place edit would corrupt
-// reuse / re-consumed streams).
 func TestMiddlewareDoesNotMutateCallerMessages(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
 	retriever := &stubRetriever{docs: []rag.Candidate{candidate(doc)}}
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
-
-	callMW, _, err := rag.NewMiddleware(rag.MiddlewareConfig{
-		Retriever: retriever,
-		Augmenter: aug,
-	})
+	callMW, _, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: retriever, Augmenter: aug})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	model := newEchoChatModel(t)
-	client, _ := chat.NewClient(model)
-
-	userMsg := chat.NewUserMessage("what is RAG?")
-	if _, err := client.Chat().
-		WithCallMiddlewares(callMW).
-		WithMessages(userMsg).
-		Call().
-		Response(context.Background()); err != nil {
+	model := &echoChatModel{}
+	userMessage := chat.NewUserMessage(chat.NewTextPart("what is RAG?"))
+	request, _ := chat.NewRequest(userMessage)
+	if _, err := callMW(model).Call(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
 
-	// The model saw the augmented text...
 	if !strings.Contains(model.captured, "retrieved info") {
 		t.Fatalf("model did not see augmented text: %q", model.captured)
 	}
-	// ...but the caller's own message is untouched.
-	if userMsg.Text != "what is RAG?" {
-		t.Fatalf("caller message was mutated: %q", userMsg.Text)
+	if got := request.Messages[0].Text(); got != "what is RAG?" {
+		t.Fatalf("caller message was mutated: %q", got)
 	}
 }
