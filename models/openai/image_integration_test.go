@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
 )
@@ -23,7 +22,7 @@ func TestImageModel_Call_Integration(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := openai.NewImageModel(openai.ImageModelConfig{
-		APIKey:         model.NewAPIKey(key),
+		APIKey:         key,
 		DefaultOptions: opts,
 	})
 	if err != nil {

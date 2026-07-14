@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/azureopenai"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 )
@@ -21,7 +20,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := azureopenai.NewImageModel(azureopenai.ImageModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		Endpoint:       srv.URL,
 		DefaultOptions: opts,
 	})

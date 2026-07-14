@@ -9,19 +9,18 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/packages/param"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type AudioTranscriptionModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *transcription.Options
 	RequestOptions []option.RequestOption
 }
 
 func (c AudioTranscriptionModelConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

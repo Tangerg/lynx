@@ -8,14 +8,13 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/pkg/mime"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 type EmbeddingModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *embedding.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
@@ -29,7 +28,7 @@ type EmbeddingModelConfig struct {
 }
 
 func (c EmbeddingModelConfig) Validate() error {
-	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

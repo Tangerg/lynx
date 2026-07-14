@@ -8,8 +8,6 @@ import (
 	"net/http"
 
 	"github.com/go-resty/resty/v2"
-
-	"github.com/Tangerg/lynx/core/model"
 )
 
 // API covers the Mistral-specific endpoints that don't already exist in
@@ -17,13 +15,13 @@ import (
 // embeddings go through the openai provider with a swapped base URL
 // (see [NewChatModel] / [NewEmbeddingModel] below).
 type APIConfig struct {
-	APIKey     model.APIKey
+	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
 func (c APIConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("mistral: APIKey is required")
 	}
 	return nil
@@ -39,7 +37,7 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	}
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetAuthToken(cfg.APIKey.Get()).
+		SetAuthToken(cfg.APIKey).
 		SetHeader("Content-Type", "application/json")
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)

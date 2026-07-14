@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
 )
@@ -24,7 +23,7 @@ func integrationEmbeddingModel(t *testing.T) *openai.EmbeddingModel {
 		t.Fatal(err)
 	}
 	m, err := openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
-		APIKey:         model.NewAPIKey(key),
+		APIKey:         key,
 		DefaultOptions: opts,
 	})
 	if err != nil {

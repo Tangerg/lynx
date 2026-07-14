@@ -14,7 +14,6 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/conformance"
 	lynxopenai "github.com/Tangerg/lynx/models/openai"
 )
@@ -26,7 +25,7 @@ func TestChat_CoreConformance(t *testing.T) {
 			server := newCoreChatServer(t)
 			t.Cleanup(server.Close)
 			adapter, err := lynxopenai.NewChat(lynxopenai.ChatConfig{
-				APIKey:         model.NewAPIKey("test-key"),
+				APIKey:         "test-key",
 				DefaultOptions: corechat.Options{Model: "gpt-default-must-be-overridden"},
 				RequestOptions: []option.RequestOption{option.WithBaseURL(server.URL)},
 			})

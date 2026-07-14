@@ -3,7 +3,6 @@ package openrouter_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openrouter"
@@ -22,7 +21,7 @@ func TestAnthropicChatModel(t *testing.T) {
 				t.Fatalf("NewOptions: %v", err)
 			}
 			m, err := openrouter.NewAnthropicChatModel(openrouter.AnthropicChatModelConfig{
-				APIKey:         model.NewAPIKey("test-key"),
+				APIKey:         "test-key",
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

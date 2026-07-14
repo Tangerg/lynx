@@ -10,7 +10,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/model"
 )
 
 const protocolDefaultMaxTokens int64 = 4096
@@ -18,14 +17,14 @@ const protocolDefaultMaxTokens int64 = 4096
 // ChatConfig configures the provider-neutral Core chat adapter. Defaults are
 // copied during construction; the model may instead be selected per Request.
 type ChatConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions corechat.Options
 	RequestOptions []option.RequestOption
 }
 
 // Validate verifies construction-time configuration.
 func (c ChatConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("anthropic: APIKey is required")
 	}
 	if err := c.DefaultOptions.Validate(); err != nil {

@@ -5,20 +5,19 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type AudioTranscriptionModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *transcription.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
 func (c AudioTranscriptionModelConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("deepgram: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

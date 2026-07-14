@@ -8,19 +8,17 @@ import (
 	"github.com/cohere-ai/cohere-go/v2/core"
 	cohereoption "github.com/cohere-ai/cohere-go/v2/option"
 	cohereclientv2 "github.com/cohere-ai/cohere-go/v2/v2"
-
-	"github.com/Tangerg/lynx/core/model"
 )
 
 type APIConfig struct {
-	APIKey  model.APIKey
+	APIKey  string
 	BaseURL string
 
 	RequestOptions []cohereoption.RequestOption
 }
 
 func (c APIConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("cohere: APIKey is required")
 	}
 	return nil
@@ -45,7 +43,7 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	// options). Build one with our token + caller-supplied BaseURL.
 	// Per-call options can still be passed at Embed time.
 	reqOpts := &core.RequestOptions{
-		Token:   cfg.APIKey.Get(),
+		Token:   cfg.APIKey,
 		BaseURL: cfg.BaseURL,
 	}
 

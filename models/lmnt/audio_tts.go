@@ -6,20 +6,19 @@ import (
 	"iter"
 	"net/http"
 
-	"github.com/Tangerg/lynx/core/model"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type AudioTTSModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *tts.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
 func (c AudioTTSModelConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("lmnt: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

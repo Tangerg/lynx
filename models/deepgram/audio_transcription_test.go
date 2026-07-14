@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/deepgram"
 	"github.com/Tangerg/lynx/models/internal/testutil"
@@ -36,7 +35,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := deepgram.NewAudioTranscriptionModel(deepgram.AudioTranscriptionModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

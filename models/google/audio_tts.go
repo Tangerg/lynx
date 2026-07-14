@@ -8,13 +8,12 @@ import (
 
 	"google.golang.org/genai"
 
-	"github.com/Tangerg/lynx/core/model"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type AudioTTSModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *tts.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
@@ -28,7 +27,7 @@ type AudioTTSModelConfig struct {
 }
 
 func (c AudioTTSModelConfig) Validate() error {
-	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

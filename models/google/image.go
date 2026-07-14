@@ -9,12 +9,11 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type ImageModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *image.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
@@ -28,7 +27,7 @@ type ImageModelConfig struct {
 }
 
 func (c ImageModelConfig) Validate() error {
-	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

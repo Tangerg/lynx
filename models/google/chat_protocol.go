@@ -9,12 +9,11 @@ import (
 	"google.golang.org/genai"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/model"
 )
 
 // ChatConfig configures the provider-neutral Core chat adapter.
 type ChatConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions corechat.Options
 	Backend        genai.Backend
 	Project        string
@@ -24,7 +23,7 @@ type ChatConfig struct {
 
 // Validate verifies construction-time configuration.
 func (c ChatConfig) Validate() error {
-	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
 	if err := c.DefaultOptions.Validate(); err != nil {

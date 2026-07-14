@@ -5,7 +5,6 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
-	"github.com/Tangerg/lynx/core/model"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
@@ -23,7 +22,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	}
 	opts.Voice = "alloy"
 	m, err := openai.NewAudioTTSModel(openai.AudioTTSModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
 	})

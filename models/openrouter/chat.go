@@ -6,13 +6,12 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/openai"
 )
 
 type OpenAIChatModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *chat.Options
 	BaseURL        string
 
@@ -30,7 +29,7 @@ type OpenAIChatModelConfig struct {
 }
 
 func (c OpenAIChatModelConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("openrouter: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

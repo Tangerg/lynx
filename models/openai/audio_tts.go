@@ -9,20 +9,19 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/packages/param"
 
-	"github.com/Tangerg/lynx/core/model"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/options"
 	pkgio "github.com/Tangerg/lynx/pkg/io"
 )
 
 type AudioTTSModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *tts.Options
 	RequestOptions []option.RequestOption
 }
 
 func (c AudioTTSModelConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

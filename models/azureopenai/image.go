@@ -6,12 +6,11 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/openai"
 )
 
 type ImageModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	Endpoint       string
 	APIVersion     string
 	DefaultOptions *image.Options

@@ -8,19 +8,18 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/moderation"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type ModerationModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *moderation.Options
 	RequestOptions []option.RequestOption
 }
 
 func (c ModerationModelConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

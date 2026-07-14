@@ -8,19 +8,18 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type ImageModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *image.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
 func (c ImageModelConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("prodia: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

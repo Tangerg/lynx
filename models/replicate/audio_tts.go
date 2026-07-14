@@ -10,13 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type AudioTTSModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *tts.Options
 	BaseURL        string
 	HTTPClient     *http.Client
@@ -30,7 +29,7 @@ type AudioTTSModelConfig struct {
 }
 
 func (c AudioTTSModelConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("replicate: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

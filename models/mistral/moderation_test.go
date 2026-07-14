@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/moderation"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/mistral"
@@ -28,7 +27,7 @@ func TestModerationModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := mistral.NewModerationModel(mistral.ModerationModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

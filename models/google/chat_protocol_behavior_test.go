@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/google"
 	"github.com/Tangerg/lynx/models/internal/conformance"
 )
@@ -44,7 +43,7 @@ func TestChat_BehaviorConformance(t *testing.T) {
 func newGoogleBehaviorChat(t *testing.T, baseURL string) *google.Chat {
 	t.Helper()
 	adapter, err := google.NewChat(google.ChatConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: corechat.Options{Model: "gemini-3-pro"},
 		BaseURL:        baseURL,
 	})

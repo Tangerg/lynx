@@ -6,7 +6,6 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/moderation"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
@@ -31,7 +30,7 @@ func TestModerationModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := openai.NewModerationModel(openai.ModerationModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
 	})

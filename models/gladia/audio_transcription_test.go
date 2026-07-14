@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/gladia"
 	"github.com/Tangerg/lynx/models/internal/testutil"
@@ -43,7 +42,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := gladia.NewAudioTranscriptionModel(gladia.AudioTranscriptionModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 		PollInterval:   10 * time.Millisecond,

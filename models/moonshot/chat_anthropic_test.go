@@ -3,7 +3,6 @@ package moonshot_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/moonshot"
@@ -20,7 +19,7 @@ func TestAnthropicChatModel(t *testing.T) {
 				t.Fatalf("NewOptions: %v", err)
 			}
 			m, err := moonshot.NewAnthropicChatModel(moonshot.AnthropicChatModelConfig{
-				APIKey:         model.NewAPIKey("test-key"),
+				APIKey:         "test-key",
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

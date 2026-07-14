@@ -210,6 +210,42 @@ func TestCoreDoesNotOwnProviderCatalogData(t *testing.T) {
 	}
 }
 
+func TestCoreDoesNotOwnProviderCredentials(t *testing.T) {
+	root := filepath.Join(moduleRoot(t), "model")
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(root, entry.Name())
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, declaration := range file.Decls {
+			switch typed := declaration.(type) {
+			case *ast.GenDecl:
+				if typed.Tok != token.TYPE {
+					continue
+				}
+				for _, specification := range typed.Specs {
+					if specification.(*ast.TypeSpec).Name.Name == "APIKey" {
+						t.Errorf("Core must not own provider credential type APIKey: %s", path)
+					}
+				}
+			case *ast.FuncDecl:
+				if typed.Recv == nil && typed.Name.Name == "NewAPIKey" {
+					t.Errorf("Core must not own provider credential constructor NewAPIKey: %s", path)
+				}
+			}
+		}
+	}
+}
+
 func assertMinimalModalityPackage(t *testing.T, packageName string) {
 	t.Helper()
 	root := filepath.Join(moduleRoot(t), packageName)

@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/pkg/mime"
@@ -409,7 +408,7 @@ func (r *responseHelper) buildChatResponse(req *openai.ChatCompletionNewParams, 
 }
 
 type ChatModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *chat.Options
 	RequestOptions []option.RequestOption
 
@@ -422,7 +421,7 @@ type ChatModelConfig struct {
 }
 
 func (c ChatModelConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

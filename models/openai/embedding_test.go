@@ -10,7 +10,6 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
 )
@@ -22,7 +21,7 @@ func newEmbeddingModel(t *testing.T, baseURL, modelID string) *openai.EmbeddingM
 		t.Fatalf("NewOptions: %v", err)
 	}
 	m, err := openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
 	})

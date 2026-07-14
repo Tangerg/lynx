@@ -11,18 +11,16 @@ import (
 	"strconv"
 
 	"github.com/go-resty/resty/v2"
-
-	"github.com/Tangerg/lynx/core/model"
 )
 
 type APIConfig struct {
-	APIKey     model.APIKey
+	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
 func (c APIConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("elevenlabs: APIKey is required")
 	}
 	return nil
@@ -39,7 +37,7 @@ func NewAPI(cfg APIConfig) (*API, error) {
 
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("xi-api-key", cfg.APIKey.Get()).
+		SetHeader("xi-api-key", cfg.APIKey).
 		SetHeader("Accept", "audio/*")
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)

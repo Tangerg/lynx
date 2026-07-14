@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
@@ -27,7 +26,7 @@ func integrationModel(t *testing.T) *openai.ChatModel {
 		t.Fatalf("NewOptions: %v", err)
 	}
 	m, err := openai.NewChatModel(openai.ChatModelConfig{
-		APIKey:         model.NewAPIKey(key),
+		APIKey:         key,
 		DefaultOptions: opts,
 	})
 	if err != nil {

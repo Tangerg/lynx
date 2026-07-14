@@ -3,7 +3,6 @@ package fireworks_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/fireworks"
 	"github.com/Tangerg/lynx/models/internal/testutil"
@@ -20,7 +19,7 @@ func TestChatModel(t *testing.T) {
 				t.Fatalf("NewOptions: %v", err)
 			}
 			m, err := fireworks.NewOpenAIChatModel(fireworks.OpenAIChatModelConfig{
-				APIKey:         model.NewAPIKey("test-key"),
+				APIKey:         "test-key",
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

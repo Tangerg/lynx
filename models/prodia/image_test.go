@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/prodia"
 )
@@ -19,7 +18,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := prodia.NewImageModel(prodia.ImageModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

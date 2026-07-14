@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/replicate"
 )
@@ -40,7 +39,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := replicate.NewImageModel(replicate.ImageModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 		PollInterval:   10 * time.Millisecond,

@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/secret"
 )
 
 // Transport names the connection mode in the standard `mcpServers` vocabulary
@@ -129,13 +129,9 @@ func (s Server) Validate() error {
 }
 
 // MaskedAuthorization renders the bearer token for the wire: "" when unset,
-// otherwise the redacted form. Reuses [core/model.APIKey]'s masking so secrets
-// share one rule across every log / JSON site.
+// otherwise the runtime's standard redacted form.
 func (s Server) MaskedAuthorization() string {
-	if s.Authorization == "" {
-		return ""
-	}
-	return model.NewAPIKey(s.Authorization).String()
+	return secret.Mask(s.Authorization)
 }
 
 // Registry is the MCP-server registry. All methods are safe for concurrent use.

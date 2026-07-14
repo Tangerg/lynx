@@ -11,7 +11,6 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/google"
 	"github.com/Tangerg/lynx/models/internal/conformance"
 )
@@ -23,7 +22,7 @@ func TestChat_CoreConformance(t *testing.T) {
 			server := newProtocolChatServer(t)
 			t.Cleanup(server.Close)
 			adapter, err := google.NewChat(google.ChatConfig{
-				APIKey:         model.NewAPIKey("test-key"),
+				APIKey:         "test-key",
 				DefaultOptions: corechat.Options{Model: "default-must-be-overridden"},
 				BaseURL:        server.URL,
 			})

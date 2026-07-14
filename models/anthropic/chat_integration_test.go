@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/anthropic"
 	"github.com/Tangerg/lynx/models/internal/testutil"
@@ -25,7 +24,7 @@ func integrationModel(t *testing.T) *anthropic.ChatModel {
 		t.Fatal(err)
 	}
 	m, err := anthropic.NewChatModel(anthropic.ChatModelConfig{
-		APIKey:         model.NewAPIKey(key),
+		APIKey:         key,
 		DefaultOptions: opts,
 	})
 	if err != nil {

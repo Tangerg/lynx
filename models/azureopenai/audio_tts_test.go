@@ -3,7 +3,6 @@ package azureopenai_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/azureopenai"
 	"github.com/Tangerg/lynx/models/internal/testutil"
@@ -19,7 +18,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	}
 	opts.Voice = "alloy"
 	m, err := azureopenai.NewAudioTTSModel(azureopenai.AudioTTSModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		Endpoint:       srv.URL,
 		DefaultOptions: opts,
 	})

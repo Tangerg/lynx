@@ -5,13 +5,12 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/openai"
 )
 
 type AudioTranscriptionModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	Endpoint       string
 	APIVersion     string
 	DefaultOptions *transcription.Options

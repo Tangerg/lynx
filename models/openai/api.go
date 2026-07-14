@@ -10,17 +10,15 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/packages/ssestream"
 	"github.com/openai/openai-go/v3/responses"
-
-	"github.com/Tangerg/lynx/core/model"
 )
 
 type APIConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	RequestOptions []option.RequestOption
 }
 
 func (c APIConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
 	return nil
@@ -39,7 +37,7 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	// can't be overridden by an earlier WithAPIKey on the original
 	// slice. Cloning prevents append from mutating the caller's
 	// backing array when capacity allows.
-	options := append(slices.Clone(cfg.RequestOptions), option.WithAPIKey(cfg.APIKey.Get()))
+	options := append(slices.Clone(cfg.RequestOptions), option.WithAPIKey(cfg.APIKey))
 	client := openai.NewClient(options...)
 
 	return &API{client: &client}, nil

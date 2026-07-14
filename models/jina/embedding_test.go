@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/jina"
 )
@@ -31,7 +30,7 @@ func TestEmbeddingModel(t *testing.T) {
 				t.Fatalf("NewOptions: %v", err)
 			}
 			m, err := jina.NewEmbeddingModel(jina.EmbeddingModelConfig{
-				APIKey:         model.NewAPIKey("test-key"),
+				APIKey:         "test-key",
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})
