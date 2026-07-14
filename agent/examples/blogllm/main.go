@@ -12,7 +12,9 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // Domain types — the agent takes a Topic and produces a Brief by asking
@@ -27,7 +29,7 @@ type (
 )
 
 func main() {
-	chatClient, err := chat.NewClient(newStubModel())
+	chatClient, err := chatclient.New(newStubModel())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -39,11 +41,6 @@ func main() {
 		Description("ask the LLM for a topic brief, with a search tool available").
 		Actions(agent.NewAction("brief",
 			func(ctx context.Context, pc *core.ProcessContext, in Topic) (Brief, error) {
-				req, err := pc.ChatWithActionTools(ctx)
-				if err != nil {
-					return Brief{}, err
-				}
-
 				prompt := fmt.Sprintf(
 					"Write a one-paragraph brief on %q. "+
 						"Use the `research_search` tool to gather sources first; "+
@@ -52,11 +49,9 @@ func main() {
 					in.Title,
 				)
 
-				text, _, err := req.
-					WithSystemPrompt("You are a research analyst. Cite sources you used.").
-					WithUserPrompt(prompt).
-					Call().
-					Text(ctx)
+				text, err := pc.PromptRunner().
+					WithSystem("You are a research analyst. Cite sources you used.").
+					Generate(ctx, prompt)
 				if err != nil {
 					return Brief{}, err
 				}
@@ -115,17 +110,9 @@ func main() {
 // Replace with a real chat.Model from lynx/models/{openai,anthropic,...}.
 // ============================================================================
 
-type stubModel struct {
-	defaults *chat.Options
-}
+type stubModel struct{}
 
-func newStubModel() *stubModel {
-	opts, _ := chat.NewOptions("stub-model")
-	return &stubModel{defaults: opts}
-}
-
-func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+func newStubModel() *stubModel { return &stubModel{} }
 
 // Call walks the conversation and decides:
 //
@@ -147,7 +134,7 @@ func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 
 func hasToolMessage(messages []chat.Message) bool {
 	for _, msg := range messages {
-		if msg.Type() == chat.MessageTypeTool {
+		if msg.Role == chat.RoleTool {
 			return true
 		}
 	}
@@ -155,27 +142,14 @@ func hasToolMessage(messages []chat.Message) bool {
 }
 
 func responseWithText(text string) *chat.Response {
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(text),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewTextPart(text))
+	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 	return resp
 }
 
 func responseWithToolCall(args string) *chat.Response {
-	calls := []*chat.ToolCallPart{
-		{ID: "call_1", Name: "research_search", Arguments: args},
-	}
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(calls),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call_1", Name: "research_search", Arguments: args}))
+	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
 	return resp
 }
 
@@ -184,7 +158,7 @@ func responseWithToolCall(args string) *chat.Response {
 // ============================================================================
 
 type researchToolGroup struct {
-	tools []chat.Tool
+	tools []tools.Tool
 }
 
 type researchSearchInput struct {
@@ -192,8 +166,8 @@ type researchSearchInput struct {
 }
 
 func newResearchToolGroup() *researchToolGroup {
-	tool, err := chat.NewTool[researchSearchInput, string](
-		chat.ToolDefinition{
+	tool, err := tools.New[researchSearchInput, string](
+		tools.Config{
 			Name:        "research_search",
 			Description: "search the public web for sources on a topic",
 		},
@@ -205,14 +179,14 @@ func newResearchToolGroup() *researchToolGroup {
 	if err != nil {
 		panic(err)
 	}
-	return &researchToolGroup{tools: []chat.Tool{tool}}
+	return &researchToolGroup{tools: []tools.Tool{tool}}
 }
 
 func (g *researchToolGroup) Metadata() core.ToolGroupMetadata {
 	return core.SimpleToolGroupMetadata{RoleText: "research"}
 }
 
-func (g *researchToolGroup) Tools(_ context.Context) ([]core.AgentTool, error) {
+func (g *researchToolGroup) Tools(_ context.Context) ([]tools.Tool, error) {
 	return g.tools, nil
 }
 

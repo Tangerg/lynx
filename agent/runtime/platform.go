@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 // Platform is the agent runtime's top-level container — registers
@@ -38,7 +39,7 @@ type Platform struct {
 
 	events       *event.Multicast      // populated from EventListener extensions
 	services     *core.ServiceProvider // open registry exposed via Platform.Services()
-	chatClient   core.ChatClient       // optional shared LLM client
+	chatClient   *chatclient.Client    // optional shared LLM client
 	guardrails   *core.Guardrails      // optional global chat middlewares
 	processStore core.ProcessStore     // optional snapshot backend
 	sessionStore core.SessionStore     // optional session persistence
@@ -50,15 +51,15 @@ type Platform struct {
 // framework defaults — UUID id generator, GOAP A* planner factory,
 // in-memory blackboard, no listeners, no tool resolvers.
 type PlatformConfig struct {
-	// ChatClient is the shared [core.ChatClient] every action body
+	// ChatClient is the shared [chatclient.Client] every action body
 	// reaches via [core.ProcessContext.Chat] /
-	// [core.ProcessContext.ChatWithActionTools]. Optional — agents
+	// [core.ProcessContext.PromptRunner]. Optional — agents
 	// that don't talk to an LLM leave it nil.
-	ChatClient core.ChatClient
+	ChatClient *chatclient.Client
 
 	// Guardrails are platform-wide chat middlewares applied to every
 	// LLM call action bodies issue through [core.ProcessContext.Chat]
-	// or [core.ProcessContext.ChatWithActionTools]. Typical uses:
+	// or [core.ProcessContext.PromptRunner]. Typical uses:
 	// content safeguard, request/response logging, global quota.
 	// Optional — nil / empty means "no global wrapping".
 	Guardrails *core.Guardrails

@@ -1,6 +1,10 @@
 package core
 
-import "context"
+import (
+	"context"
+
+	"github.com/Tangerg/lynx/tools"
+)
 
 // Publish delivers an event to the runtime's listeners. The `any`-typed
 // signature avoids a hard dependency on the event package from core.
@@ -20,7 +24,7 @@ func (pc *ProcessContext) Publish(ctx context.Context, event any) {
 // at the dispatch site. Actions that need such groups declare them via
 // [ActionConfig.ToolGroups] with explicit permissions and use
 // [ProcessContext.ActionTools] instead.
-func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]AgentTool, error) {
+func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]tools.Tool, error) {
 	if pc.resolveTools == nil {
 		return nil, nil
 	}
@@ -30,7 +34,7 @@ func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]
 // ActionTools resolves the tools declared on the currently-executing
 // action's [ActionConfig.ToolGroups]. Returns (nil, nil) when the
 // action declared no ToolGroups or no resolver is wired.
-func (pc *ProcessContext) ActionTools(ctx context.Context) ([]AgentTool, error) {
+func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tools.Tool, error) {
 	if pc.resolveTools == nil || len(pc.actionToolGroups) == 0 {
 		return nil, nil
 	}

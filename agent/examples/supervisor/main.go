@@ -11,11 +11,8 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/agent/toolloop"
-	"github.com/Tangerg/lynx/core/model/chat"
-	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
-	"github.com/Tangerg/lynx/core/model/chat/history"
-	historymw "github.com/Tangerg/lynx/core/model/chat/middleware/history"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // Domain types
@@ -31,7 +28,7 @@ type (
 )
 
 func main() {
-	chatClient, err := chat.NewClient(newStubModel())
+	chatClient, err := chatclient.New(newStubModel())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -78,29 +75,16 @@ func main() {
 				researchTool, _ := runtime.AsChatTool[Topic, Sources](platform, "research-agent")
 				summarizeTool, _ := runtime.AsChatTool[Sources, Summary](platform, "summarize-agent")
 
-				// The tool loop carries only each round's new tool message
-				// downstream; an inner history layer reconstructs the
-				// conversation. Standalone here, so pair with an ephemeral
-				// in-process store scoped to this call.
-				callMW, streamMW := toolloop.NewMiddleware()
-				historyCallMW, historyStreamMW, _ := historymw.NewMiddleware(history.NewInMemoryStore())
-				req := pc.Chat().
-					WithCallMiddlewares(callMW, historyCallMW).
-					WithStreamMiddlewares(streamMW, historyStreamMW).
-					WithParams(map[string]any{chatconversation.IDKey: "example:supervisor"}).
-					WithTools(researchTool, summarizeTool)
-
 				prompt := fmt.Sprintf(
 					"Brief me on %q. Use research-agent first to gather sources, "+
 						"then summarize-agent to synthesise. Reply with JSON: "+
 						`{"sources":[...],"summary":"..."}`,
 					in.Title,
 				)
-				text, _, err := req.
-					WithSystemPrompt("You are a supervisor that delegates to specialised agents.").
-					WithUserPrompt(prompt).
-					Call().
-					Text(ctx)
+				text, err := pc.PromptRunner().
+					WithTools(researchTool, summarizeTool).
+					WithSystem("You are a supervisor that delegates to specialised agents.").
+					Generate(ctx, prompt)
 				if err != nil {
 					return Brief{}, err
 				}
@@ -156,17 +140,9 @@ func main() {
 // Stub LLM — sequences research → summarize → final JSON.
 // ============================================================================
 
-type stubModel struct {
-	defaults *chat.Options
-}
+type stubModel struct{}
 
-func newStubModel() *stubModel {
-	opts, _ := chat.NewOptions("stub-model")
-	return &stubModel{defaults: opts}
-}
-
-func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+func newStubModel() *stubModel { return &stubModel{} }
 
 // Call walks the conversation:
 //
@@ -207,12 +183,12 @@ func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 func collectToolReturns(messages []chat.Message) map[string]string {
 	out := map[string]string{}
 	for _, msg := range messages {
-		if msg.Type() != chat.MessageTypeTool {
+		if msg.Role != chat.RoleTool {
 			continue
 		}
-		if tm, ok := msg.(*chat.ToolMessage); ok {
-			for _, r := range tm.ToolReturns {
-				out[r.Name] = r.Result
+		for index := range msg.Parts {
+			if result := msg.Parts[index].ToolResult; result != nil {
+				out[result.Name] = result.Result
 			}
 		}
 	}
@@ -225,25 +201,14 @@ func contains(m map[string]string, key string) bool {
 }
 
 func responseWithText(text string) *chat.Response {
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(text),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewTextPart(text))
+	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 	return resp
 }
 
 func responseWithToolCall(name, args string) *chat.Response {
-	calls := []*chat.ToolCallPart{{ID: "call_" + name, Name: name, Arguments: args}}
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(calls),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call_" + name, Name: name, Arguments: args}))
+	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
 	return resp
 }
 

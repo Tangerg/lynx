@@ -3,78 +3,62 @@ package core
 import (
 	"context"
 	"errors"
-	"fmt"
+	"iter"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
-// Chat returns a fresh [chat.ClientRequest] cloned from the platform's
-// shared [chat.Client], or nil when the platform was constructed
-// without one — actions that expect LLM access should nil-check (or
-// use [ChatWithActionTools] which surfaces a clear error).
-//
-// Platform-level [Guardrails] (when configured) are pre-installed on
-// the returned request — every call / stream the action issues
-// passes through the global logger / safeguard / quota middlewares
-// before reaching the underlying model.
-//
-// The process's conversation id ([Session.ID], falling back to the
-// process id) is stamped onto the request params under
-// chat conversation ID so the history middleware auto-loads /
-// persists the conversation history — see [conversationID].
-func (pc *ProcessContext) Chat() *chat.ClientRequest {
-	if pc.chatClient == nil {
-		return nil
+// Chat returns a target chat client scoped to this process. Platform and
+// process guardrails wrap the shared client without mutating it. When a session
+// or process ID exists, every call is also bound to the corresponding
+// chathistory conversation through context scope.
+func (pc *ProcessContext) Chat() (*chatclient.Client, error) {
+	if pc == nil || pc.chatClient == nil {
+		return nil, errors.New("agent.ProcessContext.Chat: no ChatClient configured on the platform")
 	}
-	return pc.buildChatRequest(nil)
-}
 
-// ChatWithActionTools is the "ask the LLM with my action's tools"
-// shortcut: a [chat.ClientRequest] pre-loaded with the action's
-// resolved tools. Middleware (tool loop, history, etc.) comes from
-// [Guardrails] — configured by the caller via [ProcessOptions].
-//
-// When the action declares no ToolGroups, the request still carries
-// the configured guardrails (tool loop is in the guardrails chain,
-// not constructed here).
-//
-// Errors when no ChatClient is configured or tool resolution fails.
-func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.ClientRequest, error) {
-	if pc.chatClient == nil {
-		return nil, errors.New("agent.ProcessContext.ChatWithActionTools: no ChatClient configured on the platform")
-	}
-	tools, err := pc.ActionTools(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("agent.ProcessContext.ChatWithActionTools: %w", err)
-	}
-	return pc.buildChatRequest(tools), nil
-}
-
-// buildChatRequest composes the per-action chat request. Middleware
-// (tool loop, history, etc.) comes from [Guardrails] — configured by
-// the caller via [ProcessOptions.Guardrails] or the platform default.
-func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientRequest {
-	req := pc.chatClient.Chat()
-
-	if !pc.guardrails.Empty() {
-		req = req.WithMiddlewareChain(pc.guardrails.MiddlewareChain())
-	}
-	if len(tools) > 0 {
-		req = req.WithTools(tools...)
-	}
+	callMiddleware := make([]chat.CallMiddleware, 0, 1)
+	streamMiddleware := make([]chat.StreamMiddleware, 0, 1)
 	if id := pc.conversationID(); id != "" {
-		req = req.WithParams(map[string]any{chatconversation.IDKey: id})
+		callMiddleware = append(callMiddleware, bindCallConversation(id))
+		streamMiddleware = append(streamMiddleware, bindStreamConversation(id))
 	}
-	return req
+	if !pc.guardrails.Empty() {
+		callMiddleware = append(callMiddleware, pc.guardrails.CallMiddlewares...)
+		streamMiddleware = append(streamMiddleware, pc.guardrails.StreamMiddlewares...)
+	}
+	if len(callMiddleware) == 0 && len(streamMiddleware) == 0 {
+		return pc.chatClient, nil
+	}
+
+	return chatclient.New(
+		pc.chatClient,
+		chatclient.WithStreamer(pc.chatClient),
+		chatclient.WithCallMiddleware(callMiddleware...),
+		chatclient.WithStreamMiddleware(streamMiddleware...),
+	)
 }
 
-// conversationID is this process's chat history conversation key, stamped
-// onto every chat request under chat conversation ID so the history
-// middleware loads / saves history (and the tool loop parks
-// interrupted rounds) keyed by it. The derivation rule lives in
-// [ConversationID]. Returns "" only when neither a session nor a
-// process is available, leaving the request unstamped.
+func bindCallConversation(id string) chat.CallMiddleware {
+	return func(next chat.Model) chat.Model {
+		return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+			return next.Call(chathistory.WithConversationID(ctx, id), request)
+		})
+	}
+}
+
+func bindStreamConversation(id string) chat.StreamMiddleware {
+	return func(next chat.Streamer) chat.Streamer {
+		return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+			return next.Stream(chathistory.WithConversationID(ctx, id), request)
+		})
+	}
+}
+
+// conversationID returns the process history partition. A session ID takes
+// precedence over the process ID.
 func (pc *ProcessContext) conversationID() string {
 	var processID string
 	if pc.Process != nil {

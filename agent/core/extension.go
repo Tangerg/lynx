@@ -1,6 +1,11 @@
 package core
 
-import "context"
+import (
+	"context"
+
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/tools"
+)
 
 // Extension is the marker every plug-in capability shares. Name is
 // used for dedup (panic on duplicate within a registration scope),
@@ -32,7 +37,7 @@ type ActionMiddleware interface {
 	) ActionStatus
 }
 
-// ToolDecorator wraps every [AgentTool] resolved by
+// ToolDecorator wraps every [tools.Tool] resolved by
 // [ProcessContext.ActionTools] / [ProcessContext.ResolveTools].
 // Composition is wrap-style: first registered is innermost.
 //
@@ -44,8 +49,8 @@ type ToolDecorator interface {
 	DecorateTool(
 		process Process,
 		action Action,
-		tool AgentTool,
-	) AgentTool
+		tool tools.Tool,
+	) tools.Tool
 }
 
 // AgentValidator runs as the last [Platform.Deploy] step (after
@@ -66,9 +71,9 @@ type GoalApprover interface {
 	ApproveGoal(process Process, goal *Goal) bool
 }
 
-// ChatClientProvider overrides which [ChatClient] a process's actions use
+// ChatClientProvider overrides which [chatclient.Client] a process's actions use
 // for their LLM calls (via [ProcessContext.Chat] /
-// [ProcessContext.ChatWithActionTools]), instead of the single client the
+// [ProcessContext.PromptRunner]), instead of the single client the
 // Platform was constructed with. The runtime consults registered providers
 // process-scope first then platform-scope, and uses the first non-nil
 // client returned; nil from all (or none registered) falls back to the
@@ -85,5 +90,5 @@ type ChatClientProvider interface {
 
 	// ChatClientFor returns the client this process should use, or nil to
 	// defer to the next provider / the platform default.
-	ChatClientFor(process Process) ChatClient
+	ChatClientFor(process Process) *chatclient.Client
 }

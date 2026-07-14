@@ -8,10 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/agent/toolloop"
-	chatconversation "github.com/Tangerg/lynx/core/model/chat/conversation"
-	"github.com/Tangerg/lynx/core/model/chat/history"
-	historymw "github.com/Tangerg/lynx/core/model/chat/middleware/history"
 )
 
 // SupervisorConfig configures a [Supervisor] — an LLM-orchestration agent
@@ -44,9 +40,9 @@ type SupervisorConfig[In, Out any] struct {
 	// Parse turns the LLM's final reply into the typed Out. Required.
 	Parse func(text string) (Out, error)
 
-	// MaxIterations caps the orchestration tool loop. 0 uses the chat
-	// default ([toolloop.DefaultMaxIterations]).
-	MaxIterations int
+	// MaxToolRounds caps orchestration model calls. Zero selects the target
+	// tool-loop default.
+	MaxToolRounds int
 }
 
 // Supervisor compiles an LLM-orchestration agent over the named sub-agents.
@@ -91,38 +87,11 @@ func Supervisor[In, Out any](platform *runtime.Platform, cfg SupervisorConfig[In
 		cfg.Name+"-orchestrate",
 		func(ctx context.Context, pc *core.ProcessContext, in In) (Out, error) {
 			var zero Out
-
-			req := pc.Chat()
-			if req == nil {
-				return zero, errors.New("workflow.Supervisor: no chat client configured on the platform")
-			}
-
-			// Orchestration is resilient by default: a hallucinated sub-agent
-			// name (unknown tool) and a recoverable tool failure are both fed
-			// back so the model can pick a real one / adjust — no knob needed.
-			callMW, streamMW := toolloop.NewMiddleware(toolloop.Config{
-				MaxIterations: cfg.MaxIterations,
-			})
-
-			// The tool loop hands each round only the new tool message
-			// downstream and relies on a history layer to reconstruct the
-			// conversation. This standalone orchestration has no platform
-			// memory, so pair it with an ephemeral in-process store scoped to
-			// this single multi-round call.
-			historyCallMW, historyStreamMW, err := historymw.NewMiddleware(history.NewInMemoryStore())
-			if err != nil {
-				return zero, fmt.Errorf("workflow.Supervisor %q: %w", cfg.Name, err)
-			}
-
-			text, _, err := req.
-				WithCallMiddlewares(callMW, historyCallMW).
-				WithStreamMiddlewares(streamMW, historyStreamMW).
-				WithParams(map[string]any{chatconversation.IDKey: "workflow:supervisor"}).
+			text, err := pc.PromptRunner().
 				WithTools(tools...).
-				WithSystemPrompt(cfg.Instructions).
-				WithUserPrompt(render(in)).
-				Call().
-				Text(ctx)
+				WithSystem(cfg.Instructions).
+				WithMaxToolRounds(cfg.MaxToolRounds).
+				Generate(ctx, render(in))
 			if err != nil {
 				return zero, fmt.Errorf("workflow.Supervisor %q: %w", cfg.Name, err)
 			}

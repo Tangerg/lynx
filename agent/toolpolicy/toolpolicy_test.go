@@ -2,26 +2,25 @@ package toolpolicy_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/toolpolicy"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 type fakeTool struct {
-	name       string
-	calls      int
-	gotArgs    []string
-	resp       string
-	respErr    error
-	direct     bool
-	concurrent bool
-	key        string
+	name    string
+	calls   int
+	gotArgs []string
+	resp    string
+	respErr error
+	direct  bool
 }
 
 func (t *fakeTool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{Name: t.name, InputSchema: `{"type":"object"}`}
+	return chat.ToolDefinition{Name: t.name, InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 func (t *fakeTool) Call(_ context.Context, args string) (string, error) {
 	t.calls++
@@ -29,9 +28,6 @@ func (t *fakeTool) Call(_ context.Context, args string) (string, error) {
 	return t.resp, t.respErr
 }
 func (t *fakeTool) ReturnsDirect() bool { return t.direct }
-func (t *fakeTool) ConcurrencyKey(string) (string, bool) {
-	return t.key, t.concurrent
-}
 
 // ---------- OnceOnly --------------------------------------------------
 
@@ -98,7 +94,7 @@ func TestOnceOnly_RejectsNilTool(t *testing.T) {
 }
 
 func TestOnceOnly_ForwardsToolCapabilities(t *testing.T) {
-	inner := &fakeTool{name: "notify", direct: true, concurrent: true, key: "resource"}
+	inner := &fakeTool{name: "notify", direct: true}
 	wrapped, err := toolpolicy.OnceOnly(inner)
 	if err != nil {
 		t.Fatalf("OnceOnly: %v", err)
@@ -107,15 +103,6 @@ func TestOnceOnly_ForwardsToolCapabilities(t *testing.T) {
 	direct, ok := wrapped.(interface{ ReturnsDirect() bool })
 	if !ok || !direct.ReturnsDirect() {
 		t.Fatal("return-direct capability was not forwarded")
-	}
-	concurrent, ok := wrapped.(interface {
-		ConcurrencyKey(string) (string, bool)
-	})
-	if !ok {
-		t.Fatal("concurrency capability was not forwarded")
-	}
-	if key, isConcurrent := concurrent.ConcurrencyKey("{}"); key != "resource" || !isConcurrent {
-		t.Fatalf("ConcurrencyKey = (%q, %v), want resource/true", key, isConcurrent)
 	}
 }
 
@@ -193,7 +180,7 @@ func TestUnlocked_RejectsNilArgs(t *testing.T) {
 }
 
 func TestUnlocked_ForwardsToolCapabilities(t *testing.T) {
-	inner := &fakeTool{name: "notify", direct: true, concurrent: true, key: "resource"}
+	inner := &fakeTool{name: "notify", direct: true}
 	wrapped, err := toolpolicy.Unlocked(inner, func(context.Context, string) (bool, string) {
 		return true, ""
 	})
@@ -204,15 +191,6 @@ func TestUnlocked_ForwardsToolCapabilities(t *testing.T) {
 	direct, ok := wrapped.(interface{ ReturnsDirect() bool })
 	if !ok || !direct.ReturnsDirect() {
 		t.Fatal("return-direct capability was not forwarded")
-	}
-	concurrent, ok := wrapped.(interface {
-		ConcurrencyKey(string) (string, bool)
-	})
-	if !ok {
-		t.Fatal("concurrency capability was not forwarded")
-	}
-	if key, isConcurrent := concurrent.ConcurrencyKey("{}"); key != "resource" || !isConcurrent {
-		t.Fatalf("ConcurrencyKey = (%q, %v), want resource/true", key, isConcurrent)
 	}
 }
 

@@ -26,8 +26,9 @@ type ProcessOptions struct {
 	ProcessType ProcessType
 
 	// Session optionally binds this process to a multi-turn
-	// conversation. Guardrails stamp the session id onto chat requests so the
-	// history middleware loads + persists history keyed by [Session.ID].
+	// conversation. ProcessContext binds the session ID to call context so the
+	// history middleware loads and persists history keyed by [Session.ID]
+	// without serializing runtime scope into chat.Request.
 	//
 	// Typically set via [Platform.RunInSession]; the runtime fills
 	// the field and refreshes [Session.UpdatedAt] on every dispatch.

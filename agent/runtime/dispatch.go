@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // extensionRegistry is the dedup-aware container the platform uses
@@ -100,8 +101,8 @@ func runToolDecorators(
 	decorators []core.ToolDecorator,
 	process core.Process,
 	action core.Action,
-	tool core.AgentTool,
-) core.AgentTool {
+	tool tools.Tool,
+) tools.Tool {
 	for _, d := range decorators {
 		tool = d.DecorateTool(process, action, tool)
 	}

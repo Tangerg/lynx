@@ -2,11 +2,13 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // SubagentTools builds supervisor-flow [chat.Tool]s for the named deployed
@@ -20,12 +22,12 @@ import (
 // returns the child's most-recent blackboard object as JSON. Errors when a
 // name isn't deployed or exposes no exported goal — a supervisor over an
 // un-callable agent is a configuration bug worth catching at build time.
-func SubagentTools(platform *Platform, names ...string) ([]chat.Tool, error) {
+func SubagentTools(platform *Platform, names ...string) ([]tools.Tool, error) {
 	if platform == nil {
 		return nil, errors.New("runtime.SubagentTools: platform is nil")
 	}
 
-	var out []chat.Tool
+	var out []tools.Tool
 	for _, name := range names {
 		agentDef, ok := platform.agents.find(name)
 		if !ok {
@@ -53,7 +55,7 @@ func SubagentTools(platform *Platform, names ...string) ([]chat.Tool, error) {
 // AsChatTool wraps a deployed agent as a [chat.Tool] the
 // parent's LLM can invoke as just-another-tool. This is the
 // "supervisor" pattern: a parent agent's body uses
-// [core.ProcessContext.ChatWithActionTools] to ask the LLM, the LLM
+// [core.ProcessContext.PromptRunner] to ask the LLM, the LLM
 // picks one of several sub-agent tools, the tool runs the sub-agent
 // synchronously inside this process, and the result feeds back into
 // the LLM's tool loop.
@@ -79,7 +81,7 @@ func SubagentTools(platform *Platform, names ...string) ([]chat.Tool, error) {
 //
 // Returns an error when platform is nil, agentName is empty, or the
 // agent is not registered.
-func AsChatTool[In, Out any](platform *Platform, agentName string) (chat.Tool, error) {
+func AsChatTool[In, Out any](platform *Platform, agentName string) (tools.Tool, error) {
 	agentDef, err := platform.findAgent("AsChatTool", agentName)
 	if err != nil {
 		return nil, err
@@ -97,7 +99,7 @@ func AsChatTool[In, Out any](platform *Platform, agentName string) (chat.Tool, e
 // the same way [AsChatTool] does.
 //
 // Returns an error when platform or agent is nil.
-func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) (chat.Tool, error) {
+func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) (tools.Tool, error) {
 	if err := platform.validateAgent("AsChatToolFromAgent", agentDef); err != nil {
 		return nil, err
 	}
@@ -121,7 +123,7 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 // Suspended (HITL) runs surface the same JSON "status: waiting"
 // payload [AsChatTool] uses, so an MCP host can decide to drive the
 // process via [Platform.ResumeProcess] out of band.
-func AsMCPTool[In, Out any](platform *Platform, agentName string) (chat.Tool, error) {
+func AsMCPTool[In, Out any](platform *Platform, agentName string) (tools.Tool, error) {
 	agentDef, err := platform.findAgent("AsMCPTool", agentName)
 	if err != nil {
 		return nil, err
@@ -150,7 +152,7 @@ func newTypedAgentTool[In, Out any](
 	platform *Platform,
 	agentDef *core.Agent,
 	start processStarter,
-) (chat.Tool, error) {
+) (tools.Tool, error) {
 	var inSample In
 	inputSchema, err := schemaFor(inSample)
 	if err != nil {
@@ -161,7 +163,7 @@ func newTypedAgentTool[In, Out any](
 		def: chat.ToolDefinition{
 			Name:        agentDef.Name,
 			Description: agentDef.Description,
-			InputSchema: inputSchema,
+			InputSchema: json.RawMessage(inputSchema),
 		},
 		label: label,
 		agent: agentDef,

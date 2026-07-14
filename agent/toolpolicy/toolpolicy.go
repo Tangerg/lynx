@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // ErrToolAlreadyCalled is returned by a [OnceOnly]-wrapped tool
@@ -29,11 +30,11 @@ var ErrToolLocked = errors.New("toolpolicy: tool is locked by an unlock conditio
 // tool. Each unique scope (see [LoopScope]) maintains its own
 // already-called set.
 //
-// Default scope is per-[toolloop.NewMiddleware]-loop: callers wrap
-// the action ctx with [LoopScope] before driving the tool loop;
+// Callers that want per-invocation behavior wrap the action ctx with
+// [LoopScope] before driving the tool loop;
 // each tool's first call within that scope succeeds, subsequent
 // calls reject. Returns an error when tool is nil.
-func OnceOnly(tool chat.Tool) (chat.Tool, error) {
+func OnceOnly(tool tools.Tool) (tools.Tool, error) {
 	if tool == nil {
 		return nil, errors.New("toolpolicy.OnceOnly: tool must not be nil")
 	}
@@ -41,7 +42,7 @@ func OnceOnly(tool chat.Tool) (chat.Tool, error) {
 }
 
 type onceOnlyTool struct {
-	delegate chat.Tool
+	delegate tools.Tool
 
 	// processWideMu guards processWideCalled — the fallback set
 	// used when no [LoopScope] is in ctx.
@@ -56,15 +57,6 @@ func (t *onceOnlyTool) ReturnsDirect() bool {
 		return d.ReturnsDirect()
 	}
 	return false
-}
-
-func (t *onceOnlyTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
-	if c, ok := t.delegate.(interface {
-		ConcurrencyKey(string) (string, bool)
-	}); ok {
-		return c.ConcurrencyKey(arguments)
-	}
-	return "", false
 }
 
 func (t *onceOnlyTool) Call(ctx context.Context, arguments string) (string, error) {
@@ -111,7 +103,7 @@ type UnlockCondition func(ctx context.Context, arguments string) (allowed bool, 
 //
 // Returns an error when tool or condition is nil — caller decides
 // whether to surface or panic.
-func Unlocked(tool chat.Tool, condition UnlockCondition) (chat.Tool, error) {
+func Unlocked(tool tools.Tool, condition UnlockCondition) (tools.Tool, error) {
 	if tool == nil {
 		return nil, errors.New("toolpolicy.Unlocked: tool must not be nil")
 	}
@@ -122,7 +114,7 @@ func Unlocked(tool chat.Tool, condition UnlockCondition) (chat.Tool, error) {
 }
 
 type unlockTool struct {
-	delegate  chat.Tool
+	delegate  tools.Tool
 	condition UnlockCondition
 }
 
@@ -133,15 +125,6 @@ func (t *unlockTool) ReturnsDirect() bool {
 		return d.ReturnsDirect()
 	}
 	return false
-}
-
-func (t *unlockTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
-	if c, ok := t.delegate.(interface {
-		ConcurrencyKey(string) (string, bool)
-	}); ok {
-		return c.ConcurrencyKey(arguments)
-	}
-	return "", false
 }
 
 func (t *unlockTool) Call(ctx context.Context, arguments string) (string, error) {

@@ -8,8 +8,8 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type echoInput struct {
@@ -21,8 +21,8 @@ func main() {
 
 	// 1. Build a chat.Tool — same shape an action body would
 	// register and the same shape lynxmcp.Register accepts.
-	echo, err := chat.NewTool[echoInput, string](
-		chat.ToolDefinition{
+	echo, err := tools.New[echoInput, string](
+		tools.Config{
 			Name:        "echo",
 			Description: "echo the input text",
 		},

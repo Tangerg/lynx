@@ -21,6 +21,7 @@ func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequ
 			Guardrails:     p.effectiveGuardrails(),
 			Publish:        p.publishAny,
 			ResolveTools:   p.toolResolverFor(action),
+			RunToolLoop:    runToolLoop,
 			ToolCallCancel: p.signals.registerToolCallCancel,
 		},
 		ActionToolGroups: actionToolGroups,

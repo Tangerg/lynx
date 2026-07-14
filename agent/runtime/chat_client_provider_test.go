@@ -8,33 +8,22 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // recordingModel is a chat.Model that flips a flag when it's called, so a
 // test can tell which client a turn actually routed through.
 type recordingModel struct {
-	defaults *chat.Options
-	called   bool
+	called bool
 }
 
-func newRecordingModel() *recordingModel {
-	opts, _ := chat.NewOptions("stub-model")
-	return &recordingModel{defaults: opts}
-}
-
-func (m *recordingModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *recordingModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+func newRecordingModel() *recordingModel { return &recordingModel{} }
 
 func (m *recordingModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
 	m.called = true
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage("ok"),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewTextPart("ok"))
+	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 	return resp, nil
 }
 
@@ -47,11 +36,11 @@ func (m *recordingModel) Stream(ctx context.Context, req *chat.Request) iter.Seq
 // preset client for per-process overrides selected by the caller.
 type fixedClientProvider struct {
 	name   string
-	client core.ChatClient
+	client *chatclient.Client
 }
 
 func (f fixedClientProvider) Name() string { return f.name }
-func (f fixedClientProvider) ChatClientFor(core.Process) core.ChatClient {
+func (f fixedClientProvider) ChatClientFor(core.Process) *chatclient.Client {
 	return f.client
 }
 
@@ -64,12 +53,12 @@ type callOut struct{ V int }
 // client the ProcessContext resolved — the observable for which client won.
 func callsChat(t *testing.T) func(context.Context, *core.ProcessContext, callIn) (callOut, error) {
 	return func(ctx context.Context, pc *core.ProcessContext, in callIn) (callOut, error) {
-		req := pc.Chat()
-		if req == nil {
-			t.Error("pc.Chat() returned nil — no client resolved")
-			return callOut{}, nil
+		client, err := pc.Chat()
+		if err != nil {
+			return callOut{}, err
 		}
-		if _, err := req.WithUserPrompt("hi").Call().Response(ctx); err != nil {
+		request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("hi")))
+		if _, err := client.Call(ctx, request); err != nil {
 			t.Errorf("chat call: %v", err)
 		}
 		return callOut{V: in.V + 1}, nil
@@ -89,8 +78,8 @@ func chatAgent(t *testing.T) *core.Agent {
 func TestChatClientProvider_OverridesPlatformClient(t *testing.T) {
 	platformModel := newRecordingModel()
 	overrideModel := newRecordingModel()
-	platformClient, _ := chat.NewClient(platformModel)
-	overrideClient, _ := chat.NewClient(overrideModel)
+	platformClient, _ := chatclient.New(platformModel)
+	overrideClient, _ := chatclient.New(overrideModel)
 
 	a := chatAgent(t)
 	platform := agent.NewPlatform(runtime.PlatformConfig{ChatClient: platformClient})
@@ -122,7 +111,7 @@ func TestChatClientProvider_OverridesPlatformClient(t *testing.T) {
 // registered (or one that returns nil), the platform's client is used.
 func TestChatClientProvider_FallsBackToPlatform(t *testing.T) {
 	platformModel := newRecordingModel()
-	platformClient, _ := chat.NewClient(platformModel)
+	platformClient, _ := chatclient.New(platformModel)
 
 	a := chatAgent(t)
 	platform := agent.NewPlatform(runtime.PlatformConfig{ChatClient: platformClient})
@@ -150,8 +139,8 @@ func TestChatClientProvider_FallsBackToPlatform(t *testing.T) {
 
 func TestChatClientProvider_TypedNilFallsBackToPlatform(t *testing.T) {
 	platformModel := newRecordingModel()
-	platformClient, _ := chat.NewClient(platformModel)
-	var typedNil *chat.Client
+	platformClient, _ := chatclient.New(platformModel)
+	var typedNil *chatclient.Client
 
 	a := chatAgent(t)
 	platform := agent.NewPlatform(runtime.PlatformConfig{ChatClient: platformClient})

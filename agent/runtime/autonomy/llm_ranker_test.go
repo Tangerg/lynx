@@ -10,42 +10,31 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/agent/runtime/autonomy"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // stubModel returns a fixed text reply for every Call. The reply is
 // supposed to be JSON the ranker parses; tests configure it
 // per-case.
 type stubModel struct {
-	defaults  *chat.Options
 	reply     string
 	gotPrompt string
 }
 
 func newStubModel(reply string) *stubModel {
-	opts, _ := chat.NewOptions("stub-model")
-	return &stubModel{defaults: opts, reply: reply}
+	return &stubModel{reply: reply}
 }
-
-func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	// Capture the user prompt so tests can assert on what reached the model.
 	for _, msg := range req.Messages {
-		if msg.Type() == chat.MessageTypeUser {
-			if u, ok := msg.(*chat.UserMessage); ok {
-				m.gotPrompt = u.Text
-			}
+		if msg.Role == chat.RoleUser {
+			m.gotPrompt = msg.Text()
 		}
 	}
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(m.reply),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
+	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 	return resp, nil
 }
 
@@ -88,7 +77,7 @@ func TestLLMRanker_ParsesScoresAndRoutesToTopAgent(t *testing.T) {
 ]}
 trailing prose ignored.`
 	model := newStubModel(reply)
-	client, err := chat.NewClient(model)
+	client, err := chatclient.New(model)
 	if err != nil {
 		t.Fatalf("NewClientWithModel: %v", err)
 	}
@@ -131,7 +120,7 @@ func TestLLMRanker_ClampsConfidence(t *testing.T) {
 	candidates := _aut.Candidates()
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":1.7,"rationale":"x"}]}`
 	model := newStubModel(reply)
-	client, _ := chat.NewClient(model)
+	client, _ := chatclient.New(model)
 
 	ranker, _ := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	choices, err := ranker.Rank(t.Context(), "x", candidates)
@@ -152,7 +141,7 @@ func TestLLMRanker_MissingScoreDefaultsToZero(t *testing.T) {
 	// Reply scores only the first candidate; beta is omitted.
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":0.6,"rationale":""}]}`
 	model := newStubModel(reply)
-	client, _ := chat.NewClient(model)
+	client, _ := chatclient.New(model)
 
 	ranker, _ := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	choices, err := ranker.Rank(t.Context(), "x", candidates)
@@ -171,7 +160,7 @@ func TestLLMRanker_RejectsNonJSONReply(t *testing.T) {
 	candidates := _aut.Candidates()
 
 	model := newStubModel("nope, no JSON at all here")
-	client, _ := chat.NewClient(model)
+	client, _ := chatclient.New(model)
 
 	ranker, _ := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	_, err := ranker.Rank(t.Context(), "x", candidates)
@@ -206,7 +195,7 @@ func TestLLMRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
 	candidates := _aut.Candidates()
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":1.0,"rationale":""}]}`
 	model := newStubModel(reply)
-	client, _ := chat.NewClient(model)
+	client, _ := chatclient.New(model)
 
 	ranker, _ := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	if _, err := ranker.Rank(t.Context(), "x", candidates); err != nil {

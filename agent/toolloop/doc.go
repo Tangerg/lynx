@@ -12,9 +12,4 @@
 // call without re-invoking the model or completed tools. AbortError and context
 // cancellation propagate as errors. Direct marks tools whose all-direct round
 // ends on its final ToolResult.
-//
-// The older NewMiddleware path remains frozen only while existing agent
-// consumers still use the legacy chat protocol. It is a separate
-// implementation, not an adapter for Runner, and is removed with its final
-// consumer during the workspace cutover.
 package toolloop

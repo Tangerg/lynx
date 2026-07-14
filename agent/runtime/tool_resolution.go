@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // toolResolverFor returns the ResolveTools closure used by ProcessContext.
@@ -21,8 +22,8 @@ func (p *AgentProcess) toolResolverFor(action core.Action) core.ToolResolver {
 	if len(resolvers) == 0 {
 		return nil
 	}
-	return func(ctx context.Context, requirements []core.ToolGroupRequirement) ([]core.AgentTool, error) {
-		var collected []core.AgentTool
+	return func(ctx context.Context, requirements []core.ToolGroupRequirement) ([]tools.Tool, error) {
+		var collected []tools.Tool
 
 		for _, req := range requirements {
 			group, found, err := runToolGroupResolvers(resolvers, ctx, req)
