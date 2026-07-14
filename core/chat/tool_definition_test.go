@@ -1,0 +1,65 @@
+package chat_test
+
+import (
+	"encoding/json"
+	"errors"
+	"reflect"
+	"testing"
+
+	"github.com/Tangerg/lynx/core/chat"
+)
+
+func TestToolDefinitionValidateAndRoundTrip(t *testing.T) {
+	definition := validToolDefinition()
+	if err := definition.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	encoded, err := json.Marshal(definition)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var got chat.ToolDefinition
+	if err := json.Unmarshal(encoded, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if !reflect.DeepEqual(got, definition) {
+		t.Fatalf("round trip = %#v, want %#v", got, definition)
+	}
+}
+
+func TestToolDefinitionRejectsInvalidValues(t *testing.T) {
+	tests := []chat.ToolDefinition{
+		{},
+		{Name: "bad name", InputSchema: json.RawMessage(`{}`)},
+		{Name: "tool"},
+		{Name: "tool", InputSchema: json.RawMessage(`{`)},
+		{Name: "tool", InputSchema: json.RawMessage(`[]`)},
+		{Name: "tool", InputSchema: json.RawMessage(`null`)},
+	}
+	for _, definition := range tests {
+		if err := definition.Validate(); !errors.Is(err, chat.ErrInvalidToolDefinition) {
+			t.Errorf("Validate(%+v) error = %v", definition, err)
+		}
+		if _, err := json.Marshal(definition); !errors.Is(err, chat.ErrInvalidToolDefinition) {
+			t.Errorf("Marshal(%+v) error = %v", definition, err)
+		}
+	}
+}
+
+func TestToolDefinitionUnmarshalIsAtomic(t *testing.T) {
+	got := validToolDefinition()
+	err := json.Unmarshal([]byte(`{"name":"replacement","input_schema":[]}`), &got)
+	if !errors.Is(err, chat.ErrInvalidToolDefinition) {
+		t.Fatalf("Unmarshal error = %v", err)
+	}
+	if got.Name != "weather" {
+		t.Fatalf("failed Unmarshal mutated receiver: %+v", got)
+	}
+}
+
+func TestToolDefinitionNilUnmarshalReceiver(t *testing.T) {
+	var definition *chat.ToolDefinition
+	if err := definition.UnmarshalJSON([]byte(`{}`)); !errors.Is(err, chat.ErrInvalidToolDefinition) {
+		t.Fatalf("UnmarshalJSON error = %v, want ErrInvalidToolDefinition", err)
+	}
+}
