@@ -11,7 +11,6 @@ import (
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/options"
-	"github.com/Tangerg/lynx/pkg/mime"
 	"github.com/Tangerg/lynx/pkg/ptr"
 )
 
@@ -95,7 +94,7 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 		resultMeta := &embedding.ResultMetadata{
 			Index:        item.Index,
 			ModalityType: embedding.Text,
-			MimeType:     mime.MustNew("text", "plain"),
+			MIMEType:     "text/plain",
 		}
 
 		result, err := embedding.NewResult(item.Embedding, resultMeta)

@@ -3,8 +3,6 @@ package embedding
 import (
 	"errors"
 	"maps"
-
-	"github.com/Tangerg/lynx/pkg/ptr"
 )
 
 // EncodingFormat enumerates the on-the-wire shapes a provider may use
@@ -92,9 +90,17 @@ func (o *Options) Clone() *Options {
 	return &Options{
 		Model:          o.Model,
 		EncodingFormat: o.EncodingFormat,
-		Dimensions:     ptr.Clone(o.Dimensions),
+		Dimensions:     clonePointer(o.Dimensions),
 		Extra:          maps.Clone(o.Extra),
 	}
+}
+
+func clonePointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	clone := *value
+	return &clone
 }
 
 // MergeOptions clones base and applies each override left-to-right.

@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/models/internal/options"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 type ImageModelConfig struct {
@@ -66,8 +66,8 @@ func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGene
 	params.Model = mergedOpts.Model
 	params.Prompt = req.Prompt
 
-	if mergedOpts.OutputFormat != nil && mime.IsImage(mergedOpts.OutputFormat) {
-		params.OutputFormat = openai.ImageGenerateParamsOutputFormat(mergedOpts.OutputFormat.SubType())
+	if mergedOpts.OutputFormat != "" {
+		params.OutputFormat = openai.ImageGenerateParamsOutputFormat(strings.TrimPrefix(mergedOpts.OutputFormat, "image/"))
 	}
 	if mergedOpts.ResponseFormat.Valid() {
 		params.ResponseFormat = openai.ImageGenerateParamsResponseFormat(mergedOpts.ResponseFormat)

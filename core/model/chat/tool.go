@@ -5,11 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
-
-	"github.com/spf13/cast"
-
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 // ToolDefinition is the static description of a tool that LLMs see when
@@ -98,21 +95,51 @@ func (t *tool[In, Out]) Call(ctx context.Context, arguments string) (string, err
 }
 
 // stringifyResult renders the tool's typed output as the string the model sees.
-// Scalars and fmt.Stringer values go through cast so a string (or []byte,
-// number, bool, Stringer) renders VERBATIM — unquoted, unlike json.Marshal;
-// composite results (structs, maps, slices) that cast can't render fall back to
-// JSON encoding. Order matters: cast first keeps a string result unquoted. It is
+// Scalars and fmt.Stringer values render verbatim — unquoted, unlike
+// json.Marshal; composite results (structs, maps, slices) use JSON encoding.
+// Order matters: scalar handling first keeps a string result unquoted. It is
 // a method so Out comes from the receiver's type parameter, keeping nothing at
 // package scope.
 func (*tool[In, Out]) stringifyResult(out Out) (string, error) {
-	if s, err := cast.ToStringE(out); err == nil {
-		return s, nil
+	value := any(out)
+	if value == nil {
+		return "", nil
 	}
-	b, err := json.Marshal(out)
+	switch typed := value.(type) {
+	case string:
+		return typed, nil
+	case []byte:
+		return string(typed), nil
+	}
+	reflected := reflect.ValueOf(value)
+	if isNilable(reflected.Kind()) && reflected.IsNil() {
+		encoded, err := json.Marshal(value)
+		return string(encoded), err
+	}
+	if typed, ok := value.(fmt.Stringer); ok {
+		return typed.String(), nil
+	}
+	switch reflected.Kind() {
+	case reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64:
+		return fmt.Sprint(value), nil
+	}
+	b, err := json.Marshal(value)
 	if err != nil {
 		return "", err
 	}
 	return string(b), nil
+}
+
+func isNilable(kind reflect.Kind) bool {
+	switch kind {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return true
+	default:
+		return false
+	}
 }
 
 // NewTool builds a [Tool] from a typed function. The argument schema and decoder
@@ -148,7 +175,7 @@ func NewTool[In, Out any](
 	}
 
 	var zero In
-	schema, err := pkgjson.StringDefSchemaOf(zero)
+	schema, err := stringSchemaOf(zero)
 	if err != nil {
 		return nil, fmt.Errorf("chat.NewTool: derive input schema: %w", err)
 	}

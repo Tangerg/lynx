@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 type EmbeddingModelConfig struct {
@@ -69,7 +68,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		resultMeta := &embedding.ResultMetadata{
 			Index:        int64(index),
 			ModalityType: embedding.Text,
-			MimeType:     mime.MustNew("text", "plain"),
+			MIMEType:     "text/plain",
 		}
 		result, err := embedding.NewResult(vec, resultMeta)
 		if err != nil {

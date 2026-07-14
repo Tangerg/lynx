@@ -10,7 +10,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/internal/options"
-	"github.com/Tangerg/lynx/pkg/mime"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
@@ -85,7 +84,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *ollamaapi.EmbedResponse) (*embed
 		resultMeta := &embedding.ResultMetadata{
 			Index:        int64(index),
 			ModalityType: embedding.Text,
-			MimeType:     mime.MustNew("text", "plain"),
+			MIMEType:     "text/plain",
 		}
 
 		result, err := embedding.NewResult(values, resultMeta)

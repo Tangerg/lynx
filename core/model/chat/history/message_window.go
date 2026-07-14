@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 // Default and clamp boundaries for [NewMessageWindowStore]. The lower
@@ -55,7 +54,10 @@ func NewMessageWindowStore(storage Store, limit ...int) (*MessageWindowStore, er
 		return existing, nil
 	}
 
-	requested := pkgSlices.AtOr(limit, 0, defaultMessageWindowLimit)
+	requested := defaultMessageWindowLimit
+	if len(limit) > 0 {
+		requested = limit[0]
+	}
 	clamped := max(minMessageWindowLimit, min(maxMessageWindowLimit, requested))
 
 	return &MessageWindowStore{

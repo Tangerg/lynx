@@ -2,8 +2,6 @@ package chat
 
 import (
 	"maps"
-
-	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 // ResponseAccumulator stitches a streaming sequence of [*Response] chunks
@@ -142,7 +140,9 @@ func (r *ResponseAccumulator) accumulateToolMessage(msg, other *ToolMessage) *To
 	}
 
 	if len(other.ToolReturns) > 0 {
-		msg.ToolReturns = pkgSlices.EnsureIndex(msg.ToolReturns, len(other.ToolReturns)-1)
+		if missing := len(other.ToolReturns) - len(msg.ToolReturns); missing > 0 {
+			msg.ToolReturns = append(msg.ToolReturns, make([]*ToolReturn, missing)...)
+		}
 		for index, ret := range other.ToolReturns {
 			tr := msg.ToolReturns[index]
 			if tr == nil {
