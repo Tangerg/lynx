@@ -1,6 +1,6 @@
 # Core 架构演进执行计划
 
-> 状态：执行中（P5 其余模态与依赖瘦身）
+> 状态：执行中（P6 Workspace 切换）
 > 建立日期：2026-07-13
 > 最后更新：2026-07-14
 > 维护者：Lynx 仓库维护者
@@ -791,7 +791,12 @@ flowchart LR
   - Bedrock 保留 ordered reasoning/tool/media、provider extension、usage 与流式 tool identity；Responses 保留 ordered output、reasoning signature、media/tool input 和累计 usage，均不包装旧 Chat 类型。
   - 非 Chat 模态和 embedding usage 已无旧 Chat 类型借用；冻结旧 provider 实现只服务待迁 consumer，P6-05 与旧 Core 包同批删除。
   - 证据：`d47445e52`、`14f80a8d4`、`ffc7736d2`；Models build、vet、lint、test 全绿，Bedrock/OpenAI/constructor matrix race 全绿。
-- [ ] **P6-02 迁移 `vectorstores`、`rag`、`tools`、`mcp`、`a2a` 的剩余新路径消费点**
+- [x] **P6-02 迁移 `vectorstores`、`rag`、`tools`、`mcp`、`a2a` 的剩余新路径消费点**（完成：2026-07-14）
+  - `vectorstores` 已在 P4/P5 直接使用目标 VectorStore/Embedding 契约，本任务复核无旧 Chat 消费。
+  - 12 个具体 Tools package 直接返回 `core/chat.ToolDefinition` 并满足消费方 `tools.Tool`；A2A 与 MCP 直接消费该执行能力，不保留旧 Tool 构造器或 schema bridge。
+  - MCP prompts/sampling 直接使用目标 tagged Message、`chatclient.Client` 与 JSON-safe schema；RAG middleware、LLM query components 和 chat history formatting 全部直接使用目标 Chat/Template，不保留旧 request/response 适配。
+  - `vectorstores`、`rag`、`tools`、`mcp`、`a2a` 对 `core/model/chat` 的 import 为零；受影响模块 build/test/vet/lint/race 全绿，RAG 关闭 workspace 的独立模块测试通过。
+  - 证据：`253adec40`、`12174d3be`、`7e4eb1a33`、`a57b2dfd6`。
 - [ ] **P6-03 迁移 `agent`、`chathistory`、`documentreaders` 的剩余新路径消费点**
 - [ ] **P6-04 迁移 `app/runtime` 和示例程序**
 - [ ] **P6-05 删除旧 `core/model/<modality>` 包、path bridge 和 deprecated API**
@@ -841,16 +846,16 @@ flowchart LR
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
-| P6 Workspace 切换 | 进行中 | 1/8 | provider 目标面完整；进入基础设施消费模块迁移 |
+| P6 Workspace 切换 | 进行中 | 2/8 | provider 与基础设施消费模块已切换；进入 agent/history/readers 迁移 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **46/60** | **77%** |
+| **总计** | **进行中** | **47/60** | **78%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P6。
-- 下一任务：执行 P6-02，迁移 vectorstores、rag、tools、mcp、a2a 的剩余旧 Chat 消费点。
+- 下一任务：执行 P6-03，迁移 agent、chathistory、documentreaders 的剩余旧路径消费点。
 - 当前阻塞：无。
-- 最近完成：P6-01；全部真实 Chat provider 形态已有直接目标协议实现和构造器矩阵，非 Chat provider 已复核。
+- 最近完成：P6-02；基础设施模块已直接消费目标 Chat/Tool/Template 契约，指定五个模块旧 Chat import 清零。
 
 ### 10.3 进度更新规则
 
@@ -1125,6 +1130,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P6-02；Vectorstores/RAG/Tools/MCP/A2A 的剩余消费点切到目标 Chat/Tool/Template 契约，旧 Chat import 清零 | Codex |
 | 2026-07-14 | 完成 P6-01；全部 provider 目标 Chat 构造器和直接 Bedrock/Responses 映射建立，30 项 constructor matrix 自动化 | Codex |
 | 2026-07-14 | 完成 P5-07 与 P5 阶段验收；目标新包外部依赖预算自动化，workspace 80 项门禁全绿；进入 P6 | Codex |
 | 2026-07-14 | 完成 P5-06；清除 Core 全部 pkg helper/cast import，以标准 MIME 字符串和标准库/私有小实现替代，并采纳 ADR-015 | Codex |
@@ -1176,6 +1182,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P6-02 | `253adec40` 将 12 个具体 Tools package 迁到目标 ToolDefinition/执行接口；`12174d3be` 将 A2A 直接切到消费方 Tool；`7e4eb1a33` 将 MCP Tools、prompts、sampling 切到目标 Chat/ChatClient；`a57b2dfd6` 将 RAG middleware 与 LLM 组件切到 tagged Message/Template。五个范围模块旧 Chat import 为零；受影响模块 build/test/vet/lint/race 及 RAG standalone test 全绿；任务计数 47/60 | P6-03 agent、chathistory、documentreaders 迁移 |
 | 2026-07-14 | P6-01 | `d47445e52` 为 19 个兼容 facade 建立直接 Core Chat 构造器；`14f80a8d4` 实现 Bedrock Converse/Stream tagged-protocol 映射；`ffc7736d2` 将 OpenAI Responses API 直接迁入目标协议、移除 embedding 对旧 Chat Usage 的借用并锁定 30 构造器矩阵；Models build/vet/lint/test 及 Bedrock/OpenAI/arch race 全绿；任务计数 46/60 | P6-02 基础设施模块旧 Chat 消费迁移 |
 | 2026-07-14 | P5-07、P5 阶段验收 | `20017833f` 新增目标包 dependency budget，递归禁止十个稳定 Core package 根引入第三方或 sibling module；冻结旧 Chat 的 schema 依赖继续由 P6 deadline 单独约束；`scripts/check.sh build vet test lint` 对 20 个 workspace module 的 80 项检查全绿；任务计数 45/60，P5 7/7 完成 | P6-01 全 provider 旧 Chat 迁移 |
 | 2026-07-14 | P5-06 | `fda80088d` 用 stdlib/包内私有实现替代 Core 的 ptr/slices/text/json/mime helper 与 cast，公共图片/embedding MIME 改为标准字符串并迁完 Models；冻结旧 Chat 只显式保留 `invopop/jsonschema` 到 P6；`38d18de01` 固化 Models 可独立解析的新 Core 伪版本；Core/Models build、vet、lint、test、race 与 Models standalone test 全绿；任务计数 44/60 | P5-07 目标新包 dependency budget 与 P5 阶段验收 |
