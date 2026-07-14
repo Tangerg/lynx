@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 var toolSchema, _ = pkgjson.StringDefSchemaOf(Request{})
 
-var _ chat.Tool = (*Tool)(nil)
+var _ toolcontract.Tool = (*Tool)(nil)
 
 // Tool is the LLM-facing adapter for a webfetch [Provider]. Construct
 // with [NewTool] — there is no nil-default fallback because rendering
@@ -33,7 +34,7 @@ func (t *Tool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name:        "web_fetch",
 		Description: webFetchDescription,
-		InputSchema: toolSchema,
+		InputSchema: json.RawMessage(toolSchema),
 	}
 }
 

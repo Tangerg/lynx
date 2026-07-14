@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	skillsrc "github.com/Tangerg/lynx/skills"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 const (
@@ -33,7 +34,7 @@ const toolDescription = "Discover and read Agent Skills — reusable, on-demand 
 	"op=\"load_resource\" name=<skill> path=<file> to read a bundled reference, asset, or script the instructions point to. " +
 	"Load a skill only when the task matches its description; then follow the returned instructions, running any scripts with your own shell/file tools."
 
-var _ chat.Tool = (*Tool)(nil)
+var _ toolcontract.Tool = (*Tool)(nil)
 
 // Tool is the LLM-callable adapter over a [skillsrc.Source]. It is a thin
 // wrapper: all parsing, validation, and IO live in the source.
@@ -54,7 +55,7 @@ func (t *Tool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name:        "skill",
 		Description: toolDescription,
-		InputSchema: toolSchema,
+		InputSchema: json.RawMessage(toolSchema),
 	}
 }
 

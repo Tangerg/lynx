@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // GrepRequest is the LLM-facing argument shape for the grep tool.
@@ -46,7 +47,7 @@ type GrepResponse struct {
 
 var grepToolSchema, _ = pkgjson.StringDefSchemaOf(GrepRequest{})
 
-var _ chat.Tool = (*GrepTool)(nil)
+var _ toolcontract.Tool = (*GrepTool)(nil)
 
 // GrepTool is the thin LLM-facing adapter for [Executor.Grep].
 type GrepTool struct {
@@ -69,7 +70,7 @@ func (t *GrepTool) Definition() chat.ToolDefinition {
 			"Pattern syntax follows ripgrep — escape literal braces (use `interface\\{\\}` to find `interface{}`). " +
 			"By default patterns match within a single line; pass `multiline=true` for cross-line patterns like `struct \\{[\\s\\S]*?field`. " +
 			"Use `output_mode=files_with_matches` when you only need the list of files containing the pattern — it returns far less data.",
-		InputSchema: grepToolSchema,
+		InputSchema: json.RawMessage(grepToolSchema),
 	}
 }
 

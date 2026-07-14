@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // ReadRequest is the LLM-facing argument shape for the read tool.
@@ -30,7 +31,7 @@ type ReadResponse struct {
 
 var readToolSchema, _ = pkgjson.StringDefSchemaOf(ReadRequest{})
 
-var _ chat.Tool = (*ReadTool)(nil)
+var _ toolcontract.Tool = (*ReadTool)(nil)
 
 // ReadTool is the thin LLM-facing adapter for [Executor.Read].
 type ReadTool struct {
@@ -53,7 +54,7 @@ func (t *ReadTool) Definition() chat.ToolDefinition {
 			"By default returns the whole file; for a large file pass `offset` (1-based line) and `limit` to page through it. " +
 			"Call this in parallel when you need several files at once. " +
 			"Binary files are rejected — use the shell tool for non-text data, and use glob/grep to locate files or content rather than guessing paths.",
-		InputSchema: readToolSchema,
+		InputSchema: json.RawMessage(readToolSchema),
 	}
 }
 

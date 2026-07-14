@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // EditRequest is the LLM-facing argument shape for the edit tool.
@@ -24,7 +25,7 @@ type EditResponse struct {
 
 var editToolSchema, _ = pkgjson.StringDefSchemaOf(EditRequest{})
 
-var _ chat.Tool = (*EditTool)(nil)
+var _ toolcontract.Tool = (*EditTool)(nil)
 
 // EditTool is the thin LLM-facing adapter for [Executor.Edit]. The
 // match-and-replace logic lives in the executor so a backend upgrade
@@ -49,7 +50,7 @@ func (t *EditTool) Definition() chat.ToolDefinition {
 			"Copy `old_string` verbatim from the file: `read` returns raw text, so there is no line-number prefix to strip. " +
 			"Keep `old_string` to the few unique lines needed — larger snippets drift on whitespace. " +
 			"Pass `replace_all=true` to change every occurrence (use this when renaming a symbol).",
-		InputSchema: editToolSchema,
+		InputSchema: json.RawMessage(editToolSchema),
 	}
 }
 

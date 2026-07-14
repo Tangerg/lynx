@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // ApplyPatchRequest is the LLM-facing argument shape for the apply_patch tool.
@@ -30,7 +31,7 @@ type PatchFileResponse struct {
 
 var applyPatchToolSchema, _ = pkgjson.StringDefSchemaOf(ApplyPatchRequest{})
 
-var _ chat.Tool = (*ApplyPatchTool)(nil)
+var _ toolcontract.Tool = (*ApplyPatchTool)(nil)
 
 // ApplyPatchTool is the thin LLM-facing adapter for [Executor.ApplyPatch].
 type ApplyPatchTool struct {
@@ -51,7 +52,7 @@ func (t *ApplyPatchTool) Definition() chat.ToolDefinition {
 		Name: "apply_patch",
 		Description: "Apply a standard unified diff to one or more files. You must `read` existing files before patching them. " +
 			"Use this for coordinated multi-file changes. The patch must match exactly; unsupported renames are rejected instead of guessed.",
-		InputSchema: applyPatchToolSchema,
+		InputSchema: json.RawMessage(applyPatchToolSchema),
 	}
 }
 

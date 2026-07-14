@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // GlobRequest is the LLM-facing argument shape for the glob tool.
@@ -25,7 +26,7 @@ type GlobResponse struct {
 
 var globToolSchema, _ = pkgjson.StringDefSchemaOf(GlobRequest{})
 
-var _ chat.Tool = (*GlobTool)(nil)
+var _ toolcontract.Tool = (*GlobTool)(nil)
 
 // GlobTool is the thin LLM-facing adapter for [Executor.Glob].
 type GlobTool struct {
@@ -47,7 +48,7 @@ func (t *GlobTool) Definition() chat.ToolDefinition {
 		Description: "List file paths matching a doublestar pattern. " +
 			"Examples: `**/*.go` (all Go files), `src/**/*.ts` (TS files under src), `cmd/*/main.go` (one level deep). " +
 			"For searching file *contents*, use the grep tool instead.",
-		InputSchema: globToolSchema,
+		InputSchema: json.RawMessage(globToolSchema),
 	}
 }
 
