@@ -9,9 +9,11 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -52,7 +54,7 @@ type StoreConfig struct {
 	// DocumentBatcher is responsible for batching documents before insertion.
 	// This helps optimize bulk operations and embedding generation.
 	// Required: must be provided to handle document batching logic.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// StoreDocumentContent determines whether to store the original document
 	// content in the payload. When true, the full text will be saved with a
@@ -94,7 +96,7 @@ type Store struct {
 	client               *qdrant.Client
 	embeddingModel       embedding.Model
 	embeddingClient      *embedding.Client
-	documentBatcher      document.Batcher
+	documentBatcher      vectorstores.Batcher
 	collectionName       string
 	initializeSchema     bool
 	storeDocumentContent bool
@@ -203,7 +205,11 @@ func (s *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdr
 		Vectors: qdrant.NewVectors(math.ConvertSlice[float64, float32](vector)...),
 	}
 
-	payload, err := qdrant.TryValueMap(doc.Metadata)
+	metadataValues, err := doc.Metadata.Values()
+	if err != nil {
+		return nil, fmt.Errorf("qdrant: decode metadata: %w", err)
+	}
+	payload, err := qdrant.TryValueMap(metadataValues)
 	if err != nil {
 		return nil, fmt.Errorf("qdrant: failed to convert metadata to payload: %w", err)
 	}
@@ -357,7 +363,11 @@ func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]
 
 			delete(payload, payloadDocumentContentKey)
 
-			doc.Metadata = s.convertPayloadToMetadata(payload)
+			var err error
+			doc.Metadata, err = metadata.FromValues(s.convertPayloadToMetadata(payload))
+			if err != nil {
+				return nil, fmt.Errorf("qdrant: encode metadata: %w", err)
+			}
 		}
 
 		docs = append(docs, vectorstore.Match{Document: doc, Score: float64(point.GetScore())})

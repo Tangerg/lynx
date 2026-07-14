@@ -12,10 +12,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
@@ -98,7 +100,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before insertion. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// Dimensions sets the VECTOR column width. When zero, falls
 	// back to the embedding model's reported value and then
@@ -184,7 +186,7 @@ type Store struct {
 	metadataColumns []MetadataColumn
 	embeddingModel  embedding.Model
 	embeddingClient *embedding.Client
-	documentBatcher document.Batcher
+	documentBatcher vectorstores.Batcher
 	dimensions      int
 	similarity      SimilarityFunction
 }
@@ -340,7 +342,11 @@ func (s *Store) insertOne(ctx context.Context, id string, doc *document.Document
 	args := []any{id, doc.Text}
 
 	for _, m := range s.metadataColumns {
-		if val, ok := doc.Metadata[m.Name]; ok {
+		val, ok, err := metadata.Decode[any](doc.Metadata, m.Name)
+		if err != nil {
+			return fmt.Errorf("cassandra: decode metadata %s: %w", m.Name, err)
+		}
+		if ok {
 			columns = append(columns, m.Name)
 			placeholders = append(placeholders, "?")
 			args = append(args, val)
@@ -453,7 +459,11 @@ func (s *Store) scanDestToMatch(dest []any, minScore float64) (*vectorstore.Matc
 			}
 		}
 		if len(meta) > 0 {
-			doc.Metadata = meta
+			var err error
+			doc.Metadata, err = metadata.FromValues(meta)
+			if err != nil {
+				return nil, fmt.Errorf("cassandra: encode metadata: %w", err)
+			}
 		}
 	}
 	return &vectorstore.Match{Document: doc, Score: score}, nil

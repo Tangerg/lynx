@@ -1,11 +1,10 @@
 package document
 
 import (
-	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/core/document/id"
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // Document is the canonical content carrier. It holds identity, content, and
@@ -19,14 +18,7 @@ type Document struct {
 
 	Media *media.Media `json:"media,omitempty"`
 
-	// Formatter renders the document for downstream consumers (LLM
-	// prompt, log line, ...). Defaults to a no-op that emits Text.
-	// Excluded from JSON: the value holds runtime behavior that cannot
-	// meaningfully round-trip — consumers rehydrate Documents via
-	// [NewDocument] or set Formatter explicitly after Unmarshal.
-	Formatter Formatter `json:"-"`
-
-	Metadata map[string]any `json:"metadata,omitzero"`
+	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
 // NewDocument builds a [Document]. At least one of text or media is
@@ -35,63 +27,35 @@ type Document struct {
 // Example:
 //
 //	doc, err := document.NewDocument("hello", nil)
-//	doc.Metadata["source"] = "manual"
+//	_ = metadata.Set(doc.Metadata, "source", "manual")
 func NewDocument(text string, media *media.Media) (*Document, error) {
 	if text == "" && media == nil {
 		return nil, errors.New("document.NewDocument: at least one of text or media is required")
 	}
 
-	return &Document{
-		Text:      text,
-		Media:     media,
-		Metadata:  make(map[string]any),
-		Formatter: NewNop(),
-	}, nil
+	doc := &Document{
+		Text:     text,
+		Media:    media,
+		Metadata: metadata.New(),
+	}
+	return doc, doc.Validate()
 }
 
-// EnsureID assigns an id when the document has none, deriving it from
-// the document's content (text, media, metadata) via the supplied
-// [id.Generator]. A document that already carries an id is left
-// untouched, so EnsureID is safe to call repeatedly across a pipeline.
-//
-// Pass an [id.Sha256Generator] for content-addressable, dedup-friendly
-// ids, or an [id.UUIDGenerator] for unconditional uniqueness. Returns
-// an error only when the generator does (e.g. an input that fails to
-// JSON-marshal).
-func (d *Document) EnsureID(ctx context.Context, generator id.Generator) error {
-	if d.ID != "" || generator == nil {
-		return nil
+// Validate reports whether the document contains usable content.
+func (d *Document) Validate() error {
+	if d == nil {
+		return errors.New("document.Document: nil")
 	}
-	generated, err := generator.Generate(ctx, d.Text, d.Media, d.Metadata)
-	if err != nil {
-		return err
+	if d.Text == "" && d.Media == nil {
+		return errors.New("document.Document: at least one of Text or Media is required")
 	}
-	d.ID = generated
+	if d.Media != nil {
+		if err := d.Media.Validate(); err != nil {
+			return errors.Join(errors.New("document.Document: invalid Media"), err)
+		}
+	}
+	if err := d.Metadata.Validate(); err != nil {
+		return errors.Join(errors.New("document.Document: invalid Metadata"), err)
+	}
 	return nil
-}
-
-func (d *Document) Format() string {
-	if d == nil {
-		return ""
-	}
-	return d.FormatByMetadataMode(MetadataModeAll)
-}
-
-func (d *Document) FormatByMetadataMode(mode MetadataMode) string {
-	if d == nil {
-		return ""
-	}
-	return d.FormatWith(mode, d.Formatter)
-}
-
-// FormatWith renders the document with the supplied metadata mode and
-// formatter, falling back to a no-op when formatter is nil.
-func (d *Document) FormatWith(mode MetadataMode, formatter Formatter) string {
-	if d == nil {
-		return ""
-	}
-	if formatter == nil {
-		formatter = NewNop()
-	}
-	return formatter.Format(d, mode)
 }

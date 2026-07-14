@@ -164,7 +164,12 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	candidates := make([]scored, 0, len(s.records))
 	for _, rec := range s.records {
 		if req.Filter != nil {
-			match, ferr := matchesFilter(req.Filter, rec.doc.Metadata)
+			metadataValues, decodeErr := rec.doc.Metadata.Values()
+			if decodeErr != nil {
+				s.mu.RUnlock()
+				return nil, fmt.Errorf("inmemory.Store.Retrieve: metadata: %w", decodeErr)
+			}
+			match, ferr := matchesFilter(req.Filter, metadataValues)
 			if ferr != nil {
 				s.mu.RUnlock()
 				return nil, fmt.Errorf("inmemory.Store.Retrieve: filter: %w", ferr)
@@ -211,7 +216,11 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("inmemory.Store.Delete: %w", err)
 		}
-		match, err := matchesFilter(req.Filter, rec.doc.Metadata)
+		metadataValues, err := rec.doc.Metadata.Values()
+		if err != nil {
+			return fmt.Errorf("inmemory.Store.Delete: metadata: %w", err)
+		}
+		match, err := matchesFilter(req.Filter, metadataValues)
 		if err != nil {
 			return fmt.Errorf("inmemory.Store.Delete: filter: %w", err)
 		}

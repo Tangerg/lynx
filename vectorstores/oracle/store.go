@@ -13,10 +13,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
@@ -88,7 +90,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before insertion. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// Dimensions sets the VECTOR column width. When zero, falls
 	// back to the embedding model's reported value and then
@@ -157,7 +159,7 @@ type Store struct {
 	embeddingColumn string
 	embeddingModel  embedding.Model
 	embeddingClient *embedding.Client
-	documentBatcher document.Batcher
+	documentBatcher vectorstores.Batcher
 	dimensions      int
 	distanceMetric  DistanceMetric
 }
@@ -535,18 +537,18 @@ func distanceToScore(metric DistanceMetric, distance float64) float64 {
 	}
 }
 
-func marshalMetadata(m map[string]any) ([]byte, error) {
+func marshalMetadata(m metadata.Map) ([]byte, error) {
 	if m == nil {
 		return []byte("{}"), nil
 	}
 	return json.Marshal(m)
 }
 
-func unmarshalMetadata(b []byte) (map[string]any, error) {
+func unmarshalMetadata(b []byte) (metadata.Map, error) {
 	if len(b) == 0 {
 		return nil, nil
 	}
-	var out map[string]any
+	var out metadata.Map
 	if err := json.Unmarshal(b, &out); err != nil {
 		return nil, err
 	}

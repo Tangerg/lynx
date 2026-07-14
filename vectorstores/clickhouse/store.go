@@ -12,10 +12,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
@@ -70,7 +72,7 @@ type StoreConfig struct {
 	EmbeddingColumn string
 
 	EmbeddingModel  embedding.Model
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	Dimensions       int
 	DistanceMetric   DistanceMetric
@@ -130,7 +132,7 @@ type Store struct {
 	embeddingColumn string
 	embeddingModel  embedding.Model
 	embeddingClient *embedding.Client
-	documentBatcher document.Batcher
+	documentBatcher vectorstores.Batcher
 	dimensions      int
 	distanceMetric  DistanceMetric
 }
@@ -273,7 +275,10 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 				if id == "" {
 					id = uuid.NewString()
 				}
-				meta := metadataAsStringMap(doc.Metadata)
+				meta, err := metadataAsStringMap(doc.Metadata)
+				if err != nil {
+					return fmt.Errorf("metadata for %s: %w", id, err)
+				}
 				vec32 := math.ConvertSlice[float64, float32](vectors[i])
 				if err := batch.Append(id, doc.Text, meta, vec32); err != nil {
 					return fmt.Errorf("append %s: %w", id, err)
@@ -349,8 +354,12 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if score < req.MinScore {
 			continue
 		}
+		metadata, err := stringMapToMetadata(metaRaw)
+		if err != nil {
+			return nil, fmt.Errorf("clickhouse: encode metadata: %w", err)
+		}
 		docs = append(docs, vectorstore.Match{
-			Document: &document.Document{ID: id, Text: content, Metadata: stringMapToMetadata(metaRaw)},
+			Document: &document.Document{ID: id, Text: content, Metadata: metadata},
 			Score:    score,
 		})
 	}
@@ -461,9 +470,13 @@ func distanceToScore(metric DistanceMetric, distance float64) float64 {
 
 // metadataAsStringMap stringifies metadata values so they fit the
 // `Map(String, String)` column. Complex values get JSON-encoded.
-func metadataAsStringMap(m map[string]any) map[string]string {
-	out := make(map[string]string, len(m))
-	for k, v := range m {
+func metadataAsStringMap(m metadata.Map) (map[string]string, error) {
+	values, err := m.Values()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(values))
+	for k, v := range values {
 		switch val := v.(type) {
 		case string:
 			out[k] = val
@@ -477,16 +490,16 @@ func metadataAsStringMap(m map[string]any) map[string]string {
 			}
 		}
 	}
-	return out
+	return out, nil
 }
 
-func stringMapToMetadata(m map[string]string) map[string]any {
+func stringMapToMetadata(m map[string]string) (metadata.Map, error) {
 	if len(m) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make(map[string]any, len(m))
 	for k, v := range m {
 		out[k] = v
 	}
-	return out
+	return metadata.FromValues(out)
 }

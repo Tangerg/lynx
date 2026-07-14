@@ -11,6 +11,7 @@ import (
 	ledongthuc "github.com/ledongthuc/pdf"
 
 	"github.com/Tangerg/lynx/core/document"
+	coremetadata "github.com/Tangerg/lynx/core/metadata"
 )
 
 // Metadata keys written onto emitted documents.
@@ -143,7 +144,10 @@ func (r *Reader) readWhole(ctx context.Context, pdfReader *ledongthuc.Reader, to
 	if err != nil {
 		return nil, fmt.Errorf("pdf: build document: %w", err)
 	}
-	doc.Metadata = r.baseMetadata(total)
+	doc.Metadata, err = coremetadata.FromValues(r.baseMetadata(total))
+	if err != nil {
+		return nil, fmt.Errorf("pdf: encode metadata: %w", err)
+	}
 	return []*document.Document{doc}, nil
 }
 
@@ -174,7 +178,10 @@ func (r *Reader) readPages(ctx context.Context, pdfReader *ledongthuc.Reader, to
 		}
 		md := r.baseMetadata(total)
 		md[MetadataPageIndex] = i
-		doc.Metadata = md
+		doc.Metadata, err = coremetadata.FromValues(md)
+		if err != nil {
+			return nil, fmt.Errorf("pdf: page %d metadata: %w", i, err)
+		}
 		docs = append(docs, doc)
 	}
 	if len(docs) == 0 && len(pageErrs) > 0 {

@@ -1,4 +1,4 @@
-package document
+package documentpipeline
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/spf13/cast"
 )
 
@@ -27,16 +29,18 @@ type FileWriterConfig struct {
 	Path                string
 	WithDocumentMarkers bool
 	AppendMode          bool
+	Formatter           Formatter
+	MetadataMode        MetadataMode
 }
 
 func (c FileWriterConfig) Validate() error {
 	if c.Path == "" {
-		return errors.New("document.FileWriterConfig: Path is required")
+		return errors.New("documentpipeline.FileWriterConfig: Path is required")
 	}
 	return nil
 }
 
-var _ Writer = (*FileWriter)(nil)
+var _ document.Writer = (*FileWriter)(nil)
 
 // FileWriter persists documents as plain text. It honors AppendMode,
 // optionally injects document-marker headers, and calls [*os.File].Sync
@@ -45,7 +49,7 @@ var _ Writer = (*FileWriter)(nil)
 //
 // Example:
 //
-//	w, err := document.NewFileWriter(document.FileWriterConfig{
+//	w, err := documentpipeline.NewFileWriter(documentpipeline.FileWriterConfig{
 //	    Path:                "out.txt",
 //	    WithDocumentMarkers: true,
 //	})
@@ -54,35 +58,45 @@ type FileWriter struct {
 	path                string
 	withDocumentMarkers bool
 	appendMode          bool
+	formatter           Formatter
+	metadataMode        MetadataMode
 }
 
 func NewFileWriter(config FileWriterConfig) (*FileWriter, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+	if config.Formatter == nil {
+		config.Formatter = NewNop()
+	}
+	if config.MetadataMode == "" {
+		config.MetadataMode = MetadataModeAll
+	}
 	return &FileWriter{
 		path:                config.Path,
 		withDocumentMarkers: config.WithDocumentMarkers,
 		appendMode:          config.AppendMode,
+		formatter:           config.Formatter,
+		metadataMode:        config.MetadataMode,
 	}, nil
 }
 
 // Write persists docs to the configured file. Close errors after a
 // successful write are surfaced (joined with any earlier error) so
 // callers can detect partial flushes that fail at close time.
-func (f *FileWriter) Write(_ context.Context, docs []*Document) (err error) {
+func (f *FileWriter) Write(_ context.Context, docs []*document.Document) (err error) {
 	file, err := os.OpenFile(f.path, f.openFlags(), 0o666)
 	if err != nil {
-		return fmt.Errorf("document.FileWriter.Write: open %s: %w", f.path, err)
+		return fmt.Errorf("documentpipeline.FileWriter.Write: open %s: %w", f.path, err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("document.FileWriter.Write: close: %w", closeErr))
+			err = errors.Join(err, fmt.Errorf("documentpipeline.FileWriter.Write: close: %w", closeErr))
 		}
 	}()
 
 	if writeErr := f.writeBatched(docs, file); writeErr != nil {
-		return fmt.Errorf("document.FileWriter.Write: %w", writeErr)
+		return fmt.Errorf("documentpipeline.FileWriter.Write: %w", writeErr)
 	}
 	return nil
 }
@@ -94,15 +108,19 @@ func (f *FileWriter) openFlags() int {
 	return os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 }
 
-func (f *FileWriter) writeBatched(docs []*Document, file *os.File) error {
+func (f *FileWriter) writeBatched(docs []*document.Document, file *os.File) error {
 	var buf strings.Builder
 
 	for i, doc := range docs {
-		buf.WriteString(f.renderDocument(i, doc))
+		rendered, err := f.renderDocument(i, doc)
+		if err != nil {
+			return fmt.Errorf("render document %d: %w", i, err)
+		}
+		buf.WriteString(rendered)
 
 		if (i+1)%fileWriterBatchSize == 0 {
 			if _, err := file.WriteString(buf.String()); err != nil {
-				return fmt.Errorf("document.FileWriter.writeBatched: flush batch at index %d: %w", i, err)
+				return fmt.Errorf("documentpipeline.FileWriter.writeBatched: flush batch at index %d: %w", i, err)
 			}
 			buf.Reset()
 		}
@@ -110,13 +128,13 @@ func (f *FileWriter) writeBatched(docs []*Document, file *os.File) error {
 
 	if buf.Len() > 0 {
 		if _, err := file.WriteString(buf.String()); err != nil {
-			return fmt.Errorf("document.FileWriter.writeBatched: flush trailing batch: %w", err)
+			return fmt.Errorf("documentpipeline.FileWriter.writeBatched: flush trailing batch: %w", err)
 		}
 	}
 	return file.Sync()
 }
 
-func (f *FileWriter) renderDocument(index int, doc *Document) string {
+func (f *FileWriter) renderDocument(index int, doc *document.Document) (string, error) {
 	var buf strings.Builder
 
 	if f.withDocumentMarkers {
@@ -133,17 +151,23 @@ func (f *FileWriter) renderDocument(index int, doc *Document) string {
 		buf.WriteString("\n")
 	}
 
-	buf.WriteString(doc.Format())
+	rendered, err := f.formatter.Format(doc, f.metadataMode)
+	if err != nil {
+		return "", err
+	}
+	buf.WriteString(rendered)
 	buf.WriteString("\n\n")
-	return buf.String()
+	return buf.String(), nil
 }
 
-func (f *FileWriter) pageRange(doc *Document) (string, string, bool) {
+func (f *FileWriter) pageRange(doc *document.Document) (string, string, bool) {
 	if doc.Metadata == nil {
 		return "", "", false
 	}
-	start := cast.ToString(doc.Metadata[metadataKeyStartPageNumber])
-	end := cast.ToString(doc.Metadata[metadataKeyEndPageNumber])
+	startValue, _, _ := metadata.Decode[any](doc.Metadata, metadataKeyStartPageNumber)
+	endValue, _, _ := metadata.Decode[any](doc.Metadata, metadataKeyEndPageNumber)
+	start := cast.ToString(startValue)
+	end := cast.ToString(endValue)
 	if start == "" || end == "" {
 		return "", "", false
 	}

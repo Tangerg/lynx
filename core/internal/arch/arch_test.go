@@ -8,9 +8,40 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 )
+
+func TestDocumentRemainsPureData(t *testing.T) {
+	typ := reflect.TypeFor[document.Document]()
+	wantFields := []string{"ID", "Text", "Media", "Metadata"}
+	for index, name := range wantFields {
+		if index >= typ.NumField() {
+			t.Fatalf("document.Document missing field %d (%s)", index, name)
+		}
+		if got := typ.Field(index).Name; got != name {
+			t.Fatalf("document.Document field %d = %v, want %s", index, got, name)
+		}
+	}
+	if typ.NumField() != len(wantFields) {
+		t.Fatalf("document.Document has %d fields, want %d", typ.NumField(), len(wantFields))
+	}
+	metadataField, _ := typ.FieldByName("Metadata")
+	if metadataField.Type != reflect.TypeFor[metadata.Map]() {
+		t.Fatalf("document.Metadata type = %v, want metadata.Map", metadataField.Type)
+	}
+
+	pointer := reflect.PointerTo(typ)
+	for _, forbidden := range []string{"EnsureID", "Format", "FormatByMetadataMode", "FormatWith"} {
+		if _, ok := pointer.MethodByName(forbidden); ok {
+			t.Errorf("document.Document must not expose runtime method %s", forbidden)
+		}
+	}
+}
 
 func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
 	root := filepath.Join(moduleRoot(t), "chat")

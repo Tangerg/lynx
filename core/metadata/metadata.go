@@ -27,6 +27,40 @@ func New() Map {
 	return make(Map)
 }
 
+// FromValues encodes an ordinary value map into a JSON-safe Map.
+func FromValues(values map[string]any) (Map, error) {
+	if values == nil {
+		return nil, nil
+	}
+	encoded := make(Map, len(values))
+	for key, value := range values {
+		if err := Set(encoded, key, value); err != nil {
+			return nil, err
+		}
+	}
+	return encoded, nil
+}
+
+// Values decodes every entry into ordinary Go JSON values for SDK and storage
+// boundaries that do not accept json.RawMessage values.
+func (m Map) Values() (map[string]any, error) {
+	if m == nil {
+		return nil, nil
+	}
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+	values := make(map[string]any, len(m))
+	for key, raw := range m {
+		var value any
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return nil, fmt.Errorf("metadata: decode %q: %w", key, err)
+		}
+		values[key] = value
+	}
+	return values, nil
+}
+
 // Set encodes value as JSON and stores it under key.
 //
 // Set fails immediately when value cannot be represented as JSON. Callers

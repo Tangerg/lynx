@@ -5,8 +5,18 @@ import (
 	"strings"
 	"testing"
 
+	coremetadata "github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentreaders/html"
 )
+
+func metadataValue[T any](t *testing.T, values coremetadata.Map, key string) T {
+	t.Helper()
+	value, ok, err := coremetadata.Decode[T](values, key)
+	if err != nil || !ok {
+		t.Fatalf("metadata %q = (%v, %v)", key, ok, err)
+	}
+	return value
+}
 
 const samplePage = `<!doctype html>
 <html>
@@ -50,13 +60,13 @@ func TestWholePage(t *testing.T) {
 	if strings.Contains(body, "drop me") {
 		t.Errorf("script content leaked into body: %q", body)
 	}
-	if got := docs[0].Metadata[html.MetadataTitle]; got != "Test Page" {
+	if got := metadataValue[string](t, docs[0].Metadata, html.MetadataTitle); got != "Test Page" {
 		t.Errorf("title: want %q, got %v", "Test Page", got)
 	}
-	if got := docs[0].Metadata[html.MetadataCanonical]; got != "https://example.com/test" {
+	if got := metadataValue[string](t, docs[0].Metadata, html.MetadataCanonical); got != "https://example.com/test" {
 		t.Errorf("canonical: got %v", got)
 	}
-	if got := docs[0].Metadata[html.MetadataSourceName]; got != "test.html" {
+	if got := metadataValue[string](t, docs[0].Metadata, html.MetadataSourceName); got != "test.html" {
 		t.Errorf("source: got %v", got)
 	}
 }
@@ -83,7 +93,7 @@ func TestSelector(t *testing.T) {
 		t.Errorf("docs[1]: %q", docs[1].Text)
 	}
 	for i, d := range docs {
-		if got := d.Metadata[html.MetadataSelector]; got != "article" {
+		if got := metadataValue[string](t, d.Metadata, html.MetadataSelector); got != "article" {
 			t.Errorf("docs[%d] selector: got %v", i, got)
 		}
 	}

@@ -1,4 +1,4 @@
-package document
+package documentpipeline
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 
+	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/tokenizer"
 )
 
@@ -25,23 +26,23 @@ type TokenCountBatcherConfig struct {
 
 func (c *TokenCountBatcherConfig) Validate() error {
 	if c.TokenCountEstimator == nil {
-		return errors.New("document.TokenCountBatcherConfig: TokenCountEstimator is required")
+		return errors.New("documentpipeline.TokenCountBatcherConfig: TokenCountEstimator is required")
 	}
 	if c.Formatter == nil {
-		return errors.New("document.TokenCountBatcherConfig: Formatter is required")
+		return errors.New("documentpipeline.TokenCountBatcherConfig: Formatter is required")
 	}
 	if c.MaxInputTokenCount <= 0 {
-		return errors.New("document.TokenCountBatcherConfig: MaxInputTokenCount must be > 0")
+		return errors.New("documentpipeline.TokenCountBatcherConfig: MaxInputTokenCount must be > 0")
 	}
 	if c.ReservePercentage < 0 || c.ReservePercentage >= 1 {
-		return errors.New("document.TokenCountBatcherConfig: ReservePercentage must be in [0, 1)")
+		return errors.New("documentpipeline.TokenCountBatcherConfig: ReservePercentage must be in [0, 1)")
 	}
 
 	validModes := []MetadataMode{
 		MetadataModeAll, MetadataModeEmbed, MetadataModeInference, MetadataModeNone,
 	}
 	if !slices.Contains(validModes, c.MetadataMode) {
-		return fmt.Errorf("document.TokenCountBatcherConfig: invalid MetadataMode %q", c.MetadataMode)
+		return fmt.Errorf("documentpipeline.TokenCountBatcherConfig: invalid MetadataMode %q", c.MetadataMode)
 	}
 	return nil
 }
@@ -87,9 +88,9 @@ func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, e
 	}, nil
 }
 
-func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*Document) ([][]*Document, error) {
+func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*document.Document) ([][]*document.Document, error) {
 	type sized struct {
-		document *Document
+		document *document.Document
 		tokens   int
 	}
 
@@ -98,22 +99,25 @@ func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*Document) ([][]*D
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		rendered := doc.FormatWith(b.metadataMode, b.formatter)
+		rendered, err := b.formatter.Format(doc, b.metadataMode)
+		if err != nil {
+			return nil, err
+		}
 
 		count, err := b.tokenCountEstimator.EstimateText(ctx, rendered)
 		if err != nil {
 			return nil, err
 		}
 		if count > b.maxInputTokenCount {
-			return nil, fmt.Errorf("document.TokenCountBatcher.Batch: document %q has %d tokens, exceeds per-batch budget %d",
+			return nil, fmt.Errorf("documentpipeline.TokenCountBatcher.Batch: document %q has %d tokens, exceeds per-batch budget %d",
 				doc.ID, count, b.maxInputTokenCount)
 		}
 		scored = append(scored, sized{document: doc, tokens: count})
 	}
 
 	var (
-		batches      [][]*Document
-		currentBatch []*Document
+		batches      [][]*document.Document
+		currentBatch []*document.Document
 		currentSum   int
 	)
 

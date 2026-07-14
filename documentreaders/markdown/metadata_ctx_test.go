@@ -24,7 +24,9 @@ func TestWithMetadata_AppliedToEveryDocument(t *testing.T) {
 		t.Fatal("expected sections")
 	}
 	for i, d := range docs {
-		if d.Metadata["source"] != "manual.md" || d.Metadata["tenant"] != "acme" {
+		source, _ := metadataValue[string](t, d.Metadata, "source")
+		tenant, _ := metadataValue[string](t, d.Metadata, "tenant")
+		if source != "manual.md" || tenant != "acme" {
 			t.Fatalf("doc %d missing extra metadata: %v", i, d.Metadata)
 		}
 	}
@@ -41,7 +43,7 @@ func TestWithMetadata_DoesNotClobberReaderKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, d := range docs {
-		if h, ok := d.Metadata[markdown.MetadataHeading]; ok && h == "HIJACK" {
+		if h, ok := metadataValue[string](t, d.Metadata, markdown.MetadataHeading); ok && h == "HIJACK" {
 			t.Fatal("reader-derived heading must take precedence over extra metadata")
 		}
 	}

@@ -12,10 +12,12 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -88,7 +90,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upsert. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// Dimensions is the embedding width written into the search index
 	// definition. When zero, falls back to the embedding model's
@@ -153,7 +155,7 @@ type Store struct {
 	metadataFieldsToFilter []string
 	embeddingModel         embedding.Model
 	embeddingClient        *embedding.Client
-	documentBatcher        document.Batcher
+	documentBatcher        vectorstores.Batcher
 	dimensions             int
 	similarity             Similarity
 	numCandidates          int
@@ -280,6 +282,10 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			if id == "" {
 				id = uuid.NewString()
 			}
+			metadataValues, err := doc.Metadata.Values()
+			if err != nil {
+				return fmt.Errorf("mongodb: decode metadata for %s: %w", id, err)
+			}
 
 			payload := bson.M{
 				defaultIDField:  id,
@@ -287,13 +293,13 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 				s.embeddingPath: math.ConvertSlice[float64, float32](vectors[i]),
 			}
 			if s.metadataField != "" {
-				meta := doc.Metadata
+				meta := metadataValues
 				if meta == nil {
 					meta = map[string]any{}
 				}
 				payload[s.metadataField] = meta
 			} else {
-				for k, v := range doc.Metadata {
+				for k, v := range metadataValues {
 					payload[k] = v
 				}
 			}
@@ -373,7 +379,11 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if err := cursor.Decode(&raw); err != nil {
 			return nil, fmt.Errorf("mongodb: decode hit: %w", err)
 		}
-		docs = append(docs, s.toMatch(raw))
+		match, err := s.toMatch(raw)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, match)
 	}
 	if err := cursor.Err(); err != nil {
 		return nil, fmt.Errorf("mongodb: cursor: %w", err)
@@ -435,7 +445,7 @@ func (s *Store) buildFilter(expr ast.Expr) (bson.M, error) {
 	return bson.M(v.Result()), nil
 }
 
-func (s *Store) toMatch(raw bson.M) vectorstore.Match {
+func (s *Store) toMatch(raw bson.M) (vectorstore.Match, error) {
 	doc := &document.Document{}
 	if id, ok := raw[defaultIDField].(string); ok {
 		doc.ID = id
@@ -458,9 +468,17 @@ func (s *Store) toMatch(raw bson.M) vectorstore.Match {
 	if s.metadataField != "" {
 		switch meta := raw[s.metadataField].(type) {
 		case bson.M:
-			doc.Metadata = map[string]any(meta)
+			var err error
+			doc.Metadata, err = metadata.FromValues(map[string]any(meta))
+			if err != nil {
+				return vectorstore.Match{}, fmt.Errorf("mongodb: encode metadata: %w", err)
+			}
 		case map[string]any:
-			doc.Metadata = meta
+			var err error
+			doc.Metadata, err = metadata.FromValues(meta)
+			if err != nil {
+				return vectorstore.Match{}, fmt.Errorf("mongodb: encode metadata: %w", err)
+			}
 		}
 	} else {
 		meta := make(map[string]any, len(raw))
@@ -472,10 +490,14 @@ func (s *Store) toMatch(raw bson.M) vectorstore.Match {
 			meta[k] = v
 		}
 		if len(meta) > 0 {
-			doc.Metadata = meta
+			var err error
+			doc.Metadata, err = metadata.FromValues(meta)
+			if err != nil {
+				return vectorstore.Match{}, fmt.Errorf("mongodb: encode metadata: %w", err)
+			}
 		}
 	}
-	return vectorstore.Match{Document: doc, Score: score}
+	return vectorstore.Match{Document: doc, Score: score}, nil
 }
 
 func (s *Store) Metadata() vectorstore.StoreMetadata {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document/id"
+	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
 func TestSha256Generator_Deterministic(t *testing.T) {

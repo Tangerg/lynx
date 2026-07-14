@@ -11,10 +11,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
@@ -72,7 +74,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upsert. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// DistanceFunction selects the function passed to
 	// VectorDistance(). Optional: defaults to [DistanceCosine].
@@ -125,7 +127,7 @@ type Store struct {
 	partitionKeyPath string
 	embeddingModel   embedding.Model
 	embeddingClient  *embedding.Client
-	documentBatcher  document.Batcher
+	documentBatcher  vectorstores.Batcher
 	distanceFunc     DistanceFunction
 }
 
@@ -183,10 +185,14 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			if id == "" {
 				id = uuid.NewString()
 			}
+			metadataValues, err := doc.Metadata.Values()
+			if err != nil {
+				return fmt.Errorf("azurecosmos: decode metadata for %s: %w", id, err)
+			}
 			payload := map[string]any{
 				s.idField:        id,
 				s.contentField:   doc.Text,
-				s.metadataField:  metaOrEmpty(doc.Metadata),
+				s.metadataField:  metaOrEmpty(metadataValues),
 				s.embeddingField: math.ConvertSlice[float64, float32](vectors[i]),
 			}
 			body, err := json.Marshal(payload)
@@ -346,8 +352,12 @@ func (s *Store) decodeRow(raw json.RawMessage, minScore float64) (*vectorstore.M
 	if score < minScore {
 		return nil, nil
 	}
+	metadata, err := metadata.FromValues(row.Metadata)
+	if err != nil {
+		return nil, fmt.Errorf("azurecosmos: encode metadata: %w", err)
+	}
 	return &vectorstore.Match{
-		Document: &document.Document{ID: row.ID, Text: row.Content, Metadata: row.Metadata},
+		Document: &document.Document{ID: row.ID, Text: row.Content, Metadata: metadata},
 		Score:    score,
 	}, nil
 }

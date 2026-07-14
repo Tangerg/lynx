@@ -1,10 +1,11 @@
-package document
+package documentpipeline
 
 import (
 	"maps"
 	"slices"
 	"strings"
 
+	"github.com/Tangerg/lynx/core/document"
 	"github.com/spf13/cast"
 )
 
@@ -19,7 +20,7 @@ type SimpleFormatterConfig struct {
 
 var _ Formatter = (*SimpleFormatter)(nil)
 
-// SimpleFormatter renders a [*Document] as
+// SimpleFormatter renders a [*document.Document] as
 //
 //	key1: value1
 //	key2: value2
@@ -31,7 +32,7 @@ var _ Formatter = (*SimpleFormatter)(nil)
 //
 // Example:
 //
-//	f := document.NewSimpleFormatter(document.SimpleFormatterConfig{
+//	f := documentpipeline.NewSimpleFormatter(documentpipeline.SimpleFormatterConfig{
 //	    ExcludedEmbedMetadataKeys: []string{"row_id", "internal"},
 //	})
 type SimpleFormatter struct {
@@ -53,20 +54,24 @@ func NewSimpleFormatter(config SimpleFormatterConfig) *SimpleFormatter {
 // and thus embedding inputs and token counts, non-deterministic)
 // followed by a blank line and the document text. With no metadata
 // (filtered empty), the output is just doc.Text — no leading newlines.
-func (s *SimpleFormatter) Format(doc *Document, mode MetadataMode) string {
+func (s *SimpleFormatter) Format(doc *document.Document, mode MetadataMode) (string, error) {
 	if doc == nil {
-		return ""
+		return "", nil
 	}
-	filtered := s.filterMetadataByMode(doc.Metadata, mode)
+	values, err := doc.Metadata.Values()
+	if err != nil {
+		return "", err
+	}
+	filtered := s.filterMetadataByMode(values, mode)
 	if len(filtered) == 0 {
-		return doc.Text
+		return doc.Text, nil
 	}
 
 	entries := make([]string, 0, len(filtered))
 	for _, key := range slices.Sorted(maps.Keys(filtered)) {
 		entries = append(entries, key+": "+cast.ToString(filtered[key]))
 	}
-	return strings.Join(entries, "\n") + "\n\n" + doc.Text
+	return strings.Join(entries, "\n") + "\n\n" + doc.Text, nil
 }
 
 func (s *SimpleFormatter) filterMetadataByMode(metadata map[string]any, mode MetadataMode) map[string]any {

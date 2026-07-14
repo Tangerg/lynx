@@ -11,6 +11,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 
 	"github.com/Tangerg/lynx/core/document"
+	coremetadata "github.com/Tangerg/lynx/core/metadata"
 )
 
 // Metadata keys written onto emitted documents.
@@ -107,7 +108,10 @@ func (r *Reader) readWhole(doc *goquery.Document, page pageInfo) ([]*document.Do
 	if err != nil {
 		return nil, fmt.Errorf("html: build document: %w", err)
 	}
-	d.Metadata = r.buildMetadata(page, "")
+	d.Metadata, err = coremetadata.FromValues(r.buildMetadata(page, ""))
+	if err != nil {
+		return nil, fmt.Errorf("html: encode metadata: %w", err)
+	}
 	return []*document.Document{d}, nil
 }
 
@@ -129,7 +133,11 @@ func (r *Reader) readSelector(ctx context.Context, doc *goquery.Document, page p
 			buildErr = err
 			return false
 		}
-		d.Metadata = r.buildMetadata(page, r.selector)
+		d.Metadata, err = coremetadata.FromValues(r.buildMetadata(page, r.selector))
+		if err != nil {
+			buildErr = fmt.Errorf("encode metadata: %w", err)
+			return false
+		}
 		docs = append(docs, d)
 		return true
 	})

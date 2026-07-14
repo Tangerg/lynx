@@ -14,10 +14,12 @@ import (
 	"github.com/typesense/typesense-go/v3/typesense/api/pointer"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
@@ -53,7 +55,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upsert. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// Dimensions sets the vector width for new collections. When
 	// zero, the store asks the embedding model for its native
@@ -97,7 +99,7 @@ type Store struct {
 	collectionName  string
 	embeddingModel  embedding.Model
 	embeddingClient *embedding.Client
-	documentBatcher document.Batcher
+	documentBatcher vectorstores.Batcher
 	dimensions      int
 }
 
@@ -202,10 +204,14 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			if id == "" {
 				id = uuid.NewString()
 			}
+			metadataValues, err := doc.Metadata.Values()
+			if err != nil {
+				return fmt.Errorf("typesense: decode metadata for %s: %w", id, err)
+			}
 			payload = append(payload, map[string]any{
 				idField:        id,
 				contentField:   doc.Text,
-				metadataField:  metaOrEmpty(doc.Metadata),
+				metadataField:  metaOrEmpty(metadataValues),
 				embeddingField: math.ConvertSlice[float64, float32](vectors[i]),
 			})
 		}
@@ -264,7 +270,10 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 	docs = make([]vectorstore.Match, 0, len(*result.Hits))
 	for _, hit := range *result.Hits {
-		match := toMatch(hit)
+		match, err := toMatch(hit)
+		if err != nil {
+			return nil, err
+		}
 		if match.Score < req.MinScore {
 			continue
 		}
@@ -308,10 +317,10 @@ func (s *Store) buildFilter(filter ast.Expr) (string, error) {
 	return v.Result(), nil
 }
 
-func toMatch(hit api.SearchResultHit) vectorstore.Match {
+func toMatch(hit api.SearchResultHit) (vectorstore.Match, error) {
 	doc := &document.Document{}
 	if hit.Document == nil {
-		return vectorstore.Match{Document: doc}
+		return vectorstore.Match{Document: doc}, nil
 	}
 	raw := *hit.Document
 	if id, ok := raw[idField].(string); ok {
@@ -321,7 +330,11 @@ func toMatch(hit api.SearchResultHit) vectorstore.Match {
 		doc.Text = content
 	}
 	if meta, ok := raw[metadataField].(map[string]any); ok && len(meta) > 0 {
-		doc.Metadata = meta
+		var err error
+		doc.Metadata, err = metadata.FromValues(meta)
+		if err != nil {
+			return vectorstore.Match{}, fmt.Errorf("typesense: encode metadata: %w", err)
+		}
 	}
 	// Typesense returns distance in the cosine [0, 2] range; map
 	// onto a "higher = more similar" score in [0, 1].
@@ -338,7 +351,7 @@ func toMatch(hit api.SearchResultHit) vectorstore.Match {
 			matchScore = score
 		}
 	}
-	return vectorstore.Match{Document: doc, Score: matchScore}
+	return vectorstore.Match{Document: doc, Score: matchScore}, nil
 }
 
 // formatVectorQuery builds the Typesense `vector_query` string —

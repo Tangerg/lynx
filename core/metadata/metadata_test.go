@@ -143,3 +143,21 @@ func TestCloneDoesNotAliasValues(t *testing.T) {
 		t.Fatal("nil Clone must remain nil")
 	}
 }
+
+func TestValueMapBoundary(t *testing.T) {
+	source := map[string]any{"name": "lynx", "count": 2.0, "nested": map[string]any{"ok": true}}
+	encoded, err := metadata.FromValues(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := encoded.Values()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(decoded, source) {
+		t.Fatalf("Values = %#v, want %#v", decoded, source)
+	}
+	if _, err := metadata.FromValues(map[string]any{"bad": func() {}}); err == nil {
+		t.Fatal("FromValues accepted runtime behavior")
+	}
+}

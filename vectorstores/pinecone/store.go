@@ -9,9 +9,11 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -45,7 +47,7 @@ type StoreConfig struct {
 
 	// DocumentBatcher is responsible for batching documents before insertion.
 	// Required: must be provided.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// StoreDocumentContent determines whether to store the original document
 	// text in the metadata. When true, the content is saved under a special key.
@@ -77,7 +79,7 @@ var (
 type Store struct {
 	index                *pinecone.IndexConnection
 	embeddingClient      *embedding.Client
-	documentBatcher      document.Batcher
+	documentBatcher      vectorstores.Batcher
 	storeDocumentContent bool
 }
 
@@ -118,8 +120,12 @@ func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 			Values: &values,
 		}
 
-		metaMap := make(map[string]any, len(doc.Metadata)+1)
-		for k, val := range doc.Metadata {
+		metadataValues, err := doc.Metadata.Values()
+		if err != nil {
+			return nil, fmt.Errorf("pinecone: decode metadata for document %s: %w", doc.ID, err)
+		}
+		metaMap := make(map[string]any, len(metadataValues)+1)
+		for k, val := range metadataValues {
 			metaMap[k] = val
 		}
 		if s.storeDocumentContent {
@@ -190,16 +196,20 @@ func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, mi
 			doc.ID = sv.Vector.Id
 
 			if sv.Vector.Metadata != nil {
-				metadata := sv.Vector.Metadata.AsMap()
+				metadataValues := sv.Vector.Metadata.AsMap()
 
 				if s.storeDocumentContent {
-					if text, ok := metadata[payloadDocumentContentKey].(string); ok {
+					if text, ok := metadataValues[payloadDocumentContentKey].(string); ok {
 						doc.Text = text
 					}
-					delete(metadata, payloadDocumentContentKey)
+					delete(metadataValues, payloadDocumentContentKey)
 				}
 
-				doc.Metadata = metadata
+				var err error
+				doc.Metadata, err = metadata.FromValues(metadataValues)
+				if err != nil {
+					return nil, fmt.Errorf("pinecone: encode metadata: %w", err)
+				}
 			}
 		}
 

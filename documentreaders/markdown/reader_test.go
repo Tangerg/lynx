@@ -5,8 +5,18 @@ import (
 	"strings"
 	"testing"
 
+	coremetadata "github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/documentreaders/markdown"
 )
+
+func metadataValue[T any](t *testing.T, values coremetadata.Map, key string) (T, bool) {
+	t.Helper()
+	value, ok, err := coremetadata.Decode[T](values, key)
+	if err != nil {
+		t.Fatalf("metadata %q: %v", key, err)
+	}
+	return value, ok
+}
 
 const sample = `# Intro
 
@@ -70,13 +80,13 @@ func TestHeadingSplitH2(t *testing.T) {
 		{"Section B", "Intro > Section B"},
 	}
 	for i, w := range want {
-		if got := docs[i].Metadata[markdown.MetadataHeading]; got != w.heading {
+		if got, _ := metadataValue[string](t, docs[i].Metadata, markdown.MetadataHeading); got != w.heading {
 			t.Errorf("docs[%d] heading: want %q, got %v", i, w.heading, got)
 		}
-		if got := docs[i].Metadata[markdown.MetadataHeadingPath]; got != w.path {
+		if got, _ := metadataValue[string](t, docs[i].Metadata, markdown.MetadataHeadingPath); got != w.path {
 			t.Errorf("docs[%d] path: want %q, got %v", i, w.path, got)
 		}
-		if got := docs[i].Metadata[markdown.MetadataSourceName]; got != "test.md" {
+		if got, _ := metadataValue[string](t, docs[i].Metadata, markdown.MetadataSourceName); got != "test.md" {
 			t.Errorf("docs[%d] source: want test.md, got %v", i, got)
 		}
 	}

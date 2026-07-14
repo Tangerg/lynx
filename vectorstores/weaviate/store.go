@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -61,7 +62,7 @@ type StoreConfig struct {
 
 	// DocumentBatcher is responsible for batching documents before insertion.
 	// Required: must be provided to handle document batching logic.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// StoreDocumentContent determines whether to store the original document
 	// content in the content field.
@@ -108,7 +109,7 @@ var (
 type Store struct {
 	client               *weaviate.Client
 	embeddingClient      *embedding.Client
-	documentBatcher      document.Batcher
+	documentBatcher      vectorstores.Batcher
 	className            string
 	distanceMetric       string
 	initializeSchema     bool
@@ -385,9 +386,8 @@ func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]vect
 		}
 
 		if metaStr, ok := objMap[fieldMetadata].(string); ok && metaStr != "" && metaStr != "null" {
-			var metadata map[string]any
-			if err := json.Unmarshal([]byte(metaStr), &metadata); err == nil {
-				doc.Metadata = metadata
+			if err := json.Unmarshal([]byte(metaStr), &doc.Metadata); err != nil {
+				return nil, fmt.Errorf("weaviate: decode metadata: %w", err)
 			}
 		}
 

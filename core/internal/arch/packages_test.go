@@ -23,7 +23,6 @@ var targetPublicPackages = map[string]struct{}{
 }
 
 var temporaryPublicPackages = map[string]string{
-	"document/id":                   "P4-01",
 	"model/audio/transcription":     "P5-02",
 	"model/audio/tts":               "P5-02",
 	"model/chat":                    "P6-05",

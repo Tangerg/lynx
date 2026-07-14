@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
+	coremetadata "github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
@@ -73,10 +74,11 @@ func newStore(t *testing.T) *inmemory.Store {
 
 func mustDoc(t *testing.T, id, text string, metadata map[string]any) *document.Document {
 	t.Helper()
-	if metadata == nil {
-		metadata = map[string]any{}
+	encoded, err := coremetadata.FromValues(metadata)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return &document.Document{ID: id, Text: text, Metadata: metadata}
+	return &document.Document{ID: id, Text: text, Metadata: encoded}
 }
 
 func TestStore_CreateAndRetrieveBasics(t *testing.T) {
@@ -207,7 +209,7 @@ func TestStore_RetrieveLikePattern(t *testing.T) {
 		t.Fatalf("got %d, want 2", len(got))
 	}
 	for _, match := range got {
-		name, _ := match.Document.Metadata["name"].(string)
+		name, _, _ := coremetadata.Decode[string](match.Document.Metadata, "name")
 		if !strings.HasPrefix(name, "alpha") {
 			t.Errorf("doc %q has name=%q, want alpha-prefix", match.Document.ID, name)
 		}
