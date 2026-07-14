@@ -557,7 +557,10 @@ flowchart LR
 
 目标：先让 Chat provider 只实现真实能力，移除 Java 默认方法造成的强制接口；其余 modality 明确留到 P5，避免阶段重叠。
 
-- [ ] **P2-01 在 `core/chat` 定义单方法 Model 接口**
+- [x] **P2-01 在 `core/chat` 定义单方法 Model 接口**（完成：2026-07-14）
+  - 证据：新增 `Model`，唯一方法为 `Call(context.Context, *Request) (*Response, error)`；文档明确实现必须在 provider I/O 前验证 Request，stream/default configuration/provider identity 均不属于该接口。
+  - 守卫：compile-time case 证明只实现 Call 的 provider 可满足 Model；反射测试锁定单方法及完整签名，防止接口重新变胖。
+  - 验证：Core build/vet/test/lint 与 race 全绿。
 - [ ] **P2-02 将 Chat Streamer 拆为独立可选能力**
 - [ ] **P2-03 从 Chat Model SPI 移除 DefaultOptions/Metadata 强制方法**
 - [ ] **P2-04 让 `core/chat` 停止使用泛型 Model/StreamingModel 名义层次**
@@ -713,20 +716,20 @@ flowchart LR
 |---|---|---:|---|
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
-| P2 Chat Model SPI 收缩 | 未开始 | 0/7 | 依赖 P1 |
+| P2 Chat Model SPI 收缩 | 进行中 | 1/7 | P2-01 完成；当前执行 P2-02 可选 Streamer |
 | P3 高层运行时外移 | 未开始 | 0/9 | 依赖 P2 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **13/60** | **22%** |
+| **总计** | **进行中** | **14/60** | **23%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P2。
-- 下一任务：P2-01，在 `core/chat` 定义仅含 Call 的单方法 Model 接口。
+- 下一任务：P2-02，将 Chat Streamer 拆为不嵌入 Model 的独立可选能力。
 - 当前阻塞：无。
-- 最近完成：P1-07 与 P1 阶段验收；四 provider 映射 fixture、全 workspace 68/68、六个 30 秒 fuzz 和 Core/Agent/Tools race 全绿。
+- 最近完成：P2-01；新 `core/chat.Model` 只有 Call，且由 compile-time/反射守卫锁死最小 SPI。
 
 ### 10.3 进度更新规则
 
@@ -945,6 +948,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P2-01；新增仅含 Call 的 `core/chat.Model` 与公开形状守卫；进入 P2-02 | Codex |
 | 2026-07-14 | 完成 P1-07 与 P1 阶段验收；冻结 OpenAI/Anthropic/Google/Ollama 映射 fixture 和 loss policy，全 workspace、30 秒 fuzz 与阶段 race 全绿；进入 P2 | Codex |
 | 2026-07-14 | 完成 P1-06；建立根 tools Tool/Registry、消费方 ToolResolver、runtime-only Invocation 与 model/tool/pause/resume tagged Event；进入 P1-07 | Codex |
 | 2026-07-14 | 完成 P1-05；冻结 metadata/media/chat 代表性 wire fixtures，增加 6 个 JSON fixed-point fuzz 门禁；进入 P1-06 | Codex |
@@ -964,6 +968,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P2-01 | 新增单方法 `core/chat.Model`；call-only provider 编译满足接口，反射锁定 Call 签名；Core build/vet/test/lint/race 全绿；任务计数 14/60 | P2-02 独立 Streamer |
 | 2026-07-14 | P1-07、P1 验收 | 新增四 provider 映射文档、8 份 golden fixture 与 provider 特性断言；Models 门禁全绿；全 workspace 68/68，六个 fuzz 各 30 秒，Core/Agent/Tools race 全绿；任务计数 13/60，P1 7/7 | P2-01 单方法 Chat Model |
 | 2026-07-14 | P1-06 | 新增根 tools Tool/Registry 与 agent/toolloop ToolResolver/Invocation/Event；Registry 原子注册且无全局状态，Event 覆盖六类运行时边界；coverage 92.3%/77.4%；Tools/Agent build/vet/test/lint 与目标 race 全绿；任务计数 12/60 | P1-07 四 provider 映射验证 |
 | 2026-07-14 | P1-05 | 新增 metadata/media/request/response golden fixtures 与 Map/Media/Part/Message/Request/Response 六个 JSON fixed-point fuzz 入口；fuzz 各运行 2 秒通过；coverage 91.7%/92.9%/94.4%；Core build/vet/test/lint/race 全绿；任务计数 11/60 | P1-06 Invocation/Event 原型 |
