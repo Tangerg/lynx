@@ -492,11 +492,14 @@ flowchart LR
 
 目标：先切开最核心的协议/执行边界，避免后续迁移继续依赖混合模型。
 
-- [ ] **P1-01 定义新的 `core/metadata` 与 `core/media` 叶子协议**
+- [x] **P1-01 定义新的 `core/metadata` 与 `core/media` 叶子协议**（完成：2026-07-14）
   - Metadata 使用 `map[string]json.RawMessage`，写入 helper 在边界立即返回编码错误。
   - 明确 bytes、URI 和 provider reference 的互斥关系与 JSON discriminator。
   - 删除协议层对任意 `Data any` 和 `io.Reader` 的承诺。
   - 这是同路径纵向切片：本任务必须迁移全部 Media 消费方，并在 P1 退出前删除旧 `Data any`。
+  - 证据：新增 `core/metadata.Map`、写时编码/typed decode/递归 JSON 校验与 `core/media` tagged source；bytes 构造和读取均防御性复制，URI 要求绝对资源标识，provider reference 保持独立语义。
+  - 迁移：Core tokenizer/transcription、运行时 wire 入站边界、OpenAI/Anthropic/Google/Bedrock/Ollama 及全部 audio provider 已切换；全 workspace 检索确认 `NewMedia`、`DataAsBytes`、`DataAsString`、`MimeType`、Media `Data any` 均为 0。
+  - 验证：metadata/media coverage 分别为 91.7%/92.9%；`scripts/check.sh build vet test lint` 68/68 全绿。
 - [ ] **P1-02 定义新的 `core/chat` Message/Part tagged value**
   - 覆盖 system/user/assistant/tool result、text/media/reasoning/tool call。
   - 明确 Validate 和 JSON discriminator。
@@ -685,21 +688,21 @@ flowchart LR
 | 阶段 | 状态 | 已完成/任务数 | 当前说明 |
 |---|---|---:|---|
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
-| P1 Media/Chat 协议分离 | 进行中 | 0/7 | 当前执行 P1-01 metadata/media 纵向切片 |
+| P1 Media/Chat 协议分离 | 进行中 | 1/7 | P1-01 完成；当前执行 P1-02 Message/Part tagged value |
 | P2 Chat Model SPI 收缩 | 未开始 | 0/7 | 依赖 P1 |
 | P3 高层运行时外移 | 未开始 | 0/9 | 依赖 P2 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **6/60** | **10%** |
+| **总计** | **进行中** | **7/60** | **12%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P1。
-- 下一任务：P1-01，定义 `core/metadata` 和新的 `core/media` tagged source，并完成同路径全 workspace 迁移。
+- 下一任务：P1-02，在新路径 `core/chat` 定义 Message/Part tagged value，并冻结 wire discriminator。
 - 当前阻塞：无。
-- 最近完成：P0 全部任务；协调 v0 breaking/OTel 外移决策、治理同步、依赖预算与公共 package allowlist 守卫。
+- 最近完成：P1-01；`core/metadata` 与 tagged `core/media`、全 workspace Media 消费迁移、旧任意 Data API 删除及 68 项全量回归。
 
 ### 10.3 进度更新规则
 
@@ -918,6 +921,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P1-01；新增 JSON-safe metadata 与 tagged media，迁移全部消费者并删除旧 Media 任意载荷 API；进入 P1-02 | Codex |
 | 2026-07-14 | 完成 P0-05/P0-06；采纳协调 v0 breaking 与 ADR-006，统一 Core/OTel 治理边界，增加外部依赖预算和公共 package allowlist 架构守卫；进入 P1 | Codex |
 | 2026-07-14 | 完成 P0-03/P0-04；登记 1,205 个 exported identifiers、501 个唯一消费文件/830 条 import 关系及 provider/backend 子清单；固化 coverage/race/依赖基线；将当前焦点推进到 P0-05 | Codex |
 | 2026-07-13 | 建立执行计划；两轮独立规格审查后前置 Media 与全局治理同步，明确 OTel 决策门、P2/P5 唯一阶段边界、Tool Registry 依赖方向、documentpipeline 归属及两类迁移策略；共 8 个阶段、60 项任务 | Codex |
@@ -930,6 +934,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P1-01 | 新增 `core/metadata` 与 tagged `core/media`；迁移 Core/Models/App 全部消费者；旧 Media API 全 workspace 清零；metadata/media coverage 91.7%/92.9%；全量 build/vet/test/lint 68/68 通过；任务计数 7/60 | P1-02 Message/Part |
 | 2026-07-14 | P0-05、P0-06 | 采纳推荐 breaking/OTel 方案；同步 4 份治理入口；新增 Core dependency/package allowlist 测试；Core build/vet/test/lint/race 全绿；任务计数 6/60 | P1-01 metadata/media |
 | 2026-07-14 | P0-03、P0-04 | 新增 `CORE_API_INVENTORY.md`、`CORE_BASELINE.md`；`scripts/check.sh build vet test lint` 68/68 通过；core/agent/chathistory/rag/tools/vectorstores race 通过；任务计数 4/60 | P0-05 维护者决策 |
 | 2026-07-13 | P0-01、P0-02 | 建立本文；完成 Core 与 Spring AI 的模块/API 差分审计；任务计数核对为 2/60 | P0-03 公共 API 与消费清单 |

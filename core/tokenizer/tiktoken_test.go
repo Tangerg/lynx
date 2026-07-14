@@ -6,7 +6,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/tokenizer"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 func TestTiktoken_EncodeDecode_RoundTrip(t *testing.T) {
@@ -63,13 +62,12 @@ func TestTiktoken_EstimateMedia_Empty(t *testing.T) {
 	}
 }
 
-func TestTiktoken_EstimateMedia_String(t *testing.T) {
+func TestTiktoken_EstimateMedia_URI(t *testing.T) {
 	tk, err := tokenizer.NewDefaultTiktoken()
 	if err != nil {
 		t.Fatal(err)
 	}
-	mt, _ := mime.New("text", "plain")
-	m := &media.Media{Data: "hello world", MimeType: mt}
+	m, _ := media.NewURI("text/plain", "https://example.com/hello.txt")
 
 	got, err := tk.EstimateMedia(context.Background(), m)
 	if err != nil {
@@ -85,8 +83,7 @@ func TestTiktoken_EstimateMedia_Bytes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mt, _ := mime.New("application", "octet-stream")
-	m := &media.Media{Data: []byte("payload"), MimeType: mt}
+	m, _ := media.NewBytes("application/octet-stream", []byte("payload"))
 
 	got, err := tk.EstimateMedia(context.Background(), m)
 	if err != nil {
@@ -97,15 +94,12 @@ func TestTiktoken_EstimateMedia_Bytes(t *testing.T) {
 	}
 }
 
-func TestTiktoken_EstimateMedia_JSONFallback(t *testing.T) {
+func TestTiktoken_EstimateMedia_Reference(t *testing.T) {
 	tk, err := tokenizer.NewDefaultTiktoken()
 	if err != nil {
 		t.Fatal(err)
 	}
-	mt, _ := mime.New("application", "json")
-
-	type payload struct{ V int }
-	m := &media.Media{Data: payload{V: 42}, MimeType: mt}
+	m, _ := media.NewReference("application/json", "provider-file-42")
 
 	got, err := tk.EstimateMedia(context.Background(), m)
 	if err != nil {

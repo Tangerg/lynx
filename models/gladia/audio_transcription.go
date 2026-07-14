@@ -72,12 +72,12 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	apiReq := options.GetParams[TranscriptionRequest](mergedOpts, OptionsKey)
 	if apiReq.AudioURL == "" {
 		var audio []byte
-		audio, err = req.Audio.DataAsBytes()
+		audio, err = req.Audio.Bytes()
 		if err != nil {
 			return nil, err
 		}
 		var uploaded *UploadResponse
-		uploaded, err = a.api.Upload(ctx, audio, req.Audio.MimeType.TypeAndSubType())
+		uploaded, err = a.api.Upload(ctx, audio, req.Audio.MIME)
 		if err != nil {
 			return nil, err
 		}

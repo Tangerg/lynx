@@ -91,7 +91,7 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 		params.TimestampGranularities = mergedOpts.TimestampGranularity
 	}
 
-	data, err := req.Audio.DataAsBytes()
+	data, err := req.Audio.Bytes()
 	if err != nil {
 		return nil, err
 	}

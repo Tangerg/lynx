@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/audio/transcription"
 	"github.com/Tangerg/lynx/models/deepgram"
 	"github.com/Tangerg/lynx/models/internal/testutil"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 // Deepgram /listen response shape (simplified — full payload has
@@ -45,7 +44,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	audio, err := media.NewMedia(mime.MustNew("audio", "mpeg"), []byte("FAKE-AUDIO"))
+	audio, err := media.NewBytes("audio/mpeg", []byte("FAKE-AUDIO"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -78,12 +78,12 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		params.Language = mergedOpts.Language
 	}
 
-	audio, err := req.Audio.DataAsBytes()
+	audio, err := req.Audio.Bytes()
 	if err != nil {
 		return nil, err
 	}
 
-	contentType := req.Audio.MimeType.TypeAndSubType()
+	contentType := req.Audio.MIME
 
 	apiResp, err := a.api.Listen(ctx, audio, contentType, params)
 	if err != nil {

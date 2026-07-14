@@ -2,17 +2,14 @@ package ollama
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
 	"net/http"
-	"strings"
 
 	ollamaapi "github.com/ollama/ollama/api"
 
-	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
@@ -147,7 +144,7 @@ func (c *NativeChatModel) buildMessages(msgs []chat.Message) []ollamaapi.Message
 		case *chat.UserMessage:
 			images := make([]ollamaapi.ImageData, 0)
 			for _, md := range m.Media {
-				bytes, err := mediaBytes(md)
+				bytes, err := md.Bytes()
 				if err != nil {
 					continue
 				}
@@ -186,27 +183,6 @@ func (c *NativeChatModel) buildMessages(msgs []chat.Message) []ollamaapi.Message
 		}
 	}
 	return out
-}
-
-// mediaBytes extracts a media payload as raw bytes for Ollama's ImageData,
-// which takes the bytes directly. Media.Data may be raw []byte (used as is) or
-// a base64 string (the inline-image transport form — decoded here, after
-// stripping a `data:<mime>;base64,` data-URL prefix if present); other forms
-// return an error → the caller skips the image. Kept local per the module's
-// "each provider converts its own media" convention — core's DataAsBytes/
-// DataAsString stay strict by design.
-func mediaBytes(md *media.Media) ([]byte, error) {
-	if b, err := md.DataAsBytes(); err == nil {
-		return b, nil
-	}
-	s, err := md.DataAsString()
-	if err != nil {
-		return nil, err
-	}
-	if i := strings.Index(s, ";base64,"); i >= 0 {
-		s = s[i+len(";base64,"):]
-	}
-	return base64.StdEncoding.DecodeString(s)
 }
 
 // parseToolArgs turns our string-shaped Arguments into Ollama's

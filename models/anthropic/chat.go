@@ -2,6 +2,7 @@ package anthropic
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"iter"
@@ -11,6 +12,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/param"
 
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/catalog"
@@ -120,23 +122,49 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) anthropicsdk.Message
 	}
 
 	for _, md := range msg.Media {
-		data, err := md.DataAsString()
+		if md == nil {
+			continue
+		}
+		mt, err := mime.Parse(md.MIME)
 		if err != nil {
 			continue
 		}
 
-		mt := md.MimeType
 		if mime.IsImage(mt) {
-			blocks = append(blocks, anthropicsdk.NewImageBlockBase64(mt.TypeAndSubType(), data))
+			switch md.Source.Kind {
+			case media.SourceBytes:
+				data, dataErr := md.Bytes()
+				if dataErr == nil {
+					blocks = append(blocks, anthropicsdk.NewImageBlockBase64(mt.TypeAndSubType(), base64.StdEncoding.EncodeToString(data)))
+				}
+			case media.SourceURI:
+				uri, uriErr := md.URI()
+				if uriErr == nil {
+					blocks = append(blocks, anthropicsdk.NewImageBlock(anthropicsdk.URLImageSourceParam{URL: uri}))
+				}
+			}
 		} else if mt.FullType() == "application/pdf" {
-			blocks = append(blocks, anthropicsdk.NewDocumentBlock(anthropicsdk.Base64PDFSourceParam{
-				Data: data,
-			}))
+			switch md.Source.Kind {
+			case media.SourceBytes:
+				data, dataErr := md.Bytes()
+				if dataErr == nil {
+					blocks = append(blocks, anthropicsdk.NewDocumentBlock(anthropicsdk.Base64PDFSourceParam{
+						Data: base64.StdEncoding.EncodeToString(data),
+					}))
+				}
+			case media.SourceURI:
+				uri, uriErr := md.URI()
+				if uriErr == nil {
+					blocks = append(blocks, anthropicsdk.NewDocumentBlock(anthropicsdk.URLPDFSourceParam{URL: uri}))
+				}
+			}
 		} else {
-			// treat other types as plain text documents
-			blocks = append(blocks, anthropicsdk.NewDocumentBlock(anthropicsdk.PlainTextSourceParam{
-				Data: data,
-			}))
+			data, dataErr := md.Bytes()
+			if dataErr == nil {
+				blocks = append(blocks, anthropicsdk.NewDocumentBlock(anthropicsdk.PlainTextSourceParam{
+					Data: string(data),
+				}))
+			}
 		}
 	}
 

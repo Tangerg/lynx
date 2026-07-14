@@ -2,12 +2,10 @@ package google
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
-	"strings"
 	"time"
 
 	"google.golang.org/genai"
@@ -91,35 +89,24 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) *genai.Content {
 	}
 
 	for _, md := range msg.Media {
-		data, err := mediaBytes(md)
-		if err != nil {
+		if md == nil {
 			continue
 		}
-		parts = append(parts, genai.NewPartFromBytes(data, md.MimeType.TypeAndSubType()))
+		switch md.Source.Kind {
+		case media.SourceBytes:
+			data, err := md.Bytes()
+			if err == nil {
+				parts = append(parts, genai.NewPartFromBytes(data, md.MIME))
+			}
+		case media.SourceURI:
+			uri, err := md.URI()
+			if err == nil {
+				parts = append(parts, genai.NewPartFromURI(uri, md.MIME))
+			}
+		}
 	}
 
 	return genai.NewContentFromParts(parts, genai.RoleUser)
-}
-
-// mediaBytes extracts a media payload as raw bytes for genai.NewPartFromBytes,
-// which base64-encodes the bytes itself for the wire. Media.Data may be raw
-// []byte (used as is) or a base64 string (the inline-image transport form —
-// decoded here, after stripping a `data:<mime>;base64,` data-URL prefix if
-// present). Other forms (plain URL, io.Reader) return an error → the caller
-// skips the part. Kept local per the module's "each provider converts its own
-// media" convention — core's DataAsBytes/DataAsString stay strict by design.
-func mediaBytes(md *media.Media) ([]byte, error) {
-	if b, err := md.DataAsBytes(); err == nil {
-		return b, nil
-	}
-	s, err := md.DataAsString()
-	if err != nil {
-		return nil, err
-	}
-	if i := strings.Index(s, ";base64,"); i >= 0 {
-		s = s[i+len(";base64,"):]
-	}
-	return base64.StdEncoding.DecodeString(s)
 }
 
 func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) (*genai.Content, error) {

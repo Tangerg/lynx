@@ -109,7 +109,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	// reachable URL via Extra; otherwise upload the bytes.
 	if apiReq.AudioURL == "" {
 		var audio []byte
-		audio, err = req.Audio.DataAsBytes()
+		audio, err = req.Audio.Bytes()
 		if err != nil {
 			return nil, err
 		}
