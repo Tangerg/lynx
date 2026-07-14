@@ -803,7 +803,12 @@ flowchart LR
   - `PromptRunner` 构造普通 `core/chat.Request`，可执行工具由 `tools.Registry` 邻接持有；Runtime 通过消费方 `ToolLoopRunner` 窄端口注入 Event Runner，Agent Core 不反向依赖具体策略。
   - 会话 ID 只经 context 进入 `chathistory` middleware；删除 `AgentTool`/`ChatClient` alias，Agent API 直接使用 `tools.Tool`、`*chatclient.Client` 和目标 middleware。
   - 证据：`f147ed7b2`；Agent test/vet/lint/race 与 standalone test 全绿，Chathistory test/vet/lint/race 及 Documentreaders 全部子 module test/vet/lint 全绿；三模块旧 Core import 为零。
-- [ ] **P6-04 迁移 `app/runtime` 和示例程序**
+- [x] **P6-04 迁移 `app/runtime` 和示例程序**（完成：2026-07-14）
+  - `app/runtime` 的 provider 装配、角色解析、maintenance、history、SQLite 消息存储、MCP/A2A 和全部工具直接使用目标 `core/chat`、`chatclient`、`chathistory` 与 `tools`；不保留旧类型适配或 wire 兼容分支。
+  - Turn runtime 以普通 `chat.Request` 和邻接 `tools.Registry` 驱动唯一 `agent/toolloop.Event Runner`；真实 provider stream 经同步 Model 端口汇聚，同时保留 UI delta、usage 与 served-model 记账。
+  - HITL 直接持久化目标 `toolloop.Checkpoint`，恢复时从 pending tool 精确继续，不重调模型、不重跑已完成工具；恢复前文本、累计 usage 和 `MaxSteps` 轮次继续沿用 checkpoint 状态。
+  - `app/runtime` 与示例程序对 `core/model/chat` 的 import 为零；App build/test/vet/lint/race 全绿，未引入 alias、bridge、双读写或历史 wire 解码。
+  - 证据：`4f4fb5651`。
 - [ ] **P6-05 删除旧 `core/model/<modality>` 包、path bridge 和 deprecated API**
   - 以 [`CORE_LEGACY_REMOVAL.md`](CORE_LEGACY_REMOVAL.md) 为冻结旧表面的删除台账；开始前与实际 import/identifier 清单重新核对。
 - [ ] **P6-06 删除冻结旧包带来的残余依赖并整理所有 go.mod**
@@ -851,16 +856,16 @@ flowchart LR
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
-| P6 Workspace 切换 | 进行中 | 3/8 | 库与框架模块已切换；进入 app/runtime 和剩余示例迁移 |
+| P6 Workspace 切换 | 进行中 | 4/8 | 所有真实消费者已切换；进入冻结旧 Core/API 的物理删除 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **48/60** | **80%** |
+| **总计** | **进行中** | **49/60** | **82%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P6。
-- 下一任务：执行 P6-04，迁移 app/runtime 和 workspace 剩余示例程序。
+- 下一任务：执行 P6-05，按删除台账物理删除旧 `core/model/<modality>`、path bridge 和 deprecated API。
 - 当前阻塞：无。
-- 最近完成：P6-03；Agent 旧 Chat runtime 已物理删除，Agent/Chathistory/Documentreaders 直接消费目标契约。
+- 最近完成：P6-04；app/runtime 与示例已直接消费目标 Chat/Client/History/Tool/Event Runner，HITL 使用目标 checkpoint/resume。
 
 ### 10.3 进度更新规则
 
@@ -960,7 +965,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 | 公共 API 爆炸式迁移导致 workspace 长期不可编译 | 高 | 高 | 按第 8.3 节拆成可验证的直接切换批次；不以兼容层换取暂时编译 | 监控中 |
 | Message tagged value 无法表达个别 provider 能力 | 中 | 高 | 四个差异 provider 已完成映射验证，并以生产 adapter 接入同一 conformance | 已验证（4/4） |
 | ChatClient 外移后用户体验下降 | 中 | 中 | 直接调用为主，保留常见 Text/Template/Structured Output 便利 API | 未验证 |
-| Tool 运行时拆分破坏 Agent pause/resume | 高 | 高 | P1 已建立并验证 Invocation/Event 原型，P3 再迁移现有 tool-loop | 原型已验证，迁移待执行 |
+| Tool 运行时拆分破坏 Agent pause/resume | 高 | 高 | P1/P3 建立唯一 Event Runner，P6-04 以真实 App HITL checkpoint/restore/resume 和 race 测试完成迁移 | 已验证并关闭（P6-04） |
 | VectorStore 小接口迁移量过大 | 高 | 中 | 建立 conformance suite，按 backend 批次迁移 | 已验证并关闭（P4） |
 | Core 标准库依赖目标过严 | 中 | 中 | 允许 ADR 例外，但必须证明 stdlib 不足和退出条件 | 监控中 |
 | Core/OTel 目标与现行治理文档互相冲突 | 高 | 高 | P0-05 已裁决 OTel 外移；P0-06 已同步根/core/otel CLAUDE、OBSERVABILITY 和本文 | 已解除 |
@@ -1135,6 +1140,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P6-04；app/runtime 与示例直接切换目标 Chat/Client/History/Tool/Event Runner，HITL 使用可序列化 checkpoint 精确恢复，旧 Chat import 清零 | Codex |
 | 2026-07-14 | 完成 P6-03；删除 Agent 冻结旧 Chat middleware/tool-loop 与历史 alias，以消费方端口接入唯一 Event Runner；三模块旧 Core import 清零 | Codex |
 | 2026-07-14 | 完成 P6-02；Vectorstores/RAG/Tools/MCP/A2A 的剩余消费点切到目标 Chat/Tool/Template 契约，旧 Chat import 清零 | Codex |
 | 2026-07-14 | 完成 P6-01；全部 provider 目标 Chat 构造器和直接 Bedrock/Responses 映射建立，30 项 constructor matrix 自动化 | Codex |
@@ -1188,6 +1194,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P6-04 | `4f4fb5651` 将 App provider/client/tool/history/storage/maintenance 全面切到目标契约，并以 streaming adapter 驱动唯一 Event Runner；HITL 持久化目标 Checkpoint、恢复 pending tool 且延续文本/usage/step budget；App 与示例旧 Chat import 为零，build/test/vet/lint/race 全绿；任务计数 49/60 | P6-05 物理删除冻结旧 Core/API |
 | 2026-07-14 | P6-03 | `f147ed7b2` 删除 Agent 整套冻结旧 Chat middleware/tool-loop、历史 alias 和旧协议测试，`PromptRunner` 以普通 Request + 邻接 Registry 调用 Runtime 注入的唯一 Event Runner；会话 scope 改走 context/chathistory；Agent test/vet/lint/race/standalone、Chathistory test/vet/lint/race、Documentreaders 各子 module test/vet/lint 全绿；任务计数 48/60 | P6-04 app/runtime 与剩余示例迁移 |
 | 2026-07-14 | P6-02 | `253adec40` 将 12 个具体 Tools package 迁到目标 ToolDefinition/执行接口；`12174d3be` 将 A2A 直接切到消费方 Tool；`7e4eb1a33` 将 MCP Tools、prompts、sampling 切到目标 Chat/ChatClient；`a57b2dfd6` 将 RAG middleware 与 LLM 组件切到 tagged Message/Template。五个范围模块旧 Chat import 为零；受影响模块 build/test/vet/lint/race 及 RAG standalone test 全绿；任务计数 47/60 | P6-03 agent、chathistory、documentreaders 迁移 |
 | 2026-07-14 | P6-01 | `d47445e52` 为 19 个兼容 facade 建立直接 Core Chat 构造器；`14f80a8d4` 实现 Bedrock Converse/Stream tagged-protocol 映射；`ffc7736d2` 将 OpenAI Responses API 直接迁入目标协议、移除 embedding 对旧 Chat Usage 的借用并锁定 30 构造器矩阵；Models build/vet/lint/test 及 Bedrock/OpenAI/arch race 全绿；任务计数 46/60 | P6-02 基础设施模块旧 Chat 消费迁移 |
