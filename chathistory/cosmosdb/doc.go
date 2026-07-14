@@ -1,4 +1,4 @@
-// Package cosmosdb is a [history.Store] backed by Azure Cosmos DB
+// Package cosmosdb is a chathistory Store backed by Azure Cosmos DB
 // (NoSQL API) via the official Azure SDK.
 //
 // Each message is stored as a document keyed by a synthesized

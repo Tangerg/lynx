@@ -1,4 +1,4 @@
-// Package mongodb is a [history.Store] backed by MongoDB via the
+// Package mongodb is a chathistory Store backed by MongoDB via the
 // official mongo-driver v2.
 //
 // Each message is a document in the configured collection:

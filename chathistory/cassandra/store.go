@@ -8,10 +8,10 @@ import (
 
 	"github.com/gocql/gocql"
 
+	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 const Provider = "CassandraChatHistory"
@@ -78,11 +78,11 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ history.Store  = (*Store)(nil)
-	_ history.Lister = (*Store)(nil)
+	_ chathistory.Store  = (*Store)(nil)
+	_ chathistory.Lister = (*Store)(nil)
 )
 
-// Store is a Cassandra-backed [history.Store]. Construct via [NewStore].
+// Store is a Cassandra-backed [chathistory.Store]. Construct via [NewStore].
 type Store struct {
 	session *gocql.Session
 
@@ -143,6 +143,9 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	if err = ctx.Err(); err != nil {
 		return err
 	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+		return err
+	}
 	if len(messages) == 0 {
 		return nil
 	}
@@ -171,6 +174,9 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+		return nil, err
+	}
 
 	ctx, span := tracing.StartRead(ctx, "cassandra", conversationID)
 	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
@@ -181,7 +187,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 	out = []chat.Message{}
 	var raw string
 	for iter.Scan(&raw) {
-		msg, decErr := chat.UnmarshalMessage([]byte(raw))
+		msg, decErr := codec.DecodeMessage([]byte(raw))
 		if decErr != nil {
 			err = fmt.Errorf("cassandra.Store.Read: decode message: %w", decErr)
 			return nil, err
@@ -197,6 +203,9 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 // Clear drops every row for conversationID. Unknown ids are a no-op.
 func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
 		return err
 	}
 
