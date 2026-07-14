@@ -3,9 +3,9 @@ module github.com/Tangerg/lynx/a2a
 go 1.26.4
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260714092135-fda80088ddc4
-	github.com/Tangerg/lynx/pkg v0.0.0-20260627110629-977ea6791375
-	github.com/Tangerg/lynx/tools v0.0.0-20260714095313-253adec40d57
+	github.com/Tangerg/lynx/core v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/pkg v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/tools v0.0.0-20260714105950-f178f20ec544
 	github.com/a2aproject/a2a-go/v2 v2.3.1
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0

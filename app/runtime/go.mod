@@ -3,21 +3,23 @@ module github.com/Tangerg/lynx/app/runtime
 go 1.26.4
 
 require (
-	github.com/Tangerg/lynx/a2a v0.0.0-20260612074151-b041faa6c4a2
-	github.com/Tangerg/lynx/agent v0.0.0-20260612074151-b041faa6c4a2
-	github.com/Tangerg/lynx/core v0.0.0-20260612074151-b041faa6c4a2
-	github.com/Tangerg/lynx/mcp v0.0.0-20260612074151-b041faa6c4a2
-	github.com/Tangerg/lynx/models v0.0.0-20260612074151-b041faa6c4a2
-	github.com/Tangerg/lynx/otel v0.0.0-20260612074151-b041faa6c4a2
-	github.com/Tangerg/lynx/pkg v0.0.0-20260612070432-d76a84bc1fc7
-	github.com/Tangerg/lynx/skills v0.0.0-20260612074151-b041faa6c4a2
-	github.com/Tangerg/lynx/tools v0.0.0-20260612074151-b041faa6c4a2
+	github.com/Tangerg/lynx/a2a v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/agent v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/chatclient v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/chathistory v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/core v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/mcp v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/models v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/otel v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/pkg v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/skills v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/tools v0.0.0-20260714105950-f178f20ec544
 	github.com/Tangerg/sse v0.0.1
-	github.com/a2aproject/a2a-go/v2 v2.3.1
 	github.com/anthropics/anthropic-sdk-go v1.52.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-chi/cors v1.2.2
+	github.com/go-resty/resty/v2 v2.17.2
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/openai/openai-go/v3 v3.41.0
@@ -25,6 +27,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sourcegraph/jsonrpc2 v0.2.1
 	github.com/spf13/viper v1.21.0
+	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/contrib/bridges/otelslog v0.19.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/log v0.20.0
@@ -44,17 +47,18 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
+	github.com/Tangerg/lynx/tokenizer v0.0.0-20260714090234-687df9b609db // indirect
+	github.com/a2aproject/a2a-go/v2 v2.3.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bits-and-blooms/bitset v1.24.5 // indirect
 	github.com/buger/jsonparser v1.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/dlclark/regexp2 v1.12.0 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-resty/resty/v2 v2.17.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
@@ -69,9 +73,7 @@ require (
 	github.com/ollama/ollama v0.30.11 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
-	github.com/pkoukk/tiktoken-go v0.1.8 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
@@ -97,10 +99,8 @@ require (
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
-	golang.org/x/tools v0.46.0 // indirect
 	google.golang.org/api v0.286.0 // indirect
 	google.golang.org/genai v1.62.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260610212136-7ab31c22f7ad // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260622175928-b703f567277d // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect

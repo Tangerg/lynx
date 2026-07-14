@@ -8,10 +8,6 @@ import (
 	"testing"
 )
 
-var temporaryExternalImports = map[string]string{
-	"github.com/invopop/jsonschema": "P6-05",
-}
-
 var dependencyBudgetPackageRoots = []string{
 	"chat",
 	"document",
@@ -69,7 +65,7 @@ func dependencyBudgetRoot(packagePath string) (string, bool) {
 	return "", false
 }
 
-func TestExternalImportsDoNotExceedMigrationBudget(t *testing.T) {
+func TestCoreProductionImportsAreStandardLibraryOnly(t *testing.T) {
 	fset := token.NewFileSet()
 	for _, path := range productionGoFiles(t) {
 		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
@@ -81,13 +77,8 @@ func TestExternalImportsDoNotExceedMigrationBudget(t *testing.T) {
 			if strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core") || isStandardImport(importPath) {
 				continue
 			}
-			deadline, ok := temporaryExternalImports[importPath]
-			if !ok {
-				rel, _ := filepath.Rel(moduleRoot(t), path)
-				t.Errorf("external import %q in %s is outside the migration budget", importPath, rel)
-				continue
-			}
-			t.Logf("temporary external import %s remains until %s", importPath, deadline)
+			rel, _ := filepath.Rel(moduleRoot(t), path)
+			t.Errorf("core production import %q in %s is not from the standard library", importPath, rel)
 		}
 	}
 }
