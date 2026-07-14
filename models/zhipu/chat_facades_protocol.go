@@ -1,0 +1,47 @@
+package zhipu
+
+import (
+	"cmp"
+	"errors"
+
+	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
+	openaioption "github.com/openai/openai-go/v3/option"
+
+	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/models/anthropic"
+	"github.com/Tangerg/lynx/models/openai"
+)
+
+// OpenAIChatConfig configures Zhipu's OpenAI-compatible Core chat adapter.
+type OpenAIChatConfig struct {
+	APIKey         string
+	DefaultOptions corechat.Options
+	BaseURL        string
+	RequestOptions []openaioption.RequestOption
+}
+
+// NewOpenAIChat constructs an OpenAI-wire Core chat adapter for Zhipu.
+func NewOpenAIChat(cfg OpenAIChatConfig) (*openai.Chat, error) {
+	if cfg.APIKey == "" {
+		return nil, errors.New("zhipu: APIKey is required")
+	}
+	requestOptions := append([]openaioption.RequestOption{openaioption.WithBaseURL(cmp.Or(cfg.BaseURL, BaseURL))}, cfg.RequestOptions...)
+	return openai.NewChat(openai.ChatConfig{APIKey: cfg.APIKey, DefaultOptions: cfg.DefaultOptions, RequestOptions: requestOptions})
+}
+
+// AnthropicChatConfig configures Zhipu's Anthropic-compatible Core chat adapter.
+type AnthropicChatConfig struct {
+	APIKey         string
+	DefaultOptions corechat.Options
+	BaseURL        string
+	RequestOptions []anthropicoption.RequestOption
+}
+
+// NewAnthropicChat constructs an Anthropic-wire Core chat adapter for Zhipu.
+func NewAnthropicChat(cfg AnthropicChatConfig) (*anthropic.Chat, error) {
+	if cfg.APIKey == "" {
+		return nil, errors.New("zhipu: APIKey is required")
+	}
+	requestOptions := append([]anthropicoption.RequestOption{anthropicoption.WithBaseURL(cmp.Or(cfg.BaseURL, BaseURLAnthropic))}, cfg.RequestOptions...)
+	return anthropic.NewChat(anthropic.ChatConfig{APIKey: cfg.APIKey, DefaultOptions: cfg.DefaultOptions, RequestOptions: requestOptions})
+}
