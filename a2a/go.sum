@@ -1,9 +1,9 @@
-github.com/Tangerg/lynx/core v0.0.0-20260714105950-f178f20ec544 h1:Ly3hoL6Q4vAGXgpyW5IP+kGcNtyQO42IgvPV7UitWTc=
-github.com/Tangerg/lynx/core v0.0.0-20260714105950-f178f20ec544/go.mod h1:We/oKenDl60lly/jtwwvZEEh33MWqum9eWQNjFPWGlY=
-github.com/Tangerg/lynx/pkg v0.0.0-20260714105950-f178f20ec544 h1:JBsrFN7oLYboVxIFMnHeVFubjDtijf6HIwkRqmtaOAo=
-github.com/Tangerg/lynx/pkg v0.0.0-20260714105950-f178f20ec544/go.mod h1:5nqRYF2FcMr67V4XkOjjfGnMJ++X/ryVr3CbxEVoiTY=
-github.com/Tangerg/lynx/tools v0.0.0-20260714105950-f178f20ec544 h1:72PVoJWwlJnP7USKzYSllaL2Ku//NTrFXGwmylQeL38=
-github.com/Tangerg/lynx/tools v0.0.0-20260714105950-f178f20ec544/go.mod h1:CR6L6UK+BjXlmCb0nd+blmzrAjEKuZG1/WuAKuOQ27c=
+github.com/Tangerg/lynx/core v0.0.0-20260714110600-0abc7c70a85d h1:FmOTYfrJpg4hZ1aysZi0M/bKGjVFDT9wKDU+PCCrHBg=
+github.com/Tangerg/lynx/core v0.0.0-20260714110600-0abc7c70a85d/go.mod h1:M/4xXWJOxH+PaKN73sKDK84HOHuUcn4gmFNT7ZpwcSk=
+github.com/Tangerg/lynx/pkg v0.0.0-20260714110600-0abc7c70a85d h1:IUYnm7LrPkVPgZ5K0zuc3RgArKKBnHKAOFWNe7ADQKs=
+github.com/Tangerg/lynx/pkg v0.0.0-20260714110600-0abc7c70a85d/go.mod h1:5nqRYF2FcMr67V4XkOjjfGnMJ++X/ryVr3CbxEVoiTY=
+github.com/Tangerg/lynx/tools v0.0.0-20260714110600-0abc7c70a85d h1:w43UysySmH46qQC6sQq8I9RsvWGI4kQ9DrIrk9M3FEE=
+github.com/Tangerg/lynx/tools v0.0.0-20260714110600-0abc7c70a85d/go.mod h1:B+/4jX6nLQxSL/kFDoHf1wbdaqjWTEe0b/goes/xcGA=
 github.com/a2aproject/a2a-go/v2 v2.3.1 h1:QWMdOX2UsJ8BJmjs952eo1FRyGsOVl0gFCKeM76AgGE=
 github.com/a2aproject/a2a-go/v2 v2.3.1/go.mod h1:mkZr8y2bUgAVQsjs/5fHK7xrRlAHDybMEyxWh2tKRC8=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=

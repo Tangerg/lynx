@@ -4,7 +4,7 @@ go 1.26.4
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.2
-	github.com/Tangerg/lynx/core v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/core v0.0.0-20260714110600-0abc7c70a85d
 	github.com/gocql/gocql v1.7.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
