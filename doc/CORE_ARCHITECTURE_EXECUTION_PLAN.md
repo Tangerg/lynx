@@ -815,7 +815,12 @@ flowchart LR
   - Azure 跨模态 request options 与 Ollama OpenAI base URL 解析从旧 Chat 文件中提取为职责明确的小实现；`core/model` 仅保留 embedding 仍共享的 Usage/RateLimit 值。
   - workspace Go 源码对旧 Chat import 为零，旧 `NewChatModel`/复合 Model/Client/Tool/History API 定义为零；20 个 module build 全绿，Core/Models test/vet/lint/race 全绿。
   - 证据：`f178f20ec`，净删 13,518 行。
-- [ ] **P6-06 删除冻结旧包带来的残余依赖并整理所有 go.mod**
+- [x] **P6-06 删除冻结旧包带来的残余依赖并整理所有 go.mod**（完成：2026-07-14）
+  - Core 删除 `invopop/jsonschema` 及全部间接依赖，`core/go.mod` 只保留 module/go 声明；架构门禁删除临时外部依赖和临时公共包白名单，改为整个 Core 生产 import 只能是标准库或 Core 自身。
+  - 对 20 个 workspace module 统一执行 tidy，删除旧冻结图带来的 303 行依赖噪声；App 补齐 `chatclient`、`chathistory` 直接依赖并整理 direct/indirect 分组。
+  - 所有内部依赖统一钉到已包含 P6-05 删除和本任务清理基线的 `v0.0.0-20260714110600-0abc7c70a85d`，不依赖未发布工作区源码才能解析。
+  - 20/20 module 的 `go mod tidy -diff` 为空，workspace 40 项 build/test 全绿；关闭 go.work 后 20/20 module 独立 `go test ./...` 全绿。
+  - 证据：`0abc7c70a`、`badb63e8b`。
 - [ ] **P6-07 更新所有 CLAUDE/README/架构文档**
 - [ ] **P6-08 执行全 workspace 测试、race、vet 和静态检查**
 
@@ -860,16 +865,16 @@ flowchart LR
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
-| P6 Workspace 切换 | 进行中 | 5/8 | 旧 Core/API 已物理删除；进入残余依赖与 module graph 清理 |
+| P6 Workspace 切换 | 进行中 | 6/8 | 依赖与 standalone module graph 已收口；进入文档全量同步 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **50/60** | **83%** |
+| **总计** | **进行中** | **51/60** | **85%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P6。
-- 下一任务：执行 P6-06，删除冻结旧包带来的残余依赖并整理全部 go.mod/module graph。
+- 下一任务：执行 P6-07，更新全部 CLAUDE/README/架构与 API 文档，使描述与目标代码完全一致。
 - 当前阻塞：无。
-- 最近完成：P6-05；旧 Core Chat、冻结 provider adapter/测试与泛型名义层已整批物理删除，无兼容表面残留。
+- 最近完成：P6-06；Core 外部依赖清零，20 个 module 的 tidy 与 standalone 版本图已统一并独立验证。
 
 ### 10.3 进度更新规则
 
@@ -971,7 +976,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 | ChatClient 外移后用户体验下降 | 中 | 中 | 直接调用为主，保留常见 Text/Template/Structured Output 便利 API | 未验证 |
 | Tool 运行时拆分破坏 Agent pause/resume | 高 | 高 | P1/P3 建立唯一 Event Runner，P6-04 以真实 App HITL checkpoint/restore/resume 和 race 测试完成迁移 | 已验证并关闭（P6-04） |
 | VectorStore 小接口迁移量过大 | 高 | 中 | 建立 conformance suite，按 backend 批次迁移 | 已验证并关闭（P4） |
-| Core 标准库依赖目标过严 | 中 | 中 | 允许 ADR 例外，但必须证明 stdlib 不足和退出条件 | 监控中 |
+| Core 标准库依赖目标过严 | 中 | 中 | 目标包与整个 Core 的生产 import 门禁逐步收紧；P6-06 删除最后临时例外和 go.mod 残依赖 | 已验证并关闭（P6-06） |
 | Core/OTel 目标与现行治理文档互相冲突 | 高 | 高 | P0-05 已裁决 OTel 外移；P0-06 已同步根/core/otel CLAUDE、OBSERVABILITY 和本文 | 已解除 |
 | 只改目录不改职责，形成新名字的旧架构 | 中 | 高 | 每阶段以退出标准和 forbidden responsibilities 验收 | 监控中 |
 | 新旧实现同时存在演变成长期双轨 | 高 | 高 | 禁止 bridge/dual-read；每批迁真实消费者，最后消费者迁移后按台账整批删除旧实现 | 已验证并关闭（P6-05） |
@@ -1144,6 +1149,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P6-06；Core 外部依赖与临时白名单清零，20 个 module 统一 tidy/pseudo-version，并在关闭 go.work 后逐模块测试通过 | Codex |
 | 2026-07-14 | 完成 P6-05；删除旧 Core Chat、冻结 provider adapter/测试和泛型名义层共 13,518 行，workspace 旧 Chat import 与兼容表面清零 | Codex |
 | 2026-07-14 | 完成 P6-04；app/runtime 与示例直接切换目标 Chat/Client/History/Tool/Event Runner，HITL 使用可序列化 checkpoint 精确恢复，旧 Chat import 清零 | Codex |
 | 2026-07-14 | 完成 P6-03；删除 Agent 冻结旧 Chat middleware/tool-loop 与历史 alias，以消费方端口接入唯一 Event Runner；三模块旧 Core import 清零 | Codex |
@@ -1199,6 +1205,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P6-06 | `0abc7c70a` 清掉 Core 最后一个第三方依赖、临时 dependency/package 白名单，并对 20 module tidy；`badb63e8b` 将全部内部依赖统一钉到清理基线 `v0.0.0-20260714110600-0abc7c70a85d`。20/20 tidy-diff 为空，workspace 40 项 build/test 及关闭 go.work 后 20/20 module 独立 test 全绿；任务计数 51/60 | P6-07 全量文档同步 |
 | 2026-07-14 | P6-05 | `f178f20ec` 物理删除 `core/model/chat` 46 个文件、79 个冻结 provider/旧契约文件和旧泛型 Model/Handler/Middleware，不保留 package/type/constructor bridge；两个跨模态私有 helper 迁回正确职责；20 module build、Core/Models test/vet/lint/race 全绿；任务计数 50/60 | P6-06 清理残余依赖与全部 go.mod |
 | 2026-07-14 | P6-04 | `4f4fb5651` 将 App provider/client/tool/history/storage/maintenance 全面切到目标契约，并以 streaming adapter 驱动唯一 Event Runner；HITL 持久化目标 Checkpoint、恢复 pending tool 且延续文本/usage/step budget；App 与示例旧 Chat import 为零，build/test/vet/lint/race 全绿；任务计数 49/60 | P6-05 物理删除冻结旧 Core/API |
 | 2026-07-14 | P6-03 | `f147ed7b2` 删除 Agent 整套冻结旧 Chat middleware/tool-loop、历史 alias 和旧协议测试，`PromptRunner` 以普通 Request + 邻接 Registry 调用 Runtime 注入的唯一 Event Runner；会话 scope 改走 context/chathistory；Agent test/vet/lint/race/standalone、Chathistory test/vet/lint/race、Documentreaders 各子 module test/vet/lint 全绿；任务计数 48/60 | P6-04 app/runtime 与剩余示例迁移 |
