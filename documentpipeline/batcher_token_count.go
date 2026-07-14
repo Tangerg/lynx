@@ -8,7 +8,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/tokenizer"
+	"github.com/Tangerg/lynx/tokenizer"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 )
 
 type TokenCountBatcherConfig struct {
-	TokenCountEstimator tokenizer.Estimator
+	TokenCountEstimator tokenizer.TextEstimator
 	MaxInputTokenCount  int
 	ReservePercentage   float64
 	Formatter           Formatter
@@ -67,7 +67,7 @@ var _ Batcher = (*TokenCountBatcher)(nil)
 // rejected with an error — the caller is expected to split it first
 // (see [TokenSplitter]).
 type TokenCountBatcher struct {
-	tokenCountEstimator tokenizer.Estimator
+	tokenCountEstimator tokenizer.TextEstimator
 	maxInputTokenCount  int
 	formatter           Formatter
 	metadataMode        MetadataMode

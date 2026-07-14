@@ -27,7 +27,6 @@ var temporaryPublicPackages = map[string]string{
 	"model/chat/conversation":       "P3-03/P6-05",
 	"model/chat/history":            "P3-04/P6-05",
 	"model/chat/middleware/history": "P3-04/P6-05",
-	"tokenizer":                     "P5-04",
 }
 
 func TestPublicPackagesMatchArchitectureAllowlist(t *testing.T) {

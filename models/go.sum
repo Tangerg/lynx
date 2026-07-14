@@ -12,10 +12,12 @@ github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 h1:fhqpLE3UEXi9lPaBRpQ6Xu
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0/go.mod h1:7dCRMLwisfRH3dBupKeNCioWYUZ4SS09Z14H+7i8ZoY=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 h1:XRzhVemXdgvJqCH0sFfrBUTnUJSBrBf7++ypk+twtRs=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0/go.mod h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=
-github.com/Tangerg/lynx/core v0.0.0-20260627110629-977ea6791375 h1:naQByNCKrHfxsUD5uKe4OzBnV61GoZU1oI5C3+erBrU=
-github.com/Tangerg/lynx/core v0.0.0-20260627110629-977ea6791375/go.mod h1:bBPiCdrGjFI3Y7Gws4QqmbZf9rePGvpQrx7tyevOXc8=
+github.com/Tangerg/lynx/core v0.0.0-20260714090234-687df9b609db h1:L10Ym9KlS21cNPj46YbPjc5SS9x2CfVJsi+Y1FXYghM=
+github.com/Tangerg/lynx/core v0.0.0-20260714090234-687df9b609db/go.mod h1:prYWZFMF8n5MS+P6r/7xOAHPgPYlbPR4zy9p3HHcFvo=
 github.com/Tangerg/lynx/pkg v0.0.0-20260627110629-977ea6791375 h1:Jy6b7FqvDCX4VCToRNxfs3MImL10XhLc8XiChiF4OIE=
 github.com/Tangerg/lynx/pkg v0.0.0-20260627110629-977ea6791375/go.mod h1:buyfYRLHeu7EiQzjDWadGZxxVr34CkW9tlajEn+t3GY=
+github.com/Tangerg/lynx/tokenizer v0.0.0-20260714090234-687df9b609db h1:N/GF5YFoW9U9PgkC/xRhlpwvYVjDzsV9RHumy+wWMKY=
+github.com/Tangerg/lynx/tokenizer v0.0.0-20260714090234-687df9b609db/go.mod h1:redpr1KJr61ZY+TZb123GJVvkgCSCw8ZhatESTbZyho=
 github.com/anthropics/anthropic-sdk-go v1.52.0 h1:1TB9jt4DN87VMwS/hB1VK26tYzK0ipEOtqPaPGFtJQg=
 github.com/anthropics/anthropic-sdk-go v1.52.0/go.mod h1:3EfIfmFqxH6rbiLcIP4tPFyXL/IHakx2wDG4OU+TIEI=
 github.com/aws/aws-sdk-go-v2 v1.42.0 h1:XvXMJTkFQtpBKIWZnmr9ZEOc2InWM2yldjXEJ/bymhA=
@@ -62,8 +64,6 @@ github.com/cohere-ai/cohere-go/v2 v2.18.0 h1:Y5NyY+YTCN6XrrxHWicgVdpBi4tSBa0bjes
 github.com/cohere-ai/cohere-go/v2 v2.18.0/go.mod h1:MuiJkCxlR18BDV2qQPbz2Yb/OCVphT1y6nD2zYaKeR0=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/dlclark/regexp2 v1.12.0 h1:0j4c5qQmnC6XOWNjP3PIXURXN2gWx76rd3KvgdPkCz8=
-github.com/dlclark/regexp2 v1.12.0/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
 github.com/dnaeon/go-vcr v1.2.0 h1:zHCHvJYTMh1N7xnV7zf1m1GPBF9Ad0Jk/whtQ1663qI=
 github.com/dnaeon/go-vcr v1.2.0/go.mod h1:R4UdLID7HZT3taECzJs4YgbbH6PIGXB6W/sc5OLb6RQ=
 github.com/felixge/httpsnoop v1.1.0 h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeORc=
@@ -113,8 +113,6 @@ github.com/pb33f/ordered-map/v2 v2.3.1 h1:5319HDO0aw4DA4gzi+zv4FXU9UlSs3xGZ40wcP
 github.com/pb33f/ordered-map/v2 v2.3.1/go.mod h1:qxFQgd0PkVUtOMCkTapqotNgzRhMPL7VvaHKbd1HnmQ=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c h1:+mdjkGKdHQG3305AYmdv1U2eRNDiU2ErMBj1gwrq8eQ=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c/go.mod h1:7rwL4CYBLnjLxUqIJNnCWiEdr3bn6IUYi15bNlnbCCU=
-github.com/pkoukk/tiktoken-go v0.1.8 h1:85ENo+3FpWgAACBaEUVp+lctuTcYUO7BtmfhlN/QTRo=
-github.com/pkoukk/tiktoken-go v0.1.8/go.mod h1:9NiV+i9mJKGj1rYOT+njbv+ZwA/zJxYdewGl6qVatpg=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rogpeppe/go-internal v1.15.0 h1:D0RCU5rMAp+SpgkiNdrjfJ+LX4J1M32V2NeCY7EJ6hc=

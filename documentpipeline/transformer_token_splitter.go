@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/tokenizer"
 	"github.com/Tangerg/lynx/documentpipeline/id"
+	"github.com/Tangerg/lynx/tokenizer"
 )
 
 // Default sizing for [TokenSplitter]. The numbers come from common
