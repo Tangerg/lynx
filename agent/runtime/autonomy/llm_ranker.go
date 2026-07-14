@@ -8,7 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // LLMRanker is a [Ranker] that asks an LLM to score each candidate
@@ -17,7 +18,7 @@ import (
 // misbehaving model fails closed (= "irrelevant") rather than
 // hijacking selection.
 type LLMRanker struct {
-	client core.ChatClient
+	client *chatclient.Client
 	cfg    LLMRankerConfig
 }
 
@@ -38,7 +39,7 @@ type LLMRankerConfig struct {
 
 // NewLLMRanker constructs a ranker backed by client. Returns an error
 // on a nil client — caller decides whether to surface or panic.
-func NewLLMRanker(client core.ChatClient, cfg LLMRankerConfig) (*LLMRanker, error) {
+func NewLLMRanker(client *chatclient.Client, cfg LLMRankerConfig) (*LLMRanker, error) {
 	if client == nil {
 		return nil, errors.New("autonomy.NewLLMRanker: ChatClient must not be nil")
 	}
@@ -60,14 +61,18 @@ func (r *LLMRanker) Rank(ctx context.Context, userInput string, candidates []Can
 
 	userPrompt := r.buildUserPrompt(userInput, candidates)
 
-	text, _, err := r.client.Chat().
-		WithSystemPrompt(systemPrompt).
-		WithUserPrompt(userPrompt).
-		Call().
-		Text(ctx)
+	request, err := chat.NewRequest(
+		chat.NewSystemMessage(systemPrompt),
+		chat.NewUserMessage(chat.NewTextPart(userPrompt)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("autonomy.LLMRanker.Rank: request: %w", err)
+	}
+	response, err := r.client.Call(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("autonomy.LLMRanker.Rank: %w", err)
 	}
+	text := response.Text()
 
 	scored, err := parseRankerReply(text)
 	if err != nil {

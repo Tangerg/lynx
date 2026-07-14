@@ -2,12 +2,14 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // AllAchievableTools walks every deployed agent and returns a
@@ -31,7 +33,7 @@ import (
 //
 // Returned slice order is deterministic per registry-iteration order
 // for a fixed platform; not stable across registrations.
-func AllAchievableTools(platform *Platform) ([]chat.Tool, error) {
+func AllAchievableTools(platform *Platform) ([]tools.Tool, error) {
 	if platform == nil {
 		return nil, nil
 	}
@@ -52,7 +54,7 @@ func AllAchievableTools(platform *Platform) ([]chat.Tool, error) {
 //
 // Output extraction is dynamic (most-recent blackboard object) — see
 // [AllAchievableTools] for the type erasure caveat.
-func PublishAll(platform *Platform) ([]chat.Tool, error) {
+func PublishAll(platform *Platform) ([]tools.Tool, error) {
 	if platform == nil {
 		return nil, nil
 	}
@@ -63,8 +65,8 @@ func PublishAll(platform *Platform) ([]chat.Tool, error) {
 // [PublishAll]. For each deployed agent it walks goals, filters by
 // Export presence (and Export.Remote when remoteOnly), and packages
 // each into a [newDynamicAgentTool].
-func (p *Platform) collectExportedTools(remoteOnly bool, start processStarter) ([]chat.Tool, error) {
-	var out []chat.Tool
+func (p *Platform) collectExportedTools(remoteOnly bool, start processStarter) ([]tools.Tool, error) {
+	var out []tools.Tool
 	for _, agentDef := range p.Agents() {
 		if agentDef == nil {
 			continue
@@ -98,7 +100,7 @@ func newDynamicAgentTool(
 	agentDef *core.Agent,
 	goal *core.Goal,
 	start processStarter,
-) (chat.Tool, error) {
+) (tools.Tool, error) {
 	exported, err := newExportedGoal(agentDef, goal)
 	if err != nil {
 		return nil, err
@@ -147,7 +149,7 @@ func newExportedGoal(agentDef *core.Agent, goal *core.Goal) (exportedGoal, error
 		definition: chat.ToolDefinition{
 			Name:        goal.Name,
 			Description: description,
-			InputSchema: inputSchema,
+			InputSchema: json.RawMessage(inputSchema),
 		},
 		inputType: inputType,
 	}, nil

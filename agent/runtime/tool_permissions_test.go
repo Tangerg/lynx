@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // privilegedWebGroup returns a resolver pre-loaded with a tool group
@@ -17,8 +17,8 @@ import (
 func privilegedWebGroup(t *testing.T) *core.StaticToolGroupResolver {
 	t.Helper()
 
-	tool, err := chat.NewTool[struct{}, string](
-		chat.ToolDefinition{Name: "web_search"},
+	tool, err := tools.New[struct{}, string](
+		tools.Config{Name: "web_search"},
 		func(context.Context, struct{}) (string, error) { return "", nil },
 	)
 	if err != nil {
@@ -31,7 +31,7 @@ func privilegedWebGroup(t *testing.T) *core.StaticToolGroupResolver {
 			RoleText:           "web",
 			PermissionsGranted: []core.ToolGroupPermission{core.ToolGroupInternetAccess},
 		},
-		func(context.Context) ([]core.AgentTool, error) { return []core.AgentTool{tool}, nil },
+		func(context.Context) ([]tools.Tool, error) { return []tools.Tool{tool}, nil },
 	))
 	return resolver
 }
@@ -39,11 +39,11 @@ func privilegedWebGroup(t *testing.T) *core.StaticToolGroupResolver {
 // runActionTools runs a single-action agent whose body calls
 // pc.ActionTools with the supplied requirement, and returns what the
 // resolver handed back.
-func runActionTools(t *testing.T, req core.ToolGroupRequirement) ([]core.AgentTool, error) {
+func runActionTools(t *testing.T, req core.ToolGroupRequirement) ([]tools.Tool, error) {
 	t.Helper()
 
 	var (
-		gotTools []core.AgentTool
+		gotTools []tools.Tool
 		gotErr   error
 	)
 	a := agent.New("permissions").

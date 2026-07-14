@@ -1,6 +1,6 @@
 // Command blogllm extends the basic blog example to use the
 // [chat.Client] binding on ProcessContext: an action body grabs the
-// platform's shared LLM client via [core.ProcessContext.ChatWithActionTools],
+// platform's shared LLM client via [core.ProcessContext.PromptRunner],
 // which returns a request pre-loaded with the action's resolved
 // tools and the LLM-driven tool-call middleware. The LLM (a stub
 // here, so the example runs offline) calls the tool, gets a result,

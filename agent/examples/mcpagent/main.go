@@ -6,14 +6,17 @@ import (
 	"fmt"
 	"iter"
 	"log"
+	"strings"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // Domain types — the agent takes a Topic and produces a Brief.
@@ -28,7 +31,7 @@ type (
 func main() {
 	ctx := context.Background()
 
-	chatClient, err := chat.NewClient(newStubModel())
+	chatClient, err := chatclient.New(newStubModel())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -60,7 +63,7 @@ func main() {
 	}
 	defer cliSession.Close()
 
-	tools := func(ctx context.Context) ([]chat.Tool, error) {
+	toolSource := func(ctx context.Context) ([]tools.Tool, error) {
 		return lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "research", Session: cliSession}}, lynxmcp.ToolOptions{
 			MetaFunc: lynxmcp.MetaFromContext,
 		})
@@ -81,6 +84,10 @@ func main() {
 					return Brief{}, fmt.Errorf("get prompt: %w", err)
 				}
 				systemMessages := lynxmcp.PromptMessagesToChat(result.Messages)
+				var systemPrompt strings.Builder
+				for index := range systemMessages {
+					systemPrompt.WriteString(systemMessages[index].Text())
+				}
 
 				// 2. Attach process metadata to ctx — the MCP server's
 				// tool handler reads it via req.Params.Meta.
@@ -89,24 +96,15 @@ func main() {
 					"lynx.action":     "brief",
 				})
 
-				// 3. ChatWithActionTools wires the LLM with the action's
-				// declared toolgroups (here, "research" → MCP tools).
-				req, err := pc.ChatWithActionTools(ctx)
-				if err != nil {
-					return Brief{}, err
-				}
-
 				prompt := fmt.Sprintf(
 					"Use research_search to gather sources on %q, then reply with JSON: "+
 						`{"sources":["..."]}`,
 					in.Title,
 				)
 
-				text, _, err := req.
-					WithMessages(systemMessages...).
-					WithUserPrompt(prompt).
-					Call().
-					Text(ctx)
+				text, err := pc.PromptRunner().
+					WithSystem(systemPrompt.String()).
+					Generate(ctx, prompt)
 				if err != nil {
 					return Brief{}, err
 				}
@@ -124,7 +122,7 @@ func main() {
 		Goals(agent.GoalProducing[Brief](core.Goal{Description: "topic brief produced"})).
 		Build()
 
-	resolver, err := runtime.NewMCPResolver("research", tools)
+	resolver, err := runtime.NewMCPResolver("research", toolSource)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -216,17 +214,9 @@ func buildMCPServer() *sdkmcp.Server {
 // Stub LLM — pretends to use the search tool, then emits JSON sources.
 // ============================================================================
 
-type stubModel struct {
-	defaults *chat.Options
-}
+type stubModel struct{}
 
-func newStubModel() *stubModel {
-	opts, _ := chat.NewOptions("stub-model")
-	return &stubModel{defaults: opts}
-}
-
-func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+func newStubModel() *stubModel { return &stubModel{} }
 
 func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	if !hasToolMessage(req.Messages) {
@@ -245,7 +235,7 @@ func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 
 func hasToolMessage(messages []chat.Message) bool {
 	for _, msg := range messages {
-		if msg.Type() == chat.MessageTypeTool {
+		if msg.Role == chat.RoleTool {
 			return true
 		}
 	}
@@ -253,24 +243,13 @@ func hasToolMessage(messages []chat.Message) bool {
 }
 
 func responseWithText(text string) *chat.Response {
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(text),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewTextPart(text))
+	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 	return resp
 }
 
 func responseWithToolCall(name, args string) *chat.Response {
-	calls := []*chat.ToolCallPart{{ID: "call_1", Name: name, Arguments: args}}
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(calls),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call_1", Name: name, Arguments: args}))
+	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
 	return resp
 }

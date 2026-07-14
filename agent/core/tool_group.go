@@ -7,7 +7,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // ToolGroupPermission is the security/sensitivity flag on a ToolGroup —
@@ -129,20 +129,12 @@ type TerminationSignal struct {
 	Reason string
 }
 
-// AgentTool is an alias of [chat.Tool] — the agent runtime and the
-// chat package share one tool model. Tools flow through the same
-// [ToolGroup] / [ToolGroupResolver] / [ToolDecorator] machinery.
-//
-// Construct concrete tools via [chat.NewTool]; the runtime never builds
-// AgentTool literals itself.
-type AgentTool = chat.Tool
-
 // ToolGroup is the lazy provider — Tools(ctx) is the entry point that
 // performs the (potentially expensive) MCP handshake / plugin load on first
 // access. Subsequent calls return the cached slice.
 type ToolGroup interface {
 	Metadata() ToolGroupMetadata
-	Tools(ctx context.Context) ([]AgentTool, error)
+	Tools(ctx context.Context) ([]tools.Tool, error)
 }
 
 // LazyToolGroup is a ready-made ToolGroup that resolves its tool list once
@@ -150,22 +142,22 @@ type ToolGroup interface {
 // implementation.
 type LazyToolGroup struct {
 	meta   ToolGroupMetadata
-	loadFn func(ctx context.Context) ([]AgentTool, error)
+	loadFn func(ctx context.Context) ([]tools.Tool, error)
 
 	once    sync.Once
-	tools   []AgentTool
+	tools   []tools.Tool
 	loadErr error
 }
 
 // NewLazyToolGroup wraps a metadata+loader pair. The loader runs at most
 // once per LazyToolGroup instance, on the first Tools() call.
-func NewLazyToolGroup(meta ToolGroupMetadata, loadFn func(ctx context.Context) ([]AgentTool, error)) *LazyToolGroup {
+func NewLazyToolGroup(meta ToolGroupMetadata, loadFn func(ctx context.Context) ([]tools.Tool, error)) *LazyToolGroup {
 	return &LazyToolGroup{meta: meta, loadFn: loadFn}
 }
 
 func (l *LazyToolGroup) Metadata() ToolGroupMetadata { return l.meta }
 
-func (l *LazyToolGroup) Tools(ctx context.Context) ([]AgentTool, error) {
+func (l *LazyToolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	l.once.Do(func() {
 		if l.loadFn == nil {
 			return

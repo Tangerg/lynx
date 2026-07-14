@@ -211,7 +211,7 @@ func TestAsMCPTool_DefinitionUsesAgentMetadata(t *testing.T) {
 	if def.Description != "doubles its input" {
 		t.Fatalf("Description = %q, want 'doubles its input'", def.Description)
 	}
-	if !strings.Contains(def.InputSchema, "Value") {
+	if !strings.Contains(string(def.InputSchema), "Value") {
 		t.Fatalf("InputSchema should include In's field name; got %s", def.InputSchema)
 	}
 }
@@ -320,7 +320,7 @@ func TestAsChatTool_DefinitionUsesAgentMetadata(t *testing.T) {
 	if def.Description != "doubles its input" {
 		t.Fatalf("Description = %q, want 'doubles its input'", def.Description)
 	}
-	if !strings.Contains(def.InputSchema, "Value") {
+	if !strings.Contains(string(def.InputSchema), "Value") {
 		t.Fatalf("InputSchema should include In's field name; got %s", def.InputSchema)
 	}
 }

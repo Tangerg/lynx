@@ -4,44 +4,63 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
-func TestBuildChatGuardrailsUsesDefaultsAndAssemblesChain(t *testing.T) {
-	t.Helper()
-
-	guardrails, err := BuildChatGuardrails(ChatGuardrailsConfig{
-		ToolLoop: ToolLoopPolicy{},
-	})
+func TestBuildChatGuardrailsUsesTargetHistoryMiddleware(t *testing.T) {
+	guardrails, err := BuildChatGuardrails(ChatGuardrailsConfig{MaxToolRounds: 11})
 	if err != nil {
-		t.Fatalf("BuildChatGuardrails: unexpected error: %v", err)
+		t.Fatal(err)
 	}
-	if guardrails == nil {
-		t.Fatal("BuildChatGuardrails: got nil guardrails")
+	if len(guardrails.CallMiddlewares) != 1 || len(guardrails.StreamMiddlewares) != 1 {
+		t.Fatalf("middleware counts = %d, %d; want 1, 1", len(guardrails.CallMiddlewares), len(guardrails.StreamMiddlewares))
 	}
-
-	if len(guardrails.CallMiddlewares) != 2 {
-		t.Fatalf("BuildChatGuardrails: expected 2 call middlewares, got %d", len(guardrails.CallMiddlewares))
-	}
-	if len(guardrails.StreamMiddlewares) != 2 {
-		t.Fatalf("BuildChatGuardrails: expected 2 stream middlewares, got %d", len(guardrails.StreamMiddlewares))
+	if guardrails.MaxToolRounds != 11 {
+		t.Fatalf("MaxToolRounds = %d, want 11", guardrails.MaxToolRounds)
 	}
 }
 
-func TestBuildToolLoopReturnsPair(t *testing.T) {
-	callMW, streamMW := BuildToolLoop(ToolLoopPolicy{
-		MaxIterations:           11,
-		FeedbackOnEmptyResponse: true,
-		BeforeRound:             func(_ context.Context) []chat.Message { return nil },
+func TestBuildChatGuardrailsRejectsNegativeRounds(t *testing.T) {
+	if _, err := BuildChatGuardrails(ChatGuardrailsConfig{MaxToolRounds: -1}); err == nil {
+		t.Fatal("negative MaxToolRounds must fail")
+	}
+}
+
+func TestProcessChatBindsSessionToTargetHistoryMiddleware(t *testing.T) {
+	store := chathistory.NewInMemoryStore()
+	guardrails, err := BuildChatGuardrails(ChatGuardrailsConfig{HistoryStore: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		message := chat.NewAssistantMessage(chat.NewTextPart("answer"))
+		return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 	})
-
-	if callMW == nil {
-		t.Fatal("BuildToolLoop: expected non-nil call middleware")
+	client, err := chatclient.New(model)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if streamMW == nil {
-		t.Fatal("BuildToolLoop: expected non-nil stream middleware")
+	options := &core.ProcessOptions{Session: &core.Session{ID: "session-1"}}
+	processContext := core.NewProcessContext(core.ProcessContextConfig{
+		ProcessScope:  core.ProcessScope{Options: options},
+		PlatformHooks: core.PlatformHooks{ChatClient: client, Guardrails: guardrails},
+	})
+	scoped, err := processContext.Chat()
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	_ = callMW
-	_ = streamMW
+	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("question")))
+	if _, err := scoped.Call(t.Context(), request); err != nil {
+		t.Fatal(err)
+	}
+	messages, err := store.Read(t.Context(), "session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 2 || messages[0].Text() != "question" || messages[1].Text() != "answer" {
+		t.Fatalf("stored messages = %#v", messages)
+	}
 }

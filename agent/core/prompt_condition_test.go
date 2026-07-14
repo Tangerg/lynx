@@ -7,50 +7,37 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // stubModel returns a fixed reply (or error) for every Call.
 type stubModel struct {
-	defaults *chat.Options
-	reply    string
-	err      error
+	reply string
+	err   error
 
 	gotPrompt string
 }
 
 func newStubModel(reply string) *stubModel {
-	opts, _ := chat.NewOptions("stub-model")
-	return &stubModel{defaults: opts, reply: reply}
+	return &stubModel{reply: reply}
 }
 
 func newStubErrModel(err error) *stubModel {
-	opts, _ := chat.NewOptions("stub-model")
-	return &stubModel{defaults: opts, err: err}
+	return &stubModel{err: err}
 }
 
-func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
-
 func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
-	for _, msg := range req.Messages {
-		if msg.Type() == chat.MessageTypeUser {
-			if u, ok := msg.(*chat.UserMessage); ok {
-				m.gotPrompt = u.Text
-			}
+	for index := range req.Messages {
+		if req.Messages[index].Role == chat.RoleUser {
+			m.gotPrompt = req.Messages[index].Text()
 		}
 	}
 	if m.err != nil {
 		return nil, m.err
 	}
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(m.reply),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
-	return resp, nil
+	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 }
 
 func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
@@ -58,9 +45,9 @@ func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
 }
 
-func newStubChatClient(t *testing.T, model chat.Model) *chat.Client {
+func newStubChatClient(t *testing.T, model chat.Model) *chatclient.Client {
 	t.Helper()
-	client, err := chat.NewClient(model)
+	client, err := chatclient.New(model)
 	if err != nil {
 		t.Fatalf("NewClientWithModel: %v", err)
 	}

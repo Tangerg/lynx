@@ -5,6 +5,10 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // agentTracer is the framework-wide OTel tracer. We deliberately don't
@@ -21,7 +25,18 @@ func AgentTracer() trace.Tracer { return agentTracer }
 // importing the runtime. The full requirement flows through (not just the
 // role) so the permission check at the resolver dispatch site sees the
 // privileges the action opted into — see [ToolGroupRequirement.Permissions].
-type ToolResolver func(ctx context.Context, requirements []ToolGroupRequirement) ([]AgentTool, error)
+type ToolResolver func(ctx context.Context, requirements []ToolGroupRequirement) ([]tools.Tool, error)
+
+// ToolLoopRunner is the runtime capability PromptRunner consumes when a
+// request advertises executable tools. The agent core owns this narrow port;
+// runtime supplies the target Event Runner implementation.
+type ToolLoopRunner func(
+	ctx context.Context,
+	model chat.Model,
+	request *chat.Request,
+	registry *tools.Registry,
+	maxRounds int,
+) (string, error)
 
 // EventPublisher is the callable the runtime installs for actions to push
 // custom events through the multicast listener.
@@ -53,10 +68,10 @@ type ProcessScope struct {
 // consume them (e.g. Publish becomes a no-op when nil).
 type PlatformHooks struct {
 	// ChatClient is the shared LLM client surfaced to action bodies
-	// via [ProcessContext.Chat] and [ProcessContext.ChatWithActionTools].
+	// via [ProcessContext.Chat] and [ProcessContext.PromptRunner].
 	// nil when the platform was constructed without one — pc.Chat()
 	// then returns nil and the action body must handle that case.
-	ChatClient ChatClient
+	ChatClient *chatclient.Client
 
 	// Guardrails carries platform-wide chat middlewares (logger /
 	// safeguard / quota etc.) that wrap every Chat request action
@@ -72,6 +87,10 @@ type PlatformHooks struct {
 	// makes ResolveTools return (nil, nil). The runtime supplies a
 	// closure backed by the platform's [ToolGroupResolver].
 	ResolveTools ToolResolver
+
+	// RunToolLoop executes target tool-loop control flow. Nil is valid for
+	// platforms that never expose tools.
+	RunToolLoop ToolLoopRunner
 
 	// ToolCallCancel registers a cancel func and returns a release
 	// closure — single function rather than a register/clear pair so
@@ -118,10 +137,11 @@ type ProcessContext struct {
 	// Platform-wired hooks. Private so action bodies go through
 	// the typed methods (Chat / Publish / ResolveTools / ...) instead
 	// of touching the underlying client / closure directly.
-	chatClient     ChatClient
+	chatClient     *chatclient.Client
 	guardrails     *Guardrails
 	publishEvent   EventPublisher
 	resolveTools   ToolResolver
+	runToolLoop    ToolLoopRunner
 	toolCallCancel ToolCallCancelFunc
 
 	actionToolGroups []ToolGroupRequirement
@@ -155,6 +175,7 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 		actionToolGroups: config.ActionToolGroups,
 		publishEvent:     config.Publish,
 		resolveTools:     config.ResolveTools,
+		runToolLoop:      config.RunToolLoop,
 		toolCallCancel:   config.ToolCallCancel,
 	}
 }

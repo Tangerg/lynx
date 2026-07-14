@@ -13,10 +13,9 @@ import (
 // human input — the Go-ecosystem interrupt model. It carries a stable Key (the
 // interrupt's identity, stable across the resuming re-run) and a
 // user-facing Value (the payload surfaced to the client). It satisfies
-// the [toolloop.Halt] contract with Abort() == false, so the legacy tool loop exits
-// immediately
-// on it and propagates it (rather than feeding it back). It also satisfies
-// the agent action's own interrupt contract. The action parks the run on
+// the target tool loop's explicit abort channel, so it propagates rather than
+// becoming model-visible recoverable tool output. It also satisfies the agent
+// action's interrupt contract. The action parks the run on
 // Awaitable and surfaces Value. On resume the awaitable's handler records the
 // human's response on the process blackboard, and [Interrupt] returns it at the
 // original call site.
@@ -36,23 +35,23 @@ type InterruptError struct {
 	awaitable core.Awaitable
 }
 
-var _ toolloop.Halt = (*InterruptError)(nil)
-
 func (e *InterruptError) Error() string {
 	return fmt.Sprintf("hitl.InterruptError: run interrupted for input (key %q)", e.Key)
 }
 
-// Abort implements [toolloop.Halt]: an InterruptError HALTS the legacy tool loop
-// (propagated unchanged, never fed back to the model as a recoverable result),
-// and Abort() == false marks it a HITL suspension — the run is expected to
-// resume, not fail.
-func (e *InterruptError) Abort() bool { return false }
+// Unwrap exposes the target runner's explicit abort signal. Runner propagates
+// the original InterruptError unchanged, allowing HandleInterrupt to recover
+// the awaitable without a legacy boolean control-flow interface.
+func (e *InterruptError) Unwrap() error {
+	return &toolloop.AbortError{Err: errInterrupt}
+}
 
-// IsInterrupt reports whether err is a resumeable HITL halt (i.e. a loop halt
-// with Abort()==false).
+var errInterrupt = errors.New("agent HITL interrupt")
+
+// IsInterrupt reports whether err contains an agent HITL interrupt.
 func IsInterrupt(err error) bool {
-	h, ok := errors.AsType[toolloop.Halt](err)
-	return ok && !h.Abort()
+	_, ok := errors.AsType[*InterruptError](err)
+	return ok
 }
 
 // Awaitable returns the parkable awaitable whose handler records the resume

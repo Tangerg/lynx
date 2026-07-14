@@ -1,6 +1,9 @@
 package runtime
 
-import "github.com/Tangerg/lynx/agent/core"
+import (
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/chatclient"
+)
 
 // platformServices returns the platform's open service registry, or a
 // fresh empty one when there's no platform attached (test fixtures).
@@ -11,11 +14,11 @@ func (p *AgentProcess) platformServices() *core.ServiceProvider {
 	return p.platform.services
 }
 
-// platformChatClient returns the platform's shared [core.ChatClient], or
+// platformChatClient returns the platform's shared [chatclient.Client], or
 // nil when the platform was constructed without one (or when there's
 // no platform attached — test fixtures). Action code reaches this via
-// ProcessContext.Chat / ChatWithActionTools.
-func (p *AgentProcess) platformChatClient() core.ChatClient {
+// ProcessContext.Chat and PromptRunner.
+func (p *AgentProcess) platformChatClient() *chatclient.Client {
 	if p.platform == nil {
 		return nil
 	}
@@ -28,7 +31,7 @@ func (p *AgentProcess) platformChatClient() core.ChatClient {
 // else the platform's shared client. This is what lets one Platform serve
 // turns against different models without a Platform per model. Mirrors the
 // resolver-first ordering used for tool group resolution.
-func (p *AgentProcess) effectiveChatClient() core.ChatClient {
+func (p *AgentProcess) effectiveChatClient() *chatclient.Client {
 	providers := collectExtensions[core.ChatClientProvider](p.combinedExtensionsResolverFirst())
 	for _, prov := range providers {
 		if c := prov.ChatClientFor(p); c != nil {

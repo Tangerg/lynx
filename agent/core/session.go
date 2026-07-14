@@ -75,15 +75,13 @@ func NewSession(id, userID, agentName string) Session {
 
 // ConversationID derives a process's chat history conversation key: the
 // multi-turn [Session.ID] when the process runs under a session,
-// otherwise the process id. The fallback matters because the tool loop
-// is delta-driven — each round hands the history layer only the new
-// messages and relies on it to reconstruct the conversation from the
-// store, so without an id a multi-round turn would lose context across
-// rounds. A child agent (e.g. a subtask delegation) runs under its own
+// otherwise the process ID. The fallback gives ordinary process calls a
+// stable history partition without serializing runtime scope into the
+// provider request. A child agent (e.g. a subtask delegation) runs under its own
 // session (its process id), so it gets an isolated conversation while
 // [Session.ParentID] preserves the lineage. This is the single source
-// of the rule — both the chat-request stamping (ProcessContext) and the
-// runtime's child-session linking derive through it.
+// of the rule — both ProcessContext call scoping and the runtime's
+// child-session linking derive through it.
 func ConversationID(options *ProcessOptions, processID string) string {
 	if options != nil && options.Session != nil && options.Session.ID != "" {
 		return options.Session.ID

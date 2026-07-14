@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
-type ToolSource func(context.Context) ([]chat.Tool, error)
+type ToolSource func(context.Context) ([]tools.Tool, error)
 
 // MCPResolver adapts a tool source into a [core.ToolGroupResolver] extension.
 type MCPResolver struct {

@@ -97,7 +97,7 @@ func TestPublishAll_ReturnsTypedSchemaForRemoteGoals(t *testing.T) {
 	if def.Description != "Produce a one-paragraph topic brief" {
 		t.Fatalf("Description = %q, want overridden value", def.Description)
 	}
-	if !strings.Contains(def.InputSchema, "Title") {
+	if !strings.Contains(string(def.InputSchema), "Title") {
 		t.Fatalf("InputSchema missing Title field: %s", def.InputSchema)
 	}
 }

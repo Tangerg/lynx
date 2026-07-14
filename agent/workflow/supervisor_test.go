@@ -2,38 +2,35 @@ package workflow_test
 
 import (
 	"context"
-	"iter"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/agent/workflow"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
-// fakeModel is a minimal chat.Model that always replies with a fixed text,
-// enough to drive the supervisor's chat tool loop to a final answer without
-// a real provider.
-type fakeModel struct{ text string }
+type toolCallingModel struct{}
 
-func (fakeModel) DefaultOptions() chat.Options { return chat.Options{} }
-func (fakeModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{} }
-func (m fakeModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
-	return fakeTextResponse(m.text), nil
+func (toolCallingModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	for index := range request.Messages {
+		if request.Messages[index].Role == chat.RoleTool {
+			return fakeTextResponse("orchestrated result"), nil
+		}
+	}
+	toolName := request.Tools[0].Name
+	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{
+		ID: "call-worker", Name: toolName, Arguments: `{"Title":"go generics"}`,
+	}))
+	return chat.NewResponse(chat.Choice{
+		Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls,
+	})
 }
-func (m fakeModel) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) { yield(fakeTextResponse(m.text), nil) }
-}
-
 func fakeTextResponse(text string) *chat.Response {
-	resp, _ := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(text),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewTextPart(text))
+	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 	return resp
 }
 
@@ -84,7 +81,7 @@ func TestSupervisor_Validation(t *testing.T) {
 // returns a final answer directly, confirming the chat client wiring and
 // Parse path produce the typed output.
 func TestSupervisor_EndToEnd(t *testing.T) {
-	client, err := chat.NewClient(fakeModel{text: "orchestrated result"})
+	client, err := chatclient.New(toolCallingModel{})
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}

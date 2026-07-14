@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // agentTool is the shared [chat.Tool] wrapper used by every
@@ -38,14 +38,6 @@ type agentTool struct {
 }
 
 func (t *agentTool) Definition() chat.ToolDefinition { return t.def }
-
-// ConcurrencyKey opts an agent-as-tool into parallel execution (the tool loop's
-// optional concurrency contract): each call spawns an ISOLATED child process
-// (its own blackboard + session, no shared mutable state), and a child that
-// parks for HITL surfaces as a {"status":"waiting"} result rather than
-// interrupting the parent round — so the driver may run several sub-agent
-// delegations (e.g. `task`) concurrently.
-func (t *agentTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
 func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) {
 	in, err := t.decode(arguments)

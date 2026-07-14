@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // AsBackgroundChatTool exposes an agent as a PAIR of [chat.Tool]s
@@ -30,30 +30,30 @@ import (
 // "<agent>_collect"; the spawn result hands the collect tool a task id.
 //
 // Returns an error when platform or agent is nil.
-func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent) (spawn chat.Tool, collect chat.Tool, err error) {
+func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent) (spawn tools.Tool, collect tools.Tool, err error) {
 	if err = platform.validateAgent("AsBackgroundChatTool", agentDef); err != nil {
 		return nil, nil, err
 	}
 
-	tools := &backgroundTools[In, Out]{platform: platform, agent: agentDef}
+	runtimeTools := &backgroundTools[In, Out]{platform: platform, agent: agentDef}
 
-	spawn, err = chat.NewTool[In, string](
-		chat.ToolDefinition{
+	spawn, err = tools.New[In, string](
+		tools.Config{
 			Name:        agentDef.Name + "_spawn",
 			Description: "Start " + agentDef.Name + " as a background task. Returns a task_id immediately; collect its result later with " + agentDef.Name + "_collect.",
 		},
-		tools.spawn,
+		runtimeTools.spawn,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("runtime.AsBackgroundChatTool: spawn tool: %w", err)
 	}
 
-	collect, err = chat.NewTool[collectTaskInput, string](
-		chat.ToolDefinition{
+	collect, err = tools.New[collectTaskInput, string](
+		tools.Config{
 			Name:        agentDef.Name + "_collect",
 			Description: "Collect a background " + agentDef.Name + " task by task_id. Reports status running|waiting|done|failed, with the result when done.",
 		},
-		tools.collect,
+		runtimeTools.collect,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("runtime.AsBackgroundChatTool: collect tool: %w", err)

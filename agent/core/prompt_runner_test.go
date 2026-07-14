@@ -7,7 +7,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // newPromptRunnerPC wires a ProcessContext with the stub chat client
@@ -17,6 +18,13 @@ func newPromptRunnerPC(t *testing.T, model chat.Model) *core.ProcessContext {
 	return core.NewProcessContext(core.ProcessContextConfig{
 		PlatformHooks: core.PlatformHooks{
 			ChatClient: newStubChatClient(t, model),
+			RunToolLoop: func(ctx context.Context, model chat.Model, request *chat.Request, _ *tools.Registry, _ int) (string, error) {
+				response, err := model.Call(ctx, request)
+				if err != nil {
+					return "", err
+				}
+				return response.Text(), nil
+			},
 		},
 	})
 }
@@ -129,8 +137,8 @@ func TestPromptRunner_WithTools_ToolLoopEngaged(t *testing.T) {
 	model := newStubModel("ok")
 	pc := newPromptRunnerPC(t, model)
 
-	tool, err := chat.NewTool[struct{}, string](
-		chat.ToolDefinition{Name: "stub_tool"},
+	tool, err := tools.New[struct{}, string](
+		tools.Config{Name: "stub_tool"},
 		func(context.Context, struct{}) (string, error) { return "", nil },
 	)
 	if err != nil {

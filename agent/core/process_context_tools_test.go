@@ -3,12 +3,14 @@ package core
 import (
 	"context"
 	"testing"
+
+	"github.com/Tangerg/lynx/tools"
 )
 
 func TestProcessContextToolMethodsNormalizeNilContext(t *testing.T) {
 	var calls int
 	pc := &ProcessContext{
-		resolveTools: func(ctx context.Context, requirements []ToolGroupRequirement) ([]AgentTool, error) {
+		resolveTools: func(ctx context.Context, requirements []ToolGroupRequirement) ([]tools.Tool, error) {
 			if ctx == nil {
 				t.Fatal("resolver received nil context")
 			}

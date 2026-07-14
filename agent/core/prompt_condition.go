@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // PromptBuilder is the user-supplied function that turns the current
@@ -19,7 +22,7 @@ type PromptBuilder func(ctx context.Context, env *ConditionEnv) string
 type ConditionParser func(text string) Determination
 
 // PromptCondition is the LLM-as-judge variant of [Condition]: each
-// Evaluate call asks an LLM via the supplied [ChatClient] and parses
+// Evaluate call asks an LLM via the supplied [chatclient.Client] and parses
 // the reply into a Determination. Use for "is this draft acceptable?"
 // / "did the search return a relevant result?" style gates that need
 // natural-language reasoning rather than a pure-function predicate.
@@ -30,7 +33,7 @@ type ConditionParser func(text string) Determination
 type PromptCondition struct {
 	name   string
 	cost   float64
-	client ChatClient
+	client *chatclient.Client
 	prompt PromptBuilder
 	parser ConditionParser
 }
@@ -51,7 +54,7 @@ type PromptCondition struct {
 // closed" rather than crashing the tick.
 func NewPromptCondition(
 	name string,
-	client ChatClient,
+	client *chatclient.Client,
 	prompt PromptBuilder,
 	parser ConditionParser,
 ) (*PromptCondition, error) {
@@ -90,15 +93,15 @@ func (c *PromptCondition) Cost() float64 { return c.cost }
 // planner falls back to "doesn't satisfy" rather than tripping on a
 // transient model issue.
 func (c *PromptCondition) Evaluate(ctx context.Context, env *ConditionEnv) Determination {
-	text, _, err := c.client.
-		Chat().
-		WithUserPrompt(c.prompt(ctx, env)).
-		Call().
-		Text(ctx)
+	request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart(c.prompt(ctx, env))))
 	if err != nil {
 		return Unknown
 	}
-	return c.parser(text)
+	response, err := c.client.Call(ctx, request)
+	if err != nil {
+		return Unknown
+	}
+	return c.parser(response.Text())
 }
 
 // ParseYesNoDetermination is the canonical [ConditionParser]: looks
