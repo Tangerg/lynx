@@ -10,7 +10,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	corechat "github.com/Tangerg/lynx/core/chat"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // tool wraps a single remote MCP tool as a chat.Tool. Each Call
@@ -23,9 +24,11 @@ import (
 type tool struct {
 	session    *sdkmcp.ClientSession
 	descriptor *sdkmcp.Tool
-	definition chat.ToolDefinition
+	definition corechat.ToolDefinition
 	metaFunc   MetaFunc
 }
+
+var _ toolcontract.Tool = (*tool)(nil)
 
 // toolConfig configures a [tool]. Session and Descriptor are required;
 // everything else has a zero-value default.
@@ -69,7 +72,7 @@ func (c *toolConfig) applyDefaults() {
 	}
 }
 
-// newTool builds a [chat.Tool] from cfg. cfg.Session must be
+// newTool builds a [tools.Tool] from cfg. cfg.Session must be
 // initialized (returned from (*sdkmcp.Client).Connect) and must outlive
 // the returned tool.
 func newTool(cfg toolConfig) (*tool, error) {
@@ -78,7 +81,7 @@ func newTool(cfg toolConfig) (*tool, error) {
 		return nil, err
 	}
 
-	schema, err := schemaToString(cfg.Descriptor.InputSchema)
+	schema, err := schemaToJSON(cfg.Descriptor.InputSchema)
 	if err != nil {
 		return nil, fmt.Errorf("mcp.newTool: convert input schema for tool %q: %w", cfg.Descriptor.Name, err)
 	}
@@ -86,7 +89,7 @@ func newTool(cfg toolConfig) (*tool, error) {
 	return &tool{
 		session:    cfg.Session,
 		descriptor: cfg.Descriptor,
-		definition: chat.ToolDefinition{
+		definition: corechat.ToolDefinition{
 			Name:        cfg.PrefixedName,
 			Description: cfg.Descriptor.Description,
 			InputSchema: schema,
@@ -95,9 +98,9 @@ func newTool(cfg toolConfig) (*tool, error) {
 	}, nil
 }
 
-func (t *tool) Definition() chat.ToolDefinition { return t.definition }
+func (t *tool) Definition() corechat.ToolDefinition { return t.definition }
 
-// Call implements [chat.Tool]. IsError=true on the remote
+// Call implements [tools.Tool]. IsError=true on the remote
 // result is mapped to [*ToolCallError] so a tool failure is not
 // silently fed back to the model as a successful result.
 //

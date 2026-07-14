@@ -2,6 +2,7 @@ package mcp_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -10,8 +11,9 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	corechat "github.com/Tangerg/lynx/core/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type echoInput struct {
@@ -19,13 +21,10 @@ type echoInput struct {
 }
 
 // newEchoTool builds a minimal lynx Tool for tests.
-func newEchoTool(t *testing.T) chat.Tool {
+func newEchoTool(t *testing.T) tools.Tool {
 	t.Helper()
-	tool, err := chat.NewTool[echoInput, string](
-		chat.ToolDefinition{
-			Name:        "echo",
-			Description: "echo the input",
-		},
+	tool, err := tools.New[echoInput, string](
+		tools.Config{Name: "echo", Description: "echo the input"},
 		func(_ context.Context, p echoInput) (string, error) { return p.Text, nil },
 	)
 	require.NoError(t, err)
@@ -35,12 +34,12 @@ func newEchoTool(t *testing.T) chat.Tool {
 // connectPair wires an in-memory MCP server (with the supplied lynx tools
 // already registered) to a fresh client session, returning the live session
 // and a cleanup func.
-func connectPair(t *testing.T, ctx context.Context, tools ...chat.Tool) (*sdkmcp.ClientSession, func()) {
+func connectPair(t *testing.T, ctx context.Context, registered ...tools.Tool) (*sdkmcp.ClientSession, func()) {
 	t.Helper()
 	srvT, cliT := sdkmcp.NewInMemoryTransports()
 
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "lynx-srv", Version: "v0.1.0"}, nil)
-	require.NoError(t, lynxmcp.Register(srv, tools...))
+	require.NoError(t, lynxmcp.Register(srv, registered...))
 
 	ss, err := srv.Connect(ctx, srvT, nil)
 	require.NoError(t, err)
@@ -86,11 +85,8 @@ func TestRegister_RoundTrip(t *testing.T) {
 func TestRegister_ErrorBecomesIsError(t *testing.T) {
 	ctx := context.Background()
 
-	failing, err := chat.NewTool[struct{}, string](
-		chat.ToolDefinition{
-			Name:        "boom",
-			Description: "always fails",
-		},
+	failing, err := tools.New[struct{}, string](
+		tools.Config{Name: "boom", Description: "always fails"},
 		func(context.Context, struct{}) (string, error) {
 			return "", errors.New("kaboom from lynx tool")
 		},
@@ -125,12 +121,12 @@ func TestRegister_RejectsInvalidSchema(t *testing.T) {
 	require.Error(t, lynxmcp.Register(srv, badSchemaTool{}))
 }
 
-// badSchemaTool is a chat.Tool whose InputSchema is not valid JSON, used to
+// badSchemaTool is a tools.Tool whose InputSchema is not valid JSON, used to
 // exercise Register's schema validation.
 type badSchemaTool struct{}
 
-func (badSchemaTool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{Name: "bad", InputSchema: "{not-json"}
+func (badSchemaTool) Definition() corechat.ToolDefinition {
+	return corechat.ToolDefinition{Name: "bad", InputSchema: json.RawMessage("{not-json")}
 }
 
 func (badSchemaTool) Call(context.Context, string) (string, error) { return "", nil }

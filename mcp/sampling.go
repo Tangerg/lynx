@@ -7,7 +7,8 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // SamplingHandler is the function shape MCP clients install on
@@ -34,21 +35,31 @@ type SamplingHandler = func(context.Context, *sdkmcp.CreateMessageRequest) (*sdk
 // Concurrency is not bounded — wrap the returned handler with your own
 // semaphore if your model quota requires it. Returns an error when
 // client is nil — caller decides whether to surface or panic.
-func SamplingViaChatClient(client *chat.Client) (SamplingHandler, error) {
+func SamplingViaChatClient(client *chatclient.Client) (SamplingHandler, error) {
 	if client == nil {
-		return nil, errors.New("mcp.SamplingViaChatClient: chat.Client must not be nil")
+		return nil, errors.New("mcp.SamplingViaChatClient: chatclient.Client must not be nil")
 	}
 	return func(ctx context.Context, req *sdkmcp.CreateMessageRequest) (*sdkmcp.CreateMessageResult, error) {
 		if req == nil || req.Params == nil {
 			return nil, errors.New("mcp.SamplingViaChatClient: sampling request params must not be nil")
 		}
 
-		chatReq := client.Chat().WithMessages(samplingMessagesToChat(req.Params.Messages)...)
+		messages := samplingMessagesToChat(req.Params.Messages)
 		if req.Params.SystemPrompt != "" {
-			chatReq = chatReq.WithSystemPrompt(req.Params.SystemPrompt)
+			messages = append([]chat.Message{chat.NewSystemMessage(req.Params.SystemPrompt)}, messages...)
 		}
+		chatReq := &chat.Request{Messages: messages}
+		if req.Params.MaxTokens > 0 {
+			value := req.Params.MaxTokens
+			chatReq.Options.MaxTokens = &value
+		}
+		if req.Params.Temperature != 0 {
+			value := req.Params.Temperature
+			chatReq.Options.Temperature = &value
+		}
+		chatReq.Options.Stop = append([]string(nil), req.Params.StopSequences...)
 
-		resp, err := chatReq.Call().Response(ctx)
+		resp, err := client.Call(ctx, chatReq)
 		if err != nil {
 			return nil, fmt.Errorf("mcp.SamplingViaChatClient: sample via chat: %w", err)
 		}
@@ -62,7 +73,7 @@ func samplingMessagesToChat(messages []*sdkmcp.SamplingMessage) []chat.Message {
 		if msg == nil {
 			continue
 		}
-		if converted := chatMessageFromContent(msg.Role, msg.Content); converted != nil {
+		if converted, ok := chatMessageFromContent(msg.Role, msg.Content); ok {
 			out = append(out, converted)
 		}
 	}
@@ -70,10 +81,10 @@ func samplingMessagesToChat(messages []*sdkmcp.SamplingMessage) []chat.Message {
 }
 
 func chatResponseToSamplingResult(resp *chat.Response) *sdkmcp.CreateMessageResult {
-	text := resp.TextDelta() // nil-safe across the resp→Result→message chain
+	text := resp.Text()
 	stop := "end_turn"
-	if resp != nil && resp.Result != nil && resp.Result.Metadata != nil {
-		stop = mapStopReason(resp.Result.Metadata.FinishReason)
+	if resp != nil && resp.First() != nil {
+		stop = mapStopReason(resp.First().FinishReason)
 	}
 	return &sdkmcp.CreateMessageResult{
 		Role:       "assistant",
