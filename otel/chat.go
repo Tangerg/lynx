@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/core/chat"
 	apiotel "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -20,6 +19,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/semconv/v1.41.0/genaiconv"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 const instrumentationName = "github.com/Tangerg/lynx/otel"
