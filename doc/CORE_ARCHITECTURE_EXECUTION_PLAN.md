@@ -630,6 +630,10 @@ flowchart LR
   - structured 证据：`Output[T]` 是可由字符串与函数字面量直接构造的普通值；`JSON[T]`/`JSONSchema[T]`/`CommaSeparated` 覆盖常见解码，Markdown fence 仅作为输入容错；`CallStructured[T]` 不修改原 Request，并在 decode/call 失败时保留原 Response。
   - 验证：chatclient coverage 94.1%，build/vet/test/lint 与全模块 race 全绿；workspace 72/72 门禁全绿。
 - [ ] **P3-04 迁移 history contract 与 middleware 到 `chathistory`**
+  - 模式：`chathistory` 同路径纵向切片；根包承接基于新 `core/chat.Message` 的 Reader/Writer/Clearer/Store、内存参考实现、窗口装饰器和可选能力，六个持久化 backend 在本任务内同步切换，不保留 module 内双协议。
+  - conversation ID 是运行时请求作用域，不写入 Core Request Extensions；由 `context.Context` 显式携带并在 history 边界验证，缺失 ID 时 middleware 透明透传。
+  - middleware 在 `chathistory/middleware` 声明消费方 Read+Write 窄接口；同步调用按 live system → stored non-system → fresh non-system 拼接，只持久化 fresh + 无 tool call 的完整 assistant；stream 仅自然完成且全部 chunk 可聚合时写入。
+  - codec 新写 `core/chat.Message` tagged wire，同时保留旧 `core/model/chat` canonical wire 的只读兼容解码；不把 API breaking 扩大成已有持久化历史的数据破坏。
 - [ ] **P3-05 迁移 safeguard/evaluation 并删除 Logger middleware**
   - safeguard 进入 `chatclient/middleware/safeguard`。
   - fact/relevancy evaluation 进入 `rag/evaluation`。
