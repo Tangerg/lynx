@@ -515,10 +515,14 @@ flowchart LR
   - 证据：`Request` 仅含 Messages、ToolDefinition、Options 和 `metadata.Map` Extensions；公开 DTO 字段反射守卫确认无 interface，ToolDefinition 的 InputSchema 在边界校验为 JSON object。
   - Options 零值合法并从 Request wire 省略；显式采样参数执行范围/NaN/Inf 校验，model 仅为可选 per-request override。
   - 验证：`core/chat` coverage 93.8%；Core build/vet/test/lint 与 race 全绿。
-- [ ] **P1-04 定义新的 Chat Response/Choice**
+- [x] **P1-04 定义新的 Chat Response/Choice**（完成：2026-07-14）
   - 保留多 choice。
   - 提供 First/Text 等便利函数。
   - 不含 tool-loop synthetic result。
+  - Response 零值可表示流中的无内容/仅 usage chunk；Choice 用 Index 保持 provider 顺序身份，Message 可空以承载仅 finish reason 的终止 chunk。
+  - 证据：Response 公开字段守卫锁定为 ID/Model/Choices/Usage/Extensions；Choice 递归限制为 assistant Message，finish reason 归一化，provider-native 值进入 namespaced extension。
+  - Usage 使用 input/output 词汇和可选 reasoning/cache breakdown，无 `OriginalUsage any`；First/Text/Message.Text 对 nil 和空 choice 安全。
+  - 验证：多 choice 顺序/索引及完整 JSON round-trip 已覆盖，`core/chat` coverage 94.4%；Core build/vet/test/lint 与 race 全绿。
 - [ ] **P1-05 建立 serialization golden/fuzz tests**
   - 覆盖 metadata 非法 RawMessage、media、全部 message/part、未知 discriminator、空值和 extensions。
 - [ ] **P1-06 在 `agent/toolloop` 建立 Invocation/Event 原型**
@@ -696,21 +700,21 @@ flowchart LR
 | 阶段 | 状态 | 已完成/任务数 | 当前说明 |
 |---|---|---:|---|
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
-| P1 Media/Chat 协议分离 | 进行中 | 3/7 | P1-03 完成；当前执行 P1-04 Response/Choice |
+| P1 Media/Chat 协议分离 | 进行中 | 4/7 | P1-04 完成；当前执行 P1-05 serialization golden/fuzz |
 | P2 Chat Model SPI 收缩 | 未开始 | 0/7 | 依赖 P1 |
 | P3 高层运行时外移 | 未开始 | 0/9 | 依赖 P2 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **9/60** | **15%** |
+| **总计** | **进行中** | **10/60** | **17%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P1。
-- 下一任务：P1-04，在新路径 `core/chat` 定义保留全部 choice 的 Response/Choice/Usage 与 nil-safe 便利函数。
+- 下一任务：P1-05，为 metadata/media/chat 全协议建立稳定 golden fixtures 与 round-trip fuzz 门禁。
 - 当前阻塞：无。
-- 最近完成：P1-03；纯数据 Request/Options/ToolDefinition、零值合法 Options 与 namespaced JSON-safe Extensions。
+- 最近完成：P1-04；多 Choice Response、provider-only Usage/FinishReason、nil-safe First/Text 和 tool-loop 状态反向守卫。
 
 ### 10.3 进度更新规则
 
@@ -929,6 +933,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P1-04；建立保留全部 choice 的 Response/Usage，锁死 provider 响应边界并移除 tool-loop synthetic result 位置；进入 P1-05 | Codex |
 | 2026-07-14 | 完成 P1-03；建立纯数据 Request/Options/ToolDefinition 与 namespaced Extensions，移除新协议中的执行对象和 Params；进入 P1-04 | Codex |
 | 2026-07-14 | 完成 P1-02；建立新 `core/chat` Message/Part 普通 tagged value、ToolCall/ToolResult 值与递归 wire 校验；进入 P1-03 | Codex |
 | 2026-07-14 | 完成 P1-01；新增 JSON-safe metadata 与 tagged media，迁移全部消费者并删除旧 Media 任意载荷 API；进入 P1-02 | Codex |
@@ -944,6 +949,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P1-04 | 新增多 Choice Response、Usage、FinishReason 与 nil-safe First/Text；Response 字段守卫排除 tool-loop 状态；coverage 94.4%；Core build/vet/test/lint/race 全绿；任务计数 10/60 | P1-05 serialization golden/fuzz |
 | 2026-07-14 | P1-03 | 新增纯数据 Request/Options/ToolDefinition；Options 零值合法，Extensions 强制 namespace/name 并即时编码，DTO 无 interface 字段；coverage 93.8%；Core build/vet/test/lint/race 全绿；任务计数 9/60 | P1-04 Response/Choice |
 | 2026-07-14 | P1-02 | 新增 `core/chat` 的 4 role/5 part tagged value、ToolCall/ToolResult、role/part 兼容矩阵和递归 JSON 校验；coverage 94.9%；Core build/vet/test/lint/race 全绿；任务计数 8/60 | P1-03 Request/Options |
 | 2026-07-14 | P1-01 | 新增 `core/metadata` 与 tagged `core/media`；迁移 Core/Models/App 全部消费者；旧 Media API 全 workspace 清零；metadata/media coverage 91.7%/92.9%；全量 build/vet/test/lint 68/68 通过；任务计数 7/60 | P1-02 Message/Part |

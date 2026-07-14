@@ -130,7 +130,7 @@ func (p *Part) UnmarshalJSON(data []byte) error {
 	type wirePart Part
 	var decoded wirePart
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("chat: decode part: %w", err)
+		return fmt.Errorf("%w: decode: %w", ErrInvalidPart, err)
 	}
 	candidate := Part(decoded)
 	if err := candidate.Validate(); err != nil {

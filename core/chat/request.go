@@ -44,18 +44,22 @@ func (r *Request) SetExtension(key string, value any) error {
 	if r == nil {
 		return fmt.Errorf("%w: nil request", ErrInvalidRequest)
 	}
+	return setExtension(&r.Extensions, key, value)
+}
+
+func setExtension(target *metadata.Map, key string, value any) error {
 	if !validExtensionKey(key) {
 		return fmt.Errorf("%w: key %q must use namespace/name", ErrInvalidExtension, key)
 	}
-	if r.Extensions == nil {
+	if *target == nil {
 		candidate := metadata.New()
 		if err := metadata.Set(candidate, key, value); err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidExtension, err)
 		}
-		r.Extensions = candidate
+		*target = candidate
 		return nil
 	}
-	if err := metadata.Set(r.Extensions, key, value); err != nil {
+	if err := metadata.Set(*target, key, value); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidExtension, err)
 	}
 	return nil
@@ -89,13 +93,20 @@ func (r *Request) Validate() error {
 	if err := r.Options.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidRequest, err)
 	}
-	for key := range r.Extensions {
+	if err := validateExtensions(r.Extensions); err != nil {
+		return fmt.Errorf("%w: extensions: %w", ErrInvalidRequest, err)
+	}
+	return nil
+}
+
+func validateExtensions(extensions metadata.Map) error {
+	for key := range extensions {
 		if !validExtensionKey(key) {
-			return fmt.Errorf("%w: %w: key %q must use namespace/name", ErrInvalidRequest, ErrInvalidExtension, key)
+			return fmt.Errorf("%w: key %q must use namespace/name", ErrInvalidExtension, key)
 		}
 	}
-	if err := r.Extensions.Validate(); err != nil {
-		return fmt.Errorf("%w: extensions: %w", ErrInvalidRequest, err)
+	if err := extensions.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidExtension, err)
 	}
 	return nil
 }
@@ -138,7 +149,7 @@ func (r *Request) UnmarshalJSON(data []byte) error {
 	type wireRequest Request
 	var decoded wireRequest
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("chat: decode request: %w", err)
+		return fmt.Errorf("%w: decode: %w", ErrInvalidRequest, err)
 	}
 	candidate := Request(decoded)
 	if err := candidate.Validate(); err != nil {

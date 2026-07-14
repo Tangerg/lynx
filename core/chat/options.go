@@ -81,7 +81,7 @@ func (o *Options) UnmarshalJSON(data []byte) error {
 	type wireOptions Options
 	var decoded wireOptions
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("chat: decode options: %w", err)
+		return fmt.Errorf("%w: decode: %w", ErrInvalidOptions, err)
 	}
 	candidate := Options(decoded)
 	if err := candidate.Validate(); err != nil {
