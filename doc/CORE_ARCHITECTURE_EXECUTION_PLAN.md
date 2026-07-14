@@ -821,7 +821,11 @@ flowchart LR
   - 所有内部依赖统一钉到已包含 P6-05 删除和本任务清理基线的 `v0.0.0-20260714110600-0abc7c70a85d`，不依赖未发布工作区源码才能解析。
   - 20/20 module 的 `go mod tidy -diff` 为空，workspace 40 项 build/test 全绿；关闭 go.work 后 20/20 module 独立 `go test ./...` 全绿。
   - 证据：`0abc7c70a`、`badb63e8b`。
-- [ ] **P6-07 更新所有 CLAUDE/README/架构文档**
+- [x] **P6-07 更新所有 CLAUDE/README/架构文档**（完成：2026-07-14）
+  - Core/Agent/Models/Tools/MCP/A2A/Vectorstores 与 Runtime 的 CLAUDE、README、架构和 Go package 文档已统一到当前扁平 Core、最小 Model/Streamer、`chatclient.Client`、`tools.Tool/Registry` 与唯一串行 Event Runner。
+  - 直接删除已被当前架构取代且整篇依赖旧 ChatClient/并行 ToolLoop 的 Spring/Embabel 对比、greenfield 草案、旧架构体检与 prior-art 文档，不用免责声明继续保存错误用户入口；Runtime 唯一架构基准重写为真实 Domain/Application/Adapter/Infra/Delivery/Bootstrap 五环。
+  - 重构前 API/验证清单明确标记为不可变历史快照；当前上手、provider mapping、观测文档与 30 个 provider/facade GoDoc 构造器说明完成校准。维护文档外的旧 Core import/构造器/Tool/并行 Runner 引用检索为零，受影响六个 module 的 test/vet 全绿。
+  - 证据：`7e73185c8`。
 - [ ] **P6-08 执行全 workspace 测试、race、vet 和静态检查**
 
 退出标准：
@@ -865,16 +869,16 @@ flowchart LR
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
-| P6 Workspace 切换 | 进行中 | 6/8 | 依赖与 standalone module graph 已收口；进入文档全量同步 |
+| P6 Workspace 切换 | 进行中 | 7/8 | 代码、依赖和文档已全部收口；进入全 workspace 最终门禁 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **51/60** | **85%** |
+| **总计** | **进行中** | **52/60** | **87%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P6。
-- 下一任务：执行 P6-07，更新全部 CLAUDE/README/架构与 API 文档，使描述与目标代码完全一致。
+- 下一任务：执行 P6-08，全 workspace 运行 build、test、race、vet、lint 与静态架构检查并完成 P6 阶段验收。
 - 当前阻塞：无。
-- 最近完成：P6-06；Core 外部依赖清零，20 个 module 的 tidy 与 standalone 版本图已统一并独立验证。
+- 最近完成：P6-07；当前 CLAUDE/README/架构/GoDoc 已统一，错误的旧架构与移植对比文档已直接删除。
 
 ### 10.3 进度更新规则
 
@@ -1149,6 +1153,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P6-07；全量同步 CLAUDE/README/架构/GoDoc，删除依赖旧 ChatClient 与并行 ToolLoop 的过时草案和移植对比，Runtime 基准重写为真实五环与唯一 Event Runner | Codex |
 | 2026-07-14 | 完成 P6-06；Core 外部依赖与临时白名单清零，20 个 module 统一 tidy/pseudo-version，并在关闭 go.work 后逐模块测试通过 | Codex |
 | 2026-07-14 | 完成 P6-05；删除旧 Core Chat、冻结 provider adapter/测试和泛型名义层共 13,518 行，workspace 旧 Chat import 与兼容表面清零 | Codex |
 | 2026-07-14 | 完成 P6-04；app/runtime 与示例直接切换目标 Chat/Client/History/Tool/Event Runner，HITL 使用可序列化 checkpoint 精确恢复，旧 Chat import 清零 | Codex |
@@ -1205,6 +1210,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P6-07 | `7e73185c8` 将全部维护文档与 package docs 校准到扁平 Core、最小 SPI、ChatClient/Tool/Event Runner 和 Runtime 五环；删除 7 份整体过时的移植对比/greenfield/prior-art 文档，历史基线显式归档；旧结构引用审计为零，Agent/Models/MCP/A2A/Tools/App test+vet 全绿；任务计数 52/60 | P6-08 全 workspace 最终门禁与 P6 验收 |
 | 2026-07-14 | P6-06 | `0abc7c70a` 清掉 Core 最后一个第三方依赖、临时 dependency/package 白名单，并对 20 module tidy；`badb63e8b` 将全部内部依赖统一钉到清理基线 `v0.0.0-20260714110600-0abc7c70a85d`。20/20 tidy-diff 为空，workspace 40 项 build/test 及关闭 go.work 后 20/20 module 独立 test 全绿；任务计数 51/60 | P6-07 全量文档同步 |
 | 2026-07-14 | P6-05 | `f178f20ec` 物理删除 `core/model/chat` 46 个文件、79 个冻结 provider/旧契约文件和旧泛型 Model/Handler/Middleware，不保留 package/type/constructor bridge；两个跨模态私有 helper 迁回正确职责；20 module build、Core/Models test/vet/lint/race 全绿；任务计数 50/60 | P6-06 清理残余依赖与全部 go.mod |
 | 2026-07-14 | P6-04 | `4f4fb5651` 将 App provider/client/tool/history/storage/maintenance 全面切到目标契约，并以 streaming adapter 驱动唯一 Event Runner；HITL 持久化目标 Checkpoint、恢复 pending tool 且延续文本/usage/step budget；App 与示例旧 Chat import 为零，build/test/vet/lint/race 全绿；任务计数 49/60 | P6-05 物理删除冻结旧 Core/API |
