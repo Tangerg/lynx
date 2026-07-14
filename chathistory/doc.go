@@ -1,27 +1,26 @@
-// Package chathistory hosts persistent backends for the
-// [github.com/Tangerg/lynx/core/model/chat/history.Store] interface.
+// Package chathistory defines provider-neutral conversation history contracts,
+// reference stores, and persistent database backends.
 //
-// The abstraction itself, plus the zero-dependency [InMemoryStore] and
-// [MessageWindowStore] defaults, lives in core/model/chat/history and
-// does not move. This module exists so each persistent backend can
-// pull in its own database driver (pgx, go-redis, mongo-driver, …)
-// without polluting core/go.mod.
+// Reader, Writer, Clearer, and Store use core/chat protocol values directly.
+// InMemoryStore is a zero-value-ready reference implementation. WindowStore is
+// an explicit read-side retention decorator; optional cross-conversation and
+// replacement capabilities remain separate interfaces.
 //
-// The topology mirrors vectorstores/: core/ has the interface,
-// chathistory/ siblings have the implementations.
+// Conversation IDs are runtime scope carried with [WithConversationID], not
+// serialized request metadata. The middleware subpackage binds that scope to
+// model calls.
 //
-//	core/model/chat/history/  — Store / Reader / Writer / Clearer
-//	                           + InMemoryStore + MessageWindowStore (default)
-//	chathistory/postgres/     — PostgreSQL (pgx + JSONB)
-//	chathistory/redis/        — Redis (RPUSH / LRANGE lists)
-//	chathistory/mongodb/      — MongoDB (document per message)
-//	chathistory/cassandra/    — Cassandra (TIMEUUID clustering key)
-//	chathistory/neo4j/        — Neo4j (node per message)
-//	chathistory/cosmosdb/     — Azure Cosmos DB (NoSQL API)
+// Persistent backends live in child packages so database drivers do not enter
+// core/go.mod:
 //
-// Every backend round-trips messages through the canonical
-// [chat.Message] JSON shape ([chat.UnmarshalMessage] / each message
-// type's MarshalJSON), so the same conversation can be read back
-// after a restart with full fidelity — including AssistantMessage
-// Parts ordering, ToolMessage ToolReturns, and metadata maps.
+//	chathistory/postgres/  — PostgreSQL (pgx + JSONB)
+//	chathistory/redis/     — Redis (RPUSH / LRANGE lists)
+//	chathistory/mongodb/   — MongoDB (document per message)
+//	chathistory/cassandra/ — Cassandra (TIMEUUID clustering key)
+//	chathistory/neo4j/     — Neo4j (node per message)
+//	chathistory/cosmosdb/  — Azure Cosmos DB (NoSQL API)
+//
+// Every backend writes the current core/chat tagged JSON wire. Reads also
+// accept the former core/model/chat type-tagged wire so existing persisted
+// conversations survive the protocol migration.
 package chathistory

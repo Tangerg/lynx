@@ -13,8 +13,8 @@ import (
 )
 
 func TestConversationIDContextAndValidation(t *testing.T) {
-	if id, ok := chathistory.ConversationID(nil); ok || id != "" {
-		t.Fatalf("nil context = %q/%v", id, ok)
+	if id, ok := chathistory.ConversationID(context.Background()); ok || id != "" {
+		t.Fatalf("unbound context = %q/%v", id, ok)
 	}
 	ctx := chathistory.WithConversationID(context.Background(), "conversation-1")
 	if id, ok := chathistory.ConversationID(ctx); !ok || id != "conversation-1" {

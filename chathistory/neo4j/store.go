@@ -9,10 +9,10 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 const Provider = "Neo4jChatHistory"
@@ -76,11 +76,11 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ history.Store  = (*Store)(nil)
-	_ history.Lister = (*Store)(nil)
+	_ chathistory.Store  = (*Store)(nil)
+	_ chathistory.Lister = (*Store)(nil)
 )
 
-// Store is a Neo4j-backed [history.Store]. Construct via [NewStore].
+// Store is a Neo4j-backed [chathistory.Store]. Construct via [NewStore].
 type Store struct {
 	driver   neo4j.DriverWithContext
 	database string
@@ -126,6 +126,9 @@ func (s *Store) initIndex(ctx context.Context) error {
 // Write call sort strictly even on nanosecond-clock collisions.
 func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
@@ -176,6 +179,9 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+		return nil, err
+	}
 
 	ctx, span := tracing.StartRead(ctx, "neo4j", conversationID)
 	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
@@ -204,7 +210,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 		if !ok {
 			return nil, fmt.Errorf("neo4j.Store.Read: message column type %T, want string", raw)
 		}
-		msg, err := chat.UnmarshalMessage([]byte(s))
+		msg, err := codec.DecodeMessage([]byte(s))
 		if err != nil {
 			return nil, fmt.Errorf("neo4j.Store.Read: decode message: %w", err)
 		}
@@ -217,6 +223,9 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 // label. Unknown ids are a no-op.
 func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
 		return err
 	}
 

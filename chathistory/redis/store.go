@@ -9,10 +9,10 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
+	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 const Provider = "RedisChatHistory"
@@ -55,11 +55,11 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ history.Store  = (*Store)(nil)
-	_ history.Lister = (*Store)(nil)
+	_ chathistory.Store  = (*Store)(nil)
+	_ chathistory.Lister = (*Store)(nil)
 )
 
-// Store is a Redis-backed [history.Store]. Construct via [NewStore].
+// Store is a Redis-backed [chathistory.Store]. Construct via [NewStore].
 type Store struct {
 	client    goredis.UniversalClient
 	keyPrefix string
@@ -89,6 +89,9 @@ func (s *Store) key(conversationID string) string {
 // messages is empty.
 func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
@@ -125,6 +128,9 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+		return nil, err
+	}
 
 	ctx, span := tracing.StartRead(ctx, "redis", conversationID)
 	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
@@ -137,7 +143,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 
 	out = make([]chat.Message, 0, len(raws))
 	for _, raw := range raws {
-		msg, err := chat.UnmarshalMessage([]byte(raw))
+		msg, err := codec.DecodeMessage([]byte(raw))
 		if err != nil {
 			return nil, fmt.Errorf("redis.Store.Read: decode message: %w", err)
 		}
@@ -150,6 +156,9 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 // silently ignored (DEL on a missing key is a no-op in Redis).
 func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
 		return err
 	}
 

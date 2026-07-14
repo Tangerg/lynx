@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/mongodb"
-	"github.com/Tangerg/lynx/core/model/chat/history"
 )
 
 func TestStoreConfig_CollectionRequired(t *testing.T) {
@@ -25,5 +25,5 @@ func TestStoreConfig_NilConfig(t *testing.T) {
 }
 
 func TestStore_ImplementsHistoryStore(t *testing.T) {
-	var _ history.Store = (*mongodb.Store)(nil)
+	var _ chathistory.Store = (*mongodb.Store)(nil)
 }

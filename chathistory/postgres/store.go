@@ -10,10 +10,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // Provider names the backend for observability layers that branch
@@ -97,11 +97,11 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ history.Store  = (*Store)(nil)
-	_ history.Lister = (*Store)(nil)
+	_ chathistory.Store  = (*Store)(nil)
+	_ chathistory.Lister = (*Store)(nil)
 )
 
-// Store is a PostgreSQL-backed [history.Store]. Construct via
+// Store is a PostgreSQL-backed [chathistory.Store]. Construct via
 // [NewStore].
 //
 // Schema (created when [StoreConfig.InitializeSchema] is true):
@@ -200,6 +200,9 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	if err = ctx.Err(); err != nil {
 		return err
 	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+		return err
+	}
 	if len(messages) == 0 {
 		return nil
 	}
@@ -232,6 +235,9 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
+		return nil, err
+	}
 
 	ctx, span := tracing.StartRead(ctx, "postgres", conversationID)
 	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
@@ -248,7 +254,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 		if err := rows.Scan(&raw); err != nil {
 			return nil, fmt.Errorf("postgres.Store.Read: scan: %w", err)
 		}
-		msg, err := chat.UnmarshalMessage(raw)
+		msg, err := codec.DecodeMessage(raw)
 		if err != nil {
 			return nil, fmt.Errorf("postgres.Store.Read: decode message: %w", err)
 		}
@@ -264,6 +270,9 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 // are silently ignored.
 func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	if err = ctx.Err(); err != nil {
+		return err
+	}
+	if err = chathistory.ValidateConversationID(conversationID); err != nil {
 		return err
 	}
 
