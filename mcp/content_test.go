@@ -64,30 +64,30 @@ func TestFirstTextOrFallback_UsesFallbackWhenNoText(t *testing.T) {
 	assert.Equal(t, "fallback message", got)
 }
 
-func TestSchemaToString_Variants(t *testing.T) {
+func TestSchemaToJSON_Variants(t *testing.T) {
 	cases := []struct {
 		name string
 		in   any
 		want string
 	}{
-		{"nil", nil, emptyObjectSchema},
-		{"empty string", "", emptyObjectSchema},
+		{"nil", nil, string(emptyObjectSchema)},
+		{"empty string", "", string(emptyObjectSchema)},
 		{"string passthrough", `{"type":"object","x":1}`, `{"type":"object","x":1}`},
 		{"raw message", json.RawMessage(`{"type":"object"}`), `{"type":"object"}`},
-		{"empty raw", json.RawMessage(``), emptyObjectSchema},
+		{"empty raw", json.RawMessage(``), string(emptyObjectSchema)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := schemaToString(tc.in)
+			got, err := schemaToJSON(tc.in)
 			require.NoError(t, err)
-			assert.JSONEq(t, tc.want, got)
+			assert.JSONEq(t, tc.want, string(got))
 		})
 	}
 }
 
-func TestSchemaToString_StructSerializes(t *testing.T) {
+func TestSchemaToJSON_StructSerializes(t *testing.T) {
 	in := map[string]any{"type": "object", "additionalProperties": false}
-	got, err := schemaToString(in)
+	got, err := schemaToJSON(in)
 	require.NoError(t, err)
 	var decoded map[string]any
 	require.NoError(t, json.Unmarshal([]byte(got), &decoded))

@@ -6,7 +6,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // defaultToolNaming returns "<sourceName>_<toolName>" (or the bare tool name
@@ -83,9 +83,9 @@ func (o ToolOptions) withDefaults() ToolOptions {
 }
 
 // Tools lists remote MCP tools from sources and wraps them as chat tools.
-func Tools(ctx context.Context, sources []ToolSource, opts ToolOptions) ([]chat.Tool, error) {
+func Tools(ctx context.Context, sources []ToolSource, opts ToolOptions) ([]toolcontract.Tool, error) {
 	opts = opts.withDefaults()
-	var all []chat.Tool
+	var all []toolcontract.Tool
 	seen := make(map[string]struct{})
 	for i, src := range sources {
 		if src.Session == nil {

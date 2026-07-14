@@ -3,7 +3,6 @@ package mcp
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -11,10 +10,10 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
-// Register installs every [chat.Tool] in tools onto server using
+// Register installs every [tools.Tool] in tools onto server using
 // the low-level [(*sdkmcp.Server).AddTool] API.
 //
 // Registration is all-or-nothing: every tool is validated and built
@@ -25,7 +24,7 @@ import (
 // tools already supply a hand-authored JSON schema, and the
 // generic API would otherwise reflect over a Go In type and overwrite
 // it.
-func Register(server *sdkmcp.Server, tools ...chat.Tool) error {
+func Register(server *sdkmcp.Server, tools ...toolcontract.Tool) error {
 	if server == nil {
 		return ErrNilServer
 	}
@@ -54,13 +53,13 @@ type preparedTool struct {
 	handler sdkmcp.ToolHandler
 }
 
-func prepareOne(tool chat.Tool) (preparedTool, error) {
+func prepareOne(tool toolcontract.Tool) (preparedTool, error) {
 	def := tool.Definition()
-	if def.Name == "" {
-		return preparedTool{}, errors.New("mcp.Register: tool has empty name")
+	if err := def.Validate(); err != nil {
+		return preparedTool{}, fmt.Errorf("mcp.Register: invalid tool definition: %w", err)
 	}
 
-	schema, err := stringSchemaToAny(def.InputSchema)
+	schema, err := schemaToAny(def.InputSchema)
 	if err != nil {
 		return preparedTool{}, fmt.Errorf("mcp.Register: convert input schema for tool %q: %w", def.Name, err)
 	}
@@ -75,7 +74,7 @@ func prepareOne(tool chat.Tool) (preparedTool, error) {
 	}, nil
 }
 
-// serverHandler routes a tools/call RPC into a [chat.Tool]. Errors
+// serverHandler routes a tools/call RPC into a [tools.Tool]. Errors
 // from the tool surface via [sdkmcp.CallToolResult.IsError] plus
 // a [*sdkmcp.TextContent] body — never as a Go error from the handler
 // — because the latter would be promoted to a JSON-RPC protocol error
@@ -85,7 +84,7 @@ func prepareOne(tool chat.Tool) (preparedTool, error) {
 // can use the reverse-capability helpers ([ReportProgress],
 // [ElicitFromClient], [LogToClient]) without taking a direct
 // dependency on the SDK.
-func serverHandler(tool chat.Tool) sdkmcp.ToolHandler {
+func serverHandler(tool toolcontract.Tool) sdkmcp.ToolHandler {
 	return func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
 		toolName := tool.Definition().Name
 		ctx, span := mcpTracer.Start(ctx, "mcp.tool.serve "+toolName,

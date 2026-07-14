@@ -1,20 +1,22 @@
 package mcp
 
 import (
-	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	corechat "github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 // emptyObjectSchema is the canonical "accepts an empty JSON object"
 // schema — the fallback whenever a tool advertises no input schema.
-var emptyObjectSchema, _ = pkgjson.StringDefSchemaOf(struct{}{})
+var emptyObjectSchema = func() json.RawMessage {
+	schema, _ := pkgjson.StringDefSchemaOf(struct{}{})
+	return json.RawMessage(schema)
+}()
 
 func textOfContent(c sdkmcp.Content) string {
 	if t, ok := c.(*sdkmcp.TextContent); ok {
@@ -24,19 +26,19 @@ func textOfContent(c sdkmcp.Content) string {
 }
 
 // chatMessageFromContent maps a (role, content) pair from an MCP
-// message-shaped value into a [chat.Message]. Returns nil when content
+// message-shaped value into a [chat.Message]. The bool is false when content
 // has no textual payload (chat is text-first; image/audio/resource is
 // dropped for now). Used by both [PromptMessagesToChat] and the
 // internal sampling converter.
-func chatMessageFromContent(role sdkmcp.Role, content sdkmcp.Content) chat.Message {
+func chatMessageFromContent(role sdkmcp.Role, content sdkmcp.Content) (corechat.Message, bool) {
 	text := textOfContent(content)
 	if text == "" {
-		return nil
+		return corechat.Message{}, false
 	}
 	if role == "assistant" {
-		return chat.NewAssistantMessage(text)
+		return corechat.NewAssistantMessage(corechat.NewTextPart(text)), true
 	}
-	return chat.NewUserMessage(text)
+	return corechat.NewUserMessage(corechat.NewTextPart(text)), true
 }
 
 // flattenContent reduces a [sdkmcp.CallToolResult.Content] slice into
@@ -82,46 +84,49 @@ func decodeArguments(arguments string) (any, error) {
 	return decoded, nil
 }
 
-// schemaToString converts the heterogeneous [sdkmcp.Tool.InputSchema]
-// (declared `any`) into the JSON string form the framework requires.
+// schemaToJSON converts the heterogeneous [sdkmcp.Tool.InputSchema]
+// (declared `any`) into the raw JSON form the framework requires.
 // Pre-encoded shapes pass through unchanged; everything else is
 // JSON-marshaled. A missing or empty schema falls back to
 // [emptyObjectSchema].
-func schemaToString(schema any) (string, error) {
+func schemaToJSON(schema any) (json.RawMessage, error) {
 	switch v := schema.(type) {
 	case nil:
-		return emptyObjectSchema, nil
+		return append(json.RawMessage(nil), emptyObjectSchema...), nil
 	case string:
-		return cmp.Or(v, emptyObjectSchema), nil
+		if v == "" {
+			return append(json.RawMessage(nil), emptyObjectSchema...), nil
+		}
+		return json.RawMessage(v), nil
 	case json.RawMessage:
 		if len(v) == 0 {
-			return emptyObjectSchema, nil
+			return append(json.RawMessage(nil), emptyObjectSchema...), nil
 		}
-		return string(v), nil
+		return append(json.RawMessage(nil), v...), nil
 	case []byte:
 		if len(v) == 0 {
-			return emptyObjectSchema, nil
+			return append(json.RawMessage(nil), emptyObjectSchema...), nil
 		}
-		return string(v), nil
+		return append(json.RawMessage(nil), v...), nil
 	default:
 		encoded, err := json.Marshal(v)
 		if err != nil {
-			return "", fmt.Errorf("mcp.schemaToString: %w", err)
+			return nil, fmt.Errorf("mcp.schemaToJSON: %w", err)
 		}
-		return string(encoded), nil
+		return encoded, nil
 	}
 }
 
-// stringSchemaToAny adapts a ToolDefinition.InputSchema (always a
-// JSON string) to the heterogeneous sdkmcp.Tool.InputSchema field
+// schemaToAny adapts a ToolDefinition.InputSchema to the heterogeneous
+// sdkmcp.Tool.InputSchema field
 // (declared `any`). The SDK accepts json.RawMessage on the low-level
 // AddTool path, the exact form that is available here.
-func stringSchemaToAny(schema string) (any, error) {
-	if schema == "" {
-		return json.RawMessage(emptyObjectSchema), nil
+func schemaToAny(schema json.RawMessage) (any, error) {
+	if len(schema) == 0 {
+		return append(json.RawMessage(nil), emptyObjectSchema...), nil
 	}
-	if !json.Valid([]byte(schema)) {
-		return nil, errors.New("mcp.stringSchemaToAny: schema is not valid JSON")
+	if !json.Valid(schema) {
+		return nil, errors.New("mcp.schemaToAny: schema is not valid JSON")
 	}
-	return json.RawMessage(schema), nil
+	return append(json.RawMessage(nil), schema...), nil
 }

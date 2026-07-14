@@ -3,7 +3,7 @@ package mcp
 import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // PromptMessagesToChat converts the messages of an MCP GetPromptResult
@@ -22,7 +22,7 @@ func PromptMessagesToChat(messages []*sdkmcp.PromptMessage) []chat.Message {
 		if msg == nil {
 			continue
 		}
-		if converted := chatMessageFromContent(msg.Role, msg.Content); converted != nil {
+		if converted, ok := chatMessageFromContent(msg.Role, msg.Content); ok {
 			out = append(out, converted)
 		}
 	}

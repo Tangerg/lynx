@@ -2,6 +2,7 @@ package mcp_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"sync"
@@ -11,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/mcp"
 )
 
@@ -26,7 +27,7 @@ func (t *progressTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name:        "progress_demo",
 		Description: "Reports progress + log lines",
-		InputSchema: `{"type":"object","properties":{},"additionalProperties":false}`,
+		InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
 	}
 }
 
