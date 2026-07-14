@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/catalog"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -60,7 +59,7 @@ func (e *Executor) ValidateStart(req runs.StartTurn) error {
 		return err
 	}
 	if len(req.Media) > 0 && req.Provider != "" && req.Model != "" {
-		if info, ok := catalog.Lookup(req.Provider, req.Model); ok && !info.Modalities.AcceptsInput(chat.ModalityImage) {
+		if info, ok := catalog.Lookup(req.Provider, req.Model); ok && !info.Modalities.AcceptsInput(catalog.ModalityImage) {
 			return fmt.Errorf("%w: model %q (provider %q) does not accept image input", runs.ErrUnsupportedMedia, req.Model, req.Provider)
 		}
 	}

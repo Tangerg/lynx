@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/models/catalog"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -15,20 +15,20 @@ import (
 // input/output modalities, structured output, cache pricing, and the
 // identity/limit metadata — all flow through.
 func TestModelToWire(t *testing.T) {
-	info := chat.ModelInfo{
+	info := catalog.Model{
 		ID:              "claude-x",
 		DisplayName:     "Claude X",
 		Deprecated:      true,
 		KnowledgeCutoff: time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC),
-		Reasoning:       chat.Reasoning{Supported: true, Levels: []string{"low", "high"}, DefaultLevel: "low"},
-		Modalities: chat.Modalities{
-			Input:  []chat.Modality{chat.ModalityText, chat.ModalityImage},
-			Output: []chat.Modality{chat.ModalityText},
+		Reasoning:       catalog.Reasoning{Supported: true, Levels: []string{"low", "high"}, DefaultLevel: "low"},
+		Modalities: catalog.Modalities{
+			Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage},
+			Output: []catalog.Modality{catalog.ModalityText},
 		},
 		ToolCall:         true,
 		StructuredOutput: true,
-		Limits:           chat.Limits{ContextWindow: 200000, MaxInputTokens: 190000, MaxOutputTokens: 8192},
-		Pricing:          []chat.Pricing{{InputPer1M: 3, OutputPer1M: 15, CacheReadPer1M: 0.3, CacheWritePer1M: 3.75}},
+		Limits:           catalog.Limits{ContextWindow: 200000, MaxInputTokens: 190000, MaxOutputTokens: 8192},
+		Pricing:          []catalog.Pricing{{InputPer1M: 3, OutputPer1M: 15, CacheReadPer1M: 0.3, CacheWritePer1M: 3.75}},
 	}
 
 	m := modelToWire("anthropic", info)
@@ -75,9 +75,9 @@ func TestModelToWire(t *testing.T) {
 // TestModelToWire_TextOnly verifies the convenience flags read false for a
 // plain text model: no image → multimodal false, no reasoning levels.
 func TestModelToWire_TextOnly(t *testing.T) {
-	m := modelToWire("openai", chat.ModelInfo{
+	m := modelToWire("openai", catalog.Model{
 		ID:         "tiny",
-		Modalities: chat.Modalities{Input: []chat.Modality{chat.ModalityText}},
+		Modalities: catalog.Modalities{Input: []catalog.Modality{catalog.ModalityText}},
 	})
 	if m.Capabilities.Multimodal {
 		t.Error("text-only model must not be multimodal")

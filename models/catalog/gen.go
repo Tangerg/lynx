@@ -16,7 +16,7 @@
 //  2. Keep only the providers are available with a chat adapter for (providerMap),
 //     and only chat models (drop embedding / TTS / image-generation —
 //     output modality not "text", or an embedding family).
-//  3. Map each spec into a chat.ModelInfo. The output is marshaled from
+//  3. Map each spec into a catalog.Model. The output is marshaled from
 //     the real struct, so the generated JSON can never drift from the Go
 //     type — that's the reason this is a Go program and not a script.
 //  4. Overlay augmentations.json for fields models.dev lacks. Today that's
@@ -41,7 +41,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	modelcatalog "github.com/Tangerg/lynx/models/catalog"
 )
 
 const defaultSource = "https://models.dev/api.json"
@@ -133,8 +133,8 @@ type augEntry struct {
 
 // config is the on-disk shape of each configs/<provider>.json.
 type config struct {
-	Provider string           `json:"provider"`
-	Models   []chat.ModelInfo `json:"models"`
+	Provider string               `json:"provider"`
+	Models   []modelcatalog.Model `json:"models"`
 }
 
 func main() {
@@ -155,7 +155,7 @@ func main() {
 		if !ok {
 			fail("provider %q not in source", apiID)
 		}
-		var models []chat.ModelInfo
+		var models []modelcatalog.Model
 		for id, m := range p.Models {
 			if !isChat(m) {
 				continue
@@ -185,8 +185,8 @@ func isChat(m apiModel) bool {
 	return true
 }
 
-func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
-	info := chat.ModelInfo{
+func toModelInfo(m apiModel, aug augEntry) modelcatalog.Model {
+	info := modelcatalog.Model{
 		ID:               m.ID,
 		DisplayName:      m.Name,
 		KnowledgeCutoff:  parseDate(m.Knowledge),
@@ -196,11 +196,11 @@ func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
 		ToolCall:         m.ToolCall,
 		StructuredOutput: m.StructuredOutput,
 		Pricing:          toPricing(m.Cost),
-		Modalities: chat.Modalities{
+		Modalities: modelcatalog.Modalities{
 			Input:  toModalities(m.Modalities.Input),
 			Output: toModalities(m.Modalities.Output),
 		},
-		Limits: chat.Limits{
+		Limits: modelcatalog.Limits{
 			ContextWindow:   m.Limit.Context,
 			MaxInputTokens:  m.Limit.Input,
 			MaxOutputTokens: m.Limit.Output,
@@ -209,7 +209,7 @@ func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
 	if m.Reasoning {
 		// models.dev only knows whether a model reasons; effort levels
 		// come from the augmentation file.
-		info.Reasoning = chat.Reasoning{
+		info.Reasoning = modelcatalog.Reasoning{
 			Supported:    true,
 			Levels:       aug.Levels,
 			DefaultLevel: aug.DefaultLevel,
@@ -223,11 +223,11 @@ func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
 // by threshold (CostOf scans back to front). Non-context tiers are
 // skipped — only prompt-size repricing is modeled. Returns nil when there's
 // no input rate (unknown pricing).
-func toPricing(c apiCost) []chat.Pricing {
+func toPricing(c apiCost) []modelcatalog.Pricing {
 	if c.Input == 0 && c.Output == 0 {
 		return nil
 	}
-	bands := []chat.Pricing{{
+	bands := []modelcatalog.Pricing{{
 		InputPer1M:      c.Input,
 		OutputPer1M:     c.Output,
 		CacheReadPer1M:  c.CacheRead,
@@ -237,7 +237,7 @@ func toPricing(c apiCost) []chat.Pricing {
 		if t.Tier.Type != "context" || t.Tier.Size == 0 {
 			continue
 		}
-		bands = append(bands, chat.Pricing{
+		bands = append(bands, modelcatalog.Pricing{
 			Threshold:       t.Tier.Size,
 			InputPer1M:      t.Input,
 			OutputPer1M:     t.Output,
@@ -261,13 +261,13 @@ func parseDate(s string) time.Time {
 	return time.Time{}
 }
 
-func toModalities(in []string) []chat.Modality {
+func toModalities(in []string) []modelcatalog.Modality {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]chat.Modality, len(in))
+	out := make([]modelcatalog.Modality, len(in))
 	for i, s := range in {
-		out[i] = chat.Modality(s)
+		out[i] = modelcatalog.Modality(s)
 	}
 	return out
 }

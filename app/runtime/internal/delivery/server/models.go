@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/catalog"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -100,7 +99,7 @@ func (s *Server) requireConfiguredProvider(ctx context.Context, providerID strin
 	return nil
 }
 
-func modelToWire(providerID string, m chat.ModelInfo) protocol.Model {
+func modelToWire(providerID string, m catalog.Model) protocol.Model {
 	out := protocol.Model{
 		ID:              m.ID,
 		Provider:        providerID,
@@ -113,7 +112,7 @@ func modelToWire(providerID string, m chat.ModelInfo) protocol.Model {
 			Reasoning:             m.Reasoning.Supported,
 			ReasoningLevels:       m.Reasoning.Levels,
 			ReasoningDefaultLevel: m.Reasoning.DefaultLevel,
-			Multimodal:            m.Modalities.AcceptsInput(chat.ModalityImage),
+			Multimodal:            m.Modalities.AcceptsInput(catalog.ModalityImage),
 			InputModalities:       toWireModalities(m.Modalities.Input),
 			OutputModalities:      toWireModalities(m.Modalities.Output),
 			ToolUse:               m.ToolCall,
@@ -135,7 +134,7 @@ func modelToWire(providerID string, m chat.ModelInfo) protocol.Model {
 	return out
 }
 
-func toWireModalities(in []chat.Modality) []protocol.Modality {
+func toWireModalities(in []catalog.Modality) []protocol.Modality {
 	if len(in) == 0 {
 		return nil
 	}

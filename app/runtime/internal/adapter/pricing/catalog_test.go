@@ -15,7 +15,7 @@ func TestCatalogUsesProviderScopedCatalog(t *testing.T) {
 	}
 
 	got := Catalog()("anthropic", "claude-3-5-haiku-20241022", usage)
-	want := chat.CostOf(info.Pricing, usage)
+	want := catalog.CostOf(info.Pricing, catalog.Usage{InputTokens: 1000, OutputTokens: 250})
 	if got != want {
 		t.Fatalf("Catalog = %v, want %v", got, want)
 	}

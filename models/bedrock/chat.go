@@ -15,7 +15,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/models/internal/catalog"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -59,9 +58,7 @@ func NewChatModel(ctx context.Context, cfg ChatModelConfig) (*ChatModel, error) 
 	if err != nil {
 		return nil, err
 	}
-	// Bedrock has no Metadata config; resolve straight from the catalog by
-	// the configured model id (e.g. "eu.anthropic.claude-haiku-4-5-...").
-	info := catalog.Resolve(Provider, cfg.DefaultOptions, nil)
+	info := chat.ModelMetadata{Provider: Provider}
 	return &ChatModel{api: api, defaultOptions: cfg.DefaultOptions, info: info}, nil
 }
 

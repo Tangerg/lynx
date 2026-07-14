@@ -13,7 +13,17 @@ import (
 func Catalog() accounting.Pricing {
 	return func(provider, servedModel string, u *chat.Usage) float64 {
 		if info, ok := catalog.Lookup(provider, servedModel); ok {
-			return chat.CostOf(info.Pricing, u)
+			usage := catalog.Usage{
+				InputTokens:  u.PromptTokens,
+				OutputTokens: u.CompletionTokens,
+			}
+			if u.CacheReadInputTokens != nil {
+				usage.CacheReadInputTokens = *u.CacheReadInputTokens
+			}
+			if u.CacheWriteInputTokens != nil {
+				usage.CacheWriteInputTokens = *u.CacheWriteInputTokens
+			}
+			return catalog.CostOf(info.Pricing, usage)
 		}
 		return 0
 	}
