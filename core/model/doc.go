@@ -1,6 +1,4 @@
-// Package model defines the request/response handler primitives that every AI
-// modality (chat, embedding, image, audio, moderation) builds on top of.
-// The two core abstractions are [CallHandler] for synchronous request-response
-// and [StreamHandler] for incremental output, both parameterized over arbitrary
-// Request and Response types.
+// Package model defines the small response values genuinely shared across AI
+// modalities. Calling capabilities live in their concrete modality packages;
+// this package does not provide a generic model hierarchy or middleware layer.
 package model

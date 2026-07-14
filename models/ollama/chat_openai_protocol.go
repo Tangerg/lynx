@@ -1,6 +1,9 @@
 package ollama
 
 import (
+	"cmp"
+	"strings"
+
 	"github.com/openai/openai-go/v3/option"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -23,4 +26,12 @@ func NewOpenAIChat(cfg OpenAIChatConfig) (*openai.Chat, error) {
 	}
 	requestOptions := append([]option.RequestOption{option.WithBaseURL(resolveOpenAIBaseURL(cfg.BaseURL))}, cfg.RequestOptions...)
 	return openai.NewChat(openai.ChatConfig{APIKey: apiKey, DefaultOptions: cfg.DefaultOptions, RequestOptions: requestOptions})
+}
+
+func resolveOpenAIBaseURL(base string) string {
+	base = strings.TrimRight(cmp.Or(base, DefaultBaseURL), "/")
+	if strings.HasSuffix(base, OpenAICompatPath) {
+		return base
+	}
+	return base + OpenAICompatPath
 }
