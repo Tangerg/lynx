@@ -37,6 +37,9 @@ lynx/
 - [`../REFACTORING.md`](../REFACTORING.md) — 落手重构的标尺（触发信号 + Fowler 式清单 + 节奏纪律）
 
 **框架设计（本目录）**
+- [`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md) — Core 长期架构演进的唯一执行基准：目标边界、阶段任务、验收标准、进度、风险与 ADR
+- [`CORE_API_INVENTORY.md`](./CORE_API_INVENTORY.md) — Core 重构前公共 API、workspace 消费热度及 P4/P6 provider/backend 迁移子清单
+- [`CORE_BASELINE.md`](./CORE_BASELINE.md) — P0 build/vet/test/lint、coverage、race 与 Core 依赖预算基线
 - [`OBSERVABILITY.md`](./OBSERVABILITY.md) — 可观测性设计：OTel 三驾马车 → `log/slog`、语义规范、埋点清单、桥接 exporter
 
 **各模块上下文**：每个 sub-module 自带 `CLAUDE.md`（形态 / 关键类型 / 模块特有反向不变量）。
