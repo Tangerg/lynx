@@ -12,7 +12,7 @@
 
 ## 架构心智
 
-- **canonical JSON envelope**:新数据统一写 `core/chat.Message` tagged wire；读取兼容旧 `core/model/chat` wire。
+- **canonical JSON envelope**:所有数据只读写当前 `core/chat.Message` tagged wire；历史数据迁移由应用显式执行，不在库内保留兼容分支。
 - **按 conversation_id 分区**:每个会话独立查询路径,避免跨会话扫表。
 - **顺序靠单调序号 / 列表追加,不靠时间戳**:高并发下 timestamp 排序会乱。
 - **schema 初始化是显式开关**:production 通常预先 migrate,关掉自动建表。

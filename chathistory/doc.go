@@ -20,7 +20,7 @@
 //	chathistory/neo4j/     — Neo4j (node per message)
 //	chathistory/cosmosdb/  — Azure Cosmos DB (NoSQL API)
 //
-// Every backend writes the current core/chat tagged JSON wire. Reads also
-// accept the former core/model/chat type-tagged wire so existing persisted
-// conversations survive the protocol migration.
+// Every backend reads and writes only the current core/chat tagged JSON wire.
+// Historical wire migration is an explicit application data operation, not a
+// permanent compatibility branch in the library.
 package chathistory
