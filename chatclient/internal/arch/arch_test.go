@@ -7,9 +7,25 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/Tangerg/lynx/chatclient"
 )
+
+func TestClientKeepsDirectCallSurface(t *testing.T) {
+	typeOfClient := reflect.TypeFor[*chatclient.Client]()
+	methods := make([]string, 0, typeOfClient.NumMethod())
+	for i := range typeOfClient.NumMethod() {
+		methods = append(methods, typeOfClient.Method(i).Name)
+	}
+	slices.Sort(methods)
+	if !slices.Equal(methods, []string{"Call", "Stream"}) {
+		t.Fatalf("Client methods = %v, want direct Call/Stream only", methods)
+	}
+}
 
 func TestProductionImportsOnlyStandardLibraryAndCore(t *testing.T) {
 	fset := token.NewFileSet()
