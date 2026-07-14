@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/toolloop"
-	coremodel "github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -19,7 +18,7 @@ import (
 const inflightTailKey = "lyra:hitl:inflight-tail"
 
 type resumableInterrupt interface {
-	coremodel.Halt
+	toolloop.Halt
 	Awaitable() core.Awaitable
 }
 

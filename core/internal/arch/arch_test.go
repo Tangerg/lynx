@@ -84,6 +84,38 @@ func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
 	}
 }
 
+func TestCoreModelExcludesAgentControlFlow(t *testing.T) {
+	root := filepath.Join(moduleRoot(t), "model")
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatalf("read core/model: %v", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(root, entry.Name())
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, specification := range general.Specs {
+				typeSpec := specification.(*ast.TypeSpec)
+				switch typeSpec.Name.Name {
+				case "Halt", "ControlFlowError":
+					t.Errorf("core/model must not own agent control-flow type %s: %s", typeSpec.Name.Name, path)
+				}
+			}
+		}
+	}
+}
+
 func TestCoreDoesNotImportUpperLynxModules(t *testing.T) {
 	const lynxPrefix = "github.com/Tangerg/lynx/"
 	fset := token.NewFileSet()
