@@ -8,7 +8,7 @@ import (
 	cohere "github.com/cohere-ai/cohere-go/v2"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -121,7 +121,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse) (*em
 		Created: time.Now().Unix(),
 	}
 	if apiResp.Meta != nil && apiResp.Meta.BilledUnits != nil {
-		usage := &chat.Usage{OriginalUsage: apiResp.Meta}
+		usage := &model.Usage{OriginalUsage: apiResp.Meta}
 		if v := apiResp.Meta.BilledUnits.InputTokens; v != nil {
 			usage.PromptTokens = int64(*v)
 		}

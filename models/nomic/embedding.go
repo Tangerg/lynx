@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -96,7 +96,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.R
 
 	meta := &embedding.ResponseMetadata{
 		Model: apiResp.Model,
-		Usage: &chat.Usage{
+		Usage: &model.Usage{
 			PromptTokens:  apiResp.Usage.PromptTokens,
 			OriginalUsage: apiResp.Usage,
 		},
