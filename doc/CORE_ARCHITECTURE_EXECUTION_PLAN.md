@@ -797,7 +797,12 @@ flowchart LR
   - MCP prompts/sampling 直接使用目标 tagged Message、`chatclient.Client` 与 JSON-safe schema；RAG middleware、LLM query components 和 chat history formatting 全部直接使用目标 Chat/Template，不保留旧 request/response 适配。
   - `vectorstores`、`rag`、`tools`、`mcp`、`a2a` 对 `core/model/chat` 的 import 为零；受影响模块 build/test/vet/lint/race 全绿，RAG 关闭 workspace 的独立模块测试通过。
   - 证据：`253adec40`、`12174d3be`、`7e4eb1a33`、`a57b2dfd6`。
-- [ ] **P6-03 迁移 `agent`、`chathistory`、`documentreaders` 的剩余新路径消费点**
+- [x] **P6-03 迁移 `agent`、`chathistory`、`documentreaders` 的剩余新路径消费点**（完成：2026-07-14）
+  - `chathistory` 已直接持久化目标 tagged Message 并通过 context 绑定会话；`documentreaders` 已直接产出目标纯 `document.Document`，两者复核无旧 Core import。
+  - Agent 删除整套冻结旧 Chat middleware tool-loop、park/resume、concurrency marker、loop detection、boolean Halt 及其旧协议测试，共净删约 3,500 行；唯一保留的 tool-loop 是目标 Event Runner/Checkpoint/Resume。
+  - `PromptRunner` 构造普通 `core/chat.Request`，可执行工具由 `tools.Registry` 邻接持有；Runtime 通过消费方 `ToolLoopRunner` 窄端口注入 Event Runner，Agent Core 不反向依赖具体策略。
+  - 会话 ID 只经 context 进入 `chathistory` middleware；删除 `AgentTool`/`ChatClient` alias，Agent API 直接使用 `tools.Tool`、`*chatclient.Client` 和目标 middleware。
+  - 证据：`f147ed7b2`；Agent test/vet/lint/race 与 standalone test 全绿，Chathistory test/vet/lint/race 及 Documentreaders 全部子 module test/vet/lint 全绿；三模块旧 Core import 为零。
 - [ ] **P6-04 迁移 `app/runtime` 和示例程序**
 - [ ] **P6-05 删除旧 `core/model/<modality>` 包、path bridge 和 deprecated API**
   - 以 [`CORE_LEGACY_REMOVAL.md`](CORE_LEGACY_REMOVAL.md) 为冻结旧表面的删除台账；开始前与实际 import/identifier 清单重新核对。
@@ -846,16 +851,16 @@ flowchart LR
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
-| P6 Workspace 切换 | 进行中 | 2/8 | provider 与基础设施消费模块已切换；进入 agent/history/readers 迁移 |
+| P6 Workspace 切换 | 进行中 | 3/8 | 库与框架模块已切换；进入 app/runtime 和剩余示例迁移 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **47/60** | **78%** |
+| **总计** | **进行中** | **48/60** | **80%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P6。
-- 下一任务：执行 P6-03，迁移 agent、chathistory、documentreaders 的剩余旧路径消费点。
+- 下一任务：执行 P6-04，迁移 app/runtime 和 workspace 剩余示例程序。
 - 当前阻塞：无。
-- 最近完成：P6-02；基础设施模块已直接消费目标 Chat/Tool/Template 契约，指定五个模块旧 Chat import 清零。
+- 最近完成：P6-03；Agent 旧 Chat runtime 已物理删除，Agent/Chathistory/Documentreaders 直接消费目标契约。
 
 ### 10.3 进度更新规则
 
@@ -1130,6 +1135,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P6-03；删除 Agent 冻结旧 Chat middleware/tool-loop 与历史 alias，以消费方端口接入唯一 Event Runner；三模块旧 Core import 清零 | Codex |
 | 2026-07-14 | 完成 P6-02；Vectorstores/RAG/Tools/MCP/A2A 的剩余消费点切到目标 Chat/Tool/Template 契约，旧 Chat import 清零 | Codex |
 | 2026-07-14 | 完成 P6-01；全部 provider 目标 Chat 构造器和直接 Bedrock/Responses 映射建立，30 项 constructor matrix 自动化 | Codex |
 | 2026-07-14 | 完成 P5-07 与 P5 阶段验收；目标新包外部依赖预算自动化，workspace 80 项门禁全绿；进入 P6 | Codex |
@@ -1182,6 +1188,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P6-03 | `f147ed7b2` 删除 Agent 整套冻结旧 Chat middleware/tool-loop、历史 alias 和旧协议测试，`PromptRunner` 以普通 Request + 邻接 Registry 调用 Runtime 注入的唯一 Event Runner；会话 scope 改走 context/chathistory；Agent test/vet/lint/race/standalone、Chathistory test/vet/lint/race、Documentreaders 各子 module test/vet/lint 全绿；任务计数 48/60 | P6-04 app/runtime 与剩余示例迁移 |
 | 2026-07-14 | P6-02 | `253adec40` 将 12 个具体 Tools package 迁到目标 ToolDefinition/执行接口；`12174d3be` 将 A2A 直接切到消费方 Tool；`7e4eb1a33` 将 MCP Tools、prompts、sampling 切到目标 Chat/ChatClient；`a57b2dfd6` 将 RAG middleware 与 LLM 组件切到 tagged Message/Template。五个范围模块旧 Chat import 为零；受影响模块 build/test/vet/lint/race 及 RAG standalone test 全绿；任务计数 47/60 | P6-03 agent、chathistory、documentreaders 迁移 |
 | 2026-07-14 | P6-01 | `d47445e52` 为 19 个兼容 facade 建立直接 Core Chat 构造器；`14f80a8d4` 实现 Bedrock Converse/Stream tagged-protocol 映射；`ffc7736d2` 将 OpenAI Responses API 直接迁入目标协议、移除 embedding 对旧 Chat Usage 的借用并锁定 30 构造器矩阵；Models build/vet/lint/test 及 Bedrock/OpenAI/arch race 全绿；任务计数 46/60 | P6-02 基础设施模块旧 Chat 消费迁移 |
 | 2026-07-14 | P5-07、P5 阶段验收 | `20017833f` 新增目标包 dependency budget，递归禁止十个稳定 Core package 根引入第三方或 sibling module；冻结旧 Chat 的 schema 依赖继续由 P6 deadline 单独约束；`scripts/check.sh build vet test lint` 对 20 个 workspace module 的 80 项检查全绿；任务计数 45/60，P5 7/7 完成 | P6-01 全 provider 旧 Chat 迁移 |
