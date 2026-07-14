@@ -3,7 +3,6 @@ package chat
 import (
 	"context"
 	"errors"
-	"time"
 )
 
 // ClientCaller drives the synchronous chat path. Build it via
@@ -17,17 +16,9 @@ type ClientCaller struct {
 // Tool execution is NOT auto-injected; register the call/stream middleware
 // pair for your loop driver via WithCallMiddlewares and WithStreamMiddlewares
 // if you need that.
-//
-// One OTel span is started per call, following the GenAI semconv. When
-// no TracerProvider is configured, the span calls are no-op.
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
-	start := time.Now()
-	ctx, span := startChatSpan(ctx, c.request.model, req, "chat")
 	handler := c.request.MiddlewareChain().BuildCallHandler(c.request.model)
-	resp, err := handler.Call(ctx, req)
-	finishChatSpan(span, resp, err)
-	recordChatMetrics(ctx, c.request.model, req, resp, err, start)
-	return resp, err
+	return handler.Call(ctx, req)
 }
 
 func (c *ClientCaller) runCall(ctx context.Context, parser StructuredParser[any]) (*Response, error) {
