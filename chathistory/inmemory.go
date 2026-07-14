@@ -6,6 +6,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/Tangerg/lynx/chathistory/internal/snapshot"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -40,7 +41,7 @@ func (s *InMemoryStore) Write(ctx context.Context, conversationID string, messag
 	if len(messages) == 0 {
 		return nil
 	}
-	snapshot, err := cloneMessages(messages)
+	messageSnapshot, err := snapshot.Messages(messages)
 	if err != nil {
 		return err
 	}
@@ -50,7 +51,7 @@ func (s *InMemoryStore) Write(ctx context.Context, conversationID string, messag
 	if s.messages == nil {
 		s.messages = make(map[string][]chat.Message)
 	}
-	s.messages[conversationID] = append(s.messages[conversationID], snapshot...)
+	s.messages[conversationID] = append(s.messages[conversationID], messageSnapshot...)
 	return nil
 }
 
@@ -70,7 +71,7 @@ func (s *InMemoryStore) Read(ctx context.Context, conversationID string) ([]chat
 	if len(stored) == 0 {
 		return []chat.Message{}, nil
 	}
-	return cloneMessages(stored)
+	return snapshot.Messages(stored)
 }
 
 // Clear removes a conversation. Unknown IDs are ignored.
@@ -95,21 +96,21 @@ func (s *InMemoryStore) Replace(ctx context.Context, conversationID string, mess
 	if err := ValidateConversationID(conversationID); err != nil {
 		return err
 	}
-	snapshot, err := cloneMessages(messages)
+	messageSnapshot, err := snapshot.Messages(messages)
 	if err != nil {
 		return err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(snapshot) == 0 {
+	if len(messageSnapshot) == 0 {
 		delete(s.messages, conversationID)
 		return nil
 	}
 	if s.messages == nil {
 		s.messages = make(map[string][]chat.Message)
 	}
-	s.messages[conversationID] = snapshot
+	s.messages[conversationID] = messageSnapshot
 	return nil
 }
 
