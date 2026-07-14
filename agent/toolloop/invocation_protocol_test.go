@@ -17,6 +17,13 @@ type protocolTool struct {
 	definition chat.ToolDefinition
 }
 
+type typedNilToolResolver struct{}
+
+func (typedNilToolResolver) Resolve(string) (tools.Tool, bool) {
+	var tool *protocolTool
+	return tool, true
+}
+
 func (t *protocolTool) Definition() chat.ToolDefinition { return t.definition }
 
 func (*protocolTool) Call(context.Context, string) (string, error) { return "ok", nil }
@@ -81,6 +88,7 @@ func TestInvocationValidation(t *testing.T) {
 		{name: "invalid request", invocation: &toolloop.Invocation{Request: &chat.Request{}}},
 		{name: "missing resolver", invocation: &toolloop.Invocation{Request: requestWithTool}},
 		{name: "unresolved tool", invocation: &toolloop.Invocation{Request: requestWithTool, Tools: &tools.Registry{}}},
+		{name: "typed nil tool", invocation: &toolloop.Invocation{Request: requestWithTool, Tools: typedNilToolResolver{}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if err := test.invocation.Validate(); !errors.Is(err, toolloop.ErrInvalidInvocation) {

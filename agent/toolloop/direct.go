@@ -6,10 +6,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-type returnDirectMarker interface {
-	ReturnsDirect() bool
-}
-
 type returnDirectTool struct {
 	inner chat.Tool
 }

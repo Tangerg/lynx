@@ -18,13 +18,14 @@ func TestEventJSONRoundTrip(t *testing.T) {
 	}}}
 	call := &chat.ToolCall{ID: "call-1", Name: "lookup", Arguments: `{}`}
 	result := &chat.ToolResult{ID: "call-1", Name: "lookup", Result: "ok"}
+	checkpoint := protocolCheckpoint(t)
 
 	events := []toolloop.Event{
 		{Kind: toolloop.EventModelRequest, Request: request},
 		{Kind: toolloop.EventModelResponse, Response: response},
 		{Kind: toolloop.EventToolCall, ToolCall: call},
 		{Kind: toolloop.EventToolResult, ToolResult: result},
-		{Kind: toolloop.EventPause, Pause: &toolloop.Pause{ID: "approval-1", Reason: "approval required"}},
+		{Kind: toolloop.EventPause, Pause: &toolloop.Pause{ID: "approval-1", Reason: "approval required", Checkpoint: checkpoint}},
 		{Kind: toolloop.EventResume, Resume: &toolloop.Resume{ID: "approval-1", Input: "approved"}},
 	}
 
@@ -57,9 +58,17 @@ func TestEventValidationRejectsAmbiguousOrInvalidPayload(t *testing.T) {
 		{name: "no payload", event: toolloop.Event{Kind: toolloop.EventModelRequest}},
 		{name: "multiple payloads", event: toolloop.Event{Kind: toolloop.EventModelRequest, Request: request, ToolCall: call}},
 		{name: "wrong payload", event: toolloop.Event{Kind: toolloop.EventModelRequest, ToolCall: call}},
+		{name: "wrong response payload", event: toolloop.Event{Kind: toolloop.EventModelResponse, Request: request}},
+		{name: "wrong call payload", event: toolloop.Event{Kind: toolloop.EventToolCall, Request: request}},
+		{name: "wrong result payload", event: toolloop.Event{Kind: toolloop.EventToolResult, Request: request}},
+		{name: "wrong pause payload", event: toolloop.Event{Kind: toolloop.EventPause, Request: request}},
+		{name: "wrong resume payload", event: toolloop.Event{Kind: toolloop.EventResume, Request: request}},
 		{name: "invalid nested request", event: toolloop.Event{Kind: toolloop.EventModelRequest, Request: &chat.Request{}}},
+		{name: "invalid nested response", event: toolloop.Event{Kind: toolloop.EventModelResponse, Response: &chat.Response{Choices: []chat.Choice{{Index: -1}}}}},
 		{name: "invalid tool call", event: toolloop.Event{Kind: toolloop.EventToolCall, ToolCall: &chat.ToolCall{}}},
+		{name: "invalid tool result", event: toolloop.Event{Kind: toolloop.EventToolResult, ToolResult: &chat.ToolResult{}}},
 		{name: "invalid pause", event: toolloop.Event{Kind: toolloop.EventPause, Pause: &toolloop.Pause{ID: "pause"}}},
+		{name: "invalid final kind", event: toolloop.Event{Kind: toolloop.EventModelRequest, Final: true, Request: request}},
 		{name: "invalid resume", event: toolloop.Event{Kind: toolloop.EventResume, Resume: &toolloop.Resume{}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -76,7 +85,7 @@ func TestEventValidationRejectsAmbiguousOrInvalidPayload(t *testing.T) {
 func TestEventUnmarshalDoesNotMutateOnFailure(t *testing.T) {
 	original := toolloop.Event{
 		Kind:  toolloop.EventPause,
-		Pause: &toolloop.Pause{ID: "pause-1", Reason: "wait"},
+		Pause: &toolloop.Pause{ID: "approval-1", Reason: "wait", Checkpoint: protocolCheckpoint(t)},
 	}
 	event := original
 	if err := json.Unmarshal([]byte(`{"kind":"resume","resume":{}}`), &event); !errors.Is(err, toolloop.ErrInvalidEvent) {
@@ -84,6 +93,13 @@ func TestEventUnmarshalDoesNotMutateOnFailure(t *testing.T) {
 	}
 	if !reflect.DeepEqual(event, original) {
 		t.Fatalf("failed Unmarshal mutated event to %#v", event)
+	}
+	if err := json.Unmarshal([]byte(`{`), &event); err == nil {
+		t.Fatalf("malformed Unmarshal error = %v", err)
+	}
+	var nilEvent *toolloop.Event
+	if err := nilEvent.UnmarshalJSON([]byte(`{}`)); !errors.Is(err, toolloop.ErrInvalidEvent) {
+		t.Fatalf("nil receiver error = %v", err)
 	}
 }
 
@@ -97,3 +113,20 @@ func TestChatResponseDoesNotContainToolLoopState(t *testing.T) {
 }
 
 func messagePointer(message chat.Message) *chat.Message { return &message }
+
+func protocolCheckpoint(t *testing.T) *toolloop.Checkpoint {
+	t.Helper()
+	request := protocolRequest(t)
+	request.Tools = protocolRegistry(t).Definitions()
+	return &toolloop.Checkpoint{
+		ID:      "approval-1",
+		Round:   1,
+		Request: request,
+		Response: &chat.Response{Choices: []chat.Choice{{
+			Index: 0,
+			Message: messagePointer(chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{
+				ID: "call-1", Name: "lookup", Arguments: `{}`,
+			}))),
+		}}},
+	}
+}

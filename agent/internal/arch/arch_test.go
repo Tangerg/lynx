@@ -27,7 +27,7 @@ import (
 //
 //	core         core/                     pure primitives + public SPI (Action/Goal/Condition/Blackboard/Extension)
 //	strategy     planning/, event/,        策略/原语 plug-ins that depend on core but never on the engine
-//	             hitl/, toolpolicy/
+//	             hitl/, toolpolicy/, toolloop/
 //	engine       runtime/, runtime/autonomy/   the state machine + dispatch; consumes core + strategy
 //	combinator   ./, workflow/             public convenience surface and high-level builders
 //	                                      that produce *core.Agent; consume core + engine
@@ -146,6 +146,34 @@ func TestAgentDoesNotImportApplicationModules(t *testing.T) {
 	}
 }
 
+func TestTargetToolLoopDoesNotImportLegacyProtocol(t *testing.T) {
+	root := moduleRoot(t)
+	fset := token.NewFileSet()
+	for _, name := range []string{
+		"checkpoint.go",
+		"control.go",
+		"event.go",
+		"invocation.go",
+		"runner.go",
+		"runtime_policy.go",
+	} {
+		path := filepath.Join(root, "toolloop", name)
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatalf("parse target tool-loop file %s: %v", name, err)
+		}
+		for _, imported := range file.Imports {
+			importPath := strings.Trim(imported.Path.Value, `"`)
+			if importPath == "github.com/Tangerg/lynx/core/model" ||
+				strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/model/") ||
+				importPath == "github.com/Tangerg/lynx/chatclient" ||
+				strings.HasPrefix(importPath, "github.com/Tangerg/lynx/chatclient/") {
+				t.Errorf("target tool-loop file %s imports frozen runtime %q", name, importPath)
+			}
+		}
+	}
+}
+
 const (
 	rungCore       = "core"
 	rungStrategy   = "strategy"
@@ -163,7 +191,7 @@ func layerOf(rel string) string {
 	switch first {
 	case "core":
 		return rungCore
-	case "planning", "event", "hitl", "toolpolicy":
+	case "planning", "event", "hitl", "toolpolicy", "toolloop":
 		return rungStrategy
 	case "runtime":
 		return rungEngine
