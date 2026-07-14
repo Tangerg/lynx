@@ -7,7 +7,7 @@
 
 本文记录 Core 重构前的编译器可见公共面、workspace 直接消费关系和后续迁移批次。它解决“改什么、谁会受影响、何时删除”的问题；它不是永久兼容承诺。P7 建立机械 API diff baseline 后，以工具输出判断签名兼容性。
 
-执行状态：P4 与 P5-05 已于 2026-07-14 完成。五个旧 `core/model/<modality>` 路径已无兼容层地直接移动到 Core 顶层；下文数量表和未特别标注的声明列表仍是重构前基线，已迁 package 会同时标明当前路径。
+执行状态：P4、P5-01 与 P5-05 已于 2026-07-14 完成。五个旧 `core/model/<modality>` 路径已无兼容层地直接移动到 Core 顶层，Embedding SPI 也已完成最小化；下文数量表和未特别标注的声明列表仍是重构前基线，已迁 package 会同时标明当前路径。
 
 ## 1. 口径与结论
 
@@ -210,6 +210,20 @@ MergeOptions, NewClient, NewClientFromRequest, NewClientRequest,
 NewMiddlewareChain, NewOptions, NewRequest, NewResponse, NewResult
 ```
 
+上框为重构前基线。P5-01 后当前路径为 `core/embedding`，公共面为：
+
+```text
+Client, DimensionFunc, Dimensioner, EncodingFormat, ModalityType, Model,
+ModelFunc, Options, Request, Response, ResponseMetadata, Result,
+ResultMetadata, MergeOptions, NewClient, NewOptions, NewRequest, NewResponse,
+NewResult, ProbeDimensions, ResolveDimensions
+```
+
+`Model` 只含 `Call`；`Dimensioner` 独立且显式返回错误。旧 `ClientRequest`、
+`ClientCaller`、handler/middleware/chain、`ModelMetadata`、`GetDimensions` 和
+全局维度 cache 已物理删除，所有真实 provider/vectorstore/runtime 消费点已切换，
+未保留 alias、bridge 或 deprecated wrapper。证据：`7cd3865c3`。
+
 ### model/image
 
 ```text
@@ -286,7 +300,7 @@ ast, lexer, parser, token, visitors
 | `chat.Response`/`Result` | 单 Result、ToolMessage synthetic result | P1 保留多 Choice；P3 tool-loop Event 外移 |
 | `chat.Model` | `DefaultOptions`, `Metadata` + Call/Stream | P2 只强制单方法 Call |
 | `chat.Tool` | `Definition`, `Call` | P1/P3 可执行契约迁到 tools；Core 只留 wire 词汇 |
-| `embedding.Model` | Call、Dimensions、DefaultOptions、Metadata | P5 拆分单方法 Model/Dimensioner，删除全局探测缓存 |
+| `embedding.Model` | ~~Call、Dimensions、DefaultOptions、Metadata~~（P5-01 已删除复合方法集） | 当前只含 `Call`；独立 `Dimensioner` 返回 `(int, error)`，探测 helper 无缓存 |
 | `vectorstore.Store` | ~~Metadata/NativeClient，与 Creator/Retriever 等组合使用~~（P4-03/P4-05 已删除） | 当前由 `Indexer`/`Searcher`/`IDDeleter`/`FilterDeleter` 独立表达能力 |
 | `vectorstore.RetrievalRequest` | ~~fluent `WithFilter/WithMinScore/WithTopK`~~（P4-06 已删除） | 当前 `SearchRequest` 为普通 struct + `Validate` |
 | `filter/ast.*` 与 `filter/token.*` | ~~公开 AST 字段、token、visitor~~（P4-07 已删除） | 当前只保留 token-free `Expr`、稳定语义节点、构造函数、`Parse`/`Validate` |

@@ -56,6 +56,14 @@ P3-08 已建立只依赖新 `core/chat` 与 `tools.Tool` 的 `agent/toolloop.Run
 消费者，因此与新 Runner 分离冻结；它们不是 Runner adapter，最后消费者由 P6
 迁移时连同旧 `chat.NewTool` 一起删除。
 
+## P5 直接删除记录：Embedding framework 表面
+
+P5-01 在 `7cd3865c3` 中直接删除了 embedding 的 `ClientRequest`、`ClientCaller`、
+handler/middleware/chain、`ModelMetadata`、`GetDimensions` 与全局维度 cache，并同步
+迁移所有 provider、vectorstore 和 runtime 消费点。该表面没有仍待迁移的消费者，
+因此不建立冻结条目，也不保留 deprecated wrapper、alias 或 bridge。当前唯一 SPI
+是单方法 `embedding.Model`；可选 `Dimensioner` 和无缓存探测 helper 均显式返回错误。
+
 ## 台账维护规则
 
 1. P2～P5 每发现一个为迁移保留的旧表面，都必须在同一逻辑提交登记目标替代、消费方、迁移任务和删除任务。
