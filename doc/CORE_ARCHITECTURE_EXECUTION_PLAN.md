@@ -574,7 +574,10 @@ flowchart LR
   - 证据：目标 `core/chat` 的 Model/Streamer 为具体 Request/Response 契约，无 type parameter、无 embedded interface、无 `core/model` import；架构测试对三项建立自动守卫。
   - 范围：旧 `core/model` 和 `core/model/chat` 继续只为 workspace 迁移保留，已由 `CORE_LEGACY_REMOVAL.md` 登记 P6-05 删除；本任务未提前创建 P5 modality 包。
   - 验证：Core build/vet/test/lint 与 race 全绿。
-- [ ] **P2-05 保留并简化 Chat 的泛型 Call/Stream middleware 组合算法**
+- [x] **P2-05 保留并简化 Chat 的泛型 Call/Stream middleware 组合算法**（完成：2026-07-14）
+  - 证据：新增 stdlib HandlerFunc 风格的 `ModelFunc`/`StreamerFunc`、函数型 CallMiddleware/StreamMiddleware 与 `Wrap`/`WrapStream`；删除目标用户面上的泛型 Chain builder。
+  - 泛型边界：唯一泛型是未导出的 `compose` 包装算法，真实复用 Call/Stream 的 outermost-first 组合，不建立名义层次或公共泛型 API。
+  - 验证：覆盖 adapter 委托、错误透传、call/stream 顺序、nil middleware、输入 slice 变更隔离和空链；`core/chat` coverage 94.5%，Core build/vet/test/lint/race 全绿。
 - [ ] **P2-06 为四个 reference provider 建立 compile-time 和行为 conformance suite**
   - Harness 位于 `models/internal/conformance`，由各 provider 测试传入具体构造函数；Core 不 import provider。
 - [ ] **P2-07 固化 Chat Call/Stream 行为契约**
@@ -726,20 +729,20 @@ flowchart LR
 |---|---|---:|---|
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
-| P2 Chat Model SPI 收缩 | 进行中 | 4/7 | P2-04 完成；当前执行 P2-05 middleware 组合 |
+| P2 Chat Model SPI 收缩 | 进行中 | 5/7 | P2-05 完成；当前执行 P2-06 provider conformance |
 | P3 高层运行时外移 | 未开始 | 0/9 | 依赖 P2 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **17/60** | **28%** |
+| **总计** | **进行中** | **18/60** | **30%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P2。
-- 下一任务：P2-05，在 `core/chat` 保留并简化真正复用算法的 Call/Stream middleware 函数组合。
+- 下一任务：P2-06，在 `models/internal/conformance` 建立四个 reference provider 的 compile-time/行为 conformance suite 并开始接入真实 adapter。
 - 当前阻塞：无。
-- 最近完成：P2-04；目标 Chat SPI 与旧泛型名义层彻底解耦，并由 import/type-parameter/embedding 门禁锁定。
+- 最近完成：P2-05；stdlib 风格 function adapter、Call/Stream middleware 与私有泛型 compose 算法。
 
 ### 10.3 进度更新规则
 
@@ -958,6 +961,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P2-05；以 stdlib 风格函数 adapter/包装器替代泛型 Chain 用户面，仅保留私有 compose 算法复用；进入 P2-06 | Codex |
 | 2026-07-14 | 完成 P2-04；禁止目标 Chat SPI import 旧 `core/model`、使用 type parameter 或嵌入名义接口；进入 P2-05 | Codex |
 | 2026-07-14 | 完成 P2-03；用 AST 门禁锁定 Model/Streamer 不含默认值/身份，并建立冻结旧 API 的 P6 删除台账；进入 P2-04 | Codex |
 | 2026-07-14 | 完成 P2-02；新增与 Model 平级、不互相嵌入的可选 Streamer 能力及形状守卫；进入 P2-03 | Codex |
@@ -981,6 +985,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P2-05 | 新增 ModelFunc/StreamerFunc、函数型 middleware 与 Wrap/WrapStream；组合顺序、nil、slice 隔离和错误透传已覆盖；chat coverage 94.5%，Core 门禁/race 全绿；任务计数 18/60 | P2-06 provider conformance |
 | 2026-07-14 | P2-04 | 架构守卫确认新 Chat Model/Streamer 无旧 `core/model` import、无 type parameter、无 embedded interface；旧名义层冻结到 P6；Core build/vet/test/lint/race 全绿；任务计数 17/60 | P2-05 middleware 组合 |
 | 2026-07-14 | P2-03 | 新增目标 Chat SPI AST 门禁与 `CORE_LEGACY_REMOVAL.md`；禁止非白名单/嵌入接口/ModelMetadata，登记三类旧 Chat 表面 P6 删除责任；Core build/vet/test/lint/race 全绿；任务计数 16/60 | P2-04 清除泛型名义层次 |
 | 2026-07-14 | P2-02 | 新增独立单方法 Streamer；stream-only provider 编译满足接口，反射锁定 Stream 签名；Core build/vet/test/lint/race 全绿；任务计数 15/60 | P2-03 移除强制默认值/身份 |
