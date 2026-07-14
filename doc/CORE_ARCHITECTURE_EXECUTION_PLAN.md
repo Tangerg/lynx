@@ -719,7 +719,12 @@ flowchart LR
   - Harness 位于 `vectorstores/internal/conformance`，由各 backend 测试实例化；开始前从 `doc/CORE_API_INVENTORY.md` 展开完整 backend 子清单。
   - 27 个目录均验证精确能力集合和 I/O 前输入契约；Bedrock KB 只实现 Searcher，七个无 ID 删除能力的 backend 不伪造 `IDDeleter`。
   - 证据：`c970a3343`；全部 backend compile-time assertion、统一 conformance、原测试、filter visitor 测试以及 vectorstores build/vet/lint/race 全绿。
-- [ ] **P4-09 迁移全部 RAG、vectorstore 和 document pipeline 消费方**
+- [x] **P4-09 迁移全部 RAG、vectorstore 和 document pipeline 消费方**（完成：2026-07-14）
+  - RAG 只依赖 `Searcher` 并把 `Match` 映射为自身 `Candidate`；document pipeline 通过 `NewDocumentWriter(Indexer)` 组合；全部 backend 和文档使用 Add/Search/Delete 能力术语。
+  - 旧 Store/Creator/Retriever/Deleter、request wrapper、Filter 编译器公共路径和 `Document.Score` 均无生产引用或兼容面。
+  - 证据：`0921d67c8`、`4a4df484e`；Filter 根 package 覆盖率 93.5%，FuzzParse 30 秒约 971 万次通过；全 workspace 76 项 build/vet/test/lint 与 Core/RAG/documentpipeline/vectorstores race 全绿。
+
+阶段验收（完成：2026-07-14）：P4 九项任务和 27 个 backend 子清单全部完成；Document 仅承载数据，VectorStore 保持 Document/查询文本的 AI 语义并按能力拆分，Filter 编译器实现已完全 internal；同路径旧面和兼容层均已删除。
 
 退出标准：
 
@@ -808,18 +813,18 @@ flowchart LR
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
-| P4 Document/VectorStore | 进行中 | 8/9 | 27 个 backend 统一 conformance 已完成；进入消费方与阶段退出审计 |
-| P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
+| P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
+| P5 其余模态与依赖 | 进行中 | 0/7 | 进入其余模态最小 SPI 与 Core 依赖瘦身 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **37/60** | **62%** |
+| **总计** | **进行中** | **38/60** | **63%** |
 
 ### 10.2 当前焦点
 
-- 当前阶段：P4。
-- 下一任务：执行 P4-09，审计并迁完 RAG、vectorstore、documentpipeline 消费方，完成 P4 全阶段退出门禁。
+- 当前阶段：P5。
+- 下一任务：执行 P5-01，建立 `core/embedding` 单方法最小 SPI，并按消费方能力拆分可选维度接口。
 - 当前阻塞：无。
-- 最近完成：P4-08；`vectorstores/internal/conformance` 已由 25 个实现和 2 个 alias 全部实例化，精确能力集合和统一 I/O 前校验契约已成为测试门禁。
+- 最近完成：P4-09 与 P4 阶段验收；全部消费方已迁移，Filter 覆盖率/fuzz、全 workspace 76 项门禁和四个受影响模块 race 全绿。
 
 ### 10.3 进度更新规则
 
@@ -920,7 +925,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 | Message tagged value 无法表达个别 provider 能力 | 中 | 高 | 四个差异 provider 已完成映射验证，并以生产 adapter 接入同一 conformance | 已验证（4/4） |
 | ChatClient 外移后用户体验下降 | 中 | 中 | 直接调用为主，保留常见 Text/Template/Structured Output 便利 API | 未验证 |
 | Tool 运行时拆分破坏 Agent pause/resume | 高 | 高 | P1 已建立并验证 Invocation/Event 原型，P3 再迁移现有 tool-loop | 原型已验证，迁移待执行 |
-| VectorStore 小接口迁移量过大 | 高 | 中 | 建立 conformance suite，按 backend 批次迁移 | 未验证 |
+| VectorStore 小接口迁移量过大 | 高 | 中 | 建立 conformance suite，按 backend 批次迁移 | 已验证并关闭（P4） |
 | Core 标准库依赖目标过严 | 中 | 中 | 允许 ADR 例外，但必须证明 stdlib 不足和退出条件 | 监控中 |
 | Core/OTel 目标与现行治理文档互相冲突 | 高 | 高 | P0-05 已裁决 OTel 外移；P0-06 已同步根/core/otel CLAUDE、OBSERVABILITY 和本文 | 已解除 |
 | 只改目录不改职责，形成新名字的旧架构 | 中 | 高 | 每阶段以退出标准和 forbidden responsibilities 验收 | 监控中 |
@@ -1059,6 +1064,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P4-09 与 P4 阶段验收；消费方、旧术语和观测示例完成切换，Filter 覆盖率/fuzz、workspace 与 race 门禁达标；进入 P5 | Codex |
 | 2026-07-14 | 完成 P4-08；27 个 vectorstore backend 全部接入统一能力与前置校验 conformance，完整 backend 子清单逐项验收 | Codex |
 | 2026-07-14 | 完成 P4-03 至 P4-07；VectorStore 改为四个小能力接口和普通 SearchRequest，删除 wrapper/native client；Filter 收敛为 token-free 语义门面并采纳 ADR-010 | Codex |
 | 2026-07-14 | 完成 P4-01/P4-02；Document 收缩为纯数据，pipeline/reader 策略移出 Core，检索关系由 vectorstore.Match 与 RAG Candidate 显式承载；采纳 ADR-009 | Codex |
@@ -1101,6 +1107,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P4-09、P4 阶段验收 | `0921d67c8` 清理全部 backend 与观测文档的旧 Create/Retrieve 语义；`4a4df484e` 新增 Filter 公共门面全词汇测试和稳定 FuzzParse，并修正 documentpipeline import 门禁；Filter 覆盖率 93.5%，30 秒 fuzz 约 971 万次通过，全 workspace 76 项 build/vet/test/lint 与 Core/RAG/documentpipeline/vectorstores race 全绿；任务计数 38/60，P4 9/9 完成 | P5-01 `core/embedding` 最小 SPI |
 | 2026-07-14 | P4-08 | `c970a3343` 新增 `vectorstores/internal/conformance`，由 25 个实现和 2 个 alias 全部实例化，验证精确能力集合、空 Add、非法 Search、空 ID 删除和 nil Filter 的统一 I/O 前契约；全部原 backend/visitor 测试及 vectorstores build、vet、lint、race 全绿；任务计数 37/60 | P4-09 消费方迁移与阶段退出审计 |
 | 2026-07-14 | P4-03 至 P4-07 | `8531c022e` 将 Store 拆为 `Indexer`/`Searcher`/`IDDeleter`/`FilterDeleter`，删除单字段 request wrapper、metadata/native client 探测面并以普通 `SearchRequest.Validate` 取代 fluent 配置；`e49928f04` 将 Filter 编译器五个公共子包移入 internal，以显式树转换提供 token-free 根语义门面并迁完 RAG/25 个实现；workspace 19/19 与 Core/RAG/vectorstores build、vet、lint、race 全绿；任务计数 36/60 | P4-08 全 backend 统一 conformance |
 | 2026-07-14 | P4-01、P4-02 | `16332a7d0` 将 27 个 vectorstore backend 返回值迁为 `Match`，并以 RAG `Candidate` 隔离通用契约；`de6f778ee` 将 Document 收缩为 `ID/Text/Media/Metadata`，新增 `documentpipeline`、迁移 text/JSON reader 到 `documentreaders`，删除 Core runtime policy 与 `document/id`；workspace 19/19 及 Core/documentpipeline/documentreaders/RAG/vectorstores race 全绿；任务计数 31/60 | P4-03 小能力接口替代胖 Store |
