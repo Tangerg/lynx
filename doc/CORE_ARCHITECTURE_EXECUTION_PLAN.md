@@ -565,7 +565,10 @@ flowchart LR
   - 证据：新增独立单方法 `Streamer`，签名为 `Stream(context.Context, *Request) iter.Seq2[*Response, error]`；不嵌入 Model，Model 也不嵌入 Streamer。
   - 守卫：stream-only provider 编译满足 Streamer；反射测试锁定方法数量和完整签名，证明同步/流式能力可独立实现。
   - 验证：Core build/vet/test/lint 与 race 全绿。
-- [ ] **P2-03 从 Chat Model SPI 移除 DefaultOptions/Metadata 强制方法**
+- [x] **P2-03 从 Chat Model SPI 移除 DefaultOptions/Metadata 强制方法**（完成：2026-07-14）
+  - 证据：目标 Model/Streamer 均无 DefaultOptions、Metadata 或嵌入接口；新增 AST 架构守卫，禁止两个 SPI 增加非白名单方法、嵌入其他接口或在目标包重新引入 `ModelMetadata`。
+  - 冻结：新增 [`CORE_LEGACY_REMOVAL.md`](CORE_LEGACY_REMOVAL.md)，登记旧复合 Model、混合 Request/Response 与 Core Chat framework 表面的替代路径、迁移任务和 P6 删除验收。
+  - 验证：Core build/vet/test/lint 与 race 全绿。
 - [ ] **P2-04 让 `core/chat` 停止使用泛型 Model/StreamingModel 名义层次**
   - 只冻结旧 `core/model/chat` 包并登记 P6 删除；P2 不创建 embedding/image/audio/moderation 目标包。
 - [ ] **P2-05 保留并简化 Chat 的泛型 Call/Stream middleware 组合算法**
@@ -678,6 +681,7 @@ flowchart LR
 - [ ] **P6-03 迁移 `agent`、`chathistory`、`documentreaders` 的剩余新路径消费点**
 - [ ] **P6-04 迁移 `app/runtime` 和示例程序**
 - [ ] **P6-05 删除旧 `core/model/<modality>` 包、path bridge 和 deprecated API**
+  - 以 [`CORE_LEGACY_REMOVAL.md`](CORE_LEGACY_REMOVAL.md) 为冻结旧表面的删除台账；开始前与实际 import/identifier 清单重新核对。
 - [ ] **P6-06 删除冻结旧包带来的残余依赖并整理所有 go.mod**
 - [ ] **P6-07 更新所有 CLAUDE/README/架构文档**
 - [ ] **P6-08 执行全 workspace 测试、race、vet 和静态检查**
@@ -719,20 +723,20 @@ flowchart LR
 |---|---|---:|---|
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
-| P2 Chat Model SPI 收缩 | 进行中 | 2/7 | P2-02 完成；当前执行 P2-03 移除强制默认值/身份 |
+| P2 Chat Model SPI 收缩 | 进行中 | 3/7 | P2-03 完成；当前执行 P2-04 清除泛型名义层次 |
 | P3 高层运行时外移 | 未开始 | 0/9 | 依赖 P2 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **15/60** | **25%** |
+| **总计** | **进行中** | **16/60** | **27%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P2。
-- 下一任务：P2-03，从目标 Chat Model SPI 排除 DefaultOptions/Metadata 强制方法，并冻结旧接口待 P6 删除。
+- 下一任务：P2-04，确认新 `core/chat` 不使用 `core/model` 的泛型 Model/StreamingModel 名义层次，并冻结旧包到 P6。
 - 当前阻塞：无。
-- 最近完成：P2-02；独立单方法 Streamer 与 stream-only provider/反射形状守卫。
+- 最近完成：P2-03；目标 SPI 排除默认值/身份，AST 架构门禁和冻结旧 API 删除台账落地。
 
 ### 10.3 进度更新规则
 
@@ -951,6 +955,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P2-03；用 AST 门禁锁定 Model/Streamer 不含默认值/身份，并建立冻结旧 API 的 P6 删除台账；进入 P2-04 | Codex |
 | 2026-07-14 | 完成 P2-02；新增与 Model 平级、不互相嵌入的可选 Streamer 能力及形状守卫；进入 P2-03 | Codex |
 | 2026-07-14 | 完成 P2-01；新增仅含 Call 的 `core/chat.Model` 与公开形状守卫；进入 P2-02 | Codex |
 | 2026-07-14 | 完成 P1-07 与 P1 阶段验收；冻结 OpenAI/Anthropic/Google/Ollama 映射 fixture 和 loss policy，全 workspace、30 秒 fuzz 与阶段 race 全绿；进入 P2 | Codex |
@@ -972,6 +977,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P2-03 | 新增目标 Chat SPI AST 门禁与 `CORE_LEGACY_REMOVAL.md`；禁止非白名单/嵌入接口/ModelMetadata，登记三类旧 Chat 表面 P6 删除责任；Core build/vet/test/lint/race 全绿；任务计数 16/60 | P2-04 清除泛型名义层次 |
 | 2026-07-14 | P2-02 | 新增独立单方法 Streamer；stream-only provider 编译满足接口，反射锁定 Stream 签名；Core build/vet/test/lint/race 全绿；任务计数 15/60 | P2-03 移除强制默认值/身份 |
 | 2026-07-14 | P2-01 | 新增单方法 `core/chat.Model`；call-only provider 编译满足接口，反射锁定 Call 签名；Core build/vet/test/lint/race 全绿；任务计数 14/60 | P2-02 独立 Streamer |
 | 2026-07-14 | P1-07、P1 验收 | 新增四 provider 映射文档、8 份 golden fixture 与 provider 特性断言；Models 门禁全绿；全 workspace 68/68，六个 fuzz 各 30 秒，Core/Agent/Tools race 全绿；任务计数 13/60，P1 7/7 | P2-01 单方法 Chat Model |
