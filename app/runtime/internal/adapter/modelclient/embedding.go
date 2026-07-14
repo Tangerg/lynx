@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Tangerg/lynx/core/model/embedding"
+	"github.com/Tangerg/lynx/core/embedding"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"

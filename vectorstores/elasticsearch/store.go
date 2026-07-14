@@ -9,7 +9,7 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v8"
 
-	"github.com/Tangerg/lynx/core/model/embedding"
+	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/vectorstores"
 )

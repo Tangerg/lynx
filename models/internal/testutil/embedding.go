@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/embedding"
+	"github.com/Tangerg/lynx/core/embedding"
 )
 
 // EmbeddingContract drives the mock-test contract for any embedding

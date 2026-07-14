@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/model"
-	"github.com/Tangerg/lynx/core/model/image"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 

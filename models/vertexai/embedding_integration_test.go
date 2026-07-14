@@ -5,7 +5,7 @@ package vertexai_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/embedding"
+	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/vertexai"
 )

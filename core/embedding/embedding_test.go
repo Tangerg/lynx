@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/model/embedding"
+	"github.com/Tangerg/lynx/core/embedding"
 )
 
 // fakeEmbeddingModel is the test mock used across the embedding suite.

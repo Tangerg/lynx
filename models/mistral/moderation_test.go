@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model"
-	"github.com/Tangerg/lynx/core/model/moderation"
+	"github.com/Tangerg/lynx/core/moderation"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/mistral"
 )

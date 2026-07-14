@@ -9,7 +9,7 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/Tangerg/lynx/core/model"
-	"github.com/Tangerg/lynx/core/model/audio/tts"
+	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 

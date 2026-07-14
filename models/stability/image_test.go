@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/model"
-	"github.com/Tangerg/lynx/core/model/image"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/stability"
 )

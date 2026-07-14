@@ -8,9 +8,9 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/pkg/mime"
 	"github.com/Tangerg/lynx/pkg/ptr"

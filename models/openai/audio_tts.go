@@ -10,7 +10,7 @@ import (
 	"github.com/openai/openai-go/v3/packages/param"
 
 	"github.com/Tangerg/lynx/core/model"
-	"github.com/Tangerg/lynx/core/model/audio/tts"
+	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/options"
 	pkgio "github.com/Tangerg/lynx/pkg/io"
 )

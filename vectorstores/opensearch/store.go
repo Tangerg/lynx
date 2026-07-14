@@ -13,8 +13,8 @@ import (
 	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/pkg/math"

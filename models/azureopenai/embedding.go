@@ -5,8 +5,8 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/model"
-	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/models/openai"
 )
 

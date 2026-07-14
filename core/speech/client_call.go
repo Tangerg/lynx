@@ -1,4 +1,4 @@
-package tts
+package speech
 
 import "context"
 
