@@ -3,9 +3,9 @@ module github.com/Tangerg/lynx/models
 go 1.26.4
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260714092135-fda80088ddc4
-	github.com/Tangerg/lynx/pkg v0.0.0-20260627110629-977ea6791375
-	github.com/Tangerg/lynx/tokenizer v0.0.0-20260714090234-687df9b609db
+	github.com/Tangerg/lynx/core v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/pkg v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/tokenizer v0.0.0-20260714105950-f178f20ec544
 	github.com/anthropics/anthropic-sdk-go v1.52.0
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
@@ -14,7 +14,6 @@ require (
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/ollama/ollama v0.30.11
 	github.com/openai/openai-go/v3 v3.41.0
-	github.com/spf13/cast v1.10.0
 )
 
 require (
@@ -58,9 +57,7 @@ require (
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/bits-and-blooms/bitset v1.24.5 // indirect
 	github.com/buger/jsonparser v1.2.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.17 // indirect

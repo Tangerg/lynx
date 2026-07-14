@@ -5,8 +5,8 @@ go 1.26.4
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.2
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
-	github.com/Tangerg/lynx/core v0.0.0-20260612070432-d76a84bc1fc7
-	github.com/Tangerg/lynx/pkg v0.0.0-20260612070432-d76a84bc1fc7
+	github.com/Tangerg/lynx/core v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/pkg v0.0.0-20260714105950-f178f20ec544
 	github.com/amikos-tech/chroma-go v0.4.1
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime v1.52.6
@@ -68,7 +68,6 @@ require (
 	github.com/couchbaselabs/gocbconnstr/v2 v2.0.0 // indirect
 	github.com/creasty/defaults v1.8.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dlclark/regexp2 v1.12.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
@@ -145,7 +144,6 @@ require (
 	github.com/paulmach/orb v0.13.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.27 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pkoukk/tiktoken-go v0.1.8 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
@@ -219,7 +217,6 @@ require (
 )
 
 require (
-	github.com/bits-and-blooms/bitset v1.24.5 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/milvus-io/milvus/client/v2 v2.6.5
 	golang.org/x/net v0.56.0 // indirect

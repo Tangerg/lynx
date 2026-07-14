@@ -2,7 +2,6 @@ package arch
 
 import (
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 )
@@ -22,13 +21,6 @@ var targetPublicPackages = map[string]struct{}{
 	"vectorstore/filter": {},
 }
 
-var temporaryPublicPackages = map[string]string{
-	"model/chat":                    "P6-05",
-	"model/chat/conversation":       "P3-03/P6-05",
-	"model/chat/history":            "P3-04/P6-05",
-	"model/chat/middleware/history": "P3-04/P6-05",
-}
-
 func TestPublicPackagesMatchArchitectureAllowlist(t *testing.T) {
 	root := moduleRoot(t)
 	seen := make(map[string]struct{})
@@ -45,20 +37,10 @@ func TestPublicPackagesMatchArchitectureAllowlist(t *testing.T) {
 		seen[rel] = struct{}{}
 	}
 
-	var temporary []string
 	for packagePath := range seen {
 		if _, ok := targetPublicPackages[packagePath]; ok {
 			continue
 		}
-		deadline, ok := temporaryPublicPackages[packagePath]
-		if !ok {
-			t.Errorf("public package %q is outside the target architecture", packagePath)
-			continue
-		}
-		temporary = append(temporary, packagePath+" -> "+deadline)
-	}
-	slices.Sort(temporary)
-	for _, item := range temporary {
-		t.Log("temporary public package remains: " + item)
+		t.Errorf("public package %q is outside the target architecture", packagePath)
 	}
 }

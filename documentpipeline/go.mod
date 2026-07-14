@@ -3,8 +3,8 @@ module github.com/Tangerg/lynx/documentpipeline
 go 1.26.4
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260714090610-6953b45da9d2
-	github.com/Tangerg/lynx/tokenizer v0.0.0-20260714090234-687df9b609db
+	github.com/Tangerg/lynx/core v0.0.0-20260714105950-f178f20ec544
+	github.com/Tangerg/lynx/tokenizer v0.0.0-20260714105950-f178f20ec544
 	github.com/google/uuid v1.6.0
 	github.com/spf13/cast v1.10.0
 )

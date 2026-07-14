@@ -1,3 +1,5 @@
+github.com/Tangerg/lynx/core v0.0.0-20260714105950-f178f20ec544 h1:Ly3hoL6Q4vAGXgpyW5IP+kGcNtyQO42IgvPV7UitWTc=
+github.com/Tangerg/lynx/core v0.0.0-20260714105950-f178f20ec544/go.mod h1:We/oKenDl60lly/jtwwvZEEh33MWqum9eWQNjFPWGlY=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
