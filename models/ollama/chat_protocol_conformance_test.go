@@ -71,6 +71,10 @@ func TestChat_CoreConformance(t *testing.T) {
 				t.Errorf("final usage = %#v", final)
 			}
 		},
+		AssertAggregated: func(t *testing.T, response *corechat.Response) {
+			t.Helper()
+			assertProtocolResponse(t, response)
+		},
 	}.Run(t)
 }
 

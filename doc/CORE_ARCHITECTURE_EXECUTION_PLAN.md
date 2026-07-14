@@ -1,6 +1,6 @@
 # Core 架构演进执行计划
 
-> 状态：执行中（P2 Chat Model SPI 收缩）
+> 状态：执行中（P3 高层运行时外移）
 > 建立日期：2026-07-13
 > 最后更新：2026-07-14
 > 维护者：Lynx 仓库维护者
@@ -586,8 +586,13 @@ flowchart LR
   - Google 证据：真实 `genai` mock wire 覆盖全部 candidates、Thought/ThoughtSignature、safety、bytes/URI media、FunctionResponse 与 snake_case native extension；Call/Stream 对无原生 ID 的 tool call 都生成确定性 `google/<choice>/<part>`，prompt/tool-use 与 candidate/thought 分段 usage 归一化为 Core 总量。
   - Ollama 证据：真实 native SDK NDJSON mock wire 覆盖 reasoning → text → tool 的规范顺序、bytes image、tool/result、`keep_alive`/`format`/`think`/原生 options、created_at/duration/metrics；Call/Stream 对无原生 ID 的 tool call 生成稳定 `ollama/<choice>/<part>`，并在 provider I/O 前显式拒绝 reasoning signature、URI image 和非对象 tool arguments。
   - 验证：Models build/vet/test/lint 全绿；四 provider conformance 及 Ollama/internal conformance 目标 race 全绿。
-- [ ] **P2-07 固化 Chat Call/Stream 行为契约**
+- [x] **P2-07 固化 Chat Call/Stream 行为契约**（完成：2026-07-14）
   - 覆盖 context cancel、调用方提前停止、首个错误终止、无 goroutine 泄漏和流式聚合语义。
+  - Core 契约：Model/Streamer godoc 明确 context error identity、单一终止错误、调用方停止时同步释放资源、禁止 detached goroutine，以及 Usage 为累计快照而非增量。
+  - 聚合：新增零值可用的显式 `ResponseAccumulator`；按 choice index 保留首次出现顺序，合并相邻 text/reasoning，并按稳定 tool-call ID 聚合并行参数 delta；identity/finish 取最后非空值，metadata last-write-wins，最后一份非零 Usage 快照生效。Add 先复制再合并，失败原子回滚，输入 chunk 与输出 snapshot 均不别名。
+  - 行为 conformance：四 provider 的真实 SDK transport 均验证进行中 Call/Stream 取消、读一个 chunk 后提前停止、首个 malformed event 后终止；测试同步等待消费 goroutine 和服务端 request context 退出，以证明无遗留执行单元。
+  - 聚合 conformance：四家 happy stream 自动进入同一 accumulator 并断言最终 reasoning/text/signature/tool/usage；由此发现并修正 OpenAI/Anthropic mock tool-arguments 多转义一层的问题，adapter 不做猜测性反转义。
+  - 验证：`core/chat` coverage 95.1%；Core/Models build/vet/test/lint 和全模块 race 全绿。
 
 退出标准：
 
@@ -595,6 +600,8 @@ flowchart LR
 - 目标 Core Model SPI 不携带默认配置和观测身份；冻结的旧包只为迁移保留。
 - `core/chat` 新 API 无全局状态；旧 Chat helper 有明确的 P6 删除记录。
 - 四个 reference provider conformance tests 通过；剩余 provider 在 P6 迁移。
+
+阶段验收（完成：2026-07-14）：`scripts/check.sh build vet test lint` 全 workspace 68/68 通过；metadata/media/Part/Message/Request/Response 六个 fuzz 入口各运行 30 秒通过；Core、Models 全模块 race 通过。
 
 ### P3：ChatClient、middleware 实现和工具运行时外移
 
@@ -735,20 +742,20 @@ flowchart LR
 |---|---|---:|---|
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
-| P2 Chat Model SPI 收缩 | 进行中 | 6/7 | P2-06 四 provider conformance 完成；当前执行 P2-07 行为契约 |
-| P3 高层运行时外移 | 未开始 | 0/9 | 依赖 P2 |
+| P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
+| P3 高层运行时外移 | 进行中 | 0/9 | P2 已退出；当前建立独立 chatclient module |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **19/60** | **32%** |
+| **总计** | **进行中** | **20/60** | **33%** |
 
 ### 10.2 当前焦点
 
-- 当前阶段：P2。
-- 下一任务：执行 P2-07，固化 context cancel、调用方提前停止、首错终止、goroutine 所有权和 stream 聚合语义。
+- 当前阶段：P3。
+- 下一任务：执行 P3-01，建立独立 `chatclient` module，并先冻结它与 Core/Tools/History/Agent 的依赖边界。
 - 当前阻塞：无。
-- 最近完成：P2-06；OpenAI、Anthropic、Google、Ollama 四个 reference provider 的目标 Core adapter 与真实 SDK wire conformance。
+- 最近完成：P2-07 与 P2 阶段验收；Chat 生命周期/错误/聚合契约、四 provider 行为 conformance、68 项 workspace 门禁、六个 30 秒 fuzz 及 Core/Models 全 race 均通过。
 
 ### 10.3 进度更新规则
 
@@ -967,6 +974,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P2-07 与 P2 阶段验收；新增无别名 ResponseAccumulator，四 provider 固化取消/提前停止/首错终止/资源释放契约；进入 P3 | Codex |
 | 2026-07-14 | 完成 P2-06 四 provider adapter/conformance；Ollama native adapter 保留 reasoning/tool/native metadata，稳定合成 tool ID，并拒绝无法表达的输入 | Codex |
 | 2026-07-14 | P2-06 完成 Google reference adapter/conformance；保留全部 candidates、稳定合成 tool ID，并修正 tool-use/thought token 的 Core 总量归一化 | Codex |
 | 2026-07-14 | P2-06 完成 Anthropic reference adapter/conformance；修正缓存输入归一化语义并同步 Core Usage 注释、provider golden 与 loss policy | Codex |
@@ -995,6 +1003,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P2-07、P2 阶段验收 | 新增零值可用、失败原子、输入/快照无别名的 `ResponseAccumulator`，支持多 choice、相邻 text/reasoning、交错并行 tool delta 与累计 Usage 快照；共享 behavior suite 让四家真实 SDK 验证 Call/Stream cancel、调用方早停、首错终止和 transport context 退出，并让所有 happy stream 通过统一聚合；修正两处双重转义 mock wire；chat coverage 95.1%，workspace 68/68、六个 fuzz 各 30 秒、Core/Models 全 race 通过；任务计数 20/60，P2 7/7 | P3-01 建立独立 chatclient module |
 | 2026-07-14 | P2-06（批次 5，Ollama 4/4，任务完成） | 新增 `ollama.Chat`/`ChatConfig` 与独立 native request/response mapper；覆盖 reasoning/text/tool 规范顺序、bytes image、tool/result、native request 逃生舱、created_at/duration/metrics 和 Call/Stream 稳定位置 ID；无法表达的 signature、URI image、非对象 arguments 在 I/O 前失败；Models 全门禁及 Ollama/internal conformance race 全绿；任务计数 19/60 | P2-07 Chat Call/Stream 行为契约 |
 | 2026-07-14 | P2-06（批次 4，Google 3/4） | 新增 `google.Chat`/`ChatConfig` 与独立 request/response mapper；保留全部 candidates 和 part 顺序，映射 Thought/signature、safety、media、FunctionResponse，并为缺失 ID 的 Call/Stream tool call 生成稳定位置 ID；将 prompt 20 + tool-use 3、candidate 9 + thoughts 4 归一化为 Core 23/13，原始分项留在 extension；Models 全门禁与目标 race 全绿；任务计数保持 18/60 | P2-06 Ollama adapter/conformance |
 | 2026-07-14 | P2-06（批次 3，Anthropic 2/4） | 新增 `anthropic.Chat`/`ChatConfig` 与独立 request/response/stream mapper；覆盖 block 保序、signature/redacted replay、多模态、tool error、自动缓存断点和稳定流式 tool identity；依据 provider 原生 usage 定义将 100 fresh + 40 read + 20 write 归一化为 Core 总输入 160，并同步 golden/loss policy；Models/Core build/vet/test/lint 与目标 race 全绿；任务计数保持 18/60 | P2-06 Google adapter/conformance |

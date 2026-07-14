@@ -116,6 +116,28 @@ func TestChat_CoreConformance(t *testing.T) {
 				t.Errorf("final usage = %#v", finalUsage)
 			}
 		},
+		AssertAggregated: func(t *testing.T, response *corechat.Response) {
+			t.Helper()
+			if response.ID != "msg-stream" || response.Model != "claude-opus-4-6" || len(response.Choices) != 1 {
+				t.Fatalf("aggregated identity/choices = %q/%q/%d", response.ID, response.Model, len(response.Choices))
+			}
+			choice := response.Choices[0]
+			if choice.Message == nil || len(choice.Message.Parts) != 3 || choice.FinishReason != corechat.FinishReasonToolCalls {
+				t.Fatalf("aggregated choice = %#v", choice)
+			}
+			reasoning := choice.Message.Parts[0]
+			call := choice.Message.Parts[2].ToolCall
+			if reasoning.Text != "compare evidence" || string(reasoning.Signature) != "sig-stream" || choice.Message.Parts[1].Text != "need another lookup" ||
+				call == nil || call.ID != "toolu-stream" || call.Arguments != `{"id":9}` {
+				t.Errorf("aggregated parts = %#v; call = %#v", choice.Message.Parts, call)
+			}
+			if redacted, found, err := metadata.Decode[string](choice.Message.Metadata, "anthropic/redacted_reasoning"); err != nil || !found || redacted != "opaque-stream" {
+				t.Errorf("aggregated redacted reasoning = %q/%v/%v", redacted, found, err)
+			}
+			if response.Usage.InputTokens != 160 || response.Usage.OutputTokens != 30 {
+				t.Errorf("aggregated usage = %#v", response.Usage)
+			}
+		},
 	}.Run(t)
 }
 
@@ -272,7 +294,7 @@ func writeProtocolChatStream(writer http.ResponseWriter) {
 		{"content_block_delta", `{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":"lookup"}}`},
 		{"content_block_stop", `{"type":"content_block_stop","index":2}`},
 		{"content_block_start", `{"type":"content_block_start","index":3,"content_block":{"type":"tool_use","id":"toolu-stream","name":"lookup","input":{}}}`},
-		{"content_block_delta", `{"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"{\\\"id\\\":"}}`},
+		{"content_block_delta", `{"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"{\"id\":"}}`},
 		{"content_block_delta", `{"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"9}"}}`},
 		{"content_block_stop", `{"type":"content_block_stop","index":3}`},
 		{"message_delta", `{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":"END"},"usage":{"output_tokens":30,"output_tokens_details":{"thinking_tokens":10}}}`},
