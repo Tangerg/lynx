@@ -7,8 +7,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/hitl"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // ErrToolDenied is the sentinel the gate hands the observer's OnToolCallEnd
@@ -136,7 +139,7 @@ func (d *toolObserverDecorator) Name() string { return "tool-observer" }
 // observer into every Call so start / end notifications fire.
 // Action is intentionally ignored — Lyra emits per-tool, not
 // per-action, events.
-func (d *toolObserverDecorator) DecorateTool(_ core.Process, _ core.Action, tool core.AgentTool) core.AgentTool {
+func (d *toolObserverDecorator) DecorateTool(_ core.Process, _ core.Action, tool tools.Tool) tools.Tool {
 	return &observedTool{inner: tool, observer: d.observer}
 }
 
@@ -144,28 +147,11 @@ func (d *toolObserverDecorator) DecorateTool(_ core.Process, _ core.Action, tool
 // per invocation so two concurrent calls to the same tool stay
 // distinguishable on the observer side.
 type observedTool struct {
-	inner    chat.Tool
+	inner    tools.Tool
 	observer toolObserver
 }
 
 func (o *observedTool) Definition() chat.ToolDefinition { return o.inner.Definition() }
-
-// ConcurrencyKey forwards the wrapped tool's concurrency declaration (the tool
-// loop's optional ConcurrentTool contract), matched structurally so the kernel
-// needn't import the loop driver. This MUST be forwarded: this decorator wraps
-// EVERY tool the agent resolves, so dropping the method would strip every
-// tool's declaration and force the loop to run all calls exclusively (serial),
-// silently defeating parallel tool execution — e.g. concurrent `task`
-// sub-agents or distinct-file edits. A wrapped tool that declares nothing stays
-// exclusive (concurrent=false).
-func (o *observedTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
-	if c, ok := o.inner.(interface {
-		ConcurrencyKey(string) (string, bool)
-	}); ok {
-		return c.ConcurrencyKey(arguments)
-	}
-	return "", false
-}
 
 // ReturnsDirect forwards the wrapped tool's return-direct declaration. This
 // decorator wraps every resolved tool, so dropping the marker would turn
@@ -184,12 +170,16 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	v := o.observer.ApproveToolCall(ctx, callID, name, arguments)
 	switch {
 	case v.Interrupt != nil:
-		// Interrupt the run for human input (HITL R). The InterruptError
-		// bubbles through the chat tool loop (which exits immediately and
-		// carries the resumable conversation) up to the action body, which
-		// parks the process on AwaitInput (StatusWaiting). No Start/End
-		// fires — the call hasn't begun; on resume the gate is consulted
-		// again, sees the recorded resolution, and runs or denies.
+		// Convert the concrete agent interrupt into the target runner's pause
+		// signal and hand the awaitable to runTurn in-tick. The runner emits a
+		// serializable Checkpoint; the action then parks on the original
+		// awaitable. On resume Runner.Resume continues at this exact tool.
+		if interrupt, ok := errors.AsType[*hitl.InterruptError](v.Interrupt); ok {
+			if err := setPendingInterrupt(ctx, interrupt); err != nil {
+				return "", err
+			}
+			return "", &toolloop.PauseError{ID: interrupt.Key, Reason: interrupt.Error()}
+		}
 		return "", v.Interrupt
 	case v.Denied:
 		// Recoverable denial: the model sees DenyReason as the tool

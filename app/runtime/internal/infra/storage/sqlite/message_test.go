@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // TestMessageStore_ReplaceIsTransactional pins the retention-safety fix:
@@ -24,12 +24,12 @@ func TestMessageStore_ReplaceIsTransactional(t *testing.T) {
 	ctx := context.Background()
 
 	if err := store.Write(ctx, "conv",
-		chat.NewUserMessage("one"), chat.NewUserMessage("two"), chat.NewUserMessage("three")); err != nil {
+		chat.NewUserMessage(chat.NewTextPart("one")), chat.NewUserMessage(chat.NewTextPart("two")), chat.NewUserMessage(chat.NewTextPart("three"))); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
 	// Replace the history with just the first message — exact overwrite.
-	if err := store.Replace(ctx, "conv", chat.NewUserMessage("one")); err != nil {
+	if err := store.Replace(ctx, "conv", chat.NewUserMessage(chat.NewTextPart("one"))); err != nil {
 		t.Fatalf("Replace: %v", err)
 	}
 	got, err := store.Read(ctx, "conv")
@@ -67,7 +67,7 @@ func TestMessageStore_CountMatchesReadLength(t *testing.T) {
 	}
 
 	if err := store.Write(ctx, "conv",
-		chat.NewUserMessage("one"), chat.NewUserMessage("two"), chat.NewUserMessage("three")); err != nil {
+		chat.NewUserMessage(chat.NewTextPart("one")), chat.NewUserMessage(chat.NewTextPart("two")), chat.NewUserMessage(chat.NewTextPart("three"))); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 	got, err := store.Read(ctx, "conv")

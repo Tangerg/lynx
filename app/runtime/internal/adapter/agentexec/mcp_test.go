@@ -12,8 +12,9 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -45,8 +46,8 @@ func runStdioMCPServer() {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name: "lyra-test-stdio-mcp", Version: "v0.1.0",
 	}, nil)
-	ping, err := chat.NewTool[struct{}, string](
-		chat.ToolDefinition{
+	ping, err := tools.New[struct{}, string](
+		tools.Config{
 			Name:        "ping",
 			Description: "responds with pong",
 		},
@@ -74,8 +75,8 @@ func TestEngine_DialMCPServer(t *testing.T) {
 	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name: "test-srv", Version: "v0.1.0",
 	}, nil)
-	ping, err := chat.NewTool[struct{}, string](
-		chat.ToolDefinition{
+	ping, err := tools.New[struct{}, string](
+		tools.Config{
 			Name:        "ping",
 			Description: "responds with pong",
 		},
@@ -99,7 +100,7 @@ func TestEngine_DialMCPServer(t *testing.T) {
 
 	// 2. Construct the engine pointing at the http MCP endpoint.
 	stub := newStubModel("ping", `{}`, "pong-received")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{{Name: "test", Transport: mcpserver.LiveTransportHTTP, Endpoint: httpServer.URL}},
 	})
@@ -173,7 +174,7 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 	}
 
 	stub := newStubModel("ping", `{}`, "")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{{
@@ -231,7 +232,7 @@ func fileExists(p string) bool {
 // the sibling Rejects* tests assert.)
 func TestEngine_DialMCPServers_ToleratesUnreachable(t *testing.T) {
 	stub := newStubModel("nop", `{}`, "")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{
 			{Name: "down", Transport: mcpserver.LiveTransportHTTP, Endpoint: "http://127.0.0.1:1/mcp"},
@@ -259,7 +260,7 @@ func TestEngine_DialMCPServers_ToleratesUnreachable(t *testing.T) {
 // code path as boot, which the stdio integration test already exercises.)
 func TestEngine_ReconnectMCPServer(t *testing.T) {
 	stub := newStubModel("nop", `{}`, "")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{
 			{Name: "down", Transport: mcpserver.LiveTransportHTTP, Endpoint: "http://127.0.0.1:1/mcp"},

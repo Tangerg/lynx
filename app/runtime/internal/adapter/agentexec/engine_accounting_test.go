@@ -5,7 +5,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // TestEngine_RunChat_TokenUsageAccumulates verifies the per-turn
@@ -15,10 +16,10 @@ import (
 func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 	reasoning := int64(3)
 	stub := newUsageStubModel(
-		chat.Usage{PromptTokens: 10, CompletionTokens: 5},
-		chat.Usage{PromptTokens: 20, CompletionTokens: 7, ReasoningTokens: &reasoning},
+		chat.Usage{InputTokens: 10, OutputTokens: 5},
+		chat.Usage{InputTokens: 20, OutputTokens: 7, ReasoningTokens: &reasoning},
 	)
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
@@ -51,12 +52,12 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 	reasoning := int64(3)
 	stub := newUsageStubModel(
-		chat.Usage{PromptTokens: 10, CompletionTokens: 5},
-		chat.Usage{PromptTokens: 20, CompletionTokens: 7, ReasoningTokens: &reasoning},
+		chat.Usage{InputTokens: 10, OutputTokens: 5},
+		chat.Usage{InputTokens: 20, OutputTokens: 7, ReasoningTokens: &reasoning},
 	)
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	pricing := func(_, _ string, u *chat.Usage) float64 {
-		return float64(u.PromptTokens + u.CompletionTokens)
+		return float64(u.InputTokens + u.OutputTokens)
 	}
 	eng, err := New(context.Background(), Config{ChatClient: client, Pricing: pricing})
 	if err != nil {
@@ -82,10 +83,10 @@ func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 // must stop there and never run round 2.
 func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 	stub := newUsageStubModel(
-		chat.Usage{PromptTokens: 10, CompletionTokens: 5},  // round 1 -> total 15
-		chat.Usage{PromptTokens: 99, CompletionTokens: 99}, // round 2 -> must NOT run
+		chat.Usage{InputTokens: 10, OutputTokens: 5},  // round 1 -> total 15
+		chat.Usage{InputTokens: 99, OutputTokens: 99}, // round 2 -> must NOT run
 	)
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
@@ -109,12 +110,12 @@ func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 // and never run round 2.
 func TestEngine_RunChat_StopsOnCostBudget(t *testing.T) {
 	stub := newUsageStubModel(
-		chat.Usage{PromptTokens: 10, CompletionTokens: 5},  // round 1 -> $15
-		chat.Usage{PromptTokens: 99, CompletionTokens: 99}, // round 2 -> must NOT run
+		chat.Usage{InputTokens: 10, OutputTokens: 5},  // round 1 -> $15
+		chat.Usage{InputTokens: 99, OutputTokens: 99}, // round 2 -> must NOT run
 	)
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	pricing := func(_, _ string, u *chat.Usage) float64 {
-		return float64(u.PromptTokens + u.CompletionTokens)
+		return float64(u.InputTokens + u.OutputTokens)
 	}
 	eng, err := New(context.Background(), Config{ChatClient: client, Pricing: pricing})
 	if err != nil {

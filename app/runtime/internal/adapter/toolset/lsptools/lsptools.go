@@ -5,8 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	toolloop "github.com/Tangerg/lynx/agent/toolloop"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
@@ -23,13 +22,10 @@ import (
 // fs / shell). Positions are 1-based at the tool boundary (what a human/LLM reads
 // off a file); the analyzer converts to the LSP 0-based wire form and folds an
 // unsupported file type into a plain reply.
-func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]chat.Tool, error) {
+func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]tools.Tool, error) {
 	if ci == nil {
 		return nil, errors.New("lsptools: analyzer is nil")
 	}
-	// LSP queries are read-only, so opt them into parallel execution. They're
-	// built via chat.NewTool and can't declare the concurrency contract on
-	// their own type, so wrap with AsParallelTool.
 	lsp, err := newLSPTool(ci, defaultWorkdir)
 	if err != nil {
 		return nil, err
@@ -38,13 +34,10 @@ func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]chat.Tool, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []chat.Tool{
-		toolloop.AsParallelTool(lsp),
-		toolloop.AsParallelTool(diagnostics),
-	}, nil
+	return []tools.Tool{lsp, diagnostics}, nil
 }
 
-// lspInput is the model-facing argument shape; [chat.NewTool] derives the
+// lspInput is the model-facing argument shape; [tools.New] derives the
 // JSON schema from it and decodes calls back into it, so the advertised schema
 // and parsed value cannot drift. Only `operation` is structurally required —
 // which operand each operation needs is validated per-operation in the handler.
@@ -86,10 +79,10 @@ type lspRunner struct {
 	defaultWorkdir string
 }
 
-func newLSPTool(ci *codeintel.Analyzer, defaultWorkdir string) (chat.Tool, error) {
+func newLSPTool(ci *codeintel.Analyzer, defaultWorkdir string) (tools.Tool, error) {
 	t := &lspRunner{analyzer: ci, defaultWorkdir: defaultWorkdir}
-	return chat.NewTool[lspInput, string](
-		chat.ToolDefinition{Name: "lsp", Description: lspDesc},
+	return tools.New[lspInput, string](
+		tools.Config{Name: "lsp", Description: lspDesc},
 		t.query,
 	)
 }
@@ -139,10 +132,10 @@ type diagnosticsTool struct {
 	defaultWorkdir string
 }
 
-func newDiagnosticsTool(ci *codeintel.Analyzer, defaultWorkdir string) (chat.Tool, error) {
+func newDiagnosticsTool(ci *codeintel.Analyzer, defaultWorkdir string) (tools.Tool, error) {
 	t := &diagnosticsTool{analyzer: ci, defaultWorkdir: defaultWorkdir}
-	return chat.NewTool[lspDiagnosticsInput, string](
-		chat.ToolDefinition{
+	return tools.New[lspDiagnosticsInput, string](
+		tools.Config{
 			Name:        "lsp_diagnostics",
 			Description: "Get the language server's current problems (compile errors, warnings) for a file.",
 		},

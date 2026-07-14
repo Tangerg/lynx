@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/chatclient"
+	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 
@@ -100,7 +101,7 @@ respond with exactly: NO_FACTS
 
 Otherwise output ONLY the bullets, no preamble or trailing text.`
 
-	var client *chat.Client
+	var client *chatclient.Client
 	if e.client != nil {
 		client = e.client(ctx)
 	}

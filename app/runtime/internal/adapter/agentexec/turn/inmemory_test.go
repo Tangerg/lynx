@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	chatmodel "github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/chatclient"
+	history "github.com/Tangerg/lynx/chathistory"
+	chatmodel "github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
@@ -155,7 +156,7 @@ func TestDispatcher_SeqMonotone(t *testing.T) {
 // initial new-message count.
 func TestDispatcher_InjectSteering_LandsInNextTurn(t *testing.T) {
 	stub := newHistoryAwareStub()
-	client, _ := chatmodel.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	svc := mustTurn(turn.New(turnDeps(eng)))
 
@@ -214,7 +215,7 @@ func TestDispatcher_InjectSteering_UnknownTurn(t *testing.T) {
 // proceed — the continuation streams on the same channel and the turn
 // completes normally.
 func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
-	client, _ := chatmodel.NewClient(newStubChatModel())
+	client, _ := chatclient.New(newStubChatModel())
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	svc := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil))))) // shell → gate
 
@@ -265,8 +266,8 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 // system header + the fed-back tail).
 func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	model := &countingStubModel{}
-	model.defaults, _ = chatmodel.NewOptions("stub-counting")
-	client, _ := chatmodel.NewClient(model)
+	model.defaults = &chatmodel.Options{Model: "stub-counting"}
+	client, _ := chatclient.New(model)
 	store := history.NewInMemoryStore()
 	eng := buildEngine(t, agentexec.Config{ChatClient: client, HistoryStore: store})
 	svc := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil))))) // shell → gate
@@ -308,7 +309,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	}
 	users := 0
 	for _, m := range stored {
-		if m.Type() == chatmodel.MessageTypeUser {
+		if m.Role == chatmodel.RoleUser {
 			users++
 		}
 	}
@@ -325,7 +326,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 // approval gate; canceling it (instead of approving) must surface
 // TurnEnd{Canceled}.
 func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
-	client, _ := chatmodel.NewClient(newStubChatModel())
+	client, _ := chatclient.New(newStubChatModel())
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	svc := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil)))))
 
@@ -369,7 +370,7 @@ func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 // recoverable result; the model emits its final reply and the turn
 // still completes.
 func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
-	client, _ := chatmodel.NewClient(newStubChatModel())
+	client, _ := chatclient.New(newStubChatModel())
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	svc := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil)))))
 
@@ -410,7 +411,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 // invisible under ModeYolo — the turn never parks (no TurnInterrupted),
 // the tool runs as if no gate were wired.
 func TestDispatcher_ApprovalGate_YoloSkipsEvent(t *testing.T) {
-	client, _ := chatmodel.NewClient(newStubChatModel())
+	client, _ := chatclient.New(newStubChatModel())
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	svc := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeYolo, nil)))))
 
@@ -446,7 +447,7 @@ func TestDispatcher_StartTurn_Validation(t *testing.T) {
 	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", MaxBudget: -1}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
 		t.Fatalf("negative MaxBudget err = %v, want ErrInvalidTurnLimit", err)
 	}
-	opts, _ := chatmodel.NewOptions("should-not-select-model-here")
+	opts := &chatmodel.Options{Model: "should-not-select-model-here"}
 	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", Options: opts}); !errors.Is(err, turn.ErrInvalidTurnOptions) {
 		t.Fatalf("Options.Model err = %v, want ErrInvalidTurnOptions", err)
 	}

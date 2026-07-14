@@ -8,7 +8,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // server is the live state of one configured MCP server. Runtime mutations are
@@ -36,8 +36,8 @@ type Connections struct {
 	mu      sync.Mutex
 	servers []*server
 	client  *sdkmcp.Client
-	onTools func([]chat.Tool) // tool sink; nil until SetToolSink; guarded by mu
-	closed  bool              // terminal state set by Close
+	onTools func([]tools.Tool) // tool sink; nil until SetToolSink; guarded by mu
+	closed  bool               // terminal state set by Close
 
 	// reconnectMu serializes Reconnect so two concurrent calls can't both dial
 	// and leak the loser's freshly-dialed session (the winner overwrites
@@ -50,7 +50,7 @@ type Connections struct {
 // SetToolSink registers the callback connection mutations invoke with the
 // rebuilt model-facing MCP tool set (the engine wires it to its resolver's
 // hot-swap).
-func (c *Connections) SetToolSink(sink func([]chat.Tool)) {
+func (c *Connections) SetToolSink(sink func([]tools.Tool)) {
 	c.mu.Lock()
 	c.onTools = sink
 	c.mu.Unlock()

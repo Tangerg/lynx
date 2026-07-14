@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // delegatingStubModel exercises the `task` delegation tool. A turn whose
@@ -17,14 +17,11 @@ import (
 type delegatingStubModel struct{ defaults *chat.Options }
 
 func newDelegatingStubModel() *delegatingStubModel {
-	opts, _ := chat.NewOptions("stub-delegating")
+	opts := &chat.Options{Model: "stub-delegating"}
 	return &delegatingStubModel{defaults: opts}
 }
 
 func (m *delegatingStubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *delegatingStubModel) Metadata() chat.ModelMetadata {
-	return chat.ModelMetadata{Provider: "stub"}
-}
 
 func (m *delegatingStubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	switch {
@@ -51,14 +48,11 @@ func (m *delegatingStubModel) Stream(ctx context.Context, req *chat.Request) ite
 type cwdDelegatingStubModel struct{ defaults *chat.Options }
 
 func newCwdDelegatingStubModel() *cwdDelegatingStubModel {
-	opts, _ := chat.NewOptions("stub-cwd-delegating")
+	opts := &chat.Options{Model: "stub-cwd-delegating"}
 	return &cwdDelegatingStubModel{defaults: opts}
 }
 
 func (m *cwdDelegatingStubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *cwdDelegatingStubModel) Metadata() chat.ModelMetadata {
-	return chat.ModelMetadata{Provider: "stub"}
-}
 
 func (m *cwdDelegatingStubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	switch {
@@ -88,7 +82,7 @@ func (m *cwdDelegatingStubModel) Stream(ctx context.Context, req *chat.Request) 
 
 func mentionsDelegate(msgs []chat.Message) bool {
 	for _, msg := range msgs {
-		if u, ok := msg.(*chat.UserMessage); ok && strings.Contains(u.Text, "delegate") {
+		if msg.Role == chat.RoleUser && strings.Contains(msg.Text(), "delegate") {
 			return true
 		}
 	}
@@ -100,12 +94,11 @@ func mentionsDelegate(msgs []chat.Message) bool {
 // the tool-loop middleware has stripped user messages between rounds.
 func hasToolCall(msgs []chat.Message, name string) bool {
 	for _, msg := range msgs {
-		a, ok := msg.(*chat.AssistantMessage)
-		if !ok || !a.HasToolCalls() {
+		if msg.Role != chat.RoleAssistant {
 			continue
 		}
-		for _, call := range a.CollectToolCalls() {
-			if call.Name == name {
+		for _, part := range msg.Parts {
+			if part.Kind == chat.PartToolCall && part.ToolCall != nil && part.ToolCall.Name == name {
 				return true
 			}
 		}
@@ -135,14 +128,11 @@ const (
 type subtaskMemoryStub struct{ defaults *chat.Options }
 
 func newSubtaskMemoryStub() *subtaskMemoryStub {
-	opts, _ := chat.NewOptions("stub-subtask-memory")
+	opts := &chat.Options{Model: "stub-subtask-memory"}
 	return &subtaskMemoryStub{defaults: opts}
 }
 
 func (m *subtaskMemoryStub) DefaultOptions() chat.Options { return *m.defaults }
-func (m *subtaskMemoryStub) Metadata() chat.ModelMetadata {
-	return chat.ModelMetadata{Provider: "stub"}
-}
 
 func (m *subtaskMemoryStub) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	switch {
@@ -174,7 +164,7 @@ func (m *subtaskMemoryStub) Stream(ctx context.Context, req *chat.Request) iter.
 // substr — used to detect whether round 1's prompt survived into round 2.
 func userMessagesContain(msgs []chat.Message, substr string) bool {
 	for _, msg := range msgs {
-		if u, ok := msg.(*chat.UserMessage); ok && strings.Contains(u.Text, substr) {
+		if msg.Role == chat.RoleUser && strings.Contains(msg.Text(), substr) {
 			return true
 		}
 	}
@@ -184,13 +174,12 @@ func userMessagesContain(msgs []chat.Message, substr string) bool {
 // toolResult returns the first tool return for the named tool in msgs, or "".
 func toolResult(msgs []chat.Message, name string) string {
 	for _, msg := range msgs {
-		tm, ok := msg.(*chat.ToolMessage)
-		if !ok {
+		if msg.Role != chat.RoleTool {
 			continue
 		}
-		for _, r := range tm.ToolReturns {
-			if r.Name == name {
-				return r.Result
+		for _, part := range msg.Parts {
+			if part.Kind == chat.PartToolResult && part.ToolResult != nil && part.ToolResult.Name == name {
+				return part.ToolResult.Result
 			}
 		}
 	}
@@ -221,7 +210,7 @@ type stubModel struct {
 // `toolArgs` on round 1 and produce `finalText` on round 2. The
 // stub's model id is "stub-model" — never speaks to a real endpoint.
 func newStubModel(toolName, toolArgs, finalText string) *stubModel {
-	opts, _ := chat.NewOptions("stub-model")
+	opts := &chat.Options{Model: "stub-model"}
 	return &stubModel{
 		ToolName:  toolName,
 		ToolArgs:  toolArgs,
@@ -231,7 +220,6 @@ func newStubModel(toolName, toolArgs, finalText string) *stubModel {
 }
 
 func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	if hasToolMessage(req.Messages) {
@@ -256,14 +244,11 @@ type streamingStubModel struct {
 }
 
 func newStreamingStubModel(chunks ...string) *streamingStubModel {
-	opts, _ := chat.NewOptions("stub-model-streaming")
+	opts := &chat.Options{Model: "stub-model-streaming"}
 	return &streamingStubModel{Chunks: chunks, defaults: opts}
 }
 
 func (m *streamingStubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *streamingStubModel) Metadata() chat.ModelMetadata {
-	return chat.ModelMetadata{Provider: "stub"}
-}
 
 // Call concatenates the chunks into one response — used when a non-
 // stream caller asks for the full reply (the engine doesn't, but
@@ -292,7 +277,8 @@ func (m *streamingStubModel) Stream(_ context.Context, req *chat.Request) iter.S
 func (m *streamingStubModel) captureOptions(req *chat.Request) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.lastOptions = req.Options.Clone()
+	copy := cloneChatOptions(req.Options)
+	m.lastOptions = &copy
 }
 
 // historyAwareStub remembers how many messages it saw on each Call.
@@ -304,12 +290,11 @@ type historyAwareStub struct {
 }
 
 func newHistoryAwareStub() *historyAwareStub {
-	opts, _ := chat.NewOptions("stub-model-history")
+	opts := &chat.Options{Model: "stub-model-history"}
 	return &historyAwareStub{defaults: opts}
 }
 
 func (m *historyAwareStub) DefaultOptions() chat.Options { return *m.defaults }
-func (m *historyAwareStub) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 func (m *historyAwareStub) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	m.seenLengths = append(m.seenLengths, len(req.Messages))
@@ -323,7 +308,7 @@ func (m *historyAwareStub) Stream(ctx context.Context, req *chat.Request) iter.S
 
 func hasToolMessage(messages []chat.Message) bool {
 	for _, msg := range messages {
-		if msg.Type() == chat.MessageTypeTool {
+		if msg.Role == chat.RoleTool {
 			return true
 		}
 	}
@@ -331,24 +316,13 @@ func hasToolMessage(messages []chat.Message) bool {
 }
 
 func responseWithText(text string) (*chat.Response, error) {
-	return chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(text),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewTextPart(text))
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 }
 
 func responseWithToolCall(name, args string) (*chat.Response, error) {
-	calls := []*chat.ToolCallPart{{ID: "call_1", Name: name, Arguments: args}}
-	return chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(calls),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call_1", Name: name, Arguments: args}))
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
 }
 
 // usageStubModel runs the same two-round shell dance as stubModel but
@@ -361,12 +335,11 @@ type usageStubModel struct {
 }
 
 func newUsageStubModel(round1, round2 chat.Usage) *usageStubModel {
-	opts, _ := chat.NewOptions("stub-model-usage")
+	opts := &chat.Options{Model: "stub-model-usage"}
 	return &usageStubModel{round1Usage: round1, round2Usage: round2, defaults: opts}
 }
 
 func (m *usageStubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *usageStubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 func (m *usageStubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	var (
@@ -379,8 +352,8 @@ func (m *usageStubModel) Call(_ context.Context, req *chat.Request) (*chat.Respo
 		resp, err = responseWithToolCallAndUsage("shell", `{"command":"echo lyra"}`, m.round1Usage)
 	}
 	// Stamp the served model so per-model usage roll-up is exercised.
-	if resp != nil && resp.Metadata != nil {
-		resp.Metadata.Model = "stub-usage-model"
+	if resp != nil {
+		resp.Model = "stub-usage-model"
 	}
 	return resp, err
 }
@@ -391,22 +364,17 @@ func (m *usageStubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq
 }
 
 func responseWithTextAndUsage(text string, usage chat.Usage) (*chat.Response, error) {
-	return chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(text),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{Usage: &usage},
-	)
+	response, err := responseWithText(text)
+	if response != nil {
+		response.Usage = usage
+	}
+	return response, err
 }
 
 func responseWithToolCallAndUsage(name, args string, usage chat.Usage) (*chat.Response, error) {
-	calls := []*chat.ToolCallPart{{ID: "call_1", Name: name, Arguments: args}}
-	return chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(calls),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},
-		},
-		&chat.ResponseMetadata{Usage: &usage},
-	)
+	response, err := responseWithToolCall(name, args)
+	if response != nil {
+		response.Usage = usage
+	}
+	return response, err
 }

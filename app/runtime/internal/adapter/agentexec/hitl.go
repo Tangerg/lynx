@@ -9,160 +9,107 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/toolloop"
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// inflightTailKey holds the resumable tail of a HITL interrupt on the process
-// blackboard. The process snapshot is the runtime's single durable source of
-// truth, so the tail is restored atomically with the rest of the process.
-const inflightTailKey = "lyra:hitl:inflight-tail"
+// checkpointKey holds the target tool-loop checkpoint on the process
+// blackboard. Process snapshots persist it together with the waiting action,
+// so resume continues at the pending tool instead of replaying completed model
+// and tool calls.
+const checkpointKey = "lyra:toolloop:checkpoint"
 
-type resumableInterrupt interface {
-	toolloop.Halt
-	Awaitable() core.Awaitable
-}
+// pendingInterruptKey is an in-tick handoff from the observed tool to runTurn.
+// It is cleared before the action parks and is never part of durable state.
+const pendingInterruptKey = "lyra:toolloop:pending-interrupt"
 
-// Interrupt delegates to [agent/hitl.Interrupt] so runtime outer layers can
-// park on human-in-the-loop awaitables without importing the hitl package
-// directly.
+// Interrupt exposes the agent HITL primitive to runtime adapters.
 func Interrupt[R any](ctx context.Context, key string, value any) (R, bool, error) {
 	return hitl.Interrupt[R](ctx, key, value)
 }
 
-// IsInterrupt reports whether err is a resumable HITL-like halt (non-aborting
-// and carrying an awaitable payload).
-func IsInterrupt(err error) bool {
-	h, ok := errors.AsType[resumableInterrupt](err)
-	return ok && !h.Abort()
-}
+// IsInterrupt reports whether err carries the concrete agent HITL signal.
+func IsInterrupt(err error) bool { return hitl.IsInterrupt(err) }
 
-// HandleInterrupt parks the process for a resumable hitl-like halt.
-//
-// This is intentionally generic and stays in runtime: the engine only cares
-// about the control-flow contract (non-aborting + awaitable), not the concrete
-// hitl package type.
+// HandleInterrupt parks pc on the concrete interrupt awaitable.
 func HandleInterrupt(ctx context.Context, pc *core.ProcessContext, err error) (core.ActionStatus, bool) {
-	h, ok := errors.AsType[resumableInterrupt](err)
-	if !ok || h.Abort() {
-		return 0, false
-	}
-	return pc.AwaitInput(ctx, h.Awaitable()), true
+	return hitl.HandleInterrupt(ctx, pc, err)
 }
 
-// isInterruptResult reports whether a streamed response is the tool loop's
-// interrupt tail rather than model output.
-func isInterruptResult(resp *chat.Response) bool {
-	return resp != nil && resp.Result != nil && resp.Result.Metadata != nil &&
-		resp.Result.Metadata.FinishReason == toolloop.FinishReasonInterrupt
-}
-
-type inflightTailStore struct {
+type checkpointStore struct {
 	bb core.Blackboard
 }
 
-// ValidateInterruptSnapshot verifies that a waiting process snapshot contains
-// the exact tool-loop tail runTurn needs to resume. The composition root passes
-// this capability to boot reconciliation so storage can validate executor-
-// specific state without importing this adapter.
-func ValidateInterruptSnapshot(snapshot core.ProcessSnapshot) error {
-	tag, ok := snapshot.Blackboard[inflightTailKey]
-	if !ok || len(tag.Value) == 0 {
-		return errors.New("agentexec: interrupt snapshot has no resumable tail")
+func (s checkpointStore) Save(checkpoint *toolloop.Checkpoint) error {
+	if checkpoint == nil {
+		return errors.New("agentexec: tool-loop checkpoint is nil")
 	}
-	var data string
-	if err := json.Unmarshal(tag.Value, &data); err != nil {
-		return fmt.Errorf("agentexec: decode snapshot interrupt-tail binding: %w", err)
+	if err := checkpoint.Validate(); err != nil {
+		return fmt.Errorf("agentexec: invalid tool-loop checkpoint: %w", err)
 	}
-	msgs, err := unmarshalMessages(data)
+	data, err := json.Marshal(checkpoint)
 	if err != nil {
-		return fmt.Errorf("agentexec: decode snapshot interrupt tail: %w", err)
+		return fmt.Errorf("agentexec: encode tool-loop checkpoint: %w", err)
 	}
-	if len(msgs) < 1 || len(msgs) > 2 {
-		return fmt.Errorf("agentexec: snapshot interrupt tail has %d messages, want 1 or 2", len(msgs))
-	}
-	assistant, ok := msgs[0].(*chat.AssistantMessage)
-	if !ok || !assistant.HasToolCalls() {
-		return errors.New("agentexec: snapshot interrupt tail does not start with assistant tool calls")
-	}
-	if len(msgs) == 2 {
-		toolMessage, ok := msgs[1].(*chat.ToolMessage)
-		if !ok || len(toolMessage.ToolReturns) == 0 {
-			return errors.New("agentexec: snapshot interrupt tail has an invalid completed-tool message")
-		}
-	}
+	s.bb.Set(checkpointKey, string(data))
 	return nil
 }
 
-func (s inflightTailStore) Save(result *chat.Result) error {
-	if result == nil || result.AssistantMessage == nil {
-		return errors.New("agentexec: interrupt tail has no assistant message")
-	}
-	tail := []chat.Message{result.AssistantMessage}
-	if result.ToolMessage != nil {
-		tail = append(tail, result.ToolMessage)
-	}
-	data, err := marshalMessages(tail)
-	if err != nil {
-		return fmt.Errorf("agentexec: encode interrupt tail: %w", err)
-	}
-	s.bb.Set(inflightTailKey, data)
-	return nil
-}
-
-func (s inflightTailStore) Load() ([]chat.Message, bool, error) {
-	v, ok := s.bb.Get(inflightTailKey)
+func (s checkpointStore) Load() (*toolloop.Checkpoint, bool, error) {
+	value, ok := s.bb.Get(checkpointKey)
 	if !ok {
 		return nil, false, nil
 	}
-	data, ok := v.(string)
+	data, ok := value.(string)
 	if !ok {
-		return nil, false, fmt.Errorf("agentexec: interrupt tail has type %T, want string", v)
+		return nil, false, fmt.Errorf("agentexec: tool-loop checkpoint has type %T, want string", value)
 	}
 	if data == "" {
 		return nil, false, nil
 	}
-	msgs, err := unmarshalMessages(data)
-	if err != nil {
-		return nil, false, fmt.Errorf("agentexec: decode interrupt tail: %w", err)
+	var checkpoint toolloop.Checkpoint
+	if err := json.Unmarshal([]byte(data), &checkpoint); err != nil {
+		return nil, false, fmt.Errorf("agentexec: decode tool-loop checkpoint: %w", err)
 	}
-	if len(msgs) == 0 {
-		return nil, false, errors.New("agentexec: interrupt tail is empty")
-	}
-	return msgs, true, nil
+	return &checkpoint, true, nil
 }
 
-func (s inflightTailStore) Clear() {
-	s.bb.Set(inflightTailKey, "")
+func (s checkpointStore) Clear() { s.bb.Set(checkpointKey, "") }
+
+func setPendingInterrupt(ctx context.Context, interrupt *hitl.InterruptError) error {
+	process := core.ProcessFrom(ctx)
+	if process == nil {
+		return errors.New("agentexec: HITL interrupt has no process context")
+	}
+	process.Blackboard().Set(pendingInterruptKey, interrupt)
+	return nil
 }
 
-func marshalMessages(msgs []chat.Message) (string, error) {
-	raws := make([]json.RawMessage, 0, len(msgs))
-	for _, m := range msgs {
-		b, err := json.Marshal(m)
-		if err != nil {
-			return "", err
-		}
-		raws = append(raws, b)
+func takePendingInterrupt(bb core.Blackboard) (*hitl.InterruptError, bool) {
+	value, ok := bb.Get(pendingInterruptKey)
+	if !ok {
+		return nil, false
 	}
-	b, err := json.Marshal(raws)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
+	bb.Set(pendingInterruptKey, nil)
+	interrupt, ok := value.(*hitl.InterruptError)
+	return interrupt, ok && interrupt != nil
 }
 
-func unmarshalMessages(data string) ([]chat.Message, error) {
-	var raws []json.RawMessage
-	if err := json.Unmarshal([]byte(data), &raws); err != nil {
-		return nil, err
+// ValidateInterruptSnapshot verifies that a waiting process snapshot contains
+// a valid target tool-loop checkpoint.
+func ValidateInterruptSnapshot(snapshot core.ProcessSnapshot) error {
+	tag, ok := snapshot.Blackboard[checkpointKey]
+	if !ok || len(tag.Value) == 0 {
+		return errors.New("agentexec: interrupt snapshot has no tool-loop checkpoint")
 	}
-	msgs := make([]chat.Message, 0, len(raws))
-	for _, raw := range raws {
-		m, err := chat.UnmarshalMessage(raw)
-		if err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, m)
+	var data string
+	if err := json.Unmarshal(tag.Value, &data); err != nil {
+		return fmt.Errorf("agentexec: decode snapshot checkpoint binding: %w", err)
 	}
-	return msgs, nil
+	if data == "" {
+		return errors.New("agentexec: interrupt snapshot has an empty tool-loop checkpoint")
+	}
+	var checkpoint toolloop.Checkpoint
+	if err := json.Unmarshal([]byte(data), &checkpoint); err != nil {
+		return fmt.Errorf("agentexec: decode snapshot tool-loop checkpoint: %w", err)
+	}
+	return nil
 }

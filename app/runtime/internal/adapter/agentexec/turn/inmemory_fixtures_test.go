@@ -7,7 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	chatmodel "github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	chatmodel "github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
@@ -17,7 +18,8 @@ import (
 func buildDispatcher(t *testing.T) (turn.Dispatcher, *agentexec.Engine) {
 	t.Helper()
 
-	client, err := chatmodel.NewClient(newStubChatModel())
+	model := newStubChatModel()
+	client, err := chatclient.New(model, chatclient.WithDefaults(*model.defaults))
 	if err != nil {
 		t.Fatalf("chat client: %v", err)
 	}
@@ -114,14 +116,11 @@ func baseSeq(ev turn.Event) uint64 {
 type stubChatModel struct{ defaults *chatmodel.Options }
 
 func newStubChatModel() *stubChatModel {
-	opts, _ := chatmodel.NewOptions("stub-model")
+	opts := &chatmodel.Options{Model: "stub-model"}
 	return &stubChatModel{defaults: opts}
 }
 
 func (m *stubChatModel) DefaultOptions() chatmodel.Options { return *m.defaults }
-func (m *stubChatModel) Metadata() chatmodel.ModelMetadata {
-	return chatmodel.ModelMetadata{Provider: "stub"}
-}
 
 func (m *stubChatModel) Call(_ context.Context, req *chatmodel.Request) (*chatmodel.Response, error) {
 	if hasToolMsg(req.Messages) {
@@ -141,9 +140,6 @@ type countingStubModel struct {
 }
 
 func (m *countingStubModel) DefaultOptions() chatmodel.Options { return *m.defaults }
-func (m *countingStubModel) Metadata() chatmodel.ModelMetadata {
-	return chatmodel.ModelMetadata{Provider: "stub"}
-}
 
 func (m *countingStubModel) Call(_ context.Context, req *chatmodel.Request) (*chatmodel.Response, error) {
 	m.calls.Add(1)
@@ -160,7 +156,7 @@ func (m *countingStubModel) Stream(ctx context.Context, req *chatmodel.Request) 
 
 func hasToolMsg(messages []chatmodel.Message) bool {
 	for _, msg := range messages {
-		if msg.Type() == chatmodel.MessageTypeTool {
+		if msg.Role == chatmodel.RoleTool {
 			return true
 		}
 	}
@@ -168,24 +164,13 @@ func hasToolMsg(messages []chatmodel.Message) bool {
 }
 
 func makeText(text string) (*chatmodel.Response, error) {
-	return chatmodel.NewResponse(
-		&chatmodel.Result{
-			AssistantMessage: chatmodel.NewAssistantMessage(text),
-			Metadata:         &chatmodel.ResultMetadata{FinishReason: chatmodel.FinishReasonStop},
-		},
-		&chatmodel.ResponseMetadata{},
-	)
+	message := chatmodel.NewAssistantMessage(chatmodel.NewTextPart(text))
+	return chatmodel.NewResponse(chatmodel.Choice{Index: 0, Message: &message, FinishReason: chatmodel.FinishReasonStop})
 }
 
 func makeToolCall(name, args string) (*chatmodel.Response, error) {
-	calls := []*chatmodel.ToolCallPart{{ID: "c1", Name: name, Arguments: args}}
-	return chatmodel.NewResponse(
-		&chatmodel.Result{
-			AssistantMessage: chatmodel.NewAssistantMessage(calls),
-			Metadata:         &chatmodel.ResultMetadata{FinishReason: chatmodel.FinishReasonToolCalls},
-		},
-		&chatmodel.ResponseMetadata{},
-	)
+	message := chatmodel.NewAssistantMessage(chatmodel.NewToolCallPart(chatmodel.ToolCall{ID: "c1", Name: name, Arguments: args}))
+	return chatmodel.NewResponse(chatmodel.Choice{Index: 0, Message: &message, FinishReason: chatmodel.FinishReasonToolCalls})
 }
 
 type historyAwareStub struct {
@@ -195,14 +180,11 @@ type historyAwareStub struct {
 }
 
 func newHistoryAwareStub() *historyAwareStub {
-	opts, _ := chatmodel.NewOptions("stub-history")
+	opts := &chatmodel.Options{Model: "stub-history"}
 	return &historyAwareStub{defaults: opts}
 }
 
 func (m *historyAwareStub) DefaultOptions() chatmodel.Options { return *m.defaults }
-func (m *historyAwareStub) Metadata() chatmodel.ModelMetadata {
-	return chatmodel.ModelMetadata{Provider: "stub"}
-}
 
 func (m *historyAwareStub) Call(_ context.Context, req *chatmodel.Request) (*chatmodel.Response, error) {
 	m.mu.Lock()

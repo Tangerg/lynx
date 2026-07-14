@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	corechat "github.com/Tangerg/lynx/core/model/chat"
 )
 
 // ErrInputRequired reports that a turn has neither text nor media to send.

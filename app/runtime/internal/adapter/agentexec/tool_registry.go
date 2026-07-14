@@ -10,9 +10,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // toolTracer spans direct (out-of-turn) tool invocations. Tool calls the model
@@ -28,7 +27,7 @@ const attrGenAIToolName = "gen_ai.tool.name"
 // Tools() accessor; tests pass a stub that returns a fixed slice without needing
 // a real platform.
 type toolSource interface {
-	Tools() []chat.Tool
+	Tools() []tools.Tool
 }
 
 // NewToolRegistry returns the engine-backed [tool.Registry]: List snapshots the
@@ -56,7 +55,7 @@ func (r *toolRegistry) List(_ context.Context) ([]tool.Tool, error) {
 		out = append(out, tool.Tool{
 			Name:        def.Name,
 			Description: def.Description,
-			Schema:      def.InputSchema,
+			Schema:      string(def.InputSchema),
 			SafetyClass: tool.SafetyClassFor(def.Name),
 		})
 	}

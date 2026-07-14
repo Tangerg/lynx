@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
@@ -48,15 +48,15 @@ type tool struct {
 }
 
 // New builds the codebase_search tool over the given index.
-func New(index SearchIndex) (chat.Tool, error) {
+func New(index SearchIndex) (tools.Tool, error) {
 	if index == nil {
 		return nil, errors.New("codebase_search: index is nil")
 	}
-	return chat.NewTool[request, string](definition(), (&tool{index: index}).search)
+	return tools.New[request, string](definition(), (&tool{index: index}).search)
 }
 
-func definition() chat.ToolDefinition {
-	return chat.ToolDefinition{
+func definition() tools.Config {
+	return tools.Config{
 		Name: "codebase_search",
 		Description: "Semantic search over THIS project's code: find the most relevant code by MEANING, not by literal text. " +
 			"Use it to locate where a concept or behavior lives when you don't know the exact name; use grep for exact strings/symbols. " +

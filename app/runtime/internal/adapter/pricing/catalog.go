@@ -3,7 +3,7 @@ package pricing
 
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/catalog"
 )
 
@@ -14,8 +14,8 @@ func Catalog() accounting.Pricing {
 	return func(provider, servedModel string, u *chat.Usage) float64 {
 		if info, ok := catalog.Lookup(provider, servedModel); ok {
 			usage := catalog.Usage{
-				InputTokens:  u.PromptTokens,
-				OutputTokens: u.CompletionTokens,
+				InputTokens:  u.InputTokens,
+				OutputTokens: u.OutputTokens,
 			}
 			if u.CacheReadInputTokens != nil {
 				usage.CacheReadInputTokens = *u.CacheReadInputTokens

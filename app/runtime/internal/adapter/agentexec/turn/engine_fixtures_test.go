@@ -12,7 +12,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	corechat "github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 type testEngine interface {
@@ -40,7 +41,7 @@ func withApproval(policy approval.Policy) func(*turn.Dependencies) {
 }
 
 func withClientResolver(resolver interface {
-	ResolveClient(ctx context.Context, provider, model string) (*corechat.Client, error)
+	ResolveClient(ctx context.Context, provider, model string) (*chatclient.Client, error)
 }) func(*turn.Dependencies) {
 	return func(deps *turn.Dependencies) {
 		deps.ClientResolver = resolver
@@ -114,7 +115,7 @@ type stubEngine struct {
 	restoreResumeErr error
 
 	mu          sync.Mutex
-	lastClient  core.ChatClient
+	lastClient  *chatclient.Client
 	lastCwd     string
 	lastCtx     context.Context
 	lastOptions *corechat.Options
@@ -128,7 +129,13 @@ func (s *stubEngine) StartTurn(ctx context.Context, req agentexec.TurnRequest) a
 	s.lastClient = req.ChatClient
 	s.lastCwd = req.Cwd
 	s.lastCtx = ctx
-	s.lastOptions = req.Options.Clone()
+	if req.Options == nil {
+		s.lastOptions = nil
+	} else {
+		copy := *req.Options
+		copy.Stop = append([]string(nil), req.Options.Stop...)
+		s.lastOptions = &copy
+	}
 	s.mu.Unlock()
 	if req.Observer != nil {
 		req.Observer.OnMessageDelta(s.runReply)
@@ -190,13 +197,13 @@ func (s *slowStubEngine) StartTurn(ctx context.Context, _ agentexec.TurnRequest)
 // fakeResolver returns a preset client, recording the provider/model it was
 // asked to resolve.
 type fakeResolver struct {
-	client      *corechat.Client
+	client      *chatclient.Client
 	gotProvider string
 	gotModel    string
 	resolveErr  error
 }
 
-func (r *fakeResolver) ResolveClient(_ context.Context, provider, model string) (*corechat.Client, error) {
+func (r *fakeResolver) ResolveClient(_ context.Context, provider, model string) (*chatclient.Client, error) {
 	r.gotProvider, r.gotModel = provider, model
 	if r.resolveErr != nil {
 		return nil, r.resolveErr
@@ -208,18 +215,13 @@ func (r *fakeResolver) ResolveClient(_ context.Context, provider, model string) 
 type capturingModel struct{ defaults *corechat.Options }
 
 func newCapturingModel() *capturingModel {
-	opts, _ := corechat.NewOptions("sentinel-model")
+	opts := &corechat.Options{Model: "sentinel-model"}
 	return &capturingModel{defaults: opts}
 }
 func (m *capturingModel) DefaultOptions() corechat.Options { return *m.defaults }
-func (m *capturingModel) Metadata() corechat.ModelMetadata {
-	return corechat.ModelMetadata{Provider: "stub"}
-}
 func (m *capturingModel) Call(_ context.Context, _ *corechat.Request) (*corechat.Response, error) {
-	return corechat.NewResponse(&corechat.Result{
-		AssistantMessage: corechat.NewAssistantMessage("ok"),
-		Metadata:         &corechat.ResultMetadata{FinishReason: corechat.FinishReasonStop},
-	}, &corechat.ResponseMetadata{})
+	message := corechat.NewAssistantMessage(corechat.NewTextPart("ok"))
+	return corechat.NewResponse(corechat.Choice{Index: 0, Message: &message, FinishReason: corechat.FinishReasonStop})
 }
 func (m *capturingModel) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
 	resp, err := m.Call(ctx, req)

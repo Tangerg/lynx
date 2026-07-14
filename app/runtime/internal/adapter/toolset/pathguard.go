@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // protectedDirs are directory names the agent must never write into, even
@@ -25,7 +25,7 @@ var protectedDirs = []string{".git"}
 // than the run aborting. Resolution runs through [resolveAbs], so a "../"
 // traversal that lands in a protected directory is caught too. Apply it as
 // the OUTERMOST wrap so the check gates before any staleness/diagnostics work.
-func withPathGuard(inner chat.Tool, workdir string) chat.Tool {
+func withPathGuard(inner tools.Tool, workdir string) tools.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths := mutatedPaths(inner, arguments)
 		for _, path := range paths {

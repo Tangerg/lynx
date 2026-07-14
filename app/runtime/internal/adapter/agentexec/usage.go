@@ -5,7 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // invocationFrom maps a streamed round's usage + served model to the
@@ -24,8 +24,8 @@ func (e *Engine) invocationFrom(provider, model string, u *chat.Usage) core.LLMI
 	inv := core.LLMInvocation{
 		Model:            model,
 		Action:           "chat",
-		PromptTokens:     u.PromptTokens,
-		CompletionTokens: u.CompletionTokens,
+		PromptTokens:     u.InputTokens,
+		CompletionTokens: u.OutputTokens,
 	}
 	if u.ReasoningTokens != nil {
 		inv.ReasoningTokens = *u.ReasoningTokens

@@ -11,11 +11,10 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 // ProviderCatalog is the static provider reference data (which providers this
@@ -36,7 +35,7 @@ type ProviderProber interface {
 // ClientResolver validates/builds a chat client for (provider, model). The
 // utility-role setter uses it to reject an unconfigured role before persisting.
 type ClientResolver interface {
-	ResolveClient(ctx context.Context, providerID, model string) (*chat.Client, error)
+	ResolveClient(ctx context.Context, providerID, model string) (*chatclient.Client, error)
 }
 
 // EmbeddingResolver validates/builds an embedder for (provider, model). The

@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
@@ -57,10 +57,9 @@ func (providerProber) Probe(ctx context.Context, entry provider.Provider) error 
 		return err
 	}
 	maxTokens := int64(1)
-	_, err = client.Chat().
-		WithOptions(&chat.Options{MaxTokens: &maxTokens}).
-		WithUserPrompt("ping").
-		Call().
-		Response(ctx)
+	_, err = client.Call(ctx, &chat.Request{
+		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("ping"))},
+		Options:  chat.Options{MaxTokens: &maxTokens},
+	})
 	return err
 }

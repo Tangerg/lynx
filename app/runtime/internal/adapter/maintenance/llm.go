@@ -8,7 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // ClientFunc resolves the chat client the maintenance services run on. It is
@@ -18,7 +19,7 @@ import (
 // the main turn client); a nil ClientFunc, or one that returns nil, leaves the
 // owning service unable to call and surfaces as [askDirect]'s missing-client
 // error (or a no-op, for the best-effort [Titler]).
-type ClientFunc func(context.Context) *chat.Client
+type ClientFunc func(context.Context) *chatclient.Client
 
 // directCallTimeout caps a single maintenance LLM call (compaction
 // summary / fact extraction) so a hung provider connection fails the
@@ -38,18 +39,21 @@ const directCallTimeout = 2 * time.Minute
 // nil client surfaces as a plain error rather than a panic — a
 // defensive guard only, since the kernel rejects a nil ChatClient
 // before any of these workers is constructed.
-func askDirect(ctx context.Context, client *chat.Client, systemPrompt, userPrompt string) (string, error) {
+func askDirect(ctx context.Context, client *chatclient.Client, systemPrompt, userPrompt string) (string, error) {
 	if client == nil {
 		return "", errors.New("maintenance: chat client missing")
 	}
 	ctx, cancel := context.WithTimeout(ctx, directCallTimeout)
 	defer cancel()
-	text, _, err := client.Chat().
-		WithSystemPrompt(systemPrompt).
-		WithUserPrompt(userPrompt).
-		Call().
-		Text(ctx)
-	return text, err
+	request := &chat.Request{Messages: []chat.Message{
+		chat.NewSystemMessage(systemPrompt),
+		chat.NewUserMessage(chat.NewTextPart(userPrompt)),
+	}}
+	response, err := client.Call(ctx, request)
+	if err != nil {
+		return "", err
+	}
+	return response.Text(), nil
 }
 
 // uncappedToolResults is the [renderTranscript] toolResultCap that leaves tool
@@ -70,29 +74,26 @@ const uncappedToolResults = 0
 func renderTranscript(msgs []chat.Message, toolResultCap int) string {
 	var b strings.Builder
 	for _, msg := range msgs {
-		if msg == nil {
-			continue
-		}
-		switch m := msg.(type) {
-		case *chat.SystemMessage:
+		switch msg.Role {
+		case chat.RoleSystem:
 			b.WriteString("[system] ")
-			b.WriteString(m.Text)
-		case *chat.UserMessage:
+			b.WriteString(msg.Text())
+		case chat.RoleUser:
 			b.WriteString("[user] ")
-			b.WriteString(m.Text)
-		case *chat.AssistantMessage:
+			b.WriteString(msg.Text())
+		case chat.RoleAssistant:
 			b.WriteString("[assistant] ")
-			b.WriteString(m.JoinedText())
-		case *chat.ToolMessage:
+			b.WriteString(msg.Text())
+		case chat.RoleTool:
 			b.WriteString("[tool] ")
-			for _, r := range m.ToolReturns {
-				if r != nil {
-					b.WriteString(capText(r.Result, toolResultCap))
+			for _, part := range msg.Parts {
+				if part.Kind == chat.PartToolResult && part.ToolResult != nil {
+					b.WriteString(capText(part.ToolResult.Result, toolResultCap))
 					b.WriteString(" ")
 				}
 			}
 		default:
-			fmt.Fprintf(&b, "[%s] (unrecognized)", msg.Type())
+			fmt.Fprintf(&b, "[%s] (unrecognized)", msg.Role)
 		}
 		b.WriteString("\n")
 	}

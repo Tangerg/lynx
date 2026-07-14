@@ -1,34 +1,40 @@
 package agentexec
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/agent/toolloop"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 func TestValidateInterruptSnapshot(t *testing.T) {
-	assistant := chat.NewAssistantMessage(chat.MessageParams{Parts: []chat.OutputPart{
-		&chat.ToolCallPart{ID: "call_1", Name: "ask_user", Arguments: `{}`},
-	}})
-	tail, err := marshalMessages([]chat.Message{assistant})
-	if err != nil {
-		t.Fatalf("marshal tail: %v", err)
+	definition := chat.ToolDefinition{Name: "ask_user", InputSchema: json.RawMessage(`{"type":"object"}`)}
+	request := &chat.Request{
+		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("question"))},
+		Tools:    []chat.ToolDefinition{definition},
 	}
-	blackboard, _ := core.TagBlackboard(map[string]any{inflightTailKey: tail}, nil)
+	assistant := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call_1", Name: "ask_user", Arguments: `{}`}))
+	response, err := chat.NewResponse(chat.Choice{Index: 0, Message: &assistant, FinishReason: chat.FinishReasonToolCalls})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpoint := &toolloop.Checkpoint{ID: "approval", Round: 1, Request: request, Response: response}
+	encoded, err := json.Marshal(checkpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blackboard, _ := core.TagBlackboard(map[string]any{checkpointKey: string(encoded)}, nil)
 	if err := ValidateInterruptSnapshot(core.ProcessSnapshot{Blackboard: blackboard}); err != nil {
 		t.Fatalf("ValidateInterruptSnapshot(valid): %v", err)
 	}
 
 	if err := ValidateInterruptSnapshot(core.ProcessSnapshot{}); err == nil {
-		t.Fatal("ValidateInterruptSnapshot accepted a snapshot without a tail")
+		t.Fatal("ValidateInterruptSnapshot accepted a snapshot without a checkpoint")
 	}
-	invalid, err := marshalMessages([]chat.Message{chat.NewAssistantMessage("plain text")})
-	if err != nil {
-		t.Fatalf("marshal invalid tail: %v", err)
-	}
-	blackboard, _ = core.TagBlackboard(map[string]any{inflightTailKey: invalid}, nil)
+	blackboard, _ = core.TagBlackboard(map[string]any{checkpointKey: `{"id":"broken"}`}, nil)
 	if err := ValidateInterruptSnapshot(core.ProcessSnapshot{Blackboard: blackboard}); err == nil {
-		t.Fatal("ValidateInterruptSnapshot accepted a non-tool assistant tail")
+		t.Fatal("ValidateInterruptSnapshot accepted an invalid checkpoint")
 	}
 }

@@ -5,8 +5,9 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // SteerSource yields user messages queued for mid-run injection. It is
@@ -71,7 +72,7 @@ type TurnRequest struct {
 	// agent runtime uses it instead of the platform's default client. This
 	// is how a per-run model selection reaches the turn (the caller resolves
 	// the right provider+model client). nil uses the platform default.
-	ChatClient core.ChatClient
+	ChatClient *chatclient.Client
 
 	// Observer receives streaming tool-call + text-delta
 	// notifications. May be nil — the turn still runs.
@@ -107,7 +108,12 @@ type TurnRequest struct {
 // Observer attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat history middleware's keyed conversation.
 func (e *Engine) StartTurn(ctx context.Context, req TurnRequest) TurnProcess {
-	in := turnInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps, Options: req.Options.Clone()}
+	var options *chat.Options
+	if req.Options != nil {
+		copy := cloneChatOptions(*req.Options)
+		options = &copy
+	}
+	in := turnInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps, Options: options}
 
 	opts := turnProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient, e.steeringGuardrails(req.Steer))
 	proc, done := e.turnStarter.StartAgent(ctx, e.agent,
@@ -125,7 +131,7 @@ func (e *Engine) StartTurn(ctx context.Context, req TurnRequest) TurnProcess {
 // mid-run steering is enabled. The runtime stamps each request's conversation
 // id from this Session, so one shared chain can still serve both this turn and
 // any spawned subtask unless explicitly overridden.
-func turnProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client core.ChatClient, guardrails *core.Guardrails) core.ProcessOptions {
+func turnProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client *chatclient.Client, guardrails *core.Guardrails) core.ProcessOptions {
 	opts := core.ProcessOptions{}
 	if sessionID != "" {
 		opts.Session = &core.Session{ID: sessionID}
@@ -164,10 +170,10 @@ func (e *Engine) steeringGuardrails(steer SteerSource) *core.Guardrails {
 
 // perRunChatClient is a [core.ChatClientProvider] carrying one resolved
 // client for a single turn — the seam that lets a run pick its model.
-type perRunChatClient struct{ client core.ChatClient }
+type perRunChatClient struct{ client *chatclient.Client }
 
 func (perRunChatClient) Name() string { return "lyra:per-run-chat-client" }
-func (p perRunChatClient) ChatClientFor(core.Process) core.ChatClient {
+func (p perRunChatClient) ChatClientFor(core.Process) *chatclient.Client {
 	return p.client
 }
 
@@ -194,7 +200,7 @@ type RestoreTurnRequest struct {
 	// the interrupt's persisted provider+model. nil runs on the platform default
 	// (a run that didn't pick a model, or one whose provider is no longer
 	// configured). Same seam as [TurnRequest.ChatClient] on a fresh turn.
-	ChatClient core.ChatClient
+	ChatClient *chatclient.Client
 }
 
 // RestoreTurn rebuilds the agent process identified by processID from the

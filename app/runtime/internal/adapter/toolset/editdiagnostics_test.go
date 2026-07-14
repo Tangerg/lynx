@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // TestWithEditDiagnostics_AppendsProblems verifies the highest-value LSP
@@ -33,8 +33,8 @@ func TestWithEditDiagnostics_AppendsProblems(t *testing.T) {
 		FilePath string `json:"file_path"`
 		Content  string `json:"content"`
 	}
-	inner, _ := chat.NewTool[writeArgs, string](
-		chat.ToolDefinition{Name: "write", Description: "stub"},
+	inner, _ := tools.New[writeArgs, string](
+		tools.Config{Name: "write", Description: "stub"},
 		func(_ context.Context, a writeArgs) (string, error) {
 			if err := os.WriteFile(filepath.Join(root, a.FilePath), []byte(a.Content), 0o644); err != nil {
 				return "", err

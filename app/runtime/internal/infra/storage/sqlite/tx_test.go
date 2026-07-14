@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -36,7 +36,7 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 		if err := sess.Restore(ctx, session.Session{ID: "s1", Title: "t"}); err != nil {
 			return err
 		}
-		if err := msg.Write(ctx, "s1", chat.NewUserMessage("hi")); err != nil {
+		if err := msg.Write(ctx, "s1", chat.NewUserMessage(chat.NewTextPart("hi"))); err != nil {
 			return err
 		}
 		return boom // a later step fails (e.g. a DB IO error during import)
@@ -56,7 +56,7 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 		if err := sess.Restore(ctx, session.Session{ID: "s2", Title: "t"}); err != nil {
 			return err
 		}
-		return msg.Write(ctx, "s2", chat.NewUserMessage("hi"))
+		return msg.Write(ctx, "s2", chat.NewUserMessage(chat.NewTextPart("hi")))
 	}); err != nil {
 		t.Fatalf("commit tx: %v", err)
 	}

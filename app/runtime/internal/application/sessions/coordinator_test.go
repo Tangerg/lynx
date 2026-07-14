@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -102,7 +102,7 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 			"run_1": {RunID: "run_1", SessionID: "ses_1", ProcessID: "proc_1"},
 		}},
 		snapshot: Snapshot{
-			Messages: []chat.Message{chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi")},
+			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi"))},
 			Runs: []transcript.Run{{
 				ID: "run_1", SessionID: "ses_1", State: execution.Interrupted,
 				Interrupts:  []transcript.Interrupt{{ItemID: "item_1", Kind: transcript.QuestionInterrupt}},

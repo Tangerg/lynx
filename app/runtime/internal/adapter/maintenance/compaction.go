@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 )
@@ -111,7 +111,7 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompa
 	// conversation where a tool result has no preceding tool_call, which
 	// DeepSeek (and other strict providers) reject with 400.
 	for cutoff < len(msgs) {
-		if _, ok := msgs[cutoff].(*chat.UserMessage); ok {
+		if msgs[cutoff].Role == chat.RoleUser {
 			break
 		}
 		cutoff++

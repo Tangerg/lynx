@@ -9,7 +9,7 @@ import (
 	"iter"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	corechat "github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 // clientResolver resolves a per-turn chat client for an explicit
@@ -19,7 +19,7 @@ import (
 // registry (nothing outside this package names it). Returns an error when the
 // provider isn't configured / enabled.
 type clientResolver interface {
-	ResolveClient(ctx context.Context, provider, model string) (*corechat.Client, error)
+	ResolveClient(ctx context.Context, provider, model string) (*chatclient.Client, error)
 }
 
 // Dispatcher is the live-turn dispatch contract.

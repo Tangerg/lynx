@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 // utilityRoleLoader is the boot-time load view of the utility-role store
@@ -23,10 +22,10 @@ type utilityRoleLoader interface {
 // is unset or unresolvable.
 type utilityEnvironment struct {
 	cell    *atomic.Pointer[modelrole.Role]
-	resolve func(context.Context) *chat.Client
+	resolve func(context.Context) *chatclient.Client
 }
 
-func buildUtilityEnvironment(ctx context.Context, mainClient *chat.Client, loader utilityRoleLoader, resolver *modelclient.ClientResolver) (utilityEnvironment, error) {
+func buildUtilityEnvironment(ctx context.Context, mainClient *chatclient.Client, loader utilityRoleLoader, resolver *modelclient.ClientResolver) (utilityEnvironment, error) {
 	var role modelrole.Role
 	if loader != nil {
 		p, m, err := loader.LoadUtilityRole(ctx)
@@ -40,7 +39,7 @@ func buildUtilityEnvironment(ctx context.Context, mainClient *chat.Client, loade
 	}
 	cell := &atomic.Pointer[modelrole.Role]{}
 	cell.Store(&role)
-	resolve := func(ctx context.Context) *chat.Client {
+	resolve := func(ctx context.Context) *chatclient.Client {
 		role := cell.Load()
 		if role == nil || !role.Configured() || resolver == nil {
 			return mainClient

@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // errEmptyConversationID guards every store operation: the conversation id is
@@ -59,8 +59,8 @@ func (s *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.
 		if err := rows.Scan(&blob); err != nil {
 			return nil, fmt.Errorf("sqlite: scan message: %w", err)
 		}
-		msg, err := chat.UnmarshalMessage([]byte(blob))
-		if err != nil {
+		var msg chat.Message
+		if err := json.Unmarshal([]byte(blob), &msg); err != nil {
 			continue
 		}
 		out = append(out, msg)
@@ -72,7 +72,7 @@ func (s *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.
 }
 
 // Write appends messages to the conversation in one transaction. No-op for
-// an empty batch; nil entries are skipped.
+// an empty batch.
 func (s *MessageStore) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
 	if conversationID == "" {
 		return errEmptyConversationID
@@ -86,9 +86,6 @@ func (s *MessageStore) Write(ctx context.Context, conversationID string, message
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		q := conn(ctx, s.db)
 		for _, msg := range messages {
-			if msg == nil {
-				continue
-			}
 			data, err := json.Marshal(msg)
 			if err != nil {
 				return fmt.Errorf("sqlite: marshal message: %w", err)
@@ -122,9 +119,6 @@ func (s *MessageStore) Replace(ctx context.Context, conversationID string, messa
 			return fmt.Errorf("sqlite: replace clear messages: %w", err)
 		}
 		for _, msg := range messages {
-			if msg == nil {
-				continue
-			}
 			data, err := json.Marshal(msg)
 			if err != nil {
 				return fmt.Errorf("sqlite: marshal message: %w", err)

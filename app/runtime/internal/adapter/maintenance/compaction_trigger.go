@@ -1,6 +1,6 @@
 package maintenance
 
-import "github.com/Tangerg/lynx/core/model/chat"
+import "github.com/Tangerg/lynx/core/chat"
 
 const (
 	// charsPerToken is the coarse chars→tokens divisor used ONLY for the

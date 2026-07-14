@@ -7,8 +7,8 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // ToolInfo is one tool advertised by a connected server; the client-facing
@@ -24,7 +24,7 @@ type ToolInfo struct {
 
 // sourceTools lists one MCP source's model-facing tools. Isolated per source so
 // a single server's tools/list failure stays its own.
-func sourceTools(ctx context.Context, src lynxmcp.ToolSource) ([]chat.Tool, error) {
+func sourceTools(ctx context.Context, src lynxmcp.ToolSource) ([]tools.Tool, error) {
 	return lynxmcp.Tools(ctx, []lynxmcp.ToolSource{src}, lynxmcp.ToolOptions{
 		Naming: func(server string, tool *sdkmcp.Tool) string {
 			return mcpserver.ToolName(server, tool.Name)

@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // TestSessionExportImport_RoundTrip exports a populated session to a json
@@ -31,8 +31,8 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	if err := rt.SeedHistory(ctx, ses.ID, []chat.Message{
-		chat.NewUserMessage("hello"),
-		chat.NewAssistantMessage("hi there"),
+		chat.NewUserMessage(chat.NewTextPart("hello")),
+		chat.NewAssistantMessage(chat.NewTextPart("hi there")),
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	rt.history[ses.ID] = []chat.Message{chat.NewUserMessage("hello"), chat.NewAssistantMessage("waiting")}
+	rt.history[ses.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("waiting"))}
 	if err := rt.hist.PutRun(ctx, transcript.Run{
 		ID: "run_parked", SessionID: ses.ID, State: execution.Interrupted,
 		Interrupts:  []transcript.Interrupt{{ItemID: "item_question", Kind: transcript.QuestionInterrupt}},

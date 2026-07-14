@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	chatmodel "github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	chatmodel "github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
@@ -80,7 +81,7 @@ func TestRegistry_Invoke_UnknownTool(t *testing.T) {
 
 func buildRegistry(t *testing.T) tool.Registry {
 	t.Helper()
-	client, err := chatmodel.NewClient(newStubModel())
+	client, err := chatclient.New(newStubModel())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,26 +109,13 @@ func buildRegistry(t *testing.T) tool.Registry {
 	return svc
 }
 
-type stubModel struct{ defaults *chatmodel.Options }
+type stubModel struct{}
 
-func newStubModel() *stubModel {
-	opts, _ := chatmodel.NewOptions("stub-model")
-	return &stubModel{defaults: opts}
-}
-
-func (m *stubModel) DefaultOptions() chatmodel.Options { return *m.defaults }
-func (m *stubModel) Metadata() chatmodel.ModelMetadata {
-	return chatmodel.ModelMetadata{Provider: "stub"}
-}
+func newStubModel() *stubModel { return &stubModel{} }
 
 func (m *stubModel) Call(_ context.Context, _ *chatmodel.Request) (*chatmodel.Response, error) {
-	return chatmodel.NewResponse(
-		&chatmodel.Result{
-			AssistantMessage: chatmodel.NewAssistantMessage("nop"),
-			Metadata:         &chatmodel.ResultMetadata{FinishReason: chatmodel.FinishReasonStop},
-		},
-		&chatmodel.ResponseMetadata{},
-	)
+	message := chatmodel.NewAssistantMessage(chatmodel.NewTextPart("nop"))
+	return chatmodel.NewResponse(chatmodel.Choice{Index: 0, Message: &message, FinishReason: chatmodel.FinishReasonStop})
 }
 
 func (m *stubModel) Stream(ctx context.Context, req *chatmodel.Request) iter.Seq2[*chatmodel.Response, error] {

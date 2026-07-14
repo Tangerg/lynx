@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // ExportSession serializes a session to a portable artifact (AUX_API §4.3).
@@ -95,8 +95,8 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	// mutate any storage.
 	msgs := make([]chat.Message, 0, len(art.Messages))
 	for i, blob := range art.Messages {
-		m, err := chat.UnmarshalMessage(blob)
-		if err != nil {
+		var m chat.Message
+		if err := json.Unmarshal(blob, &m); err != nil {
 			return nil, fmt.Errorf("%w: artifact.messages[%d]: %w", protocol.ErrInvalidParams, i, err)
 		}
 		msgs = append(msgs, m)

@@ -3,8 +3,8 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/chatclient"
+	history "github.com/Tangerg/lynx/chathistory"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
@@ -37,7 +37,7 @@ func buildMessageEnvironment(ecfg *agentexec.Config) messageEnvironment {
 	}
 }
 
-func wireEnginePorts(ecfg *agentexec.Config, cfg Config, messages messageEnvironment, resolveUtility func(context.Context) *chat.Client) {
+func wireEnginePorts(ecfg *agentexec.Config, cfg Config, messages messageEnvironment, resolveUtility func(context.Context) *chatclient.Client) {
 	if ecfg.Steering == nil {
 		ecfg.Steering = messages.conversation
 	}

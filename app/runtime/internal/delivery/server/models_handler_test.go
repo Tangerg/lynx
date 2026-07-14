@@ -6,12 +6,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 // modelProviderFake satisfies the provider.Registry (Get) + ProviderCatalog
@@ -37,7 +36,7 @@ func (r *modelProviderFake) Metadata(id string) (provider.Metadata, bool) {
 // okClientResolver satisfies the utility client resolver, always validating.
 type okClientResolver struct{}
 
-func (okClientResolver) ResolveClient(context.Context, string, string) (*chat.Client, error) {
+func (okClientResolver) ResolveClient(context.Context, string, string) (*chatclient.Client, error) {
 	return nil, nil
 }
 

@@ -3,7 +3,8 @@ package toolset
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // wrapTool returns a Tool that runs call while preserving inner's Definition
@@ -11,7 +12,7 @@ import (
 // diagnostics). It also forwards inner's optional tool-loop declarations so a
 // keyed file tool's per-path conflict class and return-direct policy survive
 // the whole decorator stack.
-func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) (string, error)) chat.Tool {
+func wrapTool(inner tools.Tool, call func(ctx context.Context, arguments string) (string, error)) tools.Tool {
 	return &decoratedTool{inner: inner, call: call}
 }
 
@@ -19,7 +20,7 @@ func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) 
 // delegating Definition plus optional tool-loop declarations to the wrapped
 // tool, so a stack of decorators preserves the inner tool's full contract.
 type decoratedTool struct {
-	inner chat.Tool
+	inner tools.Tool
 	call  func(ctx context.Context, arguments string) (string, error)
 }
 

@@ -6,9 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 func TestSetUtilityRoleUsesSaverPort(t *testing.T) {
@@ -107,7 +106,7 @@ type fakeChatClientResolver struct {
 	err      error
 }
 
-func (r *fakeChatClientResolver) ResolveClient(_ context.Context, provider, model string) (*chat.Client, error) {
+func (r *fakeChatClientResolver) ResolveClient(_ context.Context, provider, model string) (*chatclient.Client, error) {
 	r.provider = provider
 	r.model = model
 	if r.err != nil {

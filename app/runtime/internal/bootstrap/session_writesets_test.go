@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -154,7 +154,7 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 
 	child, err := ss.ApplyFork(ctx, sessions.ForkPlan{
 		ParentID: parent.ID,
-		Messages: []chat.Message{chat.NewUserMessage("hello")},
+		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
 		Title:    "Child",
 	})
 	if err != nil {
@@ -263,7 +263,7 @@ func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create child: %v", err)
 	}
-	if err := ss.history.Seed(ctx, child.ID, []chat.Message{chat.NewUserMessage("preserve on rollback")}); err != nil {
+	if err := ss.history.Seed(ctx, child.ID, []chat.Message{chat.NewUserMessage(chat.NewTextPart("preserve on rollback"))}); err != nil {
 		t.Fatalf("seed child history: %v", err)
 	}
 	if err := ss.processes.Save(ctx, core.ProcessSnapshot{ID: "proc_preserve", AgentName: "chat", Status: core.StatusWaiting}); err != nil {
@@ -312,13 +312,13 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 	if err := ss.transcript.PutRun(ctx, transcript.Run{SessionID: "ses_B", ID: "run_target", UpdatedAt: now}); err != nil {
 		t.Fatalf("seed target run: %v", err)
 	}
-	if err := ss.history.Seed(ctx, "ses_B", []chat.Message{chat.NewUserMessage("before")}); err != nil {
+	if err := ss.history.Seed(ctx, "ses_B", []chat.Message{chat.NewUserMessage(chat.NewTextPart("before"))}); err != nil {
 		t.Fatalf("seed target history: %v", err)
 	}
 
 	err := ss.ApplyRestore(ctx, sessions.RestorePlan{
 		Session:  session.Session{ID: "ses_B", Title: "replacement", Cwd: "/replacement"},
-		Messages: []chat.Message{chat.NewUserMessage("after")},
+		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("after"))},
 		Runs:     []transcript.Run{{SessionID: "ses_B", ID: "run_shared", UpdatedAt: now}},
 	})
 	if !errors.Is(err, transcript.ErrIdentityConflict) {

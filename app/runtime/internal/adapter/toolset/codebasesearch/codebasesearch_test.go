@@ -40,7 +40,7 @@ func TestNewBuildsTypedToolAndNormalizesRequest(t *testing.T) {
 	if def.Name != "codebase_search" {
 		t.Fatalf("Name = %q, want codebase_search", def.Name)
 	}
-	if !strings.Contains(def.InputSchema, `"query"`) {
+	if !strings.Contains(string(def.InputSchema), `"query"`) {
 		t.Fatalf("InputSchema = %s, want query field", def.InputSchema)
 	}
 

@@ -16,7 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/httpreq"
 )
 
@@ -36,18 +36,18 @@ import (
 type Resolver struct {
 	defaultWorkdir  string
 	skillsGlobalDir string              // user-scope skills dir; merged under each turn's project skills
-	online          []chat.Tool         // working-directory-independent network tools
-	a2a             []chat.Tool         // working-directory-independent remote A2A agents
-	lsp             []chat.Tool         // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
+	online          []tools.Tool        // working-directory-independent network tools
+	a2a             []tools.Tool        // working-directory-independent remote A2A agents
+	lsp             []tools.Tool        // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
 	codeIntel       *codeintel.Analyzer // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
 	readTracker     *editguard.Tracker  // backs the read-before-edit + stale guards on read/edit/write
 	pathLocker      *pathLocker         // serializes same-path fs calls across every concurrent turn resolution
-	shell           []chat.Tool         // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
-	task            chat.Tool           // delegation tool; coding role only, nil until set
-	askUser         chat.Tool           // ask_user HITL tool; coding role only (askuser.New, via Deps)
-	exitPlan        chat.Tool           // exit_plan_mode HITL tool; coding role only (exitplan.New, via Deps); nil when no approval svc
-	todo            chat.Tool           // todo_write task-list tool; both roles, nil when no todo store
-	schedule        chat.Tool           // schedule management op-tool; coding role only, nil when no registry
+	shell           []tools.Tool        // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
+	task            tools.Tool          // delegation tool; coding role only, nil until set
+	askUser         tools.Tool          // ask_user HITL tool; coding role only (askuser.New, via Deps)
+	exitPlan        tools.Tool          // exit_plan_mode HITL tool; coding role only (exitplan.New, via Deps); nil when no approval svc
+	todo            tools.Tool          // todo_write task-list tool; both roles, nil when no todo store
+	schedule        tools.Tool          // schedule management op-tool; coding role only, nil when no registry
 
 	// codebaseIndex backs codebase_search (both roles). Held as the index (not
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
@@ -63,7 +63,7 @@ type Resolver struct {
 	// locking the per-turn resolution path: Tools() does one atomic load, the
 	// reconnect does one atomic store. The model therefore always sees the
 	// currently-connected servers' tools, even mid-session.
-	mcp atomic.Pointer[[]chat.Tool]
+	mcp atomic.Pointer[[]tools.Tool]
 
 	// mcpToolDisabled reads the current domain policy per resolution so registry
 	// changes and live-tool reconnects remain independent hot swaps.
@@ -77,14 +77,14 @@ type Resolver struct {
 type Deps struct {
 	DefaultWorkdir  string
 	SkillsGlobalDir string
-	Online          []chat.Tool         // network tools (webfetch/websearch/httpreq)
-	A2A             []chat.Tool         // remote A2A delegation tools
-	LSP             []chat.Tool         // code-intelligence tools
-	Shell           []chat.Tool         // shell tools (shell / shell_output / shell_kill)
-	AskUser         chat.Tool           // ask_user HITL tool (coding role only)
-	ExitPlan        chat.Tool           // exit_plan_mode HITL tool (coding role only); nil → omitted
-	Todo            chat.Tool           // todo_write task-list tool (both roles); nil → omitted
-	Schedule        chat.Tool           // schedule management op-tool (coding role only); nil → omitted
+	Online          []tools.Tool        // network tools (webfetch/websearch/httpreq)
+	A2A             []tools.Tool        // remote A2A delegation tools
+	LSP             []tools.Tool        // code-intelligence tools
+	Shell           []tools.Tool        // shell tools (shell / shell_output / shell_kill)
+	AskUser         tools.Tool          // ask_user HITL tool (coding role only)
+	ExitPlan        tools.Tool          // exit_plan_mode HITL tool (coding role only); nil → omitted
+	Todo            tools.Tool          // todo_write task-list tool (both roles); nil → omitted
+	Schedule        tools.Tool          // schedule management op-tool (coding role only); nil → omitted
 	CodeIntel       *codeintel.Analyzer // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker  // backs the read/edit/write guards
 	CodebaseIndex   CodebaseIndex       // backs codebase_search (both roles); nil → omitted
@@ -140,7 +140,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 
 // SetTask injects the `task` delegation tool (coding role only) — the engine
 // builds it after the platform exists (it spawns a sub-agent on the platform).
-func (r *Resolver) SetTask(t chat.Tool) { r.task = t }
+func (r *Resolver) SetTask(t tools.Tool) { r.task = t }
 
 // mcpTools returns the current MCP tool set (nil before the first store) minus
 // any tools the configured servers disable. The disabled set is read here, not
@@ -148,20 +148,20 @@ func (r *Resolver) SetTask(t chat.Tool) { r.task = t }
 // (a reconnect that swaps tools vs. a configure that swaps the disabled set).
 // The common case (nothing disabled) returns the stored slice unchanged — no
 // per-resolution copy.
-func (r *Resolver) mcpTools() []chat.Tool {
+func (r *Resolver) mcpTools() []tools.Tool {
 	p := r.mcp.Load()
 	if p == nil {
 		return nil
 	}
-	tools := *p
+	values := *p
 	if r.mcpToolDisabled == nil {
-		return tools
+		return values
 	}
-	var out []chat.Tool
-	for i, tool := range tools {
+	var out []tools.Tool
+	for i, tool := range values {
 		if r.mcpToolDisabled(tool.Definition().Name) {
 			if out == nil {
-				out = append(make([]chat.Tool, 0, len(tools)-1), tools[:i]...)
+				out = append(make([]tools.Tool, 0, len(values)-1), values[:i]...)
 			}
 			continue
 		}
@@ -170,13 +170,13 @@ func (r *Resolver) mcpTools() []chat.Tool {
 		}
 	}
 	if out == nil {
-		return tools
+		return values
 	}
 	return out
 }
 
 // SetMCPTools swaps in a freshly-built MCP tool set (boot + each reconnect).
-func (r *Resolver) SetMCPTools(tools []chat.Tool) {
+func (r *Resolver) SetMCPTools(tools []tools.Tool) {
 	snapshot := slices.Clone(tools)
 	r.mcp.Store(&snapshot)
 }
@@ -198,7 +198,7 @@ func (r *Resolver) workdirFor(ctx context.Context) string {
 	return turnctx.TurnCwd(ctx, r.defaultWorkdir)
 }
 
-func (r *Resolver) workdirTools(workdir string) []chat.Tool {
+func (r *Resolver) workdirTools(workdir string) []tools.Tool {
 	return buildWorkdirTools(workdir, r.codeIntel, r.readTracker, r.downloadAllow, r.pathLocker)
 }
 
@@ -214,7 +214,7 @@ func (g *toolGroup) Metadata() core.ToolGroupMetadata {
 	return core.SimpleToolGroupMetadata{RoleText: g.role}
 }
 
-func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
+func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	workdir := g.resolver.workdirFor(ctx)
 	tools := g.resolver.workdirTools(workdir)
 	tools = append(tools, g.resolver.online...)

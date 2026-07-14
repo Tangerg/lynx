@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 func TestUpdateSession(t *testing.T) {
@@ -121,7 +121,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_1", SessionID: id}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
-	history := map[string][]chat.Message{id: {chat.NewUserMessage("hi")}}
+	history := map[string][]chat.Message{id: {chat.NewUserMessage(chat.NewTextPart("hi"))}}
 
 	s := newTestServer(&stubRuntime{sess: svc, hist: hist, interrupts: ints, history: history})
 	if err := s.DeleteSession(ctx, id); err != nil {
@@ -222,7 +222,7 @@ func TestForkSession(t *testing.T) {
 	ctx := context.Background()
 	parent, _ := svc.Create(ctx, "research", "/work/proj")
 
-	hist := map[string][]chat.Message{parent.ID: {chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi")}}
+	hist := map[string][]chat.Message{parent.ID: {chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi"))}}
 	s := newTestServer(&stubRuntime{sess: svc, history: hist, hist: sqlite.NewTranscriptStore(db)})
 
 	child, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, Title: "branch A"})

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 // TestEngine_RunChat_PersistsProcessSnapshot verifies the persistence
@@ -15,7 +15,7 @@ import (
 // constructing the engine without one).
 func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
 	stub := newStreamingStubModel("done")
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	store := core.NewInMemoryProcessStore()
 	eng, err := New(context.Background(), Config{ChatClient: client, ProcessStore: store})
 	if err != nil {
@@ -50,7 +50,7 @@ func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
 // user message of turn 2).
 func TestEngine_RunChat_MultiTurnHistory(t *testing.T) {
 	stub := newHistoryAwareStub()
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +87,7 @@ func TestEngine_RunChat_MultiTurnHistory(t *testing.T) {
 func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 	shared := newHistoryStore()
 	stub1 := newHistoryAwareStub()
-	cli1, _ := chat.NewClient(stub1)
+	cli1, _ := chatclient.New(stub1)
 	eng1, _ := New(context.Background(), Config{ChatClient: cli1, HistoryStore: shared})
 
 	const sessionID = "shared-sess"
@@ -98,7 +98,7 @@ func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 	}
 
 	stub2 := newHistoryAwareStub()
-	cli2, _ := chat.NewClient(stub2)
+	cli2, _ := chatclient.New(stub2)
 	eng2, _ := New(context.Background(), Config{ChatClient: cli2, HistoryStore: shared})
 
 	if _, err := eng2.runTurnSync(context.Background(), TurnRequest{
@@ -120,7 +120,7 @@ func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 // identical message counts (no history loaded).
 func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
 	stub := newHistoryAwareStub()
-	client, _ := chat.NewClient(stub)
+	client, _ := chatclient.New(stub)
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)

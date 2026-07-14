@@ -9,8 +9,9 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/chatclient"
+	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
@@ -26,7 +27,7 @@ func newHistoryStore() history.Store { return history.NewInMemoryStore() }
 // toolset.Build (the production path: capabilities + resolver constructed
 // outside the core, injected in) -- for tests that exercise the assembled tool
 // set / MCP facade.
-func mustEngineWith(t *testing.T, client *chat.Client, bc toolset.BuildConfig) *Engine {
+func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildConfig) *Engine {
 	t.Helper()
 	built, err := toolset.Build(context.Background(), bc)
 	if err != nil {
@@ -212,12 +213,11 @@ type optionToolStub struct {
 }
 
 func newOptionToolStub() *optionToolStub {
-	defaults, _ := chat.NewOptions("stub-options-restore")
+	defaults := &chat.Options{Model: "stub-options-restore"}
 	return &optionToolStub{defaults: defaults}
 }
 
 func (m *optionToolStub) DefaultOptions() chat.Options { return *m.defaults }
-func (m *optionToolStub) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 func (m *optionToolStub) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	m.capture(req)
@@ -235,13 +235,18 @@ func (m *optionToolStub) Stream(ctx context.Context, req *chat.Request) iter.Seq
 func (m *optionToolStub) capture(req *chat.Request) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.lastOptions = req.Options.Clone()
+	copy := cloneChatOptions(req.Options)
+	m.lastOptions = &copy
 }
 
 func (m *optionToolStub) lastCapturedOptions() *chat.Options {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.lastOptions.Clone()
+	if m.lastOptions == nil {
+		return nil
+	}
+	copy := cloneChatOptions(*m.lastOptions)
+	return &copy
 }
 
 // namedUsageStub reports a configurable served-model name (and 1/1 usage) in
@@ -252,24 +257,18 @@ type namedUsageStub struct {
 }
 
 func newNamedStub(model string) *namedUsageStub {
-	opts, _ := chat.NewOptions(model)
+	opts := &chat.Options{Model: model}
 	return &namedUsageStub{model: model, defaults: opts}
 }
 
 func (m *namedUsageStub) DefaultOptions() chat.Options { return *m.defaults }
-func (m *namedUsageStub) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 func (m *namedUsageStub) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
-	u := chat.Usage{PromptTokens: 1, CompletionTokens: 1}
-	resp, err := chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage("ok"),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{Usage: &u},
-	)
-	if resp != nil && resp.Metadata != nil {
-		resp.Metadata.Model = m.model
+	message := chat.NewAssistantMessage(chat.NewTextPart("ok"))
+	resp, err := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
+	if resp != nil {
+		resp.Usage = chat.Usage{InputTokens: 1, OutputTokens: 1}
+		resp.Model = m.model
 	}
 	return resp, err
 }

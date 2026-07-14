@@ -6,15 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/history"
+	"github.com/Tangerg/lynx/chatclient"
+	history "github.com/Tangerg/lynx/chathistory"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // constClient adapts a fixed client to the per-call [ClientFunc] the
 // maintenance services take — these tests don't exercise the runtime's
 // utility-role swap, just a stable stub model.
-func constClient(c *chat.Client) ClientFunc {
-	return func(context.Context) *chat.Client { return c }
+func constClient(c *chatclient.Client) ClientFunc {
+	return func(context.Context) *chatclient.Client { return c }
 }
 
 // TestCompactor_NopBelowThreshold doesn't talk to a real LLM —
@@ -24,8 +25,8 @@ func TestCompactor_NopBelowThreshold(t *testing.T) {
 	store := history.NewInMemoryStore()
 	const sessID = "s"
 	_ = store.Write(context.Background(), sessID,
-		chat.NewUserMessage("a"),
-		chat.NewAssistantMessage("b"),
+		chat.NewUserMessage(chat.NewTextPart("a")),
+		chat.NewAssistantMessage(chat.NewTextPart("b")),
 	)
 	c := NewCompactor(store, nil /* never called */, CompactionConfig{MaxMessages: 10})
 	res, err := c.MaybeCompact(context.Background(), sessID, nil)
@@ -47,10 +48,10 @@ func TestCompactor_Compacts(t *testing.T) {
 	const sessID = "sess-compact"
 	const total = 20
 	for range total {
-		_ = store.Write(context.Background(), sessID, chat.NewUserMessage("msg"))
+		_ = store.Write(context.Background(), sessID, chat.NewUserMessage(chat.NewTextPart("msg")))
 	}
 
-	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
+	client, _ := chatclient.New(newTextStubModel("BULLETS"))
 
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: total, KeepRecent: 4})
 	res, err := c.MaybeCompact(context.Background(), sessID, nil)
@@ -68,12 +69,11 @@ func TestCompactor_Compacts(t *testing.T) {
 	if len(after) != 5 {
 		t.Fatalf("post-compact len = %d, want 5", len(after))
 	}
-	sys, ok := after[0].(*chat.SystemMessage)
-	if !ok {
-		t.Fatalf("first message is %T, want *chat.SystemMessage", after[0])
+	if after[0].Role != chat.RoleSystem {
+		t.Fatalf("first message role is %q, want system", after[0].Role)
 	}
-	if !strings.HasPrefix(sys.Text, "[Earlier conversation summary]") {
-		t.Errorf("summary preamble missing, got %q", sys.Text)
+	if !strings.HasPrefix(after[0].Text(), "[Earlier conversation summary]") {
+		t.Errorf("summary preamble missing, got %q", after[0].Text())
 	}
 }
 
@@ -97,16 +97,15 @@ func TestCompactor_CutBoundary(t *testing.T) {
 	// msgs[2] is a ToolMessage → recent would start orphaned.
 	// The fix must advance cutoff to 4 (the UserMessage at [4]).
 
-	asst := func(text string) chat.Message { return chat.NewAssistantMessage(text) }
-	user := func(text string) chat.Message { return chat.NewUserMessage(text) }
+	asst := func(text string) chat.Message { return chat.NewAssistantMessage(chat.NewTextPart(text)) }
+	user := func(text string) chat.Message { return chat.NewUserMessage(chat.NewTextPart(text)) }
 	tool := func(id, result string) chat.Message {
-		m, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: id, Name: "shell", Result: result}})
-		return m
+		return chat.NewToolMessage(chat.ToolResult{ID: id, Name: "shell", Result: result})
 	}
 
 	msgs := []chat.Message{
 		user("first question"),
-		asst(""),         // assistant turn with (notional) tool_calls
+		chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "c1", Name: "shell", Arguments: `{}`})),
 		tool("c1", "ok"), // tool result — must not be orphaned at recent[0]
 		asst("done"),
 		user("second question"),
@@ -116,7 +115,7 @@ func TestCompactor_CutBoundary(t *testing.T) {
 		_ = store.Write(context.Background(), sessID, m)
 	}
 
-	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
+	client, _ := chatclient.New(newTextStubModel("BULLETS"))
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 6, KeepRecent: 4})
 	res, err := c.MaybeCompact(context.Background(), sessID, nil)
 	if err != nil {
@@ -128,12 +127,12 @@ func TestCompactor_CutBoundary(t *testing.T) {
 
 	after, _ := store.Read(context.Background(), sessID)
 	// First message must be the system summary.
-	if _, ok := after[0].(*chat.SystemMessage); !ok {
-		t.Fatalf("after[0] = %T, want *chat.SystemMessage", after[0])
+	if after[0].Role != chat.RoleSystem {
+		t.Fatalf("after[0] role = %q, want system", after[0].Role)
 	}
 	// Second message must be the UserMessage from the second turn, never a ToolMessage.
-	if _, ok := after[1].(*chat.UserMessage); !ok {
-		t.Fatalf("after[1] = %T, want *chat.UserMessage (not orphaned ToolMessage)", after[1])
+	if after[1].Role != chat.RoleUser {
+		t.Fatalf("after[1] role = %q, want user (not orphaned tool message)", after[1].Role)
 	}
 }
 
@@ -146,15 +145,15 @@ func TestCompactor_TokenTrigger(t *testing.T) {
 	const sessID = "sess-tokens"
 
 	big := strings.Repeat("x", 50_000) // ~12.5k estimated tokens
-	huge, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: "c1", Name: "read", Result: big}})
+	huge := chat.NewToolMessage(chat.ToolResult{ID: "c1", Name: "read", Result: big})
 	_ = store.Write(context.Background(), sessID,
-		chat.NewUserMessage("read the file"),
-		chat.NewAssistantMessage(""),
+		chat.NewUserMessage(chat.NewTextPart("read the file")),
+		chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "c1", Name: "read", Arguments: `{}`})),
 		huge,
-		chat.NewUserMessage("now summarize"),
+		chat.NewUserMessage(chat.NewTextPart("now summarize")),
 	)
 
-	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
+	client, _ := chatclient.New(newTextStubModel("BULLETS"))
 	// Message bound far out of reach; token bound below the tool result —
 	// so only the token trigger can fire.
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 2})
@@ -177,15 +176,15 @@ func TestCompactor_TokenTriggerShortHistory(t *testing.T) {
 	const sessID = "sess-short"
 
 	big := strings.Repeat("x", 50_000)
-	huge, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: "c1", Name: "read", Result: big}})
+	huge := chat.NewToolMessage(chat.ToolResult{ID: "c1", Name: "read", Result: big})
 	// 3 messages < keepRecent (6, the production default).
 	_ = store.Write(context.Background(), sessID,
-		chat.NewUserMessage("read the file"),
-		chat.NewAssistantMessage(""),
+		chat.NewUserMessage(chat.NewTextPart("read the file")),
+		chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "c1", Name: "read", Arguments: `{}`})),
 		huge,
 	)
 
-	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
+	client, _ := chatclient.New(newTextStubModel("BULLETS"))
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 6})
 	res, err := c.MaybeCompact(context.Background(), sessID, nil) // must not panic
 	if err != nil {
@@ -204,9 +203,9 @@ func TestCompactor_PreCompactVeto(t *testing.T) {
 	const sessID = "sess-veto"
 	const total = 20
 	for range total {
-		_ = store.Write(context.Background(), sessID, chat.NewUserMessage("msg"))
+		_ = store.Write(context.Background(), sessID, chat.NewUserMessage(chat.NewTextPart("msg")))
 	}
-	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
+	client, _ := chatclient.New(newTextStubModel("BULLETS"))
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: total, KeepRecent: 4})
 
 	called := false
@@ -236,26 +235,16 @@ func TestCompactor_PreCompactVeto(t *testing.T) {
 // reply for any prompt — enough to drive the maintenance workers'
 // direct (middleware-free) LLM calls offline.
 type textStubModel struct {
-	reply    string
-	defaults *chat.Options
+	reply string
 }
 
 func newTextStubModel(reply string) *textStubModel {
-	opts, _ := chat.NewOptions("stub-maintenance")
-	return &textStubModel{reply: reply, defaults: opts}
+	return &textStubModel{reply: reply}
 }
 
-func (m *textStubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *textStubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
-
 func (m *textStubModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
-	return chat.NewResponse(
-		&chat.Result{
-			AssistantMessage: chat.NewAssistantMessage(m.reply),
-			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		},
-		&chat.ResponseMetadata{},
-	)
+	message := chat.NewAssistantMessage(chat.NewTextPart(m.reply))
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 }
 
 func (m *textStubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
 func TestNewRequiresRuntimeDependencies(t *testing.T) {
@@ -98,7 +98,7 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 	t.Helper()
 
-	client, err := chat.NewClient(newReplyStub("ok"))
+	client, err := chatclient.New(newReplyStub("ok"))
 	if err != nil {
 		t.Fatalf("chat client: %v", err)
 	}
