@@ -766,9 +766,13 @@ flowchart LR
   - 公共 MIME 字段统一为普通字符串：`image.Options.OutputFormat` 在合并边界用标准库解析、规范化并拒绝非图片类型/参数，`embedding.ResultMetadata.MIMEType` 使用空字符串表达 provider 未返回。
   - 冻结旧 Chat 的 schema 推导直接声明唯一第三方依赖 `invopop/jsonschema`，不再经 `pkg/json` 转发；该代码和依赖登记到 P6-05/P6-06 删除，不构成目标 API 例外。
   - 证据：`fda80088d`、`38d18de01`；Core/Models build、vet、lint、test、race 及 Models standalone test 全绿。
-- [ ] **P5-07 让所有目标新包达到标准库依赖目标**
+- [x] **P5-07 让所有目标新包达到标准库依赖目标**（完成：2026-07-14）
   - 冻结旧包造成的残余依赖登记到 P6 删除清单。
   - 任何计划保留的最终依赖必须写 ADR、用途、替代方案和退出条件。
+  - `chat`、`document`、`embedding`、`image`、`media`、`metadata`、`moderation`、`speech`、`transcription`、`vectorstore` 及其实现子包的生产 import 已由架构测试锁定为标准库或 Core 自身；外部 module 与 sibling module 均 fail-fast。
+  - 证据：`20017833f`；全 workspace 20 module 的 build/vet/test/lint 80/80 全绿。
+
+阶段验收（完成：2026-07-14）：P5 七项任务全部完成；五个 modality 使用一致的最小能力模式，provider reference data/credential/tokenizer 已移出 Core，目标 package path 已直接扁平且无兼容层，目标包不存在第三方或 sibling 生产依赖。冻结旧 Chat 的唯一 JSON Schema 依赖已明确登记到 P6-05/P6-06，不能成为最终例外。
 
 退出标准：
 
@@ -832,17 +836,17 @@ flowchart LR
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
-| P5 其余模态与依赖 | 进行中 | 6/7 | Core sibling helper/cast 已清零；进入目标包依赖阶段验收 |
-| P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
+| P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
+| P6 Workspace 切换 | 进行中 | 0/8 | 开始迁移冻结旧 Chat 的全部 provider 与 consumer |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **44/60** | **73%** |
+| **总计** | **进行中** | **45/60** | **75%** |
 
 ### 10.2 当前焦点
 
-- 当前阶段：P5。
-- 下一任务：执行 P5-07，固化目标新包仅依赖标准库的门禁并完成 P5 阶段验收。
+- 当前阶段：P6。
+- 下一任务：执行 P6-01，从 API inventory 展开完整 provider 子清单并迁移全部剩余旧 Chat provider。
 - 当前阻塞：无。
-- 最近完成：P5-06；Core 的 sibling helper/cast import 已清零，MIME 公共字段改为标准字符串，冻结旧 Chat 的唯一 schema 依赖已显式登记 P6 删除。
+- 最近完成：P5-07 与 P5 阶段验收；目标新包依赖预算已自动化，全 workspace 80 项门禁全绿。
 
 ### 10.3 进度更新规则
 
@@ -1117,6 +1121,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P5-07 与 P5 阶段验收；目标新包外部依赖预算自动化，workspace 80 项门禁全绿；进入 P6 | Codex |
 | 2026-07-14 | 完成 P5-06；清除 Core 全部 pkg helper/cast import，以标准 MIME 字符串和标准库/私有小实现替代，并采纳 ADR-015 | Codex |
 | 2026-07-14 | 完成 P5-04；建立独立 tokenizer module/tiktoken 实现包，按真实消费能力删除 Estimator/MediaEstimator，并从 Core 移除 tokenizer 路径与依赖；采纳 ADR-014 | Codex |
 | 2026-07-14 | 完成 P5-03；模型目录/能力/计价迁入公开 models/catalog，provider credential 回归具体配置，删除 Core catalog/APIKey 并采纳 ADR-013 | Codex |
@@ -1166,6 +1171,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P5-07、P5 阶段验收 | `20017833f` 新增目标包 dependency budget，递归禁止十个稳定 Core package 根引入第三方或 sibling module；冻结旧 Chat 的 schema 依赖继续由 P6 deadline 单独约束；`scripts/check.sh build vet test lint` 对 20 个 workspace module 的 80 项检查全绿；任务计数 45/60，P5 7/7 完成 | P6-01 全 provider 旧 Chat 迁移 |
 | 2026-07-14 | P5-06 | `fda80088d` 用 stdlib/包内私有实现替代 Core 的 ptr/slices/text/json/mime helper 与 cast，公共图片/embedding MIME 改为标准字符串并迁完 Models；冻结旧 Chat 只显式保留 `invopop/jsonschema` 到 P6；`38d18de01` 固化 Models 可独立解析的新 Core 伪版本；Core/Models build、vet、lint、test、race 与 Models standalone test 全绿；任务计数 44/60 | P5-07 目标新包 dependency budget 与 P5 阶段验收 |
 | 2026-07-14 | P5-04 | `687df9b60` 建立无 Core 依赖的小能力 tokenizer module 与独立 tiktoken 实现/架构守卫；`6953b45da` 将 DocumentPipeline、Anthropic、Google 迁到新协议，删除无消费者的 Estimator/MediaEstimator、`core/tokenizer` 和 Core tiktoken 依赖；`c0b679029` 固化可脱离 go.work 解析的真实伪版本图；20 module 的 80 项 build/vet/test/lint、四个受影响 module race 及 Models/DocumentPipeline standalone test 全绿；任务计数 43/60 | P5-06 清除 Core pkg helper/cast 依赖 |
 | 2026-07-14 | P5-03 | `18d2e7a50` 将 catalog 配置、生成器、模型卡/能力/限制/价格和 stdlib loader 从 internal/Core 迁入公开 `models/catalog`，删除 provider constructor 的 catalog lookup；`a68df8bd2` 将 38 个 provider/facade 及 runtime 的 APIKey 改为普通字符串，删除 `core/model.APIKey`，新增 App secret 脱敏与 Core 架构守卫；Core/Models/App build、vet、lint、test、race 全绿；任务计数 42/60 | P5-04 独立 tokenizer module 与 tiktoken 实现迁移 |

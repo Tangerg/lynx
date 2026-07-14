@@ -7,7 +7,7 @@
 
 本文记录 Core 重构前的编译器可见公共面、workspace 直接消费关系和后续迁移批次。它解决“改什么、谁会受影响、何时删除”的问题；它不是永久兼容承诺。P7 建立机械 API diff baseline 后，以工具输出判断签名兼容性。
 
-执行状态：P4、P5-01 至 P5-06 已于 2026-07-14 完成。五个旧 `core/model/<modality>` 路径已无兼容层地直接移动到 Core 顶层，五个 modality SPI 也已完成最小化；provider reference data 已归入公开 `models/catalog`，credential 已回归各 provider 配置，tokenizer 已成为独立 module，Core 对 sibling helper 与 cast 的生产 import 已清零。下文数量表和未特别标注的声明列表仍是重构前基线，已迁 package 会同时标明当前路径。
+执行状态：P4、P5 已于 2026-07-14 完成。五个旧 `core/model/<modality>` 路径已无兼容层地直接移动到 Core 顶层，五个 modality SPI 也已完成最小化；provider reference data 已归入公开 `models/catalog`，credential 已回归各 provider 配置，tokenizer 已成为独立 module，Core 对 sibling helper 与 cast 的生产 import 已清零，十个目标 package 根的外部依赖预算已有自动门禁。下文数量表和未特别标注的声明列表仍是重构前基线，已迁 package 会同时标明当前路径。
 
 ## 1. 口径与结论
 
