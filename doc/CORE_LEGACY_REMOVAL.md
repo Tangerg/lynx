@@ -64,6 +64,14 @@ handler/middleware/chain、`ModelMetadata`、`GetDimensions` 与全局维度 cac
 因此不建立冻结条目，也不保留 deprecated wrapper、alias 或 bridge。当前唯一 SPI
 是单方法 `embedding.Model`；可选 `Dimensioner` 和无缓存探测 helper 均显式返回错误。
 
+## P5 直接删除记录：其余模态 Client framework
+
+P5-02 在 `c27886f59` 中直接删除 Image、Transcription、Speech、Moderation 的
+Client/fluent request/caller、handler/middleware/chain 与 `ModelMetadata`。这些表面
+没有 workspace 生产消费者，因此不建立冻结条目。25 个具体 provider 与 6 个
+facade 已同步切换；Speech 的同步 `Model` 和流式 `Streamer` 是独立能力，其余模态
+只保留单方法 `Model`。未保留兼容转发、alias 或 deprecated API。
+
 ## 台账维护规则
 
 1. P2～P5 每发现一个为迁移保留的旧表面，都必须在同一逻辑提交登记目标替代、消费方、迁移任务和删除任务。

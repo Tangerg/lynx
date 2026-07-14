@@ -745,7 +745,10 @@ flowchart LR
   - `Model` 只保留 `Call`，可选 `Dimensioner` 独立为返回 `(int, error)` 的单方法能力；删除 provider `DefaultOptions`/`Metadata`/递归 `Dimensions` 伪能力。
   - `Client` 收缩为无状态的 Call/Text/Texts/Documents helper；删除 fluent request/caller、middleware/handler/chain 和全局 dimensions cache，不保留旧 API 转发。
   - 证据：`7cd3865c3`；8 个原生 embedding provider、5 个品牌 facade、全部 vectorstore 与 runtime 消费点完成原子切换；Core/Models/Vectorstores/Runtime 的 build、vet、lint、test、race 全绿。
-- [ ] **P5-02 迁移 image/transcription/speech/moderation API**
+- [x] **P5-02 迁移 image/transcription/speech/moderation API**（完成：2026-07-14）
+  - Image、Transcription、Moderation 的 `Model` 均只保留 `Call`；Speech 将同步 `Model` 与可选 `Streamer` 拆为两个互不嵌入的单方法能力，并提供函数 adapter。
+  - 四个 package 的 Client/fluent request/caller、handler/middleware/chain、`ModelMetadata` 直接删除；provider defaults 只由 provider 构造与 `Call` 内合并持有。
+  - 证据：`c27886f59`；25 个具体 provider 实现和 6 个品牌 facade 完成迁移，Core/Models build、vet、lint、test、race 全绿，架构守卫锁定最小方法集和禁止表面。
 - [ ] **P5-03 将 pricing/catalog/capabilities 迁入 `models/catalog`，APIKey 配置迁回各 provider**
 - [ ] **P5-04 建立独立 `tokenizer` module 并迁移 tiktoken 实现**
 - [x] **P5-05 扁平化 `core/model/<modality>` 包路径**（完成：2026-07-14）
@@ -819,17 +822,17 @@ flowchart LR
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
-| P5 其余模态与依赖 | 进行中 | 2/7 | embedding 最小 SPI 已完成；进入其余四模态收缩 |
+| P5 其余模态与依赖 | 进行中 | 3/7 | 五模态最小 SPI 已完成；进入 catalog/APIKey 归属迁移 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **40/60** | **67%** |
+| **总计** | **进行中** | **41/60** | **68%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P5。
-- 下一任务：执行 P5-02，按相同最小能力原则迁移 image/transcription/speech/moderation API。
+- 下一任务：执行 P5-03，将 pricing/catalog/capabilities 归入 `models/catalog`，并把 APIKey 配置迁回各 provider。
 - 当前阻塞：无。
-- 最近完成：P5-01；embedding 已收缩为单方法 Model、独立 Dimensioner 和无状态 helper，旧 fluent/middleware/cache API 直接删除。
+- 最近完成：P5-02；其余四模态完成最小 SPI 收缩，Speech 的同步与流式能力独立，所有无真实消费者的 Core Client framework 已删除。
 
 ### 10.3 进度更新规则
 
@@ -1056,6 +1059,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：`embedding.Model` 只包含 `Call`；已知维度由独立 `Dimensioner` 以 `(int, error)` 返回，未知维度通过不缓存的 `ResolveDimensions`/`ProbeDimensions` 显式探测。公共 `Client` 只提供无状态批量便利方法，不拥有 provider defaults、middleware、全局 cache 或身份元数据。
 - 原因：输出维度并非每个 provider 都能无 I/O 得知，旧 `int64`/0 返回值会吞掉网络和协议错误；全局 cache 又无法正确表达模型、凭证、endpoint 和生命周期。能力拆分和调用方缓存所有权使错误、成本与失效策略都可见。
 
+### ADR-012：其余模态只保留真实调用能力，不保留 Core Client framework
+
+- 日期：2026-07-14
+- 状态：已采纳
+- 决策：Image、Transcription、Moderation 只公开单方法 `Model`，Speech 公开互不嵌入的单方法 `Model` 与 `Streamer`；四个 package 删除 Client/fluent builder/middleware/identity 表面。没有 workspace 生产消费者的便利 API 不因历史存在而保留。
+- 原因：这些 Client 仅由各自 Core 单元测试使用，未承载跨 provider 的稳定用户需求；provider 已在构造时持有 defaults，调用方可直接构造普通 Request。Speech 流式能力确有七个 provider 实现，但不应迫使只做同步调用的实现伪造 Stream。
+
 ---
 
 ## 16. 长期完成定义
@@ -1076,6 +1086,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P5-02；四个模态收缩为单方法能力，Speech 独立 Model/Streamer，删除无生产消费者的 Core Client framework 并采纳 ADR-012 | Codex |
 | 2026-07-14 | 完成 P5-01；Embedding 收缩为单方法 Model、独立 Dimensioner 与无状态 helper，删除 fluent/middleware/metadata/global-cache 表面并采纳 ADR-011 | Codex |
 | 2026-07-14 | 提前完成 P5-05；五个 modality 包直接扁平到 Core 顶层并同步切换全部消费者，旧路径和临时 allowlist 已删除 | Codex |
 | 2026-07-14 | 完成 P4-09 与 P4 阶段验收；消费方、旧术语和观测示例完成切换，Filter 覆盖率/fuzz、workspace 与 race 门禁达标；进入 P5 | Codex |
@@ -1121,6 +1132,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P5-02 | `c27886f59` 将 Image/Transcription/Moderation 收缩为单方法 Model，将 Speech 拆为独立 Model/Streamer；删除四个包仅由 Core 自测使用的 Client/fluent/middleware/metadata framework，迁完 25 个具体 provider 与 6 个 facade；Core/Models build、vet、lint、test、race 全绿；任务计数 41/60 | P5-03 catalog/capabilities/APIKey 归属迁移 |
 | 2026-07-14 | P5-01 | `7cd3865c3` 建立单方法 `embedding.Model`、独立 `Dimensioner`/函数 adapter 与显式无缓存维度探测，Client 仅保留无状态批量 helper；直接删除 fluent builder、middleware、默认值/身份能力和全局 cache，迁完 8 个原生 provider、5 个品牌 facade、全部 vectorstore 与 runtime；四模块 build/vet/lint/test/race 全绿；任务计数 40/60 | P5-02 image/transcription/speech/moderation 最小 SPI |
 | 2026-07-14 | P5-05 | `444dfd3bc` 将 embedding/image/transcription/tts/moderation 从 `core/model/*` 直接移动为 `core/{embedding,image,transcription,speech,moderation}`，机械迁移 models/vectorstores/app 全部 import，不保留旧路径或 bridge；Core、models、vectorstores、app/runtime 测试全绿；任务计数 39/60 | P5-01 embedding 最小 SPI、Dimensioner 与 helper 归属 |
 | 2026-07-14 | P4-09、P4 阶段验收 | `0921d67c8` 清理全部 backend 与观测文档的旧 Create/Retrieve 语义；`4a4df484e` 新增 Filter 公共门面全词汇测试和稳定 FuzzParse，并修正 documentpipeline import 门禁；Filter 覆盖率 93.5%，30 秒 fuzz 约 971 万次通过，全 workspace 76 项 build/vet/test/lint 与 Core/RAG/documentpipeline/vectorstores race 全绿；任务计数 38/60，P4 9/9 完成 | P5-01 `core/embedding` 最小 SPI |
