@@ -612,9 +612,15 @@ flowchart LR
   - 边界：`chatclient` 生产代码只允许标准库与 `core`，不得反向依赖 Models、Tools、History、Agent 或应用层；自动架构测试扫描全部非测试 Go 文件并拒绝越界 import。
   - 设计：本任务只建立真实 module 节点、包定位和依赖守卫，不提前发布无语义的占位 Client 接口；P3-02 在该边界内一次性形成直接调用面。
   - 验证：`chatclient` build/vet/test/lint 全绿；加入 `go.work` 后全 workspace 18 个 module 的 build/vet/test/lint 共 72 项全绿。
-- [ ] **P3-02 设计直接调用优先的 Client API**
+- [x] **P3-02 设计直接调用优先的 Client API**（完成：2026-07-14）
   - 不复制 Spring 嵌套 spec/builder。
   - 简单请求使用普通值；复杂初始化才用 functional options。
+  - 目标公开面收敛为不可变 `Client` 的 `New`、`Call`、`Stream`；普通路径直接 `New(model)`，只有默认 Options、middleware 或分离的 Streamer 能力通过构造期 option 注入。
+  - Client 在调用边界深拷贝 Request 并执行“调用值覆盖 client 默认值”的 Options 合并，不修改调用方拥有的消息、媒体、schema、metadata 或 options；构造完成后自身无可变配置，并发语义由底层能力决定。
+  - `Stream` 仅在底层真实实现 `chat.Streamer` 时可用；不提供 synthetic streaming，缺少能力时返回可由 `errors.Is` 识别的单一终止错误。
+  - 证据：`Client` 仅公开 `Call`/`Stream` 两个方法，反射架构守卫阻止重新引入 fluent 面；`New(model)` 自动发现同一值的 Streamer，`WithStreamer` 支持能力分离，defaults 与 call/stream middleware 仅在构造期组合。
+  - 行为：覆盖全部 Options 字段合并、每一层 Request 引用值防御性复制、非法请求 I/O 前失败、context error identity、中间件顺序、显式 Streamer 优先、提前停止同步释放、nil sequence 单错终止及并发调用。
+  - 验证：`chatclient` coverage 96.5%，build/vet/test/lint 与全模块 race 全绿；workspace 72/72 门禁全绿。
 - [ ] **P3-03 将 prompt/template/structured output 迁入 `chatclient`**
 - [ ] **P3-04 迁移 history contract 与 middleware 到 `chathistory`**
 - [ ] **P3-05 迁移 safeguard/evaluation 并删除 Logger middleware**
@@ -747,19 +753,19 @@ flowchart LR
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
-| P3 高层运行时外移 | 进行中 | 1/9 | chatclient module 与依赖守卫已建立；当前设计直接调用 API |
+| P3 高层运行时外移 | 进行中 | 2/9 | 直接调用 Client API 已完成；当前迁移模板与结构化输出 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **21/60** | **35%** |
+| **总计** | **进行中** | **22/60** | **37%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P3。
-- 下一任务：执行 P3-02，在 `chatclient` 内实现直接调用优先、复杂初始化才使用 functional options 的 Client API。
+- 下一任务：执行 P3-03，将 prompt/template/structured output 迁入 `chatclient`，保持渲染、调用、解码职责可独立组合。
 - 当前阻塞：无。
-- 最近完成：P3-01；独立 `chatclient` module、stdlib + Core 生产依赖守卫及扩展后的 72 项 workspace 门禁均已通过。
+- 最近完成：P3-02；`New` + `Call`/`Stream` 直接调用面、请求快照/默认值合并、可选 Streamer 和 middleware 组合已固化，coverage 96.5%、race 与 workspace 72 项门禁均通过。
 
 ### 10.3 进度更新规则
 
@@ -978,6 +984,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P3-02；以不可变 New + Call/Stream 直接调用面替代 Spring 风格嵌套 builder，固化请求所有权、默认值合并与真实 Streamer 边界 | Codex |
 | 2026-07-14 | 完成 P3-01；建立独立 chatclient module 与 stdlib + Core 自动依赖守卫；workspace 扩展为 18 个 module、72 项门禁 | Codex |
 | 2026-07-14 | 完成 P2-07 与 P2 阶段验收；新增无别名 ResponseAccumulator，四 provider 固化取消/提前停止/首错终止/资源释放契约；进入 P3 | Codex |
 | 2026-07-14 | 完成 P2-06 四 provider adapter/conformance；Ollama native adapter 保留 reasoning/tool/native metadata，稳定合成 tool ID，并拒绝无法表达的输入 | Codex |
@@ -1008,6 +1015,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P3-02 | 新增不可变 `Client`、sealed constructor options、全量 Request 深拷贝与 Options 合并；Call/Stream 直接接收普通 Request，自动或显式使用真实 Streamer，无能力/非法输入/nil sequence 均单错终止；公开方法反射守卫、96.5% coverage、chatclient race 和 workspace 72/72 全绿；任务计数 22/60，P3 2/9 | P3-03 prompt/template/structured output |
 | 2026-07-14 | P3-01 | 新增独立 `chatclient` module并接入 `go.work`；生产文件自动扫描只允许 stdlib + Core，未提前发明占位 Client API；模块门禁及 workspace 72/72 全绿；任务计数 21/60，P3 1/9 | P3-02 直接调用优先的 Client API |
 | 2026-07-14 | P2-07、P2 阶段验收 | 新增零值可用、失败原子、输入/快照无别名的 `ResponseAccumulator`，支持多 choice、相邻 text/reasoning、交错并行 tool delta 与累计 Usage 快照；共享 behavior suite 让四家真实 SDK 验证 Call/Stream cancel、调用方早停、首错终止和 transport context 退出，并让所有 happy stream 通过统一聚合；修正两处双重转义 mock wire；chat coverage 95.1%，workspace 68/68、六个 fuzz 各 30 秒、Core/Models 全 race 通过；任务计数 20/60，P2 7/7 | P3-01 建立独立 chatclient module |
 | 2026-07-14 | P2-06（批次 5，Ollama 4/4，任务完成） | 新增 `ollama.Chat`/`ChatConfig` 与独立 native request/response mapper；覆盖 reasoning/text/tool 规范顺序、bytes image、tool/result、native request 逃生舱、created_at/duration/metrics 和 Call/Stream 稳定位置 ID；无法表达的 signature、URI image、非对象 arguments 在 I/O 前失败；Models 全门禁及 Ollama/internal conformance race 全绿；任务计数 19/60 | P2-07 Chat Call/Stream 行为契约 |
