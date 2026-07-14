@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/ast"
 )
 
 // SQLLikeVisitor renders an [ast.Expr] back into SQL-flavored text.

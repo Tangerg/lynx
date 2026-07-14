@@ -5,20 +5,19 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 )
 
-func TestParseAndAnalyze_Optimizes(t *testing.T) {
-	// ParseAndAnalyze folds dead logic: not(not(x)) collapses to x, so
+func TestParse_Optimizes(t *testing.T) {
+	// Parse folds dead logic: not(not(x)) collapses to x, so
 	// the result is the comparison itself, not a UnaryExpr.
-	expr, err := filter.ParseAndAnalyze(`not (not (year >= 2020))`)
+	expr, err := filter.Parse(`not (not (year >= 2020))`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, isUnary := expr.(*ast.UnaryExpr); isUnary {
+	if _, isUnary := expr.(*filter.UnaryExpr); isUnary {
 		t.Fatalf("expected double-NOT to be folded away, got %T", expr)
 	}
-	if _, isBinary := expr.(*ast.BinaryExpr); !isBinary {
+	if _, isBinary := expr.(*filter.BinaryExpr); !isBinary {
 		t.Fatalf("expected the bare comparison BinaryExpr, got %T", expr)
 	}
 }
@@ -46,13 +45,13 @@ func TestAnalyze_RejectsTypeMismatch(t *testing.T) {
 		return
 	}
 	// Non-comparable string vs numeric op — analyzer should flag.
-	if err := filter.Analyze(expr); err == nil {
+	if err := filter.Validate(expr); err == nil {
 		t.Skip("analyzer is permissive for this case; that is acceptable")
 	}
 }
 
-func TestParseAndAnalyze_HappyPath(t *testing.T) {
-	expr, err := filter.ParseAndAnalyze(`category == 'tech' AND year >= 2020`)
+func TestParse_HappyPath(t *testing.T) {
+	expr, err := filter.Parse(`category == 'tech' AND year >= 2020`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,8 +60,8 @@ func TestParseAndAnalyze_HappyPath(t *testing.T) {
 	}
 }
 
-func TestParseAndAnalyze_ParseError(t *testing.T) {
-	_, err := filter.ParseAndAnalyze(`broken (`)
+func TestParse_ParseError(t *testing.T) {
+	_, err := filter.Parse(`broken (`)
 	if err == nil {
 		t.Fatal("syntactically invalid input must error")
 	}
@@ -92,20 +91,20 @@ func TestParse_ErrorMessageNonempty(t *testing.T) {
 	}
 }
 
-func TestParseAndAnalyze_IsNull(t *testing.T) {
+func TestParse_IsNull(t *testing.T) {
 	for _, src := range []string{
 		`owner is null`,
 		`owner is not null`,
 		`metadata['k'] is null`,
 		`a is null and b == 1`,
 	} {
-		if _, err := filter.ParseAndAnalyze(src); err != nil {
-			t.Fatalf("ParseAndAnalyze(%q): unexpected error %v", src, err)
+		if _, err := filter.Parse(src); err != nil {
+			t.Fatalf("Parse(%q): unexpected error %v", src, err)
 		}
 	}
 }
 
-func TestParseAndAnalyze_IsNullRejectsNonNull(t *testing.T) {
+func TestParse_IsNullRejectsNonNull(t *testing.T) {
 	// IS must be followed by NULL (optionally NOT NULL); other right
 	// sides are rejected at parse time.
 	for _, src := range []string{
@@ -113,33 +112,33 @@ func TestParseAndAnalyze_IsNullRejectsNonNull(t *testing.T) {
 		`owner is 'x'`,
 		`owner is`,
 	} {
-		if _, err := filter.ParseAndAnalyze(src); err == nil {
-			t.Fatalf("ParseAndAnalyze(%q): expected error, got nil", src)
+		if _, err := filter.Parse(src); err == nil {
+			t.Fatalf("Parse(%q): expected error, got nil", src)
 		}
 	}
 }
 
-func TestParseAndAnalyze_NotIn(t *testing.T) {
+func TestParse_NotIn(t *testing.T) {
 	// `NOT IN` reuses the NOT + IN tokens: it parses to a NOT wrapping an
 	// IN, not a dedicated node.
-	expr, err := filter.ParseAndAnalyze(`tags not in ('a', 'b', 'c')`)
+	expr, err := filter.Parse(`tags not in ('a', 'b', 'c')`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	unary, ok := expr.(*ast.UnaryExpr)
+	unary, ok := expr.(*filter.UnaryExpr)
 	if !ok {
 		t.Fatalf("NOT IN should be a UnaryExpr(NOT, ...), got %T", expr)
 	}
-	if _, ok := unary.Right.(*ast.BinaryExpr); !ok {
+	if _, ok := unary.Right.(*filter.BinaryExpr); !ok {
 		t.Fatalf("NOT IN inner should be a BinaryExpr(IN), got %T", unary.Right)
 	}
 }
 
-func TestParseAndAnalyze_NotInRejectsNonIn(t *testing.T) {
+func TestParse_NotInRejectsNonIn(t *testing.T) {
 	// Infix NOT only accepts IN after it.
 	for _, src := range []string{`a not == 1`, `a not 5`} {
-		if _, err := filter.ParseAndAnalyze(src); err == nil {
-			t.Fatalf("ParseAndAnalyze(%q): expected error, got nil", src)
+		if _, err := filter.Parse(src); err == nil {
+			t.Fatalf("Parse(%q): expected error, got nil", src)
 		}
 	}
 }

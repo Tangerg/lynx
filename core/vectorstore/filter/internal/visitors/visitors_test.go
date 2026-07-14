@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/parser"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/visitors"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/parser"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/visitors"
 )
 
 // --- Analyzer ------------------------------------------------------------

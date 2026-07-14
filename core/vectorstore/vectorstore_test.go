@@ -8,7 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 )
 
 func TestSearchRequestValidate(t *testing.T) {
@@ -100,7 +99,3 @@ func TestCapabilityInterfacesStayMinimal(t *testing.T) {
 		})
 	}
 }
-
-// Compile-time interface check for the temporary P4 filter boundary. P4-07
-// moves this expression vocabulary to the filter package root.
-var _ ast.Expr = ast.Expr(nil)

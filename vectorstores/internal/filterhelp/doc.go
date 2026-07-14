@@ -3,8 +3,8 @@
 //
 // Every backend's visitor.go used to ship its own near-identical
 // copies of:
-//   - LiteralAsKey  — *ast.Literal used as an index key → string
-//   - LiteralToValue — *ast.Literal → typed Go value
-//   - ExtractValue   — assert ast.Expr is *ast.Literal, then convert
-//   - CollectKeyPath — walk an *ast.IndexExpr chain into []string
+//   - LiteralAsKey  — *filter.Literal used as an index key → string
+//   - LiteralToValue — *filter.Literal → typed Go value
+//   - ExtractValue   — assert filter.Expr is *filter.Literal, then convert
+//   - CollectKeyPath — walk an *filter.IndexExpr chain into []string
 package filterhelp

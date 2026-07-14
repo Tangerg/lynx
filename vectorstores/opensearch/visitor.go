@@ -6,12 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
-
-var _ ast.Visitor = (*Visitor)(nil)
 
 // Visitor transforms AST filter expressions into OpenSearch
 // query-string syntax (Lucene). The output plugs into the `filter`
@@ -43,12 +40,12 @@ func (v *Visitor) Result() string {
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("opensearch: cannot process nil expression")
 	}
@@ -57,8 +54,8 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	}
 
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
-		if node.Op.Kind.IsNullOperator() {
+	case *filter.BinaryExpr:
+		if node.Op.IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
 		return filterhelp.DispatchBinaryErr(node,
@@ -67,14 +64,14 @@ func (v *Visitor) visit(expr ast.Expr) error {
 			v.visitInExpr,
 			v.visitLikeExpr,
 		)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return filterhelp.DispatchUnaryErr(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("opensearch: unsupported root expression %T", node)
 	}
 }
 
-func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
+func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	v.sql.WriteString("NOT (")
 	if err := v.visit(expr.Right); err != nil {
 		return err
@@ -83,8 +80,8 @@ func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
-	op, err := filterhelp.LogicalOpString(expr.Op.Kind)
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+	op, err := filterhelp.LogicalOpString(expr.Op)
 	if err != nil {
 		return fmt.Errorf("opensearch: %w", err)
 	}
@@ -102,7 +99,7 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("opensearch: %w (at %s)", err, expr.Start().String())
@@ -112,39 +109,39 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 		return fmt.Errorf("opensearch: %w (at %s)", err, expr.Start().String())
 	}
 
-	switch expr.Op.Kind {
-	case token.EQ:
+	switch expr.Op {
+	case filter.OpEqual:
 		v.sql.WriteString(field)
 		v.sql.WriteString(":")
 		v.sql.WriteString(formatValue(value))
-	case token.NE:
+	case filter.OpNotEqual:
 		v.sql.WriteString("NOT ")
 		v.sql.WriteString(field)
 		v.sql.WriteString(":")
 		v.sql.WriteString(formatValue(value))
-	case token.LT:
+	case filter.OpLess:
 		v.sql.WriteString(field)
 		v.sql.WriteString(":<")
 		v.sql.WriteString(formatValue(value))
-	case token.LE:
+	case filter.OpLessEqual:
 		v.sql.WriteString(field)
 		v.sql.WriteString(":<=")
 		v.sql.WriteString(formatValue(value))
-	case token.GT:
+	case filter.OpGreater:
 		v.sql.WriteString(field)
 		v.sql.WriteString(":>")
 		v.sql.WriteString(formatValue(value))
-	case token.GE:
+	case filter.OpGreaterEqual:
 		v.sql.WriteString(field)
 		v.sql.WriteString(":>=")
 		v.sql.WriteString(formatValue(value))
 	default:
-		return fmt.Errorf("opensearch: unexpected comparison operator '%s'", expr.Op.Literal)
+		return fmt.Errorf("opensearch: unexpected comparison operator '%s'", expr.Op.String())
 	}
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("opensearch: %w (at %s)", err, expr.Start().String())
@@ -171,7 +168,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("opensearch: %w (at %s)", err, expr.Start().String())
@@ -198,7 +195,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 // resulting `NOT (NOT _exists_:<path>)` is a double negation equivalent to
 // `_exists_:<path>` — the existence check — so no separate handling is
 // needed here.
-func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("opensearch: %w (at %s)", err, expr.Start().String())
@@ -208,7 +205,7 @@ func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
+func (v *Visitor) fieldPath(expr filter.Expr) (string, error) {
 	keys, err := filterhelp.CollectKeyPath(expr)
 	if err != nil {
 		return "", err

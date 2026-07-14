@@ -33,11 +33,6 @@ var temporaryPublicPackages = map[string]string{
 	"model/image":                   "P5-02/P6-05",
 	"model/moderation":              "P5-02/P6-05",
 	"tokenizer":                     "P5-04",
-	"vectorstore/filter/ast":        "P4-07",
-	"vectorstore/filter/lexer":      "P4-07",
-	"vectorstore/filter/parser":     "P4-07",
-	"vectorstore/filter/token":      "P4-07",
-	"vectorstore/filter/visitors":   "P4-07",
 }
 
 func TestPublicPackagesMatchArchitectureAllowlist(t *testing.T) {
@@ -50,7 +45,7 @@ func TestPublicPackagesMatchArchitectureAllowlist(t *testing.T) {
 			t.Fatalf("relative package path for %s: %v", path, err)
 		}
 		rel = filepath.ToSlash(rel)
-		if rel == "." || rel == "internal" || strings.HasPrefix(rel, "internal/") {
+		if rel == "." || strings.Contains("/"+rel+"/", "/internal/") {
 			continue
 		}
 		seen[rel] = struct{}{}

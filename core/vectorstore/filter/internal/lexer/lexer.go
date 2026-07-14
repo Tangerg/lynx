@@ -6,7 +6,7 @@ import (
 	"iter"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
 )
 
 // Lexer scans a single input string. It tracks the start position of

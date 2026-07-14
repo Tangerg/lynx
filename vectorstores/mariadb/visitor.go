@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
-
-var _ ast.Visitor = (*Visitor)(nil)
 
 // Visitor transforms AST filter expressions into a MariaDB WHERE
 // fragment. Metadata is stored as JSON; the visitor reaches into it
@@ -48,12 +45,12 @@ func (v *Visitor) Result() (string, []any) {
 	return v.sql.String(), v.args
 }
 
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("mariadb: cannot process nil expression")
 	}
@@ -62,8 +59,8 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	}
 
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
-		if node.Op.Kind.IsNullOperator() {
+	case *filter.BinaryExpr:
+		if node.Op.IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
 		return filterhelp.DispatchBinaryErr(node,
@@ -72,14 +69,14 @@ func (v *Visitor) visit(expr ast.Expr) error {
 			v.visitInExpr,
 			v.visitLikeExpr,
 		)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return filterhelp.DispatchUnaryErr(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("mariadb: unsupported root expression %T", node)
 	}
 }
 
-func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
+func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	v.sql.WriteString("NOT (")
 	if err := v.visit(expr.Right); err != nil {
 		return err
@@ -88,8 +85,8 @@ func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
-	op, err := filterhelp.LogicalOpString(expr.Op.Kind)
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+	op, err := filterhelp.LogicalOpString(expr.Op)
 	if err != nil {
 		return fmt.Errorf("mariadb: %w", err)
 	}
@@ -107,7 +104,7 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildJSONPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
@@ -116,12 +113,12 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
 	}
-	op, err := sqlOpFor(expr.Op.Kind)
+	op, err := sqlOpFor(expr.Op)
 	if err != nil {
 		return err
 	}
 
-	v.appendJSONExtraction(jsonPath, value, expr.Op.Kind)
+	v.appendJSONExtraction(jsonPath, value, expr.Op)
 	v.sql.WriteByte(' ')
 	v.sql.WriteString(op)
 	v.sql.WriteByte(' ')
@@ -129,7 +126,7 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildJSONPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
@@ -149,7 +146,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 		values = append(values, val)
 	}
 
-	v.appendJSONExtraction(jsonPath, values[0], token.EQ)
+	v.appendJSONExtraction(jsonPath, values[0], filter.OpEqual)
 	v.sql.WriteString(" IN (")
 	for i, val := range values {
 		if i > 0 {
@@ -161,7 +158,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildJSONPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
@@ -171,7 +168,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 		return fmt.Errorf("mariadb: %w", err)
 	}
 
-	v.appendJSONExtraction(jsonPath, "", token.EQ)
+	v.appendJSONExtraction(jsonPath, "", filter.OpEqual)
 	v.sql.WriteString(" LIKE ")
 	v.appendValuePlaceholder(pattern)
 	return nil
@@ -182,7 +179,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 // stored value is JSON null, matching the inmemory reference semantics.
 // The negated `IS NOT NULL` arrives as NOT(… IS NULL) and is rendered
 // by visitNotExpr, so no separate handling is needed here.
-func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildJSONPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
@@ -197,7 +194,7 @@ func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
 
 // appendJSONExtraction emits the JSON_VALUE / CAST wrapper appropriate
 // for the comparison's value type.
-func (v *Visitor) appendJSONExtraction(jsonPath string, value any, op token.Kind) {
+func (v *Visitor) appendJSONExtraction(jsonPath string, value any, op filter.Operator) {
 	switch value.(type) {
 	case float64, int64, int:
 		v.sql.WriteString("CAST(JSON_VALUE(")
@@ -239,7 +236,7 @@ func (v *Visitor) appendValuePlaceholder(value any) {
 	v.sql.WriteByte('?')
 }
 
-func buildJSONPath(expr ast.Expr) (string, error) {
+func buildJSONPath(expr filter.Expr) (string, error) {
 	keys, err := filterhelp.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
@@ -250,19 +247,19 @@ func buildJSONPath(expr ast.Expr) (string, error) {
 	return "$." + strings.Join(keys, "."), nil
 }
 
-func sqlOpFor(kind token.Kind) (string, error) {
+func sqlOpFor(kind filter.Operator) (string, error) {
 	switch kind {
-	case token.EQ:
+	case filter.OpEqual:
 		return "=", nil
-	case token.NE:
+	case filter.OpNotEqual:
 		return "<>", nil
-	case token.LT:
+	case filter.OpLess:
 		return "<", nil
-	case token.LE:
+	case filter.OpLessEqual:
 		return "<=", nil
-	case token.GT:
+	case filter.OpGreater:
 		return ">", nil
-	case token.GE:
+	case filter.OpGreaterEqual:
 		return ">=", nil
 	default:
 		return "", fmt.Errorf("mariadb: unexpected comparison operator '%s'", kind.Name())

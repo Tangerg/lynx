@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
-
-var _ ast.Visitor = (*Visitor)(nil)
 
 // Visitor transforms AST filter expressions into a Cypher predicate
 // string plus the matching parameter map. The output is intended to
@@ -54,12 +51,12 @@ func (v *Visitor) Result() (string, map[string]any) {
 	return v.sql.String(), v.params
 }
 
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("neo4j: cannot process nil expression")
 	}
@@ -68,37 +65,37 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	}
 
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
+	case *filter.BinaryExpr:
 		return v.visitBinaryExpr(node)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return v.visitUnaryExpr(node)
 	default:
 		return fmt.Errorf("neo4j: unsupported root expression %T", node)
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
-	case expr.Op.Kind.IsNullOperator():
+	case expr.Op.IsNullOperator():
 		return v.visitNullTestExpr(expr)
-	case expr.Op.Kind.IsLogicalOperator():
+	case expr.Op.IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
-	case expr.Op.Kind.Is(token.IN):
+	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
-	case expr.Op.Kind.Is(token.LIKE):
+	case expr.Op.Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
-	case expr.Op.Kind.IsEqualityOperator() || expr.Op.Kind.IsOrderingOperator():
+	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
 		return fmt.Errorf("neo4j: unsupported binary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 }
 
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.Is(token.NOT) {
+func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+	if !expr.Op.Is(filter.OpNot) {
 		return fmt.Errorf("neo4j: unsupported unary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 	v.sql.WriteString("NOT (")
 	if err := v.visit(expr.Right); err != nil {
@@ -108,9 +105,9 @@ func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
-	if expr.Op.Kind.Is(token.OR) {
+	if expr.Op.Is(filter.OpOr) {
 		op = " OR "
 	}
 	v.sql.WriteString("(")
@@ -125,7 +122,7 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	prop, err := v.propertyAccess(expr.Left)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
@@ -134,7 +131,7 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
-	op, err := cypherOpFor(expr.Op.Kind)
+	op, err := cypherOpFor(expr.Op)
 	if err != nil {
 		return err
 	}
@@ -148,13 +145,13 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	prop, err := v.propertyAccess(expr.Left)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
 
-	listLit, ok := expr.Right.(*ast.ListLiteral)
+	listLit, ok := expr.Right.(*filter.ListLiteral)
 	if !ok {
 		return fmt.Errorf("neo4j: 'IN' requires a list on the right at %s, got %T",
 			expr.Start().String(), expr.Right)
@@ -182,7 +179,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 
 // visitLikeExpr maps LIKE onto Cypher's regex operator =~. SQL
 // wildcards translate to regex equivalents and the match is anchored.
-func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	prop, err := v.propertyAccess(expr.Left)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
@@ -227,7 +224,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 // visitUnaryExpr as `NOT (… IS NULL)`, which Cypher treats as
 // equivalent, so no separate handling is needed here. No bound
 // parameter — `IS NULL` is inline in Cypher.
-func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	prop, err := v.propertyAccess(expr.Left)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
@@ -240,7 +237,7 @@ func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
 
 // propertyAccess assembles the Cypher property accessor for the left
 // side of a comparison, e.g. “node.`metadata.foo` “.
-func (v *Visitor) propertyAccess(expr ast.Expr) (string, error) {
+func (v *Visitor) propertyAccess(expr filter.Expr) (string, error) {
 	keys, err := filterhelp.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
@@ -259,19 +256,19 @@ func (v *Visitor) propertyAccess(expr ast.Expr) (string, error) {
 	return v.nodeAlias + ".`" + escaped + "`", nil
 }
 
-func cypherOpFor(kind token.Kind) (string, error) {
+func cypherOpFor(kind filter.Operator) (string, error) {
 	switch kind {
-	case token.EQ:
+	case filter.OpEqual:
 		return "=", nil
-	case token.NE:
+	case filter.OpNotEqual:
 		return "<>", nil
-	case token.LT:
+	case filter.OpLess:
 		return "<", nil
-	case token.LE:
+	case filter.OpLessEqual:
 		return "<=", nil
-	case token.GT:
+	case filter.OpGreater:
 		return ">", nil
-	case token.GE:
+	case filter.OpGreaterEqual:
 		return ">=", nil
 	default:
 		return "", fmt.Errorf("neo4j: unexpected comparison operator '%s'", kind.Name())

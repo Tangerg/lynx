@@ -12,7 +12,7 @@ import (
 
 func TestVisitor_Conformance(t *testing.T) {
 	storetest.VisitorConformance(t, func(src string) error {
-		expr, err := filter.ParseAndAnalyze(src)
+		expr, err := filter.Parse(src)
 		if err != nil {
 			return err
 		}
@@ -22,7 +22,7 @@ func TestVisitor_Conformance(t *testing.T) {
 }
 
 func TestVisitor_IsNull(t *testing.T) {
-	expr, err := filter.ParseAndAnalyze("author is null")
+	expr, err := filter.Parse("author is null")
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestVisitor_IsNull(t *testing.T) {
 }
 
 func TestVisitor_IsNotNull(t *testing.T) {
-	expr, err := filter.ParseAndAnalyze("author is not null")
+	expr, err := filter.Parse("author is not null")
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}

@@ -8,12 +8,9 @@ import (
 
 	"github.com/spf13/cast"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
-
-var _ ast.Visitor = (*Visitor)(nil)
 
 // Visitor transforms AST filter expressions into a RediSearch query
 // fragment. The output is meant to be wrapped in parentheses and
@@ -50,12 +47,12 @@ func (v *Visitor) Result() string {
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("redis: cannot process nil expression")
 	}
@@ -64,21 +61,21 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	}
 
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
+	case *filter.BinaryExpr:
 		return filterhelp.DispatchBinaryErr(node,
 			v.visitLogicalExpr,
 			v.visitComparisonExpr,
 			v.visitInExpr,
 			v.visitTextFieldExpr,
 		)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return filterhelp.DispatchUnaryErr(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("redis: unsupported root expression %T", node)
 	}
 }
 
-func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
+func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	v.sql.WriteString("-(")
 	if err := v.visit(expr.Right); err != nil {
 		return err
@@ -91,9 +88,9 @@ func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
 // pipe (` | `) for OR — not the verbatim "AND"/"OR" strings other
 // vendors emit. We don't call filterhelp.LogicalOpString here because
 // of that mapping difference.
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	sep := " "
-	if expr.Op.Kind.Is(token.OR) {
+	if expr.Op.Is(filter.OpOr) {
 		sep = " | "
 	}
 	v.sql.WriteString("(")
@@ -112,7 +109,7 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 //   - TAG fields handle == and != (via NOT wrap)
 //   - NUMERIC fields handle the full ordering set
 //   - TEXT fields only support equality via the (value) syntax
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, kind, err := v.resolveFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
@@ -123,10 +120,10 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
 	}
 
-	op := expr.Op.Kind
-	negate := op.Is(token.NE)
+	op := expr.Op
+	negate := op.Is(filter.OpNotEqual)
 	if negate {
-		op = token.EQ
+		op = filter.OpEqual
 	}
 
 	if negate {
@@ -135,9 +132,9 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 
 	switch kind {
 	case FieldTag:
-		if !op.Is(token.EQ) {
+		if !op.Is(filter.OpEqual) {
 			return fmt.Errorf("redis: TAG field '%s' only supports == / != / IN (got '%s')",
-				field, expr.Op.Literal)
+				field, expr.Op.String())
 		}
 		v.sql.WriteString("@")
 		v.sql.WriteString(field)
@@ -161,9 +158,9 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 		v.sql.WriteString("]")
 
 	case FieldText:
-		if !op.Is(token.EQ) {
+		if !op.Is(filter.OpEqual) {
 			return fmt.Errorf("redis: TEXT field '%s' only supports == / != / LIKE (got '%s')",
-				field, expr.Op.Literal)
+				field, expr.Op.String())
 		}
 		v.sql.WriteString("@")
 		v.sql.WriteString(field)
@@ -177,7 +174,7 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitTextFieldExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitTextFieldExpr(expr *filter.BinaryExpr) error {
 	field, kind, err := v.resolveFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
@@ -200,7 +197,7 @@ func (v *Visitor) visitTextFieldExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, kind, err := v.resolveFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
@@ -253,12 +250,12 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 // of a comparison and looks up its declared kind. Returns the bare
 // identifier (no @prefix) so the caller controls the surrounding
 // syntax.
-func (v *Visitor) resolveFieldKey(expr ast.Expr) (string, MetadataFieldType, error) {
+func (v *Visitor) resolveFieldKey(expr filter.Expr) (string, MetadataFieldType, error) {
 	var field string
 	switch node := expr.(type) {
-	case *ast.Ident:
+	case *filter.Ident:
 		field = node.Value
-	case *ast.IndexExpr:
+	case *filter.IndexExpr:
 		// metadata["author"] / metadata["a"]["b"]: collapse the path
 		// with dots — RediSearch fields are flat so deep paths must
 		// be declared as dotted field names.
@@ -278,10 +275,10 @@ func (v *Visitor) resolveFieldKey(expr ast.Expr) (string, MetadataFieldType, err
 	return field, kind, nil
 }
 
-// flattenIndexExpr collapses an [ast.IndexExpr] into a dotted path —
+// flattenIndexExpr collapses an [filter.IndexExpr] into a dotted path —
 // e.g. metadata["a"]["b"] → ["a", "b"]. The base identifier
 // ("metadata") is stripped so callers only see the inner key path.
-func flattenIndexExpr(expr *ast.IndexExpr) ([]string, error) {
+func flattenIndexExpr(expr *filter.IndexExpr) ([]string, error) {
 	var keys []string
 	current := expr
 	for {
@@ -292,9 +289,9 @@ func flattenIndexExpr(expr *ast.IndexExpr) ([]string, error) {
 		keys = append([]string{key}, keys...)
 
 		switch inner := current.Left.(type) {
-		case *ast.IndexExpr:
+		case *filter.IndexExpr:
 			current = inner
-		case *ast.Ident:
+		case *filter.Ident:
 			// Drop the base identifier — it's the field namespace
 			// (often "metadata") rather than a key in the path.
 			return keys, nil
@@ -307,18 +304,18 @@ func flattenIndexExpr(expr *ast.IndexExpr) ([]string, error) {
 // numericRange builds the RediSearch [low high] bounds for an ordering
 // operator. Inclusive bounds use the bare number; exclusive bounds use
 // "(<n>".
-func numericRange(op token.Kind, value float64) (string, string) {
+func numericRange(op filter.Operator, value float64) (string, string) {
 	v := formatNumber(value)
 	switch op {
-	case token.EQ:
+	case filter.OpEqual:
 		return v, v
-	case token.GT:
+	case filter.OpGreater:
 		return "(" + v, "+inf"
-	case token.GE:
+	case filter.OpGreaterEqual:
 		return v, "+inf"
-	case token.LT:
+	case filter.OpLess:
 		return "-inf", "(" + v
-	case token.LE:
+	case filter.OpLessEqual:
 		return "-inf", v
 	default:
 		// Unreachable — visitComparisonExpr filtered the operator.
@@ -333,7 +330,7 @@ func formatNumber(f float64) string {
 	return strconv.FormatFloat(f, 'f', -1, 64)
 }
 
-func literalToString(lit *ast.Literal) (string, error) {
+func literalToString(lit *filter.Literal) (string, error) {
 	switch {
 	case lit.IsString():
 		return lit.AsString()
@@ -350,7 +347,7 @@ func literalToString(lit *ast.Literal) (string, error) {
 		}
 		return strconv.FormatBool(b), nil
 	default:
-		return "", fmt.Errorf("redis: unsupported literal kind %s", lit.Token.Kind.Name())
+		return "", fmt.Errorf("redis: unsupported literal kind %s", lit.Kind)
 	}
 }
 

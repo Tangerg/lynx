@@ -6,12 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
-
-var _ ast.Visitor = (*Visitor)(nil)
 
 // Visitor transforms AST filter expressions into Azure AI Search OData
 // `$filter` syntax. Metadata is treated as flat top-level fields on
@@ -39,12 +36,12 @@ func (v *Visitor) Result() string {
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("azureaisearch: cannot process nil expression")
 	}
@@ -52,33 +49,33 @@ func (v *Visitor) visit(expr ast.Expr) error {
 		return v.err
 	}
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
+	case *filter.BinaryExpr:
 		return v.visitBinaryExpr(node)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return v.visitUnaryExpr(node)
 	default:
 		return fmt.Errorf("azureaisearch: unsupported root expression %T", node)
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
-	case expr.Op.Kind.IsLogicalOperator():
+	case expr.Op.IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
-	case expr.Op.Kind.Is(token.IN):
+	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
-	case expr.Op.Kind.Is(token.LIKE):
+	case expr.Op.Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
-	case expr.Op.Kind.IsEqualityOperator() || expr.Op.Kind.IsOrderingOperator():
+	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
-		return fmt.Errorf("azureaisearch: unsupported binary operator '%s'", expr.Op.Literal)
+		return fmt.Errorf("azureaisearch: unsupported binary operator '%s'", expr.Op.String())
 	}
 }
 
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.Is(token.NOT) {
-		return fmt.Errorf("azureaisearch: unsupported unary '%s'", expr.Op.Literal)
+func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+	if !expr.Op.Is(filter.OpNot) {
+		return fmt.Errorf("azureaisearch: unsupported unary '%s'", expr.Op.String())
 	}
 	v.sql.WriteString("not (")
 	if err := v.visit(expr.Right); err != nil {
@@ -88,9 +85,9 @@ func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " and "
-	if expr.Op.Kind.Is(token.OR) {
+	if expr.Op.Is(filter.OpOr) {
 		op = " or "
 	}
 	v.sql.WriteString("(")
@@ -105,7 +102,7 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, err := fieldName(expr.Left)
 	if err != nil {
 		return err
@@ -114,7 +111,7 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	if err != nil {
 		return err
 	}
-	op, err := odataOpFor(expr.Op.Kind)
+	op, err := odataOpFor(expr.Op)
 	if err != nil {
 		return err
 	}
@@ -126,12 +123,12 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, err := fieldName(expr.Left)
 	if err != nil {
 		return err
 	}
-	listLit, ok := expr.Right.(*ast.ListLiteral)
+	listLit, ok := expr.Right.(*filter.ListLiteral)
 	if !ok {
 		return errors.New("azureaisearch: 'IN' requires a list on the right")
 	}
@@ -161,7 +158,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 // visitLikeExpr maps LIKE onto Azure AI Search's wildcard syntax via
 // search.ismatch. The full Lucene wildcard syntax `*` / `?` is what
 // AI Search expects; SQL's `%` / `_` are forwarded accordingly.
-func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	field, err := fieldName(expr.Left)
 	if err != nil {
 		return err
@@ -199,11 +196,11 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 // fieldName extracts the (flat) field identifier — Azure AI Search
 // doesn't support nested-property paths in $filter, so the left
 // operand must reduce to a single bare identifier.
-func fieldName(expr ast.Expr) (string, error) {
+func fieldName(expr filter.Expr) (string, error) {
 	switch node := expr.(type) {
-	case *ast.Ident:
+	case *filter.Ident:
 		return node.Value, nil
-	case *ast.IndexExpr:
+	case *filter.IndexExpr:
 		// metadata["author"] → "author" — drop the wrapper.
 		keys, err := filterhelp.CollectKeyPath(node)
 		if err != nil {
@@ -219,19 +216,19 @@ func fieldName(expr ast.Expr) (string, error) {
 	}
 }
 
-func odataOpFor(kind token.Kind) (string, error) {
+func odataOpFor(kind filter.Operator) (string, error) {
 	switch kind {
-	case token.EQ:
+	case filter.OpEqual:
 		return "eq", nil
-	case token.NE:
+	case filter.OpNotEqual:
 		return "ne", nil
-	case token.LT:
+	case filter.OpLess:
 		return "lt", nil
-	case token.LE:
+	case filter.OpLessEqual:
 		return "le", nil
-	case token.GT:
+	case filter.OpGreater:
 		return "gt", nil
-	case token.GE:
+	case filter.OpGreaterEqual:
 		return "ge", nil
 	default:
 		return "", fmt.Errorf("azureaisearch: unexpected operator '%s'", kind.Name())

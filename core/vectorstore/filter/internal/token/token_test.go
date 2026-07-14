@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
 )
 
 func TestPosition_String(t *testing.T) {

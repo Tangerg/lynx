@@ -9,15 +9,12 @@ import (
 	v2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
 	"github.com/spf13/cast"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
-var _ ast.Visitor = (*Visitor)(nil)
-
 // Visitor transforms AST filter expressions into Chroma WhereClause conditions.
-// It implements the ast.Visitor interface to traverse and convert expression trees
+// It traverses semantic filter expressions and converts them to the provider query shape
 // into Chroma's native filter format.
 //
 // Supported operations:
@@ -56,13 +53,13 @@ func (v *Visitor) Result() v2.WhereClause {
 	return v.result
 }
 
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
 // visit dispatches to the appropriate handler based on the expression type.
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("chroma: cannot process nil expression")
 	}
@@ -71,17 +68,17 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	}
 
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
+	case *filter.BinaryExpr:
 		return v.visitBinaryExpr(node)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return v.visitUnaryExpr(node)
-	case *ast.IndexExpr:
+	case *filter.IndexExpr:
 		return v.visitIndexExpr(node)
-	case *ast.Ident:
+	case *filter.Ident:
 		return v.visitIdent(node)
-	case *ast.Literal:
+	case *filter.Literal:
 		return v.visitLiteral(node)
-	case *ast.ListLiteral:
+	case *filter.ListLiteral:
 		return v.visitListLiteral(node)
 	default:
 		return fmt.Errorf("chroma: unsupported expression type %T", node)
@@ -89,7 +86,7 @@ func (v *Visitor) visit(expr ast.Expr) error {
 }
 
 // visitBinaryExpr routes to the correct handler based on the operator category.
-func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	return filterhelp.DispatchBinaryErr(expr,
 		v.visitLogicalExpr,
 		v.visitComparisonExpr,
@@ -100,15 +97,15 @@ func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
 
 // visitComparisonExpr splits equality vs ordering since chroma emits
 // distinct Where map shapes for the two families.
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
-	if expr.Op.Kind.IsEqualityOperator() {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+	if expr.Op.IsEqualityOperator() {
 		return v.visitEqualityExpr(expr)
 	}
 	return v.visitOrderingExpr(expr)
 }
 
 // visitLikeExpr — Chroma metadata filters do not support LIKE.
-func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	return fmt.Errorf("chroma: LIKE operator is not supported on metadata fields (at %s)",
 		expr.Start().String())
 }
@@ -116,20 +113,20 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 // visitUnaryExpr handles unary operators. Chroma does not expose a
 // standalone logical NOT, so even the only valid unary kind (NOT)
 // is rejected with a guidance message.
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	return filterhelp.DispatchUnaryErr(expr, func(*ast.UnaryExpr) error {
+func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+	return filterhelp.DispatchUnaryErr(expr, func(*filter.UnaryExpr) error {
 		return errors.New("chroma: NOT operator is not supported; rewrite using != or NIN")
 	})
 }
 
 // visitIdent stores the identifier name as the current field key.
-func (v *Visitor) visitIdent(ident *ast.Ident) error {
+func (v *Visitor) visitIdent(ident *filter.Ident) error {
 	v.currentFieldKey = ident.Value
 	return nil
 }
 
 // visitLiteral converts a literal node to a Go value and stores it.
-func (v *Visitor) visitLiteral(lit *ast.Literal) error {
+func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	value, err := v.literalToValue(lit)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to convert literal at %s: %w", lit.Start().String(), err)
@@ -139,7 +136,7 @@ func (v *Visitor) visitLiteral(lit *ast.Literal) error {
 }
 
 // visitListLiteral converts a list of literals to a []any slice and stores it.
-func (v *Visitor) visitListLiteral(list *ast.ListLiteral) error {
+func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	values := make([]any, 0, len(list.Values))
 	for i, lit := range list.Values {
 		value, err := v.literalToValue(lit)
@@ -155,7 +152,7 @@ func (v *Visitor) visitListLiteral(list *ast.ListLiteral) error {
 // visitIndexExpr builds a field key from an indexed expression and stores it.
 // metadata["author"]      → "author"
 // metadata["a"]["b"]      → "a.b"
-func (v *Visitor) visitIndexExpr(expr *ast.IndexExpr) error {
+func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	fieldKey, err := v.buildIndexedFieldKey(expr)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to build field path at %s: %w", expr.Start().String(), err)
@@ -167,50 +164,50 @@ func (v *Visitor) visitIndexExpr(expr *ast.IndexExpr) error {
 // visitLogicalExpr handles AND and OR operators.
 // Each operand is processed in isolation and the results are combined with
 // v2.And or v2.Or respectively.
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	leftClause, err := v.buildNestedClause(expr.Left)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to process left operand of '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	rightClause, err := v.buildNestedClause(expr.Right)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to process right operand of '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
-	switch expr.Op.Kind {
-	case token.AND:
+	switch expr.Op {
+	case filter.OpAnd:
 		v.result = v2.And(leftClause, rightClause)
-	case token.OR:
+	case filter.OpOr:
 		v.result = v2.Or(leftClause, rightClause)
 	default:
 		return fmt.Errorf("chroma: unexpected logical operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 	return nil
 }
 
 // visitEqualityExpr handles == and != operators.
 // The appropriate Chroma Eq*/NotEq* function is chosen based on the value type.
-func (v *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to extract field key from left operand of '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to extract value from right operand of '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
-	clause, err := v.buildEqualityClause(fieldKey, fieldValue, expr.Op.Kind)
+	clause, err := v.buildEqualityClause(fieldKey, fieldValue, expr.Op)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to build equality clause for '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	v.result = clause
@@ -219,8 +216,8 @@ func (v *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
 
 // buildEqualityClause creates an Eq or NotEq WhereClause for the given typed value.
 // float64 values that are whole numbers are treated as int; fractional values as float32.
-func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op token.Kind) (v2.WhereClause, error) {
-	isEq := op == token.EQ
+func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op filter.Operator) (v2.WhereClause, error) {
+	isEq := op == filter.OpEqual
 
 	switch val := fieldValue.(type) {
 	case string:
@@ -255,49 +252,49 @@ func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op token.
 // visitOrderingExpr handles <, <=, >, >= operators.
 // Whole-number values use the int variants of the Chroma comparison functions;
 // fractional values use the float32 variants.
-func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to extract field key from left operand of '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to extract value from right operand of '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	numericValue, err := cast.ToFloat64E(fieldValue)
 	if err != nil {
 		return fmt.Errorf("chroma: cannot convert value to number for '%s' comparison at %s: expected number, got %T",
-			expr.Op.Literal, expr.Start().String(), fieldValue)
+			expr.Op.String(), expr.Start().String(), fieldValue)
 	}
 
 	intVal, isInt := toInt(numericValue)
 	f32Val := float32(numericValue)
 
 	var clause v2.WhereClause
-	switch expr.Op.Kind {
-	case token.LT:
+	switch expr.Op {
+	case filter.OpLess:
 		if isInt {
 			clause = v2.LtInt(fieldKey, intVal)
 		} else {
 			clause = v2.LtFloat(fieldKey, f32Val)
 		}
-	case token.LE:
+	case filter.OpLessEqual:
 		if isInt {
 			clause = v2.LteInt(fieldKey, intVal)
 		} else {
 			clause = v2.LteFloat(fieldKey, f32Val)
 		}
-	case token.GT:
+	case filter.OpGreater:
 		if isInt {
 			clause = v2.GtInt(fieldKey, intVal)
 		} else {
 			clause = v2.GtFloat(fieldKey, f32Val)
 		}
-	case token.GE:
+	case filter.OpGreaterEqual:
 		if isInt {
 			clause = v2.GteInt(fieldKey, intVal)
 		} else {
@@ -305,7 +302,7 @@ func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 		}
 	default:
 		return fmt.Errorf("chroma: unexpected ordering operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 
 	v.result = clause
@@ -318,7 +315,7 @@ func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 //   - whole-number float64 list → v2.InInt
 //   - fractional float64 list → v2.InFloat (float32 values)
 //   - bool list → v2.InBool
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to extract field key from left operand of 'IN' at %s: %w",
@@ -390,9 +387,9 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 // buildNestedClause processes an expression with an isolated Visitor and returns
 // the resulting WhereClause. This prevents condition state from leaking across
 // different branches of a logical expression.
-func (v *Visitor) buildNestedClause(expr ast.Expr) (v2.WhereClause, error) {
+func (v *Visitor) buildNestedClause(expr filter.Expr) (v2.WhereClause, error) {
 	switch node := expr.(type) {
-	case *ast.BinaryExpr, *ast.UnaryExpr:
+	case *filter.BinaryExpr, *filter.UnaryExpr:
 		nested := NewVisitor()
 		if err := nested.visit(node); err != nil {
 			return nil, err
@@ -405,7 +402,7 @@ func (v *Visitor) buildNestedClause(expr ast.Expr) (v2.WhereClause, error) {
 
 // extractFieldKey extracts and returns the field key from expr while preserving
 // the caller's currentFieldKey state.
-func (v *Visitor) extractFieldKey(expr ast.Expr) (string, error) {
+func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	saved := v.currentFieldKey
 	v.currentFieldKey = ""
 
@@ -425,7 +422,7 @@ func (v *Visitor) extractFieldKey(expr ast.Expr) (string, error) {
 
 // extractFieldValue extracts and returns the value from expr while preserving
 // the caller's currentFieldValue state.
-func (v *Visitor) extractFieldValue(expr ast.Expr) (any, error) {
+func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	saved := v.currentFieldValue
 	v.currentFieldValue = nil
 
@@ -451,7 +448,7 @@ func (v *Visitor) extractFieldValue(expr ast.Expr) (any, error) {
 //
 //	metadata["author"]   → "author"
 //	metadata["a"]["b"]   → "a.b"
-func (v *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
+func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	var pathParts []string
 
 	current := expr
@@ -470,9 +467,9 @@ func (v *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 		}
 
 		switch left := current.Left.(type) {
-		case *ast.IndexExpr:
+		case *filter.IndexExpr:
 			current = left
-		case *ast.Ident:
+		case *filter.Ident:
 			// Strip the base identifier (e.g. "metadata") — Chroma metadata
 			// keys are flat, so only the inner path is needed.
 			return strings.Join(pathParts, "."), nil
@@ -483,7 +480,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 }
 
 // literalToValue converts an AST literal to its Go equivalent.
-func (v *Visitor) literalToValue(lit *ast.Literal) (any, error) {
+func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 	if lit.IsString() {
 		return lit.AsString()
 	}
@@ -493,7 +490,7 @@ func (v *Visitor) literalToValue(lit *ast.Literal) (any, error) {
 	if lit.IsBool() {
 		return lit.AsBool()
 	}
-	return nil, fmt.Errorf("chroma: unsupported literal type '%s'", lit.Token.Kind.Name())
+	return nil, fmt.Errorf("chroma: unsupported literal type '%s'", lit.Kind)
 }
 
 // toInt returns (int(f), true) when f is a whole number that fits in int,
@@ -511,7 +508,7 @@ func toInt(f float64) (int, bool) {
 // Returns (nil, nil) when expr is nil (no filter applied).
 // The returned WhereClause satisfies the v2.WhereFilter interface required by
 // v2.WithWhere.
-func ToFilter(expr ast.Expr) (v2.WhereClause, error) {
+func ToFilter(expr filter.Expr) (v2.WhereClause, error) {
 	if expr == nil {
 		return nil, nil
 	}

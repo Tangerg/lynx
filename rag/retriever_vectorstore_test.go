@@ -8,7 +8,6 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/rag"
 )
 
@@ -73,7 +72,7 @@ func TestRetrieverPerQueryFilterOverridesFunc(t *testing.T) {
 
 	r, err := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{
 		VectorStore: store,
-		FilterFunc: func(_ context.Context, _ map[string]any) (ast.Expr, error) {
+		FilterFunc: func(_ context.Context, _ map[string]any) (filter.Expr, error) {
 			funcCalls++
 			return nil, nil
 		},

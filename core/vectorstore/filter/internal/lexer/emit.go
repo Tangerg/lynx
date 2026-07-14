@@ -1,6 +1,6 @@
 package lexer
 
-import "github.com/Tangerg/lynx/core/vectorstore/filter/token"
+import "github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
 
 func (l *Lexer) markTokenStart() {
 	l.startPosition = l.cursor

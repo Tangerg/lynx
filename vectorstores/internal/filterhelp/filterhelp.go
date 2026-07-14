@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
 // LiteralAsKey turns a literal used as an index (e.g. metadata["k"]
 // or metadata[3]) into its bare string form. Booleans aren't valid
 // keys.
-func LiteralAsKey(lit *ast.Literal) (string, error) {
+func LiteralAsKey(lit *filter.Literal) (string, error) {
 	switch {
 	case lit.IsString():
 		return lit.AsString()
@@ -32,7 +32,7 @@ func LiteralAsKey(lit *ast.Literal) (string, error) {
 // LiteralToValue decodes a literal into a typed Go value:
 // strings stay strings, integers come back as int64, fractional
 // numbers as float64, booleans as bool.
-func LiteralToValue(lit *ast.Literal) (any, error) {
+func LiteralToValue(lit *filter.Literal) (any, error) {
 	switch {
 	case lit.IsString():
 		return lit.AsString()
@@ -48,14 +48,14 @@ func LiteralToValue(lit *ast.Literal) (any, error) {
 	case lit.IsBool():
 		return lit.AsBool()
 	default:
-		return nil, fmt.Errorf("filter: unsupported literal kind %s", lit.Token.Kind.Name())
+		return nil, fmt.Errorf("filter: unsupported literal kind %s", lit.Kind)
 	}
 }
 
-// ExtractValue asserts expr is an [ast.Literal] then delegates to
+// ExtractValue asserts expr is an [filter.Literal] then delegates to
 // [LiteralToValue]. Used by the comparison branch of every visitor.
-func ExtractValue(expr ast.Expr) (any, error) {
-	lit, ok := expr.(*ast.Literal)
+func ExtractValue(expr filter.Expr) (any, error) {
+	lit, ok := expr.(*filter.Literal)
 	if !ok {
 		return nil, fmt.Errorf("filter: expected literal, got %T", expr)
 	}
@@ -65,19 +65,19 @@ func ExtractValue(expr ast.Expr) (any, error) {
 // CollectKeyPath walks the left operand of a comparison to recover
 // the metadata key path it addresses.
 //
-//   - For a bare *ast.Ident the path is just [ident].
-//   - For *ast.IndexExpr chains (metadata["a"]["b"]["c"]) it returns
+//   - For a bare *filter.Ident the path is just [ident].
+//   - For *filter.IndexExpr chains (metadata["a"]["b"]["c"]) it returns
 //     ["a", "b", "c"] — the base identifier ("metadata" in the
 //     example) is dropped, since every backend stores metadata under
 //     its own namespace.
 //
 // Callers can extend this by joining the slice with "." (for nested
 // dotted paths) or by treating the first element as a flat key.
-func CollectKeyPath(expr ast.Expr) ([]string, error) {
+func CollectKeyPath(expr filter.Expr) ([]string, error) {
 	switch node := expr.(type) {
-	case *ast.Ident:
+	case *filter.Ident:
 		return []string{node.Value}, nil
-	case *ast.IndexExpr:
+	case *filter.IndexExpr:
 		var keys []string
 		current := node
 		for {
@@ -87,9 +87,9 @@ func CollectKeyPath(expr ast.Expr) ([]string, error) {
 			}
 			keys = append([]string{key}, keys...)
 			switch inner := current.Left.(type) {
-			case *ast.IndexExpr:
+			case *filter.IndexExpr:
 				current = inner
-			case *ast.Ident:
+			case *filter.Ident:
 				return keys, nil
 			default:
 				return nil, fmt.Errorf("filter: unsupported index base %T", inner)

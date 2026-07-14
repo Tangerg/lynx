@@ -2,37 +2,31 @@ package filter
 
 import (
 	"fmt"
-
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 )
 
-// identType is the input constraint for [NewIdent]: a raw string is
-// turned into a fresh [ast.Ident]; an existing [*ast.Ident] passes
+// IdentifierValue is the input constraint for [NewIdent]: a raw string is
+// turned into a fresh [Ident]; an existing [*Ident] passes
 // through unchanged.
-type identType interface {
-	string | *ast.Ident
+type IdentifierValue interface {
+	string | *Ident
 }
 
-func newIdent(value any) (*ast.Ident, error) {
+func newIdent(value any) (*Ident, error) {
 	switch typed := value.(type) {
 	case string:
-		return &ast.Ident{
-			Token: token.OfIdent(typed, token.NoPosition, token.NoPosition),
-			Value: typed,
-		}, nil
-	case *ast.Ident:
+		return &Ident{Value: typed}, nil
+	case *Ident:
 		return typed, nil
 	default:
-		return nil, fmt.Errorf("filter.newIdent: expected string or *ast.Ident, got %T (%v)",
+		return nil, fmt.Errorf("filter.newIdent: expected string or *filter.Ident, got %T (%v)",
 			value, value)
 	}
 }
 
-// NewIdent builds an [*ast.Ident] from either a string name or an
+// NewIdent builds an [*Ident] from either a string name or an
 // existing identifier node. Position is always zero — these are
 // hand-built nodes, not parsed ones.
-func NewIdent[T identType](value T) *ast.Ident {
+func NewIdent[T IdentifierValue](value T) *Ident {
 	ident, err := newIdent(value)
 	if err != nil {
 		// Unreachable while the generic constraint is honored.
@@ -41,14 +35,14 @@ func NewIdent[T identType](value T) *ast.Ident {
 	return ident
 }
 
-func identOrIndex(l any) (ast.Expr, error) {
-	if ix, ok := l.(*ast.IndexExpr); ok {
+func identOrIndex(l any) (Expr, error) {
+	if ix, ok := l.(*IndexExpr); ok {
 		return ix, nil
 	}
 	return newIdent(l)
 }
 
-func leftOperand[L identType | *ast.IndexExpr](l L) ast.Expr {
+func leftOperand[L IdentifierValue | *IndexExpr](l L) Expr {
 	expr, _ := identOrIndex(l)
 	return expr
 }

@@ -16,7 +16,7 @@ import (
 // the per-test functions below; this is "no shape crashes" coverage.
 func TestVisitor_Conformance(t *testing.T) {
 	storetest.VisitorConformance(t, func(src string) error {
-		expr, err := filter.ParseAndAnalyze(src)
+		expr, err := filter.Parse(src)
 		if err != nil {
 			return err
 		}
@@ -28,7 +28,7 @@ func TestVisitor_Conformance(t *testing.T) {
 // build is the test driver — parse src, visit, return (sql, args, err).
 func build(t *testing.T, src string) (string, []any, error) {
 	t.Helper()
-	expr, err := filter.ParseAndAnalyze(src)
+	expr, err := filter.Parse(src)
 	if err != nil {
 		return "", nil, err
 	}
@@ -208,9 +208,9 @@ func TestVisitor_InRejectsScalar(t *testing.T) {
 }
 
 func TestVisitor_EmptyMetadataColDefaults(t *testing.T) {
-	expr, err := filter.ParseAndAnalyze(`a == 1`)
+	expr, err := filter.Parse(`a == 1`)
 	if err != nil {
-		t.Fatalf("ParseAndAnalyze: %v", err)
+		t.Fatalf("Parse: %v", err)
 	}
 	v := pgvector.NewVisitor("") // empty → defaults to "metadata"
 	if err := v.Visit(expr); err != nil {

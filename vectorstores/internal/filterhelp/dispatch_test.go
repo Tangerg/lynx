@@ -6,21 +6,19 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
-// mustParseBinary parses src and asserts the result is a [*ast.BinaryExpr].
-func mustParseBinary(t *testing.T, src string) *ast.BinaryExpr {
+// mustParseBinary parses src and asserts the result is a [*filter.BinaryExpr].
+func mustParseBinary(t *testing.T, src string) *filter.BinaryExpr {
 	t.Helper()
 	expr, err := filter.Parse(src)
 	if err != nil {
 		t.Fatalf("filter.Parse(%q): %v", src, err)
 	}
-	be, ok := expr.(*ast.BinaryExpr)
+	be, ok := expr.(*filter.BinaryExpr)
 	if !ok {
-		t.Fatalf("expected *ast.BinaryExpr, got %T", expr)
+		t.Fatalf("expected *filter.BinaryExpr, got %T", expr)
 	}
 	return be
 }
@@ -46,10 +44,10 @@ func TestDispatchBinary_Routes(t *testing.T) {
 			e := mustParseBinary(t, tc.src)
 			got, err := filterhelp.DispatchBinary(
 				e,
-				func(*ast.BinaryExpr) (string, error) { return "logical", nil },
-				func(*ast.BinaryExpr) (string, error) { return "comparison", nil },
-				func(*ast.BinaryExpr) (string, error) { return "in", nil },
-				func(*ast.BinaryExpr) (string, error) { return "like", nil },
+				func(*filter.BinaryExpr) (string, error) { return "logical", nil },
+				func(*filter.BinaryExpr) (string, error) { return "comparison", nil },
+				func(*filter.BinaryExpr) (string, error) { return "in", nil },
+				func(*filter.BinaryExpr) (string, error) { return "like", nil },
 			)
 			if err != nil {
 				t.Fatalf("DispatchBinary: %v", err)
@@ -67,7 +65,7 @@ func TestDispatchBinary_HandlerErrorPropagates(t *testing.T) {
 	_, err := filterhelp.DispatchBinary(
 		e,
 		nil, // unreachable for ==
-		func(*ast.BinaryExpr) (string, error) { return "", want },
+		func(*filter.BinaryExpr) (string, error) { return "", want },
 		nil, nil,
 	)
 	if !errors.Is(err, want) {
@@ -80,12 +78,12 @@ func TestDispatchUnary_NotOK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	u, ok := expr.(*ast.UnaryExpr)
+	u, ok := expr.(*filter.UnaryExpr)
 	if !ok {
-		t.Fatalf("expected *ast.UnaryExpr, got %T", expr)
+		t.Fatalf("expected *filter.UnaryExpr, got %T", expr)
 	}
 	got, err := filterhelp.DispatchUnary(u,
-		func(*ast.UnaryExpr) (string, error) { return "not", nil },
+		func(*filter.UnaryExpr) (string, error) { return "not", nil },
 	)
 	if err != nil {
 		t.Fatalf("DispatchUnary: %v", err)
@@ -96,13 +94,13 @@ func TestDispatchUnary_NotOK(t *testing.T) {
 }
 
 func TestLogicalOpString(t *testing.T) {
-	if op, _ := filterhelp.LogicalOpString(token.AND); op != "AND" {
+	if op, _ := filterhelp.LogicalOpString(filter.OpAnd); op != "AND" {
 		t.Fatalf("AND → %q, want AND", op)
 	}
-	if op, _ := filterhelp.LogicalOpString(token.OR); op != "OR" {
+	if op, _ := filterhelp.LogicalOpString(filter.OpOr); op != "OR" {
 		t.Fatalf("OR → %q, want OR", op)
 	}
-	if _, err := filterhelp.LogicalOpString(token.EQ); err == nil {
+	if _, err := filterhelp.LogicalOpString(filter.OpEqual); err == nil {
 		t.Fatal("non-logical kind must error")
 	}
 }
@@ -136,7 +134,9 @@ func TestRequireStringPatternOnRight(t *testing.T) {
 		t.Fatalf("got %q, want %%foo%%", got)
 	}
 
-	bad := mustParseBinary(t, `a like 42`)
+	bad := &filter.BinaryExpr{
+		Left: filter.NewIdent("a"), Op: filter.OpLike, Right: filter.NewLiteral(42),
+	}
 	if _, err := filterhelp.RequireStringPatternOnRight(bad); err == nil {
 		t.Fatal("non-string pattern must error")
 	}

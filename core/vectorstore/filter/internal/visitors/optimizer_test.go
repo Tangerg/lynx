@@ -3,8 +3,8 @@ package visitors_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/parser"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/visitors"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/parser"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/visitors"
 )
 
 // render parses src, optimizes it, and renders the result back to

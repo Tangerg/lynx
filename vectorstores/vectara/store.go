@@ -18,7 +18,6 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
@@ -235,11 +234,11 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 // Delete removes documents matching the filter via Vectara's
 // document-level delete endpoint. Vectara has no bulk filter-delete,
 // so matching ids are enumerated first, then deleted one-by-one.
-func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Analyze(expr); err != nil {
+	if err = filter.Validate(expr); err != nil {
 		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
@@ -292,7 +291,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
 	}
 }
 
-func (s *Store) buildFilter(filter ast.Expr) (string, error) {
+func (s *Store) buildFilter(filter filter.Expr) (string, error) {
 	if filter == nil {
 		return "", nil
 	}
