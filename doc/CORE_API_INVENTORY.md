@@ -7,7 +7,7 @@
 
 本文记录 Core 重构前的编译器可见公共面、workspace 直接消费关系和后续迁移批次。它解决“改什么、谁会受影响、何时删除”的问题；它不是永久兼容承诺。P7 建立机械 API diff baseline 后，以工具输出判断签名兼容性。
 
-执行状态：P4-01/P4-02 已于 2026-07-14 完成。下文数量表和未特别标注的声明列表仍是重构前基线；已完成纵向切片的 package 会同时标明当前公共面，防止后续工作误用已删除 API。
+执行状态：P4-01 至 P4-07 已于 2026-07-14 完成。下文数量表和未特别标注的声明列表仍是重构前基线；已完成纵向切片的 package 会同时标明当前公共面，防止后续工作误用已删除 API。
 
 ## 1. 口径与结论
 
@@ -238,62 +238,37 @@ Decoder, Encoder, Estimator, MediaEstimator, TextEstimator, Tiktoken,
 Tokenizer, NewDefaultTiktoken, NewTiktoken
 ```
 
-### vectorstore
+### vectorstore（P4-02 至 P4-06 当前公共面）
 
 ```text
 AcceptAllScores, DefaultTopK, MaxSimilarityScore, MinSimilarityScore,
-ErrEmptyDocuments, ErrMissingFilter, ErrNilRequest, CreateRequest, Creator,
-DeleteRequest, Deleter, IDDeleter, Match, RetrievalRequest, Retriever, Store,
-StoreMetadata, NewCreateRequest, NewDeleteRequest, NewDocumentWriter,
-NewRetrievalRequest
+ErrEmptyDocuments, ErrMissingFilter, FilterDeleter, IDDeleter, Indexer, Match,
+Searcher, SearchRequest, NewDocumentWriter
 ```
 
-P4-02 当前差异：`Retriever.Retrieve` 返回 `[]Match`；`Match` 只包含 `Document *document.Document` 与 `Score float64`。`Document.Score` 已删除，RAG 在自身边界使用 `Candidate` 并显式完成映射。
+`Match` 只包含 `Document *document.Document` 与 `Score float64`。`Document.Score` 已删除，RAG 在自身边界使用 `Candidate` 并显式完成映射。旧 `Store`、`Creator`、`Retriever`、`Deleter`、request wrapper、metadata/native client 探测面均已删除；能力由四个单方法接口独立表达，`SearchRequest` 是带 `Validate` 的普通值。
 
-### vectorstore/filter
+### vectorstore/filter（P4-07 当前公共面）
 
 ```text
-ExprBuilder, Analyze, And, EQ, GE, GT, In, Index, LE, LT, Like, NE,
-NewExprBuilder, NewIdent, NewListLiteral, NewLiteral, NewLiterals, Not,
-Optimize, Or, Parse, ParseAndAnalyze
+OpEqual, OpNotEqual, OpLess, OpLessEqual, OpGreater, OpGreaterEqual, OpAnd,
+OpOr, OpNot, OpIn, OpLike, OpIs, LiteralString, LiteralNumber, LiteralBool,
+LiteralNull, AtomicExpr, BinaryExpr, ComputedExpr, Expr, ExprBuilder, Ident,
+IdentifierValue, IndexExpr, ListLiteral, ListValue, Literal, LiteralKind,
+LiteralValue, Number, Operator, Position, UnaryExpr, And, EQ, GE, GT, In,
+Index, IsNull, IsNotNull, LE, LT, Like, NE, NewExprBuilder, NewIdent,
+NewListLiteral, NewLiteral, NewLiterals, Not, Or, Parse, Validate
 ```
 
-### vectorstore/filter/ast
+公开树只包含 token-free 语义节点。`Parse` 负责 parse + validate + simplify，手工构造的树通过 `Validate` 校验；残缺或 typed-nil 节点稳定返回错误。
+
+### vectorstore/filter/internal/*（P4-07 后非公共实现）
 
 ```text
-AtomicExpr, BinaryExpr, ComputedExpr, Expr, Ident, IndexExpr, ListLiteral,
-Literal, UnaryExpr, Visitor
+ast, lexer, parser, token, visitors
 ```
 
-### vectorstore/filter/lexer
-
-```text
-Lexer, NewLexer
-```
-
-### vectorstore/filter/parser
-
-```text
-ParseError, Parser, NewParser, Parse
-```
-
-### vectorstore/filter/token
-
-```text
-AND, COMMA, EOF, EQ, ERROR, FALSE, GE, GT, IDENT, IN, IS, LBRACK, LE, LIKE,
-LPAREN, LT, NE, NOT, NULL, NUMBER, OR, PrecedenceAND, PrecedenceCMP,
-PrecedenceIndex, PrecedenceLowest, PrecedenceMatch, PrecedenceNOT,
-PrecedenceOR, RBRACK, RPAREN, STRING, TRUE, NoPosition, Kind, Position, Token,
-IsIdentifier, IsKeyword, IsLiteralChar, KindOf, NewPosition, Of, OfEOF,
-OfError, OfIdent, OfIllegal, OfKind, OfLiteral, OfNumericLiteral
-```
-
-### vectorstore/filter/visitors
-
-```text
-Analyzer, Optimizer, SQLLikeVisitor, NewAnalyzer, NewOptimizer,
-NewSQLLikeVisitor
-```
+原 `filter/{ast,lexer,parser,token,visitors}` import path 已物理删除，编译器实现只允许由根 package 使用；provider adapter 只依赖根 `filter.Expr`、语义节点和 `Operator`。
 
 ## 4. 高风险 type 成员
 
@@ -312,9 +287,9 @@ NewSQLLikeVisitor
 | `chat.Model` | `DefaultOptions`, `Metadata` + Call/Stream | P2 只强制单方法 Call |
 | `chat.Tool` | `Definition`, `Call` | P1/P3 可执行契约迁到 tools；Core 只留 wire 词汇 |
 | `embedding.Model` | Call、Dimensions、DefaultOptions、Metadata | P5 拆分单方法 Model/Dimensioner，删除全局探测缓存 |
-| `vectorstore.Store` | Metadata/NativeClient，与 Creator/Retriever 等组合使用 | P4 改为消费方小接口，删除 `NativeClient any` |
-| `vectorstore.RetrievalRequest` | fluent `WithFilter/WithMinScore/WithTopK` | P4 普通 struct + Validate |
-| `filter/ast.*` 与 `filter/token.*` | 公开 AST 字段、token、visitor | P4 只保留稳定 Expr/构造/Parse 门面 |
+| `vectorstore.Store` | ~~Metadata/NativeClient，与 Creator/Retriever 等组合使用~~（P4-03/P4-05 已删除） | 当前由 `Indexer`/`Searcher`/`IDDeleter`/`FilterDeleter` 独立表达能力 |
+| `vectorstore.RetrievalRequest` | ~~fluent `WithFilter/WithMinScore/WithTopK`~~（P4-06 已删除） | 当前 `SearchRequest` 为普通 struct + `Validate` |
+| `filter/ast.*` 与 `filter/token.*` | ~~公开 AST 字段、token、visitor~~（P4-07 已删除） | 当前只保留 token-free `Expr`、稳定语义节点、构造函数、`Parse`/`Validate` |
 
 ## 5. 关键调用点
 
@@ -329,7 +304,7 @@ NewSQLLikeVisitor
 | `model/chat/history` | `agent/runtime/guardrails.go`; `agent/workflow/supervisor.go`; `app/runtime/internal/adapter/agentexec/chat_pipeline.go`; chathistory providers |
 | `model/embedding` | `app/runtime/internal/adapter/modelclient/embedding.go`; `app/runtime/internal/infra/llm/embedding.go`; embedding providers；vectorstore adapters |
 | `vectorstore` | `rag/document_retriever_vectorstore.go`; 各 `vectorstores/*/store.go` |
-| `filter/ast`/`filter/token` | 各 `vectorstores/*/visitor.go`; `rag/document_retriever_vectorstore.go` |
+| `vectorstore/filter` | 各 `vectorstores/*/visitor.go`; `rag/document_retriever_vectorstore.go`；均只消费根语义门面 |
 
 零 workspace 消费并不代表可以无记录删除：`evaluation`、logger/safeguard、公开 lexer/parser/visitors 仍可能被仓库外部用户 import。它们属于 v0 破坏范围，必须进入 release notes。
 
