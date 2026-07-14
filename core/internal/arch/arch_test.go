@@ -2,6 +2,7 @@
 package arch
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -10,6 +11,69 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
+	root := filepath.Join(moduleRoot(t), "chat")
+	fset := token.NewFileSet()
+	allowed := map[string]map[string]bool{
+		"Model":    {"Call": true},
+		"Streamer": {"Stream": true},
+	}
+	found := make(map[string]bool, len(allowed))
+
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatalf("read target chat package: %v", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(root, entry.Name())
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, specification := range general.Specs {
+				typeSpec := specification.(*ast.TypeSpec)
+				if typeSpec.Name.Name == "ModelMetadata" {
+					t.Errorf("target core/chat must not expose provider identity type ModelMetadata: %s", path)
+				}
+				methods, tracked := allowed[typeSpec.Name.Name]
+				if !tracked {
+					continue
+				}
+				found[typeSpec.Name.Name] = true
+				iface, ok := typeSpec.Type.(*ast.InterfaceType)
+				if !ok {
+					t.Errorf("core/chat.%s must remain an interface", typeSpec.Name.Name)
+					continue
+				}
+				for _, field := range iface.Methods.List {
+					if len(field.Names) == 0 {
+						t.Errorf("core/chat.%s must not embed another interface", typeSpec.Name.Name)
+						continue
+					}
+					for _, name := range field.Names {
+						if !methods[name.Name] {
+							t.Errorf("core/chat.%s must not require %s", typeSpec.Name.Name, name.Name)
+						}
+					}
+				}
+			}
+		}
+	}
+	for name := range allowed {
+		if !found[name] {
+			t.Errorf("target core/chat.%s declaration not found", name)
+		}
+	}
+}
 
 func TestCoreDoesNotImportUpperLynxModules(t *testing.T) {
 	const lynxPrefix = "github.com/Tangerg/lynx/"
