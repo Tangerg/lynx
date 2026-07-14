@@ -2,6 +2,9 @@
 
 > 建立日期：2026-07-14
 > 删除截止：P6-05 / P6-06
+> 代码删除完成：2026-07-14（`f178f20ec`）
+
+P6-05 已按本台账完成一次性物理删除：`core/model/chat`、冻结 provider adapter/旧契约测试、旧泛型 Model/Handler/Middleware 均已移除，workspace Go 源码不再 import 旧 Chat 路径，也不存在 alias、bridge 或 deprecated 转发。本文自此作为破坏性迁移说明和 P6-06 依赖清理的历史输入，不再表示仓库中仍有可调用的旧 API。
 
 本文登记新路径迁移期间仍为 workspace 编译而保留、但禁止继续演进的旧 Core 表面。它不是兼容承诺；仓库当前处于协调式 v0 breaking 重构，台账中的项目必须在指定任务删除，不能成为永久 shim。
 
