@@ -664,7 +664,12 @@ flowchart LR
   - `core/model.Halt`、`ControlFlowError` 与 helper 已直接删除；agent HITL 与 app runtime 最后两个真实消费者切到 agent 所有的 `toolloop.Halt`，Core 架构守卫禁止控制流类型回流。
   - 旧 `NewMiddleware`/park/stream/concurrency 路径仍有真实旧 Chat 消费者，已与新 Runner 完全分离冻结并登记 P6 删除；没有 alias、bridge 或双协议分支。
   - 证据：实现 `ab30d8943`、Core 所有权清理 `7ecf915e5`；目标新路径 coverage 91.2%，Core/Agent module race 与 workspace build/vet/test/lint 72/72 全绿。
-- [ ] **P3-09 更新用户示例和最小上手路径**
+- [x] **P3-09 更新用户示例和最小上手路径**（完成：2026-07-14）
+  - 新增 `CORE_GETTING_STARTED.md`，从包选择、同步/流式 Chat、typed Tool、Event Runner、pause/resume 到 structured output 只展示目标路径；四家 reference provider 的目标 `NewChat` 作为 Model/Streamer 注入点，不展示旧 Client/Tool builder。
+  - 新增无需凭证、可直接 `go run ./examples/toolloop` 的完整示例，输出和第二轮 tool-result continuation 由测试锁定；agent 文档结构和示例索引同步加入新 Runner 路径。
+  - `chatclient` 增加 Call、Stream、Template、CallStructured 四个可执行 GoDoc example；`tools` 增加 typed function + Registry example，避免把集成方式只埋在单元测试中。
+  - P3 阶段验收：目标 `core/chat` 无 Client/Tool/tool-loop 职责，`chatclient` 常见路径与 `agent/toolloop` Event pause/resume 均有自动测试；旧运行时仅因真实消费者冻结在 P6 台账，没有兼容转发。
+  - 证据：`22acec1e9`；Agent/ChatClient/Tools 全模块 race、示例实跑和 workspace build/vet/test/lint 72/72 全绿。
 
 退出标准：
 
@@ -784,19 +789,19 @@ flowchart LR
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
-| P3 高层运行时外移 | 进行中 | 8/9 | event-driven Runner/Checkpoint 已建立；待收口用户入口与示例 |
+| P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **28/60** | **47%** |
+| **总计** | **进行中** | **29/60** | **48%** |
 
 ### 10.2 当前焦点
 
-- 当前阶段：P3。
-- 下一任务：执行 P3-09，更新目标架构的用户示例与最小上手路径，并完成 P3 阶段验收。
+- 当前阶段：P4。
+- 下一任务：执行 P4-01，将 `core/document.Document` 收缩为纯数据，并在同一纵向切片中建立 `documentpipeline`、迁完 formatter/transformer/batcher/ID 消费者、删除旧行为。
 - 当前阻塞：无。
-- 最近完成：P3-08；`agent/toolloop.Runner` 已承接多轮、错误反馈、all-direct、pause/checkpoint/resume，Core 控制流契约已删除；目标路径 coverage 91.2%、Core/Agent race 与 workspace 72 项门禁全绿。
+- 最近完成：P3-09 与 P3 阶段验收；目标 API quick start、可运行 tool-loop 示例及 ChatClient/Tools GoDoc examples 已建立，受影响模块 race 与 workspace 72 项门禁全绿。
 
 ### 10.3 进度更新规则
 
@@ -1022,6 +1027,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P3-09 与 P3 阶段验收；新增只使用目标 API 的 quick start、无凭证可运行 tool-loop 示例和 ChatClient/Tools GoDoc examples；进入 P4 | Codex |
 | 2026-07-14 | 完成 P3-08；建立基于新 Chat/Tool 契约的 lazy Event Runner 与可序列化 checkpoint/resume，删除 Core Halt/ControlFlowError 并迁完真实消费者；旧 middleware 不做 bridge、按 P6 直接删除 | Codex |
 | 2026-07-14 | 完成 P3-07；在唯一 `tools.Tool/Registry` 目标面增加 strict typed-function helper 与反向依赖守卫，冻结仍有真实消费者的旧 Core Tool 构造器，不增加兼容转发 | Codex |
 | 2026-07-14 | 完成 P3-06；新增基于当前 GenAI semconv 的 Chat Call/Stream wrapper，删除 Core Chat/Embedding 旧 tracing、通用 metrics 与全部 OTel 依赖；目标 Embedding decorator 随 P5 新协议建立 | Codex |
@@ -1060,6 +1066,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P3-09、P3 阶段验收 | `22acec1e9` 新增目标 API quick start、可运行并有输出测试的 `agent/examples/toolloop`、ChatClient Call/Stream/Template/Structured 与 Tools typed-function GoDoc examples；旧路径未进入新用户入口；Agent/ChatClient/Tools race、示例实跑与 workspace 72/72 全绿；任务计数 29/60，P3 9/9 完成 | P4-01 Document 纯数据与 documentpipeline 原子纵向切片 |
 | 2026-07-14 | P3-08 | `ab30d8943` 新增新协议 `Runner`、保守串行工具策略、普通错误反馈、all-direct、六类边界 Event 与 JSON-safe checkpoint/resume；`7ecf915e5` 删除 Core Halt/ControlFlowError 并把 agent HITL/app runtime 直接迁到 agent 所有权；目标 coverage 91.2%，Core/Agent race 与 workspace 72/72 全绿；任务计数 28/60，P3 8/9 | P3-09 用户示例、最小上手路径与 P3 阶段验收 |
 | 2026-07-14 | P3-07 | `e8749bc36` 在 `tools` 根包增加 struct-only schema 推导、strict JSON decode、string/JSON 输出的 typed function Tool，并以 AST/reflect 守卫锁定唯一两方法 Tool/Registry 边界；未桥接仍有 21 文件/38 调用点的旧 `chat.NewTool`；coverage 92.7%、tools race 与 workspace 72/72 全绿；任务计数 27/60，P3 7/9 | P3-08 tool-loop/Halt/control-flow 迁移 |
 | 2026-07-14 | P3-06 | `08071a046` 新增显式 provider、能力分离、lazy stream 的 `otel.ChatMiddleware`，coverage 93.4%；`b4d76334e` 直接删除 Core Chat/Embedding tracing、通用 metrics 与 OTel module graph/架构预算，未建立旧 API wrapper；Core/otel race 和 workspace 72/72 全绿；任务计数 26/60，P3 6/9 | P3-07 Tool executor/schema/runtime helper 外移 |
