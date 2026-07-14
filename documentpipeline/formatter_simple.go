@@ -5,8 +5,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/spf13/cast"
+
+	"github.com/Tangerg/lynx/core/document"
 )
 
 // SimpleFormatterConfig configures a [SimpleFormatter]'s metadata
