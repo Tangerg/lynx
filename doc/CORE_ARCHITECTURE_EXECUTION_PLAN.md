@@ -785,8 +785,12 @@ flowchart LR
 
 目标：完成一次性切换，消除双轨和历史债务。
 
-- [ ] **P6-01 迁移 `models` 全部 provider 到新 modality 包路径**
+- [x] **P6-01 迁移 `models` 全部 provider 到新 modality 包路径**（完成：2026-07-14）
   - 开始前从 `doc/CORE_API_INVENTORY.md` 展开 provider 子清单，逐批记录 commit 和 conformance 结果。
+  - 四个 reference adapter、19 个 OpenAI/Anthropic/Azure/Vertex facade、Bedrock Converse 和 OpenAI Responses 均直接实现目标 `core/chat`；30 个公开构造器由 `models/internal/arch` 编译矩阵锁定。
+  - Bedrock 保留 ordered reasoning/tool/media、provider extension、usage 与流式 tool identity；Responses 保留 ordered output、reasoning signature、media/tool input 和累计 usage，均不包装旧 Chat 类型。
+  - 非 Chat 模态和 embedding usage 已无旧 Chat 类型借用；冻结旧 provider 实现只服务待迁 consumer，P6-05 与旧 Core 包同批删除。
+  - 证据：`d47445e52`、`14f80a8d4`、`ffc7736d2`；Models build、vet、lint、test 全绿，Bedrock/OpenAI/constructor matrix race 全绿。
 - [ ] **P6-02 迁移 `vectorstores`、`rag`、`tools`、`mcp`、`a2a` 的剩余新路径消费点**
 - [ ] **P6-03 迁移 `agent`、`chathistory`、`documentreaders` 的剩余新路径消费点**
 - [ ] **P6-04 迁移 `app/runtime` 和示例程序**
@@ -837,16 +841,16 @@ flowchart LR
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
-| P6 Workspace 切换 | 进行中 | 0/8 | 开始迁移冻结旧 Chat 的全部 provider 与 consumer |
+| P6 Workspace 切换 | 进行中 | 1/8 | provider 目标面完整；进入基础设施消费模块迁移 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **45/60** | **75%** |
+| **总计** | **进行中** | **46/60** | **77%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P6。
-- 下一任务：执行 P6-01，从 API inventory 展开完整 provider 子清单并迁移全部剩余旧 Chat provider。
+- 下一任务：执行 P6-02，迁移 vectorstores、rag、tools、mcp、a2a 的剩余旧 Chat 消费点。
 - 当前阻塞：无。
-- 最近完成：P5-07 与 P5 阶段验收；目标新包依赖预算已自动化，全 workspace 80 项门禁全绿。
+- 最近完成：P6-01；全部真实 Chat provider 形态已有直接目标协议实现和构造器矩阵，非 Chat provider 已复核。
 
 ### 10.3 进度更新规则
 
@@ -1121,6 +1125,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P6-01；全部 provider 目标 Chat 构造器和直接 Bedrock/Responses 映射建立，30 项 constructor matrix 自动化 | Codex |
 | 2026-07-14 | 完成 P5-07 与 P5 阶段验收；目标新包外部依赖预算自动化，workspace 80 项门禁全绿；进入 P6 | Codex |
 | 2026-07-14 | 完成 P5-06；清除 Core 全部 pkg helper/cast import，以标准 MIME 字符串和标准库/私有小实现替代，并采纳 ADR-015 | Codex |
 | 2026-07-14 | 完成 P5-04；建立独立 tokenizer module/tiktoken 实现包，按真实消费能力删除 Estimator/MediaEstimator，并从 Core 移除 tokenizer 路径与依赖；采纳 ADR-014 | Codex |
@@ -1171,6 +1176,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P6-01 | `d47445e52` 为 19 个兼容 facade 建立直接 Core Chat 构造器；`14f80a8d4` 实现 Bedrock Converse/Stream tagged-protocol 映射；`ffc7736d2` 将 OpenAI Responses API 直接迁入目标协议、移除 embedding 对旧 Chat Usage 的借用并锁定 30 构造器矩阵；Models build/vet/lint/test 及 Bedrock/OpenAI/arch race 全绿；任务计数 46/60 | P6-02 基础设施模块旧 Chat 消费迁移 |
 | 2026-07-14 | P5-07、P5 阶段验收 | `20017833f` 新增目标包 dependency budget，递归禁止十个稳定 Core package 根引入第三方或 sibling module；冻结旧 Chat 的 schema 依赖继续由 P6 deadline 单独约束；`scripts/check.sh build vet test lint` 对 20 个 workspace module 的 80 项检查全绿；任务计数 45/60，P5 7/7 完成 | P6-01 全 provider 旧 Chat 迁移 |
 | 2026-07-14 | P5-06 | `fda80088d` 用 stdlib/包内私有实现替代 Core 的 ptr/slices/text/json/mime helper 与 cast，公共图片/embedding MIME 改为标准字符串并迁完 Models；冻结旧 Chat 只显式保留 `invopop/jsonschema` 到 P6；`38d18de01` 固化 Models 可独立解析的新 Core 伪版本；Core/Models build、vet、lint、test、race 与 Models standalone test 全绿；任务计数 44/60 | P5-07 目标新包 dependency budget 与 P5 阶段验收 |
 | 2026-07-14 | P5-04 | `687df9b60` 建立无 Core 依赖的小能力 tokenizer module 与独立 tiktoken 实现/架构守卫；`6953b45da` 将 DocumentPipeline、Anthropic、Google 迁到新协议，删除无消费者的 Estimator/MediaEstimator、`core/tokenizer` 和 Core tiktoken 依赖；`c0b679029` 固化可脱离 go.work 解析的真实伪版本图；20 module 的 80 项 build/vet/test/lint、四个受影响 module race 及 Models/DocumentPipeline standalone test 全绿；任务计数 43/60 | P5-06 清除 Core pkg helper/cast 依赖 |
