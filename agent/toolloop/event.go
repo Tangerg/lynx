@@ -43,8 +43,9 @@ func (k EventKind) Valid() bool {
 
 // Pause identifies a resumable checkpoint and explains why execution stopped.
 type Pause struct {
-	ID     string `json:"id"`
-	Reason string `json:"reason"`
+	ID         string      `json:"id"`
+	Reason     string      `json:"reason"`
+	Checkpoint *Checkpoint `json:"checkpoint"`
 }
 
 // Validate verifies checkpoint identity and diagnostic context.
@@ -54,6 +55,15 @@ func (p Pause) Validate() error {
 	}
 	if strings.TrimSpace(p.Reason) == "" {
 		return fmt.Errorf("%w: pause reason must not be empty", ErrInvalidEvent)
+	}
+	if p.Checkpoint == nil {
+		return fmt.Errorf("%w: pause checkpoint must not be nil", ErrInvalidEvent)
+	}
+	if err := p.Checkpoint.Validate(); err != nil {
+		return fmt.Errorf("%w: pause checkpoint: %w", ErrInvalidEvent, err)
+	}
+	if p.Checkpoint.ID != p.ID {
+		return fmt.Errorf("%w: pause ID %q does not match checkpoint ID %q", ErrInvalidEvent, p.ID, p.Checkpoint.ID)
 	}
 	return nil
 }
@@ -77,6 +87,7 @@ func (r Resume) Validate() error {
 // boundaries. Kind selects exactly one payload field.
 type Event struct {
 	Kind       EventKind        `json:"kind"`
+	Final      bool             `json:"final,omitempty"`
 	Request    *chat.Request    `json:"request,omitempty"`
 	Response   *chat.Response   `json:"response,omitempty"`
 	ToolCall   *chat.ToolCall   `json:"tool_call,omitempty"`
@@ -93,6 +104,9 @@ func (e Event) Validate() error {
 	}
 	if e.payloadCount() != 1 {
 		return fmt.Errorf("%w: kind %q requires exactly one payload", ErrInvalidEvent, e.Kind)
+	}
+	if e.Final && e.Kind != EventModelResponse && e.Kind != EventToolResult {
+		return fmt.Errorf("%w: only model responses and tool results may be final", ErrInvalidEvent)
 	}
 
 	switch e.Kind {

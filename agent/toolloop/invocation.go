@@ -62,12 +62,12 @@ func (i *Invocation) Validate() error {
 	if len(i.Request.Tools) == 0 {
 		return nil
 	}
-	if i.Tools == nil {
+	if nilResolver(i.Tools) {
 		return fmt.Errorf("%w: request advertises tools but resolver is nil", ErrInvalidInvocation)
 	}
 	for _, definition := range i.Request.Tools {
 		tool, ok := i.Tools.Resolve(definition.Name)
-		if !ok || tool == nil {
+		if !ok || nilRuntimeTool(tool) {
 			return fmt.Errorf("%w: advertised tool %q is not executable", ErrInvalidInvocation, definition.Name)
 		}
 	}
