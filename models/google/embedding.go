@@ -26,10 +26,6 @@ type EmbeddingModelConfig struct {
 
 	// BaseURL overrides the genai endpoint. Optional.
 	BaseURL string
-
-	// Metadata overrides the [embedding.ModelMetadata] returned by [EmbeddingModel.Metadata].
-	// Zero Provider falls back to [Provider].
-	Metadata *embedding.ModelMetadata
 }
 
 func (c EmbeddingModelConfig) Validate() error {
@@ -51,7 +47,6 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 type EmbeddingModel struct {
 	api            *API
 	defaultOptions *embedding.Options
-	metadata       embedding.ModelMetadata
 }
 
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
@@ -70,14 +65,9 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	info := embedding.ModelMetadata{Provider: Provider}
-	if cfg.Metadata != nil {
-		info = *cfg.Metadata
-	}
 	return &EmbeddingModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:       info,
 	}, nil
 }
 
@@ -153,16 +143,4 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 	}
 
 	return e.buildResponse(modelName, apiResp)
-}
-
-func (e *EmbeddingModel) Dimensions(ctx context.Context) int64 {
-	return embedding.GetDimensions(ctx, e)
-}
-
-func (e *EmbeddingModel) DefaultOptions() embedding.Options {
-	return *e.defaultOptions
-}
-
-func (e *EmbeddingModel) Metadata() embedding.ModelMetadata {
-	return e.metadata
 }

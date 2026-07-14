@@ -3,7 +3,6 @@ package milvus
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -180,12 +179,12 @@ func (s *Store) initialize(ctx context.Context) error {
 	}
 
 	if !exists {
-		dim := s.embeddingModel.Dimensions(ctx)
-		if dim <= 0 {
-			return errors.New("milvus: dimensions must be greater than zero")
+		dimensions, err := embedding.ResolveDimensions(ctx, s.embeddingModel)
+		if err != nil {
+			return fmt.Errorf("milvus: resolve embedding dimensions: %w", err)
 		}
 
-		schema := s.createSchema(dim)
+		schema := s.createSchema(int64(dimensions))
 		if err = s.client.CreateCollection(ctx, milvusclient.NewCreateCollectionOption(s.collectionName, schema)); err != nil {
 			return fmt.Errorf("milvus: failed to create collection %s: %w", s.collectionName, err)
 		}
@@ -262,10 +261,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	}
 
 	for _, docs := range batchedDocs {
-		vectors, _, err := s.embeddingClient.
-			EmbedWithDocuments(docs).
-			Call().
-			Embeddings(ctx)
+		vectors, _, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("milvus: failed to generate vectors: %w", err)
 		}
@@ -338,10 +334,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
-	vector, _, err = s.embeddingClient.
-		EmbedWithText(req.Query).
-		Call().
-		Embedding(ctx)
+	vector, _, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("milvus: failed to embed query text: %w", err)
 	}

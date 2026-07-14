@@ -13,8 +13,6 @@ import (
 // returns — it should encode a response with 2 embeddings (matching
 // the 2-input request the contract sends).
 type EmbeddingContract struct {
-	// ProviderName is asserted against Model.Metadata().Provider.
-	ProviderName string
 	// ModelID is the model id passed into the embedding request.
 	ModelID string
 	// Response is the canned JSON body — must encode 2 results so the
@@ -28,8 +26,7 @@ type EmbeddingContract struct {
 }
 
 // RunEmbeddingContract exercises an embedding vendor against canned
-// JSON: Call returns 2 results with non-empty embeddings, and the
-// model's Metadata reports the expected provider.
+// JSON: Call returns 2 results with non-empty embeddings.
 func RunEmbeddingContract(t *testing.T, c EmbeddingContract) {
 	t.Helper()
 	t.Run("Call_Mock", func(t *testing.T) {
@@ -62,14 +59,6 @@ func RunEmbeddingContract(t *testing.T, c EmbeddingContract) {
 		}
 	})
 
-	t.Run("Metadata", func(t *testing.T) {
-		srv := JSONServer(http.StatusOK, "{}")
-		t.Cleanup(srv.Close)
-		m := c.Build(t, srv.URL)
-		if got := m.Metadata().Provider; got != c.ProviderName {
-			t.Errorf("provider = %q; want %q", got, c.ProviderName)
-		}
-	})
 }
 
 // IntegrationEmbeddingProbe is the standard real-API embedding smoke

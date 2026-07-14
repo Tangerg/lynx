@@ -21,7 +21,6 @@ const voyageResponseJSON = `{
 
 func TestEmbeddingModel(t *testing.T) {
 	testutil.RunEmbeddingContract(t, testutil.EmbeddingContract{
-		ProviderName: voyage.Provider,
 		ModelID:      "voyage-3-large",
 		Response:     voyageResponseJSON,
 		ExpectedPath: "/embeddings",

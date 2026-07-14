@@ -21,9 +21,8 @@ const zhipuEmbedResponseJSON = `{
 
 func TestEmbeddingModel(t *testing.T) {
 	testutil.RunEmbeddingContract(t, testutil.EmbeddingContract{
-		ProviderName: zhipu.Provider,
-		ModelID:      zhipu.ModelEmbedding3,
-		Response:     zhipuEmbedResponseJSON,
+		ModelID:  zhipu.ModelEmbedding3,
+		Response: zhipuEmbedResponseJSON,
 		Build: func(t *testing.T, baseURL string) embedding.Model {
 			t.Helper()
 			opts, err := embedding.NewOptions(zhipu.ModelEmbedding3)

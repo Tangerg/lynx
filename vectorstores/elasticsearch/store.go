@@ -186,11 +186,11 @@ func NewStore(config StoreConfig) (*Store, error) {
 // initialize resolves dimensions and creates the index when requested.
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	if s.dimensions <= 0 {
-		if dim := embedding.GetDimensions(ctx, s.embeddingModel); dim > 0 {
-			s.dimensions = int(dim)
-		} else {
-			s.dimensions = DefaultDimensions
+		dimensions, err := embedding.ResolveDimensions(ctx, s.embeddingModel)
+		if err != nil {
+			return fmt.Errorf("elasticsearch: resolve embedding dimensions: %w", err)
 		}
+		s.dimensions = dimensions
 	}
 	if s.dimensions <= 0 {
 		return errors.New("elasticsearch: Dimensions must be > 0")

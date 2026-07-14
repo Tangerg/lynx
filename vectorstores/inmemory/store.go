@@ -109,11 +109,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	}
 
 	var embeddings [][]float64
-	embeddings, _, err = s.embedder.
-		Embed().
-		WithTexts(texts).
-		Call().
-		Embeddings(ctx)
+	embeddings, _, err = s.embedder.EmbedTexts(ctx, texts)
 	if err != nil {
 		return fmt.Errorf("inmemory.Store.Add: embed: %w", err)
 	}
@@ -142,11 +138,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (out 
 	defer func() { tracing.RecordSearchResult(span, err, len(out)) }()
 
 	var query []float64
-	query, _, err = s.embedder.
-		Embed().
-		WithTexts([]string{req.Query}).
-		Call().
-		Embedding(ctx)
+	query, _, err = s.embedder.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("inmemory.Store.Search: embed query: %w", err)
 	}

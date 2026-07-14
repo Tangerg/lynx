@@ -69,7 +69,7 @@ type embedder struct {
 func (e *embedder) ID() string { return e.id }
 
 func (e *embedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
-	vecs, _, err := e.client.EmbedWithTexts(texts).Call().Embeddings(ctx)
+	vecs, _, err := e.client.EmbedTexts(ctx, texts)
 	if err != nil {
 		return nil, err
 	}

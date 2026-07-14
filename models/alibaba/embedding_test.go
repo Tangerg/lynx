@@ -21,9 +21,8 @@ const alibabaEmbedResponseJSON = `{
 
 func TestEmbeddingModel(t *testing.T) {
 	testutil.RunEmbeddingContract(t, testutil.EmbeddingContract{
-		ProviderName: alibaba.Provider,
-		ModelID:      alibaba.ModelEmbeddingV4,
-		Response:     alibabaEmbedResponseJSON,
+		ModelID:  alibaba.ModelEmbeddingV4,
+		Response: alibabaEmbedResponseJSON,
 		Build: func(t *testing.T, baseURL string) embedding.Model {
 			t.Helper()
 			opts, err := embedding.NewOptions(alibaba.ModelEmbeddingV4)

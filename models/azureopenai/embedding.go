@@ -39,6 +39,5 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*openai.EmbeddingModel, error)
 		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
-		Metadata:       &embedding.ModelMetadata{Provider: Provider},
 	})
 }

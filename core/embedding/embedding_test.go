@@ -3,197 +3,132 @@ package embedding_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
 )
 
-// fakeEmbeddingModel is the test mock used across the embedding suite.
-// Each Call captures the request so tests can assert what reached the
-// model layer.
-type fakeEmbeddingModel struct {
-	provider    string
-	defaultOpts *embedding.Options
-	lastReq     *embedding.Request
-	respond     func(req *embedding.Request) (*embedding.Response, error)
-}
+type pointerModel struct{}
 
-func newFakeEmbeddingModel(t *testing.T) *fakeEmbeddingModel {
-	t.Helper()
-	defaults, err := embedding.NewOptions("text-embedding-3-small")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &fakeEmbeddingModel{provider: "fake", defaultOpts: defaults}
-}
-
-func (m *fakeEmbeddingModel) DefaultOptions() embedding.Options { return *m.defaultOpts }
-func (m *fakeEmbeddingModel) Metadata() embedding.ModelMetadata {
-	return embedding.ModelMetadata{Provider: m.provider}
-}
-func (m *fakeEmbeddingModel) Dimensions(_ context.Context) int64 { return 4 }
-
-func (m *fakeEmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-	m.lastReq = req
-	if m.respond != nil {
-		return m.respond(req)
-	}
-	return responseFor(req.Texts), nil
+func (*pointerModel) Call(context.Context, *embedding.Request) (*embedding.Response, error) {
+	return nil, nil
 }
 
 func responseFor(texts []string) *embedding.Response {
-	results := make([]*embedding.Result, 0, len(texts))
+	results := make([]*embedding.Result, len(texts))
 	for i := range texts {
-		r, _ := embedding.NewResult([]float64{0.1, 0.2, 0.3, 0.4}, &embedding.ResultMetadata{Index: int64(i), ModalityType: embedding.Text})
-		results = append(results, r)
+		results[i], _ = embedding.NewResult([]float64{1, 2, 3, 4}, &embedding.ResultMetadata{Index: int64(i)})
 	}
-	resp, _ := embedding.NewResponse(results, &embedding.ResponseMetadata{})
-	return resp
+	response, _ := embedding.NewResponse(results, &embedding.ResponseMetadata{Model: "fake"})
+	return response
 }
 
-func TestNewOptions_RequiresModel(t *testing.T) {
-	if _, err := embedding.NewOptions(""); err == nil {
-		t.Fatal("empty model must error")
-	}
-}
-
-func TestEncodingFormat_Valid(t *testing.T) {
-	if !embedding.EncodingFormatFloat.Valid() {
-		t.Fatal("float must be valid")
-	}
-	if embedding.EncodingFormat("garbage").Valid() {
-		t.Fatal("garbage must be invalid")
-	}
-}
-
-func TestOptions_CloneDeepCopy(t *testing.T) {
-	d := int64(64)
-	opts := &embedding.Options{Model: "m", Dimensions: &d, Extra: map[string]any{"k": 1}}
-
-	clone := opts.Clone()
-	*clone.Dimensions = 999
-	clone.Extra["k"] = 999
-
-	if *opts.Dimensions != 64 || opts.Extra["k"] != 1 {
-		t.Fatal("Clone is shallow")
-	}
-}
-
-func TestMergeOptions(t *testing.T) {
-	d := int64(32)
-	base := &embedding.Options{Model: "base"}
-	override := &embedding.Options{Model: "override", Dimensions: &d, EncodingFormat: embedding.EncodingFormatFloat}
-
-	merged, err := embedding.MergeOptions(base, override, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if merged.Model != "override" {
-		t.Fatalf("Model = %q", merged.Model)
-	}
-	if *merged.Dimensions != 32 {
-		t.Fatalf("Dimensions = %d", *merged.Dimensions)
-	}
-
-	if _, err := embedding.MergeOptions(nil); err == nil {
-		t.Fatal("nil base must error")
-	}
-}
-
-func TestNewRequest_RequiresTexts(t *testing.T) {
-	if _, err := embedding.NewRequest(nil); err == nil {
-		t.Fatal("empty texts must error")
-	}
-}
-
-func TestNewClient_RejectsNilModel(t *testing.T) {
-	if _, err := embedding.NewClient(nil); err == nil {
-		t.Fatal("nil model must error")
-	}
-}
-
-func TestClient_EmbedWithText_BuildsSingleEntryRequest(t *testing.T) {
-	model := newFakeEmbeddingModel(t)
+func TestModelAndClient(t *testing.T) {
+	var captured *embedding.Request
+	model := embedding.ModelFunc(func(_ context.Context, request *embedding.Request) (*embedding.Response, error) {
+		captured = request
+		return responseFor(request.Texts), nil
+	})
 	client, err := embedding.NewClient(model)
 	if err != nil {
 		t.Fatal(err)
 	}
+	vectors, response, err := client.EmbedTexts(t.Context(), []string{"a", "b"})
+	if err != nil || response == nil || len(vectors) != 2 || len(captured.Texts) != 2 {
+		t.Fatalf("EmbedTexts() = %#v, %#v, %v", vectors, response, err)
+	}
+	vectors[0][0] = 99
+	if response.Results[0].Embedding[0] == 99 {
+		t.Fatal("returned vectors alias the provider response")
+	}
 
-	v, _, err := client.EmbedWithText("hello").Call().Embedding(context.Background())
-	if err != nil {
+	vector, _, err := client.EmbedText(t.Context(), "one")
+	if err != nil || len(vector) != 4 {
+		t.Fatalf("EmbedText() = %#v, %v", vector, err)
+	}
+	if _, _, err := client.EmbedDocuments(t.Context(), []*document.Document{{Text: "doc"}}); err != nil {
 		t.Fatal(err)
-	}
-	if len(v) != 4 {
-		t.Fatalf("len = %d, want 4", len(v))
-	}
-	if len(model.lastReq.Texts) != 1 {
-		t.Fatalf("Texts len = %d, want 1", len(model.lastReq.Texts))
 	}
 }
 
-func TestClient_Embeddings_ReturnsAll(t *testing.T) {
-	model := newFakeEmbeddingModel(t)
-	client, _ := embedding.NewClient(model)
-
-	got, _, err := client.EmbedWithTexts([]string{"a", "b", "c"}).Call().Embeddings(context.Background())
-	if err != nil {
-		t.Fatal(err)
+func TestClientRejectsInvalidBoundaries(t *testing.T) {
+	if _, err := embedding.NewClient(nil); err == nil {
+		t.Fatal("NewClient accepted nil")
 	}
-	if len(got) != 3 {
-		t.Fatalf("got %d vectors, want 3", len(got))
+	var typedNil *pointerModel
+	if _, err := embedding.NewClient(typedNil); err == nil {
+		t.Fatal("NewClient accepted typed nil")
 	}
-}
-
-func TestClient_EmbedWithDocument(t *testing.T) {
-	model := newFakeEmbeddingModel(t)
-	client, _ := embedding.NewClient(model)
-
-	doc := &document.Document{Text: "doc-text"}
-	if _, err := client.EmbedWithDocument(doc).Call().Response(context.Background()); err != nil {
-		t.Fatal(err)
+	client, _ := embedding.NewClient(embedding.ModelFunc(func(context.Context, *embedding.Request) (*embedding.Response, error) {
+		return nil, nil
+	}))
+	if _, err := client.Call(t.Context(), nil); err == nil {
+		t.Fatal("Call accepted nil request")
 	}
-	if model.lastReq.Texts[0] != "doc-text" {
-		t.Fatalf("Texts[0] = %q", model.lastReq.Texts[0])
+	if _, _, err := client.EmbedDocuments(t.Context(), []*document.Document{nil}); err == nil {
+		t.Fatal("EmbedDocuments accepted nil document")
 	}
-}
+	if _, _, err := client.EmbedText(t.Context(), "x"); err == nil {
+		t.Fatal("EmbedText accepted nil response")
+	}
 
-func TestClient_PropagatesError(t *testing.T) {
 	want := errors.New("boom")
-	model := newFakeEmbeddingModel(t)
-	model.respond = func(*embedding.Request) (*embedding.Response, error) { return nil, want }
-
-	client, _ := embedding.NewClient(model)
-	if _, err := client.EmbedWithText("x").Call().Response(context.Background()); !errors.Is(err, want) {
-		t.Fatalf("err = %v, want %v", err, want)
+	failed, _ := embedding.NewClient(embedding.ModelFunc(func(context.Context, *embedding.Request) (*embedding.Response, error) {
+		return nil, want
+	}))
+	if _, _, err := failed.EmbedText(t.Context(), "x"); !errors.Is(err, want) {
+		t.Fatalf("error = %v, want %v", err, want)
 	}
 }
 
-func TestClient_MiddlewareApplied(t *testing.T) {
-	model := newFakeEmbeddingModel(t)
-	client, _ := embedding.NewClient(model)
+func TestResolveDimensions(t *testing.T) {
+	explicit := struct {
+		embedding.Model
+		embedding.Dimensioner
+	}{
+		Model: embedding.ModelFunc(func(context.Context, *embedding.Request) (*embedding.Response, error) {
+			t.Fatal("explicit Dimensioner must not probe")
+			return nil, nil
+		}),
+		Dimensioner: embedding.DimensionFunc(func(context.Context) (int, error) { return 8, nil }),
+	}
+	if got, err := embedding.ResolveDimensions(t.Context(), explicit); err != nil || got != 8 {
+		t.Fatalf("explicit dimensions = %d, %v", got, err)
+	}
 
-	calls := 0
-	mw := embedding.Middleware(func(next embedding.Handler) embedding.Handler {
-		return embedding.HandlerFunc(func(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-			calls++
-			return next.Call(ctx, req)
-		})
+	probe := embedding.ModelFunc(func(_ context.Context, request *embedding.Request) (*embedding.Response, error) {
+		return responseFor(request.Texts), nil
 	})
-
-	if _, err := client.EmbedWithText("x").WithMiddlewares(mw).Call().Response(context.Background()); err != nil {
-		t.Fatal(err)
+	if got, err := embedding.ResolveDimensions(t.Context(), probe); err != nil || got != 4 {
+		t.Fatalf("probed dimensions = %d, %v", got, err)
 	}
-	if calls != 1 {
-		t.Fatalf("middleware ran %d times, want 1", calls)
+
+	bad := struct {
+		embedding.Model
+		embedding.Dimensioner
+	}{probe, embedding.DimensionFunc(func(context.Context) (int, error) { return 0, nil })}
+	if _, err := embedding.ResolveDimensions(t.Context(), bad); err == nil {
+		t.Fatal("ResolveDimensions accepted zero")
 	}
 }
 
-func TestClient_ChatErrorMessageHasContext(t *testing.T) {
-	if _, err := embedding.NewClientRequest(nil); err == nil {
-		t.Fatal("expected error")
-	} else if !strings.Contains(err.Error(), "embedding.NewClientRequest") {
-		t.Fatalf("error %q must include package context", err.Error())
+func TestOptionsAndRequest(t *testing.T) {
+	if _, err := embedding.NewOptions(""); err == nil {
+		t.Fatal("NewOptions accepted empty model")
+	}
+	if _, err := embedding.NewRequest(nil); err == nil {
+		t.Fatal("NewRequest accepted empty input")
+	}
+	dimensions := int64(32)
+	merged, err := embedding.MergeOptions(
+		&embedding.Options{Model: "base"},
+		&embedding.Options{Model: "override", Dimensions: &dimensions, EncodingFormat: embedding.EncodingFormatFloat},
+	)
+	if err != nil || merged.Model != "override" || *merged.Dimensions != 32 {
+		t.Fatalf("MergeOptions() = %#v, %v", merged, err)
+	}
+	if !embedding.EncodingFormatFloat.Valid() || embedding.EncodingFormat("bad").Valid() {
+		t.Fatal("EncodingFormat.Valid is inconsistent")
 	}
 }

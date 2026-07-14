@@ -21,7 +21,6 @@ const jinaResponseJSON = `{
 
 func TestEmbeddingModel(t *testing.T) {
 	testutil.RunEmbeddingContract(t, testutil.EmbeddingContract{
-		ProviderName: jina.Provider,
 		ModelID:      jina.ModelEmbeddingsV3,
 		Response:     jinaResponseJSON,
 		ExpectedPath: "/embeddings",

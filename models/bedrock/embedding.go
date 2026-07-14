@@ -148,12 +148,3 @@ func parseEmbeddingResponse(modelID string, body []byte) ([]float64, error) {
 		return nil, errors.New("bedrock: unsupported embedding model: " + modelID)
 	}
 }
-
-func (e *EmbeddingModel) Dimensions(ctx context.Context) int64 {
-	return embedding.GetDimensions(ctx, e)
-}
-
-func (e *EmbeddingModel) DefaultOptions() embedding.Options { return *e.defaultOptions }
-func (e *EmbeddingModel) Metadata() embedding.ModelMetadata {
-	return embedding.ModelMetadata{Provider: Provider}
-}
