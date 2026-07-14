@@ -18,6 +18,7 @@ use (
 	./pkg
 	./rag
 	./skills
+	./tokenizer
 	./tools
 	./vectorstores
 )
