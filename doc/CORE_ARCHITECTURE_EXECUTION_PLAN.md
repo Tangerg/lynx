@@ -540,7 +540,7 @@ flowchart LR
   - OpenAI、Anthropic、Google、Ollama。
   - 证明新协议不丢失当前支持能力。
   - 证据：新增 [`CORE_CHAT_PROVIDER_MAPPING.md`](CORE_CHAT_PROVIDER_MAPPING.md) 与 `models/internal/chatconformance` 的 8 份 request/response golden fixtures；覆盖多 choice/candidate、reasoning signature、redacted reasoning、audio/media、tool error、确定性 synthetic tool-call ID、cache/reasoning usage 和四家 namespaced extensions。
-  - 边界：本任务冻结迁移后的 Core wire 和 loss policy，不提前切换生产 adapter；P2-07 必须让四家真实 SDK fixture 产出与本基线等价的 Core 值。
+  - 边界：本任务冻结迁移后的 Core wire 和 loss policy，不提前切换生产 adapter；P2-06 必须让四家真实 SDK fixture 产出与本基线等价的 Core 值。
   - 验证：四 provider mapping conformance 与 race 通过；Models build/vet/test/lint 全绿。
 
 退出标准：
@@ -578,9 +578,10 @@ flowchart LR
   - 证据：新增 stdlib HandlerFunc 风格的 `ModelFunc`/`StreamerFunc`、函数型 CallMiddleware/StreamMiddleware 与 `Wrap`/`WrapStream`；删除目标用户面上的泛型 Chain builder。
   - 泛型边界：唯一泛型是未导出的 `compose` 包装算法，真实复用 Call/Stream 的 outermost-first 组合，不建立名义层次或公共泛型 API。
   - 验证：覆盖 adapter 委托、错误透传、call/stream 顺序、nil middleware、输入 slice 变更隔离和空链；`core/chat` coverage 94.5%，Core build/vet/test/lint/race 全绿。
-- [ ] **P2-06 为四个 reference provider 建立 compile-time 和行为 conformance suite**（进行中：2026-07-14；harness 完成，provider 0/4）
+- [ ] **P2-06 为四个 reference provider 建立 compile-time 和行为 conformance suite**（进行中：2026-07-14；harness 完成，provider 1/4）
   - Harness 位于 `models/internal/conformance`，由各 provider 测试传入具体构造函数；Core 不 import provider。
-  - 当前进度：provider-neutral ChatSuite 已覆盖 Call/Stream 的构造、请求/响应递归校验、非空 yield 和 Request 不可变性；自身 fake provider 与 Models 全模块门禁通过。下一批接入 OpenAI 真实 SDK mock wire。
+  - 当前进度：provider-neutral ChatSuite 已覆盖 Call/Stream 的构造、请求/响应递归校验、非空 yield 和 Request 不可变性；OpenAI 新 `Chat` adapter 直接实现目标 Core SPI，保留全部 choice，并覆盖 native extension、多模态、reasoning/usage 映射和流式 tool-call 稳定身份。
+  - OpenAI 证据：真实 `openai-go` mock wire conformance、完整 Models build/vet/test/lint 与 OpenAI/harness race 全绿；legacy `ChatModel` 保持冻结，下一批接入 Anthropic。
 - [ ] **P2-07 固化 Chat Call/Stream 行为契约**
   - 覆盖 context cancel、调用方提前停止、首个错误终止、无 goroutine 泄漏和流式聚合语义。
 
@@ -741,7 +742,7 @@ flowchart LR
 ### 10.2 当前焦点
 
 - 当前阶段：P2。
-- 下一任务：继续 P2-06；harness 已完成，按 OpenAI → Anthropic → Google → Ollama 接入真实 SDK mock wire（当前 0/4）。
+- 下一任务：继续 P2-06；OpenAI 已完成，按 Anthropic → Google → Ollama 接入真实 SDK mock wire（当前 1/4）。
 - 当前阻塞：无。
 - 最近完成：P2-05；stdlib 风格 function adapter、Call/Stream middleware 与私有泛型 compose 算法。
 
@@ -841,7 +842,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 | 风险 | 概率 | 影响 | 缓解措施 | 状态 |
 |---|---|---|---|---|
 | 公共 API 爆炸式迁移导致 workspace 长期不可编译 | 高 | 高 | 按第 8.3 节分类：新路径限时并存，同路径按阶段完成纵向切片 | 监控中 |
-| Message tagged value 无法表达个别 provider 能力 | 中 | 高 | 四个差异 provider 已完成映射验证；生产 adapter 在 P2-07 接入同一 conformance | 已验证，迁移待执行 |
+| Message tagged value 无法表达个别 provider 能力 | 中 | 高 | 四个差异 provider 已完成映射验证；生产 adapter 在 P2-06 接入同一 conformance | 已验证，迁移进行中（1/4） |
 | ChatClient 外移后用户体验下降 | 中 | 中 | 直接调用为主，保留常见 Text/Template/Structured Output 便利 API | 未验证 |
 | Tool 运行时拆分破坏 Agent pause/resume | 高 | 高 | P1 已建立并验证 Invocation/Event 原型，P3 再迁移现有 tool-loop | 原型已验证，迁移待执行 |
 | VectorStore 小接口迁移量过大 | 高 | 中 | 建立 conformance suite，按 backend 批次迁移 | 未验证 |
@@ -962,6 +963,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | P2-06 完成 OpenAI reference adapter/conformance；新 `Chat` 直接实现 Core Model/Streamer，保留多 choice 与 namespaced native 数据，并冻结 legacy `ChatModel` | Codex |
 | 2026-07-14 | 完成 P2-05；以 stdlib 风格函数 adapter/包装器替代泛型 Chain 用户面，仅保留私有 compose 算法复用；进入 P2-06 | Codex |
 | 2026-07-14 | 完成 P2-04；禁止目标 Chat SPI import 旧 `core/model`、使用 type parameter 或嵌入名义接口；进入 P2-05 | Codex |
 | 2026-07-14 | 完成 P2-03；用 AST 门禁锁定 Model/Streamer 不含默认值/身份，并建立冻结旧 API 的 P6 删除台账；进入 P2-04 | Codex |
@@ -986,6 +988,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P2-06（批次 2，OpenAI 1/4） | 新增 `openai.Chat`/`ChatConfig` 目标 SPI adapter；provider request extension 与 Core options 两级合并，显式拒绝不兼容能力；Call 保留全部 choice、reasoning/audio/native metadata/usage，Stream 维持 delta 语义和稳定 tool-call 身份；真实 SDK mock-wire conformance、Models build/vet/test/lint 与目标 race 全绿；任务计数保持 18/60 | P2-06 Anthropic adapter/conformance |
 | 2026-07-14 | P2-06（批次 1） | 建立 provider-neutral `models/internal/conformance.ChatSuite`；Call/Stream 验证合法 Response、非空 stream、Request 不变；harness race 与 Models build/vet/test/lint 全绿；任务计数保持 18/60 | P2-06 OpenAI adapter/conformance |
 | 2026-07-14 | P2-05 | 新增 ModelFunc/StreamerFunc、函数型 middleware 与 Wrap/WrapStream；组合顺序、nil、slice 隔离和错误透传已覆盖；chat coverage 94.5%，Core 门禁/race 全绿；任务计数 18/60 | P2-06 provider conformance |
 | 2026-07-14 | P2-04 | 架构守卫确认新 Chat Model/Streamer 无旧 `core/model` import、无 type parameter、无 embedded interface；旧名义层冻结到 P6；Core build/vet/test/lint/race 全绿；任务计数 17/60 | P2-05 middleware 组合 |
