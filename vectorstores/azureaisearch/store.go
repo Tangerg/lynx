@@ -224,7 +224,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 // Retrieve runs a hybrid vector query — the call is pure vector when
 // no filter is set, otherwise the filter rides along as the OData
 // `$filter` clause.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("azureaisearch: invalid retrieval request: %w", err)
 	}
@@ -275,13 +275,13 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("azureaisearch: decode search response: %w", err)
 	}
 
-	docs = make([]*document.Document, 0, len(parsed.Value))
+	docs = make([]vectorstore.Match, 0, len(parsed.Value))
 	for _, row := range parsed.Value {
-		doc := s.toDocument(row)
-		if doc.Score < req.MinScore {
+		match := s.toMatch(row)
+		if match.Score < req.MinScore {
 			continue
 		}
-		docs = append(docs, doc)
+		docs = append(docs, match)
 	}
 	return docs, nil
 }
@@ -379,7 +379,7 @@ func (s *Store) buildFilter(filter ast.Expr) (string, error) {
 	return v.Result(), nil
 }
 
-func (s *Store) toDocument(row map[string]any) *document.Document {
+func (s *Store) toMatch(row map[string]any) vectorstore.Match {
 	doc := &document.Document{}
 	if id, ok := row[s.idField].(string); ok {
 		doc.ID = id
@@ -389,9 +389,7 @@ func (s *Store) toDocument(row map[string]any) *document.Document {
 	}
 	// @search.score is what AI Search returns for vector results —
 	// it's already clamped roughly to [0, 1] for cosine.
-	if score, ok := row["@search.score"].(float64); ok {
-		doc.Score = score
-	}
+	score, _ := row["@search.score"].(float64)
 
 	// Metadata is everything except the reserved fields and the
 	// embedding vector itself.
@@ -408,7 +406,7 @@ func (s *Store) toDocument(row map[string]any) *document.Document {
 	if len(meta) > 0 {
 		doc.Metadata = meta
 	}
-	return doc
+	return vectorstore.Match{Document: doc, Score: score}
 }
 
 // do issues a JSON request to the Search REST surface and returns the

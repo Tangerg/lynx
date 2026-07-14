@@ -389,7 +389,7 @@ func (s *Store) bulkErrorReason(resp *opensearchapi.BulkResp) error {
 
 // Retrieve runs an approximate KNN query against the configured index
 // and returns the documents above MinScore.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("opensearch: invalid retrieval request: %w", err)
 	}
@@ -442,17 +442,17 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("opensearch: nil response for %s", s.indexName)
 	}
 
-	docs = make([]*document.Document, 0, len(resp.Hits.Hits))
+	docs = make([]vectorstore.Match, 0, len(resp.Hits.Hits))
 	for _, hit := range resp.Hits.Hits {
 		score := float64(hit.Score)
 		if score < req.MinScore {
 			continue
 		}
-		doc, err := s.toDocument(hit, score)
+		doc, err := s.toDocument(hit)
 		if err != nil {
 			return nil, err
 		}
-		docs = append(docs, doc)
+		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 	return docs, nil
 }
@@ -551,8 +551,8 @@ func (s *Store) buildFilterQuery(filter ast.Expr) (string, error) {
 	return v.Result(), nil
 }
 
-func (s *Store) toDocument(hit opensearchapi.SearchHit, score float64) (*document.Document, error) {
-	doc := &document.Document{ID: hit.ID, Score: score}
+func (s *Store) toDocument(hit opensearchapi.SearchHit) (*document.Document, error) {
+	doc := &document.Document{ID: hit.ID}
 	if len(hit.Source) == 0 {
 		return doc, nil
 	}

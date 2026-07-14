@@ -329,7 +329,7 @@ func (s *Store) buildQueryOptions(req *vectorstore.RetrievalRequest, queryVector
 
 // buildDocumentsFromResult assembles Lynx Documents from the parallel slices
 // returned by the QueryResult interface, applying the MinScore threshold.
-func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64) []*document.Document {
+func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64) []vectorstore.Match {
 	idGroups := result.GetIDGroups()
 	if len(idGroups) == 0 {
 		return nil
@@ -352,7 +352,7 @@ func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64
 		distGroup = dg[0]
 	}
 
-	docs := make([]*document.Document, 0, len(ids))
+	docs := make([]vectorstore.Match, 0, len(ids))
 	for i, id := range ids {
 		var distance float64
 		if i < len(distGroup) {
@@ -364,10 +364,7 @@ func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64
 			continue
 		}
 
-		doc := &document.Document{
-			ID:    string(id),
-			Score: score,
-		}
+		doc := &document.Document{ID: string(id)}
 
 		if s.storeDocumentContent && i < len(docGroup) && docGroup[i] != nil {
 			doc.Text = docGroup[i].ContentString()
@@ -377,14 +374,14 @@ func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64
 			doc.Metadata = metadataToMap(metaGroup[i])
 		}
 
-		docs = append(docs, doc)
+		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 
 	return docs
 }
 
 // Retrieve embeds the query in req, searches Chroma, and returns matching documents.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("chroma: invalid retrieval request: %w", err)
 	}

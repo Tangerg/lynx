@@ -314,7 +314,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 
 // Retrieve runs the $vectorSearch aggregation and returns the matching
 // documents above the configured MinScore threshold.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("mongodb: invalid retrieval request: %w", err)
 	}
@@ -367,13 +367,13 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 	defer cursor.Close(ctx)
 
-	docs = make([]*document.Document, 0, req.TopK)
+	docs = make([]vectorstore.Match, 0, req.TopK)
 	for cursor.Next(ctx) {
 		var raw bson.M
 		if err := cursor.Decode(&raw); err != nil {
 			return nil, fmt.Errorf("mongodb: decode hit: %w", err)
 		}
-		docs = append(docs, s.toDocument(raw))
+		docs = append(docs, s.toMatch(raw))
 	}
 	if err := cursor.Err(); err != nil {
 		return nil, fmt.Errorf("mongodb: cursor: %w", err)
@@ -435,7 +435,7 @@ func (s *Store) buildFilter(expr ast.Expr) (bson.M, error) {
 	return bson.M(v.Result()), nil
 }
 
-func (s *Store) toDocument(raw bson.M) *document.Document {
+func (s *Store) toMatch(raw bson.M) vectorstore.Match {
 	doc := &document.Document{}
 	if id, ok := raw[defaultIDField].(string); ok {
 		doc.ID = id
@@ -443,15 +443,16 @@ func (s *Store) toDocument(raw bson.M) *document.Document {
 	if content, ok := raw[s.contentField].(string); ok {
 		doc.Text = content
 	}
+	var score float64
 	switch sv := raw[scoreField].(type) {
 	case float64:
-		doc.Score = sv
+		score = sv
 	case float32:
-		doc.Score = float64(sv)
+		score = float64(sv)
 	case int32:
-		doc.Score = float64(sv)
+		score = float64(sv)
 	case int64:
-		doc.Score = float64(sv)
+		score = float64(sv)
 	}
 
 	if s.metadataField != "" {
@@ -474,7 +475,7 @@ func (s *Store) toDocument(raw bson.M) *document.Document {
 			doc.Metadata = meta
 		}
 	}
-	return doc
+	return vectorstore.Match{Document: doc, Score: score}
 }
 
 func (s *Store) Metadata() vectorstore.StoreMetadata {

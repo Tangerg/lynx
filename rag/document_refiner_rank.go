@@ -4,14 +4,11 @@ import (
 	"cmp"
 	"context"
 	"slices"
-
-	"github.com/Tangerg/lynx/core/document"
 )
 
 var _ Refiner = topKRefiner{}
 
-// topKRefiner sorts documents by [document.Document.Score] descending and keeps
-// the top K.
+// topKRefiner sorts candidates by score descending and keeps the top K.
 type topKRefiner struct {
 	topK int
 }
@@ -27,13 +24,13 @@ func TopK(topK int) Refiner {
 
 // Refine sorts documents by score (descending) and returns at most
 // topK entries. The input slice is not mutated. Honors ctx cancellation.
-func (r topKRefiner) Refine(ctx context.Context, _ *Query, documents []*document.Document) ([]*document.Document, error) {
+func (r topKRefiner) Refine(ctx context.Context, _ *Query, documents []Candidate) ([]Candidate, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
 	sorted := slices.Clone(documents)
-	slices.SortFunc(sorted, func(a, b *document.Document) int {
+	slices.SortFunc(sorted, func(a, b Candidate) int {
 		return cmp.Compare(b.Score, a.Score) // descending
 	})
 

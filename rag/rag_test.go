@@ -45,13 +45,21 @@ func TestQuery_Clone_Independence(t *testing.T) {
 
 // fakeRetriever mocks Retriever for composition tests.
 type fakeRetriever struct {
-	docs []*document.Document
+	docs []rag.Candidate
 	err  error
 	hits int
 	got  string
 }
 
-func (r *fakeRetriever) Retrieve(_ context.Context, q *rag.Query) ([]*document.Document, error) {
+func candidate(doc *document.Document, score ...float64) rag.Candidate {
+	var value float64
+	if len(score) > 0 {
+		value = score[0]
+	}
+	return rag.Candidate{Document: doc, Score: value}
+}
+
+func (r *fakeRetriever) Retrieve(_ context.Context, q *rag.Query) ([]rag.Candidate, error) {
 	r.hits++
 	if q != nil {
 		r.got = q.Text
@@ -79,7 +87,7 @@ func (t *fakeTransformer) Transform(_ context.Context, q *rag.Query) (*rag.Query
 
 func TestWithTransformersFeedsTransformedQueryToRetriever(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved-doc", nil)
-	retriever := &fakeRetriever{docs: []*document.Document{doc}}
+	retriever := &fakeRetriever{docs: []rag.Candidate{candidate(doc)}}
 
 	r := rag.WithTransformers(retriever, &fakeTransformer{suffix: "?"})
 	docs, err := r.Retrieve(context.Background(), mustQuery(t, "hi"))
@@ -89,7 +97,7 @@ func TestWithTransformersFeedsTransformedQueryToRetriever(t *testing.T) {
 	if retriever.got != "hi?" {
 		t.Fatalf("retriever query = %q, want hi?", retriever.got)
 	}
-	if len(docs) != 1 || docs[0] != doc {
+	if len(docs) != 1 || docs[0].Document != doc {
 		t.Fatalf("docs = %v", docs)
 	}
 	if retriever.hits != 1 {
@@ -113,8 +121,8 @@ func TestWithTransformersErrorShortCircuits(t *testing.T) {
 func TestMultiUnionsResults(t *testing.T) {
 	docA, _ := document.NewDocument("a", nil)
 	docB, _ := document.NewDocument("b", nil)
-	r1 := &fakeRetriever{docs: []*document.Document{docA}}
-	r2 := &fakeRetriever{docs: []*document.Document{docB}}
+	r1 := &fakeRetriever{docs: []rag.Candidate{candidate(docA)}}
+	r2 := &fakeRetriever{docs: []rag.Candidate{candidate(docB)}}
 
 	docs, err := rag.Multi(r1, r2).Retrieve(context.Background(), mustQuery(t, "hi"))
 	if err != nil {
@@ -127,7 +135,7 @@ func TestMultiUnionsResults(t *testing.T) {
 
 func TestMultiPartialFailureReturnsAvailableDocs(t *testing.T) {
 	docA, _ := document.NewDocument("a", nil)
-	r1 := &fakeRetriever{docs: []*document.Document{docA}}
+	r1 := &fakeRetriever{docs: []rag.Candidate{candidate(docA)}}
 	r2 := &fakeRetriever{err: errors.New("retriever 2 broken")}
 
 	docs, err := rag.Multi(r1, r2).Retrieve(context.Background(), mustQuery(t, "hi"))

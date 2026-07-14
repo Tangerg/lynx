@@ -339,8 +339,8 @@ func (s *Store) convertPayloadToMetadata(payload map[string]*qdrant.Value) map[s
 	return metadata
 }
 
-func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]*document.Document, error) {
-	docs := make([]*document.Document, 0, len(scoredPoints))
+func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]vectorstore.Match, error) {
+	docs := make([]vectorstore.Match, 0, len(scoredPoints))
 
 	for _, point := range scoredPoints {
 		doc := &document.Document{}
@@ -348,8 +348,6 @@ func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]
 		if pointID := point.GetId(); pointID != nil {
 			doc.ID = pointID.GetUuid()
 		}
-
-		doc.Score = float64(point.GetScore())
 
 		payload := point.GetPayload()
 		if payload != nil {
@@ -362,13 +360,13 @@ func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]
 			doc.Metadata = s.convertPayloadToMetadata(payload)
 		}
 
-		docs = append(docs, doc)
+		docs = append(docs, vectorstore.Match{Document: doc, Score: float64(point.GetScore())})
 	}
 
 	return docs, nil
 }
 
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("qdrant: invalid retrieval request: %w", err)
 	}

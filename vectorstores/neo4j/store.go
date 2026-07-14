@@ -335,7 +335,7 @@ func (s *Store) documentProperties(doc *document.Document) map[string]any {
 
 // Retrieve calls db.index.vector.queryNodes and returns matching
 // documents above MinScore.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("neo4j: invalid retrieval request: %w", err)
 	}
@@ -390,31 +390,31 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if collectErr != nil {
 			return nil, collectErr
 		}
-		out := make([]*document.Document, 0, len(records))
+		out := make([]vectorstore.Match, 0, len(records))
 		for _, rec := range records {
-			doc, convErr := s.recordToDocument(rec)
+			match, convErr := s.recordToMatch(rec)
 			if convErr != nil {
 				return nil, convErr
 			}
-			out = append(out, doc)
+			out = append(out, match)
 		}
 		return out, nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("neo4j: vector query: %w", err)
 	}
-	docs = result.([]*document.Document)
+	docs = result.([]vectorstore.Match)
 	return docs, nil
 }
 
-func (s *Store) recordToDocument(rec *neo4j.Record) (*document.Document, error) {
+func (s *Store) recordToMatch(rec *neo4j.Record) (vectorstore.Match, error) {
 	nodeRaw, found := rec.Get("node")
 	if !found {
-		return nil, errors.New("neo4j: result record missing 'node' field")
+		return vectorstore.Match{}, errors.New("neo4j: result record missing 'node' field")
 	}
 	node, ok := nodeRaw.(neo4j.Node)
 	if !ok {
-		return nil, fmt.Errorf("neo4j: unexpected node type %T", nodeRaw)
+		return vectorstore.Match{}, fmt.Errorf("neo4j: unexpected node type %T", nodeRaw)
 	}
 
 	var score float64
@@ -429,7 +429,7 @@ func (s *Store) recordToDocument(rec *neo4j.Record) (*document.Document, error) 
 		}
 	}
 
-	doc := &document.Document{Score: score}
+	doc := &document.Document{}
 	if id, ok := node.Props[s.idProperty].(string); ok {
 		doc.ID = id
 	}
@@ -458,7 +458,7 @@ func (s *Store) recordToDocument(rec *neo4j.Record) (*document.Document, error) 
 			doc.Metadata = meta
 		}
 	}
-	return doc, nil
+	return vectorstore.Match{Document: doc, Score: score}, nil
 }
 
 // Delete removes nodes matching the filter expression.

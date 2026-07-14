@@ -22,7 +22,6 @@ func TestSplitter_StampsChunkLineage(t *testing.T) {
 
 	parent, _ := document.NewDocument("ignored", nil)
 	parent.ID = "parent-1"
-	parent.Score = 0.75
 	parent.Metadata["source"] = "manual"
 
 	chunks, err := splitter.Transform(context.Background(), []*document.Document{parent})
@@ -45,9 +44,6 @@ func TestSplitter_StampsChunkLineage(t *testing.T) {
 		}
 		if chunk.Metadata["source"] != "manual" {
 			t.Fatalf("chunk %d: original metadata not carried through", i)
-		}
-		if chunk.Score != 0.75 {
-			t.Fatalf("chunk %d: score = %v, want parent score passthrough", i, chunk.Score)
 		}
 	}
 }

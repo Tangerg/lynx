@@ -18,7 +18,7 @@ func TestDedupDropsDuplicateIDs(t *testing.T) {
 	dup, _ := document.NewDocument("a-dup", nil)
 	dup.ID = "1"
 
-	got, err := r.Refine(context.Background(), nil, []*document.Document{a, b, dup})
+	got, err := r.Refine(context.Background(), nil, []rag.Candidate{candidate(a), candidate(b), candidate(dup)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,14 +43,14 @@ func TestDedupHonorsContextCancel(t *testing.T) {
 func TestTopKSortsAndCaps(t *testing.T) {
 	r := rag.TopK(2)
 
-	a, _ := document.NewDocument("a", nil)
-	a.Score = 0.3
-	b, _ := document.NewDocument("b", nil)
-	b.Score = 0.9
-	c, _ := document.NewDocument("c", nil)
-	c.Score = 0.5
+	aDoc, _ := document.NewDocument("a", nil)
+	bDoc, _ := document.NewDocument("b", nil)
+	cDoc, _ := document.NewDocument("c", nil)
+	a := candidate(aDoc, 0.3)
+	b := candidate(bDoc, 0.9)
+	c := candidate(cDoc, 0.5)
 
-	got, err := r.Refine(context.Background(), nil, []*document.Document{a, b, c})
+	got, err := r.Refine(context.Background(), nil, []rag.Candidate{a, b, c})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestTopKNormalizesNonPositiveLimit(t *testing.T) {
 	// topK 0 / negative should fall back to 1, not panic / not return empty.
 	r := rag.TopK(0)
 	a, _ := document.NewDocument("a", nil)
-	got, err := r.Refine(context.Background(), nil, []*document.Document{a})
+	got, err := r.Refine(context.Background(), nil, []rag.Candidate{candidate(a)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,11 +78,11 @@ func TestTopKNormalizesNonPositiveLimit(t *testing.T) {
 func TestTopKDoesNotMutateInput(t *testing.T) {
 	r := rag.TopK(10)
 
-	a, _ := document.NewDocument("a", nil)
-	a.Score = 0.1
-	b, _ := document.NewDocument("b", nil)
-	b.Score = 0.9
-	in := []*document.Document{a, b}
+	aDoc, _ := document.NewDocument("a", nil)
+	bDoc, _ := document.NewDocument("b", nil)
+	a := candidate(aDoc, 0.1)
+	b := candidate(bDoc, 0.9)
+	in := []rag.Candidate{a, b}
 
 	_, _ = r.Refine(context.Background(), nil, in)
 

@@ -47,7 +47,7 @@ var _ Transformer = (*Splitter)(nil)
 // chunk. Original metadata is cloned onto every chunk and stamped with
 // chunk-lineage keys ([MetadataKeyParentID], [MetadataKeyChunkIndex],
 // [MetadataKeyChunkTotal]) so callers can trace chunks back to their
-// source; the source document's retrieval score is carried through.
+// source.
 type Splitter struct {
 	copyFormatter bool
 	splitFunc     func(ctx context.Context, text string) ([]string, error)
@@ -110,8 +110,6 @@ func (s *Splitter) splitOne(ctx context.Context, doc *Document) ([]*Document, er
 		if doc.ID != "" {
 			chunk.Metadata[MetadataKeyParentID] = doc.ID
 		}
-		chunk.Score = doc.Score
-
 		if s.copyFormatter {
 			chunk.Formatter = doc.Formatter
 		}

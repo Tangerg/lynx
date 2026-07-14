@@ -15,10 +15,10 @@ import (
 // stubRetriever returns a fixed document set; used to exercise the
 // middleware without a real vector store.
 type stubRetriever struct {
-	docs []*document.Document
+	docs []rag.Candidate
 }
 
-func (s *stubRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]*document.Document, error) {
+func (s *stubRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candidate, error) {
 	return s.docs, nil
 }
 
@@ -62,7 +62,7 @@ func TestNewMiddlewareRejectsInvalidConfig(t *testing.T) {
 
 func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
-	retriever := &stubRetriever{docs: []*document.Document{doc}}
+	retriever := &stubRetriever{docs: []rag.Candidate{candidate(doc)}}
 
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 
@@ -96,7 +96,7 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	if !ok {
 		t.Fatal("DocumentContextKey not attached to response metadata")
 	}
-	if docs, _ := v.([]*document.Document); len(docs) != 1 {
+	if docs, _ := v.([]rag.Candidate); len(docs) != 1 {
 		t.Fatalf("attached docs len = %d, want 1", len(docs))
 	}
 }
@@ -129,7 +129,7 @@ type errorRetriever struct {
 	err error
 }
 
-func (r *errorRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]*document.Document, error) {
+func (r *errorRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]rag.Candidate, error) {
 	return nil, r.err
 }
 
@@ -140,7 +140,7 @@ func (r *errorRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]*document.
 // reuse / re-consumed streams).
 func TestMiddlewareDoesNotMutateCallerMessages(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
-	retriever := &stubRetriever{docs: []*document.Document{doc}}
+	retriever := &stubRetriever{docs: []rag.Candidate{candidate(doc)}}
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 
 	callMW, _, err := rag.NewMiddleware(rag.MiddlewareConfig{

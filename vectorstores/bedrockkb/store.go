@@ -84,7 +84,7 @@ func (s *Store) Delete(_ context.Context, _ *vectorstore.DeleteRequest) error {
 }
 
 // Retrieve runs the Bedrock Knowledge Base Retrieve API.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("bedrockkb: invalid retrieval request: %w", err)
 	}
@@ -109,16 +109,16 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("bedrockkb: retrieve: %w", err)
 	}
 
-	docs = make([]*document.Document, 0, len(resp.RetrievalResults))
+	docs = make([]vectorstore.Match, 0, len(resp.RetrievalResults))
 	for _, r := range resp.RetrievalResults {
-		doc, err := toDocument(r)
+		match, err := toMatch(r)
 		if err != nil {
 			return nil, err
 		}
-		if doc.Score < req.MinScore {
+		if match.Score < req.MinScore {
 			continue
 		}
-		docs = append(docs, doc)
+		docs = append(docs, match)
 	}
 	return docs, nil
 }
@@ -149,12 +149,12 @@ func (s *Store) vectorSearchConfig(req *vectorstore.RetrievalRequest) *types.Kno
 	return cfg
 }
 
-// toDocument converts a Bedrock retrieval result into a Lynx
-// document.
-func toDocument(r types.KnowledgeBaseRetrievalResult) (*document.Document, error) {
+// toMatch converts a Bedrock retrieval result into a Lynx match.
+func toMatch(r types.KnowledgeBaseRetrievalResult) (vectorstore.Match, error) {
 	doc := &document.Document{}
+	var score float64
 	if r.Score != nil {
-		doc.Score = *r.Score
+		score = *r.Score
 	}
 	if r.Content != nil && r.Content.Text != nil {
 		doc.Text = *r.Content.Text
@@ -165,7 +165,7 @@ func toDocument(r types.KnowledgeBaseRetrievalResult) (*document.Document, error
 		for k, v := range r.Metadata {
 			var decoded any
 			if err := v.UnmarshalSmithyDocument(&decoded); err != nil {
-				return nil, fmt.Errorf("bedrockkb: decode metadata key %s: %w", k, err)
+				return vectorstore.Match{}, fmt.Errorf("bedrockkb: decode metadata key %s: %w", k, err)
 			}
 			meta[k] = decoded
 		}
@@ -183,7 +183,7 @@ func toDocument(r types.KnowledgeBaseRetrievalResult) (*document.Document, error
 	if doc.ID == "" {
 		doc.ID = doc.Text
 	}
-	return doc, nil
+	return vectorstore.Match{Document: doc, Score: score}, nil
 }
 
 func (s *Store) Metadata() vectorstore.StoreMetadata {

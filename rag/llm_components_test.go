@@ -67,7 +67,7 @@ func TestContextualAugmenter_RendersDocsAsContext(t *testing.T) {
 	q, _ := rag.NewQuery("what is GOAP?")
 	doc, _ := document.NewDocument("GOAP is goal-oriented action planning.", nil)
 
-	got, err := aug.Augment(context.Background(), q, []*document.Document{doc})
+	got, err := aug.Augment(context.Background(), q, []rag.Candidate{candidate(doc)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestContextualAugmenter_PreservesQueryExtra(t *testing.T) {
 	q.Set("route", "docs")
 	doc, _ := document.NewDocument("GOAP is goal-oriented action planning.", nil)
 
-	got, err := aug.Augment(context.Background(), q, []*document.Document{doc})
+	got, err := aug.Augment(context.Background(), q, []rag.Candidate{candidate(doc)})
 	if err != nil {
 		t.Fatal(err)
 	}

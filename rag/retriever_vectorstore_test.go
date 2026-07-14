@@ -19,13 +19,13 @@ type fakeVectorRetriever struct {
 	err error
 }
 
-func (f *fakeVectorRetriever) Retrieve(_ context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
+func (f *fakeVectorRetriever) Retrieve(_ context.Context, req *vectorstore.RetrievalRequest) ([]vectorstore.Match, error) {
 	f.got = req
 	if f.err != nil {
 		return nil, f.err
 	}
 	doc, _ := document.NewDocument("hit", nil)
-	return []*document.Document{doc}, nil
+	return []vectorstore.Match{{Document: doc, Score: 0.75}}, nil
 }
 
 func TestNewVectorStoreRetrieverRejectsInvalidConfig(t *testing.T) {

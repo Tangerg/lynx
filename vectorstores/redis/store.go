@@ -465,7 +465,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 
 // Retrieve embeds the query, runs a KNN search through RediSearch,
 // and returns the matching documents above MinScore.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("redis: invalid retrieval request: %w", err)
 	}
@@ -519,7 +519,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("redis: FT.SEARCH %s: %w", s.indexName, err)
 	}
 
-	docs = make([]*document.Document, 0, len(result.Docs))
+	docs = make([]vectorstore.Match, 0, len(result.Docs))
 	for _, hit := range result.Docs {
 		score, err := s.scoreFromFields(hit.Fields)
 		if err != nil {
@@ -528,7 +528,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if score < req.MinScore {
 			continue
 		}
-		docs = append(docs, s.toDocument(hit, score))
+		docs = append(docs, vectorstore.Match{Document: s.toDocument(hit), Score: score})
 	}
 	return docs, nil
 }
@@ -632,12 +632,11 @@ func (s *Store) scoreFromFields(fields map[string]string) (float64, error) {
 	return s.distanceToScore(dist), nil
 }
 
-func (s *Store) toDocument(hit goredis.Document, score float64) *document.Document {
+func (s *Store) toDocument(hit goredis.Document) *document.Document {
 	id := strings.TrimPrefix(hit.ID, s.keyPrefix)
 	doc := &document.Document{
-		ID:    id,
-		Text:  hit.Fields[s.contentField],
-		Score: score,
+		ID:   id,
+		Text: hit.Fields[s.contentField],
 	}
 
 	if len(s.metadataFields) > 0 {

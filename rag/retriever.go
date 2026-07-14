@@ -8,12 +8,10 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/Tangerg/lynx/core/document"
 )
 
 // Retrieve calls r.Retrieve after checking that r is non-nil.
-func Retrieve(ctx context.Context, r Retriever, query *Query) ([]*document.Document, error) {
+func Retrieve(ctx context.Context, r Retriever, query *Query) ([]Candidate, error) {
 	if r == nil {
 		return nil, ErrNilRetriever
 	}
@@ -24,7 +22,7 @@ func Retrieve(ctx context.Context, r Retriever, query *Query) ([]*document.Docum
 // their documents. If at least one retriever succeeds, failed retrievers are
 // recorded on the current span and the successful documents are returned.
 func Multi(retrievers ...Retriever) Retriever {
-	return RetrieverFunc(func(ctx context.Context, query *Query) ([]*document.Document, error) {
+	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
 		if query == nil {
 			return nil, ErrNilQuery
 		}
@@ -33,12 +31,12 @@ func Multi(retrievers ...Retriever) Retriever {
 		}
 		ctx, span := startStageSpan(ctx, "retrieve")
 		var err error
-		var docs []*document.Document
+		var docs []Candidate
 		defer func() {
 			finishSpan(span, err, attribute.Int(attrDocCount, len(docs)))
 		}()
 		docs, err = parallelCollect(ctx, "rag.Multi", retrievers, "retriever",
-			func(ctx context.Context, _ int, retriever Retriever) ([]*document.Document, error) {
+			func(ctx context.Context, _ int, retriever Retriever) ([]Candidate, error) {
 				if retriever == nil {
 					return nil, ErrNilRetriever
 				}
@@ -51,7 +49,7 @@ func Multi(retrievers ...Retriever) Retriever {
 // WithTransformers returns a [Retriever] that rewrites the query through
 // transformers before calling next.
 func WithTransformers(next Retriever, transformers ...Transformer) Retriever {
-	return RetrieverFunc(func(ctx context.Context, query *Query) ([]*document.Document, error) {
+	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
 		if next == nil {
 			return nil, ErrNilRetriever
 		}
@@ -79,7 +77,7 @@ func WithTransformers(next Retriever, transformers ...Transformer) Retriever {
 // WithExpander returns a [Retriever] that expands one query into many and
 // calls next for each expanded query in parallel.
 func WithExpander(next Retriever, expander Expander) Retriever {
-	return RetrieverFunc(func(ctx context.Context, query *Query) ([]*document.Document, error) {
+	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
 		if next == nil {
 			return nil, ErrNilRetriever
 		}
@@ -97,7 +95,7 @@ func WithExpander(next Retriever, expander Expander) Retriever {
 			queries = []*Query{query}
 		}
 		return parallelCollect(ctx, "rag.WithExpander", queries, "query",
-			func(ctx context.Context, _ int, q *Query) ([]*document.Document, error) {
+			func(ctx context.Context, _ int, q *Query) ([]Candidate, error) {
 				if q == nil {
 					return nil, ErrNilQuery
 				}
@@ -109,7 +107,7 @@ func WithExpander(next Retriever, expander Expander) Retriever {
 // WithRefiners returns a [Retriever] that calls next and then applies
 // refiners to the returned documents in order.
 func WithRefiners(next Retriever, refiners ...Refiner) Retriever {
-	return RetrieverFunc(func(ctx context.Context, query *Query) ([]*document.Document, error) {
+	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
 		if next == nil {
 			return nil, ErrNilRetriever
 		}

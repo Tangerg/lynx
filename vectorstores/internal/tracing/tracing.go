@@ -8,7 +8,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore"
 )
 
@@ -122,7 +121,7 @@ func WrapStore(inner vectorstore.Store, system string) *Decorator {
 
 // Retrieve emits a `db.vector.retrieve <system>` span around the
 // inner call.
-func (d *Decorator) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (d *Decorator) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	topK, minScore := 0, 0.0
 	if req != nil {
 		topK = req.TopK

@@ -280,8 +280,8 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 	return nil
 }
 
-func (s *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore float64) ([]*document.Document, error) {
-	docs := make([]*document.Document, 0, rs.Len())
+func (s *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore float64) ([]vectorstore.Match, error) {
+	docs := make([]vectorstore.Match, 0, rs.Len())
 
 	idCol := rs.GetColumn(fieldID)
 	contentCol := rs.GetColumn(fieldContent)
@@ -293,7 +293,7 @@ func (s *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore fl
 			continue
 		}
 
-		doc := &document.Document{Score: score}
+		doc := &document.Document{}
 
 		if idCol != nil {
 			if id, err := idCol.GetAsString(i); err == nil {
@@ -318,13 +318,13 @@ func (s *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore fl
 			}
 		}
 
-		docs = append(docs, doc)
+		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 
 	return docs, nil
 }
 
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("milvus: invalid retrieval request: %w", err)
 	}
