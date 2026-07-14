@@ -7,6 +7,8 @@
 
 本文记录 Core 重构前的编译器可见公共面、workspace 直接消费关系和后续迁移批次。它解决“改什么、谁会受影响、何时删除”的问题；它不是永久兼容承诺。P7 建立机械 API diff baseline 后，以工具输出判断签名兼容性。
 
+执行状态：P4-01/P4-02 已于 2026-07-14 完成。下文数量表和未特别标注的声明列表仍是重构前基线；已完成纵向切片的 package 会同时标明当前公共面，防止后续工作误用已删除 API。
+
 ## 1. 口径与结论
 
 扫描口径：
@@ -68,25 +70,29 @@
 
 下面列出全部 472 个 package-level exported declaration。字段、接口方法和具体方法随其 owner type 作为一个迁移单元；第 4 节列出会发生结构性变化的高风险成员。精确签名可用 `go doc -all <package>` 从本基线 commit 复现。
 
-### document
+### document（P4-01 当前公共面）
 
 ```text
-MetadataKeyChunkIndex, MetadataKeyChunkTotal, MetadataKeyParentID
-MetadataModeAll, MetadataModeEmbed, MetadataModeInference, MetadataModeNone
-Batcher, Document, FileWriter, FileWriterConfig, Formatter, IDAssigner,
-IDAssignerConfig, JSONReader, MetadataMode, Nop, Reader, SimpleFormatter,
-SimpleFormatterConfig, Splitter, SplitterConfig, TextReader, TextSplitter,
-TextSplitterConfig, TokenCountBatcher, TokenCountBatcherConfig, TokenSplitter,
-TokenSplitterConfig, Transformer, Writer
-NewDocument, NewFileWriter, NewIDAssigner, NewJSONReader, NewNop,
-NewSimpleFormatter, NewSplitter, NewTextReader, NewTextSplitter,
-NewTokenCountBatcher, NewTokenSplitter
+Document, Reader, Writer, NewDocument
 ```
 
-### document/id
+P4-01 已将所有 formatter/transformer/batcher/ID generator 运行时策略迁入 `documentpipeline`，将 Text/JSON reader 迁入 `documentreaders`；`core/document/id` 已删除。
+
+### documentpipeline（P4-01 新 module）
 
 ```text
-Generator, Sha256Generator, UUIDGenerator, NewSha256Generator, NewUUIDGenerator
+Batcher, BoundFormatter, FileWriter, FileWriterConfig, Formatter, FormatterFunc,
+IDAssigner, IDAssignerConfig, MetadataMode, Nop, SimpleFormatter,
+SimpleFormatterConfig, Splitter, SplitterConfig, TextSplitter,
+TextSplitterConfig, TokenCountBatcher, TokenCountBatcherConfig, TokenSplitter,
+TokenSplitterConfig, Transformer, NewFileWriter, NewIDAssigner, NewNop,
+NewSimpleFormatter, NewSplitter, NewTextSplitter, NewTokenCountBatcher,
+NewTokenSplitter
+
+documentpipeline/id: Generator, Sha256Generator, UUIDGenerator,
+NewSha256Generator, NewUUIDGenerator
+
+documentreaders: JSONReader, TextReader, NewJSONReader, NewTextReader
 ```
 
 ### evaluation
@@ -237,10 +243,12 @@ Tokenizer, NewDefaultTiktoken, NewTiktoken
 ```text
 AcceptAllScores, DefaultTopK, MaxSimilarityScore, MinSimilarityScore,
 ErrEmptyDocuments, ErrMissingFilter, ErrNilRequest, CreateRequest, Creator,
-DeleteRequest, Deleter, IDDeleter, RetrievalRequest, Retriever, Store,
+DeleteRequest, Deleter, IDDeleter, Match, RetrievalRequest, Retriever, Store,
 StoreMetadata, NewCreateRequest, NewDeleteRequest, NewDocumentWriter,
 NewRetrievalRequest
 ```
+
+P4-02 当前差异：`Retriever.Retrieve` 返回 `[]Match`；`Match` 只包含 `Document *document.Document` 与 `Score float64`。`Document.Score` 已删除，RAG 在自身边界使用 `Candidate` 并显式完成映射。
 
 ### vectorstore/filter
 
@@ -294,7 +302,7 @@ NewSQLLikeVisitor
 | Type | 当前高风险成员 | 目标影响 |
 |---|---|---|
 | `media.Media` | `Data any`, `MimeType *mime.MIME`, `MarshalJSON`, `UnmarshalJSON` | P1 改为 tagged source；全 workspace 同阶段切换 |
-| `document.Document` | `Score`, `Formatter`, `EnsureID`, `Format*` | P4 删除行为和检索关系；实现移到 documentpipeline/vectorstore.Match |
+| `document.Document` | ~~`Score`, `Formatter`, `EnsureID`, `Format*`~~（P4-01 已删除） | 当前仅有 `ID/Text/Media/Metadata` 与 `Validate`；实现已移到 documentpipeline/vectorstore.Match |
 | `model.Model` | generic `Call` + `DefaultOptions` | P2/P5 删除名义泛型层次 |
 | `model.StreamingModel` | generic Call/Stream 复合能力 | P2 拆成独立 Streamer |
 | `model.MiddlewareChain` | `Clone`, `WithCall`, `WithStream`, `Build*` | 只保留必要的函数式组合算法 |
@@ -329,12 +337,12 @@ NewSQLLikeVisitor
 
 ### 6.1 Document/documentpipeline 消费方
 
-- [ ] `documentreaders/html`
-- [ ] `documentreaders/markdown`
-- [ ] `documentreaders/pdf`
-- [ ] `rag`
-- [ ] `vectorstores/internal/tracing`
-- [ ] 25 个实际 vectorstore 实现（见 6.2；alias 包随其目标实现验证）
+- [x] `documentreaders/html`
+- [x] `documentreaders/markdown`
+- [x] `documentreaders/pdf`
+- [x] `rag`
+- [x] `vectorstores/internal/tracing`
+- [x] 25 个实际 vectorstore 实现（Document/Match 纵向切片；P4-08 conformance 状态仍见 6.2）
 
 ### 6.2 VectorStore backend
 

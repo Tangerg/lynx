@@ -683,11 +683,17 @@ flowchart LR
 
 目标：保留 AI 应用级语义，同时清除富对象和胖接口。
 
-- [ ] **P4-01 将 Document 收缩为纯数据**
+- [x] **P4-01 将 Document 收缩为纯数据**（完成：2026-07-14）
   - 移除 Score、Formatter、EnsureID 行为。
   - 建立 `documentpipeline` module，承接 formatter、transformer、batcher 和 ID generator 实现；`rag`/`vectorstores` 在消费包声明窄 Formatter/Batcher 接口。
   - 这是同路径原子纵向切片：不增加兼容字段，P4-01 同一逻辑批次迁完全部消费者并删除旧行为。
-- [ ] **P4-02 增加 vectorstore.Match**
+  - `Document` 现只保留 `ID`、`Text`、`Media`、`Metadata` 与数据校验；Metadata 统一为 JSON-safe `metadata.Map`。
+  - Core 中的 formatter/transformer/batcher/ID generator、文本/JSON reader 已分别迁至 `documentpipeline`、`documentreaders`，旧实现和 `core/document/id` 已删除。
+  - 证据：`de6f778ee`；workspace 19/19 模块门禁以及 Core、documentpipeline、documentreaders、RAG、全部 vectorstore 包 race 全绿。
+- [x] **P4-02 增加 vectorstore.Match**（完成：2026-07-14）
+  - `vectorstore.Match` 显式承载 `Document` 与 `Score`；27 个 backend 的搜索结果全部迁移。
+  - RAG 使用自己的 `Candidate`，由 vectorstore retriever 显式映射，避免通用 RAG 契约反向依赖具体检索实现。
+  - 证据：`16332a7d0`；全 workspace 门禁及 RAG/vectorstores race 全绿，`Document.Score` 与替代性的 metadata score 均不存在。
 - [ ] **P4-03 用 Indexer/Searcher/IDDeleter/FilterDeleter 替代胖 Store 要求**
 - [ ] **P4-04 简化 Add/Delete 单字段 request wrapper**
   - 多参数搜索保留 SearchRequest。
@@ -790,18 +796,18 @@ flowchart LR
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
-| P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
+| P4 Document/VectorStore | 进行中 | 2/9 | Document 纯数据与 Match 已完成；进入能力接口拆分 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **29/60** | **48%** |
+| **总计** | **进行中** | **31/60** | **52%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P4。
-- 下一任务：执行 P4-01，将 `core/document.Document` 收缩为纯数据，并在同一纵向切片中建立 `documentpipeline`、迁完 formatter/transformer/batcher/ID 消费者、删除旧行为。
+- 下一任务：执行 P4-03，以 `Indexer`、`Searcher`、`IDDeleter`、`FilterDeleter` 替代胖 `Store` 要求，并直接迁移真实消费者。
 - 当前阻塞：无。
-- 最近完成：P3-09 与 P3 阶段验收；目标 API quick start、可运行 tool-loop 示例及 ChatClient/Tools GoDoc examples 已建立，受影响模块 race 与 workspace 72 项门禁全绿。
+- 最近完成：P4-01/P4-02 原子纵向切片；Document 已成为纯数据，运行时策略移至 `documentpipeline`/`documentreaders`，检索分数改由 `vectorstore.Match` 与 RAG `Candidate` 承载，workspace 19/19 与受影响模块 race 全绿。
 
 ### 10.3 进度更新规则
 
@@ -1007,6 +1013,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：禁止 alias/bridge/shim、兼容字段、dual-read/dual-write 和旧 wire 解码；新旧路径只能因尚有真实消费者而短期同时存在，最后消费者迁移的同一批次直接删除旧实现；历史持久化数据由应用升级前做显式一次性迁移。
 - 原因：目标是一次彻底的 v0 架构切换，兼容分支会永久扩大测试矩阵、掩盖未迁消费者并把重构债务带入稳定 API。
 
+### ADR-009：Document 纯数据与检索结果分离作为同一原子切片
+
+- 日期：2026-07-14
+- 状态：已采纳
+- 决策：P4-01/P4-02 在同一逻辑批次完成；`Document` 不通过字段或 metadata 暂存 score，vectorstore 使用 `Match`，RAG 使用自己的 `Candidate` 并在 adapter 边界显式映射。
+- 原因：先删除 Score 会迫使中间提交引入隐式传值协议，先保留 Score 又无法证明纯数据边界；两个独立结果类型也避免通用 RAG 契约耦合 vectorstore。
+
 ---
 
 ## 16. 长期完成定义
@@ -1027,6 +1040,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P4-01/P4-02；Document 收缩为纯数据，pipeline/reader 策略移出 Core，检索关系由 vectorstore.Match 与 RAG Candidate 显式承载；采纳 ADR-009 | Codex |
 | 2026-07-14 | 完成 P3-09 与 P3 阶段验收；新增只使用目标 API 的 quick start、无凭证可运行 tool-loop 示例和 ChatClient/Tools GoDoc examples；进入 P4 | Codex |
 | 2026-07-14 | 完成 P3-08；建立基于新 Chat/Tool 契约的 lazy Event Runner 与可序列化 checkpoint/resume，删除 Core Halt/ControlFlowError 并迁完真实消费者；旧 middleware 不做 bridge、按 P6 直接删除 | Codex |
 | 2026-07-14 | 完成 P3-07；在唯一 `tools.Tool/Registry` 目标面增加 strict typed-function helper 与反向依赖守卫，冻结仍有真实消费者的旧 Core Tool 构造器，不增加兼容转发 | Codex |
@@ -1066,6 +1080,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P4-01、P4-02 | `16332a7d0` 将 27 个 vectorstore backend 返回值迁为 `Match`，并以 RAG `Candidate` 隔离通用契约；`de6f778ee` 将 Document 收缩为 `ID/Text/Media/Metadata`，新增 `documentpipeline`、迁移 text/JSON reader 到 `documentreaders`，删除 Core runtime policy 与 `document/id`；workspace 19/19 及 Core/documentpipeline/documentreaders/RAG/vectorstores race 全绿；任务计数 31/60 | P4-03 小能力接口替代胖 Store |
 | 2026-07-14 | P3-09、P3 阶段验收 | `22acec1e9` 新增目标 API quick start、可运行并有输出测试的 `agent/examples/toolloop`、ChatClient Call/Stream/Template/Structured 与 Tools typed-function GoDoc examples；旧路径未进入新用户入口；Agent/ChatClient/Tools race、示例实跑与 workspace 72/72 全绿；任务计数 29/60，P3 9/9 完成 | P4-01 Document 纯数据与 documentpipeline 原子纵向切片 |
 | 2026-07-14 | P3-08 | `ab30d8943` 新增新协议 `Runner`、保守串行工具策略、普通错误反馈、all-direct、六类边界 Event 与 JSON-safe checkpoint/resume；`7ecf915e5` 删除 Core Halt/ControlFlowError 并把 agent HITL/app runtime 直接迁到 agent 所有权；目标 coverage 91.2%，Core/Agent race 与 workspace 72/72 全绿；任务计数 28/60，P3 8/9 | P3-09 用户示例、最小上手路径与 P3 阶段验收 |
 | 2026-07-14 | P3-07 | `e8749bc36` 在 `tools` 根包增加 struct-only schema 推导、strict JSON decode、string/JSON 输出的 typed function Tool，并以 AST/reflect 守卫锁定唯一两方法 Tool/Registry 边界；未桥接仍有 21 文件/38 调用点的旧 `chat.NewTool`；coverage 92.7%、tools race 与 workspace 72/72 全绿；任务计数 27/60，P3 7/9 | P3-08 tool-loop/Halt/control-flow 迁移 |
