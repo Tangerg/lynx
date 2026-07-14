@@ -49,7 +49,7 @@
 - System Message 在 provider request 层合并，但 Core conversation 保留原消息边界。
 - content blocks 原生保序；thinking 的 signature 必须逐 Part 保存并在续轮原样回放。
 - redacted thinking 没有可见文本，保存到 `anthropic/redacted_reasoning` Message Metadata。
-- prompt cache breakpoint、extended thinking 等原生参数由 `anthropic/request` 承载；cache read/create token 分别映射到 Usage 两个可选字段。
+- prompt cache breakpoint、extended thinking 等原生参数由 `anthropic/request` 承载；原生 `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` 归一化为 Core 总 `InputTokens`，两个 cache 分量分别映射到 Usage 可选 breakdown，原始计数保留在 `anthropic/usage`。
 
 ### 3.3 Google Gemini
 

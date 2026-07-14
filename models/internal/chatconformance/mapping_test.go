@@ -155,6 +155,9 @@ func assertAnthropic(t *testing.T, request *chat.Request, response *chat.Respons
 	if response.Usage.CacheReadInputTokens == nil || *response.Usage.CacheReadInputTokens != 40 {
 		t.Fatalf("Anthropic cache-read usage = %v", response.Usage.CacheReadInputTokens)
 	}
+	if response.Usage.InputTokens != 160 {
+		t.Fatalf("Anthropic total input usage = %d, want 160", response.Usage.InputTokens)
+	}
 	if response.Usage.CacheWriteInputTokens == nil || *response.Usage.CacheWriteInputTokens != 20 {
 		t.Fatalf("Anthropic cache-write usage = %v", response.Usage.CacheWriteInputTokens)
 	}

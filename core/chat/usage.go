@@ -11,6 +11,8 @@ var ErrInvalidUsage = errors.New("chat: invalid usage")
 // Usage records provider-neutral token counts. Breakdown pointers distinguish
 // an explicitly reported zero from an unsupported dimension.
 type Usage struct {
+	// InputTokens is the total processed input count. Provider cache-read and
+	// cache-write counts, when reported, are breakdowns included in this total.
 	InputTokens           int64  `json:"input_tokens,omitempty"`
 	OutputTokens          int64  `json:"output_tokens,omitempty"`
 	ReasoningTokens       *int64 `json:"reasoning_tokens,omitempty"`
