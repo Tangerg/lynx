@@ -7,7 +7,7 @@
 
 本文记录 Core 重构前的编译器可见公共面、workspace 直接消费关系和后续迁移批次。它解决“改什么、谁会受影响、何时删除”的问题；它不是永久兼容承诺。P7 建立机械 API diff baseline 后，以工具输出判断签名兼容性。
 
-执行状态：P4、P5-01、P5-02、P5-03、P5-04 与 P5-05 已于 2026-07-14 完成。五个旧 `core/model/<modality>` 路径已无兼容层地直接移动到 Core 顶层，五个 modality SPI 也已完成最小化；provider reference data 已归入公开 `models/catalog`，credential 已回归各 provider 配置，tokenizer 已成为独立 module。下文数量表和未特别标注的声明列表仍是重构前基线，已迁 package 会同时标明当前路径。
+执行状态：P4、P5-01 至 P5-06 已于 2026-07-14 完成。五个旧 `core/model/<modality>` 路径已无兼容层地直接移动到 Core 顶层，五个 modality SPI 也已完成最小化；provider reference data 已归入公开 `models/catalog`，credential 已回归各 provider 配置，tokenizer 已成为独立 module，Core 对 sibling helper 与 cast 的生产 import 已清零。下文数量表和未特别标注的声明列表仍是重构前基线，已迁 package 会同时标明当前路径。
 
 ## 1. 口径与结论
 
@@ -252,7 +252,9 @@ NewResult, ProbeDimensions, ResolveDimensions
 `Model` 只含 `Call`；`Dimensioner` 独立且显式返回错误。旧 `ClientRequest`、
 `ClientCaller`、handler/middleware/chain、`ModelMetadata`、`GetDimensions` 和
 全局维度 cache 已物理删除，所有真实 provider/vectorstore/runtime 消费点已切换，
-未保留 alias、bridge 或 deprecated wrapper。证据：`7cd3865c3`。
+未保留 alias、bridge 或 deprecated wrapper。P5-06 后 `ResultMetadata.MIMEType`
+是普通 MIME 字符串，空值表示 provider 未返回，不再暴露 `pkg/mime` 类型。证据：
+`7cd3865c3`、`fda80088d`。
 
 ### model/image
 
@@ -272,6 +274,10 @@ Image, Model, ModelFunc, Options, Request, Response, ResponseFormat,
 ResponseMetadata, Result, ResultMetadata, MergeOptions, NewImage, NewOptions,
 NewRequest, NewResponse, NewResult
 ```
+
+P5-06 后 `Options.OutputFormat` 是普通图片 MIME 字符串；`MergeOptions` 使用标准库
+解析并规范化，拒绝非 `image/*`、带参数或语法错误的值。Core 不再向调用方传递
+`pkg/mime.MIME` 契约。证据：`fda80088d`。
 
 ### model/moderation
 

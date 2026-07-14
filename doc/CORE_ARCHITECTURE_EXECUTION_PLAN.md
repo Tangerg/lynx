@@ -761,7 +761,11 @@ flowchart LR
   - P5 才创建 `core/embedding`、`core/image`、`core/transcription`、`core/speech`、`core/moderation`；旧路径冻结并登记 P6 删除。
   - 按 ADR-008 直接移动五个 package 并同步迁移全部真实 import；旧路径物理删除，未建立冻结副本、alias 或 bridge，因此不再把路径债务推迟到 P6。
   - 证据：`444dfd3bc`；164 个文件原子切换，Core、models、vectorstores、app/runtime 测试全绿，旧五条 import path 检索为 0。
-- [ ] **P5-06 清除 Core 对 pkg helper 的非必要依赖**
+- [x] **P5-06 清除 Core 对 pkg helper 的非必要依赖**（完成：2026-07-14）
+  - Core 生产代码对 `pkg/*` 与 `cast` 的 import 已清零；clone、slice、template 和标量编码等简单操作改用标准库或包内私有实现，不复制公共 helper framework。
+  - 公共 MIME 字段统一为普通字符串：`image.Options.OutputFormat` 在合并边界用标准库解析、规范化并拒绝非图片类型/参数，`embedding.ResultMetadata.MIMEType` 使用空字符串表达 provider 未返回。
+  - 冻结旧 Chat 的 schema 推导直接声明唯一第三方依赖 `invopop/jsonschema`，不再经 `pkg/json` 转发；该代码和依赖登记到 P6-05/P6-06 删除，不构成目标 API 例外。
+  - 证据：`fda80088d`、`38d18de01`；Core/Models build、vet、lint、test、race 及 Models standalone test 全绿。
 - [ ] **P5-07 让所有目标新包达到标准库依赖目标**
   - 冻结旧包造成的残余依赖登记到 P6 删除清单。
   - 任何计划保留的最终依赖必须写 ADR、用途、替代方案和退出条件。
@@ -828,17 +832,17 @@ flowchart LR
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
-| P5 其余模态与依赖 | 进行中 | 5/7 | tokenizer module 与 Core 删除完成；进入 pkg helper 清理 |
+| P5 其余模态与依赖 | 进行中 | 6/7 | Core sibling helper/cast 已清零；进入目标包依赖阶段验收 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **43/60** | **72%** |
+| **总计** | **进行中** | **44/60** | **73%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P5。
-- 下一任务：执行 P5-06，清除 Core 对 `pkg` helper 和 cast 的非必要依赖。
+- 下一任务：执行 P5-07，固化目标新包仅依赖标准库的门禁并完成 P5 阶段验收。
 - 当前阻塞：无。
-- 最近完成：P5-04；独立 tokenizer module 与 tiktoken 实现包已建立，真实消费者完成切换，Core 旧 tokenizer、复合伪能力和外部依赖已删除。
+- 最近完成：P5-06；Core 的 sibling helper/cast import 已清零，MIME 公共字段改为标准字符串，冻结旧 Chat 的唯一 schema 依赖已显式登记 P6 删除。
 
 ### 10.3 进度更新规则
 
@@ -1086,6 +1090,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：tokenizer 根 module 只定义文本计数、编码、解码的小接口，具体 tiktoken 词表位于实现子包；Core 不定义或实现 tokenization。删除把 TextEstimator 与 MediaEstimator 强制并集的 Estimator，消费方只要求自己调用的方法。
 - 原因：tokenization 是模型词表或 provider endpoint 的实现细节，不是 AI wire protocol；旧 MediaEstimator 没有生产消费者，tiktoken 对任意媒体原始字节计数也不代表真实多模态计费。独立 module 保留可组合能力，同时避免 Core 向实现 SDK 和伪精确媒体语义扩张。
 
+### ADR-015：Core 不用 sibling helper 类型塑造公共契约
+
+- 日期：2026-07-14
+- 状态：已采纳
+- 决策：Core 的公共 MIME 值使用经过边界校验的标准字符串；clone、slice、template、标量格式化等简单操作使用标准库或就地私有代码，禁止为复用少量代码重新依赖 `pkg` 或 `cast`。冻结旧 Chat 的 JSON Schema 推导直接声明具体实现依赖，并在 P6 随旧包删除，不建立 wrapper。
+- 原因：把 sibling helper 的自定义类型放进 DTO 会把辅助包变成所有 Core 消费方的传递契约；隐藏第三方依赖的 wrapper 也不会降低真实依赖成本。普通字符串更符合 `net/http` 等标准库边界风格，而验证责任仍明确留在接收该值的 API 边界。
+
 ---
 
 ## 16. 长期完成定义
@@ -1106,6 +1117,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P5-06；清除 Core 全部 pkg helper/cast import，以标准 MIME 字符串和标准库/私有小实现替代，并采纳 ADR-015 | Codex |
 | 2026-07-14 | 完成 P5-04；建立独立 tokenizer module/tiktoken 实现包，按真实消费能力删除 Estimator/MediaEstimator，并从 Core 移除 tokenizer 路径与依赖；采纳 ADR-014 | Codex |
 | 2026-07-14 | 完成 P5-03；模型目录/能力/计价迁入公开 models/catalog，provider credential 回归具体配置，删除 Core catalog/APIKey 并采纳 ADR-013 | Codex |
 | 2026-07-14 | 完成 P5-02；四个模态收缩为单方法能力，Speech 独立 Model/Streamer，删除无生产消费者的 Core Client framework 并采纳 ADR-012 | Codex |
@@ -1154,6 +1166,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P5-06 | `fda80088d` 用 stdlib/包内私有实现替代 Core 的 ptr/slices/text/json/mime helper 与 cast，公共图片/embedding MIME 改为标准字符串并迁完 Models；冻结旧 Chat 只显式保留 `invopop/jsonschema` 到 P6；`38d18de01` 固化 Models 可独立解析的新 Core 伪版本；Core/Models build、vet、lint、test、race 与 Models standalone test 全绿；任务计数 44/60 | P5-07 目标新包 dependency budget 与 P5 阶段验收 |
 | 2026-07-14 | P5-04 | `687df9b60` 建立无 Core 依赖的小能力 tokenizer module 与独立 tiktoken 实现/架构守卫；`6953b45da` 将 DocumentPipeline、Anthropic、Google 迁到新协议，删除无消费者的 Estimator/MediaEstimator、`core/tokenizer` 和 Core tiktoken 依赖；`c0b679029` 固化可脱离 go.work 解析的真实伪版本图；20 module 的 80 项 build/vet/test/lint、四个受影响 module race 及 Models/DocumentPipeline standalone test 全绿；任务计数 43/60 | P5-06 清除 Core pkg helper/cast 依赖 |
 | 2026-07-14 | P5-03 | `18d2e7a50` 将 catalog 配置、生成器、模型卡/能力/限制/价格和 stdlib loader 从 internal/Core 迁入公开 `models/catalog`，删除 provider constructor 的 catalog lookup；`a68df8bd2` 将 38 个 provider/facade 及 runtime 的 APIKey 改为普通字符串，删除 `core/model.APIKey`，新增 App secret 脱敏与 Core 架构守卫；Core/Models/App build、vet、lint、test、race 全绿；任务计数 42/60 | P5-04 独立 tokenizer module 与 tiktoken 实现迁移 |
 | 2026-07-14 | P5-02 | `c27886f59` 将 Image/Transcription/Moderation 收缩为单方法 Model，将 Speech 拆为独立 Model/Streamer；删除四个包仅由 Core 自测使用的 Client/fluent/middleware/metadata framework，迁完 25 个具体 provider 与 6 个 facade；Core/Models build、vet、lint、test、race 全绿；任务计数 41/60 | P5-03 catalog/capabilities/APIKey 归属迁移 |

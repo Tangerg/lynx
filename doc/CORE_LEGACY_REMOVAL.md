@@ -90,6 +90,15 @@ P5-04 在 `687df9b60` 建立独立 `tokenizer` module 与 `tokenizer/tiktoken`
 Tokenizer；`c0b679029` 固化可独立解析的 module graph。未建立旧路径转发包、
 type alias 或复合能力兼容接口。
 
+## P5 直接删除记录：Core sibling helper 与 cast
+
+P5-06 在 `fda80088d` 中删除 Core 对 `pkg/{json,mime,ptr,slices,text}` 和
+`github.com/spf13/cast` 的全部生产 import；简单操作使用标准库或包内私有代码，
+图片和 embedding 的公共 MIME 字段改为普通字符串并同步迁完 provider。没有保留
+helper 类型 alias、转换 wrapper 或双字段 DTO。冻结旧 Chat 的 schema 推导改为直接
+声明 `invopop/jsonschema`，它仅服务 LEGACY-CHAT-003，并在 P6-05 删除旧包、P6-06
+整理 go.mod 时一并删除。
+
 ## 台账维护规则
 
 1. P2～P5 每发现一个为迁移保留的旧表面，都必须在同一逻辑提交登记目标替代、消费方、迁移任务和删除任务。
