@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -79,6 +80,21 @@ func NewToolMessage(results ...ToolResult) Message {
 	return Message{Role: RoleTool, Parts: parts}
 }
 
+// Text concatenates text parts in order. It is nil-safe and ignores media,
+// reasoning, and tool parts.
+func (m *Message) Text() string {
+	if m == nil {
+		return ""
+	}
+	var text strings.Builder
+	for i := range m.Parts {
+		if m.Parts[i].Kind == PartText {
+			text.WriteString(m.Parts[i].Text)
+		}
+	}
+	return text.String()
+}
+
 // Validate verifies the role, every nested protocol value, metadata, and the
 // role/part compatibility matrix.
 func (m Message) Validate() error {
@@ -135,7 +151,7 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 	type wireMessage Message
 	var decoded wireMessage
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("chat: decode message: %w", err)
+		return fmt.Errorf("%w: decode: %w", ErrInvalidMessage, err)
 	}
 	candidate := Message(decoded)
 	if err := candidate.Validate(); err != nil {

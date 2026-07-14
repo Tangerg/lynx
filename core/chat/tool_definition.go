@@ -50,7 +50,7 @@ func (d *ToolDefinition) UnmarshalJSON(data []byte) error {
 	type wireToolDefinition ToolDefinition
 	var decoded wireToolDefinition
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("chat: decode tool definition: %w", err)
+		return fmt.Errorf("%w: decode: %w", ErrInvalidToolDefinition, err)
 	}
 	candidate := ToolDefinition(decoded)
 	if err := candidate.Validate(); err != nil {
