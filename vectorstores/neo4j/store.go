@@ -11,10 +11,12 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
@@ -93,7 +95,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upsert. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// Dimensions sets the vector width recorded in the index
 	// definition. When zero, falls back to the embedding model's
@@ -160,7 +162,7 @@ type Store struct {
 	metadataPrefix    string
 	embeddingModel    embedding.Model
 	embeddingClient   *embedding.Client
-	documentBatcher   document.Batcher
+	documentBatcher   vectorstores.Batcher
 	dimensions        int
 	similarity        SimilarityFunction
 }
@@ -297,9 +299,13 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			if id == "" {
 				id = uuid.NewString()
 			}
+			properties, err := s.documentProperties(doc)
+			if err != nil {
+				return fmt.Errorf("neo4j: decode metadata for %s: %w", id, err)
+			}
 			rows = append(rows, map[string]any{
 				"id":         id,
-				"properties": s.documentProperties(doc),
+				"properties": properties,
 				"embedding":  math.ConvertSlice[float64, float32](vectors[i]),
 			})
 		}
@@ -320,17 +326,21 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 // documentProperties assembles the property map written onto the
 // upserted node — text plus metadata, with metadata keys optionally
 // flattened under the configured prefix.
-func (s *Store) documentProperties(doc *document.Document) map[string]any {
+func (s *Store) documentProperties(doc *document.Document) (map[string]any, error) {
+	metadataValues, err := doc.Metadata.Values()
+	if err != nil {
+		return nil, err
+	}
 	props := make(map[string]any, len(doc.Metadata)+1)
 	props[s.textProperty] = doc.Text
 	prefix := ""
 	if s.metadataPrefix != "" {
 		prefix = s.metadataPrefix + "."
 	}
-	for k, v := range doc.Metadata {
+	for k, v := range metadataValues {
 		props[prefix+k] = v
 	}
-	return props
+	return props, nil
 }
 
 // Retrieve calls db.index.vector.queryNodes and returns matching
@@ -455,7 +465,11 @@ func (s *Store) recordToMatch(rec *neo4j.Record) (vectorstore.Match, error) {
 			}
 		}
 		if len(meta) > 0 {
-			doc.Metadata = meta
+			var err error
+			doc.Metadata, err = metadata.FromValues(meta)
+			if err != nil {
+				return vectorstore.Match{}, fmt.Errorf("neo4j: encode metadata: %w", err)
+			}
 		}
 	}
 	return vectorstore.Match{Document: doc, Score: score}, nil

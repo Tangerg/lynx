@@ -2,9 +2,8 @@ package document
 
 import "context"
 
-// Reader sources documents — from files, databases, APIs, or any other
-// origin. Concrete readers live alongside this interface
-// ([reader_text.go], [reader_json.go]).
+// Reader sources documents from files, databases, APIs, or another origin.
+// Concrete readers live outside core.
 type Reader interface {
 	Read(ctx context.Context) ([]*Document, error)
 }
@@ -17,48 +16,4 @@ type Writer interface {
 	// later document may or may not roll back earlier writes; consult
 	// the implementation's docs.
 	Write(ctx context.Context, docs []*Document) error
-}
-
-// MetadataMode selects how much metadata a [Formatter] embeds in its
-// output — full dump for debugging, embedding-friendly subset for
-// vector stores, inference-time-only fields for prompts, or none when
-// the consumer cares only about the body.
-type MetadataMode string
-
-func (m MetadataMode) String() string { return string(m) }
-
-const (
-	MetadataModeAll MetadataMode = "all"
-
-	// MetadataModeEmbed includes only metadata appropriate for vector
-	// embedding generation.
-	MetadataModeEmbed MetadataMode = "embed"
-
-	// MetadataModeInference includes only metadata that should reach
-	// the model at prompt time.
-	MetadataModeInference MetadataMode = "inference"
-
-	MetadataModeNone MetadataMode = "none"
-)
-
-// Formatter renders a document as a string. Implementations must
-// handle nil documents gracefully and respect the supplied mode.
-type Formatter interface {
-	Format(doc *Document, mode MetadataMode) string
-}
-
-// Transformer is one stage in a document-processing pipeline —
-// splitting, filtering, enriching, deduplicating, etc. The output
-// length may differ from the input length.
-type Transformer interface {
-	Transform(ctx context.Context, docs []*Document) ([]*Document, error)
-}
-
-// Batcher carves a document slice into chunks that fit downstream
-// service constraints (token limits, request size). Document order MUST
-// be preserved across batches so callers can map results back by index.
-type Batcher interface {
-	// Batch returns sub-slices of docs sized for downstream consumers.
-	// Concatenating the returned batches reproduces docs.
-	Batch(ctx context.Context, docs []*Document) ([][]*Document, error)
 }

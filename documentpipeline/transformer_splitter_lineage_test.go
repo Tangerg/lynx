@@ -1,15 +1,17 @@
-package document_test
+package documentpipeline_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/document/id"
+	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/documentpipeline"
+	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
 func TestSplitter_StampsChunkLineage(t *testing.T) {
-	splitter, err := document.NewSplitter(document.SplitterConfig{
+	splitter, err := documentpipeline.NewSplitter(documentpipeline.SplitterConfig{
 		SplitFunc: func(_ context.Context, text string) ([]string, error) {
 			// Includes an empty chunk to verify it is dropped before
 			// chunk_index / chunk_total are computed.
@@ -22,7 +24,7 @@ func TestSplitter_StampsChunkLineage(t *testing.T) {
 
 	parent, _ := document.NewDocument("ignored", nil)
 	parent.ID = "parent-1"
-	parent.Metadata["source"] = "manual"
+	_ = metadata.Set(parent.Metadata, "source", "manual")
 
 	chunks, err := splitter.Transform(context.Background(), []*document.Document{parent})
 	if err != nil {
@@ -33,23 +35,23 @@ func TestSplitter_StampsChunkLineage(t *testing.T) {
 	}
 
 	for i, chunk := range chunks {
-		if chunk.Metadata[document.MetadataKeyChunkIndex] != i {
-			t.Fatalf("chunk %d: chunk_index = %v", i, chunk.Metadata[document.MetadataKeyChunkIndex])
+		if value, ok, _ := metadata.Decode[int](chunk.Metadata, documentpipeline.MetadataKeyChunkIndex); !ok || value != i {
+			t.Fatalf("chunk %d: chunk_index = %v", i, value)
 		}
-		if chunk.Metadata[document.MetadataKeyChunkTotal] != 3 {
-			t.Fatalf("chunk %d: chunk_total = %v", i, chunk.Metadata[document.MetadataKeyChunkTotal])
+		if value, ok, _ := metadata.Decode[int](chunk.Metadata, documentpipeline.MetadataKeyChunkTotal); !ok || value != 3 {
+			t.Fatalf("chunk %d: chunk_total = %v", i, value)
 		}
-		if chunk.Metadata[document.MetadataKeyParentID] != "parent-1" {
-			t.Fatalf("chunk %d: parent id = %v", i, chunk.Metadata[document.MetadataKeyParentID])
+		if value, ok, _ := metadata.Decode[string](chunk.Metadata, documentpipeline.MetadataKeyParentID); !ok || value != "parent-1" {
+			t.Fatalf("chunk %d: parent id = %v", i, value)
 		}
-		if chunk.Metadata["source"] != "manual" {
+		if value, ok, _ := metadata.Decode[string](chunk.Metadata, "source"); !ok || value != "manual" {
 			t.Fatalf("chunk %d: original metadata not carried through", i)
 		}
 	}
 }
 
 func TestSplitter_NoParentIDWhenSourceUnidentified(t *testing.T) {
-	splitter, _ := document.NewSplitter(document.SplitterConfig{
+	splitter, _ := documentpipeline.NewSplitter(documentpipeline.SplitterConfig{
 		SplitFunc: func(_ context.Context, _ string) ([]string, error) {
 			return []string{"x"}, nil
 		},
@@ -58,13 +60,13 @@ func TestSplitter_NoParentIDWhenSourceUnidentified(t *testing.T) {
 	parent, _ := document.NewDocument("body", nil) // ID stays ""
 	chunks, _ := splitter.Transform(context.Background(), []*document.Document{parent})
 
-	if _, ok := chunks[0].Metadata[document.MetadataKeyParentID]; ok {
+	if _, ok := chunks[0].Metadata[documentpipeline.MetadataKeyParentID]; ok {
 		t.Fatal("parent_document_id must be absent when source has no id")
 	}
 }
 
 func TestSplitter_AssignsChunkIDs(t *testing.T) {
-	splitter, _ := document.NewSplitter(document.SplitterConfig{
+	splitter, _ := documentpipeline.NewSplitter(documentpipeline.SplitterConfig{
 		IDGenerator: id.NewSha256Generator(nil),
 		SplitFunc: func(_ context.Context, _ string) ([]string, error) {
 			return []string{"x", "y"}, nil

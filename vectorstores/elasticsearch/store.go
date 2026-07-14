@@ -9,9 +9,9 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v8"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/vectorstores"
 )
 
 const Provider = "Elasticsearch"
@@ -76,7 +76,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before bulk upsert. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// Dimensions sets the dense_vector dims registered with the
 	// index. When zero the store asks the embedding model and falls
@@ -144,7 +144,7 @@ type Store struct {
 	metadataField    string
 	embeddingModel   embedding.Model
 	embeddingClient  *embedding.Client
-	documentBatcher  document.Batcher
+	documentBatcher  vectorstores.Batcher
 	dimensions       int
 	similarity       SimilarityFunction
 	numCandidatesMul float64

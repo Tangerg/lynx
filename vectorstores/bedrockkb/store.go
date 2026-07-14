@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
@@ -169,7 +170,11 @@ func toMatch(r types.KnowledgeBaseRetrievalResult) (vectorstore.Match, error) {
 			}
 			meta[k] = decoded
 		}
-		doc.Metadata = meta
+		var err error
+		doc.Metadata, err = metadata.FromValues(meta)
+		if err != nil {
+			return vectorstore.Match{}, fmt.Errorf("bedrockkb: encode metadata: %w", err)
+		}
 	}
 
 	// Bedrock doesn't expose stable per-row identifiers; use the

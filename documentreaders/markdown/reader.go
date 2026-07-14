@@ -14,6 +14,7 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"github.com/Tangerg/lynx/core/document"
+	coremetadata "github.com/Tangerg/lynx/core/metadata"
 )
 
 // Metadata keys written onto emitted documents.
@@ -116,7 +117,10 @@ func (r *Reader) readWhole(raw []byte) ([]*document.Document, error) {
 		return nil, fmt.Errorf("markdown: build document: %w", err)
 	}
 	if md := r.baseMetadata(); len(md) > 0 {
-		doc.Metadata = md
+		doc.Metadata, err = coremetadata.FromValues(md)
+		if err != nil {
+			return nil, fmt.Errorf("markdown: encode metadata: %w", err)
+		}
 	}
 	return []*document.Document{doc}, nil
 }
@@ -193,7 +197,10 @@ func (r *Reader) sectionsToDocuments(ctx context.Context, sections []*section) (
 			return nil, fmt.Errorf("markdown: build section document: %w", err)
 		}
 		if len(md) > 0 {
-			doc.Metadata = md
+			doc.Metadata, err = coremetadata.FromValues(md)
+			if err != nil {
+				return nil, fmt.Errorf("markdown: encode section metadata: %w", err)
+			}
 		}
 		docs = append(docs, doc)
 	}

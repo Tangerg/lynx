@@ -15,10 +15,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
@@ -76,7 +78,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upload. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// HTTPClient lets callers override transport (timeouts,
 	// proxies, mTLS for Vespa Cloud). Optional: defaults to
@@ -142,7 +144,7 @@ type Store struct {
 	idField         string
 	embeddingModel  embedding.Model
 	embeddingClient *embedding.Client
-	documentBatcher document.Batcher
+	documentBatcher vectorstores.Batcher
 	httpClient      *http.Client
 }
 
@@ -281,7 +283,10 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if score < req.MinScore {
 			continue
 		}
-		doc := s.toDocument(hit.ID, hit.Fields)
+		doc, err := s.toDocument(hit.ID, hit.Fields)
+		if err != nil {
+			return nil, err
+		}
 		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 	return docs, nil
@@ -365,7 +370,7 @@ func (s *Store) buildFilter(filter ast.Expr) (string, error) {
 	return v.Result(), nil
 }
 
-func (s *Store) toDocument(rawID string, fields map[string]any) *document.Document {
+func (s *Store) toDocument(rawID string, fields map[string]any) (*document.Document, error) {
 	doc := &document.Document{}
 	if id, ok := fields[s.idField].(string); ok {
 		doc.ID = id
@@ -390,9 +395,13 @@ func (s *Store) toDocument(rawID string, fields map[string]any) *document.Docume
 		meta[k] = v
 	}
 	if len(meta) > 0 {
-		doc.Metadata = meta
+		var err error
+		doc.Metadata, err = metadata.FromValues(meta)
+		if err != nil {
+			return nil, fmt.Errorf("vespa: encode metadata: %w", err)
+		}
 	}
-	return doc
+	return doc, nil
 }
 
 // do executes a JSON request against the Vespa endpoint.

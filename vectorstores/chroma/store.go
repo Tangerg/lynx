@@ -9,9 +9,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -63,7 +65,7 @@ type StoreConfig struct {
 
 	// DocumentBatcher is responsible for batching documents before insertion.
 	// Required: must be provided.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// StoreDocumentContent determines whether to store and retrieve the original
 	// document text in Chroma's native text field.
@@ -109,7 +111,7 @@ type Store struct {
 	collection           v2.Collection
 	collectionName       string
 	embeddingClient      *embedding.Client
-	documentBatcher      document.Batcher
+	documentBatcher      vectorstores.Batcher
 	distanceMetric       DistanceMetric
 	storeDocumentContent bool
 }
@@ -237,7 +239,11 @@ func (s *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) 
 		f32 := math.ConvertSlice[float64, float32](vectors[i])
 		embs = append(embs, chromaEmbed.NewEmbeddingFromFloat32(f32))
 
-		meta, err := v2.NewDocumentMetadataFromMap(doc.Metadata)
+		metadataValues, err := doc.Metadata.Values()
+		if err != nil {
+			return nil, fmt.Errorf("chroma: decode metadata for document %d: %w", i, err)
+		}
+		meta, err := v2.NewDocumentMetadataFromMap(metadataValues)
 		if err != nil {
 			return nil, fmt.Errorf("chroma: failed to convert metadata for document %d: %w", i, err)
 		}
@@ -329,10 +335,10 @@ func (s *Store) buildQueryOptions(req *vectorstore.RetrievalRequest, queryVector
 
 // buildDocumentsFromResult assembles Lynx Documents from the parallel slices
 // returned by the QueryResult interface, applying the MinScore threshold.
-func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64) []vectorstore.Match {
+func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64) ([]vectorstore.Match, error) {
 	idGroups := result.GetIDGroups()
 	if len(idGroups) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	ids := idGroups[0]
@@ -371,13 +377,17 @@ func (s *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64
 		}
 
 		if i < len(metaGroup) && metaGroup[i] != nil {
-			doc.Metadata = metadataToMap(metaGroup[i])
+			var err error
+			doc.Metadata, err = metadata.FromValues(metadataToMap(metaGroup[i]))
+			if err != nil {
+				return nil, fmt.Errorf("chroma: encode metadata: %w", err)
+			}
 		}
 
 		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 
-	return docs
+	return docs, nil
 }
 
 // Retrieve embeds the query in req, searches Chroma, and returns matching documents.
@@ -412,7 +422,10 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("chroma: failed to query collection %s: %w", s.collectionName, err)
 	}
 
-	docs = s.buildDocumentsFromResult(result, req.MinScore)
+	docs, err = s.buildDocumentsFromResult(result, req.MinScore)
+	if err != nil {
+		return nil, err
+	}
 	return docs, nil
 }
 

@@ -15,6 +15,6 @@
 // All sub-modules implement [document.Reader] from
 // github.com/Tangerg/lynx/core/document and emit ordinary
 // [*document.Document] values — downstream splitters, embedders and
-// vector stores see no difference between text/JSON readers (in core)
-// and these external-format readers.
+// vector stores see no difference between the text/JSON readers in this
+// package and the external-format readers.
 package documentreaders

@@ -1,12 +1,13 @@
-package document
+package documentpipeline
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document/id"
+	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/tokenizer"
+	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
 // Default sizing for [TokenSplitter]. The numbers come from common
@@ -27,13 +28,12 @@ type TokenSplitterConfig struct {
 	MinEmbedLength int
 	MaxChunkCount  int
 	KeepSeparator  bool
-	CopyFormatter  bool
 	IDGenerator    id.Generator
 }
 
 func (c *TokenSplitterConfig) Validate() error {
 	if c.Tokenizer == nil {
-		return errors.New("document.TokenSplitterConfig: Tokenizer is required")
+		return errors.New("documentpipeline.TokenSplitterConfig: Tokenizer is required")
 	}
 	return nil
 }
@@ -66,7 +66,6 @@ type TokenSplitter struct {
 	minEmbedLength int
 	maxChunkCount  int
 	keepSeparator  bool
-	copyFormatter  bool
 	splitter       *Splitter
 }
 
@@ -83,12 +82,10 @@ func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
 		minEmbedLength: config.MinEmbedLength,
 		maxChunkCount:  config.MaxChunkCount,
 		keepSeparator:  config.KeepSeparator,
-		copyFormatter:  config.CopyFormatter,
 	}
 	ts.splitter, _ = NewSplitter(SplitterConfig{
-		CopyFormatter: config.CopyFormatter,
-		SplitFunc:     ts.splitByTokens,
-		IDGenerator:   config.IDGenerator,
+		SplitFunc:   ts.splitByTokens,
+		IDGenerator: config.IDGenerator,
 	})
 	return ts, nil
 }
@@ -172,6 +169,6 @@ func lastSentenceEnd(s string) int {
 	)
 }
 
-func (t *TokenSplitter) Transform(ctx context.Context, docs []*Document) ([]*Document, error) {
+func (t *TokenSplitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
 	return t.splitter.Transform(ctx, docs)
 }

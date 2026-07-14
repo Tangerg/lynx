@@ -23,7 +23,7 @@ func TestWithMetadata_AppliedToEveryDocument(t *testing.T) {
 		t.Fatal("expected a document")
 	}
 	for i, d := range docs {
-		if d.Metadata["source"] != "page.html" || d.Metadata["tenant"] != "acme" {
+		if metadataValue[string](t, d.Metadata, "source") != "page.html" || metadataValue[string](t, d.Metadata, "tenant") != "acme" {
 			t.Fatalf("doc %d missing extra metadata: %v", i, d.Metadata)
 		}
 	}

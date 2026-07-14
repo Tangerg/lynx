@@ -15,8 +15,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -49,7 +51,7 @@ type StoreConfig struct {
 	CorpusKey string
 
 	// DocumentBatcher batches documents before upload. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// MetadataPrefix overrides the metadata accessor prefix used by
 	// the filter visitor. Optional: defaults to "doc" so filters
@@ -99,7 +101,7 @@ type Store struct {
 	apiKey          string
 	corpusKey       string
 	metadataPrefix  string
-	documentBatcher document.Batcher
+	documentBatcher vectorstores.Batcher
 	httpClient      *http.Client
 }
 
@@ -144,10 +146,14 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			if id == "" {
 				id = uuid.NewString()
 			}
+			metadataValues, err := doc.Metadata.Values()
+			if err != nil {
+				return fmt.Errorf("vectara: decode metadata for %s: %w", id, err)
+			}
 			payload := map[string]any{
 				"id":       id,
 				"type":     "core",
-				"metadata": metaOrEmpty(doc.Metadata),
+				"metadata": metaOrEmpty(metadataValues),
 				"document_parts": []any{
 					map[string]any{"text": doc.Text},
 				},
@@ -209,8 +215,12 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if hit.Score < req.MinScore {
 			continue
 		}
+		metadata, err := metadata.FromValues(hit.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("vectara: encode metadata: %w", err)
+		}
 		docs = append(docs, vectorstore.Match{
-			Document: &document.Document{ID: hit.DocumentID, Text: hit.Text, Metadata: hit.Metadata},
+			Document: &document.Document{ID: hit.DocumentID, Text: hit.Text, Metadata: metadata},
 			Score:    hit.Score,
 		})
 	}

@@ -1,18 +1,15 @@
-package document
+package documentpipeline
 
 import (
 	"context"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/document/id"
+	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
 type TextSplitterConfig struct {
 	Separator string
-
-	// CopyFormatter copies the source document's [Formatter] to each
-	// chunk. Defaults to false.
-	CopyFormatter bool
 
 	// IDGenerator, when set, assigns an id to every emitted chunk.
 	// nil leaves chunk IDs empty. See [SplitterConfig.IDGenerator].
@@ -29,7 +26,7 @@ var _ Transformer = (*TextSplitter)(nil)
 //
 // Example:
 //
-//	s := document.NewTextSplitter(document.TextSplitterConfig{Separator: "\n\n"})
+//	s := documentpipeline.NewTextSplitter(documentpipeline.TextSplitterConfig{Separator: "\n\n"})
 //	chunks, _ := s.Transform(ctx, []*document.Document{doc})
 type TextSplitter struct {
 	splitter *Splitter
@@ -44,8 +41,7 @@ func (c *TextSplitterConfig) ApplyDefaults() {
 func NewTextSplitter(config TextSplitterConfig) *TextSplitter {
 	config.ApplyDefaults()
 	splitter, _ := NewSplitter(SplitterConfig{
-		CopyFormatter: config.CopyFormatter,
-		IDGenerator:   config.IDGenerator,
+		IDGenerator: config.IDGenerator,
 		SplitFunc: func(_ context.Context, text string) ([]string, error) {
 			return strings.Split(text, config.Separator), nil
 		},
@@ -53,6 +49,6 @@ func NewTextSplitter(config TextSplitterConfig) *TextSplitter {
 	return &TextSplitter{splitter: splitter}
 }
 
-func (t *TextSplitter) Transform(ctx context.Context, docs []*Document) ([]*Document, error) {
+func (t *TextSplitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
 	return t.splitter.Transform(ctx, docs)
 }

@@ -17,9 +17,8 @@ var temporaryExternalImports = map[string]string{
 	"github.com/Tangerg/lynx/pkg/ptr":    "P5-06",
 	"github.com/Tangerg/lynx/pkg/slices": "P5-06",
 	"github.com/Tangerg/lynx/pkg/text":   "P5-06",
-	"github.com/google/uuid":             "P4-01",
 	"github.com/pkoukk/tiktoken-go":      "P5-04",
-	"github.com/spf13/cast":              "P4-01/P5-06",
+	"github.com/spf13/cast":              "P5-06",
 }
 
 func TestExternalImportsDoNotExceedMigrationBudget(t *testing.T) {

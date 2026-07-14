@@ -13,10 +13,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -47,7 +49,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upload. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// DistanceMetric records the metric the index was created with —
 	// the store uses this only to map the raw distance returned by
@@ -103,7 +105,7 @@ type Store struct {
 	indexName        string
 	embeddingModel   embedding.Model
 	embeddingClient  *embedding.Client
-	documentBatcher  document.Batcher
+	documentBatcher  vectorstores.Batcher
 	distanceMetric   DistanceMetric
 }
 
@@ -161,8 +163,12 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			if id == "" {
 				id = uuid.NewString()
 			}
-			meta := make(map[string]any, len(doc.Metadata)+1)
-			for k, v := range doc.Metadata {
+			metadataValues, err := doc.Metadata.Values()
+			if err != nil {
+				return fmt.Errorf("s3vectors: decode metadata for %s: %w", id, err)
+			}
+			meta := make(map[string]any, len(metadataValues)+1)
+			for k, v := range metadataValues {
 				meta[k] = v
 			}
 			// Stash the document text in metadata so retrieval can
@@ -337,7 +343,11 @@ func (s *Store) toMatch(hit types.QueryOutputVector, minScore float64) (*vectors
 			delete(meta, contentMetaKey)
 		}
 		if len(meta) > 0 {
-			doc.Metadata = meta
+			var err error
+			doc.Metadata, err = metadata.FromValues(meta)
+			if err != nil {
+				return nil, fmt.Errorf("s3vectors: encode metadata: %w", err)
+			}
 		}
 	}
 	return &vectorstore.Match{Document: doc, Score: score}, nil

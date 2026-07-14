@@ -15,10 +15,12 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -142,7 +144,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upsert. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// Dimensions sets the vector width registered with the index.
 	// When zero the store asks the embedding model for its native
@@ -225,7 +227,7 @@ type Store struct {
 	fieldTypes      map[string]MetadataFieldType
 	embeddingModel  embedding.Model
 	embeddingClient *embedding.Client
-	documentBatcher document.Batcher
+	documentBatcher vectorstores.Batcher
 	dimensions      int
 	distanceMetric  DistanceMetric
 	indexAlgorithm  IndexAlgorithm
@@ -446,11 +448,15 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			if id == "" {
 				id = uuid.NewString()
 			}
+			metadataValues, err := doc.Metadata.Values()
+			if err != nil {
+				return fmt.Errorf("redis: decode metadata for %s: %w", id, err)
+			}
 			fields := map[string]any{
 				s.contentField:   doc.Text,
 				s.embeddingField: float32sToBytes(math.ConvertSlice[float64, float32](vectors[i])),
 			}
-			for k, v := range doc.Metadata {
+			for k, v := range metadataValues {
 				fields[k] = formatMetadataValue(v)
 			}
 			pipe.HSet(ctx, s.keyPrefix+id, fields)
@@ -528,7 +534,11 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if score < req.MinScore {
 			continue
 		}
-		docs = append(docs, vectorstore.Match{Document: s.toDocument(hit), Score: score})
+		doc, err := s.toDocument(hit)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 	return docs, nil
 }
@@ -632,7 +642,7 @@ func (s *Store) scoreFromFields(fields map[string]string) (float64, error) {
 	return s.distanceToScore(dist), nil
 }
 
-func (s *Store) toDocument(hit goredis.Document) *document.Document {
+func (s *Store) toDocument(hit goredis.Document) (*document.Document, error) {
 	id := strings.TrimPrefix(hit.ID, s.keyPrefix)
 	doc := &document.Document{
 		ID:   id,
@@ -647,10 +657,14 @@ func (s *Store) toDocument(hit goredis.Document) *document.Document {
 			}
 		}
 		if len(meta) > 0 {
-			doc.Metadata = meta
+			var err error
+			doc.Metadata, err = metadata.FromValues(meta)
+			if err != nil {
+				return nil, fmt.Errorf("redis: encode metadata: %w", err)
+			}
 		}
 	}
-	return doc
+	return doc, nil
 }
 
 // float32sToBytes serializes a vector into the little-endian FLOAT32

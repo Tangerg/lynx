@@ -15,10 +15,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -80,7 +82,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upsert. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// HTTPClient lets callers override transport (timeouts,
 	// proxies, MSAL bearer-token injection). Optional: defaults to
@@ -136,7 +138,7 @@ type Store struct {
 	vectorProfile   string
 	embeddingModel  embedding.Model
 	embeddingClient *embedding.Client
-	documentBatcher document.Batcher
+	documentBatcher vectorstores.Batcher
 	httpClient      *http.Client
 }
 
@@ -198,6 +200,10 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			if id == "" {
 				id = uuid.NewString()
 			}
+			metadataValues, err := doc.Metadata.Values()
+			if err != nil {
+				return fmt.Errorf("azureaisearch: decode metadata for %s: %w", id, err)
+			}
 			payload := map[string]any{
 				"@search.action": "mergeOrUpload",
 				s.idField:        id,
@@ -206,7 +212,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			}
 			// Top-level metadata fields — caller is responsible for
 			// having declared them in the index schema.
-			for k, v := range doc.Metadata {
+			for k, v := range metadataValues {
 				payload[k] = v
 			}
 			actions = append(actions, payload)
@@ -277,7 +283,10 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 	docs = make([]vectorstore.Match, 0, len(parsed.Value))
 	for _, row := range parsed.Value {
-		match := s.toMatch(row)
+		match, err := s.toMatch(row)
+		if err != nil {
+			return nil, err
+		}
 		if match.Score < req.MinScore {
 			continue
 		}
@@ -379,7 +388,7 @@ func (s *Store) buildFilter(filter ast.Expr) (string, error) {
 	return v.Result(), nil
 }
 
-func (s *Store) toMatch(row map[string]any) vectorstore.Match {
+func (s *Store) toMatch(row map[string]any) (vectorstore.Match, error) {
 	doc := &document.Document{}
 	if id, ok := row[s.idField].(string); ok {
 		doc.ID = id
@@ -404,9 +413,13 @@ func (s *Store) toMatch(row map[string]any) vectorstore.Match {
 		meta[k] = v
 	}
 	if len(meta) > 0 {
-		doc.Metadata = meta
+		var err error
+		doc.Metadata, err = metadata.FromValues(meta)
+		if err != nil {
+			return vectorstore.Match{}, fmt.Errorf("azureaisearch: encode metadata: %w", err)
+		}
 	}
-	return vectorstore.Match{Document: doc, Score: score}
+	return vectorstore.Match{Document: doc, Score: score}, nil
 }
 
 // do issues a JSON request to the Search REST surface and returns the

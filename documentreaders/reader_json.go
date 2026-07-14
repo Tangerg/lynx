@@ -1,4 +1,4 @@
-package document
+package documentreaders
 
 import (
 	"bytes"
@@ -8,16 +8,17 @@ import (
 	"io"
 	"unicode"
 
+	"github.com/Tangerg/lynx/core/document"
 	pkgio "github.com/Tangerg/lynx/pkg/io"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 const defaultJSONReaderBufferSize = 8192
 
-var _ Reader = (*JSONReader)(nil)
+var _ document.Reader = (*JSONReader)(nil)
 
 // JSONReader parses a JSON payload — either a single object or a top-
-// level array — into [*Document] entries. Top-level arrays produce one
+// level array — into [*document.Document] entries. Top-level arrays produce one
 // document per element; single objects produce one document whose Text
 // is the raw JSON string.
 //
@@ -25,7 +26,7 @@ var _ Reader = (*JSONReader)(nil)
 //
 // Example:
 //
-//	r, err := document.NewJSONReader(strings.NewReader(`[{"id":1},{"id":2}]`))
+//	r, err := documentreaders.NewJSONReader(strings.NewReader(`[{"id":1},{"id":2}]`))
 //	docs, err := r.Read(ctx) // 2 documents
 type JSONReader struct {
 	reader     io.Reader
@@ -34,7 +35,7 @@ type JSONReader struct {
 
 func NewJSONReader(reader io.Reader, sizes ...int) (*JSONReader, error) {
 	if reader == nil {
-		return nil, errors.New("document.NewJSONReader: reader must not be nil")
+		return nil, errors.New("documentreaders.NewJSONReader: reader must not be nil")
 	}
 
 	bufferSize, _ := pkgSlices.First(sizes)
@@ -45,7 +46,7 @@ func NewJSONReader(reader io.Reader, sizes ...int) (*JSONReader, error) {
 	return &JSONReader{reader: reader, bufferSize: bufferSize}, nil
 }
 
-func (j *JSONReader) Read(_ context.Context) ([]*Document, error) {
+func (j *JSONReader) Read(_ context.Context) ([]*document.Document, error) {
 	data, err := pkgio.ReadAll(j.reader, j.bufferSize)
 	if err != nil {
 		return nil, err
@@ -64,11 +65,11 @@ func (j *JSONReader) Read(_ context.Context) ([]*Document, error) {
 		return nil, err
 	}
 
-	doc, err := NewDocument(string(data), nil)
+	doc, err := document.NewDocument(string(data), nil)
 	if err != nil {
 		return nil, err
 	}
-	return []*Document{doc}, nil
+	return []*document.Document{doc}, nil
 }
 
 func (j *JSONReader) looksLikeArray(data []byte) bool {
@@ -79,20 +80,20 @@ func (j *JSONReader) looksLikeArray(data []byte) bool {
 	return trimmed[0] == '[' && trimmed[len(trimmed)-1] == ']'
 }
 
-func (j *JSONReader) parseAsArray(data []byte) ([]*Document, error) {
+func (j *JSONReader) parseAsArray(data []byte) ([]*document.Document, error) {
 	var items []any
 	if err := json.Unmarshal(data, &items); err != nil {
 		return nil, err
 	}
 
-	docs := make([]*Document, 0, len(items))
+	docs := make([]*document.Document, 0, len(items))
 	for _, item := range items {
 		bytes, err := json.Marshal(item)
 		if err != nil {
 			return nil, err
 		}
 
-		doc, err := NewDocument(string(bytes), nil)
+		doc, err := document.NewDocument(string(bytes), nil)
 		if err != nil {
 			return nil, err
 		}

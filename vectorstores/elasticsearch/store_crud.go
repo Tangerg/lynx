@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
@@ -167,7 +168,11 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if score < req.MinScore {
 			continue
 		}
-		docs = append(docs, vectorstore.Match{Document: s.toDocument(hit), Score: score})
+		doc, err := s.toDocument(hit)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, vectorstore.Match{Document: doc, Score: score})
 	}
 	return docs, nil
 }
@@ -303,10 +308,10 @@ func (s *Store) normalizeScore(score float64) float64 {
 	}
 }
 
-func (s *Store) toDocument(hit searchHit) *document.Document {
+func (s *Store) toDocument(hit searchHit) (*document.Document, error) {
 	doc := &document.Document{ID: hit.ID}
 	if hit.Source == nil {
-		return doc
+		return doc, nil
 	}
 
 	// Pull the document text from the configured content field.
@@ -319,7 +324,11 @@ func (s *Store) toDocument(hit searchHit) *document.Document {
 	if s.metadataField != "" {
 		if rawMeta, ok := hit.Source[s.metadataField]; ok {
 			if m, ok := rawMeta.(map[string]any); ok {
-				doc.Metadata = m
+				var err error
+				doc.Metadata, err = metadata.FromValues(m)
+				if err != nil {
+					return nil, fmt.Errorf("elasticsearch: encode metadata: %w", err)
+				}
 			}
 		}
 	} else {
@@ -333,10 +342,14 @@ func (s *Store) toDocument(hit searchHit) *document.Document {
 			meta[k] = v
 		}
 		if len(meta) > 0 {
-			doc.Metadata = meta
+			var err error
+			doc.Metadata, err = metadata.FromValues(meta)
+			if err != nil {
+				return nil, fmt.Errorf("elasticsearch: encode metadata: %w", err)
+			}
 		}
 	}
-	return doc
+	return doc, nil
 }
 
 func (s *Store) Metadata() vectorstore.StoreMetadata {

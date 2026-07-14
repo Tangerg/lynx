@@ -4,8 +4,19 @@ import (
 	"context"
 	"strings"
 
+	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
+
+// Formatter is the narrow rendering policy required by contextual RAG.
+type Formatter interface {
+	Format(*document.Document) (string, error)
+}
+
+// FormatterFunc adapts a function to Formatter.
+type FormatterFunc func(*document.Document) (string, error)
+
+func (f FormatterFunc) Format(doc *document.Document) (string, error) { return f(doc) }
 
 // contextualDefaultTemplate is the default RAG augmentation prompt: it
 // drops the retrieved docs into a Context block, asks the LLM to
@@ -49,6 +60,9 @@ type ContextualAugmenterConfig struct {
 	// if no documents were retrieved instead of synthesizing the
 	// empty-context fallback. Defaults to false.
 	AllowEmptyContext bool
+
+	// Formatter renders each retrieved document. It defaults to Text only.
+	Formatter Formatter
 }
 
 func (c *ContextualAugmenterConfig) applyDefaults() {
@@ -57,6 +71,14 @@ func (c *ContextualAugmenterConfig) applyDefaults() {
 	}
 	if c.EmptyContextPromptTemplate == nil {
 		c.EmptyContextPromptTemplate = chat.NewPromptTemplate(contextualEmptyContextTemplate)
+	}
+	if c.Formatter == nil {
+		c.Formatter = FormatterFunc(func(doc *document.Document) (string, error) {
+			if doc == nil {
+				return "", nil
+			}
+			return doc.Text, nil
+		})
 	}
 }
 
@@ -73,6 +95,7 @@ type contextualAugmenter struct {
 	promptTemplate             *chat.PromptTemplate
 	emptyContextPromptTemplate *chat.PromptTemplate
 	allowEmptyContext          bool
+	formatter                  Formatter
 }
 
 // NewContextualAugmenter returns an [Augmenter] that folds retrieved
@@ -86,6 +109,7 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
 		promptTemplate:             cfg.PromptTemplate,
 		emptyContextPromptTemplate: cfg.EmptyContextPromptTemplate,
 		allowEmptyContext:          cfg.AllowEmptyContext,
+		formatter:                  cfg.Formatter,
 	}, nil
 }
 
@@ -106,8 +130,12 @@ func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documen
 	}
 
 	contextTexts := make([]string, 0, len(documents))
-	for _, doc := range documents {
-		contextTexts = append(contextTexts, doc.Format())
+	for _, candidate := range documents {
+		formatted, err := c.formatter.Format(candidate.Document)
+		if err != nil {
+			return nil, err
+		}
+		contextTexts = append(contextTexts, formatted)
 	}
 
 	rendered, err := c.promptTemplate.Clone().

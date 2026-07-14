@@ -13,10 +13,12 @@ import (
 	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -107,7 +109,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before bulk upsert. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// Dimensions registered with the knn_vector field. When zero the
 	// store asks the embedding model and falls back to
@@ -175,7 +177,7 @@ type Store struct {
 	metadataField   string
 	embeddingModel  embedding.Model
 	embeddingClient *embedding.Client
-	documentBatcher document.Batcher
+	documentBatcher vectorstores.Batcher
 	dimensions      int
 	spaceType       SpaceType
 	engine          Engine
@@ -571,7 +573,11 @@ func (s *Store) toDocument(hit opensearchapi.SearchHit) (*document.Document, err
 	if s.metadataField != "" {
 		if rawMeta, ok := source[s.metadataField]; ok {
 			if m, ok := rawMeta.(map[string]any); ok {
-				doc.Metadata = m
+				var err error
+				doc.Metadata, err = metadata.FromValues(m)
+				if err != nil {
+					return nil, fmt.Errorf("opensearch: encode metadata: %w", err)
+				}
 			}
 		}
 	} else {
@@ -584,7 +590,11 @@ func (s *Store) toDocument(hit opensearchapi.SearchHit) (*document.Document, err
 			meta[k] = v
 		}
 		if len(meta) > 0 {
-			doc.Metadata = meta
+			var err error
+			doc.Metadata, err = metadata.FromValues(meta)
+			if err != nil {
+				return nil, fmt.Errorf("opensearch: encode metadata: %w", err)
+			}
 		}
 	}
 	return doc, nil

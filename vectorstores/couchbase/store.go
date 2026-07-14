@@ -11,10 +11,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
@@ -93,7 +95,7 @@ type StoreConfig struct {
 	EmbeddingModel embedding.Model
 
 	// DocumentBatcher batches documents before upsert. Required.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// Dimensions sets the vector width registered with the search
 	// index. When zero, falls back to the embedding model's
@@ -163,7 +165,7 @@ type Store struct {
 	vectorIndexName   string
 	embeddingModel    embedding.Model
 	embeddingClient   *embedding.Client
-	documentBatcher   document.Batcher
+	documentBatcher   vectorstores.Batcher
 	dimensions        int
 	similarity        Similarity
 	indexOptimization IndexOptimization
@@ -346,10 +348,14 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			if id == "" {
 				id = uuid.NewString()
 			}
+			metadataValues, err := doc.Metadata.Values()
+			if err != nil {
+				return fmt.Errorf("couchbase: decode metadata for %s: %w", id, err)
+			}
 			payload := map[string]any{
 				idField:        id,
 				contentField:   doc.Text,
-				metadataField:  metaOrEmpty(doc.Metadata),
+				metadataField:  metaOrEmpty(metadataValues),
 				embeddingField: math.ConvertSlice[float64, float32](vectors[i]),
 			}
 			if _, err := s.collection.Upsert(id, payload, &gocb.UpsertOptions{Context: ctx}); err != nil {
@@ -418,7 +424,11 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if err := rows.Row(&raw); err != nil {
 			return nil, fmt.Errorf("couchbase: decode row: %w", err)
 		}
-		docs = append(docs, vectorstore.Match{Document: s.toDocument(raw)})
+		doc, err := s.toDocument(raw)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, vectorstore.Match{Document: doc})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("couchbase: read rows: %w", err)
@@ -489,7 +499,7 @@ func (s *Store) buildFilter(expr ast.Expr) (string, error) {
 	return v.Result(), nil
 }
 
-func (s *Store) toDocument(raw map[string]any) *document.Document {
+func (s *Store) toDocument(raw map[string]any) (*document.Document, error) {
 	doc := &document.Document{}
 	if id, ok := raw[idField].(string); ok {
 		doc.ID = id
@@ -498,9 +508,13 @@ func (s *Store) toDocument(raw map[string]any) *document.Document {
 		doc.Text = content
 	}
 	if meta, ok := raw[metadataField].(map[string]any); ok {
-		doc.Metadata = meta
+		var err error
+		doc.Metadata, err = metadata.FromValues(meta)
+		if err != nil {
+			return nil, fmt.Errorf("couchbase: encode metadata: %w", err)
+		}
 	}
-	return doc
+	return doc, nil
 }
 
 // metaOrEmpty returns an empty map when m is nil so the resulting JSON

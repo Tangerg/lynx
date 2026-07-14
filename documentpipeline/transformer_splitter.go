@@ -1,11 +1,12 @@
-package document
+package documentpipeline
 
 import (
 	"context"
 	"errors"
-	"maps"
 
-	"github.com/Tangerg/lynx/core/document/id"
+	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
 // Chunk-lineage metadata keys. A [Splitter] stamps every emitted chunk
@@ -26,8 +27,6 @@ const (
 )
 
 type SplitterConfig struct {
-	CopyFormatter bool
-
 	SplitFunc func(ctx context.Context, text string) ([]string, error)
 
 	IDGenerator id.Generator
@@ -35,7 +34,7 @@ type SplitterConfig struct {
 
 func (c SplitterConfig) Validate() error {
 	if c.SplitFunc == nil {
-		return errors.New("document.SplitterConfig: SplitFunc is required")
+		return errors.New("documentpipeline.SplitterConfig: SplitFunc is required")
 	}
 	return nil
 }
@@ -49,9 +48,8 @@ var _ Transformer = (*Splitter)(nil)
 // [MetadataKeyChunkTotal]) so callers can trace chunks back to their
 // source.
 type Splitter struct {
-	copyFormatter bool
-	splitFunc     func(ctx context.Context, text string) ([]string, error)
-	idGenerator   id.Generator
+	splitFunc   func(ctx context.Context, text string) ([]string, error)
+	idGenerator id.Generator
 }
 
 func NewSplitter(config SplitterConfig) (*Splitter, error) {
@@ -59,17 +57,16 @@ func NewSplitter(config SplitterConfig) (*Splitter, error) {
 		return nil, err
 	}
 	return &Splitter{
-		copyFormatter: config.CopyFormatter,
-		splitFunc:     config.SplitFunc,
-		idGenerator:   config.IDGenerator,
+		splitFunc:   config.SplitFunc,
+		idGenerator: config.IDGenerator,
 	}, nil
 }
 
 // Transform splits every input document and concatenates the resulting
 // chunks. Order is preserved — chunks of doc[i] all appear before
 // chunks of doc[i+1].
-func (s *Splitter) Transform(ctx context.Context, docs []*Document) ([]*Document, error) {
-	out := make([]*Document, 0, len(docs))
+func (s *Splitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+	out := make([]*document.Document, 0, len(docs))
 	for _, doc := range docs {
 		chunks, err := s.splitOne(ctx, doc)
 		if err != nil {
@@ -80,7 +77,7 @@ func (s *Splitter) Transform(ctx context.Context, docs []*Document) ([]*Document
 	return out, nil
 }
 
-func (s *Splitter) splitOne(ctx context.Context, doc *Document) ([]*Document, error) {
+func (s *Splitter) splitOne(ctx context.Context, doc *document.Document) ([]*document.Document, error) {
 	chunks, err := s.splitFunc(ctx, doc.Text)
 	if err != nil {
 		return nil, err
@@ -94,26 +91,29 @@ func (s *Splitter) splitOne(ctx context.Context, doc *Document) ([]*Document, er
 	}
 
 	total := len(nonEmpty)
-	out := make([]*Document, 0, total)
+	out := make([]*document.Document, 0, total)
 	for index, text := range nonEmpty {
-		chunk, err := NewDocument(text, nil)
+		chunk, err := document.NewDocument(text, nil)
 		if err != nil {
 			return nil, err
 		}
 
-		chunk.Metadata = maps.Clone(doc.Metadata)
+		chunk.Metadata = doc.Metadata.Clone()
 		if chunk.Metadata == nil {
-			chunk.Metadata = make(map[string]any)
+			chunk.Metadata = metadata.New()
 		}
-		chunk.Metadata[MetadataKeyChunkIndex] = index
-		chunk.Metadata[MetadataKeyChunkTotal] = total
+		if err := metadata.Set(chunk.Metadata, MetadataKeyChunkIndex, index); err != nil {
+			return nil, err
+		}
+		if err := metadata.Set(chunk.Metadata, MetadataKeyChunkTotal, total); err != nil {
+			return nil, err
+		}
 		if doc.ID != "" {
-			chunk.Metadata[MetadataKeyParentID] = doc.ID
+			if err := metadata.Set(chunk.Metadata, MetadataKeyParentID, doc.ID); err != nil {
+				return nil, err
+			}
 		}
-		if s.copyFormatter {
-			chunk.Formatter = doc.Formatter
-		}
-		if err := chunk.EnsureID(ctx, s.idGenerator); err != nil {
+		if err := assignID(ctx, chunk, s.idGenerator); err != nil {
 			return nil, err
 		}
 		out = append(out, chunk)

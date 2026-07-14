@@ -13,9 +13,11 @@ import (
 	"github.com/milvus-io/milvus/client/v2/milvusclient"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -60,7 +62,7 @@ type StoreConfig struct {
 
 	// DocumentBatcher is responsible for batching documents before insertion.
 	// Required: must be provided.
-	DocumentBatcher document.Batcher
+	DocumentBatcher vectorstores.Batcher
 
 	// StoreDocumentContent determines whether to store the original document
 	// text in the content field. Truncated to 65535 characters if exceeded.
@@ -108,7 +110,7 @@ type Store struct {
 	client               *milvusclient.Client
 	embeddingModel       embedding.Model
 	embeddingClient      *embedding.Client
-	documentBatcher      document.Batcher
+	documentBatcher      vectorstores.Batcher
 	collectionName       string
 	metricType           entity.MetricType
 	initializeSchema     bool
@@ -310,9 +312,9 @@ func (s *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore fl
 		if metaCol != nil {
 			if raw, err := metaCol.Get(i); err == nil {
 				if metaBytes, ok := raw.([]byte); ok {
-					var metadata map[string]any
-					if err = json.Unmarshal(metaBytes, &metadata); err == nil {
-						doc.Metadata = metadata
+					var decodedMetadata metadata.Map
+					if err = json.Unmarshal(metaBytes, &decodedMetadata); err == nil {
+						doc.Metadata = decodedMetadata
 					}
 				}
 			}

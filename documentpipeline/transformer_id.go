@@ -1,10 +1,11 @@
-package document
+package documentpipeline
 
 import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/core/document/id"
+	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
 type IDAssignerConfig struct {
@@ -15,7 +16,7 @@ type IDAssignerConfig struct {
 
 func (c IDAssignerConfig) Validate() error {
 	if c.Generator == nil {
-		return errors.New("document.IDAssignerConfig: Generator is required")
+		return errors.New("documentpipeline.IDAssignerConfig: Generator is required")
 	}
 	return nil
 }
@@ -45,7 +46,7 @@ func NewIDAssigner(config IDAssignerConfig) (*IDAssigner, error) {
 	}, nil
 }
 
-func (a *IDAssigner) Transform(ctx context.Context, docs []*Document) ([]*Document, error) {
+func (a *IDAssigner) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
 	for _, doc := range docs {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -55,9 +56,21 @@ func (a *IDAssigner) Transform(ctx context.Context, docs []*Document) ([]*Docume
 		} else if doc.ID != "" {
 			continue
 		}
-		if err := doc.EnsureID(ctx, a.generator); err != nil {
+		if err := assignID(ctx, doc, a.generator); err != nil {
 			return nil, err
 		}
 	}
 	return docs, nil
+}
+
+func assignID(ctx context.Context, doc *document.Document, generator id.Generator) error {
+	if doc.ID != "" || generator == nil {
+		return nil
+	}
+	generated, err := generator.Generate(ctx, doc.Text, doc.Media, doc.Metadata)
+	if err != nil {
+		return err
+	}
+	doc.ID = generated
+	return nil
 }
