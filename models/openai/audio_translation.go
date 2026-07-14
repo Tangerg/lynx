@@ -97,7 +97,7 @@ func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Re
 		params.ResponseFormat = openai.AudioTranslationNewParamsResponseFormat(mergedOpts.ResponseFormat)
 	}
 
-	data, err := req.Audio.DataAsBytes()
+	data, err := req.Audio.Bytes()
 	if err != nil {
 		return nil, err
 	}

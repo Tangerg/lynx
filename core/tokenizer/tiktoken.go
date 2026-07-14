@@ -2,7 +2,6 @@ package tokenizer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/pkoukk/tiktoken-go"
@@ -60,41 +59,28 @@ func (t *Tiktoken) EstimateMedia(ctx context.Context, items ...*media.Media) (in
 	return total, nil
 }
 
-// estimateOne tokenizes one [media.Media] payload — count the MIME
-// type's tokens (so multimodal callers get a per-attachment overhead)
-// then count the data's tokens. Non-string / non-bytes data is JSON-
-// marshaled; unmarshalable values fall back to MIME-only counting
-// rather than failing the whole estimate.
+// estimateOne tokenizes one [media.Media] payload: the MIME type contributes
+// per-attachment overhead, followed by the active source value.
 func (t *Tiktoken) estimateOne(_ context.Context, m *media.Media) (int, error) {
 	if m == nil {
 		return 0, nil
 	}
+	if err := m.Validate(); err != nil {
+		return 0, err
+	}
 
-	mimeTokens := len(t.encoding.Encode(m.MimeType.String(), nil, nil))
+	mimeTokens := len(t.encoding.Encode(m.MIME, nil, nil))
 
-	text, ok := payloadAsText(m.Data)
-	if !ok {
-		return mimeTokens, nil
+	var text string
+	switch m.Source.Kind {
+	case media.SourceBytes:
+		text = string(m.Source.Bytes)
+	case media.SourceURI:
+		text = m.Source.URI
+	case media.SourceReference:
+		text = m.Source.Ref
 	}
 	return mimeTokens + len(t.encoding.Encode(text, nil, nil)), nil
-}
-
-// payloadAsText converts a Data field into a string for token counting.
-// Returns ("", false) when JSON marshaling would have failed; the
-// caller treats that as "skip the data tokens" rather than erroring.
-func payloadAsText(data any) (string, bool) {
-	switch typed := data.(type) {
-	case string:
-		return typed, true
-	case []byte:
-		return string(typed), true
-	default:
-		bytes, err := json.Marshal(typed)
-		if err != nil {
-			return "", false
-		}
-		return string(bytes), true
-	}
 }
 
 func (t *Tiktoken) Encode(_ context.Context, text string) ([]int, error) {

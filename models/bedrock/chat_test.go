@@ -10,15 +10,10 @@ import (
 
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 func TestBuildMessages_ImageMedia(t *testing.T) {
-	pngMime, err := mime.New("image", "png")
-	if err != nil {
-		t.Fatal(err)
-	}
-	img, err := media.NewMedia(pngMime, []byte{0x89, 0x50, 0x4e, 0x47})
+	img, err := media.NewBytes("image/png", []byte{0x89, 0x50, 0x4e, 0x47})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/audio/transcription"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 // Audio translation reuses the transcription.Model interface — input
@@ -33,7 +32,7 @@ func TestAudioTranslationModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	audio, _ := media.NewMedia(mime.MustNew("audio", "mpeg"), []byte("FAKE-AUDIO"))
+	audio, _ := media.NewBytes("audio/mpeg", []byte("FAKE-AUDIO"))
 	req, _ := transcription.NewRequest(audio)
 	out, err := m.Call(t.Context(), req)
 	if err != nil {

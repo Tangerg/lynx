@@ -1,7 +1,9 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"testing"
 	"time"
@@ -51,7 +53,7 @@ func TestSubscribeRun_StreamsLiveRun(t *testing.T) {
 func TestCollectUserInput(t *testing.T) {
 	const b64 = "iVBORw0KGgoAAAANSUhEUg=="
 
-	// text + image: text joins, one media with mime + base64 carried through.
+	// text + image: text joins, one media with decoded bytes carried through.
 	text, imgs, err := collectUserInput([]protocol.ContentBlock{
 		{Type: protocol.ContentBlockText, Text: "look at"},
 		{Type: protocol.ContentBlockText, Text: "this"},
@@ -66,11 +68,12 @@ func TestCollectUserInput(t *testing.T) {
 	if len(imgs) != 1 {
 		t.Fatalf("want 1 media, got %d", len(imgs))
 	}
-	if got, _ := imgs[0].DataAsString(); got != b64 {
-		t.Fatalf("media data = %q, want raw base64", got)
+	want, _ := base64.StdEncoding.DecodeString(b64)
+	if got, err := imgs[0].Bytes(); err != nil || !bytes.Equal(got, want) {
+		t.Fatalf("media data = %q, %v; want decoded bytes %q", got, err, want)
 	}
-	if imgs[0].MimeType.TypeAndSubType() != "image/png" {
-		t.Fatalf("media mime = %q, want image/png", imgs[0].MimeType.TypeAndSubType())
+	if imgs[0].MIME != "image/png" {
+		t.Fatalf("media mime = %q, want image/png", imgs[0].MIME)
 	}
 
 	// image-only: no text is fine (the StartRun guard accepts media-only).

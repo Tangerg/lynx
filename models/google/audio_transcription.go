@@ -93,7 +93,7 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 
 	cfg := options.GetParams[genai.GenerateContentConfig](mergedOpts, OptionsKey)
 
-	data, err := req.Audio.DataAsBytes()
+	data, err := req.Audio.Bytes()
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -107,7 +107,7 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 
 	parts := []*genai.Part{
 		genai.NewPartFromText(prompt),
-		genai.NewPartFromBytes(data, req.Audio.MimeType.TypeAndSubType()),
+		genai.NewPartFromBytes(data, req.Audio.MIME),
 	}
 	contents := []*genai.Content{
 		genai.NewContentFromParts(parts, genai.RoleUser),

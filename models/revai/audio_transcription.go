@@ -81,7 +81,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if jobOpts.MediaURL != "" {
 		job, err = a.api.SubmitURL(ctx, *jobOpts)
 	} else {
-		audio, audioErr := req.Audio.DataAsBytes()
+		audio, audioErr := req.Audio.Bytes()
 		if audioErr != nil {
 			return nil, audioErr
 		}

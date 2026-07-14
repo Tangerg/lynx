@@ -1,6 +1,7 @@
 package google_test
 
 import (
+	"encoding/base64"
 	"io"
 	"net/http"
 	"strings"
@@ -11,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/google"
 	"github.com/Tangerg/lynx/models/internal/testutil"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 // genai response shape: candidates[0].content.parts[0].text.
@@ -55,12 +55,11 @@ func TestChatModel_Call_Mock(t *testing.T) {
 }
 
 // TestChatModel_Call_ImageMedia_InlineData guards the image-input lowering: a
-// UserMessage carrying base64-STRING image media must reach the wire as an
-// inline-data part. The genai SDK wants raw []byte (it base64-encodes itself),
-// so passing the base64 string straight to DataAsBytes failed the type
-// assertion and the image was silently dropped — the bug this test pins.
+// UserMessage carrying byte image media must reach the wire as an inline-data
+// part. The genai SDK base64-encodes the bytes for transport.
 func TestChatModel_Call_ImageMedia_InlineData(t *testing.T) {
-	const b64 = "iVBORw0KGgoAAAANSUhEUg=="
+	raw := []byte("fake-png")
+	b64 := base64.StdEncoding.EncodeToString(raw)
 
 	var seenBody []byte
 	srv := testutil.JSONServer(http.StatusOK, googleChatJSON, func(r *http.Request) {
@@ -81,9 +80,9 @@ func TestChatModel_Call_ImageMedia_InlineData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	img, err := media.NewMedia(mime.MustNew("image", "png"), b64)
+	img, err := media.NewBytes("image/png", raw)
 	if err != nil {
-		t.Fatalf("NewMedia: %v", err)
+		t.Fatalf("NewBytes: %v", err)
 	}
 	msg := chat.NewUserMessage(chat.MessageParams{Text: "what is this", Media: []*media.Media{img}})
 	req, err := chat.NewRequest([]chat.Message{msg})

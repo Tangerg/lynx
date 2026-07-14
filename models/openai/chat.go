@@ -2,16 +2,17 @@ package openai
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"iter"
 	"slices"
-	"strings"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/spf13/cast"
 
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/catalog"
@@ -112,26 +113,30 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) openai.ChatCompletio
 	})
 
 	for _, md := range msg.Media {
-		data, err := md.DataAsString()
+		if md == nil {
+			continue
+		}
+		mt, err := mime.Parse(md.MIME)
 		if err != nil {
 			continue
 		}
 
 		part := openai.ChatCompletionContentPartUnionParam{}
-		mt := md.MimeType
-
 		if mime.IsImage(mt) {
-			// image_url.url requires a URL — an http(s)/data: URL is passed
-			// through, raw base64 is wrapped into a data URL. The OpenAI API
-			// rejects bare base64 here (per the vision guide).
+			location, locationErr := mediaURL(md)
+			if locationErr != nil {
+				continue
+			}
 			part.OfImageURL = &openai.ChatCompletionContentPartImageParam{
 				ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
-					URL: mediaDataURL(mt, data),
+					URL: location,
 				},
 			}
 		} else if mime.IsAudio(mt) {
-			// input_audio is the exception: it takes RAW base64 with a separate
-			// format field — no data: prefix.
+			data, dataErr := mediaBase64(md)
+			if dataErr != nil {
+				continue
+			}
 			part.OfInputAudio = &openai.ChatCompletionContentPartInputAudioParam{
 				InputAudio: openai.ChatCompletionContentPartInputAudioInputAudioParam{
 					Data:   data,
@@ -139,13 +144,27 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) openai.ChatCompletio
 				},
 			}
 		} else {
-			// file_data, like image_url.url, is a data URL.
+			file := openai.ChatCompletionContentPartFileFileParam{
+				Filename: openai.String(md.Name),
+			}
+			switch md.Source.Kind {
+			case media.SourceReference:
+				ref, refErr := md.Reference()
+				if refErr != nil {
+					continue
+				}
+				file.FileID = openai.String(ref)
+			case media.SourceBytes, media.SourceURI:
+				location, locationErr := mediaURL(md)
+				if locationErr != nil {
+					continue
+				}
+				file.FileData = openai.String(location)
+			default:
+				continue
+			}
 			part.OfFile = &openai.ChatCompletionContentPartFileParam{
-				File: openai.ChatCompletionContentPartFileFileParam{
-					FileData: openai.String(mediaDataURL(mt, data)),
-					Filename: openai.String(md.Name),
-					FileID:   openai.String(md.ID),
-				},
+				File: file,
 			}
 		}
 
@@ -155,20 +174,27 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) openai.ChatCompletio
 	return openai.UserMessage(parts)
 }
 
-// mediaDataURL renders a media payload for the OpenAI parts whose field is a
-// URL (image_url.url, file file_data): an http(s)/data: URL passes through, and
-// raw base64 is wrapped into a `data:<mime>;base64,<b64>` data URL. The OpenAI
-// API rejects bare base64 in these fields — unlike input_audio.data, which
-// takes raw base64 with a separate format field. mt nil (unknown type) returns
-// data unchanged, since a data URL can't be formed without a media type.
-func mediaDataURL(mt *mime.MIME, data string) string {
-	if mt == nil ||
-		strings.HasPrefix(data, "data:") ||
-		strings.HasPrefix(data, "http://") ||
-		strings.HasPrefix(data, "https://") {
-		return data
+func mediaURL(md *media.Media) (string, error) {
+	switch md.Source.Kind {
+	case media.SourceURI:
+		return md.URI()
+	case media.SourceBytes:
+		data, err := md.Bytes()
+		if err != nil {
+			return "", err
+		}
+		return "data:" + md.MIME + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+	default:
+		return "", media.ErrInvalidSource
 	}
-	return "data:" + mt.TypeAndSubType() + ";base64," + data
+}
+
+func mediaBase64(md *media.Media) (string, error) {
+	data, err := md.Bytes()
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(data), nil
 }
 
 func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) openai.ChatCompletionMessageParamUnion {

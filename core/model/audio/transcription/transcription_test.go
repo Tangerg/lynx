@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/audio/transcription"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 type fakeTranscriptionModel struct {
@@ -41,11 +40,7 @@ func (m *fakeTranscriptionModel) Call(ctx context.Context, req *transcription.Re
 
 func mustAudio(t *testing.T) *media.Media {
 	t.Helper()
-	mt, err := mime.Parse("audio/mpeg")
-	if err != nil {
-		t.Fatal(err)
-	}
-	m, err := media.NewMedia(mt, []byte("audio-bytes"))
+	m, err := media.NewBytes("audio/mpeg", []byte("audio-bytes"))
 	if err != nil {
 		t.Fatal(err)
 	}

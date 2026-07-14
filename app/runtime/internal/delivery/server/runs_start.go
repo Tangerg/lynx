@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"slices"
@@ -126,10 +127,11 @@ func collectUserInput(blocks []protocol.ContentBlock) (string, []*media.Media, e
 			if blk.Data == "" {
 				return "", nil, fmt.Errorf("%w: image block has empty data", protocol.ErrInvalidParams)
 			}
-			// Data is the base64 payload as a string — the form both the
-			// anthropic (NewImageBlockBase64) and openai-compatible adapters
-			// read back via Media.DataAsString.
-			m, err := media.NewMedia(mt, blk.Data)
+			data, err := base64.StdEncoding.DecodeString(blk.Data)
+			if err != nil {
+				return "", nil, fmt.Errorf("%w: image block data is not valid base64: %v", protocol.ErrInvalidParams, err)
+			}
+			m, err := media.NewBytes(mt.TypeAndSubType(), data)
 			if err != nil {
 				return "", nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 			}

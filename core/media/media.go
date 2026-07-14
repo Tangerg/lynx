@@ -1,152 +1,214 @@
+// Package media defines serializable media payloads shared by model protocols.
 package media
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
+	"net/url"
+	"strings"
 
-	"github.com/Tangerg/lynx/pkg/mime"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
-// Media wraps an opaque payload (Data) with its MIME type and metadata.
-// Data is intentionally typed as any so a single struct can hold raw
-// bytes, base64 strings, URLs, or [io.Reader]s — callers extract the
-// concrete shape with [Media.DataAsBytes] / [Media.DataAsString].
-type Media struct {
-	// ID is an optional identifier — set when the caller wants to
-	// correlate this payload across logs / audit trails.
-	ID string `json:"id,omitempty"`
+var (
+	// ErrNilMedia reports a nil Media receiver.
+	ErrNilMedia = errors.New("media: nil media")
+	// ErrInvalidMIME reports a missing or malformed MIME media type.
+	ErrInvalidMIME = errors.New("media: invalid MIME type")
+	// ErrInvalidSource reports a missing, ambiguous, or malformed source.
+	ErrInvalidSource = errors.New("media: invalid source")
+)
 
-	// Name is an optional display name (filename, label, ...).
-	Name string `json:"name,omitempty"`
+// SourceKind identifies which MediaSource value is active.
+type SourceKind string
 
-	// MimeType identifies the content type. Required.
-	MimeType *mime.MIME `json:"mime_type,omitempty"`
+const (
+	// SourceBytes carries an inline byte payload.
+	SourceBytes SourceKind = "bytes"
+	// SourceURI carries an absolute URI resolved by a provider or client.
+	SourceURI SourceKind = "uri"
+	// SourceReference carries a provider-native media reference.
+	SourceReference SourceKind = "reference"
+)
 
-	// Data is the actual payload — []byte, string URL, io.Reader,
-	// whatever fits the modality. Required.
-	//
-	// Wire form: bytes serialize as a base64 string under a
-	// "binary" tag; strings stay as-is under a "text" tag. Other
-	// Go types (io.Reader, structs) are not serializable and produce
-	// an error when marshaled.
-	Data any `json:"-"`
-
-	// Metadata carries free-form annotations.
-	Metadata map[string]any `json:"metadata,omitzero"`
+// MediaSource is a tagged union. Kind selects exactly one of Bytes, URI, or
+// Ref; all other fields must be empty.
+type MediaSource struct {
+	Kind  SourceKind `json:"kind"`
+	Bytes []byte     `json:"bytes,omitempty"`
+	URI   string     `json:"uri,omitempty"`
+	Ref   string     `json:"ref,omitempty"`
 }
 
-// mediaWire is the on-the-wire shape of [Media]. It splits Data into
-// (DataEncoding, DataValue) so JSON can carry the discriminator the Go
-// type system loses when round-tripping through `any`.
-type mediaWire struct {
-	ID       string         `json:"id,omitempty"`
-	Name     string         `json:"name,omitempty"`
-	MimeType *mime.MIME     `json:"mime_type,omitempty"`
-	Encoding string         `json:"data_encoding,omitempty"` // "bytes" | "text"
-	Data     string         `json:"data,omitempty"`
-	Metadata map[string]any `json:"metadata,omitzero"`
-}
-
-// MarshalJSON encodes Media with an explicit data-encoding tag so the
-// caller's []byte vs string distinction round-trips. Returns an error
-// for non-serializable Data (io.Reader, structs, ...).
-func (m *Media) MarshalJSON() ([]byte, error) {
-	out := mediaWire{
-		ID:       m.ID,
-		Name:     m.Name,
-		MimeType: m.MimeType,
-		Metadata: m.Metadata,
-	}
-	switch d := m.Data.(type) {
-	case nil:
-		// no data payload
-	case []byte:
-		out.Encoding = "bytes"
-		out.Data = base64.StdEncoding.EncodeToString(d)
-	case string:
-		out.Encoding = "text"
-		out.Data = d
-	default:
-		return nil, fmt.Errorf("media.MarshalJSON: unsupported Data type %T (only []byte and string round-trip)", m.Data)
-	}
-	return json.Marshal(out)
-}
-
-// UnmarshalJSON decodes Media, restoring Data as either []byte or
-// string based on the data_encoding discriminator.
-func (m *Media) UnmarshalJSON(data []byte) error {
-	var in mediaWire
-	if err := json.Unmarshal(data, &in); err != nil {
-		return err
-	}
-	m.ID = in.ID
-	m.Name = in.Name
-	m.MimeType = in.MimeType
-	m.Metadata = in.Metadata
-	switch in.Encoding {
-	case "":
-		m.Data = nil
-	case "bytes":
-		decoded, err := base64.StdEncoding.DecodeString(in.Data)
-		if err != nil {
-			return fmt.Errorf("media.UnmarshalJSON: data_encoding=bytes but body is not valid base64: %w", err)
+// Validate verifies the tagged-source invariant.
+func (s MediaSource) Validate() error {
+	switch s.Kind {
+	case SourceBytes:
+		if len(s.Bytes) == 0 || s.URI != "" || s.Ref != "" {
+			return fmt.Errorf("%w: kind %q requires non-empty bytes and no URI or reference", ErrInvalidSource, s.Kind)
 		}
-		m.Data = decoded
-	case "text":
-		m.Data = in.Data
+	case SourceURI:
+		if len(s.Bytes) != 0 || s.URI == "" || s.Ref != "" {
+			return fmt.Errorf("%w: kind %q requires a URI and no bytes or reference", ErrInvalidSource, s.Kind)
+		}
+		parsed, err := url.Parse(s.URI)
+		if err != nil || parsed.Scheme == "" || (parsed.Opaque == "" && parsed.Host == "" && parsed.Path == "") {
+			return fmt.Errorf("%w: %q is not an absolute URI", ErrInvalidSource, s.URI)
+		}
+	case SourceReference:
+		if len(s.Bytes) != 0 || s.URI != "" || strings.TrimSpace(s.Ref) == "" {
+			return fmt.Errorf("%w: kind %q requires a reference and no bytes or URI", ErrInvalidSource, s.Kind)
+		}
 	default:
-		return fmt.Errorf("media.UnmarshalJSON: unknown data_encoding %q", in.Encoding)
+		return fmt.Errorf("%w: unknown kind %q", ErrInvalidSource, s.Kind)
 	}
 	return nil
 }
 
-// NewMedia builds a [Media]. Both mimeType and data are required.
-//
-// Example:
-//
-//	mt, _ := mime.Parse("audio/mpeg")
-//	m, err := media.NewMedia(mt, audioBytes)
-func NewMedia(mimeType *mime.MIME, data any) (*Media, error) {
-	if mimeType == nil {
-		return nil, errors.New("media.NewMedia: mimeType must not be nil")
-	}
-	if data == nil {
-		return nil, errors.New("media.NewMedia: data must not be nil")
-	}
-
-	return &Media{
-		MimeType: mimeType,
-		Data:     data,
-		Metadata: make(map[string]any),
-	}, nil
+// Media describes a media payload without retaining runtime-only objects.
+type Media struct {
+	MIME     string       `json:"mime"`
+	Source   MediaSource  `json:"source"`
+	ID       string       `json:"id,omitempty"`
+	Name     string       `json:"name,omitempty"`
+	Metadata metadata.Map `json:"metadata,omitempty"`
 }
 
-// DataAsBytes returns the payload as []byte. Returns an error when Data
-// is nil or holds a non-bytes value.
-func (m *Media) DataAsBytes() ([]byte, error) {
-	if m == nil || m.Data == nil {
-		return nil, errors.New("media.DataAsBytes: data is nil")
+// NewBytes returns Media containing an inline byte payload. The input is
+// copied so later caller mutations cannot change the protocol value.
+func NewBytes(mimeType string, data []byte) (*Media, error) {
+	m := &Media{
+		MIME: mimeType,
+		Source: MediaSource{
+			Kind:  SourceBytes,
+			Bytes: append([]byte(nil), data...),
+		},
+		Metadata: metadata.New(),
 	}
-
-	data, ok := m.Data.([]byte)
-	if !ok {
-		return nil, fmt.Errorf("media.DataAsBytes: expected []byte, got %T", m.Data)
+	if err := m.Validate(); err != nil {
+		return nil, err
 	}
-	return data, nil
+	return m, nil
 }
 
-// DataAsString returns the payload as a string. Returns an error when
-// Data is nil or holds a non-string value.
-func (m *Media) DataAsString() (string, error) {
-	if m == nil || m.Data == nil {
-		return "", errors.New("media.DataAsString: data is nil")
+// NewURI returns Media referencing an absolute URI.
+func NewURI(mimeType, uri string) (*Media, error) {
+	m := &Media{
+		MIME: mimeType,
+		Source: MediaSource{
+			Kind: SourceURI,
+			URI:  uri,
+		},
+		Metadata: metadata.New(),
 	}
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
 
-	data, ok := m.Data.(string)
-	if !ok {
-		return "", fmt.Errorf("media.DataAsString: expected string, got %T", m.Data)
+// NewReference returns Media carrying a provider-native reference.
+func NewReference(mimeType, ref string) (*Media, error) {
+	m := &Media{
+		MIME: mimeType,
+		Source: MediaSource{
+			Kind: SourceReference,
+			Ref:  ref,
+		},
+		Metadata: metadata.New(),
 	}
-	return data, nil
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// Validate verifies MIME, source, and nested metadata invariants.
+func (m *Media) Validate() error {
+	if m == nil {
+		return ErrNilMedia
+	}
+	mediaType, _, err := mime.ParseMediaType(m.MIME)
+	if err != nil || !strings.Contains(mediaType, "/") {
+		return fmt.Errorf("%w: %q", ErrInvalidMIME, m.MIME)
+	}
+	if err := m.Source.Validate(); err != nil {
+		return err
+	}
+	if err := m.Metadata.Validate(); err != nil {
+		return fmt.Errorf("media: metadata: %w", err)
+	}
+	return nil
+}
+
+// Bytes returns a copy of the inline byte payload.
+func (m *Media) Bytes() ([]byte, error) {
+	if m == nil {
+		return nil, ErrNilMedia
+	}
+	if m.Source.Kind != SourceBytes {
+		return nil, fmt.Errorf("%w: source kind is %q, not %q", ErrInvalidSource, m.Source.Kind, SourceBytes)
+	}
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+	return append([]byte(nil), m.Source.Bytes...), nil
+}
+
+// URI returns the URI source.
+func (m *Media) URI() (string, error) {
+	if m == nil {
+		return "", ErrNilMedia
+	}
+	if m.Source.Kind != SourceURI {
+		return "", fmt.Errorf("%w: source kind is %q, not %q", ErrInvalidSource, m.Source.Kind, SourceURI)
+	}
+	if err := m.Validate(); err != nil {
+		return "", err
+	}
+	return m.Source.URI, nil
+}
+
+// Reference returns the provider-native reference source.
+func (m *Media) Reference() (string, error) {
+	if m == nil {
+		return "", ErrNilMedia
+	}
+	if m.Source.Kind != SourceReference {
+		return "", fmt.Errorf("%w: source kind is %q, not %q", ErrInvalidSource, m.Source.Kind, SourceReference)
+	}
+	if err := m.Validate(); err != nil {
+		return "", err
+	}
+	return m.Source.Ref, nil
+}
+
+// MarshalJSON validates Media before writing its wire representation. Byte
+// sources use encoding/json's standard base64 representation for []byte.
+func (m Media) MarshalJSON() ([]byte, error) {
+	if err := (&m).Validate(); err != nil {
+		return nil, err
+	}
+	type wireMedia Media
+	return json.Marshal(wireMedia(m))
+}
+
+// UnmarshalJSON decodes and validates Media before replacing the receiver.
+func (m *Media) UnmarshalJSON(data []byte) error {
+	if m == nil {
+		return ErrNilMedia
+	}
+	type wireMedia Media
+	var decoded wireMedia
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("media: decode: %w", err)
+	}
+	candidate := Media(decoded)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*m = candidate
+	return nil
 }

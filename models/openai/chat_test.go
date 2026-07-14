@@ -2,6 +2,7 @@ package openai_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 func newChatModel(t *testing.T, baseURL, modelID string) *openai.ChatModel {
@@ -150,9 +150,8 @@ func TestChatModel_Metadata(t *testing.T) {
 }
 
 // TestChatModel_Call_ImageMedia_DataURL guards the image-input lowering: a
-// UserMessage carrying raw base64 image media must reach the wire as a
-// `data:<mime>;base64,<b64>` data URL in image_url.url. The OpenAI API rejects
-// bare base64 there, so passing Media.Data through unchanged was a bug.
+// UserMessage carrying image bytes must reach the wire as a
+// `data:<mime>;base64,<b64>` data URL in image_url.url.
 func TestChatModel_Call_ImageMedia_DataURL(t *testing.T) {
 	completion := openaisdk.ChatCompletion{
 		ID: "c", Object: "chat.completion", Model: "gpt-4o", Created: 1,
@@ -169,10 +168,11 @@ func TestChatModel_Call_ImageMedia_DataURL(t *testing.T) {
 	})
 	t.Cleanup(srv.Close)
 
-	const b64 = "iVBORw0KGgoAAAANSUhEUg=="
-	img, err := media.NewMedia(mime.MustNew("image", "png"), b64)
+	raw := []byte("fake-png")
+	b64 := base64.StdEncoding.EncodeToString(raw)
+	img, err := media.NewBytes("image/png", raw)
 	if err != nil {
-		t.Fatalf("NewMedia: %v", err)
+		t.Fatalf("NewBytes: %v", err)
 	}
 	msg := chat.NewUserMessage(chat.MessageParams{Text: "what is this", Media: []*media.Media{img}})
 
