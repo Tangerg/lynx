@@ -37,7 +37,7 @@ DefaultOptions 不再是 provider 能力：provider 构造参数持有 provider 
 
 | 项目 | 内容 |
 |---|---|
-| 旧路径 | `core/model/chat` Client、conversation/history、剩余 safeguard/history middleware、tool helper 与关联 `core/model` 名义层次；Logger 已在 P3-05 删除 |
+| 旧路径 | `core/model/chat` Client、conversation/history、剩余 history middleware、tool helper 与关联 `core/model` 名义层次；Logger 与 safeguard 已在 P3-05 删除 |
 | 旧职责 | Client builder、history/logger/safeguard middleware、tool schema/execution、通用调用/流式组合混在 Core |
 | 目标替代 | `chatclient`、`chathistory`、`tools`、`agent/toolloop`、`otel`；Core 仅保留纯组合算法 |
 | 冻结起点 | P2-03；P3 各迁移任务开始后按职责切换 |
