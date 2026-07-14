@@ -8,7 +8,7 @@ import (
 
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // Endpoint describes one remote A2A agent to expose as a chat tool.
@@ -21,9 +21,9 @@ type Endpoint struct {
 // Tools resolves every endpoint and wraps each remote agent as a chat tool.
 // The returned close function releases all opened agent clients. It is always
 // non-nil and safe to call once startup succeeds.
-func Tools(ctx context.Context, endpoints ...Endpoint) ([]chat.Tool, func() error, error) {
+func Tools(ctx context.Context, endpoints ...Endpoint) ([]toolcontract.Tool, func() error, error) {
 	clients := make([]*a2aclient.Client, 0, len(endpoints))
-	tools := make([]chat.Tool, 0, len(endpoints))
+	tools := make([]toolcontract.Tool, 0, len(endpoints))
 	seen := make(map[string]struct{}, len(endpoints))
 	for _, endpoint := range endpoints {
 		client, card, err := dial(ctx, endpoint.CardURL, dialOptions{HTTPClient: endpoint.HTTPClient})
