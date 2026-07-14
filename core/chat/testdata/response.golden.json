@@ -1,0 +1,47 @@
+{
+  "id": "response-1",
+  "model": "provider-model",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "A lynx."
+          }
+        ]
+      },
+      "finish_reason": "stop",
+      "extensions": {
+        "openai/logprobs": [
+          -0.1,
+          -0.2
+        ]
+      }
+    },
+    {
+      "index": 1,
+      "message": {
+        "role": "assistant",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "A wild cat."
+          }
+        ]
+      },
+      "finish_reason": "length"
+    }
+  ],
+  "usage": {
+    "input_tokens": 32,
+    "output_tokens": 12,
+    "reasoning_tokens": 4,
+    "cache_read_input_tokens": 8
+  },
+  "extensions": {
+    "openai/system_fingerprint": "fp-1"
+  }
+}

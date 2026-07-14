@@ -1,0 +1,28 @@
+{
+  "bytes": {
+    "mime": "image/png",
+    "source": {
+      "kind": "bytes",
+      "bytes": "AQID/w=="
+    },
+    "id": "image-1",
+    "name": "pixel.png",
+    "metadata": {
+      "width": 1
+    }
+  },
+  "uri": {
+    "mime": "application/pdf",
+    "source": {
+      "kind": "uri",
+      "uri": "https://example.com/manual.pdf"
+    }
+  },
+  "reference": {
+    "mime": "audio/mpeg",
+    "source": {
+      "kind": "reference",
+      "ref": "provider-file-1"
+    }
+  }
+}
