@@ -176,7 +176,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Create embeds documents and PUTs them through the Vespa Document
+// Add embeds documents and PUTs them through the Vespa Document
 // API. Each PUT is `POST /document/v1/<namespace>/<schema>/docid/<id>`.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
@@ -224,7 +224,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve runs a nearestNeighbor YQL query.
+// Search runs a nearestNeighbor YQL query.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("vespa: invalid search request: %w", err)

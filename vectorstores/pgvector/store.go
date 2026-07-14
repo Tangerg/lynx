@@ -336,7 +336,7 @@ func (s *Store) distanceToScore(distance float64) float64 {
 	}
 }
 
-// Create embeds the documents in req and upserts them into the
+// Add embeds the documents and upserts them into the
 // pgvector table.
 //
 // One `db.vector.add pgvector` span per call carrying
@@ -413,7 +413,7 @@ func drainBatch(br pgx.BatchResults, n int) error {
 	return nil
 }
 
-// Retrieve embeds the query, runs an ANN search, and returns the
+// Search embeds the query, runs an ANN search, and returns the
 // matching documents above the configured MinScore threshold.
 //
 // One `db.vector.search pgvector` span per call carrying

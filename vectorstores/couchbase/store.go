@@ -321,7 +321,7 @@ func (s *Store) upsertSearchIndex() error {
 	return mgr.UpsertIndex(idx, nil)
 }
 
-// Create embeds documents and upserts them by id.
+// Add embeds documents and upserts them by id.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
 		return vectorstore.ErrEmptyDocuments
@@ -368,7 +368,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve runs a SQL++ query that embeds the KNN search clause.
+// Search runs a SQL++ query that embeds the KNN search clause.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("couchbase: invalid search request: %w", err)
@@ -468,7 +468,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
 	return nil
 }
 
-// DeleteIDs removes documents by their KV key. Create upserts each
+// DeleteIDs removes documents by their KV key. Add upserts each
 // document under its id as the document key (see [Store.Add]), so the
 // id is the KV key here too. An empty slice is a no-op; a per-key
 // "document not found" error is treated as success so repeated deletes

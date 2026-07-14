@@ -75,8 +75,8 @@ func StartDelete(ctx context.Context, system string) (context.Context, trace.Spa
 	)
 }
 
-// Finish records err on span and ends it. extra attributes (e.g.
-// retrieval doc count) are stamped before End.
+// Finish records err on span and ends it. Extra attributes (for example,
+// search match count) are stamped before End.
 func Finish(span trace.Span, err error, extra ...attribute.KeyValue) {
 	if len(extra) > 0 {
 		span.SetAttributes(extra...)

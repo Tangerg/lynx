@@ -124,7 +124,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Create uploads documents to the corpus via Vectara's index API. The
+// Add uploads documents to the corpus via Vectara's index API. The
 // service performs its own embedding internally, so no embedding
 // client is required here.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
@@ -170,7 +170,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve runs a Vectara semantic search.
+// Search runs a Vectara semantic search.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("vectara: invalid search request: %w", err)

@@ -11,7 +11,7 @@ import (
 
 // Visitor transforms AST filter expressions into a Cosmos DB SQL
 // predicate fragment. Metadata keys live under c.metadata.* by default
-// (the document alias used in Retrieve / Delete is `c`).
+// (the document alias used in Search / DeleteWhere is `c`).
 //
 // Output shape:
 //

@@ -19,7 +19,7 @@
 //   - a uniqueness constraint on the id property
 //   - a `VECTOR INDEX` carrying dimensions + similarity function
 //
-// Retrieval calls `CALL db.index.vector.queryNodes($index, $k, $vec)
+// Search calls `CALL db.index.vector.queryNodes($index, $k, $vec)
 // YIELD node, score WHERE score >= $threshold AND <filter>`. The
 // filter visitor produces a Cypher predicate plus a `$pN`-keyed
 // parameter map (Cypher uses named parameters).

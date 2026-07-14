@@ -16,8 +16,8 @@ import (
 
 // StoreConfig configures a [Store].
 type StoreConfig struct {
-	// EmbeddingClient embeds documents on Create and queries on
-	// Retrieve. Required.
+	// EmbeddingClient embeds documents on Add and queries on
+	// Search. Required.
 	EmbeddingClient *embedding.Client
 
 	// Similarity is the function used to score retrieved documents
@@ -41,7 +41,7 @@ func (c *StoreConfig) Validate() error {
 }
 
 // record pairs a stored document with the embedding vector that was
-// computed for it at Create time. Re-embedding never happens for
+// computed for it at Add time. Re-embedding never happens for
 // existing records — the cost of a fresh vectorisation is paid once.
 type record struct {
 	doc       *document.Document
@@ -85,7 +85,7 @@ func (s *Store) Len() int {
 	return len(s.records)
 }
 
-// Create embeds the request documents and indexes them by ID. Each
+// Add embeds the documents and indexes them by ID. Each
 // document must have a non-empty ID (use [document.Document.ID] or
 // assign one before calling). Existing IDs are overwritten — this
 // mirrors the upsert semantics most vendor stores expose.
@@ -130,7 +130,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve embeds the query, scores every record by similarity, and
+// Search embeds the query, scores every record by similarity, and
 // returns the top-K above MinScore. Filtering happens BEFORE scoring
 // to keep the cost O(filtered × dim) rather than O(all × dim).
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (out []vectorstore.Match, err error) {

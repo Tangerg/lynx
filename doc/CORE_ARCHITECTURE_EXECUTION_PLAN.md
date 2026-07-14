@@ -713,10 +713,12 @@ flowchart LR
   - lexer/parser/token/analyzer/optimizer 进入 internal。
   - 根门面完全使用语义 `Operator`/`LiteralKind`，不暴露 token；`Parse` 统一 parse + validate + simplify，手工树通过 `Validate` 校验且残缺输入不 panic。
   - 证据：`e49928f04`；旧五个公共子包路径无引用，Core/RAG/全部 vectorstore build、vet、lint、race 及 workspace 19/19 门禁全绿。
-- [ ] **P4-08 迁移全部 vectorstore adapters**
+- [x] **P4-08 迁移全部 vectorstore adapters**（完成：2026-07-14）
   - 先以 `inmemory`、`pgvector`、`mongodb`、`qdrant` 作为 reference，再分批迁移其余实现。
   - 每个实现使用相同 conformance suite。
   - Harness 位于 `vectorstores/internal/conformance`，由各 backend 测试实例化；开始前从 `doc/CORE_API_INVENTORY.md` 展开完整 backend 子清单。
+  - 27 个目录均验证精确能力集合和 I/O 前输入契约；Bedrock KB 只实现 Searcher，七个无 ID 删除能力的 backend 不伪造 `IDDeleter`。
+  - 证据：`c970a3343`；全部 backend compile-time assertion、统一 conformance、原测试、filter visitor 测试以及 vectorstores build/vet/lint/race 全绿。
 - [ ] **P4-09 迁移全部 RAG、vectorstore 和 document pipeline 消费方**
 
 退出标准：
@@ -806,18 +808,18 @@ flowchart LR
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
-| P4 Document/VectorStore | 进行中 | 7/9 | 小能力接口、请求值和 Filter 语义门面已完成；进入统一 conformance |
+| P4 Document/VectorStore | 进行中 | 8/9 | 27 个 backend 统一 conformance 已完成；进入消费方与阶段退出审计 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **36/60** | **60%** |
+| **总计** | **进行中** | **37/60** | **62%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P4。
-- 下一任务：执行 P4-08，在 `vectorstores/internal/conformance` 建立统一能力/前置校验套件，并由 25 个实现和 2 个 alias 全部实例化。
+- 下一任务：执行 P4-09，审计并迁完 RAG、vectorstore、documentpipeline 消费方，完成 P4 全阶段退出门禁。
 - 当前阻塞：无。
-- 最近完成：P4-03 至 P4-07；胖 Store、单字段 wrapper、NativeClient、fluent SearchRequest 和 Filter 编译器公共包全部删除，真实消费者已切到四个小能力接口与 token-free Filter 语义树。
+- 最近完成：P4-08；`vectorstores/internal/conformance` 已由 25 个实现和 2 个 alias 全部实例化，精确能力集合和统一 I/O 前校验契约已成为测试门禁。
 
 ### 10.3 进度更新规则
 
@@ -1057,6 +1059,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P4-08；27 个 vectorstore backend 全部接入统一能力与前置校验 conformance，完整 backend 子清单逐项验收 | Codex |
 | 2026-07-14 | 完成 P4-03 至 P4-07；VectorStore 改为四个小能力接口和普通 SearchRequest，删除 wrapper/native client；Filter 收敛为 token-free 语义门面并采纳 ADR-010 | Codex |
 | 2026-07-14 | 完成 P4-01/P4-02；Document 收缩为纯数据，pipeline/reader 策略移出 Core，检索关系由 vectorstore.Match 与 RAG Candidate 显式承载；采纳 ADR-009 | Codex |
 | 2026-07-14 | 完成 P3-09 与 P3 阶段验收；新增只使用目标 API 的 quick start、无凭证可运行 tool-loop 示例和 ChatClient/Tools GoDoc examples；进入 P4 | Codex |
@@ -1098,6 +1101,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P4-08 | `c970a3343` 新增 `vectorstores/internal/conformance`，由 25 个实现和 2 个 alias 全部实例化，验证精确能力集合、空 Add、非法 Search、空 ID 删除和 nil Filter 的统一 I/O 前契约；全部原 backend/visitor 测试及 vectorstores build、vet、lint、race 全绿；任务计数 37/60 | P4-09 消费方迁移与阶段退出审计 |
 | 2026-07-14 | P4-03 至 P4-07 | `8531c022e` 将 Store 拆为 `Indexer`/`Searcher`/`IDDeleter`/`FilterDeleter`，删除单字段 request wrapper、metadata/native client 探测面并以普通 `SearchRequest.Validate` 取代 fluent 配置；`e49928f04` 将 Filter 编译器五个公共子包移入 internal，以显式树转换提供 token-free 根语义门面并迁完 RAG/25 个实现；workspace 19/19 与 Core/RAG/vectorstores build、vet、lint、race 全绿；任务计数 36/60 | P4-08 全 backend 统一 conformance |
 | 2026-07-14 | P4-01、P4-02 | `16332a7d0` 将 27 个 vectorstore backend 返回值迁为 `Match`，并以 RAG `Candidate` 隔离通用契约；`de6f778ee` 将 Document 收缩为 `ID/Text/Media/Metadata`，新增 `documentpipeline`、迁移 text/JSON reader 到 `documentreaders`，删除 Core runtime policy 与 `document/id`；workspace 19/19 及 Core/documentpipeline/documentreaders/RAG/vectorstores race 全绿；任务计数 31/60 | P4-03 小能力接口替代胖 Store |
 | 2026-07-14 | P3-09、P3 阶段验收 | `22acec1e9` 新增目标 API quick start、可运行并有输出测试的 `agent/examples/toolloop`、ChatClient Call/Stream/Template/Structured 与 Tools typed-function GoDoc examples；旧路径未进入新用户入口；Agent/ChatClient/Tools race、示例实跑与 workspace 72/72 全绿；任务计数 29/60，P3 9/9 完成 | P4-01 Document 纯数据与 documentpipeline 原子纵向切片 |

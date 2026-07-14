@@ -419,7 +419,7 @@ func (s *Store) distanceToScore(distance float64) float64 {
 	}
 }
 
-// Create embeds documents and writes them as Redis HASHes keyed by
+// Add embeds documents and writes them as Redis HASHes keyed by
 // `<KeyPrefix><id>`.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
@@ -471,7 +471,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve embeds the query, runs a KNN search through RediSearch,
+// Search embeds the query, runs a KNN search through RediSearch,
 // and returns the matching documents above MinScore.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {

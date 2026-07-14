@@ -173,7 +173,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Create embeds documents and uploads them via the
+// Add embeds documents and uploads them via the
 // /indexes/<index>/docs/index endpoint.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
@@ -231,7 +231,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve runs a hybrid vector query — the call is pure vector when
+// Search runs a hybrid vector query — the call is pure vector when
 // no filter is set, otherwise the filter rides along as the OData
 // `$filter` clause.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {

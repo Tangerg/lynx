@@ -429,8 +429,8 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
 }
 
 // DeleteIDs removes objects by their Weaviate object UUID. The ids are
-// the same identifiers surfaced as document.ID by Retrieve (the object's
-// `_additional.id`), since Create assigns each object a UUID that becomes
+// the same identifiers surfaced as document.ID by Search (the object's
+// `_additional.id`), since Add assigns each object a UUID that becomes
 // its primary key. An empty slice is a no-op; unknown ids are silently
 // ignored (Weaviate's per-object Deleter is idempotent). Implements
 // [vectorstore.IDDeleter].

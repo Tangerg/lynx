@@ -261,7 +261,7 @@ func (s *Store) write(ctx context.Context, work neo4j.ManagedTransactionWork) er
 	return nil
 }
 
-// Create embeds documents and upserts them as nodes.
+// Add embeds documents and upserts them as nodes.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
 		return vectorstore.ErrEmptyDocuments
@@ -345,7 +345,7 @@ func (s *Store) documentProperties(doc *document.Document) (map[string]any, erro
 	return props, nil
 }
 
-// Retrieve calls db.index.vector.queryNodes and returns matching
+// Search calls db.index.vector.queryNodes and returns matching
 // documents above MinScore.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {

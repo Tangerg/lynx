@@ -96,7 +96,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve runs a KNN search over the embedding field. Optional
+// Search runs a KNN search over the embedding field. Optional
 // metadata filtering is expressed via a query_string clause.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {

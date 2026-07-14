@@ -24,7 +24,7 @@
 // `{"$nor": [...]}` for NOT, `{"$regex": ..., "$options": "i"}` for
 // LIKE. The result feeds the `filter` field of `$vectorSearch`.
 //
-// Retrieval pipeline:
+// Search pipeline:
 //
 //	{$vectorSearch: {...}}, {$addFields: {score: {$meta: "vectorSearchScore"}}},
 //	{$match: {score: {$gte: minScore}}}

@@ -12,7 +12,7 @@
 // Identity / OAuth, inject a bearer token through a custom
 // [http.Client].
 //
-// Retrieval shape:
+// Search shape:
 //
 //	POST /indexes/<index>/docs/search?api-version=2024-07-01
 //	{

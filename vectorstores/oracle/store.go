@@ -245,7 +245,7 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	return nil
 }
 
-// Create embeds documents and upserts them via MERGE.
+// Add embeds documents and upserts them via MERGE.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
 	if len(docs) == 0 {
 		return vectorstore.ErrEmptyDocuments
@@ -310,7 +310,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve runs VECTOR_DISTANCE against the embedding column.
+// Search runs VECTOR_DISTANCE against the embedding column.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("oracle: invalid search request: %w", err)

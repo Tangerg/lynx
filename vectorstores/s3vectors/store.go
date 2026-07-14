@@ -135,7 +135,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Create embeds documents and PUTs them. S3 Vectors caps each
+// Add embeds documents and PUTs them. S3 Vectors caps each
 // PutVectors batch at 500 vectors, so the document batcher should
 // produce shards smaller than that.
 func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
@@ -198,7 +198,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	return nil
 }
 
-// Retrieve runs QueryVectors with the configured filter.
+// Search runs QueryVectors with the configured filter.
 func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("s3vectors: invalid search request: %w", err)

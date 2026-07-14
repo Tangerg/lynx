@@ -436,7 +436,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
 }
 
 // DeleteIDs removes points by their Qdrant point ids. Each id is the
-// UUID surfaced as document.ID by Retrieve (buildPointStruct assigns a
+// UUID surfaced as document.ID by Search (buildPointStruct assigns a
 // fresh UUID via qdrant.NewID, and buildDocumentsFromPoints reads it back
 // out), so the same qdrant.NewID conversion maps an id back to a *PointId.
 // An empty slice is a no-op; unknown ids are silently ignored (idempotent).

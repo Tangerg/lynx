@@ -1,6 +1,6 @@
 // Package tracing centralizes the OTel span emission shared by every
-// vector-store provider in this module. Each provider's Create /
-// Retrieve / Delete entry point wraps its inner SDK work with the
+// vector-store provider in this module. Each provider's Add /
+// Search / DeleteWhere / DeleteIDs entry point wraps its inner SDK work with the
 // helpers here so the GenAI / DB semconv attribute set stays
 // consistent across the 27-provider matrix.
 //
