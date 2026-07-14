@@ -845,7 +845,11 @@ flowchart LR
 
 目标：把重构后的 Core 边界转化为可长期维护的 v1 库契约；`chatclient` 等上层模块只验证兼容性，不在本计划中冻结为 v1。
 
-- [ ] **P7-01 建立 exported API diff 守卫**
+- [x] **P7-01 建立 exported API diff 守卫**（完成：2026-07-14）
+  - `core/internal/arch/testdata/exported_api.txt` 冻结当前 12 个公共 package 的 367 条导出声明/方法签名；function body 与注释不进入基线，包含 exported 名称的 const/var 声明组整体记录以保留 iota 顺序和隐式类型变化。
+  - 普通 Core test 默认比较基线并输出增删 delta；只有完成 API 评审、迁移/release notes 与版本裁决后才允许显式 `-update-api` 重建。
+  - CI workspace matrix 修正为实际 20 module，并为 Core 增加不可忽略的 blocking API guard step；本地 Core test/vet/lint 与独立 guard 全绿。
+  - 证据：`395913f00`。
 - [ ] **P7-02 建立 provider/vectorstore conformance 发布门禁**
 - [ ] **P7-03 完善 serialization compatibility fixtures**
 - [ ] **P7-04 补齐公开 API examples 和 package docs**
@@ -875,15 +879,15 @@ flowchart LR
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
 | P6 Workspace 切换 | 完成 | 8/8 | 旧 API、兼容面、残余依赖和错误文档清零；100 项 workspace 门禁全绿 |
-| P7 稳定与发布 | 进行中 | 0/7 | P6 已验收；进入 exported API diff 守卫 |
-| **总计** | **进行中** | **53/60** | **88%** |
+| P7 稳定与发布 | 进行中 | 1/7 | exported API 已冻结；进入 provider/vectorstore 发布门禁 |
+| **总计** | **进行中** | **54/60** | **90%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P7。
-- 下一任务：执行 P7-01，建立 Core exported API diff 守卫和可审查基线。
+- 下一任务：执行 P7-02，将 provider/vectorstore conformance 收敛为明确的发布门禁。
 - 当前阻塞：无。
-- 最近完成：P6-08 与 P6 阶段验收；20 module 的 100 项 build/vet/test/lint/race、tidy 和旧 API 审计全部通过。
+- 最近完成：P7-01；Core 12 个公共 package 的 367 条 exported API 已建立本地与 CI blocking diff 守卫。
 
 ### 10.3 进度更新规则
 
@@ -1158,6 +1162,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P7-01；建立 367 条 Core exported API baseline、默认 diff 测试和 CI blocking guard，并把 CI matrix 校准到实际 20 module | Codex |
 | 2026-07-14 | 完成 P6-08 与 P6 阶段验收；20 module 的 build/vet/test/lint/race 共 100 项全绿，tidy 和旧 API/构造器审计清零，进入 P7 | Codex |
 | 2026-07-14 | 完成 P6-07；全量同步 CLAUDE/README/架构/GoDoc，删除依赖旧 ChatClient 与并行 ToolLoop 的过时草案和移植对比，Runtime 基准重写为真实五环与唯一 Event Runner | Codex |
 | 2026-07-14 | 完成 P6-06；Core 外部依赖与临时白名单清零，20 个 module 统一 tidy/pseudo-version，并在关闭 go.work 后逐模块测试通过 | Codex |
@@ -1216,6 +1221,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P7-01 | `395913f00` 新增 Core 12 package/367 条 exported API 生成基线与增删 diff 测试，更新命令受显式 flag 控制；CI 实际 20 module matrix 增加 blocking Core API step；Core test/vet/lint 全绿；任务计数 54/60 | P7-02 provider/vectorstore conformance 发布门禁 |
 | 2026-07-14 | P6-08、P6 阶段验收 | `FAST=1 scripts/check.sh build vet test lint race` 对 20 module 的 100/100 检查全绿；20/20 tidy-diff 为空，Go 源码旧五类 Core import 与旧 Chat 构造器/类型定义为零；任务计数 53/60，P6 8/8 完成 | P7-01 exported API diff 守卫 |
 | 2026-07-14 | P6-07 | `7e73185c8` 将全部维护文档与 package docs 校准到扁平 Core、最小 SPI、ChatClient/Tool/Event Runner 和 Runtime 五环；删除 7 份整体过时的移植对比/greenfield/prior-art 文档，历史基线显式归档；旧结构引用审计为零，Agent/Models/MCP/A2A/Tools/App test+vet 全绿；任务计数 52/60 | P6-08 全 workspace 最终门禁与 P6 验收 |
 | 2026-07-14 | P6-06 | `0abc7c70a` 清掉 Core 最后一个第三方依赖、临时 dependency/package 白名单，并对 20 module tidy；`badb63e8b` 将全部内部依赖统一钉到清理基线 `v0.0.0-20260714110600-0abc7c70a85d`。20/20 tidy-diff 为空，workspace 40 项 build/test 及关闭 go.work 后 20/20 module 独立 test 全绿；任务计数 51/60 | P6-07 全量文档同步 |
