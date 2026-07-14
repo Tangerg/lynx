@@ -7,7 +7,7 @@
 
 本文记录 Core 重构前的编译器可见公共面、workspace 直接消费关系和后续迁移批次。它解决“改什么、谁会受影响、何时删除”的问题；它不是永久兼容承诺。P7 建立机械 API diff baseline 后，以工具输出判断签名兼容性。
 
-执行状态：P4、P5-01、P5-02 与 P5-05 已于 2026-07-14 完成。五个旧 `core/model/<modality>` 路径已无兼容层地直接移动到 Core 顶层，五个 modality SPI 也已完成最小化；下文数量表和未特别标注的声明列表仍是重构前基线，已迁 package 会同时标明当前路径。
+执行状态：P4、P5-01、P5-02、P5-03 与 P5-05 已于 2026-07-14 完成。五个旧 `core/model/<modality>` 路径已无兼容层地直接移动到 Core 顶层，五个 modality SPI 也已完成最小化；provider reference data 已归入公开 `models/catalog`，credential 已回归各 provider 配置。下文数量表和未特别标注的声明列表仍是重构前基线，已迁 package 会同时标明当前路径。
 
 ## 1. 口径与结论
 
@@ -120,6 +120,10 @@ StreamHandlerFunc, StreamMiddleware, StreamingModel, Usage,
 IsControlFlowError, NewAPIKey, NewMiddlewareChain, RecordOperationMetrics
 ```
 
+P5-03 已删除 `APIKey`/`NewAPIKey`；Core 不再统一 provider credential 或 secret
+展示。静态 key 是各 provider config 的字符串，特殊认证由 provider adapter 建模，
+应用 runtime 独立负责持久化和脱敏。其余冻结泛型 Model/middleware 表面仍按 P6 删除。
+
 ### model/audio/transcription
 
 ```text
@@ -180,6 +184,15 @@ NewClientRequest, NewJSONParser, NewListParser, NewMapParser, NewMessage,
 NewMiddlewareChain, NewOptions, NewPromptTemplate, NewRequest, NewResponse,
 NewResponseAccumulator, NewResult, NewSystemMessage, NewTool, NewToolMessage,
 NewUserMessage, UnmarshalMessage, WrapParserAsAny
+```
+
+P5-03 已从该冻结包删除 `ModelInfo`、`Pricing`、`Reasoning`、`Limits`、
+`Modality`/`Modalities` 与 `CostOf`；`ModelMetadata` 暂仅保留 provider identity，
+随旧 Chat 包在 P6 删除。当前 reference data 公共面位于 `models/catalog`：
+
+```text
+Model, Provider, Pricing, Usage, Reasoning, Limits, Modality, Modalities,
+Lookup, Models, Get, CostOf
 ```
 
 ### model/chat/conversation
@@ -455,7 +468,7 @@ P4-08 证据：`c970a3343`。`vectorstores/internal/conformance` 对每个实现
 - [ ] `models/xiaomi`（chat）
 - [ ] `models/zhipu`（chat, embedding）
 
-`models/catalog` 在 P5-03 单独处理；`models/internal` 是测试/共享实现，不计入 38 个 provider，但必须随 reference conformance harness 一起迁移。
+`models/catalog` 已在 P5-03 迁为公开 reference-data package；`models/internal` 是测试/共享实现，不计入 38 个 provider，但必须随 reference conformance harness 一起迁移。
 
 ## 8. P6 Workspace 消费模块
 
