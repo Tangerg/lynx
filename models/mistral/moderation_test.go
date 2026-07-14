@@ -44,7 +44,4 @@ func TestModerationModel_Call_Mock(t *testing.T) {
 	if len(out.Results) == 0 {
 		t.Fatal("empty results")
 	}
-	if m.Metadata().Provider != mistral.Provider {
-		t.Errorf("provider = %q", m.Metadata().Provider)
-	}
 }

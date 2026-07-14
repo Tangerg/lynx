@@ -40,6 +40,5 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*google.Audi
 		Project:        cfg.Project,
 		Location:       cfg.Location,
 		DefaultOptions: cfg.DefaultOptions,
-		Metadata:       &transcription.ModelMetadata{Provider: Provider},
 	})
 }

@@ -41,6 +41,5 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*openai.Audi
 		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
-		Metadata:       &transcription.ModelMetadata{Provider: Provider},
 	})
 }

@@ -1,31 +1,16 @@
 package moderation
 
-import "github.com/Tangerg/lynx/core/model"
+import "context"
 
-// Model is the provider surface for a moderation LLM — synchronous
-// call, model defaults, identity hint.
-//
-// Example:
-//
-//	type myModerator struct{ /* ... */ }
-//	func (m *myModerator) Call(ctx context.Context, req *moderation.Request) (*moderation.Response, error) { ... }
-//	func (m *myModerator) DefaultOptions() moderation.Options { ... }
-//	func (m *myModerator) Metadata() moderation.ModelMetadata          { return moderation.ModelMetadata{Provider: "openai"} }
-//
-//	var _ moderation.Model = (*myModerator)(nil)
+// Model is the complete provider-neutral moderation SPI. Provider defaults
+// and identity belong to provider construction and observability.
 type Model interface {
-	model.Model[*Request, *Response]
-
-	// DefaultOptions returns the parameter set this provider uses when
-	// the caller does not override anything.
-	DefaultOptions() Options
-
-	// Metadata returns identity metadata used by logging, metrics, and any
-	// observability layer that needs to tag a span by provider.
-	Metadata() ModelMetadata
+	Call(context.Context, *Request) (*Response, error)
 }
 
-// ModelMetadata holds identity metadata for a [Model] instance.
-type ModelMetadata struct {
-	Provider string `json:"provider"`
+// ModelFunc adapts a function to [Model].
+type ModelFunc func(context.Context, *Request) (*Response, error)
+
+func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error) {
+	return f(ctx, request)
 }

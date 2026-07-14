@@ -40,18 +40,3 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 		t.Fatal("nil result")
 	}
 }
-
-func TestAudioTTSModel_Metadata(t *testing.T) {
-	srv := testutil.BinaryServer(200, "audio/mpeg", nil)
-	t.Cleanup(srv.Close)
-	opts, _ := tts.NewOptions("tts-1")
-	opts.Voice = "alloy"
-	m, _ := openai.NewAudioTTSModel(openai.AudioTTSModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
-		DefaultOptions: opts,
-		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
-	})
-	if m.Metadata().Provider != openai.Provider {
-		t.Errorf("provider = %q; want %q", m.Metadata().Provider, openai.Provider)
-	}
-}

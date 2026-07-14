@@ -115,13 +115,3 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	return transcription.NewResponse(result, meta)
 }
-
-func (a *AudioTranscriptionModel) DefaultOptions() transcription.Options {
-	return *a.defaultOptions
-}
-
-func (a *AudioTranscriptionModel) Metadata() transcription.ModelMetadata {
-	return transcription.ModelMetadata{
-		Provider: Provider,
-	}
-}

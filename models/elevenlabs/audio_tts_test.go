@@ -37,7 +37,4 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	if out.Result == nil {
 		t.Fatal("nil result")
 	}
-	if m.Metadata().Provider != elevenlabs.Provider {
-		t.Errorf("provider = %q; want %q", m.Metadata().Provider, elevenlabs.Provider)
-	}
 }

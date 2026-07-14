@@ -112,6 +112,3 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 
 	return image.NewResponse(result, &image.ResponseMetadata{Created: time.Now().Unix()})
 }
-
-func (i *ImageModel) DefaultOptions() image.Options { return *i.defaultOptions }
-func (i *ImageModel) Metadata() image.ModelMetadata { return image.ModelMetadata{Provider: Provider} }

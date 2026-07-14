@@ -40,6 +40,5 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*google.AudioTTSModel, error) {
 		Project:        cfg.Project,
 		Location:       cfg.Location,
 		DefaultOptions: cfg.DefaultOptions,
-		Metadata:       &tts.ModelMetadata{Provider: Provider},
 	})
 }

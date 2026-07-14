@@ -142,11 +142,3 @@ func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) 
 		}
 	}
 }
-
-func (a *AudioTranscriptionModel) DefaultOptions() transcription.Options {
-	return *a.defaultOptions
-}
-
-func (a *AudioTranscriptionModel) Metadata() transcription.ModelMetadata {
-	return transcription.ModelMetadata{Provider: Provider}
-}

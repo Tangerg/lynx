@@ -1,33 +1,31 @@
 package speech
 
-import "github.com/Tangerg/lynx/core/model"
+import (
+	"context"
+	"iter"
+)
 
-// Model is the provider surface for a text-to-speech LLM. It supports
-// both synchronous full-audio generation and streaming chunked output.
-//
-// Example:
-//
-//	type myTTS struct{ /* ... */ }
-//	func (m *myTTS) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) { ... }
-//	func (m *myTTS) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] { ... }
-//	func (m *myTTS) DefaultOptions() tts.Options { ... }
-//	func (m *myTTS) Metadata() tts.ModelMetadata          { return tts.ModelMetadata{Provider: "openai"} }
-//
-//	var _ tts.Model = (*myTTS)(nil)
+// Model is the synchronous provider-neutral speech generation SPI.
 type Model interface {
-	model.Model[*Request, *Response]
-	model.StreamingModel[*Request, *Response]
-
-	// DefaultOptions returns the parameter set this provider uses when
-	// the caller does not override anything.
-	DefaultOptions() Options
-
-	// Metadata returns identity metadata used by logging, metrics, and any
-	// observability layer that needs to tag a span by provider.
-	Metadata() ModelMetadata
+	Call(context.Context, *Request) (*Response, error)
 }
 
-// ModelMetadata holds identity metadata for a [Model] instance.
-type ModelMetadata struct {
-	Provider string `json:"provider"`
+// ModelFunc adapts a function to [Model].
+type ModelFunc func(context.Context, *Request) (*Response, error)
+
+func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error) {
+	return f(ctx, request)
+}
+
+// Streamer is the optional streaming capability. It is independent from
+// [Model], so callers only require streaming when they consume it.
+type Streamer interface {
+	Stream(context.Context, *Request) iter.Seq2[*Response, error]
+}
+
+// StreamFunc adapts a function to [Streamer].
+type StreamFunc func(context.Context, *Request) iter.Seq2[*Response, error]
+
+func (f StreamFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error] {
+	return f(ctx, request)
 }

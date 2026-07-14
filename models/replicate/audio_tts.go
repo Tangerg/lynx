@@ -40,6 +40,7 @@ func (c AudioTTSModelConfig) Validate() error {
 }
 
 var _ tts.Model = (*AudioTTSModel)(nil)
+var _ tts.Streamer = (*AudioTTSModel)(nil)
 
 // AudioTTSModel wraps Replicate's TTS surface. It targets open-weight
 // TTS models that don't ship as commercial APIs — XTTS-v2 (voice
@@ -282,6 +283,3 @@ func ttsInputKeys(modelID string) (textKey, voiceKey string) {
 		return "text", "speaker"
 	}
 }
-
-func (a *AudioTTSModel) DefaultOptions() tts.Options { return *a.defaultOptions }
-func (a *AudioTTSModel) Metadata() tts.ModelMetadata { return tts.ModelMetadata{Provider: Provider} }

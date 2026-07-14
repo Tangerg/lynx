@@ -41,7 +41,4 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	if out.Result == nil {
 		t.Fatal("nil result")
 	}
-	if m.Metadata().Provider != google.Provider {
-		t.Errorf("provider = %q", m.Metadata().Provider)
-	}
 }
