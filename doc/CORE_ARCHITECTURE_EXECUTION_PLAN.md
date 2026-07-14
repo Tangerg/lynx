@@ -1,6 +1,6 @@
 # Core 架构演进执行计划
 
-> 状态：执行中（P3 高层运行时外移）
+> 状态：执行中（P5 其余模态与依赖瘦身）
 > 建立日期：2026-07-13
 > 最后更新：2026-07-14
 > 维护者：Lynx 仓库维护者
@@ -749,7 +749,10 @@ flowchart LR
   - Image、Transcription、Moderation 的 `Model` 均只保留 `Call`；Speech 将同步 `Model` 与可选 `Streamer` 拆为两个互不嵌入的单方法能力，并提供函数 adapter。
   - 四个 package 的 Client/fluent request/caller、handler/middleware/chain、`ModelMetadata` 直接删除；provider defaults 只由 provider 构造与 `Call` 内合并持有。
   - 证据：`c27886f59`；25 个具体 provider 实现和 6 个品牌 facade 完成迁移，Core/Models build、vet、lint、test、race 全绿，架构守卫锁定最小方法集和禁止表面。
-- [ ] **P5-03 将 pricing/catalog/capabilities 迁入 `models/catalog`，APIKey 配置迁回各 provider**
+- [x] **P5-03 将 pricing/catalog/capabilities 迁入 `models/catalog`，APIKey 配置迁回各 provider**（完成：2026-07-14）
+  - `models/catalog` 公开拥有 Model/Pricing/Usage/Reasoning/Limits/Modality、查询与计价；loader 只依赖标准库并返回防御性副本，Core 旧 catalog 类型和 provider constructor 的 catalog lookup 已删除。
+  - `core/model.APIKey`/`NewAPIKey` 直接删除，所有 provider 配置统一持有普通字符串；Azure AD、Google Vertex/ADC 和 Ollama 无密钥行为由各 adapter 显式处理，App 的 wire/log 脱敏独立归入 runtime secret helper。
+  - 架构守卫禁止 catalog 类型与 credential 抽象回流 Core；实现提交 `18d2e7a50`、`a68df8bd2`，Core/Models/App build、vet、lint、test、race 全绿。
 - [ ] **P5-04 建立独立 `tokenizer` module 并迁移 tiktoken 实现**
 - [x] **P5-05 扁平化 `core/model/<modality>` 包路径**（完成：2026-07-14）
   - P5 才创建 `core/embedding`、`core/image`、`core/transcription`、`core/speech`、`core/moderation`；旧路径冻结并登记 P6 删除。
@@ -822,17 +825,17 @@ flowchart LR
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
 | P3 高层运行时外移 | 完成 | 9/9 | ChatClient/History/Tool/OTel/Runner 已外移并有目标用户入口 |
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
-| P5 其余模态与依赖 | 进行中 | 3/7 | 五模态最小 SPI 已完成；进入 catalog/APIKey 归属迁移 |
+| P5 其余模态与依赖 | 进行中 | 4/7 | 模态 SPI、catalog 与 provider credential 归属完成；进入 tokenizer 外移 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **41/60** | **68%** |
+| **总计** | **进行中** | **42/60** | **70%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P5。
-- 下一任务：执行 P5-03，将 pricing/catalog/capabilities 归入 `models/catalog`，并把 APIKey 配置迁回各 provider。
+- 下一任务：执行 P5-04，建立独立 `tokenizer` module，并迁移 tiktoken 实现与真实消费者。
 - 当前阻塞：无。
-- 最近完成：P5-02；其余四模态完成最小 SPI 收缩，Speech 的同步与流式能力独立，所有无真实消费者的 Core Client framework 已删除。
+- 最近完成：P5-03；provider 模型卡/能力/价格归入 `models/catalog`，凭据配置回归具体 provider，Core catalog 与 APIKey 抽象已删除。
 
 ### 10.3 进度更新规则
 
@@ -1066,6 +1069,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：Image、Transcription、Moderation 只公开单方法 `Model`，Speech 公开互不嵌入的单方法 `Model` 与 `Streamer`；四个 package 删除 Client/fluent builder/middleware/identity 表面。没有 workspace 生产消费者的便利 API 不因历史存在而保留。
 - 原因：这些 Client 仅由各自 Core 单元测试使用，未承载跨 provider 的稳定用户需求；provider 已在构造时持有 defaults，调用方可直接构造普通 Request。Speech 流式能力确有七个 provider 实现，但不应迫使只做同步调用的实现伪造 Stream。
 
+### ADR-013：Provider reference data 与 credential 均不属于 Core
+
+- 日期：2026-07-14
+- 状态：已采纳
+- 决策：模型目录、能力、限制和计价由公开 `models/catalog` 拥有；具体 provider 的静态 API key 直接作为其 config 的字符串字段，特殊认证由对应 adapter 建模；credential 的持久化、刷新和脱敏由应用/runtime 层负责。Core 不公开 catalog、pricing、provider registry、APIKey 接口或 secret formatter。
+- 原因：catalog 是随 provider 发布节奏变化的 reference data，credential lifecycle 是集成或应用策略，两者都不构成跨 provider 稳定协议。将动态 token 与静态 key 塞进统一 Core 接口既没有真实实现，也让日志安全、刷新和 provider SDK 选项的所有权含混。
+
 ---
 
 ## 16. 长期完成定义
@@ -1086,6 +1096,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P5-03；模型目录/能力/计价迁入公开 models/catalog，provider credential 回归具体配置，删除 Core catalog/APIKey 并采纳 ADR-013 | Codex |
 | 2026-07-14 | 完成 P5-02；四个模态收缩为单方法能力，Speech 独立 Model/Streamer，删除无生产消费者的 Core Client framework 并采纳 ADR-012 | Codex |
 | 2026-07-14 | 完成 P5-01；Embedding 收缩为单方法 Model、独立 Dimensioner 与无状态 helper，删除 fluent/middleware/metadata/global-cache 表面并采纳 ADR-011 | Codex |
 | 2026-07-14 | 提前完成 P5-05；五个 modality 包直接扁平到 Core 顶层并同步切换全部消费者，旧路径和临时 allowlist 已删除 | Codex |
@@ -1132,6 +1143,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P5-03 | `18d2e7a50` 将 catalog 配置、生成器、模型卡/能力/限制/价格和 stdlib loader 从 internal/Core 迁入公开 `models/catalog`，删除 provider constructor 的 catalog lookup；`a68df8bd2` 将 38 个 provider/facade 及 runtime 的 APIKey 改为普通字符串，删除 `core/model.APIKey`，新增 App secret 脱敏与 Core 架构守卫；Core/Models/App build、vet、lint、test、race 全绿；任务计数 42/60 | P5-04 独立 tokenizer module 与 tiktoken 实现迁移 |
 | 2026-07-14 | P5-02 | `c27886f59` 将 Image/Transcription/Moderation 收缩为单方法 Model，将 Speech 拆为独立 Model/Streamer；删除四个包仅由 Core 自测使用的 Client/fluent/middleware/metadata framework，迁完 25 个具体 provider 与 6 个 facade；Core/Models build、vet、lint、test、race 全绿；任务计数 41/60 | P5-03 catalog/capabilities/APIKey 归属迁移 |
 | 2026-07-14 | P5-01 | `7cd3865c3` 建立单方法 `embedding.Model`、独立 `Dimensioner`/函数 adapter 与显式无缓存维度探测，Client 仅保留无状态批量 helper；直接删除 fluent builder、middleware、默认值/身份能力和全局 cache，迁完 8 个原生 provider、5 个品牌 facade、全部 vectorstore 与 runtime；四模块 build/vet/lint/test/race 全绿；任务计数 40/60 | P5-02 image/transcription/speech/moderation 最小 SPI |
 | 2026-07-14 | P5-05 | `444dfd3bc` 将 embedding/image/transcription/tts/moderation 从 `core/model/*` 直接移动为 `core/{embedding,image,transcription,speech,moderation}`，机械迁移 models/vectorstores/app 全部 import，不保留旧路径或 bridge；Core、models、vectorstores、app/runtime 测试全绿；任务计数 39/60 | P5-01 embedding 最小 SPI、Dimensioner 与 helper 归属 |
