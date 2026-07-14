@@ -7,7 +7,7 @@
 
 本文记录 Core 重构前的编译器可见公共面、workspace 直接消费关系和后续迁移批次。它解决“改什么、谁会受影响、何时删除”的问题；它不是永久兼容承诺。P7 建立机械 API diff baseline 后，以工具输出判断签名兼容性。
 
-执行状态：P4-01 至 P4-07 已于 2026-07-14 完成。下文数量表和未特别标注的声明列表仍是重构前基线；已完成纵向切片的 package 会同时标明当前公共面，防止后续工作误用已删除 API。
+执行状态：P4 已于 2026-07-14 全部完成。下文数量表和未特别标注的声明列表仍是重构前基线；已完成纵向切片的 package 会同时标明当前公共面，防止后续工作误用已删除 API。
 
 ## 1. 口径与结论
 
@@ -317,7 +317,7 @@ ast, lexer, parser, token, visitors
 - [x] `documentreaders/pdf`
 - [x] `rag`
 - [x] `vectorstores/internal/tracing`
-- [x] 25 个实际 vectorstore 实现（Document/Match 纵向切片；P4-08 conformance 状态仍见 6.2）
+- [x] 25 个实际 vectorstore 实现（Document/Match 纵向切片与 P4-08 conformance 均完成）
 
 ### 6.2 VectorStore backend
 
