@@ -607,7 +607,11 @@ flowchart LR
 
 目标：把框架便利层从协议核心中拔出，并保持用户面可发现性。
 
-- [ ] **P3-01 建立独立 `chatclient` module**
+- [x] **P3-01 建立独立 `chatclient` module**（完成：2026-07-14）
+  - 模式：采用“新路径并存”；新 module 先建立稳定依赖方向，旧 `core/model/chat/client.go` 继续冻结并在 P6-05 删除。
+  - 边界：`chatclient` 生产代码只允许标准库与 `core`，不得反向依赖 Models、Tools、History、Agent 或应用层；自动架构测试扫描全部非测试 Go 文件并拒绝越界 import。
+  - 设计：本任务只建立真实 module 节点、包定位和依赖守卫，不提前发布无语义的占位 Client 接口；P3-02 在该边界内一次性形成直接调用面。
+  - 验证：`chatclient` build/vet/test/lint 全绿；加入 `go.work` 后全 workspace 18 个 module 的 build/vet/test/lint 共 72 项全绿。
 - [ ] **P3-02 设计直接调用优先的 Client API**
   - 不复制 Spring 嵌套 spec/builder。
   - 简单请求使用普通值；复杂初始化才用 functional options。
@@ -743,19 +747,19 @@ flowchart LR
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
-| P3 高层运行时外移 | 进行中 | 0/9 | P2 已退出；当前建立独立 chatclient module |
+| P3 高层运行时外移 | 进行中 | 1/9 | chatclient module 与依赖守卫已建立；当前设计直接调用 API |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **20/60** | **33%** |
+| **总计** | **进行中** | **21/60** | **35%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P3。
-- 下一任务：执行 P3-01，建立独立 `chatclient` module，并先冻结它与 Core/Tools/History/Agent 的依赖边界。
+- 下一任务：执行 P3-02，在 `chatclient` 内实现直接调用优先、复杂初始化才使用 functional options 的 Client API。
 - 当前阻塞：无。
-- 最近完成：P2-07 与 P2 阶段验收；Chat 生命周期/错误/聚合契约、四 provider 行为 conformance、68 项 workspace 门禁、六个 30 秒 fuzz 及 Core/Models 全 race 均通过。
+- 最近完成：P3-01；独立 `chatclient` module、stdlib + Core 生产依赖守卫及扩展后的 72 项 workspace 门禁均已通过。
 
 ### 10.3 进度更新规则
 
@@ -974,6 +978,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P3-01；建立独立 chatclient module 与 stdlib + Core 自动依赖守卫；workspace 扩展为 18 个 module、72 项门禁 | Codex |
 | 2026-07-14 | 完成 P2-07 与 P2 阶段验收；新增无别名 ResponseAccumulator，四 provider 固化取消/提前停止/首错终止/资源释放契约；进入 P3 | Codex |
 | 2026-07-14 | 完成 P2-06 四 provider adapter/conformance；Ollama native adapter 保留 reasoning/tool/native metadata，稳定合成 tool ID，并拒绝无法表达的输入 | Codex |
 | 2026-07-14 | P2-06 完成 Google reference adapter/conformance；保留全部 candidates、稳定合成 tool ID，并修正 tool-use/thought token 的 Core 总量归一化 | Codex |
@@ -1003,6 +1008,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P3-01 | 新增独立 `chatclient` module并接入 `go.work`；生产文件自动扫描只允许 stdlib + Core，未提前发明占位 Client API；模块门禁及 workspace 72/72 全绿；任务计数 21/60，P3 1/9 | P3-02 直接调用优先的 Client API |
 | 2026-07-14 | P2-07、P2 阶段验收 | 新增零值可用、失败原子、输入/快照无别名的 `ResponseAccumulator`，支持多 choice、相邻 text/reasoning、交错并行 tool delta 与累计 Usage 快照；共享 behavior suite 让四家真实 SDK 验证 Call/Stream cancel、调用方早停、首错终止和 transport context 退出，并让所有 happy stream 通过统一聚合；修正两处双重转义 mock wire；chat coverage 95.1%，workspace 68/68、六个 fuzz 各 30 秒、Core/Models 全 race 通过；任务计数 20/60，P2 7/7 | P3-01 建立独立 chatclient module |
 | 2026-07-14 | P2-06（批次 5，Ollama 4/4，任务完成） | 新增 `ollama.Chat`/`ChatConfig` 与独立 native request/response mapper；覆盖 reasoning/text/tool 规范顺序、bytes image、tool/result、native request 逃生舱、created_at/duration/metrics 和 Call/Stream 稳定位置 ID；无法表达的 signature、URI image、非对象 arguments 在 I/O 前失败；Models 全门禁及 Ollama/internal conformance race 全绿；任务计数 19/60 | P2-07 Chat Call/Stream 行为契约 |
 | 2026-07-14 | P2-06（批次 4，Google 3/4） | 新增 `google.Chat`/`ChatConfig` 与独立 request/response mapper；保留全部 candidates 和 part 顺序，映射 Thought/signature、safety、media、FunctionResponse，并为缺失 ID 的 Call/Stream tool call 生成稳定位置 ID；将 prompt 20 + tool-use 3、candidate 9 + thoughts 4 归一化为 Core 23/13，原始分项留在 extension；Models 全门禁与目标 race 全绿；任务计数保持 18/60 | P2-06 Ollama adapter/conformance |

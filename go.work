@@ -4,6 +4,7 @@ use (
 	./a2a
 	./agent
 	./app/runtime
+	./chatclient
 	./chathistory
 	./core
 	./documentreaders
