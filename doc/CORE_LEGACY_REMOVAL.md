@@ -45,6 +45,10 @@ DefaultOptions 不再是 provider 能力：provider 构造参数持有 provider 
 | 删除任务 | 通用 Logger 与 `core/evaluation` 已在 P3-05 删除；Core 观测代码与 OTel 依赖已在 P3-06 删除；剩余冻结 Chat 表面由 P6-05 删除，残余外部依赖由 P6-06 清理 |
 | 验收 | 第 5 节 forbidden responsibilities 在 Core 中为 0；无 path bridge |
 
+P3-07 已在目标 `tools` 根包建立 typed function Tool helper，并继续复用唯一
+`tools.Registry`。旧 `core/model/chat.NewTool` 当前仍有真实旧运行时消费者，
+因此只冻结、不转发；P3-08 与 P6 迁完最后消费者的同一批次必须删除它。
+
 ## 台账维护规则
 
 1. P2～P5 每发现一个为迁移保留的旧表面，都必须在同一逻辑提交登记目标替代、消费方、迁移任务和删除任务。
