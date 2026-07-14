@@ -81,6 +81,15 @@ lookup；在 `a68df8bd2` 中把全部 provider/facade credential 改为各自 co
 Ollama keyless 由具体 adapter 显式处理，App 自己拥有 secret 脱敏。两类旧表面均无
 待迁消费者，因此不建立冻结条目，也没有 alias、wrapper 或双轨配置。
 
+## P5 直接删除记录：Tokenizer
+
+P5-04 在 `687df9b60` 建立独立 `tokenizer` module 与 `tokenizer/tiktoken`
+实现包，在 `6953b45da` 迁完 DocumentPipeline、Anthropic 和 Google 后直接删除
+`core/tokenizer`、Core tiktoken 依赖以及无生产消费者的 `Estimator`/
+`MediaEstimator`。新根协议只保留 TextEstimator、Encoder、Decoder 和两方法
+Tokenizer；`c0b679029` 固化可独立解析的 module graph。未建立旧路径转发包、
+type alias 或复合能力兼容接口。
+
 ## 台账维护规则
 
 1. P2～P5 每发现一个为迁移保留的旧表面，都必须在同一逻辑提交登记目标替代、消费方、迁移任务和删除任务。

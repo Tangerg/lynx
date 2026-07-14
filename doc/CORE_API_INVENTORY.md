@@ -7,7 +7,7 @@
 
 本文记录 Core 重构前的编译器可见公共面、workspace 直接消费关系和后续迁移批次。它解决“改什么、谁会受影响、何时删除”的问题；它不是永久兼容承诺。P7 建立机械 API diff baseline 后，以工具输出判断签名兼容性。
 
-执行状态：P4、P5-01、P5-02、P5-03 与 P5-05 已于 2026-07-14 完成。五个旧 `core/model/<modality>` 路径已无兼容层地直接移动到 Core 顶层，五个 modality SPI 也已完成最小化；provider reference data 已归入公开 `models/catalog`，credential 已回归各 provider 配置。下文数量表和未特别标注的声明列表仍是重构前基线，已迁 package 会同时标明当前路径。
+执行状态：P4、P5-01、P5-02、P5-03、P5-04 与 P5-05 已于 2026-07-14 完成。五个旧 `core/model/<modality>` 路径已无兼容层地直接移动到 Core 顶层，五个 modality SPI 也已完成最小化；provider reference data 已归入公开 `models/catalog`，credential 已回归各 provider 配置，tokenizer 已成为独立 module。下文数量表和未特别标注的声明列表仍是重构前基线，已迁 package 会同时标明当前路径。
 
 ## 1. 口径与结论
 
@@ -301,6 +301,17 @@ chain 和 `ModelMetadata` 已直接删除；25 个具体 provider 与 6 个 faca
 Decoder, Encoder, Estimator, MediaEstimator, TextEstimator, Tiktoken,
 Tokenizer, NewDefaultTiktoken, NewTiktoken
 ```
+
+P5-04 后 `core/tokenizer` 已删除。当前独立 module 公共面为：
+
+```text
+tokenizer: Decoder, Encoder, TextEstimator, Tokenizer
+tokenizer/tiktoken: Tokenizer, New, NewDefault
+```
+
+无生产消费者的旧 `Estimator`/`MediaEstimator` 与不准确的媒体字节估算直接删除；
+DocumentPipeline 只接收实际调用的 `TextEstimator`，tiktoken 第三方依赖仅存在于
+实现 module。证据：`687df9b60`、`6953b45da`、`c0b679029`。
 
 ### vectorstore（P4-02 至 P4-06 当前公共面）
 
