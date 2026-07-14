@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/spf13/cast"
+
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/spf13/cast"
 )
 
 // fileWriterBatchSize is the number of documents buffered between
