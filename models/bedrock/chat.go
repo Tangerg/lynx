@@ -5,15 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
-	"mime"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
-	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
-	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
@@ -195,68 +191,6 @@ func buildMessages(msgs []chat.Message) ([]types.SystemContentBlock, []types.Mes
 		}
 	}
 	return systemBlocks, out
-}
-
-// toDocument wraps an arbitrary value into the AWS Smithy document
-// shape Bedrock expects for tool inputs. nil/empty inputs return nil
-// so the field can stay unset on the wire.
-func toDocument(v any) document.Interface {
-	if v == nil {
-		return nil
-	}
-	if m, ok := v.(map[string]any); ok && len(m) == 0 {
-		return nil
-	}
-	return document.NewLazyDocument(v)
-}
-
-// mediaToBlock maps a [*media.Media] payload onto the appropriate
-// Bedrock content-block variant. Only image media is fully supported
-// today — Bedrock Converse expects png / jpeg / gif / webp inline
-// bytes. Unrecognized media types are silently dropped (the assistant
-// gets the text portion of the message and the caller learns of the
-// gap by inspecting the prompt that round-tripped).
-func mediaToBlock(m *media.Media) types.ContentBlock {
-	if m == nil {
-		return nil
-	}
-	mediaType, _, err := mime.ParseMediaType(m.MIME)
-	if err != nil {
-		return nil
-	}
-	major, subtype, ok := strings.Cut(mediaType, "/")
-	if !ok || !strings.EqualFold(major, "image") {
-		return nil
-	}
-	format, ok := bedrockImageFormat(subtype)
-	if !ok {
-		return nil
-	}
-	raw, err := m.Bytes()
-	if err != nil || len(raw) == 0 {
-		return nil
-	}
-	return &types.ContentBlockMemberImage{
-		Value: types.ImageBlock{
-			Format: format,
-			Source: &types.ImageSourceMemberBytes{Value: raw},
-		},
-	}
-}
-
-func bedrockImageFormat(subtype string) (types.ImageFormat, bool) {
-	switch strings.ToLower(subtype) {
-	case "png":
-		return types.ImageFormatPng, true
-	case "jpeg", "jpg":
-		return types.ImageFormatJpeg, true
-	case "gif":
-		return types.ImageFormatGif, true
-	case "webp":
-		return types.ImageFormatWebp, true
-	default:
-		return "", false
-	}
 }
 
 func (c *ChatModel) buildResponse(out *bedrockruntime.ConverseOutput) (*chat.Response, error) {
