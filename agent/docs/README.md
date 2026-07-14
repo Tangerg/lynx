@@ -35,10 +35,11 @@ agent/
 ├── runtime/        Platform, AgentProcess, sequential/concurrent tick, retry
 ├── event/          lifecycle event types + multicast listener
 ├── hitl/           Interrupt[R] + typed Awaitable helpers
+├── toolloop/       Event Runner + serializable Checkpoint / pause / resume
 ├── toolpolicy/     OnceOnly / Unlocked chat-tool decorators
 ├── workflow/       higher-level agent shapes (Loop / Parallel / RepeatUntil / …)
-└── examples/       hello (1 action), blog (3-action GOAP plan), supervisor,
-                    mcpagent, blogllm, mcpbridge
+└── examples/       hello (1 action), blog (3-action GOAP plan), toolloop,
+                    supervisor, mcpagent, blogllm, mcpbridge
 ```
 
 ## Quick start
@@ -76,4 +77,7 @@ func main() {
 }
 ```
 
-Run the worked example: `go run ./examples/blog`.
+Run the planner example with `go run ./examples/blog`, or the target
+Core Chat + typed Tool + Event Runner path with `go run ./examples/toolloop`.
+The provider-neutral quick start is
+[`../../doc/CORE_GETTING_STARTED.md`](../../doc/CORE_GETTING_STARTED.md).
