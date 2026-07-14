@@ -1,0 +1,30 @@
+{
+  "id": "msg-1",
+  "model": "claude-opus-4-6",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "parts": [
+          {"kind": "reasoning", "text": "compare the evidence", "signature": "c2lnLWFudGhyb3BpYw=="},
+          {"kind": "text", "text": "I need another lookup."},
+          {"kind": "tool_call", "tool_call": {"id": "toolu-2", "name": "lookup", "arguments": "{\"id\":8}"}}
+        ],
+        "metadata": {"anthropic/redacted_reasoning": "opaque-redacted-block"}
+      },
+      "finish_reason": "tool_calls",
+      "extensions": {"anthropic/native_stop_reason": "tool_use"}
+    }
+  ],
+  "usage": {
+    "input_tokens": 100,
+    "output_tokens": 30,
+    "cache_read_input_tokens": 40,
+    "cache_write_input_tokens": 20
+  },
+  "extensions": {
+    "anthropic/stop_sequence": "END",
+    "anthropic/usage": {"input_tokens": 100, "output_tokens": 30, "cache_read_input_tokens": 40, "cache_creation_input_tokens": 20}
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "parts": [{"kind": "text", "text": "Follow policy."}]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {"kind": "text", "text": "Read the image and PDF."},
+        {"kind": "media", "media": {"mime": "image/jpeg", "source": {"kind": "uri", "uri": "https://example.com/image.jpg"}}},
+        {"kind": "media", "media": {"mime": "application/pdf", "source": {"kind": "bytes", "bytes": "cGRm"}, "name": "paper.pdf"}}
+      ]
+    },
+    {
+      "role": "assistant",
+      "parts": [
+        {"kind": "reasoning", "text": "need a lookup", "signature": "c2lnLWFudGhyb3BpYw=="},
+        {"kind": "text", "text": "I need one fact."},
+        {"kind": "tool_call", "tool_call": {"id": "toolu-1", "name": "lookup", "arguments": "{\"id\":7}"}}
+      ],
+      "metadata": {"anthropic/redacted_reasoning": "prior-opaque-block"}
+    },
+    {
+      "role": "tool",
+      "parts": [
+        {"kind": "tool_result", "tool_result": {"id": "toolu-1", "name": "lookup", "result": "not found", "is_error": true}}
+      ]
+    }
+  ],
+  "tools": [
+    {"name": "lookup", "description": "Look up a record", "input_schema": {"type": "object", "properties": {"id": {"type": "integer"}}}}
+  ],
+  "options": {
+    "model": "claude-opus-4-6",
+    "max_tokens": 1024,
+    "stop": ["END"],
+    "temperature": 0.2,
+    "top_k": 40,
+    "top_p": 0.95
+  },
+  "extensions": {
+    "anthropic/request": {
+      "thinking": {"type": "enabled", "budget_tokens": 512},
+      "cache_control": {"system": "ephemeral", "last_tool": "ephemeral", "last_message": "ephemeral"}
+    }
+  }
+}

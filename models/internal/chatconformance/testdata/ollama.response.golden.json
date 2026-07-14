@@ -1,0 +1,24 @@
+{
+  "model": "qwen3:8b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "parts": [
+          {"kind": "reasoning", "text": "inspect colors"},
+          {"kind": "text", "text": "It is a blue square."},
+          {"kind": "tool_call", "tool_call": {"id": "ollama/0/2", "name": "inspect", "arguments": "{\"detail\":true}"}}
+        ]
+      },
+      "finish_reason": "stop",
+      "extensions": {"ollama/native_done_reason": "stop"}
+    }
+  ],
+  "usage": {"input_tokens": 11, "output_tokens": 5},
+  "extensions": {
+    "ollama/created_at": "2026-07-14T12:00:00Z",
+    "ollama/durations_ms": {"total": 1250, "load": 100, "prompt_eval": 300, "eval": 700},
+    "ollama/metrics": {"prompt_eval_count": 11, "eval_count": 5}
+  }
+}

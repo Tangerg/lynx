@@ -1,0 +1,70 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "parts": [{"kind": "text", "text": "You are precise."}]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {"kind": "text", "text": "Inspect these inputs."},
+        {
+          "kind": "media",
+          "media": {
+            "mime": "image/png",
+            "source": {"kind": "bytes", "bytes": "aW1hZ2U="},
+            "name": "diagram.png"
+          }
+        },
+        {
+          "kind": "media",
+          "media": {
+            "mime": "application/pdf",
+            "source": {"kind": "reference", "ref": "file-123"},
+            "name": "spec.pdf"
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "parts": [
+        {"kind": "text", "text": "I will search."},
+        {"kind": "tool_call", "tool_call": {"id": "call-1", "name": "search", "arguments": "{\"q\":\"lynx\"}"}}
+      ],
+      "metadata": {
+        "openai/audio_id": "audio-prev",
+        "openai/refusal": ""
+      }
+    },
+    {
+      "role": "tool",
+      "parts": [
+        {"kind": "tool_result", "tool_result": {"id": "call-1", "name": "search", "result": "{\"hits\":2}"}}
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "name": "search",
+      "description": "Search the index",
+      "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"]}
+    }
+  ],
+  "options": {
+    "model": "gpt-5.2",
+    "frequency_penalty": 0.1,
+    "max_tokens": 512,
+    "presence_penalty": 0.2,
+    "stop": ["<END>"],
+    "temperature": 0.3,
+    "top_p": 0.9
+  },
+  "extensions": {
+    "openai/request": {
+      "response_format": {"type": "json_schema", "json_schema": {"name": "answer"}},
+      "modalities": ["text", "audio"],
+      "audio": {"format": "wav", "voice": "alloy"}
+    }
+  }
+}
