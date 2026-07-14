@@ -3,14 +3,13 @@ package inmemory
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
 // matchesFilter returns whether metadata satisfies expr. Evaluation
 // errors (type mismatch, unsupported node, etc.) are surfaced rather
 // than swallowed — a malformed filter is a programmer bug.
-func matchesFilter(expr ast.Expr, metadata map[string]any) (bool, error) {
+func matchesFilter(expr filter.Expr, metadata map[string]any) (bool, error) {
 	v, err := evalExpr(expr, metadata)
 	if err != nil {
 		return false, err
@@ -22,25 +21,25 @@ func matchesFilter(expr ast.Expr, metadata map[string]any) (bool, error) {
 	return b, nil
 }
 
-func evalExpr(expr ast.Expr, metadata map[string]any) (any, error) {
+func evalExpr(expr filter.Expr, metadata map[string]any) (any, error) {
 	switch e := expr.(type) {
-	case *ast.Ident:
+	case *filter.Ident:
 		return lookupField(metadata, e.Value), nil
-	case *ast.Literal:
+	case *filter.Literal:
 		return literalValue(e)
-	case *ast.ListLiteral:
+	case *filter.ListLiteral:
 		return listValue(e)
-	case *ast.IndexExpr:
+	case *filter.IndexExpr:
 		return evalIndex(e, metadata)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return evalUnary(e, metadata)
-	case *ast.BinaryExpr:
+	case *filter.BinaryExpr:
 		return evalBinary(e, metadata)
 	}
 	return nil, fmt.Errorf("inmemory.evalExpr: unsupported node %T", expr)
 }
 
-func literalValue(lit *ast.Literal) (any, error) {
+func literalValue(lit *filter.Literal) (any, error) {
 	switch {
 	case lit.IsString():
 		return lit.AsString()
@@ -52,7 +51,7 @@ func literalValue(lit *ast.Literal) (any, error) {
 	return nil, fmt.Errorf("inmemory.literalValue: literal %q has no decodable kind", lit.Value)
 }
 
-func listValue(list *ast.ListLiteral) (any, error) {
+func listValue(list *filter.ListLiteral) (any, error) {
 	out := make([]any, 0, len(list.Values))
 	for _, item := range list.Values {
 		v, err := literalValue(item)
@@ -67,7 +66,7 @@ func listValue(list *ast.ListLiteral) (any, error) {
 // evalIndex resolves an `a["b"][0]`-style chain. Missing keys / OOB
 // indices return nil (matching SQL NULL semantics); only structural
 // type errors are reported.
-func evalIndex(idx *ast.IndexExpr, metadata map[string]any) (any, error) {
+func evalIndex(idx *filter.IndexExpr, metadata map[string]any) (any, error) {
 	keys, err := collectIndexKeys(idx)
 	if err != nil {
 		return nil, err
@@ -98,19 +97,19 @@ func evalIndex(idx *ast.IndexExpr, metadata map[string]any) (any, error) {
 	return cur, nil
 }
 
-func collectIndexKeys(idx *ast.IndexExpr) ([]any, error) {
+func collectIndexKeys(idx *filter.IndexExpr) ([]any, error) {
 	var chain []any
-	cur := ast.Expr(idx)
+	cur := filter.Expr(idx)
 	for {
 		switch typed := cur.(type) {
-		case *ast.IndexExpr:
+		case *filter.IndexExpr:
 			key, err := literalValue(typed.Index)
 			if err != nil {
 				return nil, err
 			}
 			chain = append([]any{key}, chain...)
 			cur = typed.Left
-		case *ast.Ident:
+		case *filter.Ident:
 			chain = append([]any{typed.Value}, chain...)
 			return chain, nil
 		default:
@@ -119,9 +118,9 @@ func collectIndexKeys(idx *ast.IndexExpr) ([]any, error) {
 	}
 }
 
-func evalUnary(u *ast.UnaryExpr, metadata map[string]any) (any, error) {
-	if u.Op.Kind != token.NOT {
-		return nil, fmt.Errorf("inmemory.evalUnary: unsupported unary operator %s", u.Op.Kind)
+func evalUnary(u *filter.UnaryExpr, metadata map[string]any) (any, error) {
+	if u.Op != filter.OpNot {
+		return nil, fmt.Errorf("inmemory.evalUnary: unsupported unary operator %s", u.Op)
 	}
 	v, err := evalExpr(u.Right, metadata)
 	if err != nil {
@@ -134,22 +133,22 @@ func evalUnary(u *ast.UnaryExpr, metadata map[string]any) (any, error) {
 	return !b, nil
 }
 
-func evalBinary(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
-	switch b.Op.Kind {
-	case token.AND, token.OR:
+func evalBinary(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
+	switch b.Op {
+	case filter.OpAnd, filter.OpOr:
 		return evalLogical(b, metadata)
-	case token.EQ, token.NE:
+	case filter.OpEqual, filter.OpNotEqual:
 		return evalEquality(b, metadata)
-	case token.LT, token.LE, token.GT, token.GE:
+	case filter.OpLess, filter.OpLessEqual, filter.OpGreater, filter.OpGreaterEqual:
 		return evalOrdering(b, metadata)
-	case token.IN:
+	case filter.OpIn:
 		return evalIn(b, metadata)
-	case token.LIKE:
+	case filter.OpLike:
 		return evalLike(b, metadata)
-	case token.IS:
+	case filter.OpIs:
 		return evalNullTest(b, metadata)
 	}
-	return nil, fmt.Errorf("inmemory.evalBinary: unsupported binary operator %s", b.Op.Kind)
+	return nil, fmt.Errorf("inmemory.evalBinary: unsupported binary operator %s", b.Op)
 }
 
 // evalNullTest evaluates `<field> IS NULL`: true when the field is
@@ -157,7 +156,7 @@ func evalBinary(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
 // (lookupField / evalIndex return nil), so this collapses to a nil
 // check. `IS NOT NULL` is the NOT wrapper around this, handled by
 // evalUnary.
-func evalNullTest(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
+func evalNullTest(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
 	left, err := evalExpr(b.Left, metadata)
 	if err != nil {
 		return nil, err
@@ -165,20 +164,20 @@ func evalNullTest(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
 	return left == nil, nil
 }
 
-func evalLogical(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
+func evalLogical(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
 	left, err := evalExpr(b.Left, metadata)
 	if err != nil {
 		return nil, err
 	}
 	lb, ok := left.(bool)
 	if !ok {
-		return nil, fmt.Errorf("inmemory.evalLogical: %s left operand must be bool, got %T", b.Op.Kind, left)
+		return nil, fmt.Errorf("inmemory.evalLogical: %s left operand must be bool, got %T", b.Op, left)
 	}
 	// Short-circuit.
-	if b.Op.Kind == token.AND && !lb {
+	if b.Op == filter.OpAnd && !lb {
 		return false, nil
 	}
-	if b.Op.Kind == token.OR && lb {
+	if b.Op == filter.OpOr && lb {
 		return true, nil
 	}
 	right, err := evalExpr(b.Right, metadata)
@@ -187,12 +186,12 @@ func evalLogical(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
 	}
 	rb, ok := right.(bool)
 	if !ok {
-		return nil, fmt.Errorf("inmemory.evalLogical: %s right operand must be bool, got %T", b.Op.Kind, right)
+		return nil, fmt.Errorf("inmemory.evalLogical: %s right operand must be bool, got %T", b.Op, right)
 	}
 	return rb, nil
 }
 
-func evalEquality(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
+func evalEquality(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
 	left, err := evalExpr(b.Left, metadata)
 	if err != nil {
 		return nil, err
@@ -202,7 +201,7 @@ func evalEquality(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
 		return nil, err
 	}
 	eq := equalValues(left, right)
-	if b.Op.Kind == token.NE {
+	if b.Op == filter.OpNotEqual {
 		return !eq, nil
 	}
 	return eq, nil
@@ -221,7 +220,7 @@ func equalValues(a, b any) bool {
 	return a == b
 }
 
-func evalOrdering(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
+func evalOrdering(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
 	left, err := evalExpr(b.Left, metadata)
 	if err != nil {
 		return nil, err
@@ -232,26 +231,26 @@ func evalOrdering(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
 	}
 	lf, ok := toFloat(left)
 	if !ok {
-		return nil, fmt.Errorf("inmemory.evalOrdering: %s left operand must be numeric, got %T", b.Op.Kind, left)
+		return nil, fmt.Errorf("inmemory.evalOrdering: %s left operand must be numeric, got %T", b.Op, left)
 	}
 	rf, ok := toFloat(right)
 	if !ok {
-		return nil, fmt.Errorf("inmemory.evalOrdering: %s right operand must be numeric, got %T", b.Op.Kind, right)
+		return nil, fmt.Errorf("inmemory.evalOrdering: %s right operand must be numeric, got %T", b.Op, right)
 	}
-	switch b.Op.Kind {
-	case token.LT:
+	switch b.Op {
+	case filter.OpLess:
 		return lf < rf, nil
-	case token.LE:
+	case filter.OpLessEqual:
 		return lf <= rf, nil
-	case token.GT:
+	case filter.OpGreater:
 		return lf > rf, nil
-	case token.GE:
+	case filter.OpGreaterEqual:
 		return lf >= rf, nil
 	}
-	return nil, fmt.Errorf("inmemory.evalOrdering: unreachable op %s", b.Op.Kind)
+	return nil, fmt.Errorf("inmemory.evalOrdering: unreachable op %s", b.Op)
 }
 
-func evalIn(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
+func evalIn(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
 	left, err := evalExpr(b.Left, metadata)
 	if err != nil {
 		return nil, err
@@ -272,7 +271,7 @@ func evalIn(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
 	return false, nil
 }
 
-func evalLike(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
+func evalLike(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
 	left, err := evalExpr(b.Left, metadata)
 	if err != nil {
 		return nil, err

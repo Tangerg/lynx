@@ -6,12 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
-
-var _ ast.Visitor = (*Visitor)(nil)
 
 // Visitor transforms AST filter expressions into Typesense `filter_by`
 // syntax. The metadata field is a nested object on the collection
@@ -45,12 +42,12 @@ func (v *Visitor) Result() string {
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("typesense: cannot process nil expression")
 	}
@@ -58,35 +55,35 @@ func (v *Visitor) visit(expr ast.Expr) error {
 		return v.err
 	}
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
+	case *filter.BinaryExpr:
 		return v.visitBinaryExpr(node)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return v.visitUnaryExpr(node)
 	default:
 		return fmt.Errorf("typesense: unsupported root expression %T", node)
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
-	case expr.Op.Kind.IsLogicalOperator():
+	case expr.Op.IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
-	case expr.Op.Kind.Is(token.IN):
+	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
-	case expr.Op.Kind.IsEqualityOperator() || expr.Op.Kind.IsOrderingOperator():
+	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
-		return fmt.Errorf("typesense: unsupported binary operator '%s'", expr.Op.Literal)
+		return fmt.Errorf("typesense: unsupported binary operator '%s'", expr.Op.String())
 	}
 }
 
 // visitUnaryExpr maps NOT (op) onto the operator's inverse because
 // Typesense `filter_by` has no top-level NOT.
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.Is(token.NOT) {
-		return fmt.Errorf("typesense: unsupported unary '%s'", expr.Op.Literal)
+func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+	if !expr.Op.Is(filter.OpNot) {
+		return fmt.Errorf("typesense: unsupported unary '%s'", expr.Op.String())
 	}
-	bin, ok := expr.Right.(*ast.BinaryExpr)
+	bin, ok := expr.Right.(*filter.BinaryExpr)
 	if !ok {
 		return errors.New("typesense: NOT may only wrap a binary comparison")
 	}
@@ -97,30 +94,30 @@ func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
 	return v.visit(inverted)
 }
 
-func invertBinary(expr *ast.BinaryExpr) (*ast.BinaryExpr, error) {
+func invertBinary(expr *filter.BinaryExpr) (*filter.BinaryExpr, error) {
 	clone := *expr
-	switch expr.Op.Kind {
-	case token.EQ:
-		clone.Op.Kind = token.NE
-	case token.NE:
-		clone.Op.Kind = token.EQ
-	case token.LT:
-		clone.Op.Kind = token.GE
-	case token.LE:
-		clone.Op.Kind = token.GT
-	case token.GT:
-		clone.Op.Kind = token.LE
-	case token.GE:
-		clone.Op.Kind = token.LT
+	switch expr.Op {
+	case filter.OpEqual:
+		clone.Op = filter.OpNotEqual
+	case filter.OpNotEqual:
+		clone.Op = filter.OpEqual
+	case filter.OpLess:
+		clone.Op = filter.OpGreaterEqual
+	case filter.OpLessEqual:
+		clone.Op = filter.OpGreater
+	case filter.OpGreater:
+		clone.Op = filter.OpLessEqual
+	case filter.OpGreaterEqual:
+		clone.Op = filter.OpLess
 	default:
-		return nil, fmt.Errorf("typesense: cannot invert operator '%s'", expr.Op.Literal)
+		return nil, fmt.Errorf("typesense: cannot invert operator '%s'", expr.Op.String())
 	}
 	return &clone, nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " && "
-	if expr.Op.Kind.Is(token.OR) {
+	if expr.Op.Is(filter.OpOr) {
 		op = " || "
 	}
 	v.sql.WriteString("(")
@@ -135,7 +132,7 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return err
@@ -144,7 +141,7 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	if err != nil {
 		return err
 	}
-	op, err := filterOpFor(expr.Op.Kind)
+	op, err := filterOpFor(expr.Op)
 	if err != nil {
 		return err
 	}
@@ -157,12 +154,12 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return err
 	}
-	listLit, ok := expr.Right.(*ast.ListLiteral)
+	listLit, ok := expr.Right.(*filter.ListLiteral)
 	if !ok {
 		return errors.New("typesense: 'IN' requires a list on the right")
 	}
@@ -185,7 +182,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
+func (v *Visitor) fieldPath(expr filter.Expr) (string, error) {
 	keys, err := filterhelp.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
@@ -200,19 +197,19 @@ func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
 	return v.metadataPrefix + "." + joined, nil
 }
 
-func filterOpFor(kind token.Kind) (string, error) {
+func filterOpFor(kind filter.Operator) (string, error) {
 	switch kind {
-	case token.EQ:
+	case filter.OpEqual:
 		return "=", nil
-	case token.NE:
+	case filter.OpNotEqual:
 		return "!=", nil
-	case token.LT:
+	case filter.OpLess:
 		return "<", nil
-	case token.LE:
+	case filter.OpLessEqual:
 		return "<=", nil
-	case token.GT:
+	case filter.OpGreater:
 		return ">", nil
-	case token.GE:
+	case filter.OpGreaterEqual:
 		return ">=", nil
 	default:
 		return "", fmt.Errorf("typesense: unexpected operator '%s'", kind.Name())

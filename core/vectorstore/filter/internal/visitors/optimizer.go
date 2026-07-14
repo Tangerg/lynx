@@ -1,8 +1,8 @@
 package visitors
 
 import (
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
 )
 
 // Optimizer rewrites a filter AST into a smaller, semantically identical

@@ -6,12 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
-
-var _ ast.Visitor = (*Visitor)(nil)
 
 // Visitor transforms AST filter expressions into a parameterized
 // PostgreSQL WHERE-clause fragment plus the matching argument list.
@@ -56,12 +53,12 @@ func (v *Visitor) Result() (string, []any) {
 	return v.sql.String(), v.args
 }
 
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("pgvector: cannot process nil expression")
 	}
@@ -70,8 +67,8 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	}
 
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
-		if node.Op.Kind.IsNullOperator() {
+	case *filter.BinaryExpr:
+		if node.Op.IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
 		return filterhelp.DispatchBinaryErr(node,
@@ -80,14 +77,14 @@ func (v *Visitor) visit(expr ast.Expr) error {
 			v.visitInExpr,
 			v.visitLikeExpr,
 		)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return filterhelp.DispatchUnaryErr(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("pgvector: unsupported root expression type %T", node)
 	}
 }
 
-func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
+func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	v.sql.WriteString("(NOT ")
 	if err := v.visit(expr.Right); err != nil {
 		return err
@@ -96,8 +93,8 @@ func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
-	op, err := filterhelp.LogicalOpString(expr.Op.Kind)
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+	op, err := filterhelp.LogicalOpString(expr.Op)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
 	}
@@ -119,18 +116,18 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 // visitComparisonExpr handles ==, !=, <, <=, >, >=. The JSON extraction
 // expression on the left side is type-cast based on the value type:
 // numbers → ::numeric, bools → ::boolean, strings → no cast.
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	value, err := filterhelp.ExtractValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
 
-	jsonPath, err := buildJSONPath(expr.Left, v.metadataCol, comparisonCastFor(value, expr.Op.Kind))
+	jsonPath, err := buildJSONPath(expr.Left, v.metadataCol, comparisonCastFor(value, expr.Op))
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
 
-	op, err := sqlOpFor(expr.Op.Kind)
+	op, err := sqlOpFor(expr.Op)
 	if err != nil {
 		return err
 	}
@@ -149,7 +146,7 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 // visitInExpr emits `key = ANY($N)` with a slice argument. Element type
 // follows the literal type — pgx maps Go slices to a Postgres array of
 // the matching type.
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	listLit, err := filterhelp.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
@@ -160,7 +157,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
 
-	jsonPath, err := buildJSONPath(expr.Left, v.metadataCol, comparisonCastFor(sample, token.EQ))
+	jsonPath, err := buildJSONPath(expr.Left, v.metadataCol, comparisonCastFor(sample, filter.OpEqual))
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
@@ -177,7 +174,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 // visitLikeExpr emits a SQL ILIKE so callers get the case-insensitive
 // pattern-match that most filter DSLs assume. Right side must be a
 // string literal.
-func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	pattern, err := filterhelp.RequireStringPatternOnRight(expr)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
@@ -202,7 +199,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 // is JSON null, matching the inmemory reference semantics. The negated
 // `IS NOT NULL` arrives as NOT(… IS NULL) and is rendered by
 // visitNotExpr, so no separate handling is needed here.
-func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildJSONPath(expr.Left, v.metadataCol, castNone)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
@@ -223,7 +220,7 @@ const (
 	castBoolean
 )
 
-func comparisonCastFor(value any, op token.Kind) jsonCast {
+func comparisonCastFor(value any, op filter.Operator) jsonCast {
 	switch value.(type) {
 	case bool:
 		return castBoolean
@@ -240,19 +237,19 @@ func comparisonCastFor(value any, op token.Kind) jsonCast {
 	}
 }
 
-func sqlOpFor(kind token.Kind) (string, error) {
+func sqlOpFor(kind filter.Operator) (string, error) {
 	switch kind {
-	case token.EQ:
+	case filter.OpEqual:
 		return "=", nil
-	case token.NE:
+	case filter.OpNotEqual:
 		return "<>", nil
-	case token.LT:
+	case filter.OpLess:
 		return "<", nil
-	case token.LE:
+	case filter.OpLessEqual:
 		return "<=", nil
-	case token.GT:
+	case filter.OpGreater:
 		return ">", nil
-	case token.GE:
+	case filter.OpGreaterEqual:
 		return ">=", nil
 	default:
 		return "", fmt.Errorf("pgvector: unexpected comparison operator '%s'", kind.Name())
@@ -268,7 +265,7 @@ func sqlOpFor(kind token.Kind) (string, error) {
 //
 // For numeric / boolean comparisons the trailing ->> is wrapped in a
 // type cast.
-func buildJSONPath(expr ast.Expr, metadataCol string, cast jsonCast) (string, error) {
+func buildJSONPath(expr filter.Expr, metadataCol string, cast jsonCast) (string, error) {
 	pathParts, err := filterhelp.CollectKeyPath(expr)
 	if err != nil {
 		return "", err

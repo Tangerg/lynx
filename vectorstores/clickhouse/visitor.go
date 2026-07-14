@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
-
-var _ ast.Visitor = (*Visitor)(nil)
 
 // Visitor transforms AST filter expressions into a ClickHouse WHERE
 // fragment. Metadata is stored as a `Map(String, String)` column;
@@ -44,12 +41,12 @@ func (v *Visitor) Result() (string, []any) {
 	return v.sql.String(), v.args
 }
 
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("clickhouse: cannot process nil expression")
 	}
@@ -57,36 +54,36 @@ func (v *Visitor) visit(expr ast.Expr) error {
 		return v.err
 	}
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
-		if node.Op.Kind.IsNullOperator() {
+	case *filter.BinaryExpr:
+		if node.Op.IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
 		return v.visitBinaryExpr(node)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return v.visitUnaryExpr(node)
 	default:
 		return fmt.Errorf("clickhouse: unsupported root expression %T", node)
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
-	case expr.Op.Kind.IsLogicalOperator():
+	case expr.Op.IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
-	case expr.Op.Kind.Is(token.IN):
+	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
-	case expr.Op.Kind.Is(token.LIKE):
+	case expr.Op.Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
-	case expr.Op.Kind.IsEqualityOperator() || expr.Op.Kind.IsOrderingOperator():
+	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
-		return fmt.Errorf("clickhouse: unsupported binary operator '%s'", expr.Op.Literal)
+		return fmt.Errorf("clickhouse: unsupported binary operator '%s'", expr.Op.String())
 	}
 }
 
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.Is(token.NOT) {
-		return fmt.Errorf("clickhouse: unsupported unary '%s'", expr.Op.Literal)
+func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+	if !expr.Op.Is(filter.OpNot) {
+		return fmt.Errorf("clickhouse: unsupported unary '%s'", expr.Op.String())
 	}
 	v.sql.WriteString("NOT (")
 	if err := v.visit(expr.Right); err != nil {
@@ -96,9 +93,9 @@ func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
-	if expr.Op.Kind.Is(token.OR) {
+	if expr.Op.Is(filter.OpOr) {
 		op = " OR "
 	}
 	v.sql.WriteString("(")
@@ -113,7 +110,7 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildKeyPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
@@ -122,11 +119,11 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
 	}
-	op, err := sqlOpFor(expr.Op.Kind)
+	op, err := sqlOpFor(expr.Op)
 	if err != nil {
 		return err
 	}
-	v.appendMapAccess(jsonPath, value, expr.Op.Kind)
+	v.appendMapAccess(jsonPath, value, expr.Op)
 	v.sql.WriteByte(' ')
 	v.sql.WriteString(op)
 	v.sql.WriteByte(' ')
@@ -134,12 +131,12 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildKeyPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
 	}
-	listLit, ok := expr.Right.(*ast.ListLiteral)
+	listLit, ok := expr.Right.(*filter.ListLiteral)
 	if !ok {
 		return errors.New("clickhouse: 'IN' requires a list on the right")
 	}
@@ -154,7 +151,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 		}
 		values = append(values, val)
 	}
-	v.appendMapAccess(jsonPath, values[0], token.EQ)
+	v.appendMapAccess(jsonPath, values[0], filter.OpEqual)
 	v.sql.WriteString(" IN (")
 	for i, val := range values {
 		if i > 0 {
@@ -166,7 +163,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildKeyPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
@@ -179,7 +176,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	if !ok {
 		return fmt.Errorf("clickhouse: LIKE requires a string pattern, got %T", value)
 	}
-	v.appendMapAccess(jsonPath, "", token.EQ)
+	v.appendMapAccess(jsonPath, "", filter.OpEqual)
 	v.sql.WriteString(" LIKE ")
 	v.appendValuePlaceholder(pattern)
 	return nil
@@ -193,7 +190,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 // matches the inmemory reference semantics (a missing metadata key reads
 // as null). The negated `IS NOT NULL` arrives as NOT(… IS NULL) and is
 // rendered by visitUnaryExpr, so no separate handling is needed here.
-func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	key, err := buildKeyPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
@@ -209,7 +206,7 @@ func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
 // appendMapAccess writes `metadata['key']`, wrapping the access in
 // `toFloat64OrZero(...)` when the comparison value implies numeric
 // semantics.
-func (v *Visitor) appendMapAccess(key string, value any, op token.Kind) {
+func (v *Visitor) appendMapAccess(key string, value any, op filter.Operator) {
 	switch value.(type) {
 	case float64, int64, int:
 		v.sql.WriteString("toFloat64OrZero(")
@@ -247,7 +244,7 @@ func (v *Visitor) appendValuePlaceholder(value any) {
 	v.sql.WriteByte('?')
 }
 
-func buildKeyPath(expr ast.Expr) (string, error) {
+func buildKeyPath(expr filter.Expr) (string, error) {
 	keys, err := filterhelp.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
@@ -258,19 +255,19 @@ func buildKeyPath(expr ast.Expr) (string, error) {
 	return strings.Join(keys, "."), nil
 }
 
-func sqlOpFor(kind token.Kind) (string, error) {
+func sqlOpFor(kind filter.Operator) (string, error) {
 	switch kind {
-	case token.EQ:
+	case filter.OpEqual:
 		return "=", nil
-	case token.NE:
+	case filter.OpNotEqual:
 		return "<>", nil
-	case token.LT:
+	case filter.OpLess:
 		return "<", nil
-	case token.LE:
+	case filter.OpLessEqual:
 		return "<=", nil
-	case token.GT:
+	case filter.OpGreater:
 		return ">", nil
-	case token.GE:
+	case filter.OpGreaterEqual:
 		return ">=", nil
 	default:
 		return "", fmt.Errorf("clickhouse: unexpected comparison operator '%s'", kind.Name())

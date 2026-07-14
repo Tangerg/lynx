@@ -8,8 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
 // BuildRetrievalFilter transforms an AST filter expression into a
@@ -17,46 +16,46 @@ import (
 // keys directly by name; nested paths are not supported, so the left
 // operand must reduce to a bare identifier (or a single-level
 // indexed expression).
-func BuildRetrievalFilter(expr ast.Expr) (types.RetrievalFilter, error) {
+func BuildRetrievalFilter(expr filter.Expr) (types.RetrievalFilter, error) {
 	if expr == nil {
 		return nil, nil
 	}
 	return convertExpr(expr)
 }
 
-func convertExpr(expr ast.Expr) (types.RetrievalFilter, error) {
+func convertExpr(expr filter.Expr) (types.RetrievalFilter, error) {
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
+	case *filter.BinaryExpr:
 		return convertBinary(node)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return convertUnary(node)
 	default:
 		return nil, fmt.Errorf("bedrockkb: unsupported root expression %T", node)
 	}
 }
 
-func convertBinary(expr *ast.BinaryExpr) (types.RetrievalFilter, error) {
+func convertBinary(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
 	switch {
-	case expr.Op.Kind.Is(token.AND), expr.Op.Kind.Is(token.OR):
+	case expr.Op.Is(filter.OpAnd), expr.Op.Is(filter.OpOr):
 		return convertLogical(expr)
-	case expr.Op.Kind.Is(token.IN):
+	case expr.Op.Is(filter.OpIn):
 		return convertIn(expr)
-	case expr.Op.Kind.Is(token.LIKE):
+	case expr.Op.Is(filter.OpLike):
 		return convertLike(expr)
-	case expr.Op.Kind.IsEqualityOperator() || expr.Op.Kind.IsOrderingOperator():
+	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
 		return convertComparison(expr)
 	default:
-		return nil, fmt.Errorf("bedrockkb: unsupported binary operator '%s'", expr.Op.Literal)
+		return nil, fmt.Errorf("bedrockkb: unsupported binary operator '%s'", expr.Op.String())
 	}
 }
 
 // convertUnary handles NOT by rewriting the negated child into its
 // inverse, since Bedrock has no top-level NOT filter member.
-func convertUnary(expr *ast.UnaryExpr) (types.RetrievalFilter, error) {
-	if !expr.Op.Kind.Is(token.NOT) {
-		return nil, fmt.Errorf("bedrockkb: unsupported unary '%s'", expr.Op.Literal)
+func convertUnary(expr *filter.UnaryExpr) (types.RetrievalFilter, error) {
+	if !expr.Op.Is(filter.OpNot) {
+		return nil, fmt.Errorf("bedrockkb: unsupported unary '%s'", expr.Op.String())
 	}
-	bin, ok := expr.Right.(*ast.BinaryExpr)
+	bin, ok := expr.Right.(*filter.BinaryExpr)
 	if !ok {
 		return nil, errors.New("bedrockkb: NOT may only wrap a binary comparison")
 	}
@@ -69,28 +68,28 @@ func convertUnary(expr *ast.UnaryExpr) (types.RetrievalFilter, error) {
 
 // invertBinary returns the boolean inverse of a single comparison —
 // EQ↔NE, LT↔GE, LE↔GT, IN↔NIN.
-func invertBinary(expr *ast.BinaryExpr) (*ast.BinaryExpr, error) {
+func invertBinary(expr *filter.BinaryExpr) (*filter.BinaryExpr, error) {
 	clone := *expr
-	switch expr.Op.Kind {
-	case token.EQ:
-		clone.Op.Kind = token.NE
-	case token.NE:
-		clone.Op.Kind = token.EQ
-	case token.LT:
-		clone.Op.Kind = token.GE
-	case token.LE:
-		clone.Op.Kind = token.GT
-	case token.GT:
-		clone.Op.Kind = token.LE
-	case token.GE:
-		clone.Op.Kind = token.LT
+	switch expr.Op {
+	case filter.OpEqual:
+		clone.Op = filter.OpNotEqual
+	case filter.OpNotEqual:
+		clone.Op = filter.OpEqual
+	case filter.OpLess:
+		clone.Op = filter.OpGreaterEqual
+	case filter.OpLessEqual:
+		clone.Op = filter.OpGreater
+	case filter.OpGreater:
+		clone.Op = filter.OpLessEqual
+	case filter.OpGreaterEqual:
+		clone.Op = filter.OpLess
 	default:
-		return nil, fmt.Errorf("bedrockkb: cannot invert operator '%s'", expr.Op.Literal)
+		return nil, fmt.Errorf("bedrockkb: cannot invert operator '%s'", expr.Op.String())
 	}
 	return &clone, nil
 }
 
-func convertLogical(expr *ast.BinaryExpr) (types.RetrievalFilter, error) {
+func convertLogical(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
 	left, err := convertExpr(expr.Left)
 	if err != nil {
 		return nil, err
@@ -99,13 +98,13 @@ func convertLogical(expr *ast.BinaryExpr) (types.RetrievalFilter, error) {
 	if err != nil {
 		return nil, err
 	}
-	if expr.Op.Kind.Is(token.OR) {
+	if expr.Op.Is(filter.OpOr) {
 		return &types.RetrievalFilterMemberOrAll{Value: []types.RetrievalFilter{left, right}}, nil
 	}
 	return &types.RetrievalFilterMemberAndAll{Value: []types.RetrievalFilter{left, right}}, nil
 }
 
-func convertComparison(expr *ast.BinaryExpr) (types.RetrievalFilter, error) {
+func convertComparison(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
 	key, err := keyName(expr.Left)
 	if err != nil {
 		return nil, err
@@ -118,30 +117,30 @@ func convertComparison(expr *ast.BinaryExpr) (types.RetrievalFilter, error) {
 		Key:   &key,
 		Value: document.NewLazyDocument(value),
 	}
-	switch expr.Op.Kind {
-	case token.EQ:
+	switch expr.Op {
+	case filter.OpEqual:
 		return &types.RetrievalFilterMemberEquals{Value: attr}, nil
-	case token.NE:
+	case filter.OpNotEqual:
 		return &types.RetrievalFilterMemberNotEquals{Value: attr}, nil
-	case token.LT:
+	case filter.OpLess:
 		return &types.RetrievalFilterMemberLessThan{Value: attr}, nil
-	case token.LE:
+	case filter.OpLessEqual:
 		return &types.RetrievalFilterMemberLessThanOrEquals{Value: attr}, nil
-	case token.GT:
+	case filter.OpGreater:
 		return &types.RetrievalFilterMemberGreaterThan{Value: attr}, nil
-	case token.GE:
+	case filter.OpGreaterEqual:
 		return &types.RetrievalFilterMemberGreaterThanOrEquals{Value: attr}, nil
 	default:
-		return nil, fmt.Errorf("bedrockkb: unexpected comparison operator '%s'", expr.Op.Literal)
+		return nil, fmt.Errorf("bedrockkb: unexpected comparison operator '%s'", expr.Op.String())
 	}
 }
 
-func convertIn(expr *ast.BinaryExpr) (types.RetrievalFilter, error) {
+func convertIn(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
 	key, err := keyName(expr.Left)
 	if err != nil {
 		return nil, err
 	}
-	listLit, ok := expr.Right.(*ast.ListLiteral)
+	listLit, ok := expr.Right.(*filter.ListLiteral)
 	if !ok {
 		return nil, errors.New("bedrockkb: 'IN' requires a list on the right")
 	}
@@ -166,7 +165,7 @@ func convertIn(expr *ast.BinaryExpr) (types.RetrievalFilter, error) {
 
 // convertLike maps LIKE onto Bedrock's StringContains / StartsWith
 // depending on the pattern shape.
-func convertLike(expr *ast.BinaryExpr) (types.RetrievalFilter, error) {
+func convertLike(expr *filter.BinaryExpr) (types.RetrievalFilter, error) {
 	key, err := keyName(expr.Left)
 	if err != nil {
 		return nil, err
@@ -205,11 +204,11 @@ func convertLike(expr *ast.BinaryExpr) (types.RetrievalFilter, error) {
 	}
 }
 
-func keyName(expr ast.Expr) (string, error) {
+func keyName(expr filter.Expr) (string, error) {
 	switch node := expr.(type) {
-	case *ast.Ident:
+	case *filter.Ident:
 		return node.Value, nil
-	case *ast.IndexExpr:
+	case *filter.IndexExpr:
 		// Single-level metadata["author"] only — Bedrock doesn't do
 		// nested attribute paths in filters.
 		idx := node.Index
@@ -236,15 +235,15 @@ func keyName(expr ast.Expr) (string, error) {
 	}
 }
 
-func extractLiteralValue(expr ast.Expr) (any, error) {
-	lit, ok := expr.(*ast.Literal)
+func extractLiteralValue(expr filter.Expr) (any, error) {
+	lit, ok := expr.(*filter.Literal)
 	if !ok {
 		return nil, fmt.Errorf("expected literal, got %T", expr)
 	}
 	return literalToValue(lit)
 }
 
-func literalToValue(lit *ast.Literal) (any, error) {
+func literalToValue(lit *filter.Literal) (any, error) {
 	switch {
 	case lit.IsString():
 		return lit.AsString()
@@ -260,6 +259,6 @@ func literalToValue(lit *ast.Literal) (any, error) {
 	case lit.IsBool():
 		return lit.AsBool()
 	default:
-		return nil, fmt.Errorf("unsupported literal kind %s", lit.Token.Kind.Name())
+		return nil, fmt.Errorf("unsupported literal kind %s", lit.Kind)
 	}
 }

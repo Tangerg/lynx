@@ -4,11 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
-// DispatchBinary routes a [*ast.BinaryExpr] to one of four handlers
+// DispatchBinary routes a [*filter.BinaryExpr] to one of four handlers
 // based on the operator's category. The filter mini-language has
 // exactly four families of binary operators:
 //
@@ -23,10 +22,10 @@ import (
 //
 // Example:
 //
-//	func (v *Visitor) visitBinaryExpr(e *ast.BinaryExpr) error {
+//	func (v *Visitor) visitBinaryExpr(e *filter.BinaryExpr) error {
 //	    _, err := filterhelp.DispatchBinary[struct{}](
 //	        e,
-//	        func(e *ast.BinaryExpr) (struct{}, error) {
+//	        func(e *filter.BinaryExpr) (struct{}, error) {
 //	            return struct{}{}, v.visitLogicalExpr(e)
 //	        },
 //	        // ... etc
@@ -34,39 +33,39 @@ import (
 //	    return err
 //	}
 func DispatchBinary[T any](
-	expr *ast.BinaryExpr,
-	onLogical func(*ast.BinaryExpr) (T, error),
-	onComparison func(*ast.BinaryExpr) (T, error),
-	onIn func(*ast.BinaryExpr) (T, error),
-	onLike func(*ast.BinaryExpr) (T, error),
+	expr *filter.BinaryExpr,
+	onLogical func(*filter.BinaryExpr) (T, error),
+	onComparison func(*filter.BinaryExpr) (T, error),
+	onIn func(*filter.BinaryExpr) (T, error),
+	onLike func(*filter.BinaryExpr) (T, error),
 ) (T, error) {
 	var zero T
 	switch {
-	case expr.Op.Kind.IsLogicalOperator():
+	case expr.Op.IsLogicalOperator():
 		return onLogical(expr)
-	case expr.Op.Kind.IsComparisonOperator():
+	case expr.Op.IsComparisonOperator():
 		return onComparison(expr)
-	case expr.Op.Kind.Is(token.IN):
+	case expr.Op.Is(filter.OpIn):
 		return onIn(expr)
-	case expr.Op.Kind.Is(token.LIKE):
+	case expr.Op.Is(filter.OpLike):
 		return onLike(expr)
 	default:
 		return zero, fmt.Errorf("filter: unsupported binary operator %q at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 }
 
-// DispatchUnary routes a [*ast.UnaryExpr] to onNot. The filter
+// DispatchUnary routes a [*filter.UnaryExpr] to onNot. The filter
 // language only has one unary operator today (NOT); any other kind
 // returns a descriptive error.
 func DispatchUnary[T any](
-	expr *ast.UnaryExpr,
-	onNot func(*ast.UnaryExpr) (T, error),
+	expr *filter.UnaryExpr,
+	onNot func(*filter.UnaryExpr) (T, error),
 ) (T, error) {
 	var zero T
-	if !expr.Op.Kind.Is(token.NOT) {
+	if !expr.Op.Is(filter.OpNot) {
 		return zero, fmt.Errorf("filter: unsupported unary operator %q at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 	return onNot(expr)
 }
@@ -76,36 +75,36 @@ func DispatchUnary[T any](
 // SDK filter struct) and don't return per-node values. The dispatch
 // rules are identical to DispatchBinary.
 func DispatchBinaryErr(
-	expr *ast.BinaryExpr,
-	onLogical func(*ast.BinaryExpr) error,
-	onComparison func(*ast.BinaryExpr) error,
-	onIn func(*ast.BinaryExpr) error,
-	onLike func(*ast.BinaryExpr) error,
+	expr *filter.BinaryExpr,
+	onLogical func(*filter.BinaryExpr) error,
+	onComparison func(*filter.BinaryExpr) error,
+	onIn func(*filter.BinaryExpr) error,
+	onLike func(*filter.BinaryExpr) error,
 ) error {
 	switch {
-	case expr.Op.Kind.IsLogicalOperator():
+	case expr.Op.IsLogicalOperator():
 		return onLogical(expr)
-	case expr.Op.Kind.IsComparisonOperator():
+	case expr.Op.IsComparisonOperator():
 		return onComparison(expr)
-	case expr.Op.Kind.Is(token.IN):
+	case expr.Op.Is(filter.OpIn):
 		return onIn(expr)
-	case expr.Op.Kind.Is(token.LIKE):
+	case expr.Op.Is(filter.OpLike):
 		return onLike(expr)
 	default:
 		return fmt.Errorf("filter: unsupported binary operator %q at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 }
 
 // DispatchUnaryErr is the error-only variant of [DispatchUnary] for
 // stateful visitors.
 func DispatchUnaryErr(
-	expr *ast.UnaryExpr,
-	onNot func(*ast.UnaryExpr) error,
+	expr *filter.UnaryExpr,
+	onNot func(*filter.UnaryExpr) error,
 ) error {
-	if !expr.Op.Kind.Is(token.NOT) {
+	if !expr.Op.Is(filter.OpNot) {
 		return fmt.Errorf("filter: unsupported unary operator %q at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 	return onNot(expr)
 }
@@ -113,11 +112,11 @@ func DispatchUnaryErr(
 // LogicalOpString returns "AND" / "OR" for the matching token kind.
 // Errors for any non-logical kind. Used by SQL / text-output backends
 // that emit the operator verbatim into their query language.
-func LogicalOpString(k token.Kind) (string, error) {
+func LogicalOpString(k filter.Operator) (string, error) {
 	switch k {
-	case token.AND:
+	case filter.OpAnd:
 		return "AND", nil
-	case token.OR:
+	case filter.OpOr:
 		return "OR", nil
 	default:
 		return "", fmt.Errorf("filter: expected logical operator, got %s", k.Name())
@@ -125,11 +124,11 @@ func LogicalOpString(k token.Kind) (string, error) {
 }
 
 // RequireListLiteral asserts the right operand of expr is a non-empty
-// [*ast.ListLiteral] — the contract every backend's IN handler needs.
+// [*filter.ListLiteral] — the contract every backend's IN handler needs.
 // Centralizes the two error messages every vendor used to emit
 // verbatim.
-func RequireListLiteral(expr *ast.BinaryExpr) (*ast.ListLiteral, error) {
-	list, ok := expr.Right.(*ast.ListLiteral)
+func RequireListLiteral(expr *filter.BinaryExpr) (*filter.ListLiteral, error) {
+	list, ok := expr.Right.(*filter.ListLiteral)
 	if !ok {
 		return nil, fmt.Errorf("filter: 'IN' requires a list on the right at %s, got %T",
 			expr.Start().String(), expr.Right)
@@ -145,7 +144,7 @@ func RequireListLiteral(expr *ast.BinaryExpr) (*ast.ListLiteral, error) {
 // to a string literal and returns its value. Used by LIKE handlers.
 // Wraps the [ExtractValue] + string-type-assert step every vendor's
 // LIKE branch repeats.
-func RequireStringPatternOnRight(expr *ast.BinaryExpr) (string, error) {
+func RequireStringPatternOnRight(expr *filter.BinaryExpr) (string, error) {
 	value, err := ExtractValue(expr.Right)
 	if err != nil {
 		return "", err
@@ -171,7 +170,7 @@ func RequireStringPatternOnRight(expr *ast.BinaryExpr) (string, error) {
 //
 // Returns an error if the literals don't all share a kind or the kind
 // is unsupported.
-func ConvertListLiteral(list *ast.ListLiteral) (slice any, sample any, err error) {
+func ConvertListLiteral(list *filter.ListLiteral) (slice any, sample any, err error) {
 	if list == nil || len(list.Values) == 0 {
 		return nil, nil, errors.New("filter: empty list literal")
 	}
@@ -209,6 +208,6 @@ func ConvertListLiteral(list *ast.ListLiteral) (slice any, sample any, err error
 		return out, out[0], nil
 	default:
 		return nil, nil, fmt.Errorf("filter: unsupported list element kind %s",
-			first.Token.Kind.Name())
+			first.Kind)
 	}
 }

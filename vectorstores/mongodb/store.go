@@ -16,7 +16,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
@@ -395,11 +394,11 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 }
 
 // Delete removes documents matching the filter expression.
-func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
-	if err = filter.Analyze(expr); err != nil {
+	if err = filter.Validate(expr); err != nil {
 		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
@@ -440,7 +439,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 
 // buildFilter runs the AST through the visitor and returns the
 // MongoDB filter document.
-func (s *Store) buildFilter(expr ast.Expr) (bson.M, error) {
+func (s *Store) buildFilter(expr filter.Expr) (bson.M, error) {
 	if expr == nil {
 		return nil, nil
 	}

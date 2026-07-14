@@ -3,8 +3,8 @@ package parser
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
 )
 
 func (p *Parser) parseExpr(precedence int) (ast.Expr, error) {

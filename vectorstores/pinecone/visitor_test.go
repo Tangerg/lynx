@@ -14,7 +14,7 @@ import (
 func TestVisitor_Conformance(t *testing.T) {
 	storetest.VisitorConformance(t,
 		func(src string) error {
-			expr, err := filter.ParseAndAnalyze(src)
+			expr, err := filter.Parse(src)
 			if err != nil {
 				return err
 			}

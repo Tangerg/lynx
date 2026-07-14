@@ -10,7 +10,7 @@ import (
 
 func TestVisitor_Conformance(t *testing.T) {
 	storetest.VisitorConformance(t, func(src string) error {
-		expr, err := filter.ParseAndAnalyze(src)
+		expr, err := filter.Parse(src)
 		if err != nil {
 			return err
 		}
@@ -42,7 +42,7 @@ func TestVisitor_NullTest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			expr, err := filter.ParseAndAnalyze(tt.src)
+			expr, err := filter.Parse(tt.src)
 			if err != nil {
 				t.Fatalf("parse %q: %v", tt.src, err)
 			}

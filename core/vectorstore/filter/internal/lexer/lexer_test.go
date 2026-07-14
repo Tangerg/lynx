@@ -3,8 +3,8 @@ package lexer_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/lexer"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/lexer"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
 )
 
 func tokenize(t *testing.T, input string) []token.Token {

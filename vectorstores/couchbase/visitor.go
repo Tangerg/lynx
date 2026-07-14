@@ -7,12 +7,9 @@ import (
 
 	"encoding/json"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
-
-var _ ast.Visitor = (*Visitor)(nil)
 
 // Visitor transforms AST filter expressions into a SQL++ (N1QL)
 // predicate fragment usable in `WHERE` clauses of queries and
@@ -46,12 +43,12 @@ func (v *Visitor) Result() string {
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("couchbase: cannot process nil expression")
 	}
@@ -60,38 +57,38 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	}
 
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
-		if node.Op.Kind.IsNullOperator() {
+	case *filter.BinaryExpr:
+		if node.Op.IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
 		return v.visitBinaryExpr(node)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return v.visitUnaryExpr(node)
 	default:
 		return fmt.Errorf("couchbase: unsupported root expression %T", node)
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
-	case expr.Op.Kind.IsLogicalOperator():
+	case expr.Op.IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
-	case expr.Op.Kind.Is(token.IN):
+	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
-	case expr.Op.Kind.Is(token.LIKE):
+	case expr.Op.Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
-	case expr.Op.Kind.IsEqualityOperator() || expr.Op.Kind.IsOrderingOperator():
+	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
 		return fmt.Errorf("couchbase: unsupported binary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 }
 
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.Is(token.NOT) {
+func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+	if !expr.Op.Is(filter.OpNot) {
 		return fmt.Errorf("couchbase: unsupported unary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 	v.sql.WriteString("NOT (")
 	if err := v.visit(expr.Right); err != nil {
@@ -101,9 +98,9 @@ func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
-	if expr.Op.Kind.Is(token.OR) {
+	if expr.Op.Is(filter.OpOr) {
 		op = " OR "
 	}
 	v.sql.WriteString("(")
@@ -118,7 +115,7 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
@@ -127,7 +124,7 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	if err != nil {
 		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
 	}
-	op, err := sqlOpFor(expr.Op.Kind)
+	op, err := sqlOpFor(expr.Op)
 	if err != nil {
 		return err
 	}
@@ -140,13 +137,13 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
 	}
 
-	listLit, ok := expr.Right.(*ast.ListLiteral)
+	listLit, ok := expr.Right.(*filter.ListLiteral)
 	if !ok {
 		return fmt.Errorf("couchbase: 'IN' requires a list on the right at %s, got %T",
 			expr.Start().String(), expr.Right)
@@ -173,7 +170,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 
 // visitLikeExpr emits SQL++ LIKE — SQL wildcards % / _ pass through
 // untouched since LIKE uses the same syntax.
-func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
@@ -200,7 +197,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 // mirroring the inmemory reference semantics. The negated IS NOT NULL
 // arrives as NOT(<path> IS NULL) and is rendered by visitUnaryExpr, so
 // no separate handling is needed here. No bound parameter is required.
-func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
@@ -213,7 +210,7 @@ func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
 
 // fieldPath builds the dotted SQL++ path for the left operand, with
 // each segment backtick-quoted to allow special characters.
-func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
+func (v *Visitor) fieldPath(expr filter.Expr) (string, error) {
 	keys, err := filterhelp.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
@@ -232,19 +229,19 @@ func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
 	return v.metadataPrefix + "." + joined, nil
 }
 
-func sqlOpFor(kind token.Kind) (string, error) {
+func sqlOpFor(kind filter.Operator) (string, error) {
 	switch kind {
-	case token.EQ:
+	case filter.OpEqual:
 		return "=", nil
-	case token.NE:
+	case filter.OpNotEqual:
 		return "!=", nil
-	case token.LT:
+	case filter.OpLess:
 		return "<", nil
-	case token.LE:
+	case filter.OpLessEqual:
 		return "<=", nil
-	case token.GT:
+	case filter.OpGreater:
 		return ">", nil
-	case token.GE:
+	case filter.OpGreaterEqual:
 		return ">=", nil
 	default:
 		return "", fmt.Errorf("unexpected comparison operator '%s'", kind.Name())

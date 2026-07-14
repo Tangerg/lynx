@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
 )
 
 // Analyzer is the semantic-validation visitor — checks that operator

@@ -1,10 +1,5 @@
 package filter
 
-import (
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
-)
-
 // ExprBuilder is the AND-by-default fluent builder for filter
 // expressions. Each comparison/membership method appends a new
 // predicate joined to the running expression with AND; nested
@@ -14,14 +9,14 @@ import (
 // keep chaining and check the error once at [ExprBuilder.Build].
 type ExprBuilder struct {
 	err  error
-	expr ast.ComputedExpr
+	expr ComputedExpr
 }
 
 func NewExprBuilder() *ExprBuilder {
 	return &ExprBuilder{}
 }
 
-func (b *ExprBuilder) and(expr ast.ComputedExpr) {
+func (b *ExprBuilder) and(expr ComputedExpr) {
 	if expr == nil {
 		return
 	}
@@ -34,7 +29,7 @@ func (b *ExprBuilder) and(expr ast.ComputedExpr) {
 	b.expr = And(b.expr, expr)
 }
 
-func (b *ExprBuilder) or(expr ast.ComputedExpr) {
+func (b *ExprBuilder) or(expr ComputedExpr) {
 	if expr == nil {
 		return
 	}
@@ -47,7 +42,7 @@ func (b *ExprBuilder) or(expr ast.ComputedExpr) {
 	b.expr = Or(b.expr, expr)
 }
 
-func (b *ExprBuilder) appendBinary(l, r any, op token.Kind) *ExprBuilder {
+func (b *ExprBuilder) appendBinary(l, r any, op Operator) *ExprBuilder {
 	if b.err != nil {
 		return b
 	}
@@ -64,23 +59,23 @@ func (b *ExprBuilder) appendBinary(l, r any, op token.Kind) *ExprBuilder {
 		return b
 	}
 
-	b.and(&ast.BinaryExpr{Left: left, Op: newKindToken(op), Right: literal})
+	b.and(&BinaryExpr{Left: left, Op: op, Right: literal})
 	return b
 }
 
-func (b *ExprBuilder) EQ(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.EQ) }
+func (b *ExprBuilder) EQ(l, r any) *ExprBuilder { return b.appendBinary(l, r, OpEqual) }
 
-func (b *ExprBuilder) NE(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.NE) }
+func (b *ExprBuilder) NE(l, r any) *ExprBuilder { return b.appendBinary(l, r, OpNotEqual) }
 
-func (b *ExprBuilder) LT(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.LT) }
+func (b *ExprBuilder) LT(l, r any) *ExprBuilder { return b.appendBinary(l, r, OpLess) }
 
-func (b *ExprBuilder) LE(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.LE) }
+func (b *ExprBuilder) LE(l, r any) *ExprBuilder { return b.appendBinary(l, r, OpLessEqual) }
 
-func (b *ExprBuilder) GT(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.GT) }
+func (b *ExprBuilder) GT(l, r any) *ExprBuilder { return b.appendBinary(l, r, OpGreater) }
 
-func (b *ExprBuilder) GE(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.GE) }
+func (b *ExprBuilder) GE(l, r any) *ExprBuilder { return b.appendBinary(l, r, OpGreaterEqual) }
 
-func (b *ExprBuilder) Like(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.LIKE) }
+func (b *ExprBuilder) Like(l, r any) *ExprBuilder { return b.appendBinary(l, r, OpLike) }
 
 func (b *ExprBuilder) In(l, r any) *ExprBuilder {
 	if b.err != nil {
@@ -99,11 +94,11 @@ func (b *ExprBuilder) In(l, r any) *ExprBuilder {
 		return b
 	}
 
-	b.and(&ast.BinaryExpr{Left: left, Op: newKindToken(token.IN), Right: list})
+	b.and(&BinaryExpr{Left: left, Op: OpIn, Right: list})
 	return b
 }
 
-func (b *ExprBuilder) subExpr(fn func(*ExprBuilder)) (ast.ComputedExpr, bool) {
+func (b *ExprBuilder) subExpr(fn func(*ExprBuilder)) (ComputedExpr, bool) {
 	if b.err != nil {
 		return nil, false
 	}
@@ -137,10 +132,9 @@ func (b *ExprBuilder) Not(fn func(*ExprBuilder)) *ExprBuilder {
 	return b
 }
 
-// Build returns the constructed AST and the first error captured
-// during the chain. A nil expression with a nil error means no
-// predicate was added.
-func (b *ExprBuilder) Build() (ast.Expr, error) {
+// Build returns the constructed expression and the first construction error.
+// Call [Validate] before sending a programmatically built tree to a provider.
+func (b *ExprBuilder) Build() (Expr, error) {
 	if b.err != nil {
 		return nil, b.err
 	}

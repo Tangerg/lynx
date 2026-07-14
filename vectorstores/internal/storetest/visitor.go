@@ -9,7 +9,7 @@ import (
 // BuildFn parses a filter expression source and feeds it through the
 // vendor's visitor. It returns nil on success, an error on failure.
 // Implementations are responsible for assembling the AST (typically
-// via [filter.ParseAndAnalyze]) and driving the vendor visitor.
+// via [filter.Parse]) and driving the vendor visitor.
 type BuildFn func(src string) error
 
 // Options tunes the conformance suite for vendors with genuine

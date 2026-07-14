@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
-
-var _ ast.Visitor = (*Visitor)(nil)
 
 // Visitor transforms AST filter expressions into a Cosmos DB SQL
 // predicate fragment. Metadata keys live under c.metadata.* by default
@@ -52,12 +49,12 @@ func (v *Visitor) Result() (string, []NamedParam) {
 	return v.sql.String(), v.params
 }
 
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("azurecosmos: cannot process nil expression")
 	}
@@ -65,33 +62,33 @@ func (v *Visitor) visit(expr ast.Expr) error {
 		return v.err
 	}
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
+	case *filter.BinaryExpr:
 		return v.visitBinaryExpr(node)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return v.visitUnaryExpr(node)
 	default:
 		return fmt.Errorf("azurecosmos: unsupported root expression %T", node)
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
-	case expr.Op.Kind.IsLogicalOperator():
+	case expr.Op.IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
-	case expr.Op.Kind.Is(token.IN):
+	case expr.Op.Is(filter.OpIn):
 		return v.visitInExpr(expr)
-	case expr.Op.Kind.Is(token.LIKE):
+	case expr.Op.Is(filter.OpLike):
 		return v.visitLikeExpr(expr)
-	case expr.Op.Kind.IsEqualityOperator() || expr.Op.Kind.IsOrderingOperator():
+	case expr.Op.IsEqualityOperator() || expr.Op.IsOrderingOperator():
 		return v.visitComparisonExpr(expr)
 	default:
-		return fmt.Errorf("azurecosmos: unsupported binary operator '%s'", expr.Op.Literal)
+		return fmt.Errorf("azurecosmos: unsupported binary operator '%s'", expr.Op.String())
 	}
 }
 
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.Is(token.NOT) {
-		return fmt.Errorf("azurecosmos: unsupported unary '%s'", expr.Op.Literal)
+func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+	if !expr.Op.Is(filter.OpNot) {
+		return fmt.Errorf("azurecosmos: unsupported unary '%s'", expr.Op.String())
 	}
 	v.sql.WriteString("NOT (")
 	if err := v.visit(expr.Right); err != nil {
@@ -101,9 +98,9 @@ func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
-	if expr.Op.Kind.Is(token.OR) {
+	if expr.Op.Is(filter.OpOr) {
 		op = " OR "
 	}
 	v.sql.WriteString("(")
@@ -118,7 +115,7 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return err
@@ -127,7 +124,7 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	if err != nil {
 		return err
 	}
-	op, err := sqlOpFor(expr.Op.Kind)
+	op, err := sqlOpFor(expr.Op)
 	if err != nil {
 		return err
 	}
@@ -140,12 +137,12 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return err
 	}
-	listLit, ok := expr.Right.(*ast.ListLiteral)
+	listLit, ok := expr.Right.(*filter.ListLiteral)
 	if !ok {
 		return errors.New("azurecosmos: 'IN' requires a list on the right")
 	}
@@ -172,7 +169,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 // visitLikeExpr maps LIKE onto Cosmos SQL's CONTAINS function — SQL
 // wildcards `%` translate to the open-ended CONTAINS semantics. For
 // fuller pattern support callers should preprocess the value.
-func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr.Left)
 	if err != nil {
 		return err
@@ -197,7 +194,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
+func (v *Visitor) fieldPath(expr filter.Expr) (string, error) {
 	keys, err := filterhelp.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
@@ -213,19 +210,19 @@ func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
 	return strings.Join(parts, "."), nil
 }
 
-func sqlOpFor(kind token.Kind) (string, error) {
+func sqlOpFor(kind filter.Operator) (string, error) {
 	switch kind {
-	case token.EQ:
+	case filter.OpEqual:
 		return "=", nil
-	case token.NE:
+	case filter.OpNotEqual:
 		return "<>", nil
-	case token.LT:
+	case filter.OpLess:
 		return "<", nil
-	case token.LE:
+	case filter.OpLessEqual:
 		return "<=", nil
-	case token.GT:
+	case filter.OpGreater:
 		return ">", nil
-	case token.GE:
+	case filter.OpGreaterEqual:
 		return ">=", nil
 	default:
 		return "", fmt.Errorf("azurecosmos: unexpected operator '%s'", kind.Name())

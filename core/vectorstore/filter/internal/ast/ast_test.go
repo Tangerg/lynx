@@ -3,8 +3,8 @@ package ast_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
 )
 
 func numberLit(v string) *ast.Literal {

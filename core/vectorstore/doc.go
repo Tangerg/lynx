@@ -19,7 +19,7 @@
 //
 // Quick start:
 //
-//	expr, _ := filter.ParseAndAnalyze(`category == "tech" AND year >= 2020`)
+//	expr, _ := filter.Parse(`category == "tech" AND year >= 2020`)
 //	req := vectorstore.SearchRequest{
 //		Query: "attention", TopK: 5, MinScore: 0.7, Filter: expr,
 //	}

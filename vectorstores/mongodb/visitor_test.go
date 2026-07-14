@@ -14,7 +14,7 @@ import (
 // coverage; output equivalence stays in the per-test functions below.
 func TestVisitor_Conformance(t *testing.T) {
 	storetest.VisitorConformance(t, func(src string) error {
-		expr, err := filter.ParseAndAnalyze(src)
+		expr, err := filter.Parse(src)
 		if err != nil {
 			return err
 		}
@@ -26,7 +26,7 @@ func TestVisitor_Conformance(t *testing.T) {
 // build is the test driver — parse src, visit, return (doc, err).
 func build(t *testing.T, src string) (map[string]any, error) {
 	t.Helper()
-	expr, err := filter.ParseAndAnalyze(src)
+	expr, err := filter.Parse(src)
 	if err != nil {
 		return nil, err
 	}

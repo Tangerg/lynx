@@ -11,7 +11,7 @@ import (
 // build is the test driver — parse src, visit, return (sql, args, err).
 func build(t *testing.T, src string) (string, []any, error) {
 	t.Helper()
-	expr, err := filter.ParseAndAnalyze(src)
+	expr, err := filter.Parse(src)
 	if err != nil {
 		return "", nil, err
 	}

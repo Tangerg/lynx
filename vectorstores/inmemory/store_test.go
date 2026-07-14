@@ -159,9 +159,9 @@ func TestStore_RetrieveAppliesFilter(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	expr, err := filter.ParseAndAnalyze(`category == 'a' AND year >= 2024`)
+	expr, err := filter.Parse(`category == 'a' AND year >= 2024`)
 	if err != nil {
-		t.Fatalf("filter.ParseAndAnalyze: %v", err)
+		t.Fatalf("filter.Parse: %v", err)
 	}
 	retrieveReq := vectorstore.SearchRequest{Query: "alpha bravo", TopK: vectorstore.DefaultTopK}
 	retrieveReq.Filter = expr
@@ -190,9 +190,9 @@ func TestStore_RetrieveLikePattern(t *testing.T) {
 	createReq := docs
 	_ = store.Add(ctx, createReq)
 
-	expr, err := filter.ParseAndAnalyze(`name LIKE 'alpha%'`)
+	expr, err := filter.Parse(`name LIKE 'alpha%'`)
 	if err != nil {
-		t.Fatalf("filter.ParseAndAnalyze: %v", err)
+		t.Fatalf("filter.Parse: %v", err)
 	}
 	retrieveReq := vectorstore.SearchRequest{Query: "alpha", TopK: vectorstore.DefaultTopK}
 	retrieveReq.Filter = expr
@@ -223,9 +223,9 @@ func TestStore_Delete(t *testing.T) {
 	createReq := docs
 	_ = store.Add(ctx, createReq)
 
-	expr, err := filter.ParseAndAnalyze(`keep == false`)
+	expr, err := filter.Parse(`keep == false`)
 	if err != nil {
-		t.Fatalf("filter.ParseAndAnalyze: %v", err)
+		t.Fatalf("filter.Parse: %v", err)
 	}
 	delReq := expr
 	if err := store.DeleteWhere(ctx, delReq); err != nil {
@@ -356,9 +356,9 @@ func TestStore_RetrieveIsNull(t *testing.T) {
 	}
 
 	// IS NULL: matches docs missing "owner".
-	expr, err := filter.ParseAndAnalyze(`owner is null`)
+	expr, err := filter.Parse(`owner is null`)
 	if err != nil {
-		t.Fatalf("ParseAndAnalyze(is null): %v", err)
+		t.Fatalf("Parse(is null): %v", err)
 	}
 	req := vectorstore.SearchRequest{Query: "x", TopK: vectorstore.DefaultTopK}
 	req.Filter = expr
@@ -372,9 +372,9 @@ func TestStore_RetrieveIsNull(t *testing.T) {
 	}
 
 	// IS NOT NULL: matches the doc that has "owner".
-	expr2, err := filter.ParseAndAnalyze(`owner is not null`)
+	expr2, err := filter.Parse(`owner is not null`)
 	if err != nil {
-		t.Fatalf("ParseAndAnalyze(is not null): %v", err)
+		t.Fatalf("Parse(is not null): %v", err)
 	}
 	req2 := vectorstore.SearchRequest{Query: "x", TopK: vectorstore.DefaultTopK}
 	req2.Filter = expr2
@@ -401,9 +401,9 @@ func TestStore_RetrieveNotIn(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	expr, err := filter.ParseAndAnalyze(`category not in ('a', 'b')`)
+	expr, err := filter.Parse(`category not in ('a', 'b')`)
 	if err != nil {
-		t.Fatalf("ParseAndAnalyze: %v", err)
+		t.Fatalf("Parse: %v", err)
 	}
 	req := vectorstore.SearchRequest{Query: "x", TopK: vectorstore.DefaultTopK}
 	req.Filter = expr

@@ -3,7 +3,7 @@ package vectorstore
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
 // FilterDeleter removes documents selected by a metadata expression. It is a
@@ -12,7 +12,7 @@ import (
 type FilterDeleter interface {
 	// DeleteWhere removes every document matching expr. Implementations return
 	// [ErrMissingFilter] for nil and reject invalid expressions.
-	DeleteWhere(ctx context.Context, expr ast.Expr) error
+	DeleteWhere(ctx context.Context, expr filter.Expr) error
 }
 
 // IDDeleter removes documents by identifier. It is independent from

@@ -8,15 +8,12 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
-var _ ast.Visitor = (*Visitor)(nil)
-
 // Visitor transforms AST filter expressions into Pinecone metadata filter conditions.
-// It implements the ast.Visitor interface to traverse and convert expression trees
+// It traverses semantic filter expressions and converts them to the provider query shape
 // into Pinecone's native metadata filter format (structpb.Struct).
 //
 // The converter maintains internal state during traversal:
@@ -64,16 +61,16 @@ func (v *Visitor) Filter() (*structpb.Struct, error) {
 	return structpb.NewStruct(v.result)
 }
 
-// Visit implements the ast.Visitor interface.
+// Visit translates one semantic filter expression.
 // It walks the whole tree rooted at expr and returns the first error
 // encountered, or nil when the entire expression was accepted.
-func (v *Visitor) Visit(expr ast.Expr) error {
+func (v *Visitor) Visit(expr filter.Expr) error {
 	v.err = v.visit(expr)
 	return v.err
 }
 
 // visit dispatches conversion to specialized methods based on expression type.
-func (v *Visitor) visit(expr ast.Expr) error {
+func (v *Visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("pinecone: cannot process nil expression")
 	}
@@ -82,17 +79,17 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	}
 
 	switch node := expr.(type) {
-	case *ast.BinaryExpr:
+	case *filter.BinaryExpr:
 		return v.visitBinaryExpr(node)
-	case *ast.UnaryExpr:
+	case *filter.UnaryExpr:
 		return v.visitUnaryExpr(node)
-	case *ast.IndexExpr:
+	case *filter.IndexExpr:
 		return v.visitIndexExpr(node)
-	case *ast.Ident:
+	case *filter.Ident:
 		return v.visitIdent(node)
-	case *ast.Literal:
+	case *filter.Literal:
 		return v.visitLiteral(node)
-	case *ast.ListLiteral:
+	case *filter.ListLiteral:
 		return v.visitListLiteral(node)
 	default:
 		return fmt.Errorf("pinecone: unsupported expression type %T", node)
@@ -103,7 +100,7 @@ func (v *Visitor) visit(expr ast.Expr) error {
 // handler via [filterhelp.DispatchBinaryErr]. visitComparisonExpr
 // internally splits equality vs ordering since pinecone emits
 // different filter shapes for the two families.
-func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	return filterhelp.DispatchBinaryErr(expr,
 		v.visitLogicalExpr,
 		v.visitComparisonExpr,
@@ -114,33 +111,33 @@ func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
 
 // visitComparisonExpr routes to equality or ordering based on the
 // operator family. Pinecone uses distinct filter shapes for each.
-func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
-	if expr.Op.Kind.IsEqualityOperator() {
+func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+	if expr.Op.IsEqualityOperator() {
 		return v.visitEqualityExpr(expr)
 	}
 	return v.visitOrderingExpr(expr)
 }
 
 // visitLikeExpr — Pinecone metadata filters do not support LIKE.
-func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	return fmt.Errorf("pinecone: LIKE operator is not supported in Pinecone metadata filters at %s",
 		expr.Start().String())
 }
 
 // visitUnaryExpr handles unary expressions.
 // Only the NOT operator is supported.
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
+func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	return filterhelp.DispatchUnaryErr(expr, v.visitNotExpr)
 }
 
 // visitIdent extracts and stores the identifier name as the current field key.
-func (v *Visitor) visitIdent(ident *ast.Ident) error {
+func (v *Visitor) visitIdent(ident *filter.Ident) error {
 	v.currentFieldKey = ident.Value
 	return nil
 }
 
 // visitLiteral converts an AST literal to its Go value and stores it as the current field value.
-func (v *Visitor) visitLiteral(lit *ast.Literal) error {
+func (v *Visitor) visitLiteral(lit *filter.Literal) error {
 	value, err := v.literalToValue(lit)
 	if err != nil {
 		return err
@@ -150,7 +147,7 @@ func (v *Visitor) visitLiteral(lit *ast.Literal) error {
 }
 
 // visitListLiteral converts a list of literals into a Go slice and stores it.
-func (v *Visitor) visitListLiteral(list *ast.ListLiteral) error {
+func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 	values := make([]any, 0, len(list.Values))
 
 	for i, lit := range list.Values {
@@ -170,7 +167,7 @@ func (v *Visitor) visitListLiteral(list *ast.ListLiteral) error {
 //   - metadata["user"]       → "metadata.user"
 //   - data["tags"][0]        → "data.tags.0"
 //   - config["db"]["host"]   → "config.db.host"
-func (v *Visitor) visitIndexExpr(expr *ast.IndexExpr) error {
+func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	fieldKey, err := v.buildIndexedFieldKey(expr)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to build field path at %s: %w",
@@ -182,27 +179,27 @@ func (v *Visitor) visitIndexExpr(expr *ast.IndexExpr) error {
 
 // visitLogicalExpr handles logical operators (AND, OR).
 // Produces {"$and": [left, right]} or {"$or": [left, right]}.
-func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	left, err := v.buildNestedExpr(expr.Left)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to process left operand of '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	right, err := v.buildNestedExpr(expr.Right)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to process right operand of '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
-	switch expr.Op.Kind {
-	case token.AND:
+	switch expr.Op {
+	case filter.OpAnd:
 		v.result = map[string]any{"$and": []any{left, right}}
-	case token.OR:
+	case filter.OpOr:
 		v.result = map[string]any{"$or": []any{left, right}}
 	default:
 		return fmt.Errorf("pinecone: unexpected logical operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 
 	return nil
@@ -211,7 +208,7 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 // visitNotExpr handles the NOT operator.
 // Pinecone has no direct $not logical operator, so $nor is used as the equivalent:
 // {"$nor": [condition]} means "not condition".
-func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
+func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	cond, err := v.buildNestedExpr(expr.Right)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to process NOT operand at %s: %w",
@@ -226,27 +223,27 @@ func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
 // Examples:
 //   - status == "active"  → {"status": {"$eq": "active"}}
 //   - age != 18           → {"age": {"$ne": 18}}
-func (v *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to extract field key from '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to extract value from '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
-	switch expr.Op.Kind {
-	case token.EQ:
+	switch expr.Op {
+	case filter.OpEqual:
 		v.result = map[string]any{fieldKey: map[string]any{"$eq": fieldValue}}
-	case token.NE:
+	case filter.OpNotEqual:
 		v.result = map[string]any{fieldKey: map[string]any{"$ne": fieldValue}}
 	default:
 		return fmt.Errorf("pinecone: unexpected equality operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 
 	return nil
@@ -256,31 +253,31 @@ func (v *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
 // Examples:
 //   - age > 18     → {"age": {"$gt": 18}}
 //   - price <= 99  → {"price": {"$lte": 99}}
-func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to extract field key from '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to extract value from '%s' at %s: %w",
-			expr.Op.Literal, expr.Start().String(), err)
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
-	switch expr.Op.Kind {
-	case token.LT:
+	switch expr.Op {
+	case filter.OpLess:
 		v.result = map[string]any{fieldKey: map[string]any{"$lt": fieldValue}}
-	case token.LE:
+	case filter.OpLessEqual:
 		v.result = map[string]any{fieldKey: map[string]any{"$lte": fieldValue}}
-	case token.GT:
+	case filter.OpGreater:
 		v.result = map[string]any{fieldKey: map[string]any{"$gt": fieldValue}}
-	case token.GE:
+	case filter.OpGreaterEqual:
 		v.result = map[string]any{fieldKey: map[string]any{"$gte": fieldValue}}
 	default:
 		return fmt.Errorf("pinecone: unexpected ordering operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
+			expr.Op.String(), expr.Start().String())
 	}
 
 	return nil
@@ -289,7 +286,7 @@ func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 // visitInExpr handles the IN operator for membership testing.
 // The right operand must be a non-empty list literal.
 // Example: status IN ["active", "pending"] → {"status": {"$in": ["active", "pending"]}}
-func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to extract field key from 'IN' at %s: %w",
@@ -311,7 +308,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 
 // buildNestedExpr converts a sub-expression to a filter map using an isolated visitor instance.
 // This ensures that nested logical expressions maintain proper scoping.
-func (v *Visitor) buildNestedExpr(expr ast.Expr) (map[string]any, error) {
+func (v *Visitor) buildNestedExpr(expr filter.Expr) (map[string]any, error) {
 	nested := NewVisitor()
 	if err := nested.visit(expr); err != nil {
 		return nil, err
@@ -324,7 +321,7 @@ func (v *Visitor) buildNestedExpr(expr ast.Expr) (map[string]any, error) {
 
 // extractFieldKey extracts a field key (identifier or dot-separated path) from an expression.
 // The visitor's currentFieldKey state is preserved during extraction.
-func (v *Visitor) extractFieldKey(expr ast.Expr) (string, error) {
+func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	savedKey := v.currentFieldKey
 	v.currentFieldKey = ""
 
@@ -345,7 +342,7 @@ func (v *Visitor) extractFieldKey(expr ast.Expr) (string, error) {
 
 // extractFieldValue extracts a value (literal or list) from an expression.
 // The visitor's currentFieldValue state is preserved during extraction.
-func (v *Visitor) extractFieldValue(expr ast.Expr) (any, error) {
+func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	savedValue := v.currentFieldValue
 	v.currentFieldValue = nil
 
@@ -369,7 +366,7 @@ func (v *Visitor) extractFieldValue(expr ast.Expr) (any, error) {
 //   - user["name"]                → "user.name"
 //   - metadata["tags"][0]         → "metadata.tags.0"
 //   - config["db"]["host"]        → "config.db.host"
-func (v *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
+func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	var parts []string
 
 	current := expr
@@ -389,9 +386,9 @@ func (v *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 		}
 
 		switch left := current.Left.(type) {
-		case *ast.IndexExpr:
+		case *filter.IndexExpr:
 			current = left
-		case *ast.Ident:
+		case *filter.Ident:
 			parts = append([]string{left.Value}, parts...)
 			return strings.Join(parts, "."), nil
 		default:
@@ -403,7 +400,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 
 // literalToValue converts an AST literal node to its corresponding Go value.
 // Supported conversions: string → string, number → float64, boolean → bool.
-func (v *Visitor) literalToValue(lit *ast.Literal) (any, error) {
+func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 	if lit.IsString() {
 		return lit.AsString()
 	}
@@ -413,7 +410,7 @@ func (v *Visitor) literalToValue(lit *ast.Literal) (any, error) {
 	if lit.IsBool() {
 		return lit.AsBool()
 	}
-	return nil, fmt.Errorf("pinecone: unsupported literal type '%s'", lit.Token.Kind.Name())
+	return nil, fmt.Errorf("pinecone: unsupported literal type '%s'", lit.Kind)
 }
 
 // ToFilter converts an AST filter expression into a Pinecone MetadataFilter (*structpb.Struct).
@@ -451,7 +448,7 @@ func (v *Visitor) literalToValue(lit *ast.Literal) (any, error) {
 //	expr, _ := parser.Parse(`age > 18 AND status == "active"`)
 //	filter, err := pinecone.ToFilter(expr)
 //	// filter encodes: {"$and": [{"age": {"$gt": 18}}, {"status": {"$eq": "active"}}]}
-func ToFilter(expr ast.Expr) (*structpb.Struct, error) {
+func ToFilter(expr filter.Expr) (*structpb.Struct, error) {
 	conv := NewVisitor()
 	if err := conv.Visit(expr); err != nil {
 		return nil, err

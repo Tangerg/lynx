@@ -12,7 +12,7 @@ import (
 
 func TestVisitor_Conformance(t *testing.T) {
 	storetest.VisitorConformance(t, func(src string) error {
-		expr, err := filter.ParseAndAnalyze(src)
+		expr, err := filter.Parse(src)
 		if err != nil {
 			return err
 		}
@@ -23,7 +23,7 @@ func TestVisitor_Conformance(t *testing.T) {
 
 func toFilter(t *testing.T, src string) *qdrantclient.Filter {
 	t.Helper()
-	expr, err := filter.ParseAndAnalyze(src)
+	expr, err := filter.Parse(src)
 	if err != nil {
 		t.Fatalf("parse %q: %v", src, err)
 	}

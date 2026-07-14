@@ -5,7 +5,7 @@ import (
 	"io"
 	"unicode"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
 )
 
 func (l *Lexer) scanOptionalSecondChar(secondChar rune, single, paired token.Kind) token.Token {

@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
 func TestDocumentRemainsPureData(t *testing.T) {
@@ -91,6 +92,73 @@ func TestVectorStoreCapabilitiesRemainSmall(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestFilterPublicFacadeExcludesCompilerInternals(t *testing.T) {
+	root := filepath.Join(moduleRoot(t), "vectorstore", "filter")
+	forbiddenTypes := map[string]bool{
+		"Token": true, "Lexer": true, "Parser": true,
+		"Analyzer": true, "Optimizer": true, "Visitor": true,
+	}
+	forbiddenFuncs := map[string]bool{
+		"Analyze": true, "Optimize": true, "ParseAndAnalyze": true,
+		"NewLexer": true, "NewParser": true, "NewAnalyzer": true, "NewOptimizer": true,
+	}
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(root, entry.Name())
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, declaration := range file.Decls {
+			switch typed := declaration.(type) {
+			case *ast.GenDecl:
+				if typed.Tok != token.TYPE {
+					continue
+				}
+				for _, specification := range typed.Specs {
+					name := specification.(*ast.TypeSpec).Name.Name
+					if forbiddenTypes[name] {
+						t.Errorf("core/vectorstore/filter must not expose compiler type %s", name)
+					}
+				}
+			case *ast.FuncDecl:
+				if typed.Recv == nil && forbiddenFuncs[typed.Name.Name] {
+					t.Errorf("core/vectorstore/filter must not expose compiler helper %s", typed.Name.Name)
+				}
+			}
+		}
+	}
+
+	for _, typ := range []reflect.Type{
+		reflect.TypeFor[filter.Ident](),
+		reflect.TypeFor[filter.Literal](),
+		reflect.TypeFor[filter.ListLiteral](),
+		reflect.TypeFor[filter.UnaryExpr](),
+		reflect.TypeFor[filter.BinaryExpr](),
+		reflect.TypeFor[filter.IndexExpr](),
+	} {
+		for i := range typ.NumField() {
+			if containsInternalType(typ.Field(i).Type) {
+				t.Errorf("public filter node %v field %s exposes internal type %v", typ, typ.Field(i).Name, typ.Field(i).Type)
+			}
+		}
+	}
+}
+
+func containsInternalType(typ reflect.Type) bool {
+	for typ.Kind() == reflect.Pointer || typ.Kind() == reflect.Slice || typ.Kind() == reflect.Array {
+		typ = typ.Elem()
+	}
+	return strings.Contains(typ.PkgPath(), "/internal/")
 }
 
 func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {

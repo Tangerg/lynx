@@ -1,44 +1,22 @@
-// Package filter is the metadata-filter mini-language used by
-// [github.com/Tangerg/lynx/core/vectorstore]. It exposes three ways to
-// produce an [ast.Expr]:
+// Package filter defines the stable metadata-filter expression vocabulary used
+// by vector stores.
 //
-//  1. Generic factories ([EQ], [NE], [LT], …, [In], [Like], [And],
-//     [Or], [Not]) — type-checked at compile time, ideal for
-//     hand-written expressions.
-//  2. Fluent [ExprBuilder] — accumulates an AND-by-default chain with
-//     deferred error handling, ideal for dynamically-assembled
-//     expressions where some predicates may fail validation.
-//  3. [Parse] / [ParseAndAnalyze] — parse a textual expression
-//     (filter.ebnf grammar) into an AST. Use for user-supplied
-//     filters or persisted query strings.
+// Callers can build expressions with typed constructors such as [EQ], [GE],
+// [In], [And], and [Not], use [ExprBuilder] for dynamic AND-by-default
+// composition, or parse and validate the textual DSL with [Parse].
+// The returned [Expr] tree contains only semantic nodes ([Ident], [Literal],
+// [ListLiteral], [UnaryExpr], [BinaryExpr], and [IndexExpr]); lexer tokens,
+// parser state, and optimization machinery are internal implementation details.
 //
-// Sub-packages do the heavy lifting:
+// Example:
 //
-//   - [token]    — token kinds and lexer-emitted [token.Token].
-//   - [lexer]    — string → token stream.
-//   - [parser]   — token stream → [ast.Expr].
-//   - [ast]      — node types and the [ast.Visitor] interface.
-//   - [visitors] — semantic analyzer, SQL-like rendering, etc.
-//
-// Quick start:
-//
-//	// Programmatic
 //	expr := filter.And(
-//	    filter.EQ("category", "tech"),
-//	    filter.GE("year", 2020),
+//		filter.EQ("category", "tech"),
+//		filter.GE("year", 2020),
 //	)
+//	if err := filter.Validate(expr); err != nil {
+//		return err
+//	}
 //
-//	// Fluent
-//	expr, err := filter.NewExprBuilder().
-//	    EQ("category", "tech").
-//	    GE("year", 2020).
-//	    Build()
-//
-//	// Textual
-//	expr, err := filter.ParseAndAnalyze(`category == "tech" AND year >= 2020`)
-//
-// All three forms produce equivalent ASTs. Always run [Analyze] (or
-// [ParseAndAnalyze]) before passing to a vector store — it catches
-// type mismatches and bad operator/operand pairings the parser alone
-// can't.
+// [Parse] validates and simplifies the tree before a provider translates it.
 package filter
