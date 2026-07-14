@@ -8,17 +8,15 @@ import (
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
-
-	"github.com/Tangerg/lynx/core/model"
 )
 
 type APIConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	RequestOptions []option.RequestOption
 }
 
 func (c APIConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("anthropic: APIKey is required")
 	}
 	return nil
@@ -37,7 +35,7 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	// can't be overridden by an earlier WithAPIKey on the original
 	// slice. Cloning prevents append from mutating the caller's
 	// backing array when capacity allows.
-	options := append(slices.Clone(cfg.RequestOptions), option.WithAPIKey(cfg.APIKey.Get()))
+	options := append(slices.Clone(cfg.RequestOptions), option.WithAPIKey(cfg.APIKey))
 	client := anthropicsdk.NewClient(options...)
 
 	return &API{client: &client}, nil

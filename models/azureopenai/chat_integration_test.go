@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/azureopenai"
 	"github.com/Tangerg/lynx/models/internal/testutil"
@@ -22,7 +21,7 @@ func TestChatModel_Call_Integration(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := azureopenai.NewChatModel(azureopenai.ChatModelConfig{
-		APIKey:         model.NewAPIKey(key),
+		APIKey:         key,
 		Endpoint:       endpoint,
 		DefaultOptions: opts,
 	})

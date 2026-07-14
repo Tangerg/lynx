@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/cohere"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 )
@@ -25,7 +24,7 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 				t.Fatal(err)
 			}
 			m, err := cohere.NewEmbeddingModel(cohere.EmbeddingModelConfig{
-				APIKey:         model.NewAPIKey(key),
+				APIKey:         key,
 				DefaultOptions: opts,
 			})
 			if err != nil {

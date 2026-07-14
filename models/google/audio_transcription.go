@@ -7,13 +7,12 @@ import (
 
 	"google.golang.org/genai"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type AudioTranscriptionModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *transcription.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
@@ -27,7 +26,7 @@ type AudioTranscriptionModelConfig struct {
 }
 
 func (c AudioTranscriptionModelConfig) Validate() error {
-	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

@@ -5,7 +5,6 @@ package google_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/google"
 	"github.com/Tangerg/lynx/models/internal/testutil"
@@ -25,7 +24,7 @@ func TestChatModel_Integration(t *testing.T) {
 				t.Fatal(err)
 			}
 			m, err := google.NewChatModel(google.ChatModelConfig{
-				APIKey:         model.NewAPIKey(key),
+				APIKey:         key,
 				DefaultOptions: opts,
 			})
 			if err != nil {

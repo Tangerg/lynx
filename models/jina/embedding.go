@@ -7,21 +7,20 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 type EmbeddingModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *embedding.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
 func (c EmbeddingModelConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("jina: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

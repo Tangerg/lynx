@@ -28,7 +28,7 @@
 // after wiring [azure.WithEndpoint] and [azure.WithAPIKey] into the
 // RequestOptions. Token-credential auth flows through
 // [azure.WithTokenCredential] supplied by the caller in
-// RequestOptions — leave APIKey nil in that case.
+// RequestOptions — leave APIKey empty in that case.
 //
 // Azure Content Safety (moderation) ships a different API shape than
 // OpenAI moderation and is not exposed here.

@@ -7,7 +7,6 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
@@ -20,7 +19,7 @@ func newResponsesModel(t *testing.T, baseURL, modelID string) *openai.ResponsesC
 		t.Fatalf("NewOptions: %v", err)
 	}
 	m, err := openai.NewResponsesChatModel(openai.ChatModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
 	})

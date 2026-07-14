@@ -3,7 +3,6 @@ package elevenlabs_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/elevenlabs"
 	"github.com/Tangerg/lynx/models/internal/testutil"
@@ -21,7 +20,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	opts.Voice = "voice-id-test"
 
 	m, err := elevenlabs.NewAudioTTSModel(elevenlabs.AudioTTSModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

@@ -6,7 +6,6 @@ import (
 
 	"google.golang.org/genai"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/tokenizer"
 )
 
@@ -15,7 +14,7 @@ import (
 // you intend to send chat requests under so the count matches the real
 // billing.
 type TextEstimatorConfig struct {
-	APIKey   model.APIKey
+	APIKey   string
 	Model    string
 	Backend  genai.Backend
 	Project  string
@@ -23,7 +22,7 @@ type TextEstimatorConfig struct {
 }
 
 func (c TextEstimatorConfig) Validate() error {
-	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
 	if c.Model == "" {

@@ -7,16 +7,15 @@ import (
 	"github.com/openai/openai-go/v3/azure"
 	"github.com/openai/openai-go/v3/option"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/openai"
 )
 
 type ChatModelConfig struct {
-	// APIKey is the Azure OpenAI resource key. Leave nil when
+	// APIKey is the Azure OpenAI resource key. Leave empty when
 	// authenticating with [azure.WithTokenCredential] passed
 	// through RequestOptions.
-	APIKey model.APIKey
+	APIKey string
 
 	// Endpoint is the resource URL — e.g.
 	// "https://my-resource.openai.azure.com". Required.
@@ -60,21 +59,21 @@ func NewChatModel(cfg ChatModelConfig) (*openai.ChatModel, error) {
 }
 
 // buildAzureRequestOptions wires azure.WithEndpoint + azure.WithAPIKey
-// into the RequestOptions slice. When APIKey is nil the config still
-// needs to satisfy openai.*ModelConfig's non-nil APIKey check, so a
+// into the RequestOptions slice. When APIKey is empty the config still
+// needs to satisfy openai.*ModelConfig's non-empty APIKey check, so a
 // placeholder is synthesized; the actual auth header (Bearer or API-Key) is set by
 // the Azure middleware in RequestOptions.
-func buildAzureRequestOptions(apiKey model.APIKey, endpoint, apiVersion string, extra []option.RequestOption) (model.APIKey, []option.RequestOption) {
+func buildAzureRequestOptions(apiKey string, endpoint, apiVersion string, extra []option.RequestOption) (string, []option.RequestOption) {
 	version := cmp.Or(apiVersion, DefaultAPIVersion)
 	opts := []option.RequestOption{azure.WithEndpoint(endpoint, version)}
-	if apiKey != nil {
-		opts = append(opts, azure.WithAPIKey(apiKey.Get()))
+	if apiKey != "" {
+		opts = append(opts, azure.WithAPIKey(apiKey))
 	}
 	opts = append(opts, extra...)
 
 	keyParam := apiKey
-	if keyParam == nil {
-		keyParam = model.NewAPIKey("azure-ad")
+	if keyParam == "" {
+		keyParam = "azure-ad"
 	}
 	return keyParam, opts
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/openai"
 )
@@ -16,7 +15,7 @@ type OpenAIChatModelConfig struct {
 	// APIKey is optional — local Ollama daemons don't enforce auth.
 	// Provide one only when running behind a gateway / reverse proxy
 	// that requires Bearer auth. nil sends an empty Bearer.
-	APIKey model.APIKey
+	APIKey string
 
 	DefaultOptions *chat.Options
 
@@ -52,12 +51,12 @@ func NewOpenAIChatModel(cfg OpenAIChatModelConfig) (*openai.ChatModel, error) {
 	}
 	baseURL := resolveOpenAIBaseURL(cfg.BaseURL)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
-	// openai.ChatModelConfig requires a non-nil APIKey; supply an
-	// empty placeholder when the local Ollama daemon doesn't enforce
+	// openai.ChatModelConfig requires a non-empty APIKey; supply a
+	// placeholder when the local Ollama daemon doesn't enforce
 	// auth.
 	apiKey := cfg.APIKey
-	if apiKey == nil {
-		apiKey = model.NewAPIKey("ollama")
+	if apiKey == "" {
+		apiKey = "ollama"
 	}
 	return openai.NewChatModel(openai.ChatModelConfig{
 		APIKey:         apiKey,

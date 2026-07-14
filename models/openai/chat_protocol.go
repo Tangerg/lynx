@@ -18,7 +18,6 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/model"
 )
 
 const (
@@ -40,7 +39,7 @@ const (
 // ChatConfig configures the provider-neutral Core chat adapter. DefaultOptions
 // are copied during construction; callers may supply the model per Request.
 type ChatConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions corechat.Options
 	RequestOptions []option.RequestOption
 }
@@ -48,7 +47,7 @@ type ChatConfig struct {
 // Validate verifies construction-time configuration without requiring a
 // default model, because Request.Options may select it per call.
 func (c ChatConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
 	if err := c.DefaultOptions.Validate(); err != nil {

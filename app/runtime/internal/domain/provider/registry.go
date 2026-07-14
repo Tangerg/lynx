@@ -19,7 +19,7 @@ package provider
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/model"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/secret"
 )
 
 // Provider is one registry entry: a provider id plus the credentials a turn
@@ -79,9 +79,8 @@ func (p Provider) Enabled() bool { return p.APIKey != "" }
 // MaskedAPIKey renders the key for the wire (API.md §4.9 apiKeyMasked): "" for
 // an unconfigured provider (the disabled signal), otherwise the redacted form
 // (e.g. "sk****78"). The provider owns how to present its own secret, so the
-// wire boundary never touches the raw key. It delegates to [core/model.APIKey]'s
-// Stringer so lyra has a single masking rule shared with every log/JSON site.
-func (p Provider) MaskedAPIKey() string { return model.NewAPIKey(p.APIKey).String() }
+// wire boundary never touches the raw key.
+func (p Provider) MaskedAPIKey() string { return secret.Mask(p.APIKey) }
 
 // Registry is the provider registry. All methods are safe for concurrent use.
 type Registry interface {

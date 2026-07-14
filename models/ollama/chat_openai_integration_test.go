@@ -5,7 +5,6 @@ package ollama_test
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/ollama"
@@ -30,7 +29,7 @@ func TestOpenAIChatModel_Integration(t *testing.T) {
 				t.Fatal(err)
 			}
 			m, err := ollama.NewOpenAIChatModel(ollama.OpenAIChatModelConfig{
-				APIKey:         model.NewAPIKey("ollama"),
+				APIKey:         "ollama",
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

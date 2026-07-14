@@ -6,19 +6,18 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/moderation"
 )
 
 type ModerationModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *moderation.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
 func (c ModerationModelConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("mistral: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

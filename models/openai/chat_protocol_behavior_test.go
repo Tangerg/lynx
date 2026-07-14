@@ -9,7 +9,6 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/conformance"
 	lynxopenai "github.com/Tangerg/lynx/models/openai"
 )
@@ -47,7 +46,7 @@ func TestChat_BehaviorConformance(t *testing.T) {
 func newOpenAIBehaviorChat(t *testing.T, baseURL string) *lynxopenai.Chat {
 	t.Helper()
 	adapter, err := lynxopenai.NewChat(lynxopenai.ChatConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: corechat.Options{Model: "gpt-5.2"},
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
 	})

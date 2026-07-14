@@ -11,7 +11,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/param"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/anthropic"
 	"github.com/Tangerg/lynx/models/internal/testutil"
@@ -24,7 +23,7 @@ func newChatModel(t *testing.T, baseURL, modelID string) *anthropic.ChatModel {
 		t.Fatalf("NewOptions: %v", err)
 	}
 	m, err := anthropic.NewChatModel(anthropic.ChatModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
 	})

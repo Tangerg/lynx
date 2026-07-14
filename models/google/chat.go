@@ -11,7 +11,6 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
@@ -328,7 +327,7 @@ func (r *responseHelper) buildChatResponse(modelName string, resp *genai.Generat
 }
 
 type ChatModelConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	DefaultOptions *chat.Options
 
 	// Backend selects the genai backend. Zero value defaults to
@@ -357,7 +356,7 @@ type ChatModelConfig struct {
 }
 
 func (c ChatModelConfig) Validate() error {
-	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
 	if c.DefaultOptions == nil {

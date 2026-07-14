@@ -8,18 +8,16 @@ import (
 	"net/http"
 
 	"github.com/go-resty/resty/v2"
-
-	"github.com/Tangerg/lynx/core/model"
 )
 
 type APIConfig struct {
-	APIKey     model.APIKey
+	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
 func (c APIConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("jina: APIKey is required")
 	}
 	return nil
@@ -42,7 +40,7 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	}
 	client.
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetAuthToken(cfg.APIKey.Get()).
+		SetAuthToken(cfg.APIKey).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json")
 

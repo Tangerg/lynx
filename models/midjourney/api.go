@@ -7,15 +7,13 @@ import (
 	"net/http"
 
 	"github.com/go-resty/resty/v2"
-
-	"github.com/Tangerg/lynx/core/model"
 )
 
 // APIConfig is intentionally proxy-shaped: BaseURL is required because
 // Midjourney has no official REST endpoint. SubmitPath / FetchPath let
 // callers point at proxies that use non-default paths.
 type APIConfig struct {
-	APIKey     model.APIKey
+	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 
@@ -37,7 +35,7 @@ type APIConfig struct {
 }
 
 func (c APIConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("midjourney: APIKey is required")
 	}
 	if c.BaseURL == "" {
@@ -65,7 +63,7 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	if header == "" {
 		header = "Authorization"
 	}
-	value := cfg.APIKey.Get()
+	value := cfg.APIKey
 	if header == "Authorization" && cfg.AuthBearer {
 		value = "Bearer " + value
 	} else if header == "Authorization" && !cfg.AuthBearer && cfg.AuthHeader == "" {

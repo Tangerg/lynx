@@ -6,12 +6,10 @@ import (
 	"iter"
 
 	"google.golang.org/genai"
-
-	"github.com/Tangerg/lynx/core/model"
 )
 
 type APIConfig struct {
-	APIKey model.APIKey
+	APIKey string
 
 	// Backend selects the genai backend. Zero value falls back to
 	// [genai.BackendGeminiAPI] — the public Gemini API. Set to
@@ -38,7 +36,7 @@ type APIConfig struct {
 func (c APIConfig) Validate() error {
 	// Vertex AI authenticates via ADC / service account, not API key;
 	// every other backend requires the typed APIKey.
-	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
 	return nil
@@ -57,8 +55,8 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	if cfg.Backend == 0 {
 		clientCfg.Backend = genai.BackendGeminiAPI
 	}
-	if cfg.APIKey != nil {
-		clientCfg.APIKey = cfg.APIKey.Get()
+	if cfg.APIKey != "" {
+		clientCfg.APIKey = cfg.APIKey
 	}
 	if cfg.Project != "" {
 		clientCfg.Project = cfg.Project

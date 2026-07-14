@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/replicate"
@@ -48,7 +47,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	}
 	opts.Voice = "voice-1"
 	m, err := replicate.NewAudioTTSModel(replicate.AudioTTSModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 		PollInterval:   10 * time.Millisecond,

@@ -7,7 +7,6 @@ import (
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/tokenizer"
 )
 
@@ -16,13 +15,13 @@ import (
 // mismatch (Claude 3 model name vs Claude 4 vocab) produces wrong
 // counts.
 type TextEstimatorConfig struct {
-	APIKey         model.APIKey
+	APIKey         string
 	Model          string
 	RequestOptions []option.RequestOption
 }
 
 func (c TextEstimatorConfig) Validate() error {
-	if c.APIKey == nil {
+	if c.APIKey == "" {
 		return errors.New("anthropic: APIKey is required")
 	}
 	if c.Model == "" {

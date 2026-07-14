@@ -10,7 +10,6 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
 )
@@ -22,7 +21,7 @@ func newImageModel(t *testing.T, baseURL, modelID string) *openai.ImageModel {
 		t.Fatalf("NewOptions: %v", err)
 	}
 	m, err := openai.NewImageModel(openai.ImageModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
 	})

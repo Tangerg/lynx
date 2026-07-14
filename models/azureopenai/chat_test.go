@@ -7,7 +7,6 @@ import (
 
 	openaisdk "github.com/openai/openai-go/v3"
 
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/azureopenai"
 	"github.com/Tangerg/lynx/models/internal/testutil"
@@ -31,7 +30,7 @@ func TestChatModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := azureopenai.NewChatModel(azureopenai.ChatModelConfig{
-		APIKey:         model.NewAPIKey("test-key"),
+		APIKey:         "test-key",
 		Endpoint:       srv.URL,
 		DefaultOptions: opts,
 	})
