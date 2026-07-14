@@ -643,8 +643,12 @@ flowchart LR
   - safeguard 证据：目标路径采用显式 `New`、可失败 Matcher、同步 OnBlock 与 errors.Is/As 兼容的 UnsafeError；nil matcher/非法 scope 提前失败，stream 在 yield 前聚合检查并能识别跨 chunk 违规词，不再泄露触发违规的 chunk。
   - evaluation 证据：使用最小 `core/chat.Model` 和普通 Query/Answer/Context 值，不依赖旧 Client/PromptTemplate 或 Document 富对象；Fact/Relevance、Composite、JSON-safe Result 和 scored reply parser 均已迁入，`core/evaluation` 与无生产消费者的通用 Logger 已删除。
   - 验证：safeguard/evaluation coverage 90.4%/93.6%，两者 race 通过；workspace build/vet/test/lint 72/72 全绿。实现提交为 `9fabd460e`、`96c709324`、`f8b705dab`，旧 Core safeguard 删除于 `f0762ad73`。
-- [ ] **P3-06 迁移 tracing/metrics 到 `otel` wrapper**
+- [x] **P3-06 迁移 tracing/metrics 到 `otel` wrapper**（完成：2026-07-14）
   - 按已采纳 ADR-006/ADR-008 执行：目标新包不 import OTel，`otel` 直接包装 handler；不复制旧 client tracing 或增加兼容 adapter，迁移真实消费者后直接删除旧观测代码。
+  - 新 `otel.ChatMiddleware` 以构造时显式 Provider + 可选官方 TracerProvider/MeterProvider 包装 `core/chat.Model` 与独立 `Streamer`；Call/Stream 能力不合并，stream 延迟开始、提前停止同步结束，跨 chunk accumulator 仅服务观测且失败不改变业务结果。
+  - 语义直接采用 OTel v1.41 当前 `gen_ai.provider.name`，不双写旧 `gen_ai.system`；发射 operation duration/token usage，错误与部分响应原样透传。根包 coverage 93.4%，普通/race/vet/lint 全绿。
+  - `core/model/chat`、`core/model/embedding` 旧 tracing、Core 通用 metrics 及五项 OTel requirement 已直接删除；架构预算不再允许任何 OTel import。目标 `core/embedding` 按阶段边界仍由 P5 建立，其 decorator 同步归入 P5-01，不为旧 embedding API 建 adapter。
+  - 提交：`08071a046`（Chat wrapper/测试）、`97fe92005`（workspace import 门禁修正）、`b4d76334e`（Core 旧观测与依赖删除）；workspace build/vet/test/lint 72/72 全绿，Core 与 otel race 全绿。
 - [ ] **P3-07 完成 Tool executor/schema/runtime helper 向 `tools` 的迁移**
   - 沿用 P1-06 已建立的 `tools.Tool`/`Registry` 和 `agent/toolloop.ToolResolver` 边界，不再建立第二套 registry。
   - 旧 Core 可执行 Tool 表面冻结，随剩余 provider/consumer 在 P6 删除。
@@ -769,19 +773,19 @@ flowchart LR
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
-| P3 高层运行时外移 | 进行中 | 5/9 | history、safeguard、evaluation 已迁出 Core；通用 Logger 已删除 |
+| P3 高层运行时外移 | 进行中 | 6/9 | history/safety/evaluation/observability 已迁出 Core；Logger 与 Core 旧埋点已删除 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **25/60** | **42%** |
+| **总计** | **进行中** | **26/60** | **43%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P3。
-- 下一任务：执行 P3-06，按 ADR-006 将 tracing/metrics 迁入 `otel` wrapper，并清除目标新路径对 OTel API 的反向依赖。
+- 下一任务：执行 P3-07，完成 Tool executor/schema/runtime helper 向 `tools` 的直接迁移并收紧旧 Core Tool 表面。
 - 当前阻塞：无。
-- 最近完成：P3-05；fail-closed safeguard 与纯值 RAG evaluation 已迁出 Core，通用 request/response Logger 及旧 `core/evaluation` 已删除，目标包 coverage 90.4%/93.6%、race 与 workspace 72 项门禁全绿。
+- 最近完成：P3-06；`otel.ChatMiddleware` 已实现，Core Chat/Embedding 旧 tracing、通用 metrics 与全部 OTel module 依赖已删除；otel 根包 coverage 93.4%，Core/otel race 与 workspace 72 项门禁全绿。
 
 ### 10.3 进度更新规则
 
@@ -1007,6 +1011,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P3-06；新增基于当前 GenAI semconv 的 Chat Call/Stream wrapper，删除 Core Chat/Embedding 旧 tracing、通用 metrics 与全部 OTel 依赖；目标 Embedding decorator 随 P5 新协议建立 | Codex |
 | 2026-07-14 | 采纳 ADR-008；后续迁移禁止 bridge、兼容字段和 dual-read，删除 P3-04 旧 history wire 解码及已无消费者的旧 Core safeguard | Codex |
 | 2026-07-14 | 完成 P3-05；新 safeguard 改为跨 chunk、yield 前 fail-closed 检查，RAG evaluation 改为最小 Model + 普通上下文值，并删除 Core Logger/evaluation framework | Codex |
 | 2026-07-14 | 完成 P3-04；以 context 会话作用域、消费方窄 Store、显式 Window decorator 和自然完成才提交的 stream middleware 替代 Core history framework，持久化只接受当前 wire | Codex |
@@ -1042,6 +1047,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P3-06 | `08071a046` 新增显式 provider、能力分离、lazy stream 的 `otel.ChatMiddleware`，coverage 93.4%；`b4d76334e` 直接删除 Core Chat/Embedding tracing、通用 metrics 与 OTel module graph/架构预算，未建立旧 API wrapper；Core/otel race 和 workspace 72/72 全绿；任务计数 26/60，P3 6/9 | P3-07 Tool executor/schema/runtime helper 外移 |
 | 2026-07-14 | P3-05 | `9fabd460e` 新增 fail-closed safeguard，`96c709324` 新增不依赖 Document/旧 Chat Client 的 fact/relevance/composite evaluation，`f8b705dab` 删除 Core Logger 与旧 evaluation，`f0762ad73` 删除旧 Core safeguard；coverage 90.4%/93.6%，目标 race 与 workspace 72/72 全绿；任务计数 25/60，P3 5/9 | P3-06 tracing/metrics 外移到 otel wrapper |
 | 2026-07-14 | P3-04 | `f9b09b289` 建立新 Message history contract/内存参考实现/window/context scope，`c1f75109a` 迁移六 backend/current codec，`00270d8bf` 增加 immutable call/stream middleware 与 shared snapshot，`f0762ad73` 删除旧 wire 解码；coverage 90.3%/90.4%/95.1%/91.4%，chathistory race 与 workspace 72/72 全绿；任务计数 24/60，P3 4/9 | P3-05 safeguard/evaluation/Logger 收口 |
 | 2026-07-14 | P3-03 | 新增只读 `Template`（missing-key/AST Require/system-user-media）、普通 `Output[T]`、stdlib JSON/调用方 schema/comma-separated decoder 及 `CallStructured[T]`；原 Request 无改写，解析/调用错误保留 Response；chatclient coverage 94.1%、race 及 workspace 72/72 全绿；任务计数 23/60，P3 3/9 | P3-04 history contract/middleware 迁移 |
