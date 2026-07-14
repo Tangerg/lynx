@@ -1,5 +1,5 @@
-// Package chatconformance contains executable pre-migration fixtures for the
-// provider-neutral core/chat protocol. Provider adapters consume these cases
-// when they move to the new SPI; this package does not share mapping logic
-// between providers.
+// Package chatconformance contains executable mapping fixtures for the
+// provider-neutral core/chat protocol. Reference provider adapters must pass
+// these cases as a blocking release gate. The package shares expected protocol
+// behavior, never provider mapping implementation.
 package chatconformance

@@ -76,6 +76,33 @@ jobs:
         working-directory: core
         run: go test ./internal/arch -run '^TestExportedAPIMatchesBaseline$'
 
+      # Provider compatibility is release-critical even while the broad test
+      # suite remains advisory. This covers every public constructor plus the
+      # shared protocol/mapping suites and the five reference implementations.
+      - name: Provider conformance release gate
+        if: matrix.module == 'models'
+        working-directory: models
+        run: >-
+          go test -race -count=1
+          ./internal/arch
+          ./internal/chatconformance
+          ./internal/conformance
+          ./anthropic
+          ./bedrock
+          ./google
+          ./ollama
+          ./openai
+
+      # The coverage guard fails when a backend is added without registering a
+      # conformance suite; the remaining tests execute that suite for all 27
+      # published backends.
+      - name: Vectorstore conformance release gate
+        if: matrix.module == 'vectorstores'
+        working-directory: vectorstores
+        run: >-
+          go test -race -count=1 ./...
+          -run '^(TestReleaseBackendCoverage|TestRun|TestStoreConformance)$'
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
