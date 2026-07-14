@@ -9,8 +9,8 @@
 //
 // This package uses the compatible-mode endpoint to route
 // through the [openai] provider facade. DashScope-specific knobs
-// (enable_thinking, enable_search, web search citations, etc.) ride
-// through the Extra-threaded openai params.
+// (enable_thinking, enable_search, web search citations, etc.) use the
+// namespaced OpenAI request extension.
 //
 // See https://help.aliyun.com/zh/model-studio/ for the docs.
 package alibaba

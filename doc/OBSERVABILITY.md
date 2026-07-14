@@ -2,7 +2,7 @@
 
 > Lynx 在应用、integration 和独立 `otel` module 中**直接使用 OpenTelemetry API**，不自造观测抽象。Core 不 import OTel；`otel` wrapper 从外层包装 Core 协议调用。
 >
-> **当前状态（2026-07-14 更新）**：Traces / Metrics / Logs 都是 OTel 信号，dev 统一 sink 到 `log/slog`、生产换 OTLP。`otel.ChatMiddleware`、`otel/slog` 的三个 exporter 与 `app/runtime` startup 组合根已经可用；RAG、MCP、Agent、VectorStore、ChatHistory 的外圈埋点继续直接使用官方 API。Core 旧 Chat/Embedding tracing 与通用 metrics 已删除，Core 的生产代码和 module graph 均不再依赖 OTel。目标 Embedding API 在 P5 建立后再增加对应 decorator，不为旧 API 保留 adapter。
+> **当前状态（2026-07-14 更新）**：Traces / Metrics / Logs 都是 OTel 信号，dev 统一 sink 到 `log/slog`、生产换 OTLP。`otel.ChatMiddleware`、`otel/slog` 的三个 exporter 与 `app/runtime` startup 组合根已经可用；RAG、MCP、Agent、VectorStore、ChatHistory 的外圈埋点继续直接使用官方 API。Core 的生产代码和 module graph 不依赖 OTel；Chat/Embedding 等能力在独立 `otel` module 或消费方边界包装。
 
 ---
 
@@ -131,9 +131,9 @@ streamer := chat.WrapStream(providerStreamer, instrumentation.Stream)
 ```
 
 真实实现位于 `otel/chat.go`：Call/Stream 能力保持分离，构造时可显式注入
-`trace.TracerProvider` / `metric.MeterProvider`，并发安全。旧
-`core/model/embedding` 不建立 wrapper；P5 建立 `core/embedding` 最小能力后，
-再以同一模式增加 Embedding decorator。
+`trace.TracerProvider` / `metric.MeterProvider`，并发安全。Embedding 使用当前
+`core/embedding` 最小能力；需要埋点时同样在 `otel` 或消费方 decorator 包装，Core
+不定义观测接口。
 
 ### 4.2 Stream 模式额外事件
 
@@ -437,8 +437,8 @@ otel.SetTracerProvider(tp)
 
 - [x] P3-06：新增 `otel.ChatMiddleware`，以独立 Call/Stream middleware 包装目标 `core/chat` 能力
 - [x] P3-06：删除 `core/model/chat`、`core/model/embedding` 旧 tracing 与 Core 通用 metrics，不建立旧 API adapter
-- [ ] P5-01：目标 `core/embedding` 建立后增加 Embedding decorator；在目标协议出现前不复制旧类型
-- [ ] P3-07/P3-08：把 Core tool span 随 executor/tool-loop 迁到 `tools`/`agent` 或对应 `otel` decorator
+- [x] P5-01：建立 `core/embedding` 最小能力，Core 不复制旧 wrapper；Embedding 埋点归外圈 decorator
+- [x] P3-07/P3-08：tool/tool-loop 观测归 `tools`、`agent`、MCP/A2A adapter 或外圈 decorator
 - [x] 删除 Core 对 OTel API/SDK 的依赖并收紧 `internal/arch` 依赖预算
 - [ ] vectorstore + chathistory 的端到端 span 行为单测（chat tracing_test 与 runtime tracing 测试已覆盖各自一例）
 

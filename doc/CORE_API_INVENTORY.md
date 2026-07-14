@@ -4,6 +4,7 @@
 > 代码基线：`5a4e828d3`
 > Go：`go1.26.4 darwin/arm64`
 > 对应计划：[`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md) P0-03
+> 状态：**不可变的重构前历史快照**。P6 已完成，本文中的包名、数量、迁移策略和命令不得作为当前 API 指南。
 
 本文记录 Core 重构前的编译器可见公共面、workspace 直接消费关系和后续迁移批次。它解决“改什么、谁会受影响、何时删除”的问题；它不是永久兼容承诺。P7 建立机械 API diff baseline 后，以工具输出判断签名兼容性。
 
@@ -33,7 +34,7 @@
 | 需要迁移的 model provider 目录 | 38 |
 | 需要验证的 vectorstore backend 目录 | 27（25 个实现 + 2 个 alias） |
 
-这不是一次简单的 rename：`core/model/chat` 一项就有 297 个 exported identifiers，并被 173 个生产文件、115 个测试文件直接 import。全 Core 共涉及 501 个唯一文件和 830 条 package import 关系；所有迁移必须按计划中的“新路径限时并存”执行，不能在单个提交里盲目全局替换。
+这不是一次简单的 rename：重构前 `core/model/chat` 一项就有 297 个 exported identifiers，并被 173 个生产文件、115 个测试文件直接 import。全 Core 共涉及 501 个唯一文件和 830 条 package import 关系。这些数字只解释当时的迁移爆炸半径；旧包、临时并存策略和兼容面现已全部删除。
 
 ## 2. Package 公共面与消费热度
 

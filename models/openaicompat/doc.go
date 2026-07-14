@@ -3,7 +3,7 @@
 // different host AND don't have a dedicated facade package.
 //
 // Use these constants with [option.WithBaseURL] when constructing an
-// [openai.ChatModel] / [openai.EmbeddingModel]. Providers with a
+// [openai.Chat] / [openai.EmbeddingModel]. Providers with a
 // dedicated facade package (deepseek, alibaba, huggingface, mistral,
 // zhipu, minimax, moonshot, openrouter) own their own BaseURL
 // constants under models/<provider> — go through the facade instead

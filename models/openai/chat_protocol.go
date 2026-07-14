@@ -62,7 +62,6 @@ var (
 )
 
 // Chat implements the minimal Core Model and optional Streamer capabilities.
-// It intentionally coexists with the frozen legacy ChatModel during migration.
 type Chat struct {
 	api      *API
 	defaults corechat.Options

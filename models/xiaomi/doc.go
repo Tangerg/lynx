@@ -3,8 +3,8 @@
 // MiMo serves the MiMo model family (V2-flash / V2-pro / V2-omni /
 // V2.5 / V2.5-pro) at two compatibility flavors on the same host:
 //
-//   - OpenAI-compatible at /v1 — use [NewOpenAIChatModel];
-//   - Anthropic-compatible at /anthropic — use [NewAnthropicChatModel],
+//   - OpenAI-compatible at /v1 — use [NewOpenAIChat];
+//   - Anthropic-compatible at /anthropic — use [NewAnthropicChat],
 //     which routes through the [anthropic] provider so the Anthropic
 //     SDK's tool-calling, extended thinking, and reasoning-signature
 //     handling all work as-is.
@@ -14,8 +14,8 @@
 //
 //   - thinking mode on reasoning-capable models (mimo-v2.5-pro,
 //     mimo-v2-pro). Enable by setting
-//     [chat.Options].Extra["openai_params"] to a
-//     ChatCompletionNewParams whose Body carries
+//     the namespaced OpenAI request extension with a
+//     ChatCompletionNewParams value whose Body carries
 //     {"thinking": {"type": "enabled"}}. The reasoning_content field
 //     in the response is auto-surfaced as a [chat.ReasoningPart] in
 //     AssistantMessage.Parts;

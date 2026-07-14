@@ -10,7 +10,7 @@
 // This package is a thin facade over [models/google]: every constructor
 // pre-fills [genai.BackendVertexAI] and forwards the typed Project /
 // Location knobs to genai.ClientConfig. The returned model types are
-// the same [google.ChatModel] / [google.EmbeddingModel] / etc — so
+// the same [google.Chat] / [google.EmbeddingModel] / etc — so
 // downstream code works identically across the two backends.
 //
 // Auth note: APIKey is not used here. Vertex authenticates via ADC

@@ -26,17 +26,17 @@ var ErrToolDenied = errors.New("engine.ErrToolDenied: tool call denied by user")
 // the same opaque CallID; the assistant text arrives in zero or
 // more OnMessageDelta calls between (and around) tool calls.
 //
-// Implementations must be safe for concurrent calls — a turn
-// may dispatch multiple tools simultaneously when the model emits
-// parallel tool_calls.
+// Implementations must be safe for concurrent calls because separate turns may
+// share one observer backend, even though one target tool-loop executes calls
+// serially.
 type toolObserver interface {
 	// ApproveToolCall is the gate consulted BEFORE every tool call.
 	// It returns a verdict telling the decorator whether the call runs,
 	// is denied (short-circuited to a recoverable result), or must pause
 	// the process for user approval (HITL R model, API.md §6): a non-nil
-	// Verdict.Interrupt makes the call return that error (a
-	// [hitl.InterruptError], which satisfies [toolloop.Halt]), suspending the
-	// run at [core.StatusWaiting]; the client answers via a continuation run.
+	// Verdict.Interrupt makes the call return a [hitl.InterruptError]; the
+	// adapter translates it to [toolloop.PauseError], suspending the run at
+	// [core.StatusWaiting]. The client answers via a continuation run.
 	//
 	// The decider MUST be non-blocking — it records pending / decided
 	// state out of band (typically the process blackboard, keyed by the

@@ -21,7 +21,7 @@
 
 ## 模块特有反向不变量
 
-- ❌ **import core / chat / 任何业务模块** —— 本模块是裸能力层,`chat.Tool` 封装在 tools/skills。
+- ❌ **import core / chat / 任何业务模块** —— 本模块是裸能力层,`tools.Tool` 适配封装在 `tools/skills`。
 - ❌ **在本模块执行脚本 / 引沙箱 / Docker** —— 脚本执行是 agent 既有工具的事,不在这里重造。
 - ❌ **强制 allowed-tools** —— 实验字段,只解析,交给愿意自己执行的调用方。
 - ❌ **加缓存 / pubsub / 状态管理** —— YAGNI,本模块只读;有需要在调用方包。

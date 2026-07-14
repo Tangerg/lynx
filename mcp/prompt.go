@@ -7,7 +7,7 @@ import (
 )
 
 // PromptMessagesToChat converts the messages of an MCP GetPromptResult
-// into the []chat.Message form [chat.ClientRequest.WithMessages] expects.
+// into the []chat.Message form used by [chat.Request].
 //
 // Roles outside "user" / "assistant" fall through to user. Messages
 // whose body has no text payload (image, audio, embedded resource) are

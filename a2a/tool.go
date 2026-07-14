@@ -29,7 +29,7 @@ type toolRequest struct {
 
 var inputSchema, _ = pkgjson.StringDefSchemaOf(toolRequest{})
 
-// tool wraps a remote A2A agent as a [chat.Tool]. Each Call sends the
+// tool wraps a remote A2A agent as a [tools.Tool]. Each Call sends the
 // argument text as an A2A message and returns the agent's reply, so an
 // agent can delegate to a remote agent through the ordinary tool-calling
 // loop. A non-successful terminal task is mapped to [*RemoteAgentError] (use

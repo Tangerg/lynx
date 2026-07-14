@@ -2,7 +2,7 @@
 //
 // Bedrock is a model-aggregation gateway — a single endpoint that
 // fronts foundation models from Anthropic, Meta, Mistral, Amazon
-// Titan / Nova, Cohere, AI21, Stability and others. [NewChatModel]
+// Titan / Nova, Cohere, AI21, Stability and others. [NewChat]
 // uses the unified Converse / ConverseStream API which speaks a
 // provider-agnostic message shape; [NewEmbeddingModel] targets
 // InvokeModel against Titan Embed and Cohere Embed.

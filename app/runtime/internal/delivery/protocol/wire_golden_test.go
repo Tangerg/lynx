@@ -12,7 +12,7 @@ import (
 // frontend tree (its tsconfig rootDir) so the TS `satisfies` test can import
 // them directly; the Go side — the protocol SSOT — reads them cross-module.
 // See app/desktop/docs/protocol/API.md §14 (machine-readable artifacts / drift
-// gate) + app/runtime/doc/PRIOR_ART.md B-protocol.
+// gate) and app/desktop/docs/protocol/API.md.
 const samplesDir = "../../../../desktop/frontend/src/rpc/samples"
 
 // wireSamples pins each canonical sample to the protocol type it must

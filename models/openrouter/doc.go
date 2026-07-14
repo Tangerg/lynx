@@ -10,9 +10,8 @@
 // OpenRouter-specific features the openai facade plumbs through
 // transparently:
 //
-//   - models array for automatic fallback across alternatives
-//     (set chat.Options.Extra["openai_params"]
-//     ChatCompletionNewParams.WithModels(...));
+//   - models array for automatic fallback across alternatives (encode an
+//     OpenAI ChatCompletionNewParams value in the namespaced request extension);
 //   - provider preference routing (provider field in extra body);
 //   - transforms (middle-out compression).
 //

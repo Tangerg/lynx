@@ -13,7 +13,7 @@ import (
 )
 
 // AllAchievableTools walks every deployed agent and returns a
-// [chat.Tool] for each goal whose [core.Goal.Export] is
+// [tools.Tool] for each goal whose [core.Goal.Export] is
 // non-nil. Each tool is a supervisor-flow wrapper (parent process
 // required in ctx — same contract as [AsChatTool]) that runs the
 // agent as a child process, binds the typed input on its blackboard,

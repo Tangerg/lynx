@@ -7,15 +7,15 @@
 
 ## 定位
 
-- **根包放 lynx 自己需要的 MCP 周边**:context metadata、server-to-client 反向能力、`chat.Tool` 与 MCP tool 的双向适配、sampling / prompt 转换。
+- **根包放 lynx 自己需要的 MCP 周边**:context metadata、server-to-client 反向能力、`tools.Tool` 与 MCP tool 的双向适配、sampling / prompt 转换。
 - **应用层的事不在这里**:MCP 服务器配置、OAuth 登录、热重连、状态展示属于 app/runtime 的 infra 层 —— 本模块只做协议适配。
 
 ## 架构心智
 
 - **薄适配,不包官方 SDK**:transport / session 直接用官方类型,不再套一层。
-- **单包优先,少暴露**:同一 MCP 适配域先放根包;远端工具只通过一个函数暴露为 `[]chat.Tool`,不公开具体 wrapper / config。
+- **单包优先,少暴露**:同一 MCP 适配域先放根包;远端工具只通过 `Tools` 暴露为 `[]tools.Tool`,不公开具体 wrapper / config。
 - **无 Provider / cache 层**:工具列表刷新策略由应用层决定(收到 list-changed 后重新拉)。
-- **协议错误与 tool 错误分开**:远端工具报错投影成工具级错误、传输 / 协议问题保持 wrapped Go error;server 侧 `chat.Tool` 的错误转成"结果里标错",不升格成 JSON-RPC error。
+- **协议错误与 tool 错误分开**:远端工具报错投影成工具级错误、传输 / 协议问题保持 wrapped Go error;server 侧 `tools.Tool` 的错误转成"结果里标错",不升格成 JSON-RPC error。
 
 ## 模块特有反向不变量
 

@@ -1,10 +1,10 @@
 // Package xai wraps xAI's (Grok) OpenAI-compatible API.
 //
 // xAI's wire format follows OpenAI's chat-completions spec exactly;
-// [NewOpenAIChatModel] returns a pre-configured [openai.ChatModel].
+// [NewOpenAIChat] returns a pre-configured [openai.Chat].
 //
-// Provider-specific features reachable via Extra-threaded openai
-// params:
+// Provider-specific features reachable through the namespaced OpenAI request
+// extension:
 //
 //   - Live-search: pass a `search_parameters` object to enable
 //     real-time web / X / news / RSS retrieval. See

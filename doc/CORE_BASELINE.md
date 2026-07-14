@@ -4,8 +4,9 @@
 > 代码基线：`5a4e828d3`
 > Go：`go1.26.4 darwin/arm64`
 > 对应计划：[`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md) P0-04
+> 状态：**不可变的重构前验证快照**。当前 module 数、依赖预算和发布门禁以执行计划与 `scripts/check.sh` 为准。
 
-本文是 P1–P7 的回归比较基准。后续任务不能用“重构幅度大”作为降低测试、覆盖率或依赖门禁的理由；若基线本身较低，只要求被修改 package 不回退，并按计划为新协议纯逻辑补到至少 85%。
+本文保存 P0 时用于 P1–P7 比较的原始数据。它不描述当前测试结果，也不应被复制为新发布阈值；当前门禁由执行计划、架构测试和验证脚本共同定义。
 
 ## 1. Workspace 基线
 

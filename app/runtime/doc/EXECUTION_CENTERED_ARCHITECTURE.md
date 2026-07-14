@@ -1,1117 +1,203 @@
 # Execution-Centered Architecture — `app/runtime` 架构基准
 
-> **日期**：2026-07-10（设计）/ 2026-07-12（落地）
->
-> **状态**：**现行唯一架构基准**。§18 的 8 批重写 + 收尾批（§20 所有权反转的最后一公里）已全部落地：run 生命周期归 `application/runs` + `bootstrap.Host`，executor/turn-control 归 `adapter/agentexec/turn`,读投影归 `application/queries`,`internal/runtime` facade 已彻底解散、config 折入 `bootstrap`;§16 全部 fitness 规则(含 rule 5 delivery 无 run-lifecycle state)由 `internal/arch` 机器强制。本文原为"从零设计提案",现为实现基准 —— 描述的是已建成的结构,不是设想。
->
-> **命题**：如果不考虑现有目录与 API 包袱，只吸收领域驱动设计、整洁架构和六边形架构的思想，`app/runtime` 应该如何从零设计？
->
-> **立场**：采用 DDD 与 Clean Architecture 的边界、依赖和建模方法，但不复制 `Entity/Repository/ApplicationService/DomainEventBus` 等样板。
+> 状态：现行架构基准。历史收敛过程见
+> [`EXECUTION_ARCHITECTURE_CONVERGENCE_PLAN.md`](EXECUTION_ARCHITECTURE_CONVERGENCE_PLAN.md)，
+> Core/Chat 重构过程见
+> [`../../../doc/CORE_ARCHITECTURE_EXECUTION_PLAN.md`](../../../doc/CORE_ARCHITECTURE_EXECUTION_PLAN.md)。
 
----
+Lyra Runtime 以 Run 生命周期为中心，而不是以某个 agent loop 类型或 transport 为中心。
+Delivery 接收 wire request，Application 拥有完整用例和副作用顺序，Adapter/Infra
+实现消费方端口，Bootstrap 只装配和关闭。
 
-## 0. 结论
-
-Lyra Runtime 不应以 `kernel.Engine` 或 agent loop 为架构中心，而应以 **Run 的完整生命周期**为中心：
+## 1. 依赖方向
 
 ```text
-Session → Run → RunEvent → durable state / live stream / workspace effects
+                         bootstrap + cmd
+                         /      |      \
+                 delivery    adapter    infra
+                       \       |       /
+                         application
+                              |
+                            domain
 ```
 
-系统最核心的复杂度不是“怎么调用一次 LLM”，而是：
+这是源码依赖图，不是运行时调用图。`internal/arch` 将以下规则编码为测试：
 
-1. 一个 Session 同一时刻只能有一个可写 Run；
-2. Run 必须脱离启动它的 HTTP request 继续执行；
-3. Running、Interrupted、Resumed、Canceled、Completed 必须构成合法状态机；
-4. 中断必须先持久化，客户端才能观察并恢复；
-5. Run、Transcript、Conversation、Usage 与 agent ProcessSnapshot 不能互相矛盾；
-6. live event、durable projection、workspace checkpoint 必须有明确的顺序和一致性语义；
-7. 组件关闭必须拒绝新工作、取消已有工作并等待其退出；
-8. MCP 持久配置与实时连接状态必须明确区分 source of truth 和 live projection。
+- Domain 不依赖 Application、Adapter、Infra、Delivery、Bootstrap；
+- Application 只依赖 Domain 和自己定义的消费方端口；
+- Adapter 实现 Application/Domain 端口，可以包装 Lynx SDK 和外部能力；
+- Infra 实现技术型 Domain 端口，不组织应用用例；
+- Delivery 只做协议、dispatch、transport 与 application projection；
+- Bootstrap/Config 可以看见全部环，但没有环反向 import 组合根。
 
-因此，从零设计时采用以下职责划分：
-
-- **Domain**：表达状态、不变量、状态转换和决策结果；
-- **Application**：拥有完整用例、事务边界、并发控制、事件顺序和生命周期；
-- **Driven adapters**：用 agent SDK、SQLite、Git、MCP、LSP 等技术实现 application 定义的 port；
-- **Delivery**：只把 JSON-RPC/HTTP/SSE 转换为 application command/query 和返回值；
-- **Bootstrap**：只负责配置投影、装配、启动和逆序关闭。
-
-agent loop 是“执行一个 Run”的核心机制，但不是 Lyra 产品领域本身。它应作为一个强耦合、内部焊死的 agent-execution adapter，而不是统领全部业务的架构环。
-
----
-
-## 1. 为什么需要重新定义中心
-
-### 1.1 当前系统真正的应用层已经存在，只是没有统一名字
-
-当前应用职责分散在三个位置：
-
-- `internal/delivery/server`：live run registry、event hub、cancel、run pump、checkpoint、后台任务；
-- `internal/kernel`：agent SDK 防腐、turn 状态机、HITL、run segment effects、跨 store lifecycle；
-- `internal/runtime`：业务 facade、MCP 一致性、provider/model role、schedule/indexing、事务、资源生命周期和组合根。
-
-这不是“缺少一个教科书 application 目录”的形式问题，而是同一个 Run 用例需要跨三处阅读才能还原：
+目录名就是环名：
 
 ```text
-delivery.StartRun
-  → runtime.PlanTurnStart / ClaimRunSlot / StartTurn
-    → kernel.turn.Dispatcher
-      → agent runtime
-  → delivery.openSegment / pumpRun
-    → kernel.runsegment.Effects
-      → runtime stores / checkpoint / maintenance
+internal/
+├── domain/       execution、session、provider、tool、approval、worktree…
+├── application/  runs、sessions、models、workspace、integrations、queries…
+├── adapter/      agentexec、modelclient、maintenance、toolset、runsegment…
+├── infra/        storage、git、checkpoint、exec、lsp、mcp、a2a、llm
+├── delivery/     protocol、dispatch、server、transport/{http,inprocess}
+├── component/    无领域语义的进程内小组件
+├── bootstrap/    Stack、Host 与 wiring
+├── config/       外部配置解析
+└── arch/         依赖与所有权 fitness tests
 ```
 
-从零设计不应继续接受这种职责分布。应把已存在的应用逻辑收进一个明确的 application 边界，而不是继续用 `kernel`、`runtime`、`server` 三个名称分别承载其中一段。
+不为目录对称制造空 package。新增能力先判断它属于领域规则、完整用例、能力适配、技术
+设施还是 wire 边界，再选择环。
 
-### 1.2 是否需要 Application，不取决于 transport 数量
+## 2. Run 是 Application 的生命周期单元
 
-“只有一个 delivery，所以不需要 application 层”不是合适的判据。
-
-是否需要独立应用边界，取决于是否存在需要脱离协议独立表达的用例和生命周期。Lyra 已经有多种 driver：
-
-- HTTP/JSON-RPC；
-- inprocess transport；
-- scheduler；
-- startup recovery；
-- post-run maintenance；
-- MCP registry reconciliation。
-
-更重要的是，Start、Resume、Cancel、Rollback、Fork、Delete、Import 等用例本身就应当可以在不启动协议栈的情况下测试和执行。
-
-### 1.3 源码依赖与运行时调用必须分开画
-
-SQLite、Git、MCP 等不是“domain 下面的底层”。它们是位于最外侧的 driven adapters。
-
-Application 在运行时会调用它们，但源码不能 import 它们；具体 adapter 反向 import application/domain 并实现其 port。
-
-```mermaid
-flowchart LR
-    D["Delivery<br/>JSON-RPC / HTTP / SSE / inprocess"] --> A["Application<br/>Runs / Sessions / Workspace / Capabilities"]
-    A --> M["Domain<br/>状态、不变量、决策、计划"]
-
-    X["Driven Adapters<br/>agent / sqlite / git / MCP / LSP / tools"] --> A
-    X --> M
-
-    B["Bootstrap / Host"] --> D
-    B --> A
-    B --> X
-```
-
-图中的箭头表示**源码依赖**，不是运行时调用方向。
-
----
-
-## 2. 设计原则
-
-### 2.1 按不变量与语言切 bounded context，不按名词切包
-
-一个名词不等于一个 bounded context。若多个类型总是在同一事务、同一状态机和同一用例中变化，它们通常属于同一个上下文。
-
-反过来，仅仅因为两类数据都存在 SQLite 中，也不代表它们属于同一个领域。
-
-### 2.2 Domain 只表达代码真正需要保护的规则
-
-Domain 可以包含：
-
-- value object；
-- entity / aggregate；
-- 状态转换；
-- policy；
-- 纯算法；
-- mutation plan。
-
-但不为每个 CRUD 表制造聚合根，也不因为某个能力有名字就强行放进 `domain/`。
-
-例如 AGENTS.md、Skills、Recipes 的文件发现若主要是 I/O 能力，可以直接是 workspace/context adapter；只有 precedence、merge、validation、render 等纯规则值得下沉为 domain 函数。
-
-### 2.3 Application 拥有副作用顺序
-
-Domain 决定“允许什么”和“应该变成什么”，Application 决定：
-
-- 什么时候加载状态；
-- 什么时候打开事务；
-- 先写哪一部分；
-- 何时发布事件；
-- 哪些错误可以补偿；
-- 哪些后台操作属于 component lifetime；
-- 哪些工作必须等待完成。
-
-### 2.4 Port 放在消费方
-
-- `application/runs` 消费 Executor、Store、Checkpoint，就由 `application/runs` 定义这些接口；
-- delivery 消费 Runs、Sessions，就由 delivery 定义窄接口；
-- adapter 隐式满足接口；
-- bootstrap 注入具体实现。
-
-接口用于真实边界、替换和测试，不为单一内部算法制造仪式。
-
-### 2.5 一个显式管线优于全局事件总线
-
-Lyra 需要强类型 RunEvent，但不需要 EventBus、Mediator 或 CQRS 框架。
-
-Run 事件通过一个显式 pipeline 完成：
+`internal/application/runs.Coordinator` 拥有一个 Run 从 admission 到 terminal 的完整流程：
 
 ```text
-executor event → normalize → durable commit → live journal → delivery projection
+Start/Resume request
+  -> validate + durable admission
+  -> create/attach executor handle
+  -> reduce EngineEvent
+  -> EventCommit (persist before publish)
+  -> RunEvent journal
+  -> Delivery protocol projection
 ```
 
-### 2.6 组合根不能同时是业务 facade
+关键所有权：
 
-Bootstrap 可以 import 全部具体包，但不得拥有业务规则、跨组件锁和 80 个业务方法。
+- `RunID` 标识用户看到的完整 run，resume 后保持不变；
+- `SegmentID` 标识一次底层执行段；
+- `EngineEvent` 是 Application 接收 executor 的唯一事件族；
+- `EventCommit` 描述需要原子持久化的 projection；
+- `RunEvent` 是 application journal 向 delivery 发布的唯一事件族；
+- pump、cancel、活跃 handle 和 terminal ordering 归 runs，而非 transport/server。
 
-Application facade 可以汇总用例入口，但不得负责创建 SQLite、MCP client、LSP process 或 telemetry exporter。
+Delivery 不自行创建 goroutine 驱动 run，也不持有 executor 生命周期。HTTP/SSE 和
+inprocess transport 共享同一个 application use case，差异只在 envelope I/O。
 
----
+## 3. Agent Execution 防腐层
 
-## 3. 目标目录
+`internal/adapter/agentexec` 是 Lyra 对 Lynx Agent/Core 的防腐层。它负责：
+
+- 解析一次 run 的 provider/model 与 `chatclient.Client`；
+- 构造 system prompt、普通 `core/chat.Request` 和邻接 `tools.Registry`；
+- 用唯一的 `agent/toolloop.Runner` 驱动 model/tool 事件；
+- 将 Lynx event 投影为 application-owned `runs.EngineEvent`；
+- 保存/恢复 Lynx `ProcessSnapshot` 和 tool-loop `Checkpoint`；
+- 协调 turn 内的 steering、compaction、memory extraction 与 toolset。
+
+它不负责 Run admission、Session 事务、delivery replay、workspace rollback、MCP 配置
+写入或协议错误映射。
+
+### 3.1 Tool-loop
+
+工具执行使用目标 `core/chat` + `tools.Tool` + `agent/toolloop` 契约：
 
 ```text
-app/runtime/
-├── cmd/lyra/
-│   └── main.go
-│
-├── internal/
-│   ├── domain/
-│   │   ├── execution/
-│   │   │   ├── session.go
-│   │   │   ├── run.go
-│   │   │   ├── event.go
-│   │   │   ├── timeline.go
-│   │   │   ├── rollback.go
-│   │   │   └── usage.go
-│   │   ├── capability/
-│   │   ├── workspace/
-│   │   ├── modelconfig/
-│   │   ├── automation/
-│   │   └── indexing/
-│   │
-│   ├── application/
-│   │   ├── runs/
-│   │   │   ├── commands.go
-│   │   │   ├── queries.go
-│   │   │   ├── coordinator.go
-│   │   │   ├── supervisor.go
-│   │   │   ├── stream.go
-│   │   │   └── ports.go
-│   │   ├── sessions/
-│   │   ├── workspace/
-│   │   ├── capabilities/
-│   │   └── schedules/
-│   │
-│   ├── adapter/
-│   │   ├── agentexec/
-│   │   ├── persistence/sqlite/
-│   │   ├── workspace/
-│   │   ├── toolset/
-│   │   ├── modelclient/
-│   │   ├── mcp/
-│   │   ├── lsp/
-│   │   └── maintenance/
-│   │
-│   ├── delivery/
-│   │   ├── protocol/
-│   │   ├── rpc/
-│   │   └── transport/{http,inprocess}/
-│   │
-│   ├── bootstrap/
-│   │   ├── config.go
-│   │   ├── wire.go
-│   │   └── host.go
-│   │
-│   ├── component/
-│   │   └── scope.go
-│   └── arch/
-│       └── arch_test.go
-│
-└── doc/
+chat.Request + tools.Registry
+  -> model_request / model_response
+  -> tool_call / tool_result (serial)
+  -> pause(checkpoint) | final | error
 ```
 
-这棵树表达的是边界，不是要求所有上下文复制相同模板：
+Runner 不自动 retry，普通工具错误反馈成 error ToolResult，round limit 由调用方配置。
+暂停时持久化 JSON-safe Checkpoint；恢复从 pending tool 继续，不重调模型、不重跑已完成
+工具。Provider stream 在 adapter 边界汇聚为同步 Model 调用，同时单独投影 UI delta 与
+usage；协议 Response 不携带 runtime 状态。
 
-- 没有领域规则的能力不建 domain 包；
-- 没有 outbound dependency 的用例不建 adapter；
-- 小而内聚的上下文保持一个包；
-- 只有出现真实复用时才提取技术型 `platform/*` 包。
+## 4. Domain 与 Application 边界
 
-**落地采用了单列 `infra` 环**（`internal/infra/{storage/sqlite,git,lsp,mcp,exec,a2a}`）：SQLite、Git、MCP、LSP 是 driven adapters，把它们与 capability adapters（`internal/adapter/*`）分环，让"实现 domain port 的纯技术设施"与"实现 application port + 包外部能力的适配器"各自成环、依赖规则更清晰（`arch_test` 强制 `infra ↛ application/adapter/delivery/composition`,只 import domain）。这是 §3 从零设计里"不单列 infra"理想化的一个有意偏离 —— 单列 infra 是合法的整洁架构选择,不是债。`platform/*` 抽象仍按"出现真实复用再提"的原则,不提前建立。
+Domain package 只维护需要跨用例保护的不变量。例如：
 
----
+- `execution`：run 状态与事件语义；
+- `session`：session 身份和状态；
+- `provider`/`modelrole`：显式 provider+model 选择；
+- `approval`：中断审批语义；
+- `worktree`/`editguard`：工作区隔离与编辑安全；
+- `knowledge`、`todo`、`schedule`、`tool`：各自稳定领域规则。
 
-## 4. Bounded Context
+Application package 按完整用例组织。它可以协调多个 Domain port，但不 import 具体
+SQLite、Git、MCP、Agent SDK 或 protocol DTO。列表/分页等读模型由
+`application/queries` 读取 projection，不强迫所有查询加载完整 aggregate。
 
-### 4.1 Execution：核心域
+Port 放在消费方。只有第三方或另一实现确实可能替换的能力才抽接口；内部单实现胶水
+直接用具体类型。详见 [`EXTENSIBILITY.md`](EXTENSIBILITY.md)。
 
-Execution 初始包含：
+## 5. Persistence 与事务
 
-- Session；
-- Run；
-- Transcript；
-- Conversation；
-- Interrupt；
-- Usage / Budget；
-- 与 Session 生命周期严格绑定的 Todo。
+开发期只有一个 SQLite 技术后端，位于 `internal/infra/storage`。单一后端不意味着
+Application 依赖 SQLite：用例依赖自己需要的窄读写/事务端口，Bootstrap 注入具体实现。
 
-这些概念属于一个上下文，但不必属于同一个 aggregate。
+持久化原则：
 
-**落地偏离（有意）**：`Run`/`Transcript`/`Conversation`/`Interrupt`/`Usage(accounting)` 落在 `domain/execution/{run,transcript,conversation,interrupts,accounting}` 子包；但 **`Session` 与 `Todo` 保留为各自独立的 `domain/session`、`domain/todo` 包，不物理归入 `execution`**。理由：二者的 aggregate store 有真实跨环 feature 消费者（session 被 sessions 协调器 + 多适配器消费,todo 被 agentexec + toolset 消费）,port 须落在最内公共点(自身 domain 包);把它们塞进 execution 子包不增内聚、只增耦合。"属于同一执行上下文"是概念归属,不强制同一 Go 包 —— 这与本节"一个上下文但不必同一 aggregate"的精神一致。
+- durable state 先 commit，成功后才 publish `RunEvent`；
+- fresh start 的 admission 与 opening projections 在同一事务提交；
+- resume 的 interrupt consume、run resume state 与 opening projections 同批提交；
+- 数据库与 filesystem/Git 不能伪装成一个原子事务，跨资源操作使用显式 intent 和补偿；
+- 一个 Session 至多一个非 terminal Run 由数据库约束兜底，不只靠内存锁；
+- transcript/history 是 projection，不替代 Run aggregate。
 
-#### Session aggregate
+用户可编辑的 `LYRA.md` 是有意保留的文件型知识源，不属于通用存储开关。
 
-Session 负责：
+## 6. Transport 与协议
 
-- 工作区绑定；
-- 标题与默认模型；
-- fork/subtask lineage；
-- relocate；
-- 创建、删除和分支规则；
-- 是否允许接纳新 Run 的领域判断。
+`internal/delivery/protocol` 是 Lyra Runtime Protocol 的 Go 投影；完整 wire 规范在
+[`../../desktop/docs/protocol`](../../desktop/docs/protocol)。改变 method、error、event
+或 header 必须前后端同步。
 
-#### Run aggregate
+Transport 只负责：
 
-Run 负责：
+1. decode/encode envelope；
+2. 把 transport metadata 放进 context；
+3. 调用一个 server/application 入口并传输结果流。
 
-- model selection；
-- budget；
-- lifecycle state；
-- interrupt state；
-- terminal outcome；
-- usage accumulation；
-- parent/segment relationship（若产品确实需要）。
+HTTP 使用 JSON-RPC over streamable HTTP/SSE，每个流式调用使用自己的 POST response
+stream；inprocess transport 为未来 CLI/TUI 复用同一协议入口。业务错误在 JSON-RPC
+error 中表达，HTTP status 只代表 transport failure。
 
-推荐状态机：
+## 7. Bootstrap 与资源生命周期
 
-```mermaid
-stateDiagram-v2
-    [*] --> Running: Admit
-    Running --> Interrupted
-    Interrupted --> Running: Resume
-    Running --> Completed
-    Running --> Failed
-    Running --> Canceled
-    Interrupted --> Canceled
-    Completed --> [*]
-    Failed --> [*]
-    Canceled --> [*]
-```
+`bootstrap.Stack` 是 server 所需 coordinator/notifier 的 discovery 聚合，不拥有业务
+方法，也不拥有 closer。`bootstrap.Host` 持有 dispatcher、background task、engine 和
+外部资源，并按反依赖顺序关闭。
 
-关键约束：
+构造失败必须关闭已经成功创建的资源。后台 goroutine 必须绑定 Host 或 Run 的 context，
+不能泄漏到 package 全局。Provider credential、MCP session、LSP process、SQLite handle
+等 runtime resource 都由组合根明确拥有。
 
-- `RunID` 在 start、interrupt、resume、terminal 生命周期内稳定；
-- admission 直接创建 `Running` durable state，不保留生产流程从未使用的 `Created → Running` 假转换；
-- 如果一次 resume 会开启新的流式执行段，使用 `SegmentID` 表达，不复用“新的 Run”概念；
-- `Turn` 只保留给一次模型/tool round，或从产品语言中删除；
-- agent `ProcessID` 是 adapter recovery handle，不是领域身份；
-- Pending Interrupt 是 Run 的状态，不是独立 bounded context。
+## 8. 并发与事件
 
-#### Transcript 与 Conversation
+- 同一 Run 只有一个 application owner 驱动 terminal transition；
+- terminal first-wins，重复 cancel/close 必须幂等；
+- journal 的 publish 顺序与 durable commit 顺序一致；
+- transport subscriber 慢不能反向改变领域状态；backpressure/drop 策略在 delivery 明确；
+- context 从 request/Run 向 model、tool、MCP、exec、Git 和 storage 传播；
+- race test 覆盖 pump、cancel、resume、subscriber 和 terminal ordering。
 
-二者是 Execution 内不同用途的 projection：
+## 9. 可观测性
 
-| Projection | 用途 | 消费者 |
-|---|---|---|
-| Transcript | Item + Run 时间线 | 客户端、rollback/fork |
-| Conversation | 发给模型的 message context | agent executor |
+Trace 关联使用 W3C context propagation。Chat/provider、Agent、VectorStore、MCP 等 SDK
+埋点在外圈 wrapper；Core 保持标准库依赖。Application span 使用稳定的 Run/Segment
+身份，Delivery span 只描述 protocol/transport，日志经 `slog` 输出并避免记录 credential。
 
-它们可以使用不同表和不同读取优化，但必须由 Execution application use case 统一提交，不应由 delivery 各自写入。
+统一约定见 [`../../../doc/OBSERVABILITY.md`](../../../doc/OBSERVABILITY.md)。
 
-### 4.2 Capability Governance
+## 10. 架构变更完成定义
 
-初始候选包括：
+一次 Runtime 架构变更只有在以下条件同时成立时才完成：
 
-- Tool catalog；
-- Approval mode/rule；
-- Tool safety；
-- MCP server configuration；
-- effective MCP ToolPolicy；
-- capability enablement。
+- 所有权能用 Domain/Application/Adapter/Infra/Delivery/Bootstrap 中唯一一环解释；
+- 没有新增 facade、双事件族、全局 registry 或短命兼容层；
+- `internal/arch` 对依赖方向和关键所有权的测试通过；
+- 相关 domain/application/adapter/delivery/infra 测试通过；
+- 涉及并发时 race test 通过；
+- 协议变化已同步 desktop protocol 文档；
+- 本文、模块 CLAUDE/README 和 GoDoc 与实现一致。
 
-是否最终拆成 Approval 与 Integration 两个上下文，应根据语言、事务和变化原因决定，而不是为了目录平衡。
+## 11. 明确不做
 
-MCP 实时连接池不属于 domain；它是持久配置的 live projection。
-
-### 4.3 Workspace
-
-Workspace domain 只保存真正的规则和值：
-
-- WorkspaceID / Worktree identity；
-- checkpoint/restore 语义；
-- edit safety verdict；
-- mutation plan；
-- rollback 与 active Run 的互斥规则。
-
-以下属于 adapter：
-
-- path canonicalization；
-- symlink 解析；
-- 文件 hash 和读取；
-- Git diff/checkpoint；
-- fsnotify；
-- shell process。
-
-### 4.4 Model Configuration
-
-包含：
-
-- Provider 配置值；
-- provider/model 显式配对不变量；
-- utility/embedding role；
-- usage 与 pricing 所需的值对象。
-
-凭证来源、provider SDK、HTTP client 和 client cache 属于 modelclient adapter。
-
-### 4.5 Automation、Indexing 与 Prompt Sources
-
-- Schedule spec 与 next-fire 规则可以属于 Automation domain；ticker worker 属于 application；
-- Index scoring/reconcile 是 Indexing domain；embedding、Git scanning 和向量存储属于 adapter；
-- Agent docs、skills、recipes、knowledge 的 precedence/render 规则可作为纯模型；文件发现和写入属于 adapter。
-
----
-
-## 5. Application 设计
-
-### 5.1 按完整用例分包
-
-Application 不是一个 `Service` 类型大全，而是按对用户有意义的用例组织：
-
-| Package | 主要命令/查询 |
-|---|---|
-| `application/runs` | Start、Subscribe、Resume、Cancel、Steer、ListOpenInterrupts |
-| `application/sessions` | Create、Update、Delete、Fork、Rollback、Import、Export |
-| `application/workspace` | Files、Diff、Restore、Hooks、Skills、Recipes、Memory |
-| `application/capabilities` | Providers、Models、Approval、MCP、Tools |
-| `application/schedules` | CRUD、RunNow、后台触发 |
-
-少量纯读查询可以直接使用 query port，但 delivery 仍不直接拿 Store。
-
-### 5.2 Runs Coordinator
-
-当前形态：
-
-```go
-type Coordinator struct {
-	executor SegmentExecutor
-	turns    TurnControl
-	sessions SessionLifecycle
-	effects  Effects
-	registry Registry[*handle]
-	tasks    taskgroup.Group
-}
-
-func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult, error)
-func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResult, error)
-func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error
-func (c *Coordinator) Steer(ctx context.Context, cmd SteerCommand) error
-func (c *Coordinator) Subscribe(ctx context.Context, runID, after string) (<-chan Event, bool)
-```
-
-`Coordinator` 是内部焊死的具体类型，不为它抽没人实现的 SPI。
-
-`SegmentExecutor`、`TurnControl`、`SessionLifecycle`、`Effects` 等 port 由 `application/runs` 定义，因为该包是消费者。Start/Resume/Cancel/Steer 的 admission、prepare/rehydrate、opening commit、activate 和失败清理都由该 Coordinator 组织。prepared segment 只是包内实现细节，Delivery 不能构造它，也不能注入 projector 或 executor handle。
-
-### 5.3 Application facade
-
-组合后的应用入口是一个纯结构。**落地为 `bootstrap.Stack`**（承载 application coordinators 与少量 live notifier）：
-
-```go
-// internal/bootstrap
-type Stack struct {
-	Sessions     *sessions.Coordinator
-	Integrations *integrations.Coordinator
-	Approvals    *approvals.Coordinator
-	Models       *models.Coordinator
-	Tools        *tools.Coordinator
-	Codebase     *codebase.Coordinator
-	Queries      *queries.Coordinator
-	Workspace    *workspace.Coordinator
-	Schedules    *schedules.Coordinator
-	Coordinator  *runs.Coordinator
-	FileChanges  *filechanges.Notifier
-	MCPStatus    *mcpstatus.Notifier
-}
-```
-
-它只用于发现和交付，**不拥有资源 closer**：资源关闭由 `bootstrap.Host` 持有（`Host{Stack; dispatcher; effectsTasks; engine; resources}`，`Host.Close` 按反依赖序关闭，§10.3/§13.2），所以 Stack 保持无 closer、无业务方法。turn adapter 只由 bootstrap 注入 `runs` 的消费方 port，Delivery 不再持有或驱动它。
-
-Delivery 按自己的消费面直接持具体 Coordinator 指针驱动（runs/sessions/queries/...），不再经任何 facade，也不直接驱动 concrete adapter —— `internal/runtime` facade 已删除。
-
-### 5.4 Query 不必机械经过 aggregate
-
-列表、分页、状态查看等读取可以使用 application-owned query port，直接读取 SQLite projection。
-
-这不是引入 CQRS 框架，只是避免为了展示数据加载完整 aggregate，也避免把 command store 做成包含所有读取的胖接口。
-
----
-
-## 6. Agent Execution Adapter
-
-### 6.1 agent SDK 是被 Lyra 消费的执行框架
-
-Application 定义它真正需要的 executor port，例如：
-
-```go
-type Executor interface {
-	Start(ctx context.Context, req ExecuteRequest) (Handle, error)
-	Events(ctx context.Context, handle Handle) (iter.Seq2[EngineEvent, error], error)
-	Resume(ctx context.Context, handle Handle, resolution Resolution) error
-	Restore(ctx context.Context, snapshot SnapshotRef, resolution Resolution) (Handle, error)
-	Cancel(ctx context.Context, handle Handle) error
-}
-```
-
-`adapter/agentexec` 使用 lynx `agent`、`core/model/chat` 和 `toolloop` 实现该接口。
-
-### 6.2 agentexec 的职责
-
-- 构造 system prompt；
-- 解析 per-run model client；
-- 组装 ToolResolver；
-- 驱动 agent process；
-- 处理底层 park/resume；
-- 把 agent event 翻译为 transport-neutral `EngineEvent`；
-- 管理 ProcessSnapshot adapter handle。
-
-它不负责：
-
-- Session admission；
-- wire RunID；
-- transcript persistence；
-- SSE replay；
-- workspace rollback；
-- MCP registry mutation；
-- application terminal ordering。
-
-### 6.3 焊死不等于放在内层
-
-agentexec 可以是 Lyra 永远只有一个实现的内部焊死组件，但它仍是 application port 的 adapter。
-
-“不会有第三方替换实现”不代表 Application 应直接依赖 agent framework。隔离框架类型、控制依赖方向和提供确定性测试本身就是有效边界。
-
----
-
-## 7. Run Event Pipeline
-
-### 7.1 两端各自唯一的规范事件
-
-Application 在 `application/runs` 定义两个用途不同、都封闭且 transport-neutral 的事件族：
-
-- `EngineEvent`：executor adapter 发给 Application reducer 的输入事实；
-- `RunEvent`：reducer 归约后的 canonical 输出，供 durable commit 与 Journal 使用。
-
-`EngineEvent` 包括：
-
-```text
-TurnStart
-MessageDelta
-ReasoningDelta
-ToolCallStart / ToolCallEnd
-UsageReported
-SteerMessage
-TodosUpdated
-CompactBoundary / MemoryUpdated
-ErrorEvent
-TurnInterrupted
-TurnEnd
-```
-
-Application reducer 维护 message/reasoning/tool 的 segment-local 状态，并把输入归约为 `SegmentStarted`、`SegmentProgressed`、`ItemStarted`、`ItemChanged`、`ItemCompleted`、`StateSnapshot`、`SegmentFinished` 等 `RunEvent`。每个 Journal 信封带：
-
-- RunID；
-- SegmentID（若需要）；
-- monotonic sequence/cursor；
-- timestamp；
-- typed payload。
-
-`turn` adapter 直接发出 `EngineEvent`；它只用 type alias 保留本地短名，不维护第二份 lockstep struct。Application reducer 决定 item 完成、interrupt、terminal synthesis、typed persistence fact 和可选 nudge，Delivery 不参与这些决策。Interrupt 是 typed union（approval/question），失败 payload 不能退化成空卡片。
-
-Journal 上的 `runs.Event` 是 transport-neutral 信封（RunID / SegmentID / Seq / Timestamp / sealed `RunEvent` payload）。durability 与 terminal 由 canonical payload 表达；monotonic cursor 由 `runs.Coordinator` 自持，Delivery 只做 `evt_` framing。
-
-Delivery 的无状态 presenter 只能把它映射为 `protocol.RunEvent`，不能反向生成持久化事实，也不保存 segment projection 状态。
-
-### 7.2 事件处理顺序
-
-```mermaid
-sequenceDiagram
-    participant E as Agent Executor Adapter
-    participant R as Run Coordinator
-    participant S as Execution Store
-    participant J as Run Journal
-    participant D as Delivery
-
-    E->>R: normalized EngineEvent
-    R->>S: CommitOpening(admit|consume+resume, projections)
-    S-->>R: committed
-    R->>J: publish opening events
-    R->>E: Activate resume decision (continuation only)
-    E->>R: streamed EngineEvent
-    R->>R: reduce to canonical RunEvent / EventCommit / assign sequence
-    R->>S: CommitEvent(required state/projection)
-    S-->>R: committed
-    R->>J: publish Event
-    D->>J: Subscribe(after cursor)
-    J-->>D: canonical RunEvent
-    D->>D: map to protocol.RunEvent
-```
-
-顺序规则：
-
-- Start 只有在 admission/resume transition 与全部 opening projections 同一事务成功后才返回；
-- Resume 先 attach event owner，再由 opening 事务消费 interrupt + 恢复 Run state，最后才向 parked process 交付 decision；
-- activation 失败发生在已接受 segment 内，必须通过同一 stream terminalize，不能恢复已消费 interrupt 制造 ghost resume；
-- delta：live-only，可直接发布；
-- completed item：持久化后发布；
-- interrupt/park：本段所有 running interrupt items、Interrupted Run、Pending Interrupt、admission suspend 与 ProcessSnapshot reference 作为一个 write-set 提交；完整 event batch 在同一 cancel linearization 内、commit 成功后整批发布；
-- terminal：Run outcome、usage、Transcript/Conversation projection 提交后发布；
-- 发布后会解锁新命令的事件，必须 commit-before-publish；
-- terminal 发布后，立即查询应看到一致结果。
-
-### 7.3 Journal 所有权
-
-per-run replay journal/hub 属于 Application，不属于 HTTP delivery：
-
-- HTTP 与 inprocess 共享同一事件源；
-- request 断开只取消 subscriber，不取消 Run；
-- Journal 可以只在 Run 生命周期内保留 durable event backlog；
-- 是否跨进程持久化完整事件流由协议重连要求决定，不默认上 event sourcing。
-
----
-
-## 8. Persistence 与事务
-
-### 8.1 不按表设计 application port
-
-不要求统一改名 `Repository`。`Store`、`Registry`、`Catalog` 只要符合本质即可。
-
-但 application port 应围绕原子决策，而不是暴露一组表级 CRUD：
-
-```go
-type Store interface {
-	AdmitRun(ctx context.Context, draft execution.Run) error
-	CommitEvent(ctx context.Context, commit EventCommit) error
-	ApplyRollback(ctx context.Context, plan execution.RollbackPlan) error
-}
-```
-
-Domain/Application 决定 `RollbackPlan`；SQLite adapter 只原子执行计划。
-
-**落地**：上例的单一 `Store` 是示意 —— 实际按 ISP + 消费者拆分：`runs.Effects.CommitOpening`（fresh admit 或 resume consume + state transition + opening projections）、`runs.Effects.CommitEvent`（run-event 原子提交）、`sessions.WriteSets.{ApplyFork,ApplyRollback,ApplyRestore,ApplyDelete,ApplyCancel}` + `SessionStore.Patch`（会话生命周期写集），各由其 bounded consumer 定义。旧的 `runs.RunStore` 已删除，避免 Coordinator 在事务外先后调用 admission 与 projection。每个 `Apply*`/`Commit*` 方法 = 一个原子决策 = 一个事务；SQLite 子 store 通过 `conn(ctx)` join 的 tx handle 只封装在 adapter 内部。
-
-### 8.2 Run admission 由 durable constraint 保底
-
-“一个 Session 一个 active/interrupted Run”最终应由 SQLite 约束保证：
-
-- `runs.state` 明确区分 Running/Interrupted/Terminal；
-- partial unique index 或 admission row 保证一个 Session 只有一个非 terminal Run；
-- Supervisor 只持有当前进程的 live instance，不是 admission 的最终事实源。
-
-这样重启、rehydrate 和 scheduler 不会形成多套真相。
-
-### 8.3 Interrupt 属于 Run
-
-Interrupt 可以独立建表，但领域上属于 Run：
-
-- `run_id` 唯一；
-- 与 Run 状态在同一事务提交；
-- Resume/Cancel 以 RunID 定位；
-- ProcessSnapshot reference 是恢复字段，不是新 aggregate。
-
-Resume 的 interrupt delete 不是 lifecycle coordinator 的预先 CRUD：`CommitOpening` 在一个 SQLite 事务里执行 `Consume(runID)`、校验 Session binding、按 RunID + SessionID 严格执行 `RunState.Resume`，再写 opening transcript projection。任何一步失败都会回滚，interrupt 仍保持开放。跨重启 rehydrate 复用 interrupt 持久化的 TurnID；因此 prepare 成功但 opening 失败时，重试仍解析到同一个 parked owner，不会重复 restore 同一 ProcessID。
-
-Park 本身也是一个 aggregate commit，而不是“最后一条 interrupt 事件”的副作用。Reducer 必须把本段此前已经发出的 approval/question `ItemStarted`、最终 interrupt item projection、Run/Pending Interrupt/admission/ProcessSnapshot 一次性交给 `CommitEvent`；Coordinator 在 `commitInterrupt` 锁内完成整个 batch 的 commit 与 publication，使 cancel 不可能插入半个 park 边界。
-
-Parked Cancel 同样是一个完整写集：Application 在持有 Session admission 时把 `Interrupted` Run 归约为 `Canceled`，将等待中的 interrupt item 改为 `Incomplete`，写入 terminal result、message watermark、取消原因和完成时间；SQLite 在同一事务内提交这些 transcript projections、删除 open interrupt、删除其 ProcessSnapshot 并 terminalize admission row。顺序上必须先提交 durable cancel truth，再对 process-local turn 做 bounded best-effort teardown；不能先删除唯一可恢复快照，再冒险让 durable cancel 失败。
-
-启动恢复不是 read path 的临时修饰。Persistence 在对外服务前以一个事务审计全部 non-terminal Run：只有 Run、transcript、Pending Interrupt、admission 与可用 ProcessSnapshot 构成完整 parked boundary 时才保留 `Interrupted`；Running、孤儿 Interrupted 或外部丢失快照的 Run 必须持久化为 `Failed/Error` + `run_lost`，同步关闭 running items/admission 并清理 orphan interrupt/snapshot。若事实组合不可能由原子 write-set 产生（例如 transcript identity/state 自相矛盾），启动应 fail loud，不能把内部数据损坏伪装成外部进程丢失。
-
-### 8.4 Transcript 与 Conversation 是 projection
-
-Run event commit 可以同时更新：
-
-- Run state；
-- transcript item/run projection；
-- conversation message projection；
-- usage projection；
-- open interrupt state。
-
-同一个 SQLite backend 下应在同一事务提交需要强一致的部分。
-
-Transcript 的 authoritative record 是 `domain/execution/transcript` 中的 typed `Item`、`Run`、`Interrupt`、`Usage` 与 tool-result union，不保存 protocol DTO 或 `json.RawMessage` blob。rollback/fork/recovery 直接从 canonical record 计算 timeline，Delivery 只负责 wire 映射。
-
-Runtime 处于开发期，只安装当前 SQLite schema。`PRAGMA user_version` 与当前 version 不一致时直接丢弃旧结构并重建，不提供 migration；session artifact 同样只接受当前 version。该策略用于阻止错误持久化模型通过兼容代码继续存在。
-
-Session artifact 是**便携终态快照**，不是进程快照：导出先 claim Session single-writer slot、拒绝 active/open-interrupt Session，再在一个 SQLite transaction 中读取 Session + Conversation + Transcript；artifact 中的 Run 必须 terminal，必须带 outcome/result、FinishedAt 和已解析的 message watermark，terminal item 不得仍为 running。Snapshot 读取同时校验 Session/Run/Item ownership、error coupling、accounting、spawning reference、tool kind 与 run-tree cycle。导入严格拒绝 `running`/`interrupt` Run，因为 admission、parked executor 与 ProcessSnapshot 不在 artifact 中，接受它们只会制造不可恢复的孤儿状态；restore 自己在 Application 内 claim admission，不能依赖 Delivery 代为互斥。
-
-Fork 必须从同一个 coherent snapshot 派生 session、conversation 与 transcript，不能先读 history、稍后再读 execution timeline。Cwd patch 也属于 Session mutation admission；只有 Cwd 改动在 live Run 期间被拒绝，其他不冲突 patch 不应被过度阻塞。
-
-Rollback 对内部 delegation lineage 的清理也是 durable plan 的一部分：Application 只把归属于 dropped run window 的 `KindSubtask` 子树加入 `DropSessionIDs`，用户主动创建的 fork 即使共享 `ParentID` 也必须保留；在任何 workspace restore 前，先解析并 claim 全部待删除 subtask descendants，避免子 Session 在检查后启动 Run。SQLite 将父 Session timeline truncate、subtask subtree 及其 interrupt/ProcessSnapshot 删除放进同一事务，不能在提交后 best-effort 递归删除并吞错。Session delete 使用相同的递归 claim/write-set 规则，但从目标 Session 开始删除完整 KindSubtask 子树并保留独立用户 fork。
-
-### 8.5 数据库与工作区不能假装原子
-
-SQLite 事务不能和 Git/文件系统 restore 组成真正 ACID 事务。
-
-对于 rollback/import 这类跨资源破坏操作，采用针对性的 operation intent：
-
-1. claim 全部会被 durable plan 删除或改写的 Session；
-2. 在 SQLite 记录 PendingWorkspaceMutation；
-3. 执行可重入的 workspace restore；
-4. 应用 durable rollback plan；
-5. 标记 mutation completed；
-6. 启动时恢复未完成操作。
-
-不需要通用 Saga 框架，只需要为真实存在的跨资源一致性建立小型、可恢复的操作日志。
-
-live request 已看到 restore/transaction 成功或失败后，mutation completion 属于 post-commit cleanup：它保留 request value/trace，但不继承 request cancellation，并受短 deadline 约束。否则客户端断线可能把已经完成的 operation 永久留成 pending，让启动恢复重复执行或阻塞启动。
-
----
-
-## 9. MCP 与其他 Live Projection
-
-MCP 有两套状态：
-
-| 状态 | 含义 | Source of truth |
-|---|---|---|
-| Registry | 用户希望配置什么 | SQLite |
-| Connection pool | 当前实际连接了什么 | process-local adapter |
-
-正确流程：
-
-1. 验证 domain configuration；
-2. 提交 durable registry；
-3. 在 component-owned context 中幂等 reconcile；
-4. 更新 immutable ToolPolicy snapshot；
-5. 连接失败表现为 degraded status，可由显式 reconnect 或下次启动修复。
-
-不要把网络连接和 SQLite commit 描述成一个“原子更新”。
-
-同样的模式适用于：
-
-- provider client cache；
-- embedding/model role 的 runtime cache；
-- codebase index state；
-- workspace watcher。
-
----
-
-## 10. 并发与生命周期
-
-### 10.1 RunSupervisor
-
-RunSupervisor 统一拥有 active instance：
-
-```text
-RunID
-  ├── component-owned context
-  ├── cancel
-  ├── executor handle
-  ├── current application state
-  ├── event journal
-  └── join signal
-```
-
-不再把同一 Run 的状态分散在 delivery `runHandle`、domain generic registry、kernel Dispatcher 和 runtime task group 中。
-
-Supervisor 的约束：
-
-- Start/Attach 与 Close 在线性化边界内；
-- Close 开始后拒绝新 instance；
-- Cancel 幂等；
-- 每个 instance 只有一个 terminalization owner；
-- Run 结束后先完成必要 commit，再关闭 Journal；
-- shutdown cancel 后的 terminal synthesis 使用 detached、bounded cleanup context，不能因 owner context 已取消而跳过 durable terminal；
-- post-terminal maintenance 只在 terminal/park commit 成功后运行，并使用 Run 启动时捕获的 workspace identity；
-- Supervisor.Close 并发 cancel 全部实例并 join。
-
-### 10.2 三类 Context
-
-| Context | 生命周期 | 用途 |
-|---|---|---|
-| Request context | 一次入站调用 | decode、validation、admission、首次 commit |
-| Run context | 一个 Run/Segment | agent execution、event pump |
-| Component context | 一个进程组件 | post-commit reconcile、maintenance、shutdown ownership |
-
-规则：
-
-- Run 不继承 request cancellation；
-- Request span/metadata 可以保留，但 deadline 不得逃逸；
-- post-commit 工作不受客户端断线影响，但必须受 component shutdown 控制；
-- cleanup 可以通过 `WithoutCancel` 保留 trace/value，但必须重新施加短 deadline；
-- 每个 goroutine 都必须有 owner、cancel 和 join point。
-
-### 10.3 关闭顺序
-
-```text
-transport stop accepting
-  → application reject new commands
-  → RunSupervisor cancel + join
-  → scheduler/reconciler stop + join
-  → agent/MCP/LSP/tool adapters close
-  → persistence close
-  → telemetry shutdown
-```
-
-Bootstrap Host 负责进程级逆序关闭；每个组件只关闭自己启动和拥有的资源。
-
----
-
-## 11. Delivery 与 Protocol
-
-### 11.1 Delivery 只做三件事
-
-```text
-decode wire → call one application use case → present wire
-```
-
-允许：
-
-- JSON/protocol validation；
-- wire error mapping；
-- protocol/domain/application DTO 翻译；
-- SSE framing；
-- request metadata 注入；
-- capability projection。
-
-禁止：
-
-- live Run registry；
-- application cancel state；
-- durable transcript 写入；
-- interrupt persistence；
-- workspace checkpoint；
-- admission lock；
-- background maintenance；
-- 跨多个 application service 拼一个完整用例。
-
-### 11.2 Protocol 类型不进入 Application
-
-Application Event、Command、Result 不引用：
-
-- `protocol.RunEvent`；
-- JSON-RPC error code；
-- SSE event id 格式；
-- HTTP header；
-- wire content block。
-
-Delivery 映射 application cursor 到协议需要的 EventID。若协议要求全局递增，application 可以提供 opaque monotonic Cursor，但不生成 `evt_000...` 格式字符串。
-
-### 11.3 Server 方法多不是问题
-
-协议有多少方法，Server 就可能有多少 method。方法数量本身不构成 god object。
-
-真正的判据是 Server 是否只做协议适配。一个 70 方法但每个方法都是 decode/call/present 的 Server，比一个只有 10 个方法却持有 Run 生命周期的 Server 更健康。
-
----
-
-## 12. Adapter 与扩展机制
-
-### 12.1 Internal port 与 Public SPI 要区分
-
-Internal port 用于：
-
-- 依赖倒置；
-- framework 隔离；
-- application deterministic testing；
-- 具体 adapter 替换。
-
-它不自动等于公开给第三方实现的 Go SPI。`internal/` 下的接口本就不能成为仓库外稳定契约。
-
-真正的外部扩展优先使用：
-
-- MCP；
-- A2A；
-- HTTP；
-- provider protocol。
-
-只有出现真实仓库外 Go 消费者时，才将最小契约提取为 public package。
-
-### 12.2 ToolResolver 仍是窄腰
-
-code intelligence、shell、MCP、A2A、skills、todo 等能力仍应归约到一个 ToolResolver/ToolCatalog 机制，再由 agentexec 消费。
-
-不要为每种工具能力给 Runs Coordinator 新开一个 port。
-
-### 12.3 Optional capability 只在装配边界归一化
-
-构造阶段可以用 nil 表达“未注入”，但进入 application 以后应归一化成：
-
-- 明确的 disabled implementation；或
-- 明确不存在的 application capability。
-
-避免在核心执行路径反复 nil-check。
-
----
-
-## 13. Configuration 与 Bootstrap
-
-### 13.1 配置分三类
-
-| 类型 | 示例 | 所有者 |
-|---|---|---|
-| process config | listen address、storage home、telemetry | bootstrap |
-| adapter config | MCP dial、LSP command、provider client | 对应 adapter |
-| runtime mutable config | provider registry、model role、MCP servers、approval mode | application/domain + persistence |
-
-YAML/env 只在 bootstrap/config 解析，随后投影成各组件的 typed config。
-
-### 13.2 Host
-
-`bootstrap.Host` 负责：
-
-- 打开 persistence；
-- 构造 concrete adapters；
-- 构造 application coordinators；
-- 构造 delivery/transport；
-- 启动 scheduler/reconciler；
-- 在对外服务前完成 non-terminal Run/Interrupt/ProcessSnapshot durable reconciliation；
-- 保存进程级关闭顺序。
-
-Host 不提供 Sessions、Runs、MCP 等业务方法。
-
-### 13.3 构造失败的所有权
-
-每个构造阶段必须明确资源所有权何时转移：
-
-- 构造函数失败时关闭自己已创建但未转移的资源；
-- 成功返回后，由接收方拥有；
-- Host 收到完整组件后才加入进程级 close stack；
-- cleanup error 与原始构造 error 使用 `errors.Join` 保留。
-
----
-
-## 14. Observability
-
-- Domain 不直接创建 span、metric 或 log；
-- Application 在 use-case、state transition、transaction、background task 边界记录；
-- Adapter 在数据库、模型、MCP、LSP、Git、进程等外部调用边界记录；
-- Delivery 记录 transport/request 指标；
-- trace context 从 request 关联到 Run，但 Run lifetime 不继承 request cancel；
-- post-commit component work 使用 link/保留 trace metadata，同时受 component context 控制；
-- 继续遵守项目 OTel traces + metrics + logs 约定，不在业务代码散落 `slog`。
-
----
-
-## 15. 测试策略
-
-### 15.1 Domain tests
-
-纯表驱动测试：
-
-- Run transition matrix；
-- Session fork/relocate；
-- Timeline rollback plan；
-- approval/tool policy；
-- model role pairing；
-- budget/usage；
-- schedule next-fire。
-
-不启动 SQLite、HTTP、agent 或 goroutine。
-
-### 15.2 Application tests
-
-使用手写 fake port，不提供生产 in-memory backend：
-
-- Start admission 与 failure cleanup；
-- interrupt commit-before-publish；
-- park batch 的 running interrupt items 与 Run/Interrupt/admission/ProcessSnapshot 原子提交、整批发布；
-- cancel/interrupt 竞态；
-- resume/rehydrate ownership ordering（prepare 不交付 decision，opening 后才 activate）；
-- opening 失败保持 interrupt 开放、activation 失败在已接受 segment 内 terminalize；
-- terminal commit 与 Journal close 顺序；
-- request cancel 不杀死 Run；
-- component close 必须 join；
-- shutdown cancellation 仍能 bounded terminalize，失败 commit 不触发 Finish maintenance；
-- rollback plan 的 transaction/write ordering；
-- delete/rollback 在 workspace mutation 前 claim 完整 KindSubtask subtree；
-- MCP registry commit 与 live reconcile。
-
-Clock、ID generator、Executor 由测试注入，确保确定性。
-
-### 15.3 Adapter contract tests
-
-- SQLite 使用真实临时 DB；
-- Store 契约测试覆盖事务、约束和快照隔离（包括真实 SQLite 下 Consume 后失败必须回滚）；
-- 启动 reconciliation 覆盖 coherent parked boundary、`run_lost`、impossible durable mismatch 与 ProcessSnapshot cleanup；
-- agentexec 用 stub model/tool；
-- MCP/LSP/exec 用可控 fake process/server；
-- Git/checkpoint 使用临时仓库。
-
-### 15.4 Delivery tests
-
-- protocol golden；
-- JSON-RPC error mapping；
-- SSE replay/cursor；
-- HTTP auth/CORS/sidecar；
-- inprocess 与 HTTP 对相同 application event 得到相同 wire projection。
-
-### 15.5 Concurrency tests
-
-- 为具体交错时序建立 barrier，不依赖随机 sleep；
-- 高重复运行关键测试；
-- `go test -race ./...`；
-- 每个修复必须说明违反了哪个状态不变量。
-
----
-
-## 16. Architecture Fitness Tests
-
-建议机器强制：
-
-1. `domain` 不 import application/delivery/adapter/bootstrap；
-2. 全部 `domain` 不 import `os`、`io/fs`、SQL、网络、OTel、agent SDK 或 component 并发原语；
-3. `application` 不 import concrete adapter/delivery/bootstrap；
-4. `delivery` 不 import agent、SQLite、Git、MCP、LSP；
-5. `delivery/server` 不得持有 Run registry、cancel func、task group 或 checkpoint；
-6. `adapter` 可以 import application/domain 并实现其 port；
-7. 只有 `bootstrap` 可以同时 import delivery、application 与 concrete adapters；
-8. `bootstrap` 不允许 exported 业务方法；
-9. application Event 不允许引用 protocol type；
-10. protocol type 不允许进入 domain/application；
-11. domain package 间必须保持 DAG，跨 context 通过稳定值类型或 application 协调；
-12. 测试文件可使用跨层 fixture，但生产文件不能。
-13. canonical Transcript/Interrupt 不得重新引入 JSON、Blob/Payload/JSON opaque 字段；
-14. `application/runs` 与 Delivery 不得重新引入外层 Projector/Projection/translator → EventCommit seam；
-15. Delivery 不得直接控制 concrete agent turn adapter。
-
-**落地：由 `internal/arch` 机器强制**（`go/parser`/`go/ast` 走查）,承载业务逻辑的 `runtime` 包已删除,composition 环退化为纯 `bootstrap/config/cmd`。精确覆盖(诚实分档,均以 inject-and-revert 证过非空):
-
-- **1/3/7/12 由 `TestDependencyRule` 的环矩阵强制**(向内边合法、向外/向上边禁);
-- **2** `TestExecutionDomainStaysPure` + `TestDomainStaysFrameworkFree`（全 domain 禁 `os`、`io/fs`、SQL、网络、外部 SDK 及 `internal/component/*` 并发原语；纯路径字符串拼接允许使用 `path/filepath`）；
-- **4** `TestDeliveryStaysAdapterOnly`(外部 SDK);
-- **5** `TestDeliveryHoldsNoRunLifecycleState`(禁 `component/taskgroup` import + 禁 `taskgroup.Group`/`workspace.Checkpoints`/`runs.Registry`/`context.CancelFunc` 字段 —— 覆盖"registry/cancel func/task group/checkpoint"四类);
-- **8** `TestBootstrapExposesNoBusinessMethod`(exported bootstrap 类型只许 `Close`);
-- **9** `TestApplicationEventFreeOfProtocol`(application ↛ protocol,专属守卫,叠加环规则);
-- **10** `TestProtocolStaysWireOnly`(protocol 子包 ↛ domain/application);
-- **11** domain package DAG 由 **Go 编译器**(import cycle 不通过)强制;"跨 context 只经稳定值类型"这半条无法机械判定(区分 value-type import 与 service import 需人判),靠 review + 上述环矩阵兜底 —— 这是唯一非"专属测试"覆盖项,如实标注。
-- **13** `TestCanonicalExecutionRecordsStayTyped`（禁止 canonical execution record import JSON 或声明 opaque payload 字段）；
-- **14** `TestRunReductionHasNoOuterProjectionSeam`（禁止旧 stateful outer projection 类型和 wire → durable side-effect 入口复活）；
-- **15** `TestDeliveryDoesNotControlAgentTurns`（Delivery 禁止 import concrete `agentexec/turn`）。
-
----
-
-## 17. 明确不做
-
-| 不做 | 原因 |
-|---|---|
-| 全局 `domain/entities` | 破坏 bounded context 内聚 |
-| `AggregateRoot` marker/interface | 不增加语义，只增加仪式 |
-| 所有 Store 改名 Repository | 名字按本质，Store/Registry/Catalog 可以更准确 |
-| DI container | 手写 bootstrap 更透明 |
-| 全局 EventBus/Mediator | 显式 Run pipeline 更容易推理顺序 |
-| CQRS 框架 | 仅按需区分 command port 与 query projection |
-| 通用 Saga 框架 | 只为真实跨资源操作建立 operation intent |
-| 每个能力一个 kernel port | 工具能力统一归约到 ToolResolver |
-| agent loop 插件化 | agentexec 是内部焊死机制，只隔离框架依赖 |
-| 为测试提供生产 in-memory 存储 | 测试使用 fake，生产保持单 SQLite backend |
-| 为目录对称拆包 | 只有真实边界和变化理由才拆 |
-| 让 wire DTO 贯穿系统 | protocol 只存在于 delivery |
-
----
-
-## 18. 从当前实现演化的批次
-
-本节不是要求立即执行；每批都应独立评审、测试和提交。协议 wire 与 SQLite schema 是否变化，应在批次开始前单独确认。
-
-### Batch 1：统一语言和状态机
-
-- 明确 Session、Run、Segment、Step、Process；
-- 裁决 RunID 是否跨 resume 稳定；
-- 建立 Run transition matrix；
-- 明确 durable/live event 分类与 commit-before-publish 规则。
-
-不移动目录，先建立后续重构的语义基准。
-
-### Batch 2：建立 `application/runs`
-
-- 把 delivery 的 live Registry、runHandle、run hub、run pump 生命周期迁入 application；
-- 定义 transport-neutral Event/Journal；
-- delivery translator 只处理 application event → protocol event；
-- 保持 wire 不变。
-
-这是整个重构的支点。
-
-### Batch 3：收拢 Execution 用例
-
-- `kernel/lifecycle`、`kernel/runsegment`、`runtime/turn*` 归入 Runs/Sessions application；
-- Transcript、Conversation、Interrupt 作为 Execution context 的 aggregate/projection；
-- 收敛 Start、Resume、Cancel、Rollback、Fork 的事务和锁边界。
-
-### Batch 4：拆开 `runtime`
-
-- 业务方法迁入对应 application Coordinator；
-- 删除 80+ method Runtime facade；
-- `runtime/startup` 改为 `bootstrap`；
-- 资源关闭进入 Host；
-- application facade 只汇总具体 Coordinator。
-
-### Batch 5：agent kernel 归位为 adapter
-
-- 把 agent SDK ACL、prompt、tool loop、process restore 迁为 `adapter/agentexec`；
-- application 只依赖 Executor port；
-- `kernel` 若不再表达独立架构概念则删除；
-- 不改变 agent SDK 和 toolset 的内部行为。
-
-### Batch 6：Domain 重划与净化
-
-- 合并 execution 内明显共同演化的小 context；
-- agentdoc/skills/recipes 的文件发现移 adapter；
-- schedule worker 移 application；
-- OTel 移 application/adapter 边界；
-- SQLite interfaces 移到真实消费方。
-
-### Batch 7：Persistence 语义收敛
-
-- active Run durable constraint；
-- Interrupt 作为 Run 状态统一提交；
-- EventCommit/ApplyRollback 等原子 port；
-- 取消隐式 context transaction joining；
-- 为 workspace rollback 建立可恢复 operation intent。
-
-### Batch 8：收紧 Architecture Fitness Tests
-
-- 删除 composition blanket exemption；
-- 禁止 delivery 持有 application lifecycle；
-- 禁止 application event 引用 protocol；
-- 禁止 domain 引入 I/O/framework；
-- 全量 build/vet/test/lint/race。
-
----
-
-## 19. 完成判据
-
-重写架构达到目标时，应满足：
-
-- 阅读 `application/runs` 即可理解 Run 从 Start 到 Terminal 的完整流程；
-- delivery 中不存在 Run lifecycle state；
-- application 不 import agent SDK、SQLite、Git、MCP、LSP 或 protocol；
-- agent event、application event、protocol event 三层清晰且单向翻译；
-- terminal/interrupt 的 durable commit 与 live publication 顺序可由单元测试证明；
-- park、resume、cancel 与 boot recovery 对 ProcessSnapshot 使用同一个 durable truth；
-- Session admission 在重启后仍有唯一事实源；
-- restore/fork/delete/rollback 无法绕过 Session admission 或读取 split snapshot；
-- rollback 的数据库与工作区一致性拥有可恢复语义；
-- Bootstrap 只装配和关闭，不提供业务 API；
-- 每个 goroutine 都能回答 owner、cancel、join；
-- 架构规则由 `internal/arch` 机器强制；
-- 不引入 DI container、EventBus、CQRS/Saga 框架或模板化 DDD 目录。
-
----
-
-## 20. 最终裁决
-
-如果从零设计，Lyra Runtime 的核心结构应当是：
-
-```text
-Domain Execution Model
-        ↑
-Application Run Lifecycle
-        ↑                 ↑
-Delivery Adapters     Driven Adapters
-        \                 /
-          Bootstrap Host
-```
-
-最重要的一步不是改包名，而是改变所有权：
-
-> 将 live Run registry、hub、pump、cancel、interrupt persistence、terminal commit 与 component lifetime，从 delivery/runtime/kernel 三处收回到一个 transport-neutral 的 `application/runs`。
-
-完成这一步以后，Domain、agent adapter、SQLite adapter、Delivery 和 Bootstrap 的边界才会自然清晰；否则无论目录叫 Clean Architecture、DDD 还是 Microkernel，都只是在现有职责分布上换名字。
+- 不引入 DI container、EventBus、Mediator、CQRS/Saga framework；
+- 不建立统一 Repository 基类或 AggregateRoot marker；
+- 不把 agent loop、transport、server 或 coordinator 做成插件市场；
+- 不让 Delivery 重新拥有 Run 生命周期；
+- 不让 Domain/Application import Lynx provider SDK、SQLite、Git 或 wire DTO；
+- 不为历史 API/wire/database shape 保留 bridge、dual-read/write 或兼容字段。

@@ -1,12 +1,17 @@
 # Runtime Execution-Centered Architecture 收敛执行计划
 
-> 状态：完成
+> 状态：已完成的历史执行记录（不再作为当前控制面）
 > 建立日期：2026-07-13  
 > 完成 checkpoint：`a94e63b91`（`codex/runtime-architecture-refactor`）
 > 最近审查修复 checkpoint：`a03c123e3`
 > 目标架构基准：[EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md)
 
 ## 0. 文档职责
+
+本文件保留 2026-07-13 至完成 checkpoint 的批次、决策和验收证据。当前架构规则只认
+[`EXECUTION_CENTERED_ARCHITECTURE.md`](EXECUTION_CENTERED_ARCHITECTURE.md)、模块
+[`../CLAUDE.md`](../CLAUDE.md) 与代码中的 `internal/arch` 测试；不要从本历史计划创建
+新的兼容阶段或待办。
 
 本文档是 Runtime 后续架构重构的**执行控制面**，用于回答：
 

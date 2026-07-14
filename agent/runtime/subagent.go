@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// SubagentTools builds supervisor-flow [chat.Tool]s for the named deployed
+// SubagentTools builds supervisor-flow [tools.Tool]s for the named deployed
 // agents — one tool per exported goal (Export != nil), with input schema
 // derived from the goal's InputSample (so the orchestrating LLM sees a
 // typed argument shape). Use it to assemble the tool set a supervisor
@@ -52,7 +52,7 @@ func SubagentTools(platform *Platform, names ...string) ([]tools.Tool, error) {
 	return out, nil
 }
 
-// AsChatTool wraps a deployed agent as a [chat.Tool] the
+// AsChatTool wraps a deployed agent as a [tools.Tool] the
 // parent's LLM can invoke as just-another-tool. This is the
 // "supervisor" pattern: a parent agent's body uses
 // [core.ProcessContext.PromptRunner] to ask the LLM, the LLM
@@ -76,8 +76,7 @@ func SubagentTools(platform *Platform, names ...string) ([]tools.Tool, error) {
 // Example:
 //
 //	tool, _ := runtime.AsChatTool[Topic, Brief](platform, "research-agent")
-//	tools := []chat.Tool{tool}
-//	req, _ := pc.Chat().WithTools(tools...).Call().Text(ctx)
+//	answer, err := pc.PromptRunner().WithTools(tool).Generate(ctx, prompt)
 //
 // Returns an error when platform is nil, agentName is empty, or the
 // agent is not registered.
@@ -107,7 +106,7 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 }
 
 // AsMCPTool is the top-level companion to [AsChatTool]: it wraps a
-// deployed agent as a [chat.Tool] that an external MCP host
+// deployed agent as a [tools.Tool] that an external MCP host
 // (Claude Desktop, Cursor, …) can drive. The returned tool spins up
 // a *fresh* process per call (no parent context required) so it's
 // suitable for the "agent.action(input) → output" RPC pattern.

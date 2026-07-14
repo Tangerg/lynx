@@ -19,7 +19,7 @@ import (
 // be compared via Key).
 //
 // ConsensusConfig configures a consensus workflow — voters are plain
-// functions; users inject different chat.Clients via closure.
+// functions; users inject different chatclient.Client values via closure.
 type ConsensusConfig[In, Element any] struct {
 	// Name names the produced agent + its goal. Required.
 	Name string

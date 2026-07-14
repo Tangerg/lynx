@@ -12,7 +12,7 @@
 
 ## 架构心智
 
-- **每 provider 一个子包,固定三件套**:Config(校验 + 工厂)、Model(实现 core 接口)、request/response helper(消息格式转换 + 结果累积)。形状一致,**但实现不共享**。
+- **每 provider 一个子包,固定三件套**:Config(校验 + 工厂)、Model(实现 core 接口)、request/response helper(消息格式转换 + 结果累积)。原生 adapter 使用 `NewChat`；兼容 facade 使用 `NewOpenAIChat`/`NewAnthropicChat`。形状一致,**但 provider 映射不共享**。
 - **不抽公共基类**:各家 SDK 的 shape 差异大于相似度,强抽 helper 是虚假 DRY —— 宁可每家重复。
 - **适配策略分几档**(靠这个判断新 provider 落哪档):原生跟自家 SDK / 委托 OpenAI 客户端改 BaseURL / 一个 provider 同时暴露 OpenAI 与 Anthropic 两种 API / 托管平台走 IAM(无 API key)/ 本地容器。
 - **两级 options 合并**:模型默认 + 请求级叠加;provider 专属参数走类型化提取器,不手动 type-assert。
@@ -24,7 +24,7 @@
 - ❌ **在 provider 之间共享 request/response helper** —— shape 差异 > 相似度,共享 = 虚假 DRY。
 - ❌ **加 retry layer** —— SDK 自带重试(见 root 共用反向不变量)。
 - ❌ **给 provider 加 OAuth / token refresh** —— 用户填 key,401 让 UI 提示重填。
-- ❌ **让 DefaultOptions 返指针** —— 破坏 immutability,必须返值。
+- ❌ **把 defaults/metadata 伪装成 Model 能力** —— `core/chat.Model` 只有 `Call`；默认值由 provider 构造配置持有，per-request override 使用普通 `chat.Options` 值。
 
 ## 改动前必看(波及面)
 

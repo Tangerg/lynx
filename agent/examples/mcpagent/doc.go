@@ -2,7 +2,7 @@
 // in one file:
 //
 //   - lynx/mcp tool listing over an in-memory MCP server (one tool + one prompt)
-//   - sampling.CreateMessageHandler wired to the platform's chat.Client
+//   - sampling.CreateMessageHandler wired to the platform's chatclient.Client
 //   - request-level metadata (process_id) forwarded via mcp.WithMeta
 //   - action body that fetches a remote system prompt, then runs an
 //     LLM tool loop where the LLM picks a tool exposed by the MCP server

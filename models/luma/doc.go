@@ -6,7 +6,7 @@
 //
 // Note: Luma's flagship surface is video generation (Dream Machine /
 // Ray-2). Video isn't modeled by the framework — only Luma's image side fits
-// core/model/image's interface.
+// core/image's Model interface.
 //
 // See https://docs.lumalabs.ai/ for the full reference.
 package luma

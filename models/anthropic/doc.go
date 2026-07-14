@@ -3,11 +3,11 @@
 //
 // Constructors:
 //
-//   - [NewChatModel] — native /v1/messages. Full Claude surface:
+//   - [NewChat] — native /v1/messages. Full Claude surface:
 //     extended thinking blocks, tool_use with signature continuity,
 //     citations, fine-grained tool-result content blocks,
 //     cache_control;
-//   - [NewOpenAIChatModel] — Anthropic's first-party OpenAI-compat
+//   - [NewOpenAIChat] — Anthropic's first-party OpenAI-compat
 //     bridge ([BaseURLOpenAI]). Wire-format-only conversion for
 //     callers wedded to the OpenAI SDK; Claude-specific extras
 //     don't round-trip.
@@ -16,7 +16,7 @@
 // for accurate Claude-tokenizer-based counts.
 //
 // Anthropic's Message Batches API (~50% pricing, up to 24h
-// asynchronous) doesn't fit core/model's request/response shape and
+// asynchronous) doesn't fit core/chat's synchronous request/response shape and
 // is not exposed.
 //
 // Model id constants aren't exported — anthropic-sdk-go owns them
