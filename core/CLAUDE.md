@@ -24,7 +24,7 @@
 
 - 已删除的旧 package、alias、bridge 和 generic framework 不得重新引入。
 - v1 前的 breaking change 必须在同一批次迁完全部 workspace 消费方；不保留 deprecated wrapper、双读写或旧 wire 解码。
-- 任何 exported API 变更先运行 API diff，评估 provider/backend 爆炸半径，并同步 package docs、examples、serialization fixtures 和 release notes。
+- 任何 exported API 变更先运行 `go test ./internal/arch -run TestExportedAPIMatchesBaseline`，评估 provider/backend 爆炸半径，并同步 package docs、examples、serialization fixtures 和 release notes。只有完成评审与版本裁决后才用 `-update-api` 更新基线。
 
 ## 模块特有反向不变量
 
