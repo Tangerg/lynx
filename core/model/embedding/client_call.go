@@ -3,7 +3,6 @@ package embedding
 import (
 	"context"
 	"errors"
-	"time"
 )
 
 type ClientCaller struct {
@@ -12,24 +11,15 @@ type ClientCaller struct {
 
 // Response runs the call through the middleware chain and returns the
 // raw [*Response].
-//
-// One OTel span is started per call following the GenAI semconv —
-// see [startEmbeddingSpan] / [finishEmbeddingSpan] for the attribute
-// set. No-op overhead when no TracerProvider is configured.
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	req, err := c.request.buildRequest()
 	if err != nil {
 		return nil, err
 	}
-	start := time.Now()
-	ctx, span := startEmbeddingSpan(ctx, c.request.model, req)
-	resp, err := c.request.
+	return c.request.
 		MiddlewareChain().
 		BuildCallHandler(c.request.model).
 		Call(ctx, req)
-	finishEmbeddingSpan(span, resp, err)
-	recordEmbeddingMetrics(ctx, c.request.model, req, resp, err, start)
-	return resp, err
 }
 
 func (c *ClientCaller) Embedding(ctx context.Context) ([]float64, *Response, error) {

@@ -3,7 +3,6 @@ package chat
 import (
 	"context"
 	"iter"
-	"time"
 )
 
 // ClientStreamer drives the streaming chat path. Build it via
@@ -17,43 +16,9 @@ type ClientStreamer struct {
 // Tool execution is NOT auto-injected; register the call/stream middleware
 // pair for your loop driver via WithCallMiddlewares and WithStreamMiddlewares
 // if you need that.
-//
-// One OTel span is started per stream call, following the GenAI
-// semconv: request-side attributes are stamped up front; response-side
-// attributes latch from the last chunk that carried them; a
-// gen_ai.stream.first_token_received event fires on the first non-empty yield.
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-	start := time.Now()
-	spanCtx, span := startChatSpan(ctx, s.request.model, req, "chat")
 	handler := s.request.MiddlewareChain().BuildStreamHandler(s.request.model)
-	inner := handler.Stream(spanCtx, req)
-
-	return func(yield func(*Response, error) bool) {
-		var (
-			firstChunk = true
-			lastResp   *Response
-			lastErr    error
-		)
-		for resp, err := range inner {
-			if err != nil {
-				lastErr = err
-				yield(nil, err)
-				break
-			}
-			if firstChunk {
-				span.AddEvent("gen_ai.stream.first_token_received")
-				firstChunk = false
-			}
-			if resp != nil {
-				lastResp = resp
-			}
-			if !yield(resp, nil) {
-				break
-			}
-		}
-		finishChatSpan(span, lastResp, lastErr)
-		recordChatMetrics(spanCtx, s.request.model, req, lastResp, lastErr, start)
-	}
+	return handler.Stream(ctx, req)
 }
 
 // runStream is the shared entry point for streaming: build the request,

@@ -20,11 +20,6 @@ var temporaryExternalImports = map[string]string{
 	"github.com/google/uuid":             "P4-01",
 	"github.com/pkoukk/tiktoken-go":      "P5-04",
 	"github.com/spf13/cast":              "P4-01/P5-06",
-	"go.opentelemetry.io/otel":           "P3-06",
-	"go.opentelemetry.io/otel/attribute": "P3-06",
-	"go.opentelemetry.io/otel/codes":     "P3-06",
-	"go.opentelemetry.io/otel/metric":    "P3-06",
-	"go.opentelemetry.io/otel/trace":     "P3-06",
 }
 
 func TestExternalImportsDoNotExceedMigrationBudget(t *testing.T) {
