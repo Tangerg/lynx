@@ -7,24 +7,20 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
 )
 
-func newResponsesModel(t *testing.T, baseURL, modelID string) *openai.ResponsesChatModel {
+func newResponsesModel(t *testing.T, baseURL, modelID string) *openai.ResponsesChat {
 	t.Helper()
-	opts, err := chat.NewOptions(modelID)
-	if err != nil {
-		t.Fatalf("NewOptions: %v", err)
-	}
-	m, err := openai.NewResponsesChatModel(openai.ChatModelConfig{
+	m, err := openai.NewResponsesChat(openai.ChatConfig{
 		APIKey:         "test-key",
-		DefaultOptions: opts,
+		DefaultOptions: chat.Options{Model: modelID},
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
 	})
 	if err != nil {
-		t.Fatalf("NewResponsesChatModel: %v", err)
+		t.Fatalf("NewResponsesChat: %v", err)
 	}
 	return m
 }
@@ -70,7 +66,7 @@ func TestResponsesChatModel_Call_InterleavedOutput(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	m := newResponsesModel(t, srv.URL, "gpt-5")
-	req, _ := chat.NewRequest([]chat.Message{chat.NewUserMessage("查天气")})
+	req, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("查天气")))
 
 	resp, err := m.Call(t.Context(), req)
 	if err != nil {
@@ -80,7 +76,7 @@ func TestResponsesChatModel_Call_InterleavedOutput(t *testing.T) {
 		t.Errorf("URL = %q; want /v1/responses", seenURL)
 	}
 
-	msg := resp.Result.AssistantMessage
+	msg := resp.First().Message
 	if msg == nil {
 		t.Fatal("AssistantMessage is nil")
 	}
@@ -88,18 +84,18 @@ func TestResponsesChatModel_Call_InterleavedOutput(t *testing.T) {
 		t.Fatalf("Parts len = %d; want 4", len(msg.Parts))
 	}
 	wantKinds := []chat.PartKind{
-		chat.PartKindReasoning,
-		chat.PartKindText,
-		chat.PartKindToolCall,
-		chat.PartKindText,
+		chat.PartReasoning,
+		chat.PartText,
+		chat.PartToolCall,
+		chat.PartText,
 	}
 	for i, p := range msg.Parts {
-		if p.Kind() != wantKinds[i] {
-			t.Errorf("Parts[%d].Kind() = %s; want %s", i, p.Kind(), wantKinds[i])
+		if p.Kind != wantKinds[i] {
+			t.Errorf("Parts[%d].Kind = %s; want %s", i, p.Kind, wantKinds[i])
 		}
 	}
 
-	reasoning := msg.Parts[0].(*chat.ReasoningPart)
+	reasoning := msg.Parts[0]
 	if reasoning.Text != "想想看" {
 		t.Errorf("reasoning text = %q", reasoning.Text)
 	}
@@ -107,29 +103,26 @@ func TestResponsesChatModel_Call_InterleavedOutput(t *testing.T) {
 		t.Errorf("reasoning signature = %q; want enc_xyz", reasoning.Signature)
 	}
 
-	if msg.Parts[1].(*chat.TextPart).Text != "先查天气：" {
-		t.Errorf("text[0] = %q", msg.Parts[1].(*chat.TextPart).Text)
+	if msg.Parts[1].Text != "先查天气：" {
+		t.Errorf("text[0] = %q", msg.Parts[1].Text)
 	}
-	if msg.Parts[3].(*chat.TextPart).Text != "等结果。" {
-		t.Errorf("text[1] = %q", msg.Parts[3].(*chat.TextPart).Text)
+	if msg.Parts[3].Text != "等结果。" {
+		t.Errorf("text[1] = %q", msg.Parts[3].Text)
 	}
 
-	tc := msg.Parts[2].(*chat.ToolCallPart)
+	tc := msg.Parts[2].ToolCall
 	if tc.ID != "call_w" || tc.Name != "weather" || tc.Arguments != `{"city":"BJ"}` {
 		t.Errorf("tool call = %+v", tc)
 	}
 
-	if resp.Result.Metadata.FinishReason != chat.FinishReasonToolCalls {
-		t.Errorf("FinishReason = %q; want tool_calls", resp.Result.Metadata.FinishReason)
+	if resp.First().FinishReason != chat.FinishReasonToolCalls {
+		t.Errorf("FinishReason = %q; want tool_calls", resp.First().FinishReason)
 	}
-	if resp.Metadata.Usage == nil {
-		t.Fatal("usage missing")
+	if resp.Usage.InputTokens != 12 || resp.Usage.OutputTokens != 8 {
+		t.Errorf("usage tokens = %+v", resp.Usage)
 	}
-	if resp.Metadata.Usage.PromptTokens != 12 || resp.Metadata.Usage.CompletionTokens != 8 {
-		t.Errorf("usage tokens = %+v", resp.Metadata.Usage)
-	}
-	if resp.Metadata.Usage.ReasoningTokens == nil || *resp.Metadata.Usage.ReasoningTokens != 3 {
-		t.Errorf("reasoning tokens not surfaced: %+v", resp.Metadata.Usage.ReasoningTokens)
+	if resp.Usage.ReasoningTokens == nil || *resp.Usage.ReasoningTokens != 3 {
+		t.Errorf("reasoning tokens not surfaced: %+v", resp.Usage.ReasoningTokens)
 	}
 }
 
@@ -164,17 +157,20 @@ func TestResponsesChatModel_Stream_InterleavedDeltas(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	m := newResponsesModel(t, srv.URL, "gpt-5")
-	req, _ := chat.NewRequest([]chat.Message{chat.NewUserMessage("查天气")})
+	req, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("查天气")))
 
-	acc := chat.NewResponseAccumulator()
+	acc := &chat.ResponseAccumulator{}
 	for chunk, err := range m.Stream(t.Context(), req) {
 		if err != nil {
 			t.Fatalf("stream error: %v", err)
 		}
-		acc.AddChunk(chunk)
+		if err := acc.Add(chunk); err != nil {
+			t.Fatalf("accumulate: %v", err)
+		}
 	}
 
-	msg := acc.Response.Result.AssistantMessage
+	response := acc.Response()
+	msg := response.First().Message
 	if msg == nil {
 		t.Fatal("AssistantMessage nil after accumulation")
 	}
@@ -182,7 +178,7 @@ func TestResponsesChatModel_Stream_InterleavedDeltas(t *testing.T) {
 		t.Fatalf("Parts len = %d; want 4", len(msg.Parts))
 	}
 
-	reasoning := msg.Parts[0].(*chat.ReasoningPart)
+	reasoning := msg.Parts[0]
 	if reasoning.Text != "想想看" {
 		t.Errorf("reasoning text = %q", reasoning.Text)
 	}
@@ -190,32 +186,35 @@ func TestResponsesChatModel_Stream_InterleavedDeltas(t *testing.T) {
 		t.Errorf("reasoning signature = %q; want enc_xyz", string(reasoning.Signature))
 	}
 
-	if msg.Parts[1].(*chat.TextPart).Text != "先查天气：" {
-		t.Errorf("text1 = %q", msg.Parts[1].(*chat.TextPart).Text)
+	if msg.Parts[1].Text != "先查天气：" {
+		t.Errorf("text1 = %q", msg.Parts[1].Text)
 	}
 
-	tc := msg.Parts[2].(*chat.ToolCallPart)
+	tc := msg.Parts[2].ToolCall
 	if tc.ID != "call_w" || tc.Name != "weather" || tc.Arguments != `{"city":"BJ"}` {
 		t.Errorf("tool call = %+v", tc)
 	}
 
-	if msg.Parts[3].(*chat.TextPart).Text != "等结果。" {
-		t.Errorf("text2 = %q", msg.Parts[3].(*chat.TextPart).Text)
+	if msg.Parts[3].Text != "等结果。" {
+		t.Errorf("text2 = %q", msg.Parts[3].Text)
 	}
 
-	if acc.Response.Result.Metadata.FinishReason != chat.FinishReasonToolCalls {
-		t.Errorf("FinishReason = %q", acc.Response.Result.Metadata.FinishReason)
+	if response.First().FinishReason != chat.FinishReasonToolCalls {
+		t.Errorf("FinishReason = %q", response.First().FinishReason)
 	}
-	if acc.Response.Metadata.Usage == nil || acc.Response.Metadata.Usage.PromptTokens != 12 {
-		t.Errorf("usage = %+v", acc.Response.Metadata.Usage)
+	if response.Usage.InputTokens != 12 {
+		t.Errorf("usage = %+v", response.Usage)
 	}
 }
 
-func TestResponsesChatModel_Metadata(t *testing.T) {
+func TestResponsesChatRejectsUnsupportedOptions(t *testing.T) {
 	srv := testutil.JSONServer(http.StatusOK, "{}")
 	t.Cleanup(srv.Close)
 	m := newResponsesModel(t, srv.URL, "gpt-5")
-	if m.Metadata().Provider != openai.Provider {
-		t.Errorf("provider = %q; want %q", m.Metadata().Provider, openai.Provider)
+	topK := int64(2)
+	req, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("hello")))
+	req.Options.TopK = &topK
+	if _, err := m.Call(t.Context(), req); err == nil {
+		t.Fatal("Call accepted unsupported top_k")
 	}
 }

@@ -2,537 +2,507 @@ package openai
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
+	"mime"
 	"slices"
 	"strings"
 
-	"github.com/openai/openai-go/v3"
+	openaisdk "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
 
-	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/models/internal/options"
+	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
-// ResponsesChatModel adapts the OpenAI Responses API (/v1/responses) to
-// the [chat.Model] surface, alongside the legacy [ChatModel] (which
-// targets /v1/chat/completions).
-//
-// Unlike Chat Completions — whose wire format splits text and tool_calls
-// into separate fields, forcing the adapter to reconstruct a "reasoning
-// → text → tool_calls" Parts order — the Responses API returns an
-// ordered `output[]` of items (message / function_call / reasoning).
-// This adapter maps each output_item 1:1 to a [chat.OutputPart], so
-// interleaved "text → tool_call → text → tool_call → text" turns
-// survive the round trip the same way they do on the Anthropic and
-// Bedrock adapters.
-//
-// v1 scope: stateless mode only (no `previous_response_id`); three
-// output items handled (message text → [chat.TextPart], reasoning →
-// [chat.ReasoningPart], function_call → [chat.ToolCallPart]). Built-in
-// tools (web_search / file_search / code_interpreter / mcp_call /
-// image_generation / shell / computer_call) are surfaced via the raw
-// SDK but produce no Parts in this version — extending [chat.OutputPart]
-// is a follow-up epic.
-type ResponsesChatModel struct {
-	api            *API
-	defaultOptions *chat.Options
-	reqHelper      responsesRequestHelper
-	respHelper     responsesResponseHelper
-	metadata       chat.ModelMetadata
+const responsesRequestExtensionKey = "openai/responses_request"
+
+// ResponsesChat adapts OpenAI's ordered Responses API output to the minimal
+// Core chat Model and Streamer capabilities.
+type ResponsesChat struct {
+	api      *API
+	defaults corechat.Options
 }
 
-var _ chat.Model = (*ResponsesChatModel)(nil)
+var (
+	_ corechat.Model    = (*ResponsesChat)(nil)
+	_ corechat.Streamer = (*ResponsesChat)(nil)
+)
 
-// NewResponsesChatModel wires up a Responses-API-backed chat model.
-// Config is identical to [NewChatModel] — same APIKey, DefaultOptions,
-// RequestOptions, optional Metadata override — so callers can switch
-// surfaces without re-plumbing.
-func NewResponsesChatModel(cfg ChatModelConfig) (*ResponsesChatModel, error) {
+// NewResponsesChat constructs a Responses-API-backed Core chat adapter.
+func NewResponsesChat(cfg ChatConfig) (*ResponsesChat, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-
-	api, err := NewAPI(APIConfig{
-		APIKey:         cfg.APIKey,
-		RequestOptions: cfg.RequestOptions,
-	})
+	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, RequestOptions: cfg.RequestOptions})
 	if err != nil {
 		return nil, err
 	}
-
-	info := chat.ModelMetadata{Provider: Provider}
-	if cfg.Metadata != nil {
-		info = *cfg.Metadata
-	}
-
-	return &ResponsesChatModel{
-		api:            api,
-		defaultOptions: cfg.DefaultOptions,
-		reqHelper:      responsesRequestHelper{defaultOptions: cfg.DefaultOptions},
-		metadata:       info,
-	}, nil
+	return &ResponsesChat{api: api, defaults: cloneProtocolOptions(cfg.DefaultOptions)}, nil
 }
 
-func (c *ResponsesChatModel) DefaultOptions() chat.Options { return *c.defaultOptions }
-func (c *ResponsesChatModel) Metadata() chat.ModelMetadata { return c.metadata }
-
-func (c *ResponsesChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-	apiReq, err := c.reqHelper.build(req)
+// Call performs one non-streaming Responses API request.
+func (c *ResponsesChat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
+	params, err := c.buildResponsesRequest(req)
 	if err != nil {
 		return nil, err
 	}
-
-	apiResp, err := c.api.ResponseNew(ctx, apiReq)
+	response, err := c.api.ResponseNew(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-
-	return c.respHelper.build(apiResp)
+	return mapResponsesResponse(response)
 }
 
-func (c *ResponsesChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {
-		apiReq, err := c.reqHelper.build(req)
+// Stream performs one streaming Responses API request and yields ordered Core
+// response deltas.
+func (c *ResponsesChat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
+	return func(yield func(*corechat.Response, error) bool) {
+		params, err := c.buildResponsesRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-
-		stream, err := c.api.ResponseNewStream(ctx, apiReq)
+		stream, err := c.api.ResponseNewStream(ctx, params)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
 		defer stream.Close()
 
-		acc := newResponsesChunkAccumulator()
+		state := newResponsesStreamState()
 		for stream.Next() {
-			event := stream.Current()
-			resp, ok := acc.addEvent(event)
-			if !ok {
-				continue
+			response, include, mapErr := state.addEvent(stream.Current())
+			if mapErr != nil {
+				yield(nil, mapErr)
+				return
 			}
-			if !yield(resp, nil) {
+			if include && !yield(response, nil) {
 				return
 			}
 		}
-		if err := stream.Err(); err != nil {
-			yield(nil, err)
+		if streamErr := stream.Err(); streamErr != nil {
+			yield(nil, streamErr)
 		}
 	}
 }
 
-// --------------------------------------------------------------------
-// Request side: lynx Request → ResponseNewParams.
-// --------------------------------------------------------------------
-
-type responsesRequestHelper struct {
-	defaultOptions *chat.Options
-}
-
-func (r *responsesRequestHelper) build(req *chat.Request) (*responses.ResponseNewParams, error) {
-	mergedOpts, err := chat.MergeOptions(r.defaultOptions, req.Options)
+func (c *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses.ResponseNewParams, error) {
+	if c == nil || c.api == nil {
+		return nil, errors.New("openai responses: nil ResponsesChat")
+	}
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("openai responses: request: %w", err)
+	}
+	params, found, err := metadata.Decode[responses.ResponseNewParams](req.Extensions, responsesRequestExtensionKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("openai responses: extension %q: %w", responsesRequestExtensionKey, err)
+	}
+	if !found {
+		params = responses.ResponseNewParams{}
 	}
 
-	params := options.GetParams[responses.ResponseNewParams](mergedOpts, OptionsKey)
-	params.Model = shared.ResponsesModel(mergedOpts.Model)
-
-	if mergedOpts.MaxTokens != nil {
-		params.MaxOutputTokens = openai.Int(*mergedOpts.MaxTokens)
+	options := mergeProtocolOptions(c.defaults, req.Options)
+	if options.Model == "" {
+		return nil, errors.New("openai responses: model is required in defaults or request options")
 	}
-	if mergedOpts.Temperature != nil {
-		params.Temperature = openai.Float(*mergedOpts.Temperature)
+	if options.FrequencyPenalty != nil || options.PresencePenalty != nil || options.TopK != nil || len(options.Stop) != 0 {
+		return nil, errors.New("openai responses: frequency_penalty, presence_penalty, top_k, and stop are not supported")
 	}
-	if mergedOpts.TopP != nil {
-		params.TopP = openai.Float(*mergedOpts.TopP)
+	params.Model = shared.ResponsesModel(options.Model)
+	if options.MaxTokens != nil {
+		params.MaxOutputTokens = openaisdk.Int(*options.MaxTokens)
 	}
-
-	// Ask the server to ship back reasoning's encrypted_content; lynx
-	// stores it on ReasoningPart.Signature so reasoning items can
-	// round-trip in the next turn even with store=false (default).
+	if options.Temperature != nil {
+		params.Temperature = openaisdk.Float(*options.Temperature)
+	}
+	if options.TopP != nil {
+		params.TopP = openaisdk.Float(*options.TopP)
+	}
 	if !slices.Contains(params.Include, responses.ResponseIncludableReasoningEncryptedContent) {
 		params.Include = append(params.Include, responses.ResponseIncludableReasoningEncryptedContent)
 	}
 
-	items, err := r.buildInputItems(req.Messages)
+	items, err := mapResponsesInput(req.Messages)
 	if err != nil {
 		return nil, err
 	}
 	params.Input.OfInputItemList = items
-
-	params.Tools, err = r.buildTools(req.Tools)
+	params.Tools, err = mapResponsesTools(req.Tools)
 	if err != nil {
 		return nil, err
 	}
-
-	return params, nil
+	return &params, nil
 }
 
-func (r *responsesRequestHelper) buildTools(tools []chat.Tool) ([]responses.ToolUnionParam, error) {
-	out := make([]responses.ToolUnionParam, 0, len(tools))
-	for _, t := range tools {
-		def := t.Definition()
-		var params map[string]any
-		if err := json.Unmarshal([]byte(def.InputSchema), &params); err != nil {
-			return nil, err
+func mapResponsesTools(definitions []corechat.ToolDefinition) ([]responses.ToolUnionParam, error) {
+	tools := make([]responses.ToolUnionParam, 0, len(definitions))
+	for index := range definitions {
+		var schema map[string]any
+		if err := json.Unmarshal(definitions[index].InputSchema, &schema); err != nil {
+			return nil, fmt.Errorf("openai responses: tools[%d].input_schema: %w", index, err)
 		}
-		out = append(out, responses.ToolUnionParam{
-			OfFunction: &responses.FunctionToolParam{
-				Name:        def.Name,
-				Description: openai.String(def.Description),
-				Parameters:  params,
-				Strict:      openai.Bool(true),
-			},
-		})
+		tools = append(tools, responses.ToolUnionParam{OfFunction: &responses.FunctionToolParam{
+			Name: definitions[index].Name, Description: openaisdk.String(definitions[index].Description), Parameters: schema, Strict: openaisdk.Bool(true),
+		}})
 	}
-	return out, nil
+	return tools, nil
 }
 
-func (r *responsesRequestHelper) buildInputItems(msgs []chat.Message) (responses.ResponseInputParam, error) {
-	out := make(responses.ResponseInputParam, 0, len(msgs))
-	for _, msg := range msgs {
-		more, err := r.itemsFromMessage(msg)
+func mapResponsesInput(messages []corechat.Message) (responses.ResponseInputParam, error) {
+	items := make(responses.ResponseInputParam, 0, len(messages))
+	for messageIndex := range messages {
+		mapped, err := mapResponsesMessage(messageIndex, messages[messageIndex])
+		if err != nil {
+			return nil, fmt.Errorf("openai responses: messages[%d]: %w", messageIndex, err)
+		}
+		items = append(items, mapped...)
+	}
+	return items, nil
+}
+
+func mapResponsesMessage(messageIndex int, message corechat.Message) ([]responses.ResponseInputItemUnionParam, error) {
+	switch message.Role {
+	case corechat.RoleSystem:
+		return []responses.ResponseInputItemUnionParam{responsesEasyMessage(responses.EasyInputMessageRoleSystem, message.Text())}, nil
+	case corechat.RoleUser:
+		content, err := mapResponsesUserContent(message.Parts)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, more...)
-	}
-	return out, nil
-}
-
-func (r *responsesRequestHelper) itemsFromMessage(msg chat.Message) ([]responses.ResponseInputItemUnionParam, error) {
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return []responses.ResponseInputItemUnionParam{easyMessage(responses.EasyInputMessageRoleSystem, m.Text)}, nil
-	case *chat.UserMessage:
-		return []responses.ResponseInputItemUnionParam{easyMessage(responses.EasyInputMessageRoleUser, m.Text)}, nil
-	case *chat.AssistantMessage:
-		return assistantItems(m), nil
-	case *chat.ToolMessage:
-		return toolResultItems(m), nil
+		return []responses.ResponseInputItemUnionParam{{OfMessage: &responses.EasyInputMessageParam{
+			Role:    responses.EasyInputMessageRoleUser,
+			Content: responses.EasyInputMessageContentUnionParam{OfInputItemContentList: content},
+		}}}, nil
+	case corechat.RoleAssistant:
+		return mapResponsesAssistantItems(messageIndex, message.Parts), nil
+	case corechat.RoleTool:
+		return mapResponsesToolResults(message.Parts), nil
 	default:
-		return nil, fmt.Errorf("openai responses: unsupported message type %T", msg)
+		return nil, fmt.Errorf("unsupported role %q", message.Role)
 	}
 }
 
-// easyMessage builds a role-tagged plain-text input item — sidesteps
-// the required-ID + content-list ceremony that
-// ResponseInputItemMessageParam carries.
-func easyMessage(role responses.EasyInputMessageRole, text string) responses.ResponseInputItemUnionParam {
-	return responses.ResponseInputItemUnionParam{
-		OfMessage: &responses.EasyInputMessageParam{
-			Role:    role,
-			Content: responses.EasyInputMessageContentUnionParam{OfString: openai.String(text)},
-		},
-	}
+func responsesEasyMessage(role responses.EasyInputMessageRole, text string) responses.ResponseInputItemUnionParam {
+	return responses.ResponseInputItemUnionParam{OfMessage: &responses.EasyInputMessageParam{
+		Role: role, Content: responses.EasyInputMessageContentUnionParam{OfString: openaisdk.String(text)},
+	}}
 }
 
-// assistantItems projects AssistantMessage.Parts to ordered Responses
-// API input items — one per Part:
-//
-//   - TextPart      → role=assistant EasyInputMessage (avoids the
-//     OutputMessage ID requirement; preserves position in the stream).
-//   - ReasoningPart → reasoning item, but only when Signature is set
-//     (no signature = no round-trip token, so the item carries no
-//     value to a follow-up turn).
-//   - ToolCallPart  → function_call item (CallID is the correlation key
-//     for function_call_output).
-func assistantItems(msg *chat.AssistantMessage) []responses.ResponseInputItemUnionParam {
-	out := make([]responses.ResponseInputItemUnionParam, 0, len(msg.Parts))
-
-	for i, p := range msg.Parts {
-		switch part := p.(type) {
-		case *chat.TextPart:
-			if part.Text == "" {
-				continue
+func mapResponsesUserContent(parts []corechat.Part) (responses.ResponseInputMessageContentListParam, error) {
+	content := make(responses.ResponseInputMessageContentListParam, 0, len(parts))
+	for index := range parts {
+		part := parts[index]
+		switch part.Kind {
+		case corechat.PartText:
+			content = append(content, responses.ResponseInputContentUnionParam{OfInputText: &responses.ResponseInputTextParam{Text: part.Text}})
+		case corechat.PartMedia:
+			mapped, err := mapResponsesMedia(part.Media)
+			if err != nil {
+				return nil, fmt.Errorf("parts[%d]: %w", index, err)
 			}
-			out = append(out, easyMessage(responses.EasyInputMessageRoleAssistant, part.Text))
+			content = append(content, mapped)
+		}
+	}
+	return content, nil
+}
 
-		case *chat.ReasoningPart:
+func mapResponsesMedia(value *media.Media) (responses.ResponseInputContentUnionParam, error) {
+	mediaType, _, err := mime.ParseMediaType(value.MIME)
+	if err != nil {
+		return responses.ResponseInputContentUnionParam{}, err
+	}
+	if strings.HasPrefix(mediaType, "image/") {
+		image := &responses.ResponseInputImageParam{Detail: responses.ResponseInputImageDetailAuto}
+		if value.Source.Kind == media.SourceReference {
+			reference, referenceErr := value.Reference()
+			if referenceErr != nil {
+				return responses.ResponseInputContentUnionParam{}, referenceErr
+			}
+			image.FileID = openaisdk.String(reference)
+		} else {
+			location, locationErr := mediaLocation(value)
+			if locationErr != nil {
+				return responses.ResponseInputContentUnionParam{}, locationErr
+			}
+			image.ImageURL = openaisdk.String(location)
+		}
+		return responses.ResponseInputContentUnionParam{OfInputImage: image}, nil
+	}
+
+	file := &responses.ResponseInputFileParam{Filename: openaisdk.String(value.Name)}
+	switch value.Source.Kind {
+	case media.SourceReference:
+		reference, referenceErr := value.Reference()
+		if referenceErr != nil {
+			return responses.ResponseInputContentUnionParam{}, referenceErr
+		}
+		file.FileID = openaisdk.String(reference)
+	case media.SourceURI:
+		uri, uriErr := value.URI()
+		if uriErr != nil {
+			return responses.ResponseInputContentUnionParam{}, uriErr
+		}
+		file.FileURL = openaisdk.String(uri)
+	case media.SourceBytes:
+		data, dataErr := value.Bytes()
+		if dataErr != nil {
+			return responses.ResponseInputContentUnionParam{}, dataErr
+		}
+		file.FileData = openaisdk.String(base64.StdEncoding.EncodeToString(data))
+	default:
+		return responses.ResponseInputContentUnionParam{}, media.ErrInvalidSource
+	}
+	return responses.ResponseInputContentUnionParam{OfInputFile: file}, nil
+}
+
+func mapResponsesAssistantItems(messageIndex int, parts []corechat.Part) []responses.ResponseInputItemUnionParam {
+	items := make([]responses.ResponseInputItemUnionParam, 0, len(parts))
+	for partIndex := range parts {
+		part := parts[partIndex]
+		switch part.Kind {
+		case corechat.PartText:
+			items = append(items, responsesEasyMessage(responses.EasyInputMessageRoleAssistant, part.Text))
+		case corechat.PartReasoning:
 			if len(part.Signature) == 0 {
 				continue
 			}
 			item := &responses.ResponseReasoningItemParam{
-				ID:               fmt.Sprintf("rs_lynx_%d", i),
-				EncryptedContent: openai.String(string(part.Signature)),
+				ID: fmt.Sprintf("rs_lynx_%d_%d", messageIndex, partIndex), EncryptedContent: openaisdk.String(string(part.Signature)),
 			}
 			if part.Text != "" {
 				item.Summary = []responses.ResponseReasoningItemSummaryParam{{Text: part.Text}}
 			}
-			out = append(out, responses.ResponseInputItemUnionParam{OfReasoning: item})
-
-		case *chat.ToolCallPart:
-			out = append(out, responses.ResponseInputItemUnionParam{
-				OfFunctionCall: &responses.ResponseFunctionToolCallParam{
-					CallID:    part.ID,
-					Name:      part.Name,
-					Arguments: part.Arguments,
-				},
-			})
+			items = append(items, responses.ResponseInputItemUnionParam{OfReasoning: item})
+		case corechat.PartToolCall:
+			items = append(items, responses.ResponseInputItemUnionParam{OfFunctionCall: &responses.ResponseFunctionToolCallParam{
+				CallID: part.ToolCall.ID, Name: part.ToolCall.Name, Arguments: part.ToolCall.Arguments,
+			}})
 		}
 	}
-
-	return out
+	return items
 }
 
-func toolResultItems(msg *chat.ToolMessage) []responses.ResponseInputItemUnionParam {
-	out := make([]responses.ResponseInputItemUnionParam, 0, len(msg.ToolReturns))
-	for _, ret := range msg.ToolReturns {
-		out = append(out, responses.ResponseInputItemUnionParam{
-			OfFunctionCallOutput: &responses.ResponseInputItemFunctionCallOutputParam{
-				CallID: ret.ID,
-				Output: responses.ResponseInputItemFunctionCallOutputOutputUnionParam{
-					OfString: openai.String(ret.Result),
-				},
-			},
-		})
+func mapResponsesToolResults(parts []corechat.Part) []responses.ResponseInputItemUnionParam {
+	items := make([]responses.ResponseInputItemUnionParam, 0, len(parts))
+	for index := range parts {
+		result := parts[index].ToolResult
+		items = append(items, responses.ResponseInputItemUnionParam{OfFunctionCallOutput: &responses.ResponseInputItemFunctionCallOutputParam{
+			CallID: result.ID,
+			Output: responses.ResponseInputItemFunctionCallOutputOutputUnionParam{OfString: openaisdk.String(result.Result)},
+		}})
 	}
-	return out
+	return items
 }
 
-// --------------------------------------------------------------------
-// Response side: Response → chat.Response.
-// --------------------------------------------------------------------
-
-type responsesResponseHelper struct{}
-
-func (r *responsesResponseHelper) build(resp *responses.Response) (*chat.Response, error) {
-	if resp == nil {
+func mapResponsesResponse(response *responses.Response) (*corechat.Response, error) {
+	if response == nil {
 		return nil, errors.New("openai responses: nil response")
 	}
-
-	parts, hasToolCalls := partsFromOutput(resp.Output)
-	assistantMsg := chat.NewAssistantMessage(chat.MessageParams{Parts: parts})
-	resultMeta := &chat.ResultMetadata{
-		FinishReason: deriveFinishReason(resp, hasToolCalls),
-	}
-	respMeta := &chat.ResponseMetadata{
-		ID:      resp.ID,
-		Model:   string(resp.Model),
-		Created: int64(resp.CreatedAt),
-		Usage:   usageFrom(resp.Usage),
-	}
-
-	result, err := chat.NewResult(assistantMsg, resultMeta)
+	parts, hasToolCalls, err := responsesOutputParts(response.Output)
 	if err != nil {
 		return nil, err
 	}
-	return chat.NewResponse(result, respMeta)
+	choice := corechat.Choice{Index: 0, FinishReason: responsesFinishReason(response, hasToolCalls)}
+	if len(parts) != 0 {
+		message := corechat.NewAssistantMessage(parts...)
+		choice.Message = &message
+	}
+	result := &corechat.Response{
+		ID: response.ID, Model: string(response.Model), Choices: []corechat.Choice{choice}, Usage: responsesUsage(response.Usage),
+	}
+	if response.CreatedAt != 0 {
+		if err := result.SetExtension(responseCreatedKey, int64(response.CreatedAt)); err != nil {
+			return nil, err
+		}
+	}
+	if err := result.Validate(); err != nil {
+		return nil, fmt.Errorf("openai responses: response: %w", err)
+	}
+	return result, nil
 }
 
-// partsFromOutput walks the ordered output[] and projects each
-// supported item to a lynx OutputPart, preserving wire order. Returns
-// (parts, hasFunctionCall) — the bool is used to derive FinishReason
-// when the response itself doesn't tag it (the Responses API uses
-// `status`, not a finish_reason field).
-func partsFromOutput(out []responses.ResponseOutputItemUnion) ([]chat.OutputPart, bool) {
-	parts := make([]chat.OutputPart, 0, len(out))
+func responsesOutputParts(output []responses.ResponseOutputItemUnion) ([]corechat.Part, bool, error) {
+	parts := make([]corechat.Part, 0, len(output))
 	hasToolCall := false
-
-	for _, item := range out {
+	for index := range output {
+		item := output[index]
 		switch item.Type {
 		case "message":
-			msg := item.AsMessage()
-			for _, c := range msg.Content {
-				if c.Type == "output_text" && c.Text != "" {
-					parts = append(parts, &chat.TextPart{Text: c.Text})
+			message := item.AsMessage()
+			for _, content := range message.Content {
+				if content.Type == "output_text" && content.Text != "" {
+					parts = append(parts, corechat.NewTextPart(content.Text))
 				}
 			}
 		case "reasoning":
-			r := item.AsReasoning()
-			rp := &chat.ReasoningPart{Text: joinReasoning(r)}
-			if r.EncryptedContent != "" {
-				rp.Signature = []byte(r.EncryptedContent)
+			reasoning := item.AsReasoning()
+			text := joinResponsesReasoning(reasoning)
+			if text != "" || reasoning.EncryptedContent != "" {
+				parts = append(parts, corechat.NewReasoningPart(text, []byte(reasoning.EncryptedContent)))
 			}
-			parts = append(parts, rp)
 		case "function_call":
-			fc := item.AsFunctionCall()
-			id := fc.CallID
+			call := item.AsFunctionCall()
+			id := call.CallID
 			if id == "" {
-				id = fc.ID
+				id = call.ID
 			}
-			parts = append(parts, &chat.ToolCallPart{
-				ID:        id,
-				Name:      fc.Name,
-				Arguments: fc.Arguments,
-			})
+			if id == "" || call.Name == "" {
+				return nil, false, fmt.Errorf("openai responses: output[%d] function call lacks ID or name", index)
+			}
+			parts = append(parts, corechat.NewToolCallPart(corechat.ToolCall{ID: id, Name: call.Name, Arguments: call.Arguments}))
 			hasToolCall = true
 		}
-		// Built-in tool output items (file_search_call, web_search_call,
-		// image_generation_call, code_interpreter_call, mcp_*, shell_*,
-		// computer_call, ...) are intentionally dropped in v1 — extending
-		// chat.OutputPart with vendor-specific built-ins is a follow-up.
 	}
-
-	return parts, hasToolCall
+	return parts, hasToolCall, nil
 }
 
-// joinReasoning prefers full reasoning text (with encrypted content
-// requested via Include) over the summary-only payload returned to
-// non-reasoning callers.
-func joinReasoning(r responses.ResponseReasoningItem) string {
-	var b strings.Builder
-	if len(r.Content) > 0 {
-		for _, c := range r.Content {
-			b.WriteString(c.Text)
+func joinResponsesReasoning(reasoning responses.ResponseReasoningItem) string {
+	var text strings.Builder
+	if len(reasoning.Content) != 0 {
+		for _, content := range reasoning.Content {
+			text.WriteString(content.Text)
 		}
 	} else {
-		for _, s := range r.Summary {
-			b.WriteString(s.Text)
+		for _, summary := range reasoning.Summary {
+			text.WriteString(summary.Text)
 		}
 	}
-	return b.String()
+	return text.String()
 }
 
-func deriveFinishReason(resp *responses.Response, hasToolCall bool) chat.FinishReason {
+func responsesFinishReason(response *responses.Response, hasToolCall bool) corechat.FinishReason {
 	if hasToolCall {
-		return chat.FinishReasonToolCalls
+		return corechat.FinishReasonToolCalls
 	}
-	if resp.Status == "incomplete" {
-		switch resp.IncompleteDetails.Reason {
+	if response.Status == "incomplete" {
+		switch response.IncompleteDetails.Reason {
 		case "max_output_tokens":
-			return chat.FinishReasonLength
+			return corechat.FinishReasonLength
 		case "content_filter":
-			return chat.FinishReasonContentFilter
+			return corechat.FinishReasonContentFilter
+		default:
+			return corechat.FinishReasonOther
 		}
 	}
-	return chat.FinishReasonStop
-}
-
-func usageFrom(u responses.ResponseUsage) *chat.Usage {
-	out := &chat.Usage{
-		PromptTokens:     u.InputTokens,
-		CompletionTokens: u.OutputTokens,
-		OriginalUsage:    u,
+	if response.Status != "completed" {
+		return corechat.FinishReasonOther
 	}
-	if rt := u.OutputTokensDetails.ReasoningTokens; rt > 0 {
-		out.ReasoningTokens = &rt
+	return corechat.FinishReasonStop
+}
+
+func responsesUsage(usage responses.ResponseUsage) corechat.Usage {
+	result := corechat.Usage{InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens}
+	if usage.OutputTokensDetails.ReasoningTokens > 0 {
+		value := usage.OutputTokensDetails.ReasoningTokens
+		result.ReasoningTokens = &value
 	}
-	if ct := u.InputTokensDetails.CachedTokens; ct > 0 {
-		out.CacheReadInputTokens = &ct
+	if usage.InputTokensDetails.CachedTokens > 0 {
+		value := usage.InputTokensDetails.CachedTokens
+		result.CacheReadInputTokens = &value
 	}
-	return out
+	return result
 }
 
-// --------------------------------------------------------------------
-// Stream side: per-event delta Response.
-// --------------------------------------------------------------------
-
-// responsesChunkAccumulator turns one upstream Responses stream event
-// into at most one delta [*chat.Response]. State across events:
-//
-//   - respID / respModel: captured on response.created so every delta
-//     can ship the same response-level metadata.
-//   - callIDByItemID: function_call_arguments.delta events reference
-//     only the item_id; the matching function_call's call_id is what
-//     lynx pairs with ToolMessage.ToolReturns. We learn the mapping
-//     on response.output_item.added and look it up on each delta.
-type responsesChunkAccumulator struct {
-	respID         string
-	respModel      string
-	callIDByItemID map[string]string
+type responsesToolIdentity struct {
+	id   string
+	name string
 }
 
-func newResponsesChunkAccumulator() *responsesChunkAccumulator {
-	return &responsesChunkAccumulator{callIDByItemID: map[string]string{}}
+type responsesStreamState struct {
+	responseID string
+	model      string
+	tools      map[string]responsesToolIdentity
 }
 
-func (a *responsesChunkAccumulator) addEvent(event responses.ResponseStreamEventUnion) (*chat.Response, bool) {
-	switch e := event.AsAny().(type) {
+func newResponsesStreamState() *responsesStreamState {
+	return &responsesStreamState{tools: make(map[string]responsesToolIdentity)}
+}
+
+func (s *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion) (*corechat.Response, bool, error) {
+	switch typed := event.AsAny().(type) {
 	case responses.ResponseCreatedEvent:
-		a.respID = e.Response.ID
-		a.respModel = string(e.Response.Model)
-		return nil, false
-
+		s.responseID = typed.Response.ID
+		s.model = string(typed.Response.Model)
+		return nil, false, nil
 	case responses.ResponseOutputItemAddedEvent:
-		switch e.Item.Type {
-		case "function_call":
-			fc := e.Item.AsFunctionCall()
-			a.callIDByItemID[fc.ID] = fc.CallID
-			return a.deltaResponse([]chat.OutputPart{&chat.ToolCallPart{
-				ID:   fc.CallID,
-				Name: fc.Name,
-			}}), true
+		if typed.Item.Type != "function_call" {
+			return nil, false, nil
 		}
-		return nil, false
-
+		call := typed.Item.AsFunctionCall()
+		id := call.CallID
+		if id == "" {
+			id = call.ID
+		}
+		if id == "" || call.Name == "" {
+			return nil, false, errors.New("openai responses: stream function call lacks ID or name")
+		}
+		s.tools[call.ID] = responsesToolIdentity{id: id, name: call.Name}
+		return s.deltaResponse(corechat.NewToolCallPart(corechat.ToolCall{ID: id, Name: call.Name}))
 	case responses.ResponseTextDeltaEvent:
-		if e.Delta == "" {
-			return nil, false
+		if typed.Delta == "" {
+			return nil, false, nil
 		}
-		return a.deltaResponse([]chat.OutputPart{&chat.TextPart{Text: e.Delta}}), true
-
+		return s.deltaResponse(corechat.NewTextPart(typed.Delta))
 	case responses.ResponseFunctionCallArgumentsDeltaEvent:
-		if e.Delta == "" {
-			return nil, false
+		if typed.Delta == "" {
+			return nil, false, nil
 		}
-		callID := a.callIDByItemID[e.ItemID]
-		return a.deltaResponse([]chat.OutputPart{&chat.ToolCallPart{
-			ID:        callID,
-			Arguments: e.Delta,
-		}}), true
-
+		identity, ok := s.tools[typed.ItemID]
+		if !ok {
+			return nil, false, fmt.Errorf("openai responses: arguments delta for unknown item %q", typed.ItemID)
+		}
+		return s.deltaResponse(corechat.NewToolCallPart(corechat.ToolCall{ID: identity.id, Name: identity.name, Arguments: typed.Delta}))
 	case responses.ResponseReasoningTextDeltaEvent:
-		if e.Delta == "" {
-			return nil, false
+		if typed.Delta == "" {
+			return nil, false, nil
 		}
-		return a.deltaResponse([]chat.OutputPart{&chat.ReasoningPart{Text: e.Delta}}), true
-
+		return s.deltaResponse(corechat.NewReasoningPart(typed.Delta, nil))
 	case responses.ResponseReasoningSummaryTextDeltaEvent:
-		if e.Delta == "" {
-			return nil, false
+		if typed.Delta == "" {
+			return nil, false, nil
 		}
-		return a.deltaResponse([]chat.OutputPart{&chat.ReasoningPart{Text: e.Delta}}), true
-
+		return s.deltaResponse(corechat.NewReasoningPart(typed.Delta, nil))
 	case responses.ResponseOutputItemDoneEvent:
-		// Reasoning items carry their encrypted_content only on `done`;
-		// surface it as a Signature-only ReasoningPart delta so the
-		// upstream accumulator merges it into the in-flight reasoning.
-		if e.Item.Type == "reasoning" {
-			r := e.Item.AsReasoning()
-			if r.EncryptedContent != "" {
-				return a.deltaResponse([]chat.OutputPart{&chat.ReasoningPart{
-					Signature: []byte(r.EncryptedContent),
-				}}), true
-			}
+		if typed.Item.Type != "reasoning" {
+			return nil, false, nil
 		}
-		return nil, false
-
+		reasoning := typed.Item.AsReasoning()
+		if reasoning.EncryptedContent == "" {
+			return nil, false, nil
+		}
+		return s.deltaResponse(corechat.NewReasoningPart("", []byte(reasoning.EncryptedContent)))
 	case responses.ResponseCompletedEvent:
-		// Final tick: ship usage + finish reason. No new Parts here —
-		// they already arrived via the per-item deltas above.
-		hasToolCall := slices.ContainsFunc(e.Response.Output, func(item responses.ResponseOutputItemUnion) bool {
+		hasToolCall := slices.ContainsFunc(typed.Response.Output, func(item responses.ResponseOutputItemUnion) bool {
 			return item.Type == "function_call"
 		})
-		result := &chat.Result{
-			Metadata: &chat.ResultMetadata{FinishReason: deriveFinishReason(&e.Response, hasToolCall)},
+		response := &corechat.Response{
+			ID: s.responseID, Model: s.model,
+			Choices: []corechat.Choice{{Index: 0, FinishReason: responsesFinishReason(&typed.Response, hasToolCall)}},
+			Usage:   responsesUsage(typed.Response.Usage),
 		}
-		resp, _ := chat.NewResponse(result, a.responseMeta(usageFrom(e.Response.Usage)))
-		return resp, true
+		if err := response.Validate(); err != nil {
+			return nil, false, err
+		}
+		return response, true, nil
+	default:
+		return nil, false, nil
 	}
-
-	return nil, false
 }
 
-func (a *responsesChunkAccumulator) deltaResponse(parts []chat.OutputPart) *chat.Response {
-	result := &chat.Result{
-		AssistantMessage: chat.NewAssistantMessage(parts),
-		Metadata:         &chat.ResultMetadata{},
+func (s *responsesStreamState) deltaResponse(part corechat.Part) (*corechat.Response, bool, error) {
+	message := corechat.NewAssistantMessage(part)
+	response := &corechat.Response{
+		ID: s.responseID, Model: s.model,
+		Choices: []corechat.Choice{{Index: 0, Message: &message}},
 	}
-	resp, _ := chat.NewResponse(result, a.responseMeta(nil))
-	return resp
-}
-
-func (a *responsesChunkAccumulator) responseMeta(usage *chat.Usage) *chat.ResponseMetadata {
-	return &chat.ResponseMetadata{
-		ID:    a.respID,
-		Model: a.respModel,
-		Usage: usage,
+	if err := response.Validate(); err != nil {
+		return nil, false, err
 	}
+	return response, true, nil
 }
