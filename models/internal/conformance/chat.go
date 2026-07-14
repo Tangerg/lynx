@@ -12,10 +12,11 @@ import (
 // New and Request are called independently for each subtest so provider state
 // and request mutation cannot leak between Call and Stream.
 type ChatSuite struct {
-	New          func(t *testing.T) (chat.Model, chat.Streamer)
-	Request      func(t *testing.T) *chat.Request
-	AssertCall   func(t *testing.T, response *chat.Response)
-	AssertStream func(t *testing.T, responses []*chat.Response)
+	New              func(t *testing.T) (chat.Model, chat.Streamer)
+	Request          func(t *testing.T) *chat.Request
+	AssertCall       func(t *testing.T, response *chat.Response)
+	AssertStream     func(t *testing.T, responses []*chat.Response)
+	AssertAggregated func(t *testing.T, response *chat.Response)
 }
 
 // Run executes the shared synchronous and streaming conformance cases.
@@ -56,11 +57,15 @@ func (s ChatSuite) Run(t *testing.T) {
 		request := s.validRequest(t)
 		before := requestWire(t, request)
 		var responses []*chat.Response
+		var accumulator chat.ResponseAccumulator
 		for response, err := range streamer.Stream(t.Context(), request) {
 			if err != nil {
 				t.Fatalf("Stream: %v", err)
 			}
 			assertResponse(t, response)
+			if err := accumulator.Add(response); err != nil {
+				t.Fatalf("ResponseAccumulator.Add: %v", err)
+			}
 			responses = append(responses, response)
 		}
 		if len(responses) == 0 {
@@ -71,6 +76,11 @@ func (s ChatSuite) Run(t *testing.T) {
 		}
 		if s.AssertStream != nil {
 			s.AssertStream(t, responses)
+		}
+		aggregated := accumulator.Response()
+		assertResponse(t, aggregated)
+		if s.AssertAggregated != nil {
+			s.AssertAggregated(t, aggregated)
 		}
 	})
 }

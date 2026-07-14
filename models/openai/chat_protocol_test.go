@@ -112,6 +112,23 @@ func TestChat_CoreConformance(t *testing.T) {
 				t.Errorf("final usage = %#v", finalUsage)
 			}
 		},
+		AssertAggregated: func(t *testing.T, response *corechat.Response) {
+			t.Helper()
+			if response.ID != "chatcmpl-stream" || response.Model != "gpt-5.2" || len(response.Choices) != 1 {
+				t.Fatalf("aggregated identity/choices = %q/%q/%d", response.ID, response.Model, len(response.Choices))
+			}
+			choice := response.Choices[0]
+			if choice.Message == nil || len(choice.Message.Parts) != 3 || choice.FinishReason != corechat.FinishReasonToolCalls {
+				t.Fatalf("aggregated choice = %#v", choice)
+			}
+			call := choice.Message.Parts[2].ToolCall
+			if choice.Message.Parts[0].Text != "think " || choice.Message.Parts[1].Text != "hello world" || call == nil || call.Arguments != `{"q":"lynx"}` {
+				t.Errorf("aggregated parts = %#v; call = %#v", choice.Message.Parts, call)
+			}
+			if response.Usage.InputTokens != 8 || response.Usage.OutputTokens != 4 {
+				t.Errorf("aggregated usage = %#v", response.Usage)
+			}
+		},
 	}.Run(t)
 }
 
@@ -218,8 +235,8 @@ func writeCoreChatStream(writer http.ResponseWriter) {
 		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"reasoning_content":"think "}}]}`,
 		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"content":"hello "}}]}`,
 		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"content":"world"}}]}`,
-		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\\"q\\\":"}}]}}]}`,
-		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-stream","type":"function","function":{"name":"search","arguments":"\\\"lynx\\\""}}]}}]}`,
+		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"q\":"}}]}}]}`,
+		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-stream","type":"function","function":{"name":"search","arguments":"\"lynx\""}}]}}]}`,
 		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]},"finish_reason":"tool_calls"}]}`,
 		`{"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1770000001,"model":"gpt-5.2","choices":[],"usage":{"prompt_tokens":8,"completion_tokens":4,"total_tokens":12}}`,
 	}

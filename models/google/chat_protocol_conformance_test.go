@@ -99,6 +99,24 @@ func TestChat_CoreConformance(t *testing.T) {
 				t.Errorf("final usage = %#v", finalUsage)
 			}
 		},
+		AssertAggregated: func(t *testing.T, response *corechat.Response) {
+			t.Helper()
+			if response.ID != "response-stream" || response.Model != "gemini-3-pro-001" || len(response.Choices) != 1 {
+				t.Fatalf("aggregated identity/choices = %q/%q/%d", response.ID, response.Model, len(response.Choices))
+			}
+			choice := response.Choices[0]
+			if choice.Message == nil || len(choice.Message.Parts) != 3 || choice.FinishReason != corechat.FinishReasonStop {
+				t.Fatalf("aggregated choice = %#v", choice)
+			}
+			call := choice.Message.Parts[2].ToolCall
+			if choice.Message.Parts[0].Text != "verify result" || string(choice.Message.Parts[0].Signature) != "sig-google" ||
+				choice.Message.Parts[1].Text != "The value is four." || call == nil || call.ID != "google/0/2" {
+				t.Errorf("aggregated parts = %#v", choice.Message.Parts)
+			}
+			if response.Usage.InputTokens != 23 || response.Usage.OutputTokens != 13 {
+				t.Errorf("aggregated usage = %#v", response.Usage)
+			}
+		},
 	}.Run(t)
 }
 
