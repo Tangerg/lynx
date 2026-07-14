@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // Request is the LLM-facing argument shape. It is a strict subset of
@@ -30,7 +31,7 @@ type Response struct {
 
 var toolSchema, _ = pkgjson.StringDefSchemaOf(Request{})
 
-var _ chat.Tool = (*Tool)(nil)
+var _ toolcontract.Tool = (*Tool)(nil)
 
 // Tool runs a shell command via the supplied [Executor].
 type Tool struct {
@@ -53,7 +54,7 @@ func (t *Tool) Definition() chat.ToolDefinition {
 		Description: "Execute a shell command via /bin/sh -c. Returns stdout, stderr, exit code, and duration. " +
 			"Avoid using `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk` here — use the dedicated `glob`, `grep`, `read`, `edit` tools instead. Reserve `shell` for operations that genuinely need a shell (build commands, git, package managers, etc.). " +
 			"Each invocation starts a fresh shell — `cd`, exported variables, and shell options do not persist between calls.",
-		InputSchema: toolSchema,
+		InputSchema: json.RawMessage(toolSchema),
 	}
 }
 

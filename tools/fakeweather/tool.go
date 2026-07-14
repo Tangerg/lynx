@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // Request is the tool input. Date is optional; when empty the tool
@@ -136,7 +137,7 @@ type Alert struct {
 	EndTime     int64  `json:"end_time"`
 }
 
-var _ chat.Tool = (*Tool)(nil)
+var _ toolcontract.Tool = (*Tool)(nil)
 
 // Tool is a chat.Tool that synthesizes weather reports.
 // Construct with [New].
@@ -159,7 +160,7 @@ func (t *Tool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name:        "weather_query",
 		Description: "Query synthesized weather information for a location and date. Supports current weather, forecasts, air quality, and astronomical data. Output is deterministic, not real.",
-		InputSchema: inputSchema,
+		InputSchema: json.RawMessage(inputSchema),
 	}
 }
 

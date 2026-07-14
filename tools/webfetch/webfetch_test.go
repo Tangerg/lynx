@@ -41,7 +41,7 @@ func TestTool_Definition(t *testing.T) {
 	if def.Name != "web_fetch" {
 		t.Errorf("Name = %q, want %q", def.Name, "web_fetch")
 	}
-	if def.InputSchema == "" {
+	if len(def.InputSchema) == 0 {
 		t.Error("InputSchema is empty")
 	}
 }

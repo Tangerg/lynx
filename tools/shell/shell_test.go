@@ -132,7 +132,7 @@ func TestTool_Definition(t *testing.T) {
 	if def.Name != "shell" {
 		t.Errorf("Name = %q, want %q", def.Name, "shell")
 	}
-	if def.InputSchema == "" {
+	if len(def.InputSchema) == 0 {
 		t.Error("InputSchema is empty")
 	}
 	if !strings.Contains(def.Description, "shell") {

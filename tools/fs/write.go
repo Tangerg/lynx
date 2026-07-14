@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // WriteRequest is the LLM-facing argument shape for the write tool.
@@ -23,7 +24,7 @@ type WriteResponse struct {
 
 var writeToolSchema, _ = pkgjson.StringDefSchemaOf(WriteRequest{})
 
-var _ chat.Tool = (*WriteTool)(nil)
+var _ toolcontract.Tool = (*WriteTool)(nil)
 
 // WriteTool is the thin LLM-facing adapter for [Executor.Write].
 type WriteTool struct {
@@ -46,7 +47,7 @@ func (t *WriteTool) Definition() chat.ToolDefinition {
 			"Before overwriting a file that already exists you must `read` it first — a blind overwrite is refused. " +
 			"Prefer the `edit` tool when changing part of an existing file: it sends only the diff, and is cheaper and safer. " +
 			"Parent directories are created automatically.",
-		InputSchema: writeToolSchema,
+		InputSchema: json.RawMessage(writeToolSchema),
 	}
 }
 
