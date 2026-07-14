@@ -3,7 +3,6 @@ package inmemory_test
 import (
 	"context"
 	"fmt"
-	"iter"
 	"strings"
 	"testing"
 
@@ -32,21 +31,7 @@ func (fakeEmbeddingModel) Call(_ context.Context, req *embedding.Request) (*embe
 	return embedding.NewResponse(results, &embedding.ResponseMetadata{Model: "fake"})
 }
 
-func (fakeEmbeddingModel) Stream(ctx context.Context, req *embedding.Request) iter.Seq2[*embedding.Response, error] {
-	resp, err := fakeEmbeddingModel{}.Call(ctx, req)
-	return func(yield func(*embedding.Response, error) bool) { yield(resp, err) }
-}
-
-func (fakeEmbeddingModel) DefaultOptions() embedding.Options {
-	opts, _ := embedding.NewOptions("fake")
-	return *opts
-}
-
-func (fakeEmbeddingModel) Metadata() embedding.ModelMetadata {
-	return embedding.ModelMetadata{Provider: "fake"}
-}
-
-func (fakeEmbeddingModel) Dimensions(_ context.Context) int64 { return 4 }
+func (fakeEmbeddingModel) Dimensions(context.Context) (int, error) { return 4, nil }
 
 // vectorFor maps a text to a deterministic 4-dim float vector.
 // Designed so that texts sharing a common prefix have higher cosine

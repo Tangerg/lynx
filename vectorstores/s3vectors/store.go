@@ -153,10 +153,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	}
 
 	for _, docs := range batchedDocs {
-		vectors, _, err := s.embeddingClient.
-			EmbedWithDocuments(docs).
-			Call().
-			Embeddings(ctx)
+		vectors, _, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("s3vectors: failed to generate embeddings: %w", err)
 		}
@@ -208,10 +205,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
-	vector, _, err = s.embeddingClient.
-		EmbedWithText(req.Query).
-		Call().
-		Embedding(ctx)
+	vector, _, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("s3vectors: failed to embed query: %w", err)
 	}
@@ -278,10 +272,11 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
 
 	// Use a placeholder embedding to drive the filter scan — the
 	// vector itself doesn't matter when the distance is discarded.
-	probe := make([]float32, 0)
-	if dim := embedding.GetDimensions(ctx, s.embeddingModel); dim > 0 {
-		probe = make([]float32, dim)
+	dimensions, err := embedding.ResolveDimensions(ctx, s.embeddingModel)
+	if err != nil {
+		return fmt.Errorf("s3vectors: resolve embedding dimensions: %w", err)
 	}
+	probe := make([]float32, dimensions)
 	const pageSize int32 = 1000
 	for {
 		resp, err := s.client.QueryVectors(ctx, &s3vectors.QueryVectorsInput{

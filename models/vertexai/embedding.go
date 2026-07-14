@@ -40,6 +40,5 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*google.EmbeddingModel, error)
 		Project:        cfg.Project,
 		Location:       cfg.Location,
 		DefaultOptions: cfg.DefaultOptions,
-		Metadata:       &embedding.ModelMetadata{Provider: Provider},
 	})
 }

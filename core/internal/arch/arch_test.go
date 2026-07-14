@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
@@ -88,6 +89,63 @@ func TestVectorStoreCapabilitiesRemainSmall(t *testing.T) {
 				name := specification.(*ast.TypeSpec).Name.Name
 				if forbidden[name] {
 					t.Errorf("core/vectorstore must not reintroduce %s", name)
+				}
+			}
+		}
+	}
+}
+
+func TestEmbeddingSPIRemainsMinimal(t *testing.T) {
+	want := map[reflect.Type]string{
+		reflect.TypeFor[embedding.Model]():       "Call",
+		reflect.TypeFor[embedding.Dimensioner](): "Dimensions",
+	}
+	for typ, method := range want {
+		if typ.NumMethod() != 1 || typ.Method(0).Name != method {
+			t.Errorf("%v methods changed: want only %s", typ, method)
+		}
+	}
+
+	root := filepath.Join(moduleRoot(t), "embedding")
+	forbiddenTypes := map[string]bool{
+		"ModelMetadata": true,
+		"ClientRequest": true, "ClientCaller": true,
+		"Middleware": true, "MiddlewareChain": true, "Handler": true,
+	}
+	forbiddenFuncs := map[string]bool{
+		"GetDimensions":    true,
+		"NewClientRequest": true, "NewClientFromRequest": true,
+		"NewMiddlewareChain": true,
+	}
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(root, entry.Name())
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, declaration := range file.Decls {
+			switch typed := declaration.(type) {
+			case *ast.GenDecl:
+				if typed.Tok != token.TYPE {
+					continue
+				}
+				for _, specification := range typed.Specs {
+					name := specification.(*ast.TypeSpec).Name.Name
+					if forbiddenTypes[name] {
+						t.Errorf("core/embedding must not reintroduce %s", name)
+					}
+				}
+			case *ast.FuncDecl:
+				if typed.Recv == nil && forbiddenFuncs[typed.Name.Name] {
+					t.Errorf("core/embedding must not reintroduce %s", typed.Name.Name)
 				}
 			}
 		}

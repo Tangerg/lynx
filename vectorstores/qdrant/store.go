@@ -2,7 +2,6 @@ package qdrant
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -147,9 +146,9 @@ func (s *Store) initialize(ctx context.Context) error {
 		return nil
 	}
 
-	dimensions := s.embeddingModel.Dimensions(ctx)
-	if dimensions <= 0 {
-		return errors.New("qdrant: dimensions must be greater than zero")
+	dimensions, err := embedding.ResolveDimensions(ctx, s.embeddingModel)
+	if err != nil {
+		return fmt.Errorf("qdrant: resolve embedding dimensions: %w", err)
 	}
 
 	err = s.client.CreateCollection(ctx, &qdrant.CreateCollection{
@@ -178,11 +177,7 @@ func (s *Store) buildUpsertPoints(ctx context.Context, docs []*document.Document
 	}
 
 	for _, docs := range batchedDocs {
-		vectors, _, err := s.
-			embeddingClient.
-			EmbedWithDocuments(docs).
-			Call().
-			Embeddings(ctx)
+		vectors, _, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return nil, fmt.Errorf("qdrant: failed to generate vectors: %w", err)
 		}
@@ -268,10 +263,7 @@ func (s *Store) buildQueryPoints(ctx context.Context, req vectorstore.SearchRequ
 		queryPoints.Filter = filter
 	}
 
-	vector, _, err := s.embeddingClient.
-		EmbedWithText(req.Query).
-		Call().
-		Embedding(ctx)
+	vector, _, err := s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("qdrant: failed to embed query text: %w", err)
 	}

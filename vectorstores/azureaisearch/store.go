@@ -190,10 +190,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	}
 
 	for _, docs := range batchedDocs {
-		vectors, _, err := s.embeddingClient.
-			EmbedWithDocuments(docs).
-			Call().
-			Embeddings(ctx)
+		vectors, _, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("azureaisearch: failed to generate embeddings: %w", err)
 		}
@@ -243,10 +240,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
-	vector, _, err = s.embeddingClient.
-		EmbedWithText(req.Query).
-		Call().
-		Embedding(ctx)
+	vector, _, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("azureaisearch: failed to embed query: %w", err)
 	}

@@ -1,84 +1,99 @@
 package embedding
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"reflect"
+	"slices"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/model"
 )
 
-type (
-	Handler         = model.CallHandler[*Request, *Response]
-	HandlerFunc     = model.CallHandlerFunc[*Request, *Response]
-	Middleware      = model.CallMiddleware[*Request, *Response]
-	MiddlewareChain = model.MiddlewareChain[*Request, *Response]
-)
-
-// NewMiddlewareChain returns an empty [MiddlewareChain] keyed to
-// embedding's *Request / *Response pair. The stream side is unused
-// (embedding has no stream endpoint).
-func NewMiddlewareChain() MiddlewareChain {
-	return model.NewMiddlewareChain[*Request, *Response]()
-}
-
-// Client wraps a [Model] with a sticky default [ClientRequest], so each
-// [Client.Embed] call clones a pre-configured starting point.
-//
-// Example:
-//
-//	client, err := embedding.NewClient(model)
-//	v, _, err := client.EmbedWithText("hello").Call().Embedding(ctx)
+// Client is a stateless convenience wrapper around [Model]. It owns no
+// defaults or middleware; provider defaults stay in provider construction and
+// per-call overrides stay in [Request.Options].
 type Client struct {
-	defaultRequest *ClientRequest
+	model Model
 }
 
 func NewClient(model Model) (*Client, error) {
-	req, err := NewClientRequest(model)
+	if model == nil || isNilModel(model) {
+		return nil, errors.New("embedding.NewClient: model must not be nil")
+	}
+	return &Client{model: model}, nil
+}
+
+func isNilModel(model Model) bool {
+	value := reflect.ValueOf(model)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
+// Call validates and sends request to the model.
+func (c *Client) Call(ctx context.Context, request *Request) (*Response, error) {
+	if c == nil || c.model == nil {
+		return nil, errors.New("embedding.Client.Call: client is nil")
+	}
+	if request == nil || len(request.Texts) == 0 {
+		return nil, errors.New("embedding.Client.Call: request must contain text")
+	}
+	response, err := c.model.Call(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-	return NewClientFromRequest(req)
-}
-
-// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
-// default — use this when the request already carries default
-// middlewares / options the [Client] should keep applying.
-func NewClientFromRequest(request *ClientRequest) (*Client, error) {
-	if request == nil {
-		return nil, errors.New("embedding.NewClientFromRequest: request must not be nil")
+	if response == nil {
+		return nil, errors.New("embedding.Client.Call: model returned a nil response")
 	}
-	return &Client{defaultRequest: request}, nil
+	return response, nil
 }
 
-func (c *Client) Embed() *ClientRequest {
-	return c.defaultRequest.Clone()
-}
-
-// EmbedWithRequest seeds a clone with the texts, options, and params
-// from req — useful when the caller already has an assembled [Request].
-func (c *Client) EmbedWithRequest(req *Request) *ClientRequest {
-	return c.Embed().
-		WithTexts(req.Texts).
-		WithOptions(req.Options).
-		WithParams(req.Params)
-}
-
-func (c *Client) EmbedWithText(text string) *ClientRequest {
-	return c.EmbedWithTexts([]string{text})
-}
-
-func (c *Client) EmbedWithTexts(texts []string) *ClientRequest {
-	return c.Embed().WithTexts(texts)
-}
-
-func (c *Client) EmbedWithDocument(doc *document.Document) *ClientRequest {
-	return c.EmbedWithText(doc.Text)
-}
-
-func (c *Client) EmbedWithDocuments(docs []*document.Document) *ClientRequest {
-	texts := make([]string, 0, len(docs))
-	for _, doc := range docs {
-		texts = append(texts, doc.Text)
+// EmbedTexts embeds all texts in one model call and returns vectors in input
+// order. A provider response with missing or extra results is rejected.
+func (c *Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, *Response, error) {
+	request, err := NewRequest(texts)
+	if err != nil {
+		return nil, nil, err
 	}
-	return c.EmbedWithTexts(texts)
+	response, err := c.Call(ctx, request)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(response.Results) != len(texts) {
+		return nil, response, fmt.Errorf("embedding.Client.EmbedTexts: got %d results for %d inputs", len(response.Results), len(texts))
+	}
+	vectors := make([][]float64, len(response.Results))
+	for i, result := range response.Results {
+		if result == nil || len(result.Embedding) == 0 {
+			return nil, response, fmt.Errorf("embedding.Client.EmbedTexts: result %d has no embedding", i)
+		}
+		vectors[i] = slices.Clone(result.Embedding)
+	}
+	return vectors, response, nil
+}
+
+func (c *Client) EmbedText(ctx context.Context, text string) ([]float64, *Response, error) {
+	vectors, response, err := c.EmbedTexts(ctx, []string{text})
+	if err != nil {
+		return nil, response, err
+	}
+	return vectors[0], response, nil
+}
+
+func (c *Client) EmbedDocuments(ctx context.Context, docs []*document.Document) ([][]float64, *Response, error) {
+	if len(docs) == 0 {
+		return nil, nil, errors.New("embedding.Client.EmbedDocuments: documents must not be empty")
+	}
+	texts := make([]string, len(docs))
+	for i, doc := range docs {
+		if doc == nil {
+			return nil, nil, fmt.Errorf("embedding.Client.EmbedDocuments: document %d is nil", i)
+		}
+		texts[i] = doc.Text
+	}
+	return c.EmbedTexts(ctx, texts)
 }

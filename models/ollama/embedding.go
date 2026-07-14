@@ -119,17 +119,3 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 
 	return e.buildResponse(apiResp)
 }
-
-func (e *EmbeddingModel) Dimensions(ctx context.Context) int64 {
-	return embedding.GetDimensions(ctx, e)
-}
-
-func (e *EmbeddingModel) DefaultOptions() embedding.Options {
-	return *e.defaultOptions
-}
-
-func (e *EmbeddingModel) Metadata() embedding.ModelMetadata {
-	return embedding.ModelMetadata{
-		Provider: Provider,
-	}
-}

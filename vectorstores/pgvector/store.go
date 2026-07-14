@@ -232,11 +232,11 @@ func NewStore(config StoreConfig) (*Store, error) {
 // provisions the schema, table, and ANN index.
 func (s *Store) initialize(ctx context.Context, initializeSchema bool) error {
 	if s.dimensions <= 0 {
-		if dim := embedding.GetDimensions(ctx, s.embeddingModel); dim > 0 {
-			s.dimensions = int(dim)
-		} else {
-			s.dimensions = DefaultDimensions
+		dimensions, err := embedding.ResolveDimensions(ctx, s.embeddingModel)
+		if err != nil {
+			return fmt.Errorf("pgvector: resolve embedding dimensions: %w", err)
 		}
+		s.dimensions = dimensions
 	}
 	if s.dimensions <= 0 {
 		return errors.New("pgvector: Dimensions must be > 0")
@@ -365,10 +365,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	)
 
 	for _, docs := range batchedDocs {
-		vectors, _, err := s.embeddingClient.
-			EmbedWithDocuments(docs).
-			Call().
-			Embeddings(ctx)
+		vectors, _, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("pgvector: failed to generate embeddings: %w", err)
 		}
@@ -428,10 +425,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
-	vector, _, err = s.embeddingClient.
-		EmbedWithText(req.Query).
-		Call().
-		Embedding(ctx)
+	vector, _, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("pgvector: failed to embed query: %w", err)
 	}

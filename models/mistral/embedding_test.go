@@ -21,9 +21,8 @@ const mistralEmbedResponseJSON = `{
 
 func TestEmbeddingModel(t *testing.T) {
 	testutil.RunEmbeddingContract(t, testutil.EmbeddingContract{
-		ProviderName: mistral.Provider,
-		ModelID:      mistral.ModelEmbed,
-		Response:     mistralEmbedResponseJSON,
+		ModelID:  mistral.ModelEmbed,
+		Response: mistralEmbedResponseJSON,
 		Build: func(t *testing.T, baseURL string) embedding.Model {
 			t.Helper()
 			opts, err := embedding.NewOptions(mistral.ModelEmbed)

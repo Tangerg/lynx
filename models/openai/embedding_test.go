@@ -73,12 +73,3 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 		t.Errorf("usage = %+v; want PromptTokens=8", out.Metadata.Usage)
 	}
 }
-
-func TestEmbeddingModel_Metadata(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, "{}")
-	t.Cleanup(srv.Close)
-	m := newEmbeddingModel(t, srv.URL, "text-embedding-3-small")
-	if m.Metadata().Provider != openai.Provider {
-		t.Errorf("provider = %q; want %q", m.Metadata().Provider, openai.Provider)
-	}
-}

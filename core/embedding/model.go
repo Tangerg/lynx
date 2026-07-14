@@ -1,42 +1,29 @@
 package embedding
 
-import (
-	"context"
+import "context"
 
-	"github.com/Tangerg/lynx/core/model"
-)
-
-// Model is the provider surface for an embedding LLM — synchronous call,
-// model defaults, dimensions probe, and identity hint.
-//
-// Example:
-//
-//	type myEmbedder struct{ /* ... */ }
-//	func (m *myEmbedder) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) { ... }
-//	func (m *myEmbedder) DefaultOptions() embedding.Options { opts, _ := embedding.NewOptions("text-embedding-3-small"); return *opts }
-//	func (m *myEmbedder) Metadata() embedding.ModelMetadata          { return embedding.ModelMetadata{Provider: "openai"} }
-//	func (m *myEmbedder) Dimensions(ctx context.Context) int64 { return 1536 }
-//
-//	var _ embedding.Model = (*myEmbedder)(nil)
+// Model is the complete provider-neutral embedding SPI. Defaults, identity,
+// observability, batching, and dimension discovery are independent concerns.
 type Model interface {
-	model.Model[*Request, *Response]
-
-	// Dimensions returns the vector size this model produces (e.g. 768,
-	// 1536). Implementations may probe the API on first call and cache the
-	// result.
-	Dimensions(ctx context.Context) int64
-
-	// DefaultOptions returns the parameter set this provider uses when
-	// the caller does not override anything.
-	DefaultOptions() Options
-
-	// Metadata returns identity metadata used by logging, metrics, and any
-	// observability layer that needs to tag a span by provider.
-	Metadata() ModelMetadata
+	Call(context.Context, *Request) (*Response, error)
 }
 
-// ModelMetadata holds identity metadata for a [Model] instance. Provider
-// names are conventionally lowercase ("openai", "cohere", ...).
-type ModelMetadata struct {
-	Provider string `json:"provider"`
+// ModelFunc adapts a function to [Model].
+type ModelFunc func(context.Context, *Request) (*Response, error)
+
+func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error) {
+	return f(ctx, request)
+}
+
+// Dimensioner is the optional capability for models whose output width is
+// known without issuing an embedding request.
+type Dimensioner interface {
+	Dimensions(context.Context) (int, error)
+}
+
+// DimensionFunc adapts a function to [Dimensioner].
+type DimensionFunc func(context.Context) (int, error)
+
+func (f DimensionFunc) Dimensions(ctx context.Context) (int, error) {
+	return f(ctx)
 }

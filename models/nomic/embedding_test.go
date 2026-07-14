@@ -20,7 +20,6 @@ const nomicResponseJSON = `{
 
 func TestEmbeddingModel(t *testing.T) {
 	testutil.RunEmbeddingContract(t, testutil.EmbeddingContract{
-		ProviderName: nomic.Provider,
 		ModelID:      nomic.ModelEmbedTextV15,
 		Response:     nomicResponseJSON,
 		ExpectedPath: "/embedding/text",

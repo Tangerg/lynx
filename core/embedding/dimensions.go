@@ -2,46 +2,41 @@ package embedding
 
 import (
 	"context"
-	"sync"
-
-	"github.com/Tangerg/lynx/pkg/assert"
+	"errors"
+	"fmt"
 )
 
-// dimensionsStore caches the dimension count per "provider:model" key
-// so [GetDimensions] doesn't need to round-trip the provider on every
-// call.
-var dimensionsStore sync.Map
-
-// GetDimensions reports how many components an embedding from the given
-// model has. The first call probes the provider with a one-token "test"
-// input and caches the answer; subsequent calls are O(1).
-//
-// Returns 0 when the probe call fails — callers should treat 0 as
-// "unknown" rather than a real dimension count.
-//
-// Example:
-//
-//	d := embedding.GetDimensions(ctx, openaiEmbedding) // → 1536
-func GetDimensions(ctx context.Context, model Model) int64 {
-	cacheKey := model.Metadata().Provider + ":" + model.DefaultOptions().Model
-
-	if value, ok := dimensionsStore.Load(cacheKey); ok {
-		return value.(int64)
+// ResolveDimensions uses a model's explicit [Dimensioner] capability when
+// available and otherwise performs one uncached probe. Failures are returned;
+// zero is never used as an "unknown" sentinel.
+func ResolveDimensions(ctx context.Context, model Model) (int, error) {
+	if dimensioner, ok := model.(Dimensioner); ok {
+		dimensions, err := dimensioner.Dimensions(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("embedding.ResolveDimensions: explicit capability: %w", err)
+		}
+		if dimensions <= 0 {
+			return 0, fmt.Errorf("embedding.ResolveDimensions: explicit capability returned %d", dimensions)
+		}
+		return dimensions, nil
 	}
+	return ProbeDimensions(ctx, model)
+}
 
-	resp, err := model.Call(ctx, assert.Must(NewRequest([]string{"test"})))
+// ProbeDimensions issues one embedding request and reports its vector width.
+// It deliberately does not cache: callers that need caching own its lifetime,
+// key, invalidation policy, and errors.
+func ProbeDimensions(ctx context.Context, model Model) (int, error) {
+	client, err := NewClient(model)
 	if err != nil {
-		return 0
+		return 0, err
 	}
-
-	// A provider that answers with no results is as unknown as a failed
-	// probe — report 0 and don't poison the cache.
-	result := resp.Result()
-	if result == nil {
-		return 0
+	vector, _, err := client.EmbedText(ctx, "dimension probe")
+	if err != nil {
+		return 0, fmt.Errorf("embedding.ProbeDimensions: %w", err)
 	}
-
-	dimensions := int64(len(result.Embedding))
-	dimensionsStore.Store(cacheKey, dimensions)
-	return dimensions
+	if len(vector) == 0 {
+		return 0, errors.New("embedding.ProbeDimensions: model returned an empty vector")
+	}
+	return len(vector), nil
 }

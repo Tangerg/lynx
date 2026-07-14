@@ -45,7 +45,4 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 	if len(out.Results) != 2 {
 		t.Fatalf("got %d results; want 2", len(out.Results))
 	}
-	if m.Metadata().Provider != azureopenai.Provider {
-		t.Errorf("provider = %q; want %q", m.Metadata().Provider, azureopenai.Provider)
-	}
 }
