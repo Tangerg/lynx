@@ -621,7 +621,14 @@ flowchart LR
   - 证据：`Client` 仅公开 `Call`/`Stream` 两个方法，反射架构守卫阻止重新引入 fluent 面；`New(model)` 自动发现同一值的 Streamer，`WithStreamer` 支持能力分离，defaults 与 call/stream middleware 仅在构造期组合。
   - 行为：覆盖全部 Options 字段合并、每一层 Request 引用值防御性复制、非法请求 I/O 前失败、context error identity、中间件顺序、显式 Streamer 优先、提前停止同步释放、nil sequence 单错终止及并发调用。
   - 验证：`chatclient` coverage 96.5%，build/vet/test/lint 与全模块 race 全绿；workspace 72/72 门禁全绿。
-- [ ] **P3-03 将 prompt/template/structured output 迁入 `chatclient`**
+- [x] **P3-03 将 prompt/template/structured output 迁入 `chatclient`**（完成：2026-07-14）
+  - Template 使用标准库 `text/template` 一次解析、只读复用，变量作为每次 Render 的普通 data 传入；不保留 Spring/旧 Core 式可变变量 map 和 fluent builder，并以 missing-key error 及 AST 必需变量检查尽早失败。
+  - Template 只负责渲染以及显式构造 system/user Message；`core/chat.Request` 继续作为 prompt 的唯一协议值，不另建与 Request 重叠的 Prompt 富对象。
+  - structured output 使用“instructions 字符串 + decode 函数”的普通泛型值和包级 `CallStructured[T]`；不在 Client 上复制 Java `entity/responseEntity` 重载或建立 converter 类层次。
+  - 内置 stdlib JSON、带调用方 schema 的 JSON 和 comma-separated 输出；chatclient 不依赖 `pkg/json` 生成 schema，需自动 schema 的 Agent/Tools 等上层调用方自行生成后注入，保持 P3-01 的 stdlib + Core 边界。
+  - Template 证据：Parse 时拒绝空值/语法错，Render 使用 `missingkey=error`；Require 遍历标准库 parse AST；SystemMessage/UserMessage 输出递归验证的 Core tagged value，支持 media-only user；不可变实例并发渲染通过 race。
+  - structured 证据：`Output[T]` 是可由字符串与函数字面量直接构造的普通值；`JSON[T]`/`JSONSchema[T]`/`CommaSeparated` 覆盖常见解码，Markdown fence 仅作为输入容错；`CallStructured[T]` 不修改原 Request，并在 decode/call 失败时保留原 Response。
+  - 验证：chatclient coverage 94.1%，build/vet/test/lint 与全模块 race 全绿；workspace 72/72 门禁全绿。
 - [ ] **P3-04 迁移 history contract 与 middleware 到 `chathistory`**
 - [ ] **P3-05 迁移 safeguard/evaluation 并删除 Logger middleware**
   - safeguard 进入 `chatclient/middleware/safeguard`。
@@ -753,19 +760,19 @@ flowchart LR
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
-| P3 高层运行时外移 | 进行中 | 2/9 | 直接调用 Client API 已完成；当前迁移模板与结构化输出 |
+| P3 高层运行时外移 | 进行中 | 3/9 | 模板与结构化输出已完成；当前迁移 history contract/middleware |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **22/60** | **37%** |
+| **总计** | **进行中** | **23/60** | **38%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P3。
-- 下一任务：执行 P3-03，将 prompt/template/structured output 迁入 `chatclient`，保持渲染、调用、解码职责可独立组合。
+- 下一任务：执行 P3-04，将 history contract 与 middleware 迁入 `chathistory`，由消费方接口保持 chatclient/Core 不反向依赖存储实现。
 - 当前阻塞：无。
-- 最近完成：P3-02；`New` + `Call`/`Stream` 直接调用面、请求快照/默认值合并、可选 Streamer 和 middleware 组合已固化，coverage 96.5%、race 与 workspace 72 项门禁均通过。
+- 最近完成：P3-03；不可变 stdlib Template、普通 `Output[T]`、JSON/schema/comma-separated 解码与包级 `CallStructured[T]` 已完成，chatclient coverage 94.1%、race 和 workspace 72 项门禁均通过。
 
 ### 10.3 进度更新规则
 
@@ -984,6 +991,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P3-03；保留 Spring AI 的渲染/格式说明/解码职责分离，改用不可变 Go Template、普通泛型 Output 值和包级 structured call，未移植 converter/builder 层次 | Codex |
 | 2026-07-14 | 完成 P3-02；以不可变 New + Call/Stream 直接调用面替代 Spring 风格嵌套 builder，固化请求所有权、默认值合并与真实 Streamer 边界 | Codex |
 | 2026-07-14 | 完成 P3-01；建立独立 chatclient module 与 stdlib + Core 自动依赖守卫；workspace 扩展为 18 个 module、72 项门禁 | Codex |
 | 2026-07-14 | 完成 P2-07 与 P2 阶段验收；新增无别名 ResponseAccumulator，四 provider 固化取消/提前停止/首错终止/资源释放契约；进入 P3 | Codex |
@@ -1015,6 +1023,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P3-03 | 新增只读 `Template`（missing-key/AST Require/system-user-media）、普通 `Output[T]`、stdlib JSON/调用方 schema/comma-separated decoder 及 `CallStructured[T]`；原 Request 无改写，解析/调用错误保留 Response；chatclient coverage 94.1%、race 及 workspace 72/72 全绿；任务计数 23/60，P3 3/9 | P3-04 history contract/middleware 迁移 |
 | 2026-07-14 | P3-02 | 新增不可变 `Client`、sealed constructor options、全量 Request 深拷贝与 Options 合并；Call/Stream 直接接收普通 Request，自动或显式使用真实 Streamer，无能力/非法输入/nil sequence 均单错终止；公开方法反射守卫、96.5% coverage、chatclient race 和 workspace 72/72 全绿；任务计数 22/60，P3 2/9 | P3-03 prompt/template/structured output |
 | 2026-07-14 | P3-01 | 新增独立 `chatclient` module并接入 `go.work`；生产文件自动扫描只允许 stdlib + Core，未提前发明占位 Client API；模块门禁及 workspace 72/72 全绿；任务计数 21/60，P3 1/9 | P3-02 直接调用优先的 Client API |
 | 2026-07-14 | P2-07、P2 阶段验收 | 新增零值可用、失败原子、输入/快照无别名的 `ResponseAccumulator`，支持多 choice、相邻 text/reasoning、交错并行 tool delta 与累计 Usage 快照；共享 behavior suite 让四家真实 SDK 验证 Call/Stream cancel、调用方早停、首错终止和 transport context 退出，并让所有 happy stream 通过统一聚合；修正两处双重转义 mock wire；chat coverage 95.1%，workspace 68/68、六个 fuzz 各 30 秒、Core/Models 全 race 通过；任务计数 20/60，P2 7/7 | P3-01 建立独立 chatclient module |
