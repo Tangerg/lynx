@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "labels": [
+    "core",
+    "protocol"
+  ],
+  "nested": {
+    "count": 2
+  }
+}

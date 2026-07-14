@@ -1,0 +1,87 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "parts": [
+        {
+          "kind": "text",
+          "text": "Answer precisely."
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "kind": "text",
+          "text": "What is shown?"
+        },
+        {
+          "kind": "media",
+          "media": {
+            "mime": "image/png",
+            "source": {
+              "kind": "uri",
+              "uri": "https://example.com/lynx.png"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "parts": [
+        {
+          "kind": "reasoning",
+          "text": "I should inspect the image.",
+          "signature": "b3BhcXVlLXNpZ25hdHVyZQ=="
+        },
+        {
+          "kind": "tool_call",
+          "tool_call": {
+            "id": "call-1",
+            "name": "inspect_image",
+            "arguments": "{\"detail\":\"high\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "parts": [
+        {
+          "kind": "tool_result",
+          "tool_result": {
+            "id": "call-1",
+            "name": "inspect_image",
+            "result": "A lynx."
+          }
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "name": "inspect_image",
+      "description": "Inspect an image",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ],
+  "options": {
+    "model": "provider-model",
+    "max_tokens": 256,
+    "temperature": 0.2
+  },
+  "extensions": {
+    "openai/response_format": {
+      "type": "text"
+    }
+  }
+}
