@@ -175,6 +175,41 @@ func TestOtherModalitySPIsRemainMinimal(t *testing.T) {
 	}
 }
 
+func TestCoreDoesNotOwnProviderCatalogData(t *testing.T) {
+	root := filepath.Join(moduleRoot(t), "model", "chat")
+	forbidden := map[string]bool{
+		"ModelInfo": true, "Pricing": true, "Reasoning": true,
+		"Limits": true, "Modality": true, "Modalities": true,
+	}
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(root, entry.Name())
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, specification := range general.Specs {
+				name := specification.(*ast.TypeSpec).Name.Name
+				if forbidden[name] {
+					t.Errorf("Core must not own provider catalog type %s", name)
+				}
+			}
+		}
+	}
+}
+
 func assertMinimalModalityPackage(t *testing.T, packageName string) {
 	t.Helper()
 	root := filepath.Join(moduleRoot(t), packageName)
