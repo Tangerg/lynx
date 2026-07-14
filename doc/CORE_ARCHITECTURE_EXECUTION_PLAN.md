@@ -528,10 +528,14 @@ flowchart LR
   - Golden fixture 直接冻结 metadata、三种 Media source、完整 Request 和多 Choice Response 的可读 JSON；fuzz 使用“成功解码后 Validate + Marshal + 再解码的 canonical wire 必须达到 fixed point”属性。
   - 证据：新增 metadata、三种 Media source、覆盖全部 role/part 的完整 Request 和多 Choice Response golden fixtures；分别为 `metadata.Map`、`media.Media`、Part、Message、Request、Response 建立 6 个 JSON fixed-point fuzz 入口。
   - 验证：6 个 fuzz 入口分别运行 2 秒并通过；metadata/media/chat coverage 分别为 91.7%/92.9%/94.4%；Core build/vet/test/lint 与 race 全绿。
-- [ ] **P1-06 在 `agent/toolloop` 建立 Invocation/Event 原型**
+- [x] **P1-06 在 `agent/toolloop` 建立 Invocation/Event 原型**（完成：2026-07-14）
   - 同一任务批次先在 `tools` 建立最小可执行 `Tool` 契约和具体 `Registry`，在 `agent/toolloop` 声明消费方窄 `ToolResolver` 接口；`tools.Registry` 满足该接口，依赖方向只能是 Agent → Tools → Core。
   - Invocation 组合 Request 与 `ToolResolver`，不直接依赖 registry 具体类型。
   - Event 表达 model/tool/pause/resume，不污染 Chat Response。
+  - 证据：根 `tools` 包新增两方法 `Tool` 与实例级 `Registry`；注册批次全有或全无、拒绝 nil/重复/非法 definition，Definitions 防御性复制并稳定排序，无全局 registry。
+  - 边界：`agent/toolloop.ToolResolver` 只有 Resolve；编译期断言确认 `tools.Registry` 满足接口，`go list` 确认新路径为 Agent → Tools → Core。Invocation 验证 advertised tool 均可执行并主动拒绝 JSON 序列化。
+  - 事件：serializable tagged Event 覆盖 model request/response、tool call/result、pause/resume 六类边界，严格限制单一 payload；Chat Response 反向守卫确认无运行时字段。
+  - 验证：根 tools coverage 92.3%，agent/toolloop coverage 77.4%；Tools/Agent build/vet/test/lint 与目标 race 全绿。
 - [ ] **P1-07 选择四个差异 provider 做映射验证**
   - OpenAI、Anthropic、Google、Ollama。
   - 证明新协议不丢失当前支持能力。
@@ -703,21 +707,21 @@ flowchart LR
 | 阶段 | 状态 | 已完成/任务数 | 当前说明 |
 |---|---|---:|---|
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
-| P1 Media/Chat 协议分离 | 进行中 | 5/7 | P1-05 完成；当前执行 P1-06 Invocation/Event 原型 |
+| P1 Media/Chat 协议分离 | 进行中 | 6/7 | P1-06 完成；当前执行 P1-07 四 provider 映射验证 |
 | P2 Chat Model SPI 收缩 | 未开始 | 0/7 | 依赖 P1 |
 | P3 高层运行时外移 | 未开始 | 0/9 | 依赖 P2 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **11/60** | **18%** |
+| **总计** | **进行中** | **12/60** | **20%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P1。
-- 下一任务：P1-06，在 `tools` 建立最小 Tool/Registry，并在 `agent/toolloop` 建立消费方 ToolResolver、Invocation/Event 原型。
+- 下一任务：P1-07，为 OpenAI、Anthropic、Google、Ollama 建立新 `core/chat` 协议映射与无损 conformance 验证。
 - 当前阻塞：无。
-- 最近完成：P1-05；metadata/media/chat 可读 golden fixtures 与 6 个 JSON fixed-point fuzz 门禁。
+- 最近完成：P1-06；根 tools Tool/Registry、消费方 ToolResolver、runtime-only Invocation 与六类 tagged Event 原型。
 
 ### 10.3 进度更新规则
 
@@ -817,7 +821,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 | 公共 API 爆炸式迁移导致 workspace 长期不可编译 | 高 | 高 | 按第 8.3 节分类：新路径限时并存，同路径按阶段完成纵向切片 | 监控中 |
 | Message tagged value 无法表达个别 provider 能力 | 中 | 高 | 先用四个差异 provider 做映射验证；仅一个 JSON-safe Extensions | 未验证 |
 | ChatClient 外移后用户体验下降 | 中 | 中 | 直接调用为主，保留常见 Text/Template/Structured Output 便利 API | 未验证 |
-| Tool 运行时拆分破坏 Agent pause/resume | 高 | 高 | P1 先建立 Invocation/Event，P3 再迁移 tool-loop | 未验证 |
+| Tool 运行时拆分破坏 Agent pause/resume | 高 | 高 | P1 已建立并验证 Invocation/Event 原型，P3 再迁移现有 tool-loop | 原型已验证，迁移待执行 |
 | VectorStore 小接口迁移量过大 | 高 | 中 | 建立 conformance suite，按 backend 批次迁移 | 未验证 |
 | Core 标准库依赖目标过严 | 中 | 中 | 允许 ADR 例外，但必须证明 stdlib 不足和退出条件 | 监控中 |
 | Core/OTel 目标与现行治理文档互相冲突 | 高 | 高 | P0-05 已裁决 OTel 外移；P0-06 已同步根/core/otel CLAUDE、OBSERVABILITY 和本文 | 已解除 |
@@ -936,6 +940,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P1-06；建立根 tools Tool/Registry、消费方 ToolResolver、runtime-only Invocation 与 model/tool/pause/resume tagged Event；进入 P1-07 | Codex |
 | 2026-07-14 | 完成 P1-05；冻结 metadata/media/chat 代表性 wire fixtures，增加 6 个 JSON fixed-point fuzz 门禁；进入 P1-06 | Codex |
 | 2026-07-14 | 完成 P1-04；建立保留全部 choice 的 Response/Usage，锁死 provider 响应边界并移除 tool-loop synthetic result 位置；进入 P1-05 | Codex |
 | 2026-07-14 | 完成 P1-03；建立纯数据 Request/Options/ToolDefinition 与 namespaced Extensions，移除新协议中的执行对象和 Params；进入 P1-04 | Codex |
@@ -953,6 +958,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P1-06 | 新增根 tools Tool/Registry 与 agent/toolloop ToolResolver/Invocation/Event；Registry 原子注册且无全局状态，Event 覆盖六类运行时边界；coverage 92.3%/77.4%；Tools/Agent build/vet/test/lint 与目标 race 全绿；任务计数 12/60 | P1-07 四 provider 映射验证 |
 | 2026-07-14 | P1-05 | 新增 metadata/media/request/response golden fixtures 与 Map/Media/Part/Message/Request/Response 六个 JSON fixed-point fuzz 入口；fuzz 各运行 2 秒通过；coverage 91.7%/92.9%/94.4%；Core build/vet/test/lint/race 全绿；任务计数 11/60 | P1-06 Invocation/Event 原型 |
 | 2026-07-14 | P1-04 | 新增多 Choice Response、Usage、FinishReason 与 nil-safe First/Text；Response 字段守卫排除 tool-loop 状态；coverage 94.4%；Core build/vet/test/lint/race 全绿；任务计数 10/60 | P1-05 serialization golden/fuzz |
 | 2026-07-14 | P1-03 | 新增纯数据 Request/Options/ToolDefinition；Options 零值合法，Extensions 强制 namespace/name 并即时编码，DTO 无 interface 字段；coverage 93.8%；Core build/vet/test/lint/race 全绿；任务计数 9/60 | P1-04 Response/Choice |

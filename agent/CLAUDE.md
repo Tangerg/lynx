@@ -17,6 +17,7 @@
 - **service 切片**:planning(Planner 接口 + 各算法各一包)、workflow(高阶 builder,但都**编译回普通 agent**,不是新 runtime)、event、hitl、toolpolicy(chat tool 装饰器)。
 - **Blackboard 是 planner 可见性的枢纽**:action 之间**不直接传值**,一律按 name + type 读写黑板 —— 绕过它调度就坏;读写用分离的 reader / writer 面。
 - **HITL 是 first-class**:等待输入把进程切到 Waiting、状态落黑板,operator 回复后原地重入(不重跑整个 turn)。
+- **协议与执行状态分离**:`toolloop.Invocation` 并置 `core/chat.Request` 与消费方 `ToolResolver`；model/tool/pause/resume 通过 `toolloop.Event` 表达，不向 provider Response 塞运行时状态。现有旧 Chat 驱动在 P3 迁移完成前冻结。
 - **委派子进程默认只带 ambient(protected)项**,不全盘继承父黑板 —— 全继承会预满足子 agent 的产出目标、让它静默不干活。三档梯度:全继承 / 仅 ambient / 全空,按编排需要选。
 - **库内部用具体类型**:agent 是 SDK 库,内部包之间直接依赖具体类型;窄接口只留给公开 SPI(Planner / Extension 子接口等)和应用层消费方 —— 库内单实现还抽窄接口是 YAGNI 仪式。
 

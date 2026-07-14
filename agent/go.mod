@@ -7,6 +7,7 @@ require (
 	github.com/Tangerg/lynx/core v0.0.0-20260612070432-d76a84bc1fc7
 	github.com/Tangerg/lynx/mcp v0.0.0-20260612074151-b041faa6c4a2
 	github.com/Tangerg/lynx/pkg v0.0.0-20260612070432-d76a84bc1fc7
+	github.com/Tangerg/lynx/tools v0.0.0-20260612074151-b041faa6c4a2
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	go.opentelemetry.io/otel v1.44.0
