@@ -578,8 +578,9 @@ flowchart LR
   - 证据：新增 stdlib HandlerFunc 风格的 `ModelFunc`/`StreamerFunc`、函数型 CallMiddleware/StreamMiddleware 与 `Wrap`/`WrapStream`；删除目标用户面上的泛型 Chain builder。
   - 泛型边界：唯一泛型是未导出的 `compose` 包装算法，真实复用 Call/Stream 的 outermost-first 组合，不建立名义层次或公共泛型 API。
   - 验证：覆盖 adapter 委托、错误透传、call/stream 顺序、nil middleware、输入 slice 变更隔离和空链；`core/chat` coverage 94.5%，Core build/vet/test/lint/race 全绿。
-- [ ] **P2-06 为四个 reference provider 建立 compile-time 和行为 conformance suite**
+- [ ] **P2-06 为四个 reference provider 建立 compile-time 和行为 conformance suite**（进行中：2026-07-14；harness 完成，provider 0/4）
   - Harness 位于 `models/internal/conformance`，由各 provider 测试传入具体构造函数；Core 不 import provider。
+  - 当前进度：provider-neutral ChatSuite 已覆盖 Call/Stream 的构造、请求/响应递归校验、非空 yield 和 Request 不可变性；自身 fake provider 与 Models 全模块门禁通过。下一批接入 OpenAI 真实 SDK mock wire。
 - [ ] **P2-07 固化 Chat Call/Stream 行为契约**
   - 覆盖 context cancel、调用方提前停止、首个错误终止、无 goroutine 泄漏和流式聚合语义。
 
@@ -740,7 +741,7 @@ flowchart LR
 ### 10.2 当前焦点
 
 - 当前阶段：P2。
-- 下一任务：P2-06，在 `models/internal/conformance` 建立四个 reference provider 的 compile-time/行为 conformance suite 并开始接入真实 adapter。
+- 下一任务：继续 P2-06；harness 已完成，按 OpenAI → Anthropic → Google → Ollama 接入真实 SDK mock wire（当前 0/4）。
 - 当前阻塞：无。
 - 最近完成：P2-05；stdlib 风格 function adapter、Call/Stream middleware 与私有泛型 compose 算法。
 
@@ -985,6 +986,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P2-06（批次 1） | 建立 provider-neutral `models/internal/conformance.ChatSuite`；Call/Stream 验证合法 Response、非空 stream、Request 不变；harness race 与 Models build/vet/test/lint 全绿；任务计数保持 18/60 | P2-06 OpenAI adapter/conformance |
 | 2026-07-14 | P2-05 | 新增 ModelFunc/StreamerFunc、函数型 middleware 与 Wrap/WrapStream；组合顺序、nil、slice 隔离和错误透传已覆盖；chat coverage 94.5%，Core 门禁/race 全绿；任务计数 18/60 | P2-06 provider conformance |
 | 2026-07-14 | P2-04 | 架构守卫确认新 Chat Model/Streamer 无旧 `core/model` import、无 type parameter、无 embedded interface；旧名义层冻结到 P6；Core build/vet/test/lint/race 全绿；任务计数 17/60 | P2-05 middleware 组合 |
 | 2026-07-14 | P2-03 | 新增目标 Chat SPI AST 门禁与 `CORE_LEGACY_REMOVAL.md`；禁止非白名单/嵌入接口/ModelMetadata，登记三类旧 Chat 表面 P6 删除责任；Core build/vet/test/lint/race 全绿；任务计数 16/60 | P2-04 清除泛型名义层次 |
