@@ -1,0 +1,38 @@
+{
+  "id": "response-1",
+  "model": "gemini-3-pro-001",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "parts": [
+          {"kind": "reasoning", "text": "verify result", "signature": "c2lnLWdvb2dsZQ=="},
+          {"kind": "text", "text": "The value is four."},
+          {"kind": "tool_call", "tool_call": {"id": "google/0/2", "name": "calculate", "arguments": "{\"x\":2}"}}
+        ]
+      },
+      "finish_reason": "stop",
+      "extensions": {"google/native_finish_reason": "STOP"}
+    },
+    {
+      "index": 1,
+      "finish_reason": "content_filter",
+      "extensions": {
+        "google/native_finish_reason": "SAFETY",
+        "google/safety_ratings": [{"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "blocked": true}]
+      }
+    }
+  ],
+  "usage": {
+    "input_tokens": 20,
+    "output_tokens": 9,
+    "reasoning_tokens": 4,
+    "cache_read_input_tokens": 6
+  },
+  "extensions": {
+    "google/model_version": "gemini-3-pro-001",
+    "google/tool_use_prompt_tokens": 3,
+    "google/usage": {"prompt_token_count": 20, "candidates_token_count": 9, "thoughts_token_count": 4}
+  }
+}

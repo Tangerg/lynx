@@ -1,0 +1,54 @@
+{
+  "id": "chatcmpl-1",
+  "model": "gpt-5.2",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "parts": [
+          {"kind": "reasoning", "text": "checking sources"},
+          {"kind": "text", "text": "I found two results."},
+          {"kind": "tool_call", "tool_call": {"id": "call-2", "name": "search", "arguments": "{\"q\":\"more\"}"}},
+          {
+            "kind": "media",
+            "media": {
+              "mime": "audio/wav",
+              "source": {"kind": "reference", "ref": "audio-1"},
+              "metadata": {"openai/expires_at": 1770000000}
+            }
+          }
+        ],
+        "metadata": {
+          "openai/refusal": "",
+          "openai/annotations": [{"type": "url_citation", "url": "https://example.com"}]
+        }
+      },
+      "finish_reason": "tool_calls",
+      "extensions": {
+        "openai/native_finish_reason": "tool_calls",
+        "openai/logprobs": [{"token": "found", "logprob": -0.1}]
+      }
+    },
+    {
+      "index": 1,
+      "message": {
+        "role": "assistant",
+        "parts": [{"kind": "text", "text": "alternate"}]
+      },
+      "finish_reason": "content_filter",
+      "extensions": {"openai/native_finish_reason": "content_filter"}
+    }
+  ],
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 7,
+    "reasoning_tokens": 3,
+    "cache_read_input_tokens": 5
+  },
+  "extensions": {
+    "openai/created": 1770000000,
+    "openai/service_tier": "priority",
+    "openai/usage": {"prompt_tokens": 12, "completion_tokens": 7, "total_tokens": 19}
+  }
+}

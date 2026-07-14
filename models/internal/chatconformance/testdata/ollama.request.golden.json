@@ -1,0 +1,50 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "parts": [{"kind": "text", "text": "Be concise."}]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {"kind": "text", "text": "Describe this image."},
+        {"kind": "media", "media": {"mime": "image/png", "source": {"kind": "bytes", "bytes": "aW1hZ2U="}}}
+      ]
+    },
+    {
+      "role": "assistant",
+      "parts": [
+        {"kind": "reasoning", "text": "inspect pixels"},
+        {"kind": "text", "text": "I will inspect it."},
+        {"kind": "tool_call", "tool_call": {"id": "ollama/0/2", "name": "inspect", "arguments": "{\"detail\":true}"}}
+      ]
+    },
+    {
+      "role": "tool",
+      "parts": [
+        {"kind": "tool_result", "tool_result": {"id": "ollama/0/2", "name": "inspect", "result": "blue square"}}
+      ]
+    }
+  ],
+  "tools": [
+    {"name": "inspect", "description": "Inspect image details", "input_schema": {"type": "object", "properties": {"detail": {"type": "boolean"}}}}
+  ],
+  "options": {
+    "model": "qwen3:8b",
+    "frequency_penalty": 0.1,
+    "max_tokens": 256,
+    "presence_penalty": 0.1,
+    "stop": ["END"],
+    "temperature": 0.5,
+    "top_k": 20,
+    "top_p": 0.8
+  },
+  "extensions": {
+    "ollama/request": {
+      "keep_alive": "10m",
+      "format": "json",
+      "think": true,
+      "options": {"seed": 42, "num_ctx": 8192}
+    }
+  }
+}

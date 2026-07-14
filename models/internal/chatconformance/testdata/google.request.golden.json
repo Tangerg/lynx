@@ -1,0 +1,47 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "parts": [{"kind": "text", "text": "Answer with evidence."}]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {"kind": "text", "text": "Analyze both inputs."},
+        {"kind": "media", "media": {"mime": "image/png", "source": {"kind": "uri", "uri": "gs://bucket/image.png"}}},
+        {"kind": "media", "media": {"mime": "audio/wav", "source": {"kind": "bytes", "bytes": "YXVkaW8="}}}
+      ]
+    },
+    {
+      "role": "assistant",
+      "parts": [
+        {"kind": "reasoning", "text": "use the calculator", "signature": "c2lnLWdvb2dsZQ=="},
+        {"kind": "text", "text": "Calculating."},
+        {"kind": "tool_call", "tool_call": {"id": "google/0/2", "name": "calculate", "arguments": "{\"x\":2}"}}
+      ]
+    },
+    {
+      "role": "tool",
+      "parts": [
+        {"kind": "tool_result", "tool_result": {"id": "google/0/2", "name": "calculate", "result": "{\"value\":4}"}}
+      ]
+    }
+  ],
+  "tools": [
+    {"name": "calculate", "description": "Run a calculation", "input_schema": {"type": "object", "properties": {"x": {"type": "number"}}}}
+  ],
+  "options": {
+    "model": "gemini-3-pro",
+    "max_tokens": 768,
+    "stop": ["STOP"],
+    "temperature": 0.4,
+    "top_k": 32,
+    "top_p": 0.9
+  },
+  "extensions": {
+    "google/request": {
+      "safety_settings": [{"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"}],
+      "response_modalities": ["TEXT"]
+    }
+  }
+}
