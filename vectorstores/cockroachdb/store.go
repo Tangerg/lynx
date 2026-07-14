@@ -17,6 +17,7 @@
 package cockroachdb
 
 import (
+	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/vectorstores/pgvector"
 )
 
@@ -31,6 +32,13 @@ type StoreConfig = pgvector.StoreConfig
 // Store is a CockroachDB-backed the vectorstore capability interfaces implementation,
 // inheriting every method from [pgvector.Store].
 type Store = pgvector.Store
+
+var (
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
+)
 
 func NewStore(cfg StoreConfig) (*Store, error) {
 	cfg.SkipExtensionCreate = true

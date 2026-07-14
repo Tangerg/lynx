@@ -13,6 +13,7 @@
 package supabase
 
 import (
+	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/vectorstores/pgvector"
 )
 
@@ -28,6 +29,13 @@ type StoreConfig = pgvector.StoreConfig
 // Store is a Supabase-backed the vectorstore capability interfaces implementation. It's
 // identical to [pgvector.Store] at runtime.
 type Store = pgvector.Store
+
+var (
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
+)
 
 func NewStore(cfg StoreConfig) (*Store, error) {
 	return pgvector.NewStore(cfg)
