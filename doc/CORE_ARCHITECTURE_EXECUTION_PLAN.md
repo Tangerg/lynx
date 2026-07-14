@@ -629,11 +629,13 @@ flowchart LR
   - Template 证据：Parse 时拒绝空值/语法错，Render 使用 `missingkey=error`；Require 遍历标准库 parse AST；SystemMessage/UserMessage 输出递归验证的 Core tagged value，支持 media-only user；不可变实例并发渲染通过 race。
   - structured 证据：`Output[T]` 是可由字符串与函数字面量直接构造的普通值；`JSON[T]`/`JSONSchema[T]`/`CommaSeparated` 覆盖常见解码，Markdown fence 仅作为输入容错；`CallStructured[T]` 不修改原 Request，并在 decode/call 失败时保留原 Response。
   - 验证：chatclient coverage 94.1%，build/vet/test/lint 与全模块 race 全绿；workspace 72/72 门禁全绿。
-- [ ] **P3-04 迁移 history contract 与 middleware 到 `chathistory`**
+- [x] **P3-04 迁移 history contract 与 middleware 到 `chathistory`**（完成：2026-07-14）
   - 模式：`chathistory` 同路径纵向切片；根包承接基于新 `core/chat.Message` 的 Reader/Writer/Clearer/Store、内存参考实现、窗口装饰器和可选能力，六个持久化 backend 在本任务内同步切换，不保留 module 内双协议。
   - conversation ID 是运行时请求作用域，不写入 Core Request Extensions；由 `context.Context` 显式携带并在 history 边界验证，缺失 ID 时 middleware 透明透传。
   - middleware 在 `chathistory/middleware` 声明消费方 Read+Write 窄接口；同步调用按 live system → stored non-system → fresh non-system 拼接，只持久化 fresh + 无 tool call 的完整 assistant；stream 仅自然完成且全部 chunk 可聚合时写入。
   - codec 新写 `core/chat.Message` tagged wire，同时保留旧 `core/model/chat` canonical wire 的只读兼容解码；不把 API breaking 扩大成已有持久化历史的数据破坏。
+  - 证据：根契约/参考实现、六 backend/兼容 codec、call/stream middleware 分别落在 `f9b09b289`、`c1f75109a`、`00270d8bf`；所有存储边界做递归 validation 与 defensive snapshot，tool-call 回合延迟到完整 assistant-call/tool-result/final-assistant 交换后一次写入。
+  - 验证：根包、codec、snapshot、middleware coverage 分别为 90.3%/90.4%/95.1%/91.4%；chathistory 全模块 race 通过，workspace build/vet/test/lint 72/72 全绿。
 - [ ] **P3-05 迁移 safeguard/evaluation 并删除 Logger middleware**
   - safeguard 进入 `chatclient/middleware/safeguard`。
   - fact/relevancy evaluation 进入 `rag/evaluation`。
@@ -764,19 +766,19 @@ flowchart LR
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
-| P3 高层运行时外移 | 进行中 | 3/9 | 模板与结构化输出已完成；当前迁移 history contract/middleware |
+| P3 高层运行时外移 | 进行中 | 4/9 | history contract、六 backend、兼容 codec 与 call/stream middleware 已迁出 Core |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **23/60** | **38%** |
+| **总计** | **进行中** | **24/60** | **40%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P3。
-- 下一任务：执行 P3-04，将 history contract 与 middleware 迁入 `chathistory`，由消费方接口保持 chatclient/Core 不反向依赖存储实现。
+- 下一任务：执行 P3-05，将 safeguard 迁入 `chatclient/middleware/safeguard`、fact/relevancy evaluation 迁入 `rag/evaluation`，并收口通用 Logger middleware。
 - 当前阻塞：无。
-- 最近完成：P3-03；不可变 stdlib Template、普通 `Output[T]`、JSON/schema/comma-separated 解码与包级 `CallStructured[T]` 已完成，chatclient coverage 94.1%、race 和 workspace 72 项门禁均通过。
+- 最近完成：P3-04；`chathistory` 已承接新 Chat history contract、参考 store/window、六个持久化 backend、旧 wire 只读兼容和完整 call/stream middleware，四个新逻辑包 coverage 均超过 90%，race 与 workspace 72 项门禁全绿。
 
 ### 10.3 进度更新规则
 
@@ -995,6 +997,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P3-04；以 context 会话作用域、消费方窄 Store、显式 Window decorator 和自然完成才提交的 stream middleware 替代 Core history framework，同时保留旧持久化 wire 只读兼容 | Codex |
 | 2026-07-14 | 完成 P3-03；保留 Spring AI 的渲染/格式说明/解码职责分离，改用不可变 Go Template、普通泛型 Output 值和包级 structured call，未移植 converter/builder 层次 | Codex |
 | 2026-07-14 | 完成 P3-02；以不可变 New + Call/Stream 直接调用面替代 Spring 风格嵌套 builder，固化请求所有权、默认值合并与真实 Streamer 边界 | Codex |
 | 2026-07-14 | 完成 P3-01；建立独立 chatclient module 与 stdlib + Core 自动依赖守卫；workspace 扩展为 18 个 module、72 项门禁 | Codex |
@@ -1027,6 +1030,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P3-04 | `f9b09b289` 建立新 Message history contract/内存参考实现/window/context scope，`c1f75109a` 迁移六 backend 并加入新写旧读 codec，`00270d8bf` 增加 immutable call/stream middleware 与 shared snapshot；coverage 90.3%/90.4%/95.1%/91.4%，chathistory race 与 workspace 72/72 全绿；任务计数 24/60，P3 4/9 | P3-05 safeguard/evaluation/Logger 收口 |
 | 2026-07-14 | P3-03 | 新增只读 `Template`（missing-key/AST Require/system-user-media）、普通 `Output[T]`、stdlib JSON/调用方 schema/comma-separated decoder 及 `CallStructured[T]`；原 Request 无改写，解析/调用错误保留 Response；chatclient coverage 94.1%、race 及 workspace 72/72 全绿；任务计数 23/60，P3 3/9 | P3-04 history contract/middleware 迁移 |
 | 2026-07-14 | P3-02 | 新增不可变 `Client`、sealed constructor options、全量 Request 深拷贝与 Options 合并；Call/Stream 直接接收普通 Request，自动或显式使用真实 Streamer，无能力/非法输入/nil sequence 均单错终止；公开方法反射守卫、96.5% coverage、chatclient race 和 workspace 72/72 全绿；任务计数 22/60，P3 2/9 | P3-03 prompt/template/structured output |
 | 2026-07-14 | P3-01 | 新增独立 `chatclient` module并接入 `go.work`；生产文件自动扫描只允许 stdlib + Core，未提前发明占位 Client API；模块门禁及 workspace 72/72 全绿；任务计数 21/60，P3 1/9 | P3-02 直接调用优先的 Client API |
