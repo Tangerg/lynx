@@ -421,22 +421,22 @@ flowchart LR
 - 每个可独立验证的迁移批次一个逻辑提交；禁止混入无关格式化。一个任务可以包含多个批次，只有全部批次完成后才勾选任务。
 - provider/backend/workspace 全量任务在标记“进行中”前，必须从 P0 清单展开逐项子清单；每个子项记录 commit、测试证据和剩余数量。
 - 先建立新契约和测试，再迁移实现，最后删除旧 API。
-- 对于 package path 变化的能力，P1–P5 允许目标新包与旧包限时并存；旧 API 冻结，只接受迁移所需修复，不增加能力。
-- 对于 package path 不变的原地类型变更，必须在所属阶段完成全 workspace 纵向迁移，并在该阶段退出前删除临时字段/bridge，不能拖到 P6。
-- 临时 bridge/shim 必须登记来源、消费方和删除阶段；不得成为对外承诺，也不得超过对应截止点。
+- 不新增 alias、bridge、shim、dual-read/dual-write、兼容字段或旧 wire 解码；历史数据需要迁移时由应用在升级前显式执行一次性数据迁移。
+- package path 变化时，新旧实现只允许因“仍有真实消费者尚未迁移”而同时存在；新代码不得反向依赖旧路径，最后一个消费者迁移的同一批次必须删除旧实现。
+- package path 不变的原地类型变更必须做直接纵向切换：同一逻辑批次迁移全部消费者并删除旧字段/行为，不为维持旧调用面增加兼容代码。
 - Reference implementation 用于先证明新契约；是否全量迁移由第 8.3 节按路径类型裁决，不能一概推迟到 P6。
 - 每次修改 exported API 前更新本文进度和影响面。
 - 阶段完成前运行该阶段规定的全部验证命令。
 - 如果发现目标设计不成立，停止扩散修改，记录决策和证据后再继续。
 
-### 8.3 两种迁移模式
+### 8.3 两种直接迁移模式
 
 | 模式 | 适用范围 | 执行方式 | 删除截止点 |
 |---|---|---|---|
-| 新路径并存 | `core/model/chat → core/chat`、其他 modality 扁平化、独立 `chatclient` | 先建新包并迁 reference；旧包冻结，P6 迁剩余消费者 | P6 |
-| 同路径纵向切片 | `core/media`、`core/document`、`core/vectorstore` 等 import path 不变的结构修改 | 可短暂增加兼容字段/bridge 维持编译，但所属阶段必须迁完所有消费者并删除旧面 | 所属阶段 |
+| 新路径直接切换 | `core/model/chat → core/chat`、其他 modality 扁平化、独立 `chatclient` | 先证明新包，再逐个迁真实消费者；不建 bridge，最后一个消费者迁移时直接删除旧包 | 最后消费者迁移批次 |
+| 同路径原子纵向切片 | `core/media`、`core/document`、`core/vectorstore` 等 import path 不变的结构修改 | 在一个保持 workspace 绿色的逻辑批次中迁完消费者并删除旧面，不增加兼容字段 | 所属阶段 |
 
-执行者在开始任务前必须标明使用哪种模式。若无法判断，按同路径纵向切片处理，不能默认把债务推迟到 P6。
+执行者在开始任务前必须标明使用哪种模式。若无法判断，按同路径原子纵向切片处理；P6 是剩余消费者的计划批次，不是兼容层或删除债务的默认延期点。
 
 ---
 
@@ -633,15 +633,18 @@ flowchart LR
   - 模式：`chathistory` 同路径纵向切片；根包承接基于新 `core/chat.Message` 的 Reader/Writer/Clearer/Store、内存参考实现、窗口装饰器和可选能力，六个持久化 backend 在本任务内同步切换，不保留 module 内双协议。
   - conversation ID 是运行时请求作用域，不写入 Core Request Extensions；由 `context.Context` 显式携带并在 history 边界验证，缺失 ID 时 middleware 透明透传。
   - middleware 在 `chathistory/middleware` 声明消费方 Read+Write 窄接口；同步调用按 live system → stored non-system → fresh non-system 拼接，只持久化 fresh + 无 tool call 的完整 assistant；stream 仅自然完成且全部 chunk 可聚合时写入。
-  - codec 新写 `core/chat.Message` tagged wire，同时保留旧 `core/model/chat` canonical wire 的只读兼容解码；不把 API breaking 扩大成已有持久化历史的数据破坏。
-  - 证据：根契约/参考实现、六 backend/兼容 codec、call/stream middleware 分别落在 `f9b09b289`、`c1f75109a`、`00270d8bf`；所有存储边界做递归 validation 与 defensive snapshot，tool-call 回合延迟到完整 assistant-call/tool-result/final-assistant 交换后一次写入。
+  - codec 只读写 `core/chat.Message` 当前 tagged wire；旧 `core/model/chat` wire 兼容分支已按 ADR-008 删除，历史数据由应用升级前显式迁移。
+  - 证据：根契约/参考实现、六 backend/current-wire codec、call/stream middleware 分别落在 `f9b09b289`、`c1f75109a`、`00270d8bf`，兼容清理落在 `f0762ad73`；所有存储边界做递归 validation 与 defensive snapshot，tool-call 回合延迟到完整 assistant-call/tool-result/final-assistant 交换后一次写入。
   - 验证：根包、codec、snapshot、middleware coverage 分别为 90.3%/90.4%/95.1%/91.4%；chathistory 全模块 race 通过，workspace build/vet/test/lint 72/72 全绿。
-- [ ] **P3-05 迁移 safeguard/evaluation 并删除 Logger middleware**
+- [x] **P3-05 迁移 safeguard/evaluation 并删除 Logger middleware**（完成：2026-07-14）
   - safeguard 进入 `chatclient/middleware/safeguard`。
   - fact/relevancy evaluation 进入 `rag/evaluation`。
   - 删除通用 request/response Logger middleware；不在 `chatclient` 复制同等能力。
+  - safeguard 证据：目标路径采用显式 `New`、可失败 Matcher、同步 OnBlock 与 errors.Is/As 兼容的 UnsafeError；nil matcher/非法 scope 提前失败，stream 在 yield 前聚合检查并能识别跨 chunk 违规词，不再泄露触发违规的 chunk。
+  - evaluation 证据：使用最小 `core/chat.Model` 和普通 Query/Answer/Context 值，不依赖旧 Client/PromptTemplate 或 Document 富对象；Fact/Relevance、Composite、JSON-safe Result 和 scored reply parser 均已迁入，`core/evaluation` 与无生产消费者的通用 Logger 已删除。
+  - 验证：safeguard/evaluation coverage 90.4%/93.6%，两者 race 通过；workspace build/vet/test/lint 72/72 全绿。实现提交为 `9fabd460e`、`96c709324`、`f8b705dab`，旧 Core safeguard 删除于 `f0762ad73`。
 - [ ] **P3-06 迁移 tracing/metrics 到 `otel` wrapper**
-  - 按已采纳 ADR-006 执行：目标新包不 import OTel，`otel` 直接包装 handler；冻结旧 client tracing 随旧包在 P6 删除。
+  - 按已采纳 ADR-006/ADR-008 执行：目标新包不 import OTel，`otel` 直接包装 handler；不复制旧 client tracing 或增加兼容 adapter，迁移真实消费者后直接删除旧观测代码。
 - [ ] **P3-07 完成 Tool executor/schema/runtime helper 向 `tools` 的迁移**
   - 沿用 P1-06 已建立的 `tools.Tool`/`Registry` 和 `agent/toolloop.ToolResolver` 边界，不再建立第二套 registry。
   - 旧 Core 可执行 Tool 表面冻结，随剩余 provider/consumer 在 P6 删除。
@@ -663,7 +666,7 @@ flowchart LR
 - [ ] **P4-01 将 Document 收缩为纯数据**
   - 移除 Score、Formatter、EnsureID 行为。
   - 建立 `documentpipeline` module，承接 formatter、transformer、batcher 和 ID generator 实现；`rag`/`vectorstores` 在消费包声明窄 Formatter/Batcher 接口。
-  - 这是同路径纵向切片：允许阶段内短暂兼容字段，但 P4 退出前必须迁完全部消费者并删除旧行为。
+  - 这是同路径原子纵向切片：不增加兼容字段，P4-01 同一逻辑批次迁完全部消费者并删除旧行为。
 - [ ] **P4-02 增加 vectorstore.Match**
 - [ ] **P4-03 用 Indexer/Searcher/IDDeleter/FilterDeleter 替代胖 Store 要求**
 - [ ] **P4-04 简化 Add/Delete 单字段 request wrapper**
@@ -766,19 +769,19 @@ flowchart LR
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
 | P2 Chat Model SPI 收缩 | 完成 | 7/7 | 最小 SPI、纯组合、四 provider 与流行为契约全部完成 |
-| P3 高层运行时外移 | 进行中 | 4/9 | history contract、六 backend、兼容 codec 与 call/stream middleware 已迁出 Core |
+| P3 高层运行时外移 | 进行中 | 5/9 | history、safeguard、evaluation 已迁出 Core；通用 Logger 已删除 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **24/60** | **40%** |
+| **总计** | **进行中** | **25/60** | **42%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P3。
-- 下一任务：执行 P3-05，将 safeguard 迁入 `chatclient/middleware/safeguard`、fact/relevancy evaluation 迁入 `rag/evaluation`，并收口通用 Logger middleware。
+- 下一任务：执行 P3-06，按 ADR-006 将 tracing/metrics 迁入 `otel` wrapper，并清除目标新路径对 OTel API 的反向依赖。
 - 当前阻塞：无。
-- 最近完成：P3-04；`chathistory` 已承接新 Chat history contract、参考 store/window、六个持久化 backend、旧 wire 只读兼容和完整 call/stream middleware，四个新逻辑包 coverage 均超过 90%，race 与 workspace 72 项门禁全绿。
+- 最近完成：P3-05；fail-closed safeguard 与纯值 RAG evaluation 已迁出 Core，通用 request/response Logger 及旧 `core/evaluation` 已删除，目标包 coverage 90.4%/93.6%、race 与 workspace 72 项门禁全绿。
 
 ### 10.3 进度更新规则
 
@@ -875,7 +878,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 风险 | 概率 | 影响 | 缓解措施 | 状态 |
 |---|---|---|---|---|
-| 公共 API 爆炸式迁移导致 workspace 长期不可编译 | 高 | 高 | 按第 8.3 节分类：新路径限时并存，同路径按阶段完成纵向切片 | 监控中 |
+| 公共 API 爆炸式迁移导致 workspace 长期不可编译 | 高 | 高 | 按第 8.3 节拆成可验证的直接切换批次；不以兼容层换取暂时编译 | 监控中 |
 | Message tagged value 无法表达个别 provider 能力 | 中 | 高 | 四个差异 provider 已完成映射验证，并以生产 adapter 接入同一 conformance | 已验证（4/4） |
 | ChatClient 外移后用户体验下降 | 中 | 中 | 直接调用为主，保留常见 Text/Template/Structured Output 便利 API | 未验证 |
 | Tool 运行时拆分破坏 Agent pause/resume | 高 | 高 | P1 已建立并验证 Invocation/Event 原型，P3 再迁移现有 tool-loop | 原型已验证，迁移待执行 |
@@ -883,7 +886,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 | Core 标准库依赖目标过严 | 中 | 中 | 允许 ADR 例外，但必须证明 stdlib 不足和退出条件 | 监控中 |
 | Core/OTel 目标与现行治理文档互相冲突 | 高 | 高 | P0-05 已裁决 OTel 外移；P0-06 已同步根/core/otel CLAUDE、OBSERVABILITY 和本文 | 已解除 |
 | 只改目录不改职责，形成新名字的旧架构 | 中 | 高 | 每阶段以退出标准和 forbidden responsibilities 验收 | 监控中 |
-| 限时新旧包并存演变成长期双轨 | 高 | 高 | P0 登记旧 API/bridge；旧面冻结；同路径在所属阶段删除，新路径最迟 P6 删除 | 监控中 |
+| 新旧实现同时存在演变成长期双轨 | 高 | 高 | 禁止 bridge/dual-read；每批迁真实消费者，最后消费者迁移的同一提交删除旧实现 | 监控中 |
 | 进度文档失真 | 中 | 高 | 每个逻辑提交同步更新本文；review 必查进度和证据 | 监控中 |
 
 ---
@@ -919,7 +922,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 需要增加第二套 middleware/plugin/hook 机制。
 - 四个基准 provider 无法映射到目标 Chat 协议。
 - 破坏性变更超出 P0 消费清单记录的范围。
-- 同路径纵向切片无法在所属阶段删除临时兼容面，或新路径 bridge 无法在 P6 删除。
+- 直接切换无法在所属批次删除旧面，或必须新增 bridge/dual-read 才能继续。
 - 全 workspace 无法在合理拆分下保持可验证状态。
 
 阻塞记录必须包含：问题、证据、已尝试方案、可选决策、推荐方案和影响面，不能只写“待讨论”。
@@ -973,9 +976,16 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 ### ADR-007：按路径类型选择迁移模式
 
 - 日期：2026-07-13
-- 状态：已采纳
+- 状态：已被 ADR-008 取代
 - 决策：package path 变化时，目标新包与冻结旧包可在 P1–P5 并存并于 P6 删除；同 import path 的类型变更必须在所属阶段迁移全部消费者并删除临时兼容面。
 - 原因：新路径可以依靠 Go package 边界安全并存，同路径的同名类型无法同时表达两套契约；分类处理同时保证 workspace 可编译和删除截止点真实可执行。
+
+### ADR-008：迁移不保留兼容层或历史债务
+
+- 日期：2026-07-14
+- 状态：已采纳（维护者明确要求）
+- 决策：禁止 alias/bridge/shim、兼容字段、dual-read/dual-write 和旧 wire 解码；新旧路径只能因尚有真实消费者而短期同时存在，最后消费者迁移的同一批次直接删除旧实现；历史持久化数据由应用升级前做显式一次性迁移。
+- 原因：目标是一次彻底的 v0 架构切换，兼容分支会永久扩大测试矩阵、掩盖未迁消费者并把重构债务带入稳定 API。
 
 ---
 
@@ -997,7 +1007,9 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
-| 2026-07-14 | 完成 P3-04；以 context 会话作用域、消费方窄 Store、显式 Window decorator 和自然完成才提交的 stream middleware 替代 Core history framework，同时保留旧持久化 wire 只读兼容 | Codex |
+| 2026-07-14 | 采纳 ADR-008；后续迁移禁止 bridge、兼容字段和 dual-read，删除 P3-04 旧 history wire 解码及已无消费者的旧 Core safeguard | Codex |
+| 2026-07-14 | 完成 P3-05；新 safeguard 改为跨 chunk、yield 前 fail-closed 检查，RAG evaluation 改为最小 Model + 普通上下文值，并删除 Core Logger/evaluation framework | Codex |
+| 2026-07-14 | 完成 P3-04；以 context 会话作用域、消费方窄 Store、显式 Window decorator 和自然完成才提交的 stream middleware 替代 Core history framework，持久化只接受当前 wire | Codex |
 | 2026-07-14 | 完成 P3-03；保留 Spring AI 的渲染/格式说明/解码职责分离，改用不可变 Go Template、普通泛型 Output 值和包级 structured call，未移植 converter/builder 层次 | Codex |
 | 2026-07-14 | 完成 P3-02；以不可变 New + Call/Stream 直接调用面替代 Spring 风格嵌套 builder，固化请求所有权、默认值合并与真实 Streamer 边界 | Codex |
 | 2026-07-14 | 完成 P3-01；建立独立 chatclient module 与 stdlib + Core 自动依赖守卫；workspace 扩展为 18 个 module、72 项门禁 | Codex |
@@ -1030,7 +1042,8 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
-| 2026-07-14 | P3-04 | `f9b09b289` 建立新 Message history contract/内存参考实现/window/context scope，`c1f75109a` 迁移六 backend 并加入新写旧读 codec，`00270d8bf` 增加 immutable call/stream middleware 与 shared snapshot；coverage 90.3%/90.4%/95.1%/91.4%，chathistory race 与 workspace 72/72 全绿；任务计数 24/60，P3 4/9 | P3-05 safeguard/evaluation/Logger 收口 |
+| 2026-07-14 | P3-05 | `9fabd460e` 新增 fail-closed safeguard，`96c709324` 新增不依赖 Document/旧 Chat Client 的 fact/relevance/composite evaluation，`f8b705dab` 删除 Core Logger 与旧 evaluation，`f0762ad73` 删除旧 Core safeguard；coverage 90.4%/93.6%，目标 race 与 workspace 72/72 全绿；任务计数 25/60，P3 5/9 | P3-06 tracing/metrics 外移到 otel wrapper |
+| 2026-07-14 | P3-04 | `f9b09b289` 建立新 Message history contract/内存参考实现/window/context scope，`c1f75109a` 迁移六 backend/current codec，`00270d8bf` 增加 immutable call/stream middleware 与 shared snapshot，`f0762ad73` 删除旧 wire 解码；coverage 90.3%/90.4%/95.1%/91.4%，chathistory race 与 workspace 72/72 全绿；任务计数 24/60，P3 4/9 | P3-05 safeguard/evaluation/Logger 收口 |
 | 2026-07-14 | P3-03 | 新增只读 `Template`（missing-key/AST Require/system-user-media）、普通 `Output[T]`、stdlib JSON/调用方 schema/comma-separated decoder 及 `CallStructured[T]`；原 Request 无改写，解析/调用错误保留 Response；chatclient coverage 94.1%、race 及 workspace 72/72 全绿；任务计数 23/60，P3 3/9 | P3-04 history contract/middleware 迁移 |
 | 2026-07-14 | P3-02 | 新增不可变 `Client`、sealed constructor options、全量 Request 深拷贝与 Options 合并；Call/Stream 直接接收普通 Request，自动或显式使用真实 Streamer，无能力/非法输入/nil sequence 均单错终止；公开方法反射守卫、96.5% coverage、chatclient race 和 workspace 72/72 全绿；任务计数 22/60，P3 2/9 | P3-03 prompt/template/structured output |
 | 2026-07-14 | P3-01 | 新增独立 `chatclient` module并接入 `go.work`；生产文件自动扫描只允许 stdlib + Core，未提前发明占位 Client API；模块门禁及 workspace 72/72 全绿；任务计数 21/60，P3 1/9 | P3-02 直接调用优先的 Client API |
