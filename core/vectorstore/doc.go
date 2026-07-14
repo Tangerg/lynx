@@ -1,22 +1,16 @@
 // Package vectorstore is the unified abstraction layer over vector
 // databases (Pinecone, Weaviate, Milvus, Qdrant, Chroma, ...). Three
-// composable interfaces split the surface by responsibility:
+// independent interfaces split the surface by capability:
 //
-//   - [Creator] writes documents.
-//   - [Retriever] finds similar documents by query + metadata filter.
-//   - [Deleter] removes documents matching a metadata filter.
+//   - [Indexer] adds documents.
+//   - [Searcher] finds similar documents by query + metadata filter.
+//   - [IDDeleter] removes documents by identifier.
+//   - [FilterDeleter] removes documents matching a metadata filter.
 //
-// The full [Store] interface composes all three. Concrete provider
-// implementations live outside this package and satisfy one or more of
-// these interfaces.
-//
-// Request shapes:
-//
-//   - [CreateRequest], [RetrievalRequest], [DeleteRequest] — each has
-//     a Validate() method enforcing required fields.
-//   - Sentinel errors [ErrNilRequest], [ErrEmptyDocuments], and
-//     [ErrMissingFilter] let callers errors.Is the validation
-//     failures.
+// There is deliberately no aggregate Store interface: consumers depend only
+// on the capabilities they call, and providers implement only what they can
+// support. [SearchRequest] is a normal struct with explicit validation; Add
+// and delete methods accept their single logical input directly.
 //
 // Metadata filtering uses the filter mini-language: build expressions
 // programmatically with filter.NewExprBuilder or parse from text with
@@ -26,9 +20,10 @@
 // Quick start:
 //
 //	expr, _ := filter.ParseAndAnalyze(`category == "tech" AND year >= 2020`)
-//	req, _ := vectorstore.NewRetrievalRequest("attention")
-//	req.WithTopK(5).WithMinScore(0.7).WithFilter(expr)
-//	matches, err := store.Retrieve(ctx, req)
+//	req := vectorstore.SearchRequest{
+//		Query: "attention", TopK: 5, MinScore: 0.7, Filter: expr,
+//	}
+//	matches, err := searcher.Search(ctx, req)
 //
 // To bridge a vector store into a document writer for ingest
 // pipelines, see [NewDocumentWriter].

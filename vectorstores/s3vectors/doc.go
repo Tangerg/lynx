@@ -1,4 +1,4 @@
-// Package s3vectors wraps AWS S3 Vectors as a [vectorstore.Store].
+// Package s3vectors wraps AWS S3 Vectors as a the vectorstore capability interfaces.
 // S3 Vectors is a purpose-built, fully managed vector storage tier
 // that lives next to regular S3 buckets — vectors live in a *vector
 // bucket* under a typed *vector index*.

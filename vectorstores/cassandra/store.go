@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
@@ -153,8 +154,10 @@ func (c *StoreConfig) Validate() error {
 }
 
 var (
-	_ vectorstore.Store     = (*Store)(nil)
-	_ vectorstore.IDDeleter = (*Store)(nil)
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
 // ApplyDefaults fills zero fields with documented defaults.
@@ -173,7 +176,7 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-// Store is a Cassandra 5.0+ backed [vectorstore.Store] implementation.
+// Store is a Cassandra 5.0+ backed the vectorstore capability interfaces implementation.
 // It relies on the VECTOR column type and SAI indexes.
 type Store struct {
 	session         *gocql.Session
@@ -297,16 +300,16 @@ func firstLine(s string) string {
 }
 
 // Create embeds documents and inserts them.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("cassandra: invalid create request: %w", err)
+func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
 
-	ctx, span := tracing.StartCreate(ctx, "cassandra", len(req.Documents))
+	ctx, span := tracing.StartAdd(ctx, "cassandra", len(docs))
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
 	if err != nil {
 		return fmt.Errorf("cassandra: failed to batch documents: %w", err)
 	}
@@ -364,13 +367,13 @@ func (s *Store) insertOne(ctx context.Context, id string, doc *document.Document
 }
 
 // Retrieve runs an ANN query using the configured similarity function.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("cassandra: invalid retrieval request: %w", err)
+		return nil, fmt.Errorf("cassandra: invalid search request: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "cassandra", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+	ctx, span := tracing.StartSearch(ctx, "cassandra", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
 	vector, _, err = s.embeddingClient.
@@ -475,15 +478,18 @@ func (s *Store) scanDestToMatch(dest []any, minScore float64) (*vectorstore.Matc
 // equality clause; the SAI path supports it only via secondary
 // indexes. To stay portable, matching primary keys are looked up first,
 // then issue per-row DELETEs.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("cassandra: invalid delete request: %w", err)
+func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+	if expr == nil {
+		return vectorstore.ErrMissingFilter
+	}
+	if err = filter.Analyze(expr); err != nil {
+		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
 	ctx, span := tracing.StartDelete(ctx, "cassandra")
 	defer func() { tracing.Finish(span, err) }()
 
-	predicate, args, err := s.buildFilter(req.Filter)
+	predicate, args, err := s.buildFilter(expr)
 	if err != nil {
 		return err
 	}
@@ -516,12 +522,12 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
-// DeleteByIDs removes rows by primary key. Because the id column is the
+// DeleteIDs removes rows by primary key. Because the id column is the
 // partition key, CQL allows a single DELETE with an IN list over it:
 // `DELETE FROM <table> WHERE <idCol> IN (?, ?, ...)`. An empty slice is a
 // no-op; unknown ids are silently ignored (idempotent). Implements
 // [vectorstore.IDDeleter].
-func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -556,13 +562,6 @@ func (s *Store) buildFilter(filter ast.Expr) (string, []any, error) {
 	}
 	predicate, args := v.Result()
 	return predicate, args, nil
-}
-
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		NativeClient: s.session,
-		Provider:     Provider,
-	}
 }
 
 func (s *Store) Close() error { return nil }

@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
@@ -135,11 +136,13 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ vectorstore.Store     = (*Store)(nil)
-	_ vectorstore.IDDeleter = (*Store)(nil)
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is a MariaDB-backed [vectorstore.Store] implementation using
+// Store is a MariaDB-backed the vectorstore capability interfaces implementation using
 // the VECTOR column type and vec_distance_* functions introduced in
 // MariaDB 11.6+.
 type Store struct {
@@ -242,16 +245,16 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 }
 
 // Create embeds documents and upserts them into the vector table.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("mariadb: invalid create request: %w", err)
+func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
 
-	ctx, span := tracing.StartCreate(ctx, "mariadb", len(req.Documents))
+	ctx, span := tracing.StartAdd(ctx, "mariadb", len(docs))
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
 	if err != nil {
 		return fmt.Errorf("mariadb: failed to batch documents: %w", err)
 	}
@@ -306,13 +309,13 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 
 // Retrieve embeds the query, ranks rows by vec_distance, and returns
 // matching documents above MinScore.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("mariadb: invalid retrieval request: %w", err)
+		return nil, fmt.Errorf("mariadb: invalid search request: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "mariadb", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+	ctx, span := tracing.StartSearch(ctx, "mariadb", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
 	vector, _, err = s.embeddingClient.
@@ -389,9 +392,12 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes rows matching the filter expression.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("mariadb: invalid delete request: %w", err)
+func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+	if expr == nil {
+		return vectorstore.ErrMissingFilter
+	}
+	if err = filter.Analyze(expr); err != nil {
+		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
 	ctx, span := tracing.StartDelete(ctx, "mariadb")
@@ -401,7 +407,7 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		predicate string
 		args      []any
 	)
-	predicate, args, err = s.buildFilter(req.Filter)
+	predicate, args, err = s.buildFilter(expr)
 	if err != nil {
 		return err
 	}
@@ -416,12 +422,12 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
-// DeleteByIDs removes rows by primary key. MariaDB has no array type,
+// DeleteIDs removes rows by primary key. MariaDB has no array type,
 // so it emits one `?` placeholder per id —
 // `DELETE FROM <table> WHERE <id> IN (?, ?, ...)` — binding the ids as
 // query args. An empty slice is a no-op; unknown ids are silently
 // ignored (idempotent). Implements [vectorstore.IDDeleter].
-func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -453,13 +459,6 @@ func (s *Store) buildFilter(filter ast.Expr) (string, []any, error) {
 	}
 	predicate, args := v.Result()
 	return predicate, args, nil
-}
-
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		NativeClient: s.db,
-		Provider:     Provider,
-	}
 }
 
 func (s *Store) Close() error { return nil }

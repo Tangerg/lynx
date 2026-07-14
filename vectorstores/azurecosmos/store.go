@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
@@ -112,9 +113,13 @@ func (c *StoreConfig) ApplyDefaults() {
 	c.DistanceFunction = cmp.Or(c.DistanceFunction, DistanceCosine)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+)
 
-// Store is an Azure Cosmos DB NoSQL backed [vectorstore.Store]
+// Store is an Azure Cosmos DB NoSQL backed the vectorstore capability interfaces
 // implementation. The container is expected to be provisioned with a
 // vector embedding policy that matches [StoreConfig.DistanceFunction]
 // and the embedding model's dimensionality.
@@ -157,16 +162,16 @@ func NewStore(config StoreConfig) (*Store, error) {
 }
 
 // Create embeds documents and upserts them.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("azurecosmos: invalid create request: %w", err)
+func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
 
-	ctx, span := tracing.StartCreate(ctx, "azurecosmos", len(req.Documents))
+	ctx, span := tracing.StartAdd(ctx, "azurecosmos", len(docs))
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
 	if err != nil {
 		return fmt.Errorf("azurecosmos: failed to batch documents: %w", err)
 	}
@@ -208,13 +213,13 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs a VectorDistance-ordered query.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("azurecosmos: invalid retrieval request: %w", err)
+		return nil, fmt.Errorf("azurecosmos: invalid search request: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "azurecosmos", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+	ctx, span := tracing.StartSearch(ctx, "azurecosmos", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
 	vector, _, err = s.embeddingClient.
@@ -277,15 +282,18 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes documents matching the filter expression.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("azurecosmos: invalid delete request: %w", err)
+func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+	if expr == nil {
+		return vectorstore.ErrMissingFilter
+	}
+	if err = filter.Analyze(expr); err != nil {
+		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
 	ctx, span := tracing.StartDelete(ctx, "azurecosmos")
 	defer func() { tracing.Finish(span, err) }()
 
-	predicate, params, err := s.buildFilter(req.Filter)
+	predicate, params, err := s.buildFilter(expr)
 	if err != nil {
 		return err
 	}
@@ -390,13 +398,6 @@ func (s *Store) distanceToScore(distance float64) float64 {
 		default:
 			return score
 		}
-	}
-}
-
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		NativeClient: s.container,
-		Provider:     Provider,
 	}
 }
 

@@ -2,7 +2,7 @@ package inmemory
 
 import "errors"
 
-// Provider names the backend in [vectorstore.StoreMetadata].
+// Provider names the backend in [vectorstore capabilities].
 const Provider = "InMemory"
 
 // Sentinel errors used by [NewStore] / config validation.

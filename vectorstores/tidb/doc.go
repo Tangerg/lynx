@@ -1,5 +1,5 @@
 // Package tidb wraps TiDB's native VECTOR column type as a
-// [vectorstore.Store]. Documents live in a regular TiDB table
+// the vectorstore capability interfaces. Documents live in a regular TiDB table
 // (id / content / metadata JSON / embedding VECTOR) reached over
 // the MySQL wire protocol via `database/sql` +
 // go-sql-driver/mysql.

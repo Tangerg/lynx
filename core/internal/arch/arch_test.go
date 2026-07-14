@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/core/vectorstore"
 )
 
 func TestDocumentRemainsPureData(t *testing.T) {
@@ -39,6 +40,55 @@ func TestDocumentRemainsPureData(t *testing.T) {
 	for _, forbidden := range []string{"EnsureID", "Format", "FormatByMetadataMode", "FormatWith"} {
 		if _, ok := pointer.MethodByName(forbidden); ok {
 			t.Errorf("document.Document must not expose runtime method %s", forbidden)
+		}
+	}
+}
+
+func TestVectorStoreCapabilitiesRemainSmall(t *testing.T) {
+	want := map[reflect.Type]string{
+		reflect.TypeFor[vectorstore.Indexer]():       "Add",
+		reflect.TypeFor[vectorstore.Searcher]():      "Search",
+		reflect.TypeFor[vectorstore.IDDeleter]():     "DeleteIDs",
+		reflect.TypeFor[vectorstore.FilterDeleter](): "DeleteWhere",
+	}
+	for typ, method := range want {
+		if typ.NumMethod() != 1 || typ.Method(0).Name != method {
+			t.Errorf("%v methods changed: want only %s", typ, method)
+		}
+	}
+
+	root := filepath.Join(moduleRoot(t), "vectorstore")
+	forbidden := map[string]bool{
+		"Store": true, "StoreMetadata": true,
+		"Creator": true, "CreateRequest": true,
+		"Retriever": true, "RetrievalRequest": true,
+		"Deleter": true, "DeleteRequest": true,
+	}
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(root, entry.Name())
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, specification := range general.Specs {
+				name := specification.(*ast.TypeSpec).Name.Name
+				if forbidden[name] {
+					t.Errorf("core/vectorstore must not reintroduce %s", name)
+				}
+			}
 		}
 	}
 }

@@ -1,5 +1,5 @@
 // Package azurecosmos wraps Azure Cosmos DB for NoSQL's
-// VectorDistance() function as a [vectorstore.Store]. Documents are
+// VectorDistance() function as a the vectorstore capability interfaces. Documents are
 // regular Cosmos items (`{id, content, metadata, embedding}`) and
 // retrieval runs a parameterised SQL query that orders rows by
 // VectorDistance.

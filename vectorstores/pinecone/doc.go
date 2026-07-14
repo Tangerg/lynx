@@ -1,4 +1,4 @@
-// Package pinecone wraps Pinecone as a [vectorstore.Store].
+// Package pinecone wraps Pinecone as a the vectorstore capability interfaces.
 // Documents are stored as vectors in a Pinecone index
 // (`{id, values, metadata}`); retrieval runs the index's similarity
 // query.

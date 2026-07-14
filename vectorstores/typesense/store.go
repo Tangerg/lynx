@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
@@ -91,9 +92,13 @@ func (c *StoreConfig) ApplyDefaults() {
 	c.CollectionName = cmp.Or(c.CollectionName, DefaultCollectionName)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+)
 
-// Store is a Typesense backed [vectorstore.Store] implementation.
+// Store is a Typesense backed the vectorstore capability interfaces implementation.
 type Store struct {
 	client          *typesense.Client
 	collectionName  string
@@ -175,16 +180,16 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 }
 
 // Create embeds documents and imports them via the upsert action.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("typesense: invalid create request: %w", err)
+func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
 
-	ctx, span := tracing.StartCreate(ctx, "typesense", len(req.Documents))
+	ctx, span := tracing.StartAdd(ctx, "typesense", len(docs))
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
 	if err != nil {
 		return fmt.Errorf("typesense: failed to batch documents: %w", err)
 	}
@@ -227,13 +232,13 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs a vector search via the documents.Search API.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("typesense: invalid retrieval request: %w", err)
+		return nil, fmt.Errorf("typesense: invalid search request: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "typesense", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+	ctx, span := tracing.StartSearch(ctx, "typesense", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
 	vector, _, err = s.embeddingClient.
@@ -283,15 +288,18 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes documents matching the filter expression.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("typesense: invalid delete request: %w", err)
+func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+	if expr == nil {
+		return vectorstore.ErrMissingFilter
+	}
+	if err = filter.Analyze(expr); err != nil {
+		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
 	ctx, span := tracing.StartDelete(ctx, "typesense")
 	defer func() { tracing.Finish(span, err) }()
 
-	filterBy, err := s.buildFilter(req.Filter)
+	filterBy, err := s.buildFilter(expr)
 	if err != nil {
 		return err
 	}
@@ -378,13 +386,6 @@ func metaOrEmpty(m map[string]any) map[string]any {
 		return map[string]any{}
 	}
 	return m
-}
-
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		NativeClient: s.client,
-		Provider:     Provider,
-	}
 }
 
 func (s *Store) Close() error { return nil }

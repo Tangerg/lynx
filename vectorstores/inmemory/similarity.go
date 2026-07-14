@@ -5,7 +5,7 @@ import "math"
 // Similarity scores two equal-length vectors; higher means more
 // similar. Implementations must be deterministic and symmetric:
 // Similarity(a, b) == Similarity(b, a). The returned score is passed
-// straight through to [vectorstore.RetrievalRequest.MinScore]; callers
+// straight through to [vectorstore.SearchRequest.MinScore]; callers
 // should pick a threshold appropriate to the function they choose.
 type Similarity func(a, b []float64) float64
 
@@ -33,7 +33,7 @@ func CosineSimilarity(a, b []float64) float64 {
 // normalisation. Suitable when the embedding model already produces
 // unit-length vectors; cheaper than [CosineSimilarity]. Result is
 // **not** clipped to [0, 1] — callers using this with
-// [vectorstore.RetrievalRequest.MinScore] should set their threshold
+// [vectorstore.SearchRequest.MinScore] should set their threshold
 // accordingly.
 func DotProductSimilarity(a, b []float64) float64 {
 	if len(a) != len(b) {

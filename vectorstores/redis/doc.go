@@ -1,5 +1,5 @@
 // Package redis wraps Redis Stack's RediSearch module as a
-// [vectorstore.Store]. Documents are stored as Redis HASHes keyed at
+// the vectorstore capability interfaces. Documents are stored as Redis HASHes keyed at
 // `<KeyPrefix><id>`; an FT.CREATE-defined index registers the
 // vector field plus any pre-declared metadata fields.
 //

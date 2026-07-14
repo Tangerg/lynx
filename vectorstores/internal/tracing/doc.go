@@ -9,7 +9,7 @@
 //
 //	db.system                            — provider id ("qdrant", "pgvector", ...)
 //	db.operation.name                    — "create" / "retrieve" / "delete"
-//	db.vector.query.top_k                — RetrievalRequest.TopK
-//	db.vector.query.similarity_threshold — RetrievalRequest.MinScore
+//	db.vector.query.top_k                — SearchRequest.TopK
+//	db.vector.query.similarity_threshold — SearchRequest.MinScore
 //	rag.doc_count                        — result size (retrieve) or input size (create)
 package tracing

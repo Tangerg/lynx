@@ -1,4 +1,4 @@
-// Package chroma wraps Chroma as a [vectorstore.Store]. Documents
+// Package chroma wraps Chroma as a the vectorstore capability interfaces. Documents
 // are stored as records inside a Chroma collection
 // (`{id, document, embedding, metadata}`); retrieval runs the
 // collection's nearest-neighbor query.

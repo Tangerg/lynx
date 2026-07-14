@@ -1,5 +1,5 @@
 // Package mongodb wraps MongoDB Atlas Vector Search as a
-// [vectorstore.Store]. Documents are stored as ordinary BSON
+// the vectorstore capability interfaces. Documents are stored as ordinary BSON
 // documents (`{_id, content, metadata, embedding}`); retrieval runs
 // the `$vectorSearch` aggregation stage.
 //

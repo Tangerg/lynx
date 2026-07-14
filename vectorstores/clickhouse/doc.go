@@ -1,5 +1,5 @@
 // Package clickhouse wraps ClickHouse vector similarity search as a
-// [vectorstore.Store]. Documents live in a MergeTree table
+// the vectorstore capability interfaces. Documents live in a MergeTree table
 // (id / content / metadata Map(String,String) / embedding
 // Array(Float32)) reached through the official clickhouse-go v2
 // driver.

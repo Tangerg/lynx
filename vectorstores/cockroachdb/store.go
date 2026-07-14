@@ -28,7 +28,7 @@ const Provider = "CockroachDB"
 // behave exactly as documented on the pgvector counterpart.
 type StoreConfig = pgvector.StoreConfig
 
-// Store is a CockroachDB-backed [vectorstore.Store] implementation,
+// Store is a CockroachDB-backed the vectorstore capability interfaces implementation,
 // inheriting every method from [pgvector.Store].
 type Store = pgvector.Store
 

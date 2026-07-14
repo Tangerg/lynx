@@ -1,4 +1,4 @@
-// Package inmemory is an in-process [vectorstore.Store] backed by a
+// Package inmemory is an in-process the vectorstore capability interfaces backed by a
 // `map[string]record` plus a configurable similarity function. It is
 // intended for demos, unit tests, and corpora that fit in RAM.
 //

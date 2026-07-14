@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
@@ -143,11 +144,13 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 var (
-	_ vectorstore.Store     = (*Store)(nil)
-	_ vectorstore.IDDeleter = (*Store)(nil)
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is an Oracle 23ai-backed [vectorstore.Store] implementation.
+// Store is an Oracle 23ai-backed the vectorstore capability interfaces implementation.
 type Store struct {
 	db              *sql.DB
 	schemaName      string
@@ -244,16 +247,16 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 }
 
 // Create embeds documents and upserts them via MERGE.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("oracle: invalid create request: %w", err)
+func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
 
-	ctx, span := tracing.StartCreate(ctx, "oracle", len(req.Documents))
+	ctx, span := tracing.StartAdd(ctx, "oracle", len(docs))
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
 	if err != nil {
 		return fmt.Errorf("oracle: failed to batch documents: %w", err)
 	}
@@ -309,13 +312,13 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs VECTOR_DISTANCE against the embedding column.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("oracle: invalid retrieval request: %w", err)
+		return nil, fmt.Errorf("oracle: invalid search request: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "oracle", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+	ctx, span := tracing.StartSearch(ctx, "oracle", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
 	vector, _, err = s.embeddingClient.
@@ -395,9 +398,12 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes rows matching the filter expression.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("oracle: invalid delete request: %w", err)
+func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+	if expr == nil {
+		return vectorstore.ErrMissingFilter
+	}
+	if err = filter.Analyze(expr); err != nil {
+		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
 	ctx, span := tracing.StartDelete(ctx, "oracle")
@@ -407,7 +413,7 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		predicate string
 		args      []any
 	)
-	predicate, args, err = s.buildFilter(req.Filter, 1)
+	predicate, args, err = s.buildFilter(expr, 1)
 	if err != nil {
 		return err
 	}
@@ -422,11 +428,11 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
-// DeleteByIDs removes rows by primary key — `DELETE ... WHERE <id> IN
+// DeleteIDs removes rows by primary key — `DELETE ... WHERE <id> IN
 // (:1, :2, …)` with one positional bind per id. An empty slice is a
 // no-op; unknown ids are silently ignored (idempotent). Implements
 // [vectorstore.IDDeleter].
-func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -492,13 +498,6 @@ func renumberPlaceholders(fragment string, offset int) string {
 		i++
 	}
 	return b.String()
-}
-
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		NativeClient: s.db,
-		Provider:     Provider,
-	}
 }
 
 func (s *Store) Close() error { return nil }

@@ -18,7 +18,7 @@ const VectorStoreFilterKey = "lynx:ai:rag:retriever:filter_expr"
 
 type VectorStoreConfig struct {
 	// VectorStore performs the actual similarity search. Required.
-	VectorStore corevs.Retriever
+	VectorStore corevs.Searcher
 
 	// TopK caps the number of returned documents. Non-positive values
 	// fall back to [corevs.DefaultTopK].
@@ -57,7 +57,7 @@ func (c *VectorStoreConfig) applyDefaults() {
 var _ Retriever = (*vectorStoreRetriever)(nil)
 
 type vectorStoreRetriever struct {
-	vectorStore corevs.Retriever
+	vectorStore corevs.Searcher
 	topK        int
 	minScore    float64
 	filterFunc  func(ctx context.Context, params map[string]any) (ast.Expr, error)
@@ -86,19 +86,18 @@ func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Ca
 		return nil, ErrNilQuery
 	}
 
-	request, err := corevs.NewRetrievalRequest(query.Text)
-	if err != nil {
-		return nil, err
-	}
-
 	expr, err := v.resolveFilter(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	request.WithTopK(v.topK).WithMinScore(v.minScore).WithFilter(expr)
-
-	matches, err := v.vectorStore.Retrieve(ctx, request)
+	request := corevs.SearchRequest{
+		Query:    query.Text,
+		TopK:     v.topK,
+		MinScore: v.minScore,
+		Filter:   expr,
+	}
+	matches, err := v.vectorStore.Search(ctx, request)
 	if err != nil {
 		return nil, err
 	}

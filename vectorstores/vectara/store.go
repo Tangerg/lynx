@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
@@ -90,9 +91,13 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Indexer       = (*Store)(nil)
+	_ vectorstore.Searcher      = (*Store)(nil)
+	_ vectorstore.FilterDeleter = (*Store)(nil)
+)
 
-// Store is a Vectara-backed [vectorstore.Store] implementation. Note
+// Store is a Vectara-backed the vectorstore capability interfaces implementation. Note
 // that Vectara handles embedding internally; the user's text is sent
 // raw and Vectara generates its own vectors per its configured
 // embedder.
@@ -123,16 +128,16 @@ func NewStore(config StoreConfig) (*Store, error) {
 // Create uploads documents to the corpus via Vectara's index API. The
 // service performs its own embedding internally, so no embedding
 // client is required here.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("vectara: invalid create request: %w", err)
+func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) {
+	if len(docs) == 0 {
+		return vectorstore.ErrEmptyDocuments
 	}
 
-	ctx, span := tracing.StartCreate(ctx, "vectara", len(req.Documents))
+	ctx, span := tracing.StartAdd(ctx, "vectara", len(docs))
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, docs)
 	if err != nil {
 		return fmt.Errorf("vectara: failed to batch documents: %w", err)
 	}
@@ -167,13 +172,13 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 }
 
 // Retrieve runs a Vectara semantic search.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []vectorstore.Match, err error) {
+func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs []vectorstore.Match, err error) {
 	if err = req.Validate(); err != nil {
-		return nil, fmt.Errorf("vectara: invalid retrieval request: %w", err)
+		return nil, fmt.Errorf("vectara: invalid search request: %w", err)
 	}
 
-	ctx, span := tracing.StartRetrieve(ctx, "vectara", req.TopK, req.MinScore)
-	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+	ctx, span := tracing.StartSearch(ctx, "vectara", req.TopK, req.MinScore)
+	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	searchOpts := map[string]any{
 		"limit": req.TopK,
@@ -230,15 +235,18 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 // Delete removes documents matching the filter via Vectara's
 // document-level delete endpoint. Vectara has no bulk filter-delete,
 // so matching ids are enumerated first, then deleted one-by-one.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
-	if err = req.Validate(); err != nil {
-		return fmt.Errorf("vectara: invalid delete request: %w", err)
+func (s *Store) DeleteWhere(ctx context.Context, expr ast.Expr) (err error) {
+	if expr == nil {
+		return vectorstore.ErrMissingFilter
+	}
+	if err = filter.Analyze(expr); err != nil {
+		return fmt.Errorf("invalid delete filter: %w", err)
 	}
 
 	ctx, span := tracing.StartDelete(ctx, "vectara")
 	defer func() { tracing.Finish(span, err) }()
 
-	filterFragment, err := s.buildFilter(req.Filter)
+	filterFragment, err := s.buildFilter(expr)
 	if err != nil {
 		return err
 	}
@@ -327,13 +335,6 @@ func (s *Store) do(ctx context.Context, method, path string, body any) ([]byte, 
 		return nil, fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))
 	}
 	return respBody, nil
-}
-
-func (s *Store) Metadata() vectorstore.StoreMetadata {
-	return vectorstore.StoreMetadata{
-		NativeClient: s.httpClient,
-		Provider:     Provider,
-	}
 }
 
 func (s *Store) Close() error { return nil }
