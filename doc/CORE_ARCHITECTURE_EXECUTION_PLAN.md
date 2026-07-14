@@ -561,7 +561,10 @@ flowchart LR
   - 证据：新增 `Model`，唯一方法为 `Call(context.Context, *Request) (*Response, error)`；文档明确实现必须在 provider I/O 前验证 Request，stream/default configuration/provider identity 均不属于该接口。
   - 守卫：compile-time case 证明只实现 Call 的 provider 可满足 Model；反射测试锁定单方法及完整签名，防止接口重新变胖。
   - 验证：Core build/vet/test/lint 与 race 全绿。
-- [ ] **P2-02 将 Chat Streamer 拆为独立可选能力**
+- [x] **P2-02 将 Chat Streamer 拆为独立可选能力**（完成：2026-07-14）
+  - 证据：新增独立单方法 `Streamer`，签名为 `Stream(context.Context, *Request) iter.Seq2[*Response, error]`；不嵌入 Model，Model 也不嵌入 Streamer。
+  - 守卫：stream-only provider 编译满足 Streamer；反射测试锁定方法数量和完整签名，证明同步/流式能力可独立实现。
+  - 验证：Core build/vet/test/lint 与 race 全绿。
 - [ ] **P2-03 从 Chat Model SPI 移除 DefaultOptions/Metadata 强制方法**
 - [ ] **P2-04 让 `core/chat` 停止使用泛型 Model/StreamingModel 名义层次**
   - 只冻结旧 `core/model/chat` 包并登记 P6 删除；P2 不创建 embedding/image/audio/moderation 目标包。
@@ -716,20 +719,20 @@ flowchart LR
 |---|---|---:|---|
 | P0 基线与定档 | 完成 | 6/6 | 决策、基线、治理文档和架构守卫全部完成 |
 | P1 Media/Chat 协议分离 | 完成 | 7/7 | 协议、运行时边界、四 provider 映射与阶段门禁完成 |
-| P2 Chat Model SPI 收缩 | 进行中 | 1/7 | P2-01 完成；当前执行 P2-02 可选 Streamer |
+| P2 Chat Model SPI 收缩 | 进行中 | 2/7 | P2-02 完成；当前执行 P2-03 移除强制默认值/身份 |
 | P3 高层运行时外移 | 未开始 | 0/9 | 依赖 P2 |
 | P4 Document/VectorStore | 未开始 | 0/9 | 依赖 P2 |
 | P5 其余模态与依赖 | 未开始 | 0/7 | 依赖 P3/P4 |
 | P6 Workspace 切换 | 未开始 | 0/8 | 依赖 P5 |
 | P7 稳定与发布 | 未开始 | 0/7 | 依赖 P6 |
-| **总计** | **进行中** | **14/60** | **23%** |
+| **总计** | **进行中** | **15/60** | **25%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P2。
-- 下一任务：P2-02，将 Chat Streamer 拆为不嵌入 Model 的独立可选能力。
+- 下一任务：P2-03，从目标 Chat Model SPI 排除 DefaultOptions/Metadata 强制方法，并冻结旧接口待 P6 删除。
 - 当前阻塞：无。
-- 最近完成：P2-01；新 `core/chat.Model` 只有 Call，且由 compile-time/反射守卫锁死最小 SPI。
+- 最近完成：P2-02；独立单方法 Streamer 与 stream-only provider/反射形状守卫。
 
 ### 10.3 进度更新规则
 
@@ -948,6 +951,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-14 | 完成 P2-02；新增与 Model 平级、不互相嵌入的可选 Streamer 能力及形状守卫；进入 P2-03 | Codex |
 | 2026-07-14 | 完成 P2-01；新增仅含 Call 的 `core/chat.Model` 与公开形状守卫；进入 P2-02 | Codex |
 | 2026-07-14 | 完成 P1-07 与 P1 阶段验收；冻结 OpenAI/Anthropic/Google/Ollama 映射 fixture 和 loss policy，全 workspace、30 秒 fuzz 与阶段 race 全绿；进入 P2 | Codex |
 | 2026-07-14 | 完成 P1-06；建立根 tools Tool/Registry、消费方 ToolResolver、runtime-only Invocation 与 model/tool/pause/resume tagged Event；进入 P1-07 | Codex |
@@ -968,6 +972,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-14 | P2-02 | 新增独立单方法 Streamer；stream-only provider 编译满足接口，反射锁定 Stream 签名；Core build/vet/test/lint/race 全绿；任务计数 15/60 | P2-03 移除强制默认值/身份 |
 | 2026-07-14 | P2-01 | 新增单方法 `core/chat.Model`；call-only provider 编译满足接口，反射锁定 Call 签名；Core build/vet/test/lint/race 全绿；任务计数 14/60 | P2-02 独立 Streamer |
 | 2026-07-14 | P1-07、P1 验收 | 新增四 provider 映射文档、8 份 golden fixture 与 provider 特性断言；Models 门禁全绿；全 workspace 68/68，六个 fuzz 各 30 秒，Core/Agent/Tools race 全绿；任务计数 13/60，P1 7/7 | P2-01 单方法 Chat Model |
 | 2026-07-14 | P1-06 | 新增根 tools Tool/Registry 与 agent/toolloop ToolResolver/Invocation/Event；Registry 原子注册且无全局状态，Event 覆盖六类运行时边界；coverage 92.3%/77.4%；Tools/Agent build/vet/test/lint 与目标 race 全绿；任务计数 12/60 | P1-07 四 provider 映射验证 |
