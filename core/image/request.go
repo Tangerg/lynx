@@ -2,10 +2,10 @@ package image
 
 import (
 	"errors"
+	"fmt"
 	"maps"
-
-	"github.com/Tangerg/lynx/pkg/mime"
-	"github.com/Tangerg/lynx/pkg/ptr"
+	"mime"
+	"strings"
 )
 
 // ResponseFormat selects how a provider returns a generated image —
@@ -57,8 +57,9 @@ type Options struct {
 	// Seed pins the RNG so repeated calls produce the same image.
 	Seed *int64 `json:"seed,omitempty"`
 
-	// OutputFormat picks the MIME type of the rendered bytes.
-	OutputFormat *mime.MIME `json:"output_format,omitempty"`
+	// OutputFormat picks the image MIME type of the rendered bytes.
+	// Empty leaves the format to the provider.
+	OutputFormat string `json:"output_format,omitempty"`
 
 	// ResponseFormat picks URL vs inline base64.
 	ResponseFormat ResponseFormat `json:"response_format"`
@@ -103,12 +104,12 @@ func (o *Options) Clone() *Options {
 	return &Options{
 		Model:          o.Model,
 		NegativePrompt: o.NegativePrompt,
-		Width:          ptr.Clone(o.Width),
-		Height:         ptr.Clone(o.Height),
+		Width:          clonePointer(o.Width),
+		Height:         clonePointer(o.Height),
 		Style:          o.Style,
 		Quality:        o.Quality,
-		Seed:           ptr.Clone(o.Seed),
-		OutputFormat:   o.OutputFormat.Clone(),
+		Seed:           clonePointer(o.Seed),
+		OutputFormat:   o.OutputFormat,
 		ResponseFormat: o.ResponseFormat,
 		Extra:          maps.Clone(o.Extra),
 	}
@@ -129,7 +130,38 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		}
 		merged.applyOverride(override)
 	}
+	normalized, err := normalizeOutputFormat(merged.OutputFormat)
+	if err != nil {
+		return nil, err
+	}
+	merged.OutputFormat = normalized
 	return merged, nil
+}
+
+func normalizeOutputFormat(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	mediaType, parameters, err := mime.ParseMediaType(value)
+	if err != nil {
+		return "", fmt.Errorf("image.MergeOptions: invalid OutputFormat %q: %w", value, err)
+	}
+	mediaType = strings.ToLower(mediaType)
+	if !strings.HasPrefix(mediaType, "image/") || len(strings.TrimPrefix(mediaType, "image/")) == 0 {
+		return "", fmt.Errorf("image.MergeOptions: OutputFormat %q is not an image MIME type", value)
+	}
+	if len(parameters) != 0 {
+		return "", fmt.Errorf("image.MergeOptions: OutputFormat %q must not include parameters", value)
+	}
+	return mediaType, nil
+}
+
+func clonePointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	clone := *value
+	return &clone
 }
 
 func (o *Options) applyOverride(src *Options) {
@@ -154,7 +186,7 @@ func (o *Options) applyOverride(src *Options) {
 	if src.Seed != nil {
 		o.Seed = src.Seed
 	}
-	if src.OutputFormat != nil {
+	if src.OutputFormat != "" {
 		o.OutputFormat = src.OutputFormat
 	}
 	if src.ResponseFormat.Valid() {

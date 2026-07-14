@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
 var _ StructuredParser[any] = (*JSONParser[any])(nil)
@@ -54,7 +52,7 @@ JSON only - RFC8259 compliant
 Raw JSON object matching the schema above.`
 
 	var zero T
-	schema, _ := pkgjson.StringDefSchemaOf(zero)
+	schema, _ := stringSchemaOf(zero)
 	return fmt.Sprintf(tmpl, schema)
 }
 

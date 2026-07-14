@@ -4,8 +4,6 @@ import (
 	"iter"
 	"slices"
 	"strings"
-
-	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 // AssistantMessage is one model reply, carried as an ordered list of
@@ -156,7 +154,10 @@ func paramsFromAssistantInput[T string | []OutputPart | []*ToolCallPart | map[st
 	case []OutputPart:
 		out.Parts = typed
 	case []*ToolCallPart:
-		out.Parts = pkgSlices.Map(typed, func(tc *ToolCallPart) OutputPart { return tc })
+		out.Parts = make([]OutputPart, len(typed))
+		for index, toolCall := range typed {
+			out.Parts[index] = toolCall
+		}
 	case map[string]any:
 		out.Metadata = typed
 	case MessageParams:
@@ -169,10 +170,10 @@ func paramsFromAssistantInput[T string | []OutputPart | []*ToolCallPart | map[st
 // Text and Parts are passed via MessageParams and Parts ends with the
 // same string.
 func textAlreadyInParts(parts []OutputPart, text string) bool {
-	last, ok := pkgSlices.Last(parts)
-	if !ok {
+	if len(parts) == 0 {
 		return false
 	}
+	last := parts[len(parts)-1]
 	tp, isText := last.(*TextPart)
 	return isText && tp.Text == text
 }

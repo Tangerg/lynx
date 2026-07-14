@@ -86,9 +86,9 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (string, string, *genai
 	if mergedOpts.Seed != nil {
 		cfg.Seed = new(int32(*mergedOpts.Seed))
 	}
-	if mergedOpts.OutputFormat != nil {
+	if mergedOpts.OutputFormat != "" {
 		// Imagen accepts the full MIME type ("image/png" / "image/jpeg").
-		cfg.OutputMIMEType = mergedOpts.OutputFormat.TypeAndSubType()
+		cfg.OutputMIMEType = mergedOpts.OutputFormat
 	}
 
 	return mergedOpts.Model, req.Prompt, cfg, nil

@@ -4,8 +4,6 @@ import (
 	"errors"
 	"maps"
 	"slices"
-
-	"github.com/Tangerg/lynx/pkg/ptr"
 )
 
 // Options holds the per-request configuration LLM providers accept.
@@ -88,15 +86,23 @@ func (o *Options) Clone() *Options {
 
 	return &Options{
 		Model:            o.Model,
-		FrequencyPenalty: ptr.Clone(o.FrequencyPenalty),
-		MaxTokens:        ptr.Clone(o.MaxTokens),
-		PresencePenalty:  ptr.Clone(o.PresencePenalty),
+		FrequencyPenalty: clonePointer(o.FrequencyPenalty),
+		MaxTokens:        clonePointer(o.MaxTokens),
+		PresencePenalty:  clonePointer(o.PresencePenalty),
 		Stop:             slices.Clone(o.Stop),
-		Temperature:      ptr.Clone(o.Temperature),
-		TopK:             ptr.Clone(o.TopK),
-		TopP:             ptr.Clone(o.TopP),
+		Temperature:      clonePointer(o.Temperature),
+		TopK:             clonePointer(o.TopK),
+		TopP:             clonePointer(o.TopP),
 		Extra:            maps.Clone(o.Extra),
 	}
+}
+
+func clonePointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	clone := *value
+	return &clone
 }
 
 // MergeOptions clones base then applies each override left-to-right.

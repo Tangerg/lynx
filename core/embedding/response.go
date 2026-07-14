@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/core/model"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 // ModalityType labels the source content an embedding represents.
@@ -31,9 +30,9 @@ type ResultMetadata struct {
 	// ModalityType labels the source content type.
 	ModalityType ModalityType `json:"modality_type"`
 
-	// MimeType identifies the MIME type of the original content. nil
-	// when the modality is plain text or the provider did not surface it.
-	MimeType *mime.MIME `json:"mime_type,omitempty"`
+	// MIMEType identifies the MIME type of the original content. Empty
+	// means the provider did not surface it.
+	MIMEType string `json:"mime_type,omitempty"`
 
 	// Extra carries provider-specific metadata.
 	Extra map[string]any `json:"extra,omitzero"`

@@ -9,7 +9,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/internal/options"
-	"github.com/Tangerg/lynx/pkg/mime"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
@@ -102,7 +101,7 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 		resultMeta := &embedding.ResultMetadata{
 			Index:        int64(index),
 			ModalityType: embedding.Text,
-			MimeType:     mime.MustNew("text", "plain"),
+			MIMEType:     "text/plain",
 		}
 		if item.Statistics != nil {
 			resultMeta.Set("token_count", item.Statistics.TokenCount)

@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/options"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 type EmbeddingModelConfig struct {
@@ -108,7 +107,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse) (*em
 		resultMeta := &embedding.ResultMetadata{
 			Index:        int64(index),
 			ModalityType: embedding.Text,
-			MimeType:     mime.MustNew("text", "plain"),
+			MIMEType:     "text/plain",
 		}
 
 		result, err := embedding.NewResult(vec, resultMeta)

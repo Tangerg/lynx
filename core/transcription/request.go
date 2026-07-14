@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/pkg/ptr"
 )
 
 // Options holds per-request configuration for a transcription call.
@@ -83,11 +82,19 @@ func (o *Options) Clone() *Options {
 		Model:                o.Model,
 		Language:             o.Language,
 		Prompt:               o.Prompt,
-		Temperature:          ptr.Clone(o.Temperature),
+		Temperature:          clonePointer(o.Temperature),
 		ResponseFormat:       o.ResponseFormat,
 		TimestampGranularity: slices.Clone(o.TimestampGranularity),
 		Extra:                maps.Clone(o.Extra),
 	}
+}
+
+func clonePointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	clone := *value
+	return &clone
 }
 
 // MergeOptions clones base then applies each override left-to-right.

@@ -35,6 +35,24 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if !image.ResponseFormatURL.Valid() || image.ResponseFormat("garbage").Valid() {
 		t.Fatal("ResponseFormat.Valid is inconsistent")
 	}
+	base, err := image.NewOptions("image-model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base.OutputFormat = "IMAGE/PNG"
+	merged, err := image.MergeOptions(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if merged.OutputFormat != "image/png" {
+		t.Fatalf("normalized OutputFormat = %q, want image/png", merged.OutputFormat)
+	}
+	for _, invalid := range []string{"text/plain", "image", "image/png;charset=utf-8"} {
+		base.OutputFormat = invalid
+		if _, err := image.MergeOptions(base); err == nil {
+			t.Errorf("MergeOptions accepted invalid OutputFormat %q", invalid)
+		}
+	}
 }
 
 func TestResponseValidation(t *testing.T) {

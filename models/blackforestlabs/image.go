@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
@@ -87,8 +88,8 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if mergedOpts.Seed != nil {
 		apiReq.Seed = mergedOpts.Seed
 	}
-	if mergedOpts.OutputFormat != nil && apiReq.OutputFormat == "" {
-		apiReq.OutputFormat = mergedOpts.OutputFormat.SubType()
+	if mergedOpts.OutputFormat != "" && apiReq.OutputFormat == "" {
+		apiReq.OutputFormat = strings.TrimPrefix(mergedOpts.OutputFormat, "image/")
 	}
 
 	async, err := i.api.Generate(ctx, mergedOpts.Model, apiReq)

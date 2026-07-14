@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
@@ -93,8 +94,8 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*GenerateRequest, erro
 	if mergedOpts.Seed != nil {
 		apiReq.Seed = mergedOpts.Seed
 	}
-	if mergedOpts.OutputFormat != nil && apiReq.OutputFormat == "" {
-		apiReq.OutputFormat = mergedOpts.OutputFormat.SubType()
+	if mergedOpts.OutputFormat != "" && apiReq.OutputFormat == "" {
+		apiReq.OutputFormat = strings.TrimPrefix(mergedOpts.OutputFormat, "image/")
 	}
 
 	// Force JSON mode to get FinishReason / Seed echoed back.

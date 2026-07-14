@@ -2,10 +2,12 @@ package chat
 
 import (
 	"fmt"
+	"maps"
 	"slices"
+	"strings"
+	"text/template"
 
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/pkg/text"
 )
 
 // PromptTemplate is a fluent builder for chat messages whose text comes
@@ -21,38 +23,37 @@ import (
 //
 //	user, err := tmpl.CreateUserMessage()
 type PromptTemplate struct {
-	renderer *text.Renderer
-	media    []*media.Media
+	template  string
+	variables map[string]any
+	media     []*media.Media
 }
 
 // NewPromptTemplate returns a [PromptTemplate] seeded with template.
 // Pass "" to defer the template (set later via [PromptTemplate.WithTemplate]).
 // Use Go template syntax — variables look like `{{.name}}` by default.
-func NewPromptTemplate(template string) *PromptTemplate {
-	p := &PromptTemplate{
-		renderer: text.NewRenderer(),
-		media:    make([]*media.Media, 0),
+func NewPromptTemplate(source string) *PromptTemplate {
+	return &PromptTemplate{
+		template:  source,
+		variables: make(map[string]any),
+		media:     make([]*media.Media, 0),
 	}
-	if template != "" {
-		p.renderer.WithTemplate(template)
-	}
-	return p
 }
 
-func (p *PromptTemplate) WithTemplate(template string) *PromptTemplate {
-	p.renderer.WithTemplate(template)
+func (p *PromptTemplate) WithTemplate(source string) *PromptTemplate {
+	p.template = source
 	return p
 }
 
 func (p *PromptTemplate) WithVariable(name string, value any) *PromptTemplate {
-	p.renderer.WithVariable(name, value)
+	p.variables[name] = value
 	return p
 }
 
 // WithVariables sets variables in bulk; later keys overwrite earlier
 // ones for duplicates.
 func (p *PromptTemplate) WithVariables(variables map[string]any) *PromptTemplate {
-	p.renderer.WithVariables(variables)
+	clear(p.variables)
+	maps.Copy(p.variables, variables)
 	return p
 }
 
@@ -75,7 +76,16 @@ func (p *PromptTemplate) WithMedia(items ...*media.Media) *PromptTemplate {
 //
 //	tmpl.RequireVariables("user", "message") // checks for {{.user}} and {{.message}}
 func (p *PromptTemplate) RequireVariables(names ...string) error {
-	return p.renderer.RequireVariables(names...)
+	missing := make([]string, 0, len(names))
+	for _, name := range names {
+		if !strings.Contains(p.template, "{{."+name+"}}") {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) != 0 {
+		return fmt.Errorf("template missing required variables: %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 // Clone returns a deep copy. Renderer state and media list are
@@ -86,8 +96,9 @@ func (p *PromptTemplate) Clone() *PromptTemplate {
 		return nil
 	}
 	return &PromptTemplate{
-		renderer: p.renderer.Clone(),
-		media:    slices.Clone(p.media),
+		template:  p.template,
+		variables: maps.Clone(p.variables),
+		media:     slices.Clone(p.media),
 	}
 }
 
@@ -95,7 +106,7 @@ func (p *PromptTemplate) Clone() *PromptTemplate {
 // returns the resulting string. Errors are wrapped with the
 // "chat.PromptTemplate" prefix.
 func (p *PromptTemplate) Render() (string, error) {
-	content, err := p.renderer.Render()
+	content, err := p.render(p.variables)
 	if err != nil {
 		return "", fmt.Errorf("chat.PromptTemplate.Render: %w", err)
 	}
@@ -106,23 +117,35 @@ func (p *PromptTemplate) Render() (string, error) {
 // extended with the supplied map. The original template is not modified.
 // Per-call variables override existing values for duplicate keys.
 func (p *PromptTemplate) RenderWithVariables(variables map[string]any) (string, error) {
-	rc := p.renderer.Clone()
-	for key, val := range variables {
-		rc.WithVariable(key, val)
-	}
-
-	content, err := rc.Render()
+	merged := maps.Clone(p.variables)
+	maps.Copy(merged, variables)
+	content, err := p.render(merged)
 	if err != nil {
 		return "", fmt.Errorf("chat.PromptTemplate.RenderWithVariables: %w", err)
 	}
 	return content, nil
 }
 
+func (p *PromptTemplate) render(variables map[string]any) (string, error) {
+	if p.template == "" {
+		return "", nil
+	}
+	parsed, err := template.New("prompt").Parse(p.template)
+	if err != nil {
+		return "", err
+	}
+	var output strings.Builder
+	if err := parsed.Execute(&output, variables); err != nil {
+		return "", err
+	}
+	return output.String(), nil
+}
+
 // CreateSystemMessage renders the template and wraps the result in a
 // [SystemMessage]. Media is not attached — system messages do not carry
 // it.
 func (p *PromptTemplate) CreateSystemMessage() (*SystemMessage, error) {
-	content, err := p.renderer.Render()
+	content, err := p.render(p.variables)
 	if err != nil {
 		return nil, fmt.Errorf("chat.PromptTemplate.CreateSystemMessage: %w", err)
 	}
@@ -132,7 +155,7 @@ func (p *PromptTemplate) CreateSystemMessage() (*SystemMessage, error) {
 // CreateUserMessage renders the template and wraps the result in a
 // [UserMessage] together with all configured media.
 func (p *PromptTemplate) CreateUserMessage() (*UserMessage, error) {
-	content, err := p.renderer.Render()
+	content, err := p.render(p.variables)
 	if err != nil {
 		return nil, fmt.Errorf("chat.PromptTemplate.CreateUserMessage: %w", err)
 	}

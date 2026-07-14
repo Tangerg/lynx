@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/options"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 type EmbeddingModelConfig struct {
@@ -82,13 +81,13 @@ func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.R
 		return nil, errors.New("jina: embedding response has no data")
 	}
 
-	textPlain := mime.MustNew("text", "plain")
+	textPlain := "text/plain"
 	results := make([]*embedding.Result, 0, len(apiResp.Data))
 	for _, item := range apiResp.Data {
 		resultMeta := &embedding.ResultMetadata{
 			Index:        item.Index,
 			ModalityType: embedding.Text,
-			MimeType:     textPlain,
+			MIMEType:     textPlain,
 		}
 
 		result, err := embedding.NewResult(item.Embedding, resultMeta)
