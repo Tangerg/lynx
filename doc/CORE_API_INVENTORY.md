@@ -446,46 +446,46 @@ P4-08 证据：`c970a3343`。`vectorstores/internal/conformance` 对每个实现
 
 括号内是当前直接依赖的 Core 领域；它决定迁移批次，不表示 provider 必须实现所有能力。
 
-- [ ] `models/alibaba`（chat, embedding）
-- [ ] `models/anthropic`（chat, tokenizer）
-- [ ] `models/assemblyai`（transcription, media）
-- [ ] `models/azureopenai`（chat, embedding, image, transcription, speech, media）
-- [ ] `models/bedrock`（chat, embedding, media）
-- [ ] `models/blackforestlabs`（image）
-- [ ] `models/cohere`（chat, embedding）
-- [ ] `models/deepgram`（transcription, speech, media）
-- [ ] `models/deepseek`（chat）
-- [ ] `models/elevenlabs`（transcription, speech, media）
-- [ ] `models/fireworks`（chat）
-- [ ] `models/gladia`（transcription, media）
-- [ ] `models/google`（chat, embedding, image, transcription, speech, tokenizer, media）
-- [ ] `models/groq`（chat）
-- [ ] `models/huggingface`（chat）
-- [ ] `models/hume`（speech）
-- [ ] `models/jina`（chat, embedding）
-- [ ] `models/lmnt`（speech）
-- [ ] `models/luma`（image）
-- [ ] `models/midjourney`（image）
-- [ ] `models/minimax`（chat）
-- [ ] `models/mistral`（chat, embedding, moderation）
-- [ ] `models/moonshot`（chat）
-- [ ] `models/nomic`（chat, embedding）
-- [ ] `models/ollama`（chat, embedding, media）
-- [ ] `models/openai`（chat, embedding, image, moderation, transcription, speech, media）
-- [ ] `models/openrouter`（chat）
-- [ ] `models/perplexity`（chat）
-- [ ] `models/prodia`（image）
-- [ ] `models/replicate`（image, speech）
-- [ ] `models/revai`（transcription, media）
-- [ ] `models/stability`（image）
-- [ ] `models/together`（chat）
-- [ ] `models/vertexai`（chat, embedding, image, transcription, speech）
-- [ ] `models/voyage`（chat, embedding）
-- [ ] `models/xai`（chat）
-- [ ] `models/xiaomi`（chat）
-- [ ] `models/zhipu`（chat, embedding）
+- [x] `models/alibaba`（chat, embedding）
+- [x] `models/anthropic`（chat, tokenizer）
+- [x] `models/assemblyai`（transcription, media）
+- [x] `models/azureopenai`（chat, embedding, image, transcription, speech, media）
+- [x] `models/bedrock`（chat, embedding, media）
+- [x] `models/blackforestlabs`（image）
+- [x] `models/cohere`（embedding；基线误列 chat）
+- [x] `models/deepgram`（transcription, speech, media）
+- [x] `models/deepseek`（chat）
+- [x] `models/elevenlabs`（transcription, speech, media）
+- [x] `models/fireworks`（chat）
+- [x] `models/gladia`（transcription, media）
+- [x] `models/google`（chat, embedding, image, transcription, speech, tokenizer, media）
+- [x] `models/groq`（chat）
+- [x] `models/huggingface`（chat）
+- [x] `models/hume`（speech）
+- [x] `models/jina`（embedding；基线误列 chat）
+- [x] `models/lmnt`（speech）
+- [x] `models/luma`（image）
+- [x] `models/midjourney`（image）
+- [x] `models/minimax`（OpenAI/Anthropic chat）
+- [x] `models/mistral`（chat, embedding, moderation）
+- [x] `models/moonshot`（OpenAI/Anthropic chat）
+- [x] `models/nomic`（embedding；基线误列 chat）
+- [x] `models/ollama`（native/OpenAI chat, embedding, media）
+- [x] `models/openai`（Chat Completions/Responses chat, embedding, image, moderation, transcription, speech, media）
+- [x] `models/openrouter`（OpenAI/Anthropic chat）
+- [x] `models/perplexity`（chat）
+- [x] `models/prodia`（image）
+- [x] `models/replicate`（image, speech）
+- [x] `models/revai`（transcription, media）
+- [x] `models/stability`（image）
+- [x] `models/together`（chat）
+- [x] `models/vertexai`（chat, embedding, image, transcription, speech）
+- [x] `models/voyage`（embedding；基线误列 chat）
+- [x] `models/xai`（chat）
+- [x] `models/xiaomi`（OpenAI/Anthropic chat）
+- [x] `models/zhipu`（OpenAI/Anthropic chat, embedding）
 
-`models/catalog` 已在 P5-03 迁为公开 reference-data package；`models/internal` 是测试/共享实现，不计入 38 个 provider，但必须随 reference conformance harness 一起迁移。
+`models/catalog` 已在 P5-03 迁为公开 reference-data package；`models/internal` 是测试/共享实现，不计入 38 个 provider。P6-01 以 `models/internal/arch` 的 30 项目标 Chat 构造器矩阵补足清单门禁；四个 reference adapter 继续跑共享 Call/Stream conformance，Bedrock 与 OpenAI Responses 增加各自直接映射测试。冻结旧 provider 文件只为 P6-02～P6-04 尚未切换的消费者保留，P6-05 直接删除。
 
 ## 8. P6 Workspace 消费模块
 

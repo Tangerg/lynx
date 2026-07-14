@@ -56,6 +56,12 @@ P3-08 已建立只依赖新 `core/chat` 与 `tools.Tool` 的 `agent/toolloop.Run
 消费者，因此与新 Runner 分离冻结；它们不是 Runner adapter，最后消费者由 P6
 迁移时连同旧 `chat.NewTool` 一起删除。
 
+P6-01 已在 `d47445e52`、`14f80a8d4`、`ffc7736d2` 为全部真实 provider
+形态建立目标 Chat 实现：兼容 facade 直接构造 reference adapter，Bedrock Converse
+与 OpenAI Responses 直接映射 tagged protocol。旧 provider 实现不作为新实现的
+内部依赖，只因 P6-02～P6-04 的旧 consumer 尚未迁完而冻结存在；P6-05 必须连同
+旧 Core Chat 一次删除。
+
 ## P5 直接删除记录：Embedding framework 表面
 
 P5-01 在 `7cd3865c3` 中直接删除了 embedding 的 `ClientRequest`、`ClientCaller`、
