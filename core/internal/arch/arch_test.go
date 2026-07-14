@@ -13,10 +13,37 @@ import (
 
 func TestCoreDoesNotImportUpperLynxModules(t *testing.T) {
 	const lynxPrefix = "github.com/Tangerg/lynx/"
-	root := moduleRoot(t)
 	fset := token.NewFileSet()
 
 	violations := 0
+	for _, path := range productionGoFiles(t) {
+		f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatalf("parse imports in %s: %v", path, err)
+		}
+		for _, imp := range f.Imports {
+			ip := strings.Trim(imp.Path.Value, `"`)
+			rest, ok := strings.CutPrefix(ip, lynxPrefix)
+			if !ok {
+				continue
+			}
+			if strings.HasPrefix(rest, "core/") || rest == "core" || strings.HasPrefix(rest, "pkg/") || rest == "pkg" {
+				continue
+			}
+			violations++
+			rel, _ := filepath.Rel(moduleRoot(t), path)
+			t.Errorf("core must not import upper lynx module %q: %s", ip, rel)
+		}
+	}
+	if violations == 0 {
+		t.Log("core import boundary holds: only core/pkg lynx imports found")
+	}
+}
+
+func productionGoFiles(t *testing.T) []string {
+	t.Helper()
+	root := moduleRoot(t)
+	var files []string
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -31,32 +58,13 @@ func TestCoreDoesNotImportUpperLynxModules(t *testing.T) {
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-
-		f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
-		if err != nil {
-			return err
-		}
-		for _, imp := range f.Imports {
-			ip := strings.Trim(imp.Path.Value, `"`)
-			rest, ok := strings.CutPrefix(ip, lynxPrefix)
-			if !ok {
-				continue
-			}
-			if strings.HasPrefix(rest, "core/") || rest == "core" || strings.HasPrefix(rest, "pkg/") || rest == "pkg" {
-				continue
-			}
-			violations++
-			rel, _ := filepath.Rel(root, path)
-			t.Errorf("core must not import upper lynx module %q: %s", ip, rel)
-		}
+		files = append(files, path)
 		return nil
 	})
 	if walkErr != nil {
 		t.Fatalf("walk core: %v", walkErr)
 	}
-	if violations == 0 {
-		t.Log("core import boundary holds: only core/pkg lynx imports found")
-	}
+	return files
 }
 
 func moduleRoot(t *testing.T) string {

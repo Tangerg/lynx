@@ -8,24 +8,27 @@
 
 ```
 lynx/
-├── core/            抽象 + 协议（chat / embedding / image / audio / moderation / RAG / vectorstore 接口 / document pipeline / tokenizer）
+├── core/            稳定协议 + 最小 SPI（metadata / media / document / modalities / vectorstore）
 ├── pkg/             通用工具库（collections / encoding / sync / retry / ptr ...）
 ├── models/          LLM provider 适配器（anthropic / openai / google / 兼容端点）
 ├── vectorstores/    向量库适配器（qdrant / milvus / pinecone / weaviate / chroma ...）
 ├── tools/           Tool 实现
+├── chatclient/      高层 Chat 调用便利层（P3 建立）
+├── documentpipeline/文档 formatter / transformer / batcher / ID（P4 建立）
+├── tokenizer/       tokenizer SPI 与 tiktoken 实现（P5 建立）
 ├── mcp/             Model Context Protocol 桥接
 ├── a2a/             Agent-to-Agent 协议桥接
 ├── chathistory/      聊天历史后端
 ├── documentreaders/ 文档读取器（html / markdown / pdf）
 ├── skills/          Agent Skills 基础能力（只读 SKILL.md 仓）
-├── otel/            OpenTelemetry 开发导出器
+├── otel/            Core/运行时 OTel wrapper + 开发导出器
 ├── agent/           planner-driven agent 运行时（库：core 原语 + runtime 引擎 + planning 策略 + Extension SPI）
 └── app/
     ├── runtime/     Lyra Runtime 后端（消费 agent，JSON-RPC over HTTP+SSE）
     └── desktop/     Wails 桌面壳 + 前端（独立工作区）
 ```
 
-**依赖方向**：外层 → core → pkg。重依赖（OTel / MCP / provider SDK、vector DB driver）全部走外挂模块，core 保持最小。
+**目标依赖方向**：外层 → core → Go 标准库。OTel、sibling helper、MCP、provider SDK、vector DB driver 全部走外挂模块；迁移期例外与删除阶段记录在 [`CORE_BASELINE.md`](./CORE_BASELINE.md)。
 
 ---
 

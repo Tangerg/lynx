@@ -32,7 +32,7 @@
 
 ## 定位与导览
 
-`lynx` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施：`core` 定协议、`models` 适配 LLM provider、`vectorstores` 适配向量库、`tools` 提供工具集、`agent` 跑 planner 驱动的 runtime、`lyra` 是 in-house backend runtime；其余模块（`pkg` / `rag` / `chathistory` / `mcp` / `a2a` / `skills` / `documentreaders` / `otel`）各司一域。每个 sub-module 的形态、关键类型、模块特有反向不变量见其自己的 `CLAUDE.md`。所有模块共享下文这套法则。
+`lynx` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施：`core` 定稳定协议与最小 SPI，`models` 适配 LLM provider，`vectorstores` 适配向量库，`tools` 提供工具运行时，`agent` 跑 planner 驱动的 runtime，`app/runtime` 是 in-house backend runtime；`chatclient`、`documentpipeline`、`tokenizer` 按 Core 演进计划从协议层拆出，其余模块（`pkg` / `rag` / `chathistory` / `mcp` / `a2a` / `skills` / `documentreaders` / `otel`）各司一域。每个 sub-module 的形态、关键类型、模块特有反向不变量见其自己的 `CLAUDE.md`。所有模块共享下文这套法则。
 
 ---
 
@@ -44,11 +44,12 @@
 - **错误**：`errors.New` 优先于 `fmt.Errorf("常量")`；`fmt.Errorf` 只在真要格式化时用，包装错误一律 `%w`（才能 `errors.Is/As`）。
 - **没有 Java 味**：禁空白后缀类型名（`Impl` / `Service` / `Manager` / `Helper` / `Handler`）、禁泛文件名（`impl.go` 等）、禁 `GetX/SetX` getter、禁 builder 链。文件名描述内容、struct 名描述本质。
 - **现代 Go**：类型化 atomic / `sync.Map`（write-rare）优先于自家 wrapper；`slices.*` / `maps.*` 替手写 loop；`iter.Seq2` 替 channel 流。
-- **可观测性 = OTel 三驾马车，sink 到 `log/slog`（vendor-neutral）**：观测 = Traces（span）+ Metrics（instrument）+ Logs，用全局 `otel.Tracer` / `otel.Meter`、零 DI，组合根在启动时一次性绑定 exporter + W3C propagator。规约：
-  - **不在业务代码里撒 `slog`** —— 一个事件该被观测，就开 span（带 attr）/ 记 metric，而非加一行日志行；错误走 `span.RecordError` + `SetStatus`。库和应用一视同仁。
+- **可观测性 = OTel 三驾马车，sink 到 `log/slog`（vendor-neutral）**：观测 = Traces（span）+ Metrics（instrument）+ Logs。应用、integration 和独立 `otel` module 直接使用官方 OTel API，不自造 tracer/meter 抽象；**Core 不 import OTel**，由 `otel` wrapper/decorator 在协议调用边界添加埋点。组合根在启动时一次性绑定 exporter + W3C propagator。规约：
+  - **不在业务代码里撒 `slog`** —— 一个事件该被观测，就在拥有运行时语义的上层开 span（带 attr）/ 记 metric，而非加一行日志；错误走 `span.RecordError` + `SetStatus`。Core 只传播 `context.Context`，不拥有观测策略。
   - **Logs 仍是一等 OTel 信号**（slog 经 bridge 进 LoggerProvider）—— 意义是**可替换性**（生产换 OTLP exporter 即把 span/metric/log 全导云端、业务零改），不是邀请到处写日志。
   - **attr key 去品牌**：semconv 优先，否则裸 domain 名，无项目前缀（instrumentation scope 名保留库路径 —— 那是库标识不是数据）。
   - **全链路**：trace_id 在入口生成，脱钩的后台 goroutine 用 `context.WithoutCancel` 保住 span（不是 `context.Background()`）。
+  - **依赖边界**：官方 OTel API 本身就是 vendor-neutral 层；“外挂”指改变 import 方向，不是再造 `core/observation`。`otel` 可以 import Core，Core 不能反向 import `otel` 或官方 OTel。
   - 细节见 [`doc/OBSERVABILITY.md`](doc/OBSERVABILITY.md) + [`otel/CLAUDE.md`](otel/CLAUDE.md)。
 - **设计原则**（高内聚低耦合 / SOLID / DRY / KISS / YAGNI）见下「设计原则」段 —— 是判断标准，不是口号。
 - **公开 API 可调、但不可擅自调**：dev 阶段不写 legacy 兼容 / 不写 migration、schema·exported type·签名变了直接换、注释不留"Legacy …"；**但任何破坏性公开 API 改动（含改一个签名 / 删一个类型 / 改一个字段）必须先咨询用户**，列清 scope + 影响面 + 备选方案，等确认再动。适用所有 sub-module。
