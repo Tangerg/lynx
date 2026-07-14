@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // translationDefaultTemplate asks the LLM to translate the query into
@@ -32,7 +33,7 @@ type TranslationTransformerConfig struct {
 	// PromptTemplate is the LLM prompt. Defaults to
 	// [translationDefaultTemplate]. Custom templates must declare
 	// {{.Target}} and {{.Query}}.
-	PromptTemplate *chat.PromptTemplate
+	PromptTemplate *chatclient.Template
 }
 
 func (c *TranslationTransformerConfig) validate() error {
@@ -43,34 +44,41 @@ func (c *TranslationTransformerConfig) validate() error {
 		return errors.New("rag.TranslationTransformerConfig: TargetLanguage is required")
 	}
 	if c.PromptTemplate != nil {
-		return c.PromptTemplate.RequireVariables("Target", "Query")
+		return c.PromptTemplate.Require("Target", "Query")
 	}
 	return nil
 }
 
-func (c *TranslationTransformerConfig) applyDefaults() {
+func (c *TranslationTransformerConfig) applyDefaults() error {
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate(translationDefaultTemplate)
+		var err error
+		c.PromptTemplate, err = chatclient.ParseTemplate(translationDefaultTemplate)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 var _ Transformer = (*translationTransformer)(nil)
 
 type translationTransformer struct {
-	chatClient     *chat.Client
+	chatClient     *chatclient.Client
 	targetLanguage string
-	promptTemplate *chat.PromptTemplate
+	promptTemplate *chatclient.Template
 }
 
 // NewTranslationTransformer returns a [Transformer] that translates queries
 // into the target language expected by downstream retrieval.
 func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, error) {
-	cfg.applyDefaults()
+	if err := cfg.applyDefaults(); err != nil {
+		return nil, err
+	}
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
-	client, err := chat.NewClient(cfg.ChatModel)
+	client, err := chatclient.New(cfg.ChatModel)
 	if err != nil {
 		return nil, err
 	}
@@ -90,14 +98,10 @@ func (t *translationTransformer) Transform(ctx context.Context, query *Query) (*
 		return nil, ErrNilQuery
 	}
 
-	translated, _, err := t.chatClient.
-		ChatWithPromptTemplate(
-			t.promptTemplate.Clone().
-				WithVariable("Target", t.targetLanguage).
-				WithVariable("Query", query.Text),
-		).
-		Call().
-		Text(ctx)
+	translated, err := callTemplate(ctx, t.chatClient, t.promptTemplate, map[string]any{
+		"Target": t.targetLanguage,
+		"Query":  query.Text,
+	})
 	if err != nil {
 		return nil, err
 	}

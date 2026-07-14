@@ -6,13 +6,13 @@ import (
 	"iter"
 	"slices"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
-// DocumentContextKey is the [chat.ResponseMetadata] key under which the
+// DocumentContextKey is the [chat.Response.Extensions] key under which the
 // middleware stashes retrieved documents so downstream callers can re-render or
 // audit the context the LLM saw.
-const DocumentContextKey = "lynx:ai:rag:document_context"
+const DocumentContextKey = "rag/document_context"
 
 type MiddlewareConfig struct {
 	// Retriever fetches documents for the latest user message. Required.
@@ -30,7 +30,7 @@ type middleware struct {
 
 // NewMiddleware builds call and stream middleware that retrieve documents before a chat
 // request, augment the last user message, and attach retrieved documents to
-// response metadata under [DocumentContextKey].
+// response extensions under [DocumentContextKey].
 func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if config.Retriever == nil {
 		return nil, nil, ErrNilRetriever
@@ -44,12 +44,23 @@ func NewMiddleware(config MiddlewareConfig) (chat.CallMiddleware, chat.StreamMid
 }
 
 func (m *middleware) run(ctx context.Context, req *chat.Request) (*Query, []Candidate, error) {
-	query, err := NewQuery(req.UserMessage().Text)
+	userText := ""
+	for index := len(req.Messages) - 1; index >= 0; index-- {
+		if req.Messages[index].Role == chat.RoleUser {
+			userText = req.Messages[index].Text()
+			break
+		}
+	}
+	query, err := NewQuery(userText)
 	if err != nil {
 		return nil, nil, fmt.Errorf("rag.NewMiddleware: build query: %w", err)
 	}
 
-	for key, value := range req.Params {
+	values, err := req.Extensions.Values()
+	if err != nil {
+		return nil, nil, fmt.Errorf("rag.NewMiddleware: decode request extensions: %w", err)
+	}
+	for key, value := range values {
 		query.Set(key, value)
 	}
 	query.Set(ChatHistoryKey, req.Messages)
@@ -66,8 +77,8 @@ func (m *middleware) run(ctx context.Context, req *chat.Request) (*Query, []Cand
 }
 
 // executeCall is the synchronous flow: retrieve → augment → call next → attach
-// docs to response metadata.
-func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
+// docs to response extensions.
+func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.Model) (*chat.Response, error) {
 	augmented, docs, err := m.run(ctx, req)
 	if err != nil {
 		return nil, err
@@ -79,13 +90,15 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 	if err != nil {
 		return nil, err
 	}
-	resp.Metadata.Set(DocumentContextKey, docs)
+	if err := resp.SetExtension(DocumentContextKey, docs); err != nil {
+		return nil, err
+	}
 	return resp, nil
 }
 
 // executeStream is the streaming flow: retrieve once before the stream begins,
-// swap the user message, then forward chunks while attaching docs to metadata.
-func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
+// swap the user message, then forward chunks while attaching docs to extensions.
+func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.Streamer) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
 		augmented, docs, err := m.run(ctx, req)
 		if err != nil {
@@ -100,7 +113,10 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 				yield(resp, err)
 				return
 			}
-			resp.Metadata.Set(DocumentContextKey, docs)
+			if err := resp.SetExtension(DocumentContextKey, docs); err != nil {
+				yield(nil, err)
+				return
+			}
 			if !yield(resp, nil) {
 				return
 			}
@@ -108,19 +124,13 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 	}
 }
 
-// withAugmentedUserText returns a request whose last user message
-// carries text instead of the original. It REPLACES the message in a
-// fresh copy of the slice rather than mutating the existing
-// *chat.UserMessage in place: that message pointer is shared with the
-// caller's [chat.ClientRequest] (buildRequest only clones the slice,
-// not its elements), so an in-place edit would corrupt the caller's
-// stored messages and make a re-consumed stream augment its own
-// already-augmented output. Media / Metadata on the original message
-// are preserved.
+// withAugmentedUserText returns a shallow request copy with a fresh message
+// slice and a replacement for the final user message. The caller's protocol
+// values remain unchanged, while user media and message metadata are retained.
 func withAugmentedUserText(req *chat.Request, text string) *chat.Request {
 	idx := -1
 	for i := len(req.Messages) - 1; i >= 0; i-- {
-		if _, ok := req.Messages[i].(*chat.UserMessage); ok {
+		if req.Messages[i].Role == chat.RoleUser {
 			idx = i
 			break
 		}
@@ -131,23 +141,32 @@ func withAugmentedUserText(req *chat.Request, text string) *chat.Request {
 
 	out := *req
 	out.Messages = slices.Clone(req.Messages)
-	orig := req.Messages[idx].(*chat.UserMessage)
-	out.Messages[idx] = &chat.UserMessage{
-		Text:     text,
-		Media:    orig.Media,
-		Metadata: orig.Metadata,
+	original := req.Messages[idx]
+	parts := make([]chat.Part, 0, 1+len(original.Parts))
+	if text != "" {
+		parts = append(parts, chat.NewTextPart(text))
+	}
+	for index := range original.Parts {
+		if original.Parts[index].Kind == chat.PartMedia {
+			parts = append(parts, original.Parts[index])
+		}
+	}
+	out.Messages[idx] = chat.Message{
+		Role:     chat.RoleUser,
+		Parts:    parts,
+		Metadata: original.Metadata.Clone(),
 	}
 	return &out
 }
 
-func (m *middleware) wrapCallHandler(next chat.CallHandler) chat.CallHandler {
-	return chat.CallHandlerFunc(func(ctx context.Context, req *chat.Request) (*chat.Response, error) {
+func (m *middleware) wrapCallHandler(next chat.Model) chat.Model {
+	return chat.ModelFunc(func(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 		return m.executeCall(ctx, req, next)
 	})
 }
 
-func (m *middleware) wrapStreamHandler(next chat.StreamHandler) chat.StreamHandler {
-	return chat.StreamHandlerFunc(func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+func (m *middleware) wrapStreamHandler(next chat.Streamer) chat.Streamer {
+	return chat.StreamerFunc(func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 		return m.executeStream(ctx, req, next)
 	})
 }

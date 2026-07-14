@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // Formatter is the narrow rendering policy required by contextual RAG.
@@ -49,12 +49,12 @@ type ContextualAugmenterConfig struct {
 	// PromptTemplate is the augmentation template. Defaults to
 	// [contextualDefaultTemplate]. Custom templates must declare
 	// {{.Context}} and {{.Query}}.
-	PromptTemplate *chat.PromptTemplate
+	PromptTemplate *chatclient.Template
 
 	// EmptyContextPromptTemplate is the response template used when no
 	// documents are retrieved AND AllowEmptyContext is false. Defaults
 	// to [contextualEmptyContextTemplate].
-	EmptyContextPromptTemplate *chat.PromptTemplate
+	EmptyContextPromptTemplate *chatclient.Template
 
 	// AllowEmptyContext, when true, returns the user's query unchanged
 	// if no documents were retrieved instead of synthesizing the
@@ -65,12 +65,19 @@ type ContextualAugmenterConfig struct {
 	Formatter Formatter
 }
 
-func (c *ContextualAugmenterConfig) applyDefaults() {
+func (c *ContextualAugmenterConfig) applyDefaults() error {
+	var err error
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate(contextualDefaultTemplate)
+		c.PromptTemplate, err = chatclient.ParseTemplate(contextualDefaultTemplate)
+		if err != nil {
+			return err
+		}
 	}
 	if c.EmptyContextPromptTemplate == nil {
-		c.EmptyContextPromptTemplate = chat.NewPromptTemplate(contextualEmptyContextTemplate)
+		c.EmptyContextPromptTemplate, err = chatclient.ParseTemplate(contextualEmptyContextTemplate)
+		if err != nil {
+			return err
+		}
 	}
 	if c.Formatter == nil {
 		c.Formatter = FormatterFunc(func(doc *document.Document) (string, error) {
@@ -80,20 +87,21 @@ func (c *ContextualAugmenterConfig) applyDefaults() {
 			return doc.Text, nil
 		})
 	}
+	return nil
 }
 
 func (c *ContextualAugmenterConfig) validate() error {
 	if c.PromptTemplate == nil {
 		return nil
 	}
-	return c.PromptTemplate.RequireVariables("Context", "Query")
+	return c.PromptTemplate.Require("Context", "Query")
 }
 
 var _ Augmenter = (*contextualAugmenter)(nil)
 
 type contextualAugmenter struct {
-	promptTemplate             *chat.PromptTemplate
-	emptyContextPromptTemplate *chat.PromptTemplate
+	promptTemplate             *chatclient.Template
+	emptyContextPromptTemplate *chatclient.Template
 	allowEmptyContext          bool
 	formatter                  Formatter
 }
@@ -101,7 +109,9 @@ type contextualAugmenter struct {
 // NewContextualAugmenter returns an [Augmenter] that folds retrieved
 // documents into the query text as a context block.
 func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
-	cfg.applyDefaults()
+	if err := cfg.applyDefaults(); err != nil {
+		return nil, err
+	}
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -138,10 +148,10 @@ func (c *contextualAugmenter) Augment(ctx context.Context, query *Query, documen
 		contextTexts = append(contextTexts, formatted)
 	}
 
-	rendered, err := c.promptTemplate.Clone().
-		WithVariable("Context", strings.Join(contextTexts, "\n\n---\n\n")).
-		WithVariable("Query", query.Text).
-		Render()
+	rendered, err := c.promptTemplate.Render(map[string]any{
+		"Context": strings.Join(contextTexts, "\n\n---\n\n"),
+		"Query":   query.Text,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +166,7 @@ func (c *contextualAugmenter) handleEmptyContext(query *Query) (*Query, error) {
 		return query, nil
 	}
 
-	rendered, err := c.emptyContextPromptTemplate.Render()
+	rendered, err := c.emptyContextPromptTemplate.Render(nil)
 	if err != nil {
 		return nil, err
 	}

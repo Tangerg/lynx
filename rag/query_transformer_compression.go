@@ -3,9 +3,9 @@ package rag
 import (
 	"context"
 	"errors"
-	"strings"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // compressionDefaultTemplate asks the LLM to fold a chat history plus a
@@ -31,7 +31,7 @@ type CompressionTransformerConfig struct {
 	// PromptTemplate is the LLM prompt. Defaults to
 	// [compressionDefaultTemplate]. Custom templates must declare
 	// {{.History}} and {{.Query}}.
-	PromptTemplate *chat.PromptTemplate
+	PromptTemplate *chatclient.Template
 }
 
 func (c *CompressionTransformerConfig) validate() error {
@@ -39,34 +39,41 @@ func (c *CompressionTransformerConfig) validate() error {
 		return errors.New("rag.CompressionTransformerConfig: ChatModel is required")
 	}
 	if c.PromptTemplate != nil {
-		return c.PromptTemplate.RequireVariables("History", "Query")
+		return c.PromptTemplate.Require("History", "Query")
 	}
 	return nil
 }
 
-func (c *CompressionTransformerConfig) applyDefaults() {
+func (c *CompressionTransformerConfig) applyDefaults() error {
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate(compressionDefaultTemplate)
+		var err error
+		c.PromptTemplate, err = chatclient.ParseTemplate(compressionDefaultTemplate)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 var _ Transformer = (*compressionTransformer)(nil)
 
 type compressionTransformer struct {
-	chatClient     *chat.Client
-	promptTemplate *chat.PromptTemplate
+	chatClient     *chatclient.Client
+	promptTemplate *chatclient.Template
 }
 
 // NewCompressionTransformer returns a [Transformer] that collapses chat history
 // plus a follow-up question into a single self-contained query. It reads chat
 // history from [Query.Extra] under [ChatHistoryKey].
 func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, error) {
-	cfg.applyDefaults()
+	if err := cfg.applyDefaults(); err != nil {
+		return nil, err
+	}
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
-	client, err := chat.NewClient(cfg.ChatModel)
+	client, err := chatclient.New(cfg.ChatModel)
 	if err != nil {
 		return nil, err
 	}
@@ -87,14 +94,10 @@ func (c *compressionTransformer) Transform(ctx context.Context, query *Query) (*
 
 	history := c.extractHistory(query)
 
-	compressed, _, err := c.chatClient.
-		ChatWithPromptTemplate(
-			c.promptTemplate.Clone().
-				WithVariable("History", history).
-				WithVariable("Query", query.Text),
-		).
-		Call().
-		Text(ctx)
+	compressed, err := callTemplate(ctx, c.chatClient, c.promptTemplate, map[string]any{
+		"History": history,
+		"Query":   query.Text,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -115,5 +118,5 @@ func (c *compressionTransformer) extractHistory(query *Query) string {
 	if !ok {
 		return ""
 	}
-	return strings.Join(chat.MessageList(messages).Strings(), "\n\n")
+	return formatChatHistory(messages)
 }

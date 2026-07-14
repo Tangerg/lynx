@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // rewriteDefaultTemplate asks the LLM to rewrite the query to be
@@ -35,7 +36,7 @@ type RewriteTransformerConfig struct {
 	// PromptTemplate is the LLM prompt. Defaults to
 	// [rewriteDefaultTemplate]. Custom templates must declare
 	// {{.Target}} and {{.Query}}.
-	PromptTemplate *chat.PromptTemplate
+	PromptTemplate *chatclient.Template
 }
 
 func (c *RewriteTransformerConfig) validate() error {
@@ -43,37 +44,44 @@ func (c *RewriteTransformerConfig) validate() error {
 		return errors.New("rag.RewriteTransformerConfig: ChatModel is required")
 	}
 	if c.PromptTemplate != nil {
-		return c.PromptTemplate.RequireVariables("Target", "Query")
+		return c.PromptTemplate.Require("Target", "Query")
 	}
 	return nil
 }
 
-func (c *RewriteTransformerConfig) applyDefaults() {
+func (c *RewriteTransformerConfig) applyDefaults() error {
 	if c.TargetSearchSystem == "" {
 		c.TargetSearchSystem = defaultRewriteTarget
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate(rewriteDefaultTemplate)
+		var err error
+		c.PromptTemplate, err = chatclient.ParseTemplate(rewriteDefaultTemplate)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 var _ Transformer = (*rewriteTransformer)(nil)
 
 type rewriteTransformer struct {
-	chatClient         *chat.Client
+	chatClient         *chatclient.Client
 	targetSearchSystem string
-	promptTemplate     *chat.PromptTemplate
+	promptTemplate     *chatclient.Template
 }
 
 // NewRewriteTransformer returns a [Transformer] that tightens a verbose or
 // ambiguous user query for a configured search target.
 func NewRewriteTransformer(cfg RewriteTransformerConfig) (Transformer, error) {
-	cfg.applyDefaults()
+	if err := cfg.applyDefaults(); err != nil {
+		return nil, err
+	}
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
-	client, err := chat.NewClient(cfg.ChatModel)
+	client, err := chatclient.New(cfg.ChatModel)
 	if err != nil {
 		return nil, err
 	}
@@ -93,14 +101,10 @@ func (r *rewriteTransformer) Transform(ctx context.Context, query *Query) (*Quer
 		return nil, ErrNilQuery
 	}
 
-	rewritten, _, err := r.chatClient.
-		ChatWithPromptTemplate(
-			r.promptTemplate.Clone().
-				WithVariable("Target", r.targetSearchSystem).
-				WithVariable("Query", query.Text),
-		).
-		Call().
-		Text(ctx)
+	rewritten, err := callTemplate(ctx, r.chatClient, r.promptTemplate, map[string]any{
+		"Target": r.targetSearchSystem,
+		"Query":  query.Text,
+	})
 	if err != nil {
 		return nil, err
 	}
