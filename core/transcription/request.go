@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/Tangerg/lynx/core/internal/ptr"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -73,18 +74,11 @@ func (o *Options) Clone() *Options {
 		Model:                o.Model,
 		Language:             o.Language,
 		Prompt:               o.Prompt,
-		Temperature:          clonePointer(o.Temperature),
+		Temperature:          ptr.Clone(o.Temperature),
 		ResponseFormat:       o.ResponseFormat,
 		TimestampGranularity: slices.Clone(o.TimestampGranularity),
 		Extra:                o.Extra.Clone(),
 	}
-}
-
-func clonePointer[T any](value *T) *T {
-	if value == nil {
-		return nil
-	}
-	return new(*value)
 }
 
 // MergeOptions clones base then applies each override left-to-right.
@@ -116,7 +110,7 @@ func (o *Options) applyOverride(src *Options) {
 		o.Prompt = src.Prompt
 	}
 	if src.Temperature != nil {
-		o.Temperature = clonePointer(src.Temperature)
+		o.Temperature = ptr.Clone(src.Temperature)
 	}
 	if src.ResponseFormat != "" {
 		o.ResponseFormat = src.ResponseFormat

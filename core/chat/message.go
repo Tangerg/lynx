@@ -112,15 +112,17 @@ func (m Message) Validate() error {
 		if err := part.Validate(); err != nil {
 			return fmt.Errorf("%w: parts[%d]: %w", ErrInvalidMessage, i, err)
 		}
-		if !roleAllowsPart(m.Role, part.Kind) {
+		if !m.Role.allowsPart(part.Kind) {
 			return fmt.Errorf("%w: role %q does not allow part kind %q", ErrInvalidMessage, m.Role, part.Kind)
 		}
 	}
 	return nil
 }
 
-func roleAllowsPart(role Role, kind PartKind) bool {
-	switch role {
+// allowsPart reports whether a message with role r may carry a part of the
+// given kind.
+func (r Role) allowsPart(kind PartKind) bool {
+	switch r {
 	case RoleSystem:
 		return kind == PartText
 	case RoleUser:
