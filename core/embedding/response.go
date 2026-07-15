@@ -122,8 +122,8 @@ func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, erro
 	return &Response{Results: results, Metadata: metadata}, nil
 }
 
-// Result returns the first generation alternative — the common
-// "give me the embedding" shortcut. Returns nil when Results is empty.
+// Result returns the first embedding — the common single-input shortcut.
+// Returns nil when Results is empty.
 func (r *Response) Result() *Result {
 	if r == nil || len(r.Results) == 0 {
 		return nil

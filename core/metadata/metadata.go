@@ -83,6 +83,31 @@ func (m *Map) Set(key string, value any) error {
 	return nil
 }
 
+// Merge copies every entry from source into m. Source values overwrite entries
+// with the same key and are deep-copied so later mutations cannot cross the
+// metadata boundary. The operation validates both maps before mutating m.
+func (m *Map) Merge(source Map) error {
+	if m == nil {
+		return ErrNilMap
+	}
+	if err := (*m).Validate(); err != nil {
+		return fmt.Errorf("metadata: merge target: %w", err)
+	}
+	if err := source.Validate(); err != nil {
+		return fmt.Errorf("metadata: merge source: %w", err)
+	}
+	if len(source) == 0 {
+		return nil
+	}
+	if *m == nil {
+		*m = make(Map, len(source))
+	}
+	for key, value := range source {
+		(*m)[key] = append(json.RawMessage(nil), value...)
+	}
+	return nil
+}
+
 // Decode decodes the value stored under key into T. The boolean reports
 // whether key was present.
 func Decode[T any](m Map, key string) (T, bool, error) {

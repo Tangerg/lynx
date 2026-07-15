@@ -3,7 +3,6 @@ package image
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"mime"
 	"strings"
 
@@ -120,7 +119,9 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		if override == nil {
 			continue
 		}
-		merged.applyOverride(override)
+		if err := merged.applyOverride(override); err != nil {
+			return nil, fmt.Errorf("image.MergeOptions: %w", err)
+		}
 	}
 	normalized, err := normalizeOutputFormat(merged.OutputFormat)
 	if err != nil {
@@ -148,7 +149,7 @@ func normalizeOutputFormat(value string) (string, error) {
 	return mediaType, nil
 }
 
-func (o *Options) applyOverride(src *Options) {
+func (o *Options) applyOverride(src *Options) error {
 	if src.NegativePrompt != "" {
 		o.NegativePrompt = src.NegativePrompt
 	}
@@ -177,11 +178,11 @@ func (o *Options) applyOverride(src *Options) {
 		o.ResponseFormat = src.ResponseFormat
 	}
 	if len(src.Extra) > 0 {
-		if o.Extra == nil {
-			o.Extra = metadata.New()
+		if err := o.Extra.Merge(src.Extra); err != nil {
+			return fmt.Errorf("merge Extra: %w", err)
 		}
-		maps.Copy(o.Extra, src.Extra.Clone())
 	}
+	return nil
 }
 
 func (o *Options) validate() error {

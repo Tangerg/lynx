@@ -76,6 +76,85 @@ func TestSetRejectsInvalidInputs(t *testing.T) {
 	})
 }
 
+func TestMerge(t *testing.T) {
+	source := metadata.Map{
+		"shared": json.RawMessage(`{"from":"source"}`),
+		"added":  json.RawMessage(`true`),
+	}
+
+	var zero metadata.Map
+	if err := zero.Merge(source); err != nil {
+		t.Fatalf("Merge into zero value: %v", err)
+	}
+	if len(zero) != len(source) {
+		t.Fatalf("zero-value Merge length = %d, want %d", len(zero), len(source))
+	}
+
+	var empty metadata.Map
+	if err := empty.Merge(nil); err != nil {
+		t.Fatalf("Merge nil source: %v", err)
+	}
+	if empty != nil {
+		t.Fatalf("Merge nil source initialized target: %#v", empty)
+	}
+
+	var target metadata.Map
+	if err := target.Set("shared", map[string]string{"from": "target"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := target.Merge(source); err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	if got := string(target["shared"]); got != `{"from":"source"}` {
+		t.Fatalf("shared = %s", got)
+	}
+	if got := string(target["added"]); got != `true` {
+		t.Fatalf("added = %s", got)
+	}
+
+	source["shared"][0] = '['
+	if got := string(target["shared"]); got != `{"from":"source"}` {
+		t.Fatalf("Merge aliased source: %s", got)
+	}
+}
+
+func TestMergeRejectsInvalidMapsAtomically(t *testing.T) {
+	tests := []struct {
+		name   string
+		target metadata.Map
+		source metadata.Map
+	}{
+		{
+			name:   "invalid target",
+			target: metadata.Map{"existing": json.RawMessage(`{`)},
+			source: metadata.Map{"added": json.RawMessage(`true`)},
+		},
+		{
+			name:   "invalid source",
+			target: metadata.Map{"existing": json.RawMessage(`true`)},
+			source: metadata.Map{"added": json.RawMessage(`{`)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := tt.target.Clone()
+			if err := tt.target.Merge(tt.source); !errors.Is(err, metadata.ErrInvalidValue) {
+				t.Fatalf("Merge error = %v, want ErrInvalidValue", err)
+			}
+			if !reflect.DeepEqual(tt.target, before) {
+				t.Fatalf("failed Merge mutated target: got %#v, want %#v", tt.target, before)
+			}
+		})
+	}
+
+	var target *metadata.Map
+	if err := target.Merge(nil); !errors.Is(err, metadata.ErrNilMap) {
+		t.Fatalf("Merge on nil *Map = %v, want ErrNilMap", err)
+	}
+}
+
 func TestDecodeMissingAndTypeMismatch(t *testing.T) {
 	if got, ok, err := metadata.Decode[string](nil, "missing"); err != nil || ok || got != "" {
 		t.Fatalf("missing Decode = (%q, %v, %v)", got, ok, err)

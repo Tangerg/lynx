@@ -3,7 +3,6 @@ package speech
 import (
 	"errors"
 	"fmt"
-	"maps"
 
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -30,7 +29,7 @@ type Options struct {
 // when model is empty.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
-		return nil, errors.New("tts.NewOptions: model id must not be empty")
+		return nil, errors.New("speech.NewOptions: model id must not be empty")
 	}
 	return &Options{Model: model}, nil
 }
@@ -75,7 +74,7 @@ func (o *Options) Clone() *Options {
 // Returns an error when base is nil.
 func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 	if base == nil {
-		return nil, errors.New("tts.MergeOptions: base options must not be nil")
+		return nil, errors.New("speech.MergeOptions: base options must not be nil")
 	}
 
 	merged := base.Clone()
@@ -96,10 +95,9 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 			merged.Speed = override.Speed
 		}
 		if len(override.Extra) > 0 {
-			if merged.Extra == nil {
-				merged.Extra = metadata.New()
+			if err := merged.Extra.Merge(override.Extra); err != nil {
+				return nil, fmt.Errorf("speech.MergeOptions: merge Extra: %w", err)
 			}
-			maps.Copy(merged.Extra, override.Extra.Clone())
 		}
 	}
 	return merged, nil

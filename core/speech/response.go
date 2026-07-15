@@ -36,10 +36,10 @@ type Result struct {
 // or metadata is nil.
 func NewResult(speech []byte, metadata *ResultMetadata) (*Result, error) {
 	if len(speech) == 0 {
-		return nil, errors.New("tts.NewResult: speech must not be empty")
+		return nil, errors.New("speech.NewResult: speech must not be empty")
 	}
 	if metadata == nil {
-		return nil, errors.New("tts.NewResult: metadata must not be nil")
+		return nil, errors.New("speech.NewResult: metadata must not be nil")
 	}
 	return &Result{Speech: speech, Metadata: metadata}, nil
 }
@@ -78,10 +78,10 @@ type Response struct {
 // NewResponse builds a [Response] from a non-nil result and metadata.
 func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
 	if result == nil {
-		return nil, errors.New("tts.NewResponse: result must not be nil")
+		return nil, errors.New("speech.NewResponse: result must not be nil")
 	}
 	if metadata == nil {
-		return nil, errors.New("tts.NewResponse: metadata must not be nil")
+		return nil, errors.New("speech.NewResponse: metadata must not be nil")
 	}
 	return &Response{Result: result, Metadata: metadata}, nil
 }
