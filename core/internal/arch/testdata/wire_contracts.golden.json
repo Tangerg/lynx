@@ -1,0 +1,535 @@
+{
+  "chat_request": {
+    "messages": [
+      {
+        "role": "system",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "Answer precisely."
+          }
+        ]
+      },
+      {
+        "role": "user",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "Describe the media."
+          },
+          {
+            "kind": "media",
+            "media": {
+              "mime": "image/png",
+              "source": {
+                "kind": "bytes",
+                "bytes": "bHlueA=="
+              },
+              "id": "media-1",
+              "name": "lynx.png",
+              "metadata": {
+                "count": 2,
+                "label": "fixture",
+                "nested": {
+                  "enabled": true
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "parts": [
+          {
+            "kind": "reasoning",
+            "text": "Inspect it.",
+            "signature": "c2lnbmF0dXJl"
+          },
+          {
+            "kind": "tool_call",
+            "tool_call": {
+              "id": "call-1",
+              "name": "inspect",
+              "arguments": "{\"detail\":\"high\"}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "parts": [
+          {
+            "kind": "tool_result",
+            "tool_result": {
+              "id": "call-1",
+              "name": "inspect",
+              "result": "failed",
+              "is_error": true
+            }
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "name": "inspect",
+        "description": "Inspect media",
+        "input_schema": {
+          "type": "object"
+        }
+      }
+    ],
+    "options": {
+      "model": "chat-model",
+      "frequency_penalty": 0.1,
+      "max_tokens": 512,
+      "presence_penalty": 0.2,
+      "stop": [
+        "END"
+      ],
+      "temperature": 0.3,
+      "top_k": 40,
+      "top_p": 0.9
+    },
+    "extensions": {
+      "provider/request": {
+        "mode": "strict"
+      }
+    }
+  },
+  "chat_response": {
+    "id": "response-1",
+    "model": "chat-model",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "A lynx."
+            }
+          ]
+        },
+        "finish_reason": "stop",
+        "extensions": {
+          "provider/logprob": -0.25
+        }
+      }
+    ],
+    "usage": {
+      "input_tokens": 10,
+      "output_tokens": 5,
+      "reasoning_tokens": 2,
+      "cache_read_input_tokens": 3,
+      "cache_write_input_tokens": 4
+    },
+    "extensions": {
+      "provider/response": "fixture"
+    }
+  },
+  "document": {
+    "id": "doc-1",
+    "text": "A lynx document.",
+    "media": {
+      "mime": "image/png",
+      "source": {
+        "kind": "bytes",
+        "bytes": "bHlueA=="
+      },
+      "id": "media-1",
+      "name": "lynx.png",
+      "metadata": {
+        "count": 2,
+        "label": "fixture",
+        "nested": {
+          "enabled": true
+        }
+      }
+    },
+    "metadata": {
+      "count": 2,
+      "label": "fixture",
+      "nested": {
+        "enabled": true
+      }
+    }
+  },
+  "embedding_request": {
+    "texts": [
+      "lynx",
+      "wild cat"
+    ],
+    "options": {
+      "model": "embedding-model",
+      "encoding_format": "float",
+      "dimensions": 3,
+      "extra": {
+        "user": "u-1"
+      }
+    },
+    "params": {
+      "trace_id": "trace-1"
+    }
+  },
+  "embedding_response": {
+    "results": [
+      {
+        "embedding": [
+          0.1,
+          0.2,
+          0.3
+        ],
+        "metadata": {
+          "index": 0,
+          "modality_type": "text",
+          "mime_type": "text/plain",
+          "extra": {
+            "source": "fixture"
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "model": "embedding-model",
+      "usage": {
+        "prompt_tokens": 100,
+        "completion_tokens": 20,
+        "reasoning_tokens": 5,
+        "cache_read_input_tokens": 10,
+        "cache_write_input_tokens": 15,
+        "original_usage": {
+          "provider_total": 120
+        }
+      },
+      "rate_limit": {
+        "requests_limit": 100,
+        "requests_remaining": 99,
+        "requests_reset": 30000000000,
+        "tokens_limit": 10000,
+        "tokens_remaining": 9880,
+        "tokens_reset": 60000000000
+      },
+      "created": 1700000000,
+      "extra": {
+        "region": "local"
+      }
+    }
+  },
+  "image_request": {
+    "prompt": "A lynx in snow",
+    "options": {
+      "model": "image-model",
+      "negative_prompt": "text",
+      "width": 1024,
+      "height": 768,
+      "style": "natural",
+      "quality": "high",
+      "seed": 42,
+      "output_format": "image/png",
+      "response_format": "b64json",
+      "extra": {
+        "background": "transparent"
+      }
+    },
+    "params": {
+      "trace_id": "trace-2"
+    }
+  },
+  "image_response": {
+    "result": {
+      "image": {
+        "url": "https://example.com/generated.png",
+        "b64_json": "bHlueA=="
+      },
+      "metadata": {
+        "extra": {
+          "revised_prompt": "A detailed lynx"
+        }
+      }
+    },
+    "metadata": {
+      "created": 1700000001,
+      "extra": {
+        "model": "image-model"
+      }
+    }
+  },
+  "media": [
+    {
+      "mime": "image/png",
+      "source": {
+        "kind": "bytes",
+        "bytes": "bHlueA=="
+      },
+      "id": "media-1",
+      "name": "lynx.png",
+      "metadata": {
+        "count": 2,
+        "label": "fixture",
+        "nested": {
+          "enabled": true
+        }
+      }
+    },
+    {
+      "mime": "audio/mpeg",
+      "source": {
+        "kind": "uri",
+        "uri": "https://example.com/lynx.mp3"
+      }
+    },
+    {
+      "mime": "video/mp4",
+      "source": {
+        "kind": "reference",
+        "ref": "provider-file-1"
+      }
+    }
+  ],
+  "metadata": {
+    "count": 2,
+    "label": "fixture",
+    "nested": {
+      "enabled": true
+    }
+  },
+  "model_rate_limit": {
+    "requests_limit": 100,
+    "requests_remaining": 99,
+    "requests_reset": 30000000000,
+    "tokens_limit": 10000,
+    "tokens_remaining": 9880,
+    "tokens_reset": 60000000000
+  },
+  "model_usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 20,
+    "reasoning_tokens": 5,
+    "cache_read_input_tokens": 10,
+    "cache_write_input_tokens": 15,
+    "original_usage": {
+      "provider_total": 120
+    }
+  },
+  "moderation_request": {
+    "texts": [
+      "safe text",
+      "unsafe text"
+    ],
+    "options": {
+      "model": "moderation-model",
+      "extra": {
+        "policy": "strict"
+      }
+    },
+    "params": {
+      "trace_id": "trace-3"
+    }
+  },
+  "moderation_response": {
+    "results": [
+      {
+        "categories": {
+          "sexual": {
+            "flagged": true,
+            "score": 0.01
+          },
+          "hate": {
+            "flagged": true,
+            "score": 0.02
+          },
+          "harassment": {
+            "flagged": true,
+            "score": 0.03
+          },
+          "self_harm": {
+            "flagged": true,
+            "score": 0.04
+          },
+          "sexual_minors": {
+            "flagged": true,
+            "score": 0.05
+          },
+          "hate_threatening": {
+            "flagged": true,
+            "score": 0.06
+          },
+          "violence_graphic": {
+            "flagged": true,
+            "score": 0.07
+          },
+          "self_harm_intent": {
+            "flagged": true,
+            "score": 0.08
+          },
+          "self_harm_instructions": {
+            "flagged": true,
+            "score": 0.09
+          },
+          "harassment_threatening": {
+            "flagged": true,
+            "score": 0.1
+          },
+          "violence": {
+            "flagged": true,
+            "score": 0.11
+          },
+          "dangerous_and_criminal_content": {
+            "flagged": true,
+            "score": 0.12
+          },
+          "health": {
+            "flagged": true,
+            "score": 0.13
+          },
+          "financial": {
+            "flagged": true,
+            "score": 0.14
+          },
+          "law": {
+            "flagged": true,
+            "score": 0.15
+          },
+          "pii": {
+            "flagged": true,
+            "score": 0.16
+          },
+          "illicit": {
+            "flagged": true,
+            "score": 0.17
+          },
+          "illicit_violent": {
+            "flagged": true,
+            "score": 0.18
+          }
+        },
+        "metadata": {
+          "extra": {
+            "input_index": 1
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "id": "moderation-1",
+      "model": "moderation-model",
+      "created": 1700000002,
+      "extra": {
+        "region": "local"
+      }
+    }
+  },
+  "speech_request": {
+    "text": "Hello from Lynx.",
+    "options": {
+      "model": "speech-model",
+      "voice": "alloy",
+      "response_format": "mp3",
+      "speed": 1.25,
+      "extra": {
+        "style": "calm"
+      }
+    },
+    "params": {
+      "trace_id": "trace-4"
+    }
+  },
+  "speech_response": {
+    "result": {
+      "speech": "YXVkaW8=",
+      "metadata": {
+        "extra": {
+          "duration_ms": 250
+        }
+      }
+    },
+    "metadata": {
+      "model": "speech-model",
+      "created": 1700000003,
+      "extra": {
+        "format": "mp3"
+      }
+    }
+  },
+  "transcription_request": {
+    "audio": {
+      "mime": "audio/mpeg",
+      "source": {
+        "kind": "uri",
+        "uri": "https://example.com/lynx.mp3"
+      }
+    },
+    "options": {
+      "model": "transcription-model",
+      "language": "en",
+      "prompt": "Lynx vocabulary",
+      "temperature": 0.1,
+      "response_format": "verbose_json",
+      "timestamp_granularity": [
+        "word",
+        "segment"
+      ],
+      "extra": {
+        "diarize": true
+      }
+    },
+    "params": {
+      "trace_id": "trace-5"
+    }
+  },
+  "transcription_response": {
+    "result": {
+      "text": "A lynx.",
+      "metadata": {
+        "extra": {
+          "duration": 1.5
+        }
+      }
+    },
+    "metadata": {
+      "model": "transcription-model",
+      "created": 1700000004,
+      "extra": {
+        "language": "en"
+      }
+    }
+  },
+  "vectorstore_match": {
+    "document": {
+      "id": "doc-1",
+      "text": "A lynx document.",
+      "media": {
+        "mime": "image/png",
+        "source": {
+          "kind": "bytes",
+          "bytes": "bHlueA=="
+        },
+        "id": "media-1",
+        "name": "lynx.png",
+        "metadata": {
+          "count": 2,
+          "label": "fixture",
+          "nested": {
+            "enabled": true
+          }
+        }
+      },
+      "metadata": {
+        "count": 2,
+        "label": "fixture",
+        "nested": {
+          "enabled": true
+        }
+      }
+    },
+    "score": 0.95
+  },
+  "vectorstore_search_request": {
+    "query": "lynx",
+    "top_k": 10,
+    "min_score": 0.75
+  }
+}

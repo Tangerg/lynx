@@ -70,11 +70,13 @@ jobs:
         run: go test -count=1 ./...
 
       # The broad suite is still advisory while historical runner flakes are
-      # being removed, but Core API compatibility is a hard release gate.
-      - name: Core exported API guard
+      # being removed, but Core API and wire compatibility are hard gates.
+      - name: Core API and wire compatibility guards
         if: matrix.module == 'core'
         working-directory: core
-        run: go test ./internal/arch -run '^TestExportedAPIMatchesBaseline$'
+        run: >-
+          go test -count=1 ./internal/arch
+          -run '^(TestExportedAPIMatchesBaseline|TestWireTypeCoverage|TestWireContractsMatchGolden)$'
 
       # Provider compatibility is release-critical even while the broad test
       # suite remains advisory. This covers every public constructor plus the
