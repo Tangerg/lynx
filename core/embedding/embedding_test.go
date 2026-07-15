@@ -132,3 +132,79 @@ func TestOptionsAndRequest(t *testing.T) {
 		t.Fatal("EncodingFormat.Valid is inconsistent")
 	}
 }
+
+func TestProtocolValueAccessorsAndCopies(t *testing.T) {
+	if _, ok := (*embedding.Options)(nil).Get("missing"); ok {
+		t.Fatal("nil Options reported a value")
+	}
+	if _, ok := (*embedding.Request)(nil).Get("missing"); ok {
+		t.Fatal("nil Request reported a value")
+	}
+	if _, ok := (*embedding.ResultMetadata)(nil).Get("missing"); ok {
+		t.Fatal("nil ResultMetadata reported a value")
+	}
+	if _, ok := (*embedding.ResponseMetadata)(nil).Get("missing"); ok {
+		t.Fatal("nil ResponseMetadata reported a value")
+	}
+	if clone := (*embedding.Options)(nil).Clone(); clone != nil {
+		t.Fatalf("nil Clone = %#v", clone)
+	}
+
+	dimensions := int64(64)
+	options := &embedding.Options{Model: "base", Dimensions: &dimensions}
+	options.Set("region", "local")
+	clone := options.Clone()
+	*clone.Dimensions = 128
+	clone.Extra["region"] = "remote"
+	if *options.Dimensions != 64 || options.Extra["region"] != "local" {
+		t.Fatal("Options.Clone aliases source state")
+	}
+	if value, ok := options.Get("region"); !ok || value != "local" {
+		t.Fatalf("Options.Get = %#v, %t", value, ok)
+	}
+
+	request, _ := embedding.NewRequest([]string{"lynx"})
+	request.Set("trace_id", "trace-1")
+	if value, ok := request.Get("trace_id"); !ok || value != "trace-1" {
+		t.Fatalf("Request.Get = %#v, %t", value, ok)
+	}
+	resultMetadata := &embedding.ResultMetadata{}
+	resultMetadata.Set("source", "fixture")
+	if value, ok := resultMetadata.Get("source"); !ok || value != "fixture" {
+		t.Fatalf("ResultMetadata.Get = %#v, %t", value, ok)
+	}
+	responseMetadata := &embedding.ResponseMetadata{}
+	responseMetadata.Set("served_model", "embedding-model")
+	if value, ok := responseMetadata.Get("served_model"); !ok || value != "embedding-model" {
+		t.Fatalf("ResponseMetadata.Get = %#v, %t", value, ok)
+	}
+	if embedding.Image.String() != "image" {
+		t.Fatalf("ModalityType.String = %q", embedding.Image.String())
+	}
+}
+
+func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {
+	if _, err := embedding.MergeOptions(nil); err == nil {
+		t.Fatal("MergeOptions accepted nil base")
+	}
+	if _, err := embedding.NewResult(nil, &embedding.ResultMetadata{}); err == nil {
+		t.Fatal("NewResult accepted an empty vector")
+	}
+	if _, err := embedding.NewResult([]float64{1}, nil); err == nil {
+		t.Fatal("NewResult accepted nil metadata")
+	}
+	result, _ := embedding.NewResult([]float64{1}, &embedding.ResultMetadata{})
+	if _, err := embedding.NewResponse(nil, &embedding.ResponseMetadata{}); err == nil {
+		t.Fatal("NewResponse accepted no results")
+	}
+	if _, err := embedding.NewResponse([]*embedding.Result{result}, nil); err == nil {
+		t.Fatal("NewResponse accepted nil metadata")
+	}
+	response, _ := embedding.NewResponse([]*embedding.Result{result}, &embedding.ResponseMetadata{})
+	if response.Result() != result {
+		t.Fatal("Result did not return the first result")
+	}
+	if (&embedding.Response{}).Result() != nil || (*embedding.Response)(nil).Result() != nil {
+		t.Fatal("empty response returned a result")
+	}
+}

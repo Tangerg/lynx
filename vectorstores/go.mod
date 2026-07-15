@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/vectorstores
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.2

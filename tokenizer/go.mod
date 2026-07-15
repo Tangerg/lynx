@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/tokenizer
 
-go 1.26.4
+go 1.26.5
 
 require github.com/pkoukk/tiktoken-go v0.1.8
 

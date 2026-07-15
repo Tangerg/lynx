@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/models
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/Tangerg/lynx/core v0.0.0-20260714110600-0abc7c70a85d
@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.54.0
 	github.com/cohere-ai/cohere-go/v2 v2.18.0
 	github.com/go-resty/resty/v2 v2.17.2
-	github.com/ollama/ollama v0.30.11
+	github.com/ollama/ollama v0.32.0
 	github.com/openai/openai-go/v3 v3.41.0
 )
 

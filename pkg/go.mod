@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/pkg
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/bits-and-blooms/bitset v1.24.5
