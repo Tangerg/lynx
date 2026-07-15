@@ -127,7 +127,7 @@ embedding: type Response struct { Results []*Result `json:"results,omitzero"` Me
 embedding: type ResponseMetadata struct { Model string `json:"model"` Usage *Usage `json:"usage,omitempty"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 embedding: type Result struct { Embedding []float64 `json:"embedding"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
 embedding: type ResultMetadata struct { Index int64 `json:"index"` ModalityType ModalityType `json:"modality_type"` MIMEType string `json:"mime_type,omitempty"` Extra metadata.Map `json:"extra,omitzero"` }
-embedding: type Usage struct { PromptTokens int64 `json:"prompt_tokens"` }
+embedding: type Usage struct { InputTokens int64 `json:"input_tokens"` }
 image: const ( ResponseFormatURL ResponseFormat = "url" ResponseFormatB64JSON ResponseFormat = "b64json" )
 image: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 image: func (m *ResponseMetadata) Set(key string, value any) error

@@ -68,7 +68,7 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 	if len(out.Results) != 2 {
 		t.Fatalf("got %d results; want 2", len(out.Results))
 	}
-	if out.Metadata.Usage == nil || out.Metadata.Usage.PromptTokens != 8 {
-		t.Errorf("usage = %+v; want PromptTokens=8", out.Metadata.Usage)
+	if out.Metadata.Usage == nil || out.Metadata.Usage.InputTokens != 8 {
+		t.Errorf("usage = %+v; want InputTokens=8", out.Metadata.Usage)
 	}
 }

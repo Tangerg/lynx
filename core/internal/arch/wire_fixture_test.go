@@ -118,7 +118,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		}},
 		Metadata: &embedding.ResponseMetadata{
 			Model:   "embedding-model",
-			Usage:   &embedding.Usage{PromptTokens: 100},
+			Usage:   &embedding.Usage{InputTokens: 100},
 			Created: 1700000000,
 			Extra:   mustMetadata(t, map[string]any{"region": "local"}),
 		},

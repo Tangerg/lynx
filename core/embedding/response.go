@@ -72,8 +72,8 @@ func NewResult(embedding []float64, metadata *ResultMetadata) (*Result, error) {
 // dimension — so a single count is the whole story. Providers that report
 // a "total" figure map it here: for embeddings every token is input.
 type Usage struct {
-	// PromptTokens are tokens consumed embedding the inputs.
-	PromptTokens int64 `json:"prompt_tokens"`
+	// InputTokens are tokens consumed embedding the inputs.
+	InputTokens int64 `json:"input_tokens"`
 }
 
 // ResponseMetadata holds response-level metadata: the model actually

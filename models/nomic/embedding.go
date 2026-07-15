@@ -99,7 +99,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.R
 	meta := &embedding.ResponseMetadata{
 		Model: apiResp.Model,
 		Usage: &embedding.Usage{
-			PromptTokens: apiResp.Usage.PromptTokens,
+			InputTokens: apiResp.Usage.PromptTokens,
 		},
 		Created: time.Now().Unix(),
 	}
