@@ -1,4 +1,3 @@
-// Package media defines serializable media payloads shared by model protocols.
 package media
 
 import (

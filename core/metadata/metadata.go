@@ -1,4 +1,3 @@
-// Package metadata provides JSON-safe metadata values for protocol types.
 package metadata
 
 import (

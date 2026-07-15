@@ -1,4 +1,7 @@
-// Package image defines the request/response types and Model interface
-// for image-generation LLMs. Concrete provider implementations
-// (OpenAI DALL·E, Stability AI, ...) live in /models/<provider>/image.go.
+// Package image defines the serializable image-generation protocol and its
+// single-method [Model] capability.
+//
+// NewRequest captures the prompt; Options carries explicit per-call overrides
+// such as dimensions, quality, output MIME type, and response representation.
+// Provider implementations and defaults live outside Core in provider modules.
 package image
