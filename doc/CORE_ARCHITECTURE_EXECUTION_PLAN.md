@@ -871,7 +871,11 @@ flowchart LR
   - Core 生产依赖保持标准库-only，目标 package 外部依赖守卫与 20/20 module `go mod tidy -diff` 通过；CI 增加 blocking coverage/dependency gate。
   - Go toolchain 从 1.26.4 升至 1.26.5，清除可达的标准库 TLS 漏洞；Ollama 升至当时最新 v0.32.0 后仍有 8 个上游公告且均标记 `Fixed in: N/A`，作为 P7-06 release risk 明示，不建立豁免 API 或兼容层。
   - 升级后 `FAST=1 scripts/check.sh build vet test lint` 对 20 module 的 80/80 项检查全绿，Core 全量 race 复验通过；证据：`e5c94d25e`。
-- [ ] **P7-06 编写 Core 破坏性变更迁移说明、dependent module 发布顺序和 release notes**
+- [x] **P7-06 编写 Core 破坏性变更迁移说明、dependent module 发布顺序和 release notes**（完成：2026-07-15）
+  - `CORE_V1_MIGRATION.md` 按旧路径、职责、调用语义和持久化数据四个维度给出直接切换指南；明确旧类型只能由升级前二进制一次性导出转换，新库不增加 alias、shim、双读或旧 decoder。
+  - `CORE_V1_RELEASE_NOTES.md` 记录 12 个 v1 公共 package、367 条冻结 API、主要破坏面、wire 承诺、自动门禁、Go 1.26.5 与 Ollama 无修复版本风险。
+  - `CORE_V1_RELEASE_RUNBOOK.md` 从当前 `go.mod` 重建真实 module DAG，规定 Core/基础模块、直接 adapter、组合模块、协议桥、Agent、App 六个发布波次，明确子 module tag 为 `core/v1.0.0` 且 P7-07 前不得创建。
+  - 三份文档加入文档地图，Core API/wire/docs/dependency CI 等价架构门禁通过；证据：`0b7c70ec5`。
 - [ ] **P7-07 完成最终架构审查并冻结 Core v1 契约**
 
 退出标准：
@@ -896,15 +900,15 @@ flowchart LR
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
 | P6 Workspace 切换 | 完成 | 8/8 | 旧 API、兼容面、残余依赖和错误文档清零；100 项 workspace 门禁全绿 |
-| P7 稳定与发布 | 进行中 | 5/7 | 覆盖、race、fuzz、依赖与工具链预算复核完成；进入迁移和发布说明 |
-| **总计** | **进行中** | **58/60** | **97%** |
+| P7 稳定与发布 | 进行中 | 6/7 | 迁移、release notes 与六波次协调发布手册完成；进入最终架构冻结审查 |
+| **总计** | **进行中** | **59/60** | **98%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P7。
-- 下一任务：执行 P7-06，编写破坏性变更迁移说明、dependent module 发布顺序和 release notes。
+- 下一任务：执行 P7-07，完成最终架构审查并冻结 Core v1 契约。
 - 当前阻塞：无。
-- 最近完成：P7-05；coverage/race/fuzz/dependency budget 与 Go 1.26.5 升级完成，Ollama 无修复版本公告转入 release risk。
+- 最近完成：P7-06；破坏性迁移指南、v1 release notes 和基于真实 module DAG 的六波次发布手册已完成。
 
 ### 10.3 进度更新规则
 
@@ -1179,6 +1183,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 完成 P7-06；新增 Core v1 直接迁移指南、release notes 与六波次多 module 发布手册，明确旧 wire 一次性迁移和无兼容层发布规则 | Codex |
 | 2026-07-15 | 完成 P7-05；逐包覆盖预算与 CI dependency gate 生效，7 个 fuzz target 各跑满 5 分钟，升级 Go/Ollama 并记录仍无修复版本的上游安全风险 | Codex |
 | 2026-07-15 | 完成 P7-04；12 个公共 package 统一职责文档并新增 checked runnable Example，架构测试与 CI blocking gate 自动锁定覆盖 | Codex |
 | 2026-07-15 | 完成 P7-03；以 50 项导出 JSON struct inventory 和 535 行聚合 golden 冻结全部 Core wire DTO，CI 增加 blocking wire compatibility guard | Codex |
@@ -1242,6 +1247,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | P7-06 | `0b7c70ec5` 新增 256 行直接迁移指南、148 行 v1 release notes 与 194 行协调发布手册；从当前 `go.mod` 重建六波次 DAG，明确 `core/v1.0.0` tag、GOWORK=off 验证、一次性历史数据迁移、回滚与 Ollama 风险裁决；三份文档加入索引，Core API/wire/docs/dependency 等价门禁通过；任务计数 59/60 | P7-07 最终架构审查与 v1 契约冻结 |
 | 2026-07-15 | P7-05 | `e5c94d25e` 新增 17 个 Core package 的 blocking coverage budget，补齐五个低覆盖模态行为测试；Core/ChatClient/Agent/ChatHistory/RAG/Tools/27 backend race 全绿，7 个 fuzz target 各 5 分钟无失败；Core 标准库-only、20/20 tidy-diff 和升级后 80/80 workspace build/vet/test/lint 通过。Go 1.26.5 清除 TLS 漏洞，Ollama v0.32.0 仍有 8 个 `Fixed in: N/A` 上游公告；任务计数 58/60 | P7-06 迁移说明、发布顺序和 release notes |
 | 2026-07-15 | P7-04 | `1f22a87b5` 为 12/12 公共 package 统一唯一 package comment 并新增带 checked Output 的 package-level Example；架构守卫与 CI blocking docs/examples gate 生效，Core 全量 test/vet/lint 全绿；任务计数 57/60 | P7-05 coverage/race/fuzz/dependency budget |
 | 2026-07-15 | P7-03 | `158de60b7` 新增 50 项导出 JSON struct 自动 inventory、19 个代表性 wire root 与 535 行 aggregate golden，覆盖全部 Core wire DTO；显式 update flag 与 CI blocking gate 生效，Core test/race/vet/lint 全绿；任务计数 56/60 | P7-04 公开 API examples 和 package docs |
