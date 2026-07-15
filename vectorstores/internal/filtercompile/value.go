@@ -1,4 +1,4 @@
-package filterhelp
+package filtercompile
 
 import (
 	"errors"

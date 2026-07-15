@@ -5,7 +5,7 @@ import (
 	"math"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
 type evaluator struct {
@@ -16,7 +16,7 @@ type evaluator struct {
 var _ filter.Visitor = (*evaluator)(nil)
 
 func (e *evaluator) Visit(predicate filter.Predicate) error {
-	value, err := evalExpr(predicate, e.metadata)
+	value, err := e.eval(predicate)
 	if err != nil {
 		return err
 	}
@@ -39,36 +39,36 @@ func matchesFilter(expr filter.Predicate, metadata map[string]any) (bool, error)
 	return evaluator.match, nil
 }
 
-func evalExpr(expr filter.Expr, metadata map[string]any) (any, error) {
-	switch e := expr.(type) {
+func (e *evaluator) eval(expr filter.Expr) (any, error) {
+	switch node := expr.(type) {
 	case *filter.Ident:
-		return lookupField(metadata, e.Value), nil
+		return e.lookupField(node.Value), nil
 	case *filter.Literal:
-		return literalValue(e)
+		return e.literalValue(node)
 	case *filter.ListLiteral:
-		return listValue(e)
+		return e.listValue(node)
 	case *filter.IndexExpr:
-		return evalIndex(e, metadata)
+		return e.evalIndex(node)
 	case *filter.UnaryExpr:
-		return evalUnary(e, metadata)
+		return e.evalUnary(node)
 	case *filter.BinaryExpr:
-		return evalBinary(e, metadata)
+		return e.evalBinary(node)
 	}
-	return nil, fmt.Errorf("inmemory.evalExpr: unsupported node %T", expr)
+	return nil, fmt.Errorf("inmemory.evaluator: unsupported node %T", expr)
 }
 
-func literalValue(lit *filter.Literal) (any, error) {
-	value, err := filterhelp.LiteralToValue(lit)
+func (e *evaluator) literalValue(lit *filter.Literal) (any, error) {
+	value, err := filtercompile.LiteralToValue(lit)
 	if err != nil {
-		return nil, fmt.Errorf("inmemory.literalValue: %w", err)
+		return nil, fmt.Errorf("inmemory.evaluator: decode literal: %w", err)
 	}
 	return value, nil
 }
 
-func listValue(list *filter.ListLiteral) (any, error) {
+func (e *evaluator) listValue(list *filter.ListLiteral) (any, error) {
 	out := make([]any, 0, len(list.Values))
 	for _, item := range list.Values {
-		v, err := literalValue(item)
+		v, err := e.literalValue(item)
 		if err != nil {
 			return nil, err
 		}
@@ -80,12 +80,12 @@ func listValue(list *filter.ListLiteral) (any, error) {
 // evalIndex resolves an `a["b"][0]`-style chain. Missing keys / OOB
 // indices return nil (matching SQL NULL semantics); only structural
 // type errors are reported.
-func evalIndex(idx *filter.IndexExpr, metadata map[string]any) (any, error) {
-	keys, err := collectIndexKeys(idx)
+func (e *evaluator) evalIndex(idx *filter.IndexExpr) (any, error) {
+	keys, err := e.indexKeys(idx)
 	if err != nil {
 		return nil, err
 	}
-	var cur any = metadata
+	var cur any = e.metadata
 	for _, key := range keys {
 		switch typed := cur.(type) {
 		case map[string]any:
@@ -129,13 +129,13 @@ func arrayIndex(value any) (uint64, bool) {
 	}
 }
 
-func collectIndexKeys(idx *filter.IndexExpr) ([]any, error) {
+func (e *evaluator) indexKeys(idx *filter.IndexExpr) ([]any, error) {
 	var chain []any
 	cur := filter.Expr(idx)
 	for {
 		switch typed := cur.(type) {
 		case *filter.IndexExpr:
-			key, err := literalValue(typed.Index)
+			key, err := e.literalValue(typed.Index)
 			if err != nil {
 				return nil, err
 			}
@@ -145,16 +145,16 @@ func collectIndexKeys(idx *filter.IndexExpr) ([]any, error) {
 			chain = append([]any{typed.Value}, chain...)
 			return chain, nil
 		default:
-			return nil, fmt.Errorf("inmemory.collectIndexKeys: unexpected base %T", cur)
+			return nil, fmt.Errorf("inmemory.evaluator: unexpected index base %T", cur)
 		}
 	}
 }
 
-func evalUnary(u *filter.UnaryExpr, metadata map[string]any) (any, error) {
+func (e *evaluator) evalUnary(u *filter.UnaryExpr) (any, error) {
 	if u.Op != filter.OpNot {
 		return nil, fmt.Errorf("inmemory.evalUnary: unsupported unary operator %s", u.Op)
 	}
-	v, err := evalExpr(u.Right, metadata)
+	v, err := e.eval(u.Right)
 	if err != nil {
 		return nil, err
 	}
@@ -165,20 +165,20 @@ func evalUnary(u *filter.UnaryExpr, metadata map[string]any) (any, error) {
 	return !b, nil
 }
 
-func evalBinary(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
+func (e *evaluator) evalBinary(b *filter.BinaryExpr) (any, error) {
 	switch b.Op {
 	case filter.OpAnd, filter.OpOr:
-		return evalLogical(b, metadata)
+		return e.evalLogical(b)
 	case filter.OpEqual, filter.OpNotEqual:
-		return evalEquality(b, metadata)
+		return e.evalEquality(b)
 	case filter.OpLess, filter.OpLessEqual, filter.OpGreater, filter.OpGreaterEqual:
-		return evalOrdering(b, metadata)
+		return e.evalOrdering(b)
 	case filter.OpIn:
-		return evalIn(b, metadata)
+		return e.evalIn(b)
 	case filter.OpLike:
-		return evalLike(b, metadata)
+		return e.evalLike(b)
 	case filter.OpIs:
-		return evalNullTest(b, metadata)
+		return e.evalNullTest(b)
 	}
 	return nil, fmt.Errorf("inmemory.evalBinary: unsupported binary operator %s", b.Op)
 }
@@ -188,16 +188,16 @@ func evalBinary(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
 // (lookupField / evalIndex return nil), so this collapses to a nil
 // check. `IS NOT NULL` is the NOT wrapper around this, handled by
 // evalUnary.
-func evalNullTest(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
-	left, err := evalExpr(b.Left, metadata)
+func (e *evaluator) evalNullTest(b *filter.BinaryExpr) (any, error) {
+	left, err := e.eval(b.Left)
 	if err != nil {
 		return nil, err
 	}
 	return left == nil, nil
 }
 
-func evalLogical(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
-	left, err := evalExpr(b.Left, metadata)
+func (e *evaluator) evalLogical(b *filter.BinaryExpr) (any, error) {
+	left, err := e.eval(b.Left)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func evalLogical(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
 	if b.Op == filter.OpOr && lb {
 		return true, nil
 	}
-	right, err := evalExpr(b.Right, metadata)
+	right, err := e.eval(b.Right)
 	if err != nil {
 		return nil, err
 	}
@@ -223,12 +223,12 @@ func evalLogical(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
 	return rb, nil
 }
 
-func evalEquality(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
-	left, err := evalExpr(b.Left, metadata)
+func (e *evaluator) evalEquality(b *filter.BinaryExpr) (any, error) {
+	left, err := e.eval(b.Left)
 	if err != nil {
 		return nil, err
 	}
-	right, err := evalExpr(b.Right, metadata)
+	right, err := e.eval(b.Right)
 	if err != nil {
 		return nil, err
 	}
@@ -249,12 +249,15 @@ func equalValues(a, b any) bool {
 	return a == b
 }
 
-func evalOrdering(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
-	left, err := evalExpr(b.Left, metadata)
+func (e *evaluator) evalOrdering(b *filter.BinaryExpr) (any, error) {
+	left, err := e.eval(b.Left)
 	if err != nil {
 		return nil, err
 	}
-	right, err := evalExpr(b.Right, metadata)
+	if left == nil {
+		return false, nil
+	}
+	right, err := e.eval(b.Right)
 	if err != nil {
 		return nil, err
 	}
@@ -377,12 +380,12 @@ func compareUint64(left, right uint64) int {
 	}
 }
 
-func evalIn(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
-	left, err := evalExpr(b.Left, metadata)
+func (e *evaluator) evalIn(b *filter.BinaryExpr) (any, error) {
+	left, err := e.eval(b.Left)
 	if err != nil {
 		return nil, err
 	}
-	right, err := evalExpr(b.Right, metadata)
+	right, err := e.eval(b.Right)
 	if err != nil {
 		return nil, err
 	}
@@ -398,12 +401,15 @@ func evalIn(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
 	return false, nil
 }
 
-func evalLike(b *filter.BinaryExpr, metadata map[string]any) (any, error) {
-	left, err := evalExpr(b.Left, metadata)
+func (e *evaluator) evalLike(b *filter.BinaryExpr) (any, error) {
+	left, err := e.eval(b.Left)
 	if err != nil {
 		return nil, err
 	}
-	right, err := evalExpr(b.Right, metadata)
+	if left == nil {
+		return false, nil
+	}
+	right, err := e.eval(b.Right)
 	if err != nil {
 		return nil, err
 	}
@@ -451,13 +457,13 @@ func likeMatchRunes(s, p []rune) bool {
 	return pi == len(p)
 }
 
-// lookupField returns nil for absent fields — matching the SQL
-// three-valued logic the ordering and equality paths assume.
-func lookupField(metadata map[string]any, name string) any {
-	if metadata == nil {
+// lookupField returns nil for absent fields. IS NULL treats that as null;
+// ordering and pattern predicates treat it as a non-match.
+func (e *evaluator) lookupField(name string) any {
+	if e.metadata == nil {
 		return nil
 	}
-	return metadata[name]
+	return e.metadata[name]
 }
 
 // toFloat is the mixed integer/decimal fallback. Integer-only comparisons use

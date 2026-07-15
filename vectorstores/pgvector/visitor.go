@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into a parameterized
@@ -56,6 +56,9 @@ func (v *Visitor) Result() (string, []any) {
 }
 
 func (v *Visitor) Visit(expr filter.Predicate) error {
+	v.err = nil
+	v.sql.Reset()
+	v.args = nil
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -73,14 +76,14 @@ func (v *Visitor) visit(expr filter.Expr) error {
 		if node.Op.IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
-		return filterhelp.DispatchBinaryErr(node,
+		return filtercompile.DispatchBinary(node,
 			v.visitLogicalExpr,
 			v.visitComparisonExpr,
 			v.visitInExpr,
 			v.visitLikeExpr,
 		)
 	case *filter.UnaryExpr:
-		return filterhelp.DispatchUnaryErr(node, v.visitNotExpr)
+		return filtercompile.DispatchUnary(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("pgvector: unsupported root expression type %T", node)
 	}
@@ -96,7 +99,7 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 }
 
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
-	op, err := filterhelp.LogicalOpString(expr.Op)
+	op, err := filtercompile.LogicalOpString(expr.Op)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
 	}
@@ -119,7 +122,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 // expression on the left side is type-cast based on the value type:
 // numbers → ::numeric, bools → ::boolean, strings → no cast.
 func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	value, err := filterhelp.ExtractValue(expr.Right)
+	value, err := filtercompile.ExtractValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
@@ -149,12 +152,12 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 // follows the literal type — pgx maps Go slices to a Postgres array of
 // the matching type.
 func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	listLit, err := filterhelp.RequireListLiteral(expr)
+	listLit, err := filtercompile.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
 	}
 
-	values, sample, err := filterhelp.ConvertListLiteral(listLit)
+	values, sample, err := filtercompile.ConvertListLiteral(listLit)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
@@ -177,7 +180,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 // pattern-match that most filter DSLs assume. Right side must be a
 // string literal.
 func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
-	pattern, err := filterhelp.RequireStringPatternOnRight(expr)
+	pattern, err := filtercompile.RequireStringPatternOnRight(expr)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w", err)
 	}
@@ -268,7 +271,7 @@ func sqlOpFor(kind filter.Operator) (string, error) {
 // For numeric / boolean comparisons the trailing ->> is wrapped in a
 // type cast.
 func buildJSONPath(expr filter.Expr, metadataCol string, cast jsonCast) (string, error) {
-	pathParts, err := filterhelp.CollectKeyPath(expr)
+	pathParts, err := filtercompile.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
 	}

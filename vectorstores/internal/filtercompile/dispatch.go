@@ -1,4 +1,4 @@
-package filterhelp
+package filtercompile
 
 import (
 	"errors"
@@ -7,74 +7,10 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
-// DispatchBinary routes a [*filter.BinaryExpr] to one of four handlers
-// based on the operator's category. The filter mini-language has
-// exactly four families of binary operators:
-//
-//   - Logical:    AND, OR                             → onLogical
-//   - Comparison: ==, !=, <, <=, >, >=                → onComparison
-//   - Membership: IN                                  → onIn
-//   - Pattern:    LIKE                                → onLike
-//
-// Operators outside these families produce a descriptive error. T is
-// the visitor's emit type (string for SQL backends, *qdrant.Condition
-// for qdrant, etc.).
-//
-// Example:
-//
-//	func (v *Visitor) visitBinaryExpr(e *filter.BinaryExpr) error {
-//	    _, err := filterhelp.DispatchBinary[struct{}](
-//	        e,
-//	        func(e *filter.BinaryExpr) (struct{}, error) {
-//	            return struct{}{}, v.visitLogicalExpr(e)
-//	        },
-//	        // ... etc
-//	    )
-//	    return err
-//	}
-func DispatchBinary[T any](
-	expr *filter.BinaryExpr,
-	onLogical func(*filter.BinaryExpr) (T, error),
-	onComparison func(*filter.BinaryExpr) (T, error),
-	onIn func(*filter.BinaryExpr) (T, error),
-	onLike func(*filter.BinaryExpr) (T, error),
-) (T, error) {
-	var zero T
-	switch {
-	case expr.Op.IsLogicalOperator():
-		return onLogical(expr)
-	case expr.Op.IsComparisonOperator():
-		return onComparison(expr)
-	case expr.Op.Is(filter.OpIn):
-		return onIn(expr)
-	case expr.Op.Is(filter.OpLike):
-		return onLike(expr)
-	default:
-		return zero, fmt.Errorf("filter: unsupported binary operator %q at %s",
-			expr.Op.String(), expr.Start().String())
-	}
-}
-
-// DispatchUnary routes a [*filter.UnaryExpr] to onNot. The filter
-// language only has one unary operator today (NOT); any other kind
-// returns a descriptive error.
-func DispatchUnary[T any](
-	expr *filter.UnaryExpr,
-	onNot func(*filter.UnaryExpr) (T, error),
-) (T, error) {
-	var zero T
-	if !expr.Op.Is(filter.OpNot) {
-		return zero, fmt.Errorf("filter: unsupported unary operator %q at %s",
-			expr.Op.String(), expr.Start().String())
-	}
-	return onNot(expr)
-}
-
-// DispatchBinaryErr is the error-only variant of [DispatchBinary] for
-// visitors that emit into shared state (a SQL string builder, an
-// SDK filter struct) and don't return per-node values. The dispatch
-// rules are identical to DispatchBinary.
-func DispatchBinaryErr(
+// DispatchBinary routes an expression to the handler for its operator family.
+// Null tests are handled separately because backend support for them is not
+// universal.
+func DispatchBinary(
 	expr *filter.BinaryExpr,
 	onLogical func(*filter.BinaryExpr) error,
 	onComparison func(*filter.BinaryExpr) error,
@@ -96,9 +32,8 @@ func DispatchBinaryErr(
 	}
 }
 
-// DispatchUnaryErr is the error-only variant of [DispatchUnary] for
-// stateful visitors.
-func DispatchUnaryErr(
+// DispatchUnary routes the only unary operator, NOT, to onNot.
+func DispatchUnary(
 	expr *filter.UnaryExpr,
 	onNot func(*filter.UnaryExpr) error,
 ) error {

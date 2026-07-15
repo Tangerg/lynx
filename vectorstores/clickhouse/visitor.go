@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into a ClickHouse WHERE
@@ -44,6 +44,9 @@ func (v *Visitor) Result() (string, []any) {
 }
 
 func (v *Visitor) Visit(expr filter.Predicate) error {
+	v.err = nil
+	v.sql.Reset()
+	v.args = nil
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -117,7 +120,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filterhelp.ExtractValue(expr.Right)
+	value, err := filtercompile.ExtractValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
 	}
@@ -147,7 +150,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	}
 	values := make([]any, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {
-		val, err := filterhelp.LiteralToValue(lit)
+		val, err := filtercompile.LiteralToValue(lit)
 		if err != nil {
 			return err
 		}
@@ -170,7 +173,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filterhelp.ExtractValue(expr.Right)
+	value, err := filtercompile.ExtractValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
 	}
@@ -247,7 +250,7 @@ func (v *Visitor) appendValuePlaceholder(value any) {
 }
 
 func buildKeyPath(expr filter.Expr) (string, error) {
-	keys, err := filterhelp.CollectKeyPath(expr)
+	keys, err := filtercompile.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
 	}

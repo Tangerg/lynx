@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into Milvus filter expression strings.
@@ -59,6 +59,10 @@ func (v *Visitor) Result() string {
 // It walks the whole tree rooted at expr and returns the first error
 // encountered, or nil when the entire expression was accepted.
 func (v *Visitor) Visit(expr filter.Predicate) error {
+	v.err = nil
+	v.result = ""
+	v.currentFieldKey = ""
+	v.currentFieldValue = ""
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -90,11 +94,11 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-// visitBinaryExpr routes via [filterhelp.DispatchBinaryErr]. The
+// visitBinaryExpr routes via [filtercompile.DispatchBinary]. The
 // comparison wrapper splits equality vs ordering since milvus emits
 // distinct expression shapes for the two families.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	return filterhelp.DispatchBinaryErr(expr,
+	return filtercompile.DispatchBinary(expr,
 		v.visitLogicalExpr,
 		v.visitComparisonExpr,
 		v.visitInExpr,
@@ -113,7 +117,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 
 // visitUnaryExpr handles unary expressions — only NOT today.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return filterhelp.DispatchUnaryErr(expr, v.visitNotExpr)
+	return filtercompile.DispatchUnary(expr, v.visitNotExpr)
 }
 
 // visitIdent extracts and stores the identifier name as the current field key.
@@ -287,7 +291,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 			expr.Start().String(), err)
 	}
 
-	listLit, err := filterhelp.RequireListLiteral(expr)
+	listLit, err := filtercompile.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("milvus: %w", err)
 	}
@@ -402,7 +406,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	current := expr
 	for {
-		key, err := filterhelp.LiteralAsKey(current.Index)
+		key, err := filtercompile.LiteralAsKey(current.Index)
 		if err != nil {
 			return "", fmt.Errorf("milvus: %w", err)
 		}

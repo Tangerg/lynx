@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into a Cypher predicate
@@ -54,6 +54,9 @@ func (v *Visitor) Result() (string, map[string]any) {
 }
 
 func (v *Visitor) Visit(expr filter.Predicate) error {
+	v.err = nil
+	v.sql.Reset()
+	v.params = make(map[string]any)
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -129,7 +132,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filterhelp.ExtractValue(expr.Right)
+	value, err := filtercompile.ExtractValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
@@ -165,7 +168,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 
 	values := make([]any, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {
-		val, err := filterhelp.LiteralToValue(lit)
+		val, err := filtercompile.LiteralToValue(lit)
 		if err != nil {
 			return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 		}
@@ -186,7 +189,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filterhelp.ExtractValue(expr.Right)
+	value, err := filtercompile.ExtractValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
 	}
@@ -240,7 +243,7 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 // propertyAccess assembles the Cypher property accessor for the left
 // side of a comparison, e.g. “node.`metadata.foo` “.
 func (v *Visitor) propertyAccess(expr filter.Expr) (string, error) {
-	keys, err := filterhelp.CollectKeyPath(expr)
+	keys, err := filtercompile.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
 	}

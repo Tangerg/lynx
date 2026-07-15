@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into Elasticsearch
@@ -48,6 +48,8 @@ func (v *Visitor) Result() string {
 }
 
 func (v *Visitor) Visit(expr filter.Predicate) error {
+	v.err = nil
+	v.sql.Reset()
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -65,14 +67,14 @@ func (v *Visitor) visit(expr filter.Expr) error {
 		if node.Op.IsNullOperator() {
 			return v.visitNullTestExpr(node)
 		}
-		return filterhelp.DispatchBinaryErr(node,
+		return filtercompile.DispatchBinary(node,
 			v.visitLogicalExpr,
 			v.visitComparisonExpr,
 			v.visitInExpr,
 			v.visitLikeExpr,
 		)
 	case *filter.UnaryExpr:
-		return filterhelp.DispatchUnaryErr(node, v.visitNotExpr)
+		return filtercompile.DispatchUnary(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("elasticsearch: unsupported root expression %T", node)
 	}
@@ -88,7 +90,7 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 }
 
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
-	op, err := filterhelp.LogicalOpString(expr.Op)
+	op, err := filtercompile.LogicalOpString(expr.Op)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w", err)
 	}
@@ -112,7 +114,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 	}
 
-	value, err := filterhelp.ExtractValue(expr.Right)
+	value, err := filtercompile.ExtractValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 	}
@@ -155,14 +157,14 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 	}
 
-	listLit, err := filterhelp.RequireListLiteral(expr)
+	listLit, err := filtercompile.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w", err)
 	}
 
 	parts := make([]string, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {
-		val, err := filterhelp.LiteralToValue(lit)
+		val, err := filtercompile.LiteralToValue(lit)
 		if err != nil {
 			return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 		}
@@ -205,7 +207,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
 	}
 
-	pattern, err := filterhelp.RequireStringPatternOnRight(expr)
+	pattern, err := filtercompile.RequireStringPatternOnRight(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w", err)
 	}
@@ -219,7 +221,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // fieldPath assembles the dotted Elasticsearch field path for the
 // metadata key on the left side of a comparison.
 func (v *Visitor) fieldPath(expr filter.Expr) (string, error) {
-	keys, err := filterhelp.CollectKeyPath(expr)
+	keys, err := filtercompile.CollectKeyPath(expr)
 	if err != nil {
 		return "", err
 	}

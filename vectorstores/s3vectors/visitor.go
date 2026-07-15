@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into the JSON filter
@@ -101,7 +101,7 @@ func (v *Visitor) translateComparison(expr *filter.BinaryExpr) (map[string]any, 
 	if err != nil {
 		return nil, err
 	}
-	value, err := filterhelp.ExtractValue(expr.Right)
+	value, err := filtercompile.ExtractValue(expr.Right)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (v *Visitor) translateIn(expr *filter.BinaryExpr) (map[string]any, error) {
 	}
 	values := make([]any, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {
-		val, err := filterhelp.LiteralToValue(lit)
+		val, err := filtercompile.LiteralToValue(lit)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +140,7 @@ func keyName(expr filter.Expr) (string, error) {
 	case *filter.Ident:
 		return node.Value, nil
 	case *filter.IndexExpr:
-		keys, err := filterhelp.CollectKeyPath(node)
+		keys, err := filtercompile.CollectKeyPath(node)
 		if err != nil {
 			return "", err
 		}
