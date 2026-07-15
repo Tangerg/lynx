@@ -11,14 +11,14 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 
 最终审查批准当前契约进入 v1 稳定期。冻结意味着从 `core/v1.0.0` 开始按 SemVer 管理当前 API 与 wire，而不是恢复任何重构前 API 或历史 wire。仓库中没有为旧设计保留 alias、bridge、shim、兼容字段、dual-read/dual-write 或旧 decoder。
 
-`core/v1.0.0` 尚未创建，因此维护者在 tag 前重新打开 Filter 契约审查：删除双 AST/转换层、builder 与 precedence 表面，公开 `Predicate`/`Selector`/`Visitor`，并把递归下降前端收敛为同包私有实现。维护者随后确认 `Visitor` 是外部 adapter 的扩展逃生舱，补充 `Visit(predicate, visitors...)` 作为验证一次、顺序分派的公共消费入口。最终 331 行 API baseline 取代先前 341 行草案；wire inventory 与 golden 不变。
+`core/v1.0.0` 尚未创建，因此维护者在 tag 前重新打开 Filter 契约审查：删除双 AST/转换层、builder 与 precedence 表面，公开 `Predicate`/`Selector`/`Visitor`，并把递归下降前端收敛为同包私有实现。维护者随后确认 `Visitor` 是外部 adapter 的扩展逃生舱，补充 `Visit(predicate, visitors...)` 作为验证一次、顺序分派的公共消费入口；最终保留公开 `Formatter`，把 analyzer/optimizer 作为同包私有 visitor，并收紧 provider 数字编译边界。最终 334 行 API baseline 取代先前 341 行草案；wire inventory 与 golden 不变。
 
 ## 2. 冻结范围
 
 | 项目 | 冻结结果 |
 |---|---:|
 | 公共 package | 11 |
-| exported API baseline | 331 行冻结快照 |
+| exported API baseline | 334 行冻结快照 |
 | 带 JSON tag 的导出 DTO | 49 |
 | 代表性 wire root | 17 |
 | 聚合 wire golden | 487 行 |
@@ -41,11 +41,12 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 | 便利层不反向塑造协议 | Embedding 向量便利方法位于 `embeddingclient`；Core 不公开 Client、默认值或 middleware | 通过 |
 | provider 差异不扩张 Core | provider JSON 进入 typed Options 或 namespaced `metadata.Map`；options key 冻结为 `<provider>/options` | 通过 |
 | 值对象行为归属明确 | 五个 modality 的不可变 Options 合并由 `Merged` receiver 承担；Embedding/Moderation 首项统一为 `First`；Speech 使用 `OutputFormat`/`Audio` | 通过 |
+| Filter 遍历职责单一 | 公开 Formatter 服务外部文本适配；私有 analyzer/optimizer 分别拥有校验与 Parse 规范化，provider 数字转换按 SDK 表达能力显式失败 | 通过 |
 | 不保留迁移债务 | 旧 package、旧 wire decoder、alias/bridge/shim 与双轨读写均不存在 | 通过 |
 
 ## 4. 可扩展性结论
 
-Provider 通过实现各 modality 的最小接口并在 adapter 内完成 typed SDK 映射；VectorStore backend 通过实现调用方需要的小能力接口并翻译稳定 Filter Expr。`filter.Visit` 消费公开 `Visitor`，让外部 adapter 在一次校验后按顺序组合多个 compiler/interpreter；首错原样返回且后续 visitor 不执行。新增 integration 不需要修改 Core 接口，也不需要 Core 反向 import SDK、driver 或上层 module。
+Provider 通过实现各 modality 的最小接口并在 adapter 内完成 typed SDK 映射；VectorStore backend 通过实现调用方需要的小能力接口并翻译稳定 Filter Expr。`filter.Visit` 消费公开 `Visitor`，让外部 adapter 在一次校验后按顺序组合多个 compiler/interpreter；首错原样返回且后续 visitor 不执行。`Formatter` 提供稳定文本出口，分析与优化策略不成为外部协议。新增 integration 不需要修改 Core 接口，也不需要 Core 反向 import SDK、driver 或上层 module。
 
 Chat provider/facade 的构造与共享协议行为由 Models conformance 覆盖；五类参考实现覆盖 Anthropic、Bedrock、Google、Ollama 与 OpenAI。VectorStores 自动发现实现集合，并要求 27/27 backend 注册和执行共享 conformance，新增实现无法静默绕过发布门禁。
 
@@ -65,7 +66,7 @@ Chat provider/facade 的构造与共享协议行为由 Models conformance 覆盖
 
 - `FAST=1 scripts/check.sh build vet test lint race`：21 个 module、105/105 项通过。
 - `scripts/check.sh vuln`：21/21 module 通过精确漏洞策略；新增 `embeddingclient` 无可达漏洞。
-- `scripts/check-core-release.sh` 的确定性部分：Core test/race/vet/lint/tidy、17 个逐包 coverage budget、Models provider gate 和 27 个 VectorStore backend gate 全部通过。
+- `scripts/check-core-release.sh` 的确定性部分：Core test/race/vet/lint/tidy、当前 12 个生产 package 的逐包 coverage budget、Models provider gate 和 27 个 VectorStore backend gate 全部通过。
 - Core API、wire inventory/golden、协议字段安全、公共 docs/examples、标准库-only 依赖均为 blocking 架构测试。
 - P7-05 已记录 7 个 fuzz target 各独立运行 5 分钟：Metadata Map 98,292,275 次、Media 105,198,336 次、Filter Parse 75,835,393 次、Chat Part 83,961,412 次、Chat Message 79,948,335 次、Chat Request 82,260,984 次、Chat Response 84,349,479 次；累计 609,846,214 次且无失败语料。tag 前收口后又完成 Metadata Map 5 分钟、98,942,554 次执行；按维护者要求停止重复整组长时间 fuzz，未把主动停止的 Media 运行记作通过。
 
@@ -94,4 +95,4 @@ Core 没有第三方生产依赖，`govulncheck` 没有可达漏洞。Models 与
 4. Provider 或 backend 的新能力优先在 adapter/上层 module 组合；只有四个以上真实实现与消费方共享的稳定语义才进入 Core 候选审查。
 5. 已推送 tag 不得移动；发布操作与版本集合按 [`CORE_V1_RELEASE_RUNBOOK.md`](./CORE_V1_RELEASE_RUNBOOK.md) 留档。
 
-审查通过后，Core 架构演进计划的 64 项任务全部完成；后续工作从“重构计划”切换为“稳定契约维护与正式发布”。
+P8-05 确定性门禁通过后，Core 架构演进计划的 65 项任务已经全部完成；后续工作从“重构计划”切换为“稳定契约维护与正式发布”。

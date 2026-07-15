@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	v2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
-	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
@@ -32,8 +31,8 @@ import (
 //   - Nested indexed expressions join all segments with dots: profile["a"]["b"] → "profile.a.b"
 //
 // Numeric handling:
-//   - Whole-number float64 literals are treated as int for Chroma's typed API
-//   - Fractional values are cast to float32
+//   - Integral literals must fit int for Chroma's typed API
+//   - Fractional values must fit float32
 var _ filter.Visitor = (*Visitor)(nil)
 
 type Visitor struct {
@@ -41,6 +40,12 @@ type Visitor struct {
 	result            v2.WhereClause // the Chroma filter clause being built
 	currentFieldKey   string         // temporary storage for field key extraction
 	currentFieldValue any            // temporary storage for field value extraction
+}
+
+type chromaNumber struct {
+	integer   int
+	fraction  float32
+	isInteger bool
 }
 
 func NewVisitor() *Visitor {
@@ -220,7 +225,7 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 }
 
 // buildEqualityClause creates an Eq or NotEq WhereClause for the given typed value.
-// float64 values that are whole numbers are treated as int; fractional values as float32.
+// Integral values use Chroma's int API; fractional values use its float32 API.
 func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op filter.Operator) (v2.WhereClause, error) {
 	isEq := op == filter.OpEqual
 
@@ -231,17 +236,17 @@ func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op filter
 		}
 		return v2.NotEqString(fieldKey, val), nil
 
-	case float64:
-		if intVal, isInt := toInt(val); isInt {
+	case chromaNumber:
+		if val.isInteger {
 			if isEq {
-				return v2.EqInt(fieldKey, intVal), nil
+				return v2.EqInt(fieldKey, val.integer), nil
 			}
-			return v2.NotEqInt(fieldKey, intVal), nil
+			return v2.NotEqInt(fieldKey, val.integer), nil
 		}
 		if isEq {
-			return v2.EqFloat(fieldKey, float32(val)), nil
+			return v2.EqFloat(fieldKey, val.fraction), nil
 		}
-		return v2.NotEqFloat(fieldKey, float32(val)), nil
+		return v2.NotEqFloat(fieldKey, val.fraction), nil
 
 	case bool:
 		if isEq {
@@ -270,40 +275,37 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
-	numericValue, err := cast.ToFloat64E(fieldValue)
-	if err != nil {
+	numericValue, ok := fieldValue.(chromaNumber)
+	if !ok {
 		return fmt.Errorf("chroma: cannot convert value to number for '%s' comparison at %s: expected number, got %T",
 			expr.Op.String(), expr.Start().String(), fieldValue)
 	}
 
-	intVal, isInt := toInt(numericValue)
-	f32Val := float32(numericValue)
-
 	var clause v2.WhereClause
 	switch expr.Op {
 	case filter.OpLess:
-		if isInt {
-			clause = v2.LtInt(fieldKey, intVal)
+		if numericValue.isInteger {
+			clause = v2.LtInt(fieldKey, numericValue.integer)
 		} else {
-			clause = v2.LtFloat(fieldKey, f32Val)
+			clause = v2.LtFloat(fieldKey, numericValue.fraction)
 		}
 	case filter.OpLessEqual:
-		if isInt {
-			clause = v2.LteInt(fieldKey, intVal)
+		if numericValue.isInteger {
+			clause = v2.LteInt(fieldKey, numericValue.integer)
 		} else {
-			clause = v2.LteFloat(fieldKey, f32Val)
+			clause = v2.LteFloat(fieldKey, numericValue.fraction)
 		}
 	case filter.OpGreater:
-		if isInt {
-			clause = v2.GtInt(fieldKey, intVal)
+		if numericValue.isInteger {
+			clause = v2.GtInt(fieldKey, numericValue.integer)
 		} else {
-			clause = v2.GtFloat(fieldKey, f32Val)
+			clause = v2.GtFloat(fieldKey, numericValue.fraction)
 		}
 	case filter.OpGreaterEqual:
-		if isInt {
-			clause = v2.GteInt(fieldKey, intVal)
+		if numericValue.isInteger {
+			clause = v2.GteInt(fieldKey, numericValue.integer)
 		} else {
-			clause = v2.GteFloat(fieldKey, f32Val)
+			clause = v2.GteFloat(fieldKey, numericValue.fraction)
 		}
 	default:
 		return fmt.Errorf("chroma: unexpected ordering operator '%s' at %s",
@@ -346,16 +348,24 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	case string:
 		strs := make([]string, 0, len(values))
 		for _, val := range values {
-			strs = append(strs, cast.ToString(val))
+			value, ok := val.(string)
+			if !ok {
+				return fmt.Errorf("chroma: mixed value type %T in string list", val)
+			}
+			strs = append(strs, value)
 		}
 		v.result = v2.InString(fieldKey, strs...)
 
-	case float64:
-		// Decide int vs float32 by inspecting all values.
+	case chromaNumber:
+		// Keep an all-integral list on Chroma's int path. A mixed numeric
+		// list uses float32 only when every element can be represented safely.
 		allInt := true
 		for _, val := range values {
-			f := cast.ToFloat64(val)
-			if _, ok := toInt(f); !ok {
+			number, ok := val.(chromaNumber)
+			if !ok {
+				return fmt.Errorf("chroma: mixed value type %T in numeric list", val)
+			}
+			if !number.isInteger {
 				allInt = false
 				break
 			}
@@ -363,13 +373,17 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		if allInt {
 			ints := make([]int, 0, len(values))
 			for _, val := range values {
-				ints = append(ints, int(cast.ToFloat64(val)))
+				ints = append(ints, val.(chromaNumber).integer)
 			}
 			v.result = v2.InInt(fieldKey, ints...)
 		} else {
-			floats := make([]float32, 0, len(values))
-			for _, val := range values {
-				floats = append(floats, float32(cast.ToFloat64(val)))
+			floats := make([]float32, 0, len(listLit.Values))
+			for _, literal := range listLit.Values {
+				value, err := filtercompile.NumberToFloat32(literal)
+				if err != nil {
+					return fmt.Errorf("chroma: IN numeric value: %w", err)
+				}
+				floats = append(floats, value)
 			}
 			v.result = v2.InFloat(fieldKey, floats...)
 		}
@@ -377,7 +391,11 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	case bool:
 		bools := make([]bool, 0, len(values))
 		for _, val := range values {
-			bools = append(bools, cast.ToBool(val))
+			value, ok := val.(bool)
+			if !ok {
+				return fmt.Errorf("chroma: mixed value type %T in bool list", val)
+			}
+			bools = append(bools, value)
 		}
 		v.result = v2.InBool(fieldKey, bools...)
 
@@ -482,22 +500,27 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 		return lit.AsString()
 	}
 	if lit.IsNumber() {
-		return lit.AsNumber()
+		integer, err := filtercompile.NumberIsInteger(lit)
+		if err != nil {
+			return nil, err
+		}
+		if integer {
+			value, err := filtercompile.NumberToInt(lit)
+			if err != nil {
+				return nil, err
+			}
+			return chromaNumber{integer: value, isInteger: true}, nil
+		}
+		value, err := filtercompile.NumberToFloat32(lit)
+		if err != nil {
+			return nil, err
+		}
+		return chromaNumber{fraction: value}, nil
 	}
 	if lit.IsBool() {
 		return lit.AsBool()
 	}
 	return nil, fmt.Errorf("chroma: unsupported literal type '%s'", lit.Kind)
-}
-
-// toInt returns (int(f), true) when f is a whole number that fits in int,
-// or (0, false) when it has a fractional part.
-func toInt(f float64) (int, bool) {
-	i := int(f)
-	if float64(i) == f {
-		return i, true
-	}
-	return 0, false
 }
 
 // ToFilter converts an AST filter expression into a Chroma WhereClause.

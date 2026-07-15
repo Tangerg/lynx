@@ -35,11 +35,6 @@ done <<'EOF'
 ./transcription 42.1
 ./vectorstore 78.4
 ./vectorstore/filter 85.0
-./vectorstore/filter/internal/ast 68.6
-./vectorstore/filter/internal/lexer 84.7
-./vectorstore/filter/internal/parser 69.1
-./vectorstore/filter/internal/token 81.2
-./vectorstore/filter/internal/visitors 70.3
 EOF
 
 if [[ $failed -ne 0 ]]; then

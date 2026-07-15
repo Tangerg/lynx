@@ -17,7 +17,8 @@
 //		return err
 //	}
 //
-// [Parse] validates the tree before a provider translates it. Provider
-// compilers and interpreters can share the complete-tree [Visitor] contract;
-// [Visit] validates once and dispatches a predicate to one or more visitors.
+// [Parse] validates and normalizes the tree before a provider translates it.
+// Provider compilers and interpreters can share the complete-tree [Visitor]
+// contract; [Visit] validates once and dispatches a predicate to one or more
+// visitors. [Formatter] renders the same tree back to the textual DSL.
 package filter

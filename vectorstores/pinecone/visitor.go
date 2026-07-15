@@ -402,7 +402,7 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 		return lit.AsString()
 	}
 	if lit.IsNumber() {
-		return lit.AsNumber()
+		return filtercompile.NumberToFloat64(lit)
 	}
 	if lit.IsBool() {
 		return lit.AsBool()

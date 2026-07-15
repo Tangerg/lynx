@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/spf13/cast"
-
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
@@ -147,10 +145,13 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 		v.sql.WriteString("}")
 
 	case FieldNumeric:
-		num, err := cast.ToFloat64E(value)
+		literal, ok := expr.Right.(*filter.Literal)
+		if !ok {
+			return fmt.Errorf("redis: NUMERIC field '%s' requires a number literal, got %T", field, expr.Right)
+		}
+		num, err := filtercompile.NumberToFloat64(literal)
 		if err != nil {
-			return fmt.Errorf("redis: NUMERIC field '%s' requires a number value, got %T",
-				field, value)
+			return fmt.Errorf("redis: NUMERIC field '%s': %w", field, err)
 		}
 		low, high := numericRange(op, num)
 		v.sql.WriteString("@")
@@ -325,9 +326,6 @@ func numericRange(op filter.Operator, value float64) (string, string) {
 }
 
 func formatNumber(f float64) string {
-	if float64(int64(f)) == f {
-		return strconv.FormatInt(int64(f), 10)
-	}
 	return strconv.FormatFloat(f, 'f', -1, 64)
 }
 
@@ -336,11 +334,7 @@ func literalToString(lit *filter.Literal) (string, error) {
 	case lit.IsString():
 		return lit.AsString()
 	case lit.IsNumber():
-		n, err := lit.AsNumber()
-		if err != nil {
-			return "", err
-		}
-		return formatNumber(n), nil
+		return filtercompile.NumberText(lit)
 	case lit.IsBool():
 		b, err := lit.AsBool()
 		if err != nil {

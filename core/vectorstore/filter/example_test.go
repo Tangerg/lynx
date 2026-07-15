@@ -20,3 +20,18 @@ func Example() {
 	// Output:
 	// and true
 }
+
+func ExampleFormatter() {
+	predicate := filter.And(
+		filter.EQ("category", "wildlife"),
+		filter.GE("year", 2020),
+	)
+	var formatter filter.Formatter
+	if err := filter.Visit(predicate, &formatter); err != nil {
+		panic(err)
+	}
+
+	fmt.Println(formatter.String())
+	// Output:
+	// category == 'wildlife' and year >= 2020
+}

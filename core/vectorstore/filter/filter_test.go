@@ -73,21 +73,13 @@ func TestParse_RejectsNonPredicateRoots(t *testing.T) {
 	}
 }
 
-func TestParse_PreservesExplicitLogicalStructure(t *testing.T) {
+func TestParse_OptimizesRedundantLogicalStructure(t *testing.T) {
 	expr, err := filter.Parse(`not (not (year >= 2020))`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer, ok := expr.(*filter.UnaryExpr)
-	if !ok {
-		t.Fatalf("parsed = %T, want outer *filter.UnaryExpr", expr)
-	}
-	inner, ok := outer.Right.(*filter.UnaryExpr)
-	if !ok {
-		t.Fatalf("outer.Right = %T, want inner *filter.UnaryExpr", outer.Right)
-	}
-	if _, ok := inner.Right.(*filter.BinaryExpr); !ok {
-		t.Fatalf("inner.Right = %T, want *filter.BinaryExpr", inner.Right)
+	if !expr.Equal(filter.GE("year", 2020)) {
+		t.Fatalf("parsed = %#v, want double NOT removed", expr)
 	}
 }
 

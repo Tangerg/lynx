@@ -2,10 +2,10 @@ package qdrant
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/qdrant/go-client/qdrant"
-	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
@@ -49,7 +49,7 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 // buildMatchCondition creates an appropriate Qdrant match condition based on value type.
 // The method automatically selects the correct Qdrant match function:
 //   - string -> NewMatchKeyword (exact keyword match)
-//   - float64 -> NewMatchInt (integer match, value is cast to int64)
+//   - int64 -> NewMatchInt
 //   - bool -> NewMatchBool (boolean match)
 //
 // Returns an error if the value type is not supported for matching.
@@ -58,9 +58,15 @@ func (v *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.
 	case string:
 		// String: use keyword match (exact match)
 		return qdrant.NewMatchKeyword(fieldKey, v), nil
+	case int64:
+		return qdrant.NewMatchInt(fieldKey, v), nil
+	case uint64:
+		if v > math.MaxInt64 {
+			return nil, fmt.Errorf("integer %d exceeds Qdrant's int64 match range", v)
+		}
+		return qdrant.NewMatchInt(fieldKey, int64(v)), nil
 	case float64:
-		// Number: use integer match (cast to int64)
-		return qdrant.NewMatchInt(fieldKey, cast.ToInt64(v)), nil
+		return nil, fmt.Errorf("Qdrant match requires an integer, got %v", v)
 	case bool:
 		// Boolean: use bool match
 		return qdrant.NewMatchBool(fieldKey, v), nil
@@ -90,37 +96,33 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 			expr.Op.String(), expr.Start().String(), err)
 	}
 
-	fieldValue, err := v.extractFieldValue(expr.Right)
-	if err != nil {
-		return fmt.Errorf("failed to extract value from right operand of '%s' at %s: %w",
-			expr.Op.String(), expr.Start().String(), err)
+	literal, ok := expr.Right.(*filter.Literal)
+	if !ok {
+		return fmt.Errorf("right operand of '%s' at %s must be a number literal, got %T",
+			expr.Op.String(), expr.Start().String(), expr.Right)
 	}
-
-	//nolint:staticcheck // SA4006 false positive: numericValue is used below via
-	// the Go 1.26 new(value) builtin (new(numericValue)), which staticcheck v1.x
-	// doesn't yet model — it reads the arg as a type position, not a value use.
-	numericValue, err := cast.ToFloat64E(fieldValue)
+	numericValue, err := filtercompile.NumberToFloat64(literal)
 	if err != nil {
-		return fmt.Errorf("cannot convert value to number for '%s' comparison at %s: expected number, got %T",
-			expr.Op.String(), expr.Start().String(), fieldValue)
+		return fmt.Errorf("cannot convert value for '%s' comparison at %s: %w",
+			expr.Op.String(), expr.Start().String(), err)
 	}
 
 	switch expr.Op {
 	case filter.OpLess:
 		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
-			Lt: new(numericValue),
+			Lt: &numericValue,
 		}))
 	case filter.OpLessEqual:
 		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
-			Lte: new(numericValue),
+			Lte: &numericValue,
 		}))
 	case filter.OpGreater:
 		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
-			Gt: new(numericValue),
+			Gt: &numericValue,
 		}))
 	case filter.OpGreaterEqual:
 		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
-			Gte: new(numericValue),
+			Gte: &numericValue,
 		}))
 	default:
 		// Defensive programming: should never reach here
@@ -159,49 +161,45 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("qdrant: %w", err)
 	}
 
-	if err = v.visitListLiteral(listLit); err != nil {
-		return err
-	}
-
-	values, ok := v.currentFieldValue.([]any)
-	if !ok {
-		return fmt.Errorf("failed to extract list values for 'IN' operator at %s",
-			expr.Start().String())
-	}
-
-	// Safety check (should be caught earlier, but defensive programming)
-	if len(values) == 0 {
-		return fmt.Errorf("'IN' operator requires a non-empty list at %s",
-			expr.Start().String())
-	}
-
 	// Determine list type and create appropriate condition based on first element
-	switch values[0].(type) {
-	case string:
+	switch {
+	case listLit.Values[0].IsString():
 		// String list: use MatchKeywords (OR semantics for multiple keywords)
-		keywords := make([]string, 0, len(values))
-		for _, val := range values {
-			keywords = append(keywords, cast.ToString(val))
+		keywords := make([]string, 0, len(listLit.Values))
+		for _, literal := range listLit.Values {
+			value, err := literal.AsString()
+			if err != nil {
+				return err
+			}
+			keywords = append(keywords, value)
 		}
 		v.filter.Must = append(v.filter.Must, qdrant.NewMatchKeywords(fieldKey, keywords...))
 
-	case float64:
+	case listLit.Values[0].IsNumber():
 		// Number list: use MatchInts (OR semantics for multiple integers)
-		integers := make([]int64, 0, len(values))
-		for _, val := range values {
-			integers = append(integers, cast.ToInt64(val))
+		integers := make([]int64, 0, len(listLit.Values))
+		for _, literal := range listLit.Values {
+			value, err := filtercompile.NumberToInt64(literal)
+			if err != nil {
+				return fmt.Errorf("qdrant: IN numeric value: %w", err)
+			}
+			integers = append(integers, value)
 		}
 		v.filter.Must = append(v.filter.Must, qdrant.NewMatchInts(fieldKey, integers...))
 
-	case bool:
+	case listLit.Values[0].IsBool():
 		// Boolean list: wrap Should conditions in a nested filter
 		// This is necessary because:
 		// 1. The SDK doesn't provide NewMatchBools
 		// 2. Direct Should append would affect top-level filter semantics
 		// 3. Nested filter isolates the OR logic for this specific condition
-		boolConditions := make([]*qdrant.Condition, 0, len(values))
-		for _, val := range values {
-			boolConditions = append(boolConditions, qdrant.NewMatchBool(fieldKey, cast.ToBool(val)))
+		boolConditions := make([]*qdrant.Condition, 0, len(listLit.Values))
+		for _, literal := range listLit.Values {
+			value, err := literal.AsBool()
+			if err != nil {
+				return err
+			}
+			boolConditions = append(boolConditions, qdrant.NewMatchBool(fieldKey, value))
 		}
 		v.filter.Must = append(v.filter.Must,
 			qdrant.NewFilterAsCondition(&qdrant.Filter{
@@ -209,8 +207,8 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 			}))
 
 	default:
-		return fmt.Errorf("unsupported value type %T in 'IN' list at %s",
-			values[0], expr.Start().String())
+		return fmt.Errorf("unsupported literal kind %s in 'IN' list at %s",
+			listLit.Values[0].Kind, expr.Start().String())
 	}
 
 	return nil
@@ -427,7 +425,7 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 	}
 
 	if lit.IsNumber() {
-		return lit.AsNumber()
+		return filtercompile.LiteralToValue(lit)
 	}
 
 	if lit.IsBool() {

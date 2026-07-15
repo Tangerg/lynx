@@ -4,12 +4,111 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
+
+// NumberText returns the exact canonical text stored by a number literal.
+// Text-based provider DSLs should prefer it over converting through float64.
+func NumberText(lit *filter.Literal) (string, error) {
+	if _, err := numberRat(lit); err != nil {
+		return "", err
+	}
+	return lit.Value, nil
+}
+
+// NumberIsInteger reports whether a number literal has an integral value.
+func NumberIsInteger(lit *filter.Literal) (bool, error) {
+	number, err := numberRat(lit)
+	if err != nil {
+		return false, err
+	}
+	return number.IsInt(), nil
+}
+
+// NumberToInt64 converts an integral number literal without rounding.
+func NumberToInt64(lit *filter.Literal) (int64, error) {
+	number, err := numberRat(lit)
+	if err != nil {
+		return 0, err
+	}
+	if !number.IsInt() {
+		return 0, fmt.Errorf("filter: number %q is not an integer", lit.Value)
+	}
+	integer := number.Num()
+	if !integer.IsInt64() {
+		return 0, fmt.Errorf("filter: integer %q exceeds int64", lit.Value)
+	}
+	return integer.Int64(), nil
+}
+
+// NumberToInt converts an integral number literal without rounding and rejects
+// values outside the platform int range.
+func NumberToInt(lit *filter.Literal) (int, error) {
+	value, err := NumberToInt64(lit)
+	if err != nil {
+		return 0, err
+	}
+	converted := int(value)
+	if int64(converted) != value {
+		return 0, fmt.Errorf("filter: integer %q exceeds int", lit.Value)
+	}
+	return converted, nil
+}
+
+// NumberToFloat64 converts a number for provider APIs that only accept a
+// double. Fractional values follow the provider's float semantics; integral
+// values are rejected when the conversion would change their exact value.
+func NumberToFloat64(lit *filter.Literal) (float64, error) {
+	number, err := numberRat(lit)
+	if err != nil {
+		return 0, err
+	}
+	value, err := lit.AsNumber()
+	if err != nil {
+		return 0, err
+	}
+	if number.IsInt() && new(big.Rat).SetFloat64(value).Cmp(number) != 0 {
+		return 0, fmt.Errorf("filter: integer %q loses precision as float64", lit.Value)
+	}
+	return value, nil
+}
+
+// NumberToFloat32 converts a number for provider APIs that only accept a
+// float. It rejects overflow and integral values that would be rounded.
+func NumberToFloat32(lit *filter.Literal) (float32, error) {
+	number, err := numberRat(lit)
+	if err != nil {
+		return 0, err
+	}
+	value, err := lit.AsNumber()
+	if err != nil {
+		return 0, err
+	}
+	converted := float32(value)
+	if math.IsInf(float64(converted), 0) {
+		return 0, fmt.Errorf("filter: number %q exceeds float32", lit.Value)
+	}
+	if number.IsInt() && new(big.Rat).SetFloat64(float64(converted)).Cmp(number) != 0 {
+		return 0, fmt.Errorf("filter: integer %q loses precision as float32", lit.Value)
+	}
+	return converted, nil
+}
+
+func numberRat(lit *filter.Literal) (*big.Rat, error) {
+	if lit == nil || !lit.IsNumber() {
+		return nil, fmt.Errorf("filter: expected number literal, got %v", lit)
+	}
+	number, ok := new(big.Rat).SetString(lit.Value)
+	if !ok {
+		return nil, fmt.Errorf("filter: invalid number literal %q", lit.Value)
+	}
+	return number, nil
+}
 
 // LiteralAsKey turns a literal used as an index (e.g. metadata["k"]
 // or metadata[3]) into its bare string form. Booleans aren't valid

@@ -82,3 +82,10 @@ func TestVisitor_IsNotNull(t *testing.T) {
 		t.Errorf("inner valueBoolean = %v, want true", inner.ValueBoolean)
 	}
 }
+
+func TestVisitor_RejectsIntegerThatNumberFilterCannotRepresent(t *testing.T) {
+	_, err := weaviate.ToFilter(filter.EQ("id", uint64(1<<53+1)))
+	if err == nil {
+		t.Fatal("Weaviate silently rounded a large integer")
+	}
+}
