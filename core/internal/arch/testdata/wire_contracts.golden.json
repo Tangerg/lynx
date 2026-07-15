@@ -164,7 +164,6 @@
     ],
     "options": {
       "model": "embedding-model",
-      "encoding_format": "float",
       "dimensions": 3,
       "extra": {
         "user": "u-1"
@@ -180,9 +179,6 @@
           0.3
         ],
         "metadata": {
-          "index": 0,
-          "modality_type": "text",
-          "mime_type": "text/plain",
           "extra": {
             "source": "fixture"
           }
@@ -207,28 +203,30 @@
       "negative_prompt": "text",
       "width": 1024,
       "height": 768,
-      "style": "natural",
-      "quality": "high",
       "seed": 42,
       "output_format": "image/png",
-      "response_format": "b64json",
       "extra": {
         "background": "transparent"
       }
     }
   },
   "image_response": {
-    "result": {
-      "image": {
-        "url": "https://example.com/generated.png",
-        "b64_json": "bHlueA=="
-      },
-      "metadata": {
-        "extra": {
-          "revised_prompt": "A detailed lynx"
+    "results": [
+      {
+        "media": {
+          "mime": "image/png",
+          "source": {
+            "kind": "uri",
+            "uri": "https://example.com/generated.png"
+          }
+        },
+        "metadata": {
+          "extra": {
+            "revised_prompt": "A detailed lynx"
+          }
         }
       }
-    },
+    ],
     "metadata": {
       "created": 1700000001,
       "extra": {
@@ -291,61 +289,41 @@
     "results": [
       {
         "categories": {
-          "sexual": {
+          "dangerous_and_criminal_content": {
             "flagged": true,
-            "score": 0.01
+            "score": 0.12
           },
-          "hate": {
+          "financial": {
             "flagged": true,
-            "score": 0.02
+            "score": 0.14
           },
           "harassment": {
             "flagged": true,
             "score": 0.03
           },
-          "self_harm": {
+          "harassment_threatening": {
             "flagged": true,
-            "score": 0.04
+            "score": 0.1
           },
-          "sexual_minors": {
+          "hate": {
             "flagged": true,
-            "score": 0.05
+            "score": 0.02
           },
           "hate_threatening": {
             "flagged": true,
             "score": 0.06
           },
-          "violence_graphic": {
-            "flagged": true,
-            "score": 0.07
-          },
-          "self_harm_intent": {
-            "flagged": true,
-            "score": 0.08
-          },
-          "self_harm_instructions": {
-            "flagged": true,
-            "score": 0.09
-          },
-          "harassment_threatening": {
-            "flagged": true,
-            "score": 0.1
-          },
-          "violence": {
-            "flagged": true,
-            "score": 0.11
-          },
-          "dangerous_and_criminal_content": {
-            "flagged": true,
-            "score": 0.12
-          },
           "health": {
             "flagged": true,
             "score": 0.13
           },
-          "financial": {
+          "illicit": {
             "flagged": true,
-            "score": 0.14
+            "score": 0.17
+          },
+          "illicit_violent": {
+            "flagged": true,
+            "score": 0.18
           },
           "law": {
             "flagged": true,
@@ -355,13 +333,33 @@
             "flagged": true,
             "score": 0.16
           },
-          "illicit": {
+          "self_harm": {
             "flagged": true,
-            "score": 0.17
+            "score": 0.04
           },
-          "illicit_violent": {
+          "self_harm_instructions": {
             "flagged": true,
-            "score": 0.18
+            "score": 0.09
+          },
+          "self_harm_intent": {
+            "flagged": true,
+            "score": 0.08
+          },
+          "sexual": {
+            "flagged": true,
+            "score": 0.01
+          },
+          "sexual_minors": {
+            "flagged": true,
+            "score": 0.05
+          },
+          "violence": {
+            "flagged": true,
+            "score": 0.11
+          },
+          "violence_graphic": {
+            "flagged": true,
+            "score": 0.07
           }
         },
         "metadata": {
@@ -420,13 +418,6 @@
     "options": {
       "model": "transcription-model",
       "language": "en",
-      "prompt": "Lynx vocabulary",
-      "temperature": 0.1,
-      "response_format": "verbose_json",
-      "timestamp_granularity": [
-        "word",
-        "segment"
-      ],
       "extra": {
         "diarize": true
       }

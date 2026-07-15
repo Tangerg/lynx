@@ -11,7 +11,7 @@ import (
 )
 
 func TestMapGolden(t *testing.T) {
-	value := metadata.New()
+	value := metadata.Map{}
 	if err := value.Set("enabled", true); err != nil {
 		t.Fatal(err)
 	}

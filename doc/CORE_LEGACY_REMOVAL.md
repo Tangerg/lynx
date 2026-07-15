@@ -72,7 +72,8 @@ P5-01 在 `7cd3865c3` 中直接删除了 embedding 的 `ClientRequest`、`Client
 handler/middleware/chain、`ModelMetadata`、`GetDimensions` 与全局维度 cache，并同步
 迁移所有 provider、vectorstore 和 runtime 消费点。该表面没有仍待迁移的消费者，
 因此不建立冻结条目，也不保留 deprecated wrapper、alias 或 bridge。当前唯一 SPI
-是单方法 `embedding.Model`；可选 `Dimensioner` 和无缓存探测 helper 均显式返回错误。
+是单方法 `embedding.Model`；P9 又删除了没有真实闭环的 `Dimensioner` 与 Core 探测
+helper，需要维度的消费方调用 `embeddingclient.Client.Dimensions` 发起显式请求。
 
 ## P5 直接删除记录：其余模态 Client framework
 

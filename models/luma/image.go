@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -69,6 +70,15 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err != nil {
 		return nil, err
 	}
+	if err := options.RejectUnsupported("luma: image", map[string]bool{
+		"height":          mergedOpts.Height != nil,
+		"negative_prompt": mergedOpts.NegativePrompt != "",
+		"output_format":   mergedOpts.OutputFormat != "",
+		"seed":            mergedOpts.Seed != nil,
+		"width":           mergedOpts.Width != nil,
+	}); err != nil {
+		return nil, err
+	}
 
 	apiReq, err := options.GetParams[ImageGenerateRequest](mergedOpts.Extra, OptionsKey)
 	if err != nil {
@@ -89,12 +99,12 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	img, err := image.NewImage(final.Assets.Image, "")
+	value, err := media.NewURI("application/octet-stream", final.Assets.Image)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := image.NewResult(img, &image.ResultMetadata{})
+	result, err := image.NewResult(value, &image.ResultMetadata{})
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +113,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err := meta.Set("task_id", async.ID); err != nil {
 		return nil, err
 	}
-	return image.NewResponse(result, meta)
+	return image.NewResponse([]*image.Result{result}, meta)
 }
 
 func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*Generation, error) {

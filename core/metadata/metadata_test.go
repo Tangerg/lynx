@@ -15,7 +15,7 @@ func TestSetAndDecode(t *testing.T) {
 		Count int    `json:"count"`
 	}
 
-	m := metadata.New()
+	m := metadata.Map{}
 	want := value{Name: "lynx", Count: 2}
 	if err := m.Set("value", want); err != nil {
 		t.Fatalf("Set: %v", err)
@@ -41,8 +41,8 @@ func TestSetRejectsInvalidInputs(t *testing.T) {
 		value any
 		want  error
 	}{
-		{name: "empty key", m: metadata.New(), value: 1, want: metadata.ErrEmptyKey},
-		{name: "unsupported value", m: metadata.New(), key: "key", value: func() {}, want: nil},
+		{name: "empty key", m: metadata.Map{}, value: 1, want: metadata.ErrEmptyKey},
+		{name: "unsupported value", m: metadata.Map{}, key: "key", value: func() {}, want: nil},
 	}
 
 	for _, tt := range tests {
@@ -160,7 +160,7 @@ func TestDecodeMissingAndTypeMismatch(t *testing.T) {
 		t.Fatalf("missing Decode = (%q, %v, %v)", got, ok, err)
 	}
 
-	m := metadata.New()
+	m := metadata.Map{}
 	if err := m.Set("count", 3); err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestJSONRoundTrip(t *testing.T) {
-	src := metadata.New()
+	src := metadata.Map{}
 	if err := src.Set("name", "lynx"); err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,15 @@ func TestCloneDoesNotAliasValues(t *testing.T) {
 }
 
 func TestValueMapBoundary(t *testing.T) {
-	source := map[string]any{"name": "lynx", "count": 2.0, "nested": map[string]any{"ok": true}}
+	source := map[string]any{
+		"name":  "lynx",
+		"count": int64(2),
+		"large": int64(9007199254740993),
+		"nested": map[string]any{
+			"values": []any{int64(9007199254740993), 0.25},
+			"ok":     true,
+		},
+	}
 	encoded, err := metadata.FromValues(source)
 	if err != nil {
 		t.Fatal(err)

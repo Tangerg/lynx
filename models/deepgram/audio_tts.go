@@ -67,6 +67,12 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *SpeakParams,
 	if err != nil {
 		return "", nil, err
 	}
+	if err := options.RejectUnsupported("deepgram: speech", map[string]bool{
+		"speed": mergedOpts.Speed != 0,
+		"voice": mergedOpts.Voice != "",
+	}); err != nil {
+		return "", nil, err
+	}
 
 	params, err := options.GetParams[SpeakParams](mergedOpts.Extra, OptionsKey)
 	if err != nil {

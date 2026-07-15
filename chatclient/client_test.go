@@ -73,7 +73,7 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	message := chat.NewUserMessage(chat.NewMediaPart(inline))
-	message.Metadata = metadata.New()
+	message.Metadata = metadata.Map{}
 	if err := message.Metadata.Set("turn", 1); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 			MaxTokens: &requestMaxTokens,
 			Stop:      []string{},
 		},
-		Extensions: metadata.New(),
+		Extensions: metadata.Map{},
 	}
 	if err := request.Extensions.Set("test/value", "caller"); err != nil {
 		t.Fatal(err)

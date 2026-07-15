@@ -2,29 +2,14 @@ package image
 
 import (
 	"errors"
+	"fmt"
+	"mime"
+	"slices"
+	"strings"
 
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/metadata"
 )
-
-// Image holds one generated image, either as a URL pointing at hosted
-// bytes or as a base64-encoded inline payload (mutually exclusive in
-// practice, depending on the provider's chosen response format).
-type Image struct {
-	// URL is the hosted image URL. Empty when the provider returned bytes.
-	URL string `json:"url"`
-
-	// B64JSON is the base64-encoded image bytes. Empty when URL is set.
-	B64JSON string `json:"b64_json"`
-}
-
-// NewImage builds an [Image] from a URL or base64 payload. At least one
-// must be supplied — both empty returns an error.
-func NewImage(url, b64JSON string) (*Image, error) {
-	if url == "" && b64JSON == "" {
-		return nil, errors.New("image.NewImage: at least one of URL or B64JSON is required")
-	}
-	return &Image{URL: url, B64JSON: b64JSON}, nil
-}
 
 // ResultMetadata holds per-image metadata returned by the provider.
 type ResultMetadata struct {
@@ -42,23 +27,21 @@ func (m *ResultMetadata) Set(key string, value any) error {
 
 // Result is one generated image plus its metadata.
 type Result struct {
-	// Image holds the generated image payload.
-	Image *Image `json:"image,omitempty"`
+	// Media holds the generated image as bytes or an absolute URI.
+	Media *media.Media `json:"media,omitempty"`
 
 	// Metadata carries per-image extras.
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
-// NewResult builds a [Result]. Returns an error when image or metadata
+// NewResult builds a [Result]. Returns an error when media or metadata
 // is nil.
-func NewResult(image *Image, metadata *ResultMetadata) (*Result, error) {
-	if image == nil {
-		return nil, errors.New("image.NewResult: image must not be nil")
+func NewResult(value *media.Media, metadata *ResultMetadata) (*Result, error) {
+	result := &Result{Media: value, Metadata: metadata}
+	if err := validateResult(result); err != nil {
+		return nil, fmt.Errorf("image.NewResult: %w", err)
 	}
-	if metadata == nil {
-		return nil, errors.New("image.NewResult: metadata must not be nil")
-	}
-	return &Result{Image: image, Metadata: metadata}, nil
+	return result, nil
 }
 
 // ResponseMetadata holds response-level metadata for an image
@@ -79,27 +62,75 @@ func (m *ResponseMetadata) Set(key string, value any) error {
 	return m.Extra.Set(key, value)
 }
 
-// Response is the full image-generation result: the rendered image plus
+// Response is the full image-generation result: every rendered image plus
 // shared response metadata.
-//
-// The image surface is one-image-per-call by design. Providers that accept
-// `n` (OpenAI DALL-E 2) still return only the first image through this
-// surface; callers needing N>1 should drop down to the provider's native
-// SDK. See the rationale on chat.Response.
 type Response struct {
-	// Result is the generated image. Non-nil after [NewResponse].
-	Result *Result `json:"result,omitempty"`
+	// Results contains every image returned by the provider, in provider order.
+	Results []*Result `json:"results,omitzero"`
 
 	// Metadata carries shared response-level fields.
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
+// NewResponse builds a [Response] from at least one result and non-nil
+// metadata.
+func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
+	response := &Response{Results: slices.Clone(results), Metadata: metadata}
+	if err := response.Validate(); err != nil {
+		return nil, fmt.Errorf("image.NewResponse: %w", err)
+	}
+	return response, nil
+}
+
+// Validate recursively verifies generated media and response metadata.
+func (r *Response) Validate() error {
+	if r == nil {
+		return errors.New("image.Response: nil response")
+	}
+	if len(r.Results) == 0 {
+		return errors.New("image.Response: at least one result is required")
+	}
+	for i, result := range r.Results {
+		if err := validateResult(result); err != nil {
+			return fmt.Errorf("image.Response: results[%d]: %w", i, err)
+		}
+	}
+	if r.Metadata == nil {
+		return errors.New("image.Response: metadata must not be nil")
+	}
+	if r.Metadata.Created < 0 {
+		return errors.New("image.Response: created must not be negative")
+	}
+	if err := r.Metadata.Extra.Validate(); err != nil {
+		return fmt.Errorf("image.Response: metadata: %w", err)
+	}
+	return nil
+}
+
+func validateResult(result *Result) error {
 	if result == nil {
-		return nil, errors.New("image.NewResponse: result must not be nil")
+		return errors.New("result must not be nil")
 	}
-	if metadata == nil {
-		return nil, errors.New("image.NewResponse: metadata must not be nil")
+	if err := result.Media.Validate(); err != nil {
+		return fmt.Errorf("media: %w", err)
 	}
-	return &Response{Result: result, Metadata: metadata}, nil
+	mediaType, _, _ := mime.ParseMediaType(result.Media.MIME)
+	if !strings.HasPrefix(mediaType, "image/") && mediaType != "application/octet-stream" {
+		return fmt.Errorf("media MIME type %q is not an image", result.Media.MIME)
+	}
+	if result.Metadata == nil {
+		return errors.New("metadata must not be nil")
+	}
+	if err := result.Metadata.Extra.Validate(); err != nil {
+		return fmt.Errorf("metadata: %w", err)
+	}
+	return nil
+}
+
+// First returns the first generated image, or nil when the response is empty.
+func (r *Response) First() *Result {
+	if r == nil || len(r.Results) == 0 {
+		return nil
+	}
+	return r.Results[0]
 }

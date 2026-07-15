@@ -22,12 +22,12 @@ func TestNewWindowStoreValidatesConstruction(t *testing.T) {
 func TestWindowStoreMergesSystemAndKeepsRecentMessages(t *testing.T) {
 	base := chathistory.NewInMemoryStore()
 	firstSystem := chat.NewSystemMessage("first")
-	firstSystem.Metadata = metadata.New()
+	firstSystem.Metadata = metadata.Map{}
 	if err := firstSystem.Metadata.Set("shared", "first"); err != nil {
 		t.Fatal(err)
 	}
 	secondSystem := chat.NewSystemMessage("second")
-	secondSystem.Metadata = metadata.New()
+	secondSystem.Metadata = metadata.Map{}
 	if err := secondSystem.Metadata.Set("shared", "second"); err != nil {
 		t.Fatal(err)
 	}

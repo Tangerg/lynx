@@ -15,8 +15,6 @@ import (
 
 const defaultJSONReaderBufferSize = 8192
 
-var _ document.Reader = (*JSONReader)(nil)
-
 // JSONReader parses a JSON payload — either a single object or a top-
 // level array — into [*document.Document] entries. Top-level arrays produce one
 // document per element; single objects produce one document whose Text

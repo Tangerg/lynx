@@ -12,8 +12,6 @@ import (
 
 const defaultTextReaderBufferSize = 8192
 
-var _ document.Reader = (*TextReader)(nil)
-
 // TextReader reads the entire contents of an [io.Reader] and packages
 // it into one [*document.Document]. Use it for files, in-memory buffers, or
 // network streams that fit comfortably in memory; for very large

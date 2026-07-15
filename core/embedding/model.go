@@ -2,8 +2,11 @@ package embedding
 
 import "context"
 
-// Model is the complete provider-neutral embedding SPI. Defaults, identity,
-// observability, batching, and dimension discovery are independent concerns.
+// Model is the complete provider-neutral embedding SPI. Call implementations
+// validate requests before I/O, reject explicit options they cannot represent,
+// preserve context error identity, and return responses that pass Validate.
+// Defaults, identity, observability, batching, and dimension discovery are
+// independent concerns.
 type Model interface {
 	Call(context.Context, *Request) (*Response, error)
 }
@@ -13,17 +16,4 @@ type ModelFunc func(context.Context, *Request) (*Response, error)
 
 func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error) {
 	return f(ctx, request)
-}
-
-// Dimensioner is the optional capability for models whose output width is
-// known without issuing an embedding request.
-type Dimensioner interface {
-	Dimensions(context.Context) (int, error)
-}
-
-// DimensionFunc adapts a function to [Dimensioner].
-type DimensionFunc func(context.Context) (int, error)
-
-func (f DimensionFunc) Dimensions(ctx context.Context) (int, error) {
-	return f(ctx)
 }

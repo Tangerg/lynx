@@ -87,9 +87,6 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*EmbeddingRequ
 	if mergedOpts.Dimensions != nil {
 		apiReq.OutputDimension = mergedOpts.Dimensions
 	}
-	if mergedOpts.EncodingFormat.Valid() {
-		apiReq.EncodingFormat = string(mergedOpts.EncodingFormat)
-	}
 
 	return apiReq, nil
 }
@@ -101,11 +98,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.R
 
 	results := make([]*embedding.Result, 0, len(apiResp.Data))
 	for _, item := range apiResp.Data {
-		resultMeta := &embedding.ResultMetadata{
-			Index:        item.Index,
-			ModalityType: embedding.Text,
-			MIMEType:     "text/plain",
-		}
+		resultMeta := &embedding.ResultMetadata{}
 
 		result, err := embedding.NewResult(item.Embedding, resultMeta)
 		if err != nil {

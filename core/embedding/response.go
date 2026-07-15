@@ -2,38 +2,16 @@ package embedding
 
 import (
 	"errors"
+	"fmt"
+	"math"
+	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-// ModalityType labels the source content an embedding represents.
-// Most callers see [Text]; image / audio / video embeddings are emitted
-// by multimodal providers.
-type ModalityType string
-
-const (
-	Text  ModalityType = "text"
-	Image ModalityType = "image"
-	Audio ModalityType = "audio"
-	Video ModalityType = "video"
-)
-
-func (m ModalityType) String() string { return string(m) }
-
-// ResultMetadata holds per-embedding metadata: where in the input list
-// the embedding came from, what kind of content produced it, and any
-// provider extras.
+// ResultMetadata holds provider-specific per-embedding metadata.
 type ResultMetadata struct {
-	// Index is the position of this result in the input list.
-	Index int64 `json:"index"`
-
-	// ModalityType labels the source content type.
-	ModalityType ModalityType `json:"modality_type"`
-
-	// MIMEType identifies the MIME type of the original content. Empty
-	// means the provider did not surface it.
-	MIMEType string `json:"mime_type,omitempty"`
-
 	// Extra carries JSON-safe provider-specific metadata.
 	Extra metadata.Map `json:"extra,omitzero"`
 }
@@ -51,20 +29,18 @@ type Result struct {
 	// Embedding is the vector representation of the input.
 	Embedding []float64 `json:"embedding"`
 
-	// Metadata carries the source position, modality, and any extras.
+	// Metadata carries provider-specific per-result extras.
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
 // NewResult builds a [Result]. Returns an error when the embedding is
 // empty or metadata is nil.
 func NewResult(embedding []float64, metadata *ResultMetadata) (*Result, error) {
-	if len(embedding) == 0 {
-		return nil, errors.New("embedding.NewResult: embedding vector must not be empty")
+	result := &Result{Embedding: slices.Clone(embedding), Metadata: metadata}
+	if err := validateResult(result); err != nil {
+		return nil, fmt.Errorf("embedding.NewResult: %w", err)
 	}
-	if metadata == nil {
-		return nil, errors.New("embedding.NewResult: metadata must not be nil")
-	}
-	return &Result{Embedding: embedding, Metadata: metadata}, nil
+	return result, nil
 }
 
 // Usage records the token consumption an embedding request reported back.
@@ -113,13 +89,70 @@ type Response struct {
 // NewResponse builds a [Response] from at least one result and a
 // non-nil metadata.
 func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
-	if len(results) == 0 {
-		return nil, errors.New("embedding.NewResponse: at least one Result is required")
+	response := &Response{Results: slices.Clone(results), Metadata: metadata}
+	if err := response.Validate(); err != nil {
+		return nil, fmt.Errorf("embedding.NewResponse: %w", err)
 	}
-	if metadata == nil {
-		return nil, errors.New("embedding.NewResponse: metadata must not be nil")
+	return response, nil
+}
+
+// Validate recursively verifies the response and its vector, metadata, and
+// usage invariants.
+func (r *Response) Validate() error {
+	if r == nil {
+		return errors.New("embedding.Response: nil response")
 	}
-	return &Response{Results: results, Metadata: metadata}, nil
+	if len(r.Results) == 0 {
+		return errors.New("embedding.Response: at least one result is required")
+	}
+	dimensions := -1
+	for i, result := range r.Results {
+		if err := validateResult(result); err != nil {
+			return fmt.Errorf("embedding.Response: results[%d]: %w", i, err)
+		}
+		if dimensions < 0 {
+			dimensions = len(result.Embedding)
+		} else if len(result.Embedding) != dimensions {
+			return fmt.Errorf("embedding.Response: results[%d]: dimensions = %d, want %d", i, len(result.Embedding), dimensions)
+		}
+	}
+	if r.Metadata == nil {
+		return errors.New("embedding.Response: metadata must not be nil")
+	}
+	if r.Metadata.Model != "" && strings.TrimSpace(r.Metadata.Model) != r.Metadata.Model {
+		return errors.New("embedding.Response: metadata model must not have surrounding whitespace")
+	}
+	if r.Metadata.Usage != nil && r.Metadata.Usage.InputTokens < 0 {
+		return errors.New("embedding.Response: input tokens must not be negative")
+	}
+	if r.Metadata.Created < 0 {
+		return errors.New("embedding.Response: created must not be negative")
+	}
+	if err := r.Metadata.Extra.Validate(); err != nil {
+		return fmt.Errorf("embedding.Response: metadata: %w", err)
+	}
+	return nil
+}
+
+func validateResult(result *Result) error {
+	if result == nil {
+		return errors.New("result must not be nil")
+	}
+	if len(result.Embedding) == 0 {
+		return errors.New("embedding vector must not be empty")
+	}
+	for i, value := range result.Embedding {
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return fmt.Errorf("embedding[%d] must be finite", i)
+		}
+	}
+	if result.Metadata == nil {
+		return errors.New("metadata must not be nil")
+	}
+	if err := result.Metadata.Extra.Validate(); err != nil {
+		return fmt.Errorf("metadata: %w", err)
+	}
+	return nil
 }
 
 // First returns the first embedding — the common single-input shortcut.

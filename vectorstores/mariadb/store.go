@@ -154,7 +154,6 @@ type Store struct {
 	contentColumn   string
 	metadataColumn  string
 	embeddingColumn string
-	embeddingModel  embedding.Model
 	embeddingClient *embeddingclient.Client
 	documentBatcher vectorstores.Batcher
 	dimensions      int
@@ -186,7 +185,6 @@ func NewStore(config StoreConfig) (*Store, error) {
 		contentColumn:   config.ContentColumn,
 		metadataColumn:  config.MetadataColumn,
 		embeddingColumn: config.EmbeddingColumn,
-		embeddingModel:  config.EmbeddingModel,
 		embeddingClient: embeddingClient,
 		documentBatcher: config.DocumentBatcher,
 		dimensions:      config.Dimensions,
@@ -203,7 +201,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 // requested.
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	if s.dimensions <= 0 {
-		dimensions, err := embedding.ResolveDimensions(ctx, s.embeddingModel)
+		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
 			return fmt.Errorf("mariadb: resolve embedding dimensions: %w", err)
 		}
@@ -312,7 +310,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	ctx, span := tracing.StartSearch(ctx, "mariadb", req.TopK, req.MinScore)
-	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
+	defer func() {
+		if err == nil {
+			err = req.ValidateMatches(docs)
+		}
+		tracing.RecordSearchResult(span, err, len(docs))
+	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)

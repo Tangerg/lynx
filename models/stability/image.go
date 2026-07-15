@@ -3,12 +3,15 @@ package stability
 import (
 	"cmp"
 	"context"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -81,6 +84,12 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*GenerateRequest, erro
 	if err != nil {
 		return nil, err
 	}
+	if err := options.RejectUnsupported("stability: image", map[string]bool{
+		"height": mergedOpts.Height != nil,
+		"width":  mergedOpts.Width != nil,
+	}); err != nil {
+		return nil, err
+	}
 
 	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extra, OptionsKey)
 	if err != nil {
@@ -90,9 +99,6 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*GenerateRequest, erro
 	apiReq.Prompt = req.Prompt
 	if mergedOpts.NegativePrompt != "" {
 		apiReq.NegativePrompt = mergedOpts.NegativePrompt
-	}
-	if mergedOpts.Style != "" && apiReq.StylePreset == "" {
-		apiReq.StylePreset = mergedOpts.Style
 	}
 	if mergedOpts.Seed != nil {
 		apiReq.Seed = mergedOpts.Seed
@@ -107,13 +113,21 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*GenerateRequest, erro
 	return apiReq, nil
 }
 
-func (i *ImageModel) buildResponse(body []byte, hdr http.Header) (*image.Response, error) {
+func (i *ImageModel) buildResponse(body []byte, hdr http.Header, outputFormat string) (*image.Response, error) {
 	envelope, err := DecodeJSON(body)
 	if err != nil {
 		return nil, err
 	}
 
-	img, err := image.NewImage("", envelope.Image)
+	data, err := base64.StdEncoding.DecodeString(envelope.Image)
+	if err != nil {
+		return nil, fmt.Errorf("stability: decode image: %w", err)
+	}
+	mimeType := "image/png"
+	if outputFormat != "" {
+		mimeType = "image/" + outputFormat
+	}
+	value, err := media.NewBytes(mimeType, data)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +144,7 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header) (*image.Respons
 		}
 	}
 
-	result, err := image.NewResult(img, resultMeta)
+	result, err := image.NewResult(value, resultMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +156,7 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header) (*image.Respons
 		}
 	}
 
-	return image.NewResponse(result, meta)
+	return image.NewResponse([]*image.Result{result}, meta)
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
@@ -159,5 +173,5 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	return i.buildResponse(body, hdr)
+	return i.buildResponse(body, hdr, apiReq.OutputFormat)
 }

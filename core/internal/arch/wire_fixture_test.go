@@ -40,6 +40,10 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	if err != nil {
 		t.Fatal(err)
 	}
+	generatedMedia, err := media.NewURI("image/png", "https://example.com/generated.png")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	chatRequest, err := chat.NewRequest(
 		chat.NewSystemMessage("Answer precisely."),
@@ -100,20 +104,16 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	embeddingRequest := &embedding.Request{
 		Texts: []string{"lynx", "wild cat"},
 		Options: &embedding.Options{
-			Model:          "embedding-model",
-			EncodingFormat: embedding.EncodingFormatFloat,
-			Dimensions:     new(int64(3)),
-			Extra:          mustMetadata(t, map[string]any{"user": "u-1"}),
+			Model:      "embedding-model",
+			Dimensions: new(int64(3)),
+			Extra:      mustMetadata(t, map[string]any{"user": "u-1"}),
 		},
 	}
 	embeddingResponse := &embedding.Response{
 		Results: []*embedding.Result{{
 			Embedding: []float64{0.1, 0.2, 0.3},
 			Metadata: &embedding.ResultMetadata{
-				Index:        0,
-				ModalityType: embedding.Text,
-				MIMEType:     "text/plain",
-				Extra:        mustMetadata(t, map[string]any{"source": "fixture"}),
+				Extra: mustMetadata(t, map[string]any{"source": "fixture"}),
 			},
 		}},
 		Metadata: &embedding.ResponseMetadata{
@@ -131,19 +131,16 @@ func representativeWireContracts(t *testing.T) map[string]any {
 			NegativePrompt: "text",
 			Width:          new(int64(1024)),
 			Height:         new(int64(768)),
-			Style:          "natural",
-			Quality:        "high",
 			Seed:           new(int64(42)),
 			OutputFormat:   "image/png",
-			ResponseFormat: image.ResponseFormatB64JSON,
 			Extra:          mustMetadata(t, map[string]any{"background": "transparent"}),
 		},
 	}
 	imageResponse := &image.Response{
-		Result: &image.Result{
-			Image:    &image.Image{URL: "https://example.com/generated.png", B64JSON: "bHlueA=="},
+		Results: []*image.Result{{
+			Media:    generatedMedia,
 			Metadata: &image.ResultMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "A detailed lynx"})},
-		},
+		}},
 		Metadata: &image.ResponseMetadata{
 			Created: 1700000001,
 			Extra:   mustMetadata(t, map[string]any{"model": "image-model"}),
@@ -195,13 +192,9 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	transcriptionRequest := &transcription.Request{
 		Audio: uriMedia,
 		Options: &transcription.Options{
-			Model:                "transcription-model",
-			Language:             "en",
-			Prompt:               "Lynx vocabulary",
-			Temperature:          new(0.1),
-			ResponseFormat:       "verbose_json",
-			TimestampGranularity: []string{"word", "segment"},
-			Extra:                mustMetadata(t, map[string]any{"diarize": true}),
+			Model:    "transcription-model",
+			Language: "en",
+			Extra:    mustMetadata(t, map[string]any{"diarize": true}),
 		},
 	}
 	transcriptionResponse := &transcription.Response{
@@ -237,26 +230,26 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	}
 }
 
-func representativeCategories() *moderation.Categories {
-	return &moderation.Categories{
-		Sexual:                      moderation.Verdict{Flagged: true, Score: 0.01},
-		Hate:                        moderation.Verdict{Flagged: true, Score: 0.02},
-		Harassment:                  moderation.Verdict{Flagged: true, Score: 0.03},
-		SelfHarm:                    moderation.Verdict{Flagged: true, Score: 0.04},
-		SexualMinors:                moderation.Verdict{Flagged: true, Score: 0.05},
-		HateThreatening:             moderation.Verdict{Flagged: true, Score: 0.06},
-		ViolenceGraphic:             moderation.Verdict{Flagged: true, Score: 0.07},
-		SelfHarmIntent:              moderation.Verdict{Flagged: true, Score: 0.08},
-		SelfHarmInstructions:        moderation.Verdict{Flagged: true, Score: 0.09},
-		HarassmentThreatening:       moderation.Verdict{Flagged: true, Score: 0.10},
-		Violence:                    moderation.Verdict{Flagged: true, Score: 0.11},
-		DangerousAndCriminalContent: moderation.Verdict{Flagged: true, Score: 0.12},
-		Health:                      moderation.Verdict{Flagged: true, Score: 0.13},
-		Financial:                   moderation.Verdict{Flagged: true, Score: 0.14},
-		Law:                         moderation.Verdict{Flagged: true, Score: 0.15},
-		Pii:                         moderation.Verdict{Flagged: true, Score: 0.16},
-		Illicit:                     moderation.Verdict{Flagged: true, Score: 0.17},
-		IllicitViolent:              moderation.Verdict{Flagged: true, Score: 0.18},
+func representativeCategories() moderation.Categories {
+	return moderation.Categories{
+		"sexual":                         {Flagged: true, Score: 0.01},
+		"hate":                           {Flagged: true, Score: 0.02},
+		"harassment":                     {Flagged: true, Score: 0.03},
+		"self_harm":                      {Flagged: true, Score: 0.04},
+		"sexual_minors":                  {Flagged: true, Score: 0.05},
+		"hate_threatening":               {Flagged: true, Score: 0.06},
+		"violence_graphic":               {Flagged: true, Score: 0.07},
+		"self_harm_intent":               {Flagged: true, Score: 0.08},
+		"self_harm_instructions":         {Flagged: true, Score: 0.09},
+		"harassment_threatening":         {Flagged: true, Score: 0.10},
+		"violence":                       {Flagged: true, Score: 0.11},
+		"dangerous_and_criminal_content": {Flagged: true, Score: 0.12},
+		"health":                         {Flagged: true, Score: 0.13},
+		"financial":                      {Flagged: true, Score: 0.14},
+		"law":                            {Flagged: true, Score: 0.15},
+		"pii":                            {Flagged: true, Score: 0.16},
+		"illicit":                        {Flagged: true, Score: 0.17},
+		"illicit_violent":                {Flagged: true, Score: 0.18},
 	}
 }
 

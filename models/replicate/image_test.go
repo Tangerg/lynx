@@ -26,7 +26,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 			output := "null"
 			if n >= 2 {
 				status = "succeeded"
-				output = `"https://cdn.test/img.png"`
+				output = `["https://cdn.test/img-1.png","https://cdn.test/img-2.png"]`
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"pred-1","status":"` + status + `","output":` + output + `}`))
@@ -54,7 +54,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if out.Result == nil {
-		t.Fatal("nil result")
+	if len(out.Results) != 2 || out.First() == nil {
+		t.Fatalf("results = %#v", out.Results)
 	}
 }

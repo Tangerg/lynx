@@ -111,7 +111,6 @@ var (
 
 type Store struct {
 	client               *milvusclient.Client
-	embeddingModel       embedding.Model
 	embeddingClient      *embeddingclient.Client
 	documentBatcher      vectorstores.Batcher
 	collectionName       string
@@ -133,7 +132,6 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 
 	store := &Store{
 		client:               cfg.Client,
-		embeddingModel:       cfg.EmbeddingModel,
 		embeddingClient:      embeddingClient,
 		documentBatcher:      cfg.DocumentBatcher,
 		collectionName:       cfg.CollectionName,
@@ -180,7 +178,7 @@ func (s *Store) initialize(ctx context.Context) error {
 	}
 
 	if !exists {
-		dimensions, err := embedding.ResolveDimensions(ctx, s.embeddingModel)
+		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
 			return fmt.Errorf("milvus: resolve embedding dimensions: %w", err)
 		}
@@ -332,7 +330,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	ctx, span := tracing.StartSearch(ctx, "milvus", req.TopK, req.MinScore)
-	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
+	defer func() {
+		if err == nil {
+			err = req.ValidateMatches(docs)
+		}
+		tracing.RecordSearchResult(span, err, len(docs))
+	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)

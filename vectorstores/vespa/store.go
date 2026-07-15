@@ -147,7 +147,6 @@ type Store struct {
 	embeddingField  string
 	contentField    string
 	idField         string
-	embeddingModel  embedding.Model
 	embeddingClient *embeddingclient.Client
 	documentBatcher vectorstores.Batcher
 	httpClient      *http.Client
@@ -170,7 +169,6 @@ func NewStore(config StoreConfig) (*Store, error) {
 		embeddingField:  config.EmbeddingField,
 		contentField:    config.ContentField,
 		idField:         config.IDField,
-		embeddingModel:  config.EmbeddingModel,
 		embeddingClient: embeddingClient,
 		documentBatcher: config.DocumentBatcher,
 		httpClient:      config.HTTPClient,
@@ -229,7 +227,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	ctx, span := tracing.StartSearch(ctx, "vespa", req.TopK, req.MinScore)
-	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
+	defer func() {
+		if err == nil {
+			err = req.ValidateMatches(docs)
+		}
+		tracing.RecordSearchResult(span, err, len(docs))
+	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)

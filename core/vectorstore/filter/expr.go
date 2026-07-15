@@ -1,8 +1,8 @@
 package filter
 
 import (
+	"encoding/json"
 	"fmt"
-	"math"
 	"strconv"
 )
 
@@ -146,21 +146,18 @@ func (l *Literal) AsString() (string, error) {
 	}
 	return l.Value, nil
 }
-func (l *Literal) AsNumber() (float64, error) {
+func (l *Literal) AsNumber() (json.Number, error) {
 	if l == nil {
-		return 0, fmt.Errorf("filter.Literal.AsNumber: literal is nil")
+		return "", fmt.Errorf("filter.Literal.AsNumber: literal is nil")
 	}
 	if !l.IsNumber() {
-		return 0, fmt.Errorf("filter.Literal.AsNumber: expected number, got %s", l.Kind)
+		return "", fmt.Errorf("filter.Literal.AsNumber: expected number, got %s", l.Kind)
 	}
-	n, err := strconv.ParseFloat(l.Value, 64)
-	if err != nil {
-		return 0, fmt.Errorf("filter.Literal.AsNumber: parse %q: %w", l.Value, err)
+	var number json.Number
+	if err := json.Unmarshal([]byte(l.Value), &number); err != nil {
+		return "", fmt.Errorf("filter.Literal.AsNumber: parse %q: %w", l.Value, err)
 	}
-	if math.IsNaN(n) || math.IsInf(n, 0) {
-		return 0, fmt.Errorf("filter.Literal.AsNumber: %q is not finite", l.Value)
-	}
-	return n, nil
+	return number, nil
 }
 func (l *Literal) AsBool() (bool, error) {
 	if l == nil {

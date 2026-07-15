@@ -80,14 +80,9 @@ func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.R
 		return nil, errors.New("nomic: embedding response has no data")
 	}
 
-	textPlain := "text/plain"
 	results := make([]*embedding.Result, 0, len(apiResp.Embeddings))
-	for i, vec := range apiResp.Embeddings {
-		resultMeta := &embedding.ResultMetadata{
-			Index:        int64(i),
-			ModalityType: embedding.Text,
-			MIMEType:     textPlain,
-		}
+	for _, vec := range apiResp.Embeddings {
+		resultMeta := &embedding.ResultMetadata{}
 
 		result, err := embedding.NewResult(vec, resultMeta)
 		if err != nil {

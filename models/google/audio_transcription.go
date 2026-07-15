@@ -39,9 +39,8 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 
 // AudioTranscriptionModel exposes Gemini's multimodal chat through the
 // transcription interface. Gemini has no /transcribe endpoint — any
-// audio-accepting model returns a transcript when prompted. The default
-// prompt is "Transcribe this audio."; callers override it with the shared
-// transcription.Options.Prompt field.
+// audio-accepting model returns a transcript when prompted. This adapter uses
+// the stable instruction "Transcribe this audio.".
 type AudioTranscriptionModel struct {
 	api            *API
 	defaultOptions *transcription.Options
@@ -74,6 +73,11 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 	if err != nil {
 		return "", nil, nil, err
 	}
+	if err := options.RejectUnsupported("google: transcription", map[string]bool{
+		"language": mergedOpts.Language != "",
+	}); err != nil {
+		return "", nil, nil, err
+	}
 
 	cfg, err := options.GetParams[genai.GenerateContentConfig](mergedOpts.Extra, OptionsKey)
 	if err != nil {
@@ -85,13 +89,8 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 		return "", nil, nil, err
 	}
 
-	prompt := "Transcribe this audio."
-	if value := strings.TrimSpace(mergedOpts.Prompt); value != "" {
-		prompt = value
-	}
-
 	parts := []*genai.Part{
-		genai.NewPartFromText(prompt),
+		genai.NewPartFromText("Transcribe this audio."),
 		genai.NewPartFromBytes(data, req.Audio.MIME),
 	}
 	contents := []*genai.Content{

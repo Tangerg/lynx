@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -60,6 +62,15 @@ func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGene
 	if err != nil {
 		return nil, err
 	}
+	if err := options.RejectUnsupported("openai: image", map[string]bool{
+		"negative_prompt": mergedOpts.NegativePrompt != "",
+		"seed":            mergedOpts.Seed != nil,
+	}); err != nil {
+		return nil, err
+	}
+	if (mergedOpts.Width == nil) != (mergedOpts.Height == nil) {
+		return nil, errors.New("openai: image: width and height must be set together")
+	}
 
 	params, err := options.GetParams[openai.ImageGenerateParams](mergedOpts.Extra, OptionsKey)
 	if err != nil {
@@ -72,44 +83,55 @@ func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGene
 	if mergedOpts.OutputFormat != "" {
 		params.OutputFormat = openai.ImageGenerateParamsOutputFormat(strings.TrimPrefix(mergedOpts.OutputFormat, "image/"))
 	}
-	if mergedOpts.ResponseFormat.Valid() {
-		params.ResponseFormat = openai.ImageGenerateParamsResponseFormat(mergedOpts.ResponseFormat)
-	}
 	if mergedOpts.Width != nil && mergedOpts.Height != nil {
 		params.Size = openai.ImageGenerateParamsSize(fmt.Sprintf("%dx%d", *mergedOpts.Width, *mergedOpts.Height))
 	} else if params.Size == "" {
 		params.Size = openai.ImageGenerateParamsSizeAuto
 	}
 
-	if mergedOpts.Style != "" {
-		params.Style = openai.ImageGenerateParamsStyle(mergedOpts.Style)
-	}
-
-	if mergedOpts.Quality != "" {
-		params.Quality = openai.ImageGenerateParamsQuality(mergedOpts.Quality)
-	}
-
 	return params, nil
 }
 
-func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse) (*image.Response, error) {
-	// The image surface is single-result by design (see image.Response);
-	// callers wanting N>1 drop down to the openai-go SDK directly.
+func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse, mimeType string) (*image.Response, error) {
 	if len(resp.Data) == 0 {
 		return nil, errors.New("openai: image response has no data")
 	}
 
-	img, err := image.NewImage(resp.Data[0].URL, resp.Data[0].B64JSON)
-	if err != nil {
-		return nil, err
+	results := make([]*image.Result, 0, len(resp.Data))
+	for index, generated := range resp.Data {
+		value, err := openAIImageMedia(mimeType, generated.URL, generated.B64JSON)
+		if err != nil {
+			return nil, fmt.Errorf("openai: image %d: %w", index, err)
+		}
+		resultMetadata := &image.ResultMetadata{}
+		if generated.RevisedPrompt != "" {
+			if err := resultMetadata.Set("revised_prompt", generated.RevisedPrompt); err != nil {
+				return nil, err
+			}
+		}
+		result, err := image.NewResult(value, resultMetadata)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
 	}
 
-	result, err := image.NewResult(img, &image.ResultMetadata{})
-	if err != nil {
-		return nil, err
-	}
+	return image.NewResponse(results, &image.ResponseMetadata{Created: resp.Created})
+}
 
-	return image.NewResponse(result, &image.ResponseMetadata{Created: resp.Created})
+func openAIImageMedia(mimeType, uri, encoded string) (*media.Media, error) {
+	switch {
+	case uri != "" && encoded == "":
+		return media.NewURI(mimeType, uri)
+	case uri == "" && encoded != "":
+		data, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			return nil, fmt.Errorf("decode base64 payload: %w", err)
+		}
+		return media.NewBytes(mimeType, data)
+	default:
+		return nil, errors.New("response must contain exactly one of URL or base64 payload")
+	}
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
@@ -126,5 +148,9 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	return i.buildImageResponse(apiResp)
+	mimeType := "image/png"
+	if apiReq.OutputFormat != "" {
+		mimeType = "image/" + string(apiReq.OutputFormat)
+	}
+	return i.buildImageResponse(apiResp, mimeType)
 }

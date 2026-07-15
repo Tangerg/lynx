@@ -77,7 +77,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	ctx, span := tracing.StartSearch(ctx, "bedrockkb", req.TopK, req.MinScore)
-	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
+	defer func() {
+		if err == nil {
+			err = req.ValidateMatches(docs)
+		}
+		tracing.RecordSearchResult(span, err, len(docs))
+	}()
 
 	vectorCfg := s.vectorSearchConfig(req)
 	retrievalCfg := &types.KnowledgeBaseRetrievalConfiguration{

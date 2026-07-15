@@ -78,6 +78,12 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 	if err != nil {
 		return "", nil, nil, err
 	}
+	if err := options.RejectUnsupported("google: speech", map[string]bool{
+		"output_format": mergedOpts.OutputFormat != "",
+		"speed":         mergedOpts.Speed != 0,
+	}); err != nil {
+		return "", nil, nil, err
+	}
 
 	cfg, err := options.GetParams[genai.GenerateContentConfig](mergedOpts.Extra, OptionsKey)
 	if err != nil {

@@ -1,4 +1,4 @@
-// Package html implements a [document.Reader] over HTML payloads using
+// Package html reads HTML payloads using
 // github.com/PuerkitoBio/goquery.
 //
 // The reader extracts visible text from an HTML document. Two modes:

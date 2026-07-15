@@ -100,7 +100,7 @@ func (s *Splitter) splitOne(ctx context.Context, doc *document.Document) ([]*doc
 
 		chunk.Metadata = doc.Metadata.Clone()
 		if chunk.Metadata == nil {
-			chunk.Metadata = metadata.New()
+			chunk.Metadata = metadata.Map{}
 		}
 		if err := chunk.Metadata.Set(MetadataKeyChunkIndex, index); err != nil {
 			return nil, err

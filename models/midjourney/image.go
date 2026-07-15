@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -90,6 +91,15 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err != nil {
 		return nil, err
 	}
+	if err := options.RejectUnsupported("midjourney: image", map[string]bool{
+		"height":          mergedOpts.Height != nil,
+		"negative_prompt": mergedOpts.NegativePrompt != "",
+		"output_format":   mergedOpts.OutputFormat != "",
+		"seed":            mergedOpts.Seed != nil,
+		"width":           mergedOpts.Width != nil,
+	}); err != nil {
+		return nil, err
+	}
 
 	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extra, OptionsKey)
 	if err != nil {
@@ -113,39 +123,45 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	imageURL := pickImageURL(final)
-	if imageURL == "" {
+	imageURLs := pickImageURLs(final)
+	if len(imageURLs) == 0 {
 		return nil, errors.New("midjourney: fetch returned no image url")
 	}
 
-	img, err := image.NewImage(imageURL, "")
-	if err != nil {
-		return nil, err
-	}
-
-	result, err := image.NewResult(img, &image.ResultMetadata{})
-	if err != nil {
-		return nil, err
+	results := make([]*image.Result, 0, len(imageURLs))
+	for _, imageURL := range imageURLs {
+		value, err := media.NewURI("application/octet-stream", imageURL)
+		if err != nil {
+			return nil, err
+		}
+		result, err := image.NewResult(value, &image.ResultMetadata{})
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
 	}
 
 	meta := &image.ResponseMetadata{Created: time.Now().Unix()}
 	if err := meta.Set("task_id", taskID); err != nil {
 		return nil, err
 	}
-	return image.NewResponse(result, meta)
+	return image.NewResponse(results, meta)
 }
 
-func pickImageURL(r *FetchResponse) string {
-	if r.ImageURL != "" {
-		return r.ImageURL
-	}
+func pickImageURLs(r *FetchResponse) []string {
 	if len(r.ImageURLs) > 0 {
-		return r.ImageURLs[0]
+		return r.ImageURLs
+	}
+	if r.ImageURL != "" {
+		return []string{r.ImageURL}
 	}
 	if r.URI != "" {
-		return r.URI
+		return []string{r.URI}
 	}
-	return r.Result
+	if r.Result != "" {
+		return []string{r.Result}
+	}
+	return nil
 }
 
 func isTerminalSuccess(status string) bool {

@@ -145,7 +145,6 @@ type Store struct {
 	embeddingField   string
 	contentField     string
 	metadataField    string
-	embeddingModel   embedding.Model
 	embeddingClient  *embeddingclient.Client
 	documentBatcher  vectorstores.Batcher
 	dimensions       int
@@ -170,7 +169,6 @@ func NewStore(config StoreConfig) (*Store, error) {
 		embeddingField:   config.EmbeddingField,
 		contentField:     config.ContentField,
 		metadataField:    config.MetadataField,
-		embeddingModel:   config.EmbeddingModel,
 		embeddingClient:  embeddingClient,
 		documentBatcher:  config.DocumentBatcher,
 		dimensions:       config.Dimensions,
@@ -187,7 +185,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 // initialize resolves dimensions and creates the index when requested.
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	if s.dimensions <= 0 {
-		dimensions, err := embedding.ResolveDimensions(ctx, s.embeddingModel)
+		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
 			return fmt.Errorf("elasticsearch: resolve embedding dimensions: %w", err)
 		}

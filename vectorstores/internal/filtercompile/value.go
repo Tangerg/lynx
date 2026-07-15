@@ -68,9 +68,13 @@ func NumberToFloat64(lit *filter.Literal) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	value, err := lit.AsNumber()
+	numberValue, err := lit.AsNumber()
 	if err != nil {
 		return 0, err
+	}
+	value, err := numberValue.Float64()
+	if err != nil {
+		return 0, fmt.Errorf("filter: number %q is not a float64: %w", lit.Value, err)
 	}
 	if number.IsInt() && new(big.Rat).SetFloat64(value).Cmp(number) != 0 {
 		return 0, fmt.Errorf("filter: integer %q loses precision as float64", lit.Value)
@@ -85,9 +89,13 @@ func NumberToFloat32(lit *filter.Literal) (float32, error) {
 	if err != nil {
 		return 0, err
 	}
-	value, err := lit.AsNumber()
+	numberValue, err := lit.AsNumber()
 	if err != nil {
 		return 0, err
+	}
+	value, err := numberValue.Float64()
+	if err != nil {
+		return 0, fmt.Errorf("filter: number %q is not a float64: %w", lit.Value, err)
 	}
 	converted := float32(value)
 	if math.IsInf(float64(converted), 0) {

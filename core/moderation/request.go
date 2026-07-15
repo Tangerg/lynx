@@ -83,6 +83,9 @@ func (o *Options) Merged(overrides ...*Options) (*Options, error) {
 			}
 		}
 	}
+	if err := merged.validate(); err != nil {
+		return nil, fmt.Errorf("moderation.Options.Merged: %w", err)
+	}
 	return merged, nil
 }
 

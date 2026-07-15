@@ -131,7 +131,7 @@ func TestMessageJSONRoundTrip(t *testing.T) {
 		chat.NewToolMessage(validToolResult()),
 	}
 	for i := range messages {
-		messages[i].Metadata = metadata.New()
+		messages[i].Metadata = metadata.Map{}
 		if err := messages[i].Metadata.Set("index", i); err != nil {
 			t.Fatal(err)
 		}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
@@ -18,6 +19,13 @@ func TestDocumentValidate(t *testing.T) {
 	}
 	if err := (&document.Document{Text: "hello"}).Validate(); err != nil {
 		t.Fatalf("text document: %v", err)
+	}
+}
+
+func TestNewDocumentReturnsNilOnInvalidMedia(t *testing.T) {
+	doc, err := document.NewDocument("", &media.Media{})
+	if err == nil || doc != nil {
+		t.Fatalf("NewDocument() = (%#v, %v), want (nil, error)", doc, err)
 	}
 }
 
@@ -35,7 +43,7 @@ func TestDocumentContainsOnlyDataFields(t *testing.T) {
 }
 
 func TestDocumentJSONRoundTrip(t *testing.T) {
-	original := document.Document{ID: "doc-1", Text: "hello", Metadata: metadata.New()}
+	original := document.Document{ID: "doc-1", Text: "hello", Metadata: metadata.Map{}}
 	if err := original.Metadata.Set("source", "test"); err != nil {
 		t.Fatal(err)
 	}

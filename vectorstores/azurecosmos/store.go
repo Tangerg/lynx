@@ -130,7 +130,6 @@ type Store struct {
 	metadataField    string
 	embeddingField   string
 	partitionKeyPath string
-	embeddingModel   embedding.Model
 	embeddingClient  *embeddingclient.Client
 	documentBatcher  vectorstores.Batcher
 	distanceFunc     DistanceFunction
@@ -154,7 +153,6 @@ func NewStore(config StoreConfig) (*Store, error) {
 		metadataField:    config.MetadataField,
 		embeddingField:   config.EmbeddingField,
 		partitionKeyPath: config.PartitionKeyPath,
-		embeddingModel:   config.EmbeddingModel,
 		embeddingClient:  embeddingClient,
 		documentBatcher:  config.DocumentBatcher,
 		distanceFunc:     config.DistanceFunction,
@@ -216,7 +214,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	ctx, span := tracing.StartSearch(ctx, "azurecosmos", req.TopK, req.MinScore)
-	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
+	defer func() {
+		if err == nil {
+			err = req.ValidateMatches(docs)
+		}
+		tracing.RecordSearchResult(span, err, len(docs))
+	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)

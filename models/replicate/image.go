@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -81,7 +82,6 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err != nil {
 		return nil, err
 	}
-
 	apiReq, err := options.GetParams[PredictionRequest](mergedOpts.Extra, OptionsKey)
 	if err != nil {
 		return nil, err
@@ -94,10 +94,18 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		apiReq.Input["negative_prompt"] = mergedOpts.NegativePrompt
 	}
 	if mergedOpts.Width != nil {
-		apiReq.Input["width"] = int(*mergedOpts.Width)
+		width, err := options.Int("replicate: image: width", *mergedOpts.Width)
+		if err != nil {
+			return nil, err
+		}
+		apiReq.Input["width"] = width
 	}
 	if mergedOpts.Height != nil {
-		apiReq.Input["height"] = int(*mergedOpts.Height)
+		height, err := options.Int("replicate: image: height", *mergedOpts.Height)
+		if err != nil {
+			return nil, err
+		}
+		apiReq.Input["height"] = height
 	}
 	if mergedOpts.Seed != nil {
 		apiReq.Input["seed"] = *mergedOpts.Seed
@@ -118,26 +126,32 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	url, err := firstImageURL(final.Output)
+	urls, err := imageURLs(final.Output)
 	if err != nil {
 		return nil, err
 	}
 
-	img, err := image.NewImage(url, "")
-	if err != nil {
-		return nil, err
+	mimeType := mergedOpts.OutputFormat
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
 	}
-
-	resultMeta := &image.ResultMetadata{}
-	if final.Metrics.PredictTime > 0 {
-		if err := resultMeta.Set("predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
+	results := make([]*image.Result, 0, len(urls))
+	for _, url := range urls {
+		value, err := media.NewURI(mimeType, url)
+		if err != nil {
 			return nil, err
 		}
-	}
-
-	result, err := image.NewResult(img, resultMeta)
-	if err != nil {
-		return nil, err
+		resultMetadata := &image.ResultMetadata{}
+		if final.Metrics.PredictTime > 0 {
+			if err := resultMetadata.Set("predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
+				return nil, err
+			}
+		}
+		result, err := image.NewResult(value, resultMetadata)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
 	}
 
 	meta := &image.ResponseMetadata{Created: time.Now().Unix()}
@@ -152,7 +166,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 			return nil, err
 		}
 	}
-	return image.NewResponse(result, meta)
+	return image.NewResponse(results, meta)
 }
 
 // pollUntilDone blocks until the prediction reaches a terminal status.
@@ -186,28 +200,30 @@ func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*PredictionR
 	}
 }
 
-// firstImageURL extracts the first hosted image URL from a Replicate
-// prediction output. The shape varies per model — most image models
-// return []string, some return a single string.
-func firstImageURL(out any) (string, error) {
+// imageURLs extracts every hosted image URL from a Replicate prediction.
+func imageURLs(out any) ([]string, error) {
 	switch v := out.(type) {
 	case string:
 		if v == "" {
-			return "", errors.New("replicate: empty output URL")
+			return nil, errors.New("replicate: empty output URL")
 		}
-		return v, nil
+		return []string{v}, nil
 	case []any:
 		if len(v) == 0 {
-			return "", errors.New("replicate: empty output array")
+			return nil, errors.New("replicate: empty output array")
 		}
-		s, ok := v[0].(string)
-		if !ok {
-			return "", fmt.Errorf("replicate: unsupported output element type %T", v[0])
+		urls := make([]string, len(v))
+		for index, value := range v {
+			url, ok := value.(string)
+			if !ok || url == "" {
+				return nil, fmt.Errorf("replicate: invalid output element %d of type %T", index, value)
+			}
+			urls[index] = url
 		}
-		return s, nil
+		return urls, nil
 	case nil:
-		return "", errors.New("replicate: output is null")
+		return nil, errors.New("replicate: output is null")
 	default:
-		return "", fmt.Errorf("replicate: unsupported output type %T", out)
+		return nil, fmt.Errorf("replicate: unsupported output type %T", out)
 	}
 }

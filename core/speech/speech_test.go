@@ -85,6 +85,9 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
 		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
 	}
+	if _, err := (&speech.Options{Model: "base", Speed: math.NaN()}).Merged(); err == nil {
+		t.Fatal("Merged accepted invalid base options")
+	}
 }
 
 func TestResponseValidation(t *testing.T) {
@@ -147,11 +150,19 @@ func TestResponseAndRequestErrorBoundaries(t *testing.T) {
 	if _, err := speech.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty text")
 	}
-	result, _ := speech.NewResult([]byte("audio"), &speech.ResultMetadata{})
-	if _, err := speech.NewResponse(nil, &speech.ResponseMetadata{}); err == nil || err.Error() != "speech.NewResponse: result must not be nil" {
-		t.Fatalf("NewResponse nil result error = %v", err)
+	audio := []byte("audio")
+	result, _ := speech.NewResult(audio, &speech.ResultMetadata{})
+	audio[0] = 'X'
+	if string(result.Audio) != "audio" {
+		t.Fatal("NewResult aliases caller audio")
 	}
-	if _, err := speech.NewResponse(result, nil); err == nil || err.Error() != "speech.NewResponse: metadata must not be nil" {
-		t.Fatalf("NewResponse nil metadata error = %v", err)
+	if _, err := speech.NewResponse(nil, &speech.ResponseMetadata{}); err == nil {
+		t.Fatal("NewResponse accepted nil result")
+	}
+	if _, err := speech.NewResponse(result, nil); err == nil {
+		t.Fatal("NewResponse accepted nil metadata")
+	}
+	if err := (&speech.Response{Result: result, Metadata: &speech.ResponseMetadata{Created: -1}}).Validate(); err == nil {
+		t.Fatal("Validate accepted a negative creation time")
 	}
 }

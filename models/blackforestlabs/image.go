@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -79,6 +80,11 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err != nil {
 		return nil, err
 	}
+	if err := options.RejectUnsupported("blackforestlabs: image", map[string]bool{
+		"negative_prompt": mergedOpts.NegativePrompt != "",
+	}); err != nil {
+		return nil, err
+	}
 
 	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extra, OptionsKey)
 	if err != nil {
@@ -86,10 +92,16 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	}
 	apiReq.Prompt = req.Prompt
 	if mergedOpts.Width != nil {
-		apiReq.Width = int(*mergedOpts.Width)
+		apiReq.Width, err = options.Int("blackforestlabs: image: width", *mergedOpts.Width)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if mergedOpts.Height != nil {
-		apiReq.Height = int(*mergedOpts.Height)
+		apiReq.Height, err = options.Int("blackforestlabs: image: height", *mergedOpts.Height)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if mergedOpts.Seed != nil {
 		apiReq.Seed = mergedOpts.Seed
@@ -108,7 +120,11 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	img, err := image.NewImage(final.Result.Sample, "")
+	mimeType := mergedOpts.OutputFormat
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	value, err := media.NewURI(mimeType, final.Result.Sample)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +141,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		}
 	}
 
-	result, err := image.NewResult(img, resultMeta)
+	result, err := image.NewResult(value, resultMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +150,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err := meta.Set("task_id", async.ID); err != nil {
 		return nil, err
 	}
-	return image.NewResponse(result, meta)
+	return image.NewResponse([]*image.Result{result}, meta)
 }
 
 func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*PollResult, error) {

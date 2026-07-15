@@ -18,7 +18,7 @@ func Example() {
 	request.Options = options
 
 	categories := moderation.Categories{
-		Violence: moderation.Verdict{Flagged: true, Score: 0.91},
+		"violence": {Flagged: true, Score: 0.91},
 	}
 	fmt.Println(request.Options.Model, categories.Flagged())
 	// Output:

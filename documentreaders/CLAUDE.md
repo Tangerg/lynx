@@ -12,7 +12,7 @@
 
 ## 架构心智
 
-- **统一契约**:每个 reader 实现 core 的 `document.Reader`;构造用 functional options 配格式专属行为(如按标题切分)。
+- **统一结果**:每个 reader 公开具体 `Read(context.Context)` 方法并返回 Core `Document`;构造用 functional options 配格式专属行为(如按标题切分)。Core 不拥有无消费者的通用 Reader 接口。
 - **元数据 key 带 reader 前缀**:各格式的元数据落在自己的命名空间,跨 reader 不冲突。
 - **全量读进内存,不做流式**:面向小文档;大文档的分块由调用方负责。
 - **结构化格式保留层级**:如标题层级构成路径,给 LLM 提供上下文定位。
@@ -25,4 +25,4 @@
 ## 改动前必看(波及面)
 
 - **改元数据 key 命名**:下游 RAG pipeline 可能直接按 key 读,跨 reader 协调后再改。
-- **加新格式**:新建独立子包 + go.mod,实现 `document.Reader`,元数据用本格式前缀。
+- **加新格式**:新建独立子包 + go.mod,返回 Core `Document`,元数据用本格式前缀；只有真实消费方需要时才在消费方定义小接口。

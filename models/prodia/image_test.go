@@ -31,7 +31,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if out.Result == nil {
+	if out.First() == nil {
 		t.Fatal("nil result")
 	}
 }

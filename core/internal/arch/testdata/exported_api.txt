@@ -88,41 +88,28 @@ chat: var ErrInvalidUsage = errors.New("chat: invalid usage")
 document: func (d *Document) Validate() error
 document: func NewDocument(text string, media *media.Media) (*Document, error)
 document: type Document struct { ID string `json:"id,omitempty"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
-document: type Reader interface { Read(ctx context.Context) ([]*Document, error) }
-document: type Writer interface { Write(ctx context.Context, docs []*Document) error }
-embedding: const ( EncodingFormatFloat EncodingFormat = "float" EncodingFormatBase64 EncodingFormat = "base64" )
-embedding: const ( Text ModalityType = "text" Image ModalityType = "image" Audio ModalityType = "audio" Video ModalityType = "video" )
-embedding: func (e EncodingFormat) Valid() bool
-embedding: func (f DimensionFunc) Dimensions(ctx context.Context) (int, error)
 embedding: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 embedding: func (m *ResponseMetadata) Set(key string, value any) error
 embedding: func (m *ResultMetadata) Set(key string, value any) error
-embedding: func (m ModalityType) String() string
 embedding: func (o *Options) Clone() *Options
 embedding: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 embedding: func (o *Options) Set(key string, value any) error
 embedding: func (r *Request) Validate() error
 embedding: func (r *Response) First() *Result
+embedding: func (r *Response) Validate() error
 embedding: func NewOptions(model string) (*Options, error)
 embedding: func NewRequest(texts []string) (*Request, error)
 embedding: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
 embedding: func NewResult(embedding []float64, metadata *ResultMetadata) (*Result, error)
-embedding: func ProbeDimensions(ctx context.Context, model Model) (int, error)
-embedding: func ResolveDimensions(ctx context.Context, model Model) (int, error)
-embedding: type DimensionFunc func(context.Context) (int, error)
-embedding: type Dimensioner interface { Dimensions(context.Context) (int, error) }
-embedding: type EncodingFormat string
-embedding: type ModalityType string
 embedding: type Model interface { Call(context.Context, *Request) (*Response, error) }
 embedding: type ModelFunc func(context.Context, *Request) (*Response, error)
-embedding: type Options struct { Model string `json:"model"` EncodingFormat EncodingFormat `json:"encoding_format"` Dimensions *int64 `json:"dimensions,omitempty"` Extra metadata.Map `json:"extra,omitzero"` }
+embedding: type Options struct { Model string `json:"model"` Dimensions *int64 `json:"dimensions,omitempty"` Extra metadata.Map `json:"extra,omitzero"` }
 embedding: type Request struct { Texts []string `json:"texts,omitzero"` Options *Options `json:"options,omitempty"` }
 embedding: type Response struct { Results []*Result `json:"results,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 embedding: type ResponseMetadata struct { Model string `json:"model"` Usage *Usage `json:"usage,omitempty"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 embedding: type Result struct { Embedding []float64 `json:"embedding"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
-embedding: type ResultMetadata struct { Index int64 `json:"index"` ModalityType ModalityType `json:"modality_type"` MIMEType string `json:"mime_type,omitempty"` Extra metadata.Map `json:"extra,omitzero"` }
+embedding: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 embedding: type Usage struct { InputTokens int64 `json:"input_tokens"` }
-image: const ( ResponseFormatURL ResponseFormat = "url" ResponseFormatB64JSON ResponseFormat = "b64json" )
 image: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 image: func (m *ResponseMetadata) Set(key string, value any) error
 image: func (m *ResultMetadata) Set(key string, value any) error
@@ -130,22 +117,19 @@ image: func (o *Options) Clone() *Options
 image: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 image: func (o *Options) Set(key string, value any) error
 image: func (r *Request) Validate() error
-image: func (r ResponseFormat) String() string
-image: func (r ResponseFormat) Valid() bool
-image: func NewImage(url, b64JSON string) (*Image, error)
+image: func (r *Response) First() *Result
+image: func (r *Response) Validate() error
 image: func NewOptions(model string) (*Options, error)
 image: func NewRequest(prompt string) (*Request, error)
-image: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
-image: func NewResult(image *Image, metadata *ResultMetadata) (*Result, error)
-image: type Image struct { URL string `json:"url"` B64JSON string `json:"b64_json"` }
+image: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
+image: func NewResult(value *media.Media, metadata *ResultMetadata) (*Result, error)
 image: type Model interface { Call(context.Context, *Request) (*Response, error) }
 image: type ModelFunc func(context.Context, *Request) (*Response, error)
-image: type Options struct { Model string `json:"model"` NegativePrompt string `json:"negative_prompt"` Width *int64 `json:"width,omitempty"` Height *int64 `json:"height,omitempty"` Style string `json:"style"` Quality string `json:"quality"` Seed *int64 `json:"seed,omitempty"` OutputFormat string `json:"output_format,omitempty"` ResponseFormat ResponseFormat `json:"response_format"` Extra metadata.Map `json:"extra,omitzero"` }
+image: type Options struct { Model string `json:"model"` NegativePrompt string `json:"negative_prompt"` Width *int64 `json:"width,omitempty"` Height *int64 `json:"height,omitempty"` Seed *int64 `json:"seed,omitempty"` OutputFormat string `json:"output_format,omitempty"` Extra metadata.Map `json:"extra,omitzero"` }
 image: type Request struct { Prompt string `json:"prompt"` Options *Options `json:"options,omitempty"` }
-image: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
-image: type ResponseFormat string
+image: type Response struct { Results []*Result `json:"results,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 image: type ResponseMetadata struct { Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
-image: type Result struct { Image *Image `json:"image,omitempty"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
+image: type Result struct { Media *media.Media `json:"media,omitempty"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
 image: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 media: const ( SourceBytes SourceKind = "bytes" SourceURI SourceKind = "uri" SourceReference SourceKind = "reference" )
 media: func (m *Media) Bytes() ([]byte, error)
@@ -171,10 +155,9 @@ metadata: func (m Map) Validate() error
 metadata: func (m Map) Values() (map[string]any, error)
 metadata: func Decode[T any](m Map, key string) (T, bool, error)
 metadata: func FromValues(values map[string]any) (Map, error)
-metadata: func New() Map
 metadata: type Map map[string]json.RawMessage
 metadata: var ( ErrNilMap = errors.New("metadata: nil map") ErrEmptyKey = errors.New("metadata: empty key") ErrInvalidValue = errors.New("metadata: invalid JSON value") )
-moderation: func (c *Categories) Flagged() bool
+moderation: func (c Categories) Flagged() bool
 moderation: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 moderation: func (m *ResponseMetadata) Set(key string, value any) error
 moderation: func (m *ResultMetadata) Set(key string, value any) error
@@ -183,18 +166,19 @@ moderation: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 moderation: func (o *Options) Set(key string, value any) error
 moderation: func (r *Request) Validate() error
 moderation: func (r *Response) First() *Result
+moderation: func (r *Response) Validate() error
 moderation: func NewOptions(model string) (*Options, error)
 moderation: func NewRequest(texts []string) (*Request, error)
 moderation: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
-moderation: func NewResult(categories *Categories, metadata *ResultMetadata) (*Result, error)
-moderation: type Categories struct { Sexual Verdict `json:"sexual"` Hate Verdict `json:"hate"` Harassment Verdict `json:"harassment"` SelfHarm Verdict `json:"self_harm"` SexualMinors Verdict `json:"sexual_minors"` HateThreatening Verdict `json:"hate_threatening"` ViolenceGraphic Verdict `json:"violence_graphic"` SelfHarmIntent Verdict `json:"self_harm_intent"` SelfHarmInstructions Verdict `json:"self_harm_instructions"` HarassmentThreatening Verdict `json:"harassment_threatening"` Violence Verdict `json:"violence"` DangerousAndCriminalContent Verdict `json:"dangerous_and_criminal_content"` Health Verdict `json:"health"` Financial Verdict `json:"financial"` Law Verdict `json:"law"` Pii Verdict `json:"pii"` Illicit Verdict `json:"illicit"` IllicitViolent Verdict `json:"illicit_violent"` }
+moderation: func NewResult(categories Categories, metadata *ResultMetadata) (*Result, error)
+moderation: type Categories map[string]Verdict
 moderation: type Model interface { Call(context.Context, *Request) (*Response, error) }
 moderation: type ModelFunc func(context.Context, *Request) (*Response, error)
 moderation: type Options struct { Model string `json:"model"` Extra metadata.Map `json:"extra,omitzero"` }
 moderation: type Request struct { Texts []string `json:"texts,omitzero"` Options *Options `json:"options,omitempty"` }
 moderation: type Response struct { Results []*Result `json:"results,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 moderation: type ResponseMetadata struct { ID string `json:"id"` Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
-moderation: type Result struct { Categories *Categories `json:"categories,omitempty"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
+moderation: type Result struct { Categories Categories `json:"categories,omitzero"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
 moderation: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 moderation: type Verdict struct { Flagged bool `json:"flagged"` Score float64 `json:"score"` }
 speech: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
@@ -205,6 +189,7 @@ speech: func (o *Options) Clone() *Options
 speech: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 speech: func (o *Options) Set(key string, value any) error
 speech: func (r *Request) Validate() error
+speech: func (r *Response) Validate() error
 speech: func NewOptions(model string) (*Options, error)
 speech: func NewRequest(text string) (*Request, error)
 speech: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
@@ -226,13 +211,14 @@ transcription: func (o *Options) Clone() *Options
 transcription: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 transcription: func (o *Options) Set(key string, value any) error
 transcription: func (r *Request) Validate() error
+transcription: func (r *Response) Validate() error
 transcription: func NewOptions(model string) (*Options, error)
 transcription: func NewRequest(audio *media.Media) (*Request, error)
 transcription: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
 transcription: func NewResult(text string, metadata *ResultMetadata) (*Result, error)
 transcription: type Model interface { Call(context.Context, *Request) (*Response, error) }
 transcription: type ModelFunc func(context.Context, *Request) (*Response, error)
-transcription: type Options struct { Model string `json:"model"` Language string `json:"language"` Prompt string `json:"prompt"` Temperature *float64 `json:"temperature,omitempty"` ResponseFormat string `json:"response_format"` TimestampGranularity []string `json:"timestamp_granularity,omitzero"` Extra metadata.Map `json:"extra,omitzero"` }
+transcription: type Options struct { Model string `json:"model"` Language string `json:"language"` Extra metadata.Map `json:"extra,omitzero"` }
 transcription: type Request struct { Audio *media.Media `json:"audio,omitempty"` Options *Options `json:"options,omitempty"` }
 transcription: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 transcription: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
@@ -256,7 +242,7 @@ vectorstore/filter: func (l *ListLiteral) End() Position
 vectorstore/filter: func (l *ListLiteral) Equal(other Expr) bool
 vectorstore/filter: func (l *ListLiteral) Start() Position
 vectorstore/filter: func (l *Literal) AsBool() (bool, error)
-vectorstore/filter: func (l *Literal) AsNumber() (float64, error)
+vectorstore/filter: func (l *Literal) AsNumber() (json.Number, error)
 vectorstore/filter: func (l *Literal) AsString() (string, error)
 vectorstore/filter: func (l *Literal) End() Position
 vectorstore/filter: func (l *Literal) Equal(other Expr) bool
@@ -321,10 +307,9 @@ vectorstore/filter: type Selector interface { Expr selector() }
 vectorstore/filter: type SyntaxError struct { Position Position Token string Message string }
 vectorstore/filter: type UnaryExpr struct { Op Operator Right Predicate start Position end Position }
 vectorstore/filter: type Visitor interface { Visit(Predicate) error }
-vectorstore: const ( DefaultTopK = 5 MinSimilarityScore = 0.0 MaxSimilarityScore = 1.0 AcceptAllScores = MinSimilarityScore )
+vectorstore: const ( DefaultTopK = 5 MinSimilarityScore = 0.0 MaxSimilarityScore = 1.0 )
 vectorstore: func (r SearchRequest) Validate() error
-vectorstore: func (w writeFunc) Write(ctx context.Context, docs []*document.Document) error
-vectorstore: func NewDocumentWriter(indexer Indexer) document.Writer
+vectorstore: func (r SearchRequest) ValidateMatches(matches []Match) error
 vectorstore: type FilterDeleter interface { DeleteWhere(ctx context.Context, predicate filter.Predicate) error }
 vectorstore: type IDDeleter interface { DeleteIDs(ctx context.Context, ids []string) error }
 vectorstore: type Indexer interface { Add(ctx context.Context, docs []*document.Document) error }

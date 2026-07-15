@@ -36,6 +36,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 		Created: 1700000000,
 		Data: []openaisdk.Image{
 			{URL: "https://example.com/img1.png", B64JSON: ""},
+			{URL: "https://example.com/img2.png", B64JSON: ""},
 		},
 	}
 	body, _ := json.Marshal(resp)
@@ -59,7 +60,10 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	if !strings.HasSuffix(seenURL, "/images/generations") {
 		t.Errorf("URL = %q; want /images/generations suffix", seenURL)
 	}
-	if out.Result == nil {
-		t.Fatal("nil result")
+	if len(out.Results) != 2 || out.First() == nil {
+		t.Fatalf("results = %#v", out.Results)
+	}
+	if got, err := out.Results[1].Media.URI(); err != nil || got != "https://example.com/img2.png" {
+		t.Fatalf("second URI = %q, %v", got, err)
 	}
 }

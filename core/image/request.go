@@ -10,29 +10,6 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-// ResponseFormat selects how a provider returns a generated image —
-// either a URL pointing at hosted bytes, or base64-encoded bytes inline.
-type ResponseFormat string
-
-const (
-	// ResponseFormatURL returns a URL the caller can fetch.
-	ResponseFormatURL ResponseFormat = "url"
-
-	// ResponseFormatB64JSON returns the image bytes inline as base64.
-	ResponseFormatB64JSON ResponseFormat = "b64json"
-)
-
-func (r ResponseFormat) String() string { return string(r) }
-
-func (r ResponseFormat) Valid() bool {
-	switch r {
-	case ResponseFormatURL, ResponseFormatB64JSON:
-		return true
-	default:
-		return false
-	}
-}
-
 // Options holds per-request configuration for an image-generation call.
 // Pointer fields use nil to mean "not set" — providers fall back to
 // their own defaults.
@@ -47,24 +24,12 @@ type Options struct {
 	Width  *int64 `json:"width,omitempty"`
 	Height *int64 `json:"height,omitempty"`
 
-	// Style selects the artistic style (provider-specific values).
-	Style string `json:"style"`
-
-	// Quality controls render quality (e.g. DALL-E 3 "standard" / "hd",
-	// gpt-image-1 "low" / "medium" / "high" / "auto", Stability
-	// "low" / "medium" / "high"). Provider-specific values; empty leaves
-	// the choice to the provider.
-	Quality string `json:"quality"`
-
 	// Seed pins the RNG so repeated calls produce the same image.
 	Seed *int64 `json:"seed,omitempty"`
 
 	// OutputFormat picks the image MIME type of the rendered bytes.
 	// Empty leaves the format to the provider.
 	OutputFormat string `json:"output_format,omitempty"`
-
-	// ResponseFormat picks URL vs inline base64.
-	ResponseFormat ResponseFormat `json:"response_format"`
 
 	// Extra carries JSON-safe provider-specific options unknown to this struct.
 	Extra metadata.Map `json:"extra,omitzero"`
@@ -100,11 +65,8 @@ func (o *Options) Clone() *Options {
 		NegativePrompt: o.NegativePrompt,
 		Width:          ptr.Clone(o.Width),
 		Height:         ptr.Clone(o.Height),
-		Style:          o.Style,
-		Quality:        o.Quality,
 		Seed:           ptr.Clone(o.Seed),
 		OutputFormat:   o.OutputFormat,
-		ResponseFormat: o.ResponseFormat,
 		Extra:          o.Extra.Clone(),
 	}
 }
@@ -131,6 +93,9 @@ func (o *Options) Merged(overrides ...*Options) (*Options, error) {
 		return nil, fmt.Errorf("image.Options.Merged: %w", err)
 	}
 	merged.OutputFormat = normalized
+	if err := merged.validate(); err != nil {
+		return nil, fmt.Errorf("image.Options.Merged: %w", err)
+	}
 	return merged, nil
 }
 
@@ -165,20 +130,11 @@ func (o *Options) applyOverride(src *Options) error {
 	if src.Height != nil {
 		o.Height = ptr.Clone(src.Height)
 	}
-	if src.Style != "" {
-		o.Style = src.Style
-	}
-	if src.Quality != "" {
-		o.Quality = src.Quality
-	}
 	if src.Seed != nil {
 		o.Seed = ptr.Clone(src.Seed)
 	}
 	if src.OutputFormat != "" {
 		o.OutputFormat = src.OutputFormat
-	}
-	if src.ResponseFormat.Valid() {
-		o.ResponseFormat = src.ResponseFormat
 	}
 	if len(src.Extra) > 0 {
 		if err := o.Extra.Merge(src.Extra); err != nil {
@@ -201,13 +157,17 @@ func (o *Options) validate() error {
 	if o.Height != nil && *o.Height <= 0 {
 		return errors.New("image: height must be positive")
 	}
+	if o.Seed != nil && *o.Seed < 0 {
+		return errors.New("image: seed must not be negative")
+	}
 	if o.OutputFormat != "" {
-		if _, err := normalizeOutputFormat(o.OutputFormat); err != nil {
+		normalized, err := normalizeOutputFormat(o.OutputFormat)
+		if err != nil {
 			return fmt.Errorf("image: options: %w", err)
 		}
-	}
-	if o.ResponseFormat != "" && !o.ResponseFormat.Valid() {
-		return fmt.Errorf("image: invalid response format %q", o.ResponseFormat)
+		if normalized != o.OutputFormat {
+			return fmt.Errorf("image: options: output format must use canonical MIME form %q", normalized)
+		}
 	}
 	if err := o.Extra.Validate(); err != nil {
 		return fmt.Errorf("image: options extra: %w", err)

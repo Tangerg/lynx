@@ -98,7 +98,6 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-
 	apiReq, err := options.GetParams[TranscriptRequest](mergedOpts.Extra, OptionsKey)
 	if err != nil {
 		return nil, err

@@ -19,7 +19,7 @@ func (*pointerModel) Call(context.Context, *embedding.Request) (*embedding.Respo
 func responseFor(texts []string) *embedding.Response {
 	results := make([]*embedding.Result, len(texts))
 	for i := range texts {
-		results[i], _ = embedding.NewResult([]float64{1, 2, 3, 4}, &embedding.ResultMetadata{Index: int64(i)})
+		results[i], _ = embedding.NewResult([]float64{1, 2, 3, 4}, &embedding.ResultMetadata{})
 	}
 	response, _ := embedding.NewResponse(results, &embedding.ResponseMetadata{Model: "fake"})
 	return response
@@ -49,6 +49,9 @@ func TestClientEmbedsIndependentVectors(t *testing.T) {
 	}
 	if vector, err := client.EmbedText(t.Context(), "one"); err != nil || len(vector) != 4 {
 		t.Fatalf("EmbedText() = %#v, %v", vector, err)
+	}
+	if dimensions, err := client.Dimensions(t.Context()); err != nil || dimensions != 4 {
+		t.Fatalf("Dimensions() = %d, %v", dimensions, err)
 	}
 	if _, err := client.EmbedDocuments(t.Context(), []*document.Document{{Text: "doc"}}); err != nil {
 		t.Fatal(err)

@@ -77,22 +77,17 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2Embe
 		apiReq.InputType = cohere.EmbedInputTypeSearchDocument
 	}
 
-	// Cohere requires at least one embedding_type. Map our common
-	// EncodingFormat onto the matching Cohere EmbeddingType; default to
-	// "float" so downstream code always gets a populated Float field.
+	// Cohere requires at least one embedding type. Core normalizes provider
+	// responses to float vectors, so request that wire shape explicitly.
 	if len(apiReq.EmbeddingTypes) == 0 {
-		var t cohere.EmbeddingType
-		switch mergedOpts.EncodingFormat {
-		case embedding.EncodingFormatBase64:
-			t = cohere.EmbeddingTypeBase64
-		default:
-			t = cohere.EmbeddingTypeFloat
-		}
-		apiReq.EmbeddingTypes = []cohere.EmbeddingType{t}
+		apiReq.EmbeddingTypes = []cohere.EmbeddingType{cohere.EmbeddingTypeFloat}
 	}
 
 	if mergedOpts.Dimensions != nil {
-		v := int(*mergedOpts.Dimensions)
+		v, err := options.Int("cohere: embedding: dimensions", *mergedOpts.Dimensions)
+		if err != nil {
+			return nil, err
+		}
 		apiReq.OutputDimension = &v
 	}
 
@@ -105,12 +100,8 @@ func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse) (*em
 	}
 
 	results := make([]*embedding.Result, 0, len(apiResp.Embeddings.Float))
-	for index, vec := range apiResp.Embeddings.Float {
-		resultMeta := &embedding.ResultMetadata{
-			Index:        int64(index),
-			ModalityType: embedding.Text,
-			MIMEType:     "text/plain",
-		}
+	for _, vec := range apiResp.Embeddings.Float {
+		resultMeta := &embedding.ResultMetadata{}
 
 		result, err := embedding.NewResult(vec, resultMeta)
 		if err != nil {

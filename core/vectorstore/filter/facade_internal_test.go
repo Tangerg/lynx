@@ -144,8 +144,16 @@ func TestLiteralVocabularyAndConstructors(t *testing.T) {
 	}
 
 	numberLiteral := NewLiteral(42)
-	if got, err := numberLiteral.AsNumber(); err != nil || got != 42 {
+	if got, err := numberLiteral.AsNumber(); err != nil || got.String() != "42" {
 		t.Fatalf("AsNumber() = %v, %v", got, err)
+	}
+	precise := &Literal{Kind: LiteralNumber, Value: "9007199254740993"}
+	if got, err := precise.AsNumber(); err != nil || got.String() != precise.Value {
+		t.Fatalf("AsNumber() lost precision: %v, %v", got, err)
+	}
+	huge := &Literal{Kind: LiteralNumber, Value: "1e400"}
+	if got, err := huge.AsNumber(); err != nil || got.String() != huge.Value {
+		t.Fatalf("AsNumber() rejected exact large exponent: %v, %v", got, err)
 	}
 	if _, err := (&Literal{Kind: LiteralNumber, Value: "not-a-number"}).AsNumber(); err == nil {
 		t.Fatal("AsNumber accepted an invalid number")
