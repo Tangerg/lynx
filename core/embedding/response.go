@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/model"
 )
 
 // ModalityType labels the source content an embedding represents.
@@ -68,18 +67,24 @@ func NewResult(embedding []float64, metadata *ResultMetadata) (*Result, error) {
 	return &Result{Embedding: embedding, Metadata: metadata}, nil
 }
 
+// Usage records the token consumption an embedding request reported back.
+// Embedding is input-only — there is no completion, reasoning, or cache
+// dimension — so a single count is the whole story. Providers that report
+// a "total" figure map it here: for embeddings every token is input.
+type Usage struct {
+	// PromptTokens are tokens consumed embedding the inputs.
+	PromptTokens int64 `json:"prompt_tokens"`
+}
+
 // ResponseMetadata holds response-level metadata: the model actually
-// used, token usage, rate-limit state, creation time, and provider
-// extras.
+// used, token usage, creation time, and provider extras.
 type ResponseMetadata struct {
 	// Model is the model name actually served.
 	Model string `json:"model"`
 
-	// Usage breaks down token consumption.
-	Usage *model.Usage `json:"usage,omitempty"`
-
-	// RateLimit reports quota state at request time.
-	RateLimit *model.RateLimit `json:"rate_limit,omitempty"`
+	// Usage breaks down token consumption. nil means the provider did not
+	// report usage.
+	Usage *Usage `json:"usage,omitempty"`
 
 	// Created is the provider-reported creation time, Unix seconds.
 	Created int64 `json:"created"`

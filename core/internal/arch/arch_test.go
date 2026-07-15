@@ -210,42 +210,6 @@ func TestCoreDoesNotOwnProviderCatalogData(t *testing.T) {
 	}
 }
 
-func TestCoreDoesNotOwnProviderCredentials(t *testing.T) {
-	root := filepath.Join(moduleRoot(t), "model")
-	fset := token.NewFileSet()
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
-			continue
-		}
-		path := filepath.Join(root, entry.Name())
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
-		for _, declaration := range file.Decls {
-			switch typed := declaration.(type) {
-			case *ast.GenDecl:
-				if typed.Tok != token.TYPE {
-					continue
-				}
-				for _, specification := range typed.Specs {
-					if specification.(*ast.TypeSpec).Name.Name == "APIKey" {
-						t.Errorf("Core must not own provider credential type APIKey: %s", path)
-					}
-				}
-			case *ast.FuncDecl:
-				if typed.Recv == nil && typed.Name.Name == "NewAPIKey" {
-					t.Errorf("Core must not own provider credential constructor NewAPIKey: %s", path)
-				}
-			}
-		}
-	}
-}
-
 func assertMinimalModalityPackage(t *testing.T, packageName string) {
 	t.Helper()
 	root := filepath.Join(moduleRoot(t), packageName)
@@ -272,11 +236,6 @@ func assertMinimalModalityPackage(t *testing.T, packageName string) {
 		file, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
 			t.Fatalf("parse %s: %v", path, err)
-		}
-		for _, imported := range file.Imports {
-			if strings.Trim(imported.Path.Value, `"`) == "github.com/Tangerg/lynx/core/model" {
-				t.Errorf("core/%s must not depend on the generic model framework: %s", packageName, path)
-			}
 		}
 		for _, declaration := range file.Decls {
 			switch typed := declaration.(type) {
@@ -388,12 +347,6 @@ func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse %s: %v", path, err)
 		}
-		for _, imported := range file.Imports {
-			importPath := strings.Trim(imported.Path.Value, `"`)
-			if importPath == "github.com/Tangerg/lynx/core/model" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/model/") {
-				t.Errorf("target core/chat must not depend on legacy generic model layer %q: %s", importPath, path)
-			}
-		}
 		for _, declaration := range file.Decls {
 			general, ok := declaration.(*ast.GenDecl)
 			if !ok || general.Tok != token.TYPE {
@@ -434,38 +387,6 @@ func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
 	for name := range allowed {
 		if !found[name] {
 			t.Errorf("target core/chat.%s declaration not found", name)
-		}
-	}
-}
-
-func TestCoreModelExcludesAgentControlFlow(t *testing.T) {
-	root := filepath.Join(moduleRoot(t), "model")
-	fset := token.NewFileSet()
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		t.Fatalf("read core/model: %v", err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
-			continue
-		}
-		path := filepath.Join(root, entry.Name())
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
-		for _, declaration := range file.Decls {
-			general, ok := declaration.(*ast.GenDecl)
-			if !ok || general.Tok != token.TYPE {
-				continue
-			}
-			for _, specification := range general.Specs {
-				typeSpec := specification.(*ast.TypeSpec)
-				switch typeSpec.Name.Name {
-				case "Halt", "ControlFlowError":
-					t.Errorf("core/model must not own agent control-flow type %s: %s", typeSpec.Name.Name, path)
-				}
-			}
 		}
 	}
 }

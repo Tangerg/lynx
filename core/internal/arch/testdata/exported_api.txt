@@ -124,9 +124,10 @@ embedding: type ModelFunc func(context.Context, *Request) (*Response, error)
 embedding: type Options struct { Model string `json:"model"` EncodingFormat EncodingFormat `json:"encoding_format"` Dimensions *int64 `json:"dimensions,omitempty"` Extra metadata.Map `json:"extra,omitzero"` }
 embedding: type Request struct { Texts []string `json:"texts,omitzero"` Options *Options `json:"options,omitempty"` }
 embedding: type Response struct { Results []*Result `json:"results,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
-embedding: type ResponseMetadata struct { Model string `json:"model"` Usage *model.Usage `json:"usage,omitempty"` RateLimit *model.RateLimit `json:"rate_limit,omitempty"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
+embedding: type ResponseMetadata struct { Model string `json:"model"` Usage *Usage `json:"usage,omitempty"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 embedding: type Result struct { Embedding []float64 `json:"embedding"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
 embedding: type ResultMetadata struct { Index int64 `json:"index"` ModalityType ModalityType `json:"modality_type"` MIMEType string `json:"mime_type,omitempty"` Extra metadata.Map `json:"extra,omitzero"` }
+embedding: type Usage struct { PromptTokens int64 `json:"prompt_tokens"` }
 image: const ( ResponseFormatURL ResponseFormat = "url" ResponseFormatB64JSON ResponseFormat = "b64json" )
 image: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 image: func (m *ResponseMetadata) Set(key string, value any) error
@@ -178,12 +179,6 @@ metadata: func New() Map
 metadata: func Set(m Map, key string, value any) error
 metadata: type Map map[string]json.RawMessage
 metadata: var ( ErrNilMap = errors.New("metadata: nil map") ErrEmptyKey = errors.New("metadata: empty key") ErrInvalidValue = errors.New("metadata: invalid JSON value") )
-model: func (u *Usage) HasCacheReadInputTokens() bool
-model: func (u *Usage) HasCacheWriteInputTokens() bool
-model: func (u *Usage) HasReasoningTokens() bool
-model: func (u *Usage) TotalTokens() int64
-model: type RateLimit struct { RequestsLimit int64 `json:"requests_limit"` RequestsRemaining int64 `json:"requests_remaining"` RequestsReset time.Duration `json:"requests_reset"` TokensLimit int64 `json:"tokens_limit"` TokensRemaining int64 `json:"tokens_remaining"` TokensReset time.Duration `json:"tokens_reset"` }
-model: type Usage struct { PromptTokens int64 `json:"prompt_tokens"` CompletionTokens int64 `json:"completion_tokens"` ReasoningTokens *int64 `json:"reasoning_tokens,omitempty"` CacheReadInputTokens *int64 `json:"cache_read_input_tokens,omitempty"` CacheWriteInputTokens *int64 `json:"cache_write_input_tokens,omitempty"` }
 moderation: func (c *Categories) Flagged() bool
 moderation: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 moderation: func (m *ResponseMetadata) Set(key string, value any) error

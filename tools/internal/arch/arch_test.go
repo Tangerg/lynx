@@ -59,7 +59,6 @@ func TestRootToolsDoNotImportLegacyModelOrRuntime(t *testing.T) {
 
 func forbiddenImport(importPath string) bool {
 	for _, prefix := range []string{
-		"github.com/Tangerg/lynx/core/model",
 		"github.com/Tangerg/lynx/agent",
 		"github.com/Tangerg/lynx/chatclient",
 	} {

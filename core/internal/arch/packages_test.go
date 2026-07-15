@@ -13,7 +13,6 @@ var targetPublicPackages = map[string]struct{}{
 	"image":              {},
 	"media":              {},
 	"metadata":           {},
-	"model":              {},
 	"moderation":         {},
 	"speech":             {},
 	"transcription":      {},

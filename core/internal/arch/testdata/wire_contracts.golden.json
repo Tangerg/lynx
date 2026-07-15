@@ -192,19 +192,7 @@
     "metadata": {
       "model": "embedding-model",
       "usage": {
-        "prompt_tokens": 100,
-        "completion_tokens": 20,
-        "reasoning_tokens": 5,
-        "cache_read_input_tokens": 10,
-        "cache_write_input_tokens": 15
-      },
-      "rate_limit": {
-        "requests_limit": 100,
-        "requests_remaining": 99,
-        "requests_reset": 30000000000,
-        "tokens_limit": 10000,
-        "tokens_remaining": 9880,
-        "tokens_reset": 60000000000
+        "prompt_tokens": 100
       },
       "created": 1700000000,
       "extra": {
@@ -286,21 +274,6 @@
     "nested": {
       "enabled": true
     }
-  },
-  "model_rate_limit": {
-    "requests_limit": 100,
-    "requests_remaining": 99,
-    "requests_reset": 30000000000,
-    "tokens_limit": 10000,
-    "tokens_remaining": 9880,
-    "tokens_reset": 60000000000
-  },
-  "model_usage": {
-    "prompt_tokens": 100,
-    "completion_tokens": 20,
-    "reasoning_tokens": 5,
-    "cache_read_input_tokens": 10,
-    "cache_write_input_tokens": 15
   },
   "moderation_request": {
     "texts": [
