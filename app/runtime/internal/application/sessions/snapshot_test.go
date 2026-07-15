@@ -60,7 +60,7 @@ func TestValidateSnapshotRejectsInconsistentPortableState(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			snapshot := portableSnapshot()
 			test.mutate(&snapshot)
-			if err := validateSnapshot(snapshot); err == nil {
+			if err := snapshot.Validate(); err == nil {
 				t.Fatal("validateSnapshot accepted inconsistent state")
 			}
 		})
@@ -68,7 +68,7 @@ func TestValidateSnapshotRejectsInconsistentPortableState(t *testing.T) {
 }
 
 func TestValidateSnapshotAcceptsCanonicalTerminalState(t *testing.T) {
-	if err := validateSnapshot(portableSnapshot()); err != nil {
+	if err := portableSnapshot().Validate(); err != nil {
 		t.Fatalf("validateSnapshot: %v", err)
 	}
 }

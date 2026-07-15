@@ -67,7 +67,7 @@ func SupportedProviders() []Provider {
 }
 
 // IsSupported reports whether p is a known provider (has a table row).
-func IsSupported(p Provider) bool {
+func (p Provider) IsSupported() bool {
 	_, ok := providerInfo[p]
 	return ok
 }
@@ -75,20 +75,20 @@ func IsSupported(p Provider) bool {
 // DefaultModel returns a provider's catalog default model id (used when the
 // caller doesn't pick one). Empty for an unknown provider or one whose model id
 // is always user-supplied (Azure deployment, Ollama, the generic passthroughs).
-func DefaultModel(p Provider) string {
+func (p Provider) DefaultModel() string {
 	return providerInfo[p].defaultModel
 }
 
 // APIKeyEnv returns the environment variable a provider's key is read from,
 // or "" for an unknown provider.
-func APIKeyEnv(p Provider) string {
+func (p Provider) APIKeyEnv() string {
 	return providerInfo[p].apiKeyEnv
 }
 
 // RequiresBaseURL reports whether p has no built-in endpoint and needs a
 // caller-supplied base URL (the generic passthroughs + Azure). The frontend
 // renders a base URL field + free-form model input for these.
-func RequiresBaseURL(p Provider) bool {
+func (p Provider) RequiresBaseURL() bool {
 	return providerInfo[p].requiresBaseURL
 }
 

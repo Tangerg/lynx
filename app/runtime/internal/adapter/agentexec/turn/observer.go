@@ -102,7 +102,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		interrupts.InterruptKey("approval", toolName, plan.Arguments),
 		ApprovalPrompt{
 			CallID: callID, ToolName: toolName, Arguments: plan.Arguments,
-			SafetyClass: tool.ClassName(plan.SafetyClass), Risk: plan.Risk, Reason: plan.PromptReason,
+			SafetyClass: plan.SafetyClass.String(), Risk: plan.Risk, Reason: plan.PromptReason,
 		},
 	)
 	if err != nil {
@@ -135,7 +135,7 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 		CallID:      callID,
 		ToolName:    toolName,
 		Arguments:   arguments,
-		SafetyClass: tool.ClassName(tool.SafetyClassFor(toolName)),
+		SafetyClass: tool.SafetyClassFor(toolName).String(),
 	})
 }
 

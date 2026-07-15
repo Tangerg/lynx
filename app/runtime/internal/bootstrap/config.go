@@ -27,13 +27,13 @@ func LoadConfig() (config.Config, error) {
 
 func resolveProviderConfig(cfg config.Config) (config.Config, error) {
 	provider := llm.Provider(cfg.Provider)
-	if !llm.IsSupported(provider) {
+	if !provider.IsSupported() {
 		return config.Config{}, fmt.Errorf("config: unknown provider %q (see providers.list for the supported set)", cfg.Provider)
 	}
 	if cfg.Model == "" {
-		cfg.Model = llm.DefaultModel(provider)
+		cfg.Model = provider.DefaultModel()
 	}
-	apiKeyEnv := llm.APIKeyEnv(provider)
+	apiKeyEnv := provider.APIKeyEnv()
 	if envKey := os.Getenv(apiKeyEnv); envKey != "" {
 		cfg.APIKey = envKey
 	}

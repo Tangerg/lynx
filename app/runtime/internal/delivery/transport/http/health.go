@@ -160,13 +160,13 @@ func normalizedHealth(status HealthStatus) HealthStatus {
 
 // worseHealth picks the worst of two statuses: ok < degraded < unhealthy.
 func worseHealth(a, b HealthStatus) HealthStatus {
-	if healthRank(b) > healthRank(a) {
+	if b.rank() > a.rank() {
 		return b
 	}
 	return a
 }
 
-func healthRank(s HealthStatus) int {
+func (s HealthStatus) rank() int {
 	switch s {
 	case HealthUnhealthy:
 		return 2

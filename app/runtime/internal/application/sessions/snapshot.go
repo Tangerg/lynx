@@ -22,13 +22,15 @@ func (c *Coordinator) ReadSnapshot(ctx context.Context, claims SessionClaimer, s
 	if err != nil {
 		return Snapshot{}, err
 	}
-	if err := validateSnapshot(snapshot); err != nil {
+	if err := snapshot.Validate(); err != nil {
 		return Snapshot{}, err
 	}
 	return snapshot, nil
 }
 
-func validateSnapshot(snapshot Snapshot) error {
+// Validate checks a snapshot's referential integrity — the session id is present
+// and every run/item belongs to it — before the coordinator hands it out.
+func (snapshot Snapshot) Validate() error {
 	if snapshot.Session.ID == "" {
 		return fmt.Errorf("sessions: snapshot session id is required")
 	}
