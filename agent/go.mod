@@ -4,12 +4,12 @@ go 1.26.5
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/Tangerg/lynx/chatclient v0.0.0-20260715031711-43c2876c4c96
-	github.com/Tangerg/lynx/chathistory v0.0.0-20260715031711-43c2876c4c96
-	github.com/Tangerg/lynx/core v0.0.0-20260715031711-43c2876c4c96
-	github.com/Tangerg/lynx/mcp v0.0.0-20260715031711-43c2876c4c96
-	github.com/Tangerg/lynx/pkg v0.0.0-20260715031711-43c2876c4c96
-	github.com/Tangerg/lynx/tools v0.0.0-20260715031711-43c2876c4c96
+	github.com/Tangerg/lynx/chatclient v0.0.0-20260715032326-b968e20dd6f6
+	github.com/Tangerg/lynx/chathistory v0.0.0-20260715032326-b968e20dd6f6
+	github.com/Tangerg/lynx/core v0.0.0-20260715032326-b968e20dd6f6
+	github.com/Tangerg/lynx/mcp v0.0.0-20260715032326-b968e20dd6f6
+	github.com/Tangerg/lynx/pkg v0.0.0-20260715032326-b968e20dd6f6
+	github.com/Tangerg/lynx/tools v0.0.0-20260715032326-b968e20dd6f6
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	go.opentelemetry.io/otel v1.44.0

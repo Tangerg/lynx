@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	github.com/PuerkitoBio/goquery v1.12.0
-	github.com/Tangerg/lynx/core v0.0.0-20260715031711-43c2876c4c96
+	github.com/Tangerg/lynx/core v0.0.0-20260715032326-b968e20dd6f6
 )
 
 require (
