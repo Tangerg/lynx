@@ -71,3 +71,85 @@ func TestResponseValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestOptionsMergeAndProtocolAccessors(t *testing.T) {
+	if _, ok := (*image.Options)(nil).Get("missing"); ok {
+		t.Fatal("nil Options reported a value")
+	}
+	if _, ok := (*image.Request)(nil).Get("missing"); ok {
+		t.Fatal("nil Request reported a value")
+	}
+	if clone := (*image.Options)(nil).Clone(); clone != nil {
+		t.Fatalf("nil Clone = %#v", clone)
+	}
+
+	width, height, seed := int64(512), int64(768), int64(7)
+	base := &image.Options{Model: "base", Width: &width, Extra: map[string]any{"base": true}}
+	override := &image.Options{
+		Model: "override", NegativePrompt: "text", Width: &width, Height: &height,
+		Style: "natural", Quality: "high", Seed: &seed, OutputFormat: "IMAGE/PNG",
+		ResponseFormat: image.ResponseFormatURL, Extra: map[string]any{"override": true},
+	}
+	merged, err := image.MergeOptions(base, nil, override)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if merged.Model != "override" || merged.NegativePrompt != "text" || merged.Height == nil ||
+		merged.Style != "natural" || merged.Quality != "high" || merged.Seed == nil ||
+		merged.OutputFormat != "image/png" || merged.ResponseFormat != image.ResponseFormatURL {
+		t.Fatalf("MergeOptions = %#v", merged)
+	}
+	if len(merged.Extra) != 2 {
+		t.Fatalf("merged Extra = %#v", merged.Extra)
+	}
+	clone := merged.Clone()
+	*clone.Width = 1024
+	clone.Extra["base"] = false
+	if *merged.Width != 512 || merged.Extra["base"] != true {
+		t.Fatal("Options.Clone aliases source state")
+	}
+	merged.Set("region", "local")
+	if value, ok := merged.Get("region"); !ok || value != "local" {
+		t.Fatalf("Options.Get = %#v, %t", value, ok)
+	}
+
+	request, _ := image.NewRequest("lynx")
+	request.Set("trace_id", "trace-1")
+	if value, ok := request.Get("trace_id"); !ok || value != "trace-1" {
+		t.Fatalf("Request.Get = %#v, %t", value, ok)
+	}
+}
+
+func TestResponseMetadataAccessorsAndErrors(t *testing.T) {
+	if _, ok := (*image.ResultMetadata)(nil).Get("missing"); ok {
+		t.Fatal("nil ResultMetadata reported a value")
+	}
+	if _, ok := (*image.ResponseMetadata)(nil).Get("missing"); ok {
+		t.Fatal("nil ResponseMetadata reported a value")
+	}
+	resultMetadata := &image.ResultMetadata{}
+	resultMetadata.Set("revised_prompt", "lynx")
+	if value, ok := resultMetadata.Get("revised_prompt"); !ok || value != "lynx" {
+		t.Fatalf("ResultMetadata.Get = %#v, %t", value, ok)
+	}
+	responseMetadata := &image.ResponseMetadata{}
+	responseMetadata.Set("region", "local")
+	if value, ok := responseMetadata.Get("region"); !ok || value != "local" {
+		t.Fatalf("ResponseMetadata.Get = %#v, %t", value, ok)
+	}
+
+	generated, _ := image.NewImage("https://example.com/image.png", "")
+	if _, err := image.NewResult(nil, resultMetadata); err == nil {
+		t.Fatal("NewResult accepted nil image")
+	}
+	if _, err := image.NewResult(generated, nil); err == nil {
+		t.Fatal("NewResult accepted nil metadata")
+	}
+	result, _ := image.NewResult(generated, resultMetadata)
+	if _, err := image.NewResponse(nil, responseMetadata); err == nil {
+		t.Fatal("NewResponse accepted nil result")
+	}
+	if _, err := image.NewResponse(result, nil); err == nil {
+		t.Fatal("NewResponse accepted nil metadata")
+	}
+}

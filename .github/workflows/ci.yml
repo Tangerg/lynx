@@ -47,7 +47,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.4"
+          go-version: "1.26.5"
           cache: true
           cache-dependency-path: ${{ matrix.module }}/go.sum
 
@@ -85,6 +85,17 @@ jobs:
           go test -count=1 ./...
           -run '^(Example|TestPublicPackagesHaveDocsAndRunnableExamples)$'
 
+      - name: Core coverage budget
+        if: matrix.module == 'core'
+        run: scripts/check-core-coverage.sh
+
+      - name: Core dependency budget
+        if: matrix.module == 'core'
+        working-directory: core
+        run: |
+          go test -count=1 ./internal/arch -run '^(TestTargetPackagesHaveNoExternalDependencies|TestCoreProductionImportsAreStandardLibraryOnly)$'
+          go mod tidy -diff
+
       # Provider compatibility is release-critical even while the broad test
       # suite remains advisory. This covers every public constructor plus the
       # shared protocol/mapping suites and the five reference implementations.
@@ -116,10 +127,10 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.64.8
-          # Build golangci-lint from source with the runner's Go (1.26.4) rather
+          # Build golangci-lint from source with the runner's Go (1.26.5) rather
           # than pulling the prebuilt binary: the prebuilt v1.64.8 is built with
           # go1.24, and golangci-lint refuses to run when its build Go is older
-          # than go.mod's `go 1.26.4`. goinstall sidesteps that — same as the
+          # than go.mod's `go 1.26.5`. goinstall sidesteps that — same as the
           # local `go install`-ed binary that works.
           install-mode: goinstall
           working-directory: ${{ matrix.module }}
