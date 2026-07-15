@@ -24,7 +24,7 @@ func (providerCatalog) Supported() []provider.Metadata {
 }
 
 func (providerCatalog) Metadata(id string) (provider.Metadata, bool) {
-	if !llm.IsSupported(llm.Provider(id)) {
+	if !llm.Provider(id).IsSupported() {
 		return provider.Metadata{}, false
 	}
 	return providerMetadata(llm.Provider(id)), true
@@ -33,9 +33,9 @@ func (providerCatalog) Metadata(id string) (provider.Metadata, bool) {
 func providerMetadata(p llm.Provider) provider.Metadata {
 	return provider.Metadata{
 		ID:                    string(p),
-		RequiresBaseURL:       llm.RequiresBaseURL(p),
-		EmbeddingCapable:      llm.EmbeddingCapable(p),
-		DefaultEmbeddingModel: llm.DefaultEmbeddingModel(p),
+		RequiresBaseURL:       p.RequiresBaseURL(),
+		EmbeddingCapable:      p.EmbeddingCapable(),
+		DefaultEmbeddingModel: p.DefaultEmbeddingModel(),
 	}
 }
 
@@ -49,7 +49,7 @@ type providerProber struct{}
 func (providerProber) Probe(ctx context.Context, entry provider.Provider) error {
 	client, err := llm.BuildClient(llm.ClientSpec{
 		Provider: llm.Provider(entry.ID),
-		Model:    llm.DefaultModel(llm.Provider(entry.ID)),
+		Model:    llm.Provider(entry.ID).DefaultModel(),
 		APIKey:   entry.APIKey,
 		BaseURL:  entry.BaseURL,
 	})

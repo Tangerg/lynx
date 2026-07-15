@@ -60,14 +60,14 @@ var embeddingProviderInfo = map[Provider]embeddingEntry{
 }
 
 // EmbeddingCapable reports whether p has an embeddings adapter.
-func EmbeddingCapable(p Provider) bool {
+func (p Provider) EmbeddingCapable() bool {
 	_, ok := embeddingProviderInfo[p]
 	return ok
 }
 
 // DefaultEmbeddingModel returns p's default embedding model id, or "" when the
 // id is always user-supplied (Azure deployment names).
-func DefaultEmbeddingModel(p Provider) string {
+func (p Provider) DefaultEmbeddingModel() string {
 	return embeddingProviderInfo[p].defaultModel
 }
 

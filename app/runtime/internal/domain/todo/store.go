@@ -121,7 +121,7 @@ func completedCount(items []Item) int {
 func Render(items []Item) string {
 	var b strings.Builder
 	for _, it := range items {
-		b.WriteString(mark(it.Status))
+		b.WriteString(it.Status.mark())
 		b.WriteByte(' ')
 		b.WriteString(it.Content)
 		b.WriteByte('\n')
@@ -139,7 +139,7 @@ func Render(items []Item) string {
 	return b.String()
 }
 
-func mark(s Status) string {
+func (s Status) mark() string {
 	switch s {
 	case StatusCompleted:
 		return "[x]"

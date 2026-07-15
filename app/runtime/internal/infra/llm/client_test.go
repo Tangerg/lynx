@@ -20,12 +20,12 @@ func TestProviderTable_Invariants(t *testing.T) {
 
 	// The generic passthroughs + Azure carry no built-in endpoint.
 	for _, p := range []Provider{ProviderOpenAICompat, ProviderAnthropicCompat, ProviderAzureOpenAI} {
-		if !RequiresBaseURL(p) {
+		if !p.RequiresBaseURL() {
 			t.Errorf("provider %q must require a base URL", p)
 		}
 	}
 	// A named vendor must NOT require one (it has a built-in endpoint).
-	if RequiresBaseURL(ProviderAnthropic) {
+	if ProviderAnthropic.RequiresBaseURL() {
 		t.Error("anthropic must not require a base URL")
 	}
 }
@@ -35,21 +35,21 @@ func TestQueries(t *testing.T) {
 	if got := len(SupportedProviders()); got != 21 {
 		t.Errorf("SupportedProviders = %d, want 21", got)
 	}
-	if !IsSupported(ProviderGroq) {
+	if !ProviderGroq.IsSupported() {
 		t.Error("groq should be supported")
 	}
-	if IsSupported("nope") {
+	if Provider("nope").IsSupported() {
 		t.Error("unknown provider should not be supported")
 	}
-	if DefaultModel(ProviderAnthropic) == "" {
+	if ProviderAnthropic.DefaultModel() == "" {
 		t.Error("anthropic should have a default model")
 	}
 	// A generic passthrough has no catalog default — the model id is user-supplied.
-	if DefaultModel(ProviderOpenAICompat) != "" {
+	if ProviderOpenAICompat.DefaultModel() != "" {
 		t.Error("openai-compatible should have no default model")
 	}
-	if APIKeyEnv(ProviderOpenAI) != "OPENAI_API_KEY" {
-		t.Errorf("openai key env = %q", APIKeyEnv(ProviderOpenAI))
+	if ProviderOpenAI.APIKeyEnv() != "OPENAI_API_KEY" {
+		t.Errorf("openai key env = %q", ProviderOpenAI.APIKeyEnv())
 	}
 }
 

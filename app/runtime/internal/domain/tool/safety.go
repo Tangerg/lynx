@@ -22,10 +22,10 @@ func SafetyClassFor(name string) SafetyClass {
 	}
 }
 
-// ClassName is the wire vocabulary (API.md §4.4 SafetyClass: "safe" | "write" |
+// String is the wire vocabulary (API.md §4.4 SafetyClass: "safe" | "write" |
 // "exec") for a class — the canonical string a client renders, stamped on the
 // live toolCall Item and the approval prompt.
-func ClassName(c SafetyClass) string {
+func (c SafetyClass) String() string {
 	switch c {
 	case SafetyClassSafe:
 		return "safe"
