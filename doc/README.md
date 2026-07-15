@@ -42,6 +42,9 @@ lynx/
 **框架设计（本目录）**
 - [`CORE_GETTING_STARTED.md`](./CORE_GETTING_STARTED.md) — 当前 API 的最小同步/流式/typed tool/tool-loop/pause-resume/structured output 上手路径
 - [`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md) — Core 长期架构演进的唯一执行基准：目标边界、阶段任务、验收标准、进度、风险与 ADR
+- [`CORE_V1_MIGRATION.md`](./CORE_V1_MIGRATION.md) — 从旧 Spring AI 移植形态直接切换到 Core v1 的源码、职责和历史数据迁移指南
+- [`CORE_V1_RELEASE_NOTES.md`](./CORE_V1_RELEASE_NOTES.md) — Core v1.0.0 的发布内容、破坏性变化、门禁、风险与 SemVer 政策
+- [`CORE_V1_RELEASE_RUNBOOK.md`](./CORE_V1_RELEASE_RUNBOOK.md) — 多 module 真实依赖 DAG、协调发布波次、tag 规则和回滚手册
 - [`CORE_API_INVENTORY.md`](./CORE_API_INVENTORY.md) — Core 重构前公共 API、workspace 消费热度及 P4/P6 provider/backend 迁移子清单
 - [`CORE_BASELINE.md`](./CORE_BASELINE.md) — P0 build/vet/test/lint、coverage、race 与 Core 依赖预算基线
 - [`OBSERVABILITY.md`](./OBSERVABILITY.md) — 可观测性设计：OTel 三驾马车 → `log/slog`、语义规范、埋点清单、桥接 exporter
