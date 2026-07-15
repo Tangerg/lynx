@@ -1,9 +1,9 @@
-github.com/Tangerg/lynx/chatclient v0.0.0-20260714110600-0abc7c70a85d h1:cl7mGns7QVWdpxL0X3PLIGOm1j2LKGIV6vRUUQUuQT0=
-github.com/Tangerg/lynx/chatclient v0.0.0-20260714110600-0abc7c70a85d/go.mod h1:vVyo7Ihn4HgkTmKn+7qpUtYtlc0vqjajaHHFmAGeBcc=
-github.com/Tangerg/lynx/core v0.0.0-20260714110600-0abc7c70a85d h1:FmOTYfrJpg4hZ1aysZi0M/bKGjVFDT9wKDU+PCCrHBg=
-github.com/Tangerg/lynx/core v0.0.0-20260714110600-0abc7c70a85d/go.mod h1:M/4xXWJOxH+PaKN73sKDK84HOHuUcn4gmFNT7ZpwcSk=
-github.com/Tangerg/lynx/pkg v0.0.0-20260714110600-0abc7c70a85d h1:IUYnm7LrPkVPgZ5K0zuc3RgArKKBnHKAOFWNe7ADQKs=
-github.com/Tangerg/lynx/pkg v0.0.0-20260714110600-0abc7c70a85d/go.mod h1:5nqRYF2FcMr67V4XkOjjfGnMJ++X/ryVr3CbxEVoiTY=
+github.com/Tangerg/lynx/chatclient v0.0.0-20260715031711-43c2876c4c96 h1:ACjdeM4X4l9FQ8xKzo+m8Tn5c4P30Mmesb/CM9h+U0E=
+github.com/Tangerg/lynx/chatclient v0.0.0-20260715031711-43c2876c4c96/go.mod h1:51wJrvBnCMHyyAZEg5RYfAhB+IV62+PcKgnP7UNBNtw=
+github.com/Tangerg/lynx/core v0.0.0-20260715031711-43c2876c4c96 h1:RxF4r/yYf+pJh/EPWGlrEH7CYDiX5wur2ZePibUuksw=
+github.com/Tangerg/lynx/core v0.0.0-20260715031711-43c2876c4c96/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
+github.com/Tangerg/lynx/pkg v0.0.0-20260715031711-43c2876c4c96 h1:kAac+4drpLU+vK6V5DriVCSCM5L8xAPtteYju2+h6kw=
+github.com/Tangerg/lynx/pkg v0.0.0-20260715031711-43c2876c4c96/go.mod h1:+AYRcOYA8qwIZjux7N5N2yVZ+Yq5Y8gWd/hV+PnPad4=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=

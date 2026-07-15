@@ -3,9 +3,9 @@ module github.com/Tangerg/lynx/rag
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/chatclient v0.0.0-20260714110600-0abc7c70a85d
-	github.com/Tangerg/lynx/core v0.0.0-20260714110600-0abc7c70a85d
-	github.com/Tangerg/lynx/pkg v0.0.0-20260714110600-0abc7c70a85d
+	github.com/Tangerg/lynx/chatclient v0.0.0-20260715031711-43c2876c4c96
+	github.com/Tangerg/lynx/core v0.0.0-20260715031711-43c2876c4c96
+	github.com/Tangerg/lynx/pkg v0.0.0-20260715031711-43c2876c4c96
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 )
