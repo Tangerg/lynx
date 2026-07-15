@@ -221,26 +221,24 @@ func clonePart(part Part) Part {
 		clone.Media = &value
 	}
 	if part.ToolCall != nil {
-		value := *part.ToolCall
-		clone.ToolCall = &value
+		clone.ToolCall = new(*part.ToolCall)
 	}
 	return clone
 }
 
 func cloneUsage(usage Usage) Usage {
 	clone := usage
-	clone.ReasoningTokens = cloneTokenCount(usage.ReasoningTokens)
-	clone.CacheReadInputTokens = cloneTokenCount(usage.CacheReadInputTokens)
-	clone.CacheWriteInputTokens = cloneTokenCount(usage.CacheWriteInputTokens)
+	clone.ReasoningTokens = clonePointer(usage.ReasoningTokens)
+	clone.CacheReadInputTokens = clonePointer(usage.CacheReadInputTokens)
+	clone.CacheWriteInputTokens = clonePointer(usage.CacheWriteInputTokens)
 	return clone
 }
 
-func cloneTokenCount(value *int64) *int64 {
+func clonePointer[T any](value *T) *T {
 	if value == nil {
 		return nil
 	}
-	clone := *value
-	return &clone
+	return new(*value)
 }
 
 func zeroUsage(usage Usage) bool {

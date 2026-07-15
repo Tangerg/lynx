@@ -231,8 +231,7 @@ func clonePointer[T any](value *T) *T {
 	if value == nil {
 		return nil
 	}
-	clone := *value
-	return &clone
+	return new(*value)
 }
 
 func mergeChatOptions(defaults, overrides corechat.Options) corechat.Options {

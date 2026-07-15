@@ -10,8 +10,6 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-func pointer[T any](value T) *T { return &value }
-
 func TestOptionsZeroValueIsValid(t *testing.T) {
 	var options chat.Options
 	if err := options.Validate(); err != nil {
@@ -29,13 +27,13 @@ func TestOptionsZeroValueIsValid(t *testing.T) {
 func TestOptionsValidateBoundaries(t *testing.T) {
 	options := chat.Options{
 		Model:            "model",
-		FrequencyPenalty: pointer(-2.0),
-		MaxTokens:        pointer(int64(1)),
-		PresencePenalty:  pointer(2.0),
+		FrequencyPenalty: new(-2.0),
+		MaxTokens:        new(int64(1)),
+		PresencePenalty:  new(2.0),
 		Stop:             []string{"stop"},
-		Temperature:      pointer(0.0),
-		TopK:             pointer(int64(1)),
-		TopP:             pointer(1.0),
+		Temperature:      new(0.0),
+		TopK:             new(int64(1)),
+		TopP:             new(1.0),
 	}
 	if err := options.Validate(); err != nil {
 		t.Fatalf("Validate: %v", err)
@@ -60,15 +58,15 @@ func TestOptionsValidateRejectsInvalidOverrides(t *testing.T) {
 		options chat.Options
 	}{
 		{name: "model whitespace", options: chat.Options{Model: " model"}},
-		{name: "frequency low", options: chat.Options{FrequencyPenalty: pointer(-2.1)}},
-		{name: "frequency NaN", options: chat.Options{FrequencyPenalty: pointer(math.NaN())}},
-		{name: "max tokens zero", options: chat.Options{MaxTokens: pointer(int64(0))}},
-		{name: "presence high", options: chat.Options{PresencePenalty: pointer(2.1)}},
+		{name: "frequency low", options: chat.Options{FrequencyPenalty: new(-2.1)}},
+		{name: "frequency NaN", options: chat.Options{FrequencyPenalty: new(math.NaN())}},
+		{name: "max tokens zero", options: chat.Options{MaxTokens: new(int64(0))}},
+		{name: "presence high", options: chat.Options{PresencePenalty: new(2.1)}},
 		{name: "empty stop", options: chat.Options{Stop: []string{""}}},
-		{name: "temperature high", options: chat.Options{Temperature: pointer(2.1)}},
-		{name: "temperature infinity", options: chat.Options{Temperature: pointer(math.Inf(1))}},
-		{name: "top k zero", options: chat.Options{TopK: pointer(int64(0))}},
-		{name: "top p high", options: chat.Options{TopP: pointer(1.1)}},
+		{name: "temperature high", options: chat.Options{Temperature: new(2.1)}},
+		{name: "temperature infinity", options: chat.Options{Temperature: new(math.Inf(1))}},
+		{name: "top k zero", options: chat.Options{TopK: new(int64(0))}},
+		{name: "top p high", options: chat.Options{TopP: new(1.1)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
