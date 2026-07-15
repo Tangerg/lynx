@@ -212,3 +212,86 @@ func TestIncrementalReindex(t *testing.T) {
 		t.Fatalf("after adding b.go, top hit for 'gadget' = %+v, want b.go", hits)
 	}
 }
+
+func TestSearchKeepsCorpusAndQueryOnOneEmbedder(t *testing.T) {
+	cwd := t.TempDir()
+	src := newMemSource()
+	src.add("a.go", "h1", "document")
+	queryStarted := make(chan struct{})
+	releaseQuery := make(chan struct{})
+	a := &switchTestEmbedder{
+		id:           "fake:a",
+		dim:          2,
+		queryStarted: queryStarted,
+		releaseQuery: releaseQuery,
+	}
+	b := &switchTestEmbedder{id: "fake:b", dim: 3}
+	resolver := &switchTestResolver{embedder: a}
+	ix := New(newMemStore(), resolver.resolve, src)
+	if err := ix.EnsureIndexed(t.Context(), cwd); err != nil {
+		t.Fatalf("EnsureIndexed: %v", err)
+	}
+
+	type result struct {
+		hits []Hit
+		err  error
+	}
+	searchDone := make(chan result, 1)
+	go func() {
+		hits, err := ix.Search(t.Context(), cwd, "query", 1)
+		searchDone <- result{hits: hits, err: err}
+	}()
+	<-queryStarted
+
+	resolver.set(b)
+	if err := ix.Reindex(t.Context(), cwd); err != nil {
+		t.Fatalf("Reindex with replacement embedder: %v", err)
+	}
+	close(releaseQuery)
+	got := <-searchDone
+	if got.err != nil {
+		t.Fatalf("Search: %v", got.err)
+	}
+	if len(got.hits) != 1 || got.hits[0].Score < 0.99 {
+		t.Fatalf("hits = %+v, want the model-A corpus snapshot scored by model A", got.hits)
+	}
+}
+
+type switchTestResolver struct {
+	mu       sync.Mutex
+	embedder Embedder
+}
+
+func (r *switchTestResolver) resolve(context.Context) (Embedder, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.embedder, nil
+}
+
+func (r *switchTestResolver) set(embedder Embedder) {
+	r.mu.Lock()
+	r.embedder = embedder
+	r.mu.Unlock()
+}
+
+type switchTestEmbedder struct {
+	id           string
+	dim          int
+	queryStarted chan struct{}
+	releaseQuery <-chan struct{}
+}
+
+func (e *switchTestEmbedder) ID() string { return e.id }
+
+func (e *switchTestEmbedder) Embed(_ context.Context, texts []string) ([][]float32, error) {
+	out := make([][]float32, len(texts))
+	for i, text := range texts {
+		if text == "query" && e.queryStarted != nil {
+			close(e.queryStarted)
+			<-e.releaseQuery
+		}
+		out[i] = make([]float32, e.dim)
+		out[i][0] = 1
+	}
+	return out, nil
+}

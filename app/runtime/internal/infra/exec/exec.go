@@ -100,12 +100,16 @@ func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.D
 	}
 	s.nextID++
 	id := "bg_" + strconv.Itoa(s.nextID)
+	// Start while holding the owner lock so shutdown cannot observe a Shell
+	// whose exec.Cmd is only partly initialized. Once the shell is published,
+	// cmd.Process is immutable and Kill/KillAll may safely use it.
+	startErr := cmd.Start()
 	s.shells[id] = sh
 	s.mu.Unlock()
 
-	if err := cmd.Start(); err != nil {
+	if startErr != nil {
 		cancel()
-		sh.finish("start failed: "+err.Error(), -1, false)
+		sh.finish("start failed: "+startErr.Error(), -1, false)
 		return id, nil
 	}
 	go func() {

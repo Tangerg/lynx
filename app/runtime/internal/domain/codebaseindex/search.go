@@ -21,12 +21,16 @@ func (ix *Indexer) Search(ctx context.Context, cwd, query string, topK int) ([]H
 	if topK <= 0 {
 		topK = defaultTopK
 	}
-	if err := ix.EnsureIndexed(ctx, cwd); err != nil {
-		return nil, err
-	}
 	emb, err := ix.resolve(ctx)
 	if err != nil {
 		return nil, err
+	}
+	chunks, err := ix.corpusFor(ctx, cwd, emb, emb.ID())
+	if err != nil {
+		return nil, err
+	}
+	if len(chunks) == 0 {
+		return nil, nil
 	}
 	vecs, err := emb.Embed(ctx, []string{query})
 	if err != nil {
@@ -36,13 +40,7 @@ func (ix *Indexer) Search(ctx context.Context, cwd, query string, topK int) ([]H
 		return nil, nil
 	}
 
-	ix.mu.Lock()
-	c := ix.corpus[cwd]
-	ix.mu.Unlock()
-	if c == nil || len(c.chunks) == 0 {
-		return nil, nil
-	}
-	return topKHits(vecs[0], c.chunks, topK), nil
+	return topKHits(vecs[0], chunks, topK), nil
 }
 
 // Status reports cwd's current index state — the live in-memory status, falling

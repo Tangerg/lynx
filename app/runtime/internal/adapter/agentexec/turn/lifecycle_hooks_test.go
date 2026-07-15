@@ -58,6 +58,23 @@ func TestTurnLifecycle_SubagentHooks(t *testing.T) {
 	}
 }
 
+func TestTurnLifecycleBindsRootBeforeChildTerminal(t *testing.T) {
+	lifecycle := &turnLifecycle{}
+	listener := lifecycle.listener("turn")
+
+	listener.OnEvent(t.Context(), event.ProcessCreated{BaseEvent: event.NewBaseEvent("root")})
+	listener.OnEvent(t.Context(), event.ProcessCompleted{BaseEvent: event.NewBaseEvent("child")})
+	listener.OnEvent(t.Context(), event.ProcessKilled{BaseEvent: event.NewBaseEvent("root")})
+
+	terminal := lifecycle.terminalEvent()
+	if terminal == nil || terminal.ProcessID() != "root" {
+		t.Fatalf("terminal = %#v, want root terminal", terminal)
+	}
+	if _, ok := terminal.(event.ProcessKilled); !ok {
+		t.Fatalf("terminal type = %T, want event.ProcessKilled", terminal)
+	}
+}
+
 type testTaskInput struct {
 	Description string
 	Prompt      string

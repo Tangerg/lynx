@@ -1,6 +1,8 @@
 package runs
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -18,7 +20,7 @@ func TestHandleCancelLinearizesAfterInterruptCommit(t *testing.T) {
 	commitDone := make(chan struct{})
 	go func() {
 		defer close(commitDone)
-		committed, err := h.commitInterrupt(func() error {
+		committed, err := h.commitInterrupt(t.Context(), func(context.Context) error {
 			close(commitStarted)
 			<-releaseCommit
 			return nil
@@ -61,11 +63,45 @@ func TestHandleCancelLinearizesAfterInterruptCommit(t *testing.T) {
 	}
 
 	called := false
-	committed, err := h.commitInterrupt(func() error {
+	committed, err := h.commitInterrupt(t.Context(), func(context.Context) error {
 		called = true
 		return nil
 	})
 	if err != nil || committed || called {
 		t.Fatalf("post-cancel commit = committed:%v called:%v err:%v", committed, called, err)
+	}
+}
+
+func TestHandleCancelInterruptsBlockedCommit(t *testing.T) {
+	commitStarted := make(chan struct{})
+	h := &handle{}
+	commitResult := make(chan error, 1)
+	go func() {
+		committed, err := h.commitInterrupt(t.Context(), func(ctx context.Context) error {
+			close(commitStarted)
+			<-ctx.Done()
+			return ctx.Err()
+		})
+		if committed {
+			commitResult <- errors.New("blocked interrupt unexpectedly committed")
+			return
+		}
+		commitResult <- err
+	}()
+	<-commitStarted
+
+	cancelDone := make(chan struct{})
+	go func() {
+		h.requestCancel("user canceled")
+		close(cancelDone)
+	}()
+
+	select {
+	case <-cancelDone:
+	case <-time.After(time.Second):
+		t.Fatal("cancel did not interrupt and join the blocked commit")
+	}
+	if err := <-commitResult; !errors.Is(err, context.Canceled) {
+		t.Fatalf("commit error = %v, want context.Canceled", err)
 	}
 }

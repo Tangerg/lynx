@@ -94,8 +94,9 @@ func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
 	}
 	// MessageDelta events already streamed through the observer — no
 	// need to re-emit the assembled reply here.
-	s.emitTurnEnd(st, proc, st.lifecycle.terminalEvent(), runErr, time.Since(st.startedAt), st.ctx.Err())
-	s.endTurn(st)
+	s.completeTurn(st, func() {
+		s.emitTurnEnd(st, proc, st.lifecycle.terminalEvent(), runErr, time.Since(st.startedAt), st.ctx.Err())
+	})
 }
 
 // handleWaiting decides what to do when the process parks at StatusWaiting. If
@@ -155,7 +156,9 @@ func (s *inMemory) emitInterrupt(st *turnState, proc agentexec.TurnProcess) {
 		return
 	}
 	recordInterruptMetric(st.ctx, string(pending.Kind))
-	s.emit(st, TurnInterrupted{Interrupts: []Interrupt{pending}})
+	if !s.emit(st, TurnInterrupted{Interrupts: []Interrupt{pending}}) {
+		return
+	}
 	// Notification hooks (observe-only): the turn is waiting on the user — fire
 	// so a user script can route it (desktop / Slack / …). The kind ("approval"
 	// | "question") rides as the reason.

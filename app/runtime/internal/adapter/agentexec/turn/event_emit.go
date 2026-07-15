@@ -15,11 +15,17 @@ import "time"
 // TurnEnd misreports the outcome as canceled). The turn-lifetime ctx is the
 // escape hatch: a canceled turn stops blocking producers even when no consumer
 // is left to drain.
-func (s *inMemory) emit(st *turnState, ev Event) {
+func (s *inMemory) emit(st *turnState, ev Event) bool {
+	st.eventMu.Lock()
+	defer st.eventMu.Unlock()
+	if st.eventsClosed {
+		return false
+	}
+	st.seq++
 	stamped := ev.WithMeta(BaseEvent{
 		SessionID: st.handle.SessionID,
 		TurnID:    st.handle.TurnID,
-		Seq:       st.seq.Add(1),
+		Seq:       st.seq,
 		Timestamp: time.Now(),
 	})
 	// Prefer delivery: when the buffer has room the event lands regardless of
@@ -33,13 +39,25 @@ func (s *inMemory) emit(st *turnState, ev Event) {
 	// it; only a backed-up buffer falls through to the escape below.
 	select {
 	case st.events <- stamped:
-		return
+		return true
 	default:
 	}
 	// Buffer full: block until the consumer drains, or bail when the turn ctx is
 	// canceled so a producer never wedges on an abandoned channel.
 	select {
 	case st.events <- stamped:
+		return true
 	case <-st.ctx.Done():
+		return false
 	}
+}
+
+func (st *turnState) closeEvents() {
+	st.eventMu.Lock()
+	defer st.eventMu.Unlock()
+	if st.eventsClosed {
+		return
+	}
+	st.eventsClosed = true
+	close(st.events)
 }
