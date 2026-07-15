@@ -54,6 +54,9 @@ func NewEmbeddingModel(ctx context.Context, cfg EmbeddingModelConfig) (*Embeddin
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := embedding.MergeOptions(e.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err

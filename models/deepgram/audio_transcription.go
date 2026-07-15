@@ -64,12 +64,18 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := transcription.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	params := options.GetParams[ListenParams](mergedOpts, OptionsKey)
+	params, err := options.GetParams[ListenParams](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	if params.Model == "" {
 		params.Model = mergedOpts.Model
 	}
@@ -96,10 +102,16 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	alt := apiResp.Results.Channels[0].Alternatives[0]
 
 	resultMeta := &transcription.ResultMetadata{}
-	resultMeta.Set("confidence", alt.Confidence)
-	resultMeta.Set("words", alt.Words)
+	if err := resultMeta.Set("confidence", alt.Confidence); err != nil {
+		return nil, err
+	}
+	if err := resultMeta.Set("words", alt.Words); err != nil {
+		return nil, err
+	}
 	if len(apiResp.Results.Utterances) > 0 {
-		resultMeta.Set("utterances", apiResp.Results.Utterances)
+		if err := resultMeta.Set("utterances", apiResp.Results.Utterances); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := transcription.NewResult(alt.Transcript, resultMeta)
@@ -108,9 +120,15 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	}
 
 	meta := &transcription.ResponseMetadata{}
-	meta.Set("request_id", apiResp.Metadata.RequestID)
-	meta.Set("duration", apiResp.Metadata.Duration)
-	meta.Set("channels", apiResp.Metadata.Channels)
+	if err := meta.Set("request_id", apiResp.Metadata.RequestID); err != nil {
+		return nil, err
+	}
+	if err := meta.Set("duration", apiResp.Metadata.Duration); err != nil {
+		return nil, err
+	}
+	if err := meta.Set("channels", apiResp.Metadata.Channels); err != nil {
+		return nil, err
+	}
 
 	return transcription.NewResponse(result, meta)
 }

@@ -2,7 +2,10 @@ package speech
 
 import (
 	"errors"
+	"fmt"
 	"maps"
+
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // Options holds per-request configuration for a TTS call.
@@ -19,8 +22,8 @@ type Options struct {
 	// Speed scales the playback rate. 1.0 is normal speed.
 	Speed float64 `json:"speed"`
 
-	// Extra carries provider-specific options unknown to this struct.
-	Extra map[string]any `json:"extra,omitzero"`
+	// Extra carries JSON-safe provider-specific options unknown to this struct.
+	Extra metadata.Map `json:"extra,omitzero"`
 }
 
 // NewOptions builds Options for the given model id. Returns an error
@@ -32,23 +35,37 @@ func NewOptions(model string) (*Options, error) {
 	return &Options{Model: model}, nil
 }
 
-func (o *Options) ensureExtra() {
-	if o.Extra == nil {
-		o.Extra = make(map[string]any)
+// Set encodes a provider-specific option into Extra.
+func (o *Options) Set(key string, value any) error {
+	if o == nil {
+		return errors.New("speech.Options.Set: nil receiver")
 	}
+	return setExtra(&o.Extra, key, value)
 }
 
-func (o *Options) Get(key string) (any, bool) {
-	if o == nil || o.Extra == nil {
-		return nil, false
+func setExtra(target *metadata.Map, key string, value any) error {
+	if *target != nil {
+		return metadata.Set(*target, key, value)
 	}
-	value, exists := o.Extra[key]
-	return value, exists
+	candidate := metadata.New()
+	if err := metadata.Set(candidate, key, value); err != nil {
+		return err
+	}
+	*target = candidate
+	return nil
 }
 
-func (o *Options) Set(key string, value any) {
-	o.ensureExtra()
-	o.Extra[key] = value
+func (o *Options) validate() error {
+	if o == nil {
+		return nil
+	}
+	if o.Speed < 0 {
+		return errors.New("speech: speed must not be negative")
+	}
+	if err := o.Extra.Validate(); err != nil {
+		return fmt.Errorf("speech: options extra: %w", err)
+	}
+	return nil
 }
 
 // Clone returns a deep copy. nil receiver yields nil.
@@ -61,7 +78,7 @@ func (o *Options) Clone() *Options {
 		Voice:          o.Voice,
 		ResponseFormat: o.ResponseFormat,
 		Speed:          o.Speed,
-		Extra:          maps.Clone(o.Extra),
+		Extra:          o.Extra.Clone(),
 	}
 }
 
@@ -92,31 +109,39 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		}
 		if len(override.Extra) > 0 {
 			if merged.Extra == nil {
-				merged.Extra = make(map[string]any, len(override.Extra))
+				merged.Extra = metadata.New()
 			}
-			maps.Copy(merged.Extra, override.Extra)
+			maps.Copy(merged.Extra, override.Extra.Clone())
 		}
 	}
 	return merged, nil
 }
 
-// Request is one TTS call: the input text, options, and caller-supplied
-// side-channel params.
+// Request is one TTS call: the input text and explicit options.
 type Request struct {
 	// Text is the prompt converted to speech.
 	Text string `json:"text"`
 
 	Options *Options `json:"options,omitempty"`
-
-	// Params is per-request metadata middlewares can read.
-	Params map[string]any `json:"params,omitzero"`
 }
 
 // NewRequest builds a Request from text. Returns an error when text
 // is empty.
 func NewRequest(text string) (*Request, error) {
-	if text == "" {
-		return nil, errors.New("tts.NewRequest: text must not be empty")
+	r := &Request{Text: text}
+	if err := r.Validate(); err != nil {
+		return nil, fmt.Errorf("speech.NewRequest: %w", err)
 	}
-	return &Request{Text: text}, nil
+	return r, nil
+}
+
+// Validate checks the complete request before it crosses a model boundary.
+func (r *Request) Validate() error {
+	if r == nil {
+		return errors.New("speech: nil request")
+	}
+	if r.Text == "" {
+		return errors.New("speech: text must not be empty")
+	}
+	return r.Options.validate()
 }

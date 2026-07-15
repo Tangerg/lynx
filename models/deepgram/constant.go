@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:deepgram_options"
+	OptionsKey = "deepgram/options"
 
 	// DefaultBaseURL is Deepgram's production REST endpoint.
 	DefaultBaseURL = "https://api.deepgram.com/v1"

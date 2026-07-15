@@ -3,7 +3,7 @@ package nomic
 const (
 	Provider = "Nomic"
 
-	OptionsKey = "lynx:ai:model:nomic_options"
+	OptionsKey = "nomic/options"
 
 	DefaultBaseURL = "https://api-atlas.nomic.ai/v1"
 )

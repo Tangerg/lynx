@@ -77,7 +77,10 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*EmbeddingRequ
 		return nil, err
 	}
 
-	apiReq := options.GetParams[EmbeddingRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[EmbeddingRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 
 	apiReq.Model = mergedOpts.Model
 	apiReq.Input = req.Texts
@@ -115,8 +118,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.R
 	meta := &embedding.ResponseMetadata{
 		Model: apiResp.Model,
 		Usage: &model.Usage{
-			PromptTokens:  apiResp.Usage.TotalTokens,
-			OriginalUsage: apiResp.Usage,
+			PromptTokens: apiResp.Usage.TotalTokens,
 		},
 		Created: time.Now().Unix(),
 	}
@@ -125,6 +127,9 @@ func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.R
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	apiReq, err := e.buildAPIRequest(req)
 	if err != nil {
 		return nil, err

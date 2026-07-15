@@ -7,7 +7,7 @@ const (
 )
 
 const (
-	OptionsKey          = "lynx:ai:model:revai_options"
+	OptionsKey          = "revai/options"
 	DefaultBaseURL      = "https://api.rev.ai/speechtotext/v1"
 	DefaultPollInterval = 3 * time.Second
 	DefaultPollTimeout  = 30 * time.Minute

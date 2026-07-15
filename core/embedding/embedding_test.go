@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type pointerModel struct{}
@@ -120,6 +121,25 @@ func TestOptionsAndRequest(t *testing.T) {
 	if _, err := embedding.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest accepted empty input")
 	}
+	if err := (*embedding.Request)(nil).Validate(); err == nil {
+		t.Fatal("Validate accepted nil request")
+	}
+	invalid := &embedding.Request{
+		Texts:   []string{"text"},
+		Options: &embedding.Options{Extra: metadata.Map{"broken": []byte("{")}},
+	}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("Validate accepted invalid options metadata")
+	}
+	badDimensions := int64(0)
+	invalid.Options = &embedding.Options{Dimensions: &badDimensions}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("Validate accepted non-positive dimensions")
+	}
+	options := new(embedding.Options)
+	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
+		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
+	}
 	dimensions := int64(32)
 	merged, err := embedding.MergeOptions(
 		&embedding.Options{Model: "base"},
@@ -128,59 +148,54 @@ func TestOptionsAndRequest(t *testing.T) {
 	if err != nil || merged.Model != "override" || *merged.Dimensions != 32 {
 		t.Fatalf("MergeOptions() = %#v, %v", merged, err)
 	}
+	*merged.Dimensions = 64
+	if dimensions != 32 {
+		t.Fatal("MergeOptions aliases override pointer state")
+	}
 	if !embedding.EncodingFormatFloat.Valid() || embedding.EncodingFormat("bad").Valid() {
 		t.Fatal("EncodingFormat.Valid is inconsistent")
 	}
 }
 
-func TestProtocolValueAccessorsAndCopies(t *testing.T) {
-	if _, ok := (*embedding.Options)(nil).Get("missing"); ok {
-		t.Fatal("nil Options reported a value")
-	}
-	if _, ok := (*embedding.Request)(nil).Get("missing"); ok {
-		t.Fatal("nil Request reported a value")
-	}
-	if _, ok := (*embedding.ResultMetadata)(nil).Get("missing"); ok {
-		t.Fatal("nil ResultMetadata reported a value")
-	}
-	if _, ok := (*embedding.ResponseMetadata)(nil).Get("missing"); ok {
-		t.Fatal("nil ResponseMetadata reported a value")
-	}
+func TestProtocolValueCopies(t *testing.T) {
 	if clone := (*embedding.Options)(nil).Clone(); clone != nil {
 		t.Fatalf("nil Clone = %#v", clone)
 	}
 
 	dimensions := int64(64)
-	options := &embedding.Options{Model: "base", Dimensions: &dimensions}
-	options.Set("region", "local")
+	options := &embedding.Options{
+		Model: "base", Dimensions: &dimensions,
+		Extra: mustMetadata(t, map[string]any{"region": "local"}),
+	}
 	clone := options.Clone()
 	*clone.Dimensions = 128
-	clone.Extra["region"] = "remote"
-	if *options.Dimensions != 64 || options.Extra["region"] != "local" {
+	if err := metadata.Set(clone.Extra, "region", "remote"); err != nil {
+		t.Fatal(err)
+	}
+	if *options.Dimensions != 64 || mustDecode[string](t, options.Extra, "region") != "local" {
 		t.Fatal("Options.Clone aliases source state")
-	}
-	if value, ok := options.Get("region"); !ok || value != "local" {
-		t.Fatalf("Options.Get = %#v, %t", value, ok)
-	}
-
-	request, _ := embedding.NewRequest([]string{"lynx"})
-	request.Set("trace_id", "trace-1")
-	if value, ok := request.Get("trace_id"); !ok || value != "trace-1" {
-		t.Fatalf("Request.Get = %#v, %t", value, ok)
-	}
-	resultMetadata := &embedding.ResultMetadata{}
-	resultMetadata.Set("source", "fixture")
-	if value, ok := resultMetadata.Get("source"); !ok || value != "fixture" {
-		t.Fatalf("ResultMetadata.Get = %#v, %t", value, ok)
-	}
-	responseMetadata := &embedding.ResponseMetadata{}
-	responseMetadata.Set("served_model", "embedding-model")
-	if value, ok := responseMetadata.Get("served_model"); !ok || value != "embedding-model" {
-		t.Fatalf("ResponseMetadata.Get = %#v, %t", value, ok)
 	}
 	if embedding.Image.String() != "image" {
 		t.Fatalf("ModalityType.String = %q", embedding.Image.String())
 	}
+}
+
+func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
+	t.Helper()
+	result, err := metadata.FromValues(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
+	t.Helper()
+	value, ok, err := metadata.Decode[T](values, key)
+	if err != nil || !ok {
+		t.Fatalf("metadata.Decode(%q) = %#v, %t, %v", key, value, ok, err)
+	}
+	return value
 }
 
 func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {

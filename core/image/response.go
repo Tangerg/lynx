@@ -1,6 +1,10 @@
 package image
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/Tangerg/lynx/core/metadata"
+)
 
 // Image holds one generated image, either as a URL pointing at hosted
 // bytes or as a base64-encoded inline payload (mutually exclusive in
@@ -24,27 +28,16 @@ func NewImage(url, b64JSON string) (*Image, error) {
 
 // ResultMetadata holds per-image metadata returned by the provider.
 type ResultMetadata struct {
-	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra,omitzero"`
+	// Extra carries JSON-safe provider-specific metadata.
+	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-func (m *ResultMetadata) ensureExtra() {
-	if m.Extra == nil {
-		m.Extra = make(map[string]any)
+// Set encodes provider-specific result metadata into Extra.
+func (m *ResultMetadata) Set(key string, value any) error {
+	if m == nil {
+		return errors.New("image.ResultMetadata.Set: nil receiver")
 	}
-}
-
-func (m *ResultMetadata) Get(key string) (any, bool) {
-	if m == nil || m.Extra == nil {
-		return nil, false
-	}
-	value, exists := m.Extra[key]
-	return value, exists
-}
-
-func (m *ResultMetadata) Set(key string, value any) {
-	m.ensureExtra()
-	m.Extra[key] = value
+	return setExtra(&m.Extra, key, value)
 }
 
 // Result is one generated image plus its metadata.
@@ -74,27 +67,16 @@ type ResponseMetadata struct {
 	// Created is the provider-reported creation time, Unix seconds.
 	Created int64 `json:"created"`
 
-	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra,omitzero"`
+	// Extra carries JSON-safe provider-specific metadata.
+	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-func (m *ResponseMetadata) ensureExtra() {
-	if m.Extra == nil {
-		m.Extra = make(map[string]any)
+// Set encodes provider-specific response metadata into Extra.
+func (m *ResponseMetadata) Set(key string, value any) error {
+	if m == nil {
+		return errors.New("image.ResponseMetadata.Set: nil receiver")
 	}
-}
-
-func (m *ResponseMetadata) Get(key string) (any, bool) {
-	if m == nil || m.Extra == nil {
-		return nil, false
-	}
-	value, exists := m.Extra[key]
-	return value, exists
-}
-
-func (m *ResponseMetadata) Set(key string, value any) {
-	m.ensureExtra()
-	m.Extra[key] = value
+	return setExtra(&m.Extra, key, value)
 }
 
 // Response is the full image-generation result: the rendered image plus

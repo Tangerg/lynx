@@ -5,5 +5,5 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:cohere_options"
+	OptionsKey = "cohere/options"
 )

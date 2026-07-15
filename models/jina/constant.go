@@ -3,7 +3,7 @@ package jina
 const (
 	Provider = "Jina"
 
-	OptionsKey = "lynx:ai:model:jina_options"
+	OptionsKey = "jina/options"
 
 	DefaultBaseURL = "https://api.jina.ai/v1"
 )

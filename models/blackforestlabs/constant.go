@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:blackforestlabs_options"
+	OptionsKey = "blackforestlabs/options"
 
 	// DefaultBaseURL is BFL's production endpoint.
 	DefaultBaseURL = "https://api.bfl.ai/v1"

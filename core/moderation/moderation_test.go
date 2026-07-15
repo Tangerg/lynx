@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/moderation"
 )
 
@@ -32,6 +33,20 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := moderation.MergeOptions(nil); err == nil {
 		t.Fatal("MergeOptions accepted nil base")
 	}
+	if err := (*moderation.Request)(nil).Validate(); err == nil {
+		t.Fatal("Validate accepted nil request")
+	}
+	invalid := &moderation.Request{
+		Texts:   []string{"text"},
+		Options: &moderation.Options{Extra: metadata.Map{"broken": []byte("{")}},
+	}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("Validate accepted invalid options metadata")
+	}
+	options := new(moderation.Options)
+	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
+		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
+	}
 }
 
 func TestCategoriesAndResponse(t *testing.T) {
@@ -56,21 +71,15 @@ func TestCategoriesAndResponse(t *testing.T) {
 	}
 }
 
-func TestOptionsMergeAndProtocolAccessors(t *testing.T) {
-	if _, ok := (*moderation.Options)(nil).Get("missing"); ok {
-		t.Fatal("nil Options reported a value")
-	}
-	if _, ok := (*moderation.Request)(nil).Get("missing"); ok {
-		t.Fatal("nil Request reported a value")
-	}
+func TestOptionsMergeAndCopies(t *testing.T) {
 	if clone := (*moderation.Options)(nil).Clone(); clone != nil {
 		t.Fatalf("nil Clone = %#v", clone)
 	}
 
-	base := &moderation.Options{Model: "base", Extra: map[string]any{"base": true}}
+	base := &moderation.Options{Model: "base", Extra: mustMetadata(t, map[string]any{"base": true})}
 	merged, err := moderation.MergeOptions(base, nil, &moderation.Options{
 		Model: "override",
-		Extra: map[string]any{"override": true},
+		Extra: mustMetadata(t, map[string]any{"override": true}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -79,36 +88,30 @@ func TestOptionsMergeAndProtocolAccessors(t *testing.T) {
 		t.Fatalf("MergeOptions = %#v", merged)
 	}
 	clone := merged.Clone()
-	clone.Extra["base"] = false
-	if merged.Extra["base"] != true {
+	if err := metadata.Set(clone.Extra, "base", false); err != nil {
+		t.Fatal(err)
+	}
+	if !mustDecode[bool](t, merged.Extra, "base") {
 		t.Fatal("Options.Clone aliases source state")
 	}
-	merged.Set("region", "local")
-	if value, ok := merged.Get("region"); !ok || value != "local" {
-		t.Fatalf("Options.Get = %#v, %t", value, ok)
-	}
+}
 
-	request, _ := moderation.NewRequest([]string{"lynx"})
-	request.Set("trace_id", "trace-1")
-	if value, ok := request.Get("trace_id"); !ok || value != "trace-1" {
-		t.Fatalf("Request.Get = %#v, %t", value, ok)
+func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
+	t.Helper()
+	result, err := metadata.FromValues(values)
+	if err != nil {
+		t.Fatal(err)
 	}
-	resultMetadata := &moderation.ResultMetadata{}
-	resultMetadata.Set("index", 0)
-	if value, ok := resultMetadata.Get("index"); !ok || value != 0 {
-		t.Fatalf("ResultMetadata.Get = %#v, %t", value, ok)
+	return result
+}
+
+func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
+	t.Helper()
+	value, ok, err := metadata.Decode[T](values, key)
+	if err != nil || !ok {
+		t.Fatalf("metadata.Decode(%q) = %#v, %t, %v", key, value, ok, err)
 	}
-	responseMetadata := &moderation.ResponseMetadata{}
-	responseMetadata.Set("region", "local")
-	if value, ok := responseMetadata.Get("region"); !ok || value != "local" {
-		t.Fatalf("ResponseMetadata.Get = %#v, %t", value, ok)
-	}
-	if _, ok := (*moderation.ResultMetadata)(nil).Get("missing"); ok {
-		t.Fatal("nil ResultMetadata reported a value")
-	}
-	if _, ok := (*moderation.ResponseMetadata)(nil).Get("missing"); ok {
-		t.Fatal("nil ResponseMetadata reported a value")
-	}
+	return value
 }
 
 func TestCategoriesFlaggedCoversEveryDimension(t *testing.T) {

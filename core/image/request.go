@@ -6,6 +6,8 @@ import (
 	"maps"
 	"mime"
 	"strings"
+
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // ResponseFormat selects how a provider returns a generated image —
@@ -64,8 +66,8 @@ type Options struct {
 	// ResponseFormat picks URL vs inline base64.
 	ResponseFormat ResponseFormat `json:"response_format"`
 
-	// Extra carries provider-specific options unknown to this struct.
-	Extra map[string]any `json:"extra,omitzero"`
+	// Extra carries JSON-safe provider-specific options unknown to this struct.
+	Extra metadata.Map `json:"extra,omitzero"`
 }
 
 // NewOptions builds Options for the given model id. Returns an error
@@ -77,23 +79,24 @@ func NewOptions(model string) (*Options, error) {
 	return &Options{Model: model}, nil
 }
 
-func (o *Options) ensureExtra() {
-	if o.Extra == nil {
-		o.Extra = make(map[string]any)
+// Set encodes a provider-specific option into Extra.
+func (o *Options) Set(key string, value any) error {
+	if o == nil {
+		return errors.New("image.Options.Set: nil receiver")
 	}
+	return setExtra(&o.Extra, key, value)
 }
 
-func (o *Options) Get(key string) (any, bool) {
-	if o == nil || o.Extra == nil {
-		return nil, false
+func setExtra(target *metadata.Map, key string, value any) error {
+	if *target != nil {
+		return metadata.Set(*target, key, value)
 	}
-	value, exists := o.Extra[key]
-	return value, exists
-}
-
-func (o *Options) Set(key string, value any) {
-	o.ensureExtra()
-	o.Extra[key] = value
+	candidate := metadata.New()
+	if err := metadata.Set(candidate, key, value); err != nil {
+		return err
+	}
+	*target = candidate
+	return nil
 }
 
 // Clone returns a deep copy. nil receiver yields nil.
@@ -111,7 +114,7 @@ func (o *Options) Clone() *Options {
 		Seed:           clonePointer(o.Seed),
 		OutputFormat:   o.OutputFormat,
 		ResponseFormat: o.ResponseFormat,
-		Extra:          maps.Clone(o.Extra),
+		Extra:          o.Extra.Clone(),
 	}
 }
 
@@ -172,10 +175,10 @@ func (o *Options) applyOverride(src *Options) {
 		o.Model = src.Model
 	}
 	if src.Width != nil {
-		o.Width = src.Width
+		o.Width = clonePointer(src.Width)
 	}
 	if src.Height != nil {
-		o.Height = src.Height
+		o.Height = clonePointer(src.Height)
 	}
 	if src.Style != "" {
 		o.Style = src.Style
@@ -184,7 +187,7 @@ func (o *Options) applyOverride(src *Options) {
 		o.Quality = src.Quality
 	}
 	if src.Seed != nil {
-		o.Seed = src.Seed
+		o.Seed = clonePointer(src.Seed)
 	}
 	if src.OutputFormat != "" {
 		o.OutputFormat = src.OutputFormat
@@ -194,48 +197,61 @@ func (o *Options) applyOverride(src *Options) {
 	}
 	if len(src.Extra) > 0 {
 		if o.Extra == nil {
-			o.Extra = make(map[string]any, len(src.Extra))
+			o.Extra = metadata.New()
 		}
-		maps.Copy(o.Extra, src.Extra)
+		maps.Copy(o.Extra, src.Extra.Clone())
 	}
 }
 
-// Request is one image-generation call: the prompt, options, and
-// caller-supplied side-channel params.
+func (o *Options) validate() error {
+	if o == nil {
+		return nil
+	}
+	if o.Width != nil && *o.Width <= 0 {
+		return errors.New("image: width must be positive")
+	}
+	if o.Height != nil && *o.Height <= 0 {
+		return errors.New("image: height must be positive")
+	}
+	if o.OutputFormat != "" {
+		if _, err := normalizeOutputFormat(o.OutputFormat); err != nil {
+			return err
+		}
+	}
+	if o.ResponseFormat != "" && !o.ResponseFormat.Valid() {
+		return fmt.Errorf("image: invalid response format %q", o.ResponseFormat)
+	}
+	if err := o.Extra.Validate(); err != nil {
+		return fmt.Errorf("image: options extra: %w", err)
+	}
+	return nil
+}
+
+// Request is one image-generation call: the prompt and explicit options.
 type Request struct {
 	// Prompt is the natural-language description of the desired image.
 	Prompt string `json:"prompt"`
 
 	Options *Options `json:"options,omitempty"`
-
-	// Params is per-request metadata middlewares can read.
-	Params map[string]any `json:"params,omitzero"`
 }
 
 // NewRequest builds a Request from prompt. Returns an error when prompt
 // is empty.
 func NewRequest(prompt string) (*Request, error) {
-	if prompt == "" {
-		return nil, errors.New("image.NewRequest: prompt must not be empty")
+	r := &Request{Prompt: prompt}
+	if err := r.Validate(); err != nil {
+		return nil, fmt.Errorf("image.NewRequest: %w", err)
 	}
-	return &Request{Prompt: prompt}, nil
+	return r, nil
 }
 
-func (r *Request) ensureParams() {
-	if r.Params == nil {
-		r.Params = make(map[string]any)
+// Validate checks the complete request before it crosses a model boundary.
+func (r *Request) Validate() error {
+	if r == nil {
+		return errors.New("image: nil request")
 	}
-}
-
-func (r *Request) Get(key string) (any, bool) {
-	if r == nil || r.Params == nil {
-		return nil, false
+	if r.Prompt == "" {
+		return errors.New("image: prompt must not be empty")
 	}
-	value, exists := r.Params[key]
-	return value, exists
-}
-
-func (r *Request) Set(key string, value any) {
-	r.ensureParams()
-	r.Params[key] = value
+	return r.Options.validate()
 }

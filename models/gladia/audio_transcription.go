@@ -63,12 +63,18 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := transcription.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiReq := options.GetParams[TranscriptionRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[TranscriptionRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	if apiReq.AudioURL == "" {
 		var audio []byte
 		audio, err = req.Audio.Bytes()
@@ -95,16 +101,24 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	resultMeta := &transcription.ResultMetadata{}
 	if len(final.Result.Transcription.Languages) > 0 {
-		resultMeta.Set("languages", final.Result.Transcription.Languages)
+		if err := resultMeta.Set("languages", final.Result.Transcription.Languages); err != nil {
+			return nil, err
+		}
 	}
 	if len(final.Result.Transcription.Utterances) > 0 {
-		resultMeta.Set("utterances", final.Result.Transcription.Utterances)
+		if err := resultMeta.Set("utterances", final.Result.Transcription.Utterances); err != nil {
+			return nil, err
+		}
 	}
 	if final.Result.Translation != nil {
-		resultMeta.Set("translation", final.Result.Translation)
+		if err := resultMeta.Set("translation", final.Result.Translation); err != nil {
+			return nil, err
+		}
 	}
 	if final.Result.Summarization != nil {
-		resultMeta.Set("summarization", final.Result.Summarization)
+		if err := resultMeta.Set("summarization", final.Result.Summarization); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := transcription.NewResult(final.Result.Transcription.FullTranscript, resultMeta)
@@ -113,7 +127,9 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	}
 
 	meta := &transcription.ResponseMetadata{}
-	meta.Set("transcript_id", final.ID)
+	if err := meta.Set("transcript_id", final.ID); err != nil {
+		return nil, err
+	}
 	return transcription.NewResponse(result, meta)
 }
 

@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:huggingface_options"
+	OptionsKey = "huggingface/options"
 
 	// DefaultBaseURL targets the HuggingFace router which proxies to a
 	// curated set of inference providers (together, fireworks, nebius,

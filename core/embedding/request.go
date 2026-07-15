@@ -2,7 +2,11 @@ package embedding
 
 import (
 	"errors"
+	"fmt"
 	"maps"
+	"slices"
+
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // EncodingFormat enumerates the on-the-wire shapes a provider may use
@@ -44,8 +48,8 @@ type Options struct {
 	// up to the provider's default.
 	Dimensions *int64 `json:"dimensions,omitempty"`
 
-	// Extra carries provider-specific options unknown to this struct.
-	Extra map[string]any `json:"extra,omitzero"`
+	// Extra carries JSON-safe provider-specific options unknown to this struct.
+	Extra metadata.Map `json:"extra,omitzero"`
 }
 
 // NewOptions builds Options for the given model id. Returns an error
@@ -61,25 +65,24 @@ func NewOptions(model string) (*Options, error) {
 	return &Options{Model: model}, nil
 }
 
-// ensureExtra must only be called by Set — Get must not mutate state
-// because it is the concurrency-safe read path.
-func (o *Options) ensureExtra() {
-	if o.Extra == nil {
-		o.Extra = make(map[string]any)
+// Set encodes a provider-specific option into Extra.
+func (o *Options) Set(key string, value any) error {
+	if o == nil {
+		return errors.New("embedding.Options.Set: nil receiver")
 	}
+	return setExtra(&o.Extra, key, value)
 }
 
-func (o *Options) Get(key string) (any, bool) {
-	if o == nil || o.Extra == nil {
-		return nil, false
+func setExtra(target *metadata.Map, key string, value any) error {
+	if *target != nil {
+		return metadata.Set(*target, key, value)
 	}
-	value, exists := o.Extra[key]
-	return value, exists
-}
-
-func (o *Options) Set(key string, value any) {
-	o.ensureExtra()
-	o.Extra[key] = value
+	candidate := metadata.New()
+	if err := metadata.Set(candidate, key, value); err != nil {
+		return err
+	}
+	*target = candidate
+	return nil
 }
 
 // Clone returns a deep copy. nil receiver yields nil.
@@ -91,7 +94,7 @@ func (o *Options) Clone() *Options {
 		Model:          o.Model,
 		EncodingFormat: o.EncodingFormat,
 		Dimensions:     clonePointer(o.Dimensions),
-		Extra:          maps.Clone(o.Extra),
+		Extra:          o.Extra.Clone(),
 	}
 }
 
@@ -129,26 +132,38 @@ func (o *Options) applyOverride(src *Options) {
 		o.EncodingFormat = src.EncodingFormat
 	}
 	if src.Dimensions != nil {
-		o.Dimensions = src.Dimensions
+		o.Dimensions = clonePointer(src.Dimensions)
 	}
 	if len(src.Extra) > 0 {
 		if o.Extra == nil {
-			o.Extra = make(map[string]any, len(src.Extra))
+			o.Extra = metadata.New()
 		}
-		maps.Copy(o.Extra, src.Extra)
+		maps.Copy(o.Extra, src.Extra.Clone())
 	}
 }
 
-// Request is one embedding call: the input texts, the options, and
-// caller-supplied side-channel params (user id, trace id, ...).
+func (o *Options) validate() error {
+	if o == nil {
+		return nil
+	}
+	if o.EncodingFormat != "" && !o.EncodingFormat.Valid() {
+		return fmt.Errorf("embedding: invalid encoding format %q", o.EncodingFormat)
+	}
+	if o.Dimensions != nil && *o.Dimensions <= 0 {
+		return errors.New("embedding: dimensions must be positive")
+	}
+	if err := o.Extra.Validate(); err != nil {
+		return fmt.Errorf("embedding: options extra: %w", err)
+	}
+	return nil
+}
+
+// Request is one embedding call: the input texts and explicit options.
 type Request struct {
 	// Texts is the input list. Each entry produces one embedding.
 	Texts []string `json:"texts,omitzero"`
 
 	Options *Options `json:"options,omitempty"`
-
-	// Params is per-request metadata middlewares can read.
-	Params map[string]any `json:"params,omitzero"`
 }
 
 // NewRequest builds a Request from texts. Returns an error when texts
@@ -158,27 +173,20 @@ type Request struct {
 //
 //	req, err := embedding.NewRequest([]string{"hello", "world"})
 func NewRequest(texts []string) (*Request, error) {
-	if len(texts) == 0 {
-		return nil, errors.New("embedding.NewRequest: texts must contain at least one entry")
+	r := &Request{Texts: slices.Clone(texts)}
+	if err := r.Validate(); err != nil {
+		return nil, fmt.Errorf("embedding.NewRequest: %w", err)
 	}
-	return &Request{Texts: texts}, nil
+	return r, nil
 }
 
-func (r *Request) ensureParams() {
-	if r.Params == nil {
-		r.Params = make(map[string]any)
+// Validate checks the complete request before it crosses a model boundary.
+func (r *Request) Validate() error {
+	if r == nil {
+		return errors.New("embedding: nil request")
 	}
-}
-
-func (r *Request) Get(key string) (any, bool) {
-	if r == nil || r.Params == nil {
-		return nil, false
+	if len(r.Texts) == 0 {
+		return errors.New("embedding: texts must contain at least one entry")
 	}
-	value, exists := r.Params[key]
-	return value, exists
-}
-
-func (r *Request) Set(key string, value any) {
-	r.ensureParams()
-	r.Params[key] = value
+	return r.Options.validate()
 }

@@ -1,5 +1,4 @@
-// Package arch_test locks the complete provider-facing Core chat constructor
-// surface while the legacy model API is being removed.
+// Package arch_test locks provider-facing protocol and constructor boundaries.
 package arch_test
 
 import (

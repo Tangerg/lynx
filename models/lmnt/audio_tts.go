@@ -60,7 +60,10 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*SynthesizeRequest, e
 		return nil, err
 	}
 
-	body := options.GetParams[SynthesizeRequest](mergedOpts, OptionsKey)
+	body, err := options.GetParams[SynthesizeRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	body.Text = req.Text
 	if body.Model == "" {
 		body.Model = mergedOpts.Model
@@ -79,6 +82,9 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*SynthesizeRequest, e
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	body, err := a.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
@@ -93,10 +99,14 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	}
 	resultMeta := &tts.ResultMetadata{}
 	if apiResp.Seed != 0 {
-		resultMeta.Set("seed", apiResp.Seed)
+		if err := resultMeta.Set("seed", apiResp.Seed); err != nil {
+			return nil, err
+		}
 	}
 	if len(apiResp.Durations) > 0 {
-		resultMeta.Set("durations", apiResp.Durations)
+		if err := resultMeta.Set("durations", apiResp.Durations); err != nil {
+			return nil, err
+		}
 	}
 	result, err := tts.NewResult(audio, resultMeta)
 	if err != nil {

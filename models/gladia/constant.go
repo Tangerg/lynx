@@ -7,7 +7,7 @@ const (
 )
 
 const (
-	OptionsKey          = "lynx:ai:model:gladia_options"
+	OptionsKey          = "gladia/options"
 	DefaultBaseURL      = "https://api.gladia.io/v2"
 	DefaultPollInterval = 2 * time.Second
 	DefaultPollTimeout  = 30 * time.Minute

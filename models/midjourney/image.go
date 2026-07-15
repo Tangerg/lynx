@@ -83,12 +83,18 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := image.MergeOptions(i.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiReq := options.GetParams[GenerateRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	if apiReq.Prompt == "" {
 		apiReq.Prompt = req.Prompt
 	}
@@ -123,7 +129,9 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	}
 
 	meta := &image.ResponseMetadata{Created: time.Now().Unix()}
-	meta.Set("task_id", taskID)
+	if err := meta.Set("task_id", taskID); err != nil {
+		return nil, err
+	}
 	return image.NewResponse(result, meta)
 }
 

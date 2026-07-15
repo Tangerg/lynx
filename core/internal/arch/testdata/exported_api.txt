@@ -99,16 +99,12 @@ embedding: func (c *Client) EmbedTexts(ctx context.Context, texts []string) ([][
 embedding: func (e EncodingFormat) Valid() bool
 embedding: func (f DimensionFunc) Dimensions(ctx context.Context) (int, error)
 embedding: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
-embedding: func (m *ResponseMetadata) Get(key string) (any, bool)
-embedding: func (m *ResponseMetadata) Set(key string, value any)
-embedding: func (m *ResultMetadata) Get(key string) (any, bool)
-embedding: func (m *ResultMetadata) Set(key string, value any)
+embedding: func (m *ResponseMetadata) Set(key string, value any) error
+embedding: func (m *ResultMetadata) Set(key string, value any) error
 embedding: func (m ModalityType) String() string
 embedding: func (o *Options) Clone() *Options
-embedding: func (o *Options) Get(key string) (any, bool)
-embedding: func (o *Options) Set(key string, value any)
-embedding: func (r *Request) Get(key string) (any, bool)
-embedding: func (r *Request) Set(key string, value any)
+embedding: func (o *Options) Set(key string, value any) error
+embedding: func (r *Request) Validate() error
 embedding: func (r *Response) Result() *Result
 embedding: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
 embedding: func NewClient(model Model) (*Client, error)
@@ -125,23 +121,19 @@ embedding: type EncodingFormat string
 embedding: type ModalityType string
 embedding: type Model interface { Call(context.Context, *Request) (*Response, error) }
 embedding: type ModelFunc func(context.Context, *Request) (*Response, error)
-embedding: type Options struct { Model string `json:"model"` EncodingFormat EncodingFormat `json:"encoding_format"` Dimensions *int64 `json:"dimensions,omitempty"` Extra map[string]any `json:"extra,omitzero"` }
-embedding: type Request struct { Texts []string `json:"texts,omitzero"` Options *Options `json:"options,omitempty"` Params map[string]any `json:"params,omitzero"` }
+embedding: type Options struct { Model string `json:"model"` EncodingFormat EncodingFormat `json:"encoding_format"` Dimensions *int64 `json:"dimensions,omitempty"` Extra metadata.Map `json:"extra,omitzero"` }
+embedding: type Request struct { Texts []string `json:"texts,omitzero"` Options *Options `json:"options,omitempty"` }
 embedding: type Response struct { Results []*Result `json:"results,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
-embedding: type ResponseMetadata struct { Model string `json:"model"` Usage *model.Usage `json:"usage,omitempty"` RateLimit *model.RateLimit `json:"rate_limit,omitempty"` Created int64 `json:"created"` Extra map[string]any `json:"extra,omitzero"` }
+embedding: type ResponseMetadata struct { Model string `json:"model"` Usage *model.Usage `json:"usage,omitempty"` RateLimit *model.RateLimit `json:"rate_limit,omitempty"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 embedding: type Result struct { Embedding []float64 `json:"embedding"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
-embedding: type ResultMetadata struct { Index int64 `json:"index"` ModalityType ModalityType `json:"modality_type"` MIMEType string `json:"mime_type,omitempty"` Extra map[string]any `json:"extra,omitzero"` }
+embedding: type ResultMetadata struct { Index int64 `json:"index"` ModalityType ModalityType `json:"modality_type"` MIMEType string `json:"mime_type,omitempty"` Extra metadata.Map `json:"extra,omitzero"` }
 image: const ( ResponseFormatURL ResponseFormat = "url" ResponseFormatB64JSON ResponseFormat = "b64json" )
 image: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
-image: func (m *ResponseMetadata) Get(key string) (any, bool)
-image: func (m *ResponseMetadata) Set(key string, value any)
-image: func (m *ResultMetadata) Get(key string) (any, bool)
-image: func (m *ResultMetadata) Set(key string, value any)
+image: func (m *ResponseMetadata) Set(key string, value any) error
+image: func (m *ResultMetadata) Set(key string, value any) error
 image: func (o *Options) Clone() *Options
-image: func (o *Options) Get(key string) (any, bool)
-image: func (o *Options) Set(key string, value any)
-image: func (r *Request) Get(key string) (any, bool)
-image: func (r *Request) Set(key string, value any)
+image: func (o *Options) Set(key string, value any) error
+image: func (r *Request) Validate() error
 image: func (r ResponseFormat) String() string
 image: func (r ResponseFormat) Valid() bool
 image: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
@@ -153,13 +145,13 @@ image: func NewResult(image *Image, metadata *ResultMetadata) (*Result, error)
 image: type Image struct { URL string `json:"url"` B64JSON string `json:"b64_json"` }
 image: type Model interface { Call(context.Context, *Request) (*Response, error) }
 image: type ModelFunc func(context.Context, *Request) (*Response, error)
-image: type Options struct { Model string `json:"model"` NegativePrompt string `json:"negative_prompt"` Width *int64 `json:"width,omitempty"` Height *int64 `json:"height,omitempty"` Style string `json:"style"` Quality string `json:"quality"` Seed *int64 `json:"seed,omitempty"` OutputFormat string `json:"output_format,omitempty"` ResponseFormat ResponseFormat `json:"response_format"` Extra map[string]any `json:"extra,omitzero"` }
-image: type Request struct { Prompt string `json:"prompt"` Options *Options `json:"options,omitempty"` Params map[string]any `json:"params,omitzero"` }
+image: type Options struct { Model string `json:"model"` NegativePrompt string `json:"negative_prompt"` Width *int64 `json:"width,omitempty"` Height *int64 `json:"height,omitempty"` Style string `json:"style"` Quality string `json:"quality"` Seed *int64 `json:"seed,omitempty"` OutputFormat string `json:"output_format,omitempty"` ResponseFormat ResponseFormat `json:"response_format"` Extra metadata.Map `json:"extra,omitzero"` }
+image: type Request struct { Prompt string `json:"prompt"` Options *Options `json:"options,omitempty"` }
 image: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 image: type ResponseFormat string
-image: type ResponseMetadata struct { Created int64 `json:"created"` Extra map[string]any `json:"extra,omitzero"` }
+image: type ResponseMetadata struct { Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 image: type Result struct { Image *Image `json:"image,omitempty"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
-image: type ResultMetadata struct { Extra map[string]any `json:"extra,omitzero"` }
+image: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 media: const ( SourceBytes SourceKind = "bytes" SourceURI SourceKind = "uri" SourceReference SourceKind = "reference" )
 media: func (m *Media) Bytes() ([]byte, error)
 media: func (m *Media) Reference() (string, error)
@@ -191,18 +183,14 @@ model: func (u *Usage) HasCacheWriteInputTokens() bool
 model: func (u *Usage) HasReasoningTokens() bool
 model: func (u *Usage) TotalTokens() int64
 model: type RateLimit struct { RequestsLimit int64 `json:"requests_limit"` RequestsRemaining int64 `json:"requests_remaining"` RequestsReset time.Duration `json:"requests_reset"` TokensLimit int64 `json:"tokens_limit"` TokensRemaining int64 `json:"tokens_remaining"` TokensReset time.Duration `json:"tokens_reset"` }
-model: type Usage struct { PromptTokens int64 `json:"prompt_tokens"` CompletionTokens int64 `json:"completion_tokens"` ReasoningTokens *int64 `json:"reasoning_tokens,omitempty"` CacheReadInputTokens *int64 `json:"cache_read_input_tokens,omitempty"` CacheWriteInputTokens *int64 `json:"cache_write_input_tokens,omitempty"` OriginalUsage any `json:"original_usage,omitempty"` }
+model: type Usage struct { PromptTokens int64 `json:"prompt_tokens"` CompletionTokens int64 `json:"completion_tokens"` ReasoningTokens *int64 `json:"reasoning_tokens,omitempty"` CacheReadInputTokens *int64 `json:"cache_read_input_tokens,omitempty"` CacheWriteInputTokens *int64 `json:"cache_write_input_tokens,omitempty"` }
 moderation: func (c *Categories) Flagged() bool
 moderation: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
-moderation: func (m *ResponseMetadata) Get(key string) (any, bool)
-moderation: func (m *ResponseMetadata) Set(key string, value any)
-moderation: func (m *ResultMetadata) Get(key string) (any, bool)
-moderation: func (m *ResultMetadata) Set(key string, value any)
+moderation: func (m *ResponseMetadata) Set(key string, value any) error
+moderation: func (m *ResultMetadata) Set(key string, value any) error
 moderation: func (o *Options) Clone() *Options
-moderation: func (o *Options) Get(key string) (any, bool)
-moderation: func (o *Options) Set(key string, value any)
-moderation: func (r *Request) Get(key string) (any, bool)
-moderation: func (r *Request) Set(key string, value any)
+moderation: func (o *Options) Set(key string, value any) error
+moderation: func (r *Request) Validate() error
 moderation: func (r *Response) Result() *Result
 moderation: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
 moderation: func NewOptions(model string) (*Options, error)
@@ -212,22 +200,20 @@ moderation: func NewResult(categories *Categories, metadata *ResultMetadata) (*R
 moderation: type Categories struct { Sexual Verdict `json:"sexual"` Hate Verdict `json:"hate"` Harassment Verdict `json:"harassment"` SelfHarm Verdict `json:"self_harm"` SexualMinors Verdict `json:"sexual_minors"` HateThreatening Verdict `json:"hate_threatening"` ViolenceGraphic Verdict `json:"violence_graphic"` SelfHarmIntent Verdict `json:"self_harm_intent"` SelfHarmInstructions Verdict `json:"self_harm_instructions"` HarassmentThreatening Verdict `json:"harassment_threatening"` Violence Verdict `json:"violence"` DangerousAndCriminalContent Verdict `json:"dangerous_and_criminal_content"` Health Verdict `json:"health"` Financial Verdict `json:"financial"` Law Verdict `json:"law"` Pii Verdict `json:"pii"` Illicit Verdict `json:"illicit"` IllicitViolent Verdict `json:"illicit_violent"` }
 moderation: type Model interface { Call(context.Context, *Request) (*Response, error) }
 moderation: type ModelFunc func(context.Context, *Request) (*Response, error)
-moderation: type Options struct { Model string `json:"model"` Extra map[string]any `json:"extra,omitzero"` }
-moderation: type Request struct { Texts []string `json:"texts,omitzero"` Options *Options `json:"options,omitempty"` Params map[string]any `json:"params,omitzero"` }
+moderation: type Options struct { Model string `json:"model"` Extra metadata.Map `json:"extra,omitzero"` }
+moderation: type Request struct { Texts []string `json:"texts,omitzero"` Options *Options `json:"options,omitempty"` }
 moderation: type Response struct { Results []*Result `json:"results,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
-moderation: type ResponseMetadata struct { ID string `json:"id"` Model string `json:"model"` Created int64 `json:"created"` Extra map[string]any `json:"extra,omitzero"` }
+moderation: type ResponseMetadata struct { ID string `json:"id"` Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 moderation: type Result struct { Categories *Categories `json:"categories,omitempty"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
-moderation: type ResultMetadata struct { Extra map[string]any `json:"extra,omitzero"` }
+moderation: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 moderation: type Verdict struct { Flagged bool `json:"flagged"` Score float64 `json:"score"` }
 speech: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 speech: func (f StreamFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
-speech: func (m *ResponseMetadata) Get(key string) (any, bool)
-speech: func (m *ResponseMetadata) Set(key string, value any)
-speech: func (m *ResultMetadata) Get(key string) (any, bool)
-speech: func (m *ResultMetadata) Set(key string, value any)
+speech: func (m *ResponseMetadata) Set(key string, value any) error
+speech: func (m *ResultMetadata) Set(key string, value any) error
 speech: func (o *Options) Clone() *Options
-speech: func (o *Options) Get(key string) (any, bool)
-speech: func (o *Options) Set(key string, value any)
+speech: func (o *Options) Set(key string, value any) error
+speech: func (r *Request) Validate() error
 speech: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
 speech: func NewOptions(model string) (*Options, error)
 speech: func NewRequest(text string) (*Request, error)
@@ -235,22 +221,20 @@ speech: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response,
 speech: func NewResult(speech []byte, metadata *ResultMetadata) (*Result, error)
 speech: type Model interface { Call(context.Context, *Request) (*Response, error) }
 speech: type ModelFunc func(context.Context, *Request) (*Response, error)
-speech: type Options struct { Model string `json:"model"` Voice string `json:"voice"` ResponseFormat string `json:"response_format"` Speed float64 `json:"speed"` Extra map[string]any `json:"extra,omitzero"` }
-speech: type Request struct { Text string `json:"text"` Options *Options `json:"options,omitempty"` Params map[string]any `json:"params,omitzero"` }
+speech: type Options struct { Model string `json:"model"` Voice string `json:"voice"` ResponseFormat string `json:"response_format"` Speed float64 `json:"speed"` Extra metadata.Map `json:"extra,omitzero"` }
+speech: type Request struct { Text string `json:"text"` Options *Options `json:"options,omitempty"` }
 speech: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
-speech: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra map[string]any `json:"extra,omitzero"` }
+speech: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 speech: type Result struct { Speech []byte `json:"speech,omitzero"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
-speech: type ResultMetadata struct { Extra map[string]any `json:"extra,omitzero"` }
+speech: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 speech: type StreamFunc func(context.Context, *Request) iter.Seq2[*Response, error]
 speech: type Streamer interface { Stream(context.Context, *Request) iter.Seq2[*Response, error] }
 transcription: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
-transcription: func (m *ResponseMetadata) Get(key string) (any, bool)
-transcription: func (m *ResponseMetadata) Set(key string, value any)
-transcription: func (m *ResultMetadata) Get(key string) (any, bool)
-transcription: func (m *ResultMetadata) Set(key string, value any)
+transcription: func (m *ResponseMetadata) Set(key string, value any) error
+transcription: func (m *ResultMetadata) Set(key string, value any) error
 transcription: func (o *Options) Clone() *Options
-transcription: func (o *Options) Get(key string) (any, bool)
-transcription: func (o *Options) Set(key string, value any)
+transcription: func (o *Options) Set(key string, value any) error
+transcription: func (r *Request) Validate() error
 transcription: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
 transcription: func NewOptions(model string) (*Options, error)
 transcription: func NewRequest(audio *media.Media) (*Request, error)
@@ -258,12 +242,12 @@ transcription: func NewResponse(result *Result, metadata *ResponseMetadata) (*Re
 transcription: func NewResult(text string, metadata *ResultMetadata) (*Result, error)
 transcription: type Model interface { Call(context.Context, *Request) (*Response, error) }
 transcription: type ModelFunc func(context.Context, *Request) (*Response, error)
-transcription: type Options struct { Model string `json:"model"` Language string `json:"language"` Prompt string `json:"prompt"` Temperature *float64 `json:"temperature,omitempty"` ResponseFormat string `json:"response_format"` TimestampGranularity []string `json:"timestamp_granularity,omitzero"` Extra map[string]any `json:"extra,omitzero"` }
-transcription: type Request struct { Audio *media.Media `json:"audio,omitempty"` Options *Options `json:"options,omitempty"` Params map[string]any `json:"params,omitzero"` }
+transcription: type Options struct { Model string `json:"model"` Language string `json:"language"` Prompt string `json:"prompt"` Temperature *float64 `json:"temperature,omitempty"` ResponseFormat string `json:"response_format"` TimestampGranularity []string `json:"timestamp_granularity,omitzero"` Extra metadata.Map `json:"extra,omitzero"` }
+transcription: type Request struct { Audio *media.Media `json:"audio,omitempty"` Options *Options `json:"options,omitempty"` }
 transcription: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
-transcription: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra map[string]any `json:"extra,omitzero"` }
+transcription: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 transcription: type Result struct { Text string `json:"text"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
-transcription: type ResultMetadata struct { Extra map[string]any `json:"extra,omitzero"` }
+transcription: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 vectorstore/filter: const ( LiteralString LiteralKind = "string" LiteralNumber LiteralKind = "number" LiteralBool LiteralKind = "bool" LiteralNull LiteralKind = "null" )
 vectorstore/filter: const ( OpEqual Operator = "==" OpNotEqual Operator = "!=" OpLess Operator = "<" OpLessEqual Operator = "<=" OpGreater Operator = ">" OpGreaterEqual Operator = ">=" OpAnd Operator = "and" OpOr Operator = "or" OpNot Operator = "not" OpIn Operator = "in" OpLike Operator = "like" OpIs Operator = "is" )
 vectorstore/filter: func (b *BinaryExpr) End() Position

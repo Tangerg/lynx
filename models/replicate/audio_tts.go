@@ -94,12 +94,18 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := tts.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiReq := options.GetParams[PredictionRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[PredictionRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	if apiReq.Input == nil {
 		apiReq.Input = map[string]any{}
 	}
@@ -141,10 +147,14 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 
 	resultMeta := &tts.ResultMetadata{}
 	if contentType != "" {
-		resultMeta.Set("mime_type", contentType)
+		if err := resultMeta.Set("mime_type", contentType); err != nil {
+			return nil, err
+		}
 	}
 	if final.Metrics.PredictTime > 0 {
-		resultMeta.Set("predict_time_ms", int64(final.Metrics.PredictTime*1000))
+		if err := resultMeta.Set("predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := tts.NewResult(audio, resultMeta)
@@ -153,11 +163,17 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	}
 
 	meta := &tts.ResponseMetadata{Model: mergedOpts.Model, Created: time.Now().Unix()}
-	meta.Set("prediction_id", final.ID)
-	if final.Version != "" {
-		meta.Set("version", final.Version)
+	if err := meta.Set("prediction_id", final.ID); err != nil {
+		return nil, err
 	}
-	meta.Set("audio_url", url)
+	if final.Version != "" {
+		if err := meta.Set("version", final.Version); err != nil {
+			return nil, err
+		}
+	}
+	if err := meta.Set("audio_url", url); err != nil {
+		return nil, err
+	}
 	return tts.NewResponse(result, meta)
 }
 

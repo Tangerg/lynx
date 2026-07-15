@@ -61,7 +61,10 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*ollamaapi.Emb
 		return nil, err
 	}
 
-	apiReq := options.GetParams[ollamaapi.EmbedRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[ollamaapi.EmbedRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	apiReq.Model = mergedOpts.Model
 	apiReq.Input = req.Texts
 
@@ -98,14 +101,23 @@ func (e *EmbeddingModel) buildResponse(apiResp *ollamaapi.EmbedResponse) (*embed
 		Model:   apiResp.Model,
 		Created: time.Now().Unix(),
 	}
-	meta.Set("total_duration_ms", apiResp.TotalDuration.Milliseconds())
-	meta.Set("load_duration_ms", apiResp.LoadDuration.Milliseconds())
-	meta.Set("prompt_eval_count", apiResp.PromptEvalCount)
+	if err := meta.Set("total_duration_ms", apiResp.TotalDuration.Milliseconds()); err != nil {
+		return nil, err
+	}
+	if err := meta.Set("load_duration_ms", apiResp.LoadDuration.Milliseconds()); err != nil {
+		return nil, err
+	}
+	if err := meta.Set("prompt_eval_count", apiResp.PromptEvalCount); err != nil {
+		return nil, err
+	}
 
 	return embedding.NewResponse(results, meta)
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	apiReq, err := e.buildAPIRequest(req)
 	if err != nil {
 		return nil, err

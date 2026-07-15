@@ -53,12 +53,18 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := image.MergeOptions(i.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiReq := options.GetParams[JobRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[JobRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	if apiReq.Type == "" {
 		apiReq.Type = mergedOpts.Model
 	}
@@ -101,7 +107,9 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 
 	resultMeta := &image.ResultMetadata{}
 	if ct := hdr.Get("Content-Type"); ct != "" {
-		resultMeta.Set("mime_type", ct)
+		if err := resultMeta.Set("mime_type", ct); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := image.NewResult(img, resultMeta)

@@ -82,7 +82,10 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*GenerateRequest, erro
 		return nil, err
 	}
 
-	apiReq := options.GetParams[GenerateRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 
 	apiReq.Prompt = req.Prompt
 	if mergedOpts.NegativePrompt != "" {
@@ -117,10 +120,14 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header) (*image.Respons
 
 	resultMeta := &image.ResultMetadata{}
 	if envelope.FinishReason != "" {
-		resultMeta.Set("finish_reason", envelope.FinishReason)
+		if err := resultMeta.Set("finish_reason", envelope.FinishReason); err != nil {
+			return nil, err
+		}
 	}
 	if envelope.Seed != 0 {
-		resultMeta.Set("seed", envelope.Seed)
+		if err := resultMeta.Set("seed", envelope.Seed); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := image.NewResult(img, resultMeta)
@@ -130,13 +137,18 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header) (*image.Respons
 
 	meta := &image.ResponseMetadata{Created: time.Now().Unix()}
 	if rid := hdr.Get("request-id"); rid != "" {
-		meta.Set("request_id", rid)
+		if err := meta.Set("request_id", rid); err != nil {
+			return nil, err
+		}
 	}
 
 	return image.NewResponse(result, meta)
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	apiReq, err := i.buildAPIRequest(req)
 	if err != nil {
 		return nil, err

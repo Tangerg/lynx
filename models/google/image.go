@@ -78,7 +78,10 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (string, string, *genai
 		return "", "", nil, err
 	}
 
-	cfg := options.GetParams[genai.GenerateImagesConfig](mergedOpts, OptionsKey)
+	cfg, err := options.GetParams[genai.GenerateImagesConfig](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return "", "", nil, err
+	}
 
 	if mergedOpts.NegativePrompt != "" {
 		cfg.NegativePrompt = mergedOpts.NegativePrompt
@@ -127,13 +130,19 @@ func (i *ImageModel) buildResponse(apiResp *genai.GenerateImagesResponse) (*imag
 
 	resultMeta := &image.ResultMetadata{}
 	if gen.EnhancedPrompt != "" {
-		resultMeta.Set("enhanced_prompt", gen.EnhancedPrompt)
+		if err := resultMeta.Set("enhanced_prompt", gen.EnhancedPrompt); err != nil {
+			return nil, err
+		}
 	}
 	if gen.RAIFilteredReason != "" {
-		resultMeta.Set("rai_filtered_reason", gen.RAIFilteredReason)
+		if err := resultMeta.Set("rai_filtered_reason", gen.RAIFilteredReason); err != nil {
+			return nil, err
+		}
 	}
 	if gen.SafetyAttributes != nil {
-		resultMeta.Set("safety_attributes", gen.SafetyAttributes)
+		if err := resultMeta.Set("safety_attributes", gen.SafetyAttributes); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := image.NewResult(img, resultMeta)
@@ -143,13 +152,18 @@ func (i *ImageModel) buildResponse(apiResp *genai.GenerateImagesResponse) (*imag
 
 	meta := &image.ResponseMetadata{Created: time.Now().Unix()}
 	if apiResp.PositivePromptSafetyAttributes != nil {
-		meta.Set("positive_prompt_safety_attributes", apiResp.PositivePromptSafetyAttributes)
+		if err := meta.Set("positive_prompt_safety_attributes", apiResp.PositivePromptSafetyAttributes); err != nil {
+			return nil, err
+		}
 	}
 
 	return image.NewResponse(result, meta)
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	modelName, prompt, cfg, err := i.buildAPIRequest(req)
 	if err != nil {
 		return nil, err

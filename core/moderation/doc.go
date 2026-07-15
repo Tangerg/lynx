@@ -3,5 +3,6 @@
 //
 // A Request can classify multiple texts. Each Result contains category-level
 // Verdict values, while Categories.Flagged provides the aggregate decision.
-// Provider implementations and policy-specific defaults live outside Core.
+// Provider-only options use Options.Set so Extra remains JSON-safe; Request has
+// no arbitrary parameter bag. Implementations and defaults live outside Core.
 package moderation

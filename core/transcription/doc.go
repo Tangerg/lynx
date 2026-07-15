@@ -3,5 +3,6 @@
 //
 // NewRequest accepts validated media audio. Options carries explicit language,
 // prompt, temperature, response format, timestamp granularity, and provider
-// extras. Provider implementations and defaults live outside Core.
+// extras written through Options.Set so they are JSON-safe. Request has no
+// arbitrary parameter bag. Implementations and defaults live outside Core.
 package transcription

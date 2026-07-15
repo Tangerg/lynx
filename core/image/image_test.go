@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 func TestModelFunc(t *testing.T) {
@@ -31,6 +32,25 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	}
 	if _, err := image.MergeOptions(nil); err == nil {
 		t.Fatal("MergeOptions accepted nil base")
+	}
+	if err := (*image.Request)(nil).Validate(); err == nil {
+		t.Fatal("Validate accepted nil request")
+	}
+	invalid := &image.Request{
+		Prompt:  "lynx",
+		Options: &image.Options{Extra: metadata.Map{"broken": []byte("{")}},
+	}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("Validate accepted invalid options metadata")
+	}
+	width := int64(0)
+	invalid.Options = &image.Options{Width: &width}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("Validate accepted non-positive width")
+	}
+	options := new(image.Options)
+	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
+		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
 	}
 	if !image.ResponseFormatURL.Valid() || image.ResponseFormat("garbage").Valid() {
 		t.Fatal("ResponseFormat.Valid is inconsistent")
@@ -72,23 +92,17 @@ func TestResponseValidation(t *testing.T) {
 	}
 }
 
-func TestOptionsMergeAndProtocolAccessors(t *testing.T) {
-	if _, ok := (*image.Options)(nil).Get("missing"); ok {
-		t.Fatal("nil Options reported a value")
-	}
-	if _, ok := (*image.Request)(nil).Get("missing"); ok {
-		t.Fatal("nil Request reported a value")
-	}
+func TestOptionsMergeAndCopies(t *testing.T) {
 	if clone := (*image.Options)(nil).Clone(); clone != nil {
 		t.Fatalf("nil Clone = %#v", clone)
 	}
 
 	width, height, seed := int64(512), int64(768), int64(7)
-	base := &image.Options{Model: "base", Width: &width, Extra: map[string]any{"base": true}}
+	base := &image.Options{Model: "base", Width: &width, Extra: mustMetadata(t, map[string]any{"base": true})}
 	override := &image.Options{
 		Model: "override", NegativePrompt: "text", Width: &width, Height: &height,
 		Style: "natural", Quality: "high", Seed: &seed, OutputFormat: "IMAGE/PNG",
-		ResponseFormat: image.ResponseFormatURL, Extra: map[string]any{"override": true},
+		ResponseFormat: image.ResponseFormatURL, Extra: mustMetadata(t, map[string]any{"override": true}),
 	}
 	merged, err := image.MergeOptions(base, nil, override)
 	if err != nil {
@@ -102,41 +116,24 @@ func TestOptionsMergeAndProtocolAccessors(t *testing.T) {
 	if len(merged.Extra) != 2 {
 		t.Fatalf("merged Extra = %#v", merged.Extra)
 	}
+	*merged.Height = 1024
+	*merged.Seed = 9
+	if height != 768 || seed != 7 {
+		t.Fatal("MergeOptions aliases override pointer state")
+	}
 	clone := merged.Clone()
 	*clone.Width = 1024
-	clone.Extra["base"] = false
-	if *merged.Width != 512 || merged.Extra["base"] != true {
+	if err := metadata.Set(clone.Extra, "base", false); err != nil {
+		t.Fatal(err)
+	}
+	if *merged.Width != 512 || !mustDecode[bool](t, merged.Extra, "base") {
 		t.Fatal("Options.Clone aliases source state")
-	}
-	merged.Set("region", "local")
-	if value, ok := merged.Get("region"); !ok || value != "local" {
-		t.Fatalf("Options.Get = %#v, %t", value, ok)
-	}
-
-	request, _ := image.NewRequest("lynx")
-	request.Set("trace_id", "trace-1")
-	if value, ok := request.Get("trace_id"); !ok || value != "trace-1" {
-		t.Fatalf("Request.Get = %#v, %t", value, ok)
 	}
 }
 
-func TestResponseMetadataAccessorsAndErrors(t *testing.T) {
-	if _, ok := (*image.ResultMetadata)(nil).Get("missing"); ok {
-		t.Fatal("nil ResultMetadata reported a value")
-	}
-	if _, ok := (*image.ResponseMetadata)(nil).Get("missing"); ok {
-		t.Fatal("nil ResponseMetadata reported a value")
-	}
-	resultMetadata := &image.ResultMetadata{}
-	resultMetadata.Set("revised_prompt", "lynx")
-	if value, ok := resultMetadata.Get("revised_prompt"); !ok || value != "lynx" {
-		t.Fatalf("ResultMetadata.Get = %#v, %t", value, ok)
-	}
-	responseMetadata := &image.ResponseMetadata{}
-	responseMetadata.Set("region", "local")
-	if value, ok := responseMetadata.Get("region"); !ok || value != "local" {
-		t.Fatalf("ResponseMetadata.Get = %#v, %t", value, ok)
-	}
+func TestResponseMetadataAndErrors(t *testing.T) {
+	resultMetadata := &image.ResultMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "lynx"})}
+	responseMetadata := &image.ResponseMetadata{Extra: mustMetadata(t, map[string]any{"region": "local"})}
 
 	generated, _ := image.NewImage("https://example.com/image.png", "")
 	if _, err := image.NewResult(nil, resultMetadata); err == nil {
@@ -152,4 +149,22 @@ func TestResponseMetadataAccessorsAndErrors(t *testing.T) {
 	if _, err := image.NewResponse(result, nil); err == nil {
 		t.Fatal("NewResponse accepted nil metadata")
 	}
+}
+
+func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
+	t.Helper()
+	result, err := metadata.FromValues(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
+	t.Helper()
+	value, ok, err := metadata.Decode[T](values, key)
+	if err != nil || !ok {
+		t.Fatalf("metadata.Decode(%q) = %#v, %t, %v", key, value, ok, err)
+	}
+	return value
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/transcription"
 )
 
@@ -37,6 +38,24 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := transcription.MergeOptions(nil); err == nil {
 		t.Fatal("MergeOptions accepted nil base")
 	}
+	if err := (*transcription.Request)(nil).Validate(); err == nil {
+		t.Fatal("Validate accepted nil request")
+	}
+	audio, err := media.NewBytes("audio/mpeg", []byte("audio"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid := &transcription.Request{
+		Audio:   audio,
+		Options: &transcription.Options{Extra: metadata.Map{"broken": []byte("{")}},
+	}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("Validate accepted invalid options metadata")
+	}
+	options := new(transcription.Options)
+	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
+		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
+	}
 }
 
 func TestResponseValidation(t *testing.T) {
@@ -52,21 +71,19 @@ func TestResponseValidation(t *testing.T) {
 	}
 }
 
-func TestOptionsMergeAndProtocolAccessors(t *testing.T) {
-	if _, ok := (*transcription.Options)(nil).Get("missing"); ok {
-		t.Fatal("nil Options reported a value")
-	}
+func TestOptionsMergeAndCopies(t *testing.T) {
 	if clone := (*transcription.Options)(nil).Clone(); clone != nil {
 		t.Fatalf("nil Clone = %#v", clone)
 	}
 	temperature := 0.2
 	base := &transcription.Options{
-		Model: "base", TimestampGranularity: []string{"segment"}, Extra: map[string]any{"base": true},
+		Model: "base", TimestampGranularity: []string{"segment"},
+		Extra: mustMetadata(t, map[string]any{"base": true}),
 	}
 	merged, err := transcription.MergeOptions(base, nil, &transcription.Options{
 		Model: "override", Language: "en", Prompt: "Lynx", Temperature: &temperature,
 		ResponseFormat: "verbose_json", TimestampGranularity: []string{"word"},
-		Extra: map[string]any{"override": true},
+		Extra: mustMetadata(t, map[string]any{"override": true}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -76,34 +93,38 @@ func TestOptionsMergeAndProtocolAccessors(t *testing.T) {
 		len(merged.TimestampGranularity) != 1 || merged.TimestampGranularity[0] != "word" || len(merged.Extra) != 2 {
 		t.Fatalf("MergeOptions = %#v", merged)
 	}
+	temperature = 0.4
+	if *merged.Temperature != 0.2 {
+		t.Fatal("MergeOptions aliases override pointer state")
+	}
 	clone := merged.Clone()
 	*clone.Temperature = 0.9
 	clone.TimestampGranularity[0] = "segment"
-	clone.Extra["base"] = false
-	if *merged.Temperature != 0.2 || merged.TimestampGranularity[0] != "word" || merged.Extra["base"] != true {
+	if err := metadata.Set(clone.Extra, "base", false); err != nil {
+		t.Fatal(err)
+	}
+	if *merged.Temperature != 0.2 || merged.TimestampGranularity[0] != "word" ||
+		!mustDecode[bool](t, merged.Extra, "base") {
 		t.Fatal("Options.Clone aliases source state")
 	}
-	merged.Set("region", "local")
-	if value, ok := merged.Get("region"); !ok || value != "local" {
-		t.Fatalf("Options.Get = %#v, %t", value, ok)
-	}
+}
 
-	resultMetadata := &transcription.ResultMetadata{}
-	resultMetadata.Set("duration", 1.5)
-	if value, ok := resultMetadata.Get("duration"); !ok || value != 1.5 {
-		t.Fatalf("ResultMetadata.Get = %#v, %t", value, ok)
+func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
+	t.Helper()
+	result, err := metadata.FromValues(values)
+	if err != nil {
+		t.Fatal(err)
 	}
-	responseMetadata := &transcription.ResponseMetadata{}
-	responseMetadata.Set("region", "local")
-	if value, ok := responseMetadata.Get("region"); !ok || value != "local" {
-		t.Fatalf("ResponseMetadata.Get = %#v, %t", value, ok)
+	return result
+}
+
+func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
+	t.Helper()
+	value, ok, err := metadata.Decode[T](values, key)
+	if err != nil || !ok {
+		t.Fatalf("metadata.Decode(%q) = %#v, %t, %v", key, value, ok, err)
 	}
-	if _, ok := (*transcription.ResultMetadata)(nil).Get("missing"); ok {
-		t.Fatal("nil ResultMetadata reported a value")
-	}
-	if _, ok := (*transcription.ResponseMetadata)(nil).Get("missing"); ok {
-		t.Fatal("nil ResponseMetadata reported a value")
-	}
+	return value
 }
 
 func TestResponseErrorBoundaries(t *testing.T) {

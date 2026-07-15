@@ -62,7 +62,10 @@ func (e *EmbeddingModel) buildAPIEmbeddingRequest(req *embedding.Request) (*open
 		return nil, err
 	}
 
-	params := options.GetParams[openai.EmbeddingNewParams](mergedOpts, OptionsKey)
+	params, err := options.GetParams[openai.EmbeddingNewParams](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 
 	params.Model = mergedOpts.Model
 	params.Input = openai.EmbeddingNewParamsInputUnion{
@@ -83,8 +86,7 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 	meta := &embedding.ResponseMetadata{
 		Model: apiResp.Model,
 		Usage: &model.Usage{
-			PromptTokens:  apiResp.Usage.PromptTokens,
-			OriginalUsage: apiResp.Usage,
+			PromptTokens: apiResp.Usage.PromptTokens,
 		},
 		Created: time.Now().Unix(),
 	}
@@ -109,6 +111,9 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	apiReq, err := e.buildAPIEmbeddingRequest(req)
 	if err != nil {
 		return nil, err
