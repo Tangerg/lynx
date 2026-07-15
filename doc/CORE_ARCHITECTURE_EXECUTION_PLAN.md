@@ -865,7 +865,12 @@ flowchart LR
   - 为 Chat、Document、Embedding、Image、Media、Metadata、Model、Moderation、Speech、Transcription、VectorStore 与 Filter 各增加 package-level runnable Example，全部带 checked Output 并覆盖各包首要用户路径。
   - 架构测试自动核对公共 package allowlist 的 12/12 文档与可执行示例；CI 增加独立 blocking docs/examples gate，不受 broad advisory test 影响。
   - Core 全量 test/vet/lint 及 CI 等价 example gate 全绿；证据：`1f22a87b5`。
-- [ ] **P7-05 按第 11.4 节复核 coverage、race、fuzz 和 dependency budget**
+- [x] **P7-05 按第 11.4 节复核 coverage、race、fuzz 和 dependency budget**（完成：2026-07-15）
+  - 新增逐包 blocking coverage budget；17 个 Core package 全部不低于 P0 基线，Embedding/Image/Moderation/Speech/Transcription 通过边界、clone/merge 和聚合行为测试分别提升到 90.1%/96.3%/97.2%/96.9%/97.1%。
+  - Core、ChatClient、Agent、ChatHistory、RAG、Tools 与 27 个 VectorStore backend 的全量 race 通过；Metadata、Media、Filter 及 Chat Part/Message/Request/Response 共 7 个 fuzz target 各独立执行 5 分钟，累计约 1.45 亿次执行且无失败语料。
+  - Core 生产依赖保持标准库-only，目标 package 外部依赖守卫与 20/20 module `go mod tidy -diff` 通过；CI 增加 blocking coverage/dependency gate。
+  - Go toolchain 从 1.26.4 升至 1.26.5，清除可达的标准库 TLS 漏洞；Ollama 升至当时最新 v0.32.0 后仍有 8 个上游公告且均标记 `Fixed in: N/A`，作为 P7-06 release risk 明示，不建立豁免 API 或兼容层。
+  - 升级后 `FAST=1 scripts/check.sh build vet test lint` 对 20 module 的 80/80 项检查全绿，Core 全量 race 复验通过；证据：`e5c94d25e`。
 - [ ] **P7-06 编写 Core 破坏性变更迁移说明、dependent module 发布顺序和 release notes**
 - [ ] **P7-07 完成最终架构审查并冻结 Core v1 契约**
 
@@ -891,15 +896,15 @@ flowchart LR
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
 | P6 Workspace 切换 | 完成 | 8/8 | 旧 API、兼容面、残余依赖和错误文档清零；100 项 workspace 门禁全绿 |
-| P7 稳定与发布 | 进行中 | 4/7 | 12 个公共包文档/examples 已门禁；进入最终质量预算复核 |
-| **总计** | **进行中** | **57/60** | **95%** |
+| P7 稳定与发布 | 进行中 | 5/7 | 覆盖、race、fuzz、依赖与工具链预算复核完成；进入迁移和发布说明 |
+| **总计** | **进行中** | **58/60** | **97%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P7。
-- 下一任务：执行 P7-05，复核 coverage、race、fuzz 和 dependency budget。
+- 下一任务：执行 P7-06，编写破坏性变更迁移说明、dependent module 发布顺序和 release notes。
 - 当前阻塞：无。
-- 最近完成：P7-04；12 个公共 package 的唯一 package docs、runnable examples 与独立 CI gate 已完成。
+- 最近完成：P7-05；coverage/race/fuzz/dependency budget 与 Go 1.26.5 升级完成，Ollama 无修复版本公告转入 release risk。
 
 ### 10.3 进度更新规则
 
@@ -1174,6 +1179,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 完成 P7-05；逐包覆盖预算与 CI dependency gate 生效，7 个 fuzz target 各跑满 5 分钟，升级 Go/Ollama 并记录仍无修复版本的上游安全风险 | Codex |
 | 2026-07-15 | 完成 P7-04；12 个公共 package 统一职责文档并新增 checked runnable Example，架构测试与 CI blocking gate 自动锁定覆盖 | Codex |
 | 2026-07-15 | 完成 P7-03；以 50 项导出 JSON struct inventory 和 535 行聚合 golden 冻结全部 Core wire DTO，CI 增加 blocking wire compatibility guard | Codex |
 | 2026-07-14 | 完成 P7-02；provider 构造/协议和 27 个 vectorstore backend conformance 从 advisory suite 中提升为独立 blocking release gate，并增加 backend 集合/注册结构守卫 | Codex |
@@ -1236,6 +1242,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | P7-05 | `e5c94d25e` 新增 17 个 Core package 的 blocking coverage budget，补齐五个低覆盖模态行为测试；Core/ChatClient/Agent/ChatHistory/RAG/Tools/27 backend race 全绿，7 个 fuzz target 各 5 分钟无失败；Core 标准库-only、20/20 tidy-diff 和升级后 80/80 workspace build/vet/test/lint 通过。Go 1.26.5 清除 TLS 漏洞，Ollama v0.32.0 仍有 8 个 `Fixed in: N/A` 上游公告；任务计数 58/60 | P7-06 迁移说明、发布顺序和 release notes |
 | 2026-07-15 | P7-04 | `1f22a87b5` 为 12/12 公共 package 统一唯一 package comment 并新增带 checked Output 的 package-level Example；架构守卫与 CI blocking docs/examples gate 生效，Core 全量 test/vet/lint 全绿；任务计数 57/60 | P7-05 coverage/race/fuzz/dependency budget |
 | 2026-07-15 | P7-03 | `158de60b7` 新增 50 项导出 JSON struct 自动 inventory、19 个代表性 wire root 与 535 行 aggregate golden，覆盖全部 Core wire DTO；显式 update flag 与 CI blocking gate 生效，Core test/race/vet/lint 全绿；任务计数 56/60 | P7-04 公开 API examples 和 package docs |
 | 2026-07-14 | P7-02 | `b8323f07e` 新增 Models blocking provider gate，race 执行 30 构造入口、共享 suite 与五类参考协议；新增 Vectorstores backend 发现/显式清单/AST 注册守卫，并在 race 下执行 27/27 backend conformance；相关 vet/lint 全绿；任务计数 55/60 | P7-03 serialization compatibility fixtures |
