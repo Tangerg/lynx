@@ -439,15 +439,12 @@ func (v *Visitor) literalToString(lit *filter.Literal) (string, error) {
 	}
 
 	if lit.IsNumber() {
-		n, err := lit.AsNumber()
+		n, err := filtercompile.NumberText(lit)
 		if err != nil {
 			return "", fmt.Errorf("milvus: failed to convert number literal at %s: %w",
 				lit.Start().String(), err)
 		}
-		if n == float64(int64(n)) {
-			return strconv.FormatInt(int64(n), 10), nil
-		}
-		return strconv.FormatFloat(n, 'g', -1, 64), nil
+		return n, nil
 	}
 
 	if lit.IsBool() {

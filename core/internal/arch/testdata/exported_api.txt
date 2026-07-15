@@ -244,6 +244,8 @@ vectorstore/filter: func (b *BinaryExpr) End() Position
 vectorstore/filter: func (b *BinaryExpr) Equal(other Expr) bool
 vectorstore/filter: func (b *BinaryExpr) Start() Position
 vectorstore/filter: func (e *SyntaxError) Error() string
+vectorstore/filter: func (f *Formatter) String() string
+vectorstore/filter: func (f *Formatter) Visit(predicate Predicate) error
 vectorstore/filter: func (i *Ident) End() Position
 vectorstore/filter: func (i *Ident) Equal(other Expr) bool
 vectorstore/filter: func (i *Ident) Start() Position
@@ -302,6 +304,7 @@ vectorstore/filter: func Validate(expr Predicate) error
 vectorstore/filter: func Visit(predicate Predicate, visitors ...Visitor) error
 vectorstore/filter: type BinaryExpr struct { Left Expr Op Operator Right Expr start Position end Position }
 vectorstore/filter: type Expr interface { Start() Position End() Position Equal(Expr) bool expr() }
+vectorstore/filter: type Formatter struct { formatted string }
 vectorstore/filter: type Ident struct { Value string start Position end Position }
 vectorstore/filter: type IdentifierValue interface { string | *Ident }
 vectorstore/filter: type IndexExpr struct { Left Selector Index *Literal start Position end Position }

@@ -8,37 +8,41 @@ import (
 	"unicode"
 )
 
-func validateRoot(expr Predicate) error {
+// analyzer owns semantic validation for the filter tree. It stays private so
+// Validate remains the only validation policy exposed by the package.
+type analyzer struct{}
+
+func (a *analyzer) analyze(expr Predicate) error {
 	if isNilExpr(expr) {
 		return fmt.Errorf("filter: expression is nil")
 	}
-	return validateExpr(expr)
+	return a.visit(expr)
 }
 
-func validateExpr(expr Expr) error {
+func (a *analyzer) visit(expr Expr) error {
 	if isNilExpr(expr) {
 		return fmt.Errorf("filter: expression is nil")
 	}
 
 	switch node := expr.(type) {
 	case *Ident:
-		return validateIdent(node)
+		return a.visitIdent(node)
 	case *Literal:
-		return validateLiteral(node)
+		return a.visitLiteral(node)
 	case *ListLiteral:
-		return validateList(node)
+		return a.visitList(node)
 	case *UnaryExpr:
-		return validateUnary(node)
+		return a.visitUnary(node)
 	case *BinaryExpr:
-		return validateBinary(node)
+		return a.visitBinary(node)
 	case *IndexExpr:
-		return validateIndex(node)
+		return a.visitIndex(node)
 	default:
 		return fmt.Errorf("filter: unsupported expression %T at %s", expr, expr.Start())
 	}
 }
 
-func validateIdent(ident *Ident) error {
+func (a *analyzer) visitIdent(ident *Ident) error {
 	if ident == nil {
 		return fmt.Errorf("filter: identifier is nil")
 	}
@@ -68,7 +72,7 @@ func validIdentifier(value string) bool {
 	return !first
 }
 
-func validateLiteral(literal *Literal) error {
+func (a *analyzer) visitLiteral(literal *Literal) error {
 	if literal == nil {
 		return fmt.Errorf("filter: literal is nil")
 	}
@@ -97,7 +101,7 @@ func validateLiteral(literal *Literal) error {
 	}
 }
 
-func validateList(list *ListLiteral) error {
+func (a *analyzer) visitList(list *ListLiteral) error {
 	if list == nil {
 		return fmt.Errorf("filter: list literal is nil")
 	}
@@ -112,7 +116,7 @@ func validateList(list *ListLiteral) error {
 	if first.IsNull() {
 		return fmt.Errorf("filter: list elements cannot be NULL at %s", first.Start())
 	}
-	if err := validateLiteral(first); err != nil {
+	if err := a.visitLiteral(first); err != nil {
 		return err
 	}
 
@@ -126,14 +130,14 @@ func validateList(list *ListLiteral) error {
 				index+1, value.Kind, first.Kind, value.Start(),
 			)
 		}
-		if err := validateLiteral(value); err != nil {
+		if err := a.visitLiteral(value); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateUnary(unary *UnaryExpr) error {
+func (a *analyzer) visitUnary(unary *UnaryExpr) error {
 	if unary == nil {
 		return fmt.Errorf("filter: unary expression is nil")
 	}
@@ -146,10 +150,10 @@ func validateUnary(unary *UnaryExpr) error {
 	if !isPredicate(unary.Right) {
 		return fmt.Errorf("filter: NOT requires a predicate, got %T at %s", unary.Right, unary.Start())
 	}
-	return validateExpr(unary.Right)
+	return a.visit(unary.Right)
 }
 
-func validateBinary(binary *BinaryExpr) error {
+func (a *analyzer) visitBinary(binary *BinaryExpr) error {
 	if binary == nil {
 		return fmt.Errorf("filter: binary expression is nil")
 	}
@@ -162,37 +166,37 @@ func validateBinary(binary *BinaryExpr) error {
 
 	switch {
 	case binary.Op.IsLogicalOperator():
-		return validateLogical(binary)
+		return a.visitLogical(binary)
 	case binary.Op.IsEqualityOperator():
-		return validateComparison(binary, false)
+		return a.visitComparison(binary, false)
 	case binary.Op.IsOrderingOperator():
-		return validateComparison(binary, true)
+		return a.visitComparison(binary, true)
 	case binary.Op == OpIn:
-		return validateMembership(binary)
+		return a.visitMembership(binary)
 	case binary.Op == OpLike:
-		return validateLike(binary)
+		return a.visitLike(binary)
 	case binary.Op == OpIs:
-		return validateNullTest(binary)
+		return a.visitNullTest(binary)
 	default:
 		return fmt.Errorf("filter: invalid binary operator %q at %s", binary.Op, binary.Start())
 	}
 }
 
-func validateLogical(binary *BinaryExpr) error {
+func (a *analyzer) visitLogical(binary *BinaryExpr) error {
 	if !isPredicate(binary.Left) {
 		return fmt.Errorf("filter: %s left operand must be a predicate, got %T at %s", binary.Op.Name(), binary.Left, binary.Start())
 	}
 	if !isPredicate(binary.Right) {
 		return fmt.Errorf("filter: %s right operand must be a predicate, got %T at %s", binary.Op.Name(), binary.Right, binary.Start())
 	}
-	if err := validateExpr(binary.Left); err != nil {
+	if err := a.visit(binary.Left); err != nil {
 		return err
 	}
-	return validateExpr(binary.Right)
+	return a.visit(binary.Right)
 }
 
-func validateComparison(binary *BinaryExpr, numeric bool) error {
-	if err := validateSelector(binary.Left); err != nil {
+func (a *analyzer) visitComparison(binary *BinaryExpr, numeric bool) error {
+	if err := a.visitSelector(binary.Left); err != nil {
 		return fmt.Errorf("filter: %s left operand: %w", binary.Op.Name(), err)
 	}
 	literal, ok := binary.Right.(*Literal)
@@ -205,61 +209,61 @@ func validateComparison(binary *BinaryExpr, numeric bool) error {
 	if numeric && !literal.IsNumber() {
 		return fmt.Errorf("filter: %s right operand must be numeric, got %s at %s", binary.Op.Name(), literal.Kind, literal.Start())
 	}
-	return validateLiteral(literal)
+	return a.visitLiteral(literal)
 }
 
-func validateMembership(binary *BinaryExpr) error {
-	if err := validateSelector(binary.Left); err != nil {
+func (a *analyzer) visitMembership(binary *BinaryExpr) error {
+	if err := a.visitSelector(binary.Left); err != nil {
 		return fmt.Errorf("filter: IN left operand: %w", err)
 	}
 	list, ok := binary.Right.(*ListLiteral)
 	if !ok || list == nil {
 		return fmt.Errorf("filter: IN right operand must be a list, got %T at %s", binary.Right, binary.Start())
 	}
-	return validateList(list)
+	return a.visitList(list)
 }
 
-func validateLike(binary *BinaryExpr) error {
-	if err := validateSelector(binary.Left); err != nil {
+func (a *analyzer) visitLike(binary *BinaryExpr) error {
+	if err := a.visitSelector(binary.Left); err != nil {
 		return fmt.Errorf("filter: LIKE left operand: %w", err)
 	}
 	literal, ok := binary.Right.(*Literal)
 	if !ok || literal == nil || !literal.IsString() {
 		return fmt.Errorf("filter: LIKE right operand must be a string literal, got %T at %s", binary.Right, binary.Start())
 	}
-	return validateLiteral(literal)
+	return a.visitLiteral(literal)
 }
 
-func validateNullTest(binary *BinaryExpr) error {
-	if err := validateSelector(binary.Left); err != nil {
+func (a *analyzer) visitNullTest(binary *BinaryExpr) error {
+	if err := a.visitSelector(binary.Left); err != nil {
 		return fmt.Errorf("filter: IS left operand: %w", err)
 	}
 	literal, ok := binary.Right.(*Literal)
 	if !ok || literal == nil || !literal.IsNull() {
 		return fmt.Errorf("filter: IS right operand must be NULL, got %T at %s", binary.Right, binary.Start())
 	}
-	return validateLiteral(literal)
+	return a.visitLiteral(literal)
 }
 
-func validateSelector(expr Expr) error {
+func (a *analyzer) visitSelector(expr Expr) error {
 	if isNilExpr(expr) {
 		return fmt.Errorf("selector is nil")
 	}
 	switch selector := expr.(type) {
 	case *Ident:
-		return validateIdent(selector)
+		return a.visitIdent(selector)
 	case *IndexExpr:
-		return validateIndex(selector)
+		return a.visitIndex(selector)
 	default:
 		return fmt.Errorf("expected identifier or index, got %T at %s", expr, expr.Start())
 	}
 }
 
-func validateIndex(index *IndexExpr) error {
+func (a *analyzer) visitIndex(index *IndexExpr) error {
 	if index == nil {
 		return fmt.Errorf("filter: index expression is nil")
 	}
-	if err := validateSelector(index.Left); err != nil {
+	if err := a.visitSelector(index.Left); err != nil {
 		return fmt.Errorf("filter: index base: %w", err)
 	}
 	if index.Index == nil {
@@ -268,7 +272,7 @@ func validateIndex(index *IndexExpr) error {
 	if !index.Index.IsString() && !index.Index.IsNumber() {
 		return fmt.Errorf("filter: index must be a string or number, got %s at %s", index.Index.Kind, index.Index.Start())
 	}
-	if err := validateLiteral(index.Index); err != nil {
+	if err := a.visitLiteral(index.Index); err != nil {
 		return err
 	}
 	if index.Index.IsNumber() {

@@ -129,3 +129,40 @@ func TestRequireListLiteralRejectsEmptyList(t *testing.T) {
 		t.Fatal("RequireListLiteral accepted an empty list")
 	}
 }
+
+func TestExactNumberConversions(t *testing.T) {
+	t.Run("exact text", func(t *testing.T) {
+		literal := filter.NewLiteral(uint64(math.MaxUint64))
+		actual, err := filtercompile.NumberText(literal)
+		if err != nil || actual != "18446744073709551615" {
+			t.Fatalf("NumberText() = %q, %v", actual, err)
+		}
+	})
+
+	t.Run("int64 rejects fraction and overflow", func(t *testing.T) {
+		if _, err := filtercompile.NumberToInt64(filter.NewLiteral(1.5)); err == nil {
+			t.Fatal("NumberToInt64 accepted a fraction")
+		}
+		if _, err := filtercompile.NumberToInt64(filter.NewLiteral(uint64(math.MaxUint64))); err == nil {
+			t.Fatal("NumberToInt64 accepted uint64 overflow")
+		}
+	})
+
+	t.Run("float64 rejects rounded integer", func(t *testing.T) {
+		if _, err := filtercompile.NumberToFloat64(filter.NewLiteral(uint64(1<<53 + 1))); err == nil {
+			t.Fatal("NumberToFloat64 accepted a rounded integer")
+		}
+		if actual, err := filtercompile.NumberToFloat64(filter.NewLiteral(uint64(1 << 54))); err != nil || actual != 1<<54 {
+			t.Fatalf("NumberToFloat64(exact power of two) = %v, %v", actual, err)
+		}
+	})
+
+	t.Run("float32 rejects rounded integer", func(t *testing.T) {
+		if _, err := filtercompile.NumberToFloat32(filter.NewLiteral(1<<24 + 1)); err == nil {
+			t.Fatal("NumberToFloat32 accepted a rounded integer")
+		}
+		if actual, err := filtercompile.NumberToFloat32(filter.NewLiteral(1.5)); err != nil || actual != 1.5 {
+			t.Fatalf("NumberToFloat32(1.5) = %v, %v", actual, err)
+		}
+	})
+}

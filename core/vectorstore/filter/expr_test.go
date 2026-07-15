@@ -28,17 +28,17 @@ func TestConstructorsBuildStableSemanticNodes(t *testing.T) {
 	}
 }
 
-func TestParseReturnsValidatedPublicTree(t *testing.T) {
+func TestParseReturnsValidatedCanonicalTree(t *testing.T) {
 	expr, err := filter.Parse(`not (not (year >= 2020))`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer, ok := expr.(*filter.UnaryExpr)
-	if !ok || outer.Op != filter.OpNot {
-		t.Fatalf("parsed = %T %#v, want outer NOT", expr, expr)
+	binary, ok := expr.(*filter.BinaryExpr)
+	if !ok || binary.Op != filter.OpGreaterEqual {
+		t.Fatalf("parsed = %T %#v, want optimized comparison", expr, expr)
 	}
-	if outer.Start().Line != 1 || outer.Start().Column == 0 {
-		t.Fatalf("parsed position = %v, want source position", outer.Start())
+	if binary.Start().Line != 1 || binary.Start().Column == 0 {
+		t.Fatalf("parsed position = %v, want source position", binary.Start())
 	}
 }
 

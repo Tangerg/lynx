@@ -12,12 +12,12 @@ func Parse(input string) (Predicate, error) {
 	if err := Validate(expr); err != nil {
 		return nil, err
 	}
-	return expr, nil
+	return optimize(expr)
 }
 
 // Validate checks a programmatically constructed expression for invalid
 // operators, operands, identifiers, and heterogeneous/empty lists. [Parse]
 // validates parsed input automatically.
 func Validate(expr Predicate) error {
-	return validateRoot(expr)
+	return (&analyzer{}).analyze(expr)
 }

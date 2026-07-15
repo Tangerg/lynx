@@ -28,3 +28,20 @@ func TestVisitor_Conformance(t *testing.T) {
 		},
 	)
 }
+
+func TestVisitor_RejectsLossyNumbers(t *testing.T) {
+	tests := map[string]filter.Predicate{
+		"integer outside int": filter.EQ("id", uint64(^uint(0))),
+		"mixed list rounds integer": filter.In("id", []*filter.Literal{
+			filter.NewLiteral(1<<24 + 1),
+			filter.NewLiteral(1.5),
+		}),
+	}
+	for name, predicate := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := chroma.ToFilter(predicate); err == nil {
+				t.Fatal("Chroma silently accepted a lossy number")
+			}
+		})
+	}
+}

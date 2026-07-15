@@ -159,54 +159,8 @@ func columnName(expr filter.Expr) (string, error) {
 // listToTypedSlice promotes the literal list to a Go slice typed by
 // the first element. gocql binds typed slices to `IN ?` parameters.
 func listToTypedSlice(list *filter.ListLiteral) (any, error) {
-	first := list.Values[0]
-	switch {
-	case first.IsString():
-		out := make([]string, 0, len(list.Values))
-		for _, lit := range list.Values {
-			s, err := lit.AsString()
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, s)
-		}
-		return out, nil
-	case first.IsNumber():
-		// Use float64 to preserve fractional literals; gocql will
-		// down-cast as needed via the column's reported type.
-		out := make([]float64, 0, len(list.Values))
-		allInt := true
-		for _, lit := range list.Values {
-			n, err := lit.AsNumber()
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, n)
-			if float64(int64(n)) != n {
-				allInt = false
-			}
-		}
-		if allInt {
-			ints := make([]int64, 0, len(out))
-			for _, n := range out {
-				ints = append(ints, int64(n))
-			}
-			return ints, nil
-		}
-		return out, nil
-	case first.IsBool():
-		out := make([]bool, 0, len(list.Values))
-		for _, lit := range list.Values {
-			b, err := lit.AsBool()
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, b)
-		}
-		return out, nil
-	default:
-		return nil, fmt.Errorf("unsupported list element kind %s", first.Kind)
-	}
+	values, _, err := filtercompile.ConvertListLiteral(list)
+	return values, err
 }
 
 func cqlOpFor(kind filter.Operator) (string, error) {

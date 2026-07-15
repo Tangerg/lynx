@@ -82,3 +82,17 @@ func TestVisitor_IsNotNull(t *testing.T) {
 		t.Fatalf("expected nested IsNull condition on key %q, got %q", "author", key)
 	}
 }
+
+func TestVisitor_RejectsFractionalMatchValues(t *testing.T) {
+	for name, predicate := range map[string]filter.Predicate{
+		"equality":   filter.EQ("score", 1.9),
+		"membership": filter.In("score", []float64{1, 1.9}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			visitor := qdrant.NewVisitor()
+			if err := visitor.Visit(predicate); err == nil {
+				t.Fatal("Qdrant silently accepted a fractional integer match")
+			}
+		})
+	}
+}

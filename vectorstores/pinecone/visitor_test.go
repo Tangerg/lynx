@@ -27,3 +27,10 @@ func TestVisitor_Conformance(t *testing.T) {
 		},
 	)
 }
+
+func TestVisitor_RejectsIntegerThatStructPBCannotRepresent(t *testing.T) {
+	_, err := pinecone.ToFilter(filter.EQ("id", uint64(1<<53+1)))
+	if err == nil {
+		t.Fatal("Pinecone silently rounded a large integer")
+	}
+}

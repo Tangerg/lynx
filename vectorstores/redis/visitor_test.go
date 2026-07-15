@@ -47,3 +47,10 @@ func TestVisitor_Conformance(t *testing.T) {
 		},
 	)
 }
+
+func TestVisitor_RejectsIntegerThatRediSearchCannotRepresentExactly(t *testing.T) {
+	visitor := redis.NewVisitor(map[string]redis.MetadataFieldType{"id": redis.FieldNumeric})
+	if err := visitor.Visit(filter.EQ("id", uint64(1<<53+1))); err == nil {
+		t.Fatal("Redis silently rounded a large integer")
+	}
+}

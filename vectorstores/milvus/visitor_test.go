@@ -1,6 +1,7 @@
 package milvus_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
@@ -17,4 +18,14 @@ func TestVisitor_Conformance(t *testing.T) {
 		v := milvus.NewVisitor()
 		return v.Visit(expr)
 	})
+}
+
+func TestVisitor_PreservesLargeIntegerText(t *testing.T) {
+	actual, err := milvus.ToFilter(filter.EQ("id", uint64(math.MaxUint64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if actual != "id == 18446744073709551615" {
+		t.Fatalf("filter = %q", actual)
+	}
 }
