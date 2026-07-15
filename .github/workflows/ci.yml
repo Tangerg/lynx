@@ -32,6 +32,7 @@ jobs:
           - documentreaders/html
           - documentreaders/markdown
           - documentreaders/pdf
+          - embeddingclient
           - mcp
           - models
           - otel

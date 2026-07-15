@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/vectorstores"
 )
 
@@ -145,7 +146,7 @@ type Store struct {
 	contentField     string
 	metadataField    string
 	embeddingModel   embedding.Model
-	embeddingClient  *embedding.Client
+	embeddingClient  *embeddingclient.Client
 	documentBatcher  vectorstores.Batcher
 	dimensions       int
 	similarity       SimilarityFunction
@@ -158,7 +159,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 		return nil, err
 	}
 
-	embeddingClient, err := embedding.NewClient(config.EmbeddingModel)
+	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
 		return nil, fmt.Errorf("elasticsearch: failed to create embedding client: %w", err)
 	}

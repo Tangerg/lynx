@@ -8,9 +8,9 @@ import (
 	"sync"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -18,7 +18,7 @@ import (
 type StoreConfig struct {
 	// EmbeddingClient embeds documents on Add and queries on
 	// Search. Required.
-	EmbeddingClient *embedding.Client
+	EmbeddingClient *embeddingclient.Client
 
 	// Similarity is the function used to score retrieved documents
 	// against the query embedding. Optional; defaults to
@@ -58,7 +58,7 @@ var (
 // Store is the in-memory the vectorstore capability interfaces implementation.
 // Construct with [NewStore].
 type Store struct {
-	embedder   *embedding.Client
+	embedder   *embeddingclient.Client
 	similarity Similarity
 
 	mu      sync.RWMutex
@@ -109,7 +109,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	}
 
 	var embeddings [][]float64
-	embeddings, _, err = s.embedder.EmbedTexts(ctx, texts)
+	embeddings, err = s.embedder.EmbedTexts(ctx, texts)
 	if err != nil {
 		return fmt.Errorf("inmemory.Store.Add: embed: %w", err)
 	}
@@ -138,7 +138,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (out 
 	defer func() { tracing.RecordSearchResult(span, err, len(out)) }()
 
 	var query []float64
-	query, _, err = s.embedder.EmbedText(ctx, req.Query)
+	query, err = s.embedder.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("inmemory.Store.Search: embed query: %w", err)
 	}

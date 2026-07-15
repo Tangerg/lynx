@@ -2,19 +2,11 @@ package embedding_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/metadata"
 )
-
-type pointerModel struct{}
-
-func (*pointerModel) Call(context.Context, *embedding.Request) (*embedding.Response, error) {
-	return nil, nil
-}
 
 func responseFor(texts []string) *embedding.Response {
 	results := make([]*embedding.Result, len(texts))
@@ -23,64 +15,6 @@ func responseFor(texts []string) *embedding.Response {
 	}
 	response, _ := embedding.NewResponse(results, &embedding.ResponseMetadata{Model: "fake"})
 	return response
-}
-
-func TestModelAndClient(t *testing.T) {
-	var captured *embedding.Request
-	model := embedding.ModelFunc(func(_ context.Context, request *embedding.Request) (*embedding.Response, error) {
-		captured = request
-		return responseFor(request.Texts), nil
-	})
-	client, err := embedding.NewClient(model)
-	if err != nil {
-		t.Fatal(err)
-	}
-	vectors, response, err := client.EmbedTexts(t.Context(), []string{"a", "b"})
-	if err != nil || response == nil || len(vectors) != 2 || len(captured.Texts) != 2 {
-		t.Fatalf("EmbedTexts() = %#v, %#v, %v", vectors, response, err)
-	}
-	vectors[0][0] = 99
-	if response.Results[0].Embedding[0] == 99 {
-		t.Fatal("returned vectors alias the provider response")
-	}
-
-	vector, _, err := client.EmbedText(t.Context(), "one")
-	if err != nil || len(vector) != 4 {
-		t.Fatalf("EmbedText() = %#v, %v", vector, err)
-	}
-	if _, _, err := client.EmbedDocuments(t.Context(), []*document.Document{{Text: "doc"}}); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestClientRejectsInvalidBoundaries(t *testing.T) {
-	if _, err := embedding.NewClient(nil); err == nil {
-		t.Fatal("NewClient accepted nil")
-	}
-	var typedNil *pointerModel
-	if _, err := embedding.NewClient(typedNil); err == nil {
-		t.Fatal("NewClient accepted typed nil")
-	}
-	client, _ := embedding.NewClient(embedding.ModelFunc(func(context.Context, *embedding.Request) (*embedding.Response, error) {
-		return nil, nil
-	}))
-	if _, err := client.Call(t.Context(), nil); err == nil {
-		t.Fatal("Call accepted nil request")
-	}
-	if _, _, err := client.EmbedDocuments(t.Context(), []*document.Document{nil}); err == nil {
-		t.Fatal("EmbedDocuments accepted nil document")
-	}
-	if _, _, err := client.EmbedText(t.Context(), "x"); err == nil {
-		t.Fatal("EmbedText accepted nil response")
-	}
-
-	want := errors.New("boom")
-	failed, _ := embedding.NewClient(embedding.ModelFunc(func(context.Context, *embedding.Request) (*embedding.Response, error) {
-		return nil, want
-	}))
-	if _, _, err := failed.EmbedText(t.Context(), "x"); !errors.Is(err, want) {
-		t.Fatalf("error = %v, want %v", err, want)
-	}
 }
 
 func TestResolveDimensions(t *testing.T) {
@@ -120,6 +54,9 @@ func TestOptionsAndRequest(t *testing.T) {
 	}
 	if _, err := embedding.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest accepted empty input")
+	}
+	if _, err := embedding.NewRequest([]string{"valid", ""}); err == nil {
+		t.Fatal("NewRequest accepted an empty text entry")
 	}
 	if err := (*embedding.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")

@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
@@ -126,7 +127,7 @@ type Store struct {
 	metadataColumn  string
 	embeddingColumn string
 	embeddingModel  embedding.Model
-	embeddingClient *embedding.Client
+	embeddingClient *embeddingclient.Client
 	documentBatcher vectorstores.Batcher
 	dimensions      int
 	distanceMetric  DistanceMetric
@@ -137,7 +138,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	embeddingClient, err := embedding.NewClient(config.EmbeddingModel)
+	embeddingClient, err := embeddingclient.New(config.EmbeddingModel)
 	if err != nil {
 		return nil, fmt.Errorf("tidb: failed to create embedding client: %w", err)
 	}
@@ -247,7 +248,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	)
 
 	for _, docs := range batchedDocs {
-		vectors, _, err := s.embeddingClient.EmbedDocuments(ctx, docs)
+		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
 		if err != nil {
 			return fmt.Errorf("tidb: failed to generate embeddings: %w", err)
 		}
@@ -292,7 +293,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
 
 	var vector []float64
-	vector, _, err = s.embeddingClient.EmbedText(ctx, req.Query)
+	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("tidb: failed to embed query: %w", err)
 	}

@@ -27,16 +27,23 @@ func ResolveDimensions(ctx context.Context, model Model) (int, error) {
 // It deliberately does not cache: callers that need caching own its lifetime,
 // key, invalidation policy, and errors.
 func ProbeDimensions(ctx context.Context, model Model) (int, error) {
-	client, err := NewClient(model)
-	if err != nil {
-		return 0, err
+	if model == nil {
+		return 0, errors.New("embedding.ProbeDimensions: model must not be nil")
 	}
-	vector, _, err := client.EmbedText(ctx, "dimension probe")
+	request, err := NewRequest([]string{"dimension probe"})
 	if err != nil {
 		return 0, fmt.Errorf("embedding.ProbeDimensions: %w", err)
 	}
-	if len(vector) == 0 {
+	response, err := model.Call(ctx, request)
+	if err != nil {
+		return 0, fmt.Errorf("embedding.ProbeDimensions: %w", err)
+	}
+	if response == nil {
+		return 0, errors.New("embedding.ProbeDimensions: model returned a nil response")
+	}
+	result := response.First()
+	if result == nil || len(result.Embedding) == 0 {
 		return 0, errors.New("embedding.ProbeDimensions: model returned an empty vector")
 	}
-	return len(vector), nil
+	return len(result.Embedding), nil
 }

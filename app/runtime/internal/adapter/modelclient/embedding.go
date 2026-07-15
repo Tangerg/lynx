@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/lynx/embeddingclient"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
@@ -50,7 +50,7 @@ func (r *EmbeddingResolver) Resolve(ctx context.Context, providerID, model strin
 	if err != nil {
 		return nil, err
 	}
-	client, err := embedding.NewClient(m)
+	client, err := embeddingclient.New(m)
 	if err != nil {
 		return nil, err
 	}
@@ -59,17 +59,17 @@ func (r *EmbeddingResolver) Resolve(ctx context.Context, providerID, model strin
 	return e, nil
 }
 
-// embedder adapts an embedding.Client to [codebaseindex.Embedder], converting
+// embedder adapts an embeddingclient.Client to [codebaseindex.Embedder], converting
 // the float64 vectors to the float32 the index stores.
 type embedder struct {
 	id     string
-	client *embedding.Client
+	client *embeddingclient.Client
 }
 
 func (e *embedder) ID() string { return e.id }
 
 func (e *embedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
-	vecs, _, err := e.client.EmbedTexts(ctx, texts)
+	vecs, err := e.client.EmbedTexts(ctx, texts)
 	if err != nil {
 		return nil, err
 	}

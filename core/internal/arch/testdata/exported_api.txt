@@ -92,10 +92,6 @@ document: type Reader interface { Read(ctx context.Context) ([]*Document, error)
 document: type Writer interface { Write(ctx context.Context, docs []*Document) error }
 embedding: const ( EncodingFormatFloat EncodingFormat = "float" EncodingFormatBase64 EncodingFormat = "base64" )
 embedding: const ( Text ModalityType = "text" Image ModalityType = "image" Audio ModalityType = "audio" Video ModalityType = "video" )
-embedding: func (c *Client) Call(ctx context.Context, request *Request) (*Response, error)
-embedding: func (c *Client) EmbedDocuments(ctx context.Context, docs []*document.Document) ([][]float64, *Response, error)
-embedding: func (c *Client) EmbedText(ctx context.Context, text string) ([]float64, *Response, error)
-embedding: func (c *Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, *Response, error)
 embedding: func (e EncodingFormat) Valid() bool
 embedding: func (f DimensionFunc) Dimensions(ctx context.Context) (int, error)
 embedding: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
@@ -107,14 +103,12 @@ embedding: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 embedding: func (o *Options) Set(key string, value any) error
 embedding: func (r *Request) Validate() error
 embedding: func (r *Response) First() *Result
-embedding: func NewClient(model Model) (*Client, error)
 embedding: func NewOptions(model string) (*Options, error)
 embedding: func NewRequest(texts []string) (*Request, error)
 embedding: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
 embedding: func NewResult(embedding []float64, metadata *ResultMetadata) (*Result, error)
 embedding: func ProbeDimensions(ctx context.Context, model Model) (int, error)
 embedding: func ResolveDimensions(ctx context.Context, model Model) (int, error)
-embedding: type Client struct { model Model }
 embedding: type DimensionFunc func(context.Context) (int, error)
 embedding: type Dimensioner interface { Dimensions(context.Context) (int, error) }
 embedding: type EncodingFormat string

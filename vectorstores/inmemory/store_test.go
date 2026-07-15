@@ -11,6 +11,7 @@ import (
 	coremetadata "github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/vectorstores/inmemory"
 )
 
@@ -46,7 +47,7 @@ func vectorFor(text string) []float64 {
 
 func newStore(t *testing.T) *inmemory.Store {
 	t.Helper()
-	client, err := embedding.NewClient(fakeEmbeddingModel{})
+	client, err := embeddingclient.New(fakeEmbeddingModel{})
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}

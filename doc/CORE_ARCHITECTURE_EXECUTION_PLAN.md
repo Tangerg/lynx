@@ -846,9 +846,9 @@ flowchart LR
 目标：把重构后的 Core 边界转化为可长期维护的 v1 库契约；`chatclient` 等上层模块只验证兼容性，不在本计划中冻结为 v1。
 
 - [x] **P7-01 建立 exported API diff 守卫**（完成：2026-07-14）
-  - `core/internal/arch/testdata/exported_api.txt` 冻结当前 11 个公共 package 的 347 条导出声明/方法签名；function body 与注释不进入基线，包含 exported 名称的 const/var 声明组整体记录以保留 iota 顺序和隐式类型变化。
+  - `core/internal/arch/testdata/exported_api.txt` 经 tag 前 ADR-019 精修后冻结当前 11 个公共 package 的 341 条导出声明/方法签名；function body 与注释不进入基线，包含 exported 名称的 const/var 声明组整体记录以保留 iota 顺序和隐式类型变化。
   - 普通 Core test 默认比较基线并输出增删 delta；只有完成 API 评审、迁移/release notes 与版本裁决后才允许显式 `-update-api` 重建。
-  - CI workspace matrix 修正为实际 20 module，并为 Core 增加不可忽略的 blocking API guard step；本地 Core test/vet/lint 与独立 guard 全绿。
+  - CI workspace matrix 随后续职责外移更新为实际 21 module，并为 Core 增加不可忽略的 blocking API guard step；本地 Core test/vet/lint 与独立 guard 全绿。
   - 证据：`395913f00`。
 - [x] **P7-02 建立 provider/vectorstore conformance 发布门禁**（完成：2026-07-14）
   - CI 为 Models 增加独立 blocking gate：30 个公开 Chat provider/facade 构造器、共享映射/行为 suite，以及 Anthropic、Bedrock、Google、Ollama、OpenAI 五类参考协议实现均在 race 下执行，不受 workspace 普通测试的 advisory 设置影响。
@@ -873,12 +873,12 @@ flowchart LR
   - 升级后 `FAST=1 scripts/check.sh build vet test lint` 对 20 module 的 80/80 项检查全绿，Core 全量 race 复验通过；证据：`e5c94d25e`。
 - [x] **P7-06 编写 Core 破坏性变更迁移说明、dependent module 发布顺序和 release notes**（完成：2026-07-15）
   - `CORE_V1_MIGRATION.md` 按旧路径、职责、调用语义和持久化数据四个维度给出直接切换指南；明确旧类型只能由升级前二进制一次性导出转换，新库不增加 alias、shim、双读或旧 decoder。
-  - `CORE_V1_RELEASE_NOTES.md` 记录 11 个 v1 公共 package、347 条冻结 API、主要破坏面、wire 承诺、自动门禁、Go 1.26.5 与 Ollama 无修复版本风险。
-  - `CORE_V1_RELEASE_RUNBOOK.md` 从当前 `go.mod` 重建真实 module DAG，规定 Core/基础模块、直接 adapter、组合模块、协议桥、Agent、App 六个发布波次，明确子 module tag 为 `core/v1.0.0` 且 P7-07 前不得创建。
+  - `CORE_V1_RELEASE_NOTES.md` 记录 11 个 v1 公共 package、341 条冻结 API、主要破坏面、wire 承诺、自动门禁、Go 1.26.5 与 Ollama 无修复版本风险。
+  - `CORE_V1_RELEASE_RUNBOOK.md` 从当前 `go.mod` 重建真实 module DAG，规定 Core/基础模块、直接 adapter、组合模块、协议桥、Agent、App 六个发布波次，并将 `embeddingclient` 置于 Core 之后、VectorStores 之前；子 module tag 为 `core/v1.0.0` 且 P7-07 前不得创建。
   - 三份文档加入文档地图，Core API/wire/docs/dependency CI 等价架构门禁通过；证据：`0b7c70ec5`。
 - [x] **P7-07 完成最终架构审查并冻结 Core v1 契约**（完成：2026-07-15）
   - 新增 `CORE_V1_ARCHITECTURE_REVIEW.md`，逐项审查职责边界、协议安全、最小接口、provider/backend 扩展、无兼容债、依赖方向、安全裁决与 SemVer 冻结规则；结论为通过，`core/v1.0.0` tag 尚未创建。
-  - 冻结规模为 11 个公共 package、347 条 exported API、49 项 JSON DTO、17 个 wire root 和 487 行 golden；Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
+  - 经 tag 前 ADR-017 至 ADR-019 精修，冻结规模为 11 个公共 package、341 条 exported API、49 项 JSON DTO、17 个 wire root 和 487 行 golden；Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
   - `783df3ee9`、`229e06c8e`、`04a37a9fe` 完成 tag 前协议收口与远端 pseudo-version DAG 闭合；20/20 module 在 `GOWORK=off` 下独立 test/vet/tidy-diff 通过且不再解析旧依赖基线。
   - `FAST=1 scripts/check.sh build vet test lint race` 的 100/100 项、`scripts/check.sh vuln` 的 20/20 module、逐包 coverage 和 provider/27 backend conformance 全部通过；P7-05 的 7 个五分钟 fuzz target 累计 609,846,214 次且无失败语料。本轮另完成 Metadata 5 分钟复验；按维护者要求不再重复整组长时间 fuzz。
 
@@ -914,7 +914,7 @@ flowchart LR
 - 当前阶段：全部完成。
 - 下一任务：无；正式 tag/协调发布按 `CORE_V1_RELEASE_RUNBOOK.md` 单独执行。
 - 当前阻塞：无。
-- 最近完成：P7-07；最终架构审查通过，Core v1 契约冻结，任务计数 60/60。
+- 最近完成：tag 前 Core 语义与模块边界精修；`embedding.Client` 外移且不重建框架表面，任务计数仍为 60/60。
 
 ### 10.3 进度更新规则
 
@@ -1138,7 +1138,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 - 日期：2026-07-14
 - 状态：已采纳
-- 决策：`embedding.Model` 只包含 `Call`；已知维度由独立 `Dimensioner` 以 `(int, error)` 返回，未知维度通过不缓存的 `ResolveDimensions`/`ProbeDimensions` 显式探测。公共 `Client` 只提供无状态批量便利方法，不拥有 provider defaults、middleware、全局 cache 或身份元数据。
+- 决策：`embedding.Model` 只包含 `Call`；已知维度由独立 `Dimensioner` 以 `(int, error)` 返回，未知维度通过不缓存的 `ResolveDimensions`/`ProbeDimensions` 显式探测。批量向量便利方法经 ADR-019 外移到 `embeddingclient`，Core 不拥有 Client、provider defaults、middleware、全局 cache 或身份元数据。
 - 原因：输出维度并非每个 provider 都能无 I/O 得知，旧 `int64`/0 返回值会吞掉网络和协议错误；全局 cache 又无法正确表达模型、凭证、endpoint 和生命周期。能力拆分和调用方缓存所有权使错误、成本与失效策略都可见。
 
 ### ADR-012：其余模态只保留真实调用能力，不保留 Core Client framework
@@ -1173,8 +1173,8 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 - 日期：2026-07-15
 - 状态：已采纳（最终架构审查）
-- 决策：冻结 11 个公共 package、347 条 exported API、49 项 JSON DTO、17 个代表性 wire root 与 487 行 golden；序列化 DTO 禁止任意 `any`/`interface{}` 字段、Request `Params` 与原始 SDK payload，扩展值必须经 `metadata.Map` 写入时编码，所有 modality 请求在 provider 边界前验证。Core 保持标准库-only，不恢复旧路径、旧 wire、alias、bridge、shim、兼容字段或双读写。
-- 原因：这组契约已经由真实 provider/backend、20 个独立 module 与完整 release gate 证明可实现、可消费、可序列化；继续保留 Spring AI 移植期动态参数袋或运行时职责只会扩大稳定 API 和依赖半径。显式 baseline 与 SemVer 裁决比兼容壳更适合 Go 库长期演进。
+- 决策：经 ADR-017 至 ADR-019 修订后冻结 11 个公共 package、341 条 exported API、49 项 JSON DTO、17 个代表性 wire root 与 487 行 golden；序列化 DTO 禁止任意 `any`/`interface{}` 字段、Request `Params` 与原始 SDK payload，扩展值必须经 `metadata.Map` 写入时编码，所有 modality 请求在 provider 边界前验证。Core 保持标准库-only，不恢复旧路径、旧 wire、alias、bridge、shim、兼容字段或双读写。
+- 原因：这组契约已经由真实 provider/backend、21 个独立 module 与完整 release gate 证明可实现、可消费、可序列化；继续保留 Spring AI 移植期动态参数袋或运行时职责只会扩大稳定 API 和依赖半径。显式 baseline 与 SemVer 裁决比兼容壳更适合 Go 库长期演进。
 
 ### ADR-017：Metadata 合并由值对象 receiver 统一承担
 
@@ -1189,6 +1189,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 状态：已采纳（v1 tag 前破坏性精修）
 - 决策：Embedding/Image/Moderation/Speech/Transcription 删除包级 `MergeOptions(base, ...)`，统一为 `base.Merged(...)`；方法返回深拷贝，不修改 receiver。Embedding/Moderation 的首结果方法从 `Result` 改为 `First`，与 Chat 多 choice 响应一致。Speech 将 `ResponseFormat/response_format` 改为 `OutputFormat/output_format`，将 `Speech/speech` 改为 `Audio/audio`。全部 workspace provider 在同一批次直接迁移，不保留 wrapper、旧字段或双 wire。
 - 原因：Options 是合并行为的自然所有者，`Merged` 比命令式 `Merge` 更准确表达不可变结果；`Result()` 与同名类型产生歧义，`First()` 明确多结果集合语义；Speech 的旧词汇分别混淆“响应形态”和“领域名称”，无法准确表达音频容器与字节载荷。该批次替换十条公开声明但净数量仍为 347，wire inventory/root/行数仍为 49/17/487，仅 Speech 两个字段的契约内容改变。
+
+### ADR-019：Embedding 向量便利层属于独立 Client module
+
+- 日期：2026-07-15
+- 状态：已采纳（v1 tag 前破坏性精修）
+- 决策：从 `core/embedding` 删除 `Client`、`NewClient` 及其五个公开方法，把真实生产消费者需要的 `EmbedText`、`EmbedTexts`、`EmbedDocuments` 收敛到独立 `embeddingclient` module。新 Client 只返回深拷贝向量，不复制 `Model.Call`，也不附带无人消费的 `*embedding.Response`；需要 response metadata/usage 的调用方直接使用 Core Model。23 个 VectorStore backend 与 App Runtime 同批直接迁移，Core 增加架构守卫禁止 Client 回流。
+- 原因：`core/embedding.Client` 是五个模态完成最小 SPI 化后唯一残留的运行时便利对象，与“Core 是协议窄腰而非 Client framework”的边界冲突。49 个生产调用点全部丢弃原始 Response，证明三返回值和重复 Call 入口不是有效需求；把便利层独立发布可让 Core 协议稳定演进，也让向量工作流按真实消费面保持三个方法。Core API baseline 因此从 347 收缩为 341，wire 仍为 49/17/487，workspace module 从 20 增至 21。
 
 ---
 
@@ -1212,6 +1219,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 完成 Embedding 便利层职责外移：Core 删除最后一个 Client 并以架构守卫锁定协议边界，新增三方法 `embeddingclient` module，迁移 23 个 VectorStore backend 与 App Runtime；API 收缩为 341，wire 不变 | Codex |
 | 2026-07-15 | 完成五个模态 Options receiver 化、Embedding/Moderation `First` 统一与 Speech `OutputFormat/Audio` 语义收口；33 个 provider 调用点直接迁移，API 数量保持 347、wire 规模保持 49/17/487 | Codex |
 | 2026-07-15 | 完成 Core receiver/语义精修：Metadata 合并收敛为值对象行为，Chat 私有克隆归回 Response receiver，Speech 错误前缀与包名一致；API 基线更新为 347 条且 wire 不变 | Codex |
 | 2026-07-15 | 完成 tag 前协议词汇、API/wire、coverage 与文档收口，以两跳提交重建远端 module DAG；最终确定性门禁全绿，按维护者要求不重复整组长时间 fuzz | Codex |
