@@ -13,24 +13,13 @@ import (
 // capability layer and delivery share these DTOs; the concrete MCP adapter maps
 // them to its own dial/session types at the infra boundary.
 
-// LiveTransport names the transport of a live MCP connection at the capability
-// boundary. It is the dial-time projection of the persisted [Transport]; a
-// distinct enum because the persisted form ("streamable-http") and the dial form
-// ("http") diverge — unifying them is a domain-reshape left to a later batch.
-type LiveTransport string
-
-const (
-	LiveTransportHTTP  LiveTransport = "http"
-	LiveTransportStdio LiveTransport = "stdio"
-)
-
 // LiveConfig is the live MCP server descriptor the capability layer hands to the
 // engine's MCP control port to open a connection. [ConfigFromServer] projects a
 // persisted registry [Server] into it; the concrete MCP adapter maps it to its
 // own dial config at the infra boundary.
 type LiveConfig struct {
 	Name          string
-	Transport     LiveTransport
+	Transport     Transport
 	Endpoint      string
 	Command       string
 	Args          []string
@@ -80,15 +69,13 @@ func ConfigsForEnabledServers(servers []Server) []LiveConfig {
 // Env is flattened from the registry's KEY→value map to the "KEY=value" slice
 // the stdio adapter consumes.
 func ConfigFromServer(s Server) LiveConfig {
-	cfg := LiveConfig{Name: s.Name, Timeout: s.Timeout}
+	cfg := LiveConfig{Name: s.Name, Transport: s.Transport, Timeout: s.Timeout}
 	switch s.Transport {
 	case TransportStreamableHTTP:
-		cfg.Transport = LiveTransportHTTP
 		cfg.Endpoint = s.URL
 		cfg.Authorization = s.Authorization
 		cfg.Headers = maps.Clone(s.Headers)
 	case TransportStdio:
-		cfg.Transport = LiveTransportStdio
 		cfg.Command = s.Command
 		cfg.Args = slices.Clone(s.Args)
 		cfg.Env = envMapToSlice(s.SafeEnv())

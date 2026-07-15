@@ -19,15 +19,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/secret"
 )
 
-// Transport names the connection mode in the standard `mcpServers` vocabulary
-// (the ubiquitous config map every client pastes — Cline / Cursor / Claude
-// Desktop). The values match that format verbatim so a config copies straight
-// in; lyra supports the two transports the mcp module dials: a local subprocess
-// (stdio) and Streamable HTTP. Two-endpoint SSE is not supported (the
-// import maps an "sse"/"http" entry onto streamableHttp).
+// Transport names an MCP server connection mode using the standard
+// `mcpServers` vocabulary. It is shared by persisted and live domain values;
+// only the infrastructure adapter maps it to SDK-specific transport values.
+type Transport string
+
 const (
-	TransportStdio          = "stdio"
-	TransportStreamableHTTP = "streamableHttp"
+	TransportStdio          Transport = "stdio"
+	TransportStreamableHTTP Transport = "streamableHttp"
 )
 
 // Server is one registry entry: an MCP server descriptor plus its enablement
@@ -38,7 +37,7 @@ type Server struct {
 	Name string
 
 	// Transport is [TransportStdio] or [TransportStreamableHTTP]. Required.
-	Transport string
+	Transport Transport
 
 	// Enabled gates whether the server is dialed. A disabled server stays in
 	// the registry (so the UI can list + re-enable it) but contributes no tools.

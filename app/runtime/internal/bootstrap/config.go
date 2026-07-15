@@ -79,14 +79,14 @@ func MCPServers(in []config.MCPServerConfig) []mcpserversvc.Server {
 	return out
 }
 
-func runtimeMCPTransport(transport string) string {
+func runtimeMCPTransport(transport string) mcpserversvc.Transport {
 	switch transport {
 	case config.MCPTransportStreamableHTTP:
 		return mcpserversvc.TransportStreamableHTTP
 	case config.MCPTransportStdio:
 		return mcpserversvc.TransportStdio
 	default:
-		return transport
+		return mcpserversvc.Transport(transport)
 	}
 }
 

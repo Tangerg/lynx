@@ -22,7 +22,7 @@ func (s *Server) mcpServerFromRequest(ctx context.Context, in protocol.Configure
 	}
 	return mcpserver.Server{
 		Name:             in.Name,
-		Transport:        in.Transport,
+		Transport:        mcpserver.Transport(in.Transport),
 		Enabled:          in.Enabled,
 		Description:      in.Description,
 		URL:              in.URL,

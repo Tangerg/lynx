@@ -78,7 +78,7 @@ func (s *MCPServerStore) Configure(ctx context.Context, srv mcpserver.Server) er
 		    dir = excluded.dir, timeout = excluded.timeout,
 		    disabled_tools = excluded.disabled_tools,
 		    auto_approve_tools = excluded.auto_approve_tools`,
-		srv.Name, srv.Transport, srv.Enabled, srv.Description, srv.URL, srv.Authorization,
+		srv.Name, string(srv.Transport), srv.Enabled, srv.Description, srv.URL, srv.Authorization,
 		encodeStringMap(srv.Headers), srv.Command, encodeStrings(srv.Args),
 		encodeStringMap(srv.Env), srv.Dir, int64(srv.Timeout),
 		encodeStrings(srv.DisabledTools), encodeStrings(srv.AutoApproveTools))
@@ -108,11 +108,12 @@ func (s *MCPServerStore) SetEnabled(ctx context.Context, name string, enabled bo
 // nanosecond timeout. Column order must match [mcpColumns].
 func scanMCPServer(scan func(...any) error) (mcpserver.Server, error) {
 	var (
-		srv                                 mcpserver.Server
-		headers, args, env, disabled, autoA string
-		timeoutNS                           int64
+		srv                           mcpserver.Server
+		transport, headers, args, env string
+		disabled, autoA               string
+		timeoutNS                     int64
 	)
-	if err := scan(&srv.Name, &srv.Transport, &srv.Enabled, &srv.Description, &srv.URL,
+	if err := scan(&srv.Name, &transport, &srv.Enabled, &srv.Description, &srv.URL,
 		&srv.Authorization, &headers, &srv.Command, &args, &env, &srv.Dir, &timeoutNS,
 		&disabled, &autoA); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -120,6 +121,7 @@ func scanMCPServer(scan func(...any) error) (mcpserver.Server, error) {
 		}
 		return mcpserver.Server{}, fmt.Errorf("sqlite: scan mcp server: %w", err)
 	}
+	srv.Transport = mcpserver.Transport(transport)
 	srv.Headers = decodeStringMap(headers)
 	srv.Args = decodeStrings(args)
 	srv.Env = decodeStringMap(env)

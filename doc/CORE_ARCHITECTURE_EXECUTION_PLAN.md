@@ -1219,6 +1219,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 收敛 Runtime MCP transport 领域词汇：持久态 `Server` 与运行态 `LiveConfig` 共享强类型 `Transport`，删除值不同但含义重复的 `LiveTransport`；字符串/SDK 映射只发生在 delivery、persistence 与 infra 边界 | Codex |
 | 2026-07-15 | 完成 Embedding 便利层职责外移：Core 删除最后一个 Client 并以架构守卫锁定协议边界，新增三方法 `embeddingclient` module，迁移 23 个 VectorStore backend 与 App Runtime；API 收缩为 341，wire 不变 | Codex |
 | 2026-07-15 | 完成五个模态 Options receiver 化、Embedding/Moderation `First` 统一与 Speech `OutputFormat/Audio` 语义收口；33 个 provider 调用点直接迁移，API 数量保持 347、wire 规模保持 49/17/487 | Codex |
 | 2026-07-15 | 完成 Core receiver/语义精修：Metadata 合并收敛为值对象行为，Chat 私有克隆归回 Response receiver，Speech 错误前缀与包名一致；API 基线更新为 347 条且 wire 不变 | Codex |
@@ -1288,6 +1289,8 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | Runtime MCP transport 语义收口 | 删除 `LiveTransport("http"/"stdio")`，以强类型 `mcpserver.Transport("streamableHttp"/"stdio")` 同时塑造持久与运行配置；SQLite 与 delivery 显式做 string 转换，infra adapter 唯一负责映射 MCP SDK enum。新增同词汇/投影深拷贝测试，App build/vet/test/lint/race 5/5 全绿 | 执行 21 module 最终确定性门禁 |
+| 2026-07-15 | Embedding Client 职责外移 | `3f7af1a3a` 删除 Core 最后一个 Client，新增只含三个向量方法的 `embeddingclient`，迁移 23 个 VectorStore backend 与 App；`3938d179f` 闭合 Core/EmbeddingClient/Models 远端依赖。Core API 347→341、wire 49/17/487 不变；受影响四模块 20/20 build/vet/test/lint/race 及关闭 go.work 的三模块 test/vet/tidy 全绿 | 收敛 Runtime 重复 transport 词汇 |
 | 2026-07-15 | Core 模态公开语义精修 | 五个包级 `MergeOptions` 直接替换为 `Options.Merged`，Embedding/Moderation `Result` 替换为 `First`，Speech Go/wire 统一为 `OutputFormat/output_format` 与 `Audio/audio`；33 个 Models provider 调用点同批迁移，无 wrapper/旧字段/双 wire。Core 与 Models 的 build/vet/test/lint/race 共 10 项全绿；API baseline 仍为 347，wire inventory/root/golden 仍为 49/17/487 | 将 Core 残留 `embedding.Client` 外移到独立 module |
 | 2026-07-15 | Core receiver/语义精修 | `metadata.Map.Merge` 统一六处深拷贝、末值覆盖与错误原子语义；Chat 响应头克隆归回 `Response` receiver；Speech 构造/合并错误前缀清除旧 `tts` 包名。API 基线评审后从 346 更新为 347，wire 无变化；`FUZZ_TIME=0 scripts/check-core-release.sh` 的 Core 全量 test/race/vet/lint/tidy、17 包覆盖预算、Models provider 与 27 backend conformance 全绿，按维护者要求未启动 fuzz | 继续评审需维护者确认的破坏性命名与模块边界候选 |
 | 2026-07-15 | tag 前最终收口 | `783df3ee9` 将 embedding 用量统一为 `InputTokens/input_tokens`，补齐 `internal/ptr` 100% coverage 并校准当时的 11 package/346 API/49 DTO/17 root/487 行基线；`229e06c8e` 与 `04a37a9fe` 闭合远端依赖图。20/20 standalone test/vet/tidy、100/100 workspace gate、20/20 漏洞策略以及 Core 确定性 release gate 全绿；Metadata fuzz 5 分钟 98,942,554 次无失败，按维护者要求停止重复整组长时间 fuzz | 正式 tag/协调发布按运行手册单独执行 |

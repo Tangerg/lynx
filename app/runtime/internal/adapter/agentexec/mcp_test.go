@@ -102,7 +102,7 @@ func TestEngine_DialMCPServer(t *testing.T) {
 	stub := newStubModel("ping", `{}`, "pong-received")
 	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
-		MCPServers: []mcpserver.LiveConfig{{Name: "test", Transport: mcpserver.LiveTransportHTTP, Endpoint: httpServer.URL}},
+		MCPServers: []mcpserver.LiveConfig{{Name: "test", Transport: mcpserver.TransportStreamableHTTP, Endpoint: httpServer.URL}},
 	})
 	defer eng.Close()
 
@@ -132,8 +132,8 @@ func TestEngine_DialMCPServer(t *testing.T) {
 func TestEngine_DialMCPServer_RejectsDuplicateNames(t *testing.T) {
 	_, err := toolset.Build(context.Background(), toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{
-			{Name: "dup", Transport: mcpserver.LiveTransportHTTP, Endpoint: "http://example.invalid/"},
-			{Name: "dup", Transport: mcpserver.LiveTransportHTTP, Endpoint: "http://other.invalid/"},
+			{Name: "dup", Transport: mcpserver.TransportStreamableHTTP, Endpoint: "http://example.invalid/"},
+			{Name: "dup", Transport: mcpserver.TransportStreamableHTTP, Endpoint: "http://other.invalid/"},
 		},
 	})
 	if err == nil {
@@ -147,7 +147,7 @@ func TestEngine_DialMCPServer_RejectsDuplicateNames(t *testing.T) {
 func TestEngine_DialMCPServer_RejectsBadEndpoint(t *testing.T) {
 	_, err := toolset.Build(context.Background(), toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{
-			{Name: "bad", Transport: mcpserver.LiveTransportHTTP, Endpoint: ""}, // empty endpoint fails Validate
+			{Name: "bad", Transport: mcpserver.TransportStreamableHTTP, Endpoint: ""}, // empty endpoint fails Validate
 		},
 	})
 	if err == nil {
@@ -179,7 +179,7 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{{
 			Name:      "stdio",
-			Transport: mcpserver.LiveTransportStdio,
+			Transport: mcpserver.TransportStdio,
 			Command:   self,
 			Args:      []string{"-test.run=^$"}, // no test selector — TestMain re-routes
 			Env:       append(os.Environ(), runAsMCPServerEnv+"=1"),
@@ -210,7 +210,7 @@ func TestEngine_DialMCPServer_StdioRejectsEmptyCommand(t *testing.T) {
 	_, err := toolset.Build(context.Background(), toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{{
 			Name:      "bad",
-			Transport: mcpserver.LiveTransportStdio,
+			Transport: mcpserver.TransportStdio,
 		}},
 	})
 	if err == nil {
@@ -235,7 +235,7 @@ func TestEngine_DialMCPServers_ToleratesUnreachable(t *testing.T) {
 	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{
-			{Name: "down", Transport: mcpserver.LiveTransportHTTP, Endpoint: "http://127.0.0.1:1/mcp"},
+			{Name: "down", Transport: mcpserver.TransportStreamableHTTP, Endpoint: "http://127.0.0.1:1/mcp"},
 		},
 	})
 	t.Cleanup(func() { _ = eng.Close() })
@@ -263,7 +263,7 @@ func TestEngine_ReconnectMCPServer(t *testing.T) {
 	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{
-			{Name: "down", Transport: mcpserver.LiveTransportHTTP, Endpoint: "http://127.0.0.1:1/mcp"},
+			{Name: "down", Transport: mcpserver.TransportStreamableHTTP, Endpoint: "http://127.0.0.1:1/mcp"},
 		},
 	})
 	t.Cleanup(func() { _ = eng.Close() })
