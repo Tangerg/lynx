@@ -2,13 +2,15 @@ package google
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
+	"fmt"
+	"math"
 	"time"
 
 	"google.golang.org/genai"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -77,6 +79,12 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (string, string, *genai
 	if err != nil {
 		return "", "", nil, err
 	}
+	if err := options.RejectUnsupported("google: image", map[string]bool{
+		"height": mergedOpts.Height != nil,
+		"width":  mergedOpts.Width != nil,
+	}); err != nil {
+		return "", "", nil, err
+	}
 
 	cfg, err := options.GetParams[genai.GenerateImagesConfig](mergedOpts.Extra, OptionsKey)
 	if err != nil {
@@ -87,6 +95,9 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (string, string, *genai
 		cfg.NegativePrompt = mergedOpts.NegativePrompt
 	}
 	if mergedOpts.Seed != nil {
+		if *mergedOpts.Seed > int64(math.MaxInt32) {
+			return "", "", nil, fmt.Errorf("google: image: seed exceeds int32: %d", *mergedOpts.Seed)
+		}
 		cfg.Seed = new(int32(*mergedOpts.Seed))
 	}
 	if mergedOpts.OutputFormat != "" {
@@ -98,56 +109,54 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (string, string, *genai
 }
 
 func (i *ImageModel) buildResponse(apiResp *genai.GenerateImagesResponse) (*image.Response, error) {
-	// Imagen returns GeneratedImages sized by NumberOfImages (default 4
-	// when unset). The image surface is single-result by design — see
-	// image.Response — so the first generated image is taken and
-	// extras are ignored. Callers needing N>1 should use the genai SDK.
 	if len(apiResp.GeneratedImages) == 0 {
 		return nil, errors.New("google: image response has no generated images")
 	}
 
-	gen := apiResp.GeneratedImages[0]
-	if gen.Image == nil {
-		return nil, errors.New("google: first generated image has no payload")
-	}
-
-	// Imagen returns either GCS URIs (Vertex AI deployments) or inline
-	// bytes (Gemini API). Map onto our two-shape Image: URL for hosted,
-	// B64JSON for inline.
-	var img *image.Image
-	var err error
-	switch {
-	case gen.Image.GCSURI != "":
-		img, err = image.NewImage(gen.Image.GCSURI, "")
-	case len(gen.Image.ImageBytes) > 0:
-		img, err = image.NewImage("", base64.StdEncoding.EncodeToString(gen.Image.ImageBytes))
-	default:
-		return nil, errors.New("google: first generated image has neither GCS URI nor bytes")
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	resultMeta := &image.ResultMetadata{}
-	if gen.EnhancedPrompt != "" {
-		if err := resultMeta.Set("enhanced_prompt", gen.EnhancedPrompt); err != nil {
+	results := make([]*image.Result, 0, len(apiResp.GeneratedImages))
+	for index, generated := range apiResp.GeneratedImages {
+		if generated.Image == nil {
+			return nil, fmt.Errorf("google: generated image %d has no payload", index)
+		}
+		mimeType := generated.Image.MIMEType
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+		var value *media.Media
+		var err error
+		switch {
+		case generated.Image.GCSURI != "" && len(generated.Image.ImageBytes) == 0:
+			value, err = media.NewURI(mimeType, generated.Image.GCSURI)
+		case generated.Image.GCSURI == "" && len(generated.Image.ImageBytes) > 0:
+			value, err = media.NewBytes(mimeType, generated.Image.ImageBytes)
+		default:
+			return nil, fmt.Errorf("google: generated image %d has an ambiguous payload", index)
+		}
+		if err != nil {
 			return nil, err
 		}
-	}
-	if gen.RAIFilteredReason != "" {
-		if err := resultMeta.Set("rai_filtered_reason", gen.RAIFilteredReason); err != nil {
-			return nil, err
-		}
-	}
-	if gen.SafetyAttributes != nil {
-		if err := resultMeta.Set("safety_attributes", gen.SafetyAttributes); err != nil {
-			return nil, err
-		}
-	}
 
-	result, err := image.NewResult(img, resultMeta)
-	if err != nil {
-		return nil, err
+		resultMetadata := &image.ResultMetadata{}
+		if generated.EnhancedPrompt != "" {
+			if err := resultMetadata.Set("enhanced_prompt", generated.EnhancedPrompt); err != nil {
+				return nil, err
+			}
+		}
+		if generated.RAIFilteredReason != "" {
+			if err := resultMetadata.Set("rai_filtered_reason", generated.RAIFilteredReason); err != nil {
+				return nil, err
+			}
+		}
+		if generated.SafetyAttributes != nil {
+			if err := resultMetadata.Set("safety_attributes", generated.SafetyAttributes); err != nil {
+				return nil, err
+			}
+		}
+		result, err := image.NewResult(value, resultMetadata)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
 	}
 
 	meta := &image.ResponseMetadata{Created: time.Now().Unix()}
@@ -157,7 +166,7 @@ func (i *ImageModel) buildResponse(apiResp *genai.GenerateImagesResponse) (*imag
 		}
 	}
 
-	return image.NewResponse(result, meta)
+	return image.NewResponse(results, meta)
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {

@@ -66,7 +66,7 @@ func TestResponseGolden(t *testing.T) {
 }
 
 func TestGoldenMetadataIsJSONSafe(t *testing.T) {
-	value := metadata.New()
+	value := metadata.Map{}
 	if err := value.Set("fixture", "chat"); err != nil {
 		t.Fatal(err)
 	}

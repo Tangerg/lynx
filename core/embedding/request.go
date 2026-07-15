@@ -10,30 +10,6 @@ import (
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
-// EncodingFormat enumerates the on-the-wire shapes a provider may use
-// for embedding vectors. Most callers want [EncodingFormatFloat] —
-// [EncodingFormatBase64] is useful when transmitting compactly over
-// channels that re-encode binary data.
-type EncodingFormat string
-
-const (
-	// EncodingFormatFloat encodes each vector as JSON float numbers.
-	EncodingFormatFloat EncodingFormat = "float"
-
-	// EncodingFormatBase64 encodes each vector as a base64 string of the
-	// little-endian float32 byte sequence.
-	EncodingFormatBase64 EncodingFormat = "base64"
-)
-
-func (e EncodingFormat) Valid() bool {
-	switch e {
-	case EncodingFormatFloat, EncodingFormatBase64:
-		return true
-	default:
-		return false
-	}
-}
-
 // Options holds per-request configuration for an embedding call. Pointer
 // fields use nil to mean "not set" — providers fall back to their own
 // defaults.
@@ -41,9 +17,6 @@ type Options struct {
 	// Model is the provider model identifier
 	// (e.g. "text-embedding-3-small").
 	Model string `json:"model"`
-
-	// EncodingFormat picks the wire shape the provider should return.
-	EncodingFormat EncodingFormat `json:"encoding_format"`
 
 	// Dimensions requests an explicit output vector size. nil leaves it
 	// up to the provider's default.
@@ -83,10 +56,9 @@ func (o *Options) Clone() *Options {
 		return nil
 	}
 	return &Options{
-		Model:          o.Model,
-		EncodingFormat: o.EncodingFormat,
-		Dimensions:     ptr.Clone(o.Dimensions),
-		Extra:          o.Extra.Clone(),
+		Model:      o.Model,
+		Dimensions: ptr.Clone(o.Dimensions),
+		Extra:      o.Extra.Clone(),
 	}
 }
 
@@ -107,15 +79,15 @@ func (o *Options) Merged(overrides ...*Options) (*Options, error) {
 			return nil, fmt.Errorf("embedding.Options.Merged: %w", err)
 		}
 	}
+	if err := merged.validate(); err != nil {
+		return nil, fmt.Errorf("embedding.Options.Merged: %w", err)
+	}
 	return merged, nil
 }
 
 func (o *Options) applyOverride(src *Options) error {
 	if src.Model != "" {
 		o.Model = src.Model
-	}
-	if src.EncodingFormat.Valid() {
-		o.EncodingFormat = src.EncodingFormat
 	}
 	if src.Dimensions != nil {
 		o.Dimensions = ptr.Clone(src.Dimensions)
@@ -134,9 +106,6 @@ func (o *Options) validate() error {
 	}
 	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
 		return errors.New("embedding: model id must not have surrounding whitespace")
-	}
-	if o.EncodingFormat != "" && !o.EncodingFormat.Valid() {
-		return fmt.Errorf("embedding: invalid encoding format %q", o.EncodingFormat)
 	}
 	if o.Dimensions != nil && *o.Dimensions <= 0 {
 		return errors.New("embedding: dimensions must be positive")

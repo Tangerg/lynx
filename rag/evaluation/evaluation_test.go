@@ -146,7 +146,7 @@ func TestModelEvaluatorRejectsRepliesWithoutNormalizedScore(t *testing.T) {
 }
 
 func TestCompositeMergesValidatedResultsWithoutAliasing(t *testing.T) {
-	firstMetadata := metadata.New()
+	firstMetadata := metadata.Map{}
 	if err := firstMetadata.Set("source", "first"); err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func TestCompositeValidatesConstructionErrorsAndSingleResultOwnership(t *testing
 		t.Fatalf("invalid child result error = %v", err)
 	}
 
-	childMetadata := metadata.New()
+	childMetadata := metadata.Map{}
 	if err := childMetadata.Set("value", 1); err != nil {
 		t.Fatal(err)
 	}

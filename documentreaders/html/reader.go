@@ -56,9 +56,7 @@ func WithMetadata(md map[string]any) Option {
 	}
 }
 
-var _ document.Reader = (*Reader)(nil)
-
-// Reader is an HTML-aware [document.Reader].
+// Reader extracts documents from HTML.
 type Reader struct {
 	reader          io.Reader
 	selector        string

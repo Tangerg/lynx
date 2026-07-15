@@ -181,7 +181,7 @@ func TestCallSnapshotsAllRequestReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	user := chat.NewUserMessage(chat.NewMediaPart(image))
-	user.Metadata = metadata.New()
+	user.Metadata = metadata.Map{}
 	if err := user.Metadata.Set("turn", 1); err != nil {
 		t.Fatal(err)
 	}

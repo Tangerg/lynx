@@ -69,7 +69,11 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*ollamaapi.Emb
 	apiReq.Input = req.Texts
 
 	if mergedOpts.Dimensions != nil {
-		apiReq.Dimensions = int(*mergedOpts.Dimensions)
+		dimensions, err := options.Int("ollama: embedding: dimensions", *mergedOpts.Dimensions)
+		if err != nil {
+			return nil, err
+		}
+		apiReq.Dimensions = dimensions
 	}
 
 	return apiReq, nil
@@ -81,14 +85,10 @@ func (e *EmbeddingModel) buildResponse(apiResp *ollamaapi.EmbedResponse) (*embed
 	}
 
 	results := make([]*embedding.Result, 0, len(apiResp.Embeddings))
-	for index, vec := range apiResp.Embeddings {
+	for _, vec := range apiResp.Embeddings {
 		values := pkgSlices.Map(vec, func(v float32) float64 { return float64(v) })
 
-		resultMeta := &embedding.ResultMetadata{
-			Index:        int64(index),
-			ModalityType: embedding.Text,
-			MIMEType:     "text/plain",
-		}
+		resultMeta := &embedding.ResultMetadata{}
 
 		result, err := embedding.NewResult(values, resultMeta)
 		if err != nil {

@@ -145,7 +145,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (out 
 	}
 
 	ctx, span := tracing.StartSearch(ctx, "inmemory", req.TopK, req.MinScore)
-	defer func() { tracing.RecordSearchResult(span, err, len(out)) }()
+	defer func() {
+		if err == nil {
+			err = req.ValidateMatches(out)
+		}
+		tracing.RecordSearchResult(span, err, len(out))
+	}()
 
 	var query []float64
 	query, err = s.embeddingClient.EmbedText(ctx, req.Query)

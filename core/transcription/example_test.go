@@ -21,7 +21,6 @@ func Example() {
 		panic(err)
 	}
 	options.Language = "en"
-	options.ResponseFormat = "verbose_json"
 	request.Options = options
 
 	fmt.Println(request.Audio.MIME, request.Options.Language)

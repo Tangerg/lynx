@@ -50,6 +50,56 @@ func TestDocumentRemainsPureData(t *testing.T) {
 	}
 }
 
+func TestRemovedConvenienceSurfaceDoesNotReturn(t *testing.T) {
+	forbidden := map[string]map[string]bool{
+		"document":    {"Reader": true, "Writer": true},
+		"metadata":    {"New": true},
+		"vectorstore": {"AcceptAllScores": true, "NewDocumentWriter": true},
+		"image":       {"Image": true, "NewImage": true, "ResponseFormat": true},
+	}
+	fset := token.NewFileSet()
+	for packageName, names := range forbidden {
+		root := filepath.Join(moduleRoot(t), packageName)
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+				continue
+			}
+			path := filepath.Join(root, entry.Name())
+			file, err := parser.ParseFile(fset, path, nil, 0)
+			if err != nil {
+				t.Fatalf("parse %s: %v", path, err)
+			}
+			for _, declaration := range file.Decls {
+				switch declaration := declaration.(type) {
+				case *ast.FuncDecl:
+					if declaration.Recv == nil && names[declaration.Name.Name] {
+						t.Errorf("core/%s must not reintroduce %s", packageName, declaration.Name.Name)
+					}
+				case *ast.GenDecl:
+					for _, specification := range declaration.Specs {
+						switch specification := specification.(type) {
+						case *ast.TypeSpec:
+							if names[specification.Name.Name] {
+								t.Errorf("core/%s must not reintroduce %s", packageName, specification.Name.Name)
+							}
+						case *ast.ValueSpec:
+							for _, name := range specification.Names {
+								if names[name.Name] {
+									t.Errorf("core/%s must not reintroduce %s", packageName, name.Name)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 func TestVectorStoreCapabilitiesRemainSmall(t *testing.T) {
 	want := map[reflect.Type]string{
 		reflect.TypeFor[vectorstore.Indexer]():       "Add",
@@ -101,8 +151,7 @@ func TestVectorStoreCapabilitiesRemainSmall(t *testing.T) {
 
 func TestEmbeddingSPIRemainsMinimal(t *testing.T) {
 	want := map[reflect.Type]string{
-		reflect.TypeFor[embedding.Model]():       "Call",
-		reflect.TypeFor[embedding.Dimensioner](): "Dimensions",
+		reflect.TypeFor[embedding.Model](): "Call",
 	}
 	for typ, method := range want {
 		if typ.NumMethod() != 1 || typ.Method(0).Name != method {
@@ -114,12 +163,16 @@ func TestEmbeddingSPIRemainsMinimal(t *testing.T) {
 	forbiddenTypes := map[string]bool{
 		"ModelMetadata": true, "Client": true,
 		"ClientRequest": true, "ClientCaller": true,
+		"Dimensioner": true, "DimensionFunc": true,
+		"EncodingFormat": true, "ModalityType": true,
 		"Middleware": true, "MiddlewareChain": true, "Handler": true,
 	}
 	forbiddenFuncs := map[string]bool{
-		"GetDimensions":    true,
-		"NewClient":        true,
-		"NewClientRequest": true, "NewClientFromRequest": true,
+		"GetDimensions":     true,
+		"ProbeDimensions":   true,
+		"ResolveDimensions": true,
+		"NewClient":         true,
+		"NewClientRequest":  true, "NewClientFromRequest": true,
 		"NewMiddlewareChain": true,
 	}
 	fset := token.NewFileSet()

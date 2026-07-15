@@ -15,11 +15,10 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	options.ResponseFormat = image.ResponseFormatB64JSON
 	options.OutputFormat = "image/png"
 	request.Options = options
 
-	fmt.Println(request.Options.Model, request.Options.ResponseFormat)
+	fmt.Println(request.Options.Model, request.Options.OutputFormat)
 	// Output:
-	// image-model b64json
+	// image-model image/png
 }

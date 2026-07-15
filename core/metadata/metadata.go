@@ -1,9 +1,13 @@
 package metadata
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
 )
 
 var (
@@ -21,11 +25,6 @@ var (
 // Keeping values encoded prevents runtime-only objects such as functions,
 // readers, and SDK clients from entering protocol DTOs unnoticed.
 type Map map[string]json.RawMessage
-
-// New returns an initialized, empty Map.
-func New() Map {
-	return make(Map)
-}
 
 // FromValues encodes an ordinary value map into a JSON-safe Map.
 func FromValues(values map[string]any) (Map, error) {
@@ -52,8 +51,8 @@ func (m Map) Values() (map[string]any, error) {
 	}
 	values := make(map[string]any, len(m))
 	for key, raw := range m {
-		var value any
-		if err := json.Unmarshal(raw, &value); err != nil {
+		value, err := decodeValue(raw)
+		if err != nil {
 			return nil, fmt.Errorf("metadata: decode %q: %w", key, err)
 		}
 		values[key] = value
@@ -61,9 +60,66 @@ func (m Map) Values() (map[string]any, error) {
 	return values, nil
 }
 
+func decodeValue(raw json.RawMessage) (any, error) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	return normalizeNumbers(value)
+}
+
+func normalizeNumbers(value any) (any, error) {
+	switch value := value.(type) {
+	case json.Number:
+		return normalizeNumber(value)
+	case []any:
+		for i := range value {
+			normalized, err := normalizeNumbers(value[i])
+			if err != nil {
+				return nil, err
+			}
+			value[i] = normalized
+		}
+	case map[string]any:
+		for key, item := range value {
+			normalized, err := normalizeNumbers(item)
+			if err != nil {
+				return nil, err
+			}
+			value[key] = normalized
+		}
+	}
+	return value, nil
+}
+
+func normalizeNumber(number json.Number) (any, error) {
+	text := number.String()
+	if !strings.ContainsAny(text, ".eE") {
+		if strings.HasPrefix(text, "-") {
+			if value, err := strconv.ParseInt(text, 10, 64); err == nil {
+				return value, nil
+			}
+		} else if value, err := strconv.ParseUint(text, 10, 64); err == nil {
+			if value <= math.MaxInt64 {
+				return int64(value), nil
+			}
+			return value, nil
+		}
+		return number, nil
+	}
+	value, err := number.Float64()
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
 // Set encodes value as JSON and stores it under key, initializing a nil map
 // in place — so a zero-value `Extra metadata.Map` field is writable without a
-// prior [New]. Set fails immediately when value cannot be represented as JSON.
+// prior initialization. Set fails immediately when value cannot be represented
+// as JSON.
 func (m *Map) Set(key string, value any) error {
 	if m == nil {
 		return ErrNilMap

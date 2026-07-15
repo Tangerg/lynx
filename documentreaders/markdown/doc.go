@@ -1,4 +1,4 @@
-// Package markdown implements a [document.Reader] over CommonMark
+// Package markdown reads CommonMark
 // markdown sources using github.com/yuin/goldmark.
 //
 // Two modes are offered:

@@ -57,15 +57,15 @@ func (c *Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, e
 	if response == nil {
 		return nil, errors.New("embeddingclient: embed texts: model returned a nil response")
 	}
+	if err := response.Validate(); err != nil {
+		return nil, fmt.Errorf("embeddingclient: embed texts: invalid model response: %w", err)
+	}
 	if len(response.Results) != len(texts) {
 		return nil, fmt.Errorf("embeddingclient: embed texts: got %d results for %d inputs", len(response.Results), len(texts))
 	}
 
 	vectors := make([][]float64, len(response.Results))
 	for i, result := range response.Results {
-		if result == nil || len(result.Embedding) == 0 {
-			return nil, fmt.Errorf("embeddingclient: embed texts: result %d has no embedding", i)
-		}
 		vectors[i] = slices.Clone(result.Embedding)
 	}
 	return vectors, nil
@@ -78,6 +78,16 @@ func (c *Client) EmbedText(ctx context.Context, text string) ([]float64, error) 
 		return nil, err
 	}
 	return vectors[0], nil
+}
+
+// Dimensions probes the model once and returns its vector width. The result is
+// deliberately not cached; callers own any cache lifetime and invalidation.
+func (c *Client) Dimensions(ctx context.Context) (int, error) {
+	vector, err := c.EmbedText(ctx, "dimension probe")
+	if err != nil {
+		return 0, fmt.Errorf("embeddingclient: dimensions: %w", err)
+	}
+	return len(vector), nil
 }
 
 // EmbedDocuments embeds the textual content of docs in one model call.

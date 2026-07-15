@@ -228,7 +228,6 @@ type Store struct {
 	embeddingField  string
 	metadataFields  []MetadataField
 	fieldTypes      map[string]MetadataFieldType
-	embeddingModel  embedding.Model
 	embeddingClient *embeddingclient.Client
 	documentBatcher vectorstores.Batcher
 	dimensions      int
@@ -266,7 +265,6 @@ func NewStore(config StoreConfig) (*Store, error) {
 		embeddingField:  config.EmbeddingField,
 		metadataFields:  config.MetadataFields,
 		fieldTypes:      fieldTypes,
-		embeddingModel:  config.EmbeddingModel,
 		embeddingClient: embeddingClient,
 		documentBatcher: config.DocumentBatcher,
 		dimensions:      config.Dimensions,
@@ -287,7 +285,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 // RediSearch index when requested.
 func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	if s.dimensions <= 0 {
-		dimensions, err := embedding.ResolveDimensions(ctx, s.embeddingModel)
+		dimensions, err := s.embeddingClient.Dimensions(ctx)
 		if err != nil {
 			return fmt.Errorf("redis: resolve embedding dimensions: %w", err)
 		}
@@ -477,7 +475,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	ctx, span := tracing.StartSearch(ctx, "redis", req.TopK, req.MinScore)
-	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
+	defer func() {
+		if err == nil {
+			err = req.ValidateMatches(docs)
+		}
+		tracing.RecordSearchResult(span, err, len(docs))
+	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)

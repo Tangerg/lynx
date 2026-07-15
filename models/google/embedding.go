@@ -3,6 +3,8 @@ package google
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 	"time"
 
 	"google.golang.org/genai"
@@ -81,6 +83,9 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*gen
 	}
 
 	if mergedOpts.Dimensions != nil {
+		if *mergedOpts.Dimensions > int64(math.MaxInt32) {
+			return "", nil, nil, fmt.Errorf("google: embedding: dimensions exceed int32: %d", *mergedOpts.Dimensions)
+		}
 		cfg.OutputDimensionality = new(int32(*mergedOpts.Dimensions))
 	}
 
@@ -98,14 +103,10 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 	}
 
 	results := make([]*embedding.Result, 0, len(apiResp.Embeddings))
-	for index, item := range apiResp.Embeddings {
+	for _, item := range apiResp.Embeddings {
 		values := pkgSlices.Map(item.Values, func(v float32) float64 { return float64(v) })
 
-		resultMeta := &embedding.ResultMetadata{
-			Index:        int64(index),
-			ModalityType: embedding.Text,
-			MIMEType:     "text/plain",
-		}
+		resultMeta := &embedding.ResultMetadata{}
 		if item.Statistics != nil {
 			if err := resultMeta.Set("token_count", item.Statistics.TokenCount); err != nil {
 				return nil, err

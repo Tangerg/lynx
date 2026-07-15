@@ -22,7 +22,7 @@ func TestClientSurfaceStaysVectorFocused(t *testing.T) {
 		methods = append(methods, typeOfClient.Method(i).Name)
 	}
 	slices.Sort(methods)
-	if !slices.Equal(methods, []string{"EmbedDocuments", "EmbedText", "EmbedTexts"}) {
+	if !slices.Equal(methods, []string{"Dimensions", "EmbedDocuments", "EmbedText", "EmbedTexts"}) {
 		t.Fatalf("Client methods = %v", methods)
 	}
 }

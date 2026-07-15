@@ -57,14 +57,17 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
 		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
 	}
+	if _, err := (&moderation.Options{Model: " model "}).Merged(); err == nil {
+		t.Fatal("Merged accepted invalid base options")
+	}
 }
 
 func TestCategoriesAndResponse(t *testing.T) {
-	categories := &moderation.Categories{}
+	categories := moderation.Categories{"hate": {}}
 	if categories.Flagged() {
 		t.Fatal("zero Categories is flagged")
 	}
-	categories.Hate.Flagged = true
+	categories["provider/new_category"] = moderation.Verdict{Flagged: true, Score: 0.75}
 	if !categories.Flagged() {
 		t.Fatal("Flagged did not aggregate Hate")
 	}
@@ -78,6 +81,10 @@ func TestCategoriesAndResponse(t *testing.T) {
 	}
 	if response.First() != result {
 		t.Fatal("First did not return first result")
+	}
+	categories["provider/new_category"] = moderation.Verdict{}
+	if !result.Categories["provider/new_category"].Flagged {
+		t.Fatal("NewResult aliases caller categories")
 	}
 }
 
@@ -124,47 +131,32 @@ func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
 	return value
 }
 
-func TestCategoriesFlaggedCoversEveryDimension(t *testing.T) {
-	setters := []func(*moderation.Categories){
-		func(c *moderation.Categories) { c.Sexual.Flagged = true },
-		func(c *moderation.Categories) { c.Hate.Flagged = true },
-		func(c *moderation.Categories) { c.Harassment.Flagged = true },
-		func(c *moderation.Categories) { c.SelfHarm.Flagged = true },
-		func(c *moderation.Categories) { c.SexualMinors.Flagged = true },
-		func(c *moderation.Categories) { c.HateThreatening.Flagged = true },
-		func(c *moderation.Categories) { c.ViolenceGraphic.Flagged = true },
-		func(c *moderation.Categories) { c.SelfHarmIntent.Flagged = true },
-		func(c *moderation.Categories) { c.SelfHarmInstructions.Flagged = true },
-		func(c *moderation.Categories) { c.HarassmentThreatening.Flagged = true },
-		func(c *moderation.Categories) { c.Violence.Flagged = true },
-		func(c *moderation.Categories) { c.DangerousAndCriminalContent.Flagged = true },
-		func(c *moderation.Categories) { c.Health.Flagged = true },
-		func(c *moderation.Categories) { c.Financial.Flagged = true },
-		func(c *moderation.Categories) { c.Law.Flagged = true },
-		func(c *moderation.Categories) { c.Pii.Flagged = true },
-		func(c *moderation.Categories) { c.Illicit.Flagged = true },
-		func(c *moderation.Categories) { c.IllicitViolent.Flagged = true },
+func TestCategoriesRemainOpen(t *testing.T) {
+	categories := moderation.Categories{"future/provider_category": {Flagged: true, Score: 1}}
+	if !categories.Flagged() {
+		t.Fatal("provider category was not aggregated")
 	}
-	for index, set := range setters {
-		categories := new(moderation.Categories)
-		set(categories)
-		if !categories.Flagged() {
-			t.Fatalf("category %d was not aggregated", index)
-		}
-	}
-	if (*moderation.Categories)(nil).Flagged() {
+	if moderation.Categories(nil).Flagged() {
 		t.Fatal("nil Categories is flagged")
 	}
 }
 
 func TestResponseConstructorsRejectInvalidValues(t *testing.T) {
-	categories := new(moderation.Categories)
+	categories := moderation.Categories{"safe": {}}
 	metadata := new(moderation.ResultMetadata)
 	if _, err := moderation.NewResult(nil, metadata); err == nil {
-		t.Fatal("NewResult accepted nil categories")
+		t.Fatal("NewResult accepted empty categories")
 	}
 	if _, err := moderation.NewResult(categories, nil); err == nil {
 		t.Fatal("NewResult accepted nil metadata")
+	}
+	for name, verdict := range map[string]moderation.Verdict{
+		"negative": {Score: -0.1},
+		"too high": {Score: 1.1},
+	} {
+		if _, err := moderation.NewResult(moderation.Categories{name: verdict}, metadata); err == nil {
+			t.Fatalf("NewResult accepted %s score", name)
+		}
 	}
 	result, _ := moderation.NewResult(categories, metadata)
 	if _, err := moderation.NewResponse(nil, &moderation.ResponseMetadata{}); err == nil {

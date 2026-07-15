@@ -3,7 +3,6 @@ package transcription_test
 import (
 	"context"
 	"errors"
-	"math"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/media"
@@ -60,35 +59,16 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted model with surrounding whitespace")
 	}
-	for _, tc := range []struct {
-		name    string
-		value   float64
-		wantErr bool
-	}{
-		{name: "negative", value: -0.1, wantErr: true},
-		{name: "zero", value: 0},
-		{name: "one", value: 1},
-		{name: "above one", value: 1.1, wantErr: true},
-		{name: "nan", value: math.NaN(), wantErr: true},
-		{name: "infinity", value: math.Inf(1), wantErr: true},
-	} {
-		t.Run(tc.name+" temperature", func(t *testing.T) {
-			invalid.Options = &transcription.Options{Temperature: new(tc.value)}
-			err := invalid.Validate()
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("Validate temperature %v error = %v, wantErr %t", tc.value, err, tc.wantErr)
-			}
-		})
-	}
-	for _, granularity := range []string{"", " word "} {
-		invalid.Options = &transcription.Options{TimestampGranularity: []string{granularity}}
-		if err := invalid.Validate(); err == nil {
-			t.Errorf("Validate accepted timestamp granularity %q", granularity)
-		}
+	invalid.Options = &transcription.Options{Language: " en "}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("Validate accepted language with surrounding whitespace")
 	}
 	options := new(transcription.Options)
 	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
 		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
+	}
+	if _, err := (&transcription.Options{Model: " base"}).Merged(); err == nil {
+		t.Fatal("Merged accepted invalid base options")
 	}
 }
 
@@ -109,36 +89,25 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 	if clone := (*transcription.Options)(nil).Clone(); clone != nil {
 		t.Fatalf("nil Clone = %#v", clone)
 	}
-	temperature := 0.2
 	base := &transcription.Options{
-		Model: "base", TimestampGranularity: []string{"segment"},
+		Model: "base",
 		Extra: mustMetadata(t, map[string]any{"base": true}),
 	}
 	merged, err := base.Merged(nil, &transcription.Options{
-		Model: "override", Language: "en", Prompt: "Lynx", Temperature: &temperature,
-		ResponseFormat: "verbose_json", TimestampGranularity: []string{"word"},
+		Model: "override", Language: "en",
 		Extra: mustMetadata(t, map[string]any{"override": true}),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if merged.Model != "override" || merged.Language != "en" || merged.Prompt != "Lynx" ||
-		merged.Temperature == nil || merged.ResponseFormat != "verbose_json" ||
-		len(merged.TimestampGranularity) != 1 || merged.TimestampGranularity[0] != "word" || len(merged.Extra) != 2 {
+	if merged.Model != "override" || merged.Language != "en" || len(merged.Extra) != 2 {
 		t.Fatalf("Merged = %#v", merged)
 	}
-	temperature = 0.4
-	if *merged.Temperature != 0.2 {
-		t.Fatal("Merged aliases override pointer state")
-	}
 	clone := merged.Clone()
-	*clone.Temperature = 0.9
-	clone.TimestampGranularity[0] = "segment"
 	if err := clone.Extra.Set("base", false); err != nil {
 		t.Fatal(err)
 	}
-	if *merged.Temperature != 0.2 || merged.TimestampGranularity[0] != "word" ||
-		!mustDecode[bool](t, merged.Extra, "base") {
+	if !mustDecode[bool](t, merged.Extra, "base") {
 		t.Fatal("Options.Clone aliases source state")
 	}
 }
@@ -168,5 +137,8 @@ func TestResponseErrorBoundaries(t *testing.T) {
 	}
 	if _, err := transcription.NewResponse(result, nil); err == nil {
 		t.Fatal("NewResponse accepted nil metadata")
+	}
+	if err := (&transcription.Response{Result: result, Metadata: &transcription.ResponseMetadata{Created: -1}}).Validate(); err == nil {
+		t.Fatal("Validate accepted a negative creation time")
 	}
 }

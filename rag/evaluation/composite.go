@@ -60,7 +60,7 @@ func merge(results []Result) (Result, error) {
 		return result, nil
 	}
 
-	merged := Result{Pass: true, Metadata: metadata.New()}
+	merged := Result{Pass: true, Metadata: metadata.Map{}}
 	feedback := make([]string, 0, len(results))
 	passed := 0
 	for i, result := range results {

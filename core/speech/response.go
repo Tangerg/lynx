@@ -2,6 +2,9 @@ package speech
 
 import (
 	"errors"
+	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -35,13 +38,11 @@ type Result struct {
 // NewResult builds a [Result]. Returns an error when audio is empty
 // or metadata is nil.
 func NewResult(audio []byte, metadata *ResultMetadata) (*Result, error) {
-	if len(audio) == 0 {
-		return nil, errors.New("speech.NewResult: audio must not be empty")
+	result := &Result{Audio: slices.Clone(audio), Metadata: metadata}
+	if err := validateResult(result); err != nil {
+		return nil, fmt.Errorf("speech.NewResult: %w", err)
 	}
-	if metadata == nil {
-		return nil, errors.New("speech.NewResult: metadata must not be nil")
-	}
-	return &Result{Audio: audio, Metadata: metadata}, nil
+	return result, nil
 }
 
 // ResponseMetadata holds response-level metadata for a TTS call.
@@ -77,11 +78,48 @@ type Response struct {
 
 // NewResponse builds a [Response] from a non-nil result and metadata.
 func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
+	response := &Response{Result: result, Metadata: metadata}
+	if err := response.Validate(); err != nil {
+		return nil, fmt.Errorf("speech.NewResponse: %w", err)
+	}
+	return response, nil
+}
+
+// Validate recursively verifies audio and response metadata.
+func (r *Response) Validate() error {
+	if r == nil {
+		return errors.New("speech.Response: nil response")
+	}
+	if err := validateResult(r.Result); err != nil {
+		return fmt.Errorf("speech.Response: result: %w", err)
+	}
+	if r.Metadata == nil {
+		return errors.New("speech.Response: metadata must not be nil")
+	}
+	if r.Metadata.Model != "" && strings.TrimSpace(r.Metadata.Model) != r.Metadata.Model {
+		return errors.New("speech.Response: metadata model must not have surrounding whitespace")
+	}
+	if r.Metadata.Created < 0 {
+		return errors.New("speech.Response: created must not be negative")
+	}
+	if err := r.Metadata.Extra.Validate(); err != nil {
+		return fmt.Errorf("speech.Response: metadata: %w", err)
+	}
+	return nil
+}
+
+func validateResult(result *Result) error {
 	if result == nil {
-		return nil, errors.New("speech.NewResponse: result must not be nil")
+		return errors.New("result must not be nil")
 	}
-	if metadata == nil {
-		return nil, errors.New("speech.NewResponse: metadata must not be nil")
+	if len(result.Audio) == 0 {
+		return errors.New("audio must not be empty")
 	}
-	return &Response{Result: result, Metadata: metadata}, nil
+	if result.Metadata == nil {
+		return errors.New("metadata must not be nil")
+	}
+	if err := result.Metadata.Extra.Validate(); err != nil {
+		return fmt.Errorf("metadata: %w", err)
+	}
+	return nil
 }

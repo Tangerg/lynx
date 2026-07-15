@@ -97,7 +97,6 @@ var (
 
 type Store struct {
 	client               *qdrant.Client
-	embeddingModel       embedding.Model
 	embeddingClient      *embeddingclient.Client
 	documentBatcher      vectorstores.Batcher
 	collectionName       string
@@ -118,7 +117,6 @@ func NewStore(config StoreConfig) (*Store, error) {
 
 	store := &Store{
 		client:               config.Client,
-		embeddingModel:       config.EmbeddingModel,
 		embeddingClient:      embeddingClient,
 		documentBatcher:      config.DocumentBatcher,
 		collectionName:       config.CollectionName,
@@ -147,7 +145,7 @@ func (s *Store) initialize(ctx context.Context) error {
 		return nil
 	}
 
-	dimensions, err := embedding.ResolveDimensions(ctx, s.embeddingModel)
+	dimensions, err := s.embeddingClient.Dimensions(ctx)
 	if err != nil {
 		return fmt.Errorf("qdrant: resolve embedding dimensions: %w", err)
 	}
@@ -378,7 +376,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	ctx, span := tracing.StartSearch(ctx, "qdrant", req.TopK, req.MinScore)
-	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
+	defer func() {
+		if err == nil {
+			err = req.ValidateMatches(docs)
+		}
+		tracing.RecordSearchResult(span, err, len(docs))
+	}()
 
 	var queryPoints *qdrant.QueryPoints
 	queryPoints, err = s.buildQueryPoints(ctx, req)

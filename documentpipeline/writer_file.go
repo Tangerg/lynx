@@ -41,8 +41,6 @@ func (c FileWriterConfig) Validate() error {
 	return nil
 }
 
-var _ document.Writer = (*FileWriter)(nil)
-
 // FileWriter persists documents as plain text. It honors AppendMode,
 // optionally injects document-marker headers, and calls [*os.File].Sync
 // before returning so callers can rely on durability when the call

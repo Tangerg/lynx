@@ -2,6 +2,8 @@ package transcription
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -32,10 +34,11 @@ type Result struct {
 
 // NewResult builds a [Result]. Text may be empty; metadata is required.
 func NewResult(text string, metadata *ResultMetadata) (*Result, error) {
-	if metadata == nil {
-		return nil, errors.New("transcription.NewResult: metadata must not be nil")
+	result := &Result{Text: text, Metadata: metadata}
+	if err := validateResult(result); err != nil {
+		return nil, fmt.Errorf("transcription.NewResult: %w", err)
 	}
-	return &Result{Text: text, Metadata: metadata}, nil
+	return result, nil
 }
 
 // ResponseMetadata holds response-level metadata for a transcription call.
@@ -69,12 +72,47 @@ type Response struct {
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
+// NewResponse builds a [Response] from a non-nil result and metadata.
 func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
+	response := &Response{Result: result, Metadata: metadata}
+	if err := response.Validate(); err != nil {
+		return nil, fmt.Errorf("transcription.NewResponse: %w", err)
+	}
+	return response, nil
+}
+
+// Validate recursively verifies transcription and response metadata.
+func (r *Response) Validate() error {
+	if r == nil {
+		return errors.New("transcription.Response: nil response")
+	}
+	if err := validateResult(r.Result); err != nil {
+		return fmt.Errorf("transcription.Response: result: %w", err)
+	}
+	if r.Metadata == nil {
+		return errors.New("transcription.Response: metadata must not be nil")
+	}
+	if r.Metadata.Model != "" && strings.TrimSpace(r.Metadata.Model) != r.Metadata.Model {
+		return errors.New("transcription.Response: metadata model must not have surrounding whitespace")
+	}
+	if r.Metadata.Created < 0 {
+		return errors.New("transcription.Response: created must not be negative")
+	}
+	if err := r.Metadata.Extra.Validate(); err != nil {
+		return fmt.Errorf("transcription.Response: metadata: %w", err)
+	}
+	return nil
+}
+
+func validateResult(result *Result) error {
 	if result == nil {
-		return nil, errors.New("transcription.NewResponse: result must not be nil")
+		return errors.New("result must not be nil")
 	}
-	if metadata == nil {
-		return nil, errors.New("transcription.NewResponse: metadata must not be nil")
+	if result.Metadata == nil {
+		return errors.New("metadata must not be nil")
 	}
-	return &Response{Result: result, Metadata: metadata}, nil
+	if err := result.Metadata.Extra.Validate(); err != nil {
+		return fmt.Errorf("metadata: %w", err)
+	}
+	return nil
 }

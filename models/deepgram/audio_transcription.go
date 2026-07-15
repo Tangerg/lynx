@@ -71,7 +71,6 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-
 	params, err := options.GetParams[ListenParams](mergedOpts.Extra, OptionsKey)
 	if err != nil {
 		return nil, err

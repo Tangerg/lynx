@@ -22,10 +22,6 @@ const (
 
 	// MaxSimilarityScore is the highest valid score.
 	MaxSimilarityScore = 1.0
-
-	// AcceptAllScores keeps every result regardless of score; alias for
-	// [MinSimilarityScore].
-	AcceptAllScores = MinSimilarityScore
 )
 
 // SearchRequest describes one semantic search. It is an ordinary value: callers
@@ -59,6 +55,35 @@ func (r SearchRequest) Validate() error {
 	if r.Filter != nil {
 		if err := filter.Validate(r.Filter); err != nil {
 			return fmt.Errorf("vectorstore.SearchRequest: filter validation: %w", err)
+		}
+	}
+	return nil
+}
+
+// ValidateMatches verifies that a successful Search result honors this
+// request's score range, threshold, ordering, and result cap.
+func (r SearchRequest) ValidateMatches(matches []Match) error {
+	if err := r.Validate(); err != nil {
+		return err
+	}
+	if len(matches) > r.TopK {
+		return fmt.Errorf("vectorstore.SearchRequest: got %d matches, TopK is %d", len(matches), r.TopK)
+	}
+	for i := range matches {
+		match := matches[i]
+		if err := match.Document.Validate(); err != nil {
+			return fmt.Errorf("vectorstore.SearchRequest: matches[%d]: %w", i, err)
+		}
+		if math.IsNaN(match.Score) || math.IsInf(match.Score, 0) ||
+			match.Score < MinSimilarityScore || match.Score > MaxSimilarityScore {
+			return fmt.Errorf("vectorstore.SearchRequest: matches[%d] score must be finite and in [%.1f, %.1f], got %v",
+				i, MinSimilarityScore, MaxSimilarityScore, match.Score)
+		}
+		if match.Score < r.MinScore {
+			return fmt.Errorf("vectorstore.SearchRequest: matches[%d] score %v is below MinScore %v", i, match.Score, r.MinScore)
+		}
+		if i > 0 && matches[i-1].Score < match.Score {
+			return fmt.Errorf("vectorstore.SearchRequest: matches are not sorted by descending score at index %d", i)
 		}
 	}
 	return nil

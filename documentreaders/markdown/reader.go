@@ -61,9 +61,7 @@ func WithMetadata(md map[string]any) Option {
 	}
 }
 
-var _ document.Reader = (*Reader)(nil)
-
-// Reader is a markdown-aware [document.Reader].
+// Reader extracts documents from Markdown.
 type Reader struct {
 	reader            io.Reader
 	parser            goldmark.Markdown

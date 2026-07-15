@@ -36,9 +36,12 @@ func NewDocument(text string, media *media.Media) (*Document, error) {
 	doc := &Document{
 		Text:     text,
 		Media:    media,
-		Metadata: metadata.New(),
+		Metadata: metadata.Map{},
 	}
-	return doc, doc.Validate()
+	if err := doc.Validate(); err != nil {
+		return nil, err
+	}
+	return doc, nil
 }
 
 // Validate reports whether the document contains usable content.

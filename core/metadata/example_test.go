@@ -7,7 +7,7 @@ import (
 )
 
 func Example() {
-	values := metadata.New()
+	values := metadata.Map{}
 	if err := values.Set("attempt", 3); err != nil {
 		panic(err)
 	}

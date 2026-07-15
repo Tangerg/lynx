@@ -84,7 +84,7 @@ func NewBytes(mimeType string, data []byte) (*Media, error) {
 			Kind:  SourceBytes,
 			Bytes: append([]byte(nil), data...),
 		},
-		Metadata: metadata.New(),
+		Metadata: metadata.Map{},
 	}
 	if err := m.Validate(); err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func NewURI(mimeType, uri string) (*Media, error) {
 			Kind: SourceURI,
 			URI:  uri,
 		},
-		Metadata: metadata.New(),
+		Metadata: metadata.Map{},
 	}
 	if err := m.Validate(); err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func NewReference(mimeType, ref string) (*Media, error) {
 			Kind: SourceReference,
 			Ref:  ref,
 		},
-		Metadata: metadata.New(),
+		Metadata: metadata.Map{},
 	}
 	if err := m.Validate(); err != nil {
 		return nil, err

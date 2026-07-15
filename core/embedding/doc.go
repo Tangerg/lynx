@@ -3,8 +3,8 @@
 //
 // Build input with NewRequest and attach Options only for per-call overrides.
 // Provider defaults and identity are fixed when constructing an implementation,
-// not exposed through Model. Dimension discovery is optional via Dimensioner;
-// ProbeDimensions performs an explicit uncached request when needed. Provider
-// options use Options.Set so Extra remains JSON-safe; Request has no arbitrary
-// parameter bag.
+// not exposed through Model. Dimension discovery belongs to the consuming
+// workflow because it requires an actual embedding request. Provider options
+// use Options.Set so Extra remains JSON-safe; Request has no arbitrary parameter
+// bag.
 package embedding

@@ -13,12 +13,12 @@
 ## 架构心智
 
 - **扁平领域包**：当前路径是 `core/chat`、`core/embedding`、`core/image`、`core/transcription`、`core/speech`、`core/moderation`，不使用 `core/model/<modality>` 表达 Java 式层次。
-- **最小能力接口**：每个 modality 的 `Model` 默认只有 `Call`；`Streamer`、`Dimensioner` 等能力独立，provider 只实现真实支持的能力。
+- **最小能力接口**：每个 modality 的 `Model` 默认只有 `Call`；真实流能力以独立 `Streamer` 表达，需要发请求的维度探测归消费工作流，不伪装为 Core SPI。
 - **协议值可序列化**：DTO 不携带闭包、reader、logger、tracer、registry、native client 或任意运行时对象；Metadata/Extensions 必须 JSON-safe，并在 I/O 边界显式 `Validate`。
 - **Tagged value，而非 sealed hierarchy**：Message/Part 使用公开 discriminator 与普通值；未知类型返回可诊断错误，不依赖未导出方法封口。
 - **流式使用 `iter.Seq2`**：不自定义 iterator，不用 channel 冒充拉模型；调用方提前停止、context cancel 和首错终止必须有测试。
 - **一个扩展机制**：跨调用行为只用函数式 middleware/decorator；Core 只保留类型和纯组合，不保留具体 history/logger/safeguard/OTel 实现。
-- **VectorStore 保留应用语义**：公共面仍处理 Document/查询文本，但按 Indexer/Searcher/IDDeleter/FilterDeleter 拆小能力；filter 只公开稳定 Expr 门面，实现细节进 internal。
+- **VectorStore 保留应用语义**：公共面仍处理 Document/查询文本，但按 Indexer/Searcher/IDDeleter/FilterDeleter 拆小能力；`SearchRequest` 同时拥有输入与 Match 输出校验。filter 只公开稳定 AST/Visitor/Formatter，scanner、analyzer 与 optimizer 保持私有。
 
 ## 演进纪律
 
@@ -33,6 +33,7 @@
 - ❌ 用泛型 Model/StreamingModel 模拟继承，或让 Model 强制 DefaultOptions/Metadata/Stream。
 - ❌ 把 `any`、闭包、SDK client、`io.Reader` 等运行时对象塞进 wire DTO。
 - ❌ 新增全局 registry/cache/state，或让探测错误以 0/空值静默返回。
+- ❌ 把只由单一 provider 支持、或跨 provider 语义不同的 option/taxonomy 提升为 Core 固定字段。
 - ❌ 新增第二套 Advisor/Hook/Interceptor/Plugin 扩展链。
 - ❌ 用 channel 取代 `iter.Seq2` 做流式。
 

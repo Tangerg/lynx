@@ -1,4 +1,4 @@
-// Package pdf implements a [document.Reader] over PDF payloads using
+// Package pdf reads PDF payloads using
 // github.com/ledongthuc/pdf — a pure-Go PDF parser forked from rsc/pdf.
 //
 // The reader extracts plain text from each page. Two emission modes:

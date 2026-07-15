@@ -11,17 +11,17 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 
 最终审查批准当前契约进入 v1 稳定期。冻结意味着从 `core/v1.0.0` 开始按 SemVer 管理当前 API 与 wire，而不是恢复任何重构前 API 或历史 wire。仓库中没有为旧设计保留 alias、bridge、shim、兼容字段、dual-read/dual-write 或旧 decoder。
 
-`core/v1.0.0` 尚未创建，因此维护者在 tag 前重新打开 Filter 契约审查：删除双 AST/转换层、builder 与 precedence 表面，公开 `Predicate`/`Selector`/`Visitor`，并把递归下降前端收敛为同包私有实现。维护者随后确认 `Visitor` 是外部 adapter 的扩展逃生舱，补充 `Visit(predicate, visitors...)` 作为验证一次、顺序分派的公共消费入口；最终保留公开 `Formatter`，把 analyzer/optimizer 作为同包私有 visitor，并收紧 provider 数字编译边界。最后一轮在不改变 API 的前提下增加循环 AST 和精确索引不变量，把 optimizer 收敛为只处理已验证逻辑 IR、保持叶子可观察性的三值逻辑安全重写器。最终 334 行 API baseline 取代先前 341 行草案；wire inventory 与 golden 不变。
+`core/v1.0.0` 尚未创建，因此维护者在 tag 前先后重新打开 Filter 与全 Core 契约审查。Filter 删除双 AST/转换层并保留公开 Visitor/Formatter、私有 analyzer/optimizer；随后 P9 按真实 provider/consumer 闭环再次收口：Image 统一 `media.Media` 与复数结果，Embedding 删除多模态/编码/Dimensioner 假能力，Moderation 改为开放分类，provider-only Options 退出 Core，五个非 Chat Response 与全部 VectorStore 成功输出建立递归验证。兼容 baseline 以 P9 最终代码重新生成，不沿用中间冻结数字。
 
 ## 2. 冻结范围
 
 | 项目 | 冻结结果 |
 |---|---:|
 | 公共 package | 11 |
-| exported API baseline | 334 行冻结快照 |
-| 带 JSON tag 的导出 DTO | 49 |
+| exported API baseline | 319 行冻结快照 |
+| 带 JSON tag 的导出 DTO | 47 |
 | 代表性 wire root | 17 |
-| 聚合 wire golden | 487 行 |
+| 聚合 wire golden | 478 行 |
 | Core 第三方生产依赖 | 0 |
 | Core sibling module 生产依赖 | 0 |
 
@@ -32,21 +32,22 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 | 原则 | 证据 | 结论 |
 |---|---|---|
 | Core 是协议库，不是运行时框架 | Client、History、Tool runtime、Agent、OTel、catalog 与 tokenizer 已外移 | 通过 |
-| 公共值可独立序列化 | 49 项 DTO inventory 与 487 行 wire golden 为 blocking gate | 通过 |
+| 公共值可独立序列化 | 47 项 DTO inventory 与 478 行 wire golden 为 blocking gate | 通过 |
 | 公共 wire 不承载任意运行时值 | AST 门禁拒绝序列化 DTO 中的 `any`/`interface{}`、Request `Params` 和 `Usage.OriginalUsage` | 通过 |
 | 扩展数据写入时即验证 | `metadata.Map` 保存 `json.RawMessage`；`Set`/`FromValues` 返回编码错误，`Merge` 校验后深拷贝且失败不修改 receiver | 通过 |
 | 无效请求不进入 provider SDK | Chat 与五个非 Chat modality 递归 `Validate`；Models AST 门禁覆盖 Call/Stream 边界 | 通过 |
 | 接口由消费能力塑造 | Model/Streamer、Indexer/Searcher/Deleter 等接口保持 1–3 个方法且能力可分离 | 通过 |
 | 依赖方向单向 | Core 生产 import 只允许标准库或 Core 自身，外层 module 依赖 Core | 通过 |
 | 便利层不反向塑造协议 | Embedding 向量便利方法位于 `embeddingclient`；Core 不公开 Client、默认值或 middleware | 通过 |
-| provider 差异不扩张 Core | provider JSON 进入 typed Options 或 namespaced `metadata.Map`；options key 冻结为 `<provider>/options` | 通过 |
+| provider 差异不扩张 Core | 只有多 provider 同语义字段进入 typed Options；其余 JSON 进入 namespaced `metadata.Map`，options key 冻结为 `<provider>/options` | 通过 |
 | 值对象行为归属明确 | 五个 modality 的不可变 Options 合并由 `Merged` receiver 承担；Embedding/Moderation 首项统一为 `First`；Speech 使用 `OutputFormat`/`Audio` | 通过 |
+| 成功输出不绕过协议边界 | 五个非 Chat Response 递归 `Validate`；25 个真实 VectorStore Search 出口调用 `SearchRequest.ValidateMatches` | 通过 |
 | Filter 遍历职责单一 | 公开 Formatter 服务外部文本适配；私有 analyzer 唯一拒绝非法/循环树，optimizer 只规范化已验证逻辑 IR 且保持叶子可观察；provider 数字转换按 SDK 表达能力显式失败 | 通过 |
 | 不保留迁移债务 | 旧 package、旧 wire decoder、alias/bridge/shim 与双轨读写均不存在 | 通过 |
 
 ## 4. 可扩展性结论
 
-Provider 通过实现各 modality 的最小接口并在 adapter 内完成 typed SDK 映射；VectorStore backend 通过实现调用方需要的小能力接口并翻译稳定 Filter Expr。`filter.Visit` 消费公开 `Visitor`，让外部 adapter 在一次校验后按顺序组合多个 compiler/interpreter；首错原样返回且后续 visitor 不执行。`Formatter` 提供稳定文本出口，分析与优化策略不成为外部协议。新增 integration 不需要修改 Core 接口，也不需要 Core 反向 import SDK、driver 或上层 module。
+Provider 通过实现各 modality 的最小接口并在 adapter 内完成 typed SDK 映射；不可表达的显式通用选项必须在 I/O 前报错。VectorStore backend 通过实现调用方需要的小能力接口并翻译稳定 Filter Expr。`filter.Visit` 消费公开 `Visitor`，让外部 adapter 在一次校验后按顺序组合多个 compiler/interpreter；首错原样返回且后续 visitor 不执行。`Formatter` 提供稳定文本出口，分析与优化策略不成为外部协议。新增 integration 不需要修改 Core 接口，也不需要 Core 反向 import SDK、driver 或上层 module。
 
 Chat provider/facade 的构造与共享协议行为由 Models conformance 覆盖；五类参考实现覆盖 Anthropic、Bedrock、Google、Ollama 与 OpenAI。VectorStores 自动发现实现集合，并要求 27/27 backend 注册和执行共享 conformance，新增实现无法静默绕过发布门禁。
 
@@ -95,4 +96,4 @@ Core 没有第三方生产依赖，`govulncheck` 没有可达漏洞。Models 与
 4. Provider 或 backend 的新能力优先在 adapter/上层 module 组合；只有四个以上真实实现与消费方共享的稳定语义才进入 Core 候选审查。
 5. 已推送 tag 不得移动；发布操作与版本集合按 [`CORE_V1_RELEASE_RUNBOOK.md`](./CORE_V1_RELEASE_RUNBOOK.md) 留档。
 
-P8-05 确定性门禁通过后，Core 架构演进计划的 65 项任务已经全部完成；后续工作从“重构计划”切换为“稳定契约维护与正式发布”。
+P9 文档、兼容基线与确定性门禁完成后，Core 架构演进计划以 73/73 再次关闭；后续工作从“重构计划”切换为“稳定契约维护与正式发布”。

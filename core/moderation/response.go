@@ -2,6 +2,11 @@ package moderation
 
 import (
 	"errors"
+	"fmt"
+	"maps"
+	"math"
+	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -16,106 +21,34 @@ type Verdict struct {
 	Score float64 `json:"score"`
 }
 
-// Categories aggregates every category a content-moderation provider
-// surfaces. Providers vary in which fields they populate — unflagged
-// categories simply leave Flagged=false and Score=0.
-//
-// Field doc comments preserve OpenAI's category descriptions because
-// the policy semantics are part of the API contract callers reason
-// about.
-type Categories struct {
-	// Sexual covers content meant to arouse sexual excitement or
-	// promote sexual services (sex education / wellness excluded).
-	Sexual Verdict `json:"sexual"`
-
-	// Hate covers content expressing or promoting hate based on race,
-	// gender, ethnicity, religion, nationality, sexual orientation,
-	// disability status, or caste.
-	Hate Verdict `json:"hate"`
-
-	// Harassment covers content expressing, inciting, or promoting
-	// harassing language toward any target.
-	Harassment Verdict `json:"harassment"`
-
-	// SelfHarm covers content promoting, encouraging, or depicting
-	// acts of self-harm (suicide, cutting, eating disorders).
-	SelfHarm Verdict `json:"self_harm"`
-
-	// SexualMinors covers sexual content involving anyone under 18.
-	SexualMinors Verdict `json:"sexual_minors"`
-
-	// HateThreatening covers hateful content that also includes
-	// violence or serious harm toward the targeted group.
-	HateThreatening Verdict `json:"hate_threatening"`
-
-	// ViolenceGraphic covers content depicting death, violence, or
-	// physical injury in graphic detail.
-	ViolenceGraphic Verdict `json:"violence_graphic"`
-
-	// SelfHarmIntent covers content where the speaker expresses
-	// intent to engage in self-harm.
-	SelfHarmIntent Verdict `json:"self_harm_intent"`
-
-	// SelfHarmInstructions covers content giving instructions or
-	// advice on committing self-harm.
-	SelfHarmInstructions Verdict `json:"self_harm_instructions"`
-
-	// HarassmentThreatening covers harassment combined with violence
-	// or threats of serious harm.
-	HarassmentThreatening Verdict `json:"harassment_threatening"`
-
-	// Violence covers content depicting death, violence, or physical
-	// injury (without the "graphic" qualifier).
-	Violence Verdict `json:"violence"`
-
-	// DangerousAndCriminalContent covers dangerous or criminal content.
-	DangerousAndCriminalContent Verdict `json:"dangerous_and_criminal_content"`
-
-	// Health flags health-related misinformation.
-	Health Verdict `json:"health"`
-
-	// Financial flags financial misinformation or fraud.
-	Financial Verdict `json:"financial"`
-
-	// Law flags legal misinformation.
-	Law Verdict `json:"law"`
-
-	// Pii flags personally identifiable information.
-	Pii Verdict `json:"pii"`
-
-	// Illicit flags content giving instructions for committing illicit
-	// acts (e.g. "how to shoplift").
-	Illicit Verdict `json:"illicit"`
-
-	// IllicitViolent flags illicit-act instructions that also involve
-	// violence or weapons procurement.
-	IllicitViolent Verdict `json:"illicit_violent"`
-}
+// Categories is the provider-reported category set. Keys retain provider
+// semantics instead of forcing every provider through one closed taxonomy.
+type Categories map[string]Verdict
 
 // Flagged reports whether any category fired. Useful when callers only
 // need a yes/no decision without inspecting individual scores.
-func (c *Categories) Flagged() bool {
-	if c == nil {
-		return false
+func (c Categories) Flagged() bool {
+	for _, verdict := range c {
+		if verdict.Flagged {
+			return true
+		}
 	}
-	return c.Sexual.Flagged ||
-		c.Hate.Flagged ||
-		c.Harassment.Flagged ||
-		c.SelfHarm.Flagged ||
-		c.SexualMinors.Flagged ||
-		c.HateThreatening.Flagged ||
-		c.ViolenceGraphic.Flagged ||
-		c.SelfHarmIntent.Flagged ||
-		c.SelfHarmInstructions.Flagged ||
-		c.HarassmentThreatening.Flagged ||
-		c.Violence.Flagged ||
-		c.DangerousAndCriminalContent.Flagged ||
-		c.Health.Flagged ||
-		c.Financial.Flagged ||
-		c.Law.Flagged ||
-		c.Pii.Flagged ||
-		c.Illicit.Flagged ||
-		c.IllicitViolent.Flagged
+	return false
+}
+
+func (c Categories) validate() error {
+	if len(c) == 0 {
+		return errors.New("categories must not be empty")
+	}
+	for category, verdict := range c {
+		if category == "" || strings.TrimSpace(category) != category {
+			return fmt.Errorf("invalid category %q", category)
+		}
+		if math.IsNaN(verdict.Score) || math.IsInf(verdict.Score, 0) || verdict.Score < 0 || verdict.Score > 1 {
+			return fmt.Errorf("category %q score must be finite and in [0, 1], got %v", category, verdict.Score)
+		}
+	}
+	return nil
 }
 
 // ResultMetadata holds per-input metadata returned by the provider.
@@ -135,7 +68,7 @@ func (m *ResultMetadata) Set(key string, value any) error {
 // Result is one input's moderation verdict plus metadata.
 type Result struct {
 	// Categories holds the per-category verdict.
-	Categories *Categories `json:"categories,omitempty"`
+	Categories Categories `json:"categories,omitzero"`
 
 	// Metadata carries per-input extras.
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
@@ -143,14 +76,17 @@ type Result struct {
 
 // NewResult builds a [Result]. Returns an error when categories or
 // metadata is nil.
-func NewResult(categories *Categories, metadata *ResultMetadata) (*Result, error) {
-	if categories == nil {
-		return nil, errors.New("moderation.NewResult: categories must not be nil")
+func NewResult(categories Categories, metadata *ResultMetadata) (*Result, error) {
+	if err := categories.validate(); err != nil {
+		return nil, fmt.Errorf("moderation.NewResult: %w", err)
 	}
 	if metadata == nil {
 		return nil, errors.New("moderation.NewResult: metadata must not be nil")
 	}
-	return &Result{Categories: categories, Metadata: metadata}, nil
+	if err := metadata.Extra.Validate(); err != nil {
+		return nil, fmt.Errorf("moderation.NewResult: metadata: %w", err)
+	}
+	return &Result{Categories: maps.Clone(categories), Metadata: metadata}, nil
 }
 
 // ResponseMetadata holds response-level metadata for a moderation call.
@@ -189,13 +125,58 @@ type Response struct {
 // NewResponse builds a [Response] from at least one result and a
 // non-nil metadata.
 func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
-	if len(results) == 0 {
-		return nil, errors.New("moderation.NewResponse: at least one Result is required")
+	response := &Response{Results: slices.Clone(results), Metadata: metadata}
+	if err := response.Validate(); err != nil {
+		return nil, fmt.Errorf("moderation.NewResponse: %w", err)
 	}
-	if metadata == nil {
-		return nil, errors.New("moderation.NewResponse: metadata must not be nil")
+	return response, nil
+}
+
+// Validate recursively verifies category verdicts and response metadata.
+func (r *Response) Validate() error {
+	if r == nil {
+		return errors.New("moderation.Response: nil response")
 	}
-	return &Response{Results: results, Metadata: metadata}, nil
+	if len(r.Results) == 0 {
+		return errors.New("moderation.Response: at least one result is required")
+	}
+	for i, result := range r.Results {
+		if err := validateResult(result); err != nil {
+			return fmt.Errorf("moderation.Response: results[%d]: %w", i, err)
+		}
+	}
+	if r.Metadata == nil {
+		return errors.New("moderation.Response: metadata must not be nil")
+	}
+	if r.Metadata.ID != "" && strings.TrimSpace(r.Metadata.ID) != r.Metadata.ID {
+		return errors.New("moderation.Response: metadata ID must not have surrounding whitespace")
+	}
+	if r.Metadata.Model != "" && strings.TrimSpace(r.Metadata.Model) != r.Metadata.Model {
+		return errors.New("moderation.Response: metadata model must not have surrounding whitespace")
+	}
+	if r.Metadata.Created < 0 {
+		return errors.New("moderation.Response: created must not be negative")
+	}
+	if err := r.Metadata.Extra.Validate(); err != nil {
+		return fmt.Errorf("moderation.Response: metadata: %w", err)
+	}
+	return nil
+}
+
+func validateResult(result *Result) error {
+	if result == nil {
+		return errors.New("result must not be nil")
+	}
+	if err := result.Categories.validate(); err != nil {
+		return err
+	}
+	if result.Metadata == nil {
+		return errors.New("metadata must not be nil")
+	}
+	if err := result.Metadata.Extra.Validate(); err != nil {
+		return fmt.Errorf("metadata: %w", err)
+	}
+	return nil
 }
 
 // First returns the first verdict — the common single-input shortcut.

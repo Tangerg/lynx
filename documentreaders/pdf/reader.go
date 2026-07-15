@@ -53,9 +53,7 @@ func WithMetadata(md map[string]any) Option {
 	}
 }
 
-var _ document.Reader = (*Reader)(nil)
-
-// Reader is a PDF-aware [document.Reader].
+// Reader extracts documents from PDF.
 type Reader struct {
 	src           io.ReaderAt
 	size          int64

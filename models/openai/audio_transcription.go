@@ -70,18 +70,6 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 	if mergedOpts.Language != "" {
 		params.Language = param.NewOpt(mergedOpts.Language)
 	}
-	if mergedOpts.Prompt != "" {
-		params.Prompt = param.NewOpt(mergedOpts.Prompt)
-	}
-	if mergedOpts.Temperature != nil {
-		params.Temperature = param.NewOpt(*mergedOpts.Temperature)
-	}
-	if mergedOpts.ResponseFormat != "" {
-		params.ResponseFormat = openai.AudioResponseFormat(mergedOpts.ResponseFormat)
-	}
-	if len(mergedOpts.TimestampGranularity) > 0 {
-		params.TimestampGranularities = mergedOpts.TimestampGranularity
-	}
 
 	data, err := req.Audio.Bytes()
 	if err != nil {

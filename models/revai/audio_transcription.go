@@ -73,7 +73,6 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-
 	jobOpts, err := options.GetParams[JobOptions](mergedOpts.Extra, OptionsKey)
 	if err != nil {
 		return nil, err

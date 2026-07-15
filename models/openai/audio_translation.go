@@ -7,7 +7,6 @@ import (
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
-	"github.com/openai/openai-go/v3/packages/param"
 
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/internal/options"
@@ -72,6 +71,11 @@ func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Re
 	if err != nil {
 		return nil, err
 	}
+	if err := options.RejectUnsupported("openai: translation", map[string]bool{
+		"language": mergedOpts.Language != "",
+	}); err != nil {
+		return nil, err
+	}
 
 	params, err := options.GetParams[openai.AudioTranslationNewParams](mergedOpts.Extra, OptionsKey)
 	if err != nil {
@@ -79,16 +83,6 @@ func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Re
 	}
 
 	params.Model = mergedOpts.Model
-	if mergedOpts.Prompt != "" {
-		params.Prompt = param.NewOpt(mergedOpts.Prompt)
-	}
-	if mergedOpts.Temperature != nil {
-		params.Temperature = param.NewOpt(*mergedOpts.Temperature)
-	}
-	if mergedOpts.ResponseFormat != "" {
-		params.ResponseFormat = openai.AudioTranslationNewParamsResponseFormat(mergedOpts.ResponseFormat)
-	}
-
 	data, err := req.Audio.Bytes()
 	if err != nil {
 		return nil, err

@@ -101,6 +101,11 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if err != nil {
 		return nil, err
 	}
+	if err := options.RejectUnsupported("replicate: speech", map[string]bool{
+		"output_format": mergedOpts.OutputFormat != "",
+	}); err != nil {
+		return nil, err
+	}
 
 	apiReq, err := options.GetParams[PredictionRequest](mergedOpts.Extra, OptionsKey)
 	if err != nil {

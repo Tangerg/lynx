@@ -2,12 +2,12 @@ package prodia
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"net/http"
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -60,7 +60,11 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err != nil {
 		return nil, err
 	}
-
+	if err := options.RejectUnsupported("prodia: image", map[string]bool{
+		"output_format": mergedOpts.OutputFormat != "",
+	}); err != nil {
+		return nil, err
+	}
 	apiReq, err := options.GetParams[JobRequest](mergedOpts.Extra, OptionsKey)
 	if err != nil {
 		return nil, err
@@ -100,22 +104,19 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	img, err := image.NewImage("", base64.StdEncoding.EncodeToString(body))
+	mimeType := hdr.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	value, err := media.NewBytes(mimeType, body)
 	if err != nil {
 		return nil, err
 	}
 
-	resultMeta := &image.ResultMetadata{}
-	if ct := hdr.Get("Content-Type"); ct != "" {
-		if err := resultMeta.Set("mime_type", ct); err != nil {
-			return nil, err
-		}
-	}
-
-	result, err := image.NewResult(img, resultMeta)
+	result, err := image.NewResult(value, &image.ResultMetadata{})
 	if err != nil {
 		return nil, err
 	}
 
-	return image.NewResponse(result, &image.ResponseMetadata{Created: time.Now().Unix()})
+	return image.NewResponse([]*image.Result{result}, &image.ResponseMetadata{Created: time.Now().Unix()})
 }

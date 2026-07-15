@@ -74,9 +74,6 @@ func (e *EmbeddingModel) buildAPIEmbeddingRequest(req *embedding.Request) (*open
 	if mergedOpts.Dimensions != nil {
 		params.Dimensions = openai.Int(ptr.From(mergedOpts.Dimensions))
 	}
-	if mergedOpts.EncodingFormat.Valid() {
-		params.EncodingFormat = openai.EmbeddingNewParamsEncodingFormat(mergedOpts.EncodingFormat)
-	}
 
 	return params, nil
 }
@@ -92,11 +89,7 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 
 	results := make([]*embedding.Result, 0, len(apiResp.Data))
 	for _, item := range apiResp.Data {
-		resultMeta := &embedding.ResultMetadata{
-			Index:        item.Index,
-			ModalityType: embedding.Text,
-			MIMEType:     "text/plain",
-		}
+		resultMeta := &embedding.ResultMetadata{}
 
 		result, err := embedding.NewResult(item.Embedding, resultMeta)
 		if err != nil {

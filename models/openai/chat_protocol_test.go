@@ -148,7 +148,7 @@ func newCoreChatRequest(t *testing.T) *corechat.Request {
 		corechat.NewTextPart("I will search."),
 		corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"lynx"}`}),
 	)
-	assistant.Metadata = metadata.New()
+	assistant.Metadata = metadata.Map{}
 	if err := assistant.Metadata.Set("openai/audio_id", "audio-prev"); err != nil {
 		t.Fatalf("set audio metadata: %v", err)
 	}

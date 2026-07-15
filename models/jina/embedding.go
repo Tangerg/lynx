@@ -71,8 +71,8 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*EmbeddingRequ
 	if mergedOpts.Dimensions != nil {
 		apiReq.Dimensions = mergedOpts.Dimensions
 	}
-	if mergedOpts.EncodingFormat.Valid() && apiReq.EmbeddingType == "" {
-		apiReq.EmbeddingType = string(mergedOpts.EncodingFormat)
+	if apiReq.EmbeddingType == "" {
+		apiReq.EmbeddingType = "float"
 	}
 
 	return apiReq, nil
@@ -83,14 +83,9 @@ func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.R
 		return nil, errors.New("jina: embedding response has no data")
 	}
 
-	textPlain := "text/plain"
 	results := make([]*embedding.Result, 0, len(apiResp.Data))
 	for _, item := range apiResp.Data {
-		resultMeta := &embedding.ResultMetadata{
-			Index:        item.Index,
-			ModalityType: embedding.Text,
-			MIMEType:     textPlain,
-		}
+		resultMeta := &embedding.ResultMetadata{}
 
 		result, err := embedding.NewResult(item.Embedding, resultMeta)
 		if err != nil {

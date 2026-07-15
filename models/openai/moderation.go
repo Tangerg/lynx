@@ -77,56 +77,56 @@ func (m *ModerationModel) buildModerationResponse(resp *openai.ModerationNewResp
 	results := make([]*moderation.Result, 0, len(resp.Results))
 
 	for _, item := range resp.Results {
-		cats := &moderation.Categories{
-			Harassment: moderation.Verdict{
+		cats := moderation.Categories{
+			"harassment": {
 				Flagged: item.Categories.Harassment,
 				Score:   item.CategoryScores.Harassment,
 			},
-			HarassmentThreatening: moderation.Verdict{
+			"harassment_threatening": {
 				Flagged: item.Categories.HarassmentThreatening,
 				Score:   item.CategoryScores.HarassmentThreatening,
 			},
-			Hate: moderation.Verdict{
+			"hate": {
 				Flagged: item.Categories.Hate,
 				Score:   item.CategoryScores.Hate,
 			},
-			HateThreatening: moderation.Verdict{
+			"hate_threatening": {
 				Flagged: item.Categories.HateThreatening,
 				Score:   item.CategoryScores.HateThreatening,
 			},
-			Illicit: moderation.Verdict{
+			"illicit": {
 				Flagged: item.Categories.Illicit,
 				Score:   item.CategoryScores.Illicit,
 			},
-			IllicitViolent: moderation.Verdict{
+			"illicit_violent": {
 				Flagged: item.Categories.IllicitViolent,
 				Score:   item.CategoryScores.IllicitViolent,
 			},
-			SelfHarm: moderation.Verdict{
+			"self_harm": {
 				Flagged: item.Categories.SelfHarm,
 				Score:   item.CategoryScores.SelfHarm,
 			},
-			SelfHarmInstructions: moderation.Verdict{
+			"self_harm_instructions": {
 				Flagged: item.Categories.SelfHarmInstructions,
 				Score:   item.CategoryScores.SelfHarmInstructions,
 			},
-			SelfHarmIntent: moderation.Verdict{
+			"self_harm_intent": {
 				Flagged: item.Categories.SelfHarmIntent,
 				Score:   item.CategoryScores.SelfHarmIntent,
 			},
-			Sexual: moderation.Verdict{
+			"sexual": {
 				Flagged: item.Categories.Sexual,
 				Score:   item.CategoryScores.Sexual,
 			},
-			SexualMinors: moderation.Verdict{
+			"sexual_minors": {
 				Flagged: item.Categories.SexualMinors,
 				Score:   item.CategoryScores.SexualMinors,
 			},
-			Violence: moderation.Verdict{
+			"violence": {
 				Flagged: item.Categories.Violence,
 				Score:   item.CategoryScores.Violence,
 			},
-			ViolenceGraphic: moderation.Verdict{
+			"violence_graphic": {
 				Flagged: item.Categories.ViolenceGraphic,
 				Score:   item.CategoryScores.ViolenceGraphic,
 			},

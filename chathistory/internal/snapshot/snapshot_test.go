@@ -16,7 +16,7 @@ func TestRequestDeepCopiesEveryReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	message := chat.NewUserMessage(chat.NewMediaPart(image))
-	message.Metadata = metadata.New()
+	message.Metadata = metadata.Map{}
 	if err := message.Metadata.Set("turn", 1); err != nil {
 		t.Fatal(err)
 	}

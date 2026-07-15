@@ -157,7 +157,7 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 		corechat.NewTextPart("I need one fact."),
 		corechat.NewToolCallPart(corechat.ToolCall{ID: "toolu-1", Name: "lookup", Arguments: `{"id":7}`}),
 	)
-	assistant.Metadata = metadata.New()
+	assistant.Metadata = metadata.Map{}
 	if err := assistant.Metadata.Set("anthropic/redacted_reasoning", "prior-opaque-block"); err != nil {
 		t.Fatalf("set redacted reasoning: %v", err)
 	}

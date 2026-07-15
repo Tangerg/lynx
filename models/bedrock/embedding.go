@@ -61,18 +61,17 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 	if err != nil {
 		return nil, err
 	}
+	if mergedOpts.Dimensions != nil && strings.HasPrefix(mergedOpts.Model, "cohere.embed") {
+		return nil, errors.New("bedrock: embedding: dimensions are unsupported by Cohere models")
+	}
 
 	results := make([]*embedding.Result, 0, len(req.Texts))
-	for index, text := range req.Texts {
+	for _, text := range req.Texts {
 		vec, err := e.invoke(ctx, mergedOpts.Model, text, mergedOpts.Dimensions)
 		if err != nil {
 			return nil, err
 		}
-		resultMeta := &embedding.ResultMetadata{
-			Index:        int64(index),
-			ModalityType: embedding.Text,
-			MIMEType:     "text/plain",
-		}
+		resultMeta := &embedding.ResultMetadata{}
 		result, err := embedding.NewResult(vec, resultMeta)
 		if err != nil {
 			return nil, err

@@ -1,8 +1,6 @@
 package vectorstore_test
 
 import (
-	"context"
-	"errors"
 	"math"
 	"reflect"
 	"testing"
@@ -36,49 +34,31 @@ func TestSearchRequestValidate(t *testing.T) {
 	}
 }
 
-type fakeIndexer struct {
-	docs []*document.Document
-	err  error
-}
-
-func (i *fakeIndexer) Add(_ context.Context, docs []*document.Document) error {
-	i.docs = docs
-	return i.err
-}
-
-func TestNewDocumentWriterDelegatesToIndexer(t *testing.T) {
-	i := &fakeIndexer{}
-	w := vectorstore.NewDocumentWriter(i)
-
-	doc, _ := document.NewDocument("hi", nil)
-	if err := w.Write(context.Background(), []*document.Document{doc}); err != nil {
+func TestSearchRequestValidateMatches(t *testing.T) {
+	request := vectorstore.SearchRequest{Query: "lynx", TopK: 2, MinScore: 0.5}
+	first, _ := document.NewDocument("first", nil)
+	second, _ := document.NewDocument("second", nil)
+	valid := []vectorstore.Match{{Document: first, Score: 0.9}, {Document: second, Score: 0.5}}
+	if err := request.ValidateMatches(valid); err != nil {
 		t.Fatal(err)
 	}
-	if len(i.docs) != 1 {
-		t.Fatalf("indexer received %d docs, want 1", len(i.docs))
+
+	tests := []struct {
+		name    string
+		matches []vectorstore.Match
+	}{
+		{name: "too many", matches: append(valid, vectorstore.Match{Document: second, Score: 0.5})},
+		{name: "nil document", matches: []vectorstore.Match{{Score: 0.9}}},
+		{name: "out of range", matches: []vectorstore.Match{{Document: first, Score: 1.1}}},
+		{name: "below threshold", matches: []vectorstore.Match{{Document: first, Score: 0.4}}},
+		{name: "not sorted", matches: []vectorstore.Match{{Document: first, Score: 0.5}, {Document: second, Score: 0.9}}},
 	}
-}
-
-func TestNewDocumentWriterPropagatesError(t *testing.T) {
-	want := errors.New("boom")
-	i := &fakeIndexer{err: want}
-	w := vectorstore.NewDocumentWriter(i)
-
-	doc, _ := document.NewDocument("hi", nil)
-	if err := w.Write(context.Background(), []*document.Document{doc}); !errors.Is(err, want) {
-		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestNewDocumentWriterRejectsEmptyDocs(t *testing.T) {
-	i := &fakeIndexer{}
-	w := vectorstore.NewDocumentWriter(i)
-
-	if err := w.Write(context.Background(), nil); !errors.Is(err, vectorstore.ErrEmptyDocuments) {
-		t.Fatalf("err = %v, want ErrEmptyDocuments", err)
-	}
-	if i.docs != nil {
-		t.Fatal("indexer should not be called when validation fails")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := request.ValidateMatches(test.matches); err == nil {
+				t.Fatal("ValidateMatches accepted invalid output")
+			}
+		})
 	}
 }
 

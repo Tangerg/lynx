@@ -17,7 +17,6 @@ func Example() {
 	}
 	dimensions := int64(3)
 	options.Dimensions = &dimensions
-	options.EncodingFormat = embedding.EncodingFormatFloat
 	request.Options = options
 
 	fmt.Println(len(request.Texts), request.Options.Model, *request.Options.Dimensions)

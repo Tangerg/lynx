@@ -108,7 +108,6 @@ type Store struct {
 	client           *s3vectors.Client
 	vectorBucketName string
 	indexName        string
-	embeddingModel   embedding.Model
 	embeddingClient  *embeddingclient.Client
 	documentBatcher  vectorstores.Batcher
 	distanceMetric   DistanceMetric
@@ -129,7 +128,6 @@ func NewStore(config StoreConfig) (*Store, error) {
 		client:           config.Client,
 		vectorBucketName: config.VectorBucketName,
 		indexName:        config.IndexName,
-		embeddingModel:   config.EmbeddingModel,
 		embeddingClient:  embeddingClient,
 		documentBatcher:  config.DocumentBatcher,
 		distanceMetric:   config.DistanceMetric,
@@ -203,7 +201,12 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	}
 
 	ctx, span := tracing.StartSearch(ctx, "s3vectors", req.TopK, req.MinScore)
-	defer func() { tracing.RecordSearchResult(span, err, len(docs)) }()
+	defer func() {
+		if err == nil {
+			err = req.ValidateMatches(docs)
+		}
+		tracing.RecordSearchResult(span, err, len(docs))
+	}()
 
 	var vector []float64
 	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
@@ -273,7 +276,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 
 	// Use a placeholder embedding to drive the filter scan — the
 	// vector itself doesn't matter when the distance is discarded.
-	dimensions, err := embedding.ResolveDimensions(ctx, s.embeddingModel)
+	dimensions, err := s.embeddingClient.Dimensions(ctx)
 	if err != nil {
 		return fmt.Errorf("s3vectors: resolve embedding dimensions: %w", err)
 	}

@@ -100,7 +100,7 @@ func (s *WindowStore) Conversations(ctx context.Context) ([]string, error) {
 }
 
 func mergeSystemMessages(messages []chat.Message) chat.Message {
-	merged := chat.Message{Role: chat.RoleSystem, Metadata: metadata.New()}
+	merged := chat.Message{Role: chat.RoleSystem, Metadata: metadata.Map{}}
 	for i, message := range messages {
 		if i > 0 {
 			merged.Parts = append(merged.Parts, chat.NewTextPart("\n\n"))

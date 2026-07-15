@@ -1,6 +1,6 @@
 # Core 架构演进执行计划
 
-> 状态：已完成（Core v1 架构冻结；tag 前稳定化精修完成）
+> 状态：进行中（P9 最终语义收口：代码完成，文档/兼容基线与全仓门禁收尾）
 > 建立日期：2026-07-13
 > 最后更新：2026-07-15
 > 维护者：Lynx 仓库维护者
@@ -105,7 +105,7 @@ Core 只保留以下三类内容：
 ### 4.2 接口由消费方需求决定
 
 - 一个接口默认保持 1–3 个方法。
-- Call、Stream、Dimensions、DeleteByID 等能力分别建模。
+- Call、Stream、DeleteByID 等真实调用能力分别建模；需要发起请求的维度探测属于消费工作流，不伪装成 Core SPI。
 - 不通过胖 `Store` 或胖 `Model` 强迫实现者提供不支持的能力。
 - 接收小接口，返回具体类型。
 
@@ -119,7 +119,7 @@ Core 只保留以下三类内容：
 
 - `Options{}` 表示使用 model/provider 默认配置，是合法值。
 - Request 在 I/O 边界显式 `Validate`，非法配置返回错误，不静默忽略。
-- provider 响应允许 metadata 缺失，不要求为了构造对象伪造非空 metadata。
+- 非 Chat 成功响应的 result/response metadata 指针必须存在，provider 未报告字段时使用其零值；`Validate` 递归拒绝 nil、非法 Extra 与非法数值。
 - 错误使用 `errors.New`、`errors.Is/As` 和 `fmt.Errorf("...: %w", err)`；不把异常式控制流放在 Core。
 
 ### 4.5 扩展机制收敛
@@ -166,7 +166,7 @@ core/
 ├── moderation/     moderation 协议和最小 Model
 ├── metadata/       JSON-safe metadata.Map 及编码/解码 helper
 ├── media/          明确建模的媒体引用/字节载荷
-├── document/       纯 Document 数据和最小 reader/writer 词汇
+├── document/       纯 Document 数据与校验
 ├── vectorstore/    高层语义索引/检索能力和 SearchRequest/Match
 │   └── filter/     单一 Predicate AST；同包私有递归下降前端；公开 Visitor
 └── internal/arch/  DAG、依赖预算和公共面守卫
@@ -210,9 +210,9 @@ type Streamer interface {
 - `Model` 不强制嵌入 `Streamer`。
 - `DefaultOptions` 不属于 Model；provider 构造函数和上层 client 分别持有自己的默认值。
 - provider 名称不通过 `Metadata()` 强迫实现；观测 wrapper 在构造时显式接收属性。
-- Embedding dimensions 是可选 `Dimensioner` 能力或纯 helper，不得同时强制接口实现并维护全局探测缓存。
+- Embedding dimensions 不属于 `embedding.Model` 能力；需要探测时由 `embeddingclient.Client.Dimensions` 发起显式请求，缓存与失效策略由消费方拥有。
 
-阶段归属只有一种解释：P2 只在 `core/chat` 落地上述 SPI；`embedding` 的 `Dimensioner`、dimensions cache 和其余 modality 的目标包/API 全部由 P5 建立与迁移。P2 不提前创建这些 top-level modality 包。
+阶段归属只有一种解释：P2 只在 `core/chat` 落地上述 SPI；其余 modality 的目标包/API 由 P5 建立与迁移，P9 再删除没有端到端闭环的可选能力。P2 不提前创建这些 top-level modality 包。
 
 ### 6.2 Chat Request
 
@@ -721,7 +721,7 @@ flowchart LR
   - 27 个目录均验证精确能力集合和 I/O 前输入契约；Bedrock KB 只实现 Searcher，七个无 ID 删除能力的 backend 不伪造 `IDDeleter`。
   - 证据：`c970a3343`；全部 backend compile-time assertion、统一 conformance、原测试、filter visitor 测试以及 vectorstores build/vet/lint/race 全绿。
 - [x] **P4-09 迁移全部 RAG、vectorstore 和 document pipeline 消费方**（完成：2026-07-14）
-  - RAG 只依赖 `Searcher` 并把 `Match` 映射为自身 `Candidate`；document pipeline 通过 `NewDocumentWriter(Indexer)` 组合；全部 backend 和文档使用 Add/Search/Delete 能力术语。
+  - RAG 只依赖 `Searcher` 并把 `Match` 映射为自身 `Candidate`；当时 document pipeline 通过 `NewDocumentWriter(Indexer)` 组合（该无消费者 adapter 已在 P9 删除）；全部 backend 和文档使用 Add/Search/Delete 能力术语。
   - 旧 Store/Creator/Retriever/Deleter、request wrapper、Filter 编译器公共路径和 `Document.Score` 均无生产引用或兼容面。
   - 证据：`0921d67c8`、`4a4df484e`；Filter 根 package 覆盖率 93.5%，FuzzParse 30 秒约 971 万次通过；全 workspace 76 项 build/vet/test/lint 与 Core/RAG/documentpipeline/vectorstores race 全绿。
 
@@ -847,7 +847,7 @@ flowchart LR
 目标：把重构后的 Core 边界转化为可长期维护的 v1 库契约；`chatclient` 等上层模块只验证兼容性，不在本计划中冻结为 v1。
 
 - [x] **P7-01 建立 exported API diff 守卫**（完成：2026-07-14）
-  - `core/internal/arch/testdata/exported_api.txt` 经 tag 前 Filter 精修及 P8 Visitor 收口确认后，冻结当前 11 个公共 package 的 334 行导出 API 快照；function body 与注释不进入基线，包含 exported 名称的 const/var 声明组整体记录以保留 iota 顺序和隐式类型变化。
+  - `core/internal/arch/testdata/exported_api.txt` 建立机械导出 API 快照；P8 结束时阶段值为 11 个公共 package/334 行，P9 最终语义收口后重新评审并冻结为 319 行。function body 与注释不进入基线，包含 exported 名称的 const/var 声明组整体记录以保留 iota 顺序和隐式类型变化。
   - 普通 Core test 默认比较基线并输出增删 delta；只有完成 API 评审、迁移/release notes 与版本裁决后才允许显式 `-update-api` 重建。
   - CI workspace matrix 随后续职责外移更新为实际 21 module，并为 Core 增加不可忽略的 blocking API guard step；本地 Core test/vet/lint 与独立 guard 全绿。
   - 证据：`395913f00`。
@@ -857,8 +857,8 @@ flowchart LR
   - CI 独立在 race 下执行 27/27 backend conformance；本地复现 provider 与 vectorstore 两条发布命令、相关 vet/lint 全绿。
   - 证据：`b8323f07e`。
 - [x] **P7-03 完善 serialization compatibility fixtures**（完成：2026-07-15）
-  - 最终 487 行聚合 wire golden 冻结 Metadata、Media、Chat、Document、Embedding、Image、Moderation、Speech、Transcription 与 VectorStore Search/Match 的代表性完整 JSON；`SearchRequest.Filter` 以非空值参与 fixture 构造并确认不会泄漏到 wire。
-  - 架构测试自动发现 11 个公共 package 中全部带 JSON tag 的导出 struct，并与 49 项 fixture coverage 清单精确比较；新增 DTO 无法只加 tag 而绕过 compatibility review。
+  - 建立聚合 wire golden，冻结 Metadata、Media、Chat、Document、Embedding、Image、Moderation、Speech、Transcription 与 VectorStore Search/Match 的代表性完整 JSON；P8 阶段值为 49 项 DTO/487 行，P9 删除重复 DTO 后最终为 47 项/478 行。`SearchRequest.Filter` 以非空值参与 fixture 构造并确认不会泄漏到 wire。
+  - 架构测试自动发现 11 个公共 package 中全部带 JSON tag 的导出 struct，并与 fixture coverage 清单精确比较；新增 DTO 无法只加 tag 而绕过 compatibility review。
   - 更新 fixture 只能通过显式 `-update-wire-fixtures`，并要求先完成兼容性/版本裁决；CI 将 wire inventory、golden 和 exported API 一并作为独立 blocking Core gate。
   - Core test/race/vet/lint 及 CI 等价 compatibility gate 全绿；证据：`158de60b7`。
 - [x] **P7-04 补齐公开 API examples 和 package docs**（完成：2026-07-15）
@@ -874,12 +874,12 @@ flowchart LR
   - 升级后 `FAST=1 scripts/check.sh build vet test lint` 对 20 module 的 80/80 项检查全绿，Core 全量 race 复验通过；证据：`e5c94d25e`。
 - [x] **P7-06 编写 Core 破坏性变更迁移说明、dependent module 发布顺序和 release notes**（完成：2026-07-15）
   - `CORE_V1_MIGRATION.md` 按旧路径、职责、调用语义和持久化数据四个维度给出直接切换指南；明确旧类型只能由升级前二进制一次性导出转换，新库不增加 alias、shim、双读或旧 decoder。
-  - `CORE_V1_RELEASE_NOTES.md` 记录 11 个 v1 公共 package、334 行冻结 API 快照、主要破坏面、wire 承诺、自动门禁、Go 1.26.5 与 Ollama 无修复版本风险。
+  - `CORE_V1_RELEASE_NOTES.md` 当前记录 11 个 v1 公共 package、319 行冻结 API 快照、47 项 DTO/478 行 wire、主要破坏面、自动门禁、Go 1.26.5 与 Ollama 无修复版本风险。
   - `CORE_V1_RELEASE_RUNBOOK.md` 从当前 `go.mod` 重建真实 module DAG，规定 Core/基础模块、直接 adapter、组合模块、协议桥、Agent、App 六个发布波次，并将 `embeddingclient` 置于 Core 之后、VectorStores 之前；子 module tag 为 `core/v1.0.0` 且 P7-07 前不得创建。
   - 三份文档加入文档地图，Core API/wire/docs/dependency CI 等价架构门禁通过；证据：`0b7c70ec5`。
 - [x] **P7-07 完成最终架构审查并冻结 Core v1 契约**（完成：2026-07-15）
   - 新增 `CORE_V1_ARCHITECTURE_REVIEW.md`，逐项审查职责边界、协议安全、最小接口、provider/backend 扩展、无兼容债、依赖方向、安全裁决与 SemVer 冻结规则；结论为通过，`core/v1.0.0` tag 尚未创建。
-  - 经 tag 前 ADR-017 至 ADR-019、Filter ADR-010、ADR-022 及 ADR-023 修订，冻结规模为 11 个公共 package、334 行 exported API 快照、49 项 JSON DTO、17 个 wire root 和 487 行 golden；Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
+  - P8 结束时的阶段冻结规模为 11 个公共 package、334 行 exported API、49 项 JSON DTO、17 个 wire root 和 487 行 golden；P9 经 ADR-025/ADR-026 再次打开并最终重冻为 319/47/17/478。Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
   - `783df3ee9`、`229e06c8e`、`04a37a9fe` 完成第一轮 tag 前协议收口；`3f7af1a3a`、`3938d179f` 完成 Embedding Client 外移与远端 pseudo-version DAG 闭合。21/21 module 在 `GOWORK=off` 下独立 test/vet/tidy-diff 通过且不再解析旧依赖基线。
   - `FAST=1 scripts/check.sh build vet test lint race` 的 105/105 项、`scripts/check.sh vuln` 的 21/21 module、逐包 coverage 和 provider/27 backend conformance 全部通过；P7-05 的 7 个五分钟 fuzz target 累计 609,846,214 次且无失败语料。tag 前精修只重跑 `FUZZ_TIME=0` 的确定性 release gate，按维护者要求不再重复模糊测试。
 
@@ -934,6 +934,40 @@ flowchart LR
 
 阶段验收（完成：2026-07-15）：P8 六项任务全部完成；Core 请求不变量在协议边界收口，InMemory 与其余 embedding-backed backend 使用相同公开依赖方向，Filter compiler 生命周期、解释语义、Visitor 扩展入口、AST 不变量、内部分析/布尔规范化职责、文本出口与数值编译边界由确定性合同锁定。未增加新模块、通用校验框架、Store 基类或兼容层。
 
+### P9：最终语义闭环与公共面再收敛
+
+目标：以“只有真实消费者、真实 provider 闭环和可验证不变量才进入 Core”为准绳，删除 tag 前仍残留的移植型表面，并让成功输出与输入拥有对称合同。
+
+- [x] **P9-01 修复协议值与构造器正确性**（完成：2026-07-15）
+  - `metadata.Map.Values` 使用 `json.Decoder.UseNumber` 并递归归一化数字，整数在 `int64/uint64` 范围内保持精确，不再先经 `float64`。
+  - 五个 modality 的 `Options.Merged` 校验最终合并值；`document.NewDocument` 对非法嵌套 Media 恢复标准构造器合同，只返回 `nil, error`。
+  - 不增加 fallback、隐式纠正或兼容分支。
+- [x] **P9-02 收敛 Image 与 Embedding 的真实协议**（完成：2026-07-15）
+  - Image 删除重复的 URL/base64 DTO，结果统一复用 `media.Media`；Response 改为有序 `Results` 并保留 provider 返回的全部图片，`First` 仅作 nil-safe 快捷入口。
+  - Embedding 删除没有端到端实现的多模态、编码格式、`Dimensioner` 与 Core 探测 helper；`ResultMetadata` 只保留 provider Extra。
+  - 维度探测移到 `embeddingclient.Client.Dimensions`，16 个需要建索引的 VectorStore 由消费工作流显式探测，不缓存结果。
+- [x] **P9-03 删除无消费者表面并收敛领域语义**（完成：2026-07-15）
+  - 删除 Core `document.Reader/Writer`、`vectorstore.NewDocumentWriter`、`AcceptAllScores` 与 `metadata.New`；零值 `metadata.Map` 保持可写。
+  - Image Options 只保留跨 provider 稳定的负向提示、尺寸、种子和输出 MIME；Transcription Options 只保留稳定的语言提示，其余 provider 参数进入 `<provider>/options`。
+  - Moderation 分类由封闭 struct 改为开放 `map[string]Verdict`，保留 provider 原始分类键并严格校验分数；Filter `Literal.AsNumber` 返回精确 `json.Number`。
+- [x] **P9-04 建立非 Chat 成功响应合同与 provider option 失败语义**（完成：2026-07-15）
+  - Embedding/Image/Moderation/Speech/Transcription Response 全部提供递归 `Validate`；构造器复制调用方 slice/bytes/map 并委托同一不变量实现。
+  - Model GoDoc 统一要求请求先验证、不可表达的显式通用选项在 I/O 前报错、context error 保持 `errors.Is` 身份、成功响应必须通过 Validate。
+  - Models 使用单一 internal helper 生成稳定 unsupported-options 错误；不建立公开 capability registry 或第二套 options 层。
+- [x] **P9-05 闭合 VectorStore 成功输出**（完成：2026-07-15）
+  - `SearchRequest.ValidateMatches` 统一校验文档、有限 `[0,1]` 分数、MinScore、TopK 与降序。
+  - 25 个真实 Search 实现均在成功出口执行该 receiver，错误进入同一 tracing 结果；alias backend 复用真实实现。
+  - 输出校验不排序、不截断、不替 backend 掩盖错误。
+- [x] **P9-06 同步 API/wire/迁移/发布文档与架构守卫**（完成：2026-07-15）
+  - 更新执行计划、API inventory、migration、release notes、architecture review、Core/documentreaders 治理文档与 package docs。
+  - 审阅后显式更新 exported API baseline、wire DTO inventory 与 golden；历史执行日志保留当时事实，但当前状态不得继续引用已删除表面。
+  - 最终机械基线为 11 个公共 package、319 行 exported API、47 项 JSON DTO、17 个 wire root 与 478 行 golden；新增守卫禁止被删除的便利表面和 Embedding 假能力回流。
+- [ ] **P9-07 执行全仓确定性门禁并提交推送**
+  - 运行 Core release 的确定性部分、Models/VectorStores 全量 test/vet、workspace build/vet/test/lint/race 及 tidy-diff；按维护者要求不重复 fuzz。
+  - 每批提交可独立回滚，最终推送当前分支；不创建 tag。
+
+退出标准：P9 七批全部完成；当前 API/wire/docs 与代码事实一致，全部确定性门禁通过，无旧标识符、无静默丢弃选项、无成功输出绕过验证。
+
 ---
 
 ## 10. 当前进度
@@ -951,14 +985,15 @@ flowchart LR
 | P6 Workspace 切换 | 完成 | 8/8 | 旧 API、兼容面、残余依赖和错误文档清零；100 项 workspace 门禁全绿 |
 | P7 稳定与发布 | 完成 | 7/7 | 最终架构审查通过，Core v1 契约与发布门禁已冻结 |
 | P8 Tag 前精修 | 完成 | 6/6 | 请求不变量、公开边界、Filter AST/visitor/规范化职责与数值编译合同均已收口 |
-| **总计** | **完成** | **66/66** | **100%** |
+| P9 最终语义收口 | 进行中 | 6/7 | 代码、文档与兼容基线完成；全仓确定性门禁和提交推送收尾 |
+| **总计** | **进行中** | **72/73** | **98.6%** |
 
 ### 10.2 当前焦点
 
-- 当前阶段：全部完成。
-- 下一任务：无；正式 tag/协调发布按 `CORE_V1_RELEASE_RUNBOOK.md` 单独执行。
+- 当前阶段：P9 最终语义闭环与公共面再收敛。
+- 下一任务：P9-07 全仓确定性门禁、提交与推送。
 - 当前阻塞：无。
-- 最近完成：P8-06 Filter 循环 AST 防护、精确索引不变量、节点自有位置和三值逻辑安全的布尔规范化；Core/VectorStores 全量测试与 Filter race/vet/lint 通过。
+- 最近完成：P9-06 将当前代码、迁移说明、发布文档和 319/47/17/478 API/wire 机械基线重新对齐。
 
 ### 10.3 进度更新规则
 
@@ -1180,10 +1215,10 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 ### ADR-011：Embedding 维度是可选能力，探测是调用方显式操作
 
-- 日期：2026-07-14
-- 状态：已采纳
-- 决策：`embedding.Model` 只包含 `Call`；已知维度由独立 `Dimensioner` 以 `(int, error)` 返回，未知维度通过不缓存的 `ResolveDimensions`/`ProbeDimensions` 显式探测。批量向量便利方法经 ADR-019 外移到 `embeddingclient`，Core 不拥有 Client、provider defaults、middleware、全局 cache 或身份元数据。
-- 原因：输出维度并非每个 provider 都能无 I/O 得知，旧 `int64`/0 返回值会吞掉网络和协议错误；全局 cache 又无法正确表达模型、凭证、endpoint 和生命周期。能力拆分和调用方缓存所有权使错误、成本与失效策略都可见。
+- 日期：2026-07-14；2026-07-15 由 ADR-025 修订
+- 状态：已采纳（维度探测的最终归属由 ADR-025 收敛）
+- 决策：`embedding.Model` 只包含 `Call`；Core 不公开 `Dimensioner` 或探测 helper。需要维度的消费工作流调用 `embeddingclient.Client.Dimensions` 发起一次明确 embedding 请求，缓存与失效策略由调用方拥有。
+- 原因：输出维度并非 provider-neutral 的无 I/O 能力；原独立 `Dimensioner` 没有形成 provider/consumer 端到端闭环，反而让 Core 维护两条维度路径。显式工作流让错误、成本与生命周期都可见。
 
 ### ADR-012：其余模态只保留真实调用能力，不保留 Core Client framework
 
@@ -1217,7 +1252,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 - 日期：2026-07-15
 - 状态：已采纳（最终架构审查）
-- 决策：经 ADR-017 至 ADR-019、tag 前 Filter ADR-010、ADR-022 与 ADR-023 修订后冻结 11 个公共 package、334 行 exported API 快照、49 项 JSON DTO、17 个代表性 wire root 与 487 行 golden；序列化 DTO 禁止任意 `any`/`interface{}` 字段、Request `Params` 与原始 SDK payload，扩展值必须经 `metadata.Map` 写入时编码，所有 modality 请求在 provider 边界前验证。Core 保持标准库-only，不恢复旧路径、旧 wire、alias、bridge、shim、兼容字段或双读写。
+- 决策：经 ADR-017 至 ADR-019、tag 前 Filter ADR-010、ADR-022/ADR-023 以及最终语义闭环 ADR-025/ADR-026 修订后，冻结 11 个公共 package、319 行 exported API 快照、47 项 JSON DTO、17 个代表性 wire root 与 478 行 golden；序列化 DTO 禁止任意 `any`/`interface{}` 字段、Request `Params` 与原始 SDK payload，扩展值必须经 `metadata.Map` 写入时编码，所有 modality 请求与成功响应均在边界验证。Core 保持标准库-only，不恢复旧路径、旧 wire、alias、bridge、shim、兼容字段或双读写。
 - 原因：这组契约已经由真实 provider/backend、21 个独立 module 与完整 release gate 证明可实现、可消费、可序列化；继续保留 Spring AI 移植期动态参数袋或运行时职责只会扩大稳定 API 和依赖半径。显式 baseline 与 SemVer 裁决比兼容壳更适合 Go 库长期演进。
 
 ### ADR-017：Metadata 合并由值对象 receiver 统一承担
@@ -1276,6 +1311,20 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：`Validate` 的私有 `analyzer` 完整负责节点形状、operator、循环引用和精确数值索引不变量；私有无状态 `optimizer` 信任该前置条件，只在 `Parse` 内对 `NOT/AND/OR` 做三值逻辑下成立的缩减式重写。优化保持输入不可变并达到幂等稳定树，不改变比较、IN、LIKE、IS 等叶子的顺序或重复项。source position 是节点自身数据，parser 节点显式保存，程序化节点保持零值。
 - 原因：公开 AST 可由调用方直接组装，循环引用和不完整节点必须由统一边界可靠拒绝；让优化器再次校验会产生两套错误策略和无效状态。布尔去重、吸收与公共因子提取能减少 adapter 接收的冗余结构，且可用三值逻辑穷举证明；叶子改写虽然可能语义等价，却会改变 adapter 已经依赖的可观察 AST 数据。该决策不增加公共概念，API baseline 保持 334，wire 不变。
 
+### ADR-025：Core 只建模有真实多实现闭环的 modality 语义
+
+- 日期：2026-07-15
+- 状态：已采纳（维护者确认最终破坏性收口）
+- 决策：Image 复用 `media.Media` 并以复数 Results 表达 provider 输出；Embedding 删除多模态/编码/Dimensioner 假能力；Image Options 删除只服务少数 provider 的 style/quality/response shape，Transcription Options 删除 provider 语义不一致的 prompt/temperature/response/timestamp。Moderation 分类保留 provider 原始字符串键，不冻结为某一家 taxonomy。provider-only 参数进入既有 `<provider>/options`，不可表达的剩余通用选项在 I/O 前报错。
+- 原因：稳定 Core 不是所有 provider 字段的并集，更不是 Spring AI DTO 的翻译层。只有多个真实实现共享、消费方能够以同一语义理解的字段才值得形成长期公共协议；其余能力留在 adapter 可避免 Core 随 provider 发布节奏膨胀。
+
+### ADR-026：成功输出与输入拥有对称验证合同
+
+- 日期：2026-07-15
+- 状态：已采纳（维护者确认最终语义收口）
+- 决策：五个非 Chat Response 公开递归 `Validate`，构造器委托同一实现；`embeddingclient` 在消费前复用该 receiver。`SearchRequest.ValidateMatches` 验证所有成功搜索输出，25 个真实 backend 在返回前统一调用。验证只报告错误，不排序、截断、补默认值或修复 provider 数据。
+- 原因：仅验证请求会允许 provider 的 nil、非有限向量、越界分数、无效 metadata 和乱序结果进入上层，迫使每个消费者重复防御。由拥有领域不变量的值对象验证，并让 adapter 在边界调用，既保持充血模型又不引入框架基类。
+
 ---
 
 ## 16. 长期完成定义
@@ -1290,7 +1339,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - README、CLAUDE、示例和 package docs 与实际结构一致。
 - 维护者完成最终架构审查并确认公开契约可进入稳定期。
 
-完成确认（2026-07-15）：上述条件全部满足，最终审查记录见 `CORE_V1_ARCHITECTURE_REVIEW.md`；tag 前 P8 稳定化精修完成后，本计划以 66/66 关闭。
+当前确认（2026-07-15）：P9-01 至 P9-05 已完成；文档/兼容基线与全仓确定性门禁完成后，本计划才以 73/73 再次关闭。按维护者要求不重复 fuzz，历史 P7 长时间 fuzz 证据继续保留。
 
 ---
 
@@ -1298,6 +1347,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 启动并完成 P9-01 至 P9-05：修复 metadata 精度与构造器合同，Image/Embedding 真实协议收口，删除无消费者表面，开放 Moderation 分类，建立非 Chat 响应与全部 VectorStore 成功输出验证；进入文档/兼容基线收尾 | Codex |
 | 2026-07-15 | 完成 P8-06：Filter analyzer 增加循环 AST、operator 顺序与精确索引不变量，复合节点位置回归自身数据；optimizer 收敛为只消费已验证 IR 的无状态布尔重写器，增加关联去重、深层/交换吸收和公共因子提取，并以三值逻辑、不可变与幂等测试锁定；API/wire 不变 | Codex |
 | 2026-07-15 | 完成 P8-05：按维护者决策恢复私有 analyzer/optimizer visitor、增加公开 Formatter，并收紧八个 backend 的数字编译边界；API 331→334，12 个生产 package coverage、全仓 84 项、Core/VectorStores race 与确定性发布门禁全绿，未运行 fuzz | Codex |
 | 2026-07-15 | 完成 P8-04：确认 Visitor 为外部 adapter 扩展逃生舱，新增一次校验、顺序分派、首错停止的公开变长入口；API baseline 330→331 行，wire 不变 | Codex |
@@ -1314,7 +1364,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 | 2026-07-15 | 完成 P7-06；新增 Core v1 直接迁移指南、release notes 与六波次多 module 发布手册，明确旧 wire 一次性迁移和无兼容层发布规则 | Codex |
 | 2026-07-15 | 完成 P7-05；逐包覆盖预算与 CI dependency gate 生效，7 个 fuzz target 各跑满 5 分钟并在最终复验累计 609,846,214 次，升级 Go/Ollama 并记录仍无修复版本的上游安全风险 | Codex |
 | 2026-07-15 | 完成 P7-04；11 个公共 package 统一职责文档并新增 checked runnable Example，架构测试与 CI blocking gate 自动锁定覆盖 | Codex |
-| 2026-07-15 | 完成 P7-03；以 49 项导出 JSON struct inventory 和最终 487 行聚合 golden 冻结全部 Core wire DTO，CI 增加 blocking wire compatibility guard | Codex |
+| 2026-07-15 | 完成 P7-03；以当时 49 项导出 JSON struct inventory 和 487 行聚合 golden 冻结全部 Core wire DTO，CI 增加 blocking wire compatibility guard；P9 后由 47/478 基线接替 | Codex |
 | 2026-07-14 | 完成 P7-02；provider 构造/协议和 27 个 vectorstore backend conformance 从 advisory suite 中提升为独立 blocking release gate，并增加 backend 集合/注册结构守卫 | Codex |
 | 2026-07-14 | 完成 P7-01；建立并在当时协议收口后更新为 346 条 Core exported API baseline、默认 diff 测试和 CI blocking guard，并把 CI matrix 校准到实际 20 module | Codex |
 | 2026-07-14 | 完成 P6-08 与 P6 阶段验收；20 module 的 build/vet/test/lint/race 共 100 项全绿，tidy 和旧 API/构造器审计清零，进入 P7 | Codex |
@@ -1375,6 +1425,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | P9-01 至 P9-05 最终语义闭环 | Metadata 整数精度、Options 最终校验、Document 构造器错误合同完成；Image 统一 `media.Media`/复数结果，Embedding 维度探测外移；删除 Reader/Writer 等无消费者表面，Moderation 使用开放分类，Filter 数字出口精确；五模态 Response 递归验证，provider unsupported options 显式失败，25 个 VectorStore Search 成功出口统一 `ValidateMatches`。Core 定向、Models 全量与 VectorStores 全量测试通过，未运行 fuzz；任务计数 71/73 | P9-06 文档/API/wire，P9-07 全仓门禁与提交推送 |
 | 2026-07-15 | P8-06 Filter AST 不变量与布尔规范化 | `fa561fb06` 在 `core/vectorstore/filter` 内完成循环路径校验、非法 operator 先验失败、精确 `int64` 索引判断和节点自有 position；optimizer 只处理已验证逻辑树，支持关联去重、任意层/交换吸收与公共因子提取，保留全部非逻辑叶子。三值逻辑 27 组赋值、不可变/幂等、Filter race/vet/lint、Core 与全部 VectorStores package 测试全绿；coverage 88.3%，Parser 基准简单 353–378ns/10 alloc、复合 1.34–1.44µs/35 alloc，未运行 fuzz；任务计数 66/66 | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P8-05 Filter visitor 职责与数值边界 | 公开零值 Formatter；私有 analyzer/optimizer 分别承接 Validate 与 Parse 规范化；八个 backend 消除大整数舍入和 Qdrant 小数截断；API 331→334，当前 12 个 Core 生产 package coverage、全 workspace 84 项、Core/VectorStores race、两模块 tidy-diff 与 `FUZZ_TIME=0` 发布门禁全绿；任务计数 65/65 | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P8-04 Filter Visitor 公开组合入口 | 新增 `filter.Visit` 并冻结校验一次、按序执行、首错原样返回、plain/typed nil visitor 在分派前失败的合同；API baseline 330→331 行，wire 不变；全 workspace 84 项 build/vet/test/lint、Core/VectorStores race、两模块 tidy-diff 和 API/wire/docs/examples 守卫全绿，未运行 fuzz；任务计数 64/64 | 正式 tag/协调发布按运行手册单独执行 |
@@ -1392,7 +1443,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 | 2026-07-15 | P7-06 | `0b7c70ec5` 新增 256 行直接迁移指南、148 行 v1 release notes 与 194 行协调发布手册；从当前 `go.mod` 重建六波次 DAG，明确 `core/v1.0.0` tag、GOWORK=off 验证、一次性历史数据迁移、回滚与 Ollama 风险裁决；三份文档加入索引，Core API/wire/docs/dependency 等价门禁通过；任务计数 59/60 | P7-07 最终架构审查与 v1 契约冻结 |
 | 2026-07-15 | P7-05 | `e5c94d25e` 新增 17 个 Core package 的 blocking coverage budget，补齐五个低覆盖模态行为测试；Core/ChatClient/Agent/ChatHistory/RAG/Tools/27 backend race 全绿，7 个 fuzz target 各 5 分钟无失败；Core 标准库-only、20/20 tidy-diff 和升级后 80/80 workspace build/vet/test/lint 通过。Go 1.26.5 清除 TLS 漏洞，Ollama v0.32.0 仍有 8 个 `Fixed in: N/A` 上游公告；任务计数 58/60 | P7-06 迁移说明、发布顺序和 release notes |
 | 2026-07-15 | P7-04 | `1f22a87b5` 为公共 package 统一唯一 package comment 并新增带 checked Output 的 package-level Example；tag 前最终收口为 11/11，架构守卫与 CI blocking docs/examples gate 生效，Core 全量 test/vet/lint 全绿；任务计数 57/60 | P7-05 coverage/race/fuzz/dependency budget |
-| 2026-07-15 | P7-03 | `158de60b7` 建立导出 JSON struct 自动 inventory、代表性 wire root 与 aggregate golden；tag 前最终 fixture 收口为 49 项 DTO、17 个 root、487 行并覆盖全部 Core wire DTO；显式 update flag 与 CI blocking gate 生效；任务计数 56/60 | P7-04 公开 API examples 和 package docs |
+| 2026-07-15 | P7-03 | `158de60b7` 建立导出 JSON struct 自动 inventory、代表性 wire root 与 aggregate golden；当时 fixture 收口为 49 项 DTO、17 个 root、487 行并覆盖全部 Core wire DTO；显式 update flag 与 CI blocking gate 生效；任务计数 56/60 | P7-04 公开 API examples 和 package docs |
 | 2026-07-14 | P7-02 | `b8323f07e` 新增 Models blocking provider gate，race 执行 30 构造入口、共享 suite 与五类参考协议；新增 Vectorstores backend 发现/显式清单/AST 注册守卫，并在 race 下执行 27/27 backend conformance；相关 vet/lint 全绿；任务计数 55/60 | P7-03 serialization compatibility fixtures |
 | 2026-07-14 | P7-01 | `395913f00` 建立 Core exported API 生成基线与增删 diff 测试，当时收口为 11 package/346 条；更新命令受显式 flag 控制，CI 实际 20 module matrix 有 blocking Core API step；任务计数 54/60 | P7-02 provider/vectorstore conformance 发布门禁 |
 | 2026-07-14 | P6-08、P6 阶段验收 | `FAST=1 scripts/check.sh build vet test lint race` 对 20 module 的 100/100 检查全绿；20/20 tidy-diff 为空，Go 源码旧五类 Core import 与旧 Chat 构造器/类型定义为零；任务计数 53/60，P6 8/8 完成 | P7-01 exported API diff 守卫 |
