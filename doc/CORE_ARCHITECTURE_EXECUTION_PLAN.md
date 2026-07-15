@@ -879,8 +879,8 @@ flowchart LR
 - [x] **P7-07 完成最终架构审查并冻结 Core v1 契约**（完成：2026-07-15）
   - 新增 `CORE_V1_ARCHITECTURE_REVIEW.md`，逐项审查职责边界、协议安全、最小接口、provider/backend 扩展、无兼容债、依赖方向、安全裁决与 SemVer 冻结规则；结论为通过，`core/v1.0.0` tag 尚未创建。
   - 经 tag 前 ADR-017 至 ADR-019 精修，冻结规模为 11 个公共 package、341 条 exported API、49 项 JSON DTO、17 个 wire root 和 487 行 golden；Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
-  - `783df3ee9`、`229e06c8e`、`04a37a9fe` 完成 tag 前协议收口与远端 pseudo-version DAG 闭合；20/20 module 在 `GOWORK=off` 下独立 test/vet/tidy-diff 通过且不再解析旧依赖基线。
-  - `FAST=1 scripts/check.sh build vet test lint race` 的 100/100 项、`scripts/check.sh vuln` 的 20/20 module、逐包 coverage 和 provider/27 backend conformance 全部通过；P7-05 的 7 个五分钟 fuzz target 累计 609,846,214 次且无失败语料。本轮另完成 Metadata 5 分钟复验；按维护者要求不再重复整组长时间 fuzz。
+  - `783df3ee9`、`229e06c8e`、`04a37a9fe` 完成第一轮 tag 前协议收口；`3f7af1a3a`、`3938d179f` 完成 Embedding Client 外移与远端 pseudo-version DAG 闭合。21/21 module 在 `GOWORK=off` 下独立 test/vet/tidy-diff 通过且不再解析旧依赖基线。
+  - `FAST=1 scripts/check.sh build vet test lint race` 的 105/105 项、`scripts/check.sh vuln` 的 21/21 module、逐包 coverage 和 provider/27 backend conformance 全部通过；P7-05 的 7 个五分钟 fuzz target 累计 609,846,214 次且无失败语料。tag 前精修只重跑 `FUZZ_TIME=0` 的确定性 release gate，按维护者要求不再重复模糊测试。
 
 退出标准：
 
@@ -1289,6 +1289,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | tag 前深度精修最终验收 | `FUZZ_TIME=0 scripts/check-core-release.sh` 通过 Core test/race/vet/lint/tidy、17 包 coverage、Models provider 与 27 backend conformance；`FAST=1 scripts/check.sh build vet test lint race` 对 21 module 的 105/105 项全绿；21/21 module 关闭 go.work 后 test/vet/tidy 全绿；21/21 精确漏洞策略通过。按维护者要求未启动 fuzz | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | Runtime MCP transport 语义收口 | 删除 `LiveTransport("http"/"stdio")`，以强类型 `mcpserver.Transport("streamableHttp"/"stdio")` 同时塑造持久与运行配置；SQLite 与 delivery 显式做 string 转换，infra adapter 唯一负责映射 MCP SDK enum。新增同词汇/投影深拷贝测试，App build/vet/test/lint/race 5/5 全绿 | 执行 21 module 最终确定性门禁 |
 | 2026-07-15 | Embedding Client 职责外移 | `3f7af1a3a` 删除 Core 最后一个 Client，新增只含三个向量方法的 `embeddingclient`，迁移 23 个 VectorStore backend 与 App；`3938d179f` 闭合 Core/EmbeddingClient/Models 远端依赖。Core API 347→341、wire 49/17/487 不变；受影响四模块 20/20 build/vet/test/lint/race 及关闭 go.work 的三模块 test/vet/tidy 全绿 | 收敛 Runtime 重复 transport 词汇 |
 | 2026-07-15 | Core 模态公开语义精修 | 五个包级 `MergeOptions` 直接替换为 `Options.Merged`，Embedding/Moderation `Result` 替换为 `First`，Speech Go/wire 统一为 `OutputFormat/output_format` 与 `Audio/audio`；33 个 Models provider 调用点同批迁移，无 wrapper/旧字段/双 wire。Core 与 Models 的 build/vet/test/lint/race 共 10 项全绿；API baseline 仍为 347，wire inventory/root/golden 仍为 49/17/487 | 将 Core 残留 `embedding.Client` 外移到独立 module |

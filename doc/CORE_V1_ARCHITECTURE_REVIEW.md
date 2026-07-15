@@ -54,13 +54,15 @@ Chat provider/facade 的构造与共享协议行为由 Models conformance 覆盖
 - `783df3ee9`：完成 tag 前协议词汇收口、API/wire 基线更新和发布门禁修复。
 - `229e06c8e`：将 standalone module 对齐到最终 Core 源码基线。
 - `04a37a9fe`：使远端 pseudo-version DAG 闭合，避免 `go.work` 或本地 cache 掩盖缺失依赖。
+- `3f7af1a3a`：将 Embedding Client 从 Core 外移并迁移真实消费者。
+- `3938d179f`：闭合 `embeddingclient`、VectorStores 与 App 的远端依赖图，并推进 App 的 Models 基线。
 
-20/20 workspace module 在 `GOWORK=off` 下完成独立 `go test -count=1 ./...`、`go vet ./...` 与 `go mod tidy -diff`；`go list -m all` 不再解析旧的 `v0.0.0-20260714110600-0abc7c70a85d` 基线。当前 pseudo-version 只是创建正式 tag 前的可复现协调图，发布时仍须按运行手册自底向上替换为精确 tag。
+21/21 workspace module 在 `GOWORK=off` 下完成独立 `go test -count=1 ./...`、`go vet ./...` 与 `go mod tidy -diff`；`go list -m all` 不再解析旧的 `v0.0.0-20260714110600-0abc7c70a85d` 基线。当前 pseudo-version 只是创建正式 tag 前的可复现协调图，发布时仍须按运行手册自底向上替换为精确 tag。
 
 ## 6. 质量门禁证据
 
-- `FAST=1 scripts/check.sh build vet test lint race`：20 个 module、100/100 项通过。
-- `scripts/check.sh vuln`：20/20 module 通过精确漏洞策略。
+- `FAST=1 scripts/check.sh build vet test lint race`：21 个 module、105/105 项通过。
+- `scripts/check.sh vuln`：21/21 module 通过精确漏洞策略；新增 `embeddingclient` 无可达漏洞。
 - `scripts/check-core-release.sh` 的确定性部分：Core test/race/vet/lint/tidy、17 个逐包 coverage budget、Models provider gate 和 27 个 VectorStore backend gate 全部通过。
 - Core API、wire inventory/golden、协议字段安全、公共 docs/examples、标准库-only 依赖均为 blocking 架构测试。
 - P7-05 已记录 7 个 fuzz target 各独立运行 5 分钟：Metadata Map 98,292,275 次、Media 105,198,336 次、Filter Parse 75,835,393 次、Chat Part 83,961,412 次、Chat Message 79,948,335 次、Chat Request 82,260,984 次、Chat Response 84,349,479 次；累计 609,846,214 次且无失败语料。tag 前收口后又完成 Metadata Map 5 分钟、98,942,554 次执行；按维护者要求停止重复整组长时间 fuzz，未把主动停止的 Media 运行记作通过。
