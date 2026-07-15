@@ -243,7 +243,7 @@ if err := request.Validate(); err != nil {
 matches, err := searcher.Search(ctx, request)
 ```
 
-旧 `AtomicExpr`/`ComputedExpr`/`ExprBuilder` 与 precedence API 已删除。`Expr` 仍是所有节点的封闭根，但只有 `Predicate` 能作为 Parse、Search 或 DeleteWhere 的输入；这会让裸 identifier/literal 和残缺逻辑树在编译期或 `Validate` 阶段失败。`profile['name']` 始终表示完整路径 `profile → name`，不会再丢弃 base identifier。`Parse` 保留用户写出的逻辑结构，不执行双重 NOT、幂等或吸收律改写。
+旧 `AtomicExpr`/`ComputedExpr`/`ExprBuilder` 与 precedence API 已删除。`Expr` 仍是所有节点的封闭根，但只有 `Predicate` 能作为 Parse、Search 或 DeleteWhere 的输入；这会让裸 identifier/literal 和残缺逻辑树在编译期或 `Validate` 阶段失败。`profile['name']` 始终表示完整路径 `profile → name`，不会再丢弃 base identifier。`Parse` 在严格校验后会规范化双重 NOT、同运算符重复项、吸收结构和可提取的公共因子；比较、IN、LIKE、IS 等非逻辑叶子的顺序和值保持不变。直接调用 `Validate` 或 `Visit` 不会重写调用方持有的树。
 
 不要重建 fluent `With*` 链或 `NativeClient any` 探测面。provider 专用能力直接由具体 backend 类型公开。
 

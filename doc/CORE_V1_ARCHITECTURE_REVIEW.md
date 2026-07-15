@@ -11,7 +11,7 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 
 最终审查批准当前契约进入 v1 稳定期。冻结意味着从 `core/v1.0.0` 开始按 SemVer 管理当前 API 与 wire，而不是恢复任何重构前 API 或历史 wire。仓库中没有为旧设计保留 alias、bridge、shim、兼容字段、dual-read/dual-write 或旧 decoder。
 
-`core/v1.0.0` 尚未创建，因此维护者在 tag 前重新打开 Filter 契约审查：删除双 AST/转换层、builder 与 precedence 表面，公开 `Predicate`/`Selector`/`Visitor`，并把递归下降前端收敛为同包私有实现。维护者随后确认 `Visitor` 是外部 adapter 的扩展逃生舱，补充 `Visit(predicate, visitors...)` 作为验证一次、顺序分派的公共消费入口；最终保留公开 `Formatter`，把 analyzer/optimizer 作为同包私有 visitor，并收紧 provider 数字编译边界。最终 334 行 API baseline 取代先前 341 行草案；wire inventory 与 golden 不变。
+`core/v1.0.0` 尚未创建，因此维护者在 tag 前重新打开 Filter 契约审查：删除双 AST/转换层、builder 与 precedence 表面，公开 `Predicate`/`Selector`/`Visitor`，并把递归下降前端收敛为同包私有实现。维护者随后确认 `Visitor` 是外部 adapter 的扩展逃生舱，补充 `Visit(predicate, visitors...)` 作为验证一次、顺序分派的公共消费入口；最终保留公开 `Formatter`，把 analyzer/optimizer 作为同包私有 visitor，并收紧 provider 数字编译边界。最后一轮在不改变 API 的前提下增加循环 AST 和精确索引不变量，把 optimizer 收敛为只处理已验证逻辑 IR、保持叶子可观察性的三值逻辑安全重写器。最终 334 行 API baseline 取代先前 341 行草案；wire inventory 与 golden 不变。
 
 ## 2. 冻结范围
 
@@ -41,7 +41,7 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 | 便利层不反向塑造协议 | Embedding 向量便利方法位于 `embeddingclient`；Core 不公开 Client、默认值或 middleware | 通过 |
 | provider 差异不扩张 Core | provider JSON 进入 typed Options 或 namespaced `metadata.Map`；options key 冻结为 `<provider>/options` | 通过 |
 | 值对象行为归属明确 | 五个 modality 的不可变 Options 合并由 `Merged` receiver 承担；Embedding/Moderation 首项统一为 `First`；Speech 使用 `OutputFormat`/`Audio` | 通过 |
-| Filter 遍历职责单一 | 公开 Formatter 服务外部文本适配；私有 analyzer/optimizer 分别拥有校验与 Parse 规范化，provider 数字转换按 SDK 表达能力显式失败 | 通过 |
+| Filter 遍历职责单一 | 公开 Formatter 服务外部文本适配；私有 analyzer 唯一拒绝非法/循环树，optimizer 只规范化已验证逻辑 IR 且保持叶子可观察；provider 数字转换按 SDK 表达能力显式失败 | 通过 |
 | 不保留迁移债务 | 旧 package、旧 wire decoder、alias/bridge/shim 与双轨读写均不存在 | 通过 |
 
 ## 4. 可扩展性结论
