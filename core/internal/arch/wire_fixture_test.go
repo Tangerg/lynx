@@ -60,13 +60,13 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	}}
 	chatRequest.Options = chat.Options{
 		Model:            "chat-model",
-		FrequencyPenalty: pointer(0.1),
-		MaxTokens:        pointer(int64(512)),
-		PresencePenalty:  pointer(0.2),
+		FrequencyPenalty: new(0.1),
+		MaxTokens:        new(int64(512)),
+		PresencePenalty:  new(0.2),
 		Stop:             []string{"END"},
-		Temperature:      pointer(0.3),
-		TopK:             pointer(int64(40)),
-		TopP:             pointer(0.9),
+		Temperature:      new(0.3),
+		TopK:             new(int64(40)),
+		TopP:             new(0.9),
 	}
 	mustSetChatExtension(t, chatRequest.SetExtension("provider/request", map[string]any{"mode": "strict"}))
 
@@ -85,9 +85,9 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	chatResponse.Usage = chat.Usage{
 		InputTokens:           10,
 		OutputTokens:          5,
-		ReasoningTokens:       pointer(int64(2)),
-		CacheReadInputTokens:  pointer(int64(3)),
-		CacheWriteInputTokens: pointer(int64(4)),
+		ReasoningTokens:       new(int64(2)),
+		CacheReadInputTokens:  new(int64(3)),
+		CacheWriteInputTokens: new(int64(4)),
 	}
 	mustSetChatExtension(t, chatResponse.SetExtension("provider/response", "fixture"))
 
@@ -102,7 +102,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		Options: &embedding.Options{
 			Model:          "embedding-model",
 			EncodingFormat: embedding.EncodingFormatFloat,
-			Dimensions:     pointer(int64(3)),
+			Dimensions:     new(int64(3)),
 			Extra:          mustMetadata(t, map[string]any{"user": "u-1"}),
 		},
 	}
@@ -129,11 +129,11 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		Options: &image.Options{
 			Model:          "image-model",
 			NegativePrompt: "text",
-			Width:          pointer(int64(1024)),
-			Height:         pointer(int64(768)),
+			Width:          new(int64(1024)),
+			Height:         new(int64(768)),
 			Style:          "natural",
 			Quality:        "high",
-			Seed:           pointer(int64(42)),
+			Seed:           new(int64(42)),
 			OutputFormat:   "image/png",
 			ResponseFormat: image.ResponseFormatB64JSON,
 			Extra:          mustMetadata(t, map[string]any{"background": "transparent"}),
@@ -198,7 +198,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 			Model:                "transcription-model",
 			Language:             "en",
 			Prompt:               "Lynx vocabulary",
-			Temperature:          pointer(0.1),
+			Temperature:          new(0.1),
 			ResponseFormat:       "verbose_json",
 			TimestampGranularity: []string{"word", "segment"},
 			Extra:                mustMetadata(t, map[string]any{"diarize": true}),
@@ -275,5 +275,3 @@ func mustSetChatExtension(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
-
-func pointer[T any](value T) *T { return &value }

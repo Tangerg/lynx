@@ -34,7 +34,7 @@ func TestRequestGolden(t *testing.T) {
 		Description: "Inspect an image",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"detail":{"type":"string"}}}`),
 	}}
-	request.Options = chat.Options{Model: "provider-model", Temperature: pointer(0.2), MaxTokens: pointer(int64(256))}
+	request.Options = chat.Options{Model: "provider-model", Temperature: new(0.2), MaxTokens: new(int64(256))}
 	if err := request.SetExtension("openai/response_format", map[string]string{"type": "text"}); err != nil {
 		t.Fatal(err)
 	}

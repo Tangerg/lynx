@@ -90,8 +90,7 @@ func clonePointer[T any](value *T) *T {
 	if value == nil {
 		return nil
 	}
-	clone := *value
-	return &clone
+	return new(*value)
 }
 
 // MergeOptions clones base and applies each override left-to-right.

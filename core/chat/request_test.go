@@ -40,7 +40,7 @@ func TestRequestValidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	request.Tools = []chat.ToolDefinition{validToolDefinition()}
-	request.Options = chat.Options{Model: "model", Temperature: pointer(0.5)}
+	request.Options = chat.Options{Model: "model", Temperature: new(0.5)}
 	if err := request.SetExtension("openai/request", map[string]any{"response_format": "json"}); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestRequestValidate(t *testing.T) {
 func TestRequestValidateRejectsInvalidValues(t *testing.T) {
 	validMessage := chat.NewUserMessage(chat.NewTextPart("hello"))
 	invalidMessage := chat.Message{Role: chat.RoleUser}
-	invalidOption := chat.Options{Temperature: pointer(3.0)}
+	invalidOption := chat.Options{Temperature: new(3.0)}
 	definition := validToolDefinition()
 
 	tests := []struct {
@@ -115,7 +115,7 @@ func TestRequestJSONRoundTrip(t *testing.T) {
 		chat.NewAssistantMessage(chat.NewToolCallPart(validToolCall())),
 	)
 	request.Tools = []chat.ToolDefinition{validToolDefinition()}
-	request.Options = chat.Options{Model: "model", MaxTokens: pointer(int64(100))}
+	request.Options = chat.Options{Model: "model", MaxTokens: new(int64(100))}
 	if err := request.SetExtension("anthropic/cache_control", map[string]bool{"enabled": true}); err != nil {
 		t.Fatal(err)
 	}
