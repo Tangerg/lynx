@@ -5,7 +5,8 @@ go 1.26.5
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.2
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
-	github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f
+	github.com/Tangerg/lynx/core v0.0.0-20260715090617-3f7af1a3ab38
+	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260715090617-3f7af1a3ab38
 	github.com/Tangerg/lynx/pkg v0.0.0-20260715080233-229e06c8ed2f
 	github.com/amikos-tech/chroma-go v0.4.1
 	github.com/aws/aws-sdk-go-v2 v1.42.0

@@ -7,9 +7,10 @@ require (
 	github.com/Tangerg/lynx/agent v0.0.0-20260715080233-229e06c8ed2f
 	github.com/Tangerg/lynx/chatclient v0.0.0-20260715080233-229e06c8ed2f
 	github.com/Tangerg/lynx/chathistory v0.0.0-20260715080233-229e06c8ed2f
-	github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f
+	github.com/Tangerg/lynx/core v0.0.0-20260715090617-3f7af1a3ab38
+	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260715090617-3f7af1a3ab38
 	github.com/Tangerg/lynx/mcp v0.0.0-20260715080233-229e06c8ed2f
-	github.com/Tangerg/lynx/models v0.0.0-20260715080233-229e06c8ed2f
+	github.com/Tangerg/lynx/models v0.0.0-20260715085249-873168aa40a9
 	github.com/Tangerg/lynx/otel v0.0.0-20260715080233-229e06c8ed2f
 	github.com/Tangerg/lynx/pkg v0.0.0-20260715080233-229e06c8ed2f
 	github.com/Tangerg/lynx/skills v0.0.0-20260715080233-229e06c8ed2f
