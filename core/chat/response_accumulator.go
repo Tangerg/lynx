@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Tangerg/lynx/core/internal/ptr"
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
@@ -70,8 +71,8 @@ func (a *ResponseAccumulator) merge(chunk *Response) error {
 	if chunk.Model != "" {
 		a.response.Model = chunk.Model
 	}
-	if !zeroUsage(chunk.Usage) {
-		a.response.Usage = cloneUsage(chunk.Usage)
+	if !chunk.Usage.isZero() {
+		a.response.Usage = chunk.Usage.clone()
 	}
 	mergeMetadata(&a.response.Extensions, chunk.Extensions)
 
@@ -100,7 +101,7 @@ func (a *ResponseAccumulator) snapshot() *Response {
 	response := cloneResponseHeader(a.response)
 	response.Choices = make([]Choice, len(a.choices))
 	for i := range a.choices {
-		response.Choices[i] = cloneChoice(a.choices[i].choice)
+		response.Choices[i] = a.choices[i].choice.clone()
 	}
 	return &response
 }
@@ -120,7 +121,7 @@ func (a *ResponseAccumulator) clone() ResponseAccumulator {
 	}
 	for i := range a.choices {
 		clone.choices[i] = accumulatedChoice{
-			choice:    cloneChoice(a.choices[i].choice),
+			choice:    a.choices[i].choice.clone(),
 			toolParts: make(map[string]int, len(a.choices[i].toolParts)),
 		}
 		for id, position := range a.choices[i].toolParts {
@@ -174,76 +175,71 @@ func (a *accumulatedChoice) mergePart(delta Part) error {
 			call.Arguments += delta.ToolCall.Arguments
 			return nil
 		}
-		cloned := clonePart(delta)
+		cloned := delta.clone()
 		a.toolParts[delta.ToolCall.ID] = len(*parts)
 		*parts = append(*parts, cloned)
 		return nil
 	}
-	*parts = append(*parts, clonePart(delta))
+	*parts = append(*parts, delta.clone())
 	return nil
 }
 
+// cloneResponseHeader deep-copies every response field except Choices — the
+// accumulator carries choices separately in its own indexed slice.
 func cloneResponseHeader(response Response) Response {
 	return Response{
 		ID:         response.ID,
 		Model:      response.Model,
-		Usage:      cloneUsage(response.Usage),
+		Usage:      response.Usage.clone(),
 		Extensions: response.Extensions.Clone(),
 	}
 }
 
-func cloneChoice(choice Choice) Choice {
+func (c Choice) clone() Choice {
 	clone := Choice{
-		Index:        choice.Index,
-		FinishReason: choice.FinishReason,
-		Extensions:   choice.Extensions.Clone(),
+		Index:        c.Index,
+		FinishReason: c.FinishReason,
+		Extensions:   c.Extensions.Clone(),
 	}
-	if choice.Message != nil {
+	if c.Message != nil {
 		clone.Message = &Message{
-			Role:     choice.Message.Role,
-			Parts:    make([]Part, len(choice.Message.Parts)),
-			Metadata: choice.Message.Metadata.Clone(),
+			Role:     c.Message.Role,
+			Parts:    make([]Part, len(c.Message.Parts)),
+			Metadata: c.Message.Metadata.Clone(),
 		}
-		for i := range choice.Message.Parts {
-			clone.Message.Parts[i] = clonePart(choice.Message.Parts[i])
+		for i := range c.Message.Parts {
+			clone.Message.Parts[i] = c.Message.Parts[i].clone()
 		}
 	}
 	return clone
 }
 
-func clonePart(part Part) Part {
-	clone := part
-	clone.Signature = slices.Clone(part.Signature)
-	if part.Media != nil {
-		value := *part.Media
-		value.Source.Bytes = slices.Clone(part.Media.Source.Bytes)
-		value.Metadata = part.Media.Metadata.Clone()
+func (p Part) clone() Part {
+	clone := p
+	clone.Signature = slices.Clone(p.Signature)
+	if p.Media != nil {
+		value := *p.Media
+		value.Source.Bytes = slices.Clone(p.Media.Source.Bytes)
+		value.Metadata = p.Media.Metadata.Clone()
 		clone.Media = &value
 	}
-	if part.ToolCall != nil {
-		clone.ToolCall = new(*part.ToolCall)
+	if p.ToolCall != nil {
+		clone.ToolCall = new(*p.ToolCall)
 	}
 	return clone
 }
 
-func cloneUsage(usage Usage) Usage {
-	clone := usage
-	clone.ReasoningTokens = clonePointer(usage.ReasoningTokens)
-	clone.CacheReadInputTokens = clonePointer(usage.CacheReadInputTokens)
-	clone.CacheWriteInputTokens = clonePointer(usage.CacheWriteInputTokens)
+func (u Usage) clone() Usage {
+	clone := u
+	clone.ReasoningTokens = ptr.Clone(u.ReasoningTokens)
+	clone.CacheReadInputTokens = ptr.Clone(u.CacheReadInputTokens)
+	clone.CacheWriteInputTokens = ptr.Clone(u.CacheWriteInputTokens)
 	return clone
 }
 
-func clonePointer[T any](value *T) *T {
-	if value == nil {
-		return nil
-	}
-	return new(*value)
-}
-
-func zeroUsage(usage Usage) bool {
-	return usage.InputTokens == 0 && usage.OutputTokens == 0 && usage.ReasoningTokens == nil &&
-		usage.CacheReadInputTokens == nil && usage.CacheWriteInputTokens == nil
+func (u Usage) isZero() bool {
+	return u.InputTokens == 0 && u.OutputTokens == 0 && u.ReasoningTokens == nil &&
+		u.CacheReadInputTokens == nil && u.CacheWriteInputTokens == nil
 }
 
 func mergeMetadata(target *metadata.Map, delta metadata.Map) {

@@ -7,6 +7,7 @@ import (
 	"mime"
 	"strings"
 
+	"github.com/Tangerg/lynx/core/internal/ptr"
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
@@ -95,11 +96,11 @@ func (o *Options) Clone() *Options {
 	return &Options{
 		Model:          o.Model,
 		NegativePrompt: o.NegativePrompt,
-		Width:          clonePointer(o.Width),
-		Height:         clonePointer(o.Height),
+		Width:          ptr.Clone(o.Width),
+		Height:         ptr.Clone(o.Height),
 		Style:          o.Style,
 		Quality:        o.Quality,
-		Seed:           clonePointer(o.Seed),
+		Seed:           ptr.Clone(o.Seed),
 		OutputFormat:   o.OutputFormat,
 		ResponseFormat: o.ResponseFormat,
 		Extra:          o.Extra.Clone(),
@@ -147,13 +148,6 @@ func normalizeOutputFormat(value string) (string, error) {
 	return mediaType, nil
 }
 
-func clonePointer[T any](value *T) *T {
-	if value == nil {
-		return nil
-	}
-	return new(*value)
-}
-
 func (o *Options) applyOverride(src *Options) {
 	if src.NegativePrompt != "" {
 		o.NegativePrompt = src.NegativePrompt
@@ -162,10 +156,10 @@ func (o *Options) applyOverride(src *Options) {
 		o.Model = src.Model
 	}
 	if src.Width != nil {
-		o.Width = clonePointer(src.Width)
+		o.Width = ptr.Clone(src.Width)
 	}
 	if src.Height != nil {
-		o.Height = clonePointer(src.Height)
+		o.Height = ptr.Clone(src.Height)
 	}
 	if src.Style != "" {
 		o.Style = src.Style
@@ -174,7 +168,7 @@ func (o *Options) applyOverride(src *Options) {
 		o.Quality = src.Quality
 	}
 	if src.Seed != nil {
-		o.Seed = clonePointer(src.Seed)
+		o.Seed = ptr.Clone(src.Seed)
 	}
 	if src.OutputFormat != "" {
 		o.OutputFormat = src.OutputFormat

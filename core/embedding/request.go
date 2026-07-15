@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/Tangerg/lynx/core/internal/ptr"
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
@@ -81,16 +82,9 @@ func (o *Options) Clone() *Options {
 	return &Options{
 		Model:          o.Model,
 		EncodingFormat: o.EncodingFormat,
-		Dimensions:     clonePointer(o.Dimensions),
+		Dimensions:     ptr.Clone(o.Dimensions),
 		Extra:          o.Extra.Clone(),
 	}
-}
-
-func clonePointer[T any](value *T) *T {
-	if value == nil {
-		return nil
-	}
-	return new(*value)
 }
 
 // MergeOptions clones base and applies each override left-to-right.
@@ -119,7 +113,7 @@ func (o *Options) applyOverride(src *Options) {
 		o.EncodingFormat = src.EncodingFormat
 	}
 	if src.Dimensions != nil {
-		o.Dimensions = clonePointer(src.Dimensions)
+		o.Dimensions = ptr.Clone(src.Dimensions)
 	}
 	if len(src.Extra) > 0 {
 		if o.Extra == nil {
