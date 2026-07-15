@@ -27,6 +27,9 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := image.NewOptions(""); err == nil {
 		t.Fatal("NewOptions accepted empty model")
 	}
+	if _, err := image.NewOptions(" model "); err == nil {
+		t.Fatal("NewOptions accepted model with surrounding whitespace")
+	}
 	if _, err := image.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty prompt")
 	}
@@ -42,6 +45,10 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted invalid options metadata")
+	}
+	invalid.Options = &image.Options{Model: " model "}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("Validate accepted model with surrounding whitespace")
 	}
 	width := int64(0)
 	invalid.Options = &image.Options{Width: &width}

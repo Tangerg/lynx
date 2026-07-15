@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/internal/ptr"
 	"github.com/Tangerg/lynx/core/metadata"
@@ -53,7 +54,7 @@ type Options struct {
 }
 
 // NewOptions builds Options for the given model id. Returns an error
-// when model is empty.
+// when model is empty or has surrounding whitespace.
 //
 // Example:
 //
@@ -61,6 +62,9 @@ type Options struct {
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
 		return nil, errors.New("embedding.NewOptions: model id must not be empty")
+	}
+	if strings.TrimSpace(model) != model {
+		return nil, errors.New("embedding.NewOptions: model id must not have surrounding whitespace")
 	}
 	return &Options{Model: model}, nil
 }
@@ -127,6 +131,9 @@ func (o *Options) applyOverride(src *Options) error {
 func (o *Options) validate() error {
 	if o == nil {
 		return nil
+	}
+	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
+		return errors.New("embedding: model id must not have surrounding whitespace")
 	}
 	if o.EncodingFormat != "" && !o.EncodingFormat.Valid() {
 		return fmt.Errorf("embedding: invalid encoding format %q", o.EncodingFormat)

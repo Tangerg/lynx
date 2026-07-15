@@ -3,6 +3,7 @@ package vectorstore_test
 import (
 	"context"
 	"errors"
+	"math"
 	"reflect"
 	"testing"
 
@@ -19,6 +20,7 @@ func TestSearchRequestValidate(t *testing.T) {
 		{"empty query", vectorstore.SearchRequest{TopK: 5}, false},
 		{"zero topk", vectorstore.SearchRequest{Query: "hi"}, false},
 		{"out-of-range minscore", vectorstore.SearchRequest{Query: "hi", TopK: 5, MinScore: 1.5}, false},
+		{"nan minscore", vectorstore.SearchRequest{Query: "hi", TopK: 5, MinScore: math.NaN()}, false},
 		{"valid", vectorstore.SearchRequest{Query: "hi", TopK: 5, MinScore: 0.5}, true},
 	}
 	for _, tc := range cases {

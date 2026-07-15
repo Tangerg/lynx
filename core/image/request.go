@@ -71,10 +71,13 @@ type Options struct {
 }
 
 // NewOptions builds Options for the given model id. Returns an error
-// when model is empty.
+// when model is empty or has surrounding whitespace.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
 		return nil, errors.New("image.NewOptions: model id must not be empty")
+	}
+	if strings.TrimSpace(model) != model {
+		return nil, errors.New("image.NewOptions: model id must not have surrounding whitespace")
 	}
 	return &Options{Model: model}, nil
 }
@@ -188,6 +191,9 @@ func (o *Options) applyOverride(src *Options) error {
 func (o *Options) validate() error {
 	if o == nil {
 		return nil
+	}
+	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
+		return errors.New("image: model id must not have surrounding whitespace")
 	}
 	if o.Width != nil && *o.Width <= 0 {
 		return errors.New("image: width must be positive")

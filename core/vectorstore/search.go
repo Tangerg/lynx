@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
@@ -50,7 +51,7 @@ func (r SearchRequest) Validate() error {
 	if r.TopK <= 0 {
 		return fmt.Errorf("vectorstore.SearchRequest: TopK must be > 0, got %d", r.TopK)
 	}
-	if r.MinScore < MinSimilarityScore || r.MinScore > MaxSimilarityScore {
+	if math.IsNaN(r.MinScore) || r.MinScore < MinSimilarityScore || r.MinScore > MaxSimilarityScore {
 		return fmt.Errorf("vectorstore.SearchRequest: MinScore must be in [%.1f, %.1f], got %f",
 			MinSimilarityScore, MaxSimilarityScore, r.MinScore)
 	}

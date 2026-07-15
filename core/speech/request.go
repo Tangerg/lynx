@@ -3,6 +3,8 @@ package speech
 import (
 	"errors"
 	"fmt"
+	"math"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -26,10 +28,13 @@ type Options struct {
 }
 
 // NewOptions builds Options for the given model id. Returns an error
-// when model is empty.
+// when model is empty or has surrounding whitespace.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
 		return nil, errors.New("speech.NewOptions: model id must not be empty")
+	}
+	if strings.TrimSpace(model) != model {
+		return nil, errors.New("speech.NewOptions: model id must not have surrounding whitespace")
 	}
 	return &Options{Model: model}, nil
 }
@@ -46,8 +51,11 @@ func (o *Options) validate() error {
 	if o == nil {
 		return nil
 	}
-	if o.Speed < 0 {
-		return errors.New("speech: speed must not be negative")
+	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
+		return errors.New("speech: model id must not have surrounding whitespace")
+	}
+	if math.IsNaN(o.Speed) || math.IsInf(o.Speed, 0) || o.Speed < 0 {
+		return errors.New("speech: speed must be finite and non-negative")
 	}
 	if err := o.Extra.Validate(); err != nil {
 		return fmt.Errorf("speech: options extra: %w", err)
