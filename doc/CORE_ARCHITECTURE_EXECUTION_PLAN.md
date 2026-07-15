@@ -860,7 +860,11 @@ flowchart LR
   - 架构测试自动发现 12 个公共 package 中全部带 JSON tag 的导出 struct，并与 50 项 fixture coverage 清单精确比较；新增 DTO 无法只加 tag 而绕过 compatibility review。
   - 更新 fixture 只能通过显式 `-update-wire-fixtures`，并要求先完成兼容性/版本裁决；CI 将 wire inventory、golden 和 exported API 一并作为独立 blocking Core gate。
   - Core test/race/vet/lint 及 CI 等价 compatibility gate 全绿；证据：`158de60b7`。
-- [ ] **P7-04 补齐公开 API examples 和 package docs**
+- [x] **P7-04 补齐公开 API examples 和 package docs**（完成：2026-07-15）
+  - 12 个公共 package 全部统一为唯一 package comment，明确职责、构造/验证方式、最小能力、可选能力和外圈边界；清理重复 package comment 与指向具体源码文件的脆弱 provider 路径描述。
+  - 为 Chat、Document、Embedding、Image、Media、Metadata、Model、Moderation、Speech、Transcription、VectorStore 与 Filter 各增加 package-level runnable Example，全部带 checked Output 并覆盖各包首要用户路径。
+  - 架构测试自动核对公共 package allowlist 的 12/12 文档与可执行示例；CI 增加独立 blocking docs/examples gate，不受 broad advisory test 影响。
+  - Core 全量 test/vet/lint 及 CI 等价 example gate 全绿；证据：`1f22a87b5`。
 - [ ] **P7-05 按第 11.4 节复核 coverage、race、fuzz 和 dependency budget**
 - [ ] **P7-06 编写 Core 破坏性变更迁移说明、dependent module 发布顺序和 release notes**
 - [ ] **P7-07 完成最终架构审查并冻结 Core v1 契约**
@@ -887,15 +891,15 @@ flowchart LR
 | P4 Document/VectorStore | 完成 | 9/9 | 纯数据、能力接口、Filter 门面、27 backend 和阶段门禁全部完成 |
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
 | P6 Workspace 切换 | 完成 | 8/8 | 旧 API、兼容面、残余依赖和错误文档清零；100 项 workspace 门禁全绿 |
-| P7 稳定与发布 | 进行中 | 3/7 | API、wire 和 integration compatibility 已门禁；进入公开文档/examples |
-| **总计** | **进行中** | **56/60** | **93%** |
+| P7 稳定与发布 | 进行中 | 4/7 | 12 个公共包文档/examples 已门禁；进入最终质量预算复核 |
+| **总计** | **进行中** | **57/60** | **95%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：P7。
-- 下一任务：执行 P7-04，补齐公开 API examples 和 package docs。
+- 下一任务：执行 P7-05，复核 coverage、race、fuzz 和 dependency budget。
 - 当前阻塞：无。
-- 最近完成：P7-03；50 个导出 JSON struct 已纳入聚合 wire golden 与自动 inventory，并进入 CI blocking release gate。
+- 最近完成：P7-04；12 个公共 package 的唯一 package docs、runnable examples 与独立 CI gate 已完成。
 
 ### 10.3 进度更新规则
 
@@ -1170,6 +1174,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 完成 P7-04；12 个公共 package 统一职责文档并新增 checked runnable Example，架构测试与 CI blocking gate 自动锁定覆盖 | Codex |
 | 2026-07-15 | 完成 P7-03；以 50 项导出 JSON struct inventory 和 535 行聚合 golden 冻结全部 Core wire DTO，CI 增加 blocking wire compatibility guard | Codex |
 | 2026-07-14 | 完成 P7-02；provider 构造/协议和 27 个 vectorstore backend conformance 从 advisory suite 中提升为独立 blocking release gate，并增加 backend 集合/注册结构守卫 | Codex |
 | 2026-07-14 | 完成 P7-01；建立 367 条 Core exported API baseline、默认 diff 测试和 CI blocking guard，并把 CI matrix 校准到实际 20 module | Codex |
@@ -1231,6 +1236,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | P7-04 | `1f22a87b5` 为 12/12 公共 package 统一唯一 package comment 并新增带 checked Output 的 package-level Example；架构守卫与 CI blocking docs/examples gate 生效，Core 全量 test/vet/lint 全绿；任务计数 57/60 | P7-05 coverage/race/fuzz/dependency budget |
 | 2026-07-15 | P7-03 | `158de60b7` 新增 50 项导出 JSON struct 自动 inventory、19 个代表性 wire root 与 535 行 aggregate golden，覆盖全部 Core wire DTO；显式 update flag 与 CI blocking gate 生效，Core test/race/vet/lint 全绿；任务计数 56/60 | P7-04 公开 API examples 和 package docs |
 | 2026-07-14 | P7-02 | `b8323f07e` 新增 Models blocking provider gate，race 执行 30 构造入口、共享 suite 与五类参考协议；新增 Vectorstores backend 发现/显式清单/AST 注册守卫，并在 race 下执行 27/27 backend conformance；相关 vet/lint 全绿；任务计数 55/60 | P7-03 serialization compatibility fixtures |
 | 2026-07-14 | P7-01 | `395913f00` 新增 Core 12 package/367 条 exported API 生成基线与增删 diff 测试，更新命令受显式 flag 控制；CI 实际 20 module matrix 增加 blocking Core API step；Core test/vet/lint 全绿；任务计数 54/60 | P7-02 provider/vectorstore conformance 发布门禁 |
