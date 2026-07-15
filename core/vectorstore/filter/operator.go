@@ -65,3 +65,13 @@ func (o Operator) IsBinaryOperator() bool {
 	return o.IsComparisonOperator() || o.IsLogicalOperator() || o.IsMatchingOperator() || o.IsNullOperator()
 }
 func (o Operator) IsUnaryOperator() bool { return o == OpNot }
+
+func (o Operator) dual() Operator {
+	if o == OpAnd {
+		return OpOr
+	}
+	if o == OpOr {
+		return OpAnd
+	}
+	return ""
+}

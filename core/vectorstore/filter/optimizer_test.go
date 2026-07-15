@@ -37,6 +37,43 @@ func TestParseOptimizerBooleanIdentities(t *testing.T) {
 			input:  `(b == 2 and a == 1) or a == 1`,
 			expect: filter.EQ("a", 1),
 		},
+		{
+			name:  "associative deduplication",
+			input: `(a == 1 and b == 2) and a == 1`,
+			expect: filter.And(
+				filter.EQ("a", 1),
+				filter.EQ("b", 2),
+			),
+		},
+		{
+			name:   "deep absorption",
+			input:  `a == 1 and (b == 2 or (c == 3 or a == 1))`,
+			expect: filter.EQ("a", 1),
+		},
+		{
+			name:  "commutative clause absorption",
+			input: `(a == 1 or b == 2) and (b == 2 or a == 1 or c == 3)`,
+			expect: filter.Or(
+				filter.EQ("a", 1),
+				filter.EQ("b", 2),
+			),
+		},
+		{
+			name:  "factor conjunction",
+			input: `(a == 1 and b == 2) or (a == 1 and c == 3)`,
+			expect: filter.And(
+				filter.EQ("a", 1),
+				filter.Or(filter.EQ("b", 2), filter.EQ("c", 3)),
+			),
+		},
+		{
+			name:  "factor disjunction",
+			input: `(a == 1 or b == 2) and (a == 1 or c == 3)`,
+			expect: filter.Or(
+				filter.EQ("a", 1),
+				filter.And(filter.EQ("b", 2), filter.EQ("c", 3)),
+			),
+		},
 	}
 
 	for _, tt := range tests {
@@ -61,5 +98,16 @@ func TestValidateDoesNotRewriteProgrammaticPredicate(t *testing.T) {
 	}
 	if predicate.Op != filter.OpAnd || predicate.Left != comparison || predicate.Right != comparison {
 		t.Fatal("Validate rewrote the caller-owned predicate")
+	}
+}
+
+func TestParseOptimizerPreservesMembershipOperands(t *testing.T) {
+	predicate, err := filter.Parse(`status in ('active', 'active', 'paused')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := predicate.(*filter.BinaryExpr).Right.(*filter.ListLiteral)
+	if len(list.Values) != 3 || list.Values[0].Value != "active" || list.Values[1].Value != "active" {
+		t.Fatalf("membership values = %#v, want source order and duplicates preserved", list.Values)
 	}
 }

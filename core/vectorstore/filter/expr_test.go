@@ -2,6 +2,7 @@ package filter_test
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
@@ -59,6 +60,17 @@ func TestExpressionEqualityIgnoresSourcePosition(t *testing.T) {
 	}
 }
 
+func TestProgrammaticCompositePositionsRemainZero(t *testing.T) {
+	parsed, err := filter.Parse(`category == 'tech'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	programmatic := filter.Not(parsed)
+	if programmatic.Start() != (filter.Position{}) || programmatic.End() != (filter.Position{}) {
+		t.Fatalf("programmatic position = %s..%s, want zero positions", programmatic.Start(), programmatic.End())
+	}
+}
+
 func TestValidateRejectsMalformedPublicTreeWithoutPanicking(t *testing.T) {
 	tests := map[string]filter.Predicate{
 		"nil":                 nil,
@@ -109,6 +121,51 @@ func TestValidateRejectsInvalidSemanticShapes(t *testing.T) {
 				t.Fatal("Validate returned nil error")
 			}
 		})
+	}
+}
+
+func TestValidateRejectsExpressionCycles(t *testing.T) {
+	unary := &filter.UnaryExpr{Op: filter.OpNot}
+	unary.Right = unary
+
+	binary := &filter.BinaryExpr{Op: filter.OpAnd, Right: filter.EQ("ready", true)}
+	binary.Left = binary
+
+	index := &filter.IndexExpr{Index: filter.NewLiteral("key")}
+	index.Left = index
+
+	for name, predicate := range map[string]filter.Predicate{
+		"unary":  unary,
+		"binary": binary,
+		"index":  filter.EQ(index, "value"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := filter.Validate(predicate)
+			if err == nil || !strings.Contains(err.Error(), "cycle") {
+				t.Fatalf("Validate() error = %v, want cycle error", err)
+			}
+		})
+	}
+}
+
+func TestValidateReportsInvalidOperatorBeforeOperands(t *testing.T) {
+	err := filter.Validate(&filter.BinaryExpr{Op: filter.Operator("xor")})
+	if err == nil || !strings.Contains(err.Error(), "invalid binary operator") {
+		t.Fatalf("Validate() error = %v, want invalid operator", err)
+	}
+
+	err = filter.Validate(&filter.UnaryExpr{Op: filter.OpAnd})
+	if err == nil || !strings.Contains(err.Error(), "invalid unary operator") {
+		t.Fatalf("Validate() error = %v, want invalid operator", err)
+	}
+}
+
+func TestValidateNumericIndexBoundaries(t *testing.T) {
+	if err := filter.Validate(filter.EQ(filter.Index("items", int64(math.MaxInt64)), "value")); err != nil {
+		t.Fatalf("max int64 index: %v", err)
+	}
+	if err := filter.Validate(filter.EQ(filter.Index("items", uint64(math.MaxInt64)+1), "value")); err == nil {
+		t.Fatal("Validate accepted an index above max int64")
 	}
 }
 
