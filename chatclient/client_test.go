@@ -69,12 +69,12 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.Set(inline.Metadata, "origin", "caller"); err != nil {
+	if err := inline.Metadata.Set("origin", "caller"); err != nil {
 		t.Fatal(err)
 	}
 	message := chat.NewUserMessage(chat.NewMediaPart(inline))
 	message.Metadata = metadata.New()
-	if err := metadata.Set(message.Metadata, "turn", 1); err != nil {
+	if err := message.Metadata.Set("turn", 1); err != nil {
 		t.Fatal(err)
 	}
 	assistant := chat.NewAssistantMessage(
@@ -97,7 +97,7 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 		},
 		Extensions: metadata.New(),
 	}
-	if err := metadata.Set(request.Extensions, "test/value", "caller"); err != nil {
+	if err := request.Extensions.Set("test/value", "caller"); err != nil {
 		t.Fatal(err)
 	}
 

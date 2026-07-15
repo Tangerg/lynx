@@ -88,7 +88,7 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 		t.Fatalf("MergeOptions = %#v", merged)
 	}
 	clone := merged.Clone()
-	if err := metadata.Set(clone.Extra, "base", false); err != nil {
+	if err := clone.Extra.Set("base", false); err != nil {
 		t.Fatal(err)
 	}
 	if !mustDecode[bool](t, merged.Extra, "base") {

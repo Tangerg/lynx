@@ -138,10 +138,7 @@ func setProtocolRedacted(target *metadata.Map, values []string) error {
 	if len(values) == 0 {
 		return nil
 	}
-	if *target == nil {
-		*target = metadata.New()
-	}
-	return metadata.Set(*target, protocolRedactedReasoningKey, protocolRedactedValue(values))
+	return target.Set(protocolRedactedReasoningKey, protocolRedactedValue(values))
 }
 
 func protocolRedactedValue(values []string) any {

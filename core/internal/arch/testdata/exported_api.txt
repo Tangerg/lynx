@@ -160,14 +160,15 @@ media: func (m *Media) URI() (string, error)
 media: func (m *Media) UnmarshalJSON(data []byte) error
 media: func (m *Media) Validate() error
 media: func (m Media) MarshalJSON() ([]byte, error)
-media: func (s MediaSource) Validate() error
+media: func (s Source) Validate() error
 media: func NewBytes(mimeType string, data []byte) (*Media, error)
 media: func NewReference(mimeType, ref string) (*Media, error)
 media: func NewURI(mimeType, uri string) (*Media, error)
-media: type Media struct { MIME string `json:"mime"` Source MediaSource `json:"source"` ID string `json:"id,omitempty"` Name string `json:"name,omitempty"` Metadata metadata.Map `json:"metadata,omitempty"` }
-media: type MediaSource struct { Kind SourceKind `json:"kind"` Bytes []byte `json:"bytes,omitempty"` URI string `json:"uri,omitempty"` Ref string `json:"ref,omitempty"` }
+media: type Media struct { MIME string `json:"mime"` Source Source `json:"source"` ID string `json:"id,omitempty"` Name string `json:"name,omitempty"` Metadata metadata.Map `json:"metadata,omitempty"` }
+media: type Source struct { Kind SourceKind `json:"kind"` Bytes []byte `json:"bytes,omitempty"` URI string `json:"uri,omitempty"` Ref string `json:"ref,omitempty"` }
 media: type SourceKind string
 media: var ( ErrNilMedia = errors.New("media: nil media") ErrInvalidMIME = errors.New("media: invalid MIME type") ErrInvalidSource = errors.New("media: invalid source") )
+metadata: func (m *Map) Set(key string, value any) error
 metadata: func (m *Map) UnmarshalJSON(data []byte) error
 metadata: func (m Map) Clone() Map
 metadata: func (m Map) MarshalJSON() ([]byte, error)
@@ -176,7 +177,6 @@ metadata: func (m Map) Values() (map[string]any, error)
 metadata: func Decode[T any](m Map, key string) (T, bool, error)
 metadata: func FromValues(values map[string]any) (Map, error)
 metadata: func New() Map
-metadata: func Set(m Map, key string, value any) error
 metadata: type Map map[string]json.RawMessage
 metadata: var ( ErrNilMap = errors.New("metadata: nil map") ErrEmptyKey = errors.New("metadata: empty key") ErrInvalidValue = errors.New("metadata: invalid JSON value") )
 moderation: func (c *Categories) Flagged() bool

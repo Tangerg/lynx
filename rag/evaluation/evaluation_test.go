@@ -147,7 +147,7 @@ func TestModelEvaluatorRejectsRepliesWithoutNormalizedScore(t *testing.T) {
 
 func TestCompositeMergesValidatedResultsWithoutAliasing(t *testing.T) {
 	firstMetadata := metadata.New()
-	if err := metadata.Set(firstMetadata, "source", "first"); err != nil {
+	if err := firstMetadata.Set("source", "first"); err != nil {
 		t.Fatal(err)
 	}
 	evaluators := []evaluation.Evaluator{
@@ -212,7 +212,7 @@ func TestCompositeValidatesConstructionErrorsAndSingleResultOwnership(t *testing
 	}
 
 	childMetadata := metadata.New()
-	if err := metadata.Set(childMetadata, "value", 1); err != nil {
+	if err := childMetadata.Set("value", 1); err != nil {
 		t.Fatal(err)
 	}
 	composite, err = evaluation.NewComposite(evaluation.EvaluatorFunc(func(context.Context, evaluation.Request) (evaluation.Result, error) {

@@ -20,7 +20,7 @@ var (
 	ErrInvalidSource = errors.New("media: invalid source")
 )
 
-// SourceKind identifies which MediaSource value is active.
+// SourceKind identifies which Source value is active.
 type SourceKind string
 
 const (
@@ -32,9 +32,9 @@ const (
 	SourceReference SourceKind = "reference"
 )
 
-// MediaSource is a tagged union. Kind selects exactly one of Bytes, URI, or
+// Source is a tagged union. Kind selects exactly one of Bytes, URI, or
 // Ref; all other fields must be empty.
-type MediaSource struct {
+type Source struct {
 	Kind  SourceKind `json:"kind"`
 	Bytes []byte     `json:"bytes,omitempty"`
 	URI   string     `json:"uri,omitempty"`
@@ -42,7 +42,7 @@ type MediaSource struct {
 }
 
 // Validate verifies the tagged-source invariant.
-func (s MediaSource) Validate() error {
+func (s Source) Validate() error {
 	switch s.Kind {
 	case SourceBytes:
 		if len(s.Bytes) == 0 || s.URI != "" || s.Ref != "" {
@@ -69,7 +69,7 @@ func (s MediaSource) Validate() error {
 // Media describes a media payload without retaining runtime-only objects.
 type Media struct {
 	MIME     string       `json:"mime"`
-	Source   MediaSource  `json:"source"`
+	Source   Source       `json:"source"`
 	ID       string       `json:"id,omitempty"`
 	Name     string       `json:"name,omitempty"`
 	Metadata metadata.Map `json:"metadata,omitempty"`
@@ -80,7 +80,7 @@ type Media struct {
 func NewBytes(mimeType string, data []byte) (*Media, error) {
 	m := &Media{
 		MIME: mimeType,
-		Source: MediaSource{
+		Source: Source{
 			Kind:  SourceBytes,
 			Bytes: append([]byte(nil), data...),
 		},
@@ -96,7 +96,7 @@ func NewBytes(mimeType string, data []byte) (*Media, error) {
 func NewURI(mimeType, uri string) (*Media, error) {
 	m := &Media{
 		MIME: mimeType,
-		Source: MediaSource{
+		Source: Source{
 			Kind: SourceURI,
 			URI:  uri,
 		},
@@ -112,7 +112,7 @@ func NewURI(mimeType, uri string) (*Media, error) {
 func NewReference(mimeType, ref string) (*Media, error) {
 	m := &Media{
 		MIME: mimeType,
-		Source: MediaSource{
+		Source: Source{
 			Kind: SourceReference,
 			Ref:  ref,
 		},

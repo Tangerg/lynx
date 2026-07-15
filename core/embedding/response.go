@@ -43,7 +43,7 @@ func (m *ResultMetadata) Set(key string, value any) error {
 	if m == nil {
 		return errors.New("embedding.ResultMetadata.Set: nil receiver")
 	}
-	return setExtra(&m.Extra, key, value)
+	return m.Extra.Set(key, value)
 }
 
 // Result is one embedding plus its metadata.
@@ -98,7 +98,7 @@ func (m *ResponseMetadata) Set(key string, value any) error {
 	if m == nil {
 		return errors.New("embedding.ResponseMetadata.Set: nil receiver")
 	}
-	return setExtra(&m.Extra, key, value)
+	return m.Extra.Set(key, value)
 }
 
 // Response is the full embedding result: one [*Result] per input plus

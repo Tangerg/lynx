@@ -27,7 +27,7 @@ type Document struct {
 // Example:
 //
 //	doc, err := document.NewDocument("hello", nil)
-//	_ = metadata.Set(doc.Metadata, "source", "manual")
+//	_ = doc.Metadata.Set("source", "manual")
 func NewDocument(text string, media *media.Media) (*Document, error) {
 	if text == "" && media == nil {
 		return nil, errors.New("document.NewDocument: at least one of text or media is required")

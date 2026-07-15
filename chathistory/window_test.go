@@ -23,12 +23,12 @@ func TestWindowStoreMergesSystemAndKeepsRecentMessages(t *testing.T) {
 	base := chathistory.NewInMemoryStore()
 	firstSystem := chat.NewSystemMessage("first")
 	firstSystem.Metadata = metadata.New()
-	if err := metadata.Set(firstSystem.Metadata, "shared", "first"); err != nil {
+	if err := firstSystem.Metadata.Set("shared", "first"); err != nil {
 		t.Fatal(err)
 	}
 	secondSystem := chat.NewSystemMessage("second")
 	secondSystem.Metadata = metadata.New()
-	if err := metadata.Set(secondSystem.Metadata, "shared", "second"); err != nil {
+	if err := secondSystem.Metadata.Set("shared", "second"); err != nil {
 		t.Fatal(err)
 	}
 	messages := []chat.Message{firstSystem, chat.NewUserMessage(chat.NewTextPart("one")), secondSystem}

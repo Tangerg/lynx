@@ -123,7 +123,7 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 	}
 	clone := merged.Clone()
 	*clone.Width = 1024
-	if err := metadata.Set(clone.Extra, "base", false); err != nil {
+	if err := clone.Extra.Set("base", false); err != nil {
 		t.Fatal(err)
 	}
 	if *merged.Width != 512 || !mustDecode[bool](t, merged.Extra, "base") {

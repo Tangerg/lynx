@@ -36,7 +36,7 @@ func TestDocumentContainsOnlyDataFields(t *testing.T) {
 
 func TestDocumentJSONRoundTrip(t *testing.T) {
 	original := document.Document{ID: "doc-1", Text: "hello", Metadata: metadata.New()}
-	if err := metadata.Set(original.Metadata, "source", "test"); err != nil {
+	if err := original.Metadata.Set("source", "test"); err != nil {
 		t.Fatal(err)
 	}
 	data, err := json.Marshal(original)

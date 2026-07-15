@@ -51,15 +51,7 @@ func setExtension(target *metadata.Map, key string, value any) error {
 	if !validExtensionKey(key) {
 		return fmt.Errorf("%w: key %q must use namespace/name", ErrInvalidExtension, key)
 	}
-	if *target == nil {
-		candidate := metadata.New()
-		if err := metadata.Set(candidate, key, value); err != nil {
-			return fmt.Errorf("%w: %w", ErrInvalidExtension, err)
-		}
-		*target = candidate
-		return nil
-	}
-	if err := metadata.Set(*target, key, value); err != nil {
+	if err := target.Set(key, value); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidExtension, err)
 	}
 	return nil

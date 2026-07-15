@@ -100,7 +100,7 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 	clone := merged.Clone()
 	*clone.Temperature = 0.9
 	clone.TimestampGranularity[0] = "segment"
-	if err := metadata.Set(clone.Extra, "base", false); err != nil {
+	if err := clone.Extra.Set("base", false); err != nil {
 		t.Fatal(err)
 	}
 	if *merged.Temperature != 0.2 || merged.TimestampGranularity[0] != "word" ||

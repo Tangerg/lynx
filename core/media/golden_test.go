@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 func TestMediaGolden(t *testing.T) {
@@ -18,7 +17,7 @@ func TestMediaGolden(t *testing.T) {
 	}
 	inline.ID = "image-1"
 	inline.Name = "pixel.png"
-	if err := metadata.Set(inline.Metadata, "width", 1); err != nil {
+	if err := inline.Metadata.Set("width", 1); err != nil {
 		t.Fatal(err)
 	}
 	uri, err := media.NewURI("application/pdf", "https://example.com/manual.pdf")

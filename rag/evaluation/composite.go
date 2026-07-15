@@ -78,10 +78,10 @@ func merge(results []Result) (Result, error) {
 	}
 	merged.Score /= float64(len(results))
 	merged.Feedback = strings.Join(feedback, "\n\n")
-	if err := metadata.Set(merged.Metadata, "total_evaluations", len(results)); err != nil {
+	if err := merged.Metadata.Set("total_evaluations", len(results)); err != nil {
 		return Result{}, err
 	}
-	if err := metadata.Set(merged.Metadata, "passed_count", passed); err != nil {
+	if err := merged.Metadata.Set("passed_count", passed); err != nil {
 		return Result{}, err
 	}
 	return merged, nil

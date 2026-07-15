@@ -155,7 +155,7 @@ events := runner.Run(ctx, invocation)
 
 ```go
 values := metadata.New()
-if err := metadata.Set(values, "tenant", tenantID); err != nil {
+if err := values.Set("tenant", tenantID); err != nil {
     return err
 }
 tenant, ok, err := metadata.Decode[string](values, "tenant")

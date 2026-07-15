@@ -85,7 +85,7 @@ func TestConstructorsRejectInvalidInputs(t *testing.T) {
 }
 
 func TestMediaSourceValidateRejectsAmbiguousAndUnknownSources(t *testing.T) {
-	tests := []media.MediaSource{
+	tests := []media.Source{
 		{},
 		{Kind: "future", Ref: "value"},
 		{Kind: media.SourceBytes, Bytes: []byte("x"), URI: "https://example.com"},
@@ -159,7 +159,7 @@ func TestJSONRoundTrip(t *testing.T) {
 			}
 			src.ID = "media-1"
 			src.Name = "image.png"
-			if err := metadata.Set(src.Metadata, "width", 64); err != nil {
+			if err := src.Metadata.Set("width", 64); err != nil {
 				t.Fatal(err)
 			}
 

@@ -8,7 +8,7 @@ import (
 
 func Example() {
 	values := metadata.New()
-	if err := metadata.Set(values, "attempt", 3); err != nil {
+	if err := values.Set("attempt", 3); err != nil {
 		panic(err)
 	}
 	attempt, found, err := metadata.Decode[int](values, "attempt")

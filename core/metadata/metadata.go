@@ -7,7 +7,8 @@ import (
 )
 
 var (
-	// ErrNilMap reports an attempt to write through a nil Map.
+	// ErrNilMap reports a Set through a nil *Map pointer. A nil Map VALUE is
+	// fine — Set initializes it in place.
 	ErrNilMap = errors.New("metadata: nil map")
 	// ErrEmptyKey reports an empty metadata key.
 	ErrEmptyKey = errors.New("metadata: empty key")
@@ -33,7 +34,7 @@ func FromValues(values map[string]any) (Map, error) {
 	}
 	encoded := make(Map, len(values))
 	for key, value := range values {
-		if err := Set(encoded, key, value); err != nil {
+		if err := encoded.Set(key, value); err != nil {
 			return nil, err
 		}
 	}
@@ -60,11 +61,10 @@ func (m Map) Values() (map[string]any, error) {
 	return values, nil
 }
 
-// Set encodes value as JSON and stores it under key.
-//
-// Set fails immediately when value cannot be represented as JSON. Callers
-// that have a nil Map should initialize it with [New] first.
-func Set(m Map, key string, value any) error {
+// Set encodes value as JSON and stores it under key, initializing a nil map
+// in place — so a zero-value `Extra metadata.Map` field is writable without a
+// prior [New]. Set fails immediately when value cannot be represented as JSON.
+func (m *Map) Set(key string, value any) error {
 	if m == nil {
 		return ErrNilMap
 	}
@@ -76,7 +76,10 @@ func Set(m Map, key string, value any) error {
 	if err != nil {
 		return fmt.Errorf("metadata: encode %q: %w", key, err)
 	}
-	m[key] = encoded
+	if *m == nil {
+		*m = make(Map, 1)
+	}
+	(*m)[key] = encoded
 	return nil
 }
 
