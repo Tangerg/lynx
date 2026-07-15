@@ -18,5 +18,6 @@
 //	}
 //
 // [Parse] validates the tree before a provider translates it. Provider
-// compilers and interpreters can share the complete-tree [Visitor] contract.
+// compilers and interpreters can share the complete-tree [Visitor] contract;
+// [Visit] validates once and dispatches a predicate to one or more visitors.
 package filter
