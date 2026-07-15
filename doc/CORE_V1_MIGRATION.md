@@ -161,6 +161,14 @@ if err := values.Set("tenant", tenantID); err != nil {
 tenant, ok, err := metadata.Decode[string](values, "tenant")
 ```
 
+合并两个 metadata 值时使用 receiver 方法；它会先校验双方、深拷贝 source，并按末值覆盖语义更新 target：
+
+```go
+if err := values.Merge(providerValues); err != nil {
+    return err
+}
+```
+
 不要直接塞入函数、reader、SDK client 或其他运行时对象。直接 map 赋值只接受 `json.RawMessage`，并仍需通过 `Validate`。
 
 Embedding、Image、Moderation、Speech 和 Transcription 的 `Options.Extra`、`ResultMetadata.Extra`、`ResponseMetadata.Extra` 也统一为 `metadata.Map`。写入必须处理 `Set` 返回的错误；读取使用 `metadata.Decode[T]`：

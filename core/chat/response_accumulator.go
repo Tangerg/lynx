@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/core/internal/ptr"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // ResponseAccumulator merges response deltas into one provider-neutral
@@ -74,7 +73,9 @@ func (a *ResponseAccumulator) merge(chunk *Response) error {
 	if !chunk.Usage.isZero() {
 		a.response.Usage = chunk.Usage.clone()
 	}
-	mergeMetadata(&a.response.Extensions, chunk.Extensions)
+	if err := a.response.Extensions.Merge(chunk.Extensions); err != nil {
+		return fmt.Errorf("chat: accumulate response extensions: %w", err)
+	}
 
 	if a.byIndex == nil {
 		a.byIndex = make(map[int]int)
@@ -98,7 +99,7 @@ func (a *ResponseAccumulator) merge(chunk *Response) error {
 }
 
 func (a *ResponseAccumulator) snapshot() *Response {
-	response := cloneResponseHeader(a.response)
+	response := a.response.cloneHeader()
 	response.Choices = make([]Choice, len(a.choices))
 	for i := range a.choices {
 		response.Choices[i] = a.choices[i].choice.clone()
@@ -111,7 +112,7 @@ func (a *ResponseAccumulator) clone() ResponseAccumulator {
 		return ResponseAccumulator{}
 	}
 	clone := ResponseAccumulator{
-		response: cloneResponseHeader(a.response),
+		response: a.response.cloneHeader(),
 		choices:  make([]accumulatedChoice, len(a.choices)),
 		byIndex:  make(map[int]int, len(a.byIndex)),
 		seen:     a.seen,
@@ -135,14 +136,18 @@ func (a *accumulatedChoice) merge(delta Choice) error {
 	if delta.FinishReason != "" {
 		a.choice.FinishReason = delta.FinishReason
 	}
-	mergeMetadata(&a.choice.Extensions, delta.Extensions)
+	if err := a.choice.Extensions.Merge(delta.Extensions); err != nil {
+		return fmt.Errorf("choice extensions: %w", err)
+	}
 	if delta.Message == nil {
 		return nil
 	}
 	if a.choice.Message == nil {
 		a.choice.Message = &Message{Role: RoleAssistant}
 	}
-	mergeMetadata(&a.choice.Message.Metadata, delta.Message.Metadata)
+	if err := a.choice.Message.Metadata.Merge(delta.Message.Metadata); err != nil {
+		return fmt.Errorf("message metadata: %w", err)
+	}
 	for i := range delta.Message.Parts {
 		if err := a.mergePart(delta.Message.Parts[i]); err != nil {
 			return fmt.Errorf("part %d: %w", i, err)
@@ -184,14 +189,14 @@ func (a *accumulatedChoice) mergePart(delta Part) error {
 	return nil
 }
 
-// cloneResponseHeader deep-copies every response field except Choices — the
-// accumulator carries choices separately in its own indexed slice.
-func cloneResponseHeader(response Response) Response {
+// cloneHeader deep-copies every response field except Choices. The accumulator
+// carries choices separately in its own indexed slice.
+func (r Response) cloneHeader() Response {
 	return Response{
-		ID:         response.ID,
-		Model:      response.Model,
-		Usage:      response.Usage.clone(),
-		Extensions: response.Extensions.Clone(),
+		ID:         r.ID,
+		Model:      r.Model,
+		Usage:      r.Usage.clone(),
+		Extensions: r.Extensions.Clone(),
 	}
 }
 
@@ -240,16 +245,4 @@ func (u Usage) clone() Usage {
 func (u Usage) isZero() bool {
 	return u.InputTokens == 0 && u.OutputTokens == 0 && u.ReasoningTokens == nil &&
 		u.CacheReadInputTokens == nil && u.CacheWriteInputTokens == nil
-}
-
-func mergeMetadata(target *metadata.Map, delta metadata.Map) {
-	if len(delta) == 0 {
-		return
-	}
-	if *target == nil {
-		*target = metadata.New()
-	}
-	for key, value := range delta {
-		(*target)[key] = slices.Clone(value)
-	}
 }

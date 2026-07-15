@@ -38,14 +38,14 @@ func TestModelAndStreamFunc(t *testing.T) {
 }
 
 func TestOptionsAndRequestValidation(t *testing.T) {
-	if _, err := speech.NewOptions(""); err == nil {
-		t.Fatal("NewOptions accepted empty model")
+	if _, err := speech.NewOptions(""); err == nil || err.Error() != "speech.NewOptions: model id must not be empty" {
+		t.Fatalf("NewOptions error = %v", err)
 	}
 	if _, err := speech.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty text")
 	}
-	if _, err := speech.MergeOptions(nil); err == nil {
-		t.Fatal("MergeOptions accepted nil base")
+	if _, err := speech.MergeOptions(nil); err == nil || err.Error() != "speech.MergeOptions: base options must not be nil" {
+		t.Fatalf("MergeOptions error = %v", err)
 	}
 	if err := (*speech.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
@@ -68,11 +68,11 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 }
 
 func TestResponseValidation(t *testing.T) {
-	if _, err := speech.NewResult(nil, &speech.ResultMetadata{}); err == nil {
-		t.Fatal("NewResult accepted empty speech")
+	if _, err := speech.NewResult(nil, &speech.ResultMetadata{}); err == nil || err.Error() != "speech.NewResult: speech must not be empty" {
+		t.Fatalf("NewResult empty speech error = %v", err)
 	}
-	if _, err := speech.NewResult([]byte("audio"), nil); err == nil {
-		t.Fatal("NewResult accepted nil metadata")
+	if _, err := speech.NewResult([]byte("audio"), nil); err == nil || err.Error() != "speech.NewResult: metadata must not be nil" {
+		t.Fatalf("NewResult nil metadata error = %v", err)
 	}
 	result, _ := speech.NewResult([]byte("audio"), &speech.ResultMetadata{})
 	if _, err := speech.NewResponse(result, &speech.ResponseMetadata{}); err != nil {
@@ -128,10 +128,10 @@ func TestResponseAndRequestErrorBoundaries(t *testing.T) {
 		t.Fatal("NewRequest accepted empty text")
 	}
 	result, _ := speech.NewResult([]byte("audio"), &speech.ResultMetadata{})
-	if _, err := speech.NewResponse(nil, &speech.ResponseMetadata{}); err == nil {
-		t.Fatal("NewResponse accepted nil result")
+	if _, err := speech.NewResponse(nil, &speech.ResponseMetadata{}); err == nil || err.Error() != "speech.NewResponse: result must not be nil" {
+		t.Fatalf("NewResponse nil result error = %v", err)
 	}
-	if _, err := speech.NewResponse(result, nil); err == nil {
-		t.Fatal("NewResponse accepted nil metadata")
+	if _, err := speech.NewResponse(result, nil); err == nil || err.Error() != "speech.NewResponse: metadata must not be nil" {
+		t.Fatalf("NewResponse nil metadata error = %v", err)
 	}
 }

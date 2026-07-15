@@ -846,7 +846,7 @@ flowchart LR
 目标：把重构后的 Core 边界转化为可长期维护的 v1 库契约；`chatclient` 等上层模块只验证兼容性，不在本计划中冻结为 v1。
 
 - [x] **P7-01 建立 exported API diff 守卫**（完成：2026-07-14）
-  - `core/internal/arch/testdata/exported_api.txt` 冻结当前 11 个公共 package 的 346 条导出声明/方法签名；function body 与注释不进入基线，包含 exported 名称的 const/var 声明组整体记录以保留 iota 顺序和隐式类型变化。
+  - `core/internal/arch/testdata/exported_api.txt` 冻结当前 11 个公共 package 的 347 条导出声明/方法签名；function body 与注释不进入基线，包含 exported 名称的 const/var 声明组整体记录以保留 iota 顺序和隐式类型变化。
   - 普通 Core test 默认比较基线并输出增删 delta；只有完成 API 评审、迁移/release notes 与版本裁决后才允许显式 `-update-api` 重建。
   - CI workspace matrix 修正为实际 20 module，并为 Core 增加不可忽略的 blocking API guard step；本地 Core test/vet/lint 与独立 guard 全绿。
   - 证据：`395913f00`。
@@ -873,12 +873,12 @@ flowchart LR
   - 升级后 `FAST=1 scripts/check.sh build vet test lint` 对 20 module 的 80/80 项检查全绿，Core 全量 race 复验通过；证据：`e5c94d25e`。
 - [x] **P7-06 编写 Core 破坏性变更迁移说明、dependent module 发布顺序和 release notes**（完成：2026-07-15）
   - `CORE_V1_MIGRATION.md` 按旧路径、职责、调用语义和持久化数据四个维度给出直接切换指南；明确旧类型只能由升级前二进制一次性导出转换，新库不增加 alias、shim、双读或旧 decoder。
-  - `CORE_V1_RELEASE_NOTES.md` 记录 11 个 v1 公共 package、346 条冻结 API、主要破坏面、wire 承诺、自动门禁、Go 1.26.5 与 Ollama 无修复版本风险。
+  - `CORE_V1_RELEASE_NOTES.md` 记录 11 个 v1 公共 package、347 条冻结 API、主要破坏面、wire 承诺、自动门禁、Go 1.26.5 与 Ollama 无修复版本风险。
   - `CORE_V1_RELEASE_RUNBOOK.md` 从当前 `go.mod` 重建真实 module DAG，规定 Core/基础模块、直接 adapter、组合模块、协议桥、Agent、App 六个发布波次，明确子 module tag 为 `core/v1.0.0` 且 P7-07 前不得创建。
   - 三份文档加入文档地图，Core API/wire/docs/dependency CI 等价架构门禁通过；证据：`0b7c70ec5`。
 - [x] **P7-07 完成最终架构审查并冻结 Core v1 契约**（完成：2026-07-15）
   - 新增 `CORE_V1_ARCHITECTURE_REVIEW.md`，逐项审查职责边界、协议安全、最小接口、provider/backend 扩展、无兼容债、依赖方向、安全裁决与 SemVer 冻结规则；结论为通过，`core/v1.0.0` tag 尚未创建。
-  - 冻结规模为 11 个公共 package、346 条 exported API、49 项 JSON DTO、17 个 wire root 和 487 行 golden；Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
+  - 冻结规模为 11 个公共 package、347 条 exported API、49 项 JSON DTO、17 个 wire root 和 487 行 golden；Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
   - `783df3ee9`、`229e06c8e`、`04a37a9fe` 完成 tag 前协议收口与远端 pseudo-version DAG 闭合；20/20 module 在 `GOWORK=off` 下独立 test/vet/tidy-diff 通过且不再解析旧依赖基线。
   - `FAST=1 scripts/check.sh build vet test lint race` 的 100/100 项、`scripts/check.sh vuln` 的 20/20 module、逐包 coverage 和 provider/27 backend conformance 全部通过；P7-05 的 7 个五分钟 fuzz target 累计 609,846,214 次且无失败语料。本轮另完成 Metadata 5 分钟复验；按维护者要求不再重复整组长时间 fuzz。
 
@@ -1173,8 +1173,15 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 - 日期：2026-07-15
 - 状态：已采纳（最终架构审查）
-- 决策：冻结 11 个公共 package、346 条 exported API、49 项 JSON DTO、17 个代表性 wire root 与 487 行 golden；序列化 DTO 禁止任意 `any`/`interface{}` 字段、Request `Params` 与原始 SDK payload，扩展值必须经 `metadata.Map` 写入时编码，所有 modality 请求在 provider 边界前验证。Core 保持标准库-only，不恢复旧路径、旧 wire、alias、bridge、shim、兼容字段或双读写。
+- 决策：冻结 11 个公共 package、347 条 exported API、49 项 JSON DTO、17 个代表性 wire root 与 487 行 golden；序列化 DTO 禁止任意 `any`/`interface{}` 字段、Request `Params` 与原始 SDK payload，扩展值必须经 `metadata.Map` 写入时编码，所有 modality 请求在 provider 边界前验证。Core 保持标准库-only，不恢复旧路径、旧 wire、alias、bridge、shim、兼容字段或双读写。
 - 原因：这组契约已经由真实 provider/backend、20 个独立 module 与完整 release gate 证明可实现、可消费、可序列化；继续保留 Spring AI 移植期动态参数袋或运行时职责只会扩大稳定 API 和依赖半径。显式 baseline 与 SemVer 裁决比兼容壳更适合 Go 库长期演进。
+
+### ADR-017：Metadata 合并由值对象 receiver 统一承担
+
+- 日期：2026-07-15
+- 状态：已采纳（v1 tag 前加法式精修）
+- 决策：为 `metadata.Map` 增加 `Merge` receiver；合并前验证 target/source，成功时对 source 的 `json.RawMessage` 深拷贝并按末值覆盖，失败时不修改 receiver。五个 modality Options 与 Chat 流式聚合统一复用该行为，不再各自维护 map 初始化、复制和别名隔离代码。
+- 原因：JSON 安全、深拷贝和覆盖策略是 `metadata.Map` 的不变量，不属于 Embedding/Image/Moderation/Speech/Transcription/Chat 任一调用方。将行为放回值对象能消除六份易漂移实现，并让零值可写、错误原子性和别名隔离在一个测试边界内冻结。该变更只新增一个方法，不改变现有签名或 wire；exported API baseline 从 346 调整为 347。
 
 ---
 
@@ -1198,14 +1205,15 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 完成 Core receiver/语义精修：Metadata 合并收敛为值对象行为，Chat 私有克隆归回 Response receiver，Speech 错误前缀与包名一致；API 基线更新为 347 条且 wire 不变 | Codex |
 | 2026-07-15 | 完成 tag 前协议词汇、API/wire、coverage 与文档收口，以两跳提交重建远端 module DAG；最终确定性门禁全绿，按维护者要求不重复整组长时间 fuzz | Codex |
-| 2026-07-15 | 完成 P7-07；最终架构审查通过，冻结 346 条 API、49 项 DTO/487 行 wire、标准库-only 依赖和无兼容债规则；完整 release gate 与 20 module 独立验证通过，计划 60/60 关闭 | Codex |
+| 2026-07-15 | 完成 P7-07；最终架构审查通过，当时冻结 346 条 API、49 项 DTO/487 行 wire、标准库-only 依赖和无兼容债规则；完整 release gate 与 20 module 独立验证通过，计划 60/60 关闭 | Codex |
 | 2026-07-15 | 完成 P7-06；新增 Core v1 直接迁移指南、release notes 与六波次多 module 发布手册，明确旧 wire 一次性迁移和无兼容层发布规则 | Codex |
 | 2026-07-15 | 完成 P7-05；逐包覆盖预算与 CI dependency gate 生效，7 个 fuzz target 各跑满 5 分钟并在最终复验累计 609,846,214 次，升级 Go/Ollama 并记录仍无修复版本的上游安全风险 | Codex |
 | 2026-07-15 | 完成 P7-04；11 个公共 package 统一职责文档并新增 checked runnable Example，架构测试与 CI blocking gate 自动锁定覆盖 | Codex |
 | 2026-07-15 | 完成 P7-03；以 49 项导出 JSON struct inventory 和最终 487 行聚合 golden 冻结全部 Core wire DTO，CI 增加 blocking wire compatibility guard | Codex |
 | 2026-07-14 | 完成 P7-02；provider 构造/协议和 27 个 vectorstore backend conformance 从 advisory suite 中提升为独立 blocking release gate，并增加 backend 集合/注册结构守卫 | Codex |
-| 2026-07-14 | 完成 P7-01；建立并在协议收口后更新为 346 条 Core exported API baseline、默认 diff 测试和 CI blocking guard，并把 CI matrix 校准到实际 20 module | Codex |
+| 2026-07-14 | 完成 P7-01；建立并在当时协议收口后更新为 346 条 Core exported API baseline、默认 diff 测试和 CI blocking guard，并把 CI matrix 校准到实际 20 module | Codex |
 | 2026-07-14 | 完成 P6-08 与 P6 阶段验收；20 module 的 build/vet/test/lint/race 共 100 项全绿，tidy 和旧 API/构造器审计清零，进入 P7 | Codex |
 | 2026-07-14 | 完成 P6-07；全量同步 CLAUDE/README/架构/GoDoc，删除依赖旧 ChatClient 与并行 ToolLoop 的过时草案和移植对比，Runtime 基准重写为真实五环与唯一 Event Runner | Codex |
 | 2026-07-14 | 完成 P6-06；Core 外部依赖与临时白名单清零，20 个 module 统一 tidy/pseudo-version，并在关闭 go.work 后逐模块测试通过 | Codex |
@@ -1264,14 +1272,15 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
-| 2026-07-15 | tag 前最终收口 | `783df3ee9` 将 embedding 用量统一为 `InputTokens/input_tokens`，补齐 `internal/ptr` 100% coverage 并校准 11 package/346 API/49 DTO/17 root/487 行基线；`229e06c8e` 与 `04a37a9fe` 闭合远端依赖图。20/20 standalone test/vet/tidy、100/100 workspace gate、20/20 漏洞策略以及 Core 确定性 release gate 全绿；Metadata fuzz 5 分钟 98,942,554 次无失败，按维护者要求停止重复整组长时间 fuzz | 正式 tag/协调发布按运行手册单独执行 |
-| 2026-07-15 | P7-07、计划验收 | `43c2876c4` 完成协议/安全边界硬化，`b968e20dd` 与 `a1dd21f4f` 闭合远端依赖图；最终审查冻结 11 package/346 API/49 DTO/17 root/487 行 wire。20/20 module 独立 test/vet/tidy、100/100 workspace gate、20/20 精确漏洞门禁、17 package coverage、provider/27 backend race conformance 全绿；7 个 fuzz target 各 5 分钟，累计 609,846,214 次无失败；任务计数 60/60 | 计划完成；正式 tag/协调发布按运行手册单独执行 |
+| 2026-07-15 | Core receiver/语义精修 | `metadata.Map.Merge` 统一六处深拷贝、末值覆盖与错误原子语义；Chat 响应头克隆归回 `Response` receiver；Speech 构造/合并错误前缀清除旧 `tts` 包名。API 基线评审后从 346 更新为 347，wire 无变化；`FUZZ_TIME=0 scripts/check-core-release.sh` 的 Core 全量 test/race/vet/lint/tidy、17 包覆盖预算、Models provider 与 27 backend conformance 全绿，按维护者要求未启动 fuzz | 继续评审需维护者确认的破坏性命名与模块边界候选 |
+| 2026-07-15 | tag 前最终收口 | `783df3ee9` 将 embedding 用量统一为 `InputTokens/input_tokens`，补齐 `internal/ptr` 100% coverage 并校准当时的 11 package/346 API/49 DTO/17 root/487 行基线；`229e06c8e` 与 `04a37a9fe` 闭合远端依赖图。20/20 standalone test/vet/tidy、100/100 workspace gate、20/20 漏洞策略以及 Core 确定性 release gate 全绿；Metadata fuzz 5 分钟 98,942,554 次无失败，按维护者要求停止重复整组长时间 fuzz | 正式 tag/协调发布按运行手册单独执行 |
+| 2026-07-15 | P7-07、计划验收 | `43c2876c4` 完成协议/安全边界硬化，`b968e20dd` 与 `a1dd21f4f` 闭合远端依赖图；最终审查当时冻结 11 package/346 API/49 DTO/17 root/487 行 wire。20/20 module 独立 test/vet/tidy、100/100 workspace gate、20/20 精确漏洞门禁、17 package coverage、provider/27 backend race conformance 全绿；7 个 fuzz target 各 5 分钟，累计 609,846,214 次无失败；任务计数 60/60 | 计划完成；正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P7-06 | `0b7c70ec5` 新增 256 行直接迁移指南、148 行 v1 release notes 与 194 行协调发布手册；从当前 `go.mod` 重建六波次 DAG，明确 `core/v1.0.0` tag、GOWORK=off 验证、一次性历史数据迁移、回滚与 Ollama 风险裁决；三份文档加入索引，Core API/wire/docs/dependency 等价门禁通过；任务计数 59/60 | P7-07 最终架构审查与 v1 契约冻结 |
 | 2026-07-15 | P7-05 | `e5c94d25e` 新增 17 个 Core package 的 blocking coverage budget，补齐五个低覆盖模态行为测试；Core/ChatClient/Agent/ChatHistory/RAG/Tools/27 backend race 全绿，7 个 fuzz target 各 5 分钟无失败；Core 标准库-only、20/20 tidy-diff 和升级后 80/80 workspace build/vet/test/lint 通过。Go 1.26.5 清除 TLS 漏洞，Ollama v0.32.0 仍有 8 个 `Fixed in: N/A` 上游公告；任务计数 58/60 | P7-06 迁移说明、发布顺序和 release notes |
 | 2026-07-15 | P7-04 | `1f22a87b5` 为公共 package 统一唯一 package comment 并新增带 checked Output 的 package-level Example；tag 前最终收口为 11/11，架构守卫与 CI blocking docs/examples gate 生效，Core 全量 test/vet/lint 全绿；任务计数 57/60 | P7-05 coverage/race/fuzz/dependency budget |
 | 2026-07-15 | P7-03 | `158de60b7` 建立导出 JSON struct 自动 inventory、代表性 wire root 与 aggregate golden；tag 前最终 fixture 收口为 49 项 DTO、17 个 root、487 行并覆盖全部 Core wire DTO；显式 update flag 与 CI blocking gate 生效；任务计数 56/60 | P7-04 公开 API examples 和 package docs |
 | 2026-07-14 | P7-02 | `b8323f07e` 新增 Models blocking provider gate，race 执行 30 构造入口、共享 suite 与五类参考协议；新增 Vectorstores backend 发现/显式清单/AST 注册守卫，并在 race 下执行 27/27 backend conformance；相关 vet/lint 全绿；任务计数 55/60 | P7-03 serialization compatibility fixtures |
-| 2026-07-14 | P7-01 | `395913f00` 建立 Core exported API 生成基线与增删 diff 测试，tag 前最终收口为 11 package/346 条；更新命令受显式 flag 控制，CI 实际 20 module matrix 有 blocking Core API step；任务计数 54/60 | P7-02 provider/vectorstore conformance 发布门禁 |
+| 2026-07-14 | P7-01 | `395913f00` 建立 Core exported API 生成基线与增删 diff 测试，当时收口为 11 package/346 条；更新命令受显式 flag 控制，CI 实际 20 module matrix 有 blocking Core API step；任务计数 54/60 | P7-02 provider/vectorstore conformance 发布门禁 |
 | 2026-07-14 | P6-08、P6 阶段验收 | `FAST=1 scripts/check.sh build vet test lint race` 对 20 module 的 100/100 检查全绿；20/20 tidy-diff 为空，Go 源码旧五类 Core import 与旧 Chat 构造器/类型定义为零；任务计数 53/60，P6 8/8 完成 | P7-01 exported API diff 守卫 |
 | 2026-07-14 | P6-07 | `7e73185c8` 将全部维护文档与 package docs 校准到扁平 Core、最小 SPI、ChatClient/Tool/Event Runner 和 Runtime 五环；删除 7 份整体过时的移植对比/greenfield/prior-art 文档，历史基线显式归档；旧结构引用审计为零，Agent/Models/MCP/A2A/Tools/App test+vet 全绿；任务计数 52/60 | P6-08 全 workspace 最终门禁与 P6 验收 |
 | 2026-07-14 | P6-06 | `0abc7c70a` 清掉 Core 最后一个第三方依赖、临时 dependency/package 白名单，并对 20 module tidy；`badb63e8b` 将全部内部依赖统一钉到清理基线 `v0.0.0-20260714110600-0abc7c70a85d`。20/20 tidy-diff 为空，workspace 40 项 build/test 及关闭 go.work 后 20/20 module 独立 test 全绿；任务计数 51/60 | P6-07 全量文档同步 |

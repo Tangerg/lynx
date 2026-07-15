@@ -3,7 +3,6 @@ package moderation
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 
 	"github.com/Tangerg/lynx/core/metadata"
@@ -72,10 +71,9 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 			merged.Model = override.Model
 		}
 		if len(override.Extra) > 0 {
-			if merged.Extra == nil {
-				merged.Extra = metadata.New()
+			if err := merged.Extra.Merge(override.Extra); err != nil {
+				return nil, fmt.Errorf("moderation.MergeOptions: merge Extra: %w", err)
 			}
-			maps.Copy(merged.Extra, override.Extra.Clone())
 		}
 	}
 	return merged, nil

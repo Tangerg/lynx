@@ -16,7 +16,7 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 | 项目 | 冻结结果 |
 |---|---:|
 | 公共 package | 11 |
-| exported API baseline | 346 条声明/方法签名 |
+| exported API baseline | 347 条声明/方法签名 |
 | 带 JSON tag 的导出 DTO | 49 |
 | 代表性 wire root | 17 |
 | 聚合 wire golden | 487 行 |
@@ -32,7 +32,7 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 | Core 是协议库，不是运行时框架 | Client、History、Tool runtime、Agent、OTel、catalog 与 tokenizer 已外移 | 通过 |
 | 公共值可独立序列化 | 49 项 DTO inventory 与 487 行 wire golden 为 blocking gate | 通过 |
 | 公共 wire 不承载任意运行时值 | AST 门禁拒绝序列化 DTO 中的 `any`/`interface{}`、Request `Params` 和 `Usage.OriginalUsage` | 通过 |
-| 扩展数据写入时即验证 | `metadata.Map` 保存 `json.RawMessage`；`Set`/`FromValues` 返回编码错误 | 通过 |
+| 扩展数据写入时即验证 | `metadata.Map` 保存 `json.RawMessage`；`Set`/`FromValues` 返回编码错误，`Merge` 校验后深拷贝且失败不修改 receiver | 通过 |
 | 无效请求不进入 provider SDK | Chat 与五个非 Chat modality 递归 `Validate`；Models AST 门禁覆盖 Call/Stream 边界 | 通过 |
 | 接口由消费能力塑造 | Model/Streamer、Indexer/Searcher/Deleter 等接口保持 1–3 个方法且能力可分离 | 通过 |
 | 依赖方向单向 | Core 生产 import 只允许标准库或 Core 自身，外层 module 依赖 Core | 通过 |

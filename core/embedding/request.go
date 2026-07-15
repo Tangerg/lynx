@@ -3,7 +3,6 @@ package embedding
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 
 	"github.com/Tangerg/lynx/core/internal/ptr"
@@ -100,12 +99,14 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		if override == nil {
 			continue
 		}
-		merged.applyOverride(override)
+		if err := merged.applyOverride(override); err != nil {
+			return nil, fmt.Errorf("embedding.MergeOptions: %w", err)
+		}
 	}
 	return merged, nil
 }
 
-func (o *Options) applyOverride(src *Options) {
+func (o *Options) applyOverride(src *Options) error {
 	if src.Model != "" {
 		o.Model = src.Model
 	}
@@ -116,11 +117,11 @@ func (o *Options) applyOverride(src *Options) {
 		o.Dimensions = ptr.Clone(src.Dimensions)
 	}
 	if len(src.Extra) > 0 {
-		if o.Extra == nil {
-			o.Extra = metadata.New()
+		if err := o.Extra.Merge(src.Extra); err != nil {
+			return fmt.Errorf("merge Extra: %w", err)
 		}
-		maps.Copy(o.Extra, src.Extra.Clone())
 	}
+	return nil
 }
 
 func (o *Options) validate() error {
