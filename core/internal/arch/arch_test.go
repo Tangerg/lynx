@@ -176,7 +176,7 @@ func TestOtherModalitySPIsRemainMinimal(t *testing.T) {
 }
 
 func TestCoreDoesNotOwnProviderCatalogData(t *testing.T) {
-	root := filepath.Join(moduleRoot(t), "model", "chat")
+	root := filepath.Join(moduleRoot(t), "chat")
 	forbidden := map[string]bool{
 		"ModelInfo": true, "Pricing": true, "Reasoning": true,
 		"Limits": true, "Modality": true, "Modalities": true,
