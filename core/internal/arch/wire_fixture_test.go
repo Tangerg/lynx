@@ -3,7 +3,6 @@ package arch
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/document"
@@ -11,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/metadata"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/moderation"
 	"github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/core/transcription"
@@ -99,22 +97,6 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		Media:    inlineMedia,
 		Metadata: protocolMetadata.Clone(),
 	}
-	usage := model.Usage{
-		PromptTokens:          100,
-		CompletionTokens:      20,
-		ReasoningTokens:       pointer(int64(5)),
-		CacheReadInputTokens:  pointer(int64(10)),
-		CacheWriteInputTokens: pointer(int64(15)),
-	}
-	rateLimit := model.RateLimit{
-		RequestsLimit:     100,
-		RequestsRemaining: 99,
-		RequestsReset:     30 * time.Second,
-		TokensLimit:       10000,
-		TokensRemaining:   9880,
-		TokensReset:       time.Minute,
-	}
-
 	embeddingRequest := &embedding.Request{
 		Texts: []string{"lynx", "wild cat"},
 		Options: &embedding.Options{
@@ -135,11 +117,10 @@ func representativeWireContracts(t *testing.T) map[string]any {
 			},
 		}},
 		Metadata: &embedding.ResponseMetadata{
-			Model:     "embedding-model",
-			Usage:     &usage,
-			RateLimit: &rateLimit,
-			Created:   1700000000,
-			Extra:     mustMetadata(t, map[string]any{"region": "local"}),
+			Model:   "embedding-model",
+			Usage:   &embedding.Usage{PromptTokens: 100},
+			Created: 1700000000,
+			Extra:   mustMetadata(t, map[string]any{"region": "local"}),
 		},
 	}
 
@@ -245,8 +226,6 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		"image_response":             imageResponse,
 		"media":                      []*media.Media{inlineMedia, uriMedia, referenceMedia},
 		"metadata":                   protocolMetadata,
-		"model_rate_limit":           rateLimit,
-		"model_usage":                usage,
 		"moderation_request":         moderationRequest,
 		"moderation_response":        moderationResponse,
 		"speech_request":             speechRequest,

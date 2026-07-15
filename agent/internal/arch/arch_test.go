@@ -164,48 +164,11 @@ func TestTargetToolLoopDoesNotImportLegacyProtocol(t *testing.T) {
 		}
 		for _, imported := range file.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
-			if importPath == "github.com/Tangerg/lynx/core/model" ||
-				strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/model/") ||
-				importPath == "github.com/Tangerg/lynx/chatclient" ||
+			if importPath == "github.com/Tangerg/lynx/chatclient" ||
 				strings.HasPrefix(importPath, "github.com/Tangerg/lynx/chatclient/") {
 				t.Errorf("target tool-loop file %s imports frozen runtime %q", name, importPath)
 			}
 		}
-	}
-}
-
-func TestAgentDoesNotImportLegacyCoreModel(t *testing.T) {
-	root := moduleRoot(t)
-	fset := token.NewFileSet()
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			if entry.Name() == "vendor" || (strings.HasPrefix(entry.Name(), ".") && path != root) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-		file, parseErr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
-		if parseErr != nil {
-			return parseErr
-		}
-		for _, imported := range file.Imports {
-			importPath := strings.Trim(imported.Path.Value, `"`)
-			if importPath == "github.com/Tangerg/lynx/core/model" ||
-				strings.HasPrefix(importPath, "github.com/Tangerg/lynx/core/model/") {
-				relative, _ := filepath.Rel(root, path)
-				t.Errorf("agent file %s imports removed Core model path %q", relative, importPath)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 }
 

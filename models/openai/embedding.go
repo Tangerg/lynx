@@ -9,7 +9,6 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/pkg/ptr"
 )
@@ -85,7 +84,7 @@ func (e *EmbeddingModel) buildAPIEmbeddingRequest(req *embedding.Request) (*open
 func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingResponse) (*embedding.Response, error) {
 	meta := &embedding.ResponseMetadata{
 		Model: apiResp.Model,
-		Usage: &model.Usage{
+		Usage: &embedding.Usage{
 			PromptTokens: apiResp.Usage.PromptTokens,
 		},
 		Created: time.Now().Unix(),
