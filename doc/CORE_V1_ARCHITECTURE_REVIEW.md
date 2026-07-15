@@ -96,4 +96,4 @@ Core 没有第三方生产依赖，`govulncheck` 没有可达漏洞。Models 与
 4. Provider 或 backend 的新能力优先在 adapter/上层 module 组合；只有四个以上真实实现与消费方共享的稳定语义才进入 Core 候选审查。
 5. 已推送 tag 不得移动；发布操作与版本集合按 [`CORE_V1_RELEASE_RUNBOOK.md`](./CORE_V1_RELEASE_RUNBOOK.md) 留档。
 
-P9 文档、兼容基线与确定性门禁完成后，Core 架构演进计划以 73/73 再次关闭；后续工作从“重构计划”切换为“稳定契约维护与正式发布”。
+P9 文档、兼容基线与确定性门禁已经完成，Core 架构演进计划以 73/73 再次关闭；后续工作从“重构计划”切换为“稳定契约维护与正式发布”。
