@@ -12,7 +12,7 @@ func Parse(input string) (Predicate, error) {
 	if err := Validate(expr); err != nil {
 		return nil, err
 	}
-	return optimize(expr)
+	return optimize(expr), nil
 }
 
 // Validate checks a programmatically constructed expression for invalid

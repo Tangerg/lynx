@@ -2,20 +2,21 @@ package filter
 
 import (
 	"fmt"
-	"math"
-	"strconv"
-	"strings"
+	"math/big"
 	"unicode"
 )
 
 // analyzer owns semantic validation for the filter tree. It stays private so
 // Validate remains the only validation policy exposed by the package.
-type analyzer struct{}
+type analyzer struct {
+	active map[Expr]struct{}
+}
 
 func (a *analyzer) analyze(expr Predicate) error {
 	if isNilExpr(expr) {
 		return fmt.Errorf("filter: expression is nil")
 	}
+	a.active = make(map[Expr]struct{})
 	return a.visit(expr)
 }
 
@@ -23,6 +24,11 @@ func (a *analyzer) visit(expr Expr) error {
 	if isNilExpr(expr) {
 		return fmt.Errorf("filter: expression is nil")
 	}
+	if _, exists := a.active[expr]; exists {
+		return fmt.Errorf("filter: expression cycle involving %T", expr)
+	}
+	a.active[expr] = struct{}{}
+	defer delete(a.active, expr)
 
 	switch node := expr.(type) {
 	case *Ident:
@@ -141,7 +147,7 @@ func (a *analyzer) visitUnary(unary *UnaryExpr) error {
 	if unary == nil {
 		return fmt.Errorf("filter: unary expression is nil")
 	}
-	if unary.Op != OpNot {
+	if !unary.Op.IsUnaryOperator() {
 		return fmt.Errorf("filter: invalid unary operator %q at %s", unary.Op, unary.Start())
 	}
 	if isNilExpr(unary.Right) {
@@ -156,6 +162,9 @@ func (a *analyzer) visitUnary(unary *UnaryExpr) error {
 func (a *analyzer) visitBinary(binary *BinaryExpr) error {
 	if binary == nil {
 		return fmt.Errorf("filter: binary expression is nil")
+	}
+	if !binary.Op.IsBinaryOperator() {
+		return fmt.Errorf("filter: invalid binary operator %q at %s", binary.Op, binary.Start())
 	}
 	if isNilExpr(binary.Left) {
 		return fmt.Errorf("filter: %s left operand is nil at %s", binary.Op.Name(), binary.Start())
@@ -178,7 +187,7 @@ func (a *analyzer) visitBinary(binary *BinaryExpr) error {
 	case binary.Op == OpIs:
 		return a.visitNullTest(binary)
 	default:
-		return fmt.Errorf("filter: invalid binary operator %q at %s", binary.Op, binary.Start())
+		return fmt.Errorf("filter: unsupported binary operator %q at %s", binary.Op, binary.Start())
 	}
 }
 
@@ -249,11 +258,9 @@ func (a *analyzer) visitSelector(expr Expr) error {
 	if isNilExpr(expr) {
 		return fmt.Errorf("selector is nil")
 	}
-	switch selector := expr.(type) {
-	case *Ident:
-		return a.visitIdent(selector)
-	case *IndexExpr:
-		return a.visitIndex(selector)
+	switch expr.(type) {
+	case *Ident, *IndexExpr:
+		return a.visit(expr)
 	default:
 		return fmt.Errorf("expected identifier or index, got %T at %s", expr, expr.Start())
 	}
@@ -275,33 +282,18 @@ func (a *analyzer) visitIndex(index *IndexExpr) error {
 	if err := a.visitLiteral(index.Index); err != nil {
 		return err
 	}
-	if index.Index.IsNumber() {
-		if _, err := numericIndexValue(index.Index.Value); err != nil {
-			return fmt.Errorf("filter: numeric index must be a non-negative integer, got %q at %s", index.Index.Value, index.Index.Start())
-		}
+	if index.Index.IsNumber() && !index.Index.isIntegerIndex() {
+		return fmt.Errorf("filter: numeric index must be a non-negative integer, got %q at %s", index.Index.Value, index.Index.Start())
 	}
 	return nil
 }
 
-func numericIndexValue(value string) (uint64, error) {
-	if !strings.ContainsAny(value, ".eE") {
-		if strings.HasPrefix(value, "-") {
-			number, err := strconv.ParseInt(value, 10, 64)
-			if err != nil || number < 0 {
-				return 0, fmt.Errorf("invalid index")
-			}
-			return uint64(number), nil
-		}
-		return strconv.ParseUint(value, 10, 63)
+func (l *Literal) isIntegerIndex() bool {
+	if !l.IsNumber() {
+		return false
 	}
-
-	number, err := strconv.ParseFloat(value, 64)
-	limit := math.Ldexp(1, 63)
-	if err != nil || math.IsNaN(number) || math.IsInf(number, 0) ||
-		number < 0 || number >= limit || math.Trunc(number) != number {
-		return 0, fmt.Errorf("invalid index")
-	}
-	return uint64(number), nil
+	number, ok := new(big.Rat).SetString(l.Value)
+	return ok && number.Sign() >= 0 && number.IsInt() && number.Num().IsInt64()
 }
 
 func isPredicate(expr Expr) bool {

@@ -275,8 +275,8 @@ func TestSemanticNodeMethods(t *testing.T) {
 	if binary.Start() != start || binary.End() != end || !binary.Equal(&BinaryExpr{Left: NewIdent("field"), Op: OpEqual, Right: NewLiteral("value")}) {
 		t.Fatal("binary methods are inconsistent")
 	}
-	if (&BinaryExpr{Left: ident}).Start() != start || (&BinaryExpr{Right: literal}).End() != end {
-		t.Fatal("binary position fallback is inconsistent")
+	if (&BinaryExpr{Left: ident}).Start() != (Position{}) || (&BinaryExpr{Right: literal}).End() != (Position{}) {
+		t.Fatal("programmatic binary positions must remain zero")
 	}
 	if (&BinaryExpr{}).Start() != (Position{}) || (&BinaryExpr{}).End() != (Position{}) || (*BinaryExpr)(nil).Start() != (Position{}) || (*BinaryExpr)(nil).End() != (Position{}) {
 		t.Fatal("empty binary positions are inconsistent")
@@ -286,16 +286,16 @@ func TestSemanticNodeMethods(t *testing.T) {
 	if unary.Start() != start || unary.End() != end || !unary.Equal(&UnaryExpr{Op: OpNot, Right: binary}) {
 		t.Fatal("unary methods are inconsistent")
 	}
-	if (&UnaryExpr{Right: binary}).End() != end || (&UnaryExpr{}).End() != (Position{}) || (*UnaryExpr)(nil).Start() != (Position{}) || (*UnaryExpr)(nil).End() != (Position{}) {
-		t.Fatal("unary position fallback is inconsistent")
+	if (&UnaryExpr{Right: binary}).End() != (Position{}) || (&UnaryExpr{}).End() != (Position{}) || (*UnaryExpr)(nil).Start() != (Position{}) || (*UnaryExpr)(nil).End() != (Position{}) {
+		t.Fatal("programmatic unary positions must remain zero")
 	}
 
 	indexed := &IndexExpr{Left: ident, Index: literal, start: start, end: end}
 	if indexed.Start() != start || indexed.End() != end || !indexed.Equal(&IndexExpr{Left: NewIdent("field"), Index: NewLiteral("value")}) {
 		t.Fatal("index methods are inconsistent")
 	}
-	if (&IndexExpr{Left: ident}).Start() != start || (&IndexExpr{}).Start() != (Position{}) || (*IndexExpr)(nil).Start() != (Position{}) || (*IndexExpr)(nil).End() != (Position{}) {
-		t.Fatal("index position fallback is inconsistent")
+	if (&IndexExpr{Left: ident}).Start() != (Position{}) || (&IndexExpr{}).Start() != (Position{}) || (*IndexExpr)(nil).Start() != (Position{}) || (*IndexExpr)(nil).End() != (Position{}) {
+		t.Fatal("programmatic index positions must remain zero")
 	}
 
 	if !equalExpr(nil, nil) || equalExpr(nil, ident) || !equalExpr((*Ident)(nil), (*Ident)(nil)) {

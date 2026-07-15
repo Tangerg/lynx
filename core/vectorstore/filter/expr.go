@@ -232,13 +232,7 @@ func (u *UnaryExpr) End() Position {
 	if u == nil {
 		return Position{}
 	}
-	if u.end != (Position{}) {
-		return u.end
-	}
-	if u.Right == nil {
-		return Position{}
-	}
-	return u.Right.End()
+	return u.end
 }
 func (u *UnaryExpr) Equal(other Expr) bool {
 	o, ok := other.(*UnaryExpr)
@@ -261,25 +255,13 @@ func (b *BinaryExpr) Start() Position {
 	if b == nil {
 		return Position{}
 	}
-	if b.start != (Position{}) {
-		return b.start
-	}
-	if b.Left == nil {
-		return Position{}
-	}
-	return b.Left.Start()
+	return b.start
 }
 func (b *BinaryExpr) End() Position {
 	if b == nil {
 		return Position{}
 	}
-	if b.end != (Position{}) {
-		return b.end
-	}
-	if b.Right == nil {
-		return Position{}
-	}
-	return b.Right.End()
+	return b.end
 }
 func (b *BinaryExpr) Equal(other Expr) bool {
 	o, ok := other.(*BinaryExpr)
@@ -300,13 +282,7 @@ func (i *IndexExpr) Start() Position {
 	if i == nil {
 		return Position{}
 	}
-	if i.start != (Position{}) {
-		return i.start
-	}
-	if i.Left == nil {
-		return Position{}
-	}
-	return i.Left.Start()
+	return i.start
 }
 func (i *IndexExpr) End() Position {
 	if i == nil {
