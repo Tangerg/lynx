@@ -1,6 +1,6 @@
 # Core 架构演进执行计划
 
-> 状态：进行中（P9 最终语义收口：代码完成，文档/兼容基线与全仓门禁收尾）
+> 状态：完成（P9 最终语义收口关闭，73/73）
 > 建立日期：2026-07-13
 > 最后更新：2026-07-15
 > 维护者：Lynx 仓库维护者
@@ -962,11 +962,14 @@ flowchart LR
   - 更新执行计划、API inventory、migration、release notes、architecture review、Core/documentreaders 治理文档与 package docs。
   - 审阅后显式更新 exported API baseline、wire DTO inventory 与 golden；历史执行日志保留当时事实，但当前状态不得继续引用已删除表面。
   - 最终机械基线为 11 个公共 package、319 行 exported API、47 项 JSON DTO、17 个 wire root 与 478 行 golden；新增守卫禁止被删除的便利表面和 Embedding 假能力回流。
-- [ ] **P9-07 执行全仓确定性门禁并提交推送**
+- [x] **P9-07 执行全仓确定性门禁并提交推送**（完成：2026-07-15）
   - 运行 Core release 的确定性部分、Models/VectorStores 全量 test/vet、workspace build/vet/test/lint/race 及 tidy-diff；按维护者要求不重复 fuzz。
   - 每批提交可独立回滚，最终推送当前分支；不创建 tag。
+  - 证据：`FUZZ_TIME=0 scripts/check-core-release.sh` 全绿并确认跳过 fuzz；12 个 Core 生产包覆盖率预算通过；`FAST=1 scripts/check.sh build vet test lint race` 对 21 module 的 105/105 项全绿；21/21 `go mod tidy -diff` 为空；实现提交 `ef7b8e010`。
 
 退出标准：P9 七批全部完成；当前 API/wire/docs 与代码事实一致，全部确定性门禁通过，无旧标识符、无静默丢弃选项、无成功输出绕过验证。
+
+阶段验收（完成：2026-07-15）：P9 七项全部完成；Core 最终冻结为 11 个公共 package、319 行 exported API、47 项 JSON DTO、17 个 wire root 与 478 行 golden。实现、官方 provider、25 个真实 VectorStore Search 出口、迁移文档和全 workspace 消费方已原子对齐；未创建 tag，未重复 fuzz。
 
 ---
 
@@ -985,15 +988,15 @@ flowchart LR
 | P6 Workspace 切换 | 完成 | 8/8 | 旧 API、兼容面、残余依赖和错误文档清零；100 项 workspace 门禁全绿 |
 | P7 稳定与发布 | 完成 | 7/7 | 最终架构审查通过，Core v1 契约与发布门禁已冻结 |
 | P8 Tag 前精修 | 完成 | 6/6 | 请求不变量、公开边界、Filter AST/visitor/规范化职责与数值编译合同均已收口 |
-| P9 最终语义收口 | 进行中 | 6/7 | 代码、文档与兼容基线完成；全仓确定性门禁和提交推送收尾 |
-| **总计** | **进行中** | **72/73** | **98.6%** |
+| P9 最终语义收口 | 完成 | 7/7 | 代码、文档、兼容基线、全仓门禁、提交与推送全部完成 |
+| **总计** | **完成** | **73/73** | **100%** |
 
 ### 10.2 当前焦点
 
-- 当前阶段：P9 最终语义闭环与公共面再收敛。
-- 下一任务：P9-07 全仓确定性门禁、提交与推送。
+- 当前阶段：计划关闭，进入稳定契约维护期。
+- 下一任务：无；正式 tag 与多 module 协调发布按 release runbook 单独授权执行。
 - 当前阻塞：无。
-- 最近完成：P9-06 将当前代码、迁移说明、发布文档和 319/47/17/478 API/wire 机械基线重新对齐。
+- 最近完成：P9-07 通过 Core release 确定性门禁、21 module 的 105 项 workspace 门禁与 21 项 tidy-diff，并提交最终实现。
 
 ### 10.3 进度更新规则
 
@@ -1339,7 +1342,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - README、CLAUDE、示例和 package docs 与实际结构一致。
 - 维护者完成最终架构审查并确认公开契约可进入稳定期。
 
-当前确认（2026-07-15）：P9-01 至 P9-05 已完成；文档/兼容基线与全仓确定性门禁完成后，本计划才以 73/73 再次关闭。按维护者要求不重复 fuzz，历史 P7 长时间 fuzz 证据继续保留。
+当前确认（2026-07-15）：P9-01 至 P9-07 已全部完成，本计划以 73/73 再次关闭。按维护者要求本轮未重复 fuzz，历史 P7 长时间 fuzz 证据继续保留。
 
 ---
 
@@ -1347,6 +1350,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 完成 P9-06/P9-07：API/wire 重冻为 319/47/17/478，迁移与架构文档同步；Core release 确定性门禁、21 module 105 项门禁及 21 项 tidy-diff 全绿，计划 73/73 关闭 | Codex |
 | 2026-07-15 | 启动并完成 P9-01 至 P9-05：修复 metadata 精度与构造器合同，Image/Embedding 真实协议收口，删除无消费者表面，开放 Moderation 分类，建立非 Chat 响应与全部 VectorStore 成功输出验证；进入文档/兼容基线收尾 | Codex |
 | 2026-07-15 | 完成 P8-06：Filter analyzer 增加循环 AST、operator 顺序与精确索引不变量，复合节点位置回归自身数据；optimizer 收敛为只消费已验证 IR 的无状态布尔重写器，增加关联去重、深层/交换吸收和公共因子提取，并以三值逻辑、不可变与幂等测试锁定；API/wire 不变 | Codex |
 | 2026-07-15 | 完成 P8-05：按维护者决策恢复私有 analyzer/optimizer visitor、增加公开 Formatter，并收紧八个 backend 的数字编译边界；API 331→334，12 个生产 package coverage、全仓 84 项、Core/VectorStores race 与确定性发布门禁全绿，未运行 fuzz | Codex |
@@ -1425,6 +1429,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | P9-06/P9-07 文档、兼容基线与最终验收 | `ef7b8e010` 原子提交 Core/provider/VectorStore/consumer 迁移与 319/47/17/478 基线；`FUZZ_TIME=0 scripts/check-core-release.sh` 的 test/race/vet/lint/tidy、12 包 coverage、Models provider 和 27 backend gate 全绿；21 module 的 build/vet/test/lint/race 105/105 与 tidy-diff 21/21 全绿；按维护者要求未运行 fuzz；任务计数 73/73 | 计划关闭；正式 tag/协调发布需单独授权 |
 | 2026-07-15 | P9-01 至 P9-05 最终语义闭环 | Metadata 整数精度、Options 最终校验、Document 构造器错误合同完成；Image 统一 `media.Media`/复数结果，Embedding 维度探测外移；删除 Reader/Writer 等无消费者表面，Moderation 使用开放分类，Filter 数字出口精确；五模态 Response 递归验证，provider unsupported options 显式失败，25 个 VectorStore Search 成功出口统一 `ValidateMatches`。Core 定向、Models 全量与 VectorStores 全量测试通过，未运行 fuzz；任务计数 71/73 | P9-06 文档/API/wire，P9-07 全仓门禁与提交推送 |
 | 2026-07-15 | P8-06 Filter AST 不变量与布尔规范化 | `fa561fb06` 在 `core/vectorstore/filter` 内完成循环路径校验、非法 operator 先验失败、精确 `int64` 索引判断和节点自有 position；optimizer 只处理已验证逻辑树，支持关联去重、任意层/交换吸收与公共因子提取，保留全部非逻辑叶子。三值逻辑 27 组赋值、不可变/幂等、Filter race/vet/lint、Core 与全部 VectorStores package 测试全绿；coverage 88.3%，Parser 基准简单 353–378ns/10 alloc、复合 1.34–1.44µs/35 alloc，未运行 fuzz；任务计数 66/66 | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P8-05 Filter visitor 职责与数值边界 | 公开零值 Formatter；私有 analyzer/optimizer 分别承接 Validate 与 Parse 规范化；八个 backend 消除大整数舍入和 Qdrant 小数截断；API 331→334，当前 12 个 Core 生产 package coverage、全 workspace 84 项、Core/VectorStores race、两模块 tidy-diff 与 `FUZZ_TIME=0` 发布门禁全绿；任务计数 65/65 | 正式 tag/协调发布按运行手册单独执行 |
