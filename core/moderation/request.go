@@ -2,7 +2,11 @@ package moderation
 
 import (
 	"errors"
+	"fmt"
 	"maps"
+	"slices"
+
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // Options holds per-request configuration for a moderation call.
@@ -10,8 +14,8 @@ type Options struct {
 	// Model is the provider model identifier.
 	Model string `json:"model"`
 
-	// Extra carries provider-specific options unknown to this struct.
-	Extra map[string]any `json:"extra,omitzero"`
+	// Extra carries JSON-safe provider-specific options unknown to this struct.
+	Extra metadata.Map `json:"extra,omitzero"`
 }
 
 // NewOptions builds Options for the given model id. Returns an error
@@ -23,23 +27,34 @@ func NewOptions(model string) (*Options, error) {
 	return &Options{Model: model}, nil
 }
 
-func (o *Options) ensureExtra() {
-	if o.Extra == nil {
-		o.Extra = make(map[string]any)
+// Set encodes a provider-specific option into Extra.
+func (o *Options) Set(key string, value any) error {
+	if o == nil {
+		return errors.New("moderation.Options.Set: nil receiver")
 	}
+	return setExtra(&o.Extra, key, value)
 }
 
-func (o *Options) Get(key string) (any, bool) {
-	if o == nil || o.Extra == nil {
-		return nil, false
+func setExtra(target *metadata.Map, key string, value any) error {
+	if *target != nil {
+		return metadata.Set(*target, key, value)
 	}
-	value, exists := o.Extra[key]
-	return value, exists
+	candidate := metadata.New()
+	if err := metadata.Set(candidate, key, value); err != nil {
+		return err
+	}
+	*target = candidate
+	return nil
 }
 
-func (o *Options) Set(key string, value any) {
-	o.ensureExtra()
-	o.Extra[key] = value
+func (o *Options) validate() error {
+	if o == nil {
+		return nil
+	}
+	if err := o.Extra.Validate(); err != nil {
+		return fmt.Errorf("moderation: options extra: %w", err)
+	}
+	return nil
 }
 
 // Clone returns a deep copy. nil receiver yields nil.
@@ -49,7 +64,7 @@ func (o *Options) Clone() *Options {
 	}
 	return &Options{
 		Model: o.Model,
-		Extra: maps.Clone(o.Extra),
+		Extra: o.Extra.Clone(),
 	}
 }
 
@@ -70,50 +85,39 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		}
 		if len(override.Extra) > 0 {
 			if merged.Extra == nil {
-				merged.Extra = make(map[string]any, len(override.Extra))
+				merged.Extra = metadata.New()
 			}
-			maps.Copy(merged.Extra, override.Extra)
+			maps.Copy(merged.Extra, override.Extra.Clone())
 		}
 	}
 	return merged, nil
 }
 
-// Request is one moderation call: the input texts, options, and
-// caller-supplied side-channel params.
+// Request is one moderation call: the input texts and explicit options.
 type Request struct {
 	// Texts is the input list. Each entry is moderated independently.
 	Texts []string `json:"texts,omitzero"`
 
 	Options *Options `json:"options,omitempty"`
-
-	// Params is per-request metadata middlewares can read.
-	Params map[string]any `json:"params,omitzero"`
 }
 
 // NewRequest builds a Request from texts. Returns an error when texts
 // is empty.
 func NewRequest(texts []string) (*Request, error) {
-	if len(texts) == 0 {
-		return nil, errors.New("moderation.NewRequest: texts must contain at least one entry")
+	r := &Request{Texts: slices.Clone(texts)}
+	if err := r.Validate(); err != nil {
+		return nil, fmt.Errorf("moderation.NewRequest: %w", err)
 	}
-	return &Request{Texts: texts}, nil
+	return r, nil
 }
 
-func (r *Request) ensureParams() {
-	if r.Params == nil {
-		r.Params = make(map[string]any)
+// Validate checks the complete request before it crosses a model boundary.
+func (r *Request) Validate() error {
+	if r == nil {
+		return errors.New("moderation: nil request")
 	}
-}
-
-func (r *Request) Get(key string) (any, bool) {
-	if r == nil || r.Params == nil {
-		return nil, false
+	if len(r.Texts) == 0 {
+		return errors.New("moderation: texts must contain at least one entry")
 	}
-	value, exists := r.Params[key]
-	return value, exists
-}
-
-func (r *Request) Set(key string, value any) {
-	r.ensureParams()
-	r.Params[key] = value
+	return r.Options.validate()
 }

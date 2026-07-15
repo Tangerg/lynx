@@ -73,7 +73,10 @@ func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Re
 		return nil, err
 	}
 
-	params := options.GetParams[openai.AudioTranslationNewParams](mergedOpts, OptionsKey)
+	params, err := options.GetParams[openai.AudioTranslationNewParams](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 
 	params.Model = mergedOpts.Model
 	if mergedOpts.Prompt != "" {
@@ -96,6 +99,9 @@ func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Re
 }
 
 func (a *AudioTranslationModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	apiReq, err := a.buildAPITranslationRequest(req)
 	if err != nil {
 		return nil, err

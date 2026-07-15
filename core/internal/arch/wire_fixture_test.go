@@ -105,7 +105,6 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		ReasoningTokens:       pointer(int64(5)),
 		CacheReadInputTokens:  pointer(int64(10)),
 		CacheWriteInputTokens: pointer(int64(15)),
-		OriginalUsage:         map[string]any{"provider_total": 120},
 	}
 	rateLimit := model.RateLimit{
 		RequestsLimit:     100,
@@ -122,9 +121,8 @@ func representativeWireContracts(t *testing.T) map[string]any {
 			Model:          "embedding-model",
 			EncodingFormat: embedding.EncodingFormatFloat,
 			Dimensions:     pointer(int64(3)),
-			Extra:          map[string]any{"user": "u-1"},
+			Extra:          mustMetadata(t, map[string]any{"user": "u-1"}),
 		},
-		Params: map[string]any{"trace_id": "trace-1"},
 	}
 	embeddingResponse := &embedding.Response{
 		Results: []*embedding.Result{{
@@ -133,7 +131,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 				Index:        0,
 				ModalityType: embedding.Text,
 				MIMEType:     "text/plain",
-				Extra:        map[string]any{"source": "fixture"},
+				Extra:        mustMetadata(t, map[string]any{"source": "fixture"}),
 			},
 		}},
 		Metadata: &embedding.ResponseMetadata{
@@ -141,7 +139,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 			Usage:     &usage,
 			RateLimit: &rateLimit,
 			Created:   1700000000,
-			Extra:     map[string]any{"region": "local"},
+			Extra:     mustMetadata(t, map[string]any{"region": "local"}),
 		},
 	}
 
@@ -157,18 +155,17 @@ func representativeWireContracts(t *testing.T) map[string]any {
 			Seed:           pointer(int64(42)),
 			OutputFormat:   "image/png",
 			ResponseFormat: image.ResponseFormatB64JSON,
-			Extra:          map[string]any{"background": "transparent"},
+			Extra:          mustMetadata(t, map[string]any{"background": "transparent"}),
 		},
-		Params: map[string]any{"trace_id": "trace-2"},
 	}
 	imageResponse := &image.Response{
 		Result: &image.Result{
 			Image:    &image.Image{URL: "https://example.com/generated.png", B64JSON: "bHlueA=="},
-			Metadata: &image.ResultMetadata{Extra: map[string]any{"revised_prompt": "A detailed lynx"}},
+			Metadata: &image.ResultMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "A detailed lynx"})},
 		},
 		Metadata: &image.ResponseMetadata{
 			Created: 1700000001,
-			Extra:   map[string]any{"model": "image-model"},
+			Extra:   mustMetadata(t, map[string]any{"model": "image-model"}),
 		},
 	}
 
@@ -176,20 +173,19 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		Texts: []string{"safe text", "unsafe text"},
 		Options: &moderation.Options{
 			Model: "moderation-model",
-			Extra: map[string]any{"policy": "strict"},
+			Extra: mustMetadata(t, map[string]any{"policy": "strict"}),
 		},
-		Params: map[string]any{"trace_id": "trace-3"},
 	}
 	moderationResponse := &moderation.Response{
 		Results: []*moderation.Result{{
 			Categories: representativeCategories(),
-			Metadata:   &moderation.ResultMetadata{Extra: map[string]any{"input_index": 1}},
+			Metadata:   &moderation.ResultMetadata{Extra: mustMetadata(t, map[string]any{"input_index": 1})},
 		}},
 		Metadata: &moderation.ResponseMetadata{
 			ID:      "moderation-1",
 			Model:   "moderation-model",
 			Created: 1700000002,
-			Extra:   map[string]any{"region": "local"},
+			Extra:   mustMetadata(t, map[string]any{"region": "local"}),
 		},
 	}
 
@@ -200,19 +196,18 @@ func representativeWireContracts(t *testing.T) map[string]any {
 			Voice:          "alloy",
 			ResponseFormat: "mp3",
 			Speed:          1.25,
-			Extra:          map[string]any{"style": "calm"},
+			Extra:          mustMetadata(t, map[string]any{"style": "calm"}),
 		},
-		Params: map[string]any{"trace_id": "trace-4"},
 	}
 	speechResponse := &speech.Response{
 		Result: &speech.Result{
 			Speech:   []byte("audio"),
-			Metadata: &speech.ResultMetadata{Extra: map[string]any{"duration_ms": 250}},
+			Metadata: &speech.ResultMetadata{Extra: mustMetadata(t, map[string]any{"duration_ms": 250})},
 		},
 		Metadata: &speech.ResponseMetadata{
 			Model:   "speech-model",
 			Created: 1700000003,
-			Extra:   map[string]any{"format": "mp3"},
+			Extra:   mustMetadata(t, map[string]any{"format": "mp3"}),
 		},
 	}
 
@@ -225,19 +220,18 @@ func representativeWireContracts(t *testing.T) map[string]any {
 			Temperature:          pointer(0.1),
 			ResponseFormat:       "verbose_json",
 			TimestampGranularity: []string{"word", "segment"},
-			Extra:                map[string]any{"diarize": true},
+			Extra:                mustMetadata(t, map[string]any{"diarize": true}),
 		},
-		Params: map[string]any{"trace_id": "trace-5"},
 	}
 	transcriptionResponse := &transcription.Response{
 		Result: &transcription.Result{
 			Text:     "A lynx.",
-			Metadata: &transcription.ResultMetadata{Extra: map[string]any{"duration": 1.5}},
+			Metadata: &transcription.ResultMetadata{Extra: mustMetadata(t, map[string]any{"duration": 1.5})},
 		},
 		Metadata: &transcription.ResponseMetadata{
 			Model:   "transcription-model",
 			Created: 1700000004,
-			Extra:   map[string]any{"language": "en"},
+			Extra:   mustMetadata(t, map[string]any{"language": "en"}),
 		},
 	}
 

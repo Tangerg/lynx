@@ -72,12 +72,18 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := image.MergeOptions(i.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiReq := options.GetParams[GenerateRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	apiReq.Prompt = req.Prompt
 	if mergedOpts.Width != nil {
 		apiReq.Width = int(*mergedOpts.Width)
@@ -109,10 +115,14 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 
 	resultMeta := &image.ResultMetadata{}
 	if final.Result.Seed != 0 {
-		resultMeta.Set("seed", final.Result.Seed)
+		if err := resultMeta.Set("seed", final.Result.Seed); err != nil {
+			return nil, err
+		}
 	}
 	if final.Result.Duration != 0 {
-		resultMeta.Set("duration_ms", final.Result.Duration)
+		if err := resultMeta.Set("duration_ms", final.Result.Duration); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := image.NewResult(img, resultMeta)
@@ -121,7 +131,9 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	}
 
 	meta := &image.ResponseMetadata{Created: time.Now().Unix()}
-	meta.Set("task_id", async.ID)
+	if err := meta.Set("task_id", async.ID); err != nil {
+		return nil, err
+	}
 	return image.NewResponse(result, meta)
 }
 

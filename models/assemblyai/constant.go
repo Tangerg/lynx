@@ -9,7 +9,7 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:assemblyai_options"
+	OptionsKey = "assemblyai/options"
 
 	// DefaultBaseURL is AssemblyAI's production REST endpoint.
 	DefaultBaseURL = "https://api.assemblyai.com/v2"

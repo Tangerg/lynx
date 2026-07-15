@@ -5,5 +5,5 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:openai_options"
+	OptionsKey = "openai/options"
 )

@@ -68,7 +68,10 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *SpeakParams,
 		return "", nil, err
 	}
 
-	params := options.GetParams[SpeakParams](mergedOpts, OptionsKey)
+	params, err := options.GetParams[SpeakParams](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return "", nil, err
+	}
 	if params.Model == "" {
 		params.Model = mergedOpts.Model
 	}
@@ -82,10 +85,14 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *SpeakParams,
 func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Response, error) {
 	resultMeta := &tts.ResultMetadata{}
 	if ct := hdr.Get("Content-Type"); ct != "" {
-		resultMeta.Set("mime_type", ct)
+		if err := resultMeta.Set("mime_type", ct); err != nil {
+			return nil, err
+		}
 	}
 	if rid := hdr.Get("dg-request-id"); rid != "" {
-		resultMeta.Set("request_id", rid)
+		if err := resultMeta.Set("request_id", rid); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := tts.NewResult(audio, resultMeta)
@@ -96,6 +103,9 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	text, params, err := a.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
@@ -115,6 +125,10 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 // streaming endpoint; that's a different SPI and not surfaced here.)
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
 	return func(yield func(*tts.Response, error) bool) {
+		if err := req.Validate(); err != nil {
+			yield(nil, err)
+			return
+		}
 		audio, hdr, err := func() ([]byte, http.Header, error) {
 			text, params, err := a.buildAPIRequest(req)
 			if err != nil {

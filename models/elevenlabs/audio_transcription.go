@@ -57,12 +57,18 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := transcription.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiReq := options.GetParams[TranscriptionRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[TranscriptionRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	if apiReq.ModelID == "" {
 		apiReq.ModelID = mergedOpts.Model
 	}
@@ -82,11 +88,17 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	resultMeta := &transcription.ResultMetadata{}
 	if apiResp.LanguageCode != "" {
-		resultMeta.Set("language_code", apiResp.LanguageCode)
-		resultMeta.Set("language_probability", apiResp.LanguageProbability)
+		if err := resultMeta.Set("language_code", apiResp.LanguageCode); err != nil {
+			return nil, err
+		}
+		if err := resultMeta.Set("language_probability", apiResp.LanguageProbability); err != nil {
+			return nil, err
+		}
 	}
 	if len(apiResp.Words) > 0 {
-		resultMeta.Set("words", apiResp.Words)
+		if err := resultMeta.Set("words", apiResp.Words); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := transcription.NewResult(apiResp.Text, resultMeta)

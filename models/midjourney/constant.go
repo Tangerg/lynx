@@ -7,7 +7,7 @@ const (
 )
 
 const (
-	OptionsKey          = "lynx:ai:model:midjourney_options"
+	OptionsKey          = "midjourney/options"
 	DefaultPollInterval = 5 * time.Second
 	DefaultPollTimeout  = 10 * time.Minute
 )

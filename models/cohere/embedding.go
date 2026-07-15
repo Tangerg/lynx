@@ -63,7 +63,10 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2Embe
 		return nil, err
 	}
 
-	apiReq := options.GetParams[cohere.V2EmbedRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[cohere.V2EmbedRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 
 	apiReq.Model = mergedOpts.Model
 	apiReq.Texts = req.Texts
@@ -121,7 +124,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse) (*em
 		Created: time.Now().Unix(),
 	}
 	if apiResp.Meta != nil && apiResp.Meta.BilledUnits != nil {
-		usage := &model.Usage{OriginalUsage: apiResp.Meta}
+		usage := new(model.Usage)
 		if v := apiResp.Meta.BilledUnits.InputTokens; v != nil {
 			usage.PromptTokens = int64(*v)
 		}
@@ -132,6 +135,9 @@ func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse) (*em
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	apiReq, err := e.buildAPIRequest(req)
 	if err != nil {
 		return nil, err

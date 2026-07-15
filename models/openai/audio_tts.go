@@ -63,7 +63,10 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (*openai.AudioSpeec
 		return nil, err
 	}
 
-	params := options.GetParams[openai.AudioSpeechNewParams](mergedOpts, OptionsKey)
+	params, err := options.GetParams[openai.AudioSpeechNewParams](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 
 	params.Model = mergedOpts.Model
 	params.Input = req.Text
@@ -93,6 +96,9 @@ func (a *AudioTTSModel) buildTTSResponse(data []byte) (*tts.Response, error) {
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	apiReq, err := a.buildAPITTSRequest(req)
 	if err != nil {
 		return nil, err
@@ -114,6 +120,10 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
 	return func(yield func(*tts.Response, error) bool) {
+		if err := req.Validate(); err != nil {
+			yield(nil, err)
+			return
+		}
 		apiReq, err := a.buildAPITTSRequest(req)
 		if err != nil {
 			yield(nil, err)

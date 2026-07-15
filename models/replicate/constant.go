@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:replicate_options"
+	OptionsKey = "replicate/options"
 
 	// DefaultBaseURL is Replicate's production API root.
 	DefaultBaseURL = "https://api.replicate.com/v1"

@@ -73,7 +73,10 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat
 		return "", "", nil, errors.New("elevenlabs: Voice (voice id) is required - set Options.Voice")
 	}
 
-	body = options.GetParams[TTSRequest](mergedOpts, OptionsKey)
+	body, err = options.GetParams[TTSRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return "", "", nil, err
+	}
 	body.Text = req.Text
 	body.ModelID = mergedOpts.Model
 
@@ -93,10 +96,14 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat
 func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Response, error) {
 	resultMeta := &tts.ResultMetadata{}
 	if ct := hdr.Get("Content-Type"); ct != "" {
-		resultMeta.Set("mime_type", ct)
+		if err := resultMeta.Set("mime_type", ct); err != nil {
+			return nil, err
+		}
 	}
 	if rid := hdr.Get("request-id"); rid != "" {
-		resultMeta.Set("request_id", rid)
+		if err := resultMeta.Set("request_id", rid); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := tts.NewResult(audio, resultMeta)
@@ -108,6 +115,9 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	voiceID, outputFormat, body, err := a.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
@@ -123,6 +133,10 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
 	return func(yield func(*tts.Response, error) bool) {
+		if err := req.Validate(); err != nil {
+			yield(nil, err)
+			return
+		}
 		voiceID, outputFormat, body, err := a.buildAPIRequest(req)
 		if err != nil {
 			yield(nil, err)

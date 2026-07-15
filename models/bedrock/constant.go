@@ -5,5 +5,5 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:bedrock_options"
+	OptionsKey = "bedrock/options"
 )

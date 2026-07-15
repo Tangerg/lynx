@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:anthropic_options"
+	OptionsKey = "anthropic/options"
 )
 
 // BaseURLOpenAI is Anthropic's first-party OpenAI-compatible endpoint

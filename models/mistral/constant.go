@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey     = "lynx:ai:model:mistral_options"
+	OptionsKey     = "mistral/options"
 	DefaultBaseURL = "https://api.mistral.ai/v1"
 )
 

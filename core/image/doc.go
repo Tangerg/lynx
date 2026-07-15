@@ -3,5 +3,6 @@
 //
 // NewRequest captures the prompt; Options carries explicit per-call overrides
 // such as dimensions, quality, output MIME type, and response representation.
-// Provider implementations and defaults live outside Core in provider modules.
+// Provider-only options use Options.Set so Extra remains JSON-safe; Request has
+// no arbitrary parameter bag. Implementations and defaults live outside Core.
 package image

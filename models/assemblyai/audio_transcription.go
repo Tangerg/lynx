@@ -91,12 +91,18 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := transcription.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiReq := options.GetParams[TranscriptRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[TranscriptRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	if apiReq.SpeechModel == "" {
 		apiReq.SpeechModel = mergedOpts.Model
 	}
@@ -167,15 +173,23 @@ func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) 
 
 func (a *AudioTranscriptionModel) buildResponse(apiResp *TranscriptResponse) (*transcription.Response, error) {
 	resultMeta := &transcription.ResultMetadata{}
-	resultMeta.Set("confidence", apiResp.Confidence)
+	if err := resultMeta.Set("confidence", apiResp.Confidence); err != nil {
+		return nil, err
+	}
 	if apiResp.LanguageCode != "" {
-		resultMeta.Set("language_code", apiResp.LanguageCode)
+		if err := resultMeta.Set("language_code", apiResp.LanguageCode); err != nil {
+			return nil, err
+		}
 	}
 	if len(apiResp.Utterances) > 0 {
-		resultMeta.Set("utterances", apiResp.Utterances)
+		if err := resultMeta.Set("utterances", apiResp.Utterances); err != nil {
+			return nil, err
+		}
 	}
 	if len(apiResp.Words) > 0 {
-		resultMeta.Set("words", apiResp.Words)
+		if err := resultMeta.Set("words", apiResp.Words); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := transcription.NewResult(apiResp.Text, resultMeta)
@@ -184,8 +198,12 @@ func (a *AudioTranscriptionModel) buildResponse(apiResp *TranscriptResponse) (*t
 	}
 
 	meta := &transcription.ResponseMetadata{}
-	meta.Set("transcript_id", apiResp.ID)
-	meta.Set("audio_duration", apiResp.AudioDuration)
+	if err := meta.Set("transcript_id", apiResp.ID); err != nil {
+		return nil, err
+	}
+	if err := meta.Set("audio_duration", apiResp.AudioDuration); err != nil {
+		return nil, err
+	}
 
 	return transcription.NewResponse(result, meta)
 }

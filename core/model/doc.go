@@ -3,6 +3,6 @@
 // this package does not provide a generic model hierarchy or middleware layer.
 //
 // Usage reports token totals and optional provider breakdowns. RateLimit holds
-// best-effort quota observations. Provider-specific raw usage may be retained in
-// Usage.OriginalUsage, but callers should prefer stable fields when available.
+// best-effort quota observations. Provider-specific raw payloads belong in the
+// concrete adapter rather than this stable shared vocabulary.
 package model

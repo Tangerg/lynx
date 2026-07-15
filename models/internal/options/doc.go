@@ -1,12 +1,10 @@
-// Package options carries the small generic helpers vendor adapters
-// in /models share for safely extracting Extra-threaded SDK params
-// out of [chat.Options] / [embedding.Options] / etc.
+// Package options carries the small generic helper vendor adapters share for
+// decoding JSON-safe, Extra-threaded provider params.
 //
-// The canonical use: a vendor's Extra map holds `*SomeNativeRequest`
-// keyed by the package's OptionsKey constant. [GetParams] returns
-// that value when present, or a fresh zero-value `*T` when absent
-// — so adapter code can write `req := options.GetParams[Foo](opts,
-// FooKey)` without nil-checking on every field access.
+// A vendor's Extra metadata holds the JSON representation of its request
+// extension under the package's OptionsKey constant. GetParams decodes that
+// value into T, returns a fresh zero value when absent, and surfaces malformed
+// or type-incompatible JSON instead of silently discarding it.
 //
-// Internal: not part of the public public API.
+// Internal: not part of the public API.
 package options

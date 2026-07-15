@@ -74,12 +74,18 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := image.MergeOptions(i.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiReq := options.GetParams[PredictionRequest](mergedOpts, OptionsKey)
+	apiReq, err := options.GetParams[PredictionRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	if apiReq.Input == nil {
 		apiReq.Input = map[string]any{}
 	}
@@ -124,7 +130,9 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 
 	resultMeta := &image.ResultMetadata{}
 	if final.Metrics.PredictTime > 0 {
-		resultMeta.Set("predict_time_ms", int64(final.Metrics.PredictTime*1000))
+		if err := resultMeta.Set("predict_time_ms", int64(final.Metrics.PredictTime*1000)); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := image.NewResult(img, resultMeta)
@@ -133,10 +141,16 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	}
 
 	meta := &image.ResponseMetadata{Created: time.Now().Unix()}
-	meta.Set("model", mergedOpts.Model)
-	meta.Set("prediction_id", final.ID)
+	if err := meta.Set("model", mergedOpts.Model); err != nil {
+		return nil, err
+	}
+	if err := meta.Set("prediction_id", final.ID); err != nil {
+		return nil, err
+	}
 	if final.Version != "" {
-		meta.Set("version", final.Version)
+		if err := meta.Set("version", final.Version); err != nil {
+			return nil, err
+		}
 	}
 	return image.NewResponse(result, meta)
 }

@@ -133,7 +133,7 @@ go vet ./...
 golangci-lint run ./...
 go mod tidy -diff
 go test -count=1 ./internal/arch \
-  -run '^(TestExportedAPIMatchesBaseline|TestWireContractsMatchGolden|TestWireTypeCoverage|TestPublicPackagesHaveDocsAndRunnableExamples|TestTargetPackagesHaveNoExternalDependencies|TestCoreProductionImportsAreStandardLibraryOnly)$'
+  -run '^(TestExportedAPIMatchesBaseline|TestWireContractsMatchGolden|TestWireTypeCoverage|TestWireDTOFieldsExcludeArbitraryRuntimeValues|TestPublicPackagesHaveDocsAndRunnableExamples|TestTargetPackagesHaveNoExternalDependencies|TestCoreProductionImportsAreStandardLibraryOnly)$'
 ```
 
 另外从仓库根执行：
@@ -149,7 +149,7 @@ Fuzz release gate 必须让以下 7 个 target 各独立运行至少 5 分钟：
 
 除各 module 普通 build/vet/test/lint/race 外，至少执行：
 
-- Models：30 个公开 Chat provider/facade 构造入口、共享 protocol/mapping suite，以及 Anthropic、Bedrock、Google、Ollama、OpenAI 五类参考实现。
+- Models：30 个公开 Chat provider/facade 构造入口、共享 protocol/mapping suite、非 Chat modality 请求边界验证与 `<provider>/options` key 架构门禁，以及 Anthropic、Bedrock、Google、Ollama、OpenAI 五类参考实现。
 - Vectorstores：自动发现的 backend 集合必须与 27 项发布清单一致，并在 race 下逐个执行共享 conformance。
 - ChatClient：Call/Stream、同步资源释放、middleware 顺序、template 与 structured output。
 - Agent：唯一 Event Runner、tool error/abort、pause/checkpoint/resume、HITL 与 race。

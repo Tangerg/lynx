@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:stability_options"
+	OptionsKey = "stability/options"
 
 	// DefaultBaseURL is Stability AI's v2beta REST endpoint. The older
 	// v1 endpoint (api.stability.ai/v1/generation/...) is still alive

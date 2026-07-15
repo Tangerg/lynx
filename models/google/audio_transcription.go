@@ -40,8 +40,8 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // AudioTranscriptionModel exposes Gemini's multimodal chat through the
 // transcription interface. Gemini has no /transcribe endpoint — any
 // audio-accepting model returns a transcript when prompted. The default
-// prompt is "Transcribe this audio."; callers override it by setting a
-// string at Options.Extra[OptionsKeyTranscriptionPrompt].
+// prompt is "Transcribe this audio."; callers override it with the shared
+// transcription.Options.Prompt field.
 type AudioTranscriptionModel struct {
 	api            *API
 	defaultOptions *transcription.Options
@@ -69,18 +69,16 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 	}, nil
 }
 
-// OptionsKeyTranscriptionPrompt selects the user-supplied prompt Gemini
-// receives alongside the audio bytes. Stored on Options.Extra so the
-// the transcription.Options stays minimal.
-const OptionsKeyTranscriptionPrompt = "prompt"
-
 func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcription.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
 	mergedOpts, err := transcription.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return "", nil, nil, err
 	}
 
-	cfg := options.GetParams[genai.GenerateContentConfig](mergedOpts, OptionsKey)
+	cfg, err := options.GetParams[genai.GenerateContentConfig](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return "", nil, nil, err
+	}
 
 	data, err := req.Audio.Bytes()
 	if err != nil {
@@ -88,10 +86,8 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 	}
 
 	prompt := "Transcribe this audio."
-	if v, ok := mergedOpts.Get(OptionsKeyTranscriptionPrompt); ok {
-		if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
-			prompt = s
-		}
+	if value := strings.TrimSpace(mergedOpts.Prompt); value != "" {
+		prompt = value
 	}
 
 	parts := []*genai.Part{
@@ -134,6 +130,9 @@ func (a *AudioTranscriptionModel) buildTranscriptionResponse(apiResp *genai.Gene
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	modelName, contents, cfg, err := a.buildAPITranscriptionRequest(req)
 	if err != nil {
 		return nil, err

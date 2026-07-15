@@ -5,6 +5,6 @@ const (
 )
 
 const (
-	OptionsKey     = "lynx:ai:model:lmnt_options"
+	OptionsKey     = "lmnt/options"
 	DefaultBaseURL = "https://api.lmnt.com/v1"
 )

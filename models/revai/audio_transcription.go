@@ -66,12 +66,18 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := transcription.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	jobOpts := options.GetParams[JobOptions](mergedOpts, OptionsKey)
+	jobOpts, err := options.GetParams[JobOptions](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	if jobOpts.Language == "" && mergedOpts.Language != "" {
 		jobOpts.Language = mergedOpts.Language
 	}
@@ -102,10 +108,14 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	resultMeta := &transcription.ResultMetadata{}
 	if final.Language != "" {
-		resultMeta.Set("language", final.Language)
+		if err := resultMeta.Set("language", final.Language); err != nil {
+			return nil, err
+		}
 	}
 	if final.DurationSeconds > 0 {
-		resultMeta.Set("duration_seconds", final.DurationSeconds)
+		if err := resultMeta.Set("duration_seconds", final.DurationSeconds); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := transcription.NewResult(text, resultMeta)
@@ -114,7 +124,9 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	}
 
 	meta := &transcription.ResponseMetadata{}
-	meta.Set("job_id", final.ID)
+	if err := meta.Set("job_id", final.ID); err != nil {
+		return nil, err
+	}
 	return transcription.NewResponse(result, meta)
 }
 

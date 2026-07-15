@@ -2,10 +2,12 @@ package transcription
 
 import (
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 // Options holds per-request configuration for a transcription call.
@@ -41,8 +43,8 @@ type Options struct {
 	// etc. Empty leaves the choice to the provider.
 	TimestampGranularity []string `json:"timestamp_granularity,omitzero"`
 
-	// Extra carries provider-specific options unknown to this struct.
-	Extra map[string]any `json:"extra,omitzero"`
+	// Extra carries JSON-safe provider-specific options unknown to this struct.
+	Extra metadata.Map `json:"extra,omitzero"`
 }
 
 // NewOptions builds Options for the given model id. Returns an error when
@@ -54,23 +56,24 @@ func NewOptions(model string) (*Options, error) {
 	return &Options{Model: model}, nil
 }
 
-func (o *Options) ensureExtra() {
-	if o.Extra == nil {
-		o.Extra = make(map[string]any)
+// Set encodes a provider-specific option into Extra.
+func (o *Options) Set(key string, value any) error {
+	if o == nil {
+		return errors.New("transcription.Options.Set: nil receiver")
 	}
+	return setExtra(&o.Extra, key, value)
 }
 
-func (o *Options) Get(key string) (any, bool) {
-	if o == nil || o.Extra == nil {
-		return nil, false
+func setExtra(target *metadata.Map, key string, value any) error {
+	if *target != nil {
+		return metadata.Set(*target, key, value)
 	}
-	value, exists := o.Extra[key]
-	return value, exists
-}
-
-func (o *Options) Set(key string, value any) {
-	o.ensureExtra()
-	o.Extra[key] = value
+	candidate := metadata.New()
+	if err := metadata.Set(candidate, key, value); err != nil {
+		return err
+	}
+	*target = candidate
+	return nil
 }
 
 // Clone returns a deep copy. nil receiver yields nil.
@@ -85,7 +88,7 @@ func (o *Options) Clone() *Options {
 		Temperature:          clonePointer(o.Temperature),
 		ResponseFormat:       o.ResponseFormat,
 		TimestampGranularity: slices.Clone(o.TimestampGranularity),
-		Extra:                maps.Clone(o.Extra),
+		Extra:                o.Extra.Clone(),
 	}
 }
 
@@ -126,7 +129,7 @@ func (o *Options) applyOverride(src *Options) {
 		o.Prompt = src.Prompt
 	}
 	if src.Temperature != nil {
-		o.Temperature = src.Temperature
+		o.Temperature = clonePointer(src.Temperature)
 	}
 	if src.ResponseFormat != "" {
 		o.ResponseFormat = src.ResponseFormat
@@ -136,29 +139,50 @@ func (o *Options) applyOverride(src *Options) {
 	}
 	if len(src.Extra) > 0 {
 		if o.Extra == nil {
-			o.Extra = make(map[string]any, len(src.Extra))
+			o.Extra = metadata.New()
 		}
-		maps.Copy(o.Extra, src.Extra)
+		maps.Copy(o.Extra, src.Extra.Clone())
 	}
 }
 
-// Request is one transcription call: the audio payload, options, and
-// caller-supplied side-channel params.
+func (o *Options) validate() error {
+	if o == nil {
+		return nil
+	}
+	if err := o.Extra.Validate(); err != nil {
+		return fmt.Errorf("transcription: options extra: %w", err)
+	}
+	return nil
+}
+
+// Request is one transcription call: the audio payload and explicit options.
 type Request struct {
 	// Audio carries the audio bytes (or URL) to transcribe.
 	Audio *media.Media `json:"audio,omitempty"`
 
 	Options *Options `json:"options,omitempty"`
-
-	// Params is per-request metadata middlewares can read.
-	Params map[string]any `json:"params,omitzero"`
 }
 
 // NewRequest builds a Request from an audio payload. Returns an error
 // when audio is nil.
 func NewRequest(audio *media.Media) (*Request, error) {
-	if audio == nil {
-		return nil, errors.New("transcription.NewRequest: audio must not be nil")
+	r := &Request{Audio: audio}
+	if err := r.Validate(); err != nil {
+		return nil, fmt.Errorf("transcription.NewRequest: %w", err)
 	}
-	return &Request{Audio: audio}, nil
+	return r, nil
+}
+
+// Validate checks the complete request before it crosses a model boundary.
+func (r *Request) Validate() error {
+	if r == nil {
+		return errors.New("transcription: nil request")
+	}
+	if r.Audio == nil {
+		return errors.New("transcription: audio must not be nil")
+	}
+	if err := r.Audio.Validate(); err != nil {
+		return fmt.Errorf("transcription: audio: %w", err)
+	}
+	return r.Options.validate()
 }

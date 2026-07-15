@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:google_options"
+	OptionsKey = "google/options"
 )
 
 // BaseURLOpenAI is Gemini's first-party OpenAI-compatible endpoint

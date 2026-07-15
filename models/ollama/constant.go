@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:ollama_options"
+	OptionsKey = "ollama/options"
 
 	// DefaultBaseURL is Ollama's default local listen address.
 	DefaultBaseURL = "http://127.0.0.1:11434"

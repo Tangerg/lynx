@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey = "lynx:ai:model:prodia_options"
+	OptionsKey = "prodia/options"
 
 	// DefaultBaseURL is Prodia's v2 inference endpoint.
 	DefaultBaseURL = "https://inference.prodia.com/v2"

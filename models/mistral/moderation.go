@@ -51,6 +51,9 @@ func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
 }
 
 func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*moderation.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	mergedOpts, err := moderation.MergeOptions(m.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err

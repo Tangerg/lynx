@@ -39,8 +39,8 @@ func (c *Client) Call(ctx context.Context, request *Request) (*Response, error) 
 	if c == nil || c.model == nil {
 		return nil, errors.New("embedding.Client.Call: client is nil")
 	}
-	if request == nil || len(request.Texts) == 0 {
-		return nil, errors.New("embedding.Client.Call: request must contain text")
+	if err := request.Validate(); err != nil {
+		return nil, fmt.Errorf("embedding.Client.Call: %w", err)
 	}
 	response, err := c.model.Call(ctx, request)
 	if err != nil {

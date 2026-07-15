@@ -60,7 +60,10 @@ func (m *ModerationModel) buildAPIModerationRequest(req *moderation.Request) (*o
 		return nil, err
 	}
 
-	params := options.GetParams[openai.ModerationNewParams](mergedOpts, OptionsKey)
+	params, err := options.GetParams[openai.ModerationNewParams](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 
 	params.Model = mergedOpts.Model
 	params.Input = openai.ModerationNewParamsInputUnion{
@@ -147,6 +150,9 @@ func (m *ModerationModel) buildModerationResponse(resp *openai.ModerationNewResp
 }
 
 func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*moderation.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	apiReq, err := m.buildAPIModerationRequest(req)
 	if err != nil {
 		return nil, err

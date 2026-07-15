@@ -59,24 +59,20 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: go vet ./...
 
-      # Advisory, non-blocking: a few timing-sensitive tests flake under the
-      # loaded GitHub runner's scheduling though they pass locally. Local
-      # `go test ./...` (incl. -race) is the real gate; CI runs the suite for
-      # visibility without failing the build (and emailing) on runner flakes.
-      # To be revisited together later.
       - name: go test
-        continue-on-error: true
         working-directory: ${{ matrix.module }}
         run: go test -count=1 ./...
 
-      # The broad suite is still advisory while historical runner flakes are
-      # being removed, but Core API and wire compatibility are hard gates.
+      - name: go test race
+        working-directory: ${{ matrix.module }}
+        run: go test -race -count=1 ./...
+
       - name: Core API and wire compatibility guards
         if: matrix.module == 'core'
         working-directory: core
         run: >-
           go test -count=1 ./internal/arch
-          -run '^(TestExportedAPIMatchesBaseline|TestWireTypeCoverage|TestWireContractsMatchGolden)$'
+          -run '^(TestExportedAPIMatchesBaseline|TestWireTypeCoverage|TestWireContractsMatchGolden|TestWireDTOFieldsExcludeArbitraryRuntimeValues)$'
 
       - name: Core documentation and examples release gate
         if: matrix.module == 'core'
@@ -96,9 +92,8 @@ jobs:
           go test -count=1 ./internal/arch -run '^(TestTargetPackagesHaveNoExternalDependencies|TestCoreProductionImportsAreStandardLibraryOnly)$'
           go mod tidy -diff
 
-      # Provider compatibility is release-critical even while the broad test
-      # suite remains advisory. This covers every public constructor plus the
-      # shared protocol/mapping suites and the five reference implementations.
+      # Covers every public constructor plus the shared protocol/mapping suites
+      # and the five reference implementations.
       - name: Provider conformance release gate
         if: matrix.module == 'models'
         working-directory: models
@@ -136,13 +131,10 @@ jobs:
           working-directory: ${{ matrix.module }}
           args: --config=${{ github.workspace }}/.golangci.yml
 
-      # Advisory-only: reports vulnerabilities in the logs but does not block the
-      # build. Several reachable upstream advisories (e.g. the ollama client)
-      # have no available fix, so a hard gate would keep CI red indefinitely.
-      # Fixable issues are still surfaced here and via Dependabot.
+      # Blocking for every new reachable issue. The checker has one precise,
+      # reviewed allowlist for the eight Ollama advisories that have no fixed
+      # version; it fails if their module/version changes or a fix appears.
       - name: govulncheck
-        continue-on-error: true
-        working-directory: ${{ matrix.module }}
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+          scripts/check-vulnerabilities.sh '${{ matrix.module }}'

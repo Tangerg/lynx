@@ -1,6 +1,10 @@
 package moderation
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/Tangerg/lynx/core/metadata"
+)
 
 // Verdict is one moderation dimension's outcome — a flagged bit plus a
 // confidence score in [0, 1].
@@ -116,27 +120,16 @@ func (c *Categories) Flagged() bool {
 
 // ResultMetadata holds per-input metadata returned by the provider.
 type ResultMetadata struct {
-	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra,omitzero"`
+	// Extra carries JSON-safe provider-specific metadata.
+	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-func (m *ResultMetadata) ensureExtra() {
-	if m.Extra == nil {
-		m.Extra = make(map[string]any)
+// Set encodes provider-specific result metadata into Extra.
+func (m *ResultMetadata) Set(key string, value any) error {
+	if m == nil {
+		return errors.New("moderation.ResultMetadata.Set: nil receiver")
 	}
-}
-
-func (m *ResultMetadata) Get(key string) (any, bool) {
-	if m == nil || m.Extra == nil {
-		return nil, false
-	}
-	value, exists := m.Extra[key]
-	return value, exists
-}
-
-func (m *ResultMetadata) Set(key string, value any) {
-	m.ensureExtra()
-	m.Extra[key] = value
+	return setExtra(&m.Extra, key, value)
 }
 
 // Result is one input's moderation verdict plus metadata.
@@ -171,27 +164,16 @@ type ResponseMetadata struct {
 	// Created is the provider-reported creation time, Unix seconds.
 	Created int64 `json:"created"`
 
-	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra,omitzero"`
+	// Extra carries JSON-safe provider-specific metadata.
+	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-func (m *ResponseMetadata) ensureExtra() {
-	if m.Extra == nil {
-		m.Extra = make(map[string]any)
+// Set encodes provider-specific response metadata into Extra.
+func (m *ResponseMetadata) Set(key string, value any) error {
+	if m == nil {
+		return errors.New("moderation.ResponseMetadata.Set: nil receiver")
 	}
-}
-
-func (m *ResponseMetadata) Get(key string) (any, bool) {
-	if m == nil || m.Extra == nil {
-		return nil, false
-	}
-	value, exists := m.Extra[key]
-	return value, exists
-}
-
-func (m *ResponseMetadata) Set(key string, value any) {
-	m.ensureExtra()
-	m.Extra[key] = value
+	return setExtra(&m.Extra, key, value)
 }
 
 // Response is the full moderation result: one [*Result] per input plus

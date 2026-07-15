@@ -169,9 +169,6 @@
       "extra": {
         "user": "u-1"
       }
-    },
-    "params": {
-      "trace_id": "trace-1"
     }
   },
   "embedding_response": {
@@ -199,10 +196,7 @@
         "completion_tokens": 20,
         "reasoning_tokens": 5,
         "cache_read_input_tokens": 10,
-        "cache_write_input_tokens": 15,
-        "original_usage": {
-          "provider_total": 120
-        }
+        "cache_write_input_tokens": 15
       },
       "rate_limit": {
         "requests_limit": 100,
@@ -233,9 +227,6 @@
       "extra": {
         "background": "transparent"
       }
-    },
-    "params": {
-      "trace_id": "trace-2"
     }
   },
   "image_response": {
@@ -309,10 +300,7 @@
     "completion_tokens": 20,
     "reasoning_tokens": 5,
     "cache_read_input_tokens": 10,
-    "cache_write_input_tokens": 15,
-    "original_usage": {
-      "provider_total": 120
-    }
+    "cache_write_input_tokens": 15
   },
   "moderation_request": {
     "texts": [
@@ -324,9 +312,6 @@
       "extra": {
         "policy": "strict"
       }
-    },
-    "params": {
-      "trace_id": "trace-3"
     }
   },
   "moderation_response": {
@@ -432,9 +417,6 @@
       "extra": {
         "style": "calm"
       }
-    },
-    "params": {
-      "trace_id": "trace-4"
     }
   },
   "speech_response": {
@@ -475,9 +457,6 @@
       "extra": {
         "diarize": true
       }
-    },
-    "params": {
-      "trace_id": "trace-5"
     }
   },
   "transcription_response": {

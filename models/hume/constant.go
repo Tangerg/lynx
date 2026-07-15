@@ -5,6 +5,6 @@ const (
 )
 
 const (
-	OptionsKey     = "lynx:ai:model:hume_options"
+	OptionsKey     = "hume/options"
 	DefaultBaseURL = "https://api.hume.ai/v0"
 )

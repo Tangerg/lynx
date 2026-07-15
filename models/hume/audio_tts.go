@@ -58,7 +58,10 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*TTSRequest, error) {
 		return nil, err
 	}
 
-	body := options.GetParams[TTSRequest](mergedOpts, OptionsKey)
+	body, err := options.GetParams[TTSRequest](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 	if len(body.Utterances) == 0 {
 		utt := Utterance{Text: req.Text}
 		if mergedOpts.Voice != "" {
@@ -77,6 +80,9 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*TTSRequest, error) {
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	body, err := a.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
@@ -92,10 +98,18 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	resultMeta := &tts.ResultMetadata{}
 	if len(apiResp.Generations) > 0 {
 		g := apiResp.Generations[0]
-		resultMeta.Set("mime_type", "audio/"+g.Encoding.Format)
-		resultMeta.Set("sample_rate", g.Encoding.SampleRate)
-		resultMeta.Set("duration", g.Duration)
-		resultMeta.Set("generation_id", g.ID)
+		if err := resultMeta.Set("mime_type", "audio/"+g.Encoding.Format); err != nil {
+			return nil, err
+		}
+		if err := resultMeta.Set("sample_rate", g.Encoding.SampleRate); err != nil {
+			return nil, err
+		}
+		if err := resultMeta.Set("duration", g.Duration); err != nil {
+			return nil, err
+		}
+		if err := resultMeta.Set("generation_id", g.ID); err != nil {
+			return nil, err
+		}
 	}
 	result, err := tts.NewResult(audio, resultMeta)
 	if err != nil {
@@ -103,7 +117,9 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	}
 	meta := &tts.ResponseMetadata{}
 	if apiResp.RequestID != "" {
-		meta.Set("request_id", apiResp.RequestID)
+		if err := meta.Set("request_id", apiResp.RequestID); err != nil {
+			return nil, err
+		}
 	}
 	return tts.NewResponse(result, meta)
 }

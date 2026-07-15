@@ -79,7 +79,10 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 		return "", nil, nil, err
 	}
 
-	cfg := options.GetParams[genai.GenerateContentConfig](mergedOpts, OptionsKey)
+	cfg, err := options.GetParams[genai.GenerateContentConfig](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return "", nil, nil, err
+	}
 
 	// Force AUDIO output. The caller may have set ResponseModalities via
 	// Extra (e.g. ["AUDIO", "TEXT"] for hybrid response); preserve that
@@ -144,7 +147,9 @@ func (a *AudioTTSModel) buildTTSResponse(apiResp *genai.GenerateContentResponse)
 
 	resultMeta := &tts.ResultMetadata{}
 	if mimeType != "" {
-		resultMeta.Set("mime_type", mimeType)
+		if err := resultMeta.Set("mime_type", mimeType); err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := tts.NewResult(audio, resultMeta)
@@ -158,6 +163,9 @@ func (a *AudioTTSModel) buildTTSResponse(apiResp *genai.GenerateContentResponse)
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	modelName, contents, cfg, err := a.buildAPITTSRequest(req)
 	if err != nil {
 		return nil, err
@@ -173,6 +181,10 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
 	return func(yield func(*tts.Response, error) bool) {
+		if err := req.Validate(); err != nil {
+			yield(nil, err)
+			return
+		}
 		modelName, contents, cfg, err := a.buildAPITTSRequest(req)
 		if err != nil {
 			yield(nil, err)

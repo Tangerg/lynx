@@ -39,10 +39,6 @@ type Usage struct {
 	// standard prompt tokens. nil means caching is unsupported or did not
 	// fire for this request.
 	CacheWriteInputTokens *int64 `json:"cache_write_input_tokens,omitempty"`
-
-	// OriginalUsage is the raw provider-specific usage payload, kept so
-	// callers can extract fields the framework does not surface yet.
-	OriginalUsage any `json:"original_usage,omitempty"`
 }
 
 // TotalTokens reports prompt + completion tokens. Use it for cost

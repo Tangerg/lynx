@@ -61,7 +61,10 @@ func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGene
 		return nil, err
 	}
 
-	params := options.GetParams[openai.ImageGenerateParams](mergedOpts, OptionsKey)
+	params, err := options.GetParams[openai.ImageGenerateParams](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return nil, err
+	}
 
 	params.Model = mergedOpts.Model
 	params.Prompt = req.Prompt
@@ -110,6 +113,9 @@ func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse) (*image.Res
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	apiReq, err := i.buildAPIImageRequest(req)
 	if err != nil {
 		return nil, err

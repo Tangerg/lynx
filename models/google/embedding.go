@@ -75,7 +75,10 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*gen
 		return "", nil, nil, err
 	}
 
-	cfg := options.GetParams[genai.EmbedContentConfig](mergedOpts, OptionsKey)
+	cfg, err := options.GetParams[genai.EmbedContentConfig](mergedOpts.Extra, OptionsKey)
+	if err != nil {
+		return "", nil, nil, err
+	}
 
 	if mergedOpts.Dimensions != nil {
 		cfg.OutputDimensionality = new(int32(*mergedOpts.Dimensions))
@@ -104,8 +107,12 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 			MIMEType:     "text/plain",
 		}
 		if item.Statistics != nil {
-			resultMeta.Set("token_count", item.Statistics.TokenCount)
-			resultMeta.Set("truncated", item.Statistics.Truncated)
+			if err := resultMeta.Set("token_count", item.Statistics.TokenCount); err != nil {
+				return nil, err
+			}
+			if err := resultMeta.Set("truncated", item.Statistics.Truncated); err != nil {
+				return nil, err
+			}
 		}
 
 		result, err := embedding.NewResult(values, resultMeta)
@@ -123,13 +130,18 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 		// Gemini does not report per-modality prompt tokens; surface the
 		// billable character count instead so callers can still cost the
 		// call.
-		meta.Set("billable_character_count", apiResp.Metadata.BillableCharacterCount)
+		if err := meta.Set("billable_character_count", apiResp.Metadata.BillableCharacterCount); err != nil {
+			return nil, err
+		}
 	}
 
 	return embedding.NewResponse(results, meta)
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	modelName, contents, cfg, err := e.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
