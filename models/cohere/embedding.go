@@ -125,7 +125,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse) (*em
 	if apiResp.Meta != nil && apiResp.Meta.BilledUnits != nil {
 		usage := new(embedding.Usage)
 		if v := apiResp.Meta.BilledUnits.InputTokens; v != nil {
-			usage.PromptTokens = int64(*v)
+			usage.InputTokens = int64(*v)
 		}
 		meta.Usage = usage
 	}

@@ -29,7 +29,7 @@ done <<'EOF'
 ./image 42.3
 ./media 85.0
 ./metadata 85.0
-./model 95.2
+./internal/ptr 100.0
 ./moderation 46.5
 ./speech 47.8
 ./transcription 42.1

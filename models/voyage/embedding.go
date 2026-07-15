@@ -117,7 +117,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.R
 	meta := &embedding.ResponseMetadata{
 		Model: apiResp.Model,
 		Usage: &embedding.Usage{
-			PromptTokens: apiResp.Usage.TotalTokens,
+			InputTokens: apiResp.Usage.TotalTokens,
 		},
 		Created: time.Now().Unix(),
 	}

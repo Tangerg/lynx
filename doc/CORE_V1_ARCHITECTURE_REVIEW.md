@@ -15,22 +15,22 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 
 | 项目 | 冻结结果 |
 |---|---:|
-| 公共 package | 12 |
-| exported API baseline | 351 条声明/方法签名 |
-| 带 JSON tag 的导出 DTO | 50 |
-| 代表性 wire root | 19 |
-| 聚合 wire golden | 514 行 |
+| 公共 package | 11 |
+| exported API baseline | 346 条声明/方法签名 |
+| 带 JSON tag 的导出 DTO | 49 |
+| 代表性 wire root | 17 |
+| 聚合 wire golden | 487 行 |
 | Core 第三方生产依赖 | 0 |
 | Core sibling module 生产依赖 | 0 |
 
-公共 package 为 `chat`、`document`、`embedding`、`image`、`media`、`metadata`、`model`、`moderation`、`speech`、`transcription`、`vectorstore` 与 `vectorstore/filter`。每个 package 都有唯一职责文档和带 checked output 的可执行示例。
+公共 package 为 `chat`、`document`、`embedding`、`image`、`media`、`metadata`、`moderation`、`speech`、`transcription`、`vectorstore` 与 `vectorstore/filter`。每个 package 都有唯一职责文档和带 checked output 的可执行示例。
 
 ## 3. 架构原则审查
 
 | 原则 | 证据 | 结论 |
 |---|---|---|
 | Core 是协议库，不是运行时框架 | Client、History、Tool runtime、Agent、OTel、catalog 与 tokenizer 已外移 | 通过 |
-| 公共值可独立序列化 | 50 项 DTO inventory 与 514 行 wire golden 为 blocking gate | 通过 |
+| 公共值可独立序列化 | 49 项 DTO inventory 与 487 行 wire golden 为 blocking gate | 通过 |
 | 公共 wire 不承载任意运行时值 | AST 门禁拒绝序列化 DTO 中的 `any`/`interface{}`、Request `Params` 和 `Usage.OriginalUsage` | 通过 |
 | 扩展数据写入时即验证 | `metadata.Map` 保存 `json.RawMessage`；`Set`/`FromValues` 返回编码错误 | 通过 |
 | 无效请求不进入 provider SDK | Chat 与五个非 Chat modality 递归 `Validate`；Models AST 门禁覆盖 Call/Stream 边界 | 通过 |
