@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into a RediSearch query
@@ -50,6 +50,8 @@ func (v *Visitor) Result() string {
 }
 
 func (v *Visitor) Visit(expr filter.Predicate) error {
+	v.err = nil
+	v.sql.Reset()
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -64,14 +66,14 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 	switch node := expr.(type) {
 	case *filter.BinaryExpr:
-		return filterhelp.DispatchBinaryErr(node,
+		return filtercompile.DispatchBinary(node,
 			v.visitLogicalExpr,
 			v.visitComparisonExpr,
 			v.visitInExpr,
 			v.visitTextFieldExpr,
 		)
 	case *filter.UnaryExpr:
-		return filterhelp.DispatchUnaryErr(node, v.visitNotExpr)
+		return filtercompile.DispatchUnary(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("redis: unsupported root expression %T", node)
 	}
@@ -88,7 +90,7 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 
 // visitLogicalExpr uses RediSearch's space separator for AND and the
 // pipe (` | `) for OR — not the verbatim "AND"/"OR" strings other
-// vendors emit. We don't call filterhelp.LogicalOpString here because
+// vendors emit. We don't call filtercompile.LogicalOpString here because
 // of that mapping difference.
 func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	sep := " "
@@ -117,7 +119,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
 	}
 
-	value, err := filterhelp.ExtractValue(expr.Right)
+	value, err := filtercompile.ExtractValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
 	}
@@ -186,7 +188,7 @@ func (v *Visitor) visitTextFieldExpr(expr *filter.BinaryExpr) error {
 			kind, field)
 	}
 
-	pattern, err := filterhelp.RequireStringPatternOnRight(expr)
+	pattern, err := filtercompile.RequireStringPatternOnRight(expr)
 	if err != nil {
 		return fmt.Errorf("redis: %w", err)
 	}
@@ -205,7 +207,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
 	}
 
-	listLit, err := filterhelp.RequireListLiteral(expr)
+	listLit, err := filtercompile.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("redis: %w", err)
 	}
@@ -282,7 +284,7 @@ func flattenIndexExpr(expr *filter.IndexExpr) ([]string, error) {
 	var keys []string
 	current := expr
 	for {
-		key, err := filterhelp.LiteralAsKey(current.Index)
+		key, err := filtercompile.LiteralAsKey(current.Index)
 		if err != nil {
 			return nil, err
 		}

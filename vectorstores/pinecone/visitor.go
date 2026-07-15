@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into Pinecone metadata filter conditions.
@@ -66,6 +66,10 @@ func (v *Visitor) Filter() (*structpb.Struct, error) {
 // It walks the whole tree rooted at expr and returns the first error
 // encountered, or nil when the entire expression was accepted.
 func (v *Visitor) Visit(expr filter.Predicate) error {
+	v.err = nil
+	v.result = nil
+	v.currentFieldKey = ""
+	v.currentFieldValue = nil
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -98,11 +102,11 @@ func (v *Visitor) visit(expr filter.Expr) error {
 }
 
 // visitBinaryExpr routes binary expressions to the appropriate
-// handler via [filterhelp.DispatchBinaryErr]. visitComparisonExpr
+// handler via [filtercompile.DispatchBinary]. visitComparisonExpr
 // internally splits equality vs ordering since pinecone emits
 // different filter shapes for the two families.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	return filterhelp.DispatchBinaryErr(expr,
+	return filtercompile.DispatchBinary(expr,
 		v.visitLogicalExpr,
 		v.visitComparisonExpr,
 		v.visitInExpr,
@@ -128,7 +132,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // visitUnaryExpr handles unary expressions.
 // Only the NOT operator is supported.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return filterhelp.DispatchUnaryErr(expr, v.visitNotExpr)
+	return filtercompile.DispatchUnary(expr, v.visitNotExpr)
 }
 
 // visitIdent extracts and stores the identifier name as the current field key.
@@ -294,7 +298,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 			expr.Start().String(), err)
 	}
 
-	listLit, err := filterhelp.RequireListLiteral(expr)
+	listLit, err := filtercompile.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("pinecone: %w", err)
 	}
@@ -372,7 +376,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	current := expr
 	for {
-		key, err := filterhelp.LiteralAsKey(current.Index)
+		key, err := filtercompile.LiteralAsKey(current.Index)
 		if err != nil {
 			return "", fmt.Errorf("pinecone: %w", err)
 		}

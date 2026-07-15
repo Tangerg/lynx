@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
 func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
@@ -154,7 +154,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 			expr.Start().String(), err)
 	}
 
-	listLit, err := filterhelp.RequireListLiteral(expr)
+	listLit, err := filtercompile.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("qdrant: %w", err)
 	}
@@ -394,7 +394,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	currentExpr := expr
 	for {
-		key, err := filterhelp.LiteralAsKey(currentExpr.Index)
+		key, err := filtercompile.LiteralAsKey(currentExpr.Index)
 		if err != nil {
 			return "", err
 		}

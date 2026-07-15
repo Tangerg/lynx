@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+	"github.com/Tangerg/lynx/vectorstores/internal/filtercompile"
 )
 
 // Visitor transforms AST filter expressions into Chroma WhereClause conditions.
@@ -55,6 +55,10 @@ func (v *Visitor) Result() v2.WhereClause {
 }
 
 func (v *Visitor) Visit(expr filter.Predicate) error {
+	v.err = nil
+	v.result = nil
+	v.currentFieldKey = ""
+	v.currentFieldValue = nil
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -88,7 +92,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 // visitBinaryExpr routes to the correct handler based on the operator category.
 func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	return filterhelp.DispatchBinaryErr(expr,
+	return filtercompile.DispatchBinary(expr,
 		v.visitLogicalExpr,
 		v.visitComparisonExpr,
 		v.visitInExpr,
@@ -115,7 +119,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // standalone logical NOT, so even the only valid unary kind (NOT)
 // is rejected with a guidance message.
 func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return filterhelp.DispatchUnaryErr(expr, func(*filter.UnaryExpr) error {
+	return filtercompile.DispatchUnary(expr, func(*filter.UnaryExpr) error {
 		return errors.New("chroma: NOT operator is not supported; rewrite using != or NIN")
 	})
 }
@@ -323,7 +327,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 			expr.Start().String(), err)
 	}
 
-	listLit, err := filterhelp.RequireListLiteral(expr)
+	listLit, err := filtercompile.RequireListLiteral(expr)
 	if err != nil {
 		return fmt.Errorf("chroma: %w", err)
 	}
@@ -454,7 +458,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	current := expr
 	for {
-		key, err := filterhelp.LiteralAsKey(current.Index)
+		key, err := filtercompile.LiteralAsKey(current.Index)
 		if err != nil {
 			return "", fmt.Errorf("chroma: %w", err)
 		}
