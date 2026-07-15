@@ -879,8 +879,8 @@ flowchart LR
 - [x] **P7-07 完成最终架构审查并冻结 Core v1 契约**（完成：2026-07-15）
   - 新增 `CORE_V1_ARCHITECTURE_REVIEW.md`，逐项审查职责边界、协议安全、最小接口、provider/backend 扩展、无兼容债、依赖方向、安全裁决与 SemVer 冻结规则；结论为通过，`core/v1.0.0` tag 尚未创建。
   - 冻结规模为 11 个公共 package、346 条 exported API、49 项 JSON DTO、17 个 wire root 和 487 行 golden；Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
-  - `43c2876c4`、`b968e20dd`、`a1dd21f4f` 完成协议硬化与远端 pseudo-version DAG 闭合；20/20 module 在 `GOWORK=off` 下独立 test/vet/tidy-diff 通过且不再解析旧依赖基线。
-  - `FAST=1 scripts/check.sh build vet test lint race` 的 100/100 项、`scripts/check.sh vuln` 的 20/20 module、逐包 coverage、provider/27 backend conformance 和 7 个五分钟 fuzz target 全部通过；fuzz 累计 609,846,214 次且无失败语料。
+  - `783df3ee9`、`229e06c8e`、`04a37a9fe` 完成 tag 前协议收口与远端 pseudo-version DAG 闭合；20/20 module 在 `GOWORK=off` 下独立 test/vet/tidy-diff 通过且不再解析旧依赖基线。
+  - `FAST=1 scripts/check.sh build vet test lint race` 的 100/100 项、`scripts/check.sh vuln` 的 20/20 module、逐包 coverage 和 provider/27 backend conformance 全部通过；P7-05 的 7 个五分钟 fuzz target 累计 609,846,214 次且无失败语料。本轮另完成 Metadata 5 分钟复验；按维护者要求不再重复整组长时间 fuzz。
 
 退出标准：
 
@@ -1198,6 +1198,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 完成 tag 前协议词汇、API/wire、coverage 与文档收口，以两跳提交重建远端 module DAG；最终确定性门禁全绿，按维护者要求不重复整组长时间 fuzz | Codex |
 | 2026-07-15 | 完成 P7-07；最终架构审查通过，冻结 346 条 API、49 项 DTO/487 行 wire、标准库-only 依赖和无兼容债规则；完整 release gate 与 20 module 独立验证通过，计划 60/60 关闭 | Codex |
 | 2026-07-15 | 完成 P7-06；新增 Core v1 直接迁移指南、release notes 与六波次多 module 发布手册，明确旧 wire 一次性迁移和无兼容层发布规则 | Codex |
 | 2026-07-15 | 完成 P7-05；逐包覆盖预算与 CI dependency gate 生效，7 个 fuzz target 各跑满 5 分钟并在最终复验累计 609,846,214 次，升级 Go/Ollama 并记录仍无修复版本的上游安全风险 | Codex |
@@ -1263,6 +1264,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | tag 前最终收口 | `783df3ee9` 将 embedding 用量统一为 `InputTokens/input_tokens`，补齐 `internal/ptr` 100% coverage 并校准 11 package/346 API/49 DTO/17 root/487 行基线；`229e06c8e` 与 `04a37a9fe` 闭合远端依赖图。20/20 standalone test/vet/tidy、100/100 workspace gate、20/20 漏洞策略以及 Core 确定性 release gate 全绿；Metadata fuzz 5 分钟 98,942,554 次无失败，按维护者要求停止重复整组长时间 fuzz | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P7-07、计划验收 | `43c2876c4` 完成协议/安全边界硬化，`b968e20dd` 与 `a1dd21f4f` 闭合远端依赖图；最终审查冻结 11 package/346 API/49 DTO/17 root/487 行 wire。20/20 module 独立 test/vet/tidy、100/100 workspace gate、20/20 精确漏洞门禁、17 package coverage、provider/27 backend race conformance 全绿；7 个 fuzz target 各 5 分钟，累计 609,846,214 次无失败；任务计数 60/60 | 计划完成；正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P7-06 | `0b7c70ec5` 新增 256 行直接迁移指南、148 行 v1 release notes 与 194 行协调发布手册；从当前 `go.mod` 重建六波次 DAG，明确 `core/v1.0.0` tag、GOWORK=off 验证、一次性历史数据迁移、回滚与 Ollama 风险裁决；三份文档加入索引，Core API/wire/docs/dependency 等价门禁通过；任务计数 59/60 | P7-07 最终架构审查与 v1 契约冻结 |
 | 2026-07-15 | P7-05 | `e5c94d25e` 新增 17 个 Core package 的 blocking coverage budget，补齐五个低覆盖模态行为测试；Core/ChatClient/Agent/ChatHistory/RAG/Tools/27 backend race 全绿，7 个 fuzz target 各 5 分钟无失败；Core 标准库-only、20/20 tidy-diff 和升级后 80/80 workspace build/vet/test/lint 通过。Go 1.26.5 清除 TLS 漏洞，Ollama v0.32.0 仍有 8 个 `Fixed in: N/A` 上游公告；任务计数 58/60 | P7-06 迁移说明、发布顺序和 release notes |
