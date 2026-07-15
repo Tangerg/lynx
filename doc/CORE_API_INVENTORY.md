@@ -335,19 +335,19 @@ Searcher, SearchRequest, NewDocumentWriter
 ```text
 OpEqual, OpNotEqual, OpLess, OpLessEqual, OpGreater, OpGreaterEqual, OpAnd,
 OpOr, OpNot, OpIn, OpLike, OpIs, LiteralString, LiteralNumber, LiteralBool,
-LiteralNull, BinaryExpr, Expr, Ident, IdentifierValue, IndexExpr, ListLiteral,
-ListValue, Literal, LiteralKind, LiteralValue, Number, Operator, Position,
+LiteralNull, BinaryExpr, Expr, Formatter, Ident, IdentifierValue, IndexExpr,
+ListLiteral, ListValue, Literal, LiteralKind, LiteralValue, Number, Operator, Position,
 Predicate, Selector, SyntaxError, UnaryExpr, Visitor, And, EQ, GE, GT, In,
 Index, IsNull, IsNotNull, LE, LT, Like, NE, NewIdent, NewListLiteral,
-NewLiteral, NewLiterals, Not, Or, Parse, Validate
+NewLiteral, NewLiterals, Not, Or, Parse, Validate, Visit
 ```
 
-公开树只有一份 token-free 语义 AST：`Predicate` 是可执行根，`Selector` 是完整 metadata 路径，`Expr` 仅用于节点遍历。`Parse` 使用同包私有的递归下降前端并直接构造该树，随后执行 `Validate`；不会再经过第二套内部 AST、转换层或自动 simplify。手工构造的树也通过 `Validate` 校验，残缺或 typed-nil 节点稳定返回错误。`Visitor` 是 provider compiler 与 interpreter 共享的完整树处理契约。
+公开树只有一份 token-free 语义 AST：`Predicate` 是可执行根，`Selector` 是完整 metadata 路径，`Expr` 仅用于节点遍历。`Parse` 使用同包私有的递归下降前端直接构造该树，经私有 analyzer 严格校验后，由私有 optimizer 对 `NOT/AND/OR` 做三值逻辑安全的去重、吸收和公共因子提取；不会再经过第二套内部 AST 或转换层。手工构造的树通过 `Validate` 校验但不会被重写，残缺、typed-nil 或循环节点稳定返回错误。`Visitor` 是 provider compiler 与 interpreter 共享的完整树处理契约，`Visit` 负责一次校验和顺序组合，`Formatter` 提供稳定文本出口。
 
 ### vectorstore/filter 前端实现（P4-07 后非公共实现）
 
 ```text
-scanner, token, parser, validator
+scanner, token, parser, analyzer, optimizer
 ```
 
 原 `filter/{ast,lexer,parser,token,visitors}` import path 已物理删除。scanner/token/递归下降 parser 是根 package 内不可导出的实现文件，不再维护第二套 AST；provider adapter 只依赖根 `filter.Predicate`、语义节点、`Operator` 与 `Visitor`。
@@ -371,7 +371,7 @@ scanner, token, parser, validator
 | `embedding.Model` | ~~Call、Dimensions、DefaultOptions、Metadata~~（P5-01 已删除复合方法集） | 当前只含 `Call`；独立 `Dimensioner` 返回 `(int, error)`，探测 helper 无缓存 |
 | `vectorstore.Store` | ~~Metadata/NativeClient，与 Creator/Retriever 等组合使用~~（P4-03/P4-05 已删除） | 当前由 `Indexer`/`Searcher`/`IDDeleter`/`FilterDeleter` 独立表达能力 |
 | `vectorstore.RetrievalRequest` | ~~fluent `WithFilter/WithMinScore/WithTopK`~~（P4-06 已删除） | 当前 `SearchRequest` 为普通 struct + `Validate` |
-| `filter/ast.*` 与 `filter/token.*` | ~~公开 AST 字段、token、visitor~~（P4-07 已删除） | 当前只保留 token-free `Expr`、稳定语义节点、构造函数、`Parse`/`Validate` |
+| `filter/ast.*` 与 `filter/token.*` | ~~公开 AST 字段、token、visitor~~（P4-07 已删除） | 当前只保留 token-free `Expr`、稳定语义节点、构造函数、`Parse`/`Validate`/`Visit` 与 `Formatter` |
 
 ## 5. 关键调用点
 

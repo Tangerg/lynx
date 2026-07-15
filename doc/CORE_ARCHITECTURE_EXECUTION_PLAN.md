@@ -923,10 +923,16 @@ flowchart LR
   - 统一 provider 数字转换策略：文本 DSL 保留精确数字文本，只接受整数的 SDK 拒绝小数，float32/float64 SDK 在整数会被舍入时显式报错；Bedrock/Cassandra 保留 int64/uint64，Qdrant 不再把小数等值或 IN 静默截断。
   - 影响面：Core 只新增 `Formatter` 及其 `Visit`/`String` 两个方法，API baseline 331→334；wire 与 backend 公开签名不变。
   - 证据：Formatter 优先级/转义/round-trip/复用，optimizer 恒等式与 Validate 不改写，以及八个 backend 数值边界的确定性测试；Core/VectorStores build/vet/test/lint、完整 race、两模块 tidy-diff 和全 workspace 84/84 门禁全绿。修复单 AST 删除后 coverage 脚本残留的 5 个旧 internal package，当前 12 个生产 package budget 全部通过，Filter 86.8%；`FUZZ_TIME=0` 的 Core API/wire/docs/examples/coverage/provider/backend 发布门禁通过，按维护者要求未运行 fuzz。
+- [x] **P8-06 加固 Filter AST 不变量与布尔规范化**（完成：2026-07-15）
+  - 私有 `analyzer` 以当前递归路径检测循环 AST，允许合法共享子树；非法 operator 在操作数形状之前确定失败，数值索引用精确有理数判断非负整数与 `int64` 上界，不再依赖 `float64` 舍入结果。
+  - 复合节点只返回自身保存的 source position；parser 节点携带位置，程序化节点保持零值，不再沿子节点递归猜测位置或因畸形环失控。
+  - 私有无状态 `optimizer` 只消费 `Validate` 已接受的 Predicate，不重复承担错误校验；在双重否定基础上增加同运算符扁平去重、任意层吸收、交换顺序的子句吸收与公共因子提取。重写不修改输入，一次达到稳定树，未变化的节点直接复用。
+  - 影响面：不新增或删除 exported declaration，Core API baseline 保持 334，wire 与 backend 公开签名不变；比较、IN、LIKE、IS 等非逻辑叶子的顺序和值保持可观察，不以“语义等价”为由改写 adapter 输入。
+  - 证据：`fa561fb06`；循环树、operator 优先级、索引边界、位置归属、输入不可变和优化幂等均有确定性测试，布尔规则逐项枚举三值逻辑的 27 组赋值。Filter coverage 88.3%，race/vet/lint 全绿；Core 与全部 VectorStores package 测试通过。Parser 基准为简单表达式 353–378ns/10 alloc、复合表达式 1.34–1.44µs/35 alloc，未引入缓存、池化或 parser 特判；按维护者要求未运行 fuzz。
 
-退出标准：五批分别可独立回滚；Core API/wire 守卫、Core 与 VectorStores 模块门禁、21 module 全仓确定性门禁全部通过；按维护者要求不重复 fuzz。
+退出标准：六批分别可独立回滚；Core API/wire 守卫、Core 与 VectorStores 模块门禁、21 module 全仓确定性门禁全部通过；按维护者要求不重复 fuzz。
 
-阶段验收（完成：2026-07-15）：P8 五项任务全部完成；Core 请求不变量在协议边界收口，InMemory 与其余 embedding-backed backend 使用相同公开依赖方向，Filter compiler 生命周期、解释语义、Visitor 扩展入口、内部分析/优化职责、文本出口与数值编译边界由确定性合同锁定。未增加新模块、通用校验框架、Store 基类或兼容层。
+阶段验收（完成：2026-07-15）：P8 六项任务全部完成；Core 请求不变量在协议边界收口，InMemory 与其余 embedding-backed backend 使用相同公开依赖方向，Filter compiler 生命周期、解释语义、Visitor 扩展入口、AST 不变量、内部分析/布尔规范化职责、文本出口与数值编译边界由确定性合同锁定。未增加新模块、通用校验框架、Store 基类或兼容层。
 
 ---
 
@@ -944,15 +950,15 @@ flowchart LR
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
 | P6 Workspace 切换 | 完成 | 8/8 | 旧 API、兼容面、残余依赖和错误文档清零；100 项 workspace 门禁全绿 |
 | P7 稳定与发布 | 完成 | 7/7 | 最终架构审查通过，Core v1 契约与发布门禁已冻结 |
-| P8 Tag 前精修 | 完成 | 5/5 | 请求不变量、公开边界、Filter visitor 职责与数值编译合同均已收口 |
-| **总计** | **完成** | **65/65** | **100%** |
+| P8 Tag 前精修 | 完成 | 6/6 | 请求不变量、公开边界、Filter AST/visitor/规范化职责与数值编译合同均已收口 |
+| **总计** | **完成** | **66/66** | **100%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：全部完成。
 - 下一任务：无；正式 tag/协调发布按 `CORE_V1_RELEASE_RUNBOOK.md` 单独执行。
 - 当前阻塞：无。
-- 最近完成：P8-05 私有 analyzer/optimizer、公开 Formatter、八个 backend 数值边界与单 AST coverage 门禁校准；全仓和确定性发布门禁通过。
+- 最近完成：P8-06 Filter 循环 AST 防护、精确索引不变量、节点自有位置和三值逻辑安全的布尔规范化；Core/VectorStores 全量测试与 Filter race/vet/lint 通过。
 
 ### 10.3 进度更新规则
 
@@ -1263,6 +1269,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：`Formatter` 作为日志、持久化和第三方文本 adapter 的公共 visitor，零值可用并输出可再次解析的稳定 DSL；语义分析由私有 `analyzer` 承担并继续只通过 `Validate` 暴露，布尔规范化由私有 `optimizer` 在 `Parse` 内执行。公共 `Visit` 不优化调用方传入的树。provider adapter 通过内部精确数字转换器按 SDK 能力选择原文、int、float32 或 float64，无法无损表达时返回错误。
 - 原因：格式化是仓库外实现真实需要的扩展能力，分析策略与布尔重写则是包内不变量，公开会形成第二套校验/优化协议。把三类遍历分别收回 receiver 可保持职责单一；精确数字转换消除 Qdrant 小数截断和浮点 SDK 大整数舍入。Core 只增加 `Formatter` 的三行声明，API baseline 从 331 增至 334，wire 不变。
 
+### ADR-024：Filter 校验是唯一非法树边界，优化只作用于已验证布尔 IR
+
+- 日期：2026-07-15
+- 状态：已采纳（维护者确认 tag 前深度精修）
+- 决策：`Validate` 的私有 `analyzer` 完整负责节点形状、operator、循环引用和精确数值索引不变量；私有无状态 `optimizer` 信任该前置条件，只在 `Parse` 内对 `NOT/AND/OR` 做三值逻辑下成立的缩减式重写。优化保持输入不可变并达到幂等稳定树，不改变比较、IN、LIKE、IS 等叶子的顺序或重复项。source position 是节点自身数据，parser 节点显式保存，程序化节点保持零值。
+- 原因：公开 AST 可由调用方直接组装，循环引用和不完整节点必须由统一边界可靠拒绝；让优化器再次校验会产生两套错误策略和无效状态。布尔去重、吸收与公共因子提取能减少 adapter 接收的冗余结构，且可用三值逻辑穷举证明；叶子改写虽然可能语义等价，却会改变 adapter 已经依赖的可观察 AST 数据。该决策不增加公共概念，API baseline 保持 334，wire 不变。
+
 ---
 
 ## 16. 长期完成定义
@@ -1277,7 +1290,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - README、CLAUDE、示例和 package docs 与实际结构一致。
 - 维护者完成最终架构审查并确认公开契约可进入稳定期。
 
-完成确认（2026-07-15）：上述条件全部满足，最终审查记录见 `CORE_V1_ARCHITECTURE_REVIEW.md`；tag 前 P8 稳定化精修完成后，本计划以 65/65 关闭。
+完成确认（2026-07-15）：上述条件全部满足，最终审查记录见 `CORE_V1_ARCHITECTURE_REVIEW.md`；tag 前 P8 稳定化精修完成后，本计划以 66/66 关闭。
 
 ---
 
@@ -1285,8 +1298,9 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
-| 2026-07-15 | 完成 P8-04：确认 Visitor 为外部 adapter 扩展逃生舱，新增一次校验、顺序分派、首错停止的公开变长入口；API baseline 330→331 行，wire 不变 | Codex |
+| 2026-07-15 | 完成 P8-06：Filter analyzer 增加循环 AST、operator 顺序与精确索引不变量，复合节点位置回归自身数据；optimizer 收敛为只消费已验证 IR 的无状态布尔重写器，增加关联去重、深层/交换吸收和公共因子提取，并以三值逻辑、不可变与幂等测试锁定；API/wire 不变 | Codex |
 | 2026-07-15 | 完成 P8-05：按维护者决策恢复私有 analyzer/optimizer visitor、增加公开 Formatter，并收紧八个 backend 的数字编译边界；API 331→334，12 个生产 package coverage、全仓 84 项、Core/VectorStores race 与确定性发布门禁全绿，未运行 fuzz | Codex |
+| 2026-07-15 | 完成 P8-04：确认 Visitor 为外部 adapter 扩展逃生舱，新增一次校验、顺序分派、首错停止的公开变长入口；API baseline 330→331 行，wire 不变 | Codex |
 | 2026-07-15 | 完成 P8-03 与 P8 再验收：23 个 backend compiler 固化可复用/失败恢复合同，内部 helper 收敛为单一 `filtercompile` 分派层，InMemory 解释行为归回 receiver 并将缺失 ordering/LIKE 字段视为不匹配；API/wire 不变 | Codex |
 | 2026-07-15 | 完成 tag 前 Filter 编译器精修：双 AST/转换层收敛为唯一 Predicate AST 与同包私有递归下降前端，公开 Visitor，统一完整 selector 路径和精确整数语义；API 基线由 341 收缩为 330 | Codex |
 | 2026-07-15 | 完成 P8-02 与 P8 阶段验收：InMemory 公开配置改为依赖 `embedding.Model`，Client 构造收回 Store 内部，删除不可达/泄漏实现层词汇的 sentinel；21 module 的 105 项确定性门禁全绿 | Codex |
@@ -1361,8 +1375,9 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
-| 2026-07-15 | P8-04 Filter Visitor 公开组合入口 | 新增 `filter.Visit` 并冻结校验一次、按序执行、首错原样返回、plain/typed nil visitor 在分派前失败的合同；API baseline 330→331 行，wire 不变；全 workspace 84 项 build/vet/test/lint、Core/VectorStores race、两模块 tidy-diff 和 API/wire/docs/examples 守卫全绿，未运行 fuzz；任务计数 64/64 | 正式 tag/协调发布按运行手册单独执行 |
+| 2026-07-15 | P8-06 Filter AST 不变量与布尔规范化 | `fa561fb06` 在 `core/vectorstore/filter` 内完成循环路径校验、非法 operator 先验失败、精确 `int64` 索引判断和节点自有 position；optimizer 只处理已验证逻辑树，支持关联去重、任意层/交换吸收与公共因子提取，保留全部非逻辑叶子。三值逻辑 27 组赋值、不可变/幂等、Filter race/vet/lint、Core 与全部 VectorStores package 测试全绿；coverage 88.3%，Parser 基准简单 353–378ns/10 alloc、复合 1.34–1.44µs/35 alloc，未运行 fuzz；任务计数 66/66 | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P8-05 Filter visitor 职责与数值边界 | 公开零值 Formatter；私有 analyzer/optimizer 分别承接 Validate 与 Parse 规范化；八个 backend 消除大整数舍入和 Qdrant 小数截断；API 331→334，当前 12 个 Core 生产 package coverage、全 workspace 84 项、Core/VectorStores race、两模块 tidy-diff 与 `FUZZ_TIME=0` 发布门禁全绿；任务计数 65/65 | 正式 tag/协调发布按运行手册单独执行 |
+| 2026-07-15 | P8-04 Filter Visitor 公开组合入口 | 新增 `filter.Visit` 并冻结校验一次、按序执行、首错原样返回、plain/typed nil visitor 在分派前失败的合同；API baseline 330→331 行，wire 不变；全 workspace 84 项 build/vet/test/lint、Core/VectorStores race、两模块 tidy-diff 和 API/wire/docs/examples 守卫全绿，未运行 fuzz；任务计数 64/64 | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P8-03 Filter compiler 生命周期与解释语义 | `013321df6` 修复 21 个状态型 backend Visitor 的结果累积/错误毒化，23 backend 统一合同测试全绿；`filterhelp` 收敛为 `filtercompile` 并删除无生产消费者的泛型 dispatch；InMemory evaluator receiver 化，缺失 ordering/LIKE 字段不再中断查询。`filtercompile` coverage 93.2%；Parser 基线简单 243–261ns/8 alloc、复合 835–849ns/25 alloc，未做无证据的性能复杂化；workspace 84 项 build/vet/test/lint、Core/VectorStores race、两模块 tidy-diff 和 VectorStores 最新 5 项门禁全绿，未运行 fuzz；任务计数 63/63 | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | Filter 单 AST/Visitor tag 前精修 | `4037e1765` 删除 internal AST、转换层、builder、precedence 和无测量收益的自动 optimizer；同包私有 scanner/token/递归下降 parser 直接构造 `Predicate`，`Selector` 保留完整 metadata 路径，23 个 backend Visitor 与 inmemory interpreter 满足公开契约。API 341→330，Filter coverage 86.5%；三个受影响 module tidy-diff 为空；workspace 84 项 build/vet/test/lint + 21 项 race 全绿，Core/VectorStores 最新增量 10 项门禁再次全绿。按维护者要求未运行 fuzz | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P8-02、P8 阶段验收 | `inmemory.StoreConfig` 改为接收 `embedding.Model`，内部构造 Client；typed-nil 归一到 `ErrMissingEmbeddingModel`，删除旧字段、旧 sentinel 与不可达 `ErrNilConfig`。VectorStores 模块门禁及 `FAST=1 scripts/check.sh build vet test lint race` 的 105/105 项全绿，未运行 fuzz；任务计数 62/62 | 正式 tag/协调发布按运行手册单独执行 |
