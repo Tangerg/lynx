@@ -49,9 +49,9 @@ Chat provider/facade 的构造与共享协议行为由 Models conformance 覆盖
 
 最终远端依赖图由以下提交建立：
 
-- `43c2876c4`：冻结协议边界、验证规则、metadata 写入错误和发布安全门禁。
-- `b968e20dd`：将 standalone module 对齐到冻结后的 Core 源码基线。
-- `a1dd21f4f`：使远端 pseudo-version DAG 闭合，避免 `go.work` 或本地 cache 掩盖缺失依赖。
+- `783df3ee9`：完成 tag 前协议词汇收口、API/wire 基线更新和发布门禁修复。
+- `229e06c8e`：将 standalone module 对齐到最终 Core 源码基线。
+- `04a37a9fe`：使远端 pseudo-version DAG 闭合，避免 `go.work` 或本地 cache 掩盖缺失依赖。
 
 20/20 workspace module 在 `GOWORK=off` 下完成独立 `go test -count=1 ./...`、`go vet ./...` 与 `go mod tidy -diff`；`go list -m all` 不再解析旧的 `v0.0.0-20260714110600-0abc7c70a85d` 基线。当前 pseudo-version 只是创建正式 tag 前的可复现协调图，发布时仍须按运行手册自底向上替换为精确 tag。
 
@@ -59,11 +59,11 @@ Chat provider/facade 的构造与共享协议行为由 Models conformance 覆盖
 
 - `FAST=1 scripts/check.sh build vet test lint race`：20 个 module、100/100 项通过。
 - `scripts/check.sh vuln`：20/20 module 通过精确漏洞策略。
-- `scripts/check-core-release.sh`：Core test/race/vet/lint/tidy、17 个逐包 coverage budget、Models provider gate、27 个 VectorStore backend gate 及 7 个独立五分钟 fuzz target 全部通过。
+- `scripts/check-core-release.sh` 的确定性部分：Core test/race/vet/lint/tidy、17 个逐包 coverage budget、Models provider gate 和 27 个 VectorStore backend gate 全部通过。
 - Core API、wire inventory/golden、协议字段安全、公共 docs/examples、标准库-only 依赖均为 blocking 架构测试。
-- 7 个 fuzz target 各独立运行 5 分钟：Metadata Map 98,292,275 次、Media 105,198,336 次、Filter Parse 75,835,393 次、Chat Part 83,961,412 次、Chat Message 79,948,335 次、Chat Request 82,260,984 次、Chat Response 84,349,479 次；累计 609,846,214 次且无失败语料。
+- P7-05 已记录 7 个 fuzz target 各独立运行 5 分钟：Metadata Map 98,292,275 次、Media 105,198,336 次、Filter Parse 75,835,393 次、Chat Part 83,961,412 次、Chat Message 79,948,335 次、Chat Request 82,260,984 次、Chat Response 84,349,479 次；累计 609,846,214 次且无失败语料。tag 前收口后又完成 Metadata Map 5 分钟、98,942,554 次执行；按维护者要求停止重复整组长时间 fuzz，未把主动停止的 Media 运行记作通过。
 
-上述门禁在最终 dependency DAG 上执行；不是只验证本地替换后的中间图。
+确定性门禁在最终 dependency DAG 上执行；不是只验证本地替换后的中间图。完整 fuzz 数字是 P7-05 的历史发布证据，不冒充本轮重复执行结果。
 
 ## 7. 安全裁决
 
