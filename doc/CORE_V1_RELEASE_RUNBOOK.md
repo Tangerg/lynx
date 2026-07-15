@@ -1,7 +1,7 @@
 # Core v1 协调发布顺序与执行手册
 
 > 目标：发布 `github.com/Tangerg/lynx/core` v1.0.0，并让所有 dependent module 在关闭 `go.work` 时也能独立解析和测试
-> 当前状态：发布候选手册；P7-07 最终架构审查通过前不得创建 v1 tag
+> 当前状态：P7-07 最终架构审查已通过，Core v1 契约已冻结；tag 尚未创建，发布人按本手册执行
 > 原则：按真实 module DAG 自底向上发布；不使用 `replace`、兼容 module、路径桥接或未推送提交
 
 仓库采用多 module 布局。位于子目录的 Go module 必须使用带目录前缀的 Git tag，例如 Core v1.0.0 的 tag 是 `core/v1.0.0`，而不是仓库根 `v1.0.0`。
@@ -49,7 +49,7 @@ agent -----------------------------> app-runtime
 | `skills` | `skills/v0.1.0` | `tools` 的输入依赖 |
 | `tokenizer` | `tokenizer/v0.1.0` | `models`/`documentpipeline` 的可选实现边界 |
 
-必须先完成 Core 的 P7-07 审查，再创建 `core/v1.0.0`。其余三个 module 不属于 Core v1 契约，但为摆脱 pseudo-version、形成可复现依赖图，应在后续波次前发布。
+Core 的 P7-07 审查已经完成；发布人核对最终提交和记录后才创建 `core/v1.0.0`。其余三个 module 不属于 Core v1 契约，但为摆脱 pseudo-version、形成可复现依赖图，应在后续波次前发布。
 
 ### Wave 1：直接依赖 Core 的叶子/适配模块
 
@@ -123,7 +123,13 @@ Wave 1 完成后，先关闭 `go.work` 分别执行独立 module 测试，再创
 
 ## 5. Core v1 发布门禁
 
-Core tag 前必须全部通过：
+Core tag 前必须在最终提交上运行统一门禁：
+
+```bash
+scripts/check-core-release.sh
+```
+
+该脚本串行执行下列 Core、Models、VectorStores 和 fuzz 检查；以下命令用于定位失败或人工复核：
 
 ```bash
 cd core
@@ -160,13 +166,15 @@ Fuzz release gate 必须让以下 7 个 target 各独立运行至少 5 分钟：
 
 发布基线使用 Go 1.26.5，已清除 Go 1.26.4 中可达的 `crypto/tls` 公告。
 
-`models` 和 `app/runtime` 当前通过 Ollama v0.32.0 间接命中 8 个上游 `govulncheck` 公告，扫描结果均为 `Fixed in: N/A`。处理规则：
+`models` 和 `app/runtime` 当前通过 Ollama v0.32.0 间接命中 8 个上游 `govulncheck` 公告：`GO-2025-3557`、`GO-2025-3558`、`GO-2025-3559`、`GO-2025-3582`、`GO-2025-3689`、`GO-2025-3695`、`GO-2025-3824`、`GO-2025-4251`；扫描结果均为 `Fixed in: N/A`。处理规则：
 
 1. Core v1 本身不依赖 Ollama 或任何第三方 module，因此该风险不阻塞 Core tag。
 2. `models`/`app/runtime` release notes 必须列出准确公告、可达调用链和部署暴露面。
 3. Ollama adapter 不应被默认装配到不需要它的部署；实际使用方按风险接受、隔离或延期发布该 adapter。
 4. 一旦上游发布修复版本，先升级并重跑 provider conformance/govulncheck，再发布新的 Models/App 版本。
 5. 禁止用本地 fork、虚假版本、空实现或忽略整个漏洞扫描来制造“全绿”。
+
+`GO-2026-5932` 当前只作为非可达 module finding 出现在 Models、App Runtime、ChatHistory 与 VectorStores。它不阻断当前发布，但必须保留在扫描输出和发布记录中；若未来出现可达调用链，精确漏洞门禁会按“非 allowlist 可达漏洞”立即失败。
 
 ## 8. 回滚策略
 
