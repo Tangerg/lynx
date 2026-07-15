@@ -1,9 +1,9 @@
-github.com/Tangerg/lynx/core v0.0.0-20260715075542-783df3ee982c h1:/2kolRgbdKfX84CbpNbSIsRtS4nJOKUPteHFA6bvnls=
-github.com/Tangerg/lynx/core v0.0.0-20260715075542-783df3ee982c/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
-github.com/Tangerg/lynx/pkg v0.0.0-20260715075542-783df3ee982c h1:ApiDNe+IIkD7xOKvNETBxIuexTr5lKT3sdN6/E5EsHM=
-github.com/Tangerg/lynx/pkg v0.0.0-20260715075542-783df3ee982c/go.mod h1:+AYRcOYA8qwIZjux7N5N2yVZ+Yq5Y8gWd/hV+PnPad4=
-github.com/Tangerg/lynx/skills v0.0.0-20260715075542-783df3ee982c h1:O763r8qAcQQNgrjy8XLTUquudsayOb56ofsHIgst1Wc=
-github.com/Tangerg/lynx/skills v0.0.0-20260715075542-783df3ee982c/go.mod h1:lYDEBvA3vQL5p4mg2Lm+kbwFtr5vxPSnG3NLWQmR6oc=
+github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f h1:yi7YXYK9TGkCoORkI3yvj8y+R+B8rXm8ytSifl9Y5oE=
+github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
+github.com/Tangerg/lynx/pkg v0.0.0-20260715080233-229e06c8ed2f h1:gpgz81QrGbGa1vVRZNxzIaCNHBjfABaYMOtWjYBs0FI=
+github.com/Tangerg/lynx/pkg v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:+AYRcOYA8qwIZjux7N5N2yVZ+Yq5Y8gWd/hV+PnPad4=
+github.com/Tangerg/lynx/skills v0.0.0-20260715080233-229e06c8ed2f h1:KA33WaVckFBwaOtpTEfqs9uPGVJ5058pP8K3X4gFN6U=
+github.com/Tangerg/lynx/skills v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:lYDEBvA3vQL5p4mg2Lm+kbwFtr5vxPSnG3NLWQmR6oc=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/buger/jsonparser v1.2.0 h1:4EFcvK1kD4jyj6YqNK6skK6w+y7FHHBR+XBCtxwu/6g=

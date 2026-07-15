@@ -3,9 +3,9 @@ module github.com/Tangerg/lynx/models
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260715075542-783df3ee982c
-	github.com/Tangerg/lynx/pkg v0.0.0-20260715075542-783df3ee982c
-	github.com/Tangerg/lynx/tokenizer v0.0.0-20260715075542-783df3ee982c
+	github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f
+	github.com/Tangerg/lynx/pkg v0.0.0-20260715080233-229e06c8ed2f
+	github.com/Tangerg/lynx/tokenizer v0.0.0-20260715080233-229e06c8ed2f
 	github.com/anthropics/anthropic-sdk-go v1.52.0
 	github.com/aws/aws-sdk-go-v2 v1.42.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.25

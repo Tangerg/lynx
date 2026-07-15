@@ -3,10 +3,10 @@ module github.com/Tangerg/lynx/mcp
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/chatclient v0.0.0-20260715075542-783df3ee982c
-	github.com/Tangerg/lynx/core v0.0.0-20260715075542-783df3ee982c
-	github.com/Tangerg/lynx/pkg v0.0.0-20260715075542-783df3ee982c
-	github.com/Tangerg/lynx/tools v0.0.0-20260715075542-783df3ee982c
+	github.com/Tangerg/lynx/chatclient v0.0.0-20260715080233-229e06c8ed2f
+	github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f
+	github.com/Tangerg/lynx/pkg v0.0.0-20260715080233-229e06c8ed2f
+	github.com/Tangerg/lynx/tools v0.0.0-20260715080233-229e06c8ed2f
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.44.0

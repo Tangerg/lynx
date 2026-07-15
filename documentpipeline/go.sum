@@ -1,7 +1,7 @@
-github.com/Tangerg/lynx/core v0.0.0-20260715075542-783df3ee982c h1:/2kolRgbdKfX84CbpNbSIsRtS4nJOKUPteHFA6bvnls=
-github.com/Tangerg/lynx/core v0.0.0-20260715075542-783df3ee982c/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
-github.com/Tangerg/lynx/tokenizer v0.0.0-20260715075542-783df3ee982c h1:9tSDi5Bv/x4487vYl1BnkMgTtLOi6yjajEJRHbjXhsc=
-github.com/Tangerg/lynx/tokenizer v0.0.0-20260715075542-783df3ee982c/go.mod h1:A3bY1iwmE/UJ107tAGKzPnyqzJw0GUsBphYQvCH72tQ=
+github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f h1:yi7YXYK9TGkCoORkI3yvj8y+R+B8rXm8ytSifl9Y5oE=
+github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
+github.com/Tangerg/lynx/tokenizer v0.0.0-20260715080233-229e06c8ed2f h1:W9dwuJueqIRjDcIVgESIKZPdFXBK1tNo+V8Z/+wust8=
+github.com/Tangerg/lynx/tokenizer v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:A3bY1iwmE/UJ107tAGKzPnyqzJw0GUsBphYQvCH72tQ=
 github.com/frankban/quicktest v1.14.6 h1:7Xjx+VpznH+oBnejlPUj8oUpdxnVs4f8XU8WnHkI4W8=
 github.com/frankban/quicktest v1.14.6/go.mod h1:4ptaffx2x8+WTWXmUCuVU6aPUX1/Mz7zb5vbUoiM6w0=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
