@@ -2,6 +2,7 @@ package inmemory_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,7 +12,6 @@ import (
 	coremetadata "github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/embeddingclient"
 	"github.com/Tangerg/lynx/vectorstores/inmemory"
 )
 
@@ -47,11 +47,7 @@ func vectorFor(text string) []float64 {
 
 func newStore(t *testing.T) *inmemory.Store {
 	t.Helper()
-	client, err := embeddingclient.New(fakeEmbeddingModel{})
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
-	store, err := inmemory.NewStore(inmemory.StoreConfig{EmbeddingClient: client})
+	store, err := inmemory.NewStore(inmemory.StoreConfig{EmbeddingModel: fakeEmbeddingModel{}})
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
@@ -274,13 +270,21 @@ func TestStore_SearchMinScoreFilters(t *testing.T) {
 	}
 }
 
-func TestStore_RejectsBadConfig(t *testing.T) {
-	if _, err := inmemory.NewStore(inmemory.StoreConfig{}); err == nil {
-		t.Fatal("nil cfg must error")
+func TestStore_RejectsMissingEmbeddingModel(t *testing.T) {
+	if _, err := inmemory.NewStore(inmemory.StoreConfig{}); !errors.Is(err, inmemory.ErrMissingEmbeddingModel) {
+		t.Fatalf("NewStore error = %v, want ErrMissingEmbeddingModel", err)
 	}
-	if _, err := inmemory.NewStore(inmemory.StoreConfig{}); err == nil {
-		t.Fatal("missing embedding client must error")
+
+	var model *nilEmbeddingModel
+	if _, err := inmemory.NewStore(inmemory.StoreConfig{EmbeddingModel: model}); !errors.Is(err, inmemory.ErrMissingEmbeddingModel) {
+		t.Fatalf("NewStore typed nil error = %v, want ErrMissingEmbeddingModel", err)
 	}
+}
+
+type nilEmbeddingModel struct{}
+
+func (*nilEmbeddingModel) Call(context.Context, *embedding.Request) (*embedding.Response, error) {
+	return nil, nil
 }
 
 func TestStore_SearchOnEmpty(t *testing.T) {

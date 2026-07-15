@@ -5,11 +5,5 @@ import "errors"
 // Provider names the backend in [vectorstore capabilities].
 const Provider = "InMemory"
 
-// Sentinel errors used by [NewStore] / config validation.
-var (
-	// ErrNilConfig is returned by NewStore when StoreConfig is nil.
-	ErrNilConfig = errors.New("inmemory: config must not be nil")
-
-	// ErrMissingEmbeddingClient is returned when EmbeddingClient is nil.
-	ErrMissingEmbeddingClient = errors.New("inmemory: EmbeddingClient is required")
-)
+// ErrMissingEmbeddingModel is returned when StoreConfig.EmbeddingModel is nil.
+var ErrMissingEmbeddingModel = errors.New("inmemory: EmbeddingModel is required")

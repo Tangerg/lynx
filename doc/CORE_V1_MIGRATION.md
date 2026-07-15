@@ -242,6 +242,16 @@ matches, err := searcher.Search(ctx, request)
 
 不要重建 fluent `With*` 链或 `NativeClient any` 探测面。provider 专用能力直接由具体 backend 类型公开。
 
+`vectorstores/inmemory.StoreConfig` 与其他 embedding-backed backend 一样直接接收 Core Model；调用方不再预先构造便利 Client：
+
+```go
+store, err := inmemory.NewStore(inmemory.StoreConfig{
+    EmbeddingModel: model,
+})
+```
+
+旧 `EmbeddingClient` 字段、`ErrMissingEmbeddingClient` 和不可达的 `ErrNilConfig` 已删除；缺少模型统一返回 `ErrMissingEmbeddingModel`。
+
 ## 7. 其他 modality 迁移
 
 Embedding、Image、Transcription、Moderation 都只要求一个 `Call`；Speech 将 `Call` 与 `Stream` 拆成独立能力。旧 ClientCaller/Handler/Middleware/Chain/ModelMetadata framework 已删除。
