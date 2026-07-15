@@ -15,7 +15,7 @@ type TokenUsage struct {
 }
 
 // Total is prompt + completion: the figure a token budget caps.
-func (t TokenUsage) Total() int64 {
+func (t *TokenUsage) Total() int64 {
 	return t.PromptTokens + t.CompletionTokens
 }
 
