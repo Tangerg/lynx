@@ -370,7 +370,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 //
 // ClickHouse mutations are asynchronous — callers should consider
 // MutationOptions for synchronous behavior in their environment.
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
@@ -427,7 +427,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	return nil
 }
 
-func (s *Store) buildFilter(filter filter.Expr) (string, []any, error) {
+func (s *Store) buildFilter(filter filter.Predicate) (string, []any, error) {
 	if filter == nil {
 		return "", nil, nil
 	}

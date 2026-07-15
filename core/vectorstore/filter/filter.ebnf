@@ -1,27 +1,46 @@
-Expr        = OrExpr ;
-OrExpr      = AndExpr { ("OR" | "or") AndExpr } ;
-AndExpr     = NotExpr { ("AND" | "and") NotExpr } ;
-NotExpr     = ("NOT" | "not") NotExpr | CompareExpr ;
-CompareExpr = RelationExpr | MemberExpr ;
-RelationExpr = AccessExpr RelationOp ComparableValue ;
-MemberExpr   = AccessExpr "IN" ListLit
-             | AccessExpr "LIKE" StrLit ;
+Predicate    = OrExpr ;
+OrExpr       = AndExpr { OR AndExpr } ;
+AndExpr      = NotExpr { AND NotExpr } ;
+NotExpr      = NOT NotExpr | "(" Predicate ")" | Test ;
+
+Test         = Selector RelationOp Literal
+             | Selector [ NOT ] IN ListLiteral
+             | Selector LIKE StringLiteral
+             | Selector IS [ NOT ] NULL ;
 RelationOp   = "==" | "!=" | "<" | "<=" | ">" | ">=" ;
-ComparableValue = Literal | AccessExpr ;
-AccessExpr  = Ident { "[" AccessKey "]" } ;
-AccessKey   = StrLit | NumLit ;
-Primary     = AccessExpr | Literal | ParenExpr ;
-ParenExpr   = "(" Expr ")" ;
-ListLit     = "(" LitSeq ")" ;
-LitSeq      = Literal { "," Literal } ;
-Literal     = NumLit | StrLit | BoolLit ;
-NumLit      = [ "-" ] (DecNum | IntNum) ;
-DecNum      = IntNum "." Digit+ ;
-IntNum      = Digit+ ;
-StrLit      = "'" { EscapeSeq | NormalChar } "'" ;
-EscapeSeq   = "\\" | "\'" | "\"" | "\n" | "\t" | "\r" ;
-NormalChar  = ? ;
-BoolLit     = ("TRUE" | "true") | ("FALSE" | "false") ;
-Ident       = Letter { Letter | Digit | "_" } ;
-Digit       = "0" | ... | "9" ;
-Letter      = "a" | ... | "z" | "A" | ... | "Z" ;
+
+Selector     = Identifier { "[" IndexLiteral "]" } ;
+IndexLiteral = StringLiteral | NumberLiteral ;
+ListLiteral  = "(" Literal { "," Literal } ")" ;
+Literal      = NumberLiteral | StringLiteral | BooleanLiteral ;
+
+NumberLiteral  = [ "-" ] Digit { Digit } [ "." Digit { Digit } ] [ Exponent ] ;
+Exponent       = ( "e" | "E" ) [ "+" | "-" ] Digit { Digit } ;
+StringLiteral  = "'" { EscapeSequence | StringCharacter } "'" ;
+EscapeSequence = "\\\\" | "\\'" | "\\\"" | "\\n" | "\\t" | "\\r" ;
+StringCharacter = ? any Unicode code point except "'" and "\\" ? ;
+BooleanLiteral = TRUE | FALSE ;
+Identifier     = UnicodeLetter { UnicodeLetter | UnicodeDigit | "_" } ;
+Digit          = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+UnicodeLetter  = ? Unicode letter ? ;
+UnicodeDigit   = ? Unicode digit ? ;
+
+AND   = ? case-insensitive keyword "and" ? ;
+OR    = ? case-insensitive keyword "or" ? ;
+NOT   = ? case-insensitive keyword "not" ? ;
+IN    = ? case-insensitive keyword "in" ? ;
+LIKE  = ? case-insensitive keyword "like" ? ;
+IS    = ? case-insensitive keyword "is" ? ;
+NULL  = ? case-insensitive keyword "null" ? ;
+TRUE  = ? case-insensitive keyword "true" ? ;
+FALSE = ? case-insensitive keyword "false" ? ;
+
+(* Semantic constraints enforced after parsing:
+   - the root and every logical operand are predicates;
+   - ordering operators require a number literal;
+   - LIKE requires a string literal;
+   - IN lists are non-empty, homogeneous, and contain no NULL;
+   - numeric indexes are non-negative integers in the int64 range;
+   - identifiers cannot be case-insensitive reserved keywords;
+   - selector paths are complete metadata paths: profile['name'] means
+     ["profile", "name"], with no implicit metadata pseudo-root. *)

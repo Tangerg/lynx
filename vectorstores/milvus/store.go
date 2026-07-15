@@ -371,7 +371,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 	return docs, nil
 }
 
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}

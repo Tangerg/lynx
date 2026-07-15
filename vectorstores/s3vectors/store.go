@@ -252,7 +252,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 // Delete enumerates ids that match the filter via QueryVectors (S3
 // Vectors has no filter-based DeleteVectors) and then issues a
 // DeleteVectors call.
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
@@ -312,7 +312,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
 	}
 }
 
-func (s *Store) buildFilter(filter filter.Expr) (map[string]any, error) {
+func (s *Store) buildFilter(filter filter.Predicate) (map[string]any, error) {
 	if filter == nil {
 		return nil, nil
 	}

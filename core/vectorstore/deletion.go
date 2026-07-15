@@ -10,9 +10,9 @@ import (
 // separate capability because some providers can search but cannot mutate
 // their managed index.
 type FilterDeleter interface {
-	// DeleteWhere removes every document matching expr. Implementations return
+	// DeleteWhere removes every document matching predicate. Implementations return
 	// [ErrMissingFilter] for nil and reject invalid expressions.
-	DeleteWhere(ctx context.Context, expr filter.Expr) error
+	DeleteWhere(ctx context.Context, predicate filter.Predicate) error
 }
 
 // IDDeleter removes documents by identifier. It is independent from

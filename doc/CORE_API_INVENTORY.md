@@ -335,22 +335,22 @@ Searcher, SearchRequest, NewDocumentWriter
 ```text
 OpEqual, OpNotEqual, OpLess, OpLessEqual, OpGreater, OpGreaterEqual, OpAnd,
 OpOr, OpNot, OpIn, OpLike, OpIs, LiteralString, LiteralNumber, LiteralBool,
-LiteralNull, AtomicExpr, BinaryExpr, ComputedExpr, Expr, ExprBuilder, Ident,
-IdentifierValue, IndexExpr, ListLiteral, ListValue, Literal, LiteralKind,
-LiteralValue, Number, Operator, Position, UnaryExpr, And, EQ, GE, GT, In,
-Index, IsNull, IsNotNull, LE, LT, Like, NE, NewExprBuilder, NewIdent,
-NewListLiteral, NewLiteral, NewLiterals, Not, Or, Parse, Validate
+LiteralNull, BinaryExpr, Expr, Ident, IdentifierValue, IndexExpr, ListLiteral,
+ListValue, Literal, LiteralKind, LiteralValue, Number, Operator, Position,
+Predicate, Selector, SyntaxError, UnaryExpr, Visitor, And, EQ, GE, GT, In,
+Index, IsNull, IsNotNull, LE, LT, Like, NE, NewIdent, NewListLiteral,
+NewLiteral, NewLiterals, Not, Or, Parse, Validate
 ```
 
-公开树只包含 token-free 语义节点。`Parse` 负责 parse + validate + simplify，手工构造的树通过 `Validate` 校验；残缺或 typed-nil 节点稳定返回错误。
+公开树只有一份 token-free 语义 AST：`Predicate` 是可执行根，`Selector` 是完整 metadata 路径，`Expr` 仅用于节点遍历。`Parse` 使用同包私有的递归下降前端并直接构造该树，随后执行 `Validate`；不会再经过第二套内部 AST、转换层或自动 simplify。手工构造的树也通过 `Validate` 校验，残缺或 typed-nil 节点稳定返回错误。`Visitor` 是 provider compiler 与 interpreter 共享的完整树处理契约。
 
-### vectorstore/filter/internal/*（P4-07 后非公共实现）
+### vectorstore/filter 前端实现（P4-07 后非公共实现）
 
 ```text
-ast, lexer, parser, token, visitors
+scanner, token, parser, validator
 ```
 
-原 `filter/{ast,lexer,parser,token,visitors}` import path 已物理删除，编译器实现只允许由根 package 使用；provider adapter 只依赖根 `filter.Expr`、语义节点和 `Operator`。
+原 `filter/{ast,lexer,parser,token,visitors}` import path 已物理删除。scanner/token/递归下降 parser 是根 package 内不可导出的实现文件，不再维护第二套 AST；provider adapter 只依赖根 `filter.Predicate`、语义节点、`Operator` 与 `Visitor`。
 
 ## 4. 高风险 type 成员
 

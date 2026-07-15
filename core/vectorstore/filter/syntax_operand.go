@@ -35,14 +35,14 @@ func NewIdent[T IdentifierValue](value T) *Ident {
 	return ident
 }
 
-func identOrIndex(l any) (Expr, error) {
+func identOrIndex(l any) (Selector, error) {
 	if ix, ok := l.(*IndexExpr); ok {
 		return ix, nil
 	}
 	return newIdent(l)
 }
 
-func leftOperand[L IdentifierValue | *IndexExpr](l L) Expr {
+func leftOperand[L IdentifierValue | *IndexExpr](l L) Selector {
 	expr, _ := identOrIndex(l)
 	return expr
 }

@@ -3,7 +3,6 @@ package weaviate
 import (
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/spf13/cast"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
@@ -40,6 +39,8 @@ import (
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err               error                 // Last error encountered during conversion
 	result            *filters.WhereBuilder // The WhereBuilder being constructed
@@ -64,7 +65,7 @@ func (v *Visitor) Result() *filters.WhereBuilder {
 // Visit translates one semantic filter expression.
 // It walks the whole tree rooted at expr and returns the first error
 // encountered, or nil when the entire expression was accepted.
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -530,19 +531,9 @@ func (v *Visitor) buildIndexedFieldPath(expr *filter.IndexExpr) ([]string, error
 
 	current := expr
 	for {
-		if err := v.visitLiteral(current.Index); err != nil {
-			return nil, err
-		}
-
-		indexVal := v.currentFieldValue
-		var segment string
-		switch v := indexVal.(type) {
-		case string:
-			segment = v
-		case float64:
-			segment = strconv.Itoa(int(v))
-		default:
-			return nil, fmt.Errorf("weaviate: invalid index type %T, expected string or number", indexVal)
+		segment, err := filterhelp.LiteralAsKey(current.Index)
+		if err != nil {
+			return nil, fmt.Errorf("weaviate: %w", err)
 		}
 		parts = append([]string{segment}, parts...)
 
@@ -624,7 +615,7 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 //	expr, _ := parser.Parse(`age > 18 AND status == "active"`)
 //	whereFilter, err := weaviate.ToFilter(expr)
 //	// Used with: getBuilder.WithWhere(whereFilter)
-func ToFilter(expr filter.Expr) (*filters.WhereBuilder, error) {
+func ToFilter(expr filter.Predicate) (*filters.WhereBuilder, error) {
 	conv := NewVisitor()
 	if err := conv.Visit(expr); err != nil {
 		return nil, err

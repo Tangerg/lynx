@@ -25,6 +25,8 @@ import (
 //
 // Typesense `filter_by` doesn't have a standalone NOT operator — the
 // visitor rewrites `NOT (x op y)` into the operator's inverse.
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err            error
 	sql            strings.Builder
@@ -42,7 +44,7 @@ func (v *Visitor) Result() string {
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }

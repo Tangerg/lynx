@@ -24,14 +24,16 @@ import (
 // Identifier paths:
 //   - simple identifier — used as the top-level metadata key:
 //     author → metadata->>'author'
-//   - indexed expression strips the base identifier:
-//     metadata["author"] → metadata->>'author'
+//   - indexed expression keeps the base identifier as the first path segment:
+//     profile["author"] → metadata->'profile'->>'author'
 //   - nested index — joined with -> for intermediate hops,
 //     ->> only on the final step (since ->> casts to text):
-//     metadata["a"]["b"] → metadata->'a'->>'b'
+//     profile["a"]["b"] → metadata->'profile'->'a'->>'b'
 //
 // Numeric / boolean values force a type cast on the JSON extraction so
 // the comparison happens in the proper type, not lexicographic on text.
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err         error
 	sql         strings.Builder
@@ -53,7 +55,7 @@ func (v *Visitor) Result() (string, []any) {
 	return v.sql.String(), v.args
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -224,7 +226,7 @@ func comparisonCastFor(value any, op filter.Operator) jsonCast {
 	switch value.(type) {
 	case bool:
 		return castBoolean
-	case float64, int, int64:
+	case float64, int, int64, uint64:
 		return castNumeric
 	default:
 		// Ordering on non-numeric values still falls back to a

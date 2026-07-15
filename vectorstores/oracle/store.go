@@ -392,7 +392,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 }
 
 // Delete removes rows matching the filter expression.
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
@@ -453,7 +453,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 // continue from startIdx — Oracle uses positional `:N` bindings, so
 // the search path that prepends the query-vector parameter at `:1`
 // must skip ahead.
-func (s *Store) buildFilter(filter filter.Expr, startIdx int) (string, []any, error) {
+func (s *Store) buildFilter(filter filter.Predicate, startIdx int) (string, []any, error) {
 	if filter == nil {
 		return "", nil, nil
 	}

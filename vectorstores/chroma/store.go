@@ -428,7 +428,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 }
 
 // Delete removes documents from the collection that match the filter in req.
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}

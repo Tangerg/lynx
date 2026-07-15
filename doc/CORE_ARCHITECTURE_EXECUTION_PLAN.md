@@ -168,7 +168,7 @@ core/
 ├── media/          明确建模的媒体引用/字节载荷
 ├── document/       纯 Document 数据和最小 reader/writer 词汇
 ├── vectorstore/    高层语义索引/检索能力和 SearchRequest/Match
-│   └── filter/     稳定 Expr 门面；解析实现放 internal
+│   └── filter/     单一 Predicate AST；同包私有递归下降前端；公开 Visitor
 └── internal/arch/  DAG、依赖预算和公共面守卫
 ```
 
@@ -358,14 +358,14 @@ type IDDeleter interface {
 }
 
 type FilterDeleter interface {
-    DeleteWhere(context.Context, filter.Expr) error
+    DeleteWhere(context.Context, filter.Predicate) error
 }
 ```
 
 - 不要求所有实现满足胖 `Store`。
 - SearchRequest 使用普通 struct + Validate，不使用会吞掉非法输入的 fluent With 链。
 - 删除 `NativeClient any`；provider-specific 操作由具体实现类型或 provider 包显式暴露。
-- Filter 对外只暴露语义 Expr、构造函数和 Parse；lexer/parser/token/analyzer/optimizer 进入 `internal`。
+- Filter 对外暴露语义 AST、Predicate/Selector、构造函数、Parse/Validate 和完整树 Visitor；scanner/token/递归下降 parser 保持同包私有。
 
 ### 6.9 Middleware
 
@@ -396,7 +396,7 @@ type FilterDeleter interface {
 | APIKey 动态抽象 | 各 `models/<provider>` 配置 | Core 不统一密钥刷新或认证策略 |
 | Document formatter/transformer/batcher/ID generator 实现 | 新 `documentpipeline` module | Core DTO 保持纯数据；`rag`、`vectorstores` 等消费方各自声明所需窄接口 |
 | VectorStore implementation | `vectorstores` | Core 只留能力契约 |
-| Filter lexer/parser/analyzer/optimizer | `vectorstore/filter/internal` | 保留公共 Expr 门面 |
+| Filter scanner/token/parser | `vectorstore/filter` 私有实现文件 | 直接构造唯一公共语义 AST，不形成第二套 internal AST |
 
 ---
 
@@ -709,9 +709,10 @@ flowchart LR
   - 删除 constructor/fluent `With*`；`Search` 在 I/O 前校验 query、TopK、MinScore 和 Filter。
   - 证据：`8531c022e`；Core 与 backend 测试覆盖非法值拒绝。
 - [x] **P4-07 收敛 Filter 公共门面**（完成：2026-07-14）
-  - Expr 和稳定节点/构造函数公开。
-  - lexer/parser/token/analyzer/optimizer 进入 internal。
-  - 根门面完全使用语义 `Operator`/`LiteralKind`，不暴露 token；`Parse` 统一 parse + validate + simplify，手工树通过 `Validate` 校验且残缺输入不 panic。
+  - `Expr` 节点、可执行根 `Predicate`、路径 `Selector` 和稳定构造函数公开。
+  - scanner/token/递归下降 parser 保持同包私有，直接构造唯一语义 AST；旧 internal AST、转换层、analyzer/optimizer visitor 已删除。
+  - 根门面完全使用语义 `Operator`/`LiteralKind`，不暴露 token；`Parse` 统一 parse + validate 且保留显式逻辑结构，手工树通过 `Validate` 校验且残缺输入不 panic。
+  - `Visitor` 作为完整树处理契约公开，所有 backend compiler 与 inmemory interpreter 显式满足；selector 使用不丢 base identifier 的完整 metadata 路径。
   - 证据：`e49928f04`；旧五个公共子包路径无引用，Core/RAG/全部 vectorstore build、vet、lint、race 及 workspace 19/19 门禁全绿。
 - [x] **P4-08 迁移全部 vectorstore adapters**（完成：2026-07-14）
   - 先以 `inmemory`、`pgvector`、`mongodb`、`qdrant` 作为 reference，再分批迁移其余实现。
@@ -724,7 +725,7 @@ flowchart LR
   - 旧 Store/Creator/Retriever/Deleter、request wrapper、Filter 编译器公共路径和 `Document.Score` 均无生产引用或兼容面。
   - 证据：`0921d67c8`、`4a4df484e`；Filter 根 package 覆盖率 93.5%，FuzzParse 30 秒约 971 万次通过；全 workspace 76 项 build/vet/test/lint 与 Core/RAG/documentpipeline/vectorstores race 全绿。
 
-阶段验收（完成：2026-07-14）：P4 九项任务和 27 个 backend 子清单全部完成；Document 仅承载数据，VectorStore 保持 Document/查询文本的 AI 语义并按能力拆分，Filter 编译器实现已完全 internal；同路径旧面和兼容层均已删除。
+阶段验收（完成：2026-07-14，Filter 设计于 2026-07-15 再收敛）：P4 九项任务和 27 个 backend 子清单全部完成；Document 仅承载数据，VectorStore 保持 Document/查询文本的 AI 语义并按能力拆分。Filter 前端不可导出、AST 只有一份，provider 编译能力通过公开 Visitor 扩展；旧公共实现路径和兼容层均已删除。
 
 退出标准：
 
@@ -846,7 +847,7 @@ flowchart LR
 目标：把重构后的 Core 边界转化为可长期维护的 v1 库契约；`chatclient` 等上层模块只验证兼容性，不在本计划中冻结为 v1。
 
 - [x] **P7-01 建立 exported API diff 守卫**（完成：2026-07-14）
-  - `core/internal/arch/testdata/exported_api.txt` 经 tag 前 ADR-019 精修后冻结当前 11 个公共 package 的 341 条导出声明/方法签名；function body 与注释不进入基线，包含 exported 名称的 const/var 声明组整体记录以保留 iota 顺序和隐式类型变化。
+  - `core/internal/arch/testdata/exported_api.txt` 经 tag 前 Filter 精修后冻结当前 11 个公共 package 的 330 条导出声明/方法签名；function body 与注释不进入基线，包含 exported 名称的 const/var 声明组整体记录以保留 iota 顺序和隐式类型变化。
   - 普通 Core test 默认比较基线并输出增删 delta；只有完成 API 评审、迁移/release notes 与版本裁决后才允许显式 `-update-api` 重建。
   - CI workspace matrix 随后续职责外移更新为实际 21 module，并为 Core 增加不可忽略的 blocking API guard step；本地 Core test/vet/lint 与独立 guard 全绿。
   - 证据：`395913f00`。
@@ -873,12 +874,12 @@ flowchart LR
   - 升级后 `FAST=1 scripts/check.sh build vet test lint` 对 20 module 的 80/80 项检查全绿，Core 全量 race 复验通过；证据：`e5c94d25e`。
 - [x] **P7-06 编写 Core 破坏性变更迁移说明、dependent module 发布顺序和 release notes**（完成：2026-07-15）
   - `CORE_V1_MIGRATION.md` 按旧路径、职责、调用语义和持久化数据四个维度给出直接切换指南；明确旧类型只能由升级前二进制一次性导出转换，新库不增加 alias、shim、双读或旧 decoder。
-  - `CORE_V1_RELEASE_NOTES.md` 记录 11 个 v1 公共 package、341 条冻结 API、主要破坏面、wire 承诺、自动门禁、Go 1.26.5 与 Ollama 无修复版本风险。
+  - `CORE_V1_RELEASE_NOTES.md` 记录 11 个 v1 公共 package、330 条冻结 API、主要破坏面、wire 承诺、自动门禁、Go 1.26.5 与 Ollama 无修复版本风险。
   - `CORE_V1_RELEASE_RUNBOOK.md` 从当前 `go.mod` 重建真实 module DAG，规定 Core/基础模块、直接 adapter、组合模块、协议桥、Agent、App 六个发布波次，并将 `embeddingclient` 置于 Core 之后、VectorStores 之前；子 module tag 为 `core/v1.0.0` 且 P7-07 前不得创建。
   - 三份文档加入文档地图，Core API/wire/docs/dependency CI 等价架构门禁通过；证据：`0b7c70ec5`。
 - [x] **P7-07 完成最终架构审查并冻结 Core v1 契约**（完成：2026-07-15）
   - 新增 `CORE_V1_ARCHITECTURE_REVIEW.md`，逐项审查职责边界、协议安全、最小接口、provider/backend 扩展、无兼容债、依赖方向、安全裁决与 SemVer 冻结规则；结论为通过，`core/v1.0.0` tag 尚未创建。
-  - 经 tag 前 ADR-017 至 ADR-019 精修，冻结规模为 11 个公共 package、341 条 exported API、49 项 JSON DTO、17 个 wire root 和 487 行 golden；Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
+  - 经 tag 前 ADR-017 至 ADR-019 及 Filter ADR-010 修订，冻结规模为 11 个公共 package、330 条 exported API、49 项 JSON DTO、17 个 wire root 和 487 行 golden；Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
   - `783df3ee9`、`229e06c8e`、`04a37a9fe` 完成第一轮 tag 前协议收口；`3f7af1a3a`、`3938d179f` 完成 Embedding Client 外移与远端 pseudo-version DAG 闭合。21/21 module 在 `GOWORK=off` 下独立 test/vet/tidy-diff 通过且不再解析旧依赖基线。
   - `FAST=1 scripts/check.sh build vet test lint race` 的 105/105 项、`scripts/check.sh vuln` 的 21/21 module、逐包 coverage 和 provider/27 backend conformance 全部通过；P7-05 的 7 个五分钟 fuzz target 累计 609,846,214 次且无失败语料。tag 前精修只重跑 `FUZZ_TIME=0` 的确定性 release gate，按维护者要求不再重复模糊测试。
 
@@ -1149,10 +1150,10 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 ### ADR-010：Filter 公共树只表达语义，不表达编译过程
 
-- 日期：2026-07-14
+- 日期：2026-07-14；2026-07-15 修订
 - 状态：已采纳
-- 决策：公开 `Expr` 使用 token-free 稳定节点与语义 `Operator`；`Parse` 拥有 parse + validate + simplify 完整入口，手工构造树使用 `Validate`；lexer/parser/token/analyzer/optimizer 和内部 AST 位于 `internal`，根树与内部树通过显式转换而非 alias 连接。
-- 原因：provider 只需要翻译查询语义，不应依赖词法 token、parser 状态或 optimizer visitor；显式边界允许内部编译器独立演进，并让公开类型不会因实现重构扩散破坏。
+- 决策：公开 AST 使用 token-free 稳定节点与语义 `Operator`；`Predicate` 限定可执行根，`Selector` 限定完整 metadata 路径。`Parse` 由同包私有 scanner/token/递归下降 parser 直接构造这唯一一份 AST，随后 `Validate`，不做隐式代数化改写。公开 `Visitor` 只约束“处理一棵完整 Predicate 并返回首错”，遍历顺序和目标状态由 compiler/interpreter 自己拥有。
+- 原因：provider 只需要查询语义，不应依赖词法 token 或 parser 状态；第二套 internal AST 与显式转换没有形成稳定边界，只制造同步成本和单元素 IN/path 等漂移。保留一棵树、私有前端与小 Visitor 契约，让 parser 可独立替换而不会复制语义模型，也允许 SQL/JSON/SDK compiler 按各自输出顺序递归。
 
 ### ADR-011：Embedding 维度是可选能力，探测是调用方显式操作
 
@@ -1193,7 +1194,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 - 日期：2026-07-15
 - 状态：已采纳（最终架构审查）
-- 决策：经 ADR-017 至 ADR-019 修订后冻结 11 个公共 package、341 条 exported API、49 项 JSON DTO、17 个代表性 wire root 与 487 行 golden；序列化 DTO 禁止任意 `any`/`interface{}` 字段、Request `Params` 与原始 SDK payload，扩展值必须经 `metadata.Map` 写入时编码，所有 modality 请求在 provider 边界前验证。Core 保持标准库-only，不恢复旧路径、旧 wire、alias、bridge、shim、兼容字段或双读写。
+- 决策：经 ADR-017 至 ADR-019 和 tag 前 Filter ADR-010 修订后冻结 11 个公共 package、330 条 exported API、49 项 JSON DTO、17 个代表性 wire root 与 487 行 golden；序列化 DTO 禁止任意 `any`/`interface{}` 字段、Request `Params` 与原始 SDK payload，扩展值必须经 `metadata.Map` 写入时编码，所有 modality 请求在 provider 边界前验证。Core 保持标准库-only，不恢复旧路径、旧 wire、alias、bridge、shim、兼容字段或双读写。
 - 原因：这组契约已经由真实 provider/backend、21 个独立 module 与完整 release gate 证明可实现、可消费、可序列化；继续保留 Spring AI 移植期动态参数袋或运行时职责只会扩大稳定 API 和依赖半径。显式 baseline 与 SemVer 裁决比兼容壳更适合 Go 库长期演进。
 
 ### ADR-017：Metadata 合并由值对象 receiver 统一承担

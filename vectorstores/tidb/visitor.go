@@ -19,6 +19,8 @@ import (
 //	author == "Alice"        →  JSON_VALUE(metadata, '$.author') = ?
 //	year >= 2020             →  CAST(JSON_VALUE(metadata, '$.year') AS DOUBLE) >= ?
 //	tag IN ("a", "b")        →  JSON_VALUE(metadata, '$.tag') IN (?, ?)
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err            error
 	sql            strings.Builder
@@ -40,7 +42,7 @@ func (v *Visitor) Result() (string, []any) {
 	return v.sql.String(), v.args
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -202,7 +204,7 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 
 func (v *Visitor) appendJSONExtraction(jsonPath string, value any, op filter.Operator) {
 	switch value.(type) {
-	case float64, int64, int:
+	case float64, int64, uint64, int:
 		v.sql.WriteString("CAST(JSON_VALUE(")
 		v.sql.WriteString(v.metadataColumn)
 		v.sql.WriteString(", ")

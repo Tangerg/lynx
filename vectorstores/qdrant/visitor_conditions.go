@@ -2,7 +2,6 @@ package qdrant
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/qdrant/go-client/qdrant"
@@ -395,22 +394,11 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	currentExpr := expr
 	for {
-		// Extract the index value (the part in brackets)
-		if err := v.visitLiteral(currentExpr.Index); err != nil {
+		key, err := filterhelp.LiteralAsKey(currentExpr.Index)
+		if err != nil {
 			return "", err
 		}
-
-		indexVal := v.currentFieldValue
-		switch v := indexVal.(type) {
-		case string:
-			// String index: prepend to path parts
-			pathParts = append([]string{v}, pathParts...)
-		case float64:
-			// Numeric index: convert to string and prepend
-			pathParts = append([]string{strconv.Itoa(int(v))}, pathParts...)
-		default:
-			return "", fmt.Errorf("invalid index type %T, expected string or number", indexVal)
-		}
+		pathParts = append([]string{key}, pathParts...)
 
 		switch leftNode := currentExpr.Left.(type) {
 		case *filter.IndexExpr:
@@ -507,7 +495,7 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 // Returns:
 //   - *qdrant.Filter: The converted filter ready for use with Qdrant client
 //   - error: Conversion error if the expression contains unsupported operations or syntax errors
-func ToFilter(expr filter.Expr) (*qdrant.Filter, error) {
+func ToFilter(expr filter.Predicate) (*qdrant.Filter, error) {
 	conv := NewVisitor()
 	if err := conv.Visit(expr); err != nil {
 		return nil, err

@@ -161,7 +161,8 @@ func RequireStringPatternOnRight(expr *filter.BinaryExpr) (string, error) {
 // first element's kind:
 //
 //   - string literals → []string
-//   - number literals → []float64
+//   - integer literals → []int64 or []uint64
+//   - decimal literals → []float64
 //   - boolean literals → []bool
 //
 // The element-type slice is returned as any (so the caller can hand it
@@ -175,6 +176,9 @@ func ConvertListLiteral(list *filter.ListLiteral) (slice any, sample any, err er
 		return nil, nil, errors.New("filter: empty list literal")
 	}
 	first := list.Values[0]
+	if first == nil {
+		return nil, nil, errors.New("filter: list element 0 is nil")
+	}
 	switch {
 	case first.IsString():
 		out := make([]string, 0, len(list.Values))
@@ -187,15 +191,7 @@ func ConvertListLiteral(list *filter.ListLiteral) (slice any, sample any, err er
 		}
 		return out, out[0], nil
 	case first.IsNumber():
-		out := make([]float64, 0, len(list.Values))
-		for _, lit := range list.Values {
-			n, err := lit.AsNumber()
-			if err != nil {
-				return nil, nil, err
-			}
-			out = append(out, n)
-		}
-		return out, out[0], nil
+		return convertNumberList(list.Values)
 	case first.IsBool():
 		out := make([]bool, 0, len(list.Values))
 		for _, lit := range list.Values {
@@ -210,4 +206,67 @@ func ConvertListLiteral(list *filter.ListLiteral) (slice any, sample any, err er
 		return nil, nil, fmt.Errorf("filter: unsupported list element kind %s",
 			first.Kind)
 	}
+}
+
+func convertNumberList(literals []*filter.Literal) (slice any, sample any, err error) {
+	values := make([]any, 0, len(literals))
+	hasFloat := false
+	hasUint := false
+	for _, literal := range literals {
+		value, err := numberValue(literal)
+		if err != nil {
+			return nil, nil, err
+		}
+		values = append(values, value)
+		switch value.(type) {
+		case float64:
+			hasFloat = true
+		case uint64:
+			hasUint = true
+		}
+	}
+
+	if hasFloat {
+		const maxExactFloatInteger = int64(1 << 53)
+		out := make([]float64, 0, len(values))
+		for _, value := range values {
+			switch number := value.(type) {
+			case int64:
+				if number < -maxExactFloatInteger || number > maxExactFloatInteger {
+					return nil, nil, fmt.Errorf("filter: integer %d loses precision in a decimal list", number)
+				}
+				out = append(out, float64(number))
+			case uint64:
+				if number > uint64(maxExactFloatInteger) {
+					return nil, nil, fmt.Errorf("filter: integer %d loses precision in a decimal list", number)
+				}
+				out = append(out, float64(number))
+			case float64:
+				out = append(out, number)
+			}
+		}
+		return out, out[0], nil
+	}
+
+	if hasUint {
+		out := make([]uint64, 0, len(values))
+		for _, value := range values {
+			switch number := value.(type) {
+			case int64:
+				if number < 0 {
+					return nil, nil, fmt.Errorf("filter: numeric list spans signed and unsigned integer ranges")
+				}
+				out = append(out, uint64(number))
+			case uint64:
+				out = append(out, number)
+			}
+		}
+		return out, out[0], nil
+	}
+
+	out := make([]int64, 0, len(values))
+	for _, value := range values {
+		out = append(out, value.(int64))
+	}
+	return out, out[0], nil
 }

@@ -434,7 +434,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 }
 
 // Delete removes documents matching the filter via DELETE.
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
@@ -488,7 +488,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 }
 
 // buildFilter wraps the visitor.
-func (s *Store) buildFilter(expr filter.Expr) (string, error) {
+func (s *Store) buildFilter(expr filter.Predicate) (string, error) {
 	if expr == nil {
 		return "", nil
 	}

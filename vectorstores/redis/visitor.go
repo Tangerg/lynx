@@ -30,6 +30,8 @@ import (
 // Field types come from [Store.fields] — keyed by metadata-field name —
 // so the same operator dispatches to TAG / NUMERIC / TEXT syntax
 // depending on the declared field kind.
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err    error
 	sql    strings.Builder
@@ -47,7 +49,7 @@ func (v *Visitor) Result() string {
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -275,14 +277,12 @@ func (v *Visitor) resolveFieldKey(expr filter.Expr) (string, MetadataFieldType, 
 	return field, kind, nil
 }
 
-// flattenIndexExpr collapses an [filter.IndexExpr] into a dotted path —
-// e.g. metadata["a"]["b"] → ["a", "b"]. The base identifier
-// ("metadata") is stripped so callers only see the inner key path.
+// flattenIndexExpr collapses an [filter.IndexExpr] into a dotted path.
 func flattenIndexExpr(expr *filter.IndexExpr) ([]string, error) {
 	var keys []string
 	current := expr
 	for {
-		key, err := literalToString(current.Index)
+		key, err := filterhelp.LiteralAsKey(current.Index)
 		if err != nil {
 			return nil, err
 		}
@@ -292,8 +292,7 @@ func flattenIndexExpr(expr *filter.IndexExpr) ([]string, error) {
 		case *filter.IndexExpr:
 			current = inner
 		case *filter.Ident:
-			// Drop the base identifier — it's the field namespace
-			// (often "metadata") rather than a key in the path.
+			keys = append([]string{inner.Value}, keys...)
 			return keys, nil
 		default:
 			return nil, fmt.Errorf("redis: unsupported index base %T", inner)

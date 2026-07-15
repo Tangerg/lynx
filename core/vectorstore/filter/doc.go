@@ -1,12 +1,11 @@
 // Package filter defines the stable metadata-filter expression vocabulary used
 // by vector stores.
 //
-// Callers can build expressions with typed constructors such as [EQ], [GE],
-// [In], [And], and [Not], use [ExprBuilder] for dynamic AND-by-default
-// composition, or parse and validate the textual DSL with [Parse].
-// The returned [Expr] tree contains only semantic nodes ([Ident], [Literal],
+// Callers can build predicates with typed constructors such as [EQ], [GE],
+// [In], [And], and [Not], or parse and validate the textual DSL with [Parse].
+// The returned [Predicate] tree contains only semantic nodes ([Ident], [Literal],
 // [ListLiteral], [UnaryExpr], [BinaryExpr], and [IndexExpr]); lexer tokens,
-// parser state, and optimization machinery are internal implementation details.
+// scanner state, and parser state are unexported implementation details.
 //
 // Example:
 //
@@ -18,5 +17,6 @@
 //		return err
 //	}
 //
-// [Parse] validates and simplifies the tree before a provider translates it.
+// [Parse] validates the tree before a provider translates it. Provider
+// compilers and interpreters can share the complete-tree [Visitor] contract.
 package filter

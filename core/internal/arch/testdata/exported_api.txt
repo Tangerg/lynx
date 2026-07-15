@@ -242,20 +242,8 @@ vectorstore/filter: const ( LiteralString LiteralKind = "string" LiteralNumber L
 vectorstore/filter: const ( OpEqual Operator = "==" OpNotEqual Operator = "!=" OpLess Operator = "<" OpLessEqual Operator = "<=" OpGreater Operator = ">" OpGreaterEqual Operator = ">=" OpAnd Operator = "and" OpOr Operator = "or" OpNot Operator = "not" OpIn Operator = "in" OpLike Operator = "like" OpIs Operator = "is" )
 vectorstore/filter: func (b *BinaryExpr) End() Position
 vectorstore/filter: func (b *BinaryExpr) Equal(other Expr) bool
-vectorstore/filter: func (b *BinaryExpr) Precedence() int
 vectorstore/filter: func (b *BinaryExpr) Start() Position
-vectorstore/filter: func (b *ExprBuilder) And(fn func(*ExprBuilder)) *ExprBuilder
-vectorstore/filter: func (b *ExprBuilder) Build() (Expr, error)
-vectorstore/filter: func (b *ExprBuilder) EQ(l, r any) *ExprBuilder
-vectorstore/filter: func (b *ExprBuilder) GE(l, r any) *ExprBuilder
-vectorstore/filter: func (b *ExprBuilder) GT(l, r any) *ExprBuilder
-vectorstore/filter: func (b *ExprBuilder) In(l, r any) *ExprBuilder
-vectorstore/filter: func (b *ExprBuilder) LE(l, r any) *ExprBuilder
-vectorstore/filter: func (b *ExprBuilder) LT(l, r any) *ExprBuilder
-vectorstore/filter: func (b *ExprBuilder) Like(l, r any) *ExprBuilder
-vectorstore/filter: func (b *ExprBuilder) NE(l, r any) *ExprBuilder
-vectorstore/filter: func (b *ExprBuilder) Not(fn func(*ExprBuilder)) *ExprBuilder
-vectorstore/filter: func (b *ExprBuilder) Or(fn func(*ExprBuilder)) *ExprBuilder
+vectorstore/filter: func (e *SyntaxError) Error() string
 vectorstore/filter: func (i *Ident) End() Position
 vectorstore/filter: func (i *Ident) Equal(other Expr) bool
 vectorstore/filter: func (i *Ident) Start() Position
@@ -286,14 +274,12 @@ vectorstore/filter: func (o Operator) IsNullOperator() bool
 vectorstore/filter: func (o Operator) IsOrderingOperator() bool
 vectorstore/filter: func (o Operator) IsUnaryOperator() bool
 vectorstore/filter: func (o Operator) Name() string
-vectorstore/filter: func (o Operator) Precedence() int
 vectorstore/filter: func (o Operator) String() string
 vectorstore/filter: func (p Position) String() string
 vectorstore/filter: func (u *UnaryExpr) End() Position
 vectorstore/filter: func (u *UnaryExpr) Equal(other Expr) bool
-vectorstore/filter: func (u *UnaryExpr) Precedence() int
 vectorstore/filter: func (u *UnaryExpr) Start() Position
-vectorstore/filter: func And[L ComputedExpr, R ComputedExpr](l L, r R) *BinaryExpr
+vectorstore/filter: func And[L Predicate, R Predicate](l L, r R) *BinaryExpr
 vectorstore/filter: func EQ[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
 vectorstore/filter: func GE[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
 vectorstore/filter: func GT[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
@@ -305,23 +291,19 @@ vectorstore/filter: func LE[L IdentifierValue | *IndexExpr, R Number | *Literal]
 vectorstore/filter: func LT[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
 vectorstore/filter: func Like[L IdentifierValue | *IndexExpr, R string | *Literal](l L, r R) *BinaryExpr
 vectorstore/filter: func NE[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
-vectorstore/filter: func NewExprBuilder() *ExprBuilder
 vectorstore/filter: func NewIdent[T IdentifierValue](value T) *Ident
 vectorstore/filter: func NewListLiteral[T ListValue](value T) *ListLiteral
 vectorstore/filter: func NewLiteral[T LiteralValue](value T) *Literal
 vectorstore/filter: func NewLiterals[T LiteralValue](values []T) []*Literal
-vectorstore/filter: func Not[T ComputedExpr](r T) *UnaryExpr
-vectorstore/filter: func Or[L ComputedExpr, R ComputedExpr](l L, r R) *BinaryExpr
-vectorstore/filter: func Parse(input string) (Expr, error)
-vectorstore/filter: func Validate(expr Expr) error
-vectorstore/filter: type AtomicExpr interface { Expr atomicExpr() }
+vectorstore/filter: func Not[T Predicate](r T) *UnaryExpr
+vectorstore/filter: func Or[L Predicate, R Predicate](l L, r R) *BinaryExpr
+vectorstore/filter: func Parse(input string) (Predicate, error)
+vectorstore/filter: func Validate(expr Predicate) error
 vectorstore/filter: type BinaryExpr struct { Left Expr Op Operator Right Expr start Position end Position }
-vectorstore/filter: type ComputedExpr interface { Expr computedExpr() }
 vectorstore/filter: type Expr interface { Start() Position End() Position Equal(Expr) bool expr() }
-vectorstore/filter: type ExprBuilder struct { err error expr ComputedExpr }
 vectorstore/filter: type Ident struct { Value string start Position end Position }
 vectorstore/filter: type IdentifierValue interface { string | *Ident }
-vectorstore/filter: type IndexExpr struct { Left Expr Index *Literal start Position end Position }
+vectorstore/filter: type IndexExpr struct { Left Selector Index *Literal start Position end Position }
 vectorstore/filter: type ListLiteral struct { Values []*Literal start Position end Position }
 vectorstore/filter: type ListValue interface { []int | []int8 | []int16 | []int32 | []int64 | []uint | []uint8 | []uint16 | []uint32 | []uint64 | []float32 | []float64 | []string | []bool | []*Literal | *ListLiteral }
 vectorstore/filter: type Literal struct { Kind LiteralKind Value string start Position end Position }
@@ -330,15 +312,19 @@ vectorstore/filter: type LiteralValue interface { Number | string | bool | *Lite
 vectorstore/filter: type Number interface { ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~float32 | ~float64 }
 vectorstore/filter: type Operator string
 vectorstore/filter: type Position struct { Line int Column int }
-vectorstore/filter: type UnaryExpr struct { Op Operator Right ComputedExpr start Position end Position }
+vectorstore/filter: type Predicate interface { Expr predicate() }
+vectorstore/filter: type Selector interface { Expr selector() }
+vectorstore/filter: type SyntaxError struct { Position Position Token string Message string }
+vectorstore/filter: type UnaryExpr struct { Op Operator Right Predicate start Position end Position }
+vectorstore/filter: type Visitor interface { Visit(Predicate) error }
 vectorstore: const ( DefaultTopK = 5 MinSimilarityScore = 0.0 MaxSimilarityScore = 1.0 AcceptAllScores = MinSimilarityScore )
 vectorstore: func (r SearchRequest) Validate() error
 vectorstore: func (w writeFunc) Write(ctx context.Context, docs []*document.Document) error
 vectorstore: func NewDocumentWriter(indexer Indexer) document.Writer
-vectorstore: type FilterDeleter interface { DeleteWhere(ctx context.Context, expr filter.Expr) error }
+vectorstore: type FilterDeleter interface { DeleteWhere(ctx context.Context, predicate filter.Predicate) error }
 vectorstore: type IDDeleter interface { DeleteIDs(ctx context.Context, ids []string) error }
 vectorstore: type Indexer interface { Add(ctx context.Context, docs []*document.Document) error }
 vectorstore: type Match struct { Document *document.Document `json:"document"` Score float64 `json:"score"` }
-vectorstore: type SearchRequest struct { Query string `json:"query,omitempty"` TopK int `json:"top_k,omitempty"` MinScore float64 `json:"min_score,omitempty"` Filter filter.Expr `json:"-"` }
+vectorstore: type SearchRequest struct { Query string `json:"query,omitempty"` TopK int `json:"top_k,omitempty"` MinScore float64 `json:"min_score,omitempty"` Filter filter.Predicate `json:"-"` }
 vectorstore: type Searcher interface { Search(ctx context.Context, request SearchRequest) ([]Match, error) }
 vectorstore: var ( ErrEmptyDocuments = errors.New("vectorstore: documents must not be empty") ErrMissingFilter = errors.New("vectorstore: filter is required") )

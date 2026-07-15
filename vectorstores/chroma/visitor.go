@@ -3,7 +3,6 @@ package chroma
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	v2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
@@ -29,12 +28,14 @@ import (
 //
 // Field path conventions:
 //   - Simple identifiers are used as-is: "author" → "author"
-//   - Indexed expressions strip the base identifier: metadata["author"] → "author"
-//   - Nested indexed expressions join inner keys with dots: metadata["a"]["b"] → "a.b"
+//   - Indexed expressions retain their complete dotted path.
+//   - Nested indexed expressions join all segments with dots: profile["a"]["b"] → "profile.a.b"
 //
 // Numeric handling:
 //   - Whole-number float64 literals are treated as int for Chroma's typed API
 //   - Fractional values are cast to float32
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err               error          // last error encountered during conversion
 	result            v2.WhereClause // the Chroma filter clause being built
@@ -53,7 +54,7 @@ func (v *Visitor) Result() v2.WhereClause {
 	return v.result
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -150,8 +151,8 @@ func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
 }
 
 // visitIndexExpr builds a field key from an indexed expression and stores it.
-// metadata["author"]      → "author"
-// metadata["a"]["b"]      → "a.b"
+// profile["author"]      → "profile.author"
+// profile["a"]["b"]      → "profile.a.b"
 func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
 	fieldKey, err := v.buildIndexedFieldKey(expr)
 	if err != nil {
@@ -440,38 +441,30 @@ func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	return extracted, nil
 }
 
-// buildIndexedFieldKey constructs a dot-separated field key from an IndexExpr,
-// stripping the base identifier (e.g. "metadata") so that only the inner key
-// path is returned. This matches Chroma's flat metadata key space.
+// buildIndexedFieldKey constructs a complete dot-separated field key from an
+// IndexExpr. Chroma's flat metadata key space represents nested selectors by
+// joining every segment, including the base identifier.
 //
 // Examples:
 //
-//	metadata["author"]   → "author"
-//	metadata["a"]["b"]   → "a.b"
+//	profile["author"]   → "profile.author"
+//	profile["a"]["b"]   → "profile.a.b"
 func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	var pathParts []string
 
 	current := expr
 	for {
-		if err := v.visitLiteral(current.Index); err != nil {
-			return "", err
+		key, err := filterhelp.LiteralAsKey(current.Index)
+		if err != nil {
+			return "", fmt.Errorf("chroma: %w", err)
 		}
-
-		switch val := v.currentFieldValue.(type) {
-		case string:
-			pathParts = append([]string{val}, pathParts...)
-		case float64:
-			pathParts = append([]string{strconv.Itoa(int(val))}, pathParts...)
-		default:
-			return "", fmt.Errorf("chroma: invalid index type %T, expected string or number", v.currentFieldValue)
-		}
+		pathParts = append([]string{key}, pathParts...)
 
 		switch left := current.Left.(type) {
 		case *filter.IndexExpr:
 			current = left
 		case *filter.Ident:
-			// Strip the base identifier (e.g. "metadata") — Chroma metadata
-			// keys are flat, so only the inner path is needed.
+			pathParts = append([]string{left.Value}, pathParts...)
 			return strings.Join(pathParts, "."), nil
 		default:
 			return "", fmt.Errorf("chroma: invalid left operand type %T in index expression", left)
@@ -508,7 +501,7 @@ func toInt(f float64) (int, bool) {
 // Returns (nil, nil) when expr is nil (no filter applied).
 // The returned WhereClause satisfies the v2.WhereFilter interface required by
 // v2.WithWhere.
-func ToFilter(expr filter.Expr) (v2.WhereClause, error) {
+func ToFilter(expr filter.Predicate) (v2.WhereClause, error) {
 	if expr == nil {
 		return nil, nil
 	}

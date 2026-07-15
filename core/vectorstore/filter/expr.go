@@ -2,7 +2,7 @@ package filter
 
 import (
 	"fmt"
-	"reflect"
+	"math"
 	"strconv"
 )
 
@@ -27,25 +27,48 @@ type Expr interface {
 	expr()
 }
 
-// AtomicExpr is a leaf expression.
-type AtomicExpr interface {
+// Selector identifies a metadata value. Ident selects a top-level field;
+// IndexExpr selects a nested field or array element.
+type Selector interface {
 	Expr
-	atomicExpr()
+	selector()
 }
 
-// ComputedExpr evaluates to a boolean or indexed value.
-type ComputedExpr interface {
+// Predicate is a boolean expression accepted by vector-store filters.
+type Predicate interface {
 	Expr
-	computedExpr()
+	predicate()
 }
 
 func equalExpr(left, right Expr) bool {
-	leftNil := left == nil || reflect.ValueOf(left).IsNil()
-	rightNil := right == nil || reflect.ValueOf(right).IsNil()
+	leftNil := isNilExpr(left)
+	rightNil := isNilExpr(right)
 	if leftNil || rightNil {
 		return leftNil && rightNil
 	}
 	return left.Equal(right)
+}
+
+func isNilExpr(expr Expr) bool {
+	if expr == nil {
+		return true
+	}
+	switch node := expr.(type) {
+	case *Ident:
+		return node == nil
+	case *Literal:
+		return node == nil
+	case *ListLiteral:
+		return node == nil
+	case *UnaryExpr:
+		return node == nil
+	case *BinaryExpr:
+		return node == nil
+	case *IndexExpr:
+		return node == nil
+	default:
+		return false
+	}
 }
 
 // Ident names a metadata field.
@@ -55,8 +78,8 @@ type Ident struct {
 	end   Position
 }
 
-func (*Ident) expr()       {}
-func (*Ident) atomicExpr() {}
+func (*Ident) expr()     {}
+func (*Ident) selector() {}
 func (i *Ident) Start() Position {
 	if i == nil {
 		return Position{}
@@ -93,8 +116,7 @@ type Literal struct {
 	end   Position
 }
 
-func (*Literal) expr()       {}
-func (*Literal) atomicExpr() {}
+func (*Literal) expr() {}
 func (l *Literal) Start() Position {
 	if l == nil {
 		return Position{}
@@ -116,12 +138,18 @@ func (l *Literal) IsNumber() bool { return l != nil && l.Kind == LiteralNumber }
 func (l *Literal) IsBool() bool   { return l != nil && l.Kind == LiteralBool }
 func (l *Literal) IsNull() bool   { return l != nil && l.Kind == LiteralNull }
 func (l *Literal) AsString() (string, error) {
+	if l == nil {
+		return "", fmt.Errorf("filter.Literal.AsString: literal is nil")
+	}
 	if !l.IsString() {
 		return "", fmt.Errorf("filter.Literal.AsString: expected string, got %s", l.Kind)
 	}
 	return l.Value, nil
 }
 func (l *Literal) AsNumber() (float64, error) {
+	if l == nil {
+		return 0, fmt.Errorf("filter.Literal.AsNumber: literal is nil")
+	}
 	if !l.IsNumber() {
 		return 0, fmt.Errorf("filter.Literal.AsNumber: expected number, got %s", l.Kind)
 	}
@@ -129,9 +157,15 @@ func (l *Literal) AsNumber() (float64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("filter.Literal.AsNumber: parse %q: %w", l.Value, err)
 	}
+	if math.IsNaN(n) || math.IsInf(n, 0) {
+		return 0, fmt.Errorf("filter.Literal.AsNumber: %q is not finite", l.Value)
+	}
 	return n, nil
 }
 func (l *Literal) AsBool() (bool, error) {
+	if l == nil {
+		return false, fmt.Errorf("filter.Literal.AsBool: literal is nil")
+	}
 	if !l.IsBool() {
 		return false, fmt.Errorf("filter.Literal.AsBool: expected bool, got %s", l.Kind)
 	}
@@ -152,8 +186,7 @@ type ListLiteral struct {
 	end    Position
 }
 
-func (*ListLiteral) expr()       {}
-func (*ListLiteral) atomicExpr() {}
+func (*ListLiteral) expr() {}
 func (l *ListLiteral) Start() Position {
 	if l == nil {
 		return Position{}
@@ -172,23 +205,23 @@ func (l *ListLiteral) Equal(other Expr) bool {
 		return false
 	}
 	for i := range l.Values {
-		if !l.Values[i].Equal(o.Values[i]) {
+		if !equalExpr(l.Values[i], o.Values[i]) {
 			return false
 		}
 	}
 	return true
 }
 
-// UnaryExpr applies an operator to one computed expression.
+// UnaryExpr negates one predicate.
 type UnaryExpr struct {
 	Op    Operator
-	Right ComputedExpr
+	Right Predicate
 	start Position
 	end   Position
 }
 
-func (*UnaryExpr) expr()         {}
-func (*UnaryExpr) computedExpr() {}
+func (*UnaryExpr) expr()      {}
+func (*UnaryExpr) predicate() {}
 func (u *UnaryExpr) Start() Position {
 	if u == nil {
 		return Position{}
@@ -211,7 +244,6 @@ func (u *UnaryExpr) Equal(other Expr) bool {
 	o, ok := other.(*UnaryExpr)
 	return ok && u != nil && o != nil && u.Op == o.Op && equalExpr(u.Right, o.Right)
 }
-func (u *UnaryExpr) Precedence() int { return u.Op.Precedence() }
 
 // BinaryExpr combines two expressions with a comparison, logical, matching,
 // or null-test operator.
@@ -223,8 +255,8 @@ type BinaryExpr struct {
 	end   Position
 }
 
-func (*BinaryExpr) expr()         {}
-func (*BinaryExpr) computedExpr() {}
+func (*BinaryExpr) expr()      {}
+func (*BinaryExpr) predicate() {}
 func (b *BinaryExpr) Start() Position {
 	if b == nil {
 		return Position{}
@@ -253,18 +285,17 @@ func (b *BinaryExpr) Equal(other Expr) bool {
 	o, ok := other.(*BinaryExpr)
 	return ok && b != nil && o != nil && b.Op == o.Op && equalExpr(b.Left, o.Left) && equalExpr(b.Right, o.Right)
 }
-func (b *BinaryExpr) Precedence() int { return b.Op.Precedence() }
 
 // IndexExpr selects an array element or map key from another field/index.
 type IndexExpr struct {
-	Left  Expr
+	Left  Selector
 	Index *Literal
 	start Position
 	end   Position
 }
 
-func (*IndexExpr) expr()         {}
-func (*IndexExpr) computedExpr() {}
+func (*IndexExpr) expr()     {}
+func (*IndexExpr) selector() {}
 func (i *IndexExpr) Start() Position {
 	if i == nil {
 		return Position{}

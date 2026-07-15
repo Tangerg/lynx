@@ -472,7 +472,7 @@ func (s *Store) scanDestToMatch(dest []any, minScore float64) (*vectorstore.Matc
 // equality clause; the SAI path supports it only via secondary
 // indexes. To stay portable, matching primary keys are looked up first,
 // then issue per-row DELETEs.
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
@@ -546,7 +546,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	return nil
 }
 
-func (s *Store) buildFilter(filter filter.Expr) (string, []any, error) {
+func (s *Store) buildFilter(filter filter.Predicate) (string, []any, error) {
 	if filter == nil {
 		return "", nil, nil
 	}
