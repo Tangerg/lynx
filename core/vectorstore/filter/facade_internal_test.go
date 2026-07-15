@@ -1,16 +1,20 @@
 package filter
 
 import (
+	"errors"
 	"testing"
 )
 
 type recordingVisitor struct {
 	visited Predicate
+	err     error
+	visits  int
 }
 
 func (v *recordingVisitor) Visit(predicate Predicate) error {
+	v.visits++
 	v.visited = predicate
-	return nil
+	return v.err
 }
 
 var _ Visitor = (*recordingVisitor)(nil)
@@ -72,6 +76,46 @@ func TestVisitorProcessesCompletePredicate(t *testing.T) {
 	}
 	if visitor.visited != predicate {
 		t.Fatalf("visited = %T, want original predicate", visitor.visited)
+	}
+}
+
+func TestVisitDispatchesInOrderAndStopsAtFirstError(t *testing.T) {
+	predicate := EQ("status", "active")
+	wantErr := errors.New("stop")
+	first := &recordingVisitor{}
+	second := &recordingVisitor{err: wantErr}
+	third := &recordingVisitor{}
+
+	if err := Visit(predicate, first, second, third); err != wantErr {
+		t.Fatalf("Visit() error = %v, want %v", err, wantErr)
+	}
+	if first.visits != 1 || second.visits != 1 || third.visits != 0 {
+		t.Fatalf("visitor calls = [%d %d %d], want [1 1 0]", first.visits, second.visits, third.visits)
+	}
+	if first.visited != predicate || second.visited != predicate {
+		t.Fatal("Visit did not pass the original predicate to each visitor")
+	}
+}
+
+func TestVisitRejectsInvalidInputsBeforeDispatch(t *testing.T) {
+	visitor := &recordingVisitor{}
+	if err := Visit(&BinaryExpr{}, visitor); err == nil {
+		t.Fatal("Visit accepted an invalid predicate")
+	}
+	if visitor.visits != 0 {
+		t.Fatal("Visit dispatched an invalid predicate")
+	}
+
+	predicate := EQ("status", "active")
+	if err := Visit(predicate, visitor, nil); err == nil {
+		t.Fatal("Visit accepted a nil visitor")
+	}
+	var nilVisitor *recordingVisitor
+	if err := Visit(predicate, visitor, nilVisitor); err == nil {
+		t.Fatal("Visit accepted a typed nil visitor")
+	}
+	if visitor.visits != 0 {
+		t.Fatal("Visit dispatched before rejecting a nil visitor")
 	}
 }
 

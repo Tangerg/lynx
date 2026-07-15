@@ -847,7 +847,7 @@ flowchart LR
 目标：把重构后的 Core 边界转化为可长期维护的 v1 库契约；`chatclient` 等上层模块只验证兼容性，不在本计划中冻结为 v1。
 
 - [x] **P7-01 建立 exported API diff 守卫**（完成：2026-07-14）
-  - `core/internal/arch/testdata/exported_api.txt` 经 tag 前 Filter 精修后冻结当前 11 个公共 package 的 330 条导出声明/方法签名；function body 与注释不进入基线，包含 exported 名称的 const/var 声明组整体记录以保留 iota 顺序和隐式类型变化。
+  - `core/internal/arch/testdata/exported_api.txt` 经 tag 前 Filter 精修及 P8-04 Visitor 组合入口确认后，冻结当前 11 个公共 package 的 331 行导出 API 快照；function body 与注释不进入基线，包含 exported 名称的 const/var 声明组整体记录以保留 iota 顺序和隐式类型变化。
   - 普通 Core test 默认比较基线并输出增删 delta；只有完成 API 评审、迁移/release notes 与版本裁决后才允许显式 `-update-api` 重建。
   - CI workspace matrix 随后续职责外移更新为实际 21 module，并为 Core 增加不可忽略的 blocking API guard step；本地 Core test/vet/lint 与独立 guard 全绿。
   - 证据：`395913f00`。
@@ -874,12 +874,12 @@ flowchart LR
   - 升级后 `FAST=1 scripts/check.sh build vet test lint` 对 20 module 的 80/80 项检查全绿，Core 全量 race 复验通过；证据：`e5c94d25e`。
 - [x] **P7-06 编写 Core 破坏性变更迁移说明、dependent module 发布顺序和 release notes**（完成：2026-07-15）
   - `CORE_V1_MIGRATION.md` 按旧路径、职责、调用语义和持久化数据四个维度给出直接切换指南；明确旧类型只能由升级前二进制一次性导出转换，新库不增加 alias、shim、双读或旧 decoder。
-  - `CORE_V1_RELEASE_NOTES.md` 记录 11 个 v1 公共 package、330 条冻结 API、主要破坏面、wire 承诺、自动门禁、Go 1.26.5 与 Ollama 无修复版本风险。
+  - `CORE_V1_RELEASE_NOTES.md` 记录 11 个 v1 公共 package、331 行冻结 API 快照、主要破坏面、wire 承诺、自动门禁、Go 1.26.5 与 Ollama 无修复版本风险。
   - `CORE_V1_RELEASE_RUNBOOK.md` 从当前 `go.mod` 重建真实 module DAG，规定 Core/基础模块、直接 adapter、组合模块、协议桥、Agent、App 六个发布波次，并将 `embeddingclient` 置于 Core 之后、VectorStores 之前；子 module tag 为 `core/v1.0.0` 且 P7-07 前不得创建。
   - 三份文档加入文档地图，Core API/wire/docs/dependency CI 等价架构门禁通过；证据：`0b7c70ec5`。
 - [x] **P7-07 完成最终架构审查并冻结 Core v1 契约**（完成：2026-07-15）
   - 新增 `CORE_V1_ARCHITECTURE_REVIEW.md`，逐项审查职责边界、协议安全、最小接口、provider/backend 扩展、无兼容债、依赖方向、安全裁决与 SemVer 冻结规则；结论为通过，`core/v1.0.0` tag 尚未创建。
-  - 经 tag 前 ADR-017 至 ADR-019 及 Filter ADR-010 修订，冻结规模为 11 个公共 package、330 条 exported API、49 项 JSON DTO、17 个 wire root 和 487 行 golden；Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
+  - 经 tag 前 ADR-017 至 ADR-019、Filter ADR-010 及 ADR-022 修订，冻结规模为 11 个公共 package、331 行 exported API 快照、49 项 JSON DTO、17 个 wire root 和 487 行 golden；Core 生产依赖为标准库-only，旧 package、旧 wire decoder、alias/bridge/shim、兼容字段与双轨读写均为零。
   - `783df3ee9`、`229e06c8e`、`04a37a9fe` 完成第一轮 tag 前协议收口；`3f7af1a3a`、`3938d179f` 完成 Embedding Client 外移与远端 pseudo-version DAG 闭合。21/21 module 在 `GOWORK=off` 下独立 test/vet/tidy-diff 通过且不再解析旧依赖基线。
   - `FAST=1 scripts/check.sh build vet test lint race` 的 105/105 项、`scripts/check.sh vuln` 的 21/21 module、逐包 coverage 和 provider/27 backend conformance 全部通过；P7-05 的 7 个五分钟 fuzz target 累计 609,846,214 次且无失败语料。tag 前精修只重跑 `FUZZ_TIME=0` 的确定性 release gate，按维护者要求不再重复模糊测试。
 
@@ -912,10 +912,15 @@ flowchart LR
   - InMemory AST 求值行为收回 `evaluator` receiver；缺失字段参与 ordering/LIKE 时稳定返回不匹配，不再让一条异构文档中断整个查询。
   - 影响面：不改变 Core exported declaration、wire shape 或 backend 公开签名；API 基线保持 330。
   - 证据：`013321df6`；`filtercompile` coverage 93.2%，Parser 基线为简单表达式 243–261ns/8 alloc、复合表达式 835–849ns/25 alloc，未发现值得复杂化的性能热点；workspace 84 项 build/vet/test/lint、Core/VectorStores race、两模块 tidy-diff 和 VectorStores 最新 5 项门禁全绿，未运行 fuzz。
+- [x] **P8-04 让公开 Visitor 成为可组合的扩展协议**（完成：2026-07-15）
+  - 新增 `filter.Visit(predicate, visitors...)`：先统一校验 Predicate 与 visitor 列表，再按传入顺序分派完整语义树；首个 visitor 错误原样返回，后续 visitor 不执行。
+  - 保留 backend 直接调用 `Visitor.Visit` 的低层逃生舱；不引入 Walk/Accept 层次、通用 visitor 基类或函数 adapter。
+  - 影响面：只增加一个公开函数，无破坏性迁移，wire 与 backend 公开签名不变；API baseline 从 330 增至 331 行。
+  - 证据：顺序、首错、无效 Predicate 与 plain/typed nil visitor 的确定性测试；全 workspace 84 项 build/vet/test/lint、Core 与 VectorStores race、API/wire/docs/examples 守卫和两模块 tidy-diff 全绿，未运行 fuzz。
 
-退出标准：三批分别可独立回滚；Core API/wire 守卫、Core 与 VectorStores 模块门禁、21 module 全仓确定性门禁全部通过；按维护者要求不重复 fuzz。
+退出标准：四批分别可独立回滚；Core API/wire 守卫、Core 与 VectorStores 模块门禁、21 module 全仓确定性门禁全部通过；按维护者要求不重复 fuzz。
 
-阶段验收（完成：2026-07-15）：P8 三项任务全部完成；Core 请求不变量在协议边界收口，InMemory 与其余 embedding-backed backend 使用相同公开依赖方向，Filter compiler 生命周期和解释语义由确定性合同锁定。未增加新模块、通用校验框架、Store 基类或兼容层。
+阶段验收（完成：2026-07-15）：P8 四项任务全部完成；Core 请求不变量在协议边界收口，InMemory 与其余 embedding-backed backend 使用相同公开依赖方向，Filter compiler 生命周期、解释语义和 Visitor 扩展入口由确定性合同锁定。未增加新模块、通用校验框架、Store 基类或兼容层。
 
 ---
 
@@ -933,15 +938,15 @@ flowchart LR
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
 | P6 Workspace 切换 | 完成 | 8/8 | 旧 API、兼容面、残余依赖和错误文档清零；100 项 workspace 门禁全绿 |
 | P7 稳定与发布 | 完成 | 7/7 | 最终架构审查通过，Core v1 契约与发布门禁已冻结 |
-| P8 Tag 前精修 | 完成 | 3/3 | 请求不变量、InMemory 公开边界与 Filter compiler 合同均已收口 |
-| **总计** | **完成** | **63/63** | **100%** |
+| P8 Tag 前精修 | 完成 | 4/4 | 请求不变量、InMemory 公开边界与 Filter compiler/Visitor 合同均已收口 |
+| **总计** | **完成** | **64/64** | **100%** |
 
 ### 10.2 当前焦点
 
 - 当前阶段：全部完成。
 - 下一任务：无；正式 tag/协调发布按 `CORE_V1_RELEASE_RUNBOOK.md` 单独执行。
 - 当前阻塞：无。
-- 最近完成：P8 Filter compiler 生命周期、内部编译原语和 InMemory 解释语义收口；全仓 84 项 build/vet/test/lint 及受影响模块 race 通过。
+- 最近完成：P8 公开 Visitor 组合入口；Core/VectorStores 确定性门禁、race 与 API/wire/docs/examples 守卫通过。
 
 ### 10.3 进度更新规则
 
@@ -1200,7 +1205,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 - 日期：2026-07-15
 - 状态：已采纳（最终架构审查）
-- 决策：经 ADR-017 至 ADR-019 和 tag 前 Filter ADR-010 修订后冻结 11 个公共 package、330 条 exported API、49 项 JSON DTO、17 个代表性 wire root 与 487 行 golden；序列化 DTO 禁止任意 `any`/`interface{}` 字段、Request `Params` 与原始 SDK payload，扩展值必须经 `metadata.Map` 写入时编码，所有 modality 请求在 provider 边界前验证。Core 保持标准库-only，不恢复旧路径、旧 wire、alias、bridge、shim、兼容字段或双读写。
+- 决策：经 ADR-017 至 ADR-019、tag 前 Filter ADR-010 与 ADR-022 修订后冻结 11 个公共 package、331 行 exported API 快照、49 项 JSON DTO、17 个代表性 wire root 与 487 行 golden；序列化 DTO 禁止任意 `any`/`interface{}` 字段、Request `Params` 与原始 SDK payload，扩展值必须经 `metadata.Map` 写入时编码，所有 modality 请求在 provider 边界前验证。Core 保持标准库-only，不恢复旧路径、旧 wire、alias、bridge、shim、兼容字段或双读写。
 - 原因：这组契约已经由真实 provider/backend、21 个独立 module 与完整 release gate 证明可实现、可消费、可序列化；继续保留 Spring AI 移植期动态参数袋或运行时职责只会扩大稳定 API 和依赖半径。显式 baseline 与 SemVer 裁决比兼容壳更适合 Go 库长期演进。
 
 ### ADR-017：Metadata 合并由值对象 receiver 统一承担
@@ -1238,6 +1243,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：`vectorstores/inmemory.StoreConfig` 与其余 backend 一致公开 `embedding.Model`，具体 `embeddingclient.Client` 只由 Store 内部持有和构造。删除不可能返回的 `ErrNilConfig`，错误词汇改为 `ErrMissingEmbeddingModel`，不保留旧字段或 sentinel alias。
 - 原因：`embeddingclient` 是向量提取便利层而非 Store 的调用方 SPI；只有 InMemory 要求调用者预先构造 Client 会泄漏内部工作流并制造不一致。接受最小 Core 接口、返回具体 Store 更符合 Go 库边界。
 
+### ADR-022：Visitor 是 Filter adapter 的公开扩展逃生舱
+
+- 日期：2026-07-15
+- 状态：已采纳（维护者确认 tag 前加法式精修）
+- 决策：保留完整树 `Visitor` SPI，并新增 `filter.Visit(predicate, visitors...)` 作为公共消费入口。入口先校验 Predicate 与 visitor 列表，再按传入顺序执行；首个 visitor 错误原样返回，后续 visitor 不执行。已经完成校验且需要直接控制 compiler 生命周期的 backend 仍可调用具体 `Visit` 方法。
+- 原因：不同 vector database 与外部 adapter 必须保留独立遍历、编译和解释策略，`Visitor` 是真实扩展点而非内部名义接口；公共变长入口让 Core 自身消费该 SPI，并把校验、顺序和失败语义冻结在一个边界内。只增加一个函数，不引入 GoF 层次、基类或第二套 AST，API baseline 从 330 增至 331 行，wire 不变。
+
 ---
 
 ## 16. 长期完成定义
@@ -1252,7 +1264,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - README、CLAUDE、示例和 package docs 与实际结构一致。
 - 维护者完成最终架构审查并确认公开契约可进入稳定期。
 
-完成确认（2026-07-15）：上述条件全部满足，最终审查记录见 `CORE_V1_ARCHITECTURE_REVIEW.md`；tag 前 P8 稳定化精修完成后，本计划以 63/63 关闭。
+完成确认（2026-07-15）：上述条件全部满足，最终审查记录见 `CORE_V1_ARCHITECTURE_REVIEW.md`；tag 前 P8 稳定化精修完成后，本计划以 64/64 关闭。
 
 ---
 
@@ -1260,6 +1272,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 完成 P8-04：确认 Visitor 为外部 adapter 扩展逃生舱，新增一次校验、顺序分派、首错停止的公开变长入口；API baseline 330→331 行，wire 不变 | Codex |
 | 2026-07-15 | 完成 P8-03 与 P8 再验收：23 个 backend compiler 固化可复用/失败恢复合同，内部 helper 收敛为单一 `filtercompile` 分派层，InMemory 解释行为归回 receiver 并将缺失 ordering/LIKE 字段视为不匹配；API/wire 不变 | Codex |
 | 2026-07-15 | 完成 tag 前 Filter 编译器精修：双 AST/转换层收敛为唯一 Predicate AST 与同包私有递归下降前端，公开 Visitor，统一完整 selector 路径和精确整数语义；API 基线由 341 收缩为 330 | Codex |
 | 2026-07-15 | 完成 P8-02 与 P8 阶段验收：InMemory 公开配置改为依赖 `embedding.Model`，Client 构造收回 Store 内部，删除不可达/泄漏实现层词汇的 sentinel；21 module 的 105 项确定性门禁全绿 | Codex |
@@ -1334,6 +1347,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | P8-04 Filter Visitor 公开组合入口 | 新增 `filter.Visit` 并冻结校验一次、按序执行、首错原样返回、plain/typed nil visitor 在分派前失败的合同；API baseline 330→331 行，wire 不变；全 workspace 84 项 build/vet/test/lint、Core/VectorStores race、两模块 tidy-diff 和 API/wire/docs/examples 守卫全绿，未运行 fuzz；任务计数 64/64 | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P8-03 Filter compiler 生命周期与解释语义 | `013321df6` 修复 21 个状态型 backend Visitor 的结果累积/错误毒化，23 backend 统一合同测试全绿；`filterhelp` 收敛为 `filtercompile` 并删除无生产消费者的泛型 dispatch；InMemory evaluator receiver 化，缺失 ordering/LIKE 字段不再中断查询。`filtercompile` coverage 93.2%；Parser 基线简单 243–261ns/8 alloc、复合 835–849ns/25 alloc，未做无证据的性能复杂化；workspace 84 项 build/vet/test/lint、Core/VectorStores race、两模块 tidy-diff 和 VectorStores 最新 5 项门禁全绿，未运行 fuzz；任务计数 63/63 | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | Filter 单 AST/Visitor tag 前精修 | `4037e1765` 删除 internal AST、转换层、builder、precedence 和无测量收益的自动 optimizer；同包私有 scanner/token/递归下降 parser 直接构造 `Predicate`，`Selector` 保留完整 metadata 路径，23 个 backend Visitor 与 inmemory interpreter 满足公开契约。API 341→330，Filter coverage 86.5%；三个受影响 module tidy-diff 为空；workspace 84 项 build/vet/test/lint + 21 项 race 全绿，Core/VectorStores 最新增量 10 项门禁再次全绿。按维护者要求未运行 fuzz | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P8-02、P8 阶段验收 | `inmemory.StoreConfig` 改为接收 `embedding.Model`，内部构造 Client；typed-nil 归一到 `ErrMissingEmbeddingModel`，删除旧字段、旧 sentinel 与不可达 `ErrNilConfig`。VectorStores 模块门禁及 `FAST=1 scripts/check.sh build vet test lint race` 的 105/105 项全绿，未运行 fuzz；任务计数 62/62 | 正式 tag/协调发布按运行手册单独执行 |

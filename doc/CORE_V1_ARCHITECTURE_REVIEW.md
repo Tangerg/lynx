@@ -11,14 +11,14 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 
 最终审查批准当前契约进入 v1 稳定期。冻结意味着从 `core/v1.0.0` 开始按 SemVer 管理当前 API 与 wire，而不是恢复任何重构前 API 或历史 wire。仓库中没有为旧设计保留 alias、bridge、shim、兼容字段、dual-read/dual-write 或旧 decoder。
 
-`core/v1.0.0` 尚未创建，因此维护者在 tag 前重新打开 Filter 契约审查：删除双 AST/转换层、builder 与 precedence 表面，公开 `Predicate`/`Selector`/`Visitor`，并把递归下降前端收敛为同包私有实现。本修订后的 330 条 API baseline 取代先前 341 条草案；wire inventory 与 golden 不变。
+`core/v1.0.0` 尚未创建，因此维护者在 tag 前重新打开 Filter 契约审查：删除双 AST/转换层、builder 与 precedence 表面，公开 `Predicate`/`Selector`/`Visitor`，并把递归下降前端收敛为同包私有实现。维护者随后确认 `Visitor` 是外部 adapter 的扩展逃生舱，补充 `Visit(predicate, visitors...)` 作为验证一次、顺序分派的公共消费入口。最终 331 行 API baseline 取代先前 341 行草案；wire inventory 与 golden 不变。
 
 ## 2. 冻结范围
 
 | 项目 | 冻结结果 |
 |---|---:|
 | 公共 package | 11 |
-| exported API baseline | 330 条声明/方法签名 |
+| exported API baseline | 331 行冻结快照 |
 | 带 JSON tag 的导出 DTO | 49 |
 | 代表性 wire root | 17 |
 | 聚合 wire golden | 487 行 |
@@ -45,7 +45,7 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 
 ## 4. 可扩展性结论
 
-Provider 通过实现各 modality 的最小接口并在 adapter 内完成 typed SDK 映射；VectorStore backend 通过实现调用方需要的小能力接口并翻译稳定 Filter Expr。新增 integration 不需要修改 Core 接口，也不需要 Core 反向 import SDK、driver 或上层 module。
+Provider 通过实现各 modality 的最小接口并在 adapter 内完成 typed SDK 映射；VectorStore backend 通过实现调用方需要的小能力接口并翻译稳定 Filter Expr。`filter.Visit` 消费公开 `Visitor`，让外部 adapter 在一次校验后按顺序组合多个 compiler/interpreter；首错原样返回且后续 visitor 不执行。新增 integration 不需要修改 Core 接口，也不需要 Core 反向 import SDK、driver 或上层 module。
 
 Chat provider/facade 的构造与共享协议行为由 Models conformance 覆盖；五类参考实现覆盖 Anthropic、Bedrock、Google、Ollama 与 OpenAI。VectorStores 自动发现实现集合，并要求 27/27 backend 注册和执行共享 conformance，新增实现无法静默绕过发布门禁。
 
@@ -94,4 +94,4 @@ Core 没有第三方生产依赖，`govulncheck` 没有可达漏洞。Models 与
 4. Provider 或 backend 的新能力优先在 adapter/上层 module 组合；只有四个以上真实实现与消费方共享的稳定语义才进入 Core 候选审查。
 5. 已推送 tag 不得移动；发布操作与版本集合按 [`CORE_V1_RELEASE_RUNBOOK.md`](./CORE_V1_RELEASE_RUNBOOK.md) 留档。
 
-审查通过后，Core 架构演进计划的 60 项任务全部完成；后续工作从“重构计划”切换为“稳定契约维护与正式发布”。
+审查通过后，Core 架构演进计划的 64 项任务全部完成；后续工作从“重构计划”切换为“稳定契约维护与正式发布”。

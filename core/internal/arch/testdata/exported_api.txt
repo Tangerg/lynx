@@ -299,6 +299,7 @@ vectorstore/filter: func Not[T Predicate](r T) *UnaryExpr
 vectorstore/filter: func Or[L Predicate, R Predicate](l L, r R) *BinaryExpr
 vectorstore/filter: func Parse(input string) (Predicate, error)
 vectorstore/filter: func Validate(expr Predicate) error
+vectorstore/filter: func Visit(predicate Predicate, visitors ...Visitor) error
 vectorstore/filter: type BinaryExpr struct { Left Expr Op Operator Right Expr start Position end Position }
 vectorstore/filter: type Expr interface { Start() Position End() Position Equal(Expr) bool expr() }
 vectorstore/filter: type Ident struct { Value string start Position end Position }
