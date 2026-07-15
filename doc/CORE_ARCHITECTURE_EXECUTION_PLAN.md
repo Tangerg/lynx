@@ -1254,6 +1254,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 完成 tag 前 Filter 编译器精修：双 AST/转换层收敛为唯一 Predicate AST 与同包私有递归下降前端，公开 Visitor，统一完整 selector 路径和精确整数语义；API 基线由 341 收缩为 330 | Codex |
 | 2026-07-15 | 完成 P8-02 与 P8 阶段验收：InMemory 公开配置改为依赖 `embedding.Model`，Client 构造收回 Store 内部，删除不可达/泄漏实现层词汇的 sentinel；21 module 的 105 项确定性门禁全绿 | Codex |
 | 2026-07-15 | 完成 P8-01：五个模态统一显式 model id 空白约束，Moderation 列表元素、Speech 速度、Transcription 温度/时间戳粒度及 VectorStore `MinScore` 在 Core 边界拒绝确定非法值；API/wire shape 不变 | Codex |
 | 2026-07-15 | 收敛 Runtime MCP transport 领域词汇：持久态 `Server` 与运行态 `LiveConfig` 共享强类型 `Transport`，删除值不同但含义重复的 `LiveTransport`；字符串/SDK 映射只发生在 delivery、persistence 与 infra 边界 | Codex |
@@ -1326,6 +1327,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | Filter 单 AST/Visitor tag 前精修 | `4037e1765` 删除 internal AST、转换层、builder、precedence 和无测量收益的自动 optimizer；同包私有 scanner/token/递归下降 parser 直接构造 `Predicate`，`Selector` 保留完整 metadata 路径，23 个 backend Visitor 与 inmemory interpreter 满足公开契约。API 341→330，Filter coverage 86.5%；三个受影响 module tidy-diff 为空；workspace 84 项 build/vet/test/lint + 21 项 race 全绿，Core/VectorStores 最新增量 10 项门禁再次全绿。按维护者要求未运行 fuzz | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P8-02、P8 阶段验收 | `inmemory.StoreConfig` 改为接收 `embedding.Model`，内部构造 Client；typed-nil 归一到 `ErrMissingEmbeddingModel`，删除旧字段、旧 sentinel 与不可达 `ErrNilConfig`。VectorStores 模块门禁及 `FAST=1 scripts/check.sh build vet test lint race` 的 105/105 项全绿，未运行 fuzz；任务计数 62/62 | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P8-01 Core 请求协议不变量 | 五个模态显式 model id、Moderation 文本项、Speech 非有限速度、Transcription 温度/时间戳粒度及 VectorStore `NaN` 分数均在请求边界校验；六包定向测试、API/wire 守卫及 Core build/vet/test/lint 全绿，未运行 fuzz | P8-02 InMemory embedding 公开边界统一 |
 | 2026-07-15 | tag 前深度精修最终验收 | `FUZZ_TIME=0 scripts/check-core-release.sh` 通过 Core test/race/vet/lint/tidy、17 包 coverage、Models provider 与 27 backend conformance；`FAST=1 scripts/check.sh build vet test lint race` 对 21 module 的 105/105 项全绿；21/21 module 关闭 go.work 后 test/vet/tidy 全绿；21/21 精确漏洞策略通过。按维护者要求未启动 fuzz | 正式 tag/协调发布按运行手册单独执行 |
