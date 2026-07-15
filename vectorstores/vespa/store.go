@@ -297,7 +297,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 // Vespa selection expressions live under their own mini language;
 // rather than translate the AST a second way, the approach routes
 // through a YQL search to enumerate ids, then deletes them.
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
@@ -361,7 +361,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
 	}
 }
 
-func (s *Store) buildFilter(filter filter.Expr) (string, error) {
+func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 	if filter == nil {
 		return "", nil
 	}

@@ -19,6 +19,8 @@ import (
 //	tag IN ("a", "b")        →  {"tag":    {"$in": ["a", "b"]}}
 //	NOT (author == "Alice")  →  {"$not":   {"author": {"$eq": "Alice"}}}
 //	a == "x" AND b == "y"    →  {"$and": [{"a":{"$eq":"x"}}, {"b":{"$eq":"y"}}]}
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err    error
 	result map[string]any
@@ -33,7 +35,7 @@ func (v *Visitor) Result() map[string]any {
 	return v.result
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	doc, err := v.translate(expr)
 	v.err = err
 	v.result = doc

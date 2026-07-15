@@ -11,7 +11,7 @@ func FuzzParse(f *testing.F) {
 		`category == 'tech'`,
 		`year >= 2020 and published == true`,
 		`tags in ('go', 'ai')`,
-		`metadata['author'] like 'A%'`,
+		`profile['author'] like 'A%'`,
 		`not (deleted is null)`,
 		``,
 		`field ==`,

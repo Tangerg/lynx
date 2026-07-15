@@ -22,6 +22,8 @@ import (
 //
 // IN values are bound as a single slice parameter so callers can pass
 // `[]string{"a", "b"}` straight through.
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err  error
 	sql  strings.Builder
@@ -37,7 +39,7 @@ func (v *Visitor) Result() (string, []any) {
 	return v.sql.String(), v.args
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }

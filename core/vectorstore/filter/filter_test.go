@@ -1,24 +1,93 @@
 package filter_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
-func TestParse_Optimizes(t *testing.T) {
-	// Parse folds dead logic: not(not(x)) collapses to x, so
-	// the result is the comparison itself, not a UnaryExpr.
+func TestParse_ProducesCanonicalPredicates(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		check func(*testing.T, filter.Expr)
+	}{
+		{
+			name:  "single element IN is a list",
+			input: `status in ('active')`,
+			check: func(t *testing.T, expr filter.Expr) {
+				binary := expr.(*filter.BinaryExpr)
+				list, ok := binary.Right.(*filter.ListLiteral)
+				if !ok || len(list.Values) != 1 || list.Values[0].Value != "active" {
+					t.Fatalf("right = %#v, want one-element ListLiteral", binary.Right)
+				}
+			},
+		},
+		{
+			name:  "grouping remains a predicate",
+			input: `(a == 1)`,
+			check: func(t *testing.T, expr filter.Expr) {
+				if _, ok := expr.(*filter.BinaryExpr); !ok {
+					t.Fatalf("expr = %T, want *filter.BinaryExpr", expr)
+				}
+			},
+		},
+		{
+			name:  "scientific notation is canonicalized",
+			input: `score == 1e3`,
+			check: func(t *testing.T, expr filter.Expr) {
+				binary := expr.(*filter.BinaryExpr)
+				literal := binary.Right.(*filter.Literal)
+				if literal.Value != "1000" {
+					t.Fatalf("literal.Value = %q, want 1000", literal.Value)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expr, err := filter.Parse(tt.input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tt.check(t, expr)
+		})
+	}
+}
+
+func TestParse_RejectsNonPredicateRoots(t *testing.T) {
+	for _, input := range []string{`field`, `42`, `'value'`, `(42)`} {
+		t.Run(input, func(t *testing.T) {
+			_, err := filter.Parse(input)
+			if err == nil {
+				t.Fatal("expected syntax error")
+			}
+			var syntaxError *filter.SyntaxError
+			if !errors.As(err, &syntaxError) {
+				t.Fatalf("error = %T, want *filter.SyntaxError", err)
+			}
+		})
+	}
+}
+
+func TestParse_PreservesExplicitLogicalStructure(t *testing.T) {
 	expr, err := filter.Parse(`not (not (year >= 2020))`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, isUnary := expr.(*filter.UnaryExpr); isUnary {
-		t.Fatalf("expected double-NOT to be folded away, got %T", expr)
+	outer, ok := expr.(*filter.UnaryExpr)
+	if !ok {
+		t.Fatalf("parsed = %T, want outer *filter.UnaryExpr", expr)
 	}
-	if _, isBinary := expr.(*filter.BinaryExpr); !isBinary {
-		t.Fatalf("expected the bare comparison BinaryExpr, got %T", expr)
+	inner, ok := outer.Right.(*filter.UnaryExpr)
+	if !ok {
+		t.Fatalf("outer.Right = %T, want inner *filter.UnaryExpr", outer.Right)
+	}
+	if _, ok := inner.Right.(*filter.BinaryExpr); !ok {
+		t.Fatalf("inner.Right = %T, want *filter.BinaryExpr", inner.Right)
 	}
 }
 
@@ -33,20 +102,22 @@ func TestParse_ValidExpression(t *testing.T) {
 }
 
 func TestParse_InvalidExpression(t *testing.T) {
-	if _, err := filter.Parse(`category ==`); err == nil {
+	_, err := filter.Parse(`category ==`)
+	if err == nil {
 		t.Fatal("incomplete expression must error")
+	}
+	var syntaxError *filter.SyntaxError
+	if !errors.As(err, &syntaxError) {
+		t.Fatalf("error = %T, want *filter.SyntaxError", err)
+	}
+	if syntaxError.Token != "end of input" || syntaxError.Position.Column == 0 {
+		t.Fatalf("syntax error = %#v", syntaxError)
 	}
 }
 
-func TestAnalyze_RejectsTypeMismatch(t *testing.T) {
-	expr, err := filter.Parse(`year >= 'two-thousand'`)
-	if err != nil {
-		t.Skip("parser does not allow this shape; nothing to analyze")
-		return
-	}
-	// Non-comparable string vs numeric op — analyzer should flag.
-	if err := filter.Validate(expr); err == nil {
-		t.Skip("analyzer is permissive for this case; that is acceptable")
+func TestParse_RejectsOrderingAgainstString(t *testing.T) {
+	if _, err := filter.Parse(`year >= 'two-thousand'`); err == nil {
+		t.Fatal("ordering against a string must fail validation")
 	}
 }
 

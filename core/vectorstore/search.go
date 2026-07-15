@@ -38,10 +38,10 @@ const (
 //	}
 //	err := req.Validate()
 type SearchRequest struct {
-	Query    string      `json:"query,omitempty"`
-	TopK     int         `json:"top_k,omitempty"`
-	MinScore float64     `json:"min_score,omitempty"`
-	Filter   filter.Expr `json:"-"`
+	Query    string           `json:"query,omitempty"`
+	TopK     int              `json:"top_k,omitempty"`
+	MinScore float64          `json:"min_score,omitempty"`
+	Filter   filter.Predicate `json:"-"`
 }
 
 func (r SearchRequest) Validate() error {
@@ -58,7 +58,7 @@ func (r SearchRequest) Validate() error {
 
 	if r.Filter != nil {
 		if err := filter.Validate(r.Filter); err != nil {
-			return fmt.Errorf("vectorstore.SearchRequest: filter analysis: %w", err)
+			return fmt.Errorf("vectorstore.SearchRequest: filter validation: %w", err)
 		}
 	}
 	return nil

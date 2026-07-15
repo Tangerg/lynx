@@ -65,30 +65,3 @@ func (o Operator) IsBinaryOperator() bool {
 	return o.IsComparisonOperator() || o.IsLogicalOperator() || o.IsMatchingOperator() || o.IsNullOperator()
 }
 func (o Operator) IsUnaryOperator() bool { return o == OpNot }
-
-const (
-	precedenceLowest = iota
-	precedenceOr
-	precedenceAnd
-	precedenceNot
-	precedenceComparison
-	precedenceMatch
-	precedenceIndex
-)
-
-func (o Operator) Precedence() int {
-	switch o {
-	case OpOr:
-		return precedenceOr
-	case OpAnd:
-		return precedenceAnd
-	case OpNot:
-		return precedenceNot
-	case OpEqual, OpNotEqual, OpLess, OpLessEqual, OpGreater, OpGreaterEqual, OpIs:
-		return precedenceComparison
-	case OpIn, OpLike:
-		return precedenceMatch
-	default:
-		return precedenceLowest
-	}
-}

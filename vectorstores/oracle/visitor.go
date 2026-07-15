@@ -22,6 +22,8 @@ import (
 //	published == true          →  json_value(metadata, '$.published') = 'true'
 //	tag IN ("a", "b")          →  json_value(metadata, '$.tag') IN (:1, :2)
 //	NOT (a == "x")             →  NOT (json_value(metadata, '$.a') = :1)
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err            error
 	sql            strings.Builder
@@ -44,7 +46,7 @@ func (v *Visitor) Result() (string, []any) {
 	return v.sql.String(), v.args
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -196,7 +198,7 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 // typed RETURNING clause so the type round-trips correctly.
 func (v *Visitor) appendJSONExtraction(jsonPath string, value any, op filter.Operator) {
 	switch value.(type) {
-	case float64, int64, int:
+	case float64, int64, uint64, int:
 		v.sql.WriteString("json_value(")
 		v.sql.WriteString(v.metadataColumn)
 		v.sql.WriteString(", ")

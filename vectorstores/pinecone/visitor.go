@@ -3,7 +3,6 @@ package pinecone
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -37,6 +36,8 @@ import (
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err               error          // Last error encountered during conversion
 	result            map[string]any // The Pinecone filter condition being constructed
@@ -64,7 +65,7 @@ func (v *Visitor) Filter() (*structpb.Struct, error) {
 // Visit translates one semantic filter expression.
 // It walks the whole tree rooted at expr and returns the first error
 // encountered, or nil when the entire expression was accepted.
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -371,19 +372,11 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	current := expr
 	for {
-		if err := v.visitLiteral(current.Index); err != nil {
-			return "", err
+		key, err := filterhelp.LiteralAsKey(current.Index)
+		if err != nil {
+			return "", fmt.Errorf("pinecone: %w", err)
 		}
-
-		idxValue := v.currentFieldValue
-		switch v := idxValue.(type) {
-		case string:
-			parts = append([]string{v}, parts...)
-		case float64:
-			parts = append([]string{strconv.Itoa(int(v))}, parts...)
-		default:
-			return "", fmt.Errorf("pinecone: invalid index type %T, expected string or number", idxValue)
-		}
+		parts = append([]string{key}, parts...)
 
 		switch left := current.Left.(type) {
 		case *filter.IndexExpr:
@@ -448,7 +441,7 @@ func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
 //	expr, _ := parser.Parse(`age > 18 AND status == "active"`)
 //	filter, err := pinecone.ToFilter(expr)
 //	// filter encodes: {"$and": [{"age": {"$gt": 18}}, {"status": {"$eq": "active"}}]}
-func ToFilter(expr filter.Expr) (*structpb.Struct, error) {
+func ToFilter(expr filter.Predicate) (*structpb.Struct, error) {
 	conv := NewVisitor()
 	if err := conv.Visit(expr); err != nil {
 		return nil, err

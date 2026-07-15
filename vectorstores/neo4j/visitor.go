@@ -25,6 +25,8 @@ import (
 // Property paths follow convention: metadata keys are
 // stored as flat node properties named `metadata.<key>` and addressed
 // with backtick-quoted Cypher identifiers.
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err            error
 	sql            strings.Builder
@@ -51,7 +53,7 @@ func (v *Visitor) Result() (string, map[string]any) {
 	return v.sql.String(), v.params
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }

@@ -22,6 +22,8 @@ import (
 //	year >= 2020               →  year ge 2020
 //	category IN ("a", "b")     →  search.in(category, 'a,b', ',')
 //	NOT (year >= 2020)         →  not (year ge 2020)
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err error
 	sql strings.Builder
@@ -36,7 +38,7 @@ func (v *Visitor) Result() string {
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -201,7 +203,6 @@ func fieldName(expr filter.Expr) (string, error) {
 	case *filter.Ident:
 		return node.Value, nil
 	case *filter.IndexExpr:
-		// metadata["author"] → "author" — drop the wrapper.
 		keys, err := filterhelp.CollectKeyPath(node)
 		if err != nil {
 			return "", err

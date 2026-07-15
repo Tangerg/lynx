@@ -72,7 +72,7 @@ func TestRetrieverPerQueryFilterOverridesFunc(t *testing.T) {
 
 	r, err := rag.NewVectorStoreRetriever(rag.VectorStoreConfig{
 		VectorStore: store,
-		FilterFunc: func(_ context.Context, _ map[string]any) (filter.Expr, error) {
+		FilterFunc: func(_ context.Context, _ map[string]any) (filter.Predicate, error) {
 			funcCalls++
 			return nil, nil
 		},

@@ -473,7 +473,7 @@ func (s *Store) recordToMatch(rec *neo4j.Record) (vectorstore.Match, error) {
 }
 
 // Delete removes nodes matching the filter expression.
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
@@ -531,7 +531,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 // buildPredicate converts the optional filter into a Cypher WHERE
 // fragment plus its parameter bindings. Returns ("", nil, nil) when
 // filter is nil.
-func (s *Store) buildPredicate(filter filter.Expr) (string, map[string]any, error) {
+func (s *Store) buildPredicate(filter filter.Predicate) (string, map[string]any, error) {
 	if filter == nil {
 		return "", nil, nil
 	}

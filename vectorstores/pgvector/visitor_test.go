@@ -154,7 +154,7 @@ func TestVisitor_InNumbers(t *testing.T) {
 	if !strings.Contains(sql, "::numeric") {
 		t.Fatalf("sql=%q must cast left side to ::numeric for numeric IN", sql)
 	}
-	want := []any{[]float64{2020, 2021, 2022}}
+	want := []any{[]int64{2020, 2021, 2022}}
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("args=%v, want %v", args, want)
 	}
@@ -174,36 +174,23 @@ func TestVisitor_Like(t *testing.T) {
 }
 
 func TestVisitor_NestedIndex(t *testing.T) {
-	sql, _, err := build(t, `metadata['a']['b'] == 'x'`)
+	sql, _, err := build(t, `profile['a']['b'] == 'x'`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
 	// Nested: intermediate hops use ->, final step uses ->>.
-	if !strings.Contains(sql, "metadata->'a'->>'b'") {
-		t.Fatalf("sql=%q must contain metadata->'a'->>'b'", sql)
+	if !strings.Contains(sql, "metadata->'profile'->'a'->>'b'") {
+		t.Fatalf("sql=%q must contain metadata->'profile'->'a'->>'b'", sql)
 	}
 }
 
-func TestVisitor_IndexedKeyStripsBase(t *testing.T) {
-	sql, _, err := build(t, `metadata['author'] == 'Alice'`)
+func TestVisitor_IndexedKeyRetainsBase(t *testing.T) {
+	sql, _, err := build(t, `profile['author'] == 'Alice'`)
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
-	if !strings.Contains(sql, "metadata->>'author'") {
-		t.Fatalf("sql=%q must contain metadata->>'author'", sql)
-	}
-}
-
-func TestVisitor_InRejectsScalar(t *testing.T) {
-	// Parser unwraps single-element parens (a in (1)) to a bare
-	// literal — that's a grammar choice, not a visitor bug — so this
-	// path exercises the IN handler's "right side is not a list" branch.
-	_, _, err := build(t, `a in (1)`)
-	if err == nil {
-		t.Fatal("expected error: IN with scalar right side")
-	}
-	if !strings.Contains(err.Error(), "IN") {
-		t.Fatalf("err=%v should mention IN", err)
+	if !strings.Contains(sql, "metadata->'profile'->>'author'") {
+		t.Fatalf("sql=%q must contain metadata->'profile'->>'author'", sql)
 	}
 }
 

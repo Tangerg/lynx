@@ -1,42 +1,45 @@
 package filter
 
 import (
-	"reflect"
 	"testing"
-
-	internalparser "github.com/Tangerg/lynx/core/vectorstore/filter/internal/parser"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
 )
+
+type recordingVisitor struct {
+	visited Predicate
+}
+
+func (v *recordingVisitor) Visit(predicate Predicate) error {
+	v.visited = predicate
+	return nil
+}
+
+var _ Visitor = (*recordingVisitor)(nil)
 
 func TestOperatorVocabulary(t *testing.T) {
 	tests := []struct {
-		op         Operator
-		name       string
-		precedence int
-		binary     bool
-		unary      bool
+		op     Operator
+		name   string
+		binary bool
+		unary  bool
 	}{
-		{OpEqual, "EQ", precedenceComparison, true, false},
-		{OpNotEqual, "NE", precedenceComparison, true, false},
-		{OpLess, "LT", precedenceComparison, true, false},
-		{OpLessEqual, "LE", precedenceComparison, true, false},
-		{OpGreater, "GT", precedenceComparison, true, false},
-		{OpGreaterEqual, "GE", precedenceComparison, true, false},
-		{OpAnd, "AND", precedenceAnd, true, false},
-		{OpOr, "OR", precedenceOr, true, false},
-		{OpNot, "NOT", precedenceNot, false, true},
-		{OpIn, "IN", precedenceMatch, true, false},
-		{OpLike, "LIKE", precedenceMatch, true, false},
-		{OpIs, "IS", precedenceComparison, true, false},
-		{Operator("invalid"), "INVALID", precedenceLowest, false, false},
+		{OpEqual, "EQ", true, false},
+		{OpNotEqual, "NE", true, false},
+		{OpLess, "LT", true, false},
+		{OpLessEqual, "LE", true, false},
+		{OpGreater, "GT", true, false},
+		{OpGreaterEqual, "GE", true, false},
+		{OpAnd, "AND", true, false},
+		{OpOr, "OR", true, false},
+		{OpNot, "NOT", false, true},
+		{OpIn, "IN", true, false},
+		{OpLike, "LIKE", true, false},
+		{OpIs, "IS", true, false},
+		{Operator("invalid"), "INVALID", false, false},
 	}
 
 	for _, tt := range tests {
 		if got := tt.op.Name(); got != tt.name {
 			t.Errorf("%q.Name() = %q, want %q", tt.op, got, tt.name)
-		}
-		if got := tt.op.Precedence(); got != tt.precedence {
-			t.Errorf("%q.Precedence() = %d, want %d", tt.op, got, tt.precedence)
 		}
 		if got := tt.op.IsBinaryOperator(); got != tt.binary {
 			t.Errorf("%q.IsBinaryOperator() = %t, want %t", tt.op, got, tt.binary)
@@ -61,6 +64,17 @@ func TestOperatorVocabulary(t *testing.T) {
 	}
 }
 
+func TestVisitorProcessesCompletePredicate(t *testing.T) {
+	predicate := EQ("status", "active")
+	visitor := &recordingVisitor{}
+	if err := visitor.Visit(predicate); err != nil {
+		t.Fatal(err)
+	}
+	if visitor.visited != predicate {
+		t.Fatalf("visited = %T, want original predicate", visitor.visited)
+	}
+}
+
 func TestLiteralVocabularyAndConstructors(t *testing.T) {
 	stringLiteral := NewLiteral("lynx")
 	if !stringLiteral.IsString() || stringLiteral.IsNumber() || stringLiteral.IsBool() || stringLiteral.IsNull() {
@@ -74,6 +88,15 @@ func TestLiteralVocabularyAndConstructors(t *testing.T) {
 	}
 	if _, err := stringLiteral.AsBool(); err == nil {
 		t.Fatal("AsBool accepted a string")
+	}
+	if _, err := (*Literal)(nil).AsString(); err == nil {
+		t.Fatal("AsString accepted a nil literal")
+	}
+	if _, err := (*Literal)(nil).AsNumber(); err == nil {
+		t.Fatal("AsNumber accepted a nil literal")
+	}
+	if _, err := (*Literal)(nil).AsBool(); err == nil {
+		t.Fatal("AsBool accepted a nil literal")
 	}
 
 	numberLiteral := NewLiteral(42)
@@ -156,7 +179,7 @@ func TestSemanticConstructorsCoverVocabulary(t *testing.T) {
 		t.Fatal("Index did not preserve its left operand")
 	}
 
-	expressions := []Expr{
+	expressions := []Predicate{
 		EQ("name", "lynx"), NE("name", "other"),
 		LT("rank", 10), LE("rank", 10), GT("rank", 1), GE("rank", 1),
 		In("tag", []string{"go", "ai"}), Like("name", "ly%"),
@@ -168,57 +191,6 @@ func TestSemanticConstructorsCoverVocabulary(t *testing.T) {
 		if err := Validate(expr); err != nil {
 			t.Fatalf("Validate(%T) = %v", expr, err)
 		}
-	}
-}
-
-func TestExprBuilderSuccessAndErrors(t *testing.T) {
-	builder := NewExprBuilder().
-		EQ("eq", 1).
-		NE("ne", 2).
-		LT("lt", 3).
-		LE("le", 4).
-		GT("gt", 5).
-		GE("ge", 6).
-		Like("title", "go%").
-		In("tags", []string{"go", "ai"}).
-		And(func(sub *ExprBuilder) { sub.EQ("nested_and", true) }).
-		Or(func(sub *ExprBuilder) { sub.EQ("nested_or", true) }).
-		Not(func(sub *ExprBuilder) { sub.EQ("nested_not", true) })
-	expr, err := builder.Build()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := Validate(expr); err != nil {
-		t.Fatal(err)
-	}
-
-	empty := NewExprBuilder()
-	empty.and(nil)
-	empty.or(nil)
-	empty.Or(func(*ExprBuilder) {})
-	empty.Not(func(*ExprBuilder) {})
-	if expr, err := empty.Build(); err != nil || expr != nil {
-		t.Fatalf("empty Build() = %#v, %v", expr, err)
-	}
-
-	badRight := NewExprBuilder().EQ("field", struct{}{}).NE("ignored", 1)
-	badRight.In("ignored", []int{1}).And(func(*ExprBuilder) {})
-	if _, err := badRight.Build(); err == nil {
-		t.Fatal("builder accepted an invalid right operand")
-	}
-	if _, err := NewExprBuilder().EQ(struct{}{}, 1).Build(); err == nil {
-		t.Fatal("builder accepted an invalid left operand")
-	}
-	if _, err := NewExprBuilder().In("field", struct{}{}).Build(); err == nil {
-		t.Fatal("builder accepted an invalid list")
-	}
-	if _, err := NewExprBuilder().In(struct{}{}, []int{1}).Build(); err == nil {
-		t.Fatal("builder accepted an invalid IN left operand")
-	}
-	if _, err := NewExprBuilder().And(func(sub *ExprBuilder) {
-		sub.EQ("field", struct{}{})
-	}).Build(); err == nil {
-		t.Fatal("builder did not propagate a nested error")
 	}
 }
 
@@ -256,7 +228,7 @@ func TestSemanticNodeMethods(t *testing.T) {
 	}
 
 	binary := &BinaryExpr{Left: ident, Op: OpEqual, Right: literal, start: start, end: end}
-	if binary.Start() != start || binary.End() != end || binary.Precedence() != precedenceComparison || !binary.Equal(&BinaryExpr{Left: NewIdent("field"), Op: OpEqual, Right: NewLiteral("value")}) {
+	if binary.Start() != start || binary.End() != end || !binary.Equal(&BinaryExpr{Left: NewIdent("field"), Op: OpEqual, Right: NewLiteral("value")}) {
 		t.Fatal("binary methods are inconsistent")
 	}
 	if (&BinaryExpr{Left: ident}).Start() != start || (&BinaryExpr{Right: literal}).End() != end {
@@ -267,7 +239,7 @@ func TestSemanticNodeMethods(t *testing.T) {
 	}
 
 	unary := &UnaryExpr{Op: OpNot, Right: binary, start: start, end: end}
-	if unary.Start() != start || unary.End() != end || unary.Precedence() != precedenceNot || !unary.Equal(&UnaryExpr{Op: OpNot, Right: binary}) {
+	if unary.Start() != start || unary.End() != end || !unary.Equal(&UnaryExpr{Op: OpNot, Right: binary}) {
 		t.Fatal("unary methods are inconsistent")
 	}
 	if (&UnaryExpr{Right: binary}).End() != end || (&UnaryExpr{}).End() != (Position{}) || (*UnaryExpr)(nil).Start() != (Position{}) || (*UnaryExpr)(nil).End() != (Position{}) {
@@ -284,101 +256,5 @@ func TestSemanticNodeMethods(t *testing.T) {
 
 	if !equalExpr(nil, nil) || equalExpr(nil, ident) || !equalExpr((*Ident)(nil), (*Ident)(nil)) {
 		t.Fatal("nil expression equality is inconsistent")
-	}
-}
-
-func TestSemanticInternalConversion(t *testing.T) {
-	operatorTokens := []token.Kind{
-		token.EQ, token.NE, token.LT, token.LE, token.GT, token.GE,
-		token.AND, token.OR, token.NOT, token.IN, token.LIKE, token.IS,
-	}
-	for _, kind := range operatorTokens {
-		op, err := operatorFromToken(kind)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, err := tokenFromOperator(op)
-		if err != nil || got != kind {
-			t.Fatalf("operator round trip %v -> %q -> %v, %v", kind, op, got, err)
-		}
-	}
-	if _, err := operatorFromToken(token.IDENT); err == nil {
-		t.Fatal("operatorFromToken accepted IDENT")
-	}
-	if _, err := tokenFromOperator(Operator("invalid")); err == nil {
-		t.Fatal("tokenFromOperator accepted an invalid operator")
-	}
-
-	literalKinds := []struct {
-		token token.Kind
-		kind  LiteralKind
-	}{
-		{token.STRING, LiteralString}, {token.NUMBER, LiteralNumber},
-		{token.TRUE, LiteralBool}, {token.FALSE, LiteralBool}, {token.NULL, LiteralNull},
-	}
-	for _, tt := range literalKinds {
-		if got, err := literalKindFromToken(tt.token); err != nil || got != tt.kind {
-			t.Fatalf("literalKindFromToken(%v) = %q, %v", tt.token, got, err)
-		}
-	}
-	if _, err := literalKindFromToken(token.IDENT); err == nil {
-		t.Fatal("literalKindFromToken accepted IDENT")
-	}
-
-	for _, literal := range []*Literal{
-		NewLiteral("value"), NewLiteral(1), NewLiteral(true), NewLiteral(false),
-		{Kind: LiteralNull, Value: "null"},
-	} {
-		if _, err := literalToken(literal); err != nil {
-			t.Fatalf("literalToken(%#v) = %v", literal, err)
-		}
-	}
-	if _, err := literalToken(&Literal{Kind: LiteralBool, Value: "invalid"}); err == nil {
-		t.Fatal("literalToken accepted an invalid boolean")
-	}
-	if _, err := literalToken(&Literal{Kind: LiteralKind("invalid")}); err == nil {
-		t.Fatal("literalToken accepted an invalid kind")
-	}
-
-	inputs := []string{
-		`a == 1`, `a != 1`, `a < 1`, `a <= 1`, `a > 1`, `a >= 1`,
-		`a == 1 and b == 2`, `a == 1 or b == 2`, `not (a == 1)`,
-		`tags in ('a', 'b')`, `name like 'a%'`, `deleted is null`,
-		`metadata['author'] == 'lynx'`,
-	}
-	for _, input := range inputs {
-		internal, err := internalparser.Parse(input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		public, err := fromInternal(internal)
-		if err != nil {
-			t.Fatalf("fromInternal(%q) = %v", input, err)
-		}
-		roundTrip, err := toInternal(public)
-		if err != nil || !internal.Equal(roundTrip) {
-			t.Fatalf("conversion round trip for %q failed: %v", input, err)
-		}
-	}
-	if got, err := fromInternal(nil); err != nil || got != nil {
-		t.Fatalf("fromInternal(nil) = %#v, %v", got, err)
-	}
-	if got, err := toInternal(nil); err != nil || got != nil {
-		t.Fatalf("toInternal(nil) = %#v, %v", got, err)
-	}
-
-	invalid := []Expr{
-		&Literal{Kind: LiteralKind("invalid")},
-		&UnaryExpr{Op: Operator("invalid"), Right: EQ("a", 1)},
-		&BinaryExpr{Left: NewIdent("a"), Op: Operator("invalid"), Right: NewLiteral(1)},
-		&IndexExpr{Left: NewIdent("a"), Index: &Literal{Kind: LiteralKind("invalid")}},
-	}
-	for _, expr := range invalid {
-		if _, err := toInternal(expr); err == nil {
-			t.Fatalf("toInternal accepted invalid %T", expr)
-		}
-		if got := simplify(expr); !reflect.DeepEqual(got, expr) {
-			t.Fatalf("simplify changed invalid %T", expr)
-		}
 	}
 }

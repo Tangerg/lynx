@@ -172,7 +172,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 }
 
 // Delete removes documents matching the filter via delete_by_query.
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
@@ -259,7 +259,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 
 // buildFilterQuery converts the AST filter into a Lucene query string
 // for `query_string`. Returns "" when filter is nil.
-func (s *Store) buildFilterQuery(filter filter.Expr) (string, error) {
+func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 	if filter == nil {
 		return "", nil
 	}

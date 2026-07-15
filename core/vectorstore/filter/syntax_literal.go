@@ -2,8 +2,10 @@ package filter
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strconv"
+	"strings"
 )
 
 // Number is any built-in numeric type or a user-defined type with the same
@@ -22,15 +24,21 @@ type LiteralValue interface {
 
 func newLiteral(value any) (*Literal, error) {
 	if value != nil {
-		switch reflect.TypeOf(value).Kind() {
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-			reflect.Float32, reflect.Float64:
-			number, err := strconv.ParseFloat(fmt.Sprintf("%v", value), 64)
-			if err != nil {
-				return nil, fmt.Errorf("filter.newLiteral: number %v: %w", value, err)
+		reflected := reflect.ValueOf(value)
+		switch reflected.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return &Literal{Kind: LiteralNumber, Value: strconv.FormatInt(reflected.Int(), 10)}, nil
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return &Literal{Kind: LiteralNumber, Value: strconv.FormatUint(reflected.Uint(), 10)}, nil
+		case reflect.Float32, reflect.Float64:
+			number := reflected.Float()
+			if number == 0 {
+				return &Literal{Kind: LiteralNumber, Value: "0"}, nil
 			}
-			return &Literal{Kind: LiteralNumber, Value: strconv.FormatFloat(number, 'g', -1, 64)}, nil
+			return &Literal{
+				Kind:  LiteralNumber,
+				Value: strconv.FormatFloat(number, 'g', -1, reflected.Type().Bits()),
+			}, nil
 		}
 	}
 
@@ -65,6 +73,32 @@ func NewLiterals[T LiteralValue](values []T) []*Literal {
 		literals = append(literals, NewLiteral(v))
 	}
 	return literals
+}
+
+func canonicalNumber(literal string) (string, error) {
+	if !strings.ContainsAny(literal, ".eE") {
+		if strings.HasPrefix(literal, "-") {
+			number, err := strconv.ParseInt(literal, 10, 64)
+			if err != nil {
+				return "", fmt.Errorf("invalid integer %q", literal)
+			}
+			return strconv.FormatInt(number, 10), nil
+		}
+		number, err := strconv.ParseUint(literal, 10, 64)
+		if err != nil {
+			return "", fmt.Errorf("invalid integer %q", literal)
+		}
+		return strconv.FormatUint(number, 10), nil
+	}
+
+	number, err := strconv.ParseFloat(literal, 64)
+	if err != nil || math.IsNaN(number) || math.IsInf(number, 0) {
+		return "", fmt.Errorf("invalid number %q", literal)
+	}
+	if number == 0 {
+		return "0", nil
+	}
+	return strconv.FormatFloat(number, 'g', -1, 64), nil
 }
 
 // ListValue is a homogeneous scalar slice, a pre-built literal slice, or an

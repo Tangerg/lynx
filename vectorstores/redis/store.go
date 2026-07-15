@@ -542,7 +542,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 
 // Delete looks up documents matching the filter via FT.SEARCH, then
 // removes the underlying keys with DEL.
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
@@ -612,10 +612,10 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	return nil
 }
 
-// buildFilterQuery turns the optional filter.Expr filter into a
+// buildFilterQuery turns the optional filter predicate into a
 // RediSearch query string. Returns "*" (match-all) when filter is nil,
 // matching the syntax FT.SEARCH expects in front of the KNN tail.
-func (s *Store) buildFilterQuery(filter filter.Expr) (string, error) {
+func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 	if filter == nil {
 		return "*", nil
 	}

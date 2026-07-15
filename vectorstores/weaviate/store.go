@@ -395,7 +395,7 @@ func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]vect
 	return docs, nil
 }
 
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}

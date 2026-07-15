@@ -54,12 +54,13 @@ func VisitorConformance(t *testing.T, build BuildFn, opts ...Options) {
 		{"and", `a == 1 and b == 2`},
 		{"or", `a == 1 or b == 2`},
 		{"not", `not (a == 1)`},
+		{"in_single", `tags in ('a')`},
 		{"in_strings", `tags in ('a', 'b', 'c')`},
 		{"in_numbers", `years in (2020, 2021, 2022)`},
 		{"in_bools", `flags in (true, false)`},
 		{"like", `title like '%foo%'`},
-		{"indexed_key", `metadata['author'] == 'Alice'`},
-		{"nested_index", `metadata['a']['b'] == 'x'`},
+		{"indexed_key", `profile['author'] == 'Alice'`},
+		{"nested_index", `profile['a']['b'] == 'x'`},
 		{"nested_logical", `(a == 1 and b == 2) or (c == 3 and not (d == 4))`},
 	}
 	for _, tc := range success {
@@ -82,10 +83,6 @@ func VisitorConformance(t *testing.T, build BuildFn, opts ...Options) {
 		// should avoid over-coupling to wording.
 		hint string
 	}{
-		// Parser unwraps single-element parens to a bare literal, so
-		// `a in (1)` reaches the visitor as `a IN <literal>` — exercises
-		// the "right side is not a list" rejection branch.
-		{"in_scalar", `a in (1)`, "IN"},
 		// LIKE with a non-string right side hits every backend's pattern
 		// validation.
 		{"like_number", `title like 42`, ""},

@@ -3,7 +3,6 @@ package bedrockkb
 import (
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
@@ -14,9 +13,8 @@ import (
 // BuildRetrievalFilter transforms an AST filter expression into a
 // Bedrock RetrievalFilter. Bedrock Knowledge Bases address metadata
 // keys directly by name; nested paths are not supported, so the left
-// operand must reduce to a bare identifier (or a single-level
-// indexed expression).
-func BuildRetrievalFilter(expr filter.Expr) (types.RetrievalFilter, error) {
+// operand must be a bare identifier.
+func BuildRetrievalFilter(expr filter.Predicate) (types.RetrievalFilter, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -209,27 +207,7 @@ func keyName(expr filter.Expr) (string, error) {
 	case *filter.Ident:
 		return node.Value, nil
 	case *filter.IndexExpr:
-		// Single-level metadata["author"] only — Bedrock doesn't do
-		// nested attribute paths in filters.
-		idx := node.Index
-		if idx == nil {
-			return "", errors.New("missing index literal")
-		}
-		switch {
-		case idx.IsString():
-			return idx.AsString()
-		case idx.IsNumber():
-			n, err := idx.AsNumber()
-			if err != nil {
-				return "", err
-			}
-			if float64(int64(n)) == n {
-				return strconv.FormatInt(int64(n), 10), nil
-			}
-			return strconv.FormatFloat(n, 'f', -1, 64), nil
-		default:
-			return "", errors.New("index must be a string or number literal")
-		}
+		return "", errors.New("bedrockkb: nested metadata paths are not supported")
 	default:
 		return "", fmt.Errorf("unsupported left operand %T", node)
 	}

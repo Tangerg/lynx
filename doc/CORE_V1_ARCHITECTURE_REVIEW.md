@@ -1,7 +1,7 @@
 # Core v1 最终架构审查
 
 > 审查日期：2026-07-15
-> 审查结论：通过；Core v1 公开契约已冻结
+> 审查结论：通过；Filter tag 前精修后重新冻结 Core v1 公开契约
 > Module：`github.com/Tangerg/lynx/core`
 > 目标 tag：`core/v1.0.0`（尚未创建）
 
@@ -11,12 +11,14 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 
 最终审查批准当前契约进入 v1 稳定期。冻结意味着从 `core/v1.0.0` 开始按 SemVer 管理当前 API 与 wire，而不是恢复任何重构前 API 或历史 wire。仓库中没有为旧设计保留 alias、bridge、shim、兼容字段、dual-read/dual-write 或旧 decoder。
 
+`core/v1.0.0` 尚未创建，因此维护者在 tag 前重新打开 Filter 契约审查：删除双 AST/转换层、builder 与 precedence 表面，公开 `Predicate`/`Selector`/`Visitor`，并把递归下降前端收敛为同包私有实现。本修订后的 330 条 API baseline 取代先前 341 条草案；wire inventory 与 golden 不变。
+
 ## 2. 冻结范围
 
 | 项目 | 冻结结果 |
 |---|---:|
 | 公共 package | 11 |
-| exported API baseline | 341 条声明/方法签名 |
+| exported API baseline | 330 条声明/方法签名 |
 | 带 JSON tag 的导出 DTO | 49 |
 | 代表性 wire root | 17 |
 | 聚合 wire golden | 487 行 |

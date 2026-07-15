@@ -23,6 +23,8 @@ import (
 //	NOT (author == "Alice")    →  NOT (metadata.author:"Alice")
 //	author IS NULL             →  NOT _exists_:metadata.author
 //	author IS NOT NULL         →  NOT (NOT _exists_:metadata.author)
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err            error
 	sql            strings.Builder
@@ -40,7 +42,7 @@ func (v *Visitor) Result() string {
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }

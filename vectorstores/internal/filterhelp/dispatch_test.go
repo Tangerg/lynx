@@ -2,6 +2,7 @@ package filterhelp_test
 
 import (
 	"errors"
+	"math"
 	"strings"
 	"testing"
 
@@ -179,6 +180,58 @@ func TestConvertListLiteral_Numbers(t *testing.T) {
 	}
 	if n, _ := sample.(float64); n != 1.0 {
 		t.Fatalf("sample = %v, want 1.0", sample)
+	}
+}
+
+func TestConvertListLiteral_IntegersStayExact(t *testing.T) {
+	e := mustParseBinary(t, `a in (1, 2, 3)`)
+	list, _ := filterhelp.RequireListLiteral(e)
+
+	slice, sample, err := filterhelp.ConvertListLiteral(list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values, ok := slice.([]int64)
+	if !ok || len(values) != 3 || values[2] != 3 {
+		t.Fatalf("slice = %#v (%T), want []int64{1, 2, 3}", slice, slice)
+	}
+	if sample != int64(1) {
+		t.Fatalf("sample = %#v, want int64(1)", sample)
+	}
+}
+
+func TestLiteralToValue_PreservesUint64(t *testing.T) {
+	literal := filter.NewLiteral(uint64(math.MaxUint64))
+	value, err := filterhelp.LiteralToValue(literal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value != uint64(math.MaxUint64) {
+		t.Fatalf("value = %#v (%T), want MaxUint64", value, value)
+	}
+}
+
+func TestCollectKeyPath_IncludesBaseIdentifier(t *testing.T) {
+	tests := []struct {
+		name string
+		expr filter.Expr
+		want []string
+	}{
+		{name: "bare", expr: filter.NewIdent("author"), want: []string{"author"}},
+		{name: "nested", expr: filter.Index(filter.Index("profile", "name"), "first"), want: []string{"profile", "name", "first"}},
+		{name: "numeric", expr: filter.Index("items", 2), want: []string{"items", "2"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := filterhelp.CollectKeyPath(tt.expr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(got, "/") != strings.Join(tt.want, "/") {
+				t.Fatalf("path = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

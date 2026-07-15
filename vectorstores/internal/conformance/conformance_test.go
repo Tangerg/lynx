@@ -19,7 +19,7 @@ func (allCapabilities) Search(context.Context, vectorstore.SearchRequest) ([]vec
 	return nil, vectorstore.SearchRequest{}.Validate()
 }
 func (allCapabilities) DeleteIDs(context.Context, []string) error { return nil }
-func (allCapabilities) DeleteWhere(context.Context, filter.Expr) error {
+func (allCapabilities) DeleteWhere(context.Context, filter.Predicate) error {
 	return vectorstore.ErrMissingFilter
 }
 

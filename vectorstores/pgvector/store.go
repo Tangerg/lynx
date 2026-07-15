@@ -491,7 +491,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (docs
 // Delete removes every row whose metadata matches the request filter.
 //
 // One `db.vector.delete pgvector` span per call.
-func (s *Store) DeleteWhere(ctx context.Context, expr filter.Expr) (err error) {
+func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
 	if expr == nil {
 		return vectorstore.ErrMissingFilter
 	}
@@ -543,7 +543,7 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 // buildWhereClause converts the optional filter expression into a SQL
 // fragment (prefixed with " WHERE ") and the matching argument slice.
 // Returns ("", nil, nil) when filter is nil.
-func (s *Store) buildWhereClause(filter filter.Expr) (string, []any, error) {
+func (s *Store) buildWhereClause(filter filter.Predicate) (string, []any, error) {
 	if filter == nil {
 		return "", nil, nil
 	}

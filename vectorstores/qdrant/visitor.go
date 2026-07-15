@@ -32,6 +32,8 @@ import (
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err               error          // Last error encountered during conversion
 	filter            *qdrant.Filter // The Qdrant filter being constructed
@@ -61,7 +63,7 @@ func (v *Visitor) Filter() *qdrant.Filter {
 //
 // This is the main entry point for AST traversal. The actual conversion logic
 // is delegated to the visit method and its specialized handlers.
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }

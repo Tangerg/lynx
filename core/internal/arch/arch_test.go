@@ -259,11 +259,11 @@ func assertMinimalModalityPackage(t *testing.T, packageName string) {
 	}
 }
 
-func TestFilterPublicFacadeExcludesCompilerInternals(t *testing.T) {
+func TestFilterPublicFacadeKeepsFrontendInternalsPrivate(t *testing.T) {
 	root := filepath.Join(moduleRoot(t), "vectorstore", "filter")
 	forbiddenTypes := map[string]bool{
 		"Token": true, "Lexer": true, "Parser": true,
-		"Analyzer": true, "Optimizer": true, "Visitor": true,
+		"Analyzer": true, "Optimizer": true,
 	}
 	forbiddenFuncs := map[string]bool{
 		"Analyze": true, "Optimize": true, "ParseAndAnalyze": true,

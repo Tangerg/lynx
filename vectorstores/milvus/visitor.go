@@ -32,6 +32,8 @@ import (
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err               error  // Last error encountered during conversion
 	result            string // The Milvus expression string being built
@@ -56,7 +58,7 @@ func (v *Visitor) Result() string {
 // Visit translates one semantic filter expression.
 // It walks the whole tree rooted at expr and returns the first error
 // encountered, or nil when the entire expression was accepted.
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }
@@ -400,11 +402,14 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 
 	current := expr
 	for {
-		if err := v.visitLiteral(current.Index); err != nil {
-			return "", err
+		key, err := filterhelp.LiteralAsKey(current.Index)
+		if err != nil {
+			return "", fmt.Errorf("milvus: %w", err)
 		}
-
-		parts = append([]string{"[" + v.currentFieldValue + "]"}, parts...)
+		if current.Index.IsString() {
+			key = strconv.Quote(key)
+		}
+		parts = append([]string{"[" + key + "]"}, parts...)
 
 		switch left := current.Left.(type) {
 		case *filter.IndexExpr:
@@ -484,7 +489,7 @@ func (v *Visitor) literalToString(lit *filter.Literal) (string, error) {
 //	expr, _ := parser.Parse(`age > 18 AND status == "active"`)
 //	filter, err := milvus.ToFilter(expr)
 //	// filter: (age > 18) and (status == "active")
-func ToFilter(expr filter.Expr) (string, error) {
+func ToFilter(expr filter.Predicate) (string, error) {
 	conv := NewVisitor()
 	if err := conv.Visit(expr); err != nil {
 		return "", err

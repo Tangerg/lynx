@@ -26,6 +26,8 @@ import (
 // Values are JSON-encoded — strings get double-quoted with embedded
 // quotes escaped per JSON rules, which is also valid in SQL++ string
 // literals.
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err            error
 	sql            strings.Builder
@@ -43,7 +45,7 @@ func (v *Visitor) Result() string {
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }

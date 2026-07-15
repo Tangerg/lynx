@@ -1,6 +1,7 @@
 package filter_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
@@ -27,17 +28,17 @@ func TestConstructorsBuildStableSemanticNodes(t *testing.T) {
 	}
 }
 
-func TestParseReturnsValidatedOptimizedPublicTree(t *testing.T) {
+func TestParseReturnsValidatedPublicTree(t *testing.T) {
 	expr, err := filter.Parse(`not (not (year >= 2020))`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	binary, ok := expr.(*filter.BinaryExpr)
-	if !ok || binary.Op != filter.OpGreaterEqual {
-		t.Fatalf("parsed = %T %#v, want optimized greater-equal", expr, expr)
+	outer, ok := expr.(*filter.UnaryExpr)
+	if !ok || outer.Op != filter.OpNot {
+		t.Fatalf("parsed = %T %#v, want outer NOT", expr, expr)
 	}
-	if binary.Start().Line != 1 || binary.Start().Column == 0 {
-		t.Fatalf("parsed position = %v, want source position", binary.Start())
+	if outer.Start().Line != 1 || outer.Start().Column == 0 {
+		t.Fatalf("parsed position = %v, want source position", outer.Start())
 	}
 }
 
@@ -59,7 +60,7 @@ func TestExpressionEqualityIgnoresSourcePosition(t *testing.T) {
 }
 
 func TestValidateRejectsMalformedPublicTreeWithoutPanicking(t *testing.T) {
-	tests := map[string]filter.Expr{
+	tests := map[string]filter.Predicate{
 		"nil":                 nil,
 		"typed nil":           (*filter.BinaryExpr)(nil),
 		"missing left":        &filter.BinaryExpr{Op: filter.OpEqual, Right: filter.NewLiteral("value")},
@@ -78,10 +79,70 @@ func TestValidateRejectsMalformedPublicTreeWithoutPanicking(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsInvalidSemanticShapes(t *testing.T) {
+	tests := map[string]filter.Predicate{
+		"numeric identifier": filter.EQ(filter.NewIdent("123"), 1),
+		"keyword identifier": filter.EQ(filter.NewIdent("and"), 1),
+		"scalar IN": &filter.BinaryExpr{
+			Left: filter.NewIdent("field"), Op: filter.OpIn, Right: filter.NewLiteral(1),
+		},
+		"fractional index": filter.EQ(filter.Index("field", 1.5), "value"),
+		"negative index":   filter.EQ(filter.Index("field", -1), "value"),
+		"non-finite number": &filter.BinaryExpr{
+			Left: filter.NewIdent("field"), Op: filter.OpEqual,
+			Right: &filter.Literal{Kind: filter.LiteralNumber, Value: "NaN"},
+		},
+		"non-canonical number": &filter.BinaryExpr{
+			Left: filter.NewIdent("field"), Op: filter.OpEqual,
+			Right: &filter.Literal{Kind: filter.LiteralNumber, Value: "01"},
+		},
+		"malformed null": &filter.BinaryExpr{
+			Left: filter.NewIdent("field"), Op: filter.OpIs,
+			Right: &filter.Literal{Kind: filter.LiteralNull, Value: "NULL"},
+		},
+		"oversized index": filter.EQ(filter.Index("field", uint64(math.MaxUint64)), "value"),
+	}
+
+	for name, expr := range tests {
+		t.Run(name, func(t *testing.T) {
+			if err := filter.Validate(expr); err == nil {
+				t.Fatal("Validate returned nil error")
+			}
+		})
+	}
+}
+
+func TestNumericLiteralPreservesIntegerPrecision(t *testing.T) {
+	const integer = uint64(math.MaxUint64)
+	literal := filter.NewLiteral(integer)
+	if literal.Value != "18446744073709551615" {
+		t.Fatalf("Value = %q, want exact uint64 text", literal.Value)
+	}
+}
+
+func TestNewLiteralDefersNonFiniteValidation(t *testing.T) {
+	expr := filter.EQ("score", math.NaN())
+	if err := filter.Validate(expr); err == nil {
+		t.Fatal("Validate accepted a non-finite literal")
+	}
+}
+
+func TestNewLiteralCanonicalizesNegativeZero(t *testing.T) {
+	literal := filter.NewLiteral(math.Copysign(0, -1))
+	if literal.Value != "0" {
+		t.Fatalf("Value = %q, want 0", literal.Value)
+	}
+}
+
 func TestMalformedExpressionEqualityIsNilSafe(t *testing.T) {
 	left := &filter.BinaryExpr{Op: filter.OpEqual}
 	right := &filter.BinaryExpr{Op: filter.OpEqual}
 	if !left.Equal(right) {
 		t.Fatal("equivalent incomplete expressions should compare equal")
+	}
+	leftList := &filter.ListLiteral{Values: []*filter.Literal{nil}}
+	rightList := &filter.ListLiteral{Values: []*filter.Literal{nil}}
+	if !leftList.Equal(rightList) {
+		t.Fatal("equivalent incomplete lists should compare equal")
 	}
 }

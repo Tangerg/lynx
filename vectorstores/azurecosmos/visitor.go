@@ -20,6 +20,8 @@ import (
 //	category IN ("a", "b")   →  c.metadata.category IN (@p1, @p2)
 //	NOT (a == "x")           →  NOT (c.metadata.a = @p1)
 //	a == "x" AND b == "y"    →  (c.metadata.a = @p1 AND c.metadata.b = @p2)
+var _ filter.Visitor = (*Visitor)(nil)
+
 type Visitor struct {
 	err            error
 	sql            strings.Builder
@@ -49,7 +51,7 @@ func (v *Visitor) Result() (string, []NamedParam) {
 	return v.sql.String(), v.params
 }
 
-func (v *Visitor) Visit(expr filter.Expr) error {
+func (v *Visitor) Visit(expr filter.Predicate) error {
 	v.err = v.visit(expr)
 	return v.err
 }

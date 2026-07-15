@@ -11,7 +11,7 @@ import (
 
 // VectorStoreFilterKey is the [Query.Extra] metadata key under which a caller
 // may stash a per-call filter expression — either as a parsed
-// [filter.Expr] or as a raw filter-DSL string. The retriever consults
+// [filter.Predicate] or as a raw filter-DSL string. The retriever consults
 // this slot before falling back to the configured FilterFunc.
 const VectorStoreFilterKey = "lynx:ai:rag:retriever:filter_expr"
 
@@ -30,7 +30,7 @@ type VectorStoreConfig struct {
 	// FilterFunc dynamically builds a metadata filter from the query's
 	// Extra map. Optional; when both [VectorStoreFilterKey] is set on the
 	// query and FilterFunc is provided, the per-query filter wins.
-	FilterFunc func(ctx context.Context, params map[string]any) (filter.Expr, error)
+	FilterFunc func(ctx context.Context, params map[string]any) (filter.Predicate, error)
 }
 
 func (c *VectorStoreConfig) validate() error {
@@ -59,7 +59,7 @@ type vectorStoreRetriever struct {
 	vectorStore corevs.Searcher
 	topK        int
 	minScore    float64
-	filterFunc  func(ctx context.Context, params map[string]any) (filter.Expr, error)
+	filterFunc  func(ctx context.Context, params map[string]any) (filter.Predicate, error)
 }
 
 // NewVectorStoreRetriever returns a [Retriever] backed by a core vector store.
@@ -110,12 +110,12 @@ func (v *vectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]Ca
 // resolveFilter picks the filter expression to use for this call,
 // preferring the per-query [VectorStoreFilterKey] slot over the configured
 // FilterFunc. Returns nil, nil when no filter applies.
-func (v *vectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) (filter.Expr, error) {
+func (v *vectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) (filter.Predicate, error) {
 	if value, exists := query.Get(VectorStoreFilterKey); exists {
 		switch typed := value.(type) {
 		case string:
 			return filter.Parse(typed)
-		case filter.Expr:
+		case filter.Predicate:
 			return typed, nil
 		}
 	}
