@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/metadata"
 )
@@ -18,10 +19,13 @@ type Options struct {
 }
 
 // NewOptions builds Options for the given model id. Returns an error
-// when model is empty.
+// when model is empty or has surrounding whitespace.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
 		return nil, errors.New("moderation.NewOptions: model id must not be empty")
+	}
+	if strings.TrimSpace(model) != model {
+		return nil, errors.New("moderation.NewOptions: model id must not have surrounding whitespace")
 	}
 	return &Options{Model: model}, nil
 }
@@ -37,6 +41,9 @@ func (o *Options) Set(key string, value any) error {
 func (o *Options) validate() error {
 	if o == nil {
 		return nil
+	}
+	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
+		return errors.New("moderation: model id must not have surrounding whitespace")
 	}
 	if err := o.Extra.Validate(); err != nil {
 		return fmt.Errorf("moderation: options extra: %w", err)
@@ -104,6 +111,11 @@ func (r *Request) Validate() error {
 	}
 	if len(r.Texts) == 0 {
 		return errors.New("moderation: texts must contain at least one entry")
+	}
+	for i, text := range r.Texts {
+		if text == "" {
+			return fmt.Errorf("moderation: texts[%d] must not be empty", i)
+		}
 	}
 	return r.Options.validate()
 }

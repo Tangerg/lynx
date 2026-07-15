@@ -3,7 +3,9 @@ package transcription
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/internal/ptr"
 	"github.com/Tangerg/lynx/core/media"
@@ -30,7 +32,7 @@ type Options struct {
 	Prompt string `json:"prompt"`
 
 	// Temperature controls sampling randomness (Whisper / Whisper-large
-	// variants). Range typically 0.0–1.0. nil leaves it to the provider.
+	// variants). Valid values are 0.0–1.0. nil leaves it to the provider.
 	Temperature *float64 `json:"temperature,omitempty"`
 
 	// ResponseFormat selects the transcript shape. Common values: "json",
@@ -48,10 +50,13 @@ type Options struct {
 }
 
 // NewOptions builds Options for the given model id. Returns an error when
-// model is empty.
+// model is empty or has surrounding whitespace.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
 		return nil, errors.New("transcription.NewOptions: model id must not be empty")
+	}
+	if strings.TrimSpace(model) != model {
+		return nil, errors.New("transcription.NewOptions: model id must not have surrounding whitespace")
 	}
 	return &Options{Model: model}, nil
 }
@@ -130,6 +135,21 @@ func (o *Options) applyOverride(src *Options) error {
 func (o *Options) validate() error {
 	if o == nil {
 		return nil
+	}
+	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
+		return errors.New("transcription: model id must not have surrounding whitespace")
+	}
+	if o.Temperature != nil && (math.IsNaN(*o.Temperature) || math.IsInf(*o.Temperature, 0) ||
+		*o.Temperature < 0 || *o.Temperature > 1) {
+		return errors.New("transcription: temperature must be between 0 and 1")
+	}
+	for i, granularity := range o.TimestampGranularity {
+		if granularity == "" {
+			return fmt.Errorf("transcription: timestamp granularity[%d] must not be empty", i)
+		}
+		if strings.TrimSpace(granularity) != granularity {
+			return fmt.Errorf("transcription: timestamp granularity[%d] must not have surrounding whitespace", i)
+		}
 	}
 	if err := o.Extra.Validate(); err != nil {
 		return fmt.Errorf("transcription: options extra: %w", err)

@@ -27,8 +27,14 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := moderation.NewOptions(""); err == nil {
 		t.Fatal("NewOptions accepted empty model")
 	}
+	if _, err := moderation.NewOptions(" model "); err == nil {
+		t.Fatal("NewOptions accepted model with surrounding whitespace")
+	}
 	if _, err := moderation.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest accepted empty texts")
+	}
+	if _, err := moderation.NewRequest([]string{"valid", ""}); err == nil {
+		t.Fatal("NewRequest accepted an empty text entry")
 	}
 	if _, err := (*moderation.Options)(nil).Merged(); err == nil {
 		t.Fatal("Merged accepted nil receiver")
@@ -42,6 +48,10 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted invalid options metadata")
+	}
+	invalid.Options = &moderation.Options{Model: " model "}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("Validate accepted model with surrounding whitespace")
 	}
 	options := new(moderation.Options)
 	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {

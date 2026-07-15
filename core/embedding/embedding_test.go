@@ -52,6 +52,9 @@ func TestOptionsAndRequest(t *testing.T) {
 	if _, err := embedding.NewOptions(""); err == nil {
 		t.Fatal("NewOptions accepted empty model")
 	}
+	if _, err := embedding.NewOptions(" model "); err == nil {
+		t.Fatal("NewOptions accepted model with surrounding whitespace")
+	}
 	if _, err := embedding.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest accepted empty input")
 	}
@@ -67,6 +70,10 @@ func TestOptionsAndRequest(t *testing.T) {
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted invalid options metadata")
+	}
+	invalid.Options = &embedding.Options{Model: " model "}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("Validate accepted model with surrounding whitespace")
 	}
 	badDimensions := int64(0)
 	invalid.Options = &embedding.Options{Dimensions: &badDimensions}

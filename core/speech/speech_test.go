@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"math"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/metadata"
@@ -41,6 +42,9 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := speech.NewOptions(""); err == nil || err.Error() != "speech.NewOptions: model id must not be empty" {
 		t.Fatalf("NewOptions error = %v", err)
 	}
+	if _, err := speech.NewOptions(" model "); err == nil {
+		t.Fatal("NewOptions accepted model with surrounding whitespace")
+	}
 	if _, err := speech.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty text")
 	}
@@ -57,9 +61,25 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted invalid options metadata")
 	}
-	invalid.Options = &speech.Options{Speed: -1}
+	invalid.Options = &speech.Options{Model: " model "}
 	if err := invalid.Validate(); err == nil {
-		t.Fatal("Validate accepted negative speed")
+		t.Fatal("Validate accepted model with surrounding whitespace")
+	}
+	for _, tc := range []struct {
+		name  string
+		speed float64
+	}{
+		{name: "negative", speed: -1},
+		{name: "nan", speed: math.NaN()},
+		{name: "positive infinity", speed: math.Inf(1)},
+		{name: "negative infinity", speed: math.Inf(-1)},
+	} {
+		t.Run(tc.name+" speed", func(t *testing.T) {
+			invalid.Options = &speech.Options{Speed: tc.speed}
+			if err := invalid.Validate(); err == nil {
+				t.Fatalf("Validate accepted speed %v", tc.speed)
+			}
+		})
 	}
 	options := new(speech.Options)
 	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {

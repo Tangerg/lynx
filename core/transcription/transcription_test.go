@@ -3,6 +3,7 @@ package transcription_test
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/media"
@@ -32,6 +33,9 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := transcription.NewOptions(""); err == nil {
 		t.Fatal("NewOptions accepted empty model")
 	}
+	if _, err := transcription.NewOptions(" model "); err == nil {
+		t.Fatal("NewOptions accepted model with surrounding whitespace")
+	}
 	if _, err := transcription.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest accepted nil audio")
 	}
@@ -51,6 +55,36 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted invalid options metadata")
+	}
+	invalid.Options = &transcription.Options{Model: " model "}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("Validate accepted model with surrounding whitespace")
+	}
+	for _, tc := range []struct {
+		name    string
+		value   float64
+		wantErr bool
+	}{
+		{name: "negative", value: -0.1, wantErr: true},
+		{name: "zero", value: 0},
+		{name: "one", value: 1},
+		{name: "above one", value: 1.1, wantErr: true},
+		{name: "nan", value: math.NaN(), wantErr: true},
+		{name: "infinity", value: math.Inf(1), wantErr: true},
+	} {
+		t.Run(tc.name+" temperature", func(t *testing.T) {
+			invalid.Options = &transcription.Options{Temperature: new(tc.value)}
+			err := invalid.Validate()
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("Validate temperature %v error = %v, wantErr %t", tc.value, err, tc.wantErr)
+			}
+		})
+	}
+	for _, granularity := range []string{"", " word "} {
+		invalid.Options = &transcription.Options{TimestampGranularity: []string{granularity}}
+		if err := invalid.Validate(); err == nil {
+			t.Errorf("Validate accepted timestamp granularity %q", granularity)
+		}
 	}
 	options := new(transcription.Options)
 	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {

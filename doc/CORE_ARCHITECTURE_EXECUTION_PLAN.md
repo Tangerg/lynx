@@ -1,6 +1,6 @@
 # Core 架构演进执行计划
 
-> 状态：已完成（Core v1 架构冻结）
+> 状态：进行中（Core v1 架构已冻结；tag 前稳定化精修）
 > 建立日期：2026-07-13
 > 最后更新：2026-07-15
 > 维护者：Lynx 仓库维护者
@@ -891,6 +891,22 @@ flowchart LR
 
 阶段验收（完成：2026-07-15）：P7 七项任务全部完成；Core v1 的 API、wire、文档、依赖、安全与质量门禁已冻结，最终架构审查通过。正式创建 tag 是按协调发布手册执行的独立不可逆发布动作，不属于本重构计划的兼容性实现范围。
 
+### P8：Tag 前协议不变量与适配边界收口
+
+目标：不再拆分 Core 或增加框架抽象，只修复最终审视中有明确证据的协议校验缺口与单一 backend 公开依赖偏差。
+
+- [x] **P8-01 加固 Core 请求协议不变量**（完成：2026-07-15）
+  - Embedding/Image/Moderation/Speech/Transcription 的显式模型标识拒绝首尾空白，直接构造的 Options 与构造器保持相同语义。
+  - Moderation 拒绝空文本子项；Speech 拒绝非有限速度；Transcription 温度限定为有限的 `[0,1]`，时间戳粒度拒绝空值和首尾空白；VectorStore 拒绝 `NaN` 最低分数。
+  - 影响面：不改变 exported declaration 或 JSON shape，只收紧此前会延迟到 provider/JSON 层失败的非法输入；Core API/wire baseline 不更新。
+  - 证据：六个受影响 package 定向测试、Core API/wire 守卫及 `MODULE=core scripts/check.sh build vet test lint` 全绿。
+- [ ] **P8-02 统一 InMemory VectorStore 的 embedding 公开边界**（未开始）
+  - `StoreConfig` 与其余 embedding-backed backend 一致接收 `embedding.Model`，在 `NewStore` 内构造 `embeddingclient.Client`。
+  - 删除不可能由值参数构造器返回的 `ErrNilConfig`，以 `ErrMissingEmbeddingModel` 替换泄漏便利层词汇的 `ErrMissingEmbeddingClient`；不保留 alias 或兼容字段。
+  - 影响面：`vectorstores/inmemory` 的 `StoreConfig` 和 sentinel 是破坏性公开 API；workspace 唯一消费者为该包测试，原子迁移。
+
+退出标准：两批分别可独立回滚；Core API/wire 守卫、Core 与 VectorStores 模块门禁、21 module 全仓确定性门禁全部通过；按维护者要求不重复 fuzz。
+
 ---
 
 ## 10. 当前进度
@@ -907,14 +923,15 @@ flowchart LR
 | P5 其余模态与依赖 | 完成 | 7/7 | 最小模态、扁平路径、职责外移与目标依赖预算全部完成 |
 | P6 Workspace 切换 | 完成 | 8/8 | 旧 API、兼容面、残余依赖和错误文档清零；100 项 workspace 门禁全绿 |
 | P7 稳定与发布 | 完成 | 7/7 | 最终架构审查通过，Core v1 契约与发布门禁已冻结 |
-| **总计** | **完成** | **60/60** | **100%** |
+| P8 Tag 前精修 | 进行中 | 1/2 | 请求协议不变量已收紧；待统一 InMemory embedding 公开边界 |
+| **总计** | **进行中** | **61/62** | **98.4%** |
 
 ### 10.2 当前焦点
 
-- 当前阶段：全部完成。
-- 下一任务：无；正式 tag/协调发布按 `CORE_V1_RELEASE_RUNBOOK.md` 单独执行。
+- 当前阶段：P8 Tag 前协议不变量与适配边界收口。
+- 下一任务：P8-02 InMemory VectorStore embedding 公开边界统一。
 - 当前阻塞：无。
-- 最近完成：tag 前 Core 语义与模块边界精修；`embedding.Client` 外移且不重建框架表面，任务计数仍为 60/60。
+- 最近完成：P8-01 Core 请求协议不变量加固；API/wire shape 不变。
 
 ### 10.3 进度更新规则
 
@@ -1197,6 +1214,20 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：从 `core/embedding` 删除 `Client`、`NewClient` 及其五个公开方法，把真实生产消费者需要的 `EmbedText`、`EmbedTexts`、`EmbedDocuments` 收敛到独立 `embeddingclient` module。新 Client 只返回深拷贝向量，不复制 `Model.Call`，也不附带无人消费的 `*embedding.Response`；需要 response metadata/usage 的调用方直接使用 Core Model。23 个 VectorStore backend 与 App Runtime 同批直接迁移，Core 增加架构守卫禁止 Client 回流。
 - 原因：`core/embedding.Client` 是五个模态完成最小 SPI 化后唯一残留的运行时便利对象，与“Core 是协议窄腰而非 Client framework”的边界冲突。49 个生产调用点全部丢弃原始 Response，证明三返回值和重复 Call 入口不是有效需求；把便利层独立发布可让 Core 协议稳定演进，也让向量工作流按真实消费面保持三个方法。Core API baseline 因此从 347 收缩为 341，wire 仍为 49/17/487，workspace module 从 20 增至 21。
 
+### ADR-020：请求在 Core 边界拒绝确定非法的格式与非有限数值
+
+- 日期：2026-07-15
+- 状态：已采纳（维护者确认 tag 前精修）
+- 决策：Core 的请求 `Validate` 统一拒绝带首尾空白的显式模型标识、空的列表元素以及 `NaN`/无穷等无法形成合法 JSON 或稳定比较语义的数值；Transcription 的公共温度契约明确为 `[0,1]`。不对普通 prompt/text/query 做隐式 trim，也不增加共享校验框架。
+- 原因：这些值此前能通过 Core，却只在 provider SDK、JSON 编码或排序比较阶段失败；根因属于协议不变量。显式逐包校验保持错误归属清晰，并避免为少量字段建立跨领域抽象。
+
+### ADR-021：Embedding-backed Store 的公开配置接收 Core Model
+
+- 日期：2026-07-15
+- 状态：已采纳（维护者确认破坏性调整）
+- 决策：`vectorstores/inmemory.StoreConfig` 与其余 backend 一致公开 `embedding.Model`，具体 `embeddingclient.Client` 只由 Store 内部持有和构造。删除不可能返回的 `ErrNilConfig`，错误词汇改为 `ErrMissingEmbeddingModel`，不保留旧字段或 sentinel alias。
+- 原因：`embeddingclient` 是向量提取便利层而非 Store 的调用方 SPI；只有 InMemory 要求调用者预先构造 Client 会泄漏内部工作流并制造不一致。接受最小 Core 接口、返回具体 Store 更符合 Go 库边界。
+
 ---
 
 ## 16. 长期完成定义
@@ -1219,6 +1250,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 完成 P8-01：五个模态统一显式 model id 空白约束，Moderation 列表元素、Speech 速度、Transcription 温度/时间戳粒度及 VectorStore `MinScore` 在 Core 边界拒绝确定非法值；API/wire shape 不变 | Codex |
 | 2026-07-15 | 收敛 Runtime MCP transport 领域词汇：持久态 `Server` 与运行态 `LiveConfig` 共享强类型 `Transport`，删除值不同但含义重复的 `LiveTransport`；字符串/SDK 映射只发生在 delivery、persistence 与 infra 边界 | Codex |
 | 2026-07-15 | 完成 Embedding 便利层职责外移：Core 删除最后一个 Client 并以架构守卫锁定协议边界，新增三方法 `embeddingclient` module，迁移 23 个 VectorStore backend 与 App Runtime；API 收缩为 341，wire 不变 | Codex |
 | 2026-07-15 | 完成五个模态 Options receiver 化、Embedding/Moderation `First` 统一与 Speech `OutputFormat/Audio` 语义收口；33 个 provider 调用点直接迁移，API 数量保持 347、wire 规模保持 49/17/487 | Codex |
@@ -1289,6 +1321,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | P8-01 Core 请求协议不变量 | 五个模态显式 model id、Moderation 文本项、Speech 非有限速度、Transcription 温度/时间戳粒度及 VectorStore `NaN` 分数均在请求边界校验；六包定向测试、API/wire 守卫及 Core build/vet/test/lint 全绿，未运行 fuzz | P8-02 InMemory embedding 公开边界统一 |
 | 2026-07-15 | tag 前深度精修最终验收 | `FUZZ_TIME=0 scripts/check-core-release.sh` 通过 Core test/race/vet/lint/tidy、17 包 coverage、Models provider 与 27 backend conformance；`FAST=1 scripts/check.sh build vet test lint race` 对 21 module 的 105/105 项全绿；21/21 module 关闭 go.work 后 test/vet/tidy 全绿；21/21 精确漏洞策略通过。按维护者要求未启动 fuzz | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | Runtime MCP transport 语义收口 | 删除 `LiveTransport("http"/"stdio")`，以强类型 `mcpserver.Transport("streamableHttp"/"stdio")` 同时塑造持久与运行配置；SQLite 与 delivery 显式做 string 转换，infra adapter 唯一负责映射 MCP SDK enum。新增同词汇/投影深拷贝测试，App build/vet/test/lint/race 5/5 全绿 | 执行 21 module 最终确定性门禁 |
 | 2026-07-15 | Embedding Client 职责外移 | `3f7af1a3a` 删除 Core 最后一个 Client，新增只含三个向量方法的 `embeddingclient`，迁移 23 个 VectorStore backend 与 App；`3938d179f` 闭合 Core/EmbeddingClient/Models 远端依赖。Core API 347→341、wire 49/17/487 不变；受影响四模块 20/20 build/vet/test/lint/race 及关闭 go.work 的三模块 test/vet/tidy 全绿 | 收敛 Runtime 重复 transport 词汇 |
