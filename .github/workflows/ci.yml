@@ -78,6 +78,13 @@ jobs:
           go test -count=1 ./internal/arch
           -run '^(TestExportedAPIMatchesBaseline|TestWireTypeCoverage|TestWireContractsMatchGolden)$'
 
+      - name: Core documentation and examples release gate
+        if: matrix.module == 'core'
+        working-directory: core
+        run: >-
+          go test -count=1 ./...
+          -run '^(Example|TestPublicPackagesHaveDocsAndRunnableExamples)$'
+
       # Provider compatibility is release-critical even while the broad test
       # suite remains advisory. This covers every public constructor plus the
       # shared protocol/mapping suites and the five reference implementations.

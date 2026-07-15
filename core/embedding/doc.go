@@ -1,7 +1,8 @@
 // Package embedding defines the stable text-to-vector protocol and its
 // single-method provider SPI.
 //
-// Model implementations own provider defaults at construction. Callers put
-// per-call overrides in Request.Options. Dimension discovery is optional via
-// Dimensioner or explicit and uncached via ProbeDimensions.
+// Build input with NewRequest and attach Options only for per-call overrides.
+// Provider defaults and identity are fixed when constructing an implementation,
+// not exposed through Model. Dimension discovery is optional via Dimensioner;
+// ProbeDimensions performs an explicit uncached request when needed.
 package embedding

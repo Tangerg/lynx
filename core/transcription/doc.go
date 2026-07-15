@@ -1,5 +1,7 @@
-// Package transcription defines the request/response types and Model
-// interface for audio-to-text LLMs. Concrete provider implementations
-// (OpenAI Whisper, Deepgram, AssemblyAI, ...) live in
-// /models/<provider>/audio_transcription.go.
+// Package transcription defines the serializable audio-to-text protocol and
+// its single-method [Model] capability.
+//
+// NewRequest accepts validated media audio. Options carries explicit language,
+// prompt, temperature, response format, timestamp granularity, and provider
+// extras. Provider implementations and defaults live outside Core.
 package transcription

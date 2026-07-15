@@ -1,6 +1,5 @@
-// Package vectorstore is the unified abstraction layer over vector
-// databases (Pinecone, Weaviate, Milvus, Qdrant, Chroma, ...). Four
-// independent interfaces split the surface by capability:
+// Package vectorstore defines provider-neutral semantic indexing and search.
+// Four independent interfaces split the surface by capability:
 //
 //   - [Indexer] adds documents.
 //   - [Searcher] finds similar documents by query + metadata filter.
@@ -12,10 +11,9 @@
 // support. [SearchRequest] is a normal struct with explicit validation; Add
 // and delete methods accept their single logical input directly.
 //
-// Metadata filtering uses the filter mini-language: build expressions
-// programmatically with filter.NewExprBuilder or parse from text with
-// filter.Parse. See [github.com/Tangerg/lynx/core/vectorstore/filter]
-// for grammar and examples.
+// Metadata filtering uses the filter mini-language: build expressions with
+// filter.NewExprBuilder or typed constructors, or parse them from text with
+// filter.Parse. See [github.com/Tangerg/lynx/core/vectorstore/filter].
 //
 // Quick start:
 //
@@ -25,6 +23,5 @@
 //	}
 //	matches, err := searcher.Search(ctx, req)
 //
-// To bridge a vector store into a document writer for ingest
-// pipelines, see [NewDocumentWriter].
+// NewDocumentWriter adapts an Indexer to document.Writer for ingest pipelines.
 package vectorstore
