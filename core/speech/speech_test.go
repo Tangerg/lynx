@@ -44,8 +44,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := speech.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty text")
 	}
-	if _, err := speech.MergeOptions(nil); err == nil || err.Error() != "speech.MergeOptions: base options must not be nil" {
-		t.Fatalf("MergeOptions error = %v", err)
+	if _, err := (*speech.Options)(nil).Merged(); err == nil || err.Error() != "speech.Options.Merged: nil receiver" {
+		t.Fatalf("Merged error = %v", err)
 	}
 	if err := (*speech.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
@@ -68,8 +68,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 }
 
 func TestResponseValidation(t *testing.T) {
-	if _, err := speech.NewResult(nil, &speech.ResultMetadata{}); err == nil || err.Error() != "speech.NewResult: speech must not be empty" {
-		t.Fatalf("NewResult empty speech error = %v", err)
+	if _, err := speech.NewResult(nil, &speech.ResultMetadata{}); err == nil || err.Error() != "speech.NewResult: audio must not be empty" {
+		t.Fatalf("NewResult empty audio error = %v", err)
 	}
 	if _, err := speech.NewResult([]byte("audio"), nil); err == nil || err.Error() != "speech.NewResult: metadata must not be nil" {
 		t.Fatalf("NewResult nil metadata error = %v", err)
@@ -85,16 +85,16 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 		t.Fatalf("nil Clone = %#v", clone)
 	}
 	base := &speech.Options{Model: "base", Voice: "base-voice", Extra: mustMetadata(t, map[string]any{"base": true})}
-	merged, err := speech.MergeOptions(base, nil, &speech.Options{
-		Model: "override", Voice: "alloy", ResponseFormat: "mp3", Speed: 1.25,
+	merged, err := base.Merged(nil, &speech.Options{
+		Model: "override", Voice: "alloy", OutputFormat: "mp3", Speed: 1.25,
 		Extra: mustMetadata(t, map[string]any{"override": true}),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if merged.Model != "override" || merged.Voice != "alloy" || merged.ResponseFormat != "mp3" ||
+	if merged.Model != "override" || merged.Voice != "alloy" || merged.OutputFormat != "mp3" ||
 		merged.Speed != 1.25 || len(merged.Extra) != 2 {
-		t.Fatalf("MergeOptions = %#v", merged)
+		t.Fatalf("Merged = %#v", merged)
 	}
 	clone := merged.Clone()
 	if err := clone.Extra.Set("base", false); err != nil {

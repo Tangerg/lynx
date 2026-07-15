@@ -68,7 +68,7 @@ func NewAudioTranslationModel(cfg AudioTranslationModelConfig) (*AudioTranslatio
 }
 
 func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Request) (*openai.AudioTranslationNewParams, error) {
-	mergedOpts, err := transcription.MergeOptions(a.defaultOptions, req.Options)
+	mergedOpts, err := a.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}

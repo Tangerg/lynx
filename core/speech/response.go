@@ -21,27 +21,27 @@ func (m *ResultMetadata) Set(key string, value any) error {
 }
 
 // Result is one chunk of generated audio. For synchronous calls the
-// chunk is the entire audio; for streaming calls Speech is whatever
+// chunk is the entire audio; for streaming calls Audio is whatever
 // segment the provider just produced.
 type Result struct {
-	// Speech holds the encoded audio bytes (encoding determined by
-	// Request.Options.ResponseFormat).
-	Speech []byte `json:"speech,omitzero"`
+	// Audio holds the encoded bytes in the format selected by
+	// Request.Options.OutputFormat.
+	Audio []byte `json:"audio,omitzero"`
 
 	// Metadata carries per-chunk extras.
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
-// NewResult builds a [Result]. Returns an error when speech is empty
+// NewResult builds a [Result]. Returns an error when audio is empty
 // or metadata is nil.
-func NewResult(speech []byte, metadata *ResultMetadata) (*Result, error) {
-	if len(speech) == 0 {
-		return nil, errors.New("speech.NewResult: speech must not be empty")
+func NewResult(audio []byte, metadata *ResultMetadata) (*Result, error) {
+	if len(audio) == 0 {
+		return nil, errors.New("speech.NewResult: audio must not be empty")
 	}
 	if metadata == nil {
 		return nil, errors.New("speech.NewResult: metadata must not be nil")
 	}
-	return &Result{Speech: speech, Metadata: metadata}, nil
+	return &Result{Audio: audio, Metadata: metadata}, nil
 }
 
 // ResponseMetadata holds response-level metadata for a TTS call.

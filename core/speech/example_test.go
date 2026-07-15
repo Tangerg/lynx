@@ -16,7 +16,7 @@ func Example() {
 		panic(err)
 	}
 	options.Voice = "alloy"
-	options.ResponseFormat = "mp3"
+	options.OutputFormat = "mp3"
 	options.Speed = 1
 	request.Options = options
 

@@ -77,7 +77,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 }
 
 func (i *ImageModel) buildAPIRequest(req *image.Request) (*GenerateRequest, error) {
-	mergedOpts, err := image.MergeOptions(i.defaultOptions, req.Options)
+	mergedOpts, err := i.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}

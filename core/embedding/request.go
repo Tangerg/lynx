@@ -86,21 +86,21 @@ func (o *Options) Clone() *Options {
 	}
 }
 
-// MergeOptions clones base and applies each override left-to-right.
+// Merged clones o and applies each override left-to-right.
 // Scalar non-zero values overwrite; the Extra map merges last-write-wins.
-// Returns an error when base is nil.
-func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
-	if base == nil {
-		return nil, errors.New("embedding.MergeOptions: base options must not be nil")
+// A nil receiver returns an error.
+func (o *Options) Merged(overrides ...*Options) (*Options, error) {
+	if o == nil {
+		return nil, errors.New("embedding.Options.Merged: nil receiver")
 	}
 
-	merged := base.Clone()
+	merged := o.Clone()
 	for _, override := range overrides {
 		if override == nil {
 			continue
 		}
 		if err := merged.applyOverride(override); err != nil {
-			return nil, fmt.Errorf("embedding.MergeOptions: %w", err)
+			return nil, fmt.Errorf("embedding.Options.Merged: %w", err)
 		}
 	}
 	return merged, nil

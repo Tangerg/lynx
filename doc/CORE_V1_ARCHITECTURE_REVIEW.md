@@ -37,6 +37,7 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 | 接口由消费能力塑造 | Model/Streamer、Indexer/Searcher/Deleter 等接口保持 1–3 个方法且能力可分离 | 通过 |
 | 依赖方向单向 | Core 生产 import 只允许标准库或 Core 自身，外层 module 依赖 Core | 通过 |
 | provider 差异不扩张 Core | provider JSON 进入 typed Options 或 namespaced `metadata.Map`；options key 冻结为 `<provider>/options` | 通过 |
+| 值对象行为归属明确 | 五个 modality 的不可变 Options 合并由 `Merged` receiver 承担；Embedding/Moderation 首项统一为 `First`；Speech 使用 `OutputFormat`/`Audio` | 通过 |
 | 不保留迁移债务 | 旧 package、旧 wire decoder、alias/bridge/shim 与双轨读写均不存在 | 通过 |
 
 ## 4. 可扩展性结论

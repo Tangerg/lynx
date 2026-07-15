@@ -43,7 +43,7 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 // endpoint but as GenerateContent with ResponseModalities=AUDIO. Models:
 // "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts".
 //
-// Speed and ResponseFormat are not honored: Gemini's TTS has no
+// Speed and OutputFormat are not honored: Gemini's TTS has no
 // playback-rate knob, and the output container is fixed at 24 kHz
 // signed 16-bit little-endian PCM in a WAV wrapper.
 type AudioTTSModel struct {
@@ -74,7 +74,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
-	mergedOpts, err := tts.MergeOptions(a.defaultOptions, req.Options)
+	mergedOpts, err := a.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return "", nil, nil, err
 	}
