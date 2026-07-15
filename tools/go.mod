@@ -3,9 +3,9 @@ module github.com/Tangerg/lynx/tools
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/core v0.0.0-20260715031711-43c2876c4c96
-	github.com/Tangerg/lynx/pkg v0.0.0-20260715031711-43c2876c4c96
-	github.com/Tangerg/lynx/skills v0.0.0-20260715031711-43c2876c4c96
+	github.com/Tangerg/lynx/core v0.0.0-20260715032326-b968e20dd6f6
+	github.com/Tangerg/lynx/pkg v0.0.0-20260715032326-b968e20dd6f6
+	github.com/Tangerg/lynx/skills v0.0.0-20260715032326-b968e20dd6f6
 	github.com/go-resty/resty/v2 v2.17.2
 )
 
