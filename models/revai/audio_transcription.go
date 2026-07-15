@@ -69,7 +69,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := transcription.MergeOptions(a.defaultOptions, req.Options)
+	mergedOpts, err := a.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}

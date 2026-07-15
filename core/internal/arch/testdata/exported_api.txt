@@ -103,10 +103,10 @@ embedding: func (m *ResponseMetadata) Set(key string, value any) error
 embedding: func (m *ResultMetadata) Set(key string, value any) error
 embedding: func (m ModalityType) String() string
 embedding: func (o *Options) Clone() *Options
+embedding: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 embedding: func (o *Options) Set(key string, value any) error
 embedding: func (r *Request) Validate() error
-embedding: func (r *Response) Result() *Result
-embedding: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
+embedding: func (r *Response) First() *Result
 embedding: func NewClient(model Model) (*Client, error)
 embedding: func NewOptions(model string) (*Options, error)
 embedding: func NewRequest(texts []string) (*Request, error)
@@ -133,11 +133,11 @@ image: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response
 image: func (m *ResponseMetadata) Set(key string, value any) error
 image: func (m *ResultMetadata) Set(key string, value any) error
 image: func (o *Options) Clone() *Options
+image: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 image: func (o *Options) Set(key string, value any) error
 image: func (r *Request) Validate() error
 image: func (r ResponseFormat) String() string
 image: func (r ResponseFormat) Valid() bool
-image: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
 image: func NewImage(url, b64JSON string) (*Image, error)
 image: func NewOptions(model string) (*Options, error)
 image: func NewRequest(prompt string) (*Request, error)
@@ -185,10 +185,10 @@ moderation: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Res
 moderation: func (m *ResponseMetadata) Set(key string, value any) error
 moderation: func (m *ResultMetadata) Set(key string, value any) error
 moderation: func (o *Options) Clone() *Options
+moderation: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 moderation: func (o *Options) Set(key string, value any) error
 moderation: func (r *Request) Validate() error
-moderation: func (r *Response) Result() *Result
-moderation: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
+moderation: func (r *Response) First() *Result
 moderation: func NewOptions(model string) (*Options, error)
 moderation: func NewRequest(texts []string) (*Request, error)
 moderation: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
@@ -208,20 +208,20 @@ speech: func (f StreamFunc) Stream(ctx context.Context, request *Request) iter.S
 speech: func (m *ResponseMetadata) Set(key string, value any) error
 speech: func (m *ResultMetadata) Set(key string, value any) error
 speech: func (o *Options) Clone() *Options
+speech: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 speech: func (o *Options) Set(key string, value any) error
 speech: func (r *Request) Validate() error
-speech: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
 speech: func NewOptions(model string) (*Options, error)
 speech: func NewRequest(text string) (*Request, error)
 speech: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
-speech: func NewResult(speech []byte, metadata *ResultMetadata) (*Result, error)
+speech: func NewResult(audio []byte, metadata *ResultMetadata) (*Result, error)
 speech: type Model interface { Call(context.Context, *Request) (*Response, error) }
 speech: type ModelFunc func(context.Context, *Request) (*Response, error)
-speech: type Options struct { Model string `json:"model"` Voice string `json:"voice"` ResponseFormat string `json:"response_format"` Speed float64 `json:"speed"` Extra metadata.Map `json:"extra,omitzero"` }
+speech: type Options struct { Model string `json:"model"` Voice string `json:"voice"` OutputFormat string `json:"output_format"` Speed float64 `json:"speed"` Extra metadata.Map `json:"extra,omitzero"` }
 speech: type Request struct { Text string `json:"text"` Options *Options `json:"options,omitempty"` }
 speech: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 speech: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
-speech: type Result struct { Speech []byte `json:"speech,omitzero"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
+speech: type Result struct { Audio []byte `json:"audio,omitzero"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
 speech: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 speech: type StreamFunc func(context.Context, *Request) iter.Seq2[*Response, error]
 speech: type Streamer interface { Stream(context.Context, *Request) iter.Seq2[*Response, error] }
@@ -229,9 +229,9 @@ transcription: func (f ModelFunc) Call(ctx context.Context, request *Request) (*
 transcription: func (m *ResponseMetadata) Set(key string, value any) error
 transcription: func (m *ResultMetadata) Set(key string, value any) error
 transcription: func (o *Options) Clone() *Options
+transcription: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 transcription: func (o *Options) Set(key string, value any) error
 transcription: func (r *Request) Validate() error
-transcription: func MergeOptions(base *Options, overrides ...*Options) (*Options, error)
 transcription: func NewOptions(model string) (*Options, error)
 transcription: func NewRequest(audio *media.Media) (*Request, error)
 transcription: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)

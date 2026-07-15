@@ -106,26 +106,26 @@ func (o *Options) Clone() *Options {
 	}
 }
 
-// MergeOptions clones base then applies each override left-to-right.
+// Merged clones o then applies each override left-to-right.
 // Scalar non-zero values overwrite; the Extra map merges last-write-wins.
-// Returns an error when base is nil.
-func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
-	if base == nil {
-		return nil, errors.New("image.MergeOptions: base options must not be nil")
+// A nil receiver returns an error.
+func (o *Options) Merged(overrides ...*Options) (*Options, error) {
+	if o == nil {
+		return nil, errors.New("image.Options.Merged: nil receiver")
 	}
 
-	merged := base.Clone()
+	merged := o.Clone()
 	for _, override := range overrides {
 		if override == nil {
 			continue
 		}
 		if err := merged.applyOverride(override); err != nil {
-			return nil, fmt.Errorf("image.MergeOptions: %w", err)
+			return nil, fmt.Errorf("image.Options.Merged: %w", err)
 		}
 	}
 	normalized, err := normalizeOutputFormat(merged.OutputFormat)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("image.Options.Merged: %w", err)
 	}
 	merged.OutputFormat = normalized
 	return merged, nil
@@ -137,14 +137,14 @@ func normalizeOutputFormat(value string) (string, error) {
 	}
 	mediaType, parameters, err := mime.ParseMediaType(value)
 	if err != nil {
-		return "", fmt.Errorf("image.MergeOptions: invalid OutputFormat %q: %w", value, err)
+		return "", fmt.Errorf("invalid output format %q: %w", value, err)
 	}
 	mediaType = strings.ToLower(mediaType)
 	if !strings.HasPrefix(mediaType, "image/") || len(strings.TrimPrefix(mediaType, "image/")) == 0 {
-		return "", fmt.Errorf("image.MergeOptions: OutputFormat %q is not an image MIME type", value)
+		return "", fmt.Errorf("output format %q is not an image MIME type", value)
 	}
 	if len(parameters) != 0 {
-		return "", fmt.Errorf("image.MergeOptions: OutputFormat %q must not include parameters", value)
+		return "", fmt.Errorf("output format %q must not include parameters", value)
 	}
 	return mediaType, nil
 }
@@ -197,7 +197,7 @@ func (o *Options) validate() error {
 	}
 	if o.OutputFormat != "" {
 		if _, err := normalizeOutputFormat(o.OutputFormat); err != nil {
-			return err
+			return fmt.Errorf("image: options: %w", err)
 		}
 	}
 	if o.ResponseFormat != "" && !o.ResponseFormat.Valid() {

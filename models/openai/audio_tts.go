@@ -58,7 +58,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (*openai.AudioSpeechNewParams, error) {
-	mergedOpts, err := tts.MergeOptions(a.defaultOptions, req.Options)
+	mergedOpts, err := a.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -79,8 +79,8 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (*openai.AudioSpeec
 	if mergedOpts.Speed != 0 {
 		params.Speed = openai.Float(mergedOpts.Speed)
 	}
-	if mergedOpts.ResponseFormat != "" {
-		params.ResponseFormat = openai.AudioSpeechNewParamsResponseFormat(mergedOpts.ResponseFormat)
+	if mergedOpts.OutputFormat != "" {
+		params.ResponseFormat = openai.AudioSpeechNewParamsResponseFormat(mergedOpts.OutputFormat)
 	}
 	params.StreamFormat = openai.AudioSpeechNewParamsStreamFormatAudio
 

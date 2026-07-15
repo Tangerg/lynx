@@ -97,7 +97,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := tts.MergeOptions(a.defaultOptions, req.Options)
+	mergedOpts, err := a.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}

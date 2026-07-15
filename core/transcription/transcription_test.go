@@ -35,8 +35,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := transcription.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest accepted nil audio")
 	}
-	if _, err := transcription.MergeOptions(nil); err == nil {
-		t.Fatal("MergeOptions accepted nil base")
+	if _, err := (*transcription.Options)(nil).Merged(); err == nil {
+		t.Fatal("Merged accepted nil receiver")
 	}
 	if err := (*transcription.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
@@ -80,7 +80,7 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 		Model: "base", TimestampGranularity: []string{"segment"},
 		Extra: mustMetadata(t, map[string]any{"base": true}),
 	}
-	merged, err := transcription.MergeOptions(base, nil, &transcription.Options{
+	merged, err := base.Merged(nil, &transcription.Options{
 		Model: "override", Language: "en", Prompt: "Lynx", Temperature: &temperature,
 		ResponseFormat: "verbose_json", TimestampGranularity: []string{"word"},
 		Extra: mustMetadata(t, map[string]any{"override": true}),
@@ -91,11 +91,11 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 	if merged.Model != "override" || merged.Language != "en" || merged.Prompt != "Lynx" ||
 		merged.Temperature == nil || merged.ResponseFormat != "verbose_json" ||
 		len(merged.TimestampGranularity) != 1 || merged.TimestampGranularity[0] != "word" || len(merged.Extra) != 2 {
-		t.Fatalf("MergeOptions = %#v", merged)
+		t.Fatalf("Merged = %#v", merged)
 	}
 	temperature = 0.4
 	if *merged.Temperature != 0.2 {
-		t.Fatal("MergeOptions aliases override pointer state")
+		t.Fatal("Merged aliases override pointer state")
 	}
 	clone := merged.Clone()
 	*clone.Temperature = 0.9

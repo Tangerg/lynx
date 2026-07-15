@@ -122,9 +122,9 @@ func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, erro
 	return &Response{Results: results, Metadata: metadata}, nil
 }
 
-// Result returns the first embedding — the common single-input shortcut.
+// First returns the first embedding — the common single-input shortcut.
 // Returns nil when Results is empty.
-func (r *Response) Result() *Result {
+func (r *Response) First() *Result {
 	if r == nil || len(r.Results) == 0 {
 		return nil
 	}

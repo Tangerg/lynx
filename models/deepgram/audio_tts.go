@@ -63,7 +63,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *SpeakParams, error) {
-	mergedOpts, err := tts.MergeOptions(a.defaultOptions, req.Options)
+	mergedOpts, err := a.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return "", nil, err
 	}
@@ -75,8 +75,8 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *SpeakParams,
 	if params.Model == "" {
 		params.Model = mergedOpts.Model
 	}
-	if params.Encoding == "" && mergedOpts.ResponseFormat != "" {
-		params.Encoding = mergedOpts.ResponseFormat
+	if params.Encoding == "" && mergedOpts.OutputFormat != "" {
+		params.Encoding = mergedOpts.OutputFormat
 	}
 
 	return req.Text, params, nil

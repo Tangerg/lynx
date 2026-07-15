@@ -173,16 +173,16 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	speechRequest := &speech.Request{
 		Text: "Hello from Lynx.",
 		Options: &speech.Options{
-			Model:          "speech-model",
-			Voice:          "alloy",
-			ResponseFormat: "mp3",
-			Speed:          1.25,
-			Extra:          mustMetadata(t, map[string]any{"style": "calm"}),
+			Model:        "speech-model",
+			Voice:        "alloy",
+			OutputFormat: "mp3",
+			Speed:        1.25,
+			Extra:        mustMetadata(t, map[string]any{"style": "calm"}),
 		},
 	}
 	speechResponse := &speech.Response{
 		Result: &speech.Result{
-			Speech:   []byte("audio"),
+			Audio:    []byte("audio"),
 			Metadata: &speech.ResultMetadata{Extra: mustMetadata(t, map[string]any{"duration_ms": 250})},
 		},
 		Metadata: &speech.ResponseMetadata{

@@ -30,8 +30,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := image.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty prompt")
 	}
-	if _, err := image.MergeOptions(nil); err == nil {
-		t.Fatal("MergeOptions accepted nil base")
+	if _, err := (*image.Options)(nil).Merged(); err == nil {
+		t.Fatal("Merged accepted nil receiver")
 	}
 	if err := (*image.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
@@ -60,7 +60,7 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	base.OutputFormat = "IMAGE/PNG"
-	merged, err := image.MergeOptions(base)
+	merged, err := base.Merged()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,8 +69,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	}
 	for _, invalid := range []string{"text/plain", "image", "image/png;charset=utf-8"} {
 		base.OutputFormat = invalid
-		if _, err := image.MergeOptions(base); err == nil {
-			t.Errorf("MergeOptions accepted invalid OutputFormat %q", invalid)
+		if _, err := base.Merged(); err == nil {
+			t.Errorf("Merged accepted invalid OutputFormat %q", invalid)
 		}
 	}
 }
@@ -104,14 +104,14 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 		Style: "natural", Quality: "high", Seed: &seed, OutputFormat: "IMAGE/PNG",
 		ResponseFormat: image.ResponseFormatURL, Extra: mustMetadata(t, map[string]any{"override": true}),
 	}
-	merged, err := image.MergeOptions(base, nil, override)
+	merged, err := base.Merged(nil, override)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if merged.Model != "override" || merged.NegativePrompt != "text" || merged.Height == nil ||
 		merged.Style != "natural" || merged.Quality != "high" || merged.Seed == nil ||
 		merged.OutputFormat != "image/png" || merged.ResponseFormat != image.ResponseFormatURL {
-		t.Fatalf("MergeOptions = %#v", merged)
+		t.Fatalf("Merged = %#v", merged)
 	}
 	if len(merged.Extra) != 2 {
 		t.Fatalf("merged Extra = %#v", merged.Extra)
@@ -119,7 +119,7 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 	*merged.Height = 1024
 	*merged.Seed = 9
 	if height != 768 || seed != 7 {
-		t.Fatal("MergeOptions aliases override pointer state")
+		t.Fatal("Merged aliases override pointer state")
 	}
 	clone := merged.Clone()
 	*clone.Width = 1024

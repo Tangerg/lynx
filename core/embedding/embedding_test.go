@@ -141,16 +141,16 @@ func TestOptionsAndRequest(t *testing.T) {
 		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
 	}
 	dimensions := int64(32)
-	merged, err := embedding.MergeOptions(
-		&embedding.Options{Model: "base"},
+	base := &embedding.Options{Model: "base"}
+	merged, err := base.Merged(
 		&embedding.Options{Model: "override", Dimensions: &dimensions, EncodingFormat: embedding.EncodingFormatFloat},
 	)
 	if err != nil || merged.Model != "override" || *merged.Dimensions != 32 {
-		t.Fatalf("MergeOptions() = %#v, %v", merged, err)
+		t.Fatalf("Merged() = %#v, %v", merged, err)
 	}
 	*merged.Dimensions = 64
 	if dimensions != 32 {
-		t.Fatal("MergeOptions aliases override pointer state")
+		t.Fatal("Merged aliases override pointer state")
 	}
 	if !embedding.EncodingFormatFloat.Valid() || embedding.EncodingFormat("bad").Valid() {
 		t.Fatal("EncodingFormat.Valid is inconsistent")
@@ -199,8 +199,8 @@ func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
 }
 
 func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {
-	if _, err := embedding.MergeOptions(nil); err == nil {
-		t.Fatal("MergeOptions accepted nil base")
+	if _, err := (*embedding.Options)(nil).Merged(); err == nil {
+		t.Fatal("Merged accepted nil receiver")
 	}
 	if _, err := embedding.NewResult(nil, &embedding.ResultMetadata{}); err == nil {
 		t.Fatal("NewResult accepted an empty vector")
@@ -216,10 +216,10 @@ func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {
 		t.Fatal("NewResponse accepted nil metadata")
 	}
 	response, _ := embedding.NewResponse([]*embedding.Result{result}, &embedding.ResponseMetadata{})
-	if response.Result() != result {
-		t.Fatal("Result did not return the first result")
+	if response.First() != result {
+		t.Fatal("First did not return the first result")
 	}
-	if (&embedding.Response{}).Result() != nil || (*embedding.Response)(nil).Result() != nil {
+	if (&embedding.Response{}).First() != nil || (*embedding.Response)(nil).First() != nil {
 		t.Fatal("empty response returned a result")
 	}
 }

@@ -15,8 +15,8 @@ type Options struct {
 	// Voice selects the speaker profile. Provider-specific values.
 	Voice string `json:"voice"`
 
-	// ResponseFormat selects the audio container ("mp3", "wav", ...).
-	ResponseFormat string `json:"response_format"`
+	// OutputFormat selects the audio container ("mp3", "wav", ...).
+	OutputFormat string `json:"output_format"`
 
 	// Speed scales the playback rate. 1.0 is normal speed.
 	Speed float64 `json:"speed"`
@@ -61,23 +61,23 @@ func (o *Options) Clone() *Options {
 		return nil
 	}
 	return &Options{
-		Model:          o.Model,
-		Voice:          o.Voice,
-		ResponseFormat: o.ResponseFormat,
-		Speed:          o.Speed,
-		Extra:          o.Extra.Clone(),
+		Model:        o.Model,
+		Voice:        o.Voice,
+		OutputFormat: o.OutputFormat,
+		Speed:        o.Speed,
+		Extra:        o.Extra.Clone(),
 	}
 }
 
-// MergeOptions clones base then applies each override left-to-right.
+// Merged clones o then applies each override left-to-right.
 // Scalar non-zero values overwrite; the Extra map merges last-write-wins.
-// Returns an error when base is nil.
-func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
-	if base == nil {
-		return nil, errors.New("speech.MergeOptions: base options must not be nil")
+// A nil receiver returns an error.
+func (o *Options) Merged(overrides ...*Options) (*Options, error) {
+	if o == nil {
+		return nil, errors.New("speech.Options.Merged: nil receiver")
 	}
 
-	merged := base.Clone()
+	merged := o.Clone()
 	for _, override := range overrides {
 		if override == nil {
 			continue
@@ -88,15 +88,15 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		if override.Voice != "" {
 			merged.Voice = override.Voice
 		}
-		if override.ResponseFormat != "" {
-			merged.ResponseFormat = override.ResponseFormat
+		if override.OutputFormat != "" {
+			merged.OutputFormat = override.OutputFormat
 		}
 		if override.Speed != 0 {
 			merged.Speed = override.Speed
 		}
 		if len(override.Extra) > 0 {
 			if err := merged.Extra.Merge(override.Extra); err != nil {
-				return nil, fmt.Errorf("speech.MergeOptions: merge Extra: %w", err)
+				return nil, fmt.Errorf("speech.Options.Merged: merge Extra: %w", err)
 			}
 		}
 	}

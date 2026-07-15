@@ -385,7 +385,7 @@
     "options": {
       "model": "speech-model",
       "voice": "alloy",
-      "response_format": "mp3",
+      "output_format": "mp3",
       "speed": 1.25,
       "extra": {
         "style": "calm"
@@ -394,7 +394,7 @@
   },
   "speech_response": {
     "result": {
-      "speech": "YXVkaW8=",
+      "audio": "YXVkaW8=",
       "metadata": {
         "extra": {
           "duration_ms": 250

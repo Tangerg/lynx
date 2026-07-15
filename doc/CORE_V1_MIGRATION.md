@@ -249,10 +249,12 @@ Embedding、Image、Transcription、Moderation 都只要求一个 `Call`；Speec
 
 1. 在 `models/<provider>` 构造具体 adapter。
 2. 让业务函数只接收对应包的最小 `Model` 或可选 `Streamer`。
-3. 用 `NewRequest`/`NewOptions` 构造输入，按需用 `MergeOptions` 合并显式覆盖。
+3. 用 `NewRequest`/`NewOptions` 构造输入，按需调用 `base.Merged(overrides...)` 获取合并后的独立 Options；该方法不修改 receiver。
 4. provider 特有 options 用 `Options.Set` 写入 JSON-safe `Extra`，key 使用 `<provider>/options`，并显式处理错误；Request 不再有 `Params`。
 5. 在 Model `Call`/`Stream` 读取请求前调用 `Request.Validate`，并保留规范化 metadata/usage；原始 SDK usage 不进入 Core DTO。
 6. Embedding dimensions 需要时先断言 `embedding.Dimensioner`，否则显式调用 `ProbeDimensions`；没有全局缓存。
+
+Embedding 与 Moderation 的多结果响应使用 `response.First()` 取得首项。Speech 的音频容器字段为 `Options.OutputFormat`，生成结果字节为 `Result.Audio`；对应 JSON 字段是 `output_format` 与 `audio`，不再使用移植期的 `response_format` 与 `speech`。
 
 ## 8. 持久化数据的一次性迁移
 

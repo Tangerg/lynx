@@ -1183,6 +1183,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：为 `metadata.Map` 增加 `Merge` receiver；合并前验证 target/source，成功时对 source 的 `json.RawMessage` 深拷贝并按末值覆盖，失败时不修改 receiver。五个 modality Options 与 Chat 流式聚合统一复用该行为，不再各自维护 map 初始化、复制和别名隔离代码。
 - 原因：JSON 安全、深拷贝和覆盖策略是 `metadata.Map` 的不变量，不属于 Embedding/Image/Moderation/Speech/Transcription/Chat 任一调用方。将行为放回值对象能消除六份易漂移实现，并让零值可写、错误原子性和别名隔离在一个测试边界内冻结。该变更只新增一个方法，不改变现有签名或 wire；exported API baseline 从 346 调整为 347。
 
+### ADR-018：模态 Options 与结果快捷语义归回 receiver
+
+- 日期：2026-07-15
+- 状态：已采纳（v1 tag 前破坏性精修）
+- 决策：Embedding/Image/Moderation/Speech/Transcription 删除包级 `MergeOptions(base, ...)`，统一为 `base.Merged(...)`；方法返回深拷贝，不修改 receiver。Embedding/Moderation 的首结果方法从 `Result` 改为 `First`，与 Chat 多 choice 响应一致。Speech 将 `ResponseFormat/response_format` 改为 `OutputFormat/output_format`，将 `Speech/speech` 改为 `Audio/audio`。全部 workspace provider 在同一批次直接迁移，不保留 wrapper、旧字段或双 wire。
+- 原因：Options 是合并行为的自然所有者，`Merged` 比命令式 `Merge` 更准确表达不可变结果；`Result()` 与同名类型产生歧义，`First()` 明确多结果集合语义；Speech 的旧词汇分别混淆“响应形态”和“领域名称”，无法准确表达音频容器与字节载荷。该批次替换十条公开声明但净数量仍为 347，wire inventory/root/行数仍为 49/17/487，仅 Speech 两个字段的契约内容改变。
+
 ---
 
 ## 16. 长期完成定义
@@ -1205,6 +1212,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-15 | 完成五个模态 Options receiver 化、Embedding/Moderation `First` 统一与 Speech `OutputFormat/Audio` 语义收口；33 个 provider 调用点直接迁移，API 数量保持 347、wire 规模保持 49/17/487 | Codex |
 | 2026-07-15 | 完成 Core receiver/语义精修：Metadata 合并收敛为值对象行为，Chat 私有克隆归回 Response receiver，Speech 错误前缀与包名一致；API 基线更新为 347 条且 wire 不变 | Codex |
 | 2026-07-15 | 完成 tag 前协议词汇、API/wire、coverage 与文档收口，以两跳提交重建远端 module DAG；最终确定性门禁全绿，按维护者要求不重复整组长时间 fuzz | Codex |
 | 2026-07-15 | 完成 P7-07；最终架构审查通过，当时冻结 346 条 API、49 项 DTO/487 行 wire、标准库-only 依赖和无兼容债规则；完整 release gate 与 20 module 独立验证通过，计划 60/60 关闭 | Codex |
@@ -1272,6 +1280,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-15 | Core 模态公开语义精修 | 五个包级 `MergeOptions` 直接替换为 `Options.Merged`，Embedding/Moderation `Result` 替换为 `First`，Speech Go/wire 统一为 `OutputFormat/output_format` 与 `Audio/audio`；33 个 Models provider 调用点同批迁移，无 wrapper/旧字段/双 wire。Core 与 Models 的 build/vet/test/lint/race 共 10 项全绿；API baseline 仍为 347，wire inventory/root/golden 仍为 49/17/487 | 将 Core 残留 `embedding.Client` 外移到独立 module |
 | 2026-07-15 | Core receiver/语义精修 | `metadata.Map.Merge` 统一六处深拷贝、末值覆盖与错误原子语义；Chat 响应头克隆归回 `Response` receiver；Speech 构造/合并错误前缀清除旧 `tts` 包名。API 基线评审后从 346 更新为 347，wire 无变化；`FUZZ_TIME=0 scripts/check-core-release.sh` 的 Core 全量 test/race/vet/lint/tidy、17 包覆盖预算、Models provider 与 27 backend conformance 全绿，按维护者要求未启动 fuzz | 继续评审需维护者确认的破坏性命名与模块边界候选 |
 | 2026-07-15 | tag 前最终收口 | `783df3ee9` 将 embedding 用量统一为 `InputTokens/input_tokens`，补齐 `internal/ptr` 100% coverage 并校准当时的 11 package/346 API/49 DTO/17 root/487 行基线；`229e06c8e` 与 `04a37a9fe` 闭合远端依赖图。20/20 standalone test/vet/tidy、100/100 workspace gate、20/20 漏洞策略以及 Core 确定性 release gate 全绿；Metadata fuzz 5 分钟 98,942,554 次无失败，按维护者要求停止重复整组长时间 fuzz | 正式 tag/协调发布按运行手册单独执行 |
 | 2026-07-15 | P7-07、计划验收 | `43c2876c4` 完成协议/安全边界硬化，`b968e20dd` 与 `a1dd21f4f` 闭合远端依赖图；最终审查当时冻结 11 package/346 API/49 DTO/17 root/487 行 wire。20/20 module 独立 test/vet/tidy、100/100 workspace gate、20/20 精确漏洞门禁、17 package coverage、provider/27 backend race conformance 全绿；7 个 fuzz target 各 5 分钟，累计 609,846,214 次无失败；任务计数 60/60 | 计划完成；正式 tag/协调发布按运行手册单独执行 |

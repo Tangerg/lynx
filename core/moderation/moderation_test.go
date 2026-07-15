@@ -30,8 +30,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := moderation.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest accepted empty texts")
 	}
-	if _, err := moderation.MergeOptions(nil); err == nil {
-		t.Fatal("MergeOptions accepted nil base")
+	if _, err := (*moderation.Options)(nil).Merged(); err == nil {
+		t.Fatal("Merged accepted nil receiver")
 	}
 	if err := (*moderation.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
@@ -66,8 +66,8 @@ func TestCategoriesAndResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Result() != result {
-		t.Fatal("Result did not return first result")
+	if response.First() != result {
+		t.Fatal("First did not return first result")
 	}
 }
 
@@ -77,7 +77,7 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 	}
 
 	base := &moderation.Options{Model: "base", Extra: mustMetadata(t, map[string]any{"base": true})}
-	merged, err := moderation.MergeOptions(base, nil, &moderation.Options{
+	merged, err := base.Merged(nil, &moderation.Options{
 		Model: "override",
 		Extra: mustMetadata(t, map[string]any{"override": true}),
 	})
@@ -85,7 +85,7 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 		t.Fatal(err)
 	}
 	if merged.Model != "override" || len(merged.Extra) != 2 {
-		t.Fatalf("MergeOptions = %#v", merged)
+		t.Fatalf("Merged = %#v", merged)
 	}
 	clone := merged.Clone()
 	if err := clone.Extra.Set("base", false); err != nil {
@@ -163,7 +163,7 @@ func TestResponseConstructorsRejectInvalidValues(t *testing.T) {
 	if _, err := moderation.NewResponse([]*moderation.Result{result}, nil); err == nil {
 		t.Fatal("NewResponse accepted nil metadata")
 	}
-	if (&moderation.Response{}).Result() != nil || (*moderation.Response)(nil).Result() != nil {
+	if (&moderation.Response{}).First() != nil || (*moderation.Response)(nil).First() != nil {
 		t.Fatal("empty response returned a result")
 	}
 }

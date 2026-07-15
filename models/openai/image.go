@@ -56,7 +56,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 }
 
 func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGenerateParams, error) {
-	mergedOpts, err := image.MergeOptions(i.defaultOptions, req.Options)
+	mergedOpts, err := i.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}

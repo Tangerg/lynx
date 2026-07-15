@@ -64,7 +64,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat string, body *TTSRequest, err error) {
-	mergedOpts, mergeErr := tts.MergeOptions(a.defaultOptions, req.Options)
+	mergedOpts, mergeErr := a.defaultOptions.Merged(req.Options)
 	if mergeErr != nil {
 		return "", "", nil, mergeErr
 	}
@@ -90,7 +90,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat
 		body.VoiceSettings.Speed = &v
 	}
 
-	return mergedOpts.Voice, mergedOpts.ResponseFormat, body, nil
+	return mergedOpts.Voice, mergedOpts.OutputFormat, body, nil
 }
 
 func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Response, error) {

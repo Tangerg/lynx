@@ -57,7 +57,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 }
 
 func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2EmbedRequest, error) {
-	mergedOpts, err := embedding.MergeOptions(e.defaultOptions, req.Options)
+	mergedOpts, err := e.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}

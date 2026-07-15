@@ -56,7 +56,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	mergedOpts, err := image.MergeOptions(i.defaultOptions, req.Options)
+	mergedOpts, err := i.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}

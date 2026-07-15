@@ -55,7 +55,7 @@ func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
 }
 
 func (m *ModerationModel) buildAPIModerationRequest(req *moderation.Request) (*openai.ModerationNewParams, error) {
-	mergedOpts, err := moderation.MergeOptions(m.defaultOptions, req.Options)
+	mergedOpts, err := m.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}

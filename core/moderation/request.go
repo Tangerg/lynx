@@ -55,14 +55,14 @@ func (o *Options) Clone() *Options {
 	}
 }
 
-// MergeOptions clones base then applies each override left-to-right.
-// Returns an error when base is nil.
-func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
-	if base == nil {
-		return nil, errors.New("moderation.MergeOptions: base options must not be nil")
+// Merged clones o then applies each override left-to-right.
+// A nil receiver returns an error.
+func (o *Options) Merged(overrides ...*Options) (*Options, error) {
+	if o == nil {
+		return nil, errors.New("moderation.Options.Merged: nil receiver")
 	}
 
-	merged := base.Clone()
+	merged := o.Clone()
 	for _, override := range overrides {
 		if override == nil {
 			continue
@@ -72,7 +72,7 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		}
 		if len(override.Extra) > 0 {
 			if err := merged.Extra.Merge(override.Extra); err != nil {
-				return nil, fmt.Errorf("moderation.MergeOptions: merge Extra: %w", err)
+				return nil, fmt.Errorf("moderation.Options.Merged: merge Extra: %w", err)
 			}
 		}
 	}
