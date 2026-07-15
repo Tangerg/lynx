@@ -12,7 +12,10 @@ func (ix *Indexer) EnsureIndexed(ctx context.Context, cwd string) error {
 	if err != nil {
 		return err
 	}
-	modelID := emb.ID()
+	return ix.ensureIndexed(ctx, cwd, emb, emb.ID())
+}
+
+func (ix *Indexer) ensureIndexed(ctx context.Context, cwd string, emb Embedder, modelID string) error {
 	if ix.fresh(cwd, modelID) {
 		return nil
 	}
@@ -24,6 +27,24 @@ func (ix *Indexer) EnsureIndexed(ctx context.Context, cwd string) error {
 		return nil
 	}
 	return ix.reconcile(ctx, cwd, emb, modelID, false)
+}
+
+func (ix *Indexer) corpusFor(ctx context.Context, cwd string, emb Embedder, modelID string) ([]Chunk, error) {
+	lock := ix.cwdLock(cwd)
+	lock.Lock()
+	defer lock.Unlock()
+	if !ix.fresh(cwd, modelID) {
+		if err := ix.reconcile(ctx, cwd, emb, modelID, false); err != nil {
+			return nil, err
+		}
+	}
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	c := ix.corpus[cwd]
+	if c == nil || c.modelID != modelID {
+		return nil, nil
+	}
+	return append([]Chunk(nil), c.chunks...), nil
 }
 
 // Reindex forces a full rebuild of cwd's index from scratch.

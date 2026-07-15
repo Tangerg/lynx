@@ -172,7 +172,9 @@ func (s *inMemory) close(ctx context.Context) error {
 		s.mu.Unlock()
 
 		for _, st := range states {
-			_ = s.Cancel(context.WithoutCancel(st.ctx), st.handle)
+			go func() {
+				_ = s.Cancel(context.WithoutCancel(st.ctx), st.handle)
+			}()
 		}
 	})
 

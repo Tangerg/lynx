@@ -9,6 +9,7 @@ package models
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
@@ -69,10 +70,12 @@ type Coordinator struct {
 	utilityCell     *atomic.Pointer[modelrole.Role]
 	utilityResolver ClientResolver
 	utilityStore    UtilityRoleSaver
+	utilityMu       sync.Mutex
 
 	embeddingCell     *atomic.Pointer[modelrole.Role]
 	embeddingResolver EmbeddingResolver
 	embeddingStore    EmbeddingRoleSaver
+	embeddingMu       sync.Mutex
 
 	defaultProvider string
 	defaultModel    string

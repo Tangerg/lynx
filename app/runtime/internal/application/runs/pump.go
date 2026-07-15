@@ -34,14 +34,14 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 		if len(reductions) > 0 && reductions[0].Interrupt {
 			// Park is a batch boundary, not one event: commit every transcript
 			// projection + the open interrupt + Suspend, then publish the complete
-			// batch while requestCancel is excluded by the same handle lock. A
-			// cancellation therefore observes either no park or the complete park;
-			// it can never interleave between interrupt items and segment.finished.
+			// batch under one reserved boundary. A cancellation therefore observes
+			// either no park or the complete park and cancels + joins an in-flight
+			// durable commit without waiting on a mutex held across I/O.
 			if reductions[0].Commit == nil {
 				panic("runs: interrupt batch has no durable commit")
 			}
-			committed, err := live.commitInterrupt(func() error {
-				if err := c.effects.CommitEvent(commitCtx, *reductions[0].Commit); err != nil {
+			committed, err := live.commitInterrupt(commitCtx, func(interruptCtx context.Context) error {
+				if err := c.effects.CommitEvent(interruptCtx, *reductions[0].Commit); err != nil {
 					return err
 				}
 				finished = true

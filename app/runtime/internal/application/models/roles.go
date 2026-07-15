@@ -24,6 +24,8 @@ func (c *Coordinator) UtilityRole() (providerID, model string) {
 // provider or unknown model fails here rather than silently degrading at the next
 // compaction. Backs models.setUtilityRole.
 func (c *Coordinator) SetUtilityRole(ctx context.Context, provider, model string) error {
+	c.utilityMu.Lock()
+	defer c.utilityMu.Unlock()
 	role, err := modelrole.New(provider, model)
 	if err != nil {
 		return err
@@ -60,6 +62,8 @@ func (c *Coordinator) EmbeddingRole() (providerID, model string) {
 // provider (the delivery layer does, as invalid_params), so a failure here is an
 // internal one. Backs models.setEmbeddingRole.
 func (c *Coordinator) SetEmbeddingRole(ctx context.Context, providerID, model string) error {
+	c.embeddingMu.Lock()
+	defer c.embeddingMu.Unlock()
 	role, err := modelrole.New(providerID, model)
 	if err != nil {
 		return err

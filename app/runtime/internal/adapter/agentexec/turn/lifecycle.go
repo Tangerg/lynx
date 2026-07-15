@@ -21,9 +21,10 @@ import (
 // EventListener inheritance — their events arrive here too, tagged with
 // their own ProcessID. A subtask runs synchronously inside the root's
 // tool loop and therefore completes BEFORE the root, so its terminal
-// event would pre-empt the root's under earliest-wins. setRoot records
-// the root process id so the capture gate ignores any terminal whose
-// ProcessID isn't the root's.
+// event would pre-empt the root's under earliest-wins. The listener binds the
+// root from the first ProcessCreated event, which the platform publishes
+// synchronously before it starts the root goroutine, so the capture gate is in
+// place before a child can emit anything.
 //
 // Only terminal events are kept — non-terminal events (ReadyToPlan,
 // ActionExecutionStart, etc.) are dropped to keep the listener
@@ -32,7 +33,7 @@ import (
 // the run loop's exit ProcessFailed yields whichever arrived first.
 type turnLifecycle struct {
 	mu        sync.Mutex
-	rootID    string // turn's root process id; empty until setRoot
+	rootID    string // turn's root process id; empty until the first ProcessCreated
 	terminal  event.Event
 	sessionID string
 	cwd       string
@@ -40,18 +41,22 @@ type turnLifecycle struct {
 	subagents map[string]hooks.SubagentInput
 }
 
-// setRoot records the turn's root process id once StartTurn returns it,
-// so the listener can tell the root's terminal apart from a subtask's.
-// Called before the root reaches any terminal state, so no terminal is
-// missed by the gate.
+// setRoot is a fallback for engine stubs and restored processes that do not
+// publish ProcessCreated through the listener. The production start path has
+// already bound the same id synchronously by the time StartTurn returns.
 func (l *turnLifecycle) setRoot(id string) {
 	l.mu.Lock()
-	l.rootID = id
+	if l.rootID == "" {
+		l.rootID = id
+	}
 	l.mu.Unlock()
 }
 
 func (l *turnLifecycle) listener(turnID string) *event.NamedListener {
 	return event.NewNamedListener("turn-lifecycle-"+turnID, func(ctx context.Context, e event.Event) {
+		if _, created := e.(event.ProcessCreated); created && l.bindRoot(e.ProcessID()) {
+			return
+		}
 		l.fireSubagentHook(ctx, e)
 		switch e.(type) {
 		case event.ProcessCompleted,
@@ -60,15 +65,22 @@ func (l *turnLifecycle) listener(turnID string) *event.NamedListener {
 			event.ProcessTerminated,
 			event.ProcessStuck:
 			l.mu.Lock()
-			// Only the root process's terminal decides TurnEnd. rootID == ""
-			// (StartTurn hasn't returned, or stub tests that never set it)
-			// falls back to accepting any, preserving prior behavior.
-			if l.terminal == nil && (l.rootID == "" || e.ProcessID() == l.rootID) {
+			if l.terminal == nil && l.rootID != "" && e.ProcessID() == l.rootID {
 				l.terminal = e
 			}
 			l.mu.Unlock()
 		}
 	})
+}
+
+func (l *turnLifecycle) bindRoot(id string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.rootID != "" {
+		return false
+	}
+	l.rootID = id
+	return true
 }
 
 func (l *turnLifecycle) fireSubagentHook(ctx context.Context, e event.Event) {

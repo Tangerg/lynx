@@ -23,12 +23,14 @@ type handle struct {
 	hub             *Journal[Event]
 	cancelRequested bool
 	cancelReason    string
+	interruptDone   chan struct{}
+	interruptCancel context.CancelFunc
 }
 
 // requestCancel linearizes cancellation with interrupt publication. Once it
 // returns, no new interrupt can be committed for this run; a commit already in
-// progress has completed before cancellation proceeds to delete its durable
-// record.
+// progress has observed cancellation and completed before cancellation proceeds.
+// External I/O never runs under mu: the in-flight channel is the join point.
 func (h *handle) requestCancel(reason string) {
 	if h == nil {
 		return
@@ -36,26 +38,54 @@ func (h *handle) requestCancel(reason string) {
 	h.mu.Lock()
 	h.cancelRequested = true
 	h.cancelReason = reason
-	cancel := h.cancel
+	cancelRun := h.cancel
+	cancelInterrupt := h.interruptCancel
+	interruptDone := h.interruptDone
 	h.mu.Unlock()
-	if cancel != nil {
-		cancel()
+	if cancelRun != nil {
+		cancelRun()
+	}
+	if cancelInterrupt != nil {
+		cancelInterrupt()
+	}
+	if interruptDone != nil {
+		<-interruptDone
 	}
 }
 
-// commitInterrupt runs the durable commit and live publication as one critical
-// section relative to requestCancel. committed=false means cancellation won the
-// race and commit was deliberately not called.
-func (h *handle) commitInterrupt(commit func() error) (committed bool, err error) {
+// commitInterrupt reserves the interrupt boundary, runs its context-bounded
+// durable commit and publication without holding mu, then releases waiting
+// cancellation. committed=false means cancellation won before the reservation
+// or the commit failed.
+func (h *handle) commitInterrupt(ctx context.Context, commit func(context.Context) error) (committed bool, err error) {
 	if h == nil {
 		return false, errors.New("runs: missing live run handle")
 	}
+	commitCtx, cancelCommit := context.WithTimeout(ctx, runCleanupTimeout)
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	if h.cancelRequested {
+		h.mu.Unlock()
+		cancelCommit()
 		return false, nil
 	}
-	if err := commit(); err != nil {
+	if h.interruptDone != nil {
+		h.mu.Unlock()
+		cancelCommit()
+		return false, errors.New("runs: interrupt commit already in flight")
+	}
+	done := make(chan struct{})
+	h.interruptDone = done
+	h.interruptCancel = cancelCommit
+	h.mu.Unlock()
+
+	err = commit(commitCtx)
+	cancelCommit()
+	h.mu.Lock()
+	close(done)
+	h.interruptDone = nil
+	h.interruptCancel = nil
+	h.mu.Unlock()
+	if err != nil {
 		return false, err
 	}
 	return true, nil

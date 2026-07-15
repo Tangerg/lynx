@@ -33,15 +33,7 @@ func (s *inMemory) endTurn(st *turnState) {
 	if st.span != nil {
 		st.span.End()
 	}
-	// close(st.events) is safe only because every emit happens-before it: the
-	// run-loop emitters (the tool observer, steerSource) all complete before
-	// proc.Done() fires, and drive reads Done() before reaching endTurn; the
-	// teardown emitters (Cancel / finishTurn) run on this same goroutine,
-	// serialized against a racing Resume by claimPark. The lifecycle listener
-	// runs on a DETACHED agent goroutine, so it must only CAPTURE the terminal
-	// event, never emit — an emit from any goroutine lacking that happens-before
-	// would race this close and panic (send on a closed channel).
-	close(st.events)
+	st.closeEvents()
 	s.mu.Lock()
 	delete(s.turns, st.handle.TurnID)
 	s.mu.Unlock()
@@ -62,11 +54,19 @@ func discardProcess(ctx context.Context, process agentexec.TurnProcess) {
 // goroutine will run [emitTurnEnd]. The clean path goes through
 // emitTurnEnd (which carries usage) followed by endTurn in [drive].
 func (s *inMemory) finishTurn(st *turnState, reason execution.Outcome) {
-	dur := time.Since(st.startedAt)
-	finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
-	recordTurnDuration(st.ctx, reason, st.model, dur)
-	s.emit(st, TurnEnd{Reason: reason, Duration: dur})
-	s.endTurn(st)
+	s.completeTurn(st, func() {
+		dur := time.Since(st.startedAt)
+		finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
+		recordTurnDuration(st.ctx, reason, st.model, dur)
+		s.emit(st, TurnEnd{Reason: reason, Duration: dur})
+	})
+}
+
+func (s *inMemory) completeTurn(st *turnState, emitTerminal func()) {
+	st.terminalOnce.Do(func() {
+		emitTerminal()
+		s.endTurn(st)
+	})
 }
 
 // emitTurnEnd maps the captured agent runtime terminal event onto a

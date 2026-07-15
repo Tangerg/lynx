@@ -3,7 +3,6 @@ package turn
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -27,7 +26,15 @@ type turnState struct {
 	events chan Event
 	done   chan struct{}
 	cancel context.CancelFunc
-	seq    atomic.Uint64
+
+	// eventMu is the single serialization point for sequence assignment,
+	// event delivery, and channel closure. No sender may touch events without
+	// it, so endTurn can close the stream without racing a late observer or a
+	// park/cancel hand-off.
+	eventMu      sync.Mutex
+	eventsClosed bool
+	seq          uint64
+	terminalOnce sync.Once
 
 	// cwd is the session working directory the turn ran in — threaded
 	// to post-turn maintenance so extracted facts land in THAT

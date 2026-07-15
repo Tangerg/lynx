@@ -167,7 +167,7 @@ func (t *Transport) pumpStream(ctx context.Context, events <-chan dispatch.Strea
 			if !ok {
 				return
 			}
-			if !t.tryEmit(frame.Notif) {
+			if !t.tryEmit(ctx, frame.Notif) {
 				return
 			}
 		case <-ctx.Done():
@@ -178,7 +178,7 @@ func (t *Transport) pumpStream(ctx context.Context, events <-chan dispatch.Strea
 	}
 }
 
-func (t *Transport) tryEmit(msg transport.Message) bool {
+func (t *Transport) tryEmit(ctx context.Context, msg transport.Message) bool {
 	if msg == nil {
 		return true
 	}
@@ -189,6 +189,8 @@ func (t *Transport) tryEmit(msg transport.Message) bool {
 	select {
 	case t.in <- msg:
 		return true
+	case <-ctx.Done():
+		return false
 	case <-t.close:
 		return false
 	}
