@@ -112,12 +112,13 @@ func TestEmbeddingSPIRemainsMinimal(t *testing.T) {
 
 	root := filepath.Join(moduleRoot(t), "embedding")
 	forbiddenTypes := map[string]bool{
-		"ModelMetadata": true,
+		"ModelMetadata": true, "Client": true,
 		"ClientRequest": true, "ClientCaller": true,
 		"Middleware": true, "MiddlewareChain": true, "Handler": true,
 	}
 	forbiddenFuncs := map[string]bool{
 		"GetDimensions":    true,
+		"NewClient":        true,
 		"NewClientRequest": true, "NewClientFromRequest": true,
 		"NewMiddlewareChain": true,
 	}

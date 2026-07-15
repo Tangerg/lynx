@@ -170,5 +170,10 @@ func (r *Request) Validate() error {
 	if len(r.Texts) == 0 {
 		return errors.New("embedding: texts must contain at least one entry")
 	}
+	for i, text := range r.Texts {
+		if text == "" {
+			return fmt.Errorf("embedding: texts[%d] must not be empty", i)
+		}
+	}
 	return r.Options.validate()
 }
