@@ -34,11 +34,11 @@ func infraMCPServerConfig(in mcpserver.LiveConfig) mcp.ServerConfig {
 	}
 }
 
-func infraMCPTransport(in mcpserver.LiveTransport) mcp.Transport {
+func infraMCPTransport(in mcpserver.Transport) mcp.Transport {
 	switch in {
-	case mcpserver.LiveTransportHTTP:
+	case mcpserver.TransportStreamableHTTP:
 		return mcp.TransportHTTP
-	case mcpserver.LiveTransportStdio:
+	case mcpserver.TransportStdio:
 		return mcp.TransportStdio
 	default:
 		return 0

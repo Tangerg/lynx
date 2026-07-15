@@ -23,7 +23,7 @@ func TestWorkspaceMCPConfigurePreservesStoredAuthorization(t *testing.T) {
 
 	got, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:      "linear",
-		Transport: mcpserver.TransportStreamableHTTP,
+		Transport: string(mcpserver.TransportStreamableHTTP),
 		Enabled:   true,
 		URL:       "https://mcp.linear.app/mcp",
 	})
@@ -48,7 +48,7 @@ func TestWorkspaceMCPConfigurePropagatesAuthorizationLookupError(t *testing.T) {
 
 	_, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:      "linear",
-		Transport: mcpserver.TransportStreamableHTTP,
+		Transport: string(mcpserver.TransportStreamableHTTP),
 		Enabled:   true,
 		URL:       "https://mcp.linear.app/mcp",
 	})
@@ -66,7 +66,7 @@ func TestWorkspaceMCPConfigureRejectsNegativeTimeout(t *testing.T) {
 
 	_, err := s.WorkspaceMCPConfigure(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:           "linear",
-		Transport:      mcpserver.TransportStreamableHTTP,
+		Transport:      string(mcpserver.TransportStreamableHTTP),
 		URL:            "https://mcp.linear.app/mcp",
 		TimeoutSeconds: -1,
 	})

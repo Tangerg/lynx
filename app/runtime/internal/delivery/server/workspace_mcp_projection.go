@@ -86,7 +86,7 @@ func mcpToolWire(t mcpserver.ToolInfo) protocol.McpTool {
 func mcpConfigWire(srv mcpserver.Server) protocol.McpServerConfig {
 	return protocol.McpServerConfig{
 		Name:                srv.Name,
-		Transport:           srv.Transport,
+		Transport:           string(srv.Transport),
 		Enabled:             srv.Enabled,
 		Description:         srv.Description,
 		URL:                 srv.URL,
