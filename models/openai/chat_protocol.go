@@ -519,16 +519,16 @@ func mapCompletionMessage(params *openaisdk.ChatCompletionNewParams, message ope
 		return nil, nil
 	}
 	mapped := &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
-	if err := metadata.Set(ensureMetadata(&mapped.Metadata), messageRefusalKey, message.Refusal); err != nil {
+	if err := mapped.Metadata.Set(messageRefusalKey, message.Refusal); err != nil {
 		return nil, err
 	}
 	if message.Audio.ID != "" {
-		if err := metadata.Set(mapped.Metadata, messageAudioIDKey, message.Audio.ID); err != nil {
+		if err := mapped.Metadata.Set(messageAudioIDKey, message.Audio.ID); err != nil {
 			return nil, err
 		}
 	}
 	if len(message.Annotations) > 0 {
-		if err := metadata.Set(mapped.Metadata, messageAnnotationsKey, message.Annotations); err != nil {
+		if err := mapped.Metadata.Set(messageAnnotationsKey, message.Annotations); err != nil {
 			return nil, err
 		}
 	}
@@ -572,12 +572,12 @@ func mapOutputAudio(params *openaisdk.ChatCompletionNewParams, audio openaisdk.C
 	}
 	mapped.ID = audio.ID
 	if audio.ExpiresAt != 0 {
-		if err := metadata.Set(mapped.Metadata, mediaAudioExpiresAtKey, audio.ExpiresAt); err != nil {
+		if err := mapped.Metadata.Set(mediaAudioExpiresAtKey, audio.ExpiresAt); err != nil {
 			return nil, err
 		}
 	}
 	if audio.Data != "" {
-		if err := metadata.Set(mapped.Metadata, mediaAudioDataKey, audio.Data); err != nil {
+		if err := mapped.Metadata.Set(mediaAudioDataKey, audio.Data); err != nil {
 			return nil, err
 		}
 	}
@@ -651,13 +651,6 @@ func normalizeFinishReason(reason string) corechat.FinishReason {
 	default:
 		return corechat.FinishReasonOther
 	}
-}
-
-func ensureMetadata(target *metadata.Map) metadata.Map {
-	if *target == nil {
-		*target = metadata.New()
-	}
-	return *target
 }
 
 func extraString(fields map[string]respjson.Field, key string) (string, bool, error) {
@@ -746,7 +739,7 @@ func (s *openAIStreamState) mapChunkChoice(choice openaisdk.ChatCompletionChunkC
 	if len(parts) > 0 {
 		message := &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 		if choice.Delta.Refusal != "" {
-			if err := metadata.Set(ensureMetadata(&message.Metadata), messageRefusalKey, choice.Delta.Refusal); err != nil {
+			if err := message.Metadata.Set(messageRefusalKey, choice.Delta.Refusal); err != nil {
 				return corechat.Choice{}, false, err
 			}
 		}

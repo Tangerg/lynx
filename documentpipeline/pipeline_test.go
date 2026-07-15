@@ -44,7 +44,7 @@ func TestNop_Methods(t *testing.T) {
 
 func TestSimpleFormatter_AllAndNone(t *testing.T) {
 	doc, _ := document.NewDocument("body", nil)
-	_ = metadata.Set(doc.Metadata, "k", "v")
+	_ = doc.Metadata.Set("k", "v")
 
 	f := documentpipeline.NewSimpleFormatter(documentpipeline.SimpleFormatterConfig{})
 
@@ -67,8 +67,8 @@ func TestSimpleFormatter_AllAndNone(t *testing.T) {
 
 func TestSimpleFormatter_ExcludeKeys(t *testing.T) {
 	doc, _ := document.NewDocument("body", nil)
-	_ = metadata.Set(doc.Metadata, "public", "yes")
-	_ = metadata.Set(doc.Metadata, "secret", "hidden")
+	_ = doc.Metadata.Set("public", "yes")
+	_ = doc.Metadata.Set("secret", "hidden")
 
 	f := documentpipeline.NewSimpleFormatter(documentpipeline.SimpleFormatterConfig{
 		ExcludedEmbedMetadataKeys: []string{"secret"},
@@ -103,7 +103,7 @@ func TestTextSplitter_PreservesMetadata(t *testing.T) {
 	s := documentpipeline.NewTextSplitter(documentpipeline.TextSplitterConfig{Separator: "|"})
 
 	doc, _ := document.NewDocument("a|b", nil)
-	_ = metadata.Set(doc.Metadata, "src", "manual")
+	_ = doc.Metadata.Set("src", "manual")
 
 	got, _ := s.Transform(context.Background(), []*document.Document{doc})
 	for i, chunk := range got {

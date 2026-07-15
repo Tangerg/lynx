@@ -116,7 +116,7 @@ func TestMessageValidateRecursesIntoMetadata(t *testing.T) {
 
 func TestMessageJSONRoundTrip(t *testing.T) {
 	image := mustImage(t)
-	if err := metadata.Set(image.Metadata, "source", "fixture"); err != nil {
+	if err := image.Metadata.Set("source", "fixture"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -132,7 +132,7 @@ func TestMessageJSONRoundTrip(t *testing.T) {
 	}
 	for i := range messages {
 		messages[i].Metadata = metadata.New()
-		if err := metadata.Set(messages[i].Metadata, "index", i); err != nil {
+		if err := messages[i].Metadata.Set("index", i); err != nil {
 			t.Fatal(err)
 		}
 

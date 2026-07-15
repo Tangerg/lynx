@@ -51,7 +51,7 @@ var wireFixtureCoverage = map[string]string{
 	"image.Result":                   "image_response",
 	"image.ResultMetadata":           "image_response",
 	"media.Media":                    "media",
-	"media.MediaSource":              "media",
+	"media.Source":                   "media",
 	"moderation.Categories":          "moderation_response",
 	"moderation.Options":             "moderation_request",
 	"moderation.Request":             "moderation_request",

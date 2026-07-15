@@ -189,7 +189,7 @@ func TestResponseAccumulatorClonesMediaAndMessageMetadata(t *testing.T) {
 	}
 	message := assistant(chat.NewMediaPart(image))
 	message.Metadata = metadata.New()
-	if err := metadata.Set(message.Metadata, "test/value", "original"); err != nil {
+	if err := message.Metadata.Set("test/value", "original"); err != nil {
 		t.Fatal(err)
 	}
 	chunk := &chat.Response{Choices: []chat.Choice{{Index: 0, Message: message}}}

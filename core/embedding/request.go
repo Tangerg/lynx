@@ -70,19 +70,7 @@ func (o *Options) Set(key string, value any) error {
 	if o == nil {
 		return errors.New("embedding.Options.Set: nil receiver")
 	}
-	return setExtra(&o.Extra, key, value)
-}
-
-func setExtra(target *metadata.Map, key string, value any) error {
-	if *target != nil {
-		return metadata.Set(*target, key, value)
-	}
-	candidate := metadata.New()
-	if err := metadata.Set(candidate, key, value); err != nil {
-		return err
-	}
-	*target = candidate
-	return nil
+	return o.Extra.Set(key, value)
 }
 
 // Clone returns a deep copy. nil receiver yields nil.

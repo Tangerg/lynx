@@ -17,7 +17,7 @@ func TestSetAndDecode(t *testing.T) {
 
 	m := metadata.New()
 	want := value{Name: "lynx", Count: 2}
-	if err := metadata.Set(m, "value", want); err != nil {
+	if err := m.Set("value", want); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
 
@@ -41,14 +41,13 @@ func TestSetRejectsInvalidInputs(t *testing.T) {
 		value any
 		want  error
 	}{
-		{name: "nil map", key: "key", value: 1, want: metadata.ErrNilMap},
 		{name: "empty key", m: metadata.New(), value: 1, want: metadata.ErrEmptyKey},
 		{name: "unsupported value", m: metadata.New(), key: "key", value: func() {}, want: nil},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := metadata.Set(tt.m, tt.key, tt.value)
+			err := tt.m.Set(tt.key, tt.value)
 			if err == nil {
 				t.Fatal("Set returned nil error")
 			}
@@ -57,6 +56,24 @@ func TestSetRejectsInvalidInputs(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("nil map initializes in place", func(t *testing.T) {
+		var m metadata.Map
+		if err := m.Set("key", 1); err != nil {
+			t.Fatalf("Set on nil map: %v", err)
+		}
+		value, ok, err := metadata.Decode[int](m, "key")
+		if err != nil || !ok || value != 1 {
+			t.Fatalf("Decode after lazy init = (%v, %v, %v), want (1, true, nil)", value, ok, err)
+		}
+	})
+
+	t.Run("nil pointer receiver", func(t *testing.T) {
+		var m *metadata.Map
+		if err := m.Set("key", 1); !errors.Is(err, metadata.ErrNilMap) {
+			t.Fatalf("Set on nil *Map = %v, want ErrNilMap", err)
+		}
+	})
 }
 
 func TestDecodeMissingAndTypeMismatch(t *testing.T) {
@@ -65,7 +82,7 @@ func TestDecodeMissingAndTypeMismatch(t *testing.T) {
 	}
 
 	m := metadata.New()
-	if err := metadata.Set(m, "count", 3); err != nil {
+	if err := m.Set("count", 3); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok, err := metadata.Decode[string](m, "count"); err == nil || !ok {
@@ -98,10 +115,10 @@ func TestValidate(t *testing.T) {
 
 func TestJSONRoundTrip(t *testing.T) {
 	src := metadata.New()
-	if err := metadata.Set(src, "name", "lynx"); err != nil {
+	if err := src.Set("name", "lynx"); err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.Set(src, "nested", map[string]any{"enabled": true}); err != nil {
+	if err := src.Set("nested", map[string]any{"enabled": true}); err != nil {
 		t.Fatal(err)
 	}
 

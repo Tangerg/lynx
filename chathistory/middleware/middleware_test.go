@@ -182,7 +182,7 @@ func TestCallSnapshotsAllRequestReferences(t *testing.T) {
 	}
 	user := chat.NewUserMessage(chat.NewMediaPart(image))
 	user.Metadata = metadata.New()
-	if err := metadata.Set(user.Metadata, "turn", 1); err != nil {
+	if err := user.Metadata.Set("turn", 1); err != nil {
 		t.Fatal(err)
 	}
 	temperature := 0.5

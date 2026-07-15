@@ -12,13 +12,13 @@ import (
 
 func TestMapGolden(t *testing.T) {
 	value := metadata.New()
-	if err := metadata.Set(value, "enabled", true); err != nil {
+	if err := value.Set("enabled", true); err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.Set(value, "labels", []string{"core", "protocol"}); err != nil {
+	if err := value.Set("labels", []string{"core", "protocol"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.Set(value, "nested", map[string]int{"count": 2}); err != nil {
+	if err := value.Set("nested", map[string]int{"count": 2}); err != nil {
 		t.Fatal(err)
 	}
 	assertMetadataGolden(t, "metadata.golden.json", value)

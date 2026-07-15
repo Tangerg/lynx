@@ -40,12 +40,12 @@ func TestInMemoryStoreSnapshotsEveryMessageReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.Set(image.Metadata, "source", "caller"); err != nil {
+	if err := image.Metadata.Set("source", "caller"); err != nil {
 		t.Fatal(err)
 	}
 	user := chat.NewUserMessage(chat.NewMediaPart(image))
 	user.Metadata = metadata.New()
-	if err := metadata.Set(user.Metadata, "turn", 1); err != nil {
+	if err := user.Metadata.Set("turn", 1); err != nil {
 		t.Fatal(err)
 	}
 	assistant := chat.NewAssistantMessage(

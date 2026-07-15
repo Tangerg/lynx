@@ -169,7 +169,7 @@ func TestProtocolValueCopies(t *testing.T) {
 	}
 	clone := options.Clone()
 	*clone.Dimensions = 128
-	if err := metadata.Set(clone.Extra, "region", "remote"); err != nil {
+	if err := clone.Extra.Set("region", "remote"); err != nil {
 		t.Fatal(err)
 	}
 	if *options.Dimensions != 64 || mustDecode[string](t, options.Extra, "region") != "local" {

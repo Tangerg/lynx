@@ -149,10 +149,10 @@ func newCoreChatRequest(t *testing.T) *corechat.Request {
 		corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"lynx"}`}),
 	)
 	assistant.Metadata = metadata.New()
-	if err := metadata.Set(assistant.Metadata, "openai/audio_id", "audio-prev"); err != nil {
+	if err := assistant.Metadata.Set("openai/audio_id", "audio-prev"); err != nil {
 		t.Fatalf("set audio metadata: %v", err)
 	}
-	if err := metadata.Set(assistant.Metadata, "openai/refusal", ""); err != nil {
+	if err := assistant.Metadata.Set("openai/refusal", ""); err != nil {
 		t.Fatalf("set refusal metadata: %v", err)
 	}
 

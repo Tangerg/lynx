@@ -102,14 +102,14 @@ func (s *Splitter) splitOne(ctx context.Context, doc *document.Document) ([]*doc
 		if chunk.Metadata == nil {
 			chunk.Metadata = metadata.New()
 		}
-		if err := metadata.Set(chunk.Metadata, MetadataKeyChunkIndex, index); err != nil {
+		if err := chunk.Metadata.Set(MetadataKeyChunkIndex, index); err != nil {
 			return nil, err
 		}
-		if err := metadata.Set(chunk.Metadata, MetadataKeyChunkTotal, total); err != nil {
+		if err := chunk.Metadata.Set(MetadataKeyChunkTotal, total); err != nil {
 			return nil, err
 		}
 		if doc.ID != "" {
-			if err := metadata.Set(chunk.Metadata, MetadataKeyParentID, doc.ID); err != nil {
+			if err := chunk.Metadata.Set(MetadataKeyParentID, doc.ID); err != nil {
 				return nil, err
 			}
 		}

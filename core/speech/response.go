@@ -17,7 +17,7 @@ func (m *ResultMetadata) Set(key string, value any) error {
 	if m == nil {
 		return errors.New("speech.ResultMetadata.Set: nil receiver")
 	}
-	return setExtra(&m.Extra, key, value)
+	return m.Extra.Set(key, value)
 }
 
 // Result is one chunk of generated audio. For synchronous calls the
@@ -61,7 +61,7 @@ func (m *ResponseMetadata) Set(key string, value any) error {
 	if m == nil {
 		return errors.New("speech.ResponseMetadata.Set: nil receiver")
 	}
-	return setExtra(&m.Extra, key, value)
+	return m.Extra.Set(key, value)
 }
 
 // Response is one TTS call's audio output plus shared metadata. For

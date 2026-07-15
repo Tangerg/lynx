@@ -13,7 +13,7 @@ func Example() {
 		panic(err)
 	}
 	doc.ID = "doc-1"
-	if err := metadata.Set(doc.Metadata, "source", "field-guide"); err != nil {
+	if err := doc.Metadata.Set("source", "field-guide"); err != nil {
 		panic(err)
 	}
 	source, _, err := metadata.Decode[string](doc.Metadata, "source")

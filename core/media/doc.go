@@ -2,7 +2,7 @@
 // modality that accepts non-text payloads.
 //
 // Use NewBytes for owned inline content, NewURI for an absolute external URI,
-// or NewReference for a provider-native identifier. MediaSource is a tagged
+// or NewReference for a provider-native identifier. Source is a tagged
 // union: exactly one source must match its Kind. Constructors and JSON decoding
 // enforce that invariant and validate the MIME type.
 package media

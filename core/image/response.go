@@ -37,7 +37,7 @@ func (m *ResultMetadata) Set(key string, value any) error {
 	if m == nil {
 		return errors.New("image.ResultMetadata.Set: nil receiver")
 	}
-	return setExtra(&m.Extra, key, value)
+	return m.Extra.Set(key, value)
 }
 
 // Result is one generated image plus its metadata.
@@ -76,7 +76,7 @@ func (m *ResponseMetadata) Set(key string, value any) error {
 	if m == nil {
 		return errors.New("image.ResponseMetadata.Set: nil receiver")
 	}
-	return setExtra(&m.Extra, key, value)
+	return m.Extra.Set(key, value)
 }
 
 // Response is the full image-generation result: the rendered image plus

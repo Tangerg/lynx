@@ -17,7 +17,7 @@ func TestRequestDeepCopiesEveryReference(t *testing.T) {
 	}
 	message := chat.NewUserMessage(chat.NewMediaPart(image))
 	message.Metadata = metadata.New()
-	if err := metadata.Set(message.Metadata, "turn", 1); err != nil {
+	if err := message.Metadata.Set("turn", 1); err != nil {
 		t.Fatal(err)
 	}
 	temperature := 0.5

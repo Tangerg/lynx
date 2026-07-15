@@ -24,7 +24,7 @@ func TestSplitter_StampsChunkLineage(t *testing.T) {
 
 	parent, _ := document.NewDocument("ignored", nil)
 	parent.ID = "parent-1"
-	_ = metadata.Set(parent.Metadata, "source", "manual")
+	_ = parent.Metadata.Set("source", "manual")
 
 	chunks, err := splitter.Transform(context.Background(), []*document.Document{parent})
 	if err != nil {
