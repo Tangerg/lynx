@@ -3,11 +3,13 @@ package inmemory
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
 
 	"github.com/Tangerg/lynx/core/document"
+	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/embeddingclient"
@@ -16,9 +18,9 @@ import (
 
 // StoreConfig configures a [Store].
 type StoreConfig struct {
-	// EmbeddingClient embeds documents on Add and queries on
-	// Search. Required.
-	EmbeddingClient *embeddingclient.Client
+	// EmbeddingModel embeds documents on Add and queries on Search.
+	// Required.
+	EmbeddingModel embedding.Model
 
 	// Similarity is the function used to score retrieved documents
 	// against the query embedding. Optional; defaults to
@@ -34,8 +36,8 @@ func (c *StoreConfig) ApplyDefaults() {
 }
 
 func (c *StoreConfig) Validate() error {
-	if c.EmbeddingClient == nil {
-		return ErrMissingEmbeddingClient
+	if c.EmbeddingModel == nil {
+		return ErrMissingEmbeddingModel
 	}
 	return nil
 }
@@ -55,30 +57,38 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
-// Store is the in-memory the vectorstore capability interfaces implementation.
-// Construct with [NewStore].
+// Store is an in-memory vector store implementing the vectorstore capability
+// interfaces. Construct one with [NewStore].
 type Store struct {
-	embedder   *embeddingclient.Client
-	similarity Similarity
+	embeddingClient *embeddingclient.Client
+	similarity      Similarity
 
 	mu      sync.RWMutex
 	records map[string]record
 }
 
+// NewStore constructs an in-memory vector store from cfg.
 func NewStore(cfg StoreConfig) (*Store, error) {
 	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	embeddingClient, err := embeddingclient.New(cfg.EmbeddingModel)
+	if errors.Is(err, embeddingclient.ErrNilModel) {
+		return nil, ErrMissingEmbeddingModel
+	}
+	if err != nil {
+		return nil, fmt.Errorf("inmemory.NewStore: create embedding client: %w", err)
+	}
 	return &Store{
-		embedder:   cfg.EmbeddingClient,
-		similarity: cfg.Similarity,
-		records:    map[string]record{},
+		embeddingClient: embeddingClient,
+		similarity:      cfg.Similarity,
+		records:         map[string]record{},
 	}, nil
 }
 
-// Len reports the number of stored records — exposed for tests /
-// monitoring; not part of the the vectorstore capability interfaces contract.
+// Len reports the number of stored records. It is exposed for tests and
+// monitoring, not as part of the vectorstore capability contracts.
 func (s *Store) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -109,7 +119,7 @@ func (s *Store) Add(ctx context.Context, docs []*document.Document) (err error) 
 	}
 
 	var embeddings [][]float64
-	embeddings, err = s.embedder.EmbedTexts(ctx, texts)
+	embeddings, err = s.embeddingClient.EmbedTexts(ctx, texts)
 	if err != nil {
 		return fmt.Errorf("inmemory.Store.Add: embed: %w", err)
 	}
@@ -138,7 +148,7 @@ func (s *Store) Search(ctx context.Context, req vectorstore.SearchRequest) (out 
 	defer func() { tracing.RecordSearchResult(span, err, len(out)) }()
 
 	var query []float64
-	query, err = s.embedder.EmbedText(ctx, req.Query)
+	query, err = s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("inmemory.Store.Search: embed query: %w", err)
 	}
@@ -244,8 +254,8 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 	return nil
 }
 
-// Clear removes every record. Useful for test setup/teardown; not
-// part of the the vectorstore capability interfaces interface.
+// Clear removes every record. It is useful for test setup and teardown, not as
+// part of the vectorstore capability contracts.
 func (s *Store) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
