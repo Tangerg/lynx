@@ -84,19 +84,25 @@ P4-01 已将所有 formatter/transformer/batcher/ID generator 运行时策略迁
 ### documentpipeline（P4-01 新 module）
 
 ```text
-Batcher, BoundFormatter, FileWriter, FileWriterConfig, Formatter, FormatterFunc,
-IDAssigner, IDAssignerConfig, MetadataMode, Nop, SimpleFormatter,
+Batcher, BatcherFunc, BoundFormatter, FileWriter, FileWriterConfig, Formatter,
+FormatterFunc, IDAssigner, IDAssignerConfig, MetadataMode, SimpleFormatter,
 SimpleFormatterConfig, Splitter, SplitterConfig, TextSplitter,
 TextSplitterConfig, TokenCountBatcher, TokenCountBatcherConfig, TokenSplitter,
-TokenSplitterConfig, Transformer, NewFileWriter, NewIDAssigner, NewNop,
+TokenSplitterConfig, Transformer, TransformerFunc, NewFileWriter, NewIDAssigner,
 NewSimpleFormatter, NewSplitter, NewTextSplitter, NewTokenCountBatcher,
 NewTokenSplitter
 
-documentpipeline/id: Generator, Sha256Generator, UUIDGenerator,
-NewSha256Generator, NewUUIDGenerator
+documentpipeline/id: Generator, SHA256Generator, UUIDGenerator,
+NewSHA256Generator, NewUUIDGenerator
 
 documentreaders: JSONReader, TextReader, NewJSONReader, NewTextReader
 ```
+
+2026-07-16 的语义精修进一步删除一型三用的 `Nop/NewNop` 和只服务构造器的
+`Config.Validate/ApplyDefaults`；补齐 `TransformerFunc` / `BatcherFunc`。配置字段
+收敛为 `Estimator`、`MaxTokens`、`Reserve`、`ExcludeFromInference`、
+`ExcludeFromEmbedding`、`DocumentMarkers`、`Append` 与 `Mode`，不保留旧名或
+兼容 wrapper。
 
 ### evaluation
 

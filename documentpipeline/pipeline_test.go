@@ -27,18 +27,40 @@ func TestNewDocument_AllocatesMetadata(t *testing.T) {
 	}
 }
 
-func TestNop_Methods(t *testing.T) {
-	n := documentpipeline.NewNop()
+func TestFunctionAdapters(t *testing.T) {
 	doc, _ := document.NewDocument("hi", nil)
+	docs := []*document.Document{doc}
 
-	if got, _ := n.Format(doc, documentpipeline.MetadataModeAll); got != "hi" {
+	formatter := documentpipeline.FormatterFunc(func(doc *document.Document, _ documentpipeline.MetadataMode) (string, error) {
+		return strings.ToUpper(doc.Text), nil
+	})
+	if got, _ := formatter.Format(doc, documentpipeline.MetadataModeAll); got != "HI" {
 		t.Fatalf("Format = %q", got)
 	}
-	if got, _ := n.Transform(context.Background(), []*document.Document{doc}); len(got) != 1 {
+
+	transformer := documentpipeline.TransformerFunc(func(_ context.Context, docs []*document.Document) ([]*document.Document, error) {
+		return docs, nil
+	})
+	if got, _ := transformer.Transform(context.Background(), docs); len(got) != 1 {
 		t.Fatalf("Transform len = %d", len(got))
 	}
-	if got, _ := n.Batch(context.Background(), []*document.Document{doc}); len(got) != 1 || len(got[0]) != 1 {
+
+	batcher := documentpipeline.BatcherFunc(func(_ context.Context, docs []*document.Document) ([][]*document.Document, error) {
+		return [][]*document.Document{docs}, nil
+	})
+	if got, _ := batcher.Batch(context.Background(), docs); len(got) != 1 || len(got[0]) != 1 {
 		t.Fatal("Batch shape unexpected")
+	}
+}
+
+func TestBoundFormatterDefaultsToDocumentText(t *testing.T) {
+	doc, _ := document.NewDocument("hi", nil)
+	got, err := (documentpipeline.BoundFormatter{}).Format(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "hi" {
+		t.Fatalf("Format = %q, want hi", got)
 	}
 }
 
@@ -70,9 +92,11 @@ func TestSimpleFormatter_ExcludeKeys(t *testing.T) {
 	_ = doc.Metadata.Set("public", "yes")
 	_ = doc.Metadata.Set("secret", "hidden")
 
+	excluded := []string{"secret"}
 	f := documentpipeline.NewSimpleFormatter(documentpipeline.SimpleFormatterConfig{
-		ExcludedEmbedMetadataKeys: []string{"secret"},
+		ExcludeFromEmbedding: excluded,
 	})
+	excluded[0] = "public"
 
 	embed, err := f.Format(doc, documentpipeline.MetadataModeEmbed)
 	if err != nil {

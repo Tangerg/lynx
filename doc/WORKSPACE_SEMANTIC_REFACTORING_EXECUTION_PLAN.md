@@ -572,16 +572,51 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 
 ### P5：Document Pipeline API 精修
 
-> 类型：破坏性公开 API，需确认
+> 类型：破坏性公开 API，已确认
+> 状态：完成
 
-- [ ] 修正 SHA-256 initialism。
-- [ ] 缩短 config 字段并让布尔字段表达状态而非 builder 语气。
-- [ ] 默认化/校验留在构造器内部。
-- [ ] 删除公开 `Nop/NewNop` 多角色表面。
-- [ ] 增加 `TransformerFunc` / `BatcherFunc`。
-- [ ] 同步 tests、examples、GoDoc 和 API baseline。
+- [x] 修正 SHA-256 initialism。
+- [x] 缩短 config 字段并让布尔字段表达状态而非 builder 语气。
+- [x] 默认化/校验留在构造器内部。
+- [x] 删除公开 `Nop/NewNop` 多角色表面。
+- [x] 增加 `TransformerFunc` / `BatcherFunc`。
+- [x] 同步 tests、examples、GoDoc 和 API baseline。
 
 已知仓内爆炸半径只在 `documentpipeline` 自身测试/文档；未发现其他生产模块消费。
+
+实施裁决：
+
+| 候选 | 裁决 | 认知负担证据 |
+| --- | --- | --- |
+| `Sha256Generator` / `NewSha256Generator` | 改为 `SHA256Generator` / `NewSHA256Generator` | 遵循 Go initialism；构造器同时复制 salt，生成器不再持有调用方可变 slice |
+| `TokenCountBatcherConfig` 字段 | 改为 `Estimator` / `MaxTokens` / `Reserve` / `Mode` | 删除类型名与单位的重复前缀；`Reserve == 0` 明确表示不预留，调用方可用零值表达真实意图 |
+| formatter/writer config 字段 | 改为 `ExcludeFromInference` / `ExcludeFromEmbedding` / `DocumentMarkers` / `Append` / `Mode` | 字段表达状态与目标，不使用 `WithXxx`/`XxxMode` builder 语气；formatter 复制排除列表 |
+| `Config.Validate/ApplyDefaults` | 删除 | 全部只有构造器消费；公开方法制造调用顺序协议。默认化与校验直接内联构造器，没有创建单调用点的 `normalize()` 空壳 receiver |
+| `Nop/NewNop` | 删除 | 一个空结构同时冒充 Formatter/Transformer/Batcher，没有共同领域语义；默认文本 formatter 改为包内纯函数 |
+| `TransformerFunc` / `BatcherFunc` | 新增 | 与既有 `FormatterFunc` 对齐，让调用方用函数实现单一 SPI，无需为一次性策略声明空结构 |
+| `FileWriter.pageRange` | 取消 receiver | 只读取 document metadata，不使用 writer 状态；改为 `documentPageRange` 自由函数 |
+| `UUIDGenerator` 空结构 | 保留 | 它只表达单一、稳定的随机 ID strategy，并实现真实公开 SPI；不是为了搬运 helper 新建的多角色伪对象 |
+| `FileWriter.Write` context | 实现真实取消 | canceled context 在打开/截断文件前返回；批处理与 sync 前复核取消，不再接受后忽略 |
+
+默认行为：
+
+- `TokenCountBatcherConfig.MaxTokens == 0` 使用 8191；
+- `Reserve == 0` 表示 0% reserve，不再隐式变成 10%；
+- nil Formatter 使用 document text；零值 Mode 使用 `MetadataModeAll`；
+- `FileWriterConfig.Append` 与 `DocumentMarkers` 的零值均为关闭；
+- constructor 输入按值默认化，不修改调用方 config。
+
+验证证据：
+
+- Document Pipeline：`go build ./...`、`go vet ./...`、`go test ./...`、
+  `go test -race ./...`、`golangci-lint run ./...` 全绿；
+- `go mod tidy -diff` 与 `git diff --check` 全绿；
+- `go doc -all` API diff 只包含本批确认的删除、改名、字段收敛与两个 Func adapter；
+- 旧 initialism、旧 config 字段、`Nop/NewNop`、公开 `Validate/ApplyDefaults`
+  在 module 生产代码中检索为零；
+- 测试覆盖 Func adapter、plain-text defaults、zero reserve、reserve budget、
+  config validation、formatter slice snapshot、SHA salt snapshot、FileWriter
+  append/markers/cancellation。
 
 ### P6：Chat History Backend API 精修
 
@@ -703,7 +738,7 @@ go vet ./...
 | P2 Tools owner 与组织 | 完成 | 100% | — |
 | P3 Runtime owner 收敛 | 完成 | 100% | — |
 | P4 Runtime 工具结果边界 | 完成 | 100% | — |
-| P5 Document Pipeline API | 未开始 | 0% | P0，breaking 决策 |
+| P5 Document Pipeline API | 完成 | 100% | — |
 | P6 Chat History API | 未开始 | 0% | P0，breaking 决策 |
 | P7 Provider/MCP/A2A/RAG/Desktop | 未开始 | 0% | P0，breaking/行为决策 |
 | P8 最终门禁 | 未开始 | 0% | P1–P7 |
