@@ -16,20 +16,9 @@ const (
 	baseURL = "https://api.tavily.com"
 )
 
-// Config holds the Tavily client config.
+// Config configures [NewClient].
 type Config struct {
 	APIKey string
-}
-
-// Validate enforces config invariants. Called by [NewClient].
-func (c *Config) Validate() error {
-	if c == nil {
-		return errors.New("tavily: Config must not be nil")
-	}
-	if c.APIKey == "" {
-		return errors.New("tavily: APIKey is required")
-	}
-	return nil
 }
 
 // Client implements [websearch.Provider] against Tavily.
@@ -41,10 +30,10 @@ type Client struct {
 
 var _ websearch.Provider = (*Client)(nil)
 
-// NewClient builds a Tavily-backed [websearch.Provider].
-func NewClient(cfg *Config) (*Client, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+// NewClient returns a Tavily-backed client.
+func NewClient(cfg Config) (*Client, error) {
+	if cfg.APIKey == "" {
+		return nil, errors.New("tavily: APIKey is required")
 	}
 	return &Client{
 		http: resty.New().

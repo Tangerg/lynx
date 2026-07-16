@@ -49,7 +49,7 @@ func BuildOnlineTools(online OnlineConfig) ([]tools.Tool, error) {
 	)
 
 	out, err = appendIfBuilt(out, online.JinaAPIKey != "", "webfetch (jina)", func() (tools.Tool, error) {
-		client, clientErr := jina.NewClient(&jina.Config{APIKey: online.JinaAPIKey})
+		client, clientErr := jina.NewClient(jina.Config{APIKey: online.JinaAPIKey})
 		if clientErr != nil {
 			return nil, clientErr
 		}
@@ -60,7 +60,7 @@ func BuildOnlineTools(online OnlineConfig) ([]tools.Tool, error) {
 	}
 
 	out, err = appendIfBuilt(out, online.TavilyAPIKey != "", "websearch (tavily)", func() (tools.Tool, error) {
-		client, clientErr := tavily.NewClient(&tavily.Config{APIKey: online.TavilyAPIKey})
+		client, clientErr := tavily.NewClient(tavily.Config{APIKey: online.TavilyAPIKey})
 		if clientErr != nil {
 			return nil, clientErr
 		}

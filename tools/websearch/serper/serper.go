@@ -16,18 +16,9 @@ const (
 	baseURL = "https://google.serper.dev"
 )
 
+// Config configures [NewClient].
 type Config struct {
 	APIKey string
-}
-
-func (c *Config) Validate() error {
-	if c == nil {
-		return errors.New("serper: Config must not be nil")
-	}
-	if c.APIKey == "" {
-		return errors.New("serper: APIKey is required")
-	}
-	return nil
 }
 
 type Client struct {
@@ -36,9 +27,10 @@ type Client struct {
 
 var _ websearch.Provider = (*Client)(nil)
 
-func NewClient(cfg *Config) (*Client, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+// NewClient returns a Serper-backed client.
+func NewClient(cfg Config) (*Client, error) {
+	if cfg.APIKey == "" {
+		return nil, errors.New("serper: APIKey is required")
 	}
 	return &Client{
 		http: resty.New().
