@@ -16,7 +16,7 @@ import (
 
 type AudioTTSModelConfig struct {
 	APIKey         string
-	DefaultOptions *tts.Options
+	DefaultOptions tts.Options
 	RequestOptions []option.RequestOption
 }
 
@@ -24,8 +24,11 @@ func (c AudioTTSModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("openai: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("openai: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -35,7 +38,7 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 
 type AudioTTSModel struct {
 	api            *API
-	defaultOptions *tts.Options
+	defaultOptions tts.Options
 }
 
 func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
@@ -53,7 +56,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 
 	return &AudioTTSModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -63,14 +66,14 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (*openai.AudioSpeec
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.AudioSpeechNewParams](mergedOpts.Extra, OptionsKey)
+	params, err := options.GetParams[openai.AudioSpeechNewParams](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}
 
 	params.Model = mergedOpts.Model
 	params.Input = req.Text
-	// Each typed option only overrides Extra-threaded params when set —
+	// Each typed option only overrides extension-threaded params when set —
 	// empty strings / zero speed would clobber prior choices, and
 	// Speed=0 is outside the API's 0.25–4.0 range.
 	if mergedOpts.Voice != "" {

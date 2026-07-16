@@ -13,7 +13,7 @@ type AudioTTSModelConfig struct {
 	APIKey         string
 	Endpoint       string
 	APIVersion     string
-	DefaultOptions *tts.Options
+	DefaultOptions tts.Options
 	RequestOptions []option.RequestOption
 }
 
@@ -21,8 +21,11 @@ func (c AudioTTSModelConfig) Validate() error {
 	if c.Endpoint == "" {
 		return errors.New("azureopenai: Endpoint is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("azureopenai: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("azureopenai: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }

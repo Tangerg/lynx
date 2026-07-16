@@ -45,7 +45,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 		t.Fatalf("second MIME = %q", out.Results[1].Media.MIME)
 	}
 	hugeSeed := int64(1 << 31)
-	req.Options = &image.Options{Seed: &hugeSeed}
+	req.Options = image.Options{Seed: &hugeSeed}
 	if _, err := m.Call(t.Context(), req); err == nil {
 		t.Fatal("Call accepted a seed that overflows the provider wire type")
 	}

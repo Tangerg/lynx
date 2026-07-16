@@ -1,5 +1,5 @@
 // Package options carries the small generic helper vendor adapters share for
-// decoding JSON-safe, Extra-threaded provider params.
+// decoding JSON-safe, extension-threaded provider params.
 //
 // A vendor's Extra metadata holds the JSON representation of its request
 // extension under the package's OptionsKey constant. GetParams decodes that

@@ -38,8 +38,8 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := transcription.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest accepted nil audio")
 	}
-	if _, err := (*transcription.Options)(nil).Merged(); err == nil {
-		t.Fatal("Merged accepted nil receiver")
+	if merged, err := (transcription.Options{}).Merged(); err != nil || merged.Model != "" || merged.Language != "" || len(merged.Extensions) != 0 {
+		t.Fatalf("zero Options.Merged() = %#v, %v", merged, err)
 	}
 	if err := (*transcription.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
@@ -50,24 +50,24 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	}
 	invalid := &transcription.Request{
 		Audio:   audio,
-		Options: &transcription.Options{Extra: metadata.Map{"broken": []byte("{")}},
+		Options: transcription.Options{Extensions: metadata.Map{"provider/broken": []byte("{")}},
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted invalid options metadata")
 	}
-	invalid.Options = &transcription.Options{Model: " model "}
+	invalid.Options = transcription.Options{Model: " model "}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted model with surrounding whitespace")
 	}
-	invalid.Options = &transcription.Options{Language: " en "}
+	invalid.Options = transcription.Options{Language: " en "}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted language with surrounding whitespace")
 	}
 	options := new(transcription.Options)
-	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
-		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
+	if err := options.SetExtension("provider/value", func() {}); err == nil || options.Extensions != nil {
+		t.Fatalf("failed SetExtension mutated options: %#v, %v", options.Extensions, err)
 	}
-	if _, err := (&transcription.Options{Model: " base"}).Merged(); err == nil {
+	if _, err := (transcription.Options{Model: " base"}).Merged(); err == nil {
 		t.Fatal("Merged accepted invalid base options")
 	}
 }
@@ -86,28 +86,25 @@ func TestResponseValidation(t *testing.T) {
 }
 
 func TestOptionsMergeAndCopies(t *testing.T) {
-	if clone := (*transcription.Options)(nil).Clone(); clone != nil {
-		t.Fatalf("nil Clone = %#v", clone)
+	base := transcription.Options{
+		Model:      "base",
+		Extensions: mustMetadata(t, map[string]any{"provider/base": true}),
 	}
-	base := &transcription.Options{
-		Model: "base",
-		Extra: mustMetadata(t, map[string]any{"base": true}),
-	}
-	merged, err := base.Merged(nil, &transcription.Options{
+	merged, err := base.Merged(transcription.Options{
 		Model: "override", Language: "en",
-		Extra: mustMetadata(t, map[string]any{"override": true}),
+		Extensions: mustMetadata(t, map[string]any{"provider/override": true}),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if merged.Model != "override" || merged.Language != "en" || len(merged.Extra) != 2 {
+	if merged.Model != "override" || merged.Language != "en" || len(merged.Extensions) != 2 {
 		t.Fatalf("Merged = %#v", merged)
 	}
 	clone := merged.Clone()
-	if err := clone.Extra.Set("base", false); err != nil {
+	if err := clone.Extensions.Set("provider/base", false); err != nil {
 		t.Fatal(err)
 	}
-	if !mustDecode[bool](t, merged.Extra, "base") {
+	if !mustDecode[bool](t, merged.Extensions, "provider/base") {
 		t.Fatal("Options.Clone aliases source state")
 	}
 }

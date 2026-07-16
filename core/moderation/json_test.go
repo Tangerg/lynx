@@ -18,6 +18,10 @@ func TestJSONBoundaries(t *testing.T) {
 	if _, err := moderation.NewResponse(nil, &moderation.ResponseMetadata{}); !errors.Is(err, moderation.ErrInvalidResponse) {
 		t.Fatalf("NewResponse error = %v", err)
 	}
+	var extensionOptions moderation.Options
+	if err := extensionOptions.SetExtension("invalid", true); !errors.Is(err, moderation.ErrInvalidOptions) {
+		t.Fatalf("SetExtension error = %v", err)
+	}
 
 	if _, err := json.Marshal(moderation.Options{Model: " invalid "}); !errors.Is(err, moderation.ErrInvalidOptions) {
 		t.Fatalf("Marshal Options error = %v", err)

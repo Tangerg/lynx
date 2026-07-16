@@ -13,7 +13,7 @@ import (
 
 type AudioTTSModelConfig struct {
 	APIKey         string
-	DefaultOptions *tts.Options
+	DefaultOptions tts.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -22,8 +22,11 @@ func (c AudioTTSModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("elevenlabs: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("elevenlabs: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("elevenlabs: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -40,7 +43,7 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 // engine.
 type AudioTTSModel struct {
 	api            *API
-	defaultOptions *tts.Options
+	defaultOptions tts.Options
 }
 
 func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
@@ -59,7 +62,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 
 	return &AudioTTSModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -73,7 +76,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat
 		return "", "", nil, errors.New("elevenlabs: Voice (voice id) is required - set Options.Voice")
 	}
 
-	body, err = options.GetParams[TTSRequest](mergedOpts.Extra, OptionsKey)
+	body, err = options.GetParams[TTSRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return "", "", nil, err
 	}

@@ -12,7 +12,7 @@ import (
 
 type EmbeddingModelConfig struct {
 	APIKey         string
-	DefaultOptions *embedding.Options
+	DefaultOptions embedding.Options
 
 	// BaseURL / HTTPClient mirror [APIConfig] for callers that need to
 	// proxy through a custom endpoint or share an http.Client.
@@ -24,8 +24,11 @@ func (c EmbeddingModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("voyage: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("voyage: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("voyage: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -43,11 +46,11 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // Voyage-specific knobs that don't fit the generic surface — InputType
 // ("query" / "document" for asymmetric retrieval), Truncation,
 // OutputDtype (int8/uint8/binary quantization) — are reached via the
-// Extra-threaded SDK params, see [getOptionsParams] and the
+// extension-threaded SDK params, see [getOptionsParams] and the
 // [EmbeddingRequest] struct.
 type EmbeddingModel struct {
 	api            *API
-	defaultOptions *embedding.Options
+	defaultOptions embedding.Options
 }
 
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
@@ -66,7 +69,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 
 	return &EmbeddingModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -76,7 +79,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*EmbeddingRequ
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[EmbeddingRequest](mergedOpts.Extra, OptionsKey)
+	apiReq, err := options.GetParams[EmbeddingRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

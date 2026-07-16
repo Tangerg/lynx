@@ -7,7 +7,7 @@
 //
 // FLUX-specific knobs (steps, guidance, raw, safety_tolerance,
 // output_format, prompt_upsampling, image_prompt for img2img /
-// kontext editing) ride through Extra-threaded params.
+// kontext editing) ride through extension-threaded params.
 //
 // See https://docs.bfl.ml/ for the full reference.
 package blackforestlabs

@@ -16,7 +16,7 @@ import (
 
 type ImageModelConfig struct {
 	APIKey         string
-	DefaultOptions *image.Options
+	DefaultOptions image.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
 	// the matching fields on [ChatConfig] for semantics.
@@ -32,8 +32,11 @@ func (c ImageModelConfig) Validate() error {
 	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("google: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("google: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -46,10 +49,10 @@ var _ image.Model = (*ImageModel)(nil)
 // aspect-ratio code ("1:1" / "16:9" / ...): Imagen has no per-pixel
 // size control, and inferring "1:1" from "1024×1024" would be a lossy
 // guess. Callers needing precise aspect control set AspectRatio on the
-// Extra-threaded [genai.GenerateImagesConfig].
+// extension-threaded [genai.GenerateImagesConfig].
 type ImageModel struct {
 	api            *API
-	defaultOptions *image.Options
+	defaultOptions image.Options
 }
 
 func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
@@ -70,7 +73,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 
 	return &ImageModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -86,7 +89,7 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (string, string, *genai
 		return "", "", nil, err
 	}
 
-	cfg, err := options.GetParams[genai.GenerateImagesConfig](mergedOpts.Extra, OptionsKey)
+	cfg, err := options.GetParams[genai.GenerateImagesConfig](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return "", "", nil, err
 	}

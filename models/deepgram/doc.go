@@ -5,7 +5,7 @@
 //   - /v1/listen via [NewAudioTranscriptionModel] — high-throughput
 //     real-time / batch transcription on the Nova family. Provider-
 //     specific knobs (smart_format, diarize, utterances, paragraphs,
-//     redact, keywords) ride through Extra-threaded params;
+//     redact, keywords) ride through extension-threaded params;
 //   - /v1/speak via [NewAudioTTSModel] — synthesis on the Aura voice
 //     family.
 //

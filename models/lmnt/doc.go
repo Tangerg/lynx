@@ -6,7 +6,7 @@
 // pacing well suited to voice agents.
 //
 // Provider-specific knobs (speed, format, sample_rate, conversational
-// mode, language, seed) ride through Extra-threaded SpeechRequest
+// mode, language, seed) ride through extension-threaded SpeechRequest
 // fields.
 //
 // See https://docs.lmnt.com/ for the full reference.

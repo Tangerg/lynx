@@ -12,7 +12,7 @@ import (
 type ImageModelConfig struct {
 	Project        string
 	Location       string
-	DefaultOptions *image.Options
+	DefaultOptions image.Options
 }
 
 func (c ImageModelConfig) Validate() error {
@@ -22,8 +22,11 @@ func (c ImageModelConfig) Validate() error {
 	if c.Location == "" {
 		return errors.New("vertexai: Location is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("vertexai: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("vertexai: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }

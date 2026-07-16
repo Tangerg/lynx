@@ -17,7 +17,7 @@ import (
 
 type ImageModelConfig struct {
 	APIKey         string
-	DefaultOptions *image.Options
+	DefaultOptions image.Options
 	RequestOptions []option.RequestOption
 }
 
@@ -25,8 +25,11 @@ func (c ImageModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("openai: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("openai: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -35,7 +38,7 @@ var _ image.Model = (*ImageModel)(nil)
 
 type ImageModel struct {
 	api            *API
-	defaultOptions *image.Options
+	defaultOptions image.Options
 }
 
 func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
@@ -53,7 +56,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 
 	return &ImageModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -72,7 +75,7 @@ func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGene
 		return nil, errors.New("openai: image: width and height must be set together")
 	}
 
-	params, err := options.GetParams[openai.ImageGenerateParams](mergedOpts.Extra, OptionsKey)
+	params, err := options.GetParams[openai.ImageGenerateParams](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

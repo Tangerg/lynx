@@ -100,11 +100,12 @@ embedding: func (m *ResultMetadata) Set(key string, value any) error
 embedding: func (m *ResultMetadata) UnmarshalJSON(data []byte) error
 embedding: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
 embedding: func (m ResultMetadata) MarshalJSON() ([]byte, error)
-embedding: func (o *Options) Clone() *Options
-embedding: func (o *Options) Merged(overrides ...*Options) (*Options, error)
-embedding: func (o *Options) Set(key string, value any) error
+embedding: func (o *Options) SetExtension(key string, value any) error
 embedding: func (o *Options) UnmarshalJSON(data []byte) error
+embedding: func (o Options) Clone() Options
 embedding: func (o Options) MarshalJSON() ([]byte, error)
+embedding: func (o Options) Merged(overrides ...Options) (Options, error)
+embedding: func (o Options) Validate() error
 embedding: func (r *Request) UnmarshalJSON(data []byte) error
 embedding: func (r *Request) Validate() error
 embedding: func (r *Response) First() *Result
@@ -116,14 +117,14 @@ embedding: func (r Response) MarshalJSON() ([]byte, error)
 embedding: func (r Result) MarshalJSON() ([]byte, error)
 embedding: func (u *Usage) UnmarshalJSON(data []byte) error
 embedding: func (u Usage) MarshalJSON() ([]byte, error)
-embedding: func NewOptions(model string) (*Options, error)
+embedding: func NewOptions(model string) (Options, error)
 embedding: func NewRequest(texts []string) (*Request, error)
 embedding: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
 embedding: func NewResult(embedding []float64, metadata *ResultMetadata) (*Result, error)
 embedding: type Model interface { Call(context.Context, *Request) (*Response, error) }
 embedding: type ModelFunc func(context.Context, *Request) (*Response, error)
-embedding: type Options struct { Model string `json:"model"` Dimensions *int64 `json:"dimensions,omitempty"` Extra metadata.Map `json:"extra,omitzero"` }
-embedding: type Request struct { Texts []string `json:"texts,omitzero"` Options *Options `json:"options,omitempty"` }
+embedding: type Options struct { Model string `json:"model"` Dimensions *int64 `json:"dimensions,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
+embedding: type Request struct { Texts []string `json:"texts,omitzero"` Options Options `json:"options,omitzero"` }
 embedding: type Response struct { Results []*Result `json:"results,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 embedding: type ResponseMetadata struct { Model string `json:"model"` Usage *Usage `json:"usage,omitempty"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 embedding: type Result struct { Embedding []float64 `json:"embedding"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
@@ -137,11 +138,12 @@ image: func (m *ResultMetadata) Set(key string, value any) error
 image: func (m *ResultMetadata) UnmarshalJSON(data []byte) error
 image: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
 image: func (m ResultMetadata) MarshalJSON() ([]byte, error)
-image: func (o *Options) Clone() *Options
-image: func (o *Options) Merged(overrides ...*Options) (*Options, error)
-image: func (o *Options) Set(key string, value any) error
+image: func (o *Options) SetExtension(key string, value any) error
 image: func (o *Options) UnmarshalJSON(data []byte) error
+image: func (o Options) Clone() Options
 image: func (o Options) MarshalJSON() ([]byte, error)
+image: func (o Options) Merged(overrides ...Options) (Options, error)
+image: func (o Options) Validate() error
 image: func (r *Request) UnmarshalJSON(data []byte) error
 image: func (r *Request) Validate() error
 image: func (r *Response) First() *Result
@@ -151,14 +153,14 @@ image: func (r *Result) UnmarshalJSON(data []byte) error
 image: func (r Request) MarshalJSON() ([]byte, error)
 image: func (r Response) MarshalJSON() ([]byte, error)
 image: func (r Result) MarshalJSON() ([]byte, error)
-image: func NewOptions(model string) (*Options, error)
+image: func NewOptions(model string) (Options, error)
 image: func NewRequest(prompt string) (*Request, error)
 image: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
 image: func NewResult(value *media.Media, metadata *ResultMetadata) (*Result, error)
 image: type Model interface { Call(context.Context, *Request) (*Response, error) }
 image: type ModelFunc func(context.Context, *Request) (*Response, error)
-image: type Options struct { Model string `json:"model"` NegativePrompt string `json:"negative_prompt"` Width *int64 `json:"width,omitempty"` Height *int64 `json:"height,omitempty"` Seed *int64 `json:"seed,omitempty"` OutputFormat string `json:"output_format,omitempty"` Extra metadata.Map `json:"extra,omitzero"` }
-image: type Request struct { Prompt string `json:"prompt"` Options *Options `json:"options,omitempty"` }
+image: type Options struct { Model string `json:"model"` NegativePrompt string `json:"negative_prompt"` Width *int64 `json:"width,omitempty"` Height *int64 `json:"height,omitempty"` Seed *int64 `json:"seed,omitempty"` OutputFormat string `json:"output_format,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
+image: type Request struct { Prompt string `json:"prompt"` Options Options `json:"options,omitzero"` }
 image: type Response struct { Results []*Result `json:"results,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 image: type ResponseMetadata struct { Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 image: type Result struct { Media *media.Media `json:"media,omitempty"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
@@ -201,11 +203,12 @@ moderation: func (m *ResultMetadata) Set(key string, value any) error
 moderation: func (m *ResultMetadata) UnmarshalJSON(data []byte) error
 moderation: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
 moderation: func (m ResultMetadata) MarshalJSON() ([]byte, error)
-moderation: func (o *Options) Clone() *Options
-moderation: func (o *Options) Merged(overrides ...*Options) (*Options, error)
-moderation: func (o *Options) Set(key string, value any) error
+moderation: func (o *Options) SetExtension(key string, value any) error
 moderation: func (o *Options) UnmarshalJSON(data []byte) error
+moderation: func (o Options) Clone() Options
 moderation: func (o Options) MarshalJSON() ([]byte, error)
+moderation: func (o Options) Merged(overrides ...Options) (Options, error)
+moderation: func (o Options) Validate() error
 moderation: func (r *Request) UnmarshalJSON(data []byte) error
 moderation: func (r *Request) Validate() error
 moderation: func (r *Response) First() *Result
@@ -217,15 +220,15 @@ moderation: func (r Response) MarshalJSON() ([]byte, error)
 moderation: func (r Result) MarshalJSON() ([]byte, error)
 moderation: func (v *Verdict) UnmarshalJSON(data []byte) error
 moderation: func (v Verdict) MarshalJSON() ([]byte, error)
-moderation: func NewOptions(model string) (*Options, error)
+moderation: func NewOptions(model string) (Options, error)
 moderation: func NewRequest(texts []string) (*Request, error)
 moderation: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
 moderation: func NewResult(categories Categories, metadata *ResultMetadata) (*Result, error)
 moderation: type Categories map[string]Verdict
 moderation: type Model interface { Call(context.Context, *Request) (*Response, error) }
 moderation: type ModelFunc func(context.Context, *Request) (*Response, error)
-moderation: type Options struct { Model string `json:"model"` Extra metadata.Map `json:"extra,omitzero"` }
-moderation: type Request struct { Texts []string `json:"texts,omitzero"` Options *Options `json:"options,omitempty"` }
+moderation: type Options struct { Model string `json:"model"` Extensions metadata.Map `json:"extensions,omitzero"` }
+moderation: type Request struct { Texts []string `json:"texts,omitzero"` Options Options `json:"options,omitzero"` }
 moderation: type Response struct { Results []*Result `json:"results,omitzero"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 moderation: type ResponseMetadata struct { ID string `json:"id"` Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 moderation: type Result struct { Categories Categories `json:"categories,omitzero"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
@@ -240,11 +243,12 @@ speech: func (m *ResultMetadata) Set(key string, value any) error
 speech: func (m *ResultMetadata) UnmarshalJSON(data []byte) error
 speech: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
 speech: func (m ResultMetadata) MarshalJSON() ([]byte, error)
-speech: func (o *Options) Clone() *Options
-speech: func (o *Options) Merged(overrides ...*Options) (*Options, error)
-speech: func (o *Options) Set(key string, value any) error
+speech: func (o *Options) SetExtension(key string, value any) error
 speech: func (o *Options) UnmarshalJSON(data []byte) error
+speech: func (o Options) Clone() Options
 speech: func (o Options) MarshalJSON() ([]byte, error)
+speech: func (o Options) Merged(overrides ...Options) (Options, error)
+speech: func (o Options) Validate() error
 speech: func (r *Request) UnmarshalJSON(data []byte) error
 speech: func (r *Request) Validate() error
 speech: func (r *Response) UnmarshalJSON(data []byte) error
@@ -253,14 +257,14 @@ speech: func (r *Result) UnmarshalJSON(data []byte) error
 speech: func (r Request) MarshalJSON() ([]byte, error)
 speech: func (r Response) MarshalJSON() ([]byte, error)
 speech: func (r Result) MarshalJSON() ([]byte, error)
-speech: func NewOptions(model string) (*Options, error)
+speech: func NewOptions(model string) (Options, error)
 speech: func NewRequest(text string) (*Request, error)
 speech: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
 speech: func NewResult(audio []byte, metadata *ResultMetadata) (*Result, error)
 speech: type Model interface { Call(context.Context, *Request) (*Response, error) }
 speech: type ModelFunc func(context.Context, *Request) (*Response, error)
-speech: type Options struct { Model string `json:"model"` Voice string `json:"voice"` OutputFormat string `json:"output_format"` Speed float64 `json:"speed"` Extra metadata.Map `json:"extra,omitzero"` }
-speech: type Request struct { Text string `json:"text"` Options *Options `json:"options,omitempty"` }
+speech: type Options struct { Model string `json:"model"` Voice string `json:"voice"` OutputFormat string `json:"output_format"` Speed float64 `json:"speed"` Extensions metadata.Map `json:"extensions,omitzero"` }
+speech: type Request struct { Text string `json:"text"` Options Options `json:"options,omitzero"` }
 speech: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 speech: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 speech: type Result struct { Audio []byte `json:"audio,omitzero"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
@@ -275,11 +279,12 @@ transcription: func (m *ResultMetadata) Set(key string, value any) error
 transcription: func (m *ResultMetadata) UnmarshalJSON(data []byte) error
 transcription: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
 transcription: func (m ResultMetadata) MarshalJSON() ([]byte, error)
-transcription: func (o *Options) Clone() *Options
-transcription: func (o *Options) Merged(overrides ...*Options) (*Options, error)
-transcription: func (o *Options) Set(key string, value any) error
+transcription: func (o *Options) SetExtension(key string, value any) error
 transcription: func (o *Options) UnmarshalJSON(data []byte) error
+transcription: func (o Options) Clone() Options
 transcription: func (o Options) MarshalJSON() ([]byte, error)
+transcription: func (o Options) Merged(overrides ...Options) (Options, error)
+transcription: func (o Options) Validate() error
 transcription: func (r *Request) UnmarshalJSON(data []byte) error
 transcription: func (r *Request) Validate() error
 transcription: func (r *Response) UnmarshalJSON(data []byte) error
@@ -288,14 +293,14 @@ transcription: func (r *Result) UnmarshalJSON(data []byte) error
 transcription: func (r Request) MarshalJSON() ([]byte, error)
 transcription: func (r Response) MarshalJSON() ([]byte, error)
 transcription: func (r Result) MarshalJSON() ([]byte, error)
-transcription: func NewOptions(model string) (*Options, error)
+transcription: func NewOptions(model string) (Options, error)
 transcription: func NewRequest(audio *media.Media) (*Request, error)
 transcription: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
 transcription: func NewResult(text string, metadata *ResultMetadata) (*Result, error)
 transcription: type Model interface { Call(context.Context, *Request) (*Response, error) }
 transcription: type ModelFunc func(context.Context, *Request) (*Response, error)
-transcription: type Options struct { Model string `json:"model"` Language string `json:"language"` Extra metadata.Map `json:"extra,omitzero"` }
-transcription: type Request struct { Audio *media.Media `json:"audio,omitempty"` Options *Options `json:"options,omitempty"` }
+transcription: type Options struct { Model string `json:"model"` Language string `json:"language"` Extensions metadata.Map `json:"extensions,omitzero"` }
+transcription: type Request struct { Audio *media.Media `json:"audio,omitempty"` Options Options `json:"options,omitzero"` }
 transcription: type Response struct { Result *Result `json:"result,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 transcription: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 transcription: type Result struct { Text string `json:"text"` Metadata *ResultMetadata `json:"metadata,omitempty"` }

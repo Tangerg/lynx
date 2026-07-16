@@ -16,7 +16,7 @@ import (
 
 type EmbeddingModelConfig struct {
 	APIKey         string
-	DefaultOptions *embedding.Options
+	DefaultOptions embedding.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
 	// the matching fields on [ChatConfig] for semantics.
@@ -32,8 +32,11 @@ func (c EmbeddingModelConfig) Validate() error {
 	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("google: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("google: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -46,7 +49,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 //   - "text-embedding-004" (768 dims; legacy, no OutputDimensionality).
 type EmbeddingModel struct {
 	api            *API
-	defaultOptions *embedding.Options
+	defaultOptions embedding.Options
 }
 
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
@@ -67,7 +70,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 
 	return &EmbeddingModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -77,7 +80,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*gen
 		return "", nil, nil, err
 	}
 
-	cfg, err := options.GetParams[genai.EmbedContentConfig](mergedOpts.Extra, OptionsKey)
+	cfg, err := options.GetParams[genai.EmbedContentConfig](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return "", nil, nil, err
 	}

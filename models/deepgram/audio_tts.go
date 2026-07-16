@@ -14,7 +14,7 @@ import (
 
 type AudioTTSModelConfig struct {
 	APIKey         string
-	DefaultOptions *tts.Options
+	DefaultOptions tts.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -23,8 +23,11 @@ func (c AudioTTSModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("deepgram: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("deepgram: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("deepgram: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -39,7 +42,7 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 // the full picker.
 type AudioTTSModel struct {
 	api            *API
-	defaultOptions *tts.Options
+	defaultOptions tts.Options
 }
 
 func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
@@ -58,7 +61,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 
 	return &AudioTTSModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -74,7 +77,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *SpeakParams,
 		return "", nil, err
 	}
 
-	params, err := options.GetParams[SpeakParams](mergedOpts.Extra, OptionsKey)
+	params, err := options.GetParams[SpeakParams](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return "", nil, err
 	}

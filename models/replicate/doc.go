@@ -43,7 +43,7 @@
 // names Replicate's most popular image models share (width / height /
 // seed / negative_prompt / output_format). Anything model-specific
 // (num_outputs, guidance_scale, num_inference_steps, aspect_ratio,
-// scheduler, ...) rides through an [ReplicateInput] / Extra-threaded
+// scheduler, ...) rides through an [ReplicateInput] / extension-threaded
 // PredictionRequest passed via [options.GetParams] under
 // [OptionsKey]; lynx forwards your input dict verbatim.
 //

@@ -14,7 +14,7 @@ import (
 
 type ModerationModelConfig struct {
 	APIKey         string
-	DefaultOptions *moderation.Options
+	DefaultOptions moderation.Options
 	RequestOptions []option.RequestOption
 }
 
@@ -22,8 +22,11 @@ func (c ModerationModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("openai: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("openai: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -32,7 +35,7 @@ var _ moderation.Model = (*ModerationModel)(nil)
 
 type ModerationModel struct {
 	api            *API
-	defaultOptions *moderation.Options
+	defaultOptions moderation.Options
 }
 
 func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
@@ -50,7 +53,7 @@ func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
 
 	return &ModerationModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -60,7 +63,7 @@ func (m *ModerationModel) buildAPIModerationRequest(req *moderation.Request) (*o
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.ModerationNewParams](mergedOpts.Extra, OptionsKey)
+	params, err := options.GetParams[openai.ModerationNewParams](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

@@ -43,7 +43,7 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 		t.Fatalf("got %d results; want 2", len(out.Results))
 	}
 	hugeDimensions := int64(1 << 31)
-	req.Options = &embedding.Options{Dimensions: &hugeDimensions}
+	req.Options = embedding.Options{Dimensions: &hugeDimensions}
 	if _, err := m.Call(t.Context(), req); err == nil {
 		t.Fatal("Call accepted dimensions that overflow the provider wire type")
 	}

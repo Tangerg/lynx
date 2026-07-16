@@ -1339,8 +1339,15 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 - 日期：2026-07-16
 - 状态：已采纳（维护者确认开发期直接调整）
-- 决策：Embedding、Image、Speech、Transcription、Moderation 为 Options、Request 及全部具有领域不变量的成功输出值实现失败原子的 `MarshalJSON`/`UnmarshalJSON`；Moderation 的 `Verdict`/`Categories` 与 Embedding 的 `Usage` 同样纳入。每个包公开 `ErrInvalidOptions`、`ErrInvalidRequest`、`ErrInvalidResponse` 三类 sentinel，构造、合并、Set、Validate 与 JSON 边界均保持 `errors.Is` 分类。新增架构测试锁定这些值必须持续实现双向 JSON 边界，wire 字段与 golden 不变。
+- 决策：Embedding、Image、Speech、Transcription、Moderation 为 Options、Request 及全部具有领域不变量的成功输出值实现失败原子的 `MarshalJSON`/`UnmarshalJSON`；Moderation 的 `Verdict`/`Categories` 与 Embedding 的 `Usage` 同样纳入。每个包公开 `ErrInvalidOptions`、`ErrInvalidRequest`、`ErrInvalidResponse` 三类 sentinel，构造、合并、extension 写入、Validate 与 JSON 边界均保持 `errors.Is` 分类。新增架构测试锁定这些值必须持续实现双向 JSON 边界，wire 字段与 golden 不变。
 - 原因：此前五个 modality 只有显式构造/Validate 路径守住不变量，直接 JSON 编解码可以绕过校验并把非法 DTO 送入 provider 或上层；同时调用方只能解析错误字符串。让值对象拥有 wire 边界行为，与 Chat/Media/Metadata 的既有合同一致，也避免在每个 adapter 重复防御。该加法式 API 调整把 exported baseline 从 325 行更新为 396 行，不增加新领域类型或 wire 字段。
+
+### ADR-029：modality Options 统一为值语义和命名空间扩展
+
+- 日期：2026-07-16
+- 状态：已采纳（维护者确认开发期直接调整）
+- 决策：Embedding、Image、Speech、Transcription、Moderation 的 `Options` 与 Chat 一致采用合法零值和显式值语义：`NewOptions`、`Clone`、`Merged` 返回值，`Request.Options` 为 `omitzero` 值字段，`Validate` 公开；删除 nil Options 状态和 nil receiver 合并合同。provider 的 `DefaultOptions` 与内部持有字段同步改为值，构造时深拷贝，Models 架构测试禁止重新引入 `*Options` 并要求所有权字段来自 `Clone()`。provider-only 配置统一命名为 `Extensions`/`SetExtension`，wire 字段改为 `extensions`，key 强制 `<namespace>/<name>`；Chat 与五个 modality 复用同一个 Core internal key policy。结果/响应 metadata 的开放附加信息仍命名为 `Extra`，不混淆“协议扩展”和“观测 metadata”。
+- 原因：Request 中 nil Options 与 `Options{}` 的合并结果、校验结果和 provider 行为完全相同，双状态只增加 nil 分支；provider 保存调用方传入的 Options 指针还允许构造完成后被外部静默改写。值语义使零值、所有权和合并合同更接近标准库；`Set`/`Extra` 则无法表达命名空间扩展约束。该破坏性调整不增加领域类型，API baseline 396→401；wire inventory/root 保持 47/17，reviewed golden 478→488 行。
 
 ---
 
@@ -1364,6 +1371,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-16 | 采纳 ADR-029：五个 modality Options 改为零值可用的完整值语义，Request/provider 默认配置移除无意义 nil 状态并在所有权边界 Clone；provider 配置统一为 namespaced `Extensions/SetExtension`，API 396→401、wire golden 478→488 | Codex |
 | 2026-07-16 | 采纳 ADR-028：五个 modality 的全部不变量值在 JSON 编解码边界递归校验，新增三类可 `errors.Is` 的 sentinel、失败原子测试与架构守卫；wire golden 不变，API baseline 325→396 | Codex |
 | 2026-07-16 | 采纳 ADR-027：Media/Chat 协议值建立分层 Clone 所有权，ChatClient、ChatHistory、App Runtime 与 ResponseAccumulator 委派 Core，删除两套逐字段拷贝实现并增加全引用字段隔离测试 | Codex |
 | 2026-07-15 | 完成 P9-06/P9-07：API/wire 重冻为 319/47/17/478，迁移与架构文档同步；Core release 确定性门禁、21 module 105 项门禁及 21 项 tidy-diff 全绿，计划 73/73 关闭 | Codex |

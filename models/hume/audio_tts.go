@@ -12,7 +12,7 @@ import (
 
 type AudioTTSModelConfig struct {
 	APIKey         string
-	DefaultOptions *tts.Options
+	DefaultOptions tts.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -21,8 +21,11 @@ func (c AudioTTSModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("hume: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("hume: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("hume: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -32,13 +35,13 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 
 // AudioTTSModel wraps Hume's Octave TTS (/v0/tts). Hume's headline
 // feature is emotion-aware synthesis driven by per-utterance
-// "description" cues — those live on the Extra-threaded [TTSRequest].
+// "description" cues — those live on the extension-threaded [TTSRequest].
 //
 // [tts.Options].Voice maps onto a HUME_AI voice id (Octave preset);
 // [tts.Options].Model is unused (Octave is the only engine here).
 type AudioTTSModel struct {
 	api            *API
-	defaultOptions *tts.Options
+	defaultOptions tts.Options
 }
 
 func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
@@ -49,7 +52,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &AudioTTSModel{api: api, defaultOptions: cfg.DefaultOptions}, nil
+	return &AudioTTSModel{api: api, defaultOptions: cfg.DefaultOptions.Clone()}, nil
 }
 
 func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*TTSRequest, error) {
@@ -58,7 +61,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*TTSRequest, error) {
 		return nil, err
 	}
 
-	body, err := options.GetParams[TTSRequest](mergedOpts.Extra, OptionsKey)
+	body, err := options.GetParams[TTSRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

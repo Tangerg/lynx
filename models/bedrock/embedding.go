@@ -14,14 +14,17 @@ import (
 )
 
 type EmbeddingModelConfig struct {
-	DefaultOptions *embedding.Options
+	DefaultOptions embedding.Options
 	Region         string
 	AWSConfig      *aws.Config
 }
 
 func (c EmbeddingModelConfig) Validate() error {
-	if c.DefaultOptions == nil {
-		return errors.New("bedrock: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("bedrock: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -39,7 +42,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // internally.
 type EmbeddingModel struct {
 	api            *API
-	defaultOptions *embedding.Options
+	defaultOptions embedding.Options
 }
 
 func NewEmbeddingModel(ctx context.Context, cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
@@ -50,7 +53,7 @@ func NewEmbeddingModel(ctx context.Context, cfg EmbeddingModelConfig) (*Embeddin
 	if err != nil {
 		return nil, err
 	}
-	return &EmbeddingModel{api: api, defaultOptions: cfg.DefaultOptions}, nil
+	return &EmbeddingModel{api: api, defaultOptions: cfg.DefaultOptions.Clone()}, nil
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
