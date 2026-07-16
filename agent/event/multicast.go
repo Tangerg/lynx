@@ -79,16 +79,16 @@ func (m *Multicast) OnEvent(ctx context.Context, event Event) {
 	m.mu.RUnlock()
 
 	for _, listener := range listeners {
-		safeDeliver(ctx, listener, event)
+		m.deliver(ctx, listener, event)
 	}
 }
 
-// safeDeliver invokes the listener with a panic guard. Panicking
+// deliver invokes the listener with a panic guard. Panicking
 // listeners are a bug, but a single panicking listener must not take
 // down the whole process — delivery to the remaining listeners continues.
 // The panic is not silent: it surfaces as a short error span so the failure is
 // observable through the standard OTel pipeline.
-func safeDeliver(ctx context.Context, listener Listener, event Event) {
+func (m *Multicast) deliver(ctx context.Context, listener Listener, event Event) {
 	defer func() {
 		recovered := recover()
 		if recovered == nil {

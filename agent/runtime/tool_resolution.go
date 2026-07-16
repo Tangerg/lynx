@@ -39,7 +39,7 @@ func (p *Process) toolResolverFor(action core.Action) func(context.Context, []co
 				return nil, fmt.Errorf("load tools for role %q: %w", requirement.Role, err)
 			}
 			for _, tool := range groupTools {
-				resolved = append(resolved, wrapTool(middleware, p, action, tool))
+				resolved = append(resolved, p.wrapTool(middleware, action, tool))
 			}
 		}
 		return resolved, nil

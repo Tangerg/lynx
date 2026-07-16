@@ -35,19 +35,21 @@ func (p *Process) effectiveChat() (core.ChatCapability, error) {
 	if valueIsNil(capability.Model) {
 		capability = p.engineChat()
 	}
-	return scopeChatCapability(capability, p.effectiveGuardrails(), p.conversationID())
+	return p.scopeChat(capability)
 }
 
-func scopeChatCapability(capability core.ChatCapability, guardrails *core.ChatGuardrails, conversationID string) (core.ChatCapability, error) {
+func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability, error) {
 	if valueIsNil(capability.Model) {
 		return core.ChatCapability{}, nil
 	}
 	callMiddleware := make([]chat.CallMiddleware, 0, 1)
 	streamMiddleware := make([]chat.StreamMiddleware, 0, 1)
+	conversationID := p.conversationID()
 	if conversationID != "" {
 		callMiddleware = append(callMiddleware, bindCallConversation(conversationID))
 		streamMiddleware = append(streamMiddleware, bindStreamConversation(conversationID))
 	}
+	guardrails := p.effectiveGuardrails()
 	if !guardrails.Empty() {
 		callMiddleware = append(callMiddleware, guardrails.CallMiddlewares...)
 		streamMiddleware = append(streamMiddleware, guardrails.StreamMiddlewares...)

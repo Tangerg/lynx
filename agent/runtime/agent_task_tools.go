@@ -68,7 +68,7 @@ func (t *taskToolset[In, Out]) start(ctx context.Context, in In) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("background start %q: %w", agent.Name(), err)
 	}
-	return encodeTaskResult(taskResult{TaskID: child.ID(), Status: taskStatusRunning})
+	return (taskResult{TaskID: child.ID(), Status: taskStatusRunning}).encode()
 }
 
 func (t *taskToolset[In, Out]) result(_ context.Context, input taskResultInput) (string, error) {
@@ -80,7 +80,7 @@ func (t *taskToolset[In, Out]) result(_ context.Context, input taskResultInput) 
 	if !ok {
 		return "", fmt.Errorf("background result %q: unknown task_id %q", agentName, input.TaskID)
 	}
-	return taskResultJSON[Out](agentName, child)
+	return t.resultJSON(child)
 }
 
 // taskResultInput is the argument shape of the result tool half of
@@ -107,37 +107,38 @@ const (
 	taskStatusFailed  = "failed"
 )
 
-// taskResultJSON renders a background child's current state as a JSON
+// resultJSON renders a background child's current state as a JSON
 // tool-result string: running while the loop is live, waiting (with the
 // pending suspension) when parked on HITL, done with the typed result on
 // clean completion, failed with the terminal reason otherwise. Unlike
 // the synchronous [agentTool.Call], a failed task is a structured result
 // rather than a tool error — the model explicitly asked for the task's
 // outcome, so it should be able to react instead of aborting its loop.
-func taskResultJSON[Out any](agentName string, child *Process) (string, error) {
+func (t *taskToolset[In, Out]) resultJSON(child *Process) (string, error) {
+	agentName := t.deployment.agent.Name()
 	switch status := child.Status(); {
 	case status == core.StatusWaiting:
-		return waitingToolResult(agentName, child), nil
+		return child.waitingToolResult(), nil
 	case !status.IsTerminal():
-		return encodeTaskResult(taskResult{TaskID: child.ID(), Status: taskStatusRunning})
+		return (taskResult{TaskID: child.ID(), Status: taskStatusRunning}).encode()
 	case status == core.StatusCompleted:
 		out, ok := core.Result[Out](child)
 		if !ok {
 			var zero Out
 			return "", fmt.Errorf("background result %q: completed but produced no %T", agentName, zero)
 		}
-		return encodeTaskResult(taskResult{TaskID: child.ID(), Status: taskStatusDone, Result: out})
+		return (taskResult{TaskID: child.ID(), Status: taskStatusDone, Result: out}).encode()
 	default:
 		reason := ""
 		if err := child.TerminalError(); err != nil {
 			reason = err.Error()
 		}
-		return encodeTaskResult(taskResult{TaskID: child.ID(), Status: taskStatusFailed, Error: reason})
+		return (taskResult{TaskID: child.ID(), Status: taskStatusFailed, Error: reason}).encode()
 	}
 }
 
-// encodeTaskResult JSON-encodes a background tool reply.
-func encodeTaskResult(r taskResult) (string, error) {
+// encode JSON-encodes a background tool reply.
+func (r taskResult) encode() (string, error) {
 	encoded, err := json.Marshal(r)
 	if err != nil {
 		return "", fmt.Errorf("marshal task result: %w", err)

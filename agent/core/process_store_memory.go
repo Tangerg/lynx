@@ -40,7 +40,7 @@ func (s *MemoryProcessStore) Save(_ context.Context, snapshot ProcessSnapshot, e
 		return 0, &RevisionConflictError{ProcessID: snapshot.ID, Expected: expectedRevision, Actual: actualRevision}
 	}
 	snapshot.Revision = actualRevision + 1
-	cloned, err := cloneProcessSnapshot(snapshot)
+	cloned, err := snapshot.clone()
 	if err != nil {
 		return 0, fmt.Errorf("memory process store: clone snapshot: %w", err)
 	}
@@ -58,7 +58,7 @@ func (s *MemoryProcessStore) Load(_ context.Context, id string) (ProcessSnapshot
 	if !ok {
 		return ProcessSnapshot{}, fmt.Errorf("memory process store: load %q: %w", id, ErrSnapshotNotFound)
 	}
-	cloned, err := cloneProcessSnapshot(snapshot)
+	cloned, err := snapshot.clone()
 	if err != nil {
 		return ProcessSnapshot{}, fmt.Errorf("memory process store: clone loaded snapshot: %w", err)
 	}
@@ -92,8 +92,8 @@ func (s *MemoryProcessStore) List(_ context.Context) ([]string, error) {
 	return ids, nil
 }
 
-func cloneProcessSnapshot(snapshot ProcessSnapshot) (ProcessSnapshot, error) {
-	data, err := json.Marshal(snapshot)
+func (s ProcessSnapshot) clone() (ProcessSnapshot, error) {
+	data, err := json.Marshal(s)
 	if err != nil {
 		return ProcessSnapshot{}, err
 	}

@@ -78,7 +78,7 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	}
 	source := core.NewAgent(config)
 
-	compiled, err := compileDeployment(source, "")
+	compiled, err := (deploymentCompiler{}).compile(source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,11 +154,11 @@ func TestCompiledDefinitionDigestIsDeterministicAndSemantic(t *testing.T) {
 		core.ToolGroupHostAccess,
 	}) // empty and explicit goap are semantically equal
 
-	compiledFirst, err := compileDeployment(first, "")
+	compiledFirst, err := (deploymentCompiler{}).compile(first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compiledSecond, err := compileDeployment(second, "")
+	compiledSecond, err := (deploymentCompiler{}).compile(second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestCompiledDefinitionDigestIsDeterministicAndSemantic(t *testing.T) {
 	}
 
 	changed := deploymentFixture("writer", core.ConditionSet{"alpha": core.False, "beta": core.False}, nil)
-	compiledChanged, err := compileDeployment(changed, "")
+	compiledChanged, err := (deploymentCompiler{}).compile(changed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,11 +188,11 @@ func TestCompiledDefinitionDigestIsDeterministicAndSemantic(t *testing.T) {
 
 func TestBuildIDParticipatesInDeploymentIdentity(t *testing.T) {
 	source := deploymentFixture("writer", core.ConditionSet{"finish": core.True}, nil)
-	first, err := compileDeployment(source, "build-a")
+	first, err := (deploymentCompiler{buildID: "build-a"}).compile(source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := compileDeployment(source, "build-b")
+	second, err := (deploymentCompiler{buildID: "build-b"}).compile(source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +287,7 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 		Conditions: []core.Condition{&mutableDeploymentCondition{name: "authorized", cost: 1.25}},
 	})
 
-	compiled, err := compileDeployment(source, "")
+	compiled, err := (deploymentCompiler{}).compile(source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +354,7 @@ func assertExportedFields(t *testing.T, typeOf reflect.Type, want []string) {
 func TestAgentRegistryReturnsStableImmutableDeployments(t *testing.T) {
 	registry := newDeploymentRegistry()
 	for _, name := range []string{"zebra", "alpha"} {
-		deployment, err := compileDeployment(deploymentFixture(name, core.ConditionSet{"finish": core.True}, nil), "")
+		deployment, err := (deploymentCompiler{}).compile(deploymentFixture(name, core.ConditionSet{"finish": core.True}, nil))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -383,11 +383,11 @@ func TestAgentRegistryReturnsStableImmutableDeployments(t *testing.T) {
 
 func TestAgentRegistryRetainsHistoricalDefinitions(t *testing.T) {
 	registry := newDeploymentRegistry()
-	first, err := compileDeployment(deploymentFixture("writer", core.ConditionSet{"finish": core.True}, nil), "")
+	first, err := (deploymentCompiler{}).compile(deploymentFixture("writer", core.ConditionSet{"finish": core.True}, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := compileDeployment(deploymentFixture("writer", core.ConditionSet{"finish": core.False}, nil), "")
+	second, err := (deploymentCompiler{}).compile(deploymentFixture("writer", core.ConditionSet{"finish": core.False}, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,11 +500,11 @@ func TestAgentRegistrySupportsConcurrentRegistrationAndSnapshots(t *testing.T) {
 	const deploymentCount = 32
 	deployments := make([]*Deployment, deploymentCount)
 	for i := range deploymentCount {
-		deployment, err := compileDeployment(deploymentFixture(
+		deployment, err := (deploymentCompiler{}).compile(deploymentFixture(
 			fmt.Sprintf("agent-%02d", i),
 			core.ConditionSet{"finish": core.True},
 			nil,
-		), "")
+		))
 		if err != nil {
 			t.Fatal(err)
 		}

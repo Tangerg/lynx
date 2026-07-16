@@ -98,6 +98,10 @@ host application and adapters
 
 当行为只有一个明确 owner 时，调用点直接从对象出发：`agent.EncodeBlackboard`、`domain.BestPlan`、`engine.GoalToolsFor`、`requirement.Allows`。构造器、跨类型组装、wire decode、按多种类型实例化的泛型算法继续保留自由函数；receiver 数量不是目标，行为归属才是目标。
 
+私有实现同样遵循这条规则：`FuncAction[In,Out]` 自己读取 `In`，`DependencyKey[T]` 自己校验并处理对应类型的 nil，`runnerState` 自己验证输入、消费 resume 并构造 continuation，`Process` 自己调度 action middleware、goal approver、chat scope、child listener 与 interaction owner。Deployment 的冻结快照、canonical encoding 和 digest 由持有 `buildID` 的私有 `deploymentCompiler` 聚合；它是有真实状态和单一职责的编译器，不是为挂方法制造的 service 壳。
+
+当前保留的包级私有函数主要是构造器、wire decode、跨类型 projection、slice/map 共享算法、对称 codec、外部 SPI guard 与需要按多种 `T` 实例化的泛型函数。生产包级私有自由函数从 140 收敛为 92，但该数量只用于证明审计覆盖，不作为继续方法化的目标。
+
 ## 6. 执行、交互与恢复
 
 `Action.Execute` 返回 `(ActionStatus, error)`：status 表达生命周期结果，error 表达失败、replan 或 suspension。Runtime 统一持有 panic recovery、retry、事件和状态迁移，不通过 Context scratch 或 Blackboard 旁路传错。
@@ -141,7 +145,7 @@ Blackboard 普通值默认 durable，函数、channel、client 和 runtime handl
 - API / wire baseline 是审查工具，不代表已经发布稳定承诺；
 - 已形成可回退的开发提交；未创建 tag、push 或 release。
 
-当前 receiver 精修基线的 Agent 全量 build、vet、test、race、lint、tidy、API/wire/architecture gate，以及 App 全量常规门禁和高风险 race 均已通过。正式发布仍需在内部依赖改为精确 tag 后，以 `GOWORK=off` 重跑发布门禁，并由维护者单独授权发布动作。
+当前 receiver 精修基线的 Agent 全量 build、vet、test、race、lint、tidy、API/wire/architecture gate、workspace 84 项常规门禁，以及 App 高风险 race 均已通过。公开 API 与 wire hash 均未变化。正式发布仍需在内部依赖改为精确 tag 后，以 `GOWORK=off` 重跑发布门禁，并由维护者单独授权发布动作。
 
 ## 10. 维护规则
 

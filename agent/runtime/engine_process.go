@@ -116,7 +116,7 @@ func (e *Engine) createChild(
 	// when the parent registered no listeners, so the historical "child
 	// events reach only the engine multicast" behavior is unchanged for
 	// callers that don't observe per-process.
-	options.Extensions = inheritEventListeners(options.Extensions, parent.options)
+	options.Extensions = parent.childExtensions(options.Extensions)
 
 	child, err := e.createProcessFromDeployment(deployment, bindings, options)
 	if err != nil {
@@ -126,41 +126,6 @@ func (e *Engine) createChild(
 	child.depth = parent.depth + 1
 	parent.budget.addChild(child)
 	return child, nil
-}
-
-// inheritEventListeners propagates a parent's process-scope
-// [EventListener] extensions onto a child's option set so the whole
-// delegation subtree feeds the listener the parent registered. Only
-// values implementing EventListener propagate — other capabilities
-// (Blackboard / Planner / ToolMiddleware …) stay scoped to the process
-// that declared them. A child that already declares a listener of the
-// same Name wins (its own is not shadowed) and duplicates are skipped so
-// validateProcessExtensions' uniqueness check still holds. Returns the
-// child slice unchanged when the parent registered no extensions.
-func inheritEventListeners(childExtensions []core.Extension, parent *core.ProcessOptions) []core.Extension {
-	if parent == nil || len(parent.Extensions) == 0 {
-		return childExtensions
-	}
-	seen := make(map[string]struct{}, len(childExtensions))
-	for _, extension := range childExtensions {
-		if extension != nil {
-			seen[extension.Name()] = struct{}{}
-		}
-	}
-	for _, extension := range parent.Extensions {
-		if extension == nil {
-			continue
-		}
-		if _, ok := extension.(EventListener); !ok {
-			continue
-		}
-		if _, duplicate := seen[extension.Name()]; duplicate {
-			continue
-		}
-		childExtensions = append(childExtensions, extension)
-		seen[extension.Name()] = struct{}{}
-	}
-	return childExtensions
 }
 
 // resolvePlanner finds the [planning.Planner] for agent by matching

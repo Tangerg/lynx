@@ -1,6 +1,9 @@
 package core
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 // ModelCall captures the metadata of one LLM call attributed to
 // a process. The framework itself never populates these — integration
@@ -75,4 +78,18 @@ type EmbeddingCall struct {
 
 	Duration   time.Duration `json:"duration_ns"`
 	ActionName string        `json:"action,omitempty"`
+}
+
+func (c ModelCall) valid() bool {
+	return !c.Timestamp.IsZero() &&
+		!math.IsNaN(c.CostUSD) && !math.IsInf(c.CostUSD, 0) && c.CostUSD >= 0 &&
+		c.PromptTokens >= 0 && c.CompletionTokens >= 0 && c.ReasoningTokens >= 0 &&
+		c.CacheReadInputTokens >= 0 && c.CacheWriteInputTokens >= 0 &&
+		c.ReasoningTokens <= c.CompletionTokens && c.Duration >= 0
+}
+
+func (c EmbeddingCall) valid() bool {
+	return !c.Timestamp.IsZero() &&
+		!math.IsNaN(c.CostUSD) && !math.IsInf(c.CostUSD, 0) && c.CostUSD >= 0 &&
+		c.InputTokens >= 0 && c.InputCount >= 0 && c.Duration >= 0
 }

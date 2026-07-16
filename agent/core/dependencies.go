@@ -41,10 +41,11 @@ type DependencyKey[T any] struct {
 
 // NewDependencyKey validates name and returns a typed dependency key.
 func NewDependencyKey[T any](name string) (DependencyKey[T], error) {
-	if name == "" || name != strings.TrimSpace(name) {
+	key := DependencyKey[T]{name: name, typ: reflect.TypeFor[T]()}
+	if err := key.validate(); err != nil {
 		return DependencyKey[T]{}, fmt.Errorf("%w: name must be non-empty without surrounding whitespace", ErrInvalidDependencyKey)
 	}
-	return DependencyKey[T]{name: name, typ: reflect.TypeFor[T]()}, nil
+	return key, nil
 }
 
 // MustDependencyKey is the declaration-time companion to [NewDependencyKey]. It
@@ -123,13 +124,13 @@ func (d *Dependencies) Frozen() bool {
 // RegisterDependency registers value under key in the local scope. It never
 // overwrites an existing registration.
 func RegisterDependency[T any](dependencies *Dependencies, key DependencyKey[T], value T) error {
-	if err := validateDependencyKey(key.name, key.typ); err != nil {
+	if err := key.validate(); err != nil {
 		return fmt.Errorf("core.RegisterDependency: %w", err)
 	}
 	if dependencies == nil {
 		return fmt.Errorf("core.RegisterDependency %q: %w", key.name, ErrDependenciesFrozen)
 	}
-	if isNilDependency(value) {
+	if key.isNil(value) {
 		return fmt.Errorf("core.RegisterDependency %q: %w", key.name, ErrNilDependency)
 	}
 
@@ -155,7 +156,7 @@ func RegisterDependency[T any](dependencies *Dependencies, key DependencyKey[T],
 // same-name/different-type shadowing are distinct errors.
 func LookupDependency[T any](dependencies *Dependencies, key DependencyKey[T]) (T, error) {
 	var zero T
-	if err := validateDependencyKey(key.name, key.typ); err != nil {
+	if err := key.validate(); err != nil {
 		return zero, fmt.Errorf("core.LookupDependency: %w", err)
 	}
 	for scope := dependencies; scope != nil; scope = scope.parent {
@@ -189,14 +190,14 @@ func LookupDependency[T any](dependencies *Dependencies, key DependencyKey[T]) (
 	return zero, fmt.Errorf("core.LookupDependency %q: %w", key.name, ErrDependencyNotFound)
 }
 
-func validateDependencyKey(name string, typ reflect.Type) error {
-	if name == "" || name != strings.TrimSpace(name) || typ == nil {
+func (k DependencyKey[T]) validate() error {
+	if k.name == "" || k.name != strings.TrimSpace(k.name) || k.typ == nil {
 		return ErrInvalidDependencyKey
 	}
 	return nil
 }
 
-func isNilDependency[T any](value T) bool {
+func (k DependencyKey[T]) isNil(value T) bool {
 	v := reflect.ValueOf(value)
 	if !v.IsValid() {
 		return true

@@ -3,7 +3,6 @@ package toolloop
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -18,21 +17,21 @@ type ToolResolver interface {
 
 var _ ToolResolver = (*tools.Registry)(nil)
 
-func validateRunInput(request *chat.Request, resolver ToolResolver) error {
-	if request == nil {
+func (s *runnerState) validateInput() error {
+	if s == nil || s.request == nil {
 		return fmt.Errorf("%w: request must not be nil", ErrInvalidInput)
 	}
-	if err := request.Validate(); err != nil {
+	if err := s.request.Validate(); err != nil {
 		return fmt.Errorf("%w: request: %w", ErrInvalidInput, err)
 	}
-	if len(request.Tools) == 0 {
+	if len(s.request.Tools) == 0 {
 		return nil
 	}
-	if nilResolver(resolver) {
+	if nilResolver(s.resolver) {
 		return fmt.Errorf("%w: request advertises tools but resolver is nil", ErrInvalidInput)
 	}
-	for _, definition := range request.Tools {
-		tool, ok := resolver.Resolve(definition.Name)
+	for _, definition := range s.request.Tools {
+		tool, ok := s.resolver.Resolve(definition.Name)
 		if !ok || nilRuntimeTool(tool) {
 			return fmt.Errorf("%w: advertised tool %q is not executable", ErrInvalidInput, definition.Name)
 		}

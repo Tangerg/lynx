@@ -26,7 +26,7 @@ func (b *inMemoryBlackboard) Lookup(variable, typeName string) (any, bool) {
 	if !ok {
 		return nil, false
 	}
-	if typeName != "" && !typeMatches(value, typeName) {
+	if typeName != "" && !b.typeMatches(value, typeName) {
 		return nil, false
 	}
 	return value, true
@@ -43,7 +43,7 @@ func (b *inMemoryBlackboard) findLatestByType(typeName string) (any, bool) {
 		if b.isHidden(obj) {
 			continue
 		}
-		if typeMatches(obj, typeName) {
+		if b.typeMatches(obj, typeName) {
 			return obj, true
 		}
 	}
@@ -72,7 +72,7 @@ func (b *inMemoryBlackboard) isHidden(v any) bool {
 // Binding uses: pointer types unwrap, then the concrete type's full
 // name is compared. Interface hierarchies are not walked; a binding matches
 // the stored value's concrete type only.
-func typeMatches(v any, typeName string) bool {
+func (b *inMemoryBlackboard) typeMatches(v any, typeName string) bool {
 	if typeName == "" {
 		return true
 	}
