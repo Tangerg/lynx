@@ -658,15 +658,15 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 ### P7：Provider、MCP、A2A、RAG 与 Desktop 精修
 
 > 类型：混合；包含破坏性 API 和行为，已确认
-> 状态：进行中
+> 状态：完成
 
 - [x] Web provider `NewClient` 接受 `Config` 值。
 - [x] MCP `SamplingViaChatClient` → `NewSamplingHandler`。
 - [x] 修复 MCP sampling 过期注释。
 - [x] A2A tool 参数严格遵守其 object schema；删除 bare-string fallback。
 - [x] RAG `Multi` → `Parallel`，`NoopRetriever` → `NopRetriever`。
-- [ ] Desktop 删除无行为的 `App/NewApp/startup/shutdown/Bind`，使用标准日志输出。
-- [ ] OTel、Skills、Tokenizer 若无新证据则不改公开面。
+- [x] Desktop 删除无行为的 `App/NewApp/startup/shutdown/Bind`，使用标准日志输出。
+- [x] OTel、Skills、Tokenizer 若无新证据则不改公开面。
 
 已知仓内消费：
 
@@ -701,6 +701,22 @@ P7-2 MCP/A2A/RAG 已完成：
 - RAG 组合 API 改为 `Parallel` / `NopRetriever`，错误上下文、GoDoc 与 tests 同步；
 - MCP、A2A、RAG 各自 build/vet/test/lint/race 与 `go mod tidy -diff` 全绿，
   Agent MCP example test/vet 全绿。
+
+P7-3 Desktop 与保留项已完成：
+
+- Wails version audit 确认为 v2.12；前端没有生成绑定消费，Go shell 没有
+  `runtime.*` 调用，因此 startup context、shutdown hook 与 `Bind` 均无实际 owner；
+- 删除 `app.go` 的空 `App/NewApp/startup/shutdown`，`main` 直接运行 Wails；
+  启动失败改用标准库 `log.Fatal`，不再调用 builtin `println`；
+- Desktop Go build/vet/test、`go mod tidy -diff` 全绿；Frontend `npm run check`
+  全绿（typecheck/lint/format/tests/knip/circular/context/boundary/layers/bundle）；
+- OTel 复核后不改：`ChatMiddleware` 与三个 exporter receiver 均真实持有
+  provider/instrument/logger state；projection/metric summarize 保持无状态函数；
+- Skills 复核后不改：`fsSource` / `merged` receiver 持有 backing sources，
+  `Parse` / `ReadResource` / generic `firstOK` 是明确 parser、资源算法与跨 source
+  组合；
+- Tokenizer 复核后不改：接口保持最小 capability，具体 Tokenizer receiver 持有
+  vocabulary encoding；没有 config receiver、alias 或无消费者公开 wrapper。
 
 ### P8：最终命名、文件与质量门禁
 
@@ -792,7 +808,7 @@ go vet ./...
 | P4 Runtime 工具结果边界 | 完成 | 100% | — |
 | P5 Document Pipeline API | 完成 | 100% | — |
 | P6 Chat History API | 完成 | 100% | — |
-| P7 Provider/MCP/A2A/RAG/Desktop | 未开始 | 0% | P0，breaking/行为决策 |
+| P7 Provider/MCP/A2A/RAG/Desktop | 完成 | 100% | — |
 | P8 最终门禁 | 未开始 | 0% | P1–P7 |
 
 ---
