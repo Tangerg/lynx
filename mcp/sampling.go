@@ -16,32 +16,33 @@ import (
 // keeps user code from re-stating the unwieldy SDK signature.
 type SamplingHandler = func(context.Context, *sdkmcp.CreateMessageRequest) (*sdkmcp.CreateMessageResult, error)
 
-// SamplingViaChatClient builds a [SamplingHandler] that delegates the
-// server's createMessage request to client. An MCP server can then
-// "borrow" the client's LLM without ever owning credentials or model
-// factories of its own.
+// NewSamplingHandler returns a [SamplingHandler] that delegates the server's
+// createMessage request to client. An MCP server can then "borrow" the
+// client's LLM without owning credentials or model factories.
 //
 // Translation:
 //
-//   - SystemPrompt → chat.WithSystemPrompt
-//   - Messages     → chat.WithMessages (non-text content dropped)
+//   - SystemPrompt → a prepended system message
+//   - Messages     → core chat messages (non-text content dropped)
+//   - MaxTokens     → chat.Options.MaxTokens
+//   - Temperature   → chat.Options.Temperature
+//   - StopSequences → chat.Options.Stop
 //   - chat reply   → CreateMessageResult (Role=assistant, single
 //     TextContent; StopReason mapped from chat.FinishReason).
 //
-// MaxTokens / Temperature / StopSequences / ModelPreferences are not
-// forwarded: per the MCP spec these are hints the client may ignore,
-// and the adapter otherwise uses the chatclient.Client's configured defaults.
+// ModelPreferences is not forwarded: model selection belongs to the supplied
+// chatclient.Client, while MCP preferences are advisory.
 //
 // Concurrency is not bounded — wrap the returned handler with your own
 // semaphore if your model quota requires it. Returns an error when
 // client is nil — caller decides whether to surface or panic.
-func SamplingViaChatClient(client *chatclient.Client) (SamplingHandler, error) {
+func NewSamplingHandler(client *chatclient.Client) (SamplingHandler, error) {
 	if client == nil {
-		return nil, errors.New("mcp.SamplingViaChatClient: chatclient.Client must not be nil")
+		return nil, errors.New("mcp.NewSamplingHandler: chatclient.Client must not be nil")
 	}
 	return func(ctx context.Context, req *sdkmcp.CreateMessageRequest) (*sdkmcp.CreateMessageResult, error) {
 		if req == nil || req.Params == nil {
-			return nil, errors.New("mcp.SamplingViaChatClient: sampling request params must not be nil")
+			return nil, errors.New("mcp.NewSamplingHandler: sampling request params must not be nil")
 		}
 
 		messages := samplingMessagesToChat(req.Params.Messages)
@@ -61,7 +62,7 @@ func SamplingViaChatClient(client *chatclient.Client) (SamplingHandler, error) {
 
 		resp, err := client.Call(ctx, chatReq)
 		if err != nil {
-			return nil, fmt.Errorf("mcp.SamplingViaChatClient: sample via chat: %w", err)
+			return nil, fmt.Errorf("mcp.NewSamplingHandler: sample via chat: %w", err)
 		}
 		return chatResponseToSamplingResult(resp), nil
 	}, nil

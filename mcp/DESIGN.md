@@ -52,7 +52,7 @@ import (
 | `LogToClient` | 通过 MCP logging notification 向客户端发送日志 |
 | `Tools(ctx, sources, opts)` | 现场列出远端 MCP tools，并包装成 `[]tools.Tool` |
 | `Register(server, tools...)` | 把 lynx `tools.Tool` 暴露到 MCP server |
-| `SamplingViaChatClient` | 用 `*chatclient.Client` 实现 MCP sampling handler |
+| `NewSamplingHandler` | 用 `*chatclient.Client` 构造 MCP sampling handler |
 | `PromptMessagesToChat` | 把 MCP prompt messages 转成 `[]chat.Message` |
 
 根包刻意不提供：

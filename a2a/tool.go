@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
@@ -23,11 +24,11 @@ var (
 	errEmptyToolName = errors.New("a2a: tool name must not be empty")
 )
 
-type toolRequest struct {
+type callInput struct {
 	Message string `json:"message" jsonschema:"required" jsonschema_description:"The natural-language request to send to the remote agent."`
 }
 
-var inputSchema, _ = pkgjson.StringDefSchemaOf(toolRequest{})
+var inputSchema, _ = pkgjson.StringDefSchemaOf(callInput{})
 
 // tool wraps a remote A2A agent as a [tools.Tool]. Each Call sends the
 // argument text as an A2A message and returns the agent's reply, so an
@@ -49,29 +50,18 @@ type toolConfig struct {
 	Name   string
 }
 
-func (c *toolConfig) validate() error {
-	if c.Client == nil {
-		return errNilClient
-	}
-	if c.Card == nil {
-		return ErrNilCard
-	}
-	if c.Name == "" {
-		return errEmptyToolName
-	}
-	return nil
-}
-
-func (c *toolConfig) applyDefaults() {
-	if c.Name == "" && c.Card != nil {
-		c.Name = sanitizeToolName(c.Card.Name)
-	}
-}
-
 func newTool(cfg toolConfig) (*tool, error) {
-	cfg.applyDefaults()
-	if err := cfg.validate(); err != nil {
-		return nil, err
+	if cfg.Client == nil {
+		return nil, errNilClient
+	}
+	if cfg.Card == nil {
+		return nil, ErrNilCard
+	}
+	if cfg.Name == "" {
+		cfg.Name = sanitizeToolName(cfg.Card.Name)
+	}
+	if cfg.Name == "" {
+		return nil, errEmptyToolName
 	}
 	return &tool{
 		client: cfg.Client,
@@ -96,7 +86,14 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	)
 	defer span.End()
 
-	req := &sdka2a.SendMessageRequest{Message: userMessage(promptText(arguments))}
+	input, err := decodeCallInput(arguments)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return "", fmt.Errorf("a2a.tool.Call %q: %w", t.definition.Name, err)
+	}
+
+	req := &sdka2a.SendMessageRequest{Message: userMessage(input.Message)}
 	result, err := t.client.SendMessage(ctx, req)
 	if err != nil {
 		span.RecordError(err)
@@ -113,20 +110,24 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	return text, nil
 }
 
-// promptText extracts the message to send from the LLM-produced arguments.
-// It accepts the conventional {"message": "..."} object but falls back to
-// the raw arguments string when the JSON has no message field or isn't an
-// object, so a model that passes a bare string still works.
-func promptText(arguments string) string {
-	trimmed := strings.TrimSpace(arguments)
-	if trimmed == "" {
-		return ""
+func decodeCallInput(arguments string) (callInput, error) {
+	decoder := json.NewDecoder(strings.NewReader(arguments))
+	decoder.DisallowUnknownFields()
+
+	var input callInput
+	if err := decoder.Decode(&input); err != nil {
+		return callInput{}, fmt.Errorf("decode arguments: %w", err)
 	}
-	var obj toolRequest
-	if err := json.Unmarshal([]byte(trimmed), &obj); err == nil && obj.Message != "" {
-		return obj.Message
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return callInput{}, errors.New("arguments must contain exactly one JSON object")
+		}
+		return callInput{}, fmt.Errorf("decode trailing arguments: %w", err)
 	}
-	return trimmed
+	if strings.TrimSpace(input.Message) == "" {
+		return callInput{}, errors.New("message must not be empty")
+	}
+	return input, nil
 }
 
 // describeAgent builds the tool description from the card: its description

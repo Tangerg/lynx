@@ -118,13 +118,13 @@ func TestWithTransformersErrorShortCircuits(t *testing.T) {
 	}
 }
 
-func TestMultiUnionsResults(t *testing.T) {
+func TestParallelUnionsResults(t *testing.T) {
 	docA, _ := document.NewDocument("a", nil)
 	docB, _ := document.NewDocument("b", nil)
 	r1 := &fakeRetriever{docs: []rag.Candidate{candidate(docA)}}
 	r2 := &fakeRetriever{docs: []rag.Candidate{candidate(docB)}}
 
-	docs, err := rag.Multi(r1, r2).Retrieve(context.Background(), mustQuery(t, "hi"))
+	docs, err := rag.Parallel(r1, r2).Retrieve(context.Background(), mustQuery(t, "hi"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,12 +133,12 @@ func TestMultiUnionsResults(t *testing.T) {
 	}
 }
 
-func TestMultiPartialFailureReturnsAvailableDocs(t *testing.T) {
+func TestParallelPartialFailureReturnsAvailableDocs(t *testing.T) {
 	docA, _ := document.NewDocument("a", nil)
 	r1 := &fakeRetriever{docs: []rag.Candidate{candidate(docA)}}
 	r2 := &fakeRetriever{err: errors.New("retriever 2 broken")}
 
-	docs, err := rag.Multi(r1, r2).Retrieve(context.Background(), mustQuery(t, "hi"))
+	docs, err := rag.Parallel(r1, r2).Retrieve(context.Background(), mustQuery(t, "hi"))
 	if err != nil {
 		t.Fatalf("partial failure should not fail the whole retrieval: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestIdentityDefaults(t *testing.T) {
 	if got, _ := rag.IdentityAugmenter().Augment(context.Background(), q, nil); got != q {
 		t.Fatal("Augment should pass through")
 	}
-	if got, _ := rag.NoopRetriever().Retrieve(context.Background(), q); got != nil {
+	if got, _ := rag.NopRetriever().Retrieve(context.Background(), q); got != nil {
 		t.Fatal("Retrieve should return nil")
 	}
 	if got, _ := rag.IdentityRefiner().Refine(context.Background(), q, nil); got != nil {

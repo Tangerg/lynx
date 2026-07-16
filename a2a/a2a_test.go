@@ -90,4 +90,19 @@ func TestRoundTrip(t *testing.T) {
 	if !strings.Contains(out, "lynx received: hello") {
 		t.Errorf("reply = %q, want it to contain the echoed request", out)
 	}
+
+	for name, arguments := range map[string]string{
+		"bare string":        `"hello"`,
+		"missing message":    `{}`,
+		"empty message":      `{"message":" "}`,
+		"unknown property":   `{"message":"hello","extra":true}`,
+		"multiple objects":   `{"message":"hello"} {}`,
+		"malformed argument": `{"message":`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := tool.Call(ctx, arguments); err == nil {
+				t.Fatal("Call succeeded for arguments outside the declared object schema")
+			}
+		})
+	}
 }
