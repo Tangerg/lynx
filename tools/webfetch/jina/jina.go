@@ -15,18 +15,9 @@ const (
 	baseURL = "https://r.jina.ai"
 )
 
+// Config configures [NewClient].
 type Config struct {
 	APIKey string
-}
-
-func (c *Config) Validate() error {
-	if c == nil {
-		return errors.New("jina: Config must not be nil")
-	}
-	if c.APIKey == "" {
-		return errors.New("jina: APIKey is required")
-	}
-	return nil
 }
 
 type Client struct {
@@ -35,9 +26,10 @@ type Client struct {
 
 var _ webfetch.Provider = (*Client)(nil)
 
-func NewClient(cfg *Config) (*Client, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+// NewClient returns a Jina Reader-backed client.
+func NewClient(cfg Config) (*Client, error) {
+	if cfg.APIKey == "" {
+		return nil, errors.New("jina: APIKey is required")
 	}
 	return &Client{
 		http: resty.New().

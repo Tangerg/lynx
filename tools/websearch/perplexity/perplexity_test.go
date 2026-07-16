@@ -9,6 +9,6 @@ import (
 
 func TestProvider(t *testing.T) {
 	providertest.Run(t, "PERPLEXITY_KEY", func(k string) (websearch.Provider, error) {
-		return NewClient(&Config{APIKey: k})
+		return NewClient(Config{APIKey: k})
 	})
 }

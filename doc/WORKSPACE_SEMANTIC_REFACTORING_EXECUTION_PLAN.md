@@ -657,9 +657,10 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 
 ### P7：Provider、MCP、A2A、RAG 与 Desktop 精修
 
-> 类型：混合；包含破坏性 API 和行为，需确认
+> 类型：混合；包含破坏性 API 和行为，已确认
+> 状态：进行中
 
-- [ ] Web provider `NewClient` 接受 `Config` 值。
+- [x] Web provider `NewClient` 接受 `Config` 值。
 - [ ] MCP `SamplingViaChatClient` → `NewSamplingHandler`。
 - [ ] 修复 MCP sampling 过期注释。
 - [ ] A2A tool 参数严格遵守其 object schema；删除 bare-string fallback。
@@ -673,6 +674,15 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 - Web provider pointer config：`app/runtime` 2 个生产调用点，provider 自身 tests/docs。
 - RAG 两个名字：只在 RAG tests/docs。
 - Desktop App：只在 desktop shell。
+
+P7-1 Web provider 已完成：
+
+- 11 个 websearch/webfetch provider 统一改为 `NewClient(Config)`；
+- 删除只被构造器调用的公开 `Config.Validate`，required API key 由构造器直接守住；
+- 不保留 nil-config 分支；native `Request.Validate` 保留为直接调用方可复用的边界契约；
+- App Runtime 两个生产消费点与 provider conformance tests 已同步；
+- Tools 全量 build/vet/test/lint/race、App Runtime toolset test/vet、
+  `go mod tidy -diff` 与旧签名扫描全绿。
 
 ### P8：最终命名、文件与质量门禁
 
