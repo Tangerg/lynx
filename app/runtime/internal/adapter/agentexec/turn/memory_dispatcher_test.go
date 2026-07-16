@@ -70,8 +70,13 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 			if e.Err != "" {
 				t.Errorf("ToolCallEnd.Err = %q, want empty", e.Err)
 			}
-			if !strings.Contains(e.Output, "lyra") {
-				t.Errorf("ToolCallEnd.Output missing 'lyra': %q", e.Output)
+			result, ok := e.Result.(map[string]any)
+			if !ok {
+				t.Fatalf("ToolCallEnd.Result = %T, want JSON object", e.Result)
+			}
+			stdout, ok := result["stdout"].(string)
+			if !ok || !strings.Contains(stdout, "lyra") {
+				t.Errorf("ToolCallEnd.Result missing 'lyra': %#v", e.Result)
 			}
 		case turn.MessageDelta:
 			if !strings.Contains(e.Text, "lyra") {
@@ -391,8 +396,8 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 			_ = dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: false}, []string{"approval"})
 		case turn.ToolCallEnd:
 			// Denial flows back as a tool *result* so the model can
-			// recover — Err stays empty, Output carries the reason.
-			if strings.Contains(e.Output, "denied") {
+			// recover — Err stays empty, Result carries the reason.
+			if result, ok := e.Result.(string); ok && strings.Contains(result, "denied") {
 				sawDenial = true
 			}
 		case turn.TurnEnd:

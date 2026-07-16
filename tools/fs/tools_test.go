@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/Tangerg/lynx/tools"
 )
 
 // Compile-time assertions that every tool constructor returns a value
@@ -28,6 +31,29 @@ func TestTools_Definitions(t *testing.T) {
 		if tc.got != tc.name {
 			t.Errorf("tool %q has Definition().Name = %q", tc.name, tc.got)
 		}
+	}
+}
+
+func TestFileToolsReportMutationPaths(t *testing.T) {
+	tests := []struct {
+		name      string
+		tool      tools.FileMutationReporter
+		arguments string
+		want      []string
+	}{
+		{"write", NewWriteTool(nil), `{"file_path":"a.go"}`, []string{"a.go"}},
+		{"edit", NewEditTool(nil), `{"file_path":"b.go"}`, []string{"b.go"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := test.tool.MutationPaths(test.arguments)
+			if err != nil {
+				t.Fatalf("MutationPaths: %v", err)
+			}
+			if !slices.Equal(got, test.want) {
+				t.Fatalf("MutationPaths = %v, want %v", got, test.want)
+			}
+		})
 	}
 }
 

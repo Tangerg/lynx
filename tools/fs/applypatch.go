@@ -31,7 +31,10 @@ type PatchFileResponse struct {
 
 var applyPatchToolSchema, _ = pkgjson.StringDefSchemaOf(ApplyPatchRequest{})
 
-var _ toolcontract.Tool = (*ApplyPatchTool)(nil)
+var (
+	_ toolcontract.Tool                 = (*ApplyPatchTool)(nil)
+	_ toolcontract.FileMutationReporter = (*ApplyPatchTool)(nil)
+)
 
 // ApplyPatchTool is the thin LLM-facing adapter for [Executor.ApplyPatch].
 type ApplyPatchTool struct {
@@ -56,7 +59,7 @@ func (t *ApplyPatchTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *ApplyPatchTool) MutatedPaths(arguments string) ([]string, error) {
+func (*ApplyPatchTool) MutationPaths(arguments string) ([]string, error) {
 	var req ApplyPatchRequest
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return nil, err

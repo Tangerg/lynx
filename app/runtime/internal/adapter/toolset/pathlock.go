@@ -82,7 +82,7 @@ func withPathLock(inner tools.Tool, locker *pathLocker, workdir string) tools.To
 		return inner
 	}
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		paths := resolvedMutatedPaths(inner, arguments, workdir)
+		paths := resolvedMutationPaths(inner, arguments, workdir)
 		if len(paths) == 0 {
 			return inner.Call(ctx, arguments)
 		}

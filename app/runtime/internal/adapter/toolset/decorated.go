@@ -50,9 +50,9 @@ func (d *decoratedTool) ReturnsDirect() bool {
 	return false
 }
 
-func (d *decoratedTool) MutatedPaths(arguments string) ([]string, error) {
-	if paths, ok := d.inner.(mutatedPathReporter); ok {
-		return paths.MutatedPaths(arguments)
+func (d *decoratedTool) MutationPaths(arguments string) ([]string, error) {
+	if reporter, ok := d.inner.(tools.FileMutationReporter); ok {
+		return reporter.MutationPaths(arguments)
 	}
 	return nil, nil
 }

@@ -59,10 +59,12 @@ type ToolCallStart struct {
 
 type ToolCallEnd struct {
 	EventMeta
-	CallID string
-	Output string
-	Err    string
-	Denied bool
+	CallID       string
+	Result       any
+	OutputText   string
+	MutatedPaths []string
+	Err          string
+	Denied       bool
 }
 
 type CompactBoundary struct {

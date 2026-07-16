@@ -140,7 +140,7 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 	})
 }
 
-func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, err error) {
+func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, mutatedPaths []string, err error) {
 	// HITL interrupt: the tool
 	// paused for human input. Not a failure — skip the ToolCallEnd
 	// event. The turn-park handler drains the in-flight tool item
@@ -148,7 +148,13 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, err error)
 	if hitl.IsInterrupt(err) {
 		return
 	}
-	end := ToolCallEnd{CallID: callID, Output: output}
+	result := decodeToolResult(output)
+	end := ToolCallEnd{
+		CallID:       callID,
+		Result:       result,
+		OutputText:   toolOutputText(toolName, result),
+		MutatedPaths: mutatedPaths,
+	}
 	switch {
 	case errors.Is(err, agentexec.ErrToolDenied):
 		end.Denied = true // a verdict denial, not an execution failure

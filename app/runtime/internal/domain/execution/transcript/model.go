@@ -91,17 +91,6 @@ type Item struct {
 	DroppedMessages int
 }
 
-// FileChangePaths returns the distinct non-empty paths changed by a completed,
-// successful file-change tool item. Other item shapes have no file changes.
-func (i Item) FileChangePaths() []string {
-	if i.Kind != ToolCall || i.Status != ItemCompleted || i.Error != nil ||
-		i.Tool == nil || i.Tool.Result == nil ||
-		i.Tool.Result.Kind != FileChangeToolResult || i.Tool.Result.FileChange == nil {
-		return nil
-	}
-	return i.Tool.Result.FileChange.Paths()
-}
-
 type ContentKind uint8
 
 const (
@@ -153,26 +142,7 @@ type QuestionOption struct {
 type ToolInvocation struct {
 	Name      string
 	Arguments map[string]any
-	Result    *ToolResult
-}
-
-type ToolResultKind uint8
-
-const (
-	RawToolResult ToolResultKind = iota
-	CommandToolResult
-	SearchToolResult
-	WebSearchToolResult
-	FileChangeToolResult
-)
-
-type ToolResult struct {
-	Kind       ToolResultKind
-	Raw        any
-	Command    *CommandResult
-	Search     *SearchResult
-	WebSearch  *WebSearchResultSet
-	FileChange *FileChangeResult
+	Result    any
 }
 
 type ProblemScope uint8
@@ -224,70 +194,4 @@ type Approval struct {
 	Tool   ToolInvocation
 	Risk   string
 	Reason string
-}
-
-type CommandResult struct {
-	ExitCode        *int
-	Output          string
-	OutputTruncated bool
-}
-
-type SearchResult struct{ Hits []SearchHit }
-type WebSearchResultSet struct{ Results []WebSearchResult }
-type FileChangeResult struct{ Changes []FileEdit }
-
-// Paths returns the distinct non-empty changed paths in their original order.
-func (r FileChangeResult) Paths() []string {
-	if len(r.Changes) == 0 {
-		return nil
-	}
-	paths := make([]string, 0, len(r.Changes))
-	seen := make(map[string]struct{}, len(r.Changes))
-	for _, change := range r.Changes {
-		if change.Path == "" {
-			continue
-		}
-		if _, duplicate := seen[change.Path]; duplicate {
-			continue
-		}
-		seen[change.Path] = struct{}{}
-		paths = append(paths, change.Path)
-	}
-	return paths
-}
-
-type SearchHit struct {
-	Path       string
-	LineNumber int
-	Snippet    string
-}
-
-type WebSearchResult struct {
-	Title      string
-	URL        string
-	Snippet    string
-	FaviconURL string
-}
-
-type FileEdit struct {
-	Path   string
-	Status string
-	Diff   []DiffRow
-}
-
-type DiffRowKind uint8
-
-const (
-	DiffHunk DiffRowKind = iota
-	DiffContext
-	DiffAdded
-	DiffDeleted
-)
-
-type DiffRow struct {
-	Kind      DiffRowKind
-	Text      string
-	LeftLine  int
-	RightLine int
-	Code      string
 }

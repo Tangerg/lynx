@@ -262,7 +262,7 @@ func (p *patchPathStub) Call(context.Context, string) (string, error) {
 	return "patched", nil
 }
 
-func (p *patchPathStub) MutatedPaths(arguments string) ([]string, error) {
+func (p *patchPathStub) MutationPaths(arguments string) ([]string, error) {
 	var req struct {
 		Patch string `json:"patch"`
 	}

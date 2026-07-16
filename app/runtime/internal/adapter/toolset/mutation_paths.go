@@ -7,14 +7,10 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-type mutatedPathReporter interface {
-	MutatedPaths(arguments string) ([]string, error)
-}
-
-func mutatedPaths(tool tools.Tool, arguments string) []string {
+func mutationPaths(tool tools.Tool, arguments string) []string {
 	var paths []string
-	if reporter, ok := tool.(mutatedPathReporter); ok {
-		reported, err := reporter.MutatedPaths(arguments)
+	if reporter, ok := tool.(tools.FileMutationReporter); ok {
+		reported, err := reporter.MutationPaths(arguments)
 		if err == nil {
 			paths = append(paths, reported...)
 		}
@@ -31,8 +27,8 @@ func mutatedPaths(tool tools.Tool, arguments string) []string {
 	return cleanPathList(paths)
 }
 
-func resolvedMutatedPaths(tool tools.Tool, arguments, workdir string) []string {
-	paths := mutatedPaths(tool, arguments)
+func resolvedMutationPaths(tool tools.Tool, arguments, workdir string) []string {
+	paths := mutationPaths(tool, arguments)
 	for i, path := range paths {
 		paths[i] = canonicalAbs(workdir, path)
 	}

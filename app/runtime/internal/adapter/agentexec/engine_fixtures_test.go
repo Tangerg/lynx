@@ -65,10 +65,11 @@ type startCall struct {
 }
 
 type endCall struct {
-	callID   string
-	toolName string
-	output   string
-	err      error
+	callID       string
+	toolName     string
+	output       string
+	mutatedPaths []string
+	err          error
 }
 
 // recordingObserver collects every Start/End/Delta the engine fires
@@ -92,10 +93,10 @@ func (r *recordingObserver) OnToolCallStart(callID, toolName, arguments string) 
 	r.startList = append(r.startList, startCall{callID, toolName, arguments})
 }
 
-func (r *recordingObserver) OnToolCallEnd(callID, toolName, output string, err error) {
+func (r *recordingObserver) OnToolCallEnd(callID, toolName, output string, mutatedPaths []string, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.endList = append(r.endList, endCall{callID, toolName, output, err})
+	r.endList = append(r.endList, endCall{callID, toolName, output, mutatedPaths, err})
 }
 
 func (r *recordingObserver) OnMessageDelta(text string) {

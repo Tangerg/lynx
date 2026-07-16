@@ -17,3 +17,14 @@ type Tool interface {
 	Definition() chat.ToolDefinition
 	Call(ctx context.Context, arguments string) (string, error)
 }
+
+// FileMutationReporter is an optional tool capability for calls that may
+// change files. MutationPaths derives the prospective targets from the same
+// JSON arguments passed to Call. Runtimes use it for path locking and may
+// publish the paths only after Call succeeds.
+//
+// It remains separate from Tool so read-only and non-filesystem tools keep the
+// smallest useful contract.
+type FileMutationReporter interface {
+	MutationPaths(arguments string) ([]string, error)
+}
