@@ -65,14 +65,14 @@ func TestUpdateSession(t *testing.T) {
 	if out.Cwd != workspacepath.Canonical(newCwd) {
 		t.Errorf("Cwd = %q, want relocated %q", out.Cwd, workspacepath.Canonical(newCwd))
 	}
-	if !s.claimSession(created.ID) {
+	if !s.coordinator.ClaimSession(created.ID) {
 		t.Fatal("claim active session")
 	}
 	busyCwd := t.TempDir()
 	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Cwd: &busyCwd}); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("relocate under active run = %v, want ErrSessionBusy", err)
 	}
-	s.releaseSession(created.ID)
+	s.coordinator.ReleaseSession(created.ID)
 
 	// metadata is full-replaced and round-trips arbitrary JSON values
 	meta := map[string]any{"pinned": true, "n": float64(3)}
@@ -158,10 +158,10 @@ func TestDeleteSession_RejectsActiveSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if !s.claimSession(created.ID) {
+	if !s.coordinator.ClaimSession(created.ID) {
 		t.Fatal("claim session")
 	}
-	t.Cleanup(func() { s.releaseSession(created.ID) })
+	t.Cleanup(func() { s.coordinator.ReleaseSession(created.ID) })
 
 	if err := s.DeleteSession(ctx, created.ID); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("delete under active claim = %v, want ErrSessionBusy", err)

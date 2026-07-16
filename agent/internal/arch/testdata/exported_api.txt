@@ -336,9 +336,8 @@ event: func (h Header) ProcessID() string
 event: func (h Header) Timestamp() time.Time
 event: func (l *NamedListener) Name() string
 event: func (l *NamedListener) OnEvent(ctx context.Context, event Event)
-event: func (m *Multicast) Add(listener Listener)
+event: func (m *Multicast) Add(listener Listener) func()
 event: func (m *Multicast) OnEvent(ctx context.Context, event Event)
-event: func (m *Multicast) Remove(listener Listener)
 event: func NewHeader(processID string) Header
 event: func NewMulticast() *Multicast
 event: func NewNamedListener(name string, fn func(context.Context, Event)) *NamedListener

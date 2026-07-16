@@ -27,12 +27,12 @@ func (s *runnerState) validateInput() error {
 	if len(s.request.Tools) == 0 {
 		return nil
 	}
-	if nilResolver(s.resolver) {
+	if valueIsNil(s.resolver) {
 		return fmt.Errorf("%w: request advertises tools but resolver is nil", ErrInvalidInput)
 	}
 	for _, definition := range s.request.Tools {
 		tool, ok := s.resolver.Resolve(definition.Name)
-		if !ok || nilRuntimeTool(tool) {
+		if !ok || valueIsNil(tool) {
 			return fmt.Errorf("%w: advertised tool %q is not executable", ErrInvalidInput, definition.Name)
 		}
 		if !sameToolDefinition(definition, tool.Definition()) {

@@ -47,7 +47,6 @@ const description = `Execute a single HTTP request and return the response.
 - Use this for arbitrary REST/JSON APIs. Prefer the dedicated web_search / web_fetch tools for general web pages.`
 
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
-	_ = ctx
 	var req Request
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("httpreq: parse arguments: %w", err)

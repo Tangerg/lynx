@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -20,7 +21,7 @@ var _ Visitor = (*Formatter)(nil)
 // when dispatching this Formatter alongside other visitors.
 func (f *Formatter) Visit(predicate Predicate) error {
 	if f == nil {
-		return fmt.Errorf("filter.Formatter.Visit: formatter is nil")
+		return errors.New("filter.Formatter.Visit: formatter is nil")
 	}
 	f.formatted = ""
 
@@ -53,7 +54,7 @@ const (
 
 func (f *Formatter) format(output *strings.Builder, expr Expr, parent formatPrecedence, right bool) error {
 	if isNilExpr(expr) {
-		return fmt.Errorf("filter.Formatter: expression is nil")
+		return errors.New("filter.Formatter: expression is nil")
 	}
 
 	switch node := expr.(type) {

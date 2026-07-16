@@ -5,13 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
+	"github.com/Tangerg/lynx/chathistory/internal/dbident"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -22,13 +22,6 @@ const (
 	DefaultTableName   = "chat_history"
 	DefaultIndexSuffix = "_conversation_idx"
 )
-
-// identPattern matches the standard SQL unquoted-identifier shape — a
-// leading letter or underscore followed by letters / digits /
-// underscores. Schema names, table names and index names are all
-// interpolated into DDL/queries, so anything that doesn't match
-// is rejected before issuing SQL.
-var identPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Config configures [New]. Only [Config.Pool] is required; the rest fall back
 // to documented defaults.
@@ -115,9 +108,9 @@ func New(cfg Config) (*Store, error) {
 		{name: "TableName", value: cfg.TableName},
 		{name: "IndexName", value: cfg.IndexName},
 	} {
-		if !identPattern.MatchString(ident.value) {
+		if !dbident.Valid(ident.value) {
 			return nil, fmt.Errorf("postgres: %s=%q must match %s",
-				ident.name, ident.value, identPattern)
+				ident.name, ident.value, dbident.Pattern)
 		}
 	}
 

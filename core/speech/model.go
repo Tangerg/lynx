@@ -27,9 +27,9 @@ type Streamer interface {
 	Stream(context.Context, *Request) iter.Seq2[*Response, error]
 }
 
-// StreamFunc adapts a function to [Streamer].
-type StreamFunc func(context.Context, *Request) iter.Seq2[*Response, error]
+// StreamerFunc adapts a function to [Streamer].
+type StreamerFunc func(context.Context, *Request) iter.Seq2[*Response, error]
 
-func (f StreamFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error] {
+func (f StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error] {
 	return f(ctx, request)
 }

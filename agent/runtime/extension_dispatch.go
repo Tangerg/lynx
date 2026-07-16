@@ -155,8 +155,8 @@ func (p *Process) approvesGoal(approvers []core.GoalApprover, goal *core.Goal) b
 // what the requirement grants — a sandboxed action can't pick up a
 // resolver implementation that quietly upgrades the privilege set.
 func runToolGroupResolvers(
-	resolvers []core.ToolGroupResolver,
 	ctx context.Context,
+	resolvers []core.ToolGroupResolver,
 	requirement core.ToolGroupRequirement,
 ) (core.ToolGroup, bool, error) {
 	if err := requirement.Validate(); err != nil {

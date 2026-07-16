@@ -130,7 +130,7 @@ func RegisterDependency[T any](dependencies *Dependencies, key DependencyKey[T],
 	if dependencies == nil {
 		return fmt.Errorf("core.RegisterDependency %q: %w", key.name, ErrDependenciesFrozen)
 	}
-	if key.isNil(value) {
+	if valueIsNil(value) {
 		return fmt.Errorf("core.RegisterDependency %q: %w", key.name, ErrNilDependency)
 	}
 
@@ -197,7 +197,7 @@ func (k DependencyKey[T]) validate() error {
 	return nil
 }
 
-func (k DependencyKey[T]) isNil(value T) bool {
+func valueIsNil(value any) bool {
 	v := reflect.ValueOf(value)
 	if !v.IsValid() {
 		return true

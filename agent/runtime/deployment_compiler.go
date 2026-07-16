@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -56,7 +57,7 @@ func (d *Deployment) Agent() *core.Agent {
 
 func (c deploymentCompiler) compile(source *core.Agent) (*Deployment, error) {
 	if source == nil {
-		return nil, fmt.Errorf("compile deployment: agent is nil")
+		return nil, errors.New("compile deployment: agent is nil")
 	}
 
 	agent := c.cloneAgent(source)
@@ -80,7 +81,7 @@ func (c deploymentCompiler) compile(source *core.Agent) (*Deployment, error) {
 
 func (e *Engine) compileAgent(source *core.Agent) (*Deployment, error) {
 	if source == nil {
-		return nil, fmt.Errorf("compile deployment: agent is nil")
+		return nil, errors.New("compile deployment: agent is nil")
 	}
 	if e.processStore != nil && source.Version() == "" && e.buildID == "" {
 		return nil, fmt.Errorf("%w: agent %q is unversioned", ErrDurableIdentityRequired, source.Name())

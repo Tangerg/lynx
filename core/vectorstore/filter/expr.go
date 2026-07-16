@@ -2,6 +2,7 @@ package filter
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 )
@@ -139,7 +140,7 @@ func (l *Literal) IsBool() bool   { return l != nil && l.Kind == LiteralBool }
 func (l *Literal) IsNull() bool   { return l != nil && l.Kind == LiteralNull }
 func (l *Literal) AsString() (string, error) {
 	if l == nil {
-		return "", fmt.Errorf("filter.Literal.AsString: literal is nil")
+		return "", errors.New("filter.Literal.AsString: literal is nil")
 	}
 	if !l.IsString() {
 		return "", fmt.Errorf("filter.Literal.AsString: expected string, got %s", l.Kind)
@@ -148,7 +149,7 @@ func (l *Literal) AsString() (string, error) {
 }
 func (l *Literal) AsNumber() (json.Number, error) {
 	if l == nil {
-		return "", fmt.Errorf("filter.Literal.AsNumber: literal is nil")
+		return "", errors.New("filter.Literal.AsNumber: literal is nil")
 	}
 	if !l.IsNumber() {
 		return "", fmt.Errorf("filter.Literal.AsNumber: expected number, got %s", l.Kind)
@@ -161,7 +162,7 @@ func (l *Literal) AsNumber() (json.Number, error) {
 }
 func (l *Literal) AsBool() (bool, error) {
 	if l == nil {
-		return false, fmt.Errorf("filter.Literal.AsBool: literal is nil")
+		return false, errors.New("filter.Literal.AsBool: literal is nil")
 	}
 	if !l.IsBool() {
 		return false, fmt.Errorf("filter.Literal.AsBool: expected bool, got %s", l.Kind)

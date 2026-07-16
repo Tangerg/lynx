@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"unicode"
@@ -14,7 +15,7 @@ type analyzer struct {
 
 func (a *analyzer) analyze(expr Predicate) error {
 	if isNilExpr(expr) {
-		return fmt.Errorf("filter: expression is nil")
+		return errors.New("filter: expression is nil")
 	}
 	a.active = make(map[Expr]struct{})
 	return a.visit(expr)
@@ -22,7 +23,7 @@ func (a *analyzer) analyze(expr Predicate) error {
 
 func (a *analyzer) visit(expr Expr) error {
 	if isNilExpr(expr) {
-		return fmt.Errorf("filter: expression is nil")
+		return errors.New("filter: expression is nil")
 	}
 	if _, exists := a.active[expr]; exists {
 		return fmt.Errorf("filter: expression cycle involving %T", expr)
@@ -50,7 +51,7 @@ func (a *analyzer) visit(expr Expr) error {
 
 func (a *analyzer) visitIdent(ident *Ident) error {
 	if ident == nil {
-		return fmt.Errorf("filter: identifier is nil")
+		return errors.New("filter: identifier is nil")
 	}
 	if !validIdentifier(ident.Value) {
 		return fmt.Errorf("filter: invalid identifier %q at %s", ident.Value, ident.Start())
@@ -80,7 +81,7 @@ func validIdentifier(value string) bool {
 
 func (a *analyzer) visitLiteral(literal *Literal) error {
 	if literal == nil {
-		return fmt.Errorf("filter: literal is nil")
+		return errors.New("filter: literal is nil")
 	}
 
 	switch literal.Kind {
@@ -109,7 +110,7 @@ func (a *analyzer) visitLiteral(literal *Literal) error {
 
 func (a *analyzer) visitList(list *ListLiteral) error {
 	if list == nil {
-		return fmt.Errorf("filter: list literal is nil")
+		return errors.New("filter: list literal is nil")
 	}
 	if len(list.Values) == 0 {
 		return fmt.Errorf("filter: list literal cannot be empty at %s", list.Start())
@@ -145,7 +146,7 @@ func (a *analyzer) visitList(list *ListLiteral) error {
 
 func (a *analyzer) visitUnary(unary *UnaryExpr) error {
 	if unary == nil {
-		return fmt.Errorf("filter: unary expression is nil")
+		return errors.New("filter: unary expression is nil")
 	}
 	if !unary.Op.IsUnaryOperator() {
 		return fmt.Errorf("filter: invalid unary operator %q at %s", unary.Op, unary.Start())
@@ -161,7 +162,7 @@ func (a *analyzer) visitUnary(unary *UnaryExpr) error {
 
 func (a *analyzer) visitBinary(binary *BinaryExpr) error {
 	if binary == nil {
-		return fmt.Errorf("filter: binary expression is nil")
+		return errors.New("filter: binary expression is nil")
 	}
 	if !binary.Op.IsBinaryOperator() {
 		return fmt.Errorf("filter: invalid binary operator %q at %s", binary.Op, binary.Start())
@@ -256,7 +257,7 @@ func (a *analyzer) visitNullTest(binary *BinaryExpr) error {
 
 func (a *analyzer) visitSelector(expr Expr) error {
 	if isNilExpr(expr) {
-		return fmt.Errorf("selector is nil")
+		return errors.New("selector is nil")
 	}
 	switch expr.(type) {
 	case *Ident, *IndexExpr:
@@ -268,7 +269,7 @@ func (a *analyzer) visitSelector(expr Expr) error {
 
 func (a *analyzer) visitIndex(index *IndexExpr) error {
 	if index == nil {
-		return fmt.Errorf("filter: index expression is nil")
+		return errors.New("filter: index expression is nil")
 	}
 	if err := a.visitSelector(index.Left); err != nil {
 		return fmt.Errorf("filter: index base: %w", err)

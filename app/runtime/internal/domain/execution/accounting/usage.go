@@ -46,19 +46,6 @@ type Budget struct {
 	MaxSteps   int
 }
 
-// UsageExceeded reports whether cumulative token or cost usage reached its
-// configured limit.
-func (b Budget) UsageExceeded(tokens int64, costUSD float64) bool {
-	return (b.MaxTokens > 0 && tokens >= b.MaxTokens) ||
-		(b.MaxCostUSD > 0 && costUSD >= b.MaxCostUSD)
-}
-
-// StepsExceeded reports whether completed tool-call rounds reached their
-// configured limit.
-func (b Budget) StepsExceeded(steps int) bool {
-	return b.MaxSteps > 0 && steps >= b.MaxSteps
-}
-
 // Pricing computes the USD cost of one LLM round from the provider, served
 // model, and full token usage.
 type Pricing func(provider, model string, usage *chat.Usage) float64

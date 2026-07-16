@@ -183,7 +183,7 @@ moderation: type Result struct { Categories Categories `json:"categories,omitzer
 moderation: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 moderation: type Verdict struct { Flagged bool `json:"flagged"` Score float64 `json:"score"` }
 speech: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
-speech: func (f StreamFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
+speech: func (f StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
 speech: func (m *ResponseMetadata) Set(key string, value any) error
 speech: func (m *ResultMetadata) Set(key string, value any) error
 speech: func (o *Options) Clone() *Options
@@ -203,8 +203,8 @@ speech: type Response struct { Result *Result `json:"result,omitempty"` Metadata
 speech: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 speech: type Result struct { Audio []byte `json:"audio,omitzero"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
 speech: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
-speech: type StreamFunc func(context.Context, *Request) iter.Seq2[*Response, error]
 speech: type Streamer interface { Stream(context.Context, *Request) iter.Seq2[*Response, error] }
+speech: type StreamerFunc func(context.Context, *Request) iter.Seq2[*Response, error]
 transcription: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 transcription: func (m *ResponseMetadata) Set(key string, value any) error
 transcription: func (m *ResultMetadata) Set(key string, value any) error

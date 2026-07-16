@@ -26,7 +26,7 @@ func (p *Process) toolResolverFor(action core.Action) func(context.Context, []co
 		var resolved []tools.Tool
 
 		for _, requirement := range requirements {
-			group, found, err := runToolGroupResolvers(resolvers, ctx, requirement)
+			group, found, err := runToolGroupResolvers(ctx, resolvers, requirement)
 			if err != nil {
 				return nil, fmt.Errorf("resolve tools for role %q: %w", requirement.Role, err)
 			}

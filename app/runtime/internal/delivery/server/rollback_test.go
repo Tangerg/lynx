@@ -203,7 +203,7 @@ func TestRollbackSession_Busy(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
-	s.claimSession(sess.ID) // simulate a run in flight (admission slot held)
+	s.coordinator.ClaimSession(sess.ID) // simulate a run in flight (admission slot held)
 
 	if _, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID}); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("rollback under live run = %v, want ErrSessionBusy", err)
@@ -250,23 +250,23 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 // release reopens the slot.
 func TestClaimSession(t *testing.T) {
 	s, _ := rollbackHarness(t)
-	if !s.claimSession("s1") {
+	if !s.coordinator.ClaimSession("s1") {
 		t.Fatal("first claim must succeed")
 	}
-	if s.claimSession("s1") {
+	if s.coordinator.ClaimSession("s1") {
 		t.Fatal("second claim on the same session must fail while the first is outstanding")
 	}
-	if !s.claimSession("s2") {
+	if !s.coordinator.ClaimSession("s2") {
 		t.Fatal("a different session must claim independently")
 	}
 	if !s.hasActiveRun("s1") {
 		t.Fatal("a claimed (not-yet-registered) session must read as active")
 	}
-	s.releaseSession("s1")
+	s.coordinator.ReleaseSession("s1")
 	if s.hasActiveRun("s1") {
 		t.Fatal("a released session must no longer read as active")
 	}
-	if !s.claimSession("s1") {
+	if !s.coordinator.ClaimSession("s1") {
 		t.Fatal("claim must succeed again after release")
 	}
 }

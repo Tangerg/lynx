@@ -98,18 +98,6 @@ const (
 	CodeSessionBusy            = -32018
 )
 
-// InternalErrorProblem is the self-contained "internal error" ProblemData
-// the server uses when a run fails with an unclassified engine/infra error.
-// The detail is a clean, generic message — the full error rides the
-// server-side span, never the wire (API.md §8.2).
-func InternalErrorProblem() *ProblemData {
-	return &ProblemData{
-		Type:    ProblemInternalError,
-		Channel: ErrorChannelRun,
-		Detail:  "the run failed due to an internal error",
-	}
-}
-
 // Sentinel errors returned by Runtime implementations. The dispatch
 // maps each onto its {code, data.type} pair (API.md §8.2). Unrecognized
 // errors map to internal_error.

@@ -57,7 +57,6 @@ func (t *GlobTool) Definition() chat.ToolDefinition {
 func (t *GlobTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
 func (t *GlobTool) Call(ctx context.Context, arguments string) (string, error) {
-	_ = ctx
 	var req GlobRequest
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("fs.glob: parse arguments: %w", err)

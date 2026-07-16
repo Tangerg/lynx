@@ -16,8 +16,6 @@ const (
 	MetadataModeNone      MetadataMode = "none"
 )
 
-func (m MetadataMode) String() string { return string(m) }
-
 func validMetadataMode(mode MetadataMode) bool {
 	switch mode {
 	case MetadataModeAll, MetadataModeEmbed, MetadataModeInference, MetadataModeNone:

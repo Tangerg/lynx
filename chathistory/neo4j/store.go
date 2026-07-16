@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
+	"github.com/Tangerg/lynx/chathistory/internal/dbident"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -19,10 +19,6 @@ const (
 	DefaultDatabase = "neo4j"
 	DefaultLabel    = "ChatMessage"
 )
-
-// identPattern restricts the user-supplied Cypher node label / index
-// name to the conservative shape Neo4j accepts without quoting.
-var identPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Config configures [New]. Only [Config.Driver] is required.
 type Config struct {
@@ -73,8 +69,8 @@ func New(cfg Config) (*Store, error) {
 	if cfg.Label == "" {
 		cfg.Label = DefaultLabel
 	}
-	if !identPattern.MatchString(cfg.Label) {
-		return nil, fmt.Errorf("neo4j: Label=%q must match %s", cfg.Label, identPattern)
+	if !dbident.Valid(cfg.Label) {
+		return nil, fmt.Errorf("neo4j: Label=%q must match %s", cfg.Label, dbident.Pattern)
 	}
 	s := &Store{
 		driver:   cfg.Driver,

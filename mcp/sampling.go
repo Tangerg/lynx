@@ -84,8 +84,8 @@ func samplingMessagesToChat(messages []*sdkmcp.SamplingMessage) []chat.Message {
 func chatResponseToSamplingResult(resp *chat.Response) *sdkmcp.CreateMessageResult {
 	text := resp.Text()
 	stop := "end_turn"
-	if resp != nil && resp.First() != nil {
-		stop = mapStopReason(resp.First().FinishReason)
+	if first := resp.First(); first != nil {
+		stop = mapStopReason(first.FinishReason)
 	}
 	return &sdkmcp.CreateMessageResult{
 		Role:       "assistant",

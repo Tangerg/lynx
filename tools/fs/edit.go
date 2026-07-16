@@ -82,7 +82,6 @@ func (*EditTool) MutationPaths(arguments string) ([]string, error) {
 }
 
 func (t *EditTool) Call(ctx context.Context, arguments string) (string, error) {
-	_ = ctx
 	var req EditRequest
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("fs.edit: parse arguments: %w", err)
