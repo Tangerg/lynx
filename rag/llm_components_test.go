@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/rag"
@@ -113,6 +114,58 @@ func TestContextualAugmenter_NilQuery(t *testing.T) {
 	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 	if _, err := aug.Augment(context.Background(), nil, nil); err == nil {
 		t.Fatal("nil query must error")
+	}
+}
+
+func TestLLMComponentsRejectTemplatesMissingRequiredFields(t *testing.T) {
+	prompt, err := chatclient.ParseTemplate("{{.Other}}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := newFakeChatModel(t, "")
+
+	for name, build := range map[string]func() error{
+		"contextual augmenter": func() error {
+			_, err := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{
+				PromptTemplate: prompt,
+			})
+			return err
+		},
+		"multi-query expander": func() error {
+			_, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
+				ChatModel:      model,
+				PromptTemplate: prompt,
+			})
+			return err
+		},
+		"compression transformer": func() error {
+			_, err := rag.NewCompressionTransformer(rag.CompressionTransformerConfig{
+				ChatModel:      model,
+				PromptTemplate: prompt,
+			})
+			return err
+		},
+		"rewrite transformer": func() error {
+			_, err := rag.NewRewriteTransformer(rag.RewriteTransformerConfig{
+				ChatModel:      model,
+				PromptTemplate: prompt,
+			})
+			return err
+		},
+		"translation transformer": func() error {
+			_, err := rag.NewTranslationTransformer(rag.TranslationTransformerConfig{
+				ChatModel:      model,
+				TargetLanguage: "English",
+				PromptTemplate: prompt,
+			})
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := build(); !errors.Is(err, chatclient.ErrInvalidTemplate) {
+				t.Fatalf("constructor error = %v, want ErrInvalidTemplate", err)
+			}
+		})
 	}
 }
 

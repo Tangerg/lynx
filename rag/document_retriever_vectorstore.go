@@ -33,26 +33,6 @@ type VectorStoreConfig struct {
 	FilterFunc func(ctx context.Context, params map[string]any) (filter.Predicate, error)
 }
 
-func (c *VectorStoreConfig) validate() error {
-	if c.VectorStore == nil {
-		return errors.New("rag.VectorStoreConfig: VectorStore is required")
-	}
-	if c.TopK < 0 {
-		return errors.New("rag.VectorStoreConfig: TopK must be >= 0")
-	}
-	if c.MinScore < corevs.MinSimilarityScore || c.MinScore > corevs.MaxSimilarityScore {
-		return fmt.Errorf("rag.VectorStoreConfig: MinScore must be in [%.1f, %.1f]",
-			corevs.MinSimilarityScore, corevs.MaxSimilarityScore)
-	}
-	return nil
-}
-
-func (c *VectorStoreConfig) applyDefaults() {
-	if c.TopK == 0 {
-		c.TopK = corevs.DefaultTopK
-	}
-}
-
 var _ Retriever = (*vectorStoreRetriever)(nil)
 
 type vectorStoreRetriever struct {
@@ -67,10 +47,23 @@ type vectorStoreRetriever struct {
 // configured filters via [VectorStoreConfig.FilterFunc], top-K capping, and
 // similarity thresholds.
 func NewVectorStoreRetriever(cfg VectorStoreConfig) (Retriever, error) {
-	cfg.applyDefaults()
-	if err := cfg.validate(); err != nil {
-		return nil, err
+	if cfg.VectorStore == nil {
+		return nil, errors.New("rag.VectorStoreConfig: VectorStore is required")
 	}
+	if cfg.TopK < 0 {
+		return nil, errors.New("rag.VectorStoreConfig: TopK must be >= 0")
+	}
+	if cfg.MinScore < corevs.MinSimilarityScore || cfg.MinScore > corevs.MaxSimilarityScore {
+		return nil, fmt.Errorf(
+			"rag.VectorStoreConfig: MinScore must be in [%.1f, %.1f]",
+			corevs.MinSimilarityScore,
+			corevs.MaxSimilarityScore,
+		)
+	}
+	if cfg.TopK == 0 {
+		cfg.TopK = corevs.DefaultTopK
+	}
+
 	return &vectorStoreRetriever{
 		vectorStore: cfg.VectorStore,
 		topK:        cfg.TopK,

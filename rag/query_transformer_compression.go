@@ -34,27 +34,6 @@ type CompressionTransformerConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
-func (c *CompressionTransformerConfig) validate() error {
-	if c.ChatModel == nil {
-		return errors.New("rag.CompressionTransformerConfig: ChatModel is required")
-	}
-	if c.PromptTemplate != nil {
-		return c.PromptTemplate.Require("History", "Query")
-	}
-	return nil
-}
-
-func (c *CompressionTransformerConfig) applyDefaults() error {
-	if c.PromptTemplate == nil {
-		var err error
-		c.PromptTemplate, err = chatclient.ParseTemplate(compressionDefaultTemplate)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 var _ Transformer = (*compressionTransformer)(nil)
 
 type compressionTransformer struct {
@@ -66,10 +45,16 @@ type compressionTransformer struct {
 // plus a follow-up question into a single self-contained query. It reads chat
 // history from [Query.Extra] under [ChatHistoryKey].
 func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, error) {
-	if err := cfg.applyDefaults(); err != nil {
-		return nil, err
+	if cfg.ChatModel == nil {
+		return nil, errors.New("rag.CompressionTransformerConfig: ChatModel is required")
 	}
-	if err := cfg.validate(); err != nil {
+	promptTemplate, err := resolvePromptTemplate(
+		cfg.PromptTemplate,
+		compressionDefaultTemplate,
+		"History",
+		"Query",
+	)
+	if err != nil {
 		return nil, err
 	}
 
@@ -80,7 +65,7 @@ func NewCompressionTransformer(cfg CompressionTransformerConfig) (Transformer, e
 
 	return &compressionTransformer{
 		chatClient:     client,
-		promptTemplate: cfg.PromptTemplate,
+		promptTemplate: promptTemplate,
 	}, nil
 }
 
@@ -94,7 +79,7 @@ func (c *compressionTransformer) Transform(ctx context.Context, query *Query) (*
 
 	history := c.extractHistory(query)
 
-	compressed, err := callTemplate(ctx, c.chatClient, c.promptTemplate, map[string]any{
+	compressed, err := callPrompt(ctx, c.chatClient, c.promptTemplate, map[string]any{
 		"History": history,
 		"Query":   query.Text,
 	})

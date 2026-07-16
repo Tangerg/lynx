@@ -32,22 +32,6 @@ type ServerConfig struct {
 	HandlerOptions []a2asrv.RequestHandlerOption
 }
 
-func (c *ServerConfig) validate() error {
-	if c.Agent == nil {
-		return ErrNilAgent
-	}
-	if c.Card == nil {
-		return ErrNilCard
-	}
-	return nil
-}
-
-func (c *ServerConfig) applyDefaults() {
-	if c.RPCPattern == "" {
-		c.RPCPattern = DefaultRPCPattern
-	}
-}
-
 // NewHTTPHandler builds an http.Handler serving the A2A protocol for a lynx
 // [Agent]: the JSON-RPC method endpoint at RPCPattern and the AgentCard at
 // [a2asrv.WellKnownAgentCardPath]. Mount it on a server, or compose it into
@@ -55,9 +39,14 @@ func (c *ServerConfig) applyDefaults() {
 //
 // The transport is JSON-RPC over HTTP.
 func NewHTTPHandler(cfg ServerConfig) (http.Handler, error) {
-	cfg.applyDefaults()
-	if err := cfg.validate(); err != nil {
-		return nil, err
+	if cfg.Agent == nil {
+		return nil, ErrNilAgent
+	}
+	if cfg.Card == nil {
+		return nil, ErrNilCard
+	}
+	if cfg.RPCPattern == "" {
+		cfg.RPCPattern = DefaultRPCPattern
 	}
 
 	exec, err := newExecutor(cfg.Agent)

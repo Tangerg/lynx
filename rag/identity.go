@@ -1,8 +1,6 @@
 package rag
 
-import (
-	"context"
-)
+import "context"
 
 // IdentityTransformer returns a [Transformer] that returns the input query.
 func IdentityTransformer() Transformer {

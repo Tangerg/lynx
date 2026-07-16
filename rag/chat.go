@@ -9,7 +9,21 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-func callTemplate(ctx context.Context, client *chatclient.Client, prompt *chatclient.Template, data any) (string, error) {
+func resolvePromptTemplate(current *chatclient.Template, fallback string, required ...string) (*chatclient.Template, error) {
+	if current == nil {
+		var err error
+		current, err = chatclient.ParseTemplate(fallback)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err := current.Require(required...); err != nil {
+		return nil, err
+	}
+	return current, nil
+}
+
+func callPrompt(ctx context.Context, client *chatclient.Client, prompt *chatclient.Template, data any) (string, error) {
 	message, err := prompt.UserMessage(data)
 	if err != nil {
 		return "", err

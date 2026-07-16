@@ -2,6 +2,7 @@ package a2a_test
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,30 @@ type echoAgent struct{}
 func (echoAgent) Run(_ context.Context, input string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		yield("lynx received: "+input, nil)
+	}
+}
+
+func TestNewHTTPHandlerRequiresAgentAndCard(t *testing.T) {
+	card := &sdka2a.AgentCard{Name: "test"}
+
+	for name, test := range map[string]struct {
+		cfg  a2a.ServerConfig
+		want error
+	}{
+		"agent": {
+			cfg:  a2a.ServerConfig{Card: card},
+			want: a2a.ErrNilAgent,
+		},
+		"card": {
+			cfg:  a2a.ServerConfig{Agent: echoAgent{}},
+			want: a2a.ErrNilCard,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := a2a.NewHTTPHandler(test.cfg); !errors.Is(err, test.want) {
+				t.Fatalf("NewHTTPHandler error = %v, want %v", err, test.want)
+			}
+		})
 	}
 }
 

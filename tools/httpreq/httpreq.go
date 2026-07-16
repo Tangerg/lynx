@@ -61,13 +61,6 @@ type Config struct {
 	HTTPClient *http.Client
 }
 
-func (c Config) Validate() error {
-	if len(c.AllowedHosts) == 0 {
-		return ErrMissingHosts
-	}
-	return nil
-}
-
 // Client executes HTTP requests through the configured allowlist.
 type Client struct {
 	http             *resty.Client
@@ -78,8 +71,8 @@ type Client struct {
 }
 
 func NewClient(cfg Config) (*Client, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+	if len(cfg.AllowedHosts) == 0 {
+		return nil, ErrMissingHosts
 	}
 
 	allow, err := NewAllowlist(cfg.AllowedHosts)
