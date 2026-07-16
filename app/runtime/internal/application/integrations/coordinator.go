@@ -1,7 +1,7 @@
 // Package integrations is the application coordinator for the runtime's external
 // integration surface — currently MCP: the durable MCP server registry (source
 // of truth), its live connection pool, and the atomically-published tool policy
-// the engine's gate reads. It is a thin use-case layer over the domain services
+// the execution tool gate reads. It is a thin use-case layer over domain services
 // the delivery mcp.* handlers drive.
 package integrations
 
@@ -14,17 +14,27 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-// MCPLive is the process-local MCP connection pool: the live projection of the
-// durable registry (§9). The kernel engine satisfies it. Registry (source of
-// truth) vs connection pool (live) stay distinct — this port is only the pool.
-type MCPLive interface {
-	MCPServerStatuses() []mcpserver.ConnectionStatus
-	MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
-	ReconnectMCPServer(ctx context.Context, name string) error
-	AuthorizeMCPServer(ctx context.Context, name string) error
-	ProbeMCPServer(ctx context.Context, cfg mcpserver.LiveConfig) error
-	ConfigureMCPServer(ctx context.Context, cfg mcpserver.LiveConfig) error
-	RemoveMCPServer(ctx context.Context, name string)
+// MCPStatusReader reads the live status projection for configured MCP servers.
+type MCPStatusReader interface {
+	Statuses() []mcpserver.ConnectionStatus
+}
+
+// MCPToolCatalog reads tools advertised by live MCP connections.
+type MCPToolCatalog interface {
+	Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
+}
+
+// MCPConnectionCommands reconnects and authorizes configured MCP servers.
+type MCPConnectionCommands interface {
+	Reconnect(ctx context.Context, name string) error
+	Authorize(ctx context.Context, name string) error
+}
+
+// MCPRegistryCommands projects durable registry changes into the live MCP pool.
+type MCPRegistryCommands interface {
+	Probe(ctx context.Context, cfg mcpserver.LiveConfig) error
+	Configure(ctx context.Context, cfg mcpserver.LiveConfig) error
+	Remove(ctx context.Context, name string)
 }
 
 // Coordinator owns the MCP integration use cases: the durable server registry,
@@ -34,10 +44,13 @@ type Coordinator struct {
 	// (projection), and the atomically-published ToolPolicy the engine's tool gate
 	// + approval read. mcpMutationMu linearizes the multi-step registry -> live ->
 	// policy write; locks inside the store/pool can't span that boundary.
-	mcpRegistry   mcpserver.Registry
-	mcpLive       MCPLive
-	mcpPolicy     *atomic.Pointer[mcpserver.ToolPolicy]
-	mcpMutationMu sync.Mutex
+	mcpRegistry           mcpserver.Registry
+	mcpStatusReader       MCPStatusReader
+	mcpToolCatalog        MCPToolCatalog
+	mcpConnectionCommands MCPConnectionCommands
+	mcpRegistryCommands   MCPRegistryCommands
+	mcpPolicy             *atomic.Pointer[mcpserver.ToolPolicy]
+	mcpMutationMu         sync.Mutex
 
 	// tasks is this component's context for post-commit reconcile: MCP registry
 	// mutations outlive the request but are canceled + joined by Close (§10.2
@@ -53,9 +66,12 @@ type Coordinator struct {
 
 // Config bundles the Coordinator's dependencies.
 type Config struct {
-	MCPRegistry mcpserver.Registry
-	MCPLive     MCPLive
-	MCPPolicy   *atomic.Pointer[mcpserver.ToolPolicy]
+	MCPRegistry           mcpserver.Registry
+	MCPStatusReader       MCPStatusReader
+	MCPToolCatalog        MCPToolCatalog
+	MCPConnectionCommands MCPConnectionCommands
+	MCPRegistryCommands   MCPRegistryCommands
+	MCPPolicy             *atomic.Pointer[mcpserver.ToolPolicy]
 	// MCPStatus publishes MCP connection transitions to the delivery workspace
 	// stream (the notifier's Publish). nil disables the notification.
 	MCPStatus func(ctx context.Context, server string, connecting bool)
@@ -64,10 +80,13 @@ type Config struct {
 // New returns an integrations Coordinator over cfg.
 func New(cfg Config) *Coordinator {
 	return &Coordinator{
-		mcpRegistry: cfg.MCPRegistry,
-		mcpLive:     cfg.MCPLive,
-		mcpPolicy:   cfg.MCPPolicy,
-		mcpStatus:   cfg.MCPStatus,
+		mcpRegistry:           cfg.MCPRegistry,
+		mcpStatusReader:       cfg.MCPStatusReader,
+		mcpToolCatalog:        cfg.MCPToolCatalog,
+		mcpConnectionCommands: cfg.MCPConnectionCommands,
+		mcpRegistryCommands:   cfg.MCPRegistryCommands,
+		mcpPolicy:             cfg.MCPPolicy,
+		mcpStatus:             cfg.MCPStatus,
 	}
 }
 

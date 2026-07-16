@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -15,20 +16,30 @@ import (
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-// Config is the construction-time bundle for [New]. Engine carries the
+// Config is the construction-time bundle for [Assemble]. Engine carries the
 // engine's own construction config verbatim; the remaining fields are
 // the runtime-layer services. Several are required and injected by the
 // composition root (the sqlite-backed stores marked "Required" below).
 type Config struct {
-	// Engine is the engine's construction config. The runtime fills its
-	// SessionStore (adapted from the Lyra session store) and the
-	// tool-environment fields (ToolResolver/Tools/live-MCP ports/Closers) from
-	// [toolset.Build] below; Engine.ChatClient is required.
+	// Engine is the Agent execution adapter's construction config. The runtime
+	// fills its SessionStore, ProcessStore, Provider, Todos, and ToolResolver.
 	Engine agentexec.Config
 
+	// SkillsGlobalDir is the user-scope Agent Skills directory. Tool resolution
+	// and workspace discovery consume it directly; it is not Agent execution
+	// state.
+	SkillsGlobalDir string
+
+	// Turn-boundary collaborators. nil selects the in-house/default binding:
+	// conversation steering, LLM compaction, and knowledge extraction.
+	Steering  turn.SteeringSink
+	Compactor turn.Compactor
+	Extractor turn.Extractor
+
 	// Resources are process adapters whose ownership transfers to Runtime only
-	// when [New] succeeds. Close releases them after background tasks and the
-	// engine have stopped; callers retain ownership when construction fails.
+	// when [Assemble] succeeds. Close releases them after background tasks and the
+	// execution/tool capabilities have stopped; callers retain ownership when
+	// construction fails.
 	Resources []io.Closer
 
 	// UtilityRoleStore persists the global utility-model role; the (provider,
@@ -39,9 +50,8 @@ type Config struct {
 	UtilityRoleStore UtilityRoleStore
 
 	// Tool-environment inputs; the runtime reads these to assemble the tool
-	// environment via toolset.Build and inject it into the engine core (which
-	// constructs no capability itself). Workdir / SkillsGlobalDir come from
-	// Engine (the engine also needs them for the prompt cascade / listSkills).
+	// environment via toolset.Build and inject only its role resolver into the
+	// Agent execution adapter.
 	Online     OnlineConfig
 	A2AAgents  []A2AAgentConfig
 	LSPServers []LSPServerConfig

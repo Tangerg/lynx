@@ -7,7 +7,7 @@ import (
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 )
 
 // Compactor is the auto-compaction worker. Constructed by the kernel
@@ -62,7 +62,7 @@ func NewCompactor(store history.Store, client ClientFunc, cfg CompactionConfig) 
 // (message count or estimated token footprint, see [shouldCompact]) is
 // breached the older slice is summarized and the store is rewritten as
 // [summary, recent...]. The returned
-// [agentexec.CompactionResult] reports whether the sweep fired and the
+// [turn.CompactionResult] reports whether the sweep fired and the
 // before/after message counts so callers can both chain follow-on
 // work (e.g. extraction) and surface an observable boundary event.
 //
@@ -73,16 +73,16 @@ func NewCompactor(store history.Store, client ClientFunc, cfg CompactionConfig) 
 // (no middleware), so it does NOT enter the chat history middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
-func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (agentexec.CompactionResult, error) {
+func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (turn.CompactionResult, error) {
 	if c == nil || sessionID == "" {
-		return agentexec.CompactionResult{}, nil
+		return turn.CompactionResult{}, nil
 	}
 	msgs, err := c.store.Read(ctx, sessionID)
 	if err != nil {
-		return agentexec.CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
+		return turn.CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
 	}
 	if !c.shouldCompact(msgs) {
-		return agentexec.CompactionResult{}, nil
+		return turn.CompactionResult{}, nil
 	}
 	// The whole history is within keep-recent — nothing OLDER to summarize, and
 	// computing a cutoff here would go negative (len-keepRecent < 0 → an
@@ -91,14 +91,14 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompa
 	// bloated by a few large tool results, where len(msgs) < keepRecent. Skip —
 	// you can't compact messages you must keep.
 	if len(msgs) <= c.keepRecent {
-		return agentexec.CompactionResult{}, nil
+		return turn.CompactionResult{}, nil
 	}
 
 	// PreCompact hook gate: compaction is now committed (triggers + guards
 	// passed), so this fires exactly when a compaction would run — a hook may
 	// veto it. nil = always proceed.
 	if preCompact != nil && !preCompact(ctx) {
-		return agentexec.CompactionResult{}, nil
+		return turn.CompactionResult{}, nil
 	}
 
 	before := len(msgs)
@@ -119,7 +119,7 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompa
 	if cutoff >= len(msgs) {
 		// No clean UserMessage boundary in the trailing segment —
 		// skip this compaction cycle rather than corrupt the history.
-		return agentexec.CompactionResult{}, nil
+		return turn.CompactionResult{}, nil
 	}
 
 	older := msgs[:cutoff]
@@ -127,7 +127,7 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompa
 
 	summary, err := c.summarize(ctx, older)
 	if err != nil {
-		return agentexec.CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
+		return turn.CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
 	}
 
 	rewritten := make([]chat.Message, 0, 1+len(recent))
@@ -137,9 +137,9 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompa
 	// a transactional backend rolls back on a failed rewrite, so a crash can't
 	// leave the conversation cleared-but-not-rewritten (losing `recent` too).
 	if err := history.Replace(ctx, c.store, sessionID, rewritten...); err != nil {
-		return agentexec.CompactionResult{}, fmt.Errorf("compactor: replace: %w", err)
+		return turn.CompactionResult{}, fmt.Errorf("compactor: replace: %w", err)
 	}
-	return agentexec.CompactionResult{
+	return turn.CompactionResult{
 		Compacted:      true,
 		MessagesBefore: before,
 		MessagesAfter:  len(rewritten),

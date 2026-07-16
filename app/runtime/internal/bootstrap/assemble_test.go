@@ -4,14 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -100,6 +105,80 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 				t.Fatalf("Assemble error = %v, want containing %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) {
+	cfg := runtimeConfigWithRequiredDeps(t)
+	cfg.Engine.SnapshotFailurePolicy = agentruntime.SnapshotFailureReportOnly
+	var (
+		toolClosed     atomic.Int32
+		resourceClosed atomic.Int32
+	)
+	cfg.Resources = []io.Closer{closerFunc(func() error {
+		resourceClosed.Add(1)
+		return nil
+	})}
+
+	_, err := assemble(t.Context(), cfg, func(
+		ctx context.Context,
+		cfg Config,
+		ecfg agentexec.Config,
+		policy approval.Policy,
+		mcpEnv mcpEnvironment,
+		index toolset.CodebaseIndex,
+	) (toolset.Built, error) {
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index)
+		if err != nil {
+			return toolset.Built{}, err
+		}
+		built.Closers = append(built.Closers, func() error {
+			toolClosed.Add(1)
+			return nil
+		})
+		return built, nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "SnapshotFailurePolicy") {
+		t.Fatalf("assemble error = %v, want engine construction failure", err)
+	}
+	if got := toolClosed.Load(); got != 1 {
+		t.Fatalf("tool closer calls = %d, want 1", got)
+	}
+	if got := resourceClosed.Load(); got != 0 {
+		t.Fatalf("caller resource closer calls = %d, want 0 before successful ownership transfer", got)
+	}
+}
+
+func TestAssembleFailureAfterDispatcherReclaimsTools(t *testing.T) {
+	cfg := runtimeConfigWithRequiredDeps(t)
+	var toolClosed atomic.Int32
+
+	_, err := assemble(t.Context(), cfg, func(
+		ctx context.Context,
+		cfg Config,
+		ecfg agentexec.Config,
+		policy approval.Policy,
+		mcpEnv mcpEnvironment,
+		index toolset.CodebaseIndex,
+	) (toolset.Built, error) {
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index)
+		if err != nil {
+			return toolset.Built{}, err
+		}
+		built.Closers = append(built.Closers, func() error {
+			toolClosed.Add(1)
+			return nil
+		})
+		// A nil catalog source fails after Agent deployment and Dispatcher
+		// construction, exercising both staged cleanup guards.
+		built.Resolver = nil
+		return built, nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "tool source is required") {
+		t.Fatalf("assemble error = %v, want tool registry construction failure", err)
+	}
+	if got := toolClosed.Load(); got != 1 {
+		t.Fatalf("tool closer calls = %d, want 1", got)
 	}
 }
 

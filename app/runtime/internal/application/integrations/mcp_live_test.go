@@ -9,12 +9,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-func TestMCPLiveStatusAndToolsUsePorts(t *testing.T) {
-	live := &fakeMCPLive{
+func TestMCPStatusAndToolsUsePorts(t *testing.T) {
+	ports := &fakeMCPPorts{
 		statuses: []mcpserver.ConnectionStatus{{Name: "fs", Status: "connected"}},
 		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
 	}
-	c := New(Config{MCPLive: live})
+	c := New(configWithMCPPorts(ports))
 
 	if got := c.MCPServerStatuses(); len(got) != 1 || got[0].Name != "fs" {
 		t.Fatalf("MCPServerStatuses = %+v", got)
@@ -23,23 +23,25 @@ func TestMCPLiveStatusAndToolsUsePorts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MCPTools err = %v", err)
 	}
-	if live.toolsServer != "fs" || len(tools) != 1 || tools[0].Name != "read" {
-		t.Fatalf("tools server=%q tools=%+v", live.toolsServer, tools)
+	if ports.toolsServer != "fs" || len(tools) != 1 || tools[0].Name != "read" {
+		t.Fatalf("tools server=%q tools=%+v", ports.toolsServer, tools)
 	}
 }
 
-// TestMCPLiveConnectionCommandsUsePort: reconnect/authorize are fire-and-forget —
+// TestMCPConnectionCommandsUsePorts: reconnect/authorize are fire-and-forget —
 // they validate the name synchronously, then dial on the component task group and
 // publish the settled frame. The test waits on the settled notification (which
 // runs after the dial) before asserting the live port was driven with the name.
-func TestMCPLiveConnectionCommandsUsePort(t *testing.T) {
-	live := &fakeMCPLive{statuses: []mcpserver.ConnectionStatus{{Name: "fs"}, {Name: "github"}}}
+func TestMCPConnectionCommandsUsePorts(t *testing.T) {
+	ports := &fakeMCPPorts{statuses: []mcpserver.ConnectionStatus{{Name: "fs"}, {Name: "github"}}}
 	settled := make(chan string, 2)
-	c := New(Config{MCPLive: live, MCPStatus: func(_ context.Context, server string, connecting bool) {
+	cfg := configWithMCPPorts(ports)
+	cfg.MCPStatus = func(_ context.Context, server string, connecting bool) {
 		if !connecting {
 			settled <- server
 		}
-	}})
+	}
+	c := New(cfg)
 	defer c.Close()
 
 	if err := c.ReconnectMCPServer(context.Background(), "fs"); err != nil {
@@ -55,8 +57,8 @@ func TestMCPLiveConnectionCommandsUsePort(t *testing.T) {
 		t.Fatalf("settled server = %q, want github", got)
 	}
 
-	if live.reconnectName != "fs" || live.authorizeName != "github" {
-		t.Fatalf("reconnect=%q authorize=%q", live.reconnectName, live.authorizeName)
+	if ports.reconnectName != "fs" || ports.authorizeName != "github" {
+		t.Fatalf("reconnect=%q authorize=%q", ports.reconnectName, ports.authorizeName)
 	}
 
 	if err := c.ReconnectMCPServer(context.Background(), "ghost"); !errors.Is(err, mcpserver.ErrUnknownServer) {
@@ -71,13 +73,13 @@ func TestMCPLiveConnectionCommandsUsePort(t *testing.T) {
 // the delivery layer used to hold on its own task group.
 func TestReconnectMCPServerDetachedButComponentOwned(t *testing.T) {
 	type ctxKey struct{}
-	live := &blockingMCPLive{
-		fakeMCPLive: fakeMCPLive{statuses: []mcpserver.ConnectionStatus{{Name: "fs"}}},
-		started:     make(chan bool, 1),
-		stopped:     make(chan struct{}),
-		wantValue:   func(ctx context.Context) bool { return ctx.Value(ctxKey{}) == "trace" },
+	ports := &blockingMCPPorts{
+		fakeMCPPorts: fakeMCPPorts{statuses: []mcpserver.ConnectionStatus{{Name: "fs"}}},
+		started:      make(chan bool, 1),
+		stopped:      make(chan struct{}),
+		wantValue:    func(ctx context.Context) bool { return ctx.Value(ctxKey{}) == "trace" },
 	}
-	c := New(Config{MCPLive: live})
+	c := New(configWithMCPPorts(ports))
 
 	reqCtx, cancelRequest := context.WithCancel(context.WithValue(context.Background(), ctxKey{}, "trace"))
 	cancelRequest() // the request is done — the dial must keep running
@@ -85,13 +87,13 @@ func TestReconnectMCPServerDetachedButComponentOwned(t *testing.T) {
 	if err := c.ReconnectMCPServer(reqCtx, "fs"); err != nil {
 		t.Fatalf("reconnect: %v", err)
 	}
-	if detached := <-live.started; !detached {
+	if detached := <-ports.started; !detached {
 		t.Fatal("dial context did not detach request cancellation or preserve values")
 	}
 
 	c.Close()
 	select {
-	case <-live.stopped:
+	case <-ports.stopped:
 	case <-time.After(time.Second):
 		t.Fatal("Coordinator.Close did not cancel and join the dial")
 	}
@@ -101,8 +103,8 @@ func TestReconnectMCPServerDetachedButComponentOwned(t *testing.T) {
 }
 
 func TestTestMCPServerUsesLiveRegistryPort(t *testing.T) {
-	live := &fakeMCPLive{}
-	c := New(Config{MCPLive: live})
+	ports := &fakeMCPPorts{}
+	c := New(configWithMCPPorts(ports))
 
 	err := c.TestMCPServer(context.Background(), mcpserver.Server{
 		Name:      "fs",
@@ -114,12 +116,12 @@ func TestTestMCPServerUsesLiveRegistryPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TestMCPServer err = %v", err)
 	}
-	if live.probe.Name != "fs" || live.probe.Command != "mcp-fs" || len(live.probe.Env) != 1 || live.probe.Env[0] != "A=1" {
-		t.Fatalf("probe config = %+v", live.probe)
+	if ports.probe.Name != "fs" || ports.probe.Command != "mcp-fs" || len(ports.probe.Env) != 1 || ports.probe.Env[0] != "A=1" {
+		t.Fatalf("probe config = %+v", ports.probe)
 	}
 }
 
-type fakeMCPLive struct {
+type fakeMCPPorts struct {
 	statuses []mcpserver.ConnectionStatus
 	tools    []mcpserver.ToolInfo
 
@@ -133,49 +135,63 @@ type fakeMCPLive struct {
 	removeName string
 }
 
-func (f *fakeMCPLive) MCPServerStatuses() []mcpserver.ConnectionStatus { return f.statuses }
+func (f *fakeMCPPorts) Statuses() []mcpserver.ConnectionStatus { return f.statuses }
 
-func (f *fakeMCPLive) MCPTools(_ context.Context, server string) ([]mcpserver.ToolInfo, error) {
+func (f *fakeMCPPorts) Tools(_ context.Context, server string) ([]mcpserver.ToolInfo, error) {
 	f.toolsServer = server
 	return f.tools, nil
 }
 
-func (f *fakeMCPLive) ReconnectMCPServer(_ context.Context, name string) error {
+func (f *fakeMCPPorts) Reconnect(_ context.Context, name string) error {
 	f.reconnectName = name
 	return nil
 }
 
-func (f *fakeMCPLive) AuthorizeMCPServer(_ context.Context, name string) error {
+func (f *fakeMCPPorts) Authorize(_ context.Context, name string) error {
 	f.authorizeName = name
 	return nil
 }
 
-func (f *fakeMCPLive) ProbeMCPServer(_ context.Context, cfg mcpserver.LiveConfig) error {
+func (f *fakeMCPPorts) Probe(_ context.Context, cfg mcpserver.LiveConfig) error {
 	f.probe = cfg
 	return nil
 }
 
-func (f *fakeMCPLive) ConfigureMCPServer(_ context.Context, cfg mcpserver.LiveConfig) error {
+func (f *fakeMCPPorts) Configure(_ context.Context, cfg mcpserver.LiveConfig) error {
 	f.configure = cfg
 	return nil
 }
 
-func (f *fakeMCPLive) RemoveMCPServer(_ context.Context, name string) {
+func (f *fakeMCPPorts) Remove(_ context.Context, name string) {
 	f.removeName = name
 }
 
-// blockingMCPLive is a fakeMCPLive whose dial blocks on its context until Close,
+// blockingMCPPorts is a fakeMCPPorts whose dial blocks on its context until Close,
 // so a test can observe the detach + component-owned-cancellation contract.
-type blockingMCPLive struct {
-	fakeMCPLive
+type blockingMCPPorts struct {
+	fakeMCPPorts
 	started   chan bool
 	stopped   chan struct{}
 	wantValue func(context.Context) bool
 }
 
-func (f *blockingMCPLive) ReconnectMCPServer(ctx context.Context, _ string) error {
+func (f *blockingMCPPorts) Reconnect(ctx context.Context, _ string) error {
 	f.started <- ctx.Err() == nil && f.wantValue(ctx)
 	<-ctx.Done()
 	close(f.stopped)
 	return ctx.Err()
+}
+
+func configWithMCPPorts(ports interface {
+	MCPStatusReader
+	MCPToolCatalog
+	MCPConnectionCommands
+	MCPRegistryCommands
+}) Config {
+	return Config{
+		MCPStatusReader:       ports,
+		MCPToolCatalog:        ports,
+		MCPConnectionCommands: ports,
+		MCPRegistryCommands:   ports,
+	}
 }

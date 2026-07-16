@@ -52,9 +52,8 @@ func TestNewRequiresContentBuildIdentityForDurableRuntime(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			engine, err := New(context.Background(), test.config)
+			_, err := New(context.Background(), test.config)
 			if err == nil {
-				_ = engine.Close()
 				t.Fatalf("New error = nil, want %s rejection", test.want)
 			}
 			if !strings.Contains(err.Error(), test.want) {
@@ -77,8 +76,6 @@ func TestRestoreTurnMissingSnapshotIsStateLoss(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	defer engine.Close()
-
 	process, err := engine.RestoreTurn(t.Context(), "missing", RestoreTurnRequest{})
 	if process != nil || !errors.Is(err, ErrProcessSnapshotLost) || !errors.Is(err, core.ErrSnapshotNotFound) {
 		t.Fatalf("RestoreTurn = (%T, %v), want snapshot loss wrapping not found", process, err)
@@ -100,8 +97,6 @@ func TestAutoSnapshotFailureRemainsExecutionFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	defer engine.Close()
-
 	process, err := engine.StartTurn(t.Context(), TurnRequest{Message: "hello"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)

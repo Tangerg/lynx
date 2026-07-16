@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // Config is the engine construction-time bundle. ChatClient is the
@@ -39,13 +38,6 @@ type Config struct {
 	// path) — fine for tests, not recommended for production.
 	Workdir string
 
-	// SkillsGlobalDir is the user-scope Agent Skills directory (typically
-	// ~/.lyra/skills). It is merged UNDER each session's project skills
-	// (<workdir>/.lyra/skills), so a project skill overrides a global one of
-	// the same name. Empty disables the global layer; the skill tool still
-	// appears when a project directory exists, and is absent when neither does.
-	SkillsGlobalDir string
-
 	// HistoryStore optionally supplies a persistent chat-history
 	// backend (the sqlite MessageStore, redis-backed, ...). When nil the
 	// engine falls back to lynx's in-process [history.InMemoryStore]
@@ -63,27 +55,10 @@ type Config struct {
 	// feature (no tool, no injection).
 	Todos todo.Store
 
-	// Microkernel ports — injected by the composition root (runtime). Each is
-	// optional; a nil port no-ops its capability (every use is nil-guarded), so
-	// a bare engine still drives the loop. See port.go / doc/EXECUTION_CENTERED_ARCHITECTURE.md
-	Steering  SteeringSink // turn-end steering inject (next-turn message)
-	Compactor Compactor    // turn-boundary history compaction
-	Extractor Extractor    // turn-boundary fact extraction → LYRA.md
-
-	// Tool environment — assembled outside the core by the tool adapter and
-	// injected by the composition root. The engine registers ToolResolver on
-	// the engine, surfaces tools via tools.list, exposes MCP workspace actions
-	// through narrow live-connection ports, and runs Closers at shutdown. A
-	// resolver also receives the engine-built `task` delegation tool; without a
-	// resolver, task is not available (the env can still pass only static tools
-	// like ask_user).
-	ToolResolver          toolport.ToolResolver
-	Tools                 []tools.Tool                   // canonical tool list (without task)
-	MCPStatusReader       toolport.MCPStatusReader       // live MCP server status read model
-	MCPToolCatalog        toolport.MCPToolCatalog        // live MCP tool read model
-	MCPConnectionCommands toolport.MCPConnectionCommands // reconnect / authorize configured servers
-	MCPRegistryCommands   toolport.MCPRegistryCommands   // probe / configure / remove live servers
-	Closers               []func() error                 // capability shutdown hooks
+	// ToolResolver supplies the execution-time role groups and accepts the task
+	// delegation tool that can only be built after the subtask Agent deploys.
+	// Catalogs, MCP controls, and shutdown hooks stay with toolset/bootstrap.
+	ToolResolver toolport.ToolResolver
 
 	// Pricing optionally computes per-round USD cost from the round's
 	// provider + served model + token usage. nil leaves cost at zero (the chat

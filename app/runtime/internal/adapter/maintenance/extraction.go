@@ -9,8 +9,7 @@ import (
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 )
 
@@ -50,35 +49,35 @@ func NewExtractor(store history.Store, mem knowledge.Store, client ClientFunc) *
 // falls back to the memory store's default dir). Returns the zero
 // result on a nil receiver (LYRA.md disabled) or when the conversation
 // is still too short to be worth mining.
-func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (agentexec.ExtractionResult, error) {
+func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (turn.ExtractionResult, error) {
 	if e == nil || sessionID == "" {
-		return agentexec.ExtractionResult{}, nil
+		return turn.ExtractionResult{}, nil
 	}
 	msgs, err := e.store.Read(ctx, sessionID)
 	if err != nil {
-		return agentexec.ExtractionResult{}, fmt.Errorf("extractor: read: %w", err)
+		return turn.ExtractionResult{}, fmt.Errorf("extractor: read: %w", err)
 	}
 	if len(msgs) < e.minMsgs {
-		return agentexec.ExtractionResult{}, nil
+		return turn.ExtractionResult{}, nil
 	}
 
 	facts, err := e.askForFacts(ctx, msgs)
 	if err != nil {
-		return agentexec.ExtractionResult{}, fmt.Errorf("extractor: ask: %w", err)
+		return turn.ExtractionResult{}, fmt.Errorf("extractor: ask: %w", err)
 	}
 	if facts == "" {
-		return agentexec.ExtractionResult{}, nil
+		return turn.ExtractionResult{}, nil
 	}
 
 	existing, err := e.mem.Get(ctx, knowledge.ScopeProject, cwd)
 	if err != nil {
-		return agentexec.ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
+		return turn.ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
 	}
 	updated := mergeMemory(existing, facts)
 	if err := e.mem.Update(ctx, knowledge.ScopeProject, cwd, updated); err != nil {
-		return agentexec.ExtractionResult{}, err
+		return turn.ExtractionResult{}, err
 	}
-	return agentexec.ExtractionResult{Extracted: true, Facts: facts}, nil
+	return turn.ExtractionResult{Extracted: true, Facts: facts}, nil
 }
 
 // askForFacts queries the LLM directly (no middleware → no

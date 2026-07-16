@@ -20,14 +20,15 @@ import (
 type testEngine interface {
 	StartTurn(ctx context.Context, request agentexec.TurnRequest) (agentexec.TurnProcess, error)
 	RestoreTurn(ctx context.Context, processID string, request agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error)
-	InjectUserMessage(ctx context.Context, sessionID, text string) error
-	MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (agentexec.CompactionResult, error)
-	MaybeExtract(ctx context.Context, sessionID, cwd string) (agentexec.ExtractionResult, error)
 }
 
 func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependencies {
+	services := noopTurnServices{}
 	deps := turn.Dependencies{
-		Engine: engine,
+		Engine:    engine,
+		Steering:  services,
+		Compactor: services,
+		Extractor: services,
 	}
 	for _, opt := range opts {
 		opt(&deps)
@@ -170,14 +171,16 @@ func (s *stubEngine) RestoreTurn(_ context.Context, processID string, request ag
 	return cp, nil
 }
 
-func (s *stubEngine) InjectUserMessage(_ context.Context, _, _ string) error { return nil }
+type noopTurnServices struct{}
 
-func (s *stubEngine) MaybeCompact(_ context.Context, _ string, _ func(context.Context) bool) (agentexec.CompactionResult, error) {
-	return agentexec.CompactionResult{}, nil
+func (noopTurnServices) InjectUser(context.Context, string, string) error { return nil }
+
+func (noopTurnServices) MaybeCompact(context.Context, string, func(context.Context) bool) (turn.CompactionResult, error) {
+	return turn.CompactionResult{}, nil
 }
 
-func (s *stubEngine) MaybeExtract(_ context.Context, _, _ string) (agentexec.ExtractionResult, error) {
-	return agentexec.ExtractionResult{}, nil
+func (noopTurnServices) MaybeExtract(context.Context, string, string) (turn.ExtractionResult, error) {
+	return turn.ExtractionResult{}, nil
 }
 
 // slowStubEngine simulates an engine that respects ctx cancellation without

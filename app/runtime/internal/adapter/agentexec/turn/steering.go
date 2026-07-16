@@ -69,7 +69,14 @@ func (s *memoryDispatcher) flushSteering(ctx context.Context, st *turnState, ses
 		return
 	}
 	for _, msg := range queue {
-		if err := s.engine.InjectUserMessage(ctx, sessionID, msg); err != nil {
+		if s.steering == nil {
+			s.emit(st, ErrorEvent{
+				Message: "steering inject failed: no steering sink configured",
+				Code:    "STEERING_ERROR",
+			})
+			return
+		}
+		if err := s.steering.InjectUser(ctx, sessionID, msg); err != nil {
 			s.emit(st, ErrorEvent{
 				Message: "steering inject failed: " + err.Error(),
 				Code:    "STEERING_ERROR",

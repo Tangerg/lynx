@@ -13,10 +13,10 @@ var ErrProcessSnapshotLost = errors.New("agentexec: process snapshot lost")
 // ResumableProcess reports whether processID has a compatible waiting
 // continuation owned by this engine.
 func (e *Engine) ResumableProcess(ctx context.Context, processID string) (bool, error) {
-	if e == nil || e.turnRestorer == nil {
-		return false, errors.New("engine: process restorer is required")
+	if e == nil || e.runtime == nil {
+		return false, errors.New("engine: agent runtime is required")
 	}
-	return e.turnRestorer.Resumable(ctx, processID)
+	return e.runtime.Resumable(ctx, processID)
 }
 
 func processSnapshotLost(operation string, err error) error {

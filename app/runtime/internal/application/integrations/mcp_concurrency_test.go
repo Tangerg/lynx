@@ -59,32 +59,24 @@ func (r *blockingMCPRegistry) SetEnabled(_ context.Context, name string, enabled
 	return nil
 }
 
-// mcpLiveSet is the MCPLive projection the registry-mutation tests observe. Only
-// Configure/Remove are exercised; the read/connection legs are inert no-ops so
-// the fake still satisfies the whole MCPLive port.
+// mcpLiveSet is the registry-command projection the mutation tests observe.
 type mcpLiveSet struct {
 	mu      sync.Mutex
 	servers map[string]bool
 }
 
-func (*mcpLiveSet) MCPServerStatuses() []mcpserver.ConnectionStatus { return nil }
-func (*mcpLiveSet) MCPTools(context.Context, string) ([]mcpserver.ToolInfo, error) {
-	return nil, nil
-}
-func (*mcpLiveSet) ReconnectMCPServer(context.Context, string) error { return nil }
-func (*mcpLiveSet) AuthorizeMCPServer(context.Context, string) error { return nil }
-func (*mcpLiveSet) ProbeMCPServer(context.Context, mcpserver.LiveConfig) error {
+func (*mcpLiveSet) Probe(context.Context, mcpserver.LiveConfig) error {
 	return nil
 }
 
-func (s *mcpLiveSet) ConfigureMCPServer(_ context.Context, cfg mcpserver.LiveConfig) error {
+func (s *mcpLiveSet) Configure(_ context.Context, cfg mcpserver.LiveConfig) error {
 	s.mu.Lock()
 	s.servers[cfg.Name] = true
 	s.mu.Unlock()
 	return nil
 }
 
-func (s *mcpLiveSet) RemoveMCPServer(_ context.Context, name string) {
+func (s *mcpLiveSet) Remove(_ context.Context, name string) {
 	s.mu.Lock()
 	delete(s.servers, name)
 	s.mu.Unlock()
@@ -100,7 +92,7 @@ func TestMCPRegistryMutationIsLinearizedThroughLiveApply(t *testing.T) {
 	policyCell := &atomic.Pointer[mcpserver.ToolPolicy]{}
 	policy := mcpserver.NewToolPolicy(nil)
 	policyCell.Store(&policy)
-	c := New(Config{MCPRegistry: registry, MCPLive: live, MCPPolicy: policyCell})
+	c := New(Config{MCPRegistry: registry, MCPRegistryCommands: live, MCPPolicy: policyCell})
 	server := mcpserver.Server{Name: "files", Enabled: true, Transport: mcpserver.TransportStdio, Command: "mcp-files"}
 
 	configured := make(chan error, 1)
@@ -142,7 +134,7 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 	policyCell := &atomic.Pointer[mcpserver.ToolPolicy]{}
 	policy := mcpserver.NewToolPolicy(nil)
 	policyCell.Store(&policy)
-	c := New(Config{MCPRegistry: registry, MCPLive: live, MCPPolicy: policyCell})
+	c := New(Config{MCPRegistry: registry, MCPRegistryCommands: live, MCPPolicy: policyCell})
 	server := mcpserver.Server{Name: "files", Enabled: true, Transport: mcpserver.TransportStdio, Command: "mcp-files"}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)

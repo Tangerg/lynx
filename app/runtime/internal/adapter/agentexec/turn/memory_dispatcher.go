@@ -42,6 +42,15 @@ type Dependencies struct {
 	// Required.
 	Engine engineDep
 
+	// Steering persists queued messages that miss the current continuation
+	// round. nil reports a steering error only when such a message exists.
+	Steering SteeringSink
+
+	// Compactor and Extractor run visible turn-boundary maintenance. nil
+	// disables the corresponding operation.
+	Compactor Compactor
+	Extractor Extractor
+
 	// Approval gates tool calls. nil auto-approves every tool, useful for tests
 	// and smoke runs.
 	Approval approval.Policy
@@ -93,6 +102,9 @@ func New(deps Dependencies) (Dispatcher, error) {
 	}
 	return &memoryDispatcher{
 		engine:              deps.Engine,
+		steering:            deps.Steering,
+		compactor:           deps.Compactor,
+		extractor:           deps.Extractor,
 		approval:            deps.Approval,
 		resolver:            deps.ClientResolver,
 		todos:               deps.Todos,
@@ -107,10 +119,13 @@ func New(deps Dependencies) (Dispatcher, error) {
 // tracks live turns in a map keyed by turn id; state lives in
 // process memory and does not survive restart.
 type memoryDispatcher struct {
-	engine   engineDep
-	approval approval.Policy // optional — nil = auto-approve every tool
-	resolver clientResolver  // optional — nil = always use the default model
-	todos    todoLister      // optional — nil = no state.snapshot{todos} projection
+	engine    engineDep
+	steering  SteeringSink
+	compactor Compactor
+	extractor Extractor
+	approval  approval.Policy // optional — nil = auto-approve every tool
+	resolver  clientResolver  // optional — nil = always use the default model
+	todos     todoLister      // optional — nil = no state.snapshot{todos} projection
 
 	// mcpToolAutoApproved reports whether a model-facing MCP tool skips the
 	// approval prompt. The runtime recomputes the policy on every

@@ -14,7 +14,7 @@ import (
 
 // basePrompt is the always-on identity / behavioral preamble. It
 // stays small on purpose — anything project-specific lives in
-// LYRA.md / AGENTS.md and gets appended at SystemPrompt time.
+// LYRA.md / AGENTS.md and gets appended during prompt assembly.
 // Anything user-specific lives in ~/.lyra/LYRA.md.
 const basePrompt = `You are Lyra, a general-purpose AI coding agent.
 
@@ -28,7 +28,7 @@ When you change files, show the change. When a tool returns an
 error, read the message and adjust — don't blindly retry. If a
 task is ambiguous, ask one focused question rather than guess.`
 
-// SystemPrompt assembles the system prompt for one turn. Global
+// systemPrompt assembles the system prompt for one turn. Global
 // context loads first, project context second, so project knowledge
 // extends and overrides the global layer:
 //
@@ -48,7 +48,7 @@ task is ambiguous, ask one focused question rather than guess.`
 // protocol; agentdoc is the read-only cross-tool AGENTS.md convention.
 // Engines built without a memory store simply yield the base prompt +
 // discovered files.
-func (e *Engine) SystemPrompt(ctx context.Context) string {
+func (e *Engine) systemPrompt(ctx context.Context) string {
 	prompt := composePrompt(ctx, e.knowledge, turnctx.TurnCwd(ctx, e.workdir))
 	return appendTodos(ctx, prompt, e.todos)
 }
@@ -74,7 +74,7 @@ func appendTodos(ctx context.Context, prompt string, todos todo.Store) string {
 	return prompt + "\n\n## Current todo list (you maintain this via todo_write)\n\n" + todo.Render(items)
 }
 
-// composePrompt is the pure form behind [Engine.SystemPrompt],
+// composePrompt is the pure form behind [Engine.systemPrompt],
 // exposed unexported so the unit tests (which build stub memory stores without
 // a full Engine) can exercise the cascade directly.
 func composePrompt(ctx context.Context, mem knowledge.Store, cwd string) string {

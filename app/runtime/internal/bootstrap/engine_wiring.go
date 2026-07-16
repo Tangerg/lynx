@@ -1,9 +1,6 @@
 package bootstrap
 
 import (
-	"context"
-
-	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
@@ -21,6 +18,9 @@ func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment) {
 	ecfg.SessionStore = newChildSessionStore(cfg.SessionStore)
 	ecfg.ProcessStore = cfg.ProcessStore
 	ecfg.Provider = cfg.Provider
+	if ecfg.Todos == nil {
+		ecfg.Todos = cfg.TodoStore
+	}
 	messages := buildMessageEnvironment(&ecfg)
 	return ecfg, messages
 }
@@ -37,22 +37,10 @@ func buildMessageEnvironment(ecfg *agentexec.Config) messageEnvironment {
 	}
 }
 
-func wireEnginePorts(ecfg *agentexec.Config, cfg Config, messages messageEnvironment, resolveUtility func(context.Context) *chatclient.Client) {
-	if ecfg.Steering == nil {
-		ecfg.Steering = messages.conversation
-	}
-	wireMaintenancePorts(ecfg, cfg, messages.history, resolveUtility)
-	if ecfg.Todos == nil {
-		ecfg.Todos = cfg.TodoStore
-	}
-}
-
 func attachToolEnvironment(ecfg *agentexec.Config, built toolset.Built) {
+	if built.Resolver == nil {
+		ecfg.ToolResolver = nil
+		return
+	}
 	ecfg.ToolResolver = built.Resolver
-	ecfg.Tools = built.Tools
-	ecfg.MCPStatusReader = built.MCPStatusReader
-	ecfg.MCPToolCatalog = built.MCPToolCatalog
-	ecfg.MCPConnectionCommands = built.MCPConnectionCommands
-	ecfg.MCPRegistryCommands = built.MCPRegistryCommands
-	ecfg.Closers = built.Closers
 }

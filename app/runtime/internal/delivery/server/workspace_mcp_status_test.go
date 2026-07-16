@@ -5,13 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
 func TestWorkspaceMCPListServers(t *testing.T) {
-	s := serverWithMCP(integrations.Config{MCPLive: &fakeMCPLive{
+	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{
 		statuses: []mcpserver.ConnectionStatus{
 			{Name: "fs", Status: "connected"},
 			{Name: "down", Status: "failed", Err: errors.New("connection refused")},
@@ -19,7 +18,7 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 		tools: []mcpserver.ToolInfo{
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
 		},
-	}})
+	}))
 	page, err := s.WorkspaceMCPListServers(context.Background(), protocol.PageQuery{})
 	if err != nil {
 		t.Fatalf("listServers: %v", err)
@@ -38,10 +37,10 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 }
 
 func TestWorkspaceMCPReconnect(t *testing.T) {
-	s := serverWithMCP(integrations.Config{MCPLive: &fakeMCPLive{
+	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{
 		statuses: []mcpserver.ConnectionStatus{{Name: "fs", Status: "connected"}},
 		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
-	}})
+	}))
 	defer s.Close()
 	events, unsub := s.wsHub.subscribe()
 	defer unsub()
@@ -62,11 +61,11 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 }
 
 func TestWorkspaceMCPListTools(t *testing.T) {
-	s := serverWithMCP(integrations.Config{MCPLive: &fakeMCPLive{tools: []mcpserver.ToolInfo{
+	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{tools: []mcpserver.ToolInfo{
 		{Server: "fs", Name: "read", Description: "read a file", InputSchema: map[string]any{"type": "object"}},
 		{Server: "fs", Name: "write"},
 		{Server: "git", Name: "log"},
-	}}})
+	}}))
 
 	all, err := s.WorkspaceMCPListTools(context.Background(), protocol.MCPListToolsRequest{})
 	if err != nil {
