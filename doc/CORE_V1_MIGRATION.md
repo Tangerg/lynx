@@ -174,17 +174,19 @@ if err := values.Merge(providerValues); err != nil {
 
 不要直接塞入函数、reader、SDK client 或其他运行时对象。直接 map 赋值只接受 `json.RawMessage`，并仍需通过 `Validate`。
 
-Embedding、Image、Moderation、Speech 和 Transcription 的 `Options.Extra`、`ResultMetadata.Extra`、`ResponseMetadata.Extra` 也统一为 `metadata.Map`。写入必须处理 `Set` 返回的错误；读取使用 `metadata.Decode[T]`：
+Embedding、Image、Moderation、Speech 和 Transcription 的 `Options.Extensions`、`ResultMetadata.Extra`、`ResponseMetadata.Extra` 都使用 `metadata.Map`。Options 扩展必须用 `SetExtension` 写入 namespaced key；结果/响应 metadata 继续用 `Set`。读取统一使用 `metadata.Decode[T]`：
 
 ```go
-opts := &embedding.Options{}
-if err := opts.Set("provider/dimensions_mode", "truncate"); err != nil {
+opts := embedding.Options{}
+if err := opts.SetExtension("provider/options", map[string]any{
+    "dimensions_mode": "truncate",
+}); err != nil {
     return err
 }
-mode, ok, err := metadata.Decode[string](opts.Extra, "provider/dimensions_mode")
+native, ok, err := metadata.Decode[map[string]string](opts.Extensions, "provider/options")
 ```
 
-这些 modality 不再提供 Request-level `Params`。provider 请求参数先进入对应的 typed `Options`；只有 Core 尚未稳定建模、且确实需要透传的 JSON 数据才进入 `Options.Extra`。不要在调用方重建 `map[string]any` 参数袋。
+这些 modality 不再提供 Request-level `Params`。provider 请求参数先进入对应的 typed `Options`；只有 Core 尚未稳定建模、且确实需要透传的 JSON 数据才进入 `Options.Extensions`。不要在调用方重建顶层 `map[string]any` 参数袋。
 
 每个 modality Request 都公开 `Validate()`。所有官方 provider adapter 会在 `Call`/`Stream` 边界先验证整个请求（包括嵌套 Media 与 Options metadata），再读取字段或映射 SDK 参数。自定义 Model 实现也必须遵循同一顺序：
 
@@ -197,7 +199,7 @@ func (m *Model) Call(ctx context.Context, req *embedding.Request) (*embedding.Re
 }
 ```
 
-官方 provider 的原生 options key 已统一为 `<provider>/options`（例如 `openai/options`），不再接受移植期的 `lynx:ai:model:*` key。Core typed Options 只保留多 provider 共享且语义一致的字段；Image 的 style/quality/response shape，以及 Transcription 的 prompt/temperature/response/timestamp 等 provider 参数应通过对应原生 options 写入 Extra。Google transcription 使用稳定的内置转写指令。
+官方 provider 的原生 options key 已统一为 `<provider>/options`（例如 `openai/options`），不再接受移植期的 `lynx:ai:model:*` key。Core typed Options 只保留多 provider 共享且语义一致的字段；Image 的 style/quality/response shape，以及 Transcription 的 prompt/temperature/response/timestamp 等 provider 参数应通过对应原生 options 写入 Extensions。Google transcription 使用稳定的内置转写指令。
 
 Core 的 usage 类型（`chat.Usage` / `embedding.Usage`）只保留跨 provider 可比较的规范化计数。provider SDK 原始 usage 如需诊断，由 adapter 自己记录，或在明确命名并转为 JSON 后写入 response metadata；不能把 SDK 对象放回 Core Usage。
 
@@ -278,8 +280,8 @@ Moderation 的 `Categories` 是开放的 `map[string]Verdict`，调用方按 pro
 
 1. 在 `models/<provider>` 构造具体 adapter。
 2. 让业务函数只接收对应包的最小 `Model` 或可选 `Streamer`。
-3. 用 `NewRequest`/`NewOptions` 构造输入，按需调用 `base.Merged(overrides...)` 获取合并后的独立 Options；该方法不修改 receiver。
-4. provider 特有 options 用 `Options.Set` 写入 JSON-safe `Extra`，key 使用 `<provider>/options`，并显式处理错误；Request 不再有 `Params`。
+3. 用 `NewRequest`/`NewOptions` 构造输入；Options 是零值合法的普通值，直接赋给 `Request.Options`。按需调用 `base.Merged(overrides...)` 获取合并后的独立值；该方法不修改 receiver，也不接收或返回 `*Options`。
+4. provider 特有 options 用 `Options.SetExtension` 写入 JSON-safe `Extensions`，key 使用 `<provider>/options`，并显式处理错误；Request 不再有 `Params`。
 5. 在 Model `Call`/`Stream` 读取请求前调用 `Request.Validate`，并保留规范化 metadata/usage；原始 SDK usage 不进入 Core DTO。
 6. Embedding dimensions 需要时调用 `embeddingclient.Client.Dimensions`；该操作会发起一次真实 embedding 请求且不缓存，缓存生命周期由消费方决定。
 

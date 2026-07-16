@@ -17,7 +17,7 @@ import (
 )
 
 // embeddingBuildFunc constructs an embedding adapter for one (key, model, baseURL).
-type embeddingBuildFunc func(spec ClientSpec, opts *embedding.Options) (embedding.Model, error)
+type embeddingBuildFunc func(spec ClientSpec, opts embedding.Options) (embedding.Model, error)
 
 type embeddingEntry struct {
 	defaultModel string
@@ -31,30 +31,30 @@ type embeddingEntry struct {
 // The credential (key + base URL) comes from the same provider registry the
 // chat clients use — an embedding role names a (provider, model), nothing more.
 var embeddingProviderInfo = map[Provider]embeddingEntry{
-	ProviderOpenAI: {defaultModel: "text-embedding-3-small", build: func(s ClientSpec, o *embedding.Options) (embedding.Model, error) {
+	ProviderOpenAI: {defaultModel: "text-embedding-3-small", build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
 		var reqOpts []openaiopt.RequestOption
 		if s.BaseURL != "" {
 			reqOpts = append(reqOpts, openaiopt.WithBaseURL(s.BaseURL))
 		}
 		return openai.NewEmbeddingModel(openai.EmbeddingModelConfig{APIKey: s.APIKey, DefaultOptions: o, RequestOptions: reqOpts})
 	}},
-	ProviderAzureOpenAI: {build: func(s ClientSpec, o *embedding.Options) (embedding.Model, error) {
+	ProviderAzureOpenAI: {build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
 		return azureopenai.NewEmbeddingModel(azureopenai.EmbeddingModelConfig{APIKey: s.APIKey, Endpoint: s.BaseURL, DefaultOptions: o})
 	}},
-	ProviderGoogle: {defaultModel: "text-embedding-004", build: func(s ClientSpec, o *embedding.Options) (embedding.Model, error) {
+	ProviderGoogle: {defaultModel: "text-embedding-004", build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
 		return google.NewEmbeddingModel(google.EmbeddingModelConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderMistral: {defaultModel: "mistral-embed", build: func(s ClientSpec, o *embedding.Options) (embedding.Model, error) {
+	ProviderMistral: {defaultModel: "mistral-embed", build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
 		return mistral.NewEmbeddingModel(mistral.EmbeddingModelConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderOllama: {defaultModel: "nomic-embed-text", build: func(s ClientSpec, o *embedding.Options) (embedding.Model, error) {
+	ProviderOllama: {defaultModel: "nomic-embed-text", build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
 		// Ollama is a keyless local daemon — no APIKey field.
 		return ollama.NewEmbeddingModel(ollama.EmbeddingModelConfig{DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderZhipu: {defaultModel: "embedding-3", build: func(s ClientSpec, o *embedding.Options) (embedding.Model, error) {
+	ProviderZhipu: {defaultModel: "embedding-3", build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
 		return zhipu.NewEmbeddingModel(zhipu.EmbeddingModelConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
-	ProviderAlibaba: {defaultModel: "text-embedding-v3", build: func(s ClientSpec, o *embedding.Options) (embedding.Model, error) {
+	ProviderAlibaba: {defaultModel: "text-embedding-v3", build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
 		return alibaba.NewEmbeddingModel(alibaba.EmbeddingModelConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
 }

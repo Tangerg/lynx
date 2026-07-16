@@ -6,7 +6,7 @@ import (
 )
 
 func (o Options) MarshalJSON() ([]byte, error) {
-	if err := (&o).validate(); err != nil {
+	if err := o.Validate(); err != nil {
 		return nil, err
 	}
 	type wireOptions Options
@@ -23,7 +23,7 @@ func (o *Options) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("%w: decode options: %w", ErrInvalidOptions, err)
 	}
 	candidate := Options(decoded)
-	if err := candidate.validate(); err != nil {
+	if err := candidate.Validate(); err != nil {
 		return err
 	}
 	*o = candidate

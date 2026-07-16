@@ -11,7 +11,7 @@ import (
 
 type AudioTranscriptionModelConfig struct {
 	APIKey         string
-	DefaultOptions *transcription.Options
+	DefaultOptions transcription.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -20,8 +20,11 @@ func (c AudioTranscriptionModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("elevenlabs: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("elevenlabs: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("elevenlabs: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -30,10 +33,10 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 
 // AudioTranscriptionModel wraps ElevenLabs' /v1/speech-to-text endpoint
 // (Scribe model family). Diarization / language / per-word timestamps
-// are reached through the Extra-threaded [TranscriptionRequest].
+// are reached through the extension-threaded [TranscriptionRequest].
 type AudioTranscriptionModel struct {
 	api            *API
-	defaultOptions *transcription.Options
+	defaultOptions transcription.Options
 }
 
 func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
@@ -52,7 +55,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 
 	return &AudioTranscriptionModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -64,7 +67,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	apiReq, err := options.GetParams[TranscriptionRequest](mergedOpts.Extra, OptionsKey)
+	apiReq, err := options.GetParams[TranscriptionRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

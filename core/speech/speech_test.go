@@ -48,20 +48,20 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := speech.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty text")
 	}
-	if _, err := (*speech.Options)(nil).Merged(); !errors.Is(err, speech.ErrInvalidOptions) {
-		t.Fatalf("Merged error = %v", err)
+	if merged, err := (speech.Options{}).Merged(); err != nil || merged.Model != "" || merged.Speed != 0 || len(merged.Extensions) != 0 {
+		t.Fatalf("zero Options.Merged() = %#v, %v", merged, err)
 	}
 	if err := (*speech.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
 	}
 	invalid := &speech.Request{
 		Text:    "text",
-		Options: &speech.Options{Extra: metadata.Map{"broken": []byte("{")}},
+		Options: speech.Options{Extensions: metadata.Map{"provider/broken": []byte("{")}},
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted invalid options metadata")
 	}
-	invalid.Options = &speech.Options{Model: " model "}
+	invalid.Options = speech.Options{Model: " model "}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted model with surrounding whitespace")
 	}
@@ -75,17 +75,17 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 		{name: "negative infinity", speed: math.Inf(-1)},
 	} {
 		t.Run(tc.name+" speed", func(t *testing.T) {
-			invalid.Options = &speech.Options{Speed: tc.speed}
+			invalid.Options = speech.Options{Speed: tc.speed}
 			if err := invalid.Validate(); err == nil {
 				t.Fatalf("Validate accepted speed %v", tc.speed)
 			}
 		})
 	}
 	options := new(speech.Options)
-	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
-		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
+	if err := options.SetExtension("provider/value", func() {}); err == nil || options.Extensions != nil {
+		t.Fatalf("failed SetExtension mutated options: %#v, %v", options.Extensions, err)
 	}
-	if _, err := (&speech.Options{Model: "base", Speed: math.NaN()}).Merged(); err == nil {
+	if _, err := (speech.Options{Model: "base", Speed: math.NaN()}).Merged(); err == nil {
 		t.Fatal("Merged accepted invalid base options")
 	}
 }
@@ -104,26 +104,23 @@ func TestResponseValidation(t *testing.T) {
 }
 
 func TestOptionsMergeAndCopies(t *testing.T) {
-	if clone := (*speech.Options)(nil).Clone(); clone != nil {
-		t.Fatalf("nil Clone = %#v", clone)
-	}
-	base := &speech.Options{Model: "base", Voice: "base-voice", Extra: mustMetadata(t, map[string]any{"base": true})}
-	merged, err := base.Merged(nil, &speech.Options{
+	base := speech.Options{Model: "base", Voice: "base-voice", Extensions: mustMetadata(t, map[string]any{"provider/base": true})}
+	merged, err := base.Merged(speech.Options{
 		Model: "override", Voice: "alloy", OutputFormat: "mp3", Speed: 1.25,
-		Extra: mustMetadata(t, map[string]any{"override": true}),
+		Extensions: mustMetadata(t, map[string]any{"provider/override": true}),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if merged.Model != "override" || merged.Voice != "alloy" || merged.OutputFormat != "mp3" ||
-		merged.Speed != 1.25 || len(merged.Extra) != 2 {
+		merged.Speed != 1.25 || len(merged.Extensions) != 2 {
 		t.Fatalf("Merged = %#v", merged)
 	}
 	clone := merged.Clone()
-	if err := clone.Extra.Set("base", false); err != nil {
+	if err := clone.Extensions.Set("provider/base", false); err != nil {
 		t.Fatal(err)
 	}
-	if !mustDecode[bool](t, merged.Extra, "base") {
+	if !mustDecode[bool](t, merged.Extensions, "provider/base") {
 		t.Fatal("Options.Clone aliases source state")
 	}
 }

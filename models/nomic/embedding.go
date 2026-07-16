@@ -12,7 +12,7 @@ import (
 
 type EmbeddingModelConfig struct {
 	APIKey         string
-	DefaultOptions *embedding.Options
+	DefaultOptions embedding.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -21,8 +21,11 @@ func (c EmbeddingModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("nomic: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("nomic: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("nomic: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -31,7 +34,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 
 type EmbeddingModel struct {
 	api            *API
-	defaultOptions *embedding.Options
+	defaultOptions embedding.Options
 }
 
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
@@ -50,7 +53,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 
 	return &EmbeddingModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -60,7 +63,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*EmbeddingRequ
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[EmbeddingRequest](mergedOpts.Extra, OptionsKey)
+	apiReq, err := options.GetParams[EmbeddingRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

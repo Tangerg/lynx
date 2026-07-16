@@ -12,7 +12,7 @@ import (
 
 type EmbeddingModelConfig struct {
 	APIKey         string
-	DefaultOptions *embedding.Options
+	DefaultOptions embedding.Options
 	BaseURL        string
 
 	// RequestOptions reach the underlying openai-go client; use
@@ -24,8 +24,11 @@ func (c EmbeddingModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("zhipu: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("zhipu: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("zhipu: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }

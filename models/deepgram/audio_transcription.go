@@ -11,7 +11,7 @@ import (
 
 type AudioTranscriptionModelConfig struct {
 	APIKey         string
-	DefaultOptions *transcription.Options
+	DefaultOptions transcription.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -20,8 +20,11 @@ func (c AudioTranscriptionModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("deepgram: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("deepgram: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("deepgram: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -32,7 +35,7 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // transcription endpoint. Supported models include "nova-3" (latest),
 // "nova-2", "enhanced", "base". Diarization, smart_format, punctuation
 // and the long tail of Deepgram knobs live on [ListenParams] and reach
-// the API via the Extra-threaded SDK params, see [getOptionsParams].
+// the API via the extension-threaded SDK params, see [getOptionsParams].
 //
 // The returned [transcription.Result] holds the merged transcript of
 // channel 0 / alternative 0; per-word + per-utterance breakdown is
@@ -40,7 +43,7 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // timestamps can dig in.
 type AudioTranscriptionModel struct {
 	api            *API
-	defaultOptions *transcription.Options
+	defaultOptions transcription.Options
 }
 
 func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
@@ -59,7 +62,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 
 	return &AudioTranscriptionModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -71,7 +74,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	params, err := options.GetParams[ListenParams](mergedOpts.Extra, OptionsKey)
+	params, err := options.GetParams[ListenParams](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

@@ -14,7 +14,7 @@ import (
 
 type ImageModelConfig struct {
 	APIKey         string
-	DefaultOptions *image.Options
+	DefaultOptions image.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 	PollInterval   time.Duration
@@ -25,8 +25,11 @@ func (c ImageModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("luma: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("luma: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("luma: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -38,7 +41,7 @@ var _ image.Model = (*ImageModel)(nil)
 // then polls until the asset is ready.
 type ImageModel struct {
 	api            *API
-	defaultOptions *image.Options
+	defaultOptions image.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
 }
@@ -59,7 +62,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	if pt <= 0 {
 		pt = time.Duration(DefaultPollTimeoutSeconds) * time.Second
 	}
-	return &ImageModel{api: api, defaultOptions: cfg.DefaultOptions, pollInterval: pi, pollTimeout: pt}, nil
+	return &ImageModel{api: api, defaultOptions: cfg.DefaultOptions.Clone(), pollInterval: pi, pollTimeout: pt}, nil
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
@@ -80,7 +83,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[ImageGenerateRequest](mergedOpts.Extra, OptionsKey)
+	apiReq, err := options.GetParams[ImageGenerateRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

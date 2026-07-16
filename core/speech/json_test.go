@@ -18,6 +18,10 @@ func TestJSONBoundaries(t *testing.T) {
 	if _, err := speech.NewResponse(nil, &speech.ResponseMetadata{}); !errors.Is(err, speech.ErrInvalidResponse) {
 		t.Fatalf("NewResponse error = %v", err)
 	}
+	var extensionOptions speech.Options
+	if err := extensionOptions.SetExtension("invalid", true); !errors.Is(err, speech.ErrInvalidOptions) {
+		t.Fatalf("SetExtension error = %v", err)
+	}
 
 	if _, err := json.Marshal(speech.Options{Model: " invalid "}); !errors.Is(err, speech.ErrInvalidOptions) {
 		t.Fatalf("Marshal Options error = %v", err)

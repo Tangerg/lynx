@@ -5,9 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
-	"unicode"
 
+	"github.com/Tangerg/lynx/core/internal/extension"
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
@@ -68,10 +67,7 @@ func (r *Request) SetExtension(key string, value any) error {
 }
 
 func setExtension(target *metadata.Map, key string, value any) error {
-	if !validExtensionKey(key) {
-		return fmt.Errorf("%w: key %q must use namespace/name", ErrInvalidExtension, key)
-	}
-	if err := target.Set(key, value); err != nil {
+	if err := extension.Set(target, key, value); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidExtension, err)
 	}
 	return nil
@@ -112,36 +108,10 @@ func (r *Request) Validate() error {
 }
 
 func validateExtensions(extensions metadata.Map) error {
-	for key := range extensions {
-		if !validExtensionKey(key) {
-			return fmt.Errorf("%w: key %q must use namespace/name", ErrInvalidExtension, key)
-		}
-	}
-	if err := extensions.Validate(); err != nil {
+	if err := extension.Validate(extensions); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidExtension, err)
 	}
 	return nil
-}
-
-func validExtensionKey(key string) bool {
-	if strings.Count(key, "/") != 1 {
-		return false
-	}
-	namespace, name, _ := strings.Cut(key, "/")
-	return validExtensionSegment(namespace) && validExtensionSegment(name)
-}
-
-func validExtensionSegment(segment string) bool {
-	if segment == "" {
-		return false
-	}
-	for _, r := range segment {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '_' || r == '-' {
-			continue
-		}
-		return false
-	}
-	return true
 }
 
 // MarshalJSON validates Request before writing its wire representation.

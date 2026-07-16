@@ -16,7 +16,7 @@ import (
 
 type AudioTTSModelConfig struct {
 	APIKey         string
-	DefaultOptions *tts.Options
+	DefaultOptions tts.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 
@@ -32,8 +32,11 @@ func (c AudioTTSModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("replicate: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("replicate: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("replicate: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -51,10 +54,10 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 // XTTS, "voice_a" for Tortoise, and "history_prompt" for Bark. To
 // stay accurate across the long tail of community models, callers
 // should set provider-specific keys directly via the
-// Extra-threaded PredictionRequest at [OptionsKey].
+// extension-threaded PredictionRequest at [OptionsKey].
 type AudioTTSModel struct {
 	api            *API
-	defaultOptions *tts.Options
+	defaultOptions tts.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
 	httpClient     *http.Client
@@ -86,7 +89,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	}
 	return &AudioTTSModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 		pollInterval:   pi,
 		pollTimeout:    pt,
 		httpClient:     hc,
@@ -107,7 +110,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[PredictionRequest](mergedOpts.Extra, OptionsKey)
+	apiReq, err := options.GetParams[PredictionRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

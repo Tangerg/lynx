@@ -15,7 +15,7 @@ import (
 
 type EmbeddingModelConfig struct {
 	APIKey         string
-	DefaultOptions *embedding.Options
+	DefaultOptions embedding.Options
 	RequestOptions []option.RequestOption
 }
 
@@ -23,8 +23,11 @@ func (c EmbeddingModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("openai: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("openai: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -33,7 +36,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 
 type EmbeddingModel struct {
 	api            *API
-	defaultOptions *embedding.Options
+	defaultOptions embedding.Options
 }
 
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
@@ -51,7 +54,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 
 	return &EmbeddingModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -61,7 +64,7 @@ func (e *EmbeddingModel) buildAPIEmbeddingRequest(req *embedding.Request) (*open
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.EmbeddingNewParams](mergedOpts.Extra, OptionsKey)
+	params, err := options.GetParams[openai.EmbeddingNewParams](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

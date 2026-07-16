@@ -12,7 +12,7 @@ import (
 
 type AudioTTSModelConfig struct {
 	APIKey         string
-	DefaultOptions *tts.Options
+	DefaultOptions tts.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -21,8 +21,11 @@ func (c AudioTTSModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("lmnt: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("lmnt: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("lmnt: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -40,7 +43,7 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 // single chunk for shape compatibility.
 type AudioTTSModel struct {
 	api            *API
-	defaultOptions *tts.Options
+	defaultOptions tts.Options
 }
 
 func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
@@ -51,7 +54,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &AudioTTSModel{api: api, defaultOptions: cfg.DefaultOptions}, nil
+	return &AudioTTSModel{api: api, defaultOptions: cfg.DefaultOptions.Clone()}, nil
 }
 
 func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*SynthesizeRequest, error) {
@@ -60,7 +63,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*SynthesizeRequest, e
 		return nil, err
 	}
 
-	body, err := options.GetParams[SynthesizeRequest](mergedOpts.Extra, OptionsKey)
+	body, err := options.GetParams[SynthesizeRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

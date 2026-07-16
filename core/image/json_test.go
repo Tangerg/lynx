@@ -19,6 +19,10 @@ func TestJSONBoundaries(t *testing.T) {
 	if _, err := image.NewResponse(nil, &image.ResponseMetadata{}); !errors.Is(err, image.ErrInvalidResponse) {
 		t.Fatalf("NewResponse error = %v", err)
 	}
+	var extensionOptions image.Options
+	if err := extensionOptions.SetExtension("invalid", true); !errors.Is(err, image.ErrInvalidOptions) {
+		t.Fatalf("SetExtension error = %v", err)
+	}
 
 	if _, err := json.Marshal(image.Options{Model: " invalid "}); !errors.Is(err, image.ErrInvalidOptions) {
 		t.Fatalf("Marshal Options error = %v", err)

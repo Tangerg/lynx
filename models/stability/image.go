@@ -17,15 +17,15 @@ import (
 
 type ImageModelConfig struct {
 	APIKey         string
-	DefaultOptions *image.Options
+	DefaultOptions image.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 
 	// Endpoint selects which v2beta engine to call. Defaults to
 	// [EndpointCore] when empty. Use [EndpointUltra] for highest
 	// quality or [EndpointSD3] for the Stable Diffusion 3 family
-	// (which also requires Options.Extra["model"] to pick the SD3
-	// variant via the Extra-threaded [GenerateRequest]).
+	// (which also requires Options.Extensions["stability/options"] to
+	// pick the SD3 variant via the extension-threaded [GenerateRequest]).
 	Endpoint string
 }
 
@@ -33,8 +33,11 @@ func (c ImageModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("stability: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("stability: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("stability: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -47,14 +50,14 @@ var _ image.Model = (*ImageModel)(nil)
 // than per-pixel W×H sizes — Core/Ultra render at a fixed total pixel
 // budget. Lynx's Width/Height options are intentionally NOT translated
 // to an aspect ratio (lossy guess); set AspectRatio on the
-// Extra-threaded [GenerateRequest] when control is needed.
+// extension-threaded [GenerateRequest] when control is needed.
 //
 // One ImageModel is locked to one engine via [ImageModelConfig.Endpoint]
 // (Core / Ultra / SD3); callers wanting another tier construct another
 // model.
 type ImageModel struct {
 	api            *API
-	defaultOptions *image.Options
+	defaultOptions image.Options
 	endpoint       string
 }
 
@@ -74,7 +77,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 
 	return &ImageModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 		endpoint:       cmp.Or(cfg.Endpoint, EndpointCore),
 	}, nil
 }
@@ -91,7 +94,7 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*GenerateRequest, erro
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extra, OptionsKey)
+	apiReq, err := options.GetParams[GenerateRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

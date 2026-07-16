@@ -26,28 +26,28 @@ func TestOptionsAndRequest(t *testing.T) {
 	}
 	invalid := &embedding.Request{
 		Texts:   []string{"text"},
-		Options: &embedding.Options{Extra: metadata.Map{"broken": []byte("{")}},
+		Options: embedding.Options{Extensions: metadata.Map{"provider/broken": []byte("{")}},
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted invalid options metadata")
 	}
-	invalid.Options = &embedding.Options{Model: " model "}
+	invalid.Options = embedding.Options{Model: " model "}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted model with surrounding whitespace")
 	}
 	badDimensions := int64(0)
-	invalid.Options = &embedding.Options{Dimensions: &badDimensions}
+	invalid.Options = embedding.Options{Dimensions: &badDimensions}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted non-positive dimensions")
 	}
 	options := new(embedding.Options)
-	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
-		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
+	if err := options.SetExtension("provider/value", func() {}); err == nil || options.Extensions != nil {
+		t.Fatalf("failed SetExtension mutated options: %#v, %v", options.Extensions, err)
 	}
 	dimensions := int64(32)
-	base := &embedding.Options{Model: "base"}
+	base := embedding.Options{Model: "base"}
 	merged, err := base.Merged(
-		&embedding.Options{Model: "override", Dimensions: &dimensions},
+		embedding.Options{Model: "override", Dimensions: &dimensions},
 	)
 	if err != nil || merged.Model != "override" || *merged.Dimensions != 32 {
 		t.Fatalf("Merged() = %#v, %v", merged, err)
@@ -57,27 +57,23 @@ func TestOptionsAndRequest(t *testing.T) {
 		t.Fatal("Merged aliases override pointer state")
 	}
 	invalidDimensions := int64(0)
-	if _, err := (&embedding.Options{Model: "base", Dimensions: &invalidDimensions}).Merged(); err == nil {
+	if _, err := (embedding.Options{Model: "base", Dimensions: &invalidDimensions}).Merged(); err == nil {
 		t.Fatal("Merged accepted invalid base options")
 	}
 }
 
 func TestProtocolValueCopies(t *testing.T) {
-	if clone := (*embedding.Options)(nil).Clone(); clone != nil {
-		t.Fatalf("nil Clone = %#v", clone)
-	}
-
 	dimensions := int64(64)
-	options := &embedding.Options{
+	options := embedding.Options{
 		Model: "base", Dimensions: &dimensions,
-		Extra: mustMetadata(t, map[string]any{"region": "local"}),
+		Extensions: mustMetadata(t, map[string]any{"provider/region": "local"}),
 	}
 	clone := options.Clone()
 	*clone.Dimensions = 128
-	if err := clone.Extra.Set("region", "remote"); err != nil {
+	if err := clone.Extensions.Set("provider/region", "remote"); err != nil {
 		t.Fatal(err)
 	}
-	if *options.Dimensions != 64 || mustDecode[string](t, options.Extra, "region") != "local" {
+	if *options.Dimensions != 64 || mustDecode[string](t, options.Extensions, "provider/region") != "local" {
 		t.Fatal("Options.Clone aliases source state")
 	}
 }
@@ -101,8 +97,8 @@ func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
 }
 
 func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {
-	if _, err := (*embedding.Options)(nil).Merged(); err == nil {
-		t.Fatal("Merged accepted nil receiver")
+	if merged, err := (embedding.Options{}).Merged(); err != nil || merged.Model != "" || merged.Dimensions != nil || len(merged.Extensions) != 0 {
+		t.Fatalf("zero Options.Merged() = %#v, %v", merged, err)
 	}
 	if _, err := embedding.NewResult(nil, &embedding.ResultMetadata{}); err == nil {
 		t.Fatal("NewResult accepted an empty vector")

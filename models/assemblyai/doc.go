@@ -8,7 +8,7 @@
 //
 // Provider extras (speaker diarization, auto chapters, sentiment
 // analysis, entity detection, PII redaction, content safety,
-// language detection) ride through Extra-threaded TranscriptRequest
+// language detection) ride through extension-threaded TranscriptRequest
 // fields.
 //
 // See https://www.assemblyai.com/docs for the full reference.

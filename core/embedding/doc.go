@@ -5,6 +5,6 @@
 // Provider defaults and identity are fixed when constructing an implementation,
 // not exposed through Model. Dimension discovery belongs to the consuming
 // workflow because it requires an actual embedding request. Provider options
-// use Options.Set so Extra remains JSON-safe; Request has no arbitrary parameter
+// use Options.SetExtension so Extensions remains JSON-safe; Request has no arbitrary parameter
 // bag.
 package embedding

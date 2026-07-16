@@ -14,7 +14,7 @@ import (
 
 type AudioTTSModelConfig struct {
 	APIKey         string
-	DefaultOptions *tts.Options
+	DefaultOptions tts.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
 	// the matching fields on [ChatConfig] for semantics.
@@ -30,8 +30,11 @@ func (c AudioTTSModelConfig) Validate() error {
 	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("google: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("google: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -48,7 +51,7 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 // signed 16-bit little-endian PCM in a WAV wrapper.
 type AudioTTSModel struct {
 	api            *API
-	defaultOptions *tts.Options
+	defaultOptions tts.Options
 }
 
 func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
@@ -69,7 +72,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 
 	return &AudioTTSModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -85,7 +88,7 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 		return "", nil, nil, err
 	}
 
-	cfg, err := options.GetParams[genai.GenerateContentConfig](mergedOpts.Extra, OptionsKey)
+	cfg, err := options.GetParams[genai.GenerateContentConfig](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return "", nil, nil, err
 	}

@@ -13,7 +13,7 @@ import (
 
 type AudioTranscriptionModelConfig struct {
 	APIKey         string
-	DefaultOptions *transcription.Options
+	DefaultOptions transcription.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 	PollInterval   time.Duration
@@ -24,8 +24,11 @@ func (c AudioTranscriptionModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("gladia: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("gladia: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("gladia: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -35,10 +38,10 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // AudioTranscriptionModel wraps Gladia's async transcription flow.
 // One Call uploads → creates job → polls until "done". Diarization /
 // translation / summarization / NER / subtitles all reach the wire via
-// the Extra-threaded [TranscriptionRequest].
+// the extension-threaded [TranscriptionRequest].
 type AudioTranscriptionModel struct {
 	api            *API
-	defaultOptions *transcription.Options
+	defaultOptions transcription.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
 }
@@ -59,7 +62,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 	if pt <= 0 {
 		pt = DefaultPollTimeout
 	}
-	return &AudioTranscriptionModel{api: api, defaultOptions: cfg.DefaultOptions, pollInterval: pi, pollTimeout: pt}, nil
+	return &AudioTranscriptionModel{api: api, defaultOptions: cfg.DefaultOptions.Clone(), pollInterval: pi, pollTimeout: pt}, nil
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
@@ -76,7 +79,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[TranscriptionRequest](mergedOpts.Extra, OptionsKey)
+	apiReq, err := options.GetParams[TranscriptionRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

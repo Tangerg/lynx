@@ -19,6 +19,10 @@ func TestJSONBoundaries(t *testing.T) {
 	if _, err := transcription.NewResponse(nil, &transcription.ResponseMetadata{}); !errors.Is(err, transcription.ErrInvalidResponse) {
 		t.Fatalf("NewResponse error = %v", err)
 	}
+	var extensionOptions transcription.Options
+	if err := extensionOptions.SetExtension("invalid", true); !errors.Is(err, transcription.ErrInvalidOptions) {
+		t.Fatalf("SetExtension error = %v", err)
+	}
 
 	if _, err := json.Marshal(transcription.Options{Model: " invalid "}); !errors.Is(err, transcription.ErrInvalidOptions) {
 		t.Fatalf("Marshal Options error = %v", err)

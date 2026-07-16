@@ -13,7 +13,7 @@ import (
 
 type AudioTranscriptionModelConfig struct {
 	APIKey         string
-	DefaultOptions *transcription.Options
+	DefaultOptions transcription.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 
@@ -28,8 +28,11 @@ func (c AudioTranscriptionModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("assemblyai: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("assemblyai: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("assemblyai: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -44,17 +47,17 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 //
 // Speaker labels, sentiment analysis, auto chapters, entity detection
 // and the rest of AssemblyAI's analysis features live on
-// [TranscriptRequest] and reach the API via the Extra-threaded SDK
+// [TranscriptRequest] and reach the API via the extension-threaded SDK
 // params, see [getOptionsParams].
 //
 // Audio source: the [transcription.Request].Audio is uploaded by
 // bytes; if the audio is large and already hosted somewhere the API
 // can reach, callers can override the audio_url by setting it on the
-// Extra-threaded TranscriptRequest and the model will skip the
+// extension-threaded TranscriptRequest and the model will skip the
 // /upload roundtrip.
 type AudioTranscriptionModel struct {
 	api            *API
-	defaultOptions *transcription.Options
+	defaultOptions transcription.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
 }
@@ -84,7 +87,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 
 	return &AudioTranscriptionModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 		pollInterval:   pollInterval,
 		pollTimeout:    pollTimeout,
 	}, nil
@@ -98,7 +101,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	apiReq, err := options.GetParams[TranscriptRequest](mergedOpts.Extra, OptionsKey)
+	apiReq, err := options.GetParams[TranscriptRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

@@ -11,7 +11,7 @@ import (
 
 type ModerationModelConfig struct {
 	APIKey         string
-	DefaultOptions *moderation.Options
+	DefaultOptions moderation.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -20,8 +20,11 @@ func (c ModerationModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("mistral: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("mistral: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("mistral: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -34,7 +37,7 @@ var _ moderation.Model = (*ModerationModel)(nil)
 // health / financial / law / pii). Category names are preserved exactly.
 type ModerationModel struct {
 	api            *API
-	defaultOptions *moderation.Options
+	defaultOptions moderation.Options
 }
 
 func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
@@ -45,7 +48,7 @@ func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ModerationModel{api: api, defaultOptions: cfg.DefaultOptions}, nil
+	return &ModerationModel{api: api, defaultOptions: cfg.DefaultOptions.Clone()}, nil
 }
 
 func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*moderation.Response, error) {

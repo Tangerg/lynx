@@ -36,28 +36,28 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := moderation.NewRequest([]string{"valid", ""}); err == nil {
 		t.Fatal("NewRequest accepted an empty text entry")
 	}
-	if _, err := (*moderation.Options)(nil).Merged(); err == nil {
-		t.Fatal("Merged accepted nil receiver")
+	if merged, err := (moderation.Options{}).Merged(); err != nil || merged.Model != "" || len(merged.Extensions) != 0 {
+		t.Fatalf("zero Options.Merged() = %#v, %v", merged, err)
 	}
 	if err := (*moderation.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
 	}
 	invalid := &moderation.Request{
 		Texts:   []string{"text"},
-		Options: &moderation.Options{Extra: metadata.Map{"broken": []byte("{")}},
+		Options: moderation.Options{Extensions: metadata.Map{"provider/broken": []byte("{")}},
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted invalid options metadata")
 	}
-	invalid.Options = &moderation.Options{Model: " model "}
+	invalid.Options = moderation.Options{Model: " model "}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted model with surrounding whitespace")
 	}
 	options := new(moderation.Options)
-	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
-		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
+	if err := options.SetExtension("provider/value", func() {}); err == nil || options.Extensions != nil {
+		t.Fatalf("failed SetExtension mutated options: %#v, %v", options.Extensions, err)
 	}
-	if _, err := (&moderation.Options{Model: " model "}).Merged(); err == nil {
+	if _, err := (moderation.Options{Model: " model "}).Merged(); err == nil {
 		t.Fatal("Merged accepted invalid base options")
 	}
 }
@@ -89,26 +89,22 @@ func TestCategoriesAndResponse(t *testing.T) {
 }
 
 func TestOptionsMergeAndCopies(t *testing.T) {
-	if clone := (*moderation.Options)(nil).Clone(); clone != nil {
-		t.Fatalf("nil Clone = %#v", clone)
-	}
-
-	base := &moderation.Options{Model: "base", Extra: mustMetadata(t, map[string]any{"base": true})}
-	merged, err := base.Merged(nil, &moderation.Options{
-		Model: "override",
-		Extra: mustMetadata(t, map[string]any{"override": true}),
+	base := moderation.Options{Model: "base", Extensions: mustMetadata(t, map[string]any{"provider/base": true})}
+	merged, err := base.Merged(moderation.Options{
+		Model:      "override",
+		Extensions: mustMetadata(t, map[string]any{"provider/override": true}),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if merged.Model != "override" || len(merged.Extra) != 2 {
+	if merged.Model != "override" || len(merged.Extensions) != 2 {
 		t.Fatalf("Merged = %#v", merged)
 	}
 	clone := merged.Clone()
-	if err := clone.Extra.Set("base", false); err != nil {
+	if err := clone.Extensions.Set("provider/base", false); err != nil {
 		t.Fatal(err)
 	}
-	if !mustDecode[bool](t, merged.Extra, "base") {
+	if !mustDecode[bool](t, merged.Extensions, "provider/base") {
 		t.Fatal("Options.Clone aliases source state")
 	}
 }

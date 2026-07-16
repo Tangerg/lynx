@@ -18,6 +18,10 @@ func TestJSONBoundaries(t *testing.T) {
 	if _, err := embedding.NewResponse(nil, &embedding.ResponseMetadata{}); !errors.Is(err, embedding.ErrInvalidResponse) {
 		t.Fatalf("NewResponse error = %v", err)
 	}
+	var extensionOptions embedding.Options
+	if err := extensionOptions.SetExtension("invalid", true); !errors.Is(err, embedding.ErrInvalidOptions) {
+		t.Fatalf("SetExtension error = %v", err)
+	}
 
 	if _, err := json.Marshal(embedding.Options{Model: " invalid "}); !errors.Is(err, embedding.ErrInvalidOptions) {
 		t.Fatalf("Marshal Options error = %v", err)

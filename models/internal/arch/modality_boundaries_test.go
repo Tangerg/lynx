@@ -122,6 +122,108 @@ func TestProviderOptionKeysAreNamespaced(t *testing.T) {
 	}
 }
 
+func TestModalityOptionsUseValueSemantics(t *testing.T) {
+	t.Parallel()
+
+	root := modelsRoot(t)
+	fset := token.NewFileSet()
+	err := filepath.WalkDir(root, func(filename string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(filename, ".go") || strings.HasSuffix(filename, "_test.go") {
+			return nil
+		}
+
+		file, err := parser.ParseFile(fset, filename, nil, 0)
+		if err != nil {
+			return err
+		}
+		aliases := modalityImportAliases(file)
+		if len(aliases) == 0 {
+			return nil
+		}
+		relative, err := filepath.Rel(root, filename)
+		if err != nil {
+			return err
+		}
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			pointer, ok := node.(*ast.StarExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := pointer.X.(*ast.SelectorExpr)
+			if !ok || selector.Sel.Name != "Options" {
+				return true
+			}
+			qualifier, ok := selector.X.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if _, target := aliases[qualifier.Name]; target {
+				t.Errorf("%s:%d modality Options must use value semantics", filepath.ToSlash(relative), fset.Position(pointer.Pos()).Line)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestModelsCloneOwnedDefaultOptions(t *testing.T) {
+	t.Parallel()
+
+	root := modelsRoot(t)
+	fset := token.NewFileSet()
+	err := filepath.WalkDir(root, func(filename string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(filename, ".go") || strings.HasSuffix(filename, "_test.go") {
+			return nil
+		}
+
+		file, err := parser.ParseFile(fset, filename, nil, 0)
+		if err != nil {
+			return err
+		}
+		if len(modalityImportAliases(file)) == 0 {
+			return nil
+		}
+		relative, err := filepath.Rel(root, filename)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			field, ok := node.(*ast.KeyValueExpr)
+			if !ok {
+				return true
+			}
+			name, ok := field.Key.(*ast.Ident)
+			if !ok || name.Name != "defaultOptions" {
+				return true
+			}
+			call, ok := field.Value.(*ast.CallExpr)
+			if !ok {
+				t.Errorf("%s:%d owned defaultOptions must be cloned", filepath.ToSlash(relative), fset.Position(field.Value.Pos()).Line)
+				return true
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || selector.Sel.Name != "Clone" || len(call.Args) != 0 {
+				t.Errorf("%s:%d owned defaultOptions must be assigned from Clone()", filepath.ToSlash(relative), fset.Position(field.Value.Pos()).Line)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func modelsRoot(t *testing.T) string {
 	t.Helper()
 	_, current, _, ok := runtime.Caller(0)

@@ -8,7 +8,7 @@
 //
 // Provider extras (speaker_channels_count, custom_vocabulary_id,
 // language, remove_disfluencies, transcriber selection) ride through
-// Extra-threaded JobOptions fields.
+// extension-threaded JobOptions fields.
 //
 // See https://docs.rev.ai/ for the full reference.
 package revai

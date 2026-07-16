@@ -13,7 +13,7 @@ import (
 
 type ImageModelConfig struct {
 	APIKey         string
-	DefaultOptions *image.Options
+	DefaultOptions image.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -22,8 +22,11 @@ func (c ImageModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("prodia: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("prodia: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("prodia: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -38,7 +41,7 @@ var _ image.Model = (*ImageModel)(nil)
 // are copied into Config automatically when set.
 type ImageModel struct {
 	api            *API
-	defaultOptions *image.Options
+	defaultOptions image.Options
 }
 
 func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
@@ -49,7 +52,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ImageModel{api: api, defaultOptions: cfg.DefaultOptions}, nil
+	return &ImageModel{api: api, defaultOptions: cfg.DefaultOptions.Clone()}, nil
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
@@ -65,7 +68,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	}); err != nil {
 		return nil, err
 	}
-	apiReq, err := options.GetParams[JobRequest](mergedOpts.Extra, OptionsKey)
+	apiReq, err := options.GetParams[JobRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

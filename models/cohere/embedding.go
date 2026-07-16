@@ -13,7 +13,7 @@ import (
 
 type EmbeddingModelConfig struct {
 	APIKey         string
-	DefaultOptions *embedding.Options
+	DefaultOptions embedding.Options
 	BaseURL        string
 }
 
@@ -21,8 +21,11 @@ func (c EmbeddingModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("cohere: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("cohere: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("cohere: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -37,7 +40,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // have a fixed 1024-dim output.
 type EmbeddingModel struct {
 	api            *API
-	defaultOptions *embedding.Options
+	defaultOptions embedding.Options
 }
 
 func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
@@ -52,7 +55,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 
 	return &EmbeddingModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -62,7 +65,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2Embe
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[cohere.V2EmbedRequest](mergedOpts.Extra, OptionsKey)
+	apiReq, err := options.GetParams[cohere.V2EmbedRequest](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

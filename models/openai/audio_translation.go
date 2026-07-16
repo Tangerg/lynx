@@ -18,7 +18,7 @@ import (
 // calls.
 type AudioTranslationModelConfig struct {
 	APIKey         string
-	DefaultOptions *transcription.Options
+	DefaultOptions transcription.Options
 	RequestOptions []option.RequestOption
 }
 
@@ -26,8 +26,11 @@ func (c AudioTranslationModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("openai: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("openai: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("openai: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -44,7 +47,7 @@ var _ transcription.Model = (*AudioTranslationModel)(nil)
 // translation, use [AudioTranscriptionModel].
 type AudioTranslationModel struct {
 	api            *API
-	defaultOptions *transcription.Options
+	defaultOptions transcription.Options
 }
 
 func NewAudioTranslationModel(cfg AudioTranslationModelConfig) (*AudioTranslationModel, error) {
@@ -62,7 +65,7 @@ func NewAudioTranslationModel(cfg AudioTranslationModelConfig) (*AudioTranslatio
 
 	return &AudioTranslationModel{
 		api:            api,
-		defaultOptions: cfg.DefaultOptions,
+		defaultOptions: cfg.DefaultOptions.Clone(),
 	}, nil
 }
 
@@ -77,7 +80,7 @@ func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Re
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.AudioTranslationNewParams](mergedOpts.Extra, OptionsKey)
+	params, err := options.GetParams[openai.AudioTranslationNewParams](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

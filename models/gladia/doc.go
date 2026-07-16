@@ -5,7 +5,7 @@
 // strengths are multilingual transcription (100+ languages with
 // automatic code-switching), speaker diarization, and add-ons like
 // summarization, translation, named-entity recognition, and audio
-// intelligence — all reachable via Extra-threaded
+// intelligence — all reachable via extension-threaded
 // TranscriptionRequest fields.
 //
 // See https://docs.gladia.io/ for the full reference.

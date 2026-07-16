@@ -6,7 +6,7 @@
 //
 // Provider-specific knobs (description, voice (named or cloned),
 // trailing_silence, format, num_generations) ride through
-// Extra-threaded TTSRequest fields.
+// extension-threaded TTSRequest fields.
 //
 // Hume's broader expression-measurement APIs (face / voice / language
 // emotion analysis) aren't exposed — they don't fit core/model's

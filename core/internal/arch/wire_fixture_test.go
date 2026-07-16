@@ -103,10 +103,10 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	}
 	embeddingRequest := &embedding.Request{
 		Texts: []string{"lynx", "wild cat"},
-		Options: &embedding.Options{
+		Options: embedding.Options{
 			Model:      "embedding-model",
 			Dimensions: new(int64(3)),
-			Extra:      mustMetadata(t, map[string]any{"user": "u-1"}),
+			Extensions: mustMetadata(t, map[string]any{"fixture/options": map[string]any{"user": "u-1"}}),
 		},
 	}
 	embeddingResponse := &embedding.Response{
@@ -126,14 +126,14 @@ func representativeWireContracts(t *testing.T) map[string]any {
 
 	imageRequest := &image.Request{
 		Prompt: "A lynx in snow",
-		Options: &image.Options{
+		Options: image.Options{
 			Model:          "image-model",
 			NegativePrompt: "text",
 			Width:          new(int64(1024)),
 			Height:         new(int64(768)),
 			Seed:           new(int64(42)),
 			OutputFormat:   "image/png",
-			Extra:          mustMetadata(t, map[string]any{"background": "transparent"}),
+			Extensions:     mustMetadata(t, map[string]any{"fixture/options": map[string]any{"background": "transparent"}}),
 		},
 	}
 	imageResponse := &image.Response{
@@ -149,9 +149,9 @@ func representativeWireContracts(t *testing.T) map[string]any {
 
 	moderationRequest := &moderation.Request{
 		Texts: []string{"safe text", "unsafe text"},
-		Options: &moderation.Options{
-			Model: "moderation-model",
-			Extra: mustMetadata(t, map[string]any{"policy": "strict"}),
+		Options: moderation.Options{
+			Model:      "moderation-model",
+			Extensions: mustMetadata(t, map[string]any{"fixture/options": map[string]any{"policy": "strict"}}),
 		},
 	}
 	moderationResponse := &moderation.Response{
@@ -169,12 +169,12 @@ func representativeWireContracts(t *testing.T) map[string]any {
 
 	speechRequest := &speech.Request{
 		Text: "Hello from Lynx.",
-		Options: &speech.Options{
+		Options: speech.Options{
 			Model:        "speech-model",
 			Voice:        "alloy",
 			OutputFormat: "mp3",
 			Speed:        1.25,
-			Extra:        mustMetadata(t, map[string]any{"style": "calm"}),
+			Extensions:   mustMetadata(t, map[string]any{"fixture/options": map[string]any{"style": "calm"}}),
 		},
 	}
 	speechResponse := &speech.Response{
@@ -191,10 +191,10 @@ func representativeWireContracts(t *testing.T) map[string]any {
 
 	transcriptionRequest := &transcription.Request{
 		Audio: uriMedia,
-		Options: &transcription.Options{
-			Model:    "transcription-model",
-			Language: "en",
-			Extra:    mustMetadata(t, map[string]any{"diarize": true}),
+		Options: transcription.Options{
+			Model:      "transcription-model",
+			Language:   "en",
+			Extensions: mustMetadata(t, map[string]any{"fixture/options": map[string]any{"diarize": true}}),
 		},
 	}
 	transcriptionResponse := &transcription.Response{

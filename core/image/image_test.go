@@ -34,40 +34,40 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := image.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty prompt")
 	}
-	if _, err := (*image.Options)(nil).Merged(); err == nil {
-		t.Fatal("Merged accepted nil receiver")
+	if merged, err := (image.Options{}).Merged(); err != nil || merged.Model != "" || merged.Width != nil || len(merged.Extensions) != 0 {
+		t.Fatalf("zero Options.Merged() = %#v, %v", merged, err)
 	}
 	if err := (*image.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
 	}
 	invalid := &image.Request{
 		Prompt:  "lynx",
-		Options: &image.Options{Extra: metadata.Map{"broken": []byte("{")}},
+		Options: image.Options{Extensions: metadata.Map{"provider/broken": []byte("{")}},
 	}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted invalid options metadata")
 	}
-	invalid.Options = &image.Options{Model: " model "}
+	invalid.Options = image.Options{Model: " model "}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted model with surrounding whitespace")
 	}
 	width := int64(0)
-	invalid.Options = &image.Options{Width: &width}
+	invalid.Options = image.Options{Width: &width}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted non-positive width")
 	}
 	seed := int64(-1)
-	invalid.Options = &image.Options{Seed: &seed}
+	invalid.Options = image.Options{Seed: &seed}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted a negative seed")
 	}
-	invalid.Options = &image.Options{OutputFormat: "IMAGE/PNG"}
+	invalid.Options = image.Options{OutputFormat: "IMAGE/PNG"}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted a non-canonical output MIME type")
 	}
 	options := new(image.Options)
-	if err := options.Set("provider/value", func() {}); err == nil || options.Extra != nil {
-		t.Fatalf("failed Set mutated options: %#v, %v", options.Extra, err)
+	if err := options.SetExtension("provider/value", func() {}); err == nil || options.Extensions != nil {
+		t.Fatalf("failed SetExtension mutated options: %#v, %v", options.Extensions, err)
 	}
 	base, err := image.NewOptions("image-model")
 	if err != nil {
@@ -87,7 +87,7 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 			t.Errorf("Merged accepted invalid OutputFormat %q", invalid)
 		}
 	}
-	if _, err := (&image.Options{Model: " model "}).Merged(); err == nil {
+	if _, err := (image.Options{Model: " model "}).Merged(); err == nil {
 		t.Fatal("Merged accepted invalid base options")
 	}
 }
@@ -118,18 +118,14 @@ func TestResponseValidation(t *testing.T) {
 }
 
 func TestOptionsMergeAndCopies(t *testing.T) {
-	if clone := (*image.Options)(nil).Clone(); clone != nil {
-		t.Fatalf("nil Clone = %#v", clone)
-	}
-
 	width, height, seed := int64(512), int64(768), int64(7)
-	base := &image.Options{Model: "base", Width: &width, Extra: mustMetadata(t, map[string]any{"base": true})}
-	override := &image.Options{
+	base := image.Options{Model: "base", Width: &width, Extensions: mustMetadata(t, map[string]any{"provider/base": true})}
+	override := image.Options{
 		Model: "override", NegativePrompt: "text", Width: &width, Height: &height,
 		Seed: &seed, OutputFormat: "IMAGE/PNG",
-		Extra: mustMetadata(t, map[string]any{"override": true}),
+		Extensions: mustMetadata(t, map[string]any{"provider/override": true}),
 	}
-	merged, err := base.Merged(nil, override)
+	merged, err := base.Merged(override)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,8 +133,8 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 		merged.Seed == nil || merged.OutputFormat != "image/png" {
 		t.Fatalf("Merged = %#v", merged)
 	}
-	if len(merged.Extra) != 2 {
-		t.Fatalf("merged Extra = %#v", merged.Extra)
+	if len(merged.Extensions) != 2 {
+		t.Fatalf("merged Extensions = %#v", merged.Extensions)
 	}
 	*merged.Height = 1024
 	*merged.Seed = 9
@@ -147,10 +143,10 @@ func TestOptionsMergeAndCopies(t *testing.T) {
 	}
 	clone := merged.Clone()
 	*clone.Width = 1024
-	if err := clone.Extra.Set("base", false); err != nil {
+	if err := clone.Extensions.Set("provider/base", false); err != nil {
 		t.Fatal(err)
 	}
-	if *merged.Width != 512 || !mustDecode[bool](t, merged.Extra, "base") {
+	if *merged.Width != 512 || !mustDecode[bool](t, merged.Extensions, "provider/base") {
 		t.Fatal("Options.Clone aliases source state")
 	}
 }

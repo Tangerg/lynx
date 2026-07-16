@@ -13,7 +13,7 @@ import (
 
 type AudioTranscriptionModelConfig struct {
 	APIKey         string
-	DefaultOptions *transcription.Options
+	DefaultOptions transcription.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 	PollInterval   time.Duration
@@ -24,8 +24,11 @@ func (c AudioTranscriptionModelConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("revai: APIKey is required")
 	}
-	if c.DefaultOptions == nil {
-		return errors.New("revai: DefaultOptions is required")
+	if c.DefaultOptions.Model == "" {
+		return errors.New("revai: DefaultOptions.Model is required")
+	}
+	if _, err := c.DefaultOptions.Merged(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -38,10 +41,10 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 //
 // Diarization, custom vocabularies, profanity filtering, language
 // hints and transcriber selection (machine vs human) all live on the
-// Extra-threaded [JobOptions].
+// extension-threaded [JobOptions].
 type AudioTranscriptionModel struct {
 	api            *API
-	defaultOptions *transcription.Options
+	defaultOptions transcription.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
 }
@@ -62,7 +65,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 	if pt <= 0 {
 		pt = DefaultPollTimeout
 	}
-	return &AudioTranscriptionModel{api: api, defaultOptions: cfg.DefaultOptions, pollInterval: pi, pollTimeout: pt}, nil
+	return &AudioTranscriptionModel{api: api, defaultOptions: cfg.DefaultOptions.Clone(), pollInterval: pi, pollTimeout: pt}, nil
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
@@ -73,7 +76,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	jobOpts, err := options.GetParams[JobOptions](mergedOpts.Extra, OptionsKey)
+	jobOpts, err := options.GetParams[JobOptions](mergedOpts.Extensions, OptionsKey)
 	if err != nil {
 		return nil, err
 	}

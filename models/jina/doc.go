@@ -7,7 +7,7 @@
 // ("retrieval.query" / "retrieval.passage" / "text-matching" /
 // "classification" / "separation"), late chunking, embedding_type
 // (float / int8 / uint8 / binary / ubinary quantization),
-// normalization — are reached via the Extra-threaded SDK params,
+// normalization — are reached via the extension-threaded SDK params,
 // see [getOptionsParams] and the [EmbeddingRequest] struct.
 //
 // Jina's /embeddings dialect partially overlaps OpenAI's but uses
