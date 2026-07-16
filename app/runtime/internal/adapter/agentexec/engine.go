@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
@@ -51,6 +52,9 @@ type Engine struct {
 	skillsGlobalDir string     // captured from Config.SkillsGlobalDir for workspace.listSkills
 	pricing         accounting.Pricing
 	defaultProvider string // default provider id; pricing fallback for a default/subtask turn
+
+	modelStreamIdleTimeout time.Duration
+	guardrailsBuilder      chatGuardrailsBuilder
 
 	// Maintenance ports (turn-boundary autonomous ops) — injected by the
 	// composition root; nil when not wired (every use is nil-guarded).
@@ -103,25 +107,27 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 	// capture *Engine (and therefore reach e.SystemPrompt) instead
 	// of dragging a memory store through the constructor.
 	engine := &Engine{
-		turnStarter:           agentRuntime,
-		turnRestorer:          agentRuntime,
-		turnControl:           agentRuntime,
-		dependencies:          agentRuntime.Dependencies(),
-		steering:              config.Steering,
-		compactor:             config.Compactor,
-		extractor:             config.Extractor,
-		knowledge:             config.Knowledge,
-		historyStore:          config.HistoryStore,
-		todos:                 config.Todos,
-		workdir:               config.Workdir,
-		skillsGlobalDir:       config.SkillsGlobalDir,
-		pricing:               config.Pricing,
-		defaultProvider:       config.Provider,
-		mcpStatusReader:       config.MCPStatusReader,
-		mcpToolCatalog:        config.MCPToolCatalog,
-		mcpConnectionCommands: config.MCPConnectionCommands,
-		mcpRegistryCommands:   config.MCPRegistryCommands,
-		closers:               slices.Clone(config.Closers),
+		turnStarter:            agentRuntime,
+		turnRestorer:           agentRuntime,
+		turnControl:            agentRuntime,
+		dependencies:           agentRuntime.Dependencies(),
+		steering:               config.Steering,
+		compactor:              config.Compactor,
+		extractor:              config.Extractor,
+		knowledge:              config.Knowledge,
+		historyStore:           config.HistoryStore,
+		todos:                  config.Todos,
+		workdir:                config.Workdir,
+		skillsGlobalDir:        config.SkillsGlobalDir,
+		pricing:                config.Pricing,
+		defaultProvider:        config.Provider,
+		modelStreamIdleTimeout: llmIdleTimeout,
+		guardrailsBuilder:      newChatGuardrailsWithBeforeRound,
+		mcpStatusReader:        config.MCPStatusReader,
+		mcpToolCatalog:         config.MCPToolCatalog,
+		mcpConnectionCommands:  config.MCPConnectionCommands,
+		mcpRegistryCommands:    config.MCPRegistryCommands,
+		closers:                slices.Clone(config.Closers),
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares

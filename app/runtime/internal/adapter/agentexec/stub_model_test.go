@@ -2,11 +2,16 @@ package agentexec
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"strings"
 	"sync"
 
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/toolloop"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // delegatingStubModel exercises the `task` delegation tool. A turn whose
@@ -392,4 +397,149 @@ func responseWithToolCallAndUsage(name, args string, usage chat.Usage) (*chat.Re
 		response.Usage = usage
 	}
 	return response, err
+}
+
+// choiceOrderStubModel deliberately streams choice index 1 before index 0.
+// ResponseAccumulator preserves first-seen choice order, so the managed
+// interaction's tagged final text is "authoritative" while a runtime-side
+// concatenation of per-chunk first choices would incorrectly produce
+// "authoritativesecondary".
+type choiceOrderStubModel struct{ defaults *chat.Options }
+
+func newChoiceOrderStubModel() *choiceOrderStubModel {
+	return &choiceOrderStubModel{defaults: &chat.Options{Model: "stub-choice-order"}}
+}
+
+func (m *choiceOrderStubModel) DefaultOptions() chat.Options { return *m.defaults }
+
+func (m *choiceOrderStubModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
+	message := chat.NewAssistantMessage(chat.NewTextPart("authoritative"))
+	return chat.NewResponse(chat.Choice{Index: 1, Message: &message, FinishReason: chat.FinishReasonStop})
+}
+
+func (m *choiceOrderStubModel) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+	return func(yield func(*chat.Response, error) bool) {
+		firstMessage := chat.NewAssistantMessage(chat.NewTextPart("authoritative"))
+		first, firstErr := chat.NewResponse(chat.Choice{Index: 1, Message: &firstMessage, FinishReason: chat.FinishReasonStop})
+		if !yield(first, firstErr) {
+			return
+		}
+		secondMessage := chat.NewAssistantMessage(chat.NewTextPart("secondary"))
+		second, secondErr := chat.NewResponse(chat.Choice{Index: 0, Message: &secondMessage, FinishReason: chat.FinishReasonStop})
+		yield(second, secondErr)
+	}
+}
+
+type directReturnStubModel struct {
+	defaults *chat.Options
+	mu       sync.Mutex
+	calls    int
+}
+
+func newDirectReturnStubModel() *directReturnStubModel {
+	return &directReturnStubModel{defaults: &chat.Options{Model: "stub-direct-return"}}
+}
+
+func (m *directReturnStubModel) DefaultOptions() chat.Options { return *m.defaults }
+
+func (m *directReturnStubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	if hasToolMessage(request.Messages) {
+		return nil, errors.New("direct-return model received an unexpected continuation")
+	}
+	return responseWithToolCall("finish", `{}`)
+}
+
+func (m *directReturnStubModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	response, err := m.Call(ctx, request)
+	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
+}
+
+func (m *directReturnStubModel) Calls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+type fixedToolResolver struct {
+	tool tools.Tool
+}
+
+func (*fixedToolResolver) Name() string { return "agentexec-test-tools" }
+
+func (*fixedToolResolver) UseTaskTool(tools.Tool) {}
+
+func (r *fixedToolResolver) Resolve(_ context.Context, requirement core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
+	switch requirement.Role {
+	case toolport.ToolRoleCoding, toolport.ToolRoleSubtask:
+		info := core.ToolGroupInfo{Role: requirement.Role}
+		return core.NewLazyToolGroup(info, func(context.Context) ([]tools.Tool, error) {
+			return []tools.Tool{r.tool}, nil
+		}), true, nil
+	default:
+		return nil, false, nil
+	}
+}
+
+func newDirectResultTool() (tools.Tool, error) {
+	tool, err := tools.New[struct{}, string](tools.Config{
+		Name:        "finish",
+		Description: "Return a final result directly.",
+	}, func(context.Context, struct{}) (string, error) {
+		return "direct result", nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toolloop.Direct(tool), nil
+}
+
+// partialStopStubModel emits visible text together with a tool call. A budget
+// or step stop before the continuation model request must preserve this text,
+// while a normal final must still come from the tagged final response.
+type partialStopStubModel struct {
+	defaults *chat.Options
+	mu       sync.Mutex
+	calls    int
+}
+
+func newPartialStopStubModel() *partialStopStubModel {
+	return &partialStopStubModel{defaults: &chat.Options{Model: "stub-partial-stop"}}
+}
+
+func (m *partialStopStubModel) DefaultOptions() chat.Options { return *m.defaults }
+
+func (m *partialStopStubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	if hasToolMessage(request.Messages) {
+		return responseWithText("unexpected continuation")
+	}
+	message := chat.NewAssistantMessage(
+		chat.NewTextPart("partial answer"),
+		chat.NewToolCallPart(chat.ToolCall{ID: "call_1", Name: "shell", Arguments: `{"command":"echo partial"}`}),
+	)
+	response, err := chat.NewResponse(chat.Choice{
+		Index:        0,
+		Message:      &message,
+		FinishReason: chat.FinishReasonToolCalls,
+	})
+	if response != nil {
+		response.Usage = chat.Usage{InputTokens: 10, OutputTokens: 5}
+	}
+	return response, err
+}
+
+func (m *partialStopStubModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	response, err := m.Call(ctx, request)
+	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
+}
+
+func (m *partialStopStubModel) Calls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
 }

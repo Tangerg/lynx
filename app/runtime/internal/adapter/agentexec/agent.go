@@ -43,7 +43,7 @@ type turnInput struct {
 	// may spend across its tool-loop rounds. 0 means unlimited. When
 	// exceeded the action stops cleanly after the current round —
 	// before paying for the next LLM call — and reports the partial
-	// reply with [TurnOutput.StoppedOnBudget] set.
+	// reply with [TurnOutput.StopReason] set to [StopReasonBudget].
 	MaxBudget int64
 
 	// MaxCostUSD caps the turn's dollar cost the same way MaxBudget caps
@@ -55,12 +55,35 @@ type turnInput struct {
 	// MaxSteps caps the number of tool-call rounds (model turns) the turn may
 	// run. 0 means unlimited (bounded only by the tool loop's own iteration
 	// cap). When reached the action stops cleanly after the round — before the
-	// next LLM call — with [TurnOutput.StoppedOnSteps] set.
+	// next LLM call — with [TurnOutput.StopReason] set to [StopReasonSteps].
 	MaxSteps int
 
 	// Options carries per-run generation tuning. It deliberately does not carry
 	// model selection; Provider / per-run ChatClient own that boundary.
 	Options *chat.Options
+}
+
+// StopReason identifies why an otherwise successful turn stopped before or at
+// its final interaction boundary.
+type StopReason string
+
+const (
+	// StopReasonNone means the interaction reached a tagged final event.
+	StopReasonNone StopReason = ""
+	// StopReasonBudget means token or cost limits stopped continuation.
+	StopReasonBudget StopReason = "budget"
+	// StopReasonSteps means the tool-call-round limit stopped continuation.
+	StopReasonSteps StopReason = "steps"
+)
+
+// Valid reports whether r is a supported turn stop reason.
+func (r StopReason) Valid() bool {
+	switch r {
+	case StopReasonNone, StopReasonBudget, StopReasonSteps:
+		return true
+	default:
+		return false
+	}
 }
 
 // TurnOutput is the typed output of one turn. Reply is the assistant's
@@ -83,15 +106,11 @@ type TurnOutput struct {
 	// don't return a dollar figure on the chat path); see [Config.Pricing].
 	CostUSD float64
 
-	// StoppedOnBudget is true when the turn ended because it hit
-	// [turnInput.MaxBudget] rather than the model finishing. Reply
-	// holds whatever text accumulated up to the stop.
-	StoppedOnBudget bool
-
-	// StoppedOnSteps is true when the turn ended because it hit
-	// [turnInput.MaxSteps] (the tool-call-round cap) rather than the model
-	// finishing. Reply holds whatever text accumulated up to the stop.
-	StoppedOnSteps bool
+	// StopReason is empty on normal completion, "budget" when token or cost
+	// limits stopped continuation, and "steps" when the tool-call-round limit
+	// stopped continuation. Reply holds partial streamed text for the two
+	// artificial-stop cases.
+	StopReason StopReason
 }
 
 // buildTurnAgent constructs the chat agent owned by this Engine.

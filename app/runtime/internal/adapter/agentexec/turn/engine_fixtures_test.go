@@ -112,7 +112,7 @@ type stubEngine struct {
 	runTurnCalls     atomic.Int32
 	restoreCalls     atomic.Int32
 	runReply         string
-	stopOnBudget     bool
+	stopReason       agentexec.StopReason
 	restoreResumeErr error
 
 	mu          sync.Mutex
@@ -142,8 +142,8 @@ func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnReques
 		request.Observer.OnMessageDelta(s.runReply)
 	}
 	process := newStubTurnProcess("stub-processess-"+request.SessionID, agentexec.TurnOutput{
-		Reply:           s.runReply,
-		StoppedOnBudget: s.stopOnBudget,
+		Reply:      s.runReply,
+		StopReason: s.stopReason,
 	})
 	s.lastProcess.Store(process)
 	return process, nil

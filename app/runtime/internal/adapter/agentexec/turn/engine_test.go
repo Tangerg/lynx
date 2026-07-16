@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -88,11 +89,11 @@ func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 }
 
 // TestStubEngineBudgetStop — a turn whose process reports
-// StoppedOnBudget ends with Reason=execution.OutcomeMaxBudget, not a plain
+// StopReasonBudget ends with Reason=execution.OutcomeMaxBudget, not a plain
 // completion, so clients can tell "stopped at the ceiling" apart from
 // "model finished".
 func TestStubEngineBudgetStop(t *testing.T) {
-	stub := &stubEngine{runReply: "partial answer", stopOnBudget: true}
+	stub := &stubEngine{runReply: "partial answer", stopReason: agentexec.StopReasonBudget}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 
 	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
@@ -116,6 +117,41 @@ func TestStubEngineBudgetStop(t *testing.T) {
 		}
 	}
 	t.Fatal("no TurnEnd within 2s")
+}
+
+func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
+	stub := &stubEngine{
+		runReply:   "invalid",
+		stopReason: agentexec.StopReason("budget+steps"),
+	}
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+
+	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+		SessionID: "s",
+		Message:   "go",
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	events, err := dispatcher.Events(ctx, handle)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+
+	var sawError, sawEnd bool
+	for event := range events {
+		switch value := event.(type) {
+		case turn.ErrorEvent:
+			sawError = value.Code == "ENGINE_ERROR" && strings.Contains(value.Message, "invalid turn stop reason")
+		case turn.TurnEnd:
+			sawEnd = value.Reason == execution.OutcomeError
+		}
+	}
+	if !sawError || !sawEnd {
+		t.Fatalf("invalid stop reason events: error=%v end=%v, want ENGINE_ERROR then error TurnEnd", sawError, sawEnd)
+	}
 }
 
 // TestStubEngineCancelsCleanly — confirms Cancel propagates to the

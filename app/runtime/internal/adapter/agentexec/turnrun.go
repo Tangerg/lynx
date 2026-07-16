@@ -130,7 +130,11 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	request = request.snapshot()
 	input := turnInput{Message: request.Message, Provider: request.Provider, Media: request.Media, Cwd: request.Cwd, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
 
-	processOptions := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, e.steeringGuardrails(request.Steer))
+	guardrails, err := e.steeringGuardrails(request.Steer)
+	if err != nil {
+		return nil, fmt.Errorf("engine: build steering guardrails: %w", err)
+	}
+	processOptions := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, guardrails)
 	process, done := e.turnStarter.Start(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: input},
 		processOptions,
@@ -179,21 +183,24 @@ func turnProcessOptions(dependencies *core.Dependencies, sessionID string, obser
 	return options
 }
 
-func (e *Engine) steeringGuardrails(steer SteerSource) *core.ChatGuardrails {
+func (e *Engine) steeringGuardrails(steer SteerSource) (*core.ChatGuardrails, error) {
 	if steer == nil {
-		return nil
+		return nil, nil
+	}
+	if e.guardrailsBuilder == nil {
+		return nil, errors.New("engine: steering guardrails builder is nil")
 	}
 
-	guardrails, err := newChatGuardrailsWithBeforeRound(
+	guardrails, err := e.guardrailsBuilder(
 		e.historyStore,
 		func(_ context.Context) []chat.Message {
 			return steer()
 		},
 	)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return guardrails
+	return guardrails, nil
 }
 
 // perRunChatClient is a [core.ChatProvider] carrying one resolved

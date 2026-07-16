@@ -39,8 +39,8 @@ func tokenUsageOf(call core.ModelCall) accounting.TokenUsage {
 // invocation ledger: the total roll-up plus a per-model breakdown
 // (insertion order preserved). Reading from the ledger — rather than a
 // local tally — is the point: lyra uses the framework's accounting.
-func turnOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) TurnOutput {
-	output := TurnOutput{Reply: reply, StoppedOnBudget: stoppedOnBudget}
+func turnOutput(pc *core.ProcessContext, reply string, stopReason StopReason) TurnOutput {
+	output := TurnOutput{Reply: reply, StopReason: stopReason}
 	byModel := map[string]*accounting.ModelUsage{}
 	var order []string
 	for _, call := range pc.Process().ModelCalls() {
