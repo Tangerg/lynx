@@ -175,7 +175,7 @@ func (e *Engine) Continue(ctx context.Context, id string) error {
 	if !ok {
 		return processNotFoundError("continue process", id)
 	}
-	if err := ensureProcessContinuable(process); err != nil {
+	if err := process.ensureContinuable(); err != nil {
 		return err
 	}
 	return process.run(normalizeContext(ctx))
@@ -194,7 +194,7 @@ func (e *Engine) ContinueAsync(ctx context.Context, id string) <-chan error {
 		close(done)
 		return done
 	}
-	if err := ensureProcessContinuable(process); err != nil {
+	if err := process.ensureContinuable(); err != nil {
 		done <- err
 		close(done)
 		return done
@@ -206,13 +206,13 @@ func (e *Engine) ContinueAsync(ctx context.Context, id string) <-chan error {
 	return done
 }
 
-func ensureProcessContinuable(process *Process) error {
-	if process == nil || process.Status() != core.StatusWaiting {
+func (p *Process) ensureContinuable() error {
+	if p.Status() != core.StatusWaiting {
 		return nil
 	}
-	suspension := process.Suspension()
+	suspension := p.Suspension()
 	if suspension == nil || !suspension.Responded() {
-		return fmt.Errorf("%w: process %q is still waiting for a suspension response", interaction.ErrSuspensionStale, process.ID())
+		return fmt.Errorf("%w: process %q is still waiting for a suspension response", interaction.ErrSuspensionStale, p.ID())
 	}
 	return nil
 }

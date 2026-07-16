@@ -49,13 +49,13 @@ type ActionMetadata struct {
 	ClearWorkingState bool // On success, clear working state before binding output.
 }
 
-func cloneActionMetadata(metadata ActionMetadata) ActionMetadata {
-	metadata.Inputs = slices.Clone(metadata.Inputs)
-	metadata.Outputs = slices.Clone(metadata.Outputs)
-	metadata.Preconditions = maps.Clone(metadata.Preconditions)
-	metadata.Effects = maps.Clone(metadata.Effects)
-	metadata.ToolGroups = cloneToolGroupRequirements(metadata.ToolGroups)
-	return metadata
+func (m ActionMetadata) clone() ActionMetadata {
+	m.Inputs = slices.Clone(m.Inputs)
+	m.Outputs = slices.Clone(m.Outputs)
+	m.Preconditions = maps.Clone(m.Preconditions)
+	m.Effects = maps.Clone(m.Effects)
+	m.ToolGroups = cloneToolGroupRequirements(m.ToolGroups)
+	return m
 }
 
 func cloneToolGroupRequirements(requirements []ToolGroupRequirement) []ToolGroupRequirement {
@@ -95,6 +95,19 @@ func (m ActionMetadata) Applicable(state map[string]Truth) bool {
 		}
 	}
 	return true
+}
+
+func (m ActionMetadata) validate() error {
+	var problems []error
+	if err := m.Retry.validate(); err != nil {
+		problems = append(problems, fmt.Errorf("retry policy: %w", err))
+	}
+	for index, requirement := range m.ToolGroups {
+		if err := requirement.Validate(); err != nil {
+			problems = append(problems, fmt.Errorf("tool group %d (%q): %w", index, requirement.Role, err))
+		}
+	}
+	return errors.Join(problems...)
 }
 
 // RetrySafety states why replaying an action after failure is safe. It is a

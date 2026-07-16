@@ -175,8 +175,8 @@ Agent 可通过以下 helper 暴露为工具：
 - `runtime.NewAgentTool[In, Out]`：父 Process 内同步调用一个子 Agent；
 - `runtime.NewStandaloneAgentTool[In, Out]`：无父 Process 的独立工具调用；
 - `runtime.NewAgentTaskTools[In, Out]`：后台 start/result 工具对；
-- `runtime.GoalToolsFor`：指定已部署 Agent 的 Goal 工具；
-- `runtime.GoalTools` / `StandaloneGoalTools`：按 GoalTool 元数据批量生成。
+- `engine.GoalToolsFor(...)`：指定已部署 Agent 的 Goal 工具；
+- `engine.GoalTools()` / `engine.StandaloneGoalTools()`：按 GoalTool 元数据批量生成。
 
 ## 6. HITL 与统一 Suspension
 

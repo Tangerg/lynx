@@ -28,10 +28,13 @@ func (tv TaggedValue) Validate() error {
 
 // EncodeBlackboard converts durable values into their strict tagged wire form.
 // Every non-builtin concrete type must be declared by an action input/output
-// on agent. Callers should store undeclared runtime objects through the
+// on this Agent. Callers should store undeclared runtime objects through the
 // Blackboard transient API instead.
-func EncodeBlackboard(agent *Agent, named map[string]any, objects []any) (map[string]TaggedValue, []TaggedValue, error) {
-	table := snapshotTypeTableWithBuiltins(agent)
+func (a *Agent) EncodeBlackboard(named map[string]any, objects []any) (map[string]TaggedValue, []TaggedValue, error) {
+	if a == nil {
+		return nil, nil, errors.New("agent.Agent.EncodeBlackboard: agent is nil")
+	}
+	table := a.durableTypes()
 	var taggedNamed map[string]TaggedValue
 	if len(named) > 0 {
 		taggedNamed = make(map[string]TaggedValue, len(named))
@@ -74,8 +77,11 @@ func tagSnapshotValue(value any, table map[string]reflect.Type) (TaggedValue, er
 
 // DecodeBlackboard reconstructs strict durable values. Unknown tags and decode
 // failures are errors; restore never silently substitutes map[string]any.
-func DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue, agent *Agent) (map[string]any, []any, error) {
-	table := snapshotTypeTableWithBuiltins(agent)
+func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (map[string]any, []any, error) {
+	if a == nil {
+		return nil, nil, errors.New("agent.Agent.DecodeBlackboard: agent is nil")
+	}
+	table := a.durableTypes()
 	var decodedNamed map[string]any
 	if len(named) > 0 {
 		decodedNamed = make(map[string]any, len(named))
@@ -122,13 +128,10 @@ func decodeSnapshotValue(tagged TaggedValue, table map[string]reflect.Type) (any
 	return pointer.Elem().Interface(), nil
 }
 
-func snapshotTypeTableWithBuiltins(agent *Agent) map[string]reflect.Type {
+// durableTypes maps tagged state names to concrete action I/O and builtin
+// values accepted by this agent's durable blackboard.
+func (a *Agent) durableTypes() map[string]reflect.Type {
 	table := map[string]reflect.Type{}
-	if agent != nil {
-		for name, value := range agent.snapshotTypeTable() {
-			table[name] = value
-		}
-	}
 	for _, value := range []reflect.Type{
 		reflect.TypeFor[bool](),
 		reflect.TypeFor[string](),
@@ -138,23 +141,16 @@ func snapshotTypeTableWithBuiltins(agent *Agent) map[string]reflect.Type {
 	} {
 		table[typeFullName(value)] = value
 	}
-	return table
-}
-
-// snapshotTypeTable maps type name to concrete action I/O types.
-func (a *Agent) snapshotTypeTable() map[string]reflect.Type {
-	table := map[string]reflect.Type{}
-	if a == nil {
-		return table
-	}
 	for _, action := range a.Actions() {
 		if action == nil {
 			continue
 		}
 		metadata := action.Metadata()
-		for _, binding := range append(metadata.Inputs, metadata.Outputs...) {
-			if binding.goType != nil {
-				table[binding.Type] = binding.goType
+		for _, bindings := range [][]Binding{metadata.Inputs, metadata.Outputs} {
+			for _, binding := range bindings {
+				if binding.goType != nil {
+					table[binding.Type] = binding.goType
+				}
 			}
 		}
 	}

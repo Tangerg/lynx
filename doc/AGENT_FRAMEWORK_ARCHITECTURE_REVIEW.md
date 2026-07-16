@@ -21,7 +21,7 @@
 | 项目 | 当前值 |
 |---|---:|
 | 公开 package | 16 |
-| exported API declaration | 626 |
+| exported API declaration | 628 |
 | 根 façade | 46 / 50 |
 | 受管 exported JSON struct | 14 |
 | wire fixture | 456 行 |
@@ -59,12 +59,12 @@ host application and adapters
 
 | 对象 | 所有者 | 不变量 |
 |---|---|---|
-| `core.Agent` | definition author / Engine | 构造后只读；集合返回防御性副本 |
+| `core.Agent` | definition author / Engine | 构造后只读；集合返回防御性副本；拥有 durable blackboard type codec |
 | `core.Goal` | Agent / planner | 只读目标值；拥有满足判断与工具元数据 |
-| `planning.Domain` | runtime / planner | 不可变 capability universe |
+| `planning.Domain` | runtime / planner | 不可变 capability universe；拥有 plans、best-plan 与 prune 派生行为 |
 | `planning.Plan` | planner | 不可变 Action 序列与 Goal |
 | `runtime.Deployment` | Engine catalog | 编译后不可变；具有精确 `DeploymentRef` |
-| `runtime.Process` | Engine | 永久绑定一个 Deployment；单 active execution owner |
+| `runtime.Process` | Engine | 永久绑定一个 Deployment；单 active execution owner；拥有 continuation 状态判断 |
 | `core.ProcessContext` | runtime | 只向当前 Action 暴露必要的写、交互和控制能力 |
 | `interaction.Suspension` | Process | JSON-safe、可验证、不保存闭包 |
 | `toolloop.Checkpoint` | interaction | 只保存可恢复的模型/工具轮次协议状态 |
@@ -95,6 +95,8 @@ host application and adapters
 ### 5.4 用所属包消除命名重复
 
 优先 `runtime.Engine`、`planning.Domain`、`utility.GoalFirst`、`routing.ModelConfig`、`workflow.ScatterGather`，避免 `Platform`、`PlanningSystem`、`GoalFirstPlanner`、`ModelRankerConfig` 一类上下文已经表达过的重复命名。短接收者如 `e`、`p`、`r` 属于 Go 惯例；跨多行承担业务含义的局部值使用 `engine`、`process`、`deployment`、`request` 等完整名称。
+
+当行为只有一个明确 owner 时，调用点直接从对象出发：`agent.EncodeBlackboard`、`domain.BestPlan`、`engine.GoalToolsFor`、`requirement.Allows`。构造器、跨类型组装、wire decode、按多种类型实例化的泛型算法继续保留自由函数；receiver 数量不是目标，行为归属才是目标。
 
 ## 6. 执行、交互与恢复
 
@@ -137,9 +139,9 @@ Blackboard 普通值默认 durable，函数、channel、client 和 runtime handl
 - 不保留 alias、deprecated wrapper、builder shim 或 dual path；
 - 不恢复旧名称来降低迁移成本；
 - API / wire baseline 是审查工具，不代表已经发布稳定承诺；
-- 未创建 commit、tag、push 或 release。
+- 已形成可回退的开发提交；未创建 tag、push 或 release。
 
-本轮 Agent 全量 build、vet、test、race、lint、tidy、API/wire/architecture gate，以及 App 全量常规门禁和高风险 race 均已通过。正式发布仍需在内部依赖改为精确 tag 后，以 `GOWORK=off` 重跑发布门禁，并由维护者单独授权发布动作。
+当前 receiver 精修基线的 Agent 全量 build、vet、test、race、lint、tidy、API/wire/architecture gate，以及 App 全量常规门禁和高风险 race 均已通过。正式发布仍需在内部依赖改为精确 tag 后，以 `GOWORK=off` 重跑发布门禁，并由维护者单独授权发布动作。
 
 ## 10. 维护规则
 

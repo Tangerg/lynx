@@ -17,8 +17,7 @@ type Options struct {
 
 // Planner is a pure strategy: given a goal, return the action
 // sequence whose effects satisfy it (or nil when unreachable).
-// PlanGoals + BestPlan are derived templates exposed as
-// package-level functions, not interface methods, so each planner
+// [Domain.Plans] and [Domain.BestPlan] are derived templates, so each planner
 // implementation only writes the algorithm-specific part.
 //
 // Planner is also an engine [core.Extension]: register one (or
@@ -40,38 +39,40 @@ type Planner interface {
 	) (*Plan, error)
 }
 
-// ValidatePlanInputs validates the inputs every PlanToGoal
-// implementation needs. Lift the boilerplate so each strategy
-// doesn't paste its own version.
-func ValidatePlanInputs(state core.WorldState, domain *Domain, goal *core.Goal) error {
+// ValidatePlanInputs checks the inputs every PlanToGoal implementation needs.
+func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal) error {
 	switch {
+	case d == nil:
+		return errors.New("planning.Domain.ValidatePlanInputs: domain is nil")
 	case state == nil:
-		return errors.New("plan: world state is nil")
-	case domain == nil:
-		return errors.New("plan: planning domain is nil")
+		return errors.New("planning.Domain.ValidatePlanInputs: world state is nil")
 	case goal == nil:
-		return errors.New("plan: goal is nil")
+		return errors.New("planning.Domain.ValidatePlanInputs: goal is nil")
 	}
 	return nil
 }
 
-// PlanGoals enumerates plans for every goal in domain, sorted by
-// NetValue descending. Goals returning (nil, nil) from PlanToGoal
+// Plans enumerates one plan for every reachable goal, sorted by NetValue
+// descending. Goals returning (nil, nil) from PlanToGoal
 // are dropped silently; any error short-circuits.
-func PlanGoals(
+func (d *Domain) Plans(
 	ctx context.Context,
 	planner Planner,
 	state core.WorldState,
-	domain *Domain,
 	options Options,
 ) ([]*Plan, error) {
-	if domain == nil {
-		return nil, errors.New("plans to goals: planning domain is nil")
+	switch {
+	case d == nil:
+		return nil, errors.New("planning.Domain.Plans: domain is nil")
+	case planner == nil:
+		return nil, errors.New("planning.Domain.Plans: planner is nil")
+	case state == nil:
+		return nil, errors.New("planning.Domain.Plans: world state is nil")
 	}
-	goals := domain.Goals()
+	goals := d.Goals()
 	plans := make([]*Plan, 0, len(goals))
 	for _, goal := range goals {
-		plan, err := planner.PlanToGoal(ctx, state, domain, goal, options)
+		plan, err := planner.PlanToGoal(ctx, state, d, goal, options)
 		if err != nil {
 			return nil, err
 		}
@@ -84,24 +85,23 @@ func PlanGoals(
 	return plans, nil
 }
 
-// BestPlan is the runtime's tick-time entry: the highest-
-// NetValue plan across all goals, honoring the exclusion list.
+// BestPlan returns the highest-NetValue plan across all goals, honoring the
+// exclusion list.
 // Returns (nil, nil) when no goal is reachable.
-func BestPlan(
+func (d *Domain) BestPlan(
 	ctx context.Context,
 	planner Planner,
 	state core.WorldState,
-	domain *Domain,
 	options Options,
 ) (*Plan, error) {
-	plans, err := PlanGoals(ctx, planner, state, domain, options)
+	plans, err := d.Plans(ctx, planner, state, options)
 	if err != nil || len(plans) == 0 {
 		return nil, err
 	}
 	return plans[0], nil
 }
 
-// Prune returns a copy of domain whose Actions slice is filtered
+// Prune returns a copy of d whose Actions slice is filtered
 // down to actions referenced by at least one plan reachable from
 // state. Goals and Conditions are kept verbatim — the dead-code
 // signal is "this action can never participate in
@@ -117,22 +117,21 @@ func BestPlan(
 //   - Repeated planning over an optimized domain — the planner
 //     stops considering known-dead actions tick after tick.
 //
-// Prune does *not* mutate domain. Returns (nil, error) when the
-// underlying [PlanGoals] call fails; returns (clone-with-empty-
+// Prune does *not* mutate d. Returns (nil, error) when the
+// underlying [Domain.Plans] call fails; returns (clone-with-empty-
 // actions, nil) when no goal is reachable so callers can detect
 // the "every action is dead" case.
-func Prune(
+func (d *Domain) Prune(
 	ctx context.Context,
 	planner Planner,
 	state core.WorldState,
-	domain *Domain,
 	options Options,
 ) (*Domain, error) {
-	if domain == nil {
-		return nil, errors.New("prune: planning domain is nil")
+	if d == nil {
+		return nil, errors.New("planning.Domain.Prune: domain is nil")
 	}
 
-	plans, err := PlanGoals(ctx, planner, state, domain, options)
+	plans, err := d.Plans(ctx, planner, state, options)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +147,7 @@ func Prune(
 	}
 
 	kept := make([]core.Action, 0, len(referenced))
-	for _, action := range domain.Actions() {
+	for _, action := range d.Actions() {
 		if action == nil {
 			continue
 		}
@@ -156,5 +155,5 @@ func Prune(
 			kept = append(kept, action)
 		}
 	}
-	return NewDomain(kept, domain.Goals(), domain.Conditions()), nil
+	return NewDomain(kept, d.Goals(), d.Conditions()), nil
 }

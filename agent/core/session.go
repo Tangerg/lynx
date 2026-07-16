@@ -69,17 +69,17 @@ type SessionInfo struct {
 	UpdatedAt time.Time
 }
 
-func sessionInfo(session *Session) (SessionInfo, bool) {
-	if session == nil {
+func (s *Session) info() (SessionInfo, bool) {
+	if s == nil {
 		return SessionInfo{}, false
 	}
 	return SessionInfo{
-		ID:        session.ID,
-		ParentID:  session.ParentID,
-		UserID:    session.UserID,
-		AgentName: session.AgentName,
-		StartedAt: session.StartedAt,
-		UpdatedAt: session.UpdatedAt,
+		ID:        s.ID,
+		ParentID:  s.ParentID,
+		UserID:    s.UserID,
+		AgentName: s.AgentName,
+		StartedAt: s.StartedAt,
+		UpdatedAt: s.UpdatedAt,
 	}, true
 }
 

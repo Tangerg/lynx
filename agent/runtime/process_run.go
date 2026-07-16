@@ -223,8 +223,8 @@ func (p *Process) formulatePlan(ctx context.Context, worldState core.WorldState)
 		}
 	}
 
-	return planning.BestPlan(
-		ctx, p.planner, worldState, domain,
+	return domain.BestPlan(
+		ctx, p.planner, worldState,
 		planning.Options{ExcludedActions: p.state.snapshotExclusions()},
 	)
 }

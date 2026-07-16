@@ -3,7 +3,9 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/Masterminds/semver/v3"
@@ -41,6 +43,10 @@ func (p ToolGroupPermission) String() string {
 	}
 }
 
+func (p ToolGroupPermission) valid() bool {
+	return p >= ToolGroupHostAccess && p <= ToolGroupInternetAccess
+}
+
 // ToolGroupRef is the (provider, name, version) triple that uniquely
 // identifies a ToolGroup release across distribution channels. Version
 // is a [*semver.Version] so multi-version registries (e.g. several
@@ -61,6 +67,20 @@ type ToolGroupInfo struct {
 	Permissions []ToolGroupPermission
 }
 
+// Validate checks the universal contract every resolved group must satisfy.
+func (i ToolGroupInfo) Validate() error {
+	if strings.TrimSpace(i.Role) == "" {
+		return errors.New("tool group info: role is empty")
+	}
+	if strings.TrimSpace(i.Role) != i.Role {
+		return errors.New("tool group info: role has surrounding whitespace")
+	}
+	if err := validateToolGroupPermissions(i.Permissions); err != nil {
+		return fmt.Errorf("tool group info: %w", err)
+	}
+	return nil
+}
+
 // ToolGroupRequirement is what an agent declares ("I need a
 // search-shaped tool group") without binding to a specific provider.
 // The planner consults the resolver to translate role → concrete
@@ -77,16 +97,38 @@ type ToolGroupRequirement struct {
 	AllowedPermissions []ToolGroupPermission
 }
 
-// AllowsPermissions reports whether allowed contains every required
-// permission. An empty required set is always allowed.
-// Order does not matter.
-func AllowsPermissions(allowed, required []ToolGroupPermission) bool {
+// Validate checks the declaration before an Agent is deployed.
+func (r ToolGroupRequirement) Validate() error {
+	if strings.TrimSpace(r.Role) == "" {
+		return errors.New("tool group requirement: role is empty")
+	}
+	if strings.TrimSpace(r.Role) != r.Role {
+		return errors.New("tool group requirement: role has surrounding whitespace")
+	}
+	if err := validateToolGroupPermissions(r.AllowedPermissions); err != nil {
+		return fmt.Errorf("tool group requirement: %w", err)
+	}
+	return nil
+}
+
+// Allows reports whether the requirement grants every required permission.
+// An empty required set is always allowed. Order does not matter.
+func (r ToolGroupRequirement) Allows(required []ToolGroupPermission) bool {
 	for _, permission := range required {
-		if !slices.Contains(allowed, permission) {
+		if !slices.Contains(r.AllowedPermissions, permission) {
 			return false
 		}
 	}
 	return true
+}
+
+func validateToolGroupPermissions(permissions []ToolGroupPermission) error {
+	for index, permission := range permissions {
+		if !permission.valid() {
+			return fmt.Errorf("unknown permission %d at index %d", permission, index)
+		}
+	}
+	return nil
 }
 
 // ToolGroup is the lazy provider — Tools(ctx) is the entry point that
@@ -165,8 +207,8 @@ func NewLazyToolGroupResolver(
 	if name == "" {
 		return nil, errors.New("core.NewLazyToolGroupResolver: name must not be empty")
 	}
-	if info.Role == "" {
-		return nil, errors.New("core.NewLazyToolGroupResolver: role must not be empty")
+	if err := info.Validate(); err != nil {
+		return nil, fmt.Errorf("core.NewLazyToolGroupResolver: info: %w", err)
 	}
 	if load == nil {
 		return nil, errors.New("core.NewLazyToolGroupResolver: loader must not be nil")

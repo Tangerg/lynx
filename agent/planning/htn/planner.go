@@ -53,7 +53,7 @@ func (p *Planner) PlanToGoal(
 	goal *core.Goal,
 	options planning.Options,
 ) (result *planning.Plan, err error) {
-	if err = planning.ValidatePlanInputs(start, domain, goal); err != nil {
+	if err = domain.ValidatePlanInputs(start, goal); err != nil {
 		return nil, err
 	}
 

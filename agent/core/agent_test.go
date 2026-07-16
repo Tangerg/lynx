@@ -91,6 +91,21 @@ func TestValidateRequiresExplicitRetrySafety(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsInvalidToolGroupRequirement(t *testing.T) {
+	config := core.AgentConfig{
+		Name: "tool-policy",
+		Actions: []core.Action{fakeAction{meta: core.ActionMetadata{
+			Name:       "act",
+			ToolGroups: []core.ToolGroupRequirement{{Role: " research "}},
+		}}},
+		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+	}
+	err := core.NewAgent(config).Validate()
+	if err == nil || !strings.Contains(err.Error(), "role has surrounding whitespace") {
+		t.Fatalf("invalid tool group error = %v", err)
+	}
+}
+
 func TestAgentOwnsConfigurationCollections(t *testing.T) {
 	action := fakeAction{meta: core.ActionMetadata{Name: "act"}}
 	goal := core.NewGoal(core.GoalConfig{Name: "goal"})

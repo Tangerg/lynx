@@ -31,8 +31,8 @@ type GoalConfig struct {
 	// Tool, when non-nil, makes this goal available to runtime tool adapters.
 	// Runtime helpers walk deployed agents and build tools for these goals.
 	// Nil means "internal only; not auto-exposed". The framework's
-	// reader is on the runtime side (`runtime.GoalTools` /
-	// `runtime.StandaloneGoalTools`); leaving Tool non-nil without those
+	// reader is on the runtime side (`runtime.Engine.GoalTools` /
+	// `runtime.Engine.StandaloneGoalTools`); leaving Tool non-nil without those
 	// callers wired is harmless but also means nothing happens — the
 	// field exists to drive user-facing fan-out, not to gate planner
 	// behavior.
@@ -62,15 +62,15 @@ func NewGoal(config GoalConfig) *Goal {
 		value:         config.Value,
 		tags:          slices.Clone(config.Tags),
 		examples:      slices.Clone(config.Examples),
-		tool:          cloneGoalTool(config.Tool),
+		tool:          config.Tool.clone(),
 	}
 }
 
-func cloneGoalTool(source *GoalTool) *GoalTool {
-	if source == nil {
+func (t *GoalTool) clone() *GoalTool {
+	if t == nil {
 		return nil
 	}
-	cloned := *source
+	cloned := *t
 	return &cloned
 }
 
@@ -125,7 +125,7 @@ func (g *Goal) Tool() *GoalTool {
 	if g == nil {
 		return nil
 	}
-	return cloneGoalTool(g.tool)
+	return g.tool.clone()
 }
 
 // Value evaluates the goal value in worldState. An unconfigured value is zero.
@@ -136,8 +136,8 @@ func (g *Goal) Value(worldState WorldState) float64 {
 	return g.value(worldState)
 }
 
-// GoalTool carries the metadata `runtime.GoalTools` and
-// `runtime.StandaloneGoalTools` need to compile a goal into a
+// GoalTool carries the metadata `runtime.Engine.GoalTools` and
+// `runtime.Engine.StandaloneGoalTools` need to compile a goal into a
 // `tools.Tool`. Build via [NewGoalTool] so the input type's
 // schema is captured for the LLM tool definition.
 type GoalTool struct {

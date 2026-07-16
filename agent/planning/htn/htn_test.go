@@ -196,7 +196,7 @@ func TestHTN_BestValuePlanRanksByGoalValue(t *testing.T) {
 	high := core.NewGoal(core.GoalConfig{Name: "high_goal", Preconditions: []string{"y"}, Value: core.FixedScore(10)})
 
 	domain := planning.NewDomain(nil, []*core.Goal{low, high}, nil)
-	pl, _ := planning.BestPlan(t.Context(), mustHTNPlanner(t, lib), planning.NewState(nil), domain, planning.Options{})
+	pl, _ := domain.BestPlan(t.Context(), mustHTNPlanner(t, lib), planning.NewState(nil), planning.Options{})
 	if pl.Goal().Name() != "high_goal" {
 		t.Fatalf("expected high_goal, got %q", pl.Goal().Name())
 	}

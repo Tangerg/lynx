@@ -193,8 +193,8 @@ func (a *Agent) Validate() error {
 			continue
 		}
 		metadata := action.Metadata()
-		if err := metadata.Retry.validate(); err != nil {
-			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: action %q retry policy: %w", a.Name(), metadata.Name, err))
+		if err := metadata.validate(); err != nil {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: action %q: %w", a.Name(), metadata.Name, err))
 		}
 	}
 	problems = append(problems, a.goalReachabilityErrors()...)

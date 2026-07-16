@@ -61,7 +61,9 @@ core: const ProcessSnapshotSchemaVersion uint16 = 1
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
 core: func (a *Agent) Conditions() []Condition
+core: func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (map[string]any, []any, error)
 core: func (a *Agent) Description() string
+core: func (a *Agent) EncodeBlackboard(named map[string]any, objects []any) (map[string]TaggedValue, []TaggedValue, error)
 core: func (a *Agent) Goals() []*Goal
 core: func (a *Agent) Name() string
 core: func (a *Agent) PlannerName() string
@@ -96,6 +98,7 @@ core: func (g *Goal) Tags() []string
 core: func (g *Goal) Tool() *GoalTool
 core: func (g *Goal) Value(worldState WorldState) float64
 core: func (g *UUIDGenerator) Name() string
+core: func (i ToolGroupInfo) Validate() error
 core: func (k DependencyKey[T]) Name() string
 core: func (l *LazyToolGroup) Info() ToolGroupInfo
 core: func (l *LazyToolGroup) Tools(ctx context.Context) ([]tools.Tool, error)
@@ -131,6 +134,8 @@ core: func (r *StaticToolGroupResolver) Resolve(_ context.Context, requirement T
 core: func (r *StaticToolGroupResolver) Set(role string, group ToolGroup)
 core: func (r DeploymentRef) String() string
 core: func (r DeploymentRef) Validate() error
+core: func (r ToolGroupRequirement) Allows(required []ToolGroupPermission) bool
+core: func (r ToolGroupRequirement) Validate() error
 core: func (s *MemoryProcessStore) Delete(_ context.Context, id string) error
 core: func (s *MemoryProcessStore) List(_ context.Context) ([]string, error)
 core: func (s *MemoryProcessStore) Load(_ context.Context, id string) (ProcessSnapshot, error)
@@ -155,12 +160,9 @@ core: func (t Truth) Not() Truth
 core: func (t Truth) Or(other Truth) Truth
 core: func (t Truth) String() string
 core: func (tv TaggedValue) Validate() error
-core: func AllowsPermissions(allowed, required []ToolGroupPermission) bool
 core: func And(left, right Condition) Condition
-core: func DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue, agent *Agent) (map[string]any, []any, error)
 core: func DefaultBudget() Budget
 core: func DefaultRetryPolicy() RetryPolicy
-core: func EncodeBlackboard(agent *Agent, named map[string]any, objects []any) (map[string]TaggedValue, []TaggedValue, error)
 core: func FixedScore(value float64) ScoreFunc
 core: func FormatBlackboard(blackboard BlackboardReader, verbose bool) string
 core: func Get[T any](blackboard BlackboardReader, name string) (T, bool)
@@ -435,9 +437,13 @@ planning/utility: func NewPlanner() *Planner
 planning/utility: type GoalFirst struct{}
 planning/utility: type Planner struct{}
 planning: func (d *Domain) Actions() []core.Action
+planning: func (d *Domain) BestPlan( ctx context.Context, planner Planner, state core.WorldState, options Options, ) (*Plan, error)
 planning: func (d *Domain) Conditions() []core.Condition
 planning: func (d *Domain) Goals() []*core.Goal
 planning: func (d *Domain) KnownConditions() map[string]struct{}
+planning: func (d *Domain) Plans( ctx context.Context, planner Planner, state core.WorldState, options Options, ) ([]*Plan, error)
+planning: func (d *Domain) Prune( ctx context.Context, planner Planner, state core.WorldState, options Options, ) (*Domain, error)
+planning: func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal) error
 planning: func (p *Plan) Actions() []core.Action
 planning: func (p *Plan) ActionsValue(worldState core.WorldState) float64
 planning: func (p *Plan) Complete() bool
@@ -449,15 +455,11 @@ planning: func (s *State) Apply(effects core.ConditionSet) core.WorldState
 planning: func (s *State) Conditions() core.ConditionSet
 planning: func (s *State) Key() string
 planning: func (s *State) Timestamp() time.Time
-planning: func BestPlan( ctx context.Context, planner Planner, state core.WorldState, domain *Domain, options Options, ) (*Plan, error)
 planning: func DomainForAgent(agent *core.Agent) *Domain
 planning: func DomainForAgents(agents []*core.Agent) *Domain
 planning: func NewDomain(actions []core.Action, goals []*core.Goal, conditions []core.Condition) *Domain
 planning: func NewPlan(actions []core.Action, goal *core.Goal) *Plan
 planning: func NewState(conditions core.ConditionSet) *State
-planning: func PlanGoals( ctx context.Context, planner Planner, state core.WorldState, domain *Domain, options Options, ) ([]*Plan, error)
-planning: func Prune( ctx context.Context, planner Planner, state core.WorldState, domain *Domain, options Options, ) (*Domain, error)
-planning: func ValidatePlanInputs(state core.WorldState, domain *Domain, goal *core.Goal) error
 planning: type Domain struct { }
 planning: type Options struct { ExcludedActions map[string]struct{} MaxIterations int }
 planning: type Plan struct { }
@@ -494,6 +496,8 @@ runtime: func (e *Engine) Dependencies() *core.Dependencies
 runtime: func (e *Engine) Deploy(agent *core.Agent) (*Deployment, error)
 runtime: func (e *Engine) Deployment(ref core.DeploymentRef) (*Deployment, bool)
 runtime: func (e *Engine) Deployments() []*Deployment
+runtime: func (e *Engine) GoalTools() ([]tools.Tool, error)
+runtime: func (e *Engine) GoalToolsFor(names ...string) ([]tools.Tool, error)
 runtime: func (e *Engine) Kill(id string) error
 runtime: func (e *Engine) KillChildren(parentID string) []string
 runtime: func (e *Engine) NewBlackboard() core.Blackboard
@@ -515,6 +519,7 @@ runtime: func (e *Engine) RunInSession( ctx context.Context, agent *core.Agent, 
 runtime: func (e *Engine) RunTeam( ctx context.Context, config TeamConfig, bindings map[string]any, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) Save(ctx context.Context, processID string) (uint64, error)
 runtime: func (e *Engine) SessionStore() core.SessionStore
+runtime: func (e *Engine) StandaloneGoalTools() ([]tools.Tool, error)
 runtime: func (e *Engine) Start( ctx context.Context, agent *core.Agent, bindings map[string]any, options core.ProcessOptions, ) (*Process, <-chan error)
 runtime: func (e *Engine) StartChild( ctx context.Context, deployment *Deployment, input any, ) (*Process, <-chan error, error)
 runtime: func (e *Engine) Undeploy(name string) error
@@ -536,15 +541,12 @@ runtime: func (p *Process) Usage() (cost float64, tokens int, actions int)
 runtime: func (p *Process) WorldState() core.WorldState
 runtime: func (p SnapshotFailurePolicy) String() string
 runtime: func (p SnapshotFailurePolicy) Valid() bool
-runtime: func GoalTools(engine *Engine) ([]tools.Tool, error)
-runtime: func GoalToolsFor(engine *Engine, names ...string) ([]tools.Tool, error)
 runtime: func MustNew(config Config) *Engine
 runtime: func New(config Config) (*Engine, error)
 runtime: func NewAgentTaskTools[In, Out any](engine *Engine, agentName string) (start tools.Tool, result tools.Tool, err error)
 runtime: func NewAgentTool[In, Out any](engine *Engine, agentName string) (tools.Tool, error)
 runtime: func NewChatGuardrails(config ChatGuardrailsConfig) (*core.ChatGuardrails, error)
 runtime: func NewStandaloneAgentTool[In, Out any](engine *Engine, agentName string) (tools.Tool, error)
-runtime: func StandaloneGoalTools(engine *Engine) ([]tools.Tool, error)
 runtime: func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error
 runtime: type ActionRun struct { ActionName string StartedAt time.Time Duration time.Duration Status core.ActionStatus Attempts int }
 runtime: type BlackboardRestorer interface { Restore(named map[string]any, conditions map[string]bool, objects []any) error }

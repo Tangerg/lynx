@@ -180,10 +180,24 @@ return engine.Continue(ctx, process.ID())
 - `runtime.NewAgentTool[In, Out]`：父 Process 内同步 child；
 - `runtime.NewStandaloneAgentTool[In, Out]`：独立顶层执行；
 - `runtime.NewAgentTaskTools[In, Out]`：后台 start/result 工具对；
-- `runtime.GoalToolsFor`：指定部署的 Goal tools；
-- `runtime.GoalTools` / `StandaloneGoalTools`：遍历活动部署。
+- `engine.GoalToolsFor(...)`：指定部署的 Goal tools；
+- `engine.GoalTools()` / `engine.StandaloneGoalTools()`：遍历活动部署。
 
 工具在构造时解析并捕获 exact Deployment，不在每次调用时重新按名称选择版本。
+
+本轮进一步把对象作为首参的 API 直接收回 receiver，不保留 wrapper：
+
+| 旧调用 | 当前调用 |
+|---|---|
+| `core.EncodeBlackboard(agent, named, objects)` | `agent.EncodeBlackboard(named, objects)` |
+| `core.DecodeBlackboard(named, objects, agent)` | `agent.DecodeBlackboard(named, objects)` |
+| `planning.PlanGoals(..., domain, ...)` | `domain.Plans(...)` |
+| `planning.BestPlan(..., domain, ...)` | `domain.BestPlan(...)` |
+| `planning.Prune(..., domain, ...)` | `domain.Prune(...)` |
+| `runtime.GoalToolsFor(engine, names...)` | `engine.GoalToolsFor(names...)` |
+| `runtime.GoalTools(engine)` | `engine.GoalTools()` |
+| `runtime.StandaloneGoalTools(engine)` | `engine.StandaloneGoalTools()` |
+| `core.AllowsPermissions(allowed, required)` | `requirement.Allows(required)` |
 
 ## 8. Dependencies
 

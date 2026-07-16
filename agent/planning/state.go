@@ -23,12 +23,13 @@ type State struct {
 // NewState seeds a state from a truth map. The
 // map is copied defensively so subsequent mutations don't ripple in.
 func NewState(conditions core.ConditionSet) *State {
-	cloned := maps.Clone(conditions)
-	return &State{
-		conditions: cloned,
-		timestamp:  time.Now(),
-		key:        stateKey(cloned),
-	}
+	return newState(maps.Clone(conditions))
+}
+
+func newState(conditions core.ConditionSet) *State {
+	state := &State{conditions: conditions, timestamp: time.Now()}
+	state.key = state.deriveKey()
+	return state
 }
 
 // Conditions returns a defensive copy of the underlying map — A* mutates
@@ -60,20 +61,16 @@ func (s *State) Apply(effects core.ConditionSet) core.WorldState {
 		}
 		merged[key] = truth
 	}
-	return &State{
-		conditions: merged,
-		timestamp:  time.Now(),
-		key:        stateKey(merged),
-	}
+	return newState(merged)
 }
 
-// stateKey produces a stable string identifier from a state
+// deriveKey produces a stable string identifier from the state
 // map: sorted "key=det|" pairs, with Unknown entries elided so
 // explicit Unknown and absent entries hash identically.
-func stateKey(state core.ConditionSet) string {
+func (s *State) deriveKey() string {
 	var builder strings.Builder
-	for _, key := range slices.Sorted(maps.Keys(state)) {
-		truth := state[key]
+	for _, key := range slices.Sorted(maps.Keys(s.conditions)) {
+		truth := s.conditions[key]
 		if truth == core.Unknown {
 			continue
 		}
