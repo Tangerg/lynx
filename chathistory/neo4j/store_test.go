@@ -7,7 +7,7 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/Tangerg/lynx/chathistory"
-	neo4jmem "github.com/Tangerg/lynx/chathistory/neo4j"
+	neo4jstore "github.com/Tangerg/lynx/chathistory/neo4j"
 )
 
 // stubDriver is a non-nil but never-used DriverWithContext for tests
@@ -17,8 +17,8 @@ func stubDriver() neo4j.DriverWithContext {
 	return drv
 }
 
-func TestStoreConfig_DriverRequired(t *testing.T) {
-	_, err := neo4jmem.NewStore(neo4jmem.StoreConfig{})
+func TestNewRequiresDriver(t *testing.T) {
+	_, err := neo4jstore.New(neo4jstore.Config{})
 	if err == nil {
 		t.Fatal("expected error when Driver is nil")
 	}
@@ -27,14 +27,8 @@ func TestStoreConfig_DriverRequired(t *testing.T) {
 	}
 }
 
-func TestStoreConfig_NilConfig(t *testing.T) {
-	if _, err := neo4jmem.NewStore(neo4jmem.StoreConfig{}); err == nil {
-		t.Fatal("expected error when config is nil")
-	}
-}
-
-func TestStoreConfig_RejectsBadLabel(t *testing.T) {
-	_, err := neo4jmem.NewStore(neo4jmem.StoreConfig{
+func TestNewRejectsBadLabel(t *testing.T) {
+	_, err := neo4jstore.New(neo4jstore.Config{
 		Driver: stubDriver(),
 		Label:  "Bad-Label",
 	})
@@ -43,13 +37,13 @@ func TestStoreConfig_RejectsBadLabel(t *testing.T) {
 	}
 }
 
-func TestStoreConfig_AcceptsDefaults(t *testing.T) {
-	_, err := neo4jmem.NewStore(neo4jmem.StoreConfig{Driver: stubDriver()})
+func TestNewAcceptsDefaults(t *testing.T) {
+	_, err := neo4jstore.New(neo4jstore.Config{Driver: stubDriver()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestStore_ImplementsHistoryStore(t *testing.T) {
-	var _ chathistory.Store = (*neo4jmem.Store)(nil)
+func TestStoreImplementsHistoryStore(t *testing.T) {
+	var _ chathistory.Store = (*neo4jstore.Store)(nil)
 }

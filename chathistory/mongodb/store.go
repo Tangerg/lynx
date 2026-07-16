@@ -16,8 +16,6 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const Provider = "MongoDBChatHistory"
-
 const (
 	fieldID             = "_id"
 	fieldConversationID = "conversation_id"
@@ -25,9 +23,8 @@ const (
 	fieldCreatedAt      = "created_at"
 )
 
-// StoreConfig configures [NewStore]. Only [StoreConfig.Collection] is
-// required.
-type StoreConfig struct {
+// Config configures [New]. Only [Config.Collection] is required.
+type Config struct {
 	// Context is used for the schema bootstrap (index creation) when
 	// InitializeSchema is true. Optional: defaults to
 	// context.Background().
@@ -42,36 +39,23 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
-	if c.Collection == nil {
-		return errors.New("mongodb: Collection is required")
-	}
-	return nil
-}
-
-// ApplyDefaults fills zero fields. Context defaults to
-// [context.Background].
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
-}
-
 var (
 	_ chathistory.Store  = (*Store)(nil)
 	_ chathistory.Lister = (*Store)(nil)
 )
 
-// Store is a MongoDB-backed [chathistory.Store]. Construct via [NewStore].
+// Store is a MongoDB-backed [chathistory.Store]. Construct via [New].
 type Store struct {
 	collection *mongo.Collection
 }
 
-// NewStore builds a [Store] from cfg.
-func NewStore(cfg StoreConfig) (*Store, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+// New builds a [Store] from cfg.
+func New(cfg Config) (*Store, error) {
+	if cfg.Collection == nil {
+		return nil, errors.New("mongodb: Collection is required")
+	}
+	if cfg.Context == nil {
+		cfg.Context = context.Background()
 	}
 	s := &Store{collection: cfg.Collection}
 	if cfg.InitializeSchema {

@@ -14,8 +14,6 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const Provider = "CassandraChatHistory"
-
 const (
 	DefaultKeyspace  = "lynx"
 	DefaultTableName = "chat_history"
@@ -24,9 +22,8 @@ const (
 // identPattern matches valid Cassandra unquoted-identifier shape.
 var identPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// StoreConfig configures [NewStore]. Only [StoreConfig.Session] is
-// required.
-type StoreConfig struct {
+// Config configures [New]. Only [Config.Session] is required.
+type Config struct {
 	// Context is used for the schema bootstrap when InitializeSchema
 	// is true. Optional: defaults to context.Background().
 	Context context.Context
@@ -50,39 +47,12 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
-	if c.Session == nil {
-		return errors.New("cassandra: Session is required")
-	}
-	for name, value := range map[string]string{"Keyspace": c.Keyspace, "TableName": c.TableName} {
-		if !identPattern.MatchString(value) {
-			return fmt.Errorf("cassandra: %s=%q must match %s", name, value, identPattern)
-		}
-	}
-	return nil
-}
-
-// ApplyDefaults fills zero fields. Context defaults to
-// [context.Background]; Keyspace defaults to [DefaultKeyspace];
-// TableName defaults to [DefaultTableName].
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
-	if c.Keyspace == "" {
-		c.Keyspace = DefaultKeyspace
-	}
-	if c.TableName == "" {
-		c.TableName = DefaultTableName
-	}
-}
-
 var (
 	_ chathistory.Store  = (*Store)(nil)
 	_ chathistory.Lister = (*Store)(nil)
 )
 
-// Store is a Cassandra-backed [chathistory.Store]. Construct via [NewStore].
+// Store is a Cassandra-backed [chathistory.Store]. Construct via [New].
 type Store struct {
 	session *gocql.Session
 
@@ -93,11 +63,25 @@ type Store struct {
 	createCQL string
 }
 
-// NewStore builds a [Store] from cfg.
-func NewStore(cfg StoreConfig) (*Store, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+// New builds a [Store] from cfg.
+func New(cfg Config) (*Store, error) {
+	if cfg.Session == nil {
+		return nil, errors.New("cassandra: Session is required")
+	}
+	if cfg.Context == nil {
+		cfg.Context = context.Background()
+	}
+	if cfg.Keyspace == "" {
+		cfg.Keyspace = DefaultKeyspace
+	}
+	if cfg.TableName == "" {
+		cfg.TableName = DefaultTableName
+	}
+	if !identPattern.MatchString(cfg.Keyspace) {
+		return nil, fmt.Errorf("cassandra: Keyspace=%q must match %s", cfg.Keyspace, identPattern)
+	}
+	if !identPattern.MatchString(cfg.TableName) {
+		return nil, fmt.Errorf("cassandra: TableName=%q must match %s", cfg.TableName, identPattern)
 	}
 
 	qualified := cfg.Keyspace + "." + cfg.TableName

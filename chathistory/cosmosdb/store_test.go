@@ -8,8 +8,8 @@ import (
 	"github.com/Tangerg/lynx/chathistory/cosmosdb"
 )
 
-func TestStoreConfig_ContainerRequired(t *testing.T) {
-	_, err := cosmosdb.NewStore(cosmosdb.StoreConfig{})
+func TestNewRequiresContainer(t *testing.T) {
+	_, err := cosmosdb.New(cosmosdb.Config{})
 	if err == nil {
 		t.Fatal("expected error when Container is nil")
 	}
@@ -18,12 +18,6 @@ func TestStoreConfig_ContainerRequired(t *testing.T) {
 	}
 }
 
-func TestStoreConfig_NilConfig(t *testing.T) {
-	if _, err := cosmosdb.NewStore(cosmosdb.StoreConfig{}); err == nil {
-		t.Fatal("expected error when config is nil")
-	}
-}
-
-func TestStore_ImplementsHistoryStore(t *testing.T) {
+func TestStoreImplementsHistoryStore(t *testing.T) {
 	var _ chathistory.Store = (*cosmosdb.Store)(nil)
 }

@@ -16,11 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// Provider names the backend for observability layers that branch
-// on store identity.
-const Provider = "PostgresChatHistory"
-
-// Default identifiers used when [StoreConfig] leaves them blank.
+// Default identifiers used when [Config] leaves them blank.
 const (
 	DefaultSchemaName  = "public"
 	DefaultTableName   = "chat_history"
@@ -34,9 +30,9 @@ const (
 // is rejected before issuing SQL.
 var identPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// StoreConfig configures [NewStore]. Only [StoreConfig.Pool] is
-// required; the rest fall back to documented defaults.
-type StoreConfig struct {
+// Config configures [New]. Only [Config.Pool] is required; the rest fall back
+// to documented defaults.
+type Config struct {
 	// Context is used for the initial schema bootstrap when
 	// InitializeSchema is true. Optional: defaults to
 	// context.Background().
@@ -65,46 +61,14 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
-	if c.Pool == nil {
-		return errors.New("postgres: Pool is required")
-	}
-
-	idents := map[string]string{
-		"SchemaName": c.SchemaName,
-		"TableName":  c.TableName,
-		"IndexName":  c.IndexName,
-	}
-	for name, value := range idents {
-		if !identPattern.MatchString(value) {
-			return fmt.Errorf("postgres: %s=%q must match %s",
-				name, value, identPattern)
-		}
-	}
-	return nil
-}
-
-// ApplyDefaults fills zero fields. Context defaults to
-// [context.Background]; SchemaName, TableName, and IndexName fall back
-// to the documented defaults.
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
-	c.SchemaName = cmp.Or(c.SchemaName, DefaultSchemaName)
-	c.TableName = cmp.Or(c.TableName, DefaultTableName)
-	c.IndexName = cmp.Or(c.IndexName, c.TableName+DefaultIndexSuffix)
-}
-
 var (
 	_ chathistory.Store  = (*Store)(nil)
 	_ chathistory.Lister = (*Store)(nil)
 )
 
-// Store is a PostgreSQL-backed [chathistory.Store]. Construct via
-// [NewStore].
+// Store is a PostgreSQL-backed [chathistory.Store]. Construct via [New].
 //
-// Schema (created when [StoreConfig.InitializeSchema] is true):
+// Schema (created when [Config.InitializeSchema] is true):
 //
 //	CREATE TABLE <schema>.<table> (
 //	    seq             BIGSERIAL    PRIMARY KEY,
@@ -130,13 +94,31 @@ type Store struct {
 	createSQL []string
 }
 
-// NewStore builds a [Store] from cfg. When
-// [StoreConfig.InitializeSchema] is true the table and index are
-// created if they don't already exist using [StoreConfig.Context].
-func NewStore(cfg StoreConfig) (*Store, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+// New builds a [Store] from cfg. When [Config.InitializeSchema] is true the
+// table and index are created if they don't already exist using
+// [Config.Context].
+func New(cfg Config) (*Store, error) {
+	if cfg.Pool == nil {
+		return nil, errors.New("postgres: Pool is required")
+	}
+	if cfg.Context == nil {
+		cfg.Context = context.Background()
+	}
+	cfg.SchemaName = cmp.Or(cfg.SchemaName, DefaultSchemaName)
+	cfg.TableName = cmp.Or(cfg.TableName, DefaultTableName)
+	cfg.IndexName = cmp.Or(cfg.IndexName, cfg.TableName+DefaultIndexSuffix)
+	for _, ident := range [...]struct {
+		name  string
+		value string
+	}{
+		{name: "SchemaName", value: cfg.SchemaName},
+		{name: "TableName", value: cfg.TableName},
+		{name: "IndexName", value: cfg.IndexName},
+	} {
+		if !identPattern.MatchString(ident.value) {
+			return nil, fmt.Errorf("postgres: %s=%q must match %s",
+				ident.name, ident.value, identPattern)
+		}
 	}
 
 	qualified := cfg.SchemaName + "." + cfg.TableName

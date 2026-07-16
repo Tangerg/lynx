@@ -620,16 +620,40 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 
 ### P6：Chat History Backend API 精修
 
-> 类型：破坏性公开 API，需确认
+> 类型：破坏性公开 API，已确认
+> 状态：完成
 
-- [ ] backend `StoreConfig` → `Config`。
-- [ ] backend `NewStore` → `New`。
-- [ ] 默认化/校验私有化。
-- [ ] 删除无生产消费者的 backend `Provider` 常量。
-- [ ] 同步 backend docs/tests。
-- [ ] `storetest` 命名和位置不变。
+- [x] backend `StoreConfig` → `Config`。
+- [x] backend `NewStore` → `New`。
+- [x] 默认化/校验私有化。
+- [x] 删除无生产消费者的 backend `Provider` 常量。
+- [x] 同步 backend docs/tests。
+- [x] `storetest` 命名和位置不变。
 
 已知仓内爆炸半径集中在各 backend 自身 docs/tests；未发现 App/Agent 生产消费者。
+
+实施裁决：
+
+| 候选 | 裁决 | 认知负担证据 |
+| --- | --- | --- |
+| backend `StoreConfig` | 六个 backend 统一改为 `Config` | package 已明确数据库、package 主类型只有 `Store`；`cassandra.Config` 比 `cassandra.StoreConfig` 少一次无信息重复 |
+| backend `NewStore` | 六个 backend 统一改为 `New` | 返回类型由 package 与签名共同表达；与 Go 单一主类型 package 的构造器习惯一致 |
+| `Config.Validate/ApplyDefaults` receiver | 删除并内联 `New` | 方法全部只有构造器一个消费者，还制造“先 defaults 再 validate”的调用顺序协议；Config 不是运行时 owner，不为单调用点创建私有 `normalize/validate` 空壳 |
+| backend `Provider` 常量 | 删除 | 六个常量无生产消费者，值也不是 tracing 使用的稳定协议；backend identity 已由 package 和内部 tracing system 显式表达 |
+| `Store.initIndex/initSchema/key` receiver | 保留 | 方法真实读取 Store 冻结后的 connection、DDL 或 key prefix，避免调用方反复拆装 owner 状态 |
+| tests 中 `NilConfig` | 删除 | Config 一直按值传递，不存在 nil 状态；用例与 required dependency 测试完全重复且名字误导 |
+| Neo4j 测试 alias `neo4jmem` | 改为 `neo4jstore` | 该 backend 不是内存实现；新 alias 只负责消解官方 driver 与 backend package 同名冲突 |
+
+验证证据：
+
+- Chathistory：`go build ./...`、`go vet ./...`、`go test ./...`、
+  `go test -race ./...`、`golangci-lint run ./...` 全绿；
+- `go mod tidy -diff` 与 `git diff --check` 全绿；
+- 六个 backend 的构造/配置 GoDoc 已收敛为 `Config`、`New` 与必要默认常量；
+- `StoreConfig`、`NewStore`、backend `Provider`、Config `Validate/ApplyDefaults`
+  在 chathistory 生产代码和 docs 中检索为零；
+- 全仓纳入范围未发现这些旧 API 的生产消费者；
+- 修正 Cassandra package doc 中已过期的 server-side TIMEUUID 描述。
 
 ### P7：Provider、MCP、A2A、RAG 与 Desktop 精修
 
@@ -739,7 +763,7 @@ go vet ./...
 | P3 Runtime owner 收敛 | 完成 | 100% | — |
 | P4 Runtime 工具结果边界 | 完成 | 100% | — |
 | P5 Document Pipeline API | 完成 | 100% | — |
-| P6 Chat History API | 未开始 | 0% | P0，breaking 决策 |
+| P6 Chat History API | 完成 | 100% | — |
 | P7 Provider/MCP/A2A/RAG/Desktop | 未开始 | 0% | P0，breaking/行为决策 |
 | P8 最终门禁 | 未开始 | 0% | P1–P7 |
 

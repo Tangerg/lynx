@@ -8,8 +8,8 @@ import (
 	"github.com/Tangerg/lynx/chathistory/mongodb"
 )
 
-func TestStoreConfig_CollectionRequired(t *testing.T) {
-	_, err := mongodb.NewStore(mongodb.StoreConfig{})
+func TestNewRequiresCollection(t *testing.T) {
+	_, err := mongodb.New(mongodb.Config{})
 	if err == nil {
 		t.Fatal("expected error when Collection is nil")
 	}
@@ -18,12 +18,6 @@ func TestStoreConfig_CollectionRequired(t *testing.T) {
 	}
 }
 
-func TestStoreConfig_NilConfig(t *testing.T) {
-	if _, err := mongodb.NewStore(mongodb.StoreConfig{}); err == nil {
-		t.Fatal("expected error when config is nil")
-	}
-}
-
-func TestStore_ImplementsHistoryStore(t *testing.T) {
+func TestStoreImplementsHistoryStore(t *testing.T) {
 	var _ chathistory.Store = (*mongodb.Store)(nil)
 }
