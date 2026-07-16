@@ -68,6 +68,11 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: go test -race -count=1 ./...
 
+      - name: Runtime standalone module graph
+        if: matrix.module == 'app/runtime'
+        working-directory: app/runtime
+        run: make check-standalone
+
       - name: Core API and wire compatibility guards
         if: matrix.module == 'core'
         working-directory: core
