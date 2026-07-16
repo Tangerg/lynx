@@ -137,7 +137,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 		return nil, fmt.Errorf("engine: build steering guardrails: %w", err)
 	}
 	processOptions := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, guardrails)
-	process, done := e.turnStarter.Start(ctx, e.agent,
+	process, done := e.runtime.Start(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: input},
 		processOptions,
 	)
@@ -148,7 +148,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 		}
 		return nil, fmt.Errorf("engine: start chat: %w", startErr)
 	}
-	return &turnProcess{process: process, done: done, engine: e.turnControl}, nil
+	return &turnProcess{process: process, done: done, engine: e.runtime}, nil
 }
 
 // turnProcessOptions assembles per-process wiring: the chat history Session
@@ -256,10 +256,10 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	// mid-run keeps the model the turn parked on. nil (no selection / provider
 	// gone) falls back to the engine default.
 	options := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, nil)
-	if e.turnRestorer == nil {
-		return nil, errors.New("engine: restore chat: process restorer is required")
+	if e.runtime == nil {
+		return nil, errors.New("engine: restore chat: agent runtime is required")
 	}
-	process, err := e.turnRestorer.RestoreResumable(ctx, processID, options)
+	process, err := e.runtime.RestoreResumable(ctx, processID, options)
 	if err != nil {
 		if errors.Is(err, agentruntime.ErrResumableSnapshotLost) {
 			return nil, processSnapshotLost("restore", err)
@@ -269,5 +269,5 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	if process == nil {
 		return nil, errors.New("engine: restore chat: agent runtime returned nil process without an error")
 	}
-	return &turnProcess{process: process, engine: e.turnControl}, nil
+	return &turnProcess{process: process, engine: e.runtime}, nil
 }

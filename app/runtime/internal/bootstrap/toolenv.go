@@ -15,7 +15,7 @@ import (
 func buildToolEnvironment(ctx context.Context, cfg Config, ecfg agentexec.Config, approvalPolicy approval.Policy, mcpEnv mcpEnvironment, codebaseIdx toolset.CodebaseIndex) (toolset.Built, error) {
 	built, err := toolset.Build(ctx, toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
-		SkillsGlobalDir: cfg.Engine.SkillsGlobalDir,
+		SkillsGlobalDir: cfg.SkillsGlobalDir,
 		Online:          toolset.OnlineConfig(cfg.Online),
 		LSPServers:      codeintelServerSpecs(cfg.LSPServers),
 		MCPServers:      mcpEnv.configs,

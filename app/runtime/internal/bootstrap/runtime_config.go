@@ -18,13 +18,13 @@ import (
 // process adapters.
 func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatclient.Client, providers providersvc.Registry, hooks HookResolver, buildID string) Config {
 	return Config{
-		Resources: []io.Closer{stores},
+		Resources:       []io.Closer{stores},
+		SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
 		Engine: agentexec.Config{
 			BuildID:               buildID,
 			SnapshotFailurePolicy: agentruntime.SnapshotFailureFailProcess,
 			ChatClient:            client,
 			Pricing:               pricing.Catalog(),
-			SkillsGlobalDir:       filepath.Join(stores.Home, "skills"),
 			HistoryStore:          stores.ChatHistory,
 			Knowledge:             stores.Memory,
 		},

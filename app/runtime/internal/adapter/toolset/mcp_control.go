@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 )
@@ -15,10 +15,10 @@ type mcpControl struct {
 }
 
 var (
-	_ toolport.MCPStatusReader       = (*mcpControl)(nil)
-	_ toolport.MCPToolCatalog        = (*mcpControl)(nil)
-	_ toolport.MCPConnectionCommands = (*mcpControl)(nil)
-	_ toolport.MCPRegistryCommands   = (*mcpControl)(nil)
+	_ integrations.MCPStatusReader       = (*mcpControl)(nil)
+	_ integrations.MCPToolCatalog        = (*mcpControl)(nil)
+	_ integrations.MCPConnectionCommands = (*mcpControl)(nil)
+	_ integrations.MCPRegistryCommands   = (*mcpControl)(nil)
 )
 
 func (c *mcpControl) Statuses() []mcpserver.ConnectionStatus {

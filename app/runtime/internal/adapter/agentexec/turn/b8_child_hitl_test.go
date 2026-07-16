@@ -579,20 +579,14 @@ func buildB8Dispatcher(
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}
+	cleanupToolEnvironment(t, built)
 	engine, err := agentexec.New(t.Context(), agentexec.Config{
-		ChatClient:            client,
-		ToolResolver:          built.Resolver,
-		Tools:                 built.Tools,
-		MCPStatusReader:       built.MCPStatusReader,
-		MCPToolCatalog:        built.MCPToolCatalog,
-		MCPConnectionCommands: built.MCPConnectionCommands,
-		MCPRegistryCommands:   built.MCPRegistryCommands,
-		Closers:               built.Closers,
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
 	})
 	if err != nil {
 		t.Fatalf("agentexec.New: %v", err)
 	}
-	t.Cleanup(func() { _ = engine.Close() })
 	dispatcher, err := turn.New(turnDeps(engine, withApproval(policy), func(deps *turn.Dependencies) {
 		deps.Hooks = hookResolver
 	}))
@@ -627,18 +621,13 @@ func buildB8PersistentDispatcher(
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}
+	cleanupToolEnvironment(t, built)
 	engine, err := agentexec.New(t.Context(), agentexec.Config{
-		BuildID:               buildID,
-		ChatClient:            client,
-		HistoryStore:          historyStore,
-		ProcessStore:          store,
-		ToolResolver:          built.Resolver,
-		Tools:                 built.Tools,
-		MCPStatusReader:       built.MCPStatusReader,
-		MCPToolCatalog:        built.MCPToolCatalog,
-		MCPConnectionCommands: built.MCPConnectionCommands,
-		MCPRegistryCommands:   built.MCPRegistryCommands,
-		Closers:               built.Closers,
+		BuildID:      buildID,
+		ChatClient:   client,
+		HistoryStore: historyStore,
+		ProcessStore: store,
+		ToolResolver: built.Resolver,
 	})
 	if err != nil {
 		t.Fatalf("agentexec.New: %v", err)
@@ -647,12 +636,10 @@ func buildB8PersistentDispatcher(
 		deps.Hooks = hookResolver
 	}))
 	if err != nil {
-		_ = engine.Close()
 		t.Fatalf("turn.New: %v", err)
 	}
 	t.Cleanup(func() {
 		_ = dispatcher.Close()
-		_ = engine.Close()
 	})
 	return dispatcher
 }

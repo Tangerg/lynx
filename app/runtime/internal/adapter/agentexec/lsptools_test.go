@@ -19,12 +19,12 @@ func TestEngine_RegistersLSPTools(t *testing.T) {
 	defer eng.Close()
 
 	have := map[string]bool{}
-	for _, tool := range eng.Tools() {
+	for _, tool := range eng.catalog.Tools() {
 		have[tool.Definition().Name] = true
 	}
 	for _, want := range []string{"lsp", "lsp_diagnostics"} {
 		if !have[want] {
-			t.Errorf("tool %q not registered in engine.Tools()", want)
+			t.Errorf("tool %q not registered in tool catalog", want)
 		}
 	}
 }

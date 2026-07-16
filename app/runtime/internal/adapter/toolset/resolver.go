@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -34,6 +35,9 @@ import (
 // each running its tools in its own project directory — without a
 // per-session engine.
 type Resolver struct {
+	catalogMu sync.RWMutex
+	catalog   []tools.Tool
+
 	defaultWorkdir  string
 	skillsGlobalDir string              // user-scope skills dir; merged under each turn's project skills
 	online          []tools.Tool        // working-directory-independent network tools
@@ -138,10 +142,47 @@ func NewResolver(d Deps) (*Resolver, error) {
 	}, nil
 }
 
-// UseTaskTool installs the `task` delegation tool for the coding role. The
-// agent engine builds this tool after it exists because the tool starts child
-// processes through that engine.
-func (r *Resolver) UseTaskTool(tool tools.Tool) { r.task = tool }
+// UseTaskTool installs the `task` delegation tool for the coding role and the
+// direct diagnostic catalog. The agent engine builds this tool after it exists
+// because the tool starts child processes through that engine.
+func (r *Resolver) UseTaskTool(tool tools.Tool) {
+	r.catalogMu.Lock()
+	defer r.catalogMu.Unlock()
+
+	if r.task == nil {
+		r.catalog = append(r.catalog, tool)
+	} else {
+		oldName := r.task.Definition().Name
+		for index := range r.catalog {
+			if r.catalog[index].Definition().Name == oldName {
+				r.catalog[index] = tool
+				break
+			}
+		}
+	}
+	r.task = tool
+}
+
+// Tools returns the construction-time diagnostic catalog. It is distinct from
+// per-turn role resolution: metadata is rooted at the configured default
+// workdir and includes capabilities that can become available at runtime.
+func (r *Resolver) Tools() []tools.Tool {
+	r.catalogMu.RLock()
+	defer r.catalogMu.RUnlock()
+	return slices.Clone(r.catalog)
+}
+
+func (r *Resolver) setCatalog(tools []tools.Tool) {
+	r.catalogMu.Lock()
+	defer r.catalogMu.Unlock()
+	r.catalog = slices.Clone(tools)
+}
+
+func (r *Resolver) taskTool() tools.Tool {
+	r.catalogMu.RLock()
+	defer r.catalogMu.RUnlock()
+	return r.task
+}
 
 // mcpTools returns the current MCP tool set (nil before the first store) minus
 // any tools the configured servers disable. The disabled set is read here, not
@@ -256,8 +297,8 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	if g.role == toolport.ToolRoleCoding {
 		// Coding role only: task (no recursive delegation) and schedule (a
 		// root-owned orchestration capability).
-		if g.resolver.task != nil {
-			tools = append(tools, g.resolver.task)
+		if task := g.resolver.taskTool(); task != nil {
+			tools = append(tools, task)
 		}
 		if g.resolver.schedule != nil {
 			tools = append(tools, g.resolver.schedule)

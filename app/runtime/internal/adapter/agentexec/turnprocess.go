@@ -70,12 +70,12 @@ type TurnProcess interface {
 }
 
 // turnProcess is the canonical [TurnProcess] backed by a real
-// [runtime.Process]. processControl is held so lifecycle commands stay
-// behind the engine boundary instead of leaking the full agent engine.
+// [runtime.Process]. It is package-private, so retaining the concrete Agent
+// runtime keeps lifecycle commands inside this execution adapter.
 type turnProcess struct {
 	process *runtime.Process
 	done    <-chan error
-	engine  processControl
+	engine  *runtime.Engine
 }
 
 func (p *turnProcess) ID() string                 { return p.process.ID() }

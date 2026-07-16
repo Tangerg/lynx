@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
@@ -66,43 +69,67 @@ type Stack struct {
 type Host struct {
 	Stack Stack
 
-	// dispatcher / effectsTasks / engine / resources are the process resources the
-	// Host closes at shutdown, in reverse dependency order (§10.3).
-	dispatcher   turn.Dispatcher
-	effectsTasks *taskgroup.Group
-	engine       io.Closer
+	// lifetime owns the immutable shutdown graph shared by every Host copy.
+	lifetime *hostLifetime
+}
+
+type hostLifetime struct {
+	once sync.Once
+	err  error
+
+	integrations shutdownComponent
+	codebase     shutdownComponent
+	coordinator  shutdownComponent
+	dispatcher   shutdownDispatcher
+	effectsTasks shutdownComponent
+	toolClosers  []func() error
 	resources    []io.Closer
+}
+
+type shutdownComponent interface {
+	Close()
+}
+
+type shutdownDispatcher interface {
+	Close() error
 }
 
 // Close shuts the assembled application tier down in reverse dependency order
 // (§10.3): the integrations component's post-commit reconcile tasks + the
-// codebase reindex tasks first (they depend on the engine's MCP pool / the
-// embedding index), then the run coordinator (cancel + join every live pump),
-// then live turns, the run-boundary maintenance tasks,
-// and finally the engine + the injected process resources / persistence. The
-// pumps join before the maintenance tasks so every terminal's boundary work is
-// scheduled, and the maintenance tasks join before the engine they title against.
-// Idempotent.
+// codebase reindex tasks first (they depend on the MCP pool / embedding index),
+// then the run coordinator (cancel + join every live pump), live turns, the
+// run-boundary maintenance tasks, and finally tool capabilities plus injected
+// process resources / persistence. Pumps join before maintenance tasks so every
+// terminal's boundary work is scheduled. Idempotent across Host copies.
 func (h Host) Close() error {
-	var errs []error
-	h.Stack.Integrations.Close()
-	h.Stack.Codebase.Close()
-	h.Stack.Coordinator.Close()
-	if h.dispatcher != nil {
-		errs = append(errs, h.dispatcher.Close())
+	if h.lifetime == nil {
+		return nil
 	}
-	if h.effectsTasks != nil {
-		h.effectsTasks.Close()
-	}
-	if h.engine != nil {
-		errs = append(errs, h.engine.Close())
-	}
-	for _, resource := range h.resources {
-		if resource != nil {
-			errs = append(errs, resource.Close())
+	h.lifetime.once.Do(func() {
+		var errs []error
+		if h.lifetime.integrations != nil {
+			h.lifetime.integrations.Close()
 		}
-	}
-	return errors.Join(errs...)
+		if h.lifetime.codebase != nil {
+			h.lifetime.codebase.Close()
+		}
+		if h.lifetime.coordinator != nil {
+			h.lifetime.coordinator.Close()
+		}
+		if h.lifetime.dispatcher != nil {
+			errs = append(errs, h.lifetime.dispatcher.Close())
+		}
+		if h.lifetime.effectsTasks != nil {
+			h.lifetime.effectsTasks.Close()
+		}
+		errs = append(
+			errs,
+			runClosers(h.lifetime.toolClosers),
+			closeResources(h.lifetime.resources),
+		)
+		h.lifetime.err = errors.Join(errs...)
+	})
+	return h.lifetime.err
 }
 
 // Assemble builds the application Host from cfg: it constructs the engine, turn
@@ -113,6 +140,19 @@ func (h Host) Close() error {
 // dependency is missing or any internal constructor fails — engine deployment,
 // MCP dial, etc.
 func Assemble(ctx context.Context, cfg Config) (Host, error) {
+	return assemble(ctx, cfg, buildToolEnvironment)
+}
+
+type toolEnvironmentBuilder func(
+	context.Context,
+	Config,
+	agentexec.Config,
+	approval.Policy,
+	mcpEnvironment,
+	toolset.CodebaseIndex,
+) (toolset.Built, error)
+
+func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder) (_ Host, err error) {
 	if cfg.Engine.ChatClient == nil {
 		return Host{}, errors.New("runtime: Engine.ChatClient is required")
 	}
@@ -143,12 +183,8 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 
 	ecfg, messages := prepareEngineConfig(cfg)
 
-	// Capability ports are SPIs: the engine consumes interfaces (Steering /
-	// Compactor / Extractor; Knowledge above). The runtime supplies the
-	// in-house implementations ONLY when the composition root didn't inject one,
-	// so an external provider (e.g. a mem0 / HTTP-bridged compactor or knowledge
-	// store) can be slotted in by setting the corresponding engine.Config field;
-	// the runtime then leaves it untouched. nil -> in-house default.
+	// Turn-boundary ports are owned by the dispatcher. The runtime supplies the
+	// in-house implementations when the composition root did not inject one.
 	// The clientResolver builds a chat client for an explicit (provider, model)
 	// from that provider's registry credentials, caching by the credential
 	// tuple. A turn uses it to honor a per-run model; the maintenance services
@@ -165,7 +201,7 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 		return Host{}, err
 	}
 
-	wireEnginePorts(&ecfg, cfg, messages, utilityEnv.resolve)
+	turnServices := buildTurnServices(cfg, messages, utilityEnv.resolve)
 
 	// Tool environment: assembled outside the core (constructs the code-intel /
 	// exec / MCP / A2A capabilities + the resolver) and injected, so the engine
@@ -181,27 +217,31 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 		return Host{}, err
 	}
 
-	built, err := buildToolEnvironment(ctx, cfg, ecfg, approvalPolicy, mcpEnv, embeddingEnv.index)
+	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, embeddingEnv.index)
 	if err != nil {
 		return Host{}, err
 	}
+	transferred := false
+	defer func() {
+		if !transferred {
+			err = errors.Join(err, runClosers(built.Closers))
+		}
+	}()
 	attachToolEnvironment(&ecfg, built)
 
 	eng, err := agentexec.New(ctx, ecfg)
 	if err != nil {
-		// toolset.Build already dialed MCP/A2A + launched LSP/exec backends into
-		// built.Closers; agentexec.New didn't take ownership (no engine to Close), so
-		// release them here rather than leaking the sessions/processes.
-		return Host{}, errors.Join(fmt.Errorf("runtime: engine: %w", err), runClosers(built.Closers))
+		return Host{}, fmt.Errorf("runtime: engine: %w", err)
 	}
-	// From here the engine owns built.Closers (eng.Close runs them), so a later
-	// construction failure tears down via eng.Close.
 	if _, err := cfg.RunStore.ReconcileOrphans(ctx, eng.ResumableProcess); err != nil {
-		return Host{}, errors.Join(fmt.Errorf("runtime: reconcile orphan runs: %w", err), eng.Close())
+		return Host{}, fmt.Errorf("runtime: reconcile orphan runs: %w", err)
 	}
 
 	turnDispatcher, err := turn.New(turn.Dependencies{
 		Engine:              eng,
+		Steering:            turnServices.steering,
+		Compactor:           turnServices.compactor,
+		Extractor:           turnServices.extractor,
 		Approval:            approvalPolicy,
 		ClientResolver:      resolver,
 		Todos:               ecfg.Todos,
@@ -209,11 +249,17 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 		Hooks:               cfg.HooksResolver,
 	})
 	if err != nil {
-		return Host{}, errors.Join(fmt.Errorf("runtime: turn dispatcher: %w", err), eng.Close())
+		return Host{}, fmt.Errorf("runtime: turn dispatcher: %w", err)
 	}
-	toolRegistry, err := agentexec.NewToolRegistry(eng)
+	dispatcherTransferred := false
+	defer func() {
+		if !dispatcherTransferred {
+			err = errors.Join(err, turnDispatcher.Close())
+		}
+	}()
+	toolRegistry, err := toolset.NewRegistry(built.Resolver)
 	if err != nil {
-		return Host{}, errors.Join(fmt.Errorf("runtime: tool registry: %w", err), eng.Close())
+		return Host{}, fmt.Errorf("runtime: tool registry: %w", err)
 	}
 
 	// File checkpoints (shadow git) enable run-boundary snapshots + file
@@ -303,17 +349,20 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 	toolsCoord := tools.New(toolRegistry)
 
 	integrationsCoord := integrations.New(integrations.Config{
-		MCPRegistry: cfg.MCPRegistry,
-		MCPLive:     eng,
-		MCPPolicy:   mcpEnv.policy,
-		MCPStatus:   mcpStatus.Publish,
+		MCPRegistry:           cfg.MCPRegistry,
+		MCPStatusReader:       built.MCPStatusReader,
+		MCPToolCatalog:        built.MCPToolCatalog,
+		MCPConnectionCommands: built.MCPConnectionCommands,
+		MCPRegistryCommands:   built.MCPRegistryCommands,
+		MCPPolicy:             mcpEnv.policy,
+		MCPStatus:             mcpStatus.Publish,
 	})
 
 	// The @codebase semantic index is its own use-case coordinator (nil index =
 	// disabled); it owns the background reindex task group, closed by the Host.
 	codebaseCoord := codebase.New(embeddingEnv.index)
 
-	return Host{
+	host := Host{
 		Stack: Stack{
 			Sessions:     sessionCoord,
 			Integrations: integrationsCoord,
@@ -331,28 +380,45 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 			}),
 			Workspace: workspace.New(workspace.Config{
 				Memory:  cfg.Engine.Knowledge,
-				Skills:  eng,
+				Skills:  skillCatalog{globalDir: cfg.SkillsGlobalDir},
 				Hooks:   cfg.HooksResolver,
 				Trust:   cfg.HookTrustStore,
 				Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},
 			}),
 			Schedules: schedules.NewCoordinator(cfg.ScheduleRegistry, cfg.ScheduleRegistry),
 		},
-		dispatcher:   turnDispatcher,
-		effectsTasks: effectsTasks,
-		engine:       eng,
-		resources:    cfg.Resources,
-	}, nil
+		lifetime: &hostLifetime{
+			integrations: integrationsCoord,
+			codebase:     codebaseCoord,
+			coordinator:  runCoord,
+			dispatcher:   turnDispatcher,
+			effectsTasks: effectsTasks,
+			toolClosers:  slices.Clone(built.Closers),
+			resources:    slices.Clone(cfg.Resources),
+		},
+	}
+	dispatcherTransferred = true
+	transferred = true
+	return host, nil
 }
 
-// runClosers releases a half-built tool environment before the engine can take
-// ownership. Every closer runs; the caller joins any cleanup failures with the
-// construction error.
+// runClosers closes creation-ordered tool resources in reverse.
 func runClosers(closers []func() error) error {
 	var errs []error
-	for _, closeFn := range closers {
+	for index := len(closers) - 1; index >= 0; index-- {
+		closeFn := closers[index]
 		if closeFn != nil {
 			errs = append(errs, closeFn())
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func closeResources(resources []io.Closer) error {
+	var errs []error
+	for index := len(resources) - 1; index >= 0; index-- {
+		if resource := resources[index]; resource != nil {
+			errs = append(errs, resource.Close())
 		}
 	}
 	return errors.Join(errs...)

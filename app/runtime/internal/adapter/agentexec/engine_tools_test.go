@@ -1,7 +1,6 @@
 package agentexec
 
 import (
-	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/chatclient"
@@ -10,32 +9,32 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 )
 
-func TestEngine_ToolsReturnsSnapshot(t *testing.T) {
+func TestToolCatalogReturnsSnapshot(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
 	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	first := eng.Tools()
+	first := eng.catalog.Tools()
 	if len(first) == 0 {
-		t.Fatal("engine has no tools")
+		t.Fatal("catalog has no tools")
 	}
 	first[0] = nil
-	if second := eng.Tools(); second[0] == nil {
-		t.Fatal("Tools exposed the engine's mutable backing slice")
+	if second := eng.catalog.Tools(); second[0] == nil {
+		t.Fatal("catalog exposed its mutable backing slice")
 	}
 }
 
-// TestEngine_Tools_OfflineOnly verifies the engine exposes the
+// TestToolCatalogOfflineOnly verifies the assembled catalog exposes the
 // always-on coding tool set when no Online credentials are
 // configured. Provider-backed tools must NOT appear.
-func TestEngine_Tools_OfflineOnly(t *testing.T) {
+func TestToolCatalogOfflineOnly(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
 	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	tools := eng.Tools()
+	tools := eng.catalog.Tools()
 	// 6 filesystem coding tools (download is gated on a host allowlist, so it is
 	// absent in this offline build) + 3 shell tools (shell + its shell_output /
 	// shell_kill companions) + 2 always-on LSP tools (the combined `lsp` query
@@ -64,46 +63,9 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	}
 }
 
-func TestEngine_New_WithoutResolverDoesNotInjectTask(t *testing.T) {
-	t.Parallel()
-
-	stub := newStubModel("shell", `{}`, "")
-	client, _ := chatclient.New(stub)
-	customTool, err := tools.New[struct{}, string](
-		tools.Config{
-			Name:        "noop",
-			Description: "noop tool",
-		},
-		func(context.Context, struct{}) (string, error) {
-			return "noop", nil
-		},
-	)
-	if err != nil {
-		t.Fatalf("tools.New: %v", err)
-	}
-
-	eng, err := New(context.Background(), Config{
-		ChatClient: client,
-		Tools:      []tools.Tool{customTool},
-	})
-	if err != nil {
-		t.Fatalf("engine.New: %v", err)
-	}
-	defer eng.Close()
-
-	tools := eng.Tools()
-	names := toolNames(tools)
-	if _, ok := names["task"]; ok {
-		t.Fatalf("unexpected task tool without resolver: %v", names)
-	}
-	if _, ok := names["noop"]; !ok {
-		t.Fatalf("custom tool should be preserved, names=%v", names)
-	}
-}
-
-// TestEngine_Tools_OnlineEnabled verifies provider-backed tools
+// TestToolCatalogOnlineEnabled verifies provider-backed tools
 // arrive when their credentials are supplied.
-func TestEngine_Tools_OnlineEnabled(t *testing.T) {
+func TestToolCatalogOnlineEnabled(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
 	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
@@ -115,7 +77,7 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 	})
 	defer eng.Close()
 
-	tools := eng.Tools()
+	tools := eng.catalog.Tools()
 	if len(tools) != 17 {
 		t.Fatalf("tool count = %d, want 17 (6 fs + download + 3 shell + 2 lsp + 3 online + task + ask_user)", len(tools))
 	}
@@ -128,16 +90,16 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 	}
 }
 
-// TestEngine_Tools_PartialOnline verifies each online tool is
+// TestToolCatalogPartialOnline verifies each online tool is
 // independent -- supplying only one credential registers only one
 // extra tool.
-func TestEngine_Tools_PartialOnline(t *testing.T) {
+func TestToolCatalogPartialOnline(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
 	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
-	if len(eng.Tools()) != 14 {
-		t.Fatalf("tool count = %d, want 14 (6 fs + 3 shell + 2 lsp + jina + task + ask_user; no download without an http allowlist)", len(eng.Tools()))
+	if got := len(eng.catalog.Tools()); got != 14 {
+		t.Fatalf("tool count = %d, want 14 (6 fs + 3 shell + 2 lsp + jina + task + ask_user; no download without an http allowlist)", got)
 	}
 }
 

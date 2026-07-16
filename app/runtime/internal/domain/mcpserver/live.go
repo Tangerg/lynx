@@ -14,7 +14,7 @@ import (
 // them to its own dial/session types at the infra boundary.
 
 // LiveConfig is the live MCP server descriptor the capability layer hands to the
-// engine's MCP control port to open a connection. [ConfigFromServer] projects a
+// MCP connection adapter to open a connection. [ConfigFromServer] projects a
 // persisted registry [Server] into it; the concrete MCP adapter maps it to its
 // own dial config at the infra boundary.
 type LiveConfig struct {

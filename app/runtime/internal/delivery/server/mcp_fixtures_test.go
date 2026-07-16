@@ -9,19 +9,19 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-// fakeMCPLive is the MCPLive projection the MCP wire handlers read: it returns
-// canned statuses/tools and records reconnect/authorize targets. The
-// registry-mutation legs are inert (the config tests drive the registry fake).
-type fakeMCPLive struct {
+// fakeMCPPorts implements the four narrow MCP projections consumed by the
+// integration use cases. Registry-mutation methods are inert because the
+// configuration tests drive a separate durable registry fake.
+type fakeMCPPorts struct {
 	statuses      []mcpserver.ConnectionStatus
 	tools         []mcpserver.ToolInfo
 	reconnectName string
 	authorizeName string
 }
 
-func (f *fakeMCPLive) MCPServerStatuses() []mcpserver.ConnectionStatus { return f.statuses }
+func (f *fakeMCPPorts) Statuses() []mcpserver.ConnectionStatus { return f.statuses }
 
-func (f *fakeMCPLive) MCPTools(_ context.Context, server string) ([]mcpserver.ToolInfo, error) {
+func (f *fakeMCPPorts) Tools(_ context.Context, server string) ([]mcpserver.ToolInfo, error) {
 	if server == "" {
 		return f.tools, nil
 	}
@@ -34,19 +34,28 @@ func (f *fakeMCPLive) MCPTools(_ context.Context, server string) ([]mcpserver.To
 	return out, nil
 }
 
-func (f *fakeMCPLive) ReconnectMCPServer(_ context.Context, name string) error {
+func (f *fakeMCPPorts) Reconnect(_ context.Context, name string) error {
 	f.reconnectName = name
 	return nil
 }
 
-func (f *fakeMCPLive) AuthorizeMCPServer(_ context.Context, name string) error {
+func (f *fakeMCPPorts) Authorize(_ context.Context, name string) error {
 	f.authorizeName = name
 	return nil
 }
 
-func (*fakeMCPLive) ProbeMCPServer(context.Context, mcpserver.LiveConfig) error     { return nil }
-func (*fakeMCPLive) ConfigureMCPServer(context.Context, mcpserver.LiveConfig) error { return nil }
-func (*fakeMCPLive) RemoveMCPServer(context.Context, string)                        {}
+func (*fakeMCPPorts) Probe(context.Context, mcpserver.LiveConfig) error     { return nil }
+func (*fakeMCPPorts) Configure(context.Context, mcpserver.LiveConfig) error { return nil }
+func (*fakeMCPPorts) Remove(context.Context, string)                        {}
+
+func fakeMCPPortsConfig(ports *fakeMCPPorts) integrations.Config {
+	return integrations.Config{
+		MCPStatusReader:       ports,
+		MCPToolCatalog:        ports,
+		MCPConnectionCommands: ports,
+		MCPRegistryCommands:   ports,
+	}
+}
 
 // mcpRegistryFake is the mcpserver.Registry the MCP config handlers drive.
 type mcpRegistryFake struct {

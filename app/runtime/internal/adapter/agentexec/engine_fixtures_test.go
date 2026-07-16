@@ -3,6 +3,7 @@ package agentexec
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"iter"
 	"sync"
@@ -24,30 +25,60 @@ import (
 // "shared history store".
 func newHistoryStore() history.Store { return history.NewInMemoryStore() }
 
+type assembledEngine struct {
+	*Engine
+	catalog *toolset.Resolver
+	closers []func() error
+}
+
+func (e *assembledEngine) Close() error {
+	var errs []error
+	for index := len(e.closers) - 1; index >= 0; index-- {
+		if closeFn := e.closers[index]; closeFn != nil {
+			errs = append(errs, closeFn())
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // mustEngineWith builds an engine over a tool environment assembled by
 // toolset.Build (the production path: capabilities + resolver constructed
 // outside the core, injected in) -- for tests that exercise the assembled tool
-// set / MCP facade.
-func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildConfig) *Engine {
+// set.
+func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildConfig) *assembledEngine {
 	t.Helper()
 	built, err := toolset.Build(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}
 	eng, err := New(context.Background(), Config{
-		ChatClient:            client,
-		ToolResolver:          built.Resolver,
-		Tools:                 built.Tools,
-		MCPStatusReader:       built.MCPStatusReader,
-		MCPToolCatalog:        built.MCPToolCatalog,
-		MCPConnectionCommands: built.MCPConnectionCommands,
-		MCPRegistryCommands:   built.MCPRegistryCommands,
-		Closers:               built.Closers,
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
 	})
 	if err != nil {
+		for index := len(built.Closers) - 1; index >= 0; index-- {
+			if closeFn := built.Closers[index]; closeFn != nil {
+				_ = closeFn()
+			}
+		}
 		t.Fatalf("engine.New: %v", err)
 	}
-	return eng
+	return &assembledEngine{
+		Engine:  eng,
+		catalog: built.Resolver,
+		closers: built.Closers,
+	}
+}
+
+func cleanupBuiltTools(t *testing.T, built toolset.Built) {
+	t.Helper()
+	t.Cleanup(func() {
+		for index := len(built.Closers) - 1; index >= 0; index-- {
+			if closeFn := built.Closers[index]; closeFn != nil {
+				_ = closeFn()
+			}
+		}
+	})
 }
 
 func (e *Engine) runTurnSync(ctx context.Context, req TurnRequest) (TurnOutput, error) {

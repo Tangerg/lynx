@@ -87,6 +87,7 @@ func TestEngine_TaskDelegationInheritsPerRunModelAndProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}
+	cleanupBuiltTools(t, built)
 	var (
 		mu        sync.Mutex
 		providers []string
@@ -95,8 +96,6 @@ func TestEngine_TaskDelegationInheritsPerRunModelAndProvider(t *testing.T) {
 		ChatClient:   defaultClient,
 		Provider:     "default-provider",
 		ToolResolver: built.Resolver,
-		Tools:        built.Tools,
-		Closers:      built.Closers,
 		Pricing: func(provider, _ string, _ *chat.Usage) float64 {
 			mu.Lock()
 			providers = append(providers, provider)
@@ -107,8 +106,6 @@ func TestEngine_TaskDelegationInheritsPerRunModelAndProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	defer engine.Close()
-
 	output, err := engine.runTurnSync(t.Context(), TurnRequest{
 		Message:    "delegate this",
 		Provider:   "selected-provider",
@@ -166,11 +163,10 @@ func TestEngine_TaskDelegationDoesNotStartChildAfterCostBudgetIsSpent(t *testing
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}
+	cleanupBuiltTools(t, built)
 	engine, err := New(t.Context(), Config{
 		ChatClient:   client,
 		ToolResolver: built.Resolver,
-		Tools:        built.Tools,
-		Closers:      built.Closers,
 		Pricing: func(_, _ string, _ *chat.Usage) float64 {
 			return 1
 		},
@@ -178,8 +174,6 @@ func TestEngine_TaskDelegationDoesNotStartChildAfterCostBudgetIsSpent(t *testing
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	defer engine.Close()
-
 	output, err := engine.runTurnSync(t.Context(), TurnRequest{
 		Message:    "delegate this",
 		MaxCostUSD: 1,

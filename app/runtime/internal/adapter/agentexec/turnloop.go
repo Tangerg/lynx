@@ -171,7 +171,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 	}
 	request := &chat.Request{
 		Messages: []chat.Message{
-			chat.NewSystemMessage(e.SystemPrompt(ctx)),
+			chat.NewSystemMessage(e.systemPrompt(ctx)),
 			chat.NewUserMessage(parts...),
 		},
 		Tools: registry.Definitions(),

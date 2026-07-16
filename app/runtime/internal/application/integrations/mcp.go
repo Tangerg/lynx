@@ -29,10 +29,10 @@ func (c *Coordinator) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver
 // MCPServerStatuses returns the per-server connection state of every configured
 // MCP server (connected and boot-failed alike) for workspace.mcp.listServers.
 func (c *Coordinator) MCPServerStatuses() []mcpserver.ConnectionStatus {
-	if c.mcpLive == nil {
+	if c.mcpStatusReader == nil {
 		return nil
 	}
-	return c.mcpLive.MCPServerStatuses()
+	return c.mcpStatusReader.Statuses()
 }
 
 // MCPRegisteredServer returns one persisted MCP-server registry entry.
@@ -47,7 +47,7 @@ func (c *Coordinator) MCPRegisteredServer(ctx context.Context, name string) (mcp
 // workspace stream, so a returning RPC does not abort it while shutdown still can.
 func (c *Coordinator) ReconnectMCPServer(ctx context.Context, name string) error {
 	return c.startMCPConnection(ctx, name, func(ctx context.Context) error {
-		return c.mcpLive.ReconnectMCPServer(ctx, name)
+		return c.mcpConnectionCommands.Reconnect(ctx, name)
 	})
 }
 
@@ -57,7 +57,7 @@ func (c *Coordinator) ReconnectMCPServer(ctx context.Context, name string) error
 // credentials live for the process only (re-prompt after restart).
 func (c *Coordinator) AuthorizeMCPServer(ctx context.Context, name string) error {
 	return c.startMCPConnection(ctx, name, func(ctx context.Context) error {
-		return c.mcpLive.AuthorizeMCPServer(ctx, name)
+		return c.mcpConnectionCommands.Authorize(ctx, name)
 	})
 }
 
@@ -69,7 +69,7 @@ func (c *Coordinator) AuthorizeMCPServer(ctx context.Context, name string) error
 // Returns [mcpserver.ErrUnknownServer] for an unknown name (the delivery layer
 // maps it to invalid_params) or [errClosed] when the component is shutting down.
 func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial func(context.Context) error) error {
-	if c.mcpLive == nil || !c.mcpServerKnown(name) {
+	if c.mcpConnectionCommands == nil || !c.mcpServerKnown(name) {
 		return mcpserver.ErrUnknownServer
 	}
 	if !c.tasks.Start(ctx, func(ctx context.Context) {
@@ -85,7 +85,10 @@ func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial 
 // mcpServerKnown reports whether name is a tracked MCP server (a configured
 // server appears in the live statuses even when its last dial failed).
 func (c *Coordinator) mcpServerKnown(name string) bool {
-	for _, st := range c.mcpLive.MCPServerStatuses() {
+	if c.mcpStatusReader == nil {
+		return false
+	}
+	for _, st := range c.mcpStatusReader.Statuses() {
 		if st.Name == name {
 			return true
 		}
@@ -137,8 +140,8 @@ func (c *Coordinator) RemoveMCPServer(ctx context.Context, name string) error {
 	// Shrink the live set before publishing the new policy: dropping tools can't
 	// expose a hidden one, but publishing first would leave the about-to-be-dropped
 	// tools briefly live under the wrong policy.
-	if c.mcpLive != nil {
-		c.mcpLive.RemoveMCPServer(reconcileCtx, name)
+	if c.mcpRegistryCommands != nil {
+		c.mcpRegistryCommands.Remove(reconcileCtx, name)
 	}
 	return c.refreshMCPToolPolicy(reconcileCtx)
 }
@@ -246,33 +249,33 @@ func (c *Coordinator) TestMCPServer(ctx context.Context, srv mcpserver.Server) e
 	if err := srv.Validate(); err != nil {
 		return err
 	}
-	if c.mcpLive == nil {
+	if c.mcpRegistryCommands == nil {
 		return mcpserver.ErrUnknownServer
 	}
-	return c.mcpLive.ProbeMCPServer(ctx, mcpserver.ConfigFromServer(srv))
+	return c.mcpRegistryCommands.Probe(ctx, mcpserver.ConfigFromServer(srv))
 }
 
 // MCPTools lists tools advertised by the connected MCP servers (scoped to server
 // when non-empty) for workspace.mcp.listTools.
 func (c *Coordinator) MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {
-	if c.mcpLive == nil {
+	if c.mcpToolCatalog == nil {
 		return nil, nil
 	}
-	return c.mcpLive.MCPTools(ctx, server)
+	return c.mcpToolCatalog.Tools(ctx, server)
 }
 
 // applyMCPServer reflects a registry entry into the live connections: enabled →
 // (re)dial, disabled → drop. The dial error is intentionally swallowed (status
 // surfaces it); see ConfigureMCPServer.
 func (c *Coordinator) applyMCPServer(ctx context.Context, srv mcpserver.Server) {
-	if c.mcpLive == nil {
+	if c.mcpRegistryCommands == nil {
 		return
 	}
 	if srv.Enabled {
-		_ = c.mcpLive.ConfigureMCPServer(ctx, mcpserver.ConfigFromServer(srv))
+		_ = c.mcpRegistryCommands.Configure(ctx, mcpserver.ConfigFromServer(srv))
 		return
 	}
-	c.mcpLive.RemoveMCPServer(ctx, srv.Name)
+	c.mcpRegistryCommands.Remove(ctx, srv.Name)
 }
 
 // refreshMCPToolPolicy atomically publishes the policy derived from the

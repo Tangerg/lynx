@@ -14,7 +14,6 @@ import (
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -362,7 +361,6 @@ func TestEngine_RunChat_DirectToolResultIsFinal(t *testing.T) {
 	eng, err := New(context.Background(), Config{
 		ChatClient:   client,
 		ToolResolver: &fixedToolResolver{tool: direct},
-		Tools:        []tools.Tool{direct},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -541,22 +539,16 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}
+	cleanupBuiltTools(t, built)
 	eng, err := New(context.Background(), Config{
-		ChatClient:            client,
-		ToolResolver:          built.Resolver,
-		Tools:                 built.Tools,
-		MCPStatusReader:       built.MCPStatusReader,
-		MCPToolCatalog:        built.MCPToolCatalog,
-		MCPConnectionCommands: built.MCPConnectionCommands,
-		MCPRegistryCommands:   built.MCPRegistryCommands,
-		Closers:               built.Closers,
-		ProcessStore:          store,
-		BuildID:               testBuildID,
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
+		ProcessStore: store,
+		BuildID:      testBuildID,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer eng.Close()
 	temp := 0.42
 	maxTokens := int64(321)
 	observer := &hitlApprovalObserver{}
@@ -581,21 +573,14 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	}
 
 	eng2, err := New(context.Background(), Config{
-		ChatClient:            client,
-		ToolResolver:          built.Resolver,
-		Tools:                 built.Tools,
-		MCPStatusReader:       built.MCPStatusReader,
-		MCPToolCatalog:        built.MCPToolCatalog,
-		MCPConnectionCommands: built.MCPConnectionCommands,
-		MCPRegistryCommands:   built.MCPRegistryCommands,
-		Closers:               built.Closers,
-		ProcessStore:          store,
-		BuildID:               testBuildID,
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
+		ProcessStore: store,
+		BuildID:      testBuildID,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer eng2.Close()
 
 	restored, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
 		Observer: observer,
@@ -647,23 +632,17 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}
+	cleanupBuiltTools(t, built)
 	config := Config{
-		ChatClient:            client,
-		ToolResolver:          built.Resolver,
-		Tools:                 built.Tools,
-		MCPStatusReader:       built.MCPStatusReader,
-		MCPToolCatalog:        built.MCPToolCatalog,
-		MCPConnectionCommands: built.MCPConnectionCommands,
-		MCPRegistryCommands:   built.MCPRegistryCommands,
-		Closers:               built.Closers,
-		ProcessStore:          store,
-		BuildID:               testBuildID,
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
+		ProcessStore: store,
+		BuildID:      testBuildID,
 	}
 	first, err := New(t.Context(), config)
 	if err != nil {
 		t.Fatalf("first New: %v", err)
 	}
-	defer first.Close()
 
 	process, err := first.StartTurn(t.Context(), TurnRequest{
 		Message:  "pause for approval",
@@ -688,7 +667,6 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second New: %v", err)
 	}
-	defer second.Close()
 
 	restored, err := second.RestoreTurn(t.Context(), process.ID(), RestoreTurnRequest{Observer: &hitlApprovalObserver{}})
 	if restored != nil {

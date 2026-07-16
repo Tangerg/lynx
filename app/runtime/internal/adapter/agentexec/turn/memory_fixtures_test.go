@@ -30,26 +30,30 @@ func buildDispatcher(t *testing.T) (turn.Dispatcher, *agentexec.Engine) {
 func buildEngine(t *testing.T, cfg agentexec.Config) *agentexec.Engine {
 	t.Helper()
 	built, err := toolset.Build(context.Background(), toolset.BuildConfig{
-		Workdir:         cfg.Workdir,
-		SkillsGlobalDir: cfg.SkillsGlobalDir,
-		Todos:           cfg.Todos,
+		Workdir: cfg.Workdir,
+		Todos:   cfg.Todos,
 	})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}
+	cleanupToolEnvironment(t, built)
 	cfg.ToolResolver = built.Resolver
-	cfg.Tools = built.Tools
-	cfg.MCPStatusReader = built.MCPStatusReader
-	cfg.MCPToolCatalog = built.MCPToolCatalog
-	cfg.MCPConnectionCommands = built.MCPConnectionCommands
-	cfg.MCPRegistryCommands = built.MCPRegistryCommands
-	cfg.Closers = built.Closers
 	eng, err := agentexec.New(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
 	}
-	t.Cleanup(func() { _ = eng.Close() })
 	return eng
+}
+
+func cleanupToolEnvironment(t *testing.T, built toolset.Built) {
+	t.Helper()
+	t.Cleanup(func() {
+		for index := len(built.Closers) - 1; index >= 0; index-- {
+			if closeFn := built.Closers[index]; closeFn != nil {
+				_ = closeFn()
+			}
+		}
+	})
 }
 
 func drainEvents(events iter.Seq[turn.Event]) []turn.Event {

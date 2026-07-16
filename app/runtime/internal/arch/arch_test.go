@@ -183,6 +183,17 @@ func TestDeliveryDoesNotControlAgentTurns(t *testing.T) {
 		[]string{"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"})
 }
 
+// TestUseCasesDoNotDependOnConcreteAgentEngine keeps the agent runtime behind
+// bootstrap and the turn dispatcher. Application owns consumer-side ports and
+// delivery invokes use cases; neither ring may regain a dependency on the
+// concrete agentexec Engine or one of its implementation subpackages.
+func TestUseCasesDoNotDependOnConcreteAgentEngine(t *testing.T) {
+	const agentExecPkg = "github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "application"), []string{agentExecPkg})
+	forbidExternalImports(t, filepath.Join(root, "internal", "delivery"), []string{agentExecPkg})
+}
+
 // TestAgentExecDelegatesManagedExecution locks the Framework/Host ownership
 // boundary. The agent adapter may supply product prompts, pricing, observers,
 // tools, and responses, but it must not rebuild the framework's ToolLoop,

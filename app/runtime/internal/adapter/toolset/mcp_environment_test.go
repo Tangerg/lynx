@@ -1,4 +1,4 @@
-package agentexec
+package toolset_test
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/chatclient"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 	"github.com/Tangerg/lynx/tools"
 
@@ -65,12 +64,12 @@ func runStdioMCPServer() {
 	}
 }
 
-// TestEngine_DialMCPServer brings up an in-process MCP server
+// TestToolEnvironmentDialsMCPServer brings up an in-process MCP server
 // over HTTP, registers one tool against it, then constructs an
-// Engine wired to dial the server. The engine's tool list must
-// include the remote tool under its prefixed name; Close must
+// tool environment wired to dial the server. Its catalog must
+// include the remote tool under its prefixed name; cleanup must
 // drop the session cleanly.
-func TestEngine_DialMCPServer(t *testing.T) {
+func TestToolEnvironmentDialsMCPServer(t *testing.T) {
 	// 1. Spin up a real MCP server with one tool.
 	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name: "test-srv", Version: "v0.1.0",
@@ -96,40 +95,38 @@ func TestEngine_DialMCPServer(t *testing.T) {
 		func(*http.Request) *sdkmcp.Server { return mcpServer },
 		nil,
 	))
-	defer httpServer.Close()
+	t.Cleanup(httpServer.Close)
 
-	// 2. Construct the engine pointing at the http MCP endpoint.
-	stub := newStubModel("ping", `{}`, "pong-received")
-	client, _ := chatclient.New(stub)
-	eng := mustEngineWith(t, client, toolset.BuildConfig{
+	// 2. Construct the tool environment pointing at the HTTP MCP endpoint.
+	built := mustToolEnvironment(t, toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{{Name: "test", Transport: mcpserver.TransportStreamableHTTP, Endpoint: httpServer.URL}},
 	})
-	defer eng.Close()
 
 	// 3. The remote tool must appear in the merged list under its
 	// model-facing MCP port name.
 	want := "test_ping"
 	found := false
-	for _, tool := range eng.Tools() {
+	for _, tool := range built.Resolver.Tools() {
 		if tool.Definition().Name == want {
 			found = true
 			break
 		}
 	}
 	if !found {
-		names := make([]string, 0, len(eng.Tools()))
-		for _, t := range eng.Tools() {
+		catalog := built.Resolver.Tools()
+		names := make([]string, 0, len(catalog))
+		for _, t := range catalog {
 			names = append(names, t.Definition().Name)
 		}
-		t.Fatalf("tool %q not in engine.Tools(); got %v", want, names)
+		t.Fatalf("tool %q not in tool catalog; got %v", want, names)
 	}
 }
 
-// TestEngine_DialMCPServer_RejectsDuplicateNames ensures the
+// TestToolEnvironmentRejectsDuplicateMCPNames ensures the
 // fail-fast guard fires on misconfiguration: two MCPServer
-// entries with the same Name must abort engine.New rather than
+// entries with the same Name must abort tool construction rather than
 // silently overwriting.
-func TestEngine_DialMCPServer_RejectsDuplicateNames(t *testing.T) {
+func TestToolEnvironmentRejectsDuplicateMCPNames(t *testing.T) {
 	_, err := toolset.Build(context.Background(), toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{
 			{Name: "dup", Transport: mcpserver.TransportStreamableHTTP, Endpoint: "http://example.invalid/"},
@@ -141,10 +138,10 @@ func TestEngine_DialMCPServer_RejectsDuplicateNames(t *testing.T) {
 	}
 }
 
-// TestEngine_DialMCPServer_RejectsBadEndpoint surfaces dial
-// failures at engine.New time so operators don't discover the
+// TestToolEnvironmentRejectsBadMCPEndpoint surfaces validation
+// failures at build time so operators don't discover the
 // problem on the first tool call.
-func TestEngine_DialMCPServer_RejectsBadEndpoint(t *testing.T) {
+func TestToolEnvironmentRejectsBadMCPEndpoint(t *testing.T) {
 	_, err := toolset.Build(context.Background(), toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{
 			{Name: "bad", Transport: mcpserver.TransportStreamableHTTP, Endpoint: ""}, // empty endpoint fails Validate
@@ -155,15 +152,15 @@ func TestEngine_DialMCPServer_RejectsBadEndpoint(t *testing.T) {
 	}
 }
 
-// TestEngine_DialMCPServer_Stdio re-execs this test binary as a
-// stdio MCP server (see TestMain) and verifies engine.New dials it
+// TestToolEnvironmentDialsStdioMCP re-execs this test binary as a
+// stdio MCP server (see TestMain) and verifies tool construction dials it
 // over stdin/stdout, lists its `ping` tool, and surfaces it under
 // the `stdio_ping` prefix. Close must terminate the subprocess
 // cleanly.
 //
 // Skipped when the test binary path cannot be resolved (uncommon —
 // `go test` always provides argv[0]).
-func TestEngine_DialMCPServer_Stdio(t *testing.T) {
+func TestToolEnvironmentDialsStdioMCP(t *testing.T) {
 	self, err := os.Executable()
 	if err != nil {
 		t.Skipf("os.Executable not available: %v", err)
@@ -173,10 +170,7 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 		t.Skipf("test binary unreachable for re-exec: %v", err)
 	}
 
-	stub := newStubModel("ping", `{}`, "")
-	client, _ := chatclient.New(stub)
-
-	eng := mustEngineWith(t, client, toolset.BuildConfig{
+	built := mustToolEnvironment(t, toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{{
 			Name:      "stdio",
 			Transport: mcpserver.TransportStdio,
@@ -185,28 +179,27 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 			Env:       append(os.Environ(), runAsMCPServerEnv+"=1"),
 		}},
 	})
-	defer eng.Close()
-
 	want := "stdio_ping"
 	found := false
-	for _, tool := range eng.Tools() {
+	for _, tool := range built.Resolver.Tools() {
 		if tool.Definition().Name == want {
 			found = true
 			break
 		}
 	}
 	if !found {
-		names := make([]string, 0, len(eng.Tools()))
-		for _, t := range eng.Tools() {
+		catalog := built.Resolver.Tools()
+		names := make([]string, 0, len(catalog))
+		for _, t := range catalog {
 			names = append(names, t.Definition().Name)
 		}
-		t.Fatalf("tool %q not in engine.Tools(); got %v", want, names)
+		t.Fatalf("tool %q not in tool catalog; got %v", want, names)
 	}
 }
 
-// TestEngine_DialMCPServer_StdioRejectsEmptyCommand mirrors the
+// TestToolEnvironmentRejectsEmptyStdioCommand mirrors the
 // HTTP empty-endpoint guard for the stdio path.
-func TestEngine_DialMCPServer_StdioRejectsEmptyCommand(t *testing.T) {
+func TestToolEnvironmentRejectsEmptyStdioCommand(t *testing.T) {
 	_, err := toolset.Build(context.Background(), toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{{
 			Name:      "bad",
@@ -225,26 +218,22 @@ func fileExists(p string) bool {
 	return err == nil
 }
 
-// TestEngine_DialMCPServers_ToleratesUnreachable verifies boot tolerance
+// TestToolEnvironmentToleratesUnreachableMCP verifies boot tolerance
 // (B3b-1): a well-formed but unreachable server is recorded "failed" with its
-// reason and skipped, so engine.New still succeeds and serves the rest —
+// reason and skipped, so tool construction still succeeds and serves the rest —
 // replacing the old all-or-nothing boot. (A malformed config stays fatal, as
 // the sibling Rejects* tests assert.)
-func TestEngine_DialMCPServers_ToleratesUnreachable(t *testing.T) {
-	stub := newStubModel("nop", `{}`, "")
-	client, _ := chatclient.New(stub)
-	eng := mustEngineWith(t, client, toolset.BuildConfig{
+func TestToolEnvironmentToleratesUnreachableMCP(t *testing.T) {
+	built := mustToolEnvironment(t, toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{
 			{Name: "down", Transport: mcpserver.TransportStreamableHTTP, Endpoint: "http://127.0.0.1:1/mcp"},
 		},
 	})
-	t.Cleanup(func() { _ = eng.Close() })
-
-	statuses := eng.MCPServerStatuses()
+	statuses := built.MCPStatusReader.Statuses()
 	if len(statuses) != 1 || statuses[0].Name != "down" || statuses[0].Status != "failed" || statuses[0].Err == nil {
 		t.Fatalf("statuses = %+v, want [down failed <reason>]", statuses)
 	}
-	tools, err := eng.MCPTools(context.Background(), "")
+	tools, err := built.MCPToolCatalog.Tools(context.Background(), "")
 	if err != nil {
 		t.Fatalf("MCPTools: %v", err)
 	}
@@ -253,33 +242,45 @@ func TestEngine_DialMCPServers_ToleratesUnreachable(t *testing.T) {
 	}
 }
 
-// TestEngine_ReconnectMCPServer covers the reconnect path (B3b-2) against an
+// TestToolEnvironmentReconnectsMCP covers the reconnect path against an
 // unreachable server: the dial still fails, so the server walks connecting →
 // failed (returning the error) and its tools stay absent; an unknown name is
 // mcpserver.ErrUnknownServer. (A successful reconnect's tool hot-swap rides the same
 // code path as boot, which the stdio integration test already exercises.)
-func TestEngine_ReconnectMCPServer(t *testing.T) {
-	stub := newStubModel("nop", `{}`, "")
-	client, _ := chatclient.New(stub)
-	eng := mustEngineWith(t, client, toolset.BuildConfig{
+func TestToolEnvironmentReconnectsMCP(t *testing.T) {
+	built := mustToolEnvironment(t, toolset.BuildConfig{
 		MCPServers: []mcpserver.LiveConfig{
 			{Name: "down", Transport: mcpserver.TransportStreamableHTTP, Endpoint: "http://127.0.0.1:1/mcp"},
 		},
 	})
-	t.Cleanup(func() { _ = eng.Close() })
-
-	if err := eng.ReconnectMCPServer(context.Background(), "down"); err == nil {
+	if err := built.MCPConnectionCommands.Reconnect(context.Background(), "down"); err == nil {
 		t.Fatal("reconnect of an unreachable server must return the dial error")
 	}
-	st := eng.MCPServerStatuses()
+	st := built.MCPStatusReader.Statuses()
 	if len(st) != 1 || st[0].Status != "failed" || st[0].Err == nil {
 		t.Fatalf("statuses = %+v, want [down failed <reason>]", st)
 	}
-	if tools, _ := eng.MCPTools(context.Background(), ""); len(tools) != 0 {
+	if tools, _ := built.MCPToolCatalog.Tools(context.Background(), ""); len(tools) != 0 {
 		t.Fatalf("MCPTools = %+v, want empty after a failed reconnect", tools)
 	}
 
-	if err := eng.ReconnectMCPServer(context.Background(), "ghost"); !errors.Is(err, mcpserver.ErrUnknownServer) {
+	if err := built.MCPConnectionCommands.Reconnect(context.Background(), "ghost"); !errors.Is(err, mcpserver.ErrUnknownServer) {
 		t.Fatalf("reconnect unknown = %v, want mcpserver.ErrUnknownServer", err)
 	}
+}
+
+func mustToolEnvironment(t *testing.T, config toolset.BuildConfig) toolset.Built {
+	t.Helper()
+	built, err := toolset.Build(t.Context(), config)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	t.Cleanup(func() {
+		for index := len(built.Closers) - 1; index >= 0; index-- {
+			if closeFn := built.Closers[index]; closeFn != nil {
+				_ = closeFn()
+			}
+		}
+	})
+	return built
 }

@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/httpreq"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/askuser"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
@@ -17,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -64,17 +63,15 @@ type BuildConfig struct {
 	MCPToolDisabled func(string) bool
 }
 
-// Built is the assembled tool environment handed to the engine core: the
-// engine-scope resolver, the canonical tool list (for tools.list — without
-// the engine-built task/ask_user), the live MCP ports, and the capability
-// closers the engine runs at shutdown.
+// Built is the assembled tool environment handed to the composition root: the
+// engine-scope resolver (also the diagnostic tool catalog), the live MCP ports,
+// and the capability closers owned by bootstrap.Host.
 type Built struct {
 	Resolver              *Resolver
-	Tools                 []tools.Tool
-	MCPStatusReader       toolport.MCPStatusReader
-	MCPToolCatalog        toolport.MCPToolCatalog
-	MCPConnectionCommands toolport.MCPConnectionCommands
-	MCPRegistryCommands   toolport.MCPRegistryCommands
+	MCPStatusReader       integrations.MCPStatusReader
+	MCPToolCatalog        integrations.MCPToolCatalog
+	MCPConnectionCommands integrations.MCPConnectionCommands
+	MCPRegistryCommands   integrations.MCPRegistryCommands
 	Closers               []func() error
 }
 
@@ -219,13 +216,13 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		}
 		tools = append(tools, codebaseSearch)
 	}
+	resolver.setCatalog(tools)
 
 	mcpControl := &mcpControl{inner: mcpConns}
 
 	cleanupOnError = false
 	return Built{
 		Resolver:              resolver,
-		Tools:                 tools,
 		MCPStatusReader:       mcpControl,
 		MCPToolCatalog:        mcpControl,
 		MCPConnectionCommands: mcpControl,

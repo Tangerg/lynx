@@ -211,6 +211,9 @@ func typedInterrupt(suspension *agent.Suspension) (Interrupt, bool) {
 // extra LLM call, so we amortize it onto the moments where the
 // runtime had to summarize anyway.
 func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
+	if s.compactor == nil {
+		return
+	}
 	// PreCompact hooks fire from inside MaybeCompact — exactly when a compaction
 	// is committed (after its triggers + guards), never on a turn that won't
 	// compact. A hook may veto (Block) the compaction; observe-only otherwise.
@@ -221,7 +224,7 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 		dec := st.hooks.Run(hctx, hooks.Input{Event: hooks.PreCompact, SessionID: sessionID, Cwd: st.cwd})
 		return !dec.Block
 	}
-	compaction, err := s.engine.MaybeCompact(ctx, sessionID, preCompact)
+	compaction, err := s.compactor.MaybeCompact(ctx, sessionID, preCompact)
 	if err != nil {
 		s.emit(st, ErrorEvent{
 			Message: "auto-compaction failed: " + err.Error(),
@@ -237,7 +240,10 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 		MessagesAfter:  compaction.MessagesAfter,
 	})
 
-	extraction, err := s.engine.MaybeExtract(ctx, sessionID, st.cwd)
+	if s.extractor == nil {
+		return
+	}
+	extraction, err := s.extractor.MaybeExtract(ctx, sessionID, st.cwd)
 	if err != nil {
 		s.emit(st, ErrorEvent{
 			Message: "memory extraction failed: " + err.Error(),
