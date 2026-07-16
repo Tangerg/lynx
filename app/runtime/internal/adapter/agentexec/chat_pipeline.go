@@ -15,6 +15,11 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
+type chatGuardrailsBuilder func(
+	history.Store,
+	func(context.Context) []chat.Message,
+) (*core.ChatGuardrails, error)
+
 func newAgentRuntime(config Config, resolver toolport.ToolResolver) (*agentruntime.Engine, error) {
 	guardrails, err := newChatGuardrails(config)
 	if err != nil {

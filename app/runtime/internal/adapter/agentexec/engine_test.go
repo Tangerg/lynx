@@ -2,15 +2,19 @@ package agentexec
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/chatclient"
+	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -322,6 +326,169 @@ func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 		if deltas[i] != wantDeltas[i] {
 			t.Errorf("delta[%d] = %q, want %q", i, deltas[i], wantDeltas[i])
 		}
+	}
+}
+
+func TestEngine_RunChat_ModelResponseFinalIsAuthoritative(t *testing.T) {
+	stub := newChoiceOrderStubModel()
+	client, err := chatclient.New(stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng, err := New(context.Background(), Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{Message: "go"})
+	if err != nil {
+		t.Fatalf("runTurnSync: %v", err)
+	}
+	if out.Reply != "authoritative" {
+		t.Fatalf("reply = %q, want tagged final response text", out.Reply)
+	}
+}
+
+func TestEngine_RunChat_DirectToolResultIsFinal(t *testing.T) {
+	direct, err := newDirectResultTool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub := newDirectReturnStubModel()
+	client, err := chatclient.New(stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng, err := New(context.Background(), Config{
+		ChatClient:   client,
+		ToolResolver: &fixedToolResolver{tool: direct},
+		Tools:        []tools.Tool{direct},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{Message: "finish"})
+	if err != nil {
+		t.Fatalf("runTurnSync: %v", err)
+	}
+	if out.Reply != "direct result" {
+		t.Fatalf("reply = %q, want direct result", out.Reply)
+	}
+	if stub.Calls() != 1 {
+		t.Fatalf("model calls = %d, want 1 for return-direct tool", stub.Calls())
+	}
+}
+
+func TestEngine_RunChat_ArtificialStopsPreservePartialText(t *testing.T) {
+	tests := []struct {
+		name       string
+		request    TurnRequest
+		wantReason StopReason
+	}{
+		{
+			name:       "budget",
+			request:    TurnRequest{Message: "go", MaxBudget: 10},
+			wantReason: StopReasonBudget,
+		},
+		{
+			name:       "steps",
+			request:    TurnRequest{Message: "go", MaxSteps: 1},
+			wantReason: StopReasonSteps,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stub := newPartialStopStubModel()
+			client, err := chatclient.New(stub)
+			if err != nil {
+				t.Fatal(err)
+			}
+			eng := mustEngineWith(t, client, toolset.BuildConfig{})
+			defer eng.Close()
+
+			out, err := eng.runTurnSync(context.Background(), test.request)
+			if err != nil {
+				t.Fatalf("runTurnSync: %v", err)
+			}
+			if out.Reply != "partial answer" {
+				t.Fatalf("reply = %q, want partial answer", out.Reply)
+			}
+			if out.StopReason != test.wantReason {
+				t.Fatalf("StopReason = %q, want %q", out.StopReason, test.wantReason)
+			}
+			if stub.Calls() != 1 {
+				t.Fatalf("model calls = %d, want 1", stub.Calls())
+			}
+		})
+	}
+}
+
+func TestEngine_RunChat_LongToolDoesNotTripModelIdleTimeout(t *testing.T) {
+	stub := newStubModel("shell", `{"command":"sleep 0.08; echo complete"}`, "done")
+	client, err := chatclient.New(stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
+	eng.modelStreamIdleTimeout = 20 * time.Millisecond
+
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{Message: "go"})
+	if err != nil {
+		t.Fatalf("long tool was killed by model idle timeout: %v", err)
+	}
+	if out.Reply != "done" {
+		t.Fatalf("reply = %q, want done", out.Reply)
+	}
+}
+
+func TestEngine_RunChat_ToolTimeoutIsNotModelIdleTimeout(t *testing.T) {
+	stub := newStubModel("shell", `{"command":"sleep 0.08","timeout":10}`, "recovered")
+	client, err := chatclient.New(stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
+	eng.modelStreamIdleTimeout = 100 * time.Millisecond
+
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{Message: "go"})
+	if err != nil {
+		if errors.Is(err, errModelStreamIdleTimeout) || strings.Contains(err.Error(), "model stream idle") {
+			t.Fatalf("tool timeout misreported as model idle: %v", err)
+		}
+		t.Fatalf("runTurnSync: %v", err)
+	}
+	if out.Reply != "recovered" {
+		t.Fatalf("reply = %q, want recovered", out.Reply)
+	}
+}
+
+func TestEngine_StartTurn_PropagatesSteeringGuardrailConstructionError(t *testing.T) {
+	stub := newStreamingStubModel("unused")
+	client, err := chatclient.New(stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng, err := New(context.Background(), Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sentinel := errors.New("guardrail construction failed")
+	eng.guardrailsBuilder = func(history.Store, func(context.Context) []chat.Message) (*core.ChatGuardrails, error) {
+		return nil, sentinel
+	}
+
+	process, err := eng.StartTurn(context.Background(), TurnRequest{
+		Message: "go",
+		Steer:   func() []chat.Message { return nil },
+	})
+	if process != nil {
+		t.Fatal("StartTurn returned a process after guardrail construction failed")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("StartTurn error = %v, want %v", err, sentinel)
 	}
 }
 

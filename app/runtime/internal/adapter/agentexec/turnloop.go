@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Tangerg/lynx/agent"
@@ -17,36 +18,123 @@ import (
 
 const llmIdleTimeout = 5 * time.Minute
 
-func stallContext(parent context.Context, idle time.Duration) (ctx context.Context, keepAlive, stop func()) {
-	ctx, cancel := context.WithCancel(parent)
-	timer := time.AfterFunc(idle, cancel)
-	return ctx, func() { timer.Reset(idle) }, func() { timer.Stop(); cancel() }
+var (
+	errModelStreamIdleTimeout = errors.New("agentexec: model stream idle timeout")
+	errModelStreamCompleted   = errors.New("agentexec: model stream completed")
+)
+
+func modelStreamContext(parent context.Context, idle time.Duration) (ctx context.Context, keepAlive func(), stop func() error) {
+	ctx, cancel := context.WithCancelCause(parent)
+	var (
+		mu         sync.Mutex
+		timer      *time.Timer
+		generation uint64
+		finished   bool
+		winner     error
+	)
+
+	armLocked := func() {
+		generation++
+		current := generation
+		timer = time.AfterFunc(idle, func() {
+			mu.Lock()
+			defer mu.Unlock()
+			if finished || current != generation {
+				return
+			}
+			finished = true
+			generation++
+			if cause := context.Cause(parent); cause != nil {
+				winner = cause
+				return
+			}
+			winner = errModelStreamIdleTimeout
+			cancel(errModelStreamIdleTimeout)
+		})
+	}
+
+	mu.Lock()
+	armLocked()
+	mu.Unlock()
+
+	return ctx, func() {
+			mu.Lock()
+			defer mu.Unlock()
+			if finished {
+				return
+			}
+			if cause := context.Cause(parent); cause != nil {
+				finished = true
+				winner = cause
+				generation++
+				if timer != nil {
+					timer.Stop()
+				}
+				return
+			}
+			if timer != nil {
+				timer.Stop()
+			}
+			armLocked()
+		}, func() error {
+			mu.Lock()
+			defer mu.Unlock()
+			if finished {
+				return winner
+			}
+			finished = true
+			generation++
+			if timer != nil {
+				timer.Stop()
+			}
+			if cause := context.Cause(parent); cause != nil {
+				winner = cause
+				return winner
+			}
+			cancel(errModelStreamCompleted)
+			return nil
+		}
 }
 
 // streamingModel retains provider streaming for the UI while presenting the
 // complete response required by the framework's synchronous interaction port.
 type streamingModel struct {
-	streamer chat.Streamer
-	chunk    func(*chat.Response)
+	streamer    chat.Streamer
+	chunk       func(*chat.Response)
+	idleTimeout time.Duration
 }
 
 func (m streamingModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+	streamCtx, keepAlive, stop := modelStreamContext(ctx, m.idleTimeout)
 	var accumulator chat.ResponseAccumulator
 	seen := false
-	for response, err := range m.streamer.Stream(ctx, request) {
+	for response, err := range m.streamer.Stream(streamCtx, request) {
 		if err != nil {
+			if cause := stop(); cause != nil {
+				return nil, cause
+			}
 			return nil, err
 		}
 		if response == nil {
+			if cause := stop(); cause != nil {
+				return nil, cause
+			}
 			return nil, errors.New("agentexec: chat stream yielded a nil response")
 		}
+		if err := accumulator.Add(response); err != nil {
+			if cause := stop(); cause != nil {
+				return nil, cause
+			}
+			return nil, fmt.Errorf("agentexec: accumulate chat stream: %w", err)
+		}
 		seen = true
+		keepAlive()
 		if m.chunk != nil {
 			m.chunk(response)
 		}
-		if err := accumulator.Add(response); err != nil {
-			return nil, fmt.Errorf("agentexec: accumulate chat stream: %w", err)
-		}
+	}
+	if cause := stop(); cause != nil {
+		return nil, cause
 	}
 	if !seen {
 		return nil, errors.New("agentexec: chat stream ended without a response")
@@ -58,9 +146,6 @@ func (m streamingModel) Call(ctx context.Context, request *chat.Request) (*chat.
 // framework-managed interaction boundary. Runtime owns tool iteration,
 // checkpointing, suspension, usage recording, and budget/step enforcement.
 func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget accounting.Budget) (TurnOutput, error) {
-	ctx, keepAlive, stop := stallContext(ctx, llmIdleTimeout)
-	defer stop()
-
 	capability, err := pc.Chat()
 	if err != nil {
 		return TurnOutput{}, err
@@ -99,11 +184,14 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 	}
 
 	observer := observerFrom(pc.Dependencies())
-	var accumulated strings.Builder
+	// partial retains only the text needed when the framework deliberately
+	// stops before a tagged final response (budget / step limit). Normal
+	// completion always reads result.Final below.
+	var partial strings.Builder
 	model := streamingModel{
-		streamer: capability.Streamer,
+		streamer:    capability.Streamer,
+		idleTimeout: e.modelStreamIdleTimeout,
 		chunk: func(response *chat.Response) {
-			keepAlive()
 			choice := response.First()
 			if choice == nil || choice.Message == nil {
 				return
@@ -115,7 +203,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 						observer.OnReasoningDelta(part.Text)
 					}
 				case chat.PartText:
-					accumulated.WriteString(part.Text)
+					partial.WriteString(part.Text)
 					if observer != nil {
 						observer.OnMessageDelta(part.Text)
 					}
@@ -153,20 +241,27 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 	}
 	switch result.StopReason {
 	case agent.InteractionStopBudget:
-		return turnOutput(pc, accumulated.String(), true), nil
+		return turnOutput(pc, partial.String(), StopReasonBudget), nil
 	case agent.InteractionStopSteps:
-		output := turnOutput(pc, accumulated.String(), false)
-		output.StoppedOnSteps = true
-		return output, nil
+		return turnOutput(pc, partial.String(), StopReasonSteps), nil
+	case agent.InteractionStopNone:
+	default:
+		return TurnOutput{}, fmt.Errorf("agentexec: unexpected interaction stop reason %q", result.StopReason)
 	}
 	if result.Final == nil {
 		return TurnOutput{}, errors.New("agentexec: managed interaction ended without a final event")
 	}
 	switch result.Final.Kind {
 	case agent.InteractionEventModelResponse:
-		return turnOutput(pc, accumulated.String(), false), nil
+		if result.Final.Response == nil {
+			return TurnOutput{}, errors.New("agentexec: final model response event has no response")
+		}
+		return turnOutput(pc, result.Final.Response.Text(), StopReasonNone), nil
 	case agent.InteractionEventToolResult:
-		return turnOutput(pc, result.Final.ToolResult.Result, false), nil
+		if result.Final.ToolResult == nil {
+			return TurnOutput{}, errors.New("agentexec: final tool result event has no result")
+		}
+		return turnOutput(pc, result.Final.ToolResult.Result, StopReasonNone), nil
 	default:
 		return TurnOutput{}, fmt.Errorf("agentexec: unexpected final interaction event %q", result.Final.Kind)
 	}

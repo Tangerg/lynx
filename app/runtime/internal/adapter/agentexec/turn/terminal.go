@@ -3,6 +3,7 @@ package turn
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -152,13 +153,19 @@ func planTurnEnd(terminal event.Event, out agentexec.TurnOutput, runErr, ctxErr 
 // the ProcessCompleted case and the fallback so the mapping lives in one
 // place.
 func completedPlan(out agentexec.TurnOutput) turnEndPlan {
-	switch {
-	case out.StoppedOnSteps:
+	switch out.StopReason {
+	case agentexec.StopReasonSteps:
 		return turnEndPlan{reason: execution.OutcomeMaxSteps, withUsage: true}
-	case out.StoppedOnBudget:
+	case agentexec.StopReasonBudget:
 		return turnEndPlan{reason: execution.OutcomeMaxBudget, withUsage: true}
-	default:
+	case agentexec.StopReasonNone:
 		return turnEndPlan{reason: execution.OutcomeCompleted, withUsage: true}
+	default:
+		return turnEndPlan{
+			reason:  execution.OutcomeError,
+			errMsg:  fmt.Sprintf("invalid turn stop reason %q", out.StopReason),
+			errCode: "ENGINE_ERROR",
+		}
 	}
 }
 

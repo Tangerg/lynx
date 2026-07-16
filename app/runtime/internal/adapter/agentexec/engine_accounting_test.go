@@ -79,7 +79,7 @@ func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 
 // TestEngine_RunChat_StopsOnBudget verifies the per-turn token
 // ceiling halts the tool loop at a round boundary before the next
-// LLM call and reports the partial result with StoppedOnBudget set.
+// LLM call and reports the partial result with StopReasonBudget set.
 // Round 1 (tool call) spends 15 tokens; with MaxBudget=10 the loop
 // must stop there and never run round 2.
 func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
@@ -97,8 +97,8 @@ func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
 	}
-	if !out.StoppedOnBudget {
-		t.Error("expected StoppedOnBudget=true after exceeding MaxBudget")
+	if out.StopReason != StopReasonBudget {
+		t.Errorf("StopReason = %q, want %q", out.StopReason, StopReasonBudget)
 	}
 	if got := out.Usage.Total(); got != 15 {
 		t.Errorf("usage total = %d, want 15 (round 2 must not run)", got)
@@ -127,10 +127,21 @@ func TestEngine_RunChat_StopsOnCostBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
 	}
-	if !out.StoppedOnBudget {
-		t.Error("expected StoppedOnBudget=true after exceeding MaxCostUSD")
+	if out.StopReason != StopReasonBudget {
+		t.Errorf("StopReason = %q, want %q", out.StopReason, StopReasonBudget)
 	}
 	if out.CostUSD != 15 {
 		t.Errorf("CostUSD = %v, want 15 (round 2 must not run)", out.CostUSD)
+	}
+}
+
+func TestStopReason_Valid(t *testing.T) {
+	for _, reason := range []StopReason{StopReasonNone, StopReasonBudget, StopReasonSteps} {
+		if !reason.Valid() {
+			t.Errorf("%q.Valid() = false, want true", reason)
+		}
+	}
+	if invalid := StopReason("budget+steps"); invalid.Valid() {
+		t.Errorf("%q.Valid() = true, want false", invalid)
 	}
 }
