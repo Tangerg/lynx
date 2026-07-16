@@ -60,9 +60,10 @@ type StartTurnRequest struct {
 	// execution.OutcomeMaxBudget stop. Also not (yet) on the wire.
 	MaxCostUSD float64
 
-	// MaxSteps caps the turn's tool-call rounds (model turns); 0 = unlimited.
-	// On overrun the turn stops cleanly after the round with
-	// Reason=[execution.OutcomeMaxSteps] (distinct from the token/cost budget).
+	// MaxSteps caps cumulative model calls across the root and child delegation
+	// tree; 0 = unlimited. On overrun the turn stops cleanly before the next
+	// model call with Reason=[execution.OutcomeMaxSteps] (distinct from the
+	// token/cost budget).
 	MaxSteps int
 
 	// Options carries per-run generation tuning. The turn keeps model

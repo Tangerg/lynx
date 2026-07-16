@@ -52,10 +52,9 @@ type turnInput struct {
 	// and this never trips. Either ceiling stops the turn.
 	MaxCostUSD float64
 
-	// MaxSteps caps the number of tool-call rounds (model turns) the turn may
-	// run. 0 means unlimited (bounded only by the tool loop's own iteration
-	// cap). When reached the action stops cleanly after the round — before the
-	// next LLM call — with [TurnOutput.StopReason] set to [StopReasonSteps].
+	// MaxSteps caps cumulative model calls across the root and child delegation
+	// tree. 0 means unlimited. When reached the action stops cleanly before the
+	// next LLM call with [TurnOutput.StopReason] set to [StopReasonSteps].
 	MaxSteps int
 
 	// Options carries per-run generation tuning. It deliberately does not carry
@@ -72,7 +71,8 @@ const (
 	StopReasonNone StopReason = ""
 	// StopReasonBudget means token or cost limits stopped continuation.
 	StopReasonBudget StopReason = "budget"
-	// StopReasonSteps means the tool-call-round limit stopped continuation.
+	// StopReasonSteps means the delegation-tree model-call limit stopped
+	// continuation.
 	StopReasonSteps StopReason = "steps"
 )
 
@@ -107,9 +107,9 @@ type TurnOutput struct {
 	CostUSD float64
 
 	// StopReason is empty on normal completion, "budget" when token or cost
-	// limits stopped continuation, and "steps" when the tool-call-round limit
-	// stopped continuation. Reply holds partial streamed text for the two
-	// artificial-stop cases.
+	// limits stopped continuation, and "steps" when the delegation-tree
+	// model-call limit stopped continuation. Reply holds partial streamed text
+	// for the two artificial-stop cases.
 	StopReason StopReason
 }
 
@@ -172,7 +172,14 @@ func (in taskInput) SubagentPrompt() string { return in.Prompt }
 // aggregates up the subtree into the parent turn's usage roll-up.
 func (e *Engine) buildSubtaskAgent() *core.Agent {
 	return agent.New(agent.AgentConfig{Name: "task", Description: "Delegate a self-contained subtask to a fresh sub-agent that has the coding " + "tools (it cannot delegate further). Use for focused, separable work — investigate a " + "question, draft a file — so the main conversation stays uncluttered. The sub-agent starts " + "with a clean context and cannot see this conversation, so put everything it needs in the " + "prompt. It returns a single final answer; its intermediate work is not shown to the user.", Actions: []agent.Action{agent.NewAction("subtask", func(ctx context.Context, pc *core.ProcessContext, in taskInput) (string, error) {
-		out, err := e.runTurn(ctx, pc, "", in.Prompt, nil, nil, accounting.Budget{})
+		execution, err := childExecutionFrom(pc.Dependencies())
+		if err != nil {
+			return "", err
+		}
+		if execution.StopReason != StopReasonNone {
+			return "", nil
+		}
+		out, err := e.runTurn(ctx, pc, execution.Provider, in.Prompt, nil, nil, execution.Budget)
 		if err != nil {
 			return "", err
 		}

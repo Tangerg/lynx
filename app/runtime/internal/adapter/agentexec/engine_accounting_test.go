@@ -3,8 +3,10 @@ package agentexec
 import (
 	"context"
 	"math"
+	"sync"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
@@ -74,6 +76,143 @@ func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 	}
 	if len(out.UsageByModel) != 1 || math.Abs(out.UsageByModel[0].CostUSD-0.42) > 1e-9 {
 		t.Errorf("per-model cost = %+v, want one entry costing 0.42", out.UsageByModel)
+	}
+}
+
+func TestEngine_TaskDelegationInheritsPerRunModelAndProvider(t *testing.T) {
+	defaultClient, _ := chatclient.New(newNamedStub("default-model"))
+	selectedModel := newDelegatingAccountingStub("selected-model", chat.Usage{InputTokens: 1, OutputTokens: 1})
+	selectedClient, _ := chatclient.New(selectedModel)
+	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
+	if err != nil {
+		t.Fatalf("toolset.Build: %v", err)
+	}
+	var (
+		mu        sync.Mutex
+		providers []string
+	)
+	engine, err := New(t.Context(), Config{
+		ChatClient:   defaultClient,
+		Provider:     "default-provider",
+		ToolResolver: built.Resolver,
+		Tools:        built.Tools,
+		Closers:      built.Closers,
+		Pricing: func(provider, _ string, _ *chat.Usage) float64 {
+			mu.Lock()
+			providers = append(providers, provider)
+			mu.Unlock()
+			return 0.25
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer engine.Close()
+
+	output, err := engine.runTurnSync(t.Context(), TurnRequest{
+		Message:    "delegate this",
+		Provider:   "selected-provider",
+		ChatClient: selectedClient,
+	})
+	if err != nil {
+		t.Fatalf("runTurnSync: %v", err)
+	}
+	if output.Reply != "main: subtask done" || selectedModel.Calls() != 3 {
+		t.Fatalf("reply/calls = %q/%d, want full three-call selected-model delegation", output.Reply, selectedModel.Calls())
+	}
+	if output.Usage.Total() != 6 || output.CostUSD != 0.75 {
+		t.Fatalf("usage/cost = %d/%v, want 6/0.75 including child", output.Usage.Total(), output.CostUSD)
+	}
+	if len(output.UsageByModel) != 1 || output.UsageByModel[0].Model != "selected-model" {
+		t.Fatalf("UsageByModel = %+v, want only selected-model", output.UsageByModel)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(providers) != 3 {
+		t.Fatalf("pricing providers = %v, want three selected-provider calls", providers)
+	}
+	for _, provider := range providers {
+		if provider != "selected-provider" {
+			t.Fatalf("pricing providers = %v, child fell back to default provider", providers)
+		}
+	}
+}
+
+func TestEngine_TaskDelegationDoesNotStartChildAfterTokenBudgetIsSpent(t *testing.T) {
+	model := newDelegatingAccountingStub("budget-model", chat.Usage{InputTokens: 1, OutputTokens: 1})
+	client, _ := chatclient.New(model)
+	engine := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer engine.Close()
+
+	output, err := engine.runTurnSync(t.Context(), TurnRequest{
+		Message:   "delegate this",
+		MaxBudget: 2,
+	})
+	if err != nil {
+		t.Fatalf("runTurnSync: %v", err)
+	}
+	if output.StopReason != StopReasonBudget || output.Usage.Total() != 2 {
+		t.Fatalf("stop/usage = %q/%d, want budget/2", output.StopReason, output.Usage.Total())
+	}
+	if model.Calls() != 1 {
+		t.Fatalf("model calls = %d, want only the root call before child budget exhaustion", model.Calls())
+	}
+}
+
+func TestEngine_TaskDelegationDoesNotStartChildAfterCostBudgetIsSpent(t *testing.T) {
+	model := newDelegatingAccountingStub("cost-model", chat.Usage{InputTokens: 1, OutputTokens: 1})
+	client, _ := chatclient.New(model)
+	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
+	if err != nil {
+		t.Fatalf("toolset.Build: %v", err)
+	}
+	engine, err := New(t.Context(), Config{
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
+		Tools:        built.Tools,
+		Closers:      built.Closers,
+		Pricing: func(_, _ string, _ *chat.Usage) float64 {
+			return 1
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer engine.Close()
+
+	output, err := engine.runTurnSync(t.Context(), TurnRequest{
+		Message:    "delegate this",
+		MaxCostUSD: 1,
+	})
+	if err != nil {
+		t.Fatalf("runTurnSync: %v", err)
+	}
+	if output.StopReason != StopReasonBudget || output.CostUSD != 1 {
+		t.Fatalf("stop/cost = %q/%v, want budget/1", output.StopReason, output.CostUSD)
+	}
+	if model.Calls() != 1 {
+		t.Fatalf("model calls = %d, want only the root call before child cost exhaustion", model.Calls())
+	}
+}
+
+func TestEngine_TaskDelegationCountsChildCallsAgainstStepLimit(t *testing.T) {
+	model := newDelegatingAccountingStub("steps-model", chat.Usage{})
+	client, _ := chatclient.New(model)
+	engine := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer engine.Close()
+
+	output, err := engine.runTurnSync(t.Context(), TurnRequest{
+		Message:  "delegate this",
+		MaxSteps: 2,
+	})
+	if err != nil {
+		t.Fatalf("runTurnSync: %v", err)
+	}
+	if output.StopReason != StopReasonSteps {
+		t.Fatalf("StopReason = %q, want steps", output.StopReason)
+	}
+	if model.Calls() != 2 {
+		t.Fatalf("model calls = %d, want root + child with no third root call", model.Calls())
 	}
 }
 
