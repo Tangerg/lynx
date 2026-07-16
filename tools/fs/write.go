@@ -77,7 +77,6 @@ func (*WriteTool) MutationPaths(arguments string) ([]string, error) {
 }
 
 func (t *WriteTool) Call(ctx context.Context, arguments string) (string, error) {
-	_ = ctx
 	var req WriteRequest
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("fs.write: parse arguments: %w", err)

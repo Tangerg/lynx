@@ -41,6 +41,23 @@ func TestNamedListener_NilFnIsNop(t *testing.T) {
 	listener.OnEvent(context.Background(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
 }
 
+func TestMulticastCancelListenerFunc(t *testing.T) {
+	var calls int
+	multicast := event.NewMulticast()
+	cancel := multicast.Add(event.ListenerFunc(func(context.Context, event.Event) {
+		calls++
+	}))
+
+	multicast.OnEvent(t.Context(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
+	cancel()
+	cancel()
+	multicast.OnEvent(t.Context(), event.AgentUndeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
+
+	if calls != 1 {
+		t.Fatalf("calls = %d, want 1", calls)
+	}
+}
+
 func TestNamedListener_ConcurrentDelivery(t *testing.T) {
 	// Smoke test: NamedListener fn must tolerate concurrent OnEvent calls
 	// from the multicast (the user closure is responsible for its own

@@ -40,7 +40,7 @@ func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error {
 		return fmt.Errorf("runtime.ValidateResumableSnapshot: %w", err)
 	}
 	if checkpoint.Deployment != snapshot.Deployment {
-		return fmt.Errorf("runtime.ValidateResumableSnapshot: tool checkpoint deployment does not match snapshot deployment")
+		return errors.New("runtime.ValidateResumableSnapshot: tool checkpoint deployment does not match snapshot deployment")
 	}
 	if checkpoint.Checkpoint.ID != suspension.ID {
 		return fmt.Errorf("runtime.ValidateResumableSnapshot: tool checkpoint ID %q does not match suspension ID %q", checkpoint.Checkpoint.ID, suspension.ID)

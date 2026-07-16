@@ -2,6 +2,7 @@ package sessions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -32,7 +33,7 @@ func (c *Coordinator) ReadSnapshot(ctx context.Context, claims SessionClaimer, s
 // and every run/item belongs to it — before the coordinator hands it out.
 func (snapshot Snapshot) Validate() error {
 	if snapshot.Session.ID == "" {
-		return fmt.Errorf("sessions: snapshot session id is required")
+		return errors.New("sessions: snapshot session id is required")
 	}
 	runs := make(map[string]struct{}, len(snapshot.Runs))
 	for _, run := range snapshot.Runs {

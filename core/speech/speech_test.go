@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/core/speech"
 )
 
-func TestModelAndStreamFunc(t *testing.T) {
+func TestModelAndStreamerFunc(t *testing.T) {
 	want := errors.New("boom")
 	model := speech.ModelFunc(func(_ context.Context, request *speech.Request) (*speech.Response, error) {
 		if request.Text != "hello" {
@@ -24,7 +24,7 @@ func TestModelAndStreamFunc(t *testing.T) {
 		t.Fatalf("Call error = %v, want %v", err, want)
 	}
 
-	streamer := speech.StreamFunc(func(context.Context, *speech.Request) iter.Seq2[*speech.Response, error] {
+	streamer := speech.StreamerFunc(func(context.Context, *speech.Request) iter.Seq2[*speech.Response, error] {
 		return func(yield func(*speech.Response, error) bool) {
 			yield(nil, want)
 		}

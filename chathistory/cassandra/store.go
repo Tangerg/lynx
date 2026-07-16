@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 
 	"github.com/gocql/gocql"
 
 	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/internal/codec"
+	"github.com/Tangerg/lynx/chathistory/internal/dbident"
 	"github.com/Tangerg/lynx/chathistory/internal/tracing"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -18,9 +18,6 @@ const (
 	DefaultKeyspace  = "lynx"
 	DefaultTableName = "chat_history"
 )
-
-// identPattern matches valid Cassandra unquoted-identifier shape.
-var identPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Config configures [New]. Only [Config.Session] is required.
 type Config struct {
@@ -77,11 +74,11 @@ func New(cfg Config) (*Store, error) {
 	if cfg.TableName == "" {
 		cfg.TableName = DefaultTableName
 	}
-	if !identPattern.MatchString(cfg.Keyspace) {
-		return nil, fmt.Errorf("cassandra: Keyspace=%q must match %s", cfg.Keyspace, identPattern)
+	if !dbident.Valid(cfg.Keyspace) {
+		return nil, fmt.Errorf("cassandra: Keyspace=%q must match %s", cfg.Keyspace, dbident.Pattern)
 	}
-	if !identPattern.MatchString(cfg.TableName) {
-		return nil, fmt.Errorf("cassandra: TableName=%q must match %s", cfg.TableName, identPattern)
+	if !dbident.Valid(cfg.TableName) {
+		return nil, fmt.Errorf("cassandra: TableName=%q must match %s", cfg.TableName, dbident.Pattern)
 	}
 
 	qualified := cfg.Keyspace + "." + cfg.TableName

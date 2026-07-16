@@ -164,7 +164,7 @@ NewRequest, NewResponse, NewResult
 P5-02 后当前路径为 `core/speech`，公共面为：
 
 ```text
-Model, ModelFunc, Streamer, StreamFunc, Options, Request, Response,
+Model, ModelFunc, Streamer, StreamerFunc, Options, Request, Response,
 ResponseMetadata, Result, ResultMetadata, NewOptions,
 NewRequest, NewResponse, NewResult
 ```

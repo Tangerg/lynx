@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"reflect"
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -43,7 +42,7 @@ type Runner struct {
 
 // NewRunner validates model and config and returns an immutable Runner.
 func NewRunner(model chat.Model, config Config) (*Runner, error) {
-	if nilModel(model) {
+	if valueIsNil(model) {
 		return nil, fmt.Errorf("%w: model must not be nil", ErrInvalidConfig)
 	}
 	if config.MaxRounds < 0 {
@@ -157,7 +156,7 @@ func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolv
 }
 
 func (r *Runner) validateContext(ctx context.Context) error {
-	if r == nil || nilModel(r.model) || r.maxRounds < 1 {
+	if r == nil || valueIsNil(r.model) || r.maxRounds < 1 {
 		return fmt.Errorf("%w: uninitialized runner", ErrInvalidInput)
 	}
 	if ctx == nil {
@@ -256,12 +255,12 @@ func (r *Runner) callTools(ctx context.Context, state *runnerState, yield func(E
 	resolved := make([]tools.Tool, len(state.calls))
 	allDirect := len(state.calls) > 0
 	for i := range state.calls {
-		if nilResolver(state.resolver) {
+		if valueIsNil(state.resolver) {
 			allDirect = false
 			continue
 		}
 		tool, ok := state.resolver.Resolve(state.calls[i].Name)
-		if !ok || nilRuntimeTool(tool) {
+		if !ok || valueIsNil(tool) {
 			allDirect = false
 			continue
 		}
@@ -315,7 +314,7 @@ func (s *runnerState) invokeTool(ctx context.Context, call chat.ToolCall, tool t
 	if err := ctx.Err(); err != nil {
 		return chat.ToolResult{}, nil, err
 	}
-	if nilRuntimeTool(tool) {
+	if valueIsNil(tool) {
 		return chat.ToolResult{
 			ID:      call.ID,
 			Name:    call.Name,
@@ -427,30 +426,4 @@ func snapshot[T any](value *T) (*T, error) {
 		return nil, err
 	}
 	return &copy, nil
-}
-
-func nilModel(model chat.Model) bool {
-	if model == nil {
-		return true
-	}
-	value := reflect.ValueOf(model)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
-}
-
-func nilResolver(resolver ToolResolver) bool {
-	if resolver == nil {
-		return true
-	}
-	value := reflect.ValueOf(resolver)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
 }

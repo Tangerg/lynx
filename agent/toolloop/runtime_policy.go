@@ -16,7 +16,7 @@ type returnDirectMarker interface {
 // completes with its final ToolResult instead of making another model call.
 // Nil input remains nil and is rejected by tools.Registry or Runner.Run.
 func Direct(tool tools.Tool) tools.Tool {
-	if nilRuntimeTool(tool) {
+	if valueIsNil(tool) {
 		return nil
 	}
 	return directRuntimeTool{Tool: tool}
@@ -41,14 +41,14 @@ func returnsDirectRuntime(tool tools.Tool) bool {
 	return ok && direct.ReturnsDirect()
 }
 
-func nilRuntimeTool(tool tools.Tool) bool {
-	if tool == nil {
+func valueIsNil(value any) bool {
+	if value == nil {
 		return true
 	}
-	value := reflect.ValueOf(tool)
-	switch value.Kind() {
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
+		return reflected.IsNil()
 	default:
 		return false
 	}

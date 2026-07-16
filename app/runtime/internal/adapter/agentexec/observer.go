@@ -119,8 +119,6 @@ type toolObserverMiddleware struct {
 	observer toolObserver
 }
 
-func (d *toolObserverMiddleware) ToolObserver() toolObserver { return d.observer }
-
 // Name implements [core.Extension]. The constant string is fine —
 // process-scope extensions allow name collisions with engine
 // scope, and this decorator is process-scoped.

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -25,7 +26,7 @@ type ChatGuardrailsConfig struct {
 // reintroducing executable tools or conversation IDs into chat.Request.
 func NewChatGuardrails(config ChatGuardrailsConfig) (*core.ChatGuardrails, error) {
 	if config.MaxToolRounds < 0 {
-		return nil, fmt.Errorf("runtime.NewChatGuardrails: MaxToolRounds must not be negative")
+		return nil, errors.New("runtime.NewChatGuardrails: MaxToolRounds must not be negative")
 	}
 	store := config.HistoryStore
 	if store == nil {

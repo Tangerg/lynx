@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -22,7 +23,7 @@ func NewMemoryProcessStore() *MemoryProcessStore {
 
 func (s *MemoryProcessStore) Save(_ context.Context, snapshot ProcessSnapshot, expectedRevision uint64) (uint64, error) {
 	if s == nil {
-		return 0, fmt.Errorf("memory process store: nil receiver")
+		return 0, errors.New("memory process store: nil receiver")
 	}
 	if snapshot.Revision != expectedRevision {
 		return 0, fmt.Errorf("%w: snapshot revision %d does not match expected revision %d", ErrInvalidSnapshot, snapshot.Revision, expectedRevision)
@@ -50,7 +51,7 @@ func (s *MemoryProcessStore) Save(_ context.Context, snapshot ProcessSnapshot, e
 
 func (s *MemoryProcessStore) Load(_ context.Context, id string) (ProcessSnapshot, error) {
 	if s == nil {
-		return ProcessSnapshot{}, fmt.Errorf("memory process store: nil receiver")
+		return ProcessSnapshot{}, errors.New("memory process store: nil receiver")
 	}
 	s.mu.RLock()
 	snapshot, ok := s.snapshots[id]

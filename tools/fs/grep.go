@@ -79,7 +79,6 @@ func (t *GrepTool) Definition() chat.ToolDefinition {
 func (t *GrepTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
 func (t *GrepTool) Call(ctx context.Context, arguments string) (string, error) {
-	_ = ctx
 	var req GrepRequest
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("fs.grep: parse arguments: %w", err)
