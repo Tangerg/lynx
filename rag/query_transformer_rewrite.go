@@ -39,30 +39,6 @@ type RewriteTransformerConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
-func (c *RewriteTransformerConfig) validate() error {
-	if c.ChatModel == nil {
-		return errors.New("rag.RewriteTransformerConfig: ChatModel is required")
-	}
-	if c.PromptTemplate != nil {
-		return c.PromptTemplate.Require("Target", "Query")
-	}
-	return nil
-}
-
-func (c *RewriteTransformerConfig) applyDefaults() error {
-	if c.TargetSearchSystem == "" {
-		c.TargetSearchSystem = defaultRewriteTarget
-	}
-	if c.PromptTemplate == nil {
-		var err error
-		c.PromptTemplate, err = chatclient.ParseTemplate(rewriteDefaultTemplate)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 var _ Transformer = (*rewriteTransformer)(nil)
 
 type rewriteTransformer struct {
@@ -74,10 +50,19 @@ type rewriteTransformer struct {
 // NewRewriteTransformer returns a [Transformer] that tightens a verbose or
 // ambiguous user query for a configured search target.
 func NewRewriteTransformer(cfg RewriteTransformerConfig) (Transformer, error) {
-	if err := cfg.applyDefaults(); err != nil {
-		return nil, err
+	if cfg.ChatModel == nil {
+		return nil, errors.New("rag.RewriteTransformerConfig: ChatModel is required")
 	}
-	if err := cfg.validate(); err != nil {
+	if cfg.TargetSearchSystem == "" {
+		cfg.TargetSearchSystem = defaultRewriteTarget
+	}
+	promptTemplate, err := resolvePromptTemplate(
+		cfg.PromptTemplate,
+		rewriteDefaultTemplate,
+		"Target",
+		"Query",
+	)
+	if err != nil {
 		return nil, err
 	}
 
@@ -89,7 +74,7 @@ func NewRewriteTransformer(cfg RewriteTransformerConfig) (Transformer, error) {
 	return &rewriteTransformer{
 		chatClient:         client,
 		targetSearchSystem: cfg.TargetSearchSystem,
-		promptTemplate:     cfg.PromptTemplate,
+		promptTemplate:     promptTemplate,
 	}, nil
 }
 
@@ -101,7 +86,7 @@ func (r *rewriteTransformer) Transform(ctx context.Context, query *Query) (*Quer
 		return nil, ErrNilQuery
 	}
 
-	rewritten, err := callTemplate(ctx, r.chatClient, r.promptTemplate, map[string]any{
+	rewritten, err := callPrompt(ctx, r.chatClient, r.promptTemplate, map[string]any{
 		"Target": r.targetSearchSystem,
 		"Query":  query.Text,
 	})

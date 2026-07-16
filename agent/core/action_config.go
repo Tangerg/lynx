@@ -63,18 +63,6 @@ type ActionConfig struct {
 	ClearWorkingState bool
 }
 
-func (c *ActionConfig) applyDefaults() {
-	if c.Cost == nil {
-		c.Cost = FixedScore(1.0)
-	}
-	if c.Value == nil {
-		c.Value = FixedScore(0)
-	}
-	if c.Retry == (RetryPolicy{}) {
-		c.Retry = DefaultRetryPolicy()
-	}
-}
-
 // RequireToolGroup declares one role and the permissions an action is willing
 // to grant it. Omitting permissions keeps the requirement unprivileged.
 func RequireToolGroup(role string, allowed ...ToolGroupPermission) ToolGroupRequirement {

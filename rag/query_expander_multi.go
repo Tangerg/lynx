@@ -49,33 +49,6 @@ type MultiQueryExpanderConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
-func (c *MultiQueryExpanderConfig) validate() error {
-	if c.ChatModel == nil {
-		return errors.New("rag.MultiQueryExpanderConfig: ChatModel is required")
-	}
-	if c.NumberOfQueries < 0 {
-		return errors.New("rag.MultiQueryExpanderConfig: NumberOfQueries must be >= 0")
-	}
-	if c.PromptTemplate != nil {
-		return c.PromptTemplate.Require("Number", "Query")
-	}
-	return nil
-}
-
-func (c *MultiQueryExpanderConfig) applyDefaults() error {
-	if c.NumberOfQueries == 0 {
-		c.NumberOfQueries = defaultMultiQueryCount
-	}
-	if c.PromptTemplate == nil {
-		var err error
-		c.PromptTemplate, err = chatclient.ParseTemplate(multiExpanderDefaultTemplate)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 var _ Expander = (*multiQueryExpander)(nil)
 
 type multiQueryExpander struct {
@@ -88,10 +61,22 @@ type multiQueryExpander struct {
 // NewMultiQueryExpander returns an [Expander] that asks an LLM for alternate
 // query phrasings.
 func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (Expander, error) {
-	if err := cfg.applyDefaults(); err != nil {
-		return nil, err
+	if cfg.ChatModel == nil {
+		return nil, errors.New("rag.MultiQueryExpanderConfig: ChatModel is required")
 	}
-	if err := cfg.validate(); err != nil {
+	if cfg.NumberOfQueries < 0 {
+		return nil, errors.New("rag.MultiQueryExpanderConfig: NumberOfQueries must be >= 0")
+	}
+	if cfg.NumberOfQueries == 0 {
+		cfg.NumberOfQueries = defaultMultiQueryCount
+	}
+	promptTemplate, err := resolvePromptTemplate(
+		cfg.PromptTemplate,
+		multiExpanderDefaultTemplate,
+		"Number",
+		"Query",
+	)
+	if err != nil {
 		return nil, err
 	}
 
@@ -102,7 +87,7 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (Expander, error) {
 
 	return &multiQueryExpander{
 		chatClient:      client,
-		promptTemplate:  cfg.PromptTemplate,
+		promptTemplate:  promptTemplate,
 		includeOriginal: cfg.IncludeOriginal,
 		numberOfQueries: cfg.NumberOfQueries,
 	}, nil
@@ -117,7 +102,7 @@ func (m *multiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 		return nil, ErrNilQuery
 	}
 
-	expanded, err := callTemplate(ctx, m.chatClient, m.promptTemplate, map[string]any{
+	expanded, err := callPrompt(ctx, m.chatClient, m.promptTemplate, map[string]any{
 		"Number": m.numberOfQueries,
 		"Query":  query.Text,
 	})

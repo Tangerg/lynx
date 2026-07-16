@@ -137,7 +137,18 @@ func NewAction[In, Out any](
 	fn ActionFunc[In, Out],
 	config ActionConfig,
 ) *FuncAction[In, Out] {
-	config.applyDefaults()
+	cost := config.Cost
+	if cost == nil {
+		cost = FixedScore(1.0)
+	}
+	value := config.Value
+	if value == nil {
+		value = FixedScore(0)
+	}
+	retry := config.Retry
+	if retry == (RetryPolicy{}) {
+		retry = DefaultRetryPolicy()
+	}
 
 	inputs := slices.Clone(config.Inputs)
 	if len(inputs) == 0 {
@@ -155,10 +166,10 @@ func NewAction[In, Out any](
 		Inputs:            inputs,
 		Outputs:           outputs,
 		Repeatable:        config.Repeatable,
-		Retry:             config.Retry,
+		Retry:             retry,
 		ToolGroups:        cloneToolGroupRequirements(config.ToolGroups),
-		Cost:              config.Cost,
-		Value:             config.Value,
+		Cost:              cost,
+		Value:             value,
 		ClearWorkingState: config.ClearWorkingState,
 	}
 	metadata.Preconditions, metadata.Effects = metadata.computePreconditionsAndEffects(config.Preconditions, config.Effects)

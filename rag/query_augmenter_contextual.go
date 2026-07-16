@@ -65,38 +65,6 @@ type ContextualAugmenterConfig struct {
 	Formatter Formatter
 }
 
-func (c *ContextualAugmenterConfig) applyDefaults() error {
-	var err error
-	if c.PromptTemplate == nil {
-		c.PromptTemplate, err = chatclient.ParseTemplate(contextualDefaultTemplate)
-		if err != nil {
-			return err
-		}
-	}
-	if c.EmptyContextPromptTemplate == nil {
-		c.EmptyContextPromptTemplate, err = chatclient.ParseTemplate(contextualEmptyContextTemplate)
-		if err != nil {
-			return err
-		}
-	}
-	if c.Formatter == nil {
-		c.Formatter = FormatterFunc(func(doc *document.Document) (string, error) {
-			if doc == nil {
-				return "", nil
-			}
-			return doc.Text, nil
-		})
-	}
-	return nil
-}
-
-func (c *ContextualAugmenterConfig) validate() error {
-	if c.PromptTemplate == nil {
-		return nil
-	}
-	return c.PromptTemplate.Require("Context", "Query")
-}
-
 var _ Augmenter = (*contextualAugmenter)(nil)
 
 type contextualAugmenter struct {
@@ -109,17 +77,37 @@ type contextualAugmenter struct {
 // NewContextualAugmenter returns an [Augmenter] that folds retrieved
 // documents into the query text as a context block.
 func NewContextualAugmenter(cfg ContextualAugmenterConfig) (Augmenter, error) {
-	if err := cfg.applyDefaults(); err != nil {
+	promptTemplate, err := resolvePromptTemplate(
+		cfg.PromptTemplate,
+		contextualDefaultTemplate,
+		"Context",
+		"Query",
+	)
+	if err != nil {
 		return nil, err
 	}
-	if err := cfg.validate(); err != nil {
+	emptyContextPromptTemplate, err := resolvePromptTemplate(
+		cfg.EmptyContextPromptTemplate,
+		contextualEmptyContextTemplate,
+	)
+	if err != nil {
 		return nil, err
 	}
+	formatter := cfg.Formatter
+	if formatter == nil {
+		formatter = FormatterFunc(func(doc *document.Document) (string, error) {
+			if doc == nil {
+				return "", nil
+			}
+			return doc.Text, nil
+		})
+	}
+
 	return &contextualAugmenter{
-		promptTemplate:             cfg.PromptTemplate,
-		emptyContextPromptTemplate: cfg.EmptyContextPromptTemplate,
+		promptTemplate:             promptTemplate,
+		emptyContextPromptTemplate: emptyContextPromptTemplate,
 		allowEmptyContext:          cfg.AllowEmptyContext,
-		formatter:                  cfg.Formatter,
+		formatter:                  formatter,
 	}, nil
 }
 

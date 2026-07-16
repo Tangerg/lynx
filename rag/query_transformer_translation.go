@@ -36,30 +36,6 @@ type TranslationTransformerConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
-func (c *TranslationTransformerConfig) validate() error {
-	if c.ChatModel == nil {
-		return errors.New("rag.TranslationTransformerConfig: ChatModel is required")
-	}
-	if c.TargetLanguage == "" {
-		return errors.New("rag.TranslationTransformerConfig: TargetLanguage is required")
-	}
-	if c.PromptTemplate != nil {
-		return c.PromptTemplate.Require("Target", "Query")
-	}
-	return nil
-}
-
-func (c *TranslationTransformerConfig) applyDefaults() error {
-	if c.PromptTemplate == nil {
-		var err error
-		c.PromptTemplate, err = chatclient.ParseTemplate(translationDefaultTemplate)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 var _ Transformer = (*translationTransformer)(nil)
 
 type translationTransformer struct {
@@ -71,10 +47,19 @@ type translationTransformer struct {
 // NewTranslationTransformer returns a [Transformer] that translates queries
 // into the target language expected by downstream retrieval.
 func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, error) {
-	if err := cfg.applyDefaults(); err != nil {
-		return nil, err
+	if cfg.ChatModel == nil {
+		return nil, errors.New("rag.TranslationTransformerConfig: ChatModel is required")
 	}
-	if err := cfg.validate(); err != nil {
+	if cfg.TargetLanguage == "" {
+		return nil, errors.New("rag.TranslationTransformerConfig: TargetLanguage is required")
+	}
+	promptTemplate, err := resolvePromptTemplate(
+		cfg.PromptTemplate,
+		translationDefaultTemplate,
+		"Target",
+		"Query",
+	)
+	if err != nil {
 		return nil, err
 	}
 
@@ -86,7 +71,7 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, e
 	return &translationTransformer{
 		chatClient:     client,
 		targetLanguage: cfg.TargetLanguage,
-		promptTemplate: cfg.PromptTemplate,
+		promptTemplate: promptTemplate,
 	}, nil
 }
 
@@ -98,7 +83,7 @@ func (t *translationTransformer) Transform(ctx context.Context, query *Query) (*
 		return nil, ErrNilQuery
 	}
 
-	translated, err := callTemplate(ctx, t.chatClient, t.promptTemplate, map[string]any{
+	translated, err := callPrompt(ctx, t.chatClient, t.promptTemplate, map[string]any{
 		"Target": t.targetLanguage,
 		"Query":  query.Text,
 	})
