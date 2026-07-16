@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
+// TextSplitterConfig configures fixed-separator chunking. The zero Separator
+// uses a newline.
 type TextSplitterConfig struct {
 	Separator string
 
@@ -32,18 +34,15 @@ type TextSplitter struct {
 	splitter *Splitter
 }
 
-func (c *TextSplitterConfig) ApplyDefaults() {
-	if c.Separator == "" {
-		c.Separator = "\n"
-	}
-}
-
 func NewTextSplitter(config TextSplitterConfig) *TextSplitter {
-	config.ApplyDefaults()
+	separator := config.Separator
+	if separator == "" {
+		separator = "\n"
+	}
 	splitter, _ := NewSplitter(SplitterConfig{
 		IDGenerator: config.IDGenerator,
 		SplitFunc: func(_ context.Context, text string) ([]string, error) {
-			return strings.Split(text, config.Separator), nil
+			return strings.Split(text, separator), nil
 		},
 	})
 	return &TextSplitter{splitter: splitter}

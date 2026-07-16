@@ -26,17 +26,13 @@ const (
 	MetadataKeyChunkTotal = "chunk_total"
 )
 
+// SplitterConfig configures a generic text-to-chunks transformation.
 type SplitterConfig struct {
+	// SplitFunc is required.
 	SplitFunc func(ctx context.Context, text string) ([]string, error)
 
+	// IDGenerator, when set, assigns an ID to each emitted chunk.
 	IDGenerator id.Generator
-}
-
-func (c SplitterConfig) Validate() error {
-	if c.SplitFunc == nil {
-		return errors.New("documentpipeline.SplitterConfig: SplitFunc is required")
-	}
-	return nil
 }
 
 var _ Transformer = (*Splitter)(nil)
@@ -53,8 +49,8 @@ type Splitter struct {
 }
 
 func NewSplitter(config SplitterConfig) (*Splitter, error) {
-	if err := config.Validate(); err != nil {
-		return nil, err
+	if config.SplitFunc == nil {
+		return nil, errors.New("documentpipeline.SplitterConfig: SplitFunc is required")
 	}
 	return &Splitter{
 		splitFunc:   config.SplitFunc,

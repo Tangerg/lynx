@@ -26,22 +26,21 @@ const (
 	metadataKeyEndPageNumber   = "end_page_number"
 )
 
+// FileWriterConfig configures plain-text output for [FileWriter].
 type FileWriterConfig struct {
-	Path                string
-	WithDocumentMarkers bool
-	AppendMode          bool
-	Formatter           Formatter
-	MetadataMode        MetadataMode
+	// Path is required. Existing files are replaced unless Append is true.
+	Path string
+	// DocumentMarkers adds an index header before each document.
+	DocumentMarkers bool
+	// Append preserves existing file contents.
+	Append bool
+	// Formatter renders each document. Nil writes document text only.
+	Formatter Formatter
+	// Mode is passed to Formatter. The zero value is MetadataModeAll.
+	Mode MetadataMode
 }
 
-func (c FileWriterConfig) Validate() error {
-	if c.Path == "" {
-		return errors.New("documentpipeline.FileWriterConfig: Path is required")
-	}
-	return nil
-}
-
-// FileWriter persists documents as plain text. It honors AppendMode,
+// FileWriter persists documents as plain text. It honors Append,
 // optionally injects document-marker headers, and calls [*os.File].Sync
 // before returning so callers can rely on durability when the call
 // completes.
@@ -49,41 +48,47 @@ func (c FileWriterConfig) Validate() error {
 // Example:
 //
 //	w, err := documentpipeline.NewFileWriter(documentpipeline.FileWriterConfig{
-//	    Path:                "out.txt",
-//	    WithDocumentMarkers: true,
+//	    Path:            "out.txt",
+//	    DocumentMarkers: true,
 //	})
 //	err = w.Write(ctx, docs)
 type FileWriter struct {
-	path                string
-	withDocumentMarkers bool
-	appendMode          bool
-	formatter           Formatter
-	metadataMode        MetadataMode
+	path            string
+	documentMarkers bool
+	append          bool
+	formatter       Formatter
+	mode            MetadataMode
 }
 
 func NewFileWriter(config FileWriterConfig) (*FileWriter, error) {
-	if err := config.Validate(); err != nil {
-		return nil, err
+	if config.Path == "" {
+		return nil, errors.New("documentpipeline.FileWriterConfig: Path is required")
 	}
 	if config.Formatter == nil {
-		config.Formatter = NewNop()
+		config.Formatter = FormatterFunc(formatText)
 	}
-	if config.MetadataMode == "" {
-		config.MetadataMode = MetadataModeAll
+	if config.Mode == "" {
+		config.Mode = MetadataModeAll
+	}
+	if !validMetadataMode(config.Mode) {
+		return nil, fmt.Errorf("documentpipeline.FileWriterConfig: invalid Mode %q", config.Mode)
 	}
 	return &FileWriter{
-		path:                config.Path,
-		withDocumentMarkers: config.WithDocumentMarkers,
-		appendMode:          config.AppendMode,
-		formatter:           config.Formatter,
-		metadataMode:        config.MetadataMode,
+		path:            config.Path,
+		documentMarkers: config.DocumentMarkers,
+		append:          config.Append,
+		formatter:       config.Formatter,
+		mode:            config.Mode,
 	}, nil
 }
 
 // Write persists docs to the configured file. Close errors after a
 // successful write are surfaced (joined with any earlier error) so
 // callers can detect partial flushes that fail at close time.
-func (f *FileWriter) Write(_ context.Context, docs []*document.Document) (err error) {
+func (f *FileWriter) Write(ctx context.Context, docs []*document.Document) (err error) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	file, err := os.OpenFile(f.path, f.openFlags(), 0o666)
 	if err != nil {
 		return fmt.Errorf("documentpipeline.FileWriter.Write: open %s: %w", f.path, err)
@@ -94,23 +99,26 @@ func (f *FileWriter) Write(_ context.Context, docs []*document.Document) (err er
 		}
 	}()
 
-	if writeErr := f.writeBatched(docs, file); writeErr != nil {
+	if writeErr := f.writeBatched(ctx, docs, file); writeErr != nil {
 		return fmt.Errorf("documentpipeline.FileWriter.Write: %w", writeErr)
 	}
 	return nil
 }
 
 func (f *FileWriter) openFlags() int {
-	if f.appendMode {
+	if f.append {
 		return os.O_CREATE | os.O_WRONLY | os.O_APPEND
 	}
 	return os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 }
 
-func (f *FileWriter) writeBatched(docs []*document.Document, file *os.File) error {
+func (f *FileWriter) writeBatched(ctx context.Context, docs []*document.Document, file *os.File) error {
 	var buf strings.Builder
 
 	for i, doc := range docs {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		rendered, err := f.renderDocument(i, doc)
 		if err != nil {
 			return fmt.Errorf("render document %d: %w", i, err)
@@ -130,17 +138,20 @@ func (f *FileWriter) writeBatched(docs []*document.Document, file *os.File) erro
 			return fmt.Errorf("documentpipeline.FileWriter.writeBatched: flush trailing batch: %w", err)
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return file.Sync()
 }
 
 func (f *FileWriter) renderDocument(index int, doc *document.Document) (string, error) {
 	var buf strings.Builder
 
-	if f.withDocumentMarkers {
+	if f.documentMarkers {
 		buf.WriteString("### Index: ")
 		buf.WriteString(strconv.Itoa(index))
 
-		if start, end, ok := f.pageRange(doc); ok {
+		if start, end, ok := documentPageRange(doc); ok {
 			buf.WriteString(", Pages:[")
 			buf.WriteString(start)
 			buf.WriteString(",")
@@ -150,7 +161,7 @@ func (f *FileWriter) renderDocument(index int, doc *document.Document) (string, 
 		buf.WriteString("\n")
 	}
 
-	rendered, err := f.formatter.Format(doc, f.metadataMode)
+	rendered, err := f.formatter.Format(doc, f.mode)
 	if err != nil {
 		return "", err
 	}
@@ -159,8 +170,8 @@ func (f *FileWriter) renderDocument(index int, doc *document.Document) (string, 
 	return buf.String(), nil
 }
 
-func (f *FileWriter) pageRange(doc *document.Document) (string, string, bool) {
-	if doc.Metadata == nil {
+func documentPageRange(doc *document.Document) (string, string, bool) {
+	if doc == nil || doc.Metadata == nil {
 		return "", "", false
 	}
 	startValue, _, _ := metadata.Decode[any](doc.Metadata, metadataKeyStartPageNumber)

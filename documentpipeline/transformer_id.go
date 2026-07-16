@@ -8,17 +8,13 @@ import (
 	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
+// IDAssignerConfig configures document ID generation.
 type IDAssignerConfig struct {
+	// Generator is required.
 	Generator id.Generator
 
+	// Overwrite replaces existing IDs instead of preserving them.
 	Overwrite bool
-}
-
-func (c IDAssignerConfig) Validate() error {
-	if c.Generator == nil {
-		return errors.New("documentpipeline.IDAssignerConfig: Generator is required")
-	}
-	return nil
 }
 
 var _ Transformer = (*IDAssigner)(nil)
@@ -29,7 +25,7 @@ var _ Transformer = (*IDAssigner)(nil)
 // vector store. Documents pass through in place (same slice, same
 // pointers); only the ID field is touched.
 //
-// Pair an [id.Sha256Generator] for content-addressable, dedup-friendly
+// Pair an [id.SHA256Generator] for content-addressable, dedup-friendly
 // ids, or an [id.UUIDGenerator] for unconditional uniqueness.
 type IDAssigner struct {
 	generator id.Generator
@@ -37,8 +33,8 @@ type IDAssigner struct {
 }
 
 func NewIDAssigner(config IDAssignerConfig) (*IDAssigner, error) {
-	if err := config.Validate(); err != nil {
-		return nil, err
+	if config.Generator == nil {
+		return nil, errors.New("documentpipeline.IDAssignerConfig: Generator is required")
 	}
 	return &IDAssigner{
 		generator: config.Generator,

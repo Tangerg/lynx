@@ -20,6 +20,8 @@ const (
 	defaultTokenMaxChunkCount  = 10_000
 )
 
+// TokenSplitterConfig configures token-aware chunking. Non-positive sizing
+// fields use the package defaults documented on [TokenSplitter].
 type TokenSplitterConfig struct {
 	Tokenizer tokenizer.Tokenizer
 
@@ -29,28 +31,6 @@ type TokenSplitterConfig struct {
 	MaxChunkCount  int
 	KeepSeparator  bool
 	IDGenerator    id.Generator
-}
-
-func (c *TokenSplitterConfig) Validate() error {
-	if c.Tokenizer == nil {
-		return errors.New("documentpipeline.TokenSplitterConfig: Tokenizer is required")
-	}
-	return nil
-}
-
-func (c *TokenSplitterConfig) ApplyDefaults() {
-	if c.ChunkSize <= 0 {
-		c.ChunkSize = defaultTokenChunkSize
-	}
-	if c.MinChunkSize <= 0 {
-		c.MinChunkSize = defaultTokenMinChunkSize
-	}
-	if c.MinEmbedLength <= 0 {
-		c.MinEmbedLength = defaultTokenMinEmbedLength
-	}
-	if c.MaxChunkCount <= 0 {
-		c.MaxChunkCount = defaultTokenMaxChunkCount
-	}
 }
 
 var _ Transformer = (*TokenSplitter)(nil)
@@ -70,9 +50,20 @@ type TokenSplitter struct {
 }
 
 func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
-	config.ApplyDefaults()
-	if err := config.Validate(); err != nil {
-		return nil, err
+	if config.Tokenizer == nil {
+		return nil, errors.New("documentpipeline.TokenSplitterConfig: Tokenizer is required")
+	}
+	if config.ChunkSize <= 0 {
+		config.ChunkSize = defaultTokenChunkSize
+	}
+	if config.MinChunkSize <= 0 {
+		config.MinChunkSize = defaultTokenMinChunkSize
+	}
+	if config.MinEmbedLength <= 0 {
+		config.MinEmbedLength = defaultTokenMinEmbedLength
+	}
+	if config.MaxChunkCount <= 0 {
+		config.MaxChunkCount = defaultTokenMaxChunkCount
 	}
 
 	ts := &TokenSplitter{

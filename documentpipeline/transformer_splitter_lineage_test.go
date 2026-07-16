@@ -67,7 +67,7 @@ func TestSplitter_NoParentIDWhenSourceUnidentified(t *testing.T) {
 
 func TestSplitter_AssignsChunkIDs(t *testing.T) {
 	splitter, _ := documentpipeline.NewSplitter(documentpipeline.SplitterConfig{
-		IDGenerator: id.NewSha256Generator(nil),
+		IDGenerator: id.NewSHA256Generator(nil),
 		SplitFunc: func(_ context.Context, _ string) ([]string, error) {
 			return []string{"x", "y"}, nil
 		},

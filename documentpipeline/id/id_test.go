@@ -7,8 +7,8 @@ import (
 	"github.com/Tangerg/lynx/documentpipeline/id"
 )
 
-func TestSha256Generator_Deterministic(t *testing.T) {
-	gen := id.NewSha256Generator(nil)
+func TestSHA256Generator_Deterministic(t *testing.T) {
+	gen := id.NewSHA256Generator(nil)
 
 	first, err := gen.Generate(context.Background(), "hello", 42)
 	if err != nil {
@@ -23,8 +23,8 @@ func TestSha256Generator_Deterministic(t *testing.T) {
 	}
 }
 
-func TestSha256Generator_DifferentInputsDiffer(t *testing.T) {
-	gen := id.NewSha256Generator(nil)
+func TestSHA256Generator_DifferentInputsDiffer(t *testing.T) {
+	gen := id.NewSHA256Generator(nil)
 	a, _ := gen.Generate(context.Background(), "hello")
 	b, _ := gen.Generate(context.Background(), "world")
 	if a == b {
@@ -32,9 +32,9 @@ func TestSha256Generator_DifferentInputsDiffer(t *testing.T) {
 	}
 }
 
-func TestSha256Generator_SaltSeparatesStreams(t *testing.T) {
-	plain := id.NewSha256Generator(nil)
-	salted := id.NewSha256Generator([]byte("tenant-A"))
+func TestSHA256Generator_SaltSeparatesStreams(t *testing.T) {
+	plain := id.NewSHA256Generator(nil)
+	salted := id.NewSHA256Generator([]byte("tenant-A"))
 
 	a, _ := plain.Generate(context.Background(), "doc")
 	b, _ := salted.Generate(context.Background(), "doc")
@@ -43,13 +43,13 @@ func TestSha256Generator_SaltSeparatesStreams(t *testing.T) {
 	}
 }
 
-// TestSha256Generator_SaltMixedIntoDigest pins the salt-is-actually-mixed
+// TestSHA256Generator_SaltMixedIntoDigest pins the salt-is-actually-mixed
 // contract: two different salts must produce digests that differ in
 // their hash bytes, not merely in a prefix appended to the hex output.
 // Catches the historical Sum(salt) bug.
-func TestSha256Generator_SaltMixedIntoDigest(t *testing.T) {
-	a := id.NewSha256Generator([]byte("tenant-A"))
-	b := id.NewSha256Generator([]byte("tenant-B"))
+func TestSHA256Generator_SaltMixedIntoDigest(t *testing.T) {
+	a := id.NewSHA256Generator([]byte("tenant-A"))
+	b := id.NewSHA256Generator([]byte("tenant-B"))
 
 	digestA, _ := a.Generate(context.Background(), "doc")
 	digestB, _ := b.Generate(context.Background(), "doc")
@@ -62,25 +62,43 @@ func TestSha256Generator_SaltMixedIntoDigest(t *testing.T) {
 	}
 }
 
-// TestSha256Generator_MarshalErrorPropagates ensures un-marshalable
+// TestSHA256Generator_MarshalErrorPropagates ensures un-marshalable
 // inputs (channels / funcs) surface an error rather than being silently
 // skipped — silent skips would collide distinct inputs onto the same id.
-func TestSha256Generator_MarshalErrorPropagates(t *testing.T) {
-	gen := id.NewSha256Generator(nil)
+func TestSHA256Generator_MarshalErrorPropagates(t *testing.T) {
+	gen := id.NewSHA256Generator(nil)
 	_, err := gen.Generate(context.Background(), make(chan int))
 	if err == nil {
 		t.Fatal("expected error for un-marshalable input, got nil")
 	}
 }
 
-func TestSha256Generator_EmptyInput(t *testing.T) {
-	gen := id.NewSha256Generator(nil)
+func TestSHA256Generator_EmptyInput(t *testing.T) {
+	gen := id.NewSHA256Generator(nil)
 	got, err := gen.Generate(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != "" {
 		t.Fatalf("got %q, want empty string for empty input", got)
+	}
+}
+
+func TestSHA256GeneratorCopiesSalt(t *testing.T) {
+	salt := []byte("tenant-A")
+	gen := id.NewSHA256Generator(salt)
+	salt[0] = 'X'
+
+	got, err := gen.Generate(context.Background(), "doc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := id.NewSHA256Generator([]byte("tenant-A")).Generate(context.Background(), "doc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatal("generator retained caller-owned salt storage")
 	}
 }
 

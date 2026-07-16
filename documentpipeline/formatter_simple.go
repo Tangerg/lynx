@@ -15,8 +15,10 @@ import (
 // corresponding mode — useful for keeping internal ids or timestamps
 // out of embeddings while still surfacing them at inference time.
 type SimpleFormatterConfig struct {
-	ExcludedInferenceMetadataKeys []string
-	ExcludedEmbedMetadataKeys     []string
+	// ExcludeFromInference lists metadata keys omitted in inference mode.
+	ExcludeFromInference []string
+	// ExcludeFromEmbedding lists metadata keys omitted in embedding mode.
+	ExcludeFromEmbedding []string
 }
 
 var _ Formatter = (*SimpleFormatter)(nil)
@@ -34,19 +36,19 @@ var _ Formatter = (*SimpleFormatter)(nil)
 // Example:
 //
 //	f := documentpipeline.NewSimpleFormatter(documentpipeline.SimpleFormatterConfig{
-//	    ExcludedEmbedMetadataKeys: []string{"row_id", "internal"},
+//	    ExcludeFromEmbedding: []string{"row_id", "internal"},
 //	})
 type SimpleFormatter struct {
-	excludedInferenceMetadataKeys []string
-	excludedEmbedMetadataKeys     []string
+	excludeFromInference []string
+	excludeFromEmbedding []string
 }
 
-// NewSimpleFormatter builds a [SimpleFormatter]. nil config produces an
-// unrestricted formatter that emits every metadata key in every mode.
+// NewSimpleFormatter builds a [SimpleFormatter]. The zero config emits every
+// metadata key in every mode.
 func NewSimpleFormatter(config SimpleFormatterConfig) *SimpleFormatter {
 	return &SimpleFormatter{
-		excludedInferenceMetadataKeys: config.ExcludedInferenceMetadataKeys,
-		excludedEmbedMetadataKeys:     config.ExcludedEmbedMetadataKeys,
+		excludeFromInference: slices.Clone(config.ExcludeFromInference),
+		excludeFromEmbedding: slices.Clone(config.ExcludeFromEmbedding),
 	}
 }
 
@@ -89,11 +91,11 @@ func (s *SimpleFormatter) filterMetadataByMode(metadata map[string]any, mode Met
 	switch mode {
 	case MetadataModeInference:
 		shouldExclude = func(key string, _ any) bool {
-			return slices.Contains(s.excludedInferenceMetadataKeys, key)
+			return slices.Contains(s.excludeFromInference, key)
 		}
 	case MetadataModeEmbed:
 		shouldExclude = func(key string, _ any) bool {
-			return slices.Contains(s.excludedEmbedMetadataKeys, key)
+			return slices.Contains(s.excludeFromEmbedding, key)
 		}
 	}
 
