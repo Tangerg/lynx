@@ -44,6 +44,7 @@ lynx/
 - [`CORE_GETTING_STARTED.md`](./CORE_GETTING_STARTED.md) — 当前 API 的最小同步/流式/typed tool/tool-loop/pause-resume/structured output 上手路径
 - [`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md) — Core 长期架构演进的唯一执行基准：目标边界、阶段任务、验收标准、进度、风险与 ADR
 - [`AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md`](./AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md) — Agent Framework 的唯一执行基准：Engine 所有权、Deployment、managed interaction、durable Process、阶段任务与进度
+- [`WORKSPACE_SEMANTIC_REFACTORING_EXECUTION_PLAN.md`](./WORKSPACE_SEMANTIC_REFACTORING_EXECUTION_PLAN.md) — Agent P10 后的全仓语义化、owner、公开 API 与文件组织精修计划
 - [`AGENT_FRAMEWORK_ARCHITECTURE_REVIEW.md`](./AGENT_FRAMEWORK_ARCHITECTURE_REVIEW.md) — Agent Framework 最终架构审查：依赖梯级、生命周期所有权、API/wire 冻结和无兼容债结论
 - [`AGENT_FRAMEWORK_MIGRATION.md`](./AGENT_FRAMEWORK_MIGRATION.md) — Agent Framework 开发期破坏性迁移：Engine/Deployment、managed interaction、snapshot、Host 与 adapter 直接切换
 - [`AGENT_FRAMEWORK_RELEASE_NOTES.md`](./AGENT_FRAMEWORK_RELEASE_NOTES.md) — Agent Framework release candidate 的公开面、breaking changes、wire、消费者和风险
