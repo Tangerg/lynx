@@ -24,7 +24,10 @@ type WriteResponse struct {
 
 var writeToolSchema, _ = pkgjson.StringDefSchemaOf(WriteRequest{})
 
-var _ toolcontract.Tool = (*WriteTool)(nil)
+var (
+	_ toolcontract.Tool                 = (*WriteTool)(nil)
+	_ toolcontract.FileMutationReporter = (*WriteTool)(nil)
+)
 
 // WriteTool is the thin LLM-facing adapter for [Executor.Write].
 type WriteTool struct {
@@ -59,6 +62,18 @@ func (t *WriteTool) ConcurrencyKey(arguments string) (key string, concurrent boo
 	var req WriteRequest
 	_ = json.Unmarshal([]byte(arguments), &req)
 	return req.FilePath, true
+}
+
+// MutationPaths reports the file targeted by this call.
+func (*WriteTool) MutationPaths(arguments string) ([]string, error) {
+	var req WriteRequest
+	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
+		return nil, err
+	}
+	if req.FilePath == "" {
+		return nil, nil
+	}
+	return []string{req.FilePath}, nil
 }
 
 func (t *WriteTool) Call(ctx context.Context, arguments string) (string, error) {

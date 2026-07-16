@@ -27,7 +27,7 @@ var protectedDirs = []string{".git"}
 // the OUTERMOST wrap so the check gates before any staleness/diagnostics work.
 func withPathGuard(inner tools.Tool, workdir string) tools.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		paths := mutatedPaths(inner, arguments)
+		paths := mutationPaths(inner, arguments)
 		for _, path := range paths {
 			resolved, err := resolvePhysicalAbs(workdir, path)
 			if err != nil {

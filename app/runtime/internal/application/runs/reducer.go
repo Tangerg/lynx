@@ -1,6 +1,7 @@
 package runs
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -226,8 +227,8 @@ func (r *reducer) projectOne(event RunEvent) reduction {
 		e.Item.SessionID = r.cfg.SessionID
 		event = e
 		commit.Items = []transcript.Item{e.Item}
-		if paths := e.Item.FileChangePaths(); len(paths) > 0 {
-			nudge = &Nudge{Cwd: r.cfg.Cwd, Paths: paths}
+		if e.Item.Status == ItemSucceeded && e.Item.Error == nil && len(e.mutatedPaths) > 0 {
+			nudge = &Nudge{Cwd: r.cfg.Cwd, Paths: slices.Clone(e.mutatedPaths)}
 		}
 	case SegmentStarted:
 		commit.Run = &e.Run

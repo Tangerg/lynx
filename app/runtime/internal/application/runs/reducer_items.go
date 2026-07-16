@@ -80,7 +80,7 @@ func (r *reducer) toolStart(e ToolCallStart) []RunEvent {
 	step := r.step
 	r.toolOrder++
 	out = append(out, SegmentProgressed{Progress: RunProgress{
-		Step: &step, Activity: activityVerb(e.ToolName),
+		Step: &step, ToolName: e.ToolName,
 	}})
 	ref := &openTool{
 		callID: e.CallID, order: r.toolOrder,
@@ -91,7 +91,7 @@ func (r *reducer) toolStart(e ToolCallStart) []RunEvent {
 	out = append(out, ItemStarted{Item: Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: ItemRunning,
 		Kind: ToolCall, CreatedAt: ref.createdAt,
-		Tool:        r.newToolInvocation(e.ToolName, e.Arguments, ""),
+		Tool:        newToolInvocation(e.ToolName, e.Arguments, nil),
 		SafetyClass: e.SafetyClass,
 	}})
 	if e.Arguments != "" {
@@ -109,18 +109,16 @@ func (r *reducer) toolEnd(e ToolCallEnd) []RunEvent {
 		return nil
 	}
 	var out []RunEvent
-	if isCommandTool(ref.name) && e.Output != "" {
-		if merged := commandOutput(e.Output); merged != "" {
-			out = append(out, ItemChanged{
-				ItemID: ref.id,
-				Delta:  ItemDelta{Kind: ToolOutputDelta, Text: merged},
-			})
-		}
+	if e.OutputText != "" {
+		out = append(out, ItemChanged{
+			ItemID: ref.id,
+			Delta:  ItemDelta{Kind: ToolOutputDelta, Text: e.OutputText},
+		})
 	}
 	item := Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: ItemSucceeded,
 		Kind: ToolCall, CreatedAt: ref.createdAt,
-		Tool:        r.newToolInvocation(ref.name, ref.args, e.Output),
+		Tool:        newToolInvocation(ref.name, ref.args, e.Result),
 		SafetyClass: ref.safetyClass,
 	}
 	switch {
@@ -131,7 +129,7 @@ func (r *reducer) toolEnd(e ToolCallEnd) []RunEvent {
 		item.Status = ItemIncomplete
 		item.Error = &Problem{Kind: ToolFailedProblem, Scope: ToolProblem, Detail: e.Err}
 	}
-	return append(out, ItemCompleted{Item: item})
+	return append(out, ItemCompleted{Item: item, mutatedPaths: e.MutatedPaths})
 }
 
 func (r *reducer) usageProgress(e UsageReported) []RunEvent {
@@ -198,37 +196,4 @@ func (r *reducer) todosSnapshot(e TodosUpdated) []RunEvent {
 		}
 	}
 	return []RunEvent{StateSnapshot{Todos: todos}}
-}
-
-func activityVerb(name string) string {
-	switch name {
-	case "shell", "run_in_background":
-		return "Running command"
-	case "shell_output":
-		return "Reading command output"
-	case "shell_kill":
-		return "Stopping command"
-	case "read":
-		return "Reading file"
-	case "write":
-		return "Writing file"
-	case "edit":
-		return "Editing file"
-	case "grep":
-		return "Searching"
-	case "glob":
-		return "Finding files"
-	case "web_search":
-		return "Searching the web"
-	case "web_fetch":
-		return "Fetching a page"
-	case "task", "subagent":
-		return "Delegating to a sub-agent"
-	case "ask_user":
-		return "Waiting for your answer"
-	case "todo_write":
-		return "Updating the plan"
-	default:
-		return "Calling " + name
-	}
 }

@@ -17,14 +17,6 @@ type RunInterrupt = transcript.Interrupt
 type RunResult = transcript.RunResult
 type ModelUsage = transcript.ModelUsage
 type Usage = transcript.Usage
-type CommandResult = transcript.CommandResult
-type SearchResult = transcript.SearchResult
-type WebSearchResultSet = transcript.WebSearchResultSet
-type FileChangeResult = transcript.FileChangeResult
-type SearchHit = transcript.SearchHit
-type WebSearchResult = transcript.WebSearchResult
-type FileEdit = transcript.FileEdit
-type DiffRow = transcript.DiffRow
 
 const (
 	ItemRunning                = transcript.ItemRunning
@@ -54,10 +46,6 @@ const (
 	ToolFailedProblem          = transcript.ToolFailedProblem
 	ApprovalInterrupt          = transcript.ApprovalInterrupt
 	QuestionInterrupt          = transcript.QuestionInterrupt
-	DiffHunk                   = transcript.DiffHunk
-	DiffContext                = transcript.DiffContext
-	DiffAdded                  = transcript.DiffAdded
-	DiffDeleted                = transcript.DiffDeleted
 )
 
 type RunEvent interface {
@@ -74,7 +62,10 @@ type ItemChanged struct {
 	ItemID string
 	Delta  ItemDelta
 }
-type ItemCompleted struct{ Item transcript.Item }
+type ItemCompleted struct {
+	Item         transcript.Item
+	mutatedPaths []string
+}
 type StateSnapshot struct{ Todos []TodoSnapshot }
 
 func (SegmentStarted) runEvent()    {}
@@ -106,7 +97,7 @@ type RunProgress struct {
 	MaxSteps      *int
 	Usage         *transcript.Usage
 	ContextTokens *int64
-	Activity      string
+	ToolName      string
 }
 
 type ItemDeltaKind uint8

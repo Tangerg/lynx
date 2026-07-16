@@ -220,11 +220,9 @@ func canonicalTool(path string, tool protocol.ToolInvocation) (transcript.ToolIn
 	if tool.Arguments == nil {
 		return transcript.ToolInvocation{}, invalidArtifact(path+".arguments", "must be a JSON object")
 	}
-	out := transcript.ToolInvocation{Name: tool.Name, Arguments: tool.Arguments}
-	if tool.Result != nil {
-		out.Result = &transcript.ToolResult{Kind: transcript.RawToolResult, Raw: tool.Result}
-	}
-	return out, nil
+	return transcript.ToolInvocation{
+		Name: tool.Name, Arguments: tool.Arguments, Result: tool.Result,
+	}, nil
 }
 
 func canonicalProblem(path string, problem *protocol.ProblemData, channel protocol.ErrorChannel) (*transcript.Problem, error) {

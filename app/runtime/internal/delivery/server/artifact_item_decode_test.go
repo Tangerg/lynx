@@ -28,7 +28,7 @@ func validArtifact() protocol.SessionArtifact {
 	}
 }
 
-func TestCanonicalArtifactRejectsInvalidCurrentShape(t *testing.T) {
+func TestArtifactDecodeRejectsInvalidCurrentShape(t *testing.T) {
 	tests := []struct {
 		name   string
 		mutate func(*protocol.SessionArtifact)

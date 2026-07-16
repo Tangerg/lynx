@@ -2,9 +2,11 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
@@ -38,6 +40,21 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	}
 	putRun(t, rt, ses.ID, "run1", 1, 2)
 	putUserItem(t, rt, ses.ID, "run1", "item1", "hello")
+	if err := rt.hist.AppendItem(ctx, transcript.Item{
+		SessionID: ses.ID, RunID: "run1", ID: "item2",
+		CreatedAt: time.Unix(2, 0).UTC(),
+		Status:    transcript.ItemCompleted,
+		Kind:      transcript.ToolCall,
+		Tool: &transcript.ToolInvocation{
+			Name:      "shell",
+			Arguments: map[string]any{"command": "ls"},
+			Result: map[string]any{
+				"stdout": "total 0\n", "stderr": "", "exit_code": float64(0),
+			},
+		},
+	}); err != nil {
+		t.Fatalf("seed tool item: %v", err)
+	}
 
 	// Export (json).
 	exp, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
@@ -51,9 +68,11 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	if art.Session.Title != "My Session" || art.Session.Cwd != cwd {
 		t.Errorf("artifact session = %+v, want title/cwd preserved", art.Session)
 	}
-	if len(art.Messages) != 2 || len(art.Items) != 1 || len(art.Runs) != 1 {
-		t.Fatalf("artifact = %d msgs / %d items / %d runs, want 2/1/1", len(art.Messages), len(art.Items), len(art.Runs))
+	if len(art.Messages) != 2 || len(art.Items) != 2 || len(art.Runs) != 1 {
+		t.Fatalf("artifact = %d msgs / %d items / %d runs, want 2/2/1", len(art.Messages), len(art.Items), len(art.Runs))
 	}
+	wantToolResult := `{"exitCode":0,"output":"total 0\n"}`
+	assertArtifactToolResult(t, art.Items, "item2", wantToolResult)
 
 	// Wipe the session entirely.
 	if err := rt.sess.Delete(ctx, ses.ID); err != nil {
@@ -86,9 +105,39 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("items.list: %v", err)
 	}
-	if len(items.Data) != 1 || len(items.Runs) != 1 {
-		t.Errorf("restored items/runs = %d/%d, want 1/1", len(items.Data), len(items.Runs))
+	if len(items.Data) != 2 || len(items.Runs) != 1 {
+		t.Errorf("restored items/runs = %d/%d, want 2/1", len(items.Data), len(items.Runs))
 	}
+
+	// Exporting the restored canonical data must preserve the Delivery shape:
+	// a known presenter is idempotent when it receives an already-presented
+	// result from an imported artifact.
+	reexported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	if err != nil {
+		t.Fatalf("re-export: %v", err)
+	}
+	assertArtifactToolResult(t, reexported.Artifact.Items, "item2", wantToolResult)
+}
+
+func assertArtifactToolResult(t *testing.T, items []protocol.ArtifactItem, itemID, want string) {
+	t.Helper()
+	for _, artifactItem := range items {
+		if artifactItem.Item.ID != itemID {
+			continue
+		}
+		if artifactItem.Item.Tool == nil {
+			t.Fatalf("artifact item %q has no tool", itemID)
+		}
+		got, err := json.Marshal(artifactItem.Item.Tool.Result)
+		if err != nil {
+			t.Fatalf("marshal tool result: %v", err)
+		}
+		if string(got) != want {
+			t.Fatalf("tool result = %s, want %s", got, want)
+		}
+		return
+	}
+	t.Fatalf("artifact item %q not found", itemID)
 }
 
 func TestSessionImportRejectsActiveSession(t *testing.T) {

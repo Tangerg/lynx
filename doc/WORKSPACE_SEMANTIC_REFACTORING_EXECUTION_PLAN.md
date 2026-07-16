@@ -464,7 +464,8 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 > 状态：完成
 
 - [x] reducer 的 commit 判定、interrupt 校验、open-tool drain 迁入真实 owner。
-- [x] transcript FileChange 路径派生迁入 canonical value。
+- [x] transcript FileChange 路径派生曾迁入 canonical value；P4 发现其仍由展示结果
+  反推副作用后撤销，改为执行适配器显式上报。
 - [x] `runs.go` 按 admission/recovery 拆文件。
 - [x] artifact decode 与 presenter 按职责拆文件；无状态 projection 保持自由函数。
 - [x] sessions admission/slice projection helper 保持自由函数，不机械 receiver 化。
@@ -483,7 +484,7 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 | `EventCommit.isEmpty` | 迁入 | durable write-set 是否为空只取决于自身字段；删除 reducer 中重复展开的四项判定 |
 | `TurnInterrupted.validate` | 迁入 | typed union 的 kind/payload 一致性属于事件自身，不再由 reducer 接收裸 slice 校验 |
 | `openTools` 的 add/take/snapshot/drain/order | 迁入 | 真实持有 call ID→open tool 集合；顺序、快照与清空不变量集中，reducer 只负责投影事件 |
-| `Item.FileChangePaths` / `FileChangeResult.Paths` | 迁入 | 文件路径来自 canonical FileChange fact；去重、空路径过滤与成功状态约束由 canonical value 维护 |
+| `Item.FileChangePaths` / `FileChangeResult.Paths` | P4 撤销 | P3 先集中路径派生；P4 进一步确认 canonical FileChange 仍是展示 shape，不是执行副作用 owner，最终由 tool capability + execution adapter 显式上报 |
 | artifact decoder receiver | 不引入 | wire→canonical 转换没有跨调用状态；强放 session/messageCount/path 只会隐藏参数 |
 | presenter receiver | 不引入 | canonical→wire 是无状态 projection；函数按 run/item/event 分文件即可表达职责 |
 | sessions admission/slice helper | 保留 | admission 构造、切片投影和批量释放没有单一 aggregate owner |
@@ -511,14 +512,15 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 
 ### P4：App Runtime 工具结果边界纠正
 
-> 类型：结构性内部改动，高风险，需确认
+> 类型：结构性内部改动，高风险，已确认
+> 状态：完成
 
-- [ ] 从 Application reducer 删除具体工具名与具体 JSON shape。
-- [ ] canonical transcript 保存通用 raw tool fact。
-- [ ] Delivery presenter registry 负责已知工具的结构化输出，未知工具 raw fallback。
-- [ ] Agentexec/tool adapter 显式上报 mutated paths，Application 不从 UI result 反推。
-- [ ] `RunProgress` 携带 tool identity，Delivery 生成活动文案。
-- [ ] wire golden 保持不变；必要变化必须重新单独确认。
+- [x] 从 Application reducer 删除具体工具名与具体 JSON shape。
+- [x] canonical transcript 保存通用 raw tool fact。
+- [x] Delivery presenter registry 负责已知工具的结构化输出，未知工具 raw fallback。
+- [x] Agentexec/tool adapter 显式上报 mutated paths，Application 不从 UI result 反推。
+- [x] `RunProgress` 携带 tool identity，Delivery 生成活动文案。
+- [x] wire golden 保持不变。
 
 退出标准：
 
@@ -526,6 +528,47 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
   `edit` / `write` 的展示分支；
 - 新增工具不要求修改 Application；
 - transcript/recovery/import-export/HTTP/inprocess golden 全绿。
+
+实施裁决：
+
+| 候选 | 裁决 | 认知负担证据 |
+| --- | --- | --- |
+| canonical `ToolResult` tagged union | 删除 | Domain/Application 不再复制 shell/search/web/file display DTO；`ToolInvocation` 只保留 name/arguments/raw result，新增工具不扩展 canonical union |
+| `tools.FileMutationReporter` | 新增可选能力 | `Tool` 继续保持 `Definition + Call` 最小合同；文件副作用路径由 4 类工具实现，并被 toolset 的 guard/lock/format 与 agentexec 事件边界共同消费，不是单实现装饰接口 |
+| `observedTool.successfulMutationPaths` | 迁入 | 方法真实读取 `o.inner` 的可选能力，并集中“仅成功调用上报、过滤空值、排序去重、不修改实现方 slice”不变量 |
+| `reducer.newToolInvocation` | 取消 receiver | 不读取 reducer 状态，也不维护 reducer 不变量；方法化只改变调用语法，恢复为包级构造函数 |
+| Delivery presenter receiver | 不引入 | tool result/activity 是无状态 canonical→wire projection；使用一张 `toolPresentations` 数据表和纯函数 projector，避免空壳 presenter 对象 |
+| `Item.FileChangePaths` / typed FileChange result | 删除 | 从 UI 展示结构反推 workspace side effect 是错误所有权；成功 mutation paths 现在由执行工具显式报告并随 engine event 传递 |
+
+文件与边界：
+
+- `adapter/agentexec/turn/tool_result.go`：tool output 只解码一次，生成 raw result 与可选
+  command output delta；
+- `delivery/server/tool_presentation.go`：已知工具 result/activity 的唯一展示注册表，
+  未知工具直接返回 raw result；
+- `delivery/server/artifact_item_decode.go`：导入时保持 generic result，不重建
+  Application/Domain display union；
+- `delivery/server/artifact_item_decode_test.go`：测试名与被测职责一致；
+- `tools.FileMutationReporter`：框架级可选 capability；runtime 不再按工具名猜测路径。
+
+验证证据：
+
+- Runtime：`go build ./...`、`go vet ./...`、`go test ./...` 全绿；
+- Runtime race：
+  `application/runs`、`adapter/agentexec`、`adapter/agentexec/turn`、
+  `adapter/toolset`、`infra/storage/sqlite`、`delivery/server` 全绿；
+- Tools：`go build ./...`、`go vet ./...`、`go test ./...`、
+  `go test -race ./fs` 全绿；
+- protocol wire golden、`internal/arch`、session export→import→re-export 全绿；
+  known tool 的 wire result 二次投影保持幂等，unknown tool raw fallback 有测试；
+- `application/runs` 生产代码中具体工具展示名、旧 decoder/helper 和 typed result union
+  检索为零；
+- 本批净删除大量 Application/Domain display 分支，未新增 Manager/Service/decoder/
+  presenter receiver；
+- `GOWORK=off` 仍受当前开发分支尚未发布的 workspace 内模块版本约束：Tools 获取的
+  Core 尚无 `ToolDefinition.Clone`，Runtime 获取的 Agent Core 尚无当前 snapshot/
+  revision API。该失败已在 P4 前由 P1/P3 的跨模块开发态形成，不是本批行为回归；
+  workspace 模式完整门禁已通过。
 
 ### P5：Document Pipeline API 精修
 
@@ -659,7 +702,7 @@ go vet ./...
 | P1 Core 值对象与 snapshot | 完成 | 100% | — |
 | P2 Tools owner 与组织 | 完成 | 100% | — |
 | P3 Runtime owner 收敛 | 完成 | 100% | — |
-| P4 Runtime 工具结果边界 | 未开始 | 0% | P0，结构性决策 |
+| P4 Runtime 工具结果边界 | 完成 | 100% | — |
 | P5 Document Pipeline API | 未开始 | 0% | P0，breaking 决策 |
 | P6 Chat History API | 未开始 | 0% | P0，breaking 决策 |
 | P7 Provider/MCP/A2A/RAG/Desktop | 未开始 | 0% | P0，breaking/行为决策 |

@@ -86,28 +86,3 @@ func TestBoundaryAt(t *testing.T) {
 		t.Fatalf("input slice was reordered: %v", runIDs(nodes))
 	}
 }
-
-func TestItemFileChangePaths(t *testing.T) {
-	item := transcript.Item{
-		Kind:   transcript.ToolCall,
-		Status: transcript.ItemCompleted,
-		Tool: &transcript.ToolInvocation{Result: &transcript.ToolResult{
-			Kind: transcript.FileChangeToolResult,
-			FileChange: &transcript.FileChangeResult{Changes: []transcript.FileEdit{
-				{Path: "a.go"},
-				{Path: ""},
-				{Path: "b.go"},
-				{Path: "a.go"},
-			}},
-		}},
-	}
-	got := item.FileChangePaths()
-	if len(got) != 2 || got[0] != "a.go" || got[1] != "b.go" {
-		t.Fatalf("FileChangePaths = %v, want [a.go b.go]", got)
-	}
-
-	item.Status = transcript.ItemIncomplete
-	if got := item.FileChangePaths(); got != nil {
-		t.Fatalf("incomplete FileChangePaths = %v, want nil", got)
-	}
-}

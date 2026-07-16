@@ -51,22 +51,26 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 	}
 }
 
-func TestReducerShapesToolResultsAndFileNudges(t *testing.T) {
+func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	reducer.reduce(ToolCallStart{CallID: "shell_1", ToolName: "shell", Arguments: `{"command":"echo hi"}`})
+	raw := map[string]any{"stdout": "hi\n", "stderr": "oops", "exit_code": 0}
 	reduced := reducer.reduce(ToolCallEnd{
-		CallID: "shell_1", Output: `{"stdout":"hi\n","stderr":"oops","exit_code":0}`,
+		CallID: "shell_1", Result: raw, OutputText: "hi\n\noops",
 	})
 	completed := completedItem(t, reduced)
-	if completed.Tool == nil || completed.Tool.Result == nil || completed.Tool.Result.Kind != transcript.CommandToolResult {
-		t.Fatalf("command result = %+v", completed.Tool)
+	if completed.Tool == nil {
+		t.Fatal("completed tool is nil")
 	}
-	if completed.Tool.Result.Command.Output != "hi\n\noops" || completed.Tool.Result.Command.ExitCode == nil || *completed.Tool.Result.Command.ExitCode != 0 {
-		t.Fatalf("command result = %+v", completed.Tool.Result.Command)
+	result, ok := completed.Tool.Result.(map[string]any)
+	if !ok || result["stdout"] != "hi\n" || result["stderr"] != "oops" || result["exit_code"] != 0 {
+		t.Fatalf("raw command result = %#v", completed.Tool.Result)
 	}
 
 	reducer.reduce(ToolCallStart{CallID: "write_1", ToolName: "write", Arguments: `{"file_path":"src/a.go"}`})
-	write := reducer.reduce(ToolCallEnd{CallID: "write_1", Output: `{}`})
+	write := reducer.reduce(ToolCallEnd{
+		CallID: "write_1", Result: map[string]any{}, MutatedPaths: []string{"src/a.go"},
+	})
 	var nudge *Nudge
 	for _, reduction := range write {
 		if reduction.Nudge != nil {
@@ -177,7 +181,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	if itemID != "item_approval" {
 		t.Fatalf("resumed tool item id = %q, want item_approval", itemID)
 	}
-	reducer.reduce(ToolCallEnd{CallID: "call_1", Output: "ok"})
+	reducer.reduce(ToolCallEnd{CallID: "call_1", Result: "ok"})
 
 	second := reducer.reduce(ToolCallStart{CallID: "call_2", ToolName: "shell", Arguments: `{"command":"go vet"}`})
 	var secondID string

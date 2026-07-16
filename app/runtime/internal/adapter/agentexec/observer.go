@@ -3,6 +3,7 @@ package agentexec
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -47,7 +48,7 @@ type toolObserver interface {
 	ApproveToolCall(ctx context.Context, callID, toolName, arguments string) ToolApprovalVerdict
 
 	OnToolCallStart(callID, toolName, arguments string)
-	OnToolCallEnd(callID, toolName, output string, err error)
+	OnToolCallEnd(callID, toolName, output string, mutatedPaths []string, err error)
 
 	// OnMessageDelta is invoked for every non-empty text chunk the
 	// model streams out. Implementations typically append the chunk
@@ -167,7 +168,7 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 		// UI counts stay matched; End carries ErrToolDenied so the wire
 		// renders a distinct "denied" terminal (not a green success).
 		o.observer.OnToolCallStart(callID, name, arguments)
-		o.observer.OnToolCallEnd(callID, name, v.DenyReason, ErrToolDenied)
+		o.observer.OnToolCallEnd(callID, name, v.DenyReason, nil, ErrToolDenied)
 		return v.DenyReason, nil
 	}
 
@@ -178,7 +179,25 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	}
 	o.observer.OnToolCallStart(callID, name, arguments)
 	output, err := o.inner.Call(ctx, arguments)
-	o.observer.OnToolCallEnd(callID, name, output, err)
+	o.observer.OnToolCallEnd(callID, name, output, o.successfulMutationPaths(arguments, err), err)
 
 	return output, err
+}
+
+func (o *observedTool) successfulMutationPaths(arguments string, callErr error) []string {
+	if callErr != nil {
+		return nil
+	}
+	reporter, ok := o.inner.(tools.FileMutationReporter)
+	if !ok {
+		return nil
+	}
+	paths, err := reporter.MutationPaths(arguments)
+	if err != nil {
+		return nil
+	}
+	paths = slices.Clone(paths)
+	paths = slices.DeleteFunc(paths, func(path string) bool { return path == "" })
+	slices.Sort(paths)
+	return slices.Compact(paths)
 }

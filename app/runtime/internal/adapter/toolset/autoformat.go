@@ -15,7 +15,7 @@ import (
 
 func withAutoFormat(inner tools.Tool, workdir string) tools.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		paths := resolvedMutatedPaths(inner, arguments, workdir)
+		paths := resolvedMutationPaths(inner, arguments, workdir)
 		out, err := inner.Call(ctx, arguments)
 		if err != nil || len(paths) == 0 {
 			return out, err

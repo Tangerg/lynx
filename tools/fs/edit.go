@@ -25,7 +25,10 @@ type EditResponse struct {
 
 var editToolSchema, _ = pkgjson.StringDefSchemaOf(EditRequest{})
 
-var _ toolcontract.Tool = (*EditTool)(nil)
+var (
+	_ toolcontract.Tool                 = (*EditTool)(nil)
+	_ toolcontract.FileMutationReporter = (*EditTool)(nil)
+)
 
 // EditTool is the thin LLM-facing adapter for [Executor.Edit]. The
 // match-and-replace logic lives in the executor so a backend upgrade
@@ -64,6 +67,18 @@ func (t *EditTool) ConcurrencyKey(arguments string) (key string, concurrent bool
 	var req EditRequest
 	_ = json.Unmarshal([]byte(arguments), &req)
 	return req.FilePath, true
+}
+
+// MutationPaths reports the file targeted by this call.
+func (*EditTool) MutationPaths(arguments string) ([]string, error) {
+	var req EditRequest
+	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
+		return nil, err
+	}
+	if req.FilePath == "" {
+		return nil, nil
+	}
+	return []string{req.FilePath}, nil
 }
 
 func (t *EditTool) Call(ctx context.Context, arguments string) (string, error) {

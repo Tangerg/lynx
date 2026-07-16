@@ -43,7 +43,7 @@ func (r *reducer) approvalInterrupt(in Interrupt) (Item, transcript.Interrupt) {
 	}
 	p := in.Approval
 	id := r.nextItemID()
-	tool := r.newToolInvocation(p.ToolName, p.Arguments, "")
+	tool := newToolInvocation(p.ToolName, p.Arguments, nil)
 	item := Item{
 		ID: id, RunID: r.cfg.RunID, Status: ItemRunning,
 		Kind: ToolCall, CreatedAt: r.now(), Tool: tool,
@@ -144,7 +144,7 @@ func (r *reducer) drainTools() []RunEvent {
 		out = append(out, ItemCompleted{Item: Item{
 			ID: ref.id, RunID: r.cfg.RunID, Status: ItemIncomplete,
 			Kind: ToolCall, CreatedAt: ref.createdAt,
-			Tool:        r.newToolInvocation(ref.name, ref.args, ""),
+			Tool:        newToolInvocation(ref.name, ref.args, nil),
 			SafetyClass: ref.safetyClass,
 		}})
 	}

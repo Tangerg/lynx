@@ -71,7 +71,7 @@ func (t *downloadTool) ConcurrencyKey(arguments string) (key string, concurrent 
 	return request.FilePath, true
 }
 
-func (t *downloadTool) MutatedPaths(arguments string) ([]string, error) {
+func (*downloadTool) MutationPaths(arguments string) ([]string, error) {
 	var request downloadRequest
 	if err := json.Unmarshal([]byte(arguments), &request); err != nil {
 		return nil, err
