@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
@@ -20,8 +21,8 @@ func (c *Coordinator) UtilityRole() (providerID, model string) {
 // SetUtilityRole repoints the maintenance services at (provider, model), persists
 // it, and swaps the live cell so the change takes effect at the next turn
 // boundary. An empty model clears the role back to the main turn model. A
-// non-empty model is validated by resolving its client first — an unconfigured
-// provider or unknown model fails here rather than silently degrading at the next
+// non-empty model is validated before persistence — an unconfigured provider or
+// unknown model fails here rather than silently degrading at the next
 // compaction. Backs models.setUtilityRole.
 func (c *Coordinator) SetUtilityRole(ctx context.Context, provider, model string) error {
 	c.utilityMu.Lock()
@@ -31,7 +32,10 @@ func (c *Coordinator) SetUtilityRole(ctx context.Context, provider, model string
 		return err
 	}
 	if role.Configured() {
-		if _, err := c.utilityResolver.ResolveClient(ctx, role.ProviderID(), role.Model()); err != nil {
+		if c.utilityValidator == nil {
+			return errors.New("models: utility model validation is unavailable")
+		}
+		if err := c.utilityValidator.ValidateChatModel(ctx, role.ProviderID(), role.Model()); err != nil {
 			return fmt.Errorf("models: utility model %q on %q: %w", role.Model(), role.ProviderID(), err)
 		}
 	}
@@ -69,6 +73,9 @@ func (c *Coordinator) SetEmbeddingRole(ctx context.Context, providerID, model st
 		return err
 	}
 	if role.Configured() {
+		if c.embeddingResolver == nil {
+			return errors.New("models: embedding model validation is unavailable")
+		}
 		if _, err := c.embeddingResolver.Resolve(ctx, role.ProviderID(), role.Model()); err != nil {
 			return fmt.Errorf("models: build embedding model %q on %q: %w", role.Model(), role.ProviderID(), err)
 		}

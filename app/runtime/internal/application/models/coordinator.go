@@ -15,7 +15,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	"github.com/Tangerg/lynx/chatclient"
 )
 
 // ProviderCatalog is the static provider reference data (which providers this
@@ -33,10 +32,10 @@ type ProviderProber interface {
 	Probe(ctx context.Context, entry provider.Provider) error
 }
 
-// ClientResolver validates/builds a chat client for (provider, model). The
-// utility-role setter uses it to reject an unconfigured role before persisting.
-type ClientResolver interface {
-	ResolveClient(ctx context.Context, providerID, model string) (*chatclient.Client, error)
+// ChatModelValidator verifies that a chat client can be built for
+// (provider, model) without exposing the concrete client to Application.
+type ChatModelValidator interface {
+	ValidateChatModel(ctx context.Context, providerID, model string) error
 }
 
 // EmbeddingResolver validates/builds an embedder for (provider, model). The
@@ -67,10 +66,10 @@ type Coordinator struct {
 	// utility / embedding model roles: the live cell (shared with the maintenance
 	// titler / codebase index that read it), the resolver that validates a new
 	// role, and the saver that persists it.
-	utilityCell     *atomic.Pointer[modelrole.Role]
-	utilityResolver ClientResolver
-	utilityStore    UtilityRoleSaver
-	utilityMu       sync.Mutex
+	utilityCell      *atomic.Pointer[modelrole.Role]
+	utilityValidator ChatModelValidator
+	utilityStore     UtilityRoleSaver
+	utilityMu        sync.Mutex
 
 	embeddingCell     *atomic.Pointer[modelrole.Role]
 	embeddingResolver EmbeddingResolver
@@ -87,9 +86,9 @@ type Config struct {
 	Catalog   ProviderCatalog
 	Prober    ProviderProber
 
-	UtilityCell     *atomic.Pointer[modelrole.Role]
-	UtilityResolver ClientResolver
-	UtilityStore    UtilityRoleSaver
+	UtilityCell      *atomic.Pointer[modelrole.Role]
+	UtilityValidator ChatModelValidator
+	UtilityStore     UtilityRoleSaver
 
 	EmbeddingCell     *atomic.Pointer[modelrole.Role]
 	EmbeddingResolver EmbeddingResolver
@@ -106,7 +105,7 @@ func New(cfg Config) *Coordinator {
 		catalog:           cfg.Catalog,
 		prober:            cfg.Prober,
 		utilityCell:       cfg.UtilityCell,
-		utilityResolver:   cfg.UtilityResolver,
+		utilityValidator:  cfg.UtilityValidator,
 		utilityStore:      cfg.UtilityStore,
 		embeddingCell:     cfg.EmbeddingCell,
 		embeddingResolver: cfg.EmbeddingResolver,

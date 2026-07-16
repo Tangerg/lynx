@@ -143,12 +143,15 @@ func TestDomainStaysFrameworkFree(t *testing.T) {
 // TestApplicationStaysFrameworkFree enforces §19's headline application-purity
 // clause directly for EXTERNAL dependencies (the ring rule already forbids the
 // internal SDK/SQLite/protocol edges): a use-case coordinator imports no agent
-// SDK, SQLite driver, Git, MCP, or LSP library. Its only cross-module import is
-// the neutral core chat model.
+// SDK, concrete chat client, SQLite driver, Git, MCP, or LSP library. Its only
+// cross-module values are the neutral core chat/media contracts.
 func TestApplicationStaysFrameworkFree(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "application"),
-		append([]string{"github.com/Tangerg/lynx/agent"}, frameworkImports...))
+		append([]string{
+			"github.com/Tangerg/lynx/agent",
+			"github.com/Tangerg/lynx/chatclient",
+		}, frameworkImports...))
 }
 
 // TestExecutionDomainStaysPure enforces §16 rule 2: the core execution context
@@ -295,6 +298,75 @@ func TestBootstrapExposesNoBusinessMethod(t *testing.T) {
 	}
 }
 
+// TestHostOwnsShutdownGraph enforces the B9 resource boundary without relying
+// on source text: Host owns one shared lifetime, and that lifetime owns every
+// process-level shutdown stage plus tool/process resources. Engine must not
+// regain resource ownership.
+func TestHostOwnsShutdownGraph(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "internal", "bootstrap")
+	structs := map[string]*ast.StructType{}
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, decl := range file.Decls {
+			general, ok := decl.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range general.Specs {
+				named, ok := spec.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				if value, ok := named.Type.(*ast.StructType); ok {
+					structs[named.Name.Name] = value
+				}
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk bootstrap: %v", walkErr)
+	}
+
+	host := structFieldNames(structs["Host"])
+	if _, ok := host["lifetime"]; !ok {
+		t.Fatal("bootstrap.Host must own the shared shutdown lifetime")
+	}
+	for _, forbidden := range []string{"engine", "toolClosers", "resources"} {
+		if _, ok := host[forbidden]; ok {
+			t.Errorf("bootstrap.Host must not copy %s outside its shared lifetime", forbidden)
+		}
+	}
+
+	lifetime := structFieldNames(structs["hostLifetime"])
+	for _, required := range []string{
+		"integrations",
+		"codebase",
+		"coordinator",
+		"dispatcher",
+		"effectsTasks",
+		"toolClosers",
+		"resources",
+	} {
+		if _, ok := lifetime[required]; !ok {
+			t.Errorf("bootstrap.hostLifetime must own %s", required)
+		}
+	}
+	if _, ok := lifetime["engine"]; ok {
+		t.Error("bootstrap.hostLifetime owns engine; Agent execution must not be a resource closer")
+	}
+}
+
 // TestDeliveryHoldsNoRunLifecycleState enforces §16 rule 5: the delivery Server
 // (the protocol handler) drives the run coordinator as a use-case surface, but
 // must not itself HOLD the run registry, a cancel func, a task group, or a
@@ -366,6 +438,19 @@ func exprString(e ast.Expr) string {
 	default:
 		return ""
 	}
+}
+
+func structFieldNames(value *ast.StructType) map[string]struct{} {
+	out := map[string]struct{}{}
+	if value == nil || value.Fields == nil {
+		return out
+	}
+	for _, field := range value.Fields.List {
+		for _, name := range field.Names {
+			out[name.Name] = struct{}{}
+		}
+	}
+	return out
 }
 
 // TestApplicationEventFreeOfProtocol enforces §16 rule 9: application (its Events,

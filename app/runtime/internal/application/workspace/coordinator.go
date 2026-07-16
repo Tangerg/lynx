@@ -1,7 +1,7 @@
 // Package workspace is the application coordinator for the project-scoped
 // developer-surface use cases: long-term memory (LYRA.md), skill + recipe
 // discovery, and lifecycle-hook inspection/trust. It is a thin use-case layer
-// over the domain stores and the engine-backed skill catalog; the delivery
+// over domain stores and filesystem-backed discovery ports; the delivery
 // layer drives it per workspace request (cwd-scoped).
 package workspace
 
@@ -19,7 +19,7 @@ import (
 var ErrMemoryUnavailable = errors.New("workspace: memory unavailable")
 
 // SkillCatalog enumerates the skills visible from a working directory (project
-// over global). Implemented by the engine.
+// over global). The composition root supplies promptsource-backed discovery.
 type SkillCatalog interface {
 	ListSkills(ctx context.Context, workdir string) ([]skills.Info, error)
 }

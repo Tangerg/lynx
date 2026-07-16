@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	"github.com/Tangerg/lynx/chatclient"
 )
 
 // modelProviderFake satisfies the provider.Registry (Get) + ProviderCatalog
@@ -33,12 +32,10 @@ func (r *modelProviderFake) Metadata(id string) (provider.Metadata, bool) {
 	return provider.Metadata{}, false
 }
 
-// okClientResolver satisfies the utility client resolver, always validating.
-type okClientResolver struct{}
+// okChatModelValidator always accepts the utility model.
+type okChatModelValidator struct{}
 
-func (okClientResolver) ResolveClient(context.Context, string, string) (*chatclient.Client, error) {
-	return nil, nil
-}
+func (okChatModelValidator) ValidateChatModel(context.Context, string, string) error { return nil }
 
 type utilitySaverRecorder struct {
 	provider string
@@ -56,11 +53,11 @@ func (s *utilitySaverRecorder) SaveUtilityRole(_ context.Context, provider, mode
 func modelRoleServer(entries map[string]provider.Provider, saver *utilitySaverRecorder) *Server {
 	fake := &modelProviderFake{entries: entries}
 	return serverWithModels(models.Config{
-		Providers:       fake,
-		Catalog:         fake,
-		UtilityCell:     &atomic.Pointer[modelrole.Role]{},
-		UtilityResolver: okClientResolver{},
-		UtilityStore:    saver,
+		Providers:        fake,
+		Catalog:          fake,
+		UtilityCell:      &atomic.Pointer[modelrole.Role]{},
+		UtilityValidator: okChatModelValidator{},
+		UtilityStore:     saver,
 	})
 }
 

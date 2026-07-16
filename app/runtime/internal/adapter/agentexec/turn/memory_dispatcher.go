@@ -38,8 +38,7 @@ type hookResolver interface {
 // Engine is required; every other field is optional and has a nil-default
 // behavior documented on the field.
 type Dependencies struct {
-	// Engine drives the turn: start / restore / steer / post-turn maintenance.
-	// Required.
+	// Engine starts or restores the Agent process tree. Required.
 	Engine engineDep
 
 	// Steering persists queued messages that miss the current continuation
@@ -94,8 +93,8 @@ type Dependencies struct {
 //   - lifecycle.go      — terminal-event capture from the agent runtime
 //   - observer.go       — engine tool-observer → turn.Event translation
 //
-// The Dispatcher interface is stable, so transport adapters do not depend on
-// its concrete implementation.
+// The Dispatcher interface is the consumer-side process-control boundary used
+// by the application adapters; delivery never drives it directly.
 func New(deps Dependencies) (Dispatcher, error) {
 	if deps.Engine == nil {
 		return nil, errors.New("turn: engine is required")

@@ -153,12 +153,10 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 
 // turnProcessOptions assembles per-process wiring: the chat history Session
 // binding, the observer decorator, lifecycle listener, and per-run model
-// client. The chat middleware chain itself (tool loop + memory) is the
-// engine default built once in [New]; the chat middleware chain can be
-// overridden per turn by supplying [core.ProcessOptions.Guardrails] when
-// mid-run steering is enabled. The runtime stamps each request's conversation
-// id from this Session, so one shared chain can still serve both this turn and
-// any spawned subtask unless explicitly overridden.
+// client. Shared chat guardrails are built once in [New] and can be overridden
+// per turn when mid-run steering is enabled. The runtime stamps each request's
+// conversation id from this Session, so one shared history chain can still
+// serve both this turn and spawned subtasks unless explicitly overridden.
 func turnProcessOptions(dependencies *core.Dependencies, sessionID string, observer toolObserver, listener core.Extension, client *chatclient.Client, guardrails *core.ChatGuardrails) core.ProcessOptions {
 	options := core.ProcessOptions{}
 	if dependencies != nil {

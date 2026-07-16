@@ -31,8 +31,8 @@ import (
 // constructs the capability adapters the tools wrap (code intelligence,
 // background exec, MCP, A2A) and wires them into the resolver — so the engine
 // CORE imports none of them; it receives the assembled [Built] from the
-// composition root (runtime). This is the "tools assembled outside the core
-// loop" shape the convergent microkernel design uses (doc/EXECUTION_CENTERED_ARCHITECTURE.md).
+// composition root. Tool capability construction therefore stays outside Agent
+// execution (doc/EXECUTION_CENTERED_ARCHITECTURE.md).
 
 // CodebaseIndex is the live @codebase capability the tool resolver consumes.
 type CodebaseIndex interface {
@@ -64,7 +64,7 @@ type BuildConfig struct {
 }
 
 // Built is the assembled tool environment handed to the composition root: the
-// engine-scope resolver (also the diagnostic tool catalog), the live MCP ports,
+// runtime-scope resolver (also the diagnostic tool catalog), the live MCP ports,
 // and the capability closers owned by bootstrap.Host.
 type Built struct {
 	Resolver              *Resolver

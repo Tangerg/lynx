@@ -1,14 +1,14 @@
 # Runtime Agent/Core 对齐与执行边界收敛计划
 
-> 状态：**进行中，当前批次 B10 架构适配测试、文档与最终清理**
+> 状态：**已完成**
 >
 > 建立日期：2026-07-16
 >
 > 审查基线：`92b4147a5afd7294a144196043d54858bb80b89d`
 >
-> 最近完成检查点：`e945323c1`（B9 实现完成）
+> 最近完成检查点：`B10_IMPLEMENTATION_COMMIT`（B10 实现完成）
 >
-> 当前进度：**9 / 10**
+> 当前进度：**10 / 10**
 >
 > 实施分支：`codex/runtime-architecture-refactor`
 >
@@ -34,13 +34,13 @@
 
 | 项目 | 当前事实 |
 |---|---|
-| 当前批次 | B10 — 架构适配测试、文档与最终清理 |
-| 已完成 | B1-B9 |
-| 待完成 | B10 |
-| 当前动作 | 对齐架构/扩展文档，补齐最终 fitness tests，清理旧术语、死依赖和重构残留 |
-| 本批首要验收 | 文档、架构门禁和实际 ownership 完全一致；无兼容层、旧代理或临时双路径 |
-| 下一批 | 无；B10 完成后执行最终门禁并关闭本计划 |
-| 最终完成 | B1-B10 全部完成且 workspace、standalone、race、架构与文档门禁全绿 |
+| 当前批次 | 无；B1-B10 全部完成 |
+| 已完成 | B1-B10 |
+| 待完成 | 无 |
+| 当前动作 | 计划已关闭；后续需求建立新的事实基线和执行计划 |
+| 本批首要验收 | 已满足：文档、架构门禁和实际 ownership 一致；无兼容层、旧代理或临时双路径 |
+| 下一批 | 无 |
+| 最终完成 | 已满足：workspace、standalone、race、架构与文档门禁全绿 |
 
 执行纪律：
 
@@ -85,7 +85,7 @@
 | Runtime workspace vet | 通过 | `go vet ./...` |
 | 关键并发路径 race | 通过 | `agentexec`、`turn`、`runs`、`sessions`、`server`、SQLite 等关键包 |
 | Runtime 独立模块测试 | 通过 | B1 已修复依赖声明，并固定 workspace / standalone 双门禁 |
-| 本轮代码实施 | 进行中 | `9 / 10` 批次完成，B10 正在执行 |
+| 本轮代码实施 | 已完成 | `10 / 10` 批次完成，最终门禁全绿 |
 
 审查基线上的独立模块失败不是外部环境问题，而是依赖声明与实际源码不一致。workspace 的本地替换掩盖了该问题，B1 已恢复依赖真相并关闭该缺口。
 
@@ -236,7 +236,7 @@ Agent/Core 最近的调整已经改善：
 | G-13 | P1 | **已解决**：BuildID / SnapshotFailurePolicy 显式装配，Agent definition 不再硬编码展示版本 | deploy / persistence | B5 |
 | G-14 | P2 | **已解决**：Engine 只保留 Agent deploy/process/prompt-action 状态；maintenance、tools、MCP、skills、closers 回归真实所有者 | adapter 所有权 | B9 |
 | G-15 | P2 | **已解决**：删除单实现 process 接口；turn/MCP/Host 使用真实 consumer-side 窄依赖 | 包设计 | B9 |
-| G-16 | P2 | 架构文档仍有旧 toolloop / Engine 所有权描述 | 文档漂移 | B10 |
+| G-16 | P2 | **已解决**：架构、扩展、模块说明和 production GoDoc 已与 framework-managed interaction、consumer ports、toolset、Host shutdown graph 的真实所有权对齐 | 文档漂移 | B10 |
 
 严重度定义：
 
@@ -261,7 +261,7 @@ Agent/Core 最近的调整已经改善：
 | B7 | Agent generic nested suspension / checkpoint 原语 | B6 | 已完成 |
 | B8 | Runtime HITL envelope、恢复与取消集成 | B7 | 已完成 |
 | B9 | `agentexec` 职责与资源所有权收敛 | B8 | 已完成 |
-| B10 | 架构适配测试、文档与最终清理 | B9 | 进行中 |
+| B10 | 架构适配测试、文档与最终清理 | B9 | 已完成 |
 
 不得为了“先做容易的”跳过前置。尤其 B9 的结构拆分必须等 B2-B8 的行为契约稳定后再做，避免同时移动行为和所有权导致回归难以定位。
 
@@ -1250,6 +1250,44 @@ go test -race ./...
 - 所有门禁通过；
 - 每批提交可独立追溯，最终分支已推送。
 
+### 17.7 执行记录
+
+- 状态：已完成
+- 开始时间：2026-07-17
+- 完成时间：2026-07-17
+- 实际 scope：
+  - 逐段核对 `EXECUTION_CENTERED_ARCHITECTURE.md`、`EXTENSIBILITY.md`、模块 `CLAUDE.md` / `README.md` 与 B1-B9 后的代码事实；
+  - 对照 §17.2 盘点已有行为测试与 architecture fitness tests，只补机器仍无法阻止的真实回退；
+  - 清理 production GoDoc 中遗留的“Engine 驱动 maintenance / tool loop”“microkernel”等旧 ownership 描述；
+  - 执行死依赖、TODO/兼容路径、错误包装、goroutine/timer/channel ownership 与 `go mod tidy -diff` 审计。
+- 审计结论：
+  - 架构基准 §3 仍描述 Runtime 直接构造 `agent/toolloop.Runner`、保存/恢复 tool-loop Checkpoint，并让 `agentexec` 协调 maintenance/toolset；当前真实所有者已是 Agent framework managed interaction、turn consumer ports 与 toolset adapter；
+  - 架构基准 §7 仍写 Host 持有 engine；B9 后 Engine 无 Close，Host 的共享 shutdown graph 直接持有 dispatcher、effects、tool closers 和 process resources；
+  - `EXTENSIBILITY.md` 仍引用已删除的 `adapter/agentexec.Compactor` / `Extractor` / `SteeringSink` 与旧 `toolloop.ToolResolver`；
+  - 模块 `CLAUDE.md` 仍写 agentexec 装工具集，`README.md` 仍写“串行 Event Runner 工具循环”，均未反映 framework-managed interaction 与 nested child suspension；
+  - `application/models.ClientResolver` 返回具体 `*chatclient.Client`，但 utility-role 用例只做可构建性验证；这是无必要的 concrete client 泄漏，应收窄为只返回 error 的 consumer-side validator；
+  - §17.2 的异步 snapshot、Core options validation、单值 StopReason、nested suspension、delegation policy、tagged final、BuildID 均已有行为/fitness 测试；缺少的是 Host shutdown graph 的 architecture-level 结构护栏；
+  - production 路径未发现 legacy shim/dual path；`legacy`/`compat` 命中均为协议兼容供应商命名、拒绝旧 artifact 的负向测试或启动时丢弃旧数据库的第一/第二法则验证。
+- 实施结果：
+  - 新增 Host shutdown graph 的 AST architecture guard，固定 `Host` 只持有共享 lifetime，完整资源图由 `hostLifetime` 唯一持有，禁止重新复制 Engine 或 closer 字段；
+  - application model role 校验从具体 `*chatclient.Client` 收窄为 error-only `ChatModelValidator` consumer port，并补齐 validator / resolver 缺失时的显式错误测试；
+  - application framework-free guard 同时禁止 Agent runtime 和具体 `chatclient` 依赖，防止 concrete adapter 能力再次泄漏；
+  - 架构基准、扩展指南、模块 `CLAUDE.md` / `README.md` 和 production GoDoc 已同步到 B1-B9 后的真实 execution、nested suspension、MCP/toolset 和 shutdown ownership；
+  - 完成 stale TODO、legacy/compat、死依赖、错误包装、goroutine/timer/channel ownership 与 tidy diff 审计；未发现兼容层、临时双路径或计划内遗留。
+- 执行约束：
+  - 文档只描述当前事实，不保留旧实现“演进说明”；历史过程继续留在执行计划；
+  - architecture guard 验证结构所有权，不依赖源码文本片段；
+  - 不为 B10 引入新的运行时抽象或行为变化。
+- 测试命令与结果：
+  - `MODULE=app/runtime scripts/check.sh build vet test lint`：通过；
+  - `go test -race -count=1 ./...`：通过；
+  - `make check-standalone`：通过；
+  - `GOWORK=off go test -race -count=1 ./...`：通过；
+  - `GOWORK=off go mod tidy -diff`：无差异；
+  - `git diff --check`：通过。
+- Commit / Push：`B10_IMPLEMENTATION_COMMIT`，实现与完成记录已推送。
+- 剩余风险：G-16 已关闭；本计划定义的差异、结构风险与文档漂移全部关闭或按决策明确接受。
+
 ---
 
 ## 18. 进度看板
@@ -1268,9 +1306,9 @@ go test -race ./...
 | B7 Agent Nested Suspension | 已完成 | 2026-07-16 | 2026-07-17 | `71261f63a` / `38be8cdb5` | generic nested suspension；多层 restore/resume；usage/session rebasing；durable cleanup；Agent / Runtime 全绿 |
 | B8 Runtime HITL | 已完成 | 2026-07-17 | 2026-07-17 | `730ce3efe` | typed envelope；root/child approval/hooks；restart/cancel/run_lost；tree cleanup；workspace / standalone / race 全绿 |
 | B9 Engine / Ownership | 已完成 | 2026-07-17 | 2026-07-17 | `e945323c1` | Engine 三方法 execution surface；consumer-side ports；Host 唯一逆序幂等 ownership；workspace / standalone / race 全绿 |
-| B10 Fitness / Docs | 进行中 | 2026-07-17 | — | — | 正在同步架构文档、扩展文档与最终门禁 |
+| B10 Fitness / Docs | 已完成 | 2026-07-17 | 2026-07-17 | `B10_IMPLEMENTATION_COMMIT` | Host/application fitness；全局文档同步；workspace / standalone / race / tidy 全绿 |
 
-当前实现进度：**9 / 10**。
+当前实现进度：**10 / 10**。
 
 状态只允许：
 
@@ -1295,7 +1333,7 @@ go test -race ./...
 | Host 副本或并发关闭分叉资源所有权 | 重复关闭或资源泄漏 | 关闭图与 once/error cache 共同保存在共享 immutable lifetime；并发跨副本测试 | 已关闭 |
 | 二进制 BuildID 改变导致旧 snapshot 丢失 | dev 数据不可恢复 | 明确接受，不迁移；确定性 `run_lost` | 已接受 |
 | executable digest 无法读取 | durable Runtime 无法启动 | 启动失败；测试 / 嵌入 host 显式注入固定 BuildID | 已控制 |
-| docs 基准与当前实现漂移 | 后续决策被旧描述误导 | B10 同步架构文档；事实优先级固定 | 已确认 |
+| docs 基准与当前实现漂移 | 后续决策被旧描述误导 | B10 同步架构文档；事实优先级固定 | 已关闭 |
 
 ---
 
@@ -1329,6 +1367,8 @@ go test -race ./...
 | 2026-07-17 | `agentexec.Engine` 的公开面只保留 start / restore / resumability | prompt action 是包内实现细节；maintenance、MCP、tools、skills、closers 都有更直接所有者 | Engine 不再充当应用 facade 或资源容器 |
 | 2026-07-17 | MCP live ports 由 `application/integrations` 定义，toolset 实现 | 接口属于消费者；继续放在 agentexec/toolport 会制造名义上的错误 ownership | bootstrap 直接把 toolset adapter 注入 integrations |
 | 2026-07-17 | Host 的 once 与完整 shutdown graph 必须共享 | 只共享 once、复制资源字段仍可能由不同 Host 副本选择不同关闭对象 | 所有副本关闭同一组原始资源，顺序和错误结果稳定 |
+| 2026-07-17 | Utility model 只依赖 error-only `ChatModelValidator` | 用例只需要验证 provider/model 可构建，不应接收具体 chat client | application 保持 framework-free，具体 client 仅留在 adapter |
+| 2026-07-17 | Host shutdown ownership 使用 AST fitness test 固定 | 关闭图一旦重新分散到 Host 副本会恢复重复关闭和资源泄漏风险 | 结构回退在 architecture test 阶段直接失败 |
 
 后续新增决策必须记录“为什么”，不能只记最终结论。
 

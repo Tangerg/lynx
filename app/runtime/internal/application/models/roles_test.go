@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
-	"github.com/Tangerg/lynx/chatclient"
 )
 
 func TestSetUtilityRoleUsesSaverPort(t *testing.T) {
@@ -32,33 +32,44 @@ func TestSetUtilityRoleUsesSaverPort(t *testing.T) {
 	}
 }
 
-func TestSetUtilityRoleUsesClientResolverPort(t *testing.T) {
+func TestSetUtilityRoleUsesChatModelValidatorPort(t *testing.T) {
 	cell := &atomic.Pointer[modelrole.Role]{}
 	cell.Store(&modelrole.Role{})
 	saver := &fakeUtilityRoleSaver{}
-	resolver := &fakeChatClientResolver{}
-	c := New(Config{UtilityCell: cell, UtilityResolver: resolver, UtilityStore: saver})
+	validator := &fakeChatModelValidator{}
+	c := New(Config{UtilityCell: cell, UtilityValidator: validator, UtilityStore: saver})
 
 	if err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); err != nil {
 		t.Fatalf("SetUtilityRole err = %v", err)
 	}
 
-	if resolver.provider != "anthropic" || resolver.model != "claude-haiku" {
-		t.Fatalf("resolver provider=%q model=%q", resolver.provider, resolver.model)
+	if validator.provider != "anthropic" || validator.model != "claude-haiku" {
+		t.Fatalf("validator provider=%q model=%q", validator.provider, validator.model)
 	}
 	if saver.provider != "anthropic" || saver.model != "claude-haiku" {
 		t.Fatalf("saved provider=%q model=%q", saver.provider, saver.model)
 	}
 }
 
-func TestSetUtilityRoleReturnsClientResolverError(t *testing.T) {
+func TestSetUtilityRoleReturnsChatModelValidatorError(t *testing.T) {
 	fail := errors.New("build client")
 	cell := &atomic.Pointer[modelrole.Role]{}
 	cell.Store(&modelrole.Role{})
-	c := New(Config{UtilityCell: cell, UtilityResolver: &fakeChatClientResolver{err: fail}})
+	c := New(Config{UtilityCell: cell, UtilityValidator: &fakeChatModelValidator{err: fail}})
 
 	if err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); !errors.Is(err, fail) {
 		t.Fatalf("SetUtilityRole err = %v, want %v", err, fail)
+	}
+}
+
+func TestSetUtilityRoleRequiresChatModelValidator(t *testing.T) {
+	cell := &atomic.Pointer[modelrole.Role]{}
+	cell.Store(&modelrole.Role{})
+	c := New(Config{UtilityCell: cell})
+
+	err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku")
+	if err == nil || !strings.Contains(err.Error(), "validation is unavailable") {
+		t.Fatalf("SetUtilityRole err = %v, want unavailable validation error", err)
 	}
 }
 
@@ -81,13 +92,24 @@ func TestSetEmbeddingRoleUsesSaverPort(t *testing.T) {
 	}
 }
 
+func TestSetEmbeddingRoleRequiresResolver(t *testing.T) {
+	cell := &atomic.Pointer[modelrole.Role]{}
+	cell.Store(&modelrole.Role{})
+	c := New(Config{EmbeddingCell: cell})
+
+	err := c.SetEmbeddingRole(context.Background(), "openai", "text-embedding-3-small")
+	if err == nil || !strings.Contains(err.Error(), "validation is unavailable") {
+		t.Fatalf("SetEmbeddingRole err = %v, want unavailable validation error", err)
+	}
+}
+
 func TestSetUtilityRoleSerializesPersistAndPublish(t *testing.T) {
 	cell := &atomic.Pointer[modelrole.Role]{}
 	saver := newBlockingUtilitySaver()
 	c := New(Config{
-		UtilityCell:     cell,
-		UtilityResolver: staticClientResolver{},
-		UtilityStore:    saver,
+		UtilityCell:      cell,
+		UtilityValidator: staticChatModelValidator{},
+		UtilityStore:     saver,
 	})
 
 	first := make(chan error, 1)
@@ -173,19 +195,16 @@ func (s *fakeUtilityRoleSaver) SaveUtilityRole(_ context.Context, provider, mode
 	return nil
 }
 
-type fakeChatClientResolver struct {
+type fakeChatModelValidator struct {
 	provider string
 	model    string
 	err      error
 }
 
-func (r *fakeChatClientResolver) ResolveClient(_ context.Context, provider, model string) (*chatclient.Client, error) {
+func (r *fakeChatModelValidator) ValidateChatModel(_ context.Context, provider, model string) error {
 	r.provider = provider
 	r.model = model
-	if r.err != nil {
-		return nil, r.err
-	}
-	return nil, nil
+	return r.err
 }
 
 type fakeEmbeddingRoleSaver struct {
@@ -201,11 +220,9 @@ func (s *fakeEmbeddingRoleSaver) SaveEmbeddingRole(_ context.Context, provider, 
 	return nil
 }
 
-type staticClientResolver struct{}
+type staticChatModelValidator struct{}
 
-func (staticClientResolver) ResolveClient(context.Context, string, string) (*chatclient.Client, error) {
-	return nil, nil
-}
+func (staticChatModelValidator) ValidateChatModel(context.Context, string, string) error { return nil }
 
 type staticEmbeddingResolver struct{}
 
