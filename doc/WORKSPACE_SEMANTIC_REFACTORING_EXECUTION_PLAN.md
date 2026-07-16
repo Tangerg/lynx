@@ -1,9 +1,9 @@
 # 全仓语义化与所有权重构执行计划
 
-> 状态：实施中
+> 状态：完成
 > 建立日期：2026-07-16
 > 最后更新：2026-07-16
-> 当前基线：`02e9b5012`（`codex/runtime-architecture-refactor`）
+> P8 代码基线：`f388b59b8`（`codex/runtime-architecture-refactor`）
 > 维护原则：开发期直接改到最终形态，不保留 alias、shim、deprecated wrapper 或双路径
 
 本文档是 Agent Framework P10 完成后的下一轮全仓精修执行基准。它不重新设计
@@ -721,14 +721,70 @@ P7-3 Desktop 与保留项已完成：
 ### P8：最终命名、文件与质量门禁
 
 > 类型：收尾
+> 状态：完成
 
-- [ ] 扫描旧名字、alias、wrapper、dead exported surface。
-- [ ] 检查文件名是否准确描述内容，删除 `util/helper/impl` 式残留。
-- [ ] 检查所有新增 receiver 是否通过第 3 节门槛。
-- [ ] 检查所有保留自由函数是否有明确理由。
-- [ ] 更新本计划、模块 docs、API baseline 和 migration notes。
-- [ ] 各批独立 commit，可单独 revert。
-- [ ] 完整 workspace build/vet/test/lint/race 按受影响矩阵执行。
+- [x] 扫描旧名字、alias、wrapper、dead exported surface。
+- [x] 检查文件名是否准确描述内容，删除 `util/helper/impl` 式残留。
+- [x] 检查所有新增 receiver 是否通过第 3 节门槛。
+- [x] 检查所有保留自由函数是否有明确理由。
+- [x] 更新本计划、模块 docs、API baseline 和 migration notes。
+- [x] 各批独立 commit，可单独 revert。
+- [x] 完整 workspace build/vet/test/lint/race 按受影响矩阵执行。
+
+P8 代码收尾提交：`f388b59b8`。
+
+最终 receiver 裁决：
+
+| 候选 | 裁决 | 认知负担证据 |
+| --- | --- | --- |
+| `a2a.ServerConfig.applyDefaults/validate` | 删除并内联 `NewHTTPHandler` | 两个方法都只有一个构造器调用点，Config 没有构造后的生命周期；内联后 required 字段、默认路由和 handler 组装在同一条阅读路径上 |
+| `httpreq.Config.Validate` | 删除并内联 `NewClient` | 公开方法只检查 hosts 是否为空，却不检查 host pattern，形成不完整的“已验证”错觉；构造器现在一次完成 required check 与 allowlist parsing |
+| `agent/core.ActionConfig.applyDefaults` | 删除并内联 `NewAction` | Config 只是一次性输入，方法删除后不损失任何领域行为；Cost、Value、Retry 的最终值与 `ActionMetadata` 构造位于同一处，不再跨文件跳转 |
+| RAG 六组 Config `applyDefaults/validate` | 删除 | 都只有对应构造器消费，且调用顺序本身是隐藏协议；required dependency、scalar default 与最终对象构造现在直接相邻 |
+| `resolvePromptTemplate` | 保留自由函数 | 五个 LLM 组件重复执行“选择自定义/默认模板 + required field 校验”；该算法跨 Config 与 `chatclient.Template`、无运行时 owner，函数参数完整表达差异 |
+| runtime MCP `ServerConfig.Validate` | 保留 receiver | dial、probe、reconnect、application、delivery 与 tests 共用同一个传输互斥契约；方法真实校验完整配置值，而非构造器薄包装 |
+| Core modality `Options.validate` | 保留 receiver | 同时服务 Request validation 与 Options merge，直接读取 Options 值并维护 provider-neutral request invariant |
+| parser/projection/codec/slice algorithm | 保留自由函数 | 无单一生命周期 owner；方法化不会减少参数或类型跳转，反而会伪造 Store/Server/decoder 所有权 |
+
+文件与命名收尾：
+
+- `rag/chat_helpers.go` → `rag/chat.go`：内容是 prompt 调用、模板解析和 chat history
+  rendering，不再用泛化的 `helpers`；
+- `rag/nop.go` → `rag/identity.go`：文件主体是四个 Identity adapter，
+  `NopRetriever` 只是其中唯一的空结果策略；
+- 纳入范围生产文件中不再存在含糊的 `helper/util/impl/common` 文件名；
+  `utility_env.go` / `utility_role.go` 的 utility 是明确模型角色，
+  `formatter_simple.go` 对应公开 `SimpleFormatter`，均不是工具杂物；
+- `close_helpers_test.go` 仅包含 test cleanup helper，测试文件名准确，不纳入生产
+  命名债；
+- 旧 API 名、兼容 alias、deprecated wrapper 与双路径在纳入范围生产代码中检索
+  为零；命中的 `NewStore` 只剩 runtime checkpoint 内部具体构造器，历史文档中的旧名
+  仅作为迁移记录保留；
+- 仓库没有独立的 Tools API baseline；`httpreq.Config.Validate` 也没有文档或生产
+  调用方。本节即该破坏性删除的 migration record，不额外制造一份重复清单；
+- `storetest` / `providertest` / `approvaltest` 继续保留：它们准确表达可复用测试
+  契约，且 public/internal 边界与消费者一致。
+
+测试补强：
+
+- A2A 明确锁住 nil Agent / nil Card 的 sentinel error；
+- RAG 用统一矩阵锁住 Context、Query、Number、History、Target 等 required template
+  field，避免共享模板函数弱化各组件契约；
+- HTTP request tool 既有测试继续锁住空 host allowlist；
+- Action 默认 Cost、Value、Retry 的既有 Core/Agent 测试在内联后保持全绿。
+
+最终验证证据：
+
+- `FAST=1 scripts/check.sh build vet test lint race`：整个 go.work **105/105**
+  项全绿；排除修改的 `models`、`pkg`、`vectorstores`、`documentreaders` 也作为
+  消费方完成 build/vet/test/lint/race；
+- 全部 go.work module 与 `app/desktop` 的 `go mod tidy -diff` 全绿；
+- Desktop Go/Wails：build/vet/test/lint 全绿；
+- Desktop Frontend `npm run check` 全绿：typecheck、lint、format、165 个测试文件 /
+  801 个测试、knip、circular/context/boundary/layer 与 bundle size；
+- bundle 仍报告已知 CSS `::highlight(...)` parser warning 与大 chunk 提示，但命令
+  成功，且本轮没有前端生产代码改动；
+- `git diff --check` 全绿；P8 代码提交后、本文档编辑前 worktree clean。
 
 ---
 
@@ -809,15 +865,20 @@ go vet ./...
 | P5 Document Pipeline API | 完成 | 100% | — |
 | P6 Chat History API | 完成 | 100% | — |
 | P7 Provider/MCP/A2A/RAG/Desktop | 完成 | 100% | — |
-| P8 最终门禁 | 未开始 | 0% | P1–P7 |
+| P8 最终门禁 | 完成 | 100% | — |
 
 ---
 
-## 11. 当前推荐
+## 11. 收尾结论
 
-建议批准 P1–P3、P5–P8 的方向，并把 P4 作为独立高风险批次实施：
+P0–P8 已全部完成。本轮最终形成的约束不是“尽量增加 receiver”，而是：
 
-1. 先完成低风险 owner/API 收敛，建立更清晰的值与边界。
-2. 再单独处理 Runtime tool result，避免与大规模改名混在一起。
-3. 每批一个独立 commit，全绿后再进入下一批。
-4. 不 push、不 tag、不 release，除非维护者另行授权。
+1. 运行时对象、领域值和完整配置契约拥有真实行为；
+2. 构造 DTO 的单调用点默认化/局部校验直接留在构造器；
+3. parser、projection、codec、模板解析和集合算法保持函数式；
+4. 文件名描述稳定概念，不使用 catch-all helper/util/impl；
+5. 破坏性 API 直接迁移到最终形态，不保留开发期兼容债；
+6. 排除修改的接入模块仍作为消费方通过全仓门禁。
+
+后续若继续精修，必须以新的调用证据、重复上下文或不变量漂移为入口，不以 receiver
+数量、文件大小或“充血化程度”作为重构指标。
