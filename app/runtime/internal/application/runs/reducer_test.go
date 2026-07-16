@@ -198,8 +198,13 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	reduced := reducer.reduce(TurnInterrupted{Interrupts: []Interrupt{
-		{Kind: ApprovalInterruptKind, Approval: &ApprovalPrompt{ToolName: "shell", Arguments: `{}`}},
-		{Kind: QuestionInterruptKind, Question: &interrupts.QuestionPrompt{Questions: []interrupts.Question{{Question: "Continue?"}}}},
+		{Kind: ApprovalInterruptKind, Approval: &ApprovalPrompt{
+			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec",
+		}},
+		{Kind: QuestionInterruptKind, Question: &QuestionPrompt{
+			ToolName: "ask_user", Arguments: `{"questions":[{"question":"Continue?"}]}`,
+			Questions: []QuestionSpec{{Question: "Continue?"}},
+		}},
 	}})
 
 	interruptReduction := -1

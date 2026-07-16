@@ -2,12 +2,10 @@ package runs
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
@@ -78,35 +76,6 @@ type MemoryUpdated struct {
 	Facts string
 }
 
-// ApprovalPrompt is the normalized approval request carried by an Interrupt.
-type ApprovalPrompt struct {
-	CallID      string `json:"callId"`
-	ToolName    string `json:"toolName"`
-	Arguments   string `json:"arguments"`
-	SafetyClass string `json:"safetyClass"`
-	Risk        string `json:"risk"`
-	Reason      string `json:"reason"`
-}
-
-// InterruptKind discriminates the engine-neutral interrupt payload union.
-type InterruptKind string
-
-const (
-	// ApprovalInterruptKind carries an ApprovalPrompt.
-	ApprovalInterruptKind InterruptKind = "approval"
-	// QuestionInterruptKind carries an interrupts.QuestionPrompt.
-	QuestionInterruptKind InterruptKind = "question"
-)
-
-// Interrupt is a typed union. Exactly one of Approval or Question is set and
-// Kind names that member. Keeping the payload typed prevents malformed executor
-// values from turning into empty approval/question cards via failed assertions.
-type Interrupt struct {
-	Kind     InterruptKind
-	Approval *ApprovalPrompt
-	Question *interrupts.QuestionPrompt
-}
-
 type TurnInterrupted struct {
 	EventMeta
 	Interrupts []Interrupt
@@ -119,17 +88,8 @@ func (e TurnInterrupted) validate() error {
 		return errors.New("runs: executor emitted an empty interrupt")
 	}
 	for _, interrupt := range e.Interrupts {
-		switch interrupt.Kind {
-		case ApprovalInterruptKind:
-			if interrupt.Approval == nil || interrupt.Question != nil {
-				return errors.New("runs: malformed approval interrupt")
-			}
-		case QuestionInterruptKind:
-			if interrupt.Question == nil || interrupt.Approval != nil {
-				return errors.New("runs: malformed question interrupt")
-			}
-		default:
-			return fmt.Errorf("runs: unknown interrupt kind %q", interrupt.Kind)
+		if err := interrupt.Validate(); err != nil {
+			return err
 		}
 	}
 	return nil

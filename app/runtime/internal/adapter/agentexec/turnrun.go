@@ -162,7 +162,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 func turnProcessOptions(dependencies *core.Dependencies, sessionID string, observer toolObserver, listener core.Extension, client *chatclient.Client, guardrails *core.ChatGuardrails) core.ProcessOptions {
 	options := core.ProcessOptions{}
 	if dependencies != nil {
-		options.ChildOptions = childOptions(dependencies, client)
+		options.ChildOptions = childOptions(dependencies, client, observer)
 	}
 	if sessionID != "" {
 		options.Session = &core.Session{ID: sessionID}

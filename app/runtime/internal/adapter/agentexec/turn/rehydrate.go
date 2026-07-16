@@ -26,6 +26,10 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request RehydrateReque
 	}
 	handle := TurnHandle{SessionID: request.SessionID, TurnID: turnID}
 	state := newTurnState(ctx, handle)
+	state.cwd = request.Cwd
+	if s.hooks != nil {
+		state.hooks = s.hooks.For(state.ctx, request.Cwd)
+	}
 	// Re-resolve the parked run's per-run client from the persisted
 	// provider+model so the continuation runs against the SAME model (mirrors
 	// the StartTurn path). No selection / no resolver / a provider since removed
@@ -44,7 +48,11 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request RehydrateReque
 	}
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 	observer := &turnObserver{dispatcher: s, st: state}
-	state.lifecycle = &turnLifecycle{sessionID: state.handle.SessionID}
+	state.lifecycle = &turnLifecycle{
+		sessionID: state.handle.SessionID,
+		cwd:       state.cwd,
+		hooks:     state.hooks,
+	}
 
 	process, err := s.engine.RestoreTurn(state.ctx, request.ProcessID, agentexec.RestoreTurnRequest{
 		SessionID:     request.SessionID,

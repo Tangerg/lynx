@@ -115,11 +115,14 @@ type stubEngine struct {
 	stopReason       agentexec.StopReason
 	restoreResumeErr error
 
-	mu          sync.Mutex
-	lastClient  *chatclient.Client
-	lastCwd     string
-	lastCtx     context.Context
-	lastOptions *corechat.Options
+	mu                   sync.Mutex
+	lastClient           *chatclient.Client
+	lastCwd              string
+	lastCtx              context.Context
+	lastOptions          *corechat.Options
+	restoreGateTool      string
+	restoreGateArguments string
+	restoreGateVerdict   agentexec.ToolApprovalVerdict
 
 	lastProcess atomic.Pointer[stubTurnProcess]
 }
@@ -151,6 +154,14 @@ func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnReques
 
 func (s *stubEngine) RestoreTurn(_ context.Context, processID string, request agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error) {
 	s.restoreCalls.Add(1)
+	if request.Observer != nil && s.restoreGateTool != "" {
+		verdict := request.Observer.ApproveToolCall(
+			context.Background(), "restore-call", s.restoreGateTool, s.restoreGateArguments,
+		)
+		s.mu.Lock()
+		s.restoreGateVerdict = verdict
+		s.mu.Unlock()
+	}
 	if request.Observer != nil {
 		request.Observer.OnMessageDelta(s.runReply)
 	}

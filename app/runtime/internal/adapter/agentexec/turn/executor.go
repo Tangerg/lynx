@@ -115,6 +115,7 @@ func (e *Executor) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (r
 		ProcessID: request.ProcessID,
 		Provider:  request.Provider,
 		Model:     request.Model,
+		Cwd:       request.Cwd,
 	})
 	if err != nil {
 		return runs.Turn{}, mapControlError(err)

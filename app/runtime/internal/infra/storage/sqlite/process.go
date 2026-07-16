@@ -110,6 +110,69 @@ func (s *ProcessStore) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// DeleteTree removes root and every snapshot whose ParentID descends from it.
+// It is idempotent and joins the caller's transaction through conn(ctx, s.db).
+// Nested Runtime turns persist each process independently, so deleting only the
+// root would leave child snapshots orphaned after parked cancel/run_lost.
+func (s *ProcessStore) DeleteTree(ctx context.Context, rootID string) error {
+	if rootID == "" {
+		return nil
+	}
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
+		`SELECT id, snapshot FROM process_snapshots`)
+	if err != nil {
+		return fmt.Errorf("sqlite: list process tree: %w", err)
+	}
+	defer rows.Close()
+
+	children := make(map[string][]string)
+	for rows.Next() {
+		var id, data string
+		if err := rows.Scan(&id, &data); err != nil {
+			return fmt.Errorf("sqlite: scan process tree: %w", err)
+		}
+		var snapshot core.ProcessSnapshot
+		if err := json.Unmarshal([]byte(data), &snapshot); err != nil {
+			return fmt.Errorf("sqlite: parse process tree snapshot %q: %w: %w", id, core.ErrInvalidSnapshot, err)
+		}
+		if snapshot.ID != id {
+			return fmt.Errorf("sqlite: process tree snapshot id %q != row id %q: %w", snapshot.ID, id, core.ErrInvalidSnapshot)
+		}
+		if snapshot.ParentID != "" {
+			children[snapshot.ParentID] = append(children[snapshot.ParentID], snapshot.ID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("sqlite: iterate process tree: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("sqlite: close process tree rows: %w", err)
+	}
+
+	visited := make(map[string]struct{})
+	var order []string
+	var walk func(string)
+	walk = func(id string) {
+		if _, seen := visited[id]; seen {
+			return
+		}
+		visited[id] = struct{}{}
+		for _, childID := range children[id] {
+			walk(childID)
+		}
+		order = append(order, id)
+	}
+	walk(rootID)
+	for _, id := range order {
+		if _, err := conn(ctx, s.db).ExecContext(ctx,
+			`DELETE FROM process_snapshots WHERE id = ?`, id,
+		); err != nil {
+			return fmt.Errorf("sqlite: delete process tree snapshot %q: %w", id, err)
+		}
+	}
+	return nil
+}
+
 // List returns every stored process id, most-recently-captured first.
 func (s *ProcessStore) List(ctx context.Context) ([]string, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,

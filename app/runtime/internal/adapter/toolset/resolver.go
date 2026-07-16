@@ -245,19 +245,19 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 		}
 		tools = append(tools, codebaseSearch)
 	}
+	// Both roles can ask the user and leave plan mode. A child question parks
+	// through the same nested suspension tree as a child approval.
+	if g.resolver.askUser != nil {
+		tools = append(tools, g.resolver.askUser)
+	}
+	if g.resolver.exitPlan != nil {
+		tools = append(tools, g.resolver.exitPlan)
+	}
 	if g.role == toolport.ToolRoleCoding {
-		// Coding role only: the `task` delegation tool (no recursion), ask_user
-		// (HITL question), and exit_plan_mode. Sub-agents (ToolRoleSubtask) get
-		// none of them — no nested delegation, no sub-process interrupts to
-		// supervise.
+		// Coding role only: task (no recursive delegation) and schedule (a
+		// root-owned orchestration capability).
 		if g.resolver.task != nil {
 			tools = append(tools, g.resolver.task)
-		}
-		if g.resolver.askUser != nil {
-			tools = append(tools, g.resolver.askUser)
-		}
-		if g.resolver.exitPlan != nil {
-			tools = append(tools, g.resolver.exitPlan)
 		}
 		if g.resolver.schedule != nil {
 			tools = append(tools, g.resolver.schedule)

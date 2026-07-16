@@ -6,8 +6,6 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 var (
@@ -19,6 +17,9 @@ var (
 	ErrRunNotFound = errors.New("runs: run not found")
 	// ErrInterruptNotOpen reports that a resume target has no open interrupt.
 	ErrInterruptNotOpen = errors.New("runs: interrupt not open")
+	// ErrInvalidInterruptResponse reports a response set that does not exactly
+	// cover the open interrupt schema.
+	ErrInvalidInterruptResponse = errors.New("runs: invalid interrupt response")
 	// ErrParkClaimed and ErrTurnNotLive are executor ownership outcomes used by
 	// Resume to distinguish a concurrent claim from a process rehydrate.
 	ErrParkClaimed = errors.New("runs: parked turn already claimed")
@@ -55,8 +56,35 @@ type StartCommand struct {
 // ResumeCommand is the protocol-neutral runs.resume use case input.
 type ResumeCommand struct {
 	RunID          string
-	Resolution     interrupts.Resolution
+	Responses      []ResumeResponse
 	InterruptKinds []string
+}
+
+type ResumeResponseKind string
+
+const (
+	ApprovalResponseKind ResumeResponseKind = "approval"
+	QuestionResponseKind ResumeResponseKind = "question"
+)
+
+// ResumeResponse is the protocol-neutral answer to one durable interrupt item.
+// Exactly one payload must match Kind.
+type ResumeResponse struct {
+	ItemID   string
+	Kind     ResumeResponseKind
+	Approval *ApprovalResponse
+	Question *QuestionResponse
+}
+
+type ApprovalResponse struct {
+	Approved      bool
+	Arguments     string
+	Reason        string
+	RememberScope string
+}
+
+type QuestionResponse struct {
+	Answers map[string][]string
 }
 
 // CancelCommand abandons a live or parked run.

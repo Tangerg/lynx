@@ -154,3 +154,35 @@ func TestProcessStoreListDeleteIdempotent(t *testing.T) {
 		t.Fatalf("after delete List = %v", ids)
 	}
 }
+
+func TestProcessStoreDeleteTreeRemovesDescendantsOnly(t *testing.T) {
+	ctx := t.Context()
+	store := newProcessStore(t)
+	root := validStoredSnapshot("root", core.StatusCompleted)
+	child := validStoredSnapshot("child", core.StatusKilled)
+	child.ParentID = root.ID
+	child.Depth = 1
+	grandchild := validStoredSnapshot("grandchild", core.StatusKilled)
+	grandchild.ParentID = child.ID
+	grandchild.Depth = 2
+	unrelated := validStoredSnapshot("unrelated", core.StatusCompleted)
+	for _, snapshot := range []core.ProcessSnapshot{root, child, grandchild, unrelated} {
+		if _, err := store.Save(ctx, snapshot, 0); err != nil {
+			t.Fatalf("Save(%s): %v", snapshot.ID, err)
+		}
+	}
+
+	if err := store.DeleteTree(ctx, root.ID); err != nil {
+		t.Fatalf("DeleteTree: %v", err)
+	}
+	ids, err := store.List(ctx)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(ids) != 1 || ids[0] != unrelated.ID {
+		t.Fatalf("remaining snapshots = %v, want only unrelated", ids)
+	}
+	if err := store.DeleteTree(ctx, root.ID); err != nil {
+		t.Fatalf("idempotent DeleteTree: %v", err)
+	}
+}

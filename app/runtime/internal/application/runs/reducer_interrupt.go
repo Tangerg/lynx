@@ -73,7 +73,7 @@ func (r *reducer) questionInterrupt(in Interrupt) (Item, transcript.Interrupt) {
 	}
 }
 
-func questionFromPrompt(prompt interrupts.QuestionPrompt) Question {
+func questionFromPrompt(prompt QuestionPrompt) Question {
 	fields := make([]QuestionField, len(prompt.Questions))
 	for i, question := range prompt.Questions {
 		field := QuestionField{

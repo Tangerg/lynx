@@ -27,5 +27,6 @@ type processControl interface {
 	Resume(string, string, any) error
 	ContinueAsync(context.Context, string) <-chan error
 	Remove(string) error
+	Processes() []*agentruntime.Process
 	ProcessStore() core.ProcessStore
 }

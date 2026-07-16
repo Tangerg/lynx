@@ -27,10 +27,21 @@ func (s *memoryDispatcher) Cancel(_ context.Context, handle TurnHandle) error {
 	// suspended turn (whoever flips it false wins).
 	process := state.process()
 	claimed := state.claimPark()
-	if process != nil && process.Status() != core.StatusRunning {
-		// Not actively looping (parked / not-yet-started): the ctx cancel
-		// won't drive it to a terminal, so kill it explicitly.
-		_ = process.Cancel()
+	if process != nil {
+		status := process.Status()
+		switch {
+		case claimed && status != core.StatusRunning:
+			// This Cancel owns the parked suspension. There is no continuation
+			// loop to observe ctx cancellation, so terminate the whole tree.
+			_ = process.Cancel()
+		case !claimed && status != core.StatusRunning && status != core.StatusWaiting:
+			// A not-yet-running, non-parked process also has no loop that can
+			// observe ctx cancellation. Waiting is deliberately excluded: a
+			// racing Resume may have won claimPark but not yet recorded the
+			// response. Killing that transient Waiting process would clear its
+			// suspension and make the winning Resume fail stale.
+			_ = process.Cancel()
+		}
 	}
 	if claimed {
 		// The turn was parked on an interrupt — no drive goroutine is waiting on

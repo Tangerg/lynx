@@ -40,9 +40,9 @@ type turnState struct {
 
 	// cwd is the session working directory the turn ran in — threaded
 	// to post-turn maintenance so extracted facts land in THAT
-	// project's LYRA.md. Empty for turns without a session cwd (the
-	// memory store then falls back to its default dir) and for
-	// rehydrated turns (the snapshot predates the live request).
+	// project's LYRA.md. Empty only for turns without a session cwd (the
+	// memory store then falls back to its default dir). Rehydration receives
+	// the canonical cwd from the durable Session and restores it here.
 	cwd string
 
 	// hooks is the resolved (trust-filtered) lifecycle-hook set for this turn's
