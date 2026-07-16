@@ -48,7 +48,7 @@ type reducer struct {
 	userInput []ContentBlock
 	text      *openText
 	reasoning *openText
-	tools     map[string]*openTool
+	tools     openTools
 	drained   []interrupts.DrainedTool
 	errMsg    string
 	errCode   string
@@ -82,7 +82,7 @@ func newReducer(cfg reducerConfig) *reducer {
 	}
 	return &reducer{
 		cfg: cfg, resume: resume, userInput: cfg.UserInput,
-		tools: map[string]*openTool{},
+		tools: make(openTools),
 	}
 }
 
@@ -226,7 +226,7 @@ func (r *reducer) projectOne(event RunEvent) reduction {
 		e.Item.SessionID = r.cfg.SessionID
 		event = e
 		commit.Items = []transcript.Item{e.Item}
-		if paths := fileChangedPaths(e.Item); len(paths) > 0 {
+		if paths := e.Item.FileChangePaths(); len(paths) > 0 {
 			nudge = &Nudge{Cwd: r.cfg.Cwd, Paths: paths}
 		}
 	case SegmentStarted:
@@ -248,27 +248,11 @@ func (r *reducer) projectOne(event RunEvent) reduction {
 			commit.Outcome = *e.Run.Outcome
 		}
 	}
-	return reduction{Event: event, Commit: commitOrNil(commit), Nudge: nudge}
-}
-
-func commitOrNil(commit EventCommit) *EventCommit {
-	if len(commit.Items) == 0 && commit.Run == nil && commit.Interrupt == nil && commit.State == StateUnchanged {
-		return nil
+	var durable *EventCommit
+	if !commit.isEmpty() {
+		durable = &commit
 	}
-	return &commit
+	return reduction{Event: event, Commit: durable, Nudge: nudge}
 }
 
 func (r *reducer) now() time.Time { return r.cfg.Now().UTC() }
-
-func fileChangedPaths(item Item) []string {
-	if item.Kind != ToolCall || item.Status != ItemSucceeded || item.Error != nil || item.Tool == nil {
-		return nil
-	}
-	switch strings.ToLower(item.Tool.Name) {
-	case "write", "edit":
-		if path, _ := item.Tool.Arguments["file_path"].(string); path != "" {
-			return []string{path}
-		}
-	}
-	return nil
-}

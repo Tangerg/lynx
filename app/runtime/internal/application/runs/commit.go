@@ -23,3 +23,10 @@ type EventCommit struct {
 	Items     []transcript.Item
 	Run       *transcript.Run
 }
+
+func (c EventCommit) isEmpty() bool {
+	return len(c.Items) == 0 &&
+		c.Run == nil &&
+		c.Interrupt == nil &&
+		c.State == StateUnchanged
+}

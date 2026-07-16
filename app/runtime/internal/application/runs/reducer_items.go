@@ -87,7 +87,7 @@ func (r *reducer) toolStart(e ToolCallStart) []RunEvent {
 		id: r.reuseOrNextItemID(e.ToolName, e.Arguments), createdAt: r.now(),
 		name: e.ToolName, args: e.Arguments, safetyClass: e.SafetyClass,
 	}
-	r.tools[e.CallID] = ref
+	r.tools.add(ref)
 	out = append(out, ItemStarted{Item: Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: ItemRunning,
 		Kind: ToolCall, CreatedAt: ref.createdAt,
@@ -104,11 +104,10 @@ func (r *reducer) toolStart(e ToolCallStart) []RunEvent {
 }
 
 func (r *reducer) toolEnd(e ToolCallEnd) []RunEvent {
-	ref, ok := r.tools[e.CallID]
+	ref, ok := r.tools.take(e.CallID)
 	if !ok {
 		return nil
 	}
-	delete(r.tools, e.CallID)
 	var out []RunEvent
 	if isCommandTool(ref.name) && e.Output != "" {
 		if merged := commandOutput(e.Output); merged != "" {
