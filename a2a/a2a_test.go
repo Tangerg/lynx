@@ -77,6 +77,11 @@ func TestRoundTrip(t *testing.T) {
 	if got := tool.Definition().Name; got != "echo_agent" {
 		t.Errorf("tool name = %q, want %q (sanitized from card name)", got, "echo_agent")
 	}
+	definition := tool.Definition()
+	definition.InputSchema[0] = '['
+	if got := tool.Definition().InputSchema[0]; got != '{' {
+		t.Fatalf("mutating returned definition changed A2A tool schema prefix to %q", got)
+	}
 
 	out, err := tool.Call(ctx, `{"message":"hello"}`)
 	if err != nil {

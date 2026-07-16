@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,12 @@ type ToolDefinition struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
 	InputSchema json.RawMessage `json:"input_schema"`
+}
+
+// Clone returns an independent copy of d.
+func (d ToolDefinition) Clone() ToolDefinition {
+	d.InputSchema = bytes.Clone(d.InputSchema)
+	return d
 }
 
 // Validate verifies the tool name and JSON-object input schema.

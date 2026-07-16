@@ -1,6 +1,7 @@
 # Core v1 最终架构审查
 
 > 审查日期：2026-07-15
+> 最近复核：2026-07-16
 > 审查结论：通过；Filter tag 前精修后重新冻结 Core v1 公开契约
 > Module：`github.com/Tangerg/lynx/core`
 > 目标 tag：`core/v1.0.0`（尚未创建）
@@ -11,14 +12,14 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 
 最终审查批准当前契约进入 v1 稳定期。冻结意味着从 `core/v1.0.0` 开始按 SemVer 管理当前 API 与 wire，而不是恢复任何重构前 API 或历史 wire。仓库中没有为旧设计保留 alias、bridge、shim、兼容字段、dual-read/dual-write 或旧 decoder。
 
-`core/v1.0.0` 尚未创建，因此维护者在 tag 前先后重新打开 Filter 与全 Core 契约审查。Filter 删除双 AST/转换层并保留公开 Visitor/Formatter、私有 analyzer/optimizer；随后 P9 按真实 provider/consumer 闭环再次收口：Image 统一 `media.Media` 与复数结果，Embedding 删除多模态/编码/Dimensioner 假能力，Moderation 改为开放分类，provider-only Options 退出 Core，五个非 Chat Response 与全部 VectorStore 成功输出建立递归验证。兼容 baseline 以 P9 最终代码重新生成，不沿用中间冻结数字。
+`core/v1.0.0` 尚未创建，因此维护者在 tag 前先后重新打开 Filter 与全 Core 契约审查。Filter 删除双 AST/转换层并保留公开 Visitor/Formatter、私有 analyzer/optimizer；随后 P9 按真实 provider/consumer 闭环再次收口：Image 统一 `media.Media` 与复数结果，Embedding 删除多模态/编码/Dimensioner 假能力，Moderation 改为开放分类，provider-only Options 退出 Core，五个非 Chat Response 与全部 VectorStore 成功输出建立递归验证。2026-07-16 的全仓语义精修又为 `ToolDefinition` 增加独立快照行为，并把五类 Result 校验收回值对象；wire 未变化，exported API baseline 仅增加一个已评审方法。
 
 ## 2. 冻结范围
 
 | 项目 | 冻结结果 |
 |---|---:|
 | 公共 package | 11 |
-| exported API baseline | 319 行冻结快照 |
+| exported API baseline | 320 行冻结快照 |
 | 带 JSON tag 的导出 DTO | 47 |
 | 代表性 wire root | 17 |
 | 聚合 wire golden | 478 行 |
@@ -40,7 +41,7 @@ Core 已从 Spring AI 移植期的“大 Core/框架内核”收敛为 Go 风格
 | 依赖方向单向 | Core 生产 import 只允许标准库或 Core 自身，外层 module 依赖 Core | 通过 |
 | 便利层不反向塑造协议 | Embedding 向量便利方法位于 `embeddingclient`；Core 不公开 Client、默认值或 middleware | 通过 |
 | provider 差异不扩张 Core | 只有多 provider 同语义字段进入 typed Options；其余 JSON 进入 namespaced `metadata.Map`，options key 冻结为 `<provider>/options` | 通过 |
-| 值对象行为归属明确 | 五个 modality 的不可变 Options 合并由 `Merged` receiver 承担；Embedding/Moderation 首项统一为 `First`；Speech 使用 `OutputFormat`/`Audio` | 通过 |
+| 值对象行为归属明确 | `ToolDefinition.Clone` 拥有 schema 快照；五个 modality 的 Result 自行校验；Options 合并由 `Merged` receiver 承担 | 通过 |
 | 成功输出不绕过协议边界 | 五个非 Chat Response 递归 `Validate`；25 个真实 VectorStore Search 出口调用 `SearchRequest.ValidateMatches` | 通过 |
 | Filter 遍历职责单一 | 公开 Formatter 服务外部文本适配；私有 analyzer 唯一拒绝非法/循环树，optimizer 只规范化已验证逻辑 IR 且保持叶子可观察；provider 数字转换按 SDK 表达能力显式失败 | 通过 |
 | 不保留迁移债务 | 旧 package、旧 wire decoder、alias/bridge/shim 与双轨读写均不存在 | 通过 |

@@ -77,16 +77,11 @@ type Result struct {
 // NewResult builds a [Result]. Returns an error when categories or
 // metadata is nil.
 func NewResult(categories Categories, metadata *ResultMetadata) (*Result, error) {
-	if err := categories.validate(); err != nil {
+	result := &Result{Categories: maps.Clone(categories), Metadata: metadata}
+	if err := result.validate(); err != nil {
 		return nil, fmt.Errorf("moderation.NewResult: %w", err)
 	}
-	if metadata == nil {
-		return nil, errors.New("moderation.NewResult: metadata must not be nil")
-	}
-	if err := metadata.Extra.Validate(); err != nil {
-		return nil, fmt.Errorf("moderation.NewResult: metadata: %w", err)
-	}
-	return &Result{Categories: maps.Clone(categories), Metadata: metadata}, nil
+	return result, nil
 }
 
 // ResponseMetadata holds response-level metadata for a moderation call.
@@ -141,7 +136,7 @@ func (r *Response) Validate() error {
 		return errors.New("moderation.Response: at least one result is required")
 	}
 	for i, result := range r.Results {
-		if err := validateResult(result); err != nil {
+		if err := result.validate(); err != nil {
 			return fmt.Errorf("moderation.Response: results[%d]: %w", i, err)
 		}
 	}
@@ -163,17 +158,17 @@ func (r *Response) Validate() error {
 	return nil
 }
 
-func validateResult(result *Result) error {
-	if result == nil {
+func (r *Result) validate() error {
+	if r == nil {
 		return errors.New("result must not be nil")
 	}
-	if err := result.Categories.validate(); err != nil {
+	if err := r.Categories.validate(); err != nil {
 		return err
 	}
-	if result.Metadata == nil {
+	if r.Metadata == nil {
 		return errors.New("metadata must not be nil")
 	}
-	if err := result.Metadata.Extra.Validate(); err != nil {
+	if err := r.Metadata.Extra.Validate(); err != nil {
 		return fmt.Errorf("metadata: %w", err)
 	}
 	return nil

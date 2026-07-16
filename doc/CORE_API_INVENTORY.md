@@ -6,7 +6,7 @@
 > 对应计划：[`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md) P0-03
 > 状态：**不可变的重构前历史快照**。P6 已完成，本文中的包名、数量、迁移策略和命令不得作为当前 API 指南。
 
-当前 P9 冻结事实由机械基线维护：11 个公共 package、319 行 exported API、47 项带 JSON tag 的导出 DTO、17 个代表性 wire root 与 478 行 golden。下文标注“当前公共面”的局部清单已同步到该基线；其余数量与旧声明只保留迁移历史。
+当前冻结事实由机械基线维护：11 个公共 package、320 行 exported API、47 项带 JSON tag 的导出 DTO、17 个代表性 wire root 与 478 行 golden。下文标注“当前公共面”的局部清单已同步到该基线；其余数量与旧声明只保留迁移历史。
 
 本文记录 Core 重构前的编译器可见公共面、workspace 直接消费关系和后续迁移批次。它解决“改什么、谁会受影响、何时删除”的问题；它不是永久兼容承诺。P7 建立机械 API diff baseline 后，以工具输出判断签名兼容性。
 

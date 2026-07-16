@@ -37,7 +37,7 @@ type Result struct {
 // empty or metadata is nil.
 func NewResult(embedding []float64, metadata *ResultMetadata) (*Result, error) {
 	result := &Result{Embedding: slices.Clone(embedding), Metadata: metadata}
-	if err := validateResult(result); err != nil {
+	if err := result.validate(); err != nil {
 		return nil, fmt.Errorf("embedding.NewResult: %w", err)
 	}
 	return result, nil
@@ -107,7 +107,7 @@ func (r *Response) Validate() error {
 	}
 	dimensions := -1
 	for i, result := range r.Results {
-		if err := validateResult(result); err != nil {
+		if err := result.validate(); err != nil {
 			return fmt.Errorf("embedding.Response: results[%d]: %w", i, err)
 		}
 		if dimensions < 0 {
@@ -134,22 +134,22 @@ func (r *Response) Validate() error {
 	return nil
 }
 
-func validateResult(result *Result) error {
-	if result == nil {
+func (r *Result) validate() error {
+	if r == nil {
 		return errors.New("result must not be nil")
 	}
-	if len(result.Embedding) == 0 {
+	if len(r.Embedding) == 0 {
 		return errors.New("embedding vector must not be empty")
 	}
-	for i, value := range result.Embedding {
+	for i, value := range r.Embedding {
 		if math.IsNaN(value) || math.IsInf(value, 0) {
 			return fmt.Errorf("embedding[%d] must be finite", i)
 		}
 	}
-	if result.Metadata == nil {
+	if r.Metadata == nil {
 		return errors.New("metadata must not be nil")
 	}
-	if err := result.Metadata.Extra.Validate(); err != nil {
+	if err := r.Metadata.Extra.Validate(); err != nil {
 		return fmt.Errorf("metadata: %w", err)
 	}
 	return nil

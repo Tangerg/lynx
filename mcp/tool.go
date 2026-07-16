@@ -98,7 +98,7 @@ func newTool(cfg toolConfig) (*tool, error) {
 	}, nil
 }
 
-func (t *tool) Definition() corechat.ToolDefinition { return t.definition }
+func (t *tool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
 
 // Call implements [tools.Tool]. IsError=true on the remote
 // result is mapped to [*ToolCallError] so a tool failure is not

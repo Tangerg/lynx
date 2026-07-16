@@ -65,7 +65,7 @@ func New[In, Out any](config Config, function func(context.Context, In) (Out, er
 	}
 
 	return &functionTool[In, Out]{
-		definition: cloneDefinition(definition),
+		definition: definition.Clone(),
 		function:   function,
 	}, nil
 }
@@ -84,7 +84,7 @@ func validateInputType(input reflect.Type) error {
 }
 
 func (t *functionTool[In, Out]) Definition() chat.ToolDefinition {
-	return cloneDefinition(t.definition)
+	return t.definition.Clone()
 }
 
 func (t *functionTool[In, Out]) Call(ctx context.Context, arguments string) (string, error) {

@@ -380,20 +380,37 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 ### P1：Core 值对象所有权与 ToolDefinition 快照
 
 > 类型：非破坏性，低风险
-> 状态：进行中
+> 状态：完成
 
-- [ ] 为 `chat.ToolDefinition` 增加防御性 `Clone()`。
-- [ ] `tools.Registry`、typed function tool、Agent tool、MCP tool、A2A tool 统一返回
+- [x] 为 `chat.ToolDefinition` 增加防御性 `Clone()`。
+- [x] `tools.Registry`、typed function tool、Agent tool、MCP tool、A2A tool 统一返回
   独立 definition snapshot。
-- [ ] 删除 `tools.cloneDefinition` 重复实现。
-- [ ] 五个 Core modality 的 Result 私有校验迁入 receiver。
-- [ ] 增加 aliasing/validation tests。
+- [x] 删除 `tools.cloneDefinition` 重复实现。
+- [x] 五个 Core modality 的 Result 私有校验迁入 receiver。
+- [x] 增加 aliasing/validation tests。
 
 退出标准：
 
 - 修改调用方拿到的 `InputSchema` 不影响 Tool 内部定义；
 - Core API/wire golden 无非预期变化；
 - Core/Tools/Agent/MCP/A2A test + vet 全绿。
+
+实施裁决：
+
+| 候选 | 裁决 | 认知负担证据 |
+| --- | --- | --- |
+| `ToolDefinition.Clone` | 迁入 | 可变 `InputSchema` 的快照规则从 Tools helper 和三个浅拷贝 adapter 收敛到值对象；删除一个包级 helper，所有调用点使用同一语义 |
+| 五类 `Result.validate` | 迁入 | 方法真实读取完整 Result 状态；构造器与 Response 递归校验从同一 owner 出发，Moderation 同时删除一套重复校验 |
+
+验证证据：
+
+- Core、Tools、Agent、MCP、A2A：`go build ./...`、`go vet ./...`、
+  `go test ./...` 全绿；
+- Core exported API baseline 只新增
+  `func (d ToolDefinition) Clone() ToolDefinition`；
+- Core wire fixtures 无变化；
+- `cloneDefinition` 与五个包级 `validateResult` 检索为零；
+- A2A、MCP、Agent、typed function tool、Registry 均覆盖返回值 aliasing。
 
 ### P2：Tools 所有权与文件组织
 
@@ -577,8 +594,8 @@ go vet ./...
 | 批次 | 状态 | 进度 | 阻塞 |
 | --- | --- | --- | --- |
 | P0 审计与决策门 | 完成 | 100% | — |
-| P1 Core 值对象与 snapshot | 进行中 | 0% | — |
-| P2 Tools owner 与组织 | 未开始 | 0% | P0 |
+| P1 Core 值对象与 snapshot | 完成 | 100% | — |
+| P2 Tools owner 与组织 | 未开始 | 0% | — |
 | P3 Runtime owner 收敛 | 未开始 | 0% | P0 |
 | P4 Runtime 工具结果边界 | 未开始 | 0% | P0，结构性决策 |
 | P5 Document Pipeline API | 未开始 | 0% | P0，breaking 决策 |

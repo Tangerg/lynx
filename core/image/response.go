@@ -38,7 +38,7 @@ type Result struct {
 // is nil.
 func NewResult(value *media.Media, metadata *ResultMetadata) (*Result, error) {
 	result := &Result{Media: value, Metadata: metadata}
-	if err := validateResult(result); err != nil {
+	if err := result.validate(); err != nil {
 		return nil, fmt.Errorf("image.NewResult: %w", err)
 	}
 	return result, nil
@@ -91,7 +91,7 @@ func (r *Response) Validate() error {
 		return errors.New("image.Response: at least one result is required")
 	}
 	for i, result := range r.Results {
-		if err := validateResult(result); err != nil {
+		if err := result.validate(); err != nil {
 			return fmt.Errorf("image.Response: results[%d]: %w", i, err)
 		}
 	}
@@ -107,21 +107,21 @@ func (r *Response) Validate() error {
 	return nil
 }
 
-func validateResult(result *Result) error {
-	if result == nil {
+func (r *Result) validate() error {
+	if r == nil {
 		return errors.New("result must not be nil")
 	}
-	if err := result.Media.Validate(); err != nil {
+	if err := r.Media.Validate(); err != nil {
 		return fmt.Errorf("media: %w", err)
 	}
-	mediaType, _, _ := mime.ParseMediaType(result.Media.MIME)
+	mediaType, _, _ := mime.ParseMediaType(r.Media.MIME)
 	if !strings.HasPrefix(mediaType, "image/") && mediaType != "application/octet-stream" {
-		return fmt.Errorf("media MIME type %q is not an image", result.Media.MIME)
+		return fmt.Errorf("media MIME type %q is not an image", r.Media.MIME)
 	}
-	if result.Metadata == nil {
+	if r.Metadata == nil {
 		return errors.New("metadata must not be nil")
 	}
-	if err := result.Metadata.Extra.Validate(); err != nil {
+	if err := r.Metadata.Extra.Validate(); err != nil {
 		return fmt.Errorf("metadata: %w", err)
 	}
 	return nil

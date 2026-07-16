@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
@@ -60,7 +59,7 @@ func (r *Registry) Register(values ...Tool) error {
 		if nilTool(tool) {
 			return fmt.Errorf("%w: tools[%d] is nil", ErrInvalidTool, i)
 		}
-		definition := cloneDefinition(tool.Definition())
+		definition := tool.Definition().Clone()
 		if err := definition.Validate(); err != nil {
 			return fmt.Errorf("%w: tools[%d] definition: %w", ErrInvalidTool, i, err)
 		}
@@ -106,7 +105,7 @@ func (r *Registry) Definitions() []chat.ToolDefinition {
 	r.mu.RLock()
 	definitions := make([]chat.ToolDefinition, 0, len(r.entries))
 	for _, value := range r.entries {
-		definitions = append(definitions, cloneDefinition(value.definition))
+		definitions = append(definitions, value.definition.Clone())
 	}
 	r.mu.RUnlock()
 
@@ -114,11 +113,6 @@ func (r *Registry) Definitions() []chat.ToolDefinition {
 		return strings.Compare(a.Name, b.Name)
 	})
 	return definitions
-}
-
-func cloneDefinition(definition chat.ToolDefinition) chat.ToolDefinition {
-	definition.InputSchema = bytes.Clone(definition.InputSchema)
-	return definition
 }
 
 func nilTool(tool Tool) bool {

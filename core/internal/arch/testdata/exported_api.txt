@@ -13,6 +13,7 @@ chat: func (c *Choice) Validate() error
 chat: func (c Choice) MarshalJSON() ([]byte, error)
 chat: func (c ToolCall) Validate() error
 chat: func (d *ToolDefinition) UnmarshalJSON(data []byte) error
+chat: func (d ToolDefinition) Clone() ToolDefinition
 chat: func (d ToolDefinition) MarshalJSON() ([]byte, error)
 chat: func (d ToolDefinition) Validate() error
 chat: func (f ModelFunc) Call(ctx context.Context, req *Request) (*Response, error)

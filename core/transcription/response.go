@@ -35,7 +35,7 @@ type Result struct {
 // NewResult builds a [Result]. Text may be empty; metadata is required.
 func NewResult(text string, metadata *ResultMetadata) (*Result, error) {
 	result := &Result{Text: text, Metadata: metadata}
-	if err := validateResult(result); err != nil {
+	if err := result.validate(); err != nil {
 		return nil, fmt.Errorf("transcription.NewResult: %w", err)
 	}
 	return result, nil
@@ -86,7 +86,7 @@ func (r *Response) Validate() error {
 	if r == nil {
 		return errors.New("transcription.Response: nil response")
 	}
-	if err := validateResult(r.Result); err != nil {
+	if err := r.Result.validate(); err != nil {
 		return fmt.Errorf("transcription.Response: result: %w", err)
 	}
 	if r.Metadata == nil {
@@ -104,14 +104,14 @@ func (r *Response) Validate() error {
 	return nil
 }
 
-func validateResult(result *Result) error {
-	if result == nil {
+func (r *Result) validate() error {
+	if r == nil {
 		return errors.New("result must not be nil")
 	}
-	if result.Metadata == nil {
+	if r.Metadata == nil {
 		return errors.New("metadata must not be nil")
 	}
-	if err := result.Metadata.Extra.Validate(); err != nil {
+	if err := r.Metadata.Extra.Validate(); err != nil {
 		return fmt.Errorf("metadata: %w", err)
 	}
 	return nil

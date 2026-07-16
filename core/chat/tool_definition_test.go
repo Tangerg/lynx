@@ -27,6 +27,20 @@ func TestToolDefinitionValidateAndRoundTrip(t *testing.T) {
 	}
 }
 
+func TestToolDefinitionClone(t *testing.T) {
+	definition := validToolDefinition()
+	wantSchema := string(definition.InputSchema)
+	clone := definition.Clone()
+	clone.InputSchema[0] = '['
+
+	if got := string(definition.InputSchema); got != wantSchema {
+		t.Fatalf("mutating clone changed original schema to %q", got)
+	}
+	if clone.Name != definition.Name || clone.Description != definition.Description {
+		t.Fatalf("Clone = %+v, want scalar fields from %+v", clone, definition)
+	}
+}
+
 func TestToolDefinitionRejectsInvalidValues(t *testing.T) {
 	tests := []chat.ToolDefinition{
 		{},

@@ -193,6 +193,10 @@ func TestAsMCPTool_DefinitionUsesAgentMetadata(t *testing.T) {
 	if !strings.Contains(string(def.InputSchema), "Value") {
 		t.Fatalf("InputSchema should include In's field name; got %s", def.InputSchema)
 	}
+	def.InputSchema[0] = '['
+	if got := tool.Definition().InputSchema[0]; got != '{' {
+		t.Fatalf("mutating returned definition changed agent tool schema prefix to %q", got)
+	}
 }
 
 // TestAsMCPTool_RejectsUnknownAgent matches NewAgentTool's fail-fast
