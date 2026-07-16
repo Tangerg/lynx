@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -9,6 +10,10 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/planning"
 )
+
+// ErrResumableSnapshotLost reports that a stored process no longer contains a
+// compatible waiting continuation for this Engine.
+var ErrResumableSnapshotLost = errors.New("resumable process snapshot lost")
 
 // ValidateResumableSnapshot verifies that a durable process snapshot contains
 // a continuation the runtime can safely resume. It is intentionally independent
@@ -46,6 +51,62 @@ func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error {
 		return fmt.Errorf("runtime.ValidateResumableSnapshot: tool checkpoint ID %q does not match suspension ID %q", checkpoint.Checkpoint.ID, suspension.ID)
 	}
 	return nil
+}
+
+// Resumable reports whether processID names a structurally valid waiting
+// snapshot whose exact deployment is owned by this Engine. Missing, corrupt,
+// non-waiting, and deployment-incompatible snapshots return false, nil;
+// persistence access failures are returned as errors.
+func (e *Engine) Resumable(ctx context.Context, processID string) (bool, error) {
+	_, loss, err := e.loadResumableSnapshot(ctx, processID)
+	if err != nil {
+		return false, err
+	}
+	return loss == nil, nil
+}
+
+// RestoreResumable loads and rebuilds a waiting continuation. Every durable
+// state loss or incompatibility wraps ErrResumableSnapshotLost; persistence
+// access failures remain ordinary errors so hosts can distinguish an unusable
+// continuation from a temporarily unavailable store.
+func (e *Engine) RestoreResumable(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error) {
+	snapshot, loss, err := e.loadResumableSnapshot(ctx, processID)
+	if err != nil {
+		return nil, err
+	}
+	if loss != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: %w: %w", ErrResumableSnapshotLost, loss)
+	}
+	process, err := e.RestoreSnapshot(snapshot, options)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: %w: rebuild process %q: %w", ErrResumableSnapshotLost, processID, err)
+	}
+	return process, nil
+}
+
+func (e *Engine) loadResumableSnapshot(ctx context.Context, processID string) (core.ProcessSnapshot, error, error) {
+	if e == nil {
+		return core.ProcessSnapshot{}, nil, errors.New("runtime.Engine.Resumable: nil engine")
+	}
+	if e.processStore == nil {
+		return core.ProcessSnapshot{}, nil, errors.New("runtime.Engine.Resumable: no ProcessStore configured")
+	}
+	snapshot, err := e.processStore.Load(ctx, processID)
+	if err != nil {
+		if errors.Is(err, core.ErrSnapshotNotFound) ||
+			errors.Is(err, core.ErrSnapshotSchema) ||
+			errors.Is(err, core.ErrInvalidSnapshot) {
+			return core.ProcessSnapshot{}, err, nil
+		}
+		return core.ProcessSnapshot{}, nil, fmt.Errorf("runtime.Engine.Resumable: load process %q: %w", processID, err)
+	}
+	if err := ValidateResumableSnapshot(snapshot); err != nil {
+		return core.ProcessSnapshot{}, err, nil
+	}
+	if _, ok := e.catalog.lookup(snapshot.Deployment); !ok {
+		return core.ProcessSnapshot{}, fmt.Errorf("%w: %s", ErrDeploymentNotFound, snapshot.Deployment), nil
+	}
+	return snapshot, nil, nil
 }
 
 // Snapshot captures the process's state into a portable

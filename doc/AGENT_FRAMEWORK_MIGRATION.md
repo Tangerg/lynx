@@ -173,6 +173,25 @@ return engine.Continue(ctx, process.ID())
 
 `Resume` 只记录响应，`Continue` 才重新进入执行。不要保存 continuation closure、handler、SDK client 或 runtime pointer。
 
+Durable Host 不应加载或解释 `ProcessSnapshot` 来判断能否恢复。启动清理使用：
+
+```go
+resumable, err := engine.Resumable(ctx, processID)
+```
+
+真正恢复使用：
+
+```go
+process, err := engine.RestoreResumable(ctx, processID, options)
+if errors.Is(err, runtime.ErrResumableSnapshotLost) {
+    // 将拥有该 process 的应用执行恢复为 lost。
+}
+```
+
+`false, nil` 表示 snapshot 缺失、损坏、不是 waiting continuation，或 exact
+deployment 不属于当前 Engine；持久化访问错误仍返回 error。删除 Host 自己对
+snapshot status、suspension payload 或 deployment digest 的判断。
+
 ## 7. Agent 工具
 
 当前工具 API：

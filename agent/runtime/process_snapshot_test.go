@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -202,6 +203,61 @@ func TestEngine_RestoreWaitingProcess_ResumesToCompletion(t *testing.T) {
 	out, ok := core.Result[ssWordCount](restored)
 	if !ok || out.Count != 42 {
 		t.Fatalf("result = %+v ok=%v, want Count=42", out, ok)
+	}
+}
+
+func TestEngineRestoreResumableClassifiesBuildMismatchAndMissingSnapshot(t *testing.T) {
+	buildGate := func() *core.Agent {
+		return agent.New(agent.AgentConfig{Name: "resumable-gate", Actions: []agent.Action{agent.NewAction("gate", func(ctx context.Context, _ *core.ProcessContext, _ ssWord) (ssWordCount, error) {
+			approved, err := hitl.Interrupt[bool](ctx, "approval", "approve?")
+			if err != nil {
+				return ssWordCount{}, err
+			}
+			if !approved {
+				return ssWordCount{Count: -1}, nil
+			}
+			return ssWordCount{Count: 42}, nil
+		}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[ssWordCount](core.GoalConfig{Description: "gated output"})}})
+	}
+
+	store := core.NewMemoryProcessStore()
+	first := agent.MustNewEngine(runtime.Config{BuildID: "build-a", ProcessStore: store})
+	mustDeploy(t, first, buildGate())
+	process, done := first.Start(t.Context(), buildGate(),
+		map[string]any{core.DefaultBindingName: ssWord{Text: "hi"}}, core.ProcessOptions{})
+	if err := <-done; err != nil {
+		t.Fatalf("start waiting process: %v", err)
+	}
+	if _, err := first.Save(t.Context(), process.ID()); err != nil {
+		t.Fatalf("save waiting process: %v", err)
+	}
+
+	different := agent.MustNewEngine(runtime.Config{BuildID: "build-b", ProcessStore: store})
+	mustDeploy(t, different, buildGate())
+	if resumable, err := different.Resumable(t.Context(), process.ID()); err != nil || resumable {
+		t.Fatalf("different build Resumable = (%v, %v), want false, nil", resumable, err)
+	}
+	if _, err := different.RestoreResumable(t.Context(), process.ID(), core.ProcessOptions{}); !errors.Is(err, runtime.ErrResumableSnapshotLost) ||
+		!errors.Is(err, runtime.ErrDeploymentNotFound) {
+		t.Fatalf("different build RestoreResumable error = %v", err)
+	}
+
+	same := agent.MustNewEngine(runtime.Config{BuildID: "build-a", ProcessStore: store})
+	mustDeploy(t, same, buildGate())
+	if resumable, err := same.Resumable(t.Context(), process.ID()); err != nil || !resumable {
+		t.Fatalf("same build Resumable = (%v, %v), want true, nil", resumable, err)
+	}
+	restored, err := same.RestoreResumable(t.Context(), process.ID(), core.ProcessOptions{})
+	if err != nil || restored.Status() != core.StatusWaiting {
+		t.Fatalf("same build RestoreResumable = (%v, %v), want waiting process", restored, err)
+	}
+
+	if resumable, err := same.Resumable(t.Context(), "missing"); err != nil || resumable {
+		t.Fatalf("missing Resumable = (%v, %v), want false, nil", resumable, err)
+	}
+	if _, err := same.RestoreResumable(t.Context(), "missing", core.ProcessOptions{}); !errors.Is(err, runtime.ErrResumableSnapshotLost) ||
+		!errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("missing RestoreResumable error = %v", err)
 	}
 }
 
