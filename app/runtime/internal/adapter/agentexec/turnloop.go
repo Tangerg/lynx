@@ -143,8 +143,9 @@ func (m streamingModel) Call(ctx context.Context, request *chat.Request) (*chat.
 }
 
 // runTurn supplies app-specific streaming and pricing adapters to the
-// framework-managed interaction boundary. Runtime owns tool iteration,
-// checkpointing, suspension, usage recording, and budget/step enforcement.
+// framework-managed interaction boundary. The Agent framework owns tool
+// iteration, checkpointing, suspension, usage recording, and budget/step
+// enforcement.
 func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget accounting.Budget) (TurnOutput, error) {
 	capability, err := pc.Chat()
 	if err != nil {

@@ -7,6 +7,6 @@
 // A bounded context that needs replaceable storage or policy evaluation
 // (session, knowledge, transcript, provider, interrupts, approval, …) defines a
 // consumer-side Store / Registry / Policy interface and an implementation named
-// for its essence (sqlite-backed, file-backed, engine-backed). See
+// for its essence (sqlite-backed, file-backed, adapter-backed). See
 // lyra/doc/EXECUTION_CENTERED_ARCHITECTURE.md.
 package domain

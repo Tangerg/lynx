@@ -13,7 +13,7 @@
 ## 架构（Clean Arch 同心环，依赖向内，`internal/arch` 机器强制）
 
 ```
-composition (internal/{runtime,bootstrap,config}, cmd)  装配 + host 生命周期；wires 每一环，无环 import 它
+composition (internal/{bootstrap,config}, cmd)  装配 + host 生命周期；wires 每一环，无环 import 它
 delivery    (internal/delivery)      协议契约 + HTTP+SSE / inprocess 传输 + dispatch
 adapter     (internal/adapter/*)     能力适配器（含 agentexec：驱动 agent loop 的 ACL over agent SDK）
 application (internal/application/*) 用例协调器：runs / sessions / capabilities / workspace / schedules
@@ -21,12 +21,12 @@ infra       (internal/infra/*)       driven adapter：sqlite / git / lsp / mcp /
 domain      (internal/domain/*)      限界上下文：entities + repo ports + domain services
 ```
 
-依赖一律向内（domain 是核心）；application 只依赖 domain，adapter 实现 application/domain port，delivery 驱动协调器。详见 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](./doc/EXECUTION_CENTERED_ARCHITECTURE.md)。
+依赖一律向内（domain 是核心）；application 依赖 domain、consumer ports、中立 Core chat/media 值契约与无领域语义 component 原语，adapter 实现 application/domain port，delivery 驱动协调器。详见 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](./doc/EXECUTION_CENTERED_ARCHITECTURE.md)。
 
 ## 能力（现状）
 
-Planner-driven agent process · 串行 Event Runner 工具循环 · checkpoint 精确
-pause/resume · HITL 审批 · plan 模式 · LSP 代码智能 · read-before/stale 编辑保护 ·
+Planner-driven Agent process tree · framework-managed interaction · nested child checkpoint 精确
+pause/resume · HITL 审批/提问 · plan 模式 · LSP 代码智能 · read-before/stale 编辑保护 ·
 worktree 与 Git checkpoint · MCP client/server bridge · A2A 远端 agent · Agent Skills ·
 LYRA.md 长期知识与提取 · model-facing todo · per-run provider+model 显式选择 ·
 token 触发上下文压缩 · OTel trace/metric/log → slog。

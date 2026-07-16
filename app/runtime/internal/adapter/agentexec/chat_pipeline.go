@@ -43,10 +43,10 @@ func newAgentRuntime(config Config, resolver toolport.ToolResolver) (*agentrunti
 	})
 }
 
-// newChatGuardrails composes the shared chat pipeline for every top-level
-// turn and subtask. The tool loop stays outermost and the history middleware
-// stays model-adjacent, so each loop round persists only the genuinely-new
-// messages for that conversation id.
+// newChatGuardrails composes the shared history pipeline for every top-level
+// turn and subtask. Managed interaction remains framework-owned; the
+// model-adjacent history middleware persists only genuinely new messages for
+// the current conversation id.
 func newChatGuardrails(config Config) (*core.ChatGuardrails, error) {
 	return newChatGuardrailsWithBeforeRound(config.HistoryStore, nil)
 }

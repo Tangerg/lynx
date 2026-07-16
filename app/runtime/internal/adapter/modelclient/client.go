@@ -74,3 +74,10 @@ func (r *ClientResolver) ResolveClient(ctx context.Context, providerID, model st
 	r.cache[key] = client
 	return client, nil
 }
+
+// ValidateChatModel implements the application model-role validation port
+// without leaking the concrete chat client into the use-case layer.
+func (r *ClientResolver) ValidateChatModel(ctx context.Context, providerID, model string) error {
+	_, err := r.ResolveClient(ctx, providerID, model)
+	return err
+}

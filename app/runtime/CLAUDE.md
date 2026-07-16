@@ -7,17 +7,17 @@
 
 ## 定位
 
-**协议层薄、业务层厚、传输层可换,以 Run 生命周期为中心。** delivery 是 wire 形态契约(JSON-RPC + 自有事件 / Item 模型),application 是驱动 Run/Session/能力生命周期的用例协调层,`adapter/agentexec` 是"跑一个 segment(chat turn + 工具循环)"的 agent-SDK 防腐层,domain 把业务能力按限界上下文切片。Transport 只是 envelope I/O,对业务零感知。架构基准见 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](doc/EXECUTION_CENTERED_ARCHITECTURE.md)。
+**协议层薄、业务层厚、传输层可换,以 Run 生命周期为中心。** delivery 是 wire 形态契约(JSON-RPC + 自有事件 / Item 模型),application 是驱动 Run/Session/能力生命周期的用例协调层,`adapter/agentexec` 是"启动/恢复一个 Agent process tree 并翻译一次 segment"的 agent-SDK 防腐层,domain 把业务能力按限界上下文切片。Transport 只是 envelope I/O,对业务零感知。架构基准见 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](doc/EXECUTION_CENTERED_ARCHITECTURE.md)。
 
 ## 架构心智
 
-- **Clean Arch 同心环,依赖一律向内**(domain 是核心;application 只依赖 domain;adapter 实现 application/domain port 并包 infra;delivery 驱动 application/adapter):**目录名 = 环名**,由 `internal/arch` 的测试机器强制 —— 任何向外的依赖边都是回归。
+- **Clean Arch 同心环,依赖一律向内**(domain 是核心;application 只依赖 domain、consumer ports、中立 Core chat/media 值契约与无领域语义 component 原语;adapter 实现 application/domain port 并包 infra;delivery 驱动 application/adapter):**目录名 = 环名**,由 `internal/arch` 的测试机器强制 —— 任何向外的依赖边都是回归。
   - **delivery**:协议契约 —— wire 类型、JSON-RPC 方法路由、transport envelope I/O。
-  - **adapter**:能力适配器,实现 application/domain 的 port、包装外部能力;`adapter/agentexec` 装 system prompt + 工具集 + model client、驱动 agent SDK 跑一个 segment(防腐层),`adapter/{maintenance,runsegment,toolset,modelclient …}` 各司一域。
+  - **adapter**:能力适配器,实现 application/domain 的 port、包装外部能力;`adapter/agentexec` 部署 Agent definition、装 system prompt/per-run model/process options、启动或恢复 process tree,`adapter/toolset` 单独组装工具/MCP/A2A/LSP/exec 能力,`adapter/{maintenance,runsegment,modelclient …}` 各司一域。
   - **application**:用例协调层 —— Run/Session/能力/workspace/schedules 生命周期的编排;`application/runs` 拥有 Run 从 Start 到 Terminal 的完整流程(admission / journal / pump / cancel),engine 与 wire 中立,consumer-side port 定义在此。
   - **domain**:限界上下文,一域一包(会话 / 知识 / transcript / 审批 / 工具 / provider / execution …),零外向依赖,纯 entities + 领域服务 + port。
   - **infra**:技术设施(driven adapter),零领域、只实现 domain port(存储 / git / LSP / 影子 git / 进程执行 / MCP / A2A)。
-  - 组合根 `internal/{bootstrap,config}` + cmd:config·env → 装配 + host 生命周期 + SPI nil-default 注入;`bootstrap.Host` 拥有资源关闭、`bootstrap.Stack` 是纯 discovery 聚合(§5.3),不提供业务方法;wires 每一环,arch_test 禁任何环 import 它。
+  - 组合根 `internal/{bootstrap,config}` + cmd:config·env → 装配 + host 生命周期 + SPI nil-default 注入;`bootstrap.Host` 通过共享 shutdown graph 唯一、逆序、幂等关闭资源,`bootstrap.Stack` 是纯 discovery 聚合(§5.3),不提供业务方法;wires 每一环,arch_test 禁任何环 import 它。
 - **transport 可换、对业务零感知**:HTTP + SSE 与 inprocess 都只是 envelope I/O,不把传输细节带进 application/domain。
 - **流式走 streamable HTTP,不是常开通道**:每个流式调用的事件走它**自己那条 POST 响应流**,事件源是 server 侧的 per-run hub,无连接身份簿记;重连是 per-run(带 last-event-id),不是重连一条共享流。
 - **持久化 dev 阶段单一 SQLite 后端**(纯 Go 无 CGO):session / snapshot / interrupt / history / provider / message 都在一个 DB;没有存储开关、没有 in-memory 并行实现。**唯一文件例外**是用户可编辑的 LYRA.md memory —— "可编辑" 正是它存在的意义。

@@ -228,7 +228,7 @@ func (f fakeRecipeLister) List(context.Context, string) ([]recipes.Recipe, error
 	return f.recipes, nil
 }
 
-// TestWorkspaceListSkills maps the engine's discovered skills onto the wire,
+// TestWorkspaceListSkills maps discovered skills onto the wire,
 // carrying each one's scope through Source, and defaults cwd to the serve dir.
 func TestWorkspaceListSkills(t *testing.T) {
 	dir := t.TempDir()

@@ -337,7 +337,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Catalog:           providerCatalog{},
 		Prober:            providerProber{},
 		UtilityCell:       utilityEnv.cell,
-		UtilityResolver:   resolver,
+		UtilityValidator:  resolver,
 		UtilityStore:      cfg.UtilityRoleStore,
 		EmbeddingCell:     embeddingEnv.cell,
 		EmbeddingResolver: embeddingEnv.resolver,

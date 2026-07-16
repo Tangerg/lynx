@@ -1,6 +1,6 @@
 // Package mcp is the MCP-connection infra: it dials configured MCP servers,
 // holds their live sessions, lists their tools, and reconnects them; it is the
-// external-system adapter the engine builds its MCP tool set over. Pure infra
+// external-system adapter the toolset capability adapter builds over. Pure infra
 // (over the lynx mcp module + the go-sdk client); zero domain knowledge.
 //
 // A degraded boot is tolerated: a server that can't be reached is recorded
