@@ -17,7 +17,7 @@ import (
 // ProcessSnapshotSchemaVersion is the only durable process wire schema this
 // development version accepts. Missing and unknown versions fail explicitly;
 // the framework never guesses an obsolete snapshot shape.
-const ProcessSnapshotSchemaVersion uint16 = 1
+const ProcessSnapshotSchemaVersion uint16 = 2
 
 var (
 	ErrSnapshotNotFound = errors.New("process store: snapshot not found")
@@ -44,8 +44,11 @@ func (e *RevisionConflictError) Error() string {
 func (e *RevisionConflictError) Unwrap() error { return ErrRevisionConflict }
 
 // ProcessSnapshot is the complete durable state required to inspect or resume
-// one process. Runtime-only objects, derived world state, functions, and
-// closures are intentionally absent.
+// one process. OwnCost, OwnTokens, OwnModelCalls, and OwnEmbeddingCalls contain
+// only this process's direct ledger; descendants persist their own snapshots,
+// and runtime reconstructs aggregate usage through parent-child links.
+// Runtime-only objects, derived world state, functions, and closures are
+// intentionally absent.
 type ProcessSnapshot struct {
 	SchemaVersion uint16 `json:"schema_version"`
 	Revision      uint64 `json:"revision"`
@@ -64,11 +67,11 @@ type ProcessSnapshot struct {
 	History    []ActionRunSnapshot     `json:"history,omitempty"`
 	Failure    string                  `json:"failure,omitempty"`
 
-	Cost   float64 `json:"cost"`
-	Tokens int     `json:"tokens"`
+	OwnCost   float64 `json:"own_cost"`
+	OwnTokens int     `json:"own_tokens"`
 
-	ModelCalls     []ModelCall     `json:"model_calls,omitempty"`
-	EmbeddingCalls []EmbeddingCall `json:"embedding_calls,omitempty"`
+	OwnModelCalls     []ModelCall     `json:"own_model_calls,omitempty"`
+	OwnEmbeddingCalls []EmbeddingCall `json:"own_embedding_calls,omitempty"`
 
 	Blackboard map[string]TaggedValue `json:"blackboard,omitempty"`
 	Conditions map[string]bool        `json:"conditions,omitempty"`
@@ -76,26 +79,26 @@ type ProcessSnapshot struct {
 }
 
 type processSnapshotWire struct {
-	SchemaVersion  uint16                  `json:"schema_version"`
-	Revision       uint64                  `json:"revision"`
-	ID             string                  `json:"id"`
-	ParentID       string                  `json:"parent_id,omitempty"`
-	Depth          int                     `json:"depth,omitempty"`
-	Deployment     DeploymentRef           `json:"deployment"`
-	StartedAt      time.Time               `json:"started_at"`
-	CapturedAt     time.Time               `json:"captured_at"`
-	Status         string                  `json:"status"`
-	Suspension     *interaction.Suspension `json:"suspension,omitempty"`
-	GoalName       string                  `json:"goal_name,omitempty"`
-	History        []ActionRunSnapshot     `json:"history,omitempty"`
-	Failure        string                  `json:"failure,omitempty"`
-	Cost           float64                 `json:"cost"`
-	Tokens         int                     `json:"tokens"`
-	ModelCalls     []ModelCall             `json:"model_calls,omitempty"`
-	EmbeddingCalls []EmbeddingCall         `json:"embedding_calls,omitempty"`
-	Blackboard     map[string]TaggedValue  `json:"blackboard,omitempty"`
-	Conditions     map[string]bool         `json:"conditions,omitempty"`
-	Objects        []TaggedValue           `json:"objects,omitempty"`
+	SchemaVersion     uint16                  `json:"schema_version"`
+	Revision          uint64                  `json:"revision"`
+	ID                string                  `json:"id"`
+	ParentID          string                  `json:"parent_id,omitempty"`
+	Depth             int                     `json:"depth,omitempty"`
+	Deployment        DeploymentRef           `json:"deployment"`
+	StartedAt         time.Time               `json:"started_at"`
+	CapturedAt        time.Time               `json:"captured_at"`
+	Status            string                  `json:"status"`
+	Suspension        *interaction.Suspension `json:"suspension,omitempty"`
+	GoalName          string                  `json:"goal_name,omitempty"`
+	History           []ActionRunSnapshot     `json:"history,omitempty"`
+	Failure           string                  `json:"failure,omitempty"`
+	OwnCost           float64                 `json:"own_cost"`
+	OwnTokens         int                     `json:"own_tokens"`
+	OwnModelCalls     []ModelCall             `json:"own_model_calls,omitempty"`
+	OwnEmbeddingCalls []EmbeddingCall         `json:"own_embedding_calls,omitempty"`
+	Blackboard        map[string]TaggedValue  `json:"blackboard,omitempty"`
+	Conditions        map[string]bool         `json:"conditions,omitempty"`
+	Objects           []TaggedValue           `json:"objects,omitempty"`
 }
 
 func (s ProcessSnapshot) wire() processSnapshotWire {
@@ -104,8 +107,8 @@ func (s ProcessSnapshot) wire() processSnapshotWire {
 		ID: s.ID, ParentID: s.ParentID, Depth: s.Depth,
 		Deployment: s.Deployment, StartedAt: s.StartedAt, CapturedAt: s.CapturedAt,
 		Status: s.Status.String(), Suspension: s.Suspension, GoalName: s.GoalName,
-		History: s.History, Failure: s.Failure, Cost: s.Cost, Tokens: s.Tokens,
-		ModelCalls: s.ModelCalls, EmbeddingCalls: s.EmbeddingCalls,
+		History: s.History, Failure: s.Failure, OwnCost: s.OwnCost, OwnTokens: s.OwnTokens,
+		OwnModelCalls: s.OwnModelCalls, OwnEmbeddingCalls: s.OwnEmbeddingCalls,
 		Blackboard: s.Blackboard, Conditions: s.Conditions, Objects: s.Objects,
 	}
 }
@@ -120,13 +123,13 @@ func (w processSnapshotWire) snapshot() (ProcessSnapshot, error) {
 		ID: w.ID, ParentID: w.ParentID, Depth: w.Depth,
 		Deployment: w.Deployment, StartedAt: w.StartedAt, CapturedAt: w.CapturedAt,
 		Status: status, Suspension: w.Suspension, GoalName: w.GoalName,
-		History: w.History, Failure: w.Failure, Cost: w.Cost, Tokens: w.Tokens,
-		ModelCalls: w.ModelCalls, EmbeddingCalls: w.EmbeddingCalls,
+		History: w.History, Failure: w.Failure, OwnCost: w.OwnCost, OwnTokens: w.OwnTokens,
+		OwnModelCalls: w.OwnModelCalls, OwnEmbeddingCalls: w.OwnEmbeddingCalls,
 		Blackboard: w.Blackboard, Conditions: w.Conditions, Objects: w.Objects,
 	}, nil
 }
 
-// Validate checks the durable aggregate without mutating it.
+// Validate checks the durable process state without mutating it.
 func (s ProcessSnapshot) Validate() error {
 	if s.SchemaVersion != ProcessSnapshotSchemaVersion {
 		return fmt.Errorf("%w: version %d", ErrSnapshotSchema, s.SchemaVersion)
@@ -163,22 +166,22 @@ func (s ProcessSnapshot) Validate() error {
 	if s.GoalName != strings.TrimSpace(s.GoalName) {
 		return fmt.Errorf("%w: goal_name has surrounding whitespace", ErrInvalidSnapshot)
 	}
-	if math.IsNaN(s.Cost) || math.IsInf(s.Cost, 0) || s.Cost < 0 || s.Tokens < 0 {
-		return fmt.Errorf("%w: usage totals must be finite and non-negative", ErrInvalidSnapshot)
+	if math.IsNaN(s.OwnCost) || math.IsInf(s.OwnCost, 0) || s.OwnCost < 0 || s.OwnTokens < 0 {
+		return fmt.Errorf("%w: own usage totals must be finite and non-negative", ErrInvalidSnapshot)
 	}
 	for i, run := range s.History {
 		if strings.TrimSpace(run.ActionName) == "" || run.StartedAt.IsZero() || run.Duration < 0 || run.Attempts < 1 || !validActionStatusString(run.Status) {
 			return fmt.Errorf("%w: history[%d] is invalid", ErrInvalidSnapshot, i)
 		}
 	}
-	for i, call := range s.ModelCalls {
+	for i, call := range s.OwnModelCalls {
 		if !call.valid() {
-			return fmt.Errorf("%w: model_calls[%d] is invalid", ErrInvalidSnapshot, i)
+			return fmt.Errorf("%w: own_model_calls[%d] is invalid", ErrInvalidSnapshot, i)
 		}
 	}
-	for i, call := range s.EmbeddingCalls {
+	for i, call := range s.OwnEmbeddingCalls {
 		if !call.valid() {
-			return fmt.Errorf("%w: embedding_calls[%d] is invalid", ErrInvalidSnapshot, i)
+			return fmt.Errorf("%w: own_embedding_calls[%d] is invalid", ErrInvalidSnapshot, i)
 		}
 	}
 	for key, value := range s.Blackboard {

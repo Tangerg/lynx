@@ -32,6 +32,21 @@ type processBudget struct {
 	embeddingCalls []core.EmbeddingCall
 }
 
+// ownSnapshot returns one internally consistent copy of this process's direct
+// usage. Child usage is deliberately excluded: durable snapshots persist each
+// process exactly once, and the runtime rebuilds subtree aggregation from the
+// restored parent/child links.
+func (b *processBudget) ownSnapshot() (
+	cost float64,
+	tokens int,
+	modelCalls []core.ModelCall,
+	embeddingCalls []core.EmbeddingCall,
+) {
+	b.lock.RLock()
+	defer b.lock.RUnlock()
+	return b.ownCost, b.ownTokens, slices.Clone(b.modelCalls), slices.Clone(b.embeddingCalls)
+}
+
 // recordModelCall appends a fully-attributed LLM call to history
 // and rolls its cost/tokens into the budget. Timestamp defaulting
 // happens in [Process.RecordModelCall] — the only caller —

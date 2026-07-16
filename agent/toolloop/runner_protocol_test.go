@@ -17,6 +17,7 @@ import (
 type runnerTool struct {
 	definition chat.ToolDefinition
 	call       func(context.Context, string) (string, error)
+	concurrent func(string) (string, bool)
 }
 
 func (t *runnerTool) Definition() chat.ToolDefinition { return t.definition }
@@ -26,6 +27,13 @@ func (t *runnerTool) Call(ctx context.Context, arguments string) (string, error)
 		return "", nil
 	}
 	return t.call(ctx, arguments)
+}
+
+func (t *runnerTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+	if t.concurrent == nil {
+		return "", false
+	}
+	return t.concurrent(arguments)
 }
 
 type scriptedModel struct {
@@ -245,7 +253,12 @@ func TestRunnerPauseAndResumeDoesNotRepeatCompletedWork(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 	pauseEvent := firstEvents[len(firstEvents)-1]
-	if pauseEvent.Kind != toolloop.EventPause || pauseEvent.Pause.Checkpoint.NextCall != 1 || len(pauseEvent.Pause.Checkpoint.Results) != 1 {
+	checkpoint := pauseEvent.Pause.Checkpoint
+	if pauseEvent.Kind != toolloop.EventPause ||
+		checkpoint.NextResult != 1 ||
+		len(checkpoint.CallStates) != 2 ||
+		checkpoint.CallStates[0].Status != toolloop.CallCompleted ||
+		checkpoint.CallStates[1].Status != toolloop.CallPaused {
 		t.Fatalf("pause event = %#v", pauseEvent)
 	}
 	if model.calls != 1 || completedCalls != 1 || approvalAttempts != 1 || approvedEffects != 0 {
@@ -403,6 +416,9 @@ func TestRunnerRejectsInvalidConfigRunAndResume(t *testing.T) {
 	if _, err := toolloop.NewRunner(validModel, toolloop.Config{MaxRounds: -1}); !errors.Is(err, toolloop.ErrInvalidConfig) {
 		t.Fatalf("negative rounds error = %v", err)
 	}
+	if _, err := toolloop.NewRunner(validModel, toolloop.Config{MaxConcurrentCalls: -1}); !errors.Is(err, toolloop.ErrInvalidConfig) {
+		t.Fatalf("negative concurrency error = %v", err)
+	}
 	runner := newRunner(t, validModel, toolloop.Config{})
 	var nilContext context.Context
 	canceled, cancel := context.WithCancel(context.Background())
@@ -452,6 +468,17 @@ func TestRunnerRejectsInvalidConfigRunAndResume(t *testing.T) {
 				t.Fatalf("error = %v", err)
 			}
 		})
+	}
+
+	serialRunner := newRunner(t, validModel, toolloop.Config{MaxConcurrentCalls: 1})
+	_, err := collectRunnerEvents(serialRunner.Resume(
+		context.Background(),
+		checkpoint,
+		registry,
+		toolloop.Resume{ID: "approval-1", Input: json.RawMessage(`"approved"`)},
+	))
+	if !errors.Is(err, toolloop.ErrInvalidInput) {
+		t.Fatalf("concurrency-policy mismatch error = %v", err)
 	}
 }
 
@@ -526,21 +553,27 @@ func TestCheckpointValidationAndAtomicJSON(t *testing.T) {
 	}
 
 	for _, mutate := range []func(*toolloop.Checkpoint){
+		func(c *toolloop.Checkpoint) { c.SchemaVersion = 1 },
 		func(c *toolloop.Checkpoint) { c.ID = "" },
 		func(c *toolloop.Checkpoint) { c.Round = 0 },
+		func(c *toolloop.Checkpoint) { c.MaxConcurrentCalls = 0 },
 		func(c *toolloop.Checkpoint) { c.Request = nil },
 		func(c *toolloop.Checkpoint) { c.Request = &chat.Request{} },
 		func(c *toolloop.Checkpoint) { c.Response = nil },
 		func(c *toolloop.Checkpoint) { c.Response = &chat.Response{Choices: []chat.Choice{{Index: -1}}} },
 		func(c *toolloop.Checkpoint) { c.Response = runnerTextResponse("no calls") },
-		func(c *toolloop.Checkpoint) { c.NextCall = -1 },
-		func(c *toolloop.Checkpoint) { c.NextCall = 1 },
+		func(c *toolloop.Checkpoint) { c.NextResult = -1 },
+		func(c *toolloop.Checkpoint) { c.NextResult = 1 },
+		func(c *toolloop.Checkpoint) { c.CallStates = nil },
+		func(c *toolloop.Checkpoint) { c.CallStates[0].Status = "future" },
 		func(c *toolloop.Checkpoint) {
-			c.NextCall = 0
-			c.Results = []chat.ToolResult{{ID: "call-1", Name: "lookup", Result: "done"}}
+			c.CallStates[0] = toolloop.CallCheckpoint{
+				Status: toolloop.CallCompleted,
+				Result: &chat.ToolResult{ID: "call-1", Name: "lookup", Result: "done"},
+			}
 		},
 	} {
-		copy := *valid
+		copy := cloneProtocolCheckpoint(t, valid)
 		mutate(&copy)
 		if err := copy.Validate(); !errors.Is(err, toolloop.ErrInvalidCheckpoint) {
 			t.Fatalf("Validate(%#v) = %v", copy, err)
@@ -555,16 +588,45 @@ func TestCheckpointValidationAndAtomicJSON(t *testing.T) {
 		chat.ToolCall{ID: "call-1", Name: "lookup", Arguments: `{}`},
 		chat.ToolCall{ID: "call-2", Name: "lookup", Arguments: `{}`},
 	)
-	twoCalls.NextCall = 1
+	twoCalls.CallStates = []toolloop.CallCheckpoint{
+		{
+			Status: toolloop.CallCompleted,
+			Result: &chat.ToolResult{ID: "call-1", Name: "lookup", Result: "done"},
+		},
+		{
+			Status: toolloop.CallPaused,
+			Pending: &toolloop.PendingCall{
+				ID:           "approval-1",
+				Reason:       "wait",
+				Prompt:       json.RawMessage(`"approve?"`),
+				ResumeSchema: json.RawMessage(`{"type":"string"}`),
+			},
+		},
+	}
+	twoCalls.NextResult = 1
 	for _, result := range []chat.ToolResult{
 		{ID: "", Name: "lookup", Result: "done"},
 		{ID: "wrong", Name: "lookup", Result: "done"},
 	} {
-		twoCalls.Results = []chat.ToolResult{result}
+		twoCalls.CallStates[0].Result = &result
 		if err := twoCalls.Validate(); !errors.Is(err, toolloop.ErrInvalidCheckpoint) {
 			t.Fatalf("invalid completed result error = %v", err)
 		}
 	}
+
+}
+
+func cloneProtocolCheckpoint(t *testing.T, checkpoint *toolloop.Checkpoint) toolloop.Checkpoint {
+	t.Helper()
+	body, err := json.Marshal(checkpoint)
+	if err != nil {
+		t.Fatalf("marshal checkpoint clone: %v", err)
+	}
+	var clone toolloop.Checkpoint
+	if err := json.Unmarshal(body, &clone); err != nil {
+		t.Fatalf("unmarshal checkpoint clone: %v", err)
+	}
+	return clone
 }
 
 func TestRuntimePolicyAndControlValues(t *testing.T) {
@@ -611,6 +673,16 @@ func newRunnerTool(name string, call func(context.Context, string) (string, erro
 		},
 		call: call,
 	}
+}
+
+func newConcurrentRunnerTool(
+	name string,
+	key string,
+	call func(context.Context, string) (string, error),
+) *runnerTool {
+	tool := newRunnerTool(name, call)
+	tool.concurrent = func(string) (string, bool) { return key, true }
+	return tool
 }
 
 func newRunnerRegistry(t *testing.T, values ...tools.Tool) *tools.Registry {

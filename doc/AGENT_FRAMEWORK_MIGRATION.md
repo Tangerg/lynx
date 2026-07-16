@@ -106,10 +106,33 @@ core.RetryPolicy{
 
 `StuckDecision` 的零值是 `StuckStop`；需要重新规划时返回 `StuckReplan`。不要依赖“未设置等于继续”的危险语义。
 
-删除 process-wide candidate-action 并发。并发工作使用：
+删除 process-wide candidate-action 并发。Process tick 仍按计划稳定执行一个 Action；
+需要业务级 fan-out 时使用：
 
 - `workflow.Parallel`、`ScatterGather` 或 `Consensus`：同一 Process 内的结构化 fan-out；
 - child Process：需要独立暂停、终止、持久化或生命周期时。
+
+这不等于 ToolLoop 串行。一个模型响应中的多个 tool call 采用“并发执行、顺序提交”：
+
+- 工具默认独占；只有实现 `toolloop.ConcurrentTool` 才允许重叠；
+- `concurrent=true, key=""` 表示调用之间没有已知资源冲突；
+- 相同的非空 resource key 串行，不同 key 可并发；
+- `toolloop.Config.MaxConcurrentCalls` 或
+  `interaction.Limits.MaxConcurrentToolCalls` 限制同时执行数，零值使用框架默认值；
+- `ToolResult` event、continuation message、checkpoint `NextResult` 永远按模型原始
+  tool-call 顺序推进，不能按 goroutine 完成顺序写入 history 或 cache。
+
+例如按租户串行、跨租户并发：
+
+```go
+func (t *TenantTool) ConcurrencyKey(arguments string) (string, bool) {
+    tenantID, err := decodeTenantID(arguments)
+    if err != nil {
+        return "", false
+    }
+    return "tenant:" + tenantID, true
+}
+```
 
 ## 5. Chat、Prompt 与 ToolLoop
 
@@ -140,7 +163,10 @@ answer, err := process.Prompt(ctx, prompt, agent.PromptConfig{
 低层 `toolloop` 不再构造 `Invocation`：
 
 ```go
-runner, err := toolloop.NewRunner(model, toolloop.Config{MaxRounds: 8})
+runner, err := toolloop.NewRunner(model, toolloop.Config{
+    MaxRounds:          8,
+    MaxConcurrentCalls: 4,
+})
 if err != nil {
     return err
 }
@@ -150,6 +176,13 @@ for event, runErr := range runner.Run(ctx, request, resolver) {
 ```
 
 Host 不直接使用 ToolLoop 复制 Framework 的 usage、checkpoint 或 Process 状态机。
+
+ToolLoop checkpoint 已升级到 schema v2。旧 `Results` / `NextCall` 被按模型调用位置
+对齐的 `CallStates` / `NextResult` 取代，每个 call 明确处于 `queued`、`completed`
+或 `paused`。这允许一个并发批次中多个工具同时完成或暂停，同时只向外暴露顺序上
+最早的 pause。checkpoint 同时保存 `MaxConcurrentCalls`；恢复 Runner 必须使用完全
+相同的宽度，避免重启后调度政策静默漂移。旧 schema v1 checkpoint 不兼容读取；
+开发数据应与所属 waiting ProcessSnapshot 一并清除。
 
 ## 6. HITL
 
@@ -203,6 +236,13 @@ snapshot status、suspension payload 或 deployment digest 的判断。
 - `engine.GoalTools()` / `engine.StandaloneGoalTools()`：遍历活动部署。
 
 工具在构造时解析并捕获 exact Deployment，不在每次调用时重新按名称选择版本。
+
+`NewAgentTool` 实现并发工具能力：同一模型响应中的多个 AgentTool 调用各自拥有隔离
+child Process，可以并发启动。Runtime 使用模型生成的 exact `ToolCall.ID` 关联 child，
+即使工具名和 arguments 完全相同也不会混淆。若多个 child 同时 waiting，parent
+checkpoint 保存按 tool-call 顺序排列的 child forest；Host 仍只对 parent Process ID
+调用 `Resume` / `Continue`，Runtime 每次恢复当前最早未提交分支，其余 sibling 保持
+parked。消费者不要自行排序 child，也不要用工具名或参数摘要充当并发调用身份。
 
 本轮进一步把对象作为首参的 API 直接收回 receiver，不保留 wrapper：
 
@@ -264,7 +304,8 @@ blackboard 模式。不要使用全局变量或私有 context key 偷渡 Run 策
 
 `interaction.Limits.MaxSteps` 仍只限制当前一次 managed interaction；
 `MaxModelCalls` 限制当前 Process 及其后代已经记录的累计模型调用数，适合由
-Host 将一个应用级 step budget 覆盖到完整委派树。
+Host 将一个应用级 step budget 覆盖到完整委派树。`MaxConcurrentToolCalls`
+只限制一次 model round 中 conflict-free tool call 的执行宽度，不改变结果提交顺序。
 
 `Engine.Kill` 现在会取消目标 Process 的活动 Run / Continue 上下文并递归终止
 其存活后代；Action、provider 调用和同步 child 应始终监听传入的 context。
@@ -296,7 +337,23 @@ if err := storetest.TestProcessStore(t.Context(), store); err != nil {
 
 `storetest` 保持公开；`providertest` 已移除。ChatProvider 与 ToolGroupResolver 在真实 Engine dispatch 测试中验证，不为测试对称性扩大公共 API。
 
-旧 snapshot 不做兼容读取。开发环境迁移时：备份数据、终止依赖旧 snapshot 的非终态运行、清除旧 ProcessSnapshot、保留可独立解释的 Session 与 terminal history，然后只写当前 schema。
+ProcessSnapshot 已升级到 schema v2，并只持久化当前 Process 的直接 ledger：
+
+| schema v1 | schema v2 |
+|---|---|
+| `Cost` / `cost` | `OwnCost` / `own_cost` |
+| `Tokens` / `tokens` | `OwnTokens` / `own_tokens` |
+| `ModelCalls` / `model_calls` | `OwnModelCalls` / `own_model_calls` |
+| `EmbeddingCalls` / `embedding_calls` | `OwnEmbeddingCalls` / `own_embedding_calls` |
+
+子进程用量保存在各自 snapshot 中，Restore 按 parent-child linkage 重建聚合；不再从
+父级 aggregate 猜测并减去 child suffix。运行时需要聚合值时使用
+`Process.Usage()`、`Process.ModelCalls()` 和 `Process.EmbeddingCalls()`，不要把
+snapshot 的 `Own*` 字段当作进程树总量。
+
+旧 snapshot 不做兼容读取。开发环境迁移时：备份数据、终止依赖旧 snapshot 的非终态运行、
+清除 schema v1 ProcessSnapshot 及其 v1 ToolLoop checkpoint、保留可独立解释的 Session
+与 terminal history，然后只写当前 schema。
 
 ## 11. Event JSON
 

@@ -26,7 +26,7 @@ provider-neutral Chat/Tool 上手入口见
 agent/
 ├── core/                 Agent、Action、Goal、Condition、Blackboard、SPI
 ├── planning/             Planner 契约、Domain、State 与 Plan
-│   ├── goap/             A* goal-oriented action planning
+│   ├── goap/             deterministic uniform-cost GOAP
 │   ├── htn/              hierarchical task network
 │   ├── reactive/         reactive planner
 │   └── utility/          utility-based planner

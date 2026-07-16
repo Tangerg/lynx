@@ -2,6 +2,7 @@ package goap
 
 import (
 	"context"
+	"errors"
 	"slices"
 
 	"go.opentelemetry.io/otel"
@@ -12,22 +13,25 @@ import (
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
-const defaultMaxIterations = 10_000
+const defaultMaxExpansions = 10_000
 
-// Tracing span / attribute keys for the A* planner. Centralized so a
+// ErrInvalidActionCost reports a cost probe that returned a negative,
+// non-finite value. Uniform-cost search requires non-negative finite edges.
+var ErrInvalidActionCost = errors.New("goap: invalid action cost")
+
+// Tracing span / attribute keys for the GOAP planner. Centralized so a
 // typo at one call site is impossible and listeners have one schema to
 // key off; treat as stable across releases.
 const (
-	spanAstar = "agent.planner.astar"
+	spanGOAP = "agent.planner.goap"
 
-	attrGoalName           = "agent.goal.name"
-	attrActionsCount       = "agent.actions.count"
-	attrAstarAlreadySat    = "agent.astar.already_satisfied"
-	attrAstarReachable     = "agent.astar.reachable"
-	attrAstarIterations    = "agent.astar.iterations"
-	attrAstarFound         = "agent.astar.found"
-	attrAstarPlanLength    = "agent.astar.plan_length"
-	attrAstarPlanLengthRaw = "agent.astar.plan_length_raw"
+	attrGoalName         = "agent.goal.name"
+	attrActionsCount     = "agent.actions.count"
+	attrGOAPAlreadySat   = "agent.goap.already_satisfied"
+	attrGOAPHasProducers = "agent.goap.has_goal_producers"
+	attrGOAPExpansions   = "agent.goap.expansions"
+	attrGOAPFound        = "agent.goap.found"
+	attrGOAPPlanLength   = "agent.goap.plan_length"
 )
 
 var plannerTracer = otel.Tracer("lynx/agent/planner")
@@ -35,22 +39,23 @@ var plannerTracer = otel.Tracer("lynx/agent/planner")
 // Planner is the concrete planner. It's stateless across PlanToGoal
 // calls; safe to share across goroutines.
 type Planner struct {
-	maxIterations int
+	maxExpansions int
 }
 
 // NewPlanner returns a planner with sensible defaults (10k node
 // expansions cap). Per-call overrides go through
 // [planning.Options].MaxIterations.
 func NewPlanner() *Planner {
-	return &Planner{maxIterations: defaultMaxIterations}
+	return &Planner{maxExpansions: defaultMaxExpansions}
 }
 
 // Name is the planner's extension identifier — the value an agent's
 // [core.AgentConfig.PlannerName] must match to select this planner.
 func (p *Planner) Name() string { return "goap" }
 
-// PlanToGoal is the workhorse. It does a forward A* search over world
-// states.
+// PlanToGoal runs a forward uniform-cost search over world states. Uniform
+// cost is A* with h=0: less aggressive than a domain-specific heuristic, but
+// correct for every non-negative action-cost model the public API permits.
 func (p *Planner) PlanToGoal(
 	ctx context.Context,
 	start core.WorldState,
@@ -62,7 +67,7 @@ func (p *Planner) PlanToGoal(
 		return nil, err
 	}
 
-	ctx, span := plannerTracer.Start(ctx, spanAstar,
+	ctx, span := plannerTracer.Start(ctx, spanGOAP,
 		trace.WithAttributes(
 			attribute.String(attrGoalName, goal.Name()),
 			attribute.Int(attrActionsCount, len(domain.Actions())),
@@ -71,30 +76,22 @@ func (p *Planner) PlanToGoal(
 	defer span.End()
 
 	if goal.SatisfiedBy(start) {
-		span.SetAttributes(attribute.Bool(attrAstarAlreadySat, true))
+		span.SetAttributes(attribute.Bool(attrGOAPAlreadySat, true))
 		return planning.NewPlan(nil, goal), nil
 	}
 
 	candidates := p.candidateActions(domain.Actions(), options.ExcludedActions)
 
-	// Backward relevance pruning: keep only actions in the goal's
-	// transitive requirement graph. STRIPS regression — provably safe
-	// (an excluded action's effects don't appear in any condition
-	// reachable backward from the goal) and shrinks A*'s expansion
-	// frontier substantially on agents with many domain-specific
-	// actions whose effects don't interact with the current goal.
-	candidates = relevantActions(candidates, goal)
+	s := newSearch(start, candidates, goal, p.expansionCap(options))
 
-	s := newSearch(start, candidates, goal, p.iterationCap(options))
-
-	// Reachability pre-check — short-circuits before A* burns 10k iterations
+	// Producer pre-check — short-circuits before search burns 10k expansions
 	// chasing a goal whose required conditions no action can establish.
 	// After pruning the check operates on the regression set, so a goal
 	// precondition with no producer in the relevant closure is caught here
 	// even when the unpruned action set had a "producer" whose own
 	// preconditions can never be met.
-	if !s.goalReachable() {
-		span.SetAttributes(attribute.Bool(attrAstarReachable, false))
+	if !s.hasGoalProducers() {
+		span.SetAttributes(attribute.Bool(attrGOAPHasProducers, false))
 		return nil, nil
 	}
 
@@ -103,39 +100,38 @@ func (p *Planner) PlanToGoal(
 		return nil, err
 	}
 
-	span.SetAttributes(attribute.Int(attrAstarIterations, s.iterations))
+	span.SetAttributes(attribute.Int(attrGOAPExpansions, s.expansions))
 
 	if bestGoalNode == nil {
-		span.SetAttributes(attribute.Bool(attrAstarFound, false))
+		span.SetAttributes(attribute.Bool(attrGOAPFound, false))
 		return nil, nil
 	}
 
-	path := s.reconstructPath(bestGoalNode.state.Key())
-	rawLen := len(path)
-	path = s.backwardOptimize(path)
-	path = s.forwardOptimize(path)
+	path, err := s.reconstructPath(bestGoalNode.state.Key())
+	if err != nil {
+		return nil, err
+	}
 
 	span.SetAttributes(
-		attribute.Bool(attrAstarFound, true),
-		attribute.Int(attrAstarPlanLengthRaw, rawLen),
-		attribute.Int(attrAstarPlanLength, len(path)),
+		attribute.Bool(attrGOAPFound, true),
+		attribute.Int(attrGOAPPlanLength, len(path)),
 	)
 	return planning.NewPlan(path, goal), nil
 }
 
-// iterationCap honors per-call MaxIterations when supplied, otherwise
-// returns the planner-default.
-func (p *Planner) iterationCap(options planning.Options) int {
+// expansionCap honors per-call MaxIterations when supplied, otherwise returns
+// the planner default. The public option keeps its planner-neutral name.
+func (p *Planner) expansionCap(options planning.Options) int {
 	if options.MaxIterations > 0 {
 		return options.MaxIterations
 	}
-	return p.maxIterations
+	return p.maxExpansions
 }
 
 // candidateActions filters the master action list against the per-call
 // exclusion set and stable-sorts so more-specific actions (those with more
-// preconditions) get expanded first. Specificity-first
-// behavior and keeps the search frontier focused.
+// preconditions) get expanded first. Specificity-first tie ordering keeps the
+// search frontier focused without affecting cost optimality.
 func (p *Planner) candidateActions(actions []core.Action, excluded map[string]struct{}) []core.Action {
 	out := make([]core.Action, 0, len(actions))
 	for _, action := range actions {

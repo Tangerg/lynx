@@ -26,24 +26,24 @@ func TestMemoryProcessStoreCASAndDefensiveLoad(t *testing.T) {
 	store := core.NewMemoryProcessStore()
 	ctx := context.Background()
 	snapshot := validSnapshot("p-1")
-	snapshot.Tokens = 1500
+	snapshot.OwnTokens = 1500
 
 	revision, err := store.Save(ctx, snapshot, 0)
 	if err != nil || revision != 1 {
 		t.Fatalf("first Save = revision %d, err %v", revision, err)
 	}
 	loaded, err := store.Load(ctx, snapshot.ID)
-	if err != nil || loaded.Revision != 1 || loaded.Tokens != 1500 {
+	if err != nil || loaded.Revision != 1 || loaded.OwnTokens != 1500 {
 		t.Fatalf("Load = %#v, err %v", loaded, err)
 	}
-	loaded.Tokens = 99
+	loaded.OwnTokens = 99
 	again, _ := store.Load(ctx, snapshot.ID)
-	if again.Tokens != 1500 {
+	if again.OwnTokens != 1500 {
 		t.Fatal("Load returned mutable stored state")
 	}
 
 	snapshot.Revision = revision
-	snapshot.Tokens = 2000
+	snapshot.OwnTokens = 2000
 	revision, err = store.Save(ctx, snapshot, 1)
 	if err != nil || revision != 2 {
 		t.Fatalf("second Save = revision %d, err %v", revision, err)
@@ -96,7 +96,7 @@ func TestProcessSnapshotRejectsUnknownAndMissingSchema(t *testing.T) {
 	if decoded["status"] != "running" {
 		t.Fatalf("status wire = %#v", decoded["status"])
 	}
-	for _, version := range []float64{0, 2} {
+	for _, version := range []float64{0, 1, 3} {
 		decoded["schema_version"] = version
 		invalid, _ := json.Marshal(decoded)
 		var target core.ProcessSnapshot
@@ -117,7 +117,7 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 		t.Fatalf("missing error = %v", err)
 	}
 	invalidModelCall := validSnapshot("invalid-model-call")
-	invalidModelCall.ModelCalls = []core.ModelCall{{
+	invalidModelCall.OwnModelCalls = []core.ModelCall{{
 		Timestamp: time.Now(), PromptTokens: 1, CompletionTokens: 1, ReasoningTokens: 2,
 	}}
 	if _, err := store.Save(t.Context(), invalidModelCall, 0); !errors.Is(err, core.ErrInvalidSnapshot) {

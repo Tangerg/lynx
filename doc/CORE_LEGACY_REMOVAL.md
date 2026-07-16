@@ -31,7 +31,7 @@ DefaultOptions 不再是 provider 能力：provider 构造参数持有 provider 
 |---|---|
 | 旧路径 | `core/model/chat.Request`、`Response`、`Result`、Message interface/具体消息类型 |
 | 旧职责 | Request 持有 executable Tool/Params；Response 只表达单 Result 并被 tool-loop 合成控制流复用 |
-| 目标替代 | `core/chat` tagged Message/Part、纯 Request、多 Choice Response；`agent/toolloop.Invocation/Event` |
+| 目标替代 | `core/chat` tagged Message/Part、纯 Request、多 Choice Response；`agent/toolloop.Runner` + runtime-only `ToolResolver` + `Event` |
 | 冻结起点 | P1 完成 |
 | 迁移任务 | P2-06/P2-07 reference provider；P3 ChatClient/Tool loop；P6 全 workspace |
 | 删除任务 | P6-05 |

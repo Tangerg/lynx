@@ -229,66 +229,38 @@ func (e *Engine) saveProcess(ctx context.Context, process *Process) (uint64, err
 	if e.processStore == nil {
 		return 0, errors.New("runtime.Engine.saveProcess: no ProcessStore configured")
 	}
+	ctx = normalizeContext(ctx)
 	tree, err := e.lockProcessTree(process, map[string]struct{}{})
 	if err != nil {
 		return 0, err
 	}
 
-	snapshots := make([]core.ProcessSnapshot, len(tree))
-	for index, current := range tree {
-		snapshots[index], err = current.snapshot()
-		if err != nil {
-			unlockProcessTree(tree)
-			return 0, err
-		}
+	if err := captureLockedProcessTree(tree); err != nil {
+		unlockProcessTree(tree)
+		return 0, err
 	}
-	for index := 0; index+1 < len(snapshots); index++ {
-		relation, relationErr := nestedRelationFromSuspension(snapshots[index].Suspension)
-		if relationErr != nil {
-			unlockProcessTree(tree)
-			return 0, relationErr
-		}
-		if relation == nil {
-			unlockProcessTree(tree)
-			return 0, fmt.Errorf("%w: process %q lost its nested child relation while saving", core.ErrInvalidSnapshot, snapshots[index].ID)
-		}
-		if err := validateNestedChildSnapshot(snapshots[index], snapshots[index+1], relation); err != nil {
-			unlockProcessTree(tree)
-			return 0, err
-		}
+	revision, err := e.saveLockedProcessTree(ctx, tree)
+	if err != nil {
+		unlockProcessTree(tree)
+		return 0, err
 	}
-
-	revisions := make([]uint64, len(tree))
-	for index := len(tree) - 1; index >= 0; index-- {
-		snapshot := snapshots[index]
-		revision, saveErr := e.processStore.Save(ctx, snapshot, snapshot.Revision)
-		if saveErr != nil {
-			unlockProcessTree(tree)
-			return 0, saveErr
-		}
-		if !tree[index].state.commitRevision(snapshot.Revision, revision) {
-			unlockProcessTree(tree)
-			return 0, &core.RevisionConflictError{
-				ProcessID: tree[index].ID(),
-				Expected:  snapshot.Revision,
-				Actual:    tree[index].state.snapshotRevision(),
-			}
-		}
-		revisions[index] = revision
-	}
-
 	var cleanup []string
-	for _, current := range tree {
-		cleanup = append(cleanup, current.takeNestedChildCleanup()...)
-	}
+	collectNestedChildCleanup(tree, &cleanup)
 	unlockProcessTree(tree)
 	for _, childID := range cleanup {
 		e.discardProcessTree(ctx, childID)
 	}
-	return revisions[0], nil
+	return revision, nil
 }
 
-func (e *Engine) lockProcessTree(process *Process, visited map[string]struct{}) ([]*Process, error) {
+type lockedProcessTree struct {
+	process   *Process
+	relations []*nestedChildRelation
+	children  []*lockedProcessTree
+	snapshot  core.ProcessSnapshot
+}
+
+func (e *Engine) lockProcessTree(process *Process, visited map[string]struct{}) (*lockedProcessTree, error) {
 	if process == nil {
 		return nil, errors.New("runtime.Engine.saveProcess: process is nil")
 	}
@@ -297,36 +269,96 @@ func (e *Engine) lockProcessTree(process *Process, visited map[string]struct{}) 
 	}
 	visited[process.ID()] = struct{}{}
 	process.checkpointMu.Lock()
-	relation, err := nestedRelationFromSuspension(process.Suspension())
+	checkpoint, err := nestedChildrenFromSuspension(process.Suspension())
 	if err != nil {
 		process.checkpointMu.Unlock()
 		return nil, err
 	}
-	if relation == nil {
-		return []*Process{process}, nil
+
+	tree := &lockedProcessTree{
+		process:   process,
+		relations: checkpoint.relations,
+		children:  make([]*lockedProcessTree, 0, len(checkpoint.relations)),
 	}
-	child, ok := e.Process(relation.ChildID)
-	if !ok {
-		process.checkpointMu.Unlock()
-		return nil, fmt.Errorf("%w: nested child process %q is missing", core.ErrInvalidSnapshot, relation.ChildID)
+	for _, relation := range checkpoint.relations {
+		child, ok := e.Process(relation.ChildID)
+		if !ok {
+			unlockProcessTree(tree)
+			return nil, fmt.Errorf("%w: nested child process %q is missing", core.ErrInvalidSnapshot, relation.ChildID)
+		}
+		childTree, lockErr := e.lockProcessTree(child, visited)
+		if lockErr != nil {
+			unlockProcessTree(tree)
+			return nil, fmt.Errorf("lock nested child %q: %w", child.ID(), lockErr)
+		}
+		tree.children = append(tree.children, childTree)
+		if err := validateNestedChildProcess(process, child, relation); err != nil {
+			unlockProcessTree(tree)
+			return nil, err
+		}
 	}
-	children, err := e.lockProcessTree(child, visited)
-	if err != nil {
-		process.checkpointMu.Unlock()
-		return nil, fmt.Errorf("lock nested child %q: %w", child.ID(), err)
-	}
-	if err := validateNestedChildProcess(process, child, relation); err != nil {
-		unlockProcessTree(children)
-		process.checkpointMu.Unlock()
-		return nil, err
-	}
-	return append([]*Process{process}, children...), nil
+	return tree, nil
 }
 
-func unlockProcessTree(tree []*Process) {
-	for index := len(tree) - 1; index >= 0; index-- {
-		tree[index].checkpointMu.Unlock()
+func captureLockedProcessTree(tree *lockedProcessTree) error {
+	if tree == nil || tree.process == nil {
+		return errors.New("runtime.Engine.saveProcess: locked process tree is incomplete")
 	}
+	snapshot, err := tree.process.snapshot()
+	if err != nil {
+		return err
+	}
+	tree.snapshot = snapshot
+	for index, child := range tree.children {
+		if err := captureLockedProcessTree(child); err != nil {
+			return err
+		}
+		if err := validateNestedChildSnapshot(tree.snapshot, child.snapshot, tree.relations[index]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *Engine) saveLockedProcessTree(ctx context.Context, tree *lockedProcessTree) (uint64, error) {
+	for _, child := range tree.children {
+		if _, err := e.saveLockedProcessTree(ctx, child); err != nil {
+			return 0, err
+		}
+	}
+	snapshot := tree.snapshot
+	revision, err := e.processStore.Save(ctx, snapshot, snapshot.Revision)
+	if err != nil {
+		return 0, err
+	}
+	if !tree.process.state.commitRevision(snapshot.Revision, revision) {
+		return 0, &core.RevisionConflictError{
+			ProcessID: tree.process.ID(),
+			Expected:  snapshot.Revision,
+			Actual:    tree.process.state.snapshotRevision(),
+		}
+	}
+	return revision, nil
+}
+
+func collectNestedChildCleanup(tree *lockedProcessTree, cleanup *[]string) {
+	if tree == nil {
+		return
+	}
+	*cleanup = append(*cleanup, tree.process.takeNestedChildCleanup()...)
+	for _, child := range tree.children {
+		collectNestedChildCleanup(child, cleanup)
+	}
+}
+
+func unlockProcessTree(tree *lockedProcessTree) {
+	if tree == nil {
+		return
+	}
+	for index := len(tree.children) - 1; index >= 0; index-- {
+		unlockProcessTree(tree.children[index])
+	}
+	tree.process.checkpointMu.Unlock()
 }
 
 // Restore loads a snapshot from the configured store and

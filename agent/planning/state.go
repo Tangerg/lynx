@@ -32,8 +32,8 @@ func newState(conditions core.ConditionSet) *State {
 	return state
 }
 
-// Conditions returns a defensive copy of the underlying map — A* mutates
-// result maps elsewhere, so the live map is never handed out.
+// Conditions returns a defensive copy so planner and extension code can never
+// mutate the live snapshot.
 func (s *State) Conditions() core.ConditionSet {
 	return maps.Clone(s.conditions)
 }

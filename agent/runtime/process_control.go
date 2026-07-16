@@ -38,7 +38,8 @@ func (c processControl) Suspend(ctx context.Context, suspension interaction.Susp
 		ctx = context.Background()
 	}
 	process := c.process
-	if err := process.validateNestedSuspension(suspension); err != nil {
+	nested, err := process.prepareNestedSuspension(suspension)
+	if err != nil {
 		process.state.recordFailure(err)
 		return core.ActionFailed, err
 	}
@@ -46,7 +47,7 @@ func (c processControl) Suspend(ctx context.Context, suspension interaction.Susp
 		process.state.recordFailure(err)
 		return core.ActionFailed, err
 	}
-	process.commitNestedSuspension()
+	process.commitNestedSuspension(nested)
 	process.publishEvent(ctx, event.ProcessWaiting{Header: process.eventHeader(), Suspension: process.Suspension()})
 	return core.ActionWaiting, nil
 }

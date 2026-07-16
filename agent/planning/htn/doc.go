@@ -16,9 +16,9 @@
 //   - the domain has a clear "way to do X" hierarchy (cooking
 //     recipes, build pipelines, multi-step tutorials)
 //   - method selection itself encodes domain expertise that's
-//     awkward to express as A*-friendly preconditions/effects
+//     awkward to express as flat GOAP preconditions/effects
 //   - you want bounded search depth — HTN runs O(method × subtask)
-//     instead of A*'s exponential state-space exploration.
+//     instead of GOAP's state-space exploration.
 //
 // The plan emitted is the linearised flat action sequence — the
 // runtime executes it the same way it executes any GOAP-produced plan.

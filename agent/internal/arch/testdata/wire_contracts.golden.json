@@ -108,7 +108,7 @@
     }
   ],
   "process_snapshot": {
-    "schema_version": 1,
+    "schema_version": 2,
     "revision": 7,
     "id": "process-1",
     "parent_id": "process-root",
@@ -147,9 +147,9 @@
       }
     ],
     "failure": "awaiting approval",
-    "cost": 0.0125,
-    "tokens": 321,
-    "model_calls": [
+    "own_cost": 0.0125,
+    "own_tokens": 321,
+    "own_model_calls": [
       {
         "timestamp": "2026-07-15T08:32:00.123Z",
         "model": "fixture-model",
@@ -162,7 +162,7 @@
         "action": "lookup"
       }
     ],
-    "embedding_calls": [
+    "own_embedding_calls": [
       {
         "timestamp": "2026-07-15T08:33:00.123Z",
         "model": "fixture-embedding",
@@ -215,10 +215,11 @@
     }
   },
   "toolloop_checkpoint": {
-    "schema_version": 1,
+    "schema_version": 2,
     "id": "approval-1",
     "round": 2,
     "max_rounds": 50,
+    "max_concurrent_calls": 8,
     "toolset_digest": "8f4d804e6c3d359b39e96baba43b430e1c81381ed321e8ce8e66bb32cb5e00f4",
     "request": {
       "messages": [
@@ -273,14 +274,30 @@
         }
       ]
     },
-    "results": [
+    "call_states": [
       {
-        "id": "call-1",
-        "name": "lookup",
-        "result": "deployed"
+        "status": "completed",
+        "result": {
+          "id": "call-1",
+          "name": "lookup",
+          "result": "deployed"
+        }
+      },
+      {
+        "status": "paused",
+        "pending": {
+          "id": "approval-1",
+          "reason": "operator approval required",
+          "prompt": {
+            "message": "operator approval required"
+          },
+          "resume_schema": {
+            "type": "string"
+          }
+        }
       }
     ],
-    "next_call": 1
+    "next_result": 1
   },
   "toolloop_events": [
     {
@@ -375,10 +392,11 @@
           "type": "string"
         },
         "checkpoint": {
-          "schema_version": 1,
+          "schema_version": 2,
           "id": "approval-1",
           "round": 2,
           "max_rounds": 50,
+          "max_concurrent_calls": 8,
           "toolset_digest": "8f4d804e6c3d359b39e96baba43b430e1c81381ed321e8ce8e66bb32cb5e00f4",
           "request": {
             "messages": [
@@ -433,14 +451,30 @@
               }
             ]
           },
-          "results": [
+          "call_states": [
             {
-              "id": "call-1",
-              "name": "lookup",
-              "result": "deployed"
+              "status": "completed",
+              "result": {
+                "id": "call-1",
+                "name": "lookup",
+                "result": "deployed"
+              }
+            },
+            {
+              "status": "paused",
+              "pending": {
+                "id": "approval-1",
+                "reason": "operator approval required",
+                "prompt": {
+                  "message": "operator approval required"
+                },
+                "resume_schema": {
+                  "type": "string"
+                }
+              }
             }
           ],
-          "next_call": 1
+          "next_result": 1
         }
       }
     },

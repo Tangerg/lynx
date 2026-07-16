@@ -27,7 +27,10 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 	if err != nil {
 		return interaction.Result{}, err
 	}
-	runner, err := toolloop.NewRunner(input.Model, toolloop.Config{MaxRounds: input.Limits.MaxRounds})
+	runner, err := toolloop.NewRunner(input.Model, toolloop.Config{
+		MaxRounds:          input.Limits.MaxRounds,
+		MaxConcurrentCalls: input.Limits.MaxConcurrentToolCalls,
+	})
 	if err != nil {
 		return interaction.Result{}, err
 	}
@@ -101,28 +104,31 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 			if boundary.Pause == nil || boundary.Pause.Checkpoint == nil {
 				return interaction.Result{}, interactionFailure(errors.New("runtime: tool loop paused without a checkpoint"))
 			}
-			nested := p.pendingNestedChild()
-			if nested != nil && (nested.SuspensionID != boundary.Pause.ID ||
-				!bytes.Equal(nested.Prompt, boundary.Pause.Prompt) ||
-				!bytes.Equal(nested.ResumeSchema, boundary.Pause.ResumeSchema)) {
+			nested, activeNested, err := p.nestedChildrenForCheckpoint(boundary.Pause.Checkpoint)
+			if err != nil {
+				return interaction.Result{}, interactionFailure(fmt.Errorf("runtime: correlate nested child checkpoint: %w", err))
+			}
+			if activeNested != nil && (activeNested.SuspensionID != boundary.Pause.ID ||
+				!bytes.Equal(activeNested.Prompt, boundary.Pause.Prompt) ||
+				!bytes.Equal(activeNested.ResumeSchema, boundary.Pause.ResumeSchema)) {
 				return interaction.Result{}, interactionFailure(fmt.Errorf("%w: nested child pause does not match tool-loop pause", interaction.ErrSuspensionConflict))
 			}
 			payload, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
-				SchemaVersion: suspensionCheckpointSchemaVersion,
-				Kind:          suspensionCheckpointInteraction,
-				Owner:         owner,
-				Deployment:    p.Deployment(),
-				Checkpoint:    boundary.Pause.Checkpoint,
-				NestedChild:   nested,
+				SchemaVersion:  suspensionCheckpointSchemaVersion,
+				Kind:           suspensionCheckpointInteraction,
+				Owner:          owner,
+				Deployment:     p.Deployment(),
+				Checkpoint:     boundary.Pause.Checkpoint,
+				NestedChildren: nested,
 			})
 			if err != nil {
 				return interaction.Result{}, interactionFailure(fmt.Errorf("runtime: encode interaction checkpoint: %w", err))
 			}
 			kind := interaction.SuspensionTool
 			createdAt := time.Now()
-			if nested != nil {
-				kind = nested.SuspensionKind
-				createdAt = nested.SuspensionCreatedAt
+			if activeNested != nil {
+				kind = activeNested.SuspensionKind
+				createdAt = activeNested.SuspensionCreatedAt
 			}
 			suspension := interaction.Suspension{
 				SchemaVersion: interaction.SuspensionSchemaVersion,
@@ -169,7 +175,12 @@ func validateInteraction(input core.Interaction) error {
 		return errors.New("runtime: managed interaction ID has surrounding whitespace")
 	}
 	limits := input.Limits
-	if limits.MaxRounds < 0 || limits.MaxSteps < 0 || limits.MaxModelCalls < 0 || limits.MaxTokens < 0 || limits.MaxCostUSD < 0 {
+	if limits.MaxRounds < 0 ||
+		limits.MaxConcurrentToolCalls < 0 ||
+		limits.MaxSteps < 0 ||
+		limits.MaxModelCalls < 0 ||
+		limits.MaxTokens < 0 ||
+		limits.MaxCostUSD < 0 {
 		return errors.New("runtime: managed interaction limits must not be negative")
 	}
 	return nil

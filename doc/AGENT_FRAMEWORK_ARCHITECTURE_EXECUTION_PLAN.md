@@ -1,8 +1,8 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：已完成（P0–P10 全部关闭；总计 97/97）
+> 状态：已完成（P11 确定性并发、恢复与规划正确性里程碑）
 > 建立日期：2026-07-15
-> 最后更新：2026-07-16
+> 最后更新：2026-07-17
 > 维护者：Lynx 仓库维护者
 > 适用范围：`agent`、直接支撑它的基础模块，以及 `app/runtime`、MCP/A2A 等直接消费者
 > Core 基线：`8ae840171`（Core 架构计划 73/73 关闭）
@@ -11,7 +11,7 @@
 
 上位约束是 [`../CLAUDE.md`](../CLAUDE.md)、[`../DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md) 和 [`../REFACTORING.md`](../REFACTORING.md)。Core 的稳定协议边界以 [`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md) 与 [`../core/CLAUDE.md`](../core/CLAUDE.md) 为准。本文只规划 Agent Framework，不重新打开已经关闭的 Core 架构重构。
 
-维护者已于 2026-07-16 明确授权 BB-01 至 BB-08、P9 命名/API 收敛与 P10 receiver 深挖的全部 breaking change：直接迁移，不保留兼容层；旧 ProcessSnapshot 按第 12.4.2 节策略丢弃。后续又明确授权形成开发提交；授权仍不包含 push、tag、release 或对外部数据库的即时操作。
+维护者已于 2026-07-16 明确授权 BB-01 至 BB-08、P9 命名/API 收敛与 P10 receiver 深挖的全部 breaking change：直接迁移，不保留兼容层；旧 ProcessSnapshot 按第 12.4.2 节策略丢弃。2026-07-17 又授权 P11 按第一法则直接修正并发、恢复和规划正确性，允许形成并推送开发提交；授权仍不包含 tag、release 或对外部数据库的即时操作。
 
 ---
 
@@ -1007,7 +1007,8 @@ func (p *Engine) Resume(processID, suspensionID string, response any) error
 - `Payload` 对 human suspension 保存 typed gather 所需数据，对 tool suspension 保存版本化 ToolLoop Checkpoint；resolver、closure、Process pointer 不进入 wire。
 - Resume 校验 process 状态、stable suspension ID、response schema 和重复响应。相同响应幂等；不同的第二次响应返回 `ErrSuspensionConflict`；过期 ID 返回 `ErrSuspensionStale`。
 - Resume 只持久化 response 并把 Process 变为可继续状态，不执行任意业务 handler。Host 再调用 Continue；普通 HITL action 从入口重入，`hitl.Interrupt[R]` 在同一 ID 读取并解码 durable response。
-- ToolLoop 恢复由 Checkpoint 的 `NextCall` 跳过 model 和已完成工具；toolset/deployment/policy digest 不匹配时拒绝。
+- ToolLoop 恢复由 Checkpoint v2 的 `CallStates` / `NextResult` 跳过 model 和已完成工具；
+  toolset/deployment/policy digest 不匹配时拒绝。
 - Suspension 只携带 JSON-safe data，不允许 callback、handler、Process pointer 或其他 executable state。
 - `ProcessWaiting` event 携带 Suspension；app 不使用 Blackboard key 保存 checkpoint 或 continuation error。
 
@@ -1608,6 +1609,56 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
 
 退出标准：领域实体和值对象拥有自身无 I/O 规则，Engine/Domain 的调用从 owner 出发；自由函数只保留无法或不应归属单一 receiver 的行为；公共面不因“充血”引入 builder、getter、伪对象或宽接口；全部门禁通过。
 
+### P11：确定性并发、恢复与规划正确性
+
+目标：恢复 ToolLoop 与子 Agent 的真实并发能力，同时把执行完成顺序和协议提交顺序彻底分离；消除旧 snapshot 聚合猜测，并修正 GOAP 对启发式可采纳性的错误假设。
+
+- [x] **P11-01 对照 Spring AI / Embabel 与历史实现定位能力差异**（完成：2026-07-17）
+  - 形成 [`AGENT_VS_EMBABEL.md`](./AGENT_VS_EMBABEL.md) 与
+    [`CORE_VS_SPRING_AI.md`](./CORE_VS_SPRING_AI.md)。
+  - 确认旧 conflict-aware tool concurrency 在 Managed Interaction 重写时丢失；
+    process-wide action concurrency 的删除则是正确决策，两者不能混同。
+- [x] **P11-02 实现 ToolLoop 有界 resource-key 并发与 checkpoint v2**（完成：2026-07-17）
+  - 工具默认独占，`ConcurrentTool` 显式声明并发与冲突 key；
+    `MaxConcurrentCalls` 限制执行宽度。
+  - `CallStates` / `NextResult` 支持同一批次多个 completed/paused call；
+    event、continuation 与 cache 输入按模型 tool-call 顺序提交。
+  - 工具 `Call` panic 收敛为 recoverable error ToolResult；并发 sibling 不丢失，
+    插件 goroutine 不得击穿 Host。
+- [x] **P11-03 将同步 AgentTool 单 child 链升级为 ToolCall 关联的 child forest**（完成：2026-07-17）
+  - 每次调用拥有隔离 child Process，以 exact `ToolCall.ID` 区分同名同参数调用。
+  - 多 child pause 按调用顺序持久化；恢复只推进当前分支，siblings 保持 parked。
+- [x] **P11-04 升级 ProcessSnapshot v2 为 direct-ledger wire**（完成：2026-07-17）
+  - `OwnCost` / `OwnTokens` / `OwnModelCalls` / `OwnEmbeddingCalls` 只记录当前 Process。
+  - Restore 通过 parent-child budget linkage 重建聚合，删除 suffix subtraction。
+- [x] **P11-05 修正 GOAP 最优性合同**（完成：2026-07-17）
+  - 采用确定性 uniform-cost search；动态 cost 在 transition 源 WorldState 上求值，
+    ScoreFunc 要求纯且确定。
+  - 删除无法感知动态 cost 依赖的 relevance pruning 与搜索后 action removal；
+    返回原始 predecessor path，保留只用于改变后续成本的动作。
+  - 有限非负 cost 下保证最小成本；负数、NaN、Inf 明确返回
+    `goap.ErrInvalidActionCost`。
+- [x] **P11-06 同步全部 consumer、API/wire baseline 与架构文档**（完成：2026-07-17）
+  - Managed Interaction 暴露 `MaxConcurrentToolCalls`；App fixture 和 wire inventory
+    迁移到 v2。
+  - Guide、migration、release notes、architecture review 和两份对照文档只描述当前事实。
+  - 最终 baseline 为 16 public package / 645 exported declaration / root façade 47/50；
+    16 个 exported JSON struct / 490 行 wire fixture。API/wire SHA-256 分别为
+    `5d7c9ac2eed7f546642b65f433c6a653160e90d0e1389752e2194b02269f97c4` 与
+    `6e6ba3b76c9f4c06093984d8c897585de95e2e19b550690ec349ddd6c18b793b`。
+- [x] **P11-07 执行完整 Agent/App/workspace gate 并形成里程碑提交**（完成：2026-07-17）
+  - Agent/App build、vet、test、lint、tidy；Agent full race、API/wire/arch；
+    App 高风险 race；`git diff --check`。
+  - 门禁全绿后记录最终 API/wire 数量与 hash，提交并 push；不创建 tag/release。
+  - Agent 常规四门禁与 full race 全绿；App 常规四门禁与
+    agentexec/toolset/runsegment/SQLite/bootstrap/architecture race 全绿；
+    workspace 84 项 build/vet/test/lint 全绿；两模块 tidy、API/wire/arch 与 diff
+    审计通过。
+
+退出标准：并发只在隔离或显式声明安全的边界发生；所有可观察协议按稳定顺序提交；
+pause/restart 不重放已完成工作；snapshot 不保存跨进程聚合猜测；planner 的最优性合同与
+算法一致；全部门禁通过。
+
 ---
 
 ## 15. 当前进度
@@ -1627,14 +1678,16 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
 | P8 公共模型收敛 | 完成 | 14/14 | config/只读聚合/显式 Action error/API 内收/消费者/文档与完整 release gate 全部完成 |
 | P9 Go API 语义化收口 | 完成 | 15/15 | 代码、consumer、文档、API/wire/deployment baseline 与完整 Agent/App gate 全部统一 |
 | P10 Owner Receiver 精修 | 完成 | 7/7 | 公私有 owner method、deployment compiler、文件职责、API/文档与完整 Agent/App gate 全部完成 |
-| **总计** | **完成** | **97/97（100%）** | **P0–P10 全部关闭；发布动作仍需单独授权** |
+| P11 确定性并发与恢复 | 完成 | 7/7 | 并发、恢复、snapshot、GOAP、consumer、文档与完整门禁全部收口 |
+| **总计** | **完成** | **104/104（100%）** | **P0–P11 全部关闭** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P10 Owner Receiver 与充血模型精修已完成，7/7。
-- 下一任务：无；后续改动按 API/wire/SemVer 治理另行立项。
+- 当前阶段：P11 确定性并发、恢复与规划正确性，7/7，里程碑关闭。
+- 下一任务：无。后续若发布 tag/release 或迁移外部持久数据，需单独授权。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：P10-06/P10-07 私有 owner 深挖与完整复验；公开 API 仍为 16 package / 628 declaration / root 46，wire 仍为 14 struct / 456 行。已形成开发提交，未执行 tag、push 或 release。
+- 最近完成：ToolLoop checkpoint v2、有界 resource-key 并发、AgentTool child forest、
+  ProcessSnapshot v2、严格 GOAP uniform-cost path 与完整 Agent/App/workspace gate。
 
 ### 15.3 进度更新规则
 
@@ -1719,12 +1772,21 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
 ### ADR-AF-008：并发不允许共享写随机胜出
 
 - 状态：已接受并实现。
-- 决策：删除 process-wide action 并发；workflow fan-out 使用隔离 branch、稳定 index join，禁止 branch 控制父 Process。未来并行提交 action 必须另开 snapshot/patch ADR。
+- 决策：删除 process-wide action 并发；workflow fan-out 使用隔离 branch、稳定 index
+  join，禁止 branch 控制父 Process。ToolLoop 并发不共享 Blackboard：只有工具显式
+  实现 `ConcurrentTool` 才可重叠，同 resource key 串行，结果仍按模型调用顺序提交。
+  未来并行提交 action 必须另开 snapshot/patch ADR。
 
 ### ADR-AF-009：持久化先说真话，再扩展能力
 
 - 状态：已接受并实现。
-- 决策：Snapshot v1 与 CAS 已实现，但 CAS 只防 lost update，不授予执行所有权。本批不增加没有真实多节点调度消费者的 claim/lease SPI；Engine 明确假设一个 Process 同时只有一个 active owner，并只承诺单 active owner 下的本机/单节点重启恢复。Host 要做跨节点 handoff，必须先在框架外提供 lease 或 fencing token，并在失去所有权后阻止旧 worker 继续执行/提交。不可序列化 durable state 必须失败，transient state 必须显式标记。
+- 决策：Snapshot v2 与 CAS 已实现，但 CAS 只防 lost update，不授予执行所有权。
+  Snapshot 只保存当前 Process 的 direct ledger，聚合由恢复后的 child linkage 计算。
+  本批不增加没有真实多节点调度消费者的 claim/lease SPI；Engine 明确假设一个 Process
+  同时只有一个 active owner，并只承诺单 active owner 下的本机/单节点重启恢复。Host
+  要做跨节点 handoff，必须先在框架外提供 lease 或 fencing token，并在失去所有权后
+  阻止旧 worker 继续执行/提交。不可序列化 durable state 必须失败，transient state
+  必须显式标记。
 
 ### ADR-AF-010：根 agent 是用户门面，内部 DAG 保留
 
@@ -1760,12 +1822,26 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
 - 例外：构造器、从 wire 无中生有的 decode、跨多个类型共享的组装、跨包类型 helper、请求/响应 DTO、运行结果记录，以及需要按多种类型实例化的泛型算法继续保留自由函数。
 - 克制边界：不把 receiver 数量、自由函数数量或“充血程度”当指标；没有真实 owner 的行为不制造伪对象，不为挂方法新增 service/manager/context carrier。
 
+### ADR-AF-015：并发完成顺序不能成为协议提交顺序
+
+- 状态：已接受并在 P11 实现。
+- 决策：ToolLoop 可以并发执行显式声明安全的调用，但 ToolResult event、下一轮 model
+  request、checkpoint cursor 和 nested child relation 必须按模型原始 tool-call 顺序提交。
+  同一 model round 的 AgentTool child 用 exact `ToolCall.ID` 关联并持久化为有序 forest。
+- 理由：goroutine 完成顺序受调度和外部延迟影响，若直接写入 history/cache/checkpoint，
+  同一请求会产生不稳定 cache key、不可复现 replay 和错误的 child resume 关联。
+- 限制：有序提交不等于外部副作用有序。工具若对同一资源存在顺序依赖，必须保持独占
+  或返回同一 resource key；框架不伪造 exactly-once。
+
 ---
 
 ## 18. 变更日志
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-17 | 完成 P11-07 并关闭 104/104：最终复核发现 state-dependent cost 下 relevance pruning/post-search action removal 不安全，删除两类剪枝并补“只影响后续成本”反例；随后 Agent 常规/full race、App 常规/高风险 race、workspace 84 项门禁、tidy、API/wire/arch 和 diff 审计全绿；形成并推送里程碑提交，不创建 tag/release | Codex |
+| 2026-07-17 | 完成 P11-06：迁移 App consumer 与 fixture，刷新 16 package / 645 declaration / root 47 的 API baseline 和 16 struct / 490 行 wire fixture；Guide、migration、release notes、architecture review、模块维护规则及 Spring AI/Embabel 对照统一到“显式安全并发、模型顺序提交、checkpoint 固定执行宽度”的当前事实 | Codex |
+| 2026-07-17 | 启动并完成 P11-01 至 P11-05：对照 Spring AI/Embabel 与历史实现，恢复 ToolLoop 有界 resource-key 并发和 checkpoint v2，将同步 AgentTool 单链升级为 ToolCall 关联 child forest，ProcessSnapshot 升级为 direct-ledger v2，GOAP 改为确定性 uniform-cost search；待 API/wire/docs 与完整门禁收口 | Codex |
 | 2026-07-16 | 完成 P10-06/P10-07：深挖生产私有函数，把泛型重复类型参数、单 owner 策略、状态派生和结果编码收回 receiver；引入私有 `deploymentCompiler` 并重命名文件；生产包级私有自由函数 140→92，API/wire 不变，Agent/App/workspace 完整门禁全绿；P10 7/7、总计 97/97 关闭 | Codex |
 | 2026-07-16 | 完成 P10-05：Agent 全量 build/vet/test/lint/tidy/race/API/wire/arch、App 全量常规门禁与高风险 race、旧函数扫描和 diff check 全绿；P10 5/5、总计 95/95 关闭 | Codex |
 | 2026-07-16 | 完成 P10-01 至 P10-04：按 owner 审计收回 Agent durable codec、Domain planning templates、Engine goal tools、ToolGroup 合同与若干私有派生行为；迁移全部 consumer/docs/API baseline；当前 94/95，待完整 gate | Codex |
@@ -1803,6 +1879,9 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-17 | P11-07 | 最终算法复核删除动态 cost 下不安全的 relevance/post-search pruning，并由反例固定 predecessor path 合同。Agent `build/vet/test/lint` 与 full race 全绿；App `build/vet/test/lint`、agentexec/toolset/runsegment/SQLite/bootstrap/architecture race 全绿；workspace 84 项常规门禁全绿；Agent/App tidy、API/wire/arch、`git diff --check` 通过 | 无；104/104 关闭。仅执行授权的 commit/push，不 tag/release |
+| 2026-07-17 | P11-06 | Managed Interaction/App consumer、API/wire inventory 与 fixture 全部迁移到新语义；模块 CLAUDE、Guide、migration、release notes、architecture review 和两份对照文档同步。API baseline 为 16 package/645 declaration/root 47，SHA-256 `5d7c9ac2eed7f546642b65f433c6a653160e90d0e1389752e2194b02269f97c4`；wire 为 16 struct/490 行，SHA-256 `6e6ba3b76c9f4c06093984d8c897585de95e2e19b550690ec349ddd6c18b793b`；`internal/arch` 全绿 | P11-07 完整 Agent/App/workspace gate、提交并 push |
+| 2026-07-17 | P11-01 至 P11-05 | 新增两份对照分析；ToolLoop 工具默认独占、显式并发、resource-key 冲突和最大宽度均有确定性 channel 测试，完成乱序但 event/continuation 按调用顺序；checkpoint v2 支持多个 completed/paused call。AgentTool 用 exact ToolCallID 并发启动同名同参 child，child forest 跨 snapshot/new Engine 恢复并依次 resume。ProcessSnapshot v2 只保存 Own* ledger。GOAP 多 effect counterexample、state-dependent transition cost 与 invalid-cost table tests 通过 | P11-06 更新 consumer/API/wire/docs；P11-07 跑完整 gate、提交并 push |
 | 2026-07-16 | P10-06/P10-07 | `FuncAction`、`DependencyKey`、Agent/durable DTO、planner/HTN/routing/event、Process/Engine extension dispatch、agent tools 与 ToolLoop state 的单 owner 私有行为完成 receiver 化或内联；deployment canonical 编译聚合为私有 `deploymentCompiler`，文件改为 `deployment_compiler.go`。生产包级私有自由函数 140→92；剩余项均有保留分类。Agent build/vet/test/lint/full race、workspace 84 项常规门禁、App 高风险 race、两模块 tidy、API/wire/arch、旧符号扫描和 diff check 全绿；API/wire hash 不变 | 无；97/97 关闭。tag/push/release 仍需维护者单独授权 |
 | 2026-07-16 | P10-05 | Agent `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`golangci-lint run ./...`、`go mod tidy -diff`、`go test -race -count=1 ./...` 与 `internal/arch` 全绿；App build/vet/test/lint/tidy 全绿，agentexec/toolset/runsegment/SQLite/bootstrap/architecture race 全绿；API/wire hash 稳定，旧自由函数生产扫描和 `git diff --check` 无输出 | 无；95/95 关闭。tag/push/release 仍需维护者单独授权 |
 | 2026-07-16 | P10-01 至 P10-04 | 删除以 Agent/Domain/Engine/permission slice 为首参的 10 个自由函数，新增 12 个明确 owner method；ActionMetadata/GoalTool/Session/State/Process 私有行为同步收回。Agent/planning/runtime/workflow 定向测试通过；API 为 16 package/628 declaration/root 46，SHA-256 `b141e3b420575e9b5f3fd9c03a3539b5bbc55ff6754c5ed60a614ceafae24a39`；wire 未变 | P10-05 完整 Agent/App gate、旧符号扫描、diff check 后提交 |

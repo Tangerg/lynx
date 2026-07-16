@@ -40,6 +40,10 @@ lynx/
 - [`../DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md) — 设计哲学的"为什么"：薄核 + 三形态变体 + 窄腰 + 一个扩展机制 + 基础能力优先库化 + 生命周期框架显式化
 - [`../REFACTORING.md`](../REFACTORING.md) — 落手重构的标尺（触发信号 + Fowler 式清单 + 节奏纪律）
 
+**移植对照（本目录）**
+- [`CORE_VS_SPRING_AI.md`](./CORE_VS_SPRING_AI.md) — `core` 对 Spring AI（`spring-ai-model`/`commons`/`client-chat`/`vector-store`）的逐块对照：泛型骨架/builder/Advisor 链/ANTLR/retry 分类 → tagged-value/值语义/`iter.Seq2`/能力对称 middleware/手写 scanner/边界 `Validate`；收敛处与分歧处及**为什么**
+- [`AGENT_VS_EMBABEL.md`](./AGENT_VS_EMBABEL.md) — `agent` 对 Embabel 的逐块对照：GOAP 规划主干收敛，工程形态全盘重决策（注解扫描/Spring 容器/SpEL/ThreadLocal → 显式装配/类型分发 Extension/Go 泛型/`context.Context`/外科手术式 resume），并校准双方 planner、多态 dataflow 与并发能力差异
+
 **框架设计（本目录）**
 - [`CORE_GETTING_STARTED.md`](./CORE_GETTING_STARTED.md) — 当前 API 的最小同步/流式/typed tool/tool-loop/pause-resume/structured output 上手路径
 - [`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md) — Core 长期架构演进的唯一执行基准：目标边界、阶段任务、验收标准、进度、风险与 ADR

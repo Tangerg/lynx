@@ -13,6 +13,6 @@
 //     runs)
 //   - actions are inherently incremental (chat agents, monitoring
 //     loops) and the goal is "make progress, then re-evaluate"
-//   - the action space is too large for A* but you still want goal-
+//   - the action space is too large for exhaustive GOAP search but you want goal-
 //     directed behavior
 package reactive

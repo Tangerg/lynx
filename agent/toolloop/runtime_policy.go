@@ -36,6 +36,16 @@ func (t directRuntimeTool) Call(ctx context.Context, arguments string) (string, 
 	return t.Tool.Call(ctx, arguments)
 }
 
+// ConcurrencyKey preserves the wrapped tool's optional scheduling contract.
+// A policy decorator must not accidentally turn an isolated/read-only tool
+// into an exclusive one.
+func (t directRuntimeTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+	if capability, ok := t.Tool.(ConcurrentTool); ok {
+		return capability.ConcurrencyKey(arguments)
+	}
+	return "", false
+}
+
 func returnsDirectRuntime(tool tools.Tool) bool {
 	direct, ok := tool.(returnDirectMarker)
 	return ok && direct.ReturnsDirect()

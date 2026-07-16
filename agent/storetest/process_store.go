@@ -68,7 +68,7 @@ func TestProcessStore(ctx context.Context, store core.ProcessStore) error {
 	var wait sync.WaitGroup
 	for tokens := 1; tokens <= 2; tokens++ {
 		candidate := again
-		candidate.Tokens = tokens
+		candidate.OwnTokens = tokens
 		wait.Add(1)
 		go func() {
 			defer wait.Done()

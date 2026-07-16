@@ -160,6 +160,10 @@ type Observer func(context.Context, Event) error
 // dimension unbounded; negative values are invalid.
 type Limits struct {
 	MaxRounds int
+	// MaxConcurrentToolCalls caps conflict-free tool calls executing at once
+	// in one model round. Zero selects the tool-loop default. Exclusive tools
+	// and calls sharing a non-empty resource key still serialize.
+	MaxConcurrentToolCalls int
 	// MaxSteps caps model rounds in this one managed interaction.
 	MaxSteps int
 	// MaxModelCalls caps cumulative model calls already recorded by this

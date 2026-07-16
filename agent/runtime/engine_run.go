@@ -236,9 +236,9 @@ func (e *Engine) Resume(id, suspensionID string, response any) error {
 	return nil
 }
 
-// resumeProcess records one response from the deepest waiting child back to
-// the requested parent. Locks are acquired root → leaf, matching the process
-// tree's existing accounting traversal and avoiding child → parent cycles.
+// resumeProcess records one response along the active nested-child branch back
+// to the requested parent. Sibling children remain parked. Locks are acquired
+// root → leaf, matching save traversal and avoiding child → parent cycles.
 func (e *Engine) resumeProcess(process *Process, suspensionID string, response any, visited map[string]struct{}) error {
 	if process == nil {
 		return errors.New("resume process: process is nil")
@@ -257,10 +257,11 @@ func (e *Engine) resumeProcess(process *Process, suspensionID string, response a
 	if _, err := suspension.ValidateResponse(response); err != nil {
 		return err
 	}
-	relation, err := nestedRelationFromSuspension(suspension)
+	checkpoint, err := nestedChildrenFromSuspension(suspension)
 	if err != nil {
 		return err
 	}
+	relation := checkpoint.active
 	if relation != nil {
 		child, ok := e.Process(relation.ChildID)
 		if !ok {

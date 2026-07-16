@@ -1,6 +1,7 @@
-// Package goap implements the A* GOAP planner — the default planner for
-// the agent runtime. It searches from the current world state to a state
-// that satisfies the goal's preconditions, using "number of unsatisfied
-// goal conditions" as an admissible heuristic (so A* is guaranteed to find
-// an optimal plan).
+// Package goap implements the default goal-oriented action planner. It uses
+// deterministic uniform-cost search (A* with h=0), which finds a cheapest plan
+// for finite non-negative action costs without assuming domain-specific cost
+// lower bounds. It preserves the search path exactly: ScoreFunc may depend on
+// any world-state condition, so relevance pruning or post-search action removal
+// would not be generally cost-safe.
 package goap

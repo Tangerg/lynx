@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -106,7 +105,7 @@ func (e *Engine) RestoreResumable(ctx context.Context, processID string, options
 
 type resumableProcessTree struct {
 	snapshot core.ProcessSnapshot
-	child    *resumableProcessTree
+	children []*resumableProcessTree
 }
 
 func (e *Engine) loadResumableTree(
@@ -135,21 +134,21 @@ func (e *Engine) loadResumableTree(
 	}
 
 	tree := &resumableProcessTree{snapshot: snapshot}
-	relation, relationErr := nestedRelationFromSuspension(snapshot.Suspension)
+	checkpoint, relationErr := nestedChildrenFromSuspension(snapshot.Suspension)
 	if relationErr != nil {
 		return nil, relationErr, nil
 	}
-	if relation == nil {
-		return tree, nil, nil
+	tree.children = make([]*resumableProcessTree, 0, len(checkpoint.relations))
+	for _, relation := range checkpoint.relations {
+		childTree, childLoss, childErr := e.loadResumableTree(ctx, relation.ChildID, visited, false)
+		if childErr != nil || childLoss != nil {
+			return nil, childLoss, childErr
+		}
+		if err := validateNestedChildSnapshot(snapshot, childTree.snapshot, relation); err != nil {
+			return nil, err, nil
+		}
+		tree.children = append(tree.children, childTree)
 	}
-	childTree, childLoss, childErr := e.loadResumableTree(ctx, relation.ChildID, visited, false)
-	if childErr != nil || childLoss != nil {
-		return nil, childLoss, childErr
-	}
-	if err := validateNestedChildSnapshot(snapshot, childTree.snapshot, relation); err != nil {
-		return nil, err, nil
-	}
-	tree.child = childTree
 	return tree, nil, nil
 }
 
@@ -200,11 +199,6 @@ func (e *Engine) restoreResumableTree(
 		return nil, errors.New("runtime: resumable process tree is nil")
 	}
 	snapshot := tree.snapshot
-	if tree.child != nil {
-		if err := subtractChildSnapshotAggregate(&snapshot, tree.child.snapshot); err != nil {
-			return nil, err
-		}
-	}
 	previous, _ := e.Process(snapshot.ID)
 	process, err := e.RestoreSnapshot(snapshot, options)
 	if err != nil {
@@ -219,15 +213,14 @@ func (e *Engine) restoreResumableTree(
 		parent.budget.addChild(process)
 		*links = append(*links, restoredProcessLink{parent: parent, child: process})
 	}
-	if tree.child == nil {
-		return process, nil
-	}
-	childOptions, err := restoredChildOptions(ctx, process, e, tree.child.snapshot.Deployment)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := e.restoreResumableTree(ctx, tree.child, childOptions, process, restored, links); err != nil {
-		return nil, err
+	for _, childTree := range tree.children {
+		childOptions, err := restoredChildOptions(ctx, process, e, childTree.snapshot.Deployment)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := e.restoreResumableTree(ctx, childTree, childOptions, process, restored, links); err != nil {
+			return nil, err
+		}
 	}
 	return process, nil
 }
@@ -250,49 +243,15 @@ func restoredChildOptions(
 	return options, nil
 }
 
-func subtractChildSnapshotAggregate(parent *core.ProcessSnapshot, child core.ProcessSnapshot) error {
-	if parent == nil {
-		return errors.New("runtime: cannot rebase nil parent snapshot")
-	}
-	parent.Cost -= child.Cost
-	if parent.Cost < 0 && parent.Cost > -1e-9 {
-		parent.Cost = 0
-	}
-	parent.Tokens -= child.Tokens
-	if parent.Cost < 0 || parent.Tokens < 0 {
-		return errors.New("runtime: child usage exceeds parent subtree snapshot")
-	}
-	var err error
-	parent.ModelCalls, err = stripSnapshotCallSuffix(parent.ModelCalls, child.ModelCalls)
-	if err != nil {
-		return fmt.Errorf("runtime: rebase parent model calls: %w", err)
-	}
-	parent.EmbeddingCalls, err = stripSnapshotCallSuffix(parent.EmbeddingCalls, child.EmbeddingCalls)
-	if err != nil {
-		return fmt.Errorf("runtime: rebase parent embedding calls: %w", err)
-	}
-	return nil
-}
-
-func stripSnapshotCallSuffix[T comparable](all, suffix []T) ([]T, error) {
-	if len(suffix) == 0 {
-		return slices.Clone(all), nil
-	}
-	if len(suffix) > len(all) || !slices.Equal(all[len(all)-len(suffix):], suffix) {
-		return nil, errors.New("child call history is not the parent subtree suffix")
-	}
-	return slices.Clone(all[:len(all)-len(suffix)]), nil
-}
-
 // Snapshot captures the process's state into a portable
 // [core.ProcessSnapshot] suitable for handing to a [core.ProcessStore].
 // It waits for any active tick or suspension response to reach a framework
-// checkpoint boundary, then captures one internally consistent aggregate.
+// checkpoint boundary, then captures one internally consistent state.
 // No external state is mutated.
 //
 // Blackboard capture is strict: the blackboard must expose
 // [BlackboardSnapshotter], every durable value must be declared and JSON-safe,
-// and invalid aggregate state returns an error.
+// and invalid durable state returns an error.
 func (p *Process) Snapshot() (core.ProcessSnapshot, error) {
 	if p == nil {
 		return core.ProcessSnapshot{}, errors.New("runtime.Process.Snapshot: nil process")
@@ -303,19 +262,22 @@ func (p *Process) Snapshot() (core.ProcessSnapshot, error) {
 }
 
 func (p *Process) snapshot() (core.ProcessSnapshot, error) {
+	ownCost, ownTokens, ownModelCalls, ownEmbeddingCalls := p.budget.ownSnapshot()
 	snapshot := core.ProcessSnapshot{
-		SchemaVersion:  core.ProcessSnapshotSchemaVersion,
-		Revision:       p.state.snapshotRevision(),
-		ID:             p.ID(),
-		ParentID:       p.ParentID(),
-		Depth:          p.depth,
-		Deployment:     p.Deployment(),
-		StartedAt:      p.StartedAt(),
-		CapturedAt:     time.Now(),
-		Status:         p.Status(),
-		Suspension:     p.Suspension(),
-		ModelCalls:     p.ModelCalls(),
-		EmbeddingCalls: p.EmbeddingCalls(),
+		SchemaVersion:     core.ProcessSnapshotSchemaVersion,
+		Revision:          p.state.snapshotRevision(),
+		ID:                p.ID(),
+		ParentID:          p.ParentID(),
+		Depth:             p.depth,
+		Deployment:        p.Deployment(),
+		StartedAt:         p.StartedAt(),
+		CapturedAt:        time.Now(),
+		Status:            p.Status(),
+		Suspension:        p.Suspension(),
+		OwnCost:           ownCost,
+		OwnTokens:         ownTokens,
+		OwnModelCalls:     ownModelCalls,
+		OwnEmbeddingCalls: ownEmbeddingCalls,
 	}
 
 	if goal := p.Goal(); goal != nil {
@@ -324,10 +286,6 @@ func (p *Process) snapshot() (core.ProcessSnapshot, error) {
 	if err := p.Failure(); err != nil {
 		snapshot.Failure = err.Error()
 	}
-	cost, tokens, _ := p.Usage()
-	snapshot.Cost = cost
-	snapshot.Tokens = tokens
-
 	history := p.History()
 	if len(history) > 0 {
 		snapshot.History = make([]core.ActionRunSnapshot, len(history))
@@ -432,6 +390,9 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 	if err := process.state.restoreSuspension(snapshot.Suspension); err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: suspension: %w", err)
 	}
+	if err := process.restoreNestedSuspension(snapshot.Suspension); err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: nested suspension: %w", err)
+	}
 	if snapshot.GoalName != "" {
 		for _, goal := range agent.Goals() {
 			if goal.Name() == snapshot.GoalName {
@@ -453,7 +414,12 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 		})
 	}
 
-	process.budget.restore(snapshot.Cost, snapshot.Tokens, snapshot.ModelCalls, snapshot.EmbeddingCalls)
+	process.budget.restore(
+		snapshot.OwnCost,
+		snapshot.OwnTokens,
+		snapshot.OwnModelCalls,
+		snapshot.OwnEmbeddingCalls,
+	)
 
 	// Re-populate blackboard when the implementation supports it. The
 	// tagged values decode back to their concrete Go types via the type
