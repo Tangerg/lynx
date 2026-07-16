@@ -78,7 +78,9 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 	}
 
 	parts := make([]chat.Part, 0, len(images)+1)
-	parts = append(parts, chat.NewTextPart(message))
+	if message != "" {
+		parts = append(parts, chat.NewTextPart(message))
+	}
 	for _, image := range images {
 		parts = append(parts, chat.NewMediaPart(image))
 	}

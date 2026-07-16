@@ -195,6 +195,55 @@ func (s *slowStubEngine) StartTurn(ctx context.Context, _ agentexec.TurnRequest)
 	return cp
 }
 
+type capturedTurnRequest struct {
+	temperature      float64
+	frequencyPenalty float64
+	topK             int64
+	stop             string
+	mediaByte        byte
+}
+
+type delayedCaptureEngine struct {
+	stubEngine
+	entered  chan struct{}
+	release  chan struct{}
+	captured chan capturedTurnRequest
+}
+
+func newDelayedCaptureEngine() *delayedCaptureEngine {
+	return &delayedCaptureEngine{
+		entered:  make(chan struct{}),
+		release:  make(chan struct{}),
+		captured: make(chan capturedTurnRequest, 1),
+	}
+}
+
+func (e *delayedCaptureEngine) StartTurn(_ context.Context, request agentexec.TurnRequest) agentexec.TurnProcess {
+	close(e.entered)
+	<-e.release
+
+	captured := capturedTurnRequest{}
+	if request.Options != nil {
+		if request.Options.Temperature != nil {
+			captured.temperature = *request.Options.Temperature
+		}
+		if request.Options.FrequencyPenalty != nil {
+			captured.frequencyPenalty = *request.Options.FrequencyPenalty
+		}
+		if request.Options.TopK != nil {
+			captured.topK = *request.Options.TopK
+		}
+		if len(request.Options.Stop) > 0 {
+			captured.stop = request.Options.Stop[0]
+		}
+	}
+	if len(request.Media) > 0 && request.Media[0] != nil && len(request.Media[0].Source.Bytes) > 0 {
+		captured.mediaByte = request.Media[0].Source.Bytes[0]
+	}
+	e.captured <- captured
+	return newStubTurnProcess("delayed-capture", agentexec.TurnOutput{Reply: "ok"})
+}
+
 // fakeResolver returns a preset client, recording the provider/model it was
 // asked to resolve.
 type fakeResolver struct {

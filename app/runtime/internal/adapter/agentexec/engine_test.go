@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/media"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -91,6 +92,63 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 	}
 	if out.Reply != "done" {
 		t.Errorf("reply = %q, want %q", out.Reply, "done")
+	}
+}
+
+func TestEngine_RunChat_MediaOnlyInput(t *testing.T) {
+	stub := newStreamingStubModel("described image")
+	client, err := chatclient.New(stub)
+	if err != nil {
+		t.Fatalf("chat client: %v", err)
+	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
+
+	image, err := media.NewBytes("image/png", []byte{1, 2, 3})
+	if err != nil {
+		t.Fatalf("media.NewBytes: %v", err)
+	}
+	out, err := eng.runTurnSync(context.Background(), TurnRequest{Media: []*media.Media{image}})
+	if err != nil {
+		t.Fatalf("runTurnSync media-only input: %v", err)
+	}
+	if out.Reply != "described image" {
+		t.Fatalf("reply = %q, want described image", out.Reply)
+	}
+	messages := stub.capturedMessages()
+	if len(messages) != 2 || len(messages[1].Parts) != 1 || messages[1].Parts[0].Kind != chat.PartMedia {
+		t.Fatalf("model messages = %+v, want system plus media-only user message", messages)
+	}
+}
+
+func TestEngine_RunChat_TextAndMediaInput(t *testing.T) {
+	stub := newStreamingStubModel("described image")
+	client, err := chatclient.New(stub)
+	if err != nil {
+		t.Fatalf("chat client: %v", err)
+	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
+
+	image, err := media.NewBytes("image/png", []byte{1, 2, 3})
+	if err != nil {
+		t.Fatalf("media.NewBytes: %v", err)
+	}
+	if _, err := eng.runTurnSync(context.Background(), TurnRequest{
+		Message: "describe this",
+		Media:   []*media.Media{image},
+	}); err != nil {
+		t.Fatalf("runTurnSync text and media input: %v", err)
+	}
+	messages := stub.capturedMessages()
+	if len(messages) != 2 || len(messages[1].Parts) != 2 {
+		t.Fatalf("model messages = %+v, want system plus text-and-media user message", messages)
+	}
+	if messages[1].Parts[0].Kind != chat.PartText || messages[1].Parts[0].Text != "describe this" {
+		t.Fatalf("first user part = %+v, want text", messages[1].Parts[0])
+	}
+	if messages[1].Parts[1].Kind != chat.PartMedia {
+		t.Fatalf("second user part = %+v, want media", messages[1].Parts[1])
 	}
 }
 

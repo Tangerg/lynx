@@ -104,22 +104,11 @@ func validateOptions(options *corechat.Options) error {
 	if options == nil {
 		return nil
 	}
+	if err := options.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidTurnOptions, err)
+	}
 	if options.Model != "" {
 		return fmt.Errorf("%w: Options.Model must stay empty; use Provider and Model", ErrInvalidTurnOptions)
-	}
-	if options.MaxTokens != nil && *options.MaxTokens <= 0 {
-		return fmt.Errorf("%w: MaxTokens must be positive", ErrInvalidTurnOptions)
-	}
-	if options.Temperature != nil && (*options.Temperature < 0 || *options.Temperature > 2) {
-		return fmt.Errorf("%w: Temperature must be between 0 and 2", ErrInvalidTurnOptions)
-	}
-	if options.TopP != nil && (*options.TopP < 0 || *options.TopP > 1) {
-		return fmt.Errorf("%w: TopP must be between 0 and 1", ErrInvalidTurnOptions)
-	}
-	for _, stop := range options.Stop {
-		if stop == "" {
-			return fmt.Errorf("%w: Stop must not contain empty strings", ErrInvalidTurnOptions)
-		}
 	}
 	return nil
 }

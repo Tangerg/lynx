@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/media"
 )
 
 // TestStubEngineDrivesTurn — confirms the turn dispatcher runs a full
@@ -328,5 +329,71 @@ func TestStartTurn_PassesOptions(t *testing.T) {
 	stub.mu.Unlock()
 	if got == nil || got.Temperature == nil || *got.Temperature != 0.7 {
 		t.Fatalf("engine options = %+v, want temperature 0.7", got)
+	}
+}
+
+func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
+	engine := newDelayedCaptureEngine()
+	dispatcher := mustTurn(turn.New(turnDeps(engine)))
+
+	image, err := media.NewBytes("image/png", []byte{1, 2, 3})
+	if err != nil {
+		t.Fatalf("media.NewBytes: %v", err)
+	}
+	temperature := 0.7
+	frequencyPenalty := 0.4
+	topK := int64(4)
+	options := &corechat.Options{
+		Temperature:      &temperature,
+		FrequencyPenalty: &frequencyPenalty,
+		TopK:             &topK,
+		Stop:             []string{"done"},
+	}
+	images := []*media.Media{image}
+	interruptKinds := []string{"approval"}
+
+	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+		SessionID:      "session",
+		Message:        "hello",
+		Media:          images,
+		Options:        options,
+		InterruptKinds: interruptKinds,
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	<-engine.entered
+
+	*options.Temperature = 1.4
+	*options.FrequencyPenalty = 1.5
+	*options.TopK = 8
+	options.Stop[0] = "changed"
+	image.Source.Bytes[0] = 9
+	images[0] = nil
+	interruptKinds[0] = "question"
+	close(engine.release)
+
+	events, err := dispatcher.Events(context.Background(), handle)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+	for range events {
+	}
+
+	captured := <-engine.captured
+	if captured.temperature != 0.7 {
+		t.Errorf("temperature = %v, want 0.7", captured.temperature)
+	}
+	if captured.frequencyPenalty != 0.4 {
+		t.Errorf("frequency penalty = %v, want 0.4", captured.frequencyPenalty)
+	}
+	if captured.topK != 4 {
+		t.Errorf("top k = %d, want 4", captured.topK)
+	}
+	if captured.stop != "done" {
+		t.Errorf("stop = %q, want done", captured.stop)
+	}
+	if captured.mediaByte != 1 {
+		t.Errorf("media byte = %d, want 1", captured.mediaByte)
 	}
 }

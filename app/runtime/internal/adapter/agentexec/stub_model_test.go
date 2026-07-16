@@ -237,10 +237,11 @@ func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 // configured Chunks one at a time so streaming-path tests can
 // assert that each chunk lands on OnMessageDelta independently.
 type streamingStubModel struct {
-	Chunks      []string
-	defaults    *chat.Options
-	mu          sync.Mutex
-	lastOptions *chat.Options
+	Chunks       []string
+	defaults     *chat.Options
+	mu           sync.Mutex
+	lastOptions  *chat.Options
+	lastMessages []chat.Message
 }
 
 func newStreamingStubModel(chunks ...string) *streamingStubModel {
@@ -279,6 +280,20 @@ func (m *streamingStubModel) captureOptions(req *chat.Request) {
 	defer m.mu.Unlock()
 	copy := req.Options.Clone()
 	m.lastOptions = &copy
+	m.lastMessages = make([]chat.Message, len(req.Messages))
+	for index := range req.Messages {
+		m.lastMessages[index] = req.Messages[index].Clone()
+	}
+}
+
+func (m *streamingStubModel) capturedMessages() []chat.Message {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	messages := make([]chat.Message, len(m.lastMessages))
+	for index := range m.lastMessages {
+		messages[index] = m.lastMessages[index].Clone()
+	}
+	return messages
 }
 
 // historyAwareStub remembers how many messages it saw on each Call.

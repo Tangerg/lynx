@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/chatclient"
-	"github.com/Tangerg/lynx/core/chat"
 )
 
 // runTurn starts the turn's agent process and drives its first run
@@ -41,12 +40,6 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 
 	observer := &turnObserver{dispatcher: s, st: st}
 	st.lifecycle = &turnLifecycle{sessionID: st.handle.SessionID, cwd: st.cwd, hooks: st.hooks}
-	var options *chat.Options
-	if request.Options != nil {
-		copy := *request.Options
-		copy.Stop = append([]string(nil), request.Options.Stop...)
-		options = &copy
-	}
 	process := s.engine.StartTurn(st.ctx, agentexec.TurnRequest{
 		SessionID:     request.SessionID,
 		Message:       request.Message,
@@ -56,7 +49,7 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 		MaxBudget:     request.MaxBudget,
 		MaxCostUSD:    request.MaxCostUSD,
 		MaxSteps:      request.MaxSteps,
-		Options:       options,
+		Options:       request.Options,
 		ChatClient:    client,
 		Observer:      observer,
 		EventListener: st.lifecycle.listener(st.handle.TurnID),
