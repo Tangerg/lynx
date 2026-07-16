@@ -34,7 +34,7 @@ var inputSchema, _ = pkgjson.StringDefSchemaOf(callInput{})
 // argument text as an A2A message and returns the agent's reply, so an
 // agent can delegate to a remote agent through the ordinary tool-calling
 // loop. A non-successful terminal task is mapped to [*RemoteAgentError] (use
-// errors.As) so a remote failure is not fed back as a successful result.
+// [errors.AsType]) so a remote failure is not fed back as a successful result.
 //
 // The wrapper is immutable after construction and does not own the client.
 type tool struct {

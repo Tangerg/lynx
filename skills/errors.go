@@ -26,7 +26,7 @@ var (
 	// characters.
 	ErrCompatibilityTooLong = errors.New("skills: compatibility exceeds 500 characters")
 
-	// ErrResourcePath means a requested resource path resolved outside its
-	// skill directory (traversal) or was otherwise not a valid relative path.
+	// ErrResourcePath means a requested lexical resource path escaped its
+	// skill directory or was otherwise not a valid relative path.
 	ErrResourcePath = errors.New("skills: resource path escapes the skill directory")
 )

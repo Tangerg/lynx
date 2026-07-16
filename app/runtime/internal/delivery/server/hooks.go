@@ -47,7 +47,7 @@ func (s *Server) WorkspaceSetHookTrust(ctx context.Context, in protocol.SetHookT
 	}
 	root, err := workspacepath.ResolveExistingDir(in.ProjectRoot)
 	if err != nil {
-		return fmt.Errorf("%w: %s: %v", protocol.ErrCwdUnavailable, in.ProjectRoot, err)
+		return fmt.Errorf("%w: %s: %w", protocol.ErrCwdUnavailable, in.ProjectRoot, err)
 	}
 	return s.workspace.SetProjectHookTrust(ctx, root, in.Trusted)
 }

@@ -3,6 +3,8 @@ package skills
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 )
@@ -132,5 +134,39 @@ func TestReadResource(t *testing.T) {
 func TestReadResourceRejectsNilSource(t *testing.T) {
 	if _, err := ReadResource(context.Background(), nil, "pdf-processing", "references/REFERENCE.md"); err == nil {
 		t.Fatal("nil source must error")
+	}
+}
+
+func TestDirRejectsResourceSymlinkEscapingRoot(t *testing.T) {
+	root := t.TempDir()
+	skillDir := filepath.Join(root, "safe-skill")
+	if err := os.MkdirAll(filepath.Join(skillDir, "references"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(skillDir, SkillFile),
+		[]byte("---\nname: safe-skill\ndescription: Safe skill.\n---\nbody"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	if err := os.WriteFile(outside, []byte("must not escape"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(skillDir, "references", "secret.txt")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("create symlink: %v", err)
+	}
+
+	if _, err := ReadResource(t.Context(), Dir(root), "safe-skill", "references/secret.txt"); err == nil {
+		t.Fatal("ReadResource followed a symlink outside the source root")
+	}
+}
+
+func TestNewFSRejectsNilFilesystemWithoutPanicking(t *testing.T) {
+	if _, err := NewFS(nil).List(t.Context()); !errors.Is(err, errNilFS) {
+		t.Fatalf("List error = %v, want errNilFS", err)
 	}
 }

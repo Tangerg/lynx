@@ -53,8 +53,7 @@ func (a *FuncAction[In, Out]) Execute(ctx context.Context, process *ProcessConte
 
 	output, err := a.fn(ctx, process, input)
 	if err != nil {
-		var suspended *interaction.SuspendedError
-		if errors.As(err, &suspended) {
+		if suspended, ok := errors.AsType[*interaction.SuspendedError](err); ok {
 			status, suspendErr := process.Suspend(ctx, suspended.Suspension)
 			if suspendErr != nil {
 				return ActionFailed, suspendErr

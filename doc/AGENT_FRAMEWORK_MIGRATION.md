@@ -298,7 +298,29 @@ if err := storetest.TestProcessStore(t.Context(), store); err != nil {
 
 旧 snapshot 不做兼容读取。开发环境迁移时：备份数据、终止依赖旧 snapshot 的非终态运行、清除旧 ProcessSnapshot、保留可独立解释的 Session 与 terminal history，然后只写当前 schema。
 
-## 11. 推荐执行顺序
+## 11. Event JSON
+
+直接 `json.Marshal(event.ProcessSnapshotFailed{...})` 的消费者需要切换到统一事件
+envelope：
+
+```json
+{
+  "kind": "process_snapshot_failed",
+  "timestamp": "...",
+  "process_id": "...",
+  "payload": {
+    "policy": "report_only",
+    "error": "store unavailable"
+  }
+}
+```
+
+该类型此前遗漏了自定义 marshaler，Go 默认编码无法输出 opaque Header，也会丢失
+`Err`。现在它满足 `event` package 对所有具体事件的既有契约。内存中的 concrete
+event、listener type switch 与 durable ProcessSnapshot 均不受影响；不要为旧的默认
+JSON shape 增加双写或兼容 wrapper。
+
+## 12. 推荐执行顺序
 
 1. 切换 Engine、DeploymentRef 与 Process 公共语言。
 2. 迁移 Agent/Goal config 与 Action/Binding。

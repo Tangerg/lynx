@@ -150,7 +150,7 @@ func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolv
 		nextCall: copy.NextCall,
 	}
 	if err := state.validateInput(); err != nil {
-		return nil, fmt.Errorf("%w: resumed request: %v", ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: resumed request: %w", ErrInvalidInput, err)
 	}
 	return state, nil
 }
@@ -332,8 +332,7 @@ func (s *runnerState) invokeTool(ctx context.Context, call chat.ToolCall, tool t
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return chat.ToolResult{}, nil, err
 	}
-	var suspended *interaction.SuspendedError
-	if errors.As(err, &suspended) {
+	if suspended, ok := errors.AsType[*interaction.SuspendedError](err); ok {
 		if validationErr := suspended.Suspension.Validate(); validationErr != nil {
 			return chat.ToolResult{}, nil, validationErr
 		}
@@ -344,16 +343,14 @@ func (s *runnerState) invokeTool(ctx context.Context, call chat.ToolCall, tool t
 			ResumeSchema: suspended.Suspension.ResumeSchema,
 		}, nil
 	}
-	var pause *PauseError
-	if errors.As(err, &pause) {
+	if pause, ok := errors.AsType[*PauseError](err); ok {
 		if validationErr := pause.validate(); validationErr != nil {
 			return chat.ToolResult{}, nil, validationErr
 		}
 		copy := *pause
 		return chat.ToolResult{}, &copy, nil
 	}
-	var abort *AbortError
-	if errors.As(err, &abort) {
+	if abort, ok := errors.AsType[*AbortError](err); ok {
 		if validationErr := abort.validate(); validationErr != nil {
 			return chat.ToolResult{}, nil, validationErr
 		}

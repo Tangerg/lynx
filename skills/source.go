@@ -43,7 +43,10 @@ type ResourceSource interface {
 var _ Source = (*fsSource)(nil)
 var _ ResourceSource = (*fsSource)(nil)
 
-var errNilSource = errors.New("skills: source must not be nil")
+var (
+	errNilFS     = errors.New("skills: filesystem must not be nil")
+	errNilSource = errors.New("skills: source must not be nil")
+)
 
 // fsSource implements [Source] over any fs.FS whose top-level entries are skill
 // directories (each holding a SKILL.md). Reads are lazy and per-call, so
@@ -53,13 +56,39 @@ type fsSource struct {
 }
 
 // NewFS returns a [ResourceSource] backed by fsys.
+//
+// NewFS trusts the confinement semantics of fsys. Use [Dir] for an operating
+// system directory that must reject symbolic links escaping its root.
 func NewFS(fsys fs.FS) ResourceSource {
+	if fsys == nil {
+		fsys = errorFS{err: errNilFS}
+	}
 	return &fsSource{fsys: fsys}
 }
 
 // Dir returns a [ResourceSource] backed by the directory rooted at root.
+// Every open is confined to root, including symbolic-link resolution.
 func Dir(root string) ResourceSource {
-	return &fsSource{fsys: os.DirFS(root)}
+	return &fsSource{fsys: rootedFS(root)}
+}
+
+// rootedFS confines each open to its root without retaining a directory
+// descriptor between calls. os.OpenInRoot also prevents symbolic links from
+// escaping root, which os.DirFS deliberately does not guarantee.
+type rootedFS string
+
+func (f rootedFS) Open(name string) (fs.File, error) {
+	return os.OpenInRoot(string(f), name)
+}
+
+// errorFS turns constructor misuse into an ordinary operation error instead
+// of a nil-interface panic.
+type errorFS struct {
+	err error
+}
+
+func (f errorFS) Open(string) (fs.File, error) {
+	return nil, f.err
 }
 
 // List returns a summary for every valid skill directory, sorted by name.
@@ -120,8 +149,9 @@ func (f *fsSource) load(name string) (*Skill, error) {
 
 // OpenResource opens a file bundled under a skill (e.g.
 // references/REFERENCE.md, scripts/run.py). The resource path is resolved
-// relative to the skill directory and must stay within it; traversal out of
-// the directory is rejected with [ErrResourcePath].
+// relative to the skill directory. Lexical traversal out of the directory is
+// rejected with [ErrResourcePath]; sources returned by [Dir] also reject
+// symbolic links that resolve outside the source root.
 func (f *fsSource) OpenResource(_ context.Context, name, resource string) (fs.File, error) {
 	if err := validName(name); err != nil {
 		return nil, err
@@ -148,13 +178,21 @@ func ReadResource(ctx context.Context, src ResourceSource, name, resource string
 	}
 	data, err := io.ReadAll(file)
 	closeErr := file.Close()
+	err = errors.Join(
+		resourceIOError("read", name, resource, err),
+		resourceIOError("close", name, resource, closeErr),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("skills: read resource %q/%q: %w", name, resource, err)
-	}
-	if closeErr != nil {
-		return nil, fmt.Errorf("skills: close resource %q/%q: %w", name, resource, closeErr)
+		return nil, err
 	}
 	return data, nil
+}
+
+func resourceIOError(operation, name, resource string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("skills: %s resource %q/%q: %w", operation, name, resource, err)
 }
 
 // validName guards that a skill name is a single path element, so it cannot

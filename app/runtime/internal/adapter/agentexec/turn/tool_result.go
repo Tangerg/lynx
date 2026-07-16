@@ -20,15 +20,23 @@ func toolOutputText(toolName string, result any) string {
 	if !strings.EqualFold(toolName, "shell") {
 		return ""
 	}
-	raw, _ := result.(map[string]any)
-	stdout, _ := raw["stdout"].(string)
-	stderr, _ := raw["stderr"].(string)
+	data, err := json.Marshal(result)
+	if err != nil {
+		return ""
+	}
+	var output struct {
+		Stdout string `json:"stdout"`
+		Stderr string `json:"stderr"`
+	}
+	if err := json.Unmarshal(data, &output); err != nil {
+		return ""
+	}
 	switch {
-	case stderr == "":
-		return stdout
-	case stdout == "":
-		return stderr
+	case output.Stderr == "":
+		return output.Stdout
+	case output.Stdout == "":
+		return output.Stderr
 	default:
-		return stdout + "\n" + stderr
+		return output.Stdout + "\n" + output.Stderr
 	}
 }

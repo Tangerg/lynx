@@ -121,7 +121,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, id)
 		}
 		if errors.Is(err, transcript.ErrIdentityConflict) {
-			return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+			return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 		}
 		return nil, wireSessionErr(err)
 	}
