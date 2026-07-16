@@ -120,7 +120,7 @@ func scheduleCwdFromWire(cwd string) (string, error) {
 	}
 	resolved, err := workspacepath.ResolveExistingDir(cwd)
 	if err != nil {
-		return "", fmt.Errorf("%w: %s: %v", protocol.ErrCwdUnavailable, cwd, err)
+		return "", fmt.Errorf("%w: %s: %w", protocol.ErrCwdUnavailable, cwd, err)
 	}
 	return resolved, nil
 }

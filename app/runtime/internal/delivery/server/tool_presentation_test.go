@@ -103,6 +103,9 @@ func TestToolResultPresenterPreservesPresentedAndUnknownResults(t *testing.T) {
 	if got := presentToolResult(transcript.ToolInvocation{Name: "vendor_tool", Result: raw}); !reflect.DeepEqual(got, raw) {
 		t.Fatalf("unknown result = %#v, want %#v", got, raw)
 	}
+	if got := presentToolResult(transcript.ToolInvocation{Name: "shell", Result: raw}); !reflect.DeepEqual(got, raw) {
+		t.Fatalf("unrecognized shell result = %#v, want raw result %#v", got, raw)
+	}
 }
 
 func TestToolActivity(t *testing.T) {

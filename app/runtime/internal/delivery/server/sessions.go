@@ -20,7 +20,7 @@ func wireSessionErr(err error) error {
 		return fmt.Errorf("%w: title must not be empty", protocol.ErrInvalidParams)
 	}
 	if errors.Is(err, session.ErrCwdUnavailable) {
-		return fmt.Errorf("%w: %v", protocol.ErrCwdUnavailable, err)
+		return fmt.Errorf("%w: %w", protocol.ErrCwdUnavailable, err)
 	}
 	return err
 }

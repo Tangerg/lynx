@@ -21,8 +21,8 @@ var (
 
 // RemoteAgentError reports that a remote A2A agent ended a task in a
 // non-successful terminal state (failed / rejected / canceled). It lets a
-// caller errors.As it apart from transport or protocol failures: the remote
-// was reached and answered, but the work did not succeed.
+// caller use [errors.AsType] to distinguish it from transport or protocol
+// failures: the remote was reached and answered, but the work did not succeed.
 type RemoteAgentError struct {
 	// State is the terminal task state the remote reported.
 	State sdka2a.TaskState

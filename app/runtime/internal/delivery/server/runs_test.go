@@ -106,6 +106,9 @@ func TestWireTurnStartErrMapsInvalidTurnLimit(t *testing.T) {
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("err = %v, want ErrInvalidParams", err)
 	}
+	if !errors.Is(err, runs.ErrInvalidTurnLimit) {
+		t.Fatalf("err = %v, want original ErrInvalidTurnLimit", err)
+	}
 }
 
 func TestGenerationOptionsFromWire(t *testing.T) {
@@ -139,6 +142,9 @@ func TestWireTurnStartErrMapsInvalidTurnOptions(t *testing.T) {
 	err := wireRunStartErr(runs.ErrInvalidTurnOptions)
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("err = %v, want ErrInvalidParams", err)
+	}
+	if !errors.Is(err, runs.ErrInvalidTurnOptions) {
+		t.Fatalf("err = %v, want original ErrInvalidTurnOptions", err)
 	}
 }
 

@@ -31,7 +31,7 @@ func (s *Server) workspaceRoot(cwd string) (string, error) {
 	}
 	resolved, err := workspacepath.ResolveExistingDir(root)
 	if err != nil {
-		return "", fmt.Errorf("%w: %s: %v", protocol.ErrCwdUnavailable, root, err)
+		return "", fmt.Errorf("%w: %s: %w", protocol.ErrCwdUnavailable, root, err)
 	}
 	return resolved, nil
 }

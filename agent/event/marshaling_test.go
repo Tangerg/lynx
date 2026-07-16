@@ -2,6 +2,7 @@ package event
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -65,5 +66,33 @@ func TestProcessCreatedMarshal_SummarizesOpaqueBindings(t *testing.T) {
 	}
 	if got.Payload.Bindings["input"] == "" {
 		t.Fatalf("bindings = %+v, want fallback string", got.Payload.Bindings)
+	}
+}
+
+func TestProcessSnapshotFailedMarshalUsesEventEnvelope(t *testing.T) {
+	raw, err := json.Marshal(ProcessSnapshotFailed{
+		Header: NewHeader("proc"),
+		Policy: "report_only",
+		Err:    errors.New("store unavailable"),
+	})
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+	var got struct {
+		Kind      string `json:"kind"`
+		ProcessID string `json:"process_id"`
+		Payload   struct {
+			Policy string `json:"policy"`
+			Error  string `json:"error"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if got.Kind != "process_snapshot_failed" || got.ProcessID != "proc" {
+		t.Fatalf("envelope = kind %q process %q", got.Kind, got.ProcessID)
+	}
+	if got.Payload.Policy != "report_only" || got.Payload.Error != "store unavailable" {
+		t.Fatalf("payload = %+v", got.Payload)
 	}
 }

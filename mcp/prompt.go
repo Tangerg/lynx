@@ -14,8 +14,8 @@ import (
 // dropped — the chat schema is text-first; richer content support
 // awaits a chat schema bump.
 //
-//	res, _ := session.GetPrompt(ctx, &mcp.GetPromptParams{Name: "..."})
-//	chatReq := client.Chat().WithMessages(mcp.PromptMessagesToChat(res.Messages)...)
+//	messages := PromptMessagesToChat(res.Messages)
+//	chatReq, err := chat.NewRequest(messages...)
 func PromptMessagesToChat(messages []*sdkmcp.PromptMessage) []chat.Message {
 	out := make([]chat.Message, 0, len(messages))
 	for _, msg := range messages {

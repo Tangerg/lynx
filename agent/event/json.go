@@ -1,5 +1,12 @@
 package event
 
+import (
+	"time"
+
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/interaction"
+)
+
 // JSON marshaling for every event type lives here, separate from the
 // type definitions in process.go / execution.go / planning.go /
 // engine.go. The split is an SRP move: event definitions describe
@@ -16,52 +23,110 @@ package event
 // engine events
 // ------------------------------------------------------------------
 
+type deploymentPayload struct {
+	Deployment core.DeploymentRef `json:"deployment"`
+}
+
 func (e AgentDeployed) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"deployment": e.Deployment})
+	return emit(e, deploymentPayload{Deployment: e.Deployment})
 }
 
 func (e AgentUndeployed) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"deployment": e.Deployment})
+	return emit(e, deploymentPayload{Deployment: e.Deployment})
 }
 
 // ------------------------------------------------------------------
 // process lifecycle
 // ------------------------------------------------------------------
 
+type processCreatedPayload struct {
+	Bindings map[string]any `json:"bindings"`
+}
+
 func (e ProcessCreated) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"bindings": summarizeMap(e.Bindings)})
+	return emit(e, processCreatedPayload{Bindings: summarizeMap(e.Bindings)})
+}
+
+type processCompletedPayload struct {
+	Goal   *goalSummary `json:"goal"`
+	Result any          `json:"result"`
 }
 
 func (e ProcessCompleted) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"goal": summarizeGoal(e.Goal), "result": summarizeValue(e.Result)})
-}
-
-func (e ProcessFailed) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"error": errString(e.Err)})
-}
-
-func (e ProcessStuck) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"state": summarizeWorldState(e.State)})
-}
-
-func (e ProcessWaiting) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"suspension": e.Suspension})
-}
-
-func (e InteractionBoundary) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{
-		"deployment":     e.Deployment,
-		"interaction_id": e.InteractionID,
-		"boundary":       e.Boundary,
+	return emit(e, processCompletedPayload{
+		Goal:   summarizeGoal(e.Goal),
+		Result: summarizeValue(e.Result),
 	})
 }
 
+type errorPayload struct {
+	Error string `json:"error"`
+}
+
+func (e ProcessFailed) MarshalJSON() ([]byte, error) {
+	return emit(e, errorPayload{Error: errString(e.Err)})
+}
+
+type worldStatePayload struct {
+	State *worldStateSummary `json:"state"`
+}
+
+func (e ProcessStuck) MarshalJSON() ([]byte, error) {
+	return emit(e, worldStatePayload{State: summarizeWorldState(e.State)})
+}
+
+type processWaitingPayload struct {
+	Suspension *interaction.Suspension `json:"suspension"`
+}
+
+func (e ProcessWaiting) MarshalJSON() ([]byte, error) {
+	return emit(e, processWaitingPayload{Suspension: e.Suspension})
+}
+
+type processSnapshotFailedPayload struct {
+	Policy string `json:"policy"`
+	Error  string `json:"error"`
+}
+
+func (e ProcessSnapshotFailed) MarshalJSON() ([]byte, error) {
+	return emit(e, processSnapshotFailedPayload{
+		Policy: e.Policy,
+		Error:  errString(e.Err),
+	})
+}
+
+type interactionBoundaryPayload struct {
+	Deployment    core.DeploymentRef `json:"deployment"`
+	InteractionID string             `json:"interaction_id"`
+	Boundary      interaction.Event  `json:"boundary"`
+}
+
+func (e InteractionBoundary) MarshalJSON() ([]byte, error) {
+	return emit(e, interactionBoundaryPayload{
+		Deployment:    e.Deployment,
+		InteractionID: e.InteractionID,
+		Boundary:      e.Boundary,
+	})
+}
+
+type reasonPayload struct {
+	Reason string `json:"reason"`
+}
+
 func (e ProcessKilled) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"reason": e.Reason})
+	return emit(e, reasonPayload{Reason: e.Reason})
+}
+
+type processTerminatedPayload struct {
+	Reason string `json:"reason"`
+	Scope  string `json:"scope"`
 }
 
 func (e ProcessTerminated) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"reason": e.Reason, "scope": e.Scope.String()})
+	return emit(e, processTerminatedPayload{
+		Reason: e.Reason,
+		Scope:  e.Scope.String(),
+	})
 }
 
 // ------------------------------------------------------------------
@@ -69,65 +134,117 @@ func (e ProcessTerminated) MarshalJSON() ([]byte, error) {
 // ------------------------------------------------------------------
 
 func (e PlanningStarted) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"state": summarizeWorldState(e.State)})
+	return emit(e, worldStatePayload{State: summarizeWorldState(e.State)})
+}
+
+type planCreatedPayload struct {
+	Plan *planSummary `json:"plan"`
 }
 
 func (e PlanCreated) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"plan": summarizePlan(e.Plan)})
+	return emit(e, planCreatedPayload{Plan: summarizePlan(e.Plan)})
+}
+
+type replanRequestedPayload struct {
+	Action string `json:"action"`
+	Reason string `json:"reason"`
 }
 
 func (e ReplanRequested) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"action": e.ActionName, "reason": e.Reason})
+	return emit(e, replanRequestedPayload{
+		Action: e.ActionName,
+		Reason: e.Reason,
+	})
 }
 
 // ------------------------------------------------------------------
 // action execution
 // ------------------------------------------------------------------
 
-func (e ActionStarted) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"action": actionName(e.Action), "started_at": e.StartedAt})
+type actionStartedPayload struct {
+	Action    string    `json:"action"`
+	StartedAt time.Time `json:"started_at"`
 }
 
-func (e ActionFinished) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{
-		"action":      actionName(e.Action),
-		"status":      e.Status.String(),
-		"duration_ns": e.Duration.Nanoseconds(),
-		"error":       errString(e.Err),
+func (e ActionStarted) MarshalJSON() ([]byte, error) {
+	return emit(e, actionStartedPayload{
+		Action:    actionName(e.Action),
+		StartedAt: e.StartedAt,
 	})
 }
 
+type actionFinishedPayload struct {
+	Action     string `json:"action"`
+	Status     string `json:"status"`
+	DurationNS int64  `json:"duration_ns"`
+	Error      string `json:"error"`
+}
+
+func (e ActionFinished) MarshalJSON() ([]byte, error) {
+	return emit(e, actionFinishedPayload{
+		Action:     actionName(e.Action),
+		Status:     e.Status.String(),
+		DurationNS: e.Duration.Nanoseconds(),
+		Error:      errString(e.Err),
+	})
+}
+
+type goalPayload struct {
+	Goal *goalSummary `json:"goal"`
+}
+
 func (e GoalAchieved) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"goal": summarizeGoal(e.Goal)})
+	return emit(e, goalPayload{Goal: summarizeGoal(e.Goal)})
 }
 
 // ------------------------------------------------------------------
 // Model and embedding calls
 // ------------------------------------------------------------------
 
+type modelCallPayload struct {
+	Model            string  `json:"model"`
+	Provider         string  `json:"provider"`
+	Cost             float64 `json:"cost"`
+	PromptTokens     int64   `json:"prompt_tokens"`
+	CompletionTokens int64   `json:"completion_tokens"`
+	ReasoningTokens  int64   `json:"reasoning_tokens"`
+	DurationNS       int64   `json:"duration_ns"`
+	Action           string  `json:"action"`
+}
+
 func (e ModelCallRecorded) MarshalJSON() ([]byte, error) {
 	call := e.Call
-	return emit(e, map[string]any{
-		"model":             call.Model,
-		"provider":          call.Provider,
-		"cost":              call.CostUSD,
-		"prompt_tokens":     call.PromptTokens,
-		"completion_tokens": call.CompletionTokens,
-		"reasoning_tokens":  call.ReasoningTokens,
-		"duration_ns":       call.Duration.Nanoseconds(),
-		"action":            call.ActionName,
+	return emit(e, modelCallPayload{
+		Model:            call.Model,
+		Provider:         call.Provider,
+		Cost:             call.CostUSD,
+		PromptTokens:     call.PromptTokens,
+		CompletionTokens: call.CompletionTokens,
+		ReasoningTokens:  call.ReasoningTokens,
+		DurationNS:       call.Duration.Nanoseconds(),
+		Action:           call.ActionName,
 	})
+}
+
+type embeddingCallPayload struct {
+	Model       string  `json:"model"`
+	Provider    string  `json:"provider"`
+	Cost        float64 `json:"cost"`
+	InputTokens int64   `json:"input_tokens"`
+	InputCount  int     `json:"input_count"`
+	DurationNS  int64   `json:"duration_ns"`
+	Action      string  `json:"action"`
 }
 
 func (e EmbeddingCallRecorded) MarshalJSON() ([]byte, error) {
 	call := e.Call
-	return emit(e, map[string]any{
-		"model":        call.Model,
-		"provider":     call.Provider,
-		"cost":         call.CostUSD,
-		"input_tokens": call.InputTokens,
-		"input_count":  call.InputCount,
-		"duration_ns":  call.Duration.Nanoseconds(),
-		"action":       call.ActionName,
+	return emit(e, embeddingCallPayload{
+		Model:       call.Model,
+		Provider:    call.Provider,
+		Cost:        call.CostUSD,
+		InputTokens: call.InputTokens,
+		InputCount:  call.InputCount,
+		DurationNS:  call.Duration.Nanoseconds(),
+		Action:      call.ActionName,
 	})
 }

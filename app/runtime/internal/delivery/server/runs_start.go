@@ -71,11 +71,11 @@ func wireRunStartErr(err error) error {
 	case errors.Is(err, runs.ErrIncompleteModelSelection):
 		return protocol.ErrInvalidParams
 	case errors.Is(err, runs.ErrInvalidTurnLimit):
-		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, runs.ErrInvalidTurnOptions):
-		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, runs.ErrUnsupportedMedia):
-		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, runs.ErrSessionBusy):
 		return protocol.ErrSessionBusy
 	case errors.Is(err, session.ErrNotFound):
@@ -129,7 +129,7 @@ func collectUserInput(blocks []protocol.ContentBlock) (string, []*media.Media, e
 			}
 			data, err := base64.StdEncoding.DecodeString(blk.Data)
 			if err != nil {
-				return "", nil, fmt.Errorf("%w: image block data is not valid base64: %v", protocol.ErrInvalidParams, err)
+				return "", nil, fmt.Errorf("%w: image block data is not valid base64: %w", protocol.ErrInvalidParams, err)
 			}
 			m, err := media.NewBytes(mt.TypeAndSubType(), data)
 			if err != nil {

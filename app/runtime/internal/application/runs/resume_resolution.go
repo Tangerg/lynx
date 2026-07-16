@@ -53,7 +53,7 @@ func resolveResumeResponses(pending interrupts.Pending, responses []ResumeRespon
 			err = fmt.Errorf("unknown open interrupt kind %d", interrupt.Kind)
 		}
 		if err != nil {
-			return interrupts.Resolution{}, fmt.Errorf("%w: item %q: %v", ErrInvalidInterruptResponse, response.ItemID, err)
+			return interrupts.Resolution{}, fmt.Errorf("%w: item %q: %w", ErrInvalidInterruptResponse, response.ItemID, err)
 		}
 		// The agent runtime currently parks one Suspension at a time. Keep that
 		// invariant explicit instead of silently discarding a second answer.

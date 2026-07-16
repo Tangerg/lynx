@@ -19,7 +19,7 @@ var (
 var errNilDescriptor = errors.New("mcp: descriptor must not be nil")
 
 // ToolCallError is returned by tools produced by [Tools] when a remote MCP tool
-// reports IsError=true. Use [errors.As] to distinguish a tool-side
+// reports IsError=true. Use [errors.AsType] to distinguish a tool-side
 // failure from transport, protocol, or argument-decoding errors:
 //
 //	out, err := tool.Call(ctx, args)

@@ -69,8 +69,8 @@ func IsInterrupt(err error) bool { return errors.Is(err, interaction.ErrSuspende
 // HandleInterrupt parks a suspension at an untyped action boundary. Typed
 // actions perform the same translation automatically.
 func HandleInterrupt(ctx context.Context, process *core.ProcessContext, err error) (core.ActionStatus, bool, error) {
-	var suspended *interaction.SuspendedError
-	if !errors.As(err, &suspended) {
+	suspended, ok := errors.AsType[*interaction.SuspendedError](err)
+	if !ok {
 		return 0, false, nil
 	}
 	status, suspendErr := process.Suspend(ctx, suspended.Suspension)

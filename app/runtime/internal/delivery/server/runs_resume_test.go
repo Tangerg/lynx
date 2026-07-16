@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -91,8 +92,9 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{RunID: pending.RunID}); !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Fatalf("empty responses error = %v, want invalid_params", err)
+	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{RunID: pending.RunID}); !errors.Is(err, protocol.ErrInvalidParams) ||
+		!errors.Is(err, runs.ErrInvalidInterruptResponse) {
+		t.Fatalf("empty responses error = %v, want invalid_params wrapping ErrInvalidInterruptResponse", err)
 	}
 	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{
 		RunID: pending.RunID,

@@ -31,7 +31,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		case errors.Is(err, runs.ErrInterruptNotOpen):
 			return nil, nil, protocol.ErrInterruptNotOpen
 		case errors.Is(err, runs.ErrInvalidInterruptResponse):
-			return nil, nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+			return nil, nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 		case errors.Is(err, runs.ErrSessionBusy):
 			return nil, nil, protocol.ErrSessionBusy
 		case errors.Is(err, runs.ErrRunNotFound):
