@@ -1,7 +1,6 @@
 package transcription
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -17,9 +16,12 @@ type ResultMetadata struct {
 // Set encodes provider-specific result metadata into Extra.
 func (m *ResultMetadata) Set(key string, value any) error {
 	if m == nil {
-		return errors.New("transcription.ResultMetadata.Set: nil receiver")
+		return fmt.Errorf("transcription.ResultMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	return m.Extra.Set(key, value)
+	if err := m.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("transcription.ResultMetadata.Set: %w: %w", ErrInvalidResponse, err)
+	}
+	return nil
 }
 
 // Result is one transcription segment.
@@ -56,9 +58,12 @@ type ResponseMetadata struct {
 // Set encodes provider-specific response metadata into Extra.
 func (m *ResponseMetadata) Set(key string, value any) error {
 	if m == nil {
-		return errors.New("transcription.ResponseMetadata.Set: nil receiver")
+		return fmt.Errorf("transcription.ResponseMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	return m.Extra.Set(key, value)
+	if err := m.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("transcription.ResponseMetadata.Set: %w: %w", ErrInvalidResponse, err)
+	}
+	return nil
 }
 
 // Response is one transcription call's output plus shared metadata.
@@ -84,35 +89,49 @@ func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) 
 // Validate recursively verifies transcription and response metadata.
 func (r *Response) Validate() error {
 	if r == nil {
-		return errors.New("transcription.Response: nil response")
+		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
 	if err := r.Result.validate(); err != nil {
-		return fmt.Errorf("transcription.Response: result: %w", err)
+		return fmt.Errorf("%w: result: %w", ErrInvalidResponse, err)
 	}
-	if r.Metadata == nil {
-		return errors.New("transcription.Response: metadata must not be nil")
-	}
-	if r.Metadata.Model != "" && strings.TrimSpace(r.Metadata.Model) != r.Metadata.Model {
-		return errors.New("transcription.Response: metadata model must not have surrounding whitespace")
-	}
-	if r.Metadata.Created < 0 {
-		return errors.New("transcription.Response: created must not be negative")
-	}
-	if err := r.Metadata.Extra.Validate(); err != nil {
-		return fmt.Errorf("transcription.Response: metadata: %w", err)
+	if err := r.Metadata.validate(); err != nil {
+		return fmt.Errorf("%w: metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
 func (r *Result) validate() error {
 	if r == nil {
-		return errors.New("result must not be nil")
+		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
 	}
-	if r.Metadata == nil {
-		return errors.New("metadata must not be nil")
+	if err := r.Metadata.validate(); err != nil {
+		return err
 	}
-	if err := r.Metadata.Extra.Validate(); err != nil {
-		return fmt.Errorf("metadata: %w", err)
+	return nil
+}
+
+func (m *ResultMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
+	}
+	return nil
+}
+
+func (m *ResponseMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
+	}
+	if m.Model != "" && strings.TrimSpace(m.Model) != m.Model {
+		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)
+	}
+	if m.Created < 0 {
+		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }

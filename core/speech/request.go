@@ -1,7 +1,6 @@
 package speech
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -31,10 +30,10 @@ type Options struct {
 // when model is empty or has surrounding whitespace.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
-		return nil, errors.New("speech.NewOptions: model id must not be empty")
+		return nil, fmt.Errorf("speech.NewOptions: %w: model id must not be empty", ErrInvalidOptions)
 	}
 	if strings.TrimSpace(model) != model {
-		return nil, errors.New("speech.NewOptions: model id must not have surrounding whitespace")
+		return nil, fmt.Errorf("speech.NewOptions: %w: model id must not have surrounding whitespace", ErrInvalidOptions)
 	}
 	return &Options{Model: model}, nil
 }
@@ -42,9 +41,12 @@ func NewOptions(model string) (*Options, error) {
 // Set encodes a provider-specific option into Extra.
 func (o *Options) Set(key string, value any) error {
 	if o == nil {
-		return errors.New("speech.Options.Set: nil receiver")
+		return fmt.Errorf("speech.Options.Set: %w: nil receiver", ErrInvalidOptions)
 	}
-	return o.Extra.Set(key, value)
+	if err := o.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("speech.Options.Set: %w: %w", ErrInvalidOptions, err)
+	}
+	return nil
 }
 
 func (o *Options) validate() error {
@@ -52,13 +54,13 @@ func (o *Options) validate() error {
 		return nil
 	}
 	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
-		return errors.New("speech: model id must not have surrounding whitespace")
+		return fmt.Errorf("%w: model id must not have surrounding whitespace", ErrInvalidOptions)
 	}
 	if math.IsNaN(o.Speed) || math.IsInf(o.Speed, 0) || o.Speed < 0 {
-		return errors.New("speech: speed must be finite and non-negative")
+		return fmt.Errorf("%w: speed must be finite and non-negative", ErrInvalidOptions)
 	}
 	if err := o.Extra.Validate(); err != nil {
-		return fmt.Errorf("speech: options extra: %w", err)
+		return fmt.Errorf("%w: extra: %w", ErrInvalidOptions, err)
 	}
 	return nil
 }
@@ -82,7 +84,7 @@ func (o *Options) Clone() *Options {
 // A nil receiver returns an error.
 func (o *Options) Merged(overrides ...*Options) (*Options, error) {
 	if o == nil {
-		return nil, errors.New("speech.Options.Merged: nil receiver")
+		return nil, fmt.Errorf("speech.Options.Merged: %w: nil receiver", ErrInvalidOptions)
 	}
 
 	merged := o.Clone()
@@ -104,7 +106,7 @@ func (o *Options) Merged(overrides ...*Options) (*Options, error) {
 		}
 		if len(override.Extra) > 0 {
 			if err := merged.Extra.Merge(override.Extra); err != nil {
-				return nil, fmt.Errorf("speech.Options.Merged: merge Extra: %w", err)
+				return nil, fmt.Errorf("speech.Options.Merged: %w: merge Extra: %w", ErrInvalidOptions, err)
 			}
 		}
 	}
@@ -135,10 +137,13 @@ func NewRequest(text string) (*Request, error) {
 // Validate checks the complete request before it crosses a model boundary.
 func (r *Request) Validate() error {
 	if r == nil {
-		return errors.New("speech: nil request")
+		return fmt.Errorf("%w: nil request", ErrInvalidRequest)
 	}
 	if r.Text == "" {
-		return errors.New("speech: text must not be empty")
+		return fmt.Errorf("%w: text must not be empty", ErrInvalidRequest)
 	}
-	return r.Options.validate()
+	if err := r.Options.validate(); err != nil {
+		return fmt.Errorf("%w: options: %w", ErrInvalidRequest, err)
+	}
+	return nil
 }

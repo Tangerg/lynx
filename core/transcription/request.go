@@ -1,7 +1,6 @@
 package transcription
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -27,10 +26,10 @@ type Options struct {
 // model is empty or has surrounding whitespace.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
-		return nil, errors.New("transcription.NewOptions: model id must not be empty")
+		return nil, fmt.Errorf("transcription.NewOptions: %w: model id must not be empty", ErrInvalidOptions)
 	}
 	if strings.TrimSpace(model) != model {
-		return nil, errors.New("transcription.NewOptions: model id must not have surrounding whitespace")
+		return nil, fmt.Errorf("transcription.NewOptions: %w: model id must not have surrounding whitespace", ErrInvalidOptions)
 	}
 	return &Options{Model: model}, nil
 }
@@ -38,9 +37,12 @@ func NewOptions(model string) (*Options, error) {
 // Set encodes a provider-specific option into Extra.
 func (o *Options) Set(key string, value any) error {
 	if o == nil {
-		return errors.New("transcription.Options.Set: nil receiver")
+		return fmt.Errorf("transcription.Options.Set: %w: nil receiver", ErrInvalidOptions)
 	}
-	return o.Extra.Set(key, value)
+	if err := o.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("transcription.Options.Set: %w: %w", ErrInvalidOptions, err)
+	}
+	return nil
 }
 
 // Clone returns a deep copy. nil receiver yields nil.
@@ -60,7 +62,7 @@ func (o *Options) Clone() *Options {
 // A nil receiver returns an error.
 func (o *Options) Merged(overrides ...*Options) (*Options, error) {
 	if o == nil {
-		return nil, errors.New("transcription.Options.Merged: nil receiver")
+		return nil, fmt.Errorf("transcription.Options.Merged: %w: nil receiver", ErrInvalidOptions)
 	}
 
 	merged := o.Clone()
@@ -69,7 +71,7 @@ func (o *Options) Merged(overrides ...*Options) (*Options, error) {
 			continue
 		}
 		if err := merged.applyOverride(override); err != nil {
-			return nil, fmt.Errorf("transcription.Options.Merged: %w", err)
+			return nil, fmt.Errorf("transcription.Options.Merged: %w: %w", ErrInvalidOptions, err)
 		}
 	}
 	if err := merged.validate(); err != nil {
@@ -98,13 +100,13 @@ func (o *Options) validate() error {
 		return nil
 	}
 	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
-		return errors.New("transcription: model id must not have surrounding whitespace")
+		return fmt.Errorf("%w: model id must not have surrounding whitespace", ErrInvalidOptions)
 	}
 	if o.Language != "" && strings.TrimSpace(o.Language) != o.Language {
-		return errors.New("transcription: language must not have surrounding whitespace")
+		return fmt.Errorf("%w: language must not have surrounding whitespace", ErrInvalidOptions)
 	}
 	if err := o.Extra.Validate(); err != nil {
-		return fmt.Errorf("transcription: options extra: %w", err)
+		return fmt.Errorf("%w: extra: %w", ErrInvalidOptions, err)
 	}
 	return nil
 }
@@ -130,13 +132,16 @@ func NewRequest(audio *media.Media) (*Request, error) {
 // Validate checks the complete request before it crosses a model boundary.
 func (r *Request) Validate() error {
 	if r == nil {
-		return errors.New("transcription: nil request")
+		return fmt.Errorf("%w: nil request", ErrInvalidRequest)
 	}
 	if r.Audio == nil {
-		return errors.New("transcription: audio must not be nil")
+		return fmt.Errorf("%w: audio must not be nil", ErrInvalidRequest)
 	}
 	if err := r.Audio.Validate(); err != nil {
-		return fmt.Errorf("transcription: audio: %w", err)
+		return fmt.Errorf("%w: audio: %w", ErrInvalidRequest, err)
 	}
-	return r.Options.validate()
+	if err := r.Options.validate(); err != nil {
+		return fmt.Errorf("%w: options: %w", ErrInvalidRequest, err)
+	}
+	return nil
 }

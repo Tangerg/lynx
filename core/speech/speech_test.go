@@ -39,7 +39,7 @@ func TestModelAndStreamerFunc(t *testing.T) {
 }
 
 func TestOptionsAndRequestValidation(t *testing.T) {
-	if _, err := speech.NewOptions(""); err == nil || err.Error() != "speech.NewOptions: model id must not be empty" {
+	if _, err := speech.NewOptions(""); !errors.Is(err, speech.ErrInvalidOptions) {
 		t.Fatalf("NewOptions error = %v", err)
 	}
 	if _, err := speech.NewOptions(" model "); err == nil {
@@ -48,7 +48,7 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := speech.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty text")
 	}
-	if _, err := (*speech.Options)(nil).Merged(); err == nil || err.Error() != "speech.Options.Merged: nil receiver" {
+	if _, err := (*speech.Options)(nil).Merged(); !errors.Is(err, speech.ErrInvalidOptions) {
 		t.Fatalf("Merged error = %v", err)
 	}
 	if err := (*speech.Request)(nil).Validate(); err == nil {
@@ -91,10 +91,10 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 }
 
 func TestResponseValidation(t *testing.T) {
-	if _, err := speech.NewResult(nil, &speech.ResultMetadata{}); err == nil || err.Error() != "speech.NewResult: audio must not be empty" {
+	if _, err := speech.NewResult(nil, &speech.ResultMetadata{}); !errors.Is(err, speech.ErrInvalidResponse) {
 		t.Fatalf("NewResult empty audio error = %v", err)
 	}
-	if _, err := speech.NewResult([]byte("audio"), nil); err == nil || err.Error() != "speech.NewResult: metadata must not be nil" {
+	if _, err := speech.NewResult([]byte("audio"), nil); !errors.Is(err, speech.ErrInvalidResponse) {
 		t.Fatalf("NewResult nil metadata error = %v", err)
 	}
 	result, _ := speech.NewResult([]byte("audio"), &speech.ResultMetadata{})

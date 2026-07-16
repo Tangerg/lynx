@@ -1,7 +1,6 @@
 package image
 
 import (
-	"errors"
 	"fmt"
 	"mime"
 	"slices"
@@ -20,9 +19,12 @@ type ResultMetadata struct {
 // Set encodes provider-specific result metadata into Extra.
 func (m *ResultMetadata) Set(key string, value any) error {
 	if m == nil {
-		return errors.New("image.ResultMetadata.Set: nil receiver")
+		return fmt.Errorf("image.ResultMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	return m.Extra.Set(key, value)
+	if err := m.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("image.ResultMetadata.Set: %w: %w", ErrInvalidResponse, err)
+	}
+	return nil
 }
 
 // Result is one generated image plus its metadata.
@@ -57,9 +59,12 @@ type ResponseMetadata struct {
 // Set encodes provider-specific response metadata into Extra.
 func (m *ResponseMetadata) Set(key string, value any) error {
 	if m == nil {
-		return errors.New("image.ResponseMetadata.Set: nil receiver")
+		return fmt.Errorf("image.ResponseMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	return m.Extra.Set(key, value)
+	if err := m.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("image.ResponseMetadata.Set: %w: %w", ErrInvalidResponse, err)
+	}
+	return nil
 }
 
 // Response is the full image-generation result: every rendered image plus
@@ -85,44 +90,58 @@ func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, erro
 // Validate recursively verifies generated media and response metadata.
 func (r *Response) Validate() error {
 	if r == nil {
-		return errors.New("image.Response: nil response")
+		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
 	if len(r.Results) == 0 {
-		return errors.New("image.Response: at least one result is required")
+		return fmt.Errorf("%w: at least one result is required", ErrInvalidResponse)
 	}
 	for i, result := range r.Results {
 		if err := result.validate(); err != nil {
-			return fmt.Errorf("image.Response: results[%d]: %w", i, err)
+			return fmt.Errorf("%w: results[%d]: %w", ErrInvalidResponse, i, err)
 		}
 	}
-	if r.Metadata == nil {
-		return errors.New("image.Response: metadata must not be nil")
-	}
-	if r.Metadata.Created < 0 {
-		return errors.New("image.Response: created must not be negative")
-	}
-	if err := r.Metadata.Extra.Validate(); err != nil {
-		return fmt.Errorf("image.Response: metadata: %w", err)
+	if err := r.Metadata.validate(); err != nil {
+		return fmt.Errorf("%w: metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
 func (r *Result) validate() error {
 	if r == nil {
-		return errors.New("result must not be nil")
+		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
 	}
 	if err := r.Media.Validate(); err != nil {
-		return fmt.Errorf("media: %w", err)
+		return fmt.Errorf("%w: media: %w", ErrInvalidResponse, err)
 	}
 	mediaType, _, _ := mime.ParseMediaType(r.Media.MIME)
 	if !strings.HasPrefix(mediaType, "image/") && mediaType != "application/octet-stream" {
-		return fmt.Errorf("media MIME type %q is not an image", r.Media.MIME)
+		return fmt.Errorf("%w: media MIME type %q is not an image", ErrInvalidResponse, r.Media.MIME)
 	}
-	if r.Metadata == nil {
-		return errors.New("metadata must not be nil")
+	if err := r.Metadata.validate(); err != nil {
+		return err
 	}
-	if err := r.Metadata.Extra.Validate(); err != nil {
-		return fmt.Errorf("metadata: %w", err)
+	return nil
+}
+
+func (m *ResultMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
+	}
+	return nil
+}
+
+func (m *ResponseMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
+	}
+	if m.Created < 0 {
+		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }

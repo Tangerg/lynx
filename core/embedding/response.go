@@ -1,7 +1,6 @@
 package embedding
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -19,9 +18,12 @@ type ResultMetadata struct {
 // Set encodes provider-specific result metadata into Extra.
 func (m *ResultMetadata) Set(key string, value any) error {
 	if m == nil {
-		return errors.New("embedding.ResultMetadata.Set: nil receiver")
+		return fmt.Errorf("embedding.ResultMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	return m.Extra.Set(key, value)
+	if err := m.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("embedding.ResultMetadata.Set: %w: %w", ErrInvalidResponse, err)
+	}
+	return nil
 }
 
 // Result is one embedding plus its metadata.
@@ -72,9 +74,12 @@ type ResponseMetadata struct {
 // Set encodes provider-specific response metadata into Extra.
 func (m *ResponseMetadata) Set(key string, value any) error {
 	if m == nil {
-		return errors.New("embedding.ResponseMetadata.Set: nil receiver")
+		return fmt.Errorf("embedding.ResponseMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	return m.Extra.Set(key, value)
+	if err := m.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("embedding.ResponseMetadata.Set: %w: %w", ErrInvalidResponse, err)
+	}
+	return nil
 }
 
 // Response is the full embedding result: one [*Result] per input plus
@@ -100,57 +105,80 @@ func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, erro
 // usage invariants.
 func (r *Response) Validate() error {
 	if r == nil {
-		return errors.New("embedding.Response: nil response")
+		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
 	if len(r.Results) == 0 {
-		return errors.New("embedding.Response: at least one result is required")
+		return fmt.Errorf("%w: at least one result is required", ErrInvalidResponse)
 	}
 	dimensions := -1
 	for i, result := range r.Results {
 		if err := result.validate(); err != nil {
-			return fmt.Errorf("embedding.Response: results[%d]: %w", i, err)
+			return fmt.Errorf("%w: results[%d]: %w", ErrInvalidResponse, i, err)
 		}
 		if dimensions < 0 {
 			dimensions = len(result.Embedding)
 		} else if len(result.Embedding) != dimensions {
-			return fmt.Errorf("embedding.Response: results[%d]: dimensions = %d, want %d", i, len(result.Embedding), dimensions)
+			return fmt.Errorf("%w: results[%d]: dimensions = %d, want %d", ErrInvalidResponse, i, len(result.Embedding), dimensions)
 		}
 	}
-	if r.Metadata == nil {
-		return errors.New("embedding.Response: metadata must not be nil")
-	}
-	if r.Metadata.Model != "" && strings.TrimSpace(r.Metadata.Model) != r.Metadata.Model {
-		return errors.New("embedding.Response: metadata model must not have surrounding whitespace")
-	}
-	if r.Metadata.Usage != nil && r.Metadata.Usage.InputTokens < 0 {
-		return errors.New("embedding.Response: input tokens must not be negative")
-	}
-	if r.Metadata.Created < 0 {
-		return errors.New("embedding.Response: created must not be negative")
-	}
-	if err := r.Metadata.Extra.Validate(); err != nil {
-		return fmt.Errorf("embedding.Response: metadata: %w", err)
+	if err := r.Metadata.validate(); err != nil {
+		return fmt.Errorf("%w: metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
 func (r *Result) validate() error {
 	if r == nil {
-		return errors.New("result must not be nil")
+		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
 	}
 	if len(r.Embedding) == 0 {
-		return errors.New("embedding vector must not be empty")
+		return fmt.Errorf("%w: embedding vector must not be empty", ErrInvalidResponse)
 	}
 	for i, value := range r.Embedding {
 		if math.IsNaN(value) || math.IsInf(value, 0) {
-			return fmt.Errorf("embedding[%d] must be finite", i)
+			return fmt.Errorf("%w: embedding[%d] must be finite", ErrInvalidResponse, i)
 		}
 	}
-	if r.Metadata == nil {
-		return errors.New("metadata must not be nil")
+	if err := r.Metadata.validate(); err != nil {
+		return err
 	}
-	if err := r.Metadata.Extra.Validate(); err != nil {
-		return fmt.Errorf("metadata: %w", err)
+	return nil
+}
+
+func (m *ResultMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
+	}
+	return nil
+}
+
+func (u Usage) validate() error {
+	if u.InputTokens < 0 {
+		return fmt.Errorf("%w: input tokens must not be negative", ErrInvalidResponse)
+	}
+	return nil
+}
+
+func (m *ResponseMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
+	}
+	if m.Model != "" && strings.TrimSpace(m.Model) != m.Model {
+		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)
+	}
+	if m.Usage != nil {
+		if err := m.Usage.validate(); err != nil {
+			return err
+		}
+	}
+	if m.Created < 0 {
+		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
