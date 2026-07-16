@@ -2,10 +2,14 @@ package turn
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -41,6 +45,21 @@ type turnObserver struct {
 // re-presented on resume. This is the one interrupt mental model shared by
 // every HITL flavor.
 func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string) agentexec.ToolApprovalVerdict {
+	// task is pure orchestration. Its child tools are independently observed and
+	// gated, while SubagentStart/SubagentStop own the task lifecycle hooks.
+	// Running tool hooks or approval for task itself would double-count the
+	// orchestration and cannot be replayed faithfully across a child suspension.
+	if toolName == "task" {
+		return agentexec.ToolApprovalVerdict{}
+	}
+
+	// A resumed suspension already contains the durable gate plan built on the
+	// first pass. Reuse it before consulting hooks or policy: PreToolUse must run
+	// once per logical call, and a restart must preserve its argument rewrite.
+	if verdict, handled := t.resumedToolVerdict(ctx, toolName); handled {
+		return verdict
+	}
+
 	// PreToolUse hooks run first (HITL R model is unaffected): a hook may DENY
 	// the call (final), REWRITE its arguments (flows to the gate + the tool), or
 	// ASK — escalate a call the gate would pass into a human prompt. A rewrite
@@ -78,8 +97,12 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	}.Plan()
 	sessionID := t.st.handle.SessionID
 	if plan.Action == approval.GatePrompt {
-		query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: plan.Arguments}
-		d, ok, _ := t.dispatcher.approval.Decide(ctx, query)
+		var d approval.Decision
+		var ok bool
+		if approvalConfigured {
+			query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: plan.Arguments}
+			d, ok, _ = t.dispatcher.approval.Decide(ctx, query)
+		}
 		autoApproved := false
 		// A per-server auto-approve whitelist skips the prompt only after
 		// standing rules, so an explicit remembered deny is never overridden.
@@ -99,12 +122,21 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// interrupt for human approval (R model). First pass bubbles the
 	// Suspension error up to park; resume delivers the resolution here. The
 	// prompt carries the gated tool's risk so the approval card shows it.
-	res, err := hitl.Interrupt[interrupts.Resolution](ctx,
-		interrupts.InterruptKey("approval", toolName, plan.Arguments),
-		ApprovalPrompt{
+	pending := runs.Interrupt{
+		Kind: runs.ApprovalInterruptKind,
+		Approval: &runs.ApprovalPrompt{
 			CallID: callID, ToolName: toolName, Arguments: plan.Arguments,
 			SafetyClass: plan.SafetyClass.String(), Risk: plan.Risk, Reason: plan.PromptReason,
 		},
+	}
+	if err := pending.Validate(); err != nil {
+		return agentexec.ToolApprovalVerdict{
+			Interrupt: fmt.Errorf("turn: build approval interrupt: %w", err),
+		}
+	}
+	res, err := hitl.Interrupt[interrupts.Resolution](ctx,
+		interrupts.InterruptKey(string(runs.ApprovalInterruptKind), toolName, plan.Arguments),
+		pending,
 	)
 	if err != nil {
 		return agentexec.ToolApprovalVerdict{Interrupt: err}
@@ -113,7 +145,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// calls auto-resolve the same way — recorded for approve AND deny. Keyed on
 	// the ORIGINAL arguments (the model regenerates calls like this one); any
 	// editedArgs override stays one-shot, never folded into the rule.
-	if res.RememberScope != "" {
+	if res.RememberScope != "" && t.dispatcher.approval != nil {
 		_ = t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
 			Scope:      approval.Scope(res.RememberScope),
 			SessionID:  sessionID,
@@ -124,11 +156,78 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		})
 	}
 	if !res.Approved {
-		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied by user"}
+		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: denialReason(res.Reason)}
 	}
 	// The human's edited args win over a hook rewrite; fall back to the rewrite
 	// when they approved without editing.
 	return agentexec.ToolApprovalVerdict{Arguments: plan.ApprovedArguments(res.Arguments)}
+}
+
+// resumedToolVerdict recognizes a responded application-owned suspension for
+// this tool. Approval responses terminate the gate directly; question
+// responses restore the effective arguments and let the question tool consume
+// the same response at its hitl.Interrupt call site.
+func (t *turnObserver) resumedToolVerdict(ctx context.Context, toolName string) (agentexec.ToolApprovalVerdict, bool) {
+	process := core.ProcessViewFrom(ctx)
+	if process == nil {
+		return agentexec.ToolApprovalVerdict{}, false
+	}
+	suspension := process.Suspension()
+	if suspension == nil || !suspension.Responded() {
+		return agentexec.ToolApprovalVerdict{}, false
+	}
+	pending, err := runs.DecodeInterrupt(suspension.Prompt)
+	if err != nil {
+		return agentexec.ToolApprovalVerdict{
+			Interrupt: fmt.Errorf("turn: decode responded tool interrupt: %w", err),
+		}, true
+	}
+	pendingTool, effectiveArguments := pending.Tool()
+	if pendingTool != toolName {
+		return agentexec.ToolApprovalVerdict{}, false
+	}
+
+	switch pending.Kind {
+	case runs.QuestionInterruptKind:
+		return agentexec.ToolApprovalVerdict{Arguments: effectiveArguments}, true
+	case runs.ApprovalInterruptKind:
+		var resolution interrupts.Resolution
+		if err := json.Unmarshal(suspension.Response, &resolution); err != nil {
+			return agentexec.ToolApprovalVerdict{
+				Interrupt: fmt.Errorf("turn: decode approval resolution: %w", err),
+			}, true
+		}
+		if resolution.RememberScope != "" && t.dispatcher.approval != nil {
+			_ = t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
+				Scope:      approval.Scope(resolution.RememberScope),
+				SessionID:  t.st.handle.SessionID,
+				ProjectDir: t.st.cwd,
+				Tool:       toolName,
+				Arguments:  effectiveArguments,
+				Decision:   approval.DecisionOf(resolution.Approved),
+			})
+		}
+		if !resolution.Approved {
+			return agentexec.ToolApprovalVerdict{
+				Denied: true, DenyReason: denialReason(resolution.Reason),
+			}, true
+		}
+		if resolution.Arguments != "" {
+			effectiveArguments = resolution.Arguments
+		}
+		return agentexec.ToolApprovalVerdict{Arguments: effectiveArguments}, true
+	default:
+		return agentexec.ToolApprovalVerdict{
+			Interrupt: fmt.Errorf("turn: unsupported responded interrupt kind %q", pending.Kind),
+		}, true
+	}
+}
+
+func denialReason(reason string) string {
+	if reason == "" {
+		return "tool call denied by user"
+	}
+	return reason
 }
 
 func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
@@ -177,7 +276,7 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, mutatedPat
 	// PostToolUse hooks (observe-only in v1): fire after the result so a user
 	// script can audit / notify / integrate. Result-injection isn't plumbed yet
 	// — the result already streamed to the model — so the Decision is ignored.
-	if !t.st.hooks.Empty() {
+	if toolName != "task" && !t.st.hooks.Empty() {
 		_ = t.st.hooks.Run(t.st.ctx, hooks.Input{
 			Event: hooks.PostToolUse, SessionID: t.st.handle.SessionID, Cwd: t.st.cwd,
 			Tool: &hooks.ToolInput{Name: toolName, Result: output}, Reason: errorString(err),

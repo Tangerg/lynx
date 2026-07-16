@@ -11,6 +11,7 @@ type Resolution struct {
 	Approved  bool                `json:"approved"`
 	Arguments string              `json:"arguments,omitempty"`
 	Answer    map[string][]string `json:"answer,omitempty"`
+	Reason    string              `json:"reason,omitempty"`
 	// RememberScope, when non-empty, asks the runtime to persist this
 	// approve/deny decision as a rule so matching future calls skip the prompt
 	// (AUX_API §6). The value is the wire scope — "session" | "project" |
@@ -18,32 +19,6 @@ type Resolution struct {
 	// domain's Scope type) because this leaf must not import a sibling domain;
 	// the chat gate maps it across.
 	RememberScope string `json:"remember_scope,omitempty"`
-}
-
-// QuestionPrompt is the payload a structured-question interrupt parks with:
-// one or more questions awaiting the human's answers. Shared HITL vocabulary:
-// the ask_user and exit_plan_mode tools produce it, and the protocol adapter
-// type-asserts on it to render each question on the wire. Classified as a
-// "question" interrupt (not "approval") since it is not an ApprovalPrompt.
-type QuestionPrompt struct {
-	Questions []Question `json:"questions"`
-}
-
-// Question is one item the model asks. No Options ⇒ a free-text answer; 2-4
-// Options ⇒ multiple-choice (MultiSelect lets the user pick several). Header is
-// a short chip label shown alongside the question.
-type Question struct {
-	Question    string   `json:"question"`
-	Header      string   `json:"header,omitempty"`
-	Options     []Option `json:"options,omitempty"`
-	MultiSelect bool     `json:"multi_select,omitempty"`
-}
-
-// Option is one multiple-choice answer: the Label the user picks plus an
-// optional Description explaining it.
-type Option struct {
-	Label       string `json:"label"`
-	Description string `json:"description,omitempty"`
 }
 
 // QuestionFieldName is the stable wire field name for the i-th question, shared

@@ -104,6 +104,12 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
 	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
+	child := bootstrapWaitingSnapshot("child_" + processID)
+	child.ParentID = processID
+	child.Depth = 1
+	if _, err := ss.processes.Save(ctx, child, 0); err != nil {
+		t.Fatalf("save child process snapshot: %v", err)
+	}
 	outcome := execution.OutcomeCanceled
 	finishedAt := time.Date(2026, 7, 13, 2, 3, 4, 0, time.UTC)
 
@@ -120,6 +126,9 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	if _, err := ss.processes.Load(ctx, processID); !errors.Is(err, core.ErrSnapshotNotFound) {
 		t.Fatalf("process snapshot after cancel = %v, want not found", err)
 	}
+	if _, err := ss.processes.Load(ctx, child.ID); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("child process snapshot after cancel = %v, want not found", err)
+	}
 	// The admission row is terminal, so the session can start a fresh run.
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
 		t.Fatalf("admit after cancel = %v, want the slot freed", err)
@@ -134,6 +143,12 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
 	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
+	child := bootstrapWaitingSnapshot("child_" + processID)
+	child.ParentID = processID
+	child.Depth = 1
+	if _, err := ss.processes.Save(ctx, child, 0); err != nil {
+		t.Fatalf("save child process snapshot: %v", err)
+	}
 	outcome := execution.OutcomeError
 	finishedAt := time.Date(2026, 7, 16, 2, 3, 4, 0, time.UTC)
 
@@ -151,6 +166,9 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	}
 	if _, err := ss.processes.Load(ctx, processID); !errors.Is(err, core.ErrSnapshotNotFound) {
 		t.Fatalf("process snapshot after run_lost = %v, want not found", err)
+	}
+	if _, err := ss.processes.Load(ctx, child.ID); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("child process snapshot after run_lost = %v, want not found", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
 		t.Fatalf("admit after run_lost = %v, want the slot freed", err)

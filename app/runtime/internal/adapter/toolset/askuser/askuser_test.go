@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
@@ -26,12 +27,12 @@ func TestAskUser_Validation(t *testing.T) {
 // TestAnswerText covers the result rendering: a single question returns just its
 // answer; multiple questions return labeled lines; multi-select joins values.
 func TestAnswerText(t *testing.T) {
-	single := interrupts.QuestionPrompt{Questions: []interrupts.Question{{Question: "Proceed?"}}}
+	single := runs.QuestionPrompt{Questions: []runs.QuestionSpec{{Question: "Proceed?"}}}
 	if got := answerText(single, map[string][]string{interrupts.QuestionFieldName(0): {"yes"}}); got != "yes" {
 		t.Errorf("single = %q, want %q", got, "yes")
 	}
 
-	multi := interrupts.QuestionPrompt{Questions: []interrupts.Question{
+	multi := runs.QuestionPrompt{Questions: []runs.QuestionSpec{
 		{Question: "Pick a DB", Header: "DB"},
 		{Question: "Pick langs", Header: "Langs", MultiSelect: true},
 	}}

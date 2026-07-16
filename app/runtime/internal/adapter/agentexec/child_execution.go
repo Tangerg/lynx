@@ -25,13 +25,14 @@ type childExecution struct {
 type childExecutionPolicy struct {
 	dependencies *core.Dependencies
 	client       *chatclient.Client
+	observer     toolObserver
 	root         core.ProcessView
 	provider     string
 	budget       accounting.Budget
 }
 
-func childOptions(dependencies *core.Dependencies, client *chatclient.Client) core.ChildOptionsFunc {
-	return (childExecutionPolicy{dependencies: dependencies, client: client}).options
+func childOptions(dependencies *core.Dependencies, client *chatclient.Client, observer toolObserver) core.ChildOptionsFunc {
+	return (childExecutionPolicy{dependencies: dependencies, client: client, observer: observer}).options
 }
 
 func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView, _ *core.Agent) (core.ProcessOptions, error) {
@@ -56,9 +57,17 @@ func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView
 	if err := core.RegisterDependency(dependencies, childExecutionKey, p.remaining()); err != nil {
 		return core.ProcessOptions{}, fmt.Errorf("agentexec: register child execution context: %w", err)
 	}
+	if p.observer != nil {
+		if err := core.RegisterDependency(dependencies, toolObserverKey, p.observer); err != nil {
+			return core.ProcessOptions{}, fmt.Errorf("agentexec: register child tool observer: %w", err)
+		}
+	}
 	options := core.ProcessOptions{
 		Dependencies: dependencies,
 		ChildOptions: p.options,
+	}
+	if p.observer != nil {
+		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observer: p.observer})
 	}
 	if p.client != nil {
 		options.Extensions = append(options.Extensions, perRunChatClient{client: p.client})

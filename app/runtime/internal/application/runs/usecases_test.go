@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -92,6 +93,7 @@ type fakeTurnControl struct {
 	prepared     Turn
 	prepareErr   error
 	rehydrated   Turn
+	rehydrateReq RehydrateTurn
 	rehydrateErr error
 	resumeCheck  func()
 	resumed      bool
@@ -123,7 +125,8 @@ func (f *fakeTurnControl) Resume(context.Context, Turn, interrupts.Resolution, [
 	return nil
 }
 
-func (f *fakeTurnControl) Rehydrate(context.Context, RehydrateTurn) (Turn, error) {
+func (f *fakeTurnControl) Rehydrate(_ context.Context, request RehydrateTurn) (Turn, error) {
+	f.rehydrateReq = request
 	return f.rehydrated, f.rehydrateErr
 }
 
@@ -198,6 +201,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 		treeOK: true,
 		pending: map[string]interrupts.Pending{"run_1": {
 			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", RunCreatedAt: createdAt,
+			Interrupts: approvalInterrupt("item_1"),
 		}},
 	}
 	turns := &fakeTurnControl{prepared: Turn{SessionID: "ses_1", TurnID: "turn_1", Handle: "opaque"}}
@@ -206,8 +210,11 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
 
 	result, err := c.Resume(context.Background(), ResumeCommand{
-		RunID:      "run_1",
-		Resolution: interrupts.Resolution{Approved: true},
+		RunID: "run_1",
+		Responses: []ResumeResponse{{
+			ItemID: "item_1", Kind: ApprovalResponseKind,
+			Approval: &ApprovalResponse{Approved: true},
+		}},
 	})
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
@@ -229,6 +236,7 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 		treeOK: true,
 		pending: map[string]interrupts.Pending{"run_1": {
 			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1",
+			Interrupts: approvalInterrupt("item_1"),
 		}},
 		operations: &operations,
 	}
@@ -238,7 +246,13 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	}
 	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, &fakeEffects{})
 
-	_, err := c.Resume(t.Context(), ResumeCommand{RunID: "run_1"})
+	_, err := c.Resume(t.Context(), ResumeCommand{
+		RunID: "run_1",
+		Responses: []ResumeResponse{{
+			ItemID: "item_1", Kind: ApprovalResponseKind,
+			Approval: &ApprovalResponse{Approved: true},
+		}},
+	})
 	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrTurnStateLost) {
 		t.Fatalf("Resume error = %v, want run not found wrapping turn state lost", err)
 	}
@@ -247,6 +261,9 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	}
 	if len(operations) != 1 || operations[0] != "durable.lost" {
 		t.Fatalf("operations = %v, want one durable lost commit", operations)
+	}
+	if turns.rehydrateReq.Cwd != "/work" {
+		t.Fatalf("rehydrate cwd = %q, want /work", turns.rehydrateReq.Cwd)
 	}
 	if sessions.treeReleases != 1 || c.ActiveSession("ses_1") {
 		t.Fatalf("tree releases = %d active session = %v", sessions.treeReleases, c.ActiveSession("ses_1"))
@@ -259,6 +276,16 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	if len(operations) != 1 {
 		t.Fatalf("second Resume repeated recovery: %v", operations)
 	}
+}
+
+func approvalInterrupt(itemID string) []transcript.Interrupt {
+	return []transcript.Interrupt{{
+		ItemID: itemID,
+		Kind:   transcript.ApprovalInterrupt,
+		Approval: &transcript.Approval{
+			Tool: transcript.ToolInvocation{Name: "shell"},
+		},
+	}}
 }
 
 func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {

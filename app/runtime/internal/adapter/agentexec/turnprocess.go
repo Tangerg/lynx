@@ -99,11 +99,64 @@ func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resoluti
 func (p *turnProcess) Suspension() *agent.Suspension { return p.process.Suspension() }
 
 func (p *turnProcess) Discard(ctx context.Context) {
-	id := p.process.ID()
-	_ = p.engine.Remove(id) // free the in-memory registry entry
-	if store := p.engine.ProcessStore(); store != nil {
-		if deleter, ok := store.(core.SnapshotDeleter); ok {
-			_ = deleter.Delete(ctx, id) // drop the persisted (terminal) snapshot
+	rootID := p.process.ID()
+	store := p.engine.ProcessStore()
+
+	// Build the descendant graph from both live registry entries and durable
+	// snapshots. A canceled nested tree may still have terminal child entries;
+	// a crash-window cleanup may have already removed one from memory while its
+	// snapshot remains. Walking both sources prevents either form from becoming
+	// an orphan when the application discards the terminal root.
+	children := make(map[string]map[string]struct{})
+	live := make(map[string]*runtime.Process)
+	addChild := func(parentID, childID string) {
+		if parentID == "" || childID == "" {
+			return
+		}
+		if children[parentID] == nil {
+			children[parentID] = make(map[string]struct{})
+		}
+		children[parentID][childID] = struct{}{}
+	}
+	for _, process := range p.engine.Processes() {
+		live[process.ID()] = process
+		addChild(process.ParentID(), process.ID())
+	}
+	if lister, ok := store.(core.SnapshotLister); ok {
+		if ids, err := lister.List(ctx); err == nil {
+			for _, id := range ids {
+				snapshot, err := store.Load(ctx, id)
+				if err != nil {
+					continue
+				}
+				addChild(snapshot.ParentID, snapshot.ID)
+			}
+		}
+	}
+
+	var order []string
+	visited := make(map[string]struct{})
+	var walk func(string)
+	walk = func(id string) {
+		if _, seen := visited[id]; seen {
+			return
+		}
+		visited[id] = struct{}{}
+		for childID := range children[id] {
+			walk(childID)
+		}
+		order = append(order, id)
+	}
+	walk(rootID)
+
+	deleter, canDelete := store.(core.SnapshotDeleter)
+	for _, id := range order {
+		if process := live[id]; process != nil && !process.Status().IsTerminal() {
+			_ = p.engine.Kill(id)
+		}
+		_ = p.engine.Remove(id)
+		if canDelete {
+			_ = deleter.Delete(ctx, id)
 		}
 	}
 }

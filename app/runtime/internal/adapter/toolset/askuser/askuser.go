@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -24,7 +25,7 @@ const toolName = "ask_user"
 
 // askUserArgs is the model-facing argument shape; [tools.New] derives
 // the JSON schema from it and decodes calls back into it, so the advertised
-// schema and parsed value cannot drift. It mirrors [interrupts.QuestionPrompt]
+// schema and parsed value cannot drift. It mirrors [runs.QuestionPrompt]
 // with the LLM-facing copy kept here (out of the domain type, which
 // exit_plan_mode reuses with different wording); the handler maps it across via
 // [askUserArgs.toPrompt].
@@ -52,24 +53,24 @@ func (a askUserArgs) validate() error {
 }
 
 // toPrompt maps the parsed args to the domain prompt type.
-func (a askUserArgs) toPrompt() interrupts.QuestionPrompt {
-	qs := make([]interrupts.Question, len(a.Questions))
+func (a askUserArgs) toQuestions() []runs.QuestionSpec {
+	qs := make([]runs.QuestionSpec, len(a.Questions))
 	for i, q := range a.Questions {
-		var opts []interrupts.Option
+		var opts []runs.QuestionOptionSpec
 		for _, o := range q.Options {
-			opts = append(opts, interrupts.Option{Label: o.Label, Description: o.Description})
+			opts = append(opts, runs.QuestionOptionSpec{Label: o.Label, Description: o.Description})
 		}
-		qs[i] = interrupts.Question{Question: q.Question, Header: q.Header, Options: opts, MultiSelect: q.MultiSelect}
+		qs[i] = runs.QuestionSpec{Question: q.Question, Header: q.Header, Options: opts, MultiSelect: q.MultiSelect}
 	}
-	return interrupts.QuestionPrompt{Questions: qs}
+	return qs
 }
 
-func (a askUserArgs) key() (string, error) {
+func (a askUserArgs) arguments() (string, error) {
 	b, err := json.Marshal(a)
 	if err != nil {
-		return "", fmt.Errorf("ask_user: encode interrupt key: %w", err)
+		return "", fmt.Errorf("ask_user: encode arguments: %w", err)
 	}
-	return interrupts.InterruptKey("ask_user", toolName, string(b)), nil
+	return string(b), nil
 }
 
 type tool struct {
@@ -95,14 +96,25 @@ func (t *tool) ask(ctx context.Context, a askUserArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", fmt.Errorf("ask_user: %w", err)
 	}
-	key, err := a.key()
+	arguments, err := a.arguments()
 	if err != nil {
 		return "", err
 	}
-	in := a.toPrompt()
+	in := runs.QuestionPrompt{
+		ToolName:  toolName,
+		Arguments: arguments,
+		Questions: a.toQuestions(),
+	}
+	pending := runs.Interrupt{Kind: runs.QuestionInterruptKind, Question: &in}
+	if err := pending.Validate(); err != nil {
+		return "", fmt.Errorf("ask_user: %w", err)
+	}
 	// First pass interrupts (bubbles up, parks); resume returns the human's
 	// structured answers at this same call site.
-	res, err := t.interrupt(ctx, key, in)
+	res, err := t.interrupt(ctx,
+		interrupts.InterruptKey(string(runs.QuestionInterruptKind), toolName, arguments),
+		pending,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -114,7 +126,7 @@ func (t *tool) ask(ctx context.Context, a askUserArgs) (string, error) {
 // single question returns just its answer (no label noise); multiple questions
 // return "header: answer" lines so the model can tell them apart. Multi-select
 // answers are comma-joined.
-func answerText(in interrupts.QuestionPrompt, answer map[string][]string) string {
+func answerText(in runs.QuestionPrompt, answer map[string][]string) string {
 	if len(in.Questions) == 1 {
 		return strings.Join(answer[interrupts.QuestionFieldName(0)], "\n")
 	}

@@ -142,18 +142,17 @@ func TestWireTurnStartErrMapsInvalidTurnOptions(t *testing.T) {
 	}
 }
 
-// TestResolveResolution covers the approval-response → InterruptResolution
-// mapping the resume path depends on (B5): approve/deny, editedArgs marshaled
-// into the one-shot Arguments override, and remember{scope} honored only for
-// "session". An unknown decision is invalid; an empty response continues.
-func TestResolveResolution(t *testing.T) {
+// TestDecodeResumeResponses covers the wire DTO → application response-union
+// mapping. Durable item coverage and schema validation run later in
+// application/runs against the actual open interrupt.
+func TestDecodeResumeResponses(t *testing.T) {
 	approval := func(v protocol.InterruptResponseValue) []protocol.InterruptResponse {
 		v.Type = "approval"
-		return []protocol.InterruptResponse{{Response: v}}
+		return []protocol.InterruptResponse{{ItemID: "item_1", Response: v}}
 	}
 
 	// approve + editedArgs + remember{session}: approved, args marshaled, scope carried.
-	res, err := resolveResolution(approval(protocol.InterruptResponseValue{
+	responses, err := decodeResumeResponses(approval(protocol.InterruptResponseValue{
 		Decision:   "approve",
 		EditedArgs: map[string]any{"cmd": "ls -la"},
 		Remember:   &protocol.RememberScope{Scope: "session"},
@@ -161,41 +160,43 @@ func TestResolveResolution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approve: %v", err)
 	}
-	if !res.Approved || res.RememberScope != "session" || res.Arguments != `{"cmd":"ls -la"}` {
+	res := responses[0]
+	if res.ItemID != "item_1" || res.Approval == nil || !res.Approval.Approved ||
+		res.Approval.RememberScope != "session" || res.Approval.Arguments != `{"cmd":"ls -la"}` {
 		t.Fatalf("approve = %+v, want approved+remember{session}+args", res)
 	}
 
 	// deny + remember{session}: a remembered denial is valid.
-	res, _ = resolveResolution(approval(protocol.InterruptResponseValue{
+	responses, _ = decodeResumeResponses(approval(protocol.InterruptResponseValue{
 		Decision: "deny",
 		Remember: &protocol.RememberScope{Scope: "session"},
 	}))
-	if res.Approved || res.RememberScope != "session" {
+	if res := responses[0].Approval; res == nil || res.Approved || res.RememberScope != "session" {
 		t.Fatalf("deny+remember = %+v, want !approved && scope=session", res)
 	}
 
 	// project / global scopes are now honored (persisted as rules), carried verbatim.
-	res, _ = resolveResolution(approval(protocol.InterruptResponseValue{
+	responses, _ = decodeResumeResponses(approval(protocol.InterruptResponseValue{
 		Decision: "approve",
 		Remember: &protocol.RememberScope{Scope: "global"},
 	}))
-	if res.RememberScope != "global" {
-		t.Fatalf("scope=global = %q, want carried verbatim", res.RememberScope)
+	if scope := responses[0].Approval.RememberScope; scope != "global" {
+		t.Fatalf("scope=global = %q, want carried verbatim", scope)
 	}
 
 	// No remember directive → empty scope (don't persist).
-	res, _ = resolveResolution(approval(protocol.InterruptResponseValue{Decision: "approve"}))
-	if res.RememberScope != "" {
-		t.Fatalf("no-remember = %q, want empty scope", res.RememberScope)
+	responses, _ = decodeResumeResponses(approval(protocol.InterruptResponseValue{Decision: "approve"}))
+	if scope := responses[0].Approval.RememberScope; scope != "" {
+		t.Fatalf("no-remember = %q, want empty scope", scope)
 	}
 
 	// Bad decision → error.
-	if _, err := resolveResolution(approval(protocol.InterruptResponseValue{Decision: "maybe"})); err == nil {
+	if _, err := decodeResumeResponses(approval(protocol.InterruptResponseValue{Decision: "maybe"})); err == nil {
 		t.Fatal("decision=maybe must be an error")
 	}
 
-	// No actionable response → continue (approved).
-	if res, _ := resolveResolution(nil); !res.Approved {
-		t.Fatal("empty responses must continue (approved)")
+	// Empty stays empty; application validation rejects missing coverage.
+	if responses, err := decodeResumeResponses(nil); err != nil || len(responses) != 0 {
+		t.Fatalf("empty decode = %+v, %v", responses, err)
 	}
 }

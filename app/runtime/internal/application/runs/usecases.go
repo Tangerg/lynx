@@ -110,6 +110,10 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if !found {
 		return StartResult{}, ErrInterruptNotOpen
 	}
+	resolution, err := resolveResumeResponses(pending, cmd.Responses)
+	if err != nil {
+		return StartResult{}, err
+	}
 	if !c.ClaimSession(pending.SessionID) {
 		return StartResult{}, fmt.Errorf("%w: session %q has a run in flight", ErrSessionBusy, pending.SessionID)
 	}
@@ -130,7 +134,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		}
 	}()
 
-	turn, err := c.prepareTurn(ctx, pending)
+	turn, err := c.prepareTurn(ctx, pending, sess.Cwd)
 	if err != nil {
 		if errors.Is(err, ErrTurnStateLost) {
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
@@ -158,7 +162,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		CreatedAt: createdAt,
 		Pending:   &pendingCopy,
 		Activate: func(activateCtx context.Context) error {
-			return c.turns.Resume(activateCtx, turn, cmd.Resolution, cmd.InterruptKinds)
+			return c.turns.Resume(activateCtx, turn, resolution, cmd.InterruptKinds)
 		},
 	})
 	if err != nil {
@@ -248,7 +252,7 @@ func (c *Coordinator) claimFreshRun(ctx context.Context, sessionID string) error
 	return nil
 }
 
-func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pending) (Turn, error) {
+func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pending, cwd string) (Turn, error) {
 	turn, err := c.turns.Prepare(ctx, TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID})
 	if err == nil {
 		return turn, nil
@@ -268,6 +272,7 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 		ProcessID: pending.ProcessID,
 		Provider:  pending.Provider,
 		Model:     pending.Model,
+		Cwd:       cwd,
 	})
 	if err != nil {
 		return Turn{}, errors.Join(ErrRunNotFound, err)

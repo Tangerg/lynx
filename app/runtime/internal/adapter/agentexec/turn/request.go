@@ -150,11 +150,13 @@ type TurnHandle struct {
 // process snapshot after a restart. ProcessID is the agent-process snapshot key
 // recorded on the open interrupt; TurnID reuses its durable executor handle so
 // a failed pre-opening attempt remains discoverable on retry; SessionID rebinds
-// chat history. The decision is delivered later through Resume.
+// chat history; Cwd restores the session's tool and hook scope. The decision is
+// delivered later through Resume.
 type RehydrateRequest struct {
 	SessionID string
 	TurnID    string
 	ProcessID string
+	Cwd       string
 
 	// Provider + Model are the parked run's per-run model selection, persisted
 	// on the interrupt. Both set re-resolves that client so the continuation

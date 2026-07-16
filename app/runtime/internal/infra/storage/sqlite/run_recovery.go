@@ -69,7 +69,7 @@ func (s *RunStateStore) ReconcileOrphans(ctx context.Context, validateSnapshot P
 				if err := s.recoverLostRun(ctx, run, now); err != nil {
 					return err
 				}
-				if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM process_snapshots WHERE id = ?`, pendingInterrupt.ProcessID); err != nil {
+				if err := NewProcessStore(s.db).DeleteTree(ctx, pendingInterrupt.ProcessID); err != nil {
 					return fmt.Errorf("sqlite: delete unusable process snapshot for run %q: %w", run.runID, err)
 				}
 				reconciled++
@@ -85,7 +85,7 @@ func (s *RunStateStore) ReconcileOrphans(ctx context.Context, validateSnapshot P
 				continue
 			}
 			if interrupt.ProcessID != "" {
-				if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM process_snapshots WHERE id = ?`, interrupt.ProcessID); err != nil {
+				if err := NewProcessStore(s.db).DeleteTree(ctx, interrupt.ProcessID); err != nil {
 					return fmt.Errorf("sqlite: reconcile orphan process snapshot: %w", err)
 				}
 			}

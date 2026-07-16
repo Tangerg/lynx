@@ -2,12 +2,12 @@ package turn
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -170,11 +170,9 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 	}
 }
 
-// interruptKind classifies a suspension into its wire interrupt kind
-// (API.md §6). An [ApprovalPrompt] payload is a gated tool call ("approval");
-// anything else is a structured question (ask_user / exit_plan_mode), which
-// surfaces as a "question". Returns "" for a nil suspension (treated as
-// surfaceable so the defensive empty-interrupt path in emitInterrupt still fires).
+// interruptKind decodes the application-owned discriminated envelope into its
+// wire interrupt kind (API.md §6). Unknown or malformed payloads return "" and
+// are rejected by emitInterrupt; there is no field-shape fallback.
 func interruptKind(suspension *agent.Suspension) string {
 	if suspension == nil {
 		return ""
@@ -187,28 +185,14 @@ func interruptKind(suspension *agent.Suspension) string {
 }
 
 func typedInterrupt(suspension *agent.Suspension) (Interrupt, bool) {
-	if suspension == nil || !json.Valid(suspension.Prompt) {
+	if suspension == nil {
 		return Interrupt{}, false
 	}
-	var shape map[string]json.RawMessage
-	if err := json.Unmarshal(suspension.Prompt, &shape); err != nil {
+	pending, err := runs.DecodeInterrupt(suspension.Prompt)
+	if err != nil {
 		return Interrupt{}, false
 	}
-	if _, ok := shape["toolName"]; ok {
-		var prompt ApprovalPrompt
-		if err := json.Unmarshal(suspension.Prompt, &prompt); err != nil {
-			return Interrupt{}, false
-		}
-		return Interrupt{Kind: ApprovalInterruptKind, Approval: &prompt}, true
-	}
-	if _, ok := shape["questions"]; ok {
-		var prompt interrupts.QuestionPrompt
-		if err := json.Unmarshal(suspension.Prompt, &prompt); err != nil {
-			return Interrupt{}, false
-		}
-		return Interrupt{Kind: QuestionInterruptKind, Question: &prompt}, true
-	}
-	return Interrupt{}, false
+	return pending, true
 }
 
 // postTurnMaintenance runs the compact + (conditional) extract pair

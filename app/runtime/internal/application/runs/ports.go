@@ -91,6 +91,7 @@ type RehydrateTurn struct {
 	ProcessID string
 	Provider  string
 	Model     string
+	Cwd       string
 }
 
 // TurnControl is the run use cases' engine-neutral control surface. Validation

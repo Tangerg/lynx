@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/tools"
@@ -28,11 +29,11 @@ const (
 
 // exitPlanArgs is the model-facing argument shape; [tools.New] derives
 // the JSON schema from it and decodes calls back into it, so the advertised
-// schema and parsed value cannot drift. The options mirror [interrupts.Option]
+// schema and parsed value cannot drift. The options mirror [runs.Option]
 // with the LLM-facing copy kept here.
 type exitPlanArgs struct {
 	Plan    string      `json:"plan" jsonschema:"required" jsonschema_description:"The plan to present for approval — a concise, ordered list of the steps you intend to take. Markdown is fine."`
-	Options []optionArg `json:"options,omitempty" jsonschema_description:"Optional alternative approaches (2-3) for the user to choose among. The chosen one is returned to you on approval."`
+	Options []optionArg `json:"options,omitempty" jsonschema:"maxItems=2" jsonschema_description:"Optional alternative approaches (up to 2) for the user to choose among. The chosen one is returned to you on approval."`
 }
 
 type optionArg struct {
@@ -44,32 +45,39 @@ func (a exitPlanArgs) validate() error {
 	if strings.TrimSpace(a.Plan) == "" {
 		return errors.New("plan is required")
 	}
+	if len(a.Options) > 2 {
+		return errors.New("at most two alternative approaches are allowed")
+	}
 	return nil
 }
 
-func (a exitPlanArgs) prompt() interrupts.QuestionPrompt {
-	opts := []interrupts.Option{{Label: approveLabel, Description: "Proceed with this plan"}}
+func (a exitPlanArgs) prompt(arguments string) runs.QuestionPrompt {
+	opts := []runs.QuestionOptionSpec{{Label: approveLabel, Description: "Proceed with this plan"}}
 	for _, o := range a.Options {
 		opts = append(opts, o.toInterrupt())
 	}
-	opts = append(opts, interrupts.Option{Label: rejectLabel, Description: "Don't proceed; refine the plan"})
-	return interrupts.QuestionPrompt{Questions: []interrupts.Question{{
-		Question: a.Plan,
-		Header:   "Plan",
-		Options:  opts,
-	}}}
+	opts = append(opts, runs.QuestionOptionSpec{Label: rejectLabel, Description: "Don't proceed; refine the plan"})
+	return runs.QuestionPrompt{
+		ToolName:  toolName,
+		Arguments: arguments,
+		Questions: []runs.QuestionSpec{{
+			Question: a.Plan,
+			Header:   "Plan",
+			Options:  opts,
+		}},
+	}
 }
 
-func (a exitPlanArgs) key() (string, error) {
+func (a exitPlanArgs) arguments() (string, error) {
 	b, err := json.Marshal(a)
 	if err != nil {
-		return "", fmt.Errorf("exit_plan_mode: encode interrupt key: %w", err)
+		return "", fmt.Errorf("exit_plan_mode: encode arguments: %w", err)
 	}
-	return interrupts.InterruptKey("exit_plan_mode", toolName, string(b)), nil
+	return string(b), nil
 }
 
-func (o optionArg) toInterrupt() interrupts.Option {
-	return interrupts.Option{Label: o.Label, Description: o.Description}
+func (o optionArg) toInterrupt() runs.QuestionOptionSpec {
+	return runs.QuestionOptionSpec{Label: o.Label, Description: o.Description}
 }
 
 type tool struct {
@@ -111,11 +119,19 @@ func (t *tool) exit(ctx context.Context, in exitPlanArgs) (string, error) {
 		return "Not in plan mode — nothing to exit. exit_plan_mode only applies in the read-only plan stance.", nil
 	}
 
-	key, err := in.key()
+	arguments, err := in.arguments()
 	if err != nil {
 		return "", err
 	}
-	res, err := t.interrupt(ctx, key, in.prompt())
+	prompt := in.prompt(arguments)
+	pending := runs.Interrupt{Kind: runs.QuestionInterruptKind, Question: &prompt}
+	if err := pending.Validate(); err != nil {
+		return "", fmt.Errorf("exit_plan_mode: %w", err)
+	}
+	res, err := t.interrupt(ctx,
+		interrupts.InterruptKey(string(runs.QuestionInterruptKind), toolName, arguments),
+		pending,
+	)
 	if err != nil {
 		return "", err
 	}
