@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/metadata"
 )
 
@@ -31,6 +32,70 @@ func TestNewRequest(t *testing.T) {
 	}
 	if !reflect.DeepEqual(request.Options, chat.Options{}) {
 		t.Fatalf("Options = %+v, want legal zero value", request.Options)
+	}
+}
+
+func TestRequestClone(t *testing.T) {
+	image, err := media.NewBytes("image/png", []byte("image"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := image.Metadata.Set("origin", "caller"); err != nil {
+		t.Fatal(err)
+	}
+	user := chat.NewUserMessage(chat.NewMediaPart(image))
+	if err := user.Metadata.Set("turn", 1); err != nil {
+		t.Fatal(err)
+	}
+	assistant := chat.NewAssistantMessage(
+		chat.NewReasoningPart("thinking", []byte("signature")),
+		chat.NewToolCallPart(validToolCall()),
+	)
+	tool := chat.NewToolMessage(validToolResult())
+
+	request := &chat.Request{
+		Messages: []chat.Message{user, assistant, tool},
+		Tools:    []chat.ToolDefinition{validToolDefinition()},
+		Options: chat.Options{
+			MaxTokens:   new(int64(10)),
+			Stop:        []string{"END"},
+			Temperature: new(0.5),
+		},
+	}
+	if err := request.SetExtension("test/value", "caller"); err != nil {
+		t.Fatal(err)
+	}
+
+	clone := request.Clone()
+	clone.Messages[0].Metadata["turn"][0] = '9'
+	clone.Messages[0].Parts[0].Media.Source.Bytes[0] = 'X'
+	clone.Messages[0].Parts[0].Media.Metadata["origin"][1] = 'X'
+	clone.Messages[1].Parts[0].Signature[0] = 'X'
+	clone.Messages[1].Parts[1].ToolCall.Name = "mutated"
+	clone.Messages[2].Parts[0].ToolResult.Result = "mutated"
+	clone.Tools[0].InputSchema[0] = '['
+	*clone.Options.MaxTokens = 20
+	clone.Options.Stop[0] = "MUTATED"
+	*clone.Options.Temperature = 1
+	clone.Extensions["test/value"][1] = 'X'
+
+	if string(request.Messages[0].Metadata["turn"]) != "1" ||
+		string(request.Messages[0].Parts[0].Media.Source.Bytes) != "image" ||
+		string(request.Messages[0].Parts[0].Media.Metadata["origin"]) != `"caller"` ||
+		string(request.Messages[1].Parts[0].Signature) != "signature" ||
+		request.Messages[1].Parts[1].ToolCall.Name != "weather" ||
+		request.Messages[2].Parts[0].ToolResult.Result != `{"temperature":20}` ||
+		request.Tools[0].InputSchema[0] != '{' ||
+		*request.Options.MaxTokens != 10 ||
+		request.Options.Stop[0] != "END" ||
+		*request.Options.Temperature != 0.5 ||
+		string(request.Extensions["test/value"]) != `"caller"` {
+		t.Fatalf("clone mutated source request: %#v", request)
+	}
+
+	var nilRequest *chat.Request
+	if nilRequest.Clone() != nil {
+		t.Fatal("nil Request.Clone must return nil")
 	}
 }
 

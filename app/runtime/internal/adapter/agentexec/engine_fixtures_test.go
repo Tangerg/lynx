@@ -245,7 +245,7 @@ func (m *optionToolStub) Stream(ctx context.Context, req *chat.Request) iter.Seq
 func (m *optionToolStub) capture(req *chat.Request) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	copy := cloneChatOptions(req.Options)
+	copy := req.Options.Clone()
 	m.lastOptions = &copy
 }
 
@@ -255,7 +255,7 @@ func (m *optionToolStub) lastCapturedOptions() *chat.Options {
 	if m.lastOptions == nil {
 		return nil
 	}
-	copy := cloneChatOptions(*m.lastOptions)
+	copy := m.lastOptions.Clone()
 	return &copy
 }
 

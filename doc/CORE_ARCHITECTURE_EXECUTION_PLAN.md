@@ -1328,6 +1328,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：五个非 Chat Response 公开递归 `Validate`，构造器委托同一实现；`embeddingclient` 在消费前复用该 receiver。`SearchRequest.ValidateMatches` 验证所有成功搜索输出，25 个真实 backend 在返回前统一调用。验证只报告错误，不排序、截断、补默认值或修复 provider 数据。
 - 原因：仅验证请求会允许 provider 的 nil、非有限向量、越界分数、无效 metadata 和乱序结果进入上层，迫使每个消费者重复防御。由拥有领域不变量的值对象验证，并让 adapter 在边界调用，既保持充血模型又不引入框架基类。
 
+### ADR-027：协议值深拷贝由值对象自身拥有
+
+- 日期：2026-07-16
+- 状态：已采纳（维护者确认开发期直接调整）
+- 决策：`media.Media` 与 `chat.Part`、`Message`、`Options`、`Request` 提供逐层委派的 `Clone`；`Request.Clone` 与 `Media.Clone` nil-safe。ChatClient、ChatHistory 与 App Runtime 的所有权边界只决定何时克隆，不再逐字段维护协议内部结构。ResponseAccumulator 复用同一 Part/Message 克隆行为，但不为尚无第二个通用消费者的 Response/Choice 扩大公开表面。
+- 原因：同一协议值此前在 ChatClient 与 ChatHistory 各维护一套逐字段深拷贝，新增引用字段时漏改任一副本都会静默别名 caller 内存。把无 I/O 的所有权行为收回值对象可形成唯一修改点，同时避免建立通用 copy framework 或空壳 receiver。
+
 ---
 
 ## 16. 长期完成定义
@@ -1350,6 +1357,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-16 | 采纳 ADR-027：Media/Chat 协议值建立分层 Clone 所有权，ChatClient、ChatHistory、App Runtime 与 ResponseAccumulator 委派 Core，删除两套逐字段拷贝实现并增加全引用字段隔离测试 | Codex |
 | 2026-07-15 | 完成 P9-06/P9-07：API/wire 重冻为 319/47/17/478，迁移与架构文档同步；Core release 确定性门禁、21 module 105 项门禁及 21 项 tidy-diff 全绿，计划 73/73 关闭 | Codex |
 | 2026-07-15 | 启动并完成 P9-01 至 P9-05：修复 metadata 精度与构造器合同，Image/Embedding 真实协议收口，删除无消费者表面，开放 Moderation 分类，建立非 Chat 响应与全部 VectorStore 成功输出验证；进入文档/兼容基线收尾 | Codex |
 | 2026-07-15 | 完成 P8-06：Filter analyzer 增加循环 AST、operator 顺序与精确索引不变量，复合节点位置回归自身数据；optimizer 收敛为只消费已验证 IR 的无状态布尔重写器，增加关联去重、深层/交换吸收和公共因子提取，并以三值逻辑、不可变与幂等测试锁定；API/wire 不变 | Codex |

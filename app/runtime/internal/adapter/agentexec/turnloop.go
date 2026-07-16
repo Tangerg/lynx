@@ -90,7 +90,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 		Tools: registry.Definitions(),
 	}
 	if options != nil {
-		request.Options = cloneChatOptions(*options)
+		request.Options = options.Clone()
 	}
 	if err := request.Validate(); err != nil {
 		return TurnOutput{}, fmt.Errorf("agentexec: turn request: %w", err)
@@ -168,10 +168,4 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 	default:
 		return TurnOutput{}, fmt.Errorf("agentexec: unexpected final interaction event %q", result.Final.Kind)
 	}
-}
-
-func cloneChatOptions(options chat.Options) chat.Options {
-	clone := options
-	clone.Stop = append([]string(nil), options.Stop...)
-	return clone
 }

@@ -45,6 +45,20 @@ type Part struct {
 	ToolResult *ToolResult  `json:"tool_result,omitempty"`
 }
 
+// Clone returns an independent copy of p.
+func (p Part) Clone() Part {
+	clone := p
+	clone.Signature = slices.Clone(p.Signature)
+	clone.Media = p.Media.Clone()
+	if p.ToolCall != nil {
+		clone.ToolCall = new(*p.ToolCall)
+	}
+	if p.ToolResult != nil {
+		clone.ToolResult = new(*p.ToolResult)
+	}
+	return clone
+}
+
 // NewTextPart returns a text part.
 func NewTextPart(text string) Part {
 	return Part{Kind: PartText, Text: text}

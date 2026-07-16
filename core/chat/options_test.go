@@ -52,6 +52,38 @@ func TestOptionsValidateBoundaries(t *testing.T) {
 	}
 }
 
+func TestOptionsClone(t *testing.T) {
+	options := chat.Options{
+		Model:            "model",
+		FrequencyPenalty: new(0.1),
+		MaxTokens:        new(int64(10)),
+		PresencePenalty:  new(0.2),
+		Stop:             []string{"END"},
+		Temperature:      new(0.3),
+		TopK:             new(int64(4)),
+		TopP:             new(0.9),
+	}
+	clone := options.Clone()
+
+	*clone.FrequencyPenalty = 1
+	*clone.MaxTokens = 20
+	*clone.PresencePenalty = 1
+	clone.Stop[0] = "MUTATED"
+	*clone.Temperature = 1
+	*clone.TopK = 8
+	*clone.TopP = 0.5
+
+	if *options.FrequencyPenalty != 0.1 ||
+		*options.MaxTokens != 10 ||
+		*options.PresencePenalty != 0.2 ||
+		options.Stop[0] != "END" ||
+		*options.Temperature != 0.3 ||
+		*options.TopK != 4 ||
+		*options.TopP != 0.9 {
+		t.Fatalf("clone mutated source options: %+v", options)
+	}
+}
+
 func TestOptionsValidateRejectsInvalidOverrides(t *testing.T) {
 	tests := []struct {
 		name    string

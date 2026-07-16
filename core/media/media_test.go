@@ -60,6 +60,32 @@ func TestNewBytesCopiesInputAndOutput(t *testing.T) {
 	}
 }
 
+func TestMediaClone(t *testing.T) {
+	value, err := media.NewBytes("image/png", []byte("payload"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := value.Metadata.Set("source", "caller"); err != nil {
+		t.Fatal(err)
+	}
+
+	clone := value.Clone()
+	clone.Source.Bytes[0] = 'X'
+	clone.Metadata["source"][1] = 'X'
+
+	if got := string(value.Source.Bytes); got != "payload" {
+		t.Fatalf("source bytes = %q, want payload", got)
+	}
+	if got := string(value.Metadata["source"]); got != `"caller"` {
+		t.Fatalf("source metadata = %s, want caller", got)
+	}
+
+	var nilMedia *media.Media
+	if nilMedia.Clone() != nil {
+		t.Fatal("nil Media.Clone must return nil")
+	}
+}
+
 func TestConstructorsRejectInvalidInputs(t *testing.T) {
 	tests := []struct {
 		name string

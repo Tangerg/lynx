@@ -3,7 +3,6 @@ package chat
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/Tangerg/lynx/core/internal/ptr"
 )
@@ -180,12 +179,12 @@ func (a *accumulatedChoice) mergePart(delta Part) error {
 			call.Arguments += delta.ToolCall.Arguments
 			return nil
 		}
-		cloned := delta.clone()
+		cloned := delta.Clone()
 		a.toolParts[delta.ToolCall.ID] = len(*parts)
 		*parts = append(*parts, cloned)
 		return nil
 	}
-	*parts = append(*parts, delta.clone())
+	*parts = append(*parts, delta.Clone())
 	return nil
 }
 
@@ -207,29 +206,8 @@ func (c Choice) clone() Choice {
 		Extensions:   c.Extensions.Clone(),
 	}
 	if c.Message != nil {
-		clone.Message = &Message{
-			Role:     c.Message.Role,
-			Parts:    make([]Part, len(c.Message.Parts)),
-			Metadata: c.Message.Metadata.Clone(),
-		}
-		for i := range c.Message.Parts {
-			clone.Message.Parts[i] = c.Message.Parts[i].clone()
-		}
-	}
-	return clone
-}
-
-func (p Part) clone() Part {
-	clone := p
-	clone.Signature = slices.Clone(p.Signature)
-	if p.Media != nil {
-		value := *p.Media
-		value.Source.Bytes = slices.Clone(p.Media.Source.Bytes)
-		value.Metadata = p.Media.Metadata.Clone()
-		clone.Media = &value
-	}
-	if p.ToolCall != nil {
-		clone.ToolCall = new(*p.ToolCall)
+		message := c.Message.Clone()
+		clone.Message = &message
 	}
 	return clone
 }

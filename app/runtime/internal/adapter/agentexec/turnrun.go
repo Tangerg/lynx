@@ -110,7 +110,7 @@ type TurnRequest struct {
 func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) TurnProcess {
 	var options *chat.Options
 	if request.Options != nil {
-		copy := cloneChatOptions(*request.Options)
+		copy := request.Options.Clone()
 		options = &copy
 	}
 	input := turnInput{Message: request.Message, Provider: request.Provider, Media: request.Media, Cwd: request.Cwd, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: options}
