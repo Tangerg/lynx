@@ -9,6 +9,7 @@ func (s *memoryDispatcher) StartTurn(ctx context.Context, request StartTurnReque
 	if request.SessionID == "" {
 		return TurnHandle{}, errors.New("turn: SessionID is required")
 	}
+	request = request.snapshot()
 	if err := request.Validate(); err != nil {
 		return TurnHandle{}, err
 	}

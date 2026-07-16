@@ -98,6 +98,24 @@ type TurnRequest struct {
 	EventListener core.Extension
 }
 
+// snapshot returns the protocol-value state owned by the process launched from
+// this request. Runtime collaborators keep their documented shared concurrency
+// semantics; only caller-owned chat values need deep copies.
+func (r TurnRequest) snapshot() TurnRequest {
+	snapshot := r
+	if r.Options != nil {
+		options := r.Options.Clone()
+		snapshot.Options = &options
+	}
+	if r.Media != nil {
+		snapshot.Media = make([]*media.Media, len(r.Media))
+		for index := range r.Media {
+			snapshot.Media[index] = r.Media[index].Clone()
+		}
+	}
+	return snapshot
+}
+
 // StartTurn dispatches a turn as an async agent process and
 // returns the [TurnProcess] handle the caller drives. The lifecycle
 // — cancel, status, awaiting completion, output extraction — runs
@@ -108,12 +126,8 @@ type TurnRequest struct {
 // Observer attaches a process-scope [core.ToolMiddleware]; SessionID binds the
 // turn to the chat history middleware's keyed conversation.
 func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) TurnProcess {
-	var options *chat.Options
-	if request.Options != nil {
-		copy := request.Options.Clone()
-		options = &copy
-	}
-	input := turnInput{Message: request.Message, Provider: request.Provider, Media: request.Media, Cwd: request.Cwd, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: options}
+	request = request.snapshot()
+	input := turnInput{Message: request.Message, Provider: request.Provider, Media: request.Media, Cwd: request.Cwd, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
 
 	processOptions := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, e.steeringGuardrails(request.Steer))
 	process, done := e.turnStarter.Start(ctx, e.agent,
