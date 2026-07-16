@@ -137,7 +137,7 @@ func TestReactive_BestValuePlanRanksByNetValue(t *testing.T) {
 	high := core.NewGoal(core.GoalConfig{Name: "high", Preconditions: []string{"y"}, Value: core.FixedScore(10)})
 
 	domain := planning.NewDomain([]core.Action{a, b}, []*core.Goal{low, high}, nil)
-	pl, _ := planning.BestPlan(t.Context(), reactive.NewPlanner(), start, domain, planning.Options{})
+	pl, _ := domain.BestPlan(t.Context(), reactive.NewPlanner(), start, planning.Options{})
 	if pl == nil || pl.Goal().Name() != "high" {
 		t.Fatalf("expected high-value goal, got %#v", pl)
 	}

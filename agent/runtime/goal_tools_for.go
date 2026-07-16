@@ -22,16 +22,16 @@ import (
 // returns the child's most-recent blackboard object as JSON. Errors when a
 // name isn't deployed or exposes no exported goal — a supervisor over an
 // un-callable agent is a configuration bug worth catching at build time.
-func GoalToolsFor(engine *Engine, names ...string) ([]tools.Tool, error) {
-	if engine == nil {
-		return nil, errors.New("runtime.GoalToolsFor: engine is nil")
+func (e *Engine) GoalToolsFor(names ...string) ([]tools.Tool, error) {
+	if e == nil {
+		return nil, errors.New("runtime.Engine.GoalToolsFor: engine is nil")
 	}
 
 	var out []tools.Tool
 	for _, name := range names {
-		deployment, ok := engine.catalog.activeDeployment(name)
+		deployment, ok := e.catalog.activeDeployment(name)
 		if !ok {
-			return nil, fmt.Errorf("runtime.GoalToolsFor: agent %q not deployed", name)
+			return nil, fmt.Errorf("runtime.Engine.GoalToolsFor: agent %q not deployed", name)
 		}
 		agent := deployment.agent
 
@@ -40,14 +40,14 @@ func GoalToolsFor(engine *Engine, names ...string) ([]tools.Tool, error) {
 			if goal == nil || goal.Tool() == nil {
 				continue
 			}
-			tool, err := newGoalTool(engine, deployment, goal, runChildDeployment)
+			tool, err := newGoalTool(e, deployment, goal, runChildDeployment)
 			if err != nil {
 				return nil, err
 			}
 			out = append(out, tool)
 		}
 		if len(out) == before {
-			return nil, fmt.Errorf("runtime.GoalToolsFor: agent %q exposes no goal tools (set GoalConfig.Tool)", name)
+			return nil, fmt.Errorf("runtime.Engine.GoalToolsFor: agent %q exposes no goal tools (set GoalConfig.Tool)", name)
 		}
 	}
 	return out, nil

@@ -3,7 +3,7 @@
 > 状态：开发期候选基线；不是已发布 release
 > Module：`github.com/Tangerg/lynx/agent`
 > Go：1.26.5
-> 未创建 commit、tag、push 或 release
+> 已形成开发提交；未创建 tag、push 或 release
 
 ## 概要
 
@@ -16,12 +16,12 @@
 | 项目 | 当前值 |
 |---|---:|
 | public package | 16 |
-| exported declaration | 626 |
+| exported declaration | 628 |
 | root façade | 46 / 50 |
 | exported JSON struct | 14 |
 | wire fixture | 456 行 |
 
-- API baseline SHA-256：`119e3e754688a922918e7fb257495e58aee9542a5d88382508f9f9ad8a6ef5af`
+- API baseline SHA-256：`b141e3b420575e9b5f3fd9c03a3539b5bbc55ff6754c5ed60a614ceafae24a39`
 - wire fixture SHA-256：`324d63d70cc6f7bb613028f7c470ba089ecbec4fcd8b1ff04fe91bfd7bb3a5ea`
 
 这些值用于审查开发期差异，不代表已经发布稳定承诺。
@@ -55,7 +55,9 @@
 - `toolloop.Runner.Run(ctx, request, resolver)` 直接接收输入；删除 `Invocation` 中间 DTO、`NewInvocation` 和其序列化错误。
 - `toolloop.RunnerConfig` → `toolloop.Config`；配置错误与运行输入错误分离为 `ErrInvalidConfig` / `ErrInvalidInput`。
 - `utility.GoalFirstPlanner` → `utility.GoalFirst`，`routing.ModelRankerConfig` → `routing.ModelConfig`。
-- `runtime.AgentGoalTools` → `runtime.GoalToolsFor`。
+- `runtime.AgentGoalTools` → `runtime.Engine.GoalToolsFor`。
+- Agent durable blackboard codec、planning templates、Domain prune 与 goal-tool fan-out 改为 owner method；删除以 Agent、Domain、Engine 为首参的自由函数。
+- `ToolGroupRequirement` 自己校验声明并判断权限集合，`ToolGroupInfo` 自己校验 resolver 返回的普适合同。
 - ScatterGather 的中间结果类型改为包内实现细节，不再扩大公共 API。
 
 ### Execution semantics
@@ -83,7 +85,7 @@
 
 ## 消费者状态
 
-Lyra App 已迁移到 Engine、Process、ChatCapability、GoalToolsFor、线性 HITL 与新的 ToolLoop API。Host 只保留 prompt、provider/model 选择、pricing、approval、stream/UI projection 和 transport mapping，不复制 Framework 的 Process 状态机、usage 或 checkpoint。
+Lyra App 已迁移到 Engine、Process、ChatCapability、`Engine.GoalToolsFor`、线性 HITL 与新的 ToolLoop API。Host 只保留 prompt、provider/model 选择、pricing、approval、stream/UI projection 和 transport mapping，不复制 Framework 的 Process 状态机、usage 或 checkpoint。
 
 ## Wire 边界
 
@@ -105,6 +107,6 @@ Lyra App 已迁移到 Engine、Process、ChatCapability、GoalToolsFor、线性 
 
 ## 发布前门槛
 
-当前工作区已通过 Agent 全量 build、vet、test、race、lint、tidy、API/wire/architecture gate，以及 App 全量常规门禁和高风险 race。正式版本仍必须在内部依赖改为精确 tag 后，以 `GOWORK=off` 复验 module DAG、完整门禁、干净 consumer 和数据迁移。任何 commit、tag、push、数据库迁移或 release 都需要维护者另行授权。
+当前 receiver 精修基线已通过 Agent 全量 build、vet、test、race、lint、tidy、API/wire/architecture gate，以及 App 全量常规门禁和高风险 race。正式版本仍必须在内部依赖改为精确 tag 后，以 `GOWORK=off` 复验 module DAG、完整门禁、干净 consumer 和数据迁移。本轮开发 commit 已获授权；tag、push、数据库迁移或 release 仍需要维护者另行授权。
 
 迁移见 [`AGENT_FRAMEWORK_MIGRATION.md`](./AGENT_FRAMEWORK_MIGRATION.md)，架构审查见 [`AGENT_FRAMEWORK_ARCHITECTURE_REVIEW.md`](./AGENT_FRAMEWORK_ARCHITECTURE_REVIEW.md)，执行进度见 [`AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md`](./AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md)。

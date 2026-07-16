@@ -45,11 +45,10 @@ func TestPrune_DropsUnreachableActions(t *testing.T) {
 		nil,
 	)
 
-	pruned, err := planning.Prune(
+	pruned, err := domain.Prune(
 		context.Background(),
 		goap.NewPlanner(),
 		planning.NewState(nil),
-		domain,
 		planning.Options{},
 	)
 	if err != nil {
@@ -77,11 +76,10 @@ func TestPrune_KeepsEveryActionWhenAllReferenced(t *testing.T) {
 		nil,
 	)
 
-	pruned, err := planning.Prune(
+	pruned, err := domain.Prune(
 		context.Background(),
 		goap.NewPlanner(),
 		planning.NewState(nil),
-		domain,
 		planning.Options{},
 	)
 	if err != nil {
@@ -103,11 +101,10 @@ func TestPrune_NoReachableGoalDropsEverything(t *testing.T) {
 	goal := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"done"}, Value: core.FixedScore(1)})
 	domain := planning.NewDomain([]core.Action{dead}, []*core.Goal{goal}, nil)
 
-	pruned, err := planning.Prune(
+	pruned, err := domain.Prune(
 		context.Background(),
 		goap.NewPlanner(),
 		planning.NewState(nil),
-		domain,
 		planning.Options{},
 	)
 	if err != nil {
@@ -137,11 +134,10 @@ func TestPrune_DoesNotMutateInput(t *testing.T) {
 	)
 	originalCount := len(domain.Actions())
 
-	_, err := planning.Prune(
+	_, err := domain.Prune(
 		context.Background(),
 		goap.NewPlanner(),
 		planning.NewState(nil),
-		domain,
 		planning.Options{},
 	)
 	if err != nil {
@@ -152,12 +148,12 @@ func TestPrune_DoesNotMutateInput(t *testing.T) {
 	}
 }
 
-func TestPrune_NilSystemRejected(t *testing.T) {
-	_, err := planning.Prune(
+func TestPrune_NilDomainRejected(t *testing.T) {
+	var domain *planning.Domain
+	_, err := domain.Prune(
 		context.Background(),
 		goap.NewPlanner(),
 		planning.NewState(nil),
-		nil,
 		planning.Options{},
 	)
 	if err == nil {

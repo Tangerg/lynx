@@ -108,7 +108,7 @@ func (p *Plan) NetValue(worldState core.WorldState) float64 {
 // drive a stable sort — so each plan's NetValue is touched once
 // instead of O(n log n) times.
 //
-// Used by every planner's [Planner.PlanGoals] to rank candidates;
+// Used by [Domain.Plans] to rank candidates;
 // hoisted here so the three implementations don't drift on the
 // (subtle) ranking semantics.
 func sortByNetValueDesc(plans []*Plan, worldState core.WorldState) {

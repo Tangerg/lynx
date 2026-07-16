@@ -67,7 +67,7 @@ func Supervisor[In, Out any](engine *runtime.Engine, config SupervisorConfig[In,
 		return nil, errors.New("workflow.Supervisor: Parse must not be nil")
 	}
 
-	tools, err := runtime.GoalToolsFor(engine, config.Agents...)
+	tools, err := engine.GoalToolsFor(config.Agents...)
 	if err != nil {
 		return nil, fmt.Errorf("workflow.Supervisor: %w", err)
 	}

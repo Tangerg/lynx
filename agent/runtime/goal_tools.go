@@ -33,14 +33,14 @@ import (
 //
 // Returned slice order is deterministic by deployed agent name, then goal
 // declaration order.
-func GoalTools(engine *Engine) ([]tools.Tool, error) {
-	if engine == nil {
-		return nil, errors.New("runtime.GoalTools: engine is nil")
+func (e *Engine) GoalTools() ([]tools.Tool, error) {
+	if e == nil {
+		return nil, errors.New("runtime.Engine.GoalTools: engine is nil")
 	}
-	return engine.collectGoalTools(false, runChildDeployment)
+	return e.collectGoalTools(false, runChildDeployment)
 }
 
-// StandaloneGoalTools is [GoalTools]'s top-level companion: returns
+// StandaloneGoalTools is [Engine.GoalTools]'s top-level companion: returns
 // MCP-style tools (no parent process required) for every goal whose
 // [core.GoalTool.Standalone] is true. Each Call starts a fresh
 // [Engine.Run] invocation.
@@ -48,17 +48,17 @@ func GoalTools(engine *Engine) ([]tools.Tool, error) {
 // Compose with [github.com/Tangerg/lynx/mcp].Register to
 // register every standalone goal with an MCP server in one shot:
 //
-//	tools, err := runtime.StandaloneGoalTools(engine)
+//	tools, err := engine.StandaloneGoalTools()
 //	if err != nil { ... }
 //	lynxmcp.Register(server, tools...)
 //
 // Output extraction is dynamic (most-recent blackboard object) — see
-// [GoalTools] for the type erasure caveat.
-func StandaloneGoalTools(engine *Engine) ([]tools.Tool, error) {
-	if engine == nil {
-		return nil, errors.New("runtime.StandaloneGoalTools: engine is nil")
+// [Engine.GoalTools] for the type erasure caveat.
+func (e *Engine) StandaloneGoalTools() ([]tools.Tool, error) {
+	if e == nil {
+		return nil, errors.New("runtime.Engine.StandaloneGoalTools: engine is nil")
 	}
-	return engine.collectGoalTools(true, runDeploymentInput)
+	return e.collectGoalTools(true, runDeploymentInput)
 }
 
 func (e *Engine) collectGoalTools(standaloneOnly bool, run runProcessFunc) ([]tools.Tool, error) {

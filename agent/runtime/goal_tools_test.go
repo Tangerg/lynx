@@ -44,7 +44,7 @@ func TestStandaloneGoalTools_ReturnTypedSchema(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, makeBriefingAgent(true), makeInternalAgent())
 
-	tools, err := runtime.StandaloneGoalTools(engine)
+	tools, err := engine.StandaloneGoalTools()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestStandaloneGoalTools_RunAgent(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, makeBriefingAgent(true))
 
-	tools, err := runtime.StandaloneGoalTools(engine)
+	tools, err := engine.StandaloneGoalTools()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestStandaloneGoalTools_ExcludeChildOnlyGoals(t *testing.T) {
 		makeInternalAgent(),      // no goal tool
 	)
 
-	tools, err := runtime.StandaloneGoalTools(engine)
+	tools, err := engine.StandaloneGoalTools()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestGoalTools_IncludeChildGoalTools(t *testing.T) {
 		makeInternalAgent(),      // no goal tool
 	)
 
-	tools, err := runtime.GoalTools(engine)
+	tools, err := engine.GoalTools()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestGoalTools_RequireParentProcess(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, makeBriefingAgent(true))
 
-	tools, err := runtime.GoalTools(engine)
+	tools, err := engine.GoalTools()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,10 +152,11 @@ func TestGoalTools_RequireParentProcess(t *testing.T) {
 }
 
 func TestGoalTools_RejectNilEngine(t *testing.T) {
-	if _, err := runtime.StandaloneGoalTools(nil); err == nil {
+	var engine *runtime.Engine
+	if _, err := engine.StandaloneGoalTools(); err == nil {
 		t.Fatal("StandaloneGoalTools(nil) returned nil error")
 	}
-	if _, err := runtime.GoalTools(nil); err == nil {
+	if _, err := engine.GoalTools(); err == nil {
 		t.Fatal("GoalTools(nil) returned nil error")
 	}
 }

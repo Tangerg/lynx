@@ -127,7 +127,7 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 	if dependencies == nil {
 		dependencies = NewDependencies()
 	}
-	session, hasSession := sessionInfo(config.Session)
+	session, hasSession := config.Session.info()
 	return &ProcessContext{
 		process:          config.Process,
 		control:          config.Control,

@@ -154,7 +154,7 @@ func TestActionTools_MalformedResolverReturnsError(t *testing.T) {
 			resolve: func(context.Context, core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
 				return emptyInfoToolGroup{}, true, nil
 			},
-			contains: "empty group role",
+			contains: "role is empty",
 		},
 		{
 			name: "wrong group role",
@@ -181,7 +181,13 @@ func TestActionTools_MalformedResolverReturnsError(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			resolved, err := runActionToolsWithResolver(
 				t,
-				core.ToolGroupRequirement{Role: "web", AllowedPermissions: []core.ToolGroupPermission{99}},
+				core.ToolGroupRequirement{
+					Role: "web",
+					AllowedPermissions: []core.ToolGroupPermission{
+						core.ToolGroupHostAccess,
+						core.ToolGroupInternetAccess,
+					},
+				},
 				test.resolve,
 			)
 			if err == nil || !strings.Contains(err.Error(), test.contains) {

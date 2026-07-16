@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-func TestAllowsPermissions(t *testing.T) {
+func TestToolGroupRequirementAllows(t *testing.T) {
 	cases := []struct {
 		name     string
 		allowed  []core.ToolGroupPermission
@@ -54,11 +54,51 @@ func TestAllowsPermissions(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := core.AllowsPermissions(tc.allowed, tc.required); got != tc.want {
-				t.Errorf("AllowsPermissions(%v, %v) = %v, want %v",
+			requirement := core.ToolGroupRequirement{AllowedPermissions: tc.allowed}
+			if got := requirement.Allows(tc.required); got != tc.want {
+				t.Errorf("ToolGroupRequirement.Allows(%v, %v) = %v, want %v",
 					tc.allowed, tc.required, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestToolGroupContractsValidate(t *testing.T) {
+	tests := []struct {
+		name  string
+		value interface{ Validate() error }
+	}{
+		{
+			name:  "requirement needs role",
+			value: core.ToolGroupRequirement{},
+		},
+		{
+			name:  "requirement rejects unknown allowance",
+			value: core.ToolGroupRequirement{Role: "research", AllowedPermissions: []core.ToolGroupPermission{99}},
+		},
+		{
+			name:  "info rejects padded role",
+			value: core.ToolGroupInfo{Role: " research "},
+		},
+		{
+			name:  "info rejects unknown permission",
+			value: core.ToolGroupInfo{Role: "research", Permissions: []core.ToolGroupPermission{99}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.value.Validate(); err == nil {
+				t.Fatal("Validate returned nil error")
+			}
+		})
+	}
+
+	valid := core.ToolGroupRequirement{
+		Role:               "research",
+		AllowedPermissions: []core.ToolGroupPermission{core.ToolGroupInternetAccess},
+	}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid requirement: %v", err)
 	}
 }
 

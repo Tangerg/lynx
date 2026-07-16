@@ -114,7 +114,7 @@ func (p *Process) snapshot() (core.ProcessSnapshot, error) {
 	if err != nil {
 		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: capture blackboard: %w", err)
 	}
-	snapshot.Blackboard, snapshot.Objects, err = core.EncodeBlackboard(p.agent(), named, objects)
+	snapshot.Blackboard, snapshot.Objects, err = p.agent().EncodeBlackboard(named, objects)
 	if err != nil {
 		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: encode blackboard: %w", err)
 	}
@@ -222,13 +222,13 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 	// Re-populate blackboard when the implementation supports it. The
 	// tagged values decode back to their concrete Go types via the type
 	// table the agent's action I/O bindings declare (see
-	// core.DecodeBlackboard) — so a restored typed-action input is the
+	// core.Agent.DecodeBlackboard) — so a restored typed-action input is the
 	// original struct, not the map JSON would otherwise yield.
 	restorer, ok := blackboard.(BlackboardRestorer)
 	if !ok {
 		return nil, errors.New("runtime.Engine.RestoreSnapshot: blackboard does not support durable restore")
 	}
-	named, objects, err := core.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects, agent)
+	named, objects, err := agent.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: decode blackboard: %w", err)
 	}

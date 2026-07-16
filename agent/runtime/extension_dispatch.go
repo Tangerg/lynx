@@ -164,6 +164,9 @@ func runToolGroupResolvers(
 	ctx context.Context,
 	requirement core.ToolGroupRequirement,
 ) (core.ToolGroup, bool, error) {
+	if err := requirement.Validate(); err != nil {
+		return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: invalid requirement: %w", err)
+	}
 	for _, resolver := range resolvers {
 		group, ok, err := resolver.Resolve(ctx, requirement)
 		if err != nil {
@@ -179,21 +182,15 @@ func runToolGroupResolvers(
 			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with a nil group", resolver.Name(), requirement.Role)
 		}
 		info := group.Info()
-		if info.Role == "" {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with an empty group role", resolver.Name(), requirement.Role)
+		if err := info.Validate(); err != nil {
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned invalid group info: %w", resolver.Name(), err)
 		}
 		if info.Role != requirement.Role {
 			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with group role %q", resolver.Name(), requirement.Role, info.Role)
 		}
-		required := info.Permissions
-		for _, permission := range required {
-			if permission.String() == "unknown" {
-				return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned unknown permission %d for role %q", resolver.Name(), permission, requirement.Role)
-			}
-		}
-		if !core.AllowsPermissions(requirement.AllowedPermissions, required) {
+		if !requirement.Allows(info.Permissions) {
 			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: tool group %q requires permissions %v, allowed %v",
-				resolver.Name(), info.Role, required, requirement.AllowedPermissions)
+				resolver.Name(), info.Role, info.Permissions, requirement.AllowedPermissions)
 		}
 		return group, true, nil
 	}

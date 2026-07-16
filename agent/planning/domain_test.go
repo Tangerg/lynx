@@ -66,3 +66,21 @@ func TestNewDomainCopiesInputsAndKnownConditions(t *testing.T) {
 		t.Fatal("KnownConditions returned its cached map")
 	}
 }
+
+func TestDomainPlanningMethodsValidateTheirInputs(t *testing.T) {
+	domain := planning.NewDomain(nil, nil, nil)
+	state := planning.NewState(nil)
+	goal := core.NewGoal(core.GoalConfig{Name: "goal"})
+
+	if err := domain.ValidatePlanInputs(state, goal); err != nil {
+		t.Fatalf("ValidatePlanInputs: %v", err)
+	}
+	if _, err := domain.Plans(t.Context(), nil, state, planning.Options{}); err == nil {
+		t.Fatal("Plans accepted nil planner")
+	}
+
+	var nilDomain *planning.Domain
+	if err := nilDomain.ValidatePlanInputs(state, goal); err == nil {
+		t.Fatal("ValidatePlanInputs accepted nil domain")
+	}
+}
