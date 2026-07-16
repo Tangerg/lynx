@@ -11,6 +11,7 @@
 | 文档 | 一句话 |
 |---|---|
 | [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md) | ★ **唯一架构基准**：Run 生命周期中心的 Domain / Application / Adapter / Infra / Delivery / Bootstrap 边界，以及事件、事务、并发和完成定义。 |
+| [AGENT_CORE_ALIGNMENT_EXECUTION_PLAN.md](AGENT_CORE_ALIGNMENT_EXECUTION_PLAN.md) | ★ **当前执行控制面**：Agent/Core 演进后的 Runtime 对齐目标、批次、门禁、进度、风险与决策记录。 |
 | [EXTENSIBILITY.md](EXTENSIBILITY.md) | 当前可替换端口、内部具体类型与组合根注入规则。 |
 | [EXECUTION_ARCHITECTURE_CONVERGENCE_PLAN.md](EXECUTION_ARCHITECTURE_CONVERGENCE_PLAN.md) | 已完成的历史收敛计划，仅保留批次、决策和验收证据。 |
 
