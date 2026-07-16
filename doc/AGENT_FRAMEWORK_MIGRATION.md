@@ -234,7 +234,42 @@ search, err := core.LookupDependency(process.Dependencies(), SearchKey)
 
 静态依赖仍优先构造函数或字段注入。不要把 `Dependencies` 包装回全局 service locator。
 
-## 9. ProcessStore 与 snapshot
+## 9. Child 执行策略
+
+Agent 默认仍只给 child 复制其声明的 blackboard 模式，并传播 process event
+listener；不会隐式继承 provider、dependency、budget、guardrail 或其他 host
+能力。需要让一个应用 Run 的策略覆盖完整委派树时，在 root
+`ProcessOptions` 上显式安装 `ChildOptions`：
+
+```go
+options.ChildOptions = func(
+    ctx context.Context,
+    parent agent.ProcessView,
+    child *agent.Agent,
+) (agent.ProcessOptions, error) {
+    dependencies := engine.Dependencies().Child()
+    if err := core.RegisterDependency(dependencies, RunPolicyKey, policyFor(parent)); err != nil {
+        return agent.ProcessOptions{}, err
+    }
+    return agent.ProcessOptions{
+        Dependencies: dependencies,
+        Extensions:   []agent.Extension{selectedChatProvider},
+    }, nil
+}
+```
+
+回调对每个 child 创建执行一次，并默认继续传给更深的后代；返回值中的非 nil
+`ChildOptions` 可替换后续策略。返回 nil `Blackboard` 保留调用入口选择的 child
+blackboard 模式。不要使用全局变量或私有 context key 偷渡 Run 策略。
+
+`interaction.Limits.MaxSteps` 仍只限制当前一次 managed interaction；
+`MaxModelCalls` 限制当前 Process 及其后代已经记录的累计模型调用数，适合由
+Host 将一个应用级 step budget 覆盖到完整委派树。
+
+`Engine.Kill` 现在会取消目标 Process 的活动 Run / Continue 上下文并递归终止
+其存活后代；Action、provider 调用和同步 child 应始终监听传入的 context。
+
+## 10. ProcessStore 与 snapshot
 
 最小存储合同：
 
@@ -257,7 +292,7 @@ if err := storetest.TestProcessStore(t.Context(), store); err != nil {
 
 旧 snapshot 不做兼容读取。开发环境迁移时：备份数据、终止依赖旧 snapshot 的非终态运行、清除旧 ProcessSnapshot、保留可独立解释的 Session 与 terminal history，然后只写当前 schema。
 
-## 10. 推荐执行顺序
+## 11. 推荐执行顺序
 
 1. 切换 Engine、DeploymentRef 与 Process 公共语言。
 2. 迁移 Agent/Goal config 与 Action/Binding。

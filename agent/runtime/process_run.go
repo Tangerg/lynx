@@ -22,6 +22,21 @@ func (p *Process) run(ctx context.Context) error {
 	if !p.state.beginRun() {
 		return nil
 	}
+	runCtx, cancelRun := context.WithCancel(ctx)
+	releaseRun := p.signals.registerRunCancel(cancelRun)
+	defer func() {
+		cancelRun()
+		releaseRun()
+	}()
+	// Close the registration race with Engine.Kill: a kill may win after
+	// beginRun but before registerRunCancel publishes this invocation's
+	// cancel function. Re-checking the terminal state after publication
+	// guarantees either Kill observes the cancel function or this side
+	// cancels itself.
+	if p.Status() == core.StatusKilled {
+		cancelRun()
+	}
+	ctx = runCtx
 
 	if err := p.validateAgentForRun(); err != nil {
 		p.failProcess(err)

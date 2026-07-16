@@ -1,5 +1,16 @@
 package core
 
+import "context"
+
+// ChildOptionsFunc supplies explicit per-child process configuration. It runs
+// only when a parent ProcessOptions installs it, so the framework's default
+// minimal child inheritance remains unchanged.
+type ChildOptionsFunc func(
+	ctx context.Context,
+	parent ProcessView,
+	child *Agent,
+) (ProcessOptions, error)
+
 // ProcessOptions is the per-process configuration bundle. Pass a zero
 // ProcessOptions{} when defaults suffice; the runtime normalizes unset fields.
 //
@@ -11,6 +22,19 @@ package core
 // via [Extensions]; ProcessOptions itself stays minimal.
 type ProcessOptions struct {
 	Blackboard Blackboard
+
+	// ChildOptions configures every child process spawned by this process,
+	// including agent-as-tool and workflow children. The callback receives the
+	// read-only parent and exact child definition. A nil returned Blackboard
+	// keeps the selected RunChild inheritance mode; other returned fields
+	// configure the child normally.
+	//
+	// The callback itself is inherited by descendants unless the returned
+	// ProcessOptions supplies a different non-nil ChildOptions, so one explicit
+	// host policy can cover the whole delegation tree. nil preserves the
+	// framework default: children inherit only their declared blackboard mode
+	// and process event listeners.
+	ChildOptions ChildOptionsFunc
 
 	// Budget caps cumulative LLM spend (USD), action invocations, and
 	// total tokens for this process. The runtime always checks a

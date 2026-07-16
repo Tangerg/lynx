@@ -49,7 +49,11 @@ func (r childRun) create() (*Process, error) {
 		return nil, fmt.Errorf("run child %q: %w (depth %d > max %d)", agentName, ErrChildDepth, parent.depth+1, maxChildDepth)
 	}
 
-	child, err := r.engine.createChild(deployment, parent, r.bindings(), r.processOptions(parent))
+	options, err := r.processOptions(parent, deployment)
+	if err != nil {
+		return nil, fmt.Errorf("run child %q: options: %w", agentName, err)
+	}
+	child, err := r.engine.createChild(deployment, parent, r.bindings(), options)
 	if err != nil {
 		return nil, fmt.Errorf("run child %q: create: %w", agentName, err)
 	}
@@ -86,15 +90,29 @@ func (r childRun) parentProcess() (*Process, error) {
 	return parentProcess, nil
 }
 
-func (r childRun) processOptions(parent *Process) core.ProcessOptions {
+func (r childRun) processOptions(parent *Process, deployment *Deployment) (core.ProcessOptions, error) {
+	var options core.ProcessOptions
 	switch r.mode {
 	case childCopiesAmbientState:
-		return core.ProcessOptions{Blackboard: ambientBlackboard(parent.blackboard)}
+		options.Blackboard = ambientBlackboard(parent.blackboard)
 	case childStartsEmpty:
-		return core.ProcessOptions{Blackboard: r.engine.NewBlackboard()}
-	default:
-		return core.ProcessOptions{}
+		options.Blackboard = r.engine.NewBlackboard()
 	}
+	if parent == nil || parent.options == nil || parent.options.ChildOptions == nil {
+		return options, nil
+	}
+	configure := parent.options.ChildOptions
+	configured, err := configure(normalizeContext(r.ctx), parent, deployment.agent)
+	if err != nil {
+		return core.ProcessOptions{}, err
+	}
+	if configured.Blackboard == nil {
+		configured.Blackboard = options.Blackboard
+	}
+	if configured.ChildOptions == nil {
+		configured.ChildOptions = configure
+	}
+	return configured, nil
 }
 
 // ambientBlackboard copies the parent's protected entries into a clean board.
