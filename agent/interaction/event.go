@@ -159,10 +159,16 @@ type Observer func(context.Context, Event) error
 // Limits are checked before each continuation model call. Zero leaves a
 // dimension unbounded; negative values are invalid.
 type Limits struct {
-	MaxRounds  int
-	MaxSteps   int
-	MaxTokens  int64
-	MaxCostUSD float64
+	MaxRounds int
+	// MaxSteps caps model rounds in this one managed interaction.
+	MaxSteps int
+	// MaxModelCalls caps cumulative model calls already recorded by this
+	// process and its descendants. Hosts use it when one application budget
+	// must cover a complete delegation tree while MaxSteps retains its local
+	// interaction semantics.
+	MaxModelCalls int
+	MaxTokens     int64
+	MaxCostUSD    float64
 }
 
 type StopReason string

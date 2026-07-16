@@ -10,28 +10,29 @@ import (
 // planning, event, persistence, and provider protocols remain at their owning
 // package boundaries.
 type (
-	Agent          = core.Agent
-	AgentConfig    = core.AgentConfig
-	Action         = core.Action
-	ActionConfig   = core.ActionConfig
-	Goal           = core.Goal
-	GoalConfig     = core.GoalConfig
-	Condition      = core.Condition
-	ConditionEnv   = core.ConditionEnv
-	Truth          = core.Truth
-	FuncCondition  = core.FuncCondition
-	StuckPolicy    = core.StuckPolicy
-	ProcessView    = core.ProcessView
-	ProcessContext = core.ProcessContext
-	ProcessOptions = core.ProcessOptions
-	PromptConfig   = core.PromptConfig
-	ChatCapability = core.ChatCapability
-	DeploymentRef  = core.DeploymentRef
-	ProcessStatus  = core.ProcessStatus
-	Extension      = core.Extension
-	Session        = core.Session
-	RetryPolicy    = core.RetryPolicy
-	RetrySafety    = core.RetrySafety
+	Agent            = core.Agent
+	AgentConfig      = core.AgentConfig
+	Action           = core.Action
+	ActionConfig     = core.ActionConfig
+	Goal             = core.Goal
+	GoalConfig       = core.GoalConfig
+	Condition        = core.Condition
+	ConditionEnv     = core.ConditionEnv
+	Truth            = core.Truth
+	FuncCondition    = core.FuncCondition
+	StuckPolicy      = core.StuckPolicy
+	ProcessView      = core.ProcessView
+	ProcessContext   = core.ProcessContext
+	ProcessOptions   = core.ProcessOptions
+	ChildOptionsFunc = core.ChildOptionsFunc
+	PromptConfig     = core.PromptConfig
+	ChatCapability   = core.ChatCapability
+	DeploymentRef    = core.DeploymentRef
+	ProcessStatus    = core.ProcessStatus
+	Extension        = core.Extension
+	Session          = core.Session
+	RetryPolicy      = core.RetryPolicy
+	RetrySafety      = core.RetrySafety
 
 	Engine       = runtime.Engine
 	EngineConfig = runtime.Config

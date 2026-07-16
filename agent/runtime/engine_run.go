@@ -238,13 +238,12 @@ func (e *Engine) Resume(id, suspensionID string, response any) error {
 	return nil
 }
 
-// Kill terminates a process: it transitions to [core.StatusKilled] and
-// publishes [event.ProcessKilled]. Idempotent and safe on any process — an
-// already-terminal one is left untouched (no-op), so a kill racing a natural
-// completion can't clobber a clean Completed/Failed into Killed or fire a
-// spurious / duplicate ProcessKilled. The check-and-set is atomic
-// ([processState.markKilled]); the event publishes only on a real transition.
-// Returns an error when the id is unknown.
+// Kill terminates a process and its live descendants. It transitions the
+// target to [core.StatusKilled], cancels its active Run / Continue context and
+// current tool call, publishes [event.ProcessKilled], then recursively kills
+// children. Idempotent and safe on any process — an already-terminal one is
+// left untouched, so a kill racing natural completion cannot clobber a clean
+// terminal state or publish a duplicate event.
 func (e *Engine) Kill(id string) error {
 	process, ok := e.Process(id)
 	if !ok {
@@ -253,20 +252,19 @@ func (e *Engine) Kill(id string) error {
 	if !process.state.markKilled() {
 		return nil
 	}
+	process.signals.fireRunCancel()
+	process.signals.fireToolCallCancel()
 	e.publish(event.ProcessKilled{
 		Header: event.NewHeader(id),
 		Reason: "kill requested",
 	})
+	e.KillChildren(id)
 	return nil
 }
 
-// KillChildren terminates every non-terminal process whose ParentID
-// matches parentID and returns the killed ids (order unspecified).
-// Orchestrators call it on turn exit to sweep background children started via
-// [Engine.StartChild], so background
-// work can't outlive the parent that launched it. Already-terminal
-// children are skipped — there's nothing to kill and overwriting their
-// status would corrupt a clean Completed into Killed.
+// KillChildren terminates every non-terminal direct child whose ParentID
+// matches parentID and returns those direct child ids (order unspecified).
+// Each child Kill recursively terminates its own descendants.
 func (e *Engine) KillChildren(parentID string) []string {
 	var killed []string
 	for _, process := range e.processes.list() {

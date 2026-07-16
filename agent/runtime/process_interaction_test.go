@@ -191,6 +191,22 @@ func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 	}
 }
 
+func TestManagedInteractionStopsBeforeContinuationAtModelCallLimit(t *testing.T) {
+	model := &managedModel{}
+	tool, _ := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(context.Context, struct{}) (string, error) { return "ok", nil })
+	registry, _ := tools.NewRegistry(tool)
+	a := managedInteractionAgent(t, "managed-model-calls", model, registry, interaction.Limits{MaxModelCalls: 1})
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model.Calls() != 1 || len(proc.ModelCalls()) != 1 || proc.Status() != core.StatusCompleted {
+		t.Fatalf("provider calls=%d recorded calls=%d status=%s", model.Calls(), len(proc.ModelCalls()), proc.Status())
+	}
+}
+
 type managedFinalModel struct {
 	mu    sync.Mutex
 	calls int

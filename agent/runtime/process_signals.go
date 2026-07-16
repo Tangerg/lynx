@@ -25,6 +25,7 @@ import (
 // race with state-machine reads without contending the main mutex.
 type processSignals struct {
 	terminate      chan core.TerminationSignal
+	runCancel      atomic.Pointer[context.CancelFunc]
 	toolCallCancel atomic.Pointer[context.CancelFunc]
 }
 
@@ -53,6 +54,27 @@ func (s *processSignals) drainTerminate() *core.TerminationSignal {
 		return &sig
 	default:
 		return nil
+	}
+}
+
+// fireRunCancel cancels the currently active Run / Continue context, if any.
+// Engine.Kill uses it so an in-flight action, provider call, or synchronous
+// child does not have to reach another process checkpoint before stopping.
+func (s *processSignals) fireRunCancel() {
+	cancel := s.runCancel.Load()
+	if cancel == nil || *cancel == nil {
+		return
+	}
+	(*cancel)()
+}
+
+// registerRunCancel installs the cancel function for one active Run /
+// Continue invocation and returns an ownership-safe release closure.
+func (s *processSignals) registerRunCancel(cancel context.CancelFunc) (release func()) {
+	cell := &cancel
+	s.runCancel.Store(cell)
+	return func() {
+		s.runCancel.CompareAndSwap(cell, nil)
 	}
 }
 

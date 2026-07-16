@@ -159,7 +159,7 @@ func validateInteraction(input core.Interaction) error {
 		return errors.New("runtime: managed interaction ID has surrounding whitespace")
 	}
 	limits := input.Limits
-	if limits.MaxRounds < 0 || limits.MaxSteps < 0 || limits.MaxTokens < 0 || limits.MaxCostUSD < 0 {
+	if limits.MaxRounds < 0 || limits.MaxSteps < 0 || limits.MaxModelCalls < 0 || limits.MaxTokens < 0 || limits.MaxCostUSD < 0 {
 		return errors.New("runtime: managed interaction limits must not be negative")
 	}
 	return nil
@@ -217,6 +217,9 @@ func (p *Process) interactionStopReason(round int, limits interaction.Limits) in
 		(limits.MaxTokens > 0 && int64(tokens) >= limits.MaxTokens) ||
 		(limits.MaxCostUSD > 0 && cost >= limits.MaxCostUSD) {
 		return interaction.StopBudget
+	}
+	if limits.MaxModelCalls > 0 && len(p.ModelCalls()) >= limits.MaxModelCalls {
+		return interaction.StopSteps
 	}
 	if limits.MaxSteps > 0 && round-1 >= limits.MaxSteps {
 		return interaction.StopSteps
