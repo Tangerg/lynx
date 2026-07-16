@@ -129,9 +129,9 @@ const (
 	// OutcomeMaxBudget — the run hit its token/cost budget and stopped cleanly
 	// after the current round (the partial reply already streamed). → Failed.
 	OutcomeMaxBudget
-	// OutcomeMaxSteps — the run hit its tool-call-round cap and stopped cleanly.
-	// Distinct from OutcomeMaxBudget so the wire can surface a dedicated maxSteps
-	// terminal. → Failed.
+	// OutcomeMaxSteps — the run hit its delegation-tree model-call cap and
+	// stopped cleanly. Distinct from OutcomeMaxBudget so the wire can surface a
+	// dedicated maxSteps terminal. → Failed.
 	OutcomeMaxSteps
 )
 

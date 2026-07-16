@@ -44,6 +44,61 @@ func (m *delegatingStubModel) Stream(ctx context.Context, req *chat.Request) ite
 	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
 }
 
+// delegatingAccountingStub is the delegation flow with deterministic served
+// model and usage attribution on every root/child round.
+type delegatingAccountingStub struct {
+	mu       sync.Mutex
+	calls    int
+	model    string
+	usage    chat.Usage
+	defaults *chat.Options
+}
+
+func newDelegatingAccountingStub(model string, usage chat.Usage) *delegatingAccountingStub {
+	return &delegatingAccountingStub{
+		model:    model,
+		usage:    usage,
+		defaults: &chat.Options{Model: model},
+	}
+}
+
+func (m *delegatingAccountingStub) DefaultOptions() chat.Options { return *m.defaults }
+
+func (m *delegatingAccountingStub) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	m.mu.Lock()
+	m.calls++
+	m.mu.Unlock()
+
+	var (
+		response *chat.Response
+		err      error
+	)
+	switch {
+	case hasToolMessage(req.Messages):
+		response, err = responseWithText("main: subtask done")
+	case mentionsDelegate(req.Messages):
+		response, err = responseWithToolCall("task", `{"prompt":"do the subtask"}`)
+	default:
+		response, err = responseWithText("subtask: result")
+	}
+	if response != nil {
+		response.Model = m.model
+		response.Usage = m.usage
+	}
+	return response, err
+}
+
+func (m *delegatingAccountingStub) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	response, err := m.Call(ctx, req)
+	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
+}
+
+func (m *delegatingAccountingStub) Calls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
 // cwdDelegatingStubModel is delegatingStubModel's cwd-aware cousin: the main
 // turn delegates via `task`, and the sub-agent (instead of replying text)
 // asks shell to create a marker file with a RELATIVE path. The marker lands in

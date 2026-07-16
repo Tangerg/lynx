@@ -60,8 +60,9 @@ type TurnRequest struct {
 	// [turnInput.MaxCostUSD] — requires a [Config.Pricing] hook.
 	MaxCostUSD float64
 
-	// MaxSteps caps the turn's tool-call rounds (0 = no cap). See
-	// [turnInput.MaxSteps]; surfaces as the maxSteps run outcome.
+	// MaxSteps caps cumulative model calls across the root and child delegation
+	// tree (0 = no cap). See [turnInput.MaxSteps]; surfaces as the maxSteps run
+	// outcome.
 	MaxSteps int
 
 	// Options carries per-run generation tuning (temperature, max tokens, stop
@@ -160,6 +161,9 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 // any spawned subtask unless explicitly overridden.
 func turnProcessOptions(dependencies *core.Dependencies, sessionID string, observer toolObserver, listener core.Extension, client *chatclient.Client, guardrails *core.ChatGuardrails) core.ProcessOptions {
 	options := core.ProcessOptions{}
+	if dependencies != nil {
+		options.ChildOptions = childOptions(dependencies, client)
+	}
 	if sessionID != "" {
 		options.Session = &core.Session{ID: sessionID}
 	}

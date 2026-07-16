@@ -38,8 +38,8 @@ type ModelUsage struct {
 	CostUSD float64
 }
 
-// Budget caps one turn by tokens, cost, and tool-call rounds. A zero field is
-// unbounded on that dimension.
+// Budget caps one turn by tokens, cost, and model calls across its complete
+// delegation tree. A zero field is unbounded on that dimension.
 type Budget struct {
 	MaxTokens  int64
 	MaxCostUSD float64

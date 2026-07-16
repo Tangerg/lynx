@@ -217,9 +217,9 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 		Request: request,
 		Tools:   registry,
 		Limits: agent.InteractionLimits{
-			MaxTokens:  budget.MaxTokens,
-			MaxCostUSD: budget.MaxCostUSD,
-			MaxSteps:   budget.MaxSteps,
+			MaxTokens:     budget.MaxTokens,
+			MaxCostUSD:    budget.MaxCostUSD,
+			MaxModelCalls: budget.MaxSteps,
 		},
 		Attribute: e.modelAttribution(provider),
 		Observe: func(_ context.Context, boundary agent.InteractionEvent) error {
