@@ -1,6 +1,6 @@
 # Runtime Agent/Core 对齐与执行边界收敛计划
 
-> 状态：**进行中，B1 已完成，下一批 B2**
+> 状态：**进行中，下一批 B3 Process 启动错误显式化**
 >
 > 建立日期：2026-07-16
 >
@@ -61,7 +61,7 @@
 | Runtime workspace vet | 通过 | `go vet ./...` |
 | 关键并发路径 race | 通过 | `agentexec`、`turn`、`runs`、`sessions`、`server`、SQLite 等关键包 |
 | Runtime 独立模块测试 | **失败** | `GOWORK=off go test ./...` 暴露 `go.mod` 内部模块版本滞后 |
-| 本轮代码实施 | 进行中 | `1 / 10` 批次完成 |
+| 本轮代码实施 | 进行中 | `2 / 10` 批次完成 |
 
 独立模块失败不是外部环境问题，而是依赖声明与实际源码不一致。workspace 的本地替换掩盖了该问题，本轮第一批必须先恢复依赖真相。
 
@@ -198,9 +198,9 @@ Agent/Core 最近的调整已经改善：
 | 编号 | 严重度 | 当前差异 / 风险 | 根因层 | 目标批次 |
 |---|---|---|---|---|
 | G-01 | P0 | **已解决**：workspace 通过但 `GOWORK=off` 失败 | 模块依赖声明 | B1 |
-| G-02 | P1 | pure-media turn 仍无条件构造空 text part | turn 输入翻译 | B2 |
-| G-03 | P1 | 异步 turn 仅手工复制部分 options，media / interrupt kinds 等仍可能共享 | 请求所有权 | B2 |
-| G-04 | P1 | Runtime 手写 Options 校验遗漏 penalty、TopK、NaN、Inf 等 Core 约束 | 校验边界 | B2 |
+| G-02 | P1 | **已解决**：pure-media turn 只构造 media part，不再生成空 text part | turn 输入翻译 | B2 |
+| G-03 | P1 | **已解决**：dispatcher 与 Agent engine 的异步入口完整快照 options、media 和 interrupt kinds | 请求所有权 | B2 |
+| G-04 | P1 | **已解决**：通用 Options 字段规则委托 Core `Validate`，Runtime 只包装上下文和限制 model 选择位置 | 校验边界 | B2 |
 | G-05 | P1 | Process create error 可返回 nil process，随后访问 `ID()` 可能 panic | Agent adapter 契约 | B3 |
 | G-06 | P0 | child 默认不继承 per-run provider、tool middleware、guardrail / dependency 策略 | 委派树装配 | B6、B8 |
 | G-07 | P0 | child suspension 被编码成 `waiting` 工具结果，parent 可继续而应用 Run 未真正 parked | Agent 子进程暂停契约 | B7-B8 |
@@ -228,8 +228,8 @@ Agent/Core 最近的调整已经改善：
 
 | 批次 | 主题 | 前置 | 当前状态 |
 |---|---|---|---|
-| B1 | 依赖真相与独立模块闭环 | 无 | 待执行 |
-| B2 | Turn 输入值语义与校验统一 | B1 | 待执行 |
+| B1 | 依赖真相与独立模块闭环 | 无 | 已完成 |
+| B2 | Turn 输入值语义与校验统一 | B1 | 已完成 |
 | B3 | Process 启动错误显式化 | B2 | 待执行 |
 | B4 | Managed interaction、timeout 与输出语义 | B3 | 待执行 |
 | B5 | Build identity 与 snapshot failure policy | B4 | 待执行 |
@@ -372,6 +372,35 @@ B4 提前于委派树实施：先消除整轮 idle timer、重复输出状态和
 - 不存在无条件 `NewTextPart("")`；
 - turn 异步边界的输入所有权可由测试证明；
 - 全量与 standalone 门禁通过。
+
+### 9.6 执行记录
+
+- 完成日期：2026-07-16。
+- 实施范围：
+  - application 与 turn adapter 的通用 generation options 校验均委托 `chat.Options.Validate()`，并用各自 `ErrInvalidTurnOptions` 保留应用错误上下文和 Core sentinel；
+  - `StartTurnRequest` 在启动 goroutine 前完整快照 options、media 和 interrupt kinds；
+  - `agentexec.TurnRequest` 在创建异步 Agent Process 前再次拥有 options 与 media，保留 observer、callback、client 等运行期协作者原有共享契约；
+  - 移除 turn goroutine 内不完整的手工 options 浅复制；
+  - pure-media 不再构造非法空 text part，text-only、media-only、text + media 均按真实 part 形状进入 Core request。
+- 回归证据：
+  - 覆盖 FrequencyPenalty、PresencePenalty、TopK、NaN、Inf 和 Runtime `Options.Model` 约束；
+  - 覆盖 caller 在 `StartTurn` 返回后修改 options 指针字段、stop slice、media bytes / slice、interrupt kinds，不影响执行快照；
+  - 覆盖 dispatcher 和 Agent engine 两个异步入口的值所有权；
+  - 覆盖 nil observer、合法 observer、text-only、media-only 和 text + media。
+- 定向验证：
+  - `go test -count=1 ./internal/application/runs ./internal/adapter/agentexec/turn ./internal/adapter/agentexec`：通过；
+  - `go test -race -count=1 ./internal/application/runs ./internal/adapter/agentexec/turn ./internal/adapter/agentexec`：通过。
+- 全量验证：
+  - `go build ./...`：通过；
+  - `go vet ./...`：通过；
+  - `go test -count=1 ./...`：通过；
+  - `go test -race -count=1 ./...`：通过；
+  - `make check-standalone`：通过；
+  - `GOWORK=off go test -race -count=1 ./...`：通过；
+  - `GOWORK=off go mod tidy -diff` 与 `git diff --check`：无输出。
+- Commit：`3d9a6f33c444`
+- Push：`origin/codex/runtime-architecture-refactor`
+- 剩余风险：无；G-02、G-03、G-04 关闭。
 
 ---
 
@@ -884,7 +913,7 @@ go test -race ./...
 |---|---|---|---|---|---|
 | 基线审查 | 已完成 | 2026-07-16 | 2026-07-16 | `92b4147a5afd` 基线 | workspace 绿；standalone 失败已定位 |
 | B1 依赖真相 | 已完成 | 2026-07-16 | 2026-07-16 | `09f32465afd4` | workspace / standalone build、vet、test、race 全绿；CI 固定门禁 |
-| B2 输入值语义 | 待执行 | — | — | — | — |
+| B2 输入值语义 | 已完成 | 2026-07-16 | 2026-07-16 | `3d9a6f33c444` | Core 校验委托；双异步入口完整快照；pure-media；workspace / standalone 全绿 |
 | B3 启动错误 | 待执行 | — | — | — | — |
 | B4 Interaction / 输出 | 待执行 | — | — | — | — |
 | B5 Build / Snapshot | 待执行 | — | — | — | — |
@@ -894,7 +923,7 @@ go test -race ./...
 | B9 Engine / Ownership | 待执行 | — | — | — | — |
 | B10 Fitness / Docs | 待执行 | — | — | — | — |
 
-当前实现进度：**1 / 10**。
+当前实现进度：**2 / 10**。
 
 状态只允许：
 
