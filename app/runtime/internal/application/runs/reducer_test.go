@@ -238,7 +238,7 @@ func TestReducerDrainsToolsInStartOrder(t *testing.T) {
 		reducer.reduce(event)
 	}
 
-	drained := drainedToolsFrom(reducer.tools)
+	drained := reducer.tools.snapshot()
 	if len(drained) != 3 {
 		t.Fatalf("drained tool count = %d, want 3", len(drained))
 	}
@@ -252,6 +252,9 @@ func TestReducerDrainsToolsInStartOrder(t *testing.T) {
 	}
 	if !slices.Equal(got, []string{"first", "second", "third"}) {
 		t.Fatalf("completed tools = %v, want start order", got)
+	}
+	if len(reducer.tools) != 0 {
+		t.Fatalf("open tools after drain = %d, want 0", len(reducer.tools))
 	}
 }
 

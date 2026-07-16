@@ -461,19 +461,53 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 ### P3：App Runtime 内部 owner 收敛
 
 > 类型：内部重构，中风险
+> 状态：完成
 
-- [ ] reducer 的 commit 判定、interrupt 校验、open-tool drain 迁入真实 owner。
-- [ ] transcript FileChange 路径派生迁入 canonical value。
-- [ ] `runs.go` 按 admission/recovery 拆文件。
-- [ ] artifact decode 与 presenter 按职责拆文件；无状态 projection 保持自由函数。
-- [ ] sessions admission/slice projection helper 保持自由函数，不机械 receiver 化。
-- [ ] SQLite scan/encode/decode helper 保持自由函数。
+- [x] reducer 的 commit 判定、interrupt 校验、open-tool drain 迁入真实 owner。
+- [x] transcript FileChange 路径派生迁入 canonical value。
+- [x] `runs.go` 按 admission/recovery 拆文件。
+- [x] artifact decode 与 presenter 按职责拆文件；无状态 projection 保持自由函数。
+- [x] sessions admission/slice projection helper 保持自由函数，不机械 receiver 化。
+- [x] SQLite scan/encode/decode helper 保持自由函数。
 
 退出标准：
 
 - Application/Domain 不新增 Delivery/Infra import；
 - durable event 顺序、interrupt/resume/recovery tests 全绿；
 - 无 wire/schema 变化。
+
+实施裁决：
+
+| 候选 | 裁决 | 认知负担证据 |
+| --- | --- | --- |
+| `EventCommit.isEmpty` | 迁入 | durable write-set 是否为空只取决于自身字段；删除 reducer 中重复展开的四项判定 |
+| `TurnInterrupted.validate` | 迁入 | typed union 的 kind/payload 一致性属于事件自身，不再由 reducer 接收裸 slice 校验 |
+| `openTools` 的 add/take/snapshot/drain/order | 迁入 | 真实持有 call ID→open tool 集合；顺序、快照与清空不变量集中，reducer 只负责投影事件 |
+| `Item.FileChangePaths` / `FileChangeResult.Paths` | 迁入 | 文件路径来自 canonical FileChange fact；去重、空路径过滤与成功状态约束由 canonical value 维护 |
+| artifact decoder receiver | 不引入 | wire→canonical 转换没有跨调用状态；强放 session/messageCount/path 只会隐藏参数 |
+| presenter receiver | 不引入 | canonical→wire 是无状态 projection；函数按 run/item/event 分文件即可表达职责 |
+| sessions admission/slice helper | 保留 | admission 构造、切片投影和批量释放没有单一 aggregate owner |
+| SQLite scan/encode/decode helper | 保留 | 属于 row/value codec，不因共享 Store 依赖而成为 Store 行为 |
+
+文件组织：
+
+- `infra/storage/sqlite/runs.go`：Run admission 与状态迁移；
+- `infra/storage/sqlite/run_recovery.go`：restart reconciliation、parked-run
+  校验与 lost-run 修复；
+- `delivery/server/artifact_decode.go`：artifact 聚合与 run-tree 一致性；
+- `artifact_run_decode.go` / `artifact_item_decode.go`：run 与 item 解码；
+- `presenter.go`：事件流映射；
+- `presenter_run.go` / `presenter_item.go`：run 与 item projection。
+
+验证证据：
+
+- Runtime：`go build ./...`、`go vet ./...`、`go test ./...` 全绿；
+- `go test -race ./internal/application/runs ./internal/infra/storage/sqlite
+  ./internal/delivery/server` 全绿；
+- `internal/arch`、protocol wire golden、session import/export、interrupt/resume、
+  restart recovery 测试全绿；
+- Application/Domain 未新增 Delivery/Infra import；
+- 未修改 protocol DTO、migration 或 schema；旧 owner helper 名检索为零。
 
 ### P4：App Runtime 工具结果边界纠正
 
@@ -624,7 +658,7 @@ go vet ./...
 | P0 审计与决策门 | 完成 | 100% | — |
 | P1 Core 值对象与 snapshot | 完成 | 100% | — |
 | P2 Tools owner 与组织 | 完成 | 100% | — |
-| P3 Runtime owner 收敛 | 未开始 | 0% | P0 |
+| P3 Runtime owner 收敛 | 完成 | 100% | — |
 | P4 Runtime 工具结果边界 | 未开始 | 0% | P0，结构性决策 |
 | P5 Document Pipeline API | 未开始 | 0% | P0，breaking 决策 |
 | P6 Chat History API | 未开始 | 0% | P0，breaking 决策 |

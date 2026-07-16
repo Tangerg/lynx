@@ -2,8 +2,6 @@ package runs
 
 import (
 	"cmp"
-	"errors"
-	"fmt"
 	"maps"
 	"slices"
 
@@ -13,11 +11,11 @@ import (
 )
 
 func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
-	if err := validateInterrupts(e.Interrupts); err != nil {
+	if err := e.validate(); err != nil {
 		return nil, err
 	}
 	out := r.closeStreaming()
-	r.drained = drainedToolsFrom(r.tools)
+	r.drained = r.tools.snapshot()
 	out = append(out, r.drainTools()...)
 
 	pending := make([]transcript.Interrupt, 0, len(e.Interrupts))
@@ -37,27 +35,6 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 	run := r.runRecord(execution.Interrupted)
 	run.Interrupts = pending
 	return append(out, SegmentFinished{Run: run}), nil
-}
-
-func validateInterrupts(values []Interrupt) error {
-	if len(values) == 0 {
-		return errors.New("runs: executor emitted an empty interrupt")
-	}
-	for _, value := range values {
-		switch value.Kind {
-		case ApprovalInterruptKind:
-			if value.Approval == nil || value.Question != nil {
-				return errors.New("runs: malformed approval interrupt")
-			}
-		case QuestionInterruptKind:
-			if value.Question == nil || value.Approval != nil {
-				return errors.New("runs: malformed question interrupt")
-			}
-		default:
-			return fmt.Errorf("runs: unknown interrupt kind %q", value.Kind)
-		}
-	}
-	return nil
 }
 
 func (r *reducer) approvalInterrupt(in Interrupt) (Item, transcript.Interrupt) {
@@ -120,36 +97,56 @@ func questionFromPrompt(prompt interrupts.QuestionPrompt) Question {
 	return Question{Prompt: label, Fields: fields}
 }
 
-func drainedToolsFrom(tools map[string]*openTool) []interrupts.DrainedTool {
+type openTools map[string]*openTool
+
+func (tools openTools) add(tool *openTool) {
+	tools[tool.callID] = tool
+}
+
+func (tools openTools) take(callID string) (*openTool, bool) {
+	tool, ok := tools[callID]
+	if ok {
+		delete(tools, callID)
+	}
+	return tool, ok
+}
+
+func (tools openTools) snapshot() []interrupts.DrainedTool {
 	if len(tools) == 0 {
 		return nil
 	}
 	out := make([]interrupts.DrainedTool, 0, len(tools))
-	for _, ref := range orderedOpenTools(tools) {
+	for _, ref := range tools.ordered() {
 		out = append(out, interrupts.DrainedTool{ItemID: ref.id, Name: ref.name, Arguments: ref.args})
 	}
 	return out
 }
 
+func (tools openTools) drain() []*openTool {
+	ordered := tools.ordered()
+	clear(tools)
+	return ordered
+}
+
+func (tools openTools) ordered() []*openTool {
+	ordered := slices.Collect(maps.Values(tools))
+	slices.SortFunc(ordered, func(a, b *openTool) int { return cmp.Compare(a.order, b.order) })
+	return ordered
+}
+
 func (r *reducer) drainTools() []RunEvent {
-	if len(r.tools) == 0 {
+	tools := r.tools.drain()
+	if len(tools) == 0 {
 		return nil
 	}
-	out := make([]RunEvent, 0, len(r.tools))
-	for _, ref := range orderedOpenTools(r.tools) {
+	out := make([]RunEvent, 0, len(tools))
+	for _, ref := range tools {
 		out = append(out, ItemCompleted{Item: Item{
 			ID: ref.id, RunID: r.cfg.RunID, Status: ItemIncomplete,
 			Kind: ToolCall, CreatedAt: ref.createdAt,
 			Tool:        r.newToolInvocation(ref.name, ref.args, ""),
 			SafetyClass: ref.safetyClass,
 		}})
-		delete(r.tools, ref.callID)
 	}
 	return out
-}
-
-func orderedOpenTools(tools map[string]*openTool) []*openTool {
-	ordered := slices.Collect(maps.Values(tools))
-	slices.SortFunc(ordered, func(a, b *openTool) int { return cmp.Compare(a.order, b.order) })
-	return ordered
 }

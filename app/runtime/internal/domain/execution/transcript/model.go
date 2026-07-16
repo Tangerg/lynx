@@ -91,6 +91,17 @@ type Item struct {
 	DroppedMessages int
 }
 
+// FileChangePaths returns the distinct non-empty paths changed by a completed,
+// successful file-change tool item. Other item shapes have no file changes.
+func (i Item) FileChangePaths() []string {
+	if i.Kind != ToolCall || i.Status != ItemCompleted || i.Error != nil ||
+		i.Tool == nil || i.Tool.Result == nil ||
+		i.Tool.Result.Kind != FileChangeToolResult || i.Tool.Result.FileChange == nil {
+		return nil
+	}
+	return i.Tool.Result.FileChange.Paths()
+}
+
 type ContentKind uint8
 
 const (
@@ -224,6 +235,26 @@ type CommandResult struct {
 type SearchResult struct{ Hits []SearchHit }
 type WebSearchResultSet struct{ Results []WebSearchResult }
 type FileChangeResult struct{ Changes []FileEdit }
+
+// Paths returns the distinct non-empty changed paths in their original order.
+func (r FileChangeResult) Paths() []string {
+	if len(r.Changes) == 0 {
+		return nil
+	}
+	paths := make([]string, 0, len(r.Changes))
+	seen := make(map[string]struct{}, len(r.Changes))
+	for _, change := range r.Changes {
+		if change.Path == "" {
+			continue
+		}
+		if _, duplicate := seen[change.Path]; duplicate {
+			continue
+		}
+		seen[change.Path] = struct{}{}
+		paths = append(paths, change.Path)
+	}
+	return paths
+}
 
 type SearchHit struct {
 	Path       string

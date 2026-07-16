@@ -1,6 +1,8 @@
 package runs
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -109,6 +111,27 @@ type TurnInterrupted struct {
 }
 
 func (TurnInterrupted) Interrupt() bool { return true }
+
+func (e TurnInterrupted) validate() error {
+	if len(e.Interrupts) == 0 {
+		return errors.New("runs: executor emitted an empty interrupt")
+	}
+	for _, interrupt := range e.Interrupts {
+		switch interrupt.Kind {
+		case ApprovalInterruptKind:
+			if interrupt.Approval == nil || interrupt.Question != nil {
+				return errors.New("runs: malformed approval interrupt")
+			}
+		case QuestionInterruptKind:
+			if interrupt.Question == nil || interrupt.Approval != nil {
+				return errors.New("runs: malformed question interrupt")
+			}
+		default:
+			return fmt.Errorf("runs: unknown interrupt kind %q", interrupt.Kind)
+		}
+	}
+	return nil
+}
 
 type TurnEnd struct {
 	EventMeta
