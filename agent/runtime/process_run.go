@@ -214,7 +214,7 @@ func (p *Process) formulatePlan(ctx context.Context, worldState core.WorldState)
 	if len(approvers) > 0 {
 		var approved []*core.Goal
 		for _, goal := range domain.Goals() {
-			if runGoalApprovers(approvers, p, goal) {
+			if p.approvesGoal(approvers, goal) {
 				approved = append(approved, goal)
 			}
 		}

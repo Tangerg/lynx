@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：已完成（P0–P9 全部关闭；总计 90/90）
+> 状态：已完成（P0–P10 全部关闭；总计 97/97）
 > 建立日期：2026-07-15
 > 最后更新：2026-07-16
 > 维护者：Lynx 仓库维护者
@@ -11,7 +11,7 @@
 
 上位约束是 [`../CLAUDE.md`](../CLAUDE.md)、[`../DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md) 和 [`../REFACTORING.md`](../REFACTORING.md)。Core 的稳定协议边界以 [`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md) 与 [`../core/CLAUDE.md`](../core/CLAUDE.md) 为准。本文只规划 Agent Framework，不重新打开已经关闭的 Core 架构重构。
 
-维护者已于 2026-07-16 明确授权 BB-01 至 BB-08 以及 P9 命名/API 收敛的全部 breaking change：直接迁移，不保留兼容层；旧 ProcessSnapshot 按第 12.4.2 节策略丢弃。授权不包含 git commit、push、tag、release 或对外部数据库的即时操作。
+维护者已于 2026-07-16 明确授权 BB-01 至 BB-08、P9 命名/API 收敛与 P10 receiver 深挖的全部 breaking change：直接迁移，不保留兼容层；旧 ProcessSnapshot 按第 12.4.2 节策略丢弃。后续又明确授权形成开发提交；授权仍不包含 push、tag、release 或对外部数据库的即时操作。
 
 ---
 
@@ -1596,6 +1596,15 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
   - Agent/App build、vet、test、lint、tidy；Agent 全 race、API/wire/arch；App 高风险 race；旧自由函数生产扫描与 `git diff --check`。
   - 完整门禁未全部通过前，不关闭 P10、不提交本批次。
   - 结果：Agent build/vet/test/lint/tidy/full race/API/wire/arch 全绿；App build/vet/test/lint/tidy 全绿，agentexec/toolset/runsegment/SQLite/bootstrap/architecture 高风险 race 全绿；旧自由函数生产扫描与 `git diff --check` 无输出。
+- [x] **P10-06 深挖私有函数与文件职责**（完成：2026-07-16）
+  - `FuncAction[In,Out]` 自己读取 `In`，`DependencyKey[T]` 自己校验并判断对应类型的 nil；`AgentConfig`、`ProcessStatus`、`ModelCall`、`EmbeddingCall`、`ProcessSnapshot` 与 durable wire projection 回到各自 receiver。
+  - GOAP/Reactive planner、HTN Method、routing Candidate、event Multicast 的私有策略从 owner 出发；runtime 的 action/tool middleware、goal approval、child extension、chat scope、interaction owner、agent-tool/task result 与 ToolLoop continuation 收回 `Engine`、`Process`、`agentTool`、`taskToolset`、`runnerState`。
+  - 将 deployment canonical snapshot/digest 聚合为持有 `buildID` 的私有 `deploymentCompiler`，文件同步改为 `deployment_compiler.go`；不新增公开 service/interface。
+  - 生产包级私有自由函数从 140 降至 92，减少 48 个；该数字只作为审计证据，不作为继续方法化的 KPI。剩余项逐个归类为构造器、wire decode、跨类型投影、slice/map 共享算法、对称 codec、外部 SPI guard 或多类型泛型。
+- [x] **P10-07 复验完整 Framework gate**（完成：2026-07-16）
+  - Agent `MODULE=agent scripts/check.sh build vet test lint` 与 full race 全绿；workspace `FAST=1 scripts/check.sh build vet test lint` 84 项全绿。
+  - App agentexec/toolset/runsegment/SQLite/bootstrap/architecture 高风险 race 全绿；Agent/App `go mod tidy -diff`、旧符号扫描与 `git diff --check` 无输出。
+  - public API 保持 16 package / 628 declaration / root 46，SHA-256 仍为 `b141e3b420575e9b5f3fd9c03a3539b5bbc55ff6754c5ed60a614ceafae24a39`；wire 保持 14 struct / 456 行，SHA-256 仍为 `324d63d70cc6f7bb613028f7c470ba089ecbec4fcd8b1ff04fe91bfd7bb3a5ea`。
 
 退出标准：领域实体和值对象拥有自身无 I/O 规则，Engine/Domain 的调用从 owner 出发；自由函数只保留无法或不应归属单一 receiver 的行为；公共面不因“充血”引入 builder、getter、伪对象或宽接口；全部门禁通过。
 
@@ -1617,15 +1626,15 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
 | P7 稳定与发布 | 完成 | 7/7 | 架构、测试、契约、冻结、文档、最终门禁与 v1 发布裁决全部完成 |
 | P8 公共模型收敛 | 完成 | 14/14 | config/只读聚合/显式 Action error/API 内收/消费者/文档与完整 release gate 全部完成 |
 | P9 Go API 语义化收口 | 完成 | 15/15 | 代码、consumer、文档、API/wire/deployment baseline 与完整 Agent/App gate 全部统一 |
-| P10 Owner Receiver 精修 | 完成 | 5/5 | core/planning/runtime owner method、consumer、API、文档与完整 Agent/App gate 全部完成 |
-| **总计** | **完成** | **95/95（100%）** | **P0–P10 全部关闭；发布动作仍需单独授权** |
+| P10 Owner Receiver 精修 | 完成 | 7/7 | 公私有 owner method、deployment compiler、文件职责、API/文档与完整 Agent/App gate 全部完成 |
+| **总计** | **完成** | **97/97（100%）** | **P0–P10 全部关闭；发布动作仍需单独授权** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P10 Owner Receiver 与充血模型精修已完成，5/5。
+- 当前阶段：P10 Owner Receiver 与充血模型精修已完成，7/7。
 - 下一任务：无；后续改动按 API/wire/SemVer 治理另行立项。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：P10-05 完整 Agent/App gate；公开 API 为 16 package / 628 declaration / root 46，wire 为 14 struct / 456 行。已形成开发提交，未执行 tag、push 或 release。
+- 最近完成：P10-06/P10-07 私有 owner 深挖与完整复验；公开 API 仍为 16 package / 628 declaration / root 46，wire 仍为 14 struct / 456 行。已形成开发提交，未执行 tag、push 或 release。
 
 ### 15.3 进度更新规则
 
@@ -1746,7 +1755,7 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
 
 ### ADR-AF-014：无 I/O 的单一 owner 行为优先进入 receiver
 
-- 状态：已接受并通过 P10-05 完整验证。
+- 状态：已接受并通过 P10-07 完整验证。
 - 决策：实体和值对象拥有自身不变量、派生值、纯状态判断与防御性 projection；Engine、Domain 等框架对象拥有以自身状态为入口的框架操作。调用点不再把 owner 作为自由函数首参。
 - 例外：构造器、从 wire 无中生有的 decode、跨多个类型共享的组装、跨包类型 helper、请求/响应 DTO、运行结果记录，以及需要按多种类型实例化的泛型算法继续保留自由函数。
 - 克制边界：不把 receiver 数量、自由函数数量或“充血程度”当指标；没有真实 owner 的行为不制造伪对象，不为挂方法新增 service/manager/context carrier。
@@ -1757,6 +1766,7 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-16 | 完成 P10-06/P10-07：深挖生产私有函数，把泛型重复类型参数、单 owner 策略、状态派生和结果编码收回 receiver；引入私有 `deploymentCompiler` 并重命名文件；生产包级私有自由函数 140→92，API/wire 不变，Agent/App/workspace 完整门禁全绿；P10 7/7、总计 97/97 关闭 | Codex |
 | 2026-07-16 | 完成 P10-05：Agent 全量 build/vet/test/lint/tidy/race/API/wire/arch、App 全量常规门禁与高风险 race、旧函数扫描和 diff check 全绿；P10 5/5、总计 95/95 关闭 | Codex |
 | 2026-07-16 | 完成 P10-01 至 P10-04：按 owner 审计收回 Agent durable codec、Domain planning templates、Engine goal tools、ToolGroup 合同与若干私有派生行为；迁移全部 consumer/docs/API baseline；当前 94/95，待完整 gate | Codex |
 | 2026-07-16 | 修复无 SessionStore 时 `RunInSession` 不刷新 Session.UpdatedAt；独立提交 `40cc00765` | Codex |
@@ -1793,6 +1803,7 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-16 | P10-06/P10-07 | `FuncAction`、`DependencyKey`、Agent/durable DTO、planner/HTN/routing/event、Process/Engine extension dispatch、agent tools 与 ToolLoop state 的单 owner 私有行为完成 receiver 化或内联；deployment canonical 编译聚合为私有 `deploymentCompiler`，文件改为 `deployment_compiler.go`。生产包级私有自由函数 140→92；剩余项均有保留分类。Agent build/vet/test/lint/full race、workspace 84 项常规门禁、App 高风险 race、两模块 tidy、API/wire/arch、旧符号扫描和 diff check 全绿；API/wire hash 不变 | 无；97/97 关闭。tag/push/release 仍需维护者单独授权 |
 | 2026-07-16 | P10-05 | Agent `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`golangci-lint run ./...`、`go mod tidy -diff`、`go test -race -count=1 ./...` 与 `internal/arch` 全绿；App build/vet/test/lint/tidy 全绿，agentexec/toolset/runsegment/SQLite/bootstrap/architecture race 全绿；API/wire hash 稳定，旧自由函数生产扫描和 `git diff --check` 无输出 | 无；95/95 关闭。tag/push/release 仍需维护者单独授权 |
 | 2026-07-16 | P10-01 至 P10-04 | 删除以 Agent/Domain/Engine/permission slice 为首参的 10 个自由函数，新增 12 个明确 owner method；ActionMetadata/GoalTool/Session/State/Process 私有行为同步收回。Agent/planning/runtime/workflow 定向测试通过；API 为 16 package/628 declaration/root 46，SHA-256 `b141e3b420575e9b5f3fd9c03a3539b5bbc55ff6754c5ed60a614ceafae24a39`；wire 未变 | P10-05 完整 Agent/App gate、旧符号扫描、diff check 后提交 |
 | 2026-07-16 | P9-01 至 P9-15 | 公共语言统一为 Engine/Process/DeploymentRef、Truth/Binding/Domain/State、Dependencies；Chat 配置接受 ChatCapability；HITL 与 StuckPolicy 零值收敛；ToolGroup、agent tools、运行记录与文件职责完成 Go 化。进一步删除 ToolLoop Invocation carrier，采用 `Runner.Run(ctx, request, resolver)`；GoalFirst、ModelConfig、GoalToolsFor、event.Header 等名称消除 package qualification 后的冗余或继承味道。当前 API 为 16 package/626 declaration/root 46，SHA-256 `119e3e754688a922918e7fb257495e58aee9542a5d88382508f9f9ad8a6ef5af`；wire 为 14 struct/456 行，SHA-256 `324d63d70cc6f7bb613028f7c470ba089ecbec4fcd8b1ff04fe91bfd7bb3a5ea`。Agent 全量 build/vet/test/lint/tidy/race 与 App 全量常规门禁/高风险 race 全绿；旧符号扫描和 `git diff --check` 无输出 | 无；90/90 关闭。commit/tag/push/release 仍需维护者单独授权 |

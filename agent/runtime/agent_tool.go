@@ -36,7 +36,7 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 	}
 
 	defer t.discard(ctx, process)
-	return encodeAgentToolResult(t.label, agentName, process, t.result)
+	return t.encodeResult(process)
 }
 
 // discard releases a terminal child from memory and durable storage. Waiting
@@ -54,26 +54,27 @@ func (t *agentTool) discard(ctx context.Context, child *Process) {
 	}
 }
 
-// waitingToolResult renders a pending suspension as a JSON tool result.
+// waitingToolResult renders the pending suspension as a JSON tool result.
 //
 //	{"status":"waiting", "agent":"…", "process_id":"…",
 //	 "suspension_id":"…", "prompt":<payload>}
 //
 // Hosts can resume the child using process_id and suspension_id.
-func waitingToolResult(agentName string, child *Process) string {
+func (p *Process) waitingToolResult() string {
+	agentName := p.agent().Name()
 	payload := map[string]any{
 		"status":     "waiting",
 		"agent":      agentName,
-		"process_id": child.ID(),
+		"process_id": p.ID(),
 	}
-	if suspension := child.Suspension(); suspension != nil {
+	if suspension := p.Suspension(); suspension != nil {
 		payload["suspension_id"] = suspension.ID
 		payload["prompt"] = suspension.Prompt
 		payload["resume_schema"] = suspension.ResumeSchema
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Sprintf(`{"status":"waiting","agent":%q,"process_id":%q}`, agentName, child.ID())
+		return fmt.Sprintf(`{"status":"waiting","agent":%q,"process_id":%q}`, agentName, p.ID())
 	}
 	return string(encoded)
 }

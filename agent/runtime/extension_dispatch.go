@@ -26,7 +26,7 @@ func newExtensionRegistry() extensionRegistry {
 // register adds extension to the registry. It rejects nil (including typed nil),
 // empty Name, and duplicate Name without mutating the registry.
 func (r *extensionRegistry) register(scope string, extension core.Extension) error {
-	if extensionIsNil(extension) {
+	if valueIsNil(extension) {
 		return fmt.Errorf("runtime: nil extension in %s", scope)
 	}
 	name := extension.Name()
@@ -39,10 +39,6 @@ func (r *extensionRegistry) register(scope string, extension core.Extension) err
 	r.byName[name] = extension
 	r.list = append(r.list, extension)
 	return nil
-}
-
-func extensionIsNil(extension core.Extension) bool {
-	return valueIsNil(extension)
 }
 
 func valueIsNil(value any) bool {
@@ -86,17 +82,16 @@ func lastExtension[T any](extensions []core.Extension) T {
 	return zero
 }
 
-// runActionChain executes the onion chain. The first
+// runActionChain executes the process's action-middleware onion chain. The first
 // registered interceptor is the outermost (matches net/http
 // middleware ordering). base is the inner "actually run the action"
 // closure invoked once every interceptor has called next().
-func runActionChain(
-	actionMiddleware []core.ActionMiddleware,
+func (p *Process) runActionChain(
 	ctx context.Context,
-	process core.ProcessView,
 	action core.Action,
 	base func() (core.ActionStatus, error),
 ) (core.ActionStatus, error) {
+	actionMiddleware := collectExtensions[core.ActionMiddleware](p.combinedExtensions())
 	if len(actionMiddleware) == 0 {
 		return base()
 	}
@@ -105,47 +100,47 @@ func runActionChain(
 		if index >= len(actionMiddleware) {
 			return base()
 		}
-		return actionMiddleware[index].RunAction(ctx, process, action, func() (core.ActionStatus, error) {
+		return actionMiddleware[index].RunAction(ctx, p, action, func() (core.ActionStatus, error) {
 			return run(index + 1)
 		})
 	}
 	return run(0)
 }
 
-// wrapTool wraps tool through every decorator in
+// wrapTool wraps tool through every supplied decorator in
 // registration order. First decorator is innermost; a decorator may
 // return its input unchanged to no-op.
-func wrapTool(
+func (p *Process) wrapTool(
 	toolMiddleware []core.ToolMiddleware,
-	process core.ProcessView,
 	action core.Action,
 	tool tools.Tool,
 ) tools.Tool {
 	for _, middleware := range toolMiddleware {
-		tool = middleware.WrapTool(process, action, tool)
+		tool = middleware.WrapTool(p, action, tool)
 	}
 	return tool
 }
 
-// runAgentValidators runs every validator and collects all their errors
+// agentValidationErrors runs every engine validator and collects all errors
 // (each wrapped with the validator's Name for attribution) so Deploy can
 // report every problem at once rather than stopping at the first.
-func runAgentValidators(validators []core.AgentValidator, agent *core.Agent) []error {
+func (e *Engine) agentValidationErrors(agent *core.Agent) []error {
+	validators := collectExtensions[core.AgentValidator](e.extensions.list)
 	var problems []error
 	for _, validator := range validators {
 		if err := validator.Validate(agent); err != nil {
-			problems = append(problems, fmt.Errorf("runtime.runAgentValidators: validator %q: %w", validator.Name(), err))
+			problems = append(problems, fmt.Errorf("runtime.Engine.agentValidationErrors: validator %q: %w", validator.Name(), err))
 		}
 	}
 	return problems
 }
 
-// runGoalApprovers returns true only when every approver returns
+// approvesGoal returns true only when every approver returns
 // true (conjunction — any false vetoes). Empty approver list
 // trivially approves.
-func runGoalApprovers(approvers []core.GoalApprover, process core.ProcessView, goal *core.Goal) bool {
+func (p *Process) approvesGoal(approvers []core.GoalApprover, goal *core.Goal) bool {
 	for _, approver := range approvers {
-		if !approver.Approve(process, goal) {
+		if !approver.Approve(p, goal) {
 			return false
 		}
 	}

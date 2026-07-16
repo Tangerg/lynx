@@ -19,6 +19,38 @@ func (p *Process) processExtensions() []core.Extension {
 	return p.options.Extensions
 }
 
+// childExtensions propagates a parent's process-scope [EventListener]
+// extensions onto a child's option set so the whole delegation subtree feeds
+// the listener the parent registered. Other capabilities stay scoped to the
+// process that declared them. A child-declared listener with the same Name
+// wins, and duplicates are skipped so process extension validation remains
+// deterministic.
+func (p *Process) childExtensions(childExtensions []core.Extension) []core.Extension {
+	if p == nil || p.options == nil || len(p.options.Extensions) == 0 {
+		return childExtensions
+	}
+	seen := make(map[string]struct{}, len(childExtensions))
+	for _, extension := range childExtensions {
+		if extension != nil {
+			seen[extension.Name()] = struct{}{}
+		}
+	}
+	for _, extension := range p.options.Extensions {
+		if extension == nil {
+			continue
+		}
+		if _, ok := extension.(EventListener); !ok {
+			continue
+		}
+		if _, duplicate := seen[extension.Name()]; duplicate {
+			continue
+		}
+		childExtensions = append(childExtensions, extension)
+		seen[extension.Name()] = struct{}{}
+	}
+	return childExtensions
+}
+
 // combinedExtensions returns engine extensions followed by process
 // extensions — the natural ordering for onion / wrap chains where
 // engine sits outermost (registered earliest) and process sits

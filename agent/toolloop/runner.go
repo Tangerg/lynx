@@ -105,14 +105,16 @@ func (r *Runner) startState(ctx context.Context, request *chat.Request, resolver
 	if err := r.validateContext(ctx); err != nil {
 		return nil, err
 	}
-	if err := validateRunInput(request, resolver); err != nil {
+	state := &runnerState{request: request, resolver: resolver}
+	if err := state.validateInput(); err != nil {
 		return nil, err
 	}
 	request, err := snapshot(request)
 	if err != nil {
 		return nil, fmt.Errorf("%w: snapshot request: %w", ErrInvalidInput, err)
 	}
-	return &runnerState{request: request, resolver: resolver}, nil
+	state.request = request
+	return state, nil
 }
 
 func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver, resume Resume) (*runnerState, error) {
@@ -131,9 +133,6 @@ func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolv
 	if checkpoint.MaxRounds != r.maxRounds {
 		return nil, fmt.Errorf("%w: checkpoint max rounds %d does not match runner policy %d", ErrInvalidInput, checkpoint.MaxRounds, r.maxRounds)
 	}
-	if err := validateRunInput(checkpoint.Request, resolver); err != nil {
-		return nil, fmt.Errorf("%w: resumed request: %v", ErrInvalidInput, err)
-	}
 	copy, err := snapshot(checkpoint)
 	if err != nil {
 		return nil, fmt.Errorf("%w: snapshot checkpoint: %w", ErrInvalidInput, err)
@@ -142,7 +141,7 @@ func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolv
 	if err != nil {
 		return nil, fmt.Errorf("%w: checkpoint calls: %w", ErrInvalidInput, err)
 	}
-	return &runnerState{
+	state := &runnerState{
 		request:  copy.Request,
 		resolver: resolver,
 		round:    copy.Round,
@@ -150,7 +149,11 @@ func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolv
 		calls:    calls,
 		results:  slices.Clone(copy.Results),
 		nextCall: copy.NextCall,
-	}, nil
+	}
+	if err := state.validateInput(); err != nil {
+		return nil, fmt.Errorf("%w: resumed request: %v", ErrInvalidInput, err)
+	}
+	return state, nil
 }
 
 func (r *Runner) validateContext(ctx context.Context) error {
@@ -188,7 +191,7 @@ func (r *Runner) execute(ctx context.Context, state *runnerState, yield func(Eve
 		if direct {
 			return
 		}
-		request, err := continuationRequest(state.request, state.response, state.results)
+		request, err := state.continuationRequest()
 		if err != nil {
 			yield(Event{}, err)
 			return
@@ -274,8 +277,7 @@ func (r *Runner) callTools(ctx context.Context, state *runnerState, yield func(E
 			return false, false
 		}
 
-		result, pause, err := invokeTool(ctx, call, resolved[position], state.resume)
-		state.resume = nil
+		result, pause, err := state.invokeTool(ctx, call, resolved[position])
 		if err != nil {
 			yield(Event{}, err)
 			return false, false
@@ -307,7 +309,9 @@ func (r *Runner) callTools(ctx context.Context, state *runnerState, yield func(E
 	return true, allDirect
 }
 
-func invokeTool(ctx context.Context, call chat.ToolCall, tool tools.Tool, resume *Resume) (chat.ToolResult, *PauseError, error) {
+func (s *runnerState) invokeTool(ctx context.Context, call chat.ToolCall, tool tools.Tool) (chat.ToolResult, *PauseError, error) {
+	resume := s.resume
+	s.resume = nil
 	if err := ctx.Err(); err != nil {
 		return chat.ToolResult{}, nil, err
 	}
@@ -315,7 +319,7 @@ func invokeTool(ctx context.Context, call chat.ToolCall, tool tools.Tool, resume
 		return chat.ToolResult{
 			ID:      call.ID,
 			Name:    call.Name,
-			Result:  unknownToolResult(call.Name),
+			Result:  fmt.Sprintf("error: tool %q is not available", call.Name),
 			IsError: true,
 		}, nil, nil
 	}
@@ -393,12 +397,12 @@ func (r *Runner) checkpoint(state *runnerState, pause PauseError) (*Checkpoint, 
 	return checkpoint, nil
 }
 
-func continuationRequest(request *chat.Request, response *chat.Response, results []chat.ToolResult) (*chat.Request, error) {
-	choice := response.First()
+func (s *runnerState) continuationRequest() (*chat.Request, error) {
+	choice := s.response.First()
 	if choice == nil || choice.Message == nil {
 		return nil, errors.New("toolloop: tool response has no canonical assistant message")
 	}
-	continuation, err := snapshot(request)
+	continuation, err := snapshot(s.request)
 	if err != nil {
 		return nil, fmt.Errorf("toolloop: snapshot continuation request: %w", err)
 	}
@@ -406,15 +410,11 @@ func continuationRequest(request *chat.Request, response *chat.Response, results
 	if err != nil {
 		return nil, fmt.Errorf("toolloop: snapshot assistant message: %w", err)
 	}
-	continuation.Messages = append(continuation.Messages, *assistant, chat.NewToolMessage(results...))
+	continuation.Messages = append(continuation.Messages, *assistant, chat.NewToolMessage(s.results...))
 	if err := continuation.Validate(); err != nil {
 		return nil, fmt.Errorf("toolloop: continuation request: %w", err)
 	}
 	return continuation, nil
-}
-
-func unknownToolResult(name string) string {
-	return fmt.Sprintf("error: tool %q is not available", name)
 }
 
 func snapshot[T any](value *T) (*T, error) {

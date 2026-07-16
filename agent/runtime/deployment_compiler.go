@@ -30,6 +30,12 @@ type Deployment struct {
 	definition []byte
 }
 
+// deploymentCompiler owns the immutable-definition snapshot and canonical
+// encoding policy for one host build.
+type deploymentCompiler struct {
+	buildID string
+}
+
 // Ref returns the durable value identity of this deployment.
 func (d *Deployment) Ref() core.DeploymentRef {
 	if d == nil {
@@ -48,13 +54,13 @@ func (d *Deployment) Agent() *core.Agent {
 	return d.agent
 }
 
-func compileDeployment(source *core.Agent, buildID string) (*Deployment, error) {
+func (c deploymentCompiler) compile(source *core.Agent) (*Deployment, error) {
 	if source == nil {
 		return nil, fmt.Errorf("compile deployment: agent is nil")
 	}
 
-	agent := cloneAgentDefinition(source)
-	definition, err := canonicalAgentDefinition(agent, buildID)
+	agent := c.cloneAgent(source)
+	definition, err := c.canonicalDefinition(agent)
 	if err != nil {
 		return nil, fmt.Errorf("compile deployment %q: %w", source.Name(), err)
 	}
@@ -79,10 +85,10 @@ func (e *Engine) compileAgent(source *core.Agent) (*Deployment, error) {
 	if e.processStore != nil && source.Version() == "" && e.buildID == "" {
 		return nil, fmt.Errorf("%w: agent %q is unversioned", ErrDurableIdentityRequired, source.Name())
 	}
-	return compileDeployment(source, e.buildID)
+	return (deploymentCompiler{buildID: e.buildID}).compile(source)
 }
 
-func cloneAgentDefinition(source *core.Agent) *core.Agent {
+func (c deploymentCompiler) cloneAgent(source *core.Agent) *core.Agent {
 	if source == nil {
 		return nil
 	}
@@ -103,10 +109,7 @@ func cloneAgentDefinition(source *core.Agent) *core.Agent {
 		if action == nil {
 			continue
 		}
-		config.Actions[i] = frozenAction{
-			delegate: action,
-			metadata: cloneRuntimeActionMetadata(action.Metadata()),
-		}
+		config.Actions[i] = c.freezeAction(action)
 	}
 
 	for i, condition := range source.Conditions() {
@@ -129,7 +132,7 @@ type frozenAction struct {
 }
 
 func (a frozenAction) Metadata() core.ActionMetadata {
-	return cloneRuntimeActionMetadata(a.metadata)
+	return a.metadataSnapshot()
 }
 
 func (a frozenAction) Execute(ctx context.Context, process *core.ProcessContext) (core.ActionStatus, error) {
@@ -149,7 +152,14 @@ func (c frozenCondition) Evaluate(ctx context.Context, environment *core.Conditi
 	return c.delegate.Evaluate(ctx, environment)
 }
 
-func cloneRuntimeActionMetadata(metadata core.ActionMetadata) core.ActionMetadata {
+func (c deploymentCompiler) freezeAction(action core.Action) frozenAction {
+	frozen := frozenAction{delegate: action, metadata: action.Metadata()}
+	frozen.metadata = frozen.metadataSnapshot()
+	return frozen
+}
+
+func (a frozenAction) metadataSnapshot() core.ActionMetadata {
+	metadata := a.metadata
 	metadata.Inputs = slices.Clone(metadata.Inputs)
 	metadata.Outputs = slices.Clone(metadata.Outputs)
 	metadata.Preconditions = maps.Clone(metadata.Preconditions)
@@ -234,17 +244,17 @@ type canonicalCondition struct {
 	Implementation string  `json:"implementation"`
 }
 
-func canonicalAgentDefinition(agent *core.Agent, buildID string) ([]byte, error) {
+func (c deploymentCompiler) canonicalDefinition(agent *core.Agent) ([]byte, error) {
 	definition := canonicalDefinition{
 		Format:      compiledDefinitionFormat,
 		Name:        agent.Name(),
 		Description: agent.Description(),
-		BuildID:     buildID,
+		BuildID:     c.buildID,
 		Planner:     agent.PlannerName(),
 		Actions:     make([]canonicalAction, 0, len(agent.Actions())),
 		Goals:       make([]canonicalGoal, 0, len(agent.Goals())),
 		Conditions:  make([]canonicalCondition, 0, len(agent.Conditions())),
-		StuckPolicy: stableTypeName(agent.StuckPolicy()),
+		StuckPolicy: c.typeName(agent.StuckPolicy()),
 	}
 	definition.Version = agent.Version()
 	if definition.Planner == "" {
@@ -256,11 +266,11 @@ func canonicalAgentDefinition(agent *core.Agent, buildID string) ([]byte, error)
 		definition.Actions = append(definition.Actions, canonicalAction{
 			Name:           metadata.Name,
 			Description:    metadata.Description,
-			Implementation: stableActionImplementation(action),
-			Inputs:         canonicalBindings(metadata.Inputs),
-			Outputs:        canonicalBindings(metadata.Outputs),
-			Preconditions:  canonicalEffects(metadata.Preconditions),
-			Effects:        canonicalEffects(metadata.Effects),
+			Implementation: c.actionImplementation(action),
+			Inputs:         c.canonicalBindings(metadata.Inputs),
+			Outputs:        c.canonicalBindings(metadata.Outputs),
+			Preconditions:  c.canonicalConditions(metadata.Preconditions),
+			Effects:        c.canonicalConditions(metadata.Effects),
 			Repeatable:     metadata.Repeatable,
 			Retry: canonicalRetryPolicy{
 				MaxAttempts: metadata.Retry.MaxAttempts,
@@ -268,7 +278,7 @@ func canonicalAgentDefinition(agent *core.Agent, buildID string) ([]byte, error)
 				MaxDelayNS:  int64(metadata.Retry.MaxDelay),
 				Safety:      metadata.Retry.Safety.String(),
 			},
-			ToolGroups:        canonicalToolGroups(metadata.ToolGroups),
+			ToolGroups:        c.canonicalToolGroups(metadata.ToolGroups),
 			CostConfigured:    metadata.Cost != nil,
 			ValueConfigured:   metadata.Value != nil,
 			ClearWorkingState: metadata.ClearWorkingState,
@@ -276,7 +286,7 @@ func canonicalAgentDefinition(agent *core.Agent, buildID string) ([]byte, error)
 	}
 
 	for _, goal := range agent.Goals() {
-		canonical, err := canonicalizeGoal(goal)
+		canonical, err := c.canonicalGoal(goal)
 		if err != nil {
 			return nil, err
 		}
@@ -287,7 +297,7 @@ func canonicalAgentDefinition(agent *core.Agent, buildID string) ([]byte, error)
 		definition.Conditions = append(definition.Conditions, canonicalCondition{
 			Name:           condition.Name(),
 			Cost:           condition.Cost(),
-			Implementation: stableConditionImplementation(condition),
+			Implementation: c.conditionImplementation(condition),
 		})
 	}
 
@@ -298,12 +308,12 @@ func canonicalAgentDefinition(agent *core.Agent, buildID string) ([]byte, error)
 	return encoded, nil
 }
 
-func canonicalizeGoal(goal *core.Goal) (canonicalGoal, error) {
+func (c deploymentCompiler) canonicalGoal(goal *core.Goal) (canonicalGoal, error) {
 	canonical := canonicalGoal{
 		Name:          goal.Name(),
 		Description:   goal.Description(),
-		Preconditions: normalizedStrings(goal.RequiredConditions()),
-		Inputs:        canonicalBindings(goal.Inputs()),
+		Preconditions: c.normalizedStrings(goal.RequiredConditions()),
+		Inputs:        c.canonicalBindings(goal.Inputs()),
 		Tags:          goal.Tags(),
 		Examples:      goal.Examples(),
 	}
@@ -319,7 +329,7 @@ func canonicalizeGoal(goal *core.Goal) (canonicalGoal, error) {
 	tool := &canonicalGoalTool{
 		Standalone:  toolConfig.Standalone,
 		Description: toolConfig.Description,
-		InputType:   stableTypeName(reflect.Zero(inputType).Interface()),
+		InputType:   c.typeName(reflect.Zero(inputType).Interface()),
 	}
 	schema, err := schemaFor(reflect.Zero(inputType).Interface())
 	if err != nil {
@@ -330,7 +340,7 @@ func canonicalizeGoal(goal *core.Goal) (canonicalGoal, error) {
 	return canonical, nil
 }
 
-func canonicalBindings(bindings []core.Binding) []canonicalBinding {
+func (c deploymentCompiler) canonicalBindings(bindings []core.Binding) []canonicalBinding {
 	if len(bindings) == 0 {
 		return nil
 	}
@@ -345,18 +355,18 @@ func canonicalBindings(bindings []core.Binding) []canonicalBinding {
 	return canonical
 }
 
-func canonicalEffects(effects core.ConditionSet) map[string]string {
-	if len(effects) == 0 {
+func (c deploymentCompiler) canonicalConditions(conditions core.ConditionSet) map[string]string {
+	if len(conditions) == 0 {
 		return nil
 	}
-	canonical := make(map[string]string, len(effects))
-	for name, truth := range effects {
+	canonical := make(map[string]string, len(conditions))
+	for name, truth := range conditions {
 		canonical[name] = truth.String()
 	}
 	return canonical
 }
 
-func canonicalToolGroups(groups []core.ToolGroupRequirement) []canonicalToolRequirement {
+func (c deploymentCompiler) canonicalToolGroups(groups []core.ToolGroupRequirement) []canonicalToolRequirement {
 	if len(groups) == 0 {
 		return nil
 	}
@@ -366,12 +376,12 @@ func canonicalToolGroups(groups []core.ToolGroupRequirement) []canonicalToolRequ
 		for j, permission := range group.AllowedPermissions {
 			permissions[j] = permission.String()
 		}
-		canonical[i] = canonicalToolRequirement{Role: group.Role, Permissions: normalizedStrings(permissions)}
+		canonical[i] = canonicalToolRequirement{Role: group.Role, Permissions: c.normalizedStrings(permissions)}
 	}
 	return canonical
 }
 
-func normalizedStrings(values []string) []string {
+func (c deploymentCompiler) normalizedStrings(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}
@@ -380,27 +390,27 @@ func normalizedStrings(values []string) []string {
 	return slices.Compact(normalized)
 }
 
-func stableActionImplementation(action core.Action) string {
+func (c deploymentCompiler) actionImplementation(action core.Action) string {
 	for {
 		frozen, ok := action.(frozenAction)
 		if !ok {
-			return stableTypeName(action)
+			return c.typeName(action)
 		}
 		action = frozen.delegate
 	}
 }
 
-func stableConditionImplementation(condition core.Condition) string {
+func (c deploymentCompiler) conditionImplementation(condition core.Condition) string {
 	for {
 		frozen, ok := condition.(frozenCondition)
 		if !ok {
-			return stableTypeName(condition)
+			return c.typeName(condition)
 		}
 		condition = frozen.delegate
 	}
 }
 
-func stableTypeName(value any) string {
+func (c deploymentCompiler) typeName(value any) string {
 	if value == nil {
 		return ""
 	}

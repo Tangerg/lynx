@@ -101,7 +101,7 @@ func (r *ModelRanker) userPrompt(userInput string, candidates []Candidate) strin
 	builder.WriteString("\n\nCandidates:\n")
 	for _, candidate := range candidates {
 		fmt.Fprintf(&builder, "- %s — %s\n", candidate.String(), candidate.goalDescription())
-		writeGoalHints(&builder, candidate)
+		candidate.writeGoalHints(&builder)
 	}
 	builder.WriteString(`
 Score each candidate's relevance to the user input on [0.0, 1.0]
@@ -121,8 +121,8 @@ Include every candidate exactly once. confidence must be a number.
 // writeGoalHints emits the optional Tags / Examples blocks on
 // indented continuation lines so the LLM has a richer match signal
 // than Name+Description alone. No-op when both are empty.
-func writeGoalHints(builder *strings.Builder, candidate Candidate) {
-	goal := candidate.Goal()
+func (c Candidate) writeGoalHints(builder *strings.Builder) {
+	goal := c.Goal()
 	if goal == nil {
 		return
 	}

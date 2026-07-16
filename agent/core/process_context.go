@@ -29,7 +29,8 @@ type ModelAttribution struct {
 type ModelAttributionFunc func(response *chat.Response) ModelAttribution
 
 // Interaction is one framework-managed model/tool exchange. ID is optional;
-// runtime derives a stable owner from the action and request when it is empty.
+// runtime derives a stable owner from the process, action, and request when it
+// is empty.
 type Interaction struct {
 	ID        string
 	Model     chat.Model

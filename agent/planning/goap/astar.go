@@ -75,7 +75,7 @@ func (p *Planner) PlanToGoal(
 		return planning.NewPlan(nil, goal), nil
 	}
 
-	candidates := candidateActions(domain.Actions(), options.ExcludedActions)
+	candidates := p.candidateActions(domain.Actions(), options.ExcludedActions)
 
 	// Backward relevance pruning: keep only actions in the goal's
 	// transitive requirement graph. STRIPS regression — provably safe
@@ -136,7 +136,7 @@ func (p *Planner) iterationCap(options planning.Options) int {
 // exclusion set and stable-sorts so more-specific actions (those with more
 // preconditions) get expanded first. Specificity-first
 // behavior and keeps the search frontier focused.
-func candidateActions(actions []core.Action, excluded map[string]struct{}) []core.Action {
+func (p *Planner) candidateActions(actions []core.Action, excluded map[string]struct{}) []core.Action {
 	out := make([]core.Action, 0, len(actions))
 	for _, action := range actions {
 		if action == nil {

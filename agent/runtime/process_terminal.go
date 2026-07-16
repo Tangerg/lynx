@@ -117,7 +117,7 @@ func (p *Process) translateActionStatus(action core.Action, status core.ActionSt
 			// Don't overwrite a failure already recorded by an earlier action
 			// — the first failure is the root cause worth surfacing.
 			if p.Failure() == nil {
-				p.state.recordFailure(actionFailureError(action.Metadata().Name))
+				p.state.recordFailure(p.actionFailure(action.Metadata().Name))
 			}
 		}
 	case core.ActionWaiting:
@@ -125,13 +125,6 @@ func (p *Process) translateActionStatus(action core.Action, status core.ActionSt
 	case core.ActionPaused:
 		p.state.transition(core.StatusPaused)
 	}
-}
-
-// actionFailureError produces a default failure error when the action
-// returned ActionFailed without recording an explicit error on the
-// ProcessContext (rare, but possible).
-func actionFailureError(name string) error {
-	return fmt.Errorf("runtime.actionFailureError: action %q failed without recording an error", name)
 }
 
 // handleStuck is invoked when the planner returned no plan. If the agent

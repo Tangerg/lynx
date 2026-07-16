@@ -31,7 +31,7 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 	if err := validateInteraction(input); err != nil {
 		return interaction.Result{}, err
 	}
-	owner, err := interactionOwner(actionName, input)
+	owner, err := p.interactionOwner(actionName, input)
 	if err != nil {
 		return interaction.Result{}, err
 	}
@@ -165,14 +165,19 @@ func validateInteraction(input core.Interaction) error {
 	return nil
 }
 
-func interactionOwner(actionName string, input core.Interaction) (string, error) {
+func (p *Process) interactionOwner(actionName string, input core.Interaction) (string, error) {
 	if input.ID != "" {
 		return input.ID, nil
 	}
 	data, err := json.Marshal(struct {
-		ActionName string          `json:"action"`
-		Request    json.RawMessage `json:"request"`
-	}{ActionName: actionName, Request: mustJSON(input.Request)})
+		ProcessID  string        `json:"process_id"`
+		ActionName string        `json:"action"`
+		Request    *chat.Request `json:"request"`
+	}{
+		ProcessID:  p.ID(),
+		ActionName: actionName,
+		Request:    input.Request,
+	})
 	if err != nil {
 		return "", fmt.Errorf("runtime: derive interaction owner: %w", err)
 	}
@@ -180,26 +185,28 @@ func interactionOwner(actionName string, input core.Interaction) (string, error)
 	return "interaction:" + hex.EncodeToString(sum[:]), nil
 }
 
-func mustJSON(value any) json.RawMessage {
-	data, _ := json.Marshal(value)
-	return data
-}
-
 func decodeInteractionCheckpoint(payload json.RawMessage) (*interactionCheckpoint, error) {
 	var checkpoint interactionCheckpoint
 	if err := json.Unmarshal(payload, &checkpoint); err != nil {
 		return nil, fmt.Errorf("runtime: decode interaction checkpoint: %w", err)
 	}
-	if checkpoint.SchemaVersion != interactionCheckpointSchemaVersion || checkpoint.Owner == "" || checkpoint.Checkpoint == nil {
-		return nil, errors.New("runtime: invalid interaction checkpoint envelope")
-	}
-	if err := checkpoint.Deployment.Validate(); err != nil {
-		return nil, fmt.Errorf("runtime: interaction checkpoint deployment: %w", err)
-	}
-	if err := checkpoint.Checkpoint.Validate(); err != nil {
-		return nil, fmt.Errorf("runtime: interaction checkpoint: %w", err)
+	if err := checkpoint.validate(); err != nil {
+		return nil, err
 	}
 	return &checkpoint, nil
+}
+
+func (c *interactionCheckpoint) validate() error {
+	if c == nil || c.SchemaVersion != interactionCheckpointSchemaVersion || c.Owner == "" || c.Checkpoint == nil {
+		return errors.New("runtime: invalid interaction checkpoint envelope")
+	}
+	if err := c.Deployment.Validate(); err != nil {
+		return fmt.Errorf("runtime: interaction checkpoint deployment: %w", err)
+	}
+	if err := c.Checkpoint.Validate(); err != nil {
+		return fmt.Errorf("runtime: interaction checkpoint: %w", err)
+	}
+	return nil
 }
 
 func (p *Process) interactionStopReason(round int, limits interaction.Limits) interaction.StopReason {

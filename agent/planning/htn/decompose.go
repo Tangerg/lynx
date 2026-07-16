@@ -45,7 +45,7 @@ func (p *Planner) decompose(
 	stateMap := state.Conditions()
 
 	for _, method := range task.Methods {
-		if !methodApplicable(method, stateMap) {
+		if !method.applicable(stateMap) {
 			continue
 		}
 		actions, next, ok, err := p.tryMethod(ctx, method, state, excluded, depth)
@@ -87,15 +87,4 @@ func (p *Planner) tryMethod(
 		cur = next
 	}
 	return actions, cur, true, nil
-}
-
-// methodApplicable reports whether every method precondition holds in
-// the supplied state map.
-func methodApplicable(method Method, state map[string]core.Truth) bool {
-	for key, required := range method.Preconditions {
-		if state[key] != required {
-			return false
-		}
-	}
-	return true
 }

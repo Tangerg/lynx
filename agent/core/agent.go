@@ -60,14 +60,14 @@ type Agent struct {
 // remain referenced as SPI values; Engine deployment snapshots their
 // planner-visible metadata before execution.
 func NewAgent(config AgentConfig) *Agent {
-	return &Agent{config: cloneAgentConfig(config)}
+	return &Agent{config: config.clone()}
 }
 
-func cloneAgentConfig(config AgentConfig) AgentConfig {
-	config.Actions = slices.Clone(config.Actions)
-	config.Goals = slices.Clone(config.Goals)
-	config.Conditions = slices.Clone(config.Conditions)
-	return config
+func (c AgentConfig) clone() AgentConfig {
+	c.Actions = slices.Clone(c.Actions)
+	c.Goals = slices.Clone(c.Goals)
+	c.Conditions = slices.Clone(c.Conditions)
+	return c
 }
 
 // Name returns the deployment name of the definition.
@@ -184,7 +184,7 @@ func (a *Agent) Validate() error {
 			return a.config.Conditions[index].Name(), false
 		}, len(a.config.Conditions), false},
 	} {
-		if err := validateUniqueNamed(a.Name(), collection.kind, collection.count, collection.name, collection.require); err != nil {
+		if err := a.validateUniqueNamed(collection.kind, collection.count, collection.name, collection.require); err != nil {
 			problems = append(problems, err)
 		}
 	}
@@ -268,26 +268,26 @@ func (a *Agent) goalReachabilityErrors() []error {
 	return problems
 }
 
-func validateUniqueNamed(
-	agentName, kind string,
+func (a *Agent) validateUniqueNamed(
+	kind string,
 	count int,
 	nameAt func(int) (name string, isNil bool),
 	require bool,
 ) error {
 	if require && count == 0 {
-		return fmt.Errorf("agent.Agent.Validate: invalid agent %q: at least one %s is required", agentName, kind)
+		return fmt.Errorf("agent.Agent.Validate: invalid agent %q: at least one %s is required", a.Name(), kind)
 	}
 	seen := make(map[string]struct{}, count)
 	for i := range count {
 		name, isNil := nameAt(i)
 		switch {
 		case isNil:
-			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d is nil", agentName, kind, i)
+			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d is nil", a.Name(), kind, i)
 		case name == "":
-			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d has empty name", agentName, kind, i)
+			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d has empty name", a.Name(), kind, i)
 		}
 		if _, dup := seen[name]; dup {
-			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: duplicate %s name %q", agentName, kind, name)
+			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: duplicate %s name %q", a.Name(), kind, name)
 		}
 		seen[name] = struct{}{}
 	}

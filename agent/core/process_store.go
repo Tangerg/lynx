@@ -110,19 +110,19 @@ func (s ProcessSnapshot) wire() processSnapshotWire {
 	}
 }
 
-func processSnapshotFromWire(wire processSnapshotWire) (ProcessSnapshot, error) {
-	status, err := parseProcessStatus(wire.Status)
+func (w processSnapshotWire) snapshot() (ProcessSnapshot, error) {
+	status, err := parseProcessStatus(w.Status)
 	if err != nil {
 		return ProcessSnapshot{}, err
 	}
 	return ProcessSnapshot{
-		SchemaVersion: wire.SchemaVersion, Revision: wire.Revision,
-		ID: wire.ID, ParentID: wire.ParentID, Depth: wire.Depth,
-		Deployment: wire.Deployment, StartedAt: wire.StartedAt, CapturedAt: wire.CapturedAt,
-		Status: status, Suspension: wire.Suspension, GoalName: wire.GoalName,
-		History: wire.History, Failure: wire.Failure, Cost: wire.Cost, Tokens: wire.Tokens,
-		ModelCalls: wire.ModelCalls, EmbeddingCalls: wire.EmbeddingCalls,
-		Blackboard: wire.Blackboard, Conditions: wire.Conditions, Objects: wire.Objects,
+		SchemaVersion: w.SchemaVersion, Revision: w.Revision,
+		ID: w.ID, ParentID: w.ParentID, Depth: w.Depth,
+		Deployment: w.Deployment, StartedAt: w.StartedAt, CapturedAt: w.CapturedAt,
+		Status: status, Suspension: w.Suspension, GoalName: w.GoalName,
+		History: w.History, Failure: w.Failure, Cost: w.Cost, Tokens: w.Tokens,
+		ModelCalls: w.ModelCalls, EmbeddingCalls: w.EmbeddingCalls,
+		Blackboard: w.Blackboard, Conditions: w.Conditions, Objects: w.Objects,
 	}, nil
 }
 
@@ -146,7 +146,7 @@ func (s ProcessSnapshot) Validate() error {
 	if s.StartedAt.IsZero() || s.CapturedAt.IsZero() || s.CapturedAt.Before(s.StartedAt) {
 		return fmt.Errorf("%w: started_at and captured_at must be ordered non-zero timestamps", ErrInvalidSnapshot)
 	}
-	if !validProcessStatus(s.Status) {
+	if !s.Status.valid() {
 		return fmt.Errorf("%w: unknown status %d", ErrInvalidSnapshot, s.Status)
 	}
 	if s.Status == StatusWaiting && s.Suspension == nil {
@@ -172,12 +172,12 @@ func (s ProcessSnapshot) Validate() error {
 		}
 	}
 	for i, call := range s.ModelCalls {
-		if !validModelCall(call) {
+		if !call.valid() {
 			return fmt.Errorf("%w: model_calls[%d] is invalid", ErrInvalidSnapshot, i)
 		}
 	}
 	for i, call := range s.EmbeddingCalls {
-		if !validEmbeddingCall(call) {
+		if !call.valid() {
 			return fmt.Errorf("%w: embedding_calls[%d] is invalid", ErrInvalidSnapshot, i)
 		}
 	}
@@ -223,7 +223,7 @@ func (s *ProcessSnapshot) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		return fmt.Errorf("%w: trailing JSON value", ErrInvalidSnapshot)
 	}
-	candidate, err := processSnapshotFromWire(wire)
+	candidate, err := wire.snapshot()
 	if err != nil {
 		return err
 	}
@@ -275,15 +275,6 @@ type SnapshotLister interface {
 	List(context.Context) ([]string, error)
 }
 
-func validProcessStatus(status ProcessStatus) bool {
-	switch status {
-	case StatusNotStarted, StatusRunning, StatusCompleted, StatusFailed, StatusStuck, StatusWaiting, StatusPaused, StatusTerminated, StatusKilled:
-		return true
-	default:
-		return false
-	}
-}
-
 func parseProcessStatus(status string) (ProcessStatus, error) {
 	for _, candidate := range []ProcessStatus{StatusNotStarted, StatusRunning, StatusCompleted, StatusFailed, StatusStuck, StatusWaiting, StatusPaused, StatusTerminated, StatusKilled} {
 		if status == candidate.String() {
@@ -295,18 +286,4 @@ func parseProcessStatus(status string) (ProcessStatus, error) {
 
 func validActionStatusString(status string) bool {
 	return status == ActionSucceeded.String() || status == ActionFailed.String() || status == ActionWaiting.String() || status == ActionPaused.String()
-}
-
-func validModelCall(call ModelCall) bool {
-	return !call.Timestamp.IsZero() &&
-		!math.IsNaN(call.CostUSD) && !math.IsInf(call.CostUSD, 0) && call.CostUSD >= 0 &&
-		call.PromptTokens >= 0 && call.CompletionTokens >= 0 && call.ReasoningTokens >= 0 &&
-		call.CacheReadInputTokens >= 0 && call.CacheWriteInputTokens >= 0 &&
-		call.ReasoningTokens <= call.CompletionTokens && call.Duration >= 0
-}
-
-func validEmbeddingCall(call EmbeddingCall) bool {
-	return !call.Timestamp.IsZero() &&
-		!math.IsNaN(call.CostUSD) && !math.IsInf(call.CostUSD, 0) && call.CostUSD >= 0 &&
-		call.InputTokens >= 0 && call.InputCount >= 0 && call.Duration >= 0
 }

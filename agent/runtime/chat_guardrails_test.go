@@ -43,11 +43,11 @@ func TestProcessChatBindsSessionToTargetHistoryMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	scoped, err := scopeChatCapability(
-		core.ChatCapability{Model: client, Streamer: client},
-		guardrails,
-		"session-1",
-	)
+	process := &Process{
+		id:      "session-1",
+		options: &core.ProcessOptions{Guardrails: guardrails},
+	}
+	scoped, err := process.scopeChat(core.ChatCapability{Model: client, Streamer: client})
 	if err != nil {
 		t.Fatal(err)
 	}

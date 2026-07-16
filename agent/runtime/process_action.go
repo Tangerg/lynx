@@ -58,8 +58,7 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 		attempts int
 		lastErr  error
 	)
-	middleware := collectExtensions[core.ActionMiddleware](p.combinedExtensions())
-	status, lastErr = runActionChain(middleware, ctx, p, action, func() (core.ActionStatus, error) {
+	status, lastErr = p.runActionChain(ctx, action, func() (core.ActionStatus, error) {
 		finalStatus, replanRequest, attemptCount, err := p.runWithRetry(ctx, action, processContext, metadata.Retry)
 		replan, attempts = replanRequest, attemptCount
 		return finalStatus, err
@@ -140,7 +139,7 @@ func (p *Process) runWithRetry(
 			}
 		}
 
-		status, lastErr = invokeAction(ctx, action, processContext)
+		status, lastErr = p.invokeAction(ctx, action, processContext)
 
 		if request, ok := errors.AsType[*core.ReplanRequest](lastErr); ok {
 			replan = request
@@ -159,7 +158,7 @@ func (p *Process) runWithRetry(
 		if lastErr != nil {
 			return lastErr
 		}
-		return actionFailureError(action.Metadata().Name)
+		return p.actionFailure(action.Metadata().Name)
 	}
 
 	maxAttempts := policy.MaxAttempts
@@ -181,9 +180,9 @@ func (p *Process) runWithRetry(
 	return status, replan, attempts, lastErr
 }
 
-func invokeAction(ctx context.Context, action core.Action, processContext *core.ProcessContext) (status core.ActionStatus, err error) {
+func (p *Process) invokeAction(ctx context.Context, action core.Action, processContext *core.ProcessContext) (status core.ActionStatus, err error) {
 	if action == nil {
-		return core.ActionFailed, errors.New("runtime.invokeAction: action is nil")
+		return core.ActionFailed, errors.New("runtime.Process.invokeAction: action is nil")
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -195,10 +194,16 @@ func invokeAction(ctx context.Context, action core.Action, processContext *core.
 				err = recoveredErr
 				return
 			}
-			err = fmt.Errorf("runtime.invokeAction: action panicked: %v", recovered)
+			err = fmt.Errorf("runtime.Process.invokeAction: action panicked: %v", recovered)
 		}
 	}()
 	return action.Execute(ctx, processContext)
+}
+
+// actionFailure produces a default failure error when an action returned
+// ActionFailed without recording an explicit error on the ProcessContext.
+func (p *Process) actionFailure(name string) error {
+	return fmt.Errorf("runtime.Process %q: action %q failed without recording an error", p.ID(), name)
 }
 
 // shouldRetryAction stops the retry loop on signals that mean "don't try
@@ -230,6 +235,6 @@ func (p *Process) recordActionFailure(actionName string, err error) {
 	}
 
 	if p.Failure() == nil {
-		p.state.recordFailure(actionFailureError(actionName))
+		p.state.recordFailure(p.actionFailure(actionName))
 	}
 }

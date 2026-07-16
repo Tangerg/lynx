@@ -98,7 +98,7 @@ func (e *Engine) validateForDeploy(agent *core.Agent) error {
 	if err := agent.Validate(); err != nil {
 		problems = append(problems, err)
 	}
-	problems = append(problems, runAgentValidators(collectExtensions[core.AgentValidator](e.extensions.list), agent)...)
+	problems = append(problems, e.agentValidationErrors(agent)...)
 
 	if joined := errors.Join(problems...); joined != nil {
 		return fmt.Errorf("runtime.Engine.validateForDeploy: deploy agent %q: %w", agent.Name(), joined)

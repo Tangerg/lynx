@@ -79,3 +79,12 @@ func (s ProcessStatus) IsTerminal() bool {
 		return false
 	}
 }
+
+func (s ProcessStatus) valid() bool {
+	switch s {
+	case StatusNotStarted, StatusRunning, StatusCompleted, StatusFailed, StatusStuck, StatusWaiting, StatusPaused, StatusTerminated, StatusKilled:
+		return true
+	default:
+		return false
+	}
+}

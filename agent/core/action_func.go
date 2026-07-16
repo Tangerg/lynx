@@ -46,7 +46,7 @@ func (a *FuncAction[In, Out]) Execute(ctx context.Context, process *ProcessConte
 		return ActionFailed, fmt.Errorf("agent.Action.Execute: action %q cannot run: action function is nil", a.metadata.Name)
 	}
 
-	input, err := loadTypedInput[In](process.blackboard, a.metadata.Inputs)
+	input, err := a.loadInput(process.blackboard)
 	if err != nil {
 		return ActionFailed, fmt.Errorf("agent.Action.Execute: action %q cannot run: %w", a.metadata.Name, err)
 	}
@@ -86,27 +86,27 @@ func (a *FuncAction[In, Out]) Execute(ctx context.Context, process *ProcessConte
 	return ActionSucceeded, nil
 }
 
-// loadTypedInput looks up the input binding on the blackboard. When multiple
+// loadInput looks up the input binding on the blackboard. When multiple
 // bindings exist (a multi-input action), only the first is loaded as the
 // generic In — additional inputs must be fetched via [Get] from inside the
 // action body. Go generics carry a single type parameter cleanly, so
 // multi-input actions inevitably resort to manual lookup.
-func loadTypedInput[In any](blackboard Blackboard, inputs []Binding) (In, error) {
+func (a *FuncAction[In, Out]) loadInput(blackboard Blackboard) (In, error) {
 	var zero In
-	if len(inputs) == 0 {
+	if len(a.metadata.Inputs) == 0 {
 		return zero, nil
 	}
 
-	binding := inputs[0]
+	binding := a.metadata.Inputs[0]
 	value, ok := blackboard.Lookup(binding.Name, binding.Type)
 	if !ok {
-		return zero, fmt.Errorf("agent.loadTypedInput: blackboard is missing required input %s", binding)
+		return zero, fmt.Errorf("agent.FuncAction.loadInput: blackboard is missing required input %s", binding)
 	}
 
 	typed, ok := value.(In)
 	if !ok {
 		return zero, fmt.Errorf(
-			"agent.loadTypedInput: blackboard value %s has type %T, expected %s",
+			"agent.FuncAction.loadInput: blackboard value %s has type %T, expected %s",
 			binding, value, TypeName[In](),
 		)
 	}

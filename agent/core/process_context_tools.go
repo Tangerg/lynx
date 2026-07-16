@@ -28,15 +28,11 @@ func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]
 	if pc.resolveTools == nil {
 		return nil, nil
 	}
-	return pc.resolveTools(contextOrBackground(ctx), toolGroupRequirements(roles))
-}
-
-func toolGroupRequirements(roles []string) []ToolGroupRequirement {
 	requirements := make([]ToolGroupRequirement, len(roles))
 	for i, role := range roles {
 		requirements[i] = RequireToolGroup(role)
 	}
-	return requirements
+	return pc.resolveTools(contextOrBackground(ctx), requirements)
 }
 
 // ActionTools resolves the tools declared on the currently-executing

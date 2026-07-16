@@ -36,5 +36,15 @@ type Method struct {
 	Subtasks []string
 }
 
+// applicable reports whether every method precondition holds in state.
+func (m Method) applicable(state map[string]core.Truth) bool {
+	for key, required := range m.Preconditions {
+		if state[key] != required {
+			return false
+		}
+	}
+	return true
+}
+
 // IsPrimitive reports whether this task wraps a single core.Action.
 func (t *Task) IsPrimitive() bool { return t.Action != nil }
