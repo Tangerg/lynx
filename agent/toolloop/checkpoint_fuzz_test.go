@@ -32,14 +32,24 @@ func FuzzCheckpointJSON(f *testing.F) {
 		f.Fatal(err)
 	}
 	valid, err := json.Marshal(Checkpoint{
-		SchemaVersion: 1,
-		ID:            "approval-1",
-		Round:         1,
-		MaxRounds:     4,
-		ToolsetDigest: digest,
-		Request:       request,
-		Response:      response,
-		NextCall:      0,
+		SchemaVersion:      CheckpointSchemaVersion,
+		ID:                 "approval-1",
+		Round:              1,
+		MaxRounds:          4,
+		MaxConcurrentCalls: DefaultMaxConcurrentCalls,
+		ToolsetDigest:      digest,
+		Request:            request,
+		Response:           response,
+		CallStates: []CallCheckpoint{{
+			Status: CallPaused,
+			Pending: &PendingCall{
+				ID:           "approval-1",
+				Reason:       "approval required",
+				Prompt:       json.RawMessage(`"approve?"`),
+				ResumeSchema: json.RawMessage(`{"type":"string"}`),
+			},
+		}},
+		NextResult: 0,
 	})
 	if err != nil {
 		f.Fatal(err)

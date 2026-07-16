@@ -25,20 +25,22 @@ var updateAgentWireFixtures = flag.Bool(
 // durable core/interaction/toolloop protocol packages to the representative
 // root that exercises it.
 var agentWireFixtureCoverage = map[string]string{
-	"core.DeploymentRef":     "process_snapshot",
-	"core.EmbeddingCall":     "process_snapshot",
-	"core.ModelCall":         "process_snapshot",
-	"core.ProcessSnapshot":   "process_snapshot",
-	"core.Session":           "session",
-	"core.ActionRunSnapshot": "process_snapshot",
-	"core.TaggedValue":       "process_snapshot",
-	"interaction.Event":      "interaction_events",
-	"interaction.Resume":     "interaction_events",
-	"interaction.Suspension": "process_snapshot",
-	"toolloop.Checkpoint":    "toolloop_checkpoint",
-	"toolloop.Event":         "toolloop_events",
-	"toolloop.Pause":         "toolloop_events",
-	"toolloop.Resume":        "toolloop_events",
+	"core.DeploymentRef":      "process_snapshot",
+	"core.EmbeddingCall":      "process_snapshot",
+	"core.ModelCall":          "process_snapshot",
+	"core.ProcessSnapshot":    "process_snapshot",
+	"core.Session":            "session",
+	"core.ActionRunSnapshot":  "process_snapshot",
+	"core.TaggedValue":        "process_snapshot",
+	"interaction.Event":       "interaction_events",
+	"interaction.Resume":      "interaction_events",
+	"interaction.Suspension":  "process_snapshot",
+	"toolloop.CallCheckpoint": "toolloop_checkpoint",
+	"toolloop.Checkpoint":     "toolloop_checkpoint",
+	"toolloop.Event":          "toolloop_events",
+	"toolloop.Pause":          "toolloop_events",
+	"toolloop.PendingCall":    "toolloop_checkpoint",
+	"toolloop.Resume":         "toolloop_events",
 }
 
 var agentWirePackages = map[string]struct{}{

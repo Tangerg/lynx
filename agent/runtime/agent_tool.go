@@ -24,6 +24,10 @@ type agentTool struct {
 
 func (t *agentTool) Definition() chat.ToolDefinition { return t.definition.Clone() }
 
+// ConcurrencyKey declares AgentTool calls independent: each invocation owns an
+// isolated child process. ToolLoop still commits their results in model order.
+func (t *agentTool) ConcurrencyKey(string) (string, bool) { return "", true }
+
 func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) {
 	agentName := t.deployment.agent.Name()
 	in, err := t.decode(arguments)
@@ -35,28 +39,39 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("%s %q: %w", t.label, agentName, err)
 	}
+	toolCallID, err := nestedToolCallID(ctx, t.definition.Name, arguments, t.deployment.Ref())
+	if err != nil {
+		return "", fmt.Errorf("%s %q: %w", t.label, agentName, err)
+	}
 	if parent != nil {
-		relation, relationErr := nestedRelationFromSuspension(parent.Suspension())
+		checkpoint, relationErr := nestedChildrenFromSuspension(parent.Suspension())
 		if relationErr != nil {
 			return "", fmt.Errorf("%s %q: %w", t.label, agentName, relationErr)
 		}
+		relation := checkpoint.relationForCall(toolCallID)
 		if relation != nil {
-			if !relation.matchesTool(t.definition.Name, arguments, t.deployment.Ref()) {
+			if !relation.matchesToolCall(toolCallID, t.definition.Name, arguments, t.deployment.Ref()) {
 				return "", fmt.Errorf("%w: process %q is resuming nested tool %q, not %q", interaction.ErrSuspensionConflict, parent.ID(), relation.ToolName, t.definition.Name)
 			}
 			if suspension := parent.Suspension(); suspension == nil || !suspension.Responded() {
 				return "", fmt.Errorf("%w: nested parent suspension has no response", interaction.ErrSuspensionStale)
 			}
-			return t.continueNestedChild(ctx, parent, relation, arguments)
+			if err := parent.claimNestedChild(toolCallID, relation.ChildID); err != nil {
+				return "", err
+			}
+			return t.continueNestedChild(ctx, parent, relation, toolCallID, arguments)
 		}
 	}
 
 	process, err := t.run(ctx, in)
 	if err != nil {
+		if process != nil {
+			t.abortNestedChild(ctx, process)
+		}
 		return "", fmt.Errorf("%s %q: %w", t.label, agentName, err)
 	}
 	if parent != nil && process.ParentID() == parent.ID() && process.Status() == core.StatusWaiting {
-		return "", t.suspendForNestedChild(ctx, parent, process, arguments)
+		return "", t.suspendForNestedChild(ctx, parent, process, toolCallID, arguments)
 	}
 
 	defer t.discard(ctx, process)
@@ -82,6 +97,7 @@ func (t *agentTool) continueNestedChild(
 	ctx context.Context,
 	parent *Process,
 	relation *nestedChildRelation,
+	toolCallID string,
 	arguments string,
 ) (string, error) {
 	child, ok := t.engine.Process(relation.ChildID)
@@ -102,7 +118,7 @@ func (t *agentTool) continueNestedChild(
 		}
 	}
 	if child.Status() == core.StatusWaiting {
-		return "", t.suspendForNestedChild(ctx, parent, child, arguments)
+		return "", t.suspendForNestedChild(ctx, parent, child, toolCallID, arguments)
 	}
 	if !child.Status().IsTerminal() {
 		return "", fmt.Errorf("%w: nested child %q stopped in %s", interaction.ErrSuspensionStale, child.ID(), child.Status())
@@ -121,8 +137,14 @@ func (t *agentTool) continueNestedChild(
 	return output, err
 }
 
-func (t *agentTool) suspendForNestedChild(ctx context.Context, parent, child *Process, arguments string) error {
-	relation, childSuspension, err := nestedRelationForChild(t.definition.Name, arguments, child)
+func (t *agentTool) suspendForNestedChild(
+	ctx context.Context,
+	parent *Process,
+	child *Process,
+	toolCallID string,
+	arguments string,
+) error {
+	relation, childSuspension, err := nestedRelationForChild(toolCallID, t.definition.Name, arguments, child)
 	if err != nil {
 		t.abortNestedChild(ctx, child)
 		return err
@@ -132,12 +154,13 @@ func (t *agentTool) suspendForNestedChild(ctx context.Context, parent, child *Pr
 		return err
 	}
 	payload, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
-		SchemaVersion: suspensionCheckpointSchemaVersion,
-		Kind:          suspensionCheckpointNestedChild,
-		NestedChild:   relation,
+		SchemaVersion:  suspensionCheckpointSchemaVersion,
+		Kind:           suspensionCheckpointNestedChild,
+		NestedChildren: []*nestedChildRelation{relation},
 	})
 	if err != nil {
-		parent.abortStagedNestedChild(ctx)
+		parent.unstageNestedChild(toolCallID, child.ID())
+		t.abortNestedChild(ctx, child)
 		return err
 	}
 	suspension := *childSuspension

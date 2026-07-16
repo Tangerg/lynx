@@ -30,7 +30,7 @@ func (r childRun) run() (*Process, error) {
 		return nil, err
 	}
 	if err := r.engine.Continue(r.ctx, child.ID()); err != nil {
-		return nil, fmt.Errorf("run child %q (process %q): run: %w", child.agent().Name(), child.ID(), err)
+		return child, fmt.Errorf("run child %q (process %q): run: %w", child.agent().Name(), child.ID(), err)
 	}
 	return child, nil
 }

@@ -41,7 +41,9 @@ type ActionMiddleware interface {
 // Composition is wrap-style: first registered is innermost.
 //
 // Typical uses: per-call tracing, auth / scope checks, redaction,
-// transient-error retry.
+// transient-error retry. Transparent decorators should structurally forward
+// optional ConcurrencyKey and ReturnsDirect capabilities; stateful policies
+// may deliberately omit them to narrow scheduling or continuation semantics.
 type ToolMiddleware interface {
 	Extension
 

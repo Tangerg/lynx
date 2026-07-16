@@ -229,6 +229,11 @@ durable；运行时 handle、函数、channel、client 等必须通过以下 API
 - `BindTransient`
 - `AddTransient`
 
+Snapshot schema v2 的 `OwnCost`、`OwnTokens`、`OwnModelCalls` 和
+`OwnEmbeddingCalls` 只记录该 Process 的直接 ledger。Child 各自持久化自己的 ledger，
+Restore 通过父子关系重建聚合；读取完整委派树用量时使用 `Process.Usage()`、
+`Process.ModelCalls()` 和 `Process.EmbeddingCalls()`。
+
 Framework 自带 `MemoryProcessStore` 和 `MemorySessionStore` 作为 reference implementation。
 外部 ProcessStore 应运行公开 contract suite：
 
@@ -292,6 +297,15 @@ Child 使用精确 Deployment、独立 Session、父预算子树，并继承父 
 `ScatterGather`、`Consensus` 和 `Supervisor` 最终都编译回普通 Agent。并行 branch 在启动
 goroutine 前获得独立 Blackboard 和 Dependencies child；写入不合并，只有返回值按声明顺序
 join。需要独立暂停/终止能力的并行单元应使用 Child Process。
+
+ToolLoop 的并发是另一层语义：工具默认独占，实现 `toolloop.ConcurrentTool` 后可按
+resource key 有界并发。`toolloop.Config.MaxConcurrentCalls` 控制低层 Runner，
+`interaction.Limits.MaxConcurrentToolCalls` 控制托管 Interaction。执行完成顺序不影响
+可观察顺序：ToolResult、continuation 和 checkpoint 始终按模型原始 tool-call 顺序提交。
+
+同步 `runtime.NewAgentTool` 的每次调用拥有独立 child Process，因此同一 model round 的
+多个调用可以并发。Runtime 用 exact `ToolCall.ID` 关联并持久化有序 child forest；多个
+child 同时 waiting 时，parent 一次只暴露最早未提交的 suspension，恢复一个后再暴露下一个。
 
 ## 10. API 与 wire 治理
 

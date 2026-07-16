@@ -19,7 +19,7 @@
 - **能力切片**:planning(Planner 接口 + 各算法各一包)、routing、workflow(高阶组合器,但都**编译回普通 agent**,不是新 runtime)、event、interaction、hitl、toolloop、toolpolicy。
 - **Blackboard 是 planner 可见性的枢纽**:action 之间**不直接传值**,一律按 name + type 读写黑板 —— 绕过它调度就坏;读写用分离的 reader / writer 面。
 - **HITL 是 first-class**:等待输入把进程切到 Waiting,operator 回复先写入可恢复 response,再从 action 入口重入;ToolLoop checkpoint 必须跳过已完成的模型轮次和工具。框架不尝试恢复任意 Go 调用栈。
-- **协议与执行状态分离**:`toolloop.Invocation` 并置 `core/chat.Request` 与消费方 `ToolResolver`；model/tool/pause/resume 通过 `toolloop.Event` 表达，不向 provider Response 塞运行时状态。`agent/toolloop.Runner` 是唯一工具循环，采用串行、无自动 retry、可 checkpoint/resume 的明确策略。
+- **协议与执行状态分离**:`toolloop.Runner` 直接消费 `core/chat.Request` 与消费方 `ToolResolver`；model/tool/pause/resume 通过 `toolloop.Event` 表达，不向 provider Response 塞运行时状态。Runner 是唯一工具循环：工具默认独占，显式安全的调用按 resource key 有界并发，但 event、continuation、checkpoint 始终按模型调用顺序提交；无自动 retry，可 checkpoint/resume。
 - **委派子进程默认只带 ambient(protected)项**,不全盘继承父黑板 —— 全继承会预满足子 agent 的产出目标、让它静默不干活。三档梯度:全继承 / 仅 ambient / 全空,按编排需要选。
 - **框架内部用具体类型**:内聚子系统的单实现依赖直接用具体类型;窄接口留给公开 SPI(Planner / Extension 子接口等)、跨模块消费边界和真实替换点。不能因为 Agent 是 framework 就为每个内部 struct 造 interface。
 

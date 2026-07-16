@@ -49,6 +49,63 @@ func (m *managedModel) Calls() int {
 	return m.calls
 }
 
+type managedConcurrentTool struct {
+	name string
+	call func(context.Context) (string, error)
+}
+
+func (t *managedConcurrentTool) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{
+		Name:        t.name,
+		InputSchema: json.RawMessage(`{"type":"object"}`),
+	}
+}
+
+func (t *managedConcurrentTool) Call(ctx context.Context, _ string) (string, error) {
+	return t.call(ctx)
+}
+
+func (t *managedConcurrentTool) ConcurrencyKey(string) (string, bool) {
+	return "", true
+}
+
+type managedConcurrentModel struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (m *managedConcurrentModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	if m.calls == 1 {
+		message := chat.NewAssistantMessage(
+			chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "first", Arguments: `{}`}),
+			chat.NewToolCallPart(chat.ToolCall{ID: "call-2", Name: "second", Arguments: `{}`}),
+			chat.NewToolCallPart(chat.ToolCall{ID: "call-3", Name: "third", Arguments: `{}`}),
+		)
+		return chat.NewResponse(chat.Choice{
+			Index:        0,
+			Message:      &message,
+			FinishReason: chat.FinishReasonToolCalls,
+		})
+	}
+	last := request.Messages[len(request.Messages)-1]
+	if last.Role != chat.RoleTool ||
+		len(last.Parts) != 3 ||
+		last.Parts[0].ToolResult.ID != "call-1" ||
+		last.Parts[1].ToolResult.ID != "call-2" ||
+		last.Parts[2].ToolResult.ID != "call-3" {
+		return nil, errors.New("managed interaction committed tool results out of model-call order")
+	}
+	message := chat.NewAssistantMessage(chat.NewTextPart("complete"))
+	return chat.NewResponse(chat.Choice{
+		Index:        0,
+		Message:      &message,
+		FinishReason: chat.FinishReasonStop,
+	})
+}
+
 func TestManagedInteractionPublishesOwnedBoundariesAndRecordsUsage(t *testing.T) {
 	model := &managedModel{}
 	tool, err := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(context.Context, struct{}) (string, error) {
@@ -88,6 +145,77 @@ func TestManagedInteractionPublishesOwnedBoundariesAndRecordsUsage(t *testing.T)
 	}
 	if boundaries[0].Boundary.Round != 1 || boundaries[4].Boundary.Round != 2 {
 		t.Fatalf("rounds = %d, %d", boundaries[0].Boundary.Round, boundaries[4].Boundary.Round)
+	}
+}
+
+func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
+	started := make(chan string, 3)
+	releases := map[string]chan struct{}{
+		"first":  make(chan struct{}),
+		"second": make(chan struct{}),
+		"third":  make(chan struct{}),
+	}
+	registered := make([]tools.Tool, 0, len(releases))
+	for _, name := range []string{"first", "second", "third"} {
+		registered = append(registered, &managedConcurrentTool{
+			name: name,
+			call: func(context.Context) (string, error) {
+				started <- name
+				<-releases[name]
+				return name, nil
+			},
+		})
+	}
+	registry, err := tools.NewRegistry(registered...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &managedConcurrentModel{}
+	a := managedInteractionAgent(t, "managed-concurrency-limit", model, registry, interaction.Limits{
+		MaxConcurrentToolCalls: 2,
+	})
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+
+	proc, done := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	firstStarted := <-started
+	secondStarted := <-started
+	select {
+	case thirdStarted := <-started:
+		t.Fatalf("third tool %q started before a concurrency slot was released", thirdStarted)
+	default:
+	}
+
+	close(releases[firstStarted])
+	thirdStarted := <-started
+	close(releases[secondStarted])
+	close(releases[thirdStarted])
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if proc.Status() != core.StatusCompleted || proc.Failure() != nil {
+		t.Fatalf("process status=%s failure=%v", proc.Status(), proc.Failure())
+	}
+}
+
+func TestManagedInteractionRejectsNegativeConcurrentToolCallLimit(t *testing.T) {
+	model := &managedFinalModel{}
+	registry, err := tools.NewRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := managedInteractionAgent(t, "managed-negative-concurrency", model, registry, interaction.Limits{
+		MaxConcurrentToolCalls: -1,
+	})
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+
+	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proc.Failure() == nil || model.Calls() != 0 {
+		t.Fatalf("failure=%v model calls=%d", proc.Failure(), model.Calls())
 	}
 }
 

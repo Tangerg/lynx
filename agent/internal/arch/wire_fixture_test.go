@@ -40,23 +40,35 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 	response.Model = "fixture-model"
 
 	completedResult := chat.ToolResult{ID: "call-1", Name: "lookup", Result: "deployed"}
+	prompt := json.RawMessage(`{"message":"operator approval required"}`)
+	resumeSchema := json.RawMessage(`{"type":"string"}`)
 	checkpoint := &toolloop.Checkpoint{
-		SchemaVersion: 1,
-		ID:            "approval-1",
-		Round:         2,
-		MaxRounds:     50,
-		ToolsetDigest: "8f4d804e6c3d359b39e96baba43b430e1c81381ed321e8ce8e66bb32cb5e00f4",
-		Request:       request,
-		Response:      response,
-		Results:       []chat.ToolResult{completedResult},
-		NextCall:      1,
+		SchemaVersion:      toolloop.CheckpointSchemaVersion,
+		ID:                 "approval-1",
+		Round:              2,
+		MaxRounds:          50,
+		MaxConcurrentCalls: toolloop.DefaultMaxConcurrentCalls,
+		ToolsetDigest:      "8f4d804e6c3d359b39e96baba43b430e1c81381ed321e8ce8e66bb32cb5e00f4",
+		Request:            request,
+		Response:           response,
+		CallStates: []toolloop.CallCheckpoint{
+			{Status: toolloop.CallCompleted, Result: &completedResult},
+			{
+				Status: toolloop.CallPaused,
+				Pending: &toolloop.PendingCall{
+					ID:           "approval-1",
+					Reason:       "operator approval required",
+					Prompt:       prompt,
+					ResumeSchema: resumeSchema,
+				},
+			},
+		},
+		NextResult: 1,
 	}
 	if err := checkpoint.Validate(); err != nil {
 		t.Fatal(err)
 	}
 
-	prompt := json.RawMessage(`{"message":"operator approval required"}`)
-	resumeSchema := json.RawMessage(`{"type":"string"}`)
 	pause := &toolloop.Pause{ID: checkpoint.ID, Reason: "operator approval required", Prompt: prompt, ResumeSchema: resumeSchema, Checkpoint: checkpoint}
 	resume := &toolloop.Resume{ID: checkpoint.ID, Input: json.RawMessage(`"approved"`)}
 	events := []toolloop.Event{
@@ -106,10 +118,10 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 			Status:     agentcore.ActionSucceeded.String(),
 			Attempts:   2,
 		}},
-		Failure: "awaiting approval",
-		Cost:    0.0125,
-		Tokens:  321,
-		ModelCalls: []agentcore.ModelCall{{
+		Failure:   "awaiting approval",
+		OwnCost:   0.0125,
+		OwnTokens: 321,
+		OwnModelCalls: []agentcore.ModelCall{{
 			Timestamp:        startedAt.Add(2 * time.Minute),
 			Model:            "fixture-model",
 			Provider:         "fixture-provider",
@@ -120,7 +132,7 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 			Duration:         2 * time.Second,
 			ActionName:       "lookup",
 		}},
-		EmbeddingCalls: []agentcore.EmbeddingCall{{
+		OwnEmbeddingCalls: []agentcore.EmbeddingCall{{
 			Timestamp:   startedAt.Add(3 * time.Minute),
 			Model:       "fixture-embedding",
 			Provider:    "fixture-provider",

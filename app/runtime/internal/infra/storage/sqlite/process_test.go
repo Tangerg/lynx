@@ -79,7 +79,7 @@ func TestProcessStoreSaveLoadCAS(t *testing.T) {
 	var wait sync.WaitGroup
 	for tokens := 10; tokens <= 11; tokens++ {
 		candidate := got
-		candidate.Tokens = tokens
+		candidate.OwnTokens = tokens
 		wait.Add(1)
 		go func() {
 			defer wait.Done()

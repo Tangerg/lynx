@@ -25,9 +25,9 @@ var ErrToolDenied = errors.New("engine.ErrToolDenied: tool call denied by user")
 // the same opaque CallID; the assistant text arrives in zero or
 // more OnMessageDelta calls between (and around) tool calls.
 //
-// Implementations must be safe for concurrent calls because separate turns may
-// share one observer backend, even though one target tool-loop executes calls
-// serially.
+// Implementations must be safe for concurrent calls: one tool round may
+// overlap explicitly safe calls, and separate turns may share one observer
+// backend.
 type toolObserver interface {
 	// ApproveToolCall is the gate consulted BEFORE every tool call.
 	// It returns a verdict telling the decorator whether the call runs,
@@ -150,6 +150,18 @@ func (o *observedTool) ReturnsDirect() bool {
 		return direct.ReturnsDirect()
 	}
 	return false
+}
+
+// ConcurrencyKey preserves the wrapped tool's optional scheduling contract.
+// Observation is per-call and concurrency-safe; wrapping a read-only or
+// resource-keyed tool must not silently downgrade it to exclusive execution.
+func (o *observedTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+	if capability, ok := o.inner.(interface {
+		ConcurrencyKey(string) (string, bool)
+	}); ok {
+		return capability.ConcurrencyKey(arguments)
+	}
+	return "", false
 }
 
 func (o *observedTool) Call(ctx context.Context, arguments string) (string, error) {

@@ -56,7 +56,7 @@ func (r *worldStateReader) read(ctx context.Context) core.WorldState {
 
 // evaluateCondition dispatches to the right resolution strategy based on
 // the condition key's shape. Returns Unknown for anything that doesn't
-// match a known pattern — A* treats Unknown as "doesn't satisfy" so missing
+// match a known pattern — GOAP treats Unknown as "doesn't satisfy" so missing
 // state safely defers planning rather than producing a wrong plan.
 //
 // User-supplied Conditions run inside [safeEvaluateCondition] so a
@@ -87,7 +87,7 @@ func (r *worldStateReader) evaluateCondition(ctx context.Context, key string, en
 }
 
 // safeEvaluateCondition runs cond.Evaluate under a panic guard. A
-// panicking user condition becomes [core.Unknown] — A* treats Unknown
+// panicking user condition becomes [core.Unknown] — GOAP treats Unknown
 // as "doesn't satisfy", so a misbehaving condition fails its actions
 // closed (planner picks something else) rather than crashing the tick.
 func safeEvaluateCondition(ctx context.Context, condition core.Condition, env *core.ConditionEnv) (result core.Truth) {

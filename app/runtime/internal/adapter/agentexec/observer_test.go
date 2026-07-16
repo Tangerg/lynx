@@ -34,6 +34,7 @@ func (keyedTool) Definition() chat.ToolDefinition {
 }
 func (keyedTool) Call(context.Context, string) (string, error) { return "", nil }
 func (keyedTool) ReturnsDirect() bool                          { return true }
+func (keyedTool) ConcurrencyKey(string) (string, bool)         { return "resource", true }
 
 // plainTool does NOT implement ConcurrencyKey — it must stay exclusive.
 type plainTool struct{}
@@ -70,6 +71,20 @@ func TestObservedToolForwardsReturnsDirect(t *testing.T) {
 	plain := &observedTool{inner: plainTool{}, observer: noopObserver{}}
 	if plain.ReturnsDirect() {
 		t.Fatal("plain tool must not become return-direct")
+	}
+}
+
+func TestObservedToolForwardsConcurrencyKey(t *testing.T) {
+	keyed := &observedTool{inner: keyedTool{}, observer: noopObserver{}}
+	key, concurrent := keyed.ConcurrencyKey(`{}`)
+	if key != "resource" || !concurrent {
+		t.Fatalf("keyed concurrency = %q, %v", key, concurrent)
+	}
+
+	plain := &observedTool{inner: plainTool{}, observer: noopObserver{}}
+	key, concurrent = plain.ConcurrencyKey(`{}`)
+	if key != "" || concurrent {
+		t.Fatalf("plain concurrency = %q, %v", key, concurrent)
 	}
 }
 

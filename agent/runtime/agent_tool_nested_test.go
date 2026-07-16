@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -60,6 +61,48 @@ func (m *nestedParentModel) Calls() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.calls
+}
+
+type concurrentNestedParentModel struct {
+	mu             sync.Mutex
+	calls          int
+	committedOrder []string
+}
+
+func (m *concurrentNestedParentModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+
+	for _, message := range request.Messages {
+		if message.Role != chat.RoleTool {
+			continue
+		}
+		m.committedOrder = m.committedOrder[:0]
+		for _, part := range message.Parts {
+			if part.ToolResult != nil {
+				m.committedOrder = append(m.committedOrder, part.ToolResult.ID)
+			}
+		}
+		return nestedTextResponse("parallel parent complete")
+	}
+	message := chat.NewAssistantMessage(
+		chat.NewToolCallPart(chat.ToolCall{ID: "child-call-1", Name: "nested-child", Arguments: `{"value":21}`}),
+		chat.NewToolCallPart(chat.ToolCall{ID: "child-call-2", Name: "nested-child", Arguments: `{"value":21}`}),
+	)
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
+}
+
+func (m *concurrentNestedParentModel) Calls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+func (m *concurrentNestedParentModel) CommittedOrder() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.committedOrder...)
 }
 
 func nestedTextResponse(text string) (*chat.Response, error) {
@@ -153,6 +196,40 @@ func nestedFailingChildAgent(failures *atomic.Int32) *core.Agent {
 
 func nestedParentAgent(t *testing.T, engine *runtime.Engine, model *nestedParentModel, beforeCalls *atomic.Int32) *core.Agent {
 	return nestedManagedParentAgent(t, engine, "nested-parent", "nested-child", model, beforeCalls)
+}
+
+func concurrentNestedParentAgent(
+	t *testing.T,
+	engine *runtime.Engine,
+	model *concurrentNestedParentModel,
+) *core.Agent {
+	t.Helper()
+	childTool, err := runtime.NewAgentTool[nestedAgentInput, nestedAgentOutput](engine, "nested-child")
+	if err != nil {
+		t.Fatalf("NewAgentTool: %v", err)
+	}
+	registry, err := tools.NewRegistry(childTool)
+	if err != nil {
+		t.Fatalf("tool registry: %v", err)
+	}
+	return agent.New(agent.AgentConfig{
+		Name: "concurrent-nested-parent",
+		Actions: []agent.Action{agent.NewAction("supervise", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+			request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("delegate twice")))
+			if err != nil {
+				return "", err
+			}
+			result, err := pc.Interact(ctx, core.Interaction{Model: model, Request: request, Tools: registry})
+			if err != nil {
+				return "", err
+			}
+			if result.Final == nil || result.Final.Response == nil {
+				return "", errors.New("parallel parent interaction produced no final response")
+			}
+			return result.Final.Response.Text(), nil
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "parallel nested parent complete"})},
+	})
 }
 
 func nestedManagedParentAgent(
@@ -288,6 +365,25 @@ func nestedChildProcess(t *testing.T, engine *runtime.Engine, parentID string) *
 	return child
 }
 
+func nestedChildProcesses(engine *runtime.Engine, parentID string) []*runtime.Process {
+	var children []*runtime.Process
+	for _, candidate := range engine.Processes() {
+		if candidate.ParentID() == parentID {
+			children = append(children, candidate)
+		}
+	}
+	slices.SortFunc(children, func(left, right *runtime.Process) int {
+		if left.ID() < right.ID() {
+			return -1
+		}
+		if left.ID() > right.ID() {
+			return 1
+		}
+		return 0
+	})
+	return children
+}
+
 func directNestedParentAgent(t *testing.T, engine *runtime.Engine, prepared *atomic.Int32) *core.Agent {
 	t.Helper()
 	childTool, err := runtime.NewAgentTool[nestedAgentInput, nestedAgentOutput](engine, "nested-child")
@@ -358,6 +454,74 @@ func TestAgentToolNestedSuspensionParksParentAndResumesOriginalToolCall(t *testi
 	}
 	if _, ok := engine.Process(child.ID()); ok {
 		t.Fatalf("completed nested child %q remained registered", child.ID())
+	}
+}
+
+func TestAgentToolConcurrentNestedSuspensionsCommitInToolCallOrder(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	var childCompletions atomic.Int32
+	if _, err := engine.Deploy(nestedChildAgent(false, &childCompletions)); err != nil {
+		t.Fatalf("deploy child: %v", err)
+	}
+	model := &concurrentNestedParentModel{}
+	parent := concurrentNestedParentAgent(t, engine, model)
+	if _, err := engine.Deploy(parent); err != nil {
+		t.Fatalf("deploy parent: %v", err)
+	}
+
+	process := runNestedParent(t, engine, parent)
+	children := nestedChildProcesses(engine, process.ID())
+	if process.Status() != core.StatusWaiting || len(children) != 2 {
+		t.Fatalf("initial parent/children = %s/%d; failure=%v", process.Status(), len(children), process.Failure())
+	}
+	for _, child := range children {
+		if child.Status() != core.StatusWaiting {
+			t.Fatalf("child %q status = %s, want waiting", child.ID(), child.Status())
+		}
+	}
+	if model.Calls() != 1 {
+		t.Fatalf("model calls before resume = %d, want 1", model.Calls())
+	}
+
+	firstSuspension := process.Suspension()
+	if firstSuspension == nil {
+		t.Fatal("parent has no first suspension")
+	}
+	if err := engine.Resume(process.ID(), firstSuspension.ID, true); err != nil {
+		t.Fatalf("Resume first nested call: %v", err)
+	}
+	if err := engine.Continue(t.Context(), process.ID()); err != nil {
+		t.Fatalf("Continue first nested call: %v", err)
+	}
+	if process.Status() != core.StatusWaiting || childCompletions.Load() != 1 {
+		t.Fatalf("after first resume parent/completions = %s/%d; failure=%v", process.Status(), childCompletions.Load(), process.Failure())
+	}
+	remaining := nestedChildProcesses(engine, process.ID())
+	if len(remaining) != 1 || remaining[0].Status() != core.StatusWaiting {
+		t.Fatalf("remaining children = %#v, want one waiting child", remaining)
+	}
+	if model.Calls() != 1 {
+		t.Fatalf("model replayed before all tool results committed: calls=%d", model.Calls())
+	}
+
+	secondSuspension := process.Suspension()
+	if secondSuspension == nil {
+		t.Fatal("parent has no second suspension")
+	}
+	if err := engine.Resume(process.ID(), secondSuspension.ID, true); err != nil {
+		t.Fatalf("Resume second nested call: %v", err)
+	}
+	if err := engine.Continue(t.Context(), process.ID()); err != nil {
+		t.Fatalf("Continue second nested call: %v", err)
+	}
+	if process.Status() != core.StatusCompleted || childCompletions.Load() != 2 {
+		t.Fatalf("final parent/completions = %s/%d; failure=%v", process.Status(), childCompletions.Load(), process.Failure())
+	}
+	if got := model.CommittedOrder(); !slices.Equal(got, []string{"child-call-1", "child-call-2"}) {
+		t.Fatalf("committed ToolResults = %v, want model call order", got)
+	}
+	if children := nestedChildProcesses(engine, process.ID()); len(children) != 0 {
+		t.Fatalf("completed nested children remained registered: %d", len(children))
 	}
 }
 
@@ -496,6 +660,106 @@ func TestAgentToolNestedSuspensionRestoresProcessTreeWithoutReplay(t *testing.T)
 	}
 	if len(ids) != 1 || ids[0] != restored.ID() {
 		t.Fatalf("stored process ids = %v, want only parent %q", ids, restored.ID())
+	}
+}
+
+func TestAgentToolConcurrentNestedSuspensionsRestoreOrderedForest(t *testing.T) {
+	store := core.NewMemoryProcessStore()
+	var childCompletions atomic.Int32
+
+	model1 := &concurrentNestedParentModel{}
+	engine1 := agent.MustNewEngine(runtime.Config{
+		BuildID:      "concurrent-nested-restore",
+		ProcessStore: store,
+		AutoSnapshot: true,
+	})
+	if _, err := engine1.Deploy(nestedChildAgent(false, &childCompletions)); err != nil {
+		t.Fatalf("deploy child on engine1: %v", err)
+	}
+	parent1 := concurrentNestedParentAgent(t, engine1, model1)
+	if _, err := engine1.Deploy(parent1); err != nil {
+		t.Fatalf("deploy parent on engine1: %v", err)
+	}
+	process1 := runNestedParent(t, engine1, parent1)
+	children1 := nestedChildProcesses(engine1, process1.ID())
+	if len(children1) != 2 {
+		t.Fatalf("engine1 nested children = %d, want 2", len(children1))
+	}
+
+	model2 := &concurrentNestedParentModel{}
+	engine2 := agent.MustNewEngine(runtime.Config{
+		BuildID:      "concurrent-nested-restore",
+		ProcessStore: store,
+		AutoSnapshot: true,
+	})
+	if _, err := engine2.Deploy(nestedChildAgent(false, &childCompletions)); err != nil {
+		t.Fatalf("deploy child on engine2: %v", err)
+	}
+	parent2 := concurrentNestedParentAgent(t, engine2, model2)
+	if _, err := engine2.Deploy(parent2); err != nil {
+		t.Fatalf("deploy parent on engine2: %v", err)
+	}
+	restored, err := engine2.RestoreResumable(t.Context(), process1.ID(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("RestoreResumable: %v", err)
+	}
+	children2 := nestedChildProcesses(engine2, restored.ID())
+	if len(children2) != 2 {
+		t.Fatalf("restored nested children = %d, want 2", len(children2))
+	}
+	if cost, tokens, _ := restored.Usage(); cost != 0.5 || tokens != 6 || len(restored.ModelCalls()) != 3 {
+		t.Fatalf("restored usage = cost %.2f tokens %d calls %d, want 0.5/6/3", cost, tokens, len(restored.ModelCalls()))
+	}
+
+	first := restored.Suspension()
+	if first == nil {
+		t.Fatal("restored parent has no first suspension")
+	}
+	if err := engine2.Resume(restored.ID(), first.ID, true); err != nil {
+		t.Fatalf("Resume first restored child: %v", err)
+	}
+	if err := engine2.Continue(t.Context(), restored.ID()); err != nil {
+		t.Fatalf("Continue first restored child: %v", err)
+	}
+	if restored.Status() != core.StatusWaiting || childCompletions.Load() != 1 {
+		t.Fatalf("after first restore resume parent/completions = %s/%d", restored.Status(), childCompletions.Load())
+	}
+	if children := nestedChildProcesses(engine2, restored.ID()); len(children) != 1 {
+		t.Fatalf("children after first restore resume = %d, want 1", len(children))
+	}
+	ids, err := store.List(t.Context())
+	if err != nil {
+		t.Fatalf("store.List after first resume: %v", err)
+	}
+	if len(ids) != 2 {
+		t.Fatalf("stored ids after first resume = %v, want parent plus one child", ids)
+	}
+
+	second := restored.Suspension()
+	if second == nil {
+		t.Fatal("restored parent has no second suspension")
+	}
+	if err := engine2.Resume(restored.ID(), second.ID, true); err != nil {
+		t.Fatalf("Resume second restored child: %v", err)
+	}
+	if err := engine2.Continue(t.Context(), restored.ID()); err != nil {
+		t.Fatalf("Continue second restored child: %v", err)
+	}
+	if restored.Status() != core.StatusCompleted || childCompletions.Load() != 2 {
+		t.Fatalf("restored final parent/completions = %s/%d; failure=%v", restored.Status(), childCompletions.Load(), restored.Failure())
+	}
+	if model1.Calls() != 1 || model2.Calls() != 1 {
+		t.Fatalf("model calls across restart = %d/%d, want 1/1", model1.Calls(), model2.Calls())
+	}
+	if got := model2.CommittedOrder(); !slices.Equal(got, []string{"child-call-1", "child-call-2"}) {
+		t.Fatalf("restored committed ToolResults = %v, want model call order", got)
+	}
+	ids, err = store.List(t.Context())
+	if err != nil {
+		t.Fatalf("store.List after completion: %v", err)
+	}
+	if !slices.Equal(ids, []string{restored.ID()}) {
+		t.Fatalf("stored ids after completion = %v, want only parent %q", ids, restored.ID())
 	}
 }
 
