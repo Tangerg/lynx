@@ -2,32 +2,30 @@ package fakeweather
 
 import (
 	"math"
-	"math/rand/v2"
-	"time"
 )
 
-func generateWind(condition string, zone climateZone, coords Coordinates, rng *rand.Rand) Wind {
-	speed := 5.0 + rng.Float64()*15.0
+func (g *reportGenerator) wind(condition string) Wind {
+	speed := 5.0 + g.rng.Float64()*15.0
 	switch condition {
 	case "Stormy", "Blizzard":
-		speed += rng.Float64() * 30.0
+		speed += g.rng.Float64() * 30.0
 	case "Rainy", "Snowy":
-		speed += rng.Float64() * 15.0
+		speed += g.rng.Float64() * 15.0
 	case "Sunny", "Clear":
 		speed *= 0.6
 	}
-	switch zone {
+	switch g.zone {
 	case zoneDesert:
-		speed += rng.Float64() * 10.0
+		speed += g.rng.Float64() * 10.0
 	case zoneOceanic:
-		speed += rng.Float64() * 8.0
+		speed += g.rng.Float64() * 8.0
 	case zoneAlpine:
-		speed += rng.Float64() * 12.0
+		speed += g.rng.Float64() * 12.0
 	}
-	speed += float64(coords.Elevation) * 0.01
+	speed += float64(g.coords.Elevation) * 0.01
 
-	degree := rng.IntN(360)
-	gust := speed * (1.2 + rng.Float64()*0.3)
+	degree := g.rng.IntN(360)
+	gust := speed * (1.2 + g.rng.Float64()*0.3)
 	return Wind{
 		Speed:     math.Round(speed*10) / 10,
 		Unit:      "km/h",
@@ -47,20 +45,20 @@ func directionFromDegree(deg int) string {
 	return directions[int(math.Round(float64(deg)/22.5))%16]
 }
 
-// generateHumidity follows the zone's typical humidity, lifted by
+// humidity follows the zone's typical humidity, lifted by
 // rainy/foggy conditions and reduced by sunny/dusty ones.
-func generateHumidity(condition string, zone climateZone, month int, seasonal seasonalPattern, rng *rand.Rand) int {
+func (g *reportGenerator) humidity(condition string) int {
 	base := 50
-	switch zone {
+	switch g.zone {
 	case zoneTropical:
 		base = 75
-		if seasonal.monsoonInfluence && monthInRange(month, seasonal.rainyStart, seasonal.rainyEnd) {
+		if g.seasonal.monsoonInfluence && monthInRange(g.month, g.seasonal.rainyStart, g.seasonal.rainyEnd) {
 			base = 85
 		}
 	case zoneDesert:
 		base = 20
 	case zoneMediterranean:
-		if month >= 6 && month <= 9 {
+		if g.month >= 6 && g.month <= 9 {
 			base = 45
 		} else {
 			base = 65
@@ -77,17 +75,17 @@ func generateHumidity(condition string, zone climateZone, month int, seasonal se
 
 	switch condition {
 	case "Rainy", "Stormy", "Foggy", "Humid", "Drizzle":
-		return min(base+20+rng.IntN(20), 100)
+		return min(base+20+g.rng.IntN(20), 100)
 	case "Snowy", "Blizzard":
-		return min(base+15+rng.IntN(15), 95)
+		return min(base+15+g.rng.IntN(15), 95)
 	case "Cloudy", "Partly Cloudy", "Overcast":
-		return base + rng.IntN(15)
+		return base + g.rng.IntN(15)
 	case "Sunny", "Clear", "Hot":
-		return max(base-20+rng.IntN(20), 10)
+		return max(base-20+g.rng.IntN(20), 10)
 	case "Dusty", "Hazy":
-		return max(base-30+rng.IntN(15), 5)
+		return max(base-30+g.rng.IntN(15), 5)
 	}
-	return base + rng.IntN(20) - 10
+	return base + g.rng.IntN(20) - 10
 }
 
 // calculateFeelsLike applies wind-chill (cold + windy) and heat-index
@@ -111,38 +109,38 @@ func calculateFeelsLike(temp, humidity int, windSpeed float64) int {
 	return int(math.Round(feels))
 }
 
-// generatePressure starts from the elevation-corrected MSL pressure and
+// pressure starts from the elevation-corrected MSL pressure and
 // adjusts for the weather (low for storms, high for clear).
-func generatePressure(elevation int, condition string, rng *rand.Rand) int {
-	base := 1013 - elevation/8
+func (g *reportGenerator) pressure(condition string) int {
+	base := 1013 - g.coords.Elevation/8
 	switch condition {
 	case "Stormy", "Rainy":
-		base += -10 - rng.IntN(15)
+		base += -10 - g.rng.IntN(15)
 	case "Sunny", "Clear":
-		base += 5 + rng.IntN(10)
+		base += 5 + g.rng.IntN(10)
 	case "Cloudy", "Partly Cloudy":
-		base += rng.IntN(10) - 5
+		base += g.rng.IntN(10) - 5
 	}
 	return base
 }
 
-func generateVisibility(condition string, humidity int, rng *rand.Rand) int {
+func (g *reportGenerator) visibility(condition string, humidity int) int {
 	var base int
 	switch condition {
 	case "Foggy", "Mist":
-		base = rng.IntN(2) + 1
+		base = g.rng.IntN(2) + 1
 	case "Rainy", "Snowy":
-		base = 3 + rng.IntN(5)
+		base = 3 + g.rng.IntN(5)
 	case "Stormy", "Blizzard":
-		base = 1 + rng.IntN(3)
+		base = 1 + g.rng.IntN(3)
 	case "Dusty", "Hazy":
-		base = 2 + rng.IntN(6)
+		base = 2 + g.rng.IntN(6)
 	case "Cloudy":
-		base = 8 + rng.IntN(7)
+		base = 8 + g.rng.IntN(7)
 	case "Sunny", "Clear":
-		base = 15 + rng.IntN(35)
+		base = 15 + g.rng.IntN(35)
 	default:
-		base = 10 + rng.IntN(10)
+		base = 10 + g.rng.IntN(10)
 	}
 	if humidity > 85 {
 		base = int(float64(base) * 0.7)
@@ -150,20 +148,20 @@ func generateVisibility(condition string, humidity int, rng *rand.Rand) int {
 	return max(1, base)
 }
 
-func generateCloudCover(condition string, rng *rand.Rand) int {
+func (g *reportGenerator) cloudCover(condition string) int {
 	switch condition {
 	case "Sunny", "Clear":
-		return rng.IntN(15)
+		return g.rng.IntN(15)
 	case "Partly Cloudy":
-		return 25 + rng.IntN(35)
+		return 25 + g.rng.IntN(35)
 	case "Cloudy", "Overcast":
-		return 75 + rng.IntN(25)
+		return 75 + g.rng.IntN(25)
 	case "Rainy", "Snowy", "Stormy":
-		return 90 + rng.IntN(10)
+		return 90 + g.rng.IntN(10)
 	case "Foggy":
 		return 100
 	}
-	return 40 + rng.IntN(40)
+	return 40 + g.rng.IntN(40)
 }
 
 // calculateDewPoint applies the Magnus formula. Returns the dew point
@@ -188,13 +186,13 @@ func precipitationFor(condition string) bool {
 	return false
 }
 
-func generatePrecipitation(condition string, temp int, month int, seasonal seasonalPattern, rng *rand.Rand) *Precipitation {
+func (g *reportGenerator) precipitation(condition string, temp int) *Precipitation {
 	p := &Precipitation{}
 	switch {
 	case temp < 0:
 		p.Type = "snow"
 	case temp < 3:
-		if rng.Float64() < 0.3 {
+		if g.rng.Float64() < 0.3 {
 			p.Type = "sleet"
 		} else {
 			p.Type = "snow"
@@ -205,65 +203,65 @@ func generatePrecipitation(condition string, temp int, month int, seasonal seaso
 
 	switch condition {
 	case "Stormy", "Blizzard":
-		p.Probability = 85 + rng.IntN(15)
+		p.Probability = 85 + g.rng.IntN(15)
 	case "Rainy", "Snowy":
-		p.Probability = 60 + rng.IntN(30)
+		p.Probability = 60 + g.rng.IntN(30)
 	case "Drizzle":
-		p.Probability = 40 + rng.IntN(30)
+		p.Probability = 40 + g.rng.IntN(30)
 	default:
-		p.Probability = 30 + rng.IntN(40)
+		p.Probability = 30 + g.rng.IntN(40)
 	}
-	if seasonal.monsoonInfluence && monthInRange(month, seasonal.rainyStart, seasonal.rainyEnd) {
+	if g.seasonal.monsoonInfluence && monthInRange(g.month, g.seasonal.rainyStart, g.seasonal.rainyEnd) {
 		p.Probability = min(100, p.Probability+15)
 	}
 
 	switch condition {
 	case "Stormy":
-		p.Amount = 20.0 + rng.Float64()*40.0
+		p.Amount = 20.0 + g.rng.Float64()*40.0
 		p.Intensity = "heavy"
 	case "Rainy":
-		p.Amount = 5.0 + rng.Float64()*20.0
+		p.Amount = 5.0 + g.rng.Float64()*20.0
 		if p.Amount > 15 {
 			p.Intensity = "moderate"
 		} else {
 			p.Intensity = "light"
 		}
 	case "Drizzle":
-		p.Amount = 0.5 + rng.Float64()*3.0
+		p.Amount = 0.5 + g.rng.Float64()*3.0
 		p.Intensity = "light"
 	case "Snowy", "Blizzard":
-		p.Amount = 1.0 + rng.Float64()*10.0
+		p.Amount = 1.0 + g.rng.Float64()*10.0
 		if condition == "Blizzard" {
 			p.Intensity = "heavy"
 		} else {
 			p.Intensity = "moderate"
 		}
 	default:
-		p.Amount = rng.Float64() * 5.0
+		p.Amount = g.rng.Float64() * 5.0
 		p.Intensity = "light"
 	}
 	p.Amount = math.Round(p.Amount*10) / 10
 	return p
 }
 
-func generateAirQuality(location, condition string, zone climateZone, rng *rand.Rand) *AirQuality {
+func (g *reportGenerator) airQuality(condition string) *AirQuality {
 	aq := &AirQuality{}
 	aqi := 50
 
-	if profile, ok := lookupCity(location); ok && profile.Polluted {
-		aqi = 80 + rng.IntN(40)
+	if profile, ok := lookupCity(g.request.Location); ok && profile.Polluted {
+		aqi = 80 + g.rng.IntN(40)
 	}
 
 	switch condition {
 	case "Foggy", "Hazy":
-		aqi += 40 + rng.IntN(30)
+		aqi += 40 + g.rng.IntN(30)
 	case "Rainy", "Stormy":
-		aqi -= 20 + rng.IntN(20)
+		aqi -= 20 + g.rng.IntN(20)
 	case "Windy":
-		aqi -= 10 + rng.IntN(15)
+		aqi -= 10 + g.rng.IntN(15)
 	}
-	if zone == zoneDesert {
-		aqi += 10 + rng.IntN(20)
+	if g.zone == zoneDesert {
+		aqi += 10 + g.rng.IntN(20)
 	}
 
 	aq.AQI = clamp(aqi, 0, 500)
@@ -288,20 +286,20 @@ func generateAirQuality(location, condition string, zone climateZone, rng *rand.
 		aq.Description = "Health warning of emergency conditions: everyone is more likely to be affected."
 	}
 
-	aq.PM25 = int(float64(aq.AQI) * 0.5 * (1 + rng.Float64()*0.4))
-	aq.PM10 = int(float64(aq.PM25) * 1.5 * (1 + rng.Float64()*0.3))
-	aq.Ozone = 20 + rng.IntN(80)
+	aq.PM25 = int(float64(aq.AQI) * 0.5 * (1 + g.rng.Float64()*0.4))
+	aq.PM10 = int(float64(aq.PM25) * 1.5 * (1 + g.rng.Float64()*0.3))
+	aq.Ozone = 20 + g.rng.IntN(80)
 	return aq
 }
 
-func generateUVIndex(month int, latitude float64, condition string, cloudCover int, rng *rand.Rand) UVIndex {
-	absLat := math.Abs(latitude)
+func (g *reportGenerator) uvIndex(condition string, cloudCover int) UVIndex {
+	absLat := math.Abs(g.coords.Latitude)
 	latitudeFactor := 1.0 - absLat/90.0
 	var seasonFactor float64
 	switch {
-	case month >= 5 && month <= 8:
+	case g.month >= 5 && g.month <= 8:
 		seasonFactor = 1.2
-	case month >= 11 || month <= 2:
+	case g.month >= 11 || g.month <= 2:
 		seasonFactor = 0.6
 	default:
 		seasonFactor = 0.9
@@ -311,11 +309,11 @@ func generateUVIndex(month int, latitude float64, condition string, cloudCover i
 	value -= int(float64(cloudCover) * 0.08)
 	switch condition {
 	case "Sunny", "Clear":
-		value += 1 + rng.IntN(2)
+		value += 1 + g.rng.IntN(2)
 	case "Cloudy", "Overcast":
-		value -= 2 + rng.IntN(2)
+		value -= 2 + g.rng.IntN(2)
 	case "Rainy", "Stormy":
-		value -= 4 + rng.IntN(3)
+		value -= 4 + g.rng.IntN(3)
 	}
 	value = clamp(value, 0, 11)
 
@@ -345,13 +343,13 @@ var moonPhases = []string{
 	"Full Moon", "Waning Gibbous", "Last Quarter", "Waning Crescent",
 }
 
-// generateAstronomy uses simplified declination math for sunrise/sunset,
+// astronomy uses simplified declination math for sunrise/sunset,
 // and a 29.5-day cycle for the moon phase.
-func generateAstronomy(date time.Time, coords Coordinates, rng *rand.Rand) Astronomy {
-	dayOfYear := date.YearDay()
+func (g *reportGenerator) astronomy() Astronomy {
+	dayOfYear := g.target.YearDay()
 
 	declination := 23.45 * math.Sin(2*math.Pi*float64(dayOfYear-81)/365)
-	latRad := coords.Latitude * math.Pi / 180
+	latRad := g.coords.Latitude * math.Pi / 180
 	declRad := declination * math.Pi / 180
 	cosH := -math.Tan(latRad) * math.Tan(declRad)
 	cosH = math.Max(-1, math.Min(1, cosH)) // polar day/night clamp
@@ -364,8 +362,8 @@ func generateAstronomy(date time.Time, coords Coordinates, rng *rand.Rand) Astro
 	phaseIndex := (dayOfYear * 8 / 30) % 8
 	moonIllum := int(math.Abs(math.Sin(float64(dayOfYear)*2*math.Pi/29.5)) * 100)
 
-	moonriseOffset := rng.IntN(120) - 60
-	moonsetOffset := rng.IntN(120) - 60
+	moonriseOffset := g.rng.IntN(120) - 60
+	moonsetOffset := g.rng.IntN(120) - 60
 	moonrise := formatHM(12 - daylight/2 + float64(moonriseOffset)/60.0)
 	moonset := formatHM(12 + daylight/2 + float64(moonsetOffset)/60.0)
 

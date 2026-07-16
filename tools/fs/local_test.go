@@ -567,15 +567,15 @@ func TestLocalExecutor_Grep_InvalidMode(t *testing.T) {
 }
 
 func TestLocalExecutor_Grep_AsymmetricContext(t *testing.T) {
-	before, after := resolveContext(GrepInput{Context: 3})
+	before, after := (GrepInput{Context: 3}).contextLines()
 	if before != 3 || after != 3 {
 		t.Errorf("Context=3 → before=%d after=%d, want 3,3", before, after)
 	}
-	before, after = resolveContext(GrepInput{BeforeContext: 5, AfterContext: 1})
+	before, after = (GrepInput{BeforeContext: 5, AfterContext: 1}).contextLines()
 	if before != 5 || after != 1 {
 		t.Errorf("explicit B=5 A=1 → before=%d after=%d", before, after)
 	}
-	before, after = resolveContext(GrepInput{Context: 2, BeforeContext: 10})
+	before, after = (GrepInput{Context: 2, BeforeContext: 10}).contextLines()
 	if before != 10 || after != 2 {
 		t.Errorf("Context=2 + B=10 → before=%d after=%d, want 10,2 (explicit wins for before, fallback for after)", before, after)
 	}

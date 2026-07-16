@@ -1,6 +1,9 @@
 package fs
 
-import "context"
+import (
+	"cmp"
+	"context"
+)
 
 // Executor is the SPI every backend implements. Each method follows the
 // (ctx, Input) (Output, error) shape so a remote adapter can auto-generate
@@ -63,8 +66,7 @@ type EditOutput struct {
 	Replacements int
 }
 
-// EditOperation is one exact-string replacement — the shared unit Edit and
-// ApplyPatch apply via replaceInContent.
+// EditOperation is one exact-string replacement performed by an Executor.
 type EditOperation struct {
 	OldString  string
 	NewString  string
@@ -139,6 +141,10 @@ type GrepInput struct {
 	OutputMode GrepOutputMode
 
 	MaxResults int
+}
+
+func (in GrepInput) contextLines() (before, after int) {
+	return cmp.Or(in.BeforeContext, in.Context), cmp.Or(in.AfterContext, in.Context)
 }
 
 // GrepOutput is a sum-type: exactly one of Matches / Files / Counts

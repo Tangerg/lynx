@@ -415,13 +415,14 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 ### P2：Tools 所有权与文件组织
 
 > 类型：内部重构，低至中风险
+> 状态：完成
 
-- [ ] `tools/fs` 按真实 owner 收回 edit/grep/patch 行为。
-- [ ] `LocalExecutor` 实现按 path/read-write/search 拆为同包文件。
-- [ ] 保留 parser、atomic exact-overwrite、grep process helper 为自由函数。
-- [ ] 不用 fileflow 替代 exact overwrite：其 no-overwrite/suffix 语义与编辑器写入合同不同。
-- [ ] fakeweather 引入持有共享随机与气候上下文的私有 generator。
-- [ ] provider native DTO 收回 params/shape/snippet/content 行为。
+- [x] `tools/fs` 按真实 owner 收回 edit/grep/patch 行为。
+- [x] `LocalExecutor` 实现按 path/read-write/search 拆为同包文件。
+- [x] 保留 parser、atomic exact-overwrite、grep process helper 为自由函数。
+- [x] 不用 fileflow 替代 exact overwrite：其 no-overwrite/suffix 语义与编辑器写入合同不同。
+- [x] fakeweather 引入持有共享随机与气候上下文的私有 generator。
+- [x] provider native DTO 收回 params/shape/snippet/content 行为。
 
 退出标准：
 
@@ -429,6 +430,33 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 - 相同上下文参数显著减少；
 - fs 原子写、BOM/CRLF、patch、grep、download 行为测试全绿；
 - provider conformance test 全绿。
+
+实施裁决：
+
+| 候选 | 裁决 | 认知负担证据 |
+| --- | --- | --- |
+| `EditOperation.apply` / `GrepInput.contextLines` | 迁入 | 行为直接读取操作/请求字段；删除重复参数和包级策略名 |
+| `filePatch.validate/apply` / `patchHunk.splitLines` | 迁入 | patch 路径、hunks 和行语义由其值对象统一维护；调用方不再拆字段后传入三个 helper 参数 |
+| `unifiedPatch.paths/duplicatePath` | 迁入 | 聚合级派生与重复检查只依赖 `files`，包级文件切片参数消失 |
+| parser、range/path codec、slice 匹配、grep process/output parser | 保留 | 无单一 owner，属于从无到有解析或多值算法 |
+| fakeweather `reportGenerator` | 迁入 | 真实持有 request/date/RNG/zone/coords/season/profile/month；天气派生方法不再重复传递 4–6 个相同参数 |
+| provider Request/Response/Result 行为 | 迁入 | query params、统一响应投影、snippet/content 直接由原生 DTO 读取自身字段 |
+| fileflow/pathologize | 不引入 | LocalExecutor 是编辑器式 exact-overwrite/atomic-replace；冲突后 suffix/no-overwrite 会改变合同 |
+
+文件组织：
+
+- `local_executor.go`：executor 状态、路径解析与 per-path lock；
+- `local_file.go`：Read/Write/Edit、文本截断与 binary sniff；
+- `local_search.go`：Glob/Grep、进程执行与输出解析；
+- `patch.go`：保持统一 diff parser 与 patch value 行为内聚。
+
+验证证据：
+
+- Tools：`go build ./...`、`go vet ./...`、`go test ./...` 全绿；
+- `go test -race ./fs` 全绿；
+- 旧 owner helper 名检索为零；
+- provider 接入测试、fakeweather deterministic/season/bounds tests、
+  fs atomic/BOM/CRLF/patch/grep/glob tests 全绿。
 
 ### P3：App Runtime 内部 owner 收敛
 
@@ -595,7 +623,7 @@ go vet ./...
 | --- | --- | --- | --- |
 | P0 审计与决策门 | 完成 | 100% | — |
 | P1 Core 值对象与 snapshot | 完成 | 100% | — |
-| P2 Tools owner 与组织 | 未开始 | 0% | — |
+| P2 Tools owner 与组织 | 完成 | 100% | — |
 | P3 Runtime owner 收敛 | 未开始 | 0% | P0 |
 | P4 Runtime 工具结果边界 | 未开始 | 0% | P0，结构性决策 |
 | P5 Document Pipeline API | 未开始 | 0% | P0，breaking 决策 |

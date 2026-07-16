@@ -17,6 +17,27 @@ type unifiedPatch struct {
 	files []filePatch
 }
 
+func (p unifiedPatch) paths() []string {
+	paths := make([]string, 0, len(p.files))
+	for _, file := range p.files {
+		paths = append(paths, file.path())
+	}
+	slices.Sort(paths)
+	return slices.Compact(paths)
+}
+
+func (p unifiedPatch) duplicatePath() string {
+	seen := make(map[string]struct{}, len(p.files))
+	for _, file := range p.files {
+		path := file.path()
+		if _, ok := seen[path]; ok {
+			return path
+		}
+		seen[path] = struct{}{}
+	}
+	return ""
+}
+
 type filePatch struct {
 	oldPath string
 	newPath string
@@ -33,12 +54,72 @@ func (p filePatch) path() string {
 func (p filePatch) created() bool { return p.oldPath == "/dev/null" }
 func (p filePatch) deleted() bool { return p.newPath == "/dev/null" }
 
+func (p filePatch) validate() error {
+	if len(p.hunks) == 0 {
+		return errors.New("fs.ApplyPatch: file patch has no hunks")
+	}
+	if p.oldPath == "" || p.newPath == "" {
+		return errors.New("fs.ApplyPatch: file patch is missing ---/+++ headers")
+	}
+	if p.oldPath != "/dev/null" {
+		if err := validatePatchPath(p.oldPath); err != nil {
+			return err
+		}
+	}
+	if p.newPath != "/dev/null" {
+		if err := validatePatchPath(p.newPath); err != nil {
+			return err
+		}
+	}
+	if p.oldPath != "/dev/null" && p.newPath != "/dev/null" && p.oldPath != p.newPath {
+		return fmt.Errorf("fs.ApplyPatch: %w: %s -> %s", errRenamePatch, p.oldPath, p.newPath)
+	}
+	return nil
+}
+
+func (p filePatch) apply(lines []string) ([]string, error) {
+	out := slices.Clone(lines)
+	delta := 0
+	for _, hunk := range p.hunks {
+		oldLines, newLines := hunk.splitLines()
+		idx := hunk.oldStart - 1 + delta
+		if hunk.oldStart == 0 {
+			idx = delta
+		}
+		if idx < 0 || idx+len(oldLines) > len(out) || !equalLines(out[idx:idx+len(oldLines)], oldLines) {
+			found := findUniqueLines(out, oldLines)
+			if found < 0 {
+				return nil, fmt.Errorf("fs.ApplyPatch: hunk for %s does not match", p.path())
+			}
+			idx = found
+		}
+		out = slices.Replace(out, idx, idx+len(oldLines), newLines...)
+		delta += len(newLines) - len(oldLines)
+	}
+	return out, nil
+}
+
 type patchHunk struct {
 	oldStart int
 	oldCount int
 	newStart int
 	newCount int
 	lines    []patchLine
+}
+
+func (h patchHunk) splitLines() (oldLines, newLines []string) {
+	for _, line := range h.lines {
+		switch line.kind {
+		case ' ':
+			oldLines = append(oldLines, line.text)
+			newLines = append(newLines, line.text)
+		case '-':
+			oldLines = append(oldLines, line.text)
+		case '+':
+			newLines = append(newLines, line.text)
+		}
+	}
+	return oldLines, newLines
 }
 
 type patchLine struct {
@@ -51,12 +132,7 @@ func patchPaths(patch string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	paths := make([]string, 0, len(parsed.files))
-	for _, file := range parsed.files {
-		paths = append(paths, file.path())
-	}
-	slices.Sort(paths)
-	return slices.Compact(paths), nil
+	return parsed.paths(), nil
 }
 
 func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchInput) (ApplyPatchOutput, error) {
@@ -64,13 +140,13 @@ func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchInput) (Apply
 	if err != nil {
 		return ApplyPatchOutput{}, err
 	}
-	if path := duplicatePatchPath(parsed.files); path != "" {
+	if path := parsed.duplicatePath(); path != "" {
 		return ApplyPatchOutput{}, fmt.Errorf("fs.ApplyPatch: duplicate file patch for %s", path)
 	}
 
 	resolved := make([]string, len(parsed.files))
 	for i, file := range parsed.files {
-		if err := validatePatchFile(file); err != nil {
+		if err := file.validate(); err != nil {
 			return ApplyPatchOutput{}, err
 		}
 		path, err := l.resolve(file.path())
@@ -105,46 +181,11 @@ func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchInput) (Apply
 	return out, nil
 }
 
-func validatePatchFile(file filePatch) error {
-	if len(file.hunks) == 0 {
-		return errors.New("fs.ApplyPatch: file patch has no hunks")
-	}
-	if file.oldPath == "" || file.newPath == "" {
-		return errors.New("fs.ApplyPatch: file patch is missing ---/+++ headers")
-	}
-	if file.oldPath != "/dev/null" {
-		if err := validatePatchPath(file.oldPath); err != nil {
-			return err
-		}
-	}
-	if file.newPath != "/dev/null" {
-		if err := validatePatchPath(file.newPath); err != nil {
-			return err
-		}
-	}
-	if file.oldPath != "/dev/null" && file.newPath != "/dev/null" && file.oldPath != file.newPath {
-		return fmt.Errorf("fs.ApplyPatch: %w: %s -> %s", errRenamePatch, file.oldPath, file.newPath)
-	}
-	return nil
-}
-
 func validatePatchPath(path string) error {
 	if path == "" || path == "." || path == string(filepath.Separator) {
 		return fmt.Errorf("fs.ApplyPatch: invalid file path %q", path)
 	}
 	return nil
-}
-
-func duplicatePatchPath(files []filePatch) string {
-	seen := make(map[string]struct{}, len(files))
-	for _, file := range files {
-		path := file.path()
-		if _, ok := seen[path]; ok {
-			return path
-		}
-		seen[path] = struct{}{}
-	}
-	return ""
 }
 
 type preparedPatch struct {
@@ -192,7 +233,7 @@ func (l *LocalExecutor) preparePatch(file filePatch, path string) (preparedPatch
 		lines = splitTextLines(text)
 	}
 
-	patched, err := applyHunks(lines, file.hunks, file.path())
+	patched, err := file.apply(lines)
 	if err != nil {
 		return preparedPatch{}, err
 	}
@@ -218,43 +259,6 @@ func (l *LocalExecutor) preparePatch(file filePatch, path string) (preparedPatch
 			Created: file.created(),
 		},
 	}, nil
-}
-
-func applyHunks(lines []string, hunks []patchHunk, path string) ([]string, error) {
-	out := slices.Clone(lines)
-	delta := 0
-	for _, hunk := range hunks {
-		oldLines, newLines := hunkLines(hunk)
-		idx := hunk.oldStart - 1 + delta
-		if hunk.oldStart == 0 {
-			idx = delta
-		}
-		if idx < 0 || idx+len(oldLines) > len(out) || !equalLines(out[idx:idx+len(oldLines)], oldLines) {
-			found := findUniqueLines(out, oldLines)
-			if found < 0 {
-				return nil, fmt.Errorf("fs.ApplyPatch: hunk for %s does not match", path)
-			}
-			idx = found
-		}
-		out = slices.Replace(out, idx, idx+len(oldLines), newLines...)
-		delta += len(newLines) - len(oldLines)
-	}
-	return out, nil
-}
-
-func hunkLines(h patchHunk) (oldLines, newLines []string) {
-	for _, line := range h.lines {
-		switch line.kind {
-		case ' ':
-			oldLines = append(oldLines, line.text)
-			newLines = append(newLines, line.text)
-		case '-':
-			oldLines = append(oldLines, line.text)
-		case '+':
-			newLines = append(newLines, line.text)
-		}
-	}
-	return oldLines, newLines
 }
 
 func equalLines(a, b []string) bool {
@@ -346,7 +350,7 @@ func parseUnifiedPatch(patch string) (unifiedPatch, error) {
 	}
 	for _, file := range parsed.files {
 		for _, hunk := range file.hunks {
-			oldLines, newLines := hunkLines(hunk)
+			oldLines, newLines := hunk.splitLines()
 			if len(oldLines) != hunk.oldCount || len(newLines) != hunk.newCount {
 				return unifiedPatch{}, fmt.Errorf("fs.ApplyPatch: hunk line count mismatch in %s", file.path())
 			}

@@ -153,7 +153,7 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 		return nil, err
 	}
 	endpoint := baseURL + "/" + url.PathEscape(req.Query)
-	params := toQueryParams(req)
+	params := req.params()
 
 	var raw Response
 	resp, err := c.http.R().SetContext(ctx).SetQueryParams(params).SetResult(&raw).Get(endpoint)
@@ -166,9 +166,9 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 	return &raw, nil
 }
 
-// toQueryParams serializes a [Request] into the flat string map resty
+// params serializes a [Request] into the flat string map resty
 // expects. Empty / zero fields are omitted.
-func toQueryParams(r *Request) map[string]string {
+func (r *Request) params() map[string]string {
 	p := map[string]string{}
 	queryparam.AddStr(p, "type", r.Type)
 	queryparam.AddInt(p, "num", r.Num)
@@ -205,7 +205,7 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 	if err != nil {
 		return nil, err
 	}
-	return shapeResponse(req.Query, raw), nil
+	return raw.toWebSearch(req.Query), nil
 }
 
 // ============================================================== mapping
@@ -236,20 +236,20 @@ func buildRequest(req *websearch.Request) *Request {
 	return r
 }
 
-func shapeResponse(query string, raw *Response) *websearch.Response {
-	results := make([]*websearch.Result, 0, len(raw.Data))
-	for _, r := range raw.Data {
+func (r *Response) toWebSearch(query string) *websearch.Response {
+	results := make([]*websearch.Result, 0, len(r.Data))
+	for _, result := range r.Data {
 		results = append(results, &websearch.Result{
-			Title:         r.Title,
-			URL:           r.URL,
-			Snippet:       pickSnippet(r),
-			PublishedTime: parseDate(r.Date),
+			Title:         result.Title,
+			URL:           result.URL,
+			Snippet:       result.snippet(),
+			PublishedTime: parseDate(result.Date),
 		})
 	}
 	return &websearch.Response{Query: query, Results: results}
 }
 
-func pickSnippet(r *Result) string {
+func (r *Result) snippet() string {
 	if r.Description != "" {
 		return r.Description
 	}

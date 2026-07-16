@@ -184,7 +184,7 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 	if err != nil {
 		return nil, err
 	}
-	return shapeResponse(raw), nil
+	return raw.toWebSearch(), nil
 }
 
 // ============================================================== mapping
@@ -228,15 +228,15 @@ func recencyToTimeRange(r websearch.Recency) string {
 	return ""
 }
 
-func shapeResponse(raw *Response) *websearch.Response {
-	results := make([]*websearch.Result, 0, len(raw.Results))
-	for _, r := range raw.Results {
+func (r *Response) toWebSearch() *websearch.Response {
+	results := make([]*websearch.Result, 0, len(r.Results))
+	for _, result := range r.Results {
 		results = append(results, &websearch.Result{
-			Title:      r.Title,
-			URL:        r.URL,
-			Snippet:    r.Content,
-			FaviconURL: r.Favicon,
+			Title:      result.Title,
+			URL:        result.URL,
+			Snippet:    result.Content,
+			FaviconURL: result.Favicon,
 		})
 	}
-	return &websearch.Response{Query: raw.Query, Results: results}
+	return &websearch.Response{Query: r.Query, Results: results}
 }

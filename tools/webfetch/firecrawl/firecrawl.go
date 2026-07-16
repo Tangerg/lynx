@@ -334,13 +334,13 @@ func (c *Client) Fetch(ctx context.Context, req *webfetch.Request) (*webfetch.Re
 	if err != nil {
 		return nil, err
 	}
-	return &webfetch.Response{Content: pickContent(&raw.Data, format), Format: format}, nil
+	return &webfetch.Response{Content: raw.Data.content(format), Format: format}, nil
 }
 
-// pickContent selects the field matching the caller's requested
+// content selects the field matching the caller's requested
 // format. Firecrawl returns multiple formats simultaneously; the field
 // matching the caller's requested format is selected.
-func pickContent(d *ResponseData, format webfetch.ResponseFormat) string {
+func (d ResponseData) content(format webfetch.ResponseFormat) string {
 	switch format {
 	case webfetch.FormatHTML:
 		if d.HTML != nil {
