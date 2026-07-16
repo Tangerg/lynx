@@ -277,7 +277,7 @@ func (m *streamingStubModel) Stream(_ context.Context, req *chat.Request) iter.S
 func (m *streamingStubModel) captureOptions(req *chat.Request) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	copy := cloneChatOptions(req.Options)
+	copy := req.Options.Clone()
 	m.lastOptions = &copy
 }
 

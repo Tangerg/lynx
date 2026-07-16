@@ -73,7 +73,7 @@ func New(model chat.Model, options ...Option) (*Client, error) {
 	return &Client{
 		model:    model,
 		streamer: streamer,
-		defaults: cloneOptions(cfg.defaults),
+		defaults: cfg.defaults.Clone(),
 	}, nil
 }
 

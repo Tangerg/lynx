@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
+
+	"github.com/Tangerg/lynx/core/internal/ptr"
 )
 
 var ErrInvalidOptions = errors.New("chat: invalid options")
@@ -21,6 +24,20 @@ type Options struct {
 	Temperature      *float64 `json:"temperature,omitempty"`
 	TopK             *int64   `json:"top_k,omitempty"`
 	TopP             *float64 `json:"top_p,omitempty"`
+}
+
+// Clone returns an independent copy of o.
+func (o Options) Clone() Options {
+	return Options{
+		Model:            o.Model,
+		FrequencyPenalty: ptr.Clone(o.FrequencyPenalty),
+		MaxTokens:        ptr.Clone(o.MaxTokens),
+		PresencePenalty:  ptr.Clone(o.PresencePenalty),
+		Stop:             slices.Clone(o.Stop),
+		Temperature:      ptr.Clone(o.Temperature),
+		TopK:             ptr.Clone(o.TopK),
+		TopP:             ptr.Clone(o.TopP),
+	}
 }
 
 // Validate verifies explicitly supplied overrides. Options{} is valid.

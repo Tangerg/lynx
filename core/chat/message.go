@@ -54,6 +54,19 @@ type Message struct {
 	Metadata metadata.Map `json:"metadata,omitempty"`
 }
 
+// Clone returns an independent copy of m.
+func (m Message) Clone() Message {
+	clone := Message{
+		Role:     m.Role,
+		Parts:    make([]Part, len(m.Parts)),
+		Metadata: m.Metadata.Clone(),
+	}
+	for index := range m.Parts {
+		clone.Parts[index] = m.Parts[index].Clone()
+	}
+	return clone
+}
+
 // NewSystemMessage returns a system message containing text.
 func NewSystemMessage(text string) Message {
 	return Message{Role: RoleSystem, Parts: []Part{NewTextPart(text)}}

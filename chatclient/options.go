@@ -30,12 +30,12 @@ type config struct {
 // each non-zero scalar or non-nil pointer/slice field. A non-nil empty Stop
 // slice explicitly clears a client default.
 func WithDefaults(defaults chat.Options) Option {
-	snapshot := cloneOptions(defaults)
+	snapshot := defaults.Clone()
 	return optionFunc(func(cfg *config) error {
 		if err := snapshot.Validate(); err != nil {
 			return err
 		}
-		cfg.defaults = cloneOptions(snapshot)
+		cfg.defaults = snapshot.Clone()
 		return nil
 	})
 }

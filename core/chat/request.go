@@ -29,6 +29,26 @@ type Request struct {
 	Extensions metadata.Map     `json:"extensions,omitempty"`
 }
 
+// Clone returns an independent copy of r. It is nil-safe.
+func (r *Request) Clone() *Request {
+	if r == nil {
+		return nil
+	}
+	clone := &Request{
+		Messages:   make([]Message, len(r.Messages)),
+		Tools:      make([]ToolDefinition, len(r.Tools)),
+		Options:    r.Options.Clone(),
+		Extensions: r.Extensions.Clone(),
+	}
+	for index := range r.Messages {
+		clone.Messages[index] = r.Messages[index].Clone()
+	}
+	for index := range r.Tools {
+		clone.Tools[index] = r.Tools[index].Clone()
+	}
+	return clone
+}
+
 // NewRequest validates and copies messages into a Request.
 func NewRequest(messages ...Message) (*Request, error) {
 	r := &Request{Messages: slices.Clone(messages)}

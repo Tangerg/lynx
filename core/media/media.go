@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"mime"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/metadata"
@@ -73,6 +74,17 @@ type Media struct {
 	ID       string       `json:"id,omitempty"`
 	Name     string       `json:"name,omitempty"`
 	Metadata metadata.Map `json:"metadata,omitempty"`
+}
+
+// Clone returns an independent copy of m. It is nil-safe.
+func (m *Media) Clone() *Media {
+	if m == nil {
+		return nil
+	}
+	clone := *m
+	clone.Source.Bytes = slices.Clone(m.Source.Bytes)
+	clone.Metadata = m.Metadata.Clone()
+	return &clone
 }
 
 // NewBytes returns Media containing an inline byte payload. The input is
