@@ -18,8 +18,8 @@ func IdentityExpander() Expander {
 	})
 }
 
-// NoopRetriever returns a [Retriever] that always returns no documents.
-func NoopRetriever() Retriever {
+// NopRetriever returns a [Retriever] that always returns no documents.
+func NopRetriever() Retriever {
 	return RetrieverFunc(func(context.Context, *Query) ([]Candidate, error) {
 		return nil, nil
 	})

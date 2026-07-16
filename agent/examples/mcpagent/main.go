@@ -43,7 +43,7 @@ func main() {
 	}
 	defer srvSession.Close()
 
-	samplingHandler, err := lynxmcp.SamplingViaChatClient(chatClient)
+	samplingHandler, err := lynxmcp.NewSamplingHandler(chatClient)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -661,10 +661,10 @@ Core Request/Options 的部分 Set/extension API 仍有统一空间，但 Models
 > 状态：进行中
 
 - [x] Web provider `NewClient` 接受 `Config` 值。
-- [ ] MCP `SamplingViaChatClient` → `NewSamplingHandler`。
-- [ ] 修复 MCP sampling 过期注释。
-- [ ] A2A tool 参数严格遵守其 object schema；删除 bare-string fallback。
-- [ ] RAG `Multi` → `Parallel`，`NoopRetriever` → `NopRetriever`。
+- [x] MCP `SamplingViaChatClient` → `NewSamplingHandler`。
+- [x] 修复 MCP sampling 过期注释。
+- [x] A2A tool 参数严格遵守其 object schema；删除 bare-string fallback。
+- [x] RAG `Multi` → `Parallel`，`NoopRetriever` → `NopRetriever`。
 - [ ] Desktop 删除无行为的 `App/NewApp/startup/shutdown/Bind`，使用标准日志输出。
 - [ ] OTel、Skills、Tokenizer 若无新证据则不改公开面。
 
@@ -683,6 +683,24 @@ P7-1 Web provider 已完成：
 - App Runtime 两个生产消费点与 provider conformance tests 已同步；
 - Tools 全量 build/vet/test/lint/race、App Runtime toolset test/vet、
   `go mod tidy -diff` 与旧签名扫描全绿。
+
+P7-2 MCP/A2A/RAG 已完成：
+
+- MCP sampling 构造器改为 `NewSamplingHandler`，错误上下文与示例同步；GoDoc
+  准确记录 MaxTokens、Temperature、StopSequences 会转发，只有 advisory
+  ModelPreferences 不转发；
+- 新增 sampling test，直接锁住 system/message 转换、三项 request option 与
+  stop reason；
+- A2A 删除 bare-string fallback，arguments 必须是单个 JSON object、只含 schema
+  字段且 `message` 非空；补齐 bare string、缺字段、空字段、额外字段、多 object、
+  malformed JSON 拒绝测试；
+- A2A 与 MCP 的临时 `toolConfig.applyDefaults/validate` receiver 已取消并内联
+  构造器；它们只有单调用点，未形成运行时 owner；
+- A2A `decodeCallInput`、MCP sampling projection、RAG `parallelCollect` 保留自由
+  函数：均为无状态协议转换或跨类型泛型算法；
+- RAG 组合 API 改为 `Parallel` / `NopRetriever`，错误上下文、GoDoc 与 tests 同步；
+- MCP、A2A、RAG 各自 build/vet/test/lint/race 与 `go mod tidy -diff` 全绿，
+  Agent MCP example test/vet 全绿。
 
 ### P8：最终命名、文件与质量门禁
 

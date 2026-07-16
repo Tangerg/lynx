@@ -18,10 +18,10 @@ func Retrieve(ctx context.Context, r Retriever, query *Query) ([]Candidate, erro
 	return r.Retrieve(ctx, query)
 }
 
-// Multi returns a [Retriever] that runs retrievers in parallel and unions
+// Parallel returns a [Retriever] that runs retrievers concurrently and unions
 // their documents. If at least one retriever succeeds, failed retrievers are
 // recorded on the current span and the successful documents are returned.
-func Multi(retrievers ...Retriever) Retriever {
+func Parallel(retrievers ...Retriever) Retriever {
 	return RetrieverFunc(func(ctx context.Context, query *Query) ([]Candidate, error) {
 		if query == nil {
 			return nil, ErrNilQuery
@@ -35,7 +35,7 @@ func Multi(retrievers ...Retriever) Retriever {
 		defer func() {
 			finishSpan(span, err, attribute.Int(attrDocCount, len(docs)))
 		}()
-		docs, err = parallelCollect(ctx, "rag.Multi", retrievers, "retriever",
+		docs, err = parallelCollect(ctx, "rag.Parallel", retrievers, "retriever",
 			func(ctx context.Context, _ int, retriever Retriever) ([]Candidate, error) {
 				if retriever == nil {
 					return nil, ErrNilRetriever

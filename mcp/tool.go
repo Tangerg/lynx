@@ -50,35 +50,21 @@ type toolConfig struct {
 	MetaFunc MetaFunc
 }
 
-func (c *toolConfig) validate() error {
-	if c.Session == nil {
-		return ErrNilSession
-	}
-	if c.Descriptor == nil {
-		return errNilDescriptor
-	}
-	if c.Descriptor.Name == "" {
-		return errors.New("mcp.toolConfig: descriptor has empty name")
-	}
-	if c.PrefixedName == "" {
-		return errors.New("mcp.toolConfig: public name must not be empty")
-	}
-	return nil
-}
-
-func (c *toolConfig) applyDefaults() {
-	if c.PrefixedName == "" && c.Descriptor != nil {
-		c.PrefixedName = c.Descriptor.Name
-	}
-}
-
 // newTool builds a [tools.Tool] from cfg. cfg.Session must be
 // initialized (returned from (*sdkmcp.Client).Connect) and must outlive
 // the returned tool.
 func newTool(cfg toolConfig) (*tool, error) {
-	cfg.applyDefaults()
-	if err := cfg.validate(); err != nil {
-		return nil, err
+	if cfg.Session == nil {
+		return nil, ErrNilSession
+	}
+	if cfg.Descriptor == nil {
+		return nil, errNilDescriptor
+	}
+	if cfg.Descriptor.Name == "" {
+		return nil, errors.New("mcp: descriptor name must not be empty")
+	}
+	if cfg.PrefixedName == "" {
+		cfg.PrefixedName = cfg.Descriptor.Name
 	}
 
 	schema, err := schemaToJSON(cfg.Descriptor.InputSchema)

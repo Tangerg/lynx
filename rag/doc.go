@@ -21,18 +21,18 @@
 //	docs, err := r.Retrieve(ctx, q)
 //
 // Optional stages use identity implementations: [IdentityTransformer],
-// [IdentityExpander], [NoopRetriever], [IdentityRefiner], and
+// [IdentityExpander], [NopRetriever], [IdentityRefiner], and
 // [IdentityAugmenter].
 //
-// # Multi-retriever fan-out
+// # Parallel retriever fan-out
 //
 // Lynx deliberately does not ship a separate "DocumentJoiner"
-// abstraction. Use [Multi] to run retrievers in parallel and union their
+// abstraction. Use [Parallel] to run retrievers concurrently and union their
 // result lists into a flat slice; use refiners to re-organize that slice.
 // The canonical "join overlapping retriever results" pattern is:
 //
 //	r := rag.WithRefiners(
-//	    rag.Multi(vectorR1, vectorR2),
+//	    rag.Parallel(vectorR1, vectorR2),
 //	    rag.Dedup(),
 //	    rag.TopK(topK),
 //	)
