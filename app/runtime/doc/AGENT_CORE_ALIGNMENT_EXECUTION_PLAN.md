@@ -1,6 +1,6 @@
 # Runtime Agent/Core 对齐与执行边界收敛计划
 
-> 状态：**进行中，下一批 B3 Process 启动错误显式化**
+> 状态：**进行中，下一批 B4 Managed interaction、timeout 与输出语义**
 >
 > 建立日期：2026-07-16
 >
@@ -61,7 +61,7 @@
 | Runtime workspace vet | 通过 | `go vet ./...` |
 | 关键并发路径 race | 通过 | `agentexec`、`turn`、`runs`、`sessions`、`server`、SQLite 等关键包 |
 | Runtime 独立模块测试 | **失败** | `GOWORK=off go test ./...` 暴露 `go.mod` 内部模块版本滞后 |
-| 本轮代码实施 | 进行中 | `2 / 10` 批次完成 |
+| 本轮代码实施 | 进行中 | `3 / 10` 批次完成 |
 
 独立模块失败不是外部环境问题，而是依赖声明与实际源码不一致。workspace 的本地替换掩盖了该问题，本轮第一批必须先恢复依赖真相。
 
@@ -201,7 +201,7 @@ Agent/Core 最近的调整已经改善：
 | G-02 | P1 | **已解决**：pure-media turn 只构造 media part，不再生成空 text part | turn 输入翻译 | B2 |
 | G-03 | P1 | **已解决**：dispatcher 与 Agent engine 的异步入口完整快照 options、media 和 interrupt kinds | 请求所有权 | B2 |
 | G-04 | P1 | **已解决**：通用 Options 字段规则委托 Core `Validate`，Runtime 只包装上下文和限制 model 选择位置 | 校验边界 | B2 |
-| G-05 | P1 | Process create error 可返回 nil process，随后访问 `ID()` 可能 panic | Agent adapter 契约 | B3 |
+| G-05 | P1 | **已解决**：Agent create error 在 adapter 同步提取，nil process 不再进入 `TurnProcess` / `ID()` 路径 | Agent adapter 契约 | B3 |
 | G-06 | P0 | child 默认不继承 per-run provider、tool middleware、guardrail / dependency 策略 | 委派树装配 | B6、B8 |
 | G-07 | P0 | child suspension 被编码成 `waiting` 工具结果，parent 可继续而应用 Run 未真正 parked | Agent 子进程暂停契约 | B7-B8 |
 | G-08 | P1 | `llmIdleTimeout` 包围整个 `Interact`，但仅模型 chunk 重置，长工具可能被误杀 | timeout 所有权 | B4 |
@@ -230,7 +230,7 @@ Agent/Core 最近的调整已经改善：
 |---|---|---|---|
 | B1 | 依赖真相与独立模块闭环 | 无 | 已完成 |
 | B2 | Turn 输入值语义与校验统一 | B1 | 已完成 |
-| B3 | Process 启动错误显式化 | B2 | 待执行 |
+| B3 | Process 启动错误显式化 | B2 | 已完成 |
 | B4 | Managed interaction、timeout 与输出语义 | B3 | 待执行 |
 | B5 | Build identity 与 snapshot failure policy | B4 | 待执行 |
 | B6 | Child 执行上下文与成本归属 | B5 | 待执行 |
@@ -445,6 +445,39 @@ B4 提前于委派树实施：先消除整轮 idle timer、重复输出状态和
 - 创建失败路径不 panic；
 - error、cancel、terminal 竞争通过 race 测试；
 - 全量与 standalone 门禁通过。
+
+### 10.6 执行记录
+
+- 完成日期：2026-07-16。
+- 实施范围：
+  - `agentexec.Engine.StartTurn` 改为返回 `(TurnProcess, error)`；Agent `Start` 返回 nil process 时同步读取其已完成的 create-error channel，并保留原始错误链；
+  - 成功路径只在 process 非 nil 后构造 `TurnProcess`，不再允许 nil process 延迟到 `ID()` / `Done()` 处 panic；
+  - `RestoreTurn` 同步拒绝“nil process + nil error”不变量破坏；
+  - turn dispatcher 保持异步 admission：先返回 handle，process create error 再标准化为一次 `ENGINE_ERROR` 和一次 `TurnEnd(error)`；
+  - 仅为尚未订阅的 process-create-failure stream 保留返回 handle 到已关闭事件流的引用，保证 application 即使在快速 terminal 后才 attach 也能排空；成功、关闭、rehydrate 和已订阅流仍保持原有 live-registry 语义；
+  - application reducer / journal 按 canonical opening → error terminal 顺序提交，并原子 terminalize Run。
+- 回归证据：
+  - 真实覆盖重复 process extension name、非 engine direct-child dependencies、未注册 planner、非法 Agent definition、active deployment conflict；
+  - 每种 create failure 均返回 nil `TurnProcess` + 原始同步错误，Agent registry 无残留 process；
+  - 未创建 process 时 observer 无任何 callback；
+  - create failure 在 turn 已移出 live registry 后仍可由原 handle 排空且只收到一次 start / error / terminal；
+  - cancel 与阻塞中的 create failure 竞争只产生一次 terminal；
+  - restore 的 nil-process 不变量被显式拒绝；
+  - Run journal 的 opening / terminal cursor 单调，error result 和 terminal state 均已持久化。
+- 定向验证：
+  - `go test -count=1 ./internal/adapter/agentexec ./internal/adapter/agentexec/turn ./internal/application/runs`：通过；
+  - `go test -race -count=1 ./internal/adapter/agentexec ./internal/adapter/agentexec/turn ./internal/application/runs`：通过。
+- 全量验证：
+  - `go build ./...`：通过；
+  - `go vet ./...`：通过；
+  - `go test -count=1 ./...`：通过；
+  - `go test -race -count=1 ./...`：通过；
+  - `make check-standalone`：通过；
+  - `GOWORK=off go test -race -count=1 ./...`：通过；
+  - `GOWORK=off go mod tidy -diff` 与 `git diff --check`：无输出。
+- Commit：`88b6ea525041`
+- Push：`origin/codex/runtime-architecture-refactor`
+- 剩余风险：无；G-05 关闭。
 
 ---
 
@@ -914,7 +947,7 @@ go test -race ./...
 | 基线审查 | 已完成 | 2026-07-16 | 2026-07-16 | `92b4147a5afd` 基线 | workspace 绿；standalone 失败已定位 |
 | B1 依赖真相 | 已完成 | 2026-07-16 | 2026-07-16 | `09f32465afd4` | workspace / standalone build、vet、test、race 全绿；CI 固定门禁 |
 | B2 输入值语义 | 已完成 | 2026-07-16 | 2026-07-16 | `3d9a6f33c444` | Core 校验委托；双异步入口完整快照；pure-media；workspace / standalone 全绿 |
-| B3 启动错误 | 待执行 | — | — | — | — |
+| B3 启动错误 | 已完成 | 2026-07-16 | 2026-07-16 | `88b6ea525041` | create error 同步化；单 error terminal；journal 原子终止；workspace / standalone 全绿 |
 | B4 Interaction / 输出 | 待执行 | — | — | — | — |
 | B5 Build / Snapshot | 待执行 | — | — | — | — |
 | B6 Child Context / Accounting | 待执行 | — | — | — | — |
@@ -923,7 +956,7 @@ go test -race ./...
 | B9 Engine / Ownership | 待执行 | — | — | — | — |
 | B10 Fitness / Docs | 待执行 | — | — | — | — |
 
-当前实现进度：**2 / 10**。
+当前实现进度：**3 / 10**。
 
 状态只允许：
 
