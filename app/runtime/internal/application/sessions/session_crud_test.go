@@ -85,7 +85,7 @@ func (*crudStores) ApplyFork(context.Context, ForkPlan) (session.Session, error)
 func (*crudStores) ApplyRollback(context.Context, RollbackPlan) error { panic("unused") }
 func (*crudStores) ApplyRestore(context.Context, RestorePlan) error   { panic("unused") }
 func (*crudStores) ApplyDelete(context.Context, DeletePlan) error     { panic("unused") }
-func (*crudStores) ApplyCancel(context.Context, CancelPlan) error     { panic("unused") }
+func (*crudStores) ApplyTerminal(context.Context, TerminalPlan) error { panic("unused") }
 
 func newCRUDCoordinator(store *crudSessionStore) (*Coordinator, *crudStores) {
 	stores := &crudStores{session: store}

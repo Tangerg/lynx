@@ -133,7 +133,7 @@ type TurnOutput struct {
 // events surface via the tool-decorator path independently of the text-delta
 // path.
 func (e *Engine) buildTurnAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{Name: "chat-agent", Description: "single-turn LLM chat with the default coding tool set", Version: "1.0.0", Actions: []agent.Action{agent.NewAction("chat", func(ctx context.Context, pc *core.ProcessContext, in turnInput) (TurnOutput, error) {
+	return agent.New(agent.AgentConfig{Name: "chat-agent", Description: "single-turn LLM chat with the default coding tool set", Actions: []agent.Action{agent.NewAction("chat", func(ctx context.Context, pc *core.ProcessContext, in turnInput) (TurnOutput, error) {
 		if in.Cwd != "" {
 			pc.Blackboard().StoreProtected(turnctx.CwdBindingKey, in.Cwd)
 		}
@@ -171,7 +171,7 @@ func (in taskInput) SubagentPrompt() string { return in.Prompt }
 // blob. Its LLM rounds still record into the process budget, which
 // aggregates up the subtree into the parent turn's usage roll-up.
 func (e *Engine) buildSubtaskAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{Name: "task", Description: "Delegate a self-contained subtask to a fresh sub-agent that has the coding " + "tools (it cannot delegate further). Use for focused, separable work — investigate a " + "question, draft a file — so the main conversation stays uncluttered. The sub-agent starts " + "with a clean context and cannot see this conversation, so put everything it needs in the " + "prompt. It returns a single final answer; its intermediate work is not shown to the user.", Version: "1.0.0", Actions: []agent.Action{agent.NewAction("subtask", func(ctx context.Context, pc *core.ProcessContext, in taskInput) (string, error) {
+	return agent.New(agent.AgentConfig{Name: "task", Description: "Delegate a self-contained subtask to a fresh sub-agent that has the coding " + "tools (it cannot delegate further). Use for focused, separable work — investigate a " + "question, draft a file — so the main conversation stays uncluttered. The sub-agent starts " + "with a clean context and cannot see this conversation, so put everything it needs in the " + "prompt. It returns a single final answer; its intermediate work is not shown to the user.", Actions: []agent.Action{agent.NewAction("subtask", func(ctx context.Context, pc *core.ProcessContext, in taskInput) (string, error) {
 		out, err := e.runTurn(ctx, pc, "", in.Prompt, nil, nil, accounting.Budget{})
 		if err != nil {
 			return "", err

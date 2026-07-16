@@ -18,7 +18,8 @@ type processStarter interface {
 }
 
 type processRestorer interface {
-	Restore(context.Context, string, core.ProcessOptions) (*agentruntime.Process, error)
+	Resumable(context.Context, string) (bool, error)
+	RestoreResumable(context.Context, string, core.ProcessOptions) (*agentruntime.Process, error)
 }
 
 type processControl interface {

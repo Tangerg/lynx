@@ -32,12 +32,14 @@ func newAgentRuntime(config Config, resolver toolport.ToolResolver) (*agentrunti
 	}
 
 	return agent.NewEngine(agentruntime.Config{
-		Chat:         core.ChatCapability{Model: config.ChatClient, Streamer: config.ChatClient},
-		Extensions:   extensions,
-		Guardrails:   guardrails,
-		ProcessStore: config.ProcessStore,
-		AutoSnapshot: config.ProcessStore != nil,
-		SessionStore: config.SessionStore,
+		BuildID:               config.BuildID,
+		Chat:                  core.ChatCapability{Model: config.ChatClient, Streamer: config.ChatClient},
+		Extensions:            extensions,
+		Guardrails:            guardrails,
+		ProcessStore:          config.ProcessStore,
+		AutoSnapshot:          config.ProcessStore != nil,
+		SnapshotFailurePolicy: config.SnapshotFailurePolicy,
+		SessionStore:          config.SessionStore,
 	})
 }
 

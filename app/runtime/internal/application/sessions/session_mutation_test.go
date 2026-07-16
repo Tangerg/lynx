@@ -233,7 +233,7 @@ func (s *mutationStores) ApplyDelete(_ context.Context, plan DeletePlan) error {
 	s.deleted = append(s.deleted, plan.SessionIDs...)
 	return nil
 }
-func (s *mutationStores) ApplyCancel(context.Context, CancelPlan) error {
+func (s *mutationStores) ApplyTerminal(context.Context, TerminalPlan) error {
 	return s.record("apply.cancel")
 }
 

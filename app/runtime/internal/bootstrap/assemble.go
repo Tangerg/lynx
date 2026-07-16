@@ -196,6 +196,9 @@ func Assemble(ctx context.Context, cfg Config) (Host, error) {
 	}
 	// From here the engine owns built.Closers (eng.Close runs them), so a later
 	// construction failure tears down via eng.Close.
+	if _, err := cfg.RunStore.ReconcileOrphans(ctx, eng.ResumableProcess); err != nil {
+		return Host{}, errors.Join(fmt.Errorf("runtime: reconcile orphan runs: %w", err), eng.Close())
+	}
 
 	turnDispatcher, err := turn.New(turn.Dependencies{
 		Engine:              eng,

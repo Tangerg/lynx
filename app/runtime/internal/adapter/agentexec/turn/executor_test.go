@@ -2,8 +2,12 @@ package turn
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 type executorFakeDispatcher struct {
@@ -56,5 +60,12 @@ func TestExecutorRejectsForeignHandle(t *testing.T) {
 	}
 	if err := exec.CancelTurn(context.Background(), 42); err == nil {
 		t.Fatal("CancelTurn must reject a non-turn handle")
+	}
+}
+
+func TestExecutorMapsLostProcessSnapshot(t *testing.T) {
+	err := mapControlError(agentexec.ErrProcessSnapshotLost)
+	if !errors.Is(err, runs.ErrTurnStateLost) || !errors.Is(err, agentexec.ErrProcessSnapshotLost) {
+		t.Fatalf("mapControlError = %v, want both turn-state and snapshot-loss identities", err)
 	}
 }

@@ -132,6 +132,15 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 
 	turn, err := c.prepareTurn(ctx, pending)
 	if err != nil {
+		if errors.Is(err, ErrTurnStateLost) {
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
+			cleanupErr := c.sessions.ApplyRunLost(cleanupCtx, pending.SessionID, cmd.RunID, c.now().UTC())
+			cancel()
+			if cleanupErr != nil {
+				return StartResult{}, errors.Join(err, fmt.Errorf("runs: recover lost run %q: %w", cmd.RunID, cleanupErr))
+			}
+			return StartResult{}, fmt.Errorf("%w: %w", ErrRunNotFound, err)
+		}
 		return StartResult{}, err
 	}
 	segmentID := c.newSegmentID()

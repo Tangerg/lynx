@@ -39,7 +39,11 @@ func (s unrelatedDependenciesStarter) Start(
 
 type nilProcessRestorer struct{}
 
-func (nilProcessRestorer) Restore(context.Context, string, core.ProcessOptions) (*agentruntime.Process, error) {
+func (nilProcessRestorer) Resumable(context.Context, string) (bool, error) {
+	return true, nil
+}
+
+func (nilProcessRestorer) RestoreResumable(context.Context, string, core.ProcessOptions) (*agentruntime.Process, error) {
 	return nil, nil
 }
 

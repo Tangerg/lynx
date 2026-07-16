@@ -41,15 +41,26 @@ func (c *Coordinator) GetOpenInterrupt(ctx context.Context, runID string) (inter
 // teardown is owned by application/runs for run commands; session rollback and
 // deletion continue to use the coordinator's narrow cleanup collaborator.
 func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) error {
+	return c.terminalizeParkedRun(ctx, sessionID, runID, finishedAt, execution.OutcomeCanceled, reason)
+}
+
+// ApplyRunLost atomically ends a parked run whose process snapshot cannot be
+// restored. It uses the recovery transition because the interrupted Run never
+// resumed into a normal executor terminal path.
+func (c *Coordinator) ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error {
+	return c.terminalizeParkedRun(ctx, sessionID, runID, finishedAt, execution.OutcomeError, "")
+}
+
+func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID string, finishedAt time.Time, outcome execution.Outcome, detail string) error {
 	if finishedAt.IsZero() {
-		return fmt.Errorf("sessions: cancel parked run %q: finished time is required", runID)
+		return fmt.Errorf("sessions: terminalize parked run %q: finished time is required", runID)
 	}
 	pending, found, err := c.s.Interrupts().Get(ctx, runID)
 	if err != nil {
 		return err
 	}
 	if !found || pending.SessionID != sessionID {
-		return fmt.Errorf("sessions: cancel parked run %q: open interrupt not found for session %q", runID, sessionID)
+		return fmt.Errorf("sessions: terminalize parked run %q: open interrupt not found for session %q", runID, sessionID)
 	}
 	snapshot, err := c.s.ReadSnapshot(ctx, sessionID)
 	if err != nil {
@@ -57,12 +68,24 @@ func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reas
 	}
 	idx := slices.IndexFunc(snapshot.Runs, func(run transcript.Run) bool { return run.ID == runID })
 	if idx < 0 {
-		return fmt.Errorf("sessions: cancel parked run %q: %w", runID, transcript.ErrRunNotFound)
+		return fmt.Errorf("sessions: terminalize parked run %q: %w", runID, transcript.ErrRunNotFound)
 	}
 	run := snapshot.Runs[idx]
-	state, ok := run.State.Terminate(execution.OutcomeCanceled)
-	if !ok || run.State != execution.Interrupted {
-		return fmt.Errorf("sessions: cancel parked run %q: state is %s, want interrupted", runID, run.State)
+	if run.State != execution.Interrupted {
+		return fmt.Errorf("sessions: terminalize parked run %q: state is %s, want interrupted", runID, run.State)
+	}
+	var state execution.RunState
+	var ok bool
+	switch outcome {
+	case execution.OutcomeCanceled:
+		state, ok = run.State.Terminate(outcome)
+	case execution.OutcomeError:
+		state, ok = run.State.RecoverLost()
+	default:
+		return fmt.Errorf("sessions: terminalize parked run %q: unsupported outcome %s", runID, outcome)
+	}
+	if !ok {
+		return fmt.Errorf("sessions: terminalize parked run %q: cannot apply outcome %s", runID, outcome)
 	}
 
 	interruptItems := make(map[string]struct{}, len(run.Interrupts))
@@ -75,26 +98,39 @@ func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reas
 			continue
 		}
 		if item.RunID != runID || item.Status != transcript.ItemRunning {
-			return fmt.Errorf("sessions: cancel parked run %q: interrupt item %q is not running in the run", runID, item.ID)
+			return fmt.Errorf("sessions: terminalize parked run %q: interrupt item %q is not running in the run", runID, item.ID)
 		}
 		item.Status = transcript.ItemIncomplete
+		if outcome == execution.OutcomeError && item.Kind == transcript.ToolCall {
+			item.Error = &transcript.Problem{
+				Kind:   transcript.ToolFailedProblem,
+				Scope:  transcript.ToolProblem,
+				Detail: "tool call interrupted because the run process state was lost",
+			}
+		}
 		items = append(items, item)
 		delete(interruptItems, item.ID)
 	}
 	if len(interruptItems) != 0 {
-		return fmt.Errorf("sessions: cancel parked run %q: transcript is missing an interrupt item", runID)
+		return fmt.Errorf("sessions: terminalize parked run %q: transcript is missing an interrupt item", runID)
 	}
 
-	outcome := execution.OutcomeCanceled
 	run.State = state
 	run.Outcome = &outcome
 	run.Result = &transcript.RunResult{}
-	run.Detail = reason
+	if outcome == execution.OutcomeError {
+		run.Result.Error = &transcript.Problem{
+			Kind:   transcript.RunLostProblem,
+			Scope:  transcript.RunProblem,
+			Detail: "run process state is unavailable",
+		}
+	}
+	run.Detail = detail
 	run.Interrupts = nil
 	run.FinishedAt = finishedAt.UTC()
 	run.UpdatedAt = run.FinishedAt
 	run.MessageMark = len(snapshot.Messages)
-	return c.s.ApplyCancel(ctx, CancelPlan{Run: run, Items: items, ProcessID: pending.ProcessID})
+	return c.s.ApplyTerminal(ctx, TerminalPlan{Run: run, Items: items, ProcessID: pending.ProcessID})
 }
 
 func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTurnBinding, error) {

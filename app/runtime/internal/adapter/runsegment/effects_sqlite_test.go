@@ -168,7 +168,7 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 		t.Fatalf("park: %v", err)
 	}
 
-	if recovered, err := state.ReconcileOrphans(ctx, func(core.ProcessSnapshot) error { return nil }); err != nil || recovered != 0 {
+	if recovered, err := state.ReconcileOrphans(ctx, func(context.Context, string) (bool, error) { return true, nil }); err != nil || recovered != 0 {
 		t.Fatalf("boot reconcile = (%d, %v), want intact resumable park", recovered, err)
 	}
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_next", SessionID: "ses_1", CreatedAt: parkedAt}); !errors.Is(err, execution.ErrSessionBusy) {

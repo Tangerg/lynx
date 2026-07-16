@@ -2,9 +2,11 @@ package agentexec
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -86,6 +88,15 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 	if config.ChatClient == nil {
 		return nil, errors.New("engine: ChatClient is required")
 	}
+	if config.BuildID != "" && !validBuildID(config.BuildID) {
+		return nil, errors.New("engine: BuildID must use the format sha256:<64 lowercase hex characters>")
+	}
+	if config.ProcessStore != nil && config.BuildID == "" {
+		return nil, errors.New("engine: BuildID is required when ProcessStore is configured")
+	}
+	if config.SnapshotFailurePolicy != runtime.SnapshotFailureFailProcess {
+		return nil, errors.New("engine: SnapshotFailurePolicy must be fail_process")
+	}
 	if config.HistoryStore == nil {
 		config.HistoryStore = history.NewInMemoryStore()
 	}
@@ -159,6 +170,17 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 	}
 	return engine, nil
 }
+
+func validBuildID(buildID string) bool {
+	digest, ok := strings.CutPrefix(buildID, "sha256:")
+	if !ok || len(digest) != sha256HexLength || digest != strings.ToLower(digest) {
+		return false
+	}
+	_, err := hex.DecodeString(digest)
+	return err == nil
+}
+
+const sha256HexLength = 64
 
 // MaybeCompact runs one auto-compaction sweep against sessionID. The
 // runtime calls this at every turn-end so growing histories get

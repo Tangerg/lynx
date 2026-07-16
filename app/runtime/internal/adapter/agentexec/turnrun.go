@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
+	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
@@ -251,8 +252,14 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	// mid-run keeps the model the turn parked on. nil (no selection / provider
 	// gone) falls back to the engine default.
 	options := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, nil)
-	process, err := e.turnRestorer.Restore(ctx, processID, options)
+	if e.turnRestorer == nil {
+		return nil, errors.New("engine: restore chat: process restorer is required")
+	}
+	process, err := e.turnRestorer.RestoreResumable(ctx, processID, options)
 	if err != nil {
+		if errors.Is(err, agentruntime.ErrResumableSnapshotLost) {
+			return nil, processSnapshotLost("restore", err)
+		}
 		return nil, fmt.Errorf("engine: restore chat: %w", err)
 	}
 	if process == nil {

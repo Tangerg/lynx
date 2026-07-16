@@ -37,10 +37,11 @@ type DeletePlan struct {
 	SessionIDs []string
 }
 
-// CancelPlan is the complete durable projection for abandoning a parked run:
-// the run becomes terminal, its interrupt items become incomplete, and its
-// open-interrupt/admission records are closed in the same transaction.
-type CancelPlan struct {
+// TerminalPlan is the complete durable projection for ending a parked run by
+// cancellation or executor-state loss. The run becomes terminal, its interrupt
+// items become incomplete, and its open-interrupt/admission records are closed
+// in the same transaction.
+type TerminalPlan struct {
 	Run       transcript.Run
 	Items     []transcript.Item
 	ProcessID string

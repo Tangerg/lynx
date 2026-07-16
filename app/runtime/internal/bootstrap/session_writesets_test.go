@@ -98,21 +98,21 @@ func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore,
 	return processID
 }
 
-// TestApplyCancelDropsInterruptAndTerminalizes: abandoning a parked run frees both
+// TestApplyTerminalDropsInterruptAndTerminalizes: abandoning a parked run frees both
 // the resumable record and the durable admission slot, atomically.
-func TestApplyCancelDropsInterruptAndTerminalizes(t *testing.T) {
+func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
 	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
 	outcome := execution.OutcomeCanceled
 	finishedAt := time.Date(2026, 7, 13, 2, 3, 4, 0, time.UTC)
 
-	if err := ss.ApplyCancel(ctx, sessions.CancelPlan{ProcessID: processID, Run: transcript.Run{
+	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{ProcessID: processID, Run: transcript.Run{
 		SessionID: "ses_A", ID: "run_1", State: execution.Canceled,
 		Outcome: &outcome, Result: &transcript.RunResult{},
 		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
 	}}); err != nil {
-		t.Fatalf("ApplyCancel: %v", err)
+		t.Fatalf("ApplyTerminal: %v", err)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived cancel: %+v", open)
@@ -127,6 +127,38 @@ func TestApplyCancelDropsInterruptAndTerminalizes(t *testing.T) {
 	_, transcriptRuns, err := ss.transcript.List(ctx, "ses_A")
 	if err != nil || len(transcriptRuns) != 1 || transcriptRuns[0].State != execution.Canceled {
 		t.Fatalf("terminal transcript = %+v (err %v), want canceled run", transcriptRuns, err)
+	}
+}
+
+func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
+	ss, runs, ints := newWriteSetFixture(t)
+	ctx := t.Context()
+	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
+	outcome := execution.OutcomeError
+	finishedAt := time.Date(2026, 7, 16, 2, 3, 4, 0, time.UTC)
+
+	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{ProcessID: processID, Run: transcript.Run{
+		SessionID: "ses_A", ID: "run_1", State: execution.Failed,
+		Outcome: &outcome, Result: &transcript.RunResult{Error: &transcript.Problem{
+			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
+		}},
+		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
+	}}); err != nil {
+		t.Fatalf("ApplyTerminal run_lost: %v", err)
+	}
+	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
+		t.Fatalf("interrupt survived run_lost: %+v", open)
+	}
+	if _, err := ss.processes.Load(ctx, processID); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("process snapshot after run_lost = %v, want not found", err)
+	}
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
+		t.Fatalf("admit after run_lost = %v, want the slot freed", err)
+	}
+	_, transcriptRuns, err := ss.transcript.List(ctx, "ses_A")
+	if err != nil || len(transcriptRuns) != 1 || transcriptRuns[0].Result == nil || transcriptRuns[0].Result.Error == nil ||
+		transcriptRuns[0].Result.Error.Kind != transcript.RunLostProblem {
+		t.Fatalf("terminal transcript = %+v (err %v), want run_lost", transcriptRuns, err)
 	}
 }
 

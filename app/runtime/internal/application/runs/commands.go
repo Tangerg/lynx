@@ -23,6 +23,9 @@ var (
 	// Resume to distinguish a concurrent claim from a process rehydrate.
 	ErrParkClaimed = errors.New("runs: parked turn already claimed")
 	ErrTurnNotLive = errors.New("runs: turn not live")
+	// ErrTurnStateLost reports that a parked executor turn has no compatible
+	// durable process state and the application Run must be recovered lost.
+	ErrTurnStateLost = errors.New("runs: turn state lost")
 
 	ErrInputRequired            = errors.New("runs: input required")
 	ErrIncompleteModelSelection = errors.New("runs: incomplete model selection")
