@@ -6,31 +6,52 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// Plan is the planner's output: an ordered list of actions whose
-// accumulated effects achieve Goal.Preconditions. An empty action list with
-// a non-nil Goal means "the goal is already satisfied".
+// Plan is an immutable planner output: an ordered action chain whose
+// accumulated effects achieve its goal. An empty chain with a non-nil goal
+// means the goal is already satisfied.
 type Plan struct {
-	Actions []core.Action
-	Goal    *core.Goal
+	actions []core.Action
+	goal    *core.Goal
 }
 
-// IsComplete reports whether no more work is needed for this goal.
-func (p *Plan) IsComplete() bool {
-	return p == nil || len(p.Actions) == 0
+// NewPlan constructs a complete planner result and snapshots the action chain.
+func NewPlan(actions []core.Action, goal *core.Goal) *Plan {
+	return &Plan{actions: slices.Clone(actions), goal: goal}
+}
+
+// Actions returns a snapshot of the ordered action chain.
+func (p *Plan) Actions() []core.Action {
+	if p == nil {
+		return nil
+	}
+	return slices.Clone(p.actions)
+}
+
+// Goal returns the immutable target of the plan.
+func (p *Plan) Goal() *core.Goal {
+	if p == nil {
+		return nil
+	}
+	return p.goal
+}
+
+// Complete reports whether no more work is needed for this goal.
+func (p *Plan) Complete() bool {
+	return p == nil || len(p.actions) == 0
 }
 
 // Cost is the sum of action costs; the planner uses it to rank competing
 // plans. It samples each action's cost against the supplied world state so
 // dynamic-cost actions get evaluated correctly. Actions with a nil Cost
 // contribute nothing — the canonical construction path ([core.NewAction])
-// fills in [core.Static](1.0).
+// fills in [core.FixedScore](1.0).
 func (p *Plan) Cost(worldState core.WorldState) float64 {
 	if p == nil {
 		return 0
 	}
 
 	total := 0.0
-	for _, action := range p.Actions {
+	for _, action := range p.actions {
 		if action == nil {
 			continue
 		}
@@ -41,21 +62,18 @@ func (p *Plan) Cost(worldState core.WorldState) float64 {
 	return total
 }
 
-// Value is the goal value; cached here so callers don't have to
-// dereference (p.Goal nil-check + Value resolution) themselves. A nil
-// Goal.Value contributes 0 — [core.GoalProducing] fills in
-// [core.Static](1.0).
+// Value evaluates the goal value. A nil goal contributes zero.
 func (p *Plan) Value(worldState core.WorldState) float64 {
-	if p == nil || p.Goal == nil || p.Goal.Value == nil {
+	if p == nil || p.goal == nil {
 		return 0
 	}
-	return p.Goal.Value(worldState)
+	return p.goal.Value(worldState)
 }
 
 // ActionsValue is the sum of the plan's action values, sampled against the
 // supplied world state so dynamic-value actions get evaluated correctly.
 // Actions with a nil Value contribute nothing — the canonical construction
-// path ([core.NewAction]) fills in [core.Static](0), so this term is zero
+// path ([core.NewAction]) fills in [core.FixedScore](0), so this term is zero
 // unless an action opts into a non-trivial value.
 func (p *Plan) ActionsValue(worldState core.WorldState) float64 {
 	if p == nil {
@@ -63,7 +81,7 @@ func (p *Plan) ActionsValue(worldState core.WorldState) float64 {
 	}
 
 	total := 0.0
-	for _, action := range p.Actions {
+	for _, action := range p.actions {
 		if action == nil {
 			continue
 		}
@@ -78,22 +96,22 @@ func (p *Plan) ActionsValue(worldState core.WorldState) float64 {
 // the plan's actions, minus total plan cost. Follows the standard plan-value
 // pattern (goal.value + actionsValue − cost) — the actions-value term rewards
 // plans whose constituent actions are independently valuable, not just the
-// cheapest path to the goal. Most actions leave Value at [core.Static](0),
+// cheapest path to the goal. Most actions leave Value at [core.FixedScore](0),
 // so this reduces to goal value − cost in the common case.
 func (p *Plan) NetValue(worldState core.WorldState) float64 {
 	return p.Value(worldState) + p.ActionsValue(worldState) - p.Cost(worldState)
 }
 
-// SortByNetValueDesc sorts plans in place by NetValue descending.
-// NetValue is computed once per plan against ws (the standard
+// sortByNetValueDesc sorts plans in place by NetValue descending.
+// NetValue is computed once per plan against worldState (the standard
 // "evaluate at plan-selection time" snapshot) and the cached keys
 // drive a stable sort — so each plan's NetValue is touched once
 // instead of O(n log n) times.
 //
-// Used by every planner's [Planner.PlansToGoals] to rank candidates;
+// Used by every planner's [Planner.PlanGoals] to rank candidates;
 // hoisted here so the three implementations don't drift on the
 // (subtle) ranking semantics.
-func SortByNetValueDesc(plans []*Plan, ws core.WorldState) {
+func sortByNetValueDesc(plans []*Plan, worldState core.WorldState) {
 	if len(plans) < 2 {
 		return
 	}
@@ -102,21 +120,21 @@ func SortByNetValueDesc(plans []*Plan, ws core.WorldState) {
 		net  float64
 	}
 	ranked := make([]keyed, len(plans))
-	for i, pl := range plans {
-		ranked[i] = keyed{plan: pl, net: pl.NetValue(ws)}
+	for index, plan := range plans {
+		ranked[index] = keyed{plan: plan, net: plan.NetValue(worldState)}
 	}
 	// The switch comparator (not cmp.Compare) keeps NaN net values
 	// "equal", so the stable sort leaves them in place.
-	slices.SortStableFunc(ranked, func(a, b keyed) int {
+	slices.SortStableFunc(ranked, func(left, right keyed) int {
 		switch {
-		case a.net > b.net:
+		case left.net > right.net:
 			return -1
-		case a.net < b.net:
+		case left.net < right.net:
 			return 1
 		}
 		return 0
 	})
-	for i, k := range ranked {
-		plans[i] = k.plan
+	for index, item := range ranked {
+		plans[index] = item.plan
 	}
 }

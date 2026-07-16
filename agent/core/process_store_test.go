@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -9,94 +10,117 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-func TestInMemoryProcessStore_SaveLoad(t *testing.T) {
-	store := core.NewInMemoryProcessStore()
+func validSnapshot(id string) core.ProcessSnapshot {
+	started := time.Date(2026, time.July, 16, 8, 0, 0, 0, time.UTC)
+	return core.ProcessSnapshot{
+		SchemaVersion: core.ProcessSnapshotSchemaVersion,
+		ID:            id,
+		Deployment:    core.DeploymentRef{Name: "demo", Digest: "digest"},
+		StartedAt:     started,
+		CapturedAt:    started.Add(time.Second),
+		Status:        core.StatusRunning,
+	}
+}
+
+func TestMemoryProcessStoreCASAndDefensiveLoad(t *testing.T) {
+	store := core.NewMemoryProcessStore()
 	ctx := context.Background()
+	snapshot := validSnapshot("p-1")
+	snapshot.Tokens = 1500
 
-	snap := core.ProcessSnapshot{
-		ID:        "p-1",
-		AgentName: "demo",
-		StartedAt: time.Now().Add(-time.Hour),
-		Status:    core.StatusRunning,
-		Cost:      0.012,
-		Tokens:    1500,
+	revision, err := store.Save(ctx, snapshot, 0)
+	if err != nil || revision != 1 {
+		t.Fatalf("first Save = revision %d, err %v", revision, err)
 	}
-	if err := store.Save(ctx, snap); err != nil {
-		t.Fatalf("save: %v", err)
+	loaded, err := store.Load(ctx, snapshot.ID)
+	if err != nil || loaded.Revision != 1 || loaded.Tokens != 1500 {
+		t.Fatalf("Load = %#v, err %v", loaded, err)
+	}
+	loaded.Tokens = 99
+	again, _ := store.Load(ctx, snapshot.ID)
+	if again.Tokens != 1500 {
+		t.Fatal("Load returned mutable stored state")
 	}
 
-	got, err := store.Load(ctx, "p-1")
-	if err != nil {
-		t.Fatalf("load: %v", err)
+	snapshot.Revision = revision
+	snapshot.Tokens = 2000
+	revision, err = store.Save(ctx, snapshot, 1)
+	if err != nil || revision != 2 {
+		t.Fatalf("second Save = revision %d, err %v", revision, err)
 	}
-	if got.ID != "p-1" || got.AgentName != "demo" || got.Tokens != 1500 {
-		t.Errorf("round-trip mismatch: %#v", got)
+	stale := snapshot
+	stale.Revision = 1
+	if _, err := store.Save(ctx, stale, 1); !errors.Is(err, core.ErrRevisionConflict) {
+		t.Fatalf("stale Save error = %v", err)
+	} else {
+		var conflict *core.RevisionConflictError
+		if !errors.As(err, &conflict) || conflict.Expected != 1 || conflict.Actual != 2 {
+			t.Fatalf("conflict = %#v", conflict)
+		}
 	}
 }
 
-func TestInMemoryProcessStore_LoadMissing(t *testing.T) {
-	store := core.NewInMemoryProcessStore()
-	_, err := store.Load(context.Background(), "ghost")
-	if !errors.Is(err, core.ErrSnapshotNotFound) {
-		t.Errorf("want ErrSnapshotNotFound, got %v", err)
-	}
-}
-
-func TestInMemoryProcessStore_SaveEmptyID(t *testing.T) {
-	store := core.NewInMemoryProcessStore()
-	err := store.Save(context.Background(), core.ProcessSnapshot{AgentName: "x"})
-	if err == nil {
-		t.Error("expected error for empty ID")
-	}
-}
-
-func TestInMemoryProcessStore_Delete(t *testing.T) {
-	store := core.NewInMemoryProcessStore()
+func TestMemoryProcessStoreManagementCapabilities(t *testing.T) {
+	store := core.NewMemoryProcessStore()
 	ctx := context.Background()
-
-	if err := store.Save(ctx, core.ProcessSnapshot{ID: "p-1", AgentName: "x"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Delete(ctx, "p-1"); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
-	if _, err := store.Load(ctx, "p-1"); !errors.Is(err, core.ErrSnapshotNotFound) {
-		t.Errorf("post-delete load: want NotFound, got %v", err)
-	}
-
-	// Delete of unknown id is a no-op.
-	if err := store.Delete(ctx, "never-existed"); err != nil {
-		t.Errorf("delete unknown: %v", err)
-	}
-}
-
-func TestInMemoryProcessStore_List(t *testing.T) {
-	store := core.NewInMemoryProcessStore()
-	ctx := context.Background()
-
-	for _, id := range []string{"a", "b", "c"} {
-		if err := store.Save(ctx, core.ProcessSnapshot{ID: id, AgentName: "x"}); err != nil {
+	for _, id := range []string{"c", "a", "b"} {
+		if _, err := store.Save(ctx, validSnapshot(id), 0); err != nil {
 			t.Fatal(err)
 		}
 	}
 	ids, err := store.List(ctx)
-	if err != nil {
-		t.Fatalf("list: %v", err)
+	if err != nil || len(ids) != 3 || ids[0] != "a" || ids[2] != "c" {
+		t.Fatalf("List = %v, err %v", ids, err)
 	}
-	if len(ids) != 3 {
-		t.Errorf("list: want 3 ids, got %d", len(ids))
+	if err := store.Delete(ctx, "a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Delete(ctx, "a"); err != nil {
+		t.Fatalf("idempotent Delete: %v", err)
+	}
+	if _, err := store.Load(ctx, "a"); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("Load deleted error = %v", err)
 	}
 }
 
-func TestInMemoryProcessStore_SaveOverwrites(t *testing.T) {
-	store := core.NewInMemoryProcessStore()
-	ctx := context.Background()
+func TestProcessSnapshotRejectsUnknownAndMissingSchema(t *testing.T) {
+	snapshot := validSnapshot("wire")
+	body, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["status"] != "running" {
+		t.Fatalf("status wire = %#v", decoded["status"])
+	}
+	for _, version := range []float64{0, 2} {
+		decoded["schema_version"] = version
+		invalid, _ := json.Marshal(decoded)
+		var target core.ProcessSnapshot
+		if err := json.Unmarshal(invalid, &target); !errors.Is(err, core.ErrSnapshotSchema) {
+			t.Fatalf("schema %v error = %v", version, err)
+		}
+	}
+}
 
-	_ = store.Save(ctx, core.ProcessSnapshot{ID: "p-1", AgentName: "x", Tokens: 100})
-	_ = store.Save(ctx, core.ProcessSnapshot{ID: "p-1", AgentName: "x", Tokens: 200})
-
-	got, _ := store.Load(ctx, "p-1")
-	if got.Tokens != 200 {
-		t.Errorf("overwrite: want 200, got %d", got.Tokens)
+func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
+	store := core.NewMemoryProcessStore()
+	invalid := validSnapshot("waiting")
+	invalid.Status = core.StatusWaiting
+	if _, err := store.Save(t.Context(), invalid, 0); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("waiting without suspension error = %v", err)
+	}
+	if _, err := store.Load(t.Context(), "missing"); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("missing error = %v", err)
+	}
+	invalidModelCall := validSnapshot("invalid-model-call")
+	invalidModelCall.ModelCalls = []core.ModelCall{{
+		Timestamp: time.Now(), PromptTokens: 1, CompletionTokens: 1, ReasoningTokens: 2,
+	}}
+	if _, err := store.Save(t.Context(), invalidModelCall, 0); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("invalid model call error = %v", err)
 	}
 }

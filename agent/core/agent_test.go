@@ -13,15 +13,15 @@ type fakeAction struct {
 }
 
 func (f fakeAction) Metadata() core.ActionMetadata { return f.meta }
-func (f fakeAction) Execute(context.Context, *core.ProcessContext) core.ActionStatus {
-	return core.ActionSucceeded
+func (f fakeAction) Execute(context.Context, *core.ProcessContext) (core.ActionStatus, error) {
+	return core.ActionSucceeded, nil
 }
 
-func TestValidateAgentRejectsNilAction(t *testing.T) {
+func TestValidateRejectsNilAction(t *testing.T) {
 	a := core.NewAgent(core.AgentConfig{
 		Name:    "bad",
 		Actions: []core.Action{nil},
-		Goals:   []*core.Goal{{Name: "goal"}},
+		Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
 	})
 
 	err := a.Validate()
@@ -30,7 +30,7 @@ func TestValidateAgentRejectsNilAction(t *testing.T) {
 	}
 }
 
-func TestValidateAgentRejectsNilGoalWithIndex(t *testing.T) {
+func TestValidateRejectsNilGoalWithIndex(t *testing.T) {
 	a := core.NewAgent(core.AgentConfig{
 		Name:    "bad",
 		Actions: []core.Action{fakeAction{meta: core.ActionMetadata{Name: "act"}}},
@@ -43,11 +43,11 @@ func TestValidateAgentRejectsNilGoalWithIndex(t *testing.T) {
 	}
 }
 
-func TestValidateAgentRejectsInvalidConditions(t *testing.T) {
+func TestValidateRejectsInvalidConditions(t *testing.T) {
 	base := core.AgentConfig{
 		Name:    "bad",
 		Actions: []core.Action{fakeAction{meta: core.ActionMetadata{Name: "act"}}},
-		Goals:   []*core.Goal{{Name: "goal"}},
+		Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
 	}
 
 	base.Conditions = []core.Condition{nil}
@@ -66,20 +66,65 @@ func TestValidateAgentRejectsInvalidConditions(t *testing.T) {
 	}
 }
 
-func TestKnownConditionsSkipsNilEntries(t *testing.T) {
-	conditions := core.KnownConditions(
-		[]core.Action{nil, fakeAction{meta: core.ActionMetadata{
-			Name:          "act",
-			Preconditions: core.Effects{"need": core.True},
-			Effects:       core.Effects{"have": core.True},
+func TestValidateRequiresExplicitRetrySafety(t *testing.T) {
+	base := core.AgentConfig{
+		Name: "retry-policy",
+		Actions: []core.Action{fakeAction{meta: core.ActionMetadata{
+			Name:  "act",
+			Retry: core.RetryPolicy{MaxAttempts: 2},
 		}}},
-		[]*core.Goal{nil, {Name: "goal", Pre: []string{"done"}}},
-		[]core.Condition{nil},
-	)
+		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+	}
+	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "requires idempotent or compensated") {
+		t.Fatalf("missing retry safety error = %v", err)
+	}
 
-	for _, key := range []string{"need", "have", "done"} {
-		if _, ok := conditions[key]; !ok {
-			t.Fatalf("missing condition %q in %#v", key, conditions)
-		}
+	base.Actions = []core.Action{fakeAction{meta: core.ActionMetadata{
+		Name: "act",
+		Retry: core.RetryPolicy{
+			MaxAttempts: 2,
+			Safety:      core.RetrySafetyCompensated,
+		},
+	}}}
+	if err := core.NewAgent(base).Validate(); err != nil {
+		t.Fatalf("compensated retry policy rejected: %v", err)
+	}
+}
+
+func TestAgentOwnsConfigurationCollections(t *testing.T) {
+	action := fakeAction{meta: core.ActionMetadata{Name: "act"}}
+	goal := core.NewGoal(core.GoalConfig{Name: "goal"})
+	condition := core.NewCondition("ready", nil)
+	actions := []core.Action{action}
+	goals := []*core.Goal{goal}
+	conditions := []core.Condition{condition}
+	config := core.AgentConfig{
+		Name:        "owned",
+		Description: "original",
+		Version:     "1.2.3",
+		Actions:     actions,
+		Goals:       goals,
+		Conditions:  conditions,
+	}
+
+	agent := core.NewAgent(config)
+	config.Description = "mutated"
+	config.Version = "9.9.9"
+	actions[0] = nil
+	goals[0] = nil
+	conditions[0] = nil
+
+	returnedActions := agent.Actions()
+	returnedGoals := agent.Goals()
+	returnedConditions := agent.Conditions()
+	returnedActions[0] = nil
+	returnedGoals[0] = nil
+	returnedConditions[0] = nil
+
+	if agent.Description() != "original" || agent.Version() != "1.2.3" {
+		t.Fatalf("scalar config leaked: description=%q version=%q", agent.Description(), agent.Version())
+	}
+	if agent.Actions()[0] == nil || agent.Goals()[0] != goal || agent.Conditions()[0] != condition {
+		t.Fatal("Agent leaked caller or accessor slice storage")
 	}
 }

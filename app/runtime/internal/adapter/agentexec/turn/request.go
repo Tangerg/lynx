@@ -144,7 +144,7 @@ type RehydrateRequest struct {
 	// Provider + Model are the parked run's per-run model selection, persisted
 	// on the interrupt. Both set re-resolves that client so the continuation
 	// runs against the SAME model it parked on; both empty (or no resolver)
-	// runs on the platform default. The provider is explicit — never inferred.
+	// runs on the engine default. The provider is explicit — never inferred.
 	Provider string
 	Model    string
 }

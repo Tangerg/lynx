@@ -53,7 +53,7 @@ func run(ctx context.Context, output io.Writer) error {
 		return response(chat.NewAssistantMessage(chat.NewTextPart(result.Result)), chat.FinishReasonStop), nil
 	})
 
-	runner, err := toolloop.NewRunner(model, toolloop.RunnerConfig{})
+	runner, err := toolloop.NewRunner(model, toolloop.Config{})
 	if err != nil {
 		return err
 	}
@@ -62,12 +62,8 @@ func run(ctx context.Context, output io.Writer) error {
 		return err
 	}
 	request.Tools = registry.Definitions()
-	invocation, err := toolloop.NewInvocation(request, registry)
-	if err != nil {
-		return err
-	}
 
-	for event, eventErr := range runner.Run(ctx, invocation) {
+	for event, eventErr := range runner.Run(ctx, request, registry) {
 		if eventErr != nil {
 			return eventErr
 		}

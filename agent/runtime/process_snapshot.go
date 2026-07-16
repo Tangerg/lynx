@@ -3,86 +3,136 @@ package runtime
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
+// ValidateResumableSnapshot verifies that a durable process snapshot contains
+// a continuation the runtime can safely resume. It is intentionally independent
+// of any Host persistence schema: stores may call it after decoding a snapshot
+// to decide whether a parked application record still has a usable framework
+// continuation.
+//
+// Human suspensions carry their continuation entirely in the typed action's
+// durable blackboard state. Tool suspensions additionally carry a managed
+// ToolLoop checkpoint envelope; this function validates that opaque runtime
+// payload and its exact deployment/ID binding so Hosts never need to interpret
+// framework checkpoint fields themselves.
+func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error {
+	if err := snapshot.Validate(); err != nil {
+		return fmt.Errorf("runtime.ValidateResumableSnapshot: %w", err)
+	}
+	if snapshot.Status != core.StatusWaiting || snapshot.Suspension == nil {
+		return fmt.Errorf("runtime.ValidateResumableSnapshot: process %q is not waiting on a suspension", snapshot.ID)
+	}
+	suspension := snapshot.Suspension
+	if suspension.Responded() {
+		return fmt.Errorf("runtime.ValidateResumableSnapshot: suspension %q already has a response", suspension.ID)
+	}
+	if suspension.Kind != interaction.SuspensionTool {
+		return nil
+	}
+	checkpoint, err := decodeInteractionCheckpoint(suspension.Payload)
+	if err != nil {
+		return fmt.Errorf("runtime.ValidateResumableSnapshot: %w", err)
+	}
+	if checkpoint.Deployment != snapshot.Deployment {
+		return fmt.Errorf("runtime.ValidateResumableSnapshot: tool checkpoint deployment does not match snapshot deployment")
+	}
+	if checkpoint.Checkpoint.ID != suspension.ID {
+		return fmt.Errorf("runtime.ValidateResumableSnapshot: tool checkpoint ID %q does not match suspension ID %q", checkpoint.Checkpoint.ID, suspension.ID)
+	}
+	return nil
+}
+
 // Snapshot captures the process's state into a portable
 // [core.ProcessSnapshot] suitable for handing to a [core.ProcessStore].
-// Acquires only the process's own read locks — no external state is
-// mutated.
+// It waits for any active tick or suspension response to reach a framework
+// checkpoint boundary, then captures one internally consistent aggregate.
+// No external state is mutated.
 //
-// Blackboard capture is best-effort: any custom blackboard
-// implementation that satisfies [BlackboardSnapshotter] gets its
-// rich state; everything else falls back to a shallow read of the
-// named-key view via [core.BlackboardReader.Get] over recorded
-// objects.
-func (p *AgentProcess) Snapshot() core.ProcessSnapshot {
+// Blackboard capture is strict: the blackboard must expose
+// [BlackboardSnapshotter], every durable value must be declared and JSON-safe,
+// and invalid aggregate state returns an error.
+func (p *Process) Snapshot() (core.ProcessSnapshot, error) {
 	if p == nil {
-		return core.ProcessSnapshot{}
+		return core.ProcessSnapshot{}, errors.New("runtime.Process.Snapshot: nil process")
+	}
+	p.checkpointMu.RLock()
+	defer p.checkpointMu.RUnlock()
+	return p.snapshot()
+}
+
+func (p *Process) snapshot() (core.ProcessSnapshot, error) {
+	snapshot := core.ProcessSnapshot{
+		SchemaVersion:  core.ProcessSnapshotSchemaVersion,
+		Revision:       p.state.snapshotRevision(),
+		ID:             p.ID(),
+		ParentID:       p.ParentID(),
+		Depth:          p.depth,
+		Deployment:     p.Deployment(),
+		StartedAt:      p.StartedAt(),
+		CapturedAt:     time.Now(),
+		Status:         p.Status(),
+		Suspension:     p.Suspension(),
+		ModelCalls:     p.ModelCalls(),
+		EmbeddingCalls: p.EmbeddingCalls(),
 	}
 
-	snap := core.ProcessSnapshot{
-		ID:                   p.ID(),
-		ParentID:             p.ParentID(),
-		Depth:                p.depth,
-		StartedAt:            p.StartedAt(),
-		CapturedAt:           core.Now(),
-		Status:               p.Status(),
-		LastWorld:            p.LastWorldState(),
-		LLMInvocations:       p.LLMInvocations(),
-		EmbeddingInvocations: p.EmbeddingInvocations(),
-	}
-
-	if p.agent != nil {
-		snap.AgentName = p.agent.Name
-		if p.agent.Version != nil {
-			snap.AgentVersion = p.agent.Version.String()
-		}
-	}
 	if goal := p.Goal(); goal != nil {
-		snap.GoalName = goal.Name
+		snapshot.GoalName = goal.Name()
 	}
 	if err := p.Failure(); err != nil {
-		snap.Failure = err.Error()
+		snapshot.Failure = err.Error()
 	}
 	cost, tokens, _ := p.Usage()
-	snap.Cost = cost
-	snap.Tokens = tokens
+	snapshot.Cost = cost
+	snapshot.Tokens = tokens
 
-	hist := p.History()
-	if len(hist) > 0 {
-		snap.History = make([]core.SnapshotActionInvocation, len(hist))
-		for i, inv := range hist {
-			snap.History[i] = core.SnapshotActionInvocation{
-				ActionName: inv.ActionName,
-				Timestamp:  inv.Timestamp,
-				Duration:   inv.Duration,
-				Status:     inv.Status.String(),
-				Attempts:   inv.Attempts,
+	history := p.History()
+	if len(history) > 0 {
+		snapshot.History = make([]core.ActionRunSnapshot, len(history))
+		for i, run := range history {
+			snapshot.History[i] = core.ActionRunSnapshot{
+				ActionName: run.ActionName,
+				StartedAt:  run.StartedAt,
+				Duration:   run.Duration,
+				Status:     run.Status.String(),
+				Attempts:   run.Attempts,
 			}
 		}
 	}
 
-	// Type assertion on a nil interface returns (zero, false) — no
-	// guard needed before the assertion. Values are type-tagged so a JSON
-	// round-trip through the store reconstructs their concrete Go types on
-	// restore (see core.TagBlackboard) rather than decoding into bare maps.
-	if s, ok := p.blackboard.(BlackboardSnapshotter); ok {
-		named, conditions, objects := s.Snapshot()
-		snap.Blackboard, snap.Objects = core.TagBlackboard(named, objects)
-		snap.Conditions = conditions
+	snapshotter, ok := p.blackboard.(BlackboardSnapshotter)
+	if !ok {
+		return core.ProcessSnapshot{}, errors.New("runtime.Process.Snapshot: blackboard does not support durable capture")
 	}
-	return snap
+	named, conditions, objects, err := snapshotter.Snapshot()
+	if err != nil {
+		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: capture blackboard: %w", err)
+	}
+	snapshot.Blackboard, snapshot.Objects, err = core.EncodeBlackboard(p.agent(), named, objects)
+	if err != nil {
+		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: encode blackboard: %w", err)
+	}
+	snapshot.Conditions = conditions
+	if err := snapshot.Validate(); err != nil {
+		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: %w", err)
+	}
+	return snapshot, nil
 }
 
-// RestoreFromSnapshot rebuilds an [AgentProcess] from a snapshot the
+// RestoreSnapshot rebuilds a [Process] from a snapshot the
 // caller already holds — the pure-rebuild primitive, no store I/O.
-// ([Platform.RestoreProcess] is the store-backed sibling: it loads the
-// snapshot by id, then calls this.) The process is added to platform's
-// registry under the snapshot's id; the agent definition is looked up by
-// [core.ProcessSnapshot.AgentName] and must already be deployed.
+// ([Engine.Restore] is the store-backed sibling: it loads the
+// snapshot by id, then calls this.) The process is added to engine's
+// registry under the snapshot's id; the agent definition is looked up by the
+// exact [core.ProcessSnapshot.Deployment] and must exist in the deployment
+// catalog. Historical definitions remain eligible after replacement or
+// undeploy.
 //
 // Resumable statuses (Running / Waiting / Paused) leave the process
 // ready for re-entry into the tick loop. Terminal statuses
@@ -90,121 +140,117 @@ func (p *AgentProcess) Snapshot() core.ProcessSnapshot {
 // read-only; callers can inspect History / Usage / Failure but
 // not re-run.
 //
-// Resuming a restored StatusWaiting process takes four steps, because
-// the pending awaitable's handler closure does not round-trip (see
-// [core.ProcessSnapshot]):
-//
-//  1. RestoreFromSnapshot — status is Waiting, but nothing is parked yet
-//     (PendingAwaitable returns nil).
-//  2. ContinueProcess — re-ticks once; the awaiting action re-issues
-//     AwaitInput against the restored blackboard and the process parks
-//     again (now PendingAwaitable is populated).
-//  3. ResumeProcess(id, response) — delivers the response to the freshly
-//     re-parked handler, which mutates the blackboard.
-//  4. ContinueProcess — drives the loop to a terminal state against the
-//     now-decided blackboard.
-//
-// This works only when the awaiting action is idempotent: it must
-// re-park when its decision condition is unset and proceed when it's
-// set. The framework cannot reconstruct the closure for it.
+// A restored StatusWaiting process carries its exact Suspension and can be
+// answered immediately. Resume records the response; Continue
+// then re-enters the action at its linear suspension point.
 //
 // options carries the per-process wiring the snapshot can't hold — the
 // session-scoped [core.ProcessOptions.Extensions] (observer / event
-// listener / tool decorators) and the [core.ProcessOptions.Session]
+// listener / tool middleware) and the [core.ProcessOptions.Session]
 // binding. A restored process re-enters the tick loop with the same
 // observability + session context a fresh one gets from
-// [Platform.StartAgent], so the continuation streams and keys chat history
+// [Engine.Start], so the continuation streams and keys chat history
 // correctly. Pass the zero value to restore read-only (audit / inspect).
-func (p *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options core.ProcessOptions) (*AgentProcess, error) {
-	if p == nil {
-		return nil, errors.New("runtime.Platform.RestoreFromSnapshot: nil platform")
+func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.ProcessOptions) (*Process, error) {
+	if e == nil {
+		return nil, errors.New("runtime.Engine.RestoreSnapshot: nil engine")
 	}
-	if snap.ID == "" {
-		return nil, errors.New("runtime.Platform.RestoreFromSnapshot: snapshot has empty ID")
-	}
-	if snap.AgentName == "" {
-		return nil, errors.New("runtime.Platform.RestoreFromSnapshot: snapshot has empty AgentName")
+	if err := snapshot.Validate(); err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
 	}
 
-	agentDef, ok := p.agents.find(snap.AgentName)
+	deployment, ok := e.catalog.lookup(snapshot.Deployment)
 	if !ok {
-		return nil, fmt.Errorf("runtime.Platform.RestoreFromSnapshot: agent %q not deployed", snap.AgentName)
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w: %s", ErrDeploymentNotFound, snapshot.Deployment)
 	}
+	agent := deployment.agent
 
 	if err := validateProcessExtensions(options.Extensions); err != nil {
-		return nil, fmt.Errorf("runtime.Platform.RestoreFromSnapshot: %w", err)
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
 	}
-	options.ApplyDefaults()
-	blackboard := p.resolveBlackboard(options.Blackboard)
-	plannerInst, err := p.resolvePlanner(agentDef, options.Extensions)
+	normalizeProcessOptions(&options)
+	dependencies, err := e.prepareProcessDependencies(options.Dependencies)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Platform.RestoreFromSnapshot: %w", err)
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
 	}
-	system := planning.FromAgent(agentDef)
+	blackboard := e.resolveBlackboard(options.Blackboard)
+	planner, err := e.resolvePlanner(agent, options.Extensions)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
+	}
+	domain := planning.DomainForAgent(agent)
 
-	proc := newAgentProcess(snap.ID, agentDef, &options, blackboard, plannerInst, system, p)
-	// Wire the determiner + event multicast the same way createProcess
+	process := newProcess(snapshot.ID, deployment, &options, blackboard, dependencies, planner, domain, e)
+	// Wire the state reader + event multicast the same way createProcess
 	// does — without it a resumable snapshot panics on its first
-	// post-restore tick (nil determiner in observe). The caller's
+	// post-restore tick (nil state reader in observe). The caller's
 	// Extensions (observer / listener) attach here too.
-	proc.wireRuntimeDeps(options.Extensions)
-	proc.parentID = snap.ParentID
-	proc.depth = snap.Depth
-	proc.startedAt = snap.StartedAt
+	process.wireRuntimeDeps(options.Extensions)
+	process.parentID = snapshot.ParentID
+	process.depth = snapshot.Depth
+	process.startedAt = snapshot.StartedAt
 
 	// Re-populate state.
-	proc.state.setStatus(snap.Status)
-	if snap.GoalName != "" {
-		for _, g := range agentDef.Goals {
-			if g.Name == snap.GoalName {
-				proc.state.setGoal(g)
+	process.state.transition(snapshot.Status)
+	process.state.restoreRevision(snapshot.Revision)
+	if err := process.state.restoreSuspension(snapshot.Suspension); err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: suspension: %w", err)
+	}
+	if snapshot.GoalName != "" {
+		for _, goal := range agent.Goals() {
+			if goal.Name() == snapshot.GoalName {
+				process.state.pursue(goal)
 				break
 			}
 		}
 	}
-	if snap.LastWorld != nil {
-		proc.state.setLastWorld(snap.LastWorld)
+	if snapshot.Failure != "" {
+		process.state.recordFailure(errors.New(snapshot.Failure))
 	}
-	if snap.Failure != "" {
-		proc.state.setFailure(errors.New(snap.Failure))
-	}
-	for _, h := range snap.History {
-		proc.state.recordInvocation(ActionInvocation{
-			ActionName: h.ActionName,
-			Timestamp:  h.Timestamp,
-			Duration:   h.Duration,
-			Status:     parseActionStatus(h.Status),
-			Attempts:   h.Attempts,
+	for _, run := range snapshot.History {
+		process.state.recordActionRun(ActionRun{
+			ActionName: run.ActionName,
+			StartedAt:  run.StartedAt,
+			Duration:   run.Duration,
+			Status:     parseActionStatus(run.Status),
+			Attempts:   run.Attempts,
 		})
 	}
 
-	proc.budget.restore(snap.Cost, snap.Tokens, snap.LLMInvocations, snap.EmbeddingInvocations)
+	process.budget.restore(snapshot.Cost, snapshot.Tokens, snapshot.ModelCalls, snapshot.EmbeddingCalls)
 
 	// Re-populate blackboard when the implementation supports it. The
 	// tagged values decode back to their concrete Go types via the type
 	// table the agent's action I/O bindings declare (see
-	// core.UntagBlackboard) — so a restored typed-action input is the
+	// core.DecodeBlackboard) — so a restored typed-action input is the
 	// original struct, not the map JSON would otherwise yield.
-	if r, ok := blackboard.(BlackboardRestorer); ok {
-		named, objects := core.UntagBlackboard(snap.Blackboard, snap.Objects, agentDef)
-		r.Restore(named, snap.Conditions, objects)
+	restorer, ok := blackboard.(BlackboardRestorer)
+	if !ok {
+		return nil, errors.New("runtime.Engine.RestoreSnapshot: blackboard does not support durable restore")
+	}
+	named, objects, err := core.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects, agent)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: decode blackboard: %w", err)
+	}
+	if err := restorer.Restore(named, snapshot.Conditions, objects); err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: restore blackboard: %w", err)
 	}
 
 	// Restore keeps the snapshot's ORIGINAL process id, so refuse to clobber an
 	// id still held by a live process (e.g. an auto-snapshot re-restoring while
 	// the original ticks) — that would split the id across two objects. A
 	// terminal / absent slot replaces cleanly.
-	if !p.procs.registerNew(proc) {
-		return nil, fmt.Errorf("runtime: cannot restore process %s: a live process with that id is already running", proc.id)
+	if !e.processes.registerNew(process) {
+		return nil, fmt.Errorf("runtime: cannot restore process %s: a live process with that id is already running", process.id)
 	}
-	return proc, nil
+	return process, nil
 }
 
 // parseActionStatus maps the string form back to the enum. Unknown
 // values fall back to [core.ActionFailed] so the runtime treats them
 // conservatively rather than silently downgrading to Succeeded.
-func parseActionStatus(s string) core.ActionStatus {
-	switch s {
+func parseActionStatus(status string) core.ActionStatus {
+	switch status {
 	case core.ActionSucceeded.String():
 		return core.ActionSucceeded
 	case core.ActionFailed.String():

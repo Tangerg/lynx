@@ -43,16 +43,16 @@ func TestRepeatUntil_InEqualsOut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := engine.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, err := platform.RunAgent(t.Context(), a,
+	proc, err := engine.Run(t.Context(), a,
 		map[string]any{core.DefaultBindingName: refine{Tag: "orig"}},
 		core.ProcessOptions{},
 	)
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
@@ -93,23 +93,23 @@ func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	err = platform.Deploy(a)
+	engine := agent.MustNewEngine(runtime.Config{})
+	_, err = engine.Deploy(a)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	var proc *runtime.AgentProcess
-	proc, err = platform.RunAgent(t.Context(), a,
+	var proc *runtime.Process
+	proc, err = engine.Run(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruIn{Target: 4}},
 		core.ProcessOptions{},
 	)
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
 	}
-	got, ok := core.ResultOfType[ruOut](proc)
+	got, ok := core.Result[ruOut](proc)
 	if !ok {
 		t.Fatal("no ruOut bound")
 	}
@@ -131,19 +131,19 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	err = platform.Deploy(a)
+	engine := agent.MustNewEngine(runtime.Config{})
+	_, err = engine.Deploy(a)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, _ := platform.RunAgent(t.Context(), a,
+	proc, _ := engine.Run(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruIn{Target: 999}},
 		core.ProcessOptions{},
 	)
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
 	}
-	got, _ := core.ResultOfType[ruOut](proc)
+	got, _ := core.Result[ruOut](proc)
 	if got.Value != 3 {
 		t.Fatalf("Value = %d, want 3 (MaxIterations cap)", got.Value)
 	}
@@ -169,12 +169,12 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	err = platform.Deploy(a)
+	engine := agent.MustNewEngine(runtime.Config{})
+	_, err = engine.Deploy(a)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, _ := platform.RunAgent(t.Context(), a,
+	proc, _ := engine.Run(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruIn{Target: 0}},
 		core.ProcessOptions{},
 	)

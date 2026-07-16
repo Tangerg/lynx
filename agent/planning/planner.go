@@ -17,11 +17,11 @@ type Options struct {
 
 // Planner is a pure strategy: given a goal, return the action
 // sequence whose effects satisfy it (or nil when unreachable).
-// PlansToGoals + BestValuePlan are derived templates exposed as
+// PlanGoals + BestPlan are derived templates exposed as
 // package-level functions, not interface methods, so each planner
 // implementation only writes the algorithm-specific part.
 //
-// Planner is also a platform [core.Extension]: register one (or
+// Planner is also an engine [core.Extension]: register one (or
 // several) and the runtime resolves which one to use for a given
 // process by matching the agent's [core.AgentConfig.PlannerName]
 // against [core.Extension.Name].
@@ -33,76 +33,77 @@ type Planner interface {
 	// failure.
 	PlanToGoal(
 		ctx context.Context,
-		start core.WorldState,
-		system *System,
+		state core.WorldState,
+		domain *Domain,
 		goal *core.Goal,
 		options Options,
 	) (*Plan, error)
 }
 
-// CheckPlanInputs validates the trio of pointers every PlanToGoal
+// ValidatePlanInputs validates the inputs every PlanToGoal
 // implementation needs. Lift the boilerplate so each strategy
 // doesn't paste its own version.
-func CheckPlanInputs(start core.WorldState, system *System, goal *core.Goal) error {
+func ValidatePlanInputs(state core.WorldState, domain *Domain, goal *core.Goal) error {
 	switch {
-	case start == nil:
-		return errors.New("plan: start world state is nil")
-	case system == nil:
-		return errors.New("plan: planning system is nil")
+	case state == nil:
+		return errors.New("plan: world state is nil")
+	case domain == nil:
+		return errors.New("plan: planning domain is nil")
 	case goal == nil:
 		return errors.New("plan: goal is nil")
 	}
 	return nil
 }
 
-// PlansToGoals enumerates plans for every goal in system, sorted by
+// PlanGoals enumerates plans for every goal in domain, sorted by
 // NetValue descending. Goals returning (nil, nil) from PlanToGoal
 // are dropped silently; any error short-circuits.
-func PlansToGoals(
+func PlanGoals(
 	ctx context.Context,
-	p Planner,
-	start core.WorldState,
-	system *System,
+	planner Planner,
+	state core.WorldState,
+	domain *Domain,
 	options Options,
 ) ([]*Plan, error) {
-	if system == nil {
-		return nil, errors.New("plans to goals: planning system is nil")
+	if domain == nil {
+		return nil, errors.New("plans to goals: planning domain is nil")
 	}
-	out := make([]*Plan, 0, len(system.Goals))
-	for _, goal := range system.Goals {
-		pl, err := p.PlanToGoal(ctx, start, system, goal, options)
+	goals := domain.Goals()
+	plans := make([]*Plan, 0, len(goals))
+	for _, goal := range goals {
+		plan, err := planner.PlanToGoal(ctx, state, domain, goal, options)
 		if err != nil {
 			return nil, err
 		}
-		if pl == nil {
+		if plan == nil {
 			continue
 		}
-		out = append(out, pl)
+		plans = append(plans, plan)
 	}
-	SortByNetValueDesc(out, start)
-	return out, nil
+	sortByNetValueDesc(plans, state)
+	return plans, nil
 }
 
-// BestValuePlan is the runtime's tick-time entry: the highest-
+// BestPlan is the runtime's tick-time entry: the highest-
 // NetValue plan across all goals, honoring the exclusion list.
 // Returns (nil, nil) when no goal is reachable.
-func BestValuePlan(
+func BestPlan(
 	ctx context.Context,
-	p Planner,
-	start core.WorldState,
-	system *System,
+	planner Planner,
+	state core.WorldState,
+	domain *Domain,
 	options Options,
 ) (*Plan, error) {
-	plans, err := PlansToGoals(ctx, p, start, system, options)
+	plans, err := PlanGoals(ctx, planner, state, domain, options)
 	if err != nil || len(plans) == 0 {
 		return nil, err
 	}
 	return plans[0], nil
 }
 
-// Prune returns a copy of system whose Actions slice is filtered
+// Prune returns a copy of domain whose Actions slice is filtered
 // down to actions referenced by at least one plan reachable from
-// start. Goals and Conditions are kept verbatim — the dead-code
+// state. Goals and Conditions are kept verbatim — the dead-code
 // signal is "this action can never participate in
 // any plan", not "this goal is unreachable".
 //
@@ -113,32 +114,32 @@ func BestValuePlan(
 //     definition or notice a misconfigured precondition.
 //   - Documentation generation — strip dead actions before
 //     rendering the action catalog.
-//   - Repeated planning over an optimized system — the planner
+//   - Repeated planning over an optimized domain — the planner
 //     stops considering known-dead actions tick after tick.
 //
-// Prune does *not* mutate system. Returns (nil, error) when the
-// underlying [PlansToGoals] call fails; returns (clone-with-empty-
+// Prune does *not* mutate domain. Returns (nil, error) when the
+// underlying [PlanGoals] call fails; returns (clone-with-empty-
 // actions, nil) when no goal is reachable so callers can detect
 // the "every action is dead" case.
 func Prune(
 	ctx context.Context,
-	p Planner,
-	start core.WorldState,
-	system *System,
+	planner Planner,
+	state core.WorldState,
+	domain *Domain,
 	options Options,
-) (*System, error) {
-	if system == nil {
-		return nil, errors.New("prune: planning system is nil")
+) (*Domain, error) {
+	if domain == nil {
+		return nil, errors.New("prune: planning domain is nil")
 	}
 
-	plans, err := PlansToGoals(ctx, p, start, system, options)
+	plans, err := PlanGoals(ctx, planner, state, domain, options)
 	if err != nil {
 		return nil, err
 	}
 
 	referenced := map[string]struct{}{}
 	for _, plan := range plans {
-		for _, action := range plan.Actions {
+		for _, action := range plan.Actions() {
 			if action == nil {
 				continue
 			}
@@ -147,7 +148,7 @@ func Prune(
 	}
 
 	kept := make([]core.Action, 0, len(referenced))
-	for _, action := range system.Actions {
+	for _, action := range domain.Actions() {
 		if action == nil {
 			continue
 		}
@@ -155,5 +156,5 @@ func Prune(
 			kept = append(kept, action)
 		}
 	}
-	return NewSystem(kept, system.Goals, system.Conditions), nil
+	return NewDomain(kept, domain.Goals(), domain.Conditions()), nil
 }

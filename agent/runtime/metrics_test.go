@@ -24,23 +24,17 @@ func TestMetrics_RecordedDuringRun(t *testing.T) {
 	otel.SetMeterProvider(provider)
 	t.Cleanup(func() { otel.SetMeterProvider(prev) })
 
-	a := agent.New("metered").
-		Actions(agent.NewAction("count",
-			func(_ context.Context, _ *core.ProcessContext, in word) (wordCount, error) {
-				return wordCount{Count: len(in.Text)}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "counted"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "metered", Actions: []agent.Action{agent.NewAction("count", func(_ context.Context, _ *core.ProcessContext, in word) (wordCount, error) {
+		return wordCount{Count: len(in.Text)}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	mustDeploy(t, platform, a)
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
 
-	if _, err := platform.RunAgent(context.Background(), a,
+	if _, err := engine.Run(context.Background(), a,
 		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
 		core.ProcessOptions{}); err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 
 	var rm metricdata.ResourceMetrics

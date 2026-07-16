@@ -74,9 +74,10 @@ func putParkedState(t *testing.T, transcripts *sqlite.TranscriptStore, ints *sql
 	}); err != nil {
 		t.Fatalf("put parked interrupt: %v", err)
 	}
-	if err := processes.Save(t.Context(), core.ProcessSnapshot{
-		ID: "proc_" + runID, AgentName: "chat", Status: core.StatusWaiting, CapturedAt: parkedAt,
-	}); err != nil {
+	snapshot := validStoredSnapshot("proc_"+runID, core.StatusWaiting)
+	snapshot.StartedAt = createdAt
+	snapshot.CapturedAt = parkedAt
+	if _, err := processes.Save(t.Context(), snapshot, 0); err != nil {
 		t.Fatalf("put parked process snapshot: %v", err)
 	}
 }
@@ -462,7 +463,7 @@ func TestReconcileOrphansDoesNotLetStaleInterruptProtectRunningRun(t *testing.T)
 	}); err != nil {
 		t.Fatalf("put transcript: %v", err)
 	}
-	if err := processStore.Save(ctx, core.ProcessSnapshot{ID: "proc_stale", AgentName: "chat", Status: core.StatusWaiting}); err != nil {
+	if _, err := processStore.Save(ctx, validStoredSnapshot("proc_stale", core.StatusWaiting), 0); err != nil {
 		t.Fatalf("put stale process snapshot: %v", err)
 	}
 	if err := interruptStore.Put(ctx, interrupts.Pending{RunID: "run_stale", SessionID: "ses_1", ProcessID: "proc_stale", CreatedAt: time.Unix(0, 0)}); err != nil {

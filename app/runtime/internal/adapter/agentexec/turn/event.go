@@ -6,7 +6,7 @@ import "github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 // adapter emits those values directly; aliases preserve a concise native API
 // without maintaining a second, lockstep event family.
 type Event = runs.EngineEvent
-type BaseEvent = runs.EventMeta
+type EventMeta = runs.EventMeta
 type TurnStart = runs.TurnStart
 type MessageDelta = runs.MessageDelta
 type ReasoningDelta = runs.ReasoningDelta

@@ -413,8 +413,8 @@ func TestOpenDiscardsAnOlderSchema(t *testing.T) {
 	}
 	defer db.Close()
 	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 3 {
-		t.Fatalf("schema version = %d, err=%v, want 3", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 4 {
+		t.Fatalf("schema version = %d, err=%v, want 4", version, err)
 	}
 	var legacyTables int
 	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='legacy_runs'`).Scan(&legacyTables); err != nil || legacyTables != 0 {
@@ -423,6 +423,64 @@ func TestOpenDiscardsAnOlderSchema(t *testing.T) {
 	var currentTables int
 	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='sessions'`).Scan(&currentTables); err != nil || currentTables != 1 {
 		t.Fatalf("sessions table count = %d, err=%v, want current schema", currentTables, err)
+	}
+}
+
+func TestOpenMigratesV3ByDiscardingOnlyProcessContinuations(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v3.db")
+	legacy, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = legacy.Exec(`
+		CREATE TABLE sessions (
+			id TEXT PRIMARY KEY, title TEXT NOT NULL, cwd TEXT NOT NULL DEFAULT '', parent_id TEXT NOT NULL DEFAULT '',
+			started_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, metadata TEXT NOT NULL DEFAULT '{}',
+			model TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT '', favorite INTEGER NOT NULL DEFAULT 0
+		);
+		INSERT INTO sessions(id,title,started_at,updated_at) VALUES ('ses_keep','kept',1,1);
+		CREATE TABLE process_snapshots (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL, captured_at INTEGER NOT NULL);
+		INSERT INTO process_snapshots VALUES ('proc_old','{}',1);
+		CREATE TABLE runs (
+			run_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, state TEXT NOT NULL, provider TEXT NOT NULL DEFAULT '',
+			model TEXT NOT NULL DEFAULT '', outcome TEXT NOT NULL DEFAULT '', started_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+		);
+		INSERT INTO runs(run_id,session_id,state,started_at,updated_at) VALUES ('run_old','ses_keep','interrupted',1,1);
+		CREATE TABLE interrupts (
+			run_id TEXT PRIMARY KEY, session_id TEXT NOT NULL DEFAULT '', turn_id TEXT NOT NULL DEFAULT '',
+			process_id TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '',
+			payload TEXT NOT NULL DEFAULT '', drained_tools TEXT NOT NULL DEFAULT '', run_created_at INTEGER NOT NULL DEFAULT 0,
+			created_at INTEGER NOT NULL
+		);
+		INSERT INTO interrupts(run_id,session_id,process_id,created_at) VALUES ('run_old','ses_keep','proc_old',1);
+		PRAGMA user_version = 3;
+	`)
+	if err != nil {
+		_ = legacy.Close()
+		t.Fatalf("seed v3: %v", err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("Open v4: %v", err)
+	}
+	defer db.Close()
+	var sessions, snapshots, interrupts int
+	if err := db.QueryRow(`SELECT count(*) FROM sessions WHERE id='ses_keep'`).Scan(&sessions); err != nil || sessions != 1 {
+		t.Fatalf("preserved sessions = %d, err %v", sessions, err)
+	}
+	if err := db.QueryRow(`SELECT count(*) FROM process_snapshots`).Scan(&snapshots); err != nil || snapshots != 0 {
+		t.Fatalf("snapshots = %d, err %v", snapshots, err)
+	}
+	if err := db.QueryRow(`SELECT count(*) FROM interrupts`).Scan(&interrupts); err != nil || interrupts != 0 {
+		t.Fatalf("interrupts = %d, err %v", interrupts, err)
+	}
+	var state, outcome string
+	if err := db.QueryRow(`SELECT state, outcome FROM runs WHERE run_id='run_old'`).Scan(&state, &outcome); err != nil || state != "terminal" || outcome != "snapshot_schema_incompatible" {
+		t.Fatalf("migrated run = (%q,%q), err %v", state, outcome, err)
 	}
 }
 

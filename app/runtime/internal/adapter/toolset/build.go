@@ -52,7 +52,7 @@ type BuildConfig struct {
 	A2AAgents       []A2AAgentConfig
 	Todos           todo.Store      // backs todo_write; nil → the tool is omitted
 	Approval        approval.Policy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
-	Interruption    interrupts.Interruption
+	Interrupt       interrupts.Func
 	Schedules       schedule.Registry // backs the schedule tool; nil → omitted
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
@@ -65,7 +65,7 @@ type BuildConfig struct {
 }
 
 // Built is the assembled tool environment handed to the engine core: the
-// platform-scope resolver, the canonical tool list (for tools.list — without
+// engine-scope resolver, the canonical tool list (for tools.list — without
 // the engine-built task/ask_user), the live MCP ports, and the capability
 // closers the engine runs at shutdown.
 type Built struct {
@@ -83,15 +83,15 @@ type Built struct {
 // tolerated (recorded "failed"); a config mistake (duplicate name / invalid
 // entry) fails. An A2A dial failure closes the already-opened MCP sessions so
 // nothing leaks.
-func Build(ctx context.Context, cfg BuildConfig) (_ Built, err error) {
-	online, err := BuildOnlineTools(cfg.Online)
+func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
+	online, err := BuildOnlineTools(config.Online)
 	if err != nil {
 		return Built{}, err
 	}
 
 	// downloadAllow gates + guards the download tool: it shares httpreq's host
 	// allowlist (a download is an arbitrary-URL GET that also writes to disk).
-	downloadAllow, err := httpreq.NewAllowlist(cfg.Online.HTTPAllowedHosts)
+	downloadAllow, err := httpreq.NewAllowlist(config.Online.HTTPAllowedHosts)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: download allowlist: %w", err)
 	}
@@ -99,8 +99,8 @@ func Build(ctx context.Context, cfg BuildConfig) (_ Built, err error) {
 	// Code intelligence: one analyzer wrapping LSP clients; servers launch
 	// lazily per (workspace root, language). Tools are cwd-independent (the
 	// analyzer keys by root, read per call off the blackboard).
-	codeIntel := codeintel.New(cfg.LSPServers)
-	lspTools, err := lsptools.Build(codeIntel, cfg.Workdir)
+	codeIntel := codeintel.New(config.LSPServers)
+	lspTools, err := lsptools.Build(codeIntel, config.Workdir)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build lsp tools: %w", err)
 	}
@@ -108,7 +108,7 @@ func Build(ctx context.Context, cfg BuildConfig) (_ Built, err error) {
 	tracker := editguard.NewTracker()
 
 	shells := exec.NewShells()
-	shellTools, err := shell.Build(shells, cfg.Workdir)
+	shellTools, err := shell.Build(shells, config.Workdir)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build shell tools: %w", err)
 	}
@@ -122,9 +122,9 @@ func Build(ctx context.Context, cfg BuildConfig) (_ Built, err error) {
 		}
 	}()
 
-	interrupt := cfg.Interruption
+	interrupt := config.Interrupt
 	if interrupt == nil {
-		interrupt = interrupts.NoInterruption
+		interrupt = interrupts.Unavailable
 	}
 
 	// ask_user is build-time tool here, not engine-injected. Coding role only.
@@ -136,36 +136,36 @@ func Build(ctx context.Context, cfg BuildConfig) (_ Built, err error) {
 	// exit_plan_mode leaves the read-only plan stance: it presents the model's
 	// plan for approval and, on approval, flips the approval stance to execute.
 	// Nil approval policy → nil tool, simply omitted.
-	exitPlanTool, err := exitplan.New(cfg.Approval, interrupt)
+	exitPlanTool, err := exitplan.New(config.Approval, interrupt)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build exit_plan_mode: %w", err)
 	}
 
-	// todo_write maintains the per-session task list. nil cfg.Todos yields a nil
+	// todo_write maintains the per-session task list. nil config.Todos yields a nil
 	// tool that's simply omitted (feature off). Working-directory independent
 	// (keys off the session id), so built once and given to both roles.
-	todoTool, err := todotool.New(cfg.Todos)
+	todoTool, err := todotool.New(config.Todos)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build todo_write: %w", err)
 	}
-	scheduleTool, err := newScheduleTool(cfg.Schedules)
+	scheduleTool, err := newScheduleTool(config.Schedules)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build schedule tool: %w", err)
 	}
 
-	mcpConns, mcpTools, err := mcp.Dial(ctx, infraMCPServerConfigs(cfg.MCPServers))
+	mcpConns, mcpTools, err := mcp.Dial(ctx, infraMCPServerConfigs(config.MCPServers))
 	if err != nil {
 		return Built{}, err
 	}
 
-	a2aConns, a2aTools, err := a2a.Dial(ctx, infraA2AClientConfigs(cfg.A2AAgents))
+	a2aConns, a2aTools, err := a2a.Dial(ctx, infraA2AClientConfigs(config.A2AAgents))
 	if err != nil {
 		return Built{}, err
 	}
 
 	resolver, err := NewResolver(Deps{
-		DefaultWorkdir:  cfg.Workdir,
-		SkillsGlobalDir: cfg.SkillsGlobalDir,
+		DefaultWorkdir:  config.Workdir,
+		SkillsGlobalDir: config.SkillsGlobalDir,
 		Online:          online,
 		A2A:             a2aTools,
 		LSP:             lspTools,
@@ -176,8 +176,8 @@ func Build(ctx context.Context, cfg BuildConfig) (_ Built, err error) {
 		Schedule:        scheduleTool,
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
-		MCPToolDisabled: cfg.MCPToolDisabled,
-		CodebaseIndex:   cfg.CodebaseIndex,
+		MCPToolDisabled: config.MCPToolDisabled,
+		CodebaseIndex:   config.CodebaseIndex,
 		DownloadAllow:   downloadAllow,
 	})
 	if err != nil {
@@ -188,15 +188,15 @@ func Build(ctx context.Context, cfg BuildConfig) (_ Built, err error) {
 
 	// Canonical tool list for tools.list — metadata (name/schema) is
 	// working-directory independent, so the default-workdir build is faithful.
-	// Only `task` is appended by the engine (it needs the platform).
-	tools := resolver.workdirTools(cfg.Workdir)
+	// Only `task` is appended by the engine (it needs the engine).
+	tools := resolver.workdirTools(config.Workdir)
 	tools = append(tools, online...)
 	tools = append(tools, mcpTools...)
 	tools = append(tools, a2aTools...)
 	tools = append(tools, lspTools...)
 	tools = append(tools, shellTools...)
 	tools = append(tools, askUserTool)
-	if skillTool := skill.Build(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
+	if skillTool := skill.Build(config.Workdir, config.SkillsGlobalDir); skillTool != nil {
 		tools = append(tools, skillTool)
 	}
 	if todoTool != nil {
@@ -211,8 +211,8 @@ func Build(ctx context.Context, cfg BuildConfig) (_ Built, err error) {
 	// embedding model resolves). Gating the static catalog on Available() instead
 	// would both miss a model configured after startup and resolve an embedding
 	// client at construction.
-	if cfg.CodebaseIndex != nil {
-		codebaseSearch, err := codebasesearch.New(cfg.CodebaseIndex)
+	if config.CodebaseIndex != nil {
+		codebaseSearch, err := codebasesearch.New(config.CodebaseIndex)
 		if err != nil {
 			return Built{}, fmt.Errorf("toolset: build codebase_search: %w", err)
 		}

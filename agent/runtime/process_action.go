@@ -1,0 +1,235 @@
+package runtime
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/pkg/retry"
+)
+
+// Tracing attribute / span keys local to action execution.
+const (
+	spanAction         = "agent.action"
+	attrAction         = "agent.action.name"
+	attrActionStatus   = "agent.action.status"
+	attrActionAttempts = "agent.action.attempts"
+)
+
+// executeAction runs a single Action with retry, panic recovery, and
+// post-action bookkeeping (history record, action-run condition, events). It
+// returns the final ActionStatus plus an optional ReplanRequest the action
+// raised.
+//
+// The retry loop respects RetryPolicy: an explicitly replay-safe ActionFailed
+// retries up to MaxAttempts with back-off; ActionWaiting/Paused/Succeeded,
+// cancellation, replan, and committed interaction errors short-circuit.
+// The full retry loop (not each attempt) is wrapped by every registered
+// [core.ActionMiddleware] — actionMiddleware fire once per action, not per
+// retry, matching standard agent-process callback semantics.
+func (p *Process) executeAction(ctx context.Context, action core.Action) (core.ActionStatus, *core.ReplanRequest) {
+	metadata := action.Metadata()
+	startedAt := time.Now()
+
+	p.publishEvent(ctx, event.ActionStarted{
+		Header:    p.eventHeader(),
+		Action:    action,
+		StartedAt: startedAt,
+	})
+
+	ctx, span := agentTracer.Start(ctx, spanAction)
+	span.SetAttributes(
+		attribute.String(attrAction, metadata.Name),
+		attribute.String(attrProcessID, p.id),
+	)
+	defer span.End()
+
+	processContext := p.buildProcessContext(metadata.ToolGroups, action)
+
+	var (
+		status   core.ActionStatus
+		replan   *core.ReplanRequest
+		attempts int
+		lastErr  error
+	)
+	middleware := collectExtensions[core.ActionMiddleware](p.combinedExtensions())
+	status, lastErr = runActionChain(middleware, ctx, p, action, func() (core.ActionStatus, error) {
+		finalStatus, replanRequest, attemptCount, err := p.runWithRetry(ctx, action, processContext, metadata.Retry)
+		replan, attempts = replanRequest, attemptCount
+		return finalStatus, err
+	})
+	if request, ok := errors.AsType[*core.ReplanRequest](lastErr); ok {
+		replan = request
+	}
+
+	duration := time.Since(startedAt)
+	p.recordActionMetric(ctx, status, duration)
+
+	p.state.recordActionRun(ActionRun{
+		ActionName: metadata.Name,
+		StartedAt:  startedAt,
+		Duration:   duration,
+		Status:     status,
+		Attempts:   attempts,
+	})
+
+	if status == core.ActionSucceeded {
+		// The action-run condition gates non-repeatable actions; set it only on success so
+		// retrying after a future re-plan remains possible.
+		p.blackboard.StoreCondition(metadata.RunCondition(), true)
+	}
+
+	span.SetAttributes(
+		attribute.String(attrActionStatus, status.String()),
+		attribute.Int(attrActionAttempts, attempts),
+	)
+	finishSpanWithError(span, lastErr)
+
+	p.publishEvent(ctx, event.ActionFinished{
+		Header:   p.eventHeader(),
+		Action:   action,
+		Status:   status,
+		Duration: duration,
+		Err:      lastErr,
+	})
+
+	if status == core.ActionFailed && replan == nil {
+		p.recordActionFailure(metadata.Name, lastErr)
+	}
+
+	return status, replan
+}
+
+// haltSignal is the sentinel error sent to [pkg/retry] when an action
+// returns a non-failure non-success status (Waiting / Paused). It tells
+// the retry loop to stop without treating the situation as a retryable
+// failure.
+type haltSignal struct{ status core.ActionStatus }
+
+func (h haltSignal) Error() string {
+	return "action halted with status " + h.status.String()
+}
+
+// runWithRetry runs action up to policy.MaxAttempts times, delegating the
+// retry orchestration (timing, jitter, ctx-cancellation) to
+// [github.com/Tangerg/lynx/pkg/retry]. The Operation closure captures
+// per-attempt outcomes so the caller can inspect the final state without
+// re-parsing the wrapped retry error.
+func (p *Process) runWithRetry(
+	ctx context.Context,
+	action core.Action,
+	processContext *core.ProcessContext,
+	policy core.RetryPolicy,
+) (status core.ActionStatus, replan *core.ReplanRequest, attempts int, lastErr error) {
+	effects := action.Metadata().Effects
+	attempt := func() error {
+		attempts++
+
+		// On a retry (any attempt after the first), clear this action's
+		// declared effect conditions so a half-applied effect from the failed
+		// attempt doesn't carry into the next one.
+		if attempts > 1 {
+			for key := range effects {
+				p.blackboard.StoreCondition(key, false)
+			}
+		}
+
+		status, lastErr = invokeAction(ctx, action, processContext)
+
+		if request, ok := errors.AsType[*core.ReplanRequest](lastErr); ok {
+			replan = request
+			return lastErr
+		}
+
+		switch status {
+		case core.ActionSucceeded:
+			return nil
+		case core.ActionWaiting, core.ActionPaused:
+			return haltSignal{status: status}
+		}
+
+		// ActionFailed or any other non-terminal status — produce an
+		// error so [pkg/retry] knows this attempt didn't succeed.
+		if lastErr != nil {
+			return lastErr
+		}
+		return actionFailureError(action.Metadata().Name)
+	}
+
+	maxAttempts := policy.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+
+	// Discard the retry error — status, replan, attempts, and lastErr
+	// are captured by the attempt closure above. retry.Do's error only signals
+	// that retries were exhausted, which the captured state already reflects.
+	_ = retry.Do(attempt,
+		retry.WithContext(ctx),
+		retry.WithMaxAttempts(maxAttempts),
+		retry.WithBaseDelay(policy.BaseDelay),
+		retry.WithMaxDelay(policy.MaxDelay),
+		retry.WithExponentialBackoff(),
+		retry.WithRetryCondition(shouldRetryAction),
+	)
+	return status, replan, attempts, lastErr
+}
+
+func invokeAction(ctx context.Context, action core.Action, processContext *core.ProcessContext) (status core.ActionStatus, err error) {
+	if action == nil {
+		return core.ActionFailed, errors.New("runtime.invokeAction: action is nil")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			status = core.ActionFailed
+			if recoveredErr, ok := recovered.(error); ok {
+				err = recoveredErr
+				return
+			}
+			err = fmt.Errorf("runtime.invokeAction: action panicked: %v", recovered)
+		}
+	}()
+	return action.Execute(ctx, processContext)
+}
+
+// shouldRetryAction stops the retry loop on signals that mean "don't try
+// again": replan requests (the planner needs to be re-consulted) and
+// halt sentinels (the action paused or is awaiting input). Anything else
+// — including a plain failure — is retryable.
+func shouldRetryAction(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if _, ok := errors.AsType[*core.ReplanRequest](err); ok {
+		return false
+	}
+	if _, ok := errors.AsType[haltSignal](err); ok {
+		return false
+	}
+	if errors.Is(err, interaction.ErrCommitted) {
+		return false
+	}
+	return true
+}
+
+// recordActionFailure surfaces the underlying error onto the process so
+// callers can read it from p.Failure() once the process terminates.
+func (p *Process) recordActionFailure(actionName string, err error) {
+	if err != nil {
+		p.state.recordFailure(err)
+		return
+	}
+
+	if p.Failure() == nil {
+		p.state.recordFailure(actionFailureError(actionName))
+	}
+}

@@ -14,7 +14,7 @@ import (
 func TestProcessBudget_RemoveChild(t *testing.T) {
 	var mu sync.RWMutex
 	b := &processBudget{lock: &mu}
-	a, c := &AgentProcess{}, &AgentProcess{}
+	a, c := &Process{}, &Process{}
 	b.addChild(a)
 	b.addChild(c)
 
@@ -24,7 +24,7 @@ func TestProcessBudget_RemoveChild(t *testing.T) {
 	}
 
 	// Removing one that isn't tracked leaves the slice untouched.
-	b.removeChild(&AgentProcess{})
+	b.removeChild(&Process{})
 	if len(b.children) != 1 || b.children[0] != c {
 		t.Fatalf("removeChild of a non-member mutated children = %v, want [c]", b.children)
 	}

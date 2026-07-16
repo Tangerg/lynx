@@ -19,7 +19,7 @@ import (
 //
 // Returns [ErrTurnNotFound] when the turn has already ended (its runTurn deleted
 // itself from the map on exit). Empty messages are silently dropped.
-func (s *inMemory) InjectSteering(_ context.Context, handle TurnHandle, message string) error {
+func (s *memoryDispatcher) InjectSteering(_ context.Context, handle TurnHandle, message string) error {
 	if message == "" {
 		return nil
 	}
@@ -39,10 +39,10 @@ func (s *inMemory) InjectSteering(_ context.Context, handle TurnHandle, message 
 // timeline + lands in the durable transcript), and returns them as user
 // messages for injection into the loop. Anything that arrives after the last
 // round drains to nothing here and is picked up by the next-turn
-// [inMemory.flushSteering] fallback — same mutex-guarded queue, never
+// [memoryDispatcher.flushSteering] fallback — same mutex-guarded queue, never
 // double-handled. The closure runs on the engine's turn goroutine, so emit is
 // sequential with the turn's other events.
-func (s *inMemory) steerSource(st *turnState) agentexec.SteerSource {
+func (s *memoryDispatcher) steerSource(st *turnState) agentexec.SteerSource {
 	return func() []corechat.Message {
 		queue := st.drainSteering()
 		if len(queue) == 0 {
@@ -63,7 +63,7 @@ func (s *inMemory) steerSource(st *turnState) agentexec.SteerSource {
 // Errors surface through an ErrorEvent but don't abort the turn —
 // dropping steering is preferable to wrecking an otherwise
 // successful turn.
-func (s *inMemory) flushSteering(ctx context.Context, st *turnState, sessionID string) {
+func (s *memoryDispatcher) flushSteering(ctx context.Context, st *turnState, sessionID string) {
 	queue := st.closeAndDrainSteering()
 	if sessionID == "" || len(queue) == 0 {
 		return

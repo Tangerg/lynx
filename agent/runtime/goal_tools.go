@@ -1,0 +1,165 @@
+package runtime
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
+)
+
+// GoalTools walks every deployed agent and returns a
+// [tools.Tool] for each goal whose [core.Goal.Tool] is
+// non-nil. Each tool is a supervisor-flow wrapper (parent process
+// required in ctx — same contract as [NewAgentTool]) that runs the
+// agent as a child process, binds the typed input on its blackboard,
+// drives the loop, and returns the most-recent blackboard object as
+// JSON.
+//
+// Name resolution: tool name = goal.Name; description =
+// GoalTool.Description (falling back to Goal.Description).
+//
+// Use when a parent agent's LLM should be able to invoke any
+// externally-flagged goal across all deployed agents without
+// enumerating them by hand. Note that tools returned here erase the
+// generic In/Out types — the agent's input is decoded from JSON via
+// reflection on GoalTool.InputType, and the output is whatever's most
+// recently bound on the child blackboard. For typed end-to-end use
+// [NewAgentTool] directly.
+//
+// Returned slice order is deterministic by deployed agent name, then goal
+// declaration order.
+func GoalTools(engine *Engine) ([]tools.Tool, error) {
+	if engine == nil {
+		return nil, errors.New("runtime.GoalTools: engine is nil")
+	}
+	return engine.collectGoalTools(false, runChildDeployment)
+}
+
+// StandaloneGoalTools is [GoalTools]'s top-level companion: returns
+// MCP-style tools (no parent process required) for every goal whose
+// [core.GoalTool.Standalone] is true. Each Call starts a fresh
+// [Engine.Run] invocation.
+//
+// Compose with [github.com/Tangerg/lynx/mcp].Register to
+// register every standalone goal with an MCP server in one shot:
+//
+//	tools, err := runtime.StandaloneGoalTools(engine)
+//	if err != nil { ... }
+//	lynxmcp.Register(server, tools...)
+//
+// Output extraction is dynamic (most-recent blackboard object) — see
+// [GoalTools] for the type erasure caveat.
+func StandaloneGoalTools(engine *Engine) ([]tools.Tool, error) {
+	if engine == nil {
+		return nil, errors.New("runtime.StandaloneGoalTools: engine is nil")
+	}
+	return engine.collectGoalTools(true, runDeploymentInput)
+}
+
+func (e *Engine) collectGoalTools(standaloneOnly bool, run runProcessFunc) ([]tools.Tool, error) {
+	var out []tools.Tool
+	for _, deployment := range e.catalog.listActive() {
+		if deployment == nil || deployment.agent == nil {
+			continue
+		}
+		agent := deployment.agent
+		for _, goal := range agent.Goals() {
+			if goal == nil || goal.Tool() == nil {
+				continue
+			}
+			if standaloneOnly && !goal.Tool().Standalone {
+				continue
+			}
+			tool, err := newGoalTool(e, deployment, goal, run)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, tool)
+		}
+	}
+	return out, nil
+}
+
+// newGoalTool builds a reflection-backed agentTool from goal metadata.
+func newGoalTool(
+	engine *Engine,
+	deployment *Deployment,
+	goal *core.Goal,
+	run runProcessFunc,
+) (tools.Tool, error) {
+	if deployment == nil || deployment.agent == nil {
+		return nil, errors.New("runtime.newGoalTool: deployment is nil")
+	}
+	agent := deployment.agent
+
+	goalTool, err := compileGoalTool(agent, goal)
+	if err != nil {
+		return nil, err
+	}
+
+	return &agentTool{
+		engine:     engine,
+		deployment: deployment,
+		definition: goalTool.definition,
+		label:      "goal tool",
+		decode:     goalTool.decode,
+		run: func(ctx context.Context, input any) (*Process, error) {
+			return run(ctx, engine, deployment, input)
+		},
+		result: goalTool.result,
+	}, nil
+}
+
+type compiledGoalTool struct {
+	agentName  string
+	definition chat.ToolDefinition
+	inputType  reflect.Type
+}
+
+func compileGoalTool(agent *core.Agent, goal *core.Goal) (compiledGoalTool, error) {
+	config := goal.Tool()
+	if config == nil {
+		return compiledGoalTool{}, fmt.Errorf("runtime.compileGoalTool: goal %q has no tool configuration", goal.Name())
+	}
+
+	description := goal.Description()
+	if config.Description != "" {
+		description = config.Description
+	}
+
+	inputType := config.InputType()
+	if inputType == nil || inputType.Kind() == reflect.Interface {
+		return compiledGoalTool{}, fmt.Errorf("runtime.compileGoalTool: goal %q input type must not be an interface", goal.Name())
+	}
+	inputSchema, err := schemaFor(reflect.Zero(inputType).Interface())
+	if err != nil {
+		return compiledGoalTool{}, fmt.Errorf("runtime.compileGoalTool: goal %q: %w", goal.Name(), err)
+	}
+
+	return compiledGoalTool{
+		agentName: agent.Name(),
+		definition: chat.ToolDefinition{
+			Name:        goal.Name(),
+			Description: description,
+			InputSchema: json.RawMessage(inputSchema),
+		},
+		inputType: inputType,
+	}, nil
+}
+
+func (g compiledGoalTool) decode(arguments string) (any, error) {
+	return decodeDynamicToolArguments(g.agentName, "goal tool", g.inputType, arguments)
+}
+
+func (g compiledGoalTool) result(child *Process) (any, error) {
+	out, ok := child.Blackboard().Lookup(core.LastResultBindingName, "")
+	if !ok {
+		return nil, errors.New("completed but blackboard has no result")
+	}
+	return out, nil
+}

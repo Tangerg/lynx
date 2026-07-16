@@ -62,7 +62,7 @@ type Config struct {
 
 	// Tool environment — assembled outside the core by the tool adapter and
 	// injected by the composition root. The engine registers ToolResolver on
-	// the platform, surfaces tools via tools.list, exposes MCP workspace actions
+	// the engine, surfaces tools via tools.list, exposes MCP workspace actions
 	// through narrow live-connection ports, and runs Closers at shutdown. A
 	// resolver also receives the engine-built `task` delegation tool; without a
 	// resolver, task is not available (the env can still pass only static tools
@@ -87,7 +87,7 @@ type Config struct {
 	// ambiguous across providers). Empty when no default is configured.
 	Provider string
 
-	// ProcessStore, when non-nil, makes the platform auto-snapshot every
+	// ProcessStore, when non-nil, makes the engine auto-snapshot every
 	// agent process per tick to a durable backend (audit trail + the
 	// foundation for resuming a paused turn across restart). nil = no
 	// persistence (no per-tick disk churn). The snapshot is process-level
@@ -95,10 +95,10 @@ type Config struct {
 	// turn it captures the turn boundary, not mid-LLM-loop state.
 	ProcessStore core.ProcessStore
 
-	// SessionStore, when non-nil, is handed to the platform so the runtime
+	// SessionStore, when non-nil, is handed to the engine so the runtime
 	// persists a sub-agent's session when it spawns one (the `task`
 	// delegation). The engine doesn't touch sessions itself — it only forwards
-	// this to [agent/runtime.PlatformConfig] — keeping session CRUD out of the
+	// this to [agent/runtime.Config] — keeping session CRUD out of the
 	// turn-execution layer. nil = delegation lineage stays in-process only.
 	SessionStore core.SessionStore
 }

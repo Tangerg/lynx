@@ -14,7 +14,7 @@ import (
 // single Joiner consolidates the per-agent outputs into Result.
 //
 // Each parallel sub-agent runs as its own child process via
-// [runtime.SpawnChildFresh]; child processes get an isolated blackboard
+// [runtime.RunChildIsolated]; child processes get an isolated blackboard
 // seeded only with the input, so peer sub-agents cannot see each other's
 // intermediate writes during the parallel phase. This mirrors ADK's
 // ParallelAgent branch-isolation design (avoids LLM context
@@ -36,10 +36,10 @@ type ParallelConfig[In, Element, Result any] struct {
 	// Joiner consolidates the per-agent outputs into the final Result.
 	// results is in the same order as Agents (slot indexing is
 	// preserved, not completion order). Required.
-	Joiner func(ctx context.Context, pc *core.ProcessContext, results []Element) (Result, error)
+	Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error)
 }
 
-// Parallel compiles spec into a deployable agent that runs every
+// Parallel compiles config into a deployable agent that runs every
 // sub-agent in parallel and joins their outputs.
 //
 // Parallel is a thin specialization of [ScatterGather]: each sub-agent
@@ -49,63 +49,72 @@ type ParallelConfig[In, Element, Result any] struct {
 // in ScatterGather; Parallel only supplies the agent→generator adapter.
 // The compiled agent therefore carries ScatterGather's two actions
 // ("{Name}-scatter" / "{Name}-gather") and its single Result goal, so
-// [runtime.Platform.RunAgent] terminates when the Joiner has bound the
+// [runtime.Engine.Run] terminates when the Joiner has bound the
 // Result. Failure of any sub-agent (spawn error, non-Completed status,
 // or missing Element) cancels the errgroup and propagates as the
 // process failure, naming the offending agent.
 //
-// Returns an error on nil platform, missing Name, empty Agents, a nil
+// Returns an error on nil engine, missing Name, empty Agents, a nil
 // sub-agent, or nil Joiner — caller decides whether to surface, retry,
 // or panic.
 func Parallel[In, Element, Result any](
-	platform *runtime.Platform,
-	spec ParallelConfig[In, Element, Result],
+	engine *runtime.Engine,
+	config ParallelConfig[In, Element, Result],
 ) (*core.Agent, error) {
-	if platform == nil {
-		return nil, errors.New("workflow.Parallel: platform must not be nil")
+	if engine == nil {
+		return nil, errors.New("workflow.Parallel: engine must not be nil")
 	}
-	if spec.Name == "" {
+	if config.Name == "" {
 		return nil, errors.New("workflow.Parallel: Name must not be empty")
 	}
-	if len(spec.Agents) == 0 {
+	if len(config.Agents) == 0 {
 		return nil, errors.New("workflow.Parallel: Agents must not be empty")
 	}
-	if spec.Joiner == nil {
+	if config.Joiner == nil {
 		return nil, errors.New("workflow.Parallel: Joiner must not be nil")
 	}
-	for i, a := range spec.Agents {
-		if a == nil {
-			return nil, fmt.Errorf("workflow.Parallel: Agents[%d] is nil", i)
+	for index, agent := range config.Agents {
+		if agent == nil {
+			return nil, fmt.Errorf("workflow.Parallel: Agents[%d] is nil", index)
 		}
+	}
+	deployments := make([]*runtime.Deployment, len(config.Agents))
+	for index, agent := range config.Agents {
+		deployment, err := engine.Deploy(agent)
+		if err != nil {
+			return nil, fmt.Errorf("workflow.Parallel: deploy Agents[%d] %q: %w", index, agent.Name(), err)
+		}
+		deployments[index] = deployment
 	}
 
 	// Build one generator per sub-agent: spawn a fresh child, surface its
 	// failure, extract the typed Element. Errors name the agent so the
 	// ScatterGather-level "scatter generator N" wrap stays attributable.
-	generators := make([]func(context.Context, *core.ProcessContext, In) (Element, error), len(spec.Agents))
-	for i, sub := range spec.Agents {
-		generators[i] = func(ctx context.Context, _ *core.ProcessContext, in In) (Element, error) {
+	generators := make([]func(context.Context, *core.ProcessContext, In) (Element, error), len(config.Agents))
+	for index, deployment := range deployments {
+		generators[index] = func(ctx context.Context, _ *core.ProcessContext, input In) (Element, error) {
 			var zero Element
-			child, err := runtime.SpawnChildFresh(ctx, platform, sub, in)
+			name := deployment.Ref().Name
+			child, err := engine.RunChildIsolated(ctx, deployment, input)
 			if err != nil {
-				return zero, fmt.Errorf("agent %q: %w", sub.Name, err)
+				return zero, fmt.Errorf("agent %q: %w", name, err)
 			}
 			if err := child.TerminalError(); err != nil {
-				return zero, fmt.Errorf("agent %q: %w", sub.Name, err)
+				return zero, fmt.Errorf("agent %q: %w", name, err)
 			}
-			out, ok := core.ResultOfType[Element](child)
+			output, ok := core.Result[Element](child)
 			if !ok {
-				return zero, fmt.Errorf("agent %q produced no %T", sub.Name, zero)
+				return zero, fmt.Errorf("agent %q produced no %T", name, zero)
 			}
-			return out, nil
+			return output, nil
 		}
 	}
 
 	return ScatterGather(ScatterGatherConfig[In, Element, Result]{
-		Name:           spec.Name,
-		Description:    spec.Description,
-		MaxConcurrency: spec.MaxConcurrency,
+		Name:           config.Name,
+		Description:    config.Description,
+		MaxConcurrency: config.MaxConcurrency,
 		Generators:     generators,
-		Joiner:         spec.Joiner,
+		Joiner:         config.Joiner,
 	})
 }

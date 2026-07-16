@@ -16,13 +16,13 @@ type childSessionPersistence interface {
 }
 
 // childSessionStore adapts lyra's [sessionsvc.Store] to the agent runtime's
-// [core.SessionStore] SPI. Wiring it into the platform makes the runtime
+// [core.SessionStore] SPI. Wiring it into the agent engine makes the runtime
 // persist a sub-agent's session when it spawns one (the `task` delegation), so
 // the parent→child lineage is durably queryable on the lyra side rather than
 // living only in the agent's in-process ProcessOptions.
 //
 // Only CHILD sessions reach this adapter: lyra drives parent turns through the
-// engine directly (not [Platform.RunInSession]), so the only Save calls come
+// engine directly rather than through RunInSession, so the only Save calls come
 // from the spawn path. Each is mapped to a [sessionsvc.KindSubtask] session via
 // CreateSubtask — an independent conversation (its own history) carrying the
 // parent id, hidden from the user-facing session list.

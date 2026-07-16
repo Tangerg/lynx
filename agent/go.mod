@@ -10,6 +10,7 @@ require (
 	github.com/Tangerg/lynx/mcp v0.0.0-20260715080233-229e06c8ed2f
 	github.com/Tangerg/lynx/pkg v0.0.0-20260715080233-229e06c8ed2f
 	github.com/Tangerg/lynx/tools v0.0.0-20260715080233-229e06c8ed2f
+	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	go.opentelemetry.io/otel v1.44.0
@@ -26,7 +27,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect

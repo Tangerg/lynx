@@ -26,7 +26,7 @@ type clientResolver interface {
 //
 // A typical interaction:
 //
-//	handle, err := turn.StartTurn(ctx, req)
+//	handle, err := turn.StartTurn(ctx, request)
 //	events := turn.Events(ctx, handle)
 //	for ev := range events {
 //	    switch e := ev.(type) {
@@ -49,7 +49,7 @@ type Dispatcher interface {
 	// a handle the caller uses to subscribe to events. The method
 	// returns as soon as the turn is scheduled — actual LLM work
 	// happens asynchronously and surfaces via [Events].
-	StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle, error)
+	StartTurn(ctx context.Context, request StartTurnRequest) (TurnHandle, error)
 
 	// Events returns a pull iterator over a turn's events: range it to
 	// drain the stream, which ends when the turn does (success or error).
@@ -84,10 +84,10 @@ type Dispatcher interface {
 	ProcessID(ctx context.Context, handle TurnHandle) (string, error)
 
 	// Rehydrate rebuilds a parked turn whose live in-memory state was lost from
-	// the persisted process snapshot identified by req.ProcessID. It deliberately
+	// the persisted process snapshot identified by request.ProcessID. It deliberately
 	// does not deliver a decision: the caller first attaches Events and commits
 	// the durable resume boundary, then calls Resume.
-	Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHandle, error)
+	Rehydrate(ctx context.Context, request RehydrateRequest) (TurnHandle, error)
 
 	// Cancel stops the turn immediately, drains pending tool calls
 	// safely, and emits a final [TurnEnd] event with Reason=Canceled.

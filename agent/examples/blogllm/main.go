@@ -11,7 +11,6 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
-	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
@@ -35,68 +34,46 @@ func main() {
 	}
 
 	resolver := core.NewStaticToolGroupResolver("static")
-	resolver.Register("research", newResearchToolGroup())
+	resolver.Set("research", newResearchToolGroup())
 
-	a := agent.New("BriefingAgent").
-		Description("ask the LLM for a topic brief, with a search tool available").
-		Actions(agent.NewAction("brief",
-			func(ctx context.Context, pc *core.ProcessContext, in Topic) (Brief, error) {
-				prompt := fmt.Sprintf(
-					"Write a one-paragraph brief on %q. "+
-						"Use the `research_search` tool to gather sources first; "+
-						"then summarise. Reply with JSON: "+
-						`{"summary":"...","sources":["..."]}`,
-					in.Title,
-				)
+	a := agent.New(agent.AgentConfig{Name: "BriefingAgent", Description: "ask the LLM for a topic brief, with a search tool available", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
+		prompt := fmt.Sprintf("Write a one-paragraph brief on %q. "+"Use the `research_search` tool to gather sources first; "+"then summarise. Reply with JSON: "+`{"summary":"...","sources":["..."]}`, in.Title)
+		text, err := pc.Prompt(ctx, prompt, core.PromptConfig{
+			System: "You are a research analyst. Cite sources you used.",
+		})
+		if err != nil {
+			return Brief{}, err
+		}
+		var parsed struct {
+			Summary string   `json:"summary"`
+			Sources []string `json:"sources"`
+		}
+		if jsonErr := json.Unmarshal([]byte(extractJSON(text)), &parsed); jsonErr != nil {
+			parsed.Summary = strings.TrimSpace(text)
+		}
+		return Brief{Topic: in.Title, Sources: parsed.Sources, Summary: parsed.Summary}, nil
+	}, agent.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup("research")}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
 
-				text, err := pc.PromptRunner().
-					WithSystem("You are a research analyst. Cite sources you used.").
-					Generate(ctx, prompt)
-				if err != nil {
-					return Brief{}, err
-				}
-
-				var parsed struct {
-					Summary string   `json:"summary"`
-					Sources []string `json:"sources"`
-				}
-				if jsonErr := json.Unmarshal([]byte(extractJSON(text)), &parsed); jsonErr != nil {
-					// Fall back to plaintext when the LLM didn't follow the JSON cue.
-					parsed.Summary = strings.TrimSpace(text)
-				}
-				return Brief{
-					Topic:   in.Title,
-					Sources: parsed.Sources,
-					Summary: parsed.Summary,
-				}, nil
-			},
-			core.ActionConfig{
-				ToolGroups: core.ToolRolesFor("research"),
-			},
-		)).
-		Goals(agent.GoalProducing[Brief](core.Goal{Description: "topic brief produced"})).
-		Build()
-
-	platform := agent.NewPlatform(runtime.PlatformConfig{
-		ChatClient: chatClient,
-		Extensions: []core.Extension{resolver, &eventLogger{}},
+	engine := agent.MustNewEngine(agent.EngineConfig{
+		Chat:       agent.ChatCapability{Model: chatClient, Streamer: chatClient},
+		Extensions: []agent.Extension{resolver, &eventLogger{}},
 	})
-	if err := platform.Deploy(a); err != nil {
+	if _, err := engine.Deploy(a); err != nil {
 		log.Fatal(err)
 	}
 
-	proc, err := platform.RunAgent(
+	process, err := engine.Run(
 		context.Background(), a,
-		map[string]any{core.DefaultBindingName: Topic{Title: "agent frameworks in 2026"}},
-		core.ProcessOptions{},
+		map[string]any{agent.DefaultBindingName: Topic{Title: "agent frameworks in 2026"}},
+		agent.ProcessOptions{},
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	brief, ok := core.ResultOfType[Brief](proc)
+	brief, ok := agent.Result[Brief](process)
 	if !ok {
-		log.Fatalf("no Brief produced; status=%s", proc.Status())
+		log.Fatalf("no Brief produced; status=%s", process.Status())
 	}
 
 	fmt.Println("\n--- result ---")
@@ -120,16 +97,16 @@ func newStubModel() *stubModel { return &stubModel{} }
 //     tool loop will execute the search tool;
 //   - second turn (tool result is in history): emit the final JSON
 //     brief.
-func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
-	if !hasToolMessage(req.Messages) {
+func (m *stubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	if !hasToolMessage(request.Messages) {
 		return responseWithToolCall(`{"query":"agent frameworks 2026"}`), nil
 	}
 	return responseWithText(`{"summary":"Agent frameworks in 2026 are converging on GOAP planning, OODA tick loops, and unified tool models.","sources":["https://example.com/agents-2026"]}`), nil
 }
 
-func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
-	resp, err := m.Call(ctx, req)
-	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
+func (m *stubModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	response, err := m.Call(ctx, request)
+	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
 }
 
 func hasToolMessage(messages []chat.Message) bool {
@@ -143,14 +120,14 @@ func hasToolMessage(messages []chat.Message) bool {
 
 func responseWithText(text string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
-	return resp
+	response, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
+	return response
 }
 
 func responseWithToolCall(args string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call_1", Name: "research_search", Arguments: args}))
-	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
-	return resp
+	response, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
+	return response
 }
 
 // ============================================================================
@@ -182,8 +159,8 @@ func newResearchToolGroup() *researchToolGroup {
 	return &researchToolGroup{tools: []tools.Tool{tool}}
 }
 
-func (g *researchToolGroup) Metadata() core.ToolGroupMetadata {
-	return core.SimpleToolGroupMetadata{RoleText: "research"}
+func (g *researchToolGroup) Info() core.ToolGroupInfo {
+	return core.ToolGroupInfo{Role: "research"}
 }
 
 func (g *researchToolGroup) Tools(_ context.Context) ([]tools.Tool, error) {
@@ -211,5 +188,5 @@ type eventLogger struct{}
 
 func (eventLogger) Name() string { return "event-logger" }
 func (eventLogger) OnEvent(_ context.Context, e event.Event) {
-	fmt.Printf("event: %-26s %s\n", e.EventName(), e.ProcessID())
+	fmt.Printf("event: %-26s %s\n", e.Kind(), e.ProcessID())
 }

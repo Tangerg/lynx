@@ -15,14 +15,14 @@ import "time"
 // TurnEnd misreports the outcome as canceled). The turn-lifetime ctx is the
 // escape hatch: a canceled turn stops blocking producers even when no consumer
 // is left to drain.
-func (s *inMemory) emit(st *turnState, ev Event) bool {
+func (s *memoryDispatcher) emit(st *turnState, ev Event) bool {
 	st.eventMu.Lock()
 	defer st.eventMu.Unlock()
 	if st.eventsClosed {
 		return false
 	}
 	st.seq++
-	stamped := ev.WithMeta(BaseEvent{
+	stamped := ev.WithMeta(EventMeta{
 		SessionID: st.handle.SessionID,
 		TurnID:    st.handle.TurnID,
 		Seq:       st.seq,

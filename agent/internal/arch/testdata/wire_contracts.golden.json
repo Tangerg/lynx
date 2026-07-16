@@ -1,0 +1,456 @@
+{
+  "interaction_events": [
+    {
+      "kind": "model_request",
+      "round": 2,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "inspect the deployment"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "Look up deployment state",
+            "input_schema": {
+              "type": "object"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "model_response",
+      "round": 2,
+      "response": {
+        "id": "response-1",
+        "model": "fixture-model",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "parts": [
+                {
+                  "kind": "tool_call",
+                  "tool_call": {
+                    "id": "call-1",
+                    "name": "lookup",
+                    "arguments": "{\"id\":\"agent-1\"}"
+                  }
+                },
+                {
+                  "kind": "tool_call",
+                  "tool_call": {
+                    "id": "call-2",
+                    "name": "lookup",
+                    "arguments": "{\"id\":\"agent-2\"}"
+                  }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "tool_call",
+      "round": 2,
+      "tool_call": {
+        "id": "call-2",
+        "name": "lookup",
+        "arguments": "{\"id\":\"agent-2\"}"
+      }
+    },
+    {
+      "kind": "tool_result",
+      "round": 2,
+      "tool_result": {
+        "id": "call-1",
+        "name": "lookup",
+        "result": "deployed"
+      }
+    },
+    {
+      "kind": "pause",
+      "round": 2,
+      "suspension": {
+        "schema_version": 1,
+        "id": "approval-1",
+        "kind": "tool",
+        "prompt": {
+          "message": "operator approval required"
+        },
+        "resume_schema": {
+          "type": "string"
+        },
+        "payload": {
+          "owner": "interaction-fixture"
+        },
+        "created_at": "2026-07-15T08:34:00.123Z"
+      }
+    },
+    {
+      "kind": "resume",
+      "round": 2,
+      "resume": {
+        "id": "approval-1",
+        "input": "approved"
+      }
+    }
+  ],
+  "process_snapshot": {
+    "schema_version": 1,
+    "revision": 7,
+    "id": "process-1",
+    "parent_id": "process-root",
+    "depth": 1,
+    "deployment": {
+      "name": "researcher",
+      "version": "0.4.0-fixture",
+      "digest": "f2389de79afc8d79fe4f8ac35e7e66e195cf4a73762c3f6a7c454ef72e84bfdf"
+    },
+    "started_at": "2026-07-15T08:30:00.123Z",
+    "captured_at": "2026-07-15T08:35:00.123Z",
+    "status": "waiting",
+    "suspension": {
+      "schema_version": 1,
+      "id": "approval-1",
+      "kind": "tool",
+      "prompt": {
+        "message": "operator approval required"
+      },
+      "resume_schema": {
+        "type": "string"
+      },
+      "payload": {
+        "owner": "interaction-fixture"
+      },
+      "created_at": "2026-07-15T08:34:00.123Z"
+    },
+    "goal_name": "answer-question",
+    "history": [
+      {
+        "action": "lookup",
+        "started_at": "2026-07-15T08:31:00.123Z",
+        "duration_ns": 250000000,
+        "status": "succeeded",
+        "attempts": 2
+      }
+    ],
+    "failure": "awaiting approval",
+    "cost": 0.0125,
+    "tokens": 321,
+    "model_calls": [
+      {
+        "timestamp": "2026-07-15T08:32:00.123Z",
+        "model": "fixture-model",
+        "provider": "fixture-provider",
+        "cost_usd": 0.01,
+        "prompt_tokens": 200,
+        "completion_tokens": 100,
+        "reasoning_tokens": 20,
+        "duration_ns": 2000000000,
+        "action": "lookup"
+      }
+    ],
+    "embedding_calls": [
+      {
+        "timestamp": "2026-07-15T08:33:00.123Z",
+        "model": "fixture-embedding",
+        "provider": "fixture-provider",
+        "cost_usd": 0.0025,
+        "input_tokens": 21,
+        "input_count": 2,
+        "duration_ns": 50000000,
+        "action": "lookup"
+      }
+    ],
+    "blackboard": {
+      "answer": {
+        "t": "string",
+        "v": "pending"
+      },
+      "input": {
+        "t": "fixture.Input",
+        "v": {
+          "query": "lynx"
+        }
+      }
+    },
+    "conditions": {
+      "approved": false,
+      "researched": true
+    },
+    "objects": [
+      {
+        "t": "fixture.Result",
+        "v": {
+          "title": "Lynx"
+        }
+      }
+    ]
+  },
+  "session": {
+    "id": "session-1",
+    "parent_id": "session-root",
+    "user_id": "user-1",
+    "agent_name": "researcher",
+    "started_at": "2026-07-15T08:30:00.123Z",
+    "updated_at": "2026-07-15T08:35:00.123Z",
+    "metadata": {
+      "channel": "fixture",
+      "locale": "zh-CN",
+      "nested": {
+        "durable": true
+      }
+    }
+  },
+  "toolloop_checkpoint": {
+    "schema_version": 1,
+    "id": "approval-1",
+    "round": 2,
+    "max_rounds": 50,
+    "toolset_digest": "8f4d804e6c3d359b39e96baba43b430e1c81381ed321e8ce8e66bb32cb5e00f4",
+    "request": {
+      "messages": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "inspect the deployment"
+            }
+          ]
+        }
+      ],
+      "tools": [
+        {
+          "name": "lookup",
+          "description": "Look up deployment state",
+          "input_schema": {
+            "type": "object"
+          }
+        }
+      ]
+    },
+    "response": {
+      "id": "response-1",
+      "model": "fixture-model",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "parts": [
+              {
+                "kind": "tool_call",
+                "tool_call": {
+                  "id": "call-1",
+                  "name": "lookup",
+                  "arguments": "{\"id\":\"agent-1\"}"
+                }
+              },
+              {
+                "kind": "tool_call",
+                "tool_call": {
+                  "id": "call-2",
+                  "name": "lookup",
+                  "arguments": "{\"id\":\"agent-2\"}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ]
+    },
+    "results": [
+      {
+        "id": "call-1",
+        "name": "lookup",
+        "result": "deployed"
+      }
+    ],
+    "next_call": 1
+  },
+  "toolloop_events": [
+    {
+      "kind": "model_request",
+      "round": 2,
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "inspect the deployment"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "lookup",
+            "description": "Look up deployment state",
+            "input_schema": {
+              "type": "object"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "model_response",
+      "round": 2,
+      "response": {
+        "id": "response-1",
+        "model": "fixture-model",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "parts": [
+                {
+                  "kind": "tool_call",
+                  "tool_call": {
+                    "id": "call-1",
+                    "name": "lookup",
+                    "arguments": "{\"id\":\"agent-1\"}"
+                  }
+                },
+                {
+                  "kind": "tool_call",
+                  "tool_call": {
+                    "id": "call-2",
+                    "name": "lookup",
+                    "arguments": "{\"id\":\"agent-2\"}"
+                  }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "tool_call",
+      "round": 2,
+      "tool_call": {
+        "id": "call-2",
+        "name": "lookup",
+        "arguments": "{\"id\":\"agent-2\"}"
+      }
+    },
+    {
+      "kind": "tool_result",
+      "round": 2,
+      "tool_result": {
+        "id": "call-1",
+        "name": "lookup",
+        "result": "deployed"
+      }
+    },
+    {
+      "kind": "pause",
+      "round": 2,
+      "pause": {
+        "id": "approval-1",
+        "reason": "operator approval required",
+        "prompt": {
+          "message": "operator approval required"
+        },
+        "resume_schema": {
+          "type": "string"
+        },
+        "checkpoint": {
+          "schema_version": 1,
+          "id": "approval-1",
+          "round": 2,
+          "max_rounds": 50,
+          "toolset_digest": "8f4d804e6c3d359b39e96baba43b430e1c81381ed321e8ce8e66bb32cb5e00f4",
+          "request": {
+            "messages": [
+              {
+                "role": "user",
+                "parts": [
+                  {
+                    "kind": "text",
+                    "text": "inspect the deployment"
+                  }
+                ]
+              }
+            ],
+            "tools": [
+              {
+                "name": "lookup",
+                "description": "Look up deployment state",
+                "input_schema": {
+                  "type": "object"
+                }
+              }
+            ]
+          },
+          "response": {
+            "id": "response-1",
+            "model": "fixture-model",
+            "choices": [
+              {
+                "index": 0,
+                "message": {
+                  "role": "assistant",
+                  "parts": [
+                    {
+                      "kind": "tool_call",
+                      "tool_call": {
+                        "id": "call-1",
+                        "name": "lookup",
+                        "arguments": "{\"id\":\"agent-1\"}"
+                      }
+                    },
+                    {
+                      "kind": "tool_call",
+                      "tool_call": {
+                        "id": "call-2",
+                        "name": "lookup",
+                        "arguments": "{\"id\":\"agent-2\"}"
+                      }
+                    }
+                  ]
+                },
+                "finish_reason": "tool_calls"
+              }
+            ]
+          },
+          "results": [
+            {
+              "id": "call-1",
+              "name": "lookup",
+              "result": "deployed"
+            }
+          ],
+          "next_call": 1
+        }
+      }
+    },
+    {
+      "kind": "resume",
+      "round": 2,
+      "resume": {
+        "id": "approval-1",
+        "input": "approved"
+      }
+    }
+  ]
+}

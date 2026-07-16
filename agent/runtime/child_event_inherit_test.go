@@ -42,49 +42,42 @@ func (c *pidCapture) OnEvent(_ context.Context, e event.Event) {
 // TestChildEventsReachParentProcessListener verifies the runtime
 // propagates a parent's process-scope EventListener onto the child
 // processes it spawns: a listener registered ONLY via
-// ProcessOptions.Extensions (not platform-scope) sees events from the
+// ProcessOptions.Extensions (not engine-scope) sees events from the
 // subtask the parent delegates to, each carrying the child's own
 // ProcessID. Before listener inheritance this listener saw the parent
-// only — child events reached just the platform multicast.
+// only — child events reached just the engine multicast.
 func TestChildEventsReachParentProcessListener(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(childAgent()); err != nil {
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := engine.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
-	parent := agent.New("parent-observed").
-		Description("spawns a child while a process-scope listener watches").
-		Actions(agent.NewAction("invoke-child",
-			func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
-				tool, _ := runtime.AsChatTool[subInput, subOutput](platform, "child-agent")
-				args, _ := json.Marshal(in)
-				out, err := tool.Call(ctx, string(args))
-				if err != nil {
-					return parentOutput{}, err
-				}
-				var decoded subOutput
-				if err := json.Unmarshal([]byte(out), &decoded); err != nil {
-					return parentOutput{}, err
-				}
-				return parentOutput{Final: decoded.Doubled}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[parentOutput](core.Goal{Description: "final produced"})).
-		Build()
-	if err := platform.Deploy(parent); err != nil {
+	parent := agent.New(agent.AgentConfig{Name: "parent-observed", Description: "spawns a child while a process-scope listener watches", Actions: []agent.Action{agent.NewAction("invoke-child", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
+		tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, "child-agent")
+		args, _ := json.Marshal(in)
+		out, err := tool.Call(ctx, string(args))
+		if err != nil {
+			return parentOutput{}, err
+		}
+		var decoded subOutput
+		if err := json.Unmarshal([]byte(out), &decoded); err != nil {
+			return parentOutput{}, err
+		}
+		return parentOutput{Final: decoded.Doubled}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "final produced"})}})
+	if _, err := engine.Deploy(parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 
 	capture := &pidCapture{}
-	proc, err := platform.RunAgent(
+	proc, err := engine.Run(
 		t.Context(), parent,
 		map[string]any{core.DefaultBindingName: subInput{Value: 21}},
-		// Process-scope ONLY — the listener is not on PlatformConfig.
+		// Process-scope ONLY — the listener is not on Config.
 		core.ProcessOptions{Extensions: []core.Extension{capture}},
 	)
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("parent status = %s; failure=%v", proc.Status(), proc.Failure())

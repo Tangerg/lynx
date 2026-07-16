@@ -11,15 +11,15 @@ func TestCancelBetweenParkAndInterruptPublishClosesSafely(t *testing.T) {
 	if !st.parkIfLive() {
 		t.Fatal("failed to park test turn")
 	}
-	svc := &inMemory{
+	dispatcher := &memoryDispatcher{
 		turns:        map[string]*turnState{st.handle.TurnID: st},
 		seenSessions: map[string]struct{}{},
 	}
 
-	if err := svc.Cancel(t.Context(), st.handle); err != nil {
+	if err := dispatcher.Cancel(t.Context(), st.handle); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
-	if svc.emit(st, TurnInterrupted{}) {
+	if dispatcher.emit(st, TurnInterrupted{}) {
 		t.Fatal("late interrupt was delivered after the terminal closed the stream")
 	}
 

@@ -5,31 +5,29 @@ import (
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
-// ReadyToPlan fires at the start of every tick after the
-// world-state determiner has run — gives listeners a snapshot of what
-// the planner is about to see.
-type ReadyToPlan struct {
-	BaseEvent
-	World core.WorldState `json:"-"`
+// PlanningStarted reports the world state the planner is about to consume.
+type PlanningStarted struct {
+	Header
+	State core.WorldState `json:"-"`
 }
 
-func (ReadyToPlan) EventName() string { return "ready_to_plan" }
+func (PlanningStarted) Kind() string { return "planning_started" }
 
-// PlanFormulated fires when the planner returns a non-nil plan.
-type PlanFormulated struct {
-	BaseEvent
+// PlanCreated fires when the planner returns a non-nil plan.
+type PlanCreated struct {
+	Header
 	Plan *planning.Plan `json:"-"`
 }
 
-func (PlanFormulated) EventName() string { return "plan_formulated" }
+func (PlanCreated) Kind() string { return "plan_created" }
 
 // ReplanRequested fires when an action returns a [core.ReplanRequest]
 // or a [core.TerminationScopeAction] signal is queued — both ask the
 // runtime to re-plan on the next tick.
 type ReplanRequested struct {
-	BaseEvent
-	Action string `json:"action,omitempty"`
-	Reason string `json:"reason,omitempty"`
+	Header
+	ActionName string `json:"action,omitempty"`
+	Reason     string `json:"reason,omitempty"`
 }
 
-func (ReplanRequested) EventName() string { return "replan_requested" }
+func (ReplanRequested) Kind() string { return "replan_requested" }

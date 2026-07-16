@@ -15,21 +15,21 @@ import (
 // runtime publishes for a turn's ROOT process. The lifecycle listener
 // wires into [agentexec.TurnRequest.EventListener] so the runtime fans
 // every event for the turn through capture; runTurn reads the captured
-// event after proc.Done() to decide the TurnEnd reason.
+// event after process.Done() to decide the TurnEnd reason.
 //
 // Sub-agent (subtask) processes now share this listener via runtime
 // EventListener inheritance — their events arrive here too, tagged with
 // their own ProcessID. A subtask runs synchronously inside the root's
 // tool loop and therefore completes BEFORE the root, so its terminal
 // event would pre-empt the root's under earliest-wins. The listener binds the
-// root from the first ProcessCreated event, which the platform publishes
+// root from the first ProcessCreated event, which the engine publishes
 // synchronously before it starts the root goroutine, so the capture gate is in
 // place before a child can emit anything.
 //
-// Only terminal events are kept — non-terminal events (ReadyToPlan,
-// ActionExecutionStart, etc.) are dropped to keep the listener
+// Only terminal events are kept — non-terminal events (PlanningStarted,
+// ActionStarted, etc.) are dropped to keep the listener
 // allocation-free in the hot path. Earliest-wins among the root's own
-// terminals: a race between e.g. ProcessKilled (from KillProcess) and
+// terminals: a race between e.g. ProcessKilled (from Kill) and
 // the run loop's exit ProcessFailed yields whichever arrived first.
 type turnLifecycle struct {
 	mu        sync.Mutex
@@ -140,7 +140,7 @@ func (l *turnLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, 
 		SessionID: l.sessionID,
 		Cwd:       l.cwd,
 		Subagent:  &in,
-		Reason:    e.EventName(),
+		Reason:    e.Kind(),
 	})
 }
 

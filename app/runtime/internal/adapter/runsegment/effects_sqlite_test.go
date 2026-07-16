@@ -2,10 +2,12 @@ package runsegment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -13,6 +15,26 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
+
+func waitingProcessSnapshot(id string, started, captured time.Time) core.ProcessSnapshot {
+	return core.ProcessSnapshot{
+		SchemaVersion: core.ProcessSnapshotSchemaVersion,
+		ID:            id,
+		Deployment:    core.DeploymentRef{Name: "chat", Digest: "digest"},
+		StartedAt:     started,
+		CapturedAt:    captured,
+		Status:        core.StatusWaiting,
+		Suspension: &agent.Suspension{
+			SchemaVersion: agent.SuspensionSchemaVersion,
+			ID:            "suspension-" + id,
+			Kind:          agent.SuspensionTool,
+			Prompt:        json.RawMessage(`"continue?"`),
+			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
+			Payload:       json.RawMessage(`{"checkpoint":true}`),
+			CreatedAt:     captured,
+		},
+	}
+}
 
 // TestCommitOpeningResumeRollsBackConsume proves the critical continuation
 // write-set uses one real database transaction: even though Consume executes
@@ -116,9 +138,7 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: createdAt}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := sqlite.NewProcessStore(db).Save(ctx, core.ProcessSnapshot{
-		ID: "proc_1", AgentName: "chat", Status: core.StatusWaiting, CapturedAt: parkedAt,
-	}); err != nil {
+	if _, err := sqlite.NewProcessStore(db).Save(ctx, waitingProcessSnapshot("proc_1", createdAt, parkedAt), 0); err != nil {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 	question := &transcript.Question{Prompt: "Continue?"}

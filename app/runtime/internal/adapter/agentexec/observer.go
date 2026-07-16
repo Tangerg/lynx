@@ -7,8 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/hitl"
-	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
@@ -34,9 +32,9 @@ type toolObserver interface {
 	// It returns a verdict telling the decorator whether the call runs,
 	// is denied (short-circuited to a recoverable result), or must pause
 	// the process for user approval (HITL R model, API.md §6): a non-nil
-	// Verdict.Interrupt makes the call return a [hitl.InterruptError]; the
-	// adapter translates it to [toolloop.PauseError], suspending the run at
-	// [core.StatusWaiting]. The client answers via a continuation run.
+	// Verdict.Interrupt makes the call return the framework's durable
+	// Suspension error, parking the process at [core.StatusWaiting]. The
+	// client answers via a continuation run.
 	//
 	// The decider MUST be non-blocking — it records pending / decided
 	// state out of band (typically the process blackboard, keyed by the
@@ -78,16 +76,13 @@ type toolObserver interface {
 	OnUsage(usage accounting.TokenUsage, costUSD float64, contextTokens int64)
 }
 
-type toolObserverExtension interface {
-	ToolObserver() toolObserver
-}
+var toolObserverKey = core.MustDependencyKey[toolObserver]("lyra.tool_observer")
 
 // ToolApprovalVerdict is the decorator's instruction for one gated tool
 // call (API.md §6 HITL). Exactly one outcome applies:
 //
 //   - Interrupt != nil → suspend the run for human input (R model); the
-//     call returns this error (an agent/hitl.InterruptError), which the
-//     chat tool loop exits on and propagates so the action parks. On resume
+//     chat tool loop propagates the durable Suspension so the action parks. On resume
 //     the gate is consulted again and returns one of the outcomes below.
 //   - Denied           → short-circuit with DenyReason as a recoverable
 //     tool result (the model adapts), no execution.
@@ -100,46 +95,41 @@ type ToolApprovalVerdict struct {
 	Arguments  string
 }
 
-// observerFrom extracts the [toolObserver] the engine attached to
-// opts via [Engine.StartTurn]. Returns nil when no observer is
+// observerFrom extracts the [toolObserver] the engine attached to the typed
+// process dependency scope via [Engine.StartTurn]. Returns nil when no observer is
 // registered — Action bodies treat that as "no streaming hook
 // wired" and skip the per-chunk callback.
 //
-// Lives here (not on ProcessContext) because action bodies are the
-// only callers and the lookup is type-specific to Lyra's decorator.
-func observerFrom(opts *core.ProcessOptions) toolObserver {
-	if opts == nil {
+// Lives here because the key and dependency type are Lyra-specific.
+func observerFrom(dependencies *core.Dependencies) toolObserver {
+	if dependencies == nil {
 		return nil
 	}
-	for _, ext := range opts.Extensions {
-		if w, ok := ext.(toolObserverExtension); ok {
-			return w.ToolObserver()
-		}
-	}
-	return nil
+	observer, _ := core.LookupDependency(dependencies, toolObserverKey)
+	return observer
 }
 
-// toolObserverDecorator is the process-scope [core.ToolDecorator]
+// toolObserverMiddleware is the process-scope [core.ToolMiddleware]
 // the engine attaches when [StartTurn] is called with an observer.
 // It wraps every resolved [core.AgentTool] with [observedTool] so
 // invocations land on the observer without changing the underlying
 // tool implementation.
-type toolObserverDecorator struct {
+type toolObserverMiddleware struct {
 	observer toolObserver
 }
 
-func (d *toolObserverDecorator) ToolObserver() toolObserver { return d.observer }
+func (d *toolObserverMiddleware) ToolObserver() toolObserver { return d.observer }
 
 // Name implements [core.Extension]. The constant string is fine —
-// process-scope extensions allow name collisions with platform
+// process-scope extensions allow name collisions with engine
 // scope, and this decorator is process-scoped.
-func (d *toolObserverDecorator) Name() string { return "tool-observer" }
+func (d *toolObserverMiddleware) Name() string { return "tool-observer" }
 
-// DecorateTool wraps tool with [observedTool], threading the
+// WrapTool wraps tool with [observedTool], threading the
 // observer into every Call so start / end notifications fire.
 // Action is intentionally ignored — Lyra emits per-tool, not
 // per-action, events.
-func (d *toolObserverDecorator) DecorateTool(_ core.Process, _ core.Action, tool tools.Tool) tools.Tool {
+func (d *toolObserverMiddleware) WrapTool(_ core.ProcessView, _ core.Action, tool tools.Tool) tools.Tool {
 	return &observedTool{inner: tool, observer: d.observer}
 }
 
@@ -170,16 +160,6 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	v := o.observer.ApproveToolCall(ctx, callID, name, arguments)
 	switch {
 	case v.Interrupt != nil:
-		// Convert the concrete agent interrupt into the target runner's pause
-		// signal and hand the awaitable to runTurn in-tick. The runner emits a
-		// serializable Checkpoint; the action then parks on the original
-		// awaitable. On resume Runner.Resume continues at this exact tool.
-		if interrupt, ok := errors.AsType[*hitl.InterruptError](v.Interrupt); ok {
-			if err := setPendingInterrupt(ctx, interrupt); err != nil {
-				return "", err
-			}
-			return "", &toolloop.PauseError{ID: interrupt.Key, Reason: interrupt.Error()}
-		}
 		return "", v.Interrupt
 	case v.Denied:
 		// Recoverable denial: the model sees DenyReason as the tool

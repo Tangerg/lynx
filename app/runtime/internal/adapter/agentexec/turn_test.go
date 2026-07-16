@@ -3,6 +3,7 @@ package agentexec
 import (
 	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -10,26 +11,29 @@ import (
 // arrives within the idle window, but never while progress keeps flowing.
 
 func TestStallContext_CancelsOnSilence(t *testing.T) {
-	ctx, _, stop := stallContext(context.Background(), 30*time.Millisecond)
-	defer stop()
-	select {
-	case <-ctx.Done(): // idle window elapsed with no keepAlive — correct
-	case <-time.After(time.Second):
-		t.Fatal("stall context not canceled after the idle window")
-	}
+	synctest.Test(t, func(t *testing.T) {
+		ctx, _, stop := stallContext(context.Background(), 30*time.Millisecond)
+		defer stop()
+		<-ctx.Done()
+	})
 }
 
 func TestStallContext_KeepAliveDefersCancel(t *testing.T) {
-	ctx, keepAlive, stop := stallContext(context.Background(), 120*time.Millisecond)
-	defer stop()
-	// Beat well inside the window repeatedly; the deadline must keep moving.
-	for range 6 {
-		time.Sleep(30 * time.Millisecond)
-		keepAlive()
-		if ctx.Err() != nil {
-			t.Fatal("canceled despite keepAlive within the idle window")
+	synctest.Test(t, func(t *testing.T) {
+		ctx, keepAlive, stop := stallContext(context.Background(), 120*time.Millisecond)
+		defer stop()
+
+		// Advance the bubble's fake clock well inside the idle window, then
+		// reset the watchdog. No wall-clock scheduling participates in the test.
+		for range 6 {
+			timer := time.NewTimer(30 * time.Millisecond)
+			<-timer.C
+			keepAlive()
+			if ctx.Err() != nil {
+				t.Fatal("canceled despite keepAlive within the idle window")
+			}
 		}
-	}
+	})
 }
 
 func TestStallContext_StopCancels(t *testing.T) {

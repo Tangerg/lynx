@@ -21,8 +21,8 @@ type sourcegraphConfig struct {
 	Token    string
 }
 
-func (cfg sourcegraphConfig) enabled() bool {
-	return strings.TrimSpace(cfg.Endpoint) != ""
+func (config sourcegraphConfig) enabled() bool {
+	return strings.TrimSpace(config.Endpoint) != ""
 }
 
 type sourcegraphRequest struct {
@@ -61,12 +61,12 @@ type sourcegraphTool struct {
 	client    *http.Client
 }
 
-func newSourcegraphTool(cfg sourcegraphConfig) (tools.Tool, error) {
-	streamURL, err := sourcegraphStreamURL(cfg.Endpoint)
+func newSourcegraphTool(config sourcegraphConfig) (tools.Tool, error) {
+	streamURL, err := sourcegraphStreamURL(config.Endpoint)
 	if err != nil {
 		return nil, err
 	}
-	return &sourcegraphTool{streamURL: streamURL, token: cfg.Token, client: http.DefaultClient}, nil
+	return &sourcegraphTool{streamURL: streamURL, token: config.Token, client: http.DefaultClient}, nil
 }
 
 func (t *sourcegraphTool) Definition() chat.ToolDefinition {
@@ -80,18 +80,18 @@ func (t *sourcegraphTool) Definition() chat.ToolDefinition {
 func (t *sourcegraphTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
 func (t *sourcegraphTool) Call(ctx context.Context, arguments string) (string, error) {
-	var req sourcegraphRequest
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
+	var request sourcegraphRequest
+	if err := json.Unmarshal([]byte(arguments), &request); err != nil {
 		return "", fmt.Errorf("sourcegraph_search: parse arguments: %w", err)
 	}
-	if strings.TrimSpace(req.Query) == "" {
+	if strings.TrimSpace(request.Query) == "" {
 		return "", errors.New("sourcegraph_search: query must not be empty")
 	}
-	out, err := t.search(ctx, req)
+	output, err := t.search(ctx, request)
 	if err != nil {
 		return "", err
 	}
-	body, err := json.Marshal(out)
+	body, err := json.Marshal(output)
 	if err != nil {
 		return "", fmt.Errorf("sourcegraph_search: marshal: %w", err)
 	}
@@ -165,7 +165,7 @@ func sourcegraphStreamURL(endpoint string) (string, error) {
 func readSourcegraphStream(r io.Reader) (sourcegraphResponse, error) {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
-	var out sourcegraphResponse
+	var output sourcegraphResponse
 	var eventName string
 	var data strings.Builder
 	for scanner.Scan() {
@@ -174,7 +174,7 @@ func readSourcegraphStream(r io.Reader) (sourcegraphResponse, error) {
 			if eventName == "done" {
 				break
 			}
-			if err := foldSourcegraphEvent(eventName, data.String(), &out); err != nil {
+			if err := foldSourcegraphEvent(eventName, data.String(), &output); err != nil {
 				return sourcegraphResponse{}, err
 			}
 			eventName = ""
@@ -199,14 +199,14 @@ func readSourcegraphStream(r io.Reader) (sourcegraphResponse, error) {
 		return sourcegraphResponse{}, fmt.Errorf("sourcegraph_search: read stream: %w", err)
 	}
 	if eventName != "" && eventName != "done" {
-		if err := foldSourcegraphEvent(eventName, data.String(), &out); err != nil {
+		if err := foldSourcegraphEvent(eventName, data.String(), &output); err != nil {
 			return sourcegraphResponse{}, err
 		}
 	}
-	return out, nil
+	return output, nil
 }
 
-func foldSourcegraphEvent(name, data string, out *sourcegraphResponse) error {
+func foldSourcegraphEvent(name, data string, output *sourcegraphResponse) error {
 	if strings.TrimSpace(data) == "" {
 		return nil
 	}
@@ -217,7 +217,7 @@ func foldSourcegraphEvent(name, data string, out *sourcegraphResponse) error {
 			return fmt.Errorf("sourcegraph_search: parse matches event: %w", err)
 		}
 		for _, match := range matches {
-			out.Matches = append(out.Matches, match.view())
+			output.Matches = append(output.Matches, match.view())
 		}
 	case "progress":
 		var p struct {
@@ -227,8 +227,8 @@ func foldSourcegraphEvent(name, data string, out *sourcegraphResponse) error {
 		if err := json.Unmarshal([]byte(data), &p); err != nil {
 			return fmt.Errorf("sourcegraph_search: parse progress event: %w", err)
 		}
-		out.MatchCount = p.MatchCount
-		out.DurationMs = p.DurationMs
+		output.MatchCount = p.MatchCount
+		output.DurationMs = p.DurationMs
 	case "alert":
 		var alert struct {
 			Title   string `json:"title"`
@@ -244,7 +244,7 @@ func foldSourcegraphEvent(name, data string, out *sourcegraphResponse) error {
 			msg = title
 		}
 		if msg != "" {
-			out.Alerts = append(out.Alerts, msg)
+			output.Alerts = append(output.Alerts, msg)
 		}
 	}
 	return nil

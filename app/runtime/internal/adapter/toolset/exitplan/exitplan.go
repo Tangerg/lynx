@@ -74,17 +74,17 @@ func (o optionArg) toInterrupt() interrupts.Option {
 
 type tool struct {
 	approval  approval.Policy
-	interrupt interrupts.Interruption
+	interrupt interrupts.Func
 }
 
 // New builds the exit_plan_mode tool over the approval policy (it flips the
 // stance to execute on approval). A nil policy yields a nil tool (omitted).
 //
-// The toolset composes the interrupt awaitable contract from the composition
+// The toolset composes the interrupt suspension contract from the composition
 // root.
-func New(appr approval.Policy, interrupt interrupts.Interruption) (tools.Tool, error) {
+func New(appr approval.Policy, interrupt interrupts.Func) (tools.Tool, error) {
 	if interrupt == nil {
-		interrupt = interrupts.NoInterruption
+		interrupt = interrupts.Unavailable
 	}
 	if appr == nil {
 		return nil, nil
@@ -115,7 +115,7 @@ func (t *tool) exit(ctx context.Context, in exitPlanArgs) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	res, _, err := t.interrupt(ctx, key, in.prompt())
+	res, err := t.interrupt(ctx, key, in.prompt())
 	if err != nil {
 		return "", err
 	}

@@ -88,10 +88,10 @@ type turnState struct {
 	// --- mu-guarded: mutated/read across the turn + caller goroutines ---
 	mu sync.Mutex
 
-	// proc is the agent process backing this turn, set once setProc dispatches
+	// agentProcess is the process backing this turn, set once setProcess dispatches
 	// it. [Dispatcher.Cancel] / [Dispatcher.Resume] / [Dispatcher.ProcessID] read it
 	// via process() from other goroutines.
-	proc agentexec.TurnProcess
+	agentProcess agentexec.TurnProcess
 
 	// parked is true while the turn is suspended on a HITL interrupt
 	// (StatusWaiting) awaiting [Dispatcher.Resume]. A parked turn stays
@@ -143,22 +143,22 @@ func (st *turnState) canSurface(kind string) bool {
 	return st.interruptKinds[kind]
 }
 
-// setProc records the agent process backing this turn. runTurn / Rehydrate
+// setProcess records the agent process backing this turn. runTurn / Rehydrate
 // write it once they have dispatched one; process() then hands it to the
 // caller goroutines.
-func (st *turnState) setProc(p agentexec.TurnProcess) {
+func (st *turnState) setProcess(process agentexec.TurnProcess) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	st.proc = p
+	st.agentProcess = process
 }
 
 // process returns the backing agent process, or nil before the turn has
-// dispatched one. The value is stable after the single setProc, so callers
+// dispatched one. The value is stable after the single setProcess, so callers
 // may invoke its methods after process() returns.
 func (st *turnState) process() agentexec.TurnProcess {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	return st.proc
+	return st.agentProcess
 }
 
 // parkIfLive marks the turn suspended on a HITL interrupt awaiting Resume,

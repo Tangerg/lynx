@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -13,23 +14,23 @@ import (
 
 func TestCloseIsBoundedAndCanFinishJoiningLater(t *testing.T) {
 	st := newTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
-	svc := &inMemory{
+	dispatcher := &memoryDispatcher{
 		turns:        map[string]*turnState{st.handle.TurnID: st},
 		seenSessions: map[string]struct{}{},
 	}
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
-	err := svc.close(ctx)
+	err := dispatcher.close(ctx)
 	if !errors.Is(err, ErrCloseTimeout) {
 		t.Fatalf("close error = %v, want ErrCloseTimeout", err)
 	}
-	if !svc.isClosed() {
+	if !dispatcher.isClosed() {
 		t.Fatal("timed-out close did not reject future admission")
 	}
 
 	close(st.done)
-	if err := svc.close(t.Context()); err != nil {
+	if err := dispatcher.close(t.Context()); err != nil {
 		t.Fatalf("second close after teardown = %v, want nil", err)
 	}
 }
@@ -37,11 +38,11 @@ func TestCloseIsBoundedAndCanFinishJoiningLater(t *testing.T) {
 func TestCloseDeadlineCoversCancellationWork(t *testing.T) {
 	release := make(chan struct{})
 	st := newTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
-	st.setProc(&blockingCancelProcess{release: release})
+	st.setProcess(&blockingCancelProcess{release: release})
 	if !st.parkIfLive() {
 		t.Fatal("failed to park test turn")
 	}
-	svc := &inMemory{
+	dispatcher := &memoryDispatcher{
 		turns:        map[string]*turnState{st.handle.TurnID: st},
 		seenSessions: map[string]struct{}{},
 	}
@@ -49,7 +50,7 @@ func TestCloseDeadlineCoversCancellationWork(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
 	result := make(chan error, 1)
-	go func() { result <- svc.close(ctx) }()
+	go func() { result <- dispatcher.close(ctx) }()
 
 	select {
 	case err := <-result:
@@ -73,9 +74,9 @@ type blockingCancelProcess struct {
 	release <-chan struct{}
 }
 
-func (*blockingCancelProcess) ID() string                      { return "proc_1" }
-func (*blockingCancelProcess) Status() core.AgentProcessStatus { return core.StatusWaiting }
-func (*blockingCancelProcess) Done() <-chan error              { return nil }
+func (*blockingCancelProcess) ID() string                 { return "proc_1" }
+func (*blockingCancelProcess) Status() core.ProcessStatus { return core.StatusWaiting }
+func (*blockingCancelProcess) Done() <-chan error         { return nil }
 func (*blockingCancelProcess) Output() (agentexec.TurnOutput, error) {
 	return agentexec.TurnOutput{}, nil
 }
@@ -86,5 +87,5 @@ func (p *blockingCancelProcess) Cancel() error {
 func (*blockingCancelProcess) Resume(context.Context, interrupts.Resolution) (<-chan error, error) {
 	return nil, nil
 }
-func (*blockingCancelProcess) PendingAwaitable() core.Awaitable { return nil }
-func (*blockingCancelProcess) Discard(context.Context)          {}
+func (*blockingCancelProcess) Suspension() *agent.Suspension { return nil }
+func (*blockingCancelProcess) Discard(context.Context)       {}

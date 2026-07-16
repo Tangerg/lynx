@@ -18,9 +18,13 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// ClientConfig is the remote-agent descriptor, re-exported so callers
-// configure connections without importing the lynx a2a module directly.
-type ClientConfig = lynxa2a.Endpoint
+// ClientConfig is the infrastructure adapter's transport-neutral input. Keep
+// it local instead of re-exporting lynxa2a.Endpoint so protocol-library types
+// do not escape this package's boundary.
+type ClientConfig struct {
+	Name    string
+	CardURL string
+}
 
 var tracer = otel.Tracer("lynx/lyra/infra/a2a")
 
@@ -54,7 +58,14 @@ func Dial(ctx context.Context, agents []ClientConfig) (*Connections, []tools.Too
 		span.End()
 	}()
 
-	tools, closeTools, derr := lynxa2a.Tools(ctx, agents...)
+	endpoints := make([]lynxa2a.Endpoint, len(agents))
+	for i, agent := range agents {
+		endpoints[i] = lynxa2a.Endpoint{
+			Name:    agent.Name,
+			CardURL: agent.CardURL,
+		}
+	}
+	tools, closeTools, derr := lynxa2a.Tools(ctx, endpoints...)
 	if derr != nil {
 		err = fmt.Errorf("a2a: dial agents: %w", derr)
 		return nil, nil, err

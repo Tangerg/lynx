@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/runtime"
 )
 
 // CountResult is what the agent ultimately produces — the goal references it
@@ -18,36 +16,29 @@ type CountResult struct {
 }
 
 func main() {
-	a := agent.New("Hello").
-		Description("count uppercase characters of a phrase").
-		Actions(agent.NewAction("count_upper",
-			func(ctx context.Context, pc *core.ProcessContext, in string) (CountResult, error) {
-				upper := strings.ToUpper(in)
-				return CountResult{Length: len(upper)}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[CountResult](core.Goal{Description: "uppercase length determined"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "Hello", Description: "count uppercase characters of a phrase", Actions: []agent.Action{agent.NewAction("count_upper", func(ctx context.Context, pc *agent.ProcessContext, in string) (CountResult, error) {
+		upper := strings.ToUpper(in)
+		return CountResult{Length: len(upper)}, nil
+	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[CountResult](agent.GoalConfig{Description: "uppercase length determined"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	engine := agent.MustNewEngine(agent.EngineConfig{})
+	if _, err := engine.Deploy(a); err != nil {
 		log.Fatal(err)
 	}
 
-	proc, err := platform.RunAgent(
+	process, err := engine.Run(
 		context.Background(),
 		a,
-		map[string]any{core.DefaultBindingName: "hello"},
-		core.ProcessOptions{},
+		map[string]any{agent.DefaultBindingName: "hello"},
+		agent.ProcessOptions{},
 	)
 	if err != nil {
-		log.Fatalf("RunAgent failed: %v", err)
+		log.Fatalf("Run failed: %v", err)
 	}
 
-	result, ok := core.ResultOfType[CountResult](proc)
+	result, ok := agent.Result[CountResult](process)
 	if !ok {
-		log.Fatalf("agent produced no CountResult; status=%s", proc.Status())
+		log.Fatalf("agent produced no CountResult; status=%s", process.Status())
 	}
-	fmt.Printf("status=%s length=%d\n", proc.Status(), result.Length)
+	fmt.Printf("status=%s length=%d\n", process.Status(), result.Length)
 }

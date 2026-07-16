@@ -18,7 +18,7 @@ import (
 // It also ends the turn span: the single teardown point, so the span
 // closes exactly once no matter which terminal path (drive / finishTurn)
 // reached it. finishTurnSpan has already stamped the outcome.
-func (s *inMemory) endTurn(st *turnState) {
+func (s *memoryDispatcher) endTurn(st *turnState) {
 	// Release the backing process now that the turn is terminal: free its
 	// in-memory registry entry and delete its persisted auto-snapshot, which
 	// only matters while a process is PARKED for HITL resume (endTurn never runs
@@ -53,7 +53,7 @@ func discardProcess(ctx context.Context, process agentexec.TurnProcess) {
 // [Dispatcher.Cancel] and a failed [Dispatcher.Resume] — where no drive
 // goroutine will run [emitTurnEnd]. The clean path goes through
 // emitTurnEnd (which carries usage) followed by endTurn in [drive].
-func (s *inMemory) finishTurn(st *turnState, reason execution.Outcome) {
+func (s *memoryDispatcher) finishTurn(st *turnState, reason execution.Outcome) {
 	s.completeTurn(st, func() {
 		dur := time.Since(st.startedAt)
 		finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
@@ -62,7 +62,7 @@ func (s *inMemory) finishTurn(st *turnState, reason execution.Outcome) {
 	})
 }
 
-func (s *inMemory) completeTurn(st *turnState, emitTerminal func()) {
+func (s *memoryDispatcher) completeTurn(st *turnState, emitTerminal func()) {
 	st.terminalOnce.Do(func() {
 		emitTerminal()
 		s.endTurn(st)
@@ -76,10 +76,10 @@ func (s *inMemory) completeTurn(st *turnState, emitTerminal func()) {
 // those rather than re-deriving status from the run loop's error.
 // The runErr / ctxErr / status fallback covers stub tests where no
 // listener fired and any race where Done() returned before the
-// platform multicast delivered the terminal event.
-func (s *inMemory) emitTurnEnd(st *turnState, proc agentexec.TurnProcess, terminal event.Event, runErr error, duration time.Duration, ctxErr error) {
-	out, _ := proc.Output()
-	plan := planTurnEnd(terminal, out, runErr, ctxErr, proc.Status())
+// engine multicast delivered the terminal event.
+func (s *memoryDispatcher) emitTurnEnd(st *turnState, process agentexec.TurnProcess, terminal event.Event, runErr error, duration time.Duration, ctxErr error) {
+	out, _ := process.Output()
+	plan := planTurnEnd(terminal, out, runErr, ctxErr, process.Status())
 
 	finishTurnSpan(st.span, plan.reason, out.Usage, plan.withUsage, plan.errMsg)
 	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
@@ -100,7 +100,7 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc agentexec.TurnProcess, termin
 }
 
 // fireStop runs the Stop lifecycle hooks for a terminated turn (observe-only).
-func (s *inMemory) fireStop(st *turnState, detail string) {
+func (s *memoryDispatcher) fireStop(st *turnState, detail string) {
 	if st.hooks.Empty() {
 		return
 	}
@@ -126,9 +126,9 @@ type turnEndPlan struct {
 // fires terminal events authoritatively (ProcessCompleted / Killed / Failed /
 // Stuck / Terminated), so those drive the decision; the default case is the
 // fallback for stub tests where no listener fired and the race where Done()
-// returned before the platform multicast delivered the event. completedPlan /
+// returned before the engine multicast delivered the event. completedPlan /
 // fallbackPlan are the per-branch builders it delegates to.
-func planTurnEnd(terminal event.Event, out agentexec.TurnOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
+func planTurnEnd(terminal event.Event, out agentexec.TurnOutput, runErr, ctxErr error, status core.ProcessStatus) turnEndPlan {
 	switch t := terminal.(type) {
 	case event.ProcessCompleted:
 		return completedPlan(out)
@@ -166,7 +166,7 @@ func completedPlan(out agentexec.TurnOutput) turnEndPlan {
 // terminal event was captured: a run error is a cancellation (ctx
 // canceled / killed) or an engine error; no error falls back to the
 // same completion mapping the happy path uses.
-func fallbackPlan(out agentexec.TurnOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
+func fallbackPlan(out agentexec.TurnOutput, runErr, ctxErr error, status core.ProcessStatus) turnEndPlan {
 	if runErr != nil {
 		if status == core.StatusKilled || errors.Is(ctxErr, context.Canceled) {
 			return turnEndPlan{reason: execution.OutcomeCanceled}

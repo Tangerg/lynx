@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
@@ -21,7 +22,7 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg agentexec.Config
 		A2AAgents:       toolsetA2AAgentConfigs(cfg.A2AAgents),
 		Todos:           ecfg.Todos,
 		Approval:        approvalPolicy,
-		Interruption:    agentexec.Interrupt[interrupts.Resolution],
+		Interrupt:       hitl.Interrupt[interrupts.Resolution],
 		Schedules:       cfg.ScheduleRegistry,
 		MCPToolDisabled: mcpEnv.toolDisabled,
 		CodebaseIndex:   codebaseIdx,

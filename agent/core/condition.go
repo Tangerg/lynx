@@ -1,6 +1,10 @@
 package core
 
-import "context"
+import (
+	"context"
+
+	"github.com/Tangerg/lynx/agent/interaction"
+)
 
 // ConditionEnv is the read-only surface a Condition.Evaluate sees. It's
 // kept small intentionally: a condition should not need a chat client, an
@@ -11,8 +15,9 @@ import "context"
 // cannot accidentally mutate state during the OBSERVE phase — the
 // compiler enforces the structural contract.
 type ConditionEnv struct {
-	Process    Process
-	Blackboard BlackboardReader
+	Process        ProcessView
+	Blackboard     BlackboardReader
+	RunInteraction func(context.Context, Interaction) (interaction.Result, error)
 }
 
 // Condition is a named, evaluable predicate. The planner treats it as a
@@ -26,30 +31,30 @@ type Condition interface {
 	// numbers so the planner explores cheaper branches first.
 	Cost() float64
 
-	Evaluate(ctx context.Context, env *ConditionEnv) Determination
+	Evaluate(ctx context.Context, env *ConditionEnv) Truth
 }
 
 // ConditionFunc is the function shape used by NewCondition — exported so
 // callers can name parameters in their own code without re-typing the
 // signature.
-type ConditionFunc func(ctx context.Context, env *ConditionEnv) Determination
+type ConditionFunc func(ctx context.Context, env *ConditionEnv) Truth
 
-// ComputedCondition wraps a function — by far the common case.
-type ComputedCondition struct {
+// FuncCondition wraps a function — by far the common case.
+type FuncCondition struct {
 	name string
 	cost float64
 	fn   ConditionFunc
 }
 
 // NewCondition constructs a function-backed condition with zero cost.
-func NewCondition(name string, fn ConditionFunc) *ComputedCondition {
-	return &ComputedCondition{name: name, fn: fn}
+func NewCondition(name string, fn ConditionFunc) *FuncCondition {
+	return &FuncCondition{name: name, fn: fn}
 }
 
-func (c *ComputedCondition) Name() string  { return c.name }
-func (c *ComputedCondition) Cost() float64 { return c.cost }
+func (c *FuncCondition) Name() string  { return c.name }
+func (c *FuncCondition) Cost() float64 { return c.cost }
 
-func (c *ComputedCondition) Evaluate(ctx context.Context, env *ConditionEnv) Determination {
+func (c *FuncCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
 	if c.fn == nil {
 		return Unknown
 	}

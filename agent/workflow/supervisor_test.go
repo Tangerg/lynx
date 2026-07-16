@@ -38,41 +38,29 @@ type supTopic struct{ Title string }
 type supAnswer struct{ Text string }
 
 func makeSubAgent() *core.Agent {
-	return agent.New("worker").
-		Actions(agent.NewAction("work",
-			func(_ context.Context, _ *core.ProcessContext, in supTopic) (supAnswer, error) {
-				return supAnswer{Text: "did " + in.Title}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[supAnswer](core.Goal{
-			Name: "worker-goal",
-			Export: &core.GoalExport{
-				Description: "do work on a topic",
-				InputSample: supTopic{},
-			},
-		})).
-		Build()
+	return agent.New(agent.AgentConfig{Name: "worker", Actions: []agent.Action{agent.NewAction("work", func(_ context.Context, _ *core.ProcessContext, in supTopic) (supAnswer, error) {
+		return supAnswer{Text: "did " + in.Title}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[supAnswer](core.GoalConfig{Name: "worker-goal", Tool: core.NewGoalTool[supTopic](core.GoalToolConfig{Description: "do work on a topic"})})}})
 }
 
 func TestSupervisor_Validation(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	mustDeploy(t, platform, makeSubAgent())
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, makeSubAgent())
 
 	parse := func(s string) (supAnswer, error) { return supAnswer{Text: s}, nil }
 
 	cases := []struct {
-		name string
-		cfg  workflow.SupervisorConfig[supTopic, supAnswer]
+		name   string
+		config workflow.SupervisorConfig[supTopic, supAnswer]
 	}{
-		{"empty name", workflow.SupervisorConfig[supTopic, supAnswer]{Subagents: []string{"worker"}, Parse: parse}},
-		{"no subagents", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Parse: parse}},
-		{"nil parse", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Subagents: []string{"worker"}}},
-		{"unknown subagent", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Subagents: []string{"ghost"}, Parse: parse}},
+		{"empty name", workflow.SupervisorConfig[supTopic, supAnswer]{Agents: []string{"worker"}, Parse: parse}},
+		{"no agents", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Parse: parse}},
+		{"nil parse", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Agents: []string{"worker"}}},
+		{"unknown agent", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Agents: []string{"ghost"}, Parse: parse}},
 	}
-	for _, tc := range cases {
-		if _, err := workflow.Supervisor(platform, tc.cfg); err == nil {
-			t.Errorf("%s: expected error, got nil", tc.name)
+	for _, test := range cases {
+		if _, err := workflow.Supervisor(engine, test.config); err == nil {
+			t.Errorf("%s: expected error, got nil", test.name)
 		}
 	}
 }
@@ -86,32 +74,32 @@ func TestSupervisor_EndToEnd(t *testing.T) {
 		t.Fatalf("NewClient: %v", err)
 	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{ChatClient: client})
-	mustDeploy(t, platform, makeSubAgent())
+	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: client, Streamer: client}})
+	mustDeploy(t, engine, makeSubAgent())
 
-	sup, err := workflow.Supervisor(platform, workflow.SupervisorConfig[supTopic, supAnswer]{
+	supervisor, err := workflow.Supervisor(engine, workflow.SupervisorConfig[supTopic, supAnswer]{
 		Name:         "supervisor",
 		Description:  "orchestrate the worker",
-		Subagents:    []string{"worker"},
+		Agents:       []string{"worker"},
 		Instructions: "Use the worker tool, then reply.",
 		Parse:        func(text string) (supAnswer, error) { return supAnswer{Text: text}, nil },
 	})
 	if err != nil {
 		t.Fatalf("Supervisor: %v", err)
 	}
-	mustDeploy(t, platform, sup)
+	mustDeploy(t, engine, supervisor)
 
-	proc, err := platform.RunAgent(context.Background(), sup,
+	process, err := engine.Run(context.Background(), supervisor,
 		map[string]any{core.DefaultBindingName: supTopic{Title: "go generics"}},
 		core.ProcessOptions{})
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
-	if proc.Status() != core.StatusCompleted {
-		t.Fatalf("status = %s; failure=%v", proc.Status(), proc.Failure())
+	if process.Status() != core.StatusCompleted {
+		t.Fatalf("status = %s; failure=%v", process.Status(), process.Failure())
 	}
 
-	out, ok := core.ResultOfType[supAnswer](proc)
+	out, ok := core.Result[supAnswer](process)
 	if !ok {
 		t.Fatal("no supAnswer produced")
 	}

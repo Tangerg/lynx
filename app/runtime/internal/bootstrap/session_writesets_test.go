@@ -2,11 +2,13 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/chat"
 
@@ -24,6 +26,27 @@ import (
 type noopForgetter struct{}
 
 func (noopForgetter) ForgetSession(string) {}
+
+func bootstrapWaitingSnapshot(id string) core.ProcessSnapshot {
+	started := time.Date(2026, time.July, 16, 8, 0, 0, 0, time.UTC)
+	return core.ProcessSnapshot{
+		SchemaVersion: core.ProcessSnapshotSchemaVersion,
+		ID:            id,
+		Deployment:    core.DeploymentRef{Name: "chat", Digest: "digest"},
+		StartedAt:     started,
+		CapturedAt:    started.Add(time.Second),
+		Status:        core.StatusWaiting,
+		Suspension: &agent.Suspension{
+			SchemaVersion: agent.SuspensionSchemaVersion,
+			ID:            "suspension-" + id,
+			Kind:          agent.SuspensionTool,
+			Prompt:        json.RawMessage(`"continue?"`),
+			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
+			Payload:       json.RawMessage(`{"checkpoint":true}`),
+			CreatedAt:     started,
+		},
+	}
+}
 
 // newWriteSetFixture builds the composition-root sessionStores adapter over a
 // fresh sqlite database so the atomic write-sets run against the real stores +
@@ -60,7 +83,7 @@ func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore,
 	t.Helper()
 	ctx := context.Background()
 	processID := "proc_" + runID
-	if err := processes.Save(ctx, core.ProcessSnapshot{ID: processID, AgentName: "chat", Status: core.StatusWaiting}); err != nil {
+	if _, err := processes.Save(ctx, bootstrapWaitingSnapshot(processID), 0); err != nil {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: time.Unix(0, 0)}); err != nil {
@@ -266,7 +289,7 @@ func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
 	if err := ss.history.Seed(ctx, child.ID, []chat.Message{chat.NewUserMessage(chat.NewTextPart("preserve on rollback"))}); err != nil {
 		t.Fatalf("seed child history: %v", err)
 	}
-	if err := ss.processes.Save(ctx, core.ProcessSnapshot{ID: "proc_preserve", AgentName: "chat", Status: core.StatusWaiting}); err != nil {
+	if _, err := ss.processes.Save(ctx, bootstrapWaitingSnapshot("proc_preserve"), 0); err != nil {
 		t.Fatalf("seed process snapshot: %v", err)
 	}
 

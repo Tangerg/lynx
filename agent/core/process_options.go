@@ -1,12 +1,10 @@
 package core
 
 // ProcessOptions is the per-process configuration bundle. Pass a zero
-// ProcessOptions{} when defaults suffice — the runtime calls
-// [ProcessOptions.ApplyDefaults] before use, so unset fields receive
-// their conceptual defaults.
+// ProcessOptions{} when defaults suffice; the runtime normalizes unset fields.
 //
 // Choosing a struct over the functional-options pattern keeps defaults
-// + validation in one place ([ApplyDefaults]) and avoids polluting the
+// and validation in one place and avoids polluting the
 // package namespace with ~10 `With…` constructors. Direct struct-
 // literal init is the intended ergonomics. Cross-cutting concerns
 // (audit, verbosity, throttling, RBAC) belong on extensions registered
@@ -17,57 +15,46 @@ type ProcessOptions struct {
 	// Budget caps cumulative LLM spend (USD), action invocations, and
 	// total tokens for this process. The runtime always checks a
 	// Budget-derived [BudgetPolicy] implicitly each tick; additional
-	// [EarlyTerminationPolicy] extensions can be registered via
+	// [StopPolicy] extensions can be registered via
 	// Extensions (OR semantics — any policy triggers termination).
 	Budget Budget
 
-	OutputChannel OutputChannel
-
-	ProcessType ProcessType
+	// Dependencies is an optional process scope created from
+	// [runtime.Engine.Dependencies] by calling [Dependencies.Child]. The runtime
+	// freezes it when the process starts and creates a fresh action child for
+	// each execution. nil creates an empty process scope over the engine
+	// dependencies automatically.
+	//
+	// The parent relationship is validated at runtime so an unrelated dependency
+	// tree cannot silently bypass engine composition.
+	Dependencies *Dependencies
 
 	// Session optionally binds this process to a multi-turn
 	// conversation. ProcessContext binds the session ID to call context so the
 	// history middleware loads and persists history keyed by [Session.ID]
 	// without serializing runtime scope into chat.Request.
 	//
-	// Typically set via [Platform.RunInSession]; the runtime fills
+	// Typically set via [Engine.RunInSession]; the runtime fills
 	// the field and refreshes [Session.UpdatedAt] on every dispatch.
 	Session *Session
 
 	// Extensions are session-scoped plug-ins active for the lifetime of
-	// this single process. They merge with platform-scoped extensions at
+	// this single process. They merge with engine-scoped extensions at
 	// dispatch time — process extensions take inner / higher priority
-	// (e.g. a process-scope IDGenerator overrides the platform default;
-	// a process-scope ActionMiddleware sits inside any platform-scope
+	// (e.g. a process-scope IDGenerator overrides the engine default;
+	// a process-scope ActionMiddleware sits inside any engine-scope
 	// interceptor in the onion chain). Within Extensions, each
 	// [Extension.Name] must be unique; the runtime returns an error
-	// from RunAgent / StartAgent / ContinueProcess when this constraint
-	// is violated. Process-scope Names may collide with platform-scope
+	// from Run / Start / Continue when this constraint
+	// is violated. Process-scope Names may collide with engine-scope
 	// Names — that's the explicit override mechanism.
 	Extensions []Extension
 
-	// Guardrails, when non-nil, overrides the platform-level guardrails
-	// for this process. nil means "use the platform default". Set it to
+	// Guardrails, when non-nil, overrides the engine-level guardrails
+	// for this process. nil means "use the engine default". Set it to
 	// inject per-process chat middleware (tool loop, history) so agent/core
 	// doesn't need to import middleware implementations.
-	Guardrails *Guardrails
-}
-
-// ApplyDefaults fills in zero-valued fields whose conceptual default is
-// non-zero. Mutates the receiver. Idempotent — safe to call repeatedly.
-// The runtime invokes this on every [ProcessOptions] it receives, so
-// users normally don't need to call it themselves.
-//
-// ProcessType is an int8 enum whose zero value already matches the
-// desired default ([ProcessSequential]), so it needs no explicit
-// handling.
-func (o *ProcessOptions) ApplyDefaults() {
-	if o.Budget == (Budget{}) {
-		o.Budget = DefaultBudget()
-	}
-	if o.OutputChannel == nil {
-		o.OutputChannel = DevNullOutputChannel
-	}
+	Guardrails *ChatGuardrails
 }
 
 // Budget caps cumulative LLM spend (USD), action invocations, and total
@@ -75,7 +62,7 @@ func (o *ProcessOptions) ApplyDefaults() {
 // the runtime checks implicitly each tick — so a zero-options caller
 // gets the [DefaultBudget] limits automatically. Additional policies
 // (DLP, rate-limit, custom guardrails) can be registered as
-// [EarlyTerminationPolicy] extensions; all are OR-composed.
+// [StopPolicy] extensions; all are OR-composed.
 type Budget struct {
 	CostLimit   float64
 	ActionLimit int
@@ -87,12 +74,4 @@ type Budget struct {
 // production deployments tune them per-tenant.
 func DefaultBudget() Budget {
 	return Budget{CostLimit: 2.0, ActionLimit: 50, TokenLimit: 1_000_000}
-}
-
-// EarlyTerminationPolicy returns a [BudgetPolicy] that enforces this
-// Budget. Useful when callers want to register the budget check as
-// an explicit extension alongside other policies, or to construct
-// the BudgetPolicy without typing the struct literal.
-func (b Budget) EarlyTerminationPolicy() EarlyTerminationPolicy {
-	return BudgetPolicy{Budget: b}
 }

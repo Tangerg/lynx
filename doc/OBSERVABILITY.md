@@ -234,7 +234,7 @@ defer span.End()
 ```go
 var agentTracer = otel.Tracer("lynx/agent")
 
-func (p *AgentProcess) Tick(ctx context.Context) error {
+func (p *Process) Tick(ctx context.Context) error {
     ctx, span := agentTracer.Start(ctx, "agent.tick",
         trace.WithAttributes(
             attribute.String("gen_ai.agent.name", p.Agent.Name),

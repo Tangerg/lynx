@@ -11,7 +11,7 @@ import (
 
 // LoopConfig configures a "run a sub-agent body repeatedly until
 // Until returns true (or MaxIterations expires)" workflow. Each
-// iteration runs Body via [runtime.SpawnChildFresh] — a child process
+// iteration runs Body via [runtime.RunChildIsolated] — a child process
 // with a CLEAN blackboard seeded only with the typed input. This
 // branch isolation is essential: without it, the orchestrator's
 // accumulated Out bindings would leak into the body's blackboard, and
@@ -20,7 +20,7 @@ import (
 //
 // Because each iteration starts clean, the body sub-agent **cannot
 // read its own prior outputs**. If iteration-aware behavior is
-// needed, encode it externally — closure state, an injected service,
+// needed, encode it externally — closure state, an injected dependency,
 // or fold the previous Out into the typed In type so the
 // orchestrator's typed wrapper feeds it back in (the next iteration's
 // In is resolved from the parent blackboard via type-based binding,
@@ -41,7 +41,7 @@ type LoopConfig[In, Out any] struct {
 	Description string
 
 	// MaxIterations bounds the loop; <=0 defaults to 5. The workflow
-	// always runs Body at least once (the action is CanRerun, so
+	// always runs Body at least once (the action is Repeatable, so
 	// planner reschedules until Until says stop).
 	MaxIterations int
 
@@ -52,11 +52,11 @@ type LoopConfig[In, Out any] struct {
 
 	// Until inspects the loop input + the latest body output and
 	// returns true to stop the loop. Required.
-	Until func(ctx context.Context, in In, last Out) bool
+	Until func(ctx context.Context, input In, latest Out) bool
 }
 
-// Loop compiles spec into a deployable agent. The compiled agent
-// has one CanRerun=true action ("{Name}-iter") that runs Body once and
+// Loop compiles config into a deployable agent. The compiled agent
+// has one Repeatable=true action ("{Name}-iter") that runs Body once and
 // records the result on the parent blackboard via [History][Out];
 // after each run the runtime re-evaluates the "{Name}_done" computed
 // condition. When Until or MaxIterations triggers, the goal (which
@@ -69,31 +69,36 @@ type LoopConfig[In, Out any] struct {
 //
 // Returns an error on missing Name, nil Body, or nil Until.
 func Loop[In, Out any](
-	platform *runtime.Platform,
-	spec LoopConfig[In, Out],
+	engine *runtime.Engine,
+	config LoopConfig[In, Out],
 ) (*core.Agent, error) {
-	if platform == nil {
-		return nil, errors.New("workflow.Loop: platform must not be nil")
+	if engine == nil {
+		return nil, errors.New("workflow.Loop: engine must not be nil")
 	}
-	if spec.Name == "" {
+	if config.Name == "" {
 		return nil, errors.New("workflow.Loop: Name must not be empty")
 	}
-	if spec.Body == nil {
+	if config.Body == nil {
 		return nil, errors.New("workflow.Loop: Body must not be nil")
 	}
-	if spec.Until == nil {
+	if config.Until == nil {
 		return nil, errors.New("workflow.Loop: Until must not be nil")
 	}
-	maxIter := spec.MaxIterations
-	if maxIter <= 0 {
-		maxIter = 5
+	bodyDeployment, err := engine.Deploy(config.Body)
+	if err != nil {
+		return nil, fmt.Errorf("workflow.Loop: deploy Body %q: %w", config.Body.Name(), err)
+	}
+	bodyName := bodyDeployment.Ref().Name
+	maxIterations := config.MaxIterations
+	if maxIterations <= 0 {
+		maxIterations = 5
 	}
 
 	// Condition keys must not contain ':' — the determiner reserves
 	// that for type-binding keys. Use '_' as the separator.
-	doneKey := spec.Name + "_done"
+	doneKey := config.Name + "_done"
 
-	doneCondition := core.NewCondition(doneKey, func(ctx context.Context, env *core.ConditionEnv) core.Determination {
+	doneCondition := core.NewCondition(doneKey, func(ctx context.Context, env *core.ConditionEnv) core.Truth {
 		history, ok := core.Last[*History[Out]](env.Blackboard)
 		if !ok {
 			return core.False
@@ -102,70 +107,65 @@ func Loop[In, Out any](
 		if !ok {
 			return core.False
 		}
-		if history.Count() >= maxIter {
+		if history.Count() >= maxIterations {
 			return core.True
 		}
 		// Read the ORIGINAL loop input via loopInput, not core.Last[In]: when
 		// In==Out the per-iteration outputs would shadow the input.
-		var in In
-		if li, ok := core.Last[loopInput[In]](env.Blackboard); ok {
-			in = li.value
+		var input In
+		if original, ok := core.Last[loopInput[In]](env.Blackboard); ok {
+			input = original.value
 		}
-		if spec.Until(ctx, in, last) {
+		if config.Until(ctx, input, last) {
 			return core.True
 		}
 		return core.False
 	})
 
 	iter := core.NewAction[In, Out](
-		spec.Name+"-iter",
-		func(ctx context.Context, pc *core.ProcessContext, in In) (Out, error) {
+		config.Name+"-iter",
+		func(ctx context.Context, process *core.ProcessContext, input In) (Out, error) {
 			var zero Out
 
-			history, ok := core.Last[*History[Out]](pc.Blackboard)
+			history, ok := core.Last[*History[Out]](process.Blackboard())
 			if !ok {
 				history = &History[Out]{}
-				pc.Blackboard.Bind(history)
+				process.Blackboard().Bind(history)
 				// First iteration: `in` is the original input — stash it so later
 				// iterations feed the SAME input to Body even when In==Out (else the
 				// framework binds `in` from the latest Out).
-				pc.Blackboard.Bind(loopInput[In]{value: in})
-			} else if li, ok := core.Last[loopInput[In]](pc.Blackboard); ok {
-				in = li.value
+				process.Blackboard().Bind(loopInput[In]{value: input})
+			} else if original, ok := core.Last[loopInput[In]](process.Blackboard()); ok {
+				input = original.value
 			}
 
-			child, err := runtime.SpawnChildFresh(ctx, platform, spec.Body, in)
+			child, err := engine.RunChildIsolated(ctx, bodyDeployment, input)
 			if err != nil {
 				return zero, fmt.Errorf("iteration %d: %w", history.Count(), err)
 			}
 			if err := child.TerminalError(); err != nil {
-				return zero, fmt.Errorf("iteration %d (%s): %w", history.Count(), spec.Body.Name, err)
+				return zero, fmt.Errorf("iteration %d (%s): %w", history.Count(), bodyName, err)
 			}
 
-			out, ok := core.ResultOfType[Out](child)
+			output, ok := core.Result[Out](child)
 			if !ok {
-				return zero, fmt.Errorf("iteration %d (%s) produced no %T", history.Count(), spec.Body.Name, zero)
+				return zero, fmt.Errorf("iteration %d (%s) produced no %T", history.Count(), bodyName, zero)
 			}
-			history.record(out)
-			return out, nil
+			history.record(output)
+			return output, nil
 		},
 		core.ActionConfig{
 			Description: "loop body iteration (sub-agent run)",
-			CanRerun:    true,
-			Post:        []string{doneKey},
-			QoS:         singleAttempt,
+			Repeatable:  true,
+			Effects:     []string{doneKey},
 		},
 	)
 
 	return core.NewAgent(core.AgentConfig{
-		Name:        spec.Name,
-		Description: spec.Description,
+		Name:        config.Name,
+		Description: config.Description,
 		Actions:     []core.Action{iter},
 		Conditions:  []core.Condition{doneCondition},
-		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
-			Name:        spec.Name,
-			Description: "produce acceptable " + core.TypeName[Out](),
-			Pre:         []string{doneKey},
-		})},
+		Goals:       []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce acceptable " + core.TypeName[Out](), Preconditions: []string{doneKey}})},
 	}), nil
 }

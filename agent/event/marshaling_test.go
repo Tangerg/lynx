@@ -3,12 +3,33 @@ package event
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/Tangerg/lynx/agent/core"
 )
+
+func TestAgentDeployedMarshalCarriesExactDeployment(t *testing.T) {
+	want := core.DeploymentRef{Name: "writer", Version: "1.2.3", Digest: "digest"}
+	raw, err := json.Marshal(AgentDeployed{Header: NewHeader(""), Deployment: want})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Payload struct {
+			Deployment core.DeploymentRef `json:"deployment"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Payload.Deployment != want {
+		t.Fatalf("deployment = %#v, want %#v", got.Payload.Deployment, want)
+	}
+}
 
 func TestProcessCompletedMarshal_SummarizesOpaqueResult(t *testing.T) {
 	raw, err := json.Marshal(ProcessCompleted{
-		BaseEvent: NewBaseEvent("proc"),
-		Result:    func() {},
+		Header: NewHeader("proc"),
+		Result: func() {},
 	})
 	if err != nil {
 		t.Fatalf("MarshalJSON: %v", err)
@@ -28,8 +49,8 @@ func TestProcessCompletedMarshal_SummarizesOpaqueResult(t *testing.T) {
 
 func TestProcessCreatedMarshal_SummarizesOpaqueBindings(t *testing.T) {
 	raw, err := json.Marshal(ProcessCreated{
-		BaseEvent: NewBaseEvent("proc"),
-		Bindings:  map[string]any{"input": func() {}},
+		Header:   NewHeader("proc"),
+		Bindings: map[string]any{"input": func() {}},
 	})
 	if err != nil {
 		t.Fatalf("MarshalJSON: %v", err)

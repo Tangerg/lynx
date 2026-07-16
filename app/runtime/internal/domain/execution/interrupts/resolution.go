@@ -8,16 +8,16 @@ import "strconv"
 // participant — engine, turn loop, protocol adapter, ask_user tool — shares one
 // vocabulary without importing each other.
 type Resolution struct {
-	Approved  bool
-	Arguments string
-	Answer    map[string][]string
+	Approved  bool                `json:"approved"`
+	Arguments string              `json:"arguments,omitempty"`
+	Answer    map[string][]string `json:"answer,omitempty"`
 	// RememberScope, when non-empty, asks the runtime to persist this
 	// approve/deny decision as a rule so matching future calls skip the prompt
 	// (AUX_API §6). The value is the wire scope — "session" | "project" |
 	// "global"; empty means "don't remember". A plain string (not the approval
 	// domain's Scope type) because this leaf must not import a sibling domain;
 	// the chat gate maps it across.
-	RememberScope string
+	RememberScope string `json:"remember_scope,omitempty"`
 }
 
 // QuestionPrompt is the payload a structured-question interrupt parks with:

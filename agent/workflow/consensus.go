@@ -32,7 +32,7 @@ type ConsensusConfig[In, Element any] struct {
 
 	// Voters is the parallel ensemble. Each receives In and
 	// returns an Element. Must be non-empty.
-	Voters []func(ctx context.Context, pc *core.ProcessContext, in In) (Element, error)
+	Voters []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error)
 
 	// Key projects each Element to a comparable string used to
 	// tally votes. Required when Element isn't directly comparable
@@ -42,30 +42,30 @@ type ConsensusConfig[In, Element any] struct {
 	Key func(Element) string
 }
 
-// Consensus compiles spec into an agent that runs every voter,
+// Consensus compiles config into an agent that runs every voter,
 // tallies via Key, and returns the Element whose Key occurs most
 // often. Ties are broken by voter order (the earliest voter whose
 // Key tied for the lead wins).
 //
 // Returns an error on missing Name / empty Voters / nil Key.
-func Consensus[In, Element any](spec ConsensusConfig[In, Element]) (*core.Agent, error) {
-	if spec.Name == "" {
+func Consensus[In, Element any](config ConsensusConfig[In, Element]) (*core.Agent, error) {
+	if config.Name == "" {
 		return nil, errors.New("workflow.Consensus: Name must not be empty")
 	}
-	if len(spec.Voters) == 0 {
+	if len(config.Voters) == 0 {
 		return nil, errors.New("workflow.Consensus: Voters must not be empty")
 	}
-	if spec.Key == nil {
+	if config.Key == nil {
 		return nil, errors.New("workflow.Consensus: Key must not be nil")
 	}
 
 	return ScatterGather(ScatterGatherConfig[In, Element, Element]{
-		Name:           spec.Name,
-		Description:    spec.Description,
-		MaxConcurrency: spec.MaxConcurrency,
-		Generators:     spec.Voters,
+		Name:           config.Name,
+		Description:    config.Description,
+		MaxConcurrency: config.MaxConcurrency,
+		Generators:     config.Voters,
 		Joiner: func(_ context.Context, _ *core.ProcessContext, votes []Element) (Element, error) {
-			return pickConsensus(votes, spec.Key), nil
+			return pickConsensus(votes, config.Key), nil
 		},
 	})
 }
@@ -73,7 +73,7 @@ func Consensus[In, Element any](spec ConsensusConfig[In, Element]) (*core.Agent,
 // DefaultKey is a Key projector for Element types whose own string
 // representation is the right tally key (typically string Elements).
 // Use for `ConsensusConfig[..., string]{Key: workflow.DefaultKey[string]}`.
-func DefaultKey[Element ~string](e Element) string { return string(e) }
+func DefaultKey[Element ~string](element Element) string { return string(element) }
 
 // pickConsensus tallies votes by key and returns the Element whose
 // key has the highest count. Stable: on a tie, the first-seen
@@ -85,30 +85,30 @@ func pickConsensus[Element any](votes []Element, key func(Element) string) Eleme
 	}
 
 	type bucket struct {
-		key      string
-		firstIdx int
-		count    int
-		sample   Element
+		key        string
+		firstIndex int
+		count      int
+		sample     Element
 	}
 	buckets := make(map[string]*bucket)
-	for i, v := range votes {
-		k := key(v)
-		if b, ok := buckets[k]; ok {
-			b.count++
+	for index, vote := range votes {
+		voteKey := key(vote)
+		if existing, ok := buckets[voteKey]; ok {
+			existing.count++
 			continue
 		}
-		buckets[k] = &bucket{key: k, firstIdx: i, count: 1, sample: v}
+		buckets[voteKey] = &bucket{key: voteKey, firstIndex: index, count: 1, sample: vote}
 	}
 
-	all := make([]*bucket, 0, len(buckets))
-	for _, b := range buckets {
-		all = append(all, b)
+	ranked := make([]*bucket, 0, len(buckets))
+	for _, bucket := range buckets {
+		ranked = append(ranked, bucket)
 	}
-	slices.SortStableFunc(all, func(a, b *bucket) int {
-		if a.count != b.count {
-			return cmp.Compare(b.count, a.count) // higher count first
+	slices.SortStableFunc(ranked, func(left, right *bucket) int {
+		if left.count != right.count {
+			return cmp.Compare(right.count, left.count) // higher count first
 		}
-		return cmp.Compare(a.firstIdx, b.firstIdx) // ties broken by first appearance
+		return cmp.Compare(left.firstIndex, right.firstIndex) // ties broken by first appearance
 	})
-	return all[0].sample
+	return ranked[0].sample
 }

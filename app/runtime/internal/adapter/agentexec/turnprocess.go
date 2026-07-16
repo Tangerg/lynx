@@ -4,28 +4,29 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // TurnProcess is the handle [Engine.StartTurn] returns. It exposes
-// the underlying [runtime.AgentProcess] lifecycle (status, failure,
+// the underlying [runtime.Process] lifecycle (status, failure,
 // cancellation) plus a typed result extractor — turn.Dispatcher drives
 // the turn off Done() and queries Status() to decide TurnEnd reason.
 //
 // The interface lives in this package (not in the turn dispatcher) so
-// test stubs can substitute a fake without standing up a full platform.
+// test stubs can substitute a fake without standing up a full engine.
 type TurnProcess interface {
 	// ID is the underlying agent process id — surfaces to clients as
 	// the turn handle so cancellation / resume requests route through
 	// the runtime by process id.
 	ID() string
 
-	// Status reports the current [core.AgentProcessStatus] —
+	// Status reports the current [core.ProcessStatus] —
 	// Running while the action loop ticks, Completed / Failed /
 	// Killed / Terminated when the run ends.
-	Status() core.AgentProcessStatus
+	Status() core.ProcessStatus
 
 	// Done delivers the final error (or nil on success) once the
 	// run loop exits. Buffered cap-1 so callers can receive after
@@ -37,7 +38,7 @@ type TurnProcess interface {
 	// (status reflects the terminal cause).
 	Output() (TurnOutput, error)
 
-	// Cancel marks the process [core.StatusKilled] via the platform.
+	// Cancel marks the process [core.StatusKilled] via the engine.
 	// The ongoing tick observes the status flip at its next checkpoint
 	// and the run loop exits, delivering its error on Done().
 	Cancel() error
@@ -45,19 +46,19 @@ type TurnProcess interface {
 	// Resume answers a HITL interrupt the process is parked on
 	// (StatusWaiting) — a gated tool call or an ask_user / exit_plan_mode
 	// question. It delivers the structured [interrupts.Resolution]
-	// to the parked awaitable and continues the process, returning a fresh
+	// to the parked suspension and continues the process, returning a fresh
 	// Done channel for the resumed run. Only valid while Status is
 	// [core.StatusWaiting].
 	Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error)
 
-	// PendingAwaitable returns the HITL request the process is parked
+	// Suspension returns the HITL request the process is parked
 	// on while StatusWaiting (a gated tool call or an ask_user /
 	// exit_plan_mode question), or nil when nothing is parked. Its
-	// PromptAny() payload is what the client renders to make the decision.
-	PendingAwaitable() core.Awaitable
+	// Prompt JSON is what the client renders to make the decision.
+	Suspension() *agent.Suspension
 
 	// Discard releases a TERMINATED process: it removes the process from the
-	// platform registry and deletes its persisted snapshot. With a ProcessStore
+	// engine registry and deletes its persisted snapshot. With a ProcessStore
 	// wired the runtime auto-snapshots every tick — including terminal
 	// completion — but that snapshot only matters while the process is PARKED
 	// awaiting HITL resume; once the turn reaches a terminal state it is dead
@@ -69,47 +70,53 @@ type TurnProcess interface {
 }
 
 // turnProcess is the canonical [TurnProcess] backed by a real
-// [runtime.AgentProcess]. processControl is held so lifecycle commands stay
-// behind the engine boundary instead of leaking the full agent platform.
+// [runtime.Process]. processControl is held so lifecycle commands stay
+// behind the engine boundary instead of leaking the full agent engine.
 type turnProcess struct {
-	proc     *runtime.AgentProcess
-	done     <-chan error
-	platform processControl
+	process *runtime.Process
+	done    <-chan error
+	engine  processControl
 }
 
-func (cp *turnProcess) ID() string                      { return cp.proc.ID() }
-func (cp *turnProcess) Status() core.AgentProcessStatus { return cp.proc.Status() }
-func (cp *turnProcess) Done() <-chan error              { return cp.done }
-func (cp *turnProcess) Cancel() error {
-	return cp.platform.KillProcess(cp.proc.ID())
+func (p *turnProcess) ID() string                 { return p.process.ID() }
+func (p *turnProcess) Status() core.ProcessStatus { return p.process.Status() }
+func (p *turnProcess) Done() <-chan error         { return p.done }
+func (p *turnProcess) Cancel() error {
+	return p.engine.Kill(p.process.ID())
 }
 
-func (cp *turnProcess) Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error) {
-	if _, err := cp.platform.ResumeProcess(cp.proc.ID(), resolution); err != nil {
+func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error) {
+	suspension := p.process.Suspension()
+	if suspension == nil {
+		return nil, fmt.Errorf("engine: process %s has no suspension", p.process.ID())
+	}
+	if err := p.engine.Resume(p.process.ID(), suspension.ID, resolution); err != nil {
 		return nil, err
 	}
-	return cp.platform.ContinueProcessAsync(ctx, cp.proc.ID()), nil
+	return p.engine.ContinueAsync(ctx, p.process.ID()), nil
 }
 
-func (cp *turnProcess) PendingAwaitable() core.Awaitable { return cp.proc.PendingAwaitable() }
+func (p *turnProcess) Suspension() *agent.Suspension { return p.process.Suspension() }
 
-func (cp *turnProcess) Discard(ctx context.Context) {
-	id := cp.proc.ID()
-	_ = cp.platform.RemoveProcess(id) // free the in-memory registry entry
-	if store := cp.platform.ProcessStore(); store != nil {
-		_ = store.Delete(ctx, id) // drop the persisted (terminal) snapshot
+func (p *turnProcess) Discard(ctx context.Context) {
+	id := p.process.ID()
+	_ = p.engine.Remove(id) // free the in-memory registry entry
+	if store := p.engine.ProcessStore(); store != nil {
+		if deleter, ok := store.(core.SnapshotDeleter); ok {
+			_ = deleter.Delete(ctx, id) // drop the persisted (terminal) snapshot
+		}
 	}
 }
 
-func (cp *turnProcess) Output() (TurnOutput, error) {
-	out, ok := core.ResultOfType[TurnOutput](cp.proc)
+func (p *turnProcess) Output() (TurnOutput, error) {
+	output, ok := core.Result[TurnOutput](p.process)
 	if ok {
-		return out, nil
+		return output, nil
 	}
 	// Preserve the process failure's error chain when there is one (%w);
 	// a bare %w on a nil failure would format as "%!w(<nil>)".
-	if failure := cp.proc.Failure(); failure != nil {
-		return TurnOutput{}, fmt.Errorf("engine: no TurnOutput produced (status=%s): %w", cp.proc.Status(), failure)
+	if failure := p.process.Failure(); failure != nil {
+		return TurnOutput{}, fmt.Errorf("engine: no TurnOutput produced (status=%s): %w", p.process.Status(), failure)
 	}
-	return TurnOutput{}, fmt.Errorf("engine: no TurnOutput produced (status=%s)", cp.proc.Status())
+	return TurnOutput{}, fmt.Errorf("engine: no TurnOutput produced (status=%s)", p.process.Status())
 }

@@ -5,11 +5,11 @@ import (
 	"errors"
 )
 
-func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle, error) {
-	if req.SessionID == "" {
+func (s *memoryDispatcher) StartTurn(ctx context.Context, request StartTurnRequest) (TurnHandle, error) {
+	if request.SessionID == "" {
 		return TurnHandle{}, errors.New("turn: SessionID is required")
 	}
-	if err := req.Validate(); err != nil {
+	if err := request.Validate(); err != nil {
 		return TurnHandle{}, err
 	}
 	if s.isClosed() {
@@ -17,13 +17,13 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 	}
 
 	handle := TurnHandle{
-		SessionID: req.SessionID,
+		SessionID: request.SessionID,
 		TurnID:    newTurnID(),
 	}
 	state := newTurnState(ctx, handle)
-	state.model = modelOr(req.Model)
-	state.cwd = req.Cwd
-	state.setInterruptKinds(req.InterruptKinds)
+	state.model = modelOr(request.Model)
+	state.cwd = request.Cwd
+	state.setInterruptKinds(request.InterruptKinds)
 	// Open the turn span synchronously (before the goroutine launches and
 	// before the handle is returned) so st.ctx carries it for every later
 	// reader — runTurn, drive, resume, Cancel. The entry trace rode in via
@@ -35,15 +35,15 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 	// can inject context into the prompt or block it; a block ends the span we
 	// just opened and fails the start.
 	if s.hooks != nil {
-		state.hooks = s.hooks.For(state.ctx, req.Cwd)
+		state.hooks = s.hooks.For(state.ctx, request.Cwd)
 	}
 	if !state.hooks.Empty() {
-		msg, err := s.runPromptHooks(state.ctx, req, state)
+		msg, err := s.runPromptHooks(state.ctx, request, state)
 		if err != nil {
 			state.span.End()
 			return TurnHandle{}, err
 		}
-		req.Message = msg
+		request.Message = msg
 	}
 
 	if !s.register(state) {
@@ -52,7 +52,7 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 		return TurnHandle{}, ErrDispatcherClosed
 	}
 
-	go s.runTurn(req, state)
+	go s.runTurn(request, state)
 
 	return handle, nil
 }

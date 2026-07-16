@@ -20,69 +20,55 @@ type seqDraft struct{ Body string }
 
 // makeOutlineAgent: takes seqTopic, produces seqOutline.
 func makeOutlineAgent() *core.Agent {
-	a := agent.New("outline-agent").
-		Description("expand a topic into an outline").
-		Actions(agent.NewAction("outline",
-			func(_ context.Context, _ *core.ProcessContext, t seqTopic) (seqOutline, error) {
-				return seqOutline{Sections: []string{"intro", t.Word, "conclusion"}}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[seqOutline](core.Goal{Description: "outline produced"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "outline-agent", Description: "expand a topic into an outline", Actions: []agent.Action{agent.NewAction("outline", func(_ context.Context, _ *core.ProcessContext, t seqTopic) (seqOutline, error) {
+		return seqOutline{Sections: []string{"intro", t.Word, "conclusion"}}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[seqOutline](core.GoalConfig{Description: "outline produced"})}})
 	return a
 }
 
 // makeDraftAgent: takes seqOutline, produces seqDraft.
 func makeDraftAgent() *core.Agent {
-	a := agent.New("draft-agent").
-		Description("expand an outline into a draft").
-		Actions(agent.NewAction("draft",
-			func(_ context.Context, _ *core.ProcessContext, o seqOutline) (seqDraft, error) {
-				return seqDraft{Body: strings.Join(o.Sections, " | ")}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[seqDraft](core.Goal{Description: "draft produced"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "draft-agent", Description: "expand an outline into a draft", Actions: []agent.Action{agent.NewAction("draft", func(_ context.Context, _ *core.ProcessContext, o seqOutline) (seqDraft, error) {
+		return seqDraft{Body: strings.Join(o.Sections, " | ")}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[seqDraft](core.GoalConfig{Description: "draft produced"})}})
 	return a
 }
 
 func TestSequence_TwoStepChain(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	engine := agent.MustNewEngine(runtime.Config{})
 	outliner := makeOutlineAgent()
 	drafter := makeDraftAgent()
-	if err := platform.Deploy(outliner); err != nil {
+	if _, err := engine.Deploy(outliner); err != nil {
 		t.Fatalf("deploy outliner: %v", err)
 	}
-	if err := platform.Deploy(drafter); err != nil {
+	if _, err := engine.Deploy(drafter); err != nil {
 		t.Fatalf("deploy drafter: %v", err)
 	}
 
 	pipeline, err := workflow.Sequence[seqTopic, seqDraft](
-		platform, "topic-to-draft", outliner, drafter,
+		engine, "topic-to-draft", outliner, drafter,
 	)
 	if err != nil {
 		t.Fatalf("Sequence: %v", err)
 	}
-	err = platform.Deploy(pipeline)
+	_, err = engine.Deploy(pipeline)
 	if err != nil {
 		t.Fatalf("deploy pipeline: %v", err)
 	}
 
-	var proc *runtime.AgentProcess
-	proc, err = platform.RunAgent(t.Context(), pipeline,
+	var proc *runtime.Process
+	proc, err = engine.Run(t.Context(), pipeline,
 		map[string]any{core.DefaultBindingName: seqTopic{Word: "agents"}},
 		core.ProcessOptions{},
 	)
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
 	}
 
-	got, ok := core.ResultOfType[seqDraft](proc)
+	got, ok := core.Result[seqDraft](proc)
 	if !ok {
 		t.Fatal("no seqDraft bound on final blackboard")
 	}
@@ -94,32 +80,26 @@ func TestSequence_TwoStepChain(t *testing.T) {
 
 // makeFailingAgent returns an agent whose only action returns the given error.
 func makeFailingAgent(name string, errMsg string) *core.Agent {
-	return agent.New(name).
-		Actions(agent.NewAction("failing",
-			func(_ context.Context, _ *core.ProcessContext, t seqTopic) (seqOutline, error) {
-				return seqOutline{}, fmt.Errorf("%s", errMsg)
-			},
-			core.ActionConfig{QoS: core.ActionQoS{MaxAttempts: 1}},
-		)).
-		Goals(agent.GoalProducing[seqOutline](core.Goal{Description: "outline (will fail)"})).
-		Build()
+	return agent.New(agent.AgentConfig{Name: name, Actions: []agent.Action{agent.NewAction("failing", func(_ context.Context, _ *core.ProcessContext, t seqTopic) (seqOutline, error) {
+		return seqOutline{}, fmt.Errorf("%s", errMsg)
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[seqOutline](core.GoalConfig{Description: "outline (will fail)"})}})
 }
 
 func TestSequence_StepFailurePropagates(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	engine := agent.MustNewEngine(runtime.Config{})
 	failing := makeFailingAgent("failing-step", "step blew up")
 	drafter := makeDraftAgent()
-	mustDeploy(t, platform, failing, drafter)
+	mustDeploy(t, engine, failing, drafter)
 
 	pipeline, err := workflow.Sequence[seqTopic, seqDraft](
-		platform, "fail-pipeline", failing, drafter,
+		engine, "fail-pipeline", failing, drafter,
 	)
 	if err != nil {
 		t.Fatalf("Sequence: %v", err)
 	}
-	mustDeploy(t, platform, pipeline)
+	mustDeploy(t, engine, pipeline)
 
-	proc, _ := platform.RunAgent(t.Context(), pipeline,
+	proc, _ := engine.Run(t.Context(), pipeline,
 		map[string]any{core.DefaultBindingName: seqTopic{Word: "x"}},
 		core.ProcessOptions{},
 	)
@@ -132,20 +112,20 @@ func TestSequence_StepFailurePropagates(t *testing.T) {
 }
 
 func TestSequence_RejectsTooFewAgents(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if _, err := workflow.Sequence[seqTopic, seqDraft](platform, "single", makeOutlineAgent()); err == nil {
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := workflow.Sequence[seqTopic, seqDraft](engine, "single", makeOutlineAgent()); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestSequence_RejectsNilAgent(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if _, err := workflow.Sequence[seqTopic, seqDraft](platform, "with-nil", makeOutlineAgent(), nil); err == nil {
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := workflow.Sequence[seqTopic, seqDraft](engine, "with-nil", makeOutlineAgent(), nil); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestSequence_RejectsNilPlatform(t *testing.T) {
+func TestSequence_RejectsNilEngine(t *testing.T) {
 	if _, err := workflow.Sequence[seqTopic, seqDraft](nil, "x", makeOutlineAgent(), makeDraftAgent()); err == nil {
 		t.Fatal("expected error")
 	}

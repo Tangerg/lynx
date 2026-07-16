@@ -20,18 +20,18 @@ import (
 //
 // This is the lyra-as-agent-best-practice pattern: every turn is a real agent
 // process, addressable by id. StartTurn returns a [agentexec.TurnProcess] that
-// wraps the running [runtime.AgentProcess]; the dispatcher drives the turn off
+// wraps the running [runtime.Process]; the dispatcher drives the turn off
 // that handle (Done channel for completion, Status / Failure for terminal
 // cause, Cancel for kill, Output for typed result) rather than a bare goroutine.
 type engineDep interface {
 	// StartTurn dispatches the underlying agent process for a fresh turn.
-	StartTurn(ctx context.Context, req agentexec.TurnRequest) agentexec.TurnProcess
+	StartTurn(ctx context.Context, request agentexec.TurnRequest) agentexec.TurnProcess
 
 	// RestoreTurn rebuilds a turn's agent process from a persisted snapshot and
-	// re-parks it for Resume — the cross-restart resume seam (the live process
-	// is gone after a backend restart). Returns a re-parked [agentexec.TurnProcess]
+	// restores its Suspension for Resume — the cross-restart resume seam (the live process
+	// is gone after a backend restart). Returns a waiting [agentexec.TurnProcess]
 	// ready for Resume(approved).
-	RestoreTurn(ctx context.Context, processID string, req agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error)
+	RestoreTurn(ctx context.Context, processID string, request agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error)
 
 	// InjectUserMessage persists queued steering messages into chat history
 	// after a turn ends.

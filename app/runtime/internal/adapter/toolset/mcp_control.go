@@ -62,12 +62,12 @@ func (c *mcpControl) Authorize(ctx context.Context, name string) error {
 	return mapMCPError(c.inner.Authorize(ctx, name))
 }
 
-func (c *mcpControl) Probe(ctx context.Context, cfg mcpserver.LiveConfig) error {
-	return mapMCPError(c.inner.Probe(ctx, infraMCPServerConfig(cfg)))
+func (c *mcpControl) Probe(ctx context.Context, config mcpserver.LiveConfig) error {
+	return mapMCPError(c.inner.Probe(ctx, infraMCPServerConfig(config)))
 }
 
-func (c *mcpControl) Configure(ctx context.Context, cfg mcpserver.LiveConfig) error {
-	return mapMCPError(c.inner.Configure(ctx, infraMCPServerConfig(cfg)))
+func (c *mcpControl) Configure(ctx context.Context, config mcpserver.LiveConfig) error {
+	return mapMCPError(c.inner.Configure(ctx, infraMCPServerConfig(config)))
 }
 
 func (c *mcpControl) Remove(ctx context.Context, name string) {

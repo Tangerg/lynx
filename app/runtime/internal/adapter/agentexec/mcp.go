@@ -52,22 +52,22 @@ func (e *Engine) AuthorizeMCPServer(ctx context.Context, name string) error {
 // through the live connections so an active OAuth sign-in for the same-named
 // server is reused — otherwise an authorized server would 401 on the anonymous
 // probe and read as "unauthorized".
-func (e *Engine) ProbeMCPServer(ctx context.Context, cfg mcpserver.LiveConfig) error {
+func (e *Engine) ProbeMCPServer(ctx context.Context, config mcpserver.LiveConfig) error {
 	if e.mcpRegistryCommands == nil {
 		return mcpserver.ErrUnknownServer
 	}
-	return e.mcpRegistryCommands.Probe(ctx, cfg)
+	return e.mcpRegistryCommands.Probe(ctx, config)
 }
 
 // ConfigureMCPServer adds or re-dials a server in the live connection set and
 // hot-swaps the refreshed model-facing tool set. A dial failure is returned but
 // the server is still tracked (recorded "failed", reconnectable). Nil MCP
 // (no servers wired) is a wiring bug for a configure, so it errors.
-func (e *Engine) ConfigureMCPServer(ctx context.Context, cfg mcpserver.LiveConfig) error {
+func (e *Engine) ConfigureMCPServer(ctx context.Context, config mcpserver.LiveConfig) error {
 	if e.mcpRegistryCommands == nil {
 		return mcpserver.ErrUnknownServer
 	}
-	return e.mcpRegistryCommands.Configure(ctx, cfg)
+	return e.mcpRegistryCommands.Configure(ctx, config)
 }
 
 // RemoveMCPServer drops a server from the live connection set (closing its

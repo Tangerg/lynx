@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -45,29 +45,31 @@ func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
 }
 
-func newStubChatClient(t *testing.T, model chat.Model) *chatclient.Client {
-	t.Helper()
-	client, err := chatclient.New(model)
-	if err != nil {
-		t.Fatalf("NewClientWithModel: %v", err)
-	}
-	return client
+func managedConditionEnv() *core.ConditionEnv {
+	return &core.ConditionEnv{RunInteraction: func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
+		response, err := input.Model.Call(ctx, input.Request)
+		if err != nil {
+			return interaction.Result{}, err
+		}
+		final := interaction.Event{Kind: interaction.EventModelResponse, Round: 1, Final: true, Response: response}
+		return interaction.Result{Final: &final}, nil
+	}}
 }
 
 func TestPromptCondition_YesReplyIsTrue(t *testing.T) {
 	model := newStubModel("Yes, the draft is acceptable.")
-	cond, _ := core.NewPromptCondition(
-		"draft_acceptable",
-		newStubChatClient(t, model),
-		func(_ context.Context, _ *core.ConditionEnv) string {
+	cond, _ := core.NewPromptCondition(core.PromptConditionConfig{
+		Name:  "draft_acceptable",
+		Model: model,
+		Prompt: func(_ context.Context, _ *core.ConditionEnv) string {
 			return "Is this draft acceptable?"
 		},
-		core.ParseYesNoDetermination,
-	)
+		Parse: core.ParseYesNo,
+	})
 
-	got := cond.Evaluate(t.Context(), &core.ConditionEnv{})
+	got := cond.Evaluate(t.Context(), managedConditionEnv())
 	if got != core.True {
-		t.Fatalf("Determination = %s, want True", got)
+		t.Fatalf("Truth = %s, want True", got)
 	}
 	if model.gotPrompt != "Is this draft acceptable?" {
 		t.Fatalf("prompt = %q, want %q", model.gotPrompt, "Is this draft acceptable?")
@@ -76,59 +78,66 @@ func TestPromptCondition_YesReplyIsTrue(t *testing.T) {
 
 func TestPromptCondition_NoReplyIsFalse(t *testing.T) {
 	model := newStubModel("No.")
-	cond, _ := core.NewPromptCondition(
-		"x",
-		newStubChatClient(t, model),
-		func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
-		core.ParseYesNoDetermination,
-	)
+	cond, _ := core.NewPromptCondition(core.PromptConditionConfig{
+		Name:   "x",
+		Model:  model,
+		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
+		Parse:  core.ParseYesNo,
+	})
 
-	if got := cond.Evaluate(t.Context(), &core.ConditionEnv{}); got != core.False {
-		t.Fatalf("Determination = %s, want False", got)
+	if got := cond.Evaluate(t.Context(), managedConditionEnv()); got != core.False {
+		t.Fatalf("Truth = %s, want False", got)
 	}
 }
 
 func TestPromptCondition_AmbiguousReplyIsUnknown(t *testing.T) {
 	model := newStubModel("Maybe, it depends.")
-	cond, _ := core.NewPromptCondition(
-		"x",
-		newStubChatClient(t, model),
-		func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
-		core.ParseYesNoDetermination,
-	)
+	cond, _ := core.NewPromptCondition(core.PromptConditionConfig{
+		Name:   "x",
+		Model:  model,
+		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
+		Parse:  core.ParseYesNo,
+	})
 
-	if got := cond.Evaluate(t.Context(), &core.ConditionEnv{}); got != core.Unknown {
-		t.Fatalf("Determination = %s, want Unknown", got)
+	if got := cond.Evaluate(t.Context(), managedConditionEnv()); got != core.Unknown {
+		t.Fatalf("Truth = %s, want Unknown", got)
 	}
 }
 
 func TestPromptCondition_LLMErrorDegradesToUnknown(t *testing.T) {
 	model := newStubErrModel(errors.New("transient"))
-	cond, _ := core.NewPromptCondition(
-		"x",
-		newStubChatClient(t, model),
-		func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
-		core.ParseYesNoDetermination,
-	)
+	cond, _ := core.NewPromptCondition(core.PromptConditionConfig{
+		Name:   "x",
+		Model:  model,
+		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
+		Parse:  core.ParseYesNo,
+	})
 
-	if got := cond.Evaluate(t.Context(), &core.ConditionEnv{}); got != core.Unknown {
-		t.Fatalf("LLM error → Determination = %s, want Unknown", got)
+	if got := cond.Evaluate(t.Context(), managedConditionEnv()); got != core.Unknown {
+		t.Fatalf("LLM error → Truth = %s, want Unknown", got)
 	}
 }
 
 func TestPromptCondition_CostDefaultsToOne(t *testing.T) {
-	cond, _ := core.NewPromptCondition(
-		"x",
-		newStubChatClient(t, newStubModel("yes")),
-		func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
-		core.ParseYesNoDetermination,
-	)
-	if cond.Cost() != 1.0 {
-		t.Fatalf("default Cost = %f, want 1.0", cond.Cost())
+	cond, _ := core.NewPromptCondition(core.PromptConditionConfig{
+		Name:   "x",
+		Model:  newStubModel("yes"),
+		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
+		Parse:  core.ParseYesNo,
+	})
+	if cond.Cost() != 1 {
+		t.Fatalf("Cost = %f, want 1", cond.Cost())
 	}
-	cond.WithCost(2.5)
+
+	cond, _ = core.NewPromptCondition(core.PromptConditionConfig{
+		Name:   "x",
+		Model:  newStubModel("yes"),
+		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
+		Parse:  core.ParseYesNo,
+		Cost:   2.5,
+	})
 	if cond.Cost() != 2.5 {
-		t.Fatalf("WithCost(2.5).Cost() = %f", cond.Cost())
+		t.Fatalf("Cost = %f, want 2.5", cond.Cost())
 	}
 }
 
@@ -137,20 +146,22 @@ func TestPromptCondition_RejectsInvalidArgs(t *testing.T) {
 		name string
 		fn   func() error
 	}{
-		{"nil client", func() error {
-			_, err := core.NewPromptCondition("x", nil,
-				func(_ context.Context, _ *core.ConditionEnv) string { return "" },
-				core.ParseYesNoDetermination)
+		{"nil model", func() error {
+			_, err := core.NewPromptCondition(core.PromptConditionConfig{
+				Name: "x", Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "" }, Parse: core.ParseYesNo,
+			})
 			return err
 		}},
 		{"nil prompt", func() error {
-			_, err := core.NewPromptCondition("x", newStubChatClient(t, newStubModel("yes")),
-				nil, core.ParseYesNoDetermination)
+			_, err := core.NewPromptCondition(core.PromptConditionConfig{
+				Name: "x", Model: newStubModel("yes"), Parse: core.ParseYesNo,
+			})
 			return err
 		}},
 		{"nil parser", func() error {
-			_, err := core.NewPromptCondition("x", newStubChatClient(t, newStubModel("yes")),
-				func(_ context.Context, _ *core.ConditionEnv) string { return "" }, nil)
+			_, err := core.NewPromptCondition(core.PromptConditionConfig{
+				Name: "x", Model: newStubModel("yes"), Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "" },
+			})
 			return err
 		}},
 	}
@@ -163,10 +174,10 @@ func TestPromptCondition_RejectsInvalidArgs(t *testing.T) {
 	}
 }
 
-func TestParseYesNoDetermination(t *testing.T) {
+func TestParseYesNo(t *testing.T) {
 	cases := []struct {
 		text string
-		want core.Determination
+		want core.Truth
 	}{
 		{"yes", core.True},
 		{"Yes", core.True},
@@ -192,8 +203,8 @@ func TestParseYesNoDetermination(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.text, func(t *testing.T) {
-			if got := core.ParseYesNoDetermination(tc.text); got != tc.want {
-				t.Fatalf("ParseYesNoDetermination(%q) = %s, want %s", tc.text, got, tc.want)
+			if got := core.ParseYesNo(tc.text); got != tc.want {
+				t.Fatalf("ParseYesNo(%q) = %s, want %s", tc.text, got, tc.want)
 			}
 		})
 	}

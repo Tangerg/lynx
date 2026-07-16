@@ -3,12 +3,13 @@ package runtime
 import (
 	"context"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/Tangerg/lynx/agent/core"
 )
+
+var agentTracer = otel.Tracer("lynx/agent/runtime")
 
 // Attribute keys are telemetry schema; rename only with exporter/dashboard migration.
 const (
@@ -16,10 +17,10 @@ const (
 	attrProcessID = "agent.process.id"
 )
 
-func (p *AgentProcess) startTickSpan(ctx context.Context, name string) (context.Context, trace.Span) {
-	return core.AgentTracer().Start(ctx, name,
+func (p *Process) startTickSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+	return agentTracer.Start(ctx, name,
 		trace.WithAttributes(
-			attribute.String(attrAgentName, p.agent.Name),
+			attribute.String(attrAgentName, p.agent().Name()),
 			attribute.String(attrProcessID, p.id),
 		),
 	)

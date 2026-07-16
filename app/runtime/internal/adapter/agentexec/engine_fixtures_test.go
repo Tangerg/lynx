@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
@@ -141,7 +142,7 @@ type hitlApprovalObserver struct {
 }
 
 func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName, arguments string) ToolApprovalVerdict {
-	res, _, err := Interrupt[interrupts.Resolution](ctx,
+	res, err := hitl.Interrupt[interrupts.Resolution](ctx,
 		interrupts.InterruptKey("kernel-test.approval", toolName, arguments),
 		map[string]string{"tool": toolName, "arguments": arguments},
 	)
@@ -157,21 +158,28 @@ func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName,
 type jsonProcessStore struct {
 	mu        sync.Mutex
 	snapshots map[string]json.RawMessage
+	revisions map[string]uint64
 }
 
 func newJSONProcessStore() *jsonProcessStore {
-	return &jsonProcessStore{snapshots: map[string]json.RawMessage{}}
+	return &jsonProcessStore{snapshots: map[string]json.RawMessage{}, revisions: map[string]uint64{}}
 }
 
-func (s *jsonProcessStore) Save(_ context.Context, snapshot core.ProcessSnapshot) error {
-	raw, err := json.Marshal(snapshot)
-	if err != nil {
-		return err
-	}
+func (s *jsonProcessStore) Save(_ context.Context, snapshot core.ProcessSnapshot, expected uint64) (uint64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	actual := s.revisions[snapshot.ID]
+	if actual != expected {
+		return 0, &core.RevisionConflictError{ProcessID: snapshot.ID, Expected: expected, Actual: actual}
+	}
+	snapshot.Revision = actual + 1
+	raw, err := json.Marshal(snapshot)
+	if err != nil {
+		return 0, err
+	}
 	s.snapshots[snapshot.ID] = raw
-	return nil
+	s.revisions[snapshot.ID] = snapshot.Revision
+	return snapshot.Revision, nil
 }
 
 func (s *jsonProcessStore) Load(_ context.Context, id string) (core.ProcessSnapshot, error) {
@@ -192,6 +200,7 @@ func (s *jsonProcessStore) Delete(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.snapshots, id)
+	delete(s.revisions, id)
 	return nil
 }
 

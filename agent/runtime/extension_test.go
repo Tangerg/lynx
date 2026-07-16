@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -43,30 +44,30 @@ type orderedInterceptor struct {
 
 func (i orderedInterceptor) Name() string { return i.name }
 
-func (i orderedInterceptor) InterceptAction(_ context.Context, _ core.Process, _ core.Action, next func() core.ActionStatus) core.ActionStatus {
+func (i orderedInterceptor) RunAction(_ context.Context, _ core.ProcessView, _ core.Action, next func() (core.ActionStatus, error)) (core.ActionStatus, error) {
 	i.recorder.record(i.name + ":enter")
-	status := next()
+	status, err := next()
 	i.recorder.record(i.name + ":exit")
-	return status
+	return status, err
 }
 
-// TestPlatformExtensionDedupPanic — boot-time configuration error must
-// not silently overwrite; duplicate Name within the platform layer
+// TestEngineExtensionDedupPanic — boot-time configuration error must
+// not silently overwrite; duplicate Name within the engine layer
 // panics.
-func TestPlatformExtensionDedupPanic(t *testing.T) {
+func TestEngineExtensionDedupPanic(t *testing.T) {
 	defer func() {
 		r := recover()
 		if r == nil {
 			t.Fatal("expected panic on duplicate extension Name")
 		}
-		msg, _ := r.(string)
+		msg := fmt.Sprint(r)
 		if !strings.Contains(msg, "already registered") {
 			t.Fatalf("panic message = %q, want substring %q", msg, "already registered")
 		}
 	}()
 
 	rec := &orderRecorder{}
-	agent.NewPlatform(runtime.PlatformConfig{
+	agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{
 			orderedInterceptor{name: "dup", recorder: rec},
 			orderedInterceptor{name: "dup", recorder: rec},
@@ -74,8 +75,8 @@ func TestPlatformExtensionDedupPanic(t *testing.T) {
 	})
 }
 
-// TestPlatformExtensionEmptyNamePanic — empty Name is a misconfiguration.
-func TestPlatformExtensionEmptyNamePanic(t *testing.T) {
+// TestEngineExtensionEmptyNamePanic — empty Name is a misconfiguration.
+func TestEngineExtensionEmptyNamePanic(t *testing.T) {
 	defer func() {
 		r := recover()
 		if r == nil {
@@ -83,40 +84,34 @@ func TestPlatformExtensionEmptyNamePanic(t *testing.T) {
 		}
 	}()
 
-	agent.NewPlatform(runtime.PlatformConfig{
+	agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{orderedInterceptor{name: "", recorder: &orderRecorder{}}},
 	})
 }
 
-// TestActionMiddlewareOnionOrdering verifies platform interceptors form
-// the outer onion and process interceptors sit inside.
+// TestActionMiddlewareOnionOrdering verifies engine actionMiddleware form
+// the outer onion and process actionMiddleware sit inside.
 func TestActionMiddlewareOnionOrdering(t *testing.T) {
 	type runIn struct{ V int }
 	type runOut struct{ V int }
 
 	rec := &orderRecorder{}
-	a := agent.New("interceptors").
-		Actions(agent.NewAction("step",
-			func(_ context.Context, _ *core.ProcessContext, in runIn) (runOut, error) {
-				rec.record("body")
-				return runOut{V: in.V + 1}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[runOut](core.Goal{Description: "out"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "actionMiddleware", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, _ *core.ProcessContext, in runIn) (runOut, error) {
+		rec.record("body")
+		return runOut{V: in.V + 1}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[runOut](core.GoalConfig{Description: "out"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{
+	engine := agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{
-			orderedInterceptor{name: "platform-A", recorder: rec},
-			orderedInterceptor{name: "platform-B", recorder: rec},
+			orderedInterceptor{name: "engine-A", recorder: rec},
+			orderedInterceptor{name: "engine-B", recorder: rec},
 		},
 	})
-	if err := platform.Deploy(a); err != nil {
+	if _, err := engine.Deploy(a); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
 
-	proc, err := platform.RunAgent(
+	proc, err := engine.Run(
 		t.Context(), a,
 		map[string]any{core.DefaultBindingName: runIn{V: 1}},
 		core.ProcessOptions{
@@ -127,22 +122,22 @@ func TestActionMiddlewareOnionOrdering(t *testing.T) {
 		},
 	)
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure=%v", proc.Status(), proc.Failure())
 	}
 
 	want := []string{
-		"platform-A:enter",
-		"platform-B:enter",
+		"engine-A:enter",
+		"engine-B:enter",
 		"process-X:enter",
 		"process-Y:enter",
 		"body",
 		"process-Y:exit",
 		"process-X:exit",
-		"platform-B:exit",
-		"platform-A:exit",
+		"engine-B:exit",
+		"engine-A:exit",
 	}
 	got := rec.snapshot()
 	if len(got) != len(want) {
@@ -162,28 +157,24 @@ type failingValidator struct {
 	err  error
 }
 
-func (v failingValidator) Name() string                      { return v.name }
-func (v failingValidator) ValidateAgent(_ *core.Agent) error { return v.err }
+func (v failingValidator) Name() string                 { return v.name }
+func (v failingValidator) Validate(_ *core.Agent) error { return v.err }
 
 // TestAgentValidatorRejectsDeploy — extension can veto Deploy, error is
 // attributed to the validator's Name.
 func TestAgentValidatorRejectsDeploy(t *testing.T) {
 	type vIn struct{}
 	type vOut struct{}
-	a := agent.New("validated").
-		Actions(agent.NewAction("op",
-			func(_ context.Context, _ *core.ProcessContext, _ vIn) (vOut, error) { return vOut{}, nil },
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[vOut](core.Goal{Description: "done"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "validated", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, _ vIn) (vOut, error) {
+		return vOut{}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[vOut](core.GoalConfig{Description: "done"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{
+	engine := agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{
 			failingValidator{name: "policy", err: errors.New("missing SLA tag")},
 		},
 	})
-	err := platform.Deploy(a)
+	_, err := engine.Deploy(a)
 	if err == nil {
 		t.Fatal("expected validator to reject Deploy")
 	}
@@ -198,24 +189,17 @@ func TestAgentValidatorRejectsDeploy(t *testing.T) {
 func TestDeploy_ReportsAllProblems(t *testing.T) {
 	type pIn struct{}
 	type pOut struct{}
-	a := agent.New("multi-problem").
-		Actions(agent.NewAction("step",
-			func(_ context.Context, _ *core.ProcessContext, _ pIn) (pOut, error) { return pOut{}, nil },
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[pOut](core.Goal{
-			Description: "needs missing conditions",
-			Pre:         []string{"never_a", "never_b"}, // no action produces these
-		})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "multi-problem", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, _ *core.ProcessContext, _ pIn) (pOut, error) {
+		return pOut{}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[pOut](core.GoalConfig{Description: "needs missing conditions", Preconditions: []string{"never_a", "never_b"}})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{
+	engine := agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{
 			failingValidator{name: "policy", err: errors.New("missing SLA tag")},
 		},
 	})
 
-	err := platform.Deploy(a)
+	_, err := engine.Deploy(a)
 	if err == nil {
 		t.Fatal("expected deploy to fail")
 	}
@@ -231,30 +215,26 @@ func TestDeploy_ReportsAllProblems(t *testing.T) {
 type vetoApprover struct{ name string }
 
 func (v vetoApprover) Name() string                                { return v.name }
-func (vetoApprover) ApproveGoal(_ core.Process, _ *core.Goal) bool { return false }
+func (vetoApprover) Approve(_ core.ProcessView, _ *core.Goal) bool { return false }
 
 // TestGoalApproverVetoesPlan — when an approver vetoes the only goal,
 // the planner sees no goals → process ends Stuck.
 func TestGoalApproverVetoesPlan(t *testing.T) {
 	type vetoIn struct{}
 	type vetoOut struct{}
-	a := agent.New("vetoed").
-		Actions(agent.NewAction("op",
-			func(_ context.Context, _ *core.ProcessContext, _ vetoIn) (vetoOut, error) { return vetoOut{}, nil },
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[vetoOut](core.Goal{Description: "done"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "vetoed", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, _ vetoIn) (vetoOut, error) {
+		return vetoOut{}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[vetoOut](core.GoalConfig{Description: "done"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{
+	engine := agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{vetoApprover{name: "veto"}},
 	})
-	if err := platform.Deploy(a); err != nil {
+	if _, err := engine.Deploy(a); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
-	proc, err := platform.RunAgent(t.Context(), a, nil, core.ProcessOptions{})
+	proc, err := engine.Run(t.Context(), a, nil, core.ProcessOptions{})
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusStuck {
 		t.Fatalf("status = %s, want Stuck", proc.Status())
@@ -267,20 +247,16 @@ func TestGoalApproverVetoesPlan(t *testing.T) {
 func TestProcessExtensionDedupErrors(t *testing.T) {
 	type dIn struct{}
 	type dOut struct{}
-	a := agent.New("proc-dup").
-		Actions(agent.NewAction("op",
-			func(_ context.Context, _ *core.ProcessContext, _ dIn) (dOut, error) { return dOut{}, nil },
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[dOut](core.Goal{Description: "done"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "proc-dup", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, _ dIn) (dOut, error) {
+		return dOut{}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[dOut](core.GoalConfig{Description: "done"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := engine.Deploy(a); err != nil {
 		t.Fatal(err)
 	}
 	rec := &orderRecorder{}
-	_, err := platform.RunAgent(t.Context(), a, nil, core.ProcessOptions{
+	_, err := engine.Run(t.Context(), a, nil, core.ProcessOptions{
 		Extensions: []core.Extension{
 			orderedInterceptor{name: "same", recorder: rec},
 			orderedInterceptor{name: "same", recorder: rec},
@@ -314,22 +290,16 @@ func (l processOnlyListener) OnEvent(_ context.Context, e event.Event) {
 // at all".)
 func TestProcessScopedListenerFires(t *testing.T) {
 	type pOut struct{ V int }
-	a := agent.New("proc-listener").
-		Actions(agent.NewAction("op",
-			func(_ context.Context, _ *core.ProcessContext, in string) (pOut, error) {
-				return pOut{V: len(in)}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[pOut](core.Goal{Description: "done"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "proc-listener", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, in string) (pOut, error) {
+		return pOut{V: len(in)}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[pOut](core.GoalConfig{Description: "done"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := engine.Deploy(a); err != nil {
 		t.Fatal(err)
 	}
 	count := 0
-	proc, err := platform.RunAgent(
+	proc, err := engine.Run(
 		t.Context(), a,
 		map[string]any{core.DefaultBindingName: "hello"},
 		core.ProcessOptions{
@@ -339,7 +309,7 @@ func TestProcessScopedListenerFires(t *testing.T) {
 		},
 	)
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure=%v", proc.Status(), proc.Failure())

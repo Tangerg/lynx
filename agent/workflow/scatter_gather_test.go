@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
@@ -19,15 +18,23 @@ type sgElement struct{ Score int }
 type sgResult struct{ Total int }
 
 func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
-	var inFlightPeak int32
+	started := make(chan struct{}, 3)
+	release := make(chan struct{})
+	var active atomic.Int32
+	var peak atomic.Int32
 	gen := func(score int) func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
 		return func(ctx context.Context, _ *core.ProcessContext, _ sgIn) (sgElement, error) {
-			now := atomic.AddInt32(&inFlightPeak, 1)
-			defer atomic.AddInt32(&inFlightPeak, -1)
-			// keep a couple goroutines overlapping so the peak shows
-			time.Sleep(10 * time.Millisecond)
-			_ = now
-			return sgElement{Score: score}, nil
+			now := active.Add(1)
+			defer active.Add(-1)
+			for current := peak.Load(); now > current && !peak.CompareAndSwap(current, now); current = peak.Load() {
+			}
+			started <- struct{}{}
+			select {
+			case <-release:
+				return sgElement{Score: score}, nil
+			case <-ctx.Done():
+				return sgElement{}, ctx.Err()
+			}
 		}
 	}
 
@@ -49,23 +56,48 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 		t.Fatalf("ScatterGather: %v", err)
 	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	err = platform.Deploy(a)
+	engine := agent.MustNewEngine(runtime.Config{})
+	_, err = engine.Deploy(a)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	var proc *runtime.AgentProcess
-	proc, err = platform.RunAgent(t.Context(), a,
-		map[string]any{core.DefaultBindingName: sgIn{Topic: "test"}},
-		core.ProcessOptions{},
-	)
-	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+	type runResult struct {
+		process *runtime.Process
+		err     error
 	}
+	done := make(chan runResult, 1)
+	go func() {
+		proc, runErr := engine.Run(t.Context(), a,
+			map[string]any{core.DefaultBindingName: sgIn{Topic: "test"}},
+			core.ProcessOptions{},
+		)
+		done <- runResult{process: proc, err: runErr}
+	}()
+	for range 3 {
+		select {
+		case <-started:
+		case result := <-done:
+			close(release)
+			t.Fatalf("Run exited before all branches entered: %v", result.err)
+		case <-t.Context().Done():
+			close(release)
+			t.Fatal(t.Context().Err())
+		}
+	}
+	if got := peak.Load(); got != 3 {
+		close(release)
+		t.Fatalf("parallel peak = %d, want 3", got)
+	}
+	close(release)
+	result := <-done
+	if result.err != nil {
+		t.Fatalf("Run: %v", result.err)
+	}
+	proc := result.process
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
 	}
-	got, ok := core.ResultOfType[sgResult](proc)
+	got, ok := core.Result[sgResult](proc)
 	if !ok {
 		t.Fatal("no sgResult bound")
 	}
@@ -74,15 +106,65 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 	}
 }
 
-// TestScatterGather_GeneratorsGetIsolatedContext guards the data race fixed by
-// handing each parallel generator its own ProcessContext branch: a shared pc
-// would let concurrent generators race its per-invocation scratch. Each
-// generator here writes that scratch (ResetError writes the lastErr field);
-// with one shared pc this is a write-write race `go test -race` flags, with a
-// per-generator branch it's clean.
+func TestScatterGather_FirstErrorCancelsAndJoinsOtherBranches(t *testing.T) {
+	blockingStarted := make(chan struct{})
+	blockingExited := make(chan struct{})
+	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
+		Name: "fanout-cancel",
+		Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
+			func(ctx context.Context, _ *core.ProcessContext, _ sgIn) (sgElement, error) {
+				close(blockingStarted)
+				<-ctx.Done()
+				close(blockingExited)
+				return sgElement{}, ctx.Err()
+			},
+			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+				<-blockingStarted
+				return sgElement{}, errors.New("boom")
+			},
+		},
+		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
+			return sgResult{Total: len(items)}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("ScatterGather: %v", err)
+	}
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := engine.Deploy(a); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+	proc, _ := engine.Run(t.Context(), a,
+		map[string]any{core.DefaultBindingName: sgIn{Topic: "x"}},
+		core.ProcessOptions{},
+	)
+	select {
+	case <-blockingExited:
+	default:
+		t.Fatal("Run returned before the canceled branch exited")
+	}
+	if proc.Status() == core.StatusCompleted {
+		t.Fatal("expected failed process after generator error")
+	}
+}
+
+// TestScatterGather_GeneratorsGetIsolatedContext pins the workflow concurrency
+// model: every generator gets private scratch and a Blackboard fork; branch
+// writes/conditions are discarded, and lifecycle/managed interaction are
+// rejected because one parent Process cannot own competing continuations.
 func TestScatterGather_GeneratorsGetIsolatedContext(t *testing.T) {
 	probe := func(_ context.Context, pc *core.ProcessContext, _ sgIn) (sgElement, error) {
-		pc.ResetError() // touch the per-invocation scratch from this branch
+		pc.Blackboard().Store("branch-write", sgElement{Score: 99})
+		pc.Blackboard().StoreCondition("branch-condition", true)
+		if status, err := pc.Suspend(context.Background(), agent.Suspension{}); status != core.ActionFailed || !errors.Is(err, core.ErrParallelBranchControl) {
+			return sgElement{}, errors.New("parallel suspension was not rejected")
+		}
+		if err := pc.TerminateAgent("must stay branch-local"); !errors.Is(err, core.ErrParallelBranchControl) {
+			return sgElement{}, err
+		}
+		if _, err := pc.Interact(context.Background(), core.Interaction{}); !errors.Is(err, core.ErrParallelBranchControl) {
+			return sgElement{}, err
+		}
 		return sgElement{Score: 1}, nil
 	}
 	gens := make([]func(context.Context, *core.ProcessContext, sgIn) (sgElement, error), 8)
@@ -101,19 +183,25 @@ func TestScatterGather_GeneratorsGetIsolatedContext(t *testing.T) {
 		t.Fatalf("ScatterGather: %v", err)
 	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := engine.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, err := platform.RunAgent(t.Context(), a,
+	proc, err := engine.Run(t.Context(), a,
 		map[string]any{core.DefaultBindingName: sgIn{Topic: "x"}},
 		core.ProcessOptions{},
 	)
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
+	}
+	if _, ok := proc.Blackboard().Load("branch-write"); ok {
+		t.Fatal("parallel branch named write leaked into parent blackboard")
+	}
+	if _, ok := proc.Blackboard().Condition("branch-condition"); ok {
+		t.Fatal("parallel branch condition leaked into parent blackboard")
 	}
 }
 
@@ -135,11 +223,11 @@ func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ScatterGather: %v", err)
 	}
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := engine.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, _ := platform.RunAgent(t.Context(), a,
+	proc, _ := engine.Run(t.Context(), a,
 		map[string]any{core.DefaultBindingName: sgIn{Topic: "x"}},
 		core.ProcessOptions{},
 	)

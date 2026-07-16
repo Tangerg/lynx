@@ -4,7 +4,7 @@
 //   - Mode: the runtime-wide stance (plan / safe / balanced / yolo) the chat
 //     engine reads at each tool call to decide whether a call runs, is denied,
 //     or must pause for approval. The HITL pause/resume is the R model (the
-//     agent runtime parks on AwaitInput, the client answers via runs.resume) —
+//     agent runtime parks a Suspension, the client answers via runs.resume) —
 //     see internal/adapter/agentexec/turn + internal/domain/execution/interrupts.
 //   - Rules: persistent, fine-grained "remember this decision" rules. A rule
 //     gates a (tool, subject) pair under a scope (session / project / global),

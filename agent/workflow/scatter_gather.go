@@ -10,6 +10,11 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
+// scatterOutput keeps the fan-out result distinct on the workflow blackboard.
+type scatterOutput[Element any] struct {
+	Items []Element
+}
+
 // ScatterGatherConfig configures a scatter-gather workflow: every
 // Generator runs in parallel against the workflow input, then a
 // single Joiner consolidates the per-generator outputs into the
@@ -36,89 +41,87 @@ type ScatterGatherConfig[In, Element, Result any] struct {
 
 	// Generators is the parallel fan-out. Each receives the same
 	// In and produces an Element. Must be non-empty.
-	Generators []func(ctx context.Context, pc *core.ProcessContext, in In) (Element, error)
+	Generators []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error)
 
 	// Joiner consolidates the per-generator outputs into the final
 	// Result. results is in the same order as Generators. Required.
-	Joiner func(ctx context.Context, pc *core.ProcessContext, results []Element) (Result, error)
+	Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error)
 }
 
-// ScatterGather compiles spec into a deployable [*core.Agent].
+// ScatterGather compiles config into a deployable [*core.Agent].
 //
 // The agent has two actions:
 //
 //  1. "{Name}-scatter" — runs every generator in parallel under
-//     errgroup, binds [ResultList][Element] on the blackboard.
+//     errgroup and binds its private fan-out result on the blackboard.
 //  2. "{Name}-gather"  — preconditioned on the bound list; runs
 //     Joiner; binds Result.
 //
-// The single goal targets Result, so [Platform.RunAgent] terminates
+// The single goal targets Result, so [Engine.Run] terminates
 // when Joiner has bound it.
 //
 // Returns an error on missing Name, empty Generators, or nil Joiner.
-func ScatterGather[In, Element, Result any](spec ScatterGatherConfig[In, Element, Result]) (*core.Agent, error) {
-	if spec.Name == "" {
+func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Element, Result]) (*core.Agent, error) {
+	if config.Name == "" {
 		return nil, errors.New("workflow.ScatterGather: Name must not be empty")
 	}
-	if len(spec.Generators) == 0 {
+	if len(config.Generators) == 0 {
 		return nil, errors.New("workflow.ScatterGather: Generators must not be empty")
 	}
-	if spec.Joiner == nil {
+	if config.Joiner == nil {
 		return nil, errors.New("workflow.ScatterGather: Joiner must not be nil")
 	}
 
-	scatter := core.NewAction[In, ResultList[Element]](
-		spec.Name+"-scatter",
-		func(ctx context.Context, pc *core.ProcessContext, in In) (ResultList[Element], error) {
-			items := make([]Element, len(spec.Generators))
-			g, gctx := errgroup.WithContext(ctx)
-			if spec.MaxConcurrency > 0 {
-				g.SetLimit(spec.MaxConcurrency)
+	scatter := core.NewAction[In, scatterOutput[Element]](
+		config.Name+"-scatter",
+		func(ctx context.Context, process *core.ProcessContext, input In) (scatterOutput[Element], error) {
+			items := make([]Element, len(config.Generators))
+			branches := make([]*core.ProcessContext, len(config.Generators))
+			for index := range branches {
+				branches[index] = process.ForParallelBranch()
 			}
-			for i, gen := range spec.Generators {
-				g.Go(func() error {
+			group, groupContext := errgroup.WithContext(ctx)
+			if config.MaxConcurrency > 0 {
+				group.SetLimit(config.MaxConcurrency)
+			}
+			for index, generator := range config.Generators {
+				group.Go(func() error {
 					// Each generator runs in its own goroutine, so hand it a
-					// sibling-safe ProcessContext branch — sharing one pc would
-					// race its per-invocation scratch (e.g. two generators
-					// calling AwaitInput). The process / blackboard the branch
-					// shares are themselves concurrency-safe.
-					out, err := gen(gctx, pc.ForParallelBranch(), in)
+					// sibling-safe branch created before fan-out: scratch and
+					// Blackboard writes are isolated; only the returned item is
+					// joined in this stable index.
+					output, err := generator(groupContext, branches[index], input)
 					if err != nil {
-						return fmt.Errorf("scatter generator %d: %w", i, err)
+						return fmt.Errorf("scatter generator %d: %w", index, err)
 					}
-					items[i] = out
+					items[index] = output
 					return nil
 				})
 			}
-			if err := g.Wait(); err != nil {
-				return ResultList[Element]{}, err
+			if err := group.Wait(); err != nil {
+				return scatterOutput[Element]{}, err
 			}
-			return ResultList[Element]{Items: items}, nil
+			return scatterOutput[Element]{Items: items}, nil
 		},
 		core.ActionConfig{
 			Description: "fan-out generators in parallel",
-			QoS:         singleAttempt,
 		},
 	)
 
-	gather := core.NewAction[ResultList[Element], Result](
-		spec.Name+"-gather",
-		func(ctx context.Context, pc *core.ProcessContext, in ResultList[Element]) (Result, error) {
-			return spec.Joiner(ctx, pc, in.Items)
+	gather := core.NewAction[scatterOutput[Element], Result](
+		config.Name+"-gather",
+		func(ctx context.Context, process *core.ProcessContext, input scatterOutput[Element]) (Result, error) {
+			return config.Joiner(ctx, process, input.Items)
 		},
 		core.ActionConfig{
 			Description: "consolidate parallel results",
-			QoS:         singleAttempt,
 		},
 	)
 
 	return core.NewAgent(core.AgentConfig{
-		Name:        spec.Name,
-		Description: spec.Description,
+		Name:        config.Name,
+		Description: config.Description,
 		Actions:     []core.Action{scatter, gather},
-		Goals: []*core.Goal{core.GoalProducing[Result](core.Goal{
-			Name:        spec.Name,
-			Description: "produce " + core.TypeName[Result](),
-		})},
+		Goals:       []*core.Goal{core.NewOutputGoal[Result](core.GoalConfig{Name: config.Name, Description: "produce " + core.TypeName[Result]()})},
 	}), nil
 }

@@ -1,23 +1,31 @@
-# Lynx Agent 使用指南
+# Lynx Agent Framework 使用指南
 
-本文只描述当前实现。符号级细节以 GoDoc 和源码为准；架构演进记录见
-[`../../doc/CORE_ARCHITECTURE_EXECUTION_PLAN.md`](../../doc/CORE_ARCHITECTURE_EXECUTION_PLAN.md)。
+本文只描述当前代码。符号级契约以 GoDoc、API baseline 和 wire fixture 为准；架构目标、阶段进度与决策见
+[`../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md`](../../doc/AGENT_FRAMEWORK_ARCHITECTURE_EXECUTION_PLAN.md)。
 
 ## 1. 心智模型
 
-一个 Agent 是不可变定义：
+Lynx Agent 是一个可嵌入的 Go framework，不是 DI 容器，也不是 provider SDK。它分为三层：
 
-- `Action` 描述前置条件、效果、成本和执行函数；
-- `Goal` 描述期望成立的条件；
-- `Condition` 从 Blackboard 读取世界状态，返回 True/False/Unknown；
-- `Blackboard` 保存 action 的输入、产物和显式条件；
-- `Planner` 根据当前世界状态选择能推进 Goal 的 action 序列；
-- `Platform` 负责部署、创建进程、执行 tick、事件、暂停/恢复和持久化。
+- `agent/core` 定义 Agent、Action、Goal、Condition、Blackboard、ProcessView 和扩展协议；
+- `agent/runtime` 的 `Engine` 拥有部署、进程、执行循环、挂起恢复、事件和持久化协调；
+- 根 `agent` 包提供常用定义与生命周期的标准入口，高级能力留在具名子包。
 
-Action 之间不直接传参。一个 action 的返回值由 runtime 写入 Blackboard，后续
-action 再按名字和类型读取。这样 planner 才能看见“已经知道什么”和“还缺什么”。
+一次标准执行是：
 
-## 2. 最小 Agent
+```text
+Agent definition -> Engine.Deploy -> immutable Deployment
+                 -> Engine.Run/Start -> Process
+                 -> observe -> plan -> action -> observe ... -> terminal/waiting
+```
+
+Action 之间不直接传参。Action 的输入和产物进入 Blackboard，Planner 根据 Blackboard
+投影出的 WorldState 选择下一步。运行中的 Process 永久绑定精确的 `DeploymentRef`，不会因
+同名 Agent 后续替换而漂移。
+
+## 2. 最小可运行 Agent
+
+常用路径只需导入根包：
 
 ```go
 package main
@@ -27,143 +35,271 @@ import (
     "fmt"
 
     "github.com/Tangerg/lynx/agent"
-    "github.com/Tangerg/lynx/agent/core"
-    "github.com/Tangerg/lynx/agent/runtime"
 )
 
 type Topic struct{ Title string }
 type Post struct{ Body string }
 
 func main() {
-    writer := agent.New("writer").
-        Actions(agent.NewAction("write",
-            func(_ context.Context, _ *core.ProcessContext, topic Topic) (Post, error) {
-                return Post{Body: "About " + topic.Title}, nil
-            },
-            core.ActionConfig{},
-        )).
-        Goals(agent.GoalProducing[Post](core.Goal{Description: "post produced"})).
-        Build()
+    writer := agent.New(agent.AgentConfig{
+        Name:        "writer",
+        Description: "write a post from a topic",
+        Actions: []agent.Action{
+            agent.NewAction("write",
+                func(_ context.Context, _ *agent.ProcessContext, topic Topic) (Post, error) {
+                    return Post{Body: "About " + topic.Title}, nil
+                },
+                agent.ActionConfig{},
+            ),
+        },
+        Goals: []*agent.Goal{
+            agent.NewOutputGoal[Post](agent.GoalConfig{
+                Name:        "post-ready",
+                Description: "produce a post",
+            }),
+        },
+    })
 
-    platform := agent.NewPlatform(runtime.PlatformConfig{})
-    if err := platform.Deploy(writer); err != nil {
-        panic(err)
-    }
-    process, err := platform.RunAgent(context.Background(), writer, map[string]any{
-        core.DefaultBindingName: Topic{Title: "Go agents"},
-    }, core.ProcessOptions{})
+    engine, err := agent.NewEngine(agent.EngineConfig{})
     if err != nil {
         panic(err)
     }
-    post, _ := core.ResultOfType[Post](process)
+    deployment, err := engine.Deploy(writer)
+    if err != nil {
+        panic(err)
+    }
+    fmt.Println("deployed", deployment.Ref())
+
+    process, err := engine.Run(context.Background(), writer, map[string]any{
+        agent.DefaultBindingName: Topic{Title: "Go agents"},
+    }, agent.ProcessOptions{})
+    if err != nil {
+        panic(err)
+    }
+    post, ok := agent.Result[Post](process)
+    if !ok {
+        panic("writer produced no Post")
+    }
     fmt.Println(post.Body)
 }
 ```
 
-完整可运行版本见 [`../examples/hello`](../examples/hello) 和
-[`../examples/blog`](../examples/blog)。
+完整示例见 [`../examples/hello`](../examples/hello)、[`../examples/blog`](../examples/blog)
+和 [`../examples/blogllm`](../examples/blogllm)。
 
-## 3. Planner 与 workflow
+## 3. Definition、Binding 与 Deployment
 
-`agent.NewPlatform` 默认注册 GOAP 和 reactive planner。Agent 未指定
-`PlannerName` 时使用 `goap`；HTN 和 utility planner 需要作为 extension 显式注册。
-`planning.Planner` 只有 `PlanToGoal` 一个算法方法，`PlansToGoals`、
-`BestValuePlan` 和 `Prune` 是包级组合函数。
+`AgentConfig` 是构造输入；`Agent` 是只读定义聚合。`Engine.Deploy` 会执行结构验证、扩展验证，
+并编译出不可变 `Deployment`：
 
-`workflow` 中的 `Sequence`、`Parallel`、`Loop`、`RepeatUntil`、
-`ScatterGather`、`Consensus` 和 `Supervisor` 都产生普通 `*core.Agent`。它们不创建
-第二套 runtime，部署、事件和持久化仍遵循同一套 Platform 规则。
+- 相同名称、版本和定义摘要的重复 Deploy 是幂等的；
+- 同名但定义不同会返回 `ErrDeploymentConflict`；
+- 明确切换活动版本使用 `Engine.Replace`；
+- `Engine.Deployment(ref)` 可读取活动或历史部署；
+- `Engine.Undeploy(name)` 只移除活动路由，不破坏历史定义。
 
-## 4. LLM 调用
+`NewAction[In, Out]` 默认生成一个名为 `it` 的输入和输出 Binding。需要自定义名字或多个
+Binding 时，使用 `ActionConfig.Inputs`、`Outputs` 和 `core.NewBinding[T]`。`ActionConfig`
+保持可用零值，常用可选项包括：
 
-Provider adapter 只实现 `core/chat.Model`，高层默认值、middleware 和调用便利面由
-`chatclient.Client` 持有。把 client 注入 Platform 后，action 通过
-`ProcessContext.Chat()` 或 `ProcessContext.PromptRunner()` 使用：
+- `Preconditions`、`Effects`：显式业务条件；
+- `Repeatable`：允许同一进程多次选择该 Action；
+- `Retry`：显式重试契约；
+- `Cost`、`Value`：Planner 评分函数；
+- `ToolGroups`：抽象工具能力及允许权限；
+- `ClearWorkingState`：成功后清理普通工作状态，保留 protected ambient state。
+
+Action 默认只执行一次。`RetryPolicy` 的零值与 `DefaultRetryPolicy()` 都表示一次尝试；
+`MaxAttempts > 1` 必须声明 `RetrySafetyIdempotent` 或 `RetrySafetyCompensated`。Framework
+不会猜测外部副作用是否安全。
+
+## 4. Engine 与 Process 生命周期
+
+`Engine` 是 framework 级主对象，支持多实例，没有 package-global registry：
+
+- `Run`：同步驱动到终态或 Waiting；
+- `Start`：返回 Process 与只发送一次结果的完成 channel；
+- `Continue` / `ContinueAsync`：继续已存在的非终态 Process；
+- `Resume`：校验并记录 Suspension 响应，不暗中启动执行；
+- `Kill`、`Remove`、`Prune`：显式生命周期管理；
+- `Process`、`Processes`：读取当前 registry 快照；
+- `Save`、`Restore`、`RestoreSnapshot`：durable process 协调。
+
+同一 Process 同时只能有一个 active owner 驱动执行。CAS 防止旧快照覆盖新快照，但不负责
+跨节点选主；多节点 handoff 仍需 Host 提供 lease/fencing。
+
+观察者只应依赖 `core.ProcessView`。Action 的可变能力集中在 `ProcessContext`：Blackboard、
+Dependencies、Chat、Prompt、Suspend、Terminate 和 Usage 记录不会进入公开 ProcessView 或
+ambient context。
+
+## 5. Chat、Prompt 与工具
+
+Engine 接受 provider-neutral 能力，而不是要求某个具体 client：
 
 ```go
-answer, err := pc.PromptRunner().
-    WithSystem("Answer concisely.").
-    WithOptions(&chat.Options{Model: "provider-model-id"}).
-    Generate(ctx, prompt)
+client, err := chatclient.New(model)
+if err != nil {
+    return err
+}
+engine, err := agent.NewEngine(agent.EngineConfig{
+    Chat: agent.ChatCapability{
+        Model:    client,
+        Streamer: client,
+    },
+})
 ```
 
-`PromptRunner` 构造普通 `core/chat.Request`。请求中只有可序列化的消息、工具定义和
-options；可执行的 `tools.Tool` 保存在邻接 `tools.Registry` 中。没有工具时
-`Stream` 直接转发 `chatclient` 的 `iter.Seq2`；存在工具时由同步 Event Runner 驱动，
-最终文本作为一个元素返回，不伪造流式 tool-loop。
+`Chat.Model` 可为空；`Streamer` 只能与 `Model` 一起配置。每进程模型覆盖通过
+`core.ChatProvider` extension 完成。Runtime 统一叠加 conversation ID、history 与
+`ChatGuardrails`，这些执行状态不会进入 provider Request/Response。
 
-每进程模型覆盖通过 `core.ChatClientProvider` extension 完成。它返回
-`*chatclient.Client`，不让 provider SDK 或 client builder 泄漏进 Agent Core。
+Action 内的常用调用入口是：
 
-## 5. 工具与 Event Runner
-
-唯一的工具执行契约是 `tools.Tool`，模型可见部分是
-`core/chat.ToolDefinition`。`tools.Registry` 同时满足 `toolloop.ToolResolver`。
-
-`agent/toolloop.Runner` 接收 `chat.Model` 和 `toolloop.Invocation`，以
-`iter.Seq2[Event, error]` 依次发出：
-
-```text
-model_request -> model_response -> tool_call -> tool_result -> ... -> final
+```go
+answer, err := process.Prompt(ctx, prompt, agent.PromptConfig{
+    System:  "Answer concisely.",
+    Options: &chat.Options{Model: "provider-model-id"},
+    Tools:   []tools.Tool{searchTool},
+})
 ```
 
-Runner 的策略是明确而保守的：工具串行执行、普通工具错误写成 error ToolResult、
-不自动 retry、`MaxRounds` 限制模型轮次。`toolloop.Direct` 可在全 direct 的一轮后直接
-结束。取消和首错通过序列错误返回。
+需要结构化结果时使用 `agent.PromptJSON[T]`。需要完全控制 Request、observer 或 budget 时，
+使用 `ProcessContext.Interact`。所有这些入口最终进入 framework-managed interaction，由
+Runtime 记录 model call、usage、事件、限制和可恢复 tool checkpoint。
 
-工具需要人工输入时返回 `*toolloop.PauseError`。Pause 事件携带 JSON-safe
-`Checkpoint`；`Runner.Resume` 从 pending tool 精确继续，不重调模型，也不重跑已完成
-工具。完整示例见 [`../examples/toolloop`](../examples/toolloop)。
+`agent/toolloop.Runner` 是可独立复用的叶子执行器，不是第二套 Agent runtime。直接使用它的
+调用方自行负责 Process、usage、事件和持久化。
 
-## 6. HITL、进程与持久化
+Agent 可通过以下 helper 暴露为工具：
 
-Agent action 内的人机交互使用 `hitl.Interrupt[R]` 或 typed awaitable。进程进入
-`StatusWaiting` 后，host 调用 `Platform.ResumeProcess` 提交响应，再调用
-`ContinueProcess` 继续运行。
+- `runtime.NewAgentTool[In, Out]`：父 Process 内同步调用一个子 Agent；
+- `runtime.NewStandaloneAgentTool[In, Out]`：无父 Process 的独立工具调用；
+- `runtime.NewAgentTaskTools[In, Out]`：后台 start/result 工具对；
+- `runtime.GoalToolsFor`：指定已部署 Agent 的 Goal 工具；
+- `runtime.GoalTools` / `StandaloneGoalTools`：按 GoalTool 元数据批量生成。
 
-`core.ProcessStore` 保存 `ProcessSnapshot`；`PlatformConfig.AutoSnapshot` 可在每个
-tick 与终态自动保存。`core.SessionStore` 保存跨 turn 的 Session。LLM 对话历史由独立
-`chathistory` module 管理，并通过 context conversation ID 绑定，不塞入 Agent
-Blackboard 或 provider response。
+## 6. HITL 与统一 Suspension
 
-Tool-loop 的 `Checkpoint` 和 Agent 的 `ProcessSnapshot` 是两个不同层级：前者描述
-一次模型/工具调用进行到哪里，后者描述整个 agent process。应用负责在自己的 turn
-记录里组合持久化这两个值。
+Action 内使用线性的 typed API：
 
-## 7. Extension
+```go
+approved, err := hitl.Interrupt[bool](ctx, "publish-approval", map[string]any{
+    "message": "Publish this result?",
+})
+if err != nil {
+    return Output{}, err
+}
+if !approved {
+    return Output{}, errors.New("publish rejected")
+}
+```
 
-Platform-scope extension 放在 `runtime.PlatformConfig.Extensions`，process-scope
-extension 放在 `core.ProcessOptions.Extensions`。所有 extension 先实现
-`core.Extension.Name()`，runtime 再按具体能力接口发现行为。
+首次执行返回统一的 suspended error，typed Action wrapper 自动把它转换为 Waiting。Host 读取
+`Process.Suspension()`，随后调用：
 
-常用能力包括：
+```go
+if err := engine.Resume(process.ID(), suspension.ID, response); err != nil {
+    return err
+}
+if err := engine.Continue(ctx, process.ID()); err != nil {
+    return err
+}
+```
 
-- `planning.Planner`
-- `core.ActionMiddleware`
-- `core.ToolDecorator`
-- `core.AgentValidator`
-- `core.GoalApprover`
-- `core.ToolGroupResolver`
-- `core.ChatClientProvider`
-- `core.EarlyTerminationPolicy`
-- `core.IDGenerator`
-- `core.Blackboard`
-- `runtime.EventListener`
+`Resume` 只提交响应；`Continue` 才重新进入 Action。Human 输入与 Tool pause 使用同一
+Suspension 协议，tool checkpoint 保存在 Suspension payload 内，不使用私有 Blackboard key。
 
-详细的合并、排序和所有权规则见 [`EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md)。
+## 7. Snapshot、Store 与 Session
 
-## 8. 并发与所有权
+`core.ProcessSnapshot` 使用严格 JSON 解码：未知 schema、未知字段、trailing value、无效 enum、
+DeploymentRef 不匹配或 checkpoint correlation 错误都会 fail closed。普通 Blackboard 值默认
+durable；运行时 handle、函数、channel、client 等必须通过以下 API 显式标记为 transient：
 
-- `Platform` 管 agent/process registry；同一进程只允许一个 run loop 驱动。
-- `Blackboard` 实现必须并发安全，因为 workflow 和并发 action 可能共享读取状态。
-- `toolloop.Runner` 可复用，但它调用的 Model 和 ToolResolver 也必须满足相应并发条件。
-- `chat.Request`、`Response`、`Checkpoint` 在跨边界前会验证；调用方不要在并发请求间
-  复用并修改同一个 DTO。
-- context cancellation 必须向 planner、model、tool 和持久化后端传播。
+- `StoreTransient`
+- `BindTransient`
+- `AddTransient`
 
-## 9. 选择扩展点的原则
+Framework 自带 `MemoryProcessStore` 和 `MemorySessionStore` 作为 reference implementation。
+外部 ProcessStore 应运行公开 contract suite：
 
-先组合现有普通类型：action、workflow、middleware、tool decorator。只有当多个真实
-实现需要由 runtime 在固定边界分发时，才增加新的 capability interface。协议值不携带
-logger、registry、SDK client 或闭包；provider 特有 wire 字段使用 namespaced
-`Extensions`，执行策略留在消费方。
+```go
+if err := storetest.TestProcessStore(t.Context(), store); err != nil {
+    t.Fatal(err)
+}
+```
+
+`ProcessOptions.Session` 与 `Engine.RunInSession` 管理多 turn identity；模型对话内容仍由
+`chathistory` 维护，不写进 Agent Blackboard 或 provider Response。
+
+## 8. Extension 与 Dependencies
+
+所有行为扩展先实现：
+
+```go
+type Extension interface { Name() string }
+```
+
+Runtime 再按最小 capability interface 发现 `planning.Planner`、`ActionMiddleware`、
+`ToolMiddleware`、`AgentValidator`、`GoalApprover`、`ToolGroupResolver`、`ChatProvider`、
+`StopPolicy`、`IDGenerator`、`Blackboard` 和 `EventListener`。Engine scope 来自
+`runtime.Config.Extensions`；Process scope 来自 `core.ProcessOptions.Extensions`。
+
+动态领域依赖使用 typed `Dependencies`，而不是全局 service locator：
+
+```go
+var SearchKey = core.MustDependencyKey[Search](`search`)
+
+if err := core.RegisterDependency(engine.Dependencies(), SearchKey, search); err != nil {
+    return err
+}
+
+processDependencies := engine.Dependencies().Child()
+if err := core.RegisterDependency(processDependencies, SearchKey, tenantSearch); err != nil {
+    return err
+}
+options := core.ProcessOptions{Dependencies: processDependencies}
+```
+
+Action 内通过 `core.LookupDependency(process.Dependencies(), SearchKey)` 读取。查找顺序是
+Action -> Process -> Engine；同名异型、重复注册、nil 值、缺失和冻结后写入都有独立 sentinel
+error。静态 Action 仍优先使用构造函数、struct 字段或闭包注入。
+
+## 9. Child Process、Workflow 与并发
+
+Child API 的状态继承是明确契约：
+
+| API | Blackboard | 使用场景 |
+|---|---|---|
+| `RunChildWithState` | 父 Blackboard 的完整副本 | 子任务确实需要父工作状态 |
+| `RunChild` | 仅 protected ambient state | 默认、安全的自包含委派 |
+| `RunChildIsolated` | 全新状态，仅绑定显式 input | loop、pipeline、parallel branch |
+| `StartChild` | 与 `RunChild` 相同，后台执行 | 可稍后读取结果的任务 |
+
+Child 使用精确 Deployment、独立 Session、父预算子树，并继承父 Process 的 EventListener；
+其他 Process extension、guardrails 和 dependency override 不会被隐式复制。
+
+`workflow.Sequence`、`Parallel`、`Loop`、`RepeatUntil`、`RepeatUntilAcceptable`、
+`ScatterGather`、`Consensus` 和 `Supervisor` 最终都编译回普通 Agent。并行 branch 在启动
+goroutine 前获得独立 Blackboard 和 Dependencies child；写入不合并，只有返回值按声明顺序
+join。需要独立暂停/终止能力的并行单元应使用 Child Process。
+
+## 10. API 与 wire 治理
+
+Framework 使用两层自动门禁：
+
+- `internal/arch/testdata/exported_api.txt` 锁定所有公共 package 的 exported API；
+- wire fixture 锁定 ProcessSnapshot、Suspension、toolloop、event 等稳定 JSON shape。
+
+开发阶段允许破坏性调整，但每次都要把调用方、examples、GoDoc、API baseline、wire fixture 和
+迁移文档一次性收口，不保留 alias/shim。`storetest` 是故意公开的外部实现 contract package，
+命名遵循标准库 `fstest`、`slogtest` 的惯例，不应移动到 `internal`。
+
+提交前至少运行：
+
+```bash
+go test ./...
+go test -race ./...
+go vet ./...
+```
+
+更完整的门禁与阶段进度见架构执行计划。

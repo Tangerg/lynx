@@ -38,21 +38,21 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 		t.Fatalf("RepeatUntilAcceptable: %v", err)
 	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	err = platform.Deploy(a)
+	engine := agent.MustNewEngine(runtime.Config{})
+	_, err = engine.Deploy(a)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, err := platform.RunAgent(t.Context(), a,
+	proc, err := engine.Run(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruaIn{Topic: "test"}},
 		core.ProcessOptions{})
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
 	}
-	got, ok := core.ResultOfType[ruaOut](proc)
+	got, ok := core.Result[ruaOut](proc)
 	if !ok {
 		t.Fatal("no ruaOut bound")
 	}
@@ -61,7 +61,7 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 	}
 
 	// Latest Feedback should also be on the blackboard for inspection.
-	if fb, ok := core.ResultOfType[workflow.Feedback](proc); !ok {
+	if fb, ok := core.Result[workflow.Feedback](proc); !ok {
 		t.Fatal("Feedback should be bound on blackboard")
 	} else if fb.Score < 0.8 {
 		t.Fatalf("Feedback.Score = %f, want >= 0.8", fb.Score)
@@ -84,16 +84,16 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 		t.Fatalf("RepeatUntilAcceptable: %v", err)
 	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	mustDeploy(t, platform, a)
-	proc, _ := platform.RunAgent(t.Context(), a,
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+	proc, _ := engine.Run(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruaIn{Topic: "x"}},
 		core.ProcessOptions{})
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
 	}
 	// 0.69 < 0.7 → never accepted; loop hits MaxIterations and gives up.
-	got, _ := core.ResultOfType[ruaOut](proc)
+	got, _ := core.Result[ruaOut](proc)
 	if got.Draft == "" {
 		t.Fatal("expected the last attempted Out, got empty")
 	}
@@ -123,19 +123,19 @@ func TestRepeatUntilAcceptable_ReturnsBestNotLast(t *testing.T) {
 		t.Fatalf("RepeatUntilAcceptable: %v", err)
 	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	mustDeploy(t, platform, a)
-	proc, err := platform.RunAgent(t.Context(), a,
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+	proc, err := engine.Run(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruaIn{Topic: "t"}},
 		core.ProcessOptions{})
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
 	}
 
-	got, ok := core.ResultOfType[ruaOut](proc)
+	got, ok := core.Result[ruaOut](proc)
 	if !ok {
 		t.Fatal("no ruaOut bound")
 	}
@@ -144,7 +144,7 @@ func TestRepeatUntilAcceptable_ReturnsBestNotLast(t *testing.T) {
 	}
 
 	// The full attempt+feedback record is available on the blackboard.
-	hist, ok := core.ResultOfType[*workflow.AttemptHistory[ruaOut]](proc)
+	hist, ok := core.Result[*workflow.AttemptHistory[ruaOut]](proc)
 	if !ok {
 		t.Fatal("AttemptHistory should be bound on blackboard")
 	}

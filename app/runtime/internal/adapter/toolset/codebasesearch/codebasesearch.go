@@ -64,12 +64,12 @@ func definition() tools.Config {
 	}
 }
 
-func (t *tool) search(ctx context.Context, req request) (string, error) {
-	req, err := req.normalize()
+func (t *tool) search(ctx context.Context, request request) (string, error) {
+	request, err := request.normalize()
 	if err != nil {
 		return "", fmt.Errorf("codebase_search: %w", err)
 	}
-	hits, err := t.index.Search(ctx, turnctx.TurnCwd(ctx, ""), req.Query, req.Limit)
+	hits, err := t.index.Search(ctx, turnctx.TurnCwd(ctx, ""), request.Query, request.Limit)
 	if err != nil {
 		if errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 			return "", errors.New("codebase_search: no embedding model is configured — set one in Settings → Models (an embedding-capable provider like OpenAI, or a local Ollama)")

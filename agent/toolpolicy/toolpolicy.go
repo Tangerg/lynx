@@ -171,7 +171,7 @@ type scopeKey struct{}
 // Action bodies wrap ctx with this before driving a chat tool loop:
 //
 //	ctx = toolpolicy.LoopScope(ctx)
-//	text, _, err := req.Call().Text(ctx)
+//	text, _, err := request.Call().Text(ctx)
 //
 // Each LoopScope returns an isolated scope, so two tool loops
 // running concurrently in the same goroutine tree don't share

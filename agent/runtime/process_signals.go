@@ -2,13 +2,12 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// processSignals owns the three channels / atomic slots an AgentProcess
+// processSignals owns the external control signals an Process
 // uses to coordinate with the outside world:
 //
 //   - terminate         buffered channel of TerminationSignal —
@@ -16,10 +15,6 @@ import (
 //     Agent stops the process; Action triggers a
 //     re-plan; ToolCall is fired immediately (see
 //     toolCallCancel below) rather than queued.
-//   - pendingAwaitable  atomic.Pointer parking spot for the typed-action
-//     AwaitInput / Platform.ResumeProcess handshake.
-//     Swap-based ownership: ResumeProcess atomically
-//     claims the slot before invoking the handler.
 //   - toolCallCancel    atomic.Pointer storing the cancel func of the
 //     most recently derived tool-call context.
 //     TerminateToolCall fires it; the in-flight tool
@@ -29,21 +24,8 @@ import (
 // everything is built on channel + atomic primitives so signaling can
 // race with state-machine reads without contending the main mutex.
 type processSignals struct {
-	terminate        chan core.TerminationSignal
-	pendingAwaitable atomic.Pointer[awaitSlot]
-	toolCallCancel   atomic.Pointer[context.CancelFunc]
-}
-
-// awaitSlot is the parking spot used by the AwaitInput / ResumeProcess
-// pair: AwaitInput stores the awaitable here and flips the process to
-// StatusWaiting; ResumeProcess swaps the slot out and routes the
-// response through awaitable.OnResponseAny so the user-supplied
-// handler runs (typically mutating the blackboard). The single-field
-// wrapper exists so atomic.Pointer can park an interface value
-// (Go won't let us use atomic.Pointer[core.Awaitable] directly with
-// concrete-typed Stores).
-type awaitSlot struct {
-	awaitable core.Awaitable
+	terminate      chan core.TerminationSignal
+	toolCallCancel atomic.Pointer[context.CancelFunc]
 }
 
 func newProcessSignals() processSignals {
@@ -96,49 +78,4 @@ func (s *processSignals) registerToolCallCancel(cancel context.CancelFunc) (rele
 		// would have replaced the current owner, which must not be stomped.
 		s.toolCallCancel.CompareAndSwap(cell, nil)
 	}
-}
-
-// parkAwaitable stores req as the pending awaitable, returning
-// [core.ActionWaiting]. It REFUSES (returns [core.ActionFailed]) for a nil
-// request OR when an awaitable is already pending: the slot holds exactly one
-// interrupt, so a second concurrent park — two interrupting actions in one
-// [core.ProcessConcurrent] tick — must fail loudly rather than silently clobber
-// the first, which would lose an interrupt that could never be answered. The
-// caller publishes [event.ProcessWaiting] only on success.
-func (s *processSignals) parkAwaitable(req core.Awaitable) core.ActionStatus {
-	if req == nil {
-		return core.ActionFailed
-	}
-	// CompareAndSwap from nil: the first park wins the slot; a second while one
-	// is still pending fails instead of overwriting. deliverResponse Swaps the
-	// slot back to nil, so the normal sequential park → resume cycle (and a
-	// multi-step resume that re-parks after the swap) is unaffected.
-	if !s.pendingAwaitable.CompareAndSwap(nil, &awaitSlot{awaitable: req}) {
-		return core.ActionFailed
-	}
-	return core.ActionWaiting
-}
-
-// peekAwaitable returns the parked awaitable without consuming it, or
-// nil when nothing is parked. Used by callers that need to inspect a
-// suspended process (e.g. supervisor patterns wanting to surface the
-// child's pending request back to the LLM).
-func (s *processSignals) peekAwaitable() core.Awaitable {
-	slot := s.pendingAwaitable.Load()
-	if slot == nil {
-		return nil
-	}
-	return slot.awaitable
-}
-
-// deliverResponse atomically claims the parked slot and forwards the
-// response to the awaitable's typed handler. Returns an error when no
-// slot is parked or the response value doesn't match the awaitable's
-// expected type.
-func (s *processSignals) deliverResponse(response any) (core.ResponseImpact, error) {
-	slot := s.pendingAwaitable.Swap(nil)
-	if slot == nil {
-		return core.ImpactUnchanged, errors.New("runtime.processSignals.deliverResponse: no awaitable response is pending")
-	}
-	return slot.awaitable.OnResponseAny(response)
 }

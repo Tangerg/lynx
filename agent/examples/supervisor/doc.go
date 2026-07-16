@@ -1,6 +1,6 @@
 // Command supervisor demonstrates the "LLM-orchestrated multi-agent"
 // pattern: a parent agent's LLM picks among sub-agents (each wrapped
-// via runtime.AsChatTool) and passes them to core.PromptRunner.
+// via runtime.NewAgentTool) and passes them to core.ProcessContext.Prompt.
 //
 // The parent's action body asks the LLM to brief a topic. The stub
 // LLM:
@@ -11,8 +11,8 @@
 //     gets {Summary: "..."}
 //  3. finally emits the JSON Brief.
 //
-// the target toolloop.Runner drives model/tool events; runtime.AsChatTool runs
-// each sub-agent synchronously inside the parent process.
+// The parent's ProcessContext.Interact boundary drives model/tool events;
+// runtime.NewAgentTool runs each sub-agent synchronously as a child process.
 // Budget aggregation is automatic — the parent's Usage() sums the
 // whole delegation tree.
 //

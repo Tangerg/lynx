@@ -128,7 +128,7 @@ func TestDomainHooksStayPure(t *testing.T) {
 // heavy runtime coupling (§19 "domain 不引入 I/O/framework"): no filesystem or
 // process I/O, network, database driver, or external SDK/storage library.
 // Pure path-string composition via path/filepath remains allowed. The single
-// agent-SDK edge (accounting reads core.LLMInvocation token counts, a value
+// agent-SDK edge (accounting reads core.ModelCall token counts, a value
 // type) is a deliberate, documented exception and stays allowed.
 func TestDomainStaysFrameworkFree(t *testing.T) {
 	root := moduleRoot(t)
@@ -181,6 +181,68 @@ func TestDeliveryDoesNotControlAgentTurns(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "delivery"),
 		[]string{"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"})
+}
+
+// TestAgentExecDelegatesManagedExecution locks the Framework/Host ownership
+// boundary. The agent adapter may supply product prompts, pricing, observers,
+// tools, and responses, but it must not rebuild the framework's ToolLoop,
+// decode ProcessSnapshot continuation payloads, or record framework usage
+// directly. Those concerns belong to agent/runtime's managed interaction and
+// persistence coordinator.
+func TestAgentExecDelegatesManagedExecution(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "internal", "adapter", "agentexec")
+	forbidExternalImports(t, dir, []string{"github.com/Tangerg/lynx/agent/toolloop"})
+
+	forbiddenSelectors := map[string]string{
+		"core.ProcessSnapshot": "Host adapters must treat process snapshots as framework-owned persistence",
+		"toolloop.NewRunner":   "managed interaction owns the ToolLoop runner",
+		"pc.RecordModelCall":   "managed interaction owns framework usage recording",
+		"proc.RecordModelCall": "managed interaction owns framework usage recording",
+	}
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			selector, ok := node.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			name := exprString(selector.X) + "." + selector.Sel.Name
+			if reason, forbidden := forbiddenSelectors[name]; forbidden {
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("%s: %s uses %s", rel, reason, name)
+			}
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk agentexec: %v", walkErr)
+	}
+}
+
+// TestCapabilityAdaptersDoNotImportTransportSDKs keeps MCP/A2A protocol
+// libraries behind internal/infra. Tool assembly consumes the infrastructure
+// adapters through local configuration and the narrow tools.Tool capability;
+// it must not construct or expose transport-library types itself.
+func TestCapabilityAdaptersDoNotImportTransportSDKs(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "adapter", "toolset"), []string{
+		"github.com/Tangerg/lynx/a2a",
+		"github.com/Tangerg/lynx/mcp",
+		"github.com/a2aproject/a2a-go",
+		"github.com/modelcontextprotocol/go-sdk",
+		"github.com/mark3labs/mcp-go",
+	})
 }
 
 // TestBootstrapExposesNoBusinessMethod enforces §16 rule 8: the composition root
