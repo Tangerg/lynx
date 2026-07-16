@@ -126,10 +126,10 @@ func (e *Engine) RunInSession(
 // SessionStore is configured. No-op when none is wired so callers
 // don't have to nil-check the store at every save site.
 func (e *Engine) touchAndSaveSession(ctx context.Context, session *core.Session) error {
+	session.Touch()
 	if e.sessionStore == nil {
 		return nil
 	}
-	session.Touch()
 	return e.sessionStore.Save(ctx, *session)
 }
 

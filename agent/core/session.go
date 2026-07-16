@@ -103,9 +103,6 @@ func NewSession(id, userID, agentName string) Session {
 // calls this on every successful dispatch so callers can rely on
 // UpdatedAt as the last-activity timestamp.
 func (s *Session) Touch() {
-	if s == nil {
-		return
-	}
 	s.UpdatedAt = time.Now()
 }
 

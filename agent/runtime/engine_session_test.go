@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
@@ -51,6 +52,8 @@ func TestEngine_RunInSession_NoStore_PropagatesSession(t *testing.T) {
 	mustDeploy(t, engine, a)
 
 	sess := core.NewSession("conv-123", "alice", "session-agent")
+	previousUpdate := time.Unix(1, 0).UTC()
+	sess.UpdatedAt = previousUpdate
 	proc, err := engine.RunInSession(
 		context.Background(), a, &sess,
 		map[string]any{core.DefaultBindingName: srWord{Text: "lynx"}},
@@ -68,11 +71,9 @@ func TestEngine_RunInSession_NoStore_PropagatesSession(t *testing.T) {
 	if !ok || seen != "conv-123" {
 		t.Errorf("session not propagated; got blackboard value %v", seen)
 	}
-	// Without a SessionStore configured the runtime should not touch
-	// the session (no save would happen anyway).
-	if !sess.UpdatedAt.Equal(sess.StartedAt) {
-		t.Errorf("UpdatedAt should equal StartedAt when no SessionStore configured; got %v vs %v",
-			sess.UpdatedAt, sess.StartedAt)
+	if !sess.UpdatedAt.After(previousUpdate) {
+		t.Errorf("UpdatedAt should advance without a SessionStore; got %v after %v",
+			sess.UpdatedAt, previousUpdate)
 	}
 }
 

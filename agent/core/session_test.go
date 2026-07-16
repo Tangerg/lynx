@@ -39,12 +39,6 @@ func TestSessionTouchRefreshesUpdatedAt(t *testing.T) {
 	}
 }
 
-func TestSessionTouchNilSafe(t *testing.T) {
-	// Must not panic.
-	var session *core.Session
-	session.Touch()
-}
-
 func TestMemorySessionStoreSaveLoad(t *testing.T) {
 	store := core.NewMemorySessionStore()
 	ctx := context.Background()
