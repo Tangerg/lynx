@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	github.com/Tangerg/lynx/a2a v0.0.0-20260716134603-cc8be60da95e
-	github.com/Tangerg/lynx/agent v0.0.0-20260716154809-e6c91ade068a
+	github.com/Tangerg/lynx/agent v0.0.0-20260716163424-71261f63a160
 	github.com/Tangerg/lynx/chatclient v0.0.0-20260716134603-cc8be60da95e
 	github.com/Tangerg/lynx/chathistory v0.0.0-20260716134603-cc8be60da95e
 	github.com/Tangerg/lynx/core v0.0.0-20260716134603-cc8be60da95e
