@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -37,12 +38,18 @@ func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error {
 	if suspension.Responded() {
 		return fmt.Errorf("runtime.ValidateResumableSnapshot: suspension %q already has a response", suspension.ID)
 	}
-	if suspension.Kind != interaction.SuspensionTool {
-		return nil
-	}
-	checkpoint, err := decodeInteractionCheckpoint(suspension.Payload)
+	checkpoint, recognized, err := decodeSuspensionCheckpoint(suspension.Payload)
 	if err != nil {
 		return fmt.Errorf("runtime.ValidateResumableSnapshot: %w", err)
+	}
+	if !recognized {
+		if suspension.Kind == interaction.SuspensionTool {
+			return errors.New("runtime.ValidateResumableSnapshot: tool suspension has no managed checkpoint")
+		}
+		return nil
+	}
+	if checkpoint.Kind == suspensionCheckpointNestedChild {
+		return nil
 	}
 	if checkpoint.Deployment != snapshot.Deployment {
 		return errors.New("runtime.ValidateResumableSnapshot: tool checkpoint deployment does not match snapshot deployment")
@@ -58,7 +65,7 @@ func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error {
 // non-waiting, and deployment-incompatible snapshots return false, nil;
 // persistence access failures are returned as errors.
 func (e *Engine) Resumable(ctx context.Context, processID string) (bool, error) {
-	_, loss, err := e.loadResumableSnapshot(ctx, processID)
+	_, loss, err := e.loadResumableTree(ctx, processID, map[string]struct{}{}, true)
 	if err != nil {
 		return false, err
 	}
@@ -70,21 +77,83 @@ func (e *Engine) Resumable(ctx context.Context, processID string) (bool, error) 
 // access failures remain ordinary errors so hosts can distinguish an unusable
 // continuation from a temporarily unavailable store.
 func (e *Engine) RestoreResumable(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error) {
-	snapshot, loss, err := e.loadResumableSnapshot(ctx, processID)
+	tree, loss, err := e.loadResumableTree(ctx, processID, map[string]struct{}{}, true)
 	if err != nil {
 		return nil, err
 	}
 	if loss != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: %w: %w", ErrResumableSnapshotLost, loss)
 	}
-	process, err := e.RestoreSnapshot(snapshot, options)
+	var (
+		restored []restoredProcess
+		links    []restoredProcessLink
+	)
+	process, err := e.restoreResumableTree(ctx, tree, options, nil, &restored, &links)
 	if err != nil {
+		for index := len(links) - 1; index >= 0; index-- {
+			links[index].parent.budget.removeChild(links[index].child)
+		}
+		for index := len(restored) - 1; index >= 0; index-- {
+			e.processes.unregister(restored[index].process.ID())
+			if restored[index].previous != nil {
+				e.processes.register(restored[index].previous)
+			}
+		}
 		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: %w: rebuild process %q: %w", ErrResumableSnapshotLost, processID, err)
 	}
 	return process, nil
 }
 
-func (e *Engine) loadResumableSnapshot(ctx context.Context, processID string) (core.ProcessSnapshot, error, error) {
+type resumableProcessTree struct {
+	snapshot core.ProcessSnapshot
+	child    *resumableProcessTree
+}
+
+func (e *Engine) loadResumableTree(
+	ctx context.Context,
+	processID string,
+	visited map[string]struct{},
+	root bool,
+) (*resumableProcessTree, error, error) {
+	if _, duplicate := visited[processID]; duplicate {
+		return nil, fmt.Errorf("%w: nested process cycle at %q", core.ErrInvalidSnapshot, processID), nil
+	}
+	visited[processID] = struct{}{}
+	snapshot, loss, err := e.loadStoredSnapshot(ctx, processID)
+	if err != nil || loss != nil {
+		return nil, loss, err
+	}
+	if root {
+		if err := ValidateResumableSnapshot(snapshot); err != nil {
+			return nil, err, nil
+		}
+	} else if snapshot.Status != core.StatusWaiting && !snapshot.Status.IsTerminal() {
+		return nil, fmt.Errorf("%w: nested child %q has non-resumable status %s", core.ErrInvalidSnapshot, processID, snapshot.Status), nil
+	}
+	if _, ok := e.catalog.lookup(snapshot.Deployment); !ok {
+		return nil, fmt.Errorf("%w: %s", ErrDeploymentNotFound, snapshot.Deployment), nil
+	}
+
+	tree := &resumableProcessTree{snapshot: snapshot}
+	relation, relationErr := nestedRelationFromSuspension(snapshot.Suspension)
+	if relationErr != nil {
+		return nil, relationErr, nil
+	}
+	if relation == nil {
+		return tree, nil, nil
+	}
+	childTree, childLoss, childErr := e.loadResumableTree(ctx, relation.ChildID, visited, false)
+	if childErr != nil || childLoss != nil {
+		return nil, childLoss, childErr
+	}
+	if err := validateNestedChildSnapshot(snapshot, childTree.snapshot, relation); err != nil {
+		return nil, err, nil
+	}
+	tree.child = childTree
+	return tree, nil, nil
+}
+
+func (e *Engine) loadStoredSnapshot(ctx context.Context, processID string) (core.ProcessSnapshot, error, error) {
 	if e == nil {
 		return core.ProcessSnapshot{}, nil, errors.New("runtime.Engine.Resumable: nil engine")
 	}
@@ -103,13 +172,116 @@ func (e *Engine) loadResumableSnapshot(ctx context.Context, processID string) (c
 	if snapshot.ID != processID || snapshot.Revision == 0 {
 		return core.ProcessSnapshot{}, fmt.Errorf("%w: stored snapshot identity/revision does not match process %q", core.ErrInvalidSnapshot, processID), nil
 	}
-	if err := ValidateResumableSnapshot(snapshot); err != nil {
+	if err := snapshot.Validate(); err != nil {
 		return core.ProcessSnapshot{}, err, nil
 	}
-	if _, ok := e.catalog.lookup(snapshot.Deployment); !ok {
-		return core.ProcessSnapshot{}, fmt.Errorf("%w: %s", ErrDeploymentNotFound, snapshot.Deployment), nil
-	}
 	return snapshot, nil, nil
+}
+
+type restoredProcessLink struct {
+	parent *Process
+	child  *Process
+}
+
+type restoredProcess struct {
+	process  *Process
+	previous *Process
+}
+
+func (e *Engine) restoreResumableTree(
+	ctx context.Context,
+	tree *resumableProcessTree,
+	options core.ProcessOptions,
+	parent *Process,
+	restored *[]restoredProcess,
+	links *[]restoredProcessLink,
+) (*Process, error) {
+	if tree == nil {
+		return nil, errors.New("runtime: resumable process tree is nil")
+	}
+	snapshot := tree.snapshot
+	if tree.child != nil {
+		if err := subtractChildSnapshotAggregate(&snapshot, tree.child.snapshot); err != nil {
+			return nil, err
+		}
+	}
+	previous, _ := e.Process(snapshot.ID)
+	process, err := e.RestoreSnapshot(snapshot, options)
+	if err != nil {
+		return nil, err
+	}
+	*restored = append(*restored, restoredProcess{process: process, previous: previous})
+	if parent != nil {
+		linker := childRun{ctx: ctx, engine: e}
+		if err := linker.restoreSession(process, parent); err != nil {
+			return nil, fmt.Errorf("restore child session: %w", err)
+		}
+		parent.budget.addChild(process)
+		*links = append(*links, restoredProcessLink{parent: parent, child: process})
+	}
+	if tree.child == nil {
+		return process, nil
+	}
+	childOptions, err := restoredChildOptions(ctx, process, e, tree.child.snapshot.Deployment)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := e.restoreResumableTree(ctx, tree.child, childOptions, process, restored, links); err != nil {
+		return nil, err
+	}
+	return process, nil
+}
+
+func restoredChildOptions(
+	ctx context.Context,
+	parent *Process,
+	engine *Engine,
+	deploymentRef core.DeploymentRef,
+) (core.ProcessOptions, error) {
+	deployment, ok := engine.catalog.lookup(deploymentRef)
+	if !ok {
+		return core.ProcessOptions{}, fmt.Errorf("%w: %s", ErrDeploymentNotFound, deploymentRef)
+	}
+	options, err := configureChildProcessOptions(ctx, parent, deployment, core.ProcessOptions{})
+	if err != nil {
+		return core.ProcessOptions{}, err
+	}
+	options.Extensions = parent.childExtensions(options.Extensions)
+	return options, nil
+}
+
+func subtractChildSnapshotAggregate(parent *core.ProcessSnapshot, child core.ProcessSnapshot) error {
+	if parent == nil {
+		return errors.New("runtime: cannot rebase nil parent snapshot")
+	}
+	parent.Cost -= child.Cost
+	if parent.Cost < 0 && parent.Cost > -1e-9 {
+		parent.Cost = 0
+	}
+	parent.Tokens -= child.Tokens
+	if parent.Cost < 0 || parent.Tokens < 0 {
+		return errors.New("runtime: child usage exceeds parent subtree snapshot")
+	}
+	var err error
+	parent.ModelCalls, err = stripSnapshotCallSuffix(parent.ModelCalls, child.ModelCalls)
+	if err != nil {
+		return fmt.Errorf("runtime: rebase parent model calls: %w", err)
+	}
+	parent.EmbeddingCalls, err = stripSnapshotCallSuffix(parent.EmbeddingCalls, child.EmbeddingCalls)
+	if err != nil {
+		return fmt.Errorf("runtime: rebase parent embedding calls: %w", err)
+	}
+	return nil
+}
+
+func stripSnapshotCallSuffix[T comparable](all, suffix []T) ([]T, error) {
+	if len(suffix) == 0 {
+		return slices.Clone(all), nil
+	}
+	if len(suffix) > len(all) || !slices.Equal(all[len(all)-len(suffix):], suffix) {
+		return nil, errors.New("child call history is not the parent subtree suffix")
+	}
+	return slices.Clone(all[:len(all)-len(suffix)]), nil
 }
 
 // Snapshot captures the process's state into a portable

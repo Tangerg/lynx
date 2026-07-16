@@ -13,10 +13,9 @@ import (
 // failure" message; call sites add their own prefix context (step number /
 // agent name / iteration index).
 //
-// Waiting is treated as a non-terminal failure here. Agent-as-tool wrappers
-// that want to surface a structured "waiting" tool-result (instead of bubbling
-// the error) should branch on [core.ProcessStatus] before calling
-// TerminalError.
+// Waiting is treated as a non-terminal failure here. External/background
+// tool adapters that expose waiting as structured state branch on
+// [core.ProcessStatus] before calling TerminalError.
 func (p *Process) TerminalError() error {
 	if p == nil {
 		return errors.New("process is nil")

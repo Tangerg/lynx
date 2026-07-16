@@ -178,6 +178,12 @@ Agent 可通过以下 helper 暴露为工具：
 - `engine.GoalToolsFor(...)`：指定已部署 Agent 的 Goal 工具；
 - `engine.GoalTools()` / `engine.StandaloneGoalTools()`：按 GoalTool 元数据批量生成。
 
+同步 `NewAgentTool` 的 child 若进入 Waiting，Runtime 会把同一个 suspension 提升到
+parent Process，并保存原 model round、已完成工具结果、pending tool call 和 exact child
+relation。Host 始终对 parent process 调用 `Resume` / `Continue`；child terminal 后原工具调用
+才提交结果，之前的 model/tool 副作用不会重放。`NewStandaloneAgentTool` 与后台 task result
+仍返回面向外部 host 的 `{"status":"waiting"}` JSON。
+
 ## 6. HITL 与统一 Suspension
 
 Action 内使用线性的 typed API：
@@ -205,6 +211,10 @@ if err := engine.Continue(ctx, process.ID()); err != nil {
     return err
 }
 ```
+
+当 suspension 来自同步 AgentTool 的任意深度 child 时，仍使用 root/parent Process 的 ID。
+`Engine.Resume` 会沿 durable child relation 把同一响应写到最深 waiting child，再由
+`Engine.Continue` 逐层完成原 continuation。
 
 `Resume` 只提交响应；`Continue` 才重新进入 Action。Human 输入与 Tool pause 使用同一
 Suspension 协议，tool checkpoint 保存在 Suspension payload 内，不使用私有 Blackboard key。

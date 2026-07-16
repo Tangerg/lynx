@@ -72,11 +72,13 @@
 - `ProcessOptions.ChildOptions` 提供 Host 显式的逐 child 配置通路，并默认覆盖完整委派树；未配置时不改变 Agent 的最小继承策略。
 - `interaction.Limits.MaxModelCalls` 以 Process 子树的累计 model call ledger 约束应用级 step budget，同时保留 `MaxSteps` 的单次 interaction 语义。
 - `Engine.Kill` 会取消活动 Run / Continue context，并递归终止仍存活的 child Process，避免同步委派在 root kill 后成为 orphan。
+- 同步 `NewAgentTool` 的 child suspension 会暂停 parent，并持久化 exact child、deployment、suspension 与 pending tool-call relation；恢复不会重跑已完成的 parent model/tool 边界。Standalone/background waiting JSON 语义保持独立。
 
 ### Interaction and persistence
 
 - `ProcessContext.Prompt`、`PromptJSON` 与 `Interact` 统一进入 framework-managed interaction。
 - Human/tool pause 共用 JSON-safe Suspension；`Resume` 与 `Continue` 分离。
+- `Engine.Resume(parent)` 会沿 durable nested relation 先响应最深 waiting child；`RestoreResumable` 递归恢复活动 child tree，并在重建 budget linkage 前剥离 snapshot 中已聚合的 child usage，避免重复记账。
 - ProcessSnapshot 使用 strict decoder 与 exact DeploymentRef。
 - durable Host 使用 `Engine.Resumable` 判断 stored continuation，并通过
   `Engine.RestoreResumable` 获得统一的 `ErrResumableSnapshotLost` 分类；Host

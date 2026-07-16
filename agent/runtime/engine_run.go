@@ -230,10 +230,53 @@ func (e *Engine) Resume(id, suspensionID string, response any) error {
 	if !ok {
 		return processNotFoundError("resume process", id)
 	}
+	if err := e.resumeProcess(process, suspensionID, response, map[string]struct{}{}); err != nil {
+		return fmt.Errorf("resume process %q: %w", id, err)
+	}
+	return nil
+}
+
+// resumeProcess records one response from the deepest waiting child back to
+// the requested parent. Locks are acquired root → leaf, matching the process
+// tree's existing accounting traversal and avoiding child → parent cycles.
+func (e *Engine) resumeProcess(process *Process, suspensionID string, response any, visited map[string]struct{}) error {
+	if process == nil {
+		return errors.New("resume process: process is nil")
+	}
+	if _, duplicate := visited[process.ID()]; duplicate {
+		return fmt.Errorf("%w: nested process cycle at %q", interaction.ErrSuspensionConflict, process.ID())
+	}
+	visited[process.ID()] = struct{}{}
 	process.checkpointMu.Lock()
 	defer process.checkpointMu.Unlock()
+
+	suspension := process.Suspension()
+	if suspension == nil || process.Status() != core.StatusWaiting || suspension.ID != suspensionID {
+		return fmt.Errorf("%w: process %q has no pending suspension %q", interaction.ErrSuspensionStale, process.ID(), suspensionID)
+	}
+	if _, err := suspension.ValidateResponse(response); err != nil {
+		return err
+	}
+	relation, err := nestedRelationFromSuspension(suspension)
+	if err != nil {
+		return err
+	}
+	if relation != nil {
+		child, ok := e.Process(relation.ChildID)
+		if !ok {
+			return fmt.Errorf("%w: nested child process %q is missing", interaction.ErrSuspensionStale, relation.ChildID)
+		}
+		if err := validateNestedChildProcess(process, child, relation); err != nil {
+			return err
+		}
+		if child.Status() == core.StatusWaiting {
+			if err := e.resumeProcess(child, relation.SuspensionID, response, visited); err != nil {
+				return err
+			}
+		}
+	}
 	if err := process.state.respondToSuspension(suspensionID, response, time.Now()); err != nil {
-		return fmt.Errorf("resume process %q: %w", id, err)
+		return err
 	}
 	return nil
 }

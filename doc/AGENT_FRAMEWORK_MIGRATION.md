@@ -269,6 +269,12 @@ Host 将一个应用级 step budget 覆盖到完整委派树。
 `Engine.Kill` 现在会取消目标 Process 的活动 Run / Continue 上下文并递归终止
 其存活后代；Action、provider 调用和同步 child 应始终监听传入的 context。
 
+同步 `runtime.NewAgentTool` 的 waiting 语义已改为真正的 nested suspension：
+parent Process 进入 Waiting，Host 对 parent ID 调用 `Resume` / `Continue`，Runtime
+恢复 exact child 与原 tool-call checkpoint。删除 parent action 中解析
+`{"status":"waiting"}` 并自行寻找 child process 的逻辑。外部
+`NewStandaloneAgentTool` 和 `NewAgentTaskTools` 继续使用结构化 waiting JSON。
+
 ## 10. ProcessStore 与 snapshot
 
 最小存储合同：

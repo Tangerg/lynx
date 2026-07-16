@@ -66,6 +66,9 @@ func (e *Engine) GoalToolsFor(names ...string) ([]tools.Tool, error) {
 // child's blackboard via dual-binding.
 // Out is the type the sub-agent produces; NewAgentTool extracts it via
 // [core.Result] and JSON-encodes it as the tool result.
+// If the child suspends, the parent carries that same durable suspension and
+// resumes the original child/tool call after [Engine.Resume] plus
+// [Engine.Continue]; completed sibling tools and model rounds are not replayed.
 //
 // The child runs on a clean blackboard that keeps only the parent's
 // protected ambient entries (the same policy as [Engine.RunChild]) — so the
@@ -103,9 +106,8 @@ func NewAgentTool[In, Out any](engine *Engine, agentName string) (tools.Tool, er
 // Target per-call form is ergonomic enough on its own without a
 // separate batch helper.
 //
-// Suspended (HITL) runs surface the same JSON "status: waiting"
-// payload [NewAgentTool] uses, so an MCP host can decide to drive the
-// process via [Engine.Resume] out of band.
+// Suspended (HITL) runs surface a JSON "status: waiting" payload, so an MCP
+// host can decide to drive the process via [Engine.Resume] out of band.
 func NewStandaloneAgentTool[In, Out any](engine *Engine, agentName string) (tools.Tool, error) {
 	deployment, err := engine.findDeployment("NewStandaloneAgentTool", agentName)
 	if err != nil {

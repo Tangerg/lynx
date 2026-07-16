@@ -226,20 +226,107 @@ func (e *Engine) Save(ctx context.Context, processID string) (uint64, error) {
 }
 
 func (e *Engine) saveProcess(ctx context.Context, process *Process) (uint64, error) {
+	if e.processStore == nil {
+		return 0, errors.New("runtime.Engine.saveProcess: no ProcessStore configured")
+	}
+	tree, err := e.lockProcessTree(process, map[string]struct{}{})
+	if err != nil {
+		return 0, err
+	}
+
+	snapshots := make([]core.ProcessSnapshot, len(tree))
+	for index, current := range tree {
+		snapshots[index], err = current.snapshot()
+		if err != nil {
+			unlockProcessTree(tree)
+			return 0, err
+		}
+	}
+	for index := 0; index+1 < len(snapshots); index++ {
+		relation, relationErr := nestedRelationFromSuspension(snapshots[index].Suspension)
+		if relationErr != nil {
+			unlockProcessTree(tree)
+			return 0, relationErr
+		}
+		if relation == nil {
+			unlockProcessTree(tree)
+			return 0, fmt.Errorf("%w: process %q lost its nested child relation while saving", core.ErrInvalidSnapshot, snapshots[index].ID)
+		}
+		if err := validateNestedChildSnapshot(snapshots[index], snapshots[index+1], relation); err != nil {
+			unlockProcessTree(tree)
+			return 0, err
+		}
+	}
+
+	revisions := make([]uint64, len(tree))
+	for index := len(tree) - 1; index >= 0; index-- {
+		snapshot := snapshots[index]
+		revision, saveErr := e.processStore.Save(ctx, snapshot, snapshot.Revision)
+		if saveErr != nil {
+			unlockProcessTree(tree)
+			return 0, saveErr
+		}
+		if !tree[index].state.commitRevision(snapshot.Revision, revision) {
+			unlockProcessTree(tree)
+			return 0, &core.RevisionConflictError{
+				ProcessID: tree[index].ID(),
+				Expected:  snapshot.Revision,
+				Actual:    tree[index].state.snapshotRevision(),
+			}
+		}
+		revisions[index] = revision
+	}
+
+	var cleanup []string
+	for _, current := range tree {
+		cleanup = append(cleanup, current.takeNestedChildCleanup()...)
+	}
+	unlockProcessTree(tree)
+	for _, childID := range cleanup {
+		e.discardProcessTree(ctx, childID)
+	}
+	return revisions[0], nil
+}
+
+func (e *Engine) lockProcessTree(process *Process, visited map[string]struct{}) ([]*Process, error) {
+	if process == nil {
+		return nil, errors.New("runtime.Engine.saveProcess: process is nil")
+	}
+	if _, duplicate := visited[process.ID()]; duplicate {
+		return nil, fmt.Errorf("%w: nested process cycle at %q", core.ErrInvalidSnapshot, process.ID())
+	}
+	visited[process.ID()] = struct{}{}
 	process.checkpointMu.Lock()
-	defer process.checkpointMu.Unlock()
-	snapshot, err := process.snapshot()
+	relation, err := nestedRelationFromSuspension(process.Suspension())
 	if err != nil {
-		return 0, err
+		process.checkpointMu.Unlock()
+		return nil, err
 	}
-	revision, err := e.processStore.Save(ctx, snapshot, snapshot.Revision)
+	if relation == nil {
+		return []*Process{process}, nil
+	}
+	child, ok := e.Process(relation.ChildID)
+	if !ok {
+		process.checkpointMu.Unlock()
+		return nil, fmt.Errorf("%w: nested child process %q is missing", core.ErrInvalidSnapshot, relation.ChildID)
+	}
+	children, err := e.lockProcessTree(child, visited)
 	if err != nil {
-		return 0, err
+		process.checkpointMu.Unlock()
+		return nil, fmt.Errorf("lock nested child %q: %w", child.ID(), err)
 	}
-	if !process.state.commitRevision(snapshot.Revision, revision) {
-		return 0, &core.RevisionConflictError{ProcessID: process.ID(), Expected: snapshot.Revision, Actual: process.state.snapshotRevision()}
+	if err := validateNestedChildProcess(process, child, relation); err != nil {
+		unlockProcessTree(children)
+		process.checkpointMu.Unlock()
+		return nil, err
 	}
-	return revision, nil
+	return append([]*Process{process}, children...), nil
+}
+
+func unlockProcessTree(tree []*Process) {
+	for index := len(tree) - 1; index >= 0; index-- {
+		tree[index].checkpointMu.Unlock()
+	}
 }
 
 // Restore loads a snapshot from the configured store and

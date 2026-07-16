@@ -12,9 +12,9 @@ import (
 // JSON string result and translates terminal failures into driver-facing
 // errors.
 //
-// Waiting is a soft control-flow result: the child is still in flight and must
-// remain discoverable for resume, so we return a structured "status:waiting"
-// payload instead of treating it as an error.
+// Waiting is an external-host control-flow result for standalone and
+// background tools. Synchronous parent-child AgentTool calls intercept it
+// earlier and suspend the parent at the original tool-call checkpoint.
 //
 // All other terminal outcomes are handled in one place so [agentTool.Call] only
 // needs to coordinate dependencies.
@@ -25,8 +25,6 @@ func (t *agentTool) encodeResult(child *Process) (string, error) {
 	agentName := t.deployment.agent.Name()
 
 	if child.Status() == core.StatusWaiting {
-		// Parked for HITL: the host resumes it via process_id, so snapshot must
-		// survive. Return structured state to keep the caller in control.
 		return child.waitingToolResult(), nil
 	}
 

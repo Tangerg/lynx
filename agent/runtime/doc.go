@@ -22,11 +22,13 @@
 //	  → Kill / Remove / Prune
 //
 // HITL is a first-class state: when an action surfaces a suspension from
-// [hitl.Interrupt],
-// suspension, the process waits in [core.StatusWaiting];
+// [hitl.Interrupt], the process waits in [core.StatusWaiting];
 // [Engine.Resume] records a response on the exact suspension while
 // the process remains waiting; [Engine.Continue] re-enters the action
-// at that suspension point. [Engine.RunChildWithState], [Engine.RunChild], and
+// at that suspension point. A synchronous AgentTool child that waits promotes
+// the same suspension to its parent and retains the exact child/tool-loop
+// checkpoint, so Resume/Continue finishes the original tool call without
+// replaying completed siblings. [Engine.RunChildWithState], [Engine.RunChild], and
 // [Engine.RunChildIsolated] bind an exact Deployment with explicit inheritance
 // semantics, join the parent's budget tree, and receive
 // its process-scope [EventListener] extensions. Other process extensions,

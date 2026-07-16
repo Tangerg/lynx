@@ -98,11 +98,20 @@ func (r childRun) processOptions(parent *Process, deployment *Deployment) (core.
 	case childStartsEmpty:
 		options.Blackboard = r.engine.NewBlackboard()
 	}
+	return configureChildProcessOptions(r.ctx, parent, deployment, options)
+}
+
+func configureChildProcessOptions(
+	ctx context.Context,
+	parent *Process,
+	deployment *Deployment,
+	options core.ProcessOptions,
+) (core.ProcessOptions, error) {
 	if parent == nil || parent.options == nil || parent.options.ChildOptions == nil {
 		return options, nil
 	}
 	configure := parent.options.ChildOptions
-	configured, err := configure(normalizeContext(r.ctx), parent, deployment.agent)
+	configured, err := configure(normalizeContext(ctx), parent, deployment.agent)
 	if err != nil {
 		return core.ProcessOptions{}, err
 	}
@@ -141,5 +150,36 @@ func (r childRun) linkSession(child, parent *Process) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (r childRun) restoreSession(child, parent *Process) error {
+	if child == nil || parent == nil || child.options == nil || child.options.Session != nil {
+		return nil
+	}
+	r.ctx = normalizeContext(r.ctx)
+	parentConversationID := parent.conversationID()
+	if parentConversationID == "" {
+		return nil
+	}
+	if r.engine == nil || r.engine.sessionStore == nil {
+		return r.linkSession(child, parent)
+	}
+	session, err := r.engine.sessionStore.Load(r.ctx, child.ID())
+	if err != nil {
+		if errors.Is(err, core.ErrSessionNotFound) {
+			return r.linkSession(child, parent)
+		}
+		return err
+	}
+	if session.ID != child.ID() ||
+		session.ParentID != parentConversationID ||
+		session.UserID != parent.userID() ||
+		session.AgentName != child.agent().Name() ||
+		session.StartedAt.IsZero() ||
+		session.UpdatedAt.IsZero() {
+		return errors.New("stored session identity does not match process lineage")
+	}
+	child.options.Session = &session
 	return nil
 }
