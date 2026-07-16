@@ -66,6 +66,11 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 	if request, ok := errors.AsType[*core.ReplanRequest](lastErr); ok {
 		replan = request
 	}
+	if p.abortStagedNestedChild(ctx) && status != core.ActionFailed {
+		status = core.ActionFailed
+		lastErr = errors.New("runtime: action returned without committing its staged nested child suspension")
+		replan = nil
+	}
 
 	duration := time.Since(startedAt)
 	p.recordActionMetric(ctx, status, duration)

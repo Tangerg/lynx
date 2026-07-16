@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -18,15 +19,6 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const interactionCheckpointSchemaVersion uint16 = 1
-
-type interactionCheckpoint struct {
-	SchemaVersion uint16               `json:"schema_version"`
-	Owner         string               `json:"owner"`
-	Deployment    core.DeploymentRef   `json:"deployment"`
-	Checkpoint    *toolloop.Checkpoint `json:"checkpoint"`
-}
-
 func (p *Process) runInteraction(ctx context.Context, actionName string, input core.Interaction) (interaction.Result, error) {
 	if err := validateInteraction(input); err != nil {
 		return interaction.Result{}, err
@@ -42,22 +34,26 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 
 	var sequence iter.Seq2[toolloop.Event, error]
 	resuming := false
-	if suspension := p.Suspension(); suspension != nil && suspension.Kind == interaction.SuspensionTool {
-		if !suspension.Responded() {
-			return interaction.Result{}, fmt.Errorf("%w: tool suspension %q has no response", interaction.ErrSuspensionStale, suspension.ID)
+	if suspension := p.Suspension(); suspension != nil {
+		checkpoint, recognized, checkpointErr := decodeSuspensionCheckpoint(suspension.Payload)
+		if checkpointErr != nil {
+			return interaction.Result{}, checkpointErr
 		}
-		checkpoint, err := decodeInteractionCheckpoint(suspension.Payload)
-		if err != nil {
-			return interaction.Result{}, err
+		if !recognized || checkpoint.Kind != suspensionCheckpointInteraction {
+			sequence = runner.Run(ctx, input.Request, input.Tools)
+		} else {
+			if !suspension.Responded() {
+				return interaction.Result{}, fmt.Errorf("%w: tool suspension %q has no response", interaction.ErrSuspensionStale, suspension.ID)
+			}
+			if checkpoint.Owner != owner {
+				return interaction.Result{}, fmt.Errorf("%w: suspension owner %q does not match interaction %q", interaction.ErrSuspensionStale, checkpoint.Owner, owner)
+			}
+			if checkpoint.Deployment != p.Deployment() {
+				return interaction.Result{}, fmt.Errorf("%w: suspension deployment does not match process deployment", interaction.ErrSuspensionStale)
+			}
+			sequence = runner.Resume(ctx, checkpoint.Checkpoint, input.Tools, toolloop.Resume{ID: suspension.ID, Input: suspension.Response})
+			resuming = true
 		}
-		if checkpoint.Owner != owner {
-			return interaction.Result{}, fmt.Errorf("%w: suspension owner %q does not match interaction %q", interaction.ErrSuspensionStale, checkpoint.Owner, owner)
-		}
-		if checkpoint.Deployment != p.Deployment() {
-			return interaction.Result{}, fmt.Errorf("%w: suspension deployment does not match process deployment", interaction.ErrSuspensionStale)
-		}
-		sequence = runner.Resume(ctx, checkpoint.Checkpoint, input.Tools, toolloop.Resume{ID: suspension.ID, Input: suspension.Response})
-		resuming = true
 	} else {
 		sequence = runner.Run(ctx, input.Request, input.Tools)
 	}
@@ -105,23 +101,37 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 			if boundary.Pause == nil || boundary.Pause.Checkpoint == nil {
 				return interaction.Result{}, interactionFailure(errors.New("runtime: tool loop paused without a checkpoint"))
 			}
-			payload, err := json.Marshal(interactionCheckpoint{
-				SchemaVersion: interactionCheckpointSchemaVersion,
+			nested := p.pendingNestedChild()
+			if nested != nil && (nested.SuspensionID != boundary.Pause.ID ||
+				!bytes.Equal(nested.Prompt, boundary.Pause.Prompt) ||
+				!bytes.Equal(nested.ResumeSchema, boundary.Pause.ResumeSchema)) {
+				return interaction.Result{}, interactionFailure(fmt.Errorf("%w: nested child pause does not match tool-loop pause", interaction.ErrSuspensionConflict))
+			}
+			payload, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
+				SchemaVersion: suspensionCheckpointSchemaVersion,
+				Kind:          suspensionCheckpointInteraction,
 				Owner:         owner,
 				Deployment:    p.Deployment(),
 				Checkpoint:    boundary.Pause.Checkpoint,
+				NestedChild:   nested,
 			})
 			if err != nil {
 				return interaction.Result{}, interactionFailure(fmt.Errorf("runtime: encode interaction checkpoint: %w", err))
 			}
+			kind := interaction.SuspensionTool
+			createdAt := time.Now()
+			if nested != nil {
+				kind = nested.SuspensionKind
+				createdAt = nested.SuspensionCreatedAt
+			}
 			suspension := interaction.Suspension{
 				SchemaVersion: interaction.SuspensionSchemaVersion,
 				ID:            boundary.Pause.ID,
-				Kind:          interaction.SuspensionTool,
+				Kind:          kind,
 				Prompt:        boundary.Pause.Prompt,
 				ResumeSchema:  boundary.Pause.ResumeSchema,
 				Payload:       payload,
-				CreatedAt:     time.Now(),
+				CreatedAt:     createdAt,
 			}
 			frameworkEvent := projectInteractionEvent(boundary, &suspension)
 			if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent, input.Observe); err != nil {
@@ -183,30 +193,6 @@ func (p *Process) interactionOwner(actionName string, input core.Interaction) (s
 	}
 	sum := sha256.Sum256(data)
 	return "interaction:" + hex.EncodeToString(sum[:]), nil
-}
-
-func decodeInteractionCheckpoint(payload json.RawMessage) (*interactionCheckpoint, error) {
-	var checkpoint interactionCheckpoint
-	if err := json.Unmarshal(payload, &checkpoint); err != nil {
-		return nil, fmt.Errorf("runtime: decode interaction checkpoint: %w", err)
-	}
-	if err := checkpoint.validate(); err != nil {
-		return nil, err
-	}
-	return &checkpoint, nil
-}
-
-func (c *interactionCheckpoint) validate() error {
-	if c == nil || c.SchemaVersion != interactionCheckpointSchemaVersion || c.Owner == "" || c.Checkpoint == nil {
-		return errors.New("runtime: invalid interaction checkpoint envelope")
-	}
-	if err := c.Deployment.Validate(); err != nil {
-		return fmt.Errorf("runtime: interaction checkpoint deployment: %w", err)
-	}
-	if err := c.Checkpoint.Validate(); err != nil {
-		return fmt.Errorf("runtime: interaction checkpoint: %w", err)
-	}
-	return nil
 }
 
 func (p *Process) interactionStopReason(round int, limits interaction.Limits) interaction.StopReason {

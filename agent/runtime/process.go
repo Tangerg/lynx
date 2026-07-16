@@ -40,6 +40,7 @@ type Process struct {
 	state        processState
 	budget       processBudget
 	signals      processSignals
+	nested       nestedChildState
 	checkpointMu sync.RWMutex
 
 	blackboard   core.Blackboard
