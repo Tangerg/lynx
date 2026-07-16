@@ -40,7 +40,7 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 
 	observer := &turnObserver{dispatcher: s, st: st}
 	st.lifecycle = &turnLifecycle{sessionID: st.handle.SessionID, cwd: st.cwd, hooks: st.hooks}
-	process := s.engine.StartTurn(st.ctx, agentexec.TurnRequest{
+	process, err := s.engine.StartTurn(st.ctx, agentexec.TurnRequest{
 		SessionID:     request.SessionID,
 		Message:       request.Message,
 		Provider:      request.Provider,
@@ -57,6 +57,12 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 		// next-turn flushSteering as the after-last-round fallback).
 		Steer: s.steerSource(st),
 	})
+	if err != nil {
+		st.enableLateCreateFailureEvents()
+		s.emit(st, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
+		s.finishTurn(st, execution.OutcomeError)
+		return
+	}
 	// Record the root process id so the lifecycle gate keeps subtask
 	// terminals (which fire first) from being mistaken for the turn's end.
 	st.lifecycle.setRoot(process.ID())

@@ -25,7 +25,7 @@ import (
 // cause, Cancel for kill, Output for typed result) rather than a bare goroutine.
 type engineDep interface {
 	// StartTurn dispatches the underlying agent process for a fresh turn.
-	StartTurn(ctx context.Context, request agentexec.TurnRequest) agentexec.TurnProcess
+	StartTurn(ctx context.Context, request agentexec.TurnRequest) (agentexec.TurnProcess, error)
 
 	// RestoreTurn rebuilds a turn's agent process from a persisted snapshot and
 	// restores its Suspension for Resume — the cross-restart resume seam (the live process

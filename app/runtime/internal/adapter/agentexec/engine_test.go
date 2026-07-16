@@ -393,7 +393,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	maxTokens := int64(321)
 	observer := &hitlApprovalObserver{}
 
-	proc := eng.StartTurn(context.Background(), TurnRequest{
+	proc, err := eng.StartTurn(context.Background(), TurnRequest{
 		Message:  "echo lyra",
 		Observer: observer,
 		Options: &chat.Options{
@@ -402,6 +402,9 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 			Stop:        []string{"END"},
 		},
 	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
 	if err := <-proc.Done(); err != nil {
 		t.Fatalf("initial StartTurn: %v", err)
 	}

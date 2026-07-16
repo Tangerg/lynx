@@ -138,6 +138,11 @@ func validateOptions(options *corechat.Options) error {
 type TurnHandle struct {
 	SessionID string
 	TurnID    string
+
+	// state keeps an unclaimed process-creation failure stream reachable after
+	// the failed turn leaves the live registry. Reconstructed control handles
+	// still resolve exclusively through TurnID.
+	state *turnState
 }
 
 // RehydrateRequest carries the inputs to rebuild a parked turn from a persisted

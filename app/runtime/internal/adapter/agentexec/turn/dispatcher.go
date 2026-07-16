@@ -56,8 +56,10 @@ type Dispatcher interface {
 	// It is single-consumer — one drain loop per turn. ctx bounds how
 	// long the caller listens: when ctx is done the iterator stops
 	// yielding, but the turn keeps running on its own lifetime (use
-	// [Dispatcher.Cancel] to stop the turn itself). Returns [ErrTurnNotFound]
-	// once the turn has ended.
+	// [Dispatcher.Cancel] to stop the turn itself). An unclaimed stream from a
+	// process-creation failure remains drainable through the StartTurn handle
+	// even after terminal teardown; otherwise ended turns return
+	// [ErrTurnNotFound].
 	Events(ctx context.Context, handle TurnHandle) (iter.Seq[Event], error)
 
 	// InjectSteering delivers a user message mid-turn. The runtime

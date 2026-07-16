@@ -3,6 +3,9 @@ package turn_test
 import (
 	"context"
 	"errors"
+	"iter"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -395,5 +398,91 @@ func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 	}
 	if captured.mediaByte != 1 {
 		t.Errorf("media byte = %d, want 1", captured.mediaByte)
+	}
+}
+
+func TestStartTurnProcessCreationFailureRemainsDrainableAfterTerminal(t *testing.T) {
+	startErr := errors.New("create process failed")
+	engine := &immediateStartFailureEngine{err: startErr}
+	dispatcher := mustTurn(turn.New(turnDeps(engine)))
+
+	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+		SessionID: "session",
+		Message:   "hello",
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	waitForTurnRemoval(t, dispatcher, handle)
+
+	events, err := dispatcher.Events(context.Background(), handle)
+	if err != nil {
+		t.Fatalf("Events after terminal create failure: %v", err)
+	}
+	assertCreateFailureEvents(t, events, startErr)
+}
+
+func TestStartTurnCancelRacingProcessCreationFailureTerminatesOnce(t *testing.T) {
+	startErr := errors.New("create process failed")
+	engine := newBlockedStartFailureEngine(startErr)
+	dispatcher := mustTurn(turn.New(turnDeps(engine)))
+
+	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+		SessionID: "session",
+		Message:   "hello",
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	<-engine.entered
+	if err := dispatcher.Cancel(context.Background(), handle); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	close(engine.release)
+	waitForTurnRemoval(t, dispatcher, handle)
+
+	events, err := dispatcher.Events(context.Background(), handle)
+	if err != nil {
+		t.Fatalf("Events after cancel/create failure race: %v", err)
+	}
+	assertCreateFailureEvents(t, events, startErr)
+}
+
+func waitForTurnRemoval(t *testing.T, dispatcher turn.Dispatcher, handle turn.TurnHandle) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		_, err := dispatcher.ProcessID(context.Background(), handle)
+		if errors.Is(err, turn.ErrTurnNotFound) {
+			return
+		}
+		runtime.Gosched()
+	}
+	t.Fatal("turn was not removed after process creation failure")
+}
+
+func assertCreateFailureEvents(t *testing.T, events iter.Seq[turn.Event], startErr error) {
+	t.Helper()
+
+	var starts, failures, terminals int
+	for event := range events {
+		switch value := event.(type) {
+		case turn.TurnStart:
+			starts++
+		case turn.ErrorEvent:
+			failures++
+			if value.Code != "ENGINE_ERROR" || !strings.Contains(value.Message, startErr.Error()) {
+				t.Errorf("ErrorEvent = %+v, want ENGINE_ERROR containing %q", value, startErr)
+			}
+		case turn.TurnEnd:
+			terminals++
+			if value.Reason != execution.OutcomeError {
+				t.Errorf("TurnEnd reason = %s, want error", value.Reason)
+			}
+		}
+	}
+	if starts != 1 || failures != 1 || terminals != 1 {
+		t.Fatalf("event counts start/error/end = %d/%d/%d, want 1/1/1", starts, failures, terminals)
 	}
 }

@@ -2,6 +2,7 @@ package agentexec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -125,7 +126,7 @@ func (r TurnRequest) snapshot() TurnRequest {
 //
 // Observer attaches a process-scope [core.ToolMiddleware]; SessionID binds the
 // turn to the chat history middleware's keyed conversation.
-func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) TurnProcess {
+func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProcess, error) {
 	request = request.snapshot()
 	input := turnInput{Message: request.Message, Provider: request.Provider, Media: request.Media, Cwd: request.Cwd, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
 
@@ -134,7 +135,14 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) TurnProcess
 		map[string]any{core.DefaultBindingName: input},
 		processOptions,
 	)
-	return &turnProcess{process: process, done: done, engine: e.turnControl}
+	if process == nil {
+		startErr, ok := <-done
+		if !ok || startErr == nil {
+			return nil, errors.New("engine: start chat: agent runtime returned nil process without a creation error")
+		}
+		return nil, fmt.Errorf("engine: start chat: %w", startErr)
+	}
+	return &turnProcess{process: process, done: done, engine: e.turnControl}, nil
 }
 
 // turnProcessOptions assembles per-process wiring: the chat history Session
@@ -239,6 +247,9 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	process, err := e.turnRestorer.Restore(ctx, processID, options)
 	if err != nil {
 		return nil, fmt.Errorf("engine: restore chat: %w", err)
+	}
+	if process == nil {
+		return nil, errors.New("engine: restore chat: agent runtime returned nil process without an error")
 	}
 	return &turnProcess{process: process, engine: e.turnControl}, nil
 }

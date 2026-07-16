@@ -18,7 +18,7 @@ import (
 )
 
 type testEngine interface {
-	StartTurn(ctx context.Context, request agentexec.TurnRequest) agentexec.TurnProcess
+	StartTurn(ctx context.Context, request agentexec.TurnRequest) (agentexec.TurnProcess, error)
 	RestoreTurn(ctx context.Context, processID string, request agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error)
 	InjectUserMessage(ctx context.Context, sessionID, text string) error
 	MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (agentexec.CompactionResult, error)
@@ -124,7 +124,7 @@ type stubEngine struct {
 	lastProcess atomic.Pointer[stubTurnProcess]
 }
 
-func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnRequest) agentexec.TurnProcess {
+func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnRequest) (agentexec.TurnProcess, error) {
 	s.runTurnCalls.Add(1)
 	s.mu.Lock()
 	s.lastClient = request.ChatClient
@@ -146,7 +146,7 @@ func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnReques
 		StoppedOnBudget: s.stopOnBudget,
 	})
 	s.lastProcess.Store(process)
-	return process
+	return process, nil
 }
 
 func (s *stubEngine) RestoreTurn(_ context.Context, processID string, request agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error) {
@@ -173,7 +173,7 @@ func (s *stubEngine) MaybeExtract(_ context.Context, _, _ string) (agentexec.Ext
 // ever returning normally.
 type slowStubEngine struct{ stubEngine }
 
-func (s *slowStubEngine) StartTurn(ctx context.Context, _ agentexec.TurnRequest) agentexec.TurnProcess {
+func (s *slowStubEngine) StartTurn(ctx context.Context, _ agentexec.TurnRequest) (agentexec.TurnProcess, error) {
 	cp := &stubTurnProcess{
 		id:   "slow-stub-processess",
 		done: make(chan error, 1),
@@ -192,7 +192,7 @@ func (s *slowStubEngine) StartTurn(ctx context.Context, _ agentexec.TurnRequest)
 		default:
 		}
 	}()
-	return cp
+	return cp, nil
 }
 
 type capturedTurnRequest struct {
@@ -218,7 +218,7 @@ func newDelayedCaptureEngine() *delayedCaptureEngine {
 	}
 }
 
-func (e *delayedCaptureEngine) StartTurn(_ context.Context, request agentexec.TurnRequest) agentexec.TurnProcess {
+func (e *delayedCaptureEngine) StartTurn(_ context.Context, request agentexec.TurnRequest) (agentexec.TurnProcess, error) {
 	close(e.entered)
 	<-e.release
 
@@ -241,7 +241,37 @@ func (e *delayedCaptureEngine) StartTurn(_ context.Context, request agentexec.Tu
 		captured.mediaByte = request.Media[0].Source.Bytes[0]
 	}
 	e.captured <- captured
-	return newStubTurnProcess("delayed-capture", agentexec.TurnOutput{Reply: "ok"})
+	return newStubTurnProcess("delayed-capture", agentexec.TurnOutput{Reply: "ok"}), nil
+}
+
+type immediateStartFailureEngine struct {
+	stubEngine
+	err error
+}
+
+func (e *immediateStartFailureEngine) StartTurn(context.Context, agentexec.TurnRequest) (agentexec.TurnProcess, error) {
+	return nil, e.err
+}
+
+type blockedStartFailureEngine struct {
+	stubEngine
+	err     error
+	entered chan struct{}
+	release chan struct{}
+}
+
+func newBlockedStartFailureEngine(err error) *blockedStartFailureEngine {
+	return &blockedStartFailureEngine{
+		err:     err,
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (e *blockedStartFailureEngine) StartTurn(context.Context, agentexec.TurnRequest) (agentexec.TurnProcess, error) {
+	close(e.entered)
+	<-e.release
+	return nil, e.err
 }
 
 // fakeResolver returns a preset client, recording the provider/model it was
