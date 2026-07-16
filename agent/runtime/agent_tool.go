@@ -21,7 +21,7 @@ type agentTool struct {
 	result     func(child *Process) (any, error)
 }
 
-func (t *agentTool) Definition() chat.ToolDefinition { return t.definition }
+func (t *agentTool) Definition() chat.ToolDefinition { return t.definition.Clone() }
 
 func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) {
 	agentName := t.deployment.agent.Name()

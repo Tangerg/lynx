@@ -83,7 +83,7 @@ func newTool(cfg toolConfig) (*tool, error) {
 	}, nil
 }
 
-func (t *tool) Definition() corechat.ToolDefinition { return t.definition }
+func (t *tool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
 
 // Call implements [tools.Tool]: it sends the request text to the remote agent
 // and returns its reply. One `a2a.agent.call <name>` span per call

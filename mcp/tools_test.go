@@ -114,6 +114,8 @@ func TestToolsDiscoversAndCallsTool(t *testing.T) {
 	assert.Equal(t, "primary_echo", def.Name)
 	assert.Equal(t, "echo the input", def.Description)
 	assert.NotEmpty(t, def.InputSchema)
+	def.InputSchema[0] = '['
+	assert.Equal(t, byte('{'), tools[0].Definition().InputSchema[0])
 
 	callable := tools[0]
 	out, err := callable.Call(ctx, `{"text":"hello world"}`)

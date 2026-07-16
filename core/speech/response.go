@@ -39,7 +39,7 @@ type Result struct {
 // or metadata is nil.
 func NewResult(audio []byte, metadata *ResultMetadata) (*Result, error) {
 	result := &Result{Audio: slices.Clone(audio), Metadata: metadata}
-	if err := validateResult(result); err != nil {
+	if err := result.validate(); err != nil {
 		return nil, fmt.Errorf("speech.NewResult: %w", err)
 	}
 	return result, nil
@@ -90,7 +90,7 @@ func (r *Response) Validate() error {
 	if r == nil {
 		return errors.New("speech.Response: nil response")
 	}
-	if err := validateResult(r.Result); err != nil {
+	if err := r.Result.validate(); err != nil {
 		return fmt.Errorf("speech.Response: result: %w", err)
 	}
 	if r.Metadata == nil {
@@ -108,17 +108,17 @@ func (r *Response) Validate() error {
 	return nil
 }
 
-func validateResult(result *Result) error {
-	if result == nil {
+func (r *Result) validate() error {
+	if r == nil {
 		return errors.New("result must not be nil")
 	}
-	if len(result.Audio) == 0 {
+	if len(r.Audio) == 0 {
 		return errors.New("audio must not be empty")
 	}
-	if result.Metadata == nil {
+	if r.Metadata == nil {
 		return errors.New("metadata must not be nil")
 	}
-	if err := result.Metadata.Extra.Validate(); err != nil {
+	if err := r.Metadata.Extra.Validate(); err != nil {
 		return fmt.Errorf("metadata: %w", err)
 	}
 	return nil
