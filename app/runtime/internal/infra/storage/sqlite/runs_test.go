@@ -34,7 +34,7 @@ func newRunRecoveryStores(t *testing.T) (*sqlite.RunStateStore, *sqlite.Interrup
 	return sqlite.NewRunStateStore(db), sqlite.NewInterruptStore(db), sqlite.NewTranscriptStore(db), sqlite.NewProcessStore(db)
 }
 
-func acceptProcessSnapshot(core.ProcessSnapshot) error { return nil }
+func acceptProcessSnapshot(context.Context, string) (bool, error) { return true, nil }
 
 func putActiveTranscript(t *testing.T, store *sqlite.TranscriptStore, runID, sessionID string, state execution.RunState) {
 	t.Helper()
@@ -200,8 +200,7 @@ func TestTerminalizeRequiresExactLiveRun(t *testing.T) {
 // [execution.RunState] machine (§8.2): a parked (interrupted) run may terminalize
 // only via cancellation — any other terminal must resume first — so a non-cancel
 // terminalize of a parked run surfaces an error instead of silently overwriting
-// the row, while a cancel of the same parked run succeeds (the parked-cancel path
-// ApplyCancel relies on).
+// the row, while a cancel of the same parked run succeeds.
 func TestTerminalizeParkedRunRejectsNonCancel(t *testing.T) {
 	ctx := context.Background()
 	store, _ := newRunStores(t)
@@ -372,7 +371,9 @@ func TestReconcileOrphansTerminalizesParkWhoseProcessSnapshotIsMissing(t *testin
 		t.Fatalf("delete process snapshot: %v", err)
 	}
 
-	recovered, err := store.ReconcileOrphans(ctx, acceptProcessSnapshot)
+	recovered, err := store.ReconcileOrphans(ctx, func(context.Context, string) (bool, error) {
+		return false, nil
+	})
 	if err != nil || recovered != 1 {
 		t.Fatalf("reconcile = (%d, %v), want one recovered lost park", recovered, err)
 	}
@@ -585,7 +586,36 @@ func TestReconcileOrphansRejectsDrainedInterruptOverlap(t *testing.T) {
 	}
 }
 
-func TestReconcileOrphansRejectsExecutorInvalidSnapshotWithoutMutation(t *testing.T) {
+func TestReconcileOrphansTerminalizesExecutorIncompatibleSnapshot(t *testing.T) {
+	store, ints, transcripts, processes := newRunRecoveryStores(t)
+	ctx := t.Context()
+	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	if err := store.Suspend(ctx, "ses_park", "run_park"); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
+
+	recovered, err := store.ReconcileOrphans(ctx, func(context.Context, string) (bool, error) {
+		return false, nil
+	})
+	if err != nil || recovered != 1 {
+		t.Fatalf("reconcile = (%d, %v), want one recovered incompatible park", recovered, err)
+	}
+	if _, found, err := ints.Get(ctx, "run_park"); err != nil || found {
+		t.Fatalf("interrupt after incompatible snapshot = found:%v err:%v, want removed", found, err)
+	}
+	if _, err := processes.Load(ctx, "proc_run_park"); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("snapshot after incompatible recovery = %v, want not found", err)
+	}
+	_, runs, err := transcripts.List(ctx, "ses_park")
+	if err != nil || len(runs) != 1 || runs[0].Result == nil || runs[0].Result.Error == nil || runs[0].Result.Error.Kind != transcript.RunLostProblem {
+		t.Fatalf("transcript after incompatible recovery = (%+v, %v), want run_lost", runs, err)
+	}
+}
+
+func TestReconcileOrphansRejectsSnapshotValidatorFailureWithoutMutation(t *testing.T) {
 	store, ints, transcripts, processes := newRunRecoveryStores(t)
 	ctx := t.Context()
 	if err := store.Admit(ctx, runDraft("run_park", "ses_park")); err != nil {
@@ -596,7 +626,7 @@ func TestReconcileOrphansRejectsExecutorInvalidSnapshotWithoutMutation(t *testin
 	}
 	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
 	want := errors.New("missing executor tail")
-	if _, err := store.ReconcileOrphans(ctx, func(core.ProcessSnapshot) error { return want }); !errors.Is(err, want) {
+	if _, err := store.ReconcileOrphans(ctx, func(context.Context, string) (bool, error) { return false, want }); !errors.Is(err, want) {
 		t.Fatalf("reconcile error = %v, want executor snapshot error", err)
 	}
 	if _, found, err := ints.Get(ctx, "run_park"); err != nil || !found {

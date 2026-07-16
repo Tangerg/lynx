@@ -4,6 +4,7 @@ import (
 	"io"
 	"path/filepath"
 
+	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/pricing"
@@ -15,15 +16,17 @@ import (
 
 // RuntimeConfig assembles the runtime Config from already-opened
 // process adapters.
-func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatclient.Client, providers providersvc.Registry, hooks HookResolver) Config {
+func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatclient.Client, providers providersvc.Registry, hooks HookResolver, buildID string) Config {
 	return Config{
 		Resources: []io.Closer{stores},
 		Engine: agentexec.Config{
-			ChatClient:      client,
-			Pricing:         pricing.Catalog(),
-			SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
-			HistoryStore:    stores.ChatHistory,
-			Knowledge:       stores.Memory,
+			BuildID:               buildID,
+			SnapshotFailurePolicy: agentruntime.SnapshotFailureFailProcess,
+			ChatClient:            client,
+			Pricing:               pricing.Catalog(),
+			SkillsGlobalDir:       filepath.Join(stores.Home, "skills"),
+			HistoryStore:          stores.ChatHistory,
+			Knowledge:             stores.Memory,
 		},
 		UtilityRoleStore:       stores.UtilityRole,
 		Online:                 OnlineConfig(cfg.Online),

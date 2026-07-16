@@ -551,6 +551,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		MCPRegistryCommands:   built.MCPRegistryCommands,
 		Closers:               built.Closers,
 		ProcessStore:          store,
+		BuildID:               testBuildID,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -589,6 +590,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		MCPRegistryCommands:   built.MCPRegistryCommands,
 		Closers:               built.Closers,
 		ProcessStore:          store,
+		BuildID:               testBuildID,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -634,6 +636,66 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	}
 	if len(got.Stop) != 1 || got.Stop[0] != "END" {
 		t.Fatalf("Stop = %v, want END", got.Stop)
+	}
+}
+
+func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
+	stub := newOptionToolStub()
+	client, _ := chatclient.New(stub, chatclient.WithDefaults(*stub.defaults))
+	store := newJSONProcessStore()
+	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
+	if err != nil {
+		t.Fatalf("toolset.Build: %v", err)
+	}
+	config := Config{
+		ChatClient:            client,
+		ToolResolver:          built.Resolver,
+		Tools:                 built.Tools,
+		MCPStatusReader:       built.MCPStatusReader,
+		MCPToolCatalog:        built.MCPToolCatalog,
+		MCPConnectionCommands: built.MCPConnectionCommands,
+		MCPRegistryCommands:   built.MCPRegistryCommands,
+		Closers:               built.Closers,
+		ProcessStore:          store,
+		BuildID:               testBuildID,
+	}
+	first, err := New(t.Context(), config)
+	if err != nil {
+		t.Fatalf("first New: %v", err)
+	}
+	defer first.Close()
+
+	process, err := first.StartTurn(t.Context(), TurnRequest{
+		Message:  "pause for approval",
+		Observer: &hitlApprovalObserver{},
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	if err := <-process.Done(); err != nil {
+		t.Fatalf("initial turn: %v", err)
+	}
+	snapshot, err := store.Load(t.Context(), process.ID())
+	if err != nil {
+		t.Fatalf("load snapshot: %v", err)
+	}
+	if snapshot.Deployment.Version != "" {
+		t.Fatalf("snapshot display version = %q, want empty application agent version", snapshot.Deployment.Version)
+	}
+
+	config.BuildID = alternateBuildID
+	second, err := New(t.Context(), config)
+	if err != nil {
+		t.Fatalf("second New: %v", err)
+	}
+	defer second.Close()
+
+	restored, err := second.RestoreTurn(t.Context(), process.ID(), RestoreTurnRequest{Observer: &hitlApprovalObserver{}})
+	if restored != nil {
+		t.Fatalf("RestoreTurn process = %T, want nil", restored)
+	}
+	if !errors.Is(err, ErrProcessSnapshotLost) {
+		t.Fatalf("RestoreTurn error = %v, want ErrProcessSnapshotLost", err)
 	}
 }
 

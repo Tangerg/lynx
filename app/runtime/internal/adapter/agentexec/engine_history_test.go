@@ -17,7 +17,7 @@ func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
 	stub := newStreamingStubModel("done")
 	client, _ := chatclient.New(stub)
 	store := core.NewMemoryProcessStore()
-	eng, err := New(context.Background(), Config{ChatClient: client, ProcessStore: store})
+	eng, err := New(context.Background(), Config{ChatClient: client, ProcessStore: store, BuildID: testBuildID})
 	if err != nil {
 		t.Fatal(err)
 	}

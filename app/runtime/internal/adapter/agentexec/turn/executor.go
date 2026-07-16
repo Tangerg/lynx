@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/models/catalog"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
@@ -152,6 +153,8 @@ func mapControlError(err error) error {
 		return nil
 	}
 	switch {
+	case errors.Is(err, agentexec.ErrProcessSnapshotLost):
+		return fmt.Errorf("%w: %w", runs.ErrTurnStateLost, err)
 	case errors.Is(err, ErrParkClaimed):
 		return fmt.Errorf("%w: %w", runs.ErrParkClaimed, err)
 	case errors.Is(err, ErrTurnNotFound):

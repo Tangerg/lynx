@@ -149,6 +149,26 @@ func (s *RunStateStore) Terminalize(ctx context.Context, sessionID, runID string
 	})
 }
 
+// RecoverLost ends the exact non-terminal Run whose executor state is no longer
+// resumable. Unlike Terminalize, this recovery transition is legal from either
+// Running or Interrupted and records an error outcome.
+func (s *RunStateStore) RecoverLost(ctx context.Context, sessionID, runID string) error {
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		cur, found, err := s.stateForRun(ctx, sessionID, runID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return errors.New("sqlite: recover lost run: active run not found")
+		}
+		next, ok := cur.RecoverLost()
+		if !ok {
+			return fmt.Errorf("sqlite: recover lost run: illegal recovery from %s", cur)
+		}
+		return s.writeState(ctx, sessionID, runID, "recover lost", cur, next, execution.OutcomeError.String())
+	})
+}
+
 // writeState persists a machine-validated transition as a CAS guarded on the
 // observed source state; a 0-row result means the row changed under the
 // transaction (a lost race) and is surfaced rather than silently dropped. The

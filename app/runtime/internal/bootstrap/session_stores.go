@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -247,10 +248,10 @@ func (s sessionStores) deleteSession(ctx context.Context, sessionID string) erro
 	return s.sessions.Delete(ctx, sessionID)
 }
 
-// ApplyCancel abandons a parked run: it drops the open interrupt + process
-// snapshot and terminalizes the run's admission row atomically, so a canceled
-// parked run neither stays resumable nor leaves the session durably busy.
-func (s sessionStores) ApplyCancel(ctx context.Context, plan sessions.CancelPlan) error {
+// ApplyTerminal ends a parked run: it drops the open interrupt + process
+// snapshot and closes the run's admission row atomically, so the abandoned run
+// neither stays resumable nor leaves the session durably busy.
+func (s sessionStores) ApplyTerminal(ctx context.Context, plan sessions.TerminalPlan) error {
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		for _, item := range plan.Items {
 			if err := s.transcript.AppendItem(ctx, item); err != nil {
@@ -268,7 +269,17 @@ func (s sessionStores) ApplyCancel(ctx context.Context, plan sessions.CancelPlan
 		if err := s.interrupts.Delete(ctx, plan.Run.ID); err != nil {
 			return err
 		}
-		return s.runs.Terminalize(ctx, plan.Run.SessionID, plan.Run.ID, execution.OutcomeCanceled)
+		if plan.Run.Outcome == nil {
+			return errors.New("bootstrap: terminal run outcome is required")
+		}
+		switch *plan.Run.Outcome {
+		case execution.OutcomeCanceled:
+			return s.runs.Terminalize(ctx, plan.Run.SessionID, plan.Run.ID, execution.OutcomeCanceled)
+		case execution.OutcomeError:
+			return s.runs.RecoverLost(ctx, plan.Run.SessionID, plan.Run.ID)
+		default:
+			return fmt.Errorf("bootstrap: unsupported parked terminal outcome %s", *plan.Run.Outcome)
+		}
 	})
 }
 

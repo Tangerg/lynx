@@ -40,7 +40,7 @@ type SessionStore interface {
 // InterruptStore is the lifecycle coordinator's read view of open HITL
 // interrupts. Consuming an interrupt is part of the run coordinator's atomic
 // segment-opening commit; deleting one is part of an atomic write-set
-// ([WriteSets.ApplyRollback] / ApplyDelete / ApplyCancel), not a lone call.
+// ([WriteSets.ApplyRollback] / ApplyDelete / ApplyTerminal), not a lone call.
 type InterruptStore interface {
 	List(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
 	Get(ctx context.Context, runID string) (interrupts.Pending, bool, error)
@@ -72,9 +72,9 @@ type WriteSets interface {
 	// cascade — transcript, chat log, todos, session approval rules, interrupts,
 	// admission rows, and session rows — atomically.
 	ApplyDelete(ctx context.Context, plan DeletePlan) error
-	// ApplyCancel abandons a parked run: it persists the terminal transcript
-	// projection, drops the open interrupt, and terminalizes admission — atomically.
-	ApplyCancel(ctx context.Context, plan CancelPlan) error
+	// ApplyTerminal ends a parked run: it persists the terminal transcript
+	// projection, drops the open interrupt, and closes admission — atomically.
+	ApplyTerminal(ctx context.Context, plan TerminalPlan) error
 }
 
 // Stores is the consumer-defined surface the Coordinator drives — the atomic

@@ -96,7 +96,7 @@ func TestClaimMutationSlotAllowsOpenInterrupt(t *testing.T) {
 
 func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	finishedAt := time.Date(2026, 7, 13, 2, 3, 4, 0, time.UTC)
-	var applied CancelPlan
+	var applied TerminalPlan
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
 			"run_1": {RunID: "run_1", SessionID: "ses_1", ProcessID: "proc_1"},
@@ -113,7 +113,7 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 				Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
 			}},
 		},
-		canceled: &applied,
+		terminal: &applied,
 	}
 
 	err := newCoordinator(stores, nil).ApplyRunCancel(t.Context(), "ses_1", "run_1", "user stopped", finishedAt)
@@ -134,5 +134,45 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	}
 	if applied.ProcessID != "proc_1" {
 		t.Fatalf("process snapshot = %q, want proc_1 in cancel write-set", applied.ProcessID)
+	}
+}
+
+func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
+	finishedAt := time.Date(2026, 7, 16, 2, 3, 4, 0, time.UTC)
+	var applied TerminalPlan
+	stores := coordinatorStores{
+		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
+			"run_1": {RunID: "run_1", SessionID: "ses_1", ProcessID: "proc_1"},
+		}},
+		snapshot: Snapshot{
+			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
+			Runs: []transcript.Run{{
+				ID: "run_1", SessionID: "ses_1", State: execution.Interrupted,
+				Interrupts:  []transcript.Interrupt{{ItemID: "item_1", Kind: transcript.ApprovalInterrupt}},
+				MessageMark: -1,
+			}},
+			Items: []transcript.Item{{
+				ID: "item_1", RunID: "run_1", SessionID: "ses_1",
+				Kind: transcript.ToolCall, Status: transcript.ItemRunning,
+			}},
+		},
+		terminal: &applied,
+	}
+
+	err := newCoordinator(stores, nil).ApplyRunLost(t.Context(), "ses_1", "run_1", finishedAt)
+	if err != nil {
+		t.Fatalf("ApplyRunLost: %v", err)
+	}
+	if applied.Run.State != execution.Failed || applied.Run.Outcome == nil || *applied.Run.Outcome != execution.OutcomeError {
+		t.Fatalf("terminal run = %+v, want failed/error", applied.Run)
+	}
+	if applied.Run.Result == nil || applied.Run.Result.Error == nil || applied.Run.Result.Error.Kind != transcript.RunLostProblem {
+		t.Fatalf("terminal result = %+v, want run_lost", applied.Run.Result)
+	}
+	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete || applied.Items[0].Error == nil {
+		t.Fatalf("terminal items = %+v, want incomplete failed tool", applied.Items)
+	}
+	if applied.ProcessID != "proc_1" || !applied.Run.FinishedAt.Equal(finishedAt) || applied.Run.MessageMark != 1 {
+		t.Fatalf("terminal plan = %+v", applied)
 	}
 }

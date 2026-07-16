@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
@@ -13,6 +12,14 @@ import (
 // bootstrapRuntime builds the composition Host (the application Stack + its
 // process-level close order) for the server process.
 func bootstrapRuntime(ctx context.Context) (_ bootstrap.Host, _ config.Config, err error) {
+	return bootstrapRuntimeWithBuildID(ctx, bootstrap.ExecutableBuildID)
+}
+
+func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (string, error)) (_ bootstrap.Host, _ config.Config, err error) {
+	buildID, err := buildIdentity()
+	if err != nil {
+		return bootstrap.Host{}, config.Config{}, err
+	}
 	cfg, err := bootstrap.LoadConfig()
 	if err != nil {
 		return bootstrap.Host{}, config.Config{}, err
@@ -32,14 +39,6 @@ func bootstrapRuntime(ctx context.Context) (_ bootstrap.Host, _ config.Config, e
 			err = errors.Join(err, stores.Close())
 		}
 	}()
-	// Reconcile the durable Run-admission table (§8.2) at boot, before any run is
-	// admitted: a crash leaves running rows whose live process is gone, which
-	// would otherwise block their session forever. Parked (interrupted) runs are
-	// preserved for resume. A sweep failure means the DB is unusable, so fail
-	// startup rather than admit runs against an inconsistent admission table.
-	if _, err := stores.Runs.ReconcileOrphans(ctx, agentruntime.ValidateResumableSnapshot); err != nil {
-		return bootstrap.Host{}, config.Config{}, err
-	}
 	// Provider registry with the stored>env credential fallback: a provider with
 	// no stored key falls back to its environment variable (ANTHROPIC_API_KEY,
 	// OPENAI_API_KEY, …), so a developer with keys in their shell gets those
@@ -69,7 +68,7 @@ func bootstrapRuntime(ctx context.Context) (_ bootstrap.Host, _ config.Config, e
 
 	hookResolver := bootstrap.NewHookResolver(stores.Trust)
 
-	host, err := bootstrap.Assemble(ctx, bootstrap.RuntimeConfig(cfg, stores, client, providers, hookResolver))
+	host, err := bootstrap.Assemble(ctx, bootstrap.RuntimeConfig(cfg, stores, client, providers, hookResolver, buildID))
 	if err != nil {
 		return bootstrap.Host{}, config.Config{}, err
 	}

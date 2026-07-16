@@ -91,7 +91,7 @@ func (s *ProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapsho
 	}
 	var snap core.ProcessSnapshot
 	if err := json.Unmarshal([]byte(data), &snap); err != nil {
-		return core.ProcessSnapshot{}, fmt.Errorf("sqlite: parse snapshot %q: %w", id, err)
+		return core.ProcessSnapshot{}, fmt.Errorf("sqlite: parse snapshot %q: %w: %w", id, core.ErrInvalidSnapshot, err)
 	}
 	if snap.Revision != revision || revision == 0 {
 		return core.ProcessSnapshot{}, fmt.Errorf("sqlite: snapshot %q revision mismatch: %w", id, core.ErrInvalidSnapshot)

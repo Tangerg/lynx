@@ -2,24 +2,21 @@ package sqlite
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"time"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// ProcessSnapshotValidator checks executor-specific resumable state after the
-// store has decoded and structurally validated a process snapshot. It is
-// supplied by the composition root so storage does not depend on an executor
-// adapter's private blackboard schema.
-type ProcessSnapshotValidator func(core.ProcessSnapshot) error
+// ProcessSnapshotValidator asks the executor that owns processID whether its
+// durable continuation is resumable. false, nil means the external state is
+// unusable and the owning Run must be recovered lost; a non-nil error means the
+// check itself failed and aborts the reconciliation transaction.
+type ProcessSnapshotValidator func(context.Context, string) (bool, error)
 
 // ReconcileOrphans repairs non-terminal Runs abandoned by a process exit before
 // any new run is admitted. An Interrupted run with a coherent transcript,
@@ -213,30 +210,11 @@ func (s *RunStateStore) validateParkedRun(ctx context.Context, active nonTermina
 }
 
 func (s *RunStateStore) hasResumableProcessSnapshot(ctx context.Context, processID string, validateSnapshot ProcessSnapshotValidator) (bool, error) {
-	var payload string
-	err := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT snapshot FROM process_snapshots WHERE id = ?`, processID,
-	).Scan(&payload)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
+	resumable, err := validateSnapshot(ctx, processID)
 	if err != nil {
-		return false, fmt.Errorf("sqlite: validate process snapshot %q: %w", processID, err)
-	}
-	var snapshot core.ProcessSnapshot
-	if err := json.Unmarshal([]byte(payload), &snapshot); err != nil {
-		return false, nil
-	}
-	if snapshot.ID != processID || snapshot.Deployment.Name == "" {
-		return false, nil
-	}
-	if snapshot.Status != core.StatusWaiting && snapshot.Status != core.StatusPaused {
-		return false, nil
-	}
-	if err := validateSnapshot(snapshot); err != nil {
 		return false, fmt.Errorf("sqlite: validate process snapshot %q resumable state: %w", processID, err)
 	}
-	return true, nil
+	return resumable, nil
 }
 
 type nonTerminalRun struct {

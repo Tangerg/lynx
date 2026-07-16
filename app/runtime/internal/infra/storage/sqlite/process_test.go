@@ -113,6 +113,25 @@ func TestProcessStoreLoadMissingIsSentinel(t *testing.T) {
 	}
 }
 
+func TestProcessStoreLoadCorruptSnapshotIsInvalidSentinel(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewProcessStore(db)
+	snapshot := validStoredSnapshot("proc-corrupt", core.StatusCompleted)
+	if _, err := store.Save(t.Context(), snapshot, 0); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if _, err := db.ExecContext(t.Context(), `UPDATE process_snapshots SET snapshot = ? WHERE id = ?`, `{`, snapshot.ID); err != nil {
+		t.Fatalf("corrupt stored snapshot: %v", err)
+	}
+	if _, err := store.Load(t.Context(), snapshot.ID); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("Load(corrupt) err = %v, want ErrInvalidSnapshot", err)
+	}
+}
+
 func TestProcessStoreListDeleteIdempotent(t *testing.T) {
 	ctx := context.Background()
 	store := newProcessStore(t)

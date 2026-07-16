@@ -363,7 +363,7 @@ func (s stubLifecycleStores) deleteSession(ctx context.Context, sessionID string
 	return s.rt.sess.Delete(ctx, sessionID)
 }
 
-func (s stubLifecycleStores) ApplyCancel(ctx context.Context, plan sessions.CancelPlan) error {
+func (s stubLifecycleStores) ApplyTerminal(ctx context.Context, plan sessions.TerminalPlan) error {
 	for _, item := range plan.Items {
 		if err := s.rt.hist.AppendItem(ctx, item); err != nil {
 			return err

@@ -19,6 +19,8 @@ type fakeRunSessions struct {
 	canceledRunID string
 	cancelReason  string
 	canceledAt    time.Time
+	lostRunID     string
+	lostAt        time.Time
 	treeOK        bool
 	treeReleases  int
 	operations    *[]string
@@ -65,6 +67,16 @@ func (f *fakeRunSessions) ApplyRunCancel(_ context.Context, _ string, runID, rea
 	return nil
 }
 
+func (f *fakeRunSessions) ApplyRunLost(_ context.Context, _ string, runID string, finishedAt time.Time) error {
+	if f.operations != nil {
+		*f.operations = append(*f.operations, "durable.lost")
+	}
+	f.lostRunID = runID
+	f.lostAt = finishedAt
+	delete(f.pending, runID)
+	return nil
+}
+
 func (f *fakeRunSessions) AcquireWorkingTreeRun(string) (func(), bool) {
 	if !f.treeOK {
 		return nil, false
@@ -80,6 +92,7 @@ type fakeTurnControl struct {
 	prepared     Turn
 	prepareErr   error
 	rehydrated   Turn
+	rehydrateErr error
 	resumeCheck  func()
 	resumed      bool
 	canceled     []TurnRef
@@ -111,7 +124,7 @@ func (f *fakeTurnControl) Resume(context.Context, Turn, interrupts.Resolution, [
 }
 
 func (f *fakeTurnControl) Rehydrate(context.Context, RehydrateTurn) (Turn, error) {
-	return f.rehydrated, nil
+	return f.rehydrated, f.rehydrateErr
 }
 
 func (f *fakeTurnControl) Cancel(_ context.Context, ref TurnRef) error {
@@ -206,6 +219,45 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	}
 	if opening := effects.opening(); opening.Resume == nil || opening.Resume.RunID != "run_1" {
 		t.Fatalf("opening = %+v, want resume run_1", opening)
+	}
+}
+
+func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
+	var operations []string
+	sessions := &fakeRunSessions{
+		sess:   session.Session{ID: "ses_1", Cwd: "/work"},
+		treeOK: true,
+		pending: map[string]interrupts.Pending{"run_1": {
+			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1",
+		}},
+		operations: &operations,
+	}
+	turns := &fakeTurnControl{
+		prepareErr:   ErrTurnNotLive,
+		rehydrateErr: ErrTurnStateLost,
+	}
+	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, &fakeEffects{})
+
+	_, err := c.Resume(t.Context(), ResumeCommand{RunID: "run_1"})
+	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrTurnStateLost) {
+		t.Fatalf("Resume error = %v, want run not found wrapping turn state lost", err)
+	}
+	if sessions.lostRunID != "run_1" || sessions.lostAt.IsZero() {
+		t.Fatalf("lost recovery = %q/%v, want run_1 and terminal time", sessions.lostRunID, sessions.lostAt)
+	}
+	if len(operations) != 1 || operations[0] != "durable.lost" {
+		t.Fatalf("operations = %v, want one durable lost commit", operations)
+	}
+	if sessions.treeReleases != 1 || c.ActiveSession("ses_1") {
+		t.Fatalf("tree releases = %d active session = %v", sessions.treeReleases, c.ActiveSession("ses_1"))
+	}
+
+	_, err = c.Resume(t.Context(), ResumeCommand{RunID: "run_1"})
+	if !errors.Is(err, ErrInterruptNotOpen) {
+		t.Fatalf("second Resume error = %v, want ErrInterruptNotOpen", err)
+	}
+	if len(operations) != 1 {
+		t.Fatalf("second Resume repeated recovery: %v", operations)
 	}
 }
 

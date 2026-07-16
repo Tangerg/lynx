@@ -11,7 +11,7 @@ import (
 type coordinatorStores struct {
 	interrupts    *coordinatorInterrupts
 	snapshot      Snapshot
-	canceled      *CancelPlan
+	terminal      *TerminalPlan
 	forked        *ForkPlan
 	snapshotReads *int
 }
@@ -34,7 +34,7 @@ func (s coordinatorStores) ApplyFork(_ context.Context, plan ForkPlan) (session.
 }
 
 // The atomic write-sets delegate their interrupt drops to the interrupt fake so
-// the coordinator tests observe them (the run-state transition an ApplyCancel /
+// the coordinator tests observe them (the run-state transition an ApplyTerminal /
 // ApplyRollback also commits is verified at the sqlite/bootstrap level).
 func (s coordinatorStores) ApplyRollback(ctx context.Context, plan RollbackPlan) error {
 	for _, runID := range plan.DropRunIDs {
@@ -52,9 +52,9 @@ func (s coordinatorStores) ApplyDelete(ctx context.Context, plan DeletePlan) err
 	}
 	return nil
 }
-func (s coordinatorStores) ApplyCancel(ctx context.Context, plan CancelPlan) error {
-	if s.canceled != nil {
-		*s.canceled = plan
+func (s coordinatorStores) ApplyTerminal(ctx context.Context, plan TerminalPlan) error {
+	if s.terminal != nil {
+		*s.terminal = plan
 	}
 	return s.interrupts.Delete(ctx, plan.Run.ID)
 }
