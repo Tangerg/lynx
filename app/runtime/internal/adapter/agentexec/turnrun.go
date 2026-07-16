@@ -141,7 +141,7 @@ func turnProcessOptions(dependencies *core.Dependencies, sessionID string, obser
 		if dependencies != nil {
 			options.Dependencies = dependencies.Child()
 			if err := core.RegisterDependency(options.Dependencies, toolObserverKey, observer); err != nil {
-				panic(err)
+				panic(fmt.Errorf("agentexec: invariant violation registering tool observer in fresh process dependency scope: %w", err))
 			}
 		}
 	}
