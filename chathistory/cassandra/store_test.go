@@ -12,8 +12,8 @@ import (
 
 func stubSession() *gocql.Session { return new(gocql.Session) }
 
-func TestStoreConfig_SessionRequired(t *testing.T) {
-	_, err := cassandra.NewStore(cassandra.StoreConfig{})
+func TestNewRequiresSession(t *testing.T) {
+	_, err := cassandra.New(cassandra.Config{})
 	if err == nil {
 		t.Fatal("expected error when Session is nil")
 	}
@@ -22,31 +22,25 @@ func TestStoreConfig_SessionRequired(t *testing.T) {
 	}
 }
 
-func TestStoreConfig_NilConfig(t *testing.T) {
-	if _, err := cassandra.NewStore(cassandra.StoreConfig{}); err == nil {
-		t.Fatal("expected error when config is nil")
-	}
-}
-
-func TestStoreConfig_RejectsBadIdentifier(t *testing.T) {
+func TestNewRejectsBadIdentifier(t *testing.T) {
 	cases := []struct {
 		name string
-		cfg  cassandra.StoreConfig
+		cfg  cassandra.Config
 	}{
-		{"keyspace with hyphen", cassandra.StoreConfig{Session: stubSession(), Keyspace: "my-ks"}},
-		{"table with semicolon", cassandra.StoreConfig{Session: stubSession(), TableName: "x;y"}},
+		{"keyspace with hyphen", cassandra.Config{Session: stubSession(), Keyspace: "my-ks"}},
+		{"table with semicolon", cassandra.Config{Session: stubSession(), TableName: "x;y"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := cassandra.NewStore(tc.cfg); err == nil {
+			if _, err := cassandra.New(tc.cfg); err == nil {
 				t.Fatal("expected identifier-validation error")
 			}
 		})
 	}
 }
 
-func TestStoreConfig_AcceptsValidIdentifiers(t *testing.T) {
-	_, err := cassandra.NewStore(cassandra.StoreConfig{
+func TestNewAcceptsValidIdentifiers(t *testing.T) {
+	_, err := cassandra.New(cassandra.Config{
 		Session:   stubSession(),
 		Keyspace:  "lynx",
 		TableName: "chat_history",
@@ -56,6 +50,6 @@ func TestStoreConfig_AcceptsValidIdentifiers(t *testing.T) {
 	}
 }
 
-func TestStore_ImplementsHistoryStore(t *testing.T) {
+func TestStoreImplementsHistoryStore(t *testing.T) {
 	var _ chathistory.Store = (*cassandra.Store)(nil)
 }

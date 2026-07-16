@@ -17,7 +17,7 @@
 // Example:
 //
 //	col := client.Database("lynx").Collection("chat_history")
-//	store, _ := mongodb.NewStore(mongodb.StoreConfig{
+//	store, _ := mongodb.New(mongodb.Config{
 //	    Collection:       col,
 //	    InitializeSchema: true, // create the conversation_id index
 //	})

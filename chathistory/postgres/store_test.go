@@ -20,8 +20,8 @@ import (
 // inspect validation use a hand-built struct via pointer-to-zero.
 func stubPool() *pgxpool.Pool { return new(pgxpool.Pool) }
 
-func TestStoreConfig_PoolRequired(t *testing.T) {
-	_, err := postgres.NewStore(postgres.StoreConfig{})
+func TestNewRequiresPool(t *testing.T) {
+	_, err := postgres.New(postgres.Config{})
 	if err == nil {
 		t.Fatal("expected error when Pool is nil")
 	}
@@ -30,38 +30,31 @@ func TestStoreConfig_PoolRequired(t *testing.T) {
 	}
 }
 
-func TestStoreConfig_NilConfig(t *testing.T) {
-	_, err := postgres.NewStore(postgres.StoreConfig{})
-	if err == nil {
-		t.Fatal("expected error when config is nil")
-	}
-}
-
-func TestStoreConfig_RejectsBadIdentifier(t *testing.T) {
+func TestNewRejectsBadIdentifier(t *testing.T) {
 	cases := []struct {
 		name string
-		cfg  postgres.StoreConfig
+		cfg  postgres.Config
 	}{
 		{
 			name: "schema with semicolon",
-			cfg:  postgres.StoreConfig{Pool: stubPool(), SchemaName: "public; DROP TABLE x"},
+			cfg:  postgres.Config{Pool: stubPool(), SchemaName: "public; DROP TABLE x"},
 		},
 		{
 			name: "table with hyphen",
-			cfg:  postgres.StoreConfig{Pool: stubPool(), TableName: "chat history"},
+			cfg:  postgres.Config{Pool: stubPool(), TableName: "chat history"},
 		},
 		{
 			name: "index starting with digit",
-			cfg:  postgres.StoreConfig{Pool: stubPool(), IndexName: "1bad"},
+			cfg:  postgres.Config{Pool: stubPool(), IndexName: "1bad"},
 		},
 		{
 			name: "table with space",
-			cfg:  postgres.StoreConfig{Pool: stubPool(), TableName: "chat history"},
+			cfg:  postgres.Config{Pool: stubPool(), TableName: "chat history"},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := postgres.NewStore(tc.cfg)
+			_, err := postgres.New(tc.cfg)
 			if err == nil {
 				t.Fatal("expected identifier-validation error")
 			}
@@ -72,10 +65,10 @@ func TestStoreConfig_RejectsBadIdentifier(t *testing.T) {
 	}
 }
 
-func TestStoreConfig_AcceptsValidIdentifiers(t *testing.T) {
+func TestNewAcceptsValidIdentifiers(t *testing.T) {
 	// InitializeSchema=false so we don't issue SQL — only validation
 	// runs. The stub pool would crash any real query.
-	_, err := postgres.NewStore(postgres.StoreConfig{
+	_, err := postgres.New(postgres.Config{
 		Pool:       stubPool(),
 		SchemaName: "my_schema",
 		TableName:  "chat_history",
@@ -86,8 +79,8 @@ func TestStoreConfig_AcceptsValidIdentifiers(t *testing.T) {
 	}
 }
 
-// TestStore_ImplementsHistoryStore is a compile-time interface check —
+// TestStoreImplementsHistoryStore is a compile-time interface check —
 // fails at build time, not runtime, if the contract drifts.
-func TestStore_ImplementsHistoryStore(t *testing.T) {
+func TestStoreImplementsHistoryStore(t *testing.T) {
 	var _ chathistory.Store = (*postgres.Store)(nil)
 }

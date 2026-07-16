@@ -16,21 +16,11 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const Provider = "CosmosDBChatHistory"
-
-// StoreConfig configures [NewStore]. Only [StoreConfig.Container] is
-// required.
-type StoreConfig struct {
+// Config configures [New]. Only [Config.Container] is required.
+type Config struct {
 	// Container is the live Cosmos container handle. Required. The
 	// container's partition key MUST be `/conversation_id`.
 	Container *azcosmos.ContainerClient
-}
-
-func (c StoreConfig) Validate() error {
-	if c.Container == nil {
-		return errors.New("cosmosdb: Container is required")
-	}
-	return nil
 }
 
 var (
@@ -38,16 +28,15 @@ var (
 	_ chathistory.Lister = (*Store)(nil)
 )
 
-// Store is a Cosmos DB-backed [chathistory.Store]. Construct via
-// [NewStore].
+// Store is a Cosmos DB-backed [chathistory.Store]. Construct via [New].
 type Store struct {
 	container *azcosmos.ContainerClient
 }
 
-// NewStore builds a [Store] from cfg.
-func NewStore(cfg StoreConfig) (*Store, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+// New builds a [Store] from cfg.
+func New(cfg Config) (*Store, error) {
+	if cfg.Container == nil {
+		return nil, errors.New("cosmosdb: Container is required")
 	}
 	return &Store{container: cfg.Container}, nil
 }

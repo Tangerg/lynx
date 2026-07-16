@@ -15,13 +15,10 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const Provider = "RedisChatHistory"
-
 const DefaultKeyPrefix = "chat:history:"
 
-// StoreConfig configures [NewStore]. Only [StoreConfig.Client] is
-// required.
-type StoreConfig struct {
+// Config configures [New]. Only [Config.Client] is required.
+type Config struct {
 	// Client is the live go-redis client. Required. The store does
 	// not take ownership — callers Close() the client themselves.
 	Client goredis.UniversalClient
@@ -36,41 +33,28 @@ type StoreConfig struct {
 	TTL time.Duration
 }
 
-func (c *StoreConfig) Validate() error {
-	if c.Client == nil {
-		return errors.New("redis: Client is required")
-	}
-	if c.TTL < 0 {
-		return errors.New("redis: TTL must not be negative")
-	}
-	return nil
-}
-
-// ApplyDefaults fills zero fields. KeyPrefix defaults to
-// [DefaultKeyPrefix].
-func (c *StoreConfig) ApplyDefaults() {
-	if c.KeyPrefix == "" {
-		c.KeyPrefix = DefaultKeyPrefix
-	}
-}
-
 var (
 	_ chathistory.Store  = (*Store)(nil)
 	_ chathistory.Lister = (*Store)(nil)
 )
 
-// Store is a Redis-backed [chathistory.Store]. Construct via [NewStore].
+// Store is a Redis-backed [chathistory.Store]. Construct via [New].
 type Store struct {
 	client    goredis.UniversalClient
 	keyPrefix string
 	ttl       time.Duration
 }
 
-// NewStore builds a [Store] from cfg.
-func NewStore(cfg StoreConfig) (*Store, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+// New builds a [Store] from cfg.
+func New(cfg Config) (*Store, error) {
+	if cfg.Client == nil {
+		return nil, errors.New("redis: Client is required")
+	}
+	if cfg.TTL < 0 {
+		return nil, errors.New("redis: TTL must not be negative")
+	}
+	if cfg.KeyPrefix == "" {
+		cfg.KeyPrefix = DefaultKeyPrefix
 	}
 	return &Store{
 		client:    cfg.Client,

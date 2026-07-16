@@ -15,8 +15,6 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const Provider = "Neo4jChatHistory"
-
 const (
 	DefaultDatabase = "neo4j"
 	DefaultLabel    = "ChatMessage"
@@ -26,9 +24,8 @@ const (
 // name to the conservative shape Neo4j accepts without quoting.
 var identPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// StoreConfig configures [NewStore]. Only [StoreConfig.Driver] is
-// required.
-type StoreConfig struct {
+// Config configures [New]. Only [Config.Driver] is required.
+type Config struct {
 	// Context is used for the schema bootstrap. Optional: defaults
 	// to context.Background().
 	Context context.Context
@@ -50,48 +47,34 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) Validate() error {
-	if c.Driver == nil {
-		return errors.New("neo4j: Driver is required")
-	}
-	if !identPattern.MatchString(c.Label) {
-		return fmt.Errorf("neo4j: Label=%q must match %s", c.Label, identPattern)
-	}
-	return nil
-}
-
-// ApplyDefaults fills zero fields. Context defaults to
-// [context.Background]; Database defaults to [DefaultDatabase];
-// Label defaults to [DefaultLabel].
-func (c *StoreConfig) ApplyDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
-	if c.Database == "" {
-		c.Database = DefaultDatabase
-	}
-	if c.Label == "" {
-		c.Label = DefaultLabel
-	}
-}
-
 var (
 	_ chathistory.Store  = (*Store)(nil)
 	_ chathistory.Lister = (*Store)(nil)
 )
 
-// Store is a Neo4j-backed [chathistory.Store]. Construct via [NewStore].
+// Store is a Neo4j-backed [chathistory.Store]. Construct via [New].
 type Store struct {
 	driver   neo4j.DriverWithContext
 	database string
 	label    string
 }
 
-// NewStore builds a [Store] from cfg.
-func NewStore(cfg StoreConfig) (*Store, error) {
-	cfg.ApplyDefaults()
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+// New builds a [Store] from cfg.
+func New(cfg Config) (*Store, error) {
+	if cfg.Driver == nil {
+		return nil, errors.New("neo4j: Driver is required")
+	}
+	if cfg.Context == nil {
+		cfg.Context = context.Background()
+	}
+	if cfg.Database == "" {
+		cfg.Database = DefaultDatabase
+	}
+	if cfg.Label == "" {
+		cfg.Label = DefaultLabel
+	}
+	if !identPattern.MatchString(cfg.Label) {
+		return nil, fmt.Errorf("neo4j: Label=%q must match %s", cfg.Label, identPattern)
 	}
 	s := &Store{
 		driver:   cfg.Driver,
