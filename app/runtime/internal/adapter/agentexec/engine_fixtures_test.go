@@ -51,7 +51,10 @@ func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildCon
 }
 
 func (e *Engine) runTurnSync(ctx context.Context, req TurnRequest) (TurnOutput, error) {
-	proc := e.StartTurn(ctx, req)
+	proc, err := e.StartTurn(ctx, req)
+	if err != nil {
+		return TurnOutput{}, fmt.Errorf("engine: start turn: %w", err)
+	}
 	if err := <-proc.Done(); err != nil {
 		return TurnOutput{}, fmt.Errorf("engine: run turn: %w", err)
 	}

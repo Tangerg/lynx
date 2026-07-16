@@ -218,6 +218,44 @@ func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
 	}
 }
 
+func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) {
+	executor := &fakeExecutor{events: []EngineEvent{
+		TurnStart{Model: "model"},
+		ErrorEvent{Message: "engine: start chat: duplicate process extension", Code: "ENGINE_ERROR"},
+		TurnEnd{Reason: execution.OutcomeError},
+	}}
+	effects := &fakeEffects{}
+	coordinator := testCoordinator(executor, effects)
+
+	stream, err := coordinator.openSegment(context.Background(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	events := collectEvents(stream)
+	if len(events) != 2 {
+		t.Fatalf("journal events = %d, want opening and terminal", len(events))
+	}
+	if _, ok := events[0].Payload.(SegmentStarted); !ok {
+		t.Fatalf("first payload = %#v, want SegmentStarted", events[0].Payload)
+	}
+	finished, ok := events[1].Payload.(SegmentFinished)
+	if !ok {
+		t.Fatalf("second payload = %#v, want SegmentFinished", events[1].Payload)
+	}
+	if finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeError {
+		t.Fatalf("outcome = %v, want error", finished.Run.Outcome)
+	}
+	if finished.Run.Result == nil || finished.Run.Result.Error == nil || finished.Run.Result.Error.Kind != InternalProblem {
+		t.Fatalf("run result = %+v, want canonical internal problem", finished.Run.Result)
+	}
+	if events[0].Seq >= events[1].Seq {
+		t.Fatalf("event order = %q then %q, want monotonic", events[0].Seq, events[1].Seq)
+	}
+	if !effects.terminalized("ses_1", "run_1") {
+		t.Fatal("process creation failure did not atomically terminalize the run")
+	}
+}
+
 func TestCoordinatorResumeCommitsBeforeActivation(t *testing.T) {
 	executor := &fakeExecutor{}
 	effects := &fakeEffects{}

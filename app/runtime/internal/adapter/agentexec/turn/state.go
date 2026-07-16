@@ -31,10 +31,12 @@ type turnState struct {
 	// event delivery, and channel closure. No sender may touch events without
 	// it, so endTurn can close the stream without racing a late observer or a
 	// park/cancel hand-off.
-	eventMu      sync.Mutex
-	eventsClosed bool
-	seq          uint64
-	terminalOnce sync.Once
+	eventMu                 sync.Mutex
+	eventsClosed            bool
+	eventsOpened            bool
+	lateCreateFailureEvents bool
+	seq                     uint64
+	terminalOnce            sync.Once
 
 	// cwd is the session working directory the turn ran in — threaded
 	// to post-turn maintenance so extracted facts land in THAT
@@ -137,6 +139,28 @@ func (st *turnState) setInterruptKinds(kinds []string) {
 	for _, kind := range kinds {
 		st.interruptKinds[kind] = true
 	}
+}
+
+func (st *turnState) markEventsOpened() {
+	st.eventMu.Lock()
+	defer st.eventMu.Unlock()
+	st.eventsOpened = true
+}
+
+func (st *turnState) enableLateCreateFailureEvents() {
+	st.eventMu.Lock()
+	defer st.eventMu.Unlock()
+	st.lateCreateFailureEvents = true
+}
+
+func (st *turnState) claimLateCreateFailureEvents() bool {
+	st.eventMu.Lock()
+	defer st.eventMu.Unlock()
+	if !st.lateCreateFailureEvents || st.eventsOpened {
+		return false
+	}
+	st.eventsOpened = true
+	return true
 }
 
 func (st *turnState) canSurface(kind string) bool {

@@ -7,9 +7,21 @@ import (
 
 func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.Seq[Event], error) {
 	state, err := s.findTurn(handle.TurnID)
-	if err != nil {
+	if err == nil {
+		state.markEventsOpened()
+		return eventSequence(ctx, state), nil
+	}
+	state = handle.state
+	if state == nil ||
+		state.handle.SessionID != handle.SessionID ||
+		state.handle.TurnID != handle.TurnID ||
+		!state.claimLateCreateFailureEvents() {
 		return nil, err
 	}
+	return eventSequence(ctx, state), nil
+}
+
+func eventSequence(ctx context.Context, state *turnState) iter.Seq[Event] {
 	// Single-consumer pull stream. The internal select multiplexes the
 	// turn's event channel against ctx so the iterator stops promptly
 	// when the caller stops listening; even while parked waiting for
@@ -44,7 +56,7 @@ func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.
 				return
 			}
 		}
-	}, nil
+	}
 }
 
 // coalesceTextDeltas merges a run of same-kind text deltas (MessageDelta /

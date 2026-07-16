@@ -22,6 +22,7 @@ func (s *memoryDispatcher) StartTurn(ctx context.Context, request StartTurnReque
 		TurnID:    newTurnID(),
 	}
 	state := newTurnState(ctx, handle)
+	handle.state = state
 	state.model = modelOr(request.Model)
 	state.cwd = request.Cwd
 	state.setInterruptKinds(request.InterruptKinds)
