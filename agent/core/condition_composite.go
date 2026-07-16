@@ -14,7 +14,7 @@ func (c *andCondition) Cost() float64 {
 	return conditionCost(c.left) + conditionCost(c.right)
 }
 
-func (c *andCondition) Evaluate(ctx context.Context, env *ConditionEnv) Determination {
+func (c *andCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
 	leftResult := evaluateCondition(ctx, c.left, env)
 	if leftResult == False {
 		return False
@@ -34,7 +34,7 @@ func (c *orCondition) Cost() float64 {
 	return conditionCost(c.left) + conditionCost(c.right)
 }
 
-func (c *orCondition) Evaluate(ctx context.Context, env *ConditionEnv) Determination {
+func (c *orCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
 	leftResult := evaluateCondition(ctx, c.left, env)
 	if leftResult == True {
 		return True
@@ -49,7 +49,7 @@ func Not(inner Condition) Condition { return &notCondition{inner} }
 func (c *notCondition) Name() string  { return "(NOT " + conditionName(c.inner) + ")" }
 func (c *notCondition) Cost() float64 { return conditionCost(c.inner) }
 
-func (c *notCondition) Evaluate(ctx context.Context, env *ConditionEnv) Determination {
+func (c *notCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
 	return evaluateCondition(ctx, c.inner, env).Not()
 }
 
@@ -70,7 +70,7 @@ func conditionCost(condition Condition) float64 {
 	return condition.Cost()
 }
 
-func evaluateCondition(ctx context.Context, condition Condition, env *ConditionEnv) Determination {
+func evaluateCondition(ctx context.Context, condition Condition, env *ConditionEnv) Truth {
 	if condition == nil {
 		return Unknown
 	}

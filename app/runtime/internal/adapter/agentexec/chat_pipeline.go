@@ -15,8 +15,8 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-func newAgentPlatform(cfg Config, resolver toolport.ToolResolver) (*agentruntime.Platform, error) {
-	guardrails, err := newChatGuardrails(cfg)
+func newAgentRuntime(config Config, resolver toolport.ToolResolver) (*agentruntime.Engine, error) {
+	guardrails, err := newChatGuardrails(config)
 	if err != nil {
 		return nil, err
 	}
@@ -26,29 +26,29 @@ func newAgentPlatform(cfg Config, resolver toolport.ToolResolver) (*agentruntime
 		extensions = append(extensions, resolver)
 	}
 
-	return agent.NewPlatform(agentruntime.PlatformConfig{
-		ChatClient:   cfg.ChatClient,
+	return agent.NewEngine(agentruntime.Config{
+		Chat:         core.ChatCapability{Model: config.ChatClient, Streamer: config.ChatClient},
 		Extensions:   extensions,
 		Guardrails:   guardrails,
-		ProcessStore: cfg.ProcessStore,
-		AutoSnapshot: cfg.ProcessStore != nil,
-		SessionStore: cfg.SessionStore,
-	}), nil
+		ProcessStore: config.ProcessStore,
+		AutoSnapshot: config.ProcessStore != nil,
+		SessionStore: config.SessionStore,
+	})
 }
 
 // newChatGuardrails composes the shared chat pipeline for every top-level
 // turn and subtask. The tool loop stays outermost and the history middleware
 // stays model-adjacent, so each loop round persists only the genuinely-new
 // messages for that conversation id.
-func newChatGuardrails(cfg Config) (*core.Guardrails, error) {
-	return newChatGuardrailsWithBeforeRound(cfg.HistoryStore, nil)
+func newChatGuardrails(config Config) (*core.ChatGuardrails, error) {
+	return newChatGuardrailsWithBeforeRound(config.HistoryStore, nil)
 }
 
 func newChatGuardrailsWithBeforeRound(
 	historyStore history.Store,
 	beforeRound func(context.Context) []chat.Message,
-) (*core.Guardrails, error) {
-	guardrails, err := agentruntime.BuildChatGuardrails(agentruntime.ChatGuardrailsConfig{
+) (*core.ChatGuardrails, error) {
+	guardrails, err := agentruntime.NewChatGuardrails(agentruntime.ChatGuardrailsConfig{
 		HistoryStore: historyStore,
 	})
 	if err != nil || beforeRound == nil {

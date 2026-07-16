@@ -54,13 +54,13 @@ func (e *Executor) CancelTurn(ctx context.Context, handle any) error {
 
 // ValidateStart applies application-owned turn invariants plus the adapter's
 // model-catalog modality check before a run resolves or creates a session.
-func (e *Executor) ValidateStart(req runs.StartTurn) error {
-	if err := req.Validate(); err != nil {
+func (e *Executor) ValidateStart(request runs.StartTurn) error {
+	if err := request.Validate(); err != nil {
 		return err
 	}
-	if len(req.Media) > 0 && req.Provider != "" && req.Model != "" {
-		if info, ok := catalog.Lookup(req.Provider, req.Model); ok && !info.Modalities.AcceptsInput(catalog.ModalityImage) {
-			return fmt.Errorf("%w: model %q (provider %q) does not accept image input", runs.ErrUnsupportedMedia, req.Model, req.Provider)
+	if len(request.Media) > 0 && request.Provider != "" && request.Model != "" {
+		if info, ok := catalog.Lookup(request.Provider, request.Model); ok && !info.Modalities.AcceptsInput(catalog.ModalityImage) {
+			return fmt.Errorf("%w: model %q (provider %q) does not accept image input", runs.ErrUnsupportedMedia, request.Model, request.Provider)
 		}
 	}
 	return nil
@@ -68,19 +68,19 @@ func (e *Executor) ValidateStart(req runs.StartTurn) error {
 
 // Start launches a fresh executor turn and returns its neutral identity plus an
 // opaque handle for the segment supervisor.
-func (e *Executor) Start(ctx context.Context, req runs.StartTurn) (runs.Turn, error) {
+func (e *Executor) Start(ctx context.Context, request runs.StartTurn) (runs.Turn, error) {
 	handle, err := e.dispatcher.StartTurn(ctx, StartTurnRequest{
-		SessionID:      req.SessionID,
-		Message:        req.Message,
-		Media:          req.Media,
-		Cwd:            req.Cwd,
-		Provider:       req.Provider,
-		Model:          req.Model,
-		MaxBudget:      req.MaxBudget,
-		MaxCostUSD:     req.MaxCostUSD,
-		MaxSteps:       req.MaxSteps,
-		Options:        req.Options,
-		InterruptKinds: req.InterruptKinds,
+		SessionID:      request.SessionID,
+		Message:        request.Message,
+		Media:          request.Media,
+		Cwd:            request.Cwd,
+		Provider:       request.Provider,
+		Model:          request.Model,
+		MaxBudget:      request.MaxBudget,
+		MaxCostUSD:     request.MaxCostUSD,
+		MaxSteps:       request.MaxSteps,
+		Options:        request.Options,
+		InterruptKinds: request.InterruptKinds,
 	})
 	if err != nil {
 		return runs.Turn{}, err
@@ -107,13 +107,13 @@ func (e *Executor) Resume(ctx context.Context, prepared runs.Turn, resolution in
 }
 
 // Rehydrate rebuilds a parked turn from its durable process snapshot.
-func (e *Executor) Rehydrate(ctx context.Context, req runs.RehydrateTurn) (runs.Turn, error) {
+func (e *Executor) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (runs.Turn, error) {
 	handle, err := e.dispatcher.Rehydrate(ctx, RehydrateRequest{
-		SessionID: req.SessionID,
-		TurnID:    req.TurnID,
-		ProcessID: req.ProcessID,
-		Provider:  req.Provider,
-		Model:     req.Model,
+		SessionID: request.SessionID,
+		TurnID:    request.TurnID,
+		ProcessID: request.ProcessID,
+		Provider:  request.Provider,
+		Model:     request.Model,
 	})
 	if err != nil {
 		return runs.Turn{}, mapControlError(err)

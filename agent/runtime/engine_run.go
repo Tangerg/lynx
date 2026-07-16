@@ -1,0 +1,305 @@
+package runtime
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/interaction"
+)
+
+// Run deploys/resolves the Agent definition, runs it synchronously, and returns
+// the resulting process (whether completed or terminal-failed). The first run
+// of a definition installs its immutable Deployment in the catalog; later runs
+// resolve that exact deployment. A conflicting active definition still
+// requires explicit [Engine.Replace]. Pass zero [core.ProcessOptions]{} for
+// defaults.
+//
+// One `agent.run` span wraps the full invocation, parenting the
+// per-tick / per-action / per-plan child spans the runtime emits
+// during execution. See doc/OBSERVABILITY.md §3.3 / §4.7.
+func (e *Engine) Run(
+	ctx context.Context,
+	agent *core.Agent,
+	bindings map[string]any,
+	options core.ProcessOptions,
+) (*Process, error) {
+	if agent == nil {
+		return nil, errors.New("runtime.Engine.Run: agent definition is nil")
+	}
+	deployment, err := e.deploymentForProcess(agent)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.Run: %w", err)
+	}
+	return e.runDeployment(ctx, deployment, bindings, options)
+}
+
+func (e *Engine) runDeployment(
+	ctx context.Context,
+	deployment *Deployment,
+	bindings map[string]any,
+	options core.ProcessOptions,
+) (*Process, error) {
+	process, err := e.createProcessFromDeployment(deployment, bindings, options)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, span := agentTracer.Start(normalizeContext(ctx), "agent.run",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("gen_ai.agent.name", process.agent().Name()),
+			attribute.String("agent.process.id", process.id),
+		),
+	)
+	defer span.End()
+
+	if err := process.run(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return process, err
+	}
+	span.SetAttributes(attribute.String("agent.status", process.Status().String()))
+	return process, nil
+}
+
+// RunInSession runs the agent under a multi-turn session context.
+// The session is stamped onto [ProcessOptions.Session] so action
+// bodies' chat calls flow through chat history keyed by [Session.ID].
+// When a [SessionStore] is configured on the engine the session is
+// saved before dispatch (so a concurrent reader sees the active
+// turn) and re-saved with refreshed [Session.UpdatedAt] after the
+// dispatch completes — successful or failed.
+//
+// Passing a nil session is rejected; build a session via
+// [core.NewSession] (or load one via the configured store) before
+// calling.
+//
+// Returns the same (*Process, error) shape as [Engine.Run].
+func (e *Engine) RunInSession(
+	ctx context.Context,
+	agent *core.Agent,
+	session *core.Session,
+	bindings map[string]any,
+	options core.ProcessOptions,
+) (*Process, error) {
+	if session == nil {
+		return nil, errors.New("runtime.Engine.RunInSession: session must not be nil")
+	}
+	if session.ID == "" {
+		return nil, errors.New("runtime.Engine.RunInSession: session ID must not be empty")
+	}
+	if session.AgentName == "" && agent != nil {
+		deployment, err := e.deploymentForProcess(agent)
+		if err != nil {
+			return nil, fmt.Errorf("run in session: compile agent: %w", err)
+		}
+		session.AgentName = deployment.agent.Name()
+	}
+	options.Session = session
+
+	// Pre-dispatch save so concurrent readers see the active turn
+	// (UpdatedAt = "now") even if dispatch is long-running.
+	if err := e.touchAndSaveSession(ctx, session); err != nil {
+		return nil, fmt.Errorf("run in session: save (pre-dispatch): %w", err)
+	}
+
+	process, runErr := e.Run(ctx, agent, bindings, options)
+
+	// Post-dispatch save runs even on Run error so the store
+	// reflects activity. Only override runErr's nil with the save
+	// error — a real run error wins.
+	if saveErr := e.touchAndSaveSession(ctx, session); saveErr != nil && runErr == nil {
+		return process, fmt.Errorf("run in session: save (post-dispatch): %w", saveErr)
+	}
+	return process, runErr
+}
+
+// touchAndSaveSession refreshes UpdatedAt and persists when a
+// SessionStore is configured. No-op when none is wired so callers
+// don't have to nil-check the store at every save site.
+func (e *Engine) touchAndSaveSession(ctx context.Context, session *core.Session) error {
+	if e.sessionStore == nil {
+		return nil
+	}
+	session.Touch()
+	return e.sessionStore.Save(ctx, *session)
+}
+
+// SessionStore returns the configured session-persistence backend,
+// or nil when the engine was constructed without one.
+func (e *Engine) SessionStore() core.SessionStore { return e.sessionStore }
+
+// Start deploys/resolves the Agent definition and runs it in the background,
+// returning the process and a channel that delivers the final error (or nil on
+// success). It has the same catalog and conflict semantics as [Engine.Run].
+func (e *Engine) Start(
+	ctx context.Context,
+	agent *core.Agent,
+	bindings map[string]any,
+	options core.ProcessOptions,
+) (*Process, <-chan error) {
+	done := make(chan error, 1)
+
+	process, err := e.createProcess(agent, bindings, options)
+	if err != nil {
+		done <- err
+		close(done)
+		return nil, done
+	}
+	go func() {
+		done <- process.run(normalizeContext(ctx))
+		close(done)
+	}()
+	return process, done
+}
+
+// Continue re-enters the run loop on an already-created
+// process. After [Engine.Resume] records a suspension response,
+// or after a stuck policy stages new blackboard state,
+// Continue drives the OODA loop until the process exits
+// Running again (terminal, waiting, or paused).
+//
+// Concurrent Continue calls on the same id are safe — the
+// underlying beginRun rejects when the process is already running
+// so only one call drives the loop.
+func (e *Engine) Continue(ctx context.Context, id string) error {
+	process, ok := e.Process(id)
+	if !ok {
+		return processNotFoundError("continue process", id)
+	}
+	if err := ensureProcessContinuable(process); err != nil {
+		return err
+	}
+	return process.run(normalizeContext(ctx))
+}
+
+// ContinueAsync is the background variant of
+// [Engine.Continue]. The returned buffered channel
+// receives the run's final error (nil on clean exit) so callers can
+// fire-and-forget while still being able to wait on completion.
+func (e *Engine) ContinueAsync(ctx context.Context, id string) <-chan error {
+	done := make(chan error, 1)
+
+	process, ok := e.Process(id)
+	if !ok {
+		done <- processNotFoundError("continue process asynchronously", id)
+		close(done)
+		return done
+	}
+	if err := ensureProcessContinuable(process); err != nil {
+		done <- err
+		close(done)
+		return done
+	}
+	go func() {
+		done <- process.run(normalizeContext(ctx))
+		close(done)
+	}()
+	return done
+}
+
+func ensureProcessContinuable(process *Process) error {
+	if process == nil || process.Status() != core.StatusWaiting {
+		return nil
+	}
+	suspension := process.Suspension()
+	if suspension == nil || !suspension.Responded() {
+		return fmt.Errorf("%w: process %q is still waiting for a suspension response", interaction.ErrSuspensionStale, process.ID())
+	}
+	return nil
+}
+
+// Resume validates and records a response for the exact suspension ID.
+// The process status stays [core.StatusWaiting] until Continue re-enters
+// the action and decodes the response at its original linear call site.
+//
+// Splitting "record response" from "drive the loop" keeps
+// Resume cheap, synchronous, and ctx-free, and lets the host
+// control the continuation (sync vs background, fresh ctx vs the
+// original).
+func (e *Engine) Resume(id, suspensionID string, response any) error {
+	process, ok := e.Process(id)
+	if !ok {
+		return processNotFoundError("resume process", id)
+	}
+	process.checkpointMu.Lock()
+	defer process.checkpointMu.Unlock()
+	if err := process.state.respondToSuspension(suspensionID, response, time.Now()); err != nil {
+		return fmt.Errorf("resume process %q: %w", id, err)
+	}
+	return nil
+}
+
+// Kill terminates a process: it transitions to [core.StatusKilled] and
+// publishes [event.ProcessKilled]. Idempotent and safe on any process — an
+// already-terminal one is left untouched (no-op), so a kill racing a natural
+// completion can't clobber a clean Completed/Failed into Killed or fire a
+// spurious / duplicate ProcessKilled. The check-and-set is atomic
+// ([processState.markKilled]); the event publishes only on a real transition.
+// Returns an error when the id is unknown.
+func (e *Engine) Kill(id string) error {
+	process, ok := e.Process(id)
+	if !ok {
+		return processNotFoundError("kill process", id)
+	}
+	if !process.state.markKilled() {
+		return nil
+	}
+	e.publish(event.ProcessKilled{
+		Header: event.NewHeader(id),
+		Reason: "kill requested",
+	})
+	return nil
+}
+
+// KillChildren terminates every non-terminal process whose ParentID
+// matches parentID and returns the killed ids (order unspecified).
+// Orchestrators call it on turn exit to sweep background children started via
+// [Engine.StartChild], so background
+// work can't outlive the parent that launched it. Already-terminal
+// children are skipped — there's nothing to kill and overwriting their
+// status would corrupt a clean Completed into Killed.
+func (e *Engine) KillChildren(parentID string) []string {
+	var killed []string
+	for _, process := range e.processes.list() {
+		if process.ParentID() != parentID || process.Status().IsTerminal() {
+			continue
+		}
+		if err := e.Kill(process.ID()); err == nil {
+			killed = append(killed, process.ID())
+		}
+	}
+	return killed
+}
+
+// Remove deletes a process from the registry so long-running hosts can free
+// terminal-state processes they have already
+// drained. Returns an error when the id is unknown so callers can
+// detect typos.
+func (e *Engine) Remove(id string) error {
+	if !e.processes.unregister(id) {
+		return processNotFoundError("remove process", id)
+	}
+	return nil
+}
+
+// Prune removes every registered process whose
+// status satisfies [core.ProcessStatus.IsTerminal] and returns
+// the removed ids. Convenient cleanup for long-lived hosts.
+func (e *Engine) Prune() []string {
+	return e.processes.pruneWhere(func(process *Process) bool {
+		return process.Status().IsTerminal()
+	})
+}
+
+func processNotFoundError(operation, id string) error {
+	return fmt.Errorf("%s: process %q not found", operation, id)
+}

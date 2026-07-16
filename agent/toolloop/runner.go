@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"slices"
 
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -16,22 +17,24 @@ import (
 const defaultMaxRounds = 50
 
 var (
-	// ErrInvalidRunner reports invalid construction or run input.
-	ErrInvalidRunner = errors.New("toolloop: invalid runner")
+	// ErrInvalidConfig reports an invalid model or Config.
+	ErrInvalidConfig = errors.New("toolloop: invalid config")
+	// ErrInvalidInput reports invalid Run or Resume input.
+	ErrInvalidInput = errors.New("toolloop: invalid input")
 	// ErrRoundLimit reports that the model kept requesting tools through the
 	// configured number of rounds.
 	ErrRoundLimit = errors.New("toolloop: round limit reached")
 )
 
-// RunnerConfig controls bounded loop policy. Zero MaxRounds selects 50.
+// Config controls bounded loop policy. Zero MaxRounds selects 50.
 // Negative values are invalid. Runner never retries model or tool calls.
-type RunnerConfig struct {
+type Config struct {
 	MaxRounds int
 }
 
 // Runner drives a synchronous Model through tool calls. Run and Resume are
 // lazy event sequences: no model or tool is called until iteration begins.
-// Each invocation is independent and Runner is safe for concurrent use when
+// Each run is independent and Runner is safe for concurrent use when
 // its Model and ToolResolver are safe for concurrent use.
 type Runner struct {
 	model     chat.Model
@@ -39,12 +42,12 @@ type Runner struct {
 }
 
 // NewRunner validates model and config and returns an immutable Runner.
-func NewRunner(model chat.Model, config RunnerConfig) (*Runner, error) {
+func NewRunner(model chat.Model, config Config) (*Runner, error) {
 	if nilModel(model) {
-		return nil, fmt.Errorf("%w: model must not be nil", ErrInvalidRunner)
+		return nil, fmt.Errorf("%w: model must not be nil", ErrInvalidConfig)
 	}
 	if config.MaxRounds < 0 {
-		return nil, fmt.Errorf("%w: max rounds must not be negative", ErrInvalidRunner)
+		return nil, fmt.Errorf("%w: max rounds must not be negative", ErrInvalidConfig)
 	}
 	maxRounds := config.MaxRounds
 	if maxRounds == 0 {
@@ -56,9 +59,9 @@ func NewRunner(model chat.Model, config RunnerConfig) (*Runner, error) {
 // Run emits model, tool, and terminal events until the model produces a
 // regular response, an all-direct tool round completes, execution pauses, or
 // an error occurs. On failure it yields one zero Event with the error.
-func (r *Runner) Run(ctx context.Context, invocation *Invocation) iter.Seq2[Event, error] {
+func (r *Runner) Run(ctx context.Context, request *chat.Request, resolver ToolResolver) iter.Seq2[Event, error] {
 	return func(yield func(Event, error) bool) {
-		state, err := r.startState(ctx, invocation)
+		state, err := r.startState(ctx, request, resolver)
 		if err != nil {
 			yield(Event{}, err)
 			return
@@ -79,7 +82,7 @@ func (r *Runner) Resume(ctx context.Context, checkpoint *Checkpoint, resolver To
 			return
 		}
 		eventResume := resume
-		if !yield(Event{Kind: EventResume, Resume: &eventResume}, nil) {
+		if !yield(Event{Kind: EventResume, Round: state.round, Resume: &eventResume}, nil) {
 			return
 		}
 		state.resume = &resume
@@ -98,21 +101,18 @@ type runnerState struct {
 	resume   *Resume
 }
 
-func (r *Runner) startState(ctx context.Context, invocation *Invocation) (*runnerState, error) {
+func (r *Runner) startState(ctx context.Context, request *chat.Request, resolver ToolResolver) (*runnerState, error) {
 	if err := r.validateContext(ctx); err != nil {
 		return nil, err
 	}
-	if invocation == nil {
-		return nil, fmt.Errorf("%w: invocation must not be nil", ErrInvalidRunner)
+	if err := validateRunInput(request, resolver); err != nil {
+		return nil, err
 	}
-	if err := invocation.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalidRunner, err)
-	}
-	request, err := snapshot(invocation.Request)
+	request, err := snapshot(request)
 	if err != nil {
-		return nil, fmt.Errorf("%w: snapshot request: %w", ErrInvalidRunner, err)
+		return nil, fmt.Errorf("%w: snapshot request: %w", ErrInvalidInput, err)
 	}
-	return &runnerState{request: request, resolver: invocation.Tools}, nil
+	return &runnerState{request: request, resolver: resolver}, nil
 }
 
 func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver, resume Resume) (*runnerState, error) {
@@ -120,25 +120,27 @@ func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolv
 		return nil, err
 	}
 	if err := checkpoint.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalidRunner, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidInput, err)
 	}
 	if err := resume.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalidRunner, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidInput, err)
 	}
 	if checkpoint.ID != resume.ID {
-		return nil, fmt.Errorf("%w: resume ID %q does not match checkpoint ID %q", ErrInvalidRunner, resume.ID, checkpoint.ID)
+		return nil, fmt.Errorf("%w: resume ID %q does not match checkpoint ID %q", ErrInvalidInput, resume.ID, checkpoint.ID)
 	}
-	invocation := &Invocation{Request: checkpoint.Request, Tools: resolver}
-	if err := invocation.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: resumed invocation: %w", ErrInvalidRunner, err)
+	if checkpoint.MaxRounds != r.maxRounds {
+		return nil, fmt.Errorf("%w: checkpoint max rounds %d does not match runner policy %d", ErrInvalidInput, checkpoint.MaxRounds, r.maxRounds)
+	}
+	if err := validateRunInput(checkpoint.Request, resolver); err != nil {
+		return nil, fmt.Errorf("%w: resumed request: %v", ErrInvalidInput, err)
 	}
 	copy, err := snapshot(checkpoint)
 	if err != nil {
-		return nil, fmt.Errorf("%w: snapshot checkpoint: %w", ErrInvalidRunner, err)
+		return nil, fmt.Errorf("%w: snapshot checkpoint: %w", ErrInvalidInput, err)
 	}
 	calls, err := responseToolCalls(copy.Response)
 	if err != nil {
-		return nil, fmt.Errorf("%w: checkpoint calls: %w", ErrInvalidRunner, err)
+		return nil, fmt.Errorf("%w: checkpoint calls: %w", ErrInvalidInput, err)
 	}
 	return &runnerState{
 		request:  copy.Request,
@@ -153,10 +155,10 @@ func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolv
 
 func (r *Runner) validateContext(ctx context.Context) error {
 	if r == nil || nilModel(r.model) || r.maxRounds < 1 {
-		return fmt.Errorf("%w: uninitialized runner", ErrInvalidRunner)
+		return fmt.Errorf("%w: uninitialized runner", ErrInvalidInput)
 	}
 	if ctx == nil {
-		return fmt.Errorf("%w: context must not be nil", ErrInvalidRunner)
+		return fmt.Errorf("%w: context must not be nil", ErrInvalidInput)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -206,7 +208,7 @@ func (r *Runner) callModel(ctx context.Context, state *runnerState, yield func(E
 		yield(Event{}, fmt.Errorf("toolloop: snapshot model request: %w", err))
 		return false
 	}
-	if !yield(Event{Kind: EventModelRequest, Request: eventRequest}, nil) {
+	if !yield(Event{Kind: EventModelRequest, Round: state.round + 1, Request: eventRequest}, nil) {
 		return false
 	}
 	modelRequest, err := snapshot(state.request)
@@ -241,6 +243,7 @@ func (r *Runner) callModel(ctx context.Context, state *runnerState, yield func(E
 	}
 	return yield(Event{
 		Kind:     EventModelResponse,
+		Round:    state.round,
 		Final:    len(state.calls) == 0,
 		Response: eventResponse,
 	}, nil)
@@ -267,7 +270,7 @@ func (r *Runner) callTools(ctx context.Context, state *runnerState, yield func(E
 		position := state.nextCall
 		call := state.calls[position]
 		eventCall := call
-		if !yield(Event{Kind: EventToolCall, ToolCall: &eventCall}, nil) {
+		if !yield(Event{Kind: EventToolCall, Round: state.round, ToolCall: &eventCall}, nil) {
 			return false, false
 		}
 
@@ -283,10 +286,12 @@ func (r *Runner) callTools(ctx context.Context, state *runnerState, yield func(E
 				yield(Event{}, checkpointErr)
 				return false, false
 			}
-			yield(Event{Kind: EventPause, Pause: &Pause{
-				ID:         pause.ID,
-				Reason:     pause.Reason,
-				Checkpoint: checkpoint,
+			yield(Event{Kind: EventPause, Round: state.round, Pause: &Pause{
+				ID:           pause.ID,
+				Reason:       pause.Reason,
+				Prompt:       pause.Prompt,
+				ResumeSchema: pause.ResumeSchema,
+				Checkpoint:   checkpoint,
 			}}, nil)
 			return false, false
 		}
@@ -295,7 +300,7 @@ func (r *Runner) callTools(ctx context.Context, state *runnerState, yield func(E
 		state.nextCall++
 		eventResult := result
 		final := allDirect && state.nextCall == len(state.calls)
-		if !yield(Event{Kind: EventToolResult, Final: final, ToolResult: &eventResult}, nil) {
+		if !yield(Event{Kind: EventToolResult, Round: state.round, Final: final, ToolResult: &eventResult}, nil) {
 			return false, false
 		}
 	}
@@ -323,6 +328,18 @@ func invokeTool(ctx context.Context, call chat.ToolCall, tool tools.Tool, resume
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return chat.ToolResult{}, nil, err
+	}
+	var suspended *interaction.SuspendedError
+	if errors.As(err, &suspended) {
+		if validationErr := suspended.Suspension.Validate(); validationErr != nil {
+			return chat.ToolResult{}, nil, validationErr
+		}
+		return chat.ToolResult{}, &PauseError{
+			ID:           suspended.Suspension.ID,
+			Reason:       suspended.Error(),
+			Prompt:       suspended.Suspension.Prompt,
+			ResumeSchema: suspended.Suspension.ResumeSchema,
+		}, nil
 	}
 	var pause *PauseError
 	if errors.As(err, &pause) {
@@ -357,12 +374,18 @@ func (r *Runner) checkpoint(state *runnerState, pause PauseError) (*Checkpoint, 
 		return nil, fmt.Errorf("toolloop: snapshot paused response: %w", err)
 	}
 	checkpoint := &Checkpoint{
-		ID:       pause.ID,
-		Round:    state.round,
-		Request:  request,
-		Response: response,
-		Results:  slices.Clone(state.results),
-		NextCall: state.nextCall,
+		SchemaVersion: 1,
+		ID:            pause.ID,
+		Round:         state.round,
+		MaxRounds:     r.maxRounds,
+		Request:       request,
+		Response:      response,
+		Results:       slices.Clone(state.results),
+		NextCall:      state.nextCall,
+	}
+	checkpoint.ToolsetDigest, err = toolsetDigest(request.Tools)
+	if err != nil {
+		return nil, fmt.Errorf("toolloop: digest paused toolset: %w", err)
 	}
 	if err := checkpoint.Validate(); err != nil {
 		return nil, err

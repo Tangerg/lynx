@@ -18,8 +18,8 @@ import (
 type BlackboardReader interface {
 	ID() string
 
-	// Get returns whatever is stored at key (by name only).
-	Get(key string) (any, bool)
+	// Load returns whatever is stored at key (by name only).
+	Load(key string) (any, bool)
 
 	// Lookup returns the value bound to (variable, typeName). When
 	// variable is DefaultBindingName ("it"), implementations search the
@@ -35,7 +35,7 @@ type BlackboardReader interface {
 	// Objects returns a snapshot in insertion order.
 	Objects() []any
 
-	// Condition reads boolean state set via [BlackboardWriter.SetCondition].
+	// Condition reads boolean state set via [BlackboardWriter.StoreCondition].
 	Condition(key string) (bool, bool)
 
 	// Inspect is for human consumption — verbose=true dumps everything,
@@ -45,13 +45,20 @@ type BlackboardReader interface {
 
 // BlackboardWriter is the mutation slice of [Blackboard].
 type BlackboardWriter interface {
-	// Set stores by name AND appends to the ordered objects list — so a
-	// single Set both makes the value reachable by name and by latest-of-type.
-	Set(key string, value any)
+	// Store saves by name and appends to the ordered objects list, making the
+	// value reachable both by name and by latest-of-type lookup.
+	Store(key string, value any)
 
-	// AddObject appends without binding to a name. Used when an action wants
+	// StoreTransient stores a runtime-only named value. It participates in live
+	// lookups but is excluded from durable snapshots and restored processes.
+	StoreTransient(key string, value any)
+
+	// Add appends without binding to a name. Used when an action wants
 	// to record an artifact without claiming the canonical "it" slot.
-	AddObject(value any)
+	Add(value any)
+
+	// AddTransient appends a runtime-only artifact.
+	AddTransient(value any)
 
 	// Bind stores under "it" AND derives a second key from the value's type
 	// (e.g. UserInput → "user_input"). Dual-binding so YAML/prompt actions
@@ -59,22 +66,26 @@ type BlackboardWriter interface {
 	// actual variable name.
 	Bind(value any)
 
-	// BindAll runs Set for each entry — convenience for seeding.
-	BindAll(m map[string]any)
+	// BindTransient applies Bind's lookup semantics without making the value
+	// durable. Use it for handles, clients, channels, and other runtime state.
+	BindTransient(value any)
 
-	// BindProtected marks a key so Spawn() preserves it on child blackboards
+	// StoreAll stores each map entry — convenience for seeding.
+	StoreAll(m map[string]any)
+
+	// StoreProtected marks a key so Clone() preserves it on child blackboards
 	// even when the rest of the state is forked. Useful for session tokens
 	// and other ambient context.
-	BindProtected(key string, value any)
+	StoreProtected(key string, value any)
 
 	// Hide marks an object as not-discoverable via Lookup, without removing
 	// it from the historical record (Objects() still returns it).
 	Hide(target any)
 
-	// SetCondition records boolean state that is NOT derived from object
+	// StoreCondition records boolean state that is NOT derived from object
 	// presence (e.g. "user_authenticated"). The planner consults these
 	// alongside type bindings.
-	SetCondition(key string, value bool)
+	StoreCondition(key string, value bool)
 }
 
 // Blackboard is the shared, typed memory all actions read from and write
@@ -82,41 +93,39 @@ type BlackboardWriter interface {
 // "give me the latest thing of type T" semantics, plus a separate set of
 // explicit conditions.
 //
-// A Blackboard is also a platform [Extension]: register one and the
-// runtime uses [Blackboard.Spawn] to produce a fresh, isolated
+// A Blackboard is also an engine [Extension]: register one and the
+// runtime uses [Blackboard.Clone] to produce a fresh, isolated
 // instance for every new process. The registered value itself is the
 // prototype — it is never read from or written to directly.
 //
-// Implementations MUST be safe for concurrent use. A process's parallel
-// actions (the runtime's concurrent tick) and the workflow fan-out builders'
-// generators read and write one shared Blackboard from several goroutines at
-// once; the built-in in-memory Blackboard is mutex-guarded, but a custom
-// implementation that isn't would silently race under any parallel plan.
+// Implementations MUST be safe for concurrent use by host code. Framework
+// workflow fan-out does not share writes: every branch receives Clone() state
+// and its mutations are discarded before deterministic result join.
 type Blackboard interface {
 	Extension
 	BlackboardReader
 	BlackboardWriter
 
-	// Spawn creates a child that starts with a copy of the parent's state.
+	// Clone returns an independent copy of the current state.
 	// Mutations on the child do not propagate back. Used by sub-agents
 	// and (since the prototype pattern replaced BlackboardFactory) to
 	// produce the per-process Blackboard at process start.
-	Spawn() Blackboard
+	Clone() Blackboard
 
-	Clear()
+	// ClearWorkingState removes ordinary bindings, objects, conditions, and
+	// hidden markers while retaining values stored with StoreProtected.
+	ClearWorkingState()
 }
 
-// Get is a typed shortcut for [BlackboardReader.Lookup]. It's a
-// top-level function because Go doesn't permit method-level type
-// parameters; callers write core.Get[Foo](bb, "it") instead of
-// bb.Get<Foo>("it").
-func Get[T any](bb BlackboardReader, name string) (T, bool) {
+// Get is the typed form of [BlackboardReader.Lookup]. It is a top-level
+// function because Go does not permit method type parameters.
+func Get[T any](blackboard BlackboardReader, name string) (T, bool) {
 	var zero T
-	if bb == nil {
+	if blackboard == nil {
 		return zero, false
 	}
 
-	value, ok := bb.Lookup(name, TypeName[T]())
+	value, ok := blackboard.Lookup(name, TypeName[T]())
 	if !ok {
 		return zero, false
 	}
@@ -128,17 +137,17 @@ func Get[T any](bb BlackboardReader, name string) (T, bool) {
 	return typed, true
 }
 
-// ObjectsOfType filters the blackboard's object list to entries
+// Objects filters the blackboard's object list to entries
 // assignable to T, preserving insertion order. Useful when an action
 // collects "all citations" or "all decisions made so far".
-func ObjectsOfType[T any](bb BlackboardReader) []T {
-	if bb == nil {
+func Objects[T any](blackboard BlackboardReader) []T {
+	if blackboard == nil {
 		return nil
 	}
 
 	var out []T
-	for _, obj := range bb.Objects() {
-		if typed, ok := obj.(T); ok {
+	for _, object := range blackboard.Objects() {
+		if typed, ok := object.(T); ok {
 			out = append(out, typed)
 		}
 	}
@@ -146,8 +155,8 @@ func ObjectsOfType[T any](bb BlackboardReader) []T {
 }
 
 // Last returns the most-recent object of type T or the zero value if absent.
-func Last[T any](bb BlackboardReader) (T, bool) {
-	matches := ObjectsOfType[T](bb)
+func Last[T any](blackboard BlackboardReader) (T, bool) {
+	matches := Objects[T](blackboard)
 	if len(matches) == 0 {
 		var zero T
 		return zero, false
@@ -155,45 +164,45 @@ func Last[T any](bb BlackboardReader) (T, bool) {
 	return matches[len(matches)-1], true
 }
 
-// DerivedTypeKey converts a Go reflect type into the variable name used
+// TypeKey converts a Go reflect type into the variable name used
 // by Bind() for dual-binding. UserInput → "user_input",
 // *Quote → "quote", HTTPResponse → "http_response". Empty names
 // (anonymous types) yield the empty string so callers can skip.
-func DerivedTypeKey(v any) string {
-	if v == nil {
+func TypeKey(value any) string {
+	if value == nil {
 		return ""
 	}
 
-	rt := reflect.TypeOf(v)
-	for rt != nil && rt.Kind() == reflect.Pointer {
-		rt = rt.Elem()
+	typ := reflect.TypeOf(value)
+	for typ != nil && typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
 	}
-	if rt == nil {
+	if typ == nil {
 		return ""
 	}
 
-	name := rt.Name()
+	name := typ.Name()
 	if name == "" {
 		return ""
 	}
 	return string(pkgstrings.AsCamelCase(name).ToSnakeCase())
 }
 
-// InspectBlackboard helps custom Blackboard implementations format consistent
+// FormatBlackboard helps custom Blackboard implementations format consistent
 // debug strings; the in-memory blackboard's Inspect delegates to it.
-func InspectBlackboard(bb BlackboardReader, verbose bool) string {
-	if bb == nil {
+func FormatBlackboard(blackboard BlackboardReader, verbose bool) string {
+	if blackboard == nil {
 		return "<nil blackboard>"
 	}
 
 	var out strings.Builder
-	fmt.Fprintf(&out, "Blackboard{id=%s objects=%d}", bb.ID(), len(bb.Objects()))
+	fmt.Fprintf(&out, "Blackboard{id=%s objects=%d}", blackboard.ID(), len(blackboard.Objects()))
 	if !verbose {
 		return out.String()
 	}
 
-	for i, obj := range bb.Objects() {
-		fmt.Fprintf(&out, "\n  [%d] %T = %+v", i, obj, obj)
+	for i, object := range blackboard.Objects() {
+		fmt.Fprintf(&out, "\n  [%d] %T = %+v", i, object, object)
 	}
 	return out.String()
 }

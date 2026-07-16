@@ -1,184 +1,312 @@
 package core
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"math"
+	"strings"
 	"time"
+
+	"github.com/Tangerg/lynx/agent/interaction"
 )
 
-// ProcessSnapshot is the portable form of a running [Process] — what
-// goes into a [ProcessStore] and comes back out on restore. The
-// snapshot captures everything the runtime needs to either (a) audit
-// a completed process or (b) resume a suspended one against the same
-// agent definition.
-//
-// The framework re-binds runtime references (the executable
-// [*Agent], its planner, blackboard implementation) by name at
-// restore time: a snapshot is portable across redeploys as long as
-// the same agent + goal names exist on the target platform.
-//
-// Three intentional limitations apply to the serialized state:
-//
-//   - Function-valued blackboard entries do not round-trip. Snapshot
-//     code must marshal blackboard values with [encoding/json] (or a
-//     user-supplied marshaler in custom [ProcessStore]
-//     implementations); values that don't survive that pass are
-//     dropped silently. Actions that need closures should keep them
-//     on the agent definition, not the blackboard.
-//   - The failure chain collapses to a string. The runtime preserves
-//     [error.Error()] but loses [errors.Is]/[errors.As] across
-//     persistence; treat the field as a human-readable diagnostic.
-//   - The pending [Awaitable] of a StatusWaiting process is NOT
-//     captured — it carries the un-serializable response-handler
-//     closure. A restored Waiting process therefore has nothing parked
-//     to resume against; the runtime must re-tick it once so the
-//     awaiting action re-issues AwaitInput against the restored
-//     blackboard before a response can be delivered. Keep awaiting
-//     actions idempotent: read the decision from a blackboard
-//     condition, re-park when it's unset, proceed when it's set. (See
-//     the runtime's RestoreProcess for the full resume sequence.)
+// ProcessSnapshotSchemaVersion is the only durable process wire schema this
+// development version accepts. Missing and unknown versions fail explicitly;
+// the framework never guesses an obsolete snapshot shape.
+const ProcessSnapshotSchemaVersion uint16 = 1
+
+var (
+	ErrSnapshotNotFound = errors.New("process store: snapshot not found")
+	ErrSnapshotSchema   = errors.New("process snapshot: unsupported schema")
+	ErrInvalidSnapshot  = errors.New("process snapshot: invalid")
+	ErrRevisionConflict = errors.New("process store: revision conflict")
+)
+
+// RevisionConflictError reports the compare-and-swap values that prevented a
+// snapshot write. It matches [ErrRevisionConflict].
+type RevisionConflictError struct {
+	ProcessID string
+	Expected  uint64
+	Actual    uint64
+}
+
+func (e *RevisionConflictError) Error() string {
+	if e == nil {
+		return ErrRevisionConflict.Error()
+	}
+	return fmt.Sprintf("%s for process %q: expected %d, actual %d", ErrRevisionConflict, e.ProcessID, e.Expected, e.Actual)
+}
+
+func (e *RevisionConflictError) Unwrap() error { return ErrRevisionConflict }
+
+// ProcessSnapshot is the complete durable state required to inspect or resume
+// one process. Runtime-only objects, derived world state, functions, and
+// closures are intentionally absent.
 type ProcessSnapshot struct {
-	// ID is the original process id. A restored process keeps the
-	// same id so external systems referencing it stay valid.
-	ID string `json:"id"`
+	SchemaVersion uint16 `json:"schema_version"`
+	Revision      uint64 `json:"revision"`
 
-	// ParentID is empty for top-level processes; populated for
-	// child processes created via Platform.CreateChildProcess.
+	ID       string `json:"id"`
 	ParentID string `json:"parent_id,omitempty"`
+	Depth    int    `json:"depth,omitempty"`
 
-	// Depth is the process's delegation depth: 0 for a top-level process,
-	// parent+1 for a child. Preserved across restore so a resumed sub-agent
-	// keeps enforcing the spawn-depth backstop from its true level.
-	Depth int `json:"depth,omitempty"`
+	Deployment DeploymentRef `json:"deployment"`
+	StartedAt  time.Time     `json:"started_at"`
+	CapturedAt time.Time     `json:"captured_at"`
+	Status     ProcessStatus `json:"-"`
 
-	// AgentName identifies the agent definition the runtime
-	// re-binds the snapshot to. Restore fails when no agent with
-	// this name is deployed.
-	AgentName string `json:"agent_name"`
+	Suspension *interaction.Suspension `json:"suspension,omitempty"`
+	GoalName   string                  `json:"goal_name,omitempty"`
+	History    []ActionRunSnapshot     `json:"history,omitempty"`
+	Failure    string                  `json:"failure,omitempty"`
 
-	// AgentVersion is the agent definition's version at capture
-	// time. Snapshot consumers can compare against the current
-	// deployed agent's version to detect schema drift.
-	AgentVersion string `json:"agent_version,omitempty"`
-
-	// StartedAt mirrors [Process.StartedAt]; preserved across
-	// restore.
-	StartedAt time.Time `json:"started_at"`
-
-	// CapturedAt is the snapshot wall-clock time. Useful for
-	// debugging "when did this state come from" without inspecting
-	// store metadata.
-	CapturedAt time.Time `json:"captured_at"`
-
-	// Status is the most recent [AgentProcessStatus]. Resumable
-	// statuses (StatusWaiting / StatusPaused) re-enter the tick
-	// loop; terminal statuses are loaded read-only.
-	Status AgentProcessStatus `json:"status"`
-
-	// GoalName identifies the goal currently being pursued. Empty
-	// when the process hasn't yet selected one. Re-bound at
-	// restore from the agent's goal set.
-	GoalName string `json:"goal_name,omitempty"`
-
-	// LastWorld is the [WorldState] the planner most recently observed.
-	// It is DERIVED, re-observed state — the planner re-runs on the first
-	// post-restore tick and rebuilds it — so it is deliberately NOT
-	// serialized: WorldState is an interface and JSON can't round-trip it
-	// back (decoding an object into an interface field fails, which would
-	// break Load for every ticked process). In-memory stores keep it (the
-	// struct is copied as-is); persistent stores drop it and the planner
-	// re-derives. Restoring without it always works (see RestoreFromSnapshot).
-	LastWorld WorldState `json:"-"`
-
-	// History is the full action-invocation history captured at
-	// snapshot time. Restore replays it for diagnostics; the
-	// runtime does NOT re-execute completed actions.
-	History []SnapshotActionInvocation `json:"history,omitempty"`
-
-	// Failure is the most recent error message. Empty when the
-	// process has not failed.
-	Failure string `json:"failure,omitempty"`
-
-	// Cost / Tokens are the rolling budget totals. Restore
-	// re-installs them on the process budget.
 	Cost   float64 `json:"cost"`
 	Tokens int     `json:"tokens"`
 
-	// LLMInvocations / EmbeddingInvocations preserve the full
-	// per-call history. Useful for cost audit even after the
-	// process has terminated.
-	LLMInvocations       []LLMInvocation       `json:"llm_invocations,omitempty"`
-	EmbeddingInvocations []EmbeddingInvocation `json:"embedding_invocations,omitempty"`
+	ModelCalls     []ModelCall     `json:"model_calls,omitempty"`
+	EmbeddingCalls []EmbeddingCall `json:"embedding_calls,omitempty"`
 
-	// Blackboard captures the named bindings of the process's
-	// blackboard, each tagged with its concrete Go type (see
-	// [TaggedValue]) so a JSON round-trip reconstructs the original
-	// type instead of a generic map. Function values are dropped (see
-	// package-level note).
 	Blackboard map[string]TaggedValue `json:"blackboard,omitempty"`
-
-	// Conditions captures explicit boolean state set via
-	// [BlackboardWriter.SetCondition]. Kept separate from
-	// Blackboard because conditions have their own truth-value
-	// semantics — and bools round-trip without type tagging.
-	Conditions map[string]bool `json:"conditions,omitempty"`
-
-	// Objects captures the ordered "anonymous artifacts" list
-	// produced by [BlackboardWriter.AddObject], type-tagged like
-	// Blackboard.
-	Objects []TaggedValue `json:"objects,omitempty"`
+	Conditions map[string]bool        `json:"conditions,omitempty"`
+	Objects    []TaggedValue          `json:"objects,omitempty"`
 }
 
-// SnapshotActionInvocation is the portable form of one action
-// history row. Mirrors [ActionInvocation] but with a string Status
-// field instead of the enum so JSON consumers don't need to know
-// the integer encoding.
-type SnapshotActionInvocation struct {
-	ActionName string        `json:"action_name"`
-	Timestamp  time.Time     `json:"timestamp"`
+type processSnapshotWire struct {
+	SchemaVersion  uint16                  `json:"schema_version"`
+	Revision       uint64                  `json:"revision"`
+	ID             string                  `json:"id"`
+	ParentID       string                  `json:"parent_id,omitempty"`
+	Depth          int                     `json:"depth,omitempty"`
+	Deployment     DeploymentRef           `json:"deployment"`
+	StartedAt      time.Time               `json:"started_at"`
+	CapturedAt     time.Time               `json:"captured_at"`
+	Status         string                  `json:"status"`
+	Suspension     *interaction.Suspension `json:"suspension,omitempty"`
+	GoalName       string                  `json:"goal_name,omitempty"`
+	History        []ActionRunSnapshot     `json:"history,omitempty"`
+	Failure        string                  `json:"failure,omitempty"`
+	Cost           float64                 `json:"cost"`
+	Tokens         int                     `json:"tokens"`
+	ModelCalls     []ModelCall             `json:"model_calls,omitempty"`
+	EmbeddingCalls []EmbeddingCall         `json:"embedding_calls,omitempty"`
+	Blackboard     map[string]TaggedValue  `json:"blackboard,omitempty"`
+	Conditions     map[string]bool         `json:"conditions,omitempty"`
+	Objects        []TaggedValue           `json:"objects,omitempty"`
+}
+
+func (s ProcessSnapshot) wire() processSnapshotWire {
+	return processSnapshotWire{
+		SchemaVersion: s.SchemaVersion, Revision: s.Revision,
+		ID: s.ID, ParentID: s.ParentID, Depth: s.Depth,
+		Deployment: s.Deployment, StartedAt: s.StartedAt, CapturedAt: s.CapturedAt,
+		Status: s.Status.String(), Suspension: s.Suspension, GoalName: s.GoalName,
+		History: s.History, Failure: s.Failure, Cost: s.Cost, Tokens: s.Tokens,
+		ModelCalls: s.ModelCalls, EmbeddingCalls: s.EmbeddingCalls,
+		Blackboard: s.Blackboard, Conditions: s.Conditions, Objects: s.Objects,
+	}
+}
+
+func processSnapshotFromWire(wire processSnapshotWire) (ProcessSnapshot, error) {
+	status, err := parseProcessStatus(wire.Status)
+	if err != nil {
+		return ProcessSnapshot{}, err
+	}
+	return ProcessSnapshot{
+		SchemaVersion: wire.SchemaVersion, Revision: wire.Revision,
+		ID: wire.ID, ParentID: wire.ParentID, Depth: wire.Depth,
+		Deployment: wire.Deployment, StartedAt: wire.StartedAt, CapturedAt: wire.CapturedAt,
+		Status: status, Suspension: wire.Suspension, GoalName: wire.GoalName,
+		History: wire.History, Failure: wire.Failure, Cost: wire.Cost, Tokens: wire.Tokens,
+		ModelCalls: wire.ModelCalls, EmbeddingCalls: wire.EmbeddingCalls,
+		Blackboard: wire.Blackboard, Conditions: wire.Conditions, Objects: wire.Objects,
+	}, nil
+}
+
+// Validate checks the durable aggregate without mutating it.
+func (s ProcessSnapshot) Validate() error {
+	if s.SchemaVersion != ProcessSnapshotSchemaVersion {
+		return fmt.Errorf("%w: version %d", ErrSnapshotSchema, s.SchemaVersion)
+	}
+	if strings.TrimSpace(s.ID) == "" || strings.TrimSpace(s.ID) != s.ID {
+		return fmt.Errorf("%w: ID must be non-empty without surrounding whitespace", ErrInvalidSnapshot)
+	}
+	if s.ParentID != strings.TrimSpace(s.ParentID) || s.ParentID == s.ID {
+		return fmt.Errorf("%w: invalid parent_id", ErrInvalidSnapshot)
+	}
+	if s.Depth < 0 {
+		return fmt.Errorf("%w: depth must not be negative", ErrInvalidSnapshot)
+	}
+	if err := s.Deployment.Validate(); err != nil {
+		return fmt.Errorf("%w: deployment: %w", ErrInvalidSnapshot, err)
+	}
+	if s.StartedAt.IsZero() || s.CapturedAt.IsZero() || s.CapturedAt.Before(s.StartedAt) {
+		return fmt.Errorf("%w: started_at and captured_at must be ordered non-zero timestamps", ErrInvalidSnapshot)
+	}
+	if !validProcessStatus(s.Status) {
+		return fmt.Errorf("%w: unknown status %d", ErrInvalidSnapshot, s.Status)
+	}
+	if s.Status == StatusWaiting && s.Suspension == nil {
+		return fmt.Errorf("%w: waiting snapshot requires suspension", ErrInvalidSnapshot)
+	}
+	if s.Status != StatusWaiting && s.Suspension != nil {
+		return fmt.Errorf("%w: only waiting snapshot may carry suspension", ErrInvalidSnapshot)
+	}
+	if s.Suspension != nil {
+		if err := s.Suspension.Validate(); err != nil {
+			return fmt.Errorf("%w: suspension: %w", ErrInvalidSnapshot, err)
+		}
+	}
+	if s.GoalName != strings.TrimSpace(s.GoalName) {
+		return fmt.Errorf("%w: goal_name has surrounding whitespace", ErrInvalidSnapshot)
+	}
+	if math.IsNaN(s.Cost) || math.IsInf(s.Cost, 0) || s.Cost < 0 || s.Tokens < 0 {
+		return fmt.Errorf("%w: usage totals must be finite and non-negative", ErrInvalidSnapshot)
+	}
+	for i, run := range s.History {
+		if strings.TrimSpace(run.ActionName) == "" || run.StartedAt.IsZero() || run.Duration < 0 || run.Attempts < 1 || !validActionStatusString(run.Status) {
+			return fmt.Errorf("%w: history[%d] is invalid", ErrInvalidSnapshot, i)
+		}
+	}
+	for i, call := range s.ModelCalls {
+		if !validModelCall(call) {
+			return fmt.Errorf("%w: model_calls[%d] is invalid", ErrInvalidSnapshot, i)
+		}
+	}
+	for i, call := range s.EmbeddingCalls {
+		if !validEmbeddingCall(call) {
+			return fmt.Errorf("%w: embedding_calls[%d] is invalid", ErrInvalidSnapshot, i)
+		}
+	}
+	for key, value := range s.Blackboard {
+		if strings.TrimSpace(key) == "" {
+			return fmt.Errorf("%w: blackboard has empty key", ErrInvalidSnapshot)
+		}
+		if err := value.Validate(); err != nil {
+			return fmt.Errorf("%w: blackboard[%q]: %w", ErrInvalidSnapshot, key, err)
+		}
+	}
+	for key := range s.Conditions {
+		if strings.TrimSpace(key) == "" {
+			return fmt.Errorf("%w: conditions has empty key", ErrInvalidSnapshot)
+		}
+	}
+	for i, value := range s.Objects {
+		if err := value.Validate(); err != nil {
+			return fmt.Errorf("%w: objects[%d]: %w", ErrInvalidSnapshot, i, err)
+		}
+	}
+	return nil
+}
+
+func (s ProcessSnapshot) MarshalJSON() ([]byte, error) {
+	if err := s.Validate(); err != nil {
+		return nil, err
+	}
+	return json.Marshal(s.wire())
+}
+
+func (s *ProcessSnapshot) UnmarshalJSON(data []byte) error {
+	if s == nil {
+		return fmt.Errorf("%w: nil receiver", ErrInvalidSnapshot)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	var wire processSnapshotWire
+	if err := decoder.Decode(&wire); err != nil {
+		return fmt.Errorf("%w: decode: %w", ErrInvalidSnapshot, err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("%w: trailing JSON value", ErrInvalidSnapshot)
+	}
+	candidate, err := processSnapshotFromWire(wire)
+	if err != nil {
+		return err
+	}
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*s = candidate
+	return nil
+}
+
+// ActionRunSnapshot is one durable action history row.
+type ActionRunSnapshot struct {
+	ActionName string        `json:"action"`
+	StartedAt  time.Time     `json:"started_at"`
 	Duration   time.Duration `json:"duration_ns"`
 	Status     string        `json:"status"`
 	Attempts   int           `json:"attempts"`
 }
 
-// ProcessStore is the persistence SPI for agent processes. Backends
-// implement this to hold snapshots — typical use cases:
-//
-//   - Long-running agents that must survive process restart
-//   - Cross-node resumption (handoff a paused process to a different
-//     worker)
-//   - Audit / replay (snapshot every tick, inspect later)
-//
-// Lynx ships [NewInMemoryProcessStore] as a reference implementation
-// suitable for tests + development. Persistent backends (postgres,
-// redis, mongodb, ...) are the caller's to supply behind this
-// interface.
-//
-// All methods are expected to be safe for concurrent use.
-type ProcessStore interface {
-	// Save persists a snapshot under its [ProcessSnapshot.ID].
-	// Existing snapshots with the same id are overwritten.
-	Save(ctx context.Context, snapshot ProcessSnapshot) error
-
-	// Load returns the most recent snapshot for id. The returned
-	// error wraps a sentinel ([ErrSnapshotNotFound]) when the id
-	// is unknown.
-	Load(ctx context.Context, id string) (ProcessSnapshot, error)
-
-	// Delete removes the snapshot for id. Returns nil when the id
-	// is unknown — deletes are idempotent.
-	Delete(ctx context.Context, id string) error
-
-	// List returns every known process id, in any order. Backends
-	// that paginate naturally may return a stable subset and let
-	// callers iterate via repeated calls — the interface does not
-	// dictate pagination semantics.
-	List(ctx context.Context) ([]string, error)
+// SnapshotReader loads the latest committed snapshot revision.
+type SnapshotReader interface {
+	Load(context.Context, string) (ProcessSnapshot, error)
 }
 
-// ErrSnapshotNotFound is the sentinel [ProcessStore.Load] wraps when
-// asked for an unknown id. Callers special-case via errors.Is.
-var ErrSnapshotNotFound = errSnapshotNotFound{}
+// SnapshotWriter atomically writes snapshot only when expectedRevision is the
+// currently stored revision. A new process uses expectedRevision 0 and commits
+// revision 1.
+type SnapshotWriter interface {
+	Save(context.Context, ProcessSnapshot, uint64) (uint64, error)
+}
 
-type errSnapshotNotFound struct{}
+// ProcessStore is the minimum persistence capability required by Engine.
+// CAS prevents lost snapshot updates; it does not grant execution ownership.
+// The framework assumes one active owner drives a process at a time. Hosts
+// that hand processes across nodes must add a lease or fencing protocol before
+// allowing another worker to execute the same process.
+type ProcessStore interface {
+	SnapshotReader
+	SnapshotWriter
+}
 
-func (errSnapshotNotFound) Error() string { return "process store: snapshot not found" }
+// SnapshotDeleter is the optional idempotent cleanup capability.
+type SnapshotDeleter interface {
+	Delete(context.Context, string) error
+}
+
+// SnapshotLister is the optional administrative listing capability.
+type SnapshotLister interface {
+	List(context.Context) ([]string, error)
+}
+
+func validProcessStatus(status ProcessStatus) bool {
+	switch status {
+	case StatusNotStarted, StatusRunning, StatusCompleted, StatusFailed, StatusStuck, StatusWaiting, StatusPaused, StatusTerminated, StatusKilled:
+		return true
+	default:
+		return false
+	}
+}
+
+func parseProcessStatus(status string) (ProcessStatus, error) {
+	for _, candidate := range []ProcessStatus{StatusNotStarted, StatusRunning, StatusCompleted, StatusFailed, StatusStuck, StatusWaiting, StatusPaused, StatusTerminated, StatusKilled} {
+		if status == candidate.String() {
+			return candidate, nil
+		}
+	}
+	return 0, fmt.Errorf("%w: unknown status %q", ErrInvalidSnapshot, status)
+}
+
+func validActionStatusString(status string) bool {
+	return status == ActionSucceeded.String() || status == ActionFailed.String() || status == ActionWaiting.String() || status == ActionPaused.String()
+}
+
+func validModelCall(call ModelCall) bool {
+	return !call.Timestamp.IsZero() &&
+		!math.IsNaN(call.CostUSD) && !math.IsInf(call.CostUSD, 0) && call.CostUSD >= 0 &&
+		call.PromptTokens >= 0 && call.CompletionTokens >= 0 && call.ReasoningTokens >= 0 &&
+		call.CacheReadInputTokens >= 0 && call.CacheWriteInputTokens >= 0 &&
+		call.ReasoningTokens <= call.CompletionTokens && call.Duration >= 0
+}
+
+func validEmbeddingCall(call EmbeddingCall) bool {
+	return !call.Timestamp.IsZero() &&
+		!math.IsNaN(call.CostUSD) && !math.IsInf(call.CostUSD, 0) && call.CostUSD >= 0 &&
+		call.InputTokens >= 0 && call.InputCount >= 0 && call.Duration >= 0
+}

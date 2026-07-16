@@ -13,9 +13,10 @@ import (
 // with no goal the planner would loop forever returning empty plans.
 // (htn, reactive) may have stricter rules of their own — those are
 // reported by PlanToGoal at tick time.
-func (p *AgentProcess) validateAgentForRun() error {
-	if p.planner.Name() == "goap" && len(p.agent.Goals) == 0 {
-		return fmt.Errorf("runtime.AgentProcess.validateAgentForRun: run agent %q: goap planner requires at least one goal", p.agent.Name)
+func (p *Process) validateAgentForRun() error {
+	agent := p.agent()
+	if p.planner.Name() == "goap" && len(agent.Goals()) == 0 {
+		return fmt.Errorf("runtime.Process.validateAgentForRun: run agent %q: goap planner requires at least one goal", agent.Name())
 	}
 	return nil
 }
@@ -25,44 +26,44 @@ func (p *AgentProcess) validateAgentForRun() error {
 // exit funnels through [publishTerminalEvent], which is the single
 // publisher of terminal events (publishing here too double-fired
 // ProcessFailed on planner errors).
-func (p *AgentProcess) failProcess(err error) {
-	p.state.setFailure(err)
-	p.state.setStatus(core.StatusFailed)
+func (p *Process) failProcess(err error) {
+	p.state.recordFailure(err)
+	p.state.transition(core.StatusFailed)
 }
 
 // markCancelled records context cancellation as a kill. Publishes ProcessKilled
-// only if it won the terminal transition — an external KillProcess racing the
-// ctx-cancel path must not double-publish (setStatus is the first-terminal-wins
+// only if it won the terminal transition — an external Kill racing the
+// ctx-cancel path must not double-publish (transition is the first-terminal-wins
 // gate).
-func (p *AgentProcess) markCancelled(ctx context.Context, err error) {
-	p.state.setFailure(err)
-	if p.state.setStatus(core.StatusKilled) {
+func (p *Process) markCancelled(ctx context.Context, err error) {
+	p.state.recordFailure(err)
+	if p.state.transition(core.StatusKilled) {
 		p.publishEvent(ctx, event.ProcessKilled{
-			BaseEvent: p.baseEvent(),
-			Reason:    err.Error(),
+			Header: p.eventHeader(),
+			Reason: err.Error(),
 		})
 	}
 }
 
-// checkEarlyTermination asks every applicable [core.EarlyTerminationPolicy]
+// checkStopPolicies asks every applicable [core.StopPolicy]
 // — the implicit Budget-derived policy plus any policy extensions
-// registered at platform or process scope — and terminates the
+// registered at engine or process scope — and terminates the
 // process at the first "yes". Returns true when the run loop should
 // exit.
-func (p *AgentProcess) checkEarlyTermination(ctx context.Context) bool {
+func (p *Process) checkStopPolicies(ctx context.Context) bool {
 	policies := append(
-		[]core.EarlyTerminationPolicy{core.BudgetPolicy{Budget: p.options.Budget}},
-		collectExtensions[core.EarlyTerminationPolicy](p.combinedExtensions())...,
+		[]core.StopPolicy{core.BudgetPolicy{Budget: p.options.Budget}},
+		collectExtensions[core.StopPolicy](p.combinedExtensions())...,
 	)
 	for _, policy := range policies {
-		stop, reason := policy.ShouldTerminate(p)
+		stop, reason := policy.Check(p)
 		if !stop {
 			continue
 		}
-		if p.state.setStatus(core.StatusTerminated) {
+		if p.state.transition(core.StatusTerminated) {
 			p.publishEvent(ctx, event.ProcessTerminated{
-				BaseEvent: p.baseEvent(),
-				Reason:    reason,
+				Header: p.eventHeader(),
+				Reason: reason,
 			})
 		}
 		return true
@@ -72,19 +73,19 @@ func (p *AgentProcess) checkEarlyTermination(ctx context.Context) bool {
 
 // publishTerminalEvent dispatches the terminal-state event matching the
 // current status.
-func (p *AgentProcess) publishTerminalEvent(ctx context.Context) {
+func (p *Process) publishTerminalEvent(ctx context.Context) {
 	switch p.Status() {
 	case core.StatusCompleted:
 		result, _ := core.Last[any](p.Blackboard())
 		p.publishEvent(ctx, event.ProcessCompleted{
-			BaseEvent: p.baseEvent(),
-			Goal:      p.Goal(),
-			Result:    result,
+			Header: p.eventHeader(),
+			Goal:   p.Goal(),
+			Result: result,
 		})
 	case core.StatusFailed:
 		p.publishEvent(ctx, event.ProcessFailed{
-			BaseEvent: p.baseEvent(),
-			Err:       p.Failure(),
+			Header: p.eventHeader(),
+			Err:    p.Failure(),
 		})
 	}
 }
@@ -93,36 +94,36 @@ func (p *AgentProcess) publishTerminalEvent(ctx context.Context) {
 // achievement event. A no-op when a racing kill already terminated the process
 // — first terminal wins, so the run loop can't clobber a Killed back to
 // Completed (which would also double-publish a terminal at the loop's exit).
-func (p *AgentProcess) completeForGoal(ctx context.Context, g *core.Goal) {
-	if !p.state.setStatus(core.StatusCompleted) {
+func (p *Process) completeForGoal(ctx context.Context, goal *core.Goal) {
+	if !p.state.transition(core.StatusCompleted) {
 		return
 	}
-	p.state.setGoal(g)
+	p.state.pursue(goal)
 	p.publishEvent(ctx, event.GoalAchieved{
-		BaseEvent: p.baseEvent(),
-		Goal:      g,
+		Header: p.eventHeader(),
+		Goal:   goal,
 	})
 }
 
 // translateActionStatus maps the per-action ActionStatus to the
 // process-level status. ActionSucceeded is a no-op (the next tick keeps
 // running).
-func (p *AgentProcess) translateActionStatus(action core.Action, status core.ActionStatus) {
+func (p *Process) translateActionStatus(action core.Action, status core.ActionStatus) {
 	switch status {
 	case core.ActionSucceeded:
 		// Stay running — the next tick re-plans.
 	case core.ActionFailed:
-		if p.state.setStatus(core.StatusFailed) {
+		if p.state.transition(core.StatusFailed) {
 			// Don't overwrite a failure already recorded by an earlier action
 			// — the first failure is the root cause worth surfacing.
 			if p.Failure() == nil {
-				p.state.setFailure(actionFailureError(action.Metadata().Name))
+				p.state.recordFailure(actionFailureError(action.Metadata().Name))
 			}
 		}
 	case core.ActionWaiting:
-		p.state.setStatus(core.StatusWaiting)
+		p.state.transition(core.StatusWaiting)
 	case core.ActionPaused:
-		p.state.setStatus(core.StatusPaused)
+		p.state.transition(core.StatusPaused)
 	}
 }
 
@@ -136,18 +137,18 @@ func actionFailureError(name string) error {
 // handleStuck is invoked when the planner returned no plan. If the agent
 // supplied a StuckPolicy that resolves the situation, re-loop;
 // otherwise, transition to Stuck.
-func (p *AgentProcess) handleStuck(ctx context.Context, worldState core.WorldState) error {
-	if handler := p.agent.StuckPolicy; handler != nil {
-		if result := handler.Recover(ctx, p); result.Code == core.StuckReplan {
+func (p *Process) handleStuck(ctx context.Context, worldState core.WorldState) error {
+	if handler := p.agent().StuckPolicy(); handler != nil {
+		if result := handler.Recover(ctx, p, p.blackboard); result.Decision == core.StuckReplan {
 			p.state.clearExclusions()
 			return nil
 		}
 	}
 
-	if p.state.setStatus(core.StatusStuck) {
+	if p.state.transition(core.StatusStuck) {
 		p.publishEvent(ctx, event.ProcessStuck{
-			BaseEvent: p.baseEvent(),
-			LastWorld: worldState,
+			Header: p.eventHeader(),
+			State:  worldState,
 		})
 	}
 	return nil

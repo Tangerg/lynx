@@ -15,8 +15,8 @@ import (
 // CwdBindingKey is the blackboard key the chat action binds (protected) with the
 // turn's working directory. The resolver reads it so the filesystem + shell tools
 // operate in the session's project directory. Binding it protected carries it to
-// `task` sub-agents: [core.Blackboard.Spawn] copies protected entries onto the
-// child and the typed-action ClearBlackboard preserves them, so a plain Set would
+// `task` sub-agents: [core.Blackboard.Clone] copies protected entries onto the
+// child and the action's ClearWorkingState policy preserves them, so a plain Set would
 // be lost when the sub-agent's action clears its inherited blackboard.
 const CwdBindingKey = "lyra:cwd"
 
@@ -33,12 +33,12 @@ const SessionBindingKey = "lyra:session"
 // the skill tool, and the system-prompt composition all read the same key, so
 // everything cwd-dependent follows the session together.
 func TurnCwd(ctx context.Context, fallback string) string {
-	p := core.ProcessFrom(ctx)
-	if p == nil {
+	process := core.ProcessViewFrom(ctx)
+	if process == nil {
 		return fallback
 	}
-	if v, ok := p.Blackboard().Get(CwdBindingKey); ok {
-		if cwd, ok := v.(string); ok && cwd != "" {
+	if value, ok := process.Blackboard().Load(CwdBindingKey); ok {
+		if cwd, ok := value.(string); ok && cwd != "" {
 			return cwd
 		}
 	}
@@ -49,12 +49,12 @@ func TurnCwd(ctx context.Context, fallback string) string {
 // ([SessionBindingKey]), empty when the turn carried none (a sessionless smoke
 // run). The read/edit guards key per-session file-read state off it.
 func TurnSession(ctx context.Context) string {
-	p := core.ProcessFrom(ctx)
-	if p == nil {
+	process := core.ProcessViewFrom(ctx)
+	if process == nil {
 		return ""
 	}
-	if v, ok := p.Blackboard().Get(SessionBindingKey); ok {
-		if id, ok := v.(string); ok {
+	if value, ok := process.Blackboard().Load(SessionBindingKey); ok {
+		if id, ok := value.(string); ok {
 			return id
 		}
 	}

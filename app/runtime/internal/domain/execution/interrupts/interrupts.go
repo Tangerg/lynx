@@ -25,7 +25,7 @@ import (
 // internal handle for the live process the resume drives; ProcessID is the
 // agent-process snapshot key used to REBUILD that process after a restart (the
 // live TurnID is gone then). Interrupts is the canonical typed set of pending
-// awaitables. DrainedTools is the backend-private half of the
+// suspensions. DrainedTools is the backend-private half of the
 // park: resume bookkeeping the client never sees.
 type Pending struct {
 	RunID     string

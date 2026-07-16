@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
@@ -40,7 +41,7 @@ type readyPanicListener struct {
 func (*readyPanicListener) Name() string { return "ready-panic-listener" }
 
 func (l *readyPanicListener) OnEvent(_ context.Context, e event.Event) {
-	if _, ok := e.(event.ReadyToPlan); ok && l.done.CompareAndSwap(false, true) {
+	if _, ok := e.(event.PlanningStarted); ok && l.done.CompareAndSwap(false, true) {
 		panic("ready listener failed")
 	}
 }
@@ -58,16 +59,16 @@ func (l *customPanicListener) OnEvent(_ context.Context, e event.Event) {
 	}
 }
 
-type invocationPanicListener struct {
+type modelCallPanicListener struct {
 	done atomic.Bool
 }
 
-func (*invocationPanicListener) Name() string { return "invocation-panic-listener" }
+func (*modelCallPanicListener) Name() string { return "model-call-panic-listener" }
 
-func (l *invocationPanicListener) OnEvent(_ context.Context, e event.Event) {
-	ev, ok := e.(event.LLMInvocationRecorded)
-	if ok && ev.Invocation.Model == "ctx-model" && l.done.CompareAndSwap(false, true) {
-		panic("invocation listener failed")
+func (l *modelCallPanicListener) OnEvent(_ context.Context, e event.Event) {
+	ev, ok := e.(event.ModelCallRecorded)
+	if ok && ev.Call.Model == "ctx-model" && l.done.CompareAndSwap(false, true) {
+		panic("model call listener failed")
 	}
 }
 
@@ -83,38 +84,24 @@ func (l *waitingPanicListener) OnEvent(_ context.Context, e event.Event) {
 	}
 }
 
-type traceAwaitable struct{ id string }
-
-func (a traceAwaitable) ID() string     { return a.id }
-func (a traceAwaitable) PromptAny() any { return "continue?" }
-func (a traceAwaitable) OnResponseAny(any) (core.ResponseImpact, error) {
-	return core.ImpactUnchanged, nil
-}
-
 func TestRuntimeEventPanicSpanKeepsRunTrace(t *testing.T) {
 	exp := installRuntimeTraceCapture(t)
 
-	a := agent.New("event-trace").
-		Actions(agent.NewAction("count",
-			func(_ context.Context, _ *core.ProcessContext, in word) (wordCount, error) {
-				return wordCount{Count: len(in.Text)}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "counted"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "event-trace", Actions: []agent.Action{agent.NewAction("count", func(_ context.Context, _ *core.ProcessContext, in word) (wordCount, error) {
+		return wordCount{Count: len(in.Text)}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{
+	engine := agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{&readyPanicListener{}},
 	})
-	mustDeploy(t, platform, a)
+	mustDeploy(t, engine, a)
 
 	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
 	parentTrace := parent.SpanContext().TraceID()
-	_, err := platform.RunAgent(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	_, err := engine.Run(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
 	parent.End()
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 
 	for _, span := range exp.GetSpans() {
@@ -129,31 +116,25 @@ func TestRuntimeEventPanicSpanKeepsRunTrace(t *testing.T) {
 	t.Fatal("missing agent.listener.panic span")
 }
 
-func TestProcessContextAwaitInputKeepsActionTrace(t *testing.T) {
+func TestProcessContextSuspendKeepsActionTrace(t *testing.T) {
 	exp := installRuntimeTraceCapture(t)
 
-	a := agent.New("await-event-trace").
-		Actions(agent.NewAction("wait",
-			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-				pc.AwaitInput(ctx, traceAwaitable{id: "wait"})
-				return wordCount{Count: len(in.Text)}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "counted"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "await-event-trace", Actions: []agent.Action{agent.NewAction("wait", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+		_, err := hitl.Interrupt[bool](ctx, "wait", "continue?")
+		return wordCount{Count: len(in.Text)}, err
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{
+	engine := agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{&waitingPanicListener{}},
 	})
-	mustDeploy(t, platform, a)
+	mustDeploy(t, engine, a)
 
 	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
 	parentTrace := parent.SpanContext().TraceID()
-	proc, err := platform.RunAgent(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	proc, err := engine.Run(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
 	parent.End()
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusWaiting {
 		t.Fatalf("process status = %s, want %s", proc.Status(), core.StatusWaiting)
@@ -171,35 +152,25 @@ func TestProcessContextAwaitInputKeepsActionTrace(t *testing.T) {
 	t.Fatal("missing agent.listener.panic span")
 }
 
-func TestProcessContextRecordInvocationKeepsActionTrace(t *testing.T) {
+func TestProcessContextRecordModelCallKeepsActionTrace(t *testing.T) {
 	exp := installRuntimeTraceCapture(t)
 
-	a := agent.New("invocation-event-trace").
-		Actions(agent.NewAction("record",
-			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-				pc.RecordLLMInvocation(ctx, core.LLMInvocation{
-					Model:        "ctx-model",
-					Provider:     "test",
-					PromptTokens: int64(len(in.Text)),
-				})
-				return wordCount{Count: len(in.Text)}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "counted"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "model-call-event-trace", Actions: []agent.Action{agent.NewAction("record", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+		pc.RecordModelCall(ctx, core.ModelCall{Model: "ctx-model", Provider: "test", PromptTokens: int64(len(in.Text))})
+		return wordCount{Count: len(in.Text)}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{
-		Extensions: []core.Extension{&invocationPanicListener{}},
+	engine := agent.MustNewEngine(runtime.Config{
+		Extensions: []core.Extension{&modelCallPanicListener{}},
 	})
-	mustDeploy(t, platform, a)
+	mustDeploy(t, engine, a)
 
 	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
 	parentTrace := parent.SpanContext().TraceID()
-	_, err := platform.RunAgent(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	_, err := engine.Run(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
 	parent.End()
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 
 	for _, span := range exp.GetSpans() {
@@ -217,31 +188,22 @@ func TestProcessContextRecordInvocationKeepsActionTrace(t *testing.T) {
 func TestProcessContextPublishKeepsActionTrace(t *testing.T) {
 	exp := installRuntimeTraceCapture(t)
 
-	a := agent.New("action-event-trace").
-		Actions(agent.NewAction("publish",
-			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-				pc.Publish(ctx, event.ReplanRequested{
-					BaseEvent: event.NewBaseEvent("manual"),
-					Reason:    "custom",
-				})
-				return wordCount{Count: len(in.Text)}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "counted"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "action-event-trace", Actions: []agent.Action{agent.NewAction("publish", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+		pc.Emit(ctx, event.ReplanRequested{Header: event.NewHeader("manual"), Reason: "custom"})
+		return wordCount{Count: len(in.Text)}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{
+	engine := agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{&customPanicListener{}},
 	})
-	mustDeploy(t, platform, a)
+	mustDeploy(t, engine, a)
 
 	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
 	parentTrace := parent.SpanContext().TraceID()
-	_, err := platform.RunAgent(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	_, err := engine.Run(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
 	parent.End()
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 
 	for _, span := range exp.GetSpans() {

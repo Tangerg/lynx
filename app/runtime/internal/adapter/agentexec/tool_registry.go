@@ -25,7 +25,7 @@ const attrGenAIToolName = "gen_ai.tool.name"
 // toolSource is the narrow surface the registry consumes: a snapshot of the
 // currently-registered chat tools. *Engine satisfies it implicitly via its
 // Tools() accessor; tests pass a stub that returns a fixed slice without needing
-// a real platform.
+// a real engine.
 type toolSource interface {
 	Tools() []tools.Tool
 }

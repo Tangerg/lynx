@@ -6,7 +6,7 @@ import "context"
 // a [core.Extension] (it has Name) that observes every Event published
 // through the multicast.
 //
-// Drop into PlatformConfig.Extensions or ProcessOptions.Extensions; the
+// Drop into Config.Extensions or ProcessOptions.Extensions; the
 // runtime fans every event through fn. Use this when you want
 // channel-backed / stream-style event consumption without writing a
 // full Listener struct: capture a channel in the closure, push from
@@ -25,12 +25,12 @@ import "context"
 //	opts := core.ProcessOptions{Extensions: []core.Extension{listener}}
 //	go func() {
 //	    defer close(ch)
-//	    _, _ = platform.RunAgent(ctx, agent, bindings, opts)
+//	    _, _ = engine.Run(ctx, agent, bindings, opts)
 //	}()
 //	for e := range ch { sseSend(e) }
 //
-// The same listener can be registered platform-scoped
-// (PlatformConfig.Extensions) to observe every process; the fn closure
+// The same listener can be registered engine-scoped
+// (Config.Extensions) to observe every process; the fn closure
 // is responsible for any filtering by ProcessID(). nil fn makes
 // OnEvent a no-op — useful for tests that want to verify "registered
 // but did nothing".
@@ -41,7 +41,7 @@ type NamedListener struct {
 
 // NewNamedListener returns a NamedListener with the given name and
 // callback. name should be non-empty and unique within the slice
-// passed to the platform — the runtime panics on duplicate or empty
+// passed to the engine — the runtime rejects duplicate or empty
 // extension names at registration time.
 func NewNamedListener(name string, fn func(context.Context, Event)) *NamedListener {
 	return &NamedListener{name: name, fn: fn}
@@ -51,8 +51,8 @@ func NewNamedListener(name string, fn func(context.Context, Event)) *NamedListen
 func (l *NamedListener) Name() string { return l.name }
 
 // OnEvent invokes fn; nil fn is a no-op.
-func (l *NamedListener) OnEvent(ctx context.Context, e Event) {
+func (l *NamedListener) OnEvent(ctx context.Context, event Event) {
 	if l.fn != nil {
-		l.fn(ctx, e)
+		l.fn(ctx, event)
 	}
 }

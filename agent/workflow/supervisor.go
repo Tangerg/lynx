@@ -14,7 +14,7 @@ import (
 // that delegates to other deployed agents.
 //
 // Unlike the planner-driven default (where a GOAP plan sequences actions),
-// a supervisor hands the chosen sub-agents to an LLM as tools and lets the
+// a supervisor hands the chosen agents to a model as tools and lets it
 // model decide which to call and in what order, ReAct-style. It is an
 // opt-in pattern, not a new runtime concept: the result is a perfectly
 // ordinary single-action GOAP agent whose body runs the chat tool loop, so
@@ -24,10 +24,9 @@ type SupervisorConfig[In, Out any] struct {
 	Name        string
 	Description string
 
-	// Subagents are the deployed agent names exposed to the orchestrating
-	// LLM as tools (one tool per exported goal). At least one required;
-	// each must be deployed and expose an exported goal.
-	Subagents []string
+	// Agents names the deployments exposed to the orchestrating model as tools.
+	// Each agent must expose at least one goal tool.
+	Agents []string
 
 	// Instructions is the system prompt steering the orchestration (e.g.
 	// "delegate research to research-agent, then summarize-agent").
@@ -51,65 +50,61 @@ type SupervisorConfig[In, Out any] struct {
 // into Out. Sub-agents run as child processes, so their cost rolls up into
 // the supervisor's budget.
 //
-// Requires a chat client on the platform (the action errors at runtime
+// Requires a chat client on the engine (the action errors at runtime
 // otherwise). Returns an error on invalid config or an un-callable
 // sub-agent (not deployed / no exported goal).
-func Supervisor[In, Out any](platform *runtime.Platform, cfg SupervisorConfig[In, Out]) (*core.Agent, error) {
-	if platform == nil {
-		return nil, errors.New("workflow.Supervisor: platform must not be nil")
+func Supervisor[In, Out any](engine *runtime.Engine, config SupervisorConfig[In, Out]) (*core.Agent, error) {
+	if engine == nil {
+		return nil, errors.New("workflow.Supervisor: engine must not be nil")
 	}
-	if cfg.Name == "" {
+	if config.Name == "" {
 		return nil, errors.New("workflow.Supervisor: Name must not be empty")
 	}
-	if len(cfg.Subagents) == 0 {
-		return nil, errors.New("workflow.Supervisor: at least one subagent required")
+	if len(config.Agents) == 0 {
+		return nil, errors.New("workflow: supervisor requires at least one agent")
 	}
-	if cfg.Parse == nil {
+	if config.Parse == nil {
 		return nil, errors.New("workflow.Supervisor: Parse must not be nil")
 	}
 
-	tools, err := runtime.SubagentTools(platform, cfg.Subagents...)
+	tools, err := runtime.GoalToolsFor(engine, config.Agents...)
 	if err != nil {
 		return nil, fmt.Errorf("workflow.Supervisor: %w", err)
 	}
 
-	render := cfg.Render
+	render := config.Render
 	if render == nil {
-		render = func(in In) string {
-			if b, err := json.Marshal(in); err == nil {
-				return string(b)
+		render = func(input In) string {
+			if data, err := json.Marshal(input); err == nil {
+				return string(data)
 			}
-			return fmt.Sprintf("%v", in)
+			return fmt.Sprintf("%v", input)
 		}
 	}
 
 	orchestrate := core.NewAction[In, Out](
-		cfg.Name+"-orchestrate",
-		func(ctx context.Context, pc *core.ProcessContext, in In) (Out, error) {
+		config.Name+"-orchestrate",
+		func(ctx context.Context, process *core.ProcessContext, input In) (Out, error) {
 			var zero Out
-			text, err := pc.PromptRunner().
-				WithTools(tools...).
-				WithSystem(cfg.Instructions).
-				WithMaxToolRounds(cfg.MaxToolRounds).
-				Generate(ctx, render(in))
+			text, err := process.Prompt(ctx, render(input), core.PromptConfig{
+				System:        config.Instructions,
+				Tools:         tools,
+				MaxToolRounds: config.MaxToolRounds,
+			})
 			if err != nil {
-				return zero, fmt.Errorf("workflow.Supervisor %q: %w", cfg.Name, err)
+				return zero, fmt.Errorf("workflow.Supervisor %q: %w", config.Name, err)
 			}
-			return cfg.Parse(text)
+			return config.Parse(text)
 		},
 		core.ActionConfig{
-			Description: cfg.Description,
-			QoS:         singleAttempt,
+			Description: config.Description,
 		},
 	)
 
 	return core.NewAgent(core.AgentConfig{
-		Name:        cfg.Name,
-		Description: cfg.Description,
+		Name:        config.Name,
+		Description: config.Description,
 		Actions:     []core.Action{orchestrate},
-		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
-			Name:        cfg.Name,
-			Description: "produce " + core.TypeName[Out](),
-		})},
+		Goals:       []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce " + core.TypeName[Out]()})},
 	}), nil
 }

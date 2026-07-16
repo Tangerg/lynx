@@ -2,6 +2,7 @@ package toolloop
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,8 +15,10 @@ var ErrInvalidControlFlow = errors.New("toolloop: invalid control flow")
 // effects. ID must be stable across the resume attempt; Reason is suitable for
 // an operator or approval UI.
 type PauseError struct {
-	ID     string
-	Reason string
+	ID           string
+	Reason       string
+	Prompt       json.RawMessage
+	ResumeSchema json.RawMessage
 }
 
 func (e *PauseError) Error() string {
@@ -26,7 +29,8 @@ func (e *PauseError) Error() string {
 }
 
 func (e *PauseError) validate() error {
-	if e == nil || strings.TrimSpace(e.ID) == "" || strings.TrimSpace(e.Reason) == "" {
+	if e == nil || strings.TrimSpace(e.ID) == "" || strings.TrimSpace(e.Reason) == "" ||
+		!json.Valid(e.Prompt) || !json.Valid(e.ResumeSchema) {
 		return fmt.Errorf("%w: pause requires a non-empty ID and reason", ErrInvalidControlFlow)
 	}
 	return nil

@@ -21,9 +21,9 @@ import (
 // injected ports for the capabilities it consumes (doc/EXECUTION_CENTERED_ARCHITECTURE.md). It
 // composes three concerns:
 //
-//   - turn execution: platform + agent drive [Engine.StartTurn]
+//   - turn execution: engine + agent drive [Engine.StartTurn]
 //     (returns a [TurnProcess] handle backed by a real
-//     [runtime.AgentProcess]) — see turnrun.go / turnprocess.go
+//     [runtime.Process]) — see turnrun.go / turnprocess.go
 //   - maintenance:    the injected Compactor / Extractor ports power
 //     [Engine.MaybeCompact] / [Engine.MaybeExtract]
 //   - context:        knowledge / workdir feed the system prompt; the Steering
@@ -39,6 +39,7 @@ type Engine struct {
 	turnRestorer processRestorer
 	turnControl  processControl
 	agent        *core.Agent
+	dependencies *core.Dependencies
 
 	// Context inputs (read at SystemPrompt + chat-history time).
 	historyStore    history.Store
@@ -75,25 +76,25 @@ type Engine struct {
 	closeErr  error
 }
 
-// New constructs an engine. Returns an error when required deps
+// New constructs an engine. Returns an error when required dependencies
 // are missing or when agent deployment fails.
-func New(ctx context.Context, cfg Config) (*Engine, error) {
-	if cfg.ChatClient == nil {
+func New(ctx context.Context, config Config) (*Engine, error) {
+	if config.ChatClient == nil {
 		return nil, errors.New("engine: ChatClient is required")
 	}
-	if cfg.HistoryStore == nil {
-		cfg.HistoryStore = history.NewInMemoryStore()
+	if config.HistoryStore == nil {
+		config.HistoryStore = history.NewInMemoryStore()
 	}
 
 	// The tool environment (capability adapters + per-role/per-cwd resolver +
 	// canonical tool list) is assembled OUTSIDE the core, in the adapter layer,
 	// and injected via [Config.ToolResolver] / [Config.Tools] / live MCP ports /
 	// [Config.Closers] (the composition root calls [toolset.Build]). The engine
-	// core therefore constructs no capability and imports no infra/service for
+	// core therefore constructs no capability and imports no infra/dependency for
 	// them — it only drives the resolver + appends the two engine-owned tools
 	// (task / ask_user) below.
-	resolver := cfg.ToolResolver
-	platform, err := newAgentPlatform(cfg, resolver)
+	resolver := config.ToolResolver
+	agentRuntime, err := newAgentRuntime(config, resolver)
 	if err != nil {
 		return nil, err
 	}
@@ -101,54 +102,56 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// Build the engine value first so the agent's Action closure can
 	// capture *Engine (and therefore reach e.SystemPrompt) instead
 	// of dragging a memory store through the constructor.
-	e := &Engine{
-		turnStarter:           platform,
-		turnRestorer:          platform,
-		turnControl:           platform,
-		steering:              cfg.Steering,
-		compactor:             cfg.Compactor,
-		extractor:             cfg.Extractor,
-		knowledge:             cfg.Knowledge,
-		historyStore:          cfg.HistoryStore,
-		todos:                 cfg.Todos,
-		workdir:               cfg.Workdir,
-		skillsGlobalDir:       cfg.SkillsGlobalDir,
-		pricing:               cfg.Pricing,
-		defaultProvider:       cfg.Provider,
-		mcpStatusReader:       cfg.MCPStatusReader,
-		mcpToolCatalog:        cfg.MCPToolCatalog,
-		mcpConnectionCommands: cfg.MCPConnectionCommands,
-		mcpRegistryCommands:   cfg.MCPRegistryCommands,
-		closers:               slices.Clone(cfg.Closers),
+	engine := &Engine{
+		turnStarter:           agentRuntime,
+		turnRestorer:          agentRuntime,
+		turnControl:           agentRuntime,
+		dependencies:          agentRuntime.Dependencies(),
+		steering:              config.Steering,
+		compactor:             config.Compactor,
+		extractor:             config.Extractor,
+		knowledge:             config.Knowledge,
+		historyStore:          config.HistoryStore,
+		todos:                 config.Todos,
+		workdir:               config.Workdir,
+		skillsGlobalDir:       config.SkillsGlobalDir,
+		pricing:               config.Pricing,
+		defaultProvider:       config.Provider,
+		mcpStatusReader:       config.MCPStatusReader,
+		mcpToolCatalog:        config.MCPToolCatalog,
+		mcpConnectionCommands: config.MCPConnectionCommands,
+		mcpRegistryCommands:   config.MCPRegistryCommands,
+		closers:               slices.Clone(config.Closers),
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares
 	// toolport.ToolRoleSubtask → no `task` → no recursion). Hand it to the
 	// resolver, which folds it into the toolport.ToolRoleCoding set only.
-	// AsChatToolFromAgent needs no separate deploy — child processes land
-	// on the platform when spawned.
-	tools := slices.Clone(cfg.Tools)
+	tools := slices.Clone(config.Tools)
 	if resolver != nil {
-		taskTool, err := runtime.AsChatToolFromAgent[taskInput, string](platform, e.buildSubtaskAgent())
+		if _, err := agentRuntime.Deploy(engine.buildSubtaskAgent()); err != nil {
+			return nil, fmt.Errorf("engine: deploy task agent: %w", err)
+		}
+		taskTool, err := runtime.NewAgentTool[taskInput, string](agentRuntime, "task")
 		if err != nil {
 			return nil, fmt.Errorf("engine: build task tool: %w", err)
 		}
-		resolver.SetTask(taskTool)
+		resolver.UseTaskTool(taskTool)
 		tools = append(tools, taskTool)
 	}
 
 	// e.tools is the canonical coding tool set for tool.Registry.List — the
 	// toolset-assembled list (working-directory-independent metadata, which now
 	// includes ask_user) plus engine-owned `task` when resolver wiring is present
-	// (it needs the platform to spawn the sub-agent, so the engine builds + injects
+	// (it needs the engine to spawn the sub-agent, so the engine builds + injects
 	// it only in that mode).
-	e.tools = tools
+	engine.tools = tools
 
-	e.agent = e.buildTurnAgent()
-	if err := platform.Deploy(e.agent); err != nil {
+	engine.agent = engine.buildTurnAgent()
+	if _, err := agentRuntime.Deploy(engine.agent); err != nil {
 		return nil, fmt.Errorf("engine: deploy turn agent: %w", err)
 	}
-	return e, nil
+	return engine, nil
 }
 
 // MaybeCompact runs one auto-compaction sweep against sessionID. The

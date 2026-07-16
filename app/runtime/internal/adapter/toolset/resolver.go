@@ -24,7 +24,7 @@ import (
 // in package turnctx — the resolver, the per-tool packages, and the engine's
 // prompt composition all read it inward without coupling to each other.
 
-// Resolver is the platform-scope [core.ToolGroupResolver] for the
+// Resolver is the engine-scope [core.ToolGroupResolver] for the
 // coding + subtask roles. The working-directory-independent tools (online
 // providers, MCP servers, the `task` delegation tool) are built once at
 // engine construction and captured here; the filesystem + shell tools are
@@ -45,7 +45,7 @@ type Resolver struct {
 	shell           []tools.Tool        // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
 	task            tools.Tool          // delegation tool; coding role only, nil until set
 	askUser         tools.Tool          // ask_user HITL tool; coding role only (askuser.New, via Deps)
-	exitPlan        tools.Tool          // exit_plan_mode HITL tool; coding role only (exitplan.New, via Deps); nil when no approval svc
+	exitPlan        tools.Tool          // exit_plan_mode HITL tool; coding role only (exitplan.New, via dependencies); nil without an approval policy
 	todo            tools.Tool          // todo_write task-list tool; both roles, nil when no todo store
 	schedule        tools.Tool          // schedule management op-tool; coding role only, nil when no registry
 
@@ -94,9 +94,9 @@ type Deps struct {
 	MCPToolDisabled func(string) bool
 }
 
-// NewResolver builds the platform-scope tool resolver from its
+// NewResolver builds the engine-scoped tool resolver from its
 // working-directory-independent inputs. The `task` delegation tool is injected
-// afterward via [Resolver.SetTask] because it needs the platform; the MCP tool
+// afterward via [Resolver.UseTaskTool] because it needs the agent engine; the MCP tool
 // set is seeded + hot-swapped via [Resolver.SetMCPTools].
 func NewResolver(d Deps) (*Resolver, error) {
 	shellTools := d.Shell
@@ -138,9 +138,10 @@ func NewResolver(d Deps) (*Resolver, error) {
 	}, nil
 }
 
-// SetTask injects the `task` delegation tool (coding role only) — the engine
-// builds it after the platform exists (it spawns a sub-agent on the platform).
-func (r *Resolver) SetTask(t tools.Tool) { r.task = t }
+// UseTaskTool installs the `task` delegation tool for the coding role. The
+// agent engine builds this tool after it exists because the tool starts child
+// processes through that engine.
+func (r *Resolver) UseTaskTool(tool tools.Tool) { r.task = tool }
 
 // mcpTools returns the current MCP tool set (nil before the first store) minus
 // any tools the configured servers disable. The disabled set is read here, not
@@ -183,10 +184,10 @@ func (r *Resolver) SetMCPTools(tools []tools.Tool) {
 
 func (*Resolver) Name() string { return "coding-tools" }
 
-func (r *Resolver) Resolve(_ context.Context, req core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
-	switch req.Role {
+func (r *Resolver) Resolve(_ context.Context, requirement core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
+	switch requirement.Role {
 	case toolport.ToolRoleCoding, toolport.ToolRoleSubtask:
-		return &toolGroup{resolver: r, role: req.Role}, true, nil
+		return &toolGroup{resolver: r, role: requirement.Role}, true, nil
 	default:
 		return nil, false, nil // unknown role — the runtime skips to the next resolver
 	}
@@ -210,8 +211,8 @@ type toolGroup struct {
 	role     string
 }
 
-func (g *toolGroup) Metadata() core.ToolGroupMetadata {
-	return core.SimpleToolGroupMetadata{RoleText: g.role}
+func (g *toolGroup) Info() core.ToolGroupInfo {
+	return core.ToolGroupInfo{Role: g.role}
 }
 
 func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {

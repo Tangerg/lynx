@@ -8,18 +8,20 @@
 // self-describing JSON object — useful for audit logs, federation, and
 // observability sinks that want raw payloads. Marshaling is one-way:
 // interface-typed fields ([core.Action], [core.WorldState],
-// [core.Awaitable], [error]) collapse to lossy summary forms (a name
+// [planning.Plan], [error]) collapse to lossy summary forms (a name
 // string, a state map, …). Round-trip deserialization is intentionally
 // not provided — listeners that need it should consume events in their
 // in-memory form.
 //
 // File organization (post-split):
 //
-//   - event.go       — Event interface + BaseEvent + envelope/emit helpers
-//   - multicast.go   — Listener + ListenerFunc + Multicast
-//   - platform.go    — Agent (un)deployed events
-//   - process.go     — Process lifecycle events
-//   - planning.go    — Planner-related events
-//   - execution.go   — Action execution + goal achievement events
-//   - summaries.go   — Internal wire-shape structs for Goal/Plan/WorldState/Awaitable
+//   - event.go        — Event interface and Header
+//   - multicast.go    — Listener, ListenerFunc, and Multicast
+//   - deployment.go   — agent deployment events
+//   - process.go      — process lifecycle events
+//   - planning.go     — planning events
+//   - action.go       — action and goal events
+//   - interaction.go  — managed-interaction boundaries
+//   - usage.go        — model and embedding usage events
+//   - json*.go        — stable JSON envelopes and summary shapes
 package event

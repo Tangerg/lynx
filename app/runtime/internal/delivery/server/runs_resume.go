@@ -44,7 +44,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 
 // resolveResolution maps the wire interrupt responses onto the structured
 // [interrupts.Resolution] the turn dispatcher's Resume expects. The agent
-// runtime parks one awaitable at a time, so a single response drives the
+// runtime parks one suspension at a time, so a single response drives the
 // continuation. approval → approve/deny; answer → the answers map (the
 // answering tool, e.g. ask_user / exit_plan_mode, interprets it); toolResult
 // → continue; an empty responses list → continue. An unrecognized response

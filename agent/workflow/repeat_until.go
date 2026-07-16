@@ -30,18 +30,18 @@ type RepeatUntilConfig[In, Out any] struct {
 	// Task is the per-iteration body. It receives the loop input In,
 	// the running history (so it can inspect prior attempts), and
 	// returns the next attempt. Required.
-	Task func(ctx context.Context, pc *core.ProcessContext, in In, history *History[Out]) (Out, error)
+	Task func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error)
 
 	// Accept inspects the latest attempt and returns true to stop
 	// the loop. Receives the loop input, the latest Out, and the
 	// full history (latest is also history.Last()). Required.
-	Accept func(ctx context.Context, in In, last Out, history *History[Out]) bool
+	Accept func(ctx context.Context, input In, latest Out, history *History[Out]) bool
 }
 
-// RepeatUntil compiles spec into a deployable [*core.Agent].
+// RepeatUntil compiles config into a deployable [*core.Agent].
 //
 // The agent has one action — "{Name}-task" — that produces Out and
-// is flagged [ActionConfig.CanRerun] so the planner can pick it
+// is flagged [ActionConfig.Repeatable] so the planner can pick it
 // repeatedly. After every run the runtime re-evaluates the
 // "{Name}-acceptable" computed condition: when true, the goal
 // (which preconditions on it) is satisfied and the loop terminates;
@@ -54,26 +54,26 @@ type RepeatUntilConfig[In, Out any] struct {
 // Task / Accept callbacks always see the running record.
 //
 // Returns an error on missing Name, nil Task, or nil Accept.
-func RepeatUntil[In, Out any](spec RepeatUntilConfig[In, Out]) (*core.Agent, error) {
-	if spec.Name == "" {
+func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, error) {
+	if config.Name == "" {
 		return nil, errors.New("workflow.RepeatUntil: Name must not be empty")
 	}
-	if spec.Task == nil {
+	if config.Task == nil {
 		return nil, errors.New("workflow.RepeatUntil: Task must not be nil")
 	}
-	if spec.Accept == nil {
+	if config.Accept == nil {
 		return nil, errors.New("workflow.RepeatUntil: Accept must not be nil")
 	}
-	maxIter := spec.MaxIterations
-	if maxIter <= 0 {
-		maxIter = 3
+	maxIterations := config.MaxIterations
+	if maxIterations <= 0 {
+		maxIterations = 3
 	}
 
 	// Condition keys must not contain ':' — the determiner reserves
 	// that for type-binding keys. Use '_' as the separator.
-	acceptKey := spec.Name + "_acceptable"
+	acceptKey := config.Name + "_acceptable"
 
-	acceptCondition := core.NewCondition(acceptKey, func(ctx context.Context, env *core.ConditionEnv) core.Determination {
+	acceptCondition := core.NewCondition(acceptKey, func(ctx context.Context, env *core.ConditionEnv) core.Truth {
 		history, ok := core.Last[*History[Out]](env.Blackboard)
 		if !ok {
 			return core.False
@@ -82,62 +82,57 @@ func RepeatUntil[In, Out any](spec RepeatUntilConfig[In, Out]) (*core.Agent, err
 		if !ok {
 			return core.False
 		}
-		if history.Count() >= maxIter {
+		if history.Count() >= maxIterations {
 			return core.True
 		}
 		// Read the ORIGINAL loop input via loopInput, not core.Last[In]: when
 		// In==Out the per-iteration outputs would shadow the input.
-		var in In
-		if li, ok := core.Last[loopInput[In]](env.Blackboard); ok {
-			in = li.value
+		var input In
+		if original, ok := core.Last[loopInput[In]](env.Blackboard); ok {
+			input = original.value
 		}
-		if spec.Accept(ctx, in, last, history) {
+		if config.Accept(ctx, input, last, history) {
 			return core.True
 		}
 		return core.False
 	})
 
 	task := core.NewAction[In, Out](
-		spec.Name+"-task",
-		func(ctx context.Context, pc *core.ProcessContext, in In) (Out, error) {
-			history, ok := core.Last[*History[Out]](pc.Blackboard)
+		config.Name+"-task",
+		func(ctx context.Context, process *core.ProcessContext, input In) (Out, error) {
+			history, ok := core.Last[*History[Out]](process.Blackboard())
 			if !ok {
 				history = &History[Out]{}
-				pc.Blackboard.Bind(history)
+				process.Blackboard().Bind(history)
 				// First iteration: `in` IS the original input (no Out bound yet to
 				// shadow it). Stash it so later iterations + Accept recover it even
 				// when In==Out.
-				pc.Blackboard.Bind(loopInput[In]{value: in})
-			} else if li, ok := core.Last[loopInput[In]](pc.Blackboard); ok {
+				process.Blackboard().Bind(loopInput[In]{value: input})
+			} else if original, ok := core.Last[loopInput[In]](process.Blackboard()); ok {
 				// Later iterations: the framework binds `in` from Last[In], which is
 				// the latest Out when In==Out — restore the original.
-				in = li.value
+				input = original.value
 			}
-			out, err := spec.Task(ctx, pc, in, history)
+			output, err := config.Task(ctx, process, input, history)
 			if err != nil {
 				var zero Out
 				return zero, err
 			}
-			history.record(out)
-			return out, nil
+			history.record(output)
+			return output, nil
 		},
 		core.ActionConfig{
 			Description: "loop body — produces a candidate Out",
-			CanRerun:    true,
-			Post:        []string{acceptKey},
-			QoS:         singleAttempt,
+			Repeatable:  true,
+			Effects:     []string{acceptKey},
 		},
 	)
 
 	return core.NewAgent(core.AgentConfig{
-		Name:        spec.Name,
-		Description: spec.Description,
+		Name:        config.Name,
+		Description: config.Description,
 		Actions:     []core.Action{task},
 		Conditions:  []core.Condition{acceptCondition},
-		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
-			Name:        spec.Name,
-			Description: "produce acceptable " + core.TypeName[Out](),
-			Pre:         []string{acceptKey},
-		})},
+		Goals:       []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce acceptable " + core.TypeName[Out](), Preconditions: []string{acceptKey}})},
 	}), nil
 }

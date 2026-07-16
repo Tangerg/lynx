@@ -9,39 +9,39 @@ import (
 )
 
 // toolResolverFor returns the ResolveTools closure used by ProcessContext.
-// nil action is allowed (the resolver still works; ToolDecorators receive
+// nil action is allowed (the resolver still works; ToolMiddlewares receive
 // nil action and should treat it as "outside an action body").
 //
 // Resolvers are walked process-first so a process-scope override beats the
-// platform default; decorators wrap platform-first then process-last so a
-// process-scope decorator is the outermost wrap and runs after platform
-// decorators.
-func (p *AgentProcess) toolResolverFor(action core.Action) core.ToolResolver {
+// engine default; tool middleware wraps engine-first then process-last so a
+// process-scope decorator is the outermost wrap and runs after engine
+// middleware.
+func (p *Process) toolResolverFor(action core.Action) func(context.Context, []core.ToolGroupRequirement) ([]tools.Tool, error) {
 	resolvers := collectExtensions[core.ToolGroupResolver](p.combinedExtensionsResolverFirst())
-	decorators := collectExtensions[core.ToolDecorator](p.combinedExtensions())
+	middleware := collectExtensions[core.ToolMiddleware](p.combinedExtensions())
 	if len(resolvers) == 0 {
 		return nil
 	}
 	return func(ctx context.Context, requirements []core.ToolGroupRequirement) ([]tools.Tool, error) {
-		var collected []tools.Tool
+		var resolved []tools.Tool
 
-		for _, req := range requirements {
-			group, found, err := runToolGroupResolvers(resolvers, ctx, req)
+		for _, requirement := range requirements {
+			group, found, err := runToolGroupResolvers(resolvers, ctx, requirement)
 			if err != nil {
-				return nil, fmt.Errorf("resolve tools for role %q: %w", req.Role, err)
+				return nil, fmt.Errorf("resolve tools for role %q: %w", requirement.Role, err)
 			}
 			if !found {
 				continue
 			}
 
-			tools, err := group.Tools(ctx)
+			groupTools, err := group.Tools(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("load tools for role %q: %w", req.Role, err)
+				return nil, fmt.Errorf("load tools for role %q: %w", requirement.Role, err)
 			}
-			for _, tool := range tools {
-				collected = append(collected, runToolDecorators(decorators, p, action, tool))
+			for _, tool := range groupTools {
+				resolved = append(resolved, wrapTool(middleware, p, action, tool))
 			}
 		}
-		return collected, nil
+		return resolved, nil
 	}
 }

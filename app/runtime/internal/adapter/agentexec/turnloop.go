@@ -7,10 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/tools"
@@ -24,20 +23,17 @@ func stallContext(parent context.Context, idle time.Duration) (ctx context.Conte
 	return ctx, func() { timer.Reset(idle) }, func() { timer.Stop(); cancel() }
 }
 
-// streamingModel adapts a target chat client to the synchronous model port the
-// target Event Runner consumes. It retains true provider streaming for the UI,
-// while ResponseAccumulator produces the complete response the runner needs
-// to inspect for tool calls.
+// streamingModel retains provider streaming for the UI while presenting the
+// complete response required by the framework's synchronous interaction port.
 type streamingModel struct {
-	client *chatclient.Client
-	chunk  func(*chat.Response)
-	finish func(*chat.Response)
+	streamer chat.Streamer
+	chunk    func(*chat.Response)
 }
 
 func (m streamingModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
 	var accumulator chat.ResponseAccumulator
 	seen := false
-	for response, err := range m.client.Stream(ctx, request) {
+	for response, err := range m.streamer.Stream(ctx, request) {
 		if err != nil {
 			return nil, err
 		}
@@ -55,23 +51,22 @@ func (m streamingModel) Call(ctx context.Context, request *chat.Request) (*chat.
 	if !seen {
 		return nil, errors.New("agentexec: chat stream ended without a response")
 	}
-	response := accumulator.Response()
-	if m.finish != nil {
-		m.finish(response)
-	}
-	return response, nil
+	return accumulator.Response(), nil
 }
 
-// runTurn builds ordinary target protocol values, keeps executable tools in a
-// sibling Registry, and drives the target Event Runner. HITL persists a
-// Checkpoint on the process blackboard and resumes at the pending tool.
+// runTurn supplies app-specific streaming and pricing adapters to the
+// framework-managed interaction boundary. Runtime owns tool iteration,
+// checkpointing, suspension, usage recording, and budget/step enforcement.
 func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget accounting.Budget) (TurnOutput, error) {
 	ctx, keepAlive, stop := stallContext(ctx, llmIdleTimeout)
 	defer stop()
 
-	client, err := pc.Chat()
+	capability, err := pc.Chat()
 	if err != nil {
 		return TurnOutput{}, err
+	}
+	if capability.Streamer == nil {
+		return TurnOutput{}, errors.New("agentexec: configured chat capability does not support streaming")
 	}
 	actionTools, err := pc.ActionTools(ctx)
 	if err != nil {
@@ -101,16 +96,10 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 		return TurnOutput{}, fmt.Errorf("agentexec: turn request: %w", err)
 	}
 
-	observer := observerFrom(pc.Options)
+	observer := observerFrom(pc.Dependencies())
 	var accumulated strings.Builder
-	var cumulative accounting.TokenUsage
-	var cumulativeCost float64
-	for _, invocation := range pc.Process.LLMInvocations() {
-		cumulative.Add(tokenUsageOf(invocation))
-		cumulativeCost += invocation.CostUSD
-	}
 	model := streamingModel{
-		client: client,
+		streamer: capability.Streamer,
 		chunk: func(response *chat.Response) {
 			keepAlive()
 			choice := response.First()
@@ -131,98 +120,54 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 				}
 			}
 		},
-		finish: func(response *chat.Response) {
-			usage := response.Usage
-			if usage.TotalTokens() == 0 && response.Model == "" {
-				return
-			}
-			invocation := e.invocationFrom(provider, response.Model, &usage)
-			pc.RecordLLMInvocation(ctx, invocation)
-			cumulative.Add(tokenUsageOf(invocation))
-			cumulativeCost += invocation.CostUSD
-			if observer != nil {
-				observer.OnUsage(cumulative, cumulativeCost, invocation.PromptTokens)
-			}
+	}
+
+	result, err := pc.Interact(ctx, core.Interaction{
+		Model:   model,
+		Request: request,
+		Tools:   registry,
+		Limits: agent.InteractionLimits{
+			MaxTokens:  budget.MaxTokens,
+			MaxCostUSD: budget.MaxCostUSD,
+			MaxSteps:   budget.MaxSteps,
 		},
-	}
-
-	runner, err := toolloop.NewRunner(model, toolloop.RunnerConfig{})
+		Attribute: e.modelAttribution(provider),
+		Observe: func(_ context.Context, boundary agent.InteractionEvent) error {
+			if observer != nil && boundary.Kind == agent.InteractionEventModelResponse &&
+				(boundary.Response.Usage.TotalTokens() != 0 || boundary.Response.Model != "") {
+				var cumulative accounting.TokenUsage
+				var cumulativeCost float64
+				for _, invocation := range pc.Process().ModelCalls() {
+					cumulative.Add(tokenUsageOf(invocation))
+					cumulativeCost += invocation.CostUSD
+				}
+				observer.OnUsage(cumulative, cumulativeCost, boundary.Response.Usage.InputTokens)
+			}
+			return nil
+		},
+	})
 	if err != nil {
 		return TurnOutput{}, err
 	}
-	checkpoints := checkpointStore{bb: pc.Blackboard}
-	checkpoint, resumed, err := checkpoints.Load()
-	if err != nil {
-		return TurnOutput{}, err
+	switch result.StopReason {
+	case agent.InteractionStopBudget:
+		return turnOutput(pc, accumulated.String(), true), nil
+	case agent.InteractionStopSteps:
+		output := turnOutput(pc, accumulated.String(), false)
+		output.StoppedOnSteps = true
+		return output, nil
 	}
-
-	steps := 0
-	var sequence func(func(toolloop.Event, error) bool)
-	if resumed {
-		// Resume starts a fresh action execution, so restore the observable
-		// reply and completed-round count that lived in the paused runner.
-		for i := range checkpoint.Request.Messages {
-			if checkpoint.Request.Messages[i].Role == chat.RoleAssistant {
-				accumulated.WriteString(checkpoint.Request.Messages[i].Text())
-			}
-		}
-		accumulated.WriteString(checkpoint.Response.Text())
-		steps = checkpoint.Round - 1
-		checkpoints.Clear()
-		sequence = runner.Resume(ctx, checkpoint, registry, toolloop.Resume{ID: checkpoint.ID})
-	} else {
-		invocation, err := toolloop.NewInvocation(request, registry)
-		if err != nil {
-			return TurnOutput{}, err
-		}
-		sequence = runner.Run(ctx, invocation)
+	if result.Final == nil {
+		return TurnOutput{}, errors.New("agentexec: managed interaction ended without a final event")
 	}
-
-	completedToolRound := false
-	for event, runErr := range sequence {
-		if runErr != nil {
-			return TurnOutput{}, runErr
-		}
-		switch event.Kind {
-		case toolloop.EventModelRequest:
-			if !completedToolRound {
-				continue
-			}
-			completedToolRound = false
-			costUSD, tokens, _ := pc.Process.Usage()
-			if budget.UsageExceeded(int64(tokens), costUSD) {
-				return turnOutput(pc, accumulated.String(), true), nil
-			}
-			steps++
-			if budget.StepsExceeded(steps) {
-				output := turnOutput(pc, accumulated.String(), false)
-				output.StoppedOnSteps = true
-				return output, nil
-			}
-		case toolloop.EventToolResult:
-			completedToolRound = true
-			if event.Final && event.ToolResult != nil {
-				return turnOutput(pc, event.ToolResult.Result, false), nil
-			}
-		case toolloop.EventModelResponse:
-			if event.Final {
-				return turnOutput(pc, accumulated.String(), false), nil
-			}
-		case toolloop.EventPause:
-			if event.Pause == nil || event.Pause.Checkpoint == nil {
-				return TurnOutput{}, errors.New("agentexec: tool loop paused without a checkpoint")
-			}
-			if err := checkpoints.Save(event.Pause.Checkpoint); err != nil {
-				return TurnOutput{}, err
-			}
-			interrupt, ok := takePendingInterrupt(pc.Blackboard)
-			if !ok {
-				return TurnOutput{}, errors.New("agentexec: tool loop paused without a HITL awaitable")
-			}
-			return TurnOutput{}, interrupt
-		}
+	switch result.Final.Kind {
+	case agent.InteractionEventModelResponse:
+		return turnOutput(pc, accumulated.String(), false), nil
+	case agent.InteractionEventToolResult:
+		return turnOutput(pc, result.Final.ToolResult.Result, false), nil
+	default:
+		return TurnOutput{}, fmt.Errorf("agentexec: unexpected final interaction event %q", result.Final.Kind)
 	}
-	return TurnOutput{}, errors.New("agentexec: tool loop ended without a terminal event")
 }
 
 func cloneChatOptions(options chat.Options) chat.Options {

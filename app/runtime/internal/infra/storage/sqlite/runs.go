@@ -414,7 +414,7 @@ func (s *RunStateStore) hasResumableProcessSnapshot(ctx context.Context, process
 	if err := json.Unmarshal([]byte(payload), &snapshot); err != nil {
 		return false, nil
 	}
-	if snapshot.ID != processID || snapshot.AgentName == "" {
+	if snapshot.ID != processID || snapshot.Deployment.Name == "" {
 		return false, nil
 	}
 	if snapshot.Status != core.StatusWaiting && snapshot.Status != core.StatusPaused {

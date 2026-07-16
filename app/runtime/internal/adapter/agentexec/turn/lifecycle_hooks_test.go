@@ -26,17 +26,17 @@ func TestTurnLifecycle_SubagentHooks(t *testing.T) {
 	}
 	listener := lifecycle.listener("turn")
 
-	listener.OnEvent(context.Background(), event.ProcessCreated{BaseEvent: event.NewBaseEvent("root")})
+	listener.OnEvent(context.Background(), event.ProcessCreated{Header: event.NewHeader("root")})
 	listener.OnEvent(context.Background(), event.ProcessCreated{
-		BaseEvent: event.NewBaseEvent("child"),
+		Header: event.NewHeader("child"),
 		Bindings: map[string]any{core.DefaultBindingName: testTaskInput{
 			Description: "inspect auth",
 			Prompt:      "Find where auth failures are handled.",
 		}},
 	})
 	listener.OnEvent(context.Background(), event.ProcessCompleted{
-		BaseEvent: event.NewBaseEvent("child"),
-		Result:    "auth failures are handled in middleware",
+		Header: event.NewHeader("child"),
+		Result: "auth failures are handled in middleware",
 	})
 
 	if len(rec.inputs) != 2 {
@@ -62,9 +62,9 @@ func TestTurnLifecycleBindsRootBeforeChildTerminal(t *testing.T) {
 	lifecycle := &turnLifecycle{}
 	listener := lifecycle.listener("turn")
 
-	listener.OnEvent(t.Context(), event.ProcessCreated{BaseEvent: event.NewBaseEvent("root")})
-	listener.OnEvent(t.Context(), event.ProcessCompleted{BaseEvent: event.NewBaseEvent("child")})
-	listener.OnEvent(t.Context(), event.ProcessKilled{BaseEvent: event.NewBaseEvent("root")})
+	listener.OnEvent(t.Context(), event.ProcessCreated{Header: event.NewHeader("root")})
+	listener.OnEvent(t.Context(), event.ProcessCompleted{Header: event.NewHeader("child")})
+	listener.OnEvent(t.Context(), event.ProcessKilled{Header: event.NewHeader("root")})
 
 	terminal := lifecycle.terminalEvent()
 	if terminal == nil || terminal.ProcessID() != "root" {

@@ -73,13 +73,13 @@ func (a askUserArgs) key() (string, error) {
 }
 
 type tool struct {
-	interrupt interrupts.Interruption
+	interrupt interrupts.Func
 }
 
 // New builds the ask_user tool.
-func New(interrupt interrupts.Interruption) (tools.Tool, error) {
+func New(interrupt interrupts.Func) (tools.Tool, error) {
 	if interrupt == nil {
-		interrupt = interrupts.NoInterruption
+		interrupt = interrupts.Unavailable
 	}
 	t := &tool{interrupt: interrupt}
 	return tools.New[askUserArgs, string](
@@ -102,7 +102,7 @@ func (t *tool) ask(ctx context.Context, a askUserArgs) (string, error) {
 	in := a.toPrompt()
 	// First pass interrupts (bubbles up, parks); resume returns the human's
 	// structured answers at this same call site.
-	res, _, err := t.interrupt(ctx, key, in)
+	res, err := t.interrupt(ctx, key, in)
 	if err != nil {
 		return "", err
 	}

@@ -3,54 +3,51 @@ package event
 import (
 	"encoding/json"
 	"time"
-
-	"github.com/Tangerg/lynx/agent/core"
 )
 
-// Event is the common interface — every concrete event embeds BaseEvent
+// Event is the common interface — every concrete event embeds Header
 // so it satisfies these methods without each type re-implementing them.
 type Event interface {
 	Timestamp() time.Time
 	ProcessID() string
-	EventName() string
+	Kind() string
 }
 
-// BaseEvent is the embedded carrier shared across all concrete events.
-// It's an opaque value object: built via [NewBaseEvent] and read through
+// Header is the embedded carrier shared across all concrete events.
+// It's an opaque value object: built via [NewHeader] and read through
 // the [Event] interface methods. The timestamp / process id reach the
 // wire via [emit]'s envelope (which reads them through Timestamp() /
 // ProcessID()), so the fields carry no JSON tags of their own.
-type BaseEvent struct {
-	at  time.Time
-	pid string
+type Header struct {
+	at        time.Time
+	processID string
 }
 
-func (b BaseEvent) Timestamp() time.Time { return b.at }
-func (b BaseEvent) ProcessID() string    { return b.pid }
-func (b BaseEvent) EventName() string    { return "base" }
+func (h Header) Timestamp() time.Time { return h.at }
+func (h Header) ProcessID() string    { return h.processID }
 
-// NewBaseEvent stamps a fresh event with the configured time source.
-func NewBaseEvent(processID string) BaseEvent {
-	return BaseEvent{at: core.Now(), pid: processID}
+// NewHeader stamps a fresh event with the current time.
+func NewHeader(processID string) Header {
+	return Header{at: time.Now(), processID: processID}
 }
 
 // envelope is the on-wire JSON shape for every event: a discriminator
-// field plus the BaseEvent's timestamp / process id plus an opaque
+// field plus the Header's timestamp / process id plus an opaque
 // payload object. Centralized here so each concrete event's MarshalJSON
 // is a one-liner.
 type envelope struct {
-	Event     string    `json:"event"`
+	Kind      string    `json:"kind"`
 	Timestamp time.Time `json:"timestamp"`
 	ProcessID string    `json:"process_id"`
 	Payload   any       `json:"payload,omitempty"`
 }
 
 // emit wraps the supplied payload in an envelope, fills the
-// discriminator and base fields from e, and marshals to JSON. It's the
+// discriminator and header fields from e, and marshals to JSON. It's the
 // shared body of every event's MarshalJSON.
 func emit(e Event, payload any) ([]byte, error) {
 	return json.Marshal(envelope{
-		Event:     e.EventName(),
+		Kind:      e.Kind(),
 		Timestamp: e.Timestamp(),
 		ProcessID: e.ProcessID(),
 		Payload:   payload,

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
@@ -17,8 +18,8 @@ import (
 )
 
 type testEngine interface {
-	StartTurn(ctx context.Context, req agentexec.TurnRequest) agentexec.TurnProcess
-	RestoreTurn(ctx context.Context, processID string, req agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error)
+	StartTurn(ctx context.Context, request agentexec.TurnRequest) agentexec.TurnProcess
+	RestoreTurn(ctx context.Context, processID string, request agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error)
 	InjectUserMessage(ctx context.Context, sessionID, text string) error
 	MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (agentexec.CompactionResult, error)
 	MaybeExtract(ctx context.Context, sessionID, cwd string) (agentexec.ExtractionResult, error)
@@ -49,11 +50,11 @@ func withClientResolver(resolver interface {
 }
 
 // stubTurnProcess fakes the agentexec.TurnProcess handle without touching the real
-// platform. The done channel is pre-fired so runTurn receives immediately;
+// engine. The done channel is pre-fired so runTurn receives immediately;
 // status / output / cancel return the values the test wired.
 type stubTurnProcess struct {
 	id        string
-	status    atomic.Int32 // core.AgentProcessStatus
+	status    atomic.Int32 // core.ProcessStatus
 	failure   error
 	output    agentexec.TurnOutput
 	done      chan error
@@ -75,8 +76,8 @@ func newStubTurnProcess(id string, output agentexec.TurnOutput) *stubTurnProcess
 }
 
 func (cp *stubTurnProcess) ID() string { return cp.id }
-func (cp *stubTurnProcess) Status() core.AgentProcessStatus {
-	return core.AgentProcessStatus(cp.status.Load())
+func (cp *stubTurnProcess) Status() core.ProcessStatus {
+	return core.ProcessStatus(cp.status.Load())
 }
 func (cp *stubTurnProcess) Failure() error     { return cp.failure }
 func (cp *stubTurnProcess) Done() <-chan error { return cp.done }
@@ -101,12 +102,12 @@ func (cp *stubTurnProcess) Resume(_ context.Context, _ interrupts.Resolution) (<
 	return ch, nil
 }
 
-func (cp *stubTurnProcess) PendingAwaitable() core.Awaitable { return nil }
+func (cp *stubTurnProcess) Suspension() *agent.Suspension { return nil }
 
 func (cp *stubTurnProcess) Discard(_ context.Context) { cp.discarded.Store(true) }
 
 // stubEngine satisfies the turn dispatcher's engine dependency without touching
-// the real platform, conversation history, or MCP wiring.
+// the real engine, conversation history, or MCP wiring.
 type stubEngine struct {
 	runTurnCalls     atomic.Int32
 	restoreCalls     atomic.Int32
@@ -120,38 +121,38 @@ type stubEngine struct {
 	lastCtx     context.Context
 	lastOptions *corechat.Options
 
-	lastProc atomic.Pointer[stubTurnProcess]
+	lastProcess atomic.Pointer[stubTurnProcess]
 }
 
-func (s *stubEngine) StartTurn(ctx context.Context, req agentexec.TurnRequest) agentexec.TurnProcess {
+func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnRequest) agentexec.TurnProcess {
 	s.runTurnCalls.Add(1)
 	s.mu.Lock()
-	s.lastClient = req.ChatClient
-	s.lastCwd = req.Cwd
+	s.lastClient = request.ChatClient
+	s.lastCwd = request.Cwd
 	s.lastCtx = ctx
-	if req.Options == nil {
+	if request.Options == nil {
 		s.lastOptions = nil
 	} else {
-		copy := *req.Options
-		copy.Stop = append([]string(nil), req.Options.Stop...)
+		copy := *request.Options
+		copy.Stop = append([]string(nil), request.Options.Stop...)
 		s.lastOptions = &copy
 	}
 	s.mu.Unlock()
-	if req.Observer != nil {
-		req.Observer.OnMessageDelta(s.runReply)
+	if request.Observer != nil {
+		request.Observer.OnMessageDelta(s.runReply)
 	}
-	proc := newStubTurnProcess("stub-proc-"+req.SessionID, agentexec.TurnOutput{
+	process := newStubTurnProcess("stub-processess-"+request.SessionID, agentexec.TurnOutput{
 		Reply:           s.runReply,
 		StoppedOnBudget: s.stopOnBudget,
 	})
-	s.lastProc.Store(proc)
-	return proc
+	s.lastProcess.Store(process)
+	return process
 }
 
-func (s *stubEngine) RestoreTurn(_ context.Context, processID string, req agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error) {
+func (s *stubEngine) RestoreTurn(_ context.Context, processID string, request agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error) {
 	s.restoreCalls.Add(1)
-	if req.Observer != nil {
-		req.Observer.OnMessageDelta(s.runReply)
+	if request.Observer != nil {
+		request.Observer.OnMessageDelta(s.runReply)
 	}
 	cp := newStubTurnProcess(processID, agentexec.TurnOutput{Reply: s.runReply})
 	cp.resumeErr = s.restoreResumeErr
@@ -174,7 +175,7 @@ type slowStubEngine struct{ stubEngine }
 
 func (s *slowStubEngine) StartTurn(ctx context.Context, _ agentexec.TurnRequest) agentexec.TurnProcess {
 	cp := &stubTurnProcess{
-		id:   "slow-stub-proc",
+		id:   "slow-stub-processess",
 		done: make(chan error, 1),
 	}
 	cp.status.Store(int32(core.StatusRunning))
@@ -223,7 +224,7 @@ func (m *capturingModel) Call(_ context.Context, _ *corechat.Request) (*corechat
 	message := corechat.NewAssistantMessage(corechat.NewTextPart("ok"))
 	return corechat.NewResponse(corechat.Choice{Index: 0, Message: &message, FinishReason: corechat.FinishReasonStop})
 }
-func (m *capturingModel) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	resp, err := m.Call(ctx, req)
+func (m *capturingModel) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
+	resp, err := m.Call(ctx, request)
 	return func(yield func(*corechat.Response, error) bool) { yield(resp, err) }
 }

@@ -1,13 +1,13 @@
 // Package arch holds the agent module's architecture-fitness tests. It contains
 // no production code — only tests that mechanically enforce structural
-// invariants the compiler can't, so the library's layering can't quietly rot
+// invariants the compiler can't, so the framework's layering can't quietly rot
 // during refactors.
 //
-// agent is a LIBRARY, not an application, so this is NOT a Clean-Architecture
-// concentric-ring rule (delivery/use-case/domain/infra). The natural shape of a
-// library is a dependency LADDER: primitives → strategy plug-ins → engine →
-// combinators. The rule below encodes that ladder. See docs/README.md and
-// docs/EXTENSION_DESIGN.md for the maintained architecture description.
+// agent is an embeddable FRAMEWORK MODULE, not an application, so this is NOT a
+// Clean-Architecture concentric-ring rule (delivery/use-case/domain/infra). Its
+// internal shape is a dependency LADDER: framework kernel → strategy plug-ins →
+// engine → combinators. The rule below encodes that ladder. See docs/README.md,
+// docs/EXTENSION_DESIGN.md, and the root Agent Framework execution plan.
 package arch
 
 import (
@@ -20,17 +20,17 @@ import (
 	"testing"
 )
 
-// TestDependencyRule enforces the library's dependency ladder: an inner rung
+// TestDependencyRule enforces the framework's dependency ladder: an inner rung
 // must not import an outer one.
 //
 // Rungs (inner → outer):
 //
-//	core         core/                     pure primitives + public SPI (Action/Goal/Condition/Blackboard/Extension)
-//	strategy     planning/, event/,        策略/原语 plug-ins that depend on core but never on the engine
+//	core         core/, interaction/        pure primitives + public SPI (Action/Goal/Condition/Blackboard/Extension)
+//	strategy     planning/, event/,             strategy/protocol plug-ins that depend on core
 //	             hitl/, toolpolicy/, toolloop/
-//	engine       runtime/, runtime/autonomy/   the state machine + dispatch; consumes core + strategy
-//	combinator   ./, workflow/             public convenience surface and high-level builders
-//	                                      that produce *core.Agent; consume core + engine
+//	engine       runtime/, routing/              state machine and dispatch; consumes core + strategy
+//	combinator   ./, workflow/, storetest/       public convenience, high-level combinators,
+//	                                              and reusable store conformance tests
 //
 // Forbidden edges (an inner rung learning about an outer one):
 //
@@ -38,9 +38,9 @@ import (
 //	strategy   ↛ engine, combinator             a plug-in must not reach the engine
 //	engine     ↛ combinator                     the engine must not depend on the combinators built atop it
 //
-// Intentionally allowed (correct ladder edges, and the documented "库内部用具体
-// 类型" stance — agent/CLAUDE.md): strategy → core; engine → core + strategy;
-// combinator → core + engine (workflow holds *runtime.Platform by concrete type,
+// Intentionally allowed (correct ladder edges, and the documented preference
+// for concrete internal dependencies — agent/CLAUDE.md): strategy → core; engine → core + strategy;
+// combinator → core + engine (workflow holds *runtime.Engine by concrete type,
 // no SubprocessSpawner interface — that would be a YAGNI ceremony). event → planning
 // is a same-rung edge (event types describe planning), so it is not forbidden.
 func TestDependencyRule(t *testing.T) {
@@ -72,7 +72,7 @@ func TestDependencyRule(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		from := layerOf(filepath.ToSlash(rel))
+		from := rungOf(filepath.ToSlash(rel))
 		if from == "" {
 			return nil // unclassified (module root / examples) — unconstrained
 		}
@@ -87,7 +87,7 @@ func TestDependencyRule(t *testing.T) {
 			if !ok {
 				continue
 			}
-			to := layerOf(rest)
+			to := rungOf(rest)
 			if to != "" && forbidden(from, to) {
 				violations++
 				t.Errorf("dependency-rule violation: %s (%s) imports %s (%s)", rel, from, rest, to)
@@ -100,6 +100,46 @@ func TestDependencyRule(t *testing.T) {
 	}
 	if violations == 0 {
 		t.Log("dependency ladder holds: no inner rung imports an outer one")
+	}
+}
+
+// TestEveryPublicProductionPackageIsClassified prevents a new package from
+// silently bypassing the dependency ladder. Internal test infrastructure and
+// examples are outside the published framework DAG; every other production Go
+// package must occupy a reviewed rung.
+func TestEveryPublicProductionPackageIsClassified(t *testing.T) {
+	root := moduleRoot(t)
+	seen := make(map[string]struct{})
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			name := d.Name()
+			if name == "vendor" || name == "examples" || name == "internal" || (strings.HasPrefix(name, ".") && path != root) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, filepath.Dir(path))
+		if err != nil {
+			return err
+		}
+		packagePath := filepath.ToSlash(rel)
+		if _, checked := seen[packagePath]; checked {
+			return nil
+		}
+		seen[packagePath] = struct{}{}
+		if rungOf(packagePath) == "" {
+			t.Errorf("public production package %q is not classified in the Agent dependency ladder", packagePath)
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk public Agent packages: %v", walkErr)
 	}
 }
 
@@ -146,6 +186,83 @@ func TestAgentDoesNotImportApplicationModules(t *testing.T) {
 	}
 }
 
+func TestFrameworkDoesNotImportTransportSDKs(t *testing.T) {
+	forbiddenPrefixes := []string{
+		"github.com/Tangerg/lynx/a2a",
+		"github.com/Tangerg/lynx/mcp",
+		"github.com/a2aproject/a2a-go",
+		"github.com/modelcontextprotocol/go-sdk",
+	}
+	root := moduleRoot(t)
+	fset := token.NewFileSet()
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			name := d.Name()
+			if name == "vendor" || name == "examples" || (strings.HasPrefix(name, ".") && path != root) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imported := range file.Imports {
+			importPath := strings.Trim(imported.Path.Value, `"`)
+			for _, prefix := range forbiddenPrefixes {
+				if strings.HasPrefix(importPath, prefix) {
+					rel, _ := filepath.Rel(root, path)
+					t.Errorf("Agent Framework production package imports transport SDK %q: %s", importPath, rel)
+				}
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk Agent Framework: %v", walkErr)
+	}
+}
+
+func TestStoretestIsOnlyImportedByTests(t *testing.T) {
+	const storetestPath = "github.com/Tangerg/lynx/agent/storetest"
+	root := moduleRoot(t)
+	fset := token.NewFileSet()
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if entry.Name() == "vendor" || strings.HasPrefix(entry.Name(), ".") && path != root {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imported := range file.Imports {
+			if strings.Trim(imported.Path.Value, `"`) == storetestPath {
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("test support package storetest imported by production file %s", rel)
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk Agent Framework: %v", walkErr)
+	}
+}
+
 func TestTargetToolLoopDoesNotImportLegacyProtocol(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
@@ -153,7 +270,7 @@ func TestTargetToolLoopDoesNotImportLegacyProtocol(t *testing.T) {
 		"checkpoint.go",
 		"control.go",
 		"event.go",
-		"invocation.go",
+		"resolver.go",
 		"runner.go",
 		"runtime_policy.go",
 	} {
@@ -179,21 +296,21 @@ const (
 	rungCombinator = "combinator"
 )
 
-// layerOf classifies a module-relative package dir (e.g. "planning/planner/goap")
+// rungOf classifies a module-relative package dir (e.g. "planning/goap")
 // into its rung, or "" when the path is outside the rungs under test.
-func layerOf(rel string) string {
+func rungOf(rel string) string {
 	if rel == "." {
 		return rungCombinator
 	}
 	first, _, _ := strings.Cut(rel, "/")
 	switch first {
-	case "core":
+	case "core", "interaction":
 		return rungCore
 	case "planning", "event", "hitl", "toolpolicy", "toolloop":
 		return rungStrategy
-	case "runtime":
+	case "runtime", "routing":
 		return rungEngine
-	case "workflow":
+	case "workflow", "storetest":
 		return rungCombinator
 	default:
 		return ""

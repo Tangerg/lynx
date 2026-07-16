@@ -1,30 +1,41 @@
 package runtime
 
-import "github.com/Tangerg/lynx/agent/core"
+import (
+	"context"
+
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/interaction"
+)
 
 // buildProcessContext assembles a fresh ProcessContext for one tick. The
-// fields all live on AgentProcess; the context is re-created every tick so
-// per-action state (lastErr, etc.) doesn't leak. actionToolGroups is the
-// currently-executing action's declared requirements; threading it in lets
+// fields all live on Process; the context is re-created every tick so
+// per-action suspension state doesn't leak. actionToolGroups is the currently
+// executing action's declared requirements; threading it in lets
 // [core.ProcessContext.ActionTools] resolve them lazily.
-func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequirement, action core.Action) *core.ProcessContext {
+func (p *Process) buildProcessContext(actionToolGroups []core.ToolGroupRequirement, action core.Action) *core.ProcessContext {
 	config := core.ProcessContextConfig{
-		ProcessScope: core.ProcessScope{
-			Process:       p,
-			Blackboard:    p.blackboard,
-			Options:       p.options,
-			OutputChannel: p.options.OutputChannel,
-			Services:      p.platformServices(),
+		Process:       p,
+		Control:       processControl{process: p},
+		Usage:         processUsage{process: p},
+		Blackboard:    p.blackboard,
+		Session:       p.options.Session,
+		Dependencies:  p.dependencies.Child(),
+		Chat:          p.effectiveChat,
+		MaxToolRounds: maxToolRounds(p.effectiveGuardrails()),
+		Emit:          p.publishAny,
+		ResolveTools:  p.toolResolverFor(action),
+		RunInteraction: func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
+			return p.runInteraction(ctx, action.Metadata().Name, input)
 		},
-		PlatformHooks: core.PlatformHooks{
-			ChatClient:     p.effectiveChatClient(),
-			Guardrails:     p.effectiveGuardrails(),
-			Publish:        p.publishAny,
-			ResolveTools:   p.toolResolverFor(action),
-			RunToolLoop:    runToolLoop,
-			ToolCallCancel: p.signals.registerToolCallCancel,
-		},
+		ToolCallCancel:   p.signals.registerToolCallCancel,
 		ActionToolGroups: actionToolGroups,
 	}
 	return core.NewProcessContext(config)
+}
+
+func maxToolRounds(guardrails *core.ChatGuardrails) int {
+	if guardrails == nil {
+		return 0
+	}
+	return guardrails.MaxToolRounds
 }

@@ -2,6 +2,7 @@ package agentexec
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
@@ -47,8 +48,8 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 // TestEngine_RunChat_PricingFillsCost verifies the cost conduit: with a
 // Pricing hook configured, each round's cost is recorded on its
 // invocation and rolls up to TurnOutput.CostUSD + per-model cost. The
-// rate table itself is the caller's; here a stub rate of $1/token makes
-// cost equal total prompt+completion tokens (30 + 12 = 42).
+// rate table itself is the caller's; here a stub rate of $0.01/token makes
+// cost equal $0.42 while remaining below the process's default $2 ceiling.
 func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 	reasoning := int64(3)
 	stub := newUsageStubModel(
@@ -57,7 +58,7 @@ func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 	)
 	client, _ := chatclient.New(stub)
 	pricing := func(_, _ string, u *chat.Usage) float64 {
-		return float64(u.InputTokens + u.OutputTokens)
+		return float64(u.InputTokens+u.OutputTokens) / 100
 	}
 	eng, err := New(context.Background(), Config{ChatClient: client, Pricing: pricing})
 	if err != nil {
@@ -68,11 +69,11 @@ func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
 	}
-	if out.CostUSD != 42 {
-		t.Errorf("CostUSD = %v, want 42", out.CostUSD)
+	if math.Abs(out.CostUSD-0.42) > 1e-9 {
+		t.Errorf("CostUSD = %v, want 0.42", out.CostUSD)
 	}
-	if len(out.UsageByModel) != 1 || out.UsageByModel[0].CostUSD != 42 {
-		t.Errorf("per-model cost = %+v, want one entry costing 42", out.UsageByModel)
+	if len(out.UsageByModel) != 1 || math.Abs(out.UsageByModel[0].CostUSD-0.42) > 1e-9 {
+		t.Errorf("per-model cost = %+v, want one entry costing 0.42", out.UsageByModel)
 	}
 }
 

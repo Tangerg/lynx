@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 
@@ -12,7 +13,7 @@ import (
 
 // ToolGroupPermission is the security/sensitivity flag on a ToolGroup —
 // helpful so user-facing UIs can surface "this agent will need internet
-// access" before kicking off a long-running task, and so platform
+// access" before kicking off a long-running task, and so engine
 // validators can enforce sandbox policy at deploy time.
 type ToolGroupPermission int
 
@@ -40,33 +41,24 @@ func (p ToolGroupPermission) String() string {
 	}
 }
 
-// AssetCoordinates is the (provider, name, version) triple that uniquely
+// ToolGroupRef is the (provider, name, version) triple that uniquely
 // identifies a ToolGroup release across distribution channels. Version
 // is a [*semver.Version] so multi-version registries (e.g. several
 // MCP-server builds in the same resolver) can sort and range over them
 // without parsing strings.
-type AssetCoordinates struct {
+type ToolGroupRef struct {
 	Provider string
 	Name     string
 	Version  *semver.Version
 }
 
-// ToolGroupMetadata is what a resolver returns from a registry
-// lookup. Carries the role + the (optional) versioned coordinates so
-// observability surfaces can display "which provider's tool group
-// satisfied this role", plus the permissions the group exercises so
-// the platform can refuse high-privilege groups in sandboxed deployments.
-type ToolGroupMetadata interface {
-	Role() string
-	AssetCoordinates() AssetCoordinates
-
-	// Permissions reports the categories of access this tool group
-	// requires at runtime. An empty result means the group claims no
-	// special access; the platform must still consult its own policy
-	// before granting use. Callers use the returned slice as a
-	// read-only snapshot — implementations should return a fresh slice
-	// per call when their underlying storage is mutable.
-	Permissions() []ToolGroupPermission
+// ToolGroupInfo describes a resolved tool group. Role is the abstract
+// capability requested by an action; Ref optionally identifies the concrete
+// provider release; Permissions declares the access required at runtime.
+type ToolGroupInfo struct {
+	Role        string
+	Ref         ToolGroupRef
+	Permissions []ToolGroupPermission
 }
 
 // ToolGroupRequirement is what an agent declares ("I need a
@@ -74,66 +66,34 @@ type ToolGroupMetadata interface {
 // The planner consults the resolver to translate role → concrete
 // tool list at execution time.
 //
-// Permissions lists the privileges the action is willing to grant the
-// resolved group. The runtime rejects a group whose Metadata().Permissions()
+// AllowedPermissions lists the privileges the action is willing to grant the
+// resolved group. The runtime rejects a group whose Info().Permissions
 // is not a subset of this set, so a sandboxed agent can't accidentally
 // pick up an internet-reaching resolver implementation. An empty
-// Permissions slice means "no special privileges" — high-privilege
+// AllowedPermissions slice means "no special privileges" — high-privilege
 // groups are rejected unless the requirement opts in.
 type ToolGroupRequirement struct {
-	Role        string
-	Permissions []ToolGroupPermission
+	Role               string
+	AllowedPermissions []ToolGroupPermission
 }
 
-// PermissionsSatisfy returns true when every permission in `granted`
-// also appears in `required`. Empty `granted` is always satisfied.
+// AllowsPermissions reports whether allowed contains every required
+// permission. An empty required set is always allowed.
 // Order does not matter.
-func PermissionsSatisfy(required, granted []ToolGroupPermission) bool {
-	for _, g := range granted {
-		if !slices.Contains(required, g) {
+func AllowsPermissions(allowed, required []ToolGroupPermission) bool {
+	for _, permission := range required {
+		if !slices.Contains(allowed, permission) {
 			return false
 		}
 	}
 	return true
 }
 
-// TerminationScope is the structured-termination enum: AGENT stops
-// the whole process; ACTION skips the current action and re-plans.
-type TerminationScope int
-
-const (
-	// TerminationScopeAgent stops the entire process when the
-	// trigger fires.
-	TerminationScopeAgent TerminationScope = iota
-
-	// TerminationScopeAction skips the current action and re-plans.
-	TerminationScopeAction
-)
-
-func (t TerminationScope) String() string {
-	switch t {
-	case TerminationScopeAgent:
-		return "agent"
-	case TerminationScopeAction:
-		return "action"
-	default:
-		return "unknown"
-	}
-}
-
-// TerminationSignal is the per-instance termination payload. Agents
-// expose TerminateAgent/TerminateAction methods that enqueue one of these
-// for the runtime to pick up at the next tick boundary.
-type TerminationSignal struct {
-	Scope  TerminationScope
-	Reason string
-}
-
 // ToolGroup is the lazy provider — Tools(ctx) is the entry point that
 // performs the (potentially expensive) MCP handshake / plugin load on first
 // access. Subsequent calls return the cached slice.
 type ToolGroup interface {
-	Metadata() ToolGroupMetadata
+	Info() ToolGroupInfo
 	Tools(ctx context.Context) ([]tools.Tool, error)
 }
 
@@ -141,41 +101,87 @@ type ToolGroup interface {
 // and caches the result. Most callers use this rather than building a fresh
 // implementation.
 type LazyToolGroup struct {
-	meta   ToolGroupMetadata
-	loadFn func(ctx context.Context) ([]tools.Tool, error)
+	info ToolGroupInfo
+	load func(ctx context.Context) ([]tools.Tool, error)
 
 	once    sync.Once
 	tools   []tools.Tool
 	loadErr error
 }
 
-// NewLazyToolGroup wraps a metadata+loader pair. The loader runs at most
+// NewLazyToolGroup wraps an info and loader pair. The loader runs at most
 // once per LazyToolGroup instance, on the first Tools() call.
-func NewLazyToolGroup(meta ToolGroupMetadata, loadFn func(ctx context.Context) ([]tools.Tool, error)) *LazyToolGroup {
-	return &LazyToolGroup{meta: meta, loadFn: loadFn}
+func NewLazyToolGroup(info ToolGroupInfo, load func(ctx context.Context) ([]tools.Tool, error)) *LazyToolGroup {
+	info.Permissions = slices.Clone(info.Permissions)
+	return &LazyToolGroup{info: info, load: load}
 }
 
-func (l *LazyToolGroup) Metadata() ToolGroupMetadata { return l.meta }
+// Info returns a defensive copy of the group description.
+func (l *LazyToolGroup) Info() ToolGroupInfo {
+	info := l.info
+	info.Permissions = slices.Clone(info.Permissions)
+	return info
+}
 
 func (l *LazyToolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	l.once.Do(func() {
-		if l.loadFn == nil {
+		if l.load == nil {
 			return
 		}
-		l.tools, l.loadErr = l.loadFn(ctx)
+		l.tools, l.loadErr = l.load(ctx)
 	})
-	return l.tools, l.loadErr
+	return slices.Clone(l.tools), l.loadErr
 }
 
 // ToolGroupResolver maps a requirement to a concrete group. Registered
-// as a platform extension; the runtime walks every registered resolver
+// as an engine extension; the runtime walks every registered resolver
 // in registration order and the first one returning a non-nil group
 // wins. Resolvers double as [Extension] so the dispatch site can
 // attribute hits / errors by Name.
 type ToolGroupResolver interface {
 	Extension
 
-	Resolve(ctx context.Context, req ToolGroupRequirement) (ToolGroup, bool, error)
+	Resolve(ctx context.Context, requirement ToolGroupRequirement) (ToolGroup, bool, error)
+}
+
+// LazyToolGroupResolver resolves one metadata-described role to a fresh
+// lazy group backed by load. It is the generic adapter for remote registries,
+// plug-in catalogs, MCP sessions, or any other dynamic tool source; transport
+// details remain in the caller-provided loader.
+type LazyToolGroupResolver struct {
+	name string
+	info ToolGroupInfo
+	load func(context.Context) ([]tools.Tool, error)
+}
+
+// NewLazyToolGroupResolver validates and constructs a one-role resolver.
+// Each successful Resolve returns an independent LazyToolGroup, whose loader
+// runs once on first use.
+func NewLazyToolGroupResolver(
+	name string,
+	info ToolGroupInfo,
+	load func(context.Context) ([]tools.Tool, error),
+) (*LazyToolGroupResolver, error) {
+	if name == "" {
+		return nil, errors.New("core.NewLazyToolGroupResolver: name must not be empty")
+	}
+	if info.Role == "" {
+		return nil, errors.New("core.NewLazyToolGroupResolver: role must not be empty")
+	}
+	if load == nil {
+		return nil, errors.New("core.NewLazyToolGroupResolver: loader must not be nil")
+	}
+	info.Permissions = slices.Clone(info.Permissions)
+	return &LazyToolGroupResolver{name: name, info: info, load: load}, nil
+}
+
+func (r *LazyToolGroupResolver) Name() string { return r.name }
+
+func (r *LazyToolGroupResolver) Resolve(_ context.Context, requirement ToolGroupRequirement) (ToolGroup, bool, error) {
+	if requirement.Role != r.info.Role {
+		return nil, false, nil
+	}
+	return NewLazyToolGroup(r.info, r.load), true, nil
 }
 
 // StaticToolGroupResolver is the in-process default — a map of role →
@@ -188,8 +194,8 @@ type StaticToolGroupResolver struct {
 }
 
 // NewStaticToolGroupResolver returns an empty resolver with the supplied
-// extension Name (used by the runtime for dedup / logging — defaults to
-// "static-tool-group-resolver" when blank). Use Register to populate.
+// extension name. Use Set to populate it. A blank name selects a stable
+// default.
 func NewStaticToolGroupResolver(name string) *StaticToolGroupResolver {
 	if name == "" {
 		name = "static-tool-group-resolver"
@@ -200,8 +206,8 @@ func NewStaticToolGroupResolver(name string) *StaticToolGroupResolver {
 // Name implements [Extension].
 func (r *StaticToolGroupResolver) Name() string { return r.name }
 
-// Register adds (or replaces) the tool group bound to a role.
-func (r *StaticToolGroupResolver) Register(role string, group ToolGroup) {
+// Set binds group to role, replacing any previous binding.
+func (r *StaticToolGroupResolver) Set(role string, group ToolGroup) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.groups[role] = group
@@ -210,29 +216,9 @@ func (r *StaticToolGroupResolver) Register(role string, group ToolGroup) {
 // Resolve returns (group, true, nil) for a known role.
 // (nil group, false, nil) reports a miss so the caller can continue to
 // the next resolver.
-func (r *StaticToolGroupResolver) Resolve(_ context.Context, req ToolGroupRequirement) (ToolGroup, bool, error) {
+func (r *StaticToolGroupResolver) Resolve(_ context.Context, requirement ToolGroupRequirement) (ToolGroup, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	group, ok := r.groups[req.Role]
+	group, ok := r.groups[requirement.Role]
 	return group, ok, nil
-}
-
-// SimpleToolGroupMetadata is the minimal metadata struct — used by
-// the static resolver and by adapters (mcp, subagent) that don't
-// version their tool groups.
-type SimpleToolGroupMetadata struct {
-	RoleText           string
-	Coordinates        AssetCoordinates
-	PermissionsGranted []ToolGroupPermission
-}
-
-func (m SimpleToolGroupMetadata) Role() string                       { return m.RoleText }
-func (m SimpleToolGroupMetadata) AssetCoordinates() AssetCoordinates { return m.Coordinates }
-
-// Permissions returns the permission slice verbatim — callers are
-// expected to treat the result as read-only. SimpleToolGroupMetadata
-// is a value type used for static configuration, so sharing the slice
-// across callers is acceptable.
-func (m SimpleToolGroupMetadata) Permissions() []ToolGroupPermission {
-	return m.PermissionsGranted
 }

@@ -49,14 +49,18 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 3
+const schemaVersion = 4
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
 	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		return fmt.Errorf("sqlite: read schema version: %w", err)
 	}
-	if version != schemaVersion {
+	if version == 3 {
+		if err := migrateSnapshotSchemaV1(db); err != nil {
+			return err
+		}
+	} else if version != schemaVersion {
 		if err := discardSchema(db); err != nil {
 			return err
 		}
@@ -80,6 +84,7 @@ func installCurrentSchema(db *sql.DB) error {
 			ON sessions(parent_id)`,
 		`CREATE TABLE IF NOT EXISTS process_snapshots (
 			id           TEXT    PRIMARY KEY,
+			revision     INTEGER NOT NULL,
 			snapshot     TEXT    NOT NULL,
 			captured_at  INTEGER NOT NULL
 		)`,
@@ -290,6 +295,35 @@ func installCurrentSchema(db *sql.DB) error {
 	}
 	if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion)); err != nil {
 		return fmt.Errorf("sqlite: set schema version: %w", err)
+	}
+	return nil
+}
+
+// migrateSnapshotSchemaV1 preserves product history while discarding only the
+// obsolete process continuation wire. A non-terminal Run cannot remain
+// resumable without its exact snapshot, so it is terminalized explicitly.
+func migrateSnapshotSchemaV1(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("sqlite: begin snapshot schema migration: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, statement := range []string{
+		`DROP TABLE IF EXISTS process_snapshots`,
+		`UPDATE runs
+		 SET state = 'terminal', outcome = 'snapshot_schema_incompatible', updated_at = max(updated_at, strftime('%s','now') * 1000)
+		 WHERE state != 'terminal'`,
+		`DELETE FROM interrupts`,
+	} {
+		if _, err := tx.Exec(statement); err != nil {
+			return fmt.Errorf("sqlite: migrate snapshot schema: %w", err)
+		}
+	}
+	if _, err := tx.Exec(`PRAGMA user_version = 4`); err != nil {
+		return fmt.Errorf("sqlite: migrate snapshot schema version: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("sqlite: commit snapshot schema migration: %w", err)
 	}
 	return nil
 }

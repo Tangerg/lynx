@@ -1,9 +1,11 @@
 package toolloop
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
@@ -23,12 +25,15 @@ var (
 // It deliberately contains no executable ToolResolver; Resume receives that
 // capability separately.
 type Checkpoint struct {
-	ID       string            `json:"id"`
-	Round    int               `json:"round"`
-	Request  *chat.Request     `json:"request"`
-	Response *chat.Response    `json:"response"`
-	Results  []chat.ToolResult `json:"results,omitempty"`
-	NextCall int               `json:"next_call"`
+	SchemaVersion uint16            `json:"schema_version"`
+	ID            string            `json:"id"`
+	Round         int               `json:"round"`
+	MaxRounds     int               `json:"max_rounds"`
+	ToolsetDigest string            `json:"toolset_digest"`
+	Request       *chat.Request     `json:"request"`
+	Response      *chat.Response    `json:"response"`
+	Results       []chat.ToolResult `json:"results,omitempty"`
+	NextCall      int               `json:"next_call"`
 }
 
 // Validate verifies the protocol snapshots and their call/result correlation.
@@ -36,17 +41,30 @@ func (c *Checkpoint) Validate() error {
 	if c == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidCheckpoint)
 	}
+	if c.SchemaVersion != 1 {
+		return fmt.Errorf("%w: unsupported schema version %d", ErrInvalidCheckpoint, c.SchemaVersion)
+	}
 	if strings.TrimSpace(c.ID) == "" {
 		return fmt.Errorf("%w: ID must not be empty", ErrInvalidCheckpoint)
 	}
 	if c.Round < 1 {
 		return fmt.Errorf("%w: round must be positive", ErrInvalidCheckpoint)
 	}
+	if c.MaxRounds < 1 || c.Round > c.MaxRounds {
+		return fmt.Errorf("%w: round policy is inconsistent", ErrInvalidCheckpoint)
+	}
 	if c.Request == nil {
 		return fmt.Errorf("%w: request must not be nil", ErrInvalidCheckpoint)
 	}
 	if err := c.Request.Validate(); err != nil {
 		return fmt.Errorf("%w: request: %w", ErrInvalidCheckpoint, err)
+	}
+	digest, err := toolsetDigest(c.Request.Tools)
+	if err != nil {
+		return fmt.Errorf("%w: toolset digest: %w", ErrInvalidCheckpoint, err)
+	}
+	if c.ToolsetDigest == "" || c.ToolsetDigest != digest {
+		return fmt.Errorf("%w: toolset digest mismatch", ErrInvalidCheckpoint)
 	}
 	if c.Response == nil {
 		return fmt.Errorf("%w: response must not be nil", ErrInvalidCheckpoint)
@@ -92,8 +110,14 @@ func (c *Checkpoint) UnmarshalJSON(data []byte) error {
 	}
 	type wireCheckpoint Checkpoint
 	var decoded wireCheckpoint
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidCheckpoint, err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("%w: trailing JSON value", ErrInvalidCheckpoint)
 	}
 	candidate := Checkpoint(decoded)
 	if err := candidate.Validate(); err != nil {

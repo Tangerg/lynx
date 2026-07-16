@@ -9,70 +9,71 @@ import (
 
 // processBudget aggregates "what did this process and its descendants
 // cost?" Used by [core.BudgetPolicy] (and any custom
-// [core.EarlyTerminationPolicy]) so a parent's budget governs its entire
+// [core.StopPolicy]) so a parent's budget governs its entire
 // delegation tree.
 //
 // Cost / token totals are populated by integration code via
-// [Process.RecordUsage] (lumped) or per-call [Process.RecordLLMInvocation]
-// / [Process.RecordEmbeddingInvocation]; the framework itself never
+// [core.UsageRecorder.RecordUsage] (lumped) or per-call
+// [core.UsageRecorder.RecordModelCall] /
+// [core.UsageRecorder.RecordEmbeddingCall]; the framework itself never
 // invents numbers (it doesn't know per-model rates). The action count
 // comes from [processState]'s history, threaded through Usage().
 //
-// Concurrency: writes are protected by AgentProcess's main mutex (held
+// Concurrency: writes are protected by Process's main mutex (held
 // by record* / addChild). Reads in Usage() walk the children
 // recursively under RLock — the lock graph is a tree (parent →
 // children, never the reverse) so no deadlock is possible.
 type processBudget struct {
-	lock                 *sync.RWMutex // points at processState.mu — set by AgentProcess constructor
-	children             []*AgentProcess
-	ownCost              float64
-	ownTokens            int
-	llmInvocations       []core.LLMInvocation
-	embeddingInvocations []core.EmbeddingInvocation
+	lock           *sync.RWMutex // points at processState.mu — set by Process constructor
+	children       []*Process
+	ownCost        float64
+	ownTokens      int
+	modelCalls     []core.ModelCall
+	embeddingCalls []core.EmbeddingCall
 }
 
-// recordLLMInvocation appends a fully-attributed LLM call to history
+// recordModelCall appends a fully-attributed LLM call to history
 // and rolls its cost/tokens into the budget. Timestamp defaulting
-// happens in [AgentProcess.RecordLLMInvocation] — the only caller —
+// happens in [Process.RecordModelCall] — the only caller —
 // so the published event and the stored record carry the same stamp.
-func (b *processBudget) recordLLMInvocation(inv core.LLMInvocation) {
+func (b *processBudget) recordModelCall(call core.ModelCall) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.ownCost += inv.CostUSD
-	b.ownTokens += int(inv.PromptTokens + inv.CompletionTokens)
-	b.llmInvocations = append(b.llmInvocations, inv)
+	b.ownCost += call.CostUSD
+	b.ownTokens += int(call.PromptTokens + call.CompletionTokens)
+	b.modelCalls = append(b.modelCalls, call)
 }
 
-// recordEmbeddingInvocation appends an embedding call and rolls its
+// recordEmbeddingCall appends an embedding call and rolls its
 // cost/tokens into the budget. Timestamp defaulting happens in
-// [AgentProcess.RecordEmbeddingInvocation], mirroring the LLM path.
-func (b *processBudget) recordEmbeddingInvocation(inv core.EmbeddingInvocation) {
+// [Process.RecordEmbeddingCall], mirroring the LLM path.
+func (b *processBudget) recordEmbeddingCall(call core.EmbeddingCall) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.ownCost += inv.CostUSD
-	b.ownTokens += int(inv.InputTokens)
-	b.embeddingInvocations = append(b.embeddingInvocations, inv)
+	b.ownCost += call.CostUSD
+	b.ownTokens += int(call.InputTokens)
+	b.embeddingCalls = append(b.embeddingCalls, call)
 }
 
-// restore re-installs budget totals + invocation history from a
-// snapshot. Holds the lock so [usage] / [llmHistory] / [embeddingHistory]
+// restore re-installs budget totals and call history from a
+// snapshot. Holds the lock so [usage] / [modelCallHistory] / [embeddingCallHistory]
 // observe the bulk update atomically.
 func (b *processBudget) restore(
 	cost float64,
 	tokens int,
-	llms []core.LLMInvocation,
-	embeds []core.EmbeddingInvocation,
+	modelCalls []core.ModelCall,
+	embeddingCalls []core.EmbeddingCall,
 ) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.ownCost = cost
 	b.ownTokens = tokens
-	b.llmInvocations = slices.Clone(llms)
-	b.embeddingInvocations = slices.Clone(embeds)
+	b.modelCalls = slices.Clone(modelCalls)
+	b.embeddingCalls = slices.Clone(embeddingCalls)
 }
 
 // addChild registers a child process so its Usage() rolls up.
-func (b *processBudget) addChild(child *AgentProcess) {
+func (b *processBudget) addChild(child *Process) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.children = append(b.children, child)
@@ -83,14 +84,14 @@ func (b *processBudget) addChild(child *AgentProcess) {
 // fails) and is unregistered: without this the parent's children slice keeps a
 // stale reference for the parent's whole life. (The stale child contributes 0
 // to usage since it never ran, so this is a leak fix, not an accounting fix.)
-func (b *processBudget) removeChild(child *AgentProcess) {
+func (b *processBudget) removeChild(child *Process) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.children = slices.DeleteFunc(b.children, func(c *AgentProcess) bool { return c == child })
+	b.children = slices.DeleteFunc(b.children, func(candidate *Process) bool { return candidate == child })
 }
 
 // usage returns the subtree-aggregated totals plus this process's own
-// action count (passed in by AgentProcess.Usage which has the history).
+// action count (passed in by Process.Usage which has the history).
 func (b *processBudget) usage(ownActions int) (cost float64, tokens int, actions int) {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
@@ -100,36 +101,36 @@ func (b *processBudget) usage(ownActions int) (cost float64, tokens int, actions
 	actions = ownActions
 
 	for _, child := range b.children {
-		c, t, a := child.Usage()
-		cost += c
-		tokens += t
-		actions += a
+		childCost, childTokens, childActions := child.Usage()
+		cost += childCost
+		tokens += childTokens
+		actions += childActions
 	}
 	return
 }
 
-// llmHistory returns the subtree-aggregated LLM invocation history.
+// modelCallHistory returns the subtree-aggregated model call history.
 // The result is a fresh slice; the caller may sort or filter freely
 // without affecting future Record* calls.
-func (b *processBudget) llmHistory() []core.LLMInvocation {
+func (b *processBudget) modelCallHistory() []core.ModelCall {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 
-	out := slices.Clone(b.llmInvocations)
+	history := slices.Clone(b.modelCalls)
 	for _, child := range b.children {
-		out = append(out, child.LLMInvocations()...)
+		history = append(history, child.ModelCalls()...)
 	}
-	return out
+	return history
 }
 
-// embeddingHistory mirrors llmHistory for embeddings.
-func (b *processBudget) embeddingHistory() []core.EmbeddingInvocation {
+// embeddingCallHistory mirrors modelCallHistory for embeddings.
+func (b *processBudget) embeddingCallHistory() []core.EmbeddingCall {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 
-	out := slices.Clone(b.embeddingInvocations)
+	history := slices.Clone(b.embeddingCalls)
 	for _, child := range b.children {
-		out = append(out, child.EmbeddingInvocations()...)
+		history = append(history, child.EmbeddingCalls()...)
 	}
-	return out
+	return history
 }

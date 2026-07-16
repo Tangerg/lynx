@@ -15,14 +15,14 @@ import (
 // the chat history Store abstraction, keeping the session struct thin.
 //
 // Sessions are persisted via [SessionStore]; the in-memory reference
-// implementation ([NewInMemorySessionStore]) ships in this package.
+// implementation ([NewMemorySessionStore]) ships in this package.
 // Production deployments wire a persistent backend (postgres / redis
 // / mongo / ...) under the same interface.
 type Session struct {
 	// ID uniquely identifies the conversation. Doubles as the
 	// chat history conversation id so message
 	// history flows through without separate plumbing.
-	ID string
+	ID string `json:"id"`
 
 	// ParentID links a child session to the one that spawned it. A
 	// sub-agent (e.g. a subtask delegation) runs under its OWN session —
@@ -30,31 +30,57 @@ type Session struct {
 	// the parent's session id here so the delegation lineage is preserved.
 	// Empty for a root session. The runtime stamps it when spawning a child
 	// process under a parent that has a conversation (see the spawn path).
-	ParentID string
+	ParentID string `json:"parent_id,omitempty"`
 
 	// UserID identifies the principal driving the conversation.
 	// Optional — present for multi-tenant deployments / audit
 	// trails / RBAC; absent for anonymous / single-user use.
-	UserID string
+	UserID string `json:"user_id,omitempty"`
 
 	// AgentName binds the session to a specific agent definition.
-	// [Platform.RunInSession] uses this to dispatch new turns when
+	// [Engine.RunInSession] uses this to dispatch new turns when
 	// the caller doesn't supply an agent explicitly.
-	AgentName string
+	AgentName string `json:"agent_name"`
 
 	// StartedAt is the wall-clock time of session creation.
-	StartedAt time.Time
+	StartedAt time.Time `json:"started_at"`
 
 	// UpdatedAt is the wall-clock time of the most recent activity
-	// ([Platform.RunInSession] refreshes this on every turn).
-	UpdatedAt time.Time
+	// ([Engine.RunInSession] refreshes this on every turn).
+	UpdatedAt time.Time `json:"updated_at"`
 
 	// Metadata carries free-form annotations the application
 	// wants to associate with the session (channel name, locale,
 	// preference flags, etc.). The runtime treats this as
 	// opaque — backends marshal it via [encoding/json], so only
 	// JSON-friendly values round-trip.
-	Metadata map[string]any
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+
+// SessionInfo is the immutable identity/audit subset actions may inspect.
+// Mutable host metadata and the Session pointer itself stay outside
+// ProcessContext so an action cannot rewrite routing or persistence state.
+type SessionInfo struct {
+	ID        string
+	ParentID  string
+	UserID    string
+	AgentName string
+	StartedAt time.Time
+	UpdatedAt time.Time
+}
+
+func sessionInfo(session *Session) (SessionInfo, bool) {
+	if session == nil {
+		return SessionInfo{}, false
+	}
+	return SessionInfo{
+		ID:        session.ID,
+		ParentID:  session.ParentID,
+		UserID:    session.UserID,
+		AgentName: session.AgentName,
+		StartedAt: session.StartedAt,
+		UpdatedAt: session.UpdatedAt,
+	}, true
 }
 
 // NewSession builds a session with sensible defaults — the caller's id
@@ -62,7 +88,7 @@ type Session struct {
 // timestamps are set to now. The Metadata map is allocated so callers
 // can write without nil-checking.
 func NewSession(id, userID, agentName string) Session {
-	now := Now()
+	now := time.Now()
 	return Session{
 		ID:        id,
 		UserID:    userID,
@@ -73,36 +99,20 @@ func NewSession(id, userID, agentName string) Session {
 	}
 }
 
-// ConversationID derives a process's chat history conversation key: the
-// multi-turn [Session.ID] when the process runs under a session,
-// otherwise the process ID. The fallback gives ordinary process calls a
-// stable history partition without serializing runtime scope into the
-// provider request. A child agent (e.g. a subtask delegation) runs under its own
-// session (its process id), so it gets an isolated conversation while
-// [Session.ParentID] preserves the lineage. This is the single source
-// of the rule — both ProcessContext call scoping and the runtime's
-// child-session linking derive through it.
-func ConversationID(options *ProcessOptions, processID string) string {
-	if options != nil && options.Session != nil && options.Session.ID != "" {
-		return options.Session.ID
-	}
-	return processID
-}
-
-// Touch refreshes [Session.UpdatedAt] to now. [Platform.RunInSession]
+// Touch refreshes [Session.UpdatedAt] to now. [Engine.RunInSession]
 // calls this on every successful dispatch so callers can rely on
 // UpdatedAt as the last-activity timestamp.
 func (s *Session) Touch() {
 	if s == nil {
 		return
 	}
-	s.UpdatedAt = Now()
+	s.UpdatedAt = time.Now()
 }
 
 // SessionStore is the persistence SPI for [Session] records. The
 // shape mirrors [ProcessStore]: Save / Load / Delete / List. The
 // in-memory reference implementation lives in
-// [InMemorySessionStore]; persistent backends are the caller's to
+// [MemorySessionStore]; persistent backends are the caller's to
 // supply behind the same interface.
 //
 // All methods are expected to be safe for concurrent use.

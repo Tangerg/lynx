@@ -8,24 +8,23 @@ import (
 )
 
 var (
-	_ processStarter  = (*agentruntime.Platform)(nil)
-	_ processRestorer = (*agentruntime.Platform)(nil)
-	_ processControl  = (*agentruntime.Platform)(nil)
+	_ processStarter  = (*agentruntime.Engine)(nil)
+	_ processRestorer = (*agentruntime.Engine)(nil)
+	_ processControl  = (*agentruntime.Engine)(nil)
 )
 
 type processStarter interface {
-	StartAgent(context.Context, *core.Agent, map[string]any, core.ProcessOptions) (*agentruntime.AgentProcess, <-chan error)
+	Start(context.Context, *core.Agent, map[string]any, core.ProcessOptions) (*agentruntime.Process, <-chan error)
 }
 
 type processRestorer interface {
-	RestoreProcess(context.Context, string, core.ProcessOptions) (*agentruntime.AgentProcess, error)
-	ContinueProcess(context.Context, string) error
+	Restore(context.Context, string, core.ProcessOptions) (*agentruntime.Process, error)
 }
 
 type processControl interface {
-	KillProcess(string) error
-	ResumeProcess(string, any) (core.ResponseImpact, error)
-	ContinueProcessAsync(context.Context, string) <-chan error
-	RemoveProcess(string) error
+	Kill(string) error
+	Resume(string, string, any) error
+	ContinueAsync(context.Context, string) <-chan error
+	Remove(string) error
 	ProcessStore() core.ProcessStore
 }

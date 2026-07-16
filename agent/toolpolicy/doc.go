@@ -1,4 +1,4 @@
-// Package toolpolicy ships `tools.Tool` decorators that enforce
+// Package toolpolicy ships `tools.Tool` toolMiddleware that enforce
 // LLM-tool-loop policies — OneShotPerLoop, Playbook with
 // UnlockCondition, and similar patterns.
 //
@@ -9,15 +9,15 @@
 //	if err != nil { /* handle */ }
 //	tool, err := toolpolicy.Unlocked(once,
 //	    func(ctx context.Context, arguments string) (bool, string) {
-//	        if p := core.ProcessFrom(ctx); p != nil && approved(p) {
+//	        if p := core.ProcessViewFrom(ctx); p != nil && approved(p) {
 //	            return true, ""
 //	        }
 //	        return false, "awaiting approval"
 //	    },
 //	)
 //
-// The decorators rely only on [context.Context] for state; they do not
+// The toolMiddleware rely only on [context.Context] for state; they do not
 // require a parent process to function (though
-// [Unlocked]'s condition typically inspects [core.ProcessFrom] for
+// [Unlocked]'s condition typically inspects [core.ProcessViewFrom] for
 // blackboard access). Both are goroutine-safe.
 package toolpolicy

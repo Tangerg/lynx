@@ -14,14 +14,14 @@ import (
 )
 
 // TestStubEngineDrivesTurn — confirms the turn dispatcher runs a full
-// turn against a stub engine, no real platform involved. If turn
+// turn against a stub engine, no real engine involved. If turn
 // ever regrows a hard *agentexec.Engine dependency, this test stops
 // compiling.
 func TestStubEngineDrivesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "hello from stub"}
 
-	svc := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-1",
 		Message:   "hi",
 	})
@@ -31,7 +31,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, err := svc.Events(ctx, handle)
+	events, err := dispatcher.Events(ctx, handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -64,21 +64,21 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 // after the drain loop is race-free.
 func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 	stub := &stubEngine{runReply: "done"}
-	svc := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "hi"})
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := svc.Events(ctx, handle)
+	events, _ := dispatcher.Events(ctx, handle)
 	for range events { //nolint:revive // drain to terminal (channel closes after endTurn)
 	}
-	proc := stub.lastProc.Load()
-	if proc == nil {
+	process := stub.lastProcess.Load()
+	if process == nil {
 		t.Fatal("stub engine never produced a process")
 	}
-	if !proc.discarded.Load() {
+	if !process.discarded.Load() {
 		t.Error("process not discarded at terminal teardown — snapshot would leak")
 	}
 }
@@ -89,9 +89,9 @@ func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 // "model finished".
 func TestStubEngineBudgetStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopOnBudget: true}
-	svc := mustTurn(turn.New(turnDeps(stub)))
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "go",
 		MaxBudget: 1,
@@ -101,7 +101,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := svc.Events(ctx, handle)
+	events, _ := dispatcher.Events(ctx, handle)
 
 	for ev := range events {
 		if end, ok := ev.(turn.TurnEnd); ok {
@@ -118,19 +118,19 @@ func TestStubEngineBudgetStop(t *testing.T) {
 // turn without needing a real engine.
 func TestStubEngineCancelsCleanly(t *testing.T) {
 	stub := &slowStubEngine{}
-	svc := mustTurn(turn.New(turnDeps(stub)))
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "m",
 	})
-	if err := svc.Cancel(context.Background(), handle); err != nil {
+	if err := dispatcher.Cancel(context.Background(), handle); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, err := svc.Events(ctx, handle)
+	events, err := dispatcher.Events(ctx, handle)
 	if err != nil {
 		// Cancel raced ahead and tore the turn down (parked-turn teardown, or
 		// the drive goroutine finishing) before we subscribed — Events then
@@ -155,12 +155,12 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 // decision and streams the continuation on the already-observable handle.
 func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply"}
-	svc := mustTurn(turn.New(turnDeps(stub)))
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := svc.Rehydrate(context.Background(), turn.RehydrateRequest{
+	handle, err := dispatcher.Rehydrate(context.Background(), turn.RehydrateRequest{
 		SessionID: "sess-restored",
 		TurnID:    "turn-original",
-		ProcessID: "proc-42",
+		ProcessID: "process-42",
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
@@ -174,11 +174,11 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, err := svc.Events(ctx, handle)
+	events, err := dispatcher.Events(ctx, handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	if err := svc.Resume(ctx, handle, interrupts.Resolution{Approved: true}, nil); err != nil {
+	if err := dispatcher.Resume(ctx, handle, interrupts.Resolution{Approved: true}, nil); err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
 	var sawDelta, sawEnd bool
@@ -206,21 +206,21 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 // Resume emits ErrorEvent + TurnEnd before returning its error.
 func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	stub := &stubEngine{runReply: "x", restoreResumeErr: errors.New("resume boom")}
-	svc := mustTurn(turn.New(turnDeps(stub)))
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := svc.Rehydrate(context.Background(), turn.RehydrateRequest{
+	handle, err := dispatcher.Rehydrate(context.Background(), turn.RehydrateRequest{
 		SessionID: "sess-restored",
 		TurnID:    "turn-original",
-		ProcessID: "proc-99",
+		ProcessID: "process-99",
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
 	}
-	events, err := svc.Events(context.Background(), handle)
+	events, err := dispatcher.Events(context.Background(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, nil); err == nil {
+	if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, nil); err == nil {
 		t.Fatal("Resume returned nil error despite the restored process failure")
 	}
 	var sawError, sawEnd bool
@@ -235,7 +235,7 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	if !sawError || !sawEnd {
 		t.Fatalf("terminal stream = error:%v end:%v, want both", sawError, sawEnd)
 	}
-	if _, evErr := svc.Events(context.Background(), handle); evErr == nil {
+	if _, evErr := dispatcher.Events(context.Background(), handle); evErr == nil {
 		t.Error("Events resolved a turn that should have been torn down")
 	}
 }
@@ -248,8 +248,8 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	sentinel, _ := chatclient.New(newCapturingModel())
 	resolver := &fakeResolver{client: sentinel}
 
-	svc := mustTurn(turn.New(turnDeps(stub, withClientResolver(resolver))))
-	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
+	dispatcher := mustTurn(turn.New(turnDeps(stub, withClientResolver(resolver))))
+	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",
 		Provider:  "some-provider",
@@ -260,7 +260,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := svc.Events(ctx, handle)
+	events, _ := dispatcher.Events(ctx, handle)
 	for range events { // drain to TurnEnd
 	}
 
@@ -281,8 +281,8 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 func TestStartTurn_PassesCwd(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 
-	svc := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",
 		Cwd:       "/work/project-a",
@@ -292,7 +292,7 @@ func TestStartTurn_PassesCwd(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := svc.Events(ctx, handle)
+	events, _ := dispatcher.Events(ctx, handle)
 	for range events { // drain to TurnEnd
 	}
 
@@ -308,8 +308,8 @@ func TestStartTurn_PassesOptions(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 	temp := 0.7
 
-	svc := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",
 		Options:   &corechat.Options{Temperature: &temp},
@@ -319,7 +319,7 @@ func TestStartTurn_PassesOptions(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := svc.Events(ctx, handle)
+	events, _ := dispatcher.Events(ctx, handle)
 	for range events { // drain to TurnEnd
 	}
 

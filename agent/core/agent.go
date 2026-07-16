@@ -3,26 +3,27 @@ package core
 import (
 	"errors"
 	"fmt"
-	"sync"
+	"slices"
 
 	"github.com/Masterminds/semver/v3"
 )
 
-// AgentConfig is the input to [NewAgent]: the scalar attributes plus
-// the action / goal / condition slices. The DSL [Builder] is a thin
-// façade that accumulates fields here and calls [NewAgent] on
-// [Builder.Build].
+// AgentConfig is the construction input for [NewAgent]. It is ordinary Go
+// configuration: callers may assemble it freely, while Agent takes a
+// defensive snapshot at construction.
 type AgentConfig struct {
 	// Name is the agent's identifier — required, unique within a
-	// Platform.
+	// Engine.
 	Name string
 
 	// Description is the human-readable summary surfaced in tracing
 	// and (when the agent is exposed externally) the LLM prompt.
 	Description string
 
-	// Version is the semver tag. Nil → 1.0.0.
-	Version *semver.Version
+	// Version is an optional semantic version. Empty means the definition is
+	// unversioned; durable runtimes then require a Host BuildID. Validation is
+	// owned by Agent so callers do not need semver types in configuration.
+	Version string
 
 	// StuckPolicy is the recovery hook fired when the planner
 	// returns no plan. Nil → transition to StatusStuck.
@@ -40,107 +41,167 @@ type AgentConfig struct {
 
 	// PlannerName selects which planner the runtime uses for this
 	// agent. It must match the [Extension.Name] of a planner
-	// registered on the platform (or via process-scope
+	// registered on the engine (or via process-scope
 	// [ProcessOptions.Extensions]). Empty → framework default
 	// ("goap"). Built-in names: "goap", "htn", "reactive".
 	PlannerName string
 }
 
-var defaultVersion = semver.MustParse("1.0.0")
-
-// Agent is the deployable bundle the planner reasons over. The configured
-// state is held verbatim via the embedded [AgentConfig]; the trailing
-// field is a runtime-only cache populated lazily on first use.
-//
-// Agent is deliberately small — orchestration knobs live in
-// [ProcessOptions], runtime state lives in [AgentProcess].
+// Agent is a read-only definition aggregate. Configuration remains transparent
+// through AgentConfig, but a constructed Agent owns its identity, capability
+// set, validation, and derived planning behavior. Runtime state belongs to
+// Process and deployment identity belongs to runtime.Deployment.
 type Agent struct {
-	AgentConfig
-
-	// knownConditions is the lazily-computed condition-key cache.
-	// Initialized by [NewAgent] via [sync.OnceValue]; subsequent
-	// [Agent.KnownConditions] calls are a single function call.
-	knownConditions func() map[string]struct{}
+	config AgentConfig
 }
 
-// NewAgent assembles a fresh agent from config. Slice fields are
-// stored by reference; callers shouldn't mutate them afterwards.
-// nil config is treated as a zero-value config (no actions / goals).
+// NewAgent constructs a read-only definition from config. Slice fields and the
+// semantic version are copied. Executable Action and Condition implementations
+// remain referenced as SPI values; Engine deployment snapshots their
+// planner-visible metadata before execution.
 func NewAgent(config AgentConfig) *Agent {
-	if config.Version == nil {
-		config.Version = defaultVersion
+	return &Agent{config: cloneAgentConfig(config)}
+}
+
+func cloneAgentConfig(config AgentConfig) AgentConfig {
+	config.Actions = slices.Clone(config.Actions)
+	config.Goals = slices.Clone(config.Goals)
+	config.Conditions = slices.Clone(config.Conditions)
+	return config
+}
+
+// Name returns the deployment name of the definition.
+func (a *Agent) Name() string {
+	if a == nil {
+		return ""
 	}
-	a := &Agent{AgentConfig: config}
-	a.knownConditions = sync.OnceValue(func() map[string]struct{} {
-		return KnownConditions(a.Actions, a.Goals, a.Conditions)
-	})
-	return a
+	return a.config.Name
 }
 
-// KnownConditions enumerates every condition key this agent can refer to —
-// the union of action.preconditions/effects keys, goal preconditions, and
-// named Condition.Name() values. The world-state determiner asks for this
-// list so it can decide what to evaluate during the observe phase.
-//
-// Result is cached after first call (Agent is immutable post-construction).
-func (a *Agent) KnownConditions() map[string]struct{} {
-	return a.knownConditions()
+// Description returns the human-readable purpose of the definition.
+func (a *Agent) Description() string {
+	if a == nil {
+		return ""
+	}
+	return a.config.Description
 }
 
-// Validate checks structural invariants that must hold for any
-// runnable agent: a non-empty name, at least one action, at least one
-// goal, and unique action / goal names within the agent. Goal
-// reachability is a separate, coarser invariant — see
-// [Agent.CheckGoalsReachable]; the deploy path runs both.
+// Version returns the optional semantic version string.
+func (a *Agent) Version() string {
+	if a == nil {
+		return ""
+	}
+	return a.config.Version
+}
+
+// StuckPolicy returns the recovery policy for a planless process.
+func (a *Agent) StuckPolicy() StuckPolicy {
+	if a == nil {
+		return nil
+	}
+	return a.config.StuckPolicy
+}
+
+// Actions returns a snapshot of the planner-visible action set.
+func (a *Agent) Actions() []Action {
+	if a == nil {
+		return nil
+	}
+	return slices.Clone(a.config.Actions)
+}
+
+// Goals returns a snapshot of the definition's immutable goals.
+func (a *Agent) Goals() []*Goal {
+	if a == nil {
+		return nil
+	}
+	return slices.Clone(a.config.Goals)
+}
+
+// Conditions returns a snapshot of the definition's condition implementations.
+func (a *Agent) Conditions() []Condition {
+	if a == nil {
+		return nil
+	}
+	return slices.Clone(a.config.Conditions)
+}
+
+// PlannerName returns the requested planner extension name. Empty means the
+// framework default.
+func (a *Agent) PlannerName() string {
+	if a == nil {
+		return ""
+	}
+	return a.config.PlannerName
+}
+
+// Validate checks all built-in invariants required by deployment: identity,
+// unique capabilities, retry safety, and conservative goal reachability.
 //
 // Distinct from the [AgentValidator] extension SPI: this is the
 // framework's built-in structural check on the entity itself; an
 // AgentValidator adds caller-defined deploy-time rules on top.
 //
-// Returns the first violation found; nil when the agent is well-formed.
-// The intent is fail-fast at deploy time rather than at first tick.
+// Independent violations are joined so one deployment attempt reports the
+// complete definition problem set.
 func (a *Agent) Validate() error {
 	if a == nil {
 		return errors.New("agent.Agent.Validate: invalid agent: agent is nil")
 	}
-	if a.Name == "" {
-		return errors.New("agent.Agent.Validate: invalid agent: name is empty")
+	var problems []error
+	if a.Name() == "" {
+		problems = append(problems, errors.New("agent.Agent.Validate: invalid agent: name is empty"))
+	}
+	if a.Version() != "" {
+		if _, err := semver.NewVersion(a.Version()); err != nil {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: version %q: %w", a.Name(), a.Version(), err))
+		}
 	}
 
-	type item struct {
+	type namedCollection struct {
 		kind    string
 		name    func(int) (string, bool) // (name, isNil)
 		count   int
 		require bool
 	}
-	for _, it := range []item{
-		{"action", func(i int) (string, bool) {
-			if a.Actions[i] == nil {
+	for _, collection := range []namedCollection{
+		{"action", func(index int) (string, bool) {
+			if a.config.Actions[index] == nil {
 				return "", true
 			}
-			return a.Actions[i].Metadata().Name, false
-		}, len(a.Actions), true},
-		{"goal", func(i int) (string, bool) {
-			if a.Goals[i] == nil {
+			return a.config.Actions[index].Metadata().Name, false
+		}, len(a.config.Actions), true},
+		{"goal", func(index int) (string, bool) {
+			if a.config.Goals[index] == nil {
 				return "", true
 			}
-			return a.Goals[i].Name, false
-		}, len(a.Goals), true},
-		{"condition", func(i int) (string, bool) {
-			if a.Conditions[i] == nil {
+			return a.config.Goals[index].Name(), false
+		}, len(a.config.Goals), true},
+		{"condition", func(index int) (string, bool) {
+			if a.config.Conditions[index] == nil {
 				return "", true
 			}
-			return a.Conditions[i].Name(), false
-		}, len(a.Conditions), false},
+			return a.config.Conditions[index].Name(), false
+		}, len(a.config.Conditions), false},
 	} {
-		if err := validateUniqueNamed(a.Name, it.kind, it.count, it.name, it.require); err != nil {
-			return err
+		if err := validateUniqueNamed(a.Name(), collection.kind, collection.count, collection.name, collection.require); err != nil {
+			problems = append(problems, err)
 		}
 	}
-	return nil
+	for _, action := range a.config.Actions {
+		if action == nil {
+			continue
+		}
+		metadata := action.Metadata()
+		if err := metadata.Retry.validate(); err != nil {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: action %q retry policy: %w", a.Name(), metadata.Name, err))
+		}
+	}
+	problems = append(problems, a.goalReachabilityErrors()...)
+	return errors.Join(problems...)
 }
 
-// CheckGoalsReachable does a conservative one-step producer scan: for
+// goalReachabilityErrors does a conservative one-step producer scan: for
 // every condition each goal requires, verify that either an action's
 // effects can establish it OR an action's input binding looks like
 // it (input bindings are externally supplied via process bindings +
@@ -154,28 +215,41 @@ func (a *Agent) Validate() error {
 // has no bindings. We accept the false-negative tradeoff so
 // legitimate input-driven agents can deploy. Nil actions/goals are
 // skipped here; [Agent.Validate] reports those separately.
-func (a *Agent) CheckGoalsReachable() []error {
+func (a *Agent) goalReachabilityErrors() []error {
 	if a == nil {
 		return nil
 	}
 	producible := map[string]struct{}{}
-	for _, action := range a.Actions {
+	for _, action := range a.config.Actions {
 		if action == nil {
 			continue
 		}
-		meta := action.Metadata()
-		for key, value := range meta.Effects {
+		metadata := action.Metadata()
+		for key, value := range metadata.Effects {
 			if value == True {
 				producible[key] = struct{}{}
 			}
 		}
-		for _, in := range meta.Inputs {
-			producible[in.String()] = struct{}{}
+		for _, input := range metadata.Inputs {
+			producible[input.String()] = struct{}{}
+		}
+	}
+	for _, condition := range a.config.Conditions {
+		if condition != nil && condition.Name() != "" {
+			producible[condition.Name()] = struct{}{}
+		}
+	}
+	for _, goal := range a.config.Goals {
+		if goal == nil {
+			continue
+		}
+		for _, input := range goal.Inputs() {
+			producible[input.String()] = struct{}{}
 		}
 	}
 
 	var problems []error
-	for _, goal := range a.Goals {
+	for _, goal := range a.config.Goals {
 		if goal == nil {
 			continue
 		}
@@ -185,8 +259,8 @@ func (a *Agent) CheckGoalsReachable() []error {
 			}
 			if _, ok := producible[key]; !ok {
 				problems = append(problems, fmt.Errorf(
-					"agent.Agent.CheckGoalsReachable: goal %q requires condition %q, but no action produces it",
-					goal.Name, key,
+					"agent.Agent.Validate: goal %q requires condition %q, but no action produces it",
+					goal.Name(), key,
 				))
 			}
 		}
@@ -218,41 +292,4 @@ func validateUniqueNamed(
 		seen[name] = struct{}{}
 	}
 	return nil
-}
-
-// KnownConditions is the pure builder reused by Agent and
-// planning.System caches: union of action precondition / effect keys,
-// goal precondition keys, and named-Condition names.
-func KnownConditions(actions []Action, goals []*Goal, conditions []Condition) map[string]struct{} {
-	out := map[string]struct{}{}
-
-	for _, action := range actions {
-		if action == nil {
-			continue
-		}
-		meta := action.Metadata()
-		for key := range meta.Preconditions {
-			out[key] = struct{}{}
-		}
-		for key := range meta.Effects {
-			out[key] = struct{}{}
-		}
-	}
-
-	for _, goal := range goals {
-		if goal == nil {
-			continue
-		}
-		for key := range goal.Preconditions() {
-			out[key] = struct{}{}
-		}
-	}
-
-	for _, condition := range conditions {
-		if condition == nil {
-			continue
-		}
-		out[condition.Name()] = struct{}{}
-	}
-	return out
 }

@@ -16,8 +16,8 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	ctx := context.Background()
 	appr := approval.New(approval.ModeSafe, approvaltest.NewMemoryStore()) // shell gates → would prompt
 	obs := &turnObserver{
-		svc: &inMemory{approval: appr},
-		st:  &turnState{handle: TurnHandle{SessionID: "s1"}},
+		dispatcher: &memoryDispatcher{approval: appr},
+		st:         &turnState{handle: TurnHandle{SessionID: "s1"}},
 	}
 
 	// Remembered allow → verdict runs (no interrupt, not denied).
@@ -46,7 +46,7 @@ func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	ctx := context.Background()
 	appr := approval.New(approval.ModeSafe, approvaltest.NewMemoryStore()) // unknown tool → exec → would prompt
 	obs := &turnObserver{
-		svc: &inMemory{
+		dispatcher: &memoryDispatcher{
 			approval:            appr,
 			mcpToolAutoApproved: func(name string) bool { return name == "srv_read" },
 		},

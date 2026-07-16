@@ -18,12 +18,11 @@ const (
 	ToolRoleSubtask = "subtask"
 )
 
-// ToolResolver is the tool-group resolver the engine needs from the outer tool
-// capability adapter. The task tool is built by the engine because it spawns
-// sub-agents on the engine's platform, then injected back into the resolver.
+// ToolResolver resolves role-specific tool groups and accepts the task tool
+// that can only be built after the agent engine exists.
 type ToolResolver interface {
 	core.ToolGroupResolver
-	SetTask(tools.Tool)
+	UseTaskTool(tools.Tool)
 }
 
 // MCPStatusReader reads live status for configured MCP servers.
@@ -45,7 +44,7 @@ type MCPConnectionCommands interface {
 
 // MCPRegistryCommands probes and applies live MCP server registry changes.
 type MCPRegistryCommands interface {
-	Probe(ctx context.Context, cfg mcpserver.LiveConfig) error
-	Configure(ctx context.Context, cfg mcpserver.LiveConfig) error
+	Probe(ctx context.Context, config mcpserver.LiveConfig) error
+	Configure(ctx context.Context, config mcpserver.LiveConfig) error
 	Remove(ctx context.Context, name string)
 }

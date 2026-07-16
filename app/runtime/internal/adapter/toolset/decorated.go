@@ -8,7 +8,7 @@ import (
 )
 
 // wrapTool returns a Tool that runs call while preserving inner's Definition
-// — the shared spine of the tool decorators (read/edit guards, post-edit
+// — the shared spine of the tool toolMiddleware (read/edit guards, post-edit
 // diagnostics). It also forwards inner's optional tool-loop declarations so a
 // keyed file tool's per-path conflict class and return-direct policy survive
 // the whole decorator stack.
@@ -18,7 +18,7 @@ func wrapTool(inner tools.Tool, call func(ctx context.Context, arguments string)
 
 // decoratedTool is the backing type for [wrapTool]: it overrides Call while
 // delegating Definition plus optional tool-loop declarations to the wrapped
-// tool, so a stack of decorators preserves the inner tool's full contract.
+// tool, so a stack of toolMiddleware preserves the inner tool's full contract.
 type decoratedTool struct {
 	inner tools.Tool
 	call  func(ctx context.Context, arguments string) (string, error)

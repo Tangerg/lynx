@@ -66,69 +66,69 @@ func (t *downloadTool) Definition() chat.ToolDefinition {
 }
 
 func (t *downloadTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
-	var req downloadRequest
-	_ = json.Unmarshal([]byte(arguments), &req)
-	return req.FilePath, true
+	var request downloadRequest
+	_ = json.Unmarshal([]byte(arguments), &request)
+	return request.FilePath, true
 }
 
 func (t *downloadTool) MutatedPaths(arguments string) ([]string, error) {
-	var req downloadRequest
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
+	var request downloadRequest
+	if err := json.Unmarshal([]byte(arguments), &request); err != nil {
 		return nil, err
 	}
-	if req.FilePath == "" {
+	if request.FilePath == "" {
 		return nil, nil
 	}
-	return []string{req.FilePath}, nil
+	return []string{request.FilePath}, nil
 }
 
 func (t *downloadTool) Call(ctx context.Context, arguments string) (string, error) {
-	var req downloadRequest
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
+	var request downloadRequest
+	if err := json.Unmarshal([]byte(arguments), &request); err != nil {
 		return "", fmt.Errorf("download: parse arguments: %w", err)
 	}
-	if req.FilePath == "" {
+	if request.FilePath == "" {
 		return "", errors.New("download: file_path must not be empty")
 	}
-	u, err := parseDownloadURL(req.URL)
+	parsedURL, err := parseDownloadURL(request.URL)
 	if err != nil {
 		return "", err
 	}
-	host := u.Hostname()
+	host := parsedURL.Hostname()
 	if !t.allow.Allows(host) {
 		return "", fmt.Errorf("download: host %q is not in the allowlist", host)
 	}
-	maxBytes := req.MaxBytes
+	maxBytes := request.MaxBytes
 	if maxBytes <= 0 {
 		maxBytes = defaultDownloadMaxBytes
 	}
-	path := resolveAbs(t.workdir, req.FilePath)
-	if !req.Overwrite {
-		if err := checkDownloadTarget(path, req.FilePath); err != nil {
+	path := resolveAbs(t.workdir, request.FilePath)
+	if !request.Overwrite {
+		if err := checkDownloadTarget(path, request.FilePath); err != nil {
 			return "", err
 		}
 	}
 
-	resp, err := t.client.R().SetContext(ctx).SetDoNotParseResponse(true).Get(u.String())
+	response, err := t.client.R().SetContext(ctx).SetDoNotParseResponse(true).Get(parsedURL.String())
 	if err != nil {
 		return "", fmt.Errorf("download: %w", err)
 	}
-	body := resp.RawBody()
+	body := response.RawBody()
 	defer body.Close()
-	if resp.StatusCode() < 200 || resp.StatusCode() >= 300 {
-		return "", fmt.Errorf("download: GET %s returned %s", u.Redacted(), resp.Status())
+	if response.StatusCode() < 200 || response.StatusCode() >= 300 {
+		return "", fmt.Errorf("download: GET %s returned %s", parsedURL.Redacted(), response.Status())
 	}
-	if cl := resp.RawResponse.ContentLength; cl > maxBytes {
-		return "", fmt.Errorf("download: response is %d bytes, over max_bytes=%d", cl, maxBytes)
+	if contentLength := response.RawResponse.ContentLength; contentLength > maxBytes {
+		return "", fmt.Errorf("download: response is %d bytes, over max_bytes=%d", contentLength, maxBytes)
 	}
-	n, err := writeDownloadedFile(path, req.FilePath, body, maxBytes, req.Overwrite)
+	bytesWritten, err := writeDownloadedFile(path, request.FilePath, body, maxBytes, request.Overwrite)
 	if err != nil {
 		return "", err
 	}
 	out, err := json.Marshal(downloadResponse{
-		FilePath:    req.FilePath,
-		Bytes:       n,
-		ContentType: resp.Header().Get("Content-Type"),
+		FilePath:    request.FilePath,
+		Bytes:       bytesWritten,
+		ContentType: response.Header().Get("Content-Type"),
 	})
 	if err != nil {
 		return "", fmt.Errorf("download: marshal: %w", err)
@@ -140,17 +140,17 @@ func parseDownloadURL(raw string) (*url.URL, error) {
 	if strings.TrimSpace(raw) == "" {
 		return nil, errors.New("download: url must not be empty")
 	}
-	u, err := url.Parse(raw)
+	parsedURL, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("download: invalid url: %w", err)
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("download: unsupported scheme %q", u.Scheme)
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return nil, fmt.Errorf("download: unsupported scheme %q", parsedURL.Scheme)
 	}
-	if u.Host == "" {
+	if parsedURL.Host == "" {
 		return nil, errors.New("download: url host must not be empty")
 	}
-	return u, nil
+	return parsedURL, nil
 }
 
 func checkDownloadTarget(path, displayPath string) error {

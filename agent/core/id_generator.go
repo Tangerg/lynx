@@ -1,0 +1,28 @@
+package core
+
+import "github.com/google/uuid"
+
+// IDGenerator produces stable, unique IDs for processes. It also acts as an
+// engine-level [Extension] — the runtime registers one through
+// Config.Extensions and falls back to a built-in UUID generator
+// when none is registered.
+type IDGenerator interface {
+	Extension
+
+	Next() string
+}
+
+// UUIDGenerator generates UUIDv4 process IDs.
+type UUIDGenerator struct{ name string }
+
+// NewUUIDGenerator returns the default UUID-v4 generator with the
+// supplied extension Name (defaults to "uuid" when blank).
+func NewUUIDGenerator(name string) *UUIDGenerator {
+	if name == "" {
+		name = "uuid"
+	}
+	return &UUIDGenerator{name: name}
+}
+
+func (g *UUIDGenerator) Name() string { return g.name }
+func (*UUIDGenerator) Next() string   { return uuid.NewString() }

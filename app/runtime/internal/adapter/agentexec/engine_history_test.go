@@ -9,14 +9,14 @@ import (
 )
 
 // TestEngine_RunChat_PersistsProcessSnapshot verifies the persistence
-// conduit: when a ProcessStore is configured, the platform auto-snapshots
+// conduit: when a ProcessStore is configured, the engine auto-snapshots
 // the turn's agent process, and the persisted snapshot reflects the
 // completed turn. No store means no persistence (covered by every other test
 // constructing the engine without one).
 func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
 	stub := newStreamingStubModel("done")
 	client, _ := chatclient.New(stub)
-	store := core.NewInMemoryProcessStore()
+	store := core.NewMemoryProcessStore()
 	eng, err := New(context.Background(), Config{ChatClient: client, ProcessStore: store})
 	if err != nil {
 		t.Fatal(err)

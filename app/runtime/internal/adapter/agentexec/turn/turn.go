@@ -2,8 +2,10 @@ package turn
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -15,20 +17,20 @@ import (
 
 // runTurn starts the turn's agent process and drives its first run
 // segment to a suspension point — a HITL interrupt (park) or a terminal
-// state. Later segments are driven by [inMemory.Resume] through the
+// state. Later segments are driven by [memoryDispatcher.Resume] through the
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
-func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
-	st.maxBudget = req.MaxBudget
-	st.maxCostUSD = req.MaxCostUSD
-	st.maxSteps = req.MaxSteps
+func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
+	st.maxBudget = request.MaxBudget
+	st.maxCostUSD = request.MaxCostUSD
+	st.maxSteps = request.MaxSteps
 	s.emit(st, TurnStart{Model: st.model})
 
 	// Resolve a per-turn client when the run picked a provider+model and a
-	// resolver is wired; no selection / no resolver runs on the platform's
+	// resolver is wired; no selection / no resolver runs on the engine's
 	// default client.
 	var client *chatclient.Client
-	if req.Provider != "" && req.Model != "" && s.resolver != nil {
-		c, err := s.resolver.ResolveClient(st.ctx, req.Provider, req.Model)
+	if request.Provider != "" && request.Model != "" && s.resolver != nil {
+		c, err := s.resolver.ResolveClient(st.ctx, request.Provider, request.Model)
 		if err != nil {
 			s.emit(st, ErrorEvent{Message: err.Error(), Code: "MODEL_UNAVAILABLE"})
 			s.finishTurn(st, execution.OutcomeError)
@@ -37,23 +39,23 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 		client = c
 	}
 
-	observer := &turnObserver{svc: s, st: st}
+	observer := &turnObserver{dispatcher: s, st: st}
 	st.lifecycle = &turnLifecycle{sessionID: st.handle.SessionID, cwd: st.cwd, hooks: st.hooks}
 	var options *chat.Options
-	if req.Options != nil {
-		copy := *req.Options
-		copy.Stop = append([]string(nil), req.Options.Stop...)
+	if request.Options != nil {
+		copy := *request.Options
+		copy.Stop = append([]string(nil), request.Options.Stop...)
 		options = &copy
 	}
-	proc := s.engine.StartTurn(st.ctx, agentexec.TurnRequest{
-		SessionID:     req.SessionID,
-		Message:       req.Message,
-		Provider:      req.Provider,
-		Media:         req.Media,
-		Cwd:           req.Cwd,
-		MaxBudget:     req.MaxBudget,
-		MaxCostUSD:    req.MaxCostUSD,
-		MaxSteps:      req.MaxSteps,
+	process := s.engine.StartTurn(st.ctx, agentexec.TurnRequest{
+		SessionID:     request.SessionID,
+		Message:       request.Message,
+		Provider:      request.Provider,
+		Media:         request.Media,
+		Cwd:           request.Cwd,
+		MaxBudget:     request.MaxBudget,
+		MaxCostUSD:    request.MaxCostUSD,
+		MaxSteps:      request.MaxSteps,
 		Options:       options,
 		ChatClient:    client,
 		Observer:      observer,
@@ -64,25 +66,25 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 	})
 	// Record the root process id so the lifecycle gate keeps subtask
 	// terminals (which fire first) from being mistaken for the turn's end.
-	st.lifecycle.setRoot(proc.ID())
-	st.setProc(proc)
+	st.lifecycle.setRoot(process.ID())
+	st.setProcess(process)
 
-	s.drive(st, proc.Done())
+	s.drive(st, process.Done())
 }
 
 // drive consumes one run segment's completion. When the process parks
 // on a HITL interrupt (StatusWaiting) it surfaces a [TurnInterrupted]
 // and leaves the turn registered (events channel open) for
-// [inMemory.Resume]. On a terminal state it drains steering, runs
+// [memoryDispatcher.Resume]. On a terminal state it drains steering, runs
 // post-turn maintenance on a clean finish, emits [TurnEnd], and tears
 // the turn down. doneCh is the segment's Done channel — the process's
 // for the first segment, the resume continuation's thereafter.
-func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
+func (s *memoryDispatcher) drive(st *turnState, doneCh <-chan error) {
 	runErr := <-doneCh
-	proc := st.process()
+	process := st.process()
 
-	if proc.Status() == core.StatusWaiting {
-		s.handleWaiting(st, proc)
+	if process.Status() == core.StatusWaiting {
+		s.handleWaiting(st, process)
 		return
 	}
 
@@ -95,30 +97,30 @@ func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
 	// MessageDelta events already streamed through the observer — no
 	// need to re-emit the assembled reply here.
 	s.completeTurn(st, func() {
-		s.emitTurnEnd(st, proc, st.lifecycle.terminalEvent(), runErr, time.Since(st.startedAt), st.ctx.Err())
+		s.emitTurnEnd(st, process, st.lifecycle.terminalEvent(), runErr, time.Since(st.startedAt), st.ctx.Err())
 	})
 }
 
 // handleWaiting decides what to do when the process parks at StatusWaiting. If
 // the pending interrupt's kind is one this turn's client can answer, it
-// surfaces it via [inMemory.emitInterrupt] and the turn waits for
-// [inMemory.Resume]. Otherwise the client could never answer it, so rather
+// surfaces it via [memoryDispatcher.emitInterrupt] and the turn waits for
+// [memoryDispatcher.Resume]. Otherwise the client could never answer it, so rather
 // than leave a deadlocked interrupt (API.md §6.2) the turn auto-denies and the
 // continuation runs to a real terminal.
-func (s *inMemory) handleWaiting(st *turnState, proc agentexec.TurnProcess) {
+func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnProcess) {
 	// Canceled while the process was parking: Cancel cancels st.ctx but skips
 	// killing a process that still read Running, so a turn that parks just
 	// afterwards lands here with a dead ctx. Don't surface an interrupt nobody
 	// will answer — terminate the suspended process and emit the terminal.
 	if st.ctx.Err() != nil {
-		_ = proc.Cancel()
+		_ = process.Cancel()
 		s.finishTurn(st, execution.OutcomeCanceled)
 		return
 	}
-	aw := proc.PendingAwaitable()
-	kind := interruptKind(aw)
-	if aw == nil || kind == "" || st.canSurface(kind) {
-		s.emitInterrupt(st, proc)
+	suspension := process.Suspension()
+	kind := interruptKind(suspension)
+	if suspension == nil || kind == "" || st.canSurface(kind) {
+		s.emitInterrupt(st, process)
 		return
 	}
 	// Client can't answer this kind — deliver a deny and drive the
@@ -130,27 +132,27 @@ func (s *inMemory) handleWaiting(st *turnState, proc agentexec.TurnProcess) {
 
 // emitInterrupt marks the turn parked and surfaces the pending HITL
 // request as a [TurnInterrupted] event. The turn stays registered with
-// its events channel open; [inMemory.Resume] drives the next segment.
-func (s *inMemory) emitInterrupt(st *turnState, proc agentexec.TurnProcess) {
-	aw := proc.PendingAwaitable()
+// its events channel open; [memoryDispatcher.Resume] drives the next segment.
+func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnProcess) {
+	suspension := process.Suspension()
 	if !st.parkIfLive() {
 		// Canceled between handleWaiting's top ctx check and here: don't surface
 		// an interrupt nobody will answer — terminate like the canceled path so
 		// the turn can't linger parked on a dead ctx. (handleWaiting's top check
 		// catches cancel-before-handleWaiting; this closes the cancel-during gap.)
-		_ = proc.Cancel()
+		_ = process.Cancel()
 		s.finishTurn(st, execution.OutcomeCanceled)
 		return
 	}
-	if aw == nil {
-		_ = proc.Cancel()
-		s.emit(st, ErrorEvent{Message: "agent process is waiting without an awaitable", Code: "ENGINE_ERROR"})
+	if suspension == nil {
+		_ = process.Cancel()
+		s.emit(st, ErrorEvent{Message: "agent process is waiting without a suspension", Code: "ENGINE_ERROR"})
 		s.finishTurn(st, execution.OutcomeError)
 		return
 	}
-	pending, ok := typedInterrupt(aw)
+	pending, ok := typedInterrupt(suspension)
 	if !ok {
-		_ = proc.Cancel()
+		_ = process.Cancel()
 		s.emit(st, ErrorEvent{Message: "agent process returned an unsupported interrupt payload", Code: "ENGINE_ERROR"})
 		s.finishTurn(st, execution.OutcomeError)
 		return
@@ -169,38 +171,45 @@ func (s *inMemory) emitInterrupt(st *turnState, proc agentexec.TurnProcess) {
 	}
 }
 
-// interruptKind classifies the pending awaitable into its wire interrupt kind
+// interruptKind classifies a suspension into its wire interrupt kind
 // (API.md §6). An [ApprovalPrompt] payload is a gated tool call ("approval");
 // anything else is a structured question (ask_user / exit_plan_mode), which
-// surfaces as a "question". Returns "" for a nil awaitable (treated as
+// surfaces as a "question". Returns "" for a nil suspension (treated as
 // surfaceable so the defensive empty-interrupt path in emitInterrupt still fires).
-func interruptKind(aw core.Awaitable) string {
-	if aw == nil {
+func interruptKind(suspension *agent.Suspension) string {
+	if suspension == nil {
 		return ""
 	}
-	switch aw.PromptAny().(type) {
-	case ApprovalPrompt, *ApprovalPrompt:
-		return "approval"
-	case interrupts.QuestionPrompt, *interrupts.QuestionPrompt:
-		return "question"
-	default:
+	pending, ok := typedInterrupt(suspension)
+	if !ok {
 		return ""
 	}
+	return string(pending.Kind)
 }
 
-func typedInterrupt(aw core.Awaitable) (Interrupt, bool) {
-	switch prompt := aw.PromptAny().(type) {
-	case ApprovalPrompt:
-		return Interrupt{Kind: ApprovalInterruptKind, Approval: &prompt}, true
-	case *ApprovalPrompt:
-		return Interrupt{Kind: ApprovalInterruptKind, Approval: prompt}, prompt != nil
-	case interrupts.QuestionPrompt:
-		return Interrupt{Kind: QuestionInterruptKind, Question: &prompt}, true
-	case *interrupts.QuestionPrompt:
-		return Interrupt{Kind: QuestionInterruptKind, Question: prompt}, prompt != nil
-	default:
+func typedInterrupt(suspension *agent.Suspension) (Interrupt, bool) {
+	if suspension == nil || !json.Valid(suspension.Prompt) {
 		return Interrupt{}, false
 	}
+	var shape map[string]json.RawMessage
+	if err := json.Unmarshal(suspension.Prompt, &shape); err != nil {
+		return Interrupt{}, false
+	}
+	if _, ok := shape["toolName"]; ok {
+		var prompt ApprovalPrompt
+		if err := json.Unmarshal(suspension.Prompt, &prompt); err != nil {
+			return Interrupt{}, false
+		}
+		return Interrupt{Kind: ApprovalInterruptKind, Approval: &prompt}, true
+	}
+	if _, ok := shape["questions"]; ok {
+		var prompt interrupts.QuestionPrompt
+		if err := json.Unmarshal(suspension.Prompt, &prompt); err != nil {
+			return Interrupt{}, false
+		}
+		return Interrupt{Kind: QuestionInterruptKind, Question: &prompt}, true
+	}
+	return Interrupt{}, false
 }
 
 // postTurnMaintenance runs the compact + (conditional) extract pair
@@ -218,7 +227,7 @@ func typedInterrupt(aw core.Awaitable) (Interrupt, bool) {
 // Fact extraction is gated on compaction firing: extraction is one
 // extra LLM call, so we amortize it onto the moments where the
 // runtime had to summarize anyway.
-func (s *inMemory) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
+func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
 	// PreCompact hooks fire from inside MaybeCompact — exactly when a compaction
 	// is committed (after its triggers + guards), never on a turn that won't
 	// compact. A hook may veto (Block) the compaction; observe-only otherwise.

@@ -2,49 +2,47 @@ package runtime
 
 import (
 	"context"
-
-	"github.com/Tangerg/lynx/agent/core"
+	"errors"
 )
 
-// SpawnChildAsync is the non-blocking spawn: it creates the child, binds the
-// typed input, and drives its OODA loop in the background via
-// [Platform.ContinueProcessAsync] — returning the child's process id (use it as
-// a task handle) and a done channel that fires the run's terminal error (nil on
-// clean exit) the moment the background loop exits.
+// StartChild starts a child in the background and returns immediately. Like
+// [Engine.RunChild], it copies only the parent's protected ambient state. The
+// returned channel receives the terminal run error, if any.
 //
-// The caller's tick is NOT blocked: the spawning action returns while the child
-// keeps running, and the result is collected later via [Platform.ProcessByID] +
-// [core.ResultOfType], or the child is canceled via [Platform.KillProcess] (=
-// SDK stopTask). The child joins the parent's budget tree (subtree usage still
-// counts against the parent's BudgetPolicy) and inherits the FULL parent
-// blackboard via Spawn.
-//
-// The background run uses [context.WithoutCancel] so the child survives the
-// spawning action's ctx ending — a background task whose parent action already
-// returned must not die just because that call frame is gone. It therefore has
-// NO deadline and is NOT auto-canceled when the parent ends; lifecycle is the
-// orchestrator's job via the returned id (KillProcess one, or
-// [Platform.KillChildren] to sweep all of a parent's outstanding children on
-// turn exit).
-//
-// nil platform / nil agent / missing parent in ctx return errors.
-func SpawnChildAsync(
+// The child outlives cancellation of the calling action. Callers own its
+// lifecycle through [Engine.Process], [Engine.Kill], or [Engine.KillChildren].
+func (e *Engine) StartChild(
 	ctx context.Context,
-	platform *Platform,
-	agentDef *core.Agent,
-	in any,
-) (string, <-chan error, error) {
-	spawn := childSpawn{
-		ctx:         ctx,
-		platform:    platform,
-		agentDef:    agentDef,
-		input:       in,
-		inheritance: childInheritsAll,
+	deployment *Deployment,
+	input any,
+) (*Process, <-chan error, error) {
+	if e == nil {
+		return nil, nil, errors.New("start child: engine is nil")
 	}
-	child, err := spawn.prepare()
+	deployment, err := e.ownedDeployment("start child", deployment)
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
-	done := platform.ContinueProcessAsync(context.WithoutCancel(ctx), child.ID())
-	return child.ID(), done, nil
+	return startChildDeployment(ctx, e, deployment, input)
+}
+
+func startChildDeployment(
+	ctx context.Context,
+	engine *Engine,
+	deployment *Deployment,
+	input any,
+) (*Process, <-chan error, error) {
+	run := childRun{
+		ctx:        ctx,
+		engine:     engine,
+		deployment: deployment,
+		input:      input,
+		mode:       childCopiesAmbientState,
+	}
+	child, err := run.create()
+	if err != nil {
+		return nil, nil, err
+	}
+	done := engine.ContinueAsync(context.WithoutCancel(ctx), child.ID())
+	return child, done, nil
 }

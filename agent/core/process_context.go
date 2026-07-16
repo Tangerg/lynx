@@ -2,116 +2,80 @@ package core
 
 import (
 	"context"
+	"errors"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
-
-	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
 
-// agentTracer is the framework-wide OTel tracer. We deliberately don't
-// expose a TracerProvider abstraction — callers configure OTel globally
-// (see doc/OBSERVABILITY.md) and the agent layer takes whatever's installed.
-var agentTracer = otel.Tracer("lynx/agent")
-
-// AgentTracer exposes the tracer for adapters that want to mint child spans
-// outside Action.Execute (e.g. event listeners building debug spans).
-func AgentTracer() trace.Tracer { return agentTracer }
-
-// ToolResolver is the callable the runtime installs so actions can convert
-// their declared [ToolGroupRequirement]s into concrete tools without
-// importing the runtime. The full requirement flows through (not just the
-// role) so the permission check at the resolver dispatch site sees the
-// privileges the action opted into — see [ToolGroupRequirement.Permissions].
-type ToolResolver func(ctx context.Context, requirements []ToolGroupRequirement) ([]tools.Tool, error)
-
-// ToolLoopRunner is the runtime capability PromptRunner consumes when a
-// request advertises executable tools. The agent core owns this narrow port;
-// runtime supplies the target Event Runner implementation.
-type ToolLoopRunner func(
-	ctx context.Context,
-	model chat.Model,
-	request *chat.Request,
-	registry *tools.Registry,
-	maxRounds int,
-) (string, error)
-
-// EventPublisher is the callable the runtime installs for actions to push
-// custom events through the multicast listener.
-type EventPublisher func(ctx context.Context, event any)
-
-// ToolCallCancelFunc is the runtime's hook for [ProcessContext.ToolCallContext].
-// It hands the runtime a cancel func tied to the in-flight tool call (so
-// [Process.TerminateToolCall] can fire it) and returns a release closure
-// the caller MUST defer to detach the registration once the tool call
-// returns. nil disables tool-call cancellation: ToolCallContext returns
-// the parent ctx unchanged.
-type ToolCallCancelFunc func(cancel context.CancelFunc) (release func())
-
-// ProcessScope bundles the per-process fields — constant across
-// every tick of the same process. The runtime carries one of these
-// per AgentProcess and threads it into the ProcessContext built at
-// each tick.
-type ProcessScope struct {
-	Process       Process
-	Blackboard    Blackboard
-	Options       *ProcessOptions
-	OutputChannel OutputChannel
-	Services      *ServiceProvider
+// ChatCapability is the provider-neutral model surface available to an action.
+// Model is required; Streamer is optional. Runtime composition may back both
+// with one value implementing both interfaces, but core depends only on
+// provider-neutral chat protocols.
+type ChatCapability struct {
+	Model    chat.Model
+	Streamer chat.Streamer
 }
 
-// PlatformHooks bundles the platform-wired callbacks — installed
-// once at Platform construction time and reused across every tick
-// of every process. nil-safe at the ProcessContext methods that
-// consume them (e.g. Publish becomes a no-op when nil).
-type PlatformHooks struct {
-	// ChatClient is the shared LLM client surfaced to action bodies
-	// via [ProcessContext.Chat] and [ProcessContext.PromptRunner].
-	// nil when the platform was constructed without one — pc.Chat()
-	// then returns nil and the action body must handle that case.
-	ChatClient *chatclient.Client
+// ModelAttribution enriches framework-owned usage records with information the
+// provider-neutral response cannot know. Tokens, model, action, duration, and
+// timestamp remain runtime-owned.
+type ModelAttribution struct {
+	Provider string
+	CostUSD  float64
+}
 
-	// Guardrails carries platform-wide chat middlewares (logger /
-	// safeguard / quota etc.) that wrap every Chat request action
-	// bodies make. nil or empty means "no global middleware".
-	Guardrails *Guardrails
+type ModelAttributionFunc func(response *chat.Response) ModelAttribution
 
-	// Publish is invoked by [ProcessContext.Publish]; nil makes Publish a
+// Interaction is one framework-managed model/tool exchange. ID is optional;
+// runtime derives a stable owner from the action and request when it is empty.
+type Interaction struct {
+	ID        string
+	Model     chat.Model
+	Request   *chat.Request
+	Tools     interaction.ToolResolver
+	Limits    interaction.Limits
+	Observe   interaction.Observer
+	Attribute ModelAttributionFunc
+}
+
+// ProcessContextConfig is the narrow bridge used by the sibling runtime
+// package to assemble one action capability object. It is not general user
+// configuration; fields mirror the runtime-owned process scope and callbacks
+// without exporting secondary hook-bundle types.
+type ProcessContextConfig struct {
+	Process      ProcessView
+	Control      ProcessControl
+	Usage        UsageRecorder
+	Blackboard   Blackboard
+	Session      *Session
+	Dependencies *Dependencies
+
+	// Chat resolves the process-scoped model/stream capabilities. nil means no
+	// model was configured.
+	Chat func() (ChatCapability, error)
+
+	// MaxToolRounds is the resolved process-level Prompt limit.
+	MaxToolRounds int
+
+	// Emit is invoked by [ProcessContext.Emit]; nil makes Emit a
 	// no-op. The runtime supplies a closure that fans the event out to the
-	// platform's multicast listener.
-	Publish EventPublisher
+	// engine's multicast listener.
+	Emit func(context.Context, any)
 
 	// ResolveTools is invoked by [ProcessContext.ResolveTools]; nil
 	// makes ResolveTools return (nil, nil). The runtime supplies a
-	// closure backed by the platform's [ToolGroupResolver].
-	ResolveTools ToolResolver
+	// closure backed by the engine's [ToolGroupResolver].
+	ResolveTools func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error)
 
-	// RunToolLoop executes target tool-loop control flow. Nil is valid for
-	// platforms that never expose tools.
-	RunToolLoop ToolLoopRunner
+	// RunInteraction executes framework-managed model/tool control flow.
+	RunInteraction func(context.Context, Interaction) (interaction.Result, error)
 
 	// ToolCallCancel registers a cancel func and returns a release
 	// closure — single function rather than a register/clear pair so
 	// callers can't mismatch them.
-	ToolCallCancel ToolCallCancelFunc
-}
-
-// ProcessContextConfig is the runtime-internal input bundle for
-// [NewProcessContext]. The runtime fills it once per tick — keeping
-// the field-injection plumbing inside one constructor instead of
-// scattered setter methods on the public surface.
-//
-// Three concerns physically split via embedded sub-structs:
-//
-//   - [ProcessScope]   — constant across a process's lifetime
-//   - [PlatformHooks]  — constant across the Platform's lifetime
-//   - ActionToolGroups — refreshed every tick from the
-//     currently-executing action's declared requirements
-type ProcessContextConfig struct {
-	ProcessScope
-	PlatformHooks
+	ToolCallCancel func(context.CancelFunc) (release func())
 
 	// ActionToolGroups carries the currently-executing action's declared
 	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can
@@ -120,84 +84,136 @@ type ProcessContextConfig struct {
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
-// Every service the action might need lives behind a method here so
+// Every dependency the action might need lives behind a method here so
 // future refactors don't ripple through every action body.
 //
-// Field grouping mirrors [ProcessContextConfig]: public state up top,
-// platform-wired hooks in the middle (held privately so callers go
-// through the typed methods), per-action state + per-tick scratch at
-// the bottom.
+// Field grouping mirrors [ProcessContextConfig]: action-facing capabilities up
+// top, engine-wired hooks in the middle (held privately so callers go
+// through the typed methods), and private per-action lifecycle state at the
+// bottom.
 type ProcessContext struct {
-	Process       Process
-	Blackboard    Blackboard
-	Options       *ProcessOptions
-	OutputChannel OutputChannel
-	Services      *ServiceProvider
+	process      ProcessView
+	blackboard   Blackboard
+	dependencies *Dependencies
+	session      SessionInfo
+	hasSession   bool
 
-	// Platform-wired hooks. Private so action bodies go through
-	// the typed methods (Chat / Publish / ResolveTools / ...) instead
+	// Engine-wired hooks. Private so action bodies go through
+	// the typed methods (Chat / Emit / ResolveTools / ...) instead
 	// of touching the underlying client / closure directly.
-	chatClient     *chatclient.Client
-	guardrails     *Guardrails
-	publishEvent   EventPublisher
-	resolveTools   ToolResolver
-	runToolLoop    ToolLoopRunner
-	toolCallCancel ToolCallCancelFunc
+	chat           func() (ChatCapability, error)
+	maxToolRounds  int
+	emit           func(context.Context, any)
+	resolveTools   func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error)
+	runInteraction func(context.Context, Interaction) (interaction.Result, error)
+	toolCallCancel func(context.CancelFunc) (release func())
+	control        ProcessControl
+	usage          UsageRecorder
 
 	actionToolGroups []ToolGroupRequirement
 
-	// inputAwaited flips when the action calls [AwaitInput]; the
+	// suspended flips when the action calls [Suspend]; the
 	// typed-action wrapper reads it to return ActionWaiting. Per-tick
 	// (fresh ProcessContext each invocation), so no reset needed.
-	inputAwaited bool
+	suspended bool
 
-	// lastErr captures the most recent error from a typed-action body so
-	// the runtime can extract a ReplanRequest. ProcessContext is built
-	// fresh per tick (see runtime.buildProcessContext) and owned by a single
-	// goroutine, so these two scratch fields need no synchronization. A
-	// concurrent fan-out (the workflow ScatterGather / Consensus generators)
-	// preserves that invariant by handing each branch its own copy via
-	// [ProcessContext.ForParallelBranch] rather than sharing one.
-	lastErr error
+	parallelBranch bool
 }
 
 // NewProcessContext assembles a ProcessContext from config. Used by the
 // runtime once per tick; users don't construct ProcessContexts themselves.
 func NewProcessContext(config ProcessContextConfig) *ProcessContext {
+	dependencies := config.Dependencies
+	if dependencies == nil {
+		dependencies = NewDependencies()
+	}
+	session, hasSession := sessionInfo(config.Session)
 	return &ProcessContext{
-		Process:          config.Process,
-		Blackboard:       config.Blackboard,
-		Options:          config.Options,
-		OutputChannel:    config.OutputChannel,
-		Services:         config.Services,
-		chatClient:       config.ChatClient,
-		guardrails:       config.Guardrails,
+		process:          config.Process,
+		control:          config.Control,
+		usage:            config.Usage,
+		blackboard:       config.Blackboard,
+		dependencies:     dependencies,
+		session:          session,
+		hasSession:       hasSession,
+		chat:             config.Chat,
+		maxToolRounds:    config.MaxToolRounds,
 		actionToolGroups: config.ActionToolGroups,
-		publishEvent:     config.Publish,
+		emit:             config.Emit,
 		resolveTools:     config.ResolveTools,
-		runToolLoop:      config.RunToolLoop,
+		runInteraction:   config.RunInteraction,
 		toolCallCancel:   config.ToolCallCancel,
 	}
+}
+
+// Process returns the read-only running process view.
+func (pc *ProcessContext) Process() ProcessView {
+	if pc == nil {
+		return nil
+	}
+	return pc.process
+}
+
+// Blackboard returns the mutable action-local process memory.
+func (pc *ProcessContext) Blackboard() Blackboard {
+	if pc == nil {
+		return nil
+	}
+	return pc.blackboard
+}
+
+// Dependencies returns the action dependency scope.
+func (pc *ProcessContext) Dependencies() *Dependencies {
+	if pc == nil {
+		return nil
+	}
+	return pc.dependencies
+}
+
+// Session returns an immutable identity/audit snapshot for the process's
+// multi-turn session. ok is false for an ordinary process run. Host-owned
+// mutable Session.Metadata is intentionally not exposed to actions.
+func (pc *ProcessContext) Session() (session SessionInfo, ok bool) {
+	if pc == nil || !pc.hasSession {
+		return SessionInfo{}, false
+	}
+	return pc.session, true
 }
 
 // ForParallelBranch returns a sibling-safe copy of pc for a goroutine running
 // concurrently with other branches of the SAME action — the workflow fan-out
 // builders (ScatterGather / Consensus / Parallel) hand one to each generator.
 //
-// It shares the process-level state (Process / Blackboard / Services) and the
-// platform hooks — all safe for concurrent use — but gets its OWN per-invocation
-// scratch (inputAwaited / lastErr), the two plain unsynchronized fields a single
-// goroutine is assumed to own. Without this, N branches sharing one
-// ProcessContext would race those fields (e.g. two generators calling
-// AwaitInput). The runtime's per-tick path uses [NewProcessContext] for the same
-// "one ProcessContext per goroutine" guarantee.
+// It shares the read-only ProcessView, usage recorder, and safe output
+// channel, but forks Blackboard and action-dependency state from the same
+// pre-branch snapshot. Branch writes, conditions, and dependency registrations
+// are local and discarded; the workflow commits only returned values in
+// declaration order. Lifecycle control and managed interaction are disabled
+// because one Process cannot own multiple competing suspension/termination
+// continuations.
 func (pc *ProcessContext) ForParallelBranch() *ProcessContext {
+	if pc == nil {
+		return nil
+	}
 	branch := *pc
-	branch.inputAwaited = false
-	branch.lastErr = nil
+	if pc.blackboard != nil {
+		branch.blackboard = pc.blackboard.Clone()
+	}
+	if pc.dependencies != nil {
+		branch.dependencies = pc.dependencies.Child()
+	}
+	branch.control = nil
+	branch.chat = nil
+	branch.runInteraction = func(context.Context, Interaction) (interaction.Result, error) {
+		return interaction.Result{}, ErrParallelBranchControl
+	}
+	branch.toolCallCancel = nil
+	branch.suspended = false
+	branch.parallelBranch = true
 	return &branch
 }
 
-// Tracer returns the framework's OTel tracer so actions can mint custom
-// spans without importing otel themselves.
-func (pc *ProcessContext) Tracer() trace.Tracer { return agentTracer }
+// ErrParallelBranchControl reports lifecycle or managed-interaction use from
+// a workflow branch. Use an isolated child Process when a parallel unit needs
+// suspension, termination, or its own model/tool lifecycle.
+var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")

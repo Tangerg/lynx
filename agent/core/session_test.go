@@ -9,50 +9,50 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-func TestNewSession_DefaultsTimestamps(t *testing.T) {
+func TestNewSessionDefaultsTimestamps(t *testing.T) {
 	before := time.Now()
-	sess := core.NewSession("s-1", "user-1", "demo-agent")
+	session := core.NewSession("s-1", "user-1", "demo-agent")
 	after := time.Now()
 
-	if sess.ID != "s-1" || sess.UserID != "user-1" || sess.AgentName != "demo-agent" {
-		t.Errorf("identity: %#v", sess)
+	if session.ID != "s-1" || session.UserID != "user-1" || session.AgentName != "demo-agent" {
+		t.Errorf("identity: %#v", session)
 	}
-	if sess.StartedAt.Before(before) || sess.StartedAt.After(after) {
-		t.Errorf("StartedAt: outside [%v, %v]: %v", before, after, sess.StartedAt)
+	if session.StartedAt.Before(before) || session.StartedAt.After(after) {
+		t.Errorf("StartedAt: outside [%v, %v]: %v", before, after, session.StartedAt)
 	}
-	if !sess.StartedAt.Equal(sess.UpdatedAt) {
+	if !session.StartedAt.Equal(session.UpdatedAt) {
 		t.Errorf("StartedAt should equal UpdatedAt at creation; got %v vs %v",
-			sess.StartedAt, sess.UpdatedAt)
+			session.StartedAt, session.UpdatedAt)
 	}
-	if sess.Metadata == nil {
+	if session.Metadata == nil {
 		t.Error("Metadata should be allocated, not nil")
 	}
 }
 
-func TestSession_Touch_RefreshesUpdatedAt(t *testing.T) {
-	sess := core.NewSession("s-1", "u", "demo")
-	before := sess.UpdatedAt
-	time.Sleep(2 * time.Millisecond)
-	sess.Touch()
-	if !sess.UpdatedAt.After(before) {
-		t.Errorf("Touch should advance UpdatedAt: before=%v after=%v", before, sess.UpdatedAt)
+func TestSessionTouchRefreshesUpdatedAt(t *testing.T) {
+	session := core.NewSession("s-1", "u", "demo")
+	before := time.Unix(1, 0).UTC()
+	session.UpdatedAt = before
+	session.Touch()
+	if !session.UpdatedAt.After(before) {
+		t.Errorf("Touch should advance UpdatedAt: before=%v after=%v", before, session.UpdatedAt)
 	}
 }
 
-func TestSession_Touch_NilSafe(t *testing.T) {
+func TestSessionTouchNilSafe(t *testing.T) {
 	// Must not panic.
-	var sess *core.Session
-	sess.Touch()
+	var session *core.Session
+	session.Touch()
 }
 
-func TestInMemorySessionStore_SaveLoad(t *testing.T) {
-	store := core.NewInMemorySessionStore()
+func TestMemorySessionStoreSaveLoad(t *testing.T) {
+	store := core.NewMemorySessionStore()
 	ctx := context.Background()
 
-	sess := core.NewSession("s-1", "user-1", "demo")
-	sess.Metadata["channel"] = "web"
+	session := core.NewSession("s-1", "user-1", "demo")
+	session.Metadata["channel"] = "web"
 
-	if err := store.Save(ctx, sess); err != nil {
+	if err := store.Save(ctx, session); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 	got, err := store.Load(ctx, "s-1")
@@ -64,16 +64,16 @@ func TestInMemorySessionStore_SaveLoad(t *testing.T) {
 	}
 }
 
-func TestInMemorySessionStore_NotFound(t *testing.T) {
-	store := core.NewInMemorySessionStore()
+func TestMemorySessionStoreNotFound(t *testing.T) {
+	store := core.NewMemorySessionStore()
 	_, err := store.Load(context.Background(), "ghost")
 	if !errors.Is(err, core.ErrSessionNotFound) {
 		t.Errorf("want ErrSessionNotFound, got %v", err)
 	}
 }
 
-func TestInMemorySessionStore_DeleteIdempotent(t *testing.T) {
-	store := core.NewInMemorySessionStore()
+func TestMemorySessionStoreDeleteIdempotent(t *testing.T) {
+	store := core.NewMemorySessionStore()
 	ctx := context.Background()
 
 	_ = store.Save(ctx, core.NewSession("s-1", "u", "x"))
@@ -88,8 +88,8 @@ func TestInMemorySessionStore_DeleteIdempotent(t *testing.T) {
 	}
 }
 
-func TestInMemorySessionStore_SaveEmptyID(t *testing.T) {
-	if err := core.NewInMemorySessionStore().Save(context.Background(), core.Session{}); err == nil {
+func TestMemorySessionStoreRejectsEmptyID(t *testing.T) {
+	if err := core.NewMemorySessionStore().Save(context.Background(), core.Session{}); err == nil {
 		t.Error("expected error for empty session ID")
 	}
 }

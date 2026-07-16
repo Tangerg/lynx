@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // Domain types
@@ -33,100 +33,65 @@ func main() {
 		log.Fatal(err)
 	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{ChatClient: chatClient})
+	engine := agent.MustNewEngine(agent.EngineConfig{Chat: agent.ChatCapability{Model: chatClient, Streamer: chatClient}})
 
 	// ---- sub-agents ---------------------------------------------------
-	research := agent.New("research-agent").
-		Description("find sources for a topic").
-		Actions(agent.NewAction("search",
-			func(_ context.Context, _ *core.ProcessContext, in Topic) (Sources, error) {
-				return Sources{URLs: []string{"https://example.com/" + slug(in.Title)}}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[Sources](core.Goal{Description: "sources produced"})).
-		Build()
+	research := agent.New(agent.AgentConfig{Name: "research-agent", Description: "find sources for a topic", Actions: []agent.Action{agent.NewAction("search", func(_ context.Context, _ *agent.ProcessContext, in Topic) (Sources, error) {
+		return Sources{URLs: []string{"https://example.com/" + slug(in.Title)}}, nil
+	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[Sources](agent.GoalConfig{Description: "sources produced"})}})
 
-	summarize := agent.New("summarize-agent").
-		Description("summarize a list of sources").
-		Actions(agent.NewAction("summarize",
-			func(_ context.Context, _ *core.ProcessContext, in Sources) (Summary, error) {
-				return Summary{
-					Text: fmt.Sprintf("Synthesized findings from %d sources: %s", len(in.URLs), strings.Join(in.URLs, ", ")),
-				}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[Summary](core.Goal{Description: "summary produced"})).
-		Build()
+	summarize := agent.New(agent.AgentConfig{Name: "summarize-agent", Description: "summarize a list of sources", Actions: []agent.Action{agent.NewAction("summarize", func(_ context.Context, _ *agent.ProcessContext, in Sources) (Summary, error) {
+		return Summary{Text: fmt.Sprintf("Synthesized findings from %d sources: %s", len(in.URLs), strings.Join(in.URLs, ", "))}, nil
+	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[Summary](agent.GoalConfig{Description: "summary produced"})}})
 
-	if err := platform.Deploy(research); err != nil {
+	if _, err := engine.Deploy(research); err != nil {
 		log.Fatal(err)
 	}
-	if err := platform.Deploy(summarize); err != nil {
+	if _, err := engine.Deploy(summarize); err != nil {
 		log.Fatal(err)
 	}
 
 	// ---- parent agent (the supervisor) -------------------------------
-	parent := agent.New("supervisor").
-		Description("orchestrates research + summarize via the LLM").
-		Actions(agent.NewAction("brief",
-			func(ctx context.Context, pc *core.ProcessContext, in Topic) (Brief, error) {
-				researchTool, _ := runtime.AsChatTool[Topic, Sources](platform, "research-agent")
-				summarizeTool, _ := runtime.AsChatTool[Sources, Summary](platform, "summarize-agent")
+	parent := agent.New(agent.AgentConfig{Name: "supervisor", Description: "orchestrates research + summarize via the LLM", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
+		researchTool, _ := runtime.NewAgentTool[Topic, Sources](engine, "research-agent")
+		summarizeTool, _ := runtime.NewAgentTool[Sources, Summary](engine, "summarize-agent")
+		prompt := fmt.Sprintf("Brief me on %q. Use research-agent first to gather sources, "+"then summarize-agent to synthesise. Reply with JSON: "+`{"sources":[...],"summary":"..."}`, in.Title)
+		text, err := pc.Prompt(ctx, prompt, agent.PromptConfig{
+			System: "You are a supervisor that delegates to specialised agents.",
+			Tools:  []tools.Tool{researchTool, summarizeTool},
+		})
+		if err != nil {
+			return Brief{}, err
+		}
+		var parsed struct {
+			Sources []string `json:"sources"`
+			Summary string   `json:"summary"`
+		}
+		if jsonErr := json.Unmarshal([]byte(extractJSON(text)), &parsed); jsonErr != nil {
+			parsed.Summary = strings.TrimSpace(text)
+		}
+		return Brief{Topic: in.Title, Sources: parsed.Sources, Text: parsed.Summary}, nil
+	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "brief produced"})}})
 
-				prompt := fmt.Sprintf(
-					"Brief me on %q. Use research-agent first to gather sources, "+
-						"then summarize-agent to synthesise. Reply with JSON: "+
-						`{"sources":[...],"summary":"..."}`,
-					in.Title,
-				)
-				text, err := pc.PromptRunner().
-					WithTools(researchTool, summarizeTool).
-					WithSystem("You are a supervisor that delegates to specialised agents.").
-					Generate(ctx, prompt)
-				if err != nil {
-					return Brief{}, err
-				}
-
-				var parsed struct {
-					Sources []string `json:"sources"`
-					Summary string   `json:"summary"`
-				}
-				if jsonErr := json.Unmarshal([]byte(extractJSON(text)), &parsed); jsonErr != nil {
-					// LLM didn't follow the JSON cue — fall back to plaintext.
-					parsed.Summary = strings.TrimSpace(text)
-				}
-				return Brief{
-					Topic:   in.Title,
-					Sources: parsed.Sources,
-					Text:    parsed.Summary,
-				}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[Brief](core.Goal{Description: "brief produced"})).
-		Build()
-
-	if err := platform.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(parent); err != nil {
 		log.Fatal(err)
 	}
 
-	proc, err := platform.RunAgent(
+	process, err := engine.Run(
 		context.Background(), parent,
-		map[string]any{core.DefaultBindingName: Topic{Title: "agent frameworks in 2026"}},
-		core.ProcessOptions{},
+		map[string]any{agent.DefaultBindingName: Topic{Title: "agent frameworks in 2026"}},
+		agent.ProcessOptions{},
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	brief, ok := core.ResultOfType[Brief](proc)
+	brief, ok := agent.Result[Brief](process)
 	if !ok {
-		log.Fatalf("no Brief produced; status=%s; failure=%v", proc.Status(), proc.Failure())
+		log.Fatalf("no Brief produced; status=%s; failure=%v", process.Status(), process.Failure())
 	}
 
-	cost, tokens, actions := proc.Usage()
+	cost, tokens, actions := process.Usage()
 
 	fmt.Println("\n--- result ---")
 	fmt.Printf("topic:   %s\n", brief.Topic)
@@ -149,8 +114,8 @@ func newStubModel() *stubModel { return &stubModel{} }
 //   - turn 1 (only user message) → call research-agent
 //   - turn 2 (research result in history, no summary yet) → call summarize-agent
 //   - turn 3 (summary in history) → emit final JSON
-func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
-	toolHistory := collectToolReturns(req.Messages)
+func (m *stubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
+	toolHistory := collectToolReturns(request.Messages)
 	switch {
 	case !contains(toolHistory, "research-agent"):
 		return responseWithToolCall("research-agent", `{"Title":"agent frameworks in 2026"}`), nil
@@ -173,9 +138,9 @@ func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, 
 	}
 }
 
-func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
-	resp, err := m.Call(ctx, req)
-	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
+func (m *stubModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	response, err := m.Call(ctx, request)
+	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
 }
 
 // collectToolReturns walks the conversation and returns name → result
@@ -202,14 +167,14 @@ func contains(m map[string]string, key string) bool {
 
 func responseWithText(text string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
-	return resp
+	response, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
+	return response
 }
 
 func responseWithToolCall(name, args string) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call_" + name, Name: name, Arguments: args}))
-	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
-	return resp
+	response, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
+	return response
 }
 
 // ============================================================================

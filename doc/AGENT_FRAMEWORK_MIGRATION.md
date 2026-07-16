@@ -1,0 +1,238 @@
+# Agent Framework 开发期迁移指南
+
+> 目标：一次性切换到当前框架语言与 API
+> 策略：不保留兼容 alias、deprecated wrapper、双读、双写或旧 snapshot decoder
+
+本文面向当前仓库消费者。它不是稳定版本的兼容承诺，而是开发期直接迁移清单。
+
+## 1. 公共语言映射
+
+| 旧语言 | 当前语言 | 语义变化 |
+|---|---|---|
+| Platform | Engine | 框架生命周期与资源 owner |
+| AgentRef | DeploymentRef | 指向已编译部署，不指向可变定义 |
+| AgentProcess | Process | 运行聚合，不重复 Agent 前缀 |
+| PlanningSystem | planning.Domain | planner 可见的领域能力集合 |
+| ConditionWorldState | planning.State | 条件世界状态的具体实现 |
+| Determination | Truth | 三值逻辑：Unknown / False / True |
+| IOBinding | Binding | Action 输入输出共用的类型化绑定 |
+| Invocation | ModelCall / EmbeddingCall / ActionRun | 按真实边界命名，不用万能名词 |
+| Services / ServiceProvider | Dependencies | typed、hierarchical、single-assignment scope |
+| GoalExport | GoalTool | Goal 暴露为工具的元数据 |
+| autonomy | routing | 自然语言到 Agent/Goal 的路由能力 |
+| PromptRunner | ProcessContext.Prompt | 普通模型调用直接挂在 Action capability 上 |
+
+迁移时直接删除旧封装，不要在应用层再造同名桥接类型。
+
+## 2. Agent、Goal 与 Engine
+
+定义使用普通 config literal，构造后只读：
+
+```go
+writer := agent.New(agent.AgentConfig{
+    Name:        "writer",
+    Version:     "1.2.3",
+    Description: "write a post",
+    Actions: []agent.Action{
+        agent.NewAction("write", write, agent.ActionConfig{}),
+    },
+    Goals: []*agent.Goal{
+        agent.NewOutputGoal[Post](agent.GoalConfig{Name: "post-ready"}),
+    },
+})
+
+engine, err := agent.NewEngine(agent.EngineConfig{})
+if err != nil {
+    return err
+}
+deployment, err := engine.Deploy(writer)
+if err != nil {
+    return err
+}
+_ = deployment.Ref()
+```
+
+常用入口直接映射：
+
+| 旧调用 | 当前调用 |
+|---|---|
+| `NewPlatform` / `MustNewPlatform` | `NewEngine` / `MustNewEngine` |
+| `RunAgent` / `StartAgent` | `Engine.Run` / `Engine.Start` |
+| 按名称回查定义 | `ActiveDeployment(name)` / `Deployment(ref)` |
+| 同名部署隐式覆盖 | `Deploy` 幂等，`Replace` 显式切换 |
+| 从 Agent 指针运行 child | 传同一 Engine 的 exact `*Deployment` |
+
+已运行 Process 永久绑定 `DeploymentRef{Name, Version, Digest}`。不要只持久化 Agent 名称，也不要接受其他 Engine 的 Deployment handle。
+
+## 3. Action 与 Binding
+
+Action 统一返回 `(ActionStatus, error)`。status 表达 succeeded、waiting、paused、failed；error 表达失败细节、replan 或 suspension。
+
+```go
+func (a *PublishAction) Execute(
+    ctx context.Context,
+    process *core.ProcessContext,
+) (core.ActionStatus, error) {
+    // ...
+    return core.ActionSucceeded, nil
+}
+```
+
+删除任何 `LastError`、`TakeError`、`ExecuteSafely` 或 Blackboard error key。Middleware 必须透传同一结果对。
+
+普通 typed Action 默认使用名为 `it` 的输入和输出 Binding。自定义名称只通过：
+
+```go
+core.ActionConfig{
+    Inputs:  []core.Binding{core.NewBinding[Topic]("topic")},
+    Outputs: []core.Binding{core.NewBinding[Post]("post")},
+}
+```
+
+不要恢复重复的 `InputBinding` / `OutputBinding` 快捷字段。
+
+## 4. Retry、stuck 与并发
+
+`RetryPolicy{}` 与 `DefaultRetryPolicy()` 都只执行一次。多次尝试必须显式声明副作用安全性：
+
+```go
+core.RetryPolicy{
+    MaxAttempts: 3,
+    BaseDelay:   100 * time.Millisecond,
+    MaxDelay:    time.Second,
+    Safety:      core.RetrySafetyIdempotent,
+}
+```
+
+`StuckDecision` 的零值是 `StuckStop`；需要重新规划时返回 `StuckReplan`。不要依赖“未设置等于继续”的危险语义。
+
+删除 process-wide candidate-action 并发。并发工作使用：
+
+- `workflow.Parallel`、`ScatterGather` 或 `Consensus`：同一 Process 内的结构化 fan-out；
+- child Process：需要独立暂停、终止、持久化或生命周期时。
+
+## 5. Chat、Prompt 与 ToolLoop
+
+Engine 接受 provider-neutral chat capability：
+
+```go
+engine, err := agent.NewEngine(agent.EngineConfig{
+    Chat: agent.ChatCapability{
+        Model:    client,
+        Streamer: client,
+    },
+})
+```
+
+`Streamer` 不能在没有 `Model` 时单独存在。每 Process 的模型选择通过 `core.ChatProvider` extension 完成。
+
+Action 内普通调用：
+
+```go
+answer, err := process.Prompt(ctx, prompt, agent.PromptConfig{
+    System: "Answer concisely.",
+    Tools:  []tools.Tool{search},
+})
+```
+
+结构化输出使用 `PromptJSON[T]`；需要完整 request、observer 或 limits 时使用 `Interact`。
+
+低层 `toolloop` 不再构造 `Invocation`：
+
+```go
+runner, err := toolloop.NewRunner(model, toolloop.Config{MaxRounds: 8})
+if err != nil {
+    return err
+}
+for event, runErr := range runner.Run(ctx, request, resolver) {
+    // ...
+}
+```
+
+Host 不直接使用 ToolLoop 复制 Framework 的 usage、checkpoint 或 Process 状态机。
+
+## 6. HITL
+
+Typed interrupt 只有值与错误：
+
+```go
+approved, err := hitl.Interrupt[bool](ctx, "publish-approval", prompt)
+if err != nil {
+    return Output{}, err
+}
+```
+
+首次调用返回统一 suspension error；恢复后同一调用点返回解码后的值。Host 分两步处理：
+
+```go
+if err := engine.Resume(process.ID(), suspension.ID, response); err != nil {
+    return err
+}
+return engine.Continue(ctx, process.ID())
+```
+
+`Resume` 只记录响应，`Continue` 才重新进入执行。不要保存 continuation closure、handler、SDK client 或 runtime pointer。
+
+## 7. Agent 工具
+
+当前工具 API：
+
+- `runtime.NewAgentTool[In, Out]`：父 Process 内同步 child；
+- `runtime.NewStandaloneAgentTool[In, Out]`：独立顶层执行；
+- `runtime.NewAgentTaskTools[In, Out]`：后台 start/result 工具对；
+- `runtime.GoalToolsFor`：指定部署的 Goal tools；
+- `runtime.GoalTools` / `StandaloneGoalTools`：遍历活动部署。
+
+工具在构造时解析并捕获 exact Deployment，不在每次调用时重新按名称选择版本。
+
+## 8. Dependencies
+
+动态领域依赖改为 typed scope：
+
+```go
+var SearchKey = core.MustDependencyKey[Search]("search")
+
+if err := core.RegisterDependency(engine.Dependencies(), SearchKey, search); err != nil {
+    return err
+}
+
+search, err := core.LookupDependency(process.Dependencies(), SearchKey)
+```
+
+静态依赖仍优先构造函数或字段注入。不要把 `Dependencies` 包装回全局 service locator。
+
+## 9. ProcessStore 与 snapshot
+
+最小存储合同：
+
+```go
+type ProcessStore interface {
+    Load(context.Context, string) (ProcessSnapshot, error)
+    Save(context.Context, ProcessSnapshot, uint64) (uint64, error)
+}
+```
+
+自定义实现运行公共契约：
+
+```go
+if err := storetest.TestProcessStore(t.Context(), store); err != nil {
+    t.Fatal(err)
+}
+```
+
+`storetest` 保持公开；`providertest` 已移除。ChatProvider 与 ToolGroupResolver 在真实 Engine dispatch 测试中验证，不为测试对称性扩大公共 API。
+
+旧 snapshot 不做兼容读取。开发环境迁移时：备份数据、终止依赖旧 snapshot 的非终态运行、清除旧 ProcessSnapshot、保留可独立解释的 Session 与 terminal history，然后只写当前 schema。
+
+## 10. 推荐执行顺序
+
+1. 切换 Engine、DeploymentRef 与 Process 公共语言。
+2. 迁移 Agent/Goal config 与 Action/Binding。
+3. 迁移 ChatCapability、Prompt/Interact 与 ToolLoop 调用。
+4. 迁移 HITL suspension 与 Resume/Continue。
+5. 迁移 Dependencies、child、workflow 和 agent tools。
+6. 升级 ProcessStore CAS 与 snapshot 数据。
+7. 删除旧 wrapper、alias、旧文件和旧数据路径。
+8. 运行 Agent 与 App 的 build、vet、test、race、lint、tidy、API/wire/architecture gate。
+
+当前用法见 [`../agent/docs/GUIDE.md`](../agent/docs/GUIDE.md)，扩展规则见 [`../agent/docs/EXTENSION_DESIGN.md`](../agent/docs/EXTENSION_DESIGN.md)。

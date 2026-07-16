@@ -22,7 +22,7 @@ import (
 // be the stub's FinalText.
 //
 // This is the M2-readiness gate: it proves the chain
-// engine.StartTurn → lynx Platform → tool loop → tool decorator
+// engine.StartTurn → lynx Engine → tool loop → tool decorator
 // → observedTool → toolObserver is wired end-to-end without any
 // real LLM in the loop.
 func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
@@ -118,7 +118,7 @@ func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 
 // TestEngine_RunChat_TaskDelegation drives the `task` tool end-to-end:
 // the main agent calls task, which spawns a fresh sub-agent (via
-// AsChatToolFromAgent + SpawnChild), the sub-agent runs its own chat
+// NewAgentTool + RunChild), the sub-agent runs its own chat
 // turn and returns an answer, and the main agent incorporates it into
 // its final reply. Proves the sub-agent delegation path works without a
 // real LLM. (The sub-agent declares toolport.ToolRoleSubtask — no `task` — so it
@@ -177,7 +177,7 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 // `task` sub-agents: the main turn delegates, the sub-agent's shell creates a
 // marker with a RELATIVE path, and it must land in the turn's Cwd. The
 // sub-agent runs on a fresh blackboard that keeps the parent's protected
-// entries (SpawnChildProtectedOnly) — so it both does real work (its goal
+// entries (CloneProtectedOnly) — so it both does real work (its goal
 // isn't pre-satisfied by inherited state) and inherits the cwd binding.
 func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 	dir := t.TempDir()
@@ -410,8 +410,8 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 }
 
 // TestEngine_RunChat_PerRunClientOverride verifies TurnRequest.ChatClient
-// actually drives the turn's LLM call (via the ChatClientProvider seam),
-// not the platform's default client.
+// actually drives the turn's LLM call (via the ChatProvider seam),
+// not the engine's default client.
 func TestEngine_RunChat_PerRunClientOverride(t *testing.T) {
 	defClient, _ := chatclient.New(newNamedStub("default-model"))
 	ovrClient, _ := chatclient.New(newNamedStub("override-model"))

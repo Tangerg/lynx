@@ -30,33 +30,27 @@ func (s stuckCounter) OnEvent(_ context.Context, e event.Event) {
 // action, one goal. Ensures the planner finds the (single) action and the
 // runtime executes it to completion.
 func TestRunSingleAction(t *testing.T) {
-	a := agent.New("test").
-		Actions(agent.NewAction("count",
-			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-				return wordCount{Count: len(in.Text)}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "word counted"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "test", Actions: []agent.Action{agent.NewAction("count", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+		return wordCount{Count: len(in.Text)}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "word counted"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := engine.Deploy(a); err != nil {
 		t.Fatal(err)
 	}
 
-	proc, err := platform.RunAgent(
+	proc, err := engine.Run(
 		context.Background(), a,
 		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
 		core.ProcessOptions{},
 	)
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("expected completed, got %s; failure=%v", proc.Status(), proc.Failure())
 	}
-	got, ok := core.ResultOfType[wordCount](proc)
+	got, ok := core.Result[wordCount](proc)
 	if !ok {
 		t.Fatal("no wordCount produced")
 	}
@@ -73,36 +67,28 @@ func TestRunMultiStepPlanning(t *testing.T) {
 	type stage2 struct{ V int }
 	type stage3 struct{ V int }
 
-	a := agent.New("multi").
-		Actions(agent.NewAction("a",
-			func(ctx context.Context, pc *core.ProcessContext, in word) (stage1, error) {
-				return stage1{V: len(in.Text)}, nil
-			}, core.ActionConfig{})).
-		Actions(agent.NewAction("b",
-			func(ctx context.Context, pc *core.ProcessContext, in stage1) (stage2, error) {
-				return stage2{V: in.V * 2}, nil
-			}, core.ActionConfig{})).
-		Actions(agent.NewAction("c",
-			func(ctx context.Context, pc *core.ProcessContext, in stage2) (stage3, error) {
-				return stage3{V: in.V + 1}, nil
-			}, core.ActionConfig{})).
-		Goals(agent.GoalProducing[stage3](core.Goal{Description: "stage3 produced"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "multi", Actions: []agent.Action{agent.NewAction("a", func(ctx context.Context, pc *core.ProcessContext, in word) (stage1, error) {
+		return stage1{V: len(in.Text)}, nil
+	}, core.ActionConfig{}), agent.NewAction("b", func(ctx context.Context, pc *core.ProcessContext, in stage1) (stage2, error) {
+		return stage2{V: in.V * 2}, nil
+	}, core.ActionConfig{}), agent.NewAction("c", func(ctx context.Context, pc *core.ProcessContext, in stage2) (stage3, error) {
+		return stage3{V: in.V + 1}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[stage3](core.GoalConfig{Description: "stage3 produced"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := engine.Deploy(a); err != nil {
 		t.Fatal(err)
 	}
 
-	proc, err := platform.RunAgent(
+	proc, err := engine.Run(
 		context.Background(), a,
 		map[string]any{core.DefaultBindingName: word{Text: "abcd"}}, // len=4 → 4*2+1=9
 		core.ProcessOptions{},
 	)
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
-	got, ok := core.ResultOfType[stage3](proc)
+	got, ok := core.Result[stage3](proc)
 	if !ok {
 		t.Fatalf("no stage3; status=%s", proc.Status())
 	}
@@ -115,57 +101,50 @@ func TestRunMultiStepPlanning(t *testing.T) {
 	}
 }
 
-func TestRunAgentValidatesBeforeCreatingProcess(t *testing.T) {
+func TestRunValidatesBeforeCreatingProcess(t *testing.T) {
 	a := core.NewAgent(core.AgentConfig{
 		Name:    "bad",
 		Actions: []core.Action{nil},
-		Goals:   []*core.Goal{{Name: "goal"}},
+		Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
 	})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	proc, err := platform.RunAgent(context.Background(), a, nil, core.ProcessOptions{})
+	engine := agent.MustNewEngine(runtime.Config{})
+	proc, err := engine.Run(context.Background(), a, nil, core.ProcessOptions{})
 	if err == nil {
-		t.Fatal("RunAgent should reject invalid agent")
+		t.Fatal("Run should reject invalid agent")
 	}
 	if proc != nil {
 		t.Fatalf("process = %v, want nil", proc)
 	}
 	if !strings.Contains(err.Error(), "action at index 0 is nil") {
-		t.Fatalf("RunAgent error = %v, want validation detail", err)
+		t.Fatalf("Run error = %v, want validation detail", err)
 	}
 }
 
-func TestRunAgentRejectsUnknownPlannerName(t *testing.T) {
-	a := agent.New("unknown-planner").
-		PlannerName("nonexistent").
-		Actions(agent.NewAction("count",
-			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-				return wordCount{Count: len(in.Text)}, nil
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "word counted"})).
-		Build()
+func TestRunRejectsUnknownPlannerName(t *testing.T) {
+	a := agent.New(agent.AgentConfig{Name: "unknown-planner", Actions: []agent.Action{agent.NewAction("count", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+		return wordCount{Count: len(in.Text)}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "word counted"})}, PlannerName: "nonexistent"})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	engine := agent.MustNewEngine(runtime.Config{})
 
-	proc, err := platform.RunAgent(
+	proc, err := engine.Run(
 		context.Background(), a,
 		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
 		core.ProcessOptions{},
 	)
 	if err == nil {
-		t.Fatal("RunAgent should reject unknown planner name")
+		t.Fatal("Run should reject unknown planner name")
 	}
 	if proc != nil {
 		t.Fatalf("process = %v, want nil", proc)
 	}
 	if !strings.Contains(err.Error(), `planner "nonexistent" which is not registered`) {
-		t.Fatalf("RunAgent error = %v, want unregistered-planner detail", err)
+		t.Fatalf("Run error = %v, want unregistered-planner detail", err)
 	}
 }
 
-func TestRunAgentPublishesSingleStuckEvent(t *testing.T) {
+func TestRunPublishesSingleStuckEvent(t *testing.T) {
 	type unusedIn struct{}
 	type unusedOut struct{}
 
@@ -176,22 +155,26 @@ func TestRunAgentPublishesSingleStuckEvent(t *testing.T) {
 				func(ctx context.Context, pc *core.ProcessContext, in unusedIn) (unusedOut, error) {
 					return unusedOut{}, nil
 				},
-				core.ActionConfig{},
+				// The goal is statically reachable (this action produces
+				// "never") but no unusedIn is bound at runtime, so planning
+				// legitimately reaches the Stuck state after deployment
+				// validation succeeds.
+				core.ActionConfig{Effects: []string{"never"}},
 			),
 		},
-		Goals: []*core.Goal{{Name: "never", Pre: []string{"never"}}},
+		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "never", Preconditions: []string{"never"}})},
 	})
 
 	stuckEvents := 0
-	platform := agent.NewPlatform(runtime.PlatformConfig{
+	engine := agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{
 			stuckCounter{count: &stuckEvents},
 		},
 	})
 
-	proc, err := platform.RunAgent(context.Background(), a, nil, core.ProcessOptions{})
+	proc, err := engine.Run(context.Background(), a, nil, core.ProcessOptions{})
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusStuck {
 		t.Fatalf("status = %s, want stuck", proc.Status())
@@ -201,35 +184,34 @@ func TestRunAgentPublishesSingleStuckEvent(t *testing.T) {
 	}
 }
 
-func TestRunAgentMarksCancelledDuringActionAsKilled(t *testing.T) {
+func TestRunMarksCancelledDuringActionAsKilled(t *testing.T) {
 	type out struct{}
 	ctx, cancel := context.WithCancel(t.Context())
 	actionErr := errors.New("transient")
+	attempts := 0
 
-	a := agent.New("cancel").
-		Actions(agent.NewAction("cancel",
-			func(ctx context.Context, pc *core.ProcessContext, in word) (out, error) {
-				cancel()
-				return out{}, actionErr
-			},
-			core.ActionConfig{},
-		)).
-		Goals(agent.GoalProducing[out](core.Goal{Description: "canceled"})).
-		Build()
+	a := agent.New(agent.AgentConfig{Name: "cancel", Actions: []agent.Action{agent.NewAction("cancel", func(ctx context.Context, pc *core.ProcessContext, in word) (out, error) {
+		attempts++
+		cancel()
+		return out{}, actionErr
+	}, core.ActionConfig{Retry: core.RetryPolicy{MaxAttempts: 3, Safety: core.RetrySafetyIdempotent}})}, Goals: []*agent.Goal{agent.NewOutputGoal[out](core.GoalConfig{Description: "canceled"})}})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	proc, err := platform.RunAgent(
+	engine := agent.MustNewEngine(runtime.Config{})
+	proc, err := engine.Run(
 		ctx, a,
 		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
 		core.ProcessOptions{},
 	)
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusKilled {
 		t.Fatalf("status = %s, want killed; failure=%v", proc.Status(), proc.Failure())
 	}
 	if !errors.Is(proc.Failure(), context.Canceled) {
 		t.Fatalf("failure = %v, want context.Canceled", proc.Failure())
+	}
+	if attempts != 1 {
+		t.Fatalf("canceled action attempts = %d, want 1", attempts)
 	}
 }

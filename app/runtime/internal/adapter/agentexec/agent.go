@@ -66,9 +66,8 @@ type turnInput struct {
 // TurnOutput is the typed output of one turn. Reply is the assistant's
 // final text. Usage / UsageByModel / CostUSD are read back from the
 // process budget — the agent framework's invocation ledger — rather
-// than a hand-rolled tally: the action records each LLM round via
-// [core.ProcessContext.RecordLLMInvocation], and these fields are the
-// rolled-up view.
+// than a hand-rolled tally: managed interaction records each LLM round,
+// and these fields are the rolled-up view.
 type TurnOutput struct {
 	Reply string
 	Usage accounting.TokenUsage
@@ -102,10 +101,11 @@ type TurnOutput struct {
 //
 // The Action declares [toolport.ToolRoleCoding] so the runtime resolves the
 // coding tool group at dispatch time; the body calls
-// [core.ProcessContext.ChatWithActionTools] which composes the
-// toolloop.NewMiddleware tool-loop on top of platform guardrails.
-// The model can therefore call read / write / edit / glob / grep /
-// shell freely within one turn.
+// [core.ProcessContext.Interact], the framework-managed interaction boundary.
+// Runtime owns model/tool iteration, checkpointing, suspension, usage, and
+// limits; the app supplies its prompt, streaming projection, pricing, and
+// product tool policy. The model can therefore call read / write / edit / glob /
+// grep / shell freely within one turn without an app-owned loop.
 //
 // The body uses Stream rather than Call so each text chunk surfaces
 // to [toolObserver.OnMessageDelta] as it arrives — transport
@@ -114,53 +114,15 @@ type TurnOutput struct {
 // events surface via the tool-decorator path independently of the text-delta
 // path.
 func (e *Engine) buildTurnAgent() *core.Agent {
-	return agent.New("chat-agent").
-		Description("single-turn LLM chat with the default coding tool set").
-		Actions(agent.NewAction("chat",
-			func(ctx context.Context, pc *core.ProcessContext, in turnInput) (TurnOutput, error) {
-				if in.Cwd != "" {
-					// Protected so it rides Blackboard.Spawn down to `task`
-					// sub-agents and survives the typed-action
-					// ClearBlackboard — see the tool resolver / turnctx.CwdBindingKey.
-					pc.Blackboard.BindProtected(turnctx.CwdBindingKey, in.Cwd)
-				}
-				if in.SessionID != "" {
-					// Protected for the same reasons as cwd — the read/edit
-					// guards read it back via turnSession.
-					pc.Blackboard.BindProtected(turnctx.SessionBindingKey, in.SessionID)
-				}
-				out, err := e.runTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, accounting.Budget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
-				if err != nil {
-					// HITL interrupt (R model): a gated tool returned a
-					// resumable interrupt error that the chat tool loop
-					// propagated unchanged. Park on the carried awaitable
-					// (→ StatusWaiting); the client answers via a continuation
-					// run. On resume the turn RE-RUNS (runTurn skips
-					// re-adding the user message — the history layer replays the
-					// stored conversation), the model regenerates the interrupted
-					// tool call, and the gate now observes the recorded verdict.
-					if _, parked := HandleInterrupt(ctx, pc, err); parked {
-						return TurnOutput{}, nil
-					}
-					return out, err
-				}
-				return out, nil
-			},
-			core.ActionConfig{
-				ToolGroups: core.ToolRolesFor(toolport.ToolRoleCoding),
-				// MaxAttempts:1 — don't let the runtime retry an LLM action.
-				// Transient errors are already retried inside the model SDK;
-				// permanent ones (no-access model, bad key, invalid request)
-				// and ctx timeouts won't improve on retry. The default 5
-				// attempts × the per-turn stall timeout is exactly what made a
-				// failed run hang for minutes instead of surfacing run/closed{error}.
-				QoS: core.ActionQoS{MaxAttempts: 1},
-			},
-		)).
-		Goals(agent.GoalProducing[TurnOutput](core.Goal{
-			Description: "single-turn reply produced",
-		})).
-		Build()
+	return agent.New(agent.AgentConfig{Name: "chat-agent", Description: "single-turn LLM chat with the default coding tool set", Version: "1.0.0", Actions: []agent.Action{agent.NewAction("chat", func(ctx context.Context, pc *core.ProcessContext, in turnInput) (TurnOutput, error) {
+		if in.Cwd != "" {
+			pc.Blackboard().StoreProtected(turnctx.CwdBindingKey, in.Cwd)
+		}
+		if in.SessionID != "" {
+			pc.Blackboard().StoreProtected(turnctx.SessionBindingKey, in.SessionID)
+		}
+		return e.runTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, accounting.Budget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
+	}, core.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup(toolport.ToolRoleCoding)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[TurnOutput](core.GoalConfig{Description: "single-turn reply produced"})}})
 }
 
 // taskInput is the argument schema the model fills to call the `task`
@@ -190,37 +152,11 @@ func (in taskInput) SubagentPrompt() string { return in.Prompt }
 // blob. Its LLM rounds still record into the process budget, which
 // aggregates up the subtree into the parent turn's usage roll-up.
 func (e *Engine) buildSubtaskAgent() *core.Agent {
-	return agent.New("task").
-		Description("Delegate a self-contained subtask to a fresh sub-agent that has the coding " +
-			"tools (it cannot delegate further). Use for focused, separable work — investigate a " +
-			"question, draft a file — so the main conversation stays uncluttered. The sub-agent starts " +
-			"with a clean context and cannot see this conversation, so put everything it needs in the " +
-			"prompt. It returns a single final answer; its intermediate work is not shown to the user.").
-		Actions(agent.NewAction("subtask",
-			func(ctx context.Context, pc *core.ProcessContext, in taskInput) (string, error) {
-				// maxBudget=0: a subtask runs without its own token cap.
-				// It isn't unbounded at the turn level, though — its
-				// usage records into the child budget, which aggregates
-				// into the parent's subtree, so the parent turn's next
-				// round-boundary budget check (which reads the subtree
-				// total) stops further work once the subtask pushes the
-				// parent over its budget.
-				// Subtask runs against the default provider/model (no per-run
-				// selection), so pass "" — invocationFrom falls back to the engine
-				// default for pricing.
-				out, err := e.runTurn(ctx, pc, "", in.Prompt, nil, nil, accounting.Budget{})
-				if err != nil {
-					return "", err
-				}
-				return out.Reply, nil
-			},
-			core.ActionConfig{
-				ToolGroups: core.ToolRolesFor(toolport.ToolRoleSubtask),
-				QoS:        core.ActionQoS{MaxAttempts: 1}, // same rationale as the chat action
-			},
-		)).
-		Goals(agent.GoalProducing[string](core.Goal{
-			Description: "subtask answer produced",
-		})).
-		Build()
+	return agent.New(agent.AgentConfig{Name: "task", Description: "Delegate a self-contained subtask to a fresh sub-agent that has the coding " + "tools (it cannot delegate further). Use for focused, separable work — investigate a " + "question, draft a file — so the main conversation stays uncluttered. The sub-agent starts " + "with a clean context and cannot see this conversation, so put everything it needs in the " + "prompt. It returns a single final answer; its intermediate work is not shown to the user.", Version: "1.0.0", Actions: []agent.Action{agent.NewAction("subtask", func(ctx context.Context, pc *core.ProcessContext, in taskInput) (string, error) {
+		out, err := e.runTurn(ctx, pc, "", in.Prompt, nil, nil, accounting.Budget{})
+		if err != nil {
+			return "", err
+		}
+		return out.Reply, nil
+	}, core.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup(toolport.ToolRoleSubtask)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "subtask answer produced"})}})
 }

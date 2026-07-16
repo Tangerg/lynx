@@ -43,9 +43,11 @@ func (k EventKind) Valid() bool {
 
 // Pause identifies a resumable checkpoint and explains why execution stopped.
 type Pause struct {
-	ID         string      `json:"id"`
-	Reason     string      `json:"reason"`
-	Checkpoint *Checkpoint `json:"checkpoint"`
+	ID           string          `json:"id"`
+	Reason       string          `json:"reason"`
+	Prompt       json.RawMessage `json:"prompt"`
+	ResumeSchema json.RawMessage `json:"resume_schema"`
+	Checkpoint   *Checkpoint     `json:"checkpoint"`
 }
 
 // Validate verifies checkpoint identity and diagnostic context.
@@ -55,6 +57,9 @@ func (p Pause) Validate() error {
 	}
 	if strings.TrimSpace(p.Reason) == "" {
 		return fmt.Errorf("%w: pause reason must not be empty", ErrInvalidEvent)
+	}
+	if !json.Valid(p.Prompt) || !json.Valid(p.ResumeSchema) {
+		return fmt.Errorf("%w: pause prompt and resume schema must be valid JSON", ErrInvalidEvent)
 	}
 	if p.Checkpoint == nil {
 		return fmt.Errorf("%w: pause checkpoint must not be nil", ErrInvalidEvent)
@@ -71,14 +76,17 @@ func (p Pause) Validate() error {
 // Resume identifies the checkpoint being continued. Input carries optional
 // operator data; an approval-only resume may leave it empty.
 type Resume struct {
-	ID    string `json:"id"`
-	Input string `json:"input,omitempty"`
+	ID    string          `json:"id"`
+	Input json.RawMessage `json:"input"`
 }
 
 // Validate verifies checkpoint identity.
 func (r Resume) Validate() error {
 	if strings.TrimSpace(r.ID) == "" {
 		return fmt.Errorf("%w: resume ID must not be empty", ErrInvalidEvent)
+	}
+	if !json.Valid(r.Input) {
+		return fmt.Errorf("%w: resume input must be valid JSON", ErrInvalidEvent)
 	}
 	return nil
 }
@@ -87,6 +95,7 @@ func (r Resume) Validate() error {
 // boundaries. Kind selects exactly one payload field.
 type Event struct {
 	Kind       EventKind        `json:"kind"`
+	Round      int              `json:"round"`
 	Final      bool             `json:"final,omitempty"`
 	Request    *chat.Request    `json:"request,omitempty"`
 	Response   *chat.Response   `json:"response,omitempty"`
@@ -101,6 +110,9 @@ type Event struct {
 func (e Event) Validate() error {
 	if !e.Kind.Valid() {
 		return fmt.Errorf("%w: unknown kind %q", ErrInvalidEvent, e.Kind)
+	}
+	if e.Round < 1 {
+		return fmt.Errorf("%w: round must be positive", ErrInvalidEvent)
 	}
 	if e.payloadCount() != 1 {
 		return fmt.Errorf("%w: kind %q requires exactly one payload", ErrInvalidEvent, e.Kind)
@@ -144,6 +156,9 @@ func (e Event) Validate() error {
 		}
 		if err := e.Pause.Validate(); err != nil {
 			return err
+		}
+		if e.Pause.Checkpoint.Round != e.Round {
+			return fmt.Errorf("%w: pause round does not match checkpoint", ErrInvalidEvent)
 		}
 	case EventResume:
 		if e.Resume == nil {

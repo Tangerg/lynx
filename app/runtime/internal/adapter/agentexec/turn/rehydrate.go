@@ -13,41 +13,41 @@ import (
 // persisted turn handle and leaves the restored process parked so the run
 // coordinator can first establish the event owner and atomically accept the
 // continuation; [Resume] delivers the decision only after those gates succeed.
-func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHandle, error) {
-	if req.ProcessID == "" {
+func (s *memoryDispatcher) Rehydrate(ctx context.Context, request RehydrateRequest) (TurnHandle, error) {
+	if request.ProcessID == "" {
 		return TurnHandle{}, errors.New("turn: ProcessID is required")
 	}
 	if s.isClosed() {
 		return TurnHandle{}, ErrDispatcherClosed
 	}
-	turnID := req.TurnID
+	turnID := request.TurnID
 	if turnID == "" {
 		turnID = newTurnID()
 	}
-	handle := TurnHandle{SessionID: req.SessionID, TurnID: turnID}
+	handle := TurnHandle{SessionID: request.SessionID, TurnID: turnID}
 	state := newTurnState(ctx, handle)
 	// Re-resolve the parked run's per-run client from the persisted
 	// provider+model so the continuation runs against the SAME model (mirrors
 	// the StartTurn path). No selection / no resolver / a provider since removed
-	// → nil client = platform default, and the span records "default".
+	// → nil client = engine default, and the span records "default".
 	var client *chatclient.Client
-	if req.Provider != "" && req.Model != "" && s.resolver != nil {
-		c, err := s.resolver.ResolveClient(state.ctx, req.Provider, req.Model)
+	if request.Provider != "" && request.Model != "" && s.resolver != nil {
+		c, err := s.resolver.ResolveClient(state.ctx, request.Provider, request.Model)
 		if err != nil {
 			state.cancel()
 			return TurnHandle{}, err
 		}
 		client = c
-		state.model = req.Model
+		state.model = request.Model
 	} else {
 		state.model = "default"
 	}
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
-	observer := &turnObserver{svc: s, st: state}
+	observer := &turnObserver{dispatcher: s, st: state}
 	state.lifecycle = &turnLifecycle{sessionID: state.handle.SessionID}
 
-	proc, err := s.engine.RestoreTurn(state.ctx, req.ProcessID, agentexec.RestoreTurnRequest{
-		SessionID:     req.SessionID,
+	process, err := s.engine.RestoreTurn(state.ctx, request.ProcessID, agentexec.RestoreTurnRequest{
+		SessionID:     request.SessionID,
 		Observer:      observer,
 		EventListener: state.lifecycle.listener(handle.TurnID),
 		ChatClient:    client,
@@ -57,19 +57,19 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 		state.span.End()
 		return TurnHandle{}, err
 	}
-	state.lifecycle.setRoot(proc.ID())
-	state.setProc(proc)
+	state.lifecycle.setRoot(process.ID())
+	state.setProcess(process)
 	if !state.parkIfLive() {
-		_ = proc.Cancel()
-		discardProcess(state.ctx, proc)
+		_ = process.Cancel()
+		discardProcess(state.ctx, process)
 		state.cancel()
 		state.span.End()
 		return TurnHandle{}, ErrDispatcherClosed
 	}
 
 	if !s.register(state) {
-		_ = proc.Cancel()
-		discardProcess(state.ctx, proc)
+		_ = process.Cancel()
+		discardProcess(state.ctx, process)
 		state.cancel()
 		state.span.End()
 		return TurnHandle{}, ErrDispatcherClosed

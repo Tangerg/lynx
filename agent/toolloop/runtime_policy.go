@@ -14,7 +14,7 @@ type returnDirectMarker interface {
 
 // Direct marks a runtime Tool so a round consisting entirely of direct tools
 // completes with its final ToolResult instead of making another model call.
-// Nil input remains nil and is rejected by tools.Registry or Invocation.
+// Nil input remains nil and is rejected by tools.Registry or Runner.Run.
 func Direct(tool tools.Tool) tools.Tool {
 	if nilRuntimeTool(tool) {
 		return nil

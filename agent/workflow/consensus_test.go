@@ -32,20 +32,20 @@ func TestConsensus_PicksMajorityVote(t *testing.T) {
 		t.Fatalf("Consensus: %v", err)
 	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := engine.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, runErr := platform.RunAgent(t.Context(), a,
+	proc, runErr := engine.Run(t.Context(), a,
 		map[string]any{core.DefaultBindingName: consensusIn{Question: "ok?"}},
 		core.ProcessOptions{})
 	if runErr != nil {
-		t.Fatalf("RunAgent: %v", runErr)
+		t.Fatalf("Run: %v", runErr)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
 	}
-	got, ok := core.ResultOfType[consensusVote](proc)
+	got, ok := core.Result[consensusVote](proc)
 	if !ok {
 		t.Fatal("no consensusVote bound")
 	}
@@ -66,12 +66,12 @@ func TestConsensus_TieBreakByVoterOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Consensus: %v", err)
 	}
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	mustDeploy(t, platform, a)
-	proc, _ := platform.RunAgent(t.Context(), a,
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+	proc, _ := engine.Run(t.Context(), a,
 		map[string]any{core.DefaultBindingName: consensusIn{}},
 		core.ProcessOptions{})
-	got, _ := core.ResultOfType[consensusVote](proc)
+	got, _ := core.Result[consensusVote](proc)
 	if got != "yes" {
 		t.Fatalf("tie should pick first-seen ('yes'), got %q", got)
 	}

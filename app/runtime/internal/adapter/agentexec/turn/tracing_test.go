@@ -32,8 +32,8 @@ func TestStartTurn_PropagatesEntryTrace(t *testing.T) {
 	wantTrace := entry.SpanContext().TraceID()
 
 	stub := &stubEngine{runReply: "ok"}
-	svc := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := svc.StartTurn(entryCtx, turn.StartTurnRequest{SessionID: "s", Message: "hi"})
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := dispatcher.StartTurn(entryCtx, turn.StartTurnRequest{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestStartTurn_PropagatesEntryTrace(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := svc.Events(ctx, handle)
+	events, _ := dispatcher.Events(ctx, handle)
 	for range events { // drain to TurnEnd
 	}
 

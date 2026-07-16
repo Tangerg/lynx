@@ -1,13 +1,15 @@
 package core
 
+import "slices"
+
 // ActionConfig is the optional configuration bundle for [NewAction].
 // Every field is optional — pass a zero ActionConfig{} when defaults
 // suffice. Choosing a struct over functional options keeps defaults
 // + validation in one place.
 //
-// Cost / Value are [CostFunc]s rather than (static, fn) pairs. Use
-// [Static] to lift a constant. Leave Cost nil to inherit
-// [Static](1.0); leave Value nil for [Static](0). The planner shouldn't
+// Cost / Value are [ScoreFunc]s rather than (static, fn) pairs. Use
+// [FixedScore] to lift a constant. Leave Cost nil to inherit
+// [FixedScore](1.0); leave Value nil for [FixedScore](0). The planner shouldn't
 // accidentally treat real work as zero-cost, so a nil Cost falls back
 // to 1.0 rather than 0.
 type ActionConfig struct {
@@ -15,27 +17,29 @@ type ActionConfig struct {
 	// action is exposed as a tool) the LLM prompt.
 	Description string
 
-	// Pre adds explicit precondition keys on top of the auto-derived
+	// Preconditions adds explicit condition keys on top of the auto-derived
 	// "input binding present" preconditions. Use for named boolean
 	// conditions like "user_authenticated".
-	Pre []string
+	Preconditions []string
 
-	// Post mirrors Pre on the effects side: named conditions the
+	// Effects lists named conditions the
 	// action establishes on success.
-	Post []string
+	Effects []string
 
-	// CanRerun lifts the default once-per-process restriction.
-	CanRerun bool
+	// Repeatable allows the planner to select the action more than once in one
+	// process. The zero value preserves once-per-process execution.
+	Repeatable bool
 
-	// QoS overrides the default retry/back-off policy. Zero falls
-	// back to [DefaultActionQoS].
-	QoS ActionQoS
+	// Retry explicitly opts this action into replay after failure. The zero
+	// value means one attempt. MaxAttempts above one also requires a Safety
+	// declaration; invalid policies are rejected when the Agent is deployed.
+	Retry RetryPolicy
 
-	// Cost is the per-tick planning cost probe; nil → [Static](1.0).
-	Cost CostFunc
+	// Cost is the per-tick planning cost probe; nil → [FixedScore](1.0).
+	Cost ScoreFunc
 
-	// Value is the per-tick planning value probe; nil → [Static](0).
-	Value CostFunc
+	// Value is the per-tick planning value probe; nil → [FixedScore](0).
+	Value ScoreFunc
 
 	// ToolGroups declares the abstract tool requirements (role
 	// names) — the resolver translates these to concrete tools at
@@ -43,52 +47,36 @@ type ActionConfig struct {
 	// [ProcessContext.ActionTools].
 	ToolGroups []ToolGroupRequirement
 
-	// OutputBinding overrides the default "it" output variable name.
-	// Use when an action produces multiple distinct artifacts of
-	// the same type.
-	OutputBinding string
-
-	// InputBinding mirrors OutputBinding for the single input
-	// binding.
-	InputBinding string
-
 	// Inputs replaces the default single-input binding with the
-	// supplied list. Used when an action needs multiple distinct
-	// named inputs.
-	Inputs []IOBinding
+	// supplied list. Use [NewBinding] to assign a non-default name or
+	// declare multiple distinct inputs.
+	Inputs []Binding
 
-	// Outputs adds extra output bindings beyond the default one.
-	// Rare; most actions produce a single canonical artifact.
-	Outputs []IOBinding
+	// Outputs replaces the default single-output binding with the supplied
+	// list. Use [NewBinding] to assign a non-default name. Rare; most actions
+	// produce a single canonical artifact.
+	Outputs []Binding
 
-	// ClearBlackboard wipes the blackboard (preserving protected
-	// entries) on action success, before the output is bound.
+	// ClearWorkingState removes ordinary blackboard state on action success
+	// before binding the output. Protected ambient entries remain available.
 	// Useful for state-machine transitions.
-	ClearBlackboard bool
+	ClearWorkingState bool
 }
 
-// ApplyDefaults fills in zero-valued fields whose conceptual default
-// is non-zero.
-func (c *ActionConfig) ApplyDefaults() {
+func (c *ActionConfig) applyDefaults() {
 	if c.Cost == nil {
-		c.Cost = Static(1.0)
+		c.Cost = FixedScore(1.0)
 	}
 	if c.Value == nil {
-		c.Value = Static(0)
+		c.Value = FixedScore(0)
 	}
-	if c.QoS == (ActionQoS{}) {
-		c.QoS = DefaultActionQoS()
+	if c.Retry == (RetryPolicy{}) {
+		c.Retry = DefaultRetryPolicy()
 	}
 }
 
-// ToolRolesFor builds a slice of [ToolGroupRequirement] from plain
-// role names. Each entry carries no Permissions — "no special
-// privileges" — so high-privilege groups need an explicit
-// [ToolGroupRequirement] literal instead.
-func ToolRolesFor(roles ...string) []ToolGroupRequirement {
-	out := make([]ToolGroupRequirement, 0, len(roles))
-	for _, role := range roles {
-		out = append(out, ToolGroupRequirement{Role: role})
-	}
-	return out
+// RequireToolGroup declares one role and the permissions an action is willing
+// to grant it. Omitting permissions keeps the requirement unprivileged.
+func RequireToolGroup(role string, allowed ...ToolGroupPermission) ToolGroupRequirement {
+	return ToolGroupRequirement{Role: role, AllowedPermissions: slices.Clone(allowed)}
 }

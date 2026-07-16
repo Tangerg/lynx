@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
@@ -17,8 +18,8 @@ import (
 // ToolCallStart / ToolCallEnd event so transport adapters surface them
 // verbatim.
 type turnObserver struct {
-	svc *inMemory
-	st  *turnState
+	dispatcher *memoryDispatcher
+	st         *turnState
 }
 
 // ApproveToolCall is the non-blocking gate the engine consults BEFORE
@@ -27,8 +28,8 @@ type turnObserver struct {
 //
 //   - auto-pass mode → run the tool.
 //   - deny stance (read-only) → recoverable denial, the model adapts.
-//   - prompt stance → runtime interrupt: the first pass returns an
-//     InterruptError (the tool loop exits, the action parks at
+//   - prompt stance → runtime suspension: the first pass returns a durable
+//     Suspension error (the tool loop exits, the action parks at
 //     StatusWaiting, the client answers via runs.resume); on resume the gate
 //     is consulted again at the same pending call and Interrupt returns the
 //     human's [interrupts.Resolution], so the gate runs / denies /
@@ -59,10 +60,10 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	}
 
 	mode := approval.ModeYolo
-	approvalConfigured := t.svc.approval != nil
+	approvalConfigured := t.dispatcher.approval != nil
 	if approvalConfigured {
 		var err error
-		mode, err = t.svc.approval.Mode(ctx)
+		mode, err = t.dispatcher.approval.Mode(ctx)
 		if err != nil {
 			return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable"}
 		}
@@ -78,12 +79,12 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	sessionID := t.st.handle.SessionID
 	if plan.Action == approval.GatePrompt {
 		query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: plan.Arguments}
-		d, ok, _ := t.svc.approval.Decide(ctx, query)
+		d, ok, _ := t.dispatcher.approval.Decide(ctx, query)
 		autoApproved := false
 		// A per-server auto-approve whitelist skips the prompt only after
 		// standing rules, so an explicit remembered deny is never overridden.
-		if t.svc.mcpToolAutoApproved != nil {
-			autoApproved = t.svc.mcpToolAutoApproved(toolName)
+		if t.dispatcher.mcpToolAutoApproved != nil {
+			autoApproved = t.dispatcher.mcpToolAutoApproved(toolName)
 		}
 		plan = plan.ResolvePromptShortcuts(approval.StandingDecision{Decision: d, Matched: ok}, autoApproved)
 	}
@@ -96,9 +97,9 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	}
 
 	// interrupt for human approval (R model). First pass bubbles the
-	// InterruptError up to park; resume delivers the resolution here. The
+	// Suspension error up to park; resume delivers the resolution here. The
 	// prompt carries the gated tool's risk so the approval card shows it.
-	res, _, err := agentexec.Interrupt[interrupts.Resolution](ctx,
+	res, err := hitl.Interrupt[interrupts.Resolution](ctx,
 		interrupts.InterruptKey("approval", toolName, plan.Arguments),
 		ApprovalPrompt{
 			CallID: callID, ToolName: toolName, Arguments: plan.Arguments,
@@ -113,7 +114,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// the ORIGINAL arguments (the model regenerates calls like this one); any
 	// editedArgs override stays one-shot, never folded into the rule.
 	if res.RememberScope != "" {
-		_ = t.svc.approval.Remember(ctx, approval.RememberRequest{
+		_ = t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
 			Scope:      approval.Scope(res.RememberScope),
 			SessionID:  sessionID,
 			ProjectDir: t.st.cwd,
@@ -131,7 +132,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 }
 
 func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
-	t.svc.emit(t.st, ToolCallStart{
+	t.dispatcher.emit(t.st, ToolCallStart{
 		CallID:      callID,
 		ToolName:    toolName,
 		Arguments:   arguments,
@@ -144,7 +145,7 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, err error)
 	// paused for human input. Not a failure — skip the ToolCallEnd
 	// event. The turn-park handler drains the in-flight tool item
 	// and creates the appropriate interrupt card.
-	if agentexec.IsInterrupt(err) {
+	if hitl.IsInterrupt(err) {
 		return
 	}
 	end := ToolCallEnd{CallID: callID, Output: output}
@@ -154,16 +155,16 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, err error)
 	case err != nil:
 		end.Err = err.Error()
 	}
-	t.svc.emit(t.st, end)
+	t.dispatcher.emit(t.st, end)
 
 	// After a successful todo_write, project the model's (whole-replaced) task
 	// list so a client renders the task panel (state.snapshot{todos}); the tool
 	// result itself is model-facing only. Read the canonical list from the
 	// store rather than the tool args, so the projection can't drift from the
 	// arg schema.
-	if err == nil && toolName == "todo_write" && t.svc.todos != nil {
-		if items, lerr := t.svc.todos.List(t.st.ctx, t.st.handle.SessionID); lerr == nil {
-			t.svc.emit(t.st, TodosUpdated{Todos: items})
+	if err == nil && toolName == "todo_write" && t.dispatcher.todos != nil {
+		if items, lerr := t.dispatcher.todos.List(t.st.ctx, t.st.handle.SessionID); lerr == nil {
+			t.dispatcher.emit(t.st, TodosUpdated{Todos: items})
 		}
 	}
 
@@ -179,7 +180,7 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, err error)
 }
 
 func (t *turnObserver) OnMessageDelta(text string) {
-	t.svc.emit(t.st, MessageDelta{
+	t.dispatcher.emit(t.st, MessageDelta{
 		Text: text,
 	})
 }
@@ -189,7 +190,7 @@ func (t *turnObserver) OnMessageDelta(text string) {
 // about reasoning can ignore the type in their dispatch switch —
 // no event is dropped on the engine side.
 func (t *turnObserver) OnReasoningDelta(text string) {
-	t.svc.emit(t.st, ReasoningDelta{
+	t.dispatcher.emit(t.st, ReasoningDelta{
 		Text: text,
 	})
 }
@@ -198,7 +199,7 @@ func (t *turnObserver) OnReasoningDelta(text string) {
 // the mid-run token / cost readout (transport maps it to segment.progress).
 // contextTokens is this round's prompt size (the live context occupancy).
 func (t *turnObserver) OnUsage(usage accounting.TokenUsage, costUSD float64, contextTokens int64) {
-	t.svc.emit(t.st, UsageReported{
+	t.dispatcher.emit(t.st, UsageReported{
 		TokenUsage:    usage,
 		CostUSD:       costUSD,
 		ContextTokens: contextTokens,

@@ -13,7 +13,7 @@ import (
 // loop's input and the latest attempt; returns a [Feedback] whose
 // Score gates the loop. Typical implementation: ask an LLM judge
 // for a score 0..1 + rationale.
-type Evaluator[In, Out any] func(ctx context.Context, pc *core.ProcessContext, in In, last Out) (Feedback, error)
+type Evaluator[In, Out any] func(ctx context.Context, process *core.ProcessContext, input In, latest Out) (Feedback, error)
 
 // RepeatUntilAcceptableConfig is a specialized wrapper over [RepeatUntilConfig]
 // that turns the "loop until LLM is satisfied" pattern into a
@@ -47,7 +47,7 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 	// [RepeatUntilConfig.Task] — receives loop input, current
 	// history (so the body can "revise based on prior feedback"),
 	// and returns the next Out.
-	Task func(ctx context.Context, pc *core.ProcessContext, in In, history *History[Out]) (Out, error)
+	Task func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error)
 
 	// Evaluator scores the latest Out. The returned Feedback is
 	// also bound on the blackboard (Bind) so subsequent Task calls
@@ -55,7 +55,7 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 	Evaluator Evaluator[In, Out]
 }
 
-// RepeatUntilAcceptable compiles spec into a deployable agent. Unlike a
+// RepeatUntilAcceptable compiles config into a deployable agent. Unlike a
 // plain [RepeatUntil], it evaluates each attempt inside the task action,
 // records every (output, feedback) pair in an [AttemptHistory], and
 // produces the highest-scoring attempt rather than merely the last
@@ -73,33 +73,33 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 // evaluation failure can't strand the workflow.
 //
 // Returns an error on missing Name / nil Task / nil Evaluator.
-func RepeatUntilAcceptable[In, Out any](spec RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error) {
-	if spec.Name == "" {
+func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error) {
+	if config.Name == "" {
 		return nil, errors.New("workflow.RepeatUntilAcceptable: Name must not be empty")
 	}
-	if spec.Task == nil {
+	if config.Task == nil {
 		return nil, errors.New("workflow.RepeatUntilAcceptable: Task must not be nil")
 	}
-	if spec.Evaluator == nil {
+	if config.Evaluator == nil {
 		return nil, errors.New("workflow.RepeatUntilAcceptable: Evaluator must not be nil")
 	}
-	threshold := spec.AcceptableScore
+	threshold := config.AcceptableScore
 	if threshold <= 0 {
 		threshold = 0.7
 	}
-	maxIter := spec.MaxIterations
-	if maxIter <= 0 {
-		maxIter = 3
+	maxIterations := config.MaxIterations
+	if maxIterations <= 0 {
+		maxIterations = 3
 	}
 
-	acceptKey := spec.Name + "_acceptable"
+	acceptKey := config.Name + "_acceptable"
 
-	acceptCondition := core.NewCondition(acceptKey, func(_ context.Context, env *core.ConditionEnv) core.Determination {
+	acceptCondition := core.NewCondition(acceptKey, func(_ context.Context, env *core.ConditionEnv) core.Truth {
 		history, ok := core.Last[*AttemptHistory[Out]](env.Blackboard)
 		if !ok {
 			return core.False
 		}
-		if history.Count() >= maxIter {
+		if history.Count() >= maxIterations {
 			return core.True
 		}
 		best, ok := history.Best()
@@ -113,51 +113,46 @@ func RepeatUntilAcceptable[In, Out any](spec RepeatUntilAcceptableConfig[In, Out
 	})
 
 	task := core.NewAction[In, Out](
-		spec.Name+"-task",
-		func(ctx context.Context, pc *core.ProcessContext, in In) (Out, error) {
+		config.Name+"-task",
+		func(ctx context.Context, process *core.ProcessContext, input In) (Out, error) {
 			var zero Out
 
-			history, ok := core.Last[*AttemptHistory[Out]](pc.Blackboard)
+			history, ok := core.Last[*AttemptHistory[Out]](process.Blackboard())
 			if !ok {
 				history = &AttemptHistory[Out]{}
-				pc.Blackboard.Bind(history)
+				process.Blackboard().Bind(history)
 			}
 
 			// The task sees prior outputs so it can revise.
-			out, err := spec.Task(ctx, pc, in, &History[Out]{Attempts: history.outputs()})
+			output, err := config.Task(ctx, process, input, &History[Out]{Attempts: history.outputs()})
 			if err != nil {
 				return zero, err
 			}
 
-			fb, evalErr := spec.Evaluator(ctx, pc, in, out)
-			if evalErr != nil {
+			feedback, evaluationErr := config.Evaluator(ctx, process, input, output)
+			if evaluationErr != nil {
 				// Keep the attempt (score 0) and keep looping rather than
 				// failing the whole workflow on a transient eval error.
-				fb = Feedback{Score: 0, Text: fmt.Sprintf("evaluation failed: %v", evalErr)}
+				feedback = Feedback{Score: 0, Text: fmt.Sprintf("evaluation failed: %v", evaluationErr)}
 			}
-			history.record(out, fb)
-			pc.Blackboard.Bind(fb)
+			history.record(output, feedback)
+			process.Blackboard().Bind(feedback)
 
 			best, _ := history.Best()
 			return best.Output, nil
 		},
 		core.ActionConfig{
 			Description: "evaluator-optimizer loop body — produces, scores, keeps the best",
-			CanRerun:    true,
-			Post:        []string{acceptKey},
-			QoS:         singleAttempt,
+			Repeatable:  true,
+			Effects:     []string{acceptKey},
 		},
 	)
 
 	return core.NewAgent(core.AgentConfig{
-		Name:        spec.Name,
-		Description: spec.Description,
+		Name:        config.Name,
+		Description: config.Description,
 		Actions:     []core.Action{task},
 		Conditions:  []core.Condition{acceptCondition},
-		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
-			Name:        spec.Name,
-			Description: "produce best-scoring " + core.TypeName[Out](),
-			Pre:         []string{acceptKey},
-		})},
+		Goals:       []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce best-scoring " + core.TypeName[Out](), Preconditions: []string{acceptKey}})},
 	}), nil
 }

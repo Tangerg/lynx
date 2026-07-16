@@ -23,38 +23,27 @@ func TestRetryClearsEffectConditions(t *testing.T) {
 	var seen []bool
 	failOnce := true
 
-	a := agent.New("retry-eff").
-		Actions(agent.NewAction("eff",
-			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-				cond, _ := pc.Blackboard.Condition("side_effect")
-				seen = append(seen, cond)
+	a := agent.New(agent.AgentConfig{Name: "retry-eff", Actions: []agent.Action{agent.NewAction("eff", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+		cond, _ := pc.Blackboard().Condition("side_effect")
+		seen = append(seen, cond)
+		pc.Blackboard().StoreCondition("side_effect", true)
+		if failOnce {
+			failOnce = false
+			return wordCount{}, errors.New("boom")
+		}
+		return wordCount{Count: len(in.Text)}, nil
+	}, core.ActionConfig{Effects: []string{"side_effect"}, Retry: core.RetryPolicy{MaxAttempts: 3, Safety: core.RetrySafetyIdempotent}})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
 
-				// Half-apply the effect, then fail the first attempt so the
-				// retry path runs.
-				pc.Blackboard.SetCondition("side_effect", true)
-				if failOnce {
-					failOnce = false
-					return wordCount{}, errors.New("boom")
-				}
-				return wordCount{Count: len(in.Text)}, nil
-			},
-			core.ActionConfig{
-				Post: []string{"side_effect"},
-				QoS:  core.ActionQoS{MaxAttempts: 3},
-			})).
-		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "counted"})).
-		Build()
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	mustDeploy(t, platform, a)
-
-	proc, err := platform.RunAgent(
+	proc, err := engine.Run(
 		context.Background(), a,
 		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
 		core.ProcessOptions{},
 	)
 	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+		t.Fatalf("Run: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure=%v", proc.Status(), proc.Failure())
@@ -69,5 +58,48 @@ func TestRetryClearsEffectConditions(t *testing.T) {
 	if seen[1] {
 		t.Fatal("attempt 2 should see the effect condition CLEARED (false); " +
 			"got true — the retry leaked a half-applied effect")
+	}
+}
+
+func TestActionFailureRunsOnceByDefault(t *testing.T) {
+	var attempts int
+	a := agent.New(agent.AgentConfig{Name: "default-single-attempt", Actions: []agent.Action{agent.NewAction("side-effect", func(context.Context, *core.ProcessContext, word) (wordCount, error) {
+		attempts++
+		return wordCount{}, errors.New("failed after side effect")
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+	proc, err := engine.Run(t.Context(), a,
+		map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 1 || proc.Status() != core.StatusFailed {
+		t.Fatalf("attempts=%d status=%s, want one failed attempt", attempts, proc.Status())
+	}
+	history := proc.History()
+	if len(history) != 1 || history[0].Attempts != 1 {
+		t.Fatalf("history = %#v, want one invocation with one attempt", history)
+	}
+}
+
+func TestExplicitRetryPolicyHonorsMaxAttempts(t *testing.T) {
+	var attempts int
+	a := agent.New(agent.AgentConfig{Name: "explicit-retry", Actions: []agent.Action{agent.NewAction("idempotent", func(context.Context, *core.ProcessContext, word) (wordCount, error) {
+		attempts++
+		return wordCount{}, errors.New("retryable failure")
+	}, core.ActionConfig{Retry: core.RetryPolicy{MaxAttempts: 3, Safety: core.RetrySafetyIdempotent}})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+	proc, err := engine.Run(t.Context(), a,
+		map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 3 || proc.Status() != core.StatusFailed {
+		t.Fatalf("attempts=%d status=%s, want three failed attempts", attempts, proc.Status())
+	}
+	if history := proc.History(); len(history) != 1 || history[0].Attempts != 3 {
+		t.Fatalf("history = %#v, want one invocation with three attempts", history)
 	}
 }

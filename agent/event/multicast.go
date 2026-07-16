@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"sync"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/Tangerg/lynx/agent/core"
 )
+
+var eventTracer = otel.Tracer("lynx/agent/event")
 
 // Listener is the subscriber surface. Implementations should be
 // non-blocking; the multicast snapshots the listener slice under a
@@ -18,13 +19,13 @@ import (
 // listener doesn't block concurrent Add / Remove — but a slow listener
 // still delays subsequent listeners on the same OnEvent call.
 type Listener interface {
-	OnEvent(ctx context.Context, e Event)
+	OnEvent(ctx context.Context, event Event)
 }
 
 // ListenerFunc adapts a plain function into Listener.
 type ListenerFunc func(context.Context, Event)
 
-func (f ListenerFunc) OnEvent(ctx context.Context, e Event) { f(ctx, e) }
+func (f ListenerFunc) OnEvent(ctx context.Context, event Event) { f(ctx, event) }
 
 // Multicast is the concurrent-safe fan-out. Add/Remove may run while
 // OnEvent is delivering — listeners are snapshotted under the lock and
@@ -39,25 +40,25 @@ func NewMulticast() *Multicast { return &Multicast{} }
 
 // Add appends a listener. Nil listeners are ignored to keep callers from
 // having to nil-check.
-func (m *Multicast) Add(l Listener) {
-	if l == nil {
+func (m *Multicast) Add(listener Listener) {
+	if listener == nil {
 		return
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.listeners = append(m.listeners, l)
+	m.listeners = append(m.listeners, listener)
 }
 
 // Remove drops the supplied listener (by pointer identity). Listeners not
 // present are silently ignored.
-func (m *Multicast) Remove(l Listener) {
+func (m *Multicast) Remove(listener Listener) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for i, existing := range m.listeners {
-		if existing == l {
-			m.listeners = append(m.listeners[:i], m.listeners[i+1:]...)
+	for index, existing := range m.listeners {
+		if existing == listener {
+			m.listeners = append(m.listeners[:index], m.listeners[index+1:]...)
 			return
 		}
 	}
@@ -67,7 +68,7 @@ func (m *Multicast) Remove(l Listener) {
 // panicking listener doesn't take down the rest. Listeners are snapshotted
 // under the lock and then invoked outside it, so a slow listener can't
 // block concurrent Add / Remove calls.
-func (m *Multicast) OnEvent(ctx context.Context, e Event) {
+func (m *Multicast) OnEvent(ctx context.Context, event Event) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -78,7 +79,7 @@ func (m *Multicast) OnEvent(ctx context.Context, e Event) {
 	m.mu.RUnlock()
 
 	for _, listener := range listeners {
-		safeDeliver(ctx, listener, e)
+		safeDeliver(ctx, listener, event)
 	}
 }
 
@@ -87,23 +88,23 @@ func (m *Multicast) OnEvent(ctx context.Context, e Event) {
 // down the whole process — delivery to the remaining listeners continues.
 // The panic is not silent: it surfaces as a short error span so the failure is
 // observable through the standard OTel pipeline.
-func safeDeliver(ctx context.Context, l Listener, e Event) {
+func safeDeliver(ctx context.Context, listener Listener, event Event) {
 	defer func() {
-		r := recover()
-		if r == nil {
+		recovered := recover()
+		if recovered == nil {
 			return
 		}
-		_, span := core.AgentTracer().Start(ctx, "agent.listener.panic",
+		_, span := eventTracer.Start(ctx, "agent.listener.panic",
 			trace.WithSpanKind(trace.SpanKindInternal),
 			trace.WithAttributes(
-				attribute.String("agent.listener", fmt.Sprintf("%T", l)),
-				attribute.String("agent.event", fmt.Sprintf("%T", e)),
+				attribute.String("agent.listener", fmt.Sprintf("%T", listener)),
+				attribute.String("agent.event", fmt.Sprintf("%T", event)),
 			),
 		)
-		err := fmt.Errorf("event listener panicked: %v", r)
+		err := fmt.Errorf("event listener panicked: %v", recovered)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		span.End()
 	}()
-	l.OnEvent(ctx, e)
+	listener.OnEvent(ctx, event)
 }

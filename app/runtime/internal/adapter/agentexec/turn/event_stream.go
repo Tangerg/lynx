@@ -5,7 +5,7 @@ import (
 	"iter"
 )
 
-func (s *inMemory) Events(ctx context.Context, handle TurnHandle) (iter.Seq[Event], error) {
+func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.Seq[Event], error) {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (s *inMemory) Events(ctx context.Context, handle TurnHandle) (iter.Seq[Even
 // ReasoningDelta) already buffered on ch into head, draining without blocking
 // (the default branch = nothing more queued -> stop). A different-kind event
 // pulled off mid-drain is parked in *spill for the caller to yield next, so
-// ordering is preserved. The merged event keeps head's BaseEvent; deltas are
+// ordering is preserved. The merged event keeps the head event's metadata; deltas are
 // ephemeral (no SSE id, §5.2), so a merged delta's seq is immaterial.
 func coalesceTextDeltas(head Event, ch <-chan Event, spill *Event) Event {
 	switch h := head.(type) {
