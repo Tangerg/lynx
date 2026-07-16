@@ -6,7 +6,7 @@
 >
 > 审查基线：`92b4147a5afd7294a144196043d54858bb80b89d`
 >
-> 最近完成检查点：`B10_IMPLEMENTATION_COMMIT`（B10 实现完成）
+> 最近完成检查点：`2897fee39`（B10 实现完成）
 >
 > 当前进度：**10 / 10**
 >
@@ -1285,7 +1285,7 @@ go test -race ./...
   - `GOWORK=off go test -race -count=1 ./...`：通过；
   - `GOWORK=off go mod tidy -diff`：无差异；
   - `git diff --check`：通过。
-- Commit / Push：`B10_IMPLEMENTATION_COMMIT`，实现与完成记录已推送。
+- Commit / Push：`2897fee39`，实现与完成记录已推送。
 - 剩余风险：G-16 已关闭；本计划定义的差异、结构风险与文档漂移全部关闭或按决策明确接受。
 
 ---
@@ -1306,7 +1306,7 @@ go test -race ./...
 | B7 Agent Nested Suspension | 已完成 | 2026-07-16 | 2026-07-17 | `71261f63a` / `38be8cdb5` | generic nested suspension；多层 restore/resume；usage/session rebasing；durable cleanup；Agent / Runtime 全绿 |
 | B8 Runtime HITL | 已完成 | 2026-07-17 | 2026-07-17 | `730ce3efe` | typed envelope；root/child approval/hooks；restart/cancel/run_lost；tree cleanup；workspace / standalone / race 全绿 |
 | B9 Engine / Ownership | 已完成 | 2026-07-17 | 2026-07-17 | `e945323c1` | Engine 三方法 execution surface；consumer-side ports；Host 唯一逆序幂等 ownership；workspace / standalone / race 全绿 |
-| B10 Fitness / Docs | 已完成 | 2026-07-17 | 2026-07-17 | `B10_IMPLEMENTATION_COMMIT` | Host/application fitness；全局文档同步；workspace / standalone / race / tidy 全绿 |
+| B10 Fitness / Docs | 已完成 | 2026-07-17 | 2026-07-17 | `2897fee39` | Host/application fitness；全局文档同步；workspace / standalone / race / tidy 全绿 |
 
 当前实现进度：**10 / 10**。
 
