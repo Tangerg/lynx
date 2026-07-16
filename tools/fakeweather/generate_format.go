@@ -3,7 +3,6 @@ package fakeweather
 import (
 	"fmt"
 	"math"
-	"math/rand/v2"
 	"strings"
 	"time"
 )
@@ -24,31 +23,31 @@ func formatHM(hours float64) string {
 	return fmt.Sprintf("%02d:%02d", h, m)
 }
 
-func generateHourlyForecast(date time.Time, dailyMean int, condition string, zone climateZone, profile climateProfile, rng *rand.Rand) []HourlyForecast {
+func (g *reportGenerator) hourlyForecast(dailyMean int, condition string) []HourlyForecast {
 	out := make([]HourlyForecast, 24)
 	for i := range 24 {
-		hour := time.Date(date.Year(), date.Month(), date.Day(), i, 0, 0, 0, time.UTC)
+		hour := time.Date(g.target.Year(), g.target.Month(), g.target.Day(), i, 0, 0, 0, time.UTC)
 
 		// Sinusoidal diurnal cycle: hottest at 14:00, coolest at 02:00.
-		amp := profile.dailyAmplitude
-		if zone == zoneDesert {
+		amp := g.profile.dailyAmplitude
+		if g.zone == zoneDesert {
 			amp = 12
 		}
 		variation := int(math.Round(float64(amp) * math.Sin(float64(i-2)*math.Pi/12)))
-		hourTemp := clamp(dailyMean+variation+rng.IntN(3)-1, profile.floor, profile.ceiling)
+		hourTemp := clamp(dailyMean+variation+g.rng.IntN(3)-1, g.profile.floor, g.profile.ceiling)
 
 		hourCondition := condition
-		if rng.Float64() < 0.2 {
-			alt := candidateConditions(hourTemp, int(date.Month()), zone, seasonalPattern{})
-			hourCondition = alt[rng.IntN(len(alt))]
+		if g.rng.Float64() < 0.2 {
+			alt := candidateConditions(hourTemp, int(g.target.Month()), g.zone, seasonalPattern{})
+			hourCondition = alt[g.rng.IntN(len(alt))]
 		}
 
 		precip := 0.0
 		if precipitationFor(hourCondition) {
-			precip = math.Round(rng.Float64()*5.0*10) / 10
+			precip = math.Round(g.rng.Float64()*5.0*10) / 10
 		}
 
-		humidity := 50 + rng.IntN(30)
+		humidity := 50 + g.rng.IntN(30)
 		if i >= 22 || i <= 6 {
 			humidity = min(humidity+10, 100)
 		}
@@ -59,15 +58,15 @@ func generateHourlyForecast(date time.Time, dailyMean int, condition string, zon
 			Condition:     hourCondition,
 			Precipitation: precip,
 			Humidity:      humidity,
-			WindSpeed:     math.Round((5.0+rng.Float64()*15.0)*10) / 10,
+			WindSpeed:     math.Round((5.0+g.rng.Float64()*15.0)*10) / 10,
 		}
 	}
 	return out
 }
 
-func generateAlerts(condition string, temp int, windSpeed float64, zone climateZone, date time.Time, rng *rand.Rand) []Alert {
+func (g *reportGenerator) alerts(condition string, temp int, windSpeed float64) []Alert {
 	var alerts []Alert
-	day := date.Add(24 * time.Hour)
+	day := g.target.Add(24 * time.Hour)
 
 	if temp >= 35 {
 		severity := "moderate"
@@ -79,7 +78,7 @@ func generateAlerts(condition string, temp int, windSpeed float64, zone climateZ
 			Severity:    severity,
 			Title:       "High Temperature Warning",
 			Description: fmt.Sprintf("Temperature is expected to reach %d°C. Stay hydrated and avoid prolonged sun exposure.", temp),
-			StartTime:   date.Unix(),
+			StartTime:   g.target.Unix(),
 			EndTime:     day.Unix(),
 		})
 	}
@@ -93,7 +92,7 @@ func generateAlerts(condition string, temp int, windSpeed float64, zone climateZ
 			Severity:    severity,
 			Title:       "Extreme Cold Warning",
 			Description: fmt.Sprintf("Temperature is expected to drop to %d°C. Dress warmly and limit outdoor exposure.", temp),
-			StartTime:   date.Unix(),
+			StartTime:   g.target.Unix(),
 			EndTime:     day.Unix(),
 		})
 	}
@@ -107,8 +106,8 @@ func generateAlerts(condition string, temp int, windSpeed float64, zone climateZ
 			Severity:    severity,
 			Title:       "High Wind Warning",
 			Description: fmt.Sprintf("Wind speeds may reach %.1f km/h. Secure loose objects and avoid outdoor activities.", windSpeed),
-			StartTime:   date.Unix(),
-			EndTime:     date.Add(12 * time.Hour).Unix(),
+			StartTime:   g.target.Unix(),
+			EndTime:     g.target.Add(12 * time.Hour).Unix(),
 		})
 	}
 	if condition == "Stormy" {
@@ -117,8 +116,8 @@ func generateAlerts(condition string, temp int, windSpeed float64, zone climateZ
 			Severity:    "severe",
 			Title:       "Severe Storm Warning",
 			Description: "Severe thunderstorms expected. Stay indoors and avoid travel if possible.",
-			StartTime:   date.Unix(),
-			EndTime:     date.Add(6 * time.Hour).Unix(),
+			StartTime:   g.target.Unix(),
+			EndTime:     g.target.Add(6 * time.Hour).Unix(),
 		})
 	}
 	if condition == "Blizzard" {
@@ -127,19 +126,19 @@ func generateAlerts(condition string, temp int, windSpeed float64, zone climateZ
 			Severity:    "severe",
 			Title:       "Blizzard Warning",
 			Description: "Blizzard conditions expected with heavy snow and strong winds. Travel is strongly discouraged.",
-			StartTime:   date.Unix(),
-			EndTime:     date.Add(12 * time.Hour).Unix(),
+			StartTime:   g.target.Unix(),
+			EndTime:     g.target.Add(12 * time.Hour).Unix(),
 		})
 	}
-	month := int(date.Month())
-	if (zone == zoneTropical || zone == zoneSubtropical) && month >= 6 && month <= 10 && rng.Float64() < 0.05 {
+	month := int(g.target.Month())
+	if (g.zone == zoneTropical || g.zone == zoneSubtropical) && month >= 6 && month <= 10 && g.rng.Float64() < 0.05 {
 		alerts = append(alerts, Alert{
 			Type:        "typhoon",
 			Severity:    "extreme",
 			Title:       "Typhoon Warning",
 			Description: "A typhoon is approaching. Evacuate if instructed by authorities and prepare for extreme weather.",
-			StartTime:   date.Unix(),
-			EndTime:     date.Add(48 * time.Hour).Unix(),
+			StartTime:   g.target.Unix(),
+			EndTime:     g.target.Add(48 * time.Hour).Unix(),
 		})
 	}
 	return alerts

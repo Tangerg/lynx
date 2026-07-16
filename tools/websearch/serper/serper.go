@@ -182,7 +182,7 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 	if err != nil {
 		return nil, err
 	}
-	return shapeResponse(raw), nil
+	return raw.toWebSearch(), nil
 }
 
 // ============================================================== mapping
@@ -215,17 +215,17 @@ func recencyToTbs(r websearch.Recency) string {
 	return ""
 }
 
-func shapeResponse(raw *Response) *websearch.Response {
-	results := make([]*websearch.Result, 0, len(raw.Organic))
-	for _, o := range raw.Organic {
+func (r *Response) toWebSearch() *websearch.Response {
+	results := make([]*websearch.Result, 0, len(r.Organic))
+	for _, result := range r.Organic {
 		results = append(results, &websearch.Result{
-			Title:         o.Title,
-			URL:           o.Link,
-			Snippet:       o.Snippet,
-			PublishedTime: parseDate(o.Date),
+			Title:         result.Title,
+			URL:           result.Link,
+			Snippet:       result.Snippet,
+			PublishedTime: parseDate(result.Date),
 		})
 	}
-	return &websearch.Response{Query: raw.SearchParameters.Q, Results: results}
+	return &websearch.Response{Query: r.SearchParameters.Q, Results: results}
 }
 
 // parseDate tries Serper's common date formats. Relative strings

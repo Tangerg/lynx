@@ -7,83 +7,110 @@ import (
 	"time"
 )
 
+type reportGenerator struct {
+	request  Request
+	target   time.Time
+	rng      *rand.Rand
+	zone     climateZone
+	coords   Coordinates
+	seasonal seasonalPattern
+	profile  climateProfile
+	month    int
+}
+
 // generate is the entry point: parse the request, derive every output
 // field deterministically from (location, date), and return the
 // Response. All randomness is seeded from the input — same input,
 // same output across runs.
 func generate(req *Request) (*Response, error) {
-	target, err := parseTargetDate(req.Date)
+	generator, err := newReportGenerator(req)
 	if err != nil {
 		return nil, fmt.Errorf("fakeweather.generate: %w", err)
+	}
+	return generator.report(), nil
+}
+
+func newReportGenerator(req *Request) (*reportGenerator, error) {
+	target, err := parseTargetDate(req.Date)
+	if err != nil {
+		return nil, err
 	}
 
 	rng := newRng(req.Location, target)
 	zone := identifyClimateZone(req.Location)
 	coords, knownCity := coordinatesFor(req.Location, rng)
-	seasonal := seasonalPatterns[zone]
-	profile := climateProfiles[zone]
+	return &reportGenerator{
+		request:  *req,
+		target:   target,
+		rng:      rng,
+		zone:     zone,
+		coords:   coords,
+		seasonal: seasonalPatterns[zone],
+		profile:  climateProfiles[zone],
+		month:    monthForLookup(target, coords.Latitude, knownCity),
+	}, nil
+}
 
-	month := monthForLookup(target, coords.Latitude, knownCity)
-
+func (g *reportGenerator) report() *Response {
 	// Daily mean for the (zone, month). For a date-only query this
 	// IS the day's representative reading — diurnal variation is deliberately
 	// NOT applied, because that would put every
 	// midnight-stamped query at the bottom of the daily curve.
-	mean := profile.mean[month-1]
+	mean := g.profile.mean[g.month-1]
 
 	// Elevation correction: ~0.6°C drop per 100 m.
-	elevDrop := int(float64(coords.Elevation) * 0.006)
+	elevDrop := int(float64(g.coords.Elevation) * 0.006)
 	mean -= elevDrop
 
 	// Day-to-day jitter (±2°C) preserves variability without
 	// breaking the seasonal floor.
-	jitter := rng.IntN(5) - 2
-	current := clamp(mean+jitter, profile.floor, profile.ceiling)
+	jitter := g.rng.IntN(5) - 2
+	current := clamp(mean+jitter, g.profile.floor, g.profile.ceiling)
 
 	// Min/Max describe the whole day's swing around the mean — not
 	// random offsets from the "current" reading.
-	minTemp := min(clamp(mean-profile.dailyAmplitude+rng.IntN(3)-1, profile.floor, profile.ceiling), current)
-	maxTemp := max(clamp(mean+profile.dailyAmplitude+rng.IntN(3)-1, profile.floor, profile.ceiling), current)
+	minTemp := min(clamp(mean-g.profile.dailyAmplitude+g.rng.IntN(3)-1, g.profile.floor, g.profile.ceiling), current)
+	maxTemp := max(clamp(mean+g.profile.dailyAmplitude+g.rng.IntN(3)-1, g.profile.floor, g.profile.ceiling), current)
 
 	// Pick a condition compatible with the temperature + zone + month.
-	candidates := candidateConditions(current, month, zone, seasonal)
-	condition := candidates[rng.IntN(len(candidates))]
+	candidates := candidateConditions(current, g.month, g.zone, g.seasonal)
+	condition := candidates[g.rng.IntN(len(candidates))]
 
-	wind := generateWind(condition, zone, coords, rng)
-	humidity := generateHumidity(condition, zone, month, seasonal, rng)
+	wind := g.wind(condition)
+	humidity := g.humidity(condition)
 	feelsLike := calculateFeelsLike(current, humidity, wind.Speed)
-	pressure := generatePressure(coords.Elevation, condition, rng)
-	visibility := generateVisibility(condition, humidity, rng)
-	cloudCover := generateCloudCover(condition, rng)
+	pressure := g.pressure(condition)
+	visibility := g.visibility(condition, humidity)
+	cloudCover := g.cloudCover(condition)
 	dewPoint := calculateDewPoint(current, humidity)
 
 	var precipitation *Precipitation
 	if precipitationFor(condition) {
-		precipitation = generatePrecipitation(condition, current, month, seasonal, rng)
+		precipitation = g.precipitation(condition, current)
 	}
 
 	var airQuality *AirQuality
-	if req.IncludeAirQuality {
-		airQuality = generateAirQuality(req.Location, condition, zone, rng)
+	if g.request.IncludeAirQuality {
+		airQuality = g.airQuality(condition)
 	}
 
-	uvIndex := generateUVIndex(month, coords.Latitude, condition, cloudCover, rng)
-	astronomy := generateAstronomy(target, coords, rng)
+	uvIndex := g.uvIndex(condition, cloudCover)
+	astronomy := g.astronomy()
 
 	var hourlyForecast []HourlyForecast
-	if req.IncludeHourly {
-		hourlyForecast = generateHourlyForecast(target, mean, condition, zone, profile, rng)
+	if g.request.IncludeHourly {
+		hourlyForecast = g.hourlyForecast(mean, condition)
 	}
 
-	alerts := generateAlerts(condition, current, wind.Speed, zone, target, rng)
+	alerts := g.alerts(condition, current, wind.Speed)
 	description := buildDescription(condition, current, wind, humidity, precipitation)
 
-	startOfDay := time.Date(target.Year(), target.Month(), target.Day(), 0, 0, 0, 0, time.UTC)
+	startOfDay := time.Date(g.target.Year(), g.target.Month(), g.target.Day(), 0, 0, 0, 0, time.UTC)
 	endOfDay := startOfDay.Add(24 * time.Hour)
 
 	return &Response{
-		Location:    req.Location,
-		Coordinates: coords,
+		Location:    g.request.Location,
+		Coordinates: g.coords,
 		Timestamp: TimeRange{
 			Start: startOfDay.Unix(),
 			End:   endOfDay.Unix(),
@@ -111,7 +138,7 @@ func generate(req *Request) (*Response, error) {
 		Alerts:         alerts,
 		Source:         "fakeweather (synthesized; not real weather data)",
 		LastUpdated:    startOfDay.Unix(),
-	}, nil
+	}
 }
 
 // parseTargetDate accepts an empty string (= today UTC) or
@@ -181,6 +208,3 @@ func coordinatesFor(location string, rng *rand.Rand) (Coordinates, bool) {
 		Elevation: elevation,
 	}, false
 }
-
-// generateWind produces a Wind correlated with condition + zone +
-// elevation. Speeds in km/h.

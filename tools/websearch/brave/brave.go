@@ -158,7 +158,7 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 		return nil, err
 	}
 	var raw Response
-	resp, err := c.http.R().SetContext(ctx).SetQueryParams(toQueryParams(req)).SetResult(&raw).Get("/web/search")
+	resp, err := c.http.R().SetContext(ctx).SetQueryParams(req.params()).SetResult(&raw).Get("/web/search")
 	if err != nil {
 		return nil, fmt.Errorf("brave: request failed: %w", err)
 	}
@@ -168,7 +168,7 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 	return &raw, nil
 }
 
-func toQueryParams(r *Request) map[string]string {
+func (r *Request) params() map[string]string {
 	p := map[string]string{"q": r.Q}
 	queryparam.AddInt(p, "count", r.Count)
 	queryparam.AddInt(p, "offset", r.Offset)
@@ -194,7 +194,7 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 	if err != nil {
 		return nil, err
 	}
-	return shapeResponse(req.Query, raw), nil
+	return raw.toWebSearch(req.Query), nil
 }
 
 // ============================================================== mapping
@@ -225,20 +225,20 @@ func recencyToFreshness(r websearch.Recency) string {
 	return ""
 }
 
-func shapeResponse(query string, raw *Response) *websearch.Response {
+func (r *Response) toWebSearch(query string) *websearch.Response {
 	var results []*websearch.Result
-	if raw.Web != nil {
-		results = make([]*websearch.Result, 0, len(raw.Web.Results))
-		for _, r := range raw.Web.Results {
+	if r.Web != nil {
+		results = make([]*websearch.Result, 0, len(r.Web.Results))
+		for _, result := range r.Web.Results {
 			results = append(results, &websearch.Result{
-				Title:         r.Title,
-				URL:           r.URL,
-				Snippet:       r.Description,
-				PublishedTime: parseAge(r.PageAge),
+				Title:         result.Title,
+				URL:           result.URL,
+				Snippet:       result.Description,
+				PublishedTime: parseAge(result.PageAge),
 			})
 		}
 	}
-	return &websearch.Response{Query: cmp.Or(raw.Query.Original, query), Results: results}
+	return &websearch.Response{Query: cmp.Or(r.Query.Original, query), Results: results}
 }
 
 // parseAge tries Brave's page_age (RFC3339) format. Relative strings

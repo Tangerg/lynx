@@ -153,7 +153,7 @@ func (c *Client) Search(ctx context.Context, req *websearch.Request) (*websearch
 	if err != nil {
 		return nil, err
 	}
-	return shapeResponse(req.Query, raw), nil
+	return raw.toWebSearch(req.Query), nil
 }
 
 // ============================================================== mapping
@@ -200,14 +200,14 @@ func recencyToString(r websearch.Recency) string {
 	return ""
 }
 
-func shapeResponse(query string, raw *Response) *websearch.Response {
-	results := make([]*websearch.Result, 0, len(raw.Results))
-	for _, r := range raw.Results {
+func (r *Response) toWebSearch(query string) *websearch.Response {
+	results := make([]*websearch.Result, 0, len(r.Results))
+	for _, result := range r.Results {
 		results = append(results, &websearch.Result{
-			Title:         r.Title,
-			URL:           r.URL,
-			Snippet:       r.Snippet,
-			PublishedTime: parseDate(r.Date),
+			Title:         result.Title,
+			URL:           result.URL,
+			Snippet:       result.Snippet,
+			PublishedTime: parseDate(result.Date),
 		})
 	}
 	// Perplexity doesn't echo the query; pass through the requester's.
