@@ -17,6 +17,18 @@ import (
 type ssWord struct{ Text string }
 type ssWordCount struct{ Count int }
 
+type mismatchedProcessStore struct {
+	core.ProcessStore
+}
+
+func (s mismatchedProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapshot, error) {
+	snapshot, err := s.ProcessStore.Load(ctx, id)
+	if err == nil {
+		snapshot.ID = "different-process"
+	}
+	return snapshot, err
+}
+
 type durablePauseAction struct{}
 
 func (durablePauseAction) Metadata() core.ActionMetadata {
@@ -258,6 +270,16 @@ func TestEngineRestoreResumableClassifiesBuildMismatchAndMissingSnapshot(t *test
 	if _, err := same.RestoreResumable(t.Context(), "missing", core.ProcessOptions{}); !errors.Is(err, runtime.ErrResumableSnapshotLost) ||
 		!errors.Is(err, core.ErrSnapshotNotFound) {
 		t.Fatalf("missing RestoreResumable error = %v", err)
+	}
+
+	mismatched := agent.MustNewEngine(runtime.Config{BuildID: "build-a", ProcessStore: mismatchedProcessStore{ProcessStore: store}})
+	mustDeploy(t, mismatched, buildGate())
+	if resumable, err := mismatched.Resumable(t.Context(), process.ID()); err != nil || resumable {
+		t.Fatalf("mismatched store Resumable = (%v, %v), want false, nil", resumable, err)
+	}
+	if _, err := mismatched.RestoreResumable(t.Context(), process.ID(), core.ProcessOptions{}); !errors.Is(err, runtime.ErrResumableSnapshotLost) ||
+		!errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("mismatched store RestoreResumable error = %v", err)
 	}
 }
 

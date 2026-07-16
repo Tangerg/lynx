@@ -100,6 +100,9 @@ func (e *Engine) loadResumableSnapshot(ctx context.Context, processID string) (c
 		}
 		return core.ProcessSnapshot{}, nil, fmt.Errorf("runtime.Engine.Resumable: load process %q: %w", processID, err)
 	}
+	if snapshot.ID != processID || snapshot.Revision == 0 {
+		return core.ProcessSnapshot{}, fmt.Errorf("%w: stored snapshot identity/revision does not match process %q", core.ErrInvalidSnapshot, processID), nil
+	}
 	if err := ValidateResumableSnapshot(snapshot); err != nil {
 		return core.ProcessSnapshot{}, err, nil
 	}
