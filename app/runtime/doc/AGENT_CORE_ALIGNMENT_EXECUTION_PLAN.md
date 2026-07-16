@@ -1,6 +1,6 @@
 # Runtime Agent/Core 对齐与执行边界收敛计划
 
-> 状态：**待执行，当前唯一实施控制面**
+> 状态：**进行中，B1 已完成，下一批 B2**
 >
 > 建立日期：2026-07-16
 >
@@ -61,7 +61,7 @@
 | Runtime workspace vet | 通过 | `go vet ./...` |
 | 关键并发路径 race | 通过 | `agentexec`、`turn`、`runs`、`sessions`、`server`、SQLite 等关键包 |
 | Runtime 独立模块测试 | **失败** | `GOWORK=off go test ./...` 暴露 `go.mod` 内部模块版本滞后 |
-| 本轮代码实施 | 未开始 | `0 / 10` 批次完成 |
+| 本轮代码实施 | 进行中 | `1 / 10` 批次完成 |
 
 独立模块失败不是外部环境问题，而是依赖声明与实际源码不一致。workspace 的本地替换掩盖了该问题，本轮第一批必须先恢复依赖真相。
 
@@ -70,6 +70,8 @@
 - Runtime 使用了新版 Core 的 `ProcessViewFrom`，独立模块解析到的旧 Core 尚无该符号；
 - Runtime SQLite ProcessStore 已采用带 revision / CAS 的新契约，旧 Agent Core 仍要求旧 `Save` 签名和旧 snapshot shape；
 - Runtime embedding adapter 已采用 Options 值语义，独立模块解析到的旧 Core 仍要求指针形态。
+
+B1 已在 `09f32465afd4` 解决上述失配；当前 workspace 与 standalone 的 build、vet、test、race 均通过。
 
 ### 1.2 最近底层调整的影响
 
@@ -195,7 +197,7 @@ Agent/Core 最近的调整已经改善：
 
 | 编号 | 严重度 | 当前差异 / 风险 | 根因层 | 目标批次 |
 |---|---|---|---|---|
-| G-01 | P0 | workspace 通过但 `GOWORK=off` 失败 | 模块依赖声明 | B1 |
+| G-01 | P0 | **已解决**：workspace 通过但 `GOWORK=off` 失败 | 模块依赖声明 | B1 |
 | G-02 | P1 | pure-media turn 仍无条件构造空 text part | turn 输入翻译 | B2 |
 | G-03 | P1 | 异步 turn 仅手工复制部分 options，media / interrupt kinds 等仍可能共享 | 请求所有权 | B2 |
 | G-04 | P1 | Runtime 手写 Options 校验遗漏 penalty、TopK、NaN、Inf 等 Core 约束 | 校验边界 | B2 |
@@ -295,6 +297,36 @@ B4 提前于委派树实施：先消除整轮 idle timer、重复输出状态和
 - `GOWORK=off go vet ./...` 通过；
 - `go mod tidy` 后工作区无二次差异；
 - 记录最终内部模块版本与提交。
+
+### 8.5 执行记录
+
+- 状态：已完成
+- 开始时间：2026-07-16
+- 完成时间：2026-07-16
+- 实际 scope：
+  - Runtime 全部仓内直接依赖与 tokenizer 间接依赖统一到 `v0.0.0-20260716134603-cc8be60da95e`；
+  - `go.sum` 只替换对应仓内模块的旧 / 新 checksum；
+  - 新增 `make check-standalone`，固定执行 `GOWORK=off go mod tidy -diff`、build、vet、test；
+  - CI 的 `app/runtime` matrix 增加 standalone module graph 阻塞门禁。
+- 新发现：旧 pin 后不只 Agent/Core 发生变化，a2a、chatclient、chathistory、mcp、models、tools 等也已调整；只升级最先报错的模块会留下混合依赖图。
+- 与计划偏差：无。
+- 公开 API 影响：无。
+- 底层模块 Commit / Push：`cc8be60da95e` 已推送并可由 Go proxy 解析。
+- Runtime pin Commit / Push：`09f32465afd4` 已推送。
+- 测试命令与结果：
+  - `go build ./...`：通过；
+  - `go vet ./...`：通过；
+  - `go test -count=1 ./...`：通过；
+  - `make check-standalone`：通过；
+  - `GOWORK=off go mod tidy -diff`：无输出；
+  - CI YAML 解析与 `git diff --check`：通过。
+- race 结果：
+  - `go test -race -count=1 ./...`：通过；
+  - `GOWORK=off go test -race -count=1 ./...`：通过。
+- standalone 结果：build、vet、test、race 全部通过。
+- Commit：`09f32465afd4`
+- Push：`origin/codex/runtime-architecture-refactor`
+- 剩余风险：无；G-01 关闭。
 
 ---
 
@@ -851,7 +883,7 @@ go test -race ./...
 | 批次 | 状态 | 开始 | 完成 | Commit | 验证摘要 |
 |---|---|---|---|---|---|
 | 基线审查 | 已完成 | 2026-07-16 | 2026-07-16 | `92b4147a5afd` 基线 | workspace 绿；standalone 失败已定位 |
-| B1 依赖真相 | 待执行 | — | — | — | — |
+| B1 依赖真相 | 已完成 | 2026-07-16 | 2026-07-16 | `09f32465afd4` | workspace / standalone build、vet、test、race 全绿；CI 固定门禁 |
 | B2 输入值语义 | 待执行 | — | — | — | — |
 | B3 启动错误 | 待执行 | — | — | — | — |
 | B4 Interaction / 输出 | 待执行 | — | — | — | — |
@@ -862,7 +894,7 @@ go test -race ./...
 | B9 Engine / Ownership | 待执行 | — | — | — | — |
 | B10 Fitness / Docs | 待执行 | — | — | — | — |
 
-当前实现进度：**0 / 10**。
+当前实现进度：**1 / 10**。
 
 状态只允许：
 
@@ -878,7 +910,7 @@ go test -race ./...
 | 风险 | 影响 | 控制措施 | 状态 |
 |---|---|---|---|
 | child suspension 需要 Agent 新原语 | 可能跨模块并涉及公开 API | B7 先写行为测试与影响面；破坏性 API 先咨询 | 开放 |
-| workspace 掩盖依赖漂移 | 本地绿、独立发布失败 | B1 起固定 `GOWORK=off` 门禁 | 已确认 |
+| workspace 掩盖依赖漂移 | 本地绿、独立发布失败 | B1 起固定 `GOWORK=off` 门禁 | 已关闭 |
 | resume 重复执行工具副作用 | 数据损坏 / 重复外部动作 | checkpoint + parent/child relation + 恰好一次测试 | 开放 |
 | timeout 所有权混淆 | 长工具被误杀 | model stream 与 tool context 分离 | 已确认 |
 | 大范围结构拆分掩盖行为回归 | 难审查、难回滚 | 行为批次先行，B9 最后拆所有权 | 已控制 |
@@ -901,6 +933,7 @@ go test -race ./...
 | 2026-07-16 | SnapshotFailurePolicy 固定为 fail-process | durable Run 不允许 snapshot 失败后继续非持久化执行 | active write failure 进入 execution error |
 | 2026-07-16 | standalone module 是固定完成门禁 | `go.mod` 必须描述真实依赖 | 从 B1 起每批执行 `GOWORK=off` |
 | 2026-07-16 | 委派 / HITL 拆为三个批次 | child context、框架原语、应用恢复的风险和回滚边界不同 | B6、B7、B8 各自独立全绿 |
+| 2026-07-16 | Runtime 仓内依赖按同一已推送提交对齐 | 避免 MVS 拼出跨契约时期的混合模块图 | B1 统一 pin `cc8be60da95e`，CI 强制 standalone |
 
 后续新增决策必须记录“为什么”，不能只记最终结论。
 
