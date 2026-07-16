@@ -15,13 +15,13 @@
 
 | 项目 | 当前值 |
 |---|---:|
-| public package | 16 |
-| exported declaration | 628 |
+| public package | 17 |
+| exported declaration | 630 |
 | root façade | 46 / 50 |
 | exported JSON struct | 14 |
 | wire fixture | 456 行 |
 
-- API baseline SHA-256：`b141e3b420575e9b5f3fd9c03a3539b5bbc55ff6754c5ed60a614ceafae24a39`
+- API baseline SHA-256：`63dddb31618f9ca4560f9a09ddf4fcad097950f60d317c3e2f36400569e7a161`
 - wire fixture SHA-256：`324d63d70cc6f7bb613028f7c470ba089ecbec4fcd8b1ff04fe91bfd7bb3a5ea`
 
 这些值用于审查开发期差异，不代表已经发布稳定承诺。
@@ -75,6 +75,9 @@
 - `ProcessContext.Prompt`、`PromptJSON` 与 `Interact` 统一进入 framework-managed interaction。
 - Human/tool pause 共用 JSON-safe Suspension；`Resume` 与 `Continue` 分离。
 - ProcessSnapshot 使用 strict decoder 与 exact DeploymentRef。
+- durable Host 使用 `Engine.Resumable` 判断 stored continuation，并通过
+  `Engine.RestoreResumable` 获得统一的 `ErrResumableSnapshotLost` 分类；Host
+  不再读取或解释 `ProcessSnapshot`。
 - ProcessStore 使用 expected revision CAS。
 - `MemoryProcessStore`、`MemorySessionStore` 提供 reference implementation。
 - `storetest.TestProcessStore` 是唯一公开外部实现 contract suite；`providertest` 已移除。

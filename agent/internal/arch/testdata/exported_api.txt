@@ -507,7 +507,9 @@ runtime: func (e *Engine) Prune() []string
 runtime: func (e *Engine) Remove(id string) error
 runtime: func (e *Engine) Replace(agent *core.Agent) (*Deployment, error)
 runtime: func (e *Engine) Restore(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error)
+runtime: func (e *Engine) RestoreResumable(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error)
 runtime: func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.ProcessOptions) (*Process, error)
+runtime: func (e *Engine) Resumable(ctx context.Context, processID string) (bool, error)
 runtime: func (e *Engine) Resume(id, suspensionID string, response any) error
 runtime: func (e *Engine) Run( ctx context.Context, agent *core.Agent, bindings map[string]any, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) RunChild( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
@@ -563,6 +565,7 @@ runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceede
 runtime: var ErrDeploymentConflict = errors.New("deployment conflict")
 runtime: var ErrDeploymentNotFound = errors.New("deployment not found")
 runtime: var ErrDurableIdentityRequired = errors.New("durable deployment requires Agent.Version or Config.BuildID")
+runtime: var ErrResumableSnapshotLost = errors.New("resumable process snapshot lost")
 storetest: func TestProcessStore(ctx context.Context, store core.ProcessStore) error
 toolloop: const ( EventModelRequest EventKind = "model_request" EventModelResponse EventKind = "model_response" EventToolCall EventKind = "tool_call" EventToolResult EventKind = "tool_result" EventPause EventKind = "pause" EventResume EventKind = "resume" )
 toolloop: func (c *Checkpoint) UnmarshalJSON(data []byte) error
