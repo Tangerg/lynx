@@ -126,7 +126,7 @@ func consumeEOF(decoder *json.Decoder) error {
 	var extra json.RawMessage
 	if err := decoder.Decode(&extra); err != io.EOF {
 		if err == nil {
-			return fmt.Errorf("unexpected trailing JSON value")
+			return errors.New("unexpected trailing JSON value")
 		}
 		return err
 	}
