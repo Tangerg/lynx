@@ -1335,6 +1335,13 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 - 决策：`media.Media` 与 `chat.Part`、`Message`、`Options`、`Request` 提供逐层委派的 `Clone`；`Request.Clone` 与 `Media.Clone` nil-safe。ChatClient、ChatHistory 与 App Runtime 的所有权边界只决定何时克隆，不再逐字段维护协议内部结构。ResponseAccumulator 复用同一 Part/Message 克隆行为，但不为尚无第二个通用消费者的 Response/Choice 扩大公开表面。
 - 原因：同一协议值此前在 ChatClient 与 ChatHistory 各维护一套逐字段深拷贝，新增引用字段时漏改任一副本都会静默别名 caller 内存。把无 I/O 的所有权行为收回值对象可形成唯一修改点，同时避免建立通用 copy framework 或空壳 receiver。
 
+### ADR-028：五个 modality 在 JSON 边界强制领域不变量
+
+- 日期：2026-07-16
+- 状态：已采纳（维护者确认开发期直接调整）
+- 决策：Embedding、Image、Speech、Transcription、Moderation 为 Options、Request 及全部具有领域不变量的成功输出值实现失败原子的 `MarshalJSON`/`UnmarshalJSON`；Moderation 的 `Verdict`/`Categories` 与 Embedding 的 `Usage` 同样纳入。每个包公开 `ErrInvalidOptions`、`ErrInvalidRequest`、`ErrInvalidResponse` 三类 sentinel，构造、合并、Set、Validate 与 JSON 边界均保持 `errors.Is` 分类。新增架构测试锁定这些值必须持续实现双向 JSON 边界，wire 字段与 golden 不变。
+- 原因：此前五个 modality 只有显式构造/Validate 路径守住不变量，直接 JSON 编解码可以绕过校验并把非法 DTO 送入 provider 或上层；同时调用方只能解析错误字符串。让值对象拥有 wire 边界行为，与 Chat/Media/Metadata 的既有合同一致，也避免在每个 adapter 重复防御。该加法式 API 调整把 exported baseline 从 325 行更新为 396 行，不增加新领域类型或 wire 字段。
+
 ---
 
 ## 16. 长期完成定义
@@ -1357,6 +1364,7 @@ P7 发布准备额外执行 `govulncheck`；日常阶段不要求每次联网运
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-16 | 采纳 ADR-028：五个 modality 的全部不变量值在 JSON 编解码边界递归校验，新增三类可 `errors.Is` 的 sentinel、失败原子测试与架构守卫；wire golden 不变，API baseline 325→396 | Codex |
 | 2026-07-16 | 采纳 ADR-027：Media/Chat 协议值建立分层 Clone 所有权，ChatClient、ChatHistory、App Runtime 与 ResponseAccumulator 委派 Core，删除两套逐字段拷贝实现并增加全引用字段隔离测试 | Codex |
 | 2026-07-15 | 完成 P9-06/P9-07：API/wire 重冻为 319/47/17/478，迁移与架构文档同步；Core release 确定性门禁、21 module 105 项门禁及 21 项 tidy-diff 全绿，计划 73/73 关闭 | Codex |
 | 2026-07-15 | 启动并完成 P9-01 至 P9-05：修复 metadata 精度与构造器合同，Image/Embedding 真实协议收口，删除无消费者表面，开放 Moderation 分类，建立非 Chat 响应与全部 VectorStore 成功输出验证；进入文档/兼容基线收尾 | Codex |

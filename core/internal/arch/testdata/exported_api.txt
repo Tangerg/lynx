@@ -95,13 +95,27 @@ document: func NewDocument(text string, media *media.Media) (*Document, error)
 document: type Document struct { ID string `json:"id,omitempty"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
 embedding: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 embedding: func (m *ResponseMetadata) Set(key string, value any) error
+embedding: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
 embedding: func (m *ResultMetadata) Set(key string, value any) error
+embedding: func (m *ResultMetadata) UnmarshalJSON(data []byte) error
+embedding: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+embedding: func (m ResultMetadata) MarshalJSON() ([]byte, error)
 embedding: func (o *Options) Clone() *Options
 embedding: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 embedding: func (o *Options) Set(key string, value any) error
+embedding: func (o *Options) UnmarshalJSON(data []byte) error
+embedding: func (o Options) MarshalJSON() ([]byte, error)
+embedding: func (r *Request) UnmarshalJSON(data []byte) error
 embedding: func (r *Request) Validate() error
 embedding: func (r *Response) First() *Result
+embedding: func (r *Response) UnmarshalJSON(data []byte) error
 embedding: func (r *Response) Validate() error
+embedding: func (r *Result) UnmarshalJSON(data []byte) error
+embedding: func (r Request) MarshalJSON() ([]byte, error)
+embedding: func (r Response) MarshalJSON() ([]byte, error)
+embedding: func (r Result) MarshalJSON() ([]byte, error)
+embedding: func (u *Usage) UnmarshalJSON(data []byte) error
+embedding: func (u Usage) MarshalJSON() ([]byte, error)
 embedding: func NewOptions(model string) (*Options, error)
 embedding: func NewRequest(texts []string) (*Request, error)
 embedding: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
@@ -115,15 +129,28 @@ embedding: type ResponseMetadata struct { Model string `json:"model"` Usage *Usa
 embedding: type Result struct { Embedding []float64 `json:"embedding"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
 embedding: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 embedding: type Usage struct { InputTokens int64 `json:"input_tokens"` }
+embedding: var ( ErrInvalidOptions = errors.New("embedding: invalid options") ErrInvalidRequest = errors.New("embedding: invalid request") ErrInvalidResponse = errors.New("embedding: invalid response") )
 image: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 image: func (m *ResponseMetadata) Set(key string, value any) error
+image: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
 image: func (m *ResultMetadata) Set(key string, value any) error
+image: func (m *ResultMetadata) UnmarshalJSON(data []byte) error
+image: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+image: func (m ResultMetadata) MarshalJSON() ([]byte, error)
 image: func (o *Options) Clone() *Options
 image: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 image: func (o *Options) Set(key string, value any) error
+image: func (o *Options) UnmarshalJSON(data []byte) error
+image: func (o Options) MarshalJSON() ([]byte, error)
+image: func (r *Request) UnmarshalJSON(data []byte) error
 image: func (r *Request) Validate() error
 image: func (r *Response) First() *Result
+image: func (r *Response) UnmarshalJSON(data []byte) error
 image: func (r *Response) Validate() error
+image: func (r *Result) UnmarshalJSON(data []byte) error
+image: func (r Request) MarshalJSON() ([]byte, error)
+image: func (r Response) MarshalJSON() ([]byte, error)
+image: func (r Result) MarshalJSON() ([]byte, error)
 image: func NewOptions(model string) (*Options, error)
 image: func NewRequest(prompt string) (*Request, error)
 image: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
@@ -136,6 +163,7 @@ image: type Response struct { Results []*Result `json:"results,omitzero"` Metada
 image: type ResponseMetadata struct { Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 image: type Result struct { Media *media.Media `json:"media,omitempty"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
 image: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
+image: var ( ErrInvalidOptions = errors.New("image: invalid options") ErrInvalidRequest = errors.New("image: invalid request") ErrInvalidResponse = errors.New("image: invalid response") )
 media: const ( SourceBytes SourceKind = "bytes" SourceURI SourceKind = "uri" SourceReference SourceKind = "reference" )
 media: func (m *Media) Bytes() ([]byte, error)
 media: func (m *Media) Clone() *Media
@@ -163,16 +191,32 @@ metadata: func Decode[T any](m Map, key string) (T, bool, error)
 metadata: func FromValues(values map[string]any) (Map, error)
 metadata: type Map map[string]json.RawMessage
 metadata: var ( ErrNilMap = errors.New("metadata: nil map") ErrEmptyKey = errors.New("metadata: empty key") ErrInvalidValue = errors.New("metadata: invalid JSON value") )
+moderation: func (c *Categories) UnmarshalJSON(data []byte) error
 moderation: func (c Categories) Flagged() bool
+moderation: func (c Categories) MarshalJSON() ([]byte, error)
 moderation: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 moderation: func (m *ResponseMetadata) Set(key string, value any) error
+moderation: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
 moderation: func (m *ResultMetadata) Set(key string, value any) error
+moderation: func (m *ResultMetadata) UnmarshalJSON(data []byte) error
+moderation: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+moderation: func (m ResultMetadata) MarshalJSON() ([]byte, error)
 moderation: func (o *Options) Clone() *Options
 moderation: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 moderation: func (o *Options) Set(key string, value any) error
+moderation: func (o *Options) UnmarshalJSON(data []byte) error
+moderation: func (o Options) MarshalJSON() ([]byte, error)
+moderation: func (r *Request) UnmarshalJSON(data []byte) error
 moderation: func (r *Request) Validate() error
 moderation: func (r *Response) First() *Result
+moderation: func (r *Response) UnmarshalJSON(data []byte) error
 moderation: func (r *Response) Validate() error
+moderation: func (r *Result) UnmarshalJSON(data []byte) error
+moderation: func (r Request) MarshalJSON() ([]byte, error)
+moderation: func (r Response) MarshalJSON() ([]byte, error)
+moderation: func (r Result) MarshalJSON() ([]byte, error)
+moderation: func (v *Verdict) UnmarshalJSON(data []byte) error
+moderation: func (v Verdict) MarshalJSON() ([]byte, error)
 moderation: func NewOptions(model string) (*Options, error)
 moderation: func NewRequest(texts []string) (*Request, error)
 moderation: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
@@ -187,15 +231,28 @@ moderation: type ResponseMetadata struct { ID string `json:"id"` Model string `j
 moderation: type Result struct { Categories Categories `json:"categories,omitzero"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
 moderation: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 moderation: type Verdict struct { Flagged bool `json:"flagged"` Score float64 `json:"score"` }
+moderation: var ( ErrInvalidOptions = errors.New("moderation: invalid options") ErrInvalidRequest = errors.New("moderation: invalid request") ErrInvalidResponse = errors.New("moderation: invalid response") )
 speech: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 speech: func (f StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
 speech: func (m *ResponseMetadata) Set(key string, value any) error
+speech: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
 speech: func (m *ResultMetadata) Set(key string, value any) error
+speech: func (m *ResultMetadata) UnmarshalJSON(data []byte) error
+speech: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+speech: func (m ResultMetadata) MarshalJSON() ([]byte, error)
 speech: func (o *Options) Clone() *Options
 speech: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 speech: func (o *Options) Set(key string, value any) error
+speech: func (o *Options) UnmarshalJSON(data []byte) error
+speech: func (o Options) MarshalJSON() ([]byte, error)
+speech: func (r *Request) UnmarshalJSON(data []byte) error
 speech: func (r *Request) Validate() error
+speech: func (r *Response) UnmarshalJSON(data []byte) error
 speech: func (r *Response) Validate() error
+speech: func (r *Result) UnmarshalJSON(data []byte) error
+speech: func (r Request) MarshalJSON() ([]byte, error)
+speech: func (r Response) MarshalJSON() ([]byte, error)
+speech: func (r Result) MarshalJSON() ([]byte, error)
 speech: func NewOptions(model string) (*Options, error)
 speech: func NewRequest(text string) (*Request, error)
 speech: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
@@ -210,14 +267,27 @@ speech: type Result struct { Audio []byte `json:"audio,omitzero"` Metadata *Resu
 speech: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 speech: type Streamer interface { Stream(context.Context, *Request) iter.Seq2[*Response, error] }
 speech: type StreamerFunc func(context.Context, *Request) iter.Seq2[*Response, error]
+speech: var ( ErrInvalidOptions = errors.New("speech: invalid options") ErrInvalidRequest = errors.New("speech: invalid request") ErrInvalidResponse = errors.New("speech: invalid response") )
 transcription: func (f ModelFunc) Call(ctx context.Context, request *Request) (*Response, error)
 transcription: func (m *ResponseMetadata) Set(key string, value any) error
+transcription: func (m *ResponseMetadata) UnmarshalJSON(data []byte) error
 transcription: func (m *ResultMetadata) Set(key string, value any) error
+transcription: func (m *ResultMetadata) UnmarshalJSON(data []byte) error
+transcription: func (m ResponseMetadata) MarshalJSON() ([]byte, error)
+transcription: func (m ResultMetadata) MarshalJSON() ([]byte, error)
 transcription: func (o *Options) Clone() *Options
 transcription: func (o *Options) Merged(overrides ...*Options) (*Options, error)
 transcription: func (o *Options) Set(key string, value any) error
+transcription: func (o *Options) UnmarshalJSON(data []byte) error
+transcription: func (o Options) MarshalJSON() ([]byte, error)
+transcription: func (r *Request) UnmarshalJSON(data []byte) error
 transcription: func (r *Request) Validate() error
+transcription: func (r *Response) UnmarshalJSON(data []byte) error
 transcription: func (r *Response) Validate() error
+transcription: func (r *Result) UnmarshalJSON(data []byte) error
+transcription: func (r Request) MarshalJSON() ([]byte, error)
+transcription: func (r Response) MarshalJSON() ([]byte, error)
+transcription: func (r Result) MarshalJSON() ([]byte, error)
 transcription: func NewOptions(model string) (*Options, error)
 transcription: func NewRequest(audio *media.Media) (*Request, error)
 transcription: func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error)
@@ -230,6 +300,7 @@ transcription: type Response struct { Result *Result `json:"result,omitempty"` M
 transcription: type ResponseMetadata struct { Model string `json:"model"` Created int64 `json:"created"` Extra metadata.Map `json:"extra,omitzero"` }
 transcription: type Result struct { Text string `json:"text"` Metadata *ResultMetadata `json:"metadata,omitempty"` }
 transcription: type ResultMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
+transcription: var ( ErrInvalidOptions = errors.New("transcription: invalid options") ErrInvalidRequest = errors.New("transcription: invalid request") ErrInvalidResponse = errors.New("transcription: invalid response") )
 vectorstore/filter: const ( LiteralString LiteralKind = "string" LiteralNumber LiteralKind = "number" LiteralBool LiteralKind = "bool" LiteralNull LiteralKind = "null" )
 vectorstore/filter: const ( OpEqual Operator = "==" OpNotEqual Operator = "!=" OpLess Operator = "<" OpLessEqual Operator = "<=" OpGreater Operator = ">" OpGreaterEqual Operator = ">=" OpAnd Operator = "and" OpOr Operator = "or" OpNot Operator = "not" OpIn Operator = "in" OpLike Operator = "like" OpIs Operator = "is" )
 vectorstore/filter: func (b *BinaryExpr) End() Position

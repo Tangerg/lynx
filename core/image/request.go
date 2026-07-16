@@ -1,7 +1,6 @@
 package image
 
 import (
-	"errors"
 	"fmt"
 	"mime"
 	"strings"
@@ -39,10 +38,10 @@ type Options struct {
 // when model is empty or has surrounding whitespace.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
-		return nil, errors.New("image.NewOptions: model id must not be empty")
+		return nil, fmt.Errorf("image.NewOptions: %w: model id must not be empty", ErrInvalidOptions)
 	}
 	if strings.TrimSpace(model) != model {
-		return nil, errors.New("image.NewOptions: model id must not have surrounding whitespace")
+		return nil, fmt.Errorf("image.NewOptions: %w: model id must not have surrounding whitespace", ErrInvalidOptions)
 	}
 	return &Options{Model: model}, nil
 }
@@ -50,9 +49,12 @@ func NewOptions(model string) (*Options, error) {
 // Set encodes a provider-specific option into Extra.
 func (o *Options) Set(key string, value any) error {
 	if o == nil {
-		return errors.New("image.Options.Set: nil receiver")
+		return fmt.Errorf("image.Options.Set: %w: nil receiver", ErrInvalidOptions)
 	}
-	return o.Extra.Set(key, value)
+	if err := o.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("image.Options.Set: %w: %w", ErrInvalidOptions, err)
+	}
+	return nil
 }
 
 // Clone returns a deep copy. nil receiver yields nil.
@@ -76,7 +78,7 @@ func (o *Options) Clone() *Options {
 // A nil receiver returns an error.
 func (o *Options) Merged(overrides ...*Options) (*Options, error) {
 	if o == nil {
-		return nil, errors.New("image.Options.Merged: nil receiver")
+		return nil, fmt.Errorf("image.Options.Merged: %w: nil receiver", ErrInvalidOptions)
 	}
 
 	merged := o.Clone()
@@ -85,12 +87,12 @@ func (o *Options) Merged(overrides ...*Options) (*Options, error) {
 			continue
 		}
 		if err := merged.applyOverride(override); err != nil {
-			return nil, fmt.Errorf("image.Options.Merged: %w", err)
+			return nil, fmt.Errorf("image.Options.Merged: %w: %w", ErrInvalidOptions, err)
 		}
 	}
 	normalized, err := normalizeOutputFormat(merged.OutputFormat)
 	if err != nil {
-		return nil, fmt.Errorf("image.Options.Merged: %w", err)
+		return nil, fmt.Errorf("image.Options.Merged: %w: %w", ErrInvalidOptions, err)
 	}
 	merged.OutputFormat = normalized
 	if err := merged.validate(); err != nil {
@@ -149,28 +151,28 @@ func (o *Options) validate() error {
 		return nil
 	}
 	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
-		return errors.New("image: model id must not have surrounding whitespace")
+		return fmt.Errorf("%w: model id must not have surrounding whitespace", ErrInvalidOptions)
 	}
 	if o.Width != nil && *o.Width <= 0 {
-		return errors.New("image: width must be positive")
+		return fmt.Errorf("%w: width must be positive", ErrInvalidOptions)
 	}
 	if o.Height != nil && *o.Height <= 0 {
-		return errors.New("image: height must be positive")
+		return fmt.Errorf("%w: height must be positive", ErrInvalidOptions)
 	}
 	if o.Seed != nil && *o.Seed < 0 {
-		return errors.New("image: seed must not be negative")
+		return fmt.Errorf("%w: seed must not be negative", ErrInvalidOptions)
 	}
 	if o.OutputFormat != "" {
 		normalized, err := normalizeOutputFormat(o.OutputFormat)
 		if err != nil {
-			return fmt.Errorf("image: options: %w", err)
+			return fmt.Errorf("%w: output format: %w", ErrInvalidOptions, err)
 		}
 		if normalized != o.OutputFormat {
-			return fmt.Errorf("image: options: output format must use canonical MIME form %q", normalized)
+			return fmt.Errorf("%w: output format must use canonical MIME form %q", ErrInvalidOptions, normalized)
 		}
 	}
 	if err := o.Extra.Validate(); err != nil {
-		return fmt.Errorf("image: options extra: %w", err)
+		return fmt.Errorf("%w: extra: %w", ErrInvalidOptions, err)
 	}
 	return nil
 }
@@ -196,10 +198,13 @@ func NewRequest(prompt string) (*Request, error) {
 // Validate checks the complete request before it crosses a model boundary.
 func (r *Request) Validate() error {
 	if r == nil {
-		return errors.New("image: nil request")
+		return fmt.Errorf("%w: nil request", ErrInvalidRequest)
 	}
 	if r.Prompt == "" {
-		return errors.New("image: prompt must not be empty")
+		return fmt.Errorf("%w: prompt must not be empty", ErrInvalidRequest)
 	}
-	return r.Options.validate()
+	if err := r.Options.validate(); err != nil {
+		return fmt.Errorf("%w: options: %w", ErrInvalidRequest, err)
+	}
+	return nil
 }

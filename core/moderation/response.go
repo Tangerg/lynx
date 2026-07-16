@@ -1,7 +1,6 @@
 package moderation
 
 import (
-	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -38,15 +37,22 @@ func (c Categories) Flagged() bool {
 
 func (c Categories) validate() error {
 	if len(c) == 0 {
-		return errors.New("categories must not be empty")
+		return fmt.Errorf("%w: categories must not be empty", ErrInvalidResponse)
 	}
 	for category, verdict := range c {
 		if category == "" || strings.TrimSpace(category) != category {
-			return fmt.Errorf("invalid category %q", category)
+			return fmt.Errorf("%w: invalid category %q", ErrInvalidResponse, category)
 		}
-		if math.IsNaN(verdict.Score) || math.IsInf(verdict.Score, 0) || verdict.Score < 0 || verdict.Score > 1 {
-			return fmt.Errorf("category %q score must be finite and in [0, 1], got %v", category, verdict.Score)
+		if err := verdict.validate(); err != nil {
+			return fmt.Errorf("%w: category %q: %w", ErrInvalidResponse, category, err)
 		}
+	}
+	return nil
+}
+
+func (v Verdict) validate() error {
+	if math.IsNaN(v.Score) || math.IsInf(v.Score, 0) || v.Score < 0 || v.Score > 1 {
+		return fmt.Errorf("%w: score must be finite and in [0, 1], got %v", ErrInvalidResponse, v.Score)
 	}
 	return nil
 }
@@ -60,9 +66,12 @@ type ResultMetadata struct {
 // Set encodes provider-specific result metadata into Extra.
 func (m *ResultMetadata) Set(key string, value any) error {
 	if m == nil {
-		return errors.New("moderation.ResultMetadata.Set: nil receiver")
+		return fmt.Errorf("moderation.ResultMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	return m.Extra.Set(key, value)
+	if err := m.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("moderation.ResultMetadata.Set: %w: %w", ErrInvalidResponse, err)
+	}
+	return nil
 }
 
 // Result is one input's moderation verdict plus metadata.
@@ -102,9 +111,12 @@ type ResponseMetadata struct {
 // Set encodes provider-specific response metadata into Extra.
 func (m *ResponseMetadata) Set(key string, value any) error {
 	if m == nil {
-		return errors.New("moderation.ResponseMetadata.Set: nil receiver")
+		return fmt.Errorf("moderation.ResponseMetadata.Set: %w: nil receiver", ErrInvalidResponse)
 	}
-	return m.Extra.Set(key, value)
+	if err := m.Extra.Set(key, value); err != nil {
+		return fmt.Errorf("moderation.ResponseMetadata.Set: %w: %w", ErrInvalidResponse, err)
+	}
+	return nil
 }
 
 // Response is the full moderation result: one [*Result] per input plus
@@ -130,46 +142,60 @@ func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, erro
 // Validate recursively verifies category verdicts and response metadata.
 func (r *Response) Validate() error {
 	if r == nil {
-		return errors.New("moderation.Response: nil response")
+		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
 	if len(r.Results) == 0 {
-		return errors.New("moderation.Response: at least one result is required")
+		return fmt.Errorf("%w: at least one result is required", ErrInvalidResponse)
 	}
 	for i, result := range r.Results {
 		if err := result.validate(); err != nil {
-			return fmt.Errorf("moderation.Response: results[%d]: %w", i, err)
+			return fmt.Errorf("%w: results[%d]: %w", ErrInvalidResponse, i, err)
 		}
 	}
-	if r.Metadata == nil {
-		return errors.New("moderation.Response: metadata must not be nil")
-	}
-	if r.Metadata.ID != "" && strings.TrimSpace(r.Metadata.ID) != r.Metadata.ID {
-		return errors.New("moderation.Response: metadata ID must not have surrounding whitespace")
-	}
-	if r.Metadata.Model != "" && strings.TrimSpace(r.Metadata.Model) != r.Metadata.Model {
-		return errors.New("moderation.Response: metadata model must not have surrounding whitespace")
-	}
-	if r.Metadata.Created < 0 {
-		return errors.New("moderation.Response: created must not be negative")
-	}
-	if err := r.Metadata.Extra.Validate(); err != nil {
-		return fmt.Errorf("moderation.Response: metadata: %w", err)
+	if err := r.Metadata.validate(); err != nil {
+		return fmt.Errorf("%w: metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
 
 func (r *Result) validate() error {
 	if r == nil {
-		return errors.New("result must not be nil")
+		return fmt.Errorf("%w: result must not be nil", ErrInvalidResponse)
 	}
 	if err := r.Categories.validate(); err != nil {
 		return err
 	}
-	if r.Metadata == nil {
-		return errors.New("metadata must not be nil")
+	if err := r.Metadata.validate(); err != nil {
+		return err
 	}
-	if err := r.Metadata.Extra.Validate(); err != nil {
-		return fmt.Errorf("metadata: %w", err)
+	return nil
+}
+
+func (m *ResultMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: result metadata must not be nil", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: result metadata: %w", ErrInvalidResponse, err)
+	}
+	return nil
+}
+
+func (m *ResponseMetadata) validate() error {
+	if m == nil {
+		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
+	}
+	if m.ID != "" && strings.TrimSpace(m.ID) != m.ID {
+		return fmt.Errorf("%w: response metadata ID must not have surrounding whitespace", ErrInvalidResponse)
+	}
+	if m.Model != "" && strings.TrimSpace(m.Model) != m.Model {
+		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)
+	}
+	if m.Created < 0 {
+		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)
+	}
+	if err := m.Extra.Validate(); err != nil {
+		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
