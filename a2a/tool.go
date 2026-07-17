@@ -75,6 +75,14 @@ func newTool(cfg toolConfig) (*tool, error) {
 
 func (t *tool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
 
+// ConcurrencyKey declares A2A invocations independent: every SendMessage owns
+// a distinct remote task, and the remote server retains authority over its own
+// execution limit. The lynx Agent ToolLoop may therefore overlap calls while
+// still committing their observable results in request order.
+func (t *tool) ConcurrencyKey(string) (key string, concurrent bool) {
+	return "", true
+}
+
 // Call implements [tools.Tool]: it sends the request text to the remote agent
 // and returns its reply. One `a2a.agent.call <name>` span per call
 // (kind=Client) carrying gen_ai.agent.name; a remote failure records the
