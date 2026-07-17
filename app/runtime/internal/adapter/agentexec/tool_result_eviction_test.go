@@ -87,7 +87,7 @@ func TestEviction_OversizedIsOffloadedWithRetrievablePlaceholder(t *testing.T) {
 	if len(got) >= len(body) {
 		t.Fatalf("placeholder (%d bytes) is not smaller than the body (%d)", len(got), len(body))
 	}
-	for _, want := range []string{"blob-123", toolport.ToolNameReadToolResult, "500 chars"} {
+	for _, want := range []string{"blob-123", toolport.ToolNameReadToolResult, "500 bytes"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("placeholder missing %q:\n%s", want, got)
 		}

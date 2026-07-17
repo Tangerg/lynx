@@ -29,7 +29,7 @@ const defaultReadWindow = 20_000
 const description = `Read back the full output of an earlier tool call that the
 runtime offloaded to keep the conversation small. When a tool result was too
 large it was replaced inline by a head+tail preview ending in a marker like
-"…[N chars offloaded … {"id":"<id>"} …]…"; pass that id here to retrieve the
+"…[N bytes offloaded … {"id":"<id>"} …]…"; pass that id here to retrieve the
 omitted content.
 
 Page through large output with offset (start position, in bytes) and limit (max

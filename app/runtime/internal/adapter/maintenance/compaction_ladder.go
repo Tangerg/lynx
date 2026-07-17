@@ -87,7 +87,7 @@ func trimPart(p chat.Part) (chat.Part, bool) {
 	switch {
 	case p.Kind == chat.PartToolCall && p.ToolCall != nil && len(p.ToolCall.Arguments) > ladderArgCap:
 		clone := p.Clone()
-		clone.ToolCall.Arguments = fmt.Sprintf(`{"_trimmed":"%d chars elided on compaction"}`, len(p.ToolCall.Arguments))
+		clone.ToolCall.Arguments = fmt.Sprintf(`{"_trimmed":"%d bytes elided on compaction"}`, len(p.ToolCall.Arguments))
 		return clone, true
 	case p.Kind == chat.PartToolResult && p.ToolResult != nil && len(p.ToolResult.Result) > ladderResultCap:
 		clone := p.Clone()
@@ -103,7 +103,7 @@ func trimPart(p chat.Part) (chat.Part, bool) {
 // handle — this trim is lossy, so the model must not try to read it back.
 func clipResult(s string) string {
 	out, _ := headTail(s, ladderResultCap, func(elided int) string {
-		return fmt.Sprintf("\n…[%d chars trimmed on compaction; not retrievable]…\n", elided)
+		return fmt.Sprintf("\n…[%d bytes trimmed on compaction; not retrievable]…\n", elided)
 	})
 	return out
 }
