@@ -2,6 +2,7 @@ package maintenance
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"strings"
 	"testing"
@@ -133,6 +134,99 @@ func TestCompactor_CutBoundary(t *testing.T) {
 	// Second message must be the UserMessage from the second turn, never a ToolMessage.
 	if after[1].Role != chat.RoleUser {
 		t.Fatalf("after[1] role = %q, want user (not orphaned tool message)", after[1].Role)
+	}
+}
+
+// TestCompactor_PreservesToolPairsAcrossCutoffs is the general invariant lock
+// behind the specific DeepSeek 400 regression ([TestCompactor_CutBoundary]):
+// no matter where the naive cutoff lands, a surviving tool-result must keep its
+// originating tool-call and vice versa. It drives one interleaved history —
+// parallel tool calls, multi-result tool messages — through every keepRecent so
+// the cutoff sweeps every message boundary, and asserts the pairing invariant
+// on the post-compaction history each time. A cutoff can only ever split a pair
+// if it falls between an assistant's tool-call and its tool-result, and the
+// user-boundary advance makes that impossible; this pins that guarantee.
+func TestCompactor_PreservesToolPairsAcrossCutoffs(t *testing.T) {
+	asst := func(text string) chat.Message { return chat.NewAssistantMessage(chat.NewTextPart(text)) }
+	user := func(text string) chat.Message { return chat.NewUserMessage(chat.NewTextPart(text)) }
+	call := func(ids ...string) chat.Message {
+		parts := make([]chat.Part, len(ids))
+		for i, id := range ids {
+			parts[i] = chat.NewToolCallPart(chat.ToolCall{ID: id, Name: "shell", Arguments: `{}`})
+		}
+		return chat.NewAssistantMessage(parts...)
+	}
+	result := func(ids ...string) chat.Message {
+		results := make([]chat.ToolResult, len(ids))
+		for i, id := range ids {
+			results[i] = chat.ToolResult{ID: id, Name: "shell", Result: "ok"}
+		}
+		return chat.NewToolMessage(results...)
+	}
+
+	// Complete turns only (each tool-call answered) — an interleave of a single
+	// call, parallel calls in one assistant message, and a multi-result tool
+	// message, so the invariant is exercised, not just a lone pair.
+	template := []chat.Message{
+		user("q1"),
+		call("c1"), result("c1"), asst("a1"),
+		user("q2"),
+		call("c2", "c3"), result("c2", "c3"), asst("a2"), // parallel calls, one tool message
+		user("q3"),
+		call("c4"), result("c4"), asst("a3"),
+	}
+
+	for keepRecent := 1; keepRecent < len(template); keepRecent++ {
+		t.Run(fmt.Sprintf("keepRecent=%d", keepRecent), func(t *testing.T) {
+			store := history.NewInMemoryStore()
+			const sessID = "sess-pairs"
+			for _, m := range template {
+				_ = store.Write(t.Context(), sessID, m)
+			}
+			client, _ := chatclient.New(newTextStubModel("BULLETS"))
+			// MaxMessages == len forces the count trigger every run so the cutoff
+			// logic actually executes for each keepRecent.
+			c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: len(template), KeepRecent: keepRecent})
+			if _, err := c.MaybeCompact(t.Context(), sessID, nil); err != nil {
+				t.Fatal(err)
+			}
+			after, _ := store.Read(t.Context(), sessID)
+			assertNoOrphanToolParts(t, after)
+		})
+	}
+}
+
+// assertNoOrphanToolParts fails if the surviving history contains a tool-result
+// whose originating tool-call was dropped, or a tool-call whose result was
+// dropped — the pairing a strict provider rejects with 400. Compaction folds
+// the older slice into a summary (no tool parts), so every surviving pair must
+// come from the verbatim `recent` slice intact.
+func assertNoOrphanToolParts(t *testing.T, msgs []chat.Message) {
+	t.Helper()
+	calls, results := map[string]bool{}, map[string]bool{}
+	for _, m := range msgs {
+		for _, p := range m.Parts {
+			switch p.Kind {
+			case chat.PartToolCall:
+				if p.ToolCall != nil {
+					calls[p.ToolCall.ID] = true
+				}
+			case chat.PartToolResult:
+				if p.ToolResult != nil {
+					results[p.ToolResult.ID] = true
+				}
+			}
+		}
+	}
+	for id := range results {
+		if !calls[id] {
+			t.Errorf("orphan tool-result %q: its tool-call did not survive compaction", id)
+		}
+	}
+	for id := range calls {
+		if !results[id] {
+			t.Errorf("dangling tool-call %q: its tool-result did not survive compaction", id)
+		}
 	}
 }
 
