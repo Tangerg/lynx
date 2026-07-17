@@ -30,8 +30,8 @@ func (r topKRefiner) Refine(ctx context.Context, _ *Query, documents []Candidate
 	}
 
 	sorted := slices.Clone(documents)
-	slices.SortFunc(sorted, func(a, b Candidate) int {
-		return cmp.Compare(b.Score, a.Score) // descending
+	slices.SortStableFunc(sorted, func(a, b Candidate) int {
+		return cmp.Compare(b.Score, a.Score) // descending; stable keeps retrieval order on ties
 	})
 
 	if len(sorted) > r.topK {
