@@ -2,7 +2,6 @@ package chatclient
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -19,32 +18,9 @@ func prepareRequest(request *chat.Request, defaults chat.Options) (*chat.Request
 	return prepared, nil
 }
 
+// mergeOptions applies per-request overrides over client defaults. The
+// field-aware merge lives on chat.Options.Overlay so it can't drift from the
+// option set core owns.
 func mergeOptions(defaults, overrides chat.Options) chat.Options {
-	merged := defaults.Clone()
-	overrides = overrides.Clone()
-	if overrides.Model != "" {
-		merged.Model = overrides.Model
-	}
-	if overrides.FrequencyPenalty != nil {
-		merged.FrequencyPenalty = overrides.FrequencyPenalty
-	}
-	if overrides.MaxTokens != nil {
-		merged.MaxTokens = overrides.MaxTokens
-	}
-	if overrides.PresencePenalty != nil {
-		merged.PresencePenalty = overrides.PresencePenalty
-	}
-	if overrides.Stop != nil {
-		merged.Stop = slices.Clone(overrides.Stop)
-	}
-	if overrides.Temperature != nil {
-		merged.Temperature = overrides.Temperature
-	}
-	if overrides.TopK != nil {
-		merged.TopK = overrides.TopK
-	}
-	if overrides.TopP != nil {
-		merged.TopP = overrides.TopP
-	}
-	return merged
+	return defaults.Overlay(overrides)
 }
