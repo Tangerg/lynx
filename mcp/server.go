@@ -10,15 +10,18 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	corechat "github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tools"
 )
 
 // Register installs every [tools.Tool] in tools onto server using
 // the low-level [(*sdkmcp.Server).AddTool] API.
 //
-// Registration is all-or-nothing: every tool is validated and built
-// before any is added, so a bad entry mid-list never leaves the server
-// half-registered.
+// Registration is all-or-nothing: definitions are snapshotted, duplicate names
+// within the batch are rejected, and every tool is built before any is added.
+// A bad entry mid-list therefore never leaves the server half-registered, and
+// handlers use the same identity the server advertised even when a Tool
+// implementation is mutable.
 //
 // The generic sdkmcp.AddTool[In, Out] form is deliberately avoided:
 // tools already supply a hand-authored JSON schema, and the
@@ -29,12 +32,15 @@ func Register(server *sdkmcp.Server, tools ...toolcontract.Tool) error {
 		return ErrNilServer
 	}
 
+	registry, err := toolcontract.NewRegistry(tools...)
+	if err != nil {
+		return fmt.Errorf("mcp.Register: %w", err)
+	}
+
 	prepared := make([]preparedTool, 0, len(tools))
-	for i, tool := range tools {
-		if tool == nil {
-			return fmt.Errorf("mcp.Register: tools[%d] must not be nil", i)
-		}
-		pt, err := prepareOne(tool)
+	for _, definition := range registry.Definitions() {
+		tool, _ := registry.Resolve(definition.Name)
+		pt, err := prepareOne(tool, definition)
 		if err != nil {
 			return err
 		}
@@ -53,24 +59,19 @@ type preparedTool struct {
 	handler sdkmcp.ToolHandler
 }
 
-func prepareOne(tool toolcontract.Tool) (preparedTool, error) {
-	def := tool.Definition()
-	if err := def.Validate(); err != nil {
-		return preparedTool{}, fmt.Errorf("mcp.Register: invalid tool definition: %w", err)
-	}
-
-	schema, err := schemaToAny(def.InputSchema)
+func prepareOne(tool toolcontract.Tool, definition corechat.ToolDefinition) (preparedTool, error) {
+	schema, err := schemaToAny(definition.InputSchema)
 	if err != nil {
-		return preparedTool{}, fmt.Errorf("mcp.Register: convert input schema for tool %q: %w", def.Name, err)
+		return preparedTool{}, fmt.Errorf("mcp.Register: tool %q input schema: %w", definition.Name, err)
 	}
 
 	return preparedTool{
 		tool: &sdkmcp.Tool{
-			Name:        def.Name,
-			Description: def.Description,
+			Name:        definition.Name,
+			Description: definition.Description,
 			InputSchema: schema,
 		},
-		handler: serverHandler(tool),
+		handler: serverHandler(tool, definition.Name),
 	}, nil
 }
 
@@ -84,9 +85,8 @@ func prepareOne(tool toolcontract.Tool) (preparedTool, error) {
 // can use the reverse-capability helpers ([ReportProgress],
 // [ElicitFromClient], [LogToClient]) without taking a direct
 // dependency on the SDK.
-func serverHandler(tool toolcontract.Tool) sdkmcp.ToolHandler {
+func serverHandler(tool toolcontract.Tool, toolName string) sdkmcp.ToolHandler {
 	return func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
-		toolName := tool.Definition().Name
 		ctx, span := mcpTracer.Start(ctx, "mcp.tool.serve "+toolName,
 			trace.WithSpanKind(trace.SpanKindServer),
 			trace.WithAttributes(attribute.String(attrToolName, toolName)),
