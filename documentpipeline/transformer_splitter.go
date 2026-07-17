@@ -23,6 +23,8 @@ const (
 	// among its siblings (counts only emitted, non-empty chunks).
 	MetadataKeyChunkIndex = "chunk_index"
 
+	// MetadataKeyChunkTotal holds the count of emitted (non-empty) chunks
+	// produced from the source document.
 	MetadataKeyChunkTotal = "chunk_total"
 )
 
