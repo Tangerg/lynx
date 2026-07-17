@@ -3,11 +3,32 @@ package skills
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
 )
+
+type panicFS struct{}
+
+func (*panicFS) Open(string) (fs.File, error) {
+	panic("typed-nil filesystem was used")
+}
+
+type panicResourceSource struct{}
+
+func (*panicResourceSource) List(context.Context) ([]Summary, error) {
+	panic("typed-nil source was used")
+}
+
+func (*panicResourceSource) Load(context.Context, string) (*Skill, error) {
+	panic("typed-nil source was used")
+}
+
+func (*panicResourceSource) OpenResource(context.Context, string, string) (fs.File, error) {
+	panic("typed-nil source was used")
+}
 
 const pdfSkill = `---
 name: pdf-processing
@@ -132,8 +153,20 @@ func TestReadResource(t *testing.T) {
 }
 
 func TestReadResourceRejectsNilSource(t *testing.T) {
-	if _, err := ReadResource(context.Background(), nil, "pdf-processing", "references/REFERENCE.md"); err == nil {
-		t.Fatal("nil source must error")
+	var typedNil *panicResourceSource
+	tests := []struct {
+		name   string
+		source ResourceSource
+	}{
+		{name: "nil", source: nil},
+		{name: "typed nil", source: typedNil},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := ReadResource(t.Context(), test.source, "pdf-processing", "references/REFERENCE.md"); !errors.Is(err, errNilSource) {
+				t.Fatalf("ReadResource error = %v, want errNilSource", err)
+			}
+		})
 	}
 }
 
@@ -166,7 +199,19 @@ func TestDirRejectsResourceSymlinkEscapingRoot(t *testing.T) {
 }
 
 func TestNewFSRejectsNilFilesystemWithoutPanicking(t *testing.T) {
-	if _, err := NewFS(nil).List(t.Context()); !errors.Is(err, errNilFS) {
-		t.Fatalf("List error = %v, want errNilFS", err)
+	var typedNil *panicFS
+	tests := []struct {
+		name       string
+		filesystem fs.FS
+	}{
+		{name: "nil", filesystem: nil},
+		{name: "typed nil", filesystem: typedNil},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := NewFS(test.filesystem).List(t.Context()); !errors.Is(err, errNilFS) {
+				t.Fatalf("List error = %v, want errNilFS", err)
+			}
+		})
 	}
 }

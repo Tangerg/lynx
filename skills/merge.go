@@ -13,13 +13,13 @@ import (
 // on a name collision the first source that has the skill wins, so callers
 // express precedence by order (e.g. a project source before a global one).
 //
-// nil sources are dropped. Merge of a single source returns it unchanged;
-// Merge of none yields an empty source (List returns nothing, Load reports
-// not found).
+// Nil and typed-nil sources are dropped. Merge of a single source returns it
+// unchanged; Merge of none yields an empty source (List returns nothing, Load
+// reports not found).
 func Merge(sources ...ResourceSource) ResourceSource {
 	kept := make([]ResourceSource, 0, len(sources))
 	for _, s := range sources {
-		if s != nil {
+		if !isNil(s) {
 			kept = append(kept, s)
 		}
 	}

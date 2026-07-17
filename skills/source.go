@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"reflect"
 	"slices"
 	"strings"
 )
@@ -58,12 +59,26 @@ type fsSource struct {
 // NewFS returns a [ResourceSource] backed by fsys.
 //
 // NewFS trusts the confinement semantics of fsys. Use [Dir] for an operating
-// system directory that must reject symbolic links escaping its root.
+// system directory that must reject symbolic links escaping its root. A nil or
+// typed-nil filesystem produces a source whose operations return an error.
 func NewFS(fsys fs.FS) ResourceSource {
-	if fsys == nil {
+	if isNil(fsys) {
 		fsys = errorFS{err: errNilFS}
 	}
 	return &fsSource{fsys: fsys}
+}
+
+func isNil(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }
 
 // Dir returns a [ResourceSource] backed by the directory rooted at root.
@@ -169,7 +184,7 @@ func (f *fsSource) OpenResource(_ context.Context, name, resource string) (fs.Fi
 
 // ReadResource reads and closes a bundled skill resource from src.
 func ReadResource(ctx context.Context, src ResourceSource, name, resource string) ([]byte, error) {
-	if src == nil {
+	if isNil(src) {
 		return nil, errNilSource
 	}
 	file, err := src.OpenResource(ctx, name, resource)

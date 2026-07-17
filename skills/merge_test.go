@@ -48,10 +48,11 @@ func TestMergePrecedence(t *testing.T) {
 
 func TestMergeSingleAndNil(t *testing.T) {
 	only := NewFS(fstest.MapFS{})
+	var typedNil *panicResourceSource
 	if got := Merge(only); got != only {
 		t.Error("Merge of a single source should return it unchanged")
 	}
-	if got := Merge(nil, only, nil); got != only {
+	if got := Merge(nil, typedNil, only, typedNil, nil); got != only {
 		t.Error("Merge should drop nils and unwrap to the lone source")
 	}
 }
