@@ -292,7 +292,7 @@ func (e *Engine) lockProcessTree(process *Process, visited map[string]struct{}) 
 			return nil, fmt.Errorf("lock nested child %q: %w", child.ID(), lockErr)
 		}
 		tree.children = append(tree.children, childTree)
-		if err := validateNestedChildProcess(process, child, relation); err != nil {
+		if err := relation.validateProcess(process, child); err != nil {
 			unlockProcessTree(tree)
 			return nil, err
 		}
@@ -313,7 +313,7 @@ func captureLockedProcessTree(tree *lockedProcessTree) error {
 		if err := captureLockedProcessTree(child); err != nil {
 			return err
 		}
-		if err := validateNestedChildSnapshot(tree.snapshot, child.snapshot, tree.relations[index]); err != nil {
+		if err := tree.relations[index].validateSnapshot(tree.snapshot, child.snapshot); err != nil {
 			return err
 		}
 	}

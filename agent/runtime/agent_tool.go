@@ -104,7 +104,7 @@ func (t *agentTool) continueNestedChild(
 	if !ok {
 		return "", fmt.Errorf("%w: nested child process %q is missing", interaction.ErrSuspensionStale, relation.ChildID)
 	}
-	if err := validateNestedChildProcess(parent, child, relation); err != nil {
+	if err := relation.validateProcess(parent, child); err != nil {
 		return "", err
 	}
 	if child.Status() == core.StatusWaiting {
