@@ -44,6 +44,50 @@ func TestToolCallInputPlan_HookAskEscalatesPass(t *testing.T) {
 	}
 }
 
+func TestToolCallInputPlan_OutOfWorkspaceMutationIsBypassImmune(t *testing.T) {
+	// Yolo would auto-pass a write, but a target outside the workspace must still
+	// be confirmed — shown as high risk with a specific reason.
+	plan := ToolCallInput{
+		Tool:               "write",
+		Arguments:          `{"file_path":"/etc/hosts"}`,
+		Mode:               ModeYolo,
+		ApprovalConfigured: true,
+		Cwd:                "/work/project",
+	}.Plan()
+	if plan.Action != GatePrompt {
+		t.Fatalf("action = %v, want GatePrompt (bypass-immune)", plan.Action)
+	}
+	if plan.Risk != tool.RiskHigh || !strings.Contains(plan.PromptReason, "outside the workspace") {
+		t.Fatalf("plan = %+v, want high risk + out-of-workspace reason", plan)
+	}
+}
+
+func TestToolCallInputPlan_InWorkspaceMutationStillAutoPassesInYolo(t *testing.T) {
+	plan := ToolCallInput{
+		Tool:               "write",
+		Arguments:          `{"file_path":"src/a.go"}`,
+		Mode:               ModeYolo,
+		ApprovalConfigured: true,
+		Cwd:                "/work/project",
+	}.Plan()
+	if plan.Action != GatePass {
+		t.Fatalf("action = %v, want GatePass (in-workspace write under Yolo)", plan.Action)
+	}
+}
+
+func TestToolCallInputPlan_OutOfWorkspaceNeedsAConfiguredWorkspace(t *testing.T) {
+	// No cwd → no workspace boundary → the escalation can't fire (Yolo passes).
+	plan := ToolCallInput{
+		Tool:               "write",
+		Arguments:          `{"file_path":"/etc/hosts"}`,
+		Mode:               ModeYolo,
+		ApprovalConfigured: true,
+	}.Plan()
+	if plan.Action != GatePass {
+		t.Fatalf("action = %v, want GatePass (no workspace configured)", plan.Action)
+	}
+}
+
 func TestToolCallInputPlan_ModePlanDenyBeatsHookAsk(t *testing.T) {
 	plan := ToolCallInput{
 		Tool:               "shell",

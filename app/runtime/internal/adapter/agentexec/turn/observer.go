@@ -94,6 +94,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		Mode:               mode,
 		ApprovalConfigured: approvalConfigured,
 		Hook:               hookDecision,
+		Cwd:                t.st.cwd,
 	}.Plan()
 	sessionID := t.st.handle.SessionID
 	if plan.Action == approval.GatePrompt {
