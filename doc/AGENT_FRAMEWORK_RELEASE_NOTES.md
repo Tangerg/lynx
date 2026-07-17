@@ -16,12 +16,12 @@
 | 项目 | 当前值 |
 |---|---:|
 | public package | 16 |
-| exported declaration | 646 |
+| exported declaration | 654 |
 | root façade | 48 / 50 |
 | exported JSON struct | 16 |
 | wire fixture | 490 行 |
 
-- API baseline SHA-256：`a7a0582dbf8e15f8541f7b3de31dff1925daa4b1253699c68af04552c64121ce`
+- API baseline SHA-256：`73e4a8f603443fcaea7006ad9b9c22561d2d241cb7444432ec7e6a6b3adc96e6`
 - wire fixture SHA-256：`6e6ba3b76c9f4c06093984d8c897585de95e2e19b550690ec349ddd6c18b793b`
 
 这些值用于审查开发期差异，不代表已经发布稳定承诺。
@@ -118,7 +118,16 @@
   和负数工具轮数在边界返回归因错误，而不是执行期 panic/延迟失败。
 - `MemoryProcessStore`、`MemorySessionStore` 提供 reference implementation；后者在 Save/Load
   两侧递归快照 JSON metadata，拒绝不可持久化值且不泄漏嵌套 map/slice 别名。
-- `storetest.TestProcessStore` 是唯一公开外部实现 contract suite；`providertest` 已移除。
+- Session 成为自校验 identity：`Validate` 固定 ID/lineage/audit 不变量，`BindAgent` 只允许
+  未绑定→精确 Agent 或幂等重绑；冲突通过 `ErrInvalidSession` 分类。
+- `SessionStore` 从 Save/Load/Delete/List 收窄为 Runtime 真正消费的 Save/Load；删除与列表
+  分别由可选 `SessionDeleter` / `SessionLister` 表达。
+- `runtime.Config.SessionStore` 与 `ChildSessionStore` 分别拥有 root multi-turn 和 delegated
+  child 生命周期；产品 lineage adapter 不再伪造 root CRUD。
+- `RunInSession` 支持按 Session.AgentName 调度已部署 Agent，拒绝 Agent identity 漂移；最终
+  save 脱离 request cancellation，并同时保留 run/save 双错误。
+- `storetest.TestProcessStore` 与 `storetest.TestSessionStore` 是公开外部实现 contract suite；
+  `providertest` 已移除。
 
 ### Naming and files
 

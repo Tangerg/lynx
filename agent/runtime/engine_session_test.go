@@ -2,6 +2,7 @@ package runtime_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -53,6 +54,7 @@ func TestEngine_RunInSession_NoStore_PropagatesSession(t *testing.T) {
 
 	sess := core.NewSession("conv-123", "alice", "session-agent")
 	previousUpdate := time.Unix(1, 0).UTC()
+	sess.StartedAt = previousUpdate
 	sess.UpdatedAt = previousUpdate
 	proc, err := engine.RunInSession(
 		context.Background(), a, &sess,
@@ -109,7 +111,7 @@ func TestEngine_RunInSession_DerivesAgentName(t *testing.T) {
 	a := buildSessionAgent()
 	mustDeploy(t, engine, a)
 
-	sess := core.Session{ID: "c-1"} // no AgentName set
+	sess := core.NewSession("c-1", "", "")
 	_, err := engine.RunInSession(
 		context.Background(), a, &sess,
 		map[string]any{core.DefaultBindingName: srWord{Text: "hi"}},
@@ -120,6 +122,105 @@ func TestEngine_RunInSession_DerivesAgentName(t *testing.T) {
 	}
 	if sess.AgentName != "session-agent" {
 		t.Errorf("AgentName: want auto-derived 'session-agent', got %q", sess.AgentName)
+	}
+}
+
+func TestEngine_RunInSession_UsesSessionAgentWhenDefinitionIsNil(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	a := buildSessionAgent()
+	mustDeploy(t, engine, a)
+	session := core.NewSession("c-1", "user-1", a.Name())
+
+	process, err := engine.RunInSession(
+		t.Context(), nil, &session,
+		map[string]any{core.DefaultBindingName: srWord{Text: "lynx"}},
+		core.ProcessOptions{},
+	)
+	if err != nil {
+		t.Fatalf("RunInSession: %v", err)
+	}
+	if process.Deployment().Name != a.Name() {
+		t.Fatalf("deployment = %s, want agent %q", process.Deployment(), a.Name())
+	}
+}
+
+func TestEngine_RunInSession_RejectsAgentIdentityConflict(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	a := buildSessionAgent()
+	session := core.NewSession("c-1", "user-1", "other-agent")
+
+	_, err := engine.RunInSession(t.Context(), a, &session, nil, core.ProcessOptions{})
+	if !errors.Is(err, core.ErrInvalidSession) {
+		t.Fatalf("RunInSession error = %v, want ErrInvalidSession", err)
+	}
+	if _, deployed := engine.ActiveDeployment(a.Name()); deployed {
+		t.Fatal("identity conflict deployed the rejected agent")
+	}
+}
+
+type cancellationAwareSessionStore struct {
+	saveContexts []error
+	failAt       int
+	failure      error
+}
+
+func (s *cancellationAwareSessionStore) Save(ctx context.Context, _ core.Session) error {
+	s.saveContexts = append(s.saveContexts, ctx.Err())
+	if len(s.saveContexts) == s.failAt {
+		return s.failure
+	}
+	return nil
+}
+
+func (*cancellationAwareSessionStore) Load(context.Context, string) (core.Session, error) {
+	return core.Session{}, core.ErrSessionNotFound
+}
+
+func cancellationSessionAgent(cancel context.CancelFunc) *core.Agent {
+	return agent.New(agent.AgentConfig{
+		Name: "cancel-session",
+		Actions: []agent.Action{agent.NewAction("cancel", func(context.Context, *core.ProcessContext, srWord) (srWordCount, error) {
+			cancel()
+			return srWordCount{}, context.Canceled
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[srWordCount](core.GoalConfig{Description: "cancel"})},
+	})
+}
+
+func TestEngine_RunInSession_FinalSaveSurvivesCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	store := new(cancellationAwareSessionStore)
+	engine := agent.MustNewEngine(runtime.Config{SessionStore: store})
+	a := cancellationSessionAgent(cancel)
+	mustDeploy(t, engine, a)
+	session := core.NewSession("c-1", "user-1", a.Name())
+
+	_, _ = engine.RunInSession(ctx, a, &session, map[string]any{
+		core.DefaultBindingName: srWord{Text: "lynx"},
+	}, core.ProcessOptions{})
+	if len(store.saveContexts) != 2 {
+		t.Fatalf("Save calls = %d, want pre- and post-dispatch", len(store.saveContexts))
+	}
+	if store.saveContexts[0] != nil || store.saveContexts[1] != nil {
+		t.Fatalf("Save context errors = %v, want both live", store.saveContexts)
+	}
+}
+
+func TestEngine_RunInSession_PreservesRunAndFinalSaveErrors(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	finalSaveErr := errors.New("final session save failed")
+	store := &cancellationAwareSessionStore{failAt: 2, failure: finalSaveErr}
+	engine := agent.MustNewEngine(runtime.Config{SessionStore: store})
+	a := buildSessionAgent()
+	mustDeploy(t, engine, a)
+	session := core.NewSession("c-1", "user-1", a.Name())
+
+	_, err := engine.RunInSession(ctx, a, &session, map[string]any{
+		core.DefaultBindingName: srWord{Text: "lynx"},
+	}, core.ProcessOptions{})
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, finalSaveErr) {
+		t.Fatalf("RunInSession error = %v, want cancellation and final save failure", err)
 	}
 }
 
@@ -178,11 +279,11 @@ func TestRunChildLinksSessionToParent(t *testing.T) {
 }
 
 // TestRunChildPersistsSession verifies that when the engine
-// has a SessionStore, a spawned child's session is saved there (with its
+// has a ChildSessionStore, a spawned child's session is saved there (with its
 // ParentID), so the delegation lineage is durably queryable.
 func TestRunChildPersistsSession(t *testing.T) {
 	store := core.NewMemorySessionStore()
-	engine := agent.MustNewEngine(runtime.Config{SessionStore: store})
+	engine := agent.MustNewEngine(runtime.Config{ChildSessionStore: store})
 	child := buildSessionAgent()
 	childDeployment, err := engine.Deploy(child)
 	if err != nil {

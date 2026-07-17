@@ -10,8 +10,9 @@
 // assertion at dispatch time. Per-process Extensions merge with the
 // Engine-scoped set when a process is created, so per-call
 // overrides remain idiomatic. Stable construction dependencies such as chat,
-// ProcessStore, SessionStore, and snapshot policy remain explicit fields on
-// [Config]; they are not hidden in the extension registry.
+// process persistence, root/child session persistence, and snapshot policy
+// remain explicit fields on [Config]; they are not hidden in the extension
+// registry.
 //
 // Process lifecycle:
 //

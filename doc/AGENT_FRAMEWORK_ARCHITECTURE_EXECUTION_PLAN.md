@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：已完成（P12 构造所有权与 Session reference store，108/108）
+> 状态：已完成（P13 Session 生命周期与持久化边界，113/113）
 > 建立日期：2026-07-15
 > 最后更新：2026-07-17
 > 维护者：Lynx 仓库维护者
@@ -1685,6 +1685,40 @@ pause/restart 不重放已完成工作；snapshot 不保存跨进程聚合猜测
 容器不影响运行中语义；reference SessionStore 不泄漏 Metadata 别名；非法 capability 在
 边界返回错误而非 panic；完整门禁通过。
 
+### P13：Session 生命周期与持久化边界
+
+目标：让 Session 成为自校验的 conversation identity，把 root multi-turn 与 delegated
+child 两种持久化生命周期拆开，并保证 Lyra product store 对 child runtime identity 的
+完整、确定性 round-trip。
+
+- [x] **P13-01 审计 Runtime/App Session ownership 与恢复路径**（完成：2026-07-17）
+  - 定位胖 `SessionStore` 迫使 child adapter 伪造 List/Delete、root/child 共用 Config 字段、
+    child Save 丢失 UserID/AgentName/Metadata/时间、`RunInSession` 文档与 dispatch 不一致，
+    以及 canceled context 使 final save 失效五类根因。
+- [x] **P13-02 收敛 Session aggregate 与最小持久化合同**（完成：2026-07-17）
+  - Session 新增 `Validate` / `BindAgent` 与 `ErrInvalidSession`；`SessionStore` 只组合
+    reader/writer，delete/list 成为可选 capability。
+  - 新增 `storetest.TestSessionStore`，覆盖 validation、replace、metadata ownership、
+    并发 Save、not-found 和声明的管理能力。
+- [x] **P13-03 分离 Engine root/child 生命周期并修正 RunInSession**（完成：2026-07-17）
+  - Config 明确 `SessionStore` 与 `ChildSessionStore`；child create/restore 只使用后者。
+  - `RunInSession(nil agent, session, ...)` 按 Session.AgentName 解析 active Deployment；
+    显式 Agent identity 冲突在部署副作用前失败；post-save 脱离 cancel 并保留双错误。
+- [x] **P13-04 完成 Lyra typed child identity 与 SQLite v5 迁移**（完成：2026-07-17）
+  - App domain 新增 `Subtask` 与 identity conflict contract，adapter 只消费 Get/SaveSubtask；
+    完整 round-trip UserID、AgentName、时间和 Metadata。
+  - SQLite v5 添加 session identity 字段；v3/v4 定向迁移保留产品 Session/history，清除
+    不可安全恢复的 continuation；同 ID 不得换 parent/user/Agent/StartedAt。
+- [x] **P13-05 同步 API/文档，执行完整门禁并独立提交**（完成：2026-07-17）
+  - API baseline 已审查更新为 16 package / 654 declaration / root 48；wire 仍为
+    16 struct / 490 行。
+  - Agent build/vet/test/lint/full race/tidy、App build/vet/test/lint/high-risk race/tidy、
+    workspace 105 项统一门禁与 diff 审计全绿；独立 commit/push，不创建 tag/release。
+
+退出标准：Runtime 不混淆 root/child store ownership；Session identity 在所有 persistence
+adapter 完整 round-trip；恢复不接受漂移 identity；request cancel 不跳过 final audit save；
+公开 contract suite、迁移测试和完整门禁通过。
+
 ---
 
 ## 15. 当前进度
@@ -1706,11 +1740,12 @@ pause/restart 不重放已完成工作；snapshot 不保存跨进程聚合猜测
 | P10 Owner Receiver 精修 | 完成 | 7/7 | 公私有 owner method、deployment compiler、文件职责、API/文档与完整 Agent/App gate 全部完成 |
 | P11 确定性并发与恢复 | 完成 | 7/7 | 并发、恢复、snapshot、GOAP、consumer、文档与完整门禁全部收口 |
 | P12 构造所有权与 Session store | 完成 | 4/4 | 私有 process options、Guardrails/extension snapshot、typed-nil guard、Session metadata defensive store 与完整门禁全部完成 |
-| **总计** | **完成** | **108/108（100%）** | **P0–P12 全部关闭；后续 tag/release 仍是独立授权动作** |
+| P13 Session 生命周期与持久化边界 | 完成 | 5/5 | Session self-validation、root/child ownership、typed App round-trip、SQLite v5 与完整门禁全部完成 |
+| **总计** | **完成** | **113/113（100%）** | **P0–P13 全部关闭；tag/release 仍是独立授权动作** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P12 构造所有权与 Session reference store，4/4，已关闭。
+- 当前阶段：P13 Session 生命周期与持久化边界，5/5，已关闭。
 - 下一任务：无；tag/release 仍是独立授权动作，本批不创建。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
 - 最近完成：Engine/Process 私有构造快照、Session metadata defensive store、typed-nil
@@ -1866,6 +1901,8 @@ pause/restart 不重放已完成工作；snapshot 不保存跨进程聚合猜测
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-17 | 完成 P13-05 并关闭 113/113：Agent/App 常规门禁、Agent full race、App 高风险 race、两模块 tidy、API/wire/arch、两次 workspace 105 项完整门禁与 diff 审计全绿；P13 形成独立提交并推送，不创建 tag/release | Codex |
+| 2026-07-17 | 启动并完成 P13-01 至 P13-04：Session 自校验、SessionStore ISP、Engine root/child lifecycle、RunInSession identity dispatch/finalization、Lyra typed Subtask 与 SQLite v5 定向迁移完成；API baseline 更新为 654 declaration，待完整门禁 | Codex |
 | 2026-07-17 | 完成 P12-04 并关闭 108/108：Agent build/vet/test/lint/full race/tidy、App 常规门禁与 agentexec/toolset/runsegment/SQLite/bootstrap/arch 高风险 race、workspace 105 项完整门禁、API/wire/arch baseline 和 diff 审计全绿；P12 形成独立提交并推送，不创建 tag/release | Codex |
 | 2026-07-17 | 启动并完成 P12-01 至 P12-03：Process 不再持有公开 ProcessOptions 数据袋，Engine/Process 快照 Guardrails、extension slice 与 Session identity，typed-nil capability/负数工具轮数构造期失败；MemorySessionStore Save/Load 递归隔离 JSON Metadata；Agent 全量 test/vet、core/runtime race 与 App agentexec/bootstrap/arch 定向门禁通过，待完整 release gate | Codex |
 | 2026-07-17 | 完成 P11-07 并关闭 104/104：最终复核发现 state-dependent cost 下 relevance pruning/post-search action removal 不安全，删除两类剪枝并补“只影响后续成本”反例；随后 Agent 常规/full race、App 常规/高风险 race、workspace 84 项门禁、tidy、API/wire/arch 和 diff 审计全绿；形成并推送里程碑提交，不创建 tag/release | Codex |
@@ -1908,6 +1945,8 @@ pause/restart 不重放已完成工作；snapshot 不保存跨进程聚合猜测
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-17 | P13-05 | Agent `build/vet/test/lint` 与 full race；App `build/vet/test/lint`、agentexec/toolset/runsegment/SQLite/bootstrap/arch 高风险 race；两模块 tidy；API 654/root 48、wire 490、arch/diff；workspace 两次 `all green (105 checks)` | 无；113/113 关闭。当前批独立 commit/push，不 tag/release |
+| 2026-07-17 | P13-01 至 P13-04 | Session Validate/BindAgent、最小 reader/writer store 与 Session conformance；root/child store 分离、按 stored Agent dispatch、cancel-safe final save；App Subtask 完整 identity、SQLite v5 与 v3/v4 migration tests；Agent core/runtime/storetest、App session/sqlite/bootstrap/agentexec/server 定向测试和 API/wire/arch 通过 | P13-05 完整 Agent/App/workspace gate、提交并 push |
 | 2026-07-17 | P12-04 | Agent `build/vet/test/lint` 与 full race 全绿；App `build/vet/test/lint`、agentexec/toolset/runsegment/SQLite/bootstrap/architecture race 全绿；workspace `all green (105 checks)`；Agent/App tidy、API/wire/arch baseline 与 `git diff --check` 通过 | 无；108/108 关闭。当前批独立 commit/push，不 tag/release |
 | 2026-07-17 | P12-01 至 P12-03 | 新增私有 `processOptions` ownership boundary；Process 不保留 Blackboard/Dependencies 之外的公开 config DTO，Session Metadata 不进入执行聚合，Extensions/Guardrails slice 复制；typed-nil Blackboard/Extension 与负数 MaxToolRounds fail closed。MemorySessionStore 使用递归 JSON snapshot，caller/load mutation 测试通过。Agent `go test -count=1 ./...`、`go vet ./...`、`go test -race ./core ./runtime` 与 App agentexec/bootstrap/arch 定向测试全绿；Agent API/wire/arch guard 随全量测试通过 | P12-04 完整 Agent/App/workspace gate、提交并 push |
 | 2026-07-17 | P11-07 | 最终算法复核删除动态 cost 下不安全的 relevance/post-search pruning，并由反例固定 predecessor path 合同。Agent `build/vet/test/lint` 与 full race 全绿；App `build/vet/test/lint`、agentexec/toolset/runsegment/SQLite/bootstrap/architecture race 全绿；workspace 84 项常规门禁全绿；Agent/App tidy、API/wire/arch、`git diff --check` 通过 | 无；104/104 关闭。仅执行授权的 commit/push，不 tag/release |

@@ -35,8 +35,8 @@ func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error 
 	}
 	_, err = conn(ctx, s.db).ExecContext(ctx,
 		`INSERT OR REPLACE INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sess.ID, sess.UserID, sess.AgentName, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
 		metaJSON, sess.Model, sess.Kind, sess.Favorite,
 	)
@@ -193,8 +193,8 @@ func (s *SessionStore) execInsert(ctx context.Context, ex execer, sess session.S
 	}
 	_, err = ex.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sess.ID, sess.UserID, sess.AgentName, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
 		metaJSON, sess.Model, sess.Kind, sess.Favorite,
 	)

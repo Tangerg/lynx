@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,32 +41,69 @@ func (s *SessionStore) Fork(ctx context.Context, parentID, atMessageID string) (
 	return child, nil
 }
 
-// CreateSubtask records an internal delegation session under the caller-supplied
-// id (the agent runtime's child conversation id), linked to parentID and marked
-// [session.KindSubtask]. It inherits the parent's working directory and derives
-// a title from it. Idempotent: a session already present under id is returned
-// unchanged, so a re-driven spawn doesn't error.
-func (s *SessionStore) CreateSubtask(ctx context.Context, id, parentID string) (session.Session, error) {
-	if existing, err := s.Get(ctx, id); err == nil {
-		return existing, nil
-	} else if !errors.Is(err, session.ErrNotFound) {
+// SaveSubtask persists the complete Agent runtime identity while enriching a
+// new product session with the parent's title and cwd. Re-saving the same
+// child updates audit/metadata fields; changing immutable identity or reusing
+// its ID for a user-facing session fails closed.
+func (s *SessionStore) SaveSubtask(ctx context.Context, subtask session.Subtask) (session.Session, error) {
+	if err := subtask.Validate(); err != nil {
 		return session.Session{}, err
 	}
 
-	// The subtask-derivation rule (title suffix, cwd inheritance, KindSubtask
-	// marker) is a Session invariant — the adapter only supplies the new id and
-	// the clock. A missing parent is passed as an id-only Session, which yields
-	// the untitled-parent form.
-	parent, err := s.Get(ctx, parentID)
-	if errors.Is(err, session.ErrNotFound) {
-		parent = session.Session{ID: parentID}
-	} else if err != nil {
+	var saved session.Session
+	err := RunInTx(ctx, s.db, func(ctx context.Context) error {
+		existing, err := s.Get(ctx, subtask.ID)
+		switch {
+		case err == nil:
+			if !subtask.SameIdentity(existing) {
+				return fmt.Errorf(
+					"%w: ID %q is already bound to kind %q, parent %q, user %q, agent %q, started_at %s",
+					session.ErrSubtaskConflict,
+					subtask.ID,
+					existing.Kind,
+					existing.ParentID,
+					existing.UserID,
+					existing.AgentName,
+					existing.StartedAt.Format(time.RFC3339Nano),
+				)
+			}
+			saved = existing
+			saved.UpdatedAt = subtask.UpdatedAt
+			saved.Metadata = maps.Clone(subtask.Metadata)
+			return s.updateSubtaskAudit(ctx, saved)
+		case errors.Is(err, session.ErrNotFound):
+			parent, parentErr := s.Get(ctx, subtask.ParentID)
+			if errors.Is(parentErr, session.ErrNotFound) {
+				parent = session.Session{ID: subtask.ParentID}
+			} else if parentErr != nil {
+				return parentErr
+			}
+			saved, err = parent.NewSubtask(subtask)
+			if err != nil {
+				return err
+			}
+			return s.insert(ctx, saved)
+		default:
+			return err
+		}
+	})
+	if err != nil {
 		return session.Session{}, err
 	}
+	return saved, nil
+}
 
-	child := parent.NewSubtask(id, time.Now().UTC())
-	if err := s.insert(ctx, child); err != nil {
-		return session.Session{}, err
+func (s *SessionStore) updateSubtaskAudit(ctx context.Context, subtask session.Session) error {
+	metadata, err := encodeMetadata(subtask.Metadata)
+	if err != nil {
+		return err
 	}
-	return child, nil
+	return s.updateByID(
+		ctx,
+		"save subtask",
+		`UPDATE sessions SET updated_at = ?, metadata = ? WHERE id = ?`,
+		subtask.UpdatedAt.UnixNano(),
+		metadata,
+		subtask.ID,
+	)
 }

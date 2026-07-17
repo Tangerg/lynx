@@ -22,7 +22,7 @@
 - **协议与执行状态分离**:`toolloop.Runner` 直接消费 `core/chat.Request` 与消费方 `ToolResolver`；model/tool/pause/resume 通过 `toolloop.Event` 表达，不向 provider Response 塞运行时状态。Runner 是唯一工具循环：工具默认独占，显式安全的调用按 resource key 有界并发，但 event、continuation、checkpoint 始终按模型调用顺序提交；无自动 retry，可 checkpoint/resume。
 - **委派子进程默认只带 ambient(protected)项**,不全盘继承父黑板 —— 全继承会预满足子 agent 的产出目标、让它静默不干活。三档梯度:全继承 / 仅 ambient / 全空,按编排需要选。
 - **框架内部用具体类型**:内聚子系统的单实现依赖直接用具体类型;窄接口留给公开 SPI(Planner / Extension 子接口等)、跨模块消费边界和真实替换点。不能因为 Agent 是 framework 就为每个内部 struct 造 interface。
-- **构造边界取得配置所有权**:`runtime.Config` / `ProcessOptions` 是调用方 DTO,Engine/Process 只保留校验并快照后的私有状态;不能让 caller 后续修改 Session、Extensions slice 或 Guardrails 改写运行中的语义。Session metadata 属于 SessionStore,不进入 Process 聚合。
+- **构造边界取得配置所有权**:`runtime.Config` / `ProcessOptions` 是调用方 DTO,Engine/Process 只保留校验并快照后的私有状态;不能让 caller 后续修改 Session、Extensions slice 或 Guardrails 改写运行中的语义。Session metadata 属于 SessionStore,不进入 Process 聚合。root multi-turn 与 delegated child Session 由 `Config.SessionStore` / `ChildSessionStore` 分别拥有;两类生命周期不得靠一个不完整 adapter 假装等价。
 
 ## 模块特有反向不变量
 

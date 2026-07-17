@@ -8,6 +8,8 @@ package session
 
 import (
 	"errors"
+	"fmt"
+	"maps"
 	"strings"
 	"time"
 )
@@ -35,6 +37,13 @@ var ErrTitleRequired = errors.New("session: title required")
 
 // ErrCwdUnavailable reports a session relocation target that is not an existing directory.
 var ErrCwdUnavailable = errors.New("session: cwd unavailable")
+
+// ErrInvalidSubtask reports malformed delegated-conversation identity.
+var ErrInvalidSubtask = errors.New("session: invalid subtask")
+
+// ErrSubtaskConflict reports that a runtime child ID is already bound to a
+// different product session identity.
+var ErrSubtaskConflict = errors.New("session: subtask identity conflict")
 
 // Patch is the editable surface of a user-facing session. Nil fields are
 // ignored; non-nil fields replace the corresponding session value.
@@ -70,6 +79,8 @@ func (p Patch) Normalize() (Patch, error) {
 // without recomputing structure.
 type Session struct {
 	ID        string
+	UserID    string // optional principal copied from the Agent runtime session
+	AgentName string // exact compiled Agent identity for delegated conversations
 	Title     string // human-readable; auto-generated from first user message
 	Cwd       string // working-directory identity (API.md §0.2); defaults to the serve cwd
 	Model     string // the model the session last explicitly ran against; empty ⇒ runtime default
@@ -79,6 +90,51 @@ type Session struct {
 	UpdatedAt time.Time
 	Metadata  map[string]any // free-form, full-replaced by sessions.update (API.md §4.1, an object)
 	Favorite  bool           // user-pinned: sorts ahead of the rest in the session list
+}
+
+// Subtask is the Agent runtime identity that must survive the product
+// session's title/cwd enrichment and SQLite round trip.
+type Subtask struct {
+	ID        string
+	ParentID  string
+	UserID    string
+	AgentName string
+	StartedAt time.Time
+	UpdatedAt time.Time
+	Metadata  map[string]any
+}
+
+// Validate checks the identity and audit invariants required for a resumable
+// delegated conversation.
+func (s Subtask) Validate() error {
+	if strings.TrimSpace(s.ID) == "" || strings.TrimSpace(s.ID) != s.ID {
+		return fmt.Errorf("%w: ID must be non-empty without surrounding whitespace", ErrInvalidSubtask)
+	}
+	if strings.TrimSpace(s.ParentID) == "" || strings.TrimSpace(s.ParentID) != s.ParentID || s.ParentID == s.ID {
+		return fmt.Errorf("%w: parent ID must be distinct and non-empty without surrounding whitespace", ErrInvalidSubtask)
+	}
+	if s.UserID != strings.TrimSpace(s.UserID) {
+		return fmt.Errorf("%w: user ID has surrounding whitespace", ErrInvalidSubtask)
+	}
+	if strings.TrimSpace(s.AgentName) == "" || strings.TrimSpace(s.AgentName) != s.AgentName {
+		return fmt.Errorf("%w: agent name must be non-empty without surrounding whitespace", ErrInvalidSubtask)
+	}
+	if s.StartedAt.IsZero() || s.UpdatedAt.IsZero() || s.UpdatedAt.Before(s.StartedAt) {
+		return fmt.Errorf("%w: started and updated times must be ordered and non-zero", ErrInvalidSubtask)
+	}
+	return nil
+}
+
+// SameIdentity reports whether existing is the durable product projection of
+// this delegated conversation. UpdatedAt and Metadata are mutable audit data;
+// the remaining runtime-owned fields are immutable identity.
+func (s Subtask) SameIdentity(existing Session) bool {
+	return existing.Kind == KindSubtask &&
+		existing.ID == s.ID &&
+		existing.ParentID == s.ParentID &&
+		existing.UserID == s.UserID &&
+		existing.AgentName == s.AgentName &&
+		existing.StartedAt.Equal(s.StartedAt)
 }
 
 // EffectiveModel returns the model the session should report on the wire.
@@ -106,6 +162,8 @@ func (s Session) EffectiveModel(defaultModel string) string {
 func (s Session) Fork(id, atMessageID string, now time.Time) Session {
 	return Session{
 		ID:        id,
+		UserID:    s.UserID,
+		AgentName: s.AgentName,
 		Title:     s.Title + " (fork)",
 		Cwd:       s.Cwd, // inherit the source's cwd (API.md §7.2)
 		ParentID:  s.ID,
@@ -122,23 +180,31 @@ func (s Session) Fork(id, atMessageID string, now time.Time) Session {
 // branch point: a subtask is a fresh delegated conversation, not a branch of
 // the parent's history.
 //
-// id and now are supplied by the caller — id is the agent runtime's child
-// conversation id, so the persisted subtask history lines up. A parent that
-// doesn't exist is passed as a zero Session carrying only its ID, which
-// naturally yields the untitled-parent form; keeping the derivation here makes
-// "what a subtask is" a pure, DB-free function the adapter just persists.
-func (s Session) NewSubtask(id string, now time.Time) Session {
+// The typed Subtask carries the runtime identity and timestamps; the receiver
+// contributes only product-owned presentation state. A parent that does not
+// exist is represented by an ID-only Session, which naturally yields the
+// untitled-parent form. The derivation stays pure and DB-free.
+func (s Session) NewSubtask(subtask Subtask) (Session, error) {
+	if err := subtask.Validate(); err != nil {
+		return Session{}, err
+	}
+	if s.ID != subtask.ParentID {
+		return Session{}, fmt.Errorf("%w: parent %q does not match %q", ErrInvalidSubtask, s.ID, subtask.ParentID)
+	}
 	title := "subtask"
 	if s.Title != "" {
 		title = s.Title + " · subtask"
 	}
 	return Session{
-		ID:        id,
+		ID:        subtask.ID,
+		UserID:    subtask.UserID,
+		AgentName: subtask.AgentName,
 		Title:     title,
 		Cwd:       s.Cwd,
 		ParentID:  s.ID,
 		Kind:      KindSubtask,
-		StartedAt: now,
-		UpdatedAt: now,
-	}
+		StartedAt: subtask.StartedAt,
+		UpdatedAt: subtask.UpdatedAt,
+		Metadata:  maps.Clone(subtask.Metadata),
+	}, nil
 }

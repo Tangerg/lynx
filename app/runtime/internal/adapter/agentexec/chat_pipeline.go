@@ -39,7 +39,7 @@ func newAgentRuntime(config Config, resolver toolport.ToolResolver) (*agentrunti
 		ProcessStore:          config.ProcessStore,
 		AutoSnapshot:          config.ProcessStore != nil,
 		SnapshotFailurePolicy: config.SnapshotFailurePolicy,
-		SessionStore:          config.SessionStore,
+		ChildSessionStore:     config.ChildSessionStore,
 	})
 }
 

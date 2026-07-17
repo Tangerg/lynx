@@ -145,9 +145,9 @@ func (r childRun) linkSession(child, parent *Process) error {
 	session.ParentID = parentConvID
 	child.options.session = &session
 
-	if r.engine.sessionStore != nil {
-		if err := r.engine.sessionStore.Save(r.ctx, session); err != nil {
-			return err
+	if r.engine.childSessionStore != nil {
+		if err := r.engine.childSessionStore.Save(r.ctx, session); err != nil {
+			return fmt.Errorf("save child session %q: %w", child.ID(), err)
 		}
 	}
 	return nil
@@ -162,23 +162,33 @@ func (r childRun) restoreSession(child, parent *Process) error {
 	if parentConversationID == "" {
 		return nil
 	}
-	if r.engine == nil || r.engine.sessionStore == nil {
+	if r.engine == nil || r.engine.childSessionStore == nil {
 		return r.linkSession(child, parent)
 	}
-	session, err := r.engine.sessionStore.Load(r.ctx, child.ID())
+	session, err := r.engine.childSessionStore.Load(r.ctx, child.ID())
 	if err != nil {
 		if errors.Is(err, core.ErrSessionNotFound) {
 			return r.linkSession(child, parent)
 		}
-		return err
+		return fmt.Errorf("load child session %q: %w", child.ID(), err)
+	}
+	if err := session.Validate(); err != nil {
+		return fmt.Errorf("stored child session %q: %w", child.ID(), err)
 	}
 	if session.ID != child.ID() ||
 		session.ParentID != parentConversationID ||
 		session.UserID != parent.userID() ||
-		session.AgentName != child.agent().Name() ||
-		session.StartedAt.IsZero() ||
-		session.UpdatedAt.IsZero() {
-		return errors.New("stored session identity does not match process lineage")
+		session.AgentName != child.agent().Name() {
+		return fmt.Errorf(
+			"stored child session %q identity is parent=%q user=%q agent=%q; want parent=%q user=%q agent=%q",
+			session.ID,
+			session.ParentID,
+			session.UserID,
+			session.AgentName,
+			parentConversationID,
+			parent.userID(),
+			child.agent().Name(),
+		)
 	}
 	child.options.session = &session
 	return nil

@@ -177,6 +177,19 @@ Blackboard 普通值默认 durable，函数、channel、client 和 runtime handl
 Session 的 opaque Metadata 只由 SessionStore 持有，参考 MemorySessionStore 在 Save 与 Load
 两侧都做递归 JSON 快照，并拒绝 durable backend 无法编码的值。
 
+Session 自身拥有 identity 不变量：`Validate` 检查 ID、parent、Agent 和审计时间，
+`BindAgent` 只允许一次确定性绑定。Runtime 所需 `SessionStore` 只组合 reader/writer；
+管理面的 delete/list 是可选能力。Engine 进一步把 root `SessionStore` 与
+`ChildSessionStore` 分开，避免只懂产品 subtask lineage 的 adapter 冒充 root multi-turn
+store。`RunInSession` 可从 Session.AgentName 解析 active Deployment，但显式 Agent 与
+stored identity 冲突会在部署副作用前失败；post-dispatch save 使用
+`context.WithoutCancel` 保留审计写，并通过 `errors.Join` 不丢任一失败。
+
+Lyra 的 child adapter 只依赖 `Get` / `SaveSubtask`。`Subtask` 是带 UserID、AgentName、
+StartedAt/UpdatedAt 和 Metadata 的 typed domain value；SQLite v5 完整 round-trip 这些字段，
+同一 child ID 不允许更换 parent/user/Agent/StartedAt。v3/v4 定向迁移保留 Session 与终态
+history，同时清除因缺失 identity 而无法安全恢复的 continuation。
+
 ## 9. 当前兼容与发布边界
 
 项目仍在开发期，本轮明确不保留兼容层：

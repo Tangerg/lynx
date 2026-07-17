@@ -19,13 +19,11 @@ func (failingSessionStore) Save(context.Context, core.Session) error {
 func (failingSessionStore) Load(context.Context, string) (core.Session, error) {
 	return core.Session{}, core.ErrSessionNotFound
 }
-func (failingSessionStore) Delete(context.Context, string) error   { return nil }
-func (failingSessionStore) List(context.Context) ([]string, error) { return nil, nil }
 
 // TestRunChildRollsBackOnSessionLinkFailure verifies that session persistence
 // failure unregisters the half-created child.
 func TestRunChildRollsBackOnSessionLinkFailure(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{SessionStore: failingSessionStore{}})
+	engine := agent.MustNewEngine(runtime.Config{ChildSessionStore: failingSessionStore{}})
 
 	// A completed parent provides a registered process for direct delegation.
 	parentDef := agent.New(agent.AgentConfig{Name: "parent", Actions: []agent.Action{agent.NewAction("noop", func(_ context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {

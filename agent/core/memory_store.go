@@ -5,11 +5,10 @@ import (
 	"sync"
 )
 
-// memoryStore is the goroutine-safe map backend shared by the
-// reference [ProcessStore] and [SessionStore] implementations — both
-// SPIs have the same Save / Load / Delete / List shape over an
-// id-keyed value, so the storage layer is one type with two
-// instantiations rather than two near-identical copies.
+// memoryStore is the goroutine-safe map backend shared by the reference
+// [ProcessStore] and [SessionStore] implementations. Both concrete backends
+// need id-keyed save, load, delete, and list primitives even though their
+// public persistence contracts differ.
 //
 // label appears in error messages ("memory process store: ..." vs
 // "memory session store: ...") so callers see which surface

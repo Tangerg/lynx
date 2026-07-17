@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, metadata, model, kind, favorite`
+const sessionColumns = `id, user_id, agent_name, title, cwd, parent_id, started_at, updated_at, metadata, model, kind, favorite`
 
 // rowToSession decodes one DB row into a session.Session. metadata is stored as
 // a JSON blob; an empty / NULL value maps to a nil map.
@@ -23,7 +23,7 @@ func rowToSession(scanner interface {
 		favoriteInt    int64
 	)
 	if err := scanner.Scan(
-		&s.ID, &s.Title, &s.Cwd, &s.ParentID,
+		&s.ID, &s.UserID, &s.AgentName, &s.Title, &s.Cwd, &s.ParentID,
 		&startedAtNanos, &updatedAtNanos, &metaJSON, &s.Model, &s.Kind, &favoriteInt,
 	); err != nil {
 		return session.Session{}, err

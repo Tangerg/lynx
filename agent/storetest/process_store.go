@@ -69,13 +69,11 @@ func TestProcessStore(ctx context.Context, store core.ProcessStore) error {
 	for tokens := 1; tokens <= 2; tokens++ {
 		candidate := again
 		candidate.OwnTokens = tokens
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			<-start
 			_, saveErr := store.Save(ctx, candidate, 1)
 			results <- saveErr
-		}()
+		})
 	}
 	close(start)
 	wait.Wait()

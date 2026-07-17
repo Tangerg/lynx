@@ -759,7 +759,7 @@ func TestRunInSessionBindsCompiledDeploymentIdentity(t *testing.T) {
 
 	actions := source.Actions()
 	actions[0] = nil
-	session := core.Session{ID: "session-1"}
+	session := core.NewSession("session-1", "", "")
 	process, err := engine.RunInSession(
 		t.Context(),
 		source,

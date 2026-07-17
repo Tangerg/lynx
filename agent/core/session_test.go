@@ -40,6 +40,52 @@ func TestSessionTouchRefreshesUpdatedAt(t *testing.T) {
 	}
 }
 
+func TestSessionBindAgent(t *testing.T) {
+	session := core.NewSession("s-1", "user-1", "")
+	if err := session.BindAgent("demo"); err != nil {
+		t.Fatalf("BindAgent: %v", err)
+	}
+	if session.AgentName != "demo" {
+		t.Fatalf("AgentName = %q, want demo", session.AgentName)
+	}
+	if err := session.BindAgent("demo"); err != nil {
+		t.Fatalf("BindAgent idempotent call: %v", err)
+	}
+	if err := session.BindAgent("other"); !errors.Is(err, core.ErrInvalidSession) {
+		t.Fatalf("BindAgent conflict = %v, want ErrInvalidSession", err)
+	}
+}
+
+func TestSessionValidate(t *testing.T) {
+	valid := core.NewSession("s-1", "user-1", "demo")
+	tests := []struct {
+		name   string
+		mutate func(*core.Session)
+	}{
+		{name: "empty ID", mutate: func(s *core.Session) { s.ID = "" }},
+		{name: "padded ID", mutate: func(s *core.Session) { s.ID = " s-1" }},
+		{name: "self parent", mutate: func(s *core.Session) { s.ParentID = s.ID }},
+		{name: "padded parent", mutate: func(s *core.Session) { s.ParentID = " parent " }},
+		{name: "padded user", mutate: func(s *core.Session) { s.UserID = " user " }},
+		{name: "empty agent", mutate: func(s *core.Session) { s.AgentName = "" }},
+		{name: "zero start", mutate: func(s *core.Session) { s.StartedAt = time.Time{} }},
+		{name: "zero update", mutate: func(s *core.Session) { s.UpdatedAt = time.Time{} }},
+		{name: "update before start", mutate: func(s *core.Session) { s.UpdatedAt = s.StartedAt.Add(-time.Second) }},
+	}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid session: %v", err)
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			session := valid
+			test.mutate(&session)
+			if err := session.Validate(); !errors.Is(err, core.ErrInvalidSession) {
+				t.Fatalf("Validate() error = %v, want ErrInvalidSession", err)
+			}
+		})
+	}
+}
+
 func TestMemorySessionStoreSaveLoad(t *testing.T) {
 	store := core.NewMemorySessionStore()
 	ctx := context.Background()
@@ -157,7 +203,7 @@ func TestMemorySessionStoreDeleteIdempotent(t *testing.T) {
 }
 
 func TestMemorySessionStoreRejectsEmptyID(t *testing.T) {
-	if err := core.NewMemorySessionStore().Save(context.Background(), core.Session{}); err == nil {
-		t.Error("expected error for empty session ID")
+	if err := core.NewMemorySessionStore().Save(t.Context(), core.Session{}); !errors.Is(err, core.ErrInvalidSession) {
+		t.Fatalf("Save error = %v, want ErrInvalidSession", err)
 	}
 }
