@@ -112,13 +112,6 @@ type SubagentInput struct {
 	Error           string `json:"error,omitempty"`
 }
 
-// SubagentTask is the optional shape a delegated task input can implement so
-// lifecycle hooks receive a stable display summary without reflection.
-type SubagentTask interface {
-	SubagentDescription() string
-	SubagentPrompt() string
-}
-
 // Decision is the combined verdict of every hook that fired for one event.
 type Decision struct {
 	// Block denies the action (the tool, or the prompt). Reason is fed to the

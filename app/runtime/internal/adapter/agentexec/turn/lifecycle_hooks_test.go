@@ -84,15 +84,25 @@ func (in testTaskInput) SubagentDescription() string { return in.Description }
 
 func (in testTaskInput) SubagentPrompt() string { return in.Prompt }
 
-func TestSubagentTaskInput_MapFallback(t *testing.T) {
-	desc, prompt := subagentTaskInput(map[string]any{
-		core.DefaultBindingName: map[string]any{
-			"description": "inspect auth",
-			"prompt":      "Find where auth failures are handled.",
-		},
-	})
-	if desc != "inspect auth" || prompt != "Find where auth failures are handled." {
-		t.Fatalf("subagentTaskInput = %q, %q", desc, prompt)
+func TestSubagentTaskInputRequiresTypedDefaultBinding(t *testing.T) {
+	task := testTaskInput{Description: "inspect auth", Prompt: "Find where auth failures are handled."}
+	for _, test := range []struct {
+		name        string
+		bindings    map[string]any
+		description string
+		prompt      string
+	}{
+		{name: "typed default", bindings: map[string]any{core.DefaultBindingName: task}, description: task.Description, prompt: task.Prompt},
+		{name: "dynamic map", bindings: map[string]any{core.DefaultBindingName: map[string]any{"description": task.Description, "prompt": task.Prompt}}},
+		{name: "non-default binding", bindings: map[string]any{"task": task}},
+		{name: "nil bindings"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			description, prompt := subagentTaskInput(test.bindings)
+			if description != test.description || prompt != test.prompt {
+				t.Fatalf("subagentTaskInput = %q, %q; want %q, %q", description, prompt, test.description, test.prompt)
+			}
+		})
 	}
 }
 

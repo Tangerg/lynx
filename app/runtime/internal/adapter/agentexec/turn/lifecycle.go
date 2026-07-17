@@ -144,33 +144,17 @@ func (l *turnLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, 
 	})
 }
 
+type subagentTask interface {
+	SubagentDescription() string
+	SubagentPrompt() string
+}
+
 func subagentTaskInput(bindings map[string]any) (description, prompt string) {
-	if len(bindings) == 0 {
-		return "", ""
-	}
-	input, ok := bindings[core.DefaultBindingName]
-	if !ok {
-		for _, value := range bindings {
-			input = value
-			break
-		}
-	}
-	if task, ok := input.(hooks.SubagentTask); ok {
-		return task.SubagentDescription(), summarizeHookText(task.SubagentPrompt())
-	}
-	m, ok := input.(map[string]any)
+	task, ok := bindings[core.DefaultBindingName].(subagentTask)
 	if !ok {
 		return "", ""
 	}
-	description, _ = m["description"].(string)
-	if description == "" {
-		description, _ = m["Description"].(string)
-	}
-	prompt, _ = m["prompt"].(string)
-	if prompt == "" {
-		prompt, _ = m["Prompt"].(string)
-	}
-	return description, summarizeHookText(prompt)
+	return task.SubagentDescription(), summarizeHookText(task.SubagentPrompt())
 }
 
 func summarizeHookValue(v any) string {
