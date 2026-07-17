@@ -21,8 +21,9 @@ import (
 //     a single trace covers the whole request, generated right here at the
 //     entrance. The span carries http.* attributes + duration + body size,
 //     and is marked Error on 5xx so backends can alert.
-//   - panic recovery with a flat 500 envelope so the runtime survives a
-//     misbehaving handler; the panic is recorded onto the request span.
+//   - panic recovery so the runtime survives a misbehaving handler; the panic
+//     is recorded onto the request span, and an uncommitted response becomes a
+//     flat 500 envelope without corrupting an already-started stream.
 //
 // All observability flows through OTel (see ../tracing.go for the shared
 // package tracer); the global TracerProvider + propagator are wired once at
@@ -58,10 +59,12 @@ func (s *Server) observability(next http.Handler) http.Handler {
 
 		defer func() {
 			if rcv := recover(); rcv != nil {
-				err := fmt.Errorf("%v", rcv)
+				err := handlerPanicError(rcv)
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
-				writeFlatError(w, http.StatusInternalServerError, "internal error", false)
+				if !rec.wroteHeader {
+					writeFlatError(rec, http.StatusInternalServerError, "internal error", false)
+				}
 			}
 		}()
 
@@ -74,16 +77,24 @@ func (s *Server) observability(next http.Handler) http.Handler {
 // the body itself stays out of memory.
 type recordingResponseWriter struct {
 	http.ResponseWriter
-	status int
-	bytes  int
+	status      int
+	bytes       int
+	wroteHeader bool
 }
 
 func (w *recordingResponseWriter) WriteHeader(status int) {
+	if w.wroteHeader {
+		return
+	}
+	w.wroteHeader = true
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
 }
 
 func (w *recordingResponseWriter) Write(p []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
 	n, err := w.ResponseWriter.Write(p)
 	w.bytes += n
 	return n, err
@@ -92,6 +103,16 @@ func (w *recordingResponseWriter) Write(p []byte) (int, error) {
 // Flush proxies through so SSE streams keep working.
 func (w *recordingResponseWriter) Flush() {
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		if !w.wroteHeader {
+			w.WriteHeader(http.StatusOK)
+		}
 		f.Flush()
 	}
+}
+
+func handlerPanicError(recovered any) error {
+	if cause, ok := recovered.(error); ok {
+		return fmt.Errorf("http handler panicked: %w", cause)
+	}
+	return fmt.Errorf("http handler panicked: %v", recovered)
 }

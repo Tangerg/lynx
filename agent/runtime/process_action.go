@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/pkg/retry"
 )
 
@@ -195,11 +196,7 @@ func (p *Process) invokeAction(ctx context.Context, action core.Action, processC
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			status = core.ActionFailed
-			if recoveredErr, ok := recovered.(error); ok {
-				err = recoveredErr
-				return
-			}
-			err = fmt.Errorf("runtime.Process.invokeAction: action panicked: %v", recovered)
+			err = panicerr.New("runtime.Process.invokeAction: action panicked", recovered)
 		}
 	}()
 	return action.Execute(ctx, processContext)

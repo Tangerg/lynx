@@ -9,6 +9,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
 var eventTracer = otel.Tracer("lynx/agent/event")
@@ -115,7 +117,7 @@ func (m *Multicast) deliver(ctx context.Context, listener Listener, event Event)
 				attribute.String("agent.event", fmt.Sprintf("%T", event)),
 			),
 		)
-		err := fmt.Errorf("event listener panicked: %v", recovered)
+		err := panicerr.New("event listener panicked", recovered)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		span.End()
