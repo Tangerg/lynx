@@ -76,14 +76,12 @@ func NewReasoningPart(text string, signature []byte) Part {
 
 // NewToolCallPart returns a tool-call part.
 func NewToolCallPart(call ToolCall) Part {
-	clone := call
-	return Part{Kind: PartToolCall, ToolCall: &clone}
+	return Part{Kind: PartToolCall, ToolCall: new(call)}
 }
 
 // NewToolResultPart returns a tool-result part.
 func NewToolResultPart(result ToolResult) Part {
-	clone := result
-	return Part{Kind: PartToolResult, ToolResult: &clone}
+	return Part{Kind: PartToolResult, ToolResult: new(result)}
 }
 
 // Validate verifies the discriminator, payload exclusivity, and active nested

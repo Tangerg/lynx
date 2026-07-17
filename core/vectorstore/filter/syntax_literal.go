@@ -32,6 +32,9 @@ func newLiteral(value any) (*Literal, error) {
 			return &Literal{Kind: LiteralNumber, Value: strconv.FormatUint(reflected.Uint(), 10)}, nil
 		case reflect.Float32, reflect.Float64:
 			number := reflected.Float()
+			// Collapse negative zero: FormatFloat renders -0.0 as "-0", which
+			// fails the canonical round-trip in Validate (canonicalNumber("-0")
+			// yields "0"), so a -0.0 literal would reject its own value.
 			if number == 0 {
 				return &Literal{Kind: LiteralNumber, Value: "0"}, nil
 			}
