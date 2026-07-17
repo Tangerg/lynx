@@ -66,7 +66,7 @@ const uncappedToolResults = 0
 // arguments and parts are flattened to their text bodies; what we
 // need is gist, not fidelity.
 //
-// toolResultCap > 0 truncates each tool-result body to that many chars (head +
+// toolResultCap > 0 truncates each tool-result body to that many bytes (head +
 // tail, with the elision marked); 0 leaves bodies intact. The summariser passes
 // a cap so a few large tool outputs (the very thing the token trigger fires on)
 // don't dominate its own input; the trigger estimate and the fact extractor
@@ -125,7 +125,7 @@ func headTail(s string, limit int, marker func(elided int) string) (string, bool
 // already-small body is returned unchanged.
 func capText(s string, limit int) string {
 	out, _ := headTail(s, limit, func(elided int) string {
-		return fmt.Sprintf("\n…[%d chars elided for summary]…\n", elided)
+		return fmt.Sprintf("\n…[%d bytes elided for summary]…\n", elided)
 	})
 	return out
 }

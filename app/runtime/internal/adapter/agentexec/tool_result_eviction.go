@@ -20,12 +20,12 @@ type toolResultOffloader interface {
 	Offload(ctx context.Context, sessionID, toolName, body string) (id string, err error)
 }
 
-// toolResultPreviewChars bounds the head+tail preview kept inline after a body
-// is offloaded. The evicted message is at most this many characters (plus the
+// toolResultPreviewBytes bounds the head+tail preview kept inline after a body
+// is offloaded. The evicted message is at most this many bytes (plus the
 // pointer marker) regardless of the original size, so one oversized result
 // stops re-inflating every subsequent LLM request. Capped to the threshold so
 // the placeholder is always smaller than the body that tripped it.
-const toolResultPreviewChars = 2000
+const toolResultPreviewBytes = 2000
 
 // toolResultEvictionMiddleware offloads oversized tool-result bodies to the blob
 // store and substitutes a head+tail placeholder pointing at read_tool_result,
@@ -132,7 +132,7 @@ func (t *evictingTool) Call(ctx context.Context, arguments string) (string, erro
 // to the threshold so the placeholder is always smaller than the body that
 // tripped eviction. Head/tail cuts snap to rune boundaries.
 func offloadPlaceholder(body, id string, threshold int) string {
-	preview := min(toolResultPreviewChars, threshold)
+	preview := min(toolResultPreviewBytes, threshold)
 	head := preview * 3 / 4
 	tailStart := len(body) - preview/4
 	for head > 0 && !utf8.RuneStart(body[head]) {
@@ -142,7 +142,7 @@ func offloadPlaceholder(body, id string, threshold int) string {
 		tailStart++
 	}
 	marker := fmt.Sprintf(
-		"\n\n…[%d chars offloaded to keep context small. Retrieve the full output with the %s tool: {\"id\":\"%s\"} — it pages via offset/limit.]…\n\n",
+		"\n\n…[%d bytes offloaded to keep context small. Retrieve the full output with the %s tool: {\"id\":\"%s\"} — it pages via offset/limit.]…\n\n",
 		len(body), toolport.ToolNameReadToolResult, id,
 	)
 	return body[:head] + marker + body[tailStart:]
