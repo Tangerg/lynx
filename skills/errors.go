@@ -3,6 +3,12 @@ package skills
 import "errors"
 
 var (
+	// ErrInvalidSkill means a SKILL.md exists but its document or metadata does
+	// not satisfy the Agent Skills format. Load errors in this category also
+	// retain their specific cause (for example [ErrNoFrontmatter] or
+	// [ErrDescriptionEmpty]) for errors.Is checks.
+	ErrInvalidSkill = errors.New("skills: invalid skill")
+
 	// ErrNoFrontmatter means a SKILL.md did not open and close a YAML
 	// frontmatter block with "---" fence lines.
 	ErrNoFrontmatter = errors.New("skills: SKILL.md must open with a YAML frontmatter block delimited by ---")

@@ -140,10 +140,12 @@ func (f errorFS) Open(string) (fs.File, error) {
 }
 
 // List returns a summary for every valid skill directory, sorted by name.
-// Entries that are not directories, lack a SKILL.md, or fail validation are
-// skipped rather than failing the whole listing. A missing root directory is
-// not an error — it just means there are no skills yet (so a source pointed at
-// a not-yet-created ~/.lyra/skills lists empty rather than failing).
+// Entries that are not directories, lack a SKILL.md, have an invalid directory
+// name, or contain an invalid skill are skipped rather than failing the whole
+// listing. Repository access failures are returned; they are not mistaken for
+// invalid entries. A missing root directory is not an error — it just means
+// there are no skills yet (so a source pointed at a not-yet-created
+// ~/.lyra/skills lists empty rather than failing).
 func (f *fsSource) List(ctx context.Context) ([]Summary, error) {
 	if err := contextError(ctx, "list"); err != nil {
 		return nil, err
@@ -166,12 +168,19 @@ func (f *fsSource) List(ctx context.Context) ([]Summary, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		sk, err := f.load(ctx, entry.Name())
+		name := entry.Name()
+		if validateName(name) != nil {
+			continue
+		}
+		sk, err := f.load(ctx, name)
 		if err != nil {
 			if ctxErr := contextError(ctx, "list"); ctxErr != nil {
 				return nil, ctxErr
 			}
-			continue // not a valid skill directory — skip it
+			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, ErrInvalidSkill) {
+				continue
+			}
+			return nil, fmt.Errorf("skills: list: %w", err)
 		}
 		summaries = append(summaries, sk.Summary())
 	}
@@ -206,22 +215,26 @@ func (f *fsSource) load(ctx context.Context, name string) (*Skill, error) {
 		return nil, err
 	}
 	if parseErr != nil {
-		return nil, fmt.Errorf("skills: load %q: %w", name, parseErr)
+		return nil, invalidSkill(name, parseErr)
 	}
 	validationErr := fm.Validate()
 	if err := contextError(ctx, operation); err != nil {
 		return nil, err
 	}
 	if validationErr != nil {
-		return nil, fmt.Errorf("skills: load %q: %w", name, validationErr)
+		return nil, invalidSkill(name, validationErr)
 	}
 	if fm.Name != name {
-		return nil, fmt.Errorf("%w: frontmatter %q vs directory %q", ErrNameMismatch, fm.Name, name)
+		return nil, invalidSkill(name, fmt.Errorf("%w: frontmatter %q vs directory %q", ErrNameMismatch, fm.Name, name))
 	}
 	if err := contextError(ctx, operation); err != nil {
 		return nil, err
 	}
 	return &Skill{Frontmatter: fm, Body: body}, nil
+}
+
+func invalidSkill(name string, cause error) error {
+	return fmt.Errorf("%w %q: %w", ErrInvalidSkill, name, cause)
 }
 
 // OpenResource opens a file bundled under a skill (e.g.
