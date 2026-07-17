@@ -114,6 +114,118 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 	}
 }
 
+func TestReducerCommitsConcurrentToolCompletionsInModelOrder(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	for _, event := range []ToolCallStart{
+		{CallID: "call-1", ToolName: "first", Arguments: `{"value":1}`},
+		{CallID: "call-2", ToolName: "second", Arguments: `{"value":2}`},
+		{CallID: "call-3", ToolName: "third", Arguments: `{"value":3}`},
+	} {
+		mustReduce(t, reducer, event)
+	}
+
+	if reduced := mustReduce(t, reducer, ToolCallEnd{CallID: "call-3", Result: "three"}); len(reduced) != 0 {
+		t.Fatalf("third completion escaped ordering barrier: %+v", reduced)
+	}
+	first := mustReduce(t, reducer, ToolCallEnd{CallID: "call-1", Result: "one"})
+	if got := completedToolNames(first); !slices.Equal(got, []string{"first"}) {
+		t.Fatalf("first completion batch = %v, want [first]", got)
+	}
+	remaining := mustReduce(t, reducer, ToolCallEnd{
+		CallID: "call-2", Arguments: `{"value":20}`, Result: "two",
+	})
+	if got := completedToolNames(remaining); !slices.Equal(got, []string{"second", "third"}) {
+		t.Fatalf("released completion batch = %v, want [second third]", got)
+	}
+	second := completedItem(t, remaining)
+	if second.Tool.Arguments["value"] != float64(20) {
+		t.Fatalf("effective arguments = %#v, want value 20", second.Tool.Arguments)
+	}
+}
+
+func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	firstStart := mustReduce(t, reducer, ToolCallStart{
+		CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
+	})
+	firstID := startedItemID(t, firstStart)
+	mustReduce(t, reducer, ToolCallStart{
+		CallID: "call-2", ToolName: "lookup", Arguments: `{"path":"b"}`, SafetyClass: "read",
+	})
+	if reduced := mustReduce(t, reducer, ToolCallEnd{CallID: "call-2", Result: "found"}); len(reduced) != 0 {
+		t.Fatalf("later completion escaped paused prefix: %+v", reduced)
+	}
+
+	parked := mustReduce(t, reducer, TurnInterrupted{Interrupts: []Interrupt{{
+		Kind: ApprovalInterruptKind,
+		Approval: &ApprovalPrompt{
+			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
+		},
+	}}})
+	commit := parked[0].Commit
+	if commit == nil || commit.Interrupt == nil || len(commit.Items) != 2 {
+		t.Fatalf("park commit = %+v, want two ordered tool items", commit)
+	}
+	if commit.Items[0].ID != firstID || commit.Items[0].Status != ItemRunning {
+		t.Fatalf("active approval item = %+v, want original running item %q", commit.Items[0], firstID)
+	}
+	if commit.Items[1].Tool == nil || commit.Items[1].Tool.Name != "lookup" ||
+		commit.Items[1].Status != ItemSucceeded || commit.Items[1].Tool.Result != "found" {
+		t.Fatalf("completed sibling item = %+v", commit.Items[1])
+	}
+	if got := commit.Interrupt.Interrupts[0].ItemID; got != firstID {
+		t.Fatalf("approval item ID = %q, want original %q", got, firstID)
+	}
+	if len(commit.Interrupt.DrainedTools) != 0 {
+		t.Fatalf("completed or active approval leaked into drained tools: %+v", commit.Interrupt.DrainedTools)
+	}
+}
+
+func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing.T) {
+	first := newReducer(testReducerConfig())
+	firstID := startedItemID(t, mustReduce(t, first, ToolCallStart{
+		CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
+	}))
+	secondID := startedItemID(t, mustReduce(t, first, ToolCallStart{
+		CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write",
+	}))
+	firstPark := mustReduce(t, first, TurnInterrupted{Interrupts: []Interrupt{{
+		Kind: ApprovalInterruptKind,
+		Approval: &ApprovalPrompt{
+			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
+		},
+	}}})[0].Commit.Interrupt
+	if firstPark.Interrupts[0].ItemID != firstID || len(firstPark.DrainedTools) != 1 ||
+		firstPark.DrainedTools[0].ItemID != secondID || firstPark.DrainedTools[0].CallID != "call-2" {
+		t.Fatalf("first park identity state = %+v", firstPark)
+	}
+
+	config := testReducerConfig()
+	config.SegmentID = "seg_2"
+	config.Pending = firstPark
+	resumed := newReducer(config)
+	mustOpen(t, resumed)
+	if got := startedItemID(t, mustReduce(t, resumed, ToolCallStart{
+		CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
+	})); got != firstID {
+		t.Fatalf("resumed first item ID = %q, want %q", got, firstID)
+	}
+	mustReduce(t, resumed, ToolCallEnd{CallID: "call-1", Result: "approved"})
+
+	secondPark := mustReduce(t, resumed, TurnInterrupted{Interrupts: []Interrupt{{
+		Kind: ApprovalInterruptKind,
+		Approval: &ApprovalPrompt{
+			CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write",
+		},
+	}}})[0].Commit.Interrupt
+	if got := secondPark.Interrupts[0].ItemID; got != secondID {
+		t.Fatalf("later approval item ID = %q, want original %q", got, secondID)
+	}
+	if len(secondPark.DrainedTools) != 0 {
+		t.Fatalf("surfaced later approval remained drained: %+v", secondPark.DrainedTools)
+	}
+}
+
 func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	usage := mustReduce(t, reducer, UsageReported{
@@ -407,7 +519,7 @@ func TestReducerDrainsToolsInStartOrder(t *testing.T) {
 		mustReduce(t, reducer, event)
 	}
 
-	drained := reducer.tools.snapshot()
+	drained := drainedToolRefs(reducer.tools.ordered(), nil)
 	if len(drained) != 3 {
 		t.Fatalf("drained tool count = %d, want 3", len(drained))
 	}
@@ -436,4 +548,25 @@ func completedItem(t *testing.T, reductions []reduction) Item {
 	}
 	t.Fatalf("no ItemCompleted in %+v", reductions)
 	return Item{}
+}
+
+func startedItemID(t *testing.T, reductions []reduction) string {
+	t.Helper()
+	for _, reduction := range reductions {
+		if event, ok := reduction.Event.(ItemStarted); ok {
+			return event.Item.ID
+		}
+	}
+	t.Fatalf("no ItemStarted in %+v", reductions)
+	return ""
+}
+
+func completedToolNames(reductions []reduction) []string {
+	var names []string
+	for _, reduction := range reductions {
+		if event, ok := reduction.Event.(ItemCompleted); ok && event.Item.Tool != nil {
+			names = append(names, event.Item.Tool.Name)
+		}
+	}
+	return names
 }

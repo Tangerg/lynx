@@ -76,6 +76,7 @@ type openTool struct {
 	name        string
 	args        string
 	safetyClass tool.SafetyClass
+	end         *ToolCallEnd
 }
 
 func newReducer(cfg reducerConfig) *reducer {

@@ -101,6 +101,7 @@ type startCall struct {
 type endCall struct {
 	callID       string
 	toolName     string
+	arguments    string
 	output       string
 	mutatedPaths []string
 	err          error
@@ -127,10 +128,13 @@ func (r *recordingObserver) OnToolCallStart(callID, toolName, arguments string) 
 	r.startList = append(r.startList, startCall{callID, toolName, arguments})
 }
 
-func (r *recordingObserver) OnToolCallEnd(callID, toolName, output string, mutatedPaths []string, err error) {
+func (r *recordingObserver) OnToolCallEnd(callID, toolName, arguments, output string, mutatedPaths []string, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.endList = append(r.endList, endCall{callID, toolName, output, mutatedPaths, err})
+	r.endList = append(r.endList, endCall{
+		callID: callID, toolName: toolName, arguments: arguments,
+		output: output, mutatedPaths: mutatedPaths, err: err,
+	})
 }
 
 func (r *recordingObserver) OnMessageDelta(text string) {

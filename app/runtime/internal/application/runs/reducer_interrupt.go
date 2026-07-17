@@ -15,20 +15,43 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 		return nil, err
 	}
 	out := r.closeStreaming()
-	r.drained = r.tools.snapshot()
-	out = append(out, r.drainTools()...)
+	open := r.tools.drain()
+	matched := matchApprovalTools(open, e.Interrupts)
+	priorDrained := r.resume.remainingDrainedTools()
+	r.drained = mergeDrainedTools(priorDrained, drainedToolRefs(open, matched))
+
+	approvalItems := make(map[int]Item, len(matched))
+	for _, ref := range open {
+		if index, ok := matched[ref]; ok {
+			item := r.approvalItem(*e.Interrupts[index].Approval, ref)
+			approvalItems[index] = item
+			out = append(out, ItemStarted{Item: item})
+			continue
+		}
+		if ref.end != nil {
+			out = append(out, r.completeTool(ref, *ref.end)...)
+			continue
+		}
+		out = append(out, incompleteToolItem(r.cfg.RunID, ref))
+	}
 
 	pending := make([]transcript.Interrupt, 0, len(e.Interrupts))
-	for _, in := range e.Interrupts {
+	for index, in := range e.Interrupts {
 		var item Item
 		var interrupt transcript.Interrupt
 		switch in.Kind {
 		case ApprovalInterruptKind:
-			item, interrupt = r.approvalInterrupt(in)
+			if matchedItem, ok := approvalItems[index]; ok {
+				item = matchedItem
+				interrupt = approvalTranscriptInterrupt(item.ID, *in.Approval)
+			} else {
+				item, interrupt = r.approvalInterrupt(in)
+				out = append(out, ItemStarted{Item: item})
+			}
 		case QuestionInterruptKind:
 			item, interrupt = r.questionInterrupt(in)
+			out = append(out, ItemStarted{Item: item})
 		}
-		out = append(out, ItemStarted{Item: item})
 		pending = append(pending, interrupt)
 	}
 
@@ -41,21 +64,107 @@ func (r *reducer) approvalInterrupt(in Interrupt) (Item, transcript.Interrupt) {
 	if in.Approval == nil {
 		return Item{}, transcript.Interrupt{}
 	}
-	p := in.Approval
-	id := r.nextItemID()
-	tool := newToolInvocation(p.ToolName, p.Arguments, nil)
-	item := Item{
-		ID: id, RunID: r.cfg.RunID, Status: ItemRunning,
-		Kind: ToolCall, CreatedAt: r.now(), Tool: tool,
-		SafetyClass: p.SafetyClass,
+	item := r.approvalItem(*in.Approval, nil)
+	return item, approvalTranscriptInterrupt(item.ID, *in.Approval)
+}
+
+func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) Item {
+	id, createdAt := "", r.now()
+	if ref != nil {
+		id, createdAt = ref.id, ref.createdAt
+	} else {
+		id = r.reuseOrNextItemID(prompt.CallID, prompt.ToolName, prompt.Arguments)
+		r.removeDrained(id)
 	}
-	return item, transcript.Interrupt{
-		ItemID: id,
+	return Item{
+		ID: id, RunID: r.cfg.RunID, Status: ItemRunning,
+		Kind: ToolCall, CreatedAt: createdAt,
+		Tool:        newToolInvocation(prompt.ToolName, prompt.Arguments, nil),
+		SafetyClass: prompt.SafetyClass,
+	}
+}
+
+func approvalTranscriptInterrupt(itemID string, prompt ApprovalPrompt) transcript.Interrupt {
+	tool := newToolInvocation(prompt.ToolName, prompt.Arguments, nil)
+	return transcript.Interrupt{
+		ItemID: itemID,
 		Kind:   transcript.ApprovalInterrupt,
 		Approval: &transcript.Approval{
-			Tool: *tool, Risk: p.Risk, Reason: p.Reason,
+			Tool: *tool, Risk: prompt.Risk, Reason: prompt.Reason,
 		},
 	}
+}
+
+func matchApprovalTools(open []*openTool, values []Interrupt) map[*openTool]int {
+	matched := make(map[*openTool]int)
+	for index, value := range values {
+		if value.Kind != ApprovalInterruptKind || value.Approval == nil {
+			continue
+		}
+		prompt := value.Approval
+		for _, ref := range open {
+			if ref.end != nil {
+				continue
+			}
+			if _, used := matched[ref]; used {
+				continue
+			}
+			if prompt.CallID != "" {
+				if ref.callID != prompt.CallID {
+					continue
+				}
+			} else if ref.name != prompt.ToolName ||
+				argsKey(parseArgs(ref.args)) != argsKey(parseArgs(prompt.Arguments)) {
+				continue
+			}
+			matched[ref] = index
+			break
+		}
+	}
+	return matched
+}
+
+func drainedToolRefs(open []*openTool, matched map[*openTool]int) []interrupts.DrainedTool {
+	var drained []interrupts.DrainedTool
+	for _, ref := range open {
+		_, activeApproval := matched[ref]
+		if ref.end == nil && !activeApproval {
+			drained = append(drained, interrupts.DrainedTool{
+				ItemID: ref.id, CallID: ref.callID, Name: ref.name, Arguments: ref.args,
+			})
+		}
+	}
+	return drained
+}
+
+func mergeDrainedTools(groups ...[]interrupts.DrainedTool) []interrupts.DrainedTool {
+	var merged []interrupts.DrainedTool
+	seen := make(map[string]struct{})
+	for _, group := range groups {
+		for _, tool := range group {
+			if _, duplicate := seen[tool.ItemID]; duplicate {
+				continue
+			}
+			seen[tool.ItemID] = struct{}{}
+			merged = append(merged, tool)
+		}
+	}
+	return merged
+}
+
+func (r *reducer) removeDrained(itemID string) {
+	r.drained = slices.DeleteFunc(r.drained, func(tool interrupts.DrainedTool) bool {
+		return tool.ItemID == itemID
+	})
+}
+
+func incompleteToolItem(runID string, ref *openTool) ItemCompleted {
+	return ItemCompleted{Item: Item{
+		ID: ref.id, RunID: runID, Status: ItemIncomplete,
+		Kind: ToolCall, CreatedAt: ref.createdAt,
+		Tool:        newToolInvocation(ref.name, ref.args, nil),
+		SafetyClass: ref.safetyClass,
+	}}
 }
 
 func (r *reducer) questionInterrupt(in Interrupt) (Item, transcript.Interrupt) {
@@ -103,25 +212,6 @@ func (tools openTools) add(tool *openTool) {
 	tools[tool.callID] = tool
 }
 
-func (tools openTools) take(callID string) (*openTool, bool) {
-	tool, ok := tools[callID]
-	if ok {
-		delete(tools, callID)
-	}
-	return tool, ok
-}
-
-func (tools openTools) snapshot() []interrupts.DrainedTool {
-	if len(tools) == 0 {
-		return nil
-	}
-	out := make([]interrupts.DrainedTool, 0, len(tools))
-	for _, ref := range tools.ordered() {
-		out = append(out, interrupts.DrainedTool{ItemID: ref.id, Name: ref.name, Arguments: ref.args})
-	}
-	return out
-}
-
 func (tools openTools) drain() []*openTool {
 	ordered := tools.ordered()
 	clear(tools)
@@ -139,14 +229,13 @@ func (r *reducer) drainTools() []RunEvent {
 	if len(tools) == 0 {
 		return nil
 	}
-	out := make([]RunEvent, 0, len(tools))
+	var out []RunEvent
 	for _, ref := range tools {
-		out = append(out, ItemCompleted{Item: Item{
-			ID: ref.id, RunID: r.cfg.RunID, Status: ItemIncomplete,
-			Kind: ToolCall, CreatedAt: ref.createdAt,
-			Tool:        newToolInvocation(ref.name, ref.args, nil),
-			SafetyClass: ref.safetyClass,
-		}})
+		if ref.end != nil {
+			out = append(out, r.completeTool(ref, *ref.end)...)
+			continue
+		}
+		out = append(out, incompleteToolItem(r.cfg.RunID, ref))
 	}
 	return out
 }

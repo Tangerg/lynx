@@ -57,9 +57,11 @@ func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView
 	if err := core.RegisterDependency(dependencies, childExecutionKey, p.remaining()); err != nil {
 		return core.ProcessOptions{}, fmt.Errorf("agentexec: register child execution context: %w", err)
 	}
+	var observation *toolObservation
 	if p.observer != nil {
-		if err := core.RegisterDependency(dependencies, toolObserverKey, p.observer); err != nil {
-			return core.ProcessOptions{}, fmt.Errorf("agentexec: register child tool observer: %w", err)
+		observation = newToolObservation(p.observer)
+		if err := core.RegisterDependency(dependencies, toolObservationKey, observation); err != nil {
+			return core.ProcessOptions{}, fmt.Errorf("agentexec: register child tool observation: %w", err)
 		}
 	}
 	options := core.ProcessOptions{
@@ -67,7 +69,7 @@ func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView
 		ChildOptions: p.options,
 	}
 	if p.observer != nil {
-		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observer: p.observer})
+		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
 	}
 	if p.client != nil {
 		options.Extensions = append(options.Extensions, perRunChatClient{client: p.client})

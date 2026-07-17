@@ -184,7 +184,11 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 		return TurnOutput{}, fmt.Errorf("agentexec: turn request: %w", err)
 	}
 
-	observer := observerFrom(pc.Dependencies())
+	observation := observationFrom(pc.Dependencies())
+	var observer toolObserver
+	if observation != nil {
+		observer = observation.target
+	}
 	// partial retains only the text needed when the framework deliberately
 	// stops before a tagged final response (budget / step limit). Normal
 	// completion always reads result.Final below.
@@ -224,6 +228,18 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 		},
 		Attribute: e.modelAttribution(provider),
 		Observe: func(_ context.Context, boundary agent.InteractionEvent) error {
+			if observation != nil {
+				switch boundary.Kind {
+				case agent.InteractionEventToolCall:
+					if boundary.ToolCall != nil {
+						observation.begin(pc.Process().ID(), boundary.Round, *boundary.ToolCall)
+					}
+				case agent.InteractionEventToolResult:
+					if boundary.ToolResult != nil {
+						observation.result(pc.Process().ID(), boundary.Round, *boundary.ToolResult)
+					}
+				}
+			}
 			if observer != nil && boundary.Kind == agent.InteractionEventModelResponse &&
 				(boundary.Response.Usage.TotalTokens() != 0 || boundary.Response.Model != "") {
 				var cumulative accounting.TokenUsage

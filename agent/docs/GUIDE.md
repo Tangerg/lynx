@@ -303,6 +303,11 @@ resource key 有界并发。`toolloop.Config.MaxConcurrentCalls` 控制低层 Ru
 `interaction.Limits.MaxConcurrentToolCalls` 控制托管 Interaction。执行完成顺序不影响
 可观察顺序：ToolResult、continuation 和 checkpoint 始终按模型原始 tool-call 顺序提交。
 
+工具需要实现幂等键、审计关联或下游 trace 关联时，可通过
+`agent.ToolCallFromContext(ctx)` 读取当前模型请求的 `chat.ToolCall`。该访问器只读且按
+Process 隔离；子进程不会继承父进程的调用身份。直接调用工具时返回 `ok=false`，调用方不应
+自行伪造或重新绑定 ToolCall。
+
 同步 `runtime.NewAgentTool` 的每次调用拥有独立 child Process，因此同一 model round 的
 多个调用可以并发。Runtime 用 exact `ToolCall.ID` 关联并持久化有序 child forest；多个
 child 同时 waiting 时，parent 一次只暴露最早未提交的 suspension，恢复一个后再暴露下一个。
