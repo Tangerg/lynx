@@ -157,6 +157,9 @@
       }
     }
   },
+  "document_empty_metadata": {
+    "text": "no metadata"
+  },
   "embedding_request": {
     "texts": [
       "lynx",

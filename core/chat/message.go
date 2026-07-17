@@ -51,7 +51,7 @@ func (r Role) Valid() bool {
 type Message struct {
 	Role     Role         `json:"role"`
 	Parts    []Part       `json:"parts"`
-	Metadata metadata.Map `json:"metadata,omitempty"`
+	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
 // Clone returns an independent copy of m.

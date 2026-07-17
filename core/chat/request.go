@@ -25,7 +25,7 @@ type Request struct {
 	Messages   []Message        `json:"messages"`
 	Tools      []ToolDefinition `json:"tools,omitempty"`
 	Options    Options          `json:"options,omitzero"`
-	Extensions metadata.Map     `json:"extensions,omitempty"`
+	Extensions metadata.Map     `json:"extensions,omitzero"`
 }
 
 // Clone returns an independent copy of r. It is nil-safe.

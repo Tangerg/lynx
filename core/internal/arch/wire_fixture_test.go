@@ -101,6 +101,13 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		Media:    inlineMedia,
 		Metadata: protocolMetadata.Clone(),
 	}
+	// emptyMetadataDoc pins the metadata.Map omitzero contract: an explicitly
+	// empty (non-nil) Metadata map must serialize with no "metadata" key, not a
+	// bare "{}". document.NewDocument seeds exactly such an empty map.
+	emptyMetadataDoc, err := document.NewDocument("no metadata", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	embeddingRequest := &embedding.Request{
 		Texts: []string{"lynx", "wild cat"},
 		Options: embedding.Options{
@@ -213,6 +220,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		"chat_request":               chatRequest,
 		"chat_response":              chatResponse,
 		"document":                   doc,
+		"document_empty_metadata":    emptyMetadataDoc,
 		"embedding_request":          embeddingRequest,
 		"embedding_response":         embeddingResponse,
 		"image_request":              imageRequest,

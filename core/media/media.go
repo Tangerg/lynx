@@ -73,7 +73,7 @@ type Media struct {
 	Source   Source       `json:"source"`
 	ID       string       `json:"id,omitempty"`
 	Name     string       `json:"name,omitempty"`
-	Metadata metadata.Map `json:"metadata,omitempty"`
+	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
 // Clone returns an independent copy of m. It is nil-safe.

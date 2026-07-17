@@ -186,6 +186,12 @@ func Decode[T any](m Map, key string) (T, bool, error) {
 	return value, true, nil
 }
 
+// IsZero reports whether m carries no entries. It lets the encoding/json
+// `omitzero` option omit an empty (non-nil) Map, so a zero-value metadata field
+// never serializes as an empty "{}" object — matching the omission a nil Map
+// already gets.
+func (m Map) IsZero() bool { return len(m) == 0 }
+
 // Clone returns a deep copy of m. A nil Map remains nil.
 func (m Map) Clone() Map {
 	if m == nil {
