@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -13,6 +14,11 @@ import (
 )
 
 const defaultMaxRecursion = 64
+
+// plannerTracer is the package-level tracer for the HTN planner. It shares the
+// `lynx/agent/planner` namespace with the other planners; backends distinguish
+// algorithms by span name ("htn.plan").
+var plannerTracer = otel.Tracer("lynx/agent/planner")
 
 // Planner is the concrete HTN planner. Library is supplied at
 // construction; the planner is otherwise stateless and safe to share

@@ -7,6 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -75,6 +76,15 @@ func (p *Planner) PlanToGoal(
 	)
 	defer span.End()
 
+	// fail records err on the span before returning it, so a search that hits
+	// an invalid cost, context cancellation, or reconstruction error traces as
+	// an error span rather than a clean one (see doc/OBSERVABILITY.md).
+	fail := func(err error) (*planning.Plan, error) {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+
 	if goal.SatisfiedBy(start) {
 		span.SetAttributes(attribute.Bool(attrGOAPAlreadySat, true))
 		return planning.NewPlan(nil, goal), nil
@@ -84,12 +94,12 @@ func (p *Planner) PlanToGoal(
 
 	s := newSearch(start, candidates, goal, p.expansionCap(options))
 
-	// Producer pre-check — short-circuits before search burns 10k expansions
-	// chasing a goal whose required conditions no action can establish.
-	// After pruning the check operates on the regression set, so a goal
-	// precondition with no producer in the relevant closure is caught here
-	// even when the unpruned action set had a "producer" whose own
-	// preconditions can never be met.
+	// Producer pre-check — short-circuits before search burns the expansion
+	// cap chasing a goal whose required conditions no candidate action can
+	// establish. It is a conservative direct-producer scan (see
+	// hasGoalProducers): it does not verify that those producers are
+	// themselves reachable, so it only ever rejects genuinely unreachable
+	// goals and never a solvable one.
 	if !s.hasGoalProducers() {
 		span.SetAttributes(attribute.Bool(attrGOAPHasProducers, false))
 		return nil, nil
@@ -97,7 +107,7 @@ func (p *Planner) PlanToGoal(
 
 	bestGoalNode, err := s.run(ctx)
 	if err != nil {
-		return nil, err
+		return fail(err)
 	}
 
 	span.SetAttributes(attribute.Int(attrGOAPExpansions, s.expansions))
@@ -109,7 +119,7 @@ func (p *Planner) PlanToGoal(
 
 	path, err := s.reconstructPath(bestGoalNode.state.Key())
 	if err != nil {
-		return nil, err
+		return fail(err)
 	}
 
 	span.SetAttributes(

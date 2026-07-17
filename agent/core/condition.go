@@ -27,7 +27,7 @@ type Condition interface {
 	Name() string
 
 	// Cost is the planner's hint for how expensive evaluation is — composite
-	// conditions average their children, LLM-backed conditions report higher
+	// conditions sum their children's costs, LLM-backed conditions report higher
 	// numbers so the planner explores cheaper branches first.
 	Cost() float64
 
