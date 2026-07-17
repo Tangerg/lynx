@@ -118,15 +118,24 @@ func schemaToJSON(schema any) (json.RawMessage, error) {
 }
 
 // schemaToAny adapts a ToolDefinition.InputSchema to the heterogeneous
-// sdkmcp.Tool.InputSchema field
-// (declared `any`). The SDK accepts json.RawMessage on the low-level
-// AddTool path, the exact form that is available here.
+// sdkmcp.Tool.InputSchema field (declared `any`). The low-level AddTool path
+// panics unless the schema explicitly declares an object, so this boundary
+// validates that MCP-specific requirement before registration mutates a server.
 func schemaToAny(schema json.RawMessage) (any, error) {
 	if len(schema) == 0 {
-		return append(json.RawMessage(nil), emptyObjectSchema...), nil
+		return nil, errors.New("schema must be a JSON object")
 	}
-	if !json.Valid(schema) {
-		return nil, errors.New("mcp.schemaToAny: schema is not valid JSON")
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(schema, &object); err != nil || object == nil {
+		return nil, errors.New("schema must be a JSON object")
+	}
+	rawType, ok := object["type"]
+	if !ok {
+		return nil, errors.New(`schema must declare type "object"`)
+	}
+	var schemaType string
+	if err := json.Unmarshal(rawType, &schemaType); err != nil || schemaType != "object" {
+		return nil, fmt.Errorf(`schema type must be "object", got %s`, rawType)
 	}
 	return append(json.RawMessage(nil), schema...), nil
 }

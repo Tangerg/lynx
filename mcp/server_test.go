@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,15 +32,29 @@ func newEchoTool(t *testing.T) tools.Tool {
 	return tool
 }
 
+func newConstantTool(t *testing.T, name string) tools.Tool {
+	t.Helper()
+	tool, err := tools.New[struct{}, string](
+		tools.Config{Name: name, Description: "return " + name},
+		func(context.Context, struct{}) (string, error) { return name, nil },
+	)
+	require.NoError(t, err)
+	return tool
+}
+
 // connectPair wires an in-memory MCP server (with the supplied lynx tools
 // already registered) to a fresh client session, returning the live session
 // and a cleanup func.
 func connectPair(t *testing.T, ctx context.Context, registered ...tools.Tool) (*sdkmcp.ClientSession, func()) {
 	t.Helper()
-	srvT, cliT := sdkmcp.NewInMemoryTransports()
-
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "lynx-srv", Version: "v0.1.0"}, nil)
 	require.NoError(t, lynxmcp.Register(srv, registered...))
+	return connectServer(t, ctx, srv)
+}
+
+func connectServer(t *testing.T, ctx context.Context, srv *sdkmcp.Server) (*sdkmcp.ClientSession, func()) {
+	t.Helper()
+	srvT, cliT := sdkmcp.NewInMemoryTransports()
 
 	ss, err := srv.Connect(ctx, srvT, nil)
 	require.NoError(t, err)
@@ -55,7 +70,7 @@ func connectPair(t *testing.T, ctx context.Context, registered ...tools.Tool) (*
 }
 
 func TestRegister_RoundTrip(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cs, cleanup := connectPair(t, ctx, newEchoTool(t))
 	defer cleanup()
 
@@ -83,7 +98,7 @@ func TestRegister_RoundTrip(t *testing.T) {
 }
 
 func TestRegister_ErrorBecomesIsError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	failing, err := tools.New[struct{}, string](
 		tools.Config{Name: "boom", Description: "always fails"},
@@ -108,10 +123,20 @@ func TestRegister_ErrorBecomesIsError(t *testing.T) {
 
 func TestRegister_RejectsNilArgs(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
-	require.Error(t, lynxmcp.Register(nil, newEchoTool(t)))
+	require.ErrorIs(t, lynxmcp.Register(nil, newEchoTool(t)), lynxmcp.ErrNilServer)
 
-	err := lynxmcp.Register(srv, nil)
-	require.Error(t, err)
+	for _, test := range []struct {
+		name string
+		tool tools.Tool
+	}{
+		{name: "nil"},
+		{name: "typed nil", tool: (*badSchemaTool)(nil)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := lynxmcp.Register(srv, test.tool)
+			require.ErrorIs(t, err, tools.ErrInvalidTool)
+		})
+	}
 }
 
 func TestRegister_RejectsInvalidSchema(t *testing.T) {
@@ -119,6 +144,39 @@ func TestRegister_RejectsInvalidSchema(t *testing.T) {
 	// NewTool always derives a valid schema, so an invalid one can only reach
 	// Register via a hand-rolled Tool — which is exactly what Register must reject.
 	require.Error(t, lynxmcp.Register(srv, badSchemaTool{}))
+
+	err := lynxmcp.Register(srv, missingSchemaTypeTool{})
+	require.ErrorContains(t, err, `schema must declare type "object"`)
+}
+
+func TestRegister_RejectsDuplicateBatchAtomically(t *testing.T) {
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
+	err := lynxmcp.Register(srv, newConstantTool(t, "duplicate"), newConstantTool(t, "duplicate"))
+	require.ErrorIs(t, err, tools.ErrDuplicateTool)
+
+	require.NoError(t, lynxmcp.Register(srv, newConstantTool(t, "after")))
+	client, cleanup := connectServer(t, t.Context(), srv)
+	defer cleanup()
+	listed, err := client.ListTools(t.Context(), nil)
+	require.NoError(t, err)
+	require.Len(t, listed.Tools, 1)
+	assert.Equal(t, "after", listed.Tools[0].Name)
+}
+
+func TestRegister_SnapshotsDefinitionOnce(t *testing.T) {
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
+	tool := &definitionOnceTool{}
+	require.NoError(t, lynxmcp.Register(srv, tool))
+
+	client, cleanup := connectServer(t, t.Context(), srv)
+	defer cleanup()
+	result, err := client.CallTool(t.Context(), &sdkmcp.CallToolParams{
+		Name:      "stable",
+		Arguments: map[string]any{},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.EqualValues(t, 1, tool.definitionCalls.Load())
 }
 
 // badSchemaTool is a tools.Tool whose InputSchema is not valid JSON, used to
@@ -130,3 +188,28 @@ func (badSchemaTool) Definition() corechat.ToolDefinition {
 }
 
 func (badSchemaTool) Call(context.Context, string) (string, error) { return "", nil }
+
+type missingSchemaTypeTool struct{}
+
+func (missingSchemaTypeTool) Definition() corechat.ToolDefinition {
+	return corechat.ToolDefinition{Name: "missing-schema-type", InputSchema: json.RawMessage(`{}`)}
+}
+
+func (missingSchemaTypeTool) Call(context.Context, string) (string, error) { return "", nil }
+
+type definitionOnceTool struct {
+	definitionCalls atomic.Int32
+}
+
+func (t *definitionOnceTool) Definition() corechat.ToolDefinition {
+	if t.definitionCalls.Add(1) != 1 {
+		panic("tool definition was read after registration")
+	}
+	return corechat.ToolDefinition{
+		Name:        "stable",
+		Description: "stable definition",
+		InputSchema: json.RawMessage(`{"type":"object"}`),
+	}
+}
+
+func (*definitionOnceTool) Call(context.Context, string) (string, error) { return "ok", nil }
