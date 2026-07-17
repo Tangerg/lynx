@@ -8,8 +8,8 @@ import (
 )
 
 // JSON marshaling for every event type lives here, separate from the
-// type definitions in process.go / execution.go / planning.go /
-// engine.go. The split is an SRP move: event definitions describe
+// type definitions in process.go / action.go / planning.go /
+// deployment.go. The split is an SRP move: event definitions describe
 // what the runtime publishes; marshaling describes how it serializes
 // onto an external wire (audit log, websocket fan-out, etc).
 //
@@ -17,7 +17,7 @@ import (
 // file entirely — they type-assert the concrete event types and read
 // their public fields directly. Marshaling here is best-effort lossy
 // JSON (interface-typed fields like core.Action / planning.Plan
-// collapse to summaries; see summaries.go for the helpers).
+// collapse to summaries; see json_summary.go for the helpers).
 
 // ------------------------------------------------------------------
 // engine events

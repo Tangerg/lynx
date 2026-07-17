@@ -61,7 +61,7 @@ func Supervisor[In, Out any](engine *runtime.Engine, config SupervisorConfig[In,
 		return nil, errors.New("workflow.Supervisor: Name must not be empty")
 	}
 	if len(config.Agents) == 0 {
-		return nil, errors.New("workflow: supervisor requires at least one agent")
+		return nil, errors.New("workflow.Supervisor: Agents must not be empty")
 	}
 	if config.Parse == nil {
 		return nil, errors.New("workflow.Supervisor: Parse must not be nil")
