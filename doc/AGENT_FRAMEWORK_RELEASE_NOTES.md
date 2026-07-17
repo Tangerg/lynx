@@ -16,12 +16,12 @@
 | 项目 | 当前值 |
 |---|---:|
 | public package | 16 |
-| exported declaration | 645 |
-| root façade | 47 / 50 |
+| exported declaration | 646 |
+| root façade | 48 / 50 |
 | exported JSON struct | 16 |
 | wire fixture | 490 行 |
 
-- API baseline SHA-256：`5d7c9ac2eed7f546642b65f433c6a653160e90d0e1389752e2194b02269f97c4`
+- API baseline SHA-256：`a7a0582dbf8e15f8541f7b3de31dff1925daa4b1253699c68af04552c64121ce`
 - wire fixture SHA-256：`6e6ba3b76c9f4c06093984d8c897585de95e2e19b550690ec349ddd6c18b793b`
 
 这些值用于审查开发期差异，不代表已经发布稳定承诺。
@@ -55,6 +55,10 @@
 - `toolloop.Runner.Run(ctx, request, resolver)` 直接接收输入；删除 `Invocation` 中间 DTO、`NewInvocation` 和其序列化错误。
 - `toolloop.RunnerConfig` → `toolloop.Config`；配置错误与运行输入错误分离为 `ErrInvalidConfig` / `ErrInvalidInput`。
 - `utility.GoalFirstPlanner` → `utility.GoalFirst`，`routing.ModelRankerConfig` → `routing.ModelConfig`。
+- tool policy 收敛为 `toolpolicy.Once`、`Gate`、`Condition`、`WithScope`、
+  `ErrAlreadyCalled` 与 `ErrLocked`；删除 package qualification 后重复的 `Tool`、
+  `Only`、`Unlocked` 命名。无 scope 的 once allowance 明确归 decorator 实例所有，
+  不再错误声称具有 Process 生命周期。
 - `runtime.AgentGoalTools` → `runtime.Engine.GoalToolsFor`。
 - Agent durable blackboard codec、planning templates、Domain prune 与 goal-tool fan-out 改为 owner method；删除以 Agent、Domain、Engine 为首参的自由函数。
 - 私有 owner 继续收敛：`FuncAction` 读取 typed input，`DependencyKey` 校验 typed key，`Process` 调度 middleware/chat/interaction/child listener，`runnerState` 管理 input/resume/continuation，agent tool/task tool 自己编码结果。

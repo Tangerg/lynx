@@ -10,51 +10,43 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// ErrToolAlreadyCalled is returned by a [OnceOnly]-wrapped tool
-// when the LLM tries to invoke it twice within the same scope. The
-// error is informative — a tool-loop driver can feed it back to the
-// LLM, which is supposed to pick a different tool next turn.
+// ErrAlreadyCalled is returned by a [Once]-wrapped tool when a caller tries
+// to invoke it twice within the same policy scope.
 //
 // Use errors.Is to detect this case in callers that want to swap a
 // tool retry for a different recovery strategy.
-var ErrToolAlreadyCalled = errors.New("toolpolicy: tool has already been called once in this scope")
+var ErrAlreadyCalled = errors.New("toolpolicy: tool already called in this policy scope")
 
-// ErrToolLocked is returned by a [Unlocked]-wrapped tool when the
-// unlock condition returns false. The accompanying message
-// (formatted as "tool %q locked: %s") gives the LLM enough context
-// to pick a different action.
-var ErrToolLocked = errors.New("toolpolicy: tool is locked by an unlock condition")
+// ErrLocked is returned by a [Gate]-wrapped tool when its condition rejects
+// the call. The wrapped error names the tool and includes the condition's
+// reason so a tool loop can present actionable feedback to the model.
+var ErrLocked = errors.New("toolpolicy: tool call blocked by condition")
 
-// OnceOnly wraps tool so a second call within the same scope
-// returns [ErrToolAlreadyCalled] instead of running the underlying
-// tool. Each unique scope (see [LoopScope]) maintains its own
-// already-called set.
+// Once wraps tool so a second call within the same scope returns
+// [ErrAlreadyCalled] instead of running the underlying tool. Each scope
+// created by [WithScope] maintains its own called set.
 //
-// Callers that want per-invocation behavior wrap the action ctx with
-// [LoopScope] before driving the tool loop;
-// each tool's first call within that scope succeeds, subsequent
-// calls reject. Returns an error when tool is nil.
-func OnceOnly(tool tools.Tool) (tools.Tool, error) {
+// Without a scope, the allowance belongs to the returned decorator instance:
+// its first call succeeds and all later calls reject for that instance's
+// lifetime. Returns an error when tool is nil.
+func Once(tool tools.Tool) (tools.Tool, error) {
 	if tool == nil {
-		return nil, errors.New("toolpolicy.OnceOnly: tool must not be nil")
+		return nil, errors.New("toolpolicy.Once: tool must not be nil")
 	}
-	return &onceOnlyTool{delegate: tool}, nil
+	return &onceTool{delegate: tool}, nil
 }
 
-type onceOnlyTool struct {
+type onceTool struct {
 	delegate tools.Tool
-
-	// processWideMu guards processWideCalled — the fallback set
-	// used when no [LoopScope] is in ctx.
-	processWideMu     sync.Mutex
-	processWideCalled map[string]struct{}
+	mu       sync.Mutex
+	called   bool
 }
 
-var _ tools.FileMutationReporter = (*onceOnlyTool)(nil)
+var _ tools.FileMutationReporter = (*onceTool)(nil)
 
-func (t *onceOnlyTool) Definition() chat.ToolDefinition { return t.delegate.Definition() }
+func (t *onceTool) Definition() chat.ToolDefinition { return t.delegate.Definition() }
 
-func (t *onceOnlyTool) ReturnsDirect() bool {
+func (t *onceTool) ReturnsDirect() bool {
 	if d, ok := t.delegate.(interface{ ReturnsDirect() bool }); ok {
 		return d.ReturnsDirect()
 	}
@@ -63,46 +55,40 @@ func (t *onceOnlyTool) ReturnsDirect() bool {
 
 // MutationPaths forwards prospective file targets without consuming the
 // once-only allowance. Metadata inspection must not change policy state.
-func (t *onceOnlyTool) MutationPaths(arguments string) ([]string, error) {
+func (t *onceTool) MutationPaths(arguments string) ([]string, error) {
 	if reporter, ok := t.delegate.(tools.FileMutationReporter); ok {
 		return reporter.MutationPaths(arguments)
 	}
 	return nil, nil
 }
 
-func (t *onceOnlyTool) Call(ctx context.Context, arguments string) (string, error) {
+func (t *onceTool) Call(ctx context.Context, arguments string) (string, error) {
 	name := t.delegate.Definition().Name
 
 	if scope := scopeFromContext(ctx); scope != nil {
 		if !scope.markCalled(name) {
-			return "", fmt.Errorf("%w: %q", ErrToolAlreadyCalled, name)
+			return "", fmt.Errorf("%w: %q", ErrAlreadyCalled, name)
 		}
 	} else {
-		t.processWideMu.Lock()
-		if t.processWideCalled == nil {
-			t.processWideCalled = make(map[string]struct{})
+		t.mu.Lock()
+		if t.called {
+			t.mu.Unlock()
+			return "", fmt.Errorf("%w: %q", ErrAlreadyCalled, name)
 		}
-		if _, dup := t.processWideCalled[name]; dup {
-			t.processWideMu.Unlock()
-			return "", fmt.Errorf("%w: %q", ErrToolAlreadyCalled, name)
-		}
-		t.processWideCalled[name] = struct{}{}
-		t.processWideMu.Unlock()
+		t.called = true
+		t.mu.Unlock()
 	}
 
 	return t.delegate.Call(ctx, arguments)
 }
 
-// UnlockCondition returns true when the tool may run, false when it
-// is gated. The reason text accompanies the error returned to the
-// LLM when the gate is closed; an empty string defaults to a generic
-// "locked" message.
-type UnlockCondition func(ctx context.Context, arguments string) (allowed bool, reason string)
+// Condition returns true when a tool may run. When it returns false, reason is
+// included in the [ErrLocked] error; an empty reason receives a useful default.
+type Condition func(ctx context.Context, arguments string) (allowed bool, reason string)
 
-// Unlocked wraps tool to gate every Call behind condition. When
-// condition returns false, the wrapped Call returns [ErrToolLocked]
-// (wrapping the supplied reason). When true, the underlying tool
-// runs normally.
+// Gate wraps tool so condition decides every call. A rejected call returns
+// [ErrLocked] without invoking the underlying tool; an accepted call delegates
+// normally.
 //
 // The condition is evaluated on every invocation — caller-provided
 // state (typically blackboard) drives the gate. Use cases:
@@ -112,58 +98,55 @@ type UnlockCondition func(ctx context.Context, arguments string) (allowed bool, 
 //     bound on the blackboard
 //   - tools that are part of a playbook step-machine
 //
-// Returns an error when tool or condition is nil — caller decides
-// whether to surface or panic.
-func Unlocked(tool tools.Tool, condition UnlockCondition) (tools.Tool, error) {
+// Returns an error when tool or condition is nil.
+func Gate(tool tools.Tool, condition Condition) (tools.Tool, error) {
 	if tool == nil {
-		return nil, errors.New("toolpolicy.Unlocked: tool must not be nil")
+		return nil, errors.New("toolpolicy.Gate: tool must not be nil")
 	}
 	if condition == nil {
-		return nil, errors.New("toolpolicy.Unlocked: condition must not be nil")
+		return nil, errors.New("toolpolicy.Gate: condition must not be nil")
 	}
-	return &unlockTool{delegate: tool, condition: condition}, nil
+	return &gatedTool{delegate: tool, condition: condition}, nil
 }
 
-type unlockTool struct {
+type gatedTool struct {
 	delegate  tools.Tool
-	condition UnlockCondition
+	condition Condition
 }
 
-var _ tools.FileMutationReporter = (*unlockTool)(nil)
+var _ tools.FileMutationReporter = (*gatedTool)(nil)
 
-func (t *unlockTool) Definition() chat.ToolDefinition { return t.delegate.Definition() }
+func (t *gatedTool) Definition() chat.ToolDefinition { return t.delegate.Definition() }
 
-func (t *unlockTool) ReturnsDirect() bool {
+func (t *gatedTool) ReturnsDirect() bool {
 	if d, ok := t.delegate.(interface{ ReturnsDirect() bool }); ok {
 		return d.ReturnsDirect()
 	}
 	return false
 }
 
-// MutationPaths forwards prospective targets without evaluating the unlock
+// MutationPaths forwards prospective targets without evaluating the gate
 // condition. The runtime may need those targets before it invokes Call.
-func (t *unlockTool) MutationPaths(arguments string) ([]string, error) {
+func (t *gatedTool) MutationPaths(arguments string) ([]string, error) {
 	if reporter, ok := t.delegate.(tools.FileMutationReporter); ok {
 		return reporter.MutationPaths(arguments)
 	}
 	return nil, nil
 }
 
-func (t *unlockTool) Call(ctx context.Context, arguments string) (string, error) {
+func (t *gatedTool) Call(ctx context.Context, arguments string) (string, error) {
 	allowed, reason := t.condition(ctx, arguments)
 	if !allowed {
 		if reason == "" {
-			reason = "unlock condition returned false"
+			reason = "condition returned false"
 		}
-		return "", fmt.Errorf("%w: tool %q locked: %s",
-			ErrToolLocked, t.delegate.Definition().Name, reason)
+		return "", fmt.Errorf("%w: %q: %s", ErrLocked, t.delegate.Definition().Name, reason)
 	}
 	return t.delegate.Call(ctx, arguments)
 }
 
 // loopScope tracks the set of tools called within a particular
-// LLM-tool-loop scope. Created by [LoopScope] and read by
-// [OnceOnly].
+// tool-loop scope. Created by [WithScope] and read by [Once].
 type loopScope struct {
 	mu     sync.Mutex
 	called map[string]struct{}
@@ -184,26 +167,25 @@ func (s *loopScope) markCalled(name string) bool {
 	return true
 }
 
-// scopeKey is the unexported context key under which [LoopScope]
+// scopeKey is the unexported context key under which [WithScope]
 // stashes a *loopScope.
 type scopeKey struct{}
 
-// LoopScope returns a child ctx carrying a fresh per-loop scope
-// the [OnceOnly] decorator uses to track which tools have run.
+// WithScope returns a child context carrying a fresh scope shared by all
+// [Once]-wrapped tools invoked with that context. The scope identifies tools
+// by [chat.ToolDefinition.Name].
 // Action bodies wrap ctx with this before driving a chat tool loop:
 //
-//	ctx = toolpolicy.LoopScope(ctx)
+//	ctx = toolpolicy.WithScope(ctx)
 //	text, _, err := request.Call().Text(ctx)
 //
-// Each LoopScope returns an isolated scope, so two tool loops
+// Each call returns an isolated scope, so two tool loops
 // running concurrently in the same goroutine tree don't share
 // already-called state.
 //
-// Calls without an enclosing LoopScope fall back to a
-// process-wide already-called set on the wrapping decorator
-// instance — useful when the tool should genuinely fire only once
-// per process.
-func LoopScope(ctx context.Context) context.Context {
+// Calls without an enclosing scope use the decorator-instance allowance
+// documented by [Once].
+func WithScope(ctx context.Context) context.Context {
 	return context.WithValue(ctx, scopeKey{}, &loopScope{})
 }
 

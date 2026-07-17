@@ -133,9 +133,9 @@ func TestObservedToolReportsOnlySuccessfulMutatedPaths(t *testing.T) {
 }
 
 func TestObservedToolPreservesMutationPathsThroughPolicyWrappers(t *testing.T) {
-	policy, err := toolpolicy.OnceOnly(mutatingTool{})
+	policy, err := toolpolicy.Once(mutatingTool{})
 	if err != nil {
-		t.Fatalf("OnceOnly: %v", err)
+		t.Fatalf("Once: %v", err)
 	}
 	observer := new(recordingObserver)
 	wrapped := &observedTool{inner: policy, observation: newToolObservation(observer)}
@@ -148,7 +148,7 @@ func TestObservedToolPreservesMutationPathsThroughPolicyWrappers(t *testing.T) {
 	if err != nil || !slices.Equal(paths, []string{"b.go", "", "a.go", "b.go"}) {
 		t.Fatalf("MutationPaths() = %v, %v", paths, err)
 	}
-	if _, err := wrapped.Call(toolpolicy.LoopScope(t.Context()), `{}`); err != nil {
+	if _, err := wrapped.Call(toolpolicy.WithScope(t.Context()), `{}`); err != nil {
 		t.Fatalf("Call: %v", err)
 	}
 	ends := observer.ends()
