@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"slices"
 )
 
@@ -21,11 +22,23 @@ func NewMemorySessionStore() *MemorySessionStore {
 }
 
 func (s *MemorySessionStore) Save(_ context.Context, session Session) error {
-	return s.store.save(session.ID, session)
+	snapshot, err := session.storageSnapshot()
+	if err != nil {
+		return fmt.Errorf("memory session store: snapshot %q: %w", session.ID, err)
+	}
+	return s.store.save(snapshot.ID, snapshot)
 }
 
 func (s *MemorySessionStore) Load(_ context.Context, id string) (Session, error) {
-	return s.store.load(id)
+	stored, err := s.store.load(id)
+	if err != nil {
+		return Session{}, err
+	}
+	snapshot, err := stored.storageSnapshot()
+	if err != nil {
+		return Session{}, fmt.Errorf("memory session store: snapshot loaded session %q: %w", id, err)
+	}
+	return snapshot, nil
 }
 
 // Delete is idempotent.

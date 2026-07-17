@@ -12,7 +12,12 @@ type ChildOptionsFunc func(
 ) (ProcessOptions, error)
 
 // ProcessOptions is the per-process configuration bundle. Pass a zero
-// ProcessOptions{} when defaults suffice; the runtime normalizes unset fields.
+// ProcessOptions{} when defaults suffice; the runtime normalizes unset fields
+// and snapshots its container fields before retaining them. Callers may reuse
+// or mutate the Session, Extensions slice, and Guardrails value after process
+// construction without changing the running process; the capability objects
+// stored inside those containers must themselves remain safe for their declared
+// lifetime.
 //
 // Choosing a struct over the functional-options pattern keeps defaults
 // and validation in one place and avoids polluting the

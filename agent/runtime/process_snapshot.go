@@ -359,27 +359,27 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 	}
 	agent := deployment.agent
 
-	if err := validateProcessExtensions(options.Extensions); err != nil {
+	processOptions, err := snapshotProcessOptions(options)
+	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
 	}
-	normalizeProcessOptions(&options)
 	dependencies, err := e.prepareProcessDependencies(options.Dependencies)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
 	}
 	blackboard := e.resolveBlackboard(options.Blackboard)
-	planner, err := e.resolvePlanner(agent, options.Extensions)
+	planner, err := e.resolvePlanner(agent, processOptions.extensions)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
 	}
 	domain := planning.DomainForAgent(agent)
 
-	process := newProcess(snapshot.ID, deployment, &options, blackboard, dependencies, planner, domain, e)
+	process := newProcess(snapshot.ID, deployment, &processOptions, blackboard, dependencies, planner, domain, e)
 	// Wire the state reader + event multicast the same way createProcess
 	// does — without it a resumable snapshot panics on its first
 	// post-restore tick (nil state reader in observe). The caller's
 	// Extensions (observer / listener) attach here too.
-	process.wireRuntimeDeps(options.Extensions)
+	process.wireRuntimeDeps(processOptions.extensions)
 	process.parentID = snapshot.ParentID
 	process.depth = snapshot.Depth
 	process.startedAt = snapshot.StartedAt

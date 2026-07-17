@@ -208,7 +208,7 @@ func (p *Process) interactionOwner(actionName string, input core.Interaction) (s
 
 func (p *Process) interactionStopReason(round int, limits interaction.Limits) interaction.StopReason {
 	cost, tokens, _ := p.Usage()
-	processBudget := p.options.Budget
+	processBudget := p.options.budget
 	if (processBudget.TokenLimit > 0 && tokens >= processBudget.TokenLimit) ||
 		(processBudget.CostLimit > 0 && cost >= processBudget.CostLimit) ||
 		(limits.MaxTokens > 0 && int64(tokens) >= limits.MaxTokens) ||

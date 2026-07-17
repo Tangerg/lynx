@@ -10,12 +10,6 @@ import (
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
-func normalizeProcessOptions(options *core.ProcessOptions) {
-	if options.Budget == (core.Budget{}) {
-		options.Budget = core.DefaultBudget()
-	}
-}
-
 // createProcess assembles a Process and its dependencies
 // (blackboard, state reader, planner). The process is registered in
 // the engine's map before being returned so concurrent
@@ -48,10 +42,10 @@ func (e *Engine) createProcessFromDeployment(
 		return nil, errors.New("runtime.Engine.createProcessFromDeployment: deployment is nil")
 	}
 	agent := deployment.agent
-	if err := validateProcessExtensions(options.Extensions); err != nil {
+	processOptions, err := snapshotProcessOptions(options)
+	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
 	}
-	normalizeProcessOptions(&options)
 	dependencies, err := e.prepareProcessDependencies(options.Dependencies)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
@@ -60,18 +54,18 @@ func (e *Engine) createProcessFromDeployment(
 	blackboard := e.resolveBlackboard(options.Blackboard)
 	bindBlackboardSeed(blackboard, bindings)
 
-	planner, err := e.resolvePlanner(agent, options.Extensions)
+	planner, err := e.resolvePlanner(agent, processOptions.extensions)
 	if err != nil {
 		return nil, err
 	}
 
 	domain := planning.DomainForAgent(agent)
 	processID := e.idGenerator().Next()
-	process := newProcess(processID, deployment, &options, blackboard, dependencies, planner, domain, e)
+	process := newProcess(processID, deployment, &processOptions, blackboard, dependencies, planner, domain, e)
 
 	// state reader + per-process event multicast both close over the
 	// assembled pointer, so they're wired after construction.
-	process.wireRuntimeDeps(options.Extensions)
+	process.wireRuntimeDeps(processOptions.extensions)
 
 	e.processes.register(process)
 	process.publishEvent(context.Background(), event.ProcessCreated{
@@ -192,7 +186,7 @@ func validateProcessExtensions(extensions []core.Extension) error {
 	}
 	seen := make(map[string]struct{}, len(extensions))
 	for index, extension := range extensions {
-		if extension == nil {
+		if valueIsNil(extension) {
 			return fmt.Errorf("ProcessOptions.Extensions[%d] is nil", index)
 		}
 		name := extension.Name()

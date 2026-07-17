@@ -133,6 +133,10 @@ func New(config Config) (*Engine, error) {
 	if valueIsNil(config.Chat.Model) && !valueIsNil(config.Chat.Streamer) {
 		return nil, errors.New("runtime.New: Chat.Streamer requires Chat.Model")
 	}
+	guardrails, err := snapshotChatGuardrails("runtime.New: Guardrails", config.Guardrails)
+	if err != nil {
+		return nil, err
+	}
 
 	engine := &Engine{
 		catalog:               newDeploymentRegistry(),
@@ -141,7 +145,7 @@ func New(config Config) (*Engine, error) {
 		events:                event.NewMulticast(),
 		dependencies:          core.NewDependencies(),
 		chat:                  config.Chat,
-		guardrails:            config.Guardrails,
+		guardrails:            guardrails,
 		processStore:          config.ProcessStore,
 		sessionStore:          config.SessionStore,
 		autoSnapshot:          config.AutoSnapshot,

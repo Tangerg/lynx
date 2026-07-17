@@ -1,6 +1,10 @@
 package runtime
 
-import "github.com/Tangerg/lynx/agent/core"
+import (
+	"slices"
+
+	"github.com/Tangerg/lynx/agent/core"
+)
 
 // engineExtensions exposes the engine-scoped extension list.
 func (p *Process) engineExtensions() []core.Extension {
@@ -16,7 +20,7 @@ func (p *Process) processExtensions() []core.Extension {
 	if p.options == nil {
 		return nil
 	}
-	return p.options.Extensions
+	return p.options.extensions
 }
 
 // childExtensions propagates a parent's process-scope [EventListener]
@@ -26,17 +30,18 @@ func (p *Process) processExtensions() []core.Extension {
 // wins, and duplicates are skipped so process extension validation remains
 // deterministic.
 func (p *Process) childExtensions(childExtensions []core.Extension) []core.Extension {
-	if p == nil || p.options == nil || len(p.options.Extensions) == 0 {
+	childExtensions = slices.Clone(childExtensions)
+	if p == nil || p.options == nil || len(p.options.extensions) == 0 {
 		return childExtensions
 	}
 	seen := make(map[string]struct{}, len(childExtensions))
 	for _, extension := range childExtensions {
-		if extension != nil {
+		if !valueIsNil(extension) {
 			seen[extension.Name()] = struct{}{}
 		}
 	}
-	for _, extension := range p.options.Extensions {
-		if extension == nil {
+	for _, extension := range p.options.extensions {
+		if valueIsNil(extension) {
 			continue
 		}
 		if _, ok := extension.(EventListener); !ok {

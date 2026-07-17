@@ -107,10 +107,10 @@ func configureChildProcessOptions(
 	deployment *Deployment,
 	options core.ProcessOptions,
 ) (core.ProcessOptions, error) {
-	if parent == nil || parent.options == nil || parent.options.ChildOptions == nil {
+	if parent == nil || parent.options == nil || parent.options.childOptions == nil {
 		return options, nil
 	}
-	configure := parent.options.ChildOptions
+	configure := parent.options.childOptions
 	configured, err := configure(normalizeContext(ctx), parent, deployment.agent)
 	if err != nil {
 		return core.ProcessOptions{}, err
@@ -134,7 +134,7 @@ func ambientBlackboard(parent core.Blackboard) core.Blackboard {
 // linkSession gives the child its own conversation while preserving delegation
 // lineage through ParentID. Explicitly pinned sessions are left untouched.
 func (r childRun) linkSession(child, parent *Process) error {
-	if child.options == nil || child.options.Session != nil {
+	if child.options == nil || child.options.session != nil {
 		return nil
 	}
 	parentConvID := parent.conversationID()
@@ -143,7 +143,7 @@ func (r childRun) linkSession(child, parent *Process) error {
 	}
 	session := core.NewSession(child.ID(), parent.userID(), child.agent().Name())
 	session.ParentID = parentConvID
-	child.options.Session = &session
+	child.options.session = &session
 
 	if r.engine.sessionStore != nil {
 		if err := r.engine.sessionStore.Save(r.ctx, session); err != nil {
@@ -154,7 +154,7 @@ func (r childRun) linkSession(child, parent *Process) error {
 }
 
 func (r childRun) restoreSession(child, parent *Process) error {
-	if child == nil || parent == nil || child.options == nil || child.options.Session != nil {
+	if child == nil || parent == nil || child.options == nil || child.options.session != nil {
 		return nil
 	}
 	r.ctx = normalizeContext(r.ctx)
@@ -180,6 +180,6 @@ func (r childRun) restoreSession(child, parent *Process) error {
 		session.UpdatedAt.IsZero() {
 		return errors.New("stored session identity does not match process lineage")
 	}
-	child.options.Session = &session
+	child.options.session = &session
 	return nil
 }

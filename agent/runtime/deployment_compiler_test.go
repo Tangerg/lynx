@@ -738,13 +738,13 @@ func TestChildSpawnBindsCompiledDeploymentAndSessionIdentity(t *testing.T) {
 	if got := child.agent().Name(); got != "child" {
 		t.Fatalf("child definition name = %q, want frozen name", got)
 	}
-	if child.options.Session == nil {
+	if child.options.session == nil {
 		t.Fatal("child session was not linked")
 	}
-	if got := child.options.Session.AgentName; got != "child" {
+	if got := child.options.session.AgentName; got != "child" {
 		t.Fatalf("child session AgentName = %q, want frozen name", got)
 	}
-	if got := child.options.Session.ParentID; got != parentSession.ID {
+	if got := child.options.session.ParentID; got != parentSession.ID {
 		t.Fatalf("child session ParentID = %q, want %q", got, parentSession.ID)
 	}
 }
