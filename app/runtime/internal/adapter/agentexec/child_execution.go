@@ -23,16 +23,24 @@ type childExecution struct {
 // child options carry a policy bound to that same root, so deeper descendants
 // share one provider identity and one remaining application budget.
 type childExecutionPolicy struct {
-	dependencies *core.Dependencies
-	client       *chatclient.Client
-	observer     toolObserver
-	root         core.ProcessView
-	provider     string
-	budget       accounting.Budget
+	dependencies    *core.Dependencies
+	client          *chatclient.Client
+	observer        toolObserver
+	toolResultStore toolResultOffloader
+	evictThreshold  int
+	root            core.ProcessView
+	provider        string
+	budget          accounting.Budget
 }
 
-func childOptions(dependencies *core.Dependencies, client *chatclient.Client, observer toolObserver) core.ChildOptionsFunc {
-	return (childExecutionPolicy{dependencies: dependencies, client: client, observer: observer}).options
+func childOptions(dependencies *core.Dependencies, client *chatclient.Client, observer toolObserver, toolResultStore toolResultOffloader, evictThreshold int) core.ChildOptionsFunc {
+	return (childExecutionPolicy{
+		dependencies:    dependencies,
+		client:          client,
+		observer:        observer,
+		toolResultStore: toolResultStore,
+		evictThreshold:  evictThreshold,
+	}).options
 }
 
 func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView, _ *core.Agent) (core.ProcessOptions, error) {
@@ -70,6 +78,12 @@ func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView
 	}
 	if p.observer != nil {
 		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
+	}
+	// Registered after the observer so it wraps outer (see turnProcessOptions):
+	// a subtask offloads its own oversized tool results, scoped to its own
+	// session by the per-call turn context.
+	if ext := newToolResultEviction(p.toolResultStore, p.evictThreshold); ext != nil {
+		options.Extensions = append(options.Extensions, ext)
 	}
 	if p.client != nil {
 		options.Extensions = append(options.Extensions, perRunChatClient{client: p.client})

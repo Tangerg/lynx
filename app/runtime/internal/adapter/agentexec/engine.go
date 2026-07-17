@@ -32,6 +32,9 @@ type Engine struct {
 	workdir      string
 	pricing      accounting.Pricing
 
+	toolResultStore     toolResultOffloader
+	toolResultThreshold int
+
 	defaultProvider        string
 	modelStreamIdleTimeout time.Duration
 	guardrailsBuilder      chatGuardrailsBuilder
@@ -70,6 +73,8 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 		todos:                  config.Todos,
 		workdir:                config.Workdir,
 		pricing:                config.Pricing,
+		toolResultStore:        config.ToolResultStore,
+		toolResultThreshold:    config.ToolResultThreshold,
 		defaultProvider:        config.Provider,
 		modelStreamIdleTimeout: llmIdleTimeout,
 		guardrailsBuilder:      newChatGuardrailsWithBeforeRound,

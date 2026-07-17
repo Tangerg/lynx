@@ -86,4 +86,15 @@ type Config struct {
 	// Lyra owns root session CRUD directly. nil keeps delegation lineage only
 	// in process snapshots.
 	ChildSessionStore core.SessionStore
+
+	// ToolResultStore backs tool-result eviction: a single tool output larger
+	// than ToolResultThreshold is offloaded here and replaced in history by a
+	// head+tail placeholder the model can read back via read_tool_result. nil
+	// disables eviction (results always flow to history in full).
+	ToolResultStore toolResultOffloader
+
+	// ToolResultThreshold is the byte size above which a single tool result is
+	// offloaded (see ToolResultStore). Zero or negative disables eviction
+	// regardless of ToolResultStore.
+	ToolResultThreshold int
 }

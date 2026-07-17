@@ -30,16 +30,17 @@ type sessionForgetter interface {
 // back / restore / delete / cancel) rather than stitching a transaction across
 // table-CRUD calls (§8.1/§8.4).
 type sessionStores struct {
-	sessions   *sqlitestore.SessionStore
-	transcript *sqlitestore.TranscriptStore
-	interrupts *sqlitestore.InterruptStore
-	runs       *sqlitestore.RunStateStore
-	processes  *sqlitestore.ProcessStore
-	history    *conversation.Messages
-	todos      todo.Store
-	approvals  approval.RuleStore
-	forgetter  sessionForgetter
-	tx         Transactor
+	sessions    *sqlitestore.SessionStore
+	transcript  *sqlitestore.TranscriptStore
+	interrupts  *sqlitestore.InterruptStore
+	runs        *sqlitestore.RunStateStore
+	processes   *sqlitestore.ProcessStore
+	history     *conversation.Messages
+	todos       todo.Store
+	approvals   approval.RuleStore
+	toolResults *sqlitestore.ToolResultStore
+	forgetter   sessionForgetter
+	tx          Transactor
 }
 
 func (s sessionStores) Session() sessions.SessionStore       { return s.sessions }
@@ -242,6 +243,13 @@ func (s sessionStores) deleteSession(ctx context.Context, sessionID string) erro
 	}
 	if s.approvals != nil {
 		if err := s.approvals.DeleteSession(ctx, sessionID); err != nil {
+			return err
+		}
+	}
+	if s.toolResults != nil {
+		// Offloaded tool-result bodies are session-scoped; drop them in the same
+		// cascade transaction so a deleted session leaves no orphan blobs.
+		if err := s.toolResults.DropSession(ctx, sessionID); err != nil {
 			return err
 		}
 	}

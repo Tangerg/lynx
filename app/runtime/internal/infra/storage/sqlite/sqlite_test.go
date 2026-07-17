@@ -412,8 +412,8 @@ func TestOpenDiscardsAnOlderSchema(t *testing.T) {
 	}
 	defer db.Close()
 	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 5 {
-		t.Fatalf("schema version = %d, err=%v, want 5", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 6 {
+		t.Fatalf("schema version = %d, err=%v, want 6", version, err)
 	}
 	var legacyTables int
 	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='legacy_runs'`).Scan(&legacyTables); err != nil || legacyTables != 0 {
@@ -422,6 +422,52 @@ func TestOpenDiscardsAnOlderSchema(t *testing.T) {
 	var currentTables int
 	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='sessions'`).Scan(&currentTables); err != nil || currentTables != 1 {
 		t.Fatalf("sessions table count = %d, err=%v, want current schema", currentTables, err)
+	}
+}
+
+// TestOpenMigratesV5AddsToolResultsWithoutDataLoss is the regression for the
+// v5→v6 additive migration: a database at the previous shipping version (5)
+// must gain the tool_result_blobs table WITHOUT being discarded, so a user's
+// sessions survive the upgrade. It mimics a v5 DB by dropping the v6-only table
+// and resetting the version marker on a real database, then reopening.
+func TestOpenMigratesV5AddsToolResultsWithoutDataLoss(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v5.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	sess, err := sqlite.NewSessionStore(db).Create(t.Context(), "keep me", "")
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if _, err := db.Exec(`DROP TABLE tool_result_blobs`); err != nil {
+		t.Fatalf("drop v6 table: %v", err)
+	}
+	if _, err := db.Exec(`PRAGMA user_version = 5`); err != nil {
+		t.Fatalf("set version 5: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	reopened, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer reopened.Close()
+
+	var version int
+	if err := reopened.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 6 {
+		t.Fatalf("schema version = %d, err=%v, want 6", version, err)
+	}
+	// The v5 data survived (not discarded)...
+	var kept int
+	if err := reopened.QueryRow(`SELECT count(*) FROM sessions WHERE id = ?`, sess.ID).Scan(&kept); err != nil || kept != 1 {
+		t.Fatalf("session count = %d, err=%v, want the v5 session preserved", kept, err)
+	}
+	// ...and the new table is present and usable.
+	if _, err := sqlite.NewToolResultStore(reopened).Offload(t.Context(), sess.ID, "shell", "body"); err != nil {
+		t.Fatalf("tool_result_blobs unusable after migration: %v", err)
 	}
 }
 
@@ -532,8 +578,8 @@ func TestOpenMigratesV4SessionIdentity(t *testing.T) {
 	}
 	defer db.Close()
 	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 5 {
-		t.Fatalf("schema version = %d, err=%v, want 5", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 6 {
+		t.Fatalf("schema version = %d, err=%v, want 6", version, err)
 	}
 	var userID, agentName string
 	if err := db.QueryRow(`SELECT user_id, agent_name FROM sessions WHERE id='ses_keep'`).Scan(&userID, &agentName); err != nil || userID != "" || agentName != "" {

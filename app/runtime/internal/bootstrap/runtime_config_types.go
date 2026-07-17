@@ -158,6 +158,18 @@ type Config struct {
 	EmbeddingRoleStore EmbeddingRoleStore
 	CodebaseStore      codebaseindex.Store
 
+	// ToolResultStore persists tool-result bodies offloaded on context eviction
+	// (read back by read_tool_result). Injected sqlite-backed for the same
+	// single-backend / composition-ring reason as the other concrete stores; the
+	// runtime threads its offload view onto the engine, its read view onto the
+	// tool environment, and its drop view onto the session-delete cascade. nil
+	// disables eviction (results always flow to history in full).
+	ToolResultStore *sqlitestore.ToolResultStore
+
+	// ToolResultThreshold is the byte size above which a single tool result is
+	// offloaded (see ToolResultStore). Zero or negative disables eviction.
+	ToolResultThreshold int
+
 	// Transactor runs a write-set inside one storage transaction, so the sessions
 	// coordinator's cross-store operations (sessions.import / rollback / delete
 	// cascade) commit atomically. nil runs each function directly (no atomicity),

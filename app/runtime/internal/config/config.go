@@ -35,6 +35,9 @@ func Load() (Config, error) {
 	// or via LYRA_PROVIDER. (No vendor is privileged as the implicit default.)
 	v.SetDefault("server.listen", "127.0.0.1:17171")
 	v.SetDefault("server.noLocalToken", false)
+	// Tool-result eviction is on by default; an explicit non-positive value
+	// (e.g. toolResultOffload.threshold: 0) disables it.
+	v.SetDefault("toolResultOffload.threshold", DefaultToolResultOffloadThreshold)
 
 	// LYRA_* env override yaml (e.g. LYRA_PROVIDER, LYRA_SERVER_LISTEN).
 	v.SetEnvPrefix("LYRA")
@@ -84,6 +87,9 @@ func Load() (Config, error) {
 		MCPServers:   servers,
 		A2AAgents:    a2aAgents,
 		LSPServers:   lspServers,
+
+		ToolResultOffloadThreshold: v.GetInt("toolResultOffload.threshold"),
+
 		Server: ServerConfig{
 			Listen:         v.GetString("server.listen"),
 			NoLocalToken:   v.GetBool("server.noLocalToken"),
