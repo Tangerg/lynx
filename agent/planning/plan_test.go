@@ -12,7 +12,7 @@ import (
 type nvIn struct{ X int }
 type nvOut struct{ Y int }
 
-// TestNetValueIncludesActionsValue locks in the embabel ranking heuristic
+// TestNetValueIncludesActionsValue locks in the standard plan-value ranking
 // (goal.value + actionsValue − cost). The actions-value term was previously
 // dropped, so a plan whose actions carry independent value ranked the same
 // as a valueless plan with equal goal value and cost.

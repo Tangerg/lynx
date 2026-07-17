@@ -28,6 +28,13 @@ type search struct {
 	expansions int
 }
 
+// edge records the predecessor state and the action taken to reach a
+// successor, so reconstructPath can walk the cheapest chain back to the start.
+type edge struct {
+	prevKey string
+	action  core.Action
+}
+
 // newSearch seeds a uniform-cost frontier for this planning pass.
 func newSearch(
 	start core.WorldState,

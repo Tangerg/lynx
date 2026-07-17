@@ -33,8 +33,3 @@ func (f *frontier) Pop() any {
 	*f = old[:last]
 	return node
 }
-
-type edge struct {
-	prevKey string
-	action  core.Action
-}

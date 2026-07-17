@@ -1,10 +1,8 @@
 package toolloop
 
 import (
-	"context"
 	"reflect"
 
-	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -29,14 +27,6 @@ type directRuntimeTool struct {
 var _ tools.FileMutationReporter = directRuntimeTool{}
 
 func (directRuntimeTool) ReturnsDirect() bool { return true }
-
-func (t directRuntimeTool) Definition() chat.ToolDefinition {
-	return t.Tool.Definition()
-}
-
-func (t directRuntimeTool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.Tool.Call(ctx, arguments)
-}
 
 // ConcurrencyKey preserves the wrapped tool's optional scheduling contract.
 // A policy decorator must not accidentally turn an isolated/read-only tool
