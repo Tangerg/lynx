@@ -15,6 +15,10 @@ import (
 
 const echoSchema = `{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`
 
+type concurrencyKeyer interface {
+	ConcurrencyKey(arguments string) (key string, concurrent bool)
+}
+
 // startServerWithEcho boots an in-memory MCP server that exposes a single
 // "echo" tool (text -> text). It returns the live ClientSession the test
 // should use to list tools, the underlying Server (so tests can mutate its
@@ -169,6 +173,49 @@ func TestToolsCustomNaming(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 	assert.Equal(t, "mcp__echo", tools[0].Definition().Name)
+}
+
+func TestToolsConcurrencyPolicyReceivesRemoteIdentity(t *testing.T) {
+	ctx := t.Context()
+	cs, _, cleanup := startServerWithEcho(t, ctx)
+	defer cleanup()
+
+	var gotSource, gotTool, gotArguments string
+	wrapped, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "primary", Session: cs}}, lynxmcp.ToolOptions{
+		Concurrency: func(sourceName string, tool *sdkmcp.Tool, arguments string) (string, bool) {
+			gotSource = sourceName
+			gotTool = tool.Name
+			gotArguments = arguments
+			return "tenant:acme", true
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, wrapped, 1)
+
+	scheduled, ok := wrapped[0].(concurrencyKeyer)
+	require.True(t, ok)
+	key, concurrent := scheduled.ConcurrencyKey(`{"tenant":"acme"}`)
+	assert.True(t, concurrent)
+	assert.Equal(t, "tenant:acme", key)
+	assert.Equal(t, "primary", gotSource)
+	assert.Equal(t, "echo", gotTool)
+	assert.Equal(t, `{"tenant":"acme"}`, gotArguments)
+}
+
+func TestToolsDefaultConcurrencyIsExclusive(t *testing.T) {
+	ctx := t.Context()
+	cs, _, cleanup := startServerWithEcho(t, ctx)
+	defer cleanup()
+
+	wrapped, err := lynxmcp.Tools(ctx, []lynxmcp.ToolSource{{Name: "primary", Session: cs}}, lynxmcp.ToolOptions{})
+	require.NoError(t, err)
+	require.Len(t, wrapped, 1)
+
+	scheduled, ok := wrapped[0].(concurrencyKeyer)
+	require.True(t, ok)
+	key, concurrent := scheduled.ConcurrencyKey(`{}`)
+	assert.False(t, concurrent)
+	assert.Empty(t, key)
 }
 
 func TestToolsRejectsEmptyPublicName(t *testing.T) {

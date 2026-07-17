@@ -62,6 +62,18 @@ type ToolSource struct {
 	Session *sdkmcp.ClientSession
 }
 
+// ConcurrencyFunc decides whether one remote tool call may overlap other calls
+// from the same model response. A false result keeps the call exclusive; a true
+// result with an empty key declares no known conflict, while equal non-empty
+// keys serialize.
+//
+// The callback receives the source's logical name, the remote descriptor, and
+// the raw call arguments. It must be deterministic, side-effect-free, and safe
+// for concurrent use because a durable resume may plan queued calls again and
+// callers may inspect the capability from multiple goroutines. Treat tool as
+// read-only.
+type ConcurrencyFunc func(sourceName string, tool *sdkmcp.Tool, arguments string) (key string, concurrent bool)
+
 // ToolOptions configures [Tools].
 type ToolOptions struct {
 	// Naming maps each remote tool descriptor to its public name. Nil
@@ -73,6 +85,13 @@ type ToolOptions struct {
 	// MetaFunc is applied to every tool produced. Nil forwards no metadata on
 	// tool calls.
 	MetaFunc MetaFunc
+
+	// Concurrency opts remote tools into a caller-owned scheduling policy. Nil
+	// keeps every MCP call exclusive because protocol descriptors do not provide
+	// a trustworthy resource-conflict contract. The lynx Agent ToolLoop still
+	// commits results in the model's original call order when this policy enables
+	// concurrent execution.
+	Concurrency ConcurrencyFunc
 }
 
 func (o ToolOptions) withDefaults() ToolOptions {
@@ -109,6 +128,8 @@ func Tools(ctx context.Context, sources []ToolSource, opts ToolOptions) ([]toolc
 				Descriptor:   descriptor,
 				PrefixedName: name,
 				MetaFunc:     opts.MetaFunc,
+				SourceName:   src.Name,
+				Concurrency:  opts.Concurrency,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("mcp.Tools: wrap tool %q from source %q: %w", descriptor.Name, src.Name, err)

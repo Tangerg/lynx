@@ -22,10 +22,12 @@ import (
 //
 // The wrapper is immutable after construction.
 type tool struct {
-	session    *sdkmcp.ClientSession
-	descriptor *sdkmcp.Tool
-	definition corechat.ToolDefinition
-	metaFunc   MetaFunc
+	session     *sdkmcp.ClientSession
+	descriptor  *sdkmcp.Tool
+	definition  corechat.ToolDefinition
+	metaFunc    MetaFunc
+	sourceName  string
+	concurrency ConcurrencyFunc
 }
 
 var _ toolcontract.Tool = (*tool)(nil)
@@ -48,6 +50,11 @@ type toolConfig struct {
 	// MetaFunc produces the _meta map carried on each CallTool RPC. Nil
 	// forwards no metadata.
 	MetaFunc MetaFunc
+
+	// SourceName and Concurrency carry the optional caller-owned scheduling
+	// policy. Nil Concurrency keeps the remote tool exclusive.
+	SourceName  string
+	Concurrency ConcurrencyFunc
 }
 
 // newTool builds a [tools.Tool] from cfg. cfg.Session must be
@@ -80,11 +87,24 @@ func newTool(cfg toolConfig) (*tool, error) {
 			Description: cfg.Descriptor.Description,
 			InputSchema: schema,
 		},
-		metaFunc: cfg.MetaFunc,
+		metaFunc:    cfg.MetaFunc,
+		sourceName:  cfg.SourceName,
+		concurrency: cfg.Concurrency,
 	}, nil
 }
 
 func (t *tool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
+
+// ConcurrencyKey structurally satisfies schedulers that support conflict-aware
+// parallel calls without coupling this protocol adapter to a particular agent
+// runtime. Unknown remote tools remain exclusive unless the caller supplied a
+// policy through [ToolOptions.Concurrency].
+func (t *tool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+	if t.concurrency == nil {
+		return "", false
+	}
+	return t.concurrency(t.sourceName, t.descriptor, arguments)
+}
 
 // Call implements [tools.Tool]. IsError=true on the remote
 // result is mapped to [*ToolCallError] so a tool failure is not
