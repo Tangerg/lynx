@@ -50,6 +50,8 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 		ScheduleRegistry:       stores.Schedules,
 		EmbeddingRoleStore:     stores.EmbeddingRole,
 		CodebaseStore:          stores.Codebase,
+		ToolResultStore:        stores.ToolResults,
+		ToolResultThreshold:    cfg.ToolResultOffloadThreshold,
 		Transactor:             Transactor(stores.Tx),
 		ApprovalMode:           approval.ModeBalanced,
 		ApprovalRuleStore:      stores.ApprovalRules,

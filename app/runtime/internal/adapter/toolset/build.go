@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
@@ -53,6 +54,7 @@ type BuildConfig struct {
 	Approval        approval.Policy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
 	Interrupt       interrupts.Func
 	Schedules       schedule.Registry // backs the schedule tool; nil → omitted
+	ToolResults     toolresult.Store  // backs read_tool_result (reads offloaded tool output); nil → omitted
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
 	// index with no embedding model configured — omits the tool.
@@ -150,6 +152,13 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build schedule tool: %w", err)
 	}
+	// read_tool_result reads back a tool output the runtime offloaded on
+	// eviction. Working-directory independent (keys off the session id), so built
+	// once and given to both roles. nil store → nil tool, simply omitted.
+	toolResultTool, err := toolresult.New(config.ToolResults)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build read_tool_result: %w", err)
+	}
 
 	mcpConns, mcpTools, err := mcp.Dial(ctx, infraMCPServerConfigs(config.MCPServers))
 	if err != nil {
@@ -172,6 +181,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		ExitPlan:        exitPlanTool,
 		Todo:            todoTool,
 		Schedule:        scheduleTool,
+		ToolResult:      toolResultTool,
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
 		MCPToolDisabled: config.MCPToolDisabled,
@@ -202,6 +212,9 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}
 	if scheduleTool != nil {
 		tools = append(tools, scheduleTool)
+	}
+	if toolResultTool != nil {
+		tools = append(tools, toolResultTool)
 	}
 	// codebase_search is in the catalog whenever the index is wired — the tool's
 	// metadata is meaningful regardless of the live embedding model, and the

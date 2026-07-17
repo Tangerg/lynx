@@ -51,6 +51,7 @@ type Bundle struct {
 	Schedules     *sqlitestore.ScheduleStore
 	EmbeddingRole *sqlitestore.EmbeddingRoleStore
 	Codebase      *sqlitestore.CodebaseIndexStore
+	ToolResults   *sqlitestore.ToolResultStore
 }
 
 // Open wires the persistence backends. The returned bundle owns the shared
@@ -91,6 +92,7 @@ func Open() (*Bundle, error) {
 		Schedules:     sqlitestore.NewScheduleStore(db),
 		EmbeddingRole: sqlitestore.NewEmbeddingRoleStore(db),
 		Codebase:      sqlitestore.NewCodebaseIndexStore(db),
+		ToolResults:   sqlitestore.NewToolResultStore(db),
 	}, nil
 }
 

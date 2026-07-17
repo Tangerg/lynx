@@ -136,7 +136,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	if err != nil {
 		return nil, fmt.Errorf("engine: build steering guardrails: %w", err)
 	}
-	processOptions, err := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, guardrails)
+	processOptions, err := e.turnProcessOptions(request.SessionID, request.Observer, request.EventListener, request.ChatClient, guardrails)
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure chat process: %w", err)
 	}
@@ -160,10 +160,11 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 // per turn when mid-run steering is enabled. The runtime stamps each request's
 // conversation id from this Session, so one shared history chain can still
 // serve both this turn and spawned subtasks unless explicitly overridden.
-func turnProcessOptions(dependencies *core.Dependencies, sessionID string, observer toolObserver, listener core.Extension, client *chatclient.Client, guardrails *core.ChatGuardrails) (core.ProcessOptions, error) {
+func (e *Engine) turnProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client *chatclient.Client, guardrails *core.ChatGuardrails) (core.ProcessOptions, error) {
+	dependencies := e.dependencies
 	options := core.ProcessOptions{}
 	if dependencies != nil {
-		options.ChildOptions = childOptions(dependencies, client, observer)
+		options.ChildOptions = childOptions(dependencies, client, observer, e.toolResultStore, e.toolResultThreshold)
 	}
 	if sessionID != "" {
 		options.Session = &core.Session{ID: sessionID}
@@ -180,6 +181,14 @@ func turnProcessOptions(dependencies *core.Dependencies, sessionID string, obser
 		options.Dependencies = scope
 		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
 	}
+	// Tool-result eviction is registered AFTER the observer so it wraps OUTER:
+	// the observer's finish() still reports the full body to the UI, and only the
+	// value flowing on to history is offloaded + replaced by a placeholder. The
+	// session id is read per call off the turn context, so one middleware serves
+	// root and subtask turns alike.
+	if ext := e.toolResultEviction(); ext != nil {
+		options.Extensions = append(options.Extensions, ext)
+	}
 	if listener != nil {
 		options.Extensions = append(options.Extensions, listener)
 	}
@@ -190,6 +199,12 @@ func turnProcessOptions(dependencies *core.Dependencies, sessionID string, obser
 		options.Guardrails = guardrails
 	}
 	return options, nil
+}
+
+// toolResultEviction builds the tool-result eviction middleware, or nil when
+// eviction is disabled. Shared by the root turn and delegated subtasks.
+func (e *Engine) toolResultEviction() core.Extension {
+	return newToolResultEviction(e.toolResultStore, e.toolResultThreshold)
 }
 
 func (e *Engine) steeringGuardrails(steer SteerSource) (*core.ChatGuardrails, error) {
@@ -259,7 +274,7 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	// re-resolved from the interrupt's persisted provider+model — so a restart
 	// mid-run keeps the model the turn parked on. nil (no selection / provider
 	// gone) falls back to the engine default.
-	options, err := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, nil)
+	options, err := e.turnProcessOptions(request.SessionID, request.Observer, request.EventListener, request.ChatClient, nil)
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure restored chat process: %w", err)
 	}

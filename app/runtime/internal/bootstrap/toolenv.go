@@ -13,7 +13,7 @@ import (
 )
 
 func buildToolEnvironment(ctx context.Context, cfg Config, ecfg agentexec.Config, approvalPolicy approval.Policy, mcpEnv mcpEnvironment, codebaseIdx toolset.CodebaseIndex) (toolset.Built, error) {
-	built, err := toolset.Build(ctx, toolset.BuildConfig{
+	bc := toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.SkillsGlobalDir,
 		Online:          toolset.OnlineConfig(cfg.Online),
@@ -26,7 +26,13 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg agentexec.Config
 		Schedules:       cfg.ScheduleRegistry,
 		MCPToolDisabled: mcpEnv.toolDisabled,
 		CodebaseIndex:   codebaseIdx,
-	})
+	}
+	// Set the read-back store only when concretely present, so a nil store never
+	// reaches the tool builder as a non-nil interface holding a nil pointer.
+	if cfg.ToolResultStore != nil {
+		bc.ToolResults = cfg.ToolResultStore
+	}
+	built, err := toolset.Build(ctx, bc)
 	if err != nil {
 		return toolset.Built{}, fmt.Errorf("runtime: build tools: %w", err)
 	}

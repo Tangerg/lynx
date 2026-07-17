@@ -52,6 +52,7 @@ type Resolver struct {
 	exitPlan        tools.Tool          // exit_plan_mode HITL tool; coding role only (exitplan.New, via dependencies); nil without an approval policy
 	todo            tools.Tool          // todo_write task-list tool; both roles, nil when no todo store
 	schedule        tools.Tool          // schedule management op-tool; coding role only, nil when no registry
+	toolResult      tools.Tool          // read_tool_result offloaded-output reader; both roles, nil when eviction is off
 
 	// codebaseIndex backs codebase_search (both roles). Held as the index (not
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
@@ -89,6 +90,7 @@ type Deps struct {
 	ExitPlan        tools.Tool          // exit_plan_mode HITL tool (coding role only); nil → omitted
 	Todo            tools.Tool          // todo_write task-list tool (both roles); nil → omitted
 	Schedule        tools.Tool          // schedule management op-tool (coding role only); nil → omitted
+	ToolResult      tools.Tool          // read_tool_result offloaded-output reader (both roles); nil → omitted
 	CodeIntel       *codeintel.Analyzer // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker  // backs the read/edit/write guards
 	CodebaseIndex   CodebaseIndex       // backs codebase_search (both roles); nil → omitted
@@ -133,6 +135,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 		exitPlan:        d.ExitPlan,
 		todo:            d.Todo,
 		schedule:        d.Schedule,
+		toolResult:      d.ToolResult,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
 		pathLocker:      newPathLocker(),
@@ -275,6 +278,12 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	// subtask tracks its own task list the same way the main agent does.
 	if g.resolver.todo != nil {
 		tools = append(tools, g.resolver.todo)
+	}
+	// read_tool_result (both roles): reads back a tool output offloaded on
+	// eviction. Session-keyed, cwd-independent so a subtask reads its own
+	// offloaded results the same way the main agent does.
+	if g.resolver.toolResult != nil {
+		tools = append(tools, g.resolver.toolResult)
 	}
 	// codebase_search (both roles): semantic code search over the turn's cwd.
 	// Offered only when an embedding model is configured (Available reads the

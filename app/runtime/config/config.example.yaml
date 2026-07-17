@@ -28,8 +28,14 @@ apiKey: ""
 # OpenAI-compatible server. Overridden by LYRA_BASEURL env.
 baseURL: ""
 
-# Persistence backend: file | sqlite
-storage: file
+# Tool-result eviction: a single tool output larger than this many bytes is
+# offloaded out of the conversation (stored in SQLite) and replaced inline by a
+# head+tail placeholder the model reads back on demand via the read_tool_result
+# tool — so one giant file read or command dump stops re-inflating every later
+# request. Default ~50000, enabled. Set 0 (or any non-positive value) to
+# disable. Overridable by LYRA_TOOLRESULTOFFLOAD_THRESHOLD.
+# toolResultOffload:
+#   threshold: 50000
 
 # Runtime HTTP transport settings. Each is overridable by the matching
 # LYRA_SERVER_* env var.

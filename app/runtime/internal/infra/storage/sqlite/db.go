@@ -50,7 +50,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 5
+const schemaVersion = 6
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -67,6 +67,10 @@ func installCurrentSchema(db *sql.DB) error {
 		if err := migrateSessionIdentitySchema(db); err != nil {
 			return err
 		}
+	case 5:
+		// v5 → v6 adds tool_result_blobs, a purely additive table the shared
+		// CREATE TABLE IF NOT EXISTS block below installs — no data transform, so
+		// this case only exists to keep a v5 database off the discard path.
 	case schemaVersion:
 	default:
 		if err := discardSchema(db); err != nil {
@@ -297,6 +301,22 @@ func installCurrentSchema(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_codebase_chunks_cwd
 			ON codebase_chunks(cwd)`,
+		// Offloaded tool-result bodies (context eviction): a single tool output
+		// that exceeds the eviction threshold is moved here and the conversation
+		// history keeps only a head+tail placeholder carrying id, so one huge
+		// result stops re-inflating every later LLM request while staying
+		// retrievable (read_tool_result fetches by id). session_id scopes both the
+		// read-back and the session-delete cascade; created_at is DB-stamped for
+		// operational visibility only.
+		`CREATE TABLE IF NOT EXISTS tool_result_blobs (
+			id          TEXT    PRIMARY KEY,
+			session_id  TEXT    NOT NULL DEFAULT '',
+			tool_name   TEXT    NOT NULL DEFAULT '',
+			body        TEXT    NOT NULL,
+			created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_tool_result_blobs_session
+			ON tool_result_blobs(session_id)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
