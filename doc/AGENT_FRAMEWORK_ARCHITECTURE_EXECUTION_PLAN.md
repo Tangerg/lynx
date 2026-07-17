@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：已完成（P11 确定性并发、恢复与规划正确性里程碑）
+> 状态：已完成（P12 构造所有权与 Session reference store，108/108）
 > 建立日期：2026-07-15
 > 最后更新：2026-07-17
 > 维护者：Lynx 仓库维护者
@@ -1659,6 +1659,32 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
 pause/restart 不重放已完成工作；snapshot 不保存跨进程聚合猜测；planner 的最优性合同与
 算法一致；全部门禁通过。
 
+### P12：构造所有权与 Session reference store
+
+目标：把公开配置 DTO 与运行中聚合彻底分开，消除 caller 通过 slice/pointer/map 别名
+改写 Engine/Process 的可能，并让内存 SessionStore 与公开的 JSON persistence 合同一致。
+
+- [x] **P12-01 审计 Engine/Process 构造边界与 Session reference store**（完成：2026-07-17）
+  - 定位 `Process` 直接保留 `*core.ProcessOptions`、Engine 直接保留 Guardrails pointer、
+    process extension typed-nil 在 `Name()` panic，以及 MemorySessionStore Metadata Save/Load
+    双向别名四类真实问题。
+- [x] **P12-02 将 ProcessOptions 投影为私有运行配置并 fail closed**（完成：2026-07-17）
+  - Process 只保留私有 `processOptions`；Session 只投影 identity/audit，opaque Metadata
+    留在 SessionStore；Extensions 与 Guardrails middleware slice 防御性复制。
+  - caller-supplied typed-nil Blackboard/Extension 和负数 MaxToolRounds 在构造边界返回归因
+    error；Engine Guardrails 同样验证并快照。
+- [x] **P12-03 修复 MemorySessionStore 的持久化所有权**（完成：2026-07-17）
+  - Save/Load 两侧通过 JSON snapshot 递归隔离 nested map/slice，并拒绝不可 JSON 编码的
+    Metadata；补 caller mutation、load mutation 与 race-isolation 测试。
+- [x] **P12-04 执行完整 Agent/App/workspace gate 并形成独立提交**（完成：2026-07-17）
+  - Agent build/vet/test/lint/full race/tidy/API/wire/arch；App 常规门禁与高风险 race；
+    workspace 全门禁、diff check、独立 commit/push。API/wire 无意改变，必须由 baseline
+    guard 证明，而不是凭 diff 推断。
+
+退出标准：长生命周期对象不保留调用方 config 数据袋；调用方在构造返回后复用或修改
+容器不影响运行中语义；reference SessionStore 不泄漏 Metadata 别名；非法 capability 在
+边界返回错误而非 panic；完整门禁通过。
+
 ---
 
 ## 15. 当前进度
@@ -1679,15 +1705,16 @@ pause/restart 不重放已完成工作；snapshot 不保存跨进程聚合猜测
 | P9 Go API 语义化收口 | 完成 | 15/15 | 代码、consumer、文档、API/wire/deployment baseline 与完整 Agent/App gate 全部统一 |
 | P10 Owner Receiver 精修 | 完成 | 7/7 | 公私有 owner method、deployment compiler、文件职责、API/文档与完整 Agent/App gate 全部完成 |
 | P11 确定性并发与恢复 | 完成 | 7/7 | 并发、恢复、snapshot、GOAP、consumer、文档与完整门禁全部收口 |
-| **总计** | **完成** | **104/104（100%）** | **P0–P11 全部关闭** |
+| P12 构造所有权与 Session store | 完成 | 4/4 | 私有 process options、Guardrails/extension snapshot、typed-nil guard、Session metadata defensive store 与完整门禁全部完成 |
+| **总计** | **完成** | **108/108（100%）** | **P0–P12 全部关闭；后续 tag/release 仍是独立授权动作** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P11 确定性并发、恢复与规划正确性，7/7，里程碑关闭。
-- 下一任务：无。后续若发布 tag/release 或迁移外部持久数据，需单独授权。
+- 当前阶段：P12 构造所有权与 Session reference store，4/4，已关闭。
+- 下一任务：无；tag/release 仍是独立授权动作，本批不创建。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：ToolLoop checkpoint v2、有界 resource-key 并发、AgentTool child forest、
-  ProcessSnapshot v2、严格 GOAP uniform-cost path 与完整 Agent/App/workspace gate。
+- 最近完成：Engine/Process 私有构造快照、Session metadata defensive store、typed-nil
+  capability fail-closed，以及完整 Agent/App/workspace gate。
 
 ### 15.3 进度更新规则
 
@@ -1839,6 +1866,8 @@ pause/restart 不重放已完成工作；snapshot 不保存跨进程聚合猜测
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-17 | 完成 P12-04 并关闭 108/108：Agent build/vet/test/lint/full race/tidy、App 常规门禁与 agentexec/toolset/runsegment/SQLite/bootstrap/arch 高风险 race、workspace 105 项完整门禁、API/wire/arch baseline 和 diff 审计全绿；P12 形成独立提交并推送，不创建 tag/release | Codex |
+| 2026-07-17 | 启动并完成 P12-01 至 P12-03：Process 不再持有公开 ProcessOptions 数据袋，Engine/Process 快照 Guardrails、extension slice 与 Session identity，typed-nil capability/负数工具轮数构造期失败；MemorySessionStore Save/Load 递归隔离 JSON Metadata；Agent 全量 test/vet、core/runtime race 与 App agentexec/bootstrap/arch 定向门禁通过，待完整 release gate | Codex |
 | 2026-07-17 | 完成 P11-07 并关闭 104/104：最终复核发现 state-dependent cost 下 relevance pruning/post-search action removal 不安全，删除两类剪枝并补“只影响后续成本”反例；随后 Agent 常规/full race、App 常规/高风险 race、workspace 84 项门禁、tidy、API/wire/arch 和 diff 审计全绿；形成并推送里程碑提交，不创建 tag/release | Codex |
 | 2026-07-17 | 完成 P11-06：迁移 App consumer 与 fixture，刷新 16 package / 645 declaration / root 47 的 API baseline 和 16 struct / 490 行 wire fixture；Guide、migration、release notes、architecture review、模块维护规则及 Spring AI/Embabel 对照统一到“显式安全并发、模型顺序提交、checkpoint 固定执行宽度”的当前事实 | Codex |
 | 2026-07-17 | 启动并完成 P11-01 至 P11-05：对照 Spring AI/Embabel 与历史实现，恢复 ToolLoop 有界 resource-key 并发和 checkpoint v2，将同步 AgentTool 单链升级为 ToolCall 关联 child forest，ProcessSnapshot 升级为 direct-ledger v2，GOAP 改为确定性 uniform-cost search；待 API/wire/docs 与完整门禁收口 | Codex |
@@ -1879,6 +1908,8 @@ pause/restart 不重放已完成工作；snapshot 不保存跨进程聚合猜测
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-17 | P12-04 | Agent `build/vet/test/lint` 与 full race 全绿；App `build/vet/test/lint`、agentexec/toolset/runsegment/SQLite/bootstrap/architecture race 全绿；workspace `all green (105 checks)`；Agent/App tidy、API/wire/arch baseline 与 `git diff --check` 通过 | 无；108/108 关闭。当前批独立 commit/push，不 tag/release |
+| 2026-07-17 | P12-01 至 P12-03 | 新增私有 `processOptions` ownership boundary；Process 不保留 Blackboard/Dependencies 之外的公开 config DTO，Session Metadata 不进入执行聚合，Extensions/Guardrails slice 复制；typed-nil Blackboard/Extension 与负数 MaxToolRounds fail closed。MemorySessionStore 使用递归 JSON snapshot，caller/load mutation 测试通过。Agent `go test -count=1 ./...`、`go vet ./...`、`go test -race ./core ./runtime` 与 App agentexec/bootstrap/arch 定向测试全绿；Agent API/wire/arch guard 随全量测试通过 | P12-04 完整 Agent/App/workspace gate、提交并 push |
 | 2026-07-17 | P11-07 | 最终算法复核删除动态 cost 下不安全的 relevance/post-search pruning，并由反例固定 predecessor path 合同。Agent `build/vet/test/lint` 与 full race 全绿；App `build/vet/test/lint`、agentexec/toolset/runsegment/SQLite/bootstrap/architecture race 全绿；workspace 84 项常规门禁全绿；Agent/App tidy、API/wire/arch、`git diff --check` 通过 | 无；104/104 关闭。仅执行授权的 commit/push，不 tag/release |
 | 2026-07-17 | P11-06 | Managed Interaction/App consumer、API/wire inventory 与 fixture 全部迁移到新语义；模块 CLAUDE、Guide、migration、release notes、architecture review 和两份对照文档同步。API baseline 为 16 package/645 declaration/root 47，SHA-256 `5d7c9ac2eed7f546642b65f433c6a653160e90d0e1389752e2194b02269f97c4`；wire 为 16 struct/490 行，SHA-256 `6e6ba3b76c9f4c06093984d8c897585de95e2e19b550690ec349ddd6c18b793b`；`internal/arch` 全绿 | P11-07 完整 Agent/App/workspace gate、提交并 push |
 | 2026-07-17 | P11-01 至 P11-05 | 新增两份对照分析；ToolLoop 工具默认独占、显式并发、resource-key 冲突和最大宽度均有确定性 channel 测试，完成乱序但 event/continuation 按调用顺序；checkpoint v2 支持多个 completed/paused call。AgentTool 用 exact ToolCallID 并发启动同名同参 child，child forest 跨 snapshot/new Engine 恢复并依次 resume。ProcessSnapshot v2 只保存 Own* ledger。GOAP 多 effect counterexample、state-dependent transition cost 与 invalid-cost table tests 通过 | P11-06 更新 consumer/API/wire/docs；P11-07 跑完整 gate、提交并 push |

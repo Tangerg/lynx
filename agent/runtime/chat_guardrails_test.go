@@ -45,7 +45,7 @@ func TestProcessChatBindsSessionToTargetHistoryMiddleware(t *testing.T) {
 	}
 	process := &Process{
 		id:      "session-1",
-		options: &core.ProcessOptions{Guardrails: guardrails},
+		options: &processOptions{guardrails: guardrails},
 	}
 	scoped, err := process.scopeChat(core.ChatCapability{Model: client, Streamer: client})
 	if err != nil {

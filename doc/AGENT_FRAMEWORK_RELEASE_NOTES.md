@@ -113,7 +113,11 @@
   `Engine.RestoreResumable` 获得统一的 `ErrResumableSnapshotLost` 分类；Host
   不再读取或解释 `ProcessSnapshot`。
 - ProcessStore 使用 expected revision CAS。
-- `MemoryProcessStore`、`MemorySessionStore` 提供 reference implementation。
+- Engine/Process 在构造边界把公开 Config/ProcessOptions 投影为私有快照，调用方后续修改
+  Session identity、Extensions slice 或 Guardrails 不再改变运行中语义；typed-nil capability
+  和负数工具轮数在边界返回归因错误，而不是执行期 panic/延迟失败。
+- `MemoryProcessStore`、`MemorySessionStore` 提供 reference implementation；后者在 Save/Load
+  两侧递归快照 JSON metadata，拒绝不可持久化值且不泄漏嵌套 map/slice 别名。
 - `storetest.TestProcessStore` 是唯一公开外部实现 contract suite；`providertest` 已移除。
 
 ### Naming and files

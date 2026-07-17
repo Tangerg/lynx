@@ -67,7 +67,7 @@ host application and adapters
 | `planning.Domain` | runtime / planner | 不可变 capability universe；拥有 plans、best-plan 与 prune 派生行为 |
 | `planning.Plan` | planner | 不可变 Action 序列与 Goal |
 | `runtime.Deployment` | Engine catalog | 编译后不可变；具有精确 `DeploymentRef` |
-| `runtime.Process` | Engine | 永久绑定一个 Deployment；单 active execution owner；拥有 continuation 状态判断 |
+| `runtime.Process` | Engine | 永久绑定一个 Deployment；单 active execution owner；只保留已校验、已快照的私有运行配置；拥有 continuation 状态判断 |
 | `core.ProcessContext` | runtime | 只向当前 Action 暴露必要的写、交互和控制能力 |
 | `interaction.Suspension` | Process | JSON-safe、可验证、不保存闭包 |
 | `toolloop.Checkpoint` | interaction | 保存逐 tool call 的可恢复协议状态与稳定提交游标 |
@@ -170,6 +170,12 @@ Restore 建立 parent-child budget linkage 后自然恢复聚合，不从父级 
 queued/completed/paused 状态，以 `NextResult` 保存唯一外部提交位置。
 
 Blackboard 普通值默认 durable，函数、channel、client 和 runtime handle 必须显式 transient。未知 schema、未知字段、无效 enum、DeploymentRef 不匹配或 checkpoint correlation 错误一律 fail closed。开发期不为旧 snapshot 增加双读 decoder。
+
+`runtime.Config` 与 `core.ProcessOptions` 是构造输入，不是长生命周期状态。Engine/Process
+在构造边界复制 Guardrails middleware slice、process extension slice 和 Session identity，
+并把公开 DTO 投影为私有运行配置；调用方随后复用或修改原值不会改变运行中的 Process。
+Session 的 opaque Metadata 只由 SessionStore 持有，参考 MemorySessionStore 在 Save 与 Load
+两侧都做递归 JSON 快照，并拒绝 durable backend 无法编码的值。
 
 ## 9. 当前兼容与发布边界
 

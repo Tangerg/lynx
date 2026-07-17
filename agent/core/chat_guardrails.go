@@ -3,7 +3,8 @@ package core
 import "github.com/Tangerg/lynx/core/chat"
 
 // ChatGuardrails carries engine-wide call and stream middleware plus the bounded
-// tool-loop policy used by Prompt. Middleware remains ordinary target
+// tool-loop policy used by Prompt. Runtime constructors snapshot the value and
+// both middleware slices before retaining it. Middleware remains ordinary target
 // core/chat composition; executable tools and loop state never enter a request.
 type ChatGuardrails struct {
 	CallMiddlewares   []chat.CallMiddleware

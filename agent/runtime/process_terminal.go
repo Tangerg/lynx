@@ -52,7 +52,7 @@ func (p *Process) markCancelled(ctx context.Context, err error) {
 // exit.
 func (p *Process) checkStopPolicies(ctx context.Context) bool {
 	policies := append(
-		[]core.StopPolicy{core.BudgetPolicy{Budget: p.options.Budget}},
+		[]core.StopPolicy{core.BudgetPolicy{Budget: p.options.budget}},
 		collectExtensions[core.StopPolicy](p.combinedExtensions())...,
 	)
 	for _, policy := range policies {

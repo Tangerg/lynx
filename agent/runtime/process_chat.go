@@ -96,8 +96,8 @@ func (p *Process) engineGuardrails() *core.ChatGuardrails {
 }
 
 func (p *Process) effectiveGuardrails() *core.ChatGuardrails {
-	if p.options != nil && p.options.Guardrails != nil {
-		return p.options.Guardrails
+	if p.options != nil && p.options.guardrails != nil {
+		return p.options.guardrails
 	}
 	return p.engineGuardrails()
 }

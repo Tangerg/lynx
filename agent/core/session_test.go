@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,6 +57,79 @@ func TestMemorySessionStoreSaveLoad(t *testing.T) {
 	if got.ID != "s-1" || got.Metadata["channel"] != "web" {
 		t.Errorf("round-trip: %#v", got)
 	}
+}
+
+func TestMemorySessionStoreOwnsNestedMetadataSnapshots(t *testing.T) {
+	store := core.NewMemorySessionStore()
+	session := core.NewSession("s-1", "user-1", "demo")
+	nested := map[string]any{"labels": []any{"saved"}}
+	session.Metadata["nested"] = nested
+
+	if err := store.Save(t.Context(), session); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	nested["labels"].([]any)[0] = "caller-mutated"
+	session.Metadata["new"] = true
+
+	first, err := store.Load(t.Context(), session.ID)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	firstNested := first.Metadata["nested"].(map[string]any)
+	if got := firstNested["labels"].([]any)[0]; got != "saved" {
+		t.Fatalf("stored nested metadata = %v, want saved", got)
+	}
+	if _, leaked := first.Metadata["new"]; leaked {
+		t.Fatal("stored metadata retained caller map mutation")
+	}
+
+	firstNested["labels"].([]any)[0] = "load-mutated"
+	second, err := store.Load(t.Context(), session.ID)
+	if err != nil {
+		t.Fatalf("second Load: %v", err)
+	}
+	secondNested := second.Metadata["nested"].(map[string]any)
+	if got := secondNested["labels"].([]any)[0]; got != "saved" {
+		t.Fatalf("load result aliased stored metadata: got %v", got)
+	}
+}
+
+func TestMemorySessionStoreRejectsNonJSONMetadata(t *testing.T) {
+	store := core.NewMemorySessionStore()
+	session := core.NewSession("s-1", "user-1", "demo")
+	session.Metadata["callback"] = func() {}
+
+	if err := store.Save(t.Context(), session); err == nil || !strings.Contains(err.Error(), "session metadata") {
+		t.Fatalf("Save error = %v, want metadata encoding error", err)
+	}
+}
+
+func TestMemorySessionStoreSeparatesConcurrentCallerMutation(t *testing.T) {
+	store := core.NewMemorySessionStore()
+	session := core.NewSession("s-1", "user-1", "demo")
+	labels := []any{"stored"}
+	session.Metadata["labels"] = labels
+	if err := store.Save(t.Context(), session); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for index := range 1_000 {
+			labels[0] = index
+		}
+	}()
+	for range 1_000 {
+		loaded, err := store.Load(t.Context(), session.ID)
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got := loaded.Metadata["labels"].([]any)[0]; got != "stored" {
+			t.Fatalf("stored metadata changed with caller mutation: %v", got)
+		}
+	}
+	<-done
 }
 
 func TestMemorySessionStoreNotFound(t *testing.T) {

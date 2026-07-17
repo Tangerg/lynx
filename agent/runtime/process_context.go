@@ -22,7 +22,7 @@ func (p *Process) buildProcessContext(actionToolGroups []core.ToolGroupRequireme
 		Control:       processControl{process: p},
 		Usage:         processUsage{process: p},
 		Blackboard:    p.blackboard,
-		Session:       p.options.Session,
+		Session:       p.options.session,
 		Dependencies:  p.dependencies.Child(),
 		Chat:          p.effectiveChat,
 		MaxToolRounds: maxToolRounds,

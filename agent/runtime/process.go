@@ -38,7 +38,7 @@ type Process struct {
 	parentID   string
 	depth      int // delegation depth: 0 at top level, parent+1 for a child
 	deployment *Deployment
-	options    *core.ProcessOptions
+	options    *processOptions
 	startedAt  time.Time
 
 	state        processState
@@ -79,7 +79,7 @@ type ActionRun struct {
 func newProcess(
 	id string,
 	deployment *Deployment,
-	options *core.ProcessOptions,
+	options *processOptions,
 	blackboard core.Blackboard,
 	dependencies *core.Dependencies,
 	planner planning.Planner,
@@ -147,8 +147,8 @@ func (p *Process) conversationID() string {
 	if p == nil {
 		return ""
 	}
-	if p.options != nil && p.options.Session != nil && p.options.Session.ID != "" {
-		return p.options.Session.ID
+	if p.options != nil && p.options.session != nil && p.options.session.ID != "" {
+		return p.options.session.ID
 	}
 	return p.id
 }
@@ -159,8 +159,8 @@ func (p *Process) userID() string {
 	if p == nil {
 		return ""
 	}
-	if p.options != nil && p.options.Session != nil {
-		return p.options.Session.UserID
+	if p.options != nil && p.options.session != nil {
+		return p.options.session.UserID
 	}
 	return ""
 }

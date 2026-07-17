@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -104,6 +106,27 @@ func NewSession(id, userID, agentName string) Session {
 // UpdatedAt as the last-activity timestamp.
 func (s *Session) Touch() {
 	s.UpdatedAt = time.Now()
+}
+
+// storageSnapshot returns an ownership-isolated representation of s matching
+// the documented JSON persistence contract for Metadata. The JSON round trip
+// both rejects values a durable SessionStore could not encode and recursively
+// detaches nested maps and slices; a shallow map clone would still let callers
+// mutate a saved session through one of its metadata values.
+func (s Session) storageSnapshot() (Session, error) {
+	if s.Metadata == nil {
+		return s, nil
+	}
+	encoded, err := json.Marshal(s.Metadata)
+	if err != nil {
+		return Session{}, fmt.Errorf("session metadata: %w", err)
+	}
+	var metadata map[string]any
+	if err := json.Unmarshal(encoded, &metadata); err != nil {
+		return Session{}, fmt.Errorf("session metadata: %w", err)
+	}
+	s.Metadata = metadata
+	return s, nil
 }
 
 // SessionStore is the persistence SPI for [Session] records. The
