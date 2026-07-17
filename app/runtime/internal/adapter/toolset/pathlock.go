@@ -4,8 +4,11 @@ import (
 	"context"
 	"sync"
 
+	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
+
+const fileResourceKeyPrefix = "file:"
 
 // pathLocker serializes file tool calls that target the same resolved path.
 // Separate runs can execute concurrently, so two write/edit calls must not
@@ -76,32 +79,73 @@ func (p *pathLocker) releaseRef(path string, l *pathLock) {
 // withPathLock wraps a file tool so concurrent calls targeting the same resolved
 // path run one-at-a-time (see [pathLocker]). For mutations it is applied inside
 // the path guard but outside the staleness / diagnostics / mutation chain. For
-// reads it encloses both the filesystem read and tracker stamp.
+// reads it encloses both the filesystem read and tracker stamp. The wrapper also
+// replaces a concurrency-safe tool's caller-spelled path key with the same
+// canonical physical identity used by the lock. This makes model-order
+// scheduling agree with execution for relative, absolute, and symlink aliases.
 func withPathLock(inner tools.Tool, locker *pathLocker, workdir string) tools.Tool {
 	if locker == nil {
 		return inner
 	}
-	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		paths := resolvedMutationPaths(inner, arguments, workdir)
-		if len(paths) == 0 {
-			return inner.Call(ctx, arguments)
+	return &pathLockedTool{inner: inner, locker: locker, workdir: workdir}
+}
+
+// pathLockedTool owns the full same-file execution contract: its scheduling
+// key and runtime lock are derived from the same canonical path function.
+type pathLockedTool struct {
+	inner   tools.Tool
+	locker  *pathLocker
+	workdir string
+}
+
+func (t *pathLockedTool) Definition() chat.ToolDefinition { return t.inner.Definition() }
+
+func (t *pathLockedTool) Call(ctx context.Context, arguments string) (string, error) {
+	for _, path := range resolvedMutationPaths(t.inner, arguments, t.workdir) {
+		release, err := t.locker.acquire(ctx, path)
+		if err != nil {
+			return "", err
 		}
-		releases := make([]func(), 0, len(paths))
-		for _, path := range paths {
-			release, err := locker.acquire(ctx, path)
-			if err != nil {
-				for i := len(releases) - 1; i >= 0; i-- {
-					releases[i]()
-				}
-				return "", err
-			}
-			releases = append(releases, release)
-		}
-		defer func() {
-			for i := len(releases) - 1; i >= 0; i-- {
-				releases[i]()
-			}
-		}()
-		return inner.Call(ctx, arguments)
+		defer release()
+	}
+	return t.inner.Call(ctx, arguments)
+}
+
+func (t *pathLockedTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+	capability, ok := t.inner.(interface {
+		ConcurrencyKey(string) (string, bool)
 	})
+	if !ok {
+		return "", false
+	}
+	key, concurrent = capability.ConcurrencyKey(arguments)
+	if !concurrent {
+		return "", false
+	}
+	paths := resolvedMutationPaths(t.inner, arguments, t.workdir)
+	switch len(paths) {
+	case 0:
+		return key, true
+	case 1:
+		return fileResourceKeyPrefix + paths[0], true
+	default:
+		// One key cannot express partial overlap between multi-file calls.
+		// Keep such a tool exclusive until the scheduler has a resource-set
+		// contract.
+		return "", false
+	}
+}
+
+func (t *pathLockedTool) ReturnsDirect() bool {
+	if direct, ok := t.inner.(interface{ ReturnsDirect() bool }); ok {
+		return direct.ReturnsDirect()
+	}
+	return false
+}
+
+func (t *pathLockedTool) MutationPaths(arguments string) ([]string, error) {
+	if reporter, ok := t.inner.(tools.FileMutationReporter); ok {
+		return reporter.MutationPaths(arguments)
+	}
+	return nil, nil
 }
