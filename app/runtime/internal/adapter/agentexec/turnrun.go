@@ -136,7 +136,10 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	if err != nil {
 		return nil, fmt.Errorf("engine: build steering guardrails: %w", err)
 	}
-	processOptions := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, guardrails)
+	processOptions, err := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, guardrails)
+	if err != nil {
+		return nil, fmt.Errorf("engine: configure chat process: %w", err)
+	}
 	process, done := e.runtime.Start(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: input},
 		processOptions,
@@ -157,7 +160,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 // per turn when mid-run steering is enabled. The runtime stamps each request's
 // conversation id from this Session, so one shared history chain can still
 // serve both this turn and spawned subtasks unless explicitly overridden.
-func turnProcessOptions(dependencies *core.Dependencies, sessionID string, observer toolObserver, listener core.Extension, client *chatclient.Client, guardrails *core.ChatGuardrails) core.ProcessOptions {
+func turnProcessOptions(dependencies *core.Dependencies, sessionID string, observer toolObserver, listener core.Extension, client *chatclient.Client, guardrails *core.ChatGuardrails) (core.ProcessOptions, error) {
 	options := core.ProcessOptions{}
 	if dependencies != nil {
 		options.ChildOptions = childOptions(dependencies, client, observer)
@@ -166,13 +169,15 @@ func turnProcessOptions(dependencies *core.Dependencies, sessionID string, obser
 		options.Session = &core.Session{ID: sessionID}
 	}
 	if observer != nil {
-		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observer: observer})
-		if dependencies != nil {
-			options.Dependencies = dependencies.Child()
-			if err := core.RegisterDependency(options.Dependencies, toolObserverKey, observer); err != nil {
-				panic(fmt.Errorf("agentexec: invariant violation registering tool observer in fresh process dependency scope: %w", err))
-			}
+		if dependencies == nil {
+			return core.ProcessOptions{}, errors.New("agentexec: dependencies are required when a tool observer is configured")
 		}
+		scope := dependencies.Child()
+		if err := core.RegisterDependency(scope, toolObserverKey, observer); err != nil {
+			return core.ProcessOptions{}, fmt.Errorf("agentexec: register tool observer dependency: %w", err)
+		}
+		options.Dependencies = scope
+		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observer: observer})
 	}
 	if listener != nil {
 		options.Extensions = append(options.Extensions, listener)
@@ -183,7 +188,7 @@ func turnProcessOptions(dependencies *core.Dependencies, sessionID string, obser
 	if guardrails != nil {
 		options.Guardrails = guardrails
 	}
-	return options
+	return options, nil
 }
 
 func (e *Engine) steeringGuardrails(steer SteerSource) (*core.ChatGuardrails, error) {
@@ -253,7 +258,10 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	// re-resolved from the interrupt's persisted provider+model — so a restart
 	// mid-run keeps the model the turn parked on. nil (no selection / provider
 	// gone) falls back to the engine default.
-	options := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, nil)
+	options, err := turnProcessOptions(e.dependencies, request.SessionID, request.Observer, request.EventListener, request.ChatClient, nil)
+	if err != nil {
+		return nil, fmt.Errorf("engine: configure restored chat process: %w", err)
+	}
 	if e.runtime == nil {
 		return nil, errors.New("engine: restore chat: agent runtime is required")
 	}

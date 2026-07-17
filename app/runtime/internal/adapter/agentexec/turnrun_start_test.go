@@ -2,6 +2,7 @@ package agentexec
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -95,6 +96,46 @@ func TestEngineStartTurnReturnsProcessCreationErrorsSynchronously(t *testing.T) 
 			}
 			if observer != nil && (len(observer.starts()) != 0 || len(observer.ends()) != 0 || len(observer.deltas()) != 0) {
 				t.Fatal("observer received callbacks for a process that was never created")
+			}
+		})
+	}
+}
+
+func TestEngineRejectsTypedNilTurnObserver(t *testing.T) {
+	engine := newStartFailureEngine(t)
+	var observer *recordingObserver
+	tests := []struct {
+		name      string
+		configure string
+		start     func(context.Context) (TurnProcess, error)
+	}{
+		{
+			name:      "start",
+			configure: "configure chat process",
+			start: func(ctx context.Context) (TurnProcess, error) {
+				return engine.StartTurn(ctx, TurnRequest{Message: "hello", Observer: observer})
+			},
+		},
+		{
+			name:      "restore",
+			configure: "configure restored chat process",
+			start: func(ctx context.Context) (TurnProcess, error) {
+				return engine.RestoreTurn(ctx, "missing", RestoreTurnRequest{Observer: observer})
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			process, err := test.start(t.Context())
+			if !errors.Is(err, core.ErrNilDependency) {
+				t.Fatalf("error = %v, want nil dependency", err)
+			}
+			if !strings.Contains(err.Error(), test.configure) {
+				t.Fatalf("error = %v, want %q context", err, test.configure)
+			}
+			if process != nil {
+				t.Fatalf("process = %T, want nil", process)
 			}
 		})
 	}
