@@ -33,8 +33,9 @@ var inputSchema, _ = pkgjson.StringDefSchemaOf(callInput{})
 // tool wraps a remote A2A agent as a [tools.Tool]. Each Call sends the
 // argument text as an A2A message and returns the agent's reply, so an
 // agent can delegate to a remote agent through the ordinary tool-calling
-// loop. A non-successful terminal task is mapped to [*RemoteAgentError] (use
-// [errors.AsType]) so a remote failure is not fed back as a successful result.
+// loop. A task that does not complete successfully is mapped to
+// [*RemoteAgentError] (use [errors.AsType]) so a remote failure or unsupported
+// continuation is not fed back as a successful result.
 //
 // The wrapper is immutable after construction and does not own the client.
 type tool struct {
@@ -63,13 +64,17 @@ func newTool(cfg toolConfig) (*tool, error) {
 	if cfg.Name == "" {
 		return nil, errEmptyToolName
 	}
+	definition := corechat.ToolDefinition{
+		Name:        cfg.Name,
+		Description: describeAgent(cfg.Card),
+		InputSchema: json.RawMessage(inputSchema),
+	}
+	if err := definition.Validate(); err != nil {
+		return nil, fmt.Errorf("a2a.newTool: definition for agent %q: %w", cfg.Card.Name, err)
+	}
 	return &tool{
-		client: cfg.Client,
-		definition: corechat.ToolDefinition{
-			Name:        cfg.Name,
-			Description: describeAgent(cfg.Card),
-			InputSchema: json.RawMessage(inputSchema),
-		},
+		client:     cfg.Client,
+		definition: definition,
 	}, nil
 }
 
@@ -113,7 +118,7 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return "", err
+		return "", fmt.Errorf("a2a.tool.Call %q: decode result: %w", t.definition.Name, err)
 	}
 	return text, nil
 }

@@ -48,27 +48,26 @@ func textOfParts(parts sdka2a.ContentParts) string {
 }
 
 // textOfResult extracts the reply text from a SendMessageResult and reports a
-// *RemoteAgentError when the remote ended the task in a non-successful
-// terminal state. A direct Message reply yields its parts; a Task reply
-// prefers its artifacts, falling back to the status message.
+// *RemoteAgentError unless a returned task completed successfully. A direct
+// Message reply yields its parts; a completed Task reply prefers its artifacts,
+// falling back to the status message.
 func textOfResult(result sdka2a.SendMessageResult) (string, error) {
 	switch r := result.(type) {
 	case *sdka2a.Message:
 		if r == nil {
-			return "", nil
+			return "", fmt.Errorf("%w: nil message", ErrInvalidResult)
 		}
 		return textOfParts(r.Parts), nil
 	case *sdka2a.Task:
 		if r == nil {
-			return "", nil
+			return "", fmt.Errorf("%w: nil task", ErrInvalidResult)
 		}
-		switch r.Status.State {
-		case sdka2a.TaskStateFailed, sdka2a.TaskStateRejected, sdka2a.TaskStateCanceled:
+		if r.Status.State != sdka2a.TaskStateCompleted {
 			return "", &RemoteAgentError{State: r.Status.State, Detail: statusDetail(r)}
 		}
 		return taskText(r), nil
 	default:
-		return "", nil
+		return "", fmt.Errorf("%w: unexpected %T", ErrInvalidResult, result)
 	}
 }
 

@@ -2,6 +2,7 @@ package a2a_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"iter"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2asrv"
 
 	"github.com/Tangerg/lynx/a2a"
 )
@@ -55,6 +57,74 @@ func TestNewHTTPHandlerRequiresAgentAndCard(t *testing.T) {
 				t.Fatalf("NewHTTPHandler error = %v, want %v", err, test.want)
 			}
 		})
+	}
+}
+
+func TestNewHTTPHandlerRejectsInvalidCardAndPattern(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  a2a.ServerConfig
+		want error
+	}{
+		{
+			name: "card cannot be encoded",
+			cfg: a2a.ServerConfig{Agent: echoAgent{}, Card: &sdka2a.AgentCard{
+				Name: "invalid",
+				Signatures: []sdka2a.AgentCardSignature{{
+					Header: map[string]any{"unsupported": func() {}},
+				}},
+			}},
+			want: a2a.ErrInvalidCard,
+		},
+		{
+			name: "malformed RPC pattern",
+			cfg:  a2a.ServerConfig{Agent: echoAgent{}, Card: &sdka2a.AgentCard{Name: "test"}, RPCPattern: "/{"},
+			want: a2a.ErrInvalidRPCPattern,
+		},
+		{
+			name: "RPC pattern conflicts with card endpoint",
+			cfg: a2a.ServerConfig{
+				Agent: echoAgent{}, Card: &sdka2a.AgentCard{Name: "test"},
+				RPCPattern: a2asrv.WellKnownAgentCardPath,
+			},
+			want: a2a.ErrInvalidRPCPattern,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := a2a.NewHTTPHandler(test.cfg); !errors.Is(err, test.want) {
+				t.Fatalf("NewHTTPHandler error = %v, want %v", err, test.want)
+			}
+		})
+	}
+}
+
+func TestNewHTTPHandlerSnapshotsAgentCard(t *testing.T) {
+	card := &sdka2a.AgentCard{
+		Name: "original",
+		Skills: []sdka2a.AgentSkill{{
+			ID: "read", Name: "Read",
+		}},
+	}
+	handler, err := a2a.NewHTTPHandler(a2a.ServerConfig{Agent: echoAgent{}, Card: card})
+	if err != nil {
+		t.Fatal(err)
+	}
+	card.Name = "mutated"
+	card.Skills[0].Name = "Mutated"
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, a2asrv.WellKnownAgentCardPath, nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("AgentCard status = %d, want 200", recorder.Code)
+	}
+	var served sdka2a.AgentCard
+	if err := json.Unmarshal(recorder.Body.Bytes(), &served); err != nil {
+		t.Fatalf("decode served AgentCard: %v", err)
+	}
+	if served.Name != "original" || len(served.Skills) != 1 || served.Skills[0].Name != "Read" {
+		t.Fatalf("served AgentCard = %#v, want construction snapshot", served)
 	}
 }
 
