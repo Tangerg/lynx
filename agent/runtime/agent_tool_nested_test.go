@@ -1101,11 +1101,23 @@ func TestStandaloneAgentToolKeepsExternalWaitingResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("standalone Call: %v", err)
 	}
-	var payload map[string]any
+	var payload struct {
+		Status       string          `json:"status"`
+		Agent        string          `json:"agent"`
+		ProcessID    string          `json:"process_id"`
+		SuspensionID string          `json:"suspension_id"`
+		Prompt       json.RawMessage `json:"prompt"`
+		ResumeSchema json.RawMessage `json:"resume_schema"`
+	}
 	if err := json.Unmarshal([]byte(output), &payload); err != nil {
 		t.Fatalf("decode waiting result: %v", err)
 	}
-	if payload["status"] != "waiting" || payload["suspension_id"] != "nested-first" {
-		t.Fatalf("standalone waiting payload = %v", payload)
+	if payload.Status != "waiting" ||
+		payload.Agent != "nested-child" ||
+		payload.ProcessID == "" ||
+		payload.SuspensionID != "nested-first" ||
+		!json.Valid(payload.Prompt) ||
+		!json.Valid(payload.ResumeSchema) {
+		t.Fatalf("standalone waiting payload = %+v", payload)
 	}
 }
