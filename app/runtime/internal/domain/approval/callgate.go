@@ -75,13 +75,14 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 	}
 
 	action := GateFor(cls, in.Mode)
-	// Bypass-immune escalation: a file mutation whose target escapes the
-	// workspace is confirmed even under a mode that would auto-pass it (Yolo, or
-	// Balanced for write/download). The workspace is the trust boundary, so this
-	// override is not defeated by "approve everything" — the same seam a
-	// PreToolUse hook's Ask uses to force a prompt, but tool/argument-driven and
-	// built in. A remembered approval still lets a repeat call through.
-	unbypassable := tool.MutatesOutsideWorkspace(in.Tool, arguments, in.Cwd)
+	// Bypass-immune escalation: a call dangerous enough (a mutation escaping the
+	// workspace, or a high-confidence catastrophic shell command) is confirmed
+	// even under a mode that would auto-pass it (Yolo, or Balanced for
+	// write/download). This override is not defeated by "approve everything" — the
+	// same seam a PreToolUse hook's Ask uses to force a prompt, but
+	// tool/argument-driven and built in. A remembered approval still lets a repeat
+	// call through.
+	immuneReason, unbypassable := tool.BypassImmuneReason(in.Tool, arguments, in.Cwd)
 	if action == GatePass && (in.Hook.Ask || unbypassable) {
 		action = GatePrompt
 	}
@@ -92,7 +93,7 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 	case GatePrompt:
 		plan.Risk, plan.PromptReason = RiskFor(cls)
 		if unbypassable {
-			plan.Risk, plan.PromptReason = tool.RiskHigh, "targets a path outside the workspace directory"
+			plan.Risk, plan.PromptReason = tool.RiskHigh, immuneReason
 		}
 	}
 	return plan
