@@ -95,16 +95,19 @@ type taskResultInput struct {
 // "waiting" state is rendered separately by waitingToolResult (it
 // carries the pending suspension, not a task result).
 type taskResult struct {
-	TaskID string `json:"task_id"`
-	Status string `json:"status"`
-	Result any    `json:"result,omitempty"`
-	Error  string `json:"error,omitempty"`
+	TaskID string     `json:"task_id"`
+	Status taskStatus `json:"status"`
+	Result any        `json:"result,omitempty"`
+	Error  string     `json:"error,omitempty"`
 }
 
+type taskStatus string
+
 const (
-	taskStatusRunning = "running"
-	taskStatusDone    = "done"
-	taskStatusFailed  = "failed"
+	taskStatusRunning taskStatus = "running"
+	taskStatusWaiting taskStatus = "waiting"
+	taskStatusDone    taskStatus = "done"
+	taskStatusFailed  taskStatus = "failed"
 )
 
 // resultJSON renders a background child's current state as a JSON
@@ -118,7 +121,7 @@ func (t *taskToolset[In, Out]) resultJSON(child *Process) (string, error) {
 	agentName := t.deployment.agent.Name()
 	switch status := child.Status(); {
 	case status == core.StatusWaiting:
-		return child.waitingToolResult(), nil
+		return child.waitingToolResult()
 	case !status.IsTerminal():
 		return (taskResult{TaskID: child.ID(), Status: taskStatusRunning}).encode()
 	case status == core.StatusCompleted:

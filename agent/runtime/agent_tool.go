@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -215,31 +214,4 @@ func (e *Engine) discardProcessTree(ctx context.Context, processID string) {
 	if deleter, ok := e.ProcessStore().(core.SnapshotDeleter); ok {
 		_ = deleter.Delete(ctx, processID)
 	}
-}
-
-// waitingToolResult renders an external/background pending suspension as a
-// JSON tool result. Synchronous parent-child AgentTool calls suspend the parent
-// before reaching this adapter.
-//
-//	{"status":"waiting", "agent":"…", "process_id":"…",
-//	 "suspension_id":"…", "prompt":<payload>}
-//
-// Hosts can resume the child using process_id and suspension_id.
-func (p *Process) waitingToolResult() string {
-	agentName := p.agent().Name()
-	payload := map[string]any{
-		"status":     "waiting",
-		"agent":      agentName,
-		"process_id": p.ID(),
-	}
-	if suspension := p.Suspension(); suspension != nil {
-		payload["suspension_id"] = suspension.ID
-		payload["prompt"] = suspension.Prompt
-		payload["resume_schema"] = suspension.ResumeSchema
-	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Sprintf(`{"status":"waiting","agent":%q,"process_id":%q}`, agentName, p.ID())
-	}
-	return string(encoded)
 }
