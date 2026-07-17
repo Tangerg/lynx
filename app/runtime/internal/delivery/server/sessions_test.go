@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -103,7 +104,10 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	ints := sqlite.NewInterruptStore(db)
 	created, _ := svc.Create(ctx, "doomed", "/w")
 	id := created.ID
-	if _, err := svc.CreateSubtask(ctx, "ses_subtask", id); err != nil {
+	now := time.Now().UTC()
+	if _, err := svc.SaveSubtask(ctx, session.Subtask{
+		ID: "ses_subtask", ParentID: id, AgentName: "subtask-agent", StartedAt: now, UpdatedAt: now,
+	}); err != nil {
 		t.Fatalf("seed subtask: %v", err)
 	}
 	fork, err := svc.Fork(ctx, id, "")

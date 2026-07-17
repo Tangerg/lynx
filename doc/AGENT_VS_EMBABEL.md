@@ -197,14 +197,14 @@ internal interface LlmOperations { createObject/generate/doTransform(messages, L
 // agent/runtime —— 行为插件机制是 core.Extension 注册表
 // 一个泛型 collector 在 dispatch 时按接口类型断言收集:event listener、action/tool middleware、
 // AgentValidator、GoalApprover、tool-group resolver、id generator、blackboard prototype、planner …
-// per-process Extension 与 engine-scope 合并;稳定依赖(chat/ProcessStore/SessionStore/snapshot policy)是 Config 字段,不进注册表
+// per-process Extension 与 engine-scope 合并;稳定依赖(chat/ProcessStore/root+child SessionStore/snapshot policy)是 Config 字段,不进注册表
 ```
 
 **取舍与理由**(这是**根本结构差异**):
 
 - **agent 是可嵌入 framework,不是需要容器的应用**。Embabel「采用它 = 全盘采用 Spring 容器、组件扫描、Boot 自动装配、Environment 机制」。lynx agent 由组合根显式 `New(Config)` 构造,能被 lyra 后端当库嵌进去跑一次 chat turn。**没有 Spring-free 核这件事,是 Go 移植必须重新设计而非翻译的部分** —— lynx 就重新设计了。
 - **类型分发,不是 string-key 注册**(模块反向不变量:❌ 用 string-key 注册 Extension)。加能力 = 实现某个 Extension 子接口并注册,运行时按类型断言自动收集 —— 不改任何 dispatch loop(OCP)。Embabel 靠 Spring bean 类型 + `@ConditionalOnMissingBean`,lynx 靠 Go 接口类型断言 + 显式注册。
-- **稳定依赖显式,不藏进注册表**:`chat`、`ProcessStore`、`SessionStore`、snapshot policy 是 `Config` 的具名字段。Embabel 把一切(含 repository、ranker、eventListener)都走 `@Bean` + 构造注入。lynx 只把「可替换的跨切面」放 Extension,「稳定构造依赖」留 Config 字段 —— 区分「装配」与「扩展」。
+- **稳定依赖显式,不藏进注册表**:`chat`、`ProcessStore`、root/child `SessionStore`、snapshot policy 是 `Config` 的具名字段。root multi-turn 与 delegated child 是两个生命周期；同一后端可以显式承担两者，但只懂 subtask lineage 的 adapter 不能冒充 root store。Embabel 把一切(含 repository、ranker、eventListener)都走 `@Bean` + 构造注入。lynx 只把「可替换的跨切面」放 Extension,「稳定构造依赖」留 Config 字段 —— 区分「装配」与「扩展」。
 - **model provider 无 `registerSingleton` 魔法**:provider 适配在 `models` 模块,组合根显式装配进来;不做 YAML 读表 + 命令式 bean 注册那套。
 
 ---
@@ -247,12 +247,13 @@ type Ranker interface { /* 给定 user input,对每个候选 goal 打 [0,1] */ }
 
 **Embabel**:`AgentProcess` 状态机(`RUNNING/WAITING/PAUSED/STUCK/COMPLETED/...`),`AgentProcessRepository`(默认 in-memory,持久版 = 跨重启可恢复),每 tick `repository.update`;`ProcessOptions.contextId` 从 `ContextRepository` rehydrate 黑板;`ephemeral=true` 契约 = 从不持久、无 wait state、不能派生子进程;`ThreadLocal<AgentProcess>` 传当前进程;`Budget` 早终止(maxActions/maxTokens/cost)。HITL 靠 `ProcessWaitingException` + `Awaitable`(`ConfirmationRequest`/`FormBindingRequest`)。
 
-**lynx**:`Engine` + `Deployment` + process registry;`StatusWaiting` 是一等状态;`Resume`/`Continue` 记录回复后**从精确挂起点重入**;durable 靠 `ProcessStore`/`SessionStore` + **type-tagged snapshot codec**;budget 树跨子进程;`stop_policy`/`stuck_policy`/`termination` 分文件。
+**lynx**:`Engine` + `Deployment` + process registry;`StatusWaiting` 是一等状态;`Resume`/`Continue` 记录回复后**从精确挂起点重入**;durable 靠 `ProcessStore`、分离的 root/child `SessionStore` + **type-tagged snapshot codec**;budget 树跨子进程;`stop_policy`/`stuck_policy`/`termination` 分文件。
 
 **取舍与理由**:
 
 - **durable resume 更精细**。Embabel 每 tick 整体 `repository.update`,持久 repo 即可跨重启续跑 —— 粒度是「整个进程状态」。lynx 用 **type-tagged snapshot**(chatInput round-trips、`LastWorld json:"-"` 派生、protected 在 re-run 时 re-bind、HITL park/interrupt 靠 atomic `Consume` 幂等 `DELETE...RETURNING`),且 **HITL resume 在 pending tool call 处续跑,跳过已完成的模型轮和工具**([[project_durable_resume_design]] + [[project_hitl_resume_at_pending_call]])。这是 lyra 生产级 chat turn 恢复的需求,比 Embabel 的整体 update 更外科手术。
 - **transient 状态显式排除持久化**(§4)——handle/client/channel 不进 snapshot,对应 Embabel 的 `ephemeral` 但粒度到单个 binding。
+- **Session identity 是领域合同而不是 `contextId` 字符串**。Session 校验 ID/parent/Agent/audit time；child adapter 必须 round-trip UserID、AgentName、时间与 metadata。同一 child ID 不能静默换 parent/user/Agent。Embabel 的 `ProcessOptions.contextId` 负责 rehydrate context，但没有这层 root/child persistence ownership 分离。
 - **`context.Context` 传进程,不用 `ThreadLocal`**。Go 无 ThreadLocal;进程/取消/trace 靠 `ctx` 显式传递,脱钩后台 goroutine 用 `context.WithoutCancel` 保 span。
 - **HITL 是显式 suspension + 幂等 Consume**,不是抛 `ProcessWaitingException`。lynx `hitl.Interrupt` 产出 suspension,`Engine.Resume` 记录 response 到精确 suspension,`Continue` 重入 —— park/interrupt 幂等。
 

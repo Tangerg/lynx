@@ -3,16 +3,15 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 type childSessionPersistence interface {
-	List(ctx context.Context) ([]sessionsvc.Session, error)
 	Get(ctx context.Context, id string) (sessionsvc.Session, error)
-	CreateSubtask(ctx context.Context, id, parentID string) (sessionsvc.Session, error)
-	Delete(ctx context.Context, id string) error
+	SaveSubtask(ctx context.Context, subtask sessionsvc.Subtask) (sessionsvc.Session, error)
 }
 
 // childSessionStore adapts lyra's [sessionsvc.Store] to the agent runtime's
@@ -24,7 +23,7 @@ type childSessionPersistence interface {
 // Only CHILD sessions reach this adapter: lyra drives parent turns through the
 // engine directly rather than through RunInSession, so the only Save calls come
 // from the spawn path. Each is mapped to a [sessionsvc.KindSubtask] session via
-// CreateSubtask — an independent conversation (its own history) carrying the
+// SaveSubtask — an independent conversation (its own history) carrying the
 // parent id, hidden from the user-facing session list.
 type childSessionStore struct {
 	sessions childSessionPersistence
@@ -37,11 +36,25 @@ func newChildSessionStore(sessions childSessionPersistence) *childSessionStore {
 }
 
 // Save records the spawned child session as a subtask session linked to its
-// parent. The agent supplies the child id (its conversation id) and ParentID;
-// the working directory is inherited from the parent inside CreateSubtask.
+// parent. The agent supplies the complete durable child identity; the product
+// store enriches it with title and working directory inherited from the parent.
 func (s *childSessionStore) Save(ctx context.Context, sess core.Session) error {
-	_, err := s.sessions.CreateSubtask(ctx, sess.ID, sess.ParentID)
-	return err
+	if err := sess.Validate(); err != nil {
+		return fmt.Errorf("child session store: save %q: %w", sess.ID, err)
+	}
+	_, err := s.sessions.SaveSubtask(ctx, sessionsvc.Subtask{
+		ID:        sess.ID,
+		ParentID:  sess.ParentID,
+		UserID:    sess.UserID,
+		AgentName: sess.AgentName,
+		StartedAt: sess.StartedAt,
+		UpdatedAt: sess.UpdatedAt,
+		Metadata:  sess.Metadata,
+	})
+	if err != nil {
+		return fmt.Errorf("child session store: save %q: %w", sess.ID, err)
+	}
+	return nil
 }
 
 // Load returns the lineage-relevant fields of a stored session, mapping
@@ -49,34 +62,30 @@ func (s *childSessionStore) Save(ctx context.Context, sess core.Session) error {
 func (s *childSessionStore) Load(ctx context.Context, id string) (core.Session, error) {
 	ls, err := s.sessions.Get(ctx, id)
 	if errors.Is(err, sessionsvc.ErrNotFound) {
-		return core.Session{}, core.ErrSessionNotFound
+		return core.Session{}, fmt.Errorf("child session store: load %q: %w", id, core.ErrSessionNotFound)
 	}
 	if err != nil {
-		return core.Session{}, err
+		return core.Session{}, fmt.Errorf("child session store: load %q: %w", id, err)
 	}
-	return core.Session{
+	if ls.Kind != sessionsvc.KindSubtask {
+		return core.Session{}, fmt.Errorf(
+			"child session store: load %q: %w: stored kind %q",
+			id,
+			sessionsvc.ErrSubtaskConflict,
+			ls.Kind,
+		)
+	}
+	loaded := core.Session{
 		ID:        ls.ID,
 		ParentID:  ls.ParentID,
+		UserID:    ls.UserID,
+		AgentName: ls.AgentName,
 		StartedAt: ls.StartedAt,
 		UpdatedAt: ls.UpdatedAt,
-	}, nil
-}
-
-// Delete drops the session by id (idempotent, per both contracts).
-func (s *childSessionStore) Delete(ctx context.Context, id string) error {
-	return s.sessions.Delete(ctx, id)
-}
-
-// List returns the user-facing session ids. Subtask children are hidden by
-// lyra's List by design; the agent runtime does not call List in lyra's flow.
-func (s *childSessionStore) List(ctx context.Context) ([]string, error) {
-	sessions, err := s.sessions.List(ctx)
-	if err != nil {
-		return nil, err
+		Metadata:  ls.Metadata,
 	}
-	ids := make([]string, len(sessions))
-	for i, sess := range sessions {
-		ids[i] = sess.ID
+	if err := loaded.Validate(); err != nil {
+		return core.Session{}, fmt.Errorf("child session store: load %q: %w", id, err)
 	}
-	return ids, nil
+	return loaded, nil
 }

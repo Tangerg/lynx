@@ -80,10 +80,10 @@ type Config struct {
 	// turn it captures the turn boundary, not mid-LLM-loop state.
 	ProcessStore core.ProcessStore
 
-	// SessionStore, when non-nil, is handed to the engine so the runtime
+	// ChildSessionStore, when non-nil, is handed to the engine so the runtime
 	// persists a sub-agent's session when it spawns one (the `task`
-	// delegation). The engine doesn't touch sessions itself — it only forwards
-	// this to [agent/runtime.Config] — keeping session CRUD out of the
-	// turn-execution layer. nil = delegation lineage stays in-process only.
-	SessionStore core.SessionStore
+	// delegation). It is distinct from root multi-turn session persistence;
+	// Lyra owns root session CRUD directly. nil keeps delegation lineage only
+	// in process snapshots.
+	ChildSessionStore core.SessionStore
 }

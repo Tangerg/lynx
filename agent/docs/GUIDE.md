@@ -235,16 +235,27 @@ Restore 通过父子关系重建聚合；读取完整委派树用量时使用 `P
 `Process.ModelCalls()` 和 `Process.EmbeddingCalls()`。
 
 Framework 自带 `MemoryProcessStore` 和 `MemorySessionStore` 作为 reference implementation。
-外部 ProcessStore 应运行公开 contract suite：
+外部 store 应运行对应的公开 contract suite：
 
 ```go
 if err := storetest.TestProcessStore(t.Context(), store); err != nil {
     t.Fatal(err)
 }
+
+if err := storetest.TestSessionStore(t.Context(), sessionStore); err != nil {
+    t.Fatal(err)
+}
 ```
 
 `ProcessOptions.Session` 与 `Engine.RunInSession` 管理多 turn identity；模型对话内容仍由
-`chathistory` 维护，不写进 Agent Blackboard 或 provider Response。
+`chathistory` 维护，不写进 Agent Blackboard 或 provider Response。Session 使用
+`Validate` / `BindAgent` 固定 identity；`RunInSession` 传 nil Agent 时按
+`Session.AgentName` 解析 active Deployment。
+
+`runtime.Config.SessionStore` 只拥有 root multi-turn Session；`ChildSessionStore` 只拥有
+委派生成的 child Session。一个 backend 同时负责两者时可配置到两个字段，但只保存 subtask
+lineage 的 adapter 不能冒充 root store。SessionStore 的最小合同只有 Save/Load；管理面按需
+实现 `SessionDeleter` 与 `SessionLister`。
 
 ## 8. Extension 与 Dependencies
 

@@ -71,16 +71,18 @@ func (e *Engine) runDeployment(
 }
 
 // RunInSession runs the agent under a multi-turn session context.
-// The session is stamped onto [ProcessOptions.Session] so action
-// bodies' chat calls flow through chat history keyed by [Session.ID].
-// When a [SessionStore] is configured on the engine the session is
+// The session is stamped onto [core.ProcessOptions.Session] so action
+// bodies' chat calls flow through chat history keyed by [core.Session.ID].
+// When a [core.SessionStore] is configured on the engine the session is
 // saved before dispatch (so a concurrent reader sees the active
-// turn) and re-saved with refreshed [Session.UpdatedAt] after the
+// turn) and re-saved with refreshed [core.Session.UpdatedAt] after the
 // dispatch completes — successful or failed.
 //
-// Passing a nil session is rejected; build a session via
-// [core.NewSession] (or load one via the configured store) before
-// calling.
+// Passing a nil or invalid session is rejected; build a session via
+// [core.NewSession] (or load one via the configured store) before calling. If
+// agent is nil, the active deployment named by [core.Session.AgentName] is
+// used. If agent is non-nil, an empty AgentName is bound to its compiled
+// deployment and a conflicting name is rejected.
 //
 // Returns the same (*Process, error) shape as [Engine.Run].
 func (e *Engine) RunInSession(
@@ -93,37 +95,61 @@ func (e *Engine) RunInSession(
 	if session == nil {
 		return nil, errors.New("runtime.Engine.RunInSession: session must not be nil")
 	}
-	if session.ID == "" {
-		return nil, errors.New("runtime.Engine.RunInSession: session ID must not be empty")
+
+	deployment, err := e.sessionDeployment(agent, session)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)
 	}
-	if session.AgentName == "" && agent != nil {
-		deployment, err := e.deploymentForProcess(agent)
-		if err != nil {
-			return nil, fmt.Errorf("run in session: compile agent: %w", err)
-		}
-		session.AgentName = deployment.agent.Name()
+	if err := session.BindAgent(deployment.agent.Name()); err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)
+	}
+	if err := session.Validate(); err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)
 	}
 	options.Session = session
 
 	// Pre-dispatch save so concurrent readers see the active turn
 	// (UpdatedAt = "now") even if dispatch is long-running.
 	if err := e.touchAndSaveSession(ctx, session); err != nil {
-		return nil, fmt.Errorf("run in session: save (pre-dispatch): %w", err)
+		return nil, fmt.Errorf("runtime.Engine.RunInSession: save before dispatch: %w", err)
 	}
 
-	process, runErr := e.Run(ctx, agent, bindings, options)
+	process, runErr := e.runDeployment(ctx, deployment, bindings, options)
 
-	// Post-dispatch save runs even on Run error so the store
-	// reflects activity. Only override runErr's nil with the save
-	// error — a real run error wins.
-	if saveErr := e.touchAndSaveSession(ctx, session); saveErr != nil && runErr == nil {
-		return process, fmt.Errorf("run in session: save (post-dispatch): %w", saveErr)
+	// Finalization must survive request cancellation so durable audit time still
+	// reflects a failed or canceled dispatch. Preserve context values and spans,
+	// but detach cancellation from the store write.
+	postContext := context.WithoutCancel(normalizeContext(ctx))
+	if saveErr := e.touchAndSaveSession(postContext, session); saveErr != nil {
+		saveErr = fmt.Errorf("runtime.Engine.RunInSession: save after dispatch: %w", saveErr)
+		return process, errors.Join(runErr, saveErr)
 	}
 	return process, runErr
 }
 
+func (e *Engine) sessionDeployment(agent *core.Agent, session *core.Session) (*Deployment, error) {
+	if agent != nil {
+		candidate := *session
+		if err := candidate.BindAgent(agent.Name()); err != nil {
+			return nil, err
+		}
+		if err := candidate.Validate(); err != nil {
+			return nil, err
+		}
+		return e.deploymentForProcess(agent)
+	}
+	if err := session.Validate(); err != nil {
+		return nil, err
+	}
+	deployment, ok := e.catalog.activeDeployment(session.AgentName)
+	if !ok {
+		return nil, fmt.Errorf("%w: agent %q is not active", ErrDeploymentNotFound, session.AgentName)
+	}
+	return deployment, nil
+}
+
 // touchAndSaveSession refreshes UpdatedAt and persists when a
-// SessionStore is configured. No-op when none is wired so callers
+// root SessionStore is configured. No-op when none is wired so callers
 // don't have to nil-check the store at every save site.
 func (e *Engine) touchAndSaveSession(ctx context.Context, session *core.Session) error {
 	session.Touch()
@@ -133,8 +159,8 @@ func (e *Engine) touchAndSaveSession(ctx context.Context, session *core.Session)
 	return e.sessionStore.Save(ctx, *session)
 }
 
-// SessionStore returns the configured session-persistence backend,
-// or nil when the engine was constructed without one.
+// SessionStore returns the configured root-session persistence backend, or nil
+// when the engine was constructed without one.
 func (e *Engine) SessionStore() core.SessionStore { return e.sessionStore }
 
 // Start deploys/resolves the Agent definition and runs it in the background,

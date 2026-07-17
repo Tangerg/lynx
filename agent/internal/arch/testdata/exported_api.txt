@@ -147,6 +147,7 @@ core: func (s *MemorySessionStore) List(_ context.Context) ([]string, error)
 core: func (s *MemorySessionStore) Load(_ context.Context, id string) (Session, error)
 core: func (s *MemorySessionStore) Save(_ context.Context, session Session) error
 core: func (s *ProcessSnapshot) UnmarshalJSON(data []byte) error
+core: func (s *Session) BindAgent(agentName string) error
 core: func (s *Session) Touch()
 core: func (s ActionStatus) String() string
 core: func (s ProcessSnapshot) MarshalJSON() ([]byte, error)
@@ -155,6 +156,7 @@ core: func (s ProcessStatus) IsTerminal() bool
 core: func (s ProcessStatus) String() string
 core: func (s RetrySafety) String() string
 core: func (s RetrySafety) Valid() bool
+core: func (s Session) Validate() error
 core: func (s TerminationScope) String() string
 core: func (t *GoalTool) InputType() reflect.Type
 core: func (t Truth) And(other Truth) Truth
@@ -268,8 +270,12 @@ core: type RetrySafety uint8
 core: type RevisionConflictError struct { ProcessID string Expected uint64 Actual uint64 }
 core: type ScoreFunc func(WorldState) float64
 core: type Session struct { ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` UserID string `json:"user_id,omitempty"` AgentName string `json:"agent_name"` StartedAt time.Time `json:"started_at"` UpdatedAt time.Time `json:"updated_at"` Metadata map[string]any `json:"metadata,omitempty"` }
+core: type SessionDeleter interface { Delete(ctx context.Context, id string) error }
 core: type SessionInfo struct { ID string ParentID string UserID string AgentName string StartedAt time.Time UpdatedAt time.Time }
-core: type SessionStore interface { Save(ctx context.Context, session Session) error Load(ctx context.Context, id string) (Session, error) Delete(ctx context.Context, id string) error List(ctx context.Context) ([]string, error) }
+core: type SessionLister interface { List(ctx context.Context) ([]string, error) }
+core: type SessionReader interface { Load(ctx context.Context, id string) (Session, error) }
+core: type SessionStore interface { SessionReader SessionWriter }
+core: type SessionWriter interface { Save(ctx context.Context, session Session) error }
 core: type SnapshotDeleter interface { Delete(context.Context, string) error }
 core: type SnapshotLister interface { List(context.Context) ([]string, error) }
 core: type SnapshotReader interface { Load(context.Context, string) (ProcessSnapshot, error) }
@@ -295,6 +301,7 @@ core: type UsageRecorder interface { RecordUsage(ctx context.Context, cost float
 core: type WorldState interface { Conditions() ConditionSet Timestamp() time.Time Key() string Apply(effects ConditionSet) WorldState }
 core: var ( ErrInvalidDependencyKey = errors.New("agent: invalid dependency key") ErrDependencyNotFound = errors.New("agent: dependency not found") ErrDependencyTypeMismatch = errors.New("agent: dependency type mismatch") ErrDependencyExists = errors.New("agent: dependency already registered") ErrDependenciesFrozen = errors.New("agent: dependencies are frozen") ErrNilDependency = errors.New("agent: nil dependency") )
 core: var ( ErrSnapshotNotFound = errors.New("process store: snapshot not found") ErrSnapshotSchema = errors.New("process snapshot: unsupported schema") ErrInvalidSnapshot = errors.New("process snapshot: invalid") ErrRevisionConflict = errors.New("process store: revision conflict") )
+core: var ErrInvalidSession = errors.New("session: invalid")
 core: var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")
 core: var ErrSessionNotFound = errSessionNotFound{}
 event: func (ActionFinished) Kind() string
@@ -558,7 +565,7 @@ runtime: type ActionRun struct { ActionName string StartedAt time.Time Duration 
 runtime: type BlackboardRestorer interface { Restore(named map[string]any, conditions map[string]bool, objects []any) error }
 runtime: type BlackboardSnapshotter interface { Snapshot() (named map[string]any, conditions map[string]bool, objects []any, err error) }
 runtime: type ChatGuardrailsConfig struct { HistoryStore chathistory.Store MaxToolRounds int }
-runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore Extensions []core.Extension }
+runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore ChildSessionStore core.SessionStore Extensions []core.Extension }
 runtime: type Deployment struct { }
 runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candidate core.DeploymentRef }
 runtime: type Engine struct { }
@@ -572,6 +579,7 @@ runtime: var ErrDeploymentNotFound = errors.New("deployment not found")
 runtime: var ErrDurableIdentityRequired = errors.New("durable deployment requires Agent.Version or Config.BuildID")
 runtime: var ErrResumableSnapshotLost = errors.New("resumable process snapshot lost")
 storetest: func TestProcessStore(ctx context.Context, store core.ProcessStore) error
+storetest: func TestSessionStore(ctx context.Context, store core.SessionStore) error
 toolloop: const ( CallQueued CallStatus = "queued" CallCompleted CallStatus = "completed" CallPaused CallStatus = "paused" )
 toolloop: const ( EventModelRequest EventKind = "model_request" EventModelResponse EventKind = "model_response" EventToolCall EventKind = "tool_call" EventToolResult EventKind = "tool_result" EventPause EventKind = "pause" EventResume EventKind = "resume" )
 toolloop: const CheckpointSchemaVersion uint16 = 2

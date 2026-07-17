@@ -3,9 +3,14 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
+
+// ErrInvalidSession reports a structurally invalid conversation identity.
+var ErrInvalidSession = errors.New("session: invalid")
 
 // Session models a multi-turn conversation against an agent. The
 // session id doubles as the chat history conversation id so the
@@ -101,6 +106,48 @@ func NewSession(id, userID, agentName string) Session {
 	}
 }
 
+// BindAgent binds an unassigned session to agentName and rejects attempts to
+// reuse a session with a different agent. The runtime calls it against the
+// exact compiled deployment before dispatch.
+func (s *Session) BindAgent(agentName string) error {
+	if s == nil {
+		return fmt.Errorf("%w: nil receiver", ErrInvalidSession)
+	}
+	if strings.TrimSpace(agentName) == "" || strings.TrimSpace(agentName) != agentName {
+		return fmt.Errorf("%w: agent name must be non-empty without surrounding whitespace", ErrInvalidSession)
+	}
+	if s.AgentName == "" {
+		s.AgentName = agentName
+		return nil
+	}
+	if s.AgentName != agentName {
+		return fmt.Errorf("%w: session agent %q does not match deployment agent %q", ErrInvalidSession, s.AgentName, agentName)
+	}
+	return nil
+}
+
+// Validate checks identity, lineage, and audit-time invariants without
+// mutating the session. Metadata encoding is checked by persistence backends
+// at their JSON boundary.
+func (s Session) Validate() error {
+	if strings.TrimSpace(s.ID) == "" || strings.TrimSpace(s.ID) != s.ID {
+		return fmt.Errorf("%w: ID must be non-empty without surrounding whitespace", ErrInvalidSession)
+	}
+	if s.ParentID != strings.TrimSpace(s.ParentID) || s.ParentID == s.ID {
+		return fmt.Errorf("%w: invalid parent ID", ErrInvalidSession)
+	}
+	if s.UserID != strings.TrimSpace(s.UserID) {
+		return fmt.Errorf("%w: user ID has surrounding whitespace", ErrInvalidSession)
+	}
+	if strings.TrimSpace(s.AgentName) == "" || strings.TrimSpace(s.AgentName) != s.AgentName {
+		return fmt.Errorf("%w: agent name must be non-empty without surrounding whitespace", ErrInvalidSession)
+	}
+	if s.StartedAt.IsZero() || s.UpdatedAt.IsZero() || s.UpdatedAt.Before(s.StartedAt) {
+		return fmt.Errorf("%w: started and updated times must be ordered and non-zero", ErrInvalidSession)
+	}
+	return nil
+}
+
 // Touch refreshes [Session.UpdatedAt] to now. [Engine.RunInSession]
 // calls this on every successful dispatch so callers can rely on
 // UpdatedAt as the last-activity timestamp.
@@ -114,6 +161,9 @@ func (s *Session) Touch() {
 // detaches nested maps and slices; a shallow map clone would still let callers
 // mutate a saved session through one of its metadata values.
 func (s Session) storageSnapshot() (Session, error) {
+	if err := s.Validate(); err != nil {
+		return Session{}, err
+	}
 	if s.Metadata == nil {
 		return s, nil
 	}
@@ -129,27 +179,39 @@ func (s Session) storageSnapshot() (Session, error) {
 	return s, nil
 }
 
-// SessionStore is the persistence SPI for [Session] records. The
-// shape mirrors [ProcessStore]: Save / Load / Delete / List. The
-// in-memory reference implementation lives in
-// [MemorySessionStore]; persistent backends are the caller's to
-// supply behind the same interface.
-//
-// All methods are expected to be safe for concurrent use.
-type SessionStore interface {
-	Save(ctx context.Context, session Session) error
-
+// SessionReader loads durable conversation identity.
+type SessionReader interface {
 	// Load returns the session keyed by id, or a wrapped
 	// [ErrSessionNotFound] when the id is unknown.
 	Load(ctx context.Context, id string) (Session, error)
+}
 
+// SessionWriter persists a complete, valid conversation identity. Save must
+// replace the record for the same ID and must not retain caller-owned mutable
+// metadata.
+type SessionWriter interface {
+	Save(ctx context.Context, session Session) error
+}
+
+// SessionStore is the minimum persistence capability required by runtime.
+// Implementations must be safe for concurrent use and must return ownership-
+// isolated values. Administrative deletion and listing are optional
+// capabilities rather than requirements imposed on every runtime store.
+type SessionStore interface {
+	SessionReader
+	SessionWriter
+}
+
+// SessionDeleter is the optional idempotent cleanup capability.
+type SessionDeleter interface {
 	// Delete is idempotent — removing an unknown id is not an
 	// error.
 	Delete(ctx context.Context, id string) error
+}
 
-	// List returns every session id. Backends that paginate
-	// naturally may return a stable subset and let callers
-	// iterate — the interface does not dictate pagination.
+// SessionLister is the optional administrative listing capability.
+type SessionLister interface {
+	// List returns every session ID in a stable backend-defined order.
 	List(ctx context.Context) ([]string, error)
 }
 

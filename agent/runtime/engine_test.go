@@ -28,6 +28,7 @@ func TestNewEngineReturnsConfigErrors(t *testing.T) {
 		{name: "auto snapshot without store", config: Config{AutoSnapshot: true}, contains: "requires ProcessStore"},
 		{name: "typed nil process store", config: Config{ProcessStore: processStore}, contains: "ProcessStore is typed nil"},
 		{name: "typed nil session store", config: Config{SessionStore: sessionStore}, contains: "SessionStore is typed nil"},
+		{name: "typed nil child session store", config: Config{ChildSessionStore: sessionStore}, contains: "ChildSessionStore is typed nil"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			engine, err := New(test.config)

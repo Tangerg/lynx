@@ -65,11 +65,13 @@ func TestSessionEffectiveModel(t *testing.T) {
 func TestSessionFork(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	parent := Session{
-		ID:       "ses_parent",
-		Title:    "research",
-		Cwd:      "/work/proj",
-		Model:    "claude-opus-4-8",
-		Metadata: map[string]any{"k": "v"},
+		ID:        "ses_parent",
+		UserID:    "user-1",
+		AgentName: "research-agent",
+		Title:     "research",
+		Cwd:       "/work/proj",
+		Model:     "claude-opus-4-8",
+		Metadata:  map[string]any{"k": "v"},
 	}
 
 	child := parent.Fork("ses_child", "msg-7", now)
@@ -86,6 +88,9 @@ func TestSessionFork(t *testing.T) {
 	if child.Cwd != parent.Cwd {
 		t.Errorf("Cwd = %q, want inherited %q", child.Cwd, parent.Cwd)
 	}
+	if child.UserID != parent.UserID || child.AgentName != parent.AgentName {
+		t.Errorf("runtime identity = %q/%q, want %q/%q", child.UserID, child.AgentName, parent.UserID, parent.AgentName)
+	}
 	if child.Metadata[ForkAtMessageIDKey] != "msg-7" {
 		t.Errorf("Metadata[%s] = %q, want msg-7", ForkAtMessageIDKey, child.Metadata[ForkAtMessageIDKey])
 	}
@@ -101,8 +106,20 @@ func TestSessionFork(t *testing.T) {
 func TestSessionNewSubtask(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	parent := Session{ID: "ses_parent", Title: "research", Cwd: "/work/proj", Model: "claude-opus-4-8"}
+	subtask := Subtask{
+		ID:        "ses_child",
+		ParentID:  parent.ID,
+		UserID:    "user-1",
+		AgentName: "research-agent",
+		StartedAt: now,
+		UpdatedAt: now,
+		Metadata:  map[string]any{"source": "agent"},
+	}
 
-	child := parent.NewSubtask("ses_child", now)
+	child, err := parent.NewSubtask(subtask)
+	if err != nil {
+		t.Fatalf("NewSubtask: %v", err)
+	}
 
 	if child.ID != "ses_child" {
 		t.Errorf("ID = %q, want ses_child", child.ID)
@@ -119,6 +136,9 @@ func TestSessionNewSubtask(t *testing.T) {
 	if child.Kind != KindSubtask {
 		t.Errorf("Kind = %q, want %q", child.Kind, KindSubtask)
 	}
+	if child.UserID != subtask.UserID || child.AgentName != subtask.AgentName || child.Metadata["source"] != "agent" {
+		t.Errorf("runtime identity = %#v, want %#v", child, subtask)
+	}
 	if !child.StartedAt.Equal(now) || !child.UpdatedAt.Equal(now) {
 		t.Errorf("timestamps = %v / %v, want %v", child.StartedAt, child.UpdatedAt, now)
 	}
@@ -128,7 +148,61 @@ func TestSessionNewSubtask(t *testing.T) {
 
 	// An untitled parent (the id-only stand-in the adapter passes when the
 	// parent is missing) yields the bare "subtask" title, no dangling separator.
-	if got := (Session{ID: "ses_p"}).NewSubtask("ses_c", now).Title; got != "subtask" {
-		t.Errorf("untitled-parent subtask title = %q, want %q", got, "subtask")
+	untitled := subtask
+	untitled.ID = "ses_c"
+	untitled.ParentID = "ses_p"
+	got, err := (Session{ID: "ses_p"}).NewSubtask(untitled)
+	if err != nil {
+		t.Fatalf("untitled parent NewSubtask: %v", err)
+	}
+	if got.Title != "subtask" {
+		t.Errorf("untitled-parent subtask title = %q, want %q", got.Title, "subtask")
+	}
+}
+
+func TestSubtaskValidate(t *testing.T) {
+	now := time.Unix(1700000000, 0).UTC()
+	valid := Subtask{ID: "ses_c", ParentID: "ses_p", AgentName: "agent", StartedAt: now, UpdatedAt: now}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid subtask: %v", err)
+	}
+	invalid := valid
+	invalid.ParentID = invalid.ID
+	if err := invalid.Validate(); !errors.Is(err, ErrInvalidSubtask) {
+		t.Fatalf("Validate error = %v, want ErrInvalidSubtask", err)
+	}
+}
+
+func TestSubtaskSameIdentity(t *testing.T) {
+	now := time.Unix(1700000000, 0).UTC()
+	subtask := Subtask{
+		ID: "ses_c", ParentID: "ses_p", UserID: "user-1", AgentName: "agent",
+		StartedAt: now, UpdatedAt: now,
+	}
+	existing, err := (Session{ID: subtask.ParentID}).NewSubtask(subtask)
+	if err != nil {
+		t.Fatalf("NewSubtask: %v", err)
+	}
+	existing.UpdatedAt = existing.UpdatedAt.Add(time.Hour)
+	existing.Metadata = map[string]any{"mutable": true}
+	if !subtask.SameIdentity(existing) {
+		t.Fatal("SameIdentity rejected mutable audit fields")
+	}
+
+	for name, mutate := range map[string]func(*Session){
+		"kind":       func(s *Session) { s.Kind = "" },
+		"ID":         func(s *Session) { s.ID = "other" },
+		"parent ID":  func(s *Session) { s.ParentID = "other" },
+		"user ID":    func(s *Session) { s.UserID = "other" },
+		"agent name": func(s *Session) { s.AgentName = "other" },
+		"started at": func(s *Session) { s.StartedAt = s.StartedAt.Add(time.Second) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := existing
+			mutate(&candidate)
+			if subtask.SameIdentity(candidate) {
+				t.Fatal("SameIdentity accepted changed identity")
+			}
+		})
 	}
 }

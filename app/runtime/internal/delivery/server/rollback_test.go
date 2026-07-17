@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -143,7 +144,10 @@ func TestRollbackSession_DropAll(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
-	child, _ := rt.sess.CreateSubtask(ctx, "ses_child", sess.ID)
+	now := time.Now().UTC()
+	child, _ := rt.sess.SaveSubtask(ctx, session.Subtask{
+		ID: "ses_child", ParentID: sess.ID, AgentName: "subtask-agent", StartedAt: now, UpdatedAt: now,
+	})
 	rt.history[sess.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1"))}
 	rt.history[child.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("sub"))}
 	putRun(t, rt, sess.ID, "run_1", 100, 2)

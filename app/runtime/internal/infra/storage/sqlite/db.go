@@ -18,9 +18,10 @@ import (
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
 
-// Open dials a SQLite database at path and installs the current schema. A
-// mismatched development schema is discarded instead of migrated. The returned *sql.DB
-// is safe for concurrent use; callers share it across every
+// Open dials a SQLite database at path and installs the current schema. Known
+// recent schemas receive targeted migrations that preserve product history;
+// other mismatched development schemas are discarded. The returned *sql.DB is
+// safe for concurrent use; callers share it across every
 // sqlite-backed store (session / transcript / interrupt / provider /
 // message). Knowledge (LYRA.md) is file-backed, not here.
 //
@@ -49,18 +50,25 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 4
+const schemaVersion = 5
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
 	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		return fmt.Errorf("sqlite: read schema version: %w", err)
 	}
-	if version == 3 {
+	switch version {
+	case 3:
 		if err := migrateSnapshotSchemaV1(db); err != nil {
 			return err
 		}
-	} else if version != schemaVersion {
+		fallthrough
+	case 4:
+		if err := migrateSessionIdentitySchema(db); err != nil {
+			return err
+		}
+	case schemaVersion:
+	default:
 		if err := discardSchema(db); err != nil {
 			return err
 		}
@@ -68,6 +76,8 @@ func installCurrentSchema(db *sql.DB) error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS sessions (
 			id          TEXT    PRIMARY KEY,
+			user_id     TEXT    NOT NULL DEFAULT '',
+			agent_name  TEXT    NOT NULL DEFAULT '',
 			title       TEXT    NOT NULL,
 			cwd         TEXT    NOT NULL DEFAULT '',
 			parent_id   TEXT    NOT NULL DEFAULT '',
@@ -324,6 +334,37 @@ func migrateSnapshotSchemaV1(db *sql.DB) error {
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("sqlite: commit snapshot schema migration: %w", err)
+	}
+	return nil
+}
+
+// migrateSessionIdentitySchema adds the Agent-owned identity needed to restore
+// delegated sessions. Existing product sessions and terminal history remain,
+// but continuations created without those fields cannot be resumed safely.
+func migrateSessionIdentitySchema(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("sqlite: begin session identity migration: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, statement := range []string{
+		`ALTER TABLE sessions ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE sessions ADD COLUMN agent_name TEXT NOT NULL DEFAULT ''`,
+		`DROP TABLE IF EXISTS process_snapshots`,
+		`UPDATE runs
+		 SET state = 'terminal', outcome = 'snapshot_schema_incompatible', updated_at = max(updated_at, strftime('%s','now') * 1000)
+		 WHERE state != 'terminal'`,
+		`DELETE FROM interrupts`,
+	} {
+		if _, err := tx.Exec(statement); err != nil {
+			return fmt.Errorf("sqlite: migrate session identity: %w", err)
+		}
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion)); err != nil {
+		return fmt.Errorf("sqlite: migrate session identity version: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("sqlite: commit session identity migration: %w", err)
 	}
 	return nil
 }

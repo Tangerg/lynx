@@ -41,7 +41,8 @@ type Engine struct {
 	chat                  core.ChatCapability  // optional shared model and streamer
 	guardrails            *core.ChatGuardrails // optional global chat middlewares
 	processStore          core.ProcessStore    // optional snapshot backend
-	sessionStore          core.SessionStore    // optional session persistence
+	sessionStore          core.SessionStore    // optional root-session persistence
+	childSessionStore     core.SessionStore    // optional delegated-session persistence
 	autoSnapshot          bool                 // snapshot every tick when a store is configured
 	snapshotFailurePolicy SnapshotFailurePolicy
 	buildID               string // stable host build identity included in deployment digests
@@ -100,6 +101,13 @@ type Config struct {
 	// saved between turns.
 	SessionStore core.SessionStore
 
+	// ChildSessionStore persists sessions created for delegated child
+	// processes. It is separate from SessionStore because hosts may use a
+	// product-specific lineage backend that must never receive root-session
+	// writes. Configure the same backend in both fields when one store owns both
+	// lifecycles.
+	ChildSessionStore core.SessionStore
+
 	// Extensions are the engine-scoped plug-ins. Each value must
 	// implement [core.Extension] and may additionally implement any
 	// subset of capability interfaces (EventListener,
@@ -130,6 +138,9 @@ func New(config Config) (*Engine, error) {
 	if config.SessionStore != nil && valueIsNil(config.SessionStore) {
 		return nil, errors.New("runtime.New: SessionStore is typed nil")
 	}
+	if config.ChildSessionStore != nil && valueIsNil(config.ChildSessionStore) {
+		return nil, errors.New("runtime.New: ChildSessionStore is typed nil")
+	}
 	if valueIsNil(config.Chat.Model) && !valueIsNil(config.Chat.Streamer) {
 		return nil, errors.New("runtime.New: Chat.Streamer requires Chat.Model")
 	}
@@ -148,6 +159,7 @@ func New(config Config) (*Engine, error) {
 		guardrails:            guardrails,
 		processStore:          config.ProcessStore,
 		sessionStore:          config.SessionStore,
+		childSessionStore:     config.ChildSessionStore,
 		autoSnapshot:          config.AutoSnapshot,
 		snapshotFailurePolicy: config.SnapshotFailurePolicy,
 		buildID:               config.BuildID,

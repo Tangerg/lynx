@@ -770,10 +770,11 @@ func TestAgentToolNestedSuspensionRestoresMultiLevelProcessTree(t *testing.T) {
 	var leafCompletions atomic.Int32
 	model1 := &nestedParentModel{toolName: "nested-middle"}
 	engine1 := agent.MustNewEngine(runtime.Config{
-		BuildID:      "nested-multi-level",
-		ProcessStore: store,
-		SessionStore: sessionStore,
-		AutoSnapshot: true,
+		BuildID:           "nested-multi-level",
+		ProcessStore:      store,
+		SessionStore:      sessionStore,
+		ChildSessionStore: sessionStore,
+		AutoSnapshot:      true,
 	})
 	parent1 := deployNestedTree(t, engine1, model1, &beforeCalls, &leafCompletions)
 
@@ -807,10 +808,11 @@ func TestAgentToolNestedSuspensionRestoresMultiLevelProcessTree(t *testing.T) {
 
 	model2 := &nestedParentModel{toolName: "nested-middle"}
 	engine2 := agent.MustNewEngine(runtime.Config{
-		BuildID:      "nested-multi-level",
-		ProcessStore: store,
-		SessionStore: sessionStore,
-		AutoSnapshot: true,
+		BuildID:           "nested-multi-level",
+		ProcessStore:      store,
+		SessionStore:      sessionStore,
+		ChildSessionStore: sessionStore,
+		AutoSnapshot:      true,
 	})
 	deployNestedTree(t, engine2, model2, &beforeCalls, &leafCompletions)
 	restored, err := engine2.RestoreResumable(t.Context(), root1.ID(), core.ProcessOptions{Session: &rootSession})
