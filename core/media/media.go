@@ -94,7 +94,7 @@ func NewBytes(mimeType string, data []byte) (*Media, error) {
 		MIME: mimeType,
 		Source: Source{
 			Kind:  SourceBytes,
-			Bytes: append([]byte(nil), data...),
+			Bytes: slices.Clone(data),
 		},
 		Metadata: metadata.Map{},
 	}
@@ -165,7 +165,7 @@ func (m *Media) Bytes() ([]byte, error) {
 	if err := m.Validate(); err != nil {
 		return nil, err
 	}
-	return append([]byte(nil), m.Source.Bytes...), nil
+	return slices.Clone(m.Source.Bytes), nil
 }
 
 // URI returns the URI source.

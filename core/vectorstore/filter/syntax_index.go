@@ -5,15 +5,5 @@ package filter
 // supports nested access like `matrix[1][2]`. Index must be numeric or
 // a string.
 func Index[L IdentifierValue | *IndexExpr, I Number | string | *Literal](left L, index I) *IndexExpr {
-	expr := &IndexExpr{Index: NewLiteral(index)}
-
-	switch typedL := any(left).(type) {
-	case string:
-		expr.Left = NewIdent(typedL)
-	case *Ident:
-		expr.Left = typedL
-	case *IndexExpr:
-		expr.Left = typedL
-	}
-	return expr
+	return &IndexExpr{Left: leftOperand(left), Index: NewLiteral(index)}
 }

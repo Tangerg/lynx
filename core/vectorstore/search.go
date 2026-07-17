@@ -69,8 +69,7 @@ func (r SearchRequest) ValidateMatches(matches []Match) error {
 	if len(matches) > r.TopK {
 		return fmt.Errorf("vectorstore.SearchRequest: got %d matches, TopK is %d", len(matches), r.TopK)
 	}
-	for i := range matches {
-		match := matches[i]
+	for i, match := range matches {
 		if err := match.Document.Validate(); err != nil {
 			return fmt.Errorf("vectorstore.SearchRequest: matches[%d]: %w", i, err)
 		}

@@ -206,8 +206,7 @@ func (c Choice) clone() Choice {
 		Extensions:   c.Extensions.Clone(),
 	}
 	if c.Message != nil {
-		message := c.Message.Clone()
-		clone.Message = &message
+		clone.Message = new(c.Message.Clone())
 	}
 	return clone
 }
