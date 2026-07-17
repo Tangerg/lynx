@@ -68,7 +68,7 @@ type Request struct {
 	Recency Recency `json:"recency,omitempty" jsonschema_description:"Time-window filter: \"hour\", \"day\", \"week\", \"month\", or \"year\". Useful for time-sensitive queries (news, releases, prices)."`
 }
 
-// Validate checks the cross-cutting invariants the shell and every
+// Validate checks the cross-cutting invariants the tool and every
 // provider enforce: non-nil, non-empty query, and domain allow/block
 // mutual exclusion. Returns one of the sentinel errors in errors.go
 // so callers can match with errors.Is.

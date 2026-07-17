@@ -2,7 +2,7 @@ package websearch
 
 import "errors"
 
-// Sentinel errors surfaced by the shell and by provider impls.
+// Sentinel errors surfaced by the tool and by provider impls.
 var (
 	// ErrMissingRequest is returned by [Request.Validate] when the
 	// receiver is nil.

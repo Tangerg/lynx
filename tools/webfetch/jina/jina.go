@@ -156,10 +156,7 @@ func (c *Client) FetchNative(ctx context.Context, req *Request) (*Response, erro
 // ============================================================== SPI wrapper
 
 func (c *Client) Fetch(ctx context.Context, req *webfetch.Request) (*webfetch.Response, error) {
-	format := req.Format
-	if format == "" {
-		format = webfetch.FormatMarkdown
-	}
+	format := req.ResolvedFormat()
 	raw, err := c.FetchNative(ctx, &Request{
 		URL:          req.URL,
 		ReturnFormat: string(format),

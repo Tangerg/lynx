@@ -18,8 +18,8 @@ const (
 )
 
 // seasonalPattern describes a zone's rainfall seasonality. Months are
-// 1-based on the *northern hemisphere calendar*; zoneIsSouthern() is
-// applied where appropriate.
+// 1-based on the *northern hemisphere calendar*; monthForLookup applies
+// the southern-hemisphere six-month shift where appropriate.
 type seasonalPattern struct {
 	rainyStart       int // inclusive (1..12), 0 = no rainy season
 	rainyEnd         int // inclusive
