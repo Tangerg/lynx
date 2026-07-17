@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 func canonicalItemFromWire(sessionID, path string, item protocol.Item) (transcript.Item, error) {
@@ -22,7 +23,8 @@ func canonicalItemFromWire(sessionID, path string, item protocol.Item) (transcri
 	if err != nil {
 		return transcript.Item{}, err
 	}
-	if err := validateSafetyClass(path+".safetyClass", item.SafetyClass); err != nil {
+	safetyClass, err := canonicalSafetyClass(path+".safetyClass", item.SafetyClass)
+	if err != nil {
 		return transcript.Item{}, err
 	}
 	problem, err := canonicalProblem(path+".error", item.Error, protocol.ErrorChannelTool)
@@ -36,7 +38,7 @@ func canonicalItemFromWire(sessionID, path string, item protocol.Item) (transcri
 		SessionID: sessionID, ID: item.ID, RunID: item.RunID,
 		Status: status, Kind: kind, CreatedAt: item.CreatedAt,
 		Text: item.Text, Redacted: item.Redacted,
-		SafetyClass: string(item.SafetyClass), Error: problem,
+		SafetyClass: safetyClass, Error: problem,
 		Summary: item.Summary, DroppedMessages: item.DroppedMessages,
 	}
 	if item.DroppedMessages < 0 {
@@ -273,13 +275,15 @@ func canonicalProblem(path string, problem *protocol.ProblemData, channel protoc
 	}, nil
 }
 
-func validateSafetyClass(path string, class protocol.SafetyClass) error {
-	switch class {
-	case "", protocol.SafetyClassSafe, protocol.SafetyClassWrite, protocol.SafetyClassExec, protocol.SafetyClassNetwork:
-		return nil
-	default:
-		return invalidArtifact(path, "unknown value %q", class)
+func canonicalSafetyClass(path string, class protocol.SafetyClass) (tool.SafetyClass, error) {
+	if class == "" {
+		return "", nil
 	}
+	canonical := tool.SafetyClass(class)
+	if !canonical.Valid() {
+		return "", invalidArtifact(path, "unknown value %q", class)
+	}
+	return canonical, nil
 }
 
 func validPlanStepStatus(status protocol.PlanStepStatus) bool {

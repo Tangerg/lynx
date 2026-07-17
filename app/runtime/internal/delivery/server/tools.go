@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // ListTools surfaces every tool the engine registered — built-in coding
@@ -21,7 +20,7 @@ func (s *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol
 			Name:        t.Name,
 			Description: t.Description,
 			Parameters:  parseSchema(t.Schema),
-			SafetyClass: wireSafetyClass(t.SafetyClass),
+			SafetyClass: presentSafetyClass(t.SafetyClass),
 		})
 	}
 	return protocol.NewPage(out), nil
@@ -49,19 +48,4 @@ func parseSchema(raw string) map[string]any {
 		return map[string]any{}
 	}
 	return m
-}
-
-func wireSafetyClass(c tool.SafetyClass) protocol.SafetyClass {
-	switch c {
-	case tool.SafetyClassSafe:
-		return protocol.SafetyClassSafe
-	case tool.SafetyClassWrite:
-		return protocol.SafetyClassWrite
-	case tool.SafetyClassExec:
-		return protocol.SafetyClassExec
-	case tool.SafetyClassNetwork:
-		return protocol.SafetyClassNetwork
-	default:
-		return protocol.SafetyClassSafe
-	}
 }

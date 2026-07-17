@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 var (
@@ -74,7 +75,7 @@ type openTool struct {
 	createdAt   time.Time
 	name        string
 	args        string
-	safetyClass string
+	safetyClass tool.SafetyClass
 }
 
 func newReducer(cfg reducerConfig) *reducer {

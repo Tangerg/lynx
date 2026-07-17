@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // EngineEvent is the application-owned execution event sum type. Driven
@@ -52,7 +53,7 @@ type ToolCallStart struct {
 	CallID      string
 	ToolName    string
 	Arguments   string
-	SafetyClass string
+	SafetyClass tool.SafetyClass
 }
 
 type ToolCallEnd struct {

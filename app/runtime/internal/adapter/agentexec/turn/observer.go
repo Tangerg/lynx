@@ -126,7 +126,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		Kind: runs.ApprovalInterruptKind,
 		Approval: &runs.ApprovalPrompt{
 			CallID: callID, ToolName: toolName, Arguments: plan.Arguments,
-			SafetyClass: plan.SafetyClass.String(), Risk: plan.Risk, Reason: plan.PromptReason,
+			SafetyClass: plan.SafetyClass, Risk: plan.Risk, Reason: plan.PromptReason,
 		},
 	}
 	if err := pending.Validate(); err != nil {
@@ -235,7 +235,7 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 		CallID:      callID,
 		ToolName:    toolName,
 		Arguments:   arguments,
-		SafetyClass: tool.SafetyClassFor(toolName).String(),
+		SafetyClass: tool.SafetyClassFor(toolName),
 	})
 }
 

@@ -8,6 +8,8 @@ import (
 	"io"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // InterruptKind discriminates the application-owned durable interrupt
@@ -25,12 +27,12 @@ const (
 // continuation (including one restored after restart) can resume without
 // running the hook or policy decision a second time.
 type ApprovalPrompt struct {
-	CallID      string `json:"callId,omitempty"`
-	ToolName    string `json:"toolName"`
-	Arguments   string `json:"arguments"`
-	SafetyClass string `json:"safetyClass"`
-	Risk        string `json:"risk,omitempty"`
-	Reason      string `json:"reason,omitempty"`
+	CallID      string           `json:"callId,omitempty"`
+	ToolName    string           `json:"toolName"`
+	Arguments   string           `json:"arguments"`
+	SafetyClass tool.SafetyClass `json:"safetyClass"`
+	Risk        tool.RiskLevel   `json:"risk,omitempty"`
+	Reason      string           `json:"reason,omitempty"`
 }
 
 // QuestionPrompt is the complete durable plan for a question-producing tool
@@ -105,12 +107,13 @@ func (p ApprovalPrompt) validate() error {
 	if err := validateArguments(p.Arguments); err != nil {
 		return fmt.Errorf("runs: approval arguments: %w", err)
 	}
-	switch p.SafetyClass {
-	case "safe", "write", "exec":
-		return nil
-	default:
+	if !p.SafetyClass.Valid() {
 		return fmt.Errorf("runs: unknown approval safety class %q", p.SafetyClass)
 	}
+	if p.Risk != "" && !p.Risk.Valid() {
+		return fmt.Errorf("runs: unknown approval risk %q", p.Risk)
+	}
+	return nil
 }
 
 func (p QuestionPrompt) validate() error {

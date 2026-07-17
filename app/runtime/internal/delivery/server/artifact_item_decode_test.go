@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 func validArtifact() protocol.SessionArtifact {
@@ -103,6 +104,27 @@ func TestCanonicalArtifactRoundTripsRunLostProblem(t *testing.T) {
 	got := presentRun(runs[0])
 	if got.Outcome == nil || got.Outcome.Result == nil || got.Outcome.Result.Error == nil || got.Outcome.Result.Error.Type != protocol.ProblemRunLost {
 		t.Fatalf("round-tripped run = %+v, want run_lost", got)
+	}
+}
+
+func TestCanonicalArtifactPreservesNetworkSafetyClass(t *testing.T) {
+	artifact := validArtifact()
+	item := &artifact.Items[0].Item
+	item.Type = protocol.ItemTypeToolCall
+	item.Content = nil
+	item.Tool = &protocol.ToolInvocation{Name: "webfetch", Arguments: map[string]any{"url": "https://example.com"}}
+	item.SafetyClass = protocol.SafetyClassNetwork
+
+	_, items, err := canonicalArtifact(artifact, 0)
+	if err != nil {
+		t.Fatalf("canonicalArtifact: %v", err)
+	}
+	if items[0].SafetyClass != tool.SafetyClassNetwork {
+		t.Fatalf("canonical safety class = %q, want network", items[0].SafetyClass)
+	}
+	wire := presentItem(items[0])
+	if wire.SafetyClass != protocol.SafetyClassNetwork {
+		t.Fatalf("round-tripped safety class = %q, want network", wire.SafetyClass)
 	}
 }
 

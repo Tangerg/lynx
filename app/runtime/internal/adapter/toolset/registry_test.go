@@ -39,7 +39,7 @@ func TestRegistryListsCatalogMetadata(t *testing.T) {
 	}
 	for name, want := range wantClasses {
 		if got[name] != want {
-			t.Errorf("tool %q safety = %d, want %d", name, got[name], want)
+			t.Errorf("tool %q safety = %q, want %q", name, got[name], want)
 		}
 	}
 }

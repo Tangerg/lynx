@@ -11,7 +11,7 @@ func presentItem(item transcript.Item) protocol.Item {
 		ID: item.ID, RunID: item.RunID, Status: presentItemStatus(item.Status),
 		CreatedAt: item.CreatedAt, Type: presentItemKind(item.Kind),
 		Text: item.Text, Redacted: item.Redacted,
-		SafetyClass: protocol.SafetyClass(item.SafetyClass), Error: presentProblem(item.Error),
+		SafetyClass: presentSafetyClass(item.SafetyClass), Error: presentProblem(item.Error),
 		Summary: item.Summary, DroppedMessages: item.DroppedMessages,
 	}
 	if len(item.Content) > 0 {

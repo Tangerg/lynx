@@ -39,23 +39,36 @@ func GateFor(cls tool.SafetyClass, mode Mode) GateAction {
 	case ModePlan:
 		return GateDeny
 	case ModeSafe:
-		return GatePrompt // write + exec
+		return GatePrompt // every non-safe class, including unknown
 	case ModeBalanced:
-		if cls == tool.SafetyClassExec {
+		switch cls {
+		case tool.SafetyClassWrite, tool.SafetyClassNetwork:
+			return GatePass
+		default:
+			// Exec and unknown classes fail closed. In particular, the invalid
+			// zero value must not inherit write's balanced-mode exemption.
 			return GatePrompt
 		}
-		return GatePass // write/network auto-allow
 	}
-	return GatePass
+	// An unknown policy mode must not silently disable approval for a
+	// side-effecting tool. Mode validation normally rejects this earlier; this
+	// fallback keeps the pure policy function safe in isolation too.
+	return GatePrompt
 }
 
 // RiskFor maps a gated tool's class to the (risk, reason) an approval card
-// shows — a coarser low/medium/high read plus a one-line why. Only write / exec
-// tools ever reach an approval prompt (safe never gates), so this is defined
-// for those two classes.
-func RiskFor(cls tool.SafetyClass) (risk, reason string) {
-	if cls == tool.SafetyClassWrite {
-		return "medium", "Modifies files in the workspace."
+// shows — a coarser low/medium/high read plus a one-line why.
+func RiskFor(cls tool.SafetyClass) (risk tool.RiskLevel, reason string) {
+	switch cls {
+	case tool.SafetyClassSafe:
+		return cls.Risk(), "Reads data without changing the workspace."
+	case tool.SafetyClassWrite:
+		return cls.Risk(), "Modifies files in the workspace."
+	case tool.SafetyClassExec:
+		return cls.Risk(), "Runs commands in the workspace."
+	case tool.SafetyClassNetwork:
+		return cls.Risk(), "Accesses network resources."
+	default:
+		return cls.Risk(), "Has an unknown safety classification."
 	}
-	return "high", "Runs commands or accesses the network."
 }
