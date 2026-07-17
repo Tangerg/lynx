@@ -17,4 +17,12 @@
 
 ---
 
+## B. 能力吸纳 Backlog
+
+| 文档 | 一句话 |
+|---|---|
+| [AGENTSCOPE_INSPIRED_BACKLOG.md](AGENTSCOPE_INSPIRED_BACKLOG.md) | 从 AgentScope Java 对比分析筛出的增量能力提案(压缩不拆 tool 对 / tool-result eviction / 分级压缩 / 受治理技能自著述 / bypass-immune 自否决 / 超时收养 / 沙箱 SPI 参考),含为什么·目标·落点·计划·进度与刻意不吸清单。全部提案态,待满血上下文实现。 |
+
+---
+
 > 协议契约（wire shape）在前端模块：[`../../desktop/docs/protocol/`](../../desktop/docs/protocol/)（API / TRANSPORT / AUX_API）。改协议契约先在那里对一遍。
