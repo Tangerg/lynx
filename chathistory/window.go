@@ -70,7 +70,11 @@ func (s *WindowStore) Read(ctx context.Context, conversationID string) ([]chat.M
 
 	window := make([]chat.Message, 0, s.limit)
 	if len(systems) > 0 {
-		window = append(window, mergeSystemMessages(systems))
+		merged, err := mergeSystemMessages(systems)
+		if err != nil {
+			return nil, err
+		}
+		window = append(window, merged)
 	}
 	remaining := s.limit - len(window)
 	if remaining > 0 && len(nonSystem) > 0 {
@@ -99,19 +103,19 @@ func (s *WindowStore) Conversations(ctx context.Context) ([]string, error) {
 	return lister.Conversations(ctx)
 }
 
-func mergeSystemMessages(messages []chat.Message) chat.Message {
+func mergeSystemMessages(messages []chat.Message) (chat.Message, error) {
 	merged := chat.Message{Role: chat.RoleSystem, Metadata: metadata.Map{}}
 	for i, message := range messages {
 		if i > 0 {
 			merged.Parts = append(merged.Parts, chat.NewTextPart("\n\n"))
 		}
 		merged.Parts = append(merged.Parts, chat.NewTextPart(message.Text()))
-		for key, value := range message.Metadata {
-			merged.Metadata[key] = append([]byte(nil), value...)
+		if err := merged.Metadata.Merge(message.Metadata); err != nil {
+			return chat.Message{}, fmt.Errorf("chathistory: merge system message %d metadata: %w", i, err)
 		}
 	}
 	if len(merged.Metadata) == 0 {
 		merged.Metadata = nil
 	}
-	return merged
+	return merged, nil
 }

@@ -3,7 +3,6 @@ package chathistory
 import (
 	"context"
 	"slices"
-	"sort"
 	"sync"
 
 	"github.com/Tangerg/lynx/chathistory/internal/snapshot"
@@ -138,6 +137,6 @@ func (s *InMemoryStore) Conversations(ctx context.Context) ([]string, error) {
 		ids = append(ids, conversationID)
 	}
 	s.mu.RUnlock()
-	sort.Strings(ids)
+	slices.Sort(ids)
 	return ids, nil
 }
