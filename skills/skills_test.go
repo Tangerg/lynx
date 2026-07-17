@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -28,6 +29,34 @@ func (*panicResourceSource) Load(context.Context, string) (*Skill, error) {
 
 func (*panicResourceSource) OpenResource(context.Context, string, string) (fs.File, error) {
 	panic("typed-nil source was used")
+}
+
+type cancelingFS struct {
+	fs.FS
+	cancel context.CancelFunc
+}
+
+func (f cancelingFS) Open(name string) (fs.File, error) {
+	file, err := f.FS.Open(name)
+	f.cancel()
+	return file, err
+}
+
+type cancelingResourceSource struct {
+	ResourceSource
+	cancel context.CancelFunc
+}
+
+func (s cancelingResourceSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
+	file, err := s.ResourceSource.OpenResource(ctx, name, resource)
+	s.cancel()
+	return file, err
+}
+
+type nilFileResourceSource struct{ ResourceSource }
+
+func (s nilFileResourceSource) OpenResource(context.Context, string, string) (fs.File, error) {
+	return nil, nil
 }
 
 const pdfSkill = `---
@@ -79,8 +108,14 @@ func TestParse(t *testing.T) {
 }
 
 func TestParseNoFrontmatter(t *testing.T) {
-	if _, _, err := Parse([]byte("no front matter here")); !errors.Is(err, ErrNoFrontmatter) {
-		t.Errorf("err = %v, want ErrNoFrontmatter", err)
+	for _, content := range []string{
+		"no front matter here",
+		" ---\nname: padded-open\ndescription: invalid fence\n---\nbody",
+		"---\nname: padded-close\ndescription: invalid fence\n ---\nbody",
+	} {
+		if _, _, err := Parse([]byte(content)); !errors.Is(err, ErrNoFrontmatter) {
+			t.Errorf("Parse(%q) error = %v, want ErrNoFrontmatter", content, err)
+		}
 	}
 }
 
@@ -92,6 +127,7 @@ func TestValidate(t *testing.T) {
 		"ok":            {Frontmatter{Name: "pdf-tools", Description: "do things"}, nil},
 		"empty name":    {Frontmatter{Description: "x"}, ErrNameEmpty},
 		"upper name":    {Frontmatter{Name: "PDF", Description: "x"}, ErrNameInvalid},
+		"padded name":   {Frontmatter{Name: " pdf", Description: "x"}, ErrNameInvalid},
 		"double hyphen": {Frontmatter{Name: "a--b", Description: "x"}, ErrNameInvalid},
 		"empty desc":    {Frontmatter{Name: "ok"}, ErrDescriptionEmpty},
 	}
@@ -106,6 +142,27 @@ func TestValidate(t *testing.T) {
 			}
 			if !errors.Is(err, tc.want) {
 				t.Errorf("err = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestSourceRejectsInvalidNamesBeforeFilesystemAccess(t *testing.T) {
+	source := NewFS(&panicFS{})
+	tests := []struct {
+		name string
+		want error
+	}{
+		{name: "", want: ErrNameEmpty},
+		{name: "UPPER", want: ErrNameInvalid},
+		{name: " padded", want: ErrNameInvalid},
+		{name: "nested/skill", want: ErrNameInvalid},
+		{name: strings.Repeat("a", maxNameLen+1), want: ErrNameTooLong},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := source.Load(t.Context(), test.name); !errors.Is(err, test.want) {
+				t.Fatalf("Load(%q) error = %v, want %v", test.name, err, test.want)
 			}
 		})
 	}
@@ -152,6 +209,102 @@ func TestReadResource(t *testing.T) {
 	}
 }
 
+func TestReadResourceRejectsNilFileWithoutPanicking(t *testing.T) {
+	source := nilFileResourceSource{ResourceSource: newTestFS()}
+	_, err := ReadResource(t.Context(), source, "pdf-processing", "references/REFERENCE.md")
+	if !errors.Is(err, errNilResourceFile) {
+		t.Fatalf("ReadResource error = %v, want errNilResourceFile", err)
+	}
+}
+
+func TestResourcePathsArePortableAndRelative(t *testing.T) {
+	source := NewFS(&panicFS{})
+	for _, resource := range []string{
+		"",
+		".",
+		"../other-skill/SKILL.md",
+		"references//note.md",
+		"references/../note.md",
+		`references\..\sibling-skill\SKILL.md`,
+		"/absolute/path",
+	} {
+		t.Run(resource, func(t *testing.T) {
+			if _, err := source.OpenResource(t.Context(), "safe-skill", resource); !errors.Is(err, ErrResourcePath) {
+				t.Fatalf("OpenResource(%q) error = %v, want ErrResourcePath", resource, err)
+			}
+		})
+	}
+}
+
+func TestOperationsHonorCanceledContextBeforeAccess(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	source := NewFS(&panicFS{})
+
+	operations := []struct {
+		name string
+		call func() error
+	}{
+		{name: "list", call: func() error { _, err := source.List(ctx); return err }},
+		{name: "load", call: func() error { _, err := source.Load(ctx, "safe-skill"); return err }},
+		{name: "open resource", call: func() error {
+			_, err := source.OpenResource(ctx, "safe-skill", "references/note.md")
+			return err
+		}},
+		{name: "read resource", call: func() error {
+			_, err := ReadResource(ctx, &panicResourceSource{}, "safe-skill", "references/note.md")
+			return err
+		}},
+		{name: "empty merge list", call: func() error { _, err := Merge().List(ctx); return err }},
+		{name: "empty merge load", call: func() error { _, err := Merge().Load(ctx, "safe-skill"); return err }},
+	}
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			if err := operation.call(); !errors.Is(err, context.Canceled) {
+				t.Fatalf("error = %v, want context.Canceled", err)
+			}
+		})
+	}
+}
+
+func TestOperationsHonorCancellationDuringAccess(t *testing.T) {
+	base := fstest.MapFS{
+		"safe-skill/SKILL.md":           skillFile("safe-skill", "safe skill", "body"),
+		"safe-skill/references/note.md": {Data: []byte("note")},
+	}
+	for _, operation := range []struct {
+		name string
+		call func(context.Context, ResourceSource) error
+	}{
+		{name: "list", call: func(ctx context.Context, source ResourceSource) error {
+			_, err := source.List(ctx)
+			return err
+		}},
+		{name: "load", call: func(ctx context.Context, source ResourceSource) error {
+			_, err := source.Load(ctx, "safe-skill")
+			return err
+		}},
+		{name: "open resource", call: func(ctx context.Context, source ResourceSource) error {
+			_, err := source.OpenResource(ctx, "safe-skill", "references/note.md")
+			return err
+		}},
+	} {
+		t.Run(operation.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			source := NewFS(cancelingFS{FS: base, cancel: cancel})
+			if err := operation.call(ctx, source); !errors.Is(err, context.Canceled) {
+				t.Fatalf("error = %v, want context.Canceled", err)
+			}
+		})
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	source := cancelingResourceSource{ResourceSource: NewFS(base), cancel: cancel}
+	if _, err := ReadResource(ctx, source, "safe-skill", "references/note.md"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ReadResource error = %v, want context.Canceled", err)
+	}
+}
+
 func TestReadResourceRejectsNilSource(t *testing.T) {
 	var typedNil *panicResourceSource
 	tests := []struct {
@@ -195,6 +348,36 @@ func TestDirRejectsResourceSymlinkEscapingRoot(t *testing.T) {
 
 	if _, err := ReadResource(t.Context(), Dir(root), "safe-skill", "references/secret.txt"); err == nil {
 		t.Fatal("ReadResource followed a symlink outside the source root")
+	}
+}
+
+func TestDirRejectsResourceSymlinkEscapingSkill(t *testing.T) {
+	root := t.TempDir()
+	skillDir := filepath.Join(root, "safe-skill")
+	otherDir := filepath.Join(root, "other-skill")
+	if err := os.MkdirAll(filepath.Join(skillDir, "references"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(otherDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(skillDir, SkillFile),
+		[]byte("---\nname: safe-skill\ndescription: Safe skill.\n---\nbody"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(otherDir, "secret.txt"), []byte("sibling secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(skillDir, "references", "secret.txt")
+	if err := os.Symlink(filepath.Join("..", "..", "other-skill", "secret.txt"), link); err != nil {
+		t.Skipf("create symlink: %v", err)
+	}
+
+	if _, err := ReadResource(t.Context(), Dir(root), "safe-skill", "references/secret.txt"); err == nil {
+		t.Fatal("ReadResource followed a symlink into a sibling skill")
 	}
 }
 

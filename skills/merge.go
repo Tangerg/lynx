@@ -9,9 +9,11 @@ import (
 	"strings"
 )
 
-// Merge layers several resource sources into one. Earlier sources take precedence:
-// on a name collision the first source that has the skill wins, so callers
-// express precedence by order (e.g. a project source before a global one).
+// Merge layers several resource sources into one. Earlier sources take
+// precedence: on a name collision the first source that has the skill wins, so
+// callers express precedence by order (e.g. a project source before a global
+// one). The winning source owns the complete skill bundle; missing resources
+// do not fall through to a lower-precedence copy with the same name.
 //
 // Nil and typed-nil sources are dropped. Merge of a single source returns it
 // unchanged; Merge of none yields an empty source (List returns nothing, Load
@@ -41,10 +43,19 @@ var _ ResourceSource = (*merged)(nil)
 // List unions every source's summaries, keeping the first occurrence of each
 // name (precedence by source order) and sorting the result by name.
 func (m *merged) List(ctx context.Context) ([]Summary, error) {
+	if err := contextError(ctx, "list"); err != nil {
+		return nil, err
+	}
 	var out []Summary
 	seen := make(map[string]struct{})
 	for _, src := range m.sources {
+		if err := contextError(ctx, "list"); err != nil {
+			return nil, err
+		}
 		summaries, err := src.List(ctx)
+		if ctxErr := contextError(ctx, "list"); ctxErr != nil {
+			return nil, ctxErr
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -66,35 +77,58 @@ func (m *merged) List(ctx context.Context) ([]Summary, error) {
 // skipped; malformed skills return immediately so a broken higher-precedence
 // copy is not silently masked by a lower one.
 func (m *merged) Load(ctx context.Context, name string) (*Skill, error) {
-	return firstOK(m.sources, name, func(src ResourceSource) (*Skill, error) {
-		return src.Load(ctx, name)
-	})
+	if err := validateName(name); err != nil {
+		return nil, err
+	}
+	_, skill, err := m.find(ctx, name, fmt.Sprintf("load %q", name))
+	return skill, err
 }
 
-// OpenResource opens the resource from the first source that has it.
+// OpenResource opens a resource from the source that owns the winning skill.
+// A lower-precedence copy must never contribute files to a higher-precedence
+// skill with the same name.
 func (m *merged) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
-	return firstOK(m.sources, name, func(src ResourceSource) (fs.File, error) {
-		return src.OpenResource(ctx, name, resource)
-	})
+	if err := validateName(name); err != nil {
+		return nil, err
+	}
+	if err := validateResourcePath(resource); err != nil {
+		return nil, err
+	}
+	operation := fmt.Sprintf("open resource %q/%q", name, resource)
+	src, _, err := m.find(ctx, name, operation)
+	if err != nil {
+		return nil, err
+	}
+	file, err := src.OpenResource(ctx, name, resource)
+	return checkedResourceFile(ctx, operation, name, resource, file, err)
 }
 
-// firstOK returns the first source's successful result. Only not-exist errors
-// fall through to lower-precedence sources; every other error is authoritative.
-func firstOK[T any](sources []ResourceSource, name string, op func(ResourceSource) (T, error)) (T, error) {
-	var zero T
+// find returns the first source that owns name and the skill it loaded. Only
+// not-exist errors fall through; malformed higher-precedence skills remain
+// authoritative rather than being silently shadowed by a lower source.
+func (m *merged) find(ctx context.Context, name, operation string) (ResourceSource, *Skill, error) {
+	if err := contextError(ctx, operation); err != nil {
+		return nil, nil, err
+	}
 	var errs []error
-	for _, src := range sources {
-		got, err := op(src)
+	for _, src := range m.sources {
+		if err := contextError(ctx, operation); err != nil {
+			return nil, nil, err
+		}
+		skill, err := src.Load(ctx, name)
+		if ctxErr := contextError(ctx, operation); ctxErr != nil {
+			return nil, nil, ctxErr
+		}
 		if err == nil {
-			return got, nil
+			return src, skill, nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
-			return zero, err
+			return nil, nil, err
 		}
 		errs = append(errs, err)
 	}
 	if len(errs) == 0 {
-		return zero, fmt.Errorf("skills: %q not found: no sources", name)
+		return nil, nil, fmt.Errorf("skills: skill %q: %w", name, fs.ErrNotExist)
 	}
-	return zero, errors.Join(errs...)
+	return nil, nil, errors.Join(errs...)
 }
