@@ -50,6 +50,8 @@ type onceOnlyTool struct {
 	processWideCalled map[string]struct{}
 }
 
+var _ tools.FileMutationReporter = (*onceOnlyTool)(nil)
+
 func (t *onceOnlyTool) Definition() chat.ToolDefinition { return t.delegate.Definition() }
 
 func (t *onceOnlyTool) ReturnsDirect() bool {
@@ -57,6 +59,15 @@ func (t *onceOnlyTool) ReturnsDirect() bool {
 		return d.ReturnsDirect()
 	}
 	return false
+}
+
+// MutationPaths forwards prospective file targets without consuming the
+// once-only allowance. Metadata inspection must not change policy state.
+func (t *onceOnlyTool) MutationPaths(arguments string) ([]string, error) {
+	if reporter, ok := t.delegate.(tools.FileMutationReporter); ok {
+		return reporter.MutationPaths(arguments)
+	}
+	return nil, nil
 }
 
 func (t *onceOnlyTool) Call(ctx context.Context, arguments string) (string, error) {
@@ -118,6 +129,8 @@ type unlockTool struct {
 	condition UnlockCondition
 }
 
+var _ tools.FileMutationReporter = (*unlockTool)(nil)
+
 func (t *unlockTool) Definition() chat.ToolDefinition { return t.delegate.Definition() }
 
 func (t *unlockTool) ReturnsDirect() bool {
@@ -125,6 +138,15 @@ func (t *unlockTool) ReturnsDirect() bool {
 		return d.ReturnsDirect()
 	}
 	return false
+}
+
+// MutationPaths forwards prospective targets without evaluating the unlock
+// condition. The runtime may need those targets before it invokes Call.
+func (t *unlockTool) MutationPaths(arguments string) ([]string, error) {
+	if reporter, ok := t.delegate.(tools.FileMutationReporter); ok {
+		return reporter.MutationPaths(arguments)
+	}
+	return nil, nil
 }
 
 func (t *unlockTool) Call(ctx context.Context, arguments string) (string, error) {
