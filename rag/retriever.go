@@ -142,26 +142,35 @@ func parallelCollect[Item, Out any](
 		return nil, err
 	}
 
-	var (
-		mu   sync.Mutex
-		out  []Out
-		errs []error
-	)
+	// Each goroutine writes only its own index, so no lock is needed and the
+	// union stays in input order regardless of completion order — Dedup's
+	// first-occurrence representative and TopK's tie-break depend on it.
+	results := make([][]Out, len(items))
+	failures := make([]error, len(items))
 
 	var wg sync.WaitGroup
 	for index, item := range items {
 		wg.Go(func() {
 			result, err := fn(ctx, index, item)
-			mu.Lock()
-			defer mu.Unlock()
 			if err != nil {
-				errs = append(errs, fmt.Errorf("%s #%d: %w", itemLabel, index, err))
+				failures[index] = fmt.Errorf("%s #%d: %w", itemLabel, index, err)
 				return
 			}
-			out = append(out, result...)
+			results[index] = result
 		})
 	}
 	wg.Wait()
+
+	var out []Out
+	for _, block := range results {
+		out = append(out, block...)
+	}
+	errs := make([]error, 0, len(failures))
+	for _, err := range failures {
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
 
 	if len(errs) == 0 {
 		return out, nil
