@@ -66,8 +66,8 @@ type EditOutput struct {
 	Replacements int
 }
 
-// EditOperation is one exact-string replacement performed by an Executor.
-type EditOperation struct {
+// editOperation is one exact-string replacement applied by the local executor.
+type editOperation struct {
 	OldString  string
 	NewString  string
 	ReplaceAll bool
