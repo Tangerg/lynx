@@ -90,7 +90,8 @@ type ToolOptions struct {
 	// keeps every MCP call exclusive because protocol descriptors do not provide
 	// a trustworthy resource-conflict contract. The lynx Agent ToolLoop still
 	// commits results in the model's original call order when this policy enables
-	// concurrent execution.
+	// concurrent execution. [AnnotatedReadOnlyConcurrency] is the conservative
+	// ready-made policy for trusted descriptors that declare readOnlyHint=true.
 	Concurrency ConcurrencyFunc
 }
 
