@@ -47,7 +47,7 @@ type Choice struct {
 	Index        int          `json:"index"`
 	Message      *Message     `json:"message,omitempty"`
 	FinishReason FinishReason `json:"finish_reason,omitempty"`
-	Extensions   metadata.Map `json:"extensions,omitempty"`
+	Extensions   metadata.Map `json:"extensions,omitzero"`
 }
 
 // SetExtension JSON-encodes a choice-scoped provider value.
@@ -130,7 +130,7 @@ type Response struct {
 	Model      string       `json:"model,omitempty"`
 	Choices    []Choice     `json:"choices,omitempty"`
 	Usage      Usage        `json:"usage,omitzero"`
-	Extensions metadata.Map `json:"extensions,omitempty"`
+	Extensions metadata.Map `json:"extensions,omitzero"`
 }
 
 // NewResponse validates a Response containing choices.

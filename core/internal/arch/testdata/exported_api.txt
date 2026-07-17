@@ -65,16 +65,16 @@ chat: func NewUserMessage(parts ...Part) Message
 chat: func Wrap(model Model, middlewares ...CallMiddleware) Model
 chat: func WrapStream(streamer Streamer, middlewares ...StreamMiddleware) Streamer
 chat: type CallMiddleware func(next Model) Model
-chat: type Choice struct { Index int `json:"index"` Message *Message `json:"message,omitempty"` FinishReason FinishReason `json:"finish_reason,omitempty"` Extensions metadata.Map `json:"extensions,omitempty"` }
+chat: type Choice struct { Index int `json:"index"` Message *Message `json:"message,omitempty"` FinishReason FinishReason `json:"finish_reason,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
 chat: type FinishReason string
-chat: type Message struct { Role Role `json:"role"` Parts []Part `json:"parts"` Metadata metadata.Map `json:"metadata,omitempty"` }
+chat: type Message struct { Role Role `json:"role"` Parts []Part `json:"parts"` Metadata metadata.Map `json:"metadata,omitzero"` }
 chat: type Model interface { Call(ctx context.Context, req *Request) (*Response, error) }
 chat: type ModelFunc func(ctx context.Context, req *Request) (*Response, error)
 chat: type Options struct { Model string `json:"model,omitempty"` FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"` MaxTokens *int64 `json:"max_tokens,omitempty"` PresencePenalty *float64 `json:"presence_penalty,omitempty"` Stop []string `json:"stop,omitempty"` Temperature *float64 `json:"temperature,omitempty"` TopK *int64 `json:"top_k,omitempty"` TopP *float64 `json:"top_p,omitempty"` }
 chat: type Part struct { Kind PartKind `json:"kind"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Signature []byte `json:"signature,omitempty"` ToolCall *ToolCall `json:"tool_call,omitempty"` ToolResult *ToolResult `json:"tool_result,omitempty"` }
 chat: type PartKind string
-chat: type Request struct { Messages []Message `json:"messages"` Tools []ToolDefinition `json:"tools,omitempty"` Options Options `json:"options,omitzero"` Extensions metadata.Map `json:"extensions,omitempty"` }
-chat: type Response struct { ID string `json:"id,omitempty"` Model string `json:"model,omitempty"` Choices []Choice `json:"choices,omitempty"` Usage Usage `json:"usage,omitzero"` Extensions metadata.Map `json:"extensions,omitempty"` }
+chat: type Request struct { Messages []Message `json:"messages"` Tools []ToolDefinition `json:"tools,omitempty"` Options Options `json:"options,omitzero"` Extensions metadata.Map `json:"extensions,omitzero"` }
+chat: type Response struct { ID string `json:"id,omitempty"` Model string `json:"model,omitempty"` Choices []Choice `json:"choices,omitempty"` Usage Usage `json:"usage,omitzero"` Extensions metadata.Map `json:"extensions,omitzero"` }
 chat: type ResponseAccumulator struct { response Response choices []accumulatedChoice byIndex map[int]int seen bool }
 chat: type Role string
 chat: type StreamMiddleware func(next Streamer) Streamer
@@ -178,7 +178,7 @@ media: func (s Source) Validate() error
 media: func NewBytes(mimeType string, data []byte) (*Media, error)
 media: func NewReference(mimeType, ref string) (*Media, error)
 media: func NewURI(mimeType, uri string) (*Media, error)
-media: type Media struct { MIME string `json:"mime"` Source Source `json:"source"` ID string `json:"id,omitempty"` Name string `json:"name,omitempty"` Metadata metadata.Map `json:"metadata,omitempty"` }
+media: type Media struct { MIME string `json:"mime"` Source Source `json:"source"` ID string `json:"id,omitempty"` Name string `json:"name,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
 media: type Source struct { Kind SourceKind `json:"kind"` Bytes []byte `json:"bytes,omitempty"` URI string `json:"uri,omitempty"` Ref string `json:"ref,omitempty"` }
 media: type SourceKind string
 media: var ( ErrNilMedia = errors.New("media: nil media") ErrInvalidMIME = errors.New("media: invalid MIME type") ErrInvalidSource = errors.New("media: invalid source") )
@@ -186,6 +186,7 @@ metadata: func (m *Map) Merge(source Map) error
 metadata: func (m *Map) Set(key string, value any) error
 metadata: func (m *Map) UnmarshalJSON(data []byte) error
 metadata: func (m Map) Clone() Map
+metadata: func (m Map) IsZero() bool
 metadata: func (m Map) MarshalJSON() ([]byte, error)
 metadata: func (m Map) Validate() error
 metadata: func (m Map) Values() (map[string]any, error)
